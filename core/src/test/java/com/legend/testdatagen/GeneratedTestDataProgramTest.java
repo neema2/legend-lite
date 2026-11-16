@@ -529,6 +529,20 @@ class GeneratedTestDataProgramTest {
         assertTrue(verdicts.get(0).startsWith("assert false"), what + ": " + verdicts);
     }
 
+    /** A generator's body: the facts its plan carries are the ones the test door states over the body as given (its
+     *  shape {@code LLLLLA}, the generator's let among them), though the planner splices the generator's planned rows
+     *  in before the body is classed (the C5-J audit's SHOULD 1, 2026-11-15: until then the plan's were stated over
+     *  the spliced body, {@code LLLLA}). */
+    @org.junit.jupiter.api.Test
+    void aGeneratorBodysPlanCarriesTheFactsTheDoorStates() {
+        TestBackend backend = TestBackends.inProcess().get(0);
+        ModelContext ctx = Compiler.compileModel(model(backend));
+        String body = "{|" + LETS + "assertEquals('" + pure(SLICE) + "', $testData.dataCsvString);}";
+        com.legend.testexecutionplan.BodyFacts stated = TestExecution.facts(typed(ctx, body));
+        assertEquals(stated, TestExecution.planBody(typed(ctx, body), "t::RT", ExecuteOptions.NONE).facts(),
+                backend.name());
+    }
+
     /** A test-data generator's body planned whole (its comparison, its reload, the query over the slice) round-trips as
      *  JSON: the plan is data (B2d.2's audit, L5). */
     @ParameterizedTest

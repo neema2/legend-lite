@@ -17,6 +17,7 @@ import { plannerFor } from './catalog-builder.ts';
 import { row } from './lite-compiler.ts';
 import type { LitePlanner } from '../src/lite-planner.ts';
 import { from } from '../../pure-protocol/src/index.ts';
+import { asTest } from '../../engine-client/test/unplanned.ts';
 
 // Six sales: two regions, three months -- small enough to check every number by hand.
 const CSV = [
@@ -63,7 +64,7 @@ after(async () => {
 /** The chart's rows, as the planner plans its query and the database answers it. */
 async function rows(spec: ChartSpec, s: CubeSnapshot = cube): Promise<ResultTable> {
   const { query } = chartQuery(s, spec);
-  return engine.execute(await planner.plan(query), 0);
+  return asTest(engine).execute(await planner.plan(query), 0);
 }
 
 /** A column of the answer, by name. */
@@ -171,7 +172,7 @@ describe('the presets in the grid, planned and run: along its own rows', () => {
         ...showAsColumns({ kind: 'percentOfTotal' }, 'revenue', [], [], 'revenue_share'),
       ],
     };
-    const t = await engine.execute(await planner.plan(levelLambda(s, { level: 1, parent: [] })), 0);
+    const t = await asTest(engine).execute(await planner.plan(levelLambda(s, { level: 1, parent: [] })), 0);
     assert.deepEqual(values(t, 'region'), ['AMER', 'EMEA']);
     assert.deepEqual(values(t, 'revenue_runningTotal'), [600, 1200]);
     assert.deepEqual(values(t, 'revenue_share').map(Number), [0.5, 0.5]);
@@ -187,7 +188,7 @@ describe('the presets in the grid, planned and run: along its own rows', () => {
     ];
     const s: CubeSnapshot = { ...cube, rows: along, sorts: [], groupDerived: shares('revenue') };
     const run = async (snapshot: CubeSnapshot, level: number, parent: string[]): Promise<ResultTable> =>
-      engine.execute(await planner.plan(levelLambda(snapshot, { level, parent })), 0);
+      asTest(engine).execute(await planner.plan(levelLambda(snapshot, { level, parent })), 0);
     const fixed = (t: ResultTable, c: string): string[] => values(t, c).map((v) => Number(v).toFixed(6));
     const ratios = (xs: readonly number[]): string[] => xs.map((v) => v.toFixed(6));
     // EMEA's sales, 100, 200 and 300: of EMEA's 600 and of the whole's 1200
@@ -226,7 +227,7 @@ describe('the presets in the grid, planned and run: along its own rows', () => {
       groupDerived: gridShowAsColumns('percentOfTotal', 'revenue', ['region'], 'of_all'),
     };
     const detail = detailSnapshot(s, ['EMEA']);
-    const t = await engine.execute(await planner.plan(levelLambda(detail, { level: 0, parent: [], grandFilter: s.filter ?? null })), 0);
+    const t = await asTest(engine).execute(await planner.plan(levelLambda(detail, { level: 0, parent: [], grandFilter: s.filter ?? null })), 0);
     assert.deepEqual(values(t, 'revenue').map(Number).sort((a, b) => a - b), [100, 200, 300]);
     assert.deepEqual(values(t, 'of_all').map((v) => Number(v).toFixed(6)).sort(),
       [100 / 1150, 200 / 1150, 300 / 1150].map((v) => v.toFixed(6)));
@@ -241,7 +242,7 @@ describe('the presets in the grid, planned and run: along its own rows', () => {
       rows: ['sold_quarter'],
       sorts: [{ column: 'sold_quarter', direction: 'asc' }],
     };
-    const t = await engine.execute(await planner.plan(levelLambda(s, { level: 1, parent: [] })), 0);
+    const t = await asTest(engine).execute(await planner.plan(levelLambda(s, { level: 1, parent: [] })), 0);
     assert.deepEqual(values(t, 'sold_quarter').map((v) => String(v).slice(0, 10)), ['2024-01-01']);
     assert.deepEqual(values(t, 'revenue'), [1200]);
   });
@@ -276,7 +277,7 @@ describe('the example pages\' charts, planned and run on their own sample (docs/
       const r = await ingestFile(local, db.files, new File([salesCsv(EXAMPLE_ROWS)], 'sample-sales.csv'), writer);
       const sales = plannerFor(r.model, r.runtime);
       // the page's column types are the compiler's reading of the file
-      const all = await local.execute(await sales.plan(from(r.source).limit(1).lambda()), 0);
+      const all = await asTest(local).execute(await sales.plan(from(r.source).limit(1).lambda()), 0);
       assert.deepEqual(all.columns.map((c) => `${c.name}:${c.type}`), SALES_SPECS.map((c) => `${c.name}:${c.type}`));
       const cube: CubeSnapshot = { ...EXAMPLE_CUBE, source: { query: r.source } };
       // batch 2's page, batch 3's and the gallery; a chart of the grid as shown (a sunburst, a tree) has no query of its own
@@ -284,7 +285,7 @@ describe('the example pages\' charts, planned and run on their own sample (docs/
       for (const v of views) {
         if (v.kind !== 'chart' || GRID_MARKS.has(v.spec.mark)) continue;
         const { query } = chartQuery(cube, v.spec);
-        const t = await local.execute(await sales.plan(query), 0);
+        const t = await asTest(local).execute(await sales.plan(query), 0);
         assert.ok(t.rowCount > 0, `${v.title}: rows`);
         // a value on a bin's edge is in its own bin: 0.15 / 0.05 is 2.9999999999999996 in floating point, and the
         // database rounds the quotient before its floor (calc-presets.ts floorOf)
@@ -301,7 +302,7 @@ describe('the example pages\' charts, planned and run on their own sample (docs/
         // window, in the trend's own order whatever it is shown in (the user, 2026-10-23: the KPI's change)
         if (v.spec.mark === 'kpi' && v.spec.x !== undefined) {
           const trend = kpiQueries(cube, v.spec).trend!;
-          const answered = await local.execute(await sales.plan(trend.query), 0);
+          const answered = await asTest(local).execute(await sales.plan(trend.query), 0);
           const measure = measureName(v.spec.y[0]!);
           const [now, before] = values(answered, measure).map(Number);
           const change = values(answered, measureName(kpiChange(v.spec)!)).map((c) => (c === null ? null : Number(c)));
@@ -341,7 +342,7 @@ describe('the database\'s edges: a period\'s end, a bin\'s upper edge (the audit
       const zero = plannerFor(r.model, r.runtime);
       const { query } = chartQuery({ ...cube, source: { query: r.source } },
         { ...BY_REGION, x: 'sold', grain: 'month', y: [{ column: 'revenue', fn: 'sum', showAs: { kind: 'percentChange' } }] });
-      const t = await local.execute(await zero.plan(query), 0);
+      const t = await asTest(local).execute(await zero.plan(query), 0);
       assert.deepEqual(values(t, 'percentChange_sum_revenue'), [null, null]);
     } finally {
       await local.close();
@@ -367,7 +368,7 @@ describe('a bin and its filter agree by construction (the DataCube + Python line
       };
       for (const bins of [{ width: 0.05 }, { count: 4 }]) {
         const spec: ChartSpec = { ...BY_REGION, x: 'discount', bins, y: [{ column: 'discount', fn: 'count' }] };
-        const bars = await local.execute(await p.plan(chartQuery(edges, spec).query), 0);
+        const bars = await asTest(local).execute(await p.plan(chartQuery(edges, spec).query), 0);
         const at = values(bars, 'discount__bin');
         const counts = values(bars, 'count').map(Number);
         const uppers = values(bars, AXIS_UPPER);
@@ -375,7 +376,7 @@ describe('a bin and its filter agree by construction (the DataCube + Python line
         for (let i = 0; i < at.length; i++) {
           // the bar's click, run as the grid's filter: its rows, and none of another bar's
           const filter = markConditions(spec, edges, { discount: at[i] as number }, uppers[i] as number);
-          const kept = await local.execute(await p.plan(chartQuery({ ...edges, filter: { kind: 'and', children: filter } },
+          const kept = await asTest(local).execute(await p.plan(chartQuery({ ...edges, filter: { kind: 'and', children: filter } },
             { ...BY_REGION, x: 'region', y: [{ column: 'discount', fn: 'count' }] }).query), 0);
           const total = values(kept, 'count').map(Number).reduce((a, b) => a + b, 0);
           assert.equal(total, counts[i], `${JSON.stringify(bins)}: the bar at ${String(at[i])} holds ${counts[i]}, its click keeps ${total}`);
@@ -457,7 +458,7 @@ describe('batch 4, planned and run: a box plot\'s figures are the database\'s', 
       pivotTotal: { placement: 'right' },
       columns: cube.columns.map((c) => (c.name === 'cost' ? { ...c, aggregate: 'percentile25' as const } : c)),
     };
-    const t = await engine.execute(await planner.plan(levelLambda(s, undefined, pinnedPivotFacts(s) ?? undefined)), 0);
+    const t = await asTest(engine).execute(await planner.plan(levelLambda(s, undefined, pinnedPivotFacts(s) ?? undefined)), 0);
     const cell = (part: string): number => {
       const c = t.columns.find((x) => x.name.includes(part) && x.name.includes('cost'));
       assert.ok(c, `a column for ${part} (the answer has ${t.columns.map((x) => x.name).join(', ')})`);
@@ -476,7 +477,7 @@ describe('batch 4, planned and run: a box plot\'s figures are the database\'s', 
         : c.name === 'revenue' ? { ...c, aggregate: 'percentile75' as const } : c)),
       sorts: [{ column: 'region', direction: 'asc' }],
     };
-    const t = await engine.execute(await planner.plan(levelLambda(s, { level: 1, parent: [] })), 0);
+    const t = await asTest(engine).execute(await planner.plan(levelLambda(s, { level: 1, parent: [] })), 0);
     // AMER's costs 40, 90, 100 and EMEA's 60, 150, 200; revenues 50, 150, 400 and 100, 200, 300
     assert.deepEqual(values(t, 'region'), ['AMER', 'EMEA']);
     assert.deepEqual(values(t, 'cost').map(Number), [65, 105]);

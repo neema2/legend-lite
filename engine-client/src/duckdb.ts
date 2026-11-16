@@ -22,6 +22,7 @@ import type { Plan } from './relation-type.ts';
 import type { ResultTable, Scalar } from './result.ts';
 import { dayText, decimalText, exactInteger, timeText, timestampText } from './values.ts';
 import type { PlannedSql } from './planned-sql.ts';
+import { sending } from './run-frame.ts';
 
 /**
  * The slice of duckdb-wasm's connection we actually use. Declaring it
@@ -64,20 +65,9 @@ export interface ArrowishConnection {
   close?(): void | Promise<void>;
 }
 
-/** The connection as a plan holds it (DuckDbEngine.exclusive): no other query between its statements. */
-export interface HeldConnection {
-  /** A statement's rows, each its values by column; one with values to bind, prepared and run with them (refused by
-   *  name where the connection prepares none). */
-  rows(sql: PlannedSql, params: readonly (string | number | boolean | null)[]): Promise<unknown[][]>;
-  /** A statement's answer decoded as the engine's queries are (a catalog read inside the hold). */
-  table(sql: PlannedSql): Promise<RawTable>;
-  /**
-   * One Arrow IPC stream's rows into `target` by the connection's own Arrow import, no statement spelled: `create` makes
-   * the table, else the rows are appended -- a planned stream step's chunks (plan-runner.ts runLoad: a snapshot from a
-   * remote plane, in the step's transaction). A connection without the import refuses it by name.
-   */
-  insertArrow(bytes: Uint8Array, target: { readonly schema?: string; readonly table: string }, create: boolean): Promise<void>;
-}
+// the connection a plan holds, a record since the C5-T last round's T1 (query-engine.ts): read here by its importers
+export type { HeldConnection } from './query-engine.ts';
+import type { HeldConnection } from './query-engine.ts';
 
 /** A prepared statement, as DuckDB-WASM's connections give one. */
 export interface ArrowishPrepared {
@@ -352,8 +342,10 @@ class BatchAccumulator {
 
 export class DuckDbEngine implements QueryEngine {
   readonly name = 'duckdb';
-  /** The database type of what this tab holds, as a Pure connection names it: what a model of its tables declares. */
-  readonly databaseType = 'DuckDB';
+  /** The database type of what this tab holds, as a Pure connection names it: what a model of its tables declares --
+   *  the one spelling, the class's (the start's door asks the planner for it before an engine exists). */
+  static readonly databaseType = 'DuckDB';
+  readonly databaseType = DuckDbEngine.databaseType;
   readonly #conn: ArrowishConnection;
   /** Tail of the queue of queries on this connection. See #serialised. */
   #chain: Promise<void> = Promise.resolve();
@@ -444,7 +436,10 @@ export class DuckDbEngine implements QueryEngine {
     const rowsOf = (t: ArrowishTable): unknown[][] => Array.from({ length: t.numRows }, (_, r) =>
       t.schema.fields.map((_f, c) => t.getChildAt(c)?.get(r)));
     return this.#serialised(() => work({
+      // each send a run's, on Node (run-frame.ts sending): the held connection's statements are a plan's, run by the
+      // plan runner inside its run -- refused at each send (its own, or #whole's)
       rows: async (sql, params) => {
+        sending("DuckDB's connection");
         if (params.length > 0 && conn.prepare === undefined) throw new Error("this tab's database binds no statement's values");
         try {
           if (params.length === 0) return rowsOf(await conn.query(sql));
@@ -459,8 +454,10 @@ export class DuckDbEngine implements QueryEngine {
           throw this.#failed(cause, sql);
         }
       },
-      table: (sql) => this.#whole(sql, 0, undefined, performance.now()),
+      // a promise, refused as one (#whole's refusal rejects it): never a throw where a promise is promised
+      table: async (sql) => this.#whole(sql, 0, undefined, performance.now()),
       insertArrow: async (bytes, target, create) => {
+        sending("DuckDB's connection");
         const insert = conn.insertArrowFromIPCStream;
         if (typeof insert !== 'function') throw new Error("this tab's database has no Arrow import: a remote plane's rows cannot stream into it");
         try {
@@ -483,6 +480,8 @@ export class DuckDbEngine implements QueryEngine {
     signal?: AbortSignal,
     params: readonly string[] = [],
   ): Promise<RawTable> {
+    // a run's, on Node: refused at the send primitives (#whole, #batches, #bound: run-frame.ts sending), DuckDB's one
+    // choke point (PlannedSqlTest's DATABASE_SENDS)
     if (signal?.aborted) throw signal.reason ?? new Error('aborted');
     return this.#serialised(async () => {
       // Checked AGAIN after waiting for the connection. This is where
@@ -506,6 +505,7 @@ export class DuckDbEngine implements QueryEngine {
    * A connection that prepares none refuses it by name.
    */
   async *#bound(sql: PlannedSql, params: readonly string[]): AsyncIterable<ArrowishTable> {
+    sending("DuckDB's connection");
     if (this.#conn.prepare === undefined) throw new Error("this database binds no statement's values: a plan's payload is not run here");
     const prepared = await this.#conn.prepare(sql);
     try {
@@ -591,6 +591,9 @@ export class DuckDbEngine implements QueryEngine {
     started: number,
     params: readonly string[] = [],
   ): Promise<RawTable> {
+    // THE SEND PRIMITIVES each refuse a statement sent outside a run, on Node (run-frame.ts sending; the C5-T audit's
+    // item 7, 2026-11-15): this one, #batches and #bound -- so no public method that reaches one skips it
+    sending("DuckDB's connection");
     let table: ArrowishTable;
     try {
       if (params.length === 0) {
@@ -623,6 +626,7 @@ export class DuckDbEngine implements QueryEngine {
     onBatch: (batch: ArrowishTable) => void,
     params: readonly string[] = [],
   ): Promise<void> {
+    sending("DuckDB's connection");
     const send = this.#conn.send;
     if (!send) throw new Error('streaming unavailable');
 

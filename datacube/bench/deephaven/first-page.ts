@@ -8,6 +8,7 @@
 
 import { DeephavenSession } from '../../../engine-client/src/deephaven.ts';
 import { LiveClient, type Followed, type FollowedRows } from '../../../engine-client/src/deephaven-live.ts';
+import { deephavenApi } from '../../../engine-client/src/doors/deephaven-api.ts';
 import { byPosition, deephavenRows, followedTable } from '../../../engine-client/src/deephaven-rows.ts';
 import type { Plan } from '../../../engine-client/src/relation-type.ts';
 import { LitePlanner } from '../../src/lite-planner.ts';
@@ -53,7 +54,7 @@ async function main(): Promise<void> {
     assetBaseUrl: './' });
   await planner.warmUp();
   const session = await DeephavenSession.open(server, (op, args) => planner.deephaven(op, args));
-  const live = await LiveClient.open(server, () => { /* the run fails on its own */ });
+  const live = await LiveClient.open(server, () => { /* the run fails on its own */ }, deephavenApi(server.url));
   // the source made and kept alive once, as the cube's first view makes it
   (await session.keepAlive((await planner.planText(source('') + SHAPES.level)).sql)).release();
   let literal = 0;

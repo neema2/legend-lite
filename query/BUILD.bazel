@@ -31,7 +31,7 @@ js_library(
     srcs = glob(["src/**/*.ts", "src/**/*.css"]) + ["package.json", "tsconfig.json"],
     # Studio embeds the query builder (src/embed.ts, plan A5), as upstream Studio embeds legend-query-builder; DataCube's
     # census of the brand's casts reads Query's program (datacube/test/brand-casts.test.ts, the re-audit's S5)
-    visibility = ["//datacube:__pkg__", "//studio:__pkg__"],
+    visibility = ["//datacube:__pkg__", "//studio:__pkg__", "//tools/deps:__pkg__"],
     deps = [
         # projects opened by name: the model home (the page's SDLC and Depot, or servers) and its Depot (by-name.ts)
         "//depot-client:depot_client",
@@ -42,8 +42,14 @@ js_library(
         "//query-store:query_store",
         # DataCube's grid, for the results (datacube/src/embed.ts)
         "//datacube:src",
-        # where queries run: DuckDB-WASM, the warehouse, legend-engine's pure/v1 (engine-client/README.md)
-        "//engine-client:engine_client",
+        # where queries run (engine-client/README.md) -- through its doors alone (the C5-T last round's T1, 2026-11-15: an
+        # app reaches no run layer, tools/deps/ts-layers.txt): the records, the planner, legend-engine's pure/v1 and the doors
+        "//engine-client:doors",
+        # the engines' interfaces the doors hand the app (2026-11-15, the C5-T final audit's MUST 1)
+        "//engine-client:engine_api",
+        "//engine-client:planner",
+        "//engine-client:records",
+        "//engine-client:server",
     ],
 )
 
@@ -321,4 +327,23 @@ test_suite(
     tests = [t[len("test/"):-len(".test.ts")].replace("-", "_") + "_test" for t in _TESTS] + [":typecheck_test"],
 )
 
+# THE APP'S DIRECT DEPS, as Bazel resolves them (the C5-T last round's T1, 2026-11-15): //tools/deps:ts_layering_test
+# holds them to tools/deps/ts-layers.txt -- an app reaches no run layer, the run side through the doors alone
+genquery(
+    name = "layer_src",
+    expression = "labels(deps, //query:src)",
+    scope = [":src"],
+    visibility = ["//tools/deps:__pkg__"],
+)
+
+# the page's own modules (demo/), read by //tools/deps:app_runs_test as app code: the page is the app's entry, bundled
+# beside src/ (the C5-T last round's T4, 2026-11-15). A js_library, as a scanner's data must be; nothing depends on it
+js_library(
+    name = "pages",
+    srcs = glob(["demo/**/*.ts"]),
+    visibility = ["//tools/deps:__pkg__"],
+)
+
+# last, so it sees every rule of the package (tools/guards/defs.bzl; 2026-11-15, the C5-T re-check's item 3: the two
+# targets above were declared after it)
 guards_package()

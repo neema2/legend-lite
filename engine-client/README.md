@@ -20,4 +20,18 @@ Its npm packages are its own lock (`npm_engine_client`): DuckDB-WASM and Apache 
 DuckDB-WASM from `duckdb-wasm.ts`, never directly. That way every bundle carries one copy of Arrow,
 the one the warehouse reads with too. DataCube's bundle budget test holds that.
 
+Its files are in five Bazel targets, Java's shape (C5-T, 2026-11-15; `BUILD.bazel` lists each target's files, and a
+source in no target fails the load):
+
+| Target | What | Direct deps (`tools/deps/ts-layers.txt`) |
+|---|---|---|
+| `:records` | The shapes both sides read: the branded statement, the requests, the run frame, results, types | the protocol |
+| `:run` | What sends a plan's statements and reads their rows: the plan runner, DuckDB, the warehouse | records, npm |
+| `:planner` | legend-lite's planner in the tab, its planning client (no execute), and the questions a host asks it | records, the protocol |
+| `:server` | legend-engine's API clients; their execute is the server's door | planner, records, the protocol, fzstd |
+| `:doors` | Each asks the planner, then runs the answer in a run frame (`doors/`, `snap.ts`, `tab-data.ts`, ...) | all of them |
+
+`:run` and `:planner` are each typechecked alone (`//tools/deps:layers_alone`): a run module that imports a planner,
+server or door module fails by name, and a planner module that imports a run, server or door module. `:engine_client` is all five, what the apps depend on.
+
 An app embedding DataCube's grid imports `datacube/src/embed.ts`, DataCube's one public entry.

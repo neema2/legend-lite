@@ -33,9 +33,8 @@
 // plane (a host plans in process: Python's own planner is its one plane, the program's §1.1). A share link needs an
 // address others can open; Python's is this machine's loopback.
 
-import { arrowIpcAnswer } from '../../../engine-client/src/arrow-ipc.ts';
-import { toRawTable } from '../../../engine-client/src/duckdb.ts';
-import { typedByPlan } from '../../../engine-client/src/engine.ts';
+import { hostAnswer } from '../../../engine-client/src/doors/host-answer.ts';
+import { typedByPlan } from '../../../engine-client/src/query-engine.ts';
 import type { Plan } from '../../../engine-client/src/relation-type.ts';
 import { hostOf, type Receipt } from '../../../engine-client/src/receipt.ts';
 import type { ResultTable } from '../../../engine-client/src/result.ts';
@@ -59,7 +58,7 @@ import type {
   QueryService, Services, Versions, WarehouseService, HostCopy, HostOpened,
 } from '../app/services.ts';
 import { LiveRefused } from '../app/services.ts';
-import type { CatalogObject, WarehouseSession } from '../../../engine-client/src/warehouse.ts';
+import type { CatalogObject, WarehouseSession } from '../../../engine-client/src/warehouse-session.ts';
 import type { QueryReader } from '../../../query-store/src/index.ts';
 import { SessionExpired } from '../../../engine-client/src/warehouse-session.ts';
 import { lazily } from '../lazily.ts';
@@ -340,7 +339,7 @@ export function pythonRunner(link: PythonLink, model: string, runtime: string, h
       throw new QueryFailure(cause, query, plan.sql);
     }
     // a body cut short or not Arrow: said as every other failure here is, never thrown raw at the cube
-    const { table, metadata } = await answer.arrayBuffer().then((bytes) => arrowIpcAnswer(new Uint8Array(bytes))).catch((e: unknown) => {
+    const { metadata, rows: read } = await answer.arrayBuffer().then((bytes) => hostAnswer(new Uint8Array(bytes))).catch((e: unknown) => {
       if (signal?.aborted) throw e;
       throw new QueryFailure(new Error(`the engine's rows could not be read: ${e instanceof Error ? e.message : String(e)}`), query);
     });
@@ -352,7 +351,7 @@ export function pythonRunner(link: PythonLink, model: string, runtime: string, h
     const receipt: Receipt = theirs !== undefined ? JSON.parse(theirs) as Receipt
       : { plane: 'engine', where: `the engine at ${hostOf(link.baseUrl)}` };
     try {
-      const rows = typedByPlan(toRawTable(table, epoch, performance.now() - started), plan);
+      const rows = typedByPlan(read(epoch, performance.now() - started), plan);
       return { plan, rows: { ...rows, receipt } };
     } catch (e) {
       throw new QueryFailure(e, query, plan.sql);

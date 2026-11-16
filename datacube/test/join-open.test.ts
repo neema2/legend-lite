@@ -31,7 +31,7 @@ import { boxOmitted } from '../src/box-columns.ts';
 import type { ResultTable } from '../../engine-client/src/result.ts';
 import { lambda, lit, type Lambda } from '../../pure-protocol/src/index.ts';
 import type { LitePlanner } from '../src/lite-planner.ts';
-import { unplanned } from '../../engine-client/test/unplanned.ts';
+import { unplanned, asTest } from '../../engine-client/test/unplanned.ts';
 
 const file = (name: string, columns: [string, string][]): FileSource => ({
   _type: 'file', name: `${name}.csv`, format: 'csv', size: 1, sha256: name.padEnd(64, '0'),
@@ -76,7 +76,7 @@ describe('a join opened over one model, its rows from DuckDB', () => {
   const rows = async (model: string, runtime: string, lambda: Parameters<LitePlanner['plan']>[0]): Promise<Record<string, unknown[]>> => {
     const p = plannerFor(model, runtime);
     planners.push(p);
-    const answer = await engine.run((await p.plan(lambda)).sql, 0);
+    const answer = await asTest(engine).run((await p.plan(lambda)).sql, 0);
     return Object.fromEntries(answer.columns.map((c) => [c.name, c.values.map((v) => (typeof v === 'bigint' ? Number(v) : v))]));
   };
   const count = async (model: string, runtime: string, lambda: Parameters<LitePlanner['plan']>[0]): Promise<number> =>
@@ -86,24 +86,24 @@ describe('a join opened over one model, its rows from DuckDB', () => {
     const db = await openDatabase();
     engine = new DuckDbEngine(db.connection);
     models = plannerFor('', 'local::RT');
-    await engine.run(unplanned('CREATE TABLE trades (id BIGINT NOT NULL, cust INTEGER, sym VARCHAR, "at" TIMESTAMP, qty DOUBLE)'), 0);
-    await engine.run(unplanned(`INSERT INTO trades VALUES (1, 10, 'A', '2026-01-01 10:00', 5), (2, 10, 'B', '2026-01-01 11:00', 7),
+    await asTest(engine).run(unplanned('CREATE TABLE trades (id BIGINT NOT NULL, cust INTEGER, sym VARCHAR, "at" TIMESTAMP, qty DOUBLE)'), 0);
+    await asTest(engine).run(unplanned(`INSERT INTO trades VALUES (1, 10, 'A', '2026-01-01 10:00', 5), (2, 10, 'B', '2026-01-01 11:00', 7),
       (3, 20, 'A', '2026-01-01 12:00', 1), (4, NULL, 'C', '2026-01-01 13:00', 2), (5, 99, 'A', '2026-01-01 09:00', 3)`), 0);
-    await engine.run(unplanned('CREATE TABLE customers (id INTEGER NOT NULL, region VARCHAR)'), 0);
+    await asTest(engine).run(unplanned('CREATE TABLE customers (id INTEGER NOT NULL, region VARCHAR)'), 0);
     // customer 20 twice: a key that repeats
-    await engine.run(unplanned("INSERT INTO customers VALUES (10, 'EMEA'), (20, 'AMER'), (20, 'APAC'), (30, 'EMEA')"), 0);
-    await engine.run(unplanned('CREATE TABLE prices (sym VARCHAR, "at" TIMESTAMP, px DOUBLE)'), 0);
-    await engine.run(unplanned(`INSERT INTO prices VALUES ('A', '2026-01-01 09:30', 100), ('A', '2026-01-01 11:30', 101),
+    await asTest(engine).run(unplanned("INSERT INTO customers VALUES (10, 'EMEA'), (20, 'AMER'), (20, 'APAC'), (30, 'EMEA')"), 0);
+    await asTest(engine).run(unplanned('CREATE TABLE prices (sym VARCHAR, "at" TIMESTAMP, px DOUBLE)'), 0);
+    await asTest(engine).run(unplanned(`INSERT INTO prices VALUES ('A', '2026-01-01 09:30', 100), ('A', '2026-01-01 11:30', 101),
       ('B', '2026-01-01 10:30', 50)`), 0);
-    await engine.run(unplanned('CREATE TABLE more (sym VARCHAR, id BIGINT NOT NULL, venue VARCHAR)'), 0);
-    await engine.run(unplanned("INSERT INTO more VALUES ('D', 6, 'X')"), 0);
-    await engine.run(unplanned('CREATE TABLE labels (id VARCHAR)'), 0);
-    await engine.run(unplanned('CREATE TABLE twins (id INTEGER, c_id INTEGER)'), 0);
+    await asTest(engine).run(unplanned('CREATE TABLE more (sym VARCHAR, id BIGINT NOT NULL, venue VARCHAR)'), 0);
+    await asTest(engine).run(unplanned("INSERT INTO more VALUES ('D', 6, 'X')"), 0);
+    await asTest(engine).run(unplanned('CREATE TABLE labels (id VARCHAR)'), 0);
+    await asTest(engine).run(unplanned('CREATE TABLE twins (id INTEGER, c_id INTEGER)'), 0);
     // a column trades lack of JSON (a Variant), and one of a precise decimal
-    await engine.run(unplanned('CREATE TABLE tagged (id BIGINT NOT NULL, tags JSON)'), 0);
-    await engine.run(unplanned(`INSERT INTO tagged VALUES (7, '["a","b"]')`), 0);
-    await engine.run(unplanned('CREATE TABLE priced (id BIGINT NOT NULL, px DECIMAL(10,2))'), 0);
-    await engine.run(unplanned('INSERT INTO priced VALUES (7, 12.50)'), 0);
+    await asTest(engine).run(unplanned('CREATE TABLE tagged (id BIGINT NOT NULL, tags JSON)'), 0);
+    await asTest(engine).run(unplanned(`INSERT INTO tagged VALUES (7, '["a","b"]')`), 0);
+    await asTest(engine).run(unplanned('CREATE TABLE priced (id BIGINT NOT NULL, px DECIMAL(10,2))'), 0);
+    await asTest(engine).run(unplanned('INSERT INTO priced VALUES (7, 12.50)'), 0);
   });
 
   // each test's planners let go as it ends: a planner is a WebAssembly instance, and kept to the file's end they filled
@@ -140,7 +140,7 @@ describe('a join opened over one model, its rows from DuckDB', () => {
     const inputs = await openInputs(input(TRADES, 'trades'), input(CUSTOMERS, 'customers'), opening(['trades', 'customers']));
     const p = plannerFor(inputs.model, inputs.runtime);
     planners.push(p);
-    const counts = await summaryCounts(joinSummary(inputs.left, inputs.right, once), async (query) => engine.run((await p.plan(query)).sql, 0));
+    const counts = await summaryCounts(joinSummary(inputs.left, inputs.right, once), async (query) => asTest(engine).run((await p.plan(query)).sql, 0));
     assert.deepEqual(counts, { mine: 5, matched: 3, joined: 5, repeated: { keys: 1, most: 2 } });
     assert.match(summaryWords(once, counts).join(' '), /each row of mine with it takes the first of theirs, once/);
     assert.equal(joinRepeats(once, counts), false);
@@ -161,7 +161,7 @@ describe('a join opened over one model, its rows from DuckDB', () => {
     const opened = await openJoin(join(input(TRADES, 'trades'), input(CUSTOMERS, 'customers'), LEFT_ON_CUST), opening(['trades', 'customers']));
     const p = plannerFor(opened.model, opened.runtime);
     planners.push(p);
-    const asked = async (n?: number) => topValuesOf(await engine.run((await p.plan(topValuesLambda(opened.relation, 'region', n))).sql, 0) as never, 'region')
+    const asked = async (n?: number) => topValuesOf(await asTest(engine).run((await p.plan(topValuesLambda(opened.relation, 'region', n))).sql, 0) as never, 'region')
       .map((t) => ({ ...t, count: Number(t.count) }));
     // trades 1 and 2 EMEA, trade 3 AMER and APAC (customer 20 twice), trades 4 and 5 none: 2, 2 (empty, after), 1, 1
     assert.deepEqual(await asked(), [{ value: 'EMEA', count: 2 }, { value: null, count: 2 }, { value: 'AMER', count: 1 }, { value: 'APAC', count: 1 }]);
@@ -173,19 +173,19 @@ describe('a join opened over one model, its rows from DuckDB', () => {
     const q = joinSummary(inputs.left, inputs.right, LEFT_ON_CUST);
     const p = plannerFor(inputs.model, inputs.runtime);
     planners.push(p);
-    const counts = await summaryCounts(q, async (query) => engine.run((await p.plan(query)).sql, 0));
+    const counts = await summaryCounts(q, async (query) => asTest(engine).run((await p.plan(query)).sql, 0));
     // trade 4 has no key, trade 5 no customer; customer 20 twice: trade 3 twice
     assert.deepEqual(counts, { mine: 5, matched: 3, joined: 6, repeated: { keys: 1, most: 2 } });
     // their region repeats (EMEA twice) whether or not a trade matches it: a key of theirs said as it is
     const byRegion: JoinHow = { ...LEFT_ON_CUST, on: { rows: [{ left: 'sym', op: '==', right: 'region' }] } };
-    const regions = await summaryCounts(joinSummary(inputs.left, inputs.right, byRegion), async (query) => engine.run((await p.plan(query)).sql, 0));
+    const regions = await summaryCounts(joinSummary(inputs.left, inputs.right, byRegion), async (query) => asTest(engine).run((await p.plan(query)).sql, 0));
     assert.deepEqual(regions, { mine: 5, matched: 0, joined: 5, repeated: { keys: 1, most: 2 } });
     // no key repeats (each trade's id its own): a count over no rows is none, not a missing answer
     const self = await openInputs(input(TRADES, 'trades'), input(TRADES, 'again'), opening(['trades', 'trades']));
     const q2 = joinSummary(self.left, self.right, { ...LEFT_ON_CUST, on: { rows: [{ left: 'id', op: '==', right: 'id' }] } });
     const p2 = plannerFor(self.model, self.runtime);
     planners.push(p2);
-    const unique = await summaryCounts(q2, async (query) => engine.run((await p2.plan(query)).sql, 0));
+    const unique = await summaryCounts(q2, async (query) => asTest(engine).run((await p2.plan(query)).sql, 0));
     assert.deepEqual(unique, { mine: 5, matched: 5, joined: 5, repeated: { keys: 0, most: 0 } });
   });
 
@@ -213,7 +213,7 @@ describe('a join opened over one model, its rows from DuckDB', () => {
 
   it("an input read by its grid's copy (a cached box, FL10): the copy's table, its query over it -- a box over it, a join of it with a file", async () => {
     // the copy: trades 1 and 2 only, so what reads it is told apart from what reads trades live
-    await engine.run(unplanned('CREATE TABLE trades_copy AS SELECT * FROM trades WHERE id <= 2'), 0);
+    await asTest(engine).run(unplanned('CREATE TABLE trades_copy AS SELECT * FROM trades WHERE id <= 2'), 0);
     const copy = { table: 'trades_copy', label: 'Snap 14:02', takenAt: '2026-10-26T14:02:00.000Z' };
     const big = query(TRADES, { filter: { kind: 'condition', column: 'qty', operator: 'greaterThan', value: 2 } });
     const box: RowsSource = { _type: 'rows', name: 'trades', input: { ...input(TRADES, 'Big', big), copy }, columns: [] };
@@ -225,7 +225,7 @@ describe('a join opened over one model, its rows from DuckDB', () => {
     const joined = await openJoin(join({ ...input(TRADES, 'Big', big), copy }, input(CUSTOMERS, 'customers'), LEFT_ON_CUST), opening(['trades_copy', 'customers']));
     const pairs = await rows(joined.model, joined.runtime, { _type: 'lambda', parameters: [], body: [joined.relation] });
     assert.deepEqual(pairs['id']!.map((id, i) => `${String(id)}:${String(pairs['region']![i])}`).sort(), ['1:EMEA', '2:EMEA']);
-    await engine.run(unplanned('DROP TABLE trades_copy'), 0);
+    await asTest(engine).run(unplanned('DROP TABLE trades_copy'), 0);
   });
 
   it("another grid's rows unresolved is refused, never guessed: its link is its page's", async () => {
@@ -246,7 +246,7 @@ describe('a join opened over one model, its rows from DuckDB', () => {
     // the questions over a grouped input: matched a correlated exists over its groups
     const p = plannerFor(opened.model, opened.runtime);
     planners.push(p);
-    const counts = await summaryCounts(joinSummary(opened.left, opened.right, how), async (query) => engine.run((await p.plan(query)).sql, 0));
+    const counts = await summaryCounts(joinSummary(opened.left, opened.right, how), async (query) => asTest(engine).run((await p.plan(query)).sql, 0));
     assert.deepEqual(counts, { mine: 5, matched: 5, joined: 15 });
   });
 
@@ -300,7 +300,7 @@ describe('a join opened over one model, its rows from DuckDB', () => {
     planners.push(p);
     const run = async (q: Lambda): Promise<ResultTable> => {
       const plan = await p.plan(q);
-      return typedByPlan(await engine.run(plan.sql, 0), plan);
+      return typedByPlan(await asTest(engine).run(plan.sql, 0), plan);
     };
     const queries: OutputQueries = {
       runQuery: async (q) => ({ rows: await run(q), sql: '' }),
@@ -410,7 +410,7 @@ describe('a join opened over one model, its rows from DuckDB', () => {
     const inputs = await openInputs(input(TRADES, 'trades'), input(CUSTOMERS, 'customers'), opening(['trades', 'customers']));
     const p = plannerFor(inputs.model, inputs.runtime);
     planners.push(p);
-    const counts = await summaryCounts(joinSummary(inputs.left, inputs.right, how), async (query) => engine.run((await p.plan(query)).sql, 0));
+    const counts = await summaryCounts(joinSummary(inputs.left, inputs.right, how), async (query) => asTest(engine).run((await p.plan(query)).sql, 0));
     assert.equal(counts.matched, 4, 'trade 4 not among those with a match');
   });
 

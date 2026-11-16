@@ -111,12 +111,12 @@ export class LiveClient {
     this.#ide = ide;
   }
 
-  /** Loads the library from `server` (never bundled: DH11) and signs in with the person's own credential. */
+  /** Signs in to `server` with the person's own credential, through `library` -- Deephaven's JS library, loaded from the
+   *  server by its door (doors/deephaven-api.ts: never bundled, DH11; a run module takes the loaded object, never a
+   *  loader, C5-T). */
   static async open(server: DeephavenServer, onEnded: (why: string) => void,
-    load?: (url: string) => Promise<DhModule>): Promise<LiveClient> {
-    const loaded = load ?? (async (url: string): Promise<DhModule> =>
-      ((await import(/* @vite-ignore */ url)) as { default: DhModule }).default);
-    const dh = await loaded(`${server.url}/jsapi/dh-core.js`);
+    library: DhModule | Promise<DhModule>): Promise<LiveClient> {
+    const dh = await library;
     const client = new dh.CoreClient(server.url);
     try {
       await client.login({ type: server.signIn.type, token: server.signIn.token });

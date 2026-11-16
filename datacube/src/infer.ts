@@ -29,9 +29,7 @@
 // because duckdb-wasm has it compiled in and registerFileBuffer
 // makes it no harder.
 
-import type { HostOperation } from '../../engine-client/src/host-operations.ts';
-import type { FileLoadRequest } from '../../engine-client/src/model-data.ts';
-import type { RemoteMountRequest, SynthesizeRequest } from '../../engine-client/src/host-operations.ts';
+import type { FileLoadRequest, HostOperation, RemoteMountRequest, SynthesizeRequest } from '../../engine-client/src/requests.ts';
 import type { ValueSpecification } from '../../pure-protocol/src/index.ts';
 import type { PlannedSql, PlanText } from '../../engine-client/src/planned-sql.ts';
 
@@ -151,7 +149,8 @@ export interface TableModels {
   /**
    * What a session of the database runs before it is queried, so that it answers as the planner's SQL expects: the
    * dialect's own setup (`Boundary.sessionSetup`: a DuckDB session in UTC). A host runs it on the database it opens
-   * (services/browser.ts `setUpSession`; Python's Frames, from the same function).
+   * (the tab's: the door engine-client/src/doors/tab-duckdb.ts asks it, duckdb-tab.ts `connectDuckDbInTab` runs it by
+   * engine.ts `setUpSession`; Python's: frames.py `Frames` and projects.py, from the same function).
    */
   sessionSetup(databaseType: string): Promise<readonly PlannedSql[]>;
   /** A host's named operations on its own database (D5, engine-client's host-operations.ts): each one's statements. */
@@ -161,7 +160,7 @@ export interface TableModels {
   /** A remote file mounted, as a plan (Boundary.remoteMount, B3's Q3): PlanJson's text, run by runLoad. */
   remoteMount(request: RemoteMountRequest): Promise<PlanText>;
   /** Rows the database makes in a declared table, as a plan (Boundary.synthesize, S303): PlanJson's text, run by
-   *  runLoad -- the demo's sample (demo/boot.ts synthesizeTrades). */
+   *  runLoad through the tab DuckDB's door -- the demo's sample (doors/tab-duckdb.ts synthesizedInTab). */
   synthesize(request: SynthesizeRequest): Promise<PlanText>;
   /** A table Output, as ONE plan (Boundary.outputPlan, the final audit's item 2): PlanJson's text, run by runPlan. */
   outputPlan(request: OutputRequest): Promise<PlanText>;

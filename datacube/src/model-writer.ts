@@ -4,7 +4,7 @@
 // docs/ONE_PLATFORM_PROGRAM_2026_10_12.md B4), not DataCube's; DataCube adds only a planner over a project.
 
 import type { ModelWriter as Writer } from '../../model-changes/src/wire.ts';
-import type { Planner } from './cube.ts';
+import type { Planner } from './planner-types.ts';
 
 export type {
   AssociationAction, AssociationEnd, ClassAction, ColumnChoice, ColumnRole, DataSpaceAction, Joinable, MadeAssociation,

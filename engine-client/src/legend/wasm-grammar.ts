@@ -1,21 +1,23 @@
 // Grammar and typing answered in the tab by legend-lite's planner (WebAssembly, in a worker). The grammar, a query's
 // relation type and a model's compile are legend-engine's pure/v1 (and lite's own compile route) asked of the planner
-// (plannerFetch): the same client as a server's (HttpEngine), the same code answering it (PureV1Api), so the tab and a
-// server cannot answer differently (docs/PROTOCOL_PROGRAM_2026_10_05.md, invariant 5; leg 6). The rest are the
+// (plannerFetch): the same client as a server's (planning-client.ts HttpPlanning, the server's planning client), the
+// same code answering it (PureV1Api), so the tab and a server cannot answer differently (docs/PROTOCOL_PROGRAM_2026_10_05.md, invariant 5; leg 6). The rest are the
 // planner's own calls (docs/QUERY_APP_DESIGN_2026_09_30.md D3).
 
 import type { Lambda } from '../../../pure-protocol/src/index.ts';
 import { toJson } from '../../../pure-protocol/src/index.ts';
 import type { PureModelContextData } from './pmcd.ts';
-import { EngineError, HttpEngine, type Grammar } from './engine.ts';
+import { EngineError } from './engine-api.ts';
+import type { Grammar } from './grammar.ts';
+import { HttpPlanning } from './planning-client.ts';
 import type { RequestBody, Response as PlannerResponse } from './planner-protocol.ts';
 import type { CompileResult, ExecuteInput, PureModelContext, RelationTypeAnswer } from './wire.ts';
-import type { FileLoadRequest } from '../model-data.ts';
-import type { IngestPlans, IngestPlansRequest, RemoteMountRequest, SnapCopyRequest, SnapStreamRequest, SynthesizeRequest } from '../host-operations.ts';
-import type { ProjectDataStatements } from '../project-data.ts';
-import type { HostOperation } from '../host-operations.ts';
+import type {
+  FileLoadRequest, HostOperation, IngestPlans, IngestPlansRequest, ProjectDataStatements, RemoteMountRequest,
+  SnapCopyRequest, SnapStreamRequest, SynthesizeRequest,
+} from '../requests.ts';
 import { allFromPlan, fromPlan, planFromAnswer, plannedProjectData, type PlannedSql, type PlanText } from '../planned-sql.ts';
-import { planning } from '../run-frame.ts';
+import { planning } from '../plan-guard.ts';
 
 /** Where a request goes: a worker, or (in tests) the module called directly. */
 export interface PlannerPort {
@@ -136,11 +138,11 @@ export interface ExecutePlan {
 export class WasmGrammar implements Grammar {
   readonly #port: PlannerPort;
   /** pure/v1 in the tab: the server's client over the planner. */
-  readonly #pureV1: HttpEngine;
+  readonly #pureV1: HttpPlanning;
 
   constructor(port: PlannerPort) {
     this.#port = port;
-    this.#pureV1 = new HttpEngine('/api', plannerFetch(port));
+    this.#pureV1 = new HttpPlanning('/api', plannerFetch(port));
   }
 
   modelJson(text: string): Promise<PureModelContextData> {
@@ -250,7 +252,8 @@ export class WasmGrammar implements Grammar {
     return this.#pureV1.compile(model);
   }
 
-  /** A whole model's every error (Studio's live problems), [] when it compiles: HttpEngine's, asked of the planner. */
+  /** A whole model's every error (Studio's live problems), [] when it compiles: the planning client's, asked of the
+   *  planner. */
   compileErrors(code: string): Promise<string[]> {
     return this.#pureV1.compileErrors(code);
   }

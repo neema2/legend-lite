@@ -11,7 +11,7 @@
 // Not measured here (stage B's, the app wired): a group expanded, a total, a drill; drawing. The page reports; its
 // driver (measure.mjs) judges against the budgets stated before it ran.
 
-import { startDuckDbInTab } from '../../../../engine-client/src/duckdb-tab.ts';
+import { openDuckDbInTab } from '../../../../engine-client/src/doors/tab-duckdb.ts';
 import type { DuckDbLiveReader } from '../../../../engine-client/src/duckdb-live.ts';
 import type { Plan } from '../../../../engine-client/src/relation-type.ts';
 import type { Lambda } from '../../../../pure-protocol/src/index.ts';
@@ -95,7 +95,7 @@ async function main(): Promise<void> {
   await planner.warmUp();
   const plannerMs = performance.now() - t0;
   say('DuckDB starting');
-  const tab = await startDuckDbInTab('./vendor/', planner);
+  const tab = await openDuckDbInTab('./vendor/', planner);
   const duckdbMs = performance.now() - t0 - plannerMs;
   say(`the market's tables and world (a tape of ${TAPE})`);
   const market: LiveMarket = await openLiveMarket({

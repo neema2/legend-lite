@@ -12,11 +12,13 @@ import type { WasmGrammar } from '../src/legend/wasm-grammar.ts';
 import type { HostOperation } from '../src/host-operations.ts';
 import { loadPlanner } from './planner.ts';
 import { dataTables } from '../src/model-data.ts';
-import { ProjectDatabases, ProjectRunner } from '../src/project-data.ts';
+import { ProjectDoor } from '../src/doors/project-data.ts';
+import { ProjectRunner } from '../src/project-data.ts';
 import { TabTables, type Model } from '../src/tab-data.ts';
 import { startNodeDuckDb, type NodeDuckDb } from '../src/node-require.ts';
 import { runfilesFromEnv } from '../../tools/js/runfiles.mts';
 import { unplanned } from './unplanned.ts';
+import { inRun } from '../src/run-frame.ts';
 
 type Elements = Parameters<typeof dataTables>[0];
 
@@ -26,7 +28,7 @@ let planner: WasmGrammar;
 
 /** A table's rows, ordered by ID. */
 const rowsOf = async (table: string, on: { run(sql: string, epoch: number): ReturnType<DuckDbEngine['run']> } = engine): Promise<unknown[][]> => {
-  const t = await on.run(`SELECT ID, NAME, COUNTRY FROM "PARTY"."${table}" ORDER BY ID`, 0);
+  const t = await inRun('a test', () => on.run(`SELECT ID, NAME, COUNTRY FROM "PARTY"."${table}" ORDER BY ID`, 0));
   return Array.from({ length: t.rowCount }, (_, i) => t.columns.map((c) => c.values[i]));
 };
 
@@ -67,15 +69,15 @@ const version = (csv: string, desk?: string): Promise<Model> => modelOf(partyTex
  *  project plan carries, run by the hosts' runner): a connection of its own on it, and the drop. */
 const filled = async (m: Model): Promise<{ readonly own: DuckDbEngine; drop(): Promise<void> }> => {
   const project = await planner.projectData(m.text, 'DuckDB');
-  for (const sql of project.open) await engine.run(sql, 0);
+  for (const sql of project.open) await inRun('a test', () => engine.run(sql, 0));
   const own = new DuckDbEngine(db.connect() as ArrowishConnection);
-  for (const sql of project.use) await own.run(sql, 0);
+  for (const sql of project.use) await inRun('a test', () => own.run(sql, 0));
   await runLoad(project.load!, (sql) => own.run(sql, 0));
   return {
     own,
     drop: async () => {
       await own.close();
-      for (const sql of project.close) await engine.run(sql, 0);
+      for (const sql of project.close) await inRun('a test', () => engine.run(sql, 0));
     },
   };
 };
@@ -130,10 +132,10 @@ Database demo::party::OtherDB
     const typed = await modelOf(partyText('ID,SCORE,ACTIVE\n1,0.1,true\n2,2.675,false\n', undefined, 'ID INTEGER PRIMARY KEY, SCORE FLOAT, ACTIVE BIT'));
     const project = await filled(typed);
     try {
-      const types = await project.own.run(unplanned("SELECT column_name, data_type FROM information_schema.columns WHERE table_schema = 'PARTY' AND table_name = 'PARTY' ORDER BY ordinal_position"), 0);
+      const types = await inRun('a test', () => project.own.run(unplanned("SELECT column_name, data_type FROM information_schema.columns WHERE table_schema = 'PARTY' AND table_name = 'PARTY' ORDER BY ordinal_position"), 0));
       assert.deepEqual(Array.from({ length: types.rowCount }, (_, i) => types.columns.map((c) => c.values[i])),
         [['ID', 'INTEGER'], ['SCORE', 'DOUBLE'], ['ACTIVE', 'BOOLEAN']]);
-      const t = await project.own.run(unplanned('SELECT ID, SCORE, ACTIVE, SCORE = 0.1 AS EXACT FROM "PARTY"."PARTY" ORDER BY ID'), 0);
+      const t = await inRun('a test', () => project.own.run(unplanned('SELECT ID, SCORE, ACTIVE, SCORE = 0.1 AS EXACT FROM "PARTY"."PARTY" ORDER BY ID'), 0));
       assert.deepEqual(t.columns.map((c) => c.values[0]), [1, 0.1, true, true]);
       assert.deepEqual(t.columns.map((c) => c.values[1]), [2, 2.675, false, false]);
     } finally {
@@ -143,12 +145,12 @@ Database demo::party::OtherDB
 });
 
 /** Every keeper a test made: each test drops its databases (the cases share one DuckDB). */
-const keepers: ProjectDatabases[] = [];
+const keepers: ProjectDoor[] = [];
 /** The tab's project databases over this file's DuckDB: each on a connection of its own, as the tab's start opens one. */
-const projectsOf = (): ProjectDatabases => {
-  const made = new ProjectDatabases({
+const projectsOf = (): ProjectDoor => {
+  const made = new ProjectDoor({
     databaseType: 'DuckDB',
-    run: (sql) => engine.run(sql, 0),
+    engine,
     connect: async () => new DuckDbEngine(db.connect() as ArrowishConnection),
   }, planner);
   keepers.push(made);
@@ -241,7 +243,7 @@ const asTheBrowserTakesThem = {
   },
 };
 
-function tabTables(): { tabs: TabTables; runner: ProjectRunner; projects: ProjectDatabases } {
+function tabTables(): { tabs: TabTables; runner: ProjectRunner; projects: ProjectDoor } {
   const runner = new ProjectRunner(engine);
   const projects = projectsOf();
   return { tabs: new TabTables(projects, runner, engine, asTheBrowserTakesThem, planner), runner, projects };
@@ -264,6 +266,142 @@ describe("a table's rows from a person's file (plan A2)", () => {
     await tabs.load(v1);
     assert.deepEqual((await tabs.tables(v1)).map((t) => [t.database, `${t.schema}.${t.table}`, t.source, t.rows]),
       [['demo::party::PartyDB', 'PARTY.PARTY', { kind: 'test', element: 'demo::party::PartyData' }, 2]]);
+  });
+
+  it('a table nothing fills is not made, so none of its rows are counted (C5-T last round T3)', async () => {
+    const m = await modelOf(partyText(V1).replace(`Table PARTY (${PARTY_COLUMNS})`, `Table PARTY (${PARTY_COLUMNS})\n    Table DESK (${PARTY_COLUMNS})`));
+    const tabs = tables();
+    await tabs.load(m);
+    assert.deepEqual((await tabs.tables(m)).map((t) => [t.table, t.source.kind, t.rows]), [['PARTY', 'test', 2], ['DESK', 'none', undefined]]);
+  });
+
+  it("a made table's count that fails is said on its row, never read as a table not made (G7; C5-T T3, final audit 3)", async () => {
+    const v1 = await version(V1);
+    const tabs = tables();
+    await tabs.load(v1);
+    // the table taken away behind the workspace: its count fails, and the failure is that row's answer
+    await inRun('a test', () => runner.run(unplanned('DROP TABLE "PARTY"."PARTY"'), 0));
+    const [party] = await tabs.tables(v1);
+    assert.equal(party!.rows, undefined);
+    assert.match(party!.countFailed ?? '', /PARTY does not exist/);
+  });
+
+  it("one table's failed count is said on its row, and the others are still counted (the C5-T final audit's item 3)", async () => {
+    // the audit's case: a Data element's table whose CSV is empty -- no table is made for it (CsvSeed), so its count fails
+    const m = await modelOf(partyText(V1, ''));
+    const tabs = tables();
+    await tabs.load(m);
+    const said = await tabs.tables(m);
+    assert.deepEqual(said.map((t) => [t.table, t.source.kind, t.rows]), [['PARTY', 'test', 2], ['DESK', 'test', undefined]]);
+    assert.equal(said[0]!.countFailed, undefined);
+    assert.match(said[1]!.countFailed ?? '', /DESK does not exist/);
+  });
+
+  it("a made table's count that answers no count is said by name, never read as rows (G7; C5-T last round T3)", async () => {
+    const v1 = await version(V1);
+    // the planner's count answered by a statement that gives no count
+    const uncounting = new Proxy(planner, {
+      get(target, key) {
+        if (key === 'hostOperations') {
+          return async (databaseType: string, ops: readonly HostOperation[]) => (ops.every((o) => o.op === 'count')
+            ? ops.map(() => [unplanned('SELECT NULL::BIGINT AS n')])
+            : target.hostOperations(databaseType, ops));
+        }
+        const value: unknown = Reflect.get(target, key, target);
+        return typeof value === 'function' ? value.bind(target) : value;
+      },
+    });
+    const own = new ProjectRunner(engine);
+    const made = new TabTables(projectsOf(), own, engine, asTheBrowserTakesThem, uncounting);
+    await made.load(v1);
+    const [party] = await made.tables(v1);
+    assert.equal(party!.rows, undefined);
+    assert.match(party!.countFailed ?? '', /the rows of PARTY\.PARTY were counted as null, which is no count/);
+  });
+
+  it("a planner answering the wrong counts is refused by name, never said as a failed count on each row (the C5-T re-check's item 2)", async () => {
+    // two tables the model's data fills (PARTY and DESK), and the planner's answer one count short, then each count two
+    // statements
+    const m = await modelOf(partyText(V1, ''));
+    let answer: ((ops: readonly HostOperation[]) => ReturnType<typeof unplanned>[][]) | undefined;
+    const wrong = new Proxy(planner, {
+      get(target, key) {
+        if (key === 'hostOperations') {
+          return async (databaseType: string, ops: readonly HostOperation[]) => (answer !== undefined && ops.every((o) => o.op === 'count')
+            ? answer(ops)
+            : target.hostOperations(databaseType, ops));
+        }
+        const value: unknown = Reflect.get(target, key, target);
+        return typeof value === 'function' ? value.bind(target) : value;
+      },
+    });
+    const made = new TabTables(projectsOf(), new ProjectRunner(engine), engine, asTheBrowserTakesThem, wrong);
+    await made.load(m);
+    answer = (ops) => ops.slice(1).map(() => [unplanned('SELECT 1 AS n')]);
+    await assert.rejects(made.tables(m), /the planner answered 2 tables' counts with 1 plans of \[1\] statements/);
+    answer = (ops) => ops.map(() => [unplanned('SELECT 1 AS n'), unplanned('SELECT 1 AS n')]);
+    await assert.rejects(made.tables(m), /the planner answered 2 tables' counts with 2 plans of \[2, 2\] statements/);
+    // and answered right, each table is counted on its own row again
+    answer = undefined;
+    assert.deepEqual((await made.tables(m)).map((t) => [t.table, t.rows]), [['PARTY', 2], ['DESK', undefined]]);
+  });
+
+  it("holds its databases to itself: reached through its runs alone (the C5-T final audit's item 4)", () => {
+    const door = projectsOf();
+    // a private field: no caller -- an app least of all -- makes, drops or sends on one outside the door's run
+    assert.equal('databases' in door, false);
+    assert.deepEqual(Object.keys(door), []);
+    // @ts-expect-error -- private: the door's databases are reached through its runs (remade, engineFor, drop) alone
+    void door.databases;
+  });
+
+  it("runs one step at a time: a file put while a reset is asked lands, and stays (the C5-T final audit's MUST 2)", async () => {
+    const both = await version(V1, DESK);
+    /** A gate: held until let go, and told when first reached. */
+    const gate = (): { wait: () => Promise<void>; reached: Promise<void>; letGo: () => void } => {
+      let letGo!: () => void;
+      let arrive!: () => void;
+      const open = new Promise<void>((done) => { letGo = done; });
+      const reached = new Promise<void>((done) => { arrive = done; });
+      return { wait: () => { arrive(); return open; }, reached, letGo };
+    };
+    let planning: ReturnType<typeof gate> | undefined;   // the planner's plan of a file's put
+    let running: ReturnType<typeof gate> | undefined;    // the door's run of the workspace's database
+    const planner$ = new Proxy(planner, {
+      get(target, key) {
+        if (key === 'fileLoad') return async (...args: Parameters<WasmGrammar['fileLoad']>) => { await planning?.wait(); return target.fileLoad(...args); };
+        const value: unknown = Reflect.get(target, key, target);
+        return typeof value === 'function' ? value.bind(target) : value;
+      },
+    });
+    const door = projectsOf();
+    const door$ = new Proxy(door, {
+      get(target, key) {
+        if (key === 'remade') return async (...args: Parameters<ProjectDoor['remade']>) => { await running?.wait(); return target.remade(...args); };
+        const value: unknown = Reflect.get(target, key, target);
+        return typeof value === 'function' ? value.bind(target) : value;
+      },
+    });
+    const own = new ProjectRunner(engine);
+    const tabs = new TabTables(door$, own, engine, asTheBrowserTakesThem, planner$);
+    await tabs.load(both);
+    await tabs.put(both, 'PARTY', 'PARTY', { name: 'x.csv', bytes: enc('ID,NAME,COUNTRY\n7,Osprey Fund,NZ\n') });
+    // the audit's order: Upload of Y (still planning), then Reset of X -- its plan made without Y; Y's put lands; then
+    // Reset's run. Studio's buttons do not wait for each other.
+    planning = gate();
+    const y = tabs.put(both, 'PARTY', 'DESK', { name: 'y.csv', bytes: enc('ID,NAME,COUNTRY\n9,Kestrel Desk,FR\n') });
+    await planning.reached;
+    running = gate();
+    const reset = tabs.reset(both, 'PARTY', 'PARTY');
+    // reset planned up to its run -- or, one at a time, waiting for Y's put to finish first
+    await Promise.race([running.reached, new Promise((done) => setTimeout(done, 1500))]);
+    planning.letGo();
+    await y;
+    running.letGo();
+    await reset;
+    assert.deepEqual(await rowsOf('DESK', own), [[9, 'Kestrel Desk', 'FR']], "Y's rows, in the database Run reads");
+    assert.deepEqual(await rowsOf('PARTY', own), [[1, 'Meridian Capital', 'US'], [2, 'Halberd Securities', 'GB']]);
+    assert.deepEqual((await tabs.tables(both)).map((t) => [t.table, t.source.kind]), [['PARTY', 'test'], ['DESK', 'file']]);
   });
 
   it('fills a table from a CSV, kept over the test data until reset', async () => {
@@ -373,7 +511,7 @@ describe("a table's rows from a person's file (plan A2)", () => {
   });
 
   it('fills a table from Parquet, each declared column by name, converted to its type', async () => {
-    await engine.run(unplanned("COPY (SELECT 'AU' AS COUNTRY, 9 AS ID, 'Wattle Capital' AS NAME, true AS EXTRA) TO 'made.parquet' (FORMAT PARQUET)"), 0);
+    await inRun('a test', () => engine.run(unplanned("COPY (SELECT 'AU' AS COUNTRY, 9 AS ID, 'Wattle Capital' AS NAME, true AS EXTRA) TO 'made.parquet' (FORMAT PARQUET)"), 0));
     const tabs = tables();
     const v1 = await version(V1);
     await tabs.put(v1, 'PARTY', 'PARTY', { name: 'parties.parquet', bytes: db.copyFileToBuffer('made.parquet') });
@@ -386,7 +524,7 @@ describe("a table's rows from a person's file (plan A2)", () => {
     const tabs = tables();
     await assert.rejects(tabs.put(v1, 'PARTY', 'PARTY', { name: 'parties.json', bytes: enc('[]') }), /a \.csv or a \.parquet file/);
     await assert.rejects(tabs.put(v1, 'PARTY', 'NOPE', { name: 'x.csv', bytes: enc('A\n1\n') }), /a file fills PARTY\.NOPE, which no Database of the model declares/);
-    await engine.run(unplanned("COPY (SELECT 1 AS ID) TO 'thin.parquet' (FORMAT PARQUET)"), 0);
+    await inRun('a test', () => engine.run(unplanned("COPY (SELECT 1 AS ID) TO 'thin.parquet' (FORMAT PARQUET)"), 0));
     await assert.rejects(tabs.put(v1, 'PARTY', 'PARTY', { name: 'thin.parquet', bytes: db.copyFileToBuffer('thin.parquet') }), /NAME/);
     await assert.rejects(tabs.put(v1, 'PARTY', 'PARTY', { name: 'bad.csv', bytes: enc('ID,NAME,COUNTRY\nseven,Osprey Fund,NZ\n') }), /seven/);
   });
@@ -465,7 +603,7 @@ Data demo::plain::PlainData
 `;
   let at: ProjectRunner;
   const tRows = async (): Promise<unknown[][]> => {
-    const t = await at.run(unplanned('SELECT ID, "first name" FROM T ORDER BY ID'), 0);
+    const t = await inRun('a test', () => at.run(unplanned('SELECT ID, "first name" FROM T ORDER BY ID'), 0));
     return Array.from({ length: t.rowCount }, (_, i) => t.columns.map((c) => c.values[i]));
   };
   const enc = (s: string): Uint8Array => new TextEncoder().encode(s);
@@ -494,22 +632,22 @@ describe("a project's own database (C5), the planner's statements run in DuckDB-
     const project = await planner.projectData(partyText(V1), 'DuckDB');
     assert.match(project.name, /^__project_[0-9a-f]{16}$/);
     // the tab's own table, of the very name the project declares
-    await engine.run(unplanned('CREATE SCHEMA IF NOT EXISTS "PARTY"'), 0);
-    await engine.run(unplanned('CREATE OR REPLACE TABLE "PARTY"."PARTY" (ID INTEGER, NAME VARCHAR, COUNTRY VARCHAR)'), 0);
-    await engine.run(unplanned("INSERT INTO \"PARTY\".\"PARTY\" VALUES (9, 'the tab''s own', 'XX')"), 0);
-    for (const sql of project.open) await engine.run(sql, 0);
+    await inRun('a test', () => engine.run(unplanned('CREATE SCHEMA IF NOT EXISTS "PARTY"'), 0));
+    await inRun('a test', () => engine.run(unplanned('CREATE OR REPLACE TABLE "PARTY"."PARTY" (ID INTEGER, NAME VARCHAR, COUNTRY VARCHAR)'), 0));
+    await inRun('a test', () => engine.run(unplanned("INSERT INTO \"PARTY\".\"PARTY\" VALUES (9, 'the tab''s own', 'XX')"), 0));
+    for (const sql of project.open) await inRun('a test', () => engine.run(sql, 0));
     const own = new DuckDbEngine(db.connect() as ArrowishConnection);
-    for (const sql of project.use) await own.run(sql, 0);
+    for (const sql of project.use) await inRun('a test', () => own.run(sql, 0));
     // its rows: the plan's ONCE load, run by the hosts' runner (B3: the load a server's project plan carries)
     assert.ok(project.load !== undefined, 'a project with Data rows carries their load');
     await runLoad(project.load!, (sql) => own.run(sql, 0));
     assert.deepEqual(await rowsOf('PARTY', own), [[1, 'Meridian Capital', 'US'], [2, 'Halberd Securities', 'GB']]);
     assert.deepEqual(await rowsOf('PARTY'), [[9, "the tab's own", 'XX']]);
     await own.close();
-    for (const sql of project.close) await engine.run(sql, 0);
-    const left = await engine.run(unplanned('SELECT database_name FROM duckdb_databases()'), 0);
+    for (const sql of project.close) await inRun('a test', () => engine.run(sql, 0));
+    const left = await inRun('a test', () => engine.run(unplanned('SELECT database_name FROM duckdb_databases()'), 0));
     assert.ok(!left.columns[0]!.values.includes(project.name), String(left.columns[0]!.values));
-    await engine.run(unplanned('DROP TABLE "PARTY"."PARTY"'), 0);
+    await inRun('a test', () => engine.run(unplanned('DROP TABLE "PARTY"."PARTY"'), 0));
   });
 
   it('names a database by what it holds: the same rows the same name, other rows another', async () => {

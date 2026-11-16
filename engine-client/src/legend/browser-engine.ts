@@ -20,6 +20,7 @@ import type { WasmGrammar } from './wasm-grammar.ts';
 import type { CompileResult, ExecuteInput, ExecutionResult, PureModelContext, RelationTypeAnswer } from './wire.ts';
 import type { RawTable } from '../engine.ts';
 import type { Scalar } from '../result.ts';
+import { inRun } from '../run-frame.ts';
 
 /** The runtime a query runs on: the last argument of its `->from(...)`. */
 export function runtimeOf(lambda: Lambda): string {
@@ -65,7 +66,8 @@ export class BrowserEngine implements Engine {
     const { plan, text } = await this.#planner.executePlan(input);
     // the plan's one statement, its values (a data: payload: plan-params.ts, M3) bound to its `?`s, its rows handed back
     // as the engine's decoder read them
-    const raw = await this.#engine.run(plan.run, 0, signal, planParams(plan.plan));
+    // run as a run (run-frame.ts: a run plans nothing): the planner asked before it, and after it for the answer's text
+    const raw = await inRun('a query', () => this.#engine.run(plan.run, 0, signal, planParams(plan.plan)));
     return this.#planner.executeAnswer(text, hostRows(raw));
   }
 

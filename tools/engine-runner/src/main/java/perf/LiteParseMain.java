@@ -18,7 +18,8 @@ import java.util.stream.Collectors;
  * The verdict vocabulary is identical to ParseMain's -- "ok"/"WRONG", "REJECTED: <message>"
  * -- so the two outputs diff directly and the harness that compares them needs no adapter.
  *
- * legend-lite's entry point is PmcdParser.parseDocument, which returns the protocol
+ * legend-lite's entry point is PmcdParser.parseDocument, reached through the parse door
+ * (door.Parse.documentJson, which asks the run's wall), which returns the protocol
  * document as JSON. Whether that JSON MATCHES the engine's is a different and harder
  * question, already answered by parser-equivalence. This asks only the first question, the
  * one the fixture corpus was built for: does it accept, and if not, what does it say?
@@ -63,7 +64,9 @@ public class LiteParseMain
             String parseError = null;
             try
             {
-                String json = com.legend.parser.PmcdParser.parseDocument(Files.readString(f));
+                // through the parse door, which asks the run's wall (C5-J's last round, A2, 2026-11-15): the same
+                // document, its source information kept (PmcdParser.parseDocument's one-argument form)
+                String json = com.legend.door.Parse.documentJson(Files.readString(f), true);
                 if (protocolCheck)
                 {
                     // Does what lite produced round-trip into the ENGINE's own protocol

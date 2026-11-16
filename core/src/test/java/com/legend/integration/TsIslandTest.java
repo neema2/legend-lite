@@ -2671,7 +2671,8 @@ class TsIslandTest {
         com.legend.protocol.ts.TsShow.Types types = com.legend.server.PureV1Api.tsTypes(model);
         Map<String, String> statements = new LinkedHashMap<>();
         for (Map.Entry<String, String> q : queries.entrySet()) {
-            com.legend.protocol.ts.TsShow.Shown shown = com.legend.protocol.ts.TsShow.of(lambdaOf(q.getValue()), types);
+            com.legend.protocol.ts.TsShow.Shown shown = com.legend.protocol.ts.TsShow.of(lambdaOf(q.getValue()), types,
+                    com.legend.door.Parse::tsIsland);
             assertNull(shown.refused(), q.getKey());
             String statement = java.util.Objects.requireNonNull(shown.statement());
             statements.put(q.getKey(), statement);
@@ -2701,7 +2702,7 @@ class TsIslandTest {
                 "calculates by abs", "->extend(~a: r|$r.CLOSE->toOne()->abs())").entrySet()) {
             com.legend.protocol.ts.TsShow.Shown refused = com.legend.protocol.ts.TsShow.of(lambdaOf("|let px ="
                     + " #>{ts::DB.PRICES}#" + later.getValue() + "; #TS{SELECT avg(CLOSE, 3) AS m FROM $px ON DAY BY"
-                    + " SYMBOL}#;"), types);
+                    + " SYMBOL}#;"), types, com.legend.door.Parse::tsIsland);
             assertNull(refused.statement(), later.getKey());
             assertTrue(java.util.Objects.requireNonNull(refused.refused()).contains(later.getKey()), refused.refused());
         }
@@ -2709,12 +2710,12 @@ class TsIslandTest {
         // finding 2, 2026-11-06)
         com.legend.protocol.ts.TsShow.Shown plain = com.legend.protocol.ts.TsShow.of(lambdaOf("|let px ="
                 + " #>{ts::DB.PRICES}#; #TS{WITH s AS TS (SELECT avg(CLOSE, 3) AS m FROM $px ON DAY BY SYMBOL)"
-                + " SELECT count(*) AS n FROM s}#;"), types);
+                + " SELECT count(*) AS n FROM s}#;"), types, com.legend.door.Parse::tsIsland);
         assertNull(plain.statement(), String.valueOf(plain.statement()));
         // a variable of the enclosing Pure prints as itself (decision 7)
         com.legend.protocol.ts.TsShow.Shown param = com.legend.protocol.ts.TsShow.of(lambdaOf("{from: StrictDate[1] |"
                 + " let px = #>{ts::DB.PRICES}#; #TS{SELECT avg(CLOSE, 3) AS m FROM $px ON DAY BY SYMBOL FILTER DAY >="
-                + " $from}#;}"), types);
+                + " $from}#;}"), types, com.legend.door.Parse::tsIsland);
         assertTrue(java.util.Objects.requireNonNull(param.statement(), param.refused()).endsWith("FILTER DAY >= $from"),
                 param.statement());
         assertTrue(java.util.Objects.requireNonNull(plain.refused()).contains("no plain SQL over a series query"),

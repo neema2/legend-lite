@@ -89,7 +89,12 @@ public final class PeRatchets {
                     + " model",
             "own_corpus.matched 3274, 3261 -> 3289 (2026-11-15, main cf865632 merged into claude/deephaven-3-browser,"
                     + " measured by //parser-equivalence:update_ratchets on the merged tree): both sides' models together,"
-                    + " 3274 + 3261 - 3246, their shared base");
+                    + " 3274 + 3261 - 3246, their shared base",
+            "own_corpus.matched 3261 -> 3262 (2026-11-15, C5-J, found by the gate on its branch): its new tests' models,"
+                    + " measured by //parser-equivalence:update_ratchets",
+            "own_corpus.matched 3289, 3262 -> 3290 (2026-11-16, main 4dfbb5b7 merged into claude/deephaven-3-browser,"
+                    + " measured by //parser-equivalence:update_ratchets on the merged tree): both sides' models together,"
+                    + " 3289 + 3262 - 3261, their shared base");
 
     public static void main(String[] args) throws Exception {
         if (args.length != 1) {

@@ -3,7 +3,7 @@ proven structurally"), the twin of engine-client's planned-sql.ts: a statement a
 as its answer (a host operation's, a session's setup, a catalog's read, a project database's statements, a load's steps).
 
 ``PlannedSql`` is a ``str`` made in ONE place each, where a plan or a planner's answer is READ (``from_plan``'s callers:
-compiler.py's readers, projects.py's load runners, engine.py's execute plan); ``send`` -- every statement Python's host
+compiler.py's readers, the load runners -- _runs.py's, projects.py's until C5-P -- and engine.py's execute plan); ``send`` -- every statement Python's host
 runs on its database goes through it -- refuses any other text by name (``NotPlanned``). A ``str`` edited after it was
 read (concatenated, stripped, formatted) is a plain ``str`` again, so an edited plan statement is refused too.
 
@@ -25,6 +25,8 @@ from collections import OrderedDict
 from collections.abc import Container, Iterable, Sequence
 from typing import Any
 
+from ._runframe import current_run
+
 
 class PlannedSql(str):
     """A statement a plan carries or the planner wrote: the only text ``send`` runs."""
@@ -39,7 +41,7 @@ class NotPlanned(TypeError):
 class PlanText(str):
     """A PLAN, AS THE PLANNER ANSWERED IT (PlanJson's text; the re-audit's M1, 2026-11-12: the runners took any dict, so a
     plan a host wrote ran, its statements typed as planned by the runner that read them). The hosts' runners
-    (projects.run_load, run_host_load) take this and no other; it is made where the compiler reads the planner's answer
+    (_runs.run_load, run_host_load, run_write -- projects.py's until C5-P) take this and no other; it is made where the compiler reads the planner's answer
     (:func:`plan_from_answer`, compiler.py), and it is text, so editing it makes a plain string again."""
 
     __slots__ = ()
@@ -345,25 +347,45 @@ class Database:
     Nothing else of DuckDB's is reachable through it, so a module holds no way to send what no plan carries. Made by
     :func:`connect`, or over a connection a person handed the host (Frames(connection=...): theirs to keep)."""
 
-    __slots__ = ('_con',)
+    __slots__ = ('_con', '_began')
 
     def __init__(self, connection: Any) -> None:
         if isinstance(connection, (Database, Result)):
             raise TypeError('a Database holds a duckdb-python connection, not another wrapper')
         self._con = connection
+        # whether a transaction this Database began is still open (its own begin, not yet committed or rolled back):
+        # what a read's end rolls back, and nothing else (the C5 follow-up, 2026-11-15)
+        self._began = False
+
+    @property
+    def began(self) -> bool:
+        """Whether a transaction begun by ``begin`` is open, not yet ended by ``commit`` or ``rollback``."""
+        return self._began
 
     def cursor(self) -> Database:
         """A session of its own over the same database (a cursor's settings are its own)."""
         return Database(self._con.cursor())
 
+    # a transaction's bounds are RUN ACTS (C5-P, 2026-11-15, the orchestrator's A3, as Java's session holds them): each
+    # refused by name outside a run, as the one send is
     def begin(self) -> None:
+        _framed('a transaction begun')
         self._con.begin()
+        self._began = True
 
     def commit(self) -> None:
-        self._con.commit()
+        _framed('a transaction committed')
+        try:
+            self._con.commit()
+        finally:
+            self._began = False
 
     def rollback(self) -> None:
-        self._con.rollback()
+        _framed('a transaction rolled back')
+        try:
+            self._con.rollback()
+        finally:
+            self._began = False
 
     def close(self) -> None:
         self._con.close()
@@ -381,6 +403,8 @@ class Database:
         for name in (table, *(() if schema is None else (schema,))):
             if not _PLAIN_NAME.fullmatch(name):
                 raise NotPlanned(f"a stream lands in a table named plainly (letters, digits, '_'), not {name!r}")
+        # a run act, as a transaction's bounds are (C5-P's audit S3, 2026-11-15)
+        _framed('a stream landed')
         self._con.from_arrow(reader).create(table if schema is None else f'{schema}.{table}')
 
     def _send_planned(self, sql: PlannedSql, params: Sequence[Any] | None) -> Result:
@@ -397,10 +421,27 @@ def connect(path: str | None = None) -> Database:
     return Database(duckdb.connect() if path is None else duckdb.connect(path))
 
 
+class Unframed(RuntimeError):
+    """A plan's statement sent outside any run (``_runframe``): refused, never run."""
+
+
+def _framed(act: str) -> None:
+    """``act``, a run's act on the host's database (a transaction's bound), refused by name outside any run."""
+    if current_run() is None:
+        raise Unframed(f'{act} only inside a run (_runframe.runs, in_run): a transaction\'s bounds are the run'
+                       " side's (G4)")
+
+
 def send(target: Database, statement: Any, params: Sequence[Any] | None = None) -> Result:
     """THE ONE SEND: ``statement`` run on ``target`` (the host's :class:`Database`, or a cursor of it), its ``?``s bound
-    to ``params`` in order when there are any -- only if it is a plan's (:func:`require`)."""
+    to ``params`` in order when there are any -- only if it is a plan's (:func:`require`), and only INSIDE A RUN (C5-P,
+    2026-11-15: a frame wraps every send -- ``_runframe.runs``/``in_run``, set by the run side's own functions, _runs.py
+    and _reads.py -- so a flow that sends is one the planner refuses, and one that plans sends nothing; until then a run
+    frame wrapped some sends, and 12 senders, named in the run wall, sent outside one)."""
     if not isinstance(target, Database):
         raise NotPlanned(f"the one send runs on the host's Database, not on a {type(target).__name__}")
     sql = require(statement, 'the database')
+    if current_run() is None:
+        raise Unframed('a plan\'s statement is sent only inside a run (_runframe.runs, in_run): the run side sends it,'
+                       ' handed what the planner answered (G4)')
     return target._send_planned(sql, params)

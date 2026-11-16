@@ -1,0 +1,45 @@
+# THE LAYERS OF THE TYPESCRIPT ENGINE CLIENT (C5-T, 2026-11-15: the TypeScript split of plan and run, Java's shape --
+# tools/deps/core-layers.txt is its twin for //core). One line per layer: the target, a tab, then its DIRECT deps as
+# Bazel resolves them, one space apart. TsLayeringTest compares Bazel's own answer (a genquery per layer,
+# engine-client/BUILD.bazel layer_*) with this file, exactly, both ways: a new edge fails, and so does a removed one
+# (delete it here in the same push, so this file only says what is true). Beyond the exact match, the test holds two
+# rules this file cannot loosen:
+#   - a RUN layer reaches the records and npm packages only: no planner, no server, no door, no app (the orchestrator's
+#     note 4, 2026-11-15: no :doors or app module is a dependency of :run);
+#   - a PLANNER layer reaches nothing that can execute: the records (and the protocol records) only -- never a run, a
+#     server or a door (the orchestrator's note 1, 2026-11-15; its planning client is its own file).
+# Each run and planner layer is typechecked alone, its closure copied out with nothing else (//tools/deps:layers_alone,
+# layer-alone.test.ts): a module that imports one of a layer it may not reach fails there by name.
+# 2026-11-15 (C5-T step 3): the engine client's five layers.
+//engine-client:records	//pure-protocol:pure_protocol
+# 2026-11-15 (the C5-T final audit's MUST 1): the engine's API -- the engines' interfaces, whose methods send, and the run
+# frame, which opens a run -- out of the records, where the planner and the server reached them: the run layers, the
+# doors and the apps reach it, no planner and no server (TsLayeringTest: a planner or a server reaches no engine_api)
+//engine-client:engine_api	//engine-client:records
+//engine-client:run	//engine-client:engine_api //engine-client:node_modules/@duckdb/duckdb-wasm //engine-client:node_modules/apache-arrow //engine-client:records
+//engine-client:planner	//engine-client:records //pure-protocol:pure_protocol
+//engine-client:server	//engine-client:node_modules/fzstd //engine-client:planner //engine-client:records //pure-protocol:pure_protocol
+//engine-client:doors	//engine-client:engine_api //engine-client:node_modules/apache-arrow //engine-client:planner //engine-client:records //engine-client:run //engine-client:server //pure-protocol:pure_protocol
+# 2026-11-15 (the C5-T audit's item 8): Node's host for tests and harnesses, out of the run layer (no layer of its own)
+//engine-client:node_host	//engine-client:node_modules/@duckdb/duckdb-wasm
+# 2026-11-15 (C5-T step 4): DataCube's layers -- its records (the bridge's calls, the headless web), its run side (the
+# bridge's connection) and its planner (lite-planner.ts, planner.ts, the Planner interface and what they read) -- and
+# the two wire modules a planner reads, as records of their packages (sdlc-client's and model-changes').
+//datacube:records	//engine-client:records
+//datacube:run	//datacube:records //engine-client:records //engine-client:run
+//datacube:planner	//engine-client:planner //engine-client:records //model-changes:records //pure-protocol:pure_protocol
+# 2026-11-15 (the C5-T audit's MUST 2): DataCube's doors, a target of their own -- the runner and the doors that ask,
+# then run (doors.ts, remote.ts, upload.ts, table-output.ts) -- over the cube's snapshot and the tree's keys (:model)
+//datacube:model	//engine-client:records //pure-protocol:pure_protocol
+//datacube:doors	//datacube:model //datacube:planner //datacube:records //datacube:run //engine-client:doors //engine-client:engine_api //engine-client:planner //engine-client:records //engine-client:run //engine-client:server //pure-protocol:pure_protocol
+# 2026-11-15 (the C5-T last round's T1): the APPS -- DataCube's (and src_base, what it builds on), Query's and Studio's
+# -- reach no run layer: the run side through the doors alone (TsLayeringTest.APP_LAYERS; the libraries they take reach
+# none either, //tools/deps:app_libraries_run; and no app module imports a run module, //tools/deps:app_runs_test).
+# DataCube's doors took the bridge's connection (//datacube:run) and its calls (//datacube:records) with the host's
+# database's door (src/headless/host-database.ts).
+//datacube:src	//datacube:doors //datacube:model //datacube:planner //datacube:records //datacube:src_base
+//datacube:src_base	//datacube:node_modules/echarts //datacube:node_modules/fflate //datacube:node_modules/whatwg-url //depot-client:depot_client //engine-client:doors //engine-client:engine_api //engine-client:planner //engine-client:records //engine-client:server //model-changes:model_changes //pure-protocol:pure_protocol //query-store:query_store //sdlc-client:sdlc_client
+//query:src	//datacube:src //depot-client:depot_client //engine-client:doors //engine-client:engine_api //engine-client:planner //engine-client:records //engine-client:server //legend-art:legend_art //pure-protocol:pure_protocol //query-store:query_store
+//studio:src	//depot-client:depot_client //engine-client:doors //engine-client:engine_api //engine-client:planner //engine-client:records //engine-client:server //legend-art:legend_art //query:src //sdlc-client:sdlc_client
+//model-changes:records	//pure-protocol:pure_protocol //sdlc-client:records
+//sdlc-client:records	

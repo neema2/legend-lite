@@ -34,8 +34,11 @@ class _Pool:
             threading.Thread(target=self._serve, name=f'legend-lite-compiler-{i}', daemon=True).start()
 
     def submit(self, call: Any, *args: Any) -> Future[Any]:
+        """``call(*args)`` on a pool thread, in a copy of the caller's context -- so the run frame it is in reaches the
+        pool's thread, for every caller (C5-P's audit S4, 2026-11-15: until then _on_compiler_threads copied it, and a
+        caller submitting directly did not)."""
         future: Future[Any] = Future()
-        self._calls.put((future, call, args))
+        self._calls.put((future, contextvars.copy_context().run, (call, *args)))
         return future
 
     def _serve(self) -> None:
@@ -70,10 +73,10 @@ def _on_compiler_threads(call: Callable[[], Any]) -> Any:
     would wait on itself; DataCube's engine's thread, ``library_thread``), else on the pool."""
     if threading.current_thread().name.startswith('legend-lite-compiler-') or getattr(_library, 'is_one', False):
         return call()
-    # run in a copy of the caller's context, so the run frame it is in (_runframe) reaches the pool's thread: a planner
-    # entry asked through the pool inside a run is refused there as it would be here (the C4 audit's M4, 2026-11-13:
-    # a pool thread's context was its own, empty, and saw no run)
-    return _workers().submit(contextvars.copy_context().run, call).result()
+    # run in a copy of the caller's context (the pool's submit makes it, C5-P's S4), so the run frame it is in
+    # (_runframe) reaches the pool's thread: a planner entry asked through the pool inside a run is refused there as it
+    # would be here (the C4 audit's M4, 2026-11-13: a pool thread's context was its own, empty, and saw no run)
+    return _workers().submit(call).result()
 
 
 def _workers() -> _Pool:

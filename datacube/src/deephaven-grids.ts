@@ -10,6 +10,7 @@
 
 import type { PlannedSql } from '../../engine-client/src/planned-sql.ts';
 import { DeephavenEngine } from '../../engine-client/src/deephaven-engine.ts';
+import { deephavenApi } from '../../engine-client/src/doors/deephaven-api.ts';
 import { heldTablesOf } from '../../engine-client/src/deephaven-held.ts';
 import type { QueryEngine, RawTable, ResultWindow, WindowedResult } from '../../engine-client/src/engine.ts';
 import type { Plan } from '../../engine-client/src/relation-type.ts';
@@ -122,7 +123,7 @@ class Server {
         engine = await DeephavenEngine.open({
           url,
           signIn: { type: 'io.deephaven.authentication.psk.PskAuthenticationHandler', token },
-        }, (op, args) => this.#o.module.deephaven(op, args));
+        }, (op, args) => this.#o.module.deephaven(op, args), { live: deephavenApi(url) });
       } catch (e) {
         throw new Error(`the Deephaven server at ${url} is not answering: ${e instanceof Error ? e.message : String(e)}`);
       }

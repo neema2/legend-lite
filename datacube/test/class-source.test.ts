@@ -16,7 +16,7 @@ import { rawRows, type ClassSource } from '../src/cube-document.ts';
 import { gridLens } from '../src/page-filters.ts';
 import type { ClassAction } from '../src/model-writer.ts';
 import { plannerFor } from './catalog-builder.ts';
-import { unplanned } from '../../engine-client/test/unplanned.ts';
+import { unplanned, asTest } from '../../engine-client/test/unplanned.ts';
 
 type Property = NonNullable<ClassElement['properties']>[number];
 const STRING: Property['genericType'] = { rawType: { _type: 'packageableType', fullPath: 'String' } };
@@ -108,8 +108,8 @@ describe('a class made by the writer, read back by its class source', () => {
   before(async () => {
     const db = await openDatabase();
     engine = new DuckDbEngine(db.connection);
-    await engine.run(unplanned('CREATE TABLE trades (trade_id INTEGER NOT NULL, region VARCHAR, notional DOUBLE)'), 0);
-    await engine.run(unplanned("INSERT INTO trades VALUES (1, 'EMEA', 100.5), (2, 'AMER', 20), (3, 'EMEA', NULL), (4, 'APAC', 7)"), 0);
+    await asTest(engine).run(unplanned('CREATE TABLE trades (trade_id INTEGER NOT NULL, region VARCHAR, notional DOUBLE)'), 0);
+    await asTest(engine).run(unplanned("INSERT INTO trades VALUES (1, 'EMEA', 100.5), (2, 'AMER', 20), (3, 'EMEA', NULL), (4, 'APAC', 7)"), 0);
   });
 
   after(async () => {
@@ -134,7 +134,7 @@ describe('a class made by the writer, read back by its class source', () => {
         `|${cls.class}.all()->filter(x|$x.region == 'EMEA')->project(~[tradeId: x|$x.tradeId, region: x|$x.region, notional: x|$x.notional])`);
       assert.equal(toJson(query), toJson(parsed));
       const plan = await planner.plan(query);
-      const rows = await engine.run(plan.sql, 0);
+      const rows = await asTest(engine).run(plan.sql, 0);
       const ids = rows.columns[0]!.values.map(Number).sort();
       assert.deepEqual(ids, [1, 3], 'the EMEA trades, the filter on the class');
     } finally {
@@ -152,7 +152,7 @@ describe('a class made by the writer, read back by its class source', () => {
       const opened = await classOpened(at, files, async (text) => await planner.modelElements(text) as ClassElement[]);
       assert.deepEqual([opened.shown, opened.left], [['tradeId', 'region', 'notional'], []]);
       assert.equal(toJson(opened.source), toJson(classRelation(cls.class, ['tradeId', 'region', 'notional'])));
-      const rows = await engine.run((await planner.plan(lambda([], opened.source))).sql, 0);
+      const rows = await asTest(engine).run((await planner.plan(lambda([], opened.source))).sql, 0);
       assert.deepEqual(rows.columns[0]!.values.map(Number).sort(), [1, 2, 3, 4], 'every trade, read through its mapping');
     } finally {
       planner.dispose();

@@ -27,7 +27,7 @@ import { LitePlanner } from '../../src/lite-planner.ts';
 import { MODEL, RUNTIME } from '../wasm-differential/cases.ts';
 import { accessor } from '../../../pure-protocol/src/index.ts';
 import { runfileDirUrl, runfilesFromEnv } from '../../../tools/js/runfiles.mts';
-import { unplanned } from '../../../engine-client/test/unplanned.ts';
+import { unplanned, asTest } from '../../../engine-client/test/unplanned.ts';
 
 const MODULE_DIR = runfileDirUrl('WASM_PLANNER');
 
@@ -176,7 +176,7 @@ unknown {
 }
 
 async function truth(sql: string): Promise<Record<string, unknown>[]> {
-  const t = await new DuckDbEngine(conn).run(unplanned(sql), 0);
+  const t = await asTest(new DuckDbEngine(conn)).run(unplanned(sql), 0);
   const out: Record<string, unknown>[] = [];
   for (let i = 0; i < t.rowCount; i++) {
     const row: Record<string, unknown> = {};
@@ -228,9 +228,9 @@ async function seededConnection(): Promise<ArrowishConnection> {
   const db = await startNodeDuckDb(runfilesFromEnv('DUCKDB_EXTENSIONS'));
   const connection = db.connect() as ArrowishConnection;
   const local = new DuckDbEngine(connection);
-  await local.run(unplanned(`CREATE TABLE TRADES (region VARCHAR(32), desk VARCHAR(32), book VARCHAR(32),
+  await asTest(local).run(unplanned(`CREATE TABLE TRADES (region VARCHAR(32), desk VARCHAR(32), book VARCHAR(32),
     year INTEGER, qtr VARCHAR(8), notional DOUBLE, pnl DOUBLE, qty INTEGER)`), 0);
-  await local.run(unplanned(`INSERT INTO TRADES VALUES ${ROWS}`), 0);
+  await asTest(local).run(unplanned(`INSERT INTO TRADES VALUES ${ROWS}`), 0);
   return connection;
 }
 
@@ -330,7 +330,7 @@ describe('a grouped pivot, judged by rows', () => {
   // its own database: the 600 rows it inserts reach no other test
   it('R9: more pivot values than the cap is refused, with a message', async () => {
     const own = await seededConnection();
-    await new DuckDbEngine(own).run(unplanned(`INSERT INTO TRADES
+    await asTest(new DuckDbEngine(own)).run(unplanned(`INSERT INTO TRADES
       SELECT 'ZZ', 'Rates', 'Bx' || i, 2023, 'Q1', 1, 1, 1000 + i FROM range(600) t(i)`), 0);
     const o = await openCube({ ...CUBE, rows: ['region'], pivotOn: ['book'],
       measures: [{ name: 'cnt_q', column: 'qty', fn: 'count' }] }, own);

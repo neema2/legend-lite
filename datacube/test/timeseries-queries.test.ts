@@ -29,7 +29,7 @@ import { catalogColumns } from '../src/upload.ts';
 import { asc, col as column, collection, colSpec, fn as call, from, lambda, lit, minus, Relation, toJson, walk, type Lambda } from '../../pure-protocol/src/index.ts';
 import { DATACUBE_LIBRARY } from '../src/pure-library-text.ts';
 import { readSeriesTexts, treeOf, writtenText } from '../src/timeseries-text.ts';
-import { unplanned } from '../../engine-client/test/unplanned.ts';
+import { unplanned, asTest } from '../../engine-client/test/unplanned.ts';
 
 // -- the prices: two instruments over 40 weekdays from 2024-01-01, and a third trading on fewer days --
 
@@ -196,7 +196,7 @@ async function first(ts: Promise<TimeseriesSpec>): Promise<[TimeseriesSpec, TsSe
 }
 
 async function run(query: { query: unknown }): Promise<ResultTable> {
-  return engine.execute(await planner.plan(query.query as Parameters<LitePlanner['plan']>[0]), 0);
+  return asTest(engine).execute(await planner.plan(query.query as Parameters<LitePlanner['plan']>[0]), 0);
 }
 
 /** The #TS text a tile's query sends (P6: its every figure the platform's #TS builder's). */
@@ -543,7 +543,7 @@ describe('gs-quant\'s functions, as the database computes them', () => {
         colSpec('close'), lit.integer(5), colSpec('m'))
       .sort([call('descending', colSpec('day'))])
       .node);
-    const t = await engine.execute(await planner.plan(query), 0);
+    const t = await asTest(engine).execute(await planner.plan(query), 0);
     close(values(t, 'm').map(num).reverse(), rolling(AAA, 5, avg), 'the library\'s mean');
   });
 
@@ -551,7 +551,7 @@ describe('gs-quant\'s functions, as the database computes them', () => {
   // table, as the tile's -- VWAP's traded value, the time fill's line between two values, a decomposition's place
   it('a person\'s own Pure: a price times its volume, a value between two in time, a period\'s number, by name', async () => {
     const source = (await planner.print(lambda([], input.snapshot.source.query))).trim().replace(/^\|/, '');
-    const t = await engine.execute(await planner.plan(await planner.parse(`|${source}->filter(x|$x.symbol == 'AAA')
+    const t = await asTest(engine).execute(await planner.plan(await planner.parse(`|${source}->filter(x|$x.symbol == 'AAA')
       ->extend(~t:x|dateDiff(%1970-01-01, $x.day->toOne(), meta::pure::functions::date::DurationUnit.DAYS))
       ->timeseries::tradedValue(~close, ~volume, ~pv)
       ->extend(over(~symbol, [~day->ascending()]), ~[x0:{p,w,r|$p->lag($r).t}, y0:{p,w,r|$p->lag($r).close}, x1:{p,w,r|$p->lead($r).t}, y1:{p,w,r|$p->lead($r).close}])
@@ -574,7 +574,7 @@ describe('gs-quant\'s functions, as the database computes them', () => {
   // as joins and windows, the library's functions -- a column with gaps put onto every date by step, zero and time
   it('a person\'s own Pure: a column with gaps put onto every date by step, zero and time, by name', async () => {
     const source = (await planner.print(lambda([], input.snapshot.source.query))).trim().replace(/^\|/, '');
-    const t = await engine.execute(await planner.plan(await planner.parse(`|${source}->filter(x|$x.symbol == 'AAA')
+    const t = await asTest(engine).execute(await planner.plan(await planner.parse(`|${source}->filter(x|$x.symbol == 'AAA')
       ->extend(~[t:x|dateDiff(%1970-01-01, $x.day->toOne(), meta::pure::functions::date::DurationUnit.DAYS), g:x|if($x.close > 102, |$x.close, |[])])
       ->timeseries::fillStep(~symbol, ~day, ~g, ~g, ~st)
       ->timeseries::fillZero(~g, ~z)
@@ -661,7 +661,7 @@ describe('gs-quant\'s functions, as the database computes them', () => {
     ];
     for (const [expr, from, number] of cases) {
       const ts = await spec({ A: expr });
-      const t = await engine.execute(await own.plan(seriesQuery(flat, ts, ts.series[0]!).query), 0);
+      const t = await asTest(engine).execute(await own.plan(seriesQuery(flat, ts, ts.series[0]!).query), 0);
       const at = values(t, TS_DATE).map((d) => days.indexOf(String(d).slice(0, 10)));
       const vs = values(t, TS_VALUE).map(num);
       assert.ok(!vs.some((v) => v !== null && Number.isNaN(v)), `${expr}: no NaN`);
@@ -1076,7 +1076,7 @@ describe('two series on two calendars: the tile\'s align, and interpolate', () =
   it('a person\'s own Pure: two calendars joined and CCC filled by step and by time, as the tile\'s align', async () => {
     const source = (await planner.print(lambda([], input.snapshot.source.query))).trim().replace(/^\|/, '');
     const days = 'meta::pure::functions::date::DurationUnit.DAYS';
-    const t = await engine.execute(await planner.plan(await planner.parse(`|${source}->filter(x|$x.symbol == 'AAA')->select(~[day, close])->rename(~close, ~a)
+    const t = await asTest(engine).execute(await planner.plan(await planner.parse(`|${source}->filter(x|$x.symbol == 'AAA')->select(~[day, close])->rename(~close, ~a)
       ->join(${source}->filter(x|$x.symbol == 'CCC')->select(~[day, close])->rename(~day, ~cday)->rename(~close, ~c),
         meta::pure::functions::relation::JoinKind.LEFT, {l,r|$l.day == $r.cday})
       ->extend(~[ln:x|'one', ta:x|dateDiff(%1970-01-01, $x.day->toOne(), ${days}), tc:x|if($x.cday->isEmpty(), |[], |dateDiff(%1970-01-01, $x.cday->toOne(), ${days}))])
@@ -1520,7 +1520,7 @@ describe('exponential averages: gs-quant\'s recursions, the database\'s closed f
   });
   const longLine = async (text: string): Promise<Line> => {
     const ts = await spec({ A: text });
-    const t = await engine.execute(await own.plan(seriesQuery(long, ts, ts.series[0]!).query), 0);
+    const t = await asTest(engine).execute(await own.plan(seriesQuery(long, ts, ts.series[0]!).query), 0);
     return values(t, TS_VALUE).map(num).reverse();
   };
 
@@ -1577,7 +1577,7 @@ describe('exponential averages: gs-quant\'s recursions, the database\'s closed f
     const months = [...new Set(LONG_DAYS.map(month))];
     const lastOf = (m: string): number => LONG[LONG_DAYS.map(month).lastIndexOf(m)]!;
     const ts = await spec({ A: 'close' }, { grain: 'month' });
-    const sea = async (over: TimeseriesSpec, years: number): Promise<ResultTable> => engine.execute(await own.plan(seasonalityQuery(long, over, over.series[0]!, years).query), 0);
+    const sea = async (over: TimeseriesSpec, years: number): Promise<ResultTable> => asTest(engine).execute(await own.plan(seasonalityQuery(long, over, over.series[0]!, years).query), 0);
     const t = await sea(ts, 1);
     assert.deepEqual(values(t, TS_SEA_YEAR).map(num), months.map((m) => Number(m.slice(0, 4))));
     assert.deepEqual(values(t, TS_SEA_PLACE).map(num), months.map((m) => Number(m.slice(5, 7))));
@@ -1603,7 +1603,7 @@ describe('exponential averages: gs-quant\'s recursions, the database\'s closed f
   // from year to year, so each place held some of the years before, and a leap year a day off
   it('a daily seasonality: by the week of the year, each year its week\'s last value -- every year before at every place', async () => {
     const ts = await spec({ A: 'close' });
-    const t = await engine.execute(await own.plan(seasonalityQuery(long, ts, ts.series[0]!, 1).query), 0);
+    const t = await asTest(engine).execute(await own.plan(seasonalityQuery(long, ts, ts.series[0]!, 1).query), 0);
     const weekOf = (d: string): number => {
       const day = (Date.parse(`${d}T00:00:00Z`) - Date.UTC(Number(d.slice(0, 4)), 0, 1)) / 86_400_000 + 1;
       return Math.floor((day - 1) / 7) + 1;
@@ -1623,9 +1623,9 @@ describe('exponential averages: gs-quant\'s recursions, the database\'s closed f
   // are the library's by name -- a person's own Pure over the table answers as the tile does, every figure
   it('a person\'s own Pure: the statistics, a seasonality and a projection by name, as the tile\'s', async () => {
     const source = (await own.print(lambda([], long.get('px')!.snapshot.source.query))).trim().replace(/^\|/, '');
-    const ask = async (calls: string): Promise<ResultTable> => engine.execute(await own.plan(await own.parse(
+    const ask = async (calls: string): Promise<ResultTable> => asTest(engine).execute(await own.plan(await own.parse(
       `|${source}->extend(~t:x|dateDiff(%1970-01-01, $x.day->toOne(), meta::pure::functions::date::DurationUnit.DAYS))${calls}`)), 0);
-    const tile = async (q: { query: Parameters<LitePlanner['plan']>[0] }): Promise<ResultTable> => engine.execute(await own.plan(q.query), 0);
+    const tile = async (q: { query: Parameters<LitePlanner['plan']>[0] }): Promise<ResultTable> => asTest(engine).execute(await own.plan(q.query), 0);
     const ts = await spec({ A: 'close' });
     const A = ts.series[0]!;
     const same = (mine: ResultTable, theirs: ResultTable, pairs: readonly (readonly [string, string])[], tol: number): void => {
@@ -1677,7 +1677,7 @@ describe('exponential averages: gs-quant\'s recursions, the database\'s closed f
   it('trend and seasonally_adjusted daily, over a week of five days: statsmodels\' decomposition', async () => {
     const ts = (text: string): Promise<TimeseriesSpec> => spec({ A: text }, { grain: 'day' });
     const run = async (text: string): Promise<Line> => {
-      const t = await engine.execute(await own.plan(seriesQuery(long, ...(await first(ts(text)))).query), 0);
+      const t = await asTest(engine).execute(await own.plan(seriesQuery(long, ...(await first(ts(text)))).query), 0);
       return values(t, TS_VALUE).map(num).reverse();
     };
     for (const method of ['additive', 'multiplicative'] as const) {
@@ -1695,7 +1695,7 @@ describe('exponential averages: gs-quant\'s recursions, the database\'s closed f
     const r = await ingestFile(engine, files, new File([csv], 'cal-gaps.csv'), writer, { table: 'cal_gaps' });
     const gaps: TsInputs = new Map([['px', { snapshot: { ...input.snapshot, source: { query: r.source }, columns: input.snapshot.columns.filter((c) => c.name !== 'volume') }, filter: undefined }]]);
     const ts = await spec({ A: 'close' });
-    const t = await engine.execute(await plannerFor(r.model, r.runtime).plan(calendarQuery(gaps, ts, ts.series[0]!).query), 0);
+    const t = await asTest(engine).execute(await plannerFor(r.model, r.runtime).plan(calendarQuery(gaps, ts, ts.series[0]!).query), 0);
     const at = (y: number, m: number): number | null => {
       const i = values(t, TS_CAL_YEAR).findIndex((v, j) => num(v) === y && num(values(t, TS_CAL_MONTH)[j]) === m);
       assert.ok(i >= 0, `${y}-${m} has a row`);
@@ -1716,7 +1716,7 @@ describe('exponential averages: gs-quant\'s recursions, the database\'s closed f
     const months = [...new Set(LONG_DAYS.map(month))];
     const lastOf = (m: string): number => LONG[LONG_DAYS.map(month).lastIndexOf(m)]!;
     const ts = await spec({ A: 'close' });
-    const t = await engine.execute(await own.plan(calendarQuery(long, ts, ts.series[0]!).query), 0);
+    const t = await asTest(engine).execute(await own.plan(calendarQuery(long, ts, ts.series[0]!).query), 0);
     assert.deepEqual(values(t, TS_CAL_YEAR).map(num), months.map((m) => Number(m.slice(0, 4))));
     assert.deepEqual(values(t, TS_CAL_MONTH).map(num), months.map((m) => Number(m.slice(5, 7))));
     close(values(t, TS_CAL_RETURN).map(num), months.map((m, i) => (i === 0 ? null : lastOf(m) / lastOf(months[i - 1]!) - 1)), 'monthly', 1e-12);
@@ -1734,7 +1734,7 @@ describe('exponential averages: gs-quant\'s recursions, the database\'s closed f
     const want = decompose(last, 3, false);
     const ts = (text: string): Promise<TimeseriesSpec> => spec({ A: text }, { grain: 'month' });
     const run = async (text: string): Promise<Line> => {
-      const t = await engine.execute(await own.plan(seriesQuery(long, ...(await first(ts(text)))).query), 0);
+      const t = await asTest(engine).execute(await own.plan(seriesQuery(long, ...(await first(ts(text)))).query), 0);
       return values(t, TS_VALUE).map(num).reverse();
     };
     close(await run("trend(close, method => 'additive', freq => 'quarter')"), want.trend, 'trend', 1e-9);
@@ -1746,7 +1746,7 @@ describe('exponential averages: gs-quant\'s recursions, the database\'s closed f
   it('a decomposition: none under two whole cycles; each place in the cycle the calendar\'s, a month missing', async () => {
     const ts = (text: string): Promise<TimeseriesSpec> => spec({ A: text }, { grain: 'month' });
     const run = async (text: string): Promise<{ dates: string[]; values: Line }> => {
-      const t = await engine.execute(await own.plan(seriesQuery(long, ...(await first(ts(text)))).query), 0);
+      const t = await asTest(engine).execute(await own.plan(seriesQuery(long, ...(await first(ts(text)))).query), 0);
       return { dates: values(t, TS_DATE).map((d) => String(d).slice(0, 10)).reverse(), values: values(t, TS_VALUE).map(num).reverse() };
     };
     // 700 days are 24 months, two cycles of a year: decomposed; their last month dropped, 23 -- none (gs-quant refuses)
@@ -2018,7 +2018,7 @@ describe('an analyst\'s packs: technicals, a benchmark, a total return, a basket
   const packLine = async (text: string, more: Partial<TimeseriesSpec> = {}): Promise<{ dates: string[]; values: Line; lower?: Line; upper?: Line }> => {
     const ts = await spec({ A: text }, more);
     const q = seriesQuery(pack, ts, ts.series[0]!);
-    const t = await engine.execute(await packs.plan(q.query), 0);
+    const t = await asTest(engine).execute(await packs.plan(q.query), 0);
     return {
       dates: values(t, TS_DATE).map((d) => String(d).slice(0, 10)).reverse(),
       values: values(t, TS_VALUE).map(num).reverse(),
@@ -2411,7 +2411,7 @@ describe('a period of a column dated at its last row with a value', () => {
   });
   const gapLine = async (text: string, grain: TimeseriesSpec['grain']): Promise<{ dates: string[]; values: Line }> => {
     const ts = await spec({ A: text }, grain === undefined ? {} : { grain });
-    const t = await engine.execute(await gapPlanner.plan(seriesQuery(gaps, ts, ts.series[0]!).query), 0);
+    const t = await asTest(engine).execute(await gapPlanner.plan(seriesQuery(gaps, ts, ts.series[0]!).query), 0);
     return { dates: values(t, TS_DATE).map((d) => String(d).slice(0, 10)).reverse(), values: values(t, TS_VALUE).map(num).reverse() };
   };
 
@@ -2457,7 +2457,7 @@ describe('a date-time source at a daily frequency: a period\'s days its last obs
   const tickLine = async (text: string): Promise<Line> => {
     const ts = await spec({ A: text }, { grain: 'day' });
     const q = seriesQuery(ticks, ts, ts.series[0]!);
-    return values(await engine.execute(await tickPlanner.plan(q.query), 0), TS_VALUE).map(num).reverse();
+    return values(await asTest(engine).execute(await tickPlanner.plan(q.query), 0), TS_VALUE).map(num).reverse();
   };
   const days = (i: number): number => (T[i]! - T[i - 1]!) / 86_400;
 
@@ -2491,7 +2491,7 @@ describe('a date-time source at a daily frequency: a period\'s days its last obs
   // of days: its least squares on them, ahead a week of them, its slope a day's
   it('a projection of date-times at a daily frequency: its line on its days, its end a week past the last, its slope a day\'s', async () => {
     const ts = await spec({ A: "close['S']" }, { grain: 'day' });
-    const t = await engine.execute(await tickPlanner.plan(projectionQuery(ticks, ts, { kind: 'projection', series: 'A', window: 5, ahead: '1w' }).query), 0);
+    const t = await asTest(engine).execute(await tickPlanner.plan(projectionQuery(ticks, ts, { kind: 'projection', series: 'A', window: 5, ahead: '1w' }).query), 0);
     const xs = DAYS_T.slice(-5).map((d) => Date.parse(`${d}T00:00:00Z`) / 1000);
     const ys = SC.slice(-5);
     const mx = avg(xs);
@@ -2586,7 +2586,7 @@ describe('a series\' statistics over the dates shown', () => {
     const yearly: TsInputs = new Map([['px', { snapshot: { ...input.snapshot, source: { query: r.source }, columns: input.snapshot.columns.filter((c) => c.name !== 'volume') }, filter: undefined }]]);
     const ts = await spec({ A: 'close' });
     const cagr = async (view: TsWindow): Promise<unknown> =>
-      values(await engine.execute(await own.plan(statsQuery(yearly, ts, ts.series[0]!, view).query), 0), statName('cagr'))[0];
+      values(await asTest(engine).execute(await own.plan(statsQuery(yearly, ts, ts.series[0]!, view).query), 0), statName('cagr'))[0];
     const days = (a: string, b: string): number => (Date.parse(b) - Date.parse(a)) / 86400000;
     // a day short of a year: none; a year to the day: its growth
     assert.equal(await cagr({ from: '2022-02-28', to: '2023-02-27' }), null, 'a day short of a year');
@@ -2597,7 +2597,7 @@ describe('a series\' statistics over the dates shown', () => {
     close([num(await cagr({}))], [(116 / 100) ** (365.25 / days('2022-02-28', '2024-03-01')) - 1], 'two years', 1e-9);
     // compared as its % change, the level's own growth (the third review's 5)
     const pct = await spec({ A: 'close' }, { view: { compare: 'percent' } });
-    const compared = await engine.execute(await own.plan(statsQuery(yearly, pct, pct.series[0]!, {}).query), 0);
+    const compared = await asTest(engine).execute(await own.plan(statsQuery(yearly, pct, pct.series[0]!, {}).query), 0);
     close([num(values(compared, statName('cagr'))[0])], [(116 / 100) ** (365.25 / days('2022-02-28', '2024-03-01')) - 1], 'compared', 1e-9);
   });
 
@@ -2636,7 +2636,7 @@ describe('a series\' statistics over the dates shown', () => {
     const own = plannerFor(r0.model, r0.runtime);
     const shown: TsInputs = new Map([['px', { snapshot: { ...input.snapshot, source: { query: r0.source }, columns: input.snapshot.columns.filter((c) => c.name !== 'volume') }, filter: undefined }]]);
     const ts = await spec({ A: 'close' });
-    const t = await engine.execute(await own.plan(statsQuery(shown, ts, ts.series[0]!).query), 0);
+    const t = await asTest(engine).execute(await own.plan(statsQuery(shown, ts, ts.series[0]!).query), 0);
     const r = levels.slice(1).map((x, i) => x / levels[i]! - 1);
     assert.equal(r.length, 21, 'twenty-one returns: (n - 1)q = 1, the quantile the second least');
     const sorted = [...r].sort((a, b) => a - b);
@@ -2647,7 +2647,7 @@ describe('a series\' statistics over the dates shown', () => {
     const csv2 = ['symbol,day,close', ...days.map((d, i) => `E,${d},${tied[i]}`)].join('\n');
     const r1 = await ingestFile(engine, files, new File([csv2], 'shortfall-tied.csv'), writer, { table: 'es_tied' });
     const tiedIn: TsInputs = new Map([['px', { snapshot: { ...input.snapshot, source: { query: r1.source }, columns: input.snapshot.columns.filter((c) => c.name !== 'volume') }, filter: undefined }]]);
-    const t2 = await engine.execute(await plannerFor(r1.model, r1.runtime).plan(statsQuery(tiedIn, ts, ts.series[0]!).query), 0);
+    const t2 = await asTest(engine).execute(await plannerFor(r1.model, r1.runtime).plan(statsQuery(tiedIn, ts, ts.series[0]!).query), 0);
     const rt = tied.slice(1).map((x, i) => x / tied[i]! - 1);
     const st = [...rt].sort((a, b) => a - b);
     const at = 0.05 * (rt.length - 1);
@@ -2665,7 +2665,7 @@ describe('a series\' statistics over the dates shown', () => {
     const own = plannerFor(r.model, r.runtime);
     const quarterly: TsInputs = new Map([['px', { snapshot: { ...input.snapshot, source: { query: r.source }, columns: input.snapshot.columns.filter((c) => c.name !== 'volume') }, filter: undefined }]]);
     const ts = await spec({ A: 'close' });
-    const t = await engine.execute(await own.plan(statsQuery(quarterly, ts, ts.series[0]!).query), 0);
+    const t = await asTest(engine).execute(await own.plan(statsQuery(quarterly, ts, ts.series[0]!).query), 0);
     const days = (Date.parse(dates.at(-1)!) - Date.parse(dates[0]!)) / 86400000;
     const cagr = (125 / 100) ** (365.25 / days) - 1;
     close([num(values(t, statName('calmar'))[0])], [cagr / Math.abs(88 / 110 - 1)], 'calmar', 1e-9);
@@ -2826,7 +2826,7 @@ describe('the review\'s findings on the numbers, each pinned', () => {
     // a window of 6 months: the line from its seventh month (its ramp sliced off), seven dates whose spacing says the
     // periods a year (a window of the 12 left one, which says none: the checkpoint's review, 2026-11-09)
     const ts = await spec({ A: "volatility(close, w => 6, type => 'log')" });
-    const t = await engine.execute(await own.plan(seriesQuery(monthly, ts, ts.series[0]!).query), 0);
+    const t = await asTest(engine).execute(await own.plan(seriesQuery(monthly, ts, ts.series[0]!).query), 0);
     const logs = levels.slice(1).map((v, i) => Math.log(v / levels[i]!));
     const want = sd(logs.slice(-6)) * Math.sqrt(12) * 100;
     close([num(values(t, TS_VALUE)[0])], [want], 'monthly volatility, by 12', 1e-9);
@@ -3039,7 +3039,7 @@ describe('a series combining two grids, planned over one model of their tables (
   const joinedLine = async (ts: TimeseriesSpec, id = 'A'): Promise<{ dates: string[]; values: Line; split?: unknown[] }> => {
     const series = ts.series.find((x) => x.id === id)!;
     const q = seriesQuery(joint, ts, series);
-    const t = await engine.execute(await jointPlanner.plan(q.query), 0);
+    const t = await asTest(engine).execute(await jointPlanner.plan(q.query), 0);
     return {
       dates: values(t, TS_DATE).map((d) => String(d).slice(0, 10)).reverse(),
       values: values(t, TS_VALUE).map(num).reverse(),
@@ -3048,10 +3048,10 @@ describe('a series combining two grids, planned over one model of their tables (
   };
 
   before(async () => {
-    await engine.run(unplanned('CREATE TABLE px_t (symbol VARCHAR, day DATE, close DOUBLE)'), 0);
-    await engine.run(unplanned(`INSERT INTO px_t VALUES ${DAYS.flatMap((d, i) => [`('AAA', '${d}', ${AAA[i]})`, `('BBB', '${d}', ${BBB[i]})`]).join(', ')}`), 0);
-    await engine.run(unplanned('CREATE TABLE rates_t (tenor VARCHAR, obs_date DATE, yield DOUBLE)'), 0);
-    await engine.run(unplanned(`INSERT INTO rates_t VALUES ${RATE_DAYS.flatMap((d, i) => [`('10Y', '${d}', ${TEN[i]})`, `('2Y', '${d}', ${TWO[i]})`]).join(', ')}, ('10Y', '2024-12-31', 9)`), 0);
+    await asTest(engine).run(unplanned('CREATE TABLE px_t (symbol VARCHAR, day DATE, close DOUBLE)'), 0);
+    await asTest(engine).run(unplanned(`INSERT INTO px_t VALUES ${DAYS.flatMap((d, i) => [`('AAA', '${d}', ${AAA[i]})`, `('BBB', '${d}', ${BBB[i]})`]).join(', ')}`), 0);
+    await asTest(engine).run(unplanned('CREATE TABLE rates_t (tenor VARCHAR, obs_date DATE, yield DOUBLE)'), 0);
+    await asTest(engine).run(unplanned(`INSERT INTO rates_t VALUES ${RATE_DAYS.flatMap((d, i) => [`('10Y', '${d}', ${TEN[i]})`, `('2Y', '${d}', ${TWO[i]})`]).join(', ')}, ('10Y', '2024-12-31', 9)`), 0);
     const models = plannerFor('', 'local::RT');
     const opening: JoinOpening = {
       here: TAB_TABLES, tables: ['px_t', 'rates_t'], models, databaseType: 'DuckDB',
@@ -3151,7 +3151,7 @@ describe('the timeseries examples: every series of every tile, on its own sample
       for (const [cube, csv, specs] of samples) {
         const r = await ingestFile(local, db.files, new File([csv], `sample-${cube}.csv`), writer, { table: `ex_${cube}` });
         const own = plannerFor(r.model, r.runtime);
-        const all = await local.execute(await own.plan(from(r.source).limit(1).lambda()), 0);
+        const all = await asTest(local).execute(await own.plan(from(r.source).limit(1).lambda()), 0);
         assert.deepEqual(all.columns.map((c) => `${c.name}:${c.type}`), specs.map((c) => `${c.name}:${c.type}`), `${cube}: typed as the page says`);
         const saved = page.cubes.find((c) => c.id === cube)!.cube.query;
         grids.set(cube, { input: { snapshot: { ...saved, source: { query: r.source }, epoch: 1 }, filter: undefined }, planner: own, table: r.table });
@@ -3173,7 +3173,7 @@ describe('the timeseries examples: every series of every tile, on its own sample
         const cubeOf = (alias: string): string => ts.sources.find((x) => x.alias === alias)!.cube;
         for (const src of ts.sources) {
           const g = grids.get(src.cube)!;
-          const t = await local.execute(await g.planner.plan(boundsQuery(g.input, src)), 0);
+          const t = await asTest(local).execute(await g.planner.plan(boundsQuery(g.input, src)), 0);
           assert.ok(t.rowCount === 1 && values(t, TS_LATEST)[0] !== null, `${view.id}: ${src.alias}'s bounds`);
         }
         for (const series of ts.series) {
@@ -3182,12 +3182,12 @@ describe('the timeseries examples: every series of every tile, on its own sample
             ? [new Map(aliases.map((a) => [a, together.get(cubeOf(a))!] as const)), joint]
             : [new Map([[aliases[0]!, grids.get(cubeOf(aliases[0]!))!.input]]), grids.get(cubeOf(aliases[0]!))!.planner];
           const q = seriesQuery(inputsOf, ts, series);
-          const t = await local.execute(await plannerOf.plan(q.query), 0);
+          const t = await asTest(local).execute(await plannerOf.plan(q.query), 0);
           const shown = values(t, TS_VALUE).filter((v) => v !== null && Number.isFinite(Number(v)));
           // five years of days (or weeks), or of months
           assert.ok(shown.length > (ts.grain === 'month' ? 40 : 100), `${view.id} ${series.id} (${series.name}): ${shown.length} values`);
           if (!q.band) {
-            const st = await local.execute(await plannerOf.plan(statsQuery(inputsOf, ts, series, {}).query), 0);
+            const st = await asTest(local).execute(await plannerOf.plan(statsQuery(inputsOf, ts, series, {}).query), 0);
             assert.ok(st.rowCount >= 1, `${view.id} ${series.id}: its statistics`);
           }
           ran += 1;
@@ -3205,7 +3205,7 @@ describe('the timeseries examples: every series of every tile, on its own sample
           const [inputsOf, plannerOf] = ofOne(one);
           const q = mode === 'scatter' ? scatterQuery(inputsOf, ts, one, other!) : mode === 'seasonality' ? seasonalityQuery(inputsOf, ts, one)
             : mode === 'histogram' ? histogramQuery(inputsOf, ts, one) : curveQuery(inputsOf, ts, one);
-          const t = await local.execute(await plannerOf.plan(q.query), 0);
+          const t = await asTest(local).execute(await plannerOf.plan(q.query), 0);
           assert.ok(t.rowCount > 3, `${view.id}'s ${mode}: ${t.rowCount} rows`);
         }
         // each trend projected (Phase 5): its query too, its one row a fit
@@ -3214,7 +3214,7 @@ describe('the timeseries examples: every series of every tile, on its own sample
           const one = ts.series.find((x) => x.id === a.series)!;
           const alias = seriesSources(ts, one)[0]!;
           const g = grids.get(cubeOf(alias))!;
-          const t = await local.execute(await g.planner.plan(projectionQuery(new Map([[alias, g.input]]), ts, a).query), 0);
+          const t = await asTest(local).execute(await g.planner.plan(projectionQuery(new Map([[alias, g.input]]), ts, a).query), 0);
           assert.ok(t.rowCount === 1 && values(t, TS_PJ_SLOPE)[0] !== null, `${view.id}'s projection ${i + 1}`);
         }
         // and every level's calendar of returns (each tile's Calendar tab)
@@ -3223,7 +3223,7 @@ describe('the timeseries examples: every series of every tile, on its own sample
           const aliases = seriesSources(ts, one);
           if (aliases.length > 1) continue;
           const g = grids.get(cubeOf(aliases[0]!))!;
-          const t = await local.execute(await g.planner.plan(calendarQuery(new Map([[aliases[0]!, g.input]]), ts, one).query), 0);
+          const t = await asTest(local).execute(await g.planner.plan(calendarQuery(new Map([[aliases[0]!, g.input]]), ts, one).query), 0);
           assert.ok(t.rowCount > 0, `${view.id} ${id}'s calendar`);
         }
       }

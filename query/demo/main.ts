@@ -8,13 +8,12 @@
 // In the browser planes the tab's planner writes the SQL and one of DataCube's engines runs it,
 // and saved queries stay in this browser (the same records and rules as a server's store).
 
-import { startDuckDbInTab } from '../../engine-client/src/duckdb-tab.ts';
-import { ProjectDatabases, ProjectRunner, type ProjectDataSource } from '../../engine-client/src/project-data.ts';
-import type { QueryEngine } from '../../engine-client/src/engine.ts';
-import { runLoad } from '../../engine-client/src/plan-runner.ts';
-import {
-  listObjects, loadWarehouseBinding, signIn, WarehouseEngine, type WarehouseBinding, type WarehouseSession,
-} from '../../engine-client/src/warehouse.ts';
+import { openDuckDbInTab } from '../../engine-client/src/doors/tab-duckdb.ts';
+import { dataLoaded, ProjectDoor, projectRunner } from '../../engine-client/src/doors/project-data.ts';
+import { warehouseAt } from '../../engine-client/src/doors/warehouse.ts';
+import type { ProjectDataSource } from '../../engine-client/src/planner-sources.ts';
+import type { QueryEngine } from '../../engine-client/src/query-engine.ts';
+import type { CatalogObject } from '../../engine-client/src/warehouse-session.ts';
 import { connectModelHome } from '../../depot-client/src/model-home.ts';
 import { loadByName, versionsOf } from '../src/app/by-name.ts';
 import { AppContext, type AppConfig, type CubeRows, type LoadedProject } from '../src/app/context.ts';
@@ -42,20 +41,16 @@ async function text(url: string): Promise<string> {
 async function seed(engine: QueryEngine & { readonly databaseType: string }, planner: ProjectDataSource,
   files: readonly string[]): Promise<void> {
   const model = (await Promise.all(files.map(text))).join('\n');
-  const { load } = await planner.projectData(model, engine.databaseType);
-  if (load === undefined) throw new Error(`the warehouse's seed (${files.join(', ')}) holds no Data rows to load`);
-  await runLoad(load, (sql, params) => {
-    if (params.length > 0) throw new Error("a project's Data load binds no value");
-    return engine.run(sql, 0);
-  });
+  // the load asked and run through its door (doors/project-data.ts dataLoaded; 2026-11-15, the C5-T fold-in)
+  await dataLoaded(engine, planner, model, `the warehouse's seed (${files.join(', ')})`);
 }
 
 /**
  * A warehouse catalog's database type, what a statement run on it is written for (Snap's count): as the warehouse
  * lists it -- or, for its own catalog (`main`) with nothing in it yet (the fixture loads after sign-in), its DuckDB.
  */
-async function catalogType(binding: WarehouseBinding, session: WarehouseSession, catalog: string): Promise<string> {
-  const listed = (await listObjects(binding, session)).find((o) => o.catalog === catalog)?.databaseType;
+function catalogType(objects: readonly CatalogObject[], catalog: string): string {
+  const listed = objects.find((o) => o.catalog === catalog)?.databaseType;
   if (listed) return listed;
   if (catalog === 'main') return 'DuckDB';
   throw new Error(`the warehouse lists nothing this user may read in its catalog ${catalog}: its database type is not known`);
@@ -125,29 +120,31 @@ async function boot(): Promise<void> {
     let runner: QueryEngine;
     if (exec.kind === 'duckdb-wasm') {
       starting('Starting DuckDB in this tab');
-      const tab = await startDuckDbInTab(vendor, planner!);
+      const tab = await openDuckDbInTab(vendor, planner!);
       // a project opened by name brings its own rows, in a database of its own here (C5): the screens run on `runner`,
       // pointed there as it opens (AppContext.activate)
-      const projectRunner = new ProjectRunner(tab.engine);
-      runner = projectRunner;
+      const pointed = projectRunner(tab.engine);
+      runner = pointed;
       tabProjects = {
-        databases: new ProjectDatabases({
-          databaseType: tab.engine.databaseType, run: (sql) => tab.engine.run(sql, 0), connect: () => tab.connect(),
+        databases: new ProjectDoor({
+          databaseType: tab.engine.databaseType, engine: tab.engine, connect: () => tab.connect(),
         }, planner!),
-        runner: projectRunner,
+        runner: pointed,
         host: tab.engine,
       };
       user = exec.user;
     } else {
       // the warehouse's API as the one binding speaks it (vendor/warehouse/: docs/ONE_PLATFORM_PROGRAM_2026_10_12.md C3),
       // fetched while the person types
-      const loading = loadWarehouseBinding(new URL(`${vendor}warehouse/`, location.href).href);
+      // through its door (doors/warehouse.ts; 2026-11-15, the C5-T fold-in): signed in, what the user may read listed
+      // in the same step, and the catalog opened live
+      const loading = warehouseAt(new URL(`${vendor}warehouse/`, location.href).href);
       const creds = await askSignIn(root, exec.url);
       starting('Signing in');
-      const binding = await loading;
-      const session = await signIn(binding, exec.url, creds.user, creds.password);
+      const door = await loading;
+      const { session, objects } = await door.connect(exec.url, creds.user, creds.password);
       const catalog = exec.catalog ?? 'main';
-      const warehouse = new WarehouseEngine(binding, session, catalog, await catalogType(binding, session, catalog));
+      const warehouse = door.live(session, catalog, catalogType(objects, catalog));
       runner = warehouse;
       user = session.principal;
       if (exec.seed?.length) {

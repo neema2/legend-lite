@@ -77,7 +77,12 @@ const ask = (table: string, model = MODEL) => planner.ingestPlans({
  *  connections read each result in one round trip (duckdb.ts), as the tab's live market's are. */
 async function opened(whole = false): Promise<LiveDuckDb> {
   sent.length = 0;
-  const live = await LiveDuckDb.open({ connect: () => new DuckDbEngine(counted(), { whole }), host: planner, timer: false });
+  const [begin, commit] = await planner.hostOperations('DuckDB', [
+    { op: 'transaction', step: 'begin' },
+    { op: 'transaction', step: 'commit' },
+  ]);
+  const live = await LiveDuckDb.open({ connect: () => new DuckDbEngine(counted(), { whole }),
+    transaction: { begin: begin ?? [], commit: commit ?? [] }, timer: false });
   await live.declare(await Promise.all(['PRINTS', 'NEWS', 'QUOTES', 'TAPE'].map(async (name) => ({ name, held: 'batch', plans: await ask(name) }))));
   return live;
 }

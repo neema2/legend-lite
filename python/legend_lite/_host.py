@@ -10,8 +10,8 @@ from __future__ import annotations
 from typing import Any
 
 from . import compiler
-from ._planned import PlannedSql, send
-from ._runframe import in_run
+from . import _runs
+from ._planned import PlannedSql
 
 DUCKDB = 'DuckDB'
 
@@ -28,18 +28,14 @@ def statements(*operations: dict[str, Any], database_type: str = DUCKDB) -> list
 
 
 def run(connection: Any, *operations: dict[str, Any]) -> None:
-    """The operations run on ``connection``, in order: planned first, then sent inside a run (the witness)."""
-    planned = statements(*operations)
-    with in_run("a host's operations"):
-        for sql in planned:
-            send(connection, sql)
+    """The operations run on ``connection``, in order: planned first, then handed to the run side (``_runs``, C5-P)."""
+    _runs.run_statements(connection, statements(*operations), "a host's operations")
 
 
 def ask(connection: Any, operation: dict[str, Any]) -> list[tuple[Any, ...]]:
-    """A question's rows (a catalog question, a count): its one statement run on ``connection``."""
+    """A question's rows (a catalog question, a count): its one statement planned, then run on ``connection``."""
     (sql,) = statements(operation)
-    with in_run("a host's question"):
-        return send(connection, sql).fetchall()
+    return _runs.ask(connection, sql, "a host's question")
 
 
 def count(connection: Any, operation: dict[str, Any]) -> int:

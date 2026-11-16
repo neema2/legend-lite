@@ -1071,6 +1071,29 @@ class Document(Paged):
         with self.assertRaisesRegex(ValueError, 'a curve is of a line per value of a column'):
             tile.curve('A')
 
+    def test_a_timeseries_question_the_planner_refuses_is_a_row_the_others_answered(self):
+        # the C5 follow-up's audit item 2 (2026-11-15): a question the planner refuses (a LegendError, not a ValueError)
+        # raised out of queries(), every other question lost; it is a row whose `refused` is the planner's words
+        from unittest import mock
+        from legend_lite.compiler import LegendError
+        page = ll.Page('Refused')
+        days = pd.date_range('2024-01-01', periods=6, freq='D').date
+        prices = pd.DataFrame({'symbol': ['S'] * 6, 'day': list(days), 'close': [100.0, 101.0, 99.0, 103.0, 104.0, 102.0]})
+        tile = page.timeseries({'px': page.grid(prices, name='prices')}, ["close['S']"])
+        planned = type(tile)._planned
+
+        def refusing(self, told):
+            if told.get('table') == 'statistics':
+                raise LegendError('the planner refused this question', 'COMPILATION')
+            return planned(self, told)
+
+        with mock.patch.object(type(tile), '_planned', refusing):
+            asked = tile.queries()
+        refused = [q for q in asked if 'refused' in q]
+        self.assertEqual([(q['kind'], q['refused']) for q in refused],
+                         [('statistics', 'the planner refused this question')])
+        self.assertTrue(len(asked) > 1 and all('sql' in q for q in asked if 'refused' not in q), asked)
+
     def test_a_timeseries_lists_every_query_it_asks_each_its_pure_and_its_sql(self):
         # the user, 2026-10-26: "show all the pure queries used to create a timeseries chart" -- the screen's Query
         # window's every question, by its one rule (headless timeseriesAsks: timeseries-query.ts tileAsks), each written

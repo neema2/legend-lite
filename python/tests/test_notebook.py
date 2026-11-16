@@ -71,6 +71,29 @@ class Widget(unittest.TestCase):
         return content['status'], content['type'], content['headers'], bytes(buffers[0])
 
 
+class UnexpectedFailures(Widget):
+    def test_a_failure_no_route_answers_says_no_held_value(self):
+        # the C5 follow-up's check (2026-11-15): the widget's channel answered a failure's raw words; it is the engine's
+        # one unexpected answer now, every value the session's frames hold taken out
+        from unittest import mock
+        cube = self.cube()
+        frames = datacube._session.frames
+        original = frames.held_values
+        token = 'X-Amz-Signature=held-0123456789'
+        engine = datacube._session.engine()
+
+        def failing(*_args, **_kw):
+            raise RuntimeError(f'the call failed: {token}')
+
+        with mock.patch.object(frames, 'held_values', lambda: (*original(), token)), \
+                mock.patch.object(engine, 'answer', failing):
+            status, _, _, body = self.call(cube, 'POST', '/snap.json', body='{}')
+        said = body.decode('utf-8')
+        self.assertEqual(status, 500, said)
+        self.assertIn('RuntimeError: the call failed', said)
+        self.assertNotIn('held-0123456789', said)
+
+
 class Calls(Widget):
     def test_its_script_is_the_loader_and_the_page_keeps_datacube_s_module_by_its_hash(self):
         cube = self.cube()

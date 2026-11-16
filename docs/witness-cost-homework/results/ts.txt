@@ -83,3 +83,76 @@ whole query, p50                 OFF  2570.0 [2354.0-3068.3]  ON  2270.3 [2100.2
 # the run frame's tests with --experimental-async-context-frame (bazel test ... --test_env=NODE_OPTIONS="--experimental-async-context-frame --import=$PRELOAD_DIR/flag-check-env.mjs")
 //engine-client:run_frame_test PASSED (5 of 5); //engine-client:plan_runner_test PASSED (43 of 43); //datacube:lite_planner_test PASSED (29 of 29); each printed [flag-check] NODE_OPTIONS=--experimental-async-context-frame ...
 run directly from a copy of the runfiles with the flag on the command line (execArgv checked): run-frame.test.ts 5 of 5, plan-runner.test.ts 43 of 43
+
+# Node 22.16, the flag and Node 24 (C5-T, 2026-11-15; scripts/node3.sh.txt: bench.mjs, the three runtimes, two passes; then the
+# per-run mode three passes more). The same container type, but slower today: OFF's await iteration 60-72 ns (40 ns on
+# 2026-11-13), so compare within today's lines, never across days. run-frame.ts as at C5-T step 6 (NOT_PLANNING's check
+# makes planning() 5-10 ns in every variant).
+[22.16.0] on planning(kind) outside a run: median 8.95 ns per call (frameKept=true) 
+[22.16.0] off planning(kind) outside a run: median 9.98 ns per call (frameKept=false) 
+[22.16.0] on await inRun('a plan', async () => 1): median 253.0 ns per run on await (async () => 1)() (reference, same process): median 226.0 ns 
+[22.16.0] off await inRun('a plan', async () => 1): median 68.8 ns per run off await (async () => 1)() (reference, same process): median 67.0 ns 
+[22.16.0] on awaits-outside: median 198.4 ns per await of an async call (min 183.9, max 223.8) 
+[22.16.0] off awaits-outside: median 62.7 ns per await of an async call (min 61.2, max 69.3) 
+[22.16.0] on awaits-inside: median 221.8 ns per await of an async call (min 191.1, max 303.9) 
+[22.16.0] off awaits-inside: median 72.4 ns per await of an async call (min 63.8, max 89.6) 
+[22.16.0 --experimental-async-context-frame] on planning(kind) outside a run: median 10.64 ns per call (frameKept=true) 
+[22.16.0 --experimental-async-context-frame] off planning(kind) outside a run: median 8.95 ns per call (frameKept=false) 
+[22.16.0 --experimental-async-context-frame] on await inRun('a plan', async () => 1): median 134.5 ns per run on await (async () => 1)() (reference, same process): median 70.9 ns 
+[22.16.0 --experimental-async-context-frame] off await inRun('a plan', async () => 1): median 126.3 ns per run off await (async () => 1)() (reference, same process): median 82.1 ns 
+[22.16.0 --experimental-async-context-frame] on awaits-outside: median 67.2 ns per await of an async call (min 63.7, max 87.5) 
+[22.16.0 --experimental-async-context-frame] off awaits-outside: median 70.9 ns per await of an async call (min 63.8, max 83.1) 
+[22.16.0 --experimental-async-context-frame] on awaits-inside: median 73.3 ns per await of an async call (min 62.9, max 90.0) 
+[22.16.0 --experimental-async-context-frame] off awaits-inside: median 60.3 ns per await of an async call (min 58.3, max 69.6) 
+[24.22.3] on planning(kind) outside a run: median 5.93 ns per call (frameKept=true) 
+[24.22.3] off planning(kind) outside a run: median 5.31 ns per call (frameKept=false) 
+[24.22.3] on await inRun('a plan', async () => 1): median 375.7 ns per run on await (async () => 1)() (reference, same process): median 67.2 ns 
+[24.22.3] off await inRun('a plan', async () => 1): median 107.5 ns per run off await (async () => 1)() (reference, same process): median 100.5 ns 
+[24.22.3] on awaits-outside: median 70.1 ns per await of an async call (min 65.3, max 77.4) 
+[24.22.3] off awaits-outside: median 67.5 ns per await of an async call (min 64.4, max 71.7) 
+[24.22.3] on awaits-inside: median 93.2 ns per await of an async call (min 63.8, max 96.8) 
+[24.22.3] off awaits-inside: median 65.3 ns per await of an async call (min 64.9, max 67.3) 
+[22.16.0] on planning(kind) outside a run: median 5.98 ns per call (frameKept=true) 
+[22.16.0] off planning(kind) outside a run: median 6.30 ns per call (frameKept=false) 
+[22.16.0] on await inRun('a plan', async () => 1): median 273.0 ns per run on await (async () => 1)() (reference, same process): median 214.3 ns 
+[22.16.0] off await inRun('a plan', async () => 1): median 72.3 ns per run off await (async () => 1)() (reference, same process): median 65.6 ns 
+[22.16.0] on awaits-outside: median 226.3 ns per await of an async call (min 201.2, max 360.5) 
+[22.16.0] off awaits-outside: median 64.9 ns per await of an async call (min 61.9, max 70.3) 
+[22.16.0] on awaits-inside: median 211.4 ns per await of an async call (min 199.3, max 339.4) 
+[22.16.0] off awaits-inside: median 64.8 ns per await of an async call (min 59.0, max 116.7) 
+[22.16.0 --experimental-async-context-frame] on planning(kind) outside a run: median 8.18 ns per call (frameKept=true) 
+[22.16.0 --experimental-async-context-frame] off planning(kind) outside a run: median 9.14 ns per call (frameKept=false) 
+[22.16.0 --experimental-async-context-frame] on await inRun('a plan', async () => 1): median 116.5 ns per run on await (async () => 1)() (reference, same process): median 95.4 ns 
+[22.16.0 --experimental-async-context-frame] off await inRun('a plan', async () => 1): median 93.0 ns per run off await (async () => 1)() (reference, same process): median 108.1 ns 
+[22.16.0 --experimental-async-context-frame] on awaits-outside: median 80.1 ns per await of an async call (min 60.8, max 109.5) 
+[22.16.0 --experimental-async-context-frame] off awaits-outside: median 81.4 ns per await of an async call (min 59.9, max 97.9) 
+[22.16.0 --experimental-async-context-frame] on awaits-inside: median 62.3 ns per await of an async call (min 59.2, max 80.4) 
+[22.16.0 --experimental-async-context-frame] off awaits-inside: median 62.9 ns per await of an async call (min 60.6, max 66.5) 
+[24.22.3] on planning(kind) outside a run: median 7.03 ns per call (frameKept=true) 
+[24.22.3] off planning(kind) outside a run: median 6.04 ns per call (frameKept=false) 
+[24.22.3] on await inRun('a plan', async () => 1): median 336.7 ns per run on await (async () => 1)() (reference, same process): median 82.8 ns 
+[24.22.3] off await inRun('a plan', async () => 1): median 82.4 ns per run off await (async () => 1)() (reference, same process): median 117.1 ns 
+[24.22.3] on awaits-outside: median 66.5 ns per await of an async call (min 64.2, max 99.4) 
+[24.22.3] off awaits-outside: median 64.8 ns per await of an async call (min 64.0, max 67.8) 
+[24.22.3] on awaits-inside: median 70.7 ns per await of an async call (min 65.2, max 96.0) 
+[24.22.3] off awaits-inside: median 66.1 ns per await of an async call (min 64.0, max 104.2) 
+
+# the per-run mode, three passes more
+[22.16.0] on await inRun('a plan', async () => 1): median 281.2 ns per run on await (async () => 1)() (reference, same process): median 212.6 ns 
+[22.16.0] off await inRun('a plan', async () => 1): median 88.1 ns per run off await (async () => 1)() (reference, same process): median 65.9 ns 
+[22.16.0 --experimental-async-context-frame] on await inRun('a plan', async () => 1): median 113.2 ns per run on await (async () => 1)() (reference, same process): median 80.2 ns 
+[22.16.0 --experimental-async-context-frame] off await inRun('a plan', async () => 1): median 72.6 ns per run off await (async () => 1)() (reference, same process): median 70.0 ns 
+[24.22.3] on await inRun('a plan', async () => 1): median 327.9 ns per run on await (async () => 1)() (reference, same process): median 58.9 ns 
+[24.22.3] off await inRun('a plan', async () => 1): median 71.6 ns per run off await (async () => 1)() (reference, same process): median 69.8 ns 
+[22.16.0] on await inRun('a plan', async () => 1): median 262.3 ns per run on await (async () => 1)() (reference, same process): median 198.1 ns 
+[22.16.0] off await inRun('a plan', async () => 1): median 66.9 ns per run off await (async () => 1)() (reference, same process): median 64.4 ns 
+[22.16.0 --experimental-async-context-frame] on await inRun('a plan', async () => 1): median 116.7 ns per run on await (async () => 1)() (reference, same process): median 67.9 ns 
+[22.16.0 --experimental-async-context-frame] off await inRun('a plan', async () => 1): median 117.9 ns per run off await (async () => 1)() (reference, same process): median 67.3 ns 
+[24.22.3] on await inRun('a plan', async () => 1): median 364.5 ns per run on await (async () => 1)() (reference, same process): median 64.5 ns 
+[24.22.3] off await inRun('a plan', async () => 1): median 75.8 ns per run off await (async () => 1)() (reference, same process): median 70.6 ns 
+[22.16.0] on await inRun('a plan', async () => 1): median 241.8 ns per run on await (async () => 1)() (reference, same process): median 200.1 ns 
+[22.16.0] off await inRun('a plan', async () => 1): median 70.2 ns per run off await (async () => 1)() (reference, same process): median 69.3 ns 
+[22.16.0 --experimental-async-context-frame] on await inRun('a plan', async () => 1): median 115.4 ns per run on await (async () => 1)() (reference, same process): median 68.1 ns 
+[22.16.0 --experimental-async-context-frame] off await inRun('a plan', async () => 1): median 72.7 ns per run off await (async () => 1)() (reference, same process): median 69.2 ns 
+[24.22.3] on await inRun('a plan', async () => 1): median 333.7 ns per run on await (async () => 1)() (reference, same process): median 63.8 ns 
+[24.22.3] off await inRun('a plan', async () => 1): median 75.4 ns per run off await (async () => 1)() (reference, same process): median 76.9 ns 

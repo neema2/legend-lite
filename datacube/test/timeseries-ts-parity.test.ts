@@ -30,6 +30,7 @@ import { join } from 'node:path';
 import { catalogColumns, ingestFile } from '../src/upload.ts';
 import { frozenOf, holdFrozen, type Frozen } from './timeseries-frozen.ts';
 import { plannerFor, readPageTexts } from './catalog-builder.ts';
+import { asTest } from '../../engine-client/test/unplanned.ts';
 
 const writer = plannerFor('', 'local::RT');
 
@@ -157,12 +158,12 @@ it('every gallery series answers the same written in #TS as the tile\'s writer a
           let shownOf: string | undefined;
           try {
             const q = seriesQuery(inputsOf, ts, series, anchor === undefined ? {} : { from: anchor }, {}, null);
-            const tile = await local.execute(await plannerOf.plan(q.query), 0);
+            const tile = await asTest(local).execute(await plannerOf.plan(q.query), 0);
             const pairs = fields(q.band, q.candles === true);
             frozen.set(id, frozenOf(tile, TS_DATE, q.split === undefined ? undefined : TS_SPLIT, pairs.map(([a]) => a)));
             const date = ts.sources.find((s) => s.alias === aliases[0])!.date;
             const sent = tsSeriesQuery(inputsOf, ts, series, anchor);
-            const mine = await local.execute(await plannerOf.plan(sent), 0);
+            const mine = await asTest(local).execute(await plannerOf.plan(sent), 0);
             // SHOW #TS (D12): the series as one statement, read back -- the same rows, and printed as itself
             const shown = await plannerOf.tsStatement(sent);
             if (shown.statement === undefined) {
@@ -171,7 +172,7 @@ it('every gallery series answers the same written in #TS as the tile\'s writer a
               const alone = lambda([], tsIsland(shown.statement));
               const again = await plannerOf.tsStatement(alone);
               if (again.statement !== shown.statement) statementsWrong.push(`${id}: printed again as ${again.statement ?? again.refused}`);
-              const read = await local.execute(await plannerOf.plan(alone), 0);
+              const read = await asTest(local).execute(await plannerOf.plan(alone), 0);
               const date = ts.sources.find((s) => s.alias === aliases[0])!.date;
               const split = series.split;
               const names = fields(q.band, q.candles === true).map(([, b]) => b);

@@ -12,11 +12,11 @@ import { DEFAULT_CONFIGURATION, type CubeConfiguration } from '../src/config.ts'
 import type { Planner } from '../src/cube.ts';
 import type { ModelOptions } from '../src/planner.ts';
 import type { TsItemAnswer } from '../src/lite-planner.ts';
-import type { DuckDbEngine } from '../../engine-client/src/duckdb.ts';
-import { startDuckDbInTab } from '../../engine-client/src/duckdb-tab.ts';
+import { openDuckDbInTab, synthesizedInTab } from '../../engine-client/src/doors/tab-duckdb.ts';
+// the tab's engine, as its door hands it (the C5-T last round's T4, 2026-11-15: a page names no run module's type)
+type DuckDbEngine = Awaited<ReturnType<typeof openDuckDbInTab>>['engine'];
 import { DESK_TRADES, DESK_TRADES_FILE, SAMPLE_TRADES, sampleTradesRequest } from '../src/sample-trades.ts';
-import type { SynthesizeSource } from '../../engine-client/src/host-operations.ts';
-import type { ProjectDataSource } from '../../engine-client/src/project-data.ts';
+import type { ProjectDataSource, SynthesizeSource } from '../../engine-client/src/planner-sources.ts';
 import { mountRemote, shownAddress } from '../src/remote.ts';
 import { isPageFragment } from '../src/share/link.ts';
 import type { TableModels } from '../src/infer.ts';
@@ -266,14 +266,11 @@ export async function loadModel(): Promise<string> {
 /**
  * The demo's trades, made by this tab's DuckDB in the table the model declares (src/sample-trades.ts): the planner's
  * SYNTHESIZE plan for the demo's request -- TRADES made as declared, then one statement over range(N), every value the
- * database's (register S303) -- run by the hosts' runner on the held connection. The page spells no SQL and makes no
- * row; the plan holds none.
+ * database's (register S303) -- asked and run through the tab's DuckDB's door (doors/tab-duckdb.ts synthesizedInTab;
+ * 2026-11-15, the C5-T fold-in). The page spells no SQL and makes no row; the plan holds none.
  */
 export async function synthesizeTrades(engine: DuckDbEngine, planner: SynthesizeSource, model: string): Promise<void> {
-  // the plan, and the hosts' runner (fetched as a remote mount fetches it: a grid-only page carries none of it), at once
-  const [plan, { runLoad }] = await Promise.all([planner.synthesize(sampleTradesRequest(model, engine.databaseType)),
-    import('../../engine-client/src/plan-runner.ts')]);
-  await engine.exclusive((held) => runLoad(plan, (sql, params) => held.rows(sql, params)));
+  await synthesizedInTab(engine, planner, sampleTradesRequest(model, engine.databaseType));
 }
 
 /**
@@ -324,7 +321,7 @@ async function startPage(makePlanner: MakePlanner, settled: { show: (reason: str
   deskCode.catch(() => {});
   status.textContent = 'starting DuckDB and the planner…';
 
-  // the one start of a tab's DuckDB (engine-client's startDuckDbInTab): its files and extensions from ./vendor/, its
+  // the one start of a tab's DuckDB (engine-client's openDuckDbInTab): its files and extensions from ./vendor/, its
   // session set up by the planner's rules before anything uses it. So the database is ready once the planner is too:
   // DuckDB's start still overlaps the planner's (above), but the sample's rows and a remote mount below come after
   // both -- before a value is written, the session is the planner's (C1), not the browser's zone.
@@ -338,7 +335,7 @@ async function startPage(makePlanner: MakePlanner, settled: { show: (reason: str
     // the sample's rows, made by the database as a planned load (SYNTHESIZE, S303)
     synthesize: (request: Parameters<TableModels['synthesize']>[0]) => engineReady.then((p) => p.tables.synthesize(request)),
   };
-  const duck = await startDuckDbInTab((await configured).vendor, planned);
+  const duck = await openDuckDbInTab((await configured).vendor, planned);
   performance.mark('dc:database-ready');
 
   // A REMOTE SOURCE, when one is named.

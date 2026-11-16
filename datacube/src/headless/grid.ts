@@ -78,7 +78,6 @@ import { handedOnTable, outputCsv, outputQuery } from '../flow-output.ts';
 import { outputProblem, readOutput } from '../layout/flow.ts';
 import { writeTable } from '../table-output.ts';
 import { pureSteps } from '../pure-import.ts';
-import { DuckDbEngine } from '../../../engine-client/src/duckdb.ts';
 import { lackingCheck, lackingWords } from '../cross-tab.ts';
 import { lensed, type PlanAndRun, type QueryLens, type QueryRunner } from '../runner.ts';
 import { classSamples } from '../model-plans.ts';
@@ -93,7 +92,8 @@ import {
 } from '../snapshot.ts';
 import { sourceColumns } from '../source-columns.ts';
 import { pythonRunner } from '../services/python-host.ts';
-import { hostCalls, hostDatabase, hostEngine, hostWords, hostWorker } from './host.ts';
+import { hostCalls, hostEngine, hostWords, hostWorker } from './host.ts';
+import { hostQueries } from './host-database.ts';
 import { leafOnHost, leafTables, onHost, type HostBase, type HostLeaf, type HostTables } from './host-tables.ts';
 import { inputRows, openedLeaves } from '../join-open.ts';
 import { boxRows, pureChecked, pureFrom, pureInput, pureShown, pureText } from '../pure-box.ts';
@@ -1633,7 +1633,7 @@ export async function gridWriteTable(spec: GridSpec, output: string, query: stri
       if (problem !== undefined) throw new CubeRefusal(problem);
       const given = JSON.parse(tables) as { readonly tables: readonly { readonly table: string; readonly pkg?: string }[]; readonly held: readonly string[] };
       const calls = hostCalls();
-      const engine = new DuckDbEngine(hostDatabase(calls).connection);
+      const engine = hostQueries(calls);
       const rows = await writeTable(fromJson(query) as unknown as Lambda, out, {
         databaseType: engine.databaseType,
         sources: given.tables.map((t) => ({ table: t.table, convertible: true, ...(t.pkg !== undefined ? { pkg: t.pkg } : {}) })),

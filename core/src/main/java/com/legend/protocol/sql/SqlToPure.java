@@ -251,18 +251,15 @@ public final class SqlToPure {
         }
     }
 
-    /** The Pure relation expression {@code sql}, a query in {@code dialect}, means: read by the dialect's parse and
-     *  its rules; {@link SqlTranslationException} when it has none (its kind says whether the text is not SQL, the
-     *  translation is not built yet, or the dialect's database rejects the query too). A statement that writes a table
-     *  (the writes design's leg 4, docs/WRITES_DESIGN_2026_10_18.md §5) means L1's write, update, delete or merge, its
-     *  value the database's count of the rows it wrote; one that returns them (RETURNING) is a program of statements,
-     *  {@link #program}, which no expression is. */
-    public static ValueSpecification translate(String sql, Sources sources, InputDialect dialect) {
-        return translate(parsed(sql, dialect), sources, dialect);
-    }
-
-    /** {@link #translate(String, Sources, InputDialect)} over a statement already parsed (the #TS reader's plain SQL
-     *  over its series queries: TsParser.plain). */
+    /** The Pure relation expression {@code statement}, a query {@code dialect} read, means: by the dialect's rules;
+     *  {@link SqlTranslationException} when it has none (its kind says whether the translation is not built yet, or
+     *  the dialect's database rejects the query too). A statement that writes a table (the writes design's leg 4,
+     *  docs/WRITES_DESIGN_2026_10_18.md §5) means L1's write, update, delete or merge, its value the database's count
+     *  of the rows it wrote; one that returns them (RETURNING) is a program of statements, {@link #program}, which no
+     *  expression is. The statement is read by the same dialect -- an island's through the parse doors
+     *  ({@code door.Parse.sqlIsland}, C5-J's last round, 2026-11-15: until then this took the text and read it here,
+     *  where no question of the run's wall could be asked), the #TS reader's plain SQL over its series queries by its
+     *  own reader ({@code TsParser.plain}) -- and a text that does not read is {@link #refusal}'s. */
     public static ValueSpecification translate(SqlAst.Statement statement, Sources sources, InputDialect dialect) {
         InputDialect reading = dialect.reading(statement);
         SqlToPure translation = new SqlToPure(sources, reading, new Env(Map.of(), null, null, 0));
@@ -315,37 +312,30 @@ public final class SqlToPure {
         return lambda(t.row, body);
     }
 
-    /** Whether {@code sql} is a statement that writes a table in more than one statement, a program of them
-     *  ({@link #program}): one that returns the rows it wrote (RETURNING), or an ON CONFLICT DO UPDATE, whose rows are
-     *  first held to one each of their key ({@link #onceEach}). One that does not parse is none: its error is
-     *  {@link #translate}'s. */
-    public static boolean isProgram(String sql, InputDialect dialect) {
-        try {
-            return dialect.parse(sql) instanceof SqlAst.Write w && (!returning(w).isEmpty()
-                    || w instanceof SqlAst.Insert i && i.onConflict() != null && i.onConflict().update() != null);
-        } catch (SqlSyntaxException e) {
-            return false;
-        }
+    /** Whether {@code statement} writes a table in more than one statement, a program of them ({@link #program}): one
+     *  that returns the rows it wrote (RETURNING), or an ON CONFLICT DO UPDATE, whose rows are first held to one each
+     *  of their key ({@link #onceEach}). A text that does not read is none: its error is {@link #translate}'s (its
+     *  caller's, {@link #refusal}). */
+    public static boolean isProgram(SqlAst.Statement statement) {
+        return statement instanceof SqlAst.Write w && (!returning(w).isEmpty()
+                || w instanceof SqlAst.Insert i && i.onConflict() != null && i.onConflict().update() != null);
     }
 
-    /** The statements {@code sql}, a statement that writes a table, means: the rows it writes staged
-     *  ({@code let s = rows->stage()}, computed once before the write), the write, and last the rows it returns, read
-     *  from the staged rows. */
-    public static List<ValueSpecification> program(String sql, Sources sources, InputDialect dialect) {
-        SqlAst.Statement statement = parsed(sql, dialect);
+    /** The statements {@code statement}, one that writes a table read by {@code dialect}, means: the rows it writes
+     *  staged ({@code let s = rows->stage()}, computed once before the write), the write, and last the rows it
+     *  returns, read from the staged rows. */
+    public static List<ValueSpecification> program(SqlAst.Statement statement, Sources sources, InputDialect dialect) {
         if (!(statement instanceof SqlAst.Write w)) {
             throw new IllegalStateException("a program of statements is a statement that writes a table's");
         }
         return new SqlToPure(sources, dialect.reading(statement), new Env(Map.of(), null, null, 0)).write(w);
     }
 
-    private static SqlAst.Statement parsed(String sql, InputDialect dialect) {
-        try {
-            return dialect.parse(sql);
-        } catch (SqlSyntaxException e) {
-            throw new SqlTranslationException(e.unsupported() ? SqlTranslationException.Kind.UNSUPPORTED
-                    : SqlTranslationException.Kind.SYNTAX, e.reason(), e.line(), e.column());
-        }
+    /** A dialect's refusal to read a text ({@link InputDialect#parse}) as the translation's refusal of the kind it
+     *  says: the text is not SQL, or a reading not built yet. */
+    public static SqlTranslationException refusal(SqlSyntaxException e) {
+        return new SqlTranslationException(e.unsupported() ? SqlTranslationException.Kind.UNSUPPORTED
+                : SqlTranslationException.Kind.SYNTAX, e.reason(), e.line(), e.column());
     }
 
     // ------------------------------------------------------------------ INSERT, UPDATE, DELETE (writes leg 4)

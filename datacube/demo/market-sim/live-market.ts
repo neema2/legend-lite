@@ -6,7 +6,7 @@
 
 import { LiveDuckDb, type LiveTable } from '../../../engine-client/src/duckdb-live.ts';
 import type { DuckDbEngine } from '../../../engine-client/src/duckdb.ts';
-import type { HostOperationsSource, IngestPlansSource } from '../../../engine-client/src/host-operations.ts';
+import type { HostOperationsSource, IngestPlansSource } from '../../../engine-client/src/planner-sources.ts';
 import { MarketWorld, type MarketSettings } from './market.ts';
 import { MARKET_TABLES, WORLD, type MarketTable } from './tables.ts';
 import { DESK_IN_TAB } from '../deephaven/market/model.ts';
@@ -51,7 +51,13 @@ function databaseOf(table: MarketTable): string {
 export async function openLiveMarket(o: LiveMarketOptions): Promise<LiveMarket> {
   const t0 = performance.now();
   // the engine's own timer off: the market's cycle emits, right after it writes
-  const live = await LiveDuckDb.open({ connect: o.connect, host: o.planner, timer: false });
+  // a reader's snapshot's statements, the planner's, asked before the engine opens: its run takes them (C5-T)
+  const [begin, commit] = await o.planner.hostOperations('DuckDB', [
+    { op: 'transaction', step: 'begin' },
+    { op: 'transaction', step: 'commit' },
+  ]);
+  const live = await LiveDuckDb.open({ connect: o.connect, transaction: { begin: begin ?? [], commit: commit ?? [] },
+    timer: false });
   // each table's plans, the planner's from its ingest's declaration
   const tables: LiveTable[] = await Promise.all(MARKET_TABLES.map(async (t) => ({
     name: t.name,

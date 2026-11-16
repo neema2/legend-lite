@@ -26,7 +26,7 @@
 import { arrowIpcStream, type MadeColumn } from './arrow-ipc.ts';
 import type { DuckDbEngine, HeldConnection } from './duckdb.ts';
 import type { RawTable } from './engine.ts';
-import type { HostOperationsSource, IngestPlans } from './host-operations.ts';
+import type { IngestPlans } from './requests.ts';
 import { runLoad, type PlanValue } from './plan-runner.ts';
 import type { PlannedSql, PlanText } from './planned-sql.ts';
 import type { LiveEvent, LiveReader } from './live.ts';
@@ -34,7 +34,7 @@ import type { Plan } from './relation-type.ts';
 import type { ResultTable } from './result.ts';
 
 /** A table the live engine writes and follows: as the model declares it (MARKET_TRADE), and the plans its ingest lands
- *  its rows by (host-operations.ts IngestPlans, the planner's: Boundary.ingestPlans), each batch held under `held`. */
+ *  its rows by (requests.ts IngestPlans, the planner's: Boundary.ingestPlans), each batch held under `held`. */
 export interface LiveTable {
   readonly name: string;
   readonly plans: IngestPlans;
@@ -49,8 +49,10 @@ export interface LiveDuckDbOptions {
   /** A connection of the database's own: the writer's, and each reader's (each reads its own snapshot) -- the tab's set
    *  up as every connection of its is (duckdb-tab.ts DuckDbInTab.connect). */
   readonly connect: () => DuckDbEngine | Promise<DuckDbEngine>;
-  /** The planner, which writes the statements of a reader's snapshot (its transaction: D5); a table's are its plans'. */
-  readonly host: HostOperationsSource;
+  /** A reader's snapshot's statements (its transaction: D5), the planner's (Boundary.hostOperations), asked by the
+   *  engine's door before it opens: a run takes its statements, never their source (C5-T, 2026-11-15); a table's are its
+   *  plans'. */
+  readonly transaction: Snapshot;
   /** The session every connection is set up with first (the planner's: engine.ts setUpSession). */
   readonly setup?: readonly PlannedSql[];
   /** How often followed results are run again when what they read changed (Proton's EMIT PERIODIC): 250 ms. */
@@ -85,7 +87,7 @@ const DATABASE = 'DuckDB';
 const CLOCK = /\b(now|current_timestamp|current_date|current_time|today|get_current_timestamp|get_current_time|localtimestamp|localtime)\b/i;
 
 /** A transaction's statements, the planner's: what a reader's runs at an emit read one snapshot in. */
-interface Snapshot {
+export interface Snapshot {
   readonly begin: readonly PlannedSql[];
   readonly commit: readonly PlannedSql[];
 }
@@ -144,11 +146,7 @@ export class LiveDuckDb {
 
   /** The live engine over the database `options.connect` reaches: its writer's connection opened and set up. */
   static async open(options: LiveDuckDbOptions): Promise<LiveDuckDb> {
-    const [begin, commit] = await options.host.hostOperations(DATABASE, [
-      { op: 'transaction', step: 'begin' },
-      { op: 'transaction', step: 'commit' },
-    ]);
-    return new LiveDuckDb(options, await connected(options), { begin: begin ?? [], commit: commit ?? [] });
+    return new LiveDuckDb(options, await connected(options), options.transaction);
   }
 
   /** The tables written through this engine, each made as its ingest declares it, empty (its make plan). */

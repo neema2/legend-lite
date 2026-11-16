@@ -5,6 +5,7 @@
 // tables (hostJoinFlow; docs/DATACUBE_ONE_API_PLAN_2026_10_21.md B11). Fetched with the first Join…: a page with no join
 // loads none of it (test/bundle-budget.test.ts).
 
+import { planAndRunOnce } from '../doors.ts';
 import type { Lambda } from '../../../pure-protocol/src/index.ts';
 import { gridCapped, isLive, leavesOf, type JoinInput, type JoinSource } from '../cube-document.ts';
 import { gridInput } from '../live-inputs.ts';
@@ -158,7 +159,7 @@ export async function joinFlow(o: JoinFlowOf): Promise<void> {
       parse: (text) => local.planner.parse(text),
       // over their grid's own planner, held until it is answered
       summary: (their, how) => opened.use(their, ({ inputs, rows }) => summaryCounts(joinSummary(inputs.left, inputs.right, how),
-        async (query) => { const p = await rows.planner!.plan(query); return rows.engine!.run(p.sql, 0, undefined, p.params); })),
+        (query) => planAndRunOnce(rows.planner!, rows.engine!, query))),
       make: async (their, how) => {
         const other = others.get(their);
         if (!other) throw new Error('that grid is no longer on the page');
@@ -313,7 +314,7 @@ export async function flowJoin(o: FlowJoinOf): Promise<void> {
       inputs: async (their) => (await opened.get(their)).inputs,
       parse: (text) => local.planner.parse(text),
       summary: (their, how) => opened.use(their, ({ inputs, rows }) => summaryCounts(joinSummary(inputs.left, inputs.right, how),
-        async (query) => { const p = await rows.planner!.plan(query); return rows.engine!.run(p.sql, 0, undefined, p.params); })),
+        (query) => planAndRunOnce(rows.planner!, rows.engine!, query))),
       make: async (their, asked) => {
         if (joined !== undefined) {
           // a Dynamic Input set again an append still: its pick kept (its settings' Keep the rows of sets it)

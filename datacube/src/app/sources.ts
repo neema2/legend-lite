@@ -11,8 +11,8 @@
 // a file's table goes with its last grid. A Python host's frame is a source too, its model Python's.
 
 import { UI_LOCALE } from '../../../engine-client/src/locale.ts';
-import type { QueryEngine } from '../../../engine-client/src/engine.ts';
-import type { CatalogObject, WarehouseEngine, WarehouseSession } from '../../../engine-client/src/warehouse.ts';
+import type { QueryEngine } from '../../../engine-client/src/query-engine.ts';
+import type { CatalogObject, LiveWarehouse, WarehouseSession } from '../../../engine-client/src/warehouse-session.ts';
 import type { Query, QueryReader } from '../../../query-store/src/index.ts';
 import { from, fromJson, lambda, type ValueSpecification } from '../../../pure-protocol/src/index.ts';
 import type { ClassAt, ClassElement, ClassGiven } from '../class-source.ts';
@@ -52,7 +52,7 @@ import type { GridMaker } from '../page/page-app.ts';
 import type { PageModelRef } from '../page-model.ts';
 import type { ModelOptions } from '../planner.ts';
 import { inferFormat, type S3Credentials } from '../remote.ts';
-import type { PlanAndRun, QueryRunner } from '../runner.ts';
+import { localHost, type PlanAndRun, type QueryRunner } from '../runner.ts';
 import { SAMPLES, sampleById, sampleFileName, type Sample } from '../samples.ts';
 import { sameValue, type CubeSnapshot } from '../snapshot.ts';
 import { sourceColumns } from '../source-columns.ts';
@@ -75,7 +75,7 @@ const joinSources = () => lazily(() => import('./join-app.ts'));
 export type GridPlace = {
   // A warehouse source: Live runs on it, Snap copies into the host's database, and the
   // snap lands under the source's own name so one model reads both.
-  readonly live?: WarehouseEngine;
+  readonly live?: LiveWarehouse;
   readonly snapTarget?: SnapTarget;
   /** A warehouse table its host reads (Python's): Snap copies into the host's database, planned and run there (C3). */
   readonly hostSnap?: HostSnap;
@@ -538,8 +538,8 @@ export function pageSources(d: SourcesOf): PageSources {
   // -- a warehouse table ---------------------------------------------------------------------------------------------
 
   /** The cubes live on a warehouse: renewed when the same user signs in again (P2-297). */
-  const liveEngines = new Set<WarehouseEngine>();
-  const track = (live: WarehouseEngine): WarehouseEngine => {
+  const liveEngines = new Set<LiveWarehouse>();
+  const track = (live: LiveWarehouse): LiveWarehouse => {
     liveEngines.add(live);
     return live;
   };
@@ -1290,11 +1290,14 @@ export function pageSources(d: SourcesOf): PageSources {
     const rows = services.engine.rows(withLibrary(model, library), at.runtime, { mapping: at.mapping, overLibrary: { model, library } });
     try {
       const columns = await sourceColumns(typer(rows), source);
-      // its rows, asked for once: a table its store names that is not open in this tab is said now, by the database
+      // its rows, asked for once: a table its store names that is not open in this tab is said now, by the database.
+      // Both branches take the grid's own road, a door that plans, then runs typed by the plan (runner.ts planAndRun) --
+      // the runner's branch did before C5-T, the other ran its statement untyped until then (C5-T, 2026-11-15; the
+      // audit's nit): so a class's probe refuses only what its grid's first query would, at open, by the class's name.
       const first = lambda([], from(source).limit(1).node);
       try {
         if (rows.runner) await rows.runner.host.planAndRun(first, 0);
-        else { const p = await rows.planner.plan(first); await rows.engine.run(p.sql, 0, undefined, p.params); }
+        else await localHost(rows.planner, rows.engine).planAndRun(first, 0);
       } catch (e) {
         throw new Error(`“${name}” cannot read its rows here (${e instanceof Error ? e.message : String(e)}): a class reads `
           + 'the tables the page that made it opened -- open that page, or its file, first');

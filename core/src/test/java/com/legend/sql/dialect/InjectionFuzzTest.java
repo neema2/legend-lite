@@ -427,17 +427,22 @@ class InjectionFuzzTest {
             // 259 -> 283 on eight databases (2026-11-14, the C4 final fix round's B4): the place "a date format's zone"
             // plans its 24 payloads where the database shifts a zone; MariaDB, MySQL and SQLite refuse a zone-shifted
             // pattern by name, so they plan none of them and stay 259
-            Map.entry("BigQuery", 283),
-            Map.entry("ClickHouse", 283),
-            Map.entry("Databricks", 283),
-            Map.entry("DuckDB", 283),
-            Map.entry("H2", 283),
-            Map.entry("MariaDB", 259),
-            Map.entry("MySQL", 259),
-            Map.entry("Postgres", 283),
-            Map.entry("SQLite", 259),
-            Map.entry("Snowflake", 283),
-            Map.entry("Trino", 283));
+            // 283 -> 298 on those eight and 259 -> 278 on the three (2026-11-15, C5-J item 5, S342: a date pattern's end
+            // and its quoted text read as pure reads them): "a zone-shifted date format's text" plans 19 payloads on all
+            // 11 (a quoted Z is text, and its zone is UTC), "a date format's text" plans one more and refuses one (a
+            // quoted \" escapes the quote), and "a date format's zone" refuses its 4 payloads holding a " on the eight
+            // (the quote opens text that never closes, refused as pure refuses it)
+            Map.entry("BigQuery", 298),
+            Map.entry("ClickHouse", 298),
+            Map.entry("Databricks", 298),
+            Map.entry("DuckDB", 298),
+            Map.entry("H2", 298),
+            Map.entry("MariaDB", 278),
+            Map.entry("MySQL", 278),
+            Map.entry("Postgres", 298),
+            Map.entry("SQLite", 278),
+            Map.entry("Snowflake", 298),
+            Map.entry("Trino", 298));
 
     /** The payloads each place plans, on every database (measured 2026-11-13, the C4 audit's M3). */
     static final Map<String, Integer> PLANNED_BY_PLACE = java.util.Map.ofEntries(
@@ -451,7 +456,12 @@ class InjectionFuzzTest {
             // the C4 final fix round's B4 (2026-11-14): a pattern that starts with '[', its zone the payload, planned on
             // the eight databases that shift a zone; "a zone-shifted date format's text" plans none -- every payload
             // holds the marker's Z, which a zone-shifted pattern takes only as its suffix, refused by name
-            Map.entry("a date format's zone", 192),
+            // 192 -> 160 (2026-11-15, C5-J item 5, S342): a zone holding a " opens quoted text that never closes, so the
+            // pattern never ends -- 4 payloads on the eight, refused at planning with pure's words, as pure refuses them
+            Map.entry("a date format's zone", 160),
+            // 0 -> 209 (2026-11-15, C5-J item 5, S342): the marker's Z inside the quotes is text, as in pure, so a
+            // zone-shifted pattern plans the payloads its quotes close over (19 of 24, on all 11: the zone is UTC)
+            Map.entry("a zone-shifted date format's text", 209),
             Map.entry("a filter's value", 264),
             Map.entry("a format's template", 264),
             Map.entry("a separator", 264),

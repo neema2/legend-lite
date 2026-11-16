@@ -12,82 +12,12 @@
 // matters because the deciding factor is likely to be policy on data at
 // rest rather than performance.
 
-import type { Plan } from './relation-type.ts';
-import type { Receipt } from './receipt.ts';
-import type { ResultTable, Scalar } from './result.ts';
 import type { PlannedSql } from './planned-sql.ts';
 
-/** A raw read's column: its name and values, and NO Pure type -- no compiler typed it. */
-export interface RawColumn {
-  readonly name: string;
-  readonly values: readonly Scalar[];
-}
-
-/** Rows `offset` to `offset + count` of a result, in its order: the part of it a grid shows (a viewport). */
-export interface ResultWindow {
-  readonly offset: number;
-  readonly count: number;
-}
-
-/** A window of a result: its rows, where the first of them is in the result, and how many rows the result has. */
-export interface WindowedResult {
-  readonly rows: ResultTable;
-  readonly offset: number;
-  readonly total: number;
-}
-
-/** What raw SQL returns: DDL, a DESCRIBE, a count -- SQL no planner wrote. */
-export interface RawTable {
-  readonly columns: readonly RawColumn[];
-  readonly rowCount: number;
-  readonly epoch: number;
-  readonly elapsedMs: number;
-  /** What ran it (receipt.ts); `typedByPlan` carries it onto the typed result. */
-  readonly receipt?: Receipt;
-}
-
-export interface QueryEngine {
-  /** For diagnostics and telemetry, e.g. 'duckdb-wasm'. */
-  readonly name: string;
-  /**
-   * Run a PLANNED query and return it columnar, every column typed by the plan
-   * (`typedByPlan`): the compiler's types, never the engine's wire types
-   * (docs/DATACUBE_TYPES_TO_SERVER_2026_09_27.md, T1). `epoch` is carried through
-   * onto the result so a caller can tell which snapshot it answers; the engine itself
-   * does no staleness checking -- that is EpochGuard's job.
-   *
-   * `signal` aborts work a newer interaction has replaced. How much an
-   * engine can honour it is its own business and differs sharply: an
-   * HTTP executor stops at once, while DuckDB-WASM cannot interrupt a
-   * query already inside its C++ call and can only decline to start
-   * one. An engine that cannot cancel must still not PRETEND to --
-   * check the signal before starting, and say so in its own doc.
-   */
-  execute(plan: Plan, epoch: number, signal?: AbortSignal): Promise<ResultTable>;
-  // (a plan's `params` -- the values its statement binds, M3 -- are bound by `execute` and `stream`, or refused by name by
-  // an engine that binds none: never dropped)
-  /**
-   * A WINDOW of a planned query's result, and the result's size: what a grid of more rows than a page holds asks for
-   * (docs/DEEPHAVEN_PLAN_2026_10_22.md V1). An engine that keeps a result where it ran and follows part of it (a
-   * Deephaven server's viewport) has it; one without it is asked for the whole result (`execute`).
-   */
-  executeWindow?(plan: Plan, epoch: number, window: ResultWindow, signal?: AbortSignal): Promise<WindowedResult>;
-  /**
-   * Run a PLANNED query and hand its rows over a chunk at a time, as the engine produces
-   * them, each typed by the plan like `execute`'s; none is kept, so a whole table can pass
-   * through in flat memory (reading every row of a column, `JsonColumnReader.all`).
-   * Resolves after the last chunk. An engine that cannot stream hands over its whole result
-   * as one chunk, and says so in its own doc. Same `signal` rules as `execute`.
-   */
-  stream(plan: Plan, epoch: number, onChunk: (chunk: ResultTable) => void, signal?: AbortSignal): Promise<void>;
-  /**
-   * Run raw SQL no planner wrote -- or a plan's statement as its text (a host's pure/v1 execute) -- answering names and
-   * values, no types. Same `signal` rules. `params`: the values its `?`s bind, in order (a plan's data: payloads,
-   * plan-params.ts, the tenets audit's M3); an engine that binds none refuses them by name, never runs the text alone.
-   */
-  run(sql: PlannedSql, epoch: number, signal?: AbortSignal, params?: readonly string[]): Promise<RawTable>;
-  close(): Promise<void>;
-}
+// the engine's shapes, records since the C5-T last round's T1 (query-engine.ts): read here by their importers
+export type { QueryEngine, RawColumn, RawTable, ResultWindow, WindowedResult } from './query-engine.ts';
+export { QueryError, typedByPlan } from './query-engine.ts';
+import type { QueryEngine } from './query-engine.ts';
 
 /**
  * THE SESSION THE PLANNER'S SQL ASSUMES (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md C1): the dialect's own setup
@@ -95,39 +25,12 @@ export interface QueryEngine {
  * written to it -- as legend-lite's server sets every session up as it opens it, and Python's Frames their own. Left
  * alone, DuckDB-WASM takes the browser's zone (a fixed offset of it at that), and `now()`, `today()` and a zoned value
  * answer otherwise than on the server. `setup` is the planner's answer for the database's type (WasmGrammar's
- * sessionSetup, DataCube's TableModels'). Every app's tab DuckDB is set up by it, in startDuckDbInTab (the one start
+ * sessionSetup, DataCube's TableModels'). Every app's tab DuckDB is set up by it, in connectDuckDbInTab (the one start
  * of a tab's DuckDB).
  */
-export async function setUpSession(engine: Pick<QueryEngine, 'run'> & { readonly databaseType: string },
-  setup: (databaseType: string) => Promise<readonly PlannedSql[]>): Promise<void> {
-  for (const statement of await setup(engine.databaseType)) await engine.run(statement, 0);
+export async function setUpSession(engine: Pick<QueryEngine, 'run'>, setup: readonly PlannedSql[]): Promise<void> {
+  // the planner's statements, asked by the door before the run (C5-T, 2026-11-15: until then this asked the planner
+  // itself, inside the run): a run takes its statements, never their source
+  for (const statement of setup) await engine.run(statement, 0);
 }
 
-/**
- * A planned query's rows, typed by its plan. The engine decoded the values; the
- * compiler says what they are. A result column the plan does not type is REFUSED: the
- * two disagree about the query's shape, a bug to surface, never a gap to fill.
- */
-export function typedByPlan(raw: RawTable, plan: Plan): ResultTable {
-  const types = new Map(plan.columns.map((c) => [c.name, c.type]));
-  return {
-    ...raw,
-    columns: raw.columns.map((c) => {
-      const type = types.get(c.name);
-      if (type === undefined) {
-        throw new QueryError(`the plan does not type the result column '${c.name}'`, plan.sql);
-      }
-      return { name: c.name, type, values: c.values };
-    }),
-  };
-}
-
-/** Thrown for a query the engine rejected, carrying the SQL for triage. */
-export class QueryError extends Error {
-  readonly sql: string;
-  constructor(message: string, sql: string, options?: { cause?: unknown }) {
-    super(message, options);
-    this.name = 'QueryError';
-    this.sql = sql;
-  }
-}

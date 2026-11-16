@@ -40,10 +40,11 @@ import java.util.function.Supplier;
  * {@link #arrowPlan}'s SQL and metadata.
  *
  * <ul>
- *   <li>E1 {@code grammar/grammarToJson/lambda}: Pure text to lambda JSON ({@link SpecParser#lambdaJson},
- *       byte-exact).</li>
+ *   <li>E1 {@code grammar/grammarToJson/lambda}: Pure text to lambda JSON ({@link SpecParser#lambdaJson}, byte-exact,
+ *       through the parse door {@code door.Parse.lambdaJson}, which asks the run's wall: C5-J item 1, 2026-11-15).</li>
  *   <li>E2 {@code grammar/grammarToJson/model}: model text to PMCD JSON
- *       ({@link PmcdParser#parseDocument(String, boolean)}, byte-exact).</li>
+ *       ({@link PmcdParser#parseDocument(String, boolean)}, byte-exact, through the parse door
+ *       {@code door.Parse.documentJson}: C5-J item 1, 2026-11-15).</li>
  *   <li>E4 {@code grammar/jsonToGrammar/lambda} (and {@code /batch}): lambda JSON to Pure
  *       text ({@link PureComposer}, byte parity with upstream's printer).</li>
  *   <li>{@code grammar/jsonToGrammar/model}: model JSON to Pure text ({@link ModelComposer}, byte parity with
@@ -217,12 +218,12 @@ public final class PureV1Api {
     /** E1: a lambda's text to its protocol JSON. Text without a leading {@code |} is
      *  wrapped in a parameterless lambda spanning the whole text, as the engine does. */
     public static Answer grammarToJsonLambda(String text, boolean returnSourceInformation) {
-        return answer(400, "PARSER", () -> SpecParser.lambdaJson(text, returnSourceInformation));
+        return answer(400, "PARSER", () -> com.legend.door.Parse.lambdaJson(text, returnSourceInformation));
     }
 
     /** E2: a model's text to its PMCD JSON. */
     public static Answer grammarToJsonModel(String text, boolean returnSourceInformation) {
-        return answer(400, "PARSER", () -> PmcdParser.parseDocument(text, returnSourceInformation));
+        return answer(400, "PARSER", () -> com.legend.door.Parse.documentJson(text, returnSourceInformation));
     }
 
     /**
@@ -233,7 +234,7 @@ public final class PureV1Api {
      * elements here; E2 stays legend-engine's exactly, refusing lite's words in the engine's own message.
      */
     public static Answer liteGrammarToJsonModel(String text, boolean returnSourceInformation) {
-        return answer(400, "PARSER", () -> PmcdParser.parseLiteDocument(text, returnSourceInformation));
+        return answer(400, "PARSER", () -> com.legend.door.Parse.liteDocumentJson(text, returnSourceInformation));
     }
 
     // ---------------------------------------------------------------------
@@ -338,8 +339,9 @@ public final class PureV1Api {
             ModelChanges.only(request, "a jsonToTs/lambda request", "model", "lambda");
             ModelInput model = ModelInput.of(request.getObj("model"));
             LambdaFunction lambda = ProtocolReader.lambda(request.getObj("lambda"));
+            // the island's text read through the parse door, which asks the run's wall (C5-J's last round, 2026-11-15)
             com.legend.protocol.ts.TsShow.Shown shown = model.with(models, ctx -> com.legend.protocol.ts.TsShow.of(
-                    lambda, tsTypes(ctx)));
+                    lambda, tsTypes(ctx), com.legend.door.Parse::tsIsland));
             return Json.toCompact(shown.statement() != null ? Map.of("statement", shown.statement())
                     : Map.of("refused", java.util.Objects.requireNonNull(shown.refused())));
         });
@@ -348,9 +350,9 @@ public final class PureV1Api {
     /**
      * {@code /api/lite/v1/grammar/tsItem} (A3 step 2, docs/TS_A3_ONE_READER_PLAN_2026_11_03.md; upstream has no #TS):
      * {@code {text}}, one #TS item as a formula box holds a series, read by core's parser -- the one reader
-     * ({@link com.legend.protocol.ts.TsParser#item}): {@code {"text": canonical, "item": {alias, expr}}}, the item's
-     * tree as data ({@link TsTree}), or {@code {"error": {message, line, column}}} where the text
-     * is no item. An error is the box's answer, never a failed request: 200 either way.
+     * ({@link com.legend.protocol.ts.TsParser#item}, through the parse door {@code door.Parse.tsItem}):
+     * {@code {"text": canonical, "item": {alias, expr}}}, the item's tree as data ({@link TsTree}), or
+     * {@code {"error": {message, line, column}}} where the text is no item. An error is the box's answer, never a failed request: 200 either way.
      */
     public static Answer tsItem(String body) {
         return answer(400, "COMPILATION", () -> {
@@ -360,7 +362,8 @@ public final class PureV1Api {
             String text = request.getString("text");
             Map<String, Object> out = new LinkedHashMap<>();
             try {
-                com.legend.protocol.ts.TsAst.Line line = com.legend.protocol.ts.TsParser.item(text);
+                // read through the parse door, which asks the run's wall (C5-J's last round, 2026-11-15)
+                com.legend.protocol.ts.TsAst.Line line = com.legend.door.Parse.tsItem(text);
                 // both made before either is answered: an item whose tree is refused (a parameter, $A) is an error alone,
                 // never a text with no tree (item 11b, 2026-11-07: the tile read the text and found no tree)
                 String printed = com.legend.protocol.ts.TsPrinter.print(line);

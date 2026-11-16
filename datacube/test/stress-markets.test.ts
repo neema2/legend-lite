@@ -34,6 +34,7 @@ import { ingestFile, type DuckDbFiles } from '../src/upload.ts';
 import { plannerFor, readPageTexts, readText } from './catalog-builder.ts';
 import { drawnColumns, frozenOf, holdFrozen, type Frozen } from './timeseries-frozen.ts';
 import { readSeriesTexts, treeOf } from '../src/timeseries-text.ts';
+import { asTest } from '../../engine-client/test/unplanned.ts';
 
 /** The markets project as the site releases it (demo/releases/index.json, docs/ONE_CONNECTION_DESK_2026_10_28.md D5):
  *  its model files, each as the site serves it. */
@@ -104,7 +105,7 @@ before(async () => {
   corpus = plannerFor(PROJECT, 'stress::RT');
   projectEngine = new DuckDbEngine((await openDatabase()).connection);
   const project = await corpus.projectData(PROJECT, projectEngine.databaseType);
-  for (const sql of [...project.open, ...project.use]) await projectEngine.run(sql, 0);
+  for (const sql of [...project.open, ...project.use]) await asTest(projectEngine).run(sql, 0);
   // its rows: the plan's ONCE load, run by the hosts' runner (B3)
   await runLoad(project.load!, (sql) => projectEngine.run(sql, 0));
   measured['the model held and its Data filled (ms)'] = performance.now() - t0;
@@ -158,7 +159,7 @@ async function lines(text: string, over: Over, split?: string): Promise<Map<stri
   const ts = await spec(text, over, split);
   const planner = over === 'rows' ? table : corpus;
   const q = seriesQuery(over === 'rows' ? rows : over === 'classes' ? classes : referenced, ts, ts.series[0]!);
-  const t = await (over === 'rows' ? engine : projectEngine).execute(await planner.plan(q.query), 0);
+  const t = await asTest(over === 'rows' ? engine : projectEngine).execute(await planner.plan(q.query), 0);
   const col = (name: string): unknown[] => t.columns.find((c) => c.name === name)!.values as unknown[];
   const dates = col(TS_DATE);
   const values = col(TS_VALUE);
@@ -340,7 +341,7 @@ describe('the example page over the classes, opened the page\'s way', () => {
         const t0 = performance.now();
         const plan = await planner.plan(q.query);
         measured[`${v.id} ${series.id} planned (ms)`] = performance.now() - t0;
-        const t = await projectEngine.execute(plan, 0);
+        const t = await asTest(projectEngine).execute(plan, 0);
         const values = t.columns.find((c) => c.name === TS_VALUE)!.values as unknown[];
         const lines = series.split !== undefined ? new Set(t.columns.find((c) => c.name === TS_SPLIT)!.values as unknown[]).size : 1;
         // a column's own aggregate (`volume.sum`: a sector's day of volume) is one value a date and line, a frequency
@@ -376,8 +377,8 @@ describe('the example page over the classes, opened the page\'s way', () => {
         assert.match(shown.statement, /^WITH \w+ AS \(SELECT .* FROM \w+::\w+/, shown.statement);
         const alone = lambda([], tsIsland(shown.statement));
         assert.equal((await planner.tsStatement(alone)).statement, shown.statement, 'printed again, the same text');
-        const want = await projectEngine.execute(await planner.plan(sent), 0);
-        const got = await projectEngine.execute(await planner.plan(alone), 0);
+        const want = await asTest(projectEngine).execute(await planner.plan(sent), 0);
+        const got = await asTest(projectEngine).execute(await planner.plan(alone), 0);
         assert.deepEqual(got.columns.map((c) => [c.name, c.values]), want.columns.map((c) => [c.name, c.values]),
           `${v.id} ${series.id}: ${shown.statement}`);
         said.push(shown.statement);
@@ -416,8 +417,8 @@ describe('the example page over the classes, opened the page\'s way', () => {
       assert.match(shown.statement, / \|\| '@' \|\| .* AS listing, CASE WHEN /, shown.statement);
       const alone = lambda([], tsIsland(shown.statement));
       assert.equal((await corpus.tsStatement(alone)).statement, shown.statement, 'printed again, the same text');
-      const want = await projectEngine.execute(await corpus.plan(sent), 0);
-      const got = await projectEngine.execute(await corpus.plan(alone), 0);
+      const want = await asTest(projectEngine).execute(await corpus.plan(sent), 0);
+      const got = await asTest(projectEngine).execute(await corpus.plan(alone), 0);
       assert.ok(want.columns[0]!.values.length > 20, `${series.id}: ${want.columns[0]!.values.length} rows`);
       assert.deepEqual(got.columns.map((c) => [c.name, c.values]), want.columns.map((c) => [c.name, c.values]),
         `${series.id}: ${shown.statement}`);
@@ -449,7 +450,7 @@ describe('the example page over the classes, opened the page\'s way', () => {
       if (marks.kind !== 'marks') throw new Error(`annotation ${i} is no marks`);
       assert.equal(marks.label, side === 'BUY' ? 'Bought' : 'Sold');
       const q = marksQuery(new Map([['tr', { snapshot: trades.snapshot, filter: undefined }]]), v.spec, marks);
-      const t = await projectEngine.execute(await trades.planner.plan(q), 0);
+      const t = await asTest(projectEngine).execute(await trades.planner.plan(q), 0);
       const col = (name: string): unknown[] => t.columns.find((c) => c.name === name)!.values as unknown[];
       const want = rows.filter((r) => r[at('INSTRUMENT_ID')] === 'INS-AAPL' && r[at('SIDE')] === code)
         .map((r) => [r[at('TRADE_DATE')]!, Number(r[at('PRICE')]), Number(r[at('QUANTITY')])] as const)
@@ -491,7 +492,7 @@ describe('the markets page and the gallery over classes answer as over the sampl
             const inputs: TsInputs = new Map(seriesSources(ts, series)
               .map((a) => [a, grids.get(ts.sources.find((x) => x.alias === a)!.cube)!] as const));
             const q = seriesQuery(inputs, ts, series, anchor === undefined ? {} : { from: anchor }, {}, null);
-            const t = await projectEngine.execute(await over.plan(q.query), 0);
+            const t = await asTest(projectEngine).execute(await over.plan(q.query), 0);
             got.set(id, frozenOf(t, TS_DATE, q.split === undefined ? undefined : TS_SPLIT, drawnColumns(q)));
           }
         }

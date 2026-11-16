@@ -4,6 +4,8 @@
 // test asks what the server did since a moment: its operations' time and its compiling; and has the console change the
 // demo's data (a book moved to another region).
 
+import { deephavenApi } from '../../../engine-client/src/doors/deephaven-api.ts';
+
 /** One operation the server logged: what it was, when it started (ms since the epoch), how long it took, how deep it
  *  sat under another, and whether it was a compilation. */
 export interface ServerOp {
@@ -43,7 +45,8 @@ export async function openServerLog(url: string, psk: string): Promise<{
   since(ms: number): Promise<ServerOp[]>;
   run(code: string): Promise<void>;
 }> {
-  const dh = ((await import(/* @vite-ignore */ `${url}/jsapi/dh-core.js`)) as { default: Dh }).default;
+  // the server's own library, loaded by its door (C5-T: a module chosen at run time is a door's)
+  const dh = (await deephavenApi(url)) as unknown as Dh;
   const client = new dh.CoreClient(url);
   await client.login({ type: 'io.deephaven.authentication.psk.PskAuthenticationHandler', token: psk });
   const ide = await client.getAsIdeConnection();

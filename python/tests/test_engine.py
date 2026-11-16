@@ -107,6 +107,60 @@ def read_arrow(body):
         return pyarrow.ipc.open_stream(stream).read_all()
 
 
+class UnexpectedFailures(Served):
+    """The C5 follow-up's audit item 3 (2026-11-15): a failure no route answers is still an answer -- a 500 naming it,
+    its words with every value the engine holds taken out -- never a socket closed with the error on stderr alone."""
+
+    def broken(self):
+        """A live frame that fails as it is read again, its words holding a value the engine holds (a bearer URL's)."""
+        calls = []
+
+        def frame():
+            calls.append(1)
+            if len(calls) > 1:
+                raise RuntimeError('the live frame could not be read: X-Amz-Signature=held-0123456789')
+            return trades()
+
+        table = self.frames.register('broken', frame)
+        original = self.frames.held_values
+        self.frames.held_values = lambda: (*original(), 'X-Amz-Signature=held-0123456789')
+        return table
+
+    def test_a_planner_calls_and_a_cubes_unexpected_failure_say_no_held_value(self):
+        # the C5 follow-up's check (2026-11-15): a page's planner call (plan-and-run reads the frames, a live one read
+        # again) and a cube (GET cube.json) answered a failure's raw words; the engine's one unexpected answer now
+        table = self.broken()
+        asked = {'lambda': json.dumps(ll.parse('|' + table.accessor + '->select(~[desk])')), 'model': table.model,
+                 'runtime': table.runtime}
+        for said in (self.server.engine.answer('POST', '/plan-and-run.json', '', json.dumps(asked)),
+                     self.server.engine.answer('GET', '/cube.json', 'table=broken', None)):
+            text = said.body.decode('utf-8')
+            self.assertEqual(said.status, 500, text)
+            self.assertIn('RuntimeError: the live frame could not be read', text)
+            self.assertNotIn('held-0123456789', text)
+
+    def test_an_executes_unexpected_failure_says_no_held_value(self):
+        calls = []
+
+        def frame():
+            calls.append(1)
+            if len(calls) > 1:
+                raise RuntimeError('the live frame could not be read: X-Amz-Signature=held-0123456789')
+            return trades()
+
+        self.frames.register('broken', frame)
+        # a value the engine holds (a bearer URL's): never in an answer's words
+        held = 'X-Amz-Signature=held-0123456789'
+        original = self.frames.held_values
+        self.frames.held_values = lambda: (*original(), held)
+        status, _, body = self.post('/api/pure/v1/execution/execute?serializationFormat=ARROW_IPC',
+                                    self.execute_input(self.query('->select(~[desk])')))
+        # answered by the API's own catch (the server's refusal), its words with the held value taken out
+        said = body.decode('utf-8')
+        self.assertIn('RuntimeError: the live frame could not be read', said)
+        self.assertNotIn('held-0123456789', said)
+
+
 class Calls(Served):
     def test_parse_print_and_types_are_the_compilers(self):
         text = '|' + self.table.accessor + GROUP
@@ -420,6 +474,81 @@ class ProjectQueries(Served):
             self.assertRegex(json.loads(body)['plan'], r'reads only the tables it serves.*it reads PARTY\.PARTY, which it '
                                                        r'does not serve now', path)
 
+    def test_a_saved_querys_model_that_is_no_model_is_refused_by_the_compiler(self):
+        # the C5 follow-up's held item (the user's ruling of 2026-11-10: a product error carries its kind and where): a
+        # project's model that does not parse was answered "this model has none" (no Data rows); its plan is the
+        # compiler's own refusal now, by the run and the dry run alike
+        broken = PARTY + '\n###Pure\nClass demo::party::Broken {\n'
+        asked = {'lambda': json.dumps(ll.parse(PARTY_QUERY)), 'model': broken, 'runtime': 'demo::party::Runtime',
+                 'project': True}
+        for path in ('/plan-and-run.json', '/plan.json'):
+            status, _, body = self.post(path, json.dumps(asked))
+            self.assertEqual(status, 200, body)
+            plan = json.loads(body)['plan']
+            self.assertTrue(plan.startswith('ERR\nPARSER\n'), plan)
+            self.assertNotIn('this model has none', plan)
+
+    def test_a_page_model_that_does_not_compile_is_refused_by_the_compiler(self):
+        # the C5 follow-up's held item: a page's model of the tables this engine serves, which does not compile, was
+        # answered "reads only the tables it serves", naming none; its plan is the compiler's own refusal now
+        broken = self.table.model + '\n###Pure\nClass trades::A\n{\n  x: trades::Nope[1];\n}\n'
+        asked = {'lambda': json.dumps(self.query('->select(~[desk])')), 'model': broken, 'runtime': self.table.runtime}
+        for path in ('/plan-and-run.json', '/plan.json'):
+            status, _, body = self.post(path, json.dumps(asked))
+            self.assertEqual(status, 200, body)
+            plan = json.loads(body)['plan']
+            self.assertTrue(plan.startswith('ERR\nCOMPILATION\n'), plan)
+            self.assertIn('trades::Nope', plan)
+            self.assertNotIn('reads only the tables it serves', plan)
+
+    def test_a_page_model_that_does_not_parse_is_refused_by_the_compiler(self):
+        # the C5 follow-up's check (2026-11-15): a page's model that does not PARSE was still "reads only the tables it
+        # serves", naming none (Frames._tables_of read the parser's refusal as no model); the compiler's words now, as a
+        # project's model's are
+        broken = self.table.model + '\n###Pure\nClass trades::A {'
+        asked = {'lambda': json.dumps(self.query('->select(~[desk])')), 'model': broken, 'runtime': self.table.runtime}
+        for path in ('/plan-and-run.json', '/plan.json'):
+            status, _, body = self.post(path, json.dumps(asked))
+            self.assertEqual(status, 200, body)
+            plan = json.loads(body)['plan']
+            self.assertTrue(plan.startswith('ERR\nPARSER\n'), plan)
+            self.assertNotIn('reads only the tables it serves', plan)
+
+    def test_a_compilers_own_failure_reading_a_model_is_no_refusal_of_it(self):
+        # the C5 follow-up's staging check (2026-11-15): a failure of the compiler's own (no PARSER or COMPILATION: a
+        # '500', its parser failing) is no refusal of the model -- the engine's unexpected 500, never `ERR 500 ...` as
+        # if the model were refused
+        from legend_lite.compiler import LegendError
+
+        def failing(text):
+            raise LegendError('IllegalArgumentException: the parser failed', '500')
+
+        model = self.table.model.replace('trades::DB', 'proj0::store::DB')
+        asked = {'lambda': json.dumps(ll.parse('|#>{proj0::store::DB.trades}#->select(~[desk])')), 'model': model,
+                 'runtime': self.table.runtime}
+        with mock.patch.object(ll.compiler, 'model_elements', failing):
+            for path in ('/plan-and-run.json', '/plan.json'):
+                status, _, body = self.post(path, json.dumps(asked))
+                self.assertEqual(status, 500, body)
+                self.assertIn('IllegalArgumentException: the parser failed', body.decode())
+
+    def test_a_planning_failure_over_a_served_model_is_no_refusal_of_the_model(self):
+        # the C5 follow-up's check (2026-11-15): the catch around plan_over is the model's refusal alone (ModelRefused),
+        # never a failure of what is planned over it (a model compiling alone but not over DataCube's library): that one
+        # stays the unexpected failure it is, a 500, never answered as the model's own refusal
+        from legend_lite.compiler import LegendError
+
+        def failing(asked, held):
+            raise LegendError('the library could not be held over the model', 'COMPILATION')
+
+        asked = {'lambda': json.dumps(self.query('->select(~[desk])')), 'model': self.table.model,
+                 'runtime': self.table.runtime}
+        with mock.patch.object(self.server.engine, '_plan_with', failing):
+            for path in ('/plan-and-run.json', '/plan.json'):
+                status, _, body = self.post(path, json.dumps(asked))
+                self.assertEqual(status, 500, body)
+                self.assertIn('LegendError: the library could not be held over the model', body.decode())
+
     def test_kept_for_the_process_and_named_by_what_it_holds(self):
         for _ in range(2):
             self.assertEqual(self.post('/api/pure/v1/execution/execute', self.project_input())[0], 200)
@@ -561,9 +690,10 @@ class PlanAndRunRoutes(Served):
         status, headers, body = self.plan_and_run_over(model, '|#>{trades::DB.salaries}#->select(~[name])')
         self.assertEqual((status, headers['Content-Type']), (200, 'application/json'))
         self.assertTrue(json.loads(body)['plan'].startswith('ERR\nMODEL\n'), body)
-        # nor one that does not read as a model at all
+        # nor one that does not read as a model at all -- refused in the compiler's words, its kind PARSER (2026-11-15,
+        # the C5 follow-up's check: until then ERR MODEL, "reads only the tables it serves", naming none)
         status, _, body = self.plan_and_run_over('not a model', '|1')
-        self.assertTrue(json.loads(body)['plan'].startswith('ERR\nMODEL\n'), body)
+        self.assertTrue(json.loads(body)['plan'].startswith('ERR\nPARSER\n'), body)
 
     def test_a_plan_and_run_over_a_read_its_failure_ended_is_answered_422_with_its_plan(self):
         # the C4 audit's M4, 2026-11-13: a read a failing query ended refuses its later queries in the database's own
@@ -606,7 +736,8 @@ class PlanAndRunRoutes(Served):
         # never run, and only over the models this engine serves (R4): another is the planner's refusal, in its words
         refused = json.loads(self.post('/plan.json', json.dumps({
             'lambda': lam, 'model': 'unserved', 'runtime': self.table.runtime}))[2])
-        self.assertTrue(refused['plan'].startswith('ERR\nMODEL\n'), refused)
+        # a text that is no model: the compiler's own refusal (2026-11-15, the C5 follow-up's check: until then ERR MODEL)
+        self.assertTrue(refused['plan'].startswith('ERR\nPARSER\n'), refused)
 
     def test_the_planner_worker_tunnel_is_gone(self):
         # a page asks Python as it asks any host: legend-engine's own routes, and the host's compute -- never the tab's
@@ -1202,6 +1333,25 @@ class Page(Cube):
         self.assertEqual(self.get('/page.json?page=q3')[0], 401)
         self.assertEqual(self.get('/version.json?page=q3')[0], 401)
 
+    def test_a_pages_write_that_fails_unexpectedly_says_no_held_value(self):
+        # the C5 follow-up's staging check (2026-11-15): a page's write the keeper fails on (DataCube's code, over a page
+        # that may name a remote file by its URL) answered its raw words; it is the engine's one unexpected answer now
+        engine = self.server.engine
+        self.serve_page('q3', self.DOC)
+        token = 'X-Amz-Signature=held-0123456789'
+        self.frames.held_values = lambda: (token,)
+
+        def failing(*_args, **_kw):
+            raise RuntimeError(f'DataCube could not rebase the page over https://bucket/f.parquet?{token}')
+
+        written = json.dumps({'edits': [{'page': {'kind': 'renamePage', 'name': 'Q5'}}], 'writer': 'w1', 'seq': 1})
+        with mock.patch.object(engine, '_headless', lambda: None), mock.patch.object(engine.keeper, 'settle', failing):
+            said = engine.answer('POST', '/page.json', 'page=q3&version=1', written)
+        text = said.body.decode('utf-8')
+        self.assertEqual(said.status, 500, text)
+        self.assertIn('RuntimeError: DataCube could not rebase the page', text)
+        self.assertNotIn('held-0123456789', text)
+
     def test_an_open_pages_write_is_read_by_datacubes_own_reader(self):
         # (docs/DATACUBE_PAGE_KEEPER_2026_10_20.md) an engine with no DataCube code to read a page with keeps no page an
         # open page writes; one with it: test_page.py Live
@@ -1364,6 +1514,60 @@ class WarehouseOnPython(unittest.TestCase):
         status, body = self.call({'op': 'table', 'url': self.URL, 'catalog': 'main', 'schema': 'trading', 'name': 'POSITIONS'})
         self.assertEqual(status, 409, body)
         self.assertIn('open already as rita', body.decode())
+
+    def test_a_failure_no_route_answers_is_a_500_naming_it(self):
+        # the C5 follow-up's audit item 3 (2026-11-15): a snap over a served frame reads the frames as they are now
+        # (Frames.serving), outside any route's catch; a live frame failing there closed the socket ("Failed to fetch"),
+        # the error on stderr alone. It is a 500 naming it, its words with every held value taken out
+        calls = []
+
+        def frame():
+            calls.append(1)
+            if len(calls) > 1:
+                raise RuntimeError('the live frame could not be read: X-Amz-Signature=held-0123456789')
+            return pd.DataFrame({'desk': ['FX'], 'qty': [1]})
+
+        table = self.frames.register('broken', frame)
+        self.frames.held_values = lambda: ('X-Amz-Signature=held-0123456789',)
+        pull = json.dumps(ll.parse('|' + table.accessor + '->select(~[desk, qty])'))
+        server = WebServer(self.engine)
+        self.addCleanup(server.close)
+        request = urllib.request.Request(server.url + '/snap.json', json.dumps(
+            {'op': 'snap', 'model': table.model, 'runtime': table.runtime, 'pull': pull}).encode('utf-8'),
+            {'Content-Type': 'application/json', 'Authorization': server.authorization}, method='POST')
+        try:
+            with urllib.request.urlopen(request, timeout=60) as r:
+                status, body = r.status, r.read()
+        except urllib.error.HTTPError as e:
+            status, body = e.code, e.read()
+        said = body.decode('utf-8')
+        self.assertEqual(status, 500, said)
+        self.assertIn('RuntimeError: the live frame could not be read', said)
+        self.assertNotIn('held-0123456789', said)
+
+    def test_a_served_snaps_count_and_copy_say_no_held_value(self):
+        # the C5 follow-up's audit item 1 (2026-11-15): a served snap's count and its copy failed with DuckDB's own words,
+        # which repeat a presigned link's URL (its signature) -- answered as they were. Each failure's words now have
+        # every value the engine holds taken out
+        import duckdb
+        from legend_lite import engine as engine_module
+        token = 'https://bucket.example/f.parquet?X-Amz-Signature=sig-0123456789abcdef'
+        self.frames.held_values = lambda: (token,)
+        table = self.frames.register('served', pd.DataFrame({'desk': ['FX', 'EQ'], 'qty': [1, 2]}))
+        pull = json.dumps(ll.parse('|' + table.accessor + '->select(~[desk, qty])'))
+        asked = json.dumps({'op': 'snap', 'model': table.model, 'runtime': table.runtime, 'pull': pull})
+
+        def failing(*_args, **_kw):
+            raise duckdb.IOException(f'HTTP Error: 403 (Forbidden) reading {token}')
+
+        for name in ('count_of', 'run_write'):
+            with self.subTest(failing=name), mock.patch.object(engine_module, name, failing):
+                answer = self.engine.answer('POST', '/snap.json', '', asked)
+                said = answer.body.decode()
+                self.assertEqual(answer.status, 422, said)
+                self.assertIn('HTTP Error: 403', said)
+                self.assertNotIn('sig-0123456789abcdef', said)
+                self.assertNotIn('bucket.example', said)
 
     def snapped(self, m):
         status, body = self.call({'op': 'snap', 'model': m['model'], 'runtime': m['runtime'], 'pull': self.query(m)}, '/snap.json')

@@ -42,8 +42,8 @@ public final class Compiler {
     /** Parse one query/expression at the PRODUCT level. */
     public static com.legend.protocol.spec.ValueSpecification
             parseQuery(String query) {
-        return com.legend.parser.SpecParser.parse(query,
-                com.legend.parser.Dialect.LEGEND_LITE);
+        // through the parse door, which asks the run's wall (C5-J item 1, 2026-11-15)
+        return com.legend.door.Parse.query(query, com.legend.parser.Dialect.LEGEND_LITE);
     }
 
 
@@ -205,13 +205,12 @@ public final class Compiler {
      * its record carries source information.
      */
     public static ModelContext compileModel(com.legend.protocol.Protocol.PureModelContextData model) {
-        // the model's door is pure data (invariant 6j: com.legend.model reaches no RunScope), so its callers ask the
-        // run's wall: this door and ModelFromText's (the final audit of 9af16fbe58's J5; ArchitectureTest
-        // .aModelsRecordsAreReadByTheCheckedDoorsAlone keeps them its only callers)
-        com.legend.base.RunScope.planning("read a model's records (phase B)");
+        // the model's door is pure data (invariant 6j: com.legend.model reaches no RunScope), so it is reached through
+        // the doors that ask the run's wall: door.Parse.model here, ModelFromText's for a text (the final audit of
+        // 9af16fbe58's J5; through the door since C5-J item 1, 2026-11-15: ArchitectureTest.PARSE_BY_THE_DOORS)
         ParsedModel parsed;
         try {
-            parsed = com.legend.model.ModelFromProtocol.of(Objects.requireNonNull(model, "model"));
+            parsed = com.legend.door.Parse.model(Objects.requireNonNull(model, "model"));
         } catch (com.legend.model.ModelFromProtocol.Unrepresentable u) {
             // a shape the compiler's model cannot represent: a construct legend-lite does not compile. With its
             // record's position it is the text door's error, word for word and at the same place (2026-10-21, the
@@ -901,64 +900,13 @@ public final class Compiler {
     public static boolean hasStatementEffects(
             com.legend.protocol.spec.ValueSpecification resolved,
             ModelContext ctx) {
-        return programFacts(resolved, ctx).effects();
-    }
-
-    /** The platform's facts about a resolved program ({@link ProgramFacts}),
-     * in one typing pass. */
-    public static ProgramFacts programFacts(
-            com.legend.protocol.spec.ValueSpecification resolved,
-            ModelContext ctx) {
+        // the platform's facts about the program ({@link ProgramFacts}), in one typing pass; programFacts, the public
+        // door that answered them all, went 2026-11-15 (C5-J's last round, A3): the PCT runner reads them off its test
+        // plan, and no caller was left
         SpecCompiler specs = new SpecCompiler(ctx);
-        java.util.List<TypedSpec> body = specs.typeQueryBody(resolved);
-        java.util.Map<com.legend.model.FunctionId, Boolean> memo = new java.util.HashMap<>();
-        java.util.Map<com.legend.model.FunctionId, Boolean> verdictMemo = new java.util.HashMap<>();
-        java.util.Map<com.legend.model.FunctionId, java.util.Set<String>> storeMemo = new java.util.HashMap<>();
-        boolean effects = false;
-        boolean seeds = false;
-        boolean verdicts = false;
-        java.util.Set<String> stores = new java.util.LinkedHashSet<>();
-        StringBuilder shape = new StringBuilder(body.size());
-        for (int i = 0; i < body.size(); i++) {
-            TypedSpec s = body.get(i);
-            java.util.List<TypedSpec> preceding = body.subList(0, i);
-            boolean effect = com.legend.compiler.spec.StatementEffects.containsEffect(s, specs, memo)
-                    || com.legend.compiler.spec.StatementEffects.containsTdgGenerator(s);
-            boolean verdict = com.legend.compiler.spec.StatementEffects.callsVerdict(s, specs, verdictMemo);
-            shape.append(statementKind(s, effect, verdict));
-            effects |= effect;
-            stores.addAll(com.legend.compiler.spec.SeededStores.of(s, specs, storeMemo));
-            // the ONE reader of runtime shapes: inline CSV test data anywhere
-            // in the statement (a from(), an execute's runtime argument, a
-            // let-bound connection copy) is a bound-context fact; values the
-            // statement names chase its preceding lets
-            seeds |= !com.legend.compiler.spec.typed.ExecutionContext.reader()
-                    .bind(v -> com.legend.compiler.spec.typed.Lets.bound(v, preceding))
-                    .read(java.util.Optional.empty(), s).csvSetups().isEmpty();
-            verdicts |= verdict;
-        }
-        return new ProgramFacts(effects, seeds, verdicts, stores, shape.toString());
+        return ProgramFacts.of(specs.typeQueryBody(resolved), specs).effects();
     }
 
-    /** One statement's letter in {@link ProgramFacts#shape()}. */
-    private static char statementKind(TypedSpec s, boolean effect, boolean verdict) {
-        if (s instanceof com.legend.compiler.spec.typed.TypedNativeCall c
-                && com.legend.builtin.NativeFn.ContextOwner.of(c.callee().id()).isPresent()) {
-            return 'X';
-        }
-        if (s instanceof com.legend.compiler.spec.typed.TypedLet l) {
-            TypedSpec v = l.value();
-            while (v instanceof com.legend.compiler.spec.typed.TypedFrom f) {
-                v = f.source();
-            }
-            if (v instanceof com.legend.compiler.spec.typed.TypedNativeCall ec
-                    && com.legend.builtin.NativeFn.Handle.isExecute(ec.callee().id())) {
-                return 'F';
-            }
-            return effect ? 'E' : 'L';
-        }
-        return verdict ? 'A' : effect ? 'E' : 'O';
-    }
 
 
 

@@ -816,15 +816,12 @@ public final class CypherToPure {
         this.open = model.open();
     }
 
-    /** The Pure Relation expression {@code cypher} means over {@code model}'s classes; a refusal is a
-     *  {@link com.legend.protocol.sql.SqlTranslationException} of the kind the seam maps. */
-    public static ValueSpecification translate(String cypher, Model model) {
-        return translate(CypherParser.parse(cypher), model);
-    }
-
-    /** {@link #translate(String, Model)} over a parsed statement: the seam parses first to read the graph a leading
-     *  {@code USE} names ({@link #leadingUse}) and builds {@code model} for that graph, so the leading USE is read
-     *  here as done. */
+    /** The Pure Relation expression {@code statement}, a parsed Cypher statement, means over {@code model}'s classes;
+     *  a refusal is a {@link com.legend.protocol.sql.SqlTranslationException} of the kind the seam maps. The seam parses
+     *  first (through the parse door, {@code door.Parse.cypherIsland}: C5-J's last round, 2026-11-15, deleted the
+     *  overload that took the text and parsed it here, where the run's wall cannot be asked) to read the graph a leading
+     *  {@code USE} names ({@link #leadingUse}) and builds {@code model} for that graph, so the leading USE is read here
+     *  as done. */
     public static ValueSpecification translate(CypherAst.Statement statement, Model model) {
         CypherToPure t = new CypherToPure(model);
         t.leading = leadingUse(statement);

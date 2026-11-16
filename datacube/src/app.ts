@@ -17,7 +17,7 @@
 
 import { UI_LOCALE } from '../../engine-client/src/locale.ts';
 import { hostOf, receiptLabel, receiptLines } from '../../engine-client/src/receipt.ts';
-import type { WarehouseEngine } from '../../engine-client/src/warehouse.ts';
+import type { LiveWarehouse } from '../../engine-client/src/warehouse-session.ts';
 import { sessionExpired } from '../../engine-client/src/warehouse-session.ts';
 import { measured } from '../../engine-client/src/timeline.ts';
 import { focusedElement } from './focus.ts';
@@ -56,7 +56,7 @@ import {
   gridGesture, gridGestureGiven, type GestureArgs, type GestureGrid, type GridGestureArgs, type GridGestureName,
 } from './grid-gestures.ts';
 import type { Lambda } from '../../pure-protocol/src/index.ts';
-import type { QueryEngine, ResultWindow } from '../../engine-client/src/engine.ts';
+import type { QueryEngine, ResultWindow } from '../../engine-client/src/query-engine.ts';
 import { describePlane, type RemoteSource } from '../../engine-client/src/snap.ts';
 import type { HostSnap, SnapTarget } from './cube.ts';
 import { exportFileName, toClipboard, toEml } from './export.ts';
@@ -5144,7 +5144,7 @@ export class CubeApp {
     const live = this.#options.runner === undefined ? this.#options.live : undefined;
     // a live plane that signs in again (the warehouse's engine), asked by what it does: the driver is loaded only once
     // a page signs in to a warehouse (services/browser.ts); else the host's own sign-in (a table it reads)
-    const again = live && 'signInAgain' in live ? (password: string) => (live as WarehouseEngine).signInAgain(password)
+    const again = live && 'signInAgain' in live ? (password: string) => (live as LiveWarehouse).signInAgain(password)
       : this.#options.signInAgain;
     if (!expired || !again) return null;
     return {

@@ -1,6 +1,9 @@
 # Guards on the build graph itself: who may reach which jars (MODULE.bazel, THE JAR
 # POOLS). Bazel-only by nature — they check what Bazel resolves and links.
+load("@aspect_rules_js//js:defs.bzl", "js_library")
+load("@repo_inventory//:packages.bzl", "PACKAGES")
 load("//tools/junit:defs.bzl", "junit_test")
+load("//tools/js:defs.bzl", "node_test")
 load(":pools.bzl", "POOLS", "TESTONLY_POOLS")
 load("//tools/guards:defs.bzl", "guards_package")
 
@@ -128,6 +131,310 @@ junit_test(
         "//testing",
         "@maven_test//:org_junit_jupiter_junit_jupiter_api",
     ],
+)
+
+# THE APPS' LIBRARIES REACH NO RUN LAYER (the C5-T last round's T1, 2026-11-15): every target an app depends on directly
+# that is no layer and no app -- the SDLC's client, the Depot's, the query store, the model writer, the art, the protocol
+# and the npm packages -- with all it reaches, met with the run side: empty, or an app reaches the run side past its doors
+# (TsLayeringTest.noLibraryOfAnAppReachesTheRunSide)
+genquery(
+    name = "app_libraries_run",
+    expression = ("deps(labels(deps, //datacube:src_base + //query:src + //studio:src) except " +
+                  "(//datacube:doors + //datacube:model + //datacube:planner + //datacube:records + //datacube:src + " +
+                  "//engine-client:doors + //engine-client:planner + //engine-client:records + //engine-client:server + " +
+                  "//query:src)) intersect (//engine-client:run + //datacube:run + //engine-client:engine_client + " +
+                  "//engine-client:node_host)"),
+    scope = [
+        "//datacube:src",
+        "//engine-client:engine_client",
+        "//query:src",
+        "//studio:src",
+    ],
+)
+
+_TS_LAYER_QUERIES = [
+    "//datacube:layer_queries",
+    "//engine-client:layer_queries",
+    "//model-changes:layer_records",
+    "//query:layer_src",
+    "//sdlc-client:layer_records",
+    "//studio:layer_src",
+]
+
+# THE LAYERS OF THE TYPESCRIPT HOSTS (C5-T, 2026-11-15): each TypeScript layer's direct deps, as Bazel resolves them,
+# one genquery per layer beside it; TsLayeringTest compares them with ts-layers.txt, and holds a run layer to records
+# and npm alone and a planner to nothing that executes.
+junit_test(
+    name = "ts_layering_test",
+    memory_mb = 768,
+    size = "small",
+    srcs = ["TsLayeringTest.java"],
+    data = ["ts-layers.txt", ":app_libraries_run"] + _TS_LAYER_QUERIES,
+    # every layer's query, as a list: an environment variable keeps it one value
+    env = {"TS_LAYER_FILES": " ".join(["$(rlocationpaths %s)" % q for q in _TS_LAYER_QUERIES])},
+    jvm_flags = [
+        "-Dts.layers=$(rlocationpath ts-layers.txt)",
+        "-Dapp.libraries.run=$(rlocationpath :app_libraries_run)",
+    ],
+    select = ["--select-class=com.legend.tools.deps.TsLayeringTest"],
+    deps = [
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+)
+
+# EACH TYPESCRIPT LAYER ALONE (C5-T, 2026-11-15: the rule that replaces the interim run wall): a layer's closure, and
+# nothing else, copied out and typechecked strict by the pinned compiler (layer-alone.test.ts) -- a module of the layer
+# that imports one of a layer it may not reach fails by name (TS2307), a planted one proves it; none of those layers'
+# files is in the closure; and a run or server layer opens no import door chosen at run time, a door layer only the
+# vendor loads named (2026-11-15, the C5-T fold-in: the two vendor loads moved out of the run layer into their doors).
+# The apps' own files, which no layer holds
+_APPS = " + ".join(["//datacube:src", "//query:src", "//studio:src"])
+
+_LAYERS_ALONE = {
+    # name: (layer, kind, the layers it must never hold, its own files expected, the closure's floor, the planted
+    # module, what the plant imports)
+    "engine_client_run": (
+        "//engine-client:run",
+        "run",
+        "//engine-client:planner + //engine-client:server + //engine-client:doors + //engine-client:node_host",
+        ["engine-client/src/plan-runner.ts", "engine-client/src/duckdb.ts", "engine-client/src/requests.ts", "pure-protocol/src/index.ts"],
+        35,
+        "engine-client/src/planted.ts",
+        # 2026-11-15 (the C5-T audit's items 3 and 8): the planner's protocol and Grammar, and Node's require, planted too
+        ["./legend/wasm-grammar.ts", "./legend/engine.ts", "./doors/tab-duckdb.ts", "./legend/planner-protocol.ts",
+         "./legend/grammar.ts", "./node-require.ts"],
+    ),
+    "engine_client_planner": (
+        "//engine-client:planner",
+        "planner",
+        # 2026-11-15 (the C5-T final audit's MUST 1): the engine's API too -- an engine's interface, the run frame
+        "//engine-client:run + //engine-client:server + //engine-client:doors + //engine-client:engine_api + //engine-client:node_host",
+        ["engine-client/src/legend/wasm-grammar.ts", "engine-client/src/legend/planning-client.ts", "engine-client/src/requests.ts",
+         "engine-client/src/plan-guard.ts"],
+        25,
+        "engine-client/src/legend/planted.ts",
+        ["../plan-runner.ts", "./engine.ts", "../doors/project-data.ts", "../run-frame.ts", "../query-engine.ts"],
+    ),
+    # 2026-11-15 (the C5-T final audit's MUST 1): legend-engine's clients, checked alone -- no engine's API, run layer,
+    # door or Node's host (until then nothing typechecked the server layer alone, so a relative import of a run module
+    # from pure-v1.ts or legend/engine.ts passed)
+    "engine_client_server": (
+        "//engine-client:server",
+        "server",
+        "//engine-client:run + //engine-client:doors + //engine-client:engine_api + //engine-client:node_host",
+        ["engine-client/src/legend/engine.ts", "engine-client/src/pure-v1.ts", "engine-client/src/plan-guard.ts"],
+        30,
+        "engine-client/src/planted.ts",
+        ["./duckdb.ts", "./run-frame.ts", "./query-engine.ts", "./warehouse-session.ts", "./doors/tab-duckdb.ts",
+         "./node-require.ts"],
+    ),
+    # 2026-11-15 (the same audit): the engine's API alone -- records and itself, no run module, planner, server or door
+    "engine_client_engine_api": (
+        "//engine-client:engine_api",
+        "run",
+        "//engine-client:run + //engine-client:planner + //engine-client:server + //engine-client:doors + //engine-client:node_host",
+        ["engine-client/src/query-engine.ts", "engine-client/src/run-frame.ts", "engine-client/src/plan-guard.ts"],
+        10,
+        "engine-client/src/planted.ts",
+        ["./duckdb.ts", "./legend/wasm-grammar.ts", "./pure-v1.ts", "./doors/tab-duckdb.ts"],
+    ),
+    "datacube_run": (
+        "//datacube:run",
+        "run",
+        "//engine-client:planner + //engine-client:server + //engine-client:doors + //engine-client:node_host + //datacube:planner + //datacube:doors + //datacube:model",
+        ["datacube/src/headless/connection.ts", "datacube/src/headless/calls.ts", "engine-client/src/plan-runner.ts"],
+        35,
+        "datacube/src/headless/planted.ts",
+        ["../lite-planner.ts", "./host.ts", "../runner.ts", "../../../engine-client/src/legend/planner-protocol.ts"],
+    ),
+    # 2026-11-15 (the C5-T last round's T2): the door layers, checked alone too -- every layer below them, no app, and
+    # no explicit any reaching a send
+    "engine_client_doors": (
+        "//engine-client:doors",
+        "doors",
+        "//engine-client:node_host + //datacube:src_base",
+        ["engine-client/src/doors/tab-duckdb.ts", "engine-client/src/snap.ts", "engine-client/src/plan-runner.ts"],
+        60,
+        "engine-client/src/doors/planted.ts",
+        ["../../../datacube/src/cube.ts", "../../../query/src/app/run.ts", "../node-require.ts"],
+    ),
+    "datacube_doors": (
+        "//datacube:doors",
+        "doors",
+        "//engine-client:node_host + //datacube:src_base",
+        ["datacube/src/runner.ts", "datacube/src/upload.ts", "engine-client/src/doors/host-operations.ts"],
+        70,
+        "datacube/src/planted.ts",
+        ["./cube.ts", "./app.ts", "../../engine-client/src/node-require.ts"],
+    ),
+    "datacube_planner": (
+        "//datacube:planner",
+        "planner",
+        "//engine-client:run + //engine-client:server + //engine-client:doors + //engine-client:engine_api + //datacube:run + //datacube:doors",
+        ["datacube/src/lite-planner.ts", "datacube/src/planner.ts", "engine-client/src/legend/planner-answer.ts"],
+        30,
+        "datacube/src/planted.ts",
+        ["../../engine-client/src/plan-runner.ts", "./cube.ts", "./headless/connection.ts",
+         "../../engine-client/src/run-frame.ts"],
+    ),
+}
+
+[genquery(
+    name = name + "_never",
+    expression = "labels(srcs, %s + %s)" % (never, _APPS),
+    scope = [label.strip() for label in (never + " + " + _APPS).split("+")],
+) for name, (_, _, never, _, _, _, _) in _LAYERS_ALONE.items()]
+
+# the computed-specifier scanner, one module that //tools/deps:layers_alone and //tools/deps:app_runs_test both read a
+# door with (2026-11-15, the C5-T review's S1 and B5)
+js_library(
+    name = "computed_doors",
+    srcs = ["computed-doors.mts"],
+)
+
+# the planner layers' and the doors' own files: a named computed load is a planner's or a door's by the target that
+# holds its module (2026-11-15, the C5-T review's S1 and B1), never by a path's prefix
+genquery(
+    name = "planner_layer_srcs",
+    expression = "labels(srcs, //engine-client:planner + //datacube:planner)",
+    scope = [
+        "//datacube:planner",
+        "//engine-client:planner",
+    ],
+)
+
+genquery(
+    name = "door_layer_srcs",
+    expression = "labels(srcs, //engine-client:doors + //datacube:doors)",
+    scope = [
+        "//datacube:doors",
+        "//engine-client:doors",
+    ],
+)
+
+# each layer's own files: a named computed load of one of them is read in that layer's closure, or the row is dead
+# (2026-11-15, the C5-T review's B2)
+[genquery(
+    name = name + "_own",
+    expression = "labels(srcs, %s)" % layer,
+    scope = [layer],
+) for name, (layer, _, _, _, _, _, _) in _LAYERS_ALONE.items()]
+
+[node_test(
+    name = name + "_alone_test",
+    size = "small",
+    data = [
+        layer,
+        ":%s_never" % name,
+        ":%s_own" % name,
+        ":computed_doors",
+        ":door_layer_srcs",
+        ":planner_layer_srcs",
+        "//datacube:node_modules/@types/node",
+        "//datacube:node_modules/typescript",
+    ],
+    entry_point = "layer-alone.test.ts",
+    env = {
+        "EXPECT_FILES": " ".join(expect),
+        "KIND": kind,
+        "LAYER": layer,
+        "MIN_FILES": str(floor),
+        "NOT_LAYER_SRCS": "$(rlocationpath :%s_never)" % name,
+        "DOOR_SRCS": "$(rlocationpath :door_layer_srcs)",
+        "OWN_SRCS": "$(rlocationpath :%s_own)" % name,
+        "PLANNER_SRCS": "$(rlocationpath :planner_layer_srcs)",
+        "PLANT_AT": plant,
+        "PLANT_IMPORTS": " ".join(imports),
+        # the package's link and the store's files it reaches: the test runs the link's bin/tsc
+        "TYPESCRIPT": "$(rlocationpaths //datacube:node_modules/typescript)",
+    },
+) for name, (layer, kind, never, expect, floor, plant, imports) in _LAYERS_ALONE.items()]
+
+test_suite(
+    name = "layers_alone",
+    tests = [":%s_alone_test" % name for name in _LAYERS_ALONE],
+)
+
+# THE APPS' PLAN-AND-RUN SITES, A SHRINK-ONLY CENSUS (the C5-T audit's MUST 2, 2026-11-15: the interim run wall's ratchet
+# restored over what no layer holds): every site of DataCube's, Query's and Studio's own code that runs -- outside the
+# doors' and the run targets' own files -- named by file and count, with its reason (app-runs.test.ts). A new app module
+# that plans and runs fails here; each that remains is a call of a door.
+genquery(
+    name = "app_runs_layered",
+    # 2026-11-15 (the C5-T final audit's MUST 1): engine-client's run side and doors too -- the census reads its records,
+    # planner and server
+    expression = "labels(srcs, //datacube:run + //datacube:doors + //engine-client:run + //engine-client:doors + //engine-client:engine_api + //engine-client:node_host)",
+    scope = [
+        "//datacube:doors",
+        "//datacube:run",
+        "//engine-client:doors",
+        "//engine-client:engine_api",
+        "//engine-client:node_host",
+        "//engine-client:run",
+    ],
+)
+
+# the run layers' own files (the C5-T last round's T1): what no app module imports, nor reaches through a re-export
+genquery(
+    name = "run_layer_srcs",
+    expression = "labels(srcs, //engine-client:run + //datacube:run)",
+    scope = [
+        "//datacube:run",
+        "//engine-client:run",
+    ],
+)
+
+node_test(
+    name = "app_runs_test",
+    size = "small",
+    data = [
+        ":app_runs_layered",
+        ":computed_doors",
+        ":planner_layer_srcs",
+        ":run_layer_srcs",
+        "//datacube:pages",
+        "//datacube:sources",
+        # the packages an app imports, so the re-export walk reads each module it follows (the C5-T final audit's item 6)
+        "//depot-client:depot_client",
+        "//engine-client:sources",
+        "//legend-art:legend_art",
+        "//model-changes:model_changes",
+        "//model-changes:records",
+        "//pure-protocol:pure_protocol",
+        "//query:pages",
+        "//query:src",
+        "//query-store:query_store",
+        "//sdlc-client:records",
+        "//sdlc-client:sdlc_client",
+        "//studio:pages",
+        "//studio:src",
+    ],
+    entry_point = "app-runs.test.ts",
+    env = {
+        "LAYERED_SRCS": "$(rlocationpath :app_runs_layered)",
+        "PLANNER_SRCS": "$(rlocationpath :planner_layer_srcs)",
+        "RUN_SRCS": "$(rlocationpath :run_layer_srcs)",
+        "SOURCES": "$(rlocationpaths //datacube:sources) $(rlocationpaths //engine-client:sources) $(rlocationpaths //query:src) $(rlocationpaths //studio:src) $(rlocationpaths //datacube:pages) $(rlocationpaths //query:pages) $(rlocationpaths //studio:pages) $(rlocationpaths //depot-client:depot_client) $(rlocationpaths //legend-art:legend_art) $(rlocationpaths //model-changes:model_changes) $(rlocationpaths //model-changes:records) $(rlocationpaths //pure-protocol:pure_protocol) $(rlocationpaths //query-store:query_store) $(rlocationpaths //sdlc-client:records) $(rlocationpaths //sdlc-client:sdlc_client)",
+    },
+)
+
+# Every module a browser bundle reads is one it declares (2026-11-15, the C5-T final audit's finding from the Java
+# worker's gate: //engine-client:planner_worker read a file it did not declare, which esbuild found outside the sandbox
+# only when another action had copied it). Each bundle's metafile and declared files, from every package
+# (guards_package's guard_bundles), so a new bundle is read without a list to update.
+filegroup(
+    name = "bundle_inputs",
+    testonly = True,
+    srcs = ["//%s:guard_bundles" % p for p in PACKAGES],
+)
+
+node_test(
+    name = "bundle_inputs_test",
+    size = "small",
+    data = [":bundle_inputs"],
+    entry_point = "bundle-inputs.test.ts",
+    env = {"BUNDLE_INPUTS": "$(rlocationpaths :bundle_inputs)"},
 )
 
 # tools/deps/pools.bzl's pools are exactly MODULE.bazel's, and its testonly pools are testonly as a whole (Bazel workplan P1-25)

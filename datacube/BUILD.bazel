@@ -75,15 +75,164 @@ exports_files(
 
 # the app's sources as the tests read them; package.json carries
 # "type": "module" (the sources are ES modules)
+# DATACUBE'S LAYERS (C5-T, 2026-11-15: the TypeScript split of plan and run, engine-client's shape): its files stay where
+# they are; the planner, the run side and the records both read are carved out of the app by name, each pinned in
+# tools/deps/ts-layers.txt, and the run and the planner each typechecked alone (:layer_typecheck_tests). The app (:src)
+# is the rest. 2026-11-15 (the C5-T audit's MUST 2): DataCube's doors are a target of their own (:doors) -- runner.ts,
+# whose one import of the query model (LevelScope) moved to snapshot.ts, and the doors that ask the planner, then run
+# its answer: doors.ts, remote.ts, upload.ts, table-output.ts -- over the app's model records they read (:model); the
+# app's own plan-and-run sites, outside every door and run target, are a shrink-only census
+# (//tools/deps:app_runs_test).
+_RECORDS = [
+    # the calls the bridge's host answers, and the web platform a headless bundle is given: shapes and helpers alone
+    "src/headless/calls.ts",
+    "src/headless/web.ts",
+]
+
+_RUN = [
+    # the host's database: the bridge's one connection that sends a plan's statement (headless/host.ts's until C5-T)
+    "src/headless/connection.ts",
+]
+
+# the cube's snapshot and the tree's keys, which the doors read beside the app: shapes and pure helpers, no send, no plan
+_MODEL = [
+    "src/layout/flow.ts",
+    "src/snapshot.ts",
+    "src/tree.ts",
+]
+
+# DataCube's doors: each asks the planner, then runs its answer in a run frame (run-frame.ts) -- the runner (a page's
+# queries; localHost, a class's first row), a query planned and run once (doors.ts planAndRunOnce), a remote file's
+# mount, a person's file read in, and a table written (the multi-step doors of the orchestrator's note 3)
+_DOORS = [
+    "src/doors.ts",
+    # the host's database, through its door (the C5-T last round's T1): DataCube's headless code reaches it here alone
+    "src/headless/host-database.ts",
+    "src/remote.ts",
+    "src/runner.ts",
+    "src/table-output.ts",
+    "src/upload.ts",
+]
+
+_PLANNER = [
+    "src/infer.ts",
+    "src/lazily.ts",
+    "src/lite-planner.ts",
+    "src/model-writer.ts",
+    "src/planner-types.ts",
+    "src/planner.ts",
+    "src/pure-library.ts",
+    # the library's text, which pure-library.ts loads on first use
+    "src/pure-library-text.ts",
+]
+
+_LAYERED = _RECORDS + _RUN + _MODEL + _DOORS + _PLANNER
+
+[fail("datacube/%s is listed twice in datacube/BUILD.bazel's layers" % f) for i, f in enumerate(_LAYERED) if f in _LAYERED[:i]]
+
+js_library(
+    name = "records",
+    srcs = _RECORDS,
+    visibility = ["//tools/deps:__pkg__"],
+    deps = ["//engine-client:records"],
+)
+
+js_library(
+    name = "run",
+    srcs = _RUN,
+    visibility = ["//tools/deps:__pkg__"],
+    deps = [
+        ":records",
+        "//engine-client:records",
+        "//engine-client:run",
+    ],
+)
+
+js_library(
+    name = "model",
+    srcs = _MODEL,
+    visibility = ["//tools/deps:__pkg__"],
+    deps = [
+        "//engine-client:records",
+        "//pure-protocol:pure_protocol",
+    ],
+)
+
+js_library(
+    name = "doors",
+    srcs = _DOORS,
+    visibility = ["//tools/deps:__pkg__"],
+    deps = [
+        ":model",
+        ":planner",
+        ":records",
+        ":run",
+        "//engine-client:doors",
+        # the run frame (inRun) and the engines' interfaces (2026-11-15, the C5-T final audit's MUST 1)
+        "//engine-client:engine_api",
+        "//engine-client:planner",
+        "//engine-client:records",
+        "//engine-client:run",
+        "//engine-client:server",
+        "//pure-protocol:pure_protocol",
+    ],
+)
+
+js_library(
+    name = "planner",
+    srcs = _PLANNER,
+    visibility = ["//tools/deps:__pkg__"],
+    deps = [
+        "//engine-client:planner",
+        "//engine-client:records",
+        "//model-changes:records",
+        "//pure-protocol:pure_protocol",
+    ],
+)
+
+# every source of the app, its layers' too, as files, for a scanner that reads them by $(rlocationpaths) (_SCANNED): the
+# layers' files are each layer's, so :src's own are not all of them (C5-T, 2026-11-15). A js_library, as a scanner's
+# data must be; no product target depends on it (tools/deps/ts-layers.txt pins the layers)
+js_library(
+    name = "sources",
+    srcs = glob(["src/**/*.ts"]),
+    data = glob(["src/**/*.d.ts"]),
+    # the apps' plan-and-run census reads them (//tools/deps:app_runs_test, the C5-T audit's MUST 2)
+    visibility = ["//tools/deps:__pkg__"],
+)
+
 js_library(
     name = "src",
-    srcs = glob(["src/**/*.ts"]),
+    srcs = glob(["src/**/*.ts"], exclude = _LAYERED),
     # its declarations as files too (a `.d.ts` in srcs is passed on as types alone): a program that compiles a source
     # referring to one (chart-render.ts: ECharts' painters, src/echarts-renderers.d.ts) finds it -- Query's, Studio's
     data = glob(["src/**/*.d.ts"]),
-    # the Query app runs its planned SQL on DataCube's engines (DuckDB-WASM, the warehouse)
-    visibility = ["//query:__pkg__"],
-    deps = [":src_base"],
+    # the Query app runs its planned SQL on DataCube's engines (DuckDB-WASM, the warehouse); the layers' test reads its
+    # files, as a layer must never hold one (tools/deps:*_alone_test)
+    visibility = ["//query:__pkg__", "//tools/deps:__pkg__"],
+    # 2026-11-15 (the C5-T last round's T1): no :run -- the app reaches the run side through its doors alone
+    deps = [
+        ":doors",
+        ":model",
+        ":planner",
+        ":records",
+        ":src_base",
+    ],
+)
+
+# each layer's direct deps, as Bazel resolves them: //tools/deps:ts_layering_test holds them to tools/deps/ts-layers.txt
+[genquery(
+    name = "layer_" + layer,
+    expression = "labels(deps, //datacube:%s)" % layer,
+    scope = [":" + layer],
+) for layer in ["records", "run", "model", "doors", "planner", "src", "src_base"]]
+
+# (2026-11-15, the C5-T last round's T1: the app and what it builds on, src_base, pinned beside its layers -- an app
+# reaches no run layer, tools/deps/ts-layers.txt)
+filegroup(
+    name = "layer_queries",
+    srcs = [":layer_" + layer for layer in ["records", "run", "model", "doors", "planner", "src", "src_base"]],
+    visibility = ["//tools/deps:__pkg__"],
 )
 
 # what every source file needs beside itself: the package's module settings and the libraries the sources import. A
@@ -109,10 +258,16 @@ js_library(
         # and src/app/sources.ts reads a project's model text, both by a dynamic import that every bundle of the app
         # inlines or splits off
         "//depot-client:depot_client",
-        # where a query runs: the engine interface, results, the type reader, DuckDB, the warehouse,
-        # pure/v1 (engine-client/README.md; moved out of here 2026-10-04)
-        "//engine-client:engine_client",
-        "//engine-client:node_modules/@duckdb/duckdb-wasm",
+        # where a query runs (engine-client/README.md; moved out of here 2026-10-04) -- THROUGH ITS DOORS ALONE (the C5-T
+        # last round's T1, 2026-11-15: an app reaches no run layer, tools/deps/ts-layers.txt): the records it reads, the
+        # planner, legend-engine's API clients and the doors, which reach the run side (DuckDB, the warehouse) themselves
+        "//engine-client:doors",
+        # the engines' interfaces an app is handed by the doors (2026-11-15, the C5-T final audit's MUST 1: out of the
+        # records, which the planner and the server reach)
+        "//engine-client:engine_api",
+        "//engine-client:planner",
+        "//engine-client:records",
+        "//engine-client:server",
         # fflate: the share link's deflate WITH A PRESET DICTIONARY (src/share/link.ts), which the
         # browser's own CompressionStream cannot take. MIT, no dependencies of its own.
         ":node_modules/fflate",
@@ -150,12 +305,13 @@ _TESTS = glob(["test/*.test.ts"])
 # the files named here, passed in SOURCES by $(rlocationpaths) and read through //tools/js:runfiles' Sources: no
 # scanner walks a directory or reads from the working directory, and a file it should see is one it declares.
 _SCANNED = {
-    "config-readers": [":src"],
+    "config-readers": [":sources"],
     # the shipped trees: the app, the engine client (DataCube's until 2026-10-04) and the demo, and the
     # differentials behind the second planner transport
     "guardrails": [
-        ":src",
-        "//engine-client:engine_client",
+        ":sources",
+        # its files (the aggregate's are its layers', C5-T, 2026-11-15)
+        "//engine-client:sources",
         ":scanned_demo",
         "test/wasm-differential/compare.ts",
         "//wasm:differential",
@@ -164,30 +320,15 @@ _SCANNED = {
         "src/grid/grid.css",
         "src/theme.css",
     ],
-    "menu-ids": [":src"],
-    # THE RUN WALL, TypeScript's half (the user's ruling M2, 2026-11-13): the run side's imports and signatures, read
-    # over DataCube's planner and the engine client, and the protocol library the snapshot's runner imports (the
-    # follow-up audit's G2, 2026-11-14), and Studio's and Query's apps with the libraries they import (the final audit
-    # of 9af16fbe58's T5, 2026-11-14)
-    "run-wall": [
-        ":src",
-        "//depot-client:depot_client",
-        "//engine-client:engine_client",
-        "//legend-art:legend_art",
-        "//pure-protocol:pure_protocol",
-        "//query:src",
-        "//query-store:query_store",
-        "//sdlc-client:sdlc_client",
-        "//studio:src",
-    ],
+    "menu-ids": [":sources"],
     # everything a build or a person runs from this package
-    "portability": [":src", ":scanned_scripts"],
-    "state-guardrail": [":src"],
+    "portability": [":sources", ":scanned_scripts"],
+    "state-guardrail": [":sources"],
     # THE ONE API LEDGERS (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md §3): the grid's, the page's and the host's sources,
     # Python's (a command each kind is made by), the plan's register, and the ledger files it is held to -- and every
     # test file, DataCube's and Python's, where L12 finds the tests each ability on both hosts is proved by
     "one-api-ledger": [
-        ":src",
+        ":sources",
         ":scanned_test_code",
         "//docs:one_api_plan",
         "//python:legend_lite_sources",
@@ -208,6 +349,14 @@ _SCANNED = {
 filegroup(
     name = "scanned_demo",
     srcs = glob(["demo/**/*.ts"]) + ["demo/index.html"],
+)
+
+# the pages' own modules (demo/), read by //tools/deps:app_runs_test as app code: each page is an app's entry, bundled
+# beside src/ (the C5-T last round's T4, 2026-11-15). A js_library, as a scanner's data must be; nothing depends on it
+js_library(
+    name = "pages",
+    srcs = glob(["demo/**/*.ts"]),
+    visibility = ["//tools/deps:__pkg__"],
 )
 
 filegroup(
@@ -374,7 +523,7 @@ _EXTRA_DATA = {
         ":src",
         ":node_modules/typescript",
         "//depot-client:depot_client",
-        "//engine-client:engine_client",
+        # (the engine client's union: every test's own, the node_tests' common data, since the C5-T last round's T1)
         "//engine-client:typescript_sources",
         # (legend-art, Studio's and Query's icons: theirs, carried by //query:src and //studio:src)
         "//model-changes:model_changes",
@@ -591,13 +740,13 @@ _SLOW_WALK_TESTS = [
 # timeout is `short` (368): a test is here when CI's Linux took 12 s or more in either Linux run, or CI's Windows 20 s
 # or more in any of the three. CI's Windows is no fixed multiple of CI's Linux in the same run: 0.9-1.0x at the median,
 # 1.6-2.0x at the 90th percentile, up to 6x; and one test's Windows time moves 2x to 6x between two runs of identical
-# inputs (brand_casts 30 s then 60 s+; python:planned_guard 34 s then 6 s). Ten tests, each "CI Linux main/now; CI
-# Windows main/5fdeb94d54/now" in seconds:
+# inputs (brand_casts 30 s then 60 s+; python:planned_guard 34 s then 6 s). Nine tests, each "CI Linux main/now; CI
+# Windows main/5fdeb94d54/now" in seconds (2026-11-15, C5-T: //datacube:run_wall_test, the tenth, deleted with the
+# interim run wall for the layers' rule, //tools/deps:layers_alone):
 #   //datacube:brand_casts_test         21.0/10.0;   32/30/60.1 TIMEOUT
 #   //datacube:page_app_test            30.0/19.0;   31/30/25
 #   //datacube:live_channel_test        17.0/15.0;   21/22/19
 #   //datacube:chart_tiles_test         17.0/8.0;    -/13/15
-#   //datacube:run_wall_test            -/16.0;      -/21/18 (new in C4)
 #   //datacube:cube_transactions_test   11.0/8.0;    12/21/10
 #   //engine-client:plan_runner_test    24.0/24.0;   17/-/22
 #   //engine-client:model_data_test     12.0/12.0;   11/-/9
@@ -611,7 +760,6 @@ _SLOW_ON_CI_TESTS = [
     "page-app",
     "live-channel",
     "chart-tiles",
-    "run-wall",
     "cube-transactions",
 ]
 
@@ -633,6 +781,9 @@ _SLOW_ON_CI_TESTS = [
         "test/fake-planner.ts",
         # a test's own statement, typed as a plan's by name (the total wall's C3, 2026-11-12)
         "//engine-client:unplanned",
+        # the run side a test drives itself (DuckDB in Node, the plan runner): no app carries it since the C5-T last
+        # round's T1 (2026-11-15), the apps reaching it through their doors alone
+        "//engine-client:engine_client",
     ] + _EXTRA_DATA.get(t[len("test/"):-len(".test.ts")], []) + [f for f in _SCANNED.get(t[len("test/"):-len(".test.ts")], []) if f != ":src"] + (
         [":src"] if t[len("test/"):-len(".test.ts")] in _SCANNED or t[len("test/"):-len(".test.ts")] not in TEST_IMPORTS else [":src_base"] + TEST_IMPORTS[t[len("test/"):-len(".test.ts")]]
     ) + (
@@ -783,7 +934,6 @@ _HEADLESS_TESTS = [
     "table-output",
     "json-shape",
     "lazily",
-    "lite-planner",
     # a grid over another grid's rows, and its live input (docs/DATACUBE_FLOW_MODE_2026_10_24.md §3.1): pure
     "live-inputs",
     "menu",
@@ -831,6 +981,10 @@ _HEADLESS_TESTS = [
 # headless_roster_test reads. A file that mixed them is split in two: its screen or Node half `<name>-dom` or
 # `<name>-node`, the rest in the lane under its own name.
 _HEADLESS_LEFT_OUT = {
+    # 2026-11-15 (the C5-T review's S1): LitePlanner loads its in-thread runtime from its asset folder alone, no loader
+    # handed in, so its test serves a stand-in runtime from a folder it writes (node:fs) and LitePlanner imports it: the
+    # host runs no import(). The headless product plans on its host's worker, which //datacube:headless_test drives
+    "lite-planner": "a stand-in runtime imported from a folder the test writes",
     # the demo's sample made by the tab's planner and DuckDB-WASM, and its file read in by the tab's reader (upload.ts
     # ingestFile): the tab's
     "sample-trades": "the tab's planner and file reader",
@@ -967,6 +1121,8 @@ node_test(
     data = [
         ":src",
         "//engine-client:node_modules/@duckdb/duckdb-wasm",
+        # Node's host, which test/host/node.ts imports (2026-11-15, the C5-T last round's T1)
+        "//engine-client:node_host",
         "test/catalog-builder.ts",
         "test/host/node.ts",
         "test/lite-compiler.ts",
@@ -988,6 +1144,8 @@ node_test(
         ":markets_project",
         "demo/releases/index.json",
         "//engine-client:node_modules/@duckdb/duckdb-wasm",
+        # Node's host, which test/host/node.ts imports (2026-11-15, the C5-T last round's T1)
+        "//engine-client:node_host",
         "test/catalog-builder.ts",
         "test/host/node.ts",
         "test/lite-compiler.ts",
@@ -1491,6 +1649,9 @@ node_test(
     size = "medium",
     data = [
         "test/pivot-rows/pivot-rows.ts",
+        # Node's host (node-require.ts): :src reaches the run side through the doors alone (2026-11-15, the C5-T last
+        # round's T1), and a test starts DuckDB on Node itself
+        "//engine-client:node_host",
         "//engine-client:unplanned",
         "test/wasm-differential/cases.ts",
         "//engine-client:node_modules/@duckdb/duckdb-wasm",
@@ -1508,6 +1669,9 @@ node_test(
     size = "medium",
     data = [
         "test/json-read/json-read.ts",
+        # Node's host (node-require.ts): :src reaches the run side through the doors alone (2026-11-15, the C5-T last
+        # round's T1), and a test starts DuckDB on Node itself
+        "//engine-client:node_host",
         "//engine-client:unplanned",
         "//engine-client:node_modules/@duckdb/duckdb-wasm",
         ":node_modules/jsdom",
@@ -1524,6 +1688,9 @@ node_test(
     size = "medium",
     data = [
         "test/cube-open/cube-open.ts",
+        # Node's host (node-require.ts): :src reaches the run side through the doors alone (2026-11-15, the C5-T last
+        # round's T1), and a test starts DuckDB on Node itself
+        "//engine-client:node_host",
         "//engine-client:node_modules/@duckdb/duckdb-wasm",
         ":node_modules/jsdom",
         ":src",
@@ -1542,6 +1709,8 @@ node_test(
     size = "medium",
     data = [
         "test/typed-values/typed-values.ts",
+        # Node's host (node-require.ts), as pivot_rows_test's (2026-11-15, the C5-T last round's T1)
+        "//engine-client:node_host",
         "//engine-client:unplanned",
         "//engine-client:node_modules/@duckdb/duckdb-wasm",
         ":node_modules/jsdom",
@@ -1558,6 +1727,8 @@ node_test(
     size = "medium",
     data = [
         "test/typed-values/typed-values.ts",
+        # Node's host (node-require.ts), as pivot_rows_test's (2026-11-15, the C5-T last round's T1)
+        "//engine-client:node_host",
         "//engine-client:unplanned",
         "//engine-client:node_modules/@duckdb/duckdb-wasm",
         ":node_modules/jsdom",
@@ -1574,6 +1745,8 @@ node_test(
     size = "medium",
     data = [
         "test/typed-values/typed-values.ts",
+        # Node's host (node-require.ts), as pivot_rows_test's (2026-11-15, the C5-T last round's T1)
+        "//engine-client:node_host",
         "//engine-client:unplanned",
         "//engine-client:node_modules/@duckdb/duckdb-wasm",
         ":node_modules/jsdom",
@@ -1801,6 +1974,9 @@ node_test(
         ":headless_bundle",
         ":src",
         "//engine-client:node_modules/@duckdb/duckdb-wasm",
+        # Node's host (node-require.ts), which test/host/node.ts imports: :src reaches the run side through the doors
+        # alone (2026-11-15, the C5-T last round's T1; CI's warehouse lanes found it, run 43731081412)
+        "//engine-client:node_host",
         "//native:compiler",
     ],
     entry_point = "test/python-engine/execute.test.ts",
@@ -2399,6 +2575,9 @@ _HARNESS_HELPERS = [
     "demo/trades-h2.pure",
     "demo/typed-view.mjs",
     "demo/warehouse-source.mjs",
+    # Node's host (node-require.ts), which harnesses that start DuckDB on Node import: :src reaches the run side through
+    # the doors alone (2026-11-15, the C5-T last round's T1), so it no longer carries it
+    "//engine-client:node_host",
 ]
 
 _HARNESSES = [
@@ -2704,7 +2883,6 @@ build_test(
     ],
 )
 
-guards_package()
 
 # DEEPHAVEN FROM THE BROWSER (docs/DEEPHAVEN_PLAN_2026_10_22.md DH21, L3b, 2026-10-23): a page served from a site that is
 # not the server's plans each query with //wasm:planner on a Deephaven runtime, sends it with the tab's sender
@@ -2720,6 +2898,7 @@ esbuild_bundle(
         "demo/deephaven/server-log.ts",
         "test/deephaven/page.ts",
         "//engine-client:engine_client",
+        "//engine-client:unplanned",
     ],
     outs = ["test/deephaven/deephaven.js"],
     args = [
@@ -2821,6 +3000,7 @@ esbuild_bundle(
         "demo/deephaven/market/model.ts",
         "test/deephaven/market-page.ts",
         "//engine-client:engine_client",
+        "//engine-client:unplanned",
     ],
     outs = ["test/deephaven/market.js"],
     args = [
@@ -2968,6 +3148,7 @@ esbuild_bundle(
         "demo/deephaven/market/model.ts",
         "test/deephaven/feed-page.ts",
         "//engine-client:engine_client",
+        "//engine-client:unplanned",
     ],
     outs = ["test/deephaven/feed.js"],
     args = [
@@ -3069,6 +3250,7 @@ esbuild_bundle(
     srcs = [
         "test/deephaven/corpus-page.ts",
         "//engine-client:engine_client",
+        "//engine-client:unplanned",
     ],
     outs = ["test/deephaven/corpus.js"],
     args = [
@@ -3555,3 +3737,6 @@ browser_test(
     entry_point = "test/deephaven/record.mjs",
     env = _DEEPHAVEN_DEMO_ENV,
 )
+
+# the package's guards, last: they collect the bundles declared above (//tools/deps:bundle_inputs_test)
+guards_package()

@@ -8,11 +8,11 @@
 // for Python's tab and notebook widget).
 
 import type { TsItemAnswer } from '../lite-planner.ts';
-import type { HeldConnection } from '../../../engine-client/src/duckdb.ts';
+import type { HeldConnection } from '../../../engine-client/src/query-engine.ts';
 import type { ModelHome } from '../../../depot-client/src/model-home.ts';
-import type { QueryEngine } from '../../../engine-client/src/engine.ts';
-import type { ProjectDatabases } from '../../../engine-client/src/project-data.ts';
-import type { CatalogObject, WarehouseEngine, WarehouseSession } from '../../../engine-client/src/warehouse.ts';
+import type { QueryEngine } from '../../../engine-client/src/query-engine.ts';
+import type { ProjectDoor } from '../../../engine-client/src/doors/project-data.ts';
+import type { CatalogObject, LiveWarehouse, WarehouseSession } from '../../../engine-client/src/warehouse-session.ts';
 import type { Lambda, ValueSpecification } from '../../../pure-protocol/src/index.ts';
 import type { Receipt } from '../../../engine-client/src/receipt.ts';
 import type { QueryReader } from '../../../query-store/src/index.ts';
@@ -185,7 +185,7 @@ export interface LocalEngine {
   /** legend-lite's model writer for a table of the host's database, whichever planner plans it (infer.ts). */
   readonly tables: TableModels;
   /** A project's own databases in the host's (C5, engine-client's project-data.ts): a saved query's rows by name. */
-  projects(): Promise<ProjectDatabases>;
+  projects(): Promise<ProjectDoor>;
   /** Where a grid over one of the database's tables runs, its database type the model's connection names. */
   readonly engine: QueryEngine & { readonly databaseType: string; run(sql: PlannedSql, epoch: number): Promise<unknown>;
     /** The database held for a write alone, one transaction (engine-client duckdb.ts exclusive: a table Output's). */
@@ -440,7 +440,7 @@ export interface WarehouseService {
   /** The single-user app's launch key: signed in with it, at the warehouse that served the page. */
   signInWithKey(key: string): Promise<{ session: WarehouseSession; objects: CatalogObject[] }>;
   /** A table's rows read Live there, as the signed-in user, by the page itself (the tab's). */
-  live?(session: WarehouseSession, catalog: string, databaseType: string): WarehouseEngine;
+  live?(session: WarehouseSession, catalog: string, databaseType: string): LiveWarehouse;
   /**
    * A table's model written and held by the host, which then plans and runs its queries itself (Python's: C3, R4) --
    * the tab's own writer's answer, read-only.

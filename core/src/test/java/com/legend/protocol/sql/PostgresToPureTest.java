@@ -41,7 +41,7 @@ class PostgresToPureTest {
     }
 
     private static String pure(String sql, List<Col> columns) {
-        ValueSpecification vs = SqlToPure.translate(sql, (source, column) -> columns.forEach(
+        ValueSpecification vs = com.legend.testcases.SqlText.translate(sql, (source, column) -> columns.forEach(
                 c -> column.column(c.name(), c.type(), c.nullable(), c.storeType())), PostgresDialect.INSTANCE);
         return PureComposer.valueSpecification(vs, PureComposer.Style.STANDARD);
     }

@@ -7,9 +7,9 @@
 // planner, its DuckDB, its configuration).
 
 import type { TsItemAnswer } from '../lite-planner.ts';
-import type { DuckDbEngine } from '../../../engine-client/src/duckdb.ts';
-import type { ProjectDatabases, ProjectDataSource } from '../../../engine-client/src/project-data.ts';
-import type { WarehouseBinding } from '../../../engine-client/src/warehouse.ts';
+import type { openDuckDbInTab } from '../../../engine-client/src/doors/tab-duckdb.ts';
+import type { ProjectDoor } from '../../../engine-client/src/doors/project-data.ts';
+import type { ProjectDataSource } from '../../../engine-client/src/planner-sources.ts';
 import type { QueriesModule, QueryReader } from '../../../query-store/src/index.ts';
 import type { Planner } from '../cube.ts';
 import type { TableModels } from '../infer.ts';
@@ -34,6 +34,10 @@ import type {
   WarehouseService,
 } from '../app/services.ts';
 import { lazily } from '../lazily.ts';
+
+/** The tab's DuckDB engine, as its door opens it (engine-client's doors/tab-duckdb.ts: the C5-T last round's T1, an app
+ *  reaches the run side through its doors alone). */
+type DuckDbEngine = Awaited<ReturnType<typeof openDuckDbInTab>>['engine'];
 
 // the saved queries' code, fetched the first time it is needed -- the Saved queries section, a query link -- as charts
 // are: a grid-only page never downloads it (test/bundle-budget.test.ts)
@@ -81,7 +85,7 @@ export interface BrowserServicesOptions {
   readonly location: { readonly href: string };
 }
 
-/** The tab's services, built once as the page starts, over the tab's DuckDB as engine-client's `startDuckDbInTab`
+/** The tab's services, built once as the page starts, over the tab's DuckDB as engine-client's `openDuckDbInTab`
  *  started it (its session set up, its extensions the site's). */
 export async function browserServices(o: BrowserServicesOptions): Promise<Services> {
   const { config } = o;
@@ -95,7 +99,7 @@ export async function browserServices(o: BrowserServicesOptions): Promise<Servic
       stores = undefined;
       throw e;
     }));
-  let projectKeeper: Promise<ProjectDatabases> | undefined;
+  let projectKeeper: Promise<ProjectDoor> | undefined;
   const engines = tabEngines(o);
   return {
     engine: {
@@ -118,10 +122,10 @@ export async function browserServices(o: BrowserServicesOptions): Promise<Servic
         tables: o.planner.tables,
         // a project's own rows, in a database of their own inside this tab's DuckDB (C5): the keeper fetched with the
         // first saved query a page opens by name, never with the grid's start
-        projects: () => (projectKeeper ??= lazily(() => import('../../../engine-client/src/project-data.ts')).then(({ ProjectDatabases: Keeper }) =>
+        projects: () => (projectKeeper ??= lazily(() => import('../../../engine-client/src/doors/project-data.ts')).then(({ ProjectDoor: Keeper }) =>
           new Keeper({
             databaseType: o.duckdb.engine.databaseType,
-            run: (sql) => o.duckdb.engine.run(sql, 0),
+            engine: o.duckdb.engine,
             connect: () => o.duckdb.connect(),
           }, o.planner.projects))),
         engine: o.duckdb.engine,
@@ -266,18 +270,16 @@ function depotHome(depot: { readonly sdlc: string; readonly releases?: string },
 const REMEMBERED = 'datacube.warehouse.url';
 
 function warehouseService(config: TabConfig, location: { readonly href: string }): WarehouseService {
-  // THE WAREHOUSE'S DRIVER AND ITS API: the driver (engine-client's warehouse.ts) and the one binding
-  // (vendor/warehouse/, docs/ONE_PLATFORM_PROGRAM_2026_10_12.md C3), both fetched at the first sign-in (a load that
-  // failed is tried again at the next): a page that never signs in to a warehouse loads neither. A table is opened only
-  // once signed in, so its live engine finds them loaded
-  type Driver = typeof import('../../../engine-client/src/warehouse.ts');
-  let ready: { readonly driver: Driver; readonly binding: WarehouseBinding } | undefined;
-  let loading: Promise<{ readonly driver: Driver; readonly binding: WarehouseBinding }> | undefined;
-  const loaded = (): Promise<{ readonly driver: Driver; readonly binding: WarehouseBinding }> => (loading ??=
-    lazily(() => import('../../../engine-client/src/warehouse.ts'))
-      .then(async (driver) => (ready = {
-        driver, binding: await driver.loadWarehouseBinding(new URL(`${config.vendor}warehouse/`, location.href).href),
-      }))
+  // THE WAREHOUSE'S DRIVER AND ITS API: the driver (engine-client's warehouse.ts, through its door, doors/warehouse.ts:
+  // the C5-T last round's T1) and the one binding (vendor/warehouse/, docs/ONE_PLATFORM_PROGRAM_2026_10_12.md C3), both
+  // fetched at the first sign-in (a load that failed is tried again at the next): a page that never signs in to a
+  // warehouse loads neither. A table is opened only once signed in, so its live engine finds them loaded
+  type Warehouse = Awaited<ReturnType<typeof import('../../../engine-client/src/doors/warehouse.ts')['warehouseAt']>>;
+  let ready: Warehouse | undefined;
+  let loading: Promise<Warehouse> | undefined;
+  const loaded = (): Promise<Warehouse> => (loading ??=
+    lazily(() => import('../../../engine-client/src/doors/warehouse.ts'))
+      .then(async (door) => (ready = await door.warehouseAt(new URL(`${config.vendor}warehouse/`, location.href).href)))
       .catch((e: unknown) => {
         loading = undefined;
         throw e;
@@ -298,19 +300,14 @@ function warehouseService(config: TabConfig, location: { readonly href: string }
         // storage refused: not remembered, nothing else changes
       }
     },
-    connect: async (url, user, password) => {
-      const { driver, binding } = await loaded();
-      return driver.connect(binding, url, user, password);
-    },
+    connect: async (url, user, password) => (await loaded()).connect(url, user, password),
     signInWithKey: async (key) => {
       if (!config.warehouse) throw new Error('this page was not served by a warehouse: its config.json names none');
-      const { driver, binding } = await loaded();
-      const session = await driver.signInWithKey(binding, config.warehouse, key);
-      return { session, objects: await driver.listObjects(binding, session) };
+      return (await loaded()).signInWithKey(config.warehouse, key);
     },
     live: (session, catalog, databaseType) => {
       if (ready === undefined) throw new Error('the warehouse is read once signed in: sign in first');
-      return new ready.driver.WarehouseEngine(ready.binding, session, catalog, databaseType);
+      return ready.live(session, catalog, databaseType);
     },
   };
 }

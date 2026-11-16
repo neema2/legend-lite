@@ -513,7 +513,7 @@ public final class Boundary {
             case MERGE -> "|" + r + "->merge(" + t + ", ~[" + String.join(", ", keys.stream()
                     .map(k -> "'" + k.replace("\\", "\\\\").replace("'", "\\'") + "'").toList()) + "])";
         };
-        String json = com.legend.parser.SpecParser.lambdaJson(text, false);
+        String json = com.legend.door.Parse.lambdaJson(text, false);
         return placed(placed(json, OUTPUT_ROWS, rows), OUTPUT_INTO, into);
     }
 
@@ -1097,7 +1097,7 @@ public final class Boundary {
     /** The relation that reads the table, as protocol: the compiler's parse of its own accessor. */
     private static Object sourceOf(com.legend.sql.dialect.CatalogModel.Database db) {
         com.legend.json.Json.Obj lambda = com.legend.json.Json.parseObject(
-                com.legend.parser.SpecParser.lambdaJson("|" + db.accessor(), false));
+                com.legend.door.Parse.lambdaJson("|" + db.accessor(), false));
         return lambda.getArr("body").items().get(0);
     }
 

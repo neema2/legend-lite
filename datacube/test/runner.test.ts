@@ -16,7 +16,8 @@ import { fakeParse, fakePrint, limitsOf } from './fake-planner.ts';
 import { fromElement, toJson, type Lambda } from '../../pure-protocol/src/index.ts';
 import { variable } from '../../pure-protocol/src/index.ts';
 import { unplanned } from '../../engine-client/test/unplanned.ts';
-import { currentRun, frameKept, planning } from '../../engine-client/src/run-frame.ts';
+import { currentRun, frameKept } from '../../engine-client/src/run-frame.ts';
+import { planning } from '../../engine-client/src/plan-guard.ts';
 
 /** A cube query, as DataCube builds one. */
 const Q = fromElement('demo::T').select(['region']).lambda();

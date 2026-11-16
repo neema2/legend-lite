@@ -2234,6 +2234,7 @@ class Timeseries(Tile):
         prints it, and ``sql``, the SQL its plan runs where its rows are; one refused has ``refused`` instead, in
         DataCube's or the planner's words. Over ``start`` to ``end`` (ISO days, either open); neither, the dates the
         screen shows (the tile's range). Planned, nothing run."""
+        from .compiler import LegendError
         page = self._page
         said = _json.loads(page._session.headless().call('timeseriesAsks', _json.dumps(page._doc), self._id))
         if 'problems' in said:
@@ -2254,7 +2255,9 @@ class Timeseries(Tile):
             row = {k: ask[k] for k in ('what', 'serves', 'kind', 'series', 'with', 'source', 'marks', 'projection') if k in ask}
             try:
                 row.update(self._planned(told))
-            except ValueError as e:
+            except (ValueError, LegendError) as e:
+                # DataCube's refusal or the planner's (a LegendError: the C5 follow-up's audit item 2, 2026-11-15 --
+                # until then a planner's refusal of one question raised out of every row)
                 row['refused'] = str(e)
             out.append(row)
         return out

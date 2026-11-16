@@ -8,6 +8,7 @@ import { LitePlanner } from '../../src/lite-planner.ts';
 import type { ColumnSpec, CubeSnapshot } from '../../src/snapshot.ts';
 import type { ValueSpecification } from '../../../pure-protocol/src/index.ts';
 import { DeephavenEngine } from '../../../engine-client/src/deephaven-engine.ts';
+import { deephavenApi } from '../../../engine-client/src/doors/deephaven-api.ts';
 import { MODEL } from './model.ts';
 
 export const RUNTIME = 'risk::LiveRuntime';
@@ -80,7 +81,7 @@ export async function openRisk(config: RiskConfig): Promise<Risk> {
   const engine = await DeephavenEngine.open({
     url: config.url,
     signIn: { type: 'io.deephaven.authentication.psk.PskAuthenticationHandler', token: config.psk },
-  }, (op, args) => planner.deephaven(op, args));
+  }, (op, args) => planner.deephaven(op, args), { live: deephavenApi(config.url) });
   const source = await planner.parse(SOURCE);
   const query = source.body[0];
   if (query === undefined) throw new Error('the risk source parsed to no expression');

@@ -7,11 +7,14 @@ import com.legend.sql.SqlFn;
 import com.legend.compiler.element.TypedFunction;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 /**
  * Aggregate-reducer dispatch: the RESOLVED overload of an agg-col's reduce
  * lambda ({@code y|$y->sum()}) &rarr; the SQL reducer name. Identity-keyed like
- * {@link Scalars}; catalog-driven registration; unregistered = loud error.
+ * {@link Scalars}; catalog-driven registration; unregistered = loud error. The table is the lowering's binding table
+ * (invariant 2: a resolved signature to its typed MIR variant); WHICH overloads reduce a group -- the membership the
+ * resolver reads too -- is {@link com.legend.compiler.element.Reducers}, below both (C5-J item 3, 2026-11-15; the C5-J
+ * audit's nit: the membership alone moved, the binding stays here), and the two key sets are one: checked as the table
+ * is sealed.
  */
 public final class Aggregates {
 
@@ -112,6 +115,27 @@ public final class Aggregates {
         }
     }
 
+    // the binding table and the membership below both are one key set: a reducer added to one alone fails here, loudly,
+    // as the lowering loads (the C5-J audit's nit, 2026-11-15), never a group the resolver and the lowering read apart
+    static {
+        if (!REDUCERS.keySet().equals(com.legend.compiler.element.Reducers.keys())) {
+            throw new IllegalStateException("the reducer binding table (Aggregates) and the reducer membership"
+                    + " (compiler.element.Reducers) disagree: " + com.legend.compiler.element.Reducers.differences(
+                            REDUCERS.keySet()));
+        }
+        java.util.Set<com.legend.model.FunctionId> groupOnly = new java.util.HashSet<>();
+        REDUCERS.forEach((id, fn) -> {
+            if (fn == SqlAgg.Fn.ANY_VALUE) {
+                groupOnly.add(id);
+            }
+        });
+        if (!groupOnly.equals(com.legend.compiler.element.Reducers.groupOnly())) {
+            throw new IllegalStateException("the reducers to ANY_VALUE (Aggregates) are not the group-only reducers"
+                    + " (compiler.element.Reducers): " + groupOnly + " vs " + com.legend.compiler.element.Reducers.groupOnly());
+        }
+        REDUCERS.seal();
+    }
+
     /**
      * SQL reducer for the resolved reduce overload; loud error when
      * unregistered. Takes the TYPED callee — the parser node never crosses
@@ -123,39 +147,10 @@ public final class Aggregates {
         return REDUCERS.get(callee.id());
     }
 
-    /** The ONE aggregate-membership test (remediation T1.7): resolver
-     * walls ask the reducer catalog, never a parallel name list — a
-     * catalog addition is a wall addition by construction. */
-    public static boolean isReducer(TypedFunction callee) {
-        return REDUCERS.containsKey(callee.id());
-    }
-
-    /** DEMAND-scan membership: reducers that make an expression an
-     * AGGREGATE-over-navigation. ANY_VALUE (pure first()) is a
-     * reduce-lambda-ONLY entry — first() over a projected nav collection
-     * keeps its join-row route (engine ParentVarReferenceWithProject
-     * golden: plain LEFT JOINs, no grouped subselect). */
-    public static boolean isDemandReducer(TypedFunction callee) {
-        return isReducer(callee)
-                && REDUCERS.get(callee.id()) != SqlAgg.Fn.ANY_VALUE;
-    }
-
-    /** Node-level demand membership (§4AD decision 1): INFIX plus —
-     * the parser's n-ary carrier {@code plus([a, b, …])}, a LITERAL RUN of
-     * two or more operands — is a ROW-WISE operation over a mapped
-     * navigation in the engine's algebra (witness
-     * testQualifierWithOperation: concat per fanned row), never a
-     * reduction; the collection form over a VALUE ({@code $ages->plus()} ==
-     * sum) reduces. The and/or precedent, applied at the node by the
-     * argument's SHAPE (upstream declares plus variadic only — batch 5 leg 5). */
-    public static boolean isDemandReducer(TypedFunction callee,
-            com.legend.compiler.spec.typed.TypedSpec argument) {
-        return isDemandReducer(callee)
-                && !(com.legend.compiler.element.type.PlatformTypes.isPlus(callee.qualifiedName())
-                        && argument instanceof com.legend.compiler.spec.typed.TypedCollection run
-                        && run.operatorRun());
-    }
-
+    /** Whether the binding table reduces {@code id}: the lowering's own membership test, the same key set as
+     *  {@link com.legend.compiler.element.Reducers}' (checked as the table is sealed), which the resolver's walls ask
+     *  (remediation T1.7: never a parallel name list -- a catalog addition is a wall addition by construction; the ONE
+     *  membership is Reducers' since C5-J item 3, 2026-11-15). */
     static boolean isReducerKey(com.legend.model.FunctionId id) {
         return REDUCERS.containsKey(id);
     }
@@ -214,8 +209,4 @@ public final class Aggregates {
                 + " continuous) and variance(isBiasCorrected)");
     }
 
-    // the registry is a constant of the process from here on (2026-11-09, base.Sealed: a write after this is refused)
-    static {
-        REDUCERS.seal();
-    }
 }

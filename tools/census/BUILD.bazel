@@ -5,20 +5,32 @@
 
 load("@bazel_skylib//rules:build_test.bzl", "build_test")
 load("@rules_python//python:py_binary.bzl", "py_binary")
-load("//tools/java:defs.bzl", "legend_java_binary")
+load("//tools/java:defs.bzl", "legend_java_binary", "legend_java_library")
 load("//tools/guards:defs.bzl", "guards_package")
 
 # hand tools, run by a person: manual (2026-10-07, PHASE_8.md Gen-5), so a wildcard build does not build them; CI's
 # product job still analyses them by name
 legend_java_binary(
     name = "render_census",
-    srcs = ["RenderCensus.java"],
     jvm_flags = ["-Xss16m"],
     main_class = "RenderCensus",
     tags = ["manual"],
     # testonly (2026-11-09): the storeless test runtime is the test backends' since slice 5 (it was test-only in core
     # main until then), and this hand tool declares it beside each case's model
     testonly = True,
+    runtime_deps = [":render_census_lib"],
+)
+
+# the tool's class, as a library: core's parse rule reads it (C5-J's last round, A2, 2026-11-15:
+# //core:build_time_jars), and a binary carries no jar of its own to read
+legend_java_library(
+    name = "render_census_lib",
+    srcs = ["RenderCensus.java"],
+    # a main class, compiled as its binary compiled it: a binary's own sources carry no null gate (tools/java/defs.bzl)
+    nullaway = False,
+    tags = ["manual"],
+    testonly = True,
+    visibility = ["//core:__pkg__"],
     deps = ["//core", "//core:test_backends"],
 )
 

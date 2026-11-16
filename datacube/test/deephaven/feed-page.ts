@@ -5,6 +5,7 @@
 
 import { DeephavenSession, type DeephavenServer } from '../../../engine-client/src/deephaven.ts';
 import { LiveClient, type Followed, type FollowedRows } from '../../../engine-client/src/deephaven-live.ts';
+import { deephavenApi } from '../../../engine-client/src/doors/deephaven-api.ts';
 import { followedTable } from '../../../engine-client/src/deephaven-rows.ts';
 import { relationColumns, type Plan } from '../../../engine-client/src/relation-type.ts';
 import { DESK_MODEL, ON_DEEPHAVEN } from '../../demo/deephaven/market/model.ts';
@@ -44,7 +45,8 @@ try {
   if (!held.startsWith('OK\n')) throw new Error(`the trading model did not compile: ${held.replace(/\n/g, ' | ')}`);
   const handle = Number(held.slice(3));
   const session = await DeephavenSession.open(server, async (op, args) => exports.deephavenOrError(op, JSON.stringify(args)));
-  const live = await LiveClient.open(server, (why) => { feed.setupError ??= `the live reader ended: ${why}`; });
+  const live = await LiveClient.open(server, (why) => { feed.setupError ??= `the live reader ended: ${why}`; },
+    deephavenApi(server.url));
   const planned = (query: string): Plan => {
     const plan = exports.planHeldOrError(handle, query, ON_DEEPHAVEN.runtime);
     if (!plan.startsWith('OK\n')) throw new Error(`the planner refused ${query}: ${plan.replace(/\n/g, ' | ')}`);

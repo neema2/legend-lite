@@ -46,6 +46,8 @@ legend_java_library(
     # legend-engine's jars are testonly (MODULE.bazel), so this is: a test tool, never shipped; `bazel run` still works
     testonly = True,
     runtime_deps = _RUNNER_RUNTIME,
+    # core's parse rule reads its classes (C5-J's last round, A2, 2026-11-15: //core:build_time_jars)
+    visibility = ["//core:__pkg__"],
     deps = ["//core"] + _RUNNER_DEPS,
 )
 

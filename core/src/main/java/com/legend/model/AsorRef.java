@@ -1,7 +1,7 @@
 // Copyright 2026 Legend Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-package com.legend.lowering;
+package com.legend.model;
 
 /**
  * THE ASOR store-object-reference protocol — ONE owner (F3.4; audit

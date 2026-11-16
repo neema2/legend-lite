@@ -1,0 +1,18 @@
+#!/bin/bash
+# Witness cost, three runtimes (C5-T, 2026-11-15): Node 22.16.0 as pinned, the same with
+# --experimental-async-context-frame, and Node 24.22.3 (nodejs.org's linux-x64 tarball, its SHASUMS256 checked; a
+# measurement only, never a toolchain). Run beside bench.mjs, run-frame-on.ts (engine-client/src/run-frame.ts) and
+# run-frame-off.ts (make_run_frame_off.py.txt); $OUTPUT_BASE is `bazel info output_base`, $NODE24 the 24's bin/node.
+set -u
+N22=$OUTPUT_BASE/external/rules_nodejs++node+nodejs_linux_amd64/bin/nodejs/bin/node
+N24=$NODE24
+for rep in 1 2; do
+  for rt in "22.16.0|$N22|" "22.16.0 --experimental-async-context-frame|$N22|--experimental-async-context-frame" "24.22.3|$N24|"; do
+    IFS='|' read -r label bin flag <<< "$rt"
+    for mode in per-call runs awaits-outside awaits-inside; do
+      for v in on off; do
+        echo "[$label] $($bin $flag --experimental-strip-types --disable-warning=ExperimentalWarning bench.mjs $v $mode | tr '\n' ' ')"
+      done
+    done
+  done
+done

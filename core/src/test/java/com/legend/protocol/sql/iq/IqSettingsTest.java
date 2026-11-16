@@ -5,7 +5,6 @@ package com.legend.protocol.sql.iq;
 
 import com.legend.protocol.PureComposer;
 import com.legend.protocol.spec.ValueSpecification;
-import com.legend.protocol.sql.SqlToPure;
 import com.legend.protocol.sql.SqlTranslationException;
 import org.junit.jupiter.api.Test;
 
@@ -246,7 +245,7 @@ class IqSettingsTest {
     private static final String T = "tb('s::DB.T')";
 
     private static String pure(String sql, IqSettings settings) {
-        ValueSpecification vs = SqlToPure.translate(sql, (source, column) -> {
+        ValueSpecification vs = com.legend.testcases.SqlText.translate(sql, (source, column) -> {
             column.column("id", "Integer", false, "INTEGER");
             column.column("vc", "String", true, "VARCHAR(20)");
             column.column("nm", "Decimal", true, "NUMERIC(10,2)");

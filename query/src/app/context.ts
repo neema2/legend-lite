@@ -2,8 +2,9 @@
 // model graph, the current user, recently viewed things.
 
 import type { ModelHomeConfig } from '../../../depot-client/src/model-home.ts';
-import type { QueryEngine } from '../../../engine-client/src/engine.ts';
-import type { ProjectDatabases, ProjectRunner } from '../../../engine-client/src/project-data.ts';
+import type { QueryEngine } from '../../../engine-client/src/query-engine.ts';
+import type { ProjectDoor } from '../../../engine-client/src/doors/project-data.ts';
+import type { PointedEngine } from '../../../engine-client/src/query-engine.ts';
 import type { Engine, QueryStore } from '../backend/engine.ts';
 import type { WasmGrammar } from '../../../engine-client/src/legend/wasm-grammar.ts';
 import type { PureModelContextText } from '../backend/wire.ts';
@@ -154,7 +155,7 @@ export class AppContext {
    * Where a project's own rows go: its database inside this tab's DuckDB (C5), the screens' engine pointed there as
    * it opens, the tab's own connection beside (set by the page; none when queries run elsewhere).
    */
-  tabProjects: { readonly databases: ProjectDatabases; readonly runner: ProjectRunner; readonly host: QueryEngine } | undefined;
+  tabProjects: { readonly databases: ProjectDoor; readonly runner: PointedEngine; readonly host: QueryEngine } | undefined;
 
   /**
    * The screens' engine pointed at the project's own database (made and filled the first time; another version keeps

@@ -8,6 +8,7 @@
 // (tools/guards/PlannedSqlTest.java) holds it so.
 
 import type { PlannedSql, PlanText } from '../src/planned-sql.ts';
+import { inRun } from '../src/run-frame.ts';
 
 /** Every text a test typed as its own, so a host that runs both a test's statements and the product's can tell them
  *  apart (the C final audit's H7, 2026-11-12: the headless lane's database sends a test's own to the lane's test calls,
@@ -34,4 +35,25 @@ export function allUnplanned(texts: readonly string[]): PlannedSql[] {
  *  as the planner's (the re-audit's M1, 2026-11-12: the runners take a PlanText alone). Test code only, as `unplanned`. */
 export function unplannedPlan(text: string): PlanText {
   return text as PlanText;
+}
+
+/** The sends a test makes itself, by name: an engine's (QueryEngine's) and the held connection's. */
+const SENDS = new Set<PropertyKey>(['run', 'execute', 'stream', 'exclusive']);
+
+/**
+ * `engine`, each of its sends the test's own run (run-frame.ts: on Node a statement is sent inside a run, C5-T,
+ * 2026-11-15): what a test sends itself -- its fixtures' tables, its own questions of the database -- its arguments (a
+ * planner's answer among them) made before the run, as a door's are. Only at the test's own send: an engine handed to
+ * the product stays as it is, so the product's send outside a run is still refused. Test code only, as `unplanned`.
+ */
+export function asTest<E extends object>(engine: E): E {
+  return new Proxy(engine, {
+    get(target, key) {
+      const value: unknown = Reflect.get(target, key, target);
+      if (typeof value !== 'function') return value;
+      return SENDS.has(key)
+        ? (...args: unknown[]): Promise<unknown> => inRun("a test's own statement", async (): Promise<unknown> => value.apply(target, args))
+        : value.bind(target);
+    },
+  });
 }

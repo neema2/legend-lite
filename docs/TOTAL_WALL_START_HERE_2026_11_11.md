@@ -1018,24 +1018,55 @@ In order. Nothing here is in the A/B/C PR.
        Java. The walls are interim scaffolding until then, neither slimmed nor re-engineered (their headers say so, the
        final fix round's T4); their lists are this work's list: TypeScript's 17 `COMPOSER_MODULES`, 22
        `COMPOSER_SIGNATURES` and 2 `COMPUTED_DOORS`, Python's 12 `UNFRAMED_SENDERS`, each named there;
-     - the PCT runner's reads of `ProgramFacts` (`test.PureTestRunner`: `effects`, `seedsInlineCsv`, `shape`,
-       `verdicts`) carried in the test plan instead;
-     - the test road's catch-and-continue sites (G7): PlanAllocations' `registerPlanRows` (:251), `activitySql` (:292),
+     - **DONE in C5-J (8135f28e04, 2026-11-15):** the PCT runner's reads of `ProgramFacts` (`test.PureTestRunner`:
+       `effects`, `seedsInlineCsv`, `shape`, `verdicts`) carried in the test plan instead;
+     - **DONE in C5-J (d3913a4f6e, 2026-11-15; ruled (A): the isolation walls named, `Lowerer.IsolationWall`):** the
+       test road's catch-and-continue sites (G7): PlanAllocations' `registerPlanRows` (:251), `activitySql` (:292),
        `registerColumnLineageRows` (:492) and `registerLineageRows` (:561), and FramePlanner's legendQuery activity SQL
        (:149, which catches LegendCompileException and so still swallows a malformed date pattern; it predates C4) --
        not a fix in C4 (the C4 second small round's item 3);
-     - the resolver's reads of lowering helpers (`lowering.Aggregates`, `lowering.AsorRef`: spelling and
+     - **DONE in C5-J (8d25714047, 2026-11-15):** the resolver's reads of lowering helpers (`lowering.Aggregates`,
+       `lowering.AsorRef`: spelling and
        classification, listed in `ArchitectureTest.PLANNER_ENTRIES`) moved below both;
      - cross-listed so it is not lost (stream D's, not C5's): lineage rebuilt upstream's way, for everything -- its
        terms are under "Moved to D's batch" below;
      - run frames around every send site on both hosts (B2/B3 wide: Python's pure/v1 execute, the headless road, about
-       20 TS sites);
+       20 TS sites) -- Python's half DONE by C5-P (2026-11-15: `_planned.send` refuses outside a run, every send in
+       `:run`); TypeScript's is C5-T's;
      - typed identifiers (no quote syntax in a plan's names; invariant 3a);
-     - a wider Java witness (phase C, `ModelFromProtocol`, direct parser calls);
+     - (C5-P's audit, 2026-11-15) the native library's loader split into keys, a run taking a planner by annotation,
+       transactions and the warehouse's HTTP outside a frame, a stream's pulls on DuckDB's own threads: DONE in C5-P's
+       last round (A1-A5, the user's go of 2026-11-15; docs/GATES.md's C5-P entry);
+     - (C5-P's final audit, 2026-11-15, held out) `_runs._stream` re-enters one copied context at every pull: if DuckDB
+       ever pulls on two threads at once, the second raises "cannot enter context" (measured on one thread only);
+     - (C5-P's final audit, 2026-11-15, held out) `_reads.end_read`'s `suppress(duckdb.Error)` around the read's rollback,
+       moved unchanged;
+     - (C5-P's final audit, 2026-11-15, held out; pre-existing) `_runs._stream` sends its transaction's begin before its
+       `try`;
+     - (C5-P's final audit, 2026-11-15, held out) `//python:run_closure_test`'s static half could run on every platform
+       (today gated by `target_compatible_with`);
+     - (the C5 follow-up's audit, 2026-11-15, held out) the page hash's number forms differ between Python and the tab
+       (Decimal `1E-7` and float repr `5e-05` against JavaScript's `1e-7` and `0.00005`; key order for astral
+       characters): a false mismatch for rare values -- one normalised form in both languages, DataCube's;
+     - (the C5 follow-up's audit, held out) `datacube._current()`'s `except Exception: return _session` shares one
+       session among marimo viewers if marimo's private context moves (G7, latent);
+     - (the C5 follow-up's audit, held out) a gone marimo session leaves its page tabs, apps and `_web` running, and drops
+       a cube's close failure (`pass`);
+     - (the C5 follow-up's audit, held out) the native library called on per-request threads (`/file.json`,
+       `/remote.json`, `/forget.json`, a snap's release, the warehouse snap), each left attached to the isolate (a few
+       KB an action): `_on_compiler_threads`;
+     - (the C5 follow-up's audit, held out) a V8 engine stopped at its memory cap mid-write leaves the main connection in
+       an open transaction (`_headless.py`);
+     - (the C5 follow-up's check, 2026-11-15, held out) a timeseries row's `refused` and a served snap's 422 carry the
+       compiler's LegendError message without its kind (`page.py`'s Tile.queries, `engine.py`'s `_served_snap`), as the
+       snap's existing planning 422 does;
+     - **DONE in C5-J (9dcb29f13b, 2026-11-15; the parse doors):** a wider Java witness (phase C,
+       `ModelFromProtocol`, direct parser calls);
      - wider fuzzing (store-declared names, mappings, each database's quoting checked live);
      - Node's `--experimental-async-context-frame` (or Node 24): today every promise in a Node process that uses
        lite's witness pays about 45 ns;
-     - the date-format end found as pure finds it, pure's exact words; the bare ISE on an unclosed %t{ and the
+     - **DONE in C5-J (3c2a8b5ebf, 2026-11-15; S342, ruled as pure's behaviour):** the date-format end found as pure
+       finds it, pure's exact words; the bare ISE on an unclosed %t{ and the
        quoted-brace gap closed (B3's option A; held out of C4 by its freeze of 2026-11-14, where the refusal stays as at
        4a8e448917, named, at planning; S342 was reserved for its register row):
        - pure (legend-pure 5.99.0) finds the end of `%t{` with `FormatTools.findEndOfDateFormatString`: a `"` opens and
@@ -1055,6 +1086,55 @@ In order. Nothing here is in the A/B/C PR.
        - the javadocs of `AuditRound3Test.malformedDatePatternsAreRefusedByName` and
          `BodyRouterParityTest.aMalformedDatePatternInAScannedQueryIsRefusedByName` still give upstream's answer as
          "Missing closing quote ... when the format runs" (the freeze left them); they are corrected with it.
+   - **C5-J, the Java lock-down (2026-11-15, branch `claude/c5-java`, one PR; `docs/GATES.md`'s C5-J entry):**
+     - Its six items, each red on revert:
+       - a wider Java witness (the parse doors);
+       - a test body's facts as plan data;
+       - the resolver below the lowering;
+       - the test road's named catches;
+       - pure's date-format end (S342);
+       - `PLANNER_ENTRIES` 70 → 61.
+     - Measured before and after: core's suites, PCT A/B DuckDB+H2 and both corpora. No body's outcome or failure text
+       moved.
+     - **Its last round (the user's "Yes do it", 2026-11-15; `docs/GATES.md`'s C5-J last-round entry), each red on
+       revert:**
+       - A1 (53fba7ef80): the embedded languages' readers (#SQL's and #IQ's dialects, `TsParser`, `CypherParser`)
+         through the parse doors (`door.Parse.sqlIsland`, `tsIsland`, `tsItem`, `cypherIsland`), the translators taking
+         the tree; `PARSE_BY_THE_DOORS` covers the readers, default-deny; none was reached inside a run;
+       - A2 (a5ee9bdb82): the build-time code under the parse rule (`//core:build_time_jars`: the generators, the
+         render census, the engine runner's probe), the census and the probe through the doors, the prelude generator
+         the one named reader;
+       - A3 (e31b8a2bbe): `Compiler.programFacts` off the closed surface;
+       - A4 (d7299fe47f): an object reference built in SQL is `AsorRef`'s byte for byte and decodes to every segment
+         (DuckDB and SQLite; H2 refuses the encoding by name).
+     - **Its backlog** (found during C5-J, outside its scope; a line each, start none without the user):
+       - DONE in the last round (A2, a5ee9bdb82; CoreGrammar in the audit fix round, 7b3ee3f036): the parse rule read
+         core and the hosts' doors alone -- `//sdlc-server/grammar`'s `CoreGrammar`, the spec generator's
+         `PreludeGenerator` and the tools (`tools/census/RenderCensus`, the engine runner's `LiteParseMain`) called the
+         parser directly, outside its import;
+       - DONE in the last round (A1, 53fba7ef80): `protocol.ts.TsParser` parsed in the protocol layer, outside
+         `com.legend.parser` and outside the parse doors (`PureV1Api`'s TS route, `TsToPure`, `TsShow`), so a TS query's
+         parse was unwitnessed at run time -- and so were the #SQL, #IQ and #Cypher islands' readers;
+       - DONE in the last round (A3, e31b8a2bbe): `Compiler.programFacts` had no caller since the PCT runner reads the
+         test plan's facts, and is off the closed surface (ROOT_DOORS, QUERY_ROADS);
+       - (the last round's re-check, 2026-11-15) H2 has no base64 in SQL, so an object reference cannot be built on H2:
+         its dialect refuses the encoding by name (`AsorRefRoundTripTest`, `asor-round-trip/outcomes.tsv`), while
+         upstream's goldens pin H2's references. Pre-existing, and no register row covers it; the orchestrator posts it
+         to the user;
+       - (the re-check) an object reference's frame lengths disagree outside the BMP: the SQL side counts code points
+         (`LENGTH`, `SnapshotEnvelope.asorWrap`), `AsorRef.ref` and `decode` count UTF-16 units, so a key holding a
+         character outside the BMP frames off by one. Pre-existing; a compatibility format, stream D's edge;
+       - (the re-check) `ArchitectureTest.ISLAND_DIALECTS` exempts whole classes: `IqDialect`'s public `reading()` and
+         `defaultName` re-read a select item's text, and `IqNames.name` (package-private) is no entry. Routes an
+         adversary alone would take;
+       - the Lowerer's other bare IllegalStateExceptions (beyond its isolation walls) are unnamed: name each that a
+         caller means to catch, the rest stay bugs;
+       - a backslash OUTSIDE quotes in a date pattern: `DateFormats` passes it through as text, where pure refuses it
+         ("Invalid format control character"; corrected by the C5-J audit, 2026-11-15: this line said lite refused
+         it). This predates C5-J, and no register row covers it;
+       - a zone-shifted pattern's zone is read up to its first `]`, blind to quotes (`Scalars.dateWithPattern`), so
+         `%t{["EST]yyyy"}` reaches the pattern parser's "Missing closing quote ...", where pure reads the zone by its
+         own rule and says "Missing closing bracket ..." (the C5-J audit, 2026-11-15).
    - **RULED by the user, 2026-11-14:** "let's finish the foolproof separation and get that out for all hosts" and
      "yes, separate safety stream". The scope is now set as follows.
      - **C4 is the plan/exec separation (G4) only:** proven on Java; fenced and frozen on TypeScript and Python (the

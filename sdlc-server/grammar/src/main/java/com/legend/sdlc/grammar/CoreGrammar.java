@@ -8,9 +8,9 @@ import java.util.List;
  * The SDLC's two Pure questions answered by legend-lite's own compiler, in process
  * (docs/PROTOCOL_PROGRAM_2026_10_05.md, leg 7): the one place the SDLC reaches the compiler, so its rules
  * ({@code //sdlc-server:rules}) depend on no Pure code and the build refuses them any. {@link #modelJson} is the
- * text-to-JSON conversion without source information at lite's dialect ({@code PmcdParser.parseLiteDocument(text,
- * false)}: legend-engine's protocol JSON, lite's own words as lite's JSON) -- what lite's {@code grammarToJson/model}
- * answers; {@link #compile} is the whole-model
+ * text-to-JSON conversion without source information at lite's dialect ({@code door.Parse.liteDocumentJson(text,
+ * false)}: the parser's {@code PmcdParser.parseLiteDocument}, legend-engine's protocol JSON and lite's own words as lite's
+ * JSON, reached through the parse door) -- what lite's {@code grammarToJson/model} answers; {@link #compile} is the whole-model
  * compile both {@code compilation/compile} routes answer from ({@code Compiler.compileErrors}, leg 6). The SDLC's
  * server and its page wire it in.
  */
@@ -19,14 +19,15 @@ public final class CoreGrammar implements Sdlc.Grammar {
     public String modelJson(String text) {
         // at lite's dialect (docs/ONE_CONNECTION_DESK_2026_10_28.md D1, D5): a file holding lite's own words (a Deephaven
         // connection, a SQLite datasource, a pre-shared key) is an entity like any other, written as lite's own JSON;
-        // every other element as legend-engine writes it
-        return com.legend.parser.PmcdParser.parseLiteDocument(text, false);
+        // every other element as legend-engine writes it -- through the parse door, which asks the run's wall (the C5-J
+        // audit's nit, 2026-11-15)
+        return com.legend.door.Parse.liteDocumentJson(text, false);
     }
 
     /** {@link #modelJson} with each element's span (its first character to its last, in lines and columns from 1). */
     @Override
     public String modelJsonWithSpans(String text) {
-        return com.legend.parser.PmcdParser.parseLiteDocument(text, true);
+        return com.legend.door.Parse.liteDocumentJson(text, true);
     }
 
     /** The packages every element resolves through without importing them ({@link com.legend.compiler.CoreImports}). */

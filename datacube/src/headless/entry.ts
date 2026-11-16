@@ -7,7 +7,8 @@ import './install-url.ts';
 
 import { DATACUBE_LIBRARY } from '../pure-library-text.ts';
 import { REQUEST_KINDS, type PlannerWorker } from '../../../engine-client/src/legend/planner-protocol.ts';
-import { hostCalls, hostDatabase, hostWorker, type HostDatabase } from './host.ts';
+import { hostCalls, hostWorker } from './host.ts';
+import { hostConnection } from './host-database.ts';
 import {
   chartOwnGrid, cubeLeaves, gridAddFilter, gridApply, gridBaseOn, gridChart, gridColumn, gridCube, gridExport,
   gridFilter, gridGesture, gridMeasure, gridModelMeasure, gridOpened, gridPreset, gridRelated, leafCube, gridRelation, gridSetUp, gridSnapPull,
@@ -199,11 +200,11 @@ export { gridTimeseries } from './grid.ts';
 /** What DataCube's code runs on in this host: its planner's worker, and the database. */
 export interface Headless {
   readonly worker: () => PlannerWorker;
-  readonly database: HostDatabase;
+  readonly database: ReturnType<typeof hostConnection>;
 }
 
 /** The planner's worker and the database, over the host's calls (`legendLiteHost`, defined before the bundle loads). */
 export function start(): Headless {
   const calls = hostCalls();
-  return { worker: () => hostWorker(calls), database: hostDatabase(calls) };
+  return { worker: () => hostWorker(calls), database: hostConnection(calls) };
 }

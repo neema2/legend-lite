@@ -19,21 +19,167 @@ npm_link_all_packages(name = "node_modules")
 
 exports_files(["pnpm-lock.yaml", "package.json"])
 
+# THE TARGETS, Java's shape (C5-T, 2026-11-15: the TypeScript split of plan and run; docs/TOTAL_WALL_START_HERE_2026_11_11.md
+# section 6.1). The files stay where they are; each target lists its own, and every source is in exactly one (the load
+# fails otherwise). Their direct deps are pinned by tools/deps/ts-layers.txt (//tools/deps:ts_layering_test, a
+# genquery per target, as core-layers.txt pins Java's), and the run and planner targets are each typechecked alone
+# (//tools/deps:layers_alone):
+# - records: the shapes both sides read -- no send, no plan (Java's execution_plan, sql and result records);
+# - engine_api: what can run -- the engines' interfaces and the run frame that opens a run; run, doors and apps reach
+#   it, no planner and no server (2026-11-15, the C5-T final audit's MUST 1);
+# - run: what sends a plan's statements and reads their rows: records and npm only, NO planner, no server, no door;
+# - planner: legend-lite's planner in the tab and its planning client (no execute): records and the protocol only;
+# - server: legend-engine's API clients, whose execute is the SERVER's door;
+# - doors: the one target over both -- each asks the planner, then runs the answer in a run frame (run-frame.ts).
+_RECORDS = [
+    "src/generated/lite-facts.ts",
+    "src/json-unknown.ts",
+    "src/legend/engine-api.ts",
+    "src/legend/pmcd.ts",
+    "src/legend/wire.ts",
+    "src/locale.ts",
+    "src/plan-guard.ts",
+    "src/plan-params.ts",
+    "src/planned-sql.ts",
+    "src/receipt.ts",
+    "src/relation-type.ts",
+    "src/requests.ts",
+    "src/result.ts",
+    "src/sha256.ts",
+    # 2026-11-16 (claude/deephaven-3-browser, the merge of main 4dfbb5b7): a step's time, measured where it ran and read
+    # by the page that shows it -- no send, no plan
+    "src/timeline.ts",
+    "src/types.ts",
+    "src/values.ts",
+]
+
+# THE ENGINE'S API (2026-11-15, the C5-T final audit's MUST 1): what can RUN -- the engines' interfaces, whose methods
+# send (QueryEngine, HeldConnection, PointedEngine, LiveWarehouse), and the run frame, which opens a run. Out of the
+# records (the last round's T1 had put them there, so a planner or a server layer could take an engine and run on it):
+# run, doors and apps reach it; no planner or server layer does (tools/deps/ts-layers.txt). The planner's check of the
+# frame is a record (plan-guard.ts), which reads the run this module installs and cannot open one.
+_ENGINE_API = [
+    "src/query-engine.ts",
+    "src/run-frame.ts",
+    "src/warehouse-session.ts",
+]
+
+_RUN = [
+    "src/arrow-ipc.ts",
+    "src/connection-settings.ts",
+    # 2026-11-16 (claude/deephaven-3-browser, the merge of main 4dfbb5b7): the Deephaven road's run side (its session,
+    # engine, rows and live reader, the check on connect) and the live DuckDB engine, each a run module. The Deephaven
+    # session still asks the planner's `deephaven` door while it runs, through a function it is handed (no planner
+    # module imported): what docs/DEEPHAVEN_RUN_SIDE_2026_11_16.md removes; the live engine takes its statements
+    "src/deephaven-engine.ts",
+    "src/deephaven-held.ts",
+    "src/deephaven-live.ts",
+    "src/deephaven-rows.ts",
+    "src/deephaven.ts",
+    "src/duckdb-live.ts",
+    "src/duckdb-tab.ts",
+    "src/duckdb-wasm.ts",
+    "src/duckdb.ts",
+    "src/engine.ts",
+    "src/host-operations.ts",
+    "src/live.ts",
+    "src/model-data.ts",
+    "src/plan-runner.ts",
+    "src/project-data.ts",
+    "src/warehouse.ts",
+]
+
+# 2026-11-15 (the C5-T audit's item 3): the planner's protocol (PlannerWorker, its requests) and Grammar out of the
+# records, which handed the run side a typed way into the planner
+_PLANNER = [
+    "src/legend/grammar.ts",
+    "src/legend/planner-answer.ts",
+    "src/legend/planner-protocol.ts",
+    "src/legend/planner-worker.ts",
+    "src/legend/planning-client.ts",
+    "src/legend/wasm-grammar.ts",
+    "src/planner-sources.ts",
+    "src/pure-v1-planning.ts",
+]
+
+_SERVER = [
+    "src/legend/engine.ts",
+    "src/pure-v1.ts",
+]
+
+# the multi-step doors kept in place (the orchestrator's note 3: each made one keyed plan later, the backlog of
+# docs/records/c5-typescript-2026-11-15.md)
+_DOORS = glob(["src/doors/**/*.ts"]) + [
+    "src/engine-remote.ts",
+    "src/legend/browser-engine.ts",
+    "src/snap.ts",
+    "src/tab-data.ts",
+]
+
+# NODE'S HOST, for code run in Node alone -- tests, benchmarks and harnesses: a require rooted in this package, and
+# DuckDB-WASM's blocking build started with the pinned extensions (node-require.ts). No layer: no product module imports
+# it, and the run layer, which the browser bundles carry, holds no require door (the C5-T audit's item 8, 2026-11-15)
+_NODE_HOST = ["src/node-require.ts"]
+
+_ASSIGNED = _RECORDS + _ENGINE_API + _RUN + _PLANNER + _SERVER + _DOORS + _NODE_HOST
+
+[fail("engine-client/%s is in no target of engine-client/BUILD.bazel: add it to the one whose layer it is" % f) for f in glob(["src/**/*.ts"]) if f not in _ASSIGNED]
+
+[fail("engine-client/%s is listed twice in engine-client/BUILD.bazel's targets" % f) for i, f in enumerate(_ASSIGNED) if f in _ASSIGNED[:i]]
+
+_APPS = [
+    "//datacube:__pkg__",
+    "//query:__pkg__",
+    "//studio:__pkg__",
+]
+
 js_library(
-    name = "engine_client",
-    srcs = glob(["src/**/*.ts"]) + ["package.json"],
-    visibility = [
-        "//datacube:__pkg__",
-        "//query:__pkg__",
-        "//studio:__pkg__",
-    ],
+    name = "records",
+    srcs = _RECORDS,
+    visibility = _APPS + ["//tools/deps:__pkg__"],
+    # pure/v1's queries and the model's text are built and read as protocol JSON
+    deps = ["//pure-protocol:pure_protocol"],
+)
+
+js_library(
+    name = "engine_api",
+    srcs = _ENGINE_API,
+    visibility = _APPS + ["//tools/deps:__pkg__"],
+    deps = [":records"],
+)
+
+js_library(
+    name = "run",
+    srcs = _RUN,
+    visibility = _APPS + ["//tools/deps:__pkg__"],
     deps = [
-        # pure/v1's queries are built and read as protocol JSON
-        "//pure-protocol:pure_protocol",
-        # DuckDB in the tab (duckdb-wasm.ts re-exports it for the apps), and the Arrow it brings -- the
-        # one copy every bundle carries, which the warehouse's Arrow IPC chunks are read with too
+        ":engine_api",
+        ":records",
+        # DuckDB in the tab (duckdb-wasm.ts re-exports it for the apps), and the Arrow it brings -- the one copy every
+        # bundle carries, which the warehouse's Arrow IPC chunks are read with too
         ":node_modules/@duckdb/duckdb-wasm",
         ":node_modules/apache-arrow",
+    ],
+)
+
+js_library(
+    name = "planner",
+    srcs = _PLANNER,
+    visibility = _APPS + ["//tools/deps:__pkg__"],
+    deps = [
+        ":records",
+        "//pure-protocol:pure_protocol",
+    ],
+)
+
+js_library(
+    name = "server",
+    srcs = _SERVER,
+    visibility = _APPS + ["//tools/deps:__pkg__"],
+    deps = [
+        ":planner",
+        ":records",
+        "//pure-protocol:pure_protocol",
         # fzstd 0.1.1, exact (2026-10-08, the user's approval): legend-engine's Arrow answer to execute (ARROW_IPC) is
         # ALWAYS one zstd frame (RelationalResultToArrowIPCSerializer wraps its stream in a ZstdOutputStream; measured,
         # core/src/test/resources/upstream-api/e8-arrow-groupby-sort.json), Python's engine answers the same bytes so
@@ -44,16 +190,83 @@ js_library(
     ],
 )
 
+js_library(
+    name = "doors",
+    srcs = _DOORS,
+    visibility = _APPS + ["//tools/deps:__pkg__"],
+    deps = [
+        ":engine_api",
+        ":planner",
+        ":records",
+        ":run",
+        ":server",
+        "//pure-protocol:pure_protocol",
+        ":node_modules/apache-arrow",
+    ],
+)
+
+js_library(
+    name = "node_host",
+    srcs = _NODE_HOST,
+    visibility = _APPS + ["//tools/deps:__pkg__"],
+    # what it starts in Node: DuckDB-WASM's blocking build (required at run time, rooted here)
+    deps = [":node_modules/@duckdb/duckdb-wasm"],
+)
+
+# every layer at once, what the apps depend on (their own layers name the one they reach: tools/deps/ts-layers.txt),
+# and Node's host for their Node tests and harnesses
+js_library(
+    name = "engine_client",
+    srcs = ["package.json"],
+    visibility = _APPS,
+    deps = [
+        ":doors",
+        ":engine_api",
+        ":node_host",
+        ":planner",
+        ":records",
+        ":run",
+        ":server",
+    ],
+)
+
+# every source of the package, as files, for a scanner that reads them by $(rlocationpaths) (DataCube's guardrails and
+# run wall): the layers' own files are each layer's, and the aggregate above has none of its own. A js_library, so a
+# test of another package takes them (rules_js copies a source to the output tree only from its own package); no
+# product target depends on it (tools/deps/ts-layers.txt pins every layer's deps)
+js_library(
+    name = "sources",
+    srcs = glob(["src/**/*.ts"]) + ["package.json"],
+    # (2026-11-15, the C5-T last round's T1: the apps' census follows a re-export through the engine client's modules)
+    visibility = [
+        "//datacube:__pkg__",
+        "//tools/deps:__pkg__",
+    ],
+)
+
+# each layer's direct deps, as Bazel resolves them: //tools/deps:ts_layering_test holds them to tools/deps/ts-layers.txt
+[genquery(
+    name = "layer_" + layer,
+    expression = "labels(deps, //engine-client:%s)" % layer,
+    scope = [":" + layer],
+    visibility = ["//tools/deps:__pkg__"],
+) for layer in ["records", "engine_api", "run", "planner", "server", "doors", "node_host"]]
+
+filegroup(
+    name = "layer_queries",
+    srcs = [":layer_" + layer for layer in ["records", "engine_api", "run", "planner", "server", "doors", "node_host"]],
+    visibility = ["//tools/deps:__pkg__"],
+)
+
 # legend-lite's planner in a worker (src/legend/planner-worker.ts), one bundle for every app that runs it in the
 # tab, answering the one planner protocol (src/legend/planner-protocol.ts; docs/ONE_PLATFORM_PROGRAM_2026_10_12.md C2):
 # DataCube, Query and Studio serve it as their ./planner-worker.js, next to //wasm:planner's module.
 esbuild_bundle(
     name = "planner_worker",
-    srcs = [
-        "src/legend/planner-answer.ts",
-        "src/legend/planner-protocol.ts",
-        "src/legend/planner-worker.ts",
-    ],
+    # the planner layer whole, its records with it (2026-11-15, the C5-T final audit's finding from the Java worker's
+    # gate: three files named by hand left out what planner-answer.ts imports -- run-frame.ts on main, plan-guard.ts here
+    # -- and esbuild found it outside the sandbox only when another action had copied it; //tools/deps:bundle_inputs_test)
+    srcs = [":planner"],
     outs = ["planner-worker.js"],
     args = [
         "src/legend/planner-worker.ts",
@@ -277,14 +490,21 @@ js_library(
     testonly = True,
     srcs = ["test/unplanned.ts"],
     visibility = ["//datacube:__pkg__"],
+    # a test's own statements sent in the test's own run (`asTest`: run-frame.ts inRun, a record)
+    deps = [":records"],
 )
 
 # THE RUN FRAME (run-frame.ts, the witness, 2026-11-13): a planner entry inside a run of its own flow refused by name,
-# outside one or on another flow answered; the planner's in-thread answer and a worker's port among the entries
+# outside one or on another flow answered; the planner's in-thread answer and a worker's port among the entries; and
+# a statement sent outside a run refused at both choke points, DuckDB's connection and the warehouse's submit (C5-T)
 node_test(
     name = "run_frame_test",
     size = "small",
-    data = [":engine_client"],
+    data = [
+        ":engine_client",
+        # the choke points' test sends its own statements (C5-T, 2026-11-15)
+        "test/unplanned.ts",
+    ],
     entry_point = "test/run-frame.test.ts",
 )
 

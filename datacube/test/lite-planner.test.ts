@@ -1,5 +1,9 @@
 import assert from 'node:assert/strict';
-import { describe, it } from 'node:test';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { after, describe, it } from 'node:test';
+import { pathToFileURL } from 'node:url';
 
 import { PlanError } from '../src/planner.ts';
 import { fromElement, toJson } from '../../pure-protocol/src/index.ts';
@@ -79,6 +83,33 @@ function fakeExports(
   };
 }
 
+/** A stand-in TeaVM runtime: what the module at its folder's `wasm-gc-module-runtime.js` answers. */
+interface FakeRuntime { load(): Promise<{ exports: ReturnType<typeof fakeExports> }> }
+
+/** The stand-in runtimes, by folder: LitePlanner loads its runtime from its asset folder alone, no loader handed in (the
+ *  C5-T review's S1, 2026-11-15), so each planner here is given a folder whose runtime module answers with its own. */
+const FAKES = new Map<string, () => Promise<FakeRuntime>>();
+(globalThis as { __litePlannerFakes?: typeof FAKES }).__litePlannerFakes = FAKES;
+const FOLDERS = mkdtempSync(join(tmpdir(), 'lite-planner-'));
+writeFileSync(join(FOLDERS, 'package.json'), '{"type":"module"}\n');
+after(() => rmSync(FOLDERS, { recursive: true, force: true }));
+let folders = 0;
+
+/** A folder for a planner's runtime, as the URL LitePlanner takes (`assetBaseUrl`), its module written now when `runtime`
+ *  is given; `serve` writes it later (a runtime missing first, then there). */
+function runtimeFolder(runtime?: () => Promise<FakeRuntime>): { url: string; serve(r: () => Promise<FakeRuntime>): void } {
+  const id = String(folders++);
+  const dir = join(FOLDERS, id);
+  mkdirSync(dir);
+  const serve = (r: () => Promise<FakeRuntime>): void => {
+    FAKES.set(id, r);
+    writeFileSync(join(dir, 'wasm-gc-module-runtime.js'), 'export const load = async (...args) =>'
+      + ` (await globalThis.__litePlannerFakes.get(${JSON.stringify(id)})()).load(...args);\n`);
+  };
+  if (runtime) serve(runtime);
+  return { url: pathToFileURL(`${dir}/`).href, serve };
+}
+
 function fakeRuntime(
   answer: (model: string, query: string, runtime: string) => string,
   onLoad?: () => void,
@@ -107,7 +138,7 @@ function planner(
     model: extra.model ?? '###Relational\nDatabase trades::DB ( Table T ( a VARCHAR(1) ) )',
     runtime: 'trades::RT',
     ...(extra.cache === undefined ? {} : { cache: extra.cache }),
-    loadRuntime: fakeRuntime(answer, extra.onLoad, extra.onWarm, extra.log),
+    assetBaseUrl: runtimeFolder(fakeRuntime(answer, extra.onLoad, extra.onWarm, extra.log)).url,
   });
 }
 
@@ -331,10 +362,11 @@ describe('LitePlanner', () => {
       // PlanError means "your query is wrong" and is shown to the
       // user. A missing asset is an operational fault; conflating
       // them files every failed deploy as a bad query.
+      // a folder with no runtime in it
       const p = new LitePlanner({
         model: 'm',
         runtime: 'r',
-        loadRuntime: () => Promise.reject(new Error('404')),
+        assetBaseUrl: runtimeFolder().url,
       });
       await assert.rejects(() => p.planText('g'), (e: unknown) => {
         assert.ok(e instanceof PlannerUnavailableError);
@@ -345,23 +377,21 @@ describe('LitePlanner', () => {
     });
 
   it('lets a retry succeed after a transient load failure', async () => {
-    let attempt = 0;
+    // the runtime missing at the first ask, then there
+    const folder = runtimeFolder();
     const p = new LitePlanner({
       model: 'm',
       runtime: 'r',
-      loadRuntime: async () => {
-        attempt++;
-        if (attempt === 1) throw new Error('network blip');
-        return {
-          async load() {
-            return {
-              exports: fakeExports(() => ok('SELECT 1')),
-            };
-          },
-        };
-      },
+      assetBaseUrl: folder.url,
     });
     await assert.rejects(() => p.planText('g'), PlannerUnavailableError);
+    folder.serve(async () => ({
+      async load() {
+        return {
+          exports: fakeExports(() => ok('SELECT 1')),
+        };
+      },
+    }));
     assert.equal((await p.planText('g')).sql, 'SELECT 1');
   });
 

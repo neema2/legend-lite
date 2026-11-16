@@ -668,12 +668,17 @@ final class ArchitectureTest {
     void thePlanHandlesScansLetTheRawSqlRefusalThrough() {
         com.tngtech.archunit.core.domain.JavaClass allocations = CORE_PROD_CLASSES.get(
                 com.legend.planner.PlanAllocations.class);
-        for (String scan : java.util.List.of("registerPlanRows", "registerLineageRows", "registerColumnLineageRows")) {
+        for (String scan : java.util.List.of("registerPlanRows", "registerColumnLineageRows")) {
             org.junit.jupiter.api.Assertions.assertTrue(allocations.getMethods().stream()
                     .filter(m -> m.getName().equals(scan))
                     .flatMap(m -> m.getMethodCallsFromSelf().stream())
                     .anyMatch(c -> c.getName().equals("noLineageRows")), scan + " answers no rows without asking");
         }
+        // registerLineageRows answers no rows for no failure since C5-J item 4 (2026-11-15, G7): it catches nothing, so
+        // every failure -- the raw-SQL refusal among them -- propagates as itself
+        org.junit.jupiter.api.Assertions.assertTrue(allocations.getMethods().stream()
+                .filter(m -> m.getName().equals("registerLineageRows"))
+                .allMatch(m -> m.getTryCatchBlocks().isEmpty()), "registerLineageRows catches a failure");
     }
 
     /** {@link #PROGRAM_ROAD_TEST_ENTRY} fails on a planted caller outside the test door ({@code server.PlantedTestProgram},
@@ -723,9 +728,11 @@ final class ArchitectureTest {
      * <strong>A MODEL'S RECORDS ARE READ BY THE CHECKED DOORS ALONE (the final audit of 9af16fbe58's J5,
      * 2026-11-14).</strong> The model's door ({@code model.ModelFromProtocol}: records in, the compiler's parsed model
      * out) is pure data -- its package reaches protocol, values and error alone (invariant 6j, {@link #modelIsPureData})
-     * -- so it cannot ask the run's wall itself. Its callers do, and are these alone, default-deny: the root's
-     * {@code Compiler} (whose {@code compileModel(records)} asks first) and {@code door.ModelFromText} (whose
-     * {@code parse} and {@code element} ask first). A new caller is named here the day it is written.
+     * -- so it cannot ask the run's wall itself. Its callers do, and are these alone, default-deny: the parse doors,
+     * {@code door.Parse} (whose {@code model} asks first; until C5-J item 1, 2026-11-15, the root's {@code Compiler}
+     * called it directly, asking in {@code compileModel(records)}) and {@code door.ModelFromText} (whose {@code parse}
+     * and {@code element} ask first). A new caller is named here the day it is written; since C5-J item 1 the wider
+     * {@link #everyParseIsReachedThroughADoorThatAsks} holds every parse entry, this door's among them.
      */
     @Test
     void aModelsRecordsAreReadByTheCheckedDoorsAlone() {
@@ -743,12 +750,330 @@ final class ArchitectureTest {
     /** The rule of {@link #aModelsRecordsAreReadByTheCheckedDoorsAlone}. */
     static final com.tngtech.archunit.lang.ArchRule MODEL_RECORDS_BY_THE_CHECKED_DOORS = noClasses()
             .that().resideOutsideOfPackage("com.legend.model")
-            .and().doNotHaveFullyQualifiedName("com.legend.Compiler")
+            .and().doNotHaveFullyQualifiedName("com.legend.door.Parse")
             .and().doNotHaveFullyQualifiedName("com.legend.door.ModelFromText")
             .should().accessTargetWhere(invokesWhere("ModelFromProtocol.of or element",
                     a -> a.getTargetOwner().isEquivalentTo(com.legend.model.ModelFromProtocol.class)
                             && (a.getName().equals("of") || a.getName().equals("element"))))
             .as("J5 (2026-11-14): a model's records are read by the doors that ask the run's wall alone");
+
+    /**
+     * <strong>EVERY PARSE IS REACHED THROUGH A DOOR THAT ASKS (C5-J item 1, 2026-11-15: a wider Java witness).</strong>
+     * The lexer (phase A) is JDK-only (invariant 7a), the parser (the parser half of B, and C) depends on nothing above
+     * it (7c), and the model's records door ({@code ModelFromProtocol}) is pure data (6j): none can ask the run's wall.
+     * So outside them they are reached through the parse doors alone ({@link #PARSE_DOORS}: {@code door.Parse},
+     * {@code door.ModelFromText} and the IDE's {@code ide.DocumentParse}), default-deny, by a call or a reference ({@link #PARSE_BY_THE_DOORS}); and every door
+     * method that reaches one asks FIRST ({@link #parseDoorViolations}: a call of {@code RunScope.planning} on an
+     * earlier line than its first parse), holds no lambda, makes no reference, and the doors hold no nested class --
+     * ArchUnit reads a lambda's calls as its enclosing method's, so a question asked when a callback is MADE would pass
+     * for one asked when it RUNS. A parse entry ({@link #isParseEntry}) is a constructor or a method of a lexer or
+     * parser class that is not data the parse made or names (an exception, an enum, a record, the token stream), and
+     * {@code ModelFromProtocol}'s {@code of} and {@code element}; the IDE's indexer reads a lexed document's tokens with
+     * two of the parser's token helpers ({@link #TOKEN_READERS}), named. The embedded languages' readers are entries
+     * too (C5-J's last round, A1, 2026-11-15): every method of an island's reader but a word's test it names
+     * ({@link #ISLAND_READERS}, {@link #ISLAND_READER_HELPERS}), and a dialect's parse ({@code InputDialect#parse}); they
+     * sit in the protocol layer, which cannot ask (7b), so their callers are the readers and dialects themselves
+     * ({@link #ISLAND_DIALECTS}) and the door ({@code door.Parse}: {@code sqlIsland}, {@code tsIsland},
+     * {@code tsItem}, {@code cypherIsland}), and the translators take the tree. Invariant 6i's sanctioned users of the grammar
+     * parsers became the doors with it ({@link #parseMachineryIsUsedOnlyWhereSanctioned}). {@code PhaseEntriesRefusedInsideARunTest} pins
+     * each door's refusal by its phase; {@link #theParseRulesBiteAPlantedCaller} shows both halves bite.
+     */
+    @Test
+    void everyParseIsReachedThroughADoorThatAsks() {
+        JavaClasses classes = coreAndTheHostsDoors();
+        for (String door : PARSE_DOORS) {
+            org.junit.jupiter.api.Assertions.assertTrue(classes.contain(door), "the import holds " + door);
+        }
+        // the SDLC's door to the compiler, which parses a model's text, is read too (the C5-J audit's nit, 2026-11-15)
+        org.junit.jupiter.api.Assertions.assertTrue(classes.contain("com.legend.sdlc.grammar.CoreGrammar"),
+                "the import holds the SDLC's grammar");
+        PARSE_BY_THE_DOORS.check(classes);
+        org.junit.jupiter.api.Assertions.assertEquals(java.util.List.of(), parseDoorViolations(classes, PARSE_DOORS));
+    }
+
+    /**
+     * <strong>THE BUILD-TIME CODE PARSES THROUGH THE DOORS, OR IS NAMED (C5-J's last round, A2, 2026-11-15).</strong>
+     * Code outside the product reads Pure text too: the generators that write the platform's declarations
+     * ({@code //spec:generators}), the render census's hand tool ({@code RenderCensus}) and the engine runner's parse
+     * probe ({@code perf.LiteParseMain}). Until now the parse rule read the product's jars and the hosts' doors alone,
+     * so these were unscanned, silently. They are read now ({@code //core:build_time_jars}), each held to
+     * {@link #PARSE_BY_THE_DOORS} -- the census and the probe parse through {@code door.Parse} -- but for the ones named
+     * in {@link #BUILD_TIME_READERS}, each with its reason; and each named one is shown to read past the doors still,
+     * so a name does not outlive its reason.
+     */
+    @Test
+    void theBuildTimeCodeParsesThroughTheDoorsOrIsNamed() {
+        JavaClasses build = buildTimeCode();
+        for (String tool : java.util.List.of("com.legend.generators.PreludeGenerator", "RenderCensus",
+                "perf.LiteParseMain")) {
+            org.junit.jupiter.api.Assertions.assertTrue(build.contain(tool), "the import holds " + tool);
+        }
+        PARSE_BY_THE_DOORS.check(build.that(com.tngtech.archunit.base.DescribedPredicate.describe(
+                "are no named build-time reader", c -> !BUILD_TIME_READERS.containsKey(topLevel(c)))));
+        for (String named : BUILD_TIME_READERS.keySet()) {
+            JavaClasses one = build.that(com.tngtech.archunit.base.DescribedPredicate.describe(named,
+                    c -> topLevel(c).equals(named)));
+            org.junit.jupiter.api.Assertions.assertThrows(AssertionError.class, () -> PARSE_BY_THE_DOORS.check(one),
+                    named + " is named as reading past the doors, and reads through them: drop its name");
+        }
+    }
+
+    /** The build-time code that reads Pure text past the parse doors, by class, with its reason
+     *  ({@link #theBuildTimeCodeParsesThroughTheDoorsOrIsNamed}). */
+    static final java.util.Map<String, String> BUILD_TIME_READERS = java.util.Map.of(
+            "com.legend.generators.PreludeGenerator",
+            "it writes the platform's declarations (prelude.pure) from upstream's .pure sources as a build action"
+                    + " (//spec:gen_prelude, under //:update_generated and its diff test), reading each declaration at"
+                    + " its token with the parser's cursor (ElementParser.at over a token stream it lexed): a cursor no"
+                    + " door offers, in a process no plan runs in -- never in a query, never in the product");
+
+    /** The build-time code's classes ({@code //core:build_time_jars}): the generators, the render census, the engine
+     *  runner. */
+    private static JavaClasses buildTimeCode() {
+        java.util.List<java.util.jar.JarFile> jars = new java.util.ArrayList<>();
+        try {
+            for (java.nio.file.Path jar : com.legend.testing.Runfile.listed("legend.build_time.jars")) {
+                jars.add(new java.util.jar.JarFile(jar.toFile()));
+            }
+        } catch (java.io.IOException e) {
+            throw new java.io.UncheckedIOException(e);
+        }
+        return new ClassFileImporter().importJars(jars);
+    }
+
+    /** {@link #everyParseIsReachedThroughADoorThatAsks} fails on a class that parses past the doors -- by a call, by a
+     *  reference, a token stream's range lexed again ({@code lexRange}), and a model's records read
+     *  ({@code server.PlantedParse}, {@code server.PlantedModelRead}); an island's text read by each embedded
+     *  language's reader, by a dialect, through the dialects' interface and by a reference
+     *  ({@code compiler.spec.PlantedIslandParse}, C5-J's last round) -- and on a
+     *  door that parses without asking, asks after it parses, or parses in a lambda ({@code door.PlantedUnaskedDoor},
+     *  {@code PlantedLateDoor}, {@code PlantedLambdaDoor}): test classes planted for this alone. */
+    @Test
+    void theParseRulesBiteAPlantedCaller() {
+        bites(PARSE_BY_THE_DOORS, com.legend.server.PlantedParse.class);
+        bites(PARSE_BY_THE_DOORS, com.legend.server.PlantedParse.ByReference.class);
+        bites(PARSE_BY_THE_DOORS, com.legend.server.PlantedParse.LexesARange.class);
+        bites(PARSE_BY_THE_DOORS, com.legend.server.PlantedModelRead.class);
+        // the embedded languages' readers (C5-J's last round, A1, 2026-11-15): one per reader, through a dialect, the
+        // dialects' interface and a reference
+        for (Class<?> island : com.legend.compiler.spec.PlantedIslandParse.class.getDeclaredClasses()) {
+            bites(PARSE_BY_THE_DOORS, island);
+        }
+        org.junit.jupiter.api.Assertions.assertEquals(8,
+                com.legend.compiler.spec.PlantedIslandParse.class.getDeclaredClasses().length);
+        // the last round's re-check (2026-11-15): a model-package class past the doors, and a dialect's parse called on
+        // an anonymous subclass, whose compiled owner sits in the caller's package
+        bites(PARSE_BY_THE_DOORS, com.legend.model.PlantedModelIslandRead.class);
+        bites(PARSE_BY_THE_DOORS, com.legend.sql.dialect.PlantedDialectSubclassParse.class);
+        java.util.Map<Class<?>, String> doors = java.util.Map.of(
+                com.legend.door.PlantedUnaskedDoor.class, "parses without asking the run's wall",
+                com.legend.door.PlantedLateDoor.class, "parses before it asks the run's wall",
+                com.legend.door.PlantedLambdaDoor.class, "holds a lambda");
+        doors.forEach((door, said) -> {
+            java.util.List<String> found = parseDoorViolations(new ClassFileImporter().importClasses(door),
+                    java.util.Set.of(door.getName()));
+            org.junit.jupiter.api.Assertions.assertTrue(found.stream().anyMatch(f -> f.contains(said)),
+                    door.getName() + ": " + found);
+        });
+    }
+
+    /** The parse doors: each method asks the run's wall, then parses ({@link #everyParseIsReachedThroughADoorThatAsks}). */
+    static final java.util.Set<String> PARSE_DOORS = java.util.Set.of("com.legend.door.Parse",
+            "com.legend.door.ModelFromText", "com.legend.ide.DocumentParse");
+
+    /** The token stream's readers (C5-J audit's SHOULD 2, 2026-11-15), by name, default-deny: each reads the tokens a
+     *  lex made -- a count, a token's type, text, offsets or position, a slice of them, the source, the sections --
+     *  and lexes nothing. {@code lexRange} lexes again, so it is a parse entry; a new method is one until it is named
+     *  here. */
+    static final java.util.Set<String> TOKEN_STREAM_READERS = java.util.Set.of("count", "source", "type", "start", "end",
+            "text", "lineOf", "columnOf", "startLine", "startColumn", "endLine", "endColumn", "at", "asList", "slice",
+            "sectionHeaders", "skippedSections", "sectionContentLine");
+
+    /** The parser's token helpers the IDE's indexer ({@code ide.ModelIndexer}) reads a lexed document with, by owner and
+     *  name (C5-J item 1, 2026-11-15): a lookahead and an error at a token, over tokens the door lexed (its caller,
+     *  {@code ide.ModelOrchestrator}, lexes through {@code ide.DocumentParse.tokens}) -- reads, never a parse. */
+    static final java.util.Set<String> TOKEN_READERS = java.util.Set.of(
+            "com.legend.parser.ElementParser#looksLikeTaggedValueBlock", "com.legend.parser.TokenStreamCursor#throwAt");
+
+    /** Whether {@code a} enters the lexer, the parser or the model's records door ({@link #everyParseIsReachedThroughADoorThatAsks}). */
+    static boolean isParseEntry(com.tngtech.archunit.core.domain.JavaCodeUnitAccess<?> a) {
+        com.tngtech.archunit.core.domain.JavaClass owner = a.getTargetOwner();
+        if (owner.getName().equals("com.legend.model.ModelFromProtocol")) {
+            return a.getName().equals("of") || a.getName().equals("element");
+        }
+        String p = owner.getPackageName();
+        // the embedded languages' readers (C5-J's last round, A1, 2026-11-15): every method and constructor of a reader
+        // class is an entry, default-deny, but a word's test it names (ISLAND_READER_HELPERS); a dialect's parse
+        // (InputDialect#parse, Postgres's and IQ's) is one too -- a nested class of a reader is the data its parse made
+        if (ISLAND_READERS.contains(owner.getName())) {
+            return !ISLAND_READER_HELPERS.contains(owner.getName() + "#" + a.getName());
+        }
+        // any dialect's parse, whatever the call's owner -- an anonymous or other subclass of a dialect outside the
+        // protocol layer included (the last round's re-check, 2026-11-15: `new <a dialect>(){}.parse(sql)` compiles to an
+        // owner in the caller's own package, which a check of the protocol's packages alone let through)
+        if (a.getName().equals("parse") && p.startsWith("com.legend.")
+                && com.legend.protocol.sql.InputDialect.class.isAssignableFrom(owner.reflect())) {
+            return true;
+        }
+        if (!(p.equals("com.legend.lexer") || p.startsWith("com.legend.lexer.") || p.equals("com.legend.parser")
+                || p.startsWith("com.legend.parser."))) {
+            return false;
+        }
+        // data the parse made or names: its error, an enum, a record -- read off the class itself, since an import of
+        // the product's jars holds no JDK supertype to read a Throwable by -- and the token stream's READERS by name
+        // (the C5-J audit's SHOULD 2, 2026-11-15: the whole stream was exempt, its lexRange, which lexes, with it)
+        Class<?> k = owner.reflect();
+        if (Throwable.class.isAssignableFrom(k) || k.isEnum() || k.isRecord()) {
+            return false;
+        }
+        if (k == com.legend.lexer.TokenStream.class) {
+            return !TOKEN_STREAM_READERS.contains(a.getName());
+        }
+        return !(TOKEN_READERS.contains(owner.getName() + "#" + a.getName())
+                && topLevel(a.getOriginOwner()).equals("com.legend.ide.ModelIndexer"));
+    }
+
+    /** The embedded languages' readers (C5-J's last round, A1, 2026-11-15), by class: each reads an island's text --
+     *  {@code #SQL}'s Postgres, {@code #IQ}'s SAP IQ (its SET prefix too), {@code #TS} (whose per-point SQL is
+     *  Postgres's, read by the SQL reader), {@code #Cypher} -- in the protocol layer, which depends on values and the
+     *  JSON module alone (invariant 7b) and so cannot ask the run's wall. Each reaches the others it composes. */
+    static final java.util.Set<String> ISLAND_READERS = java.util.Set.of(
+            "com.legend.protocol.sql.SqlLexer", "com.legend.protocol.sql.SqlParser",
+            "com.legend.protocol.sql.iq.IqLexer", "com.legend.protocol.sql.iq.IqParser",
+            "com.legend.protocol.sql.iq.IqSetPrefix",
+            "com.legend.protocol.ts.TsParser",
+            "com.legend.protocol.cypher.CypherLexer", "com.legend.protocol.cypher.CypherParser");
+
+    /** What the island readers hold that reads no text, by owner and name (C5-J's last round, A1, 2026-11-15): a word's
+     *  test (is it reserved, its lower case) and a test of a tree the parse made -- the translators' and the printers'
+     *  to ask. A new method of a reader is an entry until it is named here. */
+    static final java.util.Set<String> ISLAND_READER_HELPERS = java.util.Set.of(
+            "com.legend.protocol.sql.SqlParser#reservedWord",
+            "com.legend.protocol.sql.iq.IqLexer#reserved", "com.legend.protocol.sql.iq.IqLexer#lower",
+            "com.legend.protocol.sql.iq.IqParser#nullValue", "com.legend.protocol.sql.iq.IqParser#cannotRaise");
+
+    /** The island dialects that read with the readers, by class (C5-J's last round, A1, 2026-11-15): Postgres's and
+     *  SAP IQ's parse ({@code InputDialect#parse}, the reading the parse door {@code door.Parse.sqlIsland} calls), and
+     *  the IQ dialect's own re-reading of a select item's text, which it keeps as written, for the name SQL Anywhere
+     *  gives the item by how it was written ({@code IqDialect}'s bare column, {@code IqNames.name}): inside the
+     *  translation of a statement the door read, never a text of its own. */
+    static final java.util.Set<String> ISLAND_DIALECTS = java.util.Set.of(
+            "com.legend.protocol.sql.PostgresDialect", "com.legend.protocol.sql.iq.IqDialect",
+            "com.legend.protocol.sql.iq.IqNames");
+
+    /** The rule of {@link #everyParseIsReachedThroughADoorThatAsks}: no class but the lexer's, the parser's, the model's
+     *  records door ({@code ModelFromProtocol}; the whole model package until the last round's re-check, 2026-11-15),
+     *  the island readers and dialects ({@link #ISLAND_READERS}, {@link #ISLAND_DIALECTS}) and the parse doors reaches a
+     *  parse entry. */
+    static final com.tngtech.archunit.lang.ArchRule PARSE_BY_THE_DOORS = noClasses()
+            .that().resideOutsideOfPackages("com.legend.lexer..", "com.legend.parser..")
+            // the model package's records door alone (the last round's re-check, 2026-11-15): the whole package was
+            // exempt, harmless until the island readers it may reach (:protocol) became parse entries
+            .and(com.tngtech.archunit.base.DescribedPredicate.describe("are not the model's records door",
+                    c -> !topLevel(c).equals("com.legend.model.ModelFromProtocol")))
+            .and().doNotHaveFullyQualifiedName("com.legend.door.Parse")
+            .and().doNotHaveFullyQualifiedName("com.legend.door.ModelFromText")
+            .and().doNotHaveFullyQualifiedName("com.legend.ide.DocumentParse")
+            .and(com.tngtech.archunit.base.DescribedPredicate.describe("are no island's reader or dialect",
+                    c -> !ISLAND_READERS.contains(topLevel(c)) && !ISLAND_DIALECTS.contains(topLevel(c))))
+            .should().accessTargetWhere(reachesCodeUnitWhere("a parse entry (the lexer's, the parser's, the model's"
+                    + " records door, or an island's reader)", ArchitectureTest::isParseEntry))
+            .as("C5-J item 1 (2026-11-15): the lexer, the parser and the model's records door are reached through the"
+                    + " parse doors alone, each asking the run's wall first; and since its last round (A1, 2026-11-15)"
+                    + " the embedded languages' readers too");
+
+    /** What a parse door does past asking, then parsing ({@link #everyParseIsReachedThroughADoorThatAsks}): a nested
+     *  class, a lambda (read through reflection: ArchUnit folds a lambda's body into its enclosing method), a reference,
+     *  a method that parses before it asks or without asking. */
+    static java.util.List<String> parseDoorViolations(JavaClasses classes, java.util.Set<String> doors) {
+        java.util.List<String> found = new java.util.ArrayList<>();
+        for (com.tngtech.archunit.core.domain.JavaClass c : classes) {
+            String top = topLevel(c);
+            if (!doors.contains(top)) {
+                continue;
+            }
+            if (!c.getName().equals(top)) {
+                found.add("a nested class " + c.getName());
+                continue;
+            }
+            for (java.lang.reflect.Method m : c.reflect().getDeclaredMethods()) {
+                if (m.isSynthetic() && m.getName().startsWith("lambda$")) {
+                    found.add(c.getName() + " holds a lambda, " + m.getName());
+                }
+            }
+            for (com.tngtech.archunit.core.domain.JavaCodeUnit u : c.getCodeUnits()) {
+                if (!u.getMethodReferencesFromSelf().isEmpty() || !u.getConstructorReferencesFromSelf().isEmpty()) {
+                    found.add(u.getFullName() + " makes a reference");
+                }
+                int asks = Integer.MAX_VALUE;
+                int parses = Integer.MAX_VALUE;
+                for (com.tngtech.archunit.core.domain.JavaCall<?> call : u.getCallsFromSelf()) {
+                    if (call.getTargetOwner().getName().equals("com.legend.base.RunScope")
+                            && call.getName().equals("planning")) {
+                        asks = Math.min(asks, call.getLineNumber());
+                    } else if (isParseEntry(call)) {
+                        parses = Math.min(parses, call.getLineNumber());
+                    }
+                }
+                if (parses != Integer.MAX_VALUE && asks >= parses) {
+                    found.add(u.getFullName() + (asks == Integer.MAX_VALUE ? " parses without asking the run's wall"
+                            : " parses before it asks the run's wall"));
+                }
+            }
+        }
+        return found;
+    }
+
+    /**
+     * <strong>THE TEST ROAD'S PLAN ROWS CATCH NAMED CONDITIONS ALONE (C5-J item 4, 2026-11-15, G7).</strong> The plan
+     * walk's rows and activities ({@code planner.PlanAllocations}) and the frames ({@code planner.FramePlanner}) caught
+     * and continued: any IllegalStateException, TypeInferenceException, MappingResolutionException or
+     * LegendCompileException registered nothing and the body went on. Measured over core's suites, PCT's channels and
+     * both corpora, the 140 swallows were three named conditions -- a shape not planned yet (NotImplementedException),
+     * a reduction a dialect cannot encode (DialectCapability) and a reference the lowering cannot resolve even after
+     * isolation ({@code Lowerer.IsolationWall}, named for it, the orchestrator's ruling (A)) -- and every other catch
+     * fails by name now. Each try/catch in those classes catches {@link #TEST_ROAD_CATCHES} alone;
+     * {@link #theNamedCatchRuleBitesAPlantedCatch} shows it bites.
+     */
+    @Test
+    void theTestRoadsPlanRowsCatchNamedConditionsAlone() {
+        org.junit.jupiter.api.Assertions.assertEquals(java.util.List.of(), broadCatches(CORE_PROD_CLASSES,
+                java.util.Set.of("com.legend.planner.PlanAllocations", "com.legend.planner.FramePlanner")));
+    }
+
+    /** {@link #theTestRoadsPlanRowsCatchNamedConditionsAlone} fails on a catch of an IllegalStateException
+     *  ({@code planner.PlantedBroadCatch}, a test class planted for this alone). */
+    @Test
+    void theNamedCatchRuleBitesAPlantedCatch() {
+        org.junit.jupiter.api.Assertions.assertFalse(broadCatches(new ClassFileImporter().importClasses(
+                com.legend.planner.PlantedBroadCatch.class), java.util.Set.of("com.legend.planner.PlantedBroadCatch"))
+                .isEmpty());
+    }
+
+    /** The conditions the test road's plan rows may catch and continue past (C5-J item 4, 2026-11-15). */
+    static final java.util.Set<String> TEST_ROAD_CATCHES = java.util.Set.of(
+            "com.legend.error.NotImplementedException", "com.legend.sql.DialectCapability",
+            "com.legend.lowering.Lowerer$IsolationWall");
+
+    /** Each catch in {@code owners} (and their nested classes) of a type outside {@link #TEST_ROAD_CATCHES}. */
+    static java.util.List<String> broadCatches(JavaClasses classes, java.util.Set<String> owners) {
+        java.util.List<String> found = new java.util.ArrayList<>();
+        for (com.tngtech.archunit.core.domain.JavaClass c : classes) {
+            if (!owners.contains(topLevel(c))) {
+                continue;
+            }
+            for (com.tngtech.archunit.core.domain.JavaCodeUnit u : c.getCodeUnits()) {
+                for (com.tngtech.archunit.core.domain.TryCatchBlock b : u.getTryCatchBlocks()) {
+                    for (com.tngtech.archunit.core.domain.JavaClass t : b.getCaughtThrowables()) {
+                        if (!TEST_ROAD_CATCHES.contains(t.getName())) {
+                            found.add(u.getFullName() + " catches " + t.getName());
+                        }
+                    }
+                }
+            }
+        }
+        return found;
+    }
 
     /** The rule of {@link #aProductStatementIsPreparedByThePlannersAlone}. */
     static final com.tngtech.archunit.lang.ArchRule PREPARE_IS_THE_PLANNERS = noClasses()
@@ -796,7 +1121,11 @@ final class ArchitectureTest {
      *  and its callers are listed with it, so a listed entry reached from another class is refused; the root's Compiler
      *  is checked as every class is, its own entries listed (QueryDoor's (List, SpecCompiler) overload among them, which
      *  the key by name admitted to every caller). {@link #thePlannerEntriesAreTheMeasuredOnesExactly} pins the list to
-     *  what is reached, so an entry no class reaches any more goes. Moves only with a dated note naming the task. */
+     *  what is reached, so an entry no class reaches any more goes. Moves only with a dated note naming the task.
+     *  2026-11-15 (C5-J item 6): 70 entries -> 61, still exactly what is measured over core and the hosts' doors. Item 3
+     *  took out the resolver's 7 (its reads of the lowering's helpers moved below both); item 2 took out 4 (the PCT
+     *  runner's reads of ProgramFacts' seedsInlineCsv, shape and verdicts, and the constructor's entry; effects() keeps
+     *  its Compiler caller alone) and added 2, ProgramFacts#of (Compiler) and TestPlanner#facts (the test door). */
     static final java.util.Map<String, java.util.Set<String>> PLANNER_ENTRIES = entries(
             // the query door, from the root's TypedQuery: a query's plan (QueryDoor first), its runtime, its parameters
             "planner.PlanMaker#plan(com.legend.TypedQuery, java.lang.String, java.util.Set, boolean)",
@@ -804,9 +1133,11 @@ final class ArchitectureTest {
             "planner.PlanMaker#runtimeOf(com.legend.TypedQuery, java.lang.String)", "com.legend.TypedQuery",
             "planner.QueryParameters$Declared#<init>(java.lang.String, com.legend.compiler.element.type.Type, "
                     + "com.legend.compiler.element.type.Multiplicity)", "com.legend.TypedQuery",
-            // the test door, from the root's TestExecution: a test body's plan
+            // the test door, from the root's TestExecution: a test body's plan, and its facts (C5-J item 2, 2026-11-15:
+            // the facts a runner reads before a body is planned, the record the body's plan carries)
             "testplan.TestPlanner#plan(com.legend.TypedQuery, java.lang.String, com.legend.testplan.PlanningOptions)",
             "com.legend.TestExecution",
+            "testplan.TestPlanner#facts(com.legend.TypedQuery)", "com.legend.TestExecution",
             // the test door's options, from the root's ExecuteOptions: planning's half, a record of closed words
             "testplan.PlanningOptions#<init>(com.legend.testexecutionplan.Edge, com.legend.executionplan.DataStores, "
                     + "java.util.Set, com.legend.testplan.PlanningOptions$JudgeMode, "
@@ -829,7 +1160,7 @@ final class ArchitectureTest {
             // the root's Compiler, the lowering of a resolved query (lowerResolved): QueryDoor's refusal of a typed
             // body's executeInDb read (its (List, SpecCompiler) overload, the G1 follow-up audit's, 2026-11-14), the
             // cross-store guard, the Lowerer and its object sites, the platform's registrations, and a program's facts
-            // (the PCT runner reads them too)
+            // (stated by ProgramFacts.of since C5-J item 2, 2026-11-15; the PCT runner reads the test plan's instead)
             "lowering.Lowerer#<init>(java.util.function.Function, java.util.function.Predicate, "
                     + "com.legend.platform.ImplementationTable)", "com.legend.Compiler",
             "lowering.Lowerer#lower(java.util.List)", "com.legend.Compiler",
@@ -841,15 +1172,13 @@ final class ArchitectureTest {
             "lowering.PlatformRegistrations#current()", "com.legend.Compiler com.legend.probe.Shadow",
             "planner.CrossStoreGuard#check(java.util.List, com.legend.compiler.element.ModelContext, "
                     + "java.lang.String)", "com.legend.Compiler",
-            "planner.ProgramFacts#<init>(boolean, boolean, boolean, java.util.Set, java.lang.String)",
-            "com.legend.Compiler",
-            "planner.ProgramFacts#effects()", "com.legend.Compiler com.legend.test.PureTestRunner",
+            "planner.ProgramFacts#of(java.util.List, com.legend.compiler.spec.SpecCompiler)", "com.legend.Compiler",
+            "planner.ProgramFacts#effects()", "com.legend.Compiler",
             "planner.QueryDoor#refuseRawSql(java.util.List, com.legend.compiler.spec.SpecCompiler)",
             "com.legend.Compiler",
-            // the PCT runner's facts of a test body (test.PureTestRunner): read, never planned
-            "planner.ProgramFacts#seedsInlineCsv()", "com.legend.test.PureTestRunner",
-            "planner.ProgramFacts#shape()", "com.legend.test.PureTestRunner",
-            "planner.ProgramFacts#verdicts()", "com.legend.test.PureTestRunner",
+            // (the PCT runner's reads of ProgramFacts -- effects, seedsInlineCsv, shape, verdicts -- went 2026-11-15, C5-J
+            // item 2: it reads a test body's facts as data, testexecutionplan.BodyFacts, from the test door and from the
+            // body's test plan)
             // the boundary's doors (//wasm:boundary's planner.Boundary, its anonymous classes included): each request
             // door's planner
             "lowering.LiteralSpelling#inZone(java.lang.String, java.lang.String)", "planner.Boundary",
@@ -932,20 +1261,10 @@ final class ArchitectureTest {
             "planner.IngestTopics$Topic#key()", "planner.Boundary",
             "planner.IngestTopics$Topic#store()", "planner.Boundary",
             "planner.IngestTopics$Topic#table()", "planner.Boundary",
-            "planner.IngestTopics$Topic#topic()", "planner.Boundary",
-            // the resolver's reads of the lowering's names and reducers (resolver.CorrelatedSubselects, GraphEmission,
-            // Substitution, ObjectReferenceDecode): spelling and classification, no lowering
-            "lowering.Aggregates#isDemandReducer(com.legend.compiler.element.TypedFunction)",
-            "com.legend.resolver.CorrelatedSubselects",
-            "lowering.Aggregates#isDemandReducer(com.legend.compiler.element.TypedFunction, "
-                    + "com.legend.compiler.spec.typed.TypedSpec)", "com.legend.resolver.CorrelatedSubselects",
-            "lowering.Aggregates#isReducer(com.legend.compiler.element.TypedFunction)",
-            "com.legend.resolver.GraphEmission",
-            "lowering.AsorRef#decode(java.lang.String)", "com.legend.resolver.Substitution",
-            "lowering.AsorRef#prefix(java.lang.String, java.lang.String, java.lang.String)",
-            "com.legend.resolver.GraphEmission",
-            "lowering.AsorRef#prefixMapping(java.lang.String)", "com.legend.resolver.ObjectReferenceDecode",
-            "lowering.AsorRef$Ref#pkJson()", "com.legend.resolver.Substitution"
+            "planner.IngestTopics$Topic#topic()", "planner.Boundary"
+            // 2026-11-15 (C5-J item 3): the resolver's seven reads of the lowering's helpers left this list -- the
+            // reducer table moved to compiler.element.Reducers and the object reference's protocol to model.AsorRef, below
+            // both; the resolver reaches the lowering no more (tools/deps/core-layers.txt)
     );
 
     /** {@link #PLANNER_ENTRIES} from its pairs: an entry, then its callers separated by a space; an entry twice is
@@ -1855,6 +2174,9 @@ final class ArchitectureTest {
             "com.legend.Compiler#compileModel", "com.legend.Compiler#query", "com.legend.TypedQuery#executionPlan",
             "com.legend.TypedQuery#projectPlan",
             "com.legend.testplan.TestPlanner#plan",
+            // a test body's facts, data (C5-J item 2, 2026-11-15): the test door's facts method is one planning call
+            // and no run
+            "com.legend.testplan.TestPlanner#facts",
             "com.legend.ExecuteOptions#planning", "com.legend.ExecuteOptions#edge",
             // (com.legend.ExecuteOptions#systemConnections gone 2026-11-11, B4: every statement reading the system
             // metamodel store runs on the process's in-process catalog; the host's system connections deleted)
@@ -2023,8 +2345,9 @@ final class ArchitectureTest {
     /** Where planning begins: the router's planning halves and the doors'. */
     // TestPlanner#planned, #planAhead and TestExecution#planProgram left 2026-11-10 with the on-demand fixtures they
     // planned (census M9)
+    // TestExecution#facts joined 2026-11-15 (C5-J item 2): a test body's facts, stated by the test planner
     private static final java.util.Set<String> PLANNING_ENTRIES = java.util.Set.of("com.legend.testplan.TestPlanner#plan",
-            "com.legend.TestExecution#planBody");
+            "com.legend.TestExecution#planBody", "com.legend.TestExecution#facts");
 
     /** Every code unit of the product reached from {@code entries} ({@code Class#method}, every overload) by calls and
      *  by method references (a reference is a call made later: the slice 3 follow-up audit, 2026-11-08): a target's
@@ -3055,24 +3378,25 @@ final class ArchitectureTest {
         return textual;
     }
 
-    /** Grammar cursors and section parsers are parse-time machinery. */
+    /** Grammar cursors and section parsers are parse-time machinery. Since C5-J item 1 (2026-11-15) their users outside
+     *  the parser are the parse doors ({@code com.legend.door}, which asks the run's wall) and the IDE (its document door
+     *  and its indexer's token readers): the root's driver, the platform's bootstrap parse and the server shell, each a
+     *  sanctioned user until then, reach the parser through a door ({@link #everyParseIsReachedThroughADoorThatAsks}). */
     @Test
     void parseMachineryIsUsedOnlyWhereSanctioned() {
         noClasses()
             .that().resideOutsideOfPackages(
                     "com.legend.parser..", "com.legend.ide..",
-                    "com.legend.builtin", "com.legend",
-                    // the server shell receives RAW PURE TEXT over HTTP —
-                    // a parse ENTRY like the driver (LSP diagnostics,
-                    // diagram extraction, runtime->connection resolution)
-                    "com.legend.server..")
+                    // the parse doors (C5-J item 1, 2026-11-15): until then the root's driver, the platform's
+                    // bootstrap parse (builtin) and the server shell, which receives raw Pure text over HTTP, were
+                    // sanctioned here; each parses through a door now
+                    "com.legend.door")
             .should().dependOnClassesThat().haveNameMatching(
                     "com\\.legend\\.parser\\.(ElementParser|SpecParser"
                     + "|MappingGrammarParser|RelationalGrammarParser"
                     + "|TokenStreamCursor)(\\$.*)?")
             .as("Invariant 6i: grammar parsers/cursors live and die at parse"
-              + " time (builtin's bootstrap parse + the driver are the two"
-              + " sanctioned exceptions)")
+              + " time (the parse doors and the IDE are the sanctioned users)")
             .check(CORE_PROD_CLASSES);
     }
 

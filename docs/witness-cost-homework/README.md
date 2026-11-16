@@ -54,7 +54,8 @@ that nothing larger hides there.
 | Java | ≤ 0.1 µs (11 ns resolved) | the same | 2.4–3.3 ms (trades corpus, DuckDB, 1,000 rows) | ≤ 0.004% |
 | Python | ≈ 5.7 µs | ≈ 1.4–2.2 µs (d74e94306) | 2.3 ms (1,000 rows) / 5.7 ms (100k rows), `Frames` `Table.execute` | ≈ 0.08% / 0.03% |
 | TS on Node 22.16, as pinned | 1.0–1.1 µs | the same | 2.1–3.1 ms (WASM planner 1.0–1.3 ms + `runPlan` 1.2–1.8 ms) | ≈ 0.04% |
-| TS on Node 22.16 with `--experimental-async-context-frame` | — | ≈ 0.03–0.06 µs (measured only, not adopted) | the same | ≈ 0.002% |
+| TS on Node 22.16 with `--experimental-async-context-frame` | — | ≈ 0.03–0.06 µs (adopted for every `node_test`, C5-T, 2026-11-15: below) | the same | ≈ 0.002% |
+| TS on Node 24.22.3 (measured only, 2026-11-15) | — | ≈ 0.25–0.29 µs | the same | ≈ 0.01% |
 | TS in a browser or the headless V8 | 0 | 0 (and no witness: `frameKept` is false) | | 0 |
 
 ### Java
@@ -130,6 +131,31 @@ that nothing larger hides there.
   moved just as much: process noise. Only 18 of the corpus's 67 parsed queries run end to end in this harness. The host
   runner writes integer, text and boolean cells only, and refuses the rest by name.
 
+### Node 22.16, the flag and Node 24 (C5-T, 2026-11-15)
+
+The orchestrator's brief for C5-T: measure the promise cost on Node 22.16.0 with and without
+`--experimental-async-context-frame` and on Node 24, prefer the flag unless the numbers demand Node 24, and say why.
+`scripts/node3.sh.txt` runs `bench.mjs` on the three runtimes, ON and OFF in their own processes, two passes, then the
+per-run mode three passes more (`results/ts.txt`, its last section). The container was slower than on 2026-11-13 (OFF's
+await iteration 60–72 ns, from 40), so these lines compare with each other, not with the figures above. ON − OFF:
+
+| | each promise (an await iteration is 2) | each run (`inRun`) | per query (21 promises, 1 run) |
+|---|---|---|---|
+| Node 22.16.0, as pinned | +67–80 ns (iteration 198–226 vs 63–72 ns) | +172–201 ns | ≈ 1.6–1.9 µs |
+| Node 22.16.0 with the flag | none (iteration 62–80 vs 60–81 ns, inside a run and outside) | ≤ +43 ns (−1 to +43) | ≤ 0.05 µs |
+| Node 24.22.3 | none (iteration 66–93 vs 65–68 ns; the 93 a median whose minimum is 64) | +254–289 ns | ≈ 0.25–0.29 µs |
+
+**The flag is adopted.** The numbers do not demand Node 24: both remove the promise tax (Node 24 runs AsyncLocalStorage
+on the same AsyncContextFrame by default, which the flag turns on in 22), and a run costs less with the flag than on
+24.22.3. A Node bump would also change the toolchain for every platform CI builds (`MODULE.bazel`'s rules_nodejs
+version and its lock), for no gain these numbers show. `tools/js/defs.bzl` passes the flag to every `node_test`, and
+`//engine-client:run_frame_test` ("the frame's cost on Node") pins it: it fails on Node 22 when the flag is missing.
+
+Where it applies: lite keeps the frame only under Node, and no product process runs lite's engine client under Node (the
+app runs in a browser tab or the headless V8, where `frameKept` is false). So the tax fell on the Node tests, which
+enter runs, and on nothing a user runs. Every non-browser Node test passes with the flag
+(`bazel test $(bazel query 'kind(js_test, //...)') --test_tag_filters=-browser,-manual`).
+
 ## Caveats
 
 - Java's ≤ 0.1 µs is a bound, not a value: 41 of its per-query calls are below the micro's resolution, and each is
@@ -138,7 +164,8 @@ that nothing larger hides there.
   statements pays more where the cost is per statement:
   - Java: about 1.65 ns per statement check.
   - Python: nothing more (one frame per run).
-  - TS on Node as pinned: 41–50 ns per extra promise its awaits make; nothing with the flag.
+  - TS on Node as pinned: 41–50 ns per extra promise its awaits make (67–80 ns on 2026-11-15's slower container);
+    nothing with the flag, which every `node_test` now runs with.
 
 ## To rerun
 

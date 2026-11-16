@@ -4,35 +4,20 @@
 // (Boundary.projectData, the platform's ProjectData in Java, by the tab's database type); this tab spells none. Its rows
 // are the plan's: the ONCE load a server's project plan carries, run here by the hosts' plan runner (runLoad), its
 // statements a blob checked against its digest (B3, 2026-11-11: until then the fill's statements as text, run outside
-// any plan, census M14).
+// any plan, census M14). This module runs the planner's answer and asks it nothing: its door asks
+// (doors/project-data.ts ProjectDoor, C5-T, 2026-11-15; until then ProjectDatabases held the planner and asked it).
 
 import type { HeldConnection } from './duckdb.ts';
 import type { QueryEngine } from './engine.ts';
+import type { PointedEngine } from './query-engine.ts';
 import { runLoad } from './plan-runner.ts';
-import type { PlannedSql, PlanText } from './planned-sql.ts';
+import type { PlannedSql } from './planned-sql.ts';
 
-/** The planner's answer for one project's database: its name, and the statements of each step, in order. */
-export interface ProjectDataStatements {
-  /** Its name, from what it holds: the model's Databases and Data rows. */
-  readonly name: string;
-  /** Make it, empty (on any connection). */
-  readonly open: readonly PlannedSql[];
-  /** Point a connection of its own at it. */
-  readonly use: readonly PlannedSql[];
-  /** The plan whose root is the ONCE load that makes and fills every table a relational Data element fills (on that
-   *  connection), PlanJson's text as the planner answered it; absent for a model with no Data rows. */
-  readonly load?: PlanText;
-  /** Drop it, with everything in it (on any connection). */
-  readonly close: readonly PlannedSql[];
-}
-
-export interface ProjectDataSource {
-  /** Named by what it holds (the model's Databases and Data rows): an edited row is a fresh database. */
-  projectData(model: string, databaseType: string): Promise<ProjectDataStatements>;
-}
+export type { ProjectDataStatements } from './requests.ts';
+import type { ProjectDataStatements } from './requests.ts';
 
 /** A connection of a project's database: its queries, and itself held for a run of statements with bound values (a
- *  person's file put in: a planned load's, model-data.ts loadFileTable; DuckDbEngine.exclusive). */
+ *  person's file put in: a planned load's, model-data.ts putFile; DuckDbEngine.exclusive). */
 export interface HeldEngine extends QueryEngine {
   exclusive<T>(work: (held: Pick<HeldConnection, 'rows'>) => Promise<T>): Promise<T>;
 }
@@ -41,8 +26,9 @@ export interface HeldEngine extends QueryEngine {
 export interface ProjectHost {
   /** The tab's database type, as the planner names it ('DuckDB'). */
   readonly databaseType: string;
-  /** Run a statement on the host's own connection (a project's database is made there). */
-  run(sql: PlannedSql): Promise<unknown>;
+  /** The host's own connection's engine: a project's database is made there, its statements sent by the door's run
+   *  (the C5-T audit's MUST 2, 2026-11-15: until then each app handed a `run` of its own, a send in the app's code). */
+  readonly engine: Pick<QueryEngine, 'run'>;
   /** A connection of its own, set up as the host's (duckdb-tab.ts `connect`). */
   connect(): Promise<HeldEngine>;
 }
@@ -68,7 +54,6 @@ export interface ProjectEngine {
  */
 export class ProjectDatabases {
   readonly #host: ProjectHost;
-  readonly #source: ProjectDataSource;
   /** Each database held: its connection, its users' engine over it, and the planner's statements that drop it. */
   readonly #open = new Map<string, Promise<Held>>();
   /** A drop still running, by name: a database made again under that name waits for it. */
@@ -79,9 +64,13 @@ export class ProjectDatabases {
    *  project asked twice). */
   readonly #named = new Map<string, string | undefined>();
 
-  constructor(host: ProjectHost, source: ProjectDataSource) {
+  constructor(host: ProjectHost) {
     this.#host = host;
-    this.#source = source;
+  }
+
+  /** The host's database type, as the planner names it: what a door asks the planner's statements for. */
+  get databaseType(): string {
+    return this.#host.databaseType;
   }
 
   /** The project databases this tab holds, by name. */
@@ -90,23 +79,31 @@ export class ProjectDatabases {
   }
 
   /**
-   * `model`'s project database (named by what it holds): made and filled the first time, and `made` run on it then,
-   * before any query of anyone's reaches it (Studio puts a person's files in over its rows). The engine answered is
-   * the keeper's: its close does nothing (the database is kept). `own`: a database even for a model with no Data rows
-   * (Studio's workspace, whose files go nowhere else).
+   * `model`'s engine when this tab answered it before and its database is still open (none: a database of its own is
+   * not asked for here, `own`): no statements needed, so its door asks the planner nothing. Undefined: ask, then
+   * `engineFor`.
    */
-  async engineFor(model: string, hostEngine: QueryEngine,
+  known(model: string, hostEngine: QueryEngine): Promise<ProjectEngine> | undefined {
+    if (!this.#named.has(model)) return undefined;
+    const name = this.#named.get(model);
+    if (name === undefined) return Promise.resolve({ engine: hostEngine, name: undefined });
+    const open = this.#open.get(name);
+    return open === undefined ? undefined : open.then(({ users }) => ({ engine: users, held: users, name }));
+  }
+
+  /** Whether this tab holds (or is making) the database `name`. */
+  holds(name: string): boolean {
+    return this.#open.has(name);
+  }
+
+  /**
+   * `model`'s project database (named by what it holds), as the planner's `statements` for it say: made and filled the
+   * first time, and `made` run on it then, before any query of anyone's reaches it (Studio puts a person's files in over
+   * its rows). The engine answered is the keeper's: its close does nothing (the database is kept). `own`: a database
+   * even for a model with no Data rows (Studio's workspace, whose files go nowhere else).
+   */
+  async engineFor(model: string, statements: ProjectDataStatements, hostEngine: QueryEngine,
     made?: (engine: HeldEngine, name: string) => Promise<void>, options: { readonly own?: boolean } = {}): Promise<ProjectEngine> {
-    if (!options.own && this.#named.has(model)) {
-      const name = this.#named.get(model);
-      if (name === undefined) return { engine: hostEngine, name: undefined };
-      const open = this.#open.get(name);
-      if (open) {
-        const users = (await open).users;
-        return { engine: users, held: users, name };
-      }
-    }
-    const statements = await this.#source.projectData(model, this.#host.databaseType);
     this.#named.set(model, statements.load === undefined ? undefined : statements.name);
     if (statements.load === undefined && !options.own) return { engine: hostEngine, name: undefined };
     let opening = this.#open.get(statements.name);
@@ -132,7 +129,7 @@ export class ProjectDatabases {
       const held = await opening.catch(() => undefined);
       if (!held) return;
       await held.connection.close();
-      for (const sql of held.close) await this.#host.run(sql);
+      for (const sql of held.close) await this.#host.engine.run(sql, 0);
     })();
     this.#closing.set(name, closing);
     try {
@@ -150,7 +147,7 @@ export class ProjectDatabases {
   async #make(statements: ProjectDataStatements, made?: (engine: HeldEngine, name: string) => Promise<void>): Promise<Held> {
     // the same name dropped a moment ago: its database gone before this one is made
     await this.#closing.get(statements.name)?.catch(() => undefined);
-    for (const sql of statements.open) await this.#host.run(sql);
+    for (const sql of statements.open) await this.#host.engine.run(sql, 0);
     let engine: HeldEngine | undefined;
     let users: HeldEngine | undefined;
     try {
@@ -164,7 +161,7 @@ export class ProjectDatabases {
     } catch (e) {
       // a half-made database left behind would be found again by its name: drop it
       if (engine) await engine.close().catch(() => undefined);
-      for (const sql of statements.close) await this.#host.run(sql).catch(() => undefined);
+      for (const sql of statements.close) await this.#host.engine.run(sql, 0).catch(() => undefined);
       throw e;
     }
     return { connection: engine, users: users!, close: statements.close };
@@ -195,7 +192,7 @@ function kept(engine: HeldEngine): HeldEngine {
  * connection, or the open project's database once `use`d. Switching drops nothing: a query running keeps the
  * connection it began on, and the project left keeps its database.
  */
-export class ProjectRunner implements QueryEngine {
+export class ProjectRunner implements PointedEngine {
   readonly #host: QueryEngine;
   #current: QueryEngine;
 

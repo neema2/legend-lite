@@ -58,6 +58,8 @@ class PlannedSqlTest {
      * the type's one importer), whose SQL playground is its one reader.
      */
     static final String PLAYGROUND = "studio/src/backend/run.ts";
+    /** The playground's door (2026-11-15, the C5-T audit's MUST 2: its plan-and-run, out of Studio's run.ts). */
+    static final String AUTHORED_DOOR = "engine-client/src/doors/authored.ts";
     static final Map<String, Set<String>> PLAYGROUND_IMPORTS = Map.of(
             "studio/src/app/app.ts", Set.of("playground"),
             "studio/src/ui/editor.ts", Set.of("Playground"));
@@ -195,6 +197,10 @@ class PlannedSqlTest {
      */
     static final Map<String, List<String>> DATABASE_SENDS = Map.ofEntries(
             // 2026-11-12 (the re-audit's S10, measured): by call site, the receiver and the member -- none but duckdb.ts's sends DuckDB-WASM a statement
+            // 2026-11-15 (C5-T, the orchestrator's note 4): with RUNNER_CALLS, the doors-only pin: the product's sends
+            // are the run side's alone (duckdb.ts, and the bridge's headless/connection.ts: //engine-client:run and
+            // //datacube:run), and on Node duckdb.ts and warehouse.ts refuse one sent outside a run (run-frame.ts
+            // sending)
             Map.entry("datacube/demo/verify-features.mjs", List.of("cdp.send(")),
             Map.entry("datacube/demo/verify-real-data.mjs", List.of("conn.query(", "conn.query(", "conn.query(")),
             Map.entry("datacube/demo/verify-remote.mjs", List.of("conn.query(", "conn.query(", "conn.query(", "db.copyFileToBuffer")),
@@ -203,10 +209,21 @@ class PlannedSqlTest {
             // one send, its subscription to a public market data WebSocket (JSON naming products and channels) -- it
             // reaches no database of ours and carries no statement; the world falls back to its simulation without it
             Map.entry("datacube/demo/market-sim/coinbase.ts", List.of("socket.send(")),
-            Map.entry("datacube/src/headless/host.ts", List.of("calls.query(")),
+            // 2026-11-15 (C5-T step 4): the bridge's connection moved out of host.ts into its own run module, the same send
+            Map.entry("datacube/src/headless/connection.ts", List.of("calls.query(")),
             Map.entry("engine-client/src/duckdb.ts", List.of("conn.insertArrowFromIPCStream", "conn.query(", "prepared.query(", "prepared.query(", "prepared.send(", "this.#conn.prepare(", "this.#conn.query(")),
             Map.entry("query/src/app/app.ts", List.of("recent.query(")),
             Map.entry("query/src/ui/queries.ts", List.of("recent.query(")));
+    /** Each worker the product starts, by call site (2026-11-15, the C5-T last round's T4). */
+    static final Map<String, List<String>> WORKERS = Map.ofEntries(
+            // the planner's worker (engine-client's bundle, //engine-client:planner_worker): it plans and holds no database
+            Map.entry("datacube/src/lite-planner.ts", List.of("newWorker(")),
+            Map.entry("engine-client/src/legend/wasm-grammar.ts", List.of("newWorker(")),
+            // DuckDB's own worker, its bundle's, under the one raw connection: started by its door (2026-11-15, the C5-T
+            // fold-in: a door's named vendor load, tools/deps/layer-alone.test.ts COMPUTED_DOORS; until then duckdb-tab.ts's)
+            Map.entry("engine-client/src/doors/tab-duckdb.ts", List.of("newWorker(")),
+            // Monaco's editor worker (./editor.worker.js): the editor's language services, no database
+            Map.entry("studio/src/app/app.ts", List.of("newWorker(")));
     static final Map<String, List<String>> CONNECTS = Map.ofEntries(
             // 2026-11-12 (the re-audit's S10, measured): by call site, the receiver and the member -- the others connect a DuckDbEngine (DuckDbInTab.connect), a model home or a warehouse, or are harnesses' own fixture databases
             Map.entry("datacube/demo/torture.mjs", List.of("db.connect(")),
@@ -225,11 +242,15 @@ class PlannedSqlTest {
             Map.entry("datacube/demo/market-sim/local-host.ts", List.of("o.duck.connect(")),
             Map.entry("datacube/demo/market-sim/measure/measure.ts", List.of("tab.connect(")),
             Map.entry("engine-client/src/duckdb-live.ts", List.of("options.connect(")),
-            Map.entry("datacube/src/services/browser.ts", List.of("driver.connect(", "o.duckdb.connect(")),
+            // 2026-11-15 (the C5-T last round's T1): the warehouse's sign-in through its door (engine-client's
+            // doors/warehouse.ts), `(await loaded()).connect(` where the page called the driver's own `driver.connect(`
+            Map.entry("datacube/src/services/browser.ts", List.of(".connect(", "o.duckdb.connect(")),
             // THE raw connection, made once and handed to DuckDbEngine
             Map.entry("engine-client/src/duckdb-tab.ts", List.of("db.connect(")),
             Map.entry("engine-client/src/project-data.ts", List.of("this.#host.connect(")),
-            Map.entry("query/demo/main.ts", List.of("tab.connect(")),
+            // 2026-11-15 (the C5-T fold-in): Query's warehouse sign-in through its door (doors/warehouse.ts warehouseAt),
+            // `door.connect(`, as DataCube's browser.ts above, where the page signed in with the driver's own signIn
+            Map.entry("query/demo/main.ts", List.of("door.connect(", "tab.connect(")),
             Map.entry("studio/src/app/app.ts", List.of("tab.connect(")));
     static final Map<String, List<String>> SUBMITS = Map.ofEntries(
             // 2026-11-12 (the re-audit's S10, measured): by call site, the receiver and the member -- the warehouse's statement, a PlannedSql
@@ -271,8 +292,12 @@ class PlannedSqlTest {
             Map.entry("datacube/src/services/python-host.ts", List.of("fetch(`${link.baseUrl}${path}`", "fetch(`${link.baseUrl}/${at}&version=${version}${as}`", "fetch(`${link.baseUrl}/${path}`", "fetch(`${link.baseUrl}/${path}`", "fetch(`${link.baseUrl}/plan-and-run.json`", "fetch(`${link.baseUrl}/version.json?${query}`", "fetch(input")),
             Map.entry("datacube/src/ui/timeseries-view.ts", List.of("fetch(", "fetch(", "fetch(", "fetch(")),
             Map.entry("depot-client/src/client.ts", List.of("fetch(`${this.#api}${path}`")),
-            Map.entry("engine-client/src/legend/engine.ts", List.of("fetch(`${this.#base}${path}`")),
-            Map.entry("engine-client/src/pure-v1.ts", List.of("fetch(url")),
+            // 2026-11-15 (C5-T, the TypeScript split of plan and run: the server's planning client split out of engine.ts,
+            // HttpEngine now that client and its execute): the same one fetch, moved with the client
+            Map.entry("engine-client/src/legend/planning-client.ts", List.of("fetch(`${this.#base}${path}`")),
+            // 2026-11-15 (C5-T step 4): the same one fetch, moved with pure/v1's planning half (pure-v1-planning.ts, whose
+            // client the execute client extends)
+            Map.entry("engine-client/src/pure-v1-planning.ts", List.of("fetch(url")),
             Map.entry("engine-client/src/warehouse.ts", List.of("fetch(baseUrl.replace(/\\/+$/, '') + call.path")),
             Map.entry("query-store/src/client.ts", List.of("fetch(`${this.#api}/pure/v1/query${path}`")),
             Map.entry("query/demo/main.ts", List.of("fetch(url")),
@@ -287,13 +312,18 @@ class PlannedSqlTest {
      * statement, carried by the planner as written (Boundary.authored) and run by the hosts' runner (runAuthored), is the
      * SQL playground's alone. Every reference to it in the TypeScript -- the runner {@code runAuthored}, a member or key
      * {@code authored} or {@code authoredOrError}, and the request kind {@code 'authored'} as a string -- by file,
-     * exactly: the playground (studio run.ts, which runs it; app.ts, which plans it), and the planner's plumbing
+     * exactly: the playground (studio run.ts, which hands its door the planner; app.ts, which plans it; its door,
+     * engine-client's doors/authored.ts, which runs it), and the planner's plumbing
      * (wasm-grammar.ts's client, the protocol's kind, the tab's answer of it, Python's page refusing it unasked).
      */
     static final Map<String, Integer> AUTHORED = Map.ofEntries(
             // 2026-11-12 (H1, measured): the playground's run (its runner's import and call, the session's member, read
             // twice) and the app's planning of its statement (the member, the client's call)
+            // 2026-11-15 (the C5-T audit's MUST 2): run.ts's 5 now the session's member, its check, its bind and the
+            // door's argument (`{ authored }`) -- its runner's import and call moved to the playground's door,
+            // engine-client's doors/authored.ts: the planner's member, its call, the runner's import and its call
             Map.entry("studio/src/backend/run.ts", 5),
+            Map.entry("engine-client/src/doors/authored.ts", 4),
             Map.entry("studio/src/app/app.ts", 2),
             // the runner's definition; the planner's client (its method and its request's kind); the protocol's kind (in
             // the kinds' list and the request's type); the tab's answer of it (the export's type, its call, the kind)
@@ -388,6 +418,12 @@ class PlannedSqlTest {
     private static final Pattern FETCH_CALL = Pattern.compile("(?<![\\w$])fetch\\s*\\(");
     private static final Pattern OTHER_HTTP = Pattern.compile("(?<![\\w$])(?:XMLHttpRequest|WebSocket|EventSource)(?![\\w$])"
             + "|\\.\\s*sendBeacon\\s*\\(");
+    /** A worker started (2026-11-15, the C5-T last round's T4: the one transport no census pinned -- a worker speaks to
+     *  its page by message, so a worker of DuckDB's own, started by hand, is a database no send census reads). */
+    // 2026-11-15 (the C5-T final audit's item 7): through any receiver -- `new globalThis.Worker(`, `new self.Worker(`,
+    // `new window.Worker(` -- the receivers' chain tools/deps/layer-alone.test.ts reads a door's through (CHAIN)
+    private static final Pattern WORKER_START = Pattern.compile(
+            "(?<![\\w$.])new\\s+(?:[\\w$]+\\s*\\??\\.\\s*)*(?:Shared)?Worker\\s*\\(");
     private static final Pattern SUBMIT_CALL = Pattern.compile("\\bcall\\s*(?:<[^>()]*>)?\\s*\\(\\s*(['\"`])submit\\1");
     /** S6 (the re-audit, 2026-11-12): `any`, cast or not, satisfies every type -- the brand's among them. */
     private static final Pattern ANY = Pattern.compile("(?<![\\w$.])any(?![\\w$])(?!\\s*[:(?])");
@@ -417,7 +453,11 @@ class PlannedSqlTest {
             "\\bimport\\s*(type\\s+)?\\{([^}]*)\\}\\s*from\\s*['\"`][^'\"`]*backend/run(?:\\.ts)?['\"`]");
     private static final Pattern PLAYGROUND_READ = Pattern.compile("\\.\\s*playground\\b|\\[\\s*['\"`]playground['\"`]\\s*\\]"
             + "|\\{[^{}]*\\bplayground\\b[^{}]*\\}\\s*=(?!=)");
-    private static final Pattern UNPLANNED_IMPORT = Pattern.compile("from\\s*'[^']*test/unplanned\\.ts'");
+    /** Any literal naming the tests' module, in any quote, by any door (2026-11-15, the C5-T last round's T3: a single
+     *  quote after `from` alone was read; a double quote, a template, an `import()`, a `require()`, an `export ... from`,
+     *  a side-effect import or no extension is now read too), over the code with its comments blanked. */
+    private static final Pattern UNPLANNED_IMPORT = Pattern.compile(
+            "(['\"`])[^'\"`\\n]*\\btest/unplanned(?:\\.[cm]?[jt]s)?\\1");
 
     /** host_sql.txt's [typescript] and [python] folders: the product's, one list with the host-SQL guard. */
     private static Map<String, List<String>> folders() throws IOException {
@@ -578,6 +618,12 @@ class PlannedSqlTest {
                 "export const connection = await db.connect();");
         bites("the fetch census", PlannedSqlTest::everyTransportHasOneChokePoint,
                 "export const sent = await fetch('https://warehouse.example/api/2.0/sql/statements', { method: 'POST' });");
+        bites("the worker census", PlannedSqlTest::everyTransportHasOneChokePoint,
+                "export const db = new Worker(new URL('./vendor/duckdb-browser-eh.worker.js', location.href));");
+        for (String receiver : List.of("globalThis", "self", "window", "globalThis.self")) {
+            bites("the worker census", PlannedSqlTest::everyTransportHasOneChokePoint,
+                    "export const db = new " + receiver + ".Worker('./vendor/duckdb-browser-eh.worker.js');");
+        }
         bites("the submit census", PlannedSqlTest::everyTransportHasOneChokePoint,
                 "export const sent = await this.call('submit', { statement: text });");
         bites("the runner census", PlannedSqlTest::thePlanRunnersAreCalledWhereAPlanTheyAreHandedWasAnswered,
@@ -586,8 +632,19 @@ class PlannedSqlTest {
         bites("the plan format census", PlannedSqlTest::thePlanRunnersAreCalledWhereAPlanTheyAreHandedWasAnswered,
                 "export const plan = JSON.stringify({ format: 'legend-lite-plan', root: {} });");
         bites("the any census", PlannedSqlTest::noAnyInTheProduct, "export let value: any = text;");
-        bites("the tests' statement census", PlannedSqlTest::noProductSourceReachesTheTestsOwnStatement,
-                "import { unplanned } from '../test/unplanned.ts';\nexport const sql = unplanned(text);");
+        // every quote and every door (2026-11-15, the C5-T last round's T3)
+        for (String door : List.of("import { unplanned } from '../test/unplanned.ts';",
+                "import { unplanned } from \"../../engine-client/test/unplanned.ts\";",
+                "const { unplanned } = await import(`../../engine-client/test/unplanned.ts`);",
+                "export { unplanned } from '../../engine-client/test/unplanned';",
+                "import '../../engine-client/test/unplanned.js';",
+                "const { unplanned } = require(\"../../engine-client/test/unplanned.ts\");")) {
+            bites("the tests' statement census", PlannedSqlTest::noProductSourceReachesTheTestsOwnStatement,
+                    door + "\nexport const sql = unplanned(text);");
+        }
+        // and none in a comment
+        noProductSourceReachesTheTestsOwnStatement(Sources.planting(PLANTED_VIOLATOR,
+                "// typed by the tests' own (engine-client/test/unplanned.ts, '../test/unplanned.ts'), never here\n"));
     }
 
     private static boolean under(String file, List<String> folders) {
@@ -1002,11 +1059,19 @@ class PlannedSqlTest {
         int factory = backend.indexOf("export function playground(session: RunSession): Playground {");
         int runner = backend.indexOf("export function runner(session: RunSession): Runner {");
         assertTrue(factory >= 0 && runner > factory, "run.ts's playground() and runner() moved: " + PLAYGROUND);
-        int send = backend.indexOf("return runAuthored(plan, { databaseType, run: (sql) => engine.run(sql, 0) });");
+        // 2026-11-15 (the C5-T audit's MUST 2): the playground's plan-and-run moved into its door, engine-client's
+        // doors/authored.ts (runAuthoredStatement: the planner asked, then runAuthored), so Studio's app code sends
+        // nothing itself -- the Playground object calls the door, handing it the session's planner of the statement
+        int send = backend.indexOf("return runAuthoredStatement(statement, { authored }, database);");
         assertTrue(send > factory && send < runner, "the playground's send is the Playground object's, and no other's");
-        int planned = backend.indexOf("const plan = await session.authored(statement);");
-        assertTrue(planned > factory && planned < send, "the playground sends the plan's one statement: the person's"
-                + " text as the planner carried it (Boundary.authored), never the text itself");
+        int planned = backend.indexOf("const authored = session.authored.bind(session);");
+        assertTrue(planned > factory && planned < send, "the playground hands its door the session's planner of the"
+                + " person's statement (Boundary.authored), never the text to send");
+        String door = s.read(AUTHORED_DOOR);
+        int asked = door.indexOf("const plan = await planner.authored(statement);");
+        int ran = door.indexOf("return runAuthored(plan, { databaseType: database.databaseType, run: (sql) => database.engine.run(sql, 0) });");
+        assertTrue(asked >= 0 && ran > asked, "the playground's door sends the plan's one statement: the person's text as"
+                + " the planner carried it (Boundary.authored), never the text itself: " + AUTHORED_DOOR);
         // a type of planned-sql.ts names the plan it is handed (PlanText, the re-audit's M1); no value of it is imported
         assertTrue(imports(backend).values().isEmpty() && imports(backend).refused().isEmpty(), "the playground mints"
                 + " nothing: the plan runner types the plan's"
@@ -1375,6 +1440,7 @@ class PlannedSqlTest {
         Map<String, List<String>> connects = new TreeMap<>();
         Map<String, List<String>> fetches = new TreeMap<>();
         Map<String, List<String>> submits = new TreeMap<>();
+        Map<String, List<String>> workers = new TreeMap<>();
         List<String> otherHttp = new ArrayList<>();
         for (String file : s.inventory()) {
             // the product's TypeScript and the JavaScript beside it (S10: the harnesses' .mjs were not read)
@@ -1387,6 +1453,7 @@ class PlannedSqlTest {
             put(connects, file, sites(CONNECT_CALL, code));
             put(fetches, file, fetchSites(code(src, true)));
             put(submits, file, sites(SUBMIT_CALL, code(src, true)));
+            put(workers, file, sites(WORKER_START, code));
             if (finds(OTHER_HTTP, code) && !OTHER_HTTP_KEPT.contains(file)) {
                 otherHttp.add(file);
             }
@@ -1400,6 +1467,9 @@ class PlannedSqlTest {
                 + " engine-client/src/warehouse.ts alone, as a PlannedSql (PlannedSqlTest.SUBMITS, by call site)");
         assertEquals(new TreeMap<>(FETCHES), fetches, "ONE CHOKE POINT (H13): each HTTP send of the product's is pinned by"
                 + " call site (PlannedSqlTest.FETCHES): a new one could carry a statement to a SQL API");
+        assertEquals(new TreeMap<>(WORKERS), workers, "ONE CHOKE POINT (the C5-T last round's T4): each worker the"
+                + " product starts is pinned by call site (PlannedSqlTest.WORKERS): a new one could be a database's own,"
+                + " spoken to by message where no send census reads");
         assertEquals(List.of(), otherHttp, "ONE CHOKE POINT (H13): the product sends HTTP by fetch alone (no"
                 + " XMLHttpRequest, WebSocket, EventSource or sendBeacon), each fetch pinned");
     }
@@ -1413,22 +1483,43 @@ class PlannedSqlTest {
     static final Map<String, List<String>> RUNNER_CALLS = Map.ofEntries(
             // 2026-11-12 (M1, measured): each with the plan its planner client answered -- a write's (table-output.ts),
             // a load's: a person's file (model-data.ts, upload.ts), a remote mount (remote.ts), a snapshot's stream
-            // (snap.ts), a project's database (project-data.ts; the demos' seeds, boot.ts and query/demo/main.ts), and
-            // the playground's authored statement (run.ts)
-            Map.entry("datacube/demo/boot.ts", List.of("runLoad(")),
+            // (snap.ts), a project's database (project-data.ts), and the playground's authored statement (run.ts); the
+            // demos' seeds through their doors since 2026-11-15 (the C5-T fold-in: doors/project-data.ts dataLoaded,
+            // doors/tab-duckdb.ts synthesizedInTab), where boot.ts and query/demo/main.ts ran them
+            // 2026-11-15 (C5-T, the orchestrator's note 4: the run wall deleted for the layers' rule): THIS CENSUS IS
+            // THE DOORS-ONLY PIN. A runner is called by a DOOR -- it asks the planner, then runs the answer in a run
+            // frame -- or by a RUN function its door hands the plan (model-data.ts putFile, project-data.ts
+            // ProjectDatabases: //engine-client:run, which reaches no planner, //tools/deps:layers_alone), and nowhere
+            // else. Each site below is named by its role; a new one is a door (or a run function) named here.
+            // 2026-11-15 (the C5-T audit's MUST 2): DataCube's doors are a target of their own, //datacube:doors
+            // (remote.ts, table-output.ts, upload.ts among them), and the apps' own plan-and-run sites outside every
+            // door and run target are a shrink-only census beside this one (//tools/deps:app_runs_test).
+            // 2026-11-15 (the C5-T fold-in): a table synthesized in the tab's DuckDB (synthesizedInTab: synthesize asked
+            // first) -- DataCube's demo sample, which its page ran itself until then
+            Map.entry("engine-client/src/doors/tab-duckdb.ts", List.of("runLoad(")),
+            // a door: runMount (remoteMount asked first)
             Map.entry("datacube/src/remote.ts", List.of("runLoad(")),
+            // a multi-step door: writeTable (note 3)
             Map.entry("datacube/src/table-output.ts", List.of("runPlan(")),
+            // a door: readFileInto (fileLoad asked first)
             Map.entry("datacube/src/upload.ts", List.of("runLoad(")),
+            // run: putFile, handed its plan by doors/file-load.ts
             Map.entry("engine-client/src/model-data.ts", List.of("runLoad(")),
             // 2026-11-14 (the desk roadmap's C0, the user's go of that day): the live DuckDB's table made, each batch
             // landed and its retention kept, by an ingest's plans (the planner's ingestPlans answer)
             Map.entry("engine-client/src/duckdb-live.ts", List.of("runLoad(")),
+            // run: handed its statements by doors/project-data.ts
             Map.entry("engine-client/src/project-data.ts", List.of("runLoad(")),
             // 2026-11-12 (the final audit's item 1(b)): a snapshot's local copy, its plan the planner's of the pull
             // (snapCopy)
+            // a multi-step door: SnapManager (note 3)
             Map.entry("engine-client/src/snap.ts", List.of("runLoad(", "runPlan(")),
-            Map.entry("query/demo/main.ts", List.of("runLoad(")),
-            Map.entry("studio/src/backend/run.ts", List.of("runAuthored(")));
+            // 2026-11-15 (the C5-T fold-in): a project's Data rows loaded where an engine runs (dataLoaded: projectData
+            // asked first) -- Query's warehouse seed, which the page ran itself until then
+            Map.entry("engine-client/src/doors/project-data.ts", List.of("runLoad(")),
+            // 2026-11-15 (the C5-T audit's MUST 2): the playground's door, moved out of Studio's run.ts into
+            // engine-client's doors (runAuthoredStatement: authored asked first)
+            Map.entry("engine-client/src/doors/authored.ts", List.of("runAuthored(")));
     // 2026-11-12 (M1, measured): the runner's own read of a plan's format (planned-sql.ts names it in prose alone)
     static final Set<String> PLAN_FORMAT_READERS = Set.of("engine-client/src/plan-runner.ts");
 
@@ -1585,7 +1676,7 @@ class PlannedSqlTest {
         List<String> product = folders().get("typescript");
         List<String> found = new ArrayList<>();
         for (String file : s.inventory()) {
-            if (file.endsWith(".ts") && under(file, product) && UNPLANNED_IMPORT.matcher(s.read(file)).find()) {
+            if (file.endsWith(".ts") && under(file, product) && UNPLANNED_IMPORT.matcher(code(s.read(file), true)).find()) {
                 found.add(file);
             }
         }

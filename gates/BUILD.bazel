@@ -116,6 +116,15 @@ test_suite(
         "//projects:tests",
         "//tools/deps:core_closure_test",
         "//tools/deps:core_layering_test",
+        # the TypeScript hosts' layers (C5-T, 2026-11-15): records, run, planner, server, doors, pinned as core's are
+        "//tools/deps:ts_layering_test",
+        # each TypeScript run and planner layer typechecked alone (C5-T, 2026-11-15: the rule that replaces the run wall)
+        "//tools/deps:layers_alone",
+        # the apps' own plan-and-run sites, a shrink-only census (the C5-T audit's MUST 2, 2026-11-15)
+        "//tools/deps:app_runs_test",
+        # every module a browser bundle reads is one it declares, by esbuild's own metafile, every package's bundles
+        # (2026-11-15: //engine-client:planner_worker read plan-guard.ts undeclared, found only when copied by another action)
+        "//tools/deps:bundle_inputs_test",
         "//tools/deps:pools_list_test",
         "//tools/deps:warehouse_closure_test",
         "//tools/guards:classpath_test",
@@ -132,9 +141,10 @@ test_suite(
         # Python half read by Python's parser (2026-11-12, the C checkpoint's code audit SHOULD-FIX 2)
         "//tools/guards:planned_sql_test",
         "//python:planned_guard_test",
-        # the run wall's Python half (M2, 2026-11-13), in no gate suite until the final audit of 9af16fbe58's P1
-        # (2026-11-14); its TypeScript half, //datacube:run_wall_test, rides DataCube's own suite
-        "//python:run_wall_test",
+        # Python's plan/exec split, a plain dependency rule (C5-P, 2026-11-15: it replaced the run wall's Python half,
+        # //python:run_wall_test, in this suite since the final audit of 9af16fbe58's P1, 2026-11-14); TypeScript's, the
+        # layers' rule (C5-T, 2026-11-15: //tools/deps:layers_alone and //tools/deps:ts_layering_test, in the checks above)
+        "//python:run_closure_test",
         "//tools/browser:revision_test",
         "//tools/browser:proxy_args_test",
         "//tools/bump:bump_test",
@@ -142,6 +152,8 @@ test_suite(
         "//tools/teavm:data_offsets_test",
         "//tools/java_run:pins_test",
         "//tools/js:lock_matches_package_json_test",
+        # a browser bundle declared after its package's guards_package() is refused (2026-11-15, the C5-T re-check's item 3)
+        "//tools/js:late_bundle_test",
         "//tools/junit:pins_test",
         "//tools/junit:runner_test",
         "//tools/python:lock_matches_requirements",

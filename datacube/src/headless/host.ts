@@ -2,18 +2,16 @@
 // WebAssembly (docs/DATACUBE_HEADLESS_PYTHON_DESIGN_2026_10_11.md §3). The host answers four calls, each asynchronous
 // (a call out of the engine is: mini-racer's only kind), and this module turns them into what DataCube's code already
 // takes: a planner worker (engine-client's planner-protocol.ts, answered by legend-lite's native library) and a DuckDB connection
-// (engine-client's ArrowishConnection, answered by Python's DuckDB as Arrow IPC). Nothing here plans or queries.
+// (engine-client's ArrowishConnection, answered by Python's DuckDB as Arrow IPC: connection.ts, the run side's). Nothing
+// here plans or queries.
 //
 // The host defines its calls as the global `legendLiteHost` BEFORE it loads a bundle, as a browser's globals are there
 // before a page's scripts run: a module may ask the planner as it loads (a test's fixture, parsed at its top level).
 
-import { arrowIpcTable } from '../../../engine-client/src/arrow-ipc.ts';
-import type { ArrowishConnection, ArrowishTable } from '../../../engine-client/src/duckdb.ts';
 import type { PlannerWorker, Request, Response } from '../../../engine-client/src/legend/planner-protocol.ts';
 import type { PythonLink } from '../services/python-host.ts';
 import { hostCalls, type HostCalls } from './calls.ts';
 import { fromBase64 } from './web.ts';
-import type { PlannedSql } from '../../../engine-client/src/planned-sql.ts';
 
 export { hostCalls, type HostCalls };
 
@@ -93,31 +91,6 @@ export function hostEngine(calls: HostCalls): PythonLink {
   };
   // its paths its own (`/plan-and-run.json`): no address before them
   return { baseUrl: '', fetch: carried as unknown as typeof fetch };
-}
-
-/** The host's database: its connection (a test's files are its own host's: datacube/test/host/headless.ts). */
-export interface HostDatabase {
-  readonly connection: ArrowishConnection;
-}
-
-/**
- * The host's database as DataCube's engine takes one: for what DataCube writes into it (a page's file read in, a remote
- * file's view, a snap's copy modelled) and its catalog -- never a grid's rows, which the host's plan-and-run reads
- * (hostEngine: D16). Each query is one whole call (no `send`: the host's DuckDB
- * answers a statement at once, so a superseded query is not cancelled between batches); its Arrow IPC read by
- * apache-arrow, as DuckDB-WASM's answers are.
- */
-export function hostDatabase(calls: HostCalls): HostDatabase {
-  const connection: ArrowishConnection = {
-    async query(sql: PlannedSql): Promise<ArrowishTable> {
-      return arrowIpcTable(fromBase64(await calls.query(sql)));
-    },
-    // a write's step, its values bound by the host's database (table-output.ts)
-    prepare: (sql: PlannedSql) => ({
-      query: async (...params: unknown[]): Promise<ArrowishTable> => arrowIpcTable(fromBase64(await calls.statement(sql, JSON.stringify(params)))),
-    }),
-  };
-  return { connection };
 }
 
 /**

@@ -4,7 +4,7 @@
 // functions, each delegating to the same Boundary function as the export here (legend_lite/_planner.py).
 
 import type { RequestBody } from './planner-protocol.ts';
-import { planning } from '../run-frame.ts';
+import { planning } from '../plan-guard.ts';
 
 /** The module's exports the protocol's kinds name (planner.TabExports). */
 export interface PlannerModule {

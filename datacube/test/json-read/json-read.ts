@@ -21,7 +21,7 @@ import type { CubeSnapshot } from '../../src/snapshot.ts';
 import { LitePlanner } from '../../src/lite-planner.ts';
 import { accessor } from '../../../pure-protocol/src/index.ts';
 import { runfileDirUrl, runfilesFromEnv } from '../../../tools/js/runfiles.mts';
-import { unplanned } from '../../../engine-client/test/unplanned.ts';
+import { unplanned, asTest } from '../../../engine-client/test/unplanned.ts';
 
 const MODULE_DIR = runfileDirUrl('WASM_PLANNER');
 
@@ -101,13 +101,13 @@ before(async () => {
   const db = await startNodeDuckDb(runfilesFromEnv('DUCKDB_EXTENSIONS'));
   conn = db.connect() as ArrowishConnection;
   const local = new DuckDbEngine(conn);
-  await local.run(unplanned('CREATE TABLE T (id INTEGER, doc JSON)'), 0);
-  await local.run(unplanned(`INSERT INTO T SELECT i, CASE WHEN i = ${ROWS}
+  await asTest(local).run(unplanned('CREATE TABLE T (id INTEGER, doc JSON)'), 0);
+  await asTest(local).run(unplanned(`INSERT INTO T SELECT i, CASE WHEN i = ${ROWS}
       THEN json_object('n', i, 'kind', 'x', 'late', true) ELSE json_object('n', i, 'kind', 'x') END
     FROM range(1, ${ROWS + 1}) t(i)`), 0);
   // T10's documents: a nested object and an array of objects
-  await local.run(unplanned('CREATE TABLE O (id INTEGER, doc JSON)'), 0);
-  await local.run(unplanned(`INSERT INTO O VALUES
+  await asTest(local).run(unplanned('CREATE TABLE O (id INTEGER, doc JSON)'), 0);
+  await asTest(local).run(unplanned(`INSERT INTO O VALUES
     (1, '{"customer":{"tier":"gold","contact":{"email":"a@x"},"addresses":[{"kind":"billing","city":"Paris"},{"kind":"shipping","city":"Tokyo"}]},"items":[{"sku":"A","q":2},{"sku":"B","q":1}]}'),
     (2, '{"customer":{"tier":"silver","contact":{"email":"b@x"},"addresses":[{"kind":"billing","city":"Paris"}]},"items":[{"sku":"C","q":5}]}'),
     (3, '{"customer":{"tier":"gold","contact":{"email":"c@x"},"addresses":[{"kind":"billing","city":"London"}]},"items":[{"sku":"A","q":1}]}')`), 0);
@@ -233,7 +233,7 @@ describe('a part of a document as a JSON column of its own', () => {
     assert.equal(column?.type, 'Variant', 'the tuple is JSON, typed by the compiler');
 
     // the database's own unnest is the truth; a missing field is null
-    const truth = await new DuckDbEngine(conn).run(unplanned(`SELECT json_object('kind', a->'kind', 'city', a->'city') AS pair
+    const truth = await asTest(new DuckDbEngine(conn)).run(unplanned(`SELECT json_object('kind', a->'kind', 'city', a->'city') AS pair
       FROM O, UNNEST(CAST(doc->'customer'->'addresses' AS JSON[])) AS u(a)`), 0);
     const objects = (values: readonly unknown[]): string[] =>
       values.map((v) => JSON.stringify(JSON.parse(String(v)))).sort();

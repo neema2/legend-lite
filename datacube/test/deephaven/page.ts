@@ -8,6 +8,7 @@
 
 import { DeephavenSession, type DeephavenServer } from '../../../engine-client/src/deephaven.ts';
 import { LiveClient, type Followed, type FollowedRows } from '../../../engine-client/src/deephaven-live.ts';
+import { deephavenApi } from '../../../engine-client/src/doors/deephaven-api.ts';
 import { followedTable } from '../../../engine-client/src/deephaven-rows.ts';
 import { relationColumns, type Plan } from '../../../engine-client/src/relation-type.ts';
 import { openServerLog } from '../../demo/deephaven/server-log.ts';
@@ -482,7 +483,8 @@ try {
     return { sql: unplanned(body.sql), columns: relationColumns(body.type) };
   };
   const planOf = (query: string): string => planned(query).sql;
-  const live = await LiveClient.open(server, (why) => { verdict.setupError ??= `the live reader ended: ${why}`; });
+  const live = await LiveClient.open(server, (why) => { verdict.setupError ??= `the live reader ended: ${why}`; },
+    deephavenApi(server.url));
   /** A query's result kept alive and published, and its rows as the live reader first hands them over, each row as
    *  `read` takes them. */
   const answer = async (query: string, read: (rows: FollowedRows) => unknown[][] = byRow,

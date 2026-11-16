@@ -561,8 +561,11 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  On the Deephaven line: 437,000 -> 448,500 (2026-11-14, main's #77-#98 merged into the Deephaven line, within the user's sign-off,
  *  D9: main measured 436,691, the line +11,237 over it -- its own steps since its last merge (the desk's screens,
  *  the live engine, Open With's hooks, the model home's releases) and the ingest plans'
- *  client). Measured 447,928. */
-const BUDGET = 448_500;
+ *  client). Measured 447,928.
+ *  448,500 -> 448,700 (2026-11-16, main 4dfbb5b7 -- C5-P, C5-J, C5-T -- merged into the Deephaven line, within the
+ *  user's sign-off, D9: main's run and planner layers and their doors, 437,261 on main at #105's head, and the line's
+ *  own above it, its files placed in those layers). Measured 448,548. */
+const BUDGET = 448_700;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom
@@ -1347,6 +1350,12 @@ const EXAMPLE_BUDGET = 4_000;
  *  450,500 -> 453,800 (2026-11-13, main's #95 -- the total wall -- merged into the timeseries branch, the user:
  *  "let's merge in here": main's growth and the branch's together, each side's notes above; the merge adds no
  *  file). Measured 453,495.
+ *  453,800 -> 454,100 (2026-11-15, the C5-T last round, PR #105: the user approved raising the Windows budget, relayed
+ *  by the orchestrator -- "you can tell the session I approve raising budget for windows" -- re-pinned after T1-T4 as
+ *  ruled. The run layers' split left the module at the line: Linux 453,806 after T1, 453,807 after T4 (this test's
+ *  own measure; T2-T4 move no product byte but the page modules' types), and CI's Windows 18 bytes over Linux in run
+ *  43692166249 (453,809 there, at 8e4648d02e). Grid 437,261 and engine 425,448 at the same head, under their pins).
+ *  Measured 453,807.
  *  453,800 -> 463,500 (2026-11-14, main's #77-#98 merged into the Deephaven line, within the user's sign-off,
  *  D9: main measured 453,495, the line +9,761 over it -- its own steps since its last merge (the desk's screens,
  *  the live engine, Open With's hooks, the model home's releases) and the ingest plans'

@@ -23,5 +23,7 @@
 # own_corpus.matched 3246 -> 3272 (main merged into claude/deephaven-3-browser, 729e3e6d; recorded 2026-11-15, the move landed without its line): the Deephaven branch's and main's tests' models
 # own_corpus.matched 3272 -> 3274 (2026-11-15, the deployment program's steps 3 and 5 on claude/deephaven-3-browser): DeploymentPlannerTest's runtimes and its in-tab deployment's model
 # own_corpus.matched 3274, 3261 -> 3289 (2026-11-15, main cf865632 merged into claude/deephaven-3-browser, measured by //parser-equivalence:update_ratchets on the merged tree): both sides' models together, 3274 + 3261 - 3246, their shared base
+# own_corpus.matched 3261 -> 3262 (2026-11-15, C5-J, found by the gate on its branch): its new tests' models, measured by //parser-equivalence:update_ratchets
+# own_corpus.matched 3289, 3262 -> 3290 (2026-11-16, main 4dfbb5b7 merged into claude/deephaven-3-browser, measured by //parser-equivalence:update_ratchets on the merged tree): both sides' models together, 3289 + 3262 - 3261, their shared base
 mutation.deck	950
-own_corpus.matched	3289
+own_corpus.matched	3290

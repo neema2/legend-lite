@@ -17,6 +17,29 @@ js_library(
     ],
 )
 
+# the model writer's request and answer shapes alone (src/wire.ts): what a planner reads (DataCube's lite-planner.ts and
+# model-writer.ts) without the library that saves to an SDLC (C5-T, 2026-11-15: tools/deps/ts-layers.txt holds a planner
+# to records). Its file is the library's too.
+js_library(
+    name = "records",
+    srcs = [
+        "package.json",
+        "src/wire.ts",
+    ],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pure-protocol:pure_protocol",
+        "//sdlc-client:records",
+    ],
+)
+
+genquery(
+    name = "layer_records",
+    expression = "labels(deps, //model-changes:records)",
+    scope = [":records"],
+    visibility = ["//tools/deps:__pkg__"],
+)
+
 # the cases the library is held to: every call one create makes, to the SDLC and to the writer, and its answer, recorded
 # against the native SDLC and writer through Python's host (python/tests/test_model.py records them again on request)
 filegroup(

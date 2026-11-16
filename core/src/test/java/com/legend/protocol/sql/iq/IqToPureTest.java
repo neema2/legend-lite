@@ -64,7 +64,7 @@ class IqToPureTest {
     }
 
     private static String pure(String sql, IqSettings profile, List<Col> columns) {
-        ValueSpecification vs = SqlToPure.translate(sql, (source, column) -> columns.forEach(
+        ValueSpecification vs = com.legend.testcases.SqlText.translate(sql, (source, column) -> columns.forEach(
                 c -> column.column(c.name(), c.type(), c.nullable(), c.store())), IqDialect.of(profile));
         return PureComposer.valueSpecification(vs, PureComposer.Style.STANDARD);
     }
@@ -510,7 +510,7 @@ class IqToPureTest {
         assertEquals(IqDialect.Engine.SA, IqDialect.engineOf(IqParser.parse("SELECT 1", IqProfile.IQ16_DEFAULT.settings()),
                 IqProfile.IQ16_DEFAULT.settings()));
         // a CHAR read under SQL Anywhere's rules is not padded
-        assertEquals("#>{s::DB.T}#->select(~[ch])", PureComposer.valueSpecification(SqlToPure.translate(
+        assertEquals("#>{s::DB.T}#->select(~[ch])", PureComposer.valueSpecification(com.legend.testcases.SqlText.translate(
                 "SELECT ch FROM " + T, (source, column) -> WITH_CHAR.forEach(c -> column.column(c.name(), c.type(),
                         c.nullable(), c.store())), IqDialect.of(IqProfile.IQ16_DEFAULT.settings(), IqDialect.Engine.SA)),
                 PureComposer.Style.STANDARD));

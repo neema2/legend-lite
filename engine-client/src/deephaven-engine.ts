@@ -81,8 +81,9 @@ interface Executed {
 }
 
 export interface DeephavenEngineOptions extends DeephavenSessionOptions {
-  /** How Deephaven's JS library is loaded (a test's own); from the server by default. */
-  readonly loadLive?: (url: string) => Promise<DhModule>;
+  /** Deephaven's JS library, which the live reader follows results with: loaded from the server by its door
+   *  (doors/deephaven-api.ts deephavenApi) or a test's own -- the loaded object, never a loader (C5-T, 2026-11-15). */
+  readonly live: DhModule | Promise<DhModule>;
 }
 
 /** The engine's counts as they are kept: its readers add to them. */
@@ -154,7 +155,7 @@ export class DeephavenEngine implements QueryEngine {
    * waits on the server. A library that fails to load is said by the first follow that needs it.
    */
   static async open(server: DeephavenServer, planner: DeephavenPlanner,
-    options: DeephavenEngineOptions = {}): Promise<DeephavenEngine> {
+    options: DeephavenEngineOptions): Promise<DeephavenEngine> {
     // a session the server forgot ends the live side as a server gone does: each reader's host signs in again -- while
     // it is the engine's session (one a reconnect let go of is forgotten as it closes, and is no server gone)
     let ended: (why: string) => void = () => { /* no engine yet */ };
@@ -355,7 +356,7 @@ export class DeephavenEngine implements QueryEngine {
       // its end is the server gone while it is the engine's live reader: one a reconnect let go of ends as it closes
       const opening: Promise<LiveClient> = LiveClient.open(this.#server, (why) => {
         if (this.#live === opening) this.#ended(why);
-      }, this.#options.loadLive);
+      }, this.#options.live);
       this.#live = opening;
       // one that failed to open is opened again by the next follow that needs it, never kept failing
       opening.catch(() => { if (this.#live === opening) this.#live = null; });

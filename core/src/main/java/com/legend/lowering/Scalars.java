@@ -3361,10 +3361,9 @@ final class Scalars {
             }
             var typed = argIdx - 1 < typedElems.size() ? typedElems.get(argIdx - 1) : null;
             if (d == 't' && i + 2 < fmt.length() && fmt.charAt(i + 2) == '{') {
-                int close = fmt.indexOf('}', i + 3);
-                if (close < 0) {
-                    throw new IllegalStateException("unterminated %t{ in format: " + fmt);
-                }
+                // the pattern's end found as pure finds it, quotes read; never ending, refused with pure's words
+                // (C5-J item 5, 2026-11-15: until then the first brace, and a bare IllegalStateException without one)
+                int close = DateFormats.endOfPattern(fmt, i + 2);
                 spread.set(argIdx, dateWithPattern(fmt.substring(i + 3, close), spread.get(argIdx)));
                 out.append("%s");
                 argIdx++;
@@ -3449,11 +3448,12 @@ final class Scalars {
         int zb = pattern.indexOf(']');
         String zone = pattern.substring(1, zb);
         String pat = pattern.substring(zb + 1);
-        boolean offsetSuffix = pat.endsWith("Z");
+        // the offset is an UNQUOTED Z: a quoted one is text, as in pure (C5-J item 5, 2026-11-15)
+        boolean offsetSuffix = pat.endsWith("Z") && DateFormats.unquoted(pat, 'Z').contains(pat.length() - 1);
         if (offsetSuffix) {
             pat = pat.substring(0, pat.length() - 1);
         }
-        if (pat.contains("Z")) {
+        if (!DateFormats.unquoted(pat, 'Z').isEmpty()) {
             // a construct not implemented, refused by name as DateFormats refuses an unsupported token (the C4 final fix
             // round's B4, 2026-11-14: until then a bare IllegalStateException, which the server answered 500 as a bug)
             throw new NotImplementedException(
