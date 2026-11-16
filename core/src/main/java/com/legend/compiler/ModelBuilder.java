@@ -156,6 +156,11 @@ public final class ModelBuilder implements com.legend.compiler.StoreLookups {
     /** {@code ###Data} elements — the bodies test suites reference by name. */
     private final ArrayList<com.legend.model.DataDefinition> dataElements = new ArrayList<>();
     private final ArrayList<com.legend.model.DataSpaceDefinition> dataSpaces = new ArrayList<>();
+    /** {@code ###Service} ExecutionEnvironment elements -- indexed by name alone, what a service query's reference
+     *  ({@code env->get($key)}) names (2026-11-14); their keyed mappings and runtimes are a service parameter's, read
+     *  by no planning step. */
+    private final ArrayList<com.legend.model.ExecutionEnvironmentDefinition> executionEnvironments =
+            new ArrayList<>();
     private final ArrayList<RuntimeDefinition>     runtimes      = new ArrayList<>();
     private final ArrayList<ConnectionDefinition>  connections   = new ArrayList<>();
     /** Named model-store connections (Json/Xml/ModelChain) — indexed so a
@@ -357,6 +362,8 @@ public final class ModelBuilder implements com.legend.compiler.StoreLookups {
                         putAtId(dataElements, intern(dd.qualifiedName()), dd);
                 case com.legend.model.DataSpaceDefinition ds ->
                         putAtId(dataSpaces, intern(ds.qualifiedName()), ds);
+                case com.legend.model.ExecutionEnvironmentDefinition ee ->
+                        putAtId(executionEnvironments, intern(ee.qualifiedName()), ee);
                 case ConnectionDefinition cd -> putAtId(connections, intern(cd.qualifiedName()), cd);
                 case com.legend.model.ModelConnectionDefinition mc ->
                         modelConnections.put(mc.qualifiedName(), mc);
@@ -398,6 +405,7 @@ public final class ModelBuilder implements com.legend.compiler.StoreLookups {
             case ServiceDefinition sd -> idGet(services, id) == sd;
             case com.legend.model.DataDefinition dd -> idGet(dataElements, id) == dd;
             case com.legend.model.DataSpaceDefinition ds -> idGet(dataSpaces, id) == ds;
+            case com.legend.model.ExecutionEnvironmentDefinition ee -> idGet(executionEnvironments, id) == ee;
             case ConnectionDefinition cd -> idGet(connections, id) == cd;
             case RuntimeDefinition rd -> idGet(runtimes, id) == rd;
             case Function fn -> {
@@ -940,6 +948,11 @@ public final class ModelBuilder implements com.legend.compiler.StoreLookups {
      *  {@code USE} names, docs/CYPHER_STUDY_2026_10_15.md §12.45). */
     public Optional<com.legend.model.DataSpaceDefinition> findDataSpace(String fqn) {
         return Optional.ofNullable(idGet(dataSpaces, symbols.resolveId(fqn)));
+    }
+
+    /** O(1). Returns the {@code ###Service} ExecutionEnvironment element for {@code fqn}, if any. */
+    public Optional<com.legend.model.ExecutionEnvironmentDefinition> findExecutionEnvironment(String fqn) {
+        return Optional.ofNullable(idGet(executionEnvironments, symbols.resolveId(fqn)));
     }
 
     /** O(1). Returns {@link RuntimeDefinition} for {@code fqn}, if any. */

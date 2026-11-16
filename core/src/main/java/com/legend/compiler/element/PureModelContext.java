@@ -568,6 +568,12 @@ public final class PureModelContext implements ModelContext {
     }
 
     @Override
+    public java.util.Optional<com.legend.model.ExecutionEnvironmentDefinition> findExecutionEnvironment(String fqn) {
+        Objects.requireNonNull(fqn, "fqn");
+        return model.findExecutionEnvironment(fqn);
+    }
+
+    @Override
     public java.util.stream.Stream<com.legend.model.DataDefinition> dataElements() {
         return model.dataElements();
     }

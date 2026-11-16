@@ -402,12 +402,17 @@ _CORE_SRC = {"//core:src/main/java/com/legend/builtin/Pure.java": "{CORE_BUILTIN
 # function surface, each name with its signature ids (EngineHandlers joins the platform's FQNs when it loads)
 _ENGINE_HANDLERS = "@legend_engine_src//:legend-engine-core/legend-engine-core-base/legend-engine-core-language-pure/legend-engine-language-pure-compiler/src/main/java/org/finos/legend/engine/language/pure/compiler/toPureGraph/handlers/Handlers.java"
 
+# the compiler extensions whose handler registrations join the registry (EngineHandlersGenerator's extensions,
+# 2026-11-14): the service extension's get, getWithRuntime and from(SingleExecutionParameters)
+_ENGINE_HANDLER_EXTENSIONS = [
+    "@legend_engine_src//:legend-engine-xts-service/legend-engine-language-pure-dsl-service/src/main/java/org/finos/legend/engine/language/pure/dsl/service/compiler/toPureGraph/ServiceCompilerExtensionImpl.java",
+]
+
 java_run(
     name = "gen_engine_handlers",
-    srcs = [_ENGINE_HANDLERS],
+    srcs = [_ENGINE_HANDLERS] + _ENGINE_HANDLER_EXTENSIONS,
     outs = ["generated/engine-handlers.tsv"],
-    arguments = [
-        "$(execpath %s)" % _ENGINE_HANDLERS,
+    arguments = ["$(execpath %s)" % f for f in [_ENGINE_HANDLERS] + _ENGINE_HANDLER_EXTENSIONS] + [
         "{OUT}",
     ],
     main_class = "com.legend.generators.EngineHandlersGenerator",

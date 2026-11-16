@@ -94,7 +94,10 @@ public final class PeRatchets {
                     + " 3211 -> 3248 on its branch and 3262 -> 3299 on 4dfbb5b76, re-measured on studio-compatibility-dev"
                     + " dd56026a2): its tests' models (M2MEnumTransformTest, M2MDeferredWallTest, JsonSourceToManyTest,"
                     + " BindingTransformerTest, DataSpaceIncludeTest, ModelJoinPureEndTest), measured by"
-                    + " //parser-equivalence:update_ratchets");
+                    + " //parser-equivalence:update_ratchets",
+            "own_corpus.matched 3300 -> 3307 (2026-11-16, the Studio roundtrip's compiler tier, the execution"
+                    + " environment): its test's model (ServiceExecutionEnvironmentTest's class, store, mapping,"
+                    + " connection, runtime, execution environment and function)");
 
     public static void main(String[] args) throws Exception {
         if (args.length != 1) {
