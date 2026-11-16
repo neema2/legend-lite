@@ -334,8 +334,9 @@ public final class PureMessages {
             return end < 0 ? message.substring(1) : message.substring(1, end);
         }
         if (e instanceof com.legend.error.MissingParameters m) {
-            // legend-engine's PlanExecutor
-            return "Missing external parameter(s): " + String.join(", ", m.missing())
+            // legend-engine's parameter validation, its exact join (4.145.0,
+            // FunctionParametersParametersValidation.java:52: makeString(","); F11, 2026-11-16)
+            return "Missing external parameter(s): " + String.join(",", m.missing())
                     + (m.rest() == null ? "" : "; " + m.rest());
         }
         // the kinded error itself, or the one a wrapper's message holds ("in function 'f': " + its message, and after
