@@ -299,7 +299,9 @@ class CompatSpellingGuardTest {
             "testplan/AgreementAsserts.java | EngineText | 1 | D1.7",
             "testplan/AssertVerdicts.java | EngineText | 3 | D1.7",
             "testplan/BodyDriver.java | EnginePlans | 1 | D1.7",
-            "testplan/BodyDriver.java | EngineText | 2 | D1.7",
+            // 2 -> 3 (2026-11-16, E-Java on D's hook fold a4ac096b5: a plan handle off the edge refused by name, asking
+            // the style for the engine test database's plan text before either judge plans the body)
+            "testplan/BodyDriver.java | EngineText | 3 | D1.7",
             "testplan/BodyDriver.java | withEngineText | 1 | D1.7",
             "testplan/SeedSqlForms.java | EngineText | 2 | D1.7",
             "testplan/Seeds.java | EnginePlans | 1 | D1.7",

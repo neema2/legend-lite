@@ -50,12 +50,24 @@ class DatabaseHalfDe5Test {
             )
             """;
 
+    /** The compatibility edge's options: the plan handle ({@code executionPlan}'s value, its nodes and text) is
+     *  legend-engine's, so a body that reads one runs on the edge's style (D's hook fold, a4ac096b5, 2026-11-16). */
+    private static final ExecuteOptions EDGE = ExecuteOptions.NONE.withStyle(com.legend.edge.PureText.UPSTREAM);
+
     private static String run(String model, String body, PlanningOptions.JudgeMode mode) {
+        return run(model, body, mode, ExecuteOptions.NONE);
+    }
+
+    private static String onTheEdge(String model, String body, PlanningOptions.JudgeMode mode) {
+        return run(model, body, mode, EDGE);
+    }
+
+    private static String run(String model, String body, PlanningOptions.JudgeMode mode, ExecuteOptions options) {
         try (Connection conn = TestBackends.platform().open()) {
             var ctx = Compiler.compileModel(StorelessRuntime.with(model, TestBackends.platform().type()));
             com.legend.TestExecution.runProgram(Compiler.query(ctx, body), StorelessRuntime.RUNTIME,
                     com.legend.exec.SessionSource.given(com.legend.testbackend.TestSessions.over(conn)), null, null,
-                    ExecuteOptions.NONE.withJudgeMode(mode));
+                    options.withJudgeMode(mode));
             return "PASS";
         } catch (Exception | AssertionError e) {
             return e.getClass().getSimpleName() + ": " + e.getMessage();
@@ -80,9 +92,9 @@ class DatabaseHalfDe5Test {
         String body = "{| let p = meta::pure::executionPlan::executionPlan(|p::B.all()->project([b|$b.x], ['x']),"
                 + " p::M, " + StorelessRuntime.RUNTIME + ".runtimeValue, []);"
                 + " assertNotEmpty($p.rootExecutionNode.executionNodes);}";
-        String host = run(UNMAPPED, body, PlanningOptions.JudgeMode.HOST);
+        String host = onTheEdge(UNMAPPED, body, PlanningOptions.JudgeMode.HOST);
         for (PlanningOptions.JudgeMode mode : PlanningOptions.JudgeMode.values()) {
-            String got = run(UNMAPPED, body, mode);
+            String got = onTheEdge(UNMAPPED, body, mode);
             assertTrue(got.startsWith("MappingResolutionException"), mode + ": " + got);
             assertEquals(host, got, mode + ": the host's own error");
         }
@@ -95,10 +107,10 @@ class DatabaseHalfDe5Test {
         String body = "{| assertEquals(1, 2); let p = meta::pure::executionPlan::executionPlan(|p::B.all()->project("
                 + "[b|$b.x], ['x']), p::M, " + StorelessRuntime.RUNTIME + ".runtimeValue, []);"
                 + " assertNotEmpty($p.rootExecutionNode.executionNodes);}";
-        String host = run(UNMAPPED, body, PlanningOptions.JudgeMode.HOST);
+        String host = onTheEdge(UNMAPPED, body, PlanningOptions.JudgeMode.HOST);
         assertTrue(host.startsWith("AssertFailed"), "HOST: " + host);
         for (PlanningOptions.JudgeMode mode : PlanningOptions.JudgeMode.values()) {
-            assertEquals(host, run(UNMAPPED, body, mode), mode + ": the earlier assert's failure first");
+            assertEquals(host, onTheEdge(UNMAPPED, body, mode), mode + ": the earlier assert's failure first");
         }
     }
 
@@ -108,10 +120,25 @@ class DatabaseHalfDe5Test {
         String body = "{| assertEquals(1, 1); let p = meta::pure::executionPlan::executionPlan(|p::B.all()->project("
                 + "[b|$b.x], ['x']), p::M, " + StorelessRuntime.RUNTIME + ".runtimeValue, []);"
                 + " assertNotEmpty($p.rootExecutionNode.executionNodes);}";
-        String host = run(UNMAPPED, body, PlanningOptions.JudgeMode.HOST);
+        String host = onTheEdge(UNMAPPED, body, PlanningOptions.JudgeMode.HOST);
         assertTrue(host.startsWith("MappingResolutionException"), "HOST: " + host);
         for (PlanningOptions.JudgeMode mode : PlanningOptions.JudgeMode.values()) {
-            assertEquals(host, run(UNMAPPED, body, mode), mode.toString());
+            assertEquals(host, onTheEdge(UNMAPPED, body, mode), mode.toString());
+        }
+    }
+
+    /** The product's style plans no plan handle: {@code executionPlan}'s value is legend-engine's, the compatibility
+     *  edge's alone, so on the product a body that binds one is refused BY NAME at that let, under every judge (D's
+     *  hook fold, 2026-11-16: "executionPlan with no edge is refused by name"). */
+    @Test
+    void aPlanHandleOnTheProductIsRefusedByNameUnderEveryJudge() {
+        String body = "{| let p = meta::pure::executionPlan::executionPlan(|p::A.all()->project([a|$a.x], ['x']),"
+                + " p::M, " + StorelessRuntime.RUNTIME + ".runtimeValue, []);"
+                + " assertNotEmpty($p.rootExecutionNode.executionNodes);}";
+        for (PlanningOptions.JudgeMode mode : PlanningOptions.JudgeMode.values()) {
+            String got = run(UNMAPPED, body, mode);
+            assertTrue(got.startsWith("NotImplementedException") && got.contains("compatibility edge"),
+                    mode + ": " + got);
         }
     }
 }

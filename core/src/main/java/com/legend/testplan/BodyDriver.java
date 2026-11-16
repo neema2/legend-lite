@@ -842,4 +842,31 @@ public final class BodyDriver {
                 + " computed text) would run a statement while the body is planned");
     }
 
+    /** A plan handle ({@code executionPlan}'s value: legend-engine's plan, its nodes and its text) is the compatibility
+     *  edge's alone (D's hook fold, a4ac096b5, 2026-11-16): on any other style the body is refused BY NAME before
+     *  either judge plans it -- the style's own refusal ({@code enginePlanText}), one place, so every judge reports the
+     *  same failure -- where it had walled late, in the store resolver, under a generic message. On the edge the call
+     *  answers its printer, which is not kept. */
+    static void refusePlanHandlesOffTheEdge(com.legend.TypedQuery typed, PlanningOptions options) {
+        for (com.legend.compiler.spec.typed.TypedSpec statement : typed.body()) {
+            if (bindsAPlanHandle(statement)) {
+                // the engine's own test database, whose plan text the edge prints (an engine test's plans name it)
+                options.style().enginePlanText(com.legend.planner.EngineText.ENGINE_TEST_DATABASE, false, null);
+                return;
+            }
+        }
+    }
+
+    private static boolean bindsAPlanHandle(com.legend.compiler.spec.typed.TypedSpec s) {
+        if (s instanceof com.legend.compiler.spec.typed.TypedNativeCall n
+                && com.legend.compiler.element.type.PlatformTypes.EXECUTION_PLAN.equals(n.callee().qualifiedName())) {
+            return true;
+        }
+        for (com.legend.compiler.spec.typed.TypedSpec c : s.children()) {
+            if (bindsAPlanHandle(c)) {
+                return true;
+            }
+        }
+        return false;
+    }
 }

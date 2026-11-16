@@ -42,6 +42,7 @@ public final class TestPlanner {
         String runtimeFqn = com.legend.planner.PlanMaker.runtimeOf(typed, given);
         SqlDialect dialect = options.style().dialect(com.legend.Compiler.executesOn(typed.context(),
                 runtimeFqn).type());
+        BodyDriver.refusePlanHandlesOffTheEdge(typed, options);
         // a test-data generator the body binds planned first (B2d.2, 2026-11-11): its reads the values they are, so the
         // body is classed and planned as any other
         // its texts print a timestamp as the body is judged (L9, the user's ruling of 2026-11-12): lite's own rules the

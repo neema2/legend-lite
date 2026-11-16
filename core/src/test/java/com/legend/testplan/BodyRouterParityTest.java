@@ -2037,7 +2037,11 @@ class BodyRouterParityTest {
                     ? ExecuteOptions.recording(new com.legend.edge.CompatEdge(recorder,
                             com.legend.executionplan.DataStores.none()), com.legend.executionplan.DataStores.none())
                             .withStyle(com.legend.edge.PureText.UPSTREAM)
-                    : ExecuteOptions.NONE).withJudgeMode(mode);
+                    // a body that binds a plan handle (executionPlan's value, legend-engine's) runs on the edge's
+                    // style: the product refuses it by name (D's hook fold, a4ac096b5, 2026-11-16)
+                    : body.contains("meta::pure::executionPlan::executionPlan(")
+                            ? ExecuteOptions.NONE.withStyle(com.legend.edge.PureText.UPSTREAM)
+                            : ExecuteOptions.NONE).withJudgeMode(mode);
             Capture capture = new Capture();
             // every statement the body sends, recorded on the connection it is handed (2026-11-09: the product's
             // process-wide observer is gone)
