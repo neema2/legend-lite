@@ -176,6 +176,34 @@ class ExecuteThreads(Served):
         # the next execute runs as ever
         self.assertEqual(self.arrow('->select(~[desk])')[1].num_rows, len(self.df))
 
+    def test_a_timeout_is_answered_as_any_other_database_error_on_the_route(self):
+        # the orchestrator's fidelity point (2026-11-16): upstream answers a timeout with the driver's own error, as any
+        # database error on the route -- so the timeout's kind and status are the route's database refusal's, its words
+        # its own (its type's name, then its message, as every database error's)
+        import duckdb
+        from legend_lite import engine
+        real = engine.run_arrow
+
+        def slow(cursor, sql, held_values, params=()):
+            return real(cursor, from_plan('SELECT sum(a.range) FROM range(4000000000) a'), held_values)
+
+        def refused(cursor, sql, held_values, params=()):
+            raise duckdb.ConversionException('Conversion Error: a value that does not convert')
+
+        timed = json.loads(self.execute_input(self.query('->select(~[desk])')))
+        timed['context']['queryTimeOutInSeconds'] = 1
+        answers = []
+        for run, body in ((slow, json.dumps(timed)), (refused, self.execute_input(self.query('->select(~[desk])')))):
+            with mock.patch.object(engine, 'run_arrow', run):
+                status, headers, said = self.post(self.EXECUTE, body)
+            answers.append((status, headers.get('Content-Type'), json.loads(said)))
+        (t_status, t_type, t_said), (d_status, d_type, d_said) = answers
+        self.assertEqual((t_status, t_type, sorted(t_said)), (d_status, d_type, sorted(d_said)))
+        self.assertEqual({k: v for k, v in t_said.items() if k != 'message'},
+                         {k: v for k, v in d_said.items() if k != 'message'})
+        self.assertTrue(t_said['message'].startswith('QueryTimedOut: '), t_said)
+        self.assertTrue(d_said['message'].startswith('ConversionException: '), d_said)
+
     def test_a_query_timeout_that_is_no_number_of_seconds_is_refused_by_name(self):
         body = json.loads(self.execute_input(self.query('->select(~[desk])')))
         body['context']['queryTimeOutInSeconds'] = 'soon'
