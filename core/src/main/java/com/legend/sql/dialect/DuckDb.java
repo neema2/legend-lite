@@ -1340,7 +1340,10 @@ public class DuckDb extends AnsiSqlRenderer {
     @SpellingArm
     protected SqlWriter floatToText(SqlWriter writer, SqlExpr x) {
         writer.append("replace(replace(");
-        trimmedSix(writer, "rtrim", w -> w.append("printf('%.6f', ").expr(asDouble(x), 0).append(")"));
+        // from 1e17 the double's own text, its shortest digits (W3 of docs/records/d-plan-2026-11-16.md: printf wrote
+        // the exact binary expansion, the probe, 2026-11-16)
+        shortestWhenHuge(writer, x, w -> trimmedSix(w, "rtrim", t -> t.append("printf('%.6f', ").expr(asDouble(x), 0)
+                .append(")")));
         return writer.append(", 'nan', 'NaN'), 'inf', 'Infinity')");
     }
 }

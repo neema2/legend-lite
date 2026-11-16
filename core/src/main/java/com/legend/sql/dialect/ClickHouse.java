@@ -72,11 +72,14 @@ public class ClickHouse extends AnsiSqlRenderer {
      *  held back once its select was a side of a hash join (the PCT's channel B verdict of {@code
      *  testExtendLeadAdjustDerivedOffset} and {@code testProjectExtendNestedIfLeadAdjust}: a lead's date adjusted, its
      *  date guard raised in the join of the expected and actual cells, each side answering alone; measured 2026-11-09
-     *  on 26.3.60.2 with {@code clickhouse local}, the lane round on PR #81). */
+     *  on 26.3.60.2 with {@code clickhouse local}, the lane round on PR #81). And a text read as a Float64 is the
+     *  double nearest it ({@code precise_float_parsing}; W3 of docs/records/d-plan-2026-11-16.md, 2026-11-16): the
+     *  default fast parse read 1.234567890123457e40 as 1.2345678901234566e40, so a Float's shortest digits, chosen by
+     *  which text reads back as the value, were not. */
     static final String SETTINGS = "SETTINGS join_use_nulls = 1, union_default_mode = 'DISTINCT',"
             + " cast_keep_nullable = 1, session_timezone = 'UTC', query_plan_merge_expressions = 0,"
             + " query_plan_filter_push_down = 0, optimize_functions_to_subcolumns = 0,"
-            + " query_plan_use_new_logical_join_step = 0";
+            + " query_plan_use_new_logical_join_step = 0, precise_float_parsing = 1";
 
     /** The setting of correlated subqueries, experimental on 25.8 and ON by default there (measured 2026-10-13): a
      *  correlated EXISTS answers false for an outer row whose correlated column is NULL, whatever the filter (o.v IS
@@ -3287,10 +3290,37 @@ public class ClickHouse extends AnsiSqlRenderer {
     @Override
     @SpellingArm
     protected SqlWriter floatToText(SqlWriter writer, SqlExpr x) {
-        writer.append("replaceAll(replaceAll(");
-        // from 1e17 the double's own text, its shortest digits (W3: printf wrote the exact binary expansion, round 57)
-        shortestWhenHuge(writer, x, w -> trimmedSixStandard(w, t -> t.append("printf('%.6f', ").expr(asDouble(x), 0)
-                .append(")")));
+        writer.append("replaceAll(replaceAll(CASE WHEN abs(").expr(asDouble(x), 0).append(") >= 1e17 AND isFinite(")
+                .expr(asDouble(x), 0).append(") THEN ");
+        hugePlain(writer, x);
+        writer.append(" ELSE ");
+        trimmedSixStandard(writer, t -> t.append("printf('%.6f', ").expr(asDouble(x), 0).append(")"));
+        writer.append(" END");
         return writer.append(", 'nan', 'NaN'), 'inf', 'Infinity')");
+    }
+
+    /** A Float from {@link #SHORTEST_FROM} up as plain digits (W3 of docs/records/d-plan-2026-11-16.md, register S311):
+     *  its shortest round-trip digits -- the fewest of 15, 16 and 17 whose text reads back as the value (printf wrote the
+     *  exact binary expansion, round 57; toString a 17-digit text that reads back but is not the closest, 1.2345678901234568e40
+     *  for Java's ...566, the probe 2026-11-16) -- the mantissa's digits padded with zeros to the exponent. */
+    private void hugePlain(SqlWriter writer, SqlExpr x) {
+        java.util.function.Consumer<SqlWriter> sci = w -> {
+            w.append("multiIf(");
+            for (int d = 14; d <= 15; d++) {
+                w.append("toFloat64(printf('%.").append(String.valueOf(d)).append("e', ").expr(asDouble(x), 0)
+                        .append(")) = ").expr(asDouble(x), 0).append(", printf('%.").append(String.valueOf(d))
+                        .append("e', ").expr(asDouble(x), 0).append("), ");
+            }
+            w.append("printf('%.16e', ").expr(asDouble(x), 0).append("))");
+        };
+        writer.append("concat(if(").expr(asDouble(x), 0).append(" < 0, '-', ''), rightPad(replaceAll(replaceAll(substring(");
+        sci.accept(writer);
+        writer.append(", 1, position(");
+        sci.accept(writer);
+        writer.append(", 'e') - 1), '.', ''), '-', ''), toUInt32(toInt32(replaceAll(substring(");
+        sci.accept(writer);
+        writer.append(", position(");
+        sci.accept(writer);
+        writer.append(", 'e') + 1), '+', '')) + 1), '0'))");
     }
 }
