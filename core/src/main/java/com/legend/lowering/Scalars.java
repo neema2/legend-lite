@@ -3892,7 +3892,7 @@ final class Scalars {
      *  1.0; %2025-02-10 and %2025-02-10T00:00:00; two enumerations' values of one name). A computed element of such a
      *  family is not known here: answered, a tie it makes at run time a known limit until the run-time kind carrier
      *  (O2 step 3) answers it as legend-pure does.
-     *  A literal number the DOUBLE rank does not hold exactly is refused too (B2: the rank would order it wrongly). */
+     *  Two literal numbers the DOUBLE rank holds as one value are refused too (B2: the rank would order them wrongly). */
     private static void refuseRealTies(TypedSpec arg, String what) {
         if (arg instanceof TypedCollection c) {
             refuseRealTies(c.elements(), what);
@@ -3903,6 +3903,7 @@ final class Scalars {
     private static void refuseRealTies(List<TypedSpec> elements, String what) {
         // family -> (kind -> the literal values of that kind); a computed element is a null value
         java.util.Map<String, java.util.Map<String, List<Object>>> families = new java.util.TreeMap<>();
+        java.util.Map<Double, java.math.BigDecimal> byDouble = new java.util.HashMap<>();
         for (TypedSpec e : elements) {
             String kind = numberKind(e);
             String family = "number";
@@ -3918,10 +3919,17 @@ final class Scalars {
                 continue;
             }
             Object value = tieKey(e);
-            if (family.equals("number") && value instanceof java.math.BigDecimal bd && !exactInADouble(bd)) {
-                throw new com.legend.error.NotImplementedException("the " + what + " of a mixed list holding the "
-                        + kind + " " + bd.toPlainString() + ": its numbers are ranked as DOUBLE, which does not hold"
-                        + " it exactly (refused until the kinds-kept carrier ranks numbers exactly)");
+            if (family.equals("number") && value instanceof java.math.BigDecimal bd) {
+                // the DOUBLE rank keeps the order of distinct values unless two of them round to one double (B2: 2^53
+                // and 2^53+1; two Decimals one double apart from neither): refused only on that collision, never for
+                // a value the double merely does not hold (1.23D orders right)
+                java.math.BigDecimal other = byDouble.putIfAbsent(bd.doubleValue(), bd);
+                if (other != null && other.compareTo(bd) != 0) {
+                    throw new com.legend.error.NotImplementedException("the " + what + " of a mixed list holding "
+                            + other.toPlainString() + " and " + bd.toPlainString() + ": its numbers are ranked as"
+                            + " DOUBLE, which holds both as one value (refused until the kinds-kept carrier ranks"
+                            + " numbers exactly)");
+                }
             }
             java.util.List<Object> values = families.computeIfAbsent(family, k -> new java.util.TreeMap<>())
                     .computeIfAbsent(kind, k -> new java.util.ArrayList<>());
@@ -3981,12 +3989,6 @@ final class Scalars {
                         && tieKey(e.children().get(0)) instanceof java.math.BigDecimal b ? b.negate() : null;
             }
         };
-    }
-
-    /** Whether the double nearest {@code d} is {@code d} itself. */
-    private static boolean exactInADouble(java.math.BigDecimal d) {
-        double x = d.doubleValue();
-        return Double.isFinite(x) && new java.math.BigDecimal(x).compareTo(d) == 0;
     }
 
     /** {@code e}'s date kind (StrictDate, DateTime, Date) by its static type; null for any other. */

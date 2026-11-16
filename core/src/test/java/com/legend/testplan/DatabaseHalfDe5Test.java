@@ -87,4 +87,31 @@ class DatabaseHalfDe5Test {
             assertEquals(host, got, mode + ": the host's own error");
         }
     }
+
+    /** The PR1 re-review's B1 (G2): an assert BEFORE the let runs and reports first, under every judge as under the
+     *  host: the let's model error is held for the next assert's turn, never raised at planning ahead of it. */
+    @Test
+    void anAssertBeforeALetsModelErrorReportsFirstUnderEveryJudge() {
+        String body = "{| assertEquals(1, 2); let p = meta::pure::executionPlan::executionPlan(|p::B.all()->project("
+                + "[b|$b.x], ['x']), p::M, " + StorelessRuntime.RUNTIME + ".runtimeValue, []);"
+                + " assertNotEmpty($p.rootExecutionNode.executionNodes);}";
+        String host = run(UNMAPPED, body, PlanningOptions.JudgeMode.HOST);
+        assertTrue(host.startsWith("AssertFailed"), "HOST: " + host);
+        for (PlanningOptions.JudgeMode mode : PlanningOptions.JudgeMode.values()) {
+            assertEquals(host, run(UNMAPPED, body, mode), mode + ": the earlier assert's failure first");
+        }
+    }
+
+    /** B1's other half: a passing assert before the let, then the let's model error at the next assert's turn. */
+    @Test
+    void aLetsModelErrorAfterAPassingAssertRaisesAtTheNextAssertUnderEveryJudge() {
+        String body = "{| assertEquals(1, 1); let p = meta::pure::executionPlan::executionPlan(|p::B.all()->project("
+                + "[b|$b.x], ['x']), p::M, " + StorelessRuntime.RUNTIME + ".runtimeValue, []);"
+                + " assertNotEmpty($p.rootExecutionNode.executionNodes);}";
+        String host = run(UNMAPPED, body, PlanningOptions.JudgeMode.HOST);
+        assertTrue(host.startsWith("MappingResolutionException"), "HOST: " + host);
+        for (PlanningOptions.JudgeMode mode : PlanningOptions.JudgeMode.values()) {
+            assertEquals(host, run(UNMAPPED, body, mode), mode.toString());
+        }
+    }
 }

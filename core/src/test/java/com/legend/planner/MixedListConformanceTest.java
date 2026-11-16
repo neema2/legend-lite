@@ -67,6 +67,8 @@ class MixedListConformanceTest {
         CASES.put("|['b', 1, 2.5]->min()", "[{\"value\":1}]");
         CASES.put("|[-1, 2.5]->max()", "[{\"value\":2.5}]");
         CASES.put("|[-1, 2.5]->min()", "[{\"value\":-1}]");
+        // B2 refuses only a collision: a Decimal the double does not hold, alone, orders right
+        CASES.put("|[1.23D, 2, 0.5]->min()", "[{\"value\":0.5}]");
     }
 
     @Test
@@ -141,8 +143,8 @@ class MixedListConformanceTest {
         for (String[] c : new String[][] {{"|['b', 1, 0.1D]->sort()", "the Decimal 0.1 (not exact as a DOUBLE)"},
                 {"|['b', 9007199254740993, 9007199254740992]->sort()", "the integer 9007199254740993 (not exact"},
                 // B2: a Number list's extreme ranks as DOUBLE too (the mixed-elements route)
-                {"|[9007199254740992, 9007199254740993, 0.5]->max()", "Integer 9007199254740993: its numbers are"},
-                {"|[1.00000000000000001D, 1.00000000000000002D, 0.5]->min()", "Decimal 1.00000000000000001: its"},
+                {"|[9007199254740992, 9007199254740993, 0.5]->max()", "9007199254740992 and 9007199254740993: its"},
+                {"|[1.00000000000000001D, 1.00000000000000002D, 0.5]->min()", "1.00000000000000001 and 1.000000000"},
                 // B4: a real literal tie across number kinds
                 {"|['b', 1, 1.0]->max()", "two of its elements of different kinds compare equal"},
                 {"|[1, 1.0, 2.5]->min()", "two of its elements of different kinds compare equal"}}) {
