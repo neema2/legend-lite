@@ -209,8 +209,10 @@ class ProductRaiseProbeTest {
         cases.put("123456789.123456789 * 3.0", 123456789.123456789 * 3.0);
         for (Map.Entry<String, Double> c : cases.entrySet()) {
             String label = "the carrier of " + c.getKey();
-            Object got = run(backend, label, "|#TDS\n  k:Integer\n  1\n#->extend(~t: r|[" + c.getKey()
-                    + ", -1.0]->max())->select(~t)->from(" + StorelessRuntime.RUNTIME + ")");
+            // the double itself, a Float column's cell: a literal's arithmetic is the decimal of its digits on a
+            // database that types the literal (the numeric charter), which is not the carrier under test
+            Object got = run(backend, label, "|#TDS\n  x:Float\n  " + c.getValue()
+                    + "\n#->extend(~t: r|[$r.x, -1.0]->max())->select(~t)->from(" + StorelessRuntime.RUNTIME + ")");
             System.out.println("[product raise probe] " + backend.name() + " " + label + ", answered: " + describe(got));
             if (got instanceof com.legend.sql.DialectCapability dc
                     && String.valueOf(dc.getMessage()).contains("list encoding")) {
