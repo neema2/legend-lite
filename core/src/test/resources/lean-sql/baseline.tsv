@@ -25,7 +25,7 @@ channel_a	BigQuery	TypedRename	1	224	3344	1	0	0
 channel_a	BigQuery	TypedSelect	8	3955	49629	11	535	0
 channel_a	BigQuery	TypedSlice	7	2521	18064	13	645	0
 channel_a	BigQuery	TypedSort	17	16157	123445	57	4278	0
-channel_a	BigQuery	TypedWrite	1	354	5568	3	0	0
+channel_a	BigQuery	TypedWrite	1	255	4127	2	0	0
 channel_a	BigQuery	let	244	284652	2552431	661	43431	0
 channel_a	BigQuery	meta::pure::functions::boolean::and_Boolean_1__Boolean_1__Boolean_1_	0	0	5135	0	0	0
 channel_a	BigQuery	meta::pure::functions::boolean::between_Date_$0_1$__Date_$0_1$__Date_$0_1$__Boolean_1_	21	3161	47089	0	0	0
@@ -336,7 +336,7 @@ channel_a	ClickHouse	TypedRename	1	534	3671	0	0	0
 channel_a	ClickHouse	TypedSelect	8	6522	52432	1	454	0
 channel_a	ClickHouse	TypedSlice	7	3639	19221	0	0	0
 channel_a	ClickHouse	TypedSort	17	17398	125427	3	550	0
-channel_a	ClickHouse	TypedWrite	1	683	5926	2	0	0
+channel_a	ClickHouse	TypedWrite	1	584	4465	1	0	0
 channel_a	ClickHouse	let	244	423255	2705493	301	98688	0
 channel_a	ClickHouse	meta::pure::functions::boolean::and_Boolean_1__Boolean_1__Boolean_1_	0	0	5135	0	0	0
 channel_a	ClickHouse	meta::pure::functions::boolean::between_Date_$0_1$__Date_$0_1$__Date_$0_1$__Boolean_1_	13	6737	33932	0	600	8
@@ -647,7 +647,7 @@ channel_a	Databricks	TypedRename	1	154	3320	0	0	0
 channel_a	Databricks	TypedSelect	8	2909	48951	3	263	0
 channel_a	Databricks	TypedSlice	7	994	16829	0	0	0
 channel_a	Databricks	TypedSort	17	9405	117502	21	705	0
-channel_a	Databricks	TypedWrite	1	277	5537	2	0	0
+channel_a	Databricks	TypedWrite	1	178	4096	1	0	0
 channel_a	Databricks	let	244	211277	2490012	375	25963	0
 channel_a	Databricks	meta::pure::functions::boolean::and_Boolean_1__Boolean_1__Boolean_1_	0	0	5135	0	0	0
 channel_a	Databricks	meta::pure::functions::boolean::between_Date_$0_1$__Date_$0_1$__Date_$0_1$__Boolean_1_	21	3213	48107	0	0	0
@@ -958,7 +958,7 @@ channel_a	DuckDB	TypedRename	1	133	3305	0	0	0
 channel_a	DuckDB	TypedSelect	8	2284	48374	1	221	0
 channel_a	DuckDB	TypedSlice	7	785	16662	0	0	0
 channel_a	DuckDB	TypedSort	17	18092	126298	12	6214	0
-channel_a	DuckDB	TypedWrite	1	210	5476	2	0	0
+channel_a	DuckDB	TypedWrite	1	154	4078	1	0	0
 channel_a	DuckDB	let	244	174818	2453742	162	20443	0
 channel_a	DuckDB	meta::pure::functions::boolean::and_Boolean_1__Boolean_1__Boolean_1_	0	0	5135	0	0	0
 channel_a	DuckDB	meta::pure::functions::boolean::between_Date_$0_1$__Date_$0_1$__Date_$0_1$__Boolean_1_	21	3327	48347	0	0	0
@@ -1269,7 +1269,7 @@ channel_a	H2	TypedRename	1	151	3871	0	0	0
 channel_a	H2	TypedSelect	8	2552	53150	1	257	0
 channel_a	H2	TypedSlice	5	778	12598	2	0	2
 channel_a	H2	TypedSort	13	4664	76739	3	111	4
-channel_a	H2	TypedWrite	1	274	6102	2	0	0
+channel_a	H2	TypedWrite	1	175	4641	1	0	0
 channel_a	H2	let	203	127848	1608382	161	19802	41
 channel_a	H2	meta::pure::functions::boolean::and_Boolean_1__Boolean_1__Boolean_1_	0	0	5135	0	0	0
 channel_a	H2	meta::pure::functions::boolean::between_Date_$0_1$__Date_$0_1$__Date_$0_1$__Boolean_1_	21	3369	59561	0	0	0
@@ -1580,7 +1580,7 @@ channel_a	MariaDB	TypedRename	1	209	3832	1	0	0
 channel_a	MariaDB	TypedSelect	8	3617	53498	11	419	0
 channel_a	MariaDB	TypedSlice	7	3717	22887	15	1207	0
 channel_a	MariaDB	TypedSort	17	108215	231570	52	59565	0
-channel_a	MariaDB	TypedWrite	1	334	6065	3	0	0
+channel_a	MariaDB	TypedWrite	1	235	4604	2	0	0
 channel_a	MariaDB	let	244	260986	2657987	614	50212	0
 channel_a	MariaDB	meta::pure::functions::boolean::and_Boolean_1__Boolean_1__Boolean_1_	0	0	5135	0	0	0
 channel_a	MariaDB	meta::pure::functions::boolean::between_Date_$0_1$__Date_$0_1$__Date_$0_1$__Boolean_1_	21	3785	57940	0	1035	0
@@ -1891,7 +1891,7 @@ channel_a	MySQL	TypedRename	1	209	3783	1	0	0
 channel_a	MySQL	TypedSelect	8	3617	53106	11	419	0
 channel_a	MySQL	TypedSlice	7	5075	23990	25	1715	0
 channel_a	MySQL	TypedSort	17	143650	268914	85	80632	0
-channel_a	MySQL	TypedWrite	1	334	6016	3	0	0
+channel_a	MySQL	TypedWrite	1	235	4555	2	0	0
 channel_a	MySQL	let	244	325334	2711188	725	78606	0
 channel_a	MySQL	meta::pure::functions::boolean::and_Boolean_1__Boolean_1__Boolean_1_	0	0	5135	0	0	0
 channel_a	MySQL	meta::pure::functions::boolean::between_Date_$0_1$__Date_$0_1$__Date_$0_1$__Boolean_1_	21	3785	56911	0	1035	0
@@ -2202,7 +2202,7 @@ channel_a	Postgres	TypedRename	1	151	3309	0	0	0
 channel_a	Postgres	TypedSelect	8	2573	48675	1	257	0
 channel_a	Postgres	TypedSlice	7	1497	17264	8	0	0
 channel_a	Postgres	TypedSort	17	16245	124905	70	3665	0
-channel_a	Postgres	TypedWrite	1	274	5540	2	0	0
+channel_a	Postgres	TypedWrite	1	175	4079	1	0	0
 channel_a	Postgres	let	241	218995	2462241	379	33942	3
 channel_a	Postgres	meta::pure::functions::boolean::and_Boolean_1__Boolean_1__Boolean_1_	0	0	5135	0	0	0
 channel_a	Postgres	meta::pure::functions::boolean::between_Date_$0_1$__Date_$0_1$__Date_$0_1$__Boolean_1_	21	3213	47603	0	0	0
@@ -2513,7 +2513,7 @@ channel_a	SQLite	TypedRename	1	168	3263	1	0	0
 channel_a	SQLite	TypedSelect	8	2969	48443	9	296	0
 channel_a	SQLite	TypedSlice	7	3158	18524	35	885	0
 channel_a	SQLite	TypedSort	17	37697	145051	69	10938	0
-channel_a	SQLite	TypedWrite	1	288	5477	3	0	0
+channel_a	SQLite	TypedWrite	1	209	4056	2	0	0
 channel_a	SQLite	let	243	223574	2479642	841	31647	1
 channel_a	SQLite	meta::pure::functions::boolean::and_Boolean_1__Boolean_1__Boolean_1_	0	0	5135	0	0	0
 channel_a	SQLite	meta::pure::functions::boolean::between_Date_$0_1$__Date_$0_1$__Date_$0_1$__Boolean_1_	21	2647	46050	0	0	0
@@ -2824,7 +2824,7 @@ channel_a	Snowflake	TypedRename	1	151	3520	0	0	0
 channel_a	Snowflake	TypedSelect	8	2787	50577	1	399	0
 channel_a	Snowflake	TypedSlice	7	1978	19184	0	400	0
 channel_a	Snowflake	TypedSort	17	10481	122556	8	1130	0
-channel_a	Snowflake	TypedWrite	1	274	5751	2	0	0
+channel_a	Snowflake	TypedWrite	1	175	4290	1	0	0
 channel_a	Snowflake	let	244	217318	2548621	162	39004	0
 channel_a	Snowflake	meta::pure::functions::boolean::and_Boolean_1__Boolean_1__Boolean_1_	0	0	5135	0	0	0
 channel_a	Snowflake	meta::pure::functions::boolean::between_Date_$0_1$__Date_$0_1$__Date_$0_1$__Boolean_1_	21	3369	52190	0	0	0
@@ -3135,7 +3135,7 @@ channel_a	Trino	TypedRename	1	196	3352	0	0	0
 channel_a	Trino	TypedSelect	8	3477	49609	3	266	0
 channel_a	Trino	TypedSlice	7	1629	17372	0	0	0
 channel_a	Trino	TypedSort	17	10644	119062	7	949	0
-channel_a	Trino	TypedWrite	1	319	5583	2	0	0
+channel_a	Trino	TypedWrite	1	220	4122	1	0	0
 channel_a	Trino	let	244	232982	2518567	175	48279	0
 channel_a	Trino	meta::pure::functions::boolean::and_Boolean_1__Boolean_1__Boolean_1_	0	0	5135	0	0	0
 channel_a	Trino	meta::pure::functions::boolean::between_Date_$0_1$__Date_$0_1$__Date_$0_1$__Boolean_1_	21	3369	47717	0	0	0
@@ -3482,7 +3482,7 @@ core	DuckDB	TypedTableReference	3	274	7426	0	0	0
 core	DuckDB	TypedTds	8	767	14906	0	0	0
 core	DuckDB	TypedUpdate	8	1188	8490	11	0	0
 core	DuckDB	TypedVariable	2	684	6766	0	120	0
-core	DuckDB	TypedWrite	34	4354	44524	10	115	0
+core	DuckDB	TypedWrite	34	4242	41728	8	115	0
 core	DuckDB	let	458	111361	4953866	248	9854	0
 core	DuckDB	meta::legend::lite::deleteInstances_Relation_1__Class_1__ColSpec_1__Integer_1_	2	118	1869	1	0	0
 core	DuckDB	meta::legend::lite::link_Relation_1__Class_1__ColSpec_1__ColSpec_1__Integer_1_	4	560	4064	2	0	0
