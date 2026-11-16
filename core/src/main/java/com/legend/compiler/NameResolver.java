@@ -257,6 +257,11 @@ public final class NameResolver {
             resolved.add(r);
             changed |= r != el;
         }
+        List<PackageableElement> spliced = resolveDataSpaceIncludes(resolved, wallSink);
+        if (spliced != resolved) {
+            resolved = spliced;
+            changed = true;
+        }
         return !changed ? model
                 : new ParsedModel(resolved, model.imports(),
                         model.source(), model.elementOffsets(), model.elementImports(),
@@ -1128,7 +1133,88 @@ public final class NameResolver {
         String resolved = resolveName(inc.mappingPath(), scope);
         List<StoreSubstitution> subs = resolveStoreSubstitutions(inc.substitutions(), scope);
         return (resolved.equals(inc.mappingPath()) && subs == inc.substitutions()) ? inc
-                : new MappingInclude(resolved, subs);
+                : new MappingInclude(resolved, subs, inc.dataSpace());
+    }
+
+    /**
+     * Every {@code include dataspace X} marker rewritten, once, to the include of X's default execution context's
+     * mapping (engine {@code DataSpaceIncludedMappingHandler.resolveMapping}), after every element's names resolved
+     * (the data space's mapping and the marker's path are FQNs then): no walker of a mapping's includes past name
+     * resolution meets a marker. Refused by name, as the engine refuses: a path naming no data space, a data space
+     * with no default execution context; and a default context that names a mapping provider (lite includes a
+     * mapping). Returns {@code elements} itself when no mapping has a marker.
+     */
+    private static List<PackageableElement> resolveDataSpaceIncludes(List<PackageableElement> elements,
+            java.util.@com.legend.base.Nullable Map<String, String> wallSink) {
+        java.util.Map<String, PackageableElement> byPath = null;
+        List<PackageableElement> out = elements;
+        for (int i = 0; i < elements.size(); i++) {
+            PackageableElement el = elements.get(i);
+            List<MappingInclude> includes = el instanceof LegacyMappingDefinition md ? md.includes()
+                    : el instanceof com.legend.model.CleanSheetMappingDefinition cs ? cs.includes() : List.of();
+            if (includes.stream().noneMatch(MappingInclude::dataSpace)) {
+                continue;
+            }
+            if (byPath == null) {
+                byPath = new java.util.HashMap<>();
+                for (PackageableElement e : elements) {
+                    byPath.putIfAbsent(e.qualifiedName(), e);
+                }
+            }
+            List<MappingInclude> rewritten = new ArrayList<>(includes.size());
+            try {
+                for (MappingInclude inc : includes) {
+                    rewritten.add(inc.dataSpace() ? dataSpaceMapping(inc.mappingPath(), byPath) : inc);
+                }
+            } catch (com.legend.error.ModelException e) {
+                if (wallSink == null) {
+                    throw new com.legend.error.ModelException(e.phase(), e.getMessage(), ParsedModel.keyOf(el));
+                }
+                // POISON-NOT-DROP, as the element loop above: the mapping stays, its marker unrewritten, walled
+                wallSink.putIfAbsent(ParsedModel.keyOf(el), String.valueOf(e.getMessage()).split("\n")[0]);
+                continue;
+            }
+            PackageableElement r = el instanceof LegacyMappingDefinition md
+                    ? new LegacyMappingDefinition(md.qualifiedName(), rewritten, md.classMappings(),
+                            md.associationMappings(), md.enumerationMappings())
+                    : new com.legend.model.CleanSheetMappingDefinition(el.qualifiedName(), rewritten,
+                            ((com.legend.model.CleanSheetMappingDefinition) el).classBindings(),
+                            ((com.legend.model.CleanSheetMappingDefinition) el).associationBindings(),
+                            ((com.legend.model.CleanSheetMappingDefinition) el).enumerationMappings());
+            if (out == elements) {
+                out = new ArrayList<>(elements);
+            }
+            out.set(i, r);
+        }
+        return out;
+    }
+
+    /** The include of data space {@code path}'s default execution context's mapping. */
+    private static MappingInclude dataSpaceMapping(String path,
+            java.util.Map<String, PackageableElement> byPath) {
+        PackageableElement e = byPath.get(path);
+        if (!(e instanceof com.legend.model.DataSpaceDefinition ds)) {
+            throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.RESOLVE,
+                    e == null ? "Can't find the packageable element '" + path + "' (an include dataspace)"
+                            : "include dataspace '" + path + "' names a " + e.getClass().getSimpleName()
+                                    + ", not a data space");
+        }
+        if (ds.defaultExecutionContext() == null) {
+            throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.RESOLVE,
+                    "Dataspace " + path + " has no default execution context and cannot be included as a mapping.");
+        }
+        com.legend.model.DataSpaceDefinition.ExecutionContext ctx = ds.executionContexts().stream()
+                .filter(c -> c.name().equals(ds.defaultExecutionContext())).findFirst()
+                .orElseThrow(() -> new com.legend.error.ModelException(
+                        com.legend.error.LegendCompileException.Phase.RESOLVE, "Dataspace " + path
+                        + "'s default execution context '" + ds.defaultExecutionContext()
+                        + "' is not one of its execution contexts"));
+        if (ctx.mapping() == null) {
+            throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.RESOLVE,
+                    "Dataspace " + path + "'s default execution context '" + ctx.name() + "' names a mapping"
+                    + " provider, not a mapping: lite includes a data space's mapping only");
+        }
+        return new MappingInclude(ctx.mapping(), List.of());
     }
 
     private static List<MappingInclude> resolveMappingIncludes(
@@ -1332,8 +1418,10 @@ public final class NameResolver {
         return switch (pm) {
             case PropertyMapping.Column c -> {
                 String db = resolveName(c.database(), scope);
-                yield db.equals(c.database()) ? c
-                        : new PropertyMapping.Column(c.propertyName(), db, c.table(), c.column());
+                String binding = c.binding() == null ? null : resolveName(c.binding(), scope);
+                yield db.equals(c.database()) && java.util.Objects.equals(binding, c.binding()) ? c
+                        : new PropertyMapping.Column(c.propertyName(), db, c.table(), c.column(),
+                                binding);
             }
             case PropertyMapping.EnumeratedExpression ee -> ee;
             case PropertyMapping.EnumeratedColumn ec -> {
@@ -1353,15 +1441,18 @@ public final class NameResolver {
                 String db = resolveName(jtc.database(), scope);
                 List<JoinChainElement> joins = resolveJoinChain(jtc.joins(), scope);
                 RelationalOperation term = resolveRelOp(jtc.terminalColumn(), scope);
+                String binding = jtc.binding() == null ? null : resolveName(jtc.binding(), scope);
                 yield (db.equals(jtc.database()) && joins == jtc.joins()
-                        && term == jtc.terminalColumn()) ? jtc
+                        && term == jtc.terminalColumn()
+                        && java.util.Objects.equals(binding, jtc.binding())) ? jtc
                         : new PropertyMapping.JoinTerminalColumn(jtc.propertyName(),
-                                db, joins, nn(term), jtc.enumMappingId(), jtc.enumMapped());
+                                db, joins, nn(term), jtc.enumMappingId(), jtc.enumMapped(), binding);
             }
             case PropertyMapping.Expression e -> {
                 RelationalOperation expr = resolveRelOp(e.expression(), scope);
-                yield expr == e.expression() ? e
-                        : new PropertyMapping.Expression(e.propertyName(), nn(expr));
+                String binding = e.binding() == null ? null : resolveName(e.binding(), scope);
+                yield expr == e.expression() && java.util.Objects.equals(binding, e.binding()) ? e
+                        : new PropertyMapping.Expression(e.propertyName(), nn(expr), binding);
             }
             case PropertyMapping.Embedded e -> {
                 List<PropertyMapping> subs = resolvePropertyMappingList(

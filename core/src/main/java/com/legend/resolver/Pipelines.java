@@ -123,6 +123,32 @@ public final class Pipelines {
                 ? c.args().get(0) : n;
     }
 
+    /**
+     * An embedded instance seen through its wrappers, for a LEAF read through it: {@code toOne}/{@code trustOne}
+     * ({@link #unwrapToOne}), and a semi-structured object's emptiness guard -- {@code if(isEmpty($v), |[],
+     * |^C(...))} over a Variant {@code $v}, the normalizer's decode of a Binding transformer (VariantDecode). Every
+     * leaf of that instance reads a key of {@code $v}, so a leaf read through the guard is the instance's leaf: empty
+     * when the object is. Any other shape is returned unwrapped of toOne only; the guard is never looked through
+     * where the WHOLE instance is the value (graph output keeps it, and stays loud).
+     */
+    static TypedSpec embeddedView(TypedSpec n) {
+        TypedSpec u = unwrapToOne(n);
+        if (u instanceof com.legend.compiler.spec.typed.TypedIf i
+                && i.elseBranch().isPresent()
+                && i.elseBranch().get() instanceof com.legend.compiler.spec.typed.TypedNewInstance ctor
+                && i.thenBranch() instanceof com.legend.compiler.spec.typed.TypedCollection none
+                && none.elements().isEmpty()
+                && i.condition() instanceof com.legend.compiler.spec.typed.TypedNativeCall c
+                && c.args().size() == 1
+                && com.legend.builtin.Pure.AT_COLLECTION_IS_EMPTY.contains(c.callee().id())
+                && com.legend.compiler.element.type.Type.asClassType(c.args().get(0).info().type())
+                        instanceof com.legend.compiler.element.type.Type.ClassType vt
+                && com.legend.compiler.element.type.PlatformTypes.isVariant(vt)) {
+            return ctor;
+        }
+        return u;
+    }
+
     private Pipelines() {
     }
 

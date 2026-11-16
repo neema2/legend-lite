@@ -38,10 +38,11 @@ final class StressExclusions {
             "the services over 55-canonical-store.pure's M2M mappings and runtimes, so they fall with it.",
             // 2026-10-30, the improvement plan's Phase 5: the M2M pack's enumeration transforms and passthrough, apart
             // from 8114-m2m.pure, which lite loads (the user's choice: exclude them rather than defer them in lite)
+            // 2026-11-14: its enumeration transforms compile and execute now (the Studio roundtrip's normalizer
+            // session, M2MEnumTransformTest); TradeLink's passthrough keeps the file out
             "8115-m2m-gaps.pure",
-            "M2M enum transformer 'EnumerationMapping M2MSide' is a roadmap feature, and a class-typed property "
-                    + "mapped with no set (a passthrough) 'targets unmapped class': both refused by the mapping "
-                    + "normalizer.",
+            "a class-typed property mapped with no set (a passthrough) 'targets unmapped class': refused by the "
+                    + "mapping normalizer.",
             // 2026-10-30: the services over 8115's and 75's M2M mappings, generated apart so they leave with them (the
             // improvement plan's Phase 5), as 94-canonical-services.pure leaves with 55
             "94-gap-services.pure",

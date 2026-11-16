@@ -69,14 +69,27 @@ public sealed interface PropertyMapping
      *                      table)
      * @param table         table name
      * @param column        column name
+     * @param binding       the {@code Binding} transformer's element path
+     *                      ({@code firm: Binding B : [DB] T.COL}, engine
+     *                      {@code RelationalPropertyMapping.bindingTransformer}):
+     *                      the column holds a semi-structured value the
+     *                      binding decodes into the class-typed property;
+     *                      null for a plain read
      */
-    record Column(String propertyName, String database, String table, String column)
+    record Column(String propertyName, String database, String table, String column,
+                  @com.legend.base.Nullable String binding)
             implements PropertyMapping {
         public Column {
             Objects.requireNonNull(propertyName, "Property name cannot be null");
             Objects.requireNonNull(database, "Database cannot be null");
             Objects.requireNonNull(table, "Table cannot be null");
             Objects.requireNonNull(column, "Column cannot be null");
+        }
+
+        /** A plain read, no binding transformer. A COPY of a column read
+         *  carries its binding through the canonical constructor. */
+        public Column(String propertyName, String database, String table, String column) {
+            this(propertyName, database, table, column, null);
         }
     }
 
@@ -176,17 +189,23 @@ public sealed interface PropertyMapping
      * @param terminalColumn   the column read after the pipe; typically a
      *                         {@link RelationalOperation.ColumnRef} but any
      *                         relational expression is permitted
+     * @param binding          the {@code Binding} transformer's element path
+     *                         ({@code firm: Binding B : @J | T.COL}), as on
+     *                         {@link Column}; null for a plain read
      */
     record JoinTerminalColumn(String propertyName, String database,
                               List<JoinChainElement> joins,
                               RelationalOperation terminalColumn,
-                              @com.legend.base.Nullable String enumMappingId, boolean enumMapped)
+                              @com.legend.base.Nullable String enumMappingId, boolean enumMapped,
+                              @com.legend.base.Nullable String binding)
             implements PropertyMapping {
 
+        /** A plain read, no enumeration mapping, no binding transformer. A
+         *  COPY carries both through the canonical constructor. */
         public JoinTerminalColumn(String propertyName, String database,
                                   List<JoinChainElement> joins,
                                   RelationalOperation terminalColumn) {
-            this(propertyName, database, joins, terminalColumn, null, false);
+            this(propertyName, database, joins, terminalColumn, null, false, null);
         }
 
         public JoinTerminalColumn {
@@ -212,12 +231,22 @@ public sealed interface PropertyMapping
      *
      * @param propertyName  Pure property name
      * @param expression    the value expression
+     * @param binding       a {@code Binding} transformer over the expression's
+     *                      value ({@code firm: Binding B : parseJson(T.TEXT)}),
+     *                      as on {@link Column}; null for a plain read
      */
-    record Expression(String propertyName, RelationalOperation expression)
+    record Expression(String propertyName, RelationalOperation expression,
+                      @com.legend.base.Nullable String binding)
             implements PropertyMapping {
         public Expression {
             Objects.requireNonNull(propertyName, "Property name cannot be null");
             Objects.requireNonNull(expression, "Expression cannot be null");
+        }
+
+        /** A plain computed read, no binding transformer. A COPY carries the
+         *  binding through the canonical constructor. */
+        public Expression(String propertyName, RelationalOperation expression) {
+            this(propertyName, expression, null);
         }
     }
 

@@ -114,7 +114,11 @@ final class XStorePureEnds {
                 // keeps the column-space emission verbatim.
                 boolean lossy = false;
                 for (PropertyMapping pm : rcm.propertyMappings()) {
-                    if (pm instanceof PropertyMapping.Column c) {
+                    if (pm instanceof PropertyMapping.Column c && c.binding() != null) {
+                        // a Binding-decoded column is an object, not the
+                        // column: the view cannot carry it (2026-11-14)
+                        lossy = true;
+                    } else if (pm instanceof PropertyMapping.Column c) {
                         cols.add(new ClassMapping.RelationFunction.Col(
                                 c.propertyName(), c.column(), false));
                     } else if (pm instanceof PropertyMapping.LocalProperty lp) {
@@ -231,6 +235,42 @@ final class XStorePureEnds {
                         + md.qualifiedName() + ")");
             }
         }
+        return predicate(md, xs.associationName(), classA, classB, endA, endB,
+                srcRow, tgtRow, cond);
+    }
+
+    /**
+     * The property-space synthesis of a ModelJoin with a Pure-set end
+     * ({@code {firm: Firm[1], employee: Person[1] | $firm.legalName ==
+     * $employee.firstName}}): the lambda's two parameters, paired with the
+     * association's ends ({@link ModelJoinNesting#pairEndVars}: {@code aVar}
+     * the first end's), rename onto the predicate's rows exactly as an
+     * XStore line's {@code $this}/{@code $that} do, and the same predicate is
+     * emitted -- the sets pinned by id, the condition over the end classes,
+     * the resolver substituting each side through its set's composed
+     * bindings (2026-11-14, the Studio roundtrip's
+     * DSL_Mapping-model-join-mapping; until then refused, "the property-space
+     * route covers XStore only so far").
+     */
+    static FunctionDefinition synthesizeModelJoin(ResolvedMapping md,
+            AssociationMapping.ModelJoin mj, String classA, String classB,
+            XEnd endA, XEnd endB, String aVar, String bVar) {
+        Variable srcRow = new Variable("srcRow");
+        Variable tgtRow = new Variable("tgtRow");
+        ValueSpecification cond = renameReads(
+                mj.lambda().body().get(mj.lambda().body().size() - 1),
+                Map.of(aVar, srcRow, bVar, tgtRow),
+                Map.of(aVar, endA, bVar, endB));
+        return predicate(md, mj.associationName(), classA, classB, endA, endB,
+                srcRow, tgtRow, cond);
+    }
+
+    /** {@code legacyAssocPredicate(a, b, 'setA', 'setB', {srcRow, tgtRow | cond})}
+     *  as the association's synthesized function. */
+    private static FunctionDefinition predicate(ResolvedMapping md,
+            String associationName, String classA, String classB,
+            XEnd endA, XEnd endB, Variable srcRow, Variable tgtRow,
+            ValueSpecification cond) {
         Variable a = new Variable("a");
         Variable b = new Variable("b");
         ValueSpecification body = Calls.exact(Pure.Lite.LEGACY_ASSOC_PREDICATE,
@@ -248,7 +288,7 @@ final class XStorePureEnds {
                         new TypeExpression.NameRef(classB),
                         Multiplicity.Concrete.PURE_ONE);
         return new FunctionDefinition(
-                SynthFqn.mappingAssoc(md.qualifiedName(), xs.associationName()),
+                SynthFqn.mappingAssoc(md.qualifiedName(), associationName),
                 List.of(), List.of(), List.of(pA, pB),
                 new TypeExpression.NameRef(
                         "meta::pure::metamodel::type::Boolean"),
@@ -257,7 +297,7 @@ final class XStorePureEnds {
                 List.of(), List.of())
                 .withSynthesizedFrom(new FunctionDefinition.Synthesized(
                         SynthHat.ASSOC, md.qualifiedName(),
-                        xs.associationName()));
+                        associationName));
     }
 
     /** {@code $this.p}/{@code $that.p} → the oriented row var's read —

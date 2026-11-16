@@ -89,7 +89,12 @@ public final class PeRatchets {
                     + " servicestore-content-pattern-escapes, filegeneration-dotted-config-keys, diagram-quoted-view-ids)",
             "own_corpus.matched 3262 -> 3263 (2026-11-14, Studio's grammar roundtrip, the parser tier; it measured 3211 -> 3212"
                     + " on its branch, re-measured on studio-compatibility-dev 4dfbb5b76 on 2026-11-16): DocumentationTest's"
-                    + " documented Service");
+                    + " documented Service",
+            "own_corpus.matched 3263 -> 3300 (2026-11-16, Studio's grammar roundtrip, the normalizer tier; it measured"
+                    + " 3211 -> 3248 on its branch and 3262 -> 3299 on 4dfbb5b76, re-measured on studio-compatibility-dev"
+                    + " dd56026a2): its tests' models (M2MEnumTransformTest, M2MDeferredWallTest, JsonSourceToManyTest,"
+                    + " BindingTransformerTest, DataSpaceIncludeTest, ModelJoinPureEndTest), measured by"
+                    + " //parser-equivalence:update_ratchets");
 
     public static void main(String[] args) throws Exception {
         if (args.length != 1) {

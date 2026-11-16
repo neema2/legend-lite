@@ -1235,6 +1235,17 @@ public final class ClassSources {
                                 srcVar, inner, classFqn, mappingFqn, false)).toList(),
                         l.info());
             }
+            // a VALUE cast (the M2M enum decode's typed raise,
+            // fail(..)->cast(@E)): its source substitutes like any
+            // query-position read. Primitive and enum targets only: a cast
+            // to a class re-types an instance and stays the loud default
+            // below (H5c). 2026-11-14, the M2M enum transformer (Studio
+            // roundtrip DSL_Mapping-mapping-include-enum-mapping and two
+            // more).
+            case com.legend.compiler.spec.typed.TypedCast c
+                    when valueTyped(c.target()) ->
+                    c.withChildren(List.of(substituteSourceReads(c.source(),
+                            srcVar, inner, classFqn, mappingFqn, false)));
             case TypedCString ignored -> n;
             case TypedCInteger ignored -> n;
             case TypedCFloat ignored -> n;
@@ -1248,6 +1259,11 @@ public final class ClassSources {
                             + n.getClass().getSimpleName()
                             + " is not substitutable yet (H5 vocabulary)");
         };
+    }
+
+    /** A primitive or an enumeration: a value, never an instance. */
+    private static boolean valueTyped(Type t) {
+        return t instanceof Type.Primitive || t instanceof Type.EnumType;
     }
 
     /** Whether any {@code $var} read occurs in {@code n}'s subtree. */
