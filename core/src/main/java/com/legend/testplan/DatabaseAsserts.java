@@ -547,6 +547,12 @@ final class DatabaseAsserts implements TestDoor.Asserts {
                                 pre.plan());
                         letPrefix.add(let);
                     }
+                } catch (com.legend.error.LegendCompileException e) {
+                    // the let's model error at planning (a class its mapping does not map): the host judge's planner
+                    // raises the same error for the body, so the database half does too -- the body fails with it
+                    // under every judge, never refused for it (DE5's second group, 2026-11-16: testModelConnectionJoin's
+                    // `let res`, which BOTH had answered through the deleted second road)
+                    throw e;
                 } catch (RuntimeException e) {
                     // the let raises: the walk raises it at the let's turn, after the earlier segments ran and
                     // reported (the M7 audit's F4) -- the walk's body

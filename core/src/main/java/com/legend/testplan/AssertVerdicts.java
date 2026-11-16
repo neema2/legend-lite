@@ -229,6 +229,16 @@ final class AssertVerdicts {
             return DatabaseGate.ENGINE_TEXT;
         }
         NativeFn.Verdict fn = NativeFn.Verdict.of(com.legend.compiler.spec.typed.Calls.calleeIdOf(bare)).orElse(null);
+        if (fn == null && bare instanceof TypedUserCall dual && dual.args().size() == 3
+                && com.legend.compiler.element.type.PlatformTypes.ASSERT_EQUALS_DUAL_GOLDEN.equals(calleeFqn(bare))) {
+            // the dual-golden root whose text arm declined is planned as its own meaning on our H2,
+            // assertEquals(upgraded, actual) (planHost's rewrite): gated as that equality (DE5's second group, 2026-11-16:
+            // the gate had looked for a verdict native on the helper's own name and refused four corpus bodies)
+            TypedSpec asEquals = com.legend.compiler.spec.VerdictQueries.assertEqualsOf(dual.args().get(1),
+                    dual.args().get(2), specs);
+            return asEquals == null ? DatabaseGate.UNPLANNED
+                    : gateOf(shape, asEquals, letPrefix, specs, env, rawHook);
+        }
         if (fn == null) {
             return DatabaseGate.UNPLANNED;
         }
