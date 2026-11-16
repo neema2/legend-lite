@@ -65,6 +65,9 @@ public final class PureMessages {
             // [the source type's name, the target's]
             case CAST_IMPOSSIBLE -> new SqlExpr.StringLit("Cast exception: " + text(r, 0) + " cannot be cast to "
                     + text(r, 1));
+            // [the value's run-time type's path, the needed type's] (W5: the resolver's chain dispatch, until then a
+            // fail of this sentence in the product)
+            case INSTANCE_NOT_OF -> new SqlExpr.StringLit("Cast exception: " + text(r, 0) + " is not a " + text(r, 1));
             case RANGE_STEP_ZERO -> new SqlExpr.StringLit("range step must not be 0");
             // legend-pure's rows/_range assert, verbatim (#81's frame guard, merged 2026-11-14)
             case WINDOW_FRAME_INVERTED -> new SqlExpr.StringLit("Invalid window frame boundary - lower bound of window"

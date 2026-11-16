@@ -470,6 +470,12 @@ public final class Pure {
          *  elements"); legend-engine prints an empty cell as {@code TDSNull}, the compatibility edge's. Lowers to
          *  {@code SqlFn.CELL_TEXT} (phase D's D1.3, 2026-11-15). */
         public static final String CELL_TEXT = PKG + "cellText";
+        /** A run-time type check's failure as the product's raise (W5 of docs/records/d-plan-2026-11-16.md,
+         *  2026-11-16): {@code typeRaise(kind, from, to)}, {@code kind} a {@code sql.RaiseKind}'s name
+         *  ({@code CAST_IMPOSSIBLE}, {@code INSTANCE_NOT_OF}) and the two types' paths its operands -- what the
+         *  resolver's chain dispatch and subtype reads raised as legend-pure's sentence through {@code fail} until
+         *  then; the sentence is the edge's ({@code edge.PureMessages}). Lowers to {@code SqlFn.ERROR}. */
+        public static final String TYPE_RAISE = PKG + "typeRaise";
         /** A SQL island's INLINE VIEW (2026-10-16, docs/LITE_INVENTION_CENSUS.md): a derived table or a common table
          *  expression whose own query computes window functions. SQL computes those windows over all of the view's
          *  rows, before the enclosing query's WHERE; Pure's relation composition folds a later filter under them
@@ -628,7 +634,7 @@ public final class Pure {
                     Lite.TYPE_AS_DECLARED, Lite.LEGACY_NAVIGATE, Lite.ROUTE,
                     Lite.LEGACY_ASSOC_PREDICATE, Lite.LEGACY_LOCAL_PROPERTY,
                     Lite.OTHERWISE, Lite.JOIN_SLOT, Lite.TDS,
-                    Lite.ADJUST_TEMPORAL, Lite.TRUST_ONE, Lite.CELL_TEXT,
+                    Lite.ADJUST_TEMPORAL, Lite.TRUST_ONE, Lite.CELL_TEXT, Lite.TYPE_RAISE,
                     Lite.ASOR_PK_VALUE, Lite.ASOR_DECODE_PK_MAP,
                     Lite.GROUP_BY_OVER_INSTANCES, Lite.GROUP_BY_COMPUTED_KEYS,
                     Lite.TUPLE, Lite.INLINE_VIEW, Lite.RECURSE, Lite.STAGE, Lite.WRITE_INSTANCES,
@@ -960,6 +966,8 @@ public final class Pure {
     public static final NativeFunctionDefinition TRUST_ONE__T_MANY = signature("native function meta::legend::lite::trustOne<T>(values:T[*]):T[1];");
     /** A TDS cell's text (see {@link Lite#CELL_TEXT}): the text, empty where the cell is; the edge's TDSNull. */
     public static final NativeFunctionDefinition CELL_TEXT__STRING_0_1 = signature("native function meta::legend::lite::cellText(text:meta::pure::metamodel::type::String[0..1]):meta::pure::metamodel::type::String[1];");
+    /** A run-time type check's failure (see {@link Lite#TYPE_RAISE}): its kind's name and the two types' paths. */
+    public static final NativeFunctionDefinition TYPE_RAISE__STRING_1__STRING_1__STRING_1 = signature("native function meta::legend::lite::typeRaise(kind:meta::pure::metamodel::type::String[1], from:meta::pure::metamodel::type::String[1], to:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::Boolean[1];");
     /** A SQL island's inline view (see {@link Lite#INLINE_VIEW}): types as its relation, its windows a boundary. */
     public static final NativeFunctionDefinition INLINE_VIEW__RELATION_1 = signature("native function meta::legend::lite::inlineView<T>(rel:meta::pure::metamodel::relation::Relation<T>[1]):meta::pure::metamodel::relation::Relation<T>[1];");
     /** A recursion over a relation ({@link Lite#RECURSE}): the base's rows and, repeatedly, the step's over the previous
@@ -2541,6 +2549,7 @@ public final class Pure {
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_AT_TIME = com.legend.model.FunctionId.ofAll(AT_TIME__DATE_1__STRICT_TIME_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_CAST_AS_DECLARED = com.legend.model.FunctionId.ofAll(CAST_AS_DECLARED__ANY_01__T_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_CELL_TEXT = com.legend.model.FunctionId.ofAll(CELL_TEXT__STRING_0_1);
+    public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_TYPE_RAISE = com.legend.model.FunctionId.ofAll(TYPE_RAISE__STRING_1__STRING_1__STRING_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_CONVERT_DATE_FORMAT = com.legend.model.FunctionId.ofAll(CONVERT_DATE_FORMAT__STRING_0_1__STRING_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_CONVERT_DATE_TIME_FORMAT = com.legend.model.FunctionId.ofAll(CONVERT_DATE_TIME_FORMAT__STRING_0_1__STRING_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_CONVERT_TIME_ZONE_FORMAT = com.legend.model.FunctionId.ofAll(CONVERT_TIME_ZONE_FORMAT__DATE_0_1__STRING_1__STRING_1);

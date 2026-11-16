@@ -3529,14 +3529,13 @@ public class Snowflake extends AnsiSqlRenderer {
         writer.append("CASE WHEN ").expr(x, 0).append(" IN ('NaN'::FLOAT, 'inf'::FLOAT, '-inf'::FLOAT) THEN CASE WHEN ")
                 .expr(x, 0).append(" = 'NaN'::FLOAT THEN 'NaN' WHEN ").expr(x, 0)
                 .append(" > 0 THEN 'Infinity' ELSE '-Infinity' END ");
-        // NUMBER(38, 6) holds a magnitude below 1e32 (the orchestrator's round 56, 2026-11-15: 1e32, +-1e300 and
-        // Double's max failed the whole statement, "Number out of representable range"): from 1e32 the value's leading
-        // 21 digits, NUMBER(38, 0) of it scaled down, and the rest written as zeros -- its magnitude kept (S311's noise
-        // above 4.5e9), as MySQL's form from 1e60
-        writer.append("WHEN ABS(").expr(x, 0).append(") >= 1E32 THEN CAST(CAST(").expr(x, 0)
-                .append(" / POWER(10, FLOOR(LOG(10, ABS(").expr(x, 0)
-                .append("))) - 20) AS NUMBER(38, 0)) AS VARCHAR) || REPEAT('0', FLOOR(LOG(10, ABS(").expr(x, 0)
-                .append("))) - 20) ELSE ");
+        // from 1e17 the shortest round-trip digits (W3 of docs/records/d-plan-2026-11-16.md: the scaled NUMBER(38, 0) of
+        // round 56 carried the division's error past the 17th digit, round 57; every format model caps a FLOAT at
+        // sixteen digits, floatText's note) -- the double's exact digits, padded with zeros to its magnitude; below it
+        // NUMBER(38, 6) holds the value
+        writer.append("WHEN ABS(").expr(x, 0).append(") >= 1E17 THEN ");
+        writer.piece(shortestDigits(x, d -> d.sign() + " || RPAD(" + d.digits() + ", " + d.exponent() + " + 1, '0')"));
+        writer.append(" ELSE ");
         trimmedSix(writer, "RTRIM", w -> w.append("CAST(CAST(").expr(x, 0).append(" AS NUMBER(38, 6)) AS VARCHAR)"));
         return writer.append(" END");
     }

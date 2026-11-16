@@ -3288,7 +3288,9 @@ public class ClickHouse extends AnsiSqlRenderer {
     @SpellingArm
     protected SqlWriter floatToText(SqlWriter writer, SqlExpr x) {
         writer.append("replaceAll(replaceAll(");
-        trimmedSixStandard(writer, w -> w.append("printf('%.6f', ").expr(asDouble(x), 0).append(")"));
+        // from 1e17 the double's own text, its shortest digits (W3: printf wrote the exact binary expansion, round 57)
+        shortestWhenHuge(writer, x, w -> trimmedSixStandard(w, t -> t.append("printf('%.6f', ").expr(asDouble(x), 0)
+                .append(")")));
         return writer.append(", 'nan', 'NaN'), 'inf', 'Infinity')");
     }
 }

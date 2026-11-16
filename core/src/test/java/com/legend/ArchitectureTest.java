@@ -1224,7 +1224,6 @@ final class ArchitectureTest {
             "testplan.PlanningOptions#withJudgeMode(com.legend.testplan.PlanningOptions$JudgeMode)",
             "com.legend.ExecuteOptions",
             "testplan.PlanningOptions#withOptions(java.util.Set)", "com.legend.ExecuteOptions",
-            "testplan.PlanningOptions#withSpelling(com.legend.database.SqlSpelling)", "com.legend.ExecuteOptions",
             "testplan.PlanningOptions$JudgeMode#HOST", "com.legend.ExecuteOptions",
             // the test-data routes (edge.TestDataRoutes since phase D's D1.0b): the raw-SQL refusal of a typed query,
             // and the seed's one entry, which refuses

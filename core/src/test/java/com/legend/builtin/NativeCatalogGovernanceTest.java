@@ -167,7 +167,11 @@ class NativeCatalogGovernanceTest {
         // empty value where the cell is, relayed by the orchestrator 2026-11-15): cellText, the text of a TDS cell that
         // TdsDesugars emits for $r.get('c')->toString() -- the product's empty, the compatibility edge's TDSNull, one
         // node (SqlFn.CELL_TEXT) the two styles spell; it replaced the desugar's literal 'TDSNull' branch.
-        assertTrue(Pure.INTERNAL_DESUGAR.size() <= 36,
+        // 36 -> 37 (2026-11-16, W5 of docs/records/d-plan-2026-11-16.md, D1.1's last rows): typeRaise, a run-time type
+        // check's failure as the product's raise of its kind (CAST_IMPOSSIBLE, INSTANCE_NOT_OF) -- emitted by the
+        // resolver's chain dispatch and subtype reads, which raised legend-pure's sentence through fail until then;
+        // the sentence is the compatibility edge's (edge.PureMessages)
+        assertTrue(Pure.INTERNAL_DESUGAR.size() <= 37,
                 "INTERNAL_DESUGAR grew: " + Pure.INTERNAL_DESUGAR);
         // +4 2026-08-16: lessThan/lessThanEqual/greaterThan/
         // greaterThanEqual Any-shims — engine DynaFunc ordering

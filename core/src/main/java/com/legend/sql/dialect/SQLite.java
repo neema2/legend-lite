@@ -3345,8 +3345,42 @@ public class SQLite extends AnsiSqlRenderer {
     @Override
     @SpellingArm
     protected SqlWriter floatToText(SqlWriter writer, SqlExpr x) {
-        writer.append("replace(");
+        writer.append("replace(CASE WHEN abs(").expr(asDouble(x), 0).append(") >= 1e17 THEN ");
+        hugePlain(writer, x);
+        writer.append(" ELSE ");
         trimmedSix(writer, "rtrim", w -> w.append("printf('%.6f', ").expr(asDouble(x), 0).append(")"));
-        return writer.append(", 'Inf', 'Infinity')");
+        return writer.append(" END, 'Inf', 'Infinity')");
+    }
+
+    /** Zeros enough to pad any double's digits to its magnitude (309 digits at most). */
+    private static final String ZEROS = "0".repeat(320);
+
+    /** A Float from {@link #SHORTEST_FROM} up as plain digits (W3 of docs/records/d-plan-2026-11-16.md, register S311):
+     *  its shortest round-trip digits, the fewest of 15, 16 and 17 whose text reads back as the value (SQLite's text of a
+     *  double keeps 15, its {@code printf('%.16e')} 16: round 57; {@code %!} writes every digit asked for, measured on
+     *  3.53, 2026-11-16), the mantissa's digits padded with zeros to the exponent. */
+    private void hugePlain(SqlWriter writer, SqlExpr x) {
+        java.util.function.Consumer<SqlWriter> sci = w -> {
+            w.append("CASE");
+            for (int d = 14; d <= 15; d++) {
+                w.append(" WHEN CAST(printf('%!.").append(String.valueOf(d)).append("e', ").expr(asDouble(x), 0)
+                        .append(") AS REAL) = ").expr(asDouble(x), 0).append(" THEN printf('%!.")
+                        .append(String.valueOf(d)).append("e', ").expr(asDouble(x), 0).append(")");
+            }
+            w.append(" ELSE printf('%!.16e', ").expr(asDouble(x), 0).append(") END");
+        };
+        writer.append("CASE WHEN instr(");
+        sci.accept(writer);
+        writer.append(", 'e') = 0 THEN replace(");
+        sci.accept(writer);
+        writer.append(", '.0', '') ELSE substr(replace(substr(");
+        sci.accept(writer);
+        writer.append(", 1, instr(");
+        sci.accept(writer);
+        writer.append(", 'e') - 1), '.', '') || '").append(ZEROS).append("', 1, CAST(substr(");
+        sci.accept(writer);
+        writer.append(", instr(");
+        sci.accept(writer);
+        writer.append(", 'e') + 1) AS INTEGER) + 1 + (").expr(asDouble(x), 0).append(" < 0)) END");
     }
 }

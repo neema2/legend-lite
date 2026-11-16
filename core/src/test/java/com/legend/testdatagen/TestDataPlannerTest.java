@@ -674,10 +674,10 @@ class TestDataPlannerTest {
             assertFalse(big.equals("100000000000000000000.0") || small.equals("0.00001"), big + " " + small);
             // lite's own: the timestamp in full, lite's writers' canonical text, on every database
             assertEquals("default\nEVENT\nAMOUNT,ID,ON_DAY,STAMP\n"
-                    + small + ",5,2020-01-02,2020-01-02T03:04:05.500000000+0000\n"
-                    + "3.14,1,2020-01-02,2020-01-02T03:04:05.123000000+0000\n"
-                    + "17.0,2,2021-02-03,2020-01-02T03:04:05.000000000+0000\n"
-                    + big + ",4,2020-01-02,2020-01-02T03:04:05.123456000+0000\n"
+                    + small + ",5,2020-01-02,2020-01-02T03:04:05.500000Z\n"
+                    + "3.14,1,2020-01-02,2020-01-02T03:04:05.123000Z\n"
+                    + "17.0,2,2021-02-03,2020-01-02T03:04:05.000000Z\n"
+                    + big + ",4,2020-01-02,2020-01-02T03:04:05.123456Z\n"
                     + "---null---,3,---null---,---null---\n-----\n",
                     text(c, dialect, TestDataPlanner.plan(ctx, q, "t::M", ids, null, false, PlannerViews.of(ctx),
                             TestDataPlanner.Printing.CLEAN).csv()), type.name());

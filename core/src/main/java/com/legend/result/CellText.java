@@ -30,7 +30,7 @@ public final class CellText {
 
     /** Pure's text of a non-null cell of column {@code c}: an Integer's digits; a Float's shortest digits laid out as
      *  Pure prints them (a point always, never an exponent); a Decimal at its own scale; a boolean; a text as it is;
-     *  a StrictDate's day; a DateTime at its precision with {@code +0000}; a structure or a text-carried value as its
+     *  a StrictDate's day; a DateTime as the product writes one ({@link #productTime}); a structure or a text-carried value as its
      *  own text. */
     public static String pure(Object cell, ExecutionPlan.Column c) {
         return pure(cell, c.type(), c);
@@ -72,7 +72,10 @@ public final class CellText {
             }
             // a user class's instance prints its repository id, interpreted Pure's anonymous instance name (the
             // lowering's own rule, Scalars.pureToString: "@_" and the instance's identity)
-            case Map<?, ?> m when m.get(SYNTHETIC_ID) instanceof String id -> "@_" + id;
+            // an instance's text is refused in the product (register S314: objects are refused, pointing to graph
+            // fetch; W4 of docs/records/d-plan-2026-11-16.md): legend-pure's anonymous instance name is the edge's
+            case Map<?, ?> m when m.containsKey(SYNTHETIC_ID) -> throw refused(cell, c,
+                    "lite's text (an instance's text is refused: fetch it with graphFetch)");
             default -> throw refused(cell, c, "Pure's text");
         };
     }
@@ -310,23 +313,14 @@ public final class CellText {
 
     // ---- dates ----------------------------------------------------------------------------------------------------
 
-    /** Pure's text of a date, by the column's written-precision fact ({@link ExecutionPlan.Precision}, the plan's;
-     *  until 2026-10-28 the writer matched the slot's spelling for it, the start page's S1.4 item 1; the spellings
-     *  read from upstream 2026-10-29, the upstream-fidelity tenet): a value carried at the precision it was written
-     *  (WRITTEN: a year, a month, a day, an hour ... a fraction) as it is, {@code +0000} from a minute on ({@link #zoned});
-     *  a day (DAY,
-     *  a StrictDate, a value with no time of day) as its day; a relation's cell (INSTANT) as legend-engine's TDS
-     *  spells a time-bearing date, nine fraction digits whatever the carrier ({@link PureDateLiteral#toEngineJson}:
-     *  its {@code ValueTransformer}; legend-pure's {@code fromSQLTimestamp} reads the same nine), never as a day (the
-     *  midnight rule of 12b89c7d, a Date's midnight as its day, went 2026-10-29: no upstream prints a DateTime so);
-     *  a value root's instant (MINIMAL), a nested value and a mixed column's winner at the precision its digits
-     *  show, the fraction's trailing zeros dropped (register S118). Two choices the S1.4 audit asked to be written
-     *  down (2026-10-29): in Pure's TEXT (the CSV path, {@link #element}) WRITTEN applies to a nested element too (a
-     *  tagged slot's kind carries each element's written digits), where DAY and INSTANT are the
-     *  column's own cell's facts ({@code own}) -- the JSON path's nested dates ({@link #structure}) take the digits
-     *  shown whatever the column's fact, D9's open question (the S1.5 audit, finding 8); and MINIMAL and a null fact
-     *  (a column with no temporal of its own: a mixed column's winner, a derived column) spell the same text, the
-     *  digits shown -- S118 covers both, and a Date cell under a null fact is a value root's. */
+    /** Lite's text of a date (W4 of docs/records/d-plan-2026-11-16.md, 2026-11-16; the product's DateTime text,
+     *  register S312: UTC with {@code Z}, never legend-pure's {@code +0000}, which is the edge's and the judges'): a
+     *  value with no time of day (a year, a month, a day, a StrictDate) or a column that holds days
+     *  ({@link ExecutionPlan.Precision#DAY}) as its day; a relation's timestamp cell ({@link ExecutionPlan.Precision#INSTANT})
+     *  as S312's six fraction digits ({@link #productTime}); a value carried at the precision it was written (WRITTEN)
+     *  as it is, and a value root's instant, a nested value and a mixed column's winner (MINIMAL, or no fact) at the
+     *  precision its digits show (S118), each with {@code Z} from a minute on ({@link #zoned}) -- a DateTime's precision
+     *  is the value's, kept. */
     private static String pureDate(PureDateLiteral d, String type, ExecutionPlan.Column c) {
         boolean own = type.equals(c.type());
         ExecutionPlan.Precision p = c.precision();
@@ -338,19 +332,26 @@ public final class CellText {
             return day(d);
         }
         if (own && p == ExecutionPlan.Precision.INSTANT) {
-            return d.toEngineJson();
+            return productTime(d);
         }
         return zoned(d.trimmed());
     }
 
-    /** A date at its own precision as legend-pure prints it: its text, and {@code +0000} from a MINUTE on --
-     *  {@code DateFormat.append} (legend-pure m4) writes the zone inside its minute branch, so an hour-only date prints
-     *  {@code 2014-03-10T16} (its {@code TestDateFormat}) and a minute {@code ...T16:12+0000}; legend-engine's
-     *  {@code PureDateSerializer} writes the same text. Until 2026-10-29 the writer wrote the zone from an hour on
-     *  (S1.5's classification, G5: a move to upstream's text). */
+    /** A date at its own precision, UTC marked {@code Z} from a minute on (an hour-only date has no zone, as a minute's
+     *  first digit is where a zone is written): the product's spelling of the zone (S312). */
     private static String zoned(PureDateLiteral d) {
-        return d.precision().atLeast(PureDateLiteral.Precision.MINUTE) ? d.toEngineString() + "+0000"
+        return d.precision().atLeast(PureDateLiteral.Precision.MINUTE) ? d.toEngineString() + "Z"
                 : d.toEngineString();
+    }
+
+    /** The product's text of a relation's timestamp cell (register S312, the user's ruling of 2026-11-10: "ISO 8601
+     *  in UTC, six fraction digits and Z"; W4, 2026-11-16): what the SQL's {@code DATETIME_TO_TEXT} writes, so a cell
+     *  and a computed text agree. */
+    static String productTime(PureDateLiteral d) {
+        // the value's own spelling at nine fraction digits, its last three digits and its five-character GMT offset
+        // replaced by Z: the same digits, carried (a time-bearing value: an hour or finer)
+        String nine = d.toEngineJson();
+        return nine.substring(0, nine.length() - 8) + "Z";
     }
 
     /** Whether legend-engine writes a date as its day: by what the database answered, never by the time of day --

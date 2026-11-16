@@ -114,12 +114,14 @@ class SnowflakeDialectTest {
                 SqlExpr.Call.of(SqlFn.FLOAT_TO_TEXT, x), "p", null)), false, new SqlSource.Table("t", "t",
                 List.of(new OutputCol("x", SqlType.Scalar.DOUBLE, true)), false, Map.of(),
                 com.legend.sql.NameQuoting.BARE), null, List.of(), null, null, List.of(), null, null, List.of()));
-        // below 1e32 NUMBER(38, 6), the -0.000000 of a value rounding to zero written 0.000000; from 1e32 the leading
-        // digits and zeros (round 56, 2026-11-15)
+        // below 1e17 NUMBER(38, 6), the -0.000000 of a value rounding to zero written 0.000000; from 1e17 the shortest
+        // round-trip digits padded to the magnitude (W3 of docs/records/d-plan-2026-11-16.md, round 57: no format model
+        // gives a FLOAT's seventeenth digit, so the exact-digits machinery, read once, behind that branch alone)
         assertTrue(product.contains("RTRIM(RTRIM(REPLACE(CAST(CAST(\"t\".\"x\" AS NUMBER(38, 6)) AS VARCHAR), '-0.000000',"
-                + " '0.000000'), '0'), '.')") && product.contains("WHEN ABS(\"t\".\"x\") >= 1E32 THEN"),
-                product);
-        assertFalse(product.contains("NUMBER(38, 28)"), product);
+                + " '0.000000'), '0'), '.')") && product.contains("WHEN ABS(\"t\".\"x\") >= 1E17 THEN")
+                && !product.contains("1E32"), product);
+        assertTrue(product.split("AS NUMBER\\(38, 28\\)", -1).length - 1 == 1, product);
+        assertTrue(product.length() < 8_000, product.length() + " characters: " + product);
     }
 
     /**

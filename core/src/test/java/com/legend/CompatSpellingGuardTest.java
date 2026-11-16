@@ -202,15 +202,17 @@ class CompatSpellingGuardTest {
             // 2026-11-14 (merged main 3a217086a, #81): the #TS island reads a Pure date literal's own text into its SQL
             // literal, dropping the zone the compiler's text writes ("+0000"): input read, not a spelling written
             "protocol/ts/TsShow.java | +0000 | 1 | STAYS",
-            "resolver/ChainDispatch.java | Cast exception:  | 1 | D1.1",
+            // resolver/ChainDispatch.java | Cast exception: gone 2026-11-16 (W5 of docs/records/d-plan-2026-11-16.md): a run-time
+            // type check raises its kind (Lite.TYPE_RAISE: CAST_IMPOSSIBLE, INSTANCE_NOT_OF), the sentence the edge's
             // resolver/ClassSources.java | TDS_NULL_CELL: gone 2026-11-15 (D1.3: an absent system fact is an empty
             // cell, which a literal cell reads as NULL as it read TDSNull -- an internal marker, never a spelling)
             // resolver/GraphEmission.java | +0000: gone 2026-11-15 (D1.2, the orchestrator's ruling under the user's of
             // 2026-11-10, S312: a graph fetch's key arguments in the plan style's text, PlanStyle.graphKeyDate/String;
             // legend-engine's +0000 and quoting the edge's)
-            "resolver/Substitution.java | Cast exception:  | 1 | D1.1",
-            "result/CellText.java | +0000 | 1 | D1.4",
-            "result/CellText.java | @_ | 1 | D1.4",
+            // resolver/Substitution.java | Cast exception: gone 2026-11-16 (W5 of docs/records/d-plan-2026-11-16.md): a run-time
+            // type check raises its kind (Lite.TYPE_RAISE: CAST_IMPOSSIBLE, INSTANCE_NOT_OF), the sentence the edge's
+            // result/CellText.java | +0000 and | @_: gone 2026-11-16 (W4 of docs/records/d-plan-2026-11-16.md): lite's
+            // writers print a time-bearing cell as the product's DateTime text (S312) and refuse an instance's text (S314)
             // D1.4 -> D1.8 (2026-11-15): legend-engine's pivot quoting, CellText's engine half, read by the engine writers
             "result/CellText.java | presentedName | 1 | D1.8",
             // result/CsvWriter.java and result/JsonRowsWriter.java | presentedName: gone 2026-11-15 (D1.4: a pivot's
@@ -279,10 +281,11 @@ class CompatSpellingGuardTest {
             "sql/dialect/Trino.java | FLOAT_PRINT | 1 | JUDGE",
             "testdatagen/TestDataGenerationNatives.java | EngineTextDialect | 2 | D1.7",
             "testdatagen/TestDataGenerator.java | EngineTextDialect | 3 | D1.7",
-            // retagged 2026-11-15 (D1.2's end): the generator's CLEAN timestamp text mirrors lite's writers (CellText's
-            // INSTANT precision), so it moves with them (D1.4); its COMPAT printing follows the judging rules
-            // (TestPlanner picks it by COMPILED_PURE_COMPAT), a judges' compatibility branch D1.9 moves to the edge
-            "testdatagen/TestDataPlanner.java | +0000 | 1 | D1.4",
+            // D1.4 -> D1.7 (2026-11-16, W4 of docs/records/d-plan-2026-11-16.md): the generator's CLEAN timestamp text is
+            // the product's DateTime text (DATETIME_TO_TEXT, S312), as lite's writers print the cell; what remains is
+            // legend-engine's seed route's key (upstreamKeyText: SeedDataGeneration's ValueTransformer, nine digits and
+            // +0000), the edge's routes' (TestDataRoutes), moving with the generator's engine text at W9
+            "testdatagen/TestDataPlanner.java | +0000 | 1 | D1.7",
             "testdatagen/TestDataPlanner.java | COMPAT | 3 | D1.9",
             "testexec/AssertRuns.java | EngineText | 1 | D1.7",
             "testexec/CanonicalForm.java | +0000 | 1 | JUDGE",
@@ -305,9 +308,11 @@ class CompatSpellingGuardTest {
             "testplan/SqlTextVerdicts.java | withEngineText | 3 | D1.7",
             // retagged 2026-11-15 (D1.2's end): the judging rules' choice of the generator's printing, D1.9's
             "testplan/TestPlanner.java | COMPAT | 1 | D1.9",
-            // retagged 2026-11-15 (D1.2's end): Java's spelling of a date value, read by lite's writers (CellText's
-            // engine JSON and Pure text) -- the writers' step (D1.4)
-            "values/PureDateLiteral.java | +0000 | 4 | D1.4"
+            // retagged 2026-11-15 (D1.2's end): Java's spelling of a date value. D1.4 -> D1.8 (2026-11-16, W4): lite's
+            // writers no longer read it (CellText's product half prints S312's text); what remains is legend-engine's
+            // JSON of a date (toEngineJson, read by CellText's engine half, which moves with PureV1Writer at W8) and
+            // legend-pure's print form (the three toStrings, the judges' and the edge's), moved at W8 with the writers
+            "values/PureDateLiteral.java | +0000 | 4 | D1.8"
     );
 
     @Test

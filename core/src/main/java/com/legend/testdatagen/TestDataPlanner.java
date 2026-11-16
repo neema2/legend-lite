@@ -87,8 +87,8 @@ public final class TestDataPlanner {
      */
     public enum Printing {
         /** Lite's own: a timestamp in full, as lite's writers spell a relation's time-bearing cell
-         *  ({@code result.CellText}, {@code Precision.INSTANT}): {@code yyyy-MM-ddTHH:mm:ss.nnnnnnnnn+0000} on every
-         *  database. */
+         *  ({@code result.CellText}): the product's text of a DateTime, {@code yyyy-MM-ddTHH:mm:ss.ffffffZ} on every
+         *  database (register S312; W4, 2026-11-16). */
         CLEAN,
         /** Backwards compatibility's (a test body judged by the compatibility rules; the server's legend-engine routes): a
          *  timestamp as upstream's text writes it -- {@code toCSVString}'s {@code SimpleDateTimeFormat},
@@ -884,9 +884,10 @@ public final class TestDataPlanner {
         for (String k : seed.keys()) {
             String name = bareName(k);
             SqlExpr cell = SqlExpr.Column.derived("_k", tempColumn(def, k));
-            // a timestamp key as upstream's ValueTransformer writes it (SeedDataGeneration.java:192), which is lite's
-            // canonical text too: the same in both printings (L9, 2026-11-12)
-            SqlExpr value = timestamp(column(def, k).dataType()) ? timestampText(cell, Printing.CLEAN) : cell;
+            // a timestamp key as upstream's ValueTransformer writes it (SeedDataGeneration.java:192): the seed route is
+            // legend-engine's API (the edge's routes, TestDataRoutes), so its key is upstream's text whatever lite's own
+            // printing is (W4, 2026-11-16: the product's text is S312's; the generator's engine text moves at W9)
+            SqlExpr value = timestamp(column(def, k).dataType()) ? upstreamKeyText(cell) : cell;
             pairs.add(new SqlExpr.JsonObject(List.of(new SqlExpr.StringLit("name"), new SqlExpr.StringLit(
                     name.contains(" ") ? "\"" + name + "\"" : name), new SqlExpr.StringLit("value"), value)));
             order.add(new SqlExpr.JsonArrayAgg.Key(byCodePoint(cell, column(def, k)), false));
@@ -1354,16 +1355,27 @@ public final class TestDataPlanner {
     }
 
     /** A timestamp's spelling in {@code printing}, written by the database (each dialect's strftime of the typed
-     *  format): {@link Printing#CLEAN}'s {@code yyyy-MM-ddTHH:mm:ss.nnnnnnnnn+0000}, or {@link Printing#COMPAT}'s
+     *  format): {@link Printing#CLEAN}'s, the product's ({@code yyyy-MM-ddTHH:mm:ss.ffffffZ}, register S312), or {@link Printing#COMPAT}'s
      *  {@code yyyy-MM-dd HH:mm:ss}; a NULL stays NULL. */
     private static SqlExpr timestampText(SqlExpr x, Printing printing) {
         return switch (printing) {
             case CLEAN -> new SqlExpr.Case(List.of(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.IS_NULL, x),
-                    new SqlExpr.Cast(new SqlExpr.NullLit(), SqlType.Scalar.VARCHAR, SqlExpr.Reason.DECLARED))), SqlExpr.Call.of(SqlFn.CONCAT,
-                    SqlExpr.Call.of(SqlFn.STRFTIME, x, new SqlExpr.FormatLit(com.legend.sql.DateFmt.ISO_NANO)),
-                    new SqlExpr.StringLit("+0000")), SqlExpr.Reason.DECLARED);
+                    new SqlExpr.Cast(new SqlExpr.NullLit(), SqlType.Scalar.VARCHAR, SqlExpr.Reason.DECLARED))),
+                    // the product's text of a DateTime (register S312; W4 of docs/records/d-plan-2026-11-16.md: lite's
+                    // writers spell a time-bearing cell so, ISO 8601 in UTC, six fraction digits and Z)
+                    SqlExpr.Call.of(SqlFn.DATETIME_TO_TEXT, x), SqlExpr.Reason.DECLARED);
             case COMPAT -> SqlExpr.Call.of(SqlFn.STRFTIME, x, new SqlExpr.FormatLit(SECONDS));
         };
+    }
+
+    /** A timestamp key as upstream's seed route writes it ({@code ValueTransformer}: nine fraction digits and the GMT
+     *  zone); a NULL stays NULL. */
+    private static SqlExpr upstreamKeyText(SqlExpr x) {
+        return new SqlExpr.Case(List.of(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.IS_NULL, x),
+                new SqlExpr.Cast(new SqlExpr.NullLit(), SqlType.Scalar.VARCHAR, SqlExpr.Reason.DECLARED))),
+                SqlExpr.Call.of(SqlFn.CONCAT,
+                        SqlExpr.Call.of(SqlFn.STRFTIME, x, new SqlExpr.FormatLit(com.legend.sql.DateFmt.ISO_NANO)),
+                        new SqlExpr.StringLit("+0000")), SqlExpr.Reason.DECLARED);
     }
 
     /** Upstream's {@code SimpleDateTimeFormat}: {@code yyyy-MM-dd HH:mm:ss}. */

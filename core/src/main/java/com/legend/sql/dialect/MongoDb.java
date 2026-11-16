@@ -2875,9 +2875,16 @@ public class MongoDb extends AnsiSqlRenderer {
         // and a point after them; from 1e34 up (Decimal128 holds 34 digits) its text is d.dddE+n, so the digits are
         // spelled out -- the mantissa's digits, then n less its fraction's length of zeros -- never trimmed (measured
         // 2026-11-15, the probe: the trim ate the exponent's zeros, 1e300 printed 1.000...E+3; round 54's question)
-        writer.append("{\"$let\": {\"vars\": {\"s\": {\"$toString\": {\"$round\": [");
+        // from 1e17 (W3 of docs/records/d-plan-2026-11-16.md): the double's own text, its shortest round-trip digits
+        // ({@code 1.7976931348623157e+308}) -- a Decimal128 of a double keeps 15 (round 57) -- spelled out as below
+        writer.append("{\"$let\": {\"vars\": {\"s\": {\"$replaceAll\": {\"find\": \"e\", \"replacement\": \"E\","
+                + " \"input\": {\"$cond\": [{\"$gte\": [");
+        MongoJson.op1(writer, "$abs", x);
+        writer.append(", 1e17]}, ");
+        MongoJson.op1(writer, "$toString", x);
+        writer.append(", {\"$toString\": {\"$round\": [");
         MongoJson.op1(writer, "$toDecimal", x);
-        return writer.append(", 6]}}}, \"in\": {\"$let\": {\"vars\": {\"e\": {\"$indexOfCP\": [\"$$s\", \"E\"]}},"
+        return writer.append(", 6]}}]}}}}, \"in\": {\"$let\": {\"vars\": {\"e\": {\"$indexOfCP\": [\"$$s\", \"E\"]}},"
                 + " \"in\": {\"$cond\": [{\"$lt\": [\"$$e\", 0]},"
                 + " {\"$rtrim\": {\"input\": {\"$rtrim\": {\"input\": {\"$replaceAll\": {\"input\": \"$$s\","
                 + " \"find\": \"-0.000000\", \"replacement\": \"0.000000\"}}, \"chars\": \"0\"}}, \"chars\": \".\"}},"

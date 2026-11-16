@@ -108,7 +108,7 @@ class WriterCarriageGuardTest {
                     // rule, 2026-10-29): Pure's print form and legend-engine's day rule read it, never a clock
                     Map.entry("atLeast", 5),
                     // a value root's instant, and a nested value's, without the fraction's trailing zeros: the value
-                    // lane's canon (register S118); a relation's cell keeps its nine digits, untrimmed
+                    // lane's canon (register S118); a relation's cell keeps S312's six digits, untrimmed
                     Map.entry("trimmed", 2),
                     // a day's digits (year, month, day), spelled from the value's floor
                     // (2 -> 1 and the four clock reads getHour, getMinute, getSecond, getNano GONE, 2026-10-29: the

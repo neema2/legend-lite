@@ -79,9 +79,9 @@ class GeneratedTestDataPrintingTest {
                 + "Runtime t::RT { mappings: [t::M]; connections: [ t::DB: [ c0: t::C ] ]; }\n";
         ModelContext ctx = Compiler.compileModel(model);
         String what = backend.name() + " " + judge;
-        // lite's own rules: the timestamp in full
+        // lite's own rules: the product's DateTime text (register S312; W4 of docs/records/d-plan-2026-11-16.md)
         assertEquals(List.of("assertEquals true"), run(backend, ctx, body("default\nEVENT\nID,STAMP\n"
-                + "1,2020-01-02T03:04:05.123000000+0000\n2,---null---\n-----\n"),
+                + "1,2020-01-02T03:04:05.123000Z\n2,---null---\n-----\n"),
                 ExecuteOptions.NONE.withJudgeMode(judge)), what);
         // the compatibility rules: upstream's text, the fraction cut
         assertEquals(List.of("assertEquals true"), run(backend, ctx, body("default\nEVENT\nID,STAMP\n"

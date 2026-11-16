@@ -23,6 +23,8 @@ public enum RaiseKind {
     SLICE_BOUNDS_INVERTED,
     DATE_COMPONENT_INVALID,
     CAST_IMPOSSIBLE,
+    /** A value whose run-time type is not the one a chain step needs (the resolver's run-time dispatch; W5, 2026-11-16). */
+    INSTANCE_NOT_OF,
     RANGE_STEP_ZERO,
     CONSTRAINT_UNEVALUABLE,
     LIST_LENGTHS_DIFFER,

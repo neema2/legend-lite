@@ -163,8 +163,10 @@ class RuntimeTypeDispatchTest {
         String sql = sqlOf("|rt::Vehicle.all()"
                 + "->project([v|$v->cast(@rt::Car).engineType], ['e'])" + FROM);
         SQLException e = assertThrows(SQLException.class, () -> exec(sql));
-        assertTrue(e.getMessage().contains("cannot be cast to rt::Car"),
-                e.getMessage());
+        // the product's raise: its kind and where (W5 of docs/records/d-plan-2026-11-16.md); legend-pure's "Cast
+        // exception: ... cannot be cast to ..." is the edge's (edge.PureMessages)
+        assertTrue(e.getMessage().contains(com.legend.sql.RaiseKind.MARK + "CAST_IMPOSSIBLE" + com.legend.sql.RaiseKind.MARK
+                + "rt::Vehicle to rt::Car"), e.getMessage());
     }
 
     @Test

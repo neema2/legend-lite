@@ -2330,9 +2330,8 @@ final class Substitution {
         // leaf's list is the aggregation above this CASE): its stamp is
         // the scalar position, never the read's list multiplicity
         return new TypedIf(witnessTest(fqn), leaf,
-                Optional.of(raise("Cast exception: " + target.classFqn()
-                        + " cannot be cast to " + fqn,
-                        new ExprType(pa.info().type(), Multiplicity.Bounded.ONE))),
+                Optional.of(ChainDispatch.typeRaise(com.legend.sql.RaiseKind.CAST_IMPOSSIBLE,
+                        target.classFqn(), fqn, new ExprType(pa.info().type(), Multiplicity.Bounded.ONE))),
                 pa.info());
     }
 
