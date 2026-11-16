@@ -58,7 +58,12 @@ public final class ProductSqlMeasure {
         } else if (args[0].equals("measure")) {
             measure(Path.of(args[1]), out);
         } else {
-            time(Path.of(args[1]), out, Integer.getInteger("legend.measure.runs", 7));
+            int failing = time(Path.of(args[1]), out, Integer.getInteger("legend.measure.runs", 15));
+            if (failing > 0) {
+                // none slower (D2), same rows: a pair that breaks either fails the run (E-v2's review, S1)
+                System.err.println("[pairs] " + failing + " pair(s) slower beyond noise or answering other rows");
+                System.exit(1);
+            }
         }
     }
 
@@ -258,7 +263,13 @@ public final class ProductSqlMeasure {
         }
     }
 
-    static void time(Path dir, Path out, int runs) throws Exception {
+    /** A pair is slower beyond noise when its after takes more than 15% and more than a millisecond longer (the median
+     *  of 15 runs moved about 10% between runs on a shared machine, 2026-11-16). */
+    private static final double SLOWER = 1.15;
+
+    /** Each pair timed; the count of pairs slower beyond noise or answering other rows (E-v2's review, S1). */
+    static int time(Path dir, Path out, int runs) throws Exception {
+        int failing = 0;
         try (Writer timing = Files.newBufferedWriter(out.resolve("timing.tsv"), StandardCharsets.UTF_8)) {
             timing.write("dialect\tcase\tbefore_chars\tafter_chars\tbefore_us\tafter_us\tverdict\n");
             for (TestBackend backend : TestBackends.inProcess()) {
@@ -269,6 +280,8 @@ public final class ProductSqlMeasure {
                 int same = 0;
                 int differ = 0;
                 int failed = 0;
+                int slower = 0;
+                int beforeFailed = 0;
                 for (String line : Files.readAllLines(pairs, StandardCharsets.UTF_8)) {
                     Json.Obj p = Json.parseObject(line);
                     String before = ((Json.Str) p.get("before")).value();
@@ -280,7 +293,9 @@ public final class ProductSqlMeasure {
                         try {
                             a = rows(c, before);
                         } catch (java.sql.SQLException e) {
-                            continue;   // the statement raises by design (a guard): not a timing case
+                            beforeFailed++;   // the statement raises by design (a guard): counted, not timed
+                            timing.write(row + "-\t-\tbefore-raises\n");
+                            continue;
                         }
                         List<String> b;
                         try {
@@ -296,13 +311,21 @@ public final class ProductSqlMeasure {
                             continue;
                         }
                         same++;
-                        timing.write(row + median(c, before, runs) + "\t" + median(c, after, runs) + "\tsame\n");
+                        long b0 = median(c, before, runs);
+                        long a0 = median(c, after, runs);
+                        boolean slow = a0 > b0 * SLOWER && a0 - b0 > 1000;
+                        if (slow) {
+                            slower++;
+                        }
+                        timing.write(row + b0 + "\t" + a0 + "\t" + (slow ? "SLOWER" : "same") + "\n");
                     }
                 }
                 System.err.println("[pairs] " + backend.type() + " same=" + same + " differ=" + differ
-                        + " after-failed=" + failed);
+                        + " after-failed=" + failed + " slower=" + slower + " before-raises=" + beforeFailed);
+                failing += differ + failed + slower;
             }
         }
+        return failing;
     }
 
     private static List<String> rows(java.sql.Connection c, String sql) throws java.sql.SQLException {

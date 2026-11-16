@@ -7,6 +7,9 @@ a command:
 
     bazel run //core:product_sql_measure -- time $PWD/core/src/test/resources/lean-sql/timing <out dir>
 
-It writes `timing.tsv` (each pair's characters and median times, and whether the rows are the same) and prints a
-summary per database. A pair whose rows differ, or whose "after" is slower beyond noise, is a defect of the form.
-Run once per staged PR (E-v2 ...), and add a pair with each form a step lands.
+It writes `timing.tsv` (each pair's characters, median times, and its verdict: `same`, `SLOWER` -- the after more than
+15% and more than a millisecond longer, medians of 15 runs -- `differ`, `after-failed`, or `before-raises`, a guard's statement counted but
+not timed) and prints a summary per database; it exits non-zero when any pair is slower, differs or fails (E-v2's
+review, S1). Each form is timed at two sizes (a `-large` twin: 3M-20M rows on DuckDB, 3M on H2 and SQLite). Postgres
+is not in-process: its forms are timed on the unprivileged server and recorded in the plan's decision log. Run once per
+staged PR (E-v2 ...), and add a pair with each form a step lands.
