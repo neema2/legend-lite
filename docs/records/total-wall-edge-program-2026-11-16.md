@@ -366,6 +366,7 @@ or its own plan; when it's done, it's struck through here with its commit.
 | F26 | D3 (engine plans in and out); the layered edge design; the date-format fidelity PR; Deephaven. | after D |
 | F28 | SQLite `parseFloat('NaN')` answers 0: refuse by name or answer NaN. | E-SQL, Phase 8 |
 | F27 | DuckDB's error TEXT on PCT's date "BigNumber" adjust tests varies run to run: DuckDB's threads choose which out-of-range value is reported first. The outcome is stable and only the text varies, but G10 (determinism) wants one text. | E-Java or D, after D |
+| F29 | Databricks' double-to-text cast (`Databricks.variantAwareCast`) writes `lower(CAST(x AS STRING))`, and a NaN/inf CASE around it lower-cases a second time (round 69). It is harmless but not lean. | E-SQL, lean SQL |
 
 ## 10. Rulings for the user
 
