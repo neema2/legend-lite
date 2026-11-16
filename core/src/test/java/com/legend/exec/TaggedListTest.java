@@ -326,6 +326,26 @@ class TaggedListTest {
         }
     }
 
+    /** A raw grid's cell (an {@code executeInDb} grid's, its kind the wire's: no slot) as an assert's side beside a
+     *  fused assert, under BOTH (G10, 2026-11-16, the corpus's {@code ddl::dropAndCreateTable}): the side keeps its own
+     *  statement, decided by its shape at planning (DatabaseAsserts.attachHost). Fused, its column in the verdict
+     *  statement took the other member's NULL pad of no type (DuckDB's JSON), which no Pure type names. */
+    @Test
+    void aRawGridCellBesideAFusedAssertHoldsUnderBoth() throws Exception {
+        String body = "{| let c = ^meta::external::store::relational::runtime::TestDatabaseConnection("
+                + "type=meta::relational::runtime::DatabaseType.DuckDB);\n"
+                + "let rs = meta::relational::metamodel::execute::executeInDb("
+                + "'select count(*) as N from (select 1 union all select 2) t', $c);\n"
+                + "assertSize([1, 2], 2);\n"
+                + "assertEquals(2, $rs.rows->at(0).getInteger('N'));}";
+        try (Connection c = TestBackends.platform().open()) {
+            for (com.legend.testplan.PlanningOptions.JudgeMode mode : com.legend.testplan.PlanningOptions.JudgeMode.RUNS) {
+                Program.last(StorelessRuntime.with(MODEL, Databases.PLATFORM), body, StorelessRuntime.RUNTIME, c,
+                        com.legend.ExecuteOptions.NONE.withJudgeMode(mode));
+            }
+        }
+    }
+
     @Test
     void anUntypedGridsCellsAreReadOnTheVariantLane() throws Exception {
         // the corpus's whole-TDS idiom (testUsingSameAggFunctionTwice: a literal list against $result.values.rows
