@@ -884,6 +884,10 @@ public class SQLite extends AnsiSqlRenderer {
         if (t == null && x instanceof SqlExpr.BoolLit) {
             t = SqlType.Scalar.BOOLEAN;
         }
+        // a Float literal is written as its own shortest digits, which read back (a computed one: jsonOf's Float)
+        if (t == SqlType.Scalar.DOUBLE && x instanceof SqlExpr.FloatLit) {
+            return w -> w.expr(x, 0);
+        }
         return jsonOf(w -> w.expr(x, 0), t);
     }
 
@@ -897,6 +901,15 @@ public class SQLite extends AnsiSqlRenderer {
         }
         if (nested(t)) {
             return w -> w.append("json(").piece(v).append(")");
+        }
+        // a Float as a JSON number of seventeen significant digits (E-v3, 2026-11-16): SQLite's JSON writes a REAL
+        // with fifteen, so sqrt(2.0) read back 1.4142135623731 (134 of 2,011 doubles read back, measured on 3.53.1),
+        // and the product's 3.47.1 casts a REAL to TEXT with fifteen too (FloatCarrierExactTest, measured); seventeen
+        // read back every one. printf writes a NULL as 0.0, so the NULL is kept by a guard. 2.9x the raw form's time
+        // to build a list of a million (286 vs 99 ms), the price of the right answer
+        if (t == SqlType.Scalar.DOUBLE) {
+            return w -> w.append("CASE WHEN ").piece(v).append(" IS NULL THEN NULL ELSE json(printf('%!.17g', ")
+                    .piece(v).append(")) END");
         }
         return v;
     }
