@@ -174,7 +174,7 @@ public final class CanonicalDivergence {
         // the census diagnoses itself: a bare DIFFER cost a full
         // filtered-rerun per row during the §8.3b wobble hunt
         return er.equals(ar) ? "EQUAL"
-                : "DIFFER" + TdsCompare.firstCanonDiff(er, ar);
+                : "DIFFER" + firstCanonDiff(er, ar);
     }
 
     /** The byte-channel comparison key: kindClass + canonical text
@@ -568,5 +568,24 @@ public final class CanonicalDivergence {
         for (int i = 0; i < V7_SIDE_ROWS.length(); i++) {
             V7_SIDE_ROWS.set(i, 0);
         }
+    }
+
+    // moved from TdsCompare 2026-11-16 (E-Java's ledger audit: its one caller is this class's diagnosis)
+    /** First differing entry of two (sorted) canon lists — the alarm's
+     * diagnosis payload (a bare host/sql flag cannot be diagnosed). */
+    static String firstCanonDiff(List<String> e, List<String> a) {
+        int n = Math.min(e.size(), a.size());
+        for (int i = 0; i < n; i++) {
+            if (!e.get(i).equals(a.get(i))) {
+                return " diff@" + i + " e<" + truncCanon(e.get(i))
+                        + "> a<" + truncCanon(a.get(i)) + ">";
+            }
+        }
+        return e.size() != a.size()
+                ? " sizes " + e.size() + "/" + a.size() : "";
+    }
+
+    private static String truncCanon(String s) {
+        return s.length() > 120 ? s.substring(0, 120) + "…" : s;
     }
 }

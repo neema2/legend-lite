@@ -123,16 +123,6 @@ public final class PureAsserts {
                 + reprList(as, actualClass);
     }
 
-    /** {@code assertSize(collection, size)} (assertSize.pure:17). */
-    public static @com.legend.base.Nullable String assertSize(
-            List<Object> collection, long size) {
-        if (collection.size() == size) {
-            return null;
-        }
-        return "expected size: " + size + ", actual size: "
-                + collection.size();
-    }
-
     /** {@code assertNotEquals(notExpected, actual)}'s message (assertNotEquals.pure:17-21): each side's
      *  representation where both are one value, else both as lists -- upstream's spelling (2026-11-03). */
     public static String notEqualsMessage(List<Object> notExpected, List<Object> actual) {

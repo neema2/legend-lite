@@ -91,27 +91,6 @@ public final class TdsCompare {
     // the verdict arm only dispatches. Every refusal counts a named
     // decline — census fuel, never a silent skip.
 
-    /** First differing entry of two (sorted) canon lists — the alarm's
-     * diagnosis payload (a bare host/sql flag cannot be diagnosed). */
-    public static String firstCanonDiff(List<String> e, List<String> a) {
-        int n = Math.min(e.size(), a.size());
-        for (int i = 0; i < n; i++) {
-            if (!e.get(i).equals(a.get(i))) {
-                return " diff@" + i + " e<" + truncCanon(e.get(i))
-                        + "> a<" + truncCanon(a.get(i)) + ">";
-            }
-        }
-        return e.size() != a.size()
-                ? " sizes " + e.size() + "/" + a.size() : "";
-    }
-
-    private static String truncCanon(String s) {
-        return s.length() > 120 ? s.substring(0, 120) + "…" : s;
-    }
-
-
-
-
     /** {@code assertTdsEquivalent} cell comparison (engine
      * tdsEquivalent.pure — moved from the harness's TdsEquivalence at
      * Phase 2b): numeric cells within {@code |delta|}, temporal cells

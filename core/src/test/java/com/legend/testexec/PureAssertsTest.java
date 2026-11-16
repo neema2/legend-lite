@@ -94,16 +94,6 @@ class PureAssertsTest {
                         List.of("2", 4L, 1L, 5L), LITE));
     }
 
-    // ---- assertSize.pure ----------------------------------------------
-
-    @Test
-    @DisplayName("spec: assertSize message form")
-    void sizeMessage() {
-        assertNull(PureAsserts.assertSize(List.of(1L, 2L), 2));
-        assertEquals("expected size: 3, actual size: 2",
-                PureAsserts.assertSize(List.of(1L, 2L), 3));
-    }
-
     // ---- the adjudicated wire policies (documented divergences) -------
 
     @Test
