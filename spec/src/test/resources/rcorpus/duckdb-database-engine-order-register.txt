@@ -24,6 +24,9 @@ engine-order meta::relational::graphFetch::tests::embedded::otherwise::testOther
 engine-order meta::relational::testDataGeneration::tests::alloy::testAlloyTestDatGenForNestedViews
 engine-order meta::relational::testDataGeneration::tests::alloy::testAlloyTestDatGenWithQuotedColumnsForViews
 engine-order meta::relational::testDataGeneration::tests::alloy::testConstant_Alloy
+engine-order meta::relational::testDataGeneration::tests::alloy::testDataGenerationWithBiTemporalMilestoning_WithMilestoningDates_Alloy
+engine-order meta::relational::testDataGeneration::tests::alloy::testDataGenerationWithBusinessDateMilestoning_WithMilestoningDates_Alloy
+engine-order meta::relational::testDataGeneration::tests::alloy::testDataGenerationWithSnapshotMilestoning_WithMilestoningDates_Alloy
 engine-order meta::relational::testDataGeneration::tests::alloy::testInheritanceMultipleLevel_Alloy
 engine-order meta::relational::testDataGeneration::tests::alloy::testInheritanceMultipleTableJoin_Alloy
 engine-order meta::relational::testDataGeneration::tests::alloy::testQualifier_Alloy
@@ -49,6 +52,7 @@ engine-order meta::relational::testDataGeneration::tests::testDataGenerationWith
 engine-order meta::relational::testDataGeneration::tests::testDataGenerationWithSnapshotMilestoning_WithMilestoningDates
 engine-order meta::relational::testDataGeneration::tests::testInheritanceMultipleLevel
 engine-order meta::relational::testDataGeneration::tests::testInheritanceMultipleTableJoin
+engine-order meta::relational::testDataGeneration::tests::testQualifier
 engine-order meta::relational::testDataGeneration::tests::testSelfJoin
 engine-order meta::relational::testDataGeneration::tests::testSimpleSingleTable
 engine-order meta::relational::testDataGeneration::tests::testSimpleSingleTableWithNoDataToInsert
