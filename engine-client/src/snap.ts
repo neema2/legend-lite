@@ -338,17 +338,15 @@ export class SnapManager implements Snaps {
         throw new SnapRefusal('the local store opens no connection of its own for a copy streamed over the network: it cannot be snapped');
       }
       const own = await this.#connect();
-      let landed: Awaited<ReturnType<typeof runLoad>>['landed'];
-      try {
-        ({ landed } = await own.exclusive((held) => runLoad(plan, (sql, params) => held.rows(sql, params),
-          { streams: { planes: { [REMOTE_PLANE]: remote }, held, ...(options.signal ? { signal: options.signal } : {}) } })));
-      } catch (e) {
-        // a close that fails too is said with the failure, never swallowed (G7)
-        await own.close().catch((c: unknown) => {
-          throw new Error(`${e instanceof Error ? e.message : String(e)} -- and closing the copy's connection failed: ${c instanceof Error ? c.message : String(c)}`, { cause: e });
+      const { landed } = await own.exclusive((held) => runLoad(plan, (sql, params) => held.rows(sql, params),
+        { streams: { planes: { [REMOTE_PLANE]: remote }, held, ...(options.signal ? { signal: options.signal } : {}) } }))
+        .catch(async (e: unknown) => {
+          // a close that fails too is said with the failure, never swallowed (G7)
+          await own.close().catch((c: unknown) => {
+            throw new Error(`${e instanceof Error ? e.message : String(e)} -- and closing the copy's connection failed: ${c instanceof Error ? c.message : String(c)}`, { cause: e });
+          });
+          throw e;
         });
-        throw e;
-      }
       await own.close();
       const [made] = landed;
       if (made === undefined) throw new SnapRefusal('the snap\u2019s plan streamed nothing into the copy');
