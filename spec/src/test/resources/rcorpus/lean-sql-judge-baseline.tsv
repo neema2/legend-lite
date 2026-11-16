@@ -40,8 +40,8 @@ corpus-judge	DuckDB	meta::relational::graphFetch::tests::union::relationalGraphF
 corpus-judge	DuckDB	meta::relational::graphFetch::tests::union::rootLevel	5	21701	302921	72	3174	0
 corpus-judge	DuckDB	meta::relational::metamodel::execute::tests	3	6872	102272	34	739	0
 corpus-judge	DuckDB	meta::relational::tds::schema::tests	0	0	0	0	0	1
-corpus-judge	DuckDB	meta::relational::testDataGeneration::tests	175	1146563	94851492	4562	315381	3
-corpus-judge	DuckDB	meta::relational::testDataGeneration::tests::alloy	93	130601	51981007	539	14209	10
+corpus-judge	DuckDB	meta::relational::testDataGeneration::tests	180	1185255	97539100	4715	327985	2
+corpus-judge	DuckDB	meta::relational::testDataGeneration::tests::alloy	104	165310	57466760	621	16019	7
 corpus-judge	DuckDB	meta::relational::tests::advanced::contractmoneyscenario	2	2872	26746	8	94	0
 corpus-judge	DuckDB	meta::relational::tests::advanced::failures	0	0	0	0	0	0
 corpus-judge	DuckDB	meta::relational::tests::advanced::failures::moveFilterInOnClause	2	11242	164274	48	1194	0
@@ -353,8 +353,8 @@ corpus-judge	H2	meta::relational::graphFetch::tests::union::relationalGraphFetch
 corpus-judge	H2	meta::relational::graphFetch::tests::union::rootLevel	5	17513	222527	60	3025	0
 corpus-judge	H2	meta::relational::metamodel::execute::tests	3	23577	121981	30	14509	0
 corpus-judge	H2	meta::relational::tds::schema::tests	0	0	0	0	0	1
-corpus-judge	H2	meta::relational::testDataGeneration::tests	175	1275936	95339594	4548	358605	3
-corpus-judge	H2	meta::relational::testDataGeneration::tests::alloy	93	139880	52146938	539	15849	10
+corpus-judge	H2	meta::relational::testDataGeneration::tests	180	1319099	98046653	4701	372761	2
+corpus-judge	H2	meta::relational::testDataGeneration::tests::alloy	104	176111	57651349	621	17821	7
 corpus-judge	H2	meta::relational::tests::advanced::contractmoneyscenario	2	3012	28086	8	110	0
 corpus-judge	H2	meta::relational::tests::advanced::failures	0	0	0	0	0	0
 corpus-judge	H2	meta::relational::tests::advanced::failures::moveFilterInOnClause	2	12226	167266	48	1306	0

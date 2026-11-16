@@ -40,8 +40,8 @@ corpus	DuckDB	meta::relational::graphFetch::tests::union::relationalGraphFetchUn
 corpus	DuckDB	meta::relational::graphFetch::tests::union::rootLevel	0	0	512	0	0	0
 corpus	DuckDB	meta::relational::metamodel::execute::tests	0	0	256	0	0	0
 corpus	DuckDB	meta::relational::tds::schema::tests	0	0	0	0	0	1
-corpus	DuckDB	meta::relational::testDataGeneration::tests	148	721342	3192776	696	168566	3
-corpus	DuckDB	meta::relational::testDataGeneration::tests::alloy	74	250848	862416	0	62707	10
+corpus	DuckDB	meta::relational::testDataGeneration::tests	156	748663	3301884	713	175107	2
+corpus	DuckDB	meta::relational::testDataGeneration::tests::alloy	77	314544	1061445	0	70261	7
 corpus	DuckDB	meta::relational::tests::advanced::contractmoneyscenario	0	0	0	0	0	0
 corpus	DuckDB	meta::relational::tests::advanced::failures	0	0	512	0	0	0
 corpus	DuckDB	meta::relational::tests::advanced::failures::moveFilterInOnClause	0	0	0	0	0	0
@@ -353,8 +353,8 @@ corpus	H2	meta::relational::graphFetch::tests::union::relationalGraphFetchUnionW
 corpus	H2	meta::relational::graphFetch::tests::union::rootLevel	0	0	512	0	0	0
 corpus	H2	meta::relational::metamodel::execute::tests	0	0	256	0	0	0
 corpus	H2	meta::relational::tds::schema::tests	0	0	0	0	0	1
-corpus	H2	meta::relational::testDataGeneration::tests	148	701418	3097059	696	151880	3
-corpus	H2	meta::relational::testDataGeneration::tests::alloy	74	231991	787779	0	51187	10
+corpus	H2	meta::relational::testDataGeneration::tests	156	727149	3199888	713	157273	2
+corpus	H2	meta::relational::testDataGeneration::tests::alloy	77	294205	979581	0	58282	7
 corpus	H2	meta::relational::tests::advanced::contractmoneyscenario	0	0	0	0	0	0
 corpus	H2	meta::relational::tests::advanced::failures	0	0	512	0	0	0
 corpus	H2	meta::relational::tests::advanced::failures::moveFilterInOnClause	0	0	0	0	0	0
