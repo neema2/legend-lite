@@ -25,4 +25,16 @@ class EqualityJsonStrictTest {
         assertNotNull(Equality.pureJsonUnorderedRoot(Json.parse(B), Json.parse("[" + B + "]")));
         assertNotNull(Equality.pureJsonUnorderedRoot(Json.parse("[" + B + "]"), Json.parse(B)));
     }
+
+    /** The service-test EqualToJson compares numbers as exact decimals, as the engine's JsonNodeComparator does
+     *  (decimalValue()): two doubles one ULP apart differ, and two spellings of one decimal are equal (E-Java's
+     *  ledger audit D1, 2026-11-16: an unconditional 2-ULP leniency had passed the first pair). */
+    @Test
+    @DisplayName("EqualToJson: numbers as exact decimals, no float leniency")
+    void serviceJsonComparesExactDecimals() {
+        assertNotNull(com.legend.test.TestAssertions.equalToJson(Json.parse("{\"x\": 1.0}"),
+                Json.parse("{\"x\": 1.0000000000000002}")));
+        org.junit.jupiter.api.Assertions.assertNull(com.legend.test.TestAssertions.equalToJson(
+                Json.parse("{\"x\": [1, 2.50]}"), Json.parse("{\"x\": [2.5, 1.0]}")));
+    }
 }

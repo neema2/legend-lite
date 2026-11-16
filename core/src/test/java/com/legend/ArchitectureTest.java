@@ -3612,8 +3612,9 @@ final class ArchitectureTest {
             // was deleted long before -- the ledger's Equality row records it gone -- and the D71 audit found the
             // exemption naming nothing; deleted, a dated note)
             // JUDGING_TWO_MODES step 2: the host judge and the service-test
-            // judge are the seam's own (Equality decides; TestAssertions
-            // routes EqualToJson to it)
+            // judge are the seam's own (Equality decides the host's; since
+            // 2026-11-16 TestAssertions decides EqualToJson itself, the engine's
+            // exact-decimal JsonNodeComparator, its 2-ULP leniency deleted: E-Java's ledger audit, D1)
             .and().doNotHaveFullyQualifiedName("com.legend.testexec.Equality")
             .and().doNotHaveFullyQualifiedName("com.legend.test.TestAssertions")
             // leg 3.4 (2026-09-20): the verdict seam's SENDING arm — the

@@ -156,7 +156,9 @@ class HarnessDisciplineTest {
             // same-elements sort (sort, then ordered: the engine's own rule)
             // and the row-multiset match moved here from PureAsserts /
             // TdsCompare; two-sided comparison policy, never a result order
-            Map.entry("Equality.java", 4),
+            // 4 -> 3 (2026-11-16, E-Java's ledger audit D1): the service-test comparator's key union left with it for
+            // com.legend.test.TestAssertions
+            Map.entry("Equality.java", 3),
             // 2026-11-09 (slice 5: the test's planner scanned in the driver's place): the body's kinds named in the
             // program road's refusal message, sorted so the message reads the same each run -- a diagnostic's text,
             // never a result's order
