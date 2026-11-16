@@ -190,7 +190,7 @@ gets the same columns.
 | 8 | B | a Float's `toString` inside an expression | legend-engine's cast per database | S311 one call | edge lowering variant | Phase 5; PCT moves listed and ruled first |
 | 9 | B | a raise sentence's operand (`PureMessages` in SQL) | upstream's sentence | the kind | **a structured raise marker; the sentence in Java** | Phase 2 |
 | 10 | B | ClickHouse's product `format('%s', Float)` | — | S311 one call (it's toString) | — | Phase 3 (a product fix) |
-| 11 | B | H2's quoting of reserved words, and the session's `NON_KEYWORDS` | legend-engine's lexicon | **restored to the pre-W6 rule pending a ruling (§10 item 9)** | — | Phase 1 (restore), then a ruling |
+| 11 | B | H2's quoting of reserved words, and the session's `NON_KEYWORDS` | legend-engine's lexicon | the same rule, **RULED a product row (§10 item 9, 2026-11-16)** | — | restored, `9c28a1a7e` (Phase 1) |
 | 12 | B | DuckDB's engine scan order | legend-engine's order | none | `StableScanOrder` at the edge | done (W6) |
 | 13 | C | generatePlan, `toSQLString`, a plan handle's nodes, an execute's activity SQL | legend-engine's text | none | `edge.EnginePlans`, `EngineText` | step 1 done (`d4bab2df6`); the rest: Phase 6 |
 | 14 | C | the pure/v1 envelope, errorType, error type names | engine's | lite's | `PureV1Api` edge overload, `PureMessages.typeName` | done (`3f1695d65`) |
@@ -324,19 +324,40 @@ gets the same columns.
 - The date-format fidelity PR.
 - Lineage rebuilt upstream's way.
 
-## 10. Open rulings for the user (one batch; none blocks the work)
-1. E's register rows: S341 and R1 to R6; the E1 ledger split.
-2. An unread derived column that can raise. Lite prunes it and answers the rows; Pure raises. Keep it as a row, or
-   evaluate the column?
-3. The CSV writer's Float cell: keep `3.0` (Pure's print of a carried value), or S311's `3`?
-4. A DateTime written at a coarser precision now prints six digits and `Z`. Keep that, or the written precision?
-5. A value finer than a microsecond: cut to six digits (today), or refuse by name?
-6. The B-row PCT moves (Phase 5), listed when measured.
-7. H2 `toOne` over a list: refused by name.
-8. The product's `toRepresentation` and `format('%r')`: refused by name (S314 extended).
-9. H2's quoting rule and `NON_KEYWORDS` as a product row. Evidence: they decide which column a declared name reads in
-   H2 data made legend-engine's way. W6 dropped them, and a lowercase-quoted `"order"` column then failed to be found.
-10. Any guard survivors (Phase 7) and deferred goldens (Phase 4b).
+## 10. Rulings for the user
+
+**RULED by the user, 2026-11-16, about 15:10 ("I agree with all", on the orchestrator's recommendations):**
+
+1. **E's rows S341, R3 and R4: refusals by name for now.** They replaced wrong answers, and the "kinds kept" carrier
+   (Phase 10) is to replace them with legend-pure's answers. The refusals:
+   - `type()` of a value whose kind is known only at run time;
+   - a mixed list's extreme where elements of different kinds tie;
+   - a computed Integer beyond 2^53 in a mixed list's order.
+
+   R5 and R6 are internal, with no user-visible answer. E1's refusals were ruled on 2026-11-10.
+2. **An unused derived column that can raise:** lite prunes it and answers the rows. It becomes a product register
+   row. The edge follows legend-engine once its answer has been read from the engine runner.
+3. **The CSV writer's Float cell keeps the exact value (`3.0`).** A CSV is data. S311's six decimals govern
+   `toString`, not a carried value.
+4. **A coarsely written DateTime prints S312's one form** (six digits and `Z`). The edge keeps legend-pure's written
+   precision.
+5. **A value finer than a microsecond: its text is cut to six digits.** The value itself is carried exactly.
+6. *(rule later)* The B-row PCT moves (Phase 5), listed when measured.
+7. *(with the user, after an explanation)* H2 `toOne` over a list, refused by name today. Options:
+   - (a) refuse, as today;
+   - (b) give H2 a list encoding;
+   - (c) `toOne` by counting, no list: lean on every database.
+
+   The recommendation is (a) now plus (c) in E-SQL's lean SQL.
+8. *(with the user, after an explanation)* The product's `toRepresentation` and `format('%r')`. Options:
+   - (a) refuse by name (S314 extended);
+   - (b) a simple product form;
+   - (c) keep legend-pure's text (against the design).
+
+   The recommendation is (a).
+9. **H2's quoting rule and `NON_KEYWORDS` stay in the product as a ruled row.** They decide which column a declared
+   name reads in H2 data made legend-engine's way. Restored by D, `9c28a1a7e`.
+10. *(rule later)* Guard survivors (Phase 7) and deferred goldens (Phase 4b).
 
 ## 11. Timeline (rough, working hours)
 
@@ -360,4 +381,5 @@ About four working days to D's landing, with the three workers in parallel.
 
 | When (UTC) | Entry |
 |---|---|
+| 2026-11-16 15:15 | **The user ruled §10 items 1-5 and 9** ("I agree with all"). Items 7 and 8 were explained, and await the user's choice. D's Phase 1: A-M1 restored (`9c28a1a7e`, H2's text byte-identical to before W6, one guard row); `stage-linux.yml` committed (`2ed80afe6`); `//core:lean_sql_baseline_test`'s plan-JSON growth approved for one re-pin, on condition that one case confirms it is the per-statement raises field (SQL characters only shrank). |
 | 2026-11-16 15:00 | Written, at the user's word. It supersedes `total-wall-plan-2026-11-16.md`, which holds the day's earlier log. |
