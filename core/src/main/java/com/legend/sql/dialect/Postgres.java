@@ -569,6 +569,24 @@ public class Postgres extends AnsiSqlRenderer {
         return rebuilt(t) ? w -> w.append("to_jsonb(").piece(value).append(")") : value;
     }
 
+    /** {@link #encode} of an expression: a list literal held as jsonb is built as one, element by element
+     *  ({@code jsonb_build_array(x)}, not {@code to_jsonb(CAST(ARRAY[x] AS T[]))}: each element converted as
+     *  to_jsonb converts an array's, E-v3, 2026-11-16). */
+    private static SqlWriter.Piece encodeExpr(SqlExpr e, @com.legend.base.Nullable SqlType t) {
+        // only where an element's JSON cannot depend on its SQL type: an integer (int or bigint), a text or a Boolean,
+        // each a column or a plain literal (a Float literal 1.0 is numeric to Postgres, a REAL column converts
+        // otherwise than its float8 cast: those keep the cast)
+        if (rebuilt(t) && t instanceof SqlType.Array && e instanceof SqlExpr.ArrayLit al
+                && listElement(al) instanceof SqlType el && (el == SqlType.Scalar.BIGINT
+                        || el == SqlType.Scalar.INTEGER || el == SqlType.Scalar.VARCHAR || el == SqlType.Scalar.BOOLEAN)
+                && al.elements().stream().allMatch(x -> x instanceof SqlExpr.Column || x instanceof SqlExpr.IntLit
+                        || x instanceof SqlExpr.StringLit || x instanceof SqlExpr.BoolLit
+                        || x instanceof SqlExpr.NullLit)) {
+            return w -> w.append("jsonb_build_array(").list(al.elements()).append(")");
+        }
+        return encode(w -> w.expr(e, 0), t);
+    }
+
     /** Whether a list holds a value of type {@code t} as jsonb and rebuilds it when read: a list, or a map, which
      *  is a jsonb[] of its entries (a list of maps had been an array of arrays: PR #34's review, 2026-10-13). */
     private static boolean rebuilt(@com.legend.base.Nullable SqlType t) {
@@ -784,7 +802,7 @@ public class Postgres extends AnsiSqlRenderer {
                     .append(" WITH ORDINALITY AS __u(" + x + ", __o) WHERE ")
                     .append(x + " IS NOT NULL GROUP BY " + x + " ORDER BY min(__o))")));
             case LIST_APPEND -> writer.append("array_append(").piece(xs).append(", ")
-                    .piece(encode(w -> w.expr(args.get(1), 0), first)).append(")");
+                    .piece(encodeExpr(args.get(1), first)).append(")");
             // reorderings move elements as the list holds them (an inner list stays jsonb)
             case LIST_SORT -> writer.piece(overElements(args.get(0), held(args.get(0)), x, "__o", xp, null,
                     sortKey(xp, first, "")));
@@ -1145,7 +1163,7 @@ public class Postgres extends AnsiSqlRenderer {
         }
         SqlExpr.Lambda l = bodyOver((SqlExpr.Lambda) a.get(1), element);
         String[] p = lambdaParams(l);
-        return writer.piece(overElements(a.get(0), element, p[0], p[1], encode(w -> w.expr(l.body(), 0), result), null,
+        return writer.piece(overElements(a.get(0), element, p[0], p[1], encodeExpr(l.body(), result), null,
                 w -> w.append(p[1])));
     }
 
@@ -1239,7 +1257,7 @@ public class Postgres extends AnsiSqlRenderer {
         SqlType element = elementOf(m.collection(), "membership");
         SqlWriter.Piece xs = w -> w.expr(m.collection(), 0);
         return writer.piece(nullIfNull(m.collection(), w -> w.append("(array_position(").piece(xs)
-                .append(", ").piece(encode(u -> u.expr(m.needle(), 0), element)).append(") IS NOT NULL)")));
+                .append(", ").piece(encodeExpr(m.needle(), element)).append(") IS NOT NULL)")));
     }
 
     /** A named aggregate over a list's elements, in list order. */
@@ -1273,7 +1291,7 @@ public class Postgres extends AnsiSqlRenderer {
                     + " element type");
         }
         return writer.append("CAST(ARRAY[")
-                .join(a.elements(), ", ", (w, e) -> w.piece(encode(v -> v.expr(e, 0), element)))
+                .join(a.elements(), ", ", (w, e) -> w.piece(encodeExpr(e, element)))
                 .append("] AS " + carrier(element) + "[])");
     }
 
@@ -1510,7 +1528,7 @@ public class Postgres extends AnsiSqlRenderer {
         if (e instanceof SqlExpr.OrderedListAgg ola) {
             // DuckDB's list(value ORDER BY key), as the LIST aggregate: NULL over no row, a list value held as jsonb
             SqlExpr v = ola.value();
-            return writer.append("array_agg(").piece(encode(w -> w.expr(v, 0), typeOf(v)))
+            return writer.append("array_agg(").piece(encodeExpr(v, typeOf(v)))
                     .append(" ORDER BY ").expr(ola.orderBy(), 0).append(")");
         }
         return super.expr(writer, e, parentPrec);
@@ -2430,7 +2448,7 @@ public class Postgres extends AnsiSqlRenderer {
         }
         SqlExpr x = r.args().get(0);
         writer.append("array_agg(").append(r.distinct() ? "DISTINCT " : "")
-                .piece(encode(w -> w.expr(x, 0), typeOf(x)));
+                .piece(encodeExpr(x, typeOf(x)));
         if (!r.orderBy().isEmpty()) {
             writer.append(" ORDER BY ").join(r.orderBy(), ", ", this::aggregateOrderKey);
         }
