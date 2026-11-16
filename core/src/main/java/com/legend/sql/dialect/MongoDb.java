@@ -647,6 +647,14 @@ public class MongoDb extends AnsiSqlRenderer {
      *  expressions), a computed text refused by name (MongoDB parses no JSON in a pipeline). */
     @Override
     protected SqlWriter variantAwareCast(SqlWriter writer, SqlExpr.Cast c) {
+        if (isParseFloat(c)) {
+            // parseFloat: $convert refused ' 1 ' and '1f' and raised its own ConversionFailure (241) for every other
+            // refusal (round 72): legend-pure's grammar, then the text trimmed of its whitespace and its one trailing
+            // f before the conversion (the grammar admits no leading f), else lite's kind by name (Phase 8)
+            return guardedParse(writer, c.value(), FLOAT_GRAMMAR, "{\"$toDouble\": {\"$trim\": {\"input\": " + G0
+                    + ", \"chars\": " + MongoJson.string(" \t\n\u000b\f\rfF") + "}}}",
+                    com.legend.sql.RaiseKind.TEXT_NOT_FLOAT);
+        }
         SqlType target = c.target();
         if (target == SqlType.Scalar.JSON) {
             if (c.value() instanceof SqlExpr.StringLit json) {
@@ -1060,7 +1068,8 @@ public class MongoDb extends AnsiSqlRenderer {
             case IN -> inList(writer, a);
             case COALESCE -> coalesce(writer, a);
             // ---- numbers
-            case PARSE_INT -> MongoJson.op1(writer, "$toLong", a.get(0));
+            case PARSE_INT -> guardedParse(writer, a.get(0), "^[+-]?[0-9]+$", "{\"$toLong\": " + G0 + "}",
+                    com.legend.sql.RaiseKind.TEXT_NOT_INTEGER);
             case SQRT -> writer.append("{\"$sqrt\": ").piece(unfolded(a.get(0))).append("}");
             case CBRT -> cubeRoot(writer, a);
             case EXP -> MongoJson.op1(writer, "$exp", a.get(0));
@@ -2157,6 +2166,18 @@ public class MongoDb extends AnsiSqlRenderer {
         return writer.append("{\"$toString\": ").expr(a.get(0), 0).append("}, ")
                 .append(MongoJson.string(RAISE_SENTINEL)).append(", ").append(UNFOLDED)
                 .append("]}, \"to\": \"int\"}}");
+    }
+
+    /**
+     * A parse guarded by legend-pure's grammar (Phase 8, the user's error design of 2026-11-16: every refusal is
+     * lite's kind by name): the text bound once as {@code $$g0} (null for null), {@code conversion} over it when
+     * {@code grammar} matches, else the raise of {@code kind} carrying the text.
+     */
+    private SqlWriter guardedParse(SqlWriter writer, SqlExpr text, String grammar, String conversion,
+            com.legend.sql.RaiseKind kind) {
+        return MongoJson.guarded(writer, List.of(text), w -> w.append("{\"$cond\": [{\"$regexMatch\": {\"input\": "
+                + G0 + ", \"regex\": " + MongoJson.string(grammar) + "}}, " + conversion + ", ")
+                .expr(SqlExpr.Call.of(SqlFn.ERROR, new SqlExpr.RaiseText(kind, List.of(text))), 0).append("]}"));
     }
 
     /** An empty text that depends on the row ({@code $$ROOT}'s type, cut to nothing): concatenated into a raise so
