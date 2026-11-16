@@ -104,14 +104,15 @@ public final class TypeFacts {
                 .append("/**\n")
                 .append(" * A PRODUCT RAISE'S ENVELOPE (#104's M2(b), 2026-11-15): what a statement lite planned raises, as\n")
                 .append(" * exec.RaisedErrors reads it -- between two SENTINELs, after an optional source position and POSITION_SEP, the\n")
-                .append(" * kind's name behind KIND_MARK, then its where behind a second; a quote the database could not hold as\n")
-                .append(" * QUOTE_MARK. Its words are the plans' own (`raises`, PlanJson.raises: phase D's option (D), 2026-11-15).\n")
+                .append(" * site's TOKEN and its number (LG#<n>, read through the statement's site table: phase D's Phase 2,\n")
+                .append(" * 2026-11-16); a quote the database could not hold as QUOTE_MARK. Its words are the plans' own (`sites`).\n")
                 .append(" */\n")
                 .append("export const RAISE = {\n")
                 .append("  SENTINEL: '").append(unicode(com.legend.exec.RaisedErrors.SENTINEL)).append("',\n")
                 .append("  POSITION_SEP: '").append(unicode(com.legend.exec.RaisedErrors.POSITION_SEP)).append("',\n")
                 .append("  QUOTE_MARK: '").append(unicode(com.legend.exec.RaisedErrors.QUOTE_MARK)).append("',\n")
-                .append("  KIND_MARK: '").append(unicode(com.legend.sql.RaiseKind.MARK)).append("',\n")
+                .append("  TOKEN: '").append(unicode(com.legend.sql.RaiseKind.TOKEN.charAt(0)))
+                .append(com.legend.sql.RaiseKind.TOKEN.substring(1)).append("',\n")
                 .append("} as const;\n");
         return out.toString();
     }
@@ -133,12 +134,14 @@ public final class TypeFacts {
         }
         out.append("}\n\n")
                 .append("# A PRODUCT RAISE'S ENVELOPE (#104's M2(b), 2026-11-15), as exec.RaisedErrors reads it: between two\n")
-                .append("# SENTINELs, after an optional source position and POSITION_SEP, the kind's name behind KIND_MARK, then its where\n")
-                .append("# behind a second; a quote the database could not hold as QUOTE_MARK. The same as DataCube's (lite-facts.ts RAISE).\n")
+                .append("# SENTINELs, after an optional source position and POSITION_SEP, a site's TOKEN and its number (LG#<n>, read\n")
+                .append("# through the statement's site table: phase D's Phase 2, 2026-11-16); a quote the database could not hold as\n")
+                .append("# QUOTE_MARK. The same as DataCube's (lite-facts.ts RAISE).\n")
                 .append("RAISE_SENTINEL = '").append(unicode(com.legend.exec.RaisedErrors.SENTINEL)).append("'\n")
                 .append("RAISE_POSITION_SEP = '").append(unicode(com.legend.exec.RaisedErrors.POSITION_SEP)).append("'\n")
                 .append("RAISE_QUOTE_MARK = '").append(unicode(com.legend.exec.RaisedErrors.QUOTE_MARK)).append("'\n")
-                .append("RAISE_KIND_MARK = '").append(unicode(com.legend.sql.RaiseKind.MARK)).append("'\n");
+                .append("RAISE_TOKEN = '").append(unicode(com.legend.sql.RaiseKind.TOKEN.charAt(0)))
+                .append(com.legend.sql.RaiseKind.TOKEN.substring(1)).append("'\n");
         return out.toString();
     }
 

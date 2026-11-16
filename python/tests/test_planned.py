@@ -1125,38 +1125,42 @@ class ARaiseIsWorded(unittest.TestCase):
     def test_each_envelope_reads_as_javas_runner_and_the_tabs_read_it(self):
         import os
 
-        from legend_lite._raised import declare_raises, raised_words
+        from legend_lite._raised import declare_statement_sites, raised_words
         fixture = json.loads(open(os.environ['LEGEND_LITE_RAISE_FIXTURE'], encoding='utf-8').read())
-        # the words are a plan's (PlanJson.raises; phase D's option (D), 2026-11-15): declared first, as a plan read does
-        declare_raises(fixture['raises'], 'the fixture')
+        # the sites are the statement's (PlanJson v56; phase D's Phase 2): declared first, as a plan read does
+        declare_statement_sites(fixture['statement'], fixture['sites'], 'the fixture')
         cases = fixture['cases']
         self.assertGreater(len(cases), 5)
         for case in cases:
             with self.subTest(case['name']):
-                said = raised_words(case['message'])
+                if case.get('refused'):
+                    with self.assertRaisesRegex(ValueError, 'which the statement does not declare'):
+                        raised_words(case['message'], fixture['statement'])
+                    continue
+                said = raised_words(case['message'], fixture['statement'])
                 self.assertEqual(case['message'] if said is None else said, case['words'])
 
-    def test_a_kind_no_plan_declared_is_refused_by_name(self):
+    def test_a_token_its_statement_does_not_declare_is_refused_by_name(self):
         from legend_lite._raised import raised_words
-        with self.assertRaisesRegex(ValueError, "'NO_SUCH_KIND', which no plan read here declares"):
-            raised_words('\x1f\x1cNO_SUCH_KIND\x1f')
+        with self.assertRaisesRegex(ValueError, 'LG#1, which the statement does not declare'):
+            raised_words('\x1f\x1cLG#1\x1f', 'SELECT a statement no plan declared')
 
     def test_a_raise_fired_at_a_fetch_is_worded(self):
         from legend_lite._planned import Result
-        from legend_lite._raised import declare_raises
+        from legend_lite._raised import declare_statement_sites
 
-        # what a plan that divides declares (PlanJson.raises)
-        declare_raises({'DIVIDE_BY_ZERO': 'division by zero'}, 'a plan')
+        # what a plan that divides declares for its statement (PlanJson v56's sites)
+        declare_statement_sites('SELECT 1 / 0', [{'n': 1, 'kind': 'DIVIDE_BY_ZERO', 'where': None,
+                                                  'message': 'division by zero', 'upstream': None}], 'a plan')
 
         class Failing:
             def fetchall(self):
                 raise RuntimeError('Invalid Input Error: Attempting to execute an unsuccessful or closed pending query'
-                                   ' result\nError: Invalid Input Error: \x1f\x1cDIVIDE_BY_ZERO\x1f')
+                                   ' result\nError: Invalid Input Error: \x1f\x1cLG#1\x1f')
 
         with self.assertRaises(RuntimeError) as raised:
-            Result(Failing()).fetchall()
+            Result(Failing(), 'SELECT 1 / 0').fetchall()
         self.assertEqual(str(raised.exception), 'division by zero')
-
 
 if __name__ == '__main__':
     unittest.main()

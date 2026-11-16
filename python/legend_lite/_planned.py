@@ -25,7 +25,7 @@ from collections import OrderedDict
 from collections.abc import Container, Iterable, Sequence
 from typing import Any
 
-from ._raised import declare_raises, worded
+from ._raised import declare_sites, worded
 from ._runframe import current_run
 
 
@@ -179,14 +179,14 @@ class Answered:
                 self._plan(database['load'])
         elif kind == 'plan':
             text = json.loads(payload)
-            # the raises its statement can send, worded by the planner (_raised.declare_raises; phase D's option (D))
-            declare_raises(text.get('raises'), 'a text plan')
+            # the raises its statement can send, worded by the planner (_raised.declare_sites; phase D's option (D))
+            declare_sites(text, 'a text plan')
             self._add(text['sql'])
             if text.get('plan') is not None:
                 self._plan(text['plan'])
         elif kind in self.PLANS:
             plan = json.loads(payload)
-            declare_raises(plan.get('raises') if isinstance(plan, dict) else None, f'a {kind} answer')
+            declare_sites(plan, f'a {kind} answer')
             self._plan(plan)
 
     def __contains__(self, text: object) -> bool:
@@ -312,10 +312,13 @@ class Result:
     """A statement's answer as the host reads it: its rows, its Arrow table, its columns' description -- never the
     connection DuckDB answers with, which runs any text (``execute`` returns it)."""
 
-    __slots__ = ('_answer',)
+    __slots__ = ('_answer', '_statement')
 
-    def __init__(self, answer: Any) -> None:
+    def __init__(self, answer: Any, statement: str) -> None:
         self._answer = answer
+        # the text sent: a token its raise fires is read through the sites declared for it (_raised.py; phase D's
+        # Phase 2, 2026-11-16)
+        self._statement = statement
 
     @property
     def description(self) -> Any:
@@ -329,7 +332,7 @@ class Result:
         try:
             return read(*args)
         except Exception as e:
-            failure = worded(e)
+            failure = worded(e, self._statement)
             if failure is None:
                 raise
         raise failure
@@ -431,10 +434,10 @@ class Database:
         sql = require(sql, 'the database')
         failure: BaseException | None = None
         try:
-            return Result(self._con.execute(sql, list(params)) if params else self._con.execute(sql))
+            return Result(self._con.execute(sql, list(params)) if params else self._con.execute(sql), sql)
         except Exception as e:
             # a product raise in the database's words, worded as Java's runner words it (_raised.py; #104's M2(b))
-            failure = worded(e)
+            failure = worded(e, sql)
             if failure is None:
                 raise
         raise failure

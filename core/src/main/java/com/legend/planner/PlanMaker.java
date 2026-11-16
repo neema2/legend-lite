@@ -1023,9 +1023,17 @@ public final class PlanMaker {
         // the typed tree carried beside the statement names each payload by its digest, never its text or rows (the
         // JSON pass: the bytes once in the plan -- a bound payload's the statement's content, an inline one's its text)
         SqlQuery carried = tree == null ? null : DataSources.byDigest(tree, content.keySet());
-        // the raises its render wrote, by kind (the D-P1 audit's MUST 1: typed at the render)
+        // the raise sites its render wrote, planned: each token's kind, where and words (phase D's Phase 2, 2026-11-16)
         return new ExecutionPlan.Sql(rendered.sql(), slots, target, carried, regions, null, content)
-                .raising(rendered.raises());
+                .raising(sites(rendered.sites()));
+    }
+
+    /** The raise sites a dialect's render wrote ({@code sql.dialect.RaiseSite}), PLANNED (phase D's Phase 2, raises as
+     *  SITES, 2026-11-16): each one's product sentence its kind's and its where ({@link ExecutionPlan.Site#sentence}),
+     *  its upstream words the style's, worded at the render ({@code database.PlanStyle#siteWords}). */
+    public static List<ExecutionPlan.Site> sites(List<com.legend.sql.dialect.RaiseSite> written) {
+        return written.stream().map(w -> new ExecutionPlan.Site(w.n(), w.kind(), w.where(),
+                ExecutionPlan.Site.sentence(w.kind(), w.where()), w.upstream())).toList();
     }
 
     /** What a statement binding the payload {@code json} (its SHA-256 {@code digest}) is told under where its database

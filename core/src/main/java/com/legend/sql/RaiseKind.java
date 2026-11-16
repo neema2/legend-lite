@@ -51,4 +51,30 @@ public enum RaiseKind {
      *  its where, a fixed text known at planning -- so a user's {@code fail} text spelled as a kind's name is never read
      *  as that kind (the D part 1 audit's nit and S4, 2026-11-15). exec reads it ({@code exec.RaisedErrors}). */
     public static final char MARK = '\u001c';
+
+    /** What a raise SITE's token opens with (phase D's Phase 2, raises as SITES, 2026-11-16): the {@link #MARK}, then
+     *  {@code LG#}, then the site's number in its statement's table ({@code sql.dialect.RaiseSite}); the statement raises
+     *  the token alone. The mark opens it so a user's {@code fail} text spelled {@code LG#1} is never read as a site
+     *  (the D part 1 audit's S4: the mark exists for that). */
+    public static final String TOKEN = MARK + "LG#";
+
+    /** The text a statement raises for its site {@code n}: the mark, then {@code LG#<n>}. */
+    public static String token(int n) {
+        return TOKEN + n;
+    }
+
+    /** The site number {@code text} is the token of, or -1 where it is no token (the mark, {@code LG#} and digits,
+     *  nothing else: a user's {@code LG#1}, unmarked, is no token). */
+    public static int siteNumber(String text) {
+        if (!text.startsWith(TOKEN) || text.length() == TOKEN.length() || text.length() > TOKEN.length() + 9) {
+            return -1;
+        }
+        for (int i = TOKEN.length(); i < text.length(); i++) {
+            if (text.charAt(i) < '0' || text.charAt(i) > '9') {
+                return -1;
+            }
+        }
+        int n = Integer.parseInt(text.substring(TOKEN.length()));
+        return n < 1 ? -1 : n;
+    }
 }

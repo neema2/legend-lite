@@ -245,15 +245,15 @@ class ScaleCostsDuckDbTest {
         // DIVIDE_BY_ZERO; until then Pure's sentence, "Division by zero", which the edge still writes)
         String rows = "|#>{store::HR.EMP}#->filter(r|$r.age->isNotEmpty())";
         String byTwo = rows + "->extend(~h: r|$r.age->toOne() / 2)->select(~[ID, h])->sort(~ID->ascending())";
-        assertEquals(0, count(renderQuery(byTwo), "DIVIDE_BY_ZERO"), renderQuery(byTwo));
+        assertEquals(0, count(renderQuery(byTwo), "LG#"), renderQuery(byTwo));
         List<Double> halves = new ArrayList<>();
         for (List<Object> row : Lean.run(MODEL, byTwo, SqlIslandCases.RUNTIME, session).rows()) {
             halves.add(((Number) row.get(1)).doubleValue());
         }
         // the ages 30, 40, 25, 35 and 30 halved: a Float, as Pure divides two integers
         assertEquals(List.of(15.0, 20.0, 12.5, 17.5, 15.0), halves);
-        assertEquals(1, count(renderQuery(rows + "->extend(~h: r|$r.age->toOne() / 0)"), "DIVIDE_BY_ZERO"));
-        assertEquals(1, count(renderQuery(rows + "->extend(~h: r|$r.age->toOne() / $r.ID)"), "DIVIDE_BY_ZERO"));
+        assertEquals(1, count(renderQuery(rows + "->extend(~h: r|$r.age->toOne() / 0)"), "LG#"));
+        assertEquals(1, count(renderQuery(rows + "->extend(~h: r|$r.age->toOne() / $r.ID)"), "LG#"));
     }
 
     private static SqlSource.Table table(String alias, OutputCol column) {

@@ -715,17 +715,17 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
      * bytes once in the plan's data, inline in its JSON below {@code PlanJson.INLINE_LIMIT_BYTES}, beside it above,
      * every text verified against its digest where a plan is read): exactly the digests its slots name, a payload slot
      * whose digest it lacks or a text no slot binds refused by name here, as a load's bundle is.
-     * {@code raises}: the kinds of the product raises the statement can send, as the dialect's render wrote them
-     * (the D-P1 audit's MUST 1, 2026-11-16: typed at the render, never read back out of the text) -- the plan's
-     * declared raises ({@code PlanJson.raises}).
+     * {@code sites}: the raise sites the statement can send, numbered 1..k as the dialect's render wrote them (phase
+     * D's Phase 2, raises as SITES, 2026-11-16; the kinds alone since the D-P1 audit's MUST 1): the token {@code LG#<n>}
+     * its text raises is site {@code n} here, read back at run ({@code exec.RaisedErrors}), never out of the text --
+     * the plan's declared raises ({@code PlanJson.raises}) are theirs.
      */
     public record Sql(String statement, List<Slot> slots, Target target,
             com.legend.sql.@com.legend.base.Nullable SqlQuery tree, List<Region> regions,
             @com.legend.base.Nullable String stamp, java.util.Map<String, String> content,
-            java.util.Set<com.legend.sql.RaiseKind> raises) {
+            List<Site> sites) {
         public Sql {
-            raises = java.util.Collections.unmodifiableSet(raises.isEmpty()
-                    ? java.util.EnumSet.noneOf(com.legend.sql.RaiseKind.class) : java.util.EnumSet.copyOf(raises));
+            sites = Site.numbered(sites);
             Objects.requireNonNull(statement, "statement");
             slots = List.copyOf(slots);
             Objects.requireNonNull(target, "target");
@@ -750,7 +750,7 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
         /** The statement, as the plan holds it: what a session sends ({@link PlannedSql}). A statement with per-key
          *  regions is sent as the runner's keyed expansion writes it, never as this. */
         public PlannedSql planned() {
-            return PlannedSql.fromPlan(statement);
+            return PlannedSql.fromPlan(statement, sites);
         }
 
         /** The executions this statement reads, added to {@code into}: its own stamp, and each slot's that reads one
@@ -770,12 +770,12 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
         public Sql(String statement, List<Slot> slots, Target target,
                 com.legend.sql.@com.legend.base.Nullable SqlQuery tree, List<Region> regions,
                 @com.legend.base.Nullable String stamp, java.util.Map<String, String> content) {
-            this(statement, slots, target, tree, regions, stamp, content, java.util.Set.of());
+            this(statement, slots, target, tree, regions, stamp, content, List.of());
         }
 
-        /** This statement, sending the raises {@code kinds} (its render's). */
-        public Sql raising(java.util.Set<com.legend.sql.RaiseKind> kinds) {
-            return new Sql(statement, slots, target, tree, regions, stamp, content, kinds);
+        /** This statement, sending the raise sites {@code planned} (its render's, planned). */
+        public Sql raising(List<Site> planned) {
+            return new Sql(statement, slots, target, tree, regions, stamp, content, planned);
         }
 
         /** A statement binding no payload. */
@@ -799,18 +799,62 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
 
         /** This statement, its own execution-trace stamp bound under {@code name}. */
         public Sql stamped(String name) {
-            return new Sql(statement, slots, target, tree, regions, name, content, raises);
+            return new Sql(statement, slots, target, tree, regions, name, content, sites);
         }
 
         /** This statement minting no stamp. */
         public Sql unstamped() {
-            return new Sql(statement, slots, target, tree, regions, null, content, raises);
+            return new Sql(statement, slots, target, tree, regions, null, content, sites);
         }
 
         /** A statement of no slot and no tree, final for {@code target}: a schema probe's, a setup's, a session
          *  statement's (the doors, 2026-10-29: every statement a body or a seed sends is a plan statement). */
         public static Sql of(String statement, Target target) {
             return new Sql(statement, List.of(), target, null, List.of());
+        }
+    }
+
+    /**
+     * ONE RAISE SITE OF A STATEMENT, PLANNED (phase D's Phase 2, raises as SITES, 2026-11-16;
+     * docs/records/d-phase2-raise-marker-2026-11-16.md): the statement raises the bare token {@code LG#<n>}
+     * ({@link com.legend.sql.dialect.RaiseSite#token}) and this says what it means -- its kind, its where (a fixed text known at
+     * planning, or none), and its words RENDERED AT PLANNING: {@code message}, the product's sentence
+     * ({@code error.ErrorKind}'s, then {@code ": "} and the where), and {@code upstream}, legend-pure's sentence in a plan
+     * the compatibility edge wrote (its {@code PlanStyle#siteWords}), null in the product's. Run time is a lookup:
+     * nothing is worded there.
+     */
+    public record Site(int n, com.legend.sql.RaiseKind kind, @com.legend.base.Nullable String where, String message,
+            @com.legend.base.Nullable String upstream) {
+        public Site {
+            if (n < 1) {
+                throw new IllegalArgumentException("a raise site is numbered from 1: " + n);
+            }
+            Objects.requireNonNull(kind, "a raise site's kind");
+            Objects.requireNonNull(message, "a raise site's message");
+        }
+
+        /** The words a raise of this site says: upstream's where the plan carries them, else the product's. */
+        public String words() {
+            return upstream != null ? upstream : message;
+        }
+
+        /** The product's sentence of a site of {@code kind} placed by {@code where}: the error layer's
+         *  ({@link com.legend.error.ErrorKind#sentence}), then {@code ": "} and the where, as {@code error.DataError} has
+         *  spelled it. */
+        public static String sentence(com.legend.sql.RaiseKind kind, @com.legend.base.Nullable String where) {
+            return com.legend.error.ErrorKind.valueOf(kind.name()).sentence() + (where == null ? "" : ": " + where);
+        }
+
+        /** {@code sites} as a statement holds them: numbered 1..k in order, refused by name otherwise. */
+        static List<Site> numbered(List<Site> sites) {
+            List<Site> out = List.copyOf(sites);
+            for (int i = 0; i < out.size(); i++) {
+                if (out.get(i).n() != i + 1) {
+                    throw new IllegalArgumentException("a statement's raise sites are numbered 1..k in order: site "
+                            + out.get(i).n() + " at " + (i + 1));
+                }
+            }
+            return out;
         }
     }
 
@@ -1234,10 +1278,11 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
              * the session (H2's path variable), run on every exit, a failed load's too (the A checkpoint's tenets
              * audit, 14).
              */
-            record Reads(List<String> statements, List<String> after) implements Delivery {
+            record Reads(List<String> statements, List<String> after, List<Site> sites) implements Delivery {
                 public Reads {
                     statements = List.copyOf(statements);
                     after = List.copyOf(after);
+                    sites = Site.numbered(sites);
                     if (statements.isEmpty()) {
                         throw new IllegalArgumentException("a file's load of no statement");
                     }
@@ -1245,7 +1290,7 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
 
                 /** The reading statements, as the plan holds them: what a session sends ({@link PlannedSql}). */
                 public List<PlannedSql> plannedStatements() {
-                    return PlannedSql.allFromPlan(statements);
+                    return statements.stream().map(text -> PlannedSql.fromPlan(text, sites)).toList();
                 }
 
                 /** The undoing statements, as the plan holds them. */

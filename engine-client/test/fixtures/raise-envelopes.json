@@ -1,12 +1,37 @@
 {
-  "_comment": "A product raise's envelope, one set of cases Java's runner (exec.RaisedErrors), the tab's (engine-client/src/raised.ts) and Python's (legend_lite/_raised.py) each read and agree on: the words each says for 'message' (#104's M2(b), the narrow check's item 7, 2026-11-15). Not here, on purpose, until the three agree (recorded, a later round): a kind no plan declared (Java's runner refuses it at the plan, PlanRunner.declared; the hosts at the send) and a fail message that opens with the kind mark.",
-  "_aboutRaises": "the raises a plan declares for these cases (PlanJson.raises, v53: phase D's option (D), 2026-11-15): each host words a raise from the plans it read, so each reader declares these first; Java's test holds them to error.ErrorKind's sentences, the one source",
-  "raises": {
-    "DIVIDE_BY_ZERO": "division by zero",
-    "FRACTION_NOT_KEPT": "more fraction digits than this database keeps",
-    "INDEX_OUT_OF_BOUNDS": "index out of bounds",
-    "SIZE_NOT_MULTIPLICITY": "collection size does not match the multiplicity"
-  },
+  "_comment": "A raise's envelope, one set of cases Java's runner (exec.RaisedErrors), the tab's (engine-client/src/raised.ts) and Python's (legend_lite/_raised.py) each read and agree on: the words each says for 'message' (#104's M2(b), the narrow check's item 7, 2026-11-15; phase D's Phase 2, raises as SITES, 2026-11-16: a raise is a bare token, the kind mark U+001C and LG#<n> (the mark so that a user's fail text is never read as a site: the D part 1 audit's S4), read through the site table its statement declares). A case marked 'refused' names a token the statement does not declare: each reader refuses it by name.",
+  "_aboutSites": "the site table of the one statement these cases raise from (PlanJson v56's 'sites' of a statement): each n, its kind, its where, its message (Java's test holds each to error.ErrorKind's sentence and its where, the one source) and, in an edge plan, its upstream words",
+  "statement": "SELECT 1",
+  "sites": [
+    {
+      "n": 1,
+      "kind": "DIVIDE_BY_ZERO",
+      "where": null,
+      "message": "division by zero",
+      "upstream": null
+    },
+    {
+      "n": 2,
+      "kind": "SIZE_NOT_MULTIPLICITY",
+      "where": "[1]",
+      "message": "collection size does not match the multiplicity: [1]",
+      "upstream": null
+    },
+    {
+      "n": 3,
+      "kind": "FRACTION_NOT_KEPT",
+      "where": "ts keeps 6: of 9",
+      "message": "more fraction digits than this database keeps: ts keeps 6: of 9",
+      "upstream": null
+    },
+    {
+      "n": 4,
+      "kind": "INDEX_OUT_OF_BOUNDS",
+      "where": null,
+      "message": "index out of bounds",
+      "upstream": "The system is trying to get an element at offset 5 where the collection is of size 3"
+    }
+  ],
   "cases": [
     {
       "name": "a database's own error is passed on as it is",
@@ -14,30 +39,36 @@
       "words": "Binder Error: no such column"
     },
     {
-      "name": "a kind's raise is its sentence",
-      "message": "Invalid Input Error: \u001f\u001cDIVIDE_BY_ZERO\u001f",
+      "name": "a site's raise is its message",
+      "message": "Invalid Input Error: \u001f\u001cLG#1\u001f",
       "words": "division by zero",
       "kind": "DIVIDE_BY_ZERO"
     },
     {
-      "name": "a kind's raise with its where",
-      "message": "x \u001f\u001cSIZE_NOT_MULTIPLICITY\u001c[1]\u001f y",
+      "name": "a site's raise with its where",
+      "message": "x \u001f\u001cLG#2\u001f y",
       "words": "collection size does not match the multiplicity: [1]",
       "kind": "SIZE_NOT_MULTIPLICITY",
       "where": "[1]"
     },
     {
       "name": "a where that holds a colon and a space",
-      "message": "\u001f\u001cFRACTION_NOT_KEPT\u001cts keeps 6: of 9\u001f",
+      "message": "\u001f\u001cLG#3\u001f",
       "words": "more fraction digits than this database keeps: ts keeps 6: of 9",
       "kind": "FRACTION_NOT_KEPT",
       "where": "ts keeps 6: of 9"
     },
     {
       "name": "a source position before its separator is dropped",
-      "message": "\u001f3:7\u001e\u001cDIVIDE_BY_ZERO\u001f",
+      "message": "\u001f3:7\u001e\u001cLG#1\u001f",
       "words": "division by zero",
       "kind": "DIVIDE_BY_ZERO"
+    },
+    {
+      "name": "a site with upstream's words says them",
+      "message": "\u001f\u001cLG#4\u001f",
+      "words": "The system is trying to get an element at offset 5 where the collection is of size 3",
+      "kind": "INDEX_OUT_OF_BOUNDS"
     },
     {
       "name": "a user's fail message is its own text, a held quote restored",
@@ -45,16 +76,26 @@
       "words": "it's mine"
     },
     {
+      "name": "a user's fail text spelled as a token, unmarked, is the user's own text, never a site",
+      "message": "Invalid Input Error: \u001fLG#1\u001f",
+      "words": "LG#1"
+    },
+    {
       "name": "a raise fired at fetch (duckdb's second line)",
-      "message": "Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result\nError: Invalid Input Error: \u001f\u001cDIVIDE_BY_ZERO\u001f",
+      "message": "Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result\nError: Invalid Input Error: \u001f\u001cLG#1\u001f",
       "words": "division by zero",
       "kind": "DIVIDE_BY_ZERO"
     },
     {
       "name": "the first envelope where the statement's text repeats it (H2)",
-      "message": "\u001f\u001cINDEX_OUT_OF_BOUNDS\u001f; SQL statement: SELECT error(chr(31) || '\u001cINDEX_OUT_OF_BOUNDS' || chr(31)) \u001f\u001cDIVIDE_BY_ZERO\u001f",
-      "words": "index out of bounds",
+      "message": "\u001f\u001cLG#4\u001f; SQL statement: SELECT error(chr(31) || '\u001cLG#4' || chr(31)) \u001f\u001cLG#1\u001f",
+      "words": "The system is trying to get an element at offset 5 where the collection is of size 3",
       "kind": "INDEX_OUT_OF_BOUNDS"
+    },
+    {
+      "name": "a token the statement does not declare is refused by name",
+      "message": "\u001f\u001cLG#9\u001f",
+      "refused": true
     }
   ]
 }

@@ -68,7 +68,9 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
 
     @Override
     public String render(SqlQuery query) {
-        return write(query).text();
+        // a text a caller reads, never a statement a run sends: its raises numbered as a statement's are, the sites
+        // dropped (a run's statement is renderStatement's, which keeps them)
+        return collectingSites(() -> write(query).text(), (text, sites) -> text);
     }
 
     @Override
@@ -76,22 +78,30 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         return collectingRaises(() -> write(query).statement());
     }
 
-    /** The kinds of the raises the render under way wrote ({@link #raiseMessage}), or null outside a statement's
-     *  render (the D-P1 audit's MUST 1, 2026-11-16: the plan's raises typed at the render). One render at a time per
-     *  dialect instance, as {@link #renderInline}'s mode is. */
-    private java.util.@com.legend.base.Nullable EnumSet<com.legend.sql.RaiseKind> raisedKinds;
+    /** The raise sites the render under way wrote ({@link #raiseMessage}), numbered as written, or null outside a
+     *  statement's render (phase D's Phase 2, raises as SITES, 2026-11-16; until then the kinds alone, the D-P1 audit's
+     *  MUST 1). One render at a time per dialect instance, as {@link #renderInline}'s mode is. */
+    private java.util.@com.legend.base.Nullable List<RaiseSite> raiseSites;
 
-    /** {@code render}'s statement with the kinds of every raise written while it ran: the outermost render collects, a
-     *  nested one adds to it. */
+    /** {@code render}'s statement with the sites of every raise written while it ran: the outermost render collects,
+     *  a nested one adds to it. */
     protected final RenderedStatement collectingRaises(java.util.function.Supplier<RenderedStatement> render) {
-        if (raisedKinds != null) {
+        return collectingSites(render, RenderedStatement::raising);
+    }
+
+    /** {@code render}'s answer given the raise sites written while it ran ({@code attach}): the outermost render
+     *  collects and numbers them 1..k, a nested one adds to the outer's. */
+    protected final <T> T collectingSites(java.util.function.Supplier<T> render,
+            java.util.function.BiFunction<T, List<RaiseSite>, T> attach) {
+        if (raiseSites != null) {
             return render.get();
         }
-        raisedKinds = java.util.EnumSet.noneOf(com.legend.sql.RaiseKind.class);
+        raiseSites = new java.util.ArrayList<>();
         try {
-            return render.get().raising(raisedKinds);
+            T out = render.get();
+            return attach.apply(out, List.copyOf(raiseSites));
         } finally {
-            raisedKinds = null;
+            raiseSites = null;
         }
     }
 
@@ -1123,30 +1133,54 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
 
     /**
      * THE PRODUCT'S RAISE TEXT (phase D's D1.1; the user's ruling of 2026-11-10: "a product error is its kind plus where
-     * it happened ... never the value"): the kind's name, its operands never written -- no value cast to text, no
-     * concatenation, no parameter bound for one -- except {@link com.legend.sql.RaiseKind#USER_FAIL}'s, the user's own
-     * message. exec types the raise by that name and words it ({@code exec.RaisedErrors}). The compatibility edge's
-     * dialects override this alone, writing legend-pure's sentence from the operands ({@code edge.PureMessages}).
+     * it happened ... never the value"; phase D's Phase 2, raises as SITES, 2026-11-16): the bare token of the raise's
+     * site ({@link #site}), its kind, its where and its operands the statement's site table's, never its text -- no
+     * value cast to text, no concatenation, no parameter bound for one -- except {@link com.legend.sql.RaiseKind#USER_FAIL}'s,
+     * the user's own message. exec reads the token back through the plan's table ({@code exec.RaisedErrors}). The
+     * compatibility edge's dialects override this alone: a site whose upstream sentence they can word at planning
+     * keeps its token, worded upstream's way in the table; any other writes legend-pure's sentence in SQL, the interim
+     * ({@code edge.PureMessages}).
      */
     @SpellingArm
     protected SqlExpr raiseMessage(SqlExpr.RaiseText r) {
-        noteRaise(r);
+        return site(r, written -> null);
+    }
+
+    /**
+     * {@code r}'s text as a SITE of the statement under way: a checked graph's defect text as data where {@code r} is
+     * one ({@code asData}: no raise, no site), the user's own message where it is a {@code fail}, else the token
+     * {@code LG#<n>} of its site -- the next one, or the one an identical raise of the statement already holds -- recorded
+     * with its kind, its where, its operands and the words {@code upstream}
+     * gives it (the edge's style's sentence, worded at planning: {@code database.PlanStyle#siteWords}; none in the
+     * product). A raise written outside a statement's render has no table to
+     * declare it, refused by name.
+     */
+    protected final SqlExpr site(SqlExpr.RaiseText r,
+            java.util.function.Function<RaiseSite, @com.legend.base.Nullable String> upstream) {
         if (r.asData() != null) {
             // the kind's text as data in an answer (a checked graph's defect): the product's words, worded at planning
             return new SqlExpr.StringLit(r.asData());
         }
-        // the kind behind its mark, then its where (a fixed text known at planning): a user's text is never a kind
-        return r.kind() == com.legend.sql.RaiseKind.USER_FAIL ? r.operands().get(0)
-                : new SqlExpr.StringLit(com.legend.sql.RaiseKind.MARK + r.kind().name()
-                        + (r.where() == null ? "" : com.legend.sql.RaiseKind.MARK + r.where()));
-    }
-
-    /** {@code r}'s kind, among the raises the render under way writes ({@link #collectingRaises}): a product raise
-     *  whose text carries its kind (an answer's data does not raise). */
-    protected final void noteRaise(SqlExpr.RaiseText r) {
-        if (raisedKinds != null && r.asData() == null) {
-            raisedKinds.add(r.kind());
+        if (r.kind() == com.legend.sql.RaiseKind.USER_FAIL) {
+            return r.operands().get(0);
         }
+        if (raiseSites == null) {
+            throw new IllegalStateException("a raise of " + r.kind() + " written outside a statement's render: no"
+                    + " statement's site table declares it (" + getClass().getSimpleName() + ")");
+        }
+        RaiseSite written = new RaiseSite(raiseSites.size() + 1, r.kind(), r.where(), r.operands(), null);
+        written = written.worded(upstream.apply(written));
+        for (RaiseSite held : raiseSites) {
+            // the same raise written again in the statement (a guard a dialect writes twice, a CASE copied): its one
+            // site, said once -- the copies' text stays identical, so the database and the lean measure see one repeat
+            if (held.kind() == written.kind() && java.util.Objects.equals(held.where(), written.where())
+                    && held.operands().equals(written.operands())
+                    && java.util.Objects.equals(held.upstream(), written.upstream())) {
+                return new SqlExpr.StringLit(com.legend.sql.RaiseKind.token(held.n()));
+            }
+        }
+        raiseSites.add(written);
+        return new SqlExpr.StringLit(com.legend.sql.RaiseKind.token(written.n()));
     }
 
     /**
@@ -2331,6 +2365,11 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
 
     @Override
     public String render(com.legend.sql.SqlDml dml) {
+        // a text, its raises numbered as a statement's are and the sites dropped (render(SqlQuery)'s rule)
+        return collectingSites(() -> dmlText(dml), (text, sites) -> text);
+    }
+
+    private String dmlText(com.legend.sql.SqlDml dml) {
         com.legend.base.RunScope.planning("render a statement");
         return switch (dml) {
             case com.legend.sql.SqlDml.InsertValues iv -> {

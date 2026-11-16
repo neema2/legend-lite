@@ -61,7 +61,7 @@ class RaiseTextTest {
     }
 
     @Test
-    void aProductRaiseWritesItsKindAndNoOperand() {
+    void aProductRaiseWritesItsSitesTokenAndNoOperand() {
         for (DatabaseType type : Databases.implemented()) {
             // a fresh dialect per statement: ClickHouse numbers each raise in its statement (rand(n), main's #81)
             String with = text(Databases.dialect(type), select(new SqlExpr.RaiseText(RaiseKind.DIVIDE_BY_ZERO,
@@ -71,7 +71,9 @@ class RaiseTextTest {
             assertEquals(without, with, type.name());
             assertFalse(with.contains("operand_col"), type + ": " + with);
             if (!with.startsWith("refused: ")) {
-                assertTrue(with.contains("DIVIDE_BY_ZERO"), type + ": " + with);
+                // the site's bare token alone (phase D's Phase 2, raises as SITES, 2026-11-16): no kind's name
+                assertTrue(with.contains("LG#1"), type + ": " + with);
+                assertFalse(with.contains("DIVIDE_BY_ZERO"), type + ": " + with);
             }
         }
     }
@@ -105,10 +107,29 @@ class RaiseTextTest {
         for (DatabaseType type : Databases.implemented()) {
             assertEquals(text(Databases.dialect(type), select(before)), text(com.legend.edge.PureText.dialect(type),
                     select(new SqlExpr.RaiseText(RaiseKind.DIVIDE_BY_ZERO, List.of(a)))), type + ": rem's");
-            assertEquals(text(Databases.dialect(type), select(new SqlExpr.StringLit("Division by zero"))),
-                    text(com.legend.edge.PureText.dialect(type), select(new SqlExpr.RaiseText(
-                            RaiseKind.DIVIDE_BY_ZERO, List.of()))), type + ": Integer / Integer's");
+            // a site of literal operands: the product's token in SQL, upstream's sentence planned in its site (phase D's
+            // Phase 2, 2026-11-16)
+            SqlExpr bare = new SqlExpr.RaiseText(RaiseKind.DIVIDE_BY_ZERO, List.of());
+            assertEquals(text(Databases.dialect(type), select(bare)), text(com.legend.edge.PureText.dialect(type),
+                    select(bare)), type + ": Integer / Integer's");
+            String upstream = upstream(com.legend.edge.PureText.dialect(type), select(bare));
+            if (upstream != null) {
+                assertEquals("Division by zero", upstream, type + ": Integer / Integer's site");
+            }
         }
+    }
+
+    /** The upstream words of {@code q}'s one raise site, as {@code dialect} plans the statement; null where the dialect
+     *  refuses the statement. */
+    private static @com.legend.base.Nullable String upstream(SqlDialect dialect, SqlSelect q) {
+        RenderedStatement statement;
+        try {
+            statement = dialect.renderStatement(q);
+        } catch (RuntimeException refused) {
+            return null;
+        }
+        assertEquals(1, statement.sites().size(), dialect.getClass().getSimpleName() + ": " + statement.sites());
+        return statement.sites().get(0).upstream();
     }
 
     private static SqlExpr cat(SqlExpr... parts) {
@@ -191,10 +212,22 @@ class RaiseTextTest {
                 lit("zip: the two value lists differ in length"));
         for (DatabaseType type : Databases.implemented()) {
             for (var e : moved.entrySet()) {
-                // both through the edge: a raise nested in the old message's own SQL (SQLite's Float print) is the
-                // edge's sentence on both sides
+                SqlExpr.RaiseText r = (SqlExpr.RaiseText) e.getKey();
+                if (com.legend.edge.PureMessages.wordable(r)) {
+                    // a site of literal operands (phase D's Phase 2, 2026-11-16): the product's token in SQL, and
+                    // upstream's sentence, byte for byte the one the SQL wrote, planned in the site
+                    assertEquals(text(Databases.dialect(type), select(r)), text(com.legend.edge.PureText.dialect(type),
+                            select(r)), type + ": " + r);
+                    String upstream = upstream(com.legend.edge.PureText.dialect(type), select(r));
+                    if (upstream != null) {
+                        assertEquals(((SqlExpr.StringLit) e.getValue()).value(), upstream, type + ": " + r);
+                    }
+                    continue;
+                }
+                // the interim (a computed operand): both through the edge, a raise nested in the old message's own SQL
+                // (SQLite's Float print) is the edge's sentence on both sides
                 assertEquals(text(com.legend.edge.PureText.dialect(type), select(e.getValue())),
-                        text(com.legend.edge.PureText.dialect(type), select(e.getKey())), type + ": " + e.getKey());
+                        text(com.legend.edge.PureText.dialect(type), select(r)), type + ": " + r);
             }
         }
     }
