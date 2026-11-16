@@ -22,23 +22,19 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
  * {@link SqlCanonConformanceTest}'s battery on H2 (moved here from it by the dialect program's Phase 6, 2026-10-16):
- * the SQL canonical render and the host reference render agree, byte for byte.
+ * a Float's canon is one text exactly for equal doubles (W10 (b), 2026-11-16).
  */
 class SqlCanonConformanceH2Test {
 
-    /** The battery on H2 2.1.214, whose DOUBLE prints as Java does
-     * ({@code 1.3421E-8}, {@code 1.0E7}): the unfold reads both exponent
-     * spellings and the dialect spells the group extraction
-     * ({@code REGEXP_SUBSTR}) and the epoch ({@code EXTRACT(EPOCH FROM)}).
+    /** The battery on H2, whose DOUBLE prints as Java does ({@code 1.3421E-8}, {@code 1.0E7}); and the dialect's
+     * epoch ({@code EXTRACT(EPOCH FROM)}).
      * Over a COLUMN, as the canon runs — H2 folds constant expressions at
      * prepare time, branch-blind, so a literal battery would cast the
      * untaken exponent branch's '' before any row is read. */
     @Test
-    void floatCanonAgreesWithHost() throws Exception {
-        double[] battery = {
-                3.14, 17.000, 1.3421e8, 134.21e-10, .01, 0.0, -0.0,
-                -5.59, 5.59, 1.5e-30, 1e300, -2.5e-15, 123456.789, 1e7, 12345678.9,
-        };
+    void floatCanonIsEquality() throws Exception {
+        double[] battery = SqlCanonConformanceTest.FLOAT_BATTERY;
+        List<String> canons = new java.util.ArrayList<>();
         com.legend.sql.dialect.H2 h2 = new com.legend.sql.dialect.H2();
         try (Connection c = TestBackends.of(DatabaseType.H2).open()) {
             try (Statement st = c.createStatement()) {
@@ -67,10 +63,11 @@ class SqlCanonConformanceH2Test {
                 try (Statement st = c.createStatement();
                         ResultSet rs = st.executeQuery(h2.render(q))) {
                     rs.next();
-                    assertEquals(SqlCanonConformanceTest.hostText(battery[i]), rs.getString(1),
-                            "H2 float canon diverged for " + battery[i]);
+                    canons.add(rs.getString(1));
                 }
             }
+            // a column's value and the same canon over a column: one carrier here (H2 folds literals at prepare)
+            SqlCanonConformanceTest.assertCanonIsEquality(canons, canons, "H2: ");
             SqlSelect epoch = new SqlSelect(
                     List.of(new SqlSelect.Projection(SqlExpr.Call.of(com.legend.sql.SqlFn.EPOCH_SECONDS,
                             new SqlExpr.TimestampLit("2014-12-04T15:22:23.123")), "canon", null)),
