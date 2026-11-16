@@ -1252,7 +1252,7 @@ final class Scalars {
             RULES.put(f, (n, args) -> {
                 MixedEncoding.MixedElems mx = args.size() == 1 ? MixedEncoding.mixedElems(n.args().get(0), args.get(0)) : null;
                 if (mx != null) {
-                    refuseRealTies(n.args().get(0), "least element");
+                    refuseRealTies(n.args().get(0), "least element", true);
                     return mx.tagged(SqlExpr.Call.of(SqlFn.LIST_MIN, mx.valList()));
                 }
                 // a MIXED list's extreme: an end of its sort, by kind, then value (E-R4; O2's D2, 2026-11-13)
@@ -1272,7 +1272,7 @@ final class Scalars {
                 if (args.size() > 1) {
                     MixedEncoding.MixedElems ma = MixedEncoding.mixedArgs(n.args(), args);
                     if (ma != null) {
-                        refuseRealTies(n.args(), "least element");
+                        refuseRealTies(n.args(), "least element", true);
                     }
                     return ma != null
                             ? ma.tagged(SqlExpr.Call.of(SqlFn.LIST_MIN, ma.valList()))
@@ -1291,7 +1291,7 @@ final class Scalars {
             RULES.put(f, (n, args) -> {
                 MixedEncoding.MixedElems mx = args.size() == 1 ? MixedEncoding.mixedElems(n.args().get(0), args.get(0)) : null;
                 if (mx != null) {
-                    refuseRealTies(n.args().get(0), "greatest element");
+                    refuseRealTies(n.args().get(0), "greatest element", true);
                     return mx.tagged(SqlExpr.Call.of(SqlFn.LIST_MAX, mx.valList()));
                 }
                 // a MIXED list's extreme: an end of its sort, by kind, then value (E-R4; O2's D2, 2026-11-13)
@@ -1309,7 +1309,7 @@ final class Scalars {
                 if (args.size() > 1) {
                     MixedEncoding.MixedElems ma = MixedEncoding.mixedArgs(n.args(), args);
                     if (ma != null) {
-                        refuseRealTies(n.args(), "greatest element");
+                        refuseRealTies(n.args(), "greatest element", true);
                     }
                     return ma != null
                             ? ma.tagged(SqlExpr.Call.of(SqlFn.LIST_MAX, ma.valList()))
@@ -1351,7 +1351,7 @@ final class Scalars {
             RULES.put(f, (n, args) -> {
                 MixedEncoding.MixedElems mx = MixedEncoding.mixedElems(n.args().get(0), args.get(0));
                 if (mx != null) {
-                    refuseRealTies(n.args().get(0), "greatest element");
+                    refuseRealTies(n.args().get(0), "greatest element", true);
                     return mx.tagged(SqlExpr.Call.of(SqlFn.LIST_MAX, mx.valList()));
                 }
                 // a MIXED list's extreme: an end of its sort, by kind, then value (E-R4; O2's D2, 2026-11-13)
@@ -1369,7 +1369,7 @@ final class Scalars {
             RULES.put(f, (n, args) -> {
                 MixedEncoding.MixedElems mx = MixedEncoding.mixedElems(n.args().get(0), args.get(0));
                 if (mx != null) {
-                    refuseRealTies(n.args().get(0), "least element");
+                    refuseRealTies(n.args().get(0), "least element", true);
                     return mx.tagged(SqlExpr.Call.of(SqlFn.LIST_MIN, mx.valList()));
                 }
                 // a MIXED list's extreme: an end of its sort, by kind, then value (E-R4; O2's D2, 2026-11-13)
@@ -3894,13 +3894,25 @@ final class Scalars {
      *  (O2 step 3) answers it as legend-pure does.
      *  Two literal numbers the DOUBLE rank holds as one value are refused too (B2: the rank would order them wrongly). */
     private static void refuseRealTies(TypedSpec arg, String what) {
+        refuseRealTies(arg, what, false);
+    }
+
+    /** {@code firstOfATie}: the route picks the FIRST element of the winning rank (the mixed-elements route's
+     *  LIST_POSITION), which is Pure's own rule for a tie of numbers ({@code [3.0, 3]->max()} is the Float), so a number
+     *  tie answers right there and is not refused; dates still are (Pure orders a StrictDate before a DateTime at one
+     *  instant, the rank holds them equal). */
+    private static void refuseRealTies(TypedSpec arg, String what, boolean firstOfATie) {
         if (arg instanceof TypedCollection c) {
-            refuseRealTies(c.elements(), what);
+            refuseRealTies(c.elements(), what, firstOfATie);
         }
     }
 
 
     private static void refuseRealTies(List<TypedSpec> elements, String what) {
+        refuseRealTies(elements, what, false);
+    }
+
+    private static void refuseRealTies(List<TypedSpec> elements, String what, boolean firstOfATie) {
         // family -> (kind -> the literal values of that kind); a computed element is a null value
         java.util.Map<String, java.util.Map<String, List<Object>>> families = new java.util.TreeMap<>();
         java.util.Map<Double, java.math.BigDecimal> byDouble = new java.util.HashMap<>();
@@ -3937,7 +3949,7 @@ final class Scalars {
         }
         for (var family : families.entrySet()) {
             java.util.Map<String, List<Object>> kinds = family.getValue();
-            if (kinds.size() < 2) {
+            if (kinds.size() < 2 || firstOfATie && family.getKey().equals("number")) {
                 continue;
             }
             java.util.Map<Object, String> seen = new java.util.HashMap<>();

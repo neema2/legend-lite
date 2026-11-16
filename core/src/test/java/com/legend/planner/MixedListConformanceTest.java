@@ -69,6 +69,9 @@ class MixedListConformanceTest {
         CASES.put("|[-1, 2.5]->min()", "[{\"value\":-1}]");
         // B2 refuses only a collision: a Decimal the double does not hold, alone, orders right
         CASES.put("|[1.23D, 2, 0.5]->min()", "[{\"value\":0.5}]");
+        // a Number list's extreme picks the FIRST element of the winning rank, Pure's own rule for a tie of numbers
+        // (TaggedSelectionTest: [3.0, 3]->max() is the Float): a tie there answers, never refused (B4's correction)
+        CASES.put("|[1, 1.0, 2.5]->min()", "[{\"value\":1}]");
     }
 
     @Test
@@ -146,8 +149,7 @@ class MixedListConformanceTest {
                 {"|[9007199254740992, 9007199254740993, 0.5]->max()", "9007199254740992 and 9007199254740993: its"},
                 {"|[1.00000000000000001D, 1.00000000000000002D, 0.5]->min()", "1.00000000000000001 and 1.000000000"},
                 // B4: a real literal tie across number kinds
-                {"|['b', 1, 1.0]->max()", "two of its elements of different kinds compare equal"},
-                {"|[1, 1.0, 2.5]->min()", "two of its elements of different kinds compare equal"}}) {
+                {"|['b', 1, 1.0]->max()", "two of its elements of different kinds compare equal"}}) {
             com.legend.error.NotImplementedException e = assertThrows(com.legend.error.NotImplementedException.class,
                     () -> Compiler.query(Compiler.compileModel(model), c[0]).executionPlan(StorelessRuntime.RUNTIME),
                     c[0]);
