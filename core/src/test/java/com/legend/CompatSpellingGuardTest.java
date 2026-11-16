@@ -152,7 +152,6 @@ class CompatSpellingGuardTest {
             // builder type; Phase 6 takes the plan text to the edge
             "lowering/JsonEmission.java | tdsBuilder | 1 | D1.7",
             "lowering/LiteralSpelling.java | +0000 | 7 | D1.9",
-            "lowering/LiteralSpelling.java | FLOAT_CANON | 1 | JUDGE",
             // FLOAT_PRINT, reclassified D1.2 -> JUDGE 2026-11-15 (phase D's D1.2): the product's text of a Float is
             // FLOAT_TO_TEXT, lite's six decimals (register S311); FLOAT_PRINT, legend-pure's print form, stays in each
             // product dialect as the JUDGES' %r of a Float in an assert's message (lowering/Repr: the database judge
@@ -229,22 +228,15 @@ class CompatSpellingGuardTest {
             "sql/SqlExpr.java | TDS_NULL_CELL | 1 | D1.9",
             // 1 -> 2 each (2026-11-16, the PR1 re-review's A6): both named again in SqlFn.MAY_SKIP_AN_ARGUMENT, a set of
             // functions, not a spelling
-            "sql/SqlFn.java | FLOAT_CANON | 2 | JUDGE",
             "sql/SqlFn.java | FLOAT_PRINT | 2 | JUDGE",
-            "sql/SqlTyping.java | FLOAT_CANON | 1 | JUDGE",
             "sql/SqlTyping.java | FLOAT_PRINT | 1 | JUDGE",
             "sql/dialect/AnsiSqlRenderer.java | RawSqlBoundary | 1 | D1.7",
-            "sql/dialect/BigQuery.java | FLOAT_CANON | 1 | JUDGE",
             "sql/dialect/BigQuery.java | FLOAT_PRINT | 1 | JUDGE",
-            "sql/dialect/ClickHouse.java | FLOAT_CANON | 1 | JUDGE",
             "sql/dialect/ClickHouse.java | FLOAT_PRINT | 1 | JUDGE",
-            "sql/dialect/Databricks.java | FLOAT_CANON | 1 | JUDGE",
             "sql/dialect/Databricks.java | FLOAT_PRINT | 1 | JUDGE",
-            "sql/dialect/DuckDb.java | FLOAT_CANON | 1 | JUDGE",
             "sql/dialect/DuckDb.java | FLOAT_PRINT | 1 | JUDGE",
             "sql/dialect/DuckDb.java | RawSqlBoundary | 1 | D1.7",
             "sql/dialect/EngineTextDialect.java | EngineTextDialect | 1 | D1.7",
-            "sql/dialect/FloatCanonText.java | FLOAT_CANON | 1 | JUDGE",
             // 2 -> 3 (2026-11-13, the merge of claude/total-wall @ 549c018: C4's bare-H2 lexicon, c42369dec, reads the
             // engine's list once more to derive H2's own keywords; the same D1.5 move takes it)
             // 2026-11-15 (D1.2): legend-pure's DateTime text, moved here from lowering/LiteralSpelling (dateTimeText) as the
@@ -261,25 +253,17 @@ class CompatSpellingGuardTest {
             // LoadPlanner), H2 file and tcp databases (H2Connector), and H2 files an earlier lite made.
             "sql/dialect/H2.java | ENGINE_LEXICON | 3 | RULED",
             "sql/dialect/H2.java | SET NON_KEYWORDS | 1 | RULED", // listed 2026-11-16 (S5): the same ruling's session half
-            "sql/dialect/H2.java | FLOAT_CANON | 1 | JUDGE",
             "sql/dialect/H2.java | FLOAT_PRINT | 1 | JUDGE",
-            "sql/dialect/MariaDb.java | FLOAT_CANON | 1 | JUDGE",
             "sql/dialect/MariaDb.java | FLOAT_PRINT | 1 | JUDGE",
             // sql/dialect/MongoDb.java | +0000: gone 2026-11-15 (D1.2: its date-time format a @SpellingArm hook,
             // dateTimeFormat, the product's ISO with Z; legend-pure's +0000 the edge's MongoDb's)
-            "sql/dialect/MongoDb.java | FLOAT_CANON | 1 | JUDGE",
             "sql/dialect/MongoDb.java | FLOAT_PRINT | 1 | JUDGE",
-            "sql/dialect/MySql.java | FLOAT_CANON | 1 | JUDGE",
             "sql/dialect/MySql.java | FLOAT_PRINT | 1 | JUDGE",
-            "sql/dialect/Postgres.java | FLOAT_CANON | 1 | JUDGE",
             "sql/dialect/Postgres.java | FLOAT_PRINT | 1 | JUDGE",
             "sql/dialect/Postgres.java | RawSqlBoundary | 1 | D1.7",
             "sql/dialect/RawSqlBoundary.java | RawSqlBoundary | 2 | D1.7",
-            "sql/dialect/SQLite.java | FLOAT_CANON | 1 | JUDGE",
             "sql/dialect/SQLite.java | FLOAT_PRINT | 1 | JUDGE",
-            "sql/dialect/Snowflake.java | FLOAT_CANON | 1 | JUDGE",
             "sql/dialect/Snowflake.java | FLOAT_PRINT | 1 | JUDGE",
-            "sql/dialect/Trino.java | FLOAT_CANON | 1 | JUDGE",
             "sql/dialect/Trino.java | FLOAT_PRINT | 1 | JUDGE",
             "testdatagen/TestDataGenerationNatives.java | EngineTextDialect | 2 | D1.7",
             "testdatagen/TestDataGenerator.java | EngineTextDialect | 3 | D1.7",

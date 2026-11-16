@@ -28,7 +28,9 @@ import org.finos.legend.pure.runtime.java.interpreted.extension.InterpretedExten
 public class LegendLitePCTExtensionInterpreted extends BaseInterpretedExtension {
 
     public LegendLitePCTExtensionInterpreted() {
-        super("executeLegendLiteQuery_String_1__String_MANY__Any_MANY_", PctExecuteNative::new);
+        // the adapter, wrapped by the edge golden net's error tap (EdgeRecordingNative: it records the message legend-pure
+        // is handed, and adds nothing else)
+        super("executeLegendLiteQuery_String_1__String_MANY__Any_MANY_", EdgeRecordingNative::new);
     }
 
     public static InterpretedExtension extension() {

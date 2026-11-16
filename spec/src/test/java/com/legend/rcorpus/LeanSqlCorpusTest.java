@@ -131,9 +131,12 @@ class LeanSqlCorpusTest {
      *  a body that loads a CSV plans its load against the file's digest; lite's own rules and spelling (round 55f,
      *  2026-11-15: a DataError, "this run was given no store for it", had been counted as a refusal). */
     private static com.legend.ExecuteOptions options(com.legend.testplan.PlanningOptions.JudgeMode mode) {
+        // the edge's style, as the corpus lanes plan it (the orchestrator's (A), 2026-11-16): the corpus is upstream's
+        // suite and CI runs it through the edge; on the product's ~300 bodies were refused by name and left the metric.
+        // The product's own leanness is core's baseline (LeanSqlBaseline, the product's style)
         return new com.legend.ExecuteOptions(null,
                 com.legend.executionplan.DataStores.resources(Corpus.RELATIONAL.getParent().getParent()),
-                java.util.Set.of()).withJudgeMode(mode);
+                java.util.Set.of()).withJudgeMode(mode).withStyle(com.legend.edge.PureText.UPSTREAM);
     }
 
     /** {@code step}'s judge statements and plan JSON, added. */

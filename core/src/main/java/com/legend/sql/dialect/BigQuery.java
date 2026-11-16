@@ -205,21 +205,6 @@ public class BigQuery extends AnsiSqlRenderer {
         return false;
     }
 
-    /** The portable carrier strategies, a fold that reads nothing of its row as a top-level recursive expression (WITH
-     *  RECURSIVE is top-level only, measured), the substring start clamp (BigQuery reads a start of 0 as 1), averages
-     *  delivered as DOUBLE (an average of a NUMERIC or BIGNUMERIC is one), and a constant GROUP BY or ORDER BY key as a
-     *  typed expression (BigQuery reads an integer one as a position), and a large repeated subexpression written once
-     *  (a statement is capped at 1,024K characters: a float's text canon read a dozen times, nested, wrote 2.9M, measured;
-     *  the binding's one-row derived table under a scalar subquery correlates here, measured). QUALIFY and
-     *  PERCENTILE_* OVER are native; no root numeric cast: a parameterized type cannot be cast to, and the driver
-     *  reports no NUMERIC scale. */
-    /** A Float's literal spelling over the double's text bound once (its text is an expression here: a five-element
-     *  mixed list's sort was 436 KB, measured 2026-10-11). */
-    @Override
-    protected boolean bindsFloatText() {
-        return true;
-    }
-
     /** A Float's print forms over the value and its text bound once: the portable spellings read the text nine times
      *  (Pure's) and over a thousand (legend-engine's), each read this dialect's text of a double, its own subquery (the
      *  served statement for {@code 1.5 + 2.25} was 321 KB, measured 2026-10-22). */
@@ -1495,7 +1480,7 @@ public class BigQuery extends AnsiSqlRenderer {
      * rounded to the even digit, as Java breaks one (-754686444319231.25 is -754686444319231.2; ROUND's own half away
      * from zero wrote .3 for six of 1,171 plain-range doubles, measured on the lane against 441f207a). Elsewhere
      * the text is the cast's, which reads back as the value. The value is bound once, in a one-row derived table under a
-     * scalar subquery (the form the Float canon's binding takes here, {@link #bindsFloatText}).
+     * scalar subquery (the form the Float canon's binding took here until SqlFn.FLOAT_CANON's deletion, 2026-11-16).
      */
     private SqlWriter.Piece floatText(SqlWriter.Piece x) {
         String v = param("__fv");
@@ -1571,7 +1556,6 @@ public class BigQuery extends AnsiSqlRenderer {
                     + " code points) reached BigQuery, whose binary collation is not measured");
             case DATE_TRUNC_DAY -> castAs(writer, c.args().get(0), "DATE");
             case ERROR -> raiseEnvelope(writer, c.args(), "ERROR");
-            case FLOAT_CANON -> floatCanonByText(writer, c.args(), parentPrec);
             case FLOAT_PRINT -> floatPrintByText(writer, c, parentPrec);
             case FLOAT_TO_TEXT -> floatToText(writer, c.args().get(0));
             case DATETIME_TO_TEXT, DATETIME_PRINT, CELL_TEXT, FORMAT_PADDED, INSTANCE_TEXT, RELATION_TEXT, TEXT_FORMS, TRACE_TEXT ->

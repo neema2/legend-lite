@@ -756,7 +756,7 @@ public class MongoDb extends AnsiSqlRenderer {
      * {@code $toString} spells a double in scientific notation past 1e15 and below 1e-4 ({@code 1e+20}) and without a
      * fraction when integral ({@code 2}), and a Decimal128 in its own scientific form ({@code 1.00000000000000E+20},
      * {@code 1.5000000000E-8}); Pure never spells an exponent and a Float always carries a fraction digit. So the text
-     * is bound once and read as a column of a lookup scope, and the portable spelling ({@link FloatCanonText}) is
+     * is bound once and read as a column of a lookup scope, and the portable spelling (the Float canon's, deleted 2026-11-16 with SqlFn.FLOAT_CANON) is
      * written over it: a double gets Pure's whole Float spelling; a decimal (a HUGEINT cast, a {@code DECIMAL(38,18)}
      * cast, a Pure Decimal) only its exponent unfolded, and a HUGEINT, an integer, its digits alone.
      */
@@ -769,7 +769,7 @@ public class MongoDb extends AnsiSqlRenderer {
      * {@link #numberText} over a value already bound to a variable, which {@code bound} writes, spelled ONCE in the
      * pipeline's own operators (the MariaDb precedent: a dialect whose double text is a long expression spells it its
      * own way): the text's sign, digits and exponent found by one {@code $regexFind} and bound, the point moved as text
-     * -- the portable spelling's three shapes ({@link FloatCanonText}: the point before the digits, inside them, or
+     * -- the portable spelling's three shapes (the deleted Float canon's: the point before the digits, inside them, or
      * past them) -- so a cast to text costs about a kilobyte wherever the lowering writes one (the MongoDB lane's first
      * run, 2026-10-17: the portable composition rendered to 17 KB per cast, and a print path that casts a value a
      * few hundred times ran the driver out of memory). A double (by its run-time type: a float literal is written as
@@ -1242,7 +1242,6 @@ public class MongoDb extends AnsiSqlRenderer {
                     + " no JSON text operator");
             case DECIMAL_TO_TEXT -> writer.expr(varcharCast(c.args().get(0)), parentPrec);
             case BOOL_TO_TEXT -> MongoJson.op1(writer, "$toString", a.get(0));
-            case FLOAT_CANON -> floatCanonByText(writer, a, parentPrec);
             case FLOAT_PRINT -> floatPrintByText(writer, c, parentPrec);
             case FLOAT_TO_TEXT -> floatToText(writer, a.get(0));
             case DATETIME_TO_TEXT, DATETIME_PRINT, CELL_TEXT, FORMAT_PADDED, INSTANCE_TEXT, RELATION_TEXT, TEXT_FORMS, TRACE_TEXT ->

@@ -236,32 +236,6 @@ public class SQLite extends AnsiSqlRenderer {
         return true;
     }
 
-    /** The portable carrier strategies, star exclusions spelled out (no EXCLUDE), the substring start clamp, whole-
-     *  partition ordered sets as correlated subqueries, explosions placed as markers in FROM (a json_each), QUALIFY as
-     *  a wrapping subselect, a constant GROUP BY or ORDER BY key as an expression (an integer one is a position), and a
-     *  large repeated subexpression written once (a statement is capped at 1,000,000 bytes, measured). */
-    /** A Float's literal spelling over the double's text bound ONCE (the portable spelling reads the text some fifty
-     *  times, each read this dialect's shortest-digits expression, which no common-subexpression binding counts as
-     *  large: a five-element mixed list's sort was 1.6 MB, past the 1 MB statement cap -- measured 2026-10-11). */
-    @Override
-    protected boolean bindsFloatText() {
-        return true;
-    }
-
-    /** The Float canon's parts staged (E-5a, 2026-11-12): SQLite's derived tables read the row around them. */
-    @Override
-    protected boolean stagesFloatText() {
-        return true;
-    }
-
-    /** The staged canon's text layer fenced (2026-11-16, PR1's finding B): SQLite's flattener otherwise copies the
-     *  mantissa's matcher into every read of the digits and the point's position -- channel B's SQLite lane went
-     *  from 25 s to 103 s, its float bodies' statements preparing for seconds. */
-    @Override
-    protected boolean fencesFloatText() {
-        return true;
-    }
-
     @Override
     protected List<com.legend.sql.SqlRewriter> passes() {
         return List.of(new CarrierStrategies(CAPS), new StarExceptToColumns(),
@@ -1618,7 +1592,6 @@ public class SQLite extends AnsiSqlRenderer {
             case FLOOR -> bigintOf(writer, "floor", c.args());
             case SIGN -> bigintOf(writer, "sign", c.args());
             case PI -> writer.append("pi()");
-            case FLOAT_CANON -> floatCanonByText(writer, c.args(), parentPrec);
             case FLOAT_PRINT -> floatPrintByText(writer, c, parentPrec);
             case FLOAT_TO_TEXT -> floatToText(writer, c.args().get(0));
             case DATETIME_TO_TEXT, DATETIME_PRINT, CELL_TEXT, FORMAT_PADDED, INSTANCE_TEXT, RELATION_TEXT, TEXT_FORMS, TRACE_TEXT ->

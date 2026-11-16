@@ -730,3 +730,20 @@ legend_java_binary(
 )
 
 guards_package()
+
+# THE EDGE GOLDEN NET's corpora (the edge program's Phase 0, 2026-11-16; pct/BUILD.bazel's edge_contract_test): each
+# corpus lane's per-test outcomes (with each failure's message) and per-assert verdict ledger, for both judges, diffed
+# against goldens recorded at PR1's frozen head 26717de291. A ruled move re-records them (bazel run
+# //spec:update_edge_corpus, citing the ruling).
+write_source_files(
+    name = "update_edge_corpus",
+    testonly = True,
+    diff_test_failure_message = "{{DEFAULT_MESSAGE}}\nA corpus answer moved at the edge (the edge golden net): in the diff, < is this tree (generated) and > the golden (the reference); a regression unless it is a ruled move -- then bazel run //spec:update_edge_corpus, citing the ruling",
+    files = {
+        "src/test/resources/edge/corpus_%s_%s_%s" % (lane, judge, f): ":judge_%s_%s/%s" % (judge, lane, f)
+        for lane in ["duckdb", "h2"]
+        for judge in ["host", "database"]
+        for f in ["outcomes.tsv", "judge-%s.tsv" % judge]
+    },
+    visibility = ["//pct:__pkg__"],
+)

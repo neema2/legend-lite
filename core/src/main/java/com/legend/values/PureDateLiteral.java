@@ -87,6 +87,17 @@ public sealed interface PureDateLiteral
      * S312's {@code Z} at six digits ({@code result.CellText}), legend-engine's JSON (its ServiceTestRunner /
      * PURE_TDSOBJECT value transformer, witnessed 2026-09-16 on the stress corpus) the GMT {@code +0000}
      * ({@code edge.EngineCells}). One owner beside {@link #toEngineString} (the literal body). */
+    /** A time-bearing value's digits as CARRIED (the user's §10 rulings 3 and 5, 2026-11-16: "The value itself is
+     *  carried exactly"): six fraction digits, or all nine where it is finer than a microsecond -- the value's own
+     *  digits, which a carrier writes without deciding (the writers are carriage only, R3). A date-only value its
+     *  literal body. */
+    default String toCarriedDigits() {
+        String nine = toNineDigits();
+        int dot = nine.lastIndexOf('.');
+        return dot >= 0 && nine.length() - dot == 10 && nine.endsWith("000") ? nine.substring(0, nine.length() - 3)
+                : nine;
+    }
+
     default String toNineDigits() {
         return switch (this) {
             case Year y -> y.toEngineString();

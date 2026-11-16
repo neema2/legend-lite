@@ -40,6 +40,19 @@ class PlanStyleFacetsTest {
         }
     }
 
+    /** errorWords (2026-11-16, the PCT window-frame fix, the orchestrator's conditions): the product's style answers
+     *  an error's OWN message, never the edge's words; the edge's answers upstream's sentence of a compile kind. */
+    @Test
+    void theProductsErrorWordsAreItsOwnTheEdgesUpstreams() {
+        RuntimeException frame = new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.TYPE,
+                com.legend.error.CompileKind.WINDOW_FRAME_INVERTED, List.of());
+        String product = PlanStyle.PRODUCT.errorWords(frame);
+        assertTrue(product.equals(frame.getMessage()) && product.contains("window frame starts after it ends")
+                && !product.contains("Invalid window frame boundary"), product);
+        String edge = com.legend.edge.PureText.UPSTREAM.errorWords(frame);
+        assertTrue(edge.contains("Invalid window frame boundary - lower bound of window frame cannot be greater"), edge);
+    }
+
     @Test
     void aKindOutsideTheListFailsByNameOnEveryStyle() {
         for (PlanStyle style : STYLES) {

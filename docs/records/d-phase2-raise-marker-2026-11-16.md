@@ -1,3 +1,72 @@
+# D, Phase 2: raises as SITES (design note, REVISED 2026-11-16, the site-id design)
+
+**This revision replaces the operand-carriage design below it** (kept as history). The user accepted it: "I'm good with
+database only giving the database message too". The orchestrator's five points, 2026-11-16. The measurements behind
+it: (1) no upstream-facing golden needs a computed operand; (2) a bare `LG#<n>` survives unchanged on every dialect's
+raise path.
+
+## The shape
+1. **Every run-time error Pure defines is still lite's own SQL guard, on every database** (as today), so every
+   database gives the same kind and location. The guard raises a bare token `LG#<n>`, inside today's `U+001F` envelope:
+   no kind name, no where, no values.
+2. **Each statement carries its SITE TABLE:** `n` gives the kind, the where (a fixed text), and the messages RENDERED
+   AT PLANNING:
+   - the product's sentence: `ErrorKind`'s words and the where, no values (the 2026-11-10 ruling);
+   - in an edge-style plan only, upstream's exact sentence. The edge words it at planning, from the site's operands,
+     which are planning literals; a Float or date operand goes through F's `Presenter.legendPure`.
+   The renderer numbers the sites as it writes them (`AnsiSqlRenderer.raiseMessage`, the one writer), so a
+   statement's sites are its own, in order. `ExecutionPlan.Sql.raises` (kinds) becomes `Sql.sites`.
+3. **Run time is a LOOKUP:**
+   - exec (`exec.RaisedErrors`, reached from `Sessions` with the statement's `PlannedSql`, which carries its sites)
+     reads the token and raises `DataError(kind, where, message)` from the table;
+   - it refuses by name a site the statement does not declare;
+   - no template filling and no formatter at run time;
+   - the hosts (engine-client `raised.ts`/`plan-runner.ts`, Python `_raised.py`/`_runs.py`) read the same table, with
+     one shared fixture.
+4. **Database-only failures** (no lite guard involved):
+   - kind `DATABASE_ERROR` with the SQLSTATE, the database's OWN message verbatim in a separate field marked as the
+     database's (the user's ruling);
+   - a connection failure is `CONNECTION_ERROR`.
+5. **Gone:** the operand carriage, framing, the length prefix, the NULL token, the per-type read-back, kind names on the
+   wire, and the split's rename question (a kind name is never on the wire).
+
+## Interim, stated
+A site whose upstream sentence needs a COMPUTED operand:
+- none is reached by any upstream-facing golden (measurement 1);
+- in an edge plan it keeps today's in-SQL sentence (the edge dialect's `raiseMessage`) until the user rules (§5.3);
+- a guard test counts such sites, so they cannot grow silently.
+
+## Format
+- PlanJson 56: a statement's `sites` (`n`, `kind`, `where`, `message`, `upstream` in an edge plan); the plan-level
+  `raises` map derived from them; a 55 plan refused by name.
+- TestPlanJson 26.
+- The hosts' `PLAN_VERSION` 56.
+
+## Files
+- **SQL layer:** `sql/RaiseKind` (each kind's fixed argument list, from 1a), `sql/SqlExpr` (`RaiseText`),
+  `sql/dialect/AnsiSqlRenderer` (`raiseMessage`, the site collection), `sql/dialect/RenderedStatement`.
+- **Plan and exec:** `executionplan/ExecutionPlan` and `PlanJson`, `exec/PlannedSql` and `RaisedErrors`, `exec/Sessions`,
+  `exec/JdbcStatements` (the read-back), `error/DataError` and `ErrorKind` (DATABASE_ERROR, CONNECTION_ERROR, the
+  database's message field).
+- **Edge:** `edge/PureMessages` (upstream's sentence at planning, as Java text, from literals), the edge dialects'
+  `raiseMessage` overrides (reduced to the interim computed-operand sites).
+- **Tests and hosts:** `testexecutionplan/TestPlanJson`; the hosts' readers; `ProductRaiseProbeTest`,
+  `PlanDeclaresItsRaisesTest`, `PlanJsonTest`.
+
+## Contracts
+- **With F (Phase 3):** `Presenter.legendPure` prints a FIXED Float or date operand at planning. No exec use.
+- **With E-Java (Phase 4b):** `SideShapes`' `SIZE_NOT_MULTIPLICITY` is a site whose sentences are planned like any
+  other.
+- **With E-SQL:** `TEXT_NOT_FLOAT` (Phase 8) is one more kind and site.
+
+## Proof
+- The golden net stays 36/36.
+- The product probe reads 0 wrong, beyond E-SQL's known NaN cases.
+- The token survives on every dialect (the survey; the lanes).
+- `everyKindAStatementMarksIsDeclared` becomes "every token a statement can raise is in its site table".
+
+---
+
 # D, Phase 2: typed raises with operands (design note, amended 2026-11-16)
 
 The edge program (`docs/records/total-wall-edge-program-2026-11-16.md`, branch `claude/total-wall-orch`), Phase 2,
@@ -41,16 +110,29 @@ No sentence is built in SQL. No edge code runs at run time.
      - `VALUE_NOT_HELD`, `FRACTION_NOT_KEPT` and `CSV_TOO_WIDE`, one kind per distinct `parts` shape (listed at build).
    - `where` is an ordinary declared FIXED operand wherever a kind has one: never optional.
    - `RaiseKindOperandsTest` holds every construction site to its kind's list.
-2. **The text in SQL, and its framing (condition 1).**
+2. **The text in SQL, and its framing (condition 1, and the orchestrator's follow-up of 2026-11-16).**
    - The text is `MARK kind (MARK operand)*`, in the declared order.
-   - Rule: a kind declares **at most ONE COMPUTED String operand, and it is LAST**. The reader splits the first n-1
-     operands at `MARK` and takes the rest of the text verbatim as the last operand, so a `U+001C` in user data cannot
-     forge an operand or a kind.
-   - No other operand can contain `MARK`: numbers and dates by type; fixed texts are checked at planning and refused by
-     name if they contain it.
-   - `RaiseKindOperandsTest` holds the rule at the declaration.
-   - The reader refuses by name an operand count other than the declared one, or a kind the statement did not declare.
+   - A kind declares **at most ONE COMPUTED String operand, and it is LAST**. `RaiseKindOperandsTest` holds the rule
+     at the declaration. No other operand can contain a mark: numbers and dates by type; fixed texts are checked at
+     planning and refused by name if they hold one.
+   - **The message's extent, today (`RaisedErrors.unwrap`):**
+     - a raise is enveloped in `U+001F` at both ends (`AnsiSqlRenderer.raiseEnvelope`);
+     - the reader closes the envelope at the NEXT `U+001F`, never the last, because H2 repeats the raise's own
+       literal further on in its message, inside the statement's text;
+     - so "take the rest verbatim", or "up to the LAST end mark", would take the database's own appendix (Postgres's
+       CONTEXT, BigQuery's job suffix, H2's repeated statement); and a user String holding `U+001F` would be cut at
+       it.
+   - **So the computed String is LENGTH-PREFIXED:** `MARK <n> MARK <text>`, where `<n>` is its length in Unicode
+     code points, written by the dialect's one character-length call (`length`/`char_length`/`LEN`: each dialect's,
+     measured on the probe, never a byte count). The reader reads `n` code points from the raw message after that
+     mark, whatever follows them: an appended suffix, a repeated literal, or a `U+001F` inside the text.
+   - The reader refuses by name:
+     - a message shorter than its prefix says;
+     - an operand count other than the declared one;
+     - a kind the statement did not declare.
      No partial decode (G7).
+   - The probe's String-operand case passes on EVERY database, Postgres and BigQuery included. The text it uses
+     holds a `U+001C`, a `U+001F` and a non-BMP character.
 3. **NULL (condition 2).**
    - A computed non-String operand is written `COALESCE(<its text>, NULLMARK)`, where `NULLMARK` is `U+001D`. It reads
      back as a typed null. It cannot collide, because a number's or a date's text never holds it.

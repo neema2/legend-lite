@@ -61,6 +61,11 @@ final class PlantedUpstreamStyle implements PlanStyle {
     }
 
     @Override
+    public String errorWords(RuntimeException e) {
+        return e.getMessage();
+    }
+
+    @Override
     public <F> F facet(Class<F> kind) {
         throw new UnsupportedOperationException("planted");
     }

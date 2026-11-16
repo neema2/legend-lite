@@ -3143,3 +3143,41 @@ junit_test(
         "@maven_test//:org_junit_jupiter_junit_jupiter_api",
     ],
 )
+
+# THE EDGE GOLDEN NET's pure/v1 answers (the edge program's Phase 0 item (d), 2026-11-16; //pct:edge_contract_test):
+# PureV1EdgeGoldenTest's fixed requests, run as a build action, each answer's status and JSON (its SQL left out, ids
+# masked), diffed against the golden recorded at PR1's frozen head 26717de291 (bazel run //core:update_edge_pure_v1,
+# a ruled move citing its ruling).
+java_run(
+    name = "edge_pure_v1",
+    testonly = True,
+    outs = [
+        "edge/pure_v1/verdict.txt",
+        "edge/pure_v1/run.log",
+        "edge/pure_v1/answers.tsv",
+    ],
+    arguments = [
+        "{OUT_DIR}/verdict.txt",
+        "{OUT_DIR}/run.log",
+        "{OUT_DIR}/answers.tsv",
+        "--",
+        "--select-class=com.legend.server.PureV1EdgeGoldenTest",
+    ],
+    jvm_flags = ["-Dlegend.edge.purev1={OUT_DIR}/answers.tsv"],
+    main_class = "com.legend.tools.junit.JUnitAction",
+    memory_mb = 2048,
+    mnemonic = "EdgeContractPureV1",
+    deps = [
+        ":core_tests_lib",
+        ":drivers",
+        "//tools/junit",
+    ],
+)
+
+write_source_files(
+    name = "update_edge_pure_v1",
+    testonly = True,
+    diff_test_failure_message = "{{DEFAULT_MESSAGE}}\nA pure/v1 answer moved (the edge golden net): in the diff, < is this tree (generated) and > the golden (the reference); a regression unless it is a ruled move -- then bazel run //core:update_edge_pure_v1, citing the ruling",
+    files = {"src/test/resources/edge/pure_v1_answers.tsv": ":edge/pure_v1/answers.tsv"},
+    visibility = ["//pct:__pkg__"],
+)

@@ -1806,7 +1806,6 @@ public class ClickHouse extends AnsiSqlRenderer {
             // Pure's divide is a Float division: both operands DOUBLE
             case DIVIDE -> divideAsDoubles(writer, c.args());
             case XOR -> xorAsAndOr(writer, c.args(), parentPrec);
-            case FLOAT_CANON -> floatCanonByText(writer, c.args(), parentPrec);
             case FLOAT_PRINT -> floatPrintByText(writer, c, parentPrec);
             case FLOAT_TO_TEXT -> floatToText(writer, c.args().get(0));
             case DATETIME_TO_TEXT, DATETIME_PRINT, CELL_TEXT, FORMAT_PADDED, INSTANCE_TEXT, RELATION_TEXT, TEXT_FORMS, TRACE_TEXT ->
@@ -2171,7 +2170,9 @@ public class ClickHouse extends AnsiSqlRenderer {
             writer.append(", ");
             boolean asText = conversions != null && i - 1 < conversions.size() && conversions.get(i - 1) == 's';
             if (real && asText) {
-                writer.expr(FloatCanonText.of(new SqlExpr.Cast(x, SqlType.Scalar.DOUBLE, SqlExpr.Reason.DIALECT)), 0);
+                // a Float under %s is its toString: S311's one call (the plan's row 10, 2026-11-16; until then Pure's
+                // literal canon, FLOAT_CANON's portable spelling)
+                writer.expr(SqlExpr.Call.of(SqlFn.FLOAT_TO_TEXT, new SqlExpr.Cast(x, SqlType.Scalar.DOUBLE, SqlExpr.Reason.DIALECT)), 0);
             } else if (asText && (typeOf(x) == SqlType.Scalar.BOOLEAN || typeOf(x) == SqlType.Scalar.BIGINT
                     || typeOf(x) == SqlType.Scalar.INTEGER)) {
                 // %s takes only a String (a Bool or an Int64 is refused, measured): its text

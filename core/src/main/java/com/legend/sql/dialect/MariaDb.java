@@ -286,13 +286,6 @@ public class MariaDb extends AnsiSqlRenderer {
                 "SET SESSION div_precision_increment = 30");
     }
 
-    /** A Float's literal spelling is this dialect's own, the value read once ({@link #floatLayout}): the portable one
-     *  reads the value's text some fifty times, each read a long expression here (2026-10-11). */
-    @Override
-    protected boolean spellsFloatCanon() {
-        return true;
-    }
-
     /** No native pivot: a static pivot is emulated by the carrier strategies, so a dynamic one is discovered first. */
     // the probe plan's facts (2026-10-20): MariaDB and MySQL: 4,096 columns (the documented column limit); InnoDB REPEATABLE READ reads one snapshot
     @Override
@@ -1855,12 +1848,11 @@ public class MariaDb extends AnsiSqlRenderer {
      * laid out again, the value bound once through a one-row JSON_TABLE (a derived table could not correlate).
      */
     private SqlWriter.Piece floatText(SqlWriter.Piece value) {
-        return floatLayout(value, false);
+        return floatLayout(value);
     }
 
-    /** {@link #floatText}, or with {@code canon} Pure's literal spelling ({@code SqlFn.FLOAT_CANON}): fixed point at
-     *  every exponent (Pure never writes one) and every zero {@code 0.0}. */
-    private SqlWriter.Piece floatLayout(SqlWriter.Piece value, boolean canon) {
+    /** {@link #floatText}'s layout (its canon form went with {@code SqlFn.FLOAT_CANON}, 2026-11-16, W10 (b)). */
+    private SqlWriter.Piece floatLayout(SqlWriter.Piece value) {
         // __f.t: |v| as MariaDB's text; __f.n: v < 0
         String t = "__f.\"t\"";
         String mant = "SUBSTRING_INDEX(" + t + ", 'e', 1)";
@@ -1879,8 +1871,8 @@ public class MariaDb extends AnsiSqlRenderer {
                 + " ELSE '0' END) ELSE CONCAT('0.', REPEAT('0', -" + x + " - 1), " + d + ") END";
         String sci = "CONCAT(LEFT(" + d + ", 1), CASE WHEN CHAR_LENGTH(" + d + ") > 1 THEN CONCAT('.', SUBSTRING(" + d
                 + ", 2)) ELSE '' END, 'e', CASE WHEN " + x + " < 0 THEN '-' ELSE '+' END, LPAD(ABS(" + x + "), 2, '0'))";
-        String zero = canon ? "'0.0'" : "CASE WHEN __f.\"n\" THEN '-0.0' ELSE '0.0' END";
-        String layout = canon ? fixed : "CASE WHEN " + x + " BETWEEN -4 AND 15 THEN " + fixed + " ELSE " + sci + " END";
+        String zero = "CASE WHEN __f.\"n\" THEN '-0.0' ELSE '0.0' END";
+        String layout = "CASE WHEN " + x + " BETWEEN -4 AND 15 THEN " + fixed + " ELSE " + sci + " END";
         return w -> w.append("(SELECT CASE WHEN __f.\"t\" IS NULL THEN NULL WHEN __f.\"t\" = '0' THEN " + zero)
                 .append(" ELSE CONCAT(CASE WHEN __f.\"n\" THEN '-' ELSE '' END, (SELECT " + layout + " FROM ")
                 .piece(jsonTable(v -> v.append("JSON_ARRAY(" + digits + ", " + exp + ")"),
@@ -1998,7 +1990,6 @@ public class MariaDb extends AnsiSqlRenderer {
             // a Float's literal spelling, the value read once ({@link #floatLayout}): the portable decomposition reads
             // the text some fifty times, each read this dialect's long text of a double (545 KB for a five-element
             // mixed list, measured 2026-10-11)
-            case FLOAT_CANON -> writer.piece(floatLayout(w -> w.expr(a.get(0), 0), true));
             case FLOAT_PRINT -> floatPrintByText(writer, c, parentPrec);
             case FLOAT_TO_TEXT -> floatToText(writer, c.args().get(0));
             case DATETIME_TO_TEXT, DATETIME_PRINT, CELL_TEXT, FORMAT_PADDED, INSTANCE_TEXT, RELATION_TEXT, TEXT_FORMS, TRACE_TEXT ->

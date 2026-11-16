@@ -80,7 +80,9 @@ class OutputMatrixTest {
                     "2024-01-02T10:30:00.123000Z"),
             new Kind("datetime_nanos", "|%2024-01-02T10:30:00.123456789",
                     "|" + T + "%2024-01-02T10:30:00.123456789)->select(~[v])",
-                    "2024-01-02T10:30:00.123456Z", "2024-01-02T10:30:00.123456Z"),
+                    // a cell CARRIES the value exactly (the user's §10 items 3 and 5, 2026-11-16: "The value itself is
+                    // carried exactly"; S312's six digits are a value's TEXT): nine digits where it is finer
+                    "2024-01-02T10:30:00.123456789Z", "2024-01-02T10:30:00.123456789Z"),
             new Kind("date", "|%2024-01-02", "|" + T + "%2024-01-02)->select(~[v])", "2024-01-02"));
 
     private static final List<PlanCases.Written> OUTPUTS = List.of(PlanCases.Written.values());

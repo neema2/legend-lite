@@ -29,8 +29,27 @@ final class ChannelBDiff {
 
     /** {@code engineManifest} is the engine's PCT manifest for the lane's database, or null where legend-engine
      *  publishes none (SQLite, MariaDB, MySQL, BigQuery): then no wire bug is the engine's frontier. */
+    /** The edge golden net (2026-11-16): every outcome, a pass too, under -Dlegend.edge.channelb, in the order received
+     *  (the net's normalizer, tools/edgenet, sorts them: comparison stays out of this module, PctDisciplineTest). */
+    static void edge(List<ChannelB.Outcome> out) throws IOException {
+        String edge = System.getProperty("legend.edge.channelb");
+        if (edge != null) {
+            java.util.List<String> lines = new java.util.ArrayList<>();
+            for (ChannelB.Outcome o : out) {
+                lines.add(o.testFqn() + "\t" + o.status() + "\t" + o.detail().replace('\n', ' ').replace('\t', ' ')
+                        .replaceAll("[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}", "<id>")
+                        // a fused verdict statement's raise: which of its asserts raises first is the database's
+                        // choice (DuckDB's varied run to run, measured): its kind and its asserts, not its message
+                        .replaceAll("^(\\w+): .* (\\(the database rejected the verdict statement of .*\\))$",
+                                "$1: <the first raise> $2"));
+            }
+            java.nio.file.Files.writeString(java.nio.file.Path.of(edge), String.join("\n", lines) + "\n");
+        }
+    }
+
     static Counts report(String tag, List<ChannelB.Outcome> out,
             Path channelASuite, @com.legend.base.Nullable Path engineManifest) throws IOException {
+        edge(out);
         Set<String> aFail = scan(channelASuite,
                 "one\\(\"(meta::[a-zA-Z:_0-9]+)_Function",
                 "channel A ledger scan found nothing — the suite moved");

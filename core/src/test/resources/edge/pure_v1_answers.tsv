@@ -1,0 +1,14 @@
+tds	200	{"builder":{"_type":"tdsBuilder","columns":[{"name":"year","type":"Integer","relationalType":"INTEGER"},{"name":"region","type":"String","relationalType":"VARCHAR(1024)"}]},"result":{"columns":["year","region"],"rows":[{"values":[2023,"AMER"]},{"values":[2023,"AMER"]}]}}
+value	500	{"code":-1,"errorType":"COMPILATION","message":"execute: a SCALAR result's serialization is unprobed","status":"error"}
+raise.divideByZero	500	{"code":-1,"message":"Raised: DIVIDE_BY_ZERO","status":"error"}
+raise.atOutOfBounds	500	{"code":-1,"errorType":"COMPILATION","message":"LIST_FILTER reached a dialect without a list encoding","status":"error"}
+raise.toOneOverMany	500	{"code":-1,"errorType":"COMPILATION","message":"LIST_FILTER reached a dialect without a list encoding","status":"error"}
+raise.sqrtOfNegative	500	{"code":-1,"message":"Raised: SQRT_OF_NEGATIVE","status":"error"}
+raise.parseInteger	500	{"code":-1,"message":"JdbcSQLDataException: Data conversion error converting \"abc\"; SQL statement:\nSELECT CAST('abc' AS BIGINT) AS \"p\"\nFROM (\n  SELECT *\n  FROM TRADES_SCHEMA.TRADES AS \"t0\"\n  LIMIT 1\n) AS \"t1\" [22018-252]","status":"error"}
+cell.dateTimeCoarse	200	{"builder":{"_type":"tdsBuilder","columns":[{"name":"t","type":"DateTime","relationalType":"TIMESTAMP"}]},"result":{"columns":["t"],"rows":[{"values":["2024-01-02T10:30:00.000000000+0000"]}]}}
+cell.dateTimeSubMicro	200	{"builder":{"_type":"tdsBuilder","columns":[{"name":"t","type":"DateTime","relationalType":"TIMESTAMP"}]},"result":{"columns":["t"],"rows":[{"values":["2024-01-02T10:30:00.123456789+0000"]}]}}
+cell.float	200	{"builder":{"_type":"tdsBuilder","columns":[{"name":"f","type":"Float","relationalType":"FLOAT"}]},"result":{"columns":["f"],"rows":[{"values":[0.3333333333333333]}]}}
+cell.floatWhole	200	{"builder":{"_type":"tdsBuilder","columns":[{"name":"f","type":"Float","relationalType":"FLOAT"}]},"result":{"columns":["f"],"rows":[{"values":[6.0]}]}}
+cell.empty	500	{"code":-1,"errorType":"COMPILATION","message":"LIST_GET reached a dialect without a list encoding","status":"error"}
+cell.emptyIf	200	{"builder":{"_type":"tdsBuilder","columns":[{"name":"e","type":"String","relationalType":"VARCHAR(1024)"}]},"result":{"columns":["e"],"rows":[{"values":[null]}]}}
+cell.strictDate	200	{"builder":{"_type":"tdsBuilder","columns":[{"name":"d","type":"StrictDate","relationalType":"DATE"}]},"result":{"columns":["d"],"rows":[{"values":["2024-01-02"]}]}}
