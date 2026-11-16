@@ -1277,6 +1277,110 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         return writer.expr(FloatCanonText.of(a.get(0)), parentPrec);
     }
 
+    // ---- Pure's exact decimal answers (C5-J's batch, 1(a)-(c), 2026-11-15) ----
+
+    /** Whether {@code e} is a double: a Float literal, or typed DOUBLE. */
+    protected static boolean isDoubleValue(SqlExpr e) {
+        return e instanceof SqlExpr.FloatLit
+                || (e.type() instanceof com.legend.sql.TypeFact.Typed t && t.type() == com.legend.sql.SqlType.Scalar.DOUBLE);
+    }
+
+    /** The integer literal a call's {@code what} argument is (a scale the lowering wrote as a literal). */
+    protected static int intLiteral(SqlExpr e, String what) {
+        if (e instanceof SqlExpr.IntLit k) {
+            return Math.toIntExact(k.value());
+        }
+        throw new IllegalStateException(what + " is an integer literal, not " + e + ": the lowering's bug");
+    }
+
+    /** {@link com.legend.sql.SqlFn#FLOAT_TO_DECIMAL} through the database's text of the double: its fixed-point spelling
+     *  ({@link com.legend.sql.SqlFn#FLOAT_CANON}, the shortest digits that read back as the double, as Java's
+     *  {@code Double.toString} writes them) cast to DECIMAL(38, scale) -- Pure's {@code new BigDecimal(d.toString())},
+     *  never the double's binary expansion. */
+    protected final SqlWriter floatToDecimalByText(SqlWriter writer, List<SqlExpr> a, int parentPrec) {
+        return writer.expr(new SqlExpr.Cast(SqlExpr.Call.of(com.legend.sql.SqlFn.FLOAT_CANON, a.get(0)),
+                new com.legend.sql.SqlType.Decimal(38, intLiteral(a.get(1), "FLOAT_TO_DECIMAL's scale"))), parentPrec);
+    }
+
+    /** {@link com.legend.sql.SqlFn#FLOAT_TO_DECIMAL} as the database's own cast of the double -- where that cast is
+     *  measured to read the double's shortest digits (H2's, a Java {@code BigDecimal.valueOf}), where the database has no
+     *  decimal to hold it (SQLite), or where the text is legend-engine's (its own spelling of the cast). */
+    protected final SqlWriter floatToDecimalByCast(SqlWriter writer, List<SqlExpr> a, int parentPrec) {
+        return writer.expr(new SqlExpr.Cast(a.get(0),
+                new com.legend.sql.SqlType.Decimal(38, intLiteral(a.get(1), "FLOAT_TO_DECIMAL's scale"))), parentPrec);
+    }
+
+    /** The largest double below which every double has a fraction digit to round: 2^52. */
+    private static final long WHOLE_FROM = 1L << 52;
+
+    /**
+     * Pure's {@code round(Float, scale)} over a double ({@code c} a {@link com.legend.sql.SqlFn#ROUND_HALF_UP} call whose
+     * value is one): legend-pure's {@code BigDecimal.valueOf(x).setScale(scale, HALF_UP).doubleValue()}
+     * (CoreHelper.round(Double, long)) -- the double's shortest text read as a decimal
+     * ({@link com.legend.sql.SqlFn#FLOAT_TO_DECIMAL}), rounded by this dialect's own decimal ROUND_HALF_UP, cast back. A
+     * DECIMAL(38, 22) holds every double below 2^52 (16 integer digits) with 22 places. A double from 2^52 on has no
+     * fraction, so a non-negative literal scale leaves it as it is; any other scale rounds it through DECIMAL(38, 0)
+     * below 10^37. Past that, and a NaN or an infinity, the value is left as it is.
+     */
+    protected final SqlWriter roundHalfUpOfDouble(SqlWriter writer, SqlExpr.Call c, int parentPrec) {
+        SqlExpr x = c.args().get(0);
+        SqlExpr scale = c.args().size() > 1 ? c.args().get(1) : new SqlExpr.IntLit(0);
+        java.util.function.IntFunction<SqlExpr> rounded = places -> new SqlExpr.Cast(SqlExpr.Call.of(
+                com.legend.sql.SqlFn.ROUND_HALF_UP,
+                SqlExpr.Call.of(com.legend.sql.SqlFn.FLOAT_TO_DECIMAL, x, new SqlExpr.IntLit(places)), scale),
+                com.legend.sql.SqlType.Scalar.DOUBLE);
+        SqlExpr magnitude = SqlExpr.Call.of(com.legend.sql.SqlFn.ABS, x);
+        List<SqlExpr.Case.When> whens = new java.util.ArrayList<>();
+        whens.add(new SqlExpr.Case.When(SqlExpr.Call.of(com.legend.sql.SqlFn.LESS, magnitude,
+                new SqlExpr.IntLit(WHOLE_FROM)), rounded.apply(22)));
+        if (!(scale instanceof SqlExpr.IntLit k && k.value() >= 0)) {
+            whens.add(new SqlExpr.Case.When(SqlExpr.Call.of(com.legend.sql.SqlFn.LESS, magnitude,
+                    new SqlExpr.FloatLit(1e37)), rounded.apply(0)));
+        }
+        return writer.expr(new SqlExpr.Case(whens, x), parentPrec);
+    }
+
+    /**
+     * Pure's {@code divide(Decimal, Decimal, scale)} ({@link com.legend.sql.SqlFn#DECIMAL_DIVIDE}): legend-pure's
+     * {@code left.divide(right, scale, HALF_UP)}, from exact decimal operations alone. With {@code A = a * 10^scale},
+     * the remainder {@code r = A rem b} (truncated, the dividend's sign) leaves {@code A - r} a whole multiple of
+     * {@code b}, whose quotient {@link #exactQuotient} divides exactly; one more is taken away from zero where twice
+     * {@code |r|} reaches {@code |b|}; the integer is scaled back by {@code 10^-scale}, a decimal literal.
+     */
+    protected SqlWriter decimalDivide(SqlWriter writer, List<SqlExpr> a, int parentPrec) {
+        SqlExpr left = a.get(0);
+        SqlExpr right = a.get(1);
+        int scale = intLiteral(a.get(2), "DECIMAL_DIVIDE's scale");
+        SqlExpr big = SqlExpr.Call.of(com.legend.sql.SqlFn.TIMES, left,
+                new SqlExpr.DecimalLit(java.math.BigDecimal.ONE.movePointRight(scale)));
+        SqlExpr rem = SqlExpr.Call.of(com.legend.sql.SqlFn.REM, big, right);
+        SqlExpr whole = SqlExpr.Call.of(com.legend.sql.SqlFn.MINUS, big, rem);
+        SqlExpr away = new SqlExpr.Case(List.of(new SqlExpr.Case.When(SqlExpr.Call.of(com.legend.sql.SqlFn.GREATER_EQUAL,
+                SqlExpr.Call.of(com.legend.sql.SqlFn.TIMES, new SqlExpr.IntLit(2),
+                        SqlExpr.Call.of(com.legend.sql.SqlFn.ABS, rem)),
+                SqlExpr.Call.of(com.legend.sql.SqlFn.ABS, right)),
+                SqlExpr.Call.of(com.legend.sql.SqlFn.TIMES, SqlExpr.Call.of(com.legend.sql.SqlFn.SIGN, big),
+                        SqlExpr.Call.of(com.legend.sql.SqlFn.SIGN, right)))), new SqlExpr.IntLit(0));
+        java.math.BigDecimal unit = java.math.BigDecimal.ONE.movePointLeft(scale);
+        return writer.append("((").piece(exactQuotient(whole, right)).append(" + ").expr(away, 0).append(") * ")
+                .expr(new SqlExpr.DecimalLit(unit.scale() < 0 ? unit.setScale(0) : unit), 6).append(")");
+    }
+
+    /** The quotient of {@code whole}, a whole multiple of {@code divisor}, by it, exact: the database's own decimal
+     *  division, which holds an integer quotient exactly (a dialect whose decimal division answers in double divides
+     *  otherwise). */
+    protected SqlWriter.Piece exactQuotient(SqlExpr whole, SqlExpr divisor) {
+        return w -> w.append("(").expr(whole, 7).append(" / ").expr(divisor, 7).append(")");
+    }
+
+    /** {@link com.legend.sql.SqlFn#DECIMAL_DIVIDE} as legend-pure's answer cannot be had here: the float quotient rounded
+     *  HALF_UP, the form every database had until C5-J's batch (2026-11-15) -- a database without a decimal (SQLite) or
+     *  whose text is legend-engine's. */
+    protected final SqlWriter decimalDivideAsDoubles(SqlWriter writer, List<SqlExpr> a, int parentPrec) {
+        return writer.expr(SqlExpr.Call.of(com.legend.sql.SqlFn.ROUND_HALF_UP,
+                SqlExpr.Call.of(com.legend.sql.SqlFn.DIVIDE, a.get(0), a.get(1)), a.get(2)), parentPrec);
+    }
+
     /** A Float's print form ({@code c} a {@link com.legend.sql.SqlFn#FLOAT_PRINT} call): the portable decomposition
      *  over the double's text (a dialect whose double text is long spells it once, its own way). */
     protected final SqlWriter floatPrintByText(SqlWriter writer, SqlExpr.Call c, int parentPrec) {

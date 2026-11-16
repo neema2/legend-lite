@@ -117,6 +117,16 @@ public enum SqlFn {
     NULL_SAFE_EQUAL, NULL_SAFE_NOT_EQUAL,
     STRFTIME, STRPTIME, PARSE_DATE, LIST_REVERSE, TYPEOF,
     ROUND_HALF_UP, ERROR, FLOOR_RAW,
+    /** {@code (a, b, scale)}: Pure's {@code divide(Decimal, Decimal, scale)} -- the exact quotient rounded HALF_UP to
+     *  {@code scale} places, as legend-pure's {@code left.divide(right, scale, HALF_UP)} (CompiledSupport.divideDecimal,
+     *  the interpreter's DivideDecimal); never through {@link #DIVIDE}, which forces float (C5-J's batch, 1(b),
+     *  2026-11-15). {@code scale} an integer literal. */
+    DECIMAL_DIVIDE,
+    /** {@code (x, scale)}: a Float as Pure makes a Decimal of it -- the decimal its shortest text reads as
+     *  ({@code new BigDecimal(Double.toString(d))}: legend-pure's CoreHelper.toDecimal and BigDecimal.valueOf, which
+     *  round with a scale reads a Float through), at {@code scale} places, a DECIMAL(38, scale); never the double's
+     *  binary expansion (C5-J's batch, 1(a) and 1(c), 2026-11-15). {@code scale} an integer literal. */
+    FLOAT_TO_DECIMAL,
     // Variant construction
     TO_VARIANT, BOOL_TO_TEXT,
     /** {@code (x)}: a Decimal's or a Number's text, its plain digits (the tenets audit's M-6, A6, 2026-11-10): a semantic

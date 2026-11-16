@@ -1875,7 +1875,10 @@ public final class ClickHouse extends AnsiSqlRenderer {
             case BIT_NOT -> writer.append("bitNot(toInt64(").expr(a.get(0), 0).append("))");
             case FLOOR_RAW -> writer.append("floor(").expr(a.get(0), 0).append(")");
             case COT -> writer.append("(1 / tan(").expr(a.get(0), 0).append("))");
-            case ROUND_HALF_UP -> roundHalfUp(writer, c);
+            case ROUND_HALF_UP -> isDoubleValue(c.args().get(0)) ? roundHalfUpOfDouble(writer, c, parentPrec)
+                    : roundHalfUp(writer, c);
+            case DECIMAL_DIVIDE -> decimalDivide(writer, c.args(), parentPrec);
+            case FLOAT_TO_DECIMAL -> floatToDecimalByText(writer, c.args(), parentPrec);
 
             // exp and log are approximations here (exp(1) is 2.718281828460626, log(e()) 0.9999999987491066, measured);
             // pow and log2 are exact, DuckDB's bits

@@ -1089,7 +1089,10 @@ public final class Databricks extends AnsiSqlRenderer {
             case MOD -> modFloored(writer, c.args());
             case REM -> modTruncated(writer, c.args());
             // Pure's divide-with-scale is HALF_UP: plain ROUND (half away from zero)
-            case ROUND_HALF_UP -> writer.function("ROUND", c.args());
+            case ROUND_HALF_UP -> isDoubleValue(c.args().get(0)) ? roundHalfUpOfDouble(writer, c, parentPrec)
+                    : writer.function("ROUND", c.args());
+            case DECIMAL_DIVIDE -> decimalDivide(writer, c.args(), parentPrec);
+            case FLOAT_TO_DECIMAL -> floatToDecimalByText(writer, c.args(), parentPrec);
             case ERROR -> raiseEnvelope(writer, c.args(), "raise_error");
             case DATE_TRUNC -> dateTruncDateGrained(writer, c.args(), stringLit(truncUnit(part(c.args().get(0)))));
             case FLOAT_CANON -> floatCanonByText(writer, c.args(), parentPrec);

@@ -1,0 +1,13 @@
+# The closest answer a database holds where it cannot hold legend-pure's (PureDecimalArithmeticTest), measured: database, probe, answer.
+# SQLite has no decimal type: a Decimal is its double, so a decimal half (1.005, 2.01 / 2) is the double below or above
+# it, and a quotient past 15 digits keeps 15 (C5-J's batch, 2026-11-15; the register question posted with the batch)
+sqlite	round(1.005D, 2)	1.00
+sqlite	divide(2.01D, 2D, 2)	1.00
+sqlite	divide(-2.01D, 2D, 2)	-1.00
+sqlite	divide(12345678901234567.89D, 1D, 2)	12345678901234570.00
+sqlite	$x.F->toOne()->round(2) #1	1.0
+sqlite	$x.F->toOne()->toDecimal() #6	0.3
+sqlite	divide($x.D->toOne(), 2D, 2) #1	1.00
+sqlite	divide($x.D->toOne(), 2D, 2) #2	-1.00
+sqlite	divide($x.D->toOne(), 2D, 2) #3	6172839450617284.00
+sqlite	divide($x.D->toOne(), 3D, 2) #3	4115226300411523.00

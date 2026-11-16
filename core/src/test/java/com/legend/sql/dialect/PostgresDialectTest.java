@@ -244,11 +244,11 @@ class PostgresDialectTest {
         // the first 64 bits of the MD5 of the values' JSON text, read signed (MariaDB's construction)
         assertTrue(plan("->extend(~[h: r|$r.sym->toOne()->hashCode()])->select(~[id, h])")
                 .contains("CAST(CAST('x' || left(md5(CAST(json_build_array("));
-        // round(double precision, int) does not exist: a Float to a scale is scaled, rounded half-even
-        // (round(double precision) is rint) and scaled back, as DuckDB's ROUND_EVEN(x, s)
+        // round(double precision, int) does not exist: a Float to a scale is Pure's HALF_UP over the double's shortest
+        // text, read as a NUMERIC and rounded there, cast back (C5-J's batch, 1(a), 2026-11-15: legend-pure's
+        // round(Double, long) through BigDecimal.valueOf; until then scaled and rounded half-even, as round(x) alone is)
         assertTrue(plan("->extend(~[r: r|$r.f8->toOne()->round(2)])->select(~[id, r])").contains(
-                "(round(CAST(\"t0\".f8 AS DOUBLE PRECISION) * power(CAST(10 AS DOUBLE PRECISION), CAST(2 AS INTEGER)))"
-                        + " / power(CAST(10 AS DOUBLE PRECISION), CAST(2 AS INTEGER)))"));
+                "CAST(round(CAST(CAST(\"t0\".f8 AS TEXT) AS NUMERIC), CAST(2 AS INTEGER)) AS DOUBLE PRECISION)"));
         // a dynamic pivot's key-discovery round trip is its plan's keys statement, read before its body (B3,
         // 2026-11-11: the text plan is the execution plan's keyed result; until then the one-statement text refused it
         // here as a capability Postgres lacks): a plan whose text does not run alone

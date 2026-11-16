@@ -683,7 +683,12 @@ public class H2 extends AnsiSqlRenderer {
             // parseDate(text): the ISO text as a timestamp
             case PARSE_DATE -> castAs(writer, c.args().get(0), "TIMESTAMP");
             // Pure's divide-with-scale is HALF_UP: plain ROUND (half away from zero)
+            // H2's ROUND reads a double as Java's BigDecimal.valueOf does, then HALF_UP: Pure's round(Float, scale) as it is
+            // (measured 2026-11-15: ROUND(1.005E0, 2) is 1.01, ROUND(2.5E0, 0) is 3.0), and a cast of a double to a decimal
+            // likewise (1.1E0 is 1.100000000000000000) -- C5-J's batch
             case ROUND_HALF_UP -> writer.function("ROUND", c.args());
+            case DECIMAL_DIVIDE -> decimalDivide(writer, c.args(), parentPrec);
+            case FLOAT_TO_DECIMAL -> floatToDecimalByCast(writer, c.args(), parentPrec);
             case FLOAT_CANON -> floatCanonByText(writer, c.args(), parentPrec);
             case FLOAT_PRINT -> floatPrintByText(writer, c, parentPrec);
             // the hooks: this dialect's own (or the base's refusal)

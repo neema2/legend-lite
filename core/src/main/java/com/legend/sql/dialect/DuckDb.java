@@ -573,7 +573,12 @@ public final class DuckDb extends AnsiSqlRenderer {
             // parseDate(text): the ISO text as a timestamp
             case PARSE_DATE -> castAs(writer, c.args().get(0), "TIMESTAMP");
             // Pure's divide-with-scale is HALF_UP: plain ROUND (half away from zero)
-            case ROUND_HALF_UP -> writer.function("ROUND", c.args());
+            // a double through its shortest text, Pure's round(Float, scale) (C5-J's batch, 2026-11-15); a DECIMAL's ROUND
+            // is already half away from zero
+            case ROUND_HALF_UP -> isDoubleValue(c.args().get(0)) ? roundHalfUpOfDouble(writer, c, parentPrec)
+                    : writer.function("ROUND", c.args());
+            case DECIMAL_DIVIDE -> decimalDivide(writer, c.args(), parentPrec);
+            case FLOAT_TO_DECIMAL -> floatToDecimalByText(writer, c.args(), parentPrec);
             case ERROR -> raiseEnvelope(writer, c.args(), "error");
             case DECIMAL_TO_TEXT -> writer.expr(varcharCast(c.args().get(0)), parentPrec);
             case BOOL_TO_TEXT -> castAs(writer, c.args().get(0), "VARCHAR");
@@ -1020,6 +1025,20 @@ public final class DuckDb extends AnsiSqlRenderer {
         // reinterpretation, bijective, hash evaluated once
         return writer.append("CAST(CAST(xor(").function("hash", a)
                 .append(", CAST(9223372036854775808 AS UBIGINT)) AS HUGEINT) - 9223372036854775808 AS BIGINT)");
+    }
+
+    /** DuckDB divides decimals in DOUBLE (measured 2026-11-15: {@code DECIMAL / DECIMAL} is a DOUBLE, and {@code //}
+     *  too), so the quotient of {@code whole}, a whole multiple of {@code divisor}, is the double quotient rounded to a
+     *  HUGEINT, corrected once by the exact remainder it leaves: {@code whole - q0 * divisor} is exact decimal arithmetic
+     *  (a HUGEINT times a DECIMAL is a DECIMAL), a small multiple of the divisor whose double quotient is exact (C5-J's
+     *  batch, 1(b)). */
+    @Override
+    protected SqlWriter.Piece exactQuotient(SqlExpr whole, SqlExpr divisor) {
+        SqlWriter.Piece approx = w -> w.append("CAST(ROUND(CAST(").expr(whole, 0).append(" AS DOUBLE) / CAST(")
+                .expr(divisor, 0).append(" AS DOUBLE)) AS HUGEINT)");
+        return w -> w.append("(").piece(approx).append(" + CAST(ROUND(CAST(").expr(whole, 5).append(" - ").piece(approx)
+                .append(" * ").expr(divisor, 7).append(" AS DOUBLE) / CAST(").expr(divisor, 0)
+                .append(" AS DOUBLE)) AS HUGEINT))");
     }
 
     @Override

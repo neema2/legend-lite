@@ -1493,7 +1493,10 @@ public final class Snowflake extends AnsiSqlRenderer {
             case LOG10 -> writer.append("LOG(10, ").expr(a.get(0), 0).append(")");
             // Pure's divide-with-scale is HALF_UP: ROUND over a NUMBER (half away from zero, measured); over a FLOAT
             // in binary, as DuckDB's round (Snowflake's ROUND(FLOAT) rounds the decimal text: 2.675 is 2.68)
-            case ROUND_HALF_UP -> roundHalfUp(writer, c);
+            case ROUND_HALF_UP -> isDoubleValue(c.args().get(0)) ? roundHalfUpOfDouble(writer, c, parentPrec)
+                    : roundHalfUp(writer, c);
+            case DECIMAL_DIVIDE -> decimalDivide(writer, c.args(), parentPrec);
+            case FLOAT_TO_DECIMAL -> floatToDecimalByText(writer, c.args(), parentPrec);
             // DuckDB's // truncates toward zero; x // 0 is NULL (DIV0NULL answers 0, measured)
             case INT_DIVIDE -> intDivide(writer, c);
             case BIT_NOT -> writer.append("BITNOT(").expr(a.get(0), 0).append(")");

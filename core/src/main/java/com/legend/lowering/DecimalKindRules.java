@@ -33,8 +33,12 @@ final class DecimalKindRules {
             return new SqlExpr.Cast(new SqlExpr.Call(SqlFn.ROUND, args),
                     SqlType.Scalar.BIGINT);
         }
+        // round with a scale is HALF_UP, a Decimal's and a Float's alike (legend-pure's CoreHelper.round(BigDecimal, long),
+        // setScale(scale, HALF_UP), and round(Double, long) through BigDecimal.valueOf; the interpreter's RoundWithScale):
+        // C5-J's batch, 1(a), 2026-11-15 -- until then SqlFn.ROUND, which every dialect writes half-even (round(Number)
+        // alone is pure's half-even). Each dialect reads a double through its shortest text (ROUND_HALF_UP's arms)
         return decimalScaleCast(n, 1,
-                new SqlExpr.Call(SqlFn.ROUND, args));
+                new SqlExpr.Call(SqlFn.ROUND_HALF_UP, args));
     }
 
     static SqlExpr divide(TypedNativeCall n, List<SqlExpr> args) {
@@ -62,6 +66,13 @@ final class DecimalKindRules {
             }
             return new SqlExpr.Call(SqlFn.DIVIDE, args);
         }
+        // the exact quotient rounded HALF_UP, legend-pure's left.divide(right, scale, HALF_UP) (CompiledSupport.divideDecimal,
+        // the interpreter's DivideDecimal): C5-J's batch, 1(b), 2026-11-15 -- until then DIVIDE, which forces float, then
+        // rounded (2.01 / 2 at 2 places was 1.00 on DuckDB, 12345678901234567.89 / 1 lost its cents). A scale known only
+        // at run time keeps that form until it is ruled (posted with the batch's results)
+        if (args.get(2) instanceof SqlExpr.IntLit) {
+            return decimalScaleCast(n, 2, SqlExpr.Call.of(SqlFn.DECIMAL_DIVIDE, args.get(0), args.get(1), args.get(2)));
+        }
         return decimalScaleCast(n, 2,
                 new SqlExpr.Call(SqlFn.ROUND_HALF_UP, List.of(
                         SqlExpr.Call.of(SqlFn.DIVIDE, args.get(0),
@@ -84,10 +95,15 @@ final class DecimalKindRules {
             case SqlExpr.DecimalLit d -> d;
             case SqlExpr.FloatLit fl -> new SqlExpr.DecimalLit(
                     java.math.BigDecimal.valueOf(fl.value()));
-            default -> new SqlExpr.Cast(args.get(0),
-                    n.args().get(0).info().type() == Type.Primitive.INTEGER
-                            ? new SqlType.Decimal(38, 0)
-                            : new SqlType.Decimal(38, 18));
+            // a Float as Pure makes a Decimal of it, the decimal its shortest text reads as (CoreHelper.toDecimal:
+            // new BigDecimal(number.toString())): C5-J's batch, 1(c), 2026-11-15 -- until then a cast of the double,
+            // which some databases take from its binary expansion
+            default -> n.args().get(0).info().type() == Type.Primitive.FLOAT
+                    ? SqlExpr.Call.of(SqlFn.FLOAT_TO_DECIMAL, args.get(0), new SqlExpr.IntLit(18))
+                    : new SqlExpr.Cast(args.get(0),
+                            n.args().get(0).info().type() == Type.Primitive.INTEGER
+                                    ? new SqlType.Decimal(38, 0)
+                                    : new SqlType.Decimal(38, 18));
         };
     }
 

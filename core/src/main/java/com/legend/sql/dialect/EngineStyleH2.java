@@ -2132,7 +2132,13 @@ public class EngineStyleH2 extends AnsiSqlRenderer implements EngineTextDialect 
             case IS_DISTINCT_FROM, NULL_SAFE_NOT_EQUAL -> distinctFrom(writer, c.args());
             case NULL_SAFE_EQUAL -> notDistinctFrom(writer, c.args());
             // Pure's divide-with-scale is HALF_UP: plain ROUND (half away from zero)
-            case ROUND_HALF_UP -> writer.function("ROUND", c.args());
+            // legend-engine's text, as this printer wrote each until C5-J's batch (2026-11-15): round with a scale the bare
+            // round(x, n) (it came as ROUND then), divide with a scale ROUND over the float quotient (it came as
+            // ROUND_HALF_UP over DIVIDE), toDecimal the cast
+            case ROUND_HALF_UP -> roundHalfEven(writer, c.args());
+            case DECIMAL_DIVIDE -> writer.function("ROUND", java.util.List.of(
+                    SqlExpr.Call.of(com.legend.sql.SqlFn.DIVIDE, c.args().get(0), c.args().get(1)), c.args().get(2)));
+            case FLOAT_TO_DECIMAL -> floatToDecimalByCast(writer, c.args(), parentPrec);
             case FLOAT_CANON -> floatCanonByText(writer, c.args(), parentPrec);
             case FLOAT_PRINT -> floatPrintByText(writer, c, parentPrec);
             // the hooks: this dialect's own (or the base's refusal)

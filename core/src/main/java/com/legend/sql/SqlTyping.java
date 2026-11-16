@@ -595,8 +595,14 @@ public final class SqlTyping {
             // ARITHMETIC family — probed rules split to arithType
             // (method-size guard; receipts on each arm there)
             case PLUS, MINUS, TIMES, REM, MOD, NEGATE, ABS,
-                    INT_DIVIDE, ROUND, CEILING, FLOOR, SIGN ->
+                    INT_DIVIDE, ROUND, ROUND_HALF_UP, CEILING, FLOOR, SIGN ->
                     arithType(fn, a);
+            // a Decimal at the literal scale it names (C5-J's batch, 2026-11-15): Pure's exact quotient, and a Float's
+            // shortest text read as a decimal
+            case DECIMAL_DIVIDE -> a.size() == 3 && a.get(2) instanceof SqlExpr.IntLit k
+                    ? typed(new SqlType.Decimal(38, (int) k.value())) : UNKNOWN;
+            case FLOAT_TO_DECIMAL -> a.size() == 2 && a.get(1) instanceof SqlExpr.IntLit k
+                    ? typed(new SqlType.Decimal(38, (int) k.value())) : UNKNOWN;
             // error() RAISES — it yields no value and conforms to every
             // slot (§4bZ-U leg 3: the fourth TypeFact variant, replacing
             // uniform()'s structural ERROR skip)
@@ -895,7 +901,8 @@ public final class SqlTyping {
                 // operand stays UNKNOWN (unprobed corners)
                 yield UNKNOWN;
             }
-            case ROUND -> {
+            // ROUND_HALF_UP is round with a scale (C5-J's batch, 2026-11-15: Pure's HALF_UP); typed as ROUND is
+            case ROUND, ROUND_HALF_UP -> {
                 if (a.isEmpty()) {
                     yield UNKNOWN;
                 }

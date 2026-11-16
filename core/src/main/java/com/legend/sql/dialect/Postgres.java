@@ -860,11 +860,9 @@ public final class Postgres extends AnsiSqlRenderer {
             // ---- arithmetic
             // Pure's pow is a Float, as DuckDB's power answers; Postgres's power over numeric is numeric
             // (9.0 delivered as 9.0000000000000000, found by the Postgres PCT lane, 2026-10-02)
-            case POW -> writer.append("power(CAST(").expr(a.get(0), 0).append(" AS DOUBLE PRECISION), CAST(")
-                    .expr(a.get(1), 0).append(" AS DOUBLE PRECISION))");
+            case POW -> power(writer, a);
             // Pure's divide is a Float division: both operands DOUBLE PRECISION
-            case DIVIDE -> writer.append("(CAST(").expr(a.get(0), 0).append(" AS DOUBLE PRECISION) / CAST(")
-                    .expr(a.get(1), 0).append(" AS DOUBLE PRECISION))");
+            case DIVIDE -> floatDivide(writer, a);
             // Postgres has no % or mod() over double precision; integers and
             // decimals take the base's MOD forms
             case MOD, REM -> modArm(writer, c);
@@ -878,6 +876,8 @@ public final class Postgres extends AnsiSqlRenderer {
             // half-EVEN and numeric half away from zero (POSTGRES_BACKEND.md §4.3),
             // and has no round(double, int) at all
             case ROUND_HALF_UP -> roundHalfUp(writer, c);
+            case DECIMAL_DIVIDE -> decimalDivide(writer, c.args(), parentPrec);
+            case FLOAT_TO_DECIMAL -> floatToDecimal(writer, a);
             // the engine's out-of-domain answer is NaN; Postgres raises
             case ACOS, ASIN -> acos(writer, c);
 
@@ -1098,11 +1098,15 @@ public final class Postgres extends AnsiSqlRenderer {
                 .append(", CAST(").expr(a.get(5), 0).append(" AS DOUBLE PRECISION))");
     }
 
-    /** Pure's HALF_UP rounding: round over NUMERIC (half away from zero), a double cast back. */
+    /** Pure's HALF_UP rounding: round over NUMERIC (half away from zero), a double cast back -- a double read through
+     *  its shortest text, as Pure's round(Float, scale) reads it (BigDecimal.valueOf; C5-J's batch, 2026-11-15: until then
+     *  the cast of the double, which Postgres takes at fifteen digits). */
     private SqlWriter roundHalfUp(SqlWriter writer, SqlExpr.Call c) {
         List<SqlExpr> a = c.args();
+        SqlWriter.Piece value = isDouble(a.get(0)) ? shortestNumeric(a.get(0))
+                : w -> w.append("CAST(").expr(a.get(0), 0).append(" AS NUMERIC)");
         SqlWriter.Piece r = w -> {
-            w.append("round(CAST(").expr(a.get(0), 0).append(" AS NUMERIC)");
+            w.append("round(").piece(value);
             if (a.size() > 1) {
                 w.append(", CAST(").expr(a.get(1), 0).append(" AS INTEGER)");
             }
@@ -1111,6 +1115,32 @@ public final class Postgres extends AnsiSqlRenderer {
         return isDouble(a.get(0))
                 ? writer.append("CAST(").piece(r).append(" AS DOUBLE PRECISION)")
                 : writer.piece(r);
+    }
+
+    /** The {@code POW} arm of {@link #call} (moved out of it whole, C5-J's batch, 2026-11-15: the method's size guard). */
+    private SqlWriter power(SqlWriter writer, List<SqlExpr> a) {
+        return writer.append("power(CAST(").expr(a.get(0), 0).append(" AS DOUBLE PRECISION), CAST(")
+                .expr(a.get(1), 0).append(" AS DOUBLE PRECISION))");
+    }
+
+    /** The {@code DIVIDE} arm of {@link #call} (moved out of it whole, C5-J's batch, 2026-11-15: the method's size guard). */
+    private SqlWriter floatDivide(SqlWriter writer, List<SqlExpr> a) {
+        return writer.append("(CAST(").expr(a.get(0), 0).append(" AS DOUBLE PRECISION) / CAST(")
+                .expr(a.get(1), 0).append(" AS DOUBLE PRECISION))");
+    }
+
+    /** The {@code FLOAT_TO_DECIMAL} arm of {@link #call}: the double's shortest text read as a NUMERIC at the scale. */
+    private SqlWriter floatToDecimal(SqlWriter writer, List<SqlExpr> a) {
+        return writer.append("CAST(").piece(shortestNumeric(a.get(0))).append(" AS NUMERIC(38, "
+                + intLiteral(a.get(1), "FLOAT_TO_DECIMAL's scale") + "))");
+    }
+
+    /** A double as the NUMERIC its shortest text reads as: Postgres writes a double's shortest round-trip digits (its
+     *  default extra_float_digits, 1), and NUMERIC reads them exactly -- Java's {@code BigDecimal.valueOf}, which Pure's
+     *  round(Float, scale) and toDecimal read a Float through (C5-J's batch, 2026-11-15; a cast of the double straight to
+     *  NUMERIC keeps fifteen digits). */
+    private static SqlWriter.Piece shortestNumeric(SqlExpr x) {
+        return w -> w.append("CAST(CAST(").expr(x, 0).append(" AS TEXT) AS NUMERIC)");
     }
 
     /** DuckDB's time_bucket on Postgres: date_bin for fixed-length units, the month index for calendar ones. */

@@ -1076,6 +1076,9 @@ public final class MongoDb extends AnsiSqlRenderer {
             case FLOOR_RAW -> MongoJson.op1(writer, "$floor", a.get(0));
             case ROUND -> roundHalfEven(writer, a);
             case ROUND_HALF_UP -> roundHalfUp(writer, a);
+            // as until C5-J's batch (2026-11-15): the pipeline's own, posted with the batch for a ruling
+            case DECIMAL_DIVIDE -> decimalDivideAsDoubles(writer, a, parentPrec);
+            case FLOAT_TO_DECIMAL -> floatToDecimalByCast(writer, a, parentPrec);
             case SIGN -> sign(writer, a);
             case GREATEST -> MongoJson.op(writer, "$max", a);
             case LEAST -> MongoJson.op(writer, "$min", a);

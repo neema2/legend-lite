@@ -1057,7 +1057,10 @@ public final class Trino extends AnsiSqlRenderer {
                     .append(", 0)), '') END)");
             // DuckDB's split_part: the empty string past the end (Trino's is NULL)
             case SPLIT_PART -> writer.append("coalesce(split_part(").list(a).append("), '')");
-            case ROUND_HALF_UP -> roundHalfUp(writer, c);
+            case ROUND_HALF_UP -> isDoubleValue(c.args().get(0)) ? roundHalfUpOfDouble(writer, c, parentPrec)
+                    : roundHalfUp(writer, c);
+            case DECIMAL_DIVIDE -> decimalDivide(writer, c.args(), parentPrec);
+            case FLOAT_TO_DECIMAL -> floatToDecimalByText(writer, c.args(), parentPrec);
 
             // ---- strings
             case MATCHES -> writer.append("regexp_like(").expr(a.get(0), 0).append(", ").expr(a.get(1), 0).append(")");
