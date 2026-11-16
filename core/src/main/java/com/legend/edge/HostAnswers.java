@@ -35,7 +35,8 @@ public final class HostAnswers {
      *  A-M2, 2026-11-16: until then lite's, PureV1Api.answer's default). */
     private static com.legend.server.PureV1Api.Answer answer(int status, @com.legend.base.Nullable String errorType,
             java.util.function.Supplier<String> call) {
-        return com.legend.server.PureV1Api.answer(status, errorType, call, PureMessages::compile, PureMessages::typeName);
+        return com.legend.server.PureV1Api.answer(status, errorType, call, PureMessages::compile, PureMessages::typeName,
+                PureMessages::uncaught);
     }
 
     private HostAnswers() {

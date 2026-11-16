@@ -62,7 +62,7 @@ public final class PureV1Routes {
     /** A route's answer, a refusal of the text in upstream's words ({@link PureMessages#compile}: D1.6, W7). */
     static Answer answer(int status, @com.legend.base.Nullable String errorType, java.util.function.Supplier<String> call) {
         return com.legend.server.PureV1Api.answer(status, errorType, call, PureMessages::compile,
-                PureMessages::typeName);
+                PureMessages::typeName, PureMessages::uncaught);
     }
 
 

@@ -185,8 +185,18 @@ public final class PureMessages {
      *  {@code MissingParameters}, is the product's; the P2 checkpoint audit's M3/A-M4, 2026-11-16); any other error its
      *  own class's name. */
     public static String typeName(Throwable e) {
-        return e instanceof com.legend.error.MissingParameters ? "IllegalArgumentException"
-                : e.getClass().getSimpleName();
+        if (e instanceof com.legend.error.MissingParameters) {
+            return "IllegalArgumentException";
+        }
+        return uncaught(e) ? "IllegalStateException" : e.getClass().getSimpleName();
+    }
+
+    /** A compile kind upstream raises at run as an uncaught error, never as a refusal of the text: a TDS row's cell
+     *  offset (legend-pure's {@code at}, an {@code IllegalStateException} -- the product's answer until W7 made it a
+     *  kind, restored at the edge by the P2 checkpoint audit's A-S2, 2026-11-16). */
+    public static boolean uncaught(Throwable e) {
+        return e instanceof com.legend.error.LegendCompileException c
+                && c.kind() == com.legend.error.CompileKind.ELEMENT_AT_OFFSET;
     }
 
     /** {@code c}'s sentence as upstream words its kind, after the driver's {@code [line:col]}. */

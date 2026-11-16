@@ -424,6 +424,28 @@ class PureV1ApiTest {
         return Json.toCompact(Json.parseObject(a.json()).getObj("result"));
     }
 
+    /** A TDS row's cell offset outside the row (TdsDesugars, a compile kind since W7): the product refuses the text
+     *  (lite's sentence, a 400); the edge answers as before W7, legend-pure's uncaught {@code IllegalStateException}
+     *  and its sentence, a 500 (the P2 checkpoint audit's A-S2, 2026-11-16). */
+    @Test
+    void aRowsCellOffsetOutsideTheRow_isTheProductsRefusal_andTheEdgesUncaughtIllegalState() {
+        java.util.function.Supplier<String> offset = () -> {
+            throw new com.legend.error.TypeInferenceException(com.legend.error.CompileKind.ELEMENT_AT_OFFSET,
+                    List.of("3", "2"));
+        };
+        PureV1Api.Answer product = PureV1Api.answer(400, "COMPILATION", offset);
+        assertEquals(400, product.status(), product.json());
+        assertTrue(Json.parseObject(product.json()).getString("message").contains("offset 3 is outside a row of 2 cells"),
+                product.json());
+        PureV1Api.Answer edge = PureV1Api.answer(400, "COMPILATION", offset, com.legend.edge.PureMessages::compile,
+                com.legend.edge.PureMessages::typeName, com.legend.edge.PureMessages::uncaught);
+        assertEquals(500, edge.status(), edge.json());
+        assertTrue(Json.parseObject(edge.json()).getString("message").startsWith("IllegalStateException: ")
+                && Json.parseObject(edge.json()).getString("message").endsWith(
+                        "The system is trying to get an element at offset 3 where the collection is of size 2"),
+                edge.json());
+    }
+
     @Test
     void e8_execute_aParameterWithNoValue_isRefused_aStrayValueIgnored_asTheEngineAnswers() {
         String lam = com.legend.edge.PureV1Routes.grammarToJsonLambda("{region:String[1]|#>{trades::h2::DB.TRADES_SCHEMA.TRADES}#"

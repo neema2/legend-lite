@@ -392,10 +392,18 @@ public final class PureV1Api {
      *  it; the P2 checkpoint audit's M3/A-M4, 2026-11-16). */
     public static Answer answer(int status, @com.legend.base.Nullable String errorType, Supplier<String> call,
             java.util.function.Function<Throwable, String> words, java.util.function.Function<Throwable, String> typeName) {
+        return answer(status, errorType, call, words, typeName, e -> false);
+    }
+
+    /** {@link #answer}, the refusals {@code uncaught} names answered as an uncaught error instead (the compatibility
+     *  edge's: a kind upstream raises at run, not at compile; the P2 checkpoint audit's A-S2, 2026-11-16). */
+    public static Answer answer(int status, @com.legend.base.Nullable String errorType, Supplier<String> call,
+            java.util.function.Function<Throwable, String> words, java.util.function.Function<Throwable, String> typeName,
+            java.util.function.Predicate<Throwable> uncaught) {
         try {
             return new Answer(200, call.get());
         } catch (RuntimeException | StackOverflowError e) {
-            if (refusesTheText(e)) {
+            if (refusesTheText(e) && !uncaught.test(e)) {
                 return error(status, errorType, words.apply(e));
             }
             if (!(e instanceof IllegalArgumentException || e instanceof com.legend.error.DataError)) {
