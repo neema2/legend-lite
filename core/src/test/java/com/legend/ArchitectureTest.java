@@ -1873,7 +1873,7 @@ final class ArchitectureTest {
         // the edge's writers are carriage too (the P2 checkpoint audit's S4, 2026-11-16): legend-engine's tokens and
         // envelope over the same typed batch, reading what com.legend.result's writers read, and each other
         noClasses()
-            .that().haveNameMatching("com\\.legend\\.edge\\.(PureV1Writer|TdsObjectsWriter|EngineCells)(\\$.*)?")
+            .that().haveNameMatching("com\\.legend\\.edge\\.(PureV1Writer|TdsObjectsWriter|Presenter)(\\$.*)?")
             .should().dependOnClassesThat(com.tngtech.archunit.core.domain.JavaClass.Predicates.resideInAPackage(
                     "com.legend..")
                     .and(com.tngtech.archunit.base.DescribedPredicate.not(com.tngtech.archunit.core.domain.JavaClass
@@ -1882,7 +1882,7 @@ final class ArchitectureTest {
                                     "com.legend.error..", "com.legend.arrowipc..")))
                     .and(com.tngtech.archunit.base.DescribedPredicate.not(com.tngtech.archunit.core.domain.JavaClass
                             .Predicates.belongToAnyOf(com.legend.edge.PureV1Writer.class,
-                                    com.legend.edge.TdsObjectsWriter.class, com.legend.edge.EngineCells.class))))
+                                    com.legend.edge.TdsObjectsWriter.class, com.legend.edge.Presenter.class))))
             .as("the edge's writers are carriage only (R3, S4): the plan's column facts and the typed batch, no planning"
                     + " or server class")
             .check(CORE_AND_EDGE_CLASSES);

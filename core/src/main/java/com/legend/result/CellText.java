@@ -19,7 +19,7 @@ import java.util.Map;
  * serialization, never computation: it chooses digits for a value it holds whole (a Float's shortest digits, a
  * Decimal's own scale, a DateTime's fraction), converts no kind, shifts no zone and defaults no null. The product's
  * vocabulary: Pure's print forms ({@link #pure}) and lite's JSON tokens ({@link #pureJson}). legend-engine's JSON
- * tokens and legend-pure's date text are the compatibility edge's ({@code edge.EngineCells}, W8 of
+ * tokens and legend-pure's date text are the compatibility edge's ({@code edge.Presenter}, W8 of
  * docs/records/d-plan-2026-11-16.md, 2026-11-16), which composes {@link #declared}, {@link #number} and
  * {@link #dayText}. What the database spelled for these until the result boundary program's phase 3 (the lowering's
  * CSV and JSON wires, legend-engine's Float and DateTime text in SQL) is the same rule, written where it belongs;
@@ -45,7 +45,7 @@ public final class CellText {
     }
 
     /** A DATE'S TEXT IN A CELL: the product's ({@link #PRODUCT}, register S312: six fraction digits and Z), or
-     *  legend-pure's ({@code edge.EngineCells.LEGEND_PURE}), which the edge's pure/v1 Arrow receiver hands the writer
+     *  legend-pure's ({@code edge.Presenter.LEGEND_PURE}), which the edge's pure/v1 Arrow receiver hands the writer
      *  it makes (DoD-2: an edge answer does not move with the product's). A closed enum the writers interpreted until
      *  W8 (2026-11-16); since the engine answers are the edge's receivers ({@code edge.EngineAnswers}), the run is
      *  handed a receiver and never this text, and legend-pure's arm is the edge's code. */
@@ -65,8 +65,8 @@ public final class CellText {
         return switch (cell) {
             case Long l -> Long.toString(l);
             case BigInteger b -> b.toString();
-            case Double d -> pureFloat(d);
-            case BigDecimal d -> type.equals("Float") ? pureFloat(d) : d.toPlainString();
+            case Double d -> carriedFloat(d);
+            case BigDecimal d -> type.equals("Float") ? carriedFloat(d) : d.toPlainString();
             case Boolean b -> b.toString();
             case String s -> s;
             case PureDateLiteral d -> dates.text(d, type, c, false);
@@ -169,7 +169,7 @@ public final class CellText {
 
     /** A structure's JSON (an object's declared properties, a List's elements, a Pair's, a Map's entries), each value
      *  by the rules of a cell of its own kind -- a float, a date, a time spelled as one is, never as the JSON library
-     *  would spell a Java value: Pure's tokens (legend-engine's are the edge's, {@code edge.EngineCells}). A nested
+     *  would spell a Java value: Pure's tokens (legend-engine's are the edge's, {@code edge.Presenter}). A nested
      *  value has no column of its own, so a date is its day where it has no time of day, else a timestamp's text. */
     private static Json.Node structure(@com.legend.base.Nullable Object v, ExecutionPlan.Column c, DateText dates) {
         return switch (v) {
@@ -184,7 +184,7 @@ public final class CellText {
             case Integer n -> Json.num(n);
             case BigInteger b -> token(b.toString(), new BigDecimal(b));
             // a NaN or an infinite Float as its name, a string (register S119, pending the user's ruling)
-            case Double d -> Double.isFinite(d) ? token(pureFloat(d), BigDecimal.valueOf(d)) : Json.str(pureFloat(d));
+            case Double d -> Double.isFinite(d) ? token(carriedFloat(d), BigDecimal.valueOf(d)) : Json.str(carriedFloat(d));
             case BigDecimal d -> token(d.toPlainString(), d);
             case Boolean b -> Json.bool(b);
             case String s -> Json.str(s);
@@ -208,8 +208,8 @@ public final class CellText {
         }
         return switch (cell) {
             // a NaN or an infinite Float as its name, a string (register S119, pending the user's ruling)
-            case Double d -> Double.isFinite(d) ? token(pureFloat(d), BigDecimal.valueOf(d)) : Json.str(pureFloat(d));
-            case BigDecimal d -> token(isFloat(c) ? pureFloat(d) : d.toPlainString(), d);
+            case Double d -> Double.isFinite(d) ? token(carriedFloat(d), BigDecimal.valueOf(d)) : Json.str(carriedFloat(d));
+            case BigDecimal d -> token(isFloat(c) ? carriedFloat(d) : d.toPlainString(), d);
             case Long l -> Json.num(l);
             case BigInteger b -> token(b.toString(), new BigDecimal(b));
             case Boolean b -> Json.bool(b);
@@ -234,7 +234,7 @@ public final class CellText {
             case null -> w.writeNull();
             // a Float's spelling decided in one place: its node's ({@link #pureJson})
             case Double d -> Json.write(w, pureJson(d, c));
-            case BigDecimal d -> w.writeToken(isFloat(c) ? pureFloat(d) : d.toPlainString());
+            case BigDecimal d -> w.writeToken(isFloat(c) ? carriedFloat(d) : d.toPlainString());
             case Long l -> w.writeLong(l);
             case BigInteger b -> w.writeToken(b.toString());
             case Boolean b -> w.writeBool(b);
@@ -249,7 +249,10 @@ public final class CellText {
 
     // ---- Float ----------------------------------------------------------------------------------------------------
 
-    /** Pure's layout of a double: its shortest digits ({@code Double.toString}'s, which read back as the same double),
+    /** A CARRIED Float's text (named for carriage, Phase 3 of docs/records/total-wall-edge-program-2026-11-16.md,
+     *  2026-11-16: the value a CSV or JSON cell carries, read back as the same double -- §10 item 3 -- and the one rule
+     *  the compatibility edge's presenter prints a Float by; the product's {@code toString} of a Float is S311's six
+     *  decimals, in the query). Pure's layout of a double: its shortest digits ({@code Double.toString}'s, which read back as the same double),
      *  an exponent laid out positionally with a point always ({@code 1500000000000000.0}, {@code 0.00000025}); NaN and
      *  the infinities as Java names them. A negative zero keeps its sign, {@code -0.0}: it is another double (the
      *  user, 2026-10-28; Pure's own {@code toString} writes {@code 0.0} for either, as lite's SQL does: register
@@ -257,7 +260,7 @@ public final class CellText {
      *  is no digit of the value: stripped before the layout, so {@code 1.0E-4} is {@code 0.0001}, legend-pure's own
      *  text, not {@code 0.00010} (the user, 2026-10-28: a defect, fixed; the start page's S1.4 item 2). The strip is a
      *  representation operation: no rounding, the value whole. */
-    static String pureFloat(double d) {
+    public static String carriedFloat(double d) {
         String shortest = Double.toString(d);
         if (shortest.indexOf('E') < 0) {
             return shortest;
@@ -266,9 +269,9 @@ public final class CellText {
         return plain.contains(".") ? plain : plain + ".0";
     }
 
-    /** Pure's text of a Float the database holds exactly (a decimal slot under a Float column): its digits without
+    /** A carried Float's text ({@link #carriedFloat(double)}) where the database holds it exactly (a decimal slot under a Float column): its digits without
      *  trailing zeros, a point always. */
-    static String pureFloat(BigDecimal d) {
+    public static String carriedFloat(BigDecimal d) {
         String plain = d.stripTrailingZeros().toPlainString();
         return plain.contains(".") ? plain : plain + ".0";
     }

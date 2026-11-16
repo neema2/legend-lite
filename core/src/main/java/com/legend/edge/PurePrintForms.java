@@ -19,10 +19,6 @@ import com.legend.sql.SqlFn;
  */
 final class PurePrintForms extends com.legend.sql.SqlRewriter {
 
-    /** legend-engine's text of an empty TDS cell, which its {@code makeString} prints for an empty element (the
-     *  product's join skips one: {@link SqlFn#CELL_TEXT}, phase D's D1.3, 2026-11-15). */
-    static final String TDS_NULL = "TDSNull";
-
     private PurePrintForms() {
     }
 
@@ -96,7 +92,7 @@ final class PurePrintForms extends com.legend.sql.SqlRewriter {
 
     /** A {@link SqlFn#CELL_TEXT}'s operand, legend-engine's {@code TDSNull} where it is empty. */
     private static SqlExpr tdsNullOf(SqlExpr joined) {
-        return SqlExpr.Call.of(SqlFn.COALESCE, ((SqlExpr.Call) joined).args().get(0), new SqlExpr.StringLit(TDS_NULL));
+        return SqlExpr.Call.of(SqlFn.COALESCE, ((SqlExpr.Call) joined).args().get(0), new SqlExpr.StringLit(Presenter.TDS_NULL));
     }
 
     @Override

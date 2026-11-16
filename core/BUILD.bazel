@@ -490,7 +490,7 @@ legend_java_library(
     # product's API kit (pure_v1) and its compiler, protocol and test-data generator
     # the parse door (main's C5-J item 1, merged 2026-11-15): pure/v1's grammar routes, moved here by D1.0b, parse
     # through it as the run's wall asks
-    # values (W8, 2026-11-16): legend-engine's and legend-pure's cell text (EngineCells) reads a date's own value
+    # values (W8, 2026-11-16): legend-engine's and legend-pure's cell text (Presenter) reads a date's own value
     deps = ["//arrow_ipc", "//base", "//json", ":compiler", ":compiler_element_type", ":database", ":door", ":error",
             ":execution_plan", ":model", ":parser", ":plan", ":planner", ":protocol", ":pure_v1", ":result", ":sql",
             ":sql_dialect", ":test_plan", ":testdatagen", ":testplan", ":values", ":setup", ":resolver", ":platform", ":lowering", ":lineage", ":builtin"],

@@ -1810,7 +1810,7 @@ class JavaEvalLedgerTest {
                             // halves (plan and write only; no connection, no JDBC); and legend-engine's and legend-pure's
                             // text of a cell, moved from result.CellText (spells, decides nothing:
                             // WriterCarriageGuardTest registers its representation operations)
-                            "PureV1Writer.java", "EngineAnswers.java", "HostAnswers.java", "EngineCells.java",
+                            "PureV1Writer.java", "EngineAnswers.java", "HostAnswers.java", "Presenter.java",
                             // legend-engine's plan text, moved from com.legend.planner (W9's planner half, 2026-11-16):
                             // planToString/toSQLString, a toDDL statement, a $plan handle's node model, an execute's
                             // activity SQL -- planning work, no session; the style's UpstreamPlans facet

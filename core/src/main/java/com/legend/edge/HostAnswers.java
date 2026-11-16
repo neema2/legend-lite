@@ -84,7 +84,7 @@ public final class HostAnswers {
                 com.legend.result.HostRows.stream(rows, columns, new com.legend.result.ArrowWriter(out,
                         // legend-pure's date text, as the server's twin writes it (EngineAnswers.arrow; the P2 checkpoint
                         // audit's A-M3, 2026-11-16: this host route wrote the product's S312 text)
-                        cs -> metadata, EngineCells.LEGEND_PURE));
+                        cs -> metadata, Presenter.LEGEND_PURE));
             } catch (java.io.IOException e) {
                 throw new java.io.UncheckedIOException(e);
             }

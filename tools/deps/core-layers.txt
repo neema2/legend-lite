@@ -124,7 +124,7 @@ exec_program	base error exec execution_plan result
 # 2026-11-15 (#104 merged with main's C5-J, #106): door -- the parse doors (door.Parse) the edge's pure/v1 routes ask
 # before they parse, as C5-J made every parse entry ask the run's wall
 # 2026-11-16 (W8 of docs/records/d-plan-2026-11-16.md): values -- legend-engine's and legend-pure's cell text, moved
-# from result.CellText to edge.EngineCells, reads a date's own value
+# from result.CellText to edge.Presenter, reads a date's own value
 # 2026-11-16 (W9's judge half, E-Java; the orchestrator's ruling): edge reaches testplan, to answer the plan style's
 # test-planning facets (testplan.EngineTestText); the edge depends on the product, never the reverse (G5).
 # 2026-11-16 (W9's planner half, docs/records/d-plan-2026-11-16.md): builtin lineage lowering platform resolver setup --

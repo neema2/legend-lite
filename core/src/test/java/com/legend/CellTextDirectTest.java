@@ -5,7 +5,7 @@ package com.legend;
 
 import com.legend.executionplan.ExecutionPlan;
 import com.legend.json.Json;
-import com.legend.edge.EngineCells;
+import com.legend.edge.Presenter;
 import com.legend.result.CellText;
 import com.legend.values.PureDateLiteral;
 import com.legend.values.PureTimeLiteral;
@@ -113,9 +113,9 @@ class CellTextDirectTest {
             w.beginArray();
             n.beginArray();
             for (Object cell : cells()) {
-                if (ok(() -> EngineCells.engine(cell, c))) {
-                    EngineCells.writeEngine(w, cell, c);
-                    Json.write(n, EngineCells.engine(cell, c));
+                if (ok(() -> Presenter.engine(cell, c))) {
+                    Presenter.writeEngine(w, cell, c);
+                    Json.write(n, Presenter.engine(cell, c));
                 }
             }
             w.endArray();
@@ -130,13 +130,13 @@ class CellTextDirectTest {
         Json.Writer w = Json.compactWriter(direct);
         Json.Node node;
         try {
-            node = pure ? CellText.pureJson(cell, c) : EngineCells.engine(cell, c);
+            node = pure ? CellText.pureJson(cell, c) : Presenter.engine(cell, c);
         } catch (RuntimeException refused) {
             RuntimeException again = assertThrows(RuntimeException.class, () -> {
                 if (pure) {
                     CellText.writePureJson(w, cell, c);
                 } else {
-                    EngineCells.writeEngine(w, cell, c);
+                    Presenter.writeEngine(w, cell, c);
                 }
             }, "refused as a node, written directly: " + cell + " under " + c);
             assertEquals(refused.getClass(), again.getClass());
@@ -146,7 +146,7 @@ class CellTextDirectTest {
         if (pure) {
             CellText.writePureJson(w, cell, c);
         } else {
-            EngineCells.writeEngine(w, cell, c);
+            Presenter.writeEngine(w, cell, c);
         }
         assertEquals(Json.toCompact(node), direct.toString(), (pure ? "pure " : "engine ") + cell + " under " + c);
         return 1;

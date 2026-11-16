@@ -9,7 +9,7 @@ import com.legend.executionplan.ExecutionPlan.Multiplicity;
 import com.legend.executionplan.ExecutionPlan.TdsResult.Shape;
 import com.legend.json.Json;
 import com.legend.result.Batcher;
-import com.legend.edge.EngineCells;
+import com.legend.edge.Presenter;
 import com.legend.result.CellText;
 import com.legend.result.CsvWriter;
 import com.legend.result.JsonRowsWriter;
@@ -86,7 +86,7 @@ class ResultWritersTest {
         // lite's own JSON carries the same text as its number token
         assertEquals("0.0001", Json.toCompact(CellText.pureJson(1e-4, f)));
         // legend-engine's token is Java's own, exponent and all: untouched
-        assertEquals("1.0E-4", Json.toCompact(EngineCells.engine(1e-4, f)));
+        assertEquals("1.0E-4", Json.toCompact(Presenter.engine(1e-4, f)));
     }
 
     /** A negative zero is another double, so lite's own outputs keep its sign: the shortest text that reads back as
@@ -100,7 +100,7 @@ class ResultWritersTest {
         assertEquals("0.0", Json.toCompact(CellText.pureJson(0.0, f)));
         assertEquals("0.0", CellText.pure(new BigDecimal("-0.000"), f));
         // legend-engine's JSON writes the double as Java does, its sign too
-        assertEquals("-0.0", Json.toCompact(EngineCells.engine(-0.0, f)));
+        assertEquals("-0.0", Json.toCompact(Presenter.engine(-0.0, f)));
     }
 
     /** legend-engine writes a database timestamp in full and only a database date as its day (its ValueTransformer;
@@ -112,14 +112,14 @@ class ResultWritersTest {
     void aTimestampCellSpellsItsNineDigits_evenAtMidnight_aValueRootItsMinimalDigits() {
         Column date = col("d", "Date", "TIMESTAMP", ExecutionPlan.Precision.INSTANT);
         PureDateLiteral midnight = PureDateLiteral.fromDatabaseTimestamp(java.time.LocalDateTime.of(2026, 1, 7, 0, 0));
-        assertEquals("\"2026-01-07T00:00:00.000000000+0000\"", Json.toCompact(EngineCells.engine(midnight, date)));
+        assertEquals("\"2026-01-07T00:00:00.000000000+0000\"", Json.toCompact(Presenter.engine(midnight, date)));
         // lite's own text: the product's zone (register S312: Z; W4 of docs/records/d-plan-2026-11-16.md), a relation's
         // cell with S312's six digits; legend-engine's nine digits and +0000 are the edge's (CellText.engine)
         assertEquals("2026-01-07T00:00:00.000000Z", CellText.pure(midnight, date));
         assertEquals("\"2026-01-07T00:00:00.000000Z\"", Json.toCompact(CellText.pureJson(midnight, date)));
         assertEquals("2026-01-07T00:00:00.000000Z",
                 CellText.pure(midnight, col("v", "Date", "TIMESTAMP", ExecutionPlan.Precision.MINIMAL)));
-        assertEquals("\"2026-01-07\"", Json.toCompact(EngineCells.engine(PureDateLiteral.parse("2026-01-07"),
+        assertEquals("\"2026-01-07\"", Json.toCompact(Presenter.engine(PureDateLiteral.parse("2026-01-07"),
                 col("s", "StrictDate", "DATE", ExecutionPlan.Precision.DAY))));
     }
 
@@ -149,7 +149,7 @@ class ResultWritersTest {
         // the same way spells as legend-engine's TDS does, nine digits (INSTANT, 2026-10-29: ColumnFacts.precision gives
         // the fact by the result's shape)
         // every time-bearing value in S312's one form, six digits and Z (W4's audit, 2026-11-16; a value's written
-        // precision is legend-pure's print form, the edge's: EngineCells.LEGEND_PURE)
+        // precision is legend-pure's print form, the edge's: Presenter.LEGEND_PURE)
         assertEquals("2024-01-02T10:30:00.000000Z", CellText.pure(PureDateLiteral.parse("2024-01-02T10:30"),
                 col("t", "DateTime", "TEMPORAL_TEXT", ExecutionPlan.Precision.WRITTEN)));
         assertEquals("2024-01-02T10:00:00.000000Z", CellText.pure(PureDateLiteral.parse("2024-01-02T10"),
@@ -203,27 +203,27 @@ class ResultWritersTest {
 
     @Test
     void engineTokens() {
-        assertEquals("1.0E15", Json.toCompact(EngineCells.engine(1.0e15, col("f", "Float", "DOUBLE"))));
+        assertEquals("1.0E15", Json.toCompact(Presenter.engine(1.0e15, col("f", "Float", "DOUBLE"))));
         // a NaN or infinite Float cell is null: the engine's relational JSON (convertPurePrimitiveToJson), read
         // 2026-10-29 (S1.5); phase 2 had pinned the name as a string
-        assertEquals("null", Json.toCompact(EngineCells.engine(Double.NaN, col("f", "Float", "DOUBLE"))));
-        assertEquals("null", Json.toCompact(EngineCells.engine(Double.POSITIVE_INFINITY, col("f", "Float", "DOUBLE"))));
-        assertEquals("1.50", Json.toCompact(EngineCells.engine(new BigDecimal("1.50"), col("d", "Decimal", "DECIMAL"))));
+        assertEquals("null", Json.toCompact(Presenter.engine(Double.NaN, col("f", "Float", "DOUBLE"))));
+        assertEquals("null", Json.toCompact(Presenter.engine(Double.POSITIVE_INFINITY, col("f", "Float", "DOUBLE"))));
+        assertEquals("1.50", Json.toCompact(Presenter.engine(new BigDecimal("1.50"), col("d", "Decimal", "DECIMAL"))));
         // a whole number past a long is written by its digits, never wrapped
         assertEquals("18446744073709551614", Json.toCompact(
-                EngineCells.engine(new BigInteger("18446744073709551614"), col("i", "Integer", "HUGEINT"))));
-        assertEquals("\"2024-01-02T10:30:00.500000000+0000\"", Json.toCompact(EngineCells.engine(
+                Presenter.engine(new BigInteger("18446744073709551614"), col("i", "Integer", "HUGEINT"))));
+        assertEquals("\"2024-01-02T10:30:00.500000000+0000\"", Json.toCompact(Presenter.engine(
                 PureDateLiteral.parse("2024-01-02T10:30:00.5"), col("t", "DateTime", "TIMESTAMP",
                         ExecutionPlan.Precision.INSTANT))));
         Map<String, Object> person = new LinkedHashMap<>();
         person.put("name", "Ann");
         person.put("__id", "o1");
-        assertEquals("{\"name\":\"Ann\"}", Json.toCompact(EngineCells.engine(person, col("v", "model::Person", "JSON"))));
+        assertEquals("{\"name\":\"Ann\"}", Json.toCompact(Presenter.engine(person, col("v", "model::Person", "JSON"))));
         // a Variant is a string holding its JSON, its JSON null too: the value's text, never JSON's null, which is a
         // NULL cell's (measured, 4.145.0, 2026-10-28: PARK-34's probe, upstream-api/e8-variant-null.json)
-        assertEquals("\"null\"", Json.toCompact(EngineCells.engine("null",
+        assertEquals("\"null\"", Json.toCompact(Presenter.engine("null",
                 col("v", "meta::pure::metamodel::variant::Variant", "JSON"))));
-        assertEquals("\"{\\\"a\\\":[1,2.50]}\"", Json.toCompact(EngineCells.engine("{\"a\":[1,2.50]}",
+        assertEquals("\"{\\\"a\\\":[1,2.50]}\"", Json.toCompact(Presenter.engine("{\"a\":[1,2.50]}",
                 col("v", "meta::pure::metamodel::variant::Variant", "JSON"))));
     }
 
@@ -241,7 +241,7 @@ class ResultWritersTest {
         person.put("__id", "o1");
         Column c = col("v", "model::Person", "STRUCT<when DATE>");
         assertEquals("{\"when\":\"2024-01-02\",\"at\":\"2024-01-02T10:30:00.500000000+0000\",\"tick\":\"10:30:00\","
-                + "\"f\":1.0E15,\"tags\":[\"2024-01-03\"]}", Json.toCompact(EngineCells.engine(person, c)));
+                + "\"f\":1.0E15,\"tags\":[\"2024-01-03\"]}", Json.toCompact(Presenter.engine(person, c)));
         assertEquals("{\"when\":\"2024-01-02\",\"at\":\"2024-01-02T10:30:00.500000Z\",\"tick\":\"10:30:00\","
                 + "\"f\":1000000000000000.0,\"tags\":[\"2024-01-03\"]}", Json.toCompact(CellText.pureJson(person, c)));
     }

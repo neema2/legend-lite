@@ -211,7 +211,7 @@ class CompatSpellingGuardTest {
             // Arrow route's (CellText.DateText.LEGEND_PURE), where the product writes S312's six digits and Z; it moves to
             // the edge with the engine writers. +0000 and presentedName: gone 2026-11-16 (W8 of
             // docs/records/d-plan-2026-11-16.md): legend-pure's date text and legend-engine's pivot quoting are
-            // edge.EngineCells
+            // edge.Presenter
             // result/CsvWriter.java and result/JsonRowsWriter.java | presentedName: gone 2026-11-15 (D1.4: a pivot's
             // generated name bare in lite's writers, register S315)
             // D1.4 -> D1.8 (2026-11-15, the orchestrator's ruling: no exception; PureV1Writer, Output.Engine/Arrow and
@@ -302,9 +302,9 @@ class CompatSpellingGuardTest {
             // writers no longer read it (CellText's product half prints S312's text); what remains is legend-engine's
             // JSON of a date (toEngineJson, read by CellText's engine half, which moves with PureV1Writer at W8) and
             // legend-pure's print form (the three toStrings, the judges' and the edge's), moved at W8 with the writers.
-            // GONE 2026-11-16 (W8): toEngineJson is toNineDigits, zone-free (the product adds Z, edge.EngineCells
+            // GONE 2026-11-16 (W8): toEngineJson is toNineDigits, zone-free (the product adds Z, edge.Presenter
             // +0000); the toStrings are the literal body; legend-pure's print form is the judges' printer
-            // (testexecutionplan.Verdicts.pureText, W10's) and the edge's (EngineCells)
+            // (testexecutionplan.Verdicts.pureText, W10's) and the edge's (Presenter)
     );
 
     @Test
