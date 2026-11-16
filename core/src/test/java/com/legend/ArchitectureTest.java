@@ -1215,7 +1215,8 @@ final class ArchitectureTest {
             "com.legend.TestExecution",
             "testplan.TestPlanner#facts(com.legend.TypedQuery)", "com.legend.TestExecution",
             // W9's judge half, S2b (2026-11-16): the engine-text arm the edge's facet runs, until the arm's code moves
-            // to the edge (testplan.EngineTestText; docs/records/e-java-w9-judge-half-2026-11-16.md)
+            // to the edge (testplan.EngineTestText; docs/records/e-java-w9-judge-half-2026-11-16.md); TRANSITIONAL, the
+            // orchestrator's condition: S2c removes this entry or names what still needs it
             "testplan.EngineTestText#arm(com.legend.testplan.EngineTestText$Ask)", "com.legend.edge.EdgeEngineTestText",
             // the test door's options, from the root's ExecuteOptions: planning's half, a record of closed words
             "testplan.PlanningOptions#<init>(com.legend.testexecutionplan.Edge, com.legend.executionplan.DataStores, "
