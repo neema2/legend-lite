@@ -2006,10 +2006,18 @@ public class Snowflake extends AnsiSqlRenderer {
         return super.projectionValue(writer, p);
     }
 
-    /** The base CASE, with a branch that IS error() raised in the CASE's own type. */
+    /** The base CASE (IFF for one condition and an else), with a branch that IS error() raised in the CASE's own
+     *  type. */
     @Override
     protected SqlWriter caseExpr(SqlWriter writer, SqlExpr.Case c) {
         SqlType slot = typeOf(c);
+        // one condition and an else: Snowflake's own IFF, the same lazy choice, written shorter (the lean program's
+        // E-v3, 2026-11-16)
+        if (c.whens().size() == 1 && c.otherwise() != null) {
+            SqlExpr.Case.When w = c.whens().get(0);
+            return writer.append("IFF(").expr(w.condition(), 0).append(", ").piece(branch(w.then(), slot))
+                    .append(", ").piece(branch(c.otherwise(), slot)).append(")");
+        }
         writer.append("CASE");
         for (SqlExpr.Case.When w : c.whens()) {
             writer.append(" WHEN ").expr(w.condition(), 0).append(" THEN ").piece(branch(w.then(), slot));
