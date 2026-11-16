@@ -117,9 +117,10 @@ final class PctCaseRecorder {
         return String.valueOf(v);
     }
 
-    /** A case that raised, for the edge golden net: its message as the test sees it. */
-    static void edgeError(String expression, Throwable e) {
-        edge(expression, "ERROR", String.valueOf(e.getMessage()));
+    /** A case that raised, for the edge golden net: the message exactly as legend-pure's interpreter is handed it
+     *  (2026-11-16: recorded from the raw exception, the net missed the edge's words d-stage hands the test). */
+    static void edgeError(String expression, String messageTheTestSees) {
+        edge(expression, "ERROR", String.valueOf(messageTheTestSees));
     }
 
     private static String write(com.legend.json.Json.Node n) {

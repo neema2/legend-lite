@@ -166,7 +166,6 @@ public class PctExecuteNative extends NativeFunction {
             };
         } catch (Exception e) {
             PctCaseRecorder.recordShapeError(pureExpression, e);
-            PctCaseRecorder.edgeError(pureExpression, e);
             // the error's SOURCE INFO must point at the TEST's own call
             // site (assertError checks line/column). B5 (truthfulness
             // burn): the criterion is POSITIVE — the adapter's own
@@ -190,7 +189,10 @@ public class PctExecuteNative extends NativeFunction {
             // from platform-raised text (provenance-sentinel scoped).
             // remapErrorMessage — the last adapter arm that ever touched
             // a message — is DELETED; native errors cross whole.
-            throw new PureExecutionException(src, e.getMessage(), e);
+            // the edge golden net records the message exactly as it is handed to the interpreter
+            String message = e.getMessage();
+            PctCaseRecorder.edgeError(pureExpression, message);
+            throw new PureExecutionException(src, message, e);
         }
     }
 }
