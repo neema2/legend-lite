@@ -833,18 +833,33 @@ _EDGE_CLASS = {
     ],
 ) for s in _SUITES]
 
+# each recording, normalized outside this module (tools/edgenet: a relation's rows and the file's lines sorted; the PCT
+# module holds no ordering machinery, PctDisciplineTest), is what the net compares with its golden
+_EDGE_RECORDED = {
+    "src/test/resources/edge/%s_%s_%s.tsv" % (lane, s.lower(), kind): "edge/%s_%s/%s.tsv" % (lane, s.lower(), kind)
+    for (lane, backend, s) in _EDGE_LANES
+    for kind in ["outcomes", "answers"]
+} | {
+    "src/test/resources/edge/channel_b_duckdb_%s_outcomes.tsv" % s.lower(): "edge/channel_b_%s/outcomes.tsv" % s.lower()
+    for s in _SUITES
+}
+
+[java_run(
+    name = "edge_norm_" + golden.split("/")[-1].removesuffix(".tsv"),
+    testonly = True,
+    srcs = [":" + recorded],
+    outs = ["edge_norm/" + golden.split("/")[-1]],
+    arguments = ["$(execpath :%s)" % recorded, "{OUT}"],
+    main_class = "com.legend.tools.edgenet.EdgeNormalize",
+    mnemonic = "EdgeNormalize",
+    deps = ["//tools/edgenet"],
+) for golden, recorded in _EDGE_RECORDED.items()]
+
 write_source_files(
     name = "update_edge_contract",
     testonly = True,
     diff_test_failure_message = "{{DEFAULT_MESSAGE}}\nAn edge answer moved (the edge golden net): in the diff, < is this tree (generated) and > the golden (the reference); every difference at the edge is a regression unless it is a ruled move -- then bazel run //pct:update_edge_contract, citing the ruling in the commit",
-    files = {
-        "src/test/resources/edge/%s_%s_%s.tsv" % (lane, s.lower(), kind): ":edge/%s_%s/%s.tsv" % (lane, s.lower(), kind)
-        for (lane, backend, s) in _EDGE_LANES
-        for kind in ["outcomes", "answers"]
-    } | {
-        "src/test/resources/edge/channel_b_duckdb_%s_outcomes.tsv" % s.lower(): ":edge/channel_b_%s/outcomes.tsv" % s.lower()
-        for s in _SUITES
-    },
+    files = {golden: ":edge_norm/" + golden.split("/")[-1] for golden in _EDGE_RECORDED},
 )
 
 test_suite(

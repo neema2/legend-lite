@@ -1,3 +1,72 @@
+# D, Phase 2: raises as SITES (design note, REVISED 2026-11-16, the site-id design)
+
+**This revision replaces the operand-carriage design below it** (kept as history). The user accepted it: "I'm good with
+database only giving the database message too". The orchestrator's five points, 2026-11-16. The measurements behind
+it: (1) no upstream-facing golden needs a computed operand; (2) a bare `LG#<n>` survives unchanged on every dialect's
+raise path.
+
+## The shape
+1. **Every run-time error Pure defines is still lite's own SQL guard, on every database** (as today), so every
+   database gives the same kind and location. The guard raises a bare token `LG#<n>`, inside today's `U+001F` envelope:
+   no kind name, no where, no values.
+2. **Each statement carries its SITE TABLE:** `n` gives the kind, the where (a fixed text), and the messages RENDERED
+   AT PLANNING:
+   - the product's sentence: `ErrorKind`'s words and the where, no values (the 2026-11-10 ruling);
+   - in an edge-style plan only, upstream's exact sentence. The edge words it at planning, from the site's operands,
+     which are planning literals; a Float or date operand goes through F's `Presenter.legendPure`.
+   The renderer numbers the sites as it writes them (`AnsiSqlRenderer.raiseMessage`, the one writer), so a
+   statement's sites are its own, in order. `ExecutionPlan.Sql.raises` (kinds) becomes `Sql.sites`.
+3. **Run time is a LOOKUP:**
+   - exec (`exec.RaisedErrors`, reached from `Sessions` with the statement's `PlannedSql`, which carries its sites)
+     reads the token and raises `DataError(kind, where, message)` from the table;
+   - it refuses by name a site the statement does not declare;
+   - no template filling and no formatter at run time;
+   - the hosts (engine-client `raised.ts`/`plan-runner.ts`, Python `_raised.py`/`_runs.py`) read the same table, with
+     one shared fixture.
+4. **Database-only failures** (no lite guard involved):
+   - kind `DATABASE_ERROR` with the SQLSTATE, the database's OWN message verbatim in a separate field marked as the
+     database's (the user's ruling);
+   - a connection failure is `CONNECTION_ERROR`.
+5. **Gone:** the operand carriage, framing, the length prefix, the NULL token, the per-type read-back, kind names on the
+   wire, and the split's rename question (a kind name is never on the wire).
+
+## Interim, stated
+A site whose upstream sentence needs a COMPUTED operand:
+- none is reached by any upstream-facing golden (measurement 1);
+- in an edge plan it keeps today's in-SQL sentence (the edge dialect's `raiseMessage`) until the user rules (§5.3);
+- a guard test counts such sites, so they cannot grow silently.
+
+## Format
+- PlanJson 56: a statement's `sites` (`n`, `kind`, `where`, `message`, `upstream` in an edge plan); the plan-level
+  `raises` map derived from them; a 55 plan refused by name.
+- TestPlanJson 26.
+- The hosts' `PLAN_VERSION` 56.
+
+## Files
+- **SQL layer:** `sql/RaiseKind` (each kind's fixed argument list, from 1a), `sql/SqlExpr` (`RaiseText`),
+  `sql/dialect/AnsiSqlRenderer` (`raiseMessage`, the site collection), `sql/dialect/RenderedStatement`.
+- **Plan and exec:** `executionplan/ExecutionPlan` and `PlanJson`, `exec/PlannedSql` and `RaisedErrors`, `exec/Sessions`,
+  `exec/JdbcStatements` (the read-back), `error/DataError` and `ErrorKind` (DATABASE_ERROR, CONNECTION_ERROR, the
+  database's message field).
+- **Edge:** `edge/PureMessages` (upstream's sentence at planning, as Java text, from literals), the edge dialects'
+  `raiseMessage` overrides (reduced to the interim computed-operand sites).
+- **Tests and hosts:** `testexecutionplan/TestPlanJson`; the hosts' readers; `ProductRaiseProbeTest`,
+  `PlanDeclaresItsRaisesTest`, `PlanJsonTest`.
+
+## Contracts
+- **With F (Phase 3):** `Presenter.legendPure` prints a FIXED Float or date operand at planning. No exec use.
+- **With E-Java (Phase 4b):** `SideShapes`' `SIZE_NOT_MULTIPLICITY` is a site whose sentences are planned like any
+  other.
+- **With E-SQL:** `TEXT_NOT_FLOAT` (Phase 8) is one more kind and site.
+
+## Proof
+- The golden net stays 36/36.
+- The product probe reads 0 wrong, beyond E-SQL's known NaN cases.
+- The token survives on every dialect (the survey; the lanes).
+- `everyKindAStatementMarksIsDeclared` becomes "every token a statement can raise is in its site table".
+
+---
+
 # D, Phase 2: typed raises with operands (design note, amended 2026-11-16)
 
 The edge program (`docs/records/total-wall-edge-program-2026-11-16.md`, branch `claude/total-wall-orch`), Phase 2,
