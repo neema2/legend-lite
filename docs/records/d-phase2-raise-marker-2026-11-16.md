@@ -41,16 +41,29 @@ No sentence is built in SQL. No edge code runs at run time.
      - `VALUE_NOT_HELD`, `FRACTION_NOT_KEPT` and `CSV_TOO_WIDE`, one kind per distinct `parts` shape (listed at build).
    - `where` is an ordinary declared FIXED operand wherever a kind has one: never optional.
    - `RaiseKindOperandsTest` holds every construction site to its kind's list.
-2. **The text in SQL, and its framing (condition 1).**
+2. **The text in SQL, and its framing (condition 1, and the orchestrator's follow-up of 2026-11-16).**
    - The text is `MARK kind (MARK operand)*`, in the declared order.
-   - Rule: a kind declares **at most ONE COMPUTED String operand, and it is LAST**. The reader splits the first n-1
-     operands at `MARK` and takes the rest of the text verbatim as the last operand, so a `U+001C` in user data cannot
-     forge an operand or a kind.
-   - No other operand can contain `MARK`: numbers and dates by type; fixed texts are checked at planning and refused by
-     name if they contain it.
-   - `RaiseKindOperandsTest` holds the rule at the declaration.
-   - The reader refuses by name an operand count other than the declared one, or a kind the statement did not declare.
+   - A kind declares **at most ONE COMPUTED String operand, and it is LAST**. `RaiseKindOperandsTest` holds the rule
+     at the declaration. No other operand can contain a mark: numbers and dates by type; fixed texts are checked at
+     planning and refused by name if they hold one.
+   - **The message's extent, today (`RaisedErrors.unwrap`):**
+     - a raise is enveloped in `U+001F` at both ends (`AnsiSqlRenderer.raiseEnvelope`);
+     - the reader closes the envelope at the NEXT `U+001F`, never the last, because H2 repeats the raise's own
+       literal further on in its message, inside the statement's text;
+     - so "take the rest verbatim", or "up to the LAST end mark", would take the database's own appendix (Postgres's
+       CONTEXT, BigQuery's job suffix, H2's repeated statement); and a user String holding `U+001F` would be cut at
+       it.
+   - **So the computed String is LENGTH-PREFIXED:** `MARK <n> MARK <text>`, where `<n>` is its length in Unicode
+     code points, written by the dialect's one character-length call (`length`/`char_length`/`LEN`: each dialect's,
+     measured on the probe, never a byte count). The reader reads `n` code points from the raw message after that
+     mark, whatever follows them: an appended suffix, a repeated literal, or a `U+001F` inside the text.
+   - The reader refuses by name:
+     - a message shorter than its prefix says;
+     - an operand count other than the declared one;
+     - a kind the statement did not declare.
      No partial decode (G7).
+   - The probe's String-operand case passes on EVERY database, Postgres and BigQuery included. The text it uses
+     holds a `U+001C`, a `U+001F` and a non-BMP character.
 3. **NULL (condition 2).**
    - A computed non-String operand is written `COALESCE(<its text>, NULLMARK)`, where `NULLMARK` is `U+001D`. It reads
      back as a typed null. It cannot collide, because a number's or a date's text never holds it.
