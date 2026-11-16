@@ -92,26 +92,26 @@ class WriterCarriageGuardTest {
                     Map.entry("stripTrailingZeros", 2),
                     // the JSON number token: its exact decimal value beside its text (Json.Num), the double's own
                     // (BigDecimal.valueOf, exact) and a token's integral flag (fits a long: bitLength)
-                    // 3 -> 2 (2026-11-16, W8 of docs/records/d-plan-2026-11-16.md: legend-engine's tokens and legend-pure's date text moved to edge.EngineCells, registered below)
+                    // 3 -> 2 (2026-11-16, W8 of docs/records/d-plan-2026-11-16.md: legend-engine's tokens and legend-pure's date text moved to edge.EngineCells (edge.Presenter since Phase 3 of the edge program, 2026-11-16), registered below)
                     Map.entry("BigDecimal.valueOf", 2),
                     Map.entry("toBigInteger", 1),
                     Map.entry("bitLength", 1),
                     Map.entry("longValue", 1),
                     // a Float held exactly as a decimal, read as the double it is for legend-engine's Double.toString
                     // token (1), and the Num's double field (1): the declared kind's own value, no other kind
-                    // 2 -> 1 (2026-11-16, W8 of docs/records/d-plan-2026-11-16.md: legend-engine's tokens and legend-pure's date text moved to edge.EngineCells, registered below)
+                    // 2 -> 1 (2026-11-16, W8 of docs/records/d-plan-2026-11-16.md: legend-engine's tokens and legend-pure's date text moved to edge.EngineCells (edge.Presenter since Phase 3 of the edge program, 2026-11-16), registered below)
                     Map.entry("doubleValue", 1),
                     // NaN and the infinities have no JSON number token: written as their names in a string
                     // (3 -> 4, 2026-10-29, S1.5's D14: a relation's non-finite Float cell is null in LEGACY, as
                     // legend-engine's convertPurePrimitiveToJson writes it -- CellText.engineCell reads the finiteness
                     // the value carries, the engine's own test)
-                    // 4 -> 2 (2026-11-16, W8 of docs/records/d-plan-2026-11-16.md: legend-engine's tokens and legend-pure's date text moved to edge.EngineCells, registered below)
+                    // 4 -> 2 (2026-11-16, W8 of docs/records/d-plan-2026-11-16.md: legend-engine's tokens and legend-pure's date text moved to edge.EngineCells (edge.Presenter since Phase 3 of the edge program, 2026-11-16), registered below)
                     Map.entry("Double.isFinite", 2),
                     // a date's own precision, carried in the value (a day or less; from a minute on, legend-pure's zone
                     // rule, 2026-10-29): Pure's print form and legend-engine's day rule read it, never a clock
                     // 5 -> 7 (2026-11-16, W4's audit): legend-pure's date text for the pure/v1 Arrow route
                     // (CellText.DateText.LEGEND_PURE) beside the product's, each reading the value's own precision
-                    // 7 -> 3, and trimmed 2 GONE (2026-11-16, W8 of docs/records/d-plan-2026-11-16.md: legend-engine's tokens and legend-pure's date text moved to edge.EngineCells, registered below)
+                    // 7 -> 3, and trimmed 2 GONE (2026-11-16, W8 of docs/records/d-plan-2026-11-16.md: legend-engine's tokens and legend-pure's date text moved to edge.EngineCells (edge.Presenter since Phase 3 of the edge program, 2026-11-16), registered below)
                     Map.entry("atLeast", 3),
                     // a day's digits (year, month, day), spelled from the value's floor
                     // (2 -> 1 and the four clock reads getHour, getMinute, getSecond, getNano GONE, 2026-10-29: the
@@ -124,10 +124,12 @@ class WriterCarriageGuardTest {
                     // text tests (E2, 2026-11-12, the vocabulary extended): a slot's own word (a structure's closing
                     // '>'), a pivot column's name holding the separator and its quotes (D1's edge, P3-R5), and a
                     // Float's own digits laid out (the '.' a whole double's text gains)
-                    // contains 3 -> 2, endsWith 2 -> 1, startsWith 1 GONE (2026-11-16, W8 of docs/records/d-plan-2026-11-16.md: legend-engine's tokens and legend-pure's date text moved to edge.EngineCells, registered below: the pivot name's quotes)
+                    // contains 3 -> 2, endsWith 2 -> 1, startsWith 1 GONE (2026-11-16, W8 of docs/records/d-plan-2026-11-16.md: legend-engine's tokens and legend-pure's date text moved to edge.EngineCells (edge.Presenter since Phase 3 of the edge program, 2026-11-16), registered below: the pivot name's quotes)
                     Map.entry("contains(\"\")", 2),
                     Map.entry("endsWith(\"\")", 1))),
-            Map.entry("EngineCells.java", Map.ofEntries(
+            // renamed from EngineCells.java (2026-11-16, Phase 3 of docs/records/total-wall-edge-program-2026-11-16.md: the
+            // presenter absorbs EngineCells; a file moving, no pin changed)
+            Map.entry("Presenter.java", Map.ofEntries(
                     // legend-engine's and legend-pure's text of a cell, moved from CellText (W8 of
                     // docs/records/d-plan-2026-11-16.md, 2026-11-16), the same representation operations: a BigInteger
                     // token's exact value and the double's own (exact) beside its text (Json.Num); a Float held exactly as
@@ -285,7 +287,7 @@ class WriterCarriageGuardTest {
         // result/ to the edge (W8 of docs/records/d-plan-2026-11-16.md, 2026-11-16): scanned where they live
         files.add(SourceFiles.file("core/src/main/java/com/legend/edge/PureV1Writer.java"));
         files.add(SourceFiles.file("core/src/main/java/com/legend/edge/EngineAnswers.java"));
-        files.add(SourceFiles.file("core/src/main/java/com/legend/edge/EngineCells.java"));
+        files.add(SourceFiles.file("core/src/main/java/com/legend/edge/Presenter.java"));
         // 10 -> 50 (E2, 2026-11-12): exec's sources joined the scan
         GuardCoverage.assertFloor("WriterCarriageGuardTest", files.size(), 50);
         StringBuilder drift = new StringBuilder();

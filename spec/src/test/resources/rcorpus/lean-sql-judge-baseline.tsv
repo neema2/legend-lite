@@ -16,7 +16,7 @@ corpus-judge	DuckDB	meta::pure::graphFetch::tests::m2m2r::milestoning::nonMilest
 corpus-judge	DuckDB	meta::pure::lineage::scanColumns::test	5	33132	2448053	65	1405	0
 corpus-judge	DuckDB	meta::pure::lineage::scanRelations::test	49	314479	23187018	702	36118	0
 corpus-judge	DuckDB	meta::pure::router::preeval::tests	0	0	0	0	0	1
-corpus-judge	DuckDB	meta::pure::tds::tests::extensions	12	279940	1836565	234	136787	0
+corpus-judge	DuckDB	meta::pure::tds::tests::extensions	12	279940	1836565	234	136636	0
 corpus-judge	DuckDB	meta::pure::tds::toRelation	0	0	0	0	0	2
 corpus-judge	DuckDB	meta::relational::functions::sqlQueryToString::debugPrint	9	286182	4041744	72	80861	0
 corpus-judge	DuckDB	meta::relational::functions::sqlQueryToString::default	0	0	0	0	0	1
@@ -157,7 +157,7 @@ corpus-judge	DuckDB	meta::relational::tests::mapping::sqlFunction::sqrt	2	23526	
 corpus-judge	DuckDB	meta::relational::tests::mapping::sqlFunction::stddev::population	1	5347	96699	22	390	0
 corpus-judge	DuckDB	meta::relational::tests::mapping::sqlFunction::stddev::sample	1	5313	96577	22	387	0
 corpus-judge	DuckDB	meta::relational::tests::mapping::sqlFunction::stringToDate	4	10593	167627	40	1397	0
-corpus-judge	DuckDB	meta::relational::tests::mapping::sqlFunction::stringToFloat	2	4946	68704	22	986	0
+corpus-judge	DuckDB	meta::relational::tests::mapping::sqlFunction::stringToFloat	2	3917	67648	22	639	0
 corpus-judge	DuckDB	meta::relational::tests::mapping::sqlFunction::tan	2	10534	193812	44	798	0
 corpus-judge	DuckDB	meta::relational::tests::mapping::sqlFunction::toString	4	9607	163271	40	888	0
 corpus-judge	DuckDB	meta::relational::tests::mapping::sqlFunction::trim	1	1451	22753	6	502	0

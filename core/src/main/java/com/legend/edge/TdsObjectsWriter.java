@@ -15,7 +15,7 @@ import java.util.List;
 /**
  * legend-engine's {@code PURE_TDSOBJECT} serialization (the service test runner's format; the doors, 2026-10-29): a
  * relation as a JSON array of objects, one per row, each keyed by the column's presented name
- * ({@link EngineCells#presentedName}) with the cell in legend-engine's token ({@link EngineCells#engine}); a value of one
+ * ({@link Presenter#presentedName}) with the cell in legend-engine's token ({@link Presenter#engine}); a value of one
  * column as the cell itself where its column is to-one ({@code null} for no row), as the array of its cells
  * otherwise. A graph fetch's objects are {@link PureV1Writer#objects}'. Until this writer the runner assembled the
  * same tree in Java from a materialized side; now the body's last statement streams through it as any answer does.
@@ -60,16 +60,16 @@ public final class TdsObjectsWriter implements ResultSink {
                 if (rows > 0) {
                     throw new IllegalStateException("a to-one value answered more than one row");
                 }
-                b.append(Json.toCompact(EngineCells.engine(batch.get(r, 0), columns.get(0))));
+                b.append(Json.toCompact(Presenter.engine(batch.get(r, 0), columns.get(0))));
             } else if (shape == ExecutionPlan.TdsResult.Shape.VALUE) {
                 b.append(rows == 0 ? "" : ",")
-                        .append(Json.toCompact(EngineCells.engine(batch.get(r, 0), columns.get(0))));
+                        .append(Json.toCompact(Presenter.engine(batch.get(r, 0), columns.get(0))));
             } else {
                 b.append(rows == 0 ? "" : ",").append('{');
                 for (int i = 0; i < columns.size(); i++) {
                     ExecutionPlan.Column c = columns.get(i);
-                    b.append(i == 0 ? "" : ",").append('"').append(Json.escape(EngineCells.presentedName(c.name())))
-                            .append("\":").append(Json.toCompact(EngineCells.engine(batch.get(r, i), c)));
+                    b.append(i == 0 ? "" : ",").append('"').append(Json.escape(Presenter.presentedName(c.name())))
+                            .append("\":").append(Json.toCompact(Presenter.engine(batch.get(r, i), c)));
                 }
                 b.append('}');
             }

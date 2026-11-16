@@ -16,7 +16,7 @@ import java.util.List;
  * legend-engine's {@code pure/v1} execute answer, written at the edge (docs/RESULT_BOUNDARY_PROGRAM_2026_10_26.md, the
  * LEGACY writer of D6; 2026-10-27): a relation as the engine's TDS result, byte for byte in its streaming serializer's
  * layout -- {@code builder} and {@code activities} as the caller made them, then the columns' names and each row's
- * {@code values} in the engine's tokens ({@link EngineCells#engine}); a graph fetch's objects as the engine's JSON
+ * {@code values} in the engine's tokens ({@link Presenter#engine}); a graph fetch's objects as the engine's JSON
  * result, the array or the one object bare. The rows stream as they arrive; nothing is buffered but a graph fetch's
  * first object (whether it is alone decides the layout).
  */
@@ -87,7 +87,7 @@ public final class PureV1Writer implements ResultSink {
             // a column's type is the compiler's, under its name as the plan spells it or as a cast presents it (a
             // pivot's generated name quoted); a column only the data names -- a dynamic pivot's generated one -- has
             // none, and is typed by its plan type, a primitive; any other column the compiler did not type is refused
-            String name = EngineCells.presentedName(c.name());
+            String name = Presenter.presentedName(c.name());
             ColumnType t = facts.declared().containsKey(c.name()) ? facts.declared().get(c.name())
                     : facts.declared().containsKey(name) ? facts.declared().get(name)
                     : c.name().contains(facts.pivotSeparator())
@@ -227,13 +227,13 @@ public final class PureV1Writer implements ResultSink {
         }
         Envelope e = envelope.apply(this.columns);
         // each row's values in the engine's column order, read from the plan's columns by the name the engine labels
-        // each with (EngineCells.presentedName: a pivot's generated column quoted)
+        // each with (Presenter.presentedName: a pivot's generated column quoted)
         List<String> names = e.names();
         order = new int[names.size()];
         for (int i = 0; i < names.size(); i++) {
             order[i] = -1;
             for (int j = 0; j < columns.size(); j++) {
-                if (EngineCells.presentedName(columns.get(j).name()).equals(names.get(i))) {
+                if (Presenter.presentedName(columns.get(j).name()).equals(names.get(i))) {
                     order[i] = j;
                 }
             }
@@ -276,7 +276,7 @@ public final class PureV1Writer implements ResultSink {
             b.append(rows == 0 ? "" : ",").append("{\"values\": ");
             values.beginArray();
             for (int i : order) {
-                EngineCells.writeEngine(values, batch.get(r, i), columns.get(i));
+                Presenter.writeEngine(values, batch.get(r, i), columns.get(i));
             }
             values.endArray();
             b.append('}');
