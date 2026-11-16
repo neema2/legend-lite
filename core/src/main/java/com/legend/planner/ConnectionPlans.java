@@ -22,7 +22,7 @@ public final class ConnectionPlans {
     /** The plan's description of {@code d}. */
     public static Connection of(ConnectionDefinition d) {
         return new Connection(d.qualifiedName(), d.storeName(), type(d.databaseType()), specification(d.specification()),
-                authentication(d.authentication()));
+                authentication(d.authentication()), d.queryTimeOutInSeconds());
     }
 
     /** The plan's name of the model's database type (the same constant). */

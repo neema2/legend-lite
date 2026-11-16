@@ -29,6 +29,10 @@ import java.util.Objects;
  * @param databaseType   one of the supported relational dialects
  * @param specification  how to reach the database instance
  * @param authentication how to authenticate
+ * @param queryTimeOutInSeconds how long a query on the connection may run, as declared ({@code queryTimeOutInSeconds:});
+ *                       null where the connection declares none -- then no limit, as legend-engine's
+ *                       ({@code SQLResult} sets the statement's timeout only where it is declared; C5-J's batch, 4(b),
+ *                       P2, the user's ruling of 2026-11-16)
  */
 public record ConnectionDefinition(
         String qualifiedName,
@@ -36,7 +40,8 @@ public record ConnectionDefinition(
         DatabaseType databaseType,
         ConnectionSpecification specification,
         AuthenticationSpec authentication,
-        List<String> rowMappers) implements PackageableElement {
+        List<String> rowMappers,
+        @com.legend.base.Nullable Integer queryTimeOutInSeconds) implements PackageableElement {
 
     public ConnectionDefinition {
         Objects.requireNonNull(qualifiedName, "Qualified name cannot be null");
@@ -44,6 +49,13 @@ public record ConnectionDefinition(
         Objects.requireNonNull(specification, "Specification cannot be null");
         Objects.requireNonNull(authentication, "Authentication cannot be null");
         rowMappers = List.copyOf(rowMappers);
+    }
+
+    /** A connection that declares no query time-out. */
+    public ConnectionDefinition(String qualifiedName, @com.legend.base.Nullable String storeName,
+            DatabaseType databaseType, ConnectionSpecification specification, AuthenticationSpec authentication,
+            List<String> rowMappers) {
+        this(qualifiedName, storeName, databaseType, specification, authentication, rowMappers, null);
     }
 
     /** A connection that declares no post-processor that maps its tables (the common form). */

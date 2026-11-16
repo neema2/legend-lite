@@ -39,6 +39,11 @@ final class JdbcStatements implements Statements {
      *  connector's, never re-derived from the driver's product name). */
     private @com.legend.base.Nullable DatabaseConnector declared;
 
+    /** The query time-out the plan's target's connection declares, in seconds, known once {@link #check} has checked
+     *  the session against it; null where it declares none -- no limit, as legend-engine's (C5-J's batch, 4(b), P2, the
+     *  user's ruling of 2026-11-16: {@code SQLResult} sets the statement's timeout only where it is declared). */
+    private @com.legend.base.Nullable Integer queryTimeout;
+
     JdbcStatements(Connection c, SessionState state) {
         this.c = c;
         this.state = state;
@@ -168,17 +173,18 @@ final class JdbcStatements implements Statements {
             return null;
         }
         com.legend.base.RunScope.statement("a declared error read-back");   // the charter's A3(c), a run's act
+        // exec's declared read-back, not the plan's query: no query time-out (legend-engine bounds the query alone)
         PlannedSql read = readBack.plannedRead();
         PlannedSql reset = readBack.plannedReset();
         String held;
         try {
             StatementOrigin.sent(StatementOrigin.SESSION, read.text());
-            List<String> texts = send(c, read, Send.TEXT_QUERY, Bind.NOTHING, a -> texts(rowsOf(a)));
+            List<String> texts = send(c, null, read, Send.TEXT_QUERY, Bind.NOTHING, a -> texts(rowsOf(a)));
             held = texts.isEmpty() ? null : texts.get(0);
         } catch (SQLException unread) {
             try {
                 StatementOrigin.sent(StatementOrigin.SESSION, reset.text());
-                send(c, reset, Send.TEXT_EXECUTE, Bind.NOTHING, JdbcStatements::executedOf);
+                send(c, null, reset, Send.TEXT_EXECUTE, Bind.NOTHING, JdbcStatements::executedOf);
             } catch (SQLException unreset) {
                 unread.addSuppressed(unreset);
                 state.raiseUnreset(String.valueOf(unreset.getMessage()));
@@ -187,7 +193,7 @@ final class JdbcStatements implements Statements {
         }
         StatementOrigin.sent(StatementOrigin.SESSION, reset.text());
         try {
-            send(c, reset, Send.TEXT_EXECUTE, Bind.NOTHING, JdbcStatements::executedOf);
+            send(c, null, reset, Send.TEXT_EXECUTE, Bind.NOTHING, JdbcStatements::executedOf);
         } catch (SQLException unreset) {
             failure.addSuppressed(unreset);
             state.raiseUnreset(String.valueOf(unreset.getMessage()));
@@ -201,6 +207,9 @@ final class JdbcStatements implements Statements {
         Sessions.check(c, target.database().type());
         declared = Connectors.of(target.database().type());
         driver = declared.decoding();   // the driver's facts are its connector's (D72)
+        // the time-out the target's connection declares, set on every statement sent for it (send)
+        queryTimeout = target.database() instanceof ExecutionPlan.Database.Declared d
+                ? d.connection().queryTimeOutInSeconds() : null;
         // the error read-back the plan's target declares, kept with the session for a failure on it (C2)
         state.declareRaiseReadBack(target.raiseReadBack());
         // the settings the target's database must have: written where this platform opened it, else read back once;
@@ -234,7 +243,7 @@ final class JdbcStatements implements Statements {
         List<String> otherwise;
         StatementOrigin.sent(StatementOrigin.SESSION, read.text());
         try {
-            otherwise = send(c, read, Send.TEXT_QUERY, Bind.NOTHING, a -> texts(rowsOf(a)));
+            otherwise = send(c, null, read, Send.TEXT_QUERY, Bind.NOTHING, a -> texts(rowsOf(a)));
         } catch (SQLException e) {
             throw RaisedErrors.dataError(e);
         }
@@ -260,7 +269,7 @@ final class JdbcStatements implements Statements {
     public boolean execute(PlannedSql statement) {
         act();   // THE WALL's rule 3, per act (2026-11-06)
         try {
-            return send(c, statement, Send.TEXT_EXECUTE, Bind.NOTHING, JdbcStatements::executedOf);
+            return send(c, queryTimeout, statement, Send.TEXT_EXECUTE, Bind.NOTHING, JdbcStatements::executedOf);
         } catch (SQLException e) {
             throw failed(e);
         }
@@ -271,7 +280,7 @@ final class JdbcStatements implements Statements {
             throws IOException {
         act();   // THE WALL's rule 3, per act (2026-11-06)
         try {
-            return send(c, statement, Send.UPDATE, st -> bindAll(st, slots, values), JdbcStatements::countOf);
+            return send(c, queryTimeout, statement, Send.UPDATE, st -> bindAll(st, slots, values), JdbcStatements::countOf);
         } catch (SQLException e) {
             throw naming(e, failed(e), slots);
         }
@@ -281,7 +290,7 @@ final class JdbcStatements implements Statements {
     public List<Reported> columns(PlannedSql statement) {
         act();   // THE WALL's rule 3, per act (2026-11-06)
         try {
-            return send(c, statement, Send.TEXT_QUERY, Bind.NOTHING, a -> reported(rowsOf(a).getMetaData()));
+            return send(c, queryTimeout, statement, Send.TEXT_QUERY, Bind.NOTHING, a -> reported(rowsOf(a).getMetaData()));
         } catch (SQLException e) {
             throw failed(e);
         }
@@ -291,7 +300,7 @@ final class JdbcStatements implements Statements {
     public List<Reported> describe(PlannedSql statement) {
         act();   // THE WALL's rule 3, per act (2026-11-06)
         try {
-            return send(c, statement, Send.DESCRIBE, Bind.NOTHING, a -> {
+            return send(c, queryTimeout, statement, Send.DESCRIBE, Bind.NOTHING, a -> {
                 java.sql.ResultSetMetaData md = describedOf(a);
                 return md == null ? List.<Reported>of() : reported(md);
             });
@@ -315,7 +324,7 @@ final class JdbcStatements implements Statements {
         act();   // THE WALL's rule 3, per act (2026-11-06)
         try {
             com.legend.diagnostics.Census.inc(com.legend.diagnostics.Census.Key.SQL_ROUND_TRIPS);
-            send(c, statement, Send.EXECUTE, st -> {
+            send(c, queryTimeout, statement, Send.EXECUTE, st -> {
                 if (st.getParameterMetaData().getParameterCount() == 1) {
                     st.setString(1, path);
                 }
@@ -372,7 +381,7 @@ final class JdbcStatements implements Statements {
             Rows rows) throws IOException {
         act();   // THE WALL's rule 3, per act (2026-11-06)
         try {
-            send(c, statement, Send.QUERY, st -> bindAll(st, slots, values), a -> {
+            send(c, queryTimeout, statement, Send.QUERY, st -> bindAll(st, slots, values), a -> {
                 ResultSet rs = rowsOf(a);
                 while (rs.next()) {
                     rows.row(rs.getString(1));
@@ -397,7 +406,7 @@ final class JdbcStatements implements Statements {
                     + " how its driver answers is its database's fact");
         }
         try {
-            send(c, statement, Send.QUERY, st -> bindAll(st, slots, values), a -> {
+            send(c, queryTimeout, statement, Send.QUERY, st -> bindAll(st, slots, values), a -> {
                 ResultSet rs = rowsOf(a);
                 int answered = rs.getMetaData().getColumnCount();
                 if (answered == 0 && driver.failedWithoutColumns()) {
@@ -447,7 +456,7 @@ final class JdbcStatements implements Statements {
                     + " how its driver answers is its database's fact");
         }
         try {
-            send(c, statement, Send.QUERY, st -> bindAll(st, slots, values), a -> {
+            send(c, queryTimeout, statement, Send.QUERY, st -> bindAll(st, slots, values), a -> {
                 ResultSet rs = rowsOf(a);
                 List<ExecutionPlan.Column> reported = new java.util.ArrayList<>();
                 for (Reported r : reported(rs.getMetaData())) {
@@ -593,10 +602,13 @@ final class JdbcStatements implements Statements {
      * ({@code ArchitectureTest.jdbcSendsAtOneChokePoint}): until then each act prepared and executed for itself, so a
      * helper beside them could have sent text of its own with every guard green.
      */
-    private static <T, X extends Exception> T send(Connection c, PlannedSql statement, Send how, Bind bind,
-            Answer<T, X> answer) throws SQLException, X {
+    private static <T, X extends Exception> T send(Connection c, @com.legend.base.Nullable Integer timeout,
+            PlannedSql statement, Send how, Bind bind, Answer<T, X> answer) throws SQLException, X {
         if (how == Send.TEXT_QUERY || how == Send.TEXT_EXECUTE) {
             try (Statement st = c.createStatement()) {
+                if (timeout != null) {
+                    st.setQueryTimeout(timeout);
+                }
                 if (how == Send.TEXT_EXECUTE) {
                     return answer.of(new Answered.Executed(st.execute(statement.text())));
                 }
@@ -606,6 +618,9 @@ final class JdbcStatements implements Statements {
             }
         }
         try (PreparedStatement st = c.prepareStatement(statement.text())) {
+            if (timeout != null) {
+                st.setQueryTimeout(timeout);
+            }
             bind.bind(st);
             switch (how) {
                 case QUERY -> {

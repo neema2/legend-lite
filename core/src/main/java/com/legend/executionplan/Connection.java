@@ -14,7 +14,8 @@ import java.util.Objects;
  * planner copies it from the model's definition ({@code planner/ConnectionPlans}).
  */
 public record Connection(String qualifiedName, @com.legend.base.Nullable String storeName, DatabaseType databaseType,
-        ConnectionSpecification specification, AuthenticationSpec authentication) {
+        ConnectionSpecification specification, AuthenticationSpec authentication,
+        @com.legend.base.Nullable Integer queryTimeOutInSeconds) {
 
     public Connection {
         Objects.requireNonNull(qualifiedName, "Qualified name cannot be null");

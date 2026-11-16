@@ -838,8 +838,19 @@ public final class FromProtocol {
                 }
             }
         }
+        // the declared query time-out, an Integer as legend-engine's protocol holds it
+        // (DatabaseConnection.queryTimeOutInSeconds): a value past one is refused by name
+        Integer queryTimeOut = null;
+        if (r.queryTimeOutInSeconds() != null) {
+            long declared = r.queryTimeOutInSeconds();
+            if (declared != (int) declared) {
+                throw new IllegalArgumentException("the connection " + qualifiedName + " declares queryTimeOutInSeconds "
+                        + declared + ", past an integer");
+            }
+            queryTimeOut = (int) declared;
+        }
         return new ConnectionDefinition(qualifiedName, r.element(), type, spec,
-                auth, rowMappers);
+                auth, rowMappers, queryTimeOut);
     }
 
 }

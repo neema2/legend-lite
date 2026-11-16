@@ -62,8 +62,9 @@ public final class ConnectionWire {
         throw new IllegalArgumentException("unknown " + what + " '" + name + "'");
     }
 
-    /** {@code c} as its fields, in order: its name, store, declared type, specification and authentication, a field the
-     *  definition leaves unset omitted. */
+    /** {@code c} as its fields, in order: its name, store, declared type, specification and authentication, and its
+     *  declared {@code queryTimeOutInSeconds} (C5-J's batch, 4(b), P2, 2026-11-16), a field the definition leaves unset
+     *  omitted. */
     public static Map<String, Object> write(Connection c) {
         Map<String, Object> o = new LinkedHashMap<>();
         o.put("name", c.qualifiedName());
@@ -73,6 +74,9 @@ public final class ConnectionWire {
         o.put("databaseType", c.databaseType().name());
         o.put("specification", specification(c.specification()));
         o.put("authentication", authentication(c.authentication()));
+        if (c.queryTimeOutInSeconds() != null) {
+            o.put("queryTimeOutInSeconds", c.queryTimeOutInSeconds());
+        }
         return o;
     }
 
@@ -210,7 +214,8 @@ public final class ConnectionWire {
     public static Connection read(Fields f) {
         return new Connection(f.string("name"), f.optionalString("store"),
                 databaseType(f.string("databaseType")), readSpecification(f.object("specification")),
-                readAuthentication(f.object("authentication")));
+                readAuthentication(f.object("authentication")),
+                f.has("queryTimeOutInSeconds") ? Integer.valueOf(f.integer("queryTimeOutInSeconds")) : null);
     }
 
     /** The declared database type named {@code name}; an unknown one refused by name. */

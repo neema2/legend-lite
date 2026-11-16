@@ -87,6 +87,10 @@ class CodeShapeGuardrailTest {
             // 2026-11-10, the A checkpoint's tenets audit (2): the session's checked target's connector, learned at
             // check as the driver's decoding is, whose facts (a transaction taken, an error aborting it) a run acts on
             "JdbcStatements.declared",
+            // 2026-11-16, C5-J's batch 4(b), P2 (the user's ruling: the plan's connection carries its declared
+            // queryTimeOutInSeconds, exec sets it on the statement): the checked target's connection's time-out, learned
+            // at check as the connector is, set on every statement sent for that target
+            "JdbcStatements.queryTimeout",
             // 2026-11-10, the tenets audit (8): the referee's copy of a seed, written when an edge first asks, once
             "CsvSeed.made",
             "PureTestRunner.sessionConn", "PureTestRunner.sessionPkg",
