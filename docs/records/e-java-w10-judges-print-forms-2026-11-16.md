@@ -1,9 +1,12 @@
 # E-Java: W10, the judges' print forms (approved 2026-11-16)
 
 **The direction (the user, relayed by the orchestrator, 2026-11-16):** "Didn't we agree to do all the compatibility in
-JAVA? And for toString inside an expression use engine cast(as varchar)." D replaces the product's in-query Float text
-with legend-engine's own cast and moves legend-pure's exact print to Java at the edge. W10 applies the same principle
-to the judges: no legend-pure print form is computed in SQL.
+JAVA? And for toString inside an expression use engine cast(as varchar)." The reading, settled with the user the same
+day (docs/records/total-wall-plan-2026-11-16.md §2): on the PRODUCT road a Float's text stays S311's six decimals, one
+simple format call per database; on the EDGE road a Float's `toString` inside an expression is legend-engine's own cast
+for that database, and legend-pure's exact print of a value is Java at the edge, from the typed value. (Corrected
+2026-11-16: this paragraph first said the product's in-query Float becomes legend-engine's cast; it does not.) W10
+applies the same principle to the judges: no legend-pure print form is computed in SQL.
 
 ## What the judges' print forms do today (measured on D's stage)
 
