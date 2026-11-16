@@ -62,6 +62,11 @@ class MixedListConformanceTest {
         CASES.put("|['b', 1, 'a']->greatest()", "[{\"value\":\"b\"}]");
         CASES.put("|[true, 'x', 2.5, %2020-01-01]->min()", "[{\"value\":2.5}]");
         CASES.put("|[true, 'x', 2.5, %2020-01-01]->max()", "[{\"value\":\"x\"}]");
+        // B4 (the PR1 re-review, 2026-11-16): two number kinds with no possible tie answer (were refused)
+        CASES.put("|['b', 1, 2.5]->max()", "[{\"value\":\"b\"}]");
+        CASES.put("|['b', 1, 2.5]->min()", "[{\"value\":1}]");
+        CASES.put("|[-1, 2.5]->max()", "[{\"value\":2.5}]");
+        CASES.put("|[-1, 2.5]->min()", "[{\"value\":-1}]");
     }
 
     @Test
@@ -108,8 +113,9 @@ class MixedListConformanceTest {
                     continue;
                 }
                 assertTrue(e instanceof com.legend.error.NotImplementedException, backend.type() + ": " + e);
-                assertTrue(e.getMessage().contains("of a mixed list holding DateTime and StrictDate: an extreme across"
-                        + " date kinds is refused until the run-time kind carrier"), e.getMessage());
+                // R3 as revised by B4 (2026-11-16): a real literal tie across date kinds
+                assertTrue(e.getMessage().contains("of a mixed list holding DateTime and StrictDate: two of its"
+                        + " elements of different kinds compare equal"), e.getMessage());
                 refused++;
             }
         }
@@ -129,28 +135,48 @@ class MixedListConformanceTest {
         // PCT's testMixedSortNoComparator: Integers and Floats, one negative (round 55f: refused as "a Decimal")
         Compiler.query(Compiler.compileModel(model), "|[342, 5.0, -2.0, 171, 1]->sort()")
                 .executionPlan(StorelessRuntime.RUNTIME);
+        // B5 (the PR1 re-review, 2026-11-16): an integer literal the double holds exactly ranks, 2^53 and 2^60 too
+        Compiler.query(Compiler.compileModel(model), "|['b', 9007199254740992, 1152921504606846976]->sort()")
+                .executionPlan(StorelessRuntime.RUNTIME);
         for (String[] c : new String[][] {{"|['b', 1, 0.1D]->sort()", "the Decimal 0.1 (not exact as a DOUBLE)"},
-                {"|['b', 9007199254740993, 9007199254740992]->sort()", "the integer 9007199254740993 (beyond 2^53)"}}) {
+                {"|['b', 9007199254740993, 9007199254740992]->sort()", "the integer 9007199254740993 (not exact"},
+                // B2: a Number list's extreme ranks as DOUBLE too (the mixed-elements route)
+                {"|[9007199254740992, 9007199254740993, 0.5]->max()", "Integer 9007199254740993: its numbers are"},
+                {"|[1.00000000000000001D, 1.00000000000000002D, 0.5]->min()", "Decimal 1.00000000000000001: its"},
+                // B4: a real literal tie across number kinds
+                {"|['b', 1, 1.0]->max()", "two of its elements of different kinds compare equal"},
+                {"|[1, 1.0, 2.5]->min()", "two of its elements of different kinds compare equal"}}) {
             com.legend.error.NotImplementedException e = assertThrows(com.legend.error.NotImplementedException.class,
                     () -> Compiler.query(Compiler.compileModel(model), c[0]).executionPlan(StorelessRuntime.RUNTIME),
                     c[0]);
-            assertTrue(e.getMessage().contains(c[1]), e.getMessage());
+            assertTrue(e.getMessage().contains(c[1]), c[0] + ": " + e.getMessage());
         }
     }
 
     /**
-     * A KNOWN LIMIT, pinned as it is today (docs/records/pr1-rulings-2026-11-15.md, R4; ruled by the orchestrator under
-     * the user's delegation, 2026-11-15): a COMPUTED Integer beyond 2^53 in a mixed list's order is not known at
-     * planning, so it is ranked as a DOUBLE, inexactly, and not refused. Exact with O2 step 3's carrier; this pin
-     * changes then.
+     * A COMPUTED Integer beyond 2^53 in a mixed list's order is not known at planning: the database raises when it
+     * meets one (the PR1 re-review's A2, 2026-11-16; docs/records/pr1-rulings-2026-11-15.md, R4), on the sort's route
+     * and on a Number list's extreme's. One within 2^53 answers.
      */
     @Test
-    void aComputedIntegerBeyond2To53InAMixedRankPlans_aKnownLimit() {
-        String model = StorelessRuntime.with("", TestBackends.platform().type());
-        // the computed value through a let: a list literal holds no arithmetic (SpecParser, round 55f); every literal
-        // below 2^53, so only the computed value is beyond it (round 55k)
-        Compiler.query(Compiler.compileModel(model),
-                "|let n = 9007199254740990 + 3; ['b', $n, 9007199254740991]->sort();")
-                .executionPlan(StorelessRuntime.RUNTIME);
+    void aComputedIntegerBeyond2To53InAMixedRankRaisesAtRun() throws Exception {
+        com.legend.testbackend.TestBackend backend = TestBackends.platform();
+        String model = StorelessRuntime.with("", backend.type());
+        for (String q : new String[] {"|let n = 9007199254740990 + 3; ['b', $n, 9007199254740991]->sort();",
+                "|let n = 9007199254740990 + 3; [$n, 0.5]->max();"}) {
+            ExecutionPlan plan = Compiler.query(Compiler.compileModel(model), q).executionPlan(StorelessRuntime.RUNTIME);
+            try (Connection conn = backend.open()) {
+                // the database raises VALUE_NOT_HELD, worded by its kind (D1.1: the product's words are the kind's)
+                com.legend.error.DataError e = assertThrows(com.legend.error.DataError.class,
+                        () -> PlanCases.write(plan, conn, Map.of(), PlanCases.Written.JSON::writer), q);
+                assertTrue(String.valueOf(e.getMessage()).contains("outside the range"), q + ": " + e);
+            }
+        }
+        ExecutionPlan within = Compiler.query(Compiler.compileModel(model),
+                "|let n = 9007199254740980 + 3; [$n, 0.5]->max();").executionPlan(StorelessRuntime.RUNTIME);
+        try (Connection conn = backend.open()) {
+            assertEquals("[{\"value\":9007199254740983}]",
+                    PlanCases.write(within, conn, Map.of(), PlanCases.Written.JSON::writer));
+        }
     }
 }

@@ -288,7 +288,7 @@ final class MixedEncoding {
         if (t == Type.Primitive.INTEGER || t == Type.Primitive.FLOAT || t == Type.Primitive.NUMBER
                 || t == Type.Primitive.DECIMAL || t instanceof Type.PrecisionDecimal) {
             group = 0;
-            n = new SqlExpr.Cast(x, SqlType.Scalar.DOUBLE, SqlExpr.Reason.CARRIER);
+            n = t == Type.Primitive.INTEGER ? integerRank(x) : new SqlExpr.Cast(x, SqlType.Scalar.DOUBLE, SqlExpr.Reason.CARRIER);
         } else if (t == Type.Primitive.STRICT_DATE) {
             group = 1;
             d = new SqlExpr.Cast(x, SqlType.Scalar.TIMESTAMP, SqlExpr.Reason.CARRIER);
@@ -576,7 +576,7 @@ final class MixedEncoding {
         x = unwrapVariant(x);
         Type t = e.info().type();
         if (t == Type.Primitive.INTEGER) {
-            vals.add(new SqlExpr.Cast(x, SqlType.Scalar.DOUBLE, SqlExpr.Reason.CARRIER));
+            vals.add(integerRank(x));
             candidates.add(new SqlExpr.Tagged.Candidate("Integer", SqlType.Scalar.BIGINT, x));
             return true;
         }
@@ -1007,5 +1007,43 @@ final class MixedEncoding {
         return CollectionLanes.valueLane(c) && c.elements().stream().anyMatch(e ->
                 e.info().multiplicity() instanceof com.legend.compiler.element.type.Multiplicity.Bounded b
                 && b.lower() == 0);
+    }
+
+    /** 2^53, past which a DOUBLE does not hold every integer. */
+    private static final long EXACT_IN_A_DOUBLE = 1L << 53;
+
+    /**
+     * An Integer's rank among mixed kinds: its DOUBLE. A literal is decided at planning (TaggedLists' and the
+     * extremes' refusals of one the double does not hold); a COMPUTED Integer is not known there, so the database
+     * raises when it meets one beyond 2^53, which two such values could share a rank past (the PR1 re-review's A2,
+     * 2026-11-16; docs/records/pr1-rulings-2026-11-15.md, R4: was a known wrong order, now a refusal by name).
+     */
+    private static SqlExpr integerRank(SqlExpr x) {
+        SqlExpr asDouble = new SqlExpr.Cast(x, SqlType.Scalar.DOUBLE, SqlExpr.Reason.CARRIER);
+        if (unwrapLiteral(x) instanceof SqlExpr.IntLit) {
+            return asDouble;
+        }
+        SqlExpr beyond = SqlExpr.Call.of(SqlFn.OR,
+                SqlExpr.Call.of(SqlFn.GREATER, x, new SqlExpr.IntLit(EXACT_IN_A_DOUBLE)),
+                SqlExpr.Call.of(SqlFn.LESS, x, new SqlExpr.IntLit(-EXACT_IN_A_DOUBLE)));
+        return Scalars.guarded(beyond, new SqlExpr.RaiseText(com.legend.sql.RaiseKind.VALUE_NOT_HELD,
+                List.of(new SqlExpr.StringLit("an Integer beyond 2^53 in a mixed list's order: its DOUBLE rank does"
+                        + " not hold it exactly (refused until the kinds-kept carrier ranks numbers exactly)"))),
+                asDouble);
+    }
+
+    private static SqlExpr unwrapLiteral(SqlExpr v) {
+        SqlExpr at = v;
+        while (true) {
+            if (at instanceof SqlExpr.Cast c) {
+                at = c.value();
+            } else if (at instanceof SqlExpr.Group g) {
+                at = g.inner();
+            } else if (at instanceof SqlExpr.Call c && c.fn() == SqlFn.NEGATE && c.args().size() == 1) {
+                at = c.args().get(0);
+            } else {
+                return at;
+            }
+        }
     }
 }
