@@ -233,9 +233,21 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         if (!spellsFloatCanon()) {
             ps.add(new FloatCanonText.Expansion(bindsFloatText(), stagesFloatText()));
         }
+        // a row's values bound beside it (RowLets, 2026-11-16) written back where they stood, unless this dialect reads
+        // the lateral that binds them
+        if (!readsRowLets()) {
+            ps.add(new com.legend.sql.RowLets.Inline());
+        }
         ps.addAll(passes());
         ps.add(new StoredReads(this::readsStored));
         return java.util.List.copyOf(ps);
+    }
+
+    /** Whether this dialect reads a row's bound values ({@link com.legend.sql.RowLets}) as the lowering wrote them, a
+     *  {@code CROSS JOIN LATERAL} of one row per row; else they are written back where they stood. Measured per
+     *  database before it reads them (the lean program's step 7, 2026-11-16). */
+    protected boolean readsRowLets() {
+        return false;
     }
 
     /** A HUGEINT-fact integer literal (past a signed BIGINT): bare, the database types it by its magnitude. */

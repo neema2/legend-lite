@@ -718,6 +718,12 @@ public class DuckDb extends AnsiSqlRenderer {
         return dateTruncDateGrained(writer, c.args(), spelled);
     }
 
+    /** A row's bound values read by a lateral of one row per row (RowLets; the lean program's step 7, 2026-11-16). */
+    @Override
+    protected boolean readsRowLets() {
+        return true;
+    }
+
     @Override
     protected java.util.List<com.legend.sql.SqlRewriter> passes() {
         // carrier strategies FIRST (base contract), then this dialect's

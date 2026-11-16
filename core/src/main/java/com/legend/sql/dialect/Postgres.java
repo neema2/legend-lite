@@ -303,6 +303,12 @@ public class Postgres extends AnsiSqlRenderer {
     // Passes and structure
     // ==================================================================
 
+    /** A row's bound values read by a lateral of one row per row (RowLets; the lean program's step 7, 2026-11-16). */
+    @Override
+    protected boolean readsRowLets() {
+        return true;
+    }
+
     /** The portable carrier strategies (static pivot, as-of emulation; FULL OUTER
      * stays native), the substring start clamp (Postgres counts empties before 1,
      * like DuckDB), string functions' 64-bit counts as its 32-bit integer, averages delivered as DOUBLE ({@code avg(int)} is numeric here),

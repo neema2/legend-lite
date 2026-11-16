@@ -488,6 +488,11 @@ public final class Lowerer {
             // under it (LetBinding); the query as it was where nothing repeats
             q = LetBinding.bindRepeats(q);
         }
+        // step 7's second half (2026-11-16): what a FROM select writes more than once over its own row, computed once
+        // beside the row (LetBinding.bindRowRepeats; a database that reads no lateral writes it back, RowLets.Inline)
+        if (!engineText) {
+            q = LetBinding.bindRowRepeats(q);
+        }
         // a count of rows a declared key makes one is 1 (KeyedCounts: the time model's D2), then the unread pruned
         return SubselectPrune.prune(engineText ? q : KeyedCounts.fold(q, tableKeys), !engineText);
     }

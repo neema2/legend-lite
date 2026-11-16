@@ -313,7 +313,7 @@ final class LetBinding {
                 || !(e.type() instanceof com.legend.sql.TypeFact.Typed)) {
             return false;
         }
-        return closedAndPlain(e, java.util.Set.of()) && (!canRaise(e) || always.contains(e));
+        return closedAndPlain(e, java.util.Set.of(), java.util.Set.of()) && (!canRaise(e) || always.contains(e));
     }
 
     /** The calls that may skip an argument on some dialect ({@link SqlFn#MAY_SKIP_AN_ARGUMENT}: the SQL layer's own
@@ -404,18 +404,21 @@ final class LetBinding {
                 || !(e.type() instanceof com.legend.sql.TypeFact.Typed)) {
             return false;
         }
-        return closedAndPlain(e, java.util.Set.of()) && !canRaise(e);
+        return closedAndPlain(e, java.util.Set.of(), java.util.Set.of()) && !canRaise(e);
     }
 
-    private static boolean closedAndPlain(SqlExpr e, java.util.Set<String> params) {
+    /** Whether {@code e} reads no column but a lambda parameter it binds or a column of {@code rows} (a select's own
+     *  FROM aliases: none for a root binding, the row's for a row binding), and holds nothing that aggregates, reads a
+     *  subquery, is checked, is tagged or draws afresh. */
+    private static boolean closedAndPlain(SqlExpr e, java.util.Set<String> params, java.util.Set<String> rows) {
         switch (e) {
             case SqlExpr.Column c -> {
-                return c.table() == null && params.contains(c.name());
+                return c.table() == null ? params.contains(c.name()) : rows.contains(c.table());
             }
             case SqlExpr.Lambda l -> {
                 java.util.Set<String> inner = new java.util.HashSet<>(params);
                 inner.addAll(l.params());
-                return closedAndPlain(l.body(), inner);
+                return closedAndPlain(l.body(), inner, rows);
             }
             case SqlAgg.Reducer r -> {
                 return false;
@@ -485,7 +488,7 @@ final class LetBinding {
                     return false;
                 }
                 for (SqlExpr c : e.children()) {
-                    if (!closedAndPlain(c, params)) {
+                    if (!closedAndPlain(c, params, rows)) {
                         return false;
                     }
                 }
@@ -517,6 +520,208 @@ final class LetBinding {
             below = new SqlSelect(cols, false, from, null, List.of(), null, null, List.of(), null, null, outs);
         }
         return java.util.Objects.requireNonNull(below, "a binding at level 0");
+    }
+
+    // ── step 7's second half (2026-11-16): a repeat that reads a row, bound beside the row ──
+
+    /**
+     * {@code q} with what each of its FROM selects writes more than once over its own row computed once beside the
+     * row ({@link com.legend.sql.RowLets}: {@code CROSS JOIN LATERAL (SELECT <value> AS __rv0) AS __r0}); a database
+     * that reads no lateral writes it back where it stood. The rule is P1a's, over the row: a repeat worth binding by
+     * P1a's count, reading only the select's own row (its FROM's aliases) and lambda parameters it binds, holding no
+     * aggregate, window, subquery, check or tag; a value that can raise only where one copy is always evaluated by
+     * every row the FROM gives -- the lateral is evaluated before the WHERE, so a copy in the WHERE, or in a term of a
+     * select with no WHERE and no LIMIT or OFFSET (the laziness rule). A grouped or aggregating select, a select that
+     * unnests in its terms or reads a star, keeps its terms as they are.
+     */
+    static SqlQuery bindRowRepeats(SqlQuery q) {
+        return switch (q) {
+            case SqlSelect s -> bindRowIn(s.withFrom(rowSources(s.from())));
+            case SqlUnion u -> new SqlUnion(u.branches().stream().map(LetBinding::bindRowRepeats).toList(), u.all(),
+                    u.outputs());
+            case SqlWith w -> w.with(w.ctes().stream()
+                    .map(c -> new SqlWith.Cte(c.name(), bindRowRepeats(c.query()), c.materialized())).toList(),
+                    bindRowRepeats(w.body()));
+        };
+    }
+
+    private static SqlSource rowSources(SqlSource src) {
+        return switch (src) {
+            case SqlSource.Subselect sub -> new SqlSource.Subselect(bindRowRepeats(sub.inner()), sub.alias(),
+                    sub.frameName());
+            case SqlSource.Join j -> new SqlSource.Join(rowSources(j.left()), rowSources(j.right()), j.kind(), j.on(),
+                    j.outputs());
+            default -> src;
+        };
+    }
+
+    /** The FROM's aliases a row binding may read, or null where the FROM is not plain rows. */
+    private static java.util.@com.legend.base.Nullable Set<String> rowAliases(SqlSource src) {
+        java.util.Set<String> out = new java.util.HashSet<>();
+        return rowAliases(src, out) ? out : null;
+    }
+
+    private static boolean rowAliases(SqlSource src, java.util.Set<String> out) {
+        switch (src) {
+            case SqlSource.Table t -> {
+                out.add(t.alias());
+                return !t.call();
+            }
+            case SqlSource.Cte c -> {
+                out.add(c.alias());
+                return true;
+            }
+            case SqlSource.Subselect sub -> {
+                out.add(sub.alias());
+                return true;
+            }
+            case SqlSource.Join j -> {
+                return j.kind() != SqlSource.Join.Kind.CROSS_LATERAL && j.kind() != SqlSource.Join.Kind.LEFT_LATERAL
+                        && j.kind() != SqlSource.Join.Kind.ASOF_LEFT
+                        && rowAliases(j.left(), out) && rowAliases(j.right(), out);
+            }
+            default -> {
+                return false;
+            }
+        }
+    }
+
+    private static boolean aggregates(SqlExpr e) {
+        boolean[] found = {false};
+        mapExpr(e, x -> {
+            if (x instanceof SqlAgg.Reducer || x instanceof SqlExpr.WindowCall || x instanceof SqlExpr.OrderedListAgg
+                    || x instanceof SqlExpr.JsonArrayAgg || x instanceof SqlExpr.FoldCall) {
+                found[0] = true;
+            }
+            return null;
+        });
+        return found[0];
+    }
+
+    private static SqlSelect bindRowIn(SqlSelect s) {
+        java.util.Set<String> rows = rowAliases(s.from());
+        if (rows == null || rows.isEmpty() || s.projections().isEmpty() || !s.groupBy().isEmpty()
+                || s.having() != null || s.qualify() != null || Fold.unnestInProjections(s)
+                || terms(s).stream().anyMatch(LetBinding::aggregates)) {
+            return s;
+        }
+        List<Bound> bound = new ArrayList<>();
+        SqlSelect at = s;
+        while (true) {
+            java.util.Map<SqlExpr, Integer> counts = new java.util.LinkedHashMap<>();
+            java.util.Set<SqlExpr> always = new java.util.HashSet<>();
+            for (SqlExpr t : terms(at)) {
+                count(t, counts);
+            }
+            if (at.where() != null) {
+                alwaysEvaluated(at.where(), always);
+            } else if (at.limit() == null && at.offset() == null) {
+                terms(at).forEach(t -> alwaysEvaluated(t, always));
+            }
+            for (Bound b : bound) {
+                count(b.value(), counts);
+                alwaysEvaluated(b.value(), always);
+            }
+            SqlExpr best = null;
+            long saving = 0;
+            for (var e : counts.entrySet()) {
+                if (e.getValue() < 2) {
+                    continue;
+                }
+                long w = weight(e.getKey());
+                long k = e.getValue();
+                // a lateral's frame is larger than a root binding's: its join and its alias
+                long save = (k - 1) * w - 2 * k - 10;
+                if (save > saving && rowEligible(e.getKey(), rows, always)) {
+                    best = e.getKey();
+                    saving = save;
+                }
+            }
+            if (best == null) {
+                break;
+            }
+            SqlType type = ((com.legend.sql.TypeFact.Typed) best.type()).type();
+            Bound b = new Bound(com.legend.sql.RowLets.COLUMN_PREFIX + bound.size(), best, type, 0);
+            SqlExpr ref = SqlExpr.Column.of(PENDING, b.column(), type, true, OutputCol.Origin.DERIVED);
+            SqlExpr found = best;
+            Replace swap = x -> x.equals(found) ? ref : null;
+            at = swapTerms(at, swap);
+            List<Bound> rewritten = new ArrayList<>();
+            for (Bound o : bound) {
+                rewritten.add(new Bound(o.column(), swapIn(o.value(), swap), o.type(), 0));
+            }
+            rewritten.add(b);
+            bound = rewritten;
+        }
+        if (bound.isEmpty()) {
+            return s;
+        }
+        // each binding one level above every binding its value reads; a level is one lateral, aliased __r<level>
+        java.util.Map<String, Integer> levelOf = new java.util.HashMap<>();
+        int top = 0;
+        for (Bound b : bound) {
+            int d = rowDepth(b, bound, new java.util.HashSet<>());
+            levelOf.put(b.column(), d);
+            top = Math.max(top, d);
+        }
+        Replace aliased = x -> x instanceof SqlExpr.Column c && PENDING.equals(c.table())
+                ? SqlExpr.Column.of(com.legend.sql.RowLets.ALIAS_PREFIX + levelOf.get(c.name()), c.name(),
+                        ((com.legend.sql.TypeFact.Typed) c.type()).type(), true, OutputCol.Origin.DERIVED)
+                : null;
+        SqlSource from = at.from();
+        for (int level = 0; level <= top; level++) {
+            List<SqlSelect.Projection> cols = new ArrayList<>();
+            List<OutputCol> outs = new ArrayList<>();
+            for (Bound b : bound) {
+                if (levelOf.get(b.column()) == level) {
+                    OutputCol o = new OutputCol(b.column(), b.type(), true, OutputCol.Origin.DERIVED);
+                    cols.add(new SqlSelect.Projection(swapIn(b.value(), aliased), b.column(), o));
+                    outs.add(o);
+                }
+            }
+            SqlSelect values = new SqlSelect(cols, false, new SqlSource.Dual(), null, List.of(), null, null, List.of(),
+                    null, null, outs);
+            from = new SqlSource.Join(from, new SqlSource.Subselect(values,
+                    com.legend.sql.RowLets.ALIAS_PREFIX + level, null), SqlSource.Join.Kind.CROSS_LATERAL, null);
+        }
+        return swapTerms(at, aliased).withFrom(from);
+    }
+
+    /** A bound value's pending reference, until its level names its lateral. */
+    private static final String PENDING = "__r?";
+
+    private static int rowDepth(Bound b, List<Bound> all, java.util.Set<String> seen) {
+        if (!seen.add(b.column())) {
+            throw new IllegalStateException("a row binding reads itself: " + b.column());
+        }
+        int d = 0;
+        for (Bound o : all) {
+            if (o != b && readsPending(b.value(), o.column())) {
+                d = Math.max(d, rowDepth(o, all, new java.util.HashSet<>(seen)) + 1);
+            }
+        }
+        return d;
+    }
+
+    private static boolean readsPending(SqlExpr e, String column) {
+        boolean[] r = {false};
+        mapExpr(e, x -> {
+            if (x instanceof SqlExpr.Column c && PENDING.equals(c.table()) && column.equals(c.name())) {
+                r[0] = true;
+            }
+            return null;
+        });
+        return r[0];
+    }
+
+    /** Whether a repeat over a row may be bound beside it ({@link #bindRowRepeats}'s rule). */
+    static boolean rowEligible(SqlExpr e, java.util.Set<String> rows, java.util.Set<SqlExpr> always) {
+        if (!worthBinding(e) || e instanceof SqlExpr.Lambda
+                || !(e.type() instanceof com.legend.sql.TypeFact.Typed t) || t.type() instanceof SqlType.Array
+                || t.type() instanceof SqlType.Map) {
+            return false;
+        }
+        return closedAndPlain(e, java.util.Set.of(), rows) && (!canRaise(e) || always.contains(e));
     }
 
     // ── the walk: f answers a node's replacement, or null to keep it and walk its children ──
