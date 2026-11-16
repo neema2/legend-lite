@@ -390,6 +390,12 @@ class Database:
     def close(self) -> None:
         self._con.close()
 
+    def interrupt(self) -> None:
+        """The statement running on this session stopped (DuckDB's interrupt: it raises there), from another thread --
+        an execute past its queryTimeOutInSeconds (engine._limited, the C5 batch's P3b, 2026-11-15). No statement; one
+        made when none runs stops nothing (measured on the pinned DuckDB: the next runs as ever)."""
+        self._con.interrupt()
+
     def register(self, name: str, value: Any) -> None:
         """A value the host holds (a frame, an Arrow table) attached by ``name``, as a plan's attach step names it."""
         self._con.register(name, value)

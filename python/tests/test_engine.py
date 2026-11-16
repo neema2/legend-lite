@@ -107,6 +107,80 @@ def read_arrow(body):
         return pyarrow.ipc.open_stream(stream).read_all()
 
 
+class ExecuteThreads(Served):
+    """The C5 batch's P3 (2026-11-15): an execute's database work runs on its request's own thread over one read of the
+    frames -- the compiler's four threads keep planning, and the frames' lock is not held while it runs -- and stops,
+    said by name, at the queryTimeOutInSeconds its request gives (upstream's BaseExecutionContext); none given, none."""
+
+    EXECUTE = '/api/pure/v1/execution/execute?serializationFormat=ARROW_IPC'
+
+    def test_four_executes_running_neither_stall_planning_nor_hold_the_frames(self):
+        from legend_lite import engine
+        running, release = threading.Semaphore(0), threading.Event()
+        threads = []
+        real = engine.run_arrow
+
+        def held(cursor, sql, held_values, params=()):
+            threads.append(threading.current_thread().name)
+            running.release()
+            release.wait(30)
+            return real(cursor, sql, held_values, params)
+
+        body = self.execute_input(self.query('->select(~[desk])'))
+        answers = []
+        with mock.patch.object(engine, 'run_arrow', held):
+            sent = [threading.Thread(target=lambda: answers.append(self.post(self.EXECUTE, body)[0]), daemon=True)
+                    for _ in range(4)]
+            try:
+                for t in sent:
+                    t.start()
+                for _ in sent:
+                    self.assertTrue(running.acquire(timeout=30), 'an execute never reached its run')
+                # four executes running: a parse is still planned, and a frame is still registered
+                parsed = []
+                parse = threading.Thread(target=lambda: parsed.append(
+                    self.post('/api/pure/v1/grammar/grammarToJson/lambda', '|1', 'text/plain')[0]), daemon=True)
+                parse.start()
+                parse.join(10)
+                registered = threading.Thread(target=lambda: self.frames.register('other', self.df), daemon=True)
+                registered.start()
+                registered.join(10)
+            finally:
+                release.set()
+                for t in sent:
+                    t.join(30)
+        self.assertEqual(parsed, [200], 'a parse waited for four executes running on the compiler\'s threads')
+        self.assertFalse(registered.is_alive(), "a frame's register waited for the frames' lock an execute held")
+        self.assertFalse([name for name in threads if name.startswith('legend-lite-compiler-')], threads)
+        self.assertEqual(answers, [200] * 4)
+
+    def test_an_execute_past_its_query_timeout_is_interrupted_and_said(self):
+        from legend_lite import engine
+        real = engine.run_arrow
+
+        def slow(cursor, sql, held_values, params=()):
+            # a statement that runs for many seconds, run as the execute's on its own cursor: what the limit interrupts
+            return real(cursor, from_plan('SELECT sum(a.range) FROM range(4000000000) a'), held_values)
+
+        body = json.loads(self.execute_input(self.query('->select(~[desk])')))
+        body['context']['queryTimeOutInSeconds'] = 1
+        began = time.monotonic()
+        with mock.patch.object(engine, 'run_arrow', slow):
+            status, _, said = self.post(self.EXECUTE, json.dumps(body))
+        self.assertLess(time.monotonic() - began, 10, 'the execute ran past its limit')
+        self.assertEqual(status, 500, said[:300])
+        self.assertIn(b'QueryTimedOut: the query ran past its queryTimeOutInSeconds (1 s) and was interrupted', said)
+        # the next execute runs as ever
+        self.assertEqual(self.arrow('->select(~[desk])')[1].num_rows, len(self.df))
+
+    def test_a_query_timeout_that_is_no_number_of_seconds_is_refused_by_name(self):
+        body = json.loads(self.execute_input(self.query('->select(~[desk])')))
+        body['context']['queryTimeOutInSeconds'] = 'soon'
+        status, _, said = self.post(self.EXECUTE, json.dumps(body))
+        self.assertEqual(status, 400)
+        self.assertIn(b"queryTimeOutInSeconds is a positive number of seconds, not 'soon'", said)
+
+
 class UnexpectedFailures(Served):
     """The C5 follow-up's audit item 3 (2026-11-15): a failure no route answers is still an answer -- a 500 naming it,
     its words with every value the engine holds taken out -- never a socket closed with the error on stderr alone."""

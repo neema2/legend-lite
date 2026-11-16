@@ -392,6 +392,59 @@ def _model_home(path: str) -> bool:
     return path.startswith(_SDLC_API) or path.startswith(_DEPOT_API)
 
 
+class QueryTimedOut(duckdb.Error):
+    """An execute that ran past the ``queryTimeOutInSeconds`` its request's context gave, interrupted there (the C5
+    batch's P3b, 2026-11-15): a database's refusal, answered as one."""
+
+
+def _query_timeout(body: str) -> float | None | Answer:
+    """The seconds an execute may run, as its request's context gives them (upstream's ``BaseExecutionContext``
+    ``queryTimeOutInSeconds``), or None: none given, no limit, as upstream. One that is not a positive number of
+    seconds is refused by name (a body that is not JSON is the planner's to refuse)."""
+    try:
+        asked = json.loads(body)
+    except ValueError:
+        return None
+    context = asked.get('context') if isinstance(asked, dict) else None
+    limit = context.get('queryTimeOutInSeconds') if isinstance(context, dict) else None
+    if limit is None:
+        return None
+    if isinstance(limit, bool) or not isinstance(limit, (int, float)) or limit <= 0:
+        return _said(400, f"an execute's context.queryTimeOutInSeconds is a positive number of seconds, not {limit!r}")
+    return float(limit)
+
+
+def _limited(cursor: Any, limit: float | None, run: Callable[[], Any]) -> Any:
+    """``run`` (one statement and its fetch on ``cursor``) stopped at ``limit`` seconds by DuckDB's interrupt of that
+    cursor, and said by name (``QueryTimedOut``); no limit, run as it is. The interrupt lands only while ``run`` runs:
+    the timer and the run's end take one lock, so a late timer interrupts nothing after it."""
+    if limit is None:
+        return run()
+    state = {'running': True, 'fired': False}
+    lock = threading.Lock()
+
+    def interrupt() -> None:
+        with lock:
+            if state['running']:
+                state['fired'] = True
+                cursor.interrupt()
+
+    timer = threading.Timer(limit, interrupt)
+    timer.daemon = True
+    timer.start()
+    try:
+        return run()
+    except duckdb.Error as failure:
+        if state['fired']:
+            raise QueryTimedOut(f'the query ran past its queryTimeOutInSeconds ({limit:g} s) and was interrupted') \
+                from failure
+        raise
+    finally:
+        with lock:
+            state['running'] = False
+        timer.cancel()
+
+
 def _arrow_requested(query: str) -> bool:
     return any(pair == 'serializationFormat=ARROW_IPC' for pair in query.split('&'))
 
@@ -624,6 +677,10 @@ class Engine:
                 return _workers().submit(self._source_said, body or '').result()
             if not path.startswith(_API):
                 return _said(404, f'no such path: {path}')
+            if path == _EXECUTE:
+                # on the caller's thread: its database work holds no compiler thread, and only its planner's calls go to
+                # one -- four slow queries never stall every plan (the C5 batch's P3a, 2026-11-15)
+                return self._api(path, query, body or '')
             return _workers().submit(self._api, path, query, body or '').result()
         if method != 'GET':
             return _said(405, 'this engine answers GET and POST')
@@ -1064,7 +1121,8 @@ class Engine:
         return Answer(204, 'text/plain; charset=utf-8', b'')
 
     def _api(self, path: str, query: str, body: str) -> Answer:
-        """An API call's answer, computed on the compiler's pool."""
+        """An API call's answer, computed on the compiler's pool -- an execute on its caller's thread, its planner's calls
+        on the pool (P3a)."""
         try:
             if path == _EXECUTE:
                 return self._execute(body) if _arrow_requested(query) else self._execute_json(body)
@@ -1077,7 +1135,7 @@ class Engine:
             # no value this engine holds in its words (a presigned link's URL; found with the C5 follow-up's item 1)
             message = redact_held(f'{type(failure).__name__}: {failure}', self.frames.held_values())
             try:
-                answer = self.planner.refusal(message)
+                answer = _on_compiler_threads(lambda: self.planner.refusal(message))
             except Exception:
                 # the compiler itself failing: still an answer, its own words
                 traceback.print_exc()
@@ -1829,19 +1887,23 @@ class Engine:
 
     def _execute(self, body: str) -> Answer:
         """execute in upstream's Arrow format: the compiler plans over the frames' models, DuckDB runs its SQL,
-        and the rows go back as upstream writes them. One query at a time (the frames are held still while it
-        runs); the answer is compressed outside."""
-        with self.frames.serving() as models:
-            self._noted(models)
-            with self._project_of(body, models) as (served, connection):
-                answer = self.planner.execute_plan(body, served)
+        and the rows go back as upstream writes them. Run on the caller's thread over one read of the frames
+        (``Frames.reading``: the lock taken only to begin it), its planner's calls on the compiler's threads (P3a); the
+        answer is compressed outside."""
+        limit = _query_timeout(body)
+        if isinstance(limit, Answer):
+            return limit
+        with self.frames.reading() as read:
+            self._noted(read.models)
+            with self._project_of(body, read) as (served, cursor):
+                answer = _on_compiler_threads(lambda: self.planner.execute_plan(body, served))
                 if answer.status != 200:
                     return Answer(answer.status, answer.content_type, answer.body.encode('utf-8'))
                 planned = json.loads(answer.body)
                 # its values (a data: payload: compiler.plan_params, M3) bound to its `?`s; a failure's words name no
                 # value this engine holds (a bearer URL: M2) -- the plan read here, then handed to its run
                 sql, params = from_plan(planned['sql']), compiler.plan_params(planned.get('plan'))
-                rows = run_arrow(connection, sql, self.frames.held_values(), params)
+                rows = _limited(cursor, limit, lambda: run_arrow(cursor, sql, read.held_values, params))
         # upstream's headers for this answer (measured, legend-engine 4.145.0)
         return Answer(200, 'application/json', _arrow_ipc(rows, planned['metadata']),
                       {'x-legend-response-format': 'FormatNotSet'})
@@ -1849,34 +1911,37 @@ class Engine:
     def _execute_json(self, body: str) -> Answer:
         """execute in legend-engine's JSON (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md C1): the compiler plans over the
         frames' models, DuckDB runs the typed statement, and its rows, handed back as the driver read them, are decoded
-        by the plan's columns and written by the server's own writer -- the server's answer text, as the tab's is. One
-        query at a time (the frames are held still while it runs)."""
-        with self.frames.serving() as models:
-            self._noted(models)
-            with self._project_of(body, models) as (served, connection):
-                planned = self.planner.execute_json_plan(body, served)
+        by the plan's columns and written by the server's own writer -- the server's answer text, as the tab's is. Run
+        on the caller's thread over one read of the frames, its planner's calls on the compiler's threads (P3a)."""
+        limit = _query_timeout(body)
+        if isinstance(limit, Answer):
+            return limit
+        with self.frames.reading() as read:
+            self._noted(read.models)
+            with self._project_of(body, read) as (served, cursor):
+                planned = _on_compiler_threads(lambda: self.planner.execute_json_plan(body, served))
                 if planned.status != 200:
                     return Answer(planned.status, planned.content_type, planned.body.encode('utf-8'))
                 said = json.loads(planned.body)
                 # the plan read here, then handed to its run, which hands its rows back as the driver read them
                 sql, params = from_plan(said['run']), compiler.plan_params(said.get('plan'))
-                rows = run_rows_json(connection, sql, self.frames.held_values(), params)
-        answer = self.planner.execute_json_answer(planned.body, rows)
+                rows = _limited(cursor, limit, lambda: run_rows_json(cursor, sql, read.held_values, params))
+        answer = _on_compiler_threads(lambda: self.planner.execute_json_answer(planned.body, rows))
         return Answer(answer.status, answer.content_type, answer.body.encode('utf-8'))
 
     @contextlib.contextmanager
-    def _project_of(self, body: str, models: dict[str, str]) -> Iterator[tuple[list[str], Any]]:
-        """Where an execute runs: over the frames' models, on the frames' connection -- or, for a project's model with
+    def _project_of(self, body: str, read: Reading) -> Iterator[tuple[list[str], Any]]:
+        """Where an execute runs: over the frames' models, on the read's own cursor -- or, for a project's model with
         Data rows (Query's or Studio's, served here: C5), over that model alone, on a cursor of its project's own
         database (C5). A model neither is stays refused by the compiler, as before (a frame's that changed, say)."""
-        served = list(models.values())
+        served = list(read.models.values())
         model = _request_model(body)
         if model is None or model in served:
-            yield served, self.frames.connection
+            yield served, read.cursor
             return
         with self.projects.using(model) as project:
             if project is None:
-                yield served, self.frames.connection
+                yield served, read.cursor
             else:
                 yield [model], project.cursor
 
