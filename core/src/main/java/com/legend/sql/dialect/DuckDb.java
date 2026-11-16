@@ -868,6 +868,11 @@ public class DuckDb extends AnsiSqlRenderer {
      *  record whose quote never closes, in silence (measured 2026-11-10) -- so it is the user's to rule (S184). */
     @Override
     public CsvLoad csvLoad(com.legend.sql.SqlDml.LoadCsv load) {
+        // its record check's raise a site of the load's one table (phase D's Phase 2, 2026-11-16)
+        return collectingSites(() -> csvStatements(load), CsvLoad::withSites);
+    }
+
+    private CsvLoad csvStatements(com.legend.sql.SqlDml.LoadCsv load) {
         StringBuilder columns = new StringBuilder();
         for (int i = 0; i < load.columns().size(); i++) {
             columns.append(i == 0 ? "" : ", ").append(stringLit("c" + i)).append(": 'VARCHAR'");

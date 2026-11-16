@@ -166,8 +166,8 @@ class RuntimeTypeDispatchTest {
         SQLException e = assertThrows(SQLException.class, () -> exec(sql));
         // the product's raise: its kind and where (W5 of docs/records/d-plan-2026-11-16.md); legend-pure's "Cast
         // exception: ... cannot be cast to ..." is the edge's (edge.PureMessages)
-        assertTrue(e.getMessage().contains(com.legend.sql.RaiseKind.MARK + "CAST_IMPOSSIBLE" + com.legend.sql.RaiseKind.MARK
-                + "rt::Vehicle to rt::Car"), e.getMessage());
+        // (phase D's Phase 2, 2026-11-16: the database raises the site's bare token; its kind and where are the plan's)
+        assertTrue(e.getMessage().contains(com.legend.sql.RaiseKind.TOKEN), e.getMessage());
     }
 
     @Test

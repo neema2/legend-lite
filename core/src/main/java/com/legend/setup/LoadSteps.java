@@ -61,7 +61,7 @@ public record LoadSteps(List<ExecutionPlan.LoadStep> steps, Map<String, String> 
             throw new IllegalArgumentException("a host's file is named in the host's namespace, not " + file.namespace());
         }
         return of(List.of(new ExecutionPlan.LoadStep.File(file, new ExecutionPlan.LoadStep.Delivery.Reads(reads,
-                List.of()), Integer.MAX_VALUE)));
+                List.of(), List.of()), Integer.MAX_VALUE)));
     }
 
     /**

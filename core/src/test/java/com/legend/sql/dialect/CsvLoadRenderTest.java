@@ -43,7 +43,12 @@ class CsvLoadRenderTest {
                 + " columns = {'c0': 'VARCHAR', 'c1': 'VARCHAR', 'c2': 'VARCHAR'})"), List.of()), new DuckDb().csvLoad(LOAD));
         SqlDialect.CsvLoad h2 = new H2().csvLoad(LOAD);
         assertEquals("SET @legend_csv = ?", h2.statements().get(0));
-        String check = new H2().csvRecordCheck(3);
+        String insert = h2.statements().get(1);
+        String check = insert.substring(insert.indexOf(" AS x WHERE ") + " AS x WHERE ".length());
+        // its record check's raise the load's one site (phase D's Phase 2, raises as SITES, 2026-11-16)
+        assertTrue(check.contains("LG#1"), check);
+        assertEquals(List.of(com.legend.sql.RaiseKind.CSV_TOO_WIDE), h2.sites().stream()
+                .map(com.legend.sql.dialect.RaiseSite::kind).toList());
         assertTrue(check.contains("C3") && check.contains("IS NOT NULL") && !check.contains("C2"), check);
         assertEquals("INSERT INTO people (FIRSTNAME, LASTNAME, AGE) SELECT NULLIF(C0, ''), NULLIF(C1, ''), NULLIF(C2,"
                 + " '') FROM (SELECT * FROM CSVREAD(@legend_csv, 'C0,C1,C2,C3', 'charset=UTF-8 fieldSeparator=,"

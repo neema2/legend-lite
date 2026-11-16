@@ -47,8 +47,9 @@ public final class TestPlanJson {
      *  case's reason); 23 (2026-11-15, main's C5-J item 2 merged into E, its 21 renumbered after E's 22): the body's
      *  facts, {@code facts} (its effects, inline CSV seeds, verdicts and shape: what a runner reads of the body); 24
      *  (2026-11-16, phase D's option (D), merged after E): the product's version 54 (a plan's raises); 25 (2026-11-16, the P2 checkpoint audit's S1):
-     *  the product's version 55 (each statement's raises). */
-    public static final int VERSION = 25;
+     *  the product's version 55 (each statement's raises); 26 (2026-11-16, phase D's Phase 2, raises as SITES): the
+     *  product's version 56 (each statement's raise sites, its token's words planned). */
+    public static final int VERSION = 26;
 
     private TestPlanJson() {
     }

@@ -41,6 +41,14 @@ public final class DataError extends RuntimeException {
         this.kind = kind;
     }
 
+    /** A raise of a planned site of {@code kind} placed by {@code where} (phase D's Phase 2, raises as SITES,
+     *  2026-11-16): its message the site's words, RENDERED AT PLANNING and read back from the plan -- the product's
+     *  sentence, or legend-pure's in a plan the compatibility edge wrote -- never worded here. */
+    public DataError(ErrorKind kind, @com.legend.base.Nullable String where, String message, Throwable cause) {
+        super(message, cause);
+        this.kind = kind;
+    }
+
     /** The product raise's kind, or null where the error is not one ({@link #DataError(String, Throwable)}). */
     public @com.legend.base.Nullable ErrorKind kind() {
         return kind;

@@ -54,8 +54,12 @@ class ComputedFrameOffsetTest {
             assertTrue(sql.contains("CASE WHEN"), t + ": the check: " + sql);
             // both refusals, by their kinds (phase D's D1.1, merged with #81 2026-11-14: the edge words them, legend-pure's
             // sentence and S170's, RaiseTextTest.theEdgeWritesLegendPuresSentence)
-            assertTrue(sql.contains("WINDOW_FRAME_INVERTED") && sql.contains("WINDOW_FRAME_OFFSET_INVALID"),
-                    t + ": both refusals: " + sql);
+            // (phase D's Phase 2, 2026-11-16: each a site's token in the text, its kind in the statement's sites)
+            org.junit.jupiter.api.Assertions.assertEquals(java.util.Set.of(com.legend.sql.RaiseKind.WINDOW_FRAME_INVERTED,
+                    com.legend.sql.RaiseKind.WINDOW_FRAME_OFFSET_INVALID), Databases.dialect(t).renderStatement(
+                    select(SqlExpr.WindowCall.Frame.Kind.ROWS)).sites().stream().map(RaiseSite::kind)
+                    .collect(java.util.stream.Collectors.toSet()), t + ": both refusals: " + sql);
+            assertTrue(sql.contains("LG#"), t + ": " + sql);
         }
     }
 

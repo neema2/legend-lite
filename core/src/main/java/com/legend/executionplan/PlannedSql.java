@@ -25,14 +25,28 @@ public final class PlannedSql {
 
     private final String text;
 
-    private PlannedSql(String text) {
+    private final List<ExecutionPlan.Site> sites;
+
+    private PlannedSql(String text, List<ExecutionPlan.Site> sites) {
         this.text = Objects.requireNonNull(text, "text");
+        this.sites = List.copyOf(sites);
     }
 
     /** {@code text}, as the plan it was READ from carries it: called by the plan's records and the keyed expansion
-     *  alone (the guard holds it so). The text is never edited, only typed. */
+     *  alone (the guard holds it so). The text is never edited, only typed. It declares no raise site. */
     public static PlannedSql fromPlan(String text) {
-        return new PlannedSql(text);
+        return new PlannedSql(text, List.of());
+    }
+
+    /** {@code text} with the raise sites its plan declares for it (phase D's Phase 2, 2026-11-16): a token
+     *  {@code LG#<n>} it raises is read back through them ({@code exec.RaisedErrors}). */
+    public static PlannedSql fromPlan(String text, List<ExecutionPlan.Site> sites) {
+        return new PlannedSql(text, sites);
+    }
+
+    /** The raise sites the plan declares for this statement, numbered 1..k: what a token it raises means. */
+    public List<ExecutionPlan.Site> sites() {
+        return sites;
     }
 
     /** Each of {@code texts}, as {@link #fromPlan} types one. */

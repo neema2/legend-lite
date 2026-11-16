@@ -274,13 +274,13 @@ class RaiseReadBackTest {
             return RaisedErrors.SENTINEL + "the raise's text" + RaisedErrors.SENTINEL;
         };
         SQLException carried = new SQLException(RaisedErrors.SENTINEL + "carried" + RaisedErrors.SENTINEL, "45000");
-        assertEquals("carried", RaisedErrors.unwrapped(carried, held).getMessage());
+        assertEquals("carried", RaisedErrors.unwrapped(carried, List.of(), held).getMessage());
         assertEquals(0, asked[0], "the error carried its raise: the session is not asked");
         SQLException own = new SQLException("Subquery returns more than 1 row", "21000");
-        SQLException told = RaisedErrors.unwrapped(own, held);
+        SQLException told = RaisedErrors.unwrapped(own, List.of(), held);
         assertEquals(1, asked[0], "no raise in the text: the session is asked once");
         assertEquals("the raise's text", told.getMessage());
         assertEquals("21000", told.getSQLState());
-        assertSame(own, RaisedErrors.unwrapped(own, () -> null), "nothing held: the error as it is");
+        assertSame(own, RaisedErrors.unwrapped(own, List.of(), () -> null), "nothing held: the error as it is");
     }
 }

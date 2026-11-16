@@ -115,6 +115,11 @@ class EdgeSpellingHookTest {
         }
 
         @Override
+        public @com.legend.base.Nullable String siteWords(com.legend.sql.dialect.RaiseSite site) {
+            return null;
+        }
+
+        @Override
         public <F> F facet(Class<F> kind) {
             return PlanStyle.PRODUCT.facet(kind);
         }

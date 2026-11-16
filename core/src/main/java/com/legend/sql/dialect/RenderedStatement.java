@@ -16,26 +16,32 @@ import java.util.Objects;
  * @param sql   the statement text, sent as it is: a placeholder is typed by its parameter's declared type when the
  *              statement is written (D1; the type hole the runner wrote into was deleted 2026-11-09, P4)
  * @param binds  one per {@code ?}, in order
- * @param raises the kinds of the product raises the render wrote into it ({@code AnsiSqlRenderer.raiseMessage}, the
- *               one place a raise's text is written; the D-P1 audit's MUST 1, 2026-11-16): the plan's declared raises,
- *               typed at the render, never read back out of the text
+ * @param sites the raise sites the render wrote into it, numbered 1..k as written ({@code AnsiSqlRenderer.raiseMessage},
+ *               the one place a raise's text is written; phase D's Phase 2, raises as SITES, 2026-11-16): each token
+ *               {@code LG#<n>} the text can raise is site {@code n} here, typed at the render, never read back out of
+ *               the text
  */
 public record RenderedStatement(String sql, List<Bind> binds, List<Region> regions,
-        java.util.Set<com.legend.sql.RaiseKind> raises) {
+        List<com.legend.sql.dialect.RaiseSite> sites) {
 
     public RenderedStatement {
         Objects.requireNonNull(sql, "sql");
         binds = List.copyOf(binds);
         regions = List.copyOf(regions);
-        raises = java.util.Collections.unmodifiableSet(raises.isEmpty()
-                ? java.util.EnumSet.noneOf(com.legend.sql.RaiseKind.class) : java.util.EnumSet.copyOf(raises));
+        sites = List.copyOf(sites);
+        for (int i = 0; i < sites.size(); i++) {
+            if (sites.get(i).n() != i + 1) {
+                throw new IllegalArgumentException("a statement's raise sites are numbered 1..k in order: site "
+                        + sites.get(i).n() + " at " + (i + 1));
+            }
+        }
         Region.check(sql.length(), binds, regions, b -> b.binding() instanceof Binding.Key);
     }
 
-    /** A statement as a writer wrote it: the raises are added by the render that returns it
+    /** A statement as a writer wrote it: the sites are added by the render that returns it
      *  ({@code AnsiSqlRenderer.renderStatement}). */
     public RenderedStatement(String sql, List<Bind> binds, List<Region> regions) {
-        this(sql, binds, regions, java.util.Set.of());
+        this(sql, binds, regions, List.of());
     }
 
     /** A statement with no per-key region. */
@@ -43,12 +49,14 @@ public record RenderedStatement(String sql, List<Bind> binds, List<Region> regio
         this(sql, binds, List.of());
     }
 
-    /** This statement with {@code more} raises its render wrote. */
-    public RenderedStatement raising(java.util.Set<com.legend.sql.RaiseKind> more) {
-        java.util.EnumSet<com.legend.sql.RaiseKind> all = java.util.EnumSet.noneOf(com.legend.sql.RaiseKind.class);
-        all.addAll(raises);
-        all.addAll(more);
-        return new RenderedStatement(sql, binds, regions, all);
+    /** This statement with the raise sites its render wrote ({@code AnsiSqlRenderer.collectingRaises}); a statement
+     *  given sites twice is refused by name (its numbering is its render's, once). */
+    public RenderedStatement raising(List<com.legend.sql.dialect.RaiseSite> written) {
+        if (!sites.isEmpty() && !written.isEmpty()) {
+            throw new IllegalStateException("a statement's raise sites are numbered by its one render, and this one"
+                    + " already holds " + sites.size());
+        }
+        return new RenderedStatement(sql, binds, regions, sites.isEmpty() ? written : sites);
     }
 
     /**

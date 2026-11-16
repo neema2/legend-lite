@@ -25,11 +25,17 @@ class RaiseEnvelopeConformanceTest {
     void javasRunnerReadsEachEnvelopeAsTheHostsDo() throws Exception {
         Json.Obj fixture = (Json.Obj) Json.parse(Files.readString(Runfile.property("raise.fixture"),
                 StandardCharsets.UTF_8));
-        // the raises the hosts declare before they read a case are a plan's (PlanJson.raises, v53): error.ErrorKind's
-        // sentences, the one source (phase D's option (D), 2026-11-15)
-        for (var e : fixture.getObj("raises").fields().entrySet()) {
-            assertEquals(com.legend.error.ErrorKind.valueOf(e.getKey()).sentence(), ((Json.Str) e.getValue()).value(),
-                    "the fixture's raise " + e.getKey() + " is ErrorKind's sentence");
+        // the statement's site table (PlanJson v56's sites): each message error.ErrorKind's sentence and its where,
+        // the one source (phase D's Phase 2, raises as SITES, 2026-11-16)
+        List<com.legend.executionplan.ExecutionPlan.Site> sites = new java.util.ArrayList<>();
+        for (Json.Node n : fixture.getArr("sites").items()) {
+            Json.Obj so = (Json.Obj) n;
+            var site = new com.legend.executionplan.ExecutionPlan.Site(so.getInt("n"),
+                    com.legend.sql.RaiseKind.valueOf(so.getString("kind")), so.getStringOr("where", null),
+                    so.getString("message"), so.getStringOr("upstream", null));
+            assertEquals(com.legend.executionplan.ExecutionPlan.Site.sentence(site.kind(), site.where()),
+                    site.message(), "the fixture's site " + site.n() + " is ErrorKind's sentence and its where");
+            sites.add(site);
         }
         List<Json.Node> cases = fixture.getArr("cases").items();
         assertTrue(cases.size() > 5, "the fixture holds too few cases to prove anything: " + cases.size());
@@ -37,8 +43,15 @@ class RaiseEnvelopeConformanceTest {
             Json.Obj c = (Json.Obj) node;
             String name = c.getString("name");
             java.sql.SQLException failed = new java.sql.SQLException(c.getString("message"));
-            assertEquals(c.getString("words"), RaisedErrors.dataError(failed).getMessage(), name);
-            java.sql.SQLException read = RaisedErrors.unwrapped(failed);
+            if (c.getBoolOr("refused", false)) {
+                var refused = org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class,
+                        () -> RaisedErrors.unwrapped(failed, sites), name);
+                assertTrue(refused.getMessage().contains("does not declare"), refused.getMessage());
+                continue;
+            }
+            assertEquals(c.getString("words"), RaisedErrors.dataErrorOf(RaisedErrors.unwrapped(failed, sites))
+                    .getMessage(), name);
+            java.sql.SQLException read = RaisedErrors.unwrapped(failed, sites);
             String kind = read instanceof RaisedErrors.Raised r && r.kind() != null ? r.kind().name() : null;
             String where = read instanceof RaisedErrors.Raised r ? r.where() : null;
             assertEquals(c.getStringOr("kind", null), kind, name + ": its kind");

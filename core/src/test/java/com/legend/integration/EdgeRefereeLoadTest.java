@@ -100,7 +100,7 @@ class EdgeRefereeLoadTest {
         steps.addAll(rows.steps());
         steps.add(new ExecutionPlan.LoadStep.File(new DataRef(DataRef.Namespace.RESOURCE, "ids.csv", digest,
                 CSV.length, DataRef.Csv.DEFAULT), new ExecutionPlan.LoadStep.Delivery.Reads(
-                List.of("SET @legend_csv = ?", "INSERT INTO U SELECT 1"), List.of("SET @legend_csv = NULL")), 500));
+                List.of("SET @legend_csv = ?", "INSERT INTO U SELECT 1"), List.of("SET @legend_csv = NULL"), List.of()), 500));
         return new LoadSteps(steps, rows.content());
     }
 }

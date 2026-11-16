@@ -65,6 +65,14 @@ public interface PlanStyle {
     @com.legend.base.Nullable
     String errorWords(RuntimeException e);
 
+    /** THE WORDS OF A RAISE SITE, WORDED AT PLANNING (phase D's Phase 2, raises as SITES, 2026-11-16): the sentence
+     *  {@code site} (its kind, raised from its operands, planning literals) reads in this style's answers, carried in
+     *  the plan beside the product's sentence ({@code ExecutionPlan.Site#upstream}) and read back at run, never worded
+     *  there. The product's: none (null), its sentence is {@code error.ErrorKind}'s; the compatibility edge's,
+     *  legend-pure's sentence ({@code edge.PureMessages#words}), refused by name for an operand it cannot word. */
+    @com.legend.base.Nullable
+    String siteWords(com.legend.sql.dialect.RaiseSite site);
+
     /** A TEST-PLANNING FACET of the style (W9's judge half, the orchestrator's ruling of 2026-11-16): the one hook's
      *  typed accessor for the parts of a test's planning that are upstream's -- an engine-text assert's arm. The kinds
      *  are a CLOSED list, declared beside the test planner ({@code testplan.PlanStyleFacets.KINDS}: this layer cannot
@@ -104,6 +112,12 @@ public interface PlanStyle {
         @Override
         public @com.legend.base.Nullable String errorWords(RuntimeException e) {
             return e.getMessage();
+        }
+
+        /** The product's site carries its kind's sentence alone: no upstream words. */
+        @Override
+        public @com.legend.base.Nullable String siteWords(com.legend.sql.dialect.RaiseSite site) {
+            return null;
         }
 
         @Override

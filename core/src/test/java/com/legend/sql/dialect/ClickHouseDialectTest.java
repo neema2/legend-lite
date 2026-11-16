@@ -209,7 +209,7 @@ class ClickHouseDialectTest {
         assertTrue(keys.startsWith("GROUP BY \"d2\", \"t0\".\"d\""), sql);
         // the date's range guard, by its raise's kind (phase D's D1.1, merged 2026-11-14: the product writes the kind,
         // VALUE_NOT_HELD; until then the sentence, "a date outside the years ...")
-        assertEquals(1, sql.split("VALUE_NOT_HELD", -1).length - 1, "the guard written once: " + sql);
+        assertEquals(1, sql.split("LG#", -1).length - 1, "the guard written once: " + sql);
     }
 
     /** ClickHouse's {@code *} reads no ARRAY JOIN column, so a star over a lateral explosion names the exploded column
