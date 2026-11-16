@@ -75,15 +75,25 @@ final class AssertRuns {
             // raised where the walk raises it, before the arm is entered: no census, no listener (S1)
             throw com.legend.testexecutionplan.Failures.raised(before);
         }
+        return told(a, listener, () -> judge(a, h.judgment(), sides, rules, message, run));
+    }
+
+    /** {@code verdict} computed for {@code a} and told to {@code listener} as the deleted walk's adjudication told an
+     *  assert it judged in place: entered and counted; a non-null verdict reported as a pass; a failure (an assert that
+     *  does not hold, a side's data error) counted raised, its UNJUDGED reason and its verdict told, and thrown; any
+     *  other exit counted raised. With no listener, only entered. */
+    private static <T> @com.legend.base.Nullable T told(com.legend.testexecutionplan.Assertion a,
+            com.legend.testexecutionplan.@com.legend.base.Nullable AssertListener listener,
+            java.util.function.Supplier<@com.legend.base.Nullable T> verdict) {
         if (listener == null) {
             enter(a);
-            return judge(a, h.judgment(), sides, rules, message, run);
+            return verdict.get();
         }
         com.legend.diagnostics.VerdictCensus.sqlEnter();
         boolean settled = false;
         try {
             enter(a);
-            TypedSide v = judge(a, h.judgment(), sides, rules, message, run);
+            T v = verdict.get();
             settled = true;
             if (v != null) {
                 listener.verdict(a.listenerName(), true, null);
@@ -91,11 +101,7 @@ final class AssertRuns {
             return v;
         } catch (com.legend.error.AssertFailed | com.legend.error.DataError e) {
             settled = true;
-            com.legend.diagnostics.VerdictCensus.sqlRaised();
-            if (e instanceof com.legend.error.AssertFailed af && af.unjudgedReason() != null) {
-                listener.unjudged(a.listenerName(), af.unjudgedReason());
-            }
-            listener.verdict(a.listenerName(), false, e.getMessage());
+            toldFailed(a, listener, e);
             throw e;
         } finally {
             if (!settled) {
@@ -104,36 +110,25 @@ final class AssertRuns {
         }
     }
 
+    /** A failure of {@code a} told to {@code listener}: counted raised, its UNJUDGED reason and its verdict told. */
+    private static void toldFailed(com.legend.testexecutionplan.Assertion a,
+            com.legend.testexecutionplan.AssertListener listener, RuntimeException e) {
+        com.legend.diagnostics.VerdictCensus.sqlRaised();
+        if (e instanceof com.legend.error.AssertFailed af && af.unjudgedReason() != null) {
+            listener.unjudged(a.listenerName(), af.unjudgedReason());
+        }
+        listener.verdict(a.listenerName(), false, e.getMessage());
+    }
+
     /** {@code a}'s verdict ROW, the database judge's own statement's (an assertError's, S135, 2026-11-05), judged at
      *  its step and counted and reported as {@link #judgedAtItsStep} counts and reports a host verdict: entered, its
      *  verdict to the listener, a failure counted as raised. The row's polarity and message decide. */
     static void judgedRowAtItsStep(com.legend.testexecutionplan.Assertion a, List<Object> row,
             com.legend.testexecutionplan.@com.legend.base.Nullable AssertListener listener) {
-        if (listener == null) {
-            enter(a);
+        told(a, listener, () -> {
             com.legend.testexec.DatabaseVerdicts.verdictOf(a.name(), row);
-            return;
-        }
-        com.legend.diagnostics.VerdictCensus.sqlEnter();
-        boolean settled = false;
-        try {
-            enter(a);
-            com.legend.testexec.DatabaseVerdicts.verdictOf(a.name(), row);
-            settled = true;
-            listener.verdict(a.listenerName(), true, null);
-        } catch (com.legend.error.AssertFailed | com.legend.error.DataError e) {
-            settled = true;
-            com.legend.diagnostics.VerdictCensus.sqlRaised();
-            if (e instanceof com.legend.error.AssertFailed af && af.unjudgedReason() != null) {
-                listener.unjudged(a.listenerName(), af.unjudgedReason());
-            }
-            listener.verdict(a.listenerName(), false, e.getMessage());
-            throw e;
-        } finally {
-            if (!settled) {
-                com.legend.diagnostics.VerdictCensus.sqlRaised();
-            }
-        }
+            return Boolean.TRUE;
+        });
     }
 
     /** The host half's verdict over its sides HELD for the agreement judge: its verdict, or the failure it raised
@@ -207,11 +202,7 @@ final class AssertRuns {
             return v;
         } catch (com.legend.error.AssertFailed | com.legend.error.DataError e) {
             if (listener != null) {
-                com.legend.diagnostics.VerdictCensus.sqlRaised();
-                if (e instanceof com.legend.error.AssertFailed af && af.unjudgedReason() != null) {
-                    listener.unjudged(a.listenerName(), af.unjudgedReason());
-                }
-                listener.verdict(a.listenerName(), false, e.getMessage());
+                toldFailed(a, listener, e);
             }
             throw e;
         }
