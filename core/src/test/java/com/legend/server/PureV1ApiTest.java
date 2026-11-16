@@ -450,7 +450,7 @@ class PureV1ApiTest {
         String request = "{\"clientVersion\":\"vX_X_X\",\"function\":" + lambda
                 + ",\"model\":" + textModel()
                 + ",\"context\":{\"_type\":\"BaseExecutionContext\"}}";
-        PureV1Api.Answer a = PureV1Api.arrowPlan(request, List.of(model), com.legend.edge.PureText.UPSTREAM);
+        PureV1Api.Answer a = com.legend.edge.HostAnswers.arrowPlan(request, List.of(model), com.legend.edge.PureText.UPSTREAM);
         assertEquals(200, a.status(), a.json());
         Json.Obj lite = Json.parseObject(a.json());
         Json.Obj liteMeta = lite.getObj("metadata");
@@ -548,14 +548,14 @@ class PureV1ApiTest {
     @Test
     void e8_arrowPlan_refusesAModelItsHostDoesNotServe_andAGraphFetch() throws IOException {
         String request = "{\"function\":" + lambda + ",\"model\":" + textModel() + "}";
-        PureV1Api.Answer other = PureV1Api.arrowPlan(request, List.of(model + "\n"), com.legend.edge.PureText.UPSTREAM);
+        PureV1Api.Answer other = com.legend.edge.HostAnswers.arrowPlan(request, List.of(model + "\n"), com.legend.edge.PureText.UPSTREAM);
         assertEquals(500, other.status(), other.json());
         assertTrue(Json.parseObject(other.json()).getString("message").contains("the models it serves"), other.json());
 
         String trading = resource("upstream-api/query-app/trading.pure");
         String fetch = com.legend.edge.PureV1Routes.grammarToJsonLambda("|demo::trading::Trade.all()->graphFetch(#{demo::trading::Trade{tradeId}}#)"
                 + "->serialize(#{demo::trading::Trade{tradeId}}#)->from(demo::trading::TradingMapping, demo::trading::H2Runtime)", false).json();
-        PureV1Api.Answer graph = PureV1Api.arrowPlan("{\"function\":" + fetch + ",\"model\":"
+        PureV1Api.Answer graph = com.legend.edge.HostAnswers.arrowPlan("{\"function\":" + fetch + ",\"model\":"
                 + Json.toCompact(Map.of("_type", "text", "code", trading)) + "}", List.of(trading), com.legend.edge.PureText.UPSTREAM);
         assertEquals(500, graph.status(), graph.json());
         assertTrue(Json.parseObject(graph.json()).getString("message").contains("graph fetch"), graph.json());
@@ -576,7 +576,7 @@ class PureV1ApiTest {
                 + ",\"context\":{\"_type\":\"BaseExecutionContext\"}}";
         // a host runs one statement and none of its target's loads (until B3): a connection's test data is refused by
         // name, never left for the host's database to fail on (the A checkpoint's finding of B3's prep, 2026-11-10)
-        PureV1Api.Answer loading = PureV1Api.jsonPlan(request, List.of(model), com.legend.edge.PureText.UPSTREAM);
+        PureV1Api.Answer loading = com.legend.edge.HostAnswers.jsonPlan(request, List.of(model), com.legend.edge.PureText.UPSTREAM);
         assertEquals(500, loading.status(), loading.json());
         assertTrue(loading.json().contains("reads what its target loads first"), loading.json());
         // the host's own model holds its data itself (the tab's tables, Python's frames): the same model with no test
@@ -585,7 +585,7 @@ class PureV1ApiTest {
         String hostedRequest = "{\"clientVersion\":\"vX_X_X\",\"function\":" + lambda
                 + ",\"model\":" + Json.toCompact(Map.of("_type", "text", "code", hosted))
                 + ",\"context\":{\"_type\":\"BaseExecutionContext\"}}";
-        PureV1Api.Answer a = PureV1Api.jsonPlan(hostedRequest, List.of(hosted), com.legend.edge.PureText.UPSTREAM);
+        PureV1Api.Answer a = com.legend.edge.HostAnswers.jsonPlan(hostedRequest, List.of(hosted), com.legend.edge.PureText.UPSTREAM);
         assertEquals(200, a.status(), a.json());
         Json.Obj plan = Json.parseObject(a.json());
         // 2026-11-12 (C1's second half): the host's execution's id, minted with the plan half it runs ("execution")
@@ -602,22 +602,22 @@ class PureV1ApiTest {
                 .getObj("connection").getObj("datasourceSpecification")
                 .getStringArray("testDataSetupSqls");
         String hostRows = hostRows(setup, plan.getString("run"));
-        PureV1Api.Answer answered = PureV1Api.jsonAnswer(a.json(), hostRows);
+        PureV1Api.Answer answered = com.legend.edge.HostAnswers.jsonAnswer(a.json(), hostRows);
         assertEquals(200, answered.status(), answered.json());
         assertTrue(answered.json().contains(plan.getString("execution")),
                 "the answer written from the host's rows reports the same execution: " + answered.json());
         java.util.function.UnaryOperator<String> traced = t -> t.replaceAll("executionTraceID\\\\\" : \\\\\"[0-9a-f-]{36}", "ID");
         assertEquals(traced.apply(execute(request).json()), traced.apply(answered.json()));
         // its host's models only, as the Arrow half
-        assertEquals(500, PureV1Api.jsonPlan(hostedRequest, List.of(hosted + "\n"), com.legend.edge.PureText.UPSTREAM).status());
+        assertEquals(500, com.legend.edge.HostAnswers.jsonPlan(hostedRequest, List.of(hosted + "\n"), com.legend.edge.PureText.UPSTREAM).status());
         // a plan that is not jsonPlan's: refused, never cast
-        assertEquals(500, PureV1Api.jsonAnswer("{\"builder\":5}", "[]").status());
+        assertEquals(500, com.legend.edge.HostAnswers.jsonAnswer("{\"builder\":5}", "[]").status());
         // a value's answer (one value, or a list of them), which the server's execute refuses, is refused by both plan
         // halves alike
         for (String value : List.of("|#>{trades::h2::DB.TRADES_SCHEMA.TRADES}#->size()->from(trades::h2::RT)",
                 "|[1, 2]->from(trades::h2::RT)")) {
             String asked = "{\"function\":" + com.legend.edge.PureV1Routes.grammarToJsonLambda(value, false).json() + ",\"model\":" + textModel() + "}";
-            for (PureV1Api.Answer refused : List.of(PureV1Api.jsonPlan(asked, List.of(model), com.legend.edge.PureText.UPSTREAM), PureV1Api.arrowPlan(asked, List.of(model), com.legend.edge.PureText.UPSTREAM))) {
+            for (PureV1Api.Answer refused : List.of(com.legend.edge.HostAnswers.jsonPlan(asked, List.of(model), com.legend.edge.PureText.UPSTREAM), com.legend.edge.HostAnswers.arrowPlan(asked, List.of(model), com.legend.edge.PureText.UPSTREAM))) {
                 assertEquals(500, refused.status(), refused.json());
                 assertTrue(refused.json().contains("result's serialization is unprobed"), value + ": " + refused.json());
             }
@@ -626,7 +626,7 @@ class PureV1ApiTest {
         String trading = withoutTestData(resource("upstream-api/query-app/trading.pure"));
         String fetch = com.legend.edge.PureV1Routes.grammarToJsonLambda("|demo::trading::Trade.all()->graphFetch(#{demo::trading::Trade{tradeId}}#)"
                 + "->serialize(#{demo::trading::Trade{tradeId}}#)->from(demo::trading::TradingMapping, demo::trading::H2Runtime)", false).json();
-        PureV1Api.Answer graph = PureV1Api.jsonPlan("{\"function\":" + fetch + ",\"model\":"
+        PureV1Api.Answer graph = com.legend.edge.HostAnswers.jsonPlan("{\"function\":" + fetch + ",\"model\":"
                 + Json.toCompact(Map.of("_type", "text", "code", trading)) + "}", List.of(trading), com.legend.edge.PureText.UPSTREAM);
         assertEquals(200, graph.status(), graph.json());
         Json.Obj graphPlan = Json.parseObject(graph.json());
@@ -639,7 +639,7 @@ class PureV1ApiTest {
         // built it
         String objects = ((Json.Obj) graphPlan.getArr("resultColumns").items().get(0)).getString("name");
         assertEquals("{\"builder\":{\"_type\":\"json\"},\"values\":{\"tradeId\":1}}",
-                PureV1Api.jsonAnswer(graph.json(), Json.toCompact(List.of(Map.of(objects, "{\"tradeId\":1}"))))
+                com.legend.edge.HostAnswers.jsonAnswer(graph.json(), Json.toCompact(List.of(Map.of(objects, "{\"tradeId\":1}"))))
                         .json());
     }
 
@@ -972,8 +972,8 @@ class PureV1ApiTest {
         String request = "{\"clientVersion\":\"vX_X_X\",\"function\":" + raising + ",\"model\":"
                 + Json.toCompact(Map.of("_type", "text", "code", hosted))
                 + ",\"context\":{\"_type\":\"BaseExecutionContext\"}}";
-        for (PureV1Api.Answer a : List.of(PureV1Api.jsonPlan(request, List.of(hosted), com.legend.edge.PureText.UPSTREAM),
-                PureV1Api.arrowPlan(request, List.of(hosted), com.legend.edge.PureText.UPSTREAM))) {
+        for (PureV1Api.Answer a : List.of(com.legend.edge.HostAnswers.jsonPlan(request, List.of(hosted), com.legend.edge.PureText.UPSTREAM),
+                com.legend.edge.HostAnswers.arrowPlan(request, List.of(hosted), com.legend.edge.PureText.UPSTREAM))) {
             assertEquals(200, a.status(), a.json());
             String sql = Json.parseObject(a.json()).getString("sql");
             assertTrue(sql.contains("Division by zero") || sql.contains("divide"), sql);

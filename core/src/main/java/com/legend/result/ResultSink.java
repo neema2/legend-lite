@@ -28,6 +28,20 @@ public interface ResultSink {
     default void execution(java.util.UUID id) {
     }
 
+    /** The plan's stated answer, as data, before any statement runs (W8 of docs/records/d-plan-2026-11-16.md,
+     *  2026-11-16): a caller's receiver ({@link Output.Rows}) that writes an upstream form reads its statement and
+     *  columns here -- the compatibility edge's legend-engine answers -- and refuses an answer it has no form for before
+     *  anything is sent. Told after {@link #answers} and {@link #execution}; not told where no plan states the answer
+     *  (a test body's last statement). */
+    default void planned(ExecutionPlan plan) {
+    }
+
+    /** Whether this receiver writes only an answer a plan states ({@link #planned}): a test body's answer, which no
+     *  product plan states, is refused before its run where it is (W8; until then by Output's engine variants). */
+    default boolean needsAPlan() {
+        return false;
+    }
+
     /** The result's columns, in order, before any batch. */
     void columns(List<ExecutionPlan.Column> columns) throws IOException;
 

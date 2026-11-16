@@ -3149,12 +3149,14 @@ final class ArchitectureTest {
 
     /** THE SERVER'S MINTS (the rule of {@link #theServersMintsAreItsHostDoorsAlone}). */
     static final com.tngtech.archunit.lang.ArchRule SERVER_MINTS_AT_ITS_HOST_DOORS = noClasses()
-            .that().resideInAPackage("com.legend.server..")
-            .should().accessTargetWhere(invokesWhere("UUID.randomUUID outside PureV1Api's jsonPlan and arrowPlan",
+            .that().resideInAnyPackage("com.legend.server..", "com.legend.edge..")
+            .should().accessTargetWhere(invokesWhere("UUID.randomUUID outside HostAnswers' jsonPlan and arrowPlan",
                     a -> a.getTargetOwner().isEquivalentTo(java.util.UUID.class) && a.getName().equals("randomUUID")
-                            && !(a.getOriginOwner().getName().equals("com.legend.server.PureV1Api")
+                            && !(a.getOriginOwner().getName().equals("com.legend.edge.HostAnswers")
                                     && a.getOrigin().getName().matches(SERVER_DOOR_MINTS))))
-            .as("the server mints an execution's id at its two host doors alone (PureV1Api.jsonPlan, arrowPlan)");
+            // the host doors moved to the edge with legend-engine's writers (W8 of docs/records/d-plan-2026-11-16.md,
+            // 2026-11-16): the server and the edge mint at those two alone
+            .as("the server mints an execution's id at its two host doors alone (edge.HostAnswers.jsonPlan, arrowPlan)");
 
     /**
      * THE SERVER'S MINTS ARE ITS HOST DOORS' (the C final audit's J5, 2026-11-12): {@code PureV1Api.jsonPlan} and
@@ -3168,10 +3170,10 @@ final class ArchitectureTest {
      */
     @Test
     void theServersMintsAreItsHostDoorsAlone() {
-        SERVER_MINTS_AT_ITS_HOST_DOORS.check(CORE_PROD_CLASSES);
+        SERVER_MINTS_AT_ITS_HOST_DOORS.check(CORE_AND_EDGE_CLASSES);
         // and each door mints once
         org.junit.jupiter.api.Assertions.assertEquals(java.util.Map.of("arrowPlan", 1, "jsonPlan", 1),
-                doorMints(CORE_PROD_CLASSES.get("com.legend.server.PureV1Api")),
+                doorMints(CORE_AND_EDGE_CLASSES.get("com.legend.edge.HostAnswers")),
                 "the server's two host doors, one mint each");
     }
 

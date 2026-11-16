@@ -220,15 +220,12 @@ class CompatSpellingGuardTest {
             // CellText's engine half move at D1.8, with D-1's host halves un-parked): the engine's answer writer and its
             // formats. traceComment 1 -> 2 and executionTraceID +1 (2026-11-15): the trace comment's method moved here
             // from ExecutionPlan (its two rows gone above), the engine answer's activity its one Java reader
-            "result/Output.java | PureV1Writer | 12 | D1.8",
-            "result/PureV1Writer.java | PureV1Writer | 6 | D1.8",
-            "result/PureV1Writer.java | executionTraceID | 1 | D1.8",
-            "result/PureV1Writer.java | presentedName | 2 | D1.8",
-            "result/PureV1Writer.java | traceComment | 2 | D1.8",
+            // result/Output.java and result/PureV1Writer.java rows: gone 2026-11-16 (W8): legend-engine's writer is the
+            // edge's (edge.PureV1Writer), written through Output.Rows by edge.EngineAnswers; server/PureV1Api.java's
+            // PureV1Writer 17 gone with it (its host answer halves are edge.HostAnswers)
             // result/TdsObjectsWriter.java (TdsObjectsWriter 2, presentedName 1) and test/ServiceTestRunner.java
             // (PureV1Writer 1, TdsObjectsWriter 1): gone 2026-11-15 (D1.4: legend-engine's service tests and their
             // PURE_TDSOBJECT writer moved to the edge, //core:edge_service_tests)
-            "server/PureV1Api.java | PureV1Writer | 17 | D1.8",
             // D1.3 -> D1.9 (2026-11-15): the constant PlatformTypes names, the judges' and the edge's (above)
             "sql/SqlExpr.java | TDS_NULL_CELL | 1 | D1.9",
             // 1 -> 2 each (2026-11-16, the PR1 re-review's A6): both named again in SqlFn.MAY_SKIP_AN_ARGUMENT, a set of

@@ -19,7 +19,7 @@ import java.io.IOException;
  * PCT's feature flag
  * (CORRECT_SQL_SUBSTRING_INDEXING: the user's ruling of 2026-09-12, a written deviation from upstream's PCT adapter,
  * which sets none -- the engine's testable runner sets it for relation tests). Its answer is the plan's TYPED rows, and, for a relation, the engine's JSON
- * answer the server writes from them ({@code Output.Engine}, after the run, from the rows it collected), which the adapter reads as legend-engine's own
+ * answer the server writes from them ({@code edge.EngineAnswers.engine}, after the run, from the rows it collected), which the adapter reads as legend-engine's own
  * PCT adapter reads it ({@link ValueBridge#engineTDS}); a value's elements cross as the reference's own instances
  * ({@link ValueBridge}).
  */
@@ -61,8 +61,8 @@ final class PctPlanRoute {
             // 3): the server's own writer of the engine's answer, written from the rows the run collected, after it
             // (2026-11-09: a tee the run called back until then)
             // made after the run for the execution that ran the SQL, its door's id as the run named it to the collector
-            com.legend.result.ResultSink engine = new com.legend.result.Output.Engine(json,
-                    com.legend.server.PureV1Api.facts(query)).writerFor(plan, collector.execution());
+            com.legend.result.ResultSink engine = new com.legend.result.Output.Rows(com.legend.edge.EngineAnswers.engine(
+                    json, com.legend.edge.HostAnswers.facts(query))).writerFor(plan, collector.execution());
             com.legend.result.Batcher batcher = new com.legend.result.Batcher(c.columns(), engine,
                     com.legend.result.Batcher.DEFAULT_CAPACITY);
             batcher.start();

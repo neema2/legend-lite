@@ -74,7 +74,7 @@ public final class Boundary {
      */
     public static com.legend.server.PureV1Api.Answer executePlan(String body, String modelsJson) {
         // pure/v1's execute plans in the compatibility edge's style (the D part 1 audit's M2, 2026-11-15)
-        return com.legend.server.PureV1Api.arrowPlan(body, models(modelsJson), com.legend.edge.PureText.UPSTREAM);
+        return com.legend.edge.HostAnswers.arrowPlan(body, models(modelsJson), com.legend.edge.PureText.UPSTREAM);
     }
 
     /**
@@ -85,7 +85,7 @@ public final class Boundary {
      * {@code modelsJson}: the only models the host runs, a JSON array of their texts.
      */
     public static com.legend.server.PureV1Api.Answer executeJsonPlan(String body, String modelsJson) {
-        return com.legend.server.PureV1Api.jsonPlan(body, models(modelsJson), com.legend.edge.PureText.UPSTREAM);
+        return com.legend.edge.HostAnswers.jsonPlan(body, models(modelsJson), com.legend.edge.PureText.UPSTREAM);
     }
 
     /**
@@ -95,7 +95,7 @@ public final class Boundary {
      * with.
      */
     public static com.legend.server.PureV1Api.Answer executeJsonAnswer(String plan, String rows) {
-        return com.legend.server.PureV1Api.jsonAnswer(plan, rows);
+        return com.legend.edge.HostAnswers.jsonAnswer(plan, rows);
     }
 
     /**
@@ -105,7 +105,7 @@ public final class Boundary {
      * (Folded.http).
      */
     public static com.legend.server.PureV1Api.Answer executeArrowAnswer(String plan, String rows) {
-        return com.legend.server.PureV1Api.arrowAnswer(plan, rows);
+        return com.legend.edge.HostAnswers.arrowAnswer(plan, rows);
     }
 
     /** The models a host runs, from their JSON array of texts. */

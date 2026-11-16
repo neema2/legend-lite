@@ -12,7 +12,7 @@ import com.legend.result.Batcher;
 import com.legend.result.CellText;
 import com.legend.result.CsvWriter;
 import com.legend.result.JsonRowsWriter;
-import com.legend.result.PureV1Writer;
+import com.legend.edge.PureV1Writer;
 import com.legend.result.ResultSink;
 import com.legend.values.PureDateLiteral;
 import org.junit.jupiter.api.Test;

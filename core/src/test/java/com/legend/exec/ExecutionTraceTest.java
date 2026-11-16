@@ -6,7 +6,7 @@ package com.legend.exec;
 import com.legend.database.Databases;
 import com.legend.executionplan.ExecutionPlan;
 import com.legend.result.Batch;
-import com.legend.result.PureV1Writer;
+import com.legend.edge.PureV1Writer;
 import com.legend.result.ResultSink;
 import org.junit.jupiter.api.Test;
 
@@ -154,8 +154,8 @@ class ExecutionTraceTest {
         assertTrue(refused.getMessage().contains("the run named no execution"), refused.getMessage());
         ExecutionPlan relation = ExecutionPlan.reading(List.of(), new ExecutionPlan.TdsResult(
                 ExecutionPlan.TdsResult.Shape.RELATION, List.of(), stampReader().answerSql()));
-        IllegalStateException arrow = assertThrows(IllegalStateException.class, () -> new com.legend.result.Output.Arrow(
-                new java.io.ByteArrayOutputStream(), null, com.legend.result.CellText.PRODUCT).writerFor(relation, null));
+        IllegalStateException arrow = assertThrows(IllegalStateException.class, () -> new com.legend.result.Output.Rows(
+                com.legend.edge.EngineAnswers.arrow(new java.io.ByteArrayOutputStream(), null)).writerFor(relation, null));
         assertTrue(arrow.getMessage().contains("the run named no execution"), arrow.getMessage());
     }
 

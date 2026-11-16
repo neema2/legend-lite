@@ -35,7 +35,7 @@ public final class TestRunner {
      *  follow-up audit, 2026-11-09: the engine's answer, which needs a plan's statement and columns, was refused only
      *  when its writer was first asked for -- after the body's writes, where the answer was not sent early). */
     private static void lites(@Nullable Output answer) {
-        if (answer instanceof Output.Engine || answer instanceof Output.Arrow) {
+        if (answer instanceof Output.Rows rows && rows.sink().needsAPlan()) {
             throw new IllegalArgumentException("a test body's answer is written in lite's formats (JSON rows, CSV, or "
                     + "the caller's receiver): the engine's answer needs a product plan's statement and columns");
         }

@@ -26,7 +26,7 @@ import java.util.Map;
 
 import static com.legend.server.PureV1Api.boundParameters;
 import static com.legend.server.PureV1Api.error;
-import static com.legend.server.PureV1Api.facts;
+import static com.legend.edge.HostAnswers.facts;
 import static com.legend.server.PureV1Api.request;
 import static com.legend.server.PureV1Api.runtimeOf;
 
@@ -291,7 +291,7 @@ public final class PureV1Routes {
      * E8: an {@code ExecuteInput} run on its runtime's connection by {@code runner} -- established first, as
      * legend-engine does on acquisition -- answered in the engine's TDS result shape, or its JSON result for a graph
      * fetch. The database computes every value; the engine's writer spells each typed cell as the engine's tokens
-     * ({@link com.legend.result.PureV1Writer}).
+     * ({@link PureV1Writer}).
      */
     public static Answer execute(String body, Runner runner) {
         return execute(body, runner, Models.COMPILED);
@@ -310,7 +310,7 @@ public final class PureV1Routes {
                 String runtime = runtimeOf(request, query);
                 java.io.StringWriter out = new java.io.StringWriter();
                 try {
-                    runner.run(query, runtime, new com.legend.result.Output.Engine(out, facts(query)));
+                    runner.run(query, runtime, new com.legend.result.Output.Rows(EngineAnswers.engine(out, facts(query))));
                 } catch (java.io.IOException e) {
                     throw new java.io.UncheckedIOException(e);
                 }
@@ -340,8 +340,7 @@ public final class PureV1Routes {
                 com.legend.TypedQuery query = com.legend.Compiler.query(model, lambda);
                 String runtime = runtimeOf(request, query);
                 try {
-                    runner.run(query, runtime, new com.legend.result.Output.Arrow(out, facts(query),
-                            com.legend.result.CellText.DateText.LEGEND_PURE));
+                    runner.run(query, runtime, new com.legend.result.Output.Rows(EngineAnswers.arrow(out, facts(query))));
                 } catch (java.io.IOException e) {
                     throw new java.io.UncheckedIOException(e);
                 }

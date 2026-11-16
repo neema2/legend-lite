@@ -264,8 +264,8 @@ class UpstreamProtocolFieldsTest {
     private static Map<String, Function<String, Outcome>> executeRoutes() {
         Map<String, Function<String, Outcome>> out = new LinkedHashMap<>();
         out.put("generatePlan", route("execution/generatePlan"));
-        out.put("executeJsonPlan", answer(body -> PureV1Api.jsonPlan(body, List.of(MODEL), com.legend.edge.PureText.UPSTREAM)));
-        out.put("executePlan", answer(body -> PureV1Api.arrowPlan(body, List.of(MODEL), com.legend.edge.PureText.UPSTREAM)));
+        out.put("executeJsonPlan", answer(body -> com.legend.edge.HostAnswers.jsonPlan(body, List.of(MODEL), com.legend.edge.PureText.UPSTREAM)));
+        out.put("executePlan", answer(body -> com.legend.edge.HostAnswers.arrowPlan(body, List.of(MODEL), com.legend.edge.PureText.UPSTREAM)));
         return out;
     }
 

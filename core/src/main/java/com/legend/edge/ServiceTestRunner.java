@@ -499,7 +499,7 @@ public final class ServiceTestRunner implements AutoCloseable {
      *  last statement streams through the boundary's writers as the service's answer would; until then this runner
      *  assembled the tree in Java from a materialized side -- its own cell rules until track Z, the boundary's
      *  {@code CellText.engine} after). A graph fetch's objects as legend-engine's JSON envelope
-     *  ({@link com.legend.result.PureV1Writer#objects}); a relation or a value as {@code PURE_TDSOBJECT}
+     *  ({@link PureV1Writer#objects}); a relation or a value as {@code PURE_TDSOBJECT}
      *  ({@link com.legend.edge.TdsObjectsWriter}: objects keyed by column, legend-engine's cell tokens); another
      *  format of a relation is not rendered by this runner. The text is read back as the plain tree the assertions
      *  compare. */
@@ -521,7 +521,7 @@ public final class ServiceTestRunner implements AutoCloseable {
         @Override
         public void answers(com.legend.executionplan.ExecutionPlan.TdsResult.Shape shape) {
             if (shape == com.legend.executionplan.ExecutionPlan.TdsResult.Shape.OBJECTS) {
-                writer = com.legend.result.PureV1Writer.objects(out);
+                writer = PureV1Writer.objects(out);
                 return;
             }
             if (shape == com.legend.executionplan.ExecutionPlan.TdsResult.Shape.RELATION

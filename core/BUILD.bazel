@@ -339,7 +339,7 @@ legend_java_library(
         "src/main/java/com/legend/edge/ServiceTestRunner.java",
         "src/main/java/com/legend/edge/TdsObjectsWriter.java",
     ],
-    deps = ["//base", "//json", ":compiler", ":error", ":exec", ":test_execution", ":execution_plan", ":testexec", ":model", ":planner", ":protocol", ":result", ":sql", ":test", ":test_plan", ":values"],
+    deps = ["//base", "//json", ":compiler", ":edge", ":error", ":exec", ":test_execution", ":execution_plan", ":testexec", ":model", ":planner", ":protocol", ":result", ":sql", ":test", ":test_plan", ":values"],
 )
 legend_java_library(
     name = "test",
@@ -1156,6 +1156,10 @@ junit_test(
     runtime_deps = [":drivers"],
     deps = [
         ":core",
+        # 2026-11-16 (W8): legend-engine's writer is the edge's; the test sessions are test_backends' (missing since
+        # the test backends split, so this manual target did not build)
+        ":edge",
+        ":test_backends",
         "@maven_test//:org_junit_jupiter_junit_jupiter_api",
     ],
 )

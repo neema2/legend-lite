@@ -1722,7 +1722,8 @@ class JavaEvalLedgerTest {
                     "CellText.java",
                     // the writers (phase 2, R4): legend-engine's exact answer (LEGACY), lite's JSON rows and CSV (LEAN),
                     // each a ResultSink spelling cells through CellText in its consumer's layout; nothing else
-                    "PureV1Writer.java", "JsonRowsWriter.java", "CsvWriter.java",
+                    // (PureV1Writer.java left for com.legend.edge 2026-11-16, W8 of docs/records/d-plan-2026-11-16.md)
+                    "JsonRowsWriter.java", "CsvWriter.java",
                     // the Arrow writer (track A, 2026-10-29, docs/RESULT_BOUNDARY_START_HERE.md): a ResultSink that
                     // lays each batch's typed cells into Arrow IPC buffers (the framer //arrow_ipc, a FlatBuffers
                     // builder over base alone) -- one encoder per column kind, each a carriage of the carrier's own
@@ -1784,7 +1785,12 @@ class JavaEvalLedgerTest {
                             // legend-engine's scan order for the corpus lanes (W6 of docs/records/d-plan-2026-11-16.md,
                             // 2026-11-16, moved from com.legend.sql.dialect): a rewrite of the statement's tree that adds
                             // an ORDER BY the engine's insertion order implies -- a node for a node, no value met
-                            "StableScanOrder.java"),
+                            "StableScanOrder.java",
+                            // legend-engine's answers moved from com.legend.result and com.legend.server (W8 of
+                            // docs/records/d-plan-2026-11-16.md, 2026-11-16): its pure/v1 writer (spells, decides
+                            // nothing), its receivers through the run's Output.Rows, and the host's plan and answer
+                            // halves (plan and write only; no connection, no JDBC)
+                            "PureV1Writer.java", "EngineAnswers.java", "HostAnswers.java"),
                     "core/src/main/java/com/legend/planner", PLANNER_CLASSES,
                     "core/src/main/java/com/legend/exec", EXEC_CLASSES,
                     "core/src/main/java/com/legend/testexec", TESTEXEC_CLASSES,

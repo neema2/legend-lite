@@ -1612,8 +1612,11 @@ class PlannerSurfaceTest {
             String server = "core/src/main/java/com/legend/server/" + f;
             out.put(f, SourceFiles.has(server) ? read(server) : read("core/src/main/java/com/legend/edge/" + f));
         }
+        // W8 (docs/records/d-plan-2026-11-16.md, 2026-11-16): the host answer halves (arrowPlan, jsonPlan, jsonAnswer)
+        // moved to the edge's HostAnswers; read as part of the same surface, so its planned.* reads stay censused
         out.put("PureV1Api.java", out.get("PureV1Api.java") + "\n"
-                + read("core/src/main/java/com/legend/edge/PureV1Routes.java"));
+                + read("core/src/main/java/com/legend/edge/PureV1Routes.java") + "\n"
+                + read("core/src/main/java/com/legend/edge/HostAnswers.java"));
         return out;
     }
 
