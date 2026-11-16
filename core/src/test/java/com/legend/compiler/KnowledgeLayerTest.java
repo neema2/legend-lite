@@ -425,7 +425,8 @@ class KnowledgeLayerTest {
     /** The safe type's remainder (2026-11-13): {@code sum}, {@code average}, a float literal and
      * {@code upper}/{@code lower} typed by the engine's own rules (relationalExtension.pure): {@code divide} and
      * {@code average} DOUBLE (:693-702, :291-300), {@code sum} by its first argument's kind, a DECIMAL or NUMERIC capped
-     * at precision 31, a FLOAT a DOUBLE and no rule for a REAL (:1717-1741), a float literal FLOAT (:148), {@code upper}
+     * at precision 31, a FLOAT a DOUBLE (:1717-1741) and a REAL too (no engine rule; S500), a float literal FLOAT
+     * (:148), {@code upper}
      * and {@code lower} no rule (a view column {@code Any[0..1]}); {@code plus} over one argument widens it
      * (:1408-1436). The numeric operators over several numeric arguments ({@code plus}, {@code minus}, {@code times})
      * are the database's promotion over every argument, where the engine's rules misstate it (2026-11-15, register row
@@ -478,7 +479,8 @@ class KnowledgeLayerTest {
                 "case over two float literals: FLOAT, one approximate kind kept (the engine's: FLOAT)");
         assertEquals(null, infer.apply(18), "upper: no rule");
         assertEquals(null, infer.apply(19), "lower: no rule");
-        assertEquals(null, infer.apply(20), "sum of a REAL: no rule");
+        assertEquals(new com.legend.model.RelationalDataType.Double_(), infer.apply(20),
+                "sum of a REAL: DOUBLE, as of a FLOAT (the engine's: no rule, no type; S500)");
         var signature = com.legend.compiler.element.ViewSignatures.of(ix, "a::Db", ix.findView("a::Db", "V")
                 .orElseThrow()).columns();
         assertEquals("U1:meta::pure::metamodel::type::Any[0..1]", signature.get(18).text(), "a column no rule types: Any[0..1]");
@@ -797,7 +799,8 @@ class KnowledgeLayerTest {
                 CU: case(equal(T.ID, 1), T.I, exp(T.F)), CO: concat(T.S, exp(T.F)), PV: plus(T.A, T.B), \
                 SD: sub(T.D, T.D), MT: minus(T.TS, T.TS), MD: minus(T.D, T.D), CB: case(equal(T.ID, 1), T.BI, T.F), \
                 CR: case(equal(T.ID, 1), T.R, T.R), CN: concat(T.S, T.I), PI: plus(T.I, T.S), SM: sub(T.D, T.I), \
-                MF: max(T.F, T.I), PF: plus(T.F, T.F))
+                MF: max(T.F, T.I), PF: plus(T.F, T.F), GC: group_concat(T.S), P1: plus(T.S), P2: plus(T.R), \
+                S1: sum(T.R))
                 )
                 """)));
         com.legend.model.DatabaseDefinition db = ix.findDatabase("a::Db").orElseThrow();
@@ -830,6 +833,14 @@ class KnowledgeLayerTest {
                 "max over a FLOAT and an INTEGER: their safe type FLOAT (the engine's: FLOAT)");
         assertEquals(new com.legend.model.RelationalDataType.Float_(), infer.apply(15),
                 "plus over two FLOATs: FLOAT (the engine's: FLOAT, the first's)");
+        assertEquals(null, infer.apply(16),
+                "group_concat: no type, the aggregate outgrows one row's size (the engine's: no rule, no type)");
+        assertEquals(null, infer.apply(17),
+                "plus of one VARCHAR, written sum(x): no type (the engine's: no rule, no type)");
+        assertEquals(new com.legend.model.RelationalDataType.Double_(), infer.apply(18),
+                "plus of one REAL, written sum(x): DOUBLE, as of a FLOAT (the engine's: no rule, no type; S500)");
+        assertEquals(new com.legend.model.RelationalDataType.Double_(), infer.apply(19),
+                "sum of a REAL: DOUBLE, as of a FLOAT (the engine's: no rule, no type; S500)");
         var signature = com.legend.compiler.element.ViewSignatures.of(ix, "a::Db", ix.findView("a::Db", "V")
                 .orElseThrow()).columns();
         assertEquals("MX:meta::pure::metamodel::type::Any[0..1]", signature.get(0).text(), "an untyped argument");

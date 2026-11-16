@@ -92,9 +92,11 @@ public final class RelationalTypeInference {
                                 : infer(f.args().get(0), db, ctx, expanding);
                 // sum by its first argument's raw kind, the engine's five rules (relationalExtension.pure:1717-1741):
                 // TINYINT, SMALLINT and INTEGER an INTEGER, BIGINT a BIGINT, a DECIMAL or a NUMERIC its own kind with its
-                // precision capped at 31, FLOAT and DOUBLE a DOUBLE; any other kind (REAL among them) matches no rule, no
-                // type. Until 2026-11-13 its first argument's type, a FLOAT or REAL one DOUBLE (the
-                // fix's first version read four rules, its fifth missed, and typed a FLOAT or DOUBLE nothing)
+                // precision capped at 31, FLOAT and DOUBLE a DOUBLE; any other kind matches no rule, no type. A REAL
+                // is a DOUBLE too, as lite typed it until 2026-11-13: the engine's FLOAT and DOUBLE rule lists no REAL,
+                // which has no rule there (register row S500, 2026-11-15). Until 2026-11-13 its first argument's type,
+                // a FLOAT or REAL one DOUBLE (the fix's first version read four rules, its fifth missed, and typed a
+                // FLOAT or DOUBLE nothing)
                 case "sum" -> {
                     RelationalDataType at = f.args().isEmpty() ? null
                             : infer(f.args().get(0), db, ctx, expanding);
@@ -102,8 +104,8 @@ public final class RelationalTypeInference {
                         case TINYINT, SMALLINT, INTEGER -> new RelationalDataType.Integer_();
                         case BIGINT -> new RelationalDataType.BigInt();
                         case DECIMAL, NUMERIC -> capped(at);
-                        case FLOAT, DOUBLE -> new RelationalDataType.Double_();
-                        case REAL, BIT, VARCHAR, CHAR, BINARY, VARBINARY, TIMESTAMP, DATE, TIME, TIMESTAMP_NS, DISTINCT,
+                        case FLOAT, DOUBLE, REAL -> new RelationalDataType.Double_();
+                        case BIT, VARCHAR, CHAR, BINARY, VARBINARY, TIMESTAMP, DATE, TIME, TIMESTAMP_NS, DISTINCT,
                                 OTHER, SEMISTRUCTURED, ARRAY, OBJECT -> null;
                     };
                 }
@@ -171,8 +173,9 @@ public final class RelationalTypeInference {
                 // dropped out). An operand of another kind is concatenated as its text, so the result is still a
                 // VARCHAR, where the engine's rule (every operand a CHAR or VARCHAR) has none: its size is the string
                 // operands' alone, a floor, as before 2026-11-13 (register row S500).
-                // group_concat has no rule in the engine's map (no type: until 2026-11-13 it was typed as a
-                // concat)
+                // group_concat has no rule in the engine's map and is no dynafunction the engine registers
+                // (docs/engine-dynafunctions.tsv), so no type: until 2026-11-13 it was typed as a concat, a VARCHAR
+                // of one row's operand sizes, which an aggregate over many rows outgrows (2026-11-15)
                 case "concat" -> {
                     List<RelationalDataType> types = everyType(f.args(), db, ctx, expanding);
                     if (types == null) {
@@ -224,14 +227,17 @@ public final class RelationalTypeInference {
                 case "plus" -> {
                     if (f.args().size() == 1) {
                         // plus over one argument widens it, the engine's rule (relationalExtension.pure:1408-1436):
-                        // wider than the database's answer, never a misstated value
+                        // wider than the database's answer, never a misstated value. The engine writes it as sum(x)
+                        // (extensionDefaults.pure:775), so a REAL is a DOUBLE, as sum's (register row S500,
+                        // 2026-11-15; the engine's rule lists no REAL; until then lite kept the REAL), and a CHAR or
+                        // VARCHAR, which no database sums, has no type, the engine's answer (until 2026-11-13 kept)
                         RelationalDataType at = infer(f.args().get(0), db, ctx, expanding);
                         yield at == null ? null : switch (kind(at)) {
                             case TINYINT, SMALLINT -> new RelationalDataType.Integer_();
                             case INTEGER, BIGINT -> new RelationalDataType.BigInt();
                             case DECIMAL, NUMERIC -> capped(at);
-                            case FLOAT, DOUBLE -> new RelationalDataType.Double_();
-                            case REAL, BIT, VARCHAR, CHAR, BINARY, VARBINARY, TIMESTAMP, DATE, TIME, TIMESTAMP_NS,
+                            case FLOAT, DOUBLE, REAL -> new RelationalDataType.Double_();
+                            case BIT, VARCHAR, CHAR, BINARY, VARBINARY, TIMESTAMP, DATE, TIME, TIMESTAMP_NS,
                                     DISTINCT, OTHER, SEMISTRUCTURED, ARRAY, OBJECT -> null;
                         };
                     }
