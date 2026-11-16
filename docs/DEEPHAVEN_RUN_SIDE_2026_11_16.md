@@ -129,20 +129,31 @@ grid sends and every result it follows) becomes a plan step of its own:
   the base step's columns. So a grid's queries can be planned before its base is made, and are never planned from a
   server's answer.
 
-### 3.3 Reuse: bases and whole results, nothing finer
+### 3.3 Reuse: every table kept is a step of the plan
 
-- **A base** is reused as §3.2 says.
-- **A whole result** whose identity the session holds (in use, or idle within the session's keep of 128) is not sent
-  again; its export is read. This keeps the cube lane's check that closing a group sends nothing
-  (`datacube/test/deephaven/cube.mjs`).
-- **Gone: reuse of single operations above the base** (today a regroup sends only the operations where it parts from
-  an earlier query). It saved little once bases came -- above a base a query is a few cheap operations -- and it is
-  the part that rewrites the plan (§1, point 2). M1 measures what it costs to drop.
-- **One design, nothing held in reserve.** Finer reuse costs the server too: every table a session keeps alive keeps
-  ticking (`deephaven.ts`: "an idle table still ticks on the server, so they are not free"), so keeping each
-  operation's table, as today, keeps many more live tables than a base and the results read from it. M1 confirms the
-  gestures stay within their budgets; a gesture that misses is a defect to find, never a reason to bring
-  per-operation reuse back or to raise a budget.
+The user's rule (2026-11-16): "If we want to be able to cache/build intermediate tables off base tables that's fine,
+but then should be part of the plan". So a plan is a short chain of steps, each a table on the server:
+
+- **Every step has the same shape:** its bytes, its slots (its own result's export id, and the export id of each step
+  it reads) and its identity -- the digest of its bytes with each step it reads named by that step's identity, so two
+  plans that build the same table name it alike. Within a step, operations read each other by `batchOffset`, fixed;
+  between steps, by ticket, a slot.
+- **Every step follows the same two rules:** skipped while the session holds its identity; else sent, its handles
+  filled. The steps of one plan the session lacks go in one request. Nothing else differs between a base, a table kept
+  above it and a query's result.
+- **Which tables become steps is decided before the run**, by the planner, with DataCube saying what its grid's
+  queries share -- as it names the base today. The runtime never chooses, cuts or rewrites; it only skips what it holds.
+- **v0's steps:** the grid's base, and each query's result (which keeps the cube lane's check that closing a group
+  sends nothing, `datacube/test/deephaven/cube.mjs`). A table between them -- the grid's filtered base, which every
+  level of its tree reads -- becomes a step when M1 shows a gesture needs it: a change to what the plan cuts, measured,
+  never a second mechanism.
+- **Why not keep every operation, as today:** each table a session keeps alive keeps ticking on the server
+  (`deephaven.ts`: "an idle table still ticks on the server, so they are not free"), so a kept table costs the server
+  for as long as it is held. The plan keeps what is shared and worth that cost; and today's per-operation reuse is
+  decided at run, by cutting the plan (§1, point 2), which is what this replaces.
+- **How long a step is kept:** a base, while a grid reads it; a result or a table above the base, while read and then
+  idle within the session's keep (128 today), the least lately read let go first. A step let go is made again from the
+  same plan when next needed: letting go changes no answer, only when the server works.
 
 ### 3.4 The three types, and the two facts the database's lacks
 
@@ -224,9 +235,14 @@ route `/api/lite/v1/grammar/grammarToJson/model` are registered the same way.
 
 ## 7. To measure before building on it
 
-- **M1, reuse:** bases and whole results only, against today's per-operation reuse, on the cube lane's gestures (the
-  regroup and the filter within 250 ms, closing a group within 150 ms with nothing sent) and the desk lane's opening
+- **M1, reuse:** v0's steps (the base and the result), against today's per-operation reuse, on the cube lane's
+  gestures (the regroup and the filter within 250 ms, closing a group within 150 ms with nothing sent) and the desk
+  lane's opening
   and warm times (`market.mjs`). A missed budget is a defect to find (§3.3), never a raised budget.
+- **M5, a step reading another made in the same request:** the pinned server accepting an operation that reads, by
+  ticket, an export an earlier operation of the same batch makes (so every reference between steps is a ticket slot,
+  whether that step is held or sent alongside). If it does not, the runtime sends a plan's missing steps in order, one
+  request each: more round trips on a first build, the plan unchanged.
 - **M2, the base's types:** for every base and result the lanes make, the server's held Java type equals the type the
   plan writes. A difference is a dialect fix (DH16 strict), found before the plan carries the type.
 - **M3, size:** the TypeScript driver is small now (no encoder); measured under the bundle budgets anyway
@@ -253,7 +269,7 @@ route `/api/lite/v1/grammar/grammarToJson/model` are registered the same way.
 1. **This document reviewed** with the user, and §10's questions ruled.
 2. **Merge `main`** (`4dfbb5b7`: C5-P, C5-J, C5-T; 85 commits, about 18 conflicts), placing the Deephaven TypeScript
    in C5-T's layers.
-3. **M1 and M2** measured on the branch.
+3. **M1, M2 and M5** measured on the branch.
 4. **The planner:** the statement as bytes, its slots and identity; the columns' two facts (§3.4); the base step; the
    encoder and the planning parts of `DeephavenWire` (`keys`, `stored`) moved to the planner's side; Java tests.
 5. **The browser's driver** in a run layer; the door narrowed and closed; DataCube's bases declared from the plan; the
@@ -270,5 +286,7 @@ route `/api/lite/v1/grammar/grammarToJson/model` are registered the same way.
   the planner writes the exact bytes, so the table is the planner's alone and no runtime encodes. To confirm.
 - **Q3, the user asked whether every plan does not already carry the three types (Pure, store, database):** it does
   (§3.4); the database type lacks two facts, its nullability and its own spelling. To confirm.
-- **Q4, the user asked why a fallback:** there is none; one reuse design, M1 a check on it (§3.3). To confirm.
+- **Q4, the user asked why a fallback, then ruled (2026-11-16):** intermediate tables built off base tables are fine
+  if they are part of the plan. §3.3: every kept table is a planned step under the same two rules; v0 cuts the base
+  and the result, and a table between them only when M1 shows a gesture needs it.
 - **Q5, ruled 2026-11-16:** Python later ("yes python later").
