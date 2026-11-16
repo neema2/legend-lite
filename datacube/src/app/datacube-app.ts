@@ -96,12 +96,18 @@ export type AppStart =
   | { readonly kind: 'warehouse'; readonly key: string; readonly table?: string }
   /** The page another editor serves (`services.live.page`: Python's `ll.Page`, and `ll.show(df)`'s page of one grid:
    *  docs/DATACUBE_ONE_API_PLAN_2026_10_21.md P12), followed and reported back to it. */
-  | { readonly kind: 'live' };
+  | { readonly kind: 'live' }
+  /** Nothing: the blank page, for a host that hands its files over once the app is open (`DataCubeApp.open`: an
+   *  application DataCube is embedded in, demo/library.ts). */
+  | { readonly kind: 'blank' };
 
 
 /** The app open on its host: what takes it down (a notebook's cell re-run, its view closed). */
 export interface DataCubeApp {
   dispose(): void;
+  /** A file its host hands over (an application DataCube is embedded in: demo/library.ts), opened as the picker opens
+   *  one it is given: in place of an empty page, else a grid beside the page's. Refused as the picker's is. */
+  open(file: File): Promise<void>;
 }
 
 export interface OpenDataCube {
@@ -117,6 +123,9 @@ export interface OpenDataCube {
   readonly taken: readonly string[];
   /** Told how to show a start that failed, once the page can say it (its empty card). */
   readonly settled: { show: (reason: string) => void };
+  /** The page is its host's own, not a tab the app has to itself (an application DataCube is embedded in:
+   *  demo/library.ts): leaving it is the host's to ask about, so the app does not ask the browser to. */
+  readonly embedded?: true;
 }
 
 /** DataCube's app, opened in `o.host` over the host's services. */
@@ -475,6 +484,9 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
   let flowTool: ((tool: FlowTool, after: string | undefined, sheet: string, now: PageDocument, editor: StepEditor | undefined,
     into?: LineEnd, port?: InputPort, at?: FlowPoint, step?: FlowStep) => void) | undefined;
   let flowFile: ((file: File) => void) | undefined;
+  /** A file the host hands over (`DataCubeApp.open`), opened as the picker opens one it is given: set with the
+   *  sources, below. */
+  let openFile!: (file: File) => Promise<void>;
   let flowJoinBox: ((box: string, sheet: string, now: PageDocument) => void) | undefined;
   /** JOIN… (§17.5): grid `cube` joined to another of the page -- in the tab, where a grid reads tables of its database; by
    *  the host, on a host's page (B11). Offered on a grid's menu where `offered` says. */
@@ -805,8 +817,11 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       event.preventDefault();
       event.returnValue = '';
     };
-    window.addEventListener('beforeunload', onLeave);
-    undo.push(() => window.removeEventListener('beforeunload', onLeave));
+    // (a page that is its host's own asks nothing of the browser: leaving it is the host's to ask about)
+    if (!o.embedded) {
+      window.addEventListener('beforeunload', onLeave);
+      undo.push(() => window.removeEventListener('beforeunload', onLeave));
+    }
     // the tab going (closed, navigated away): each copy its grids' host keeps for them asked to be let go -- the host
     // keeps one its page's other editor reads (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.8)
     const onGone = (): void => {
@@ -1719,6 +1734,21 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
         return null;
       }, start);
 
+    // A FILE THE HOST HANDS OVER (DataCubeApp.open: an application DataCube is embedded in), opened as the picker opens
+    // one it is given: in place of an empty page, else a grid beside the page's; one overtaken by another page lands
+    // nothing
+    openFile = async (file) => {
+      if (page.empty) return openInPlace({ kind: 'file', file });
+      const shown = placed;
+      const opened = await sources.opened({ kind: 'file', file }, gridCapped(page.cubes.length + 1));
+      if (placed !== shown) {
+        await opened.discard?.();
+        return;
+      }
+      page.addGrid(opened.make);
+      await page.ready();
+    };
+
     // A BLANK PAGE (New Page; the user, 2026-10-01): every grid and chart goes, and the page
     // says what to do first -- a data source (the picker, opening in place) or a saved page (PageApp's empty page,
     // `empty` above). Asked first when there are unsaved changes; the page stays until the person agrees.
@@ -1972,6 +2002,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       for (const u of undo.splice(0)) u();
       page.dispose();
     },
+    open: (file) => openFile(file),
   };
 
   /** The reason a start opened nothing, said where the page says what is wrong. */

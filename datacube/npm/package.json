@@ -1,0 +1,37 @@
+{
+  "name": "@legend-lite/datacube",
+  "version": "0.1.0",
+  "description": "DataCube in your own application's page: hand it the data you fetched and it takes over -- grids, pivots, charts, joins and exports, planned by legend-lite's compiler and run by DuckDB, both in the page.",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/neema2/legend-lite.git",
+    "directory": "datacube"
+  },
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/datacube.js"
+    },
+    "./styles.css": {
+      "types": "./dist/css.d.ts",
+      "default": "./dist/datacube.css"
+    },
+    "./fonts.css": {
+      "types": "./dist/css.d.ts",
+      "default": "./dist/fonts.css"
+    },
+    "./assets/*": "./assets/*",
+    "./package.json": "./package.json"
+  },
+  "main": "./dist/datacube.js",
+  "module": "./dist/datacube.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "assets",
+    "NOTICE",
+    "THIRD_PARTY_NOTICES.md"
+  ]
+}

@@ -23,5 +23,6 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true
   },
+  "exclude": ["test/package/consumer"],
   "include": ["src", "test", "bench", "demo", "tools", "../depot-client/src", "../engine-client/src", "../engine-client/test", "../pure-protocol/src", "../pure-protocol/test", "../query-store/src", "../query-store/test", "../sdlc-client/src", "../model-changes/src"]
 }

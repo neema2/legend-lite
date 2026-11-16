@@ -1,0 +1,8 @@
+/* THE NPM PACKAGE'S STYLES (library.ts): DataCube's own, which esbuild bundles into the package's dist/datacube.css
+   beside dist/datacube.js (a second entry point of the same bundle, as the notebook's widget.css is: widget-styles.css).
+   Every selector is scoped to DataCube's classes, so nothing else on the application's page changes. No font comes
+   with them: DataCube's rules name Roboto first and the system's sans-serif after it, and the package's fonts.css
+   brings Roboto for an application that wants the same type as DataCube's own site. */
+@import '../src/theme.css';
+@import '../src/grid/grid.css';
+@import '../src/app.css';

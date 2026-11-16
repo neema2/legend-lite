@@ -3,6 +3,16 @@
 This file says who is working, on what files, in what order, and the rules between sessions; each line's status lives
 in its own plan (plan rule 0b.16).
 
+**The npm package, 2026-11-15 (a contributor's branch, `worktree-make_packageable_claude`; for a PR, not pushed to
+`main`):** DataCube for another application's page. `//datacube:npm_package` builds the folder npm packs or publishes
+(`@legend-lite/datacube`: `datacube/npm/`, its entry `datacube/demo/library.ts` and types `demo/library-api.ts`, its page for a reader
+`datacube/npm/README.md`), held by `//datacube:npm_package_test`, `:npm_types_tests` and `:npm_package_browser_test`
+(in `//datacube:tests` and `//datacube:browser`, so in the `datacube` lane). Beyond its own new files it touches
+`datacube/src/app/datacube-app.ts` (a `blank` start, `DataCubeApp.open(file)`, `OpenDataCube.embedded`),
+`engine-client/src/duckdb-tab.ts` (`DuckDbInTab.close()`), `datacube/tsconfig.json` and `datacube/BUILD.bazel`. Nothing
+publishes, and nothing is decided for the owner: the name, the scope, the registry and the act of publishing stay the
+owner's (`docs/ONE_PLATFORM_PROGRAM_2026_10_12.md` §H).
+
 **The goals of record, P1, 2026-11-08 (branch `claude/corpus-walk-deletion`):** the plan as data, designed and ruled in
 `docs/PLAN_AS_DATA_2026_11_07.md`; step 0 under way (the census moved to `diagnostics`). It touches `core/` widely
 (driver, judge, exec, testplan, executionplan, planner) over its steps, and lands in slices through PRs on the user's

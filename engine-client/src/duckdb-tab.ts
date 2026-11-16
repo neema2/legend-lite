@@ -55,6 +55,10 @@ export interface DuckDbInTab {
   /** The settings a remote file's mount made on a connection (a bearer URL's session variable: B3's Q3), kept for the
    *  tab's database and replayed on every connection `connect` opens. */
   readonly settings: ConnectionSettings;
+  /** The database ended: its worker stopped, and everything it held gone with it. For a host that takes its page down
+   *  while the tab lives on (DataCube embedded in another application's page: datacube/demo/library.ts); a tab that
+   *  closes needs no call. */
+  close(): Promise<void>;
 }
 
 /**
@@ -137,5 +141,6 @@ export async function connectDuckDbInTab(database: TabDatabase, setup: TabSetup)
     db: new TabFiles(db),
     connect,
     settings,
+    close: () => db.terminate(),
   };
 }
