@@ -69,3 +69,13 @@ round. Until then, the pass stays in CI.
 
 **Why.** The upstream-fidelity tenet: lite does exactly what upstream does wherever possible. Removing a divergence
 needs no row; keeping it would have needed one. This is commit `176eaf3251`.
+
+## Corrections
+
+**C1 (2026-11-16): D1's ledger effect was +13, not −1.**
+
+- Commits `176eaf3251` and `a60462ce55` said "net −1" and "4,415".
+- Measured: Equality 452 → 360 (−92), and TestAssertions newly pinned at 105, so +13. The 105 holds TestAssertions'
+  existing wrapper, now counted, and a copy of the `decimal` helper.
+- The running residue in E-Java's files is 4,448 + 13 (D1) − 3 (D3) − 26 (dead code) = **4,432**.
+- D1's purpose was correctness (exact decimals, as upstream), not size.
