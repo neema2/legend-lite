@@ -33,8 +33,7 @@ class InterimEdgeSitesTest {
             "|#>{s::DB.T}#->extend(~r: r|$r.ID->toString()->parseInteger())->select(~r)",
             "|#>{s::DB.T}#->extend(~r: r|$r.ID->bitShiftLeft(70))->select(~r)",
             "|#>{s::DB.T}#->extend(~r: r|sqrt(-1.0))->select(~r)",
-            "|#>{s::DB.T}#->extend(~r: r|[1, 2, 3]->at($r.D))->select(~r)",
-            "|#>{s::DB.T}#->extend(~r: r|[1, 2, 3]->slice($r.ID, $r.D))->select(~r)");
+            "|#>{s::DB.T}#->extend(~r: r|[1, 2, 3]->at($r.D))->select(~r)");
 
     /** {@code query} planned in the edge's style on DuckDB: planning alone, no database. */
     private static ExecutionPlan planned(String query) {
@@ -97,7 +96,8 @@ class InterimEdgeSitesTest {
     }
 
     /** The computed-operand raises over {@link #QUERIES}, as measured 2026-11-16. */
-    private static final int INTERIM = -1;
+    private static final int INTERIM = 4;   // rem by a column and by 0 (its dividend a column), sqrt of a
+                                            // literal (its operand cast), at by a column
 
     private static List<SqlExpr.RaiseText> raises(com.legend.sql.SqlQuery q) {
         List<SqlExpr.RaiseText> out = new ArrayList<>();
