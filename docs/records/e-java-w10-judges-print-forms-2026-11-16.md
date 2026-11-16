@@ -40,10 +40,28 @@ applies the same principle to the judges: no legend-pure print form is computed 
    such a body by name, or the edge parses at run as an appeal) go to the decision log with the counts, for the
    user's end batch, without stopping.
 
+## Condition 5 measured: deferred goldens (2026-11-16)
+
+A deferred golden is a rendered-text golden that is not a constant of the plan (read from a store at the step); the
+database judge leaves it UNJUDGED as "rendered-text: the golden is not a string constant"
+(`AssertVerdicts.renderedValueVerdict`). Counted with `-Dlegend.diagnostics=judge-declines`:
+
+| Lane | Deferred goldens | How |
+|---|---|---|
+| PCT channel B, DuckDB, all five suites | 0 | the diagnostic over the five suites |
+| The relational corpus, DuckDB | 0 | its database judge leaves nothing UNJUDGED (ceiling 0) |
+| The relational corpus, H2 | 0 | each of its 45 UNJUDGED tests run alone (`//spec:corpus_one h2 database <test>`): 40 `assertEquals` null-canon-cell, 5 `assertJsonStringsEqual` JSON not byte-equal |
+
+**Decision.** None exist, so step 3 parses every rendered-text golden at planning, and nothing goes to the user's
+batch. A golden that is not a constant stays refused by name, as today (UNJUDGED under the database judge).
+
+Side finding: the H2 corpus's UNJUDGED count is 45 against its ceiling of 46 (headroom, to re-pin with the next
+change to that lane).
+
 ## State
 
 | Step | State |
 |---|---|
-| 1. Messages | next, beside W9's seam |
+| 1. Messages | approved 2026-11-16 as on-failure side reads (the orchestrator's five conditions); building |
 | 2. Typed comparisons | after 1 |
 | 3. Parsed goldens | after 2 |
