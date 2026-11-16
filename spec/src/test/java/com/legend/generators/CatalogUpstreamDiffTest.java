@@ -226,8 +226,9 @@ class CatalogUpstreamDiffTest {
      *  overload, a row's values in several columns as one list without its empty cells, so the timeseries library's
      *  someValued is one function where it was twelve overloads (an answer's 12-column cap); upstream's ColSpecArray is
      *  names alone and no function of either pinned tree takes a row and one (checked per name 2026-11-02), and a list
-     *  literal of [0..1] elements, [$r.a, $r.b], is refused there. */
-    private static final int NOT_UPSTREAM_MAX = 70;
+     *  literal of [0..1] elements, [$r.a, $r.b], is refused there. 71 on 2026-11-13 (S308): meta::legend::lite::erf,
+     *  Gaussian error function on the lite surface (Pure.Lite.ERF); upstream math package has no erf. */
+    private static final int NOT_UPSTREAM_MAX = 71;
     private static final int MISSING_MAX = 191;
     private static final int UNREADABLE_MAX = 16;
 

@@ -75,6 +75,7 @@ Database types planned with it: H2.
 | `LOG10` | spelled | `log10` |  | 2 |
 | `POW` | spelled | `power` |  | 9 |
 | `PI` | spelled | `pi` |  | 1 |
+| `ERF` | not_here | `ERF must be lowered by ErfMath.Expansion before rendering` | `via AnsiSqlRenderer.erfApprox` | 0 |
 | `SIN` | spelled | `sin` |  | 3 |
 | `COS` | spelled | `cos` |  | 3 |
 | `TAN` | spelled | `tan` |  | 2 |
@@ -266,6 +267,7 @@ Database types planned with it: Postgres.
 | `LOG10` | emulated | `log10(CAST(… AS DOUBLE PRECISION))` |  | 2 |
 | `POW` | emulated | `power(CAST(… AS DOUBLE PRECISION), CAST(… AS DOUBLE PRECISION))` |  | 9 |
 | `PI` | spelled | `pi` |  | 1 |
+| `ERF` | spelled | `erf` |  | 0 |
 | `SIN` | spelled | `sin` |  | 3 |
 | `COS` | spelled | `cos` |  | 3 |
 | `TAN` | spelled | `tan` |  | 2 |
@@ -457,6 +459,7 @@ Database types planned with it: Snowflake.
 | `LOG10` | emulated | `LOG(10, …)` |  | 2 |
 | `POW` | spelled | `power` |  | 9 |
 | `PI` | spelled | `pi` |  | 1 |
+| `ERF` | not_here | `ERF must be lowered by ErfMath.Expansion before rendering` | `via AnsiSqlRenderer.erfApprox` | 0 |
 | `SIN` | spelled | `sin` |  | 3 |
 | `COS` | spelled | `cos` |  | 3 |
 | `TAN` | spelled | `tan` |  | 2 |
@@ -648,6 +651,7 @@ Database types planned with it: Trino.
 | `LOG10` | spelled | `log10` |  | 2 |
 | `POW` | spelled | `power` |  | 9 |
 | `PI` | spelled | `pi` |  | 1 |
+| `ERF` | emulated | `composed in a block` |  | 0 |
 | `SIN` | spelled | `sin` |  | 3 |
 | `COS` | spelled | `cos` |  | 3 |
 | `TAN` | spelled | `tan` |  | 2 |
@@ -839,6 +843,7 @@ Database types planned with it: BigQuery.
 | `LOG10` | emulated | `LOG10(CAST(… AS FLOAT64))` |  | 2 |
 | `POW` | emulated | `POW(CAST(… AS FLOAT64), CAST(… AS FLOAT64))` |  | 9 |
 | `PI` | emulated | `ACOS(-1)` |  | 1 |
+| `ERF` | not_here | `ERF must be lowered by ErfMath.Expansion before rendering` | `via AnsiSqlRenderer.erfApprox` | 0 |
 | `SIN` | spelled | `SIN` |  | 3 |
 | `COS` | spelled | `COS` |  | 3 |
 | `TAN` | spelled | `TAN` |  | 2 |
@@ -1030,6 +1035,7 @@ Database types planned with it: Databricks.
 | `LOG10` | spelled | `log10` |  | 2 |
 | `POW` | spelled | `power` |  | 9 |
 | `PI` | spelled | `pi` |  | 1 |
+| `ERF` | not_here | `ERF must be lowered by ErfMath.Expansion before rendering` | `via AnsiSqlRenderer.erfApprox` | 0 |
 | `SIN` | spelled | `sin` |  | 3 |
 | `COS` | spelled | `cos` |  | 3 |
 | `TAN` | spelled | `tan` |  | 2 |
@@ -1221,6 +1227,7 @@ Database types planned with it: DuckDB.
 | `LOG10` | spelled | `log10` |  | 2 |
 | `POW` | spelled | `power` |  | 9 |
 | `PI` | spelled | `pi` |  | 1 |
+| `ERF` | not_here | `ERF must be lowered by ErfMath.Expansion before rendering` | `via AnsiSqlRenderer.erfApprox` | 0 |
 | `SIN` | spelled | `sin` |  | 3 |
 | `COS` | spelled | `cos` |  | 3 |
 | `TAN` | spelled | `tan` |  | 2 |
@@ -1412,6 +1419,7 @@ Database types planned with it: ClickHouse.
 | `LOG10` | spelled | `log10` |  | 2 |
 | `POW` | spelled | `pow` |  | 9 |
 | `PI` | spelled | `pi` |  | 1 |
+| `ERF` | spelled | `erf` |  | 0 |
 | `SIN` | spelled | `sin` |  | 3 |
 | `COS` | spelled | `cos` |  | 3 |
 | `TAN` | spelled | `tan` |  | 2 |
@@ -1603,6 +1611,7 @@ Database types planned with it: SQLite.
 | `LOG10` | spelled | `log10` |  | 2 |
 | `POW` | spelled | `pow` |  | 9 |
 | `PI` | spelled | `pi` |  | 1 |
+| `ERF` | not_here | `ERF must be lowered by ErfMath.Expansion before rendering` | `via AnsiSqlRenderer.erfApprox` | 0 |
 | `SIN` | spelled | `sin` |  | 3 |
 | `COS` | spelled | `cos` |  | 3 |
 | `TAN` | spelled | `tan` |  | 2 |
@@ -1794,6 +1803,7 @@ Database types planned with it: MariaDB.
 | `LOG10` | spelled | `log10` |  | 2 |
 | `POW` | spelled | `POW` |  | 9 |
 | `PI` | emulated | `(PI() + 0.0E0)` |  | 1 |
+| `ERF` | not_here | `ERF must be lowered by ErfMath.Expansion before rendering` | `via AnsiSqlRenderer.erfApprox` | 0 |
 | `SIN` | spelled | `sin` |  | 3 |
 | `COS` | spelled | `cos` |  | 3 |
 | `TAN` | spelled | `tan` |  | 2 |
@@ -1985,6 +1995,7 @@ Database types planned with it: MySQL.
 | `LOG10` | spelled | `log10` | `as MariaDb` | 2 |
 | `POW` | spelled | `POW` | `as MariaDb` | 9 |
 | `PI` | emulated | `(PI() + 0.0E0)` | `as MariaDb` | 1 |
+| `ERF` | not_here | `ERF must be lowered by ErfMath.Expansion before rendering` | `as MariaDb, via AnsiSqlRenderer.erfApprox` | 0 |
 | `SIN` | spelled | `sin` | `as MariaDb` | 3 |
 | `COS` | spelled | `cos` | `as MariaDb` | 3 |
 | `TAN` | spelled | `tan` | `as MariaDb` | 2 |
@@ -2176,6 +2187,7 @@ Database types planned with it: MongoDB.
 | `LOG10` | emulated | `op1: $log10` |  | 0 |
 | `POW` | emulated | `guarded: {"$pow": [{"$toDouble": , }, , ]}` |  | 0 |
 | `PI` | emulated | `{"$numberDouble": "3.141592653589793"}` |  | 0 |
+| `ERF` | not_here | `ERF must be lowered by ErfMath.Expansion before rendering` | `via AnsiSqlRenderer.erfApprox` | 0 |
 | `SIN` | emulated | `op1: $sin` |  | 0 |
 | `COS` | emulated | `op1: $cos` |  | 0 |
 | `TAN` | emulated | `op1: $tan` |  | 0 |
@@ -2367,6 +2379,7 @@ Database types planned with it: no database type's own (it extends `AnsiSqlRende
 | `LOG10` | spelled | `log10` |  | — |
 | `POW` | spelled | `power` |  | — |
 | `PI` | spelled | `pi` |  | — |
+| `ERF` | not_here | `ERF must be lowered by ErfMath.Expansion before rendering` | `via AnsiSqlRenderer.erfApprox` | — |
 | `SIN` | spelled | `sin` |  | — |
 | `COS` | spelled | `cos` |  | — |
 | `TAN` | spelled | `tan` |  | — |
@@ -2558,6 +2571,7 @@ Database types planned with it: no database type's own (it extends `EngineStyleH
 | `LOG10` | spelled | `log10` | `as EngineStyleH2` | — |
 | `POW` | spelled | `power` | `as EngineStyleH2` | — |
 | `PI` | spelled | `pi` | `as EngineStyleH2` | — |
+| `ERF` | not_here | `ERF must be lowered by ErfMath.Expansion before rendering` | `as EngineStyleH2, via AnsiSqlRenderer.erfApprox` | — |
 | `SIN` | spelled | `sin` | `as EngineStyleH2` | — |
 | `COS` | spelled | `cos` | `as EngineStyleH2` | — |
 | `TAN` | spelled | `tan` | `as EngineStyleH2` | — |
@@ -2749,6 +2763,7 @@ Database types planned with it: no database type's own (it extends `EngineStyleD
 | `LOG10` | spelled | `log10` | `as EngineStyleDB2, as EngineStyleH2` | — |
 | `POW` | spelled | `power` | `as EngineStyleDB2, as EngineStyleH2` | — |
 | `PI` | spelled | `pi` | `as EngineStyleDB2, as EngineStyleH2` | — |
+| `ERF` | not_here | `ERF must be lowered by ErfMath.Expansion before rendering` | `as EngineStyleDB2, as EngineStyleH2, via AnsiSqlRenderer.erfApprox` | — |
 | `SIN` | spelled | `sin` | `as EngineStyleDB2, as EngineStyleH2` | — |
 | `COS` | spelled | `cos` | `as EngineStyleDB2, as EngineStyleH2` | — |
 | `TAN` | spelled | `tan` | `as EngineStyleDB2, as EngineStyleH2` | — |

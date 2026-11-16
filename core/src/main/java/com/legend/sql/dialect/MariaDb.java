@@ -1983,6 +1983,7 @@ public class MariaDb extends AnsiSqlRenderer {
             // the text some fifty times, each read this dialect's long text of a double (545 KB for a five-element
             // mixed list, measured 2026-10-11)
             case FLOAT_CANON -> writer.piece(floatLayout(w -> w.expr(a.get(0), 0), true));
+            case ERF -> erfApprox(writer, a, parentPrec);
             case FLOAT_PRINT -> floatPrintByText(writer, c, parentPrec);
             // NULL-skipping, as DuckDB's (MariaDB's GREATEST/LEAST are NULL for any NULL argument)
             case GREATEST -> writer.piece(nullSkipping("GREATEST", a));

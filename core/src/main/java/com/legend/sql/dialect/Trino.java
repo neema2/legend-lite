@@ -87,6 +87,11 @@ public final class Trino extends AnsiSqlRenderer {
      *  such digits ({@code parse_datetime}, milliseconds), a format that asks for them is refused by name. The engine
      *  reads every database timestamp as nine digits ({@code JdbcDecode}), so no answer's text moves. */
     @Override
+    protected boolean spellsErf() {
+        return true;
+    }
+
+    @Override
     protected int literalFractionDigits() {
         return 9;
     }
@@ -953,6 +958,12 @@ public final class Trino extends AnsiSqlRenderer {
             // Pure's divide is a Float division: both operands DOUBLE
             case DIVIDE -> divideAsDoubles(writer, c.args());
             case FLOAT_CANON -> floatCanonByText(writer, c.args(), parentPrec);
+            case ERF -> {
+                writer.append("(2 * normal_cdf(0, 0.7071067811865475, ");
+                writer.expr(new SqlExpr.Cast(c.args().get(0), SqlType.Scalar.DOUBLE), 0);
+                writer.append(") - 1)");
+                yield writer;
+            }
             case FLOAT_PRINT -> floatPrintByText(writer, c, parentPrec);
             // the hooks: this dialect's own (or the base's refusal)
             case ROUND -> roundHalfEven(writer, c.args());
