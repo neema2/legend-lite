@@ -91,10 +91,15 @@ public final class ProductRun {
             // a query reading the metamodel alone, answered on the process's catalog (L4's product half, 2026-11-10):
             // the run's turn on it, the model's registration inside it, rolled back when the run ends -- never the
             // caller's session, which holds no catalog
+            // its rows kept while the run holds the catalog's turn, and written to the caller's sink once the turn
+            // is released: the catalog is held for the database's work alone, never for however long the caller's
+            // sink takes (C5-J's batch, 4(c), 2026-11-16; a catalog answer is a metamodel read)
+            Recorded recorded = new Recorded();
             try (SystemDatabase.Leases leases = SystemDatabase.leases()) {
                 PlanRunner.stream(plan, Map.of(), PlanSessions.admitting(PlanSessions.system(leases),
-                        planSessions.admitted()), sink, batchRows, execution);
+                        planSessions.admitted()), recorded, batchRows, execution);
             }
+            recorded.replayInto(sink);
             return;
         }
         try (Sessions.Session session = sessions.open(target)) {
@@ -140,6 +145,47 @@ public final class ProductRun {
             }
         }
         throw new IllegalStateException("a plan that writes sends a statement");
+    }
+
+    /** What a run wrote, in its order, kept to be written to another sink after the run's resources are released:
+     *  the batches are immutable once built ({@link com.legend.result.Batch}). */
+    private static final class Recorded implements ResultSink {
+        private interface Step {
+            void into(ResultSink sink) throws IOException;
+        }
+
+        private final java.util.List<Step> steps = new java.util.ArrayList<>();
+
+        @Override
+        public void answers(ExecutionPlan.TdsResult.Shape shape) {
+            steps.add(s -> s.answers(shape));
+        }
+
+        @Override
+        public void execution(java.util.UUID id) {
+            steps.add(s -> s.execution(id));
+        }
+
+        @Override
+        public void columns(java.util.List<ExecutionPlan.Column> columns) {
+            steps.add(s -> s.columns(columns));
+        }
+
+        @Override
+        public void batch(com.legend.result.Batch batch) {
+            steps.add(s -> s.batch(batch));
+        }
+
+        @Override
+        public void end() {
+            steps.add(ResultSink::end);
+        }
+
+        void replayInto(ResultSink sink) throws IOException {
+            for (Step step : steps) {
+                step.into(sink);
+            }
+        }
     }
 
     /** A constant answer's sessions: it sends no statement, so none is opened (until slice 5 the door opened the

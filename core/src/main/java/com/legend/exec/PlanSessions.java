@@ -411,7 +411,15 @@ public final class PlanSessions {
                 yield switch (Sessions.openingFor(d.connection())) {
                     case Sessions.Opening.Url u -> {
                         refuseFill(target, d, "a database reached by a URL");
-                        yield Sessions.open(u, connector, target.settings());
+                        if (target.loads().isEmpty()) {
+                            yield Sessions.open(u, connector, target.settings());
+                        }
+                        // its acquisition loads (the declared test data, dropped and made on every request) run one
+                        // request at a time: one kept connection per database, served behind its lock (C5-J's batch,
+                        // 4(a), 2026-11-16: the server's requests run concurrently since then, and two requests'
+                        // drops, makes and reads interleaved on a fresh connection each)
+                        yield Sessions.locked(PROJECTS.getOrOpenSlowly(databaseKey("url", u.url(), target),
+                                Sessions::closed, () -> Sessions.open(u, connector, target.settings())));
                     }
                     // a named in-memory database is kept alive by its name: the user's, else one per project and
                     // connection (D5), made once with the project's Data; its maker is the kept session, served one
@@ -419,9 +427,15 @@ public final class PlanSessions {
                     // until then each use opened a new, unlocked connection to it, so two requests' drops, makes and
                     // inserts interleaved)
                     case Sessions.Opening.Named n -> {
-                        if (n.name() != null) {
-                            refuseFill(target, d, "an in-memory database the user named ('" + n.name() + "')");
-                            yield Sessions.openNamed(n, n.name(), target.settings());
+                        String usersName = n.name();
+                        if (usersName != null) {
+                            refuseFill(target, d, "an in-memory database the user named ('" + usersName + "')");
+                            // the user's database, kept by its name as the unnamed one is by its project: one
+                            // connection, one request at a time, so a request's acquisition loads never run under
+                            // another's reads (C5-J's batch, 4(a), 2026-11-16)
+                            yield Sessions.locked(PROJECTS.getOrOpenSlowly(databaseKey("memory "
+                                    + connector.type(), usersName, target), Sessions::closed,
+                                    () -> Sessions.openNamed(n, usersName, target.settings())));
                         }
                         String name = "c_" + key.hex().substring(0, 16);
                         yield Sessions.locked(PROJECTS.getOrOpenSlowly(key, Sessions::closed,
@@ -432,6 +446,13 @@ public final class PlanSessions {
                 };
             }
         };
+    }
+
+    /** The keeping key of a database the user's declaration reaches ({@code kind}: a URL or a named in-memory
+     *  database; {@code name}: its URL or name) with the target's settings: one kept connection per database the
+     *  user names, whichever project reads it, so its requests are served one at a time. */
+    private static Hash databaseKey(String kind, String name, ExecutionPlan.Target target) {
+        return Hash.ofUtf8(kind + "\n" + name + "\n" + target.settings());
     }
 
     /**

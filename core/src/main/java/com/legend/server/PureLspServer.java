@@ -21,9 +21,12 @@ import java.util.*;
  */
 public class PureLspServer {
 
+    /** The open documents, guarded by this server's monitor: every message changes them and then reads them all to
+     *  publish diagnostics, so a message is handled whole, one at a time (C5-J's batch, 4(a), 2026-11-16: the HTTP
+     *  server handles requests concurrently since then, and two didChange messages raced on this map). */
     private final Map<String, String> documents = new HashMap<>();
 
-    public List<String> handleMessage(String messageJson) {
+    public synchronized List<String> handleMessage(String messageJson) {
         Json.Obj message;
         try {
             message = Json.parseObject(messageJson);
@@ -273,6 +276,6 @@ public class PureLspServer {
         return Json.toCompact(response);
     }
 
-    public @com.legend.base.Nullable String getDocument(String uri) { return documents.get(uri); }
-    public boolean hasDocument(String uri) { return documents.containsKey(uri); }
+    public synchronized @com.legend.base.Nullable String getDocument(String uri) { return documents.get(uri); }
+    public synchronized boolean hasDocument(String uri) { return documents.containsKey(uri); }
 }

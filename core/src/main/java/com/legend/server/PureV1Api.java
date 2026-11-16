@@ -1257,13 +1257,18 @@ public final class PureV1Api {
      *   <li>a malformed request, or the database refusing: 500, no {@code errorType}, the
      *       message naming the exception;</li>
      *   <li>anything else is a BUG: logged whole, answered 500 the same way -- never a
-     *       dropped connection.</li>
+     *       dropped connection. An {@link Error} is answered too (an OutOfMemoryError, an assertion: C5-J's batch,
+     *       4(b), 2026-11-16 -- until then only a StackOverflowError was, and any other Error left the exchange
+     *       unanswered), save the runtime wall's refusal ({@link com.legend.base.RunScope.Refused}), which no
+     *       answer may take: a crossing is lite's bug, never a call's outcome.</li>
      * </ul>
      */
     static Answer answer(int status, @com.legend.base.Nullable String errorType, Supplier<String> call) {
         try {
             return new Answer(200, call.get());
-        } catch (RuntimeException | StackOverflowError e) {
+        } catch (com.legend.base.RunScope.Refused crossing) {
+            throw crossing;
+        } catch (RuntimeException | Error e) {
             if (e instanceof com.legend.testdatagen.TestDataPlanner.Unseeded u) {
                 return TestDataRoutes.unseeded(u);
             }

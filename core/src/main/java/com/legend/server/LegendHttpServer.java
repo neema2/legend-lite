@@ -40,6 +40,9 @@ import java.util.regex.Pattern;
 public class LegendHttpServer {
 
     private final HttpServer server;
+    /** The requests' threads, one virtual thread each ({@link #start}). */
+    private final java.util.concurrent.ExecutorService requests =
+            java.util.concurrent.Executors.newVirtualThreadPerTaskExecutor();
     private final PureLspServer lspServer;
     private final Origins origins;
     /** The saved-query store {@code --query-store DIR} names, or null (its calls are then refused). */
@@ -117,7 +120,10 @@ public class LegendHttpServer {
         }
     }
 
-    /** Every route passes the origin check first; a refused origin never reaches a handler. */
+    /** Every route passes the origin check first; a refused origin never reaches a handler. A handler that throws
+     *  -- an Error included -- is answered 500 when it has sent nothing yet, never left unanswered (C5-J's batch,
+     *  4(b), 2026-11-16: the JDK server drops an exchange whose handler throws, and the client waits on a dead
+     *  connection). */
     private void route(String path, HttpHandler handler) {
         server.createContext(path, exchange -> {
             String origin = exchange.getRequestHeaders().getFirst("Origin");
@@ -126,8 +132,28 @@ public class LegendHttpServer {
                         "{\"error\":\"origin not allowed: " + Json.escape(origin) + "\"}");
                 return;
             }
-            handler.handle(exchange);
+            try {
+                handler.handle(exchange);
+            } catch (Throwable e) {
+                answerFailure(exchange, e);
+            }
         });
+    }
+
+    /** A handler's failure, answered 500 with its name when the exchange has sent nothing; once its headers are out
+     *  the answer is already under way, and the exchange is closed. */
+    static void answerFailure(HttpExchange exchange, Throwable e) throws IOException {
+        if (!(e instanceof IOException)) {
+            e.printStackTrace();
+        }
+        try {
+            if (exchange.getResponseCode() == -1) {
+                sendResponse(exchange, 500, "{\"error\":\"" + Json.escape(e.getClass().getSimpleName() + ": "
+                        + e.getMessage()) + "\"}");
+            }
+        } finally {
+            exchange.close();
+        }
     }
 
     private void setupRoutes() {
@@ -395,14 +421,19 @@ public class LegendHttpServer {
         }
     }
 
+    /** Each request on its own virtual thread (C5-J's batch, 4(a), 2026-11-16): until then the JDK server had no
+     *  executor and ran every request on its one dispatcher thread, so a request that did not finish -- a client that
+     *  sent its headers and never its body, a long query -- held every route. A database's work stays one request at
+     *  a time behind its session's lock (PlanSessions); the LSP's documents behind PureLspServer's monitor. */
     public void start() {
-        server.setExecutor(null);
+        server.setExecutor(requests);
         server.start();
         System.out.println("Legend HTTP server started on port " + server.getAddress().getPort());
     }
 
     public void stop() {
         server.stop(0);
+        requests.shutdownNow();
     }
 
     public int getPort() {
