@@ -102,6 +102,171 @@ public final class PureMessages {
         };
     }
 
+    /**
+     * Whether the edge words {@code r}'s upstream sentence AT PLANNING (phase D's Phase 2, raises as SITES, 2026-11-16):
+     * a raise (not a checked graph's defect text, not a user's {@code fail}) whose operands are all literals the
+     * sentence prints exactly as the SQL sentence did ({@link #words}). Any other is the INTERIM: its sentence stays in
+     * SQL ({@link #sentence}), no site, until the user rules on a computed operand (the design note's §5.3).
+     */
+    public static boolean wordable(SqlExpr.RaiseText r) {
+        return r.asData() == null && r.kind() != com.legend.sql.RaiseKind.USER_FAIL
+                && wordsOrNull(r.kind(), r.operands()) != null;
+    }
+
+    /** legend-pure's sentence of a site of {@code kind} raised from {@code operands}, worded in Java at planning, byte
+     *  for byte as {@link #sentence} spells it in SQL; an operand it cannot word refused by name (the edge's dialect
+     *  writes such a site's sentence in SQL instead, {@link #wordable}). */
+    public static String words(com.legend.sql.RaiseKind kind, java.util.List<SqlExpr> operands) {
+        String words = wordsOrNull(kind, operands);
+        if (words == null) {
+            throw new IllegalStateException("legend-pure's sentence of a " + kind + " site is worded at planning from"
+                    + " literal operands, and this site's are " + operands + ": the edge's dialect writes it in SQL");
+        }
+        return words;
+    }
+
+    /** {@link #words}, or null where an operand is not a literal printed exactly. Each arm mirrors {@link #sentence}'s,
+     *  its operand at the same place: a text the planner knew as it is ({@code text}), a value as the database's cast
+     *  to text writes it ({@code str}: an Integer's digits, a date's ISO day, a text itself), a Float as legend-pure
+     *  prints it ({@code FLOAT_PRINT}). */
+    private static @com.legend.base.Nullable String wordsOrNull(com.legend.sql.RaiseKind kind,
+            java.util.List<SqlExpr> o) {
+        for (SqlExpr x : o) {
+            if (!(x instanceof SqlExpr.StringLit || x instanceof SqlExpr.IntLit || x instanceof SqlExpr.FloatLit
+                    || x instanceof SqlExpr.DecimalLit || x instanceof SqlExpr.DateLit
+                    || x instanceof SqlExpr.TimestampLit)) {
+                return null;   // a computed operand: the interim
+            }
+        }
+        return switch (kind) {
+            case USER_FAIL -> null;
+            case DIVIDE_BY_ZERO -> o.isEmpty() ? "Division by zero" : join("Cannot divide ", str(o, 0), " by zero");
+            case SHIFT_OUT_OF_RANGE -> "Unsupported number of bits to shift - max bits allowed is 62";
+            case DATE_PART_ABSENT -> join("Cannot get ", text(o, 0), " for ", str(o, 1));
+            case INDEX_OUT_OF_BOUNDS -> join("The system is trying to get an element at offset ", str(o, 0),
+                    " where the collection is of size ", str(o, 1));
+            case INSERT_OUT_OF_BOUNDS -> "add(set, index, value): index out of bounds";
+            case SQRT_OF_NEGATIVE -> o.get(0) instanceof SqlExpr.FloatLit f
+                    ? "Unable to compute sqrt of " + pureFloat(f.value()) : null;
+            case SIZE_NOT_MULTIPLICITY -> o.size() == 1
+                    ? join("Cannot cast a collection of size 0 to multiplicity ", text(o, 0))
+                    : join("Cannot cast a collection of size ", str(o, 1), " to multiplicity ", text(o, 0));
+            case SLICE_BOUNDS_INVERTED -> join("The low bound (", str(o, 0), ") can't be higher than the high bound (",
+                    str(o, 1), ") in a slice operation");
+            case DATE_COMPONENT_INVALID -> dateComponentWords(o);
+            case VALUE_NOT_HELD, FRACTION_NOT_KEPT, CSV_TOO_WIDE -> {
+                StringBuilder parts = new StringBuilder();
+                for (int i = 0; i < o.size(); i++) {
+                    String part = o.get(i) instanceof SqlExpr.StringLit t ? t.value() : str(o, i);
+                    if (part == null) {
+                        break;
+                    }
+                    parts.append(part);
+                }
+                yield allWorded(o) ? parts.toString() : null;
+            }
+            case CAST_IMPOSSIBLE -> join("Cast exception: ", text(o, 0), " cannot be cast to ", text(o, 1));
+            case INSTANCE_NOT_OF -> join("Cast exception: ", text(o, 0), " is not a ", text(o, 1));
+            case MATCH_FAILURE -> matchFailure(text(o, 0), text(o, 1));
+            case RANGE_STEP_ZERO -> "range step must not be 0";
+            case WINDOW_FRAME_INVERTED -> "Invalid window frame boundary - lower bound of window"
+                    + " frame cannot be greater than the upper bound!";
+            case WINDOW_FRAME_OFFSET_INVALID -> "Invalid window frame boundary - a window frame"
+                    + " bound written -(n) is n before the current row and any other n after it, so a computed n must"
+                    + " be neither negative nor empty (docs/SEMANTICS_REGISTER.md S170)";
+            case LIST_LENGTHS_DIFFER -> join(text(o, 0), ": the two value lists differ in length");
+            case CONSTRAINT_UNEVALUABLE -> join("Unable to evaluate constraint [", text(o, 0),
+                    "]: data not available - check your mappings");
+            case MAP_KEYS_MISALIGNED -> "The map key list does not align with the map value list.";
+            case MAP_KEY_NULL -> "Map keys can not be NULL.";
+            case MAP_KEYS_NOT_UNIQUE -> "Map keys must be unique.";
+            case TEXT_NOT_INTEGER -> join("Could not convert string '", text(o, 0), "' to INT64");
+            case TEXT_NOT_DATE -> join("Could not parse '", text(o, 0), "' as a date");
+        };
+    }
+
+    /** {@code MATCH_FAILURE}'s words: the value's type, and the arms where the resolver's dispatch read them. */
+    private static @com.legend.base.Nullable String matchFailure(@com.legend.base.Nullable String type,
+            @com.legend.base.Nullable String arms) {
+        if (arms == null) {
+            return null;
+        }
+        return arms.isEmpty() ? join("Match failure: ", type, " matches no branch")
+                : "Match failure: no arm of [" + arms + "] accepts the row's run-time type";
+    }
+
+    /** Whether every one of {@code o} is worded exactly as a part ({@code parts}' rule: a text, or {@link #str}'s). */
+    private static boolean allWorded(java.util.List<SqlExpr> o) {
+        for (int i = 0; i < o.size(); i++) {
+            if (!(o.get(i) instanceof SqlExpr.StringLit) && str(o, i) == null) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** {@link #dateComponent}'s words in Java, or null where its value is the database's text of a computed one. */
+    private static @com.legend.base.Nullable String dateComponentWords(java.util.List<SqlExpr> o) {
+        if (o.size() == 4) {
+            return o.get(1) instanceof SqlExpr.IntLit y && o.get(2) instanceof SqlExpr.IntLit m
+                    && o.get(3) instanceof SqlExpr.IntLit d ? "Invalid day: " + y.value() + "-" + m.value() + "-"
+                    + d.value() : null;
+        }
+        String head = text(o, 0) == null ? null : "Invalid " + text(o, 0) + ": ";
+        if (head == null) {
+            return null;
+        }
+        return switch (o.get(1)) {
+            case SqlExpr.IntLit lit -> head + lit.value();
+            case SqlExpr.FloatLit fl -> head + java.math.BigDecimal.valueOf(fl.value()).toPlainString();
+            case SqlExpr.DecimalLit dl -> head + dl.value().toPlainString();
+            default -> join(head, str(o, 1));
+        };
+    }
+
+    /** {@code parts} as one text, or null where any is (an operand not worded exactly). */
+    private static @com.legend.base.Nullable String join(@com.legend.base.Nullable String... parts) {
+        StringBuilder out = new StringBuilder();
+        for (String p : parts) {
+            if (p == null) {
+                return null;
+            }
+            out.append(p);
+        }
+        return out.toString();
+    }
+
+    /** Operand {@code i}, a text the planner knew; null where it is not one. */
+    private static @com.legend.base.Nullable String text(java.util.List<SqlExpr> o, int i) {
+        return i < o.size() && o.get(i) instanceof SqlExpr.StringLit t ? t.value() : null;
+    }
+
+    /** Operand {@code i}'s text as the database's cast to text writes it, where Java writes the same: a text, an
+     *  Integer's digits, a date's ISO day; null for any other (a Float's or a decimal's or a timestamp's text is the
+     *  database's own, so its site stays in SQL). */
+    private static @com.legend.base.Nullable String str(java.util.List<SqlExpr> o, int i) {
+        if (i >= o.size()) {
+            return null;
+        }
+        return switch (o.get(i)) {
+            case SqlExpr.StringLit t -> t.value();
+            case SqlExpr.IntLit n -> Long.toString(n.value());
+            case SqlExpr.DateLit d -> d.iso();
+            default -> null;
+        };
+    }
+
+    /** legend-pure's print of a Float (as the edge's {@code FLOAT_PRINT} writes it, and the result's {@code CellText}
+     *  lays out a double): Java's shortest digits, an exponent laid out positionally with a point always. */
+    static String pureFloat(double d) {
+        String shortest = Double.toString(d);
+        if (shortest.indexOf('E') < 0) {
+            return shortest;
+        }
+        String plain = new java.math.BigDecimal(shortest).stripTrailingZeros().toPlainString();
+        return plain.contains(".") ? plain : plain + ".0";
+    }
+
     /** date(...)'s component out of range: [the component, its literal] spelled at planning as legend-pure writes it
      *  ('Invalid month: 13', a fractional second's plain digits), [day, year, month, day] its attempted date
      *  ('Invalid day: 2016-12-32', the month unpadded), [the component, a value] the database's text of it. */

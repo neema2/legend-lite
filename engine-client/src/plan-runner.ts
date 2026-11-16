@@ -32,7 +32,7 @@ import { familyOf, isBoolean } from './types.ts';
 import { payloadValue } from './plan-params.ts';
 import type { Receipt } from './receipt.ts';
 import { fromPlan, type PlannedSql, type PlanText } from './planned-sql.ts';
-import { declareRaises } from './declared-raises.ts';
+import { declareSites, declareStatementSites, type Site } from './declared-raises.ts';
 import { inRun } from './run-frame.ts';
 
 /** A value bound into a statement's `?`. */
@@ -135,7 +135,11 @@ interface Sql {
 // 54 since 2026-11-15 (phase D's option (D); its number after E's, renumbered at landing): a plan carries its raises,
 // each kind its statements can send to its sentence (PlanJson.raises) -- declared as the plan is read
 // (declared-raises.ts), what a failure is worded from
-const PLAN_VERSION = 55;
+// 55 since 2026-11-16 (the P2 checkpoint audit's S1): each statement carries its raises
+// 56 since 2026-11-16 (phase D's Phase 2, raises as SITES): a statement raises a bare token LG#<n> and carries its
+// `sites` (each n, kind, where, message, upstream), declared by the statement's text as the plan is read
+// (declared-raises.ts), what a failure is read through
+const PLAN_VERSION = 56;
 // the version a test's stand-in plan is written at (the doors' witnesses, engine-client/test/run-frame.test.ts); the
 // declaration above stays one line, as PlanVersionsAgreeTest reads it
 export { PLAN_VERSION };
@@ -197,7 +201,7 @@ function read(plan: string): ReadPlan {
     throw new PlanRefusal(`not a legend-lite execution plan of version ${PLAN_VERSION}: ${JSON.stringify({ format: p.format, version: p.version })}`);
   }
   // the raises its statements can send, worded by the plan (declared-raises.ts; phase D's option (D), 2026-11-15)
-  declareRaises(p.raises, 'a plan');
+  declareSites(p, 'a plan');
   return p;
 }
 
@@ -540,7 +544,7 @@ export async function runPlan(plan: PlanText, session: PlanSession,
     if (read.format !== 'legend-lite-plan' || read.version !== PLAN_VERSION) {
       throw new PlanRefusal(`not a legend-lite execution plan of version ${PLAN_VERSION}: ${JSON.stringify({ format: read.format, version: read.version })}`);
     }
-    declareRaises(read.raises, 'a plan');
+    declareSites(read, 'a plan');
     if (!Array.isArray(read.parameters) || read.parameters.length > 0) throw new PlanRefusal('a plan that takes parameters is not run here: its program binds none');
     const root = read.root;
     if (root === undefined) throw new PlanRefusal('a plan with no root');
@@ -746,6 +750,8 @@ async function keyedRows(keyed: Keyed, session: PlanSession): Promise<string> {
     const inOrder: Column[] = new Array<Column>(width);
     answered.forEach((c, i) => { inOrder[place[i]!] = c; });
     const body = expandKeyed(keyed.body, keys);
+    // the copies' text raises the body's own sites (its regions copy its tokens): declared for the text sent
+    declareStatementSites(body.statement, (keyed.body as { readonly sites?: readonly Site[] }).sites ?? [], 'a keyed body');
     const rows = (await session.run(fromPlan(body.statement), body.params)).map((row) => {
       const placed = new Array<unknown>(width);
       row.forEach((cell, i) => { placed[place[i]!] = cell; });

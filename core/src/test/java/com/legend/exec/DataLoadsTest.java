@@ -75,7 +75,7 @@ class DataLoadsTest {
     private static ExecutionPlan.LoadStep.File file(SqlDialect dialect, String name, byte[] bytes, int limitMegabytes) {
         SqlDialect.CsvLoad reads = dialect.csvLoad(LOAD);
         ExecutionPlan.LoadStep.Delivery delivery = new ExecutionPlan.LoadStep.Delivery.Reads(reads.statements(),
-                reads.after());
+                reads.after(), planned(reads.sites()));
         return new ExecutionPlan.LoadStep.File(new DataRef(DataRef.Namespace.RESOURCE, name,
                 DataStores.sha256(bytes), bytes.length, DataRef.Csv.DEFAULT), delivery, limitMegabytes);
     }
@@ -170,7 +170,8 @@ class DataLoadsTest {
             java.util.function.Function<byte[], ExecutionPlan.LoadStep.File> file = bytes -> new ExecutionPlan.LoadStep
                     .File(new DataRef(DataRef.Namespace.RESOURCE, bytes == good ? "good.csv" : "wide.csv",
                             DataStores.sha256(bytes), bytes.length, new DataRef.Csv(';', '"')),
-                            new ExecutionPlan.LoadStep.Delivery.Reads(reads.statements(), reads.after()), 500);
+                            new ExecutionPlan.LoadStep.Delivery.Reads(reads.statements(), reads.after(),
+                                    planned(reads.sites())), 500);
             assertEquals(List.of(List.of("Joe", "Bloggs", 21)), loaded(b, stores, load(b, file.apply(good))), b.name());
             if (reads.after().isEmpty()) {
                 continue;   // a reader that sets nothing on the session has nothing to undo (H2's sets its path)
@@ -393,5 +394,11 @@ class DataLoadsTest {
                     () -> loaded(b, DataStores.resources(dir), named), b.name());
             assertTrue(e.getMessage().contains("is not its content's"), e.getMessage());
         }
+    }
+
+    /** A CSV load's sites as its plan carries them (the planner's {@code PlanMaker.sites}, here without the planner). */
+    private static List<ExecutionPlan.Site> planned(List<com.legend.sql.dialect.RaiseSite> written) {
+        return written.stream().map(w -> new ExecutionPlan.Site(w.n(), w.kind(), w.where(),
+                ExecutionPlan.Site.sentence(w.kind(), w.where()), w.upstream())).toList();
     }
 }

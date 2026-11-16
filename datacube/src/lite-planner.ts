@@ -33,7 +33,7 @@ import type { AssociationAction, ClassAction, DataSpaceAction, GridSource, Model
 import type { PrintStyle } from '../../engine-client/src/pure-v1-planning.ts';
 import { relationColumns, type Plan, type PlanColumn } from '../../engine-client/src/relation-type.ts';
 import { planParams } from '../../engine-client/src/plan-params.ts';
-import { declareRaises } from '../../engine-client/src/declared-raises.ts';
+import { declareSites } from '../../engine-client/src/declared-raises.ts';
 import type {
   FileLoadRequest, HostOperation, ProjectDataStatements, RemoteMountRequest, SnapCopyRequest, SnapPull, SnapStreamRequest,
   SynthesizeRequest,
@@ -154,7 +154,7 @@ export interface TsNode {
 function textPlan(text: string): Plan {
   const body = JSON.parse(text) as { sql: string; type: unknown; plan?: unknown; raises?: unknown };
   // the raises its statement can send, worded by the planner (declared-raises.ts; phase D's option (D), 2026-11-15)
-  declareRaises(body.raises, 'a text plan');
+  declareSites(body, 'a text plan');
   const params = planParams(body.plan);
   return { sql: fromPlan(body.sql), columns: relationColumns(body.type), ...(params.length > 0 ? { params } : {}) };
 }

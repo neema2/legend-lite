@@ -156,8 +156,14 @@ public final class PlanJson {
      *  product raise its statements can send, its kind's name to the kind's sentence ({@link #raises}) -- a host words a
      *  raise from the plan it runs, never from a table of its own. 55 since 2026-11-16 (the P2 checkpoint audit's S1:
      *  80f69d4cf added it unbumped): each statement carries {@code raises}, the kinds its renderer wrote, and the plan's
-     *  {@code raises} is their union -- a v54 plan, whose statements carry none, is refused by its version. */
-    public static final int VERSION = 55;
+     *  {@code raises} is their union -- a v54 plan, whose statements carry none, is refused by its version. 56 since
+     *  2026-11-16 (phase D's Phase 2, raises as SITES: docs/records/d-phase2-raise-marker-2026-11-16.md): a statement
+     *  raises a bare token {@code LG#<n>} and carries {@code sites} instead of {@code raises}, each {@code n}, its
+     *  {@code kind}, its {@code where}, its {@code message} (the product's sentence) and, in a plan the compatibility edge
+     *  wrote, its {@code upstream} (legend-pure's sentence), worded at planning; a CSV file's reading carries its
+     *  {@code sites} too; the plan's {@code raises} is derived from them -- a v55 plan, whose statements raise a kind's
+     *  name, is refused by its version. */
+    public static final int VERSION = 56;
 
     private PlanJson() {
     }
@@ -237,8 +243,8 @@ public final class PlanJson {
      * with {@link com.legend.sql.RaiseKind#MARK} and a kind's name, as the renderer writes it
      * ({@code AnsiSqlRenderer.raiseMessage}), in a statement, a script, a load's step or its bundle, or a MongoDB
      * pipeline's JSON (the mark escaped there) -- by the kind's name, to its sentence, the error layer's
-     * ({@link com.legend.error.ErrorKind#sentence}). A plan the compatibility edge wrote, whose raises spell upstream's
-     * sentences, has none. The hosts read it from the plan's JSON ({@code raises}); exec, which holds the plan, asks
+     * ({@link com.legend.error.ErrorKind#sentence}): derived from the statements' sites since v56 (a site's own words,
+     * upstream's in an edge plan, are the site's). A site the edge words in SQL (the interim) is no site, and has none. The hosts read it from the plan's JSON ({@code raises}); exec, which holds the plan, asks
      * here when a statement fails (a raise the plan does not declare is refused by name).
      */
     public static java.util.SortedMap<String, String> raises(ExecutionPlan plan) {   // a fresh map each call
@@ -251,8 +257,8 @@ public final class PlanJson {
         return out;
     }
 
-    /** The raises {@code node}'s statements can send: each statement's own, as its renderer recorded them
-     *  ({@link Sql#raises}), and a CSV file's read, whose record check raises {@code CSV_TOO_WIDE}
+    /** The raises {@code node}'s statements can send: each statement's sites' kinds, as its renderer recorded them
+     *  ({@link Sql#sites}), and a CSV file's read's, whose record check raises {@code CSV_TOO_WIDE}
      *  ({@code AnsiSqlRenderer.csvRecordCheck}). Typed, never read from a statement's text (audit B's item 1,
      *  2026-11-16: the text scan missed a raise whose text a dialect spells in its own escape). */
     private static void raisesOf(ExecutionPlan.Node node, java.util.Set<com.legend.sql.RaiseKind> kinds) {
@@ -268,8 +274,8 @@ public final class PlanJson {
             case ExecutionPlan.Effect e -> raisesOf(e.sql(), kinds);
             case ExecutionPlan.Load l -> {
                 for (LoadStep step : l.steps()) {
-                    if (step instanceof LoadStep.File f && f.delivery() instanceof LoadStep.Delivery.Reads) {
-                        kinds.add(com.legend.sql.RaiseKind.CSV_TOO_WIDE);
+                    if (step instanceof LoadStep.File f && f.delivery() instanceof LoadStep.Delivery.Reads r) {
+                        r.sites().forEach(site -> kinds.add(site.kind()));
                     }
                 }
                 raisesOf(l.target(), kinds);
@@ -281,7 +287,7 @@ public final class PlanJson {
     }
 
     private static void raisesOf(Sql sql, java.util.Set<com.legend.sql.RaiseKind> kinds) {
-        kinds.addAll(sql.raises());
+        sql.sites().forEach(site -> kinds.add(site.kind()));
         raisesOf(sql.target(), kinds);
     }
 
@@ -729,9 +735,9 @@ public final class PlanJson {
             o.put("regions", regions);
         }
         o.put("target", target(s.target()));
-        if (!s.raises().isEmpty()) {
-            // the raises its text can send, as the renderer recorded them (typed at render, never read from the text)
-            o.put("raises", s.raises().stream().map(Enum::name).sorted().toList());
+        if (!s.sites().isEmpty()) {
+            // the raise sites its text can send, as the renderer numbered them (typed at render, never read from the text)
+            o.put("sites", sitesJson(s.sites()));
         }
         if (s.stamp() != null) {
             o.put("stamp", s.stamp());
@@ -952,6 +958,9 @@ public final class PlanJson {
                         delivery.put("_type", "reads");
                         delivery.put("statements", r.statements());
                         delivery.put("after", r.after());
+                        if (!r.sites().isEmpty()) {
+                            delivery.put("sites", sitesJson(r.sites()));
+                        }
                     }
                 }
                 o.put("delivery", delivery);
@@ -1317,16 +1326,97 @@ public final class PlanJson {
                         r.getInt("slotCount"), counters));
             }
         }
-        java.util.Set<com.legend.sql.RaiseKind> raised = java.util.EnumSet.noneOf(com.legend.sql.RaiseKind.class);
-        Json.Node rk = o.getOr("raises", null);
-        if (rk != null) {
-            for (Json.Node n : ((Json.Arr) rk).items()) {
-                raised.add(named(com.legend.sql.RaiseKind.class, ((Json.Str) n).value(), "raise kind"));
-            }
+        if (o.getOr("raises", null) != null) {
+            throw new IllegalArgumentException("a statement's raises are its sites (v56), and this one carries"
+                    + " kinds");
         }
+        List<ExecutionPlan.Site> raised = readSites(o);
         return new Sql(o.getString("statement"), slots, readTarget(o.getObj("target")),
                 tree == null ? null : MirJson.readQuery((Json.Obj) tree), regions, o.getStringOr("stamp", null),
                 contentOf(o.getObjOr(CONTENT, null), "the statement")).raising(raised);
+    }
+
+    /** THE SITES OF {@code statement}, one of {@code plan}'s statements, as JSON (v56): what a host that runs that text
+     *  alone (a text plan's {@code sql}) reads a token it raises through. None where no statement of the plan is that
+     *  text or it declares none; two statements of the text declaring different sites refused by name. */
+    public static List<Map<String, Object>> sitesOf(ExecutionPlan plan, String statement) {
+        List<List<ExecutionPlan.Site>> found = new ArrayList<>();
+        statementsOf(plan.root(), statement, found);
+        java.util.Set<List<ExecutionPlan.Site>> distinct = new java.util.LinkedHashSet<>(found);
+        if (distinct.size() > 1) {
+            throw new IllegalStateException("two statements of one text declare different raise sites: " + distinct);
+        }
+        return distinct.isEmpty() ? List.of() : sitesJson(distinct.iterator().next());
+    }
+
+    private static void statementsOf(ExecutionPlan.Node node, String statement, List<List<ExecutionPlan.Site>> into) {
+        java.util.function.Consumer<Sql> each = sql -> {
+            if (sql.statement().equals(statement)) {
+                into.add(sql.sites());
+            }
+        };
+        switch (node) {
+            case ExecutionPlan.Sequence s -> s.steps().forEach(step -> statementsOf(step, statement, into));
+            case ExecutionPlan.TdsResult t -> each.accept(t.sql());
+            case ExecutionPlan.Keyed k -> {
+                each.accept(k.keys());
+                each.accept(k.body());
+            }
+            case ExecutionPlan.Update u -> each.accept(u.sql());
+            case ExecutionPlan.Check c -> each.accept(c.sql());
+            case ExecutionPlan.Effect e -> each.accept(e.sql());
+            case ExecutionPlan.Load l -> {
+                // a load's statements raise no site of a text plan's statement
+            }
+            case ExecutionPlan.Constant c -> {
+                // rows, no statement
+            }
+        }
+    }
+
+    /** A statement's raise sites as JSON (v56): each {@code n}, {@code kind}, its {@code where} where it has one, its
+     *  {@code message} and, in an edge plan, its {@code upstream}. */
+    private static List<Map<String, Object>> sitesJson(List<ExecutionPlan.Site> sites) {
+        List<Map<String, Object>> out = new ArrayList<>(sites.size());
+        for (ExecutionPlan.Site site : sites) {
+            Map<String, Object> so = new LinkedHashMap<>();
+            so.put("n", site.n());
+            so.put("kind", site.kind().name());
+            if (site.where() != null) {
+                so.put("where", site.where());
+            }
+            so.put("message", site.message());
+            if (site.upstream() != null) {
+                // an edge plan's words alone: a product site carries none (no null written, the plan's bytes kept lean)
+                so.put("upstream", site.upstream());
+            }
+            out.add(so);
+        }
+        return out;
+    }
+
+    /** The raise sites {@code o} carries ({@link #sitesJson}), none where it has none; a site's product sentence that is
+     *  not its kind's (and its where) refused by name: the words are the error layer's, never trusted over it. */
+    private static List<ExecutionPlan.Site> readSites(Json.Obj o) {
+        Json.Node ss = o.getOr("sites", null);
+        if (ss == null) {
+            return List.of();
+        }
+        List<ExecutionPlan.Site> out = new ArrayList<>();
+        for (Json.Node n : ((Json.Arr) ss).items()) {
+            Json.Obj so = (Json.Obj) n;
+            only(so, "a raise site", "n", "kind", "where", "message", "upstream");
+            ExecutionPlan.Site site = new ExecutionPlan.Site(so.getInt("n"), named(com.legend.sql.RaiseKind.class,
+                    so.getString("kind"), "raise kind"), so.getStringOr("where", null), so.getString("message"),
+                    so.getStringOr("upstream", null));
+            String sentence = ExecutionPlan.Site.sentence(site.kind(), site.where());
+            if (!sentence.equals(site.message())) {
+                throw new IllegalArgumentException("raise site " + site.n() + " of " + site.kind() + " says '"
+                        + site.message() + "', and its kind's sentence is '" + sentence + "'");
+            }
+            out.add(site);
+        }
+        return out;
     }
 
     private static Target readTarget(Json.Obj t) {
@@ -1418,7 +1508,7 @@ public final class PlanJson {
                 Json.Obj d = o.getObj("delivery");
                 LoadStep.Delivery delivery = switch (d.getString("_type")) {
                     case "reads" -> new LoadStep.Delivery.Reads(d.getStringArray("statements"),
-                            d.getStringArray("after"));
+                            d.getStringArray("after"), readSites(d));
                     default -> throw new IllegalArgumentException("a file load's delivery is the database's reading of"
                             + " it: " + d.getString("_type"));
                 };

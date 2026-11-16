@@ -411,8 +411,10 @@ class CodeShapeGuardrailTest {
             "AnsiSqlRenderer.inlineMode", "ModelOrchestrator.cachedImports",
             // 2026-11-16 (audit B's item 1, the plan's raises typed at render): the kinds of the raises the statement
             // under way writes, set by the outermost renderStatement and cleared when it returns (collectingRaises),
-            // inlineMode's lifecycle -- one render at a time per dialect, as the writer's cursor is
-            "AnsiSqlRenderer.raisedKinds",
+            // inlineMode's lifecycle -- one render at a time per dialect, as the writer's cursor is; renamed
+            // 2026-11-16 (phase D's Phase 2, raises as SITES: the same field, now the statement's numbered raise
+            // sites rather than its kinds; no new entry)
+            "AnsiSqlRenderer.raiseSites",
             // 2026-11-16 (W8 of docs/records/d-plan-2026-11-16.md): the edge's engine receiver's execution and writer,
             // told by the run before any column (ResultSink.execution, planned) and read after; one answer each
             "EngineAnswers.execution", "EngineAnswers.writer",

@@ -1049,7 +1049,7 @@ public final class PlanRunner {
             bindOnce(sql, slot, checked, slots, values);
         }
         // the one text exec writes at run, the charter's A3(a): the plan's own text with each region once per key
-        return new Expanded(PlannedSql.fromPlan(out.toString()), slots, values);
+        return new Expanded(PlannedSql.fromPlan(out.toString(), sql.sites()), slots, values);
     }
 
     private static void bindOnce(ExecutionPlan.Sql sql, int slot, Map<String, PlanParameters.Checked> checked,
