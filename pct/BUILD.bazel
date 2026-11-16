@@ -836,7 +836,7 @@ _EDGE_CLASS = {
 write_source_files(
     name = "update_edge_contract",
     testonly = True,
-    diff_test_failure_message = "{{DEFAULT_MESSAGE}}\nAn edge answer moved (the edge golden net): every difference at the edge is a regression unless it is a ruled move -- then bazel run //pct:update_edge_contract, citing the ruling in the commit",
+    diff_test_failure_message = "{{DEFAULT_MESSAGE}}\nAn edge answer moved (the edge golden net): in the diff, < is this tree (generated) and > the golden (the reference); every difference at the edge is a regression unless it is a ruled move -- then bazel run //pct:update_edge_contract, citing the ruling in the commit",
     files = {
         "src/test/resources/edge/%s_%s_%s.tsv" % (lane, s.lower(), kind): ":edge/%s_%s/%s.tsv" % (lane, s.lower(), kind)
         for (lane, backend, s) in _EDGE_LANES

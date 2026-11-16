@@ -738,7 +738,7 @@ guards_package()
 write_source_files(
     name = "update_edge_corpus",
     testonly = True,
-    diff_test_failure_message = "{{DEFAULT_MESSAGE}}\nA corpus answer moved at the edge (the edge golden net): a regression unless it is a ruled move -- then bazel run //spec:update_edge_corpus, citing the ruling",
+    diff_test_failure_message = "{{DEFAULT_MESSAGE}}\nA corpus answer moved at the edge (the edge golden net): in the diff, < is this tree (generated) and > the golden (the reference); a regression unless it is a ruled move -- then bazel run //spec:update_edge_corpus, citing the ruling",
     files = {
         "src/test/resources/edge/corpus_%s_%s_%s" % (lane, judge, f): ":judge_%s_%s/%s" % (judge, lane, f)
         for lane in ["duckdb", "h2"]
