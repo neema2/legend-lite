@@ -108,7 +108,12 @@ public final class PeRatchets {
             "own_corpus.matched 3272/3262 -> 3273 (2026-11-15, main 0c9032f56 (C5-J's 3261 -> 3262) merged into"
                     + " claude/total-wall-e, measured on the merged tree): C5-J's one new model joined E's",
             "own_corpus.matched 3267/3273 -> TO RE-MEASURE (2026-11-16, W1 of docs/records/d-plan-2026-11-16.md: E's PR1"
-                    + " merged into D's stage, both sides' models together; by //parser-equivalence:update_ratchets)");
+                    + " merged into D's stage, both sides' models together; by //parser-equivalence:update_ratchets)",
+            "own_corpus.matched 3273 -> 3281 (2026-11-16, D's stage at 97c178a44, the first full CI's parser_equivalence"
+                    + " lane): eight more of lite's own models match, a ratchet UP",
+            "own_corpus.matched 3281 -> 3284 (2026-11-16, D's stage: PlanDeclaresItsRaisesTest's MongoDB model written"
+                    + " as the reference grammar reads it -- serverURLs [localhost:27017], where an IP address was refused"
+                    + " (GRAMMAR-REFUSAL-nullmsg, stage-linux 43917161620) -- and the stage's new test models; UP)");
 
     public static void main(String[] args) throws Exception {
         if (args.length != 1) {

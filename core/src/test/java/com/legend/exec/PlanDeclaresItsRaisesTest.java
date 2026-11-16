@@ -118,7 +118,10 @@ class PlanDeclaresItsRaisesTest {
                   (
                     jsonSchema: {
                       "bsonType": "object",
-                      "properties": { "age": { "bsonType": "long" }, "zero": { "bsonType": "long" } },
+                      "properties": {
+                        "age": { "bsonType": "long" },
+                        "zero": { "bsonType": "long" }
+                      },
                       "required": ["age", "zero"]
                     };
                   )
@@ -126,16 +129,23 @@ class PlanDeclaresItsRaisesTest {
                 ###Connection
                 MongoDBConnection s::Conn
                 {
-                  database: d;
+                  database: db;
                   store: s::Store;
-                  serverURLs: [127.0.0.1:1];
+                  serverURLs: [localhost:27017];
                   authentication: # UserPassword {
                     username: 'u';
-                    password: SystemPropertiesSecret { systemPropertyName: 'p'; };
+                    password: SystemPropertiesSecret
+                    {
+                      systemPropertyName: 'p';
+                    };
                   }#;
                 }
                 ###Runtime
-                Runtime s::RT { mappings: []; connections: [ s::Store: [ c1: s::Conn ] ]; }
+                Runtime s::RT
+                {
+                  mappings: [];
+                  connections: [ s::Store: [ c1: s::Conn ] ];
+                }
                 """;
         return com.legend.Compiler.query(com.legend.Compiler.compileModel(model), query).executionPlan("s::RT");
     }
