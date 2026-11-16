@@ -383,10 +383,11 @@ class KnowledgeLayerTest {
 
     /** The type inference's safe type (2026-11-13): the type inference's
      * safe type is the engine's safeTypeMap, isSafeTypePossible and getSafeType exactly (relationalExtension.pure
-     * :1926-2033): a FLOAT with an INTEGER is FLOAT (the integer lists it), a BIGINT with a FLOAT has none (neither lists
-     * the other), two CHARs or a CHAR and a VARCHAR are a VARCHAR of the larger size, two equal NUMERICs a DECIMAL;
+     * :1926-2033): two CHARs or a CHAR and a VARCHAR are a VARCHAR of the larger size, two equal NUMERICs a DECIMAL;
      * count is BIGINT; substring and its family a VARCHAR sized by their first argument's CHAR or VARCHAR, no type for
-     * another; sub its first argument's type when its first two share a kind, else none; group_concat no rule. */
+     * another; sub over non-numeric operands their safe type when its first two share a kind, else none; group_concat
+     * no rule. A case over numeric branches is the database's promotion (2026-11-15, register row S500): a FLOAT with
+     * an INTEGER, and a BIGINT with a FLOAT, a DOUBLE (the engine's safe type: FLOAT, and none). */
     @Test
     @DisplayName("kernel: the type inference's safe type and rules are the engine's")
     void typeInferenceSafeTypeAndRulesAreTheEngines() {
@@ -405,15 +406,18 @@ class KnowledgeLayerTest {
         var cms = ix.findView("a::Db", "V").orElseThrow().columnMappings();
         java.util.function.IntFunction<com.legend.model.RelationalDataType> infer =
                 i -> com.legend.compiler.element.RelationalTypeInference.infer(cms.get(i).expression(), db, ix);
-        assertEquals(new com.legend.model.RelationalDataType.Float_(), infer.apply(0), "FLOAT with INTEGER: FLOAT");
-        assertEquals(null, infer.apply(1), "BIGINT with FLOAT: no safe type");
+        assertEquals(new com.legend.model.RelationalDataType.Double_(), infer.apply(0),
+                "case over a FLOAT and an INTEGER: DOUBLE, the database's promotion (the engine's: FLOAT; S500)");
+        assertEquals(new com.legend.model.RelationalDataType.Double_(), infer.apply(1),
+                "case over a BIGINT and a FLOAT: DOUBLE (the engine's: no safe type, no type; S500)");
         assertEquals(new com.legend.model.RelationalDataType.Varchar(5), infer.apply(2), "two CHARs: VARCHAR(5)");
         assertEquals(new com.legend.model.RelationalDataType.Varchar(4), infer.apply(3), "CHAR(3), VARCHAR(4): VARCHAR(4)");
         assertEquals(new com.legend.model.RelationalDataType.Decimal(6, 2), infer.apply(4), "two NUMERICs: DECIMAL");
         assertEquals(new com.legend.model.RelationalDataType.BigInt(), infer.apply(5), "count: BIGINT");
         assertEquals(new com.legend.model.RelationalDataType.Varchar(3), infer.apply(6), "substring of a CHAR(3)");
         assertEquals(null, infer.apply(7), "substring of an INTEGER: no type");
-        assertEquals(null, infer.apply(8), "sub of two VARCHARs: no type (the engine's the first's; S500)");
+        assertEquals(new com.legend.model.RelationalDataType.Varchar(4), infer.apply(8),
+                "sub of two VARCHARs: their safe type (the engine's: the first's, VARCHAR(4))");
         assertEquals(null, infer.apply(9), "sub of a VARCHAR and an INTEGER: no rule");
         assertEquals(null, infer.apply(10), "group_concat: no rule");
     }
@@ -423,8 +427,9 @@ class KnowledgeLayerTest {
      * {@code average} DOUBLE (:693-702, :291-300), {@code sum} by its first argument's kind, a DECIMAL or NUMERIC capped
      * at precision 31, a FLOAT a DOUBLE and no rule for a REAL (:1717-1741), a float literal FLOAT (:148), {@code upper}
      * and {@code lower} no rule (a view column {@code Any[0..1]}); {@code plus} over one argument widens it
-     * (:1408-1436). The numeric operators over several arguments ({@code plus}, {@code minus}, {@code times}) are the
-     * database's promotion over every argument, where the engine's rules misstate it (2026-11-15, register row S500). */
+     * (:1408-1436). The numeric operators over several numeric arguments ({@code plus}, {@code minus}, {@code times})
+     * are the database's promotion over every argument, where the engine's rules misstate it (2026-11-15, register row
+     * S500); with a non-numeric operand the engine's rule ({@code times} reads its first two alone). */
     @Test
     @DisplayName("kernel: the operators, sum, average, a float literal and upper/lower are typed as the database returns them")
     void theOperatorsAndAggregatesAreTypedByTheEnginesRules() {
@@ -458,8 +463,8 @@ class KnowledgeLayerTest {
                 "minus of a NUMERIC and an INTEGER: the NUMERIC");
         assertEquals(new com.legend.model.RelationalDataType.Integer_(), infer.apply(8),
                 "minus of one argument: its own (the engine's: no rule; S500)");
-        assertEquals(null, infer.apply(9),
-                "times reads every argument: a VARCHAR third, no type (the engine's: FLOAT, the third unread; S500)");
+        assertEquals(new com.legend.model.RelationalDataType.Float_(), infer.apply(9),
+                "times with a VARCHAR third: the engine's rule, FLOAT (the third unread)");
         assertEquals(new com.legend.model.RelationalDataType.Integer_(), infer.apply(10),
                 "times of one argument: its own (the engine's: no type; S500)");
         assertEquals(new com.legend.model.RelationalDataType.Double_(), infer.apply(11), "divide: DOUBLE");
@@ -469,7 +474,8 @@ class KnowledgeLayerTest {
         assertEquals(new com.legend.model.RelationalDataType.Decimal(31, 2), infer.apply(15),
                 "sum of a DECIMAL(40,2): capped at 31");
         assertEquals(new com.legend.model.RelationalDataType.Double_(), infer.apply(16), "sum of a FLOAT: DOUBLE");
-        assertEquals(new com.legend.model.RelationalDataType.Float_(), infer.apply(17), "float literals: FLOAT");
+        assertEquals(new com.legend.model.RelationalDataType.Float_(), infer.apply(17),
+                "case over two float literals: FLOAT, one approximate kind kept (the engine's: FLOAT)");
         assertEquals(null, infer.apply(18), "upper: no rule");
         assertEquals(null, infer.apply(19), "lower: no rule");
         assertEquals(null, infer.apply(20), "sum of a REAL: no rule");
@@ -747,13 +753,13 @@ class KnowledgeLayerTest {
         assertEquals("C0:Integer[1], C2:Integer[1], M2:Integer[0..1], A2:Float[1]", signature.apply("V4"));
     }
 
-    /** Since 2026-11-13: a concatenation with an operand typed other than CHAR or
-     * VARCHAR has no type -- the engine's one concat rule asks every typed operand to be one -- and an operand with no
-     * type drops out. It summed the string operands' sizes and skipped the rest ({@code concat(INT, 'ab')} was
-     * VARCHAR(2)). */
+    /** A concatenation (2026-11-15): an operand typed other than CHAR or VARCHAR is concatenated as its text, so the
+     * result is a VARCHAR sized by the string operands, a floor (the engine's one concat rule asks every operand to be
+     * a CHAR or VARCHAR, relationalExtension.pure:463-471, so it has none; from 2026-11-13 lite had none either); an
+     * operand with no type leaves no type (until 2026-11-15 it dropped out). */
     @Test
-    @DisplayName("kernel: a concatenation of a non-string has no type")
-    void aConcatenationOfANonStringHasNoType() {
+    @DisplayName("kernel: a concatenation of a non-string is a VARCHAR, of an untyped operand nothing")
+    void aConcatenationOfANonStringIsAVarchar() {
         ModelBuilder ix = ModelBuilder.from(NameResolver.resolve(com.legend.testing.Own.model("""
                 ###Relational
                 Database a::Db (
@@ -765,9 +771,73 @@ class KnowledgeLayerTest {
         var cms = ix.findView("a::Db", "V").orElseThrow().columnMappings();
         java.util.function.IntFunction<com.legend.model.RelationalDataType> infer =
                 i -> com.legend.compiler.element.RelationalTypeInference.infer(cms.get(i).expression(), db, ix);
-        assertEquals(null, infer.apply(0), "an INTEGER operand leaves no type");
-        assertEquals(new com.legend.model.RelationalDataType.Varchar(10), infer.apply(1),
-                "an operand with no type drops out");
+        assertEquals(new com.legend.model.RelationalDataType.Varchar(10), infer.apply(0),
+                "an INTEGER operand: a VARCHAR of the strings' size (the engine's: no rule, no type)");
+        assertEquals(null, infer.apply(1), "an operand with no type: no type (the engine's: its inference fails)");
         assertEquals(new com.legend.model.RelationalDataType.Varchar(12), infer.apply(2));
+    }
+
+    /** No step backwards (2026-11-15, PR #102's review; register row S500): an argument with no type leaves max, min,
+     * plus, case and concat with no type, as the engine's failOnMatchFailure=true inference fails on it
+     * (relationalExtension.pure:120-123) -- until then it dropped out and the rest typed the call ({@code exp} and
+     * {@code parseFloat} have no lite rule; the engine types them DOUBLE and FLOAT, :754-761, :1370-1377). A string or
+     * date operand of plus, minus or sub keeps a type at least the engine's (:1408-1436, :1209-1218, :1637-1645): plus
+     * over VARCHARs their sizes summed, the concatenation the database returns; sub and minus over DATEs a DATE, over
+     * TIMESTAMPs a TIMESTAMP. A case over a BIGINT and a FLOAT, or a REAL and a REAL, is the database's promotion
+     * (the engine's safe type has none). Each stays typed in the lifted view's signature. */
+    @Test
+    @DisplayName("kernel: an untyped argument leaves no type; strings, dates and numeric cases keep one")
+    void noStepBackwardsInTheTypeInference() {
+        ModelBuilder ix = ModelBuilder.from(NameResolver.resolve(com.legend.testing.Own.model("""
+                ###Relational
+                Database a::Db (
+                  Table T (ID INTEGER PRIMARY KEY, I INTEGER, F FLOAT, S VARCHAR(10), A VARCHAR(10), B VARCHAR(20), \
+                D DATE, TS TIMESTAMP, BI BIGINT, R REAL)
+                  View V (MX: max(exp(T.F), T.I), MN: min(T.I, parseFloat(T.S)), PU: plus(T.I, parseFloat(T.S)), \
+                CU: case(equal(T.ID, 1), T.I, exp(T.F)), CO: concat(T.S, exp(T.F)), PV: plus(T.A, T.B), \
+                SD: sub(T.D, T.D), MT: minus(T.TS, T.TS), MD: minus(T.D, T.D), CB: case(equal(T.ID, 1), T.BI, T.F), \
+                CR: case(equal(T.ID, 1), T.R, T.R), CN: concat(T.S, T.I), PI: plus(T.I, T.S), SM: sub(T.D, T.I), \
+                MF: max(T.F, T.I), PF: plus(T.F, T.F))
+                )
+                """)));
+        com.legend.model.DatabaseDefinition db = ix.findDatabase("a::Db").orElseThrow();
+        var cms = ix.findView("a::Db", "V").orElseThrow().columnMappings();
+        java.util.function.IntFunction<com.legend.model.RelationalDataType> infer =
+                i -> com.legend.compiler.element.RelationalTypeInference.infer(cms.get(i).expression(), db, ix);
+        assertEquals(null, infer.apply(0), "max with an untyped argument: no type (the engine's: DOUBLE)");
+        assertEquals(null, infer.apply(1), "min with an untyped argument: no type (the engine's: FLOAT)");
+        assertEquals(null, infer.apply(2),
+                "plus with an untyped argument: no type (the engine's: INTEGER, the first's)");
+        assertEquals(null, infer.apply(3), "case with an untyped branch: no type (the engine's: DOUBLE)");
+        assertEquals(null, infer.apply(4), "concat with an untyped operand: no type (the engine's: no rule, no type)");
+        assertEquals(new com.legend.model.RelationalDataType.Varchar(30), infer.apply(5),
+                "plus over VARCHAR(10) and VARCHAR(20): VARCHAR(30) (the engine's: VARCHAR(10), the first's)");
+        assertEquals(new com.legend.model.RelationalDataType.Date_(), infer.apply(6),
+                "sub over DATEs: DATE (the engine's: DATE)");
+        assertEquals(new com.legend.model.RelationalDataType.Timestamp(), infer.apply(7),
+                "minus over TIMESTAMPs: TIMESTAMP (the engine's: TIMESTAMP)");
+        assertEquals(new com.legend.model.RelationalDataType.Date_(), infer.apply(8),
+                "minus over DATEs: DATE (the engine's: DATE)");
+        assertEquals(new com.legend.model.RelationalDataType.Double_(), infer.apply(9),
+                "case over a BIGINT and a FLOAT: DOUBLE (the engine's: no safe type, no type; S500)");
+        assertEquals(new com.legend.model.RelationalDataType.Real(), infer.apply(10),
+                "case over two REALs: REAL (the engine's: no safe type, no type; S500)");
+        assertEquals(new com.legend.model.RelationalDataType.Varchar(10), infer.apply(11),
+                "concat of a VARCHAR(10) and an INTEGER: VARCHAR(10), a floor (the engine's: no rule, no type)");
+        assertEquals(null, infer.apply(12), "plus of an INTEGER and a VARCHAR: no type (the engine's: no safe type)");
+        assertEquals(null, infer.apply(13), "sub of a DATE and an INTEGER: no type (the engine's: kinds differ)");
+        assertEquals(new com.legend.model.RelationalDataType.Float_(), infer.apply(14),
+                "max over a FLOAT and an INTEGER: their safe type FLOAT (the engine's: FLOAT)");
+        assertEquals(new com.legend.model.RelationalDataType.Float_(), infer.apply(15),
+                "plus over two FLOATs: FLOAT (the engine's: FLOAT, the first's)");
+        var signature = com.legend.compiler.element.ViewSignatures.of(ix, "a::Db", ix.findView("a::Db", "V")
+                .orElseThrow()).columns();
+        assertEquals("MX:meta::pure::metamodel::type::Any[0..1]", signature.get(0).text(), "an untyped argument");
+        assertEquals("PV:String[0..1]", signature.get(5).text(), "plus over VARCHARs: a String column");
+        assertEquals("SD:StrictDate[0..1]", signature.get(6).text(), "sub over DATEs: a StrictDate column");
+        assertEquals("MT:DateTime[0..1]", signature.get(7).text(), "minus over TIMESTAMPs: a DateTime column");
+        assertEquals("CB:Float[0..1]", signature.get(9).text(), "case over a BIGINT and a FLOAT: a Float column");
+        assertEquals("CR:Float[0..1]", signature.get(10).text(), "case over two REALs: a Float column");
+        assertEquals("CN:String[0..1]", signature.get(11).text(), "concat with an INTEGER: a String column");
     }
 }

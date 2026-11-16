@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 package com.legend.compiler.element;
+import com.legend.builtin.DynaFn;
 import com.legend.compiler.StoreLookups;
 
 import com.legend.model.DatabaseDefinition;
@@ -76,8 +77,13 @@ public final class RelationalTypeInference {
                     if (types.size() <= 1) {
                         yield first;
                     }
-                    // an argument with no type drops out, as the engine's map does; the safe type is the
+                    // an argument with no type leaves no type: the engine's rule maps every argument through the
+                    // failOnMatchFailure=true inferRelationalType (relationalExtension.pure:120-123, :131-137), which
+                    // fails on it (2026-11-15; until then it dropped out, typing the rest). The safe type is the
                     // engine's fold (2026-11-13)
+                    if (types.contains(null)) {
+                        yield null;
+                    }
                     RelationalDataType safe = safeTypeOf(types);
                     yield safe != null ? safe : first;
                 }
@@ -142,11 +148,12 @@ public final class RelationalTypeInference {
                 // locate are not registered dynafunctions and have no rule (asked of the engine: EMPTY); until
                 // 2026-11-14 INTEGER, rules only lite had
                 case "length", "indexOf", "position" -> new RelationalDataType.Integer_();
-                // sub is the database's promotion over every argument, as plus is (register row S500, 2026-11-15):
-                // the engine types it its first argument's type when its first two have one raw kind, else no rule
-                // (relationalExtension.pure:1637-1645). Until 2026-11-13 the safe type over all its arguments, with an
-                // INTEGER default
-                case "sub" -> promoted(f.args(), db, ctx, expanding);
+                // sub over numeric operands is the database's promotion over every argument, as plus is (register row
+                // S500, 2026-11-15); over others the engine's rule, its first argument's type when its first two have
+                // one raw kind, else no rule (relationalExtension.pure:1637-1645), as their safe type where one is
+                // possible ({@link #operator}). Until 2026-11-13 the safe type over all its arguments, with an INTEGER
+                // default
+                case "sub" -> operator(DynaFn.SUB, f.args(), db, ctx, expanding);
                 // joinStrings is a VARCHAR of the larger of 4000 and its first argument's CHAR or VARCHAR size; any other
                 // first argument, or none, matches no rule, no type (relationalExtension.pure:1031-1039, asked of the
                 // engine). A joinStrings(...) a Database text writes is a DynaFunction, typed by the map: the
@@ -158,38 +165,40 @@ public final class RelationalTypeInference {
                     yield at != null && isCharOrVarchar(at) ? new RelationalDataType.Varchar(Math.max(4000, size(at)))
                             : null;
                 }
-                // string concatenation SUMS the operand sizes (engine
-                // getSize over concat); an operand typed other than CHAR or
-                // VARCHAR leaves it no type -- the engine's one rule asks every
-                // typed operand to be one (relationalExtension.pure:463-471);
-                // an operand with no type drops out, as the engine's map does.
-                // Until 2026-11-13 such an operand added 0.
+                // string concatenation SUMS the CHAR and VARCHAR operands' sizes (the engine's one rule, getSize over
+                // every operand, relationalExtension.pure:463-471). An operand with no type leaves no type: the
+                // engine's map is failOnMatchFailure=true (:120-123), which fails on it (2026-11-15; until then it
+                // dropped out). An operand of another kind is concatenated as its text, so the result is still a
+                // VARCHAR, where the engine's rule (every operand a CHAR or VARCHAR) has none: its size is the string
+                // operands' alone, a floor, as before 2026-11-13 (register row S500).
                 // group_concat has no rule in the engine's map (no type: until 2026-11-13 it was typed as a
                 // concat)
                 case "concat" -> {
-                    int size = 0;
-                    boolean other = false;
-                    for (var arg : f.args()) {
-                        RelationalDataType at2 = infer(arg, db, ctx, expanding);
-                        if (at2 instanceof RelationalDataType.Varchar v2) {
-                            size += v2.size();
-                        } else if (at2 instanceof RelationalDataType.Char_ c2) {
-                            size += c2.size();
-                        } else if (at2 != null) {
-                            other = true;
-                        }
+                    List<RelationalDataType> types = everyType(f.args(), db, ctx, expanding);
+                    if (types == null) {
+                        yield null;
                     }
-                    yield other ? null : new RelationalDataType.Varchar(size);
+                    int size = 0;
+                    for (RelationalDataType t : types) {
+                        size += isCharOrVarchar(t) ? size(t) : 0;
+                    }
+                    yield new RelationalDataType.Varchar(size);
                 }
                 // case(c1, v1, ..., else): the engine's safe type over the value branches and the last
                 // argument (relationalExtension.pure:402-411: the branches at 1, 3, ... below 2 * floor((n - 1) / 2),
                 // then the last). Where none is possible the engine ASSERTS, whatever failOnMatchFailure is ('Type
                 // inference not supported yet! Dyna function: case'): its inference fails where the engine runs it,
                 // at plan generation (relationalMappingExecution.pure:205-208, a TDS column's source type, :96, :101),
-                // never when the database compiles (HelperRelationalBuilder.java:469-517 types no view column). Lite
+                // never when the database compiles: there each view column is a VARCHAR at first pass
+                // (HelperRelationalBuilder.java:478-480), which a #>{DB.V}# accessor exposes as Varchar
+                // (RelationalCompilerExtension.java:954-964), the inference not run. Lite
                 // runs the inference when the model compiles (ViewSignatures, KnowledgeLayer) and when it seeds the
                 // metamodel (RelationalOpRows), where a failure would refuse or break what the engine compiles: it
-                // answers no type there, a form lite cannot spell (2026-11-13)
+                // answers no type there, a form lite cannot spell (2026-11-13; register row S501). A branch with no
+                // type leaves no type, as the engine's failOnMatchFailure=true inference fails on it (:120-123;
+                // until 2026-11-15 it dropped out). Numeric branches alone (an OTHER, a NULL, among them) are the
+                // database's promotion over all of them, as plus is (register row S500, 2026-11-15; the engine's safe
+                // type has none for a BIGINT and a FLOAT, or for a REAL and a REAL)
                 case "case" -> {
                     List<RelationalDataType> types = new ArrayList<>();
                     for (int i = 1; i < f.args().size(); i += 2) {
@@ -198,14 +207,20 @@ public final class RelationalTypeInference {
                     if (f.args().size() % 2 == 1) {
                         types.add(infer(f.args().get(f.args().size() - 1), db, ctx, expanding));
                     }
-                    yield safeTypeOf(types);
+                    if (types.contains(null)) {
+                        yield null;
+                    }
+                    RelationalDataType numeric = promotion(types);
+                    yield numeric != null ? numeric : safeTypeOf(types);
                 }
-                // the numeric operators plus, minus and times are the database's promotion over every argument
-                // ({@link #promoted}): what the database returns, which legend-engine's rules misstate -- plus and minus
+                // the numeric operators plus, minus and times over numeric operands are the database's promotion
+                // over every argument ({@link #operator}): what the database returns, which legend-engine's rules
+                // misstate -- plus and minus
                 // over several arguments are their FIRST argument's type when a safe type is possible, else no rule
                 // (relationalExtension.pure:1408-1436, :1209-1218), so plus(INTEGER, FLOAT) is the engine's INTEGER
                 // where the database returns 1.5; times is the safe type of its first two arguments, the rest unread
-                // (:1773-1782). Lite diverges (register row S500, 2026-11-15). divide is DOUBLE, above.
+                // (:1773-1782). Lite diverges (register row S500, 2026-11-15). Over a string or date operand, the
+                // engine's rule ({@link #operator}). divide is DOUBLE, above.
                 case "plus" -> {
                     if (f.args().size() == 1) {
                         // plus over one argument widens it, the engine's rule (relationalExtension.pure:1408-1436):
@@ -220,9 +235,9 @@ public final class RelationalTypeInference {
                                     DISTINCT, OTHER, SEMISTRUCTURED, ARRAY, OBJECT -> null;
                         };
                     }
-                    yield promoted(f.args(), db, ctx, expanding);
+                    yield operator(DynaFn.PLUS, f.args(), db, ctx, expanding);
                 }
-                case "minus", "times" -> promoted(f.args(), db, ctx, expanding);
+                case "minus", "times" -> operator(DynaFn.of(f.name()).orElseThrow(), f.args(), db, ctx, expanding);
                 // ---- the 30 rules the seeded Database texts use (2026-11-14; until then no rule, no type).
                 // Each is legend-engine
                 // 4.145.0's getDynaFunctionTypeInferenceMap entry (relationalExtension.pure, the lines cited), and every
@@ -275,8 +290,8 @@ public final class RelationalTypeInference {
                 }
                 // coalesce is the safe type over every argument when one is possible, else no rule (:453-461, its
                 // `$params->map(p | $p->inferRelationalType())`, failOnMatchFailure true): an argument no rule types fails
-                // the engine's inference, so no type -- not dropped, as case's untyped branch is --
-                // and no argument at all fails its fold's head, no type
+                // the engine's inference, so no type, as for every rule here that reads it (max, min, case, concat,
+                // plus, minus, times, sub) -- and no argument at all fails its fold's head, no type
                 case "coalesce" -> {
                     List<RelationalDataType> types = everyType(f.args(), db, ctx, expanding);
                     yield types == null ? null : safeTypeOf(types);
@@ -352,18 +367,71 @@ public final class RelationalTypeInference {
         };
     }
 
-    /** The database's numeric promotion over every argument (plus, minus, times and sub): any approximate operand
-     *  (FLOAT, DOUBLE, REAL) makes a DOUBLE; else a DECIMAL or NUMERIC operand is the answer, two of them a
-     *  DECIMAL of the larger integer digits plus the larger scale; else the widest integer kind. An argument with no
-     *  type drops out; an OTHER (a NULL) takes the other's type; any other kind, or no typed argument at all, has no
-     *  type. */
-    private static @com.legend.base.Nullable RelationalDataType promoted(List<RelationalOperation> args,
+    /** plus, minus, times and sub over several arguments (and minus, times and sub over one). An argument with no type
+     *  leaves no type, whichever arguments the engine's rule reads (register row S500, 2026-11-15; until then it
+     *  dropped out and the rest were typed). Numeric operands alone (an OTHER, a NULL, among them) are the database's
+     *  {@link #promotion}, the ruled divergence. Any other operand is typed by the engine's rule, as its safe type
+     *  where the engine's answer is its first argument's (a type at least as wide, which main had):
+     *  <ul>
+     *    <li>plus: over CHAR and VARCHAR operands (an OTHER among them) a VARCHAR of their sizes summed, the string
+     *        concatenation the database returns (the engine's the first's, relationalExtension.pure:1408-1436, main's
+     *        the larger); else, over several, their safe type when one is possible, else no rule;</li>
+     *    <li>minus: over several, their safe type when one is possible, else no rule (:1209-1218: the first's);</li>
+     *    <li>times: the safe type of its first two when one is possible, the rest unread, else no rule (:1773-1782);
+     *        </li>
+     *    <li>sub: when its first two have one raw kind, their safe type, or the first's where the kind has no safe
+     *        partner (a TIME), else no rule (:1637-1645: the first's).</li>
+     *  </ul>
+     *  So {@code sub(DATE, DATE)} and {@code minus(TIMESTAMP, TIMESTAMP)} keep their kind, and a numeric operand
+     *  against a string or a date has no type, as the engine's safe type has none. */
+    private static @com.legend.base.Nullable RelationalDataType operator(DynaFn op, List<RelationalOperation> args,
             @com.legend.base.Nullable DatabaseDefinition db, @com.legend.base.Nullable StoreLookups ctx,
             java.util.Set<DatabaseDefinition.ViewDefinition.ViewColumnMapping> expanding) {
+        List<RelationalDataType> types = everyType(args, db, ctx, expanding);
+        if (types == null) {
+            return null;
+        }
+        RelationalDataType numeric = promotion(types);
+        if (numeric != null) {
+            return numeric;
+        }
+        boolean several = types.size() > 1;
+        return switch (op) {
+            case PLUS -> {
+                boolean strings = types.stream().anyMatch(RelationalTypeInference::isCharOrVarchar)
+                        && types.stream().allMatch(t -> isCharOrVarchar(t) || t instanceof RelationalDataType.Other);
+                if (strings) {
+                    int size = 0;
+                    for (RelationalDataType t : types) {
+                        size += size(t);
+                    }
+                    yield new RelationalDataType.Varchar(size);
+                }
+                yield several ? safeTypeOf(types) : null;
+            }
+            case MINUS -> several ? safeTypeOf(types) : null;
+            case TIMES -> several ? safeTypeOf(types.subList(0, 2)) : null;
+            case SUB -> {
+                if (!several || kind(types.get(0)) != kind(types.get(1))) {
+                    yield null;
+                }
+                RelationalDataType safe = safeTypeOf(types.subList(0, 2));
+                yield safe != null ? safe : types.get(0);
+            }
+            default -> throw new IllegalStateException("not an operator: " + op);
+        };
+    }
+
+    /** The database's numeric promotion over every type (the operators and case, register row S500, 2026-11-15),
+     *  when every type is numeric or an OTHER (a NULL, which takes the others' type) and one is numeric; null
+     *  otherwise. Any approximate operand (FLOAT, DOUBLE, REAL) makes a DOUBLE, but operands of one approximate kind
+     *  keep it (two FLOATs a FLOAT, two REALs a REAL: the engine's and main's answer, 2026-11-15); else a DECIMAL or
+     *  NUMERIC operand is the answer, two of them a DECIMAL of the larger integer digits plus the larger scale; else
+     *  the widest integer kind. */
+    private static @com.legend.base.Nullable RelationalDataType promotion(List<RelationalDataType> types) {
         RelationalDataType acc = null;
-        for (var arg : args) {
-            RelationalDataType t = infer(arg, db, ctx, expanding);
-            if (t == null || t instanceof RelationalDataType.Other) {
+        for (RelationalDataType t : types) {
+            if (t instanceof RelationalDataType.Other) {
                 continue;
             }
             if (!isNumeric(t)) {
@@ -386,7 +454,7 @@ public final class RelationalTypeInference {
         Kind ka = kind(a);
         Kind kb = kind(b);
         if (approximate(ka) || approximate(kb)) {
-            return new RelationalDataType.Double_();
+            return ka == kb ? a : new RelationalDataType.Double_();
         }
         boolean da = ka == Kind.DECIMAL || ka == Kind.NUMERIC;
         boolean dbx = kb == Kind.DECIMAL || kb == Kind.NUMERIC;
@@ -531,12 +599,14 @@ public final class RelationalTypeInference {
 
     /** The engine's list fold (isSafeTypePossible / getSafeType over types, :1926-1951): from the first type, each next
      *  one against the accumulated safe type ({@code getSafeType(next, acc)}); null when a step has none. A type that
-     *  is null (no inferred type) drops out first, as the engine's {@code map} drops an empty answer; no types, null. */
+     *  is null (no inferred type) leaves none: the engine's {@code map} over the failOnMatchFailure=true
+     *  inferRelationalType fails on it (relationalExtension.pure:120-123, :131-137; until 2026-11-15 it dropped out);
+     *  no types, null. */
     static @com.legend.base.Nullable RelationalDataType safeTypeOf(List<RelationalDataType> types) {
         RelationalDataType acc = null;
         for (RelationalDataType t : types) {
             if (t == null) {
-                continue;
+                return null;
             }
             if (acc == null) {
                 acc = t;
