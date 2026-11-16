@@ -939,7 +939,9 @@ public class Trino extends AnsiSqlRenderer {
             case NULL_SAFE_EQUAL -> notDistinctFrom(writer, c.args());
             case XOR -> xorAsAndOr(writer, c.args(), parentPrec);
             // 64-bit parse (PCT Long.MIN/MAX round-trips)
-            case PARSE_INT -> castAs(writer, c.args().get(0), "BIGINT");
+            case PARSE_INT -> guardedParseInt(writer, c.args().get(0),
+                    w -> w.append("regexp_like(").expr(c.args().get(0), 0).append(", '^[+-]?[0-9]+$')"),
+                    w -> castAs(w, c.args().get(0), "BIGINT"));
             case PI -> writer.append("pi()");
             case CEILING -> bigintOf(writer, "ceil", c.args());
             case FLOOR -> bigintOf(writer, "floor", c.args());

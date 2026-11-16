@@ -166,6 +166,9 @@ class ProductRaiseProbeTest {
         // 7. the parse family (Phase 8, 2026-11-16; round 71's gap: the external lanes run this probe alone): each
         // input's parseFloat and parseInteger, legend-pure's value or a refusal by name, never a silent wrong value
         parses(backend, wrong);
+        // 8. the Float carrier (Phase 8, 2026-11-16): a computed Float carried in a list and read back bit-exact, or
+        // the list refused by name where the database has no list encoding (round 73 measures every database's)
+        carriers(backend, wrong);
         // what came back, each case's (the orchestrator, 2026-11-15: every lane's log shows it, not only the count)
         System.out.println("[product raise probe] " + backend.name() + " guarded, no raise, answered: " + describe(rows));
         System.out.println("[product raise probe] " + backend.name() + " divide by zero, raised: " + describe(zero));
@@ -195,9 +198,31 @@ class ProductRaiseProbeTest {
             new Parse("parseInteger", "1f", "raise"), new Parse("parseInteger", "1e5", "raise"),
             new Parse("parseInteger", "NaN", "raise"), new Parse("parseInteger", "Infinity", "raise"),
             new Parse("parseInteger", "12", "12"),
-            // legend-pure raises on whitespace in both modes (Long.valueOf, Long.parseLong); every database trims
-            // today: a follow-up, printed, either answer passing until it lands
-            new Parse("parseInteger", " 1 ", "either"));
+            // legend-pure raises on whitespace in both modes (Long.valueOf, Long.parseLong; the orchestrator's
+            // decision, 2026-11-16: exact)
+            new Parse("parseInteger", " 1 ", "raise"));
+
+    private static void carriers(com.legend.testbackend.TestBackend backend, List<String> wrong) {
+        Map<String, Double> cases = new java.util.LinkedHashMap<>();
+        cases.put("0.1 + 0.2", 0.1 + 0.2);
+        cases.put("1.0E-150 * 1.0E-150", 1.0E-150 * 1.0E-150);
+        cases.put("123456789.123456789 * 3.0", 123456789.123456789 * 3.0);
+        for (Map.Entry<String, Double> c : cases.entrySet()) {
+            String label = "the carrier of " + c.getKey();
+            Object got = run(backend, label, "|#TDS\n  k:Integer\n  1\n#->extend(~t: r|[" + c.getKey()
+                    + ", -1.0]->max())->select(~t)->from(" + StorelessRuntime.RUNTIME + ")");
+            System.out.println("[product raise probe] " + backend.name() + " " + label + ", answered: " + describe(got));
+            if (got instanceof com.legend.sql.DialectCapability dc
+                    && String.valueOf(dc.getMessage()).contains("list encoding")) {
+                continue;
+            }
+            String cell = got instanceof String rows && rows.contains("\"t\":")
+                    ? rows.substring(rows.indexOf("\"t\":") + 4).replaceAll("[}\\]\\s\"]", "") : null;
+            if (cell == null || !cell.matches("-?[0-9.eE+-]+") || Double.parseDouble(cell) != c.getValue()) {
+                wrong.add(label + ": expected " + c.getValue() + " exactly, answered " + describe(got));
+            }
+        }
+    }
 
     private static void parses(com.legend.testbackend.TestBackend backend, List<String> wrong) {
         for (Parse p : PARSES) {

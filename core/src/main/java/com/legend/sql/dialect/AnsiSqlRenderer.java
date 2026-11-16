@@ -871,6 +871,41 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         return variantAwareCast(writer, c);
     }
 
+    /** legend-pure's parseFloat as one rule on every database (Phase 8, 2026-11-16): an optional sign, digits with an
+     *  optional point, an optional exponent, one trailing f, surrounding whitespace, NaN and Infinity as spelled -- in
+     *  the POSIX pattern {@link #FLOAT_GRAMMAR} each dialect matches in its own spelling, {@code matches} -- else
+     *  TEXT_NOT_FLOAT by name. NULL stays NULL. */
+    protected SqlWriter guardedParseFloat(SqlWriter writer, SqlExpr s, SqlWriter.Piece matches, SqlWriter.Piece cast) {
+        return writer.append("(CASE WHEN ").expr(s, 4).append(" IS NULL THEN NULL WHEN ").piece(matches)
+                .append(" THEN ").piece(cast).append(" ELSE ")
+                .expr(SqlExpr.Call.of(com.legend.sql.SqlFn.ERROR,
+                        new SqlExpr.RaiseText(com.legend.sql.RaiseKind.TEXT_NOT_FLOAT, java.util.List.of(s))), 0)
+                .append(" END)");
+    }
+
+    /** The parseFloat grammar ({@link #guardedParseFloat}) as a POSIX pattern, anchored. */
+    protected static final String FLOAT_GRAMMAR = "^[[:space:]]*[+-]?(NaN|Infinity|([0-9]+[.]?[0-9]*|[.][0-9]+)"
+            + "([eE][+-]?[0-9]+)?[fF]?)[[:space:]]*$";
+
+    /** Whether {@code c} is a parseFloat: a user's cast of text to a Float. */
+    protected static boolean isParseFloat(SqlExpr.Cast c) {
+        return c.target() == com.legend.sql.SqlType.Scalar.DOUBLE && c.reason() == SqlExpr.Reason.USER
+                && c.value().type() instanceof com.legend.sql.TypeFact.Typed t
+                && t.type() == com.legend.sql.SqlType.Scalar.VARCHAR;
+    }
+
+    /** legend-pure's parseInteger (Long.valueOf / Long.parseLong in its two modes): an optional sign and digits, no
+     *  whitespace -- in each dialect's own pattern spelling, {@code matches} -- else TEXT_NOT_INTEGER by name, where a
+     *  database's CAST read hex, an exponent, surrounding whitespace or anything else as a number or NULL (Phase 8,
+     *  2026-11-16, the probe's parse cases). NULL stays NULL. */
+    protected SqlWriter guardedParseInt(SqlWriter writer, SqlExpr s, SqlWriter.Piece matches, SqlWriter.Piece cast) {
+        return writer.append("(CASE WHEN ").expr(s, 4).append(" IS NULL THEN NULL WHEN ").piece(matches)
+                .append(" THEN ").piece(cast).append(" ELSE ")
+                .expr(SqlExpr.Call.of(com.legend.sql.SqlFn.ERROR,
+                        new SqlExpr.RaiseText(com.legend.sql.RaiseKind.TEXT_NOT_INTEGER, java.util.List.of(s))), 0)
+                .append(" END)");
+    }
+
     /** An expression, written: a leaf is spelled as text; a sub-expression is written into the same writer, so a
      *  parameter anywhere below is bound where its placeholder is written. */
     protected SqlWriter expr(SqlWriter writer, SqlExpr e, int parentPrec) {

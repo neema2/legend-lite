@@ -788,7 +788,9 @@ public class Postgres extends AnsiSqlRenderer {
             // joinStrings' interleaved concat, never flattened
             case CONCAT_JOIN -> writer.function("concat", c.args());
             // 64-bit parse (PCT Long.MIN/MAX round-trips)
-            case PARSE_INT -> castAs(writer, typedText(c.args().get(0)), "BIGINT");
+            case PARSE_INT -> guardedParseInt(writer, c.args().get(0),
+                    w -> w.expr(typedText(c.args().get(0)), 6).append(" ~ '^[+-]?[0-9]+$'"),
+                    w -> castAs(w, typedText(c.args().get(0)), "BIGINT"));
             // parseDate(text): the ISO text as a timestamp
             case PARSE_DATE -> castAs(writer, typedText(c.args().get(0)), "TIMESTAMP");
             case PI -> writer.append("pi()");
@@ -1474,6 +1476,13 @@ public class Postgres extends AnsiSqlRenderer {
     /** Composite casts other than DECIMAL are the collection carrier's (leg P4). */
     @Override
     protected SqlWriter variantAwareCast(SqlWriter writer, SqlExpr.Cast c) {
+        // parseFloat: '0x10' read 16 and '1f' raised Postgres's own error (the probe, measured): legend-pure's grammar,
+        // the f stripped before Postgres's cast, which reads NaN, Infinity and whitespace itself (Phase 8)
+        if (isParseFloat(c)) {
+            SqlExpr x = c.value();
+            return guardedParseFloat(writer, x, w -> w.expr(x, 6).append(" ~ '" + FLOAT_GRAMMAR + "'"),
+                    w -> w.append("CAST(regexp_replace(").expr(x, 0).append(", '[fF][[:space:]]*$', '') AS DOUBLE PRECISION)"));
+        }
         if (c.target() instanceof SqlType.Array arr) {
             return listCast(writer, c, arr);
         }

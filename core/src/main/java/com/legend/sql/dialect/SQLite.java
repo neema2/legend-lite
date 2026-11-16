@@ -1895,11 +1895,13 @@ public class SQLite extends AnsiSqlRenderer {
 
     /** DuckDB's 64-bit parse: an optional sign and digits, else an error (SQLite's CAST reads 'abc' as 0, measured). */
     private SqlWriter.Piece parseInt(SqlExpr s) {
-        SqlWriter.Piece digits = w -> w.append("ltrim(trim(").expr(s, 0).append("), '+-')");
+        // no trim: legend-pure's parseInteger raises on surrounding whitespace in both modes (Long.valueOf,
+        // Long.parseLong; the orchestrator's decision, Phase 8, 2026-11-16)
+        SqlWriter.Piece digits = w -> w.append("ltrim(").expr(s, 0).append(", '+-')");
         return w -> w.append("(CASE WHEN ").expr(s, 4).append(" IS NULL THEN NULL WHEN ").piece(digits)
-                .append(" <> '' AND ").piece(digits).append(" NOT GLOB '*[^0-9]*' AND length(trim(").expr(s, 0)
-                .append(")) - length(").piece(digits).append(") <= 1 THEN CAST(trim(").expr(s, 0)
-                .append(") AS INTEGER) ELSE ").piece(raise(raiseArgs(new SqlExpr.RaiseText(
+                .append(" <> '' AND ").piece(digits).append(" NOT GLOB '*[^0-9]*' AND length(").expr(s, 0)
+                .append(") - length(").piece(digits).append(") <= 1 THEN CAST(").expr(s, 0)
+                .append(" AS INTEGER) ELSE ").piece(raise(raiseArgs(new SqlExpr.RaiseText(
                         com.legend.sql.RaiseKind.TEXT_NOT_INTEGER, List.of(s))))).append(" END)");
     }
 

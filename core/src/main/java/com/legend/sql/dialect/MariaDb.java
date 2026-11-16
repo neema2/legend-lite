@@ -2279,8 +2279,9 @@ public class MariaDb extends AnsiSqlRenderer {
 
     /** DuckDB's 64-bit parse: an optional sign and digits, else an error (a CAST reads 'abc' as 0 here). */
     private SqlWriter.Piece parseInt(SqlExpr s) {
-        return w -> w.append("(CASE WHEN ").expr(s, 4).append(" IS NULL THEN NULL WHEN TRIM(").expr(s, 0)
-                .append(") REGEXP '^[+-]?[0-9]+$' THEN CAST(TRIM(").expr(s, 0).append(") AS SIGNED) ELSE ")
+        // no TRIM: legend-pure's parseInteger raises on surrounding whitespace in both modes (Phase 8, 2026-11-16)
+        return w -> w.append("(CASE WHEN ").expr(s, 4).append(" IS NULL THEN NULL WHEN ").expr(s, 4)
+                .append(" REGEXP '^[+-]?[0-9]+$' THEN CAST(").expr(s, 0).append(" AS SIGNED) ELSE ")
                 .piece(raise(raiseArgs(new SqlExpr.RaiseText(com.legend.sql.RaiseKind.TEXT_NOT_INTEGER, List.of(s))),
                         SqlType.Scalar.BIGINT)).append(" END)");
     }
