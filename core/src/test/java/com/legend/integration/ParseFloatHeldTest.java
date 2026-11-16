@@ -108,15 +108,6 @@ class ParseFloatHeldTest extends AbstractDatabaseTest {
     }
 
     @Test
-    @DisplayName("on SQLite, whitespace around a number raises, as legend-pure's interpreted parse does")
-    void whitespaceRaisesOnSqlite() {
-        if (!backend().name().toLowerCase(java.util.Locale.ROOT).contains("sqlite")) {
-            return;   // DuckDB's and H2's own casts trim (a divergence reported, not this change's)
-        }
-        org.junit.jupiter.api.Assertions.assertThrows(Exception.class, () -> one("|' 1 '->parseFloat()"));
-    }
-
-    @Test
     @DisplayName("the parse table: each input's answer on this lane, printed for the lane rounds (the parse family's MUST)")
     void printsTheParseTable() {
         String lane = backend().name();

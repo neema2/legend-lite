@@ -1344,8 +1344,7 @@ public class SQLite extends AnsiSqlRenderer {
         // (S138) and an infinity is SQLite's own, as DuckDB and H2 read them. Prototyped against the grammar: the
         // table and 30,000 fuzzed strings, no mismatch (Phase 8).
         if (target == SqlType.Scalar.DOUBLE && c.reason() == SqlExpr.Reason.USER && typeOf(v) == SqlType.Scalar.VARCHAR) {
-            SqlExpr t = new SqlExpr.Column(null, "__pf_t", new com.legend.sql.TypeFact.Typed(SqlType.Scalar.VARCHAR, true),
-                    com.legend.sql.OutputCol.Origin.DERIVED);
+            SqlExpr t = SqlExpr.Column.derived(null, "__pf_t");
             return writer.append("(SELECT CASE WHEN __pf_t IS NULL THEN NULL WHEN __pf_t IN ('NaN', '+NaN', '-NaN') THEN ")
                     .piece(raise(raiseArgs(SqlExpr.RaiseText.placed(com.legend.sql.RaiseKind.VALUE_NOT_HELD,
                             "parseFloat of NaN is NaN, which this database cannot hold"))))
