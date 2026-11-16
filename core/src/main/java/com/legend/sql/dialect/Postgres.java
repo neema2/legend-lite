@@ -2619,8 +2619,10 @@ public class Postgres extends AnsiSqlRenderer {
     @SpellingArm
     protected SqlWriter floatToText(SqlWriter writer, SqlExpr x) {
         // from 1e17 the double's own text, its shortest digits (W3: a NUMERIC of a double keeps 15, round 57)
-        return shortestWhenHuge(writer, x, w -> trimmedSix(w, "rtrim", t -> t.append("CAST(ROUND(CAST(").expr(x, 0)
-                .append(" AS NUMERIC), 6) AS VARCHAR)")));
+        // below it, the double's own text (shortest round-trip digits since Postgres 12) as a NUMERIC rounded to six
+        // places: register S311's one answer (W3's instrument, 2026-11-16: a double cast to NUMERIC keeps 15 digits)
+        return shortestWhenHuge(writer, x, w -> trimmedSix(w, "rtrim", t -> t.append("CAST(ROUND(CAST(CAST(")
+                .expr(asDouble(x), 0).append(" AS TEXT) AS NUMERIC), 6) AS VARCHAR)")));
     }
 
     /** A Float literal: the base's, but a negative zero, cast from its text -- an exponent literal is a NUMERIC here,

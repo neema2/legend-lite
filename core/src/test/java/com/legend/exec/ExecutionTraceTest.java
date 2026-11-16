@@ -155,7 +155,7 @@ class ExecutionTraceTest {
         ExecutionPlan relation = ExecutionPlan.reading(List.of(), new ExecutionPlan.TdsResult(
                 ExecutionPlan.TdsResult.Shape.RELATION, List.of(), stampReader().answerSql()));
         IllegalStateException arrow = assertThrows(IllegalStateException.class, () -> new com.legend.result.Output.Arrow(
-                new java.io.ByteArrayOutputStream(), null).writerFor(relation, null));
+                new java.io.ByteArrayOutputStream(), null, com.legend.result.CellText.PRODUCT).writerFor(relation, null));
         assertTrue(arrow.getMessage().contains("the run named no execution"), arrow.getMessage());
     }
 

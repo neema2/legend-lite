@@ -725,7 +725,9 @@ public class DuckDb extends AnsiSqlRenderer {
 
     /** The passes that make an implicit scan order explicit, where {@link #passes} runs them: none in the product (a
      *  statement carries no order it did not ask for, the user's ruling of 2026-09-20); the compatibility edge's DuckDB
-     *  supplies legend-engine's ({@code edge.StableScanOrder}, the corpus replay's; W6, 2026-11-16). */
+     *  supplies legend-engine's ({@code edge.StableScanOrder}, the corpus replay's; W6, 2026-11-16). A spelling arm: the
+     *  order it adds is legend-engine's text of a statement the product leaves unordered, decided by no plan. */
+    @SpellingArm
     protected java.util.List<com.legend.sql.SqlRewriter> scanOrderPasses() {
         return java.util.List.of();
     }
@@ -1340,15 +1342,51 @@ public class DuckDb extends AnsiSqlRenderer {
         return true;
     }
 
-    /** {@inheritDoc} {@code printf}'s six decimals, trimmed; its {@code nan} and {@code inf} by Pure's names (measured on 1.5, 2026-11-15). */
+    /**
+     * {@inheritDoc} Register S311's one answer, exactly (W3 of docs/records/d-plan-2026-11-16.md, its instrument
+     * {@code FloatTextInstrumentTest}, 2026-11-16): from {@link #SHORTEST_FROM} the double's own text (its shortest
+     * round-trip digits) written out plain; below it those digits rounded half up to six places in integer arithmetic
+     * -- the text's digits as a BIGINT {@code m} and its power of ten, {@code m + 5*10^(k-1)} divided by {@code 10^k}
+     * for the {@code k} digits past the sixth place ({@code 10^k} exact as a double to 10^22), the point put back --
+     * then trimmed. Until then {@code printf('%.6f')} rounded the binary value (14109229767561.228516 for
+     * 14109229767561.229, a tie below its digits); a DECIMAL cast of the text was exact but 16 times slower, and drops a
+     * whole mantissa upward (5.8998215254358954e-08 to 0.000001). Measured at 1.7 to 2.0 times printf's cost over a
+     * million rows (U3's bound is 2), identical to the DECIMAL cast on every row (DuckDB 1.5, 2026-11-16). Its
+     * {@code nan} and {@code inf} by Pure's names (measured on 1.5, 2026-11-15).
+     */
     @Override
     @SpellingArm
     protected SqlWriter floatToText(SqlWriter writer, SqlExpr x) {
+        SqlExpr v = asDouble(x);
         writer.append("replace(replace(");
-        // from 1e17 the double's own text, its shortest digits (W3 of docs/records/d-plan-2026-11-16.md: printf wrote
-        // the exact binary expansion, the probe, 2026-11-16)
-        shortestWhenHuge(writer, x, w -> trimmedSix(w, "rtrim", t -> t.append("printf('%.6f', ").expr(asDouble(x), 0)
-                .append(")")));
+        shortestWhenHuge(writer, x, w -> trimmedSix(w, "rtrim", t -> roundedShortest(t, v)));
         return writer.append(", 'nan', 'NaN'), 'inf', 'Infinity')");
+    }
+
+    /** {@code v}'s shortest digits rounded half up to six places, as {@code [-]I.FFFFFF}: the template's {@code §}s are
+     *  {@code v}, each written where it stands. */
+    private static void roundedShortest(SqlWriter writer, SqlExpr v) {
+        String sv = "CAST(abs(§) AS VARCHAR)";
+        String ep = "strpos(" + sv + ", 'e')";
+        String mant = "CASE WHEN " + ep + " = 0 THEN " + sv + " ELSE substr(" + sv + ", 1, " + ep + " - 1) END";
+        String ex = "CASE WHEN " + ep + " = 0 THEN 0 ELSE CAST(substr(" + sv + ", " + ep + " + 1) AS INTEGER) END";
+        String frac = "CASE WHEN strpos(" + mant + ", '.') = 0 THEN 0 ELSE length(" + mant + ") - strpos(" + mant
+                + ", '.') END";
+        String m = "CAST(replace(" + mant + ", '.', '') AS BIGINT)";
+        String k = "(" + frac + " - " + ex + " - 6)";
+        String q = "CASE WHEN " + k + " <= 0 THEN CAST(" + m + " AS VARCHAR) || repeat('0', -" + k + ") WHEN " + k
+                + " >= 19 THEN '0' ELSE CAST((" + m + " + CAST(5 * pow(10, " + k + " - 1) AS BIGINT)) // CAST(pow(10, "
+                + k + ") AS BIGINT) AS VARCHAR) END";
+        // lpad truncates a longer text: only a short one is padded
+        String t7 = "CASE WHEN length(" + q + ") < 7 THEN lpad(" + q + ", 7, '0') ELSE " + q + " END";
+        String text = "(CASE WHEN § < 0 THEN '-' ELSE '' END || left(" + t7 + ", length(" + t7 + ") - 6) || '.' || right("
+                + t7 + ", 6))";
+        String[] parts = text.split("§", -1);
+        for (int i = 0; i < parts.length; i++) {
+            writer.append(parts[i]);
+            if (i < parts.length - 1) {
+                writer.expr(v, 0);
+            }
+        }
     }
 }

@@ -106,7 +106,9 @@ class WriterCarriageGuardTest {
                     Map.entry("Double.isFinite", 4),
                     // a date's own precision, carried in the value (a day or less; from a minute on, legend-pure's zone
                     // rule, 2026-10-29): Pure's print form and legend-engine's day rule read it, never a clock
-                    Map.entry("atLeast", 5),
+                    // 5 -> 7 (2026-11-16, W4's audit): legend-pure's date text for the pure/v1 Arrow route
+                    // (CellText.DateText.LEGEND_PURE) beside the product's, each reading the value's own precision
+                    Map.entry("atLeast", 7),
                     // a value root's instant, and a nested value's, without the fraction's trailing zeros: the value
                     // lane's canon (register S118); a relation's cell keeps S312's six digits, untrimmed
                     Map.entry("trimmed", 2),

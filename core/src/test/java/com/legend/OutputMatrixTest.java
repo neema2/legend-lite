@@ -70,17 +70,17 @@ class OutputMatrixTest {
             new Kind("decimal_arithmetic", "|2 * 2.50D", "|" + T + "$r.ID * 2.50D)->select(~[v])", "5.00"),
             new Kind("decimal_times_decimal", "|1.50D * 2.50D", "|" + T + "1.50D * 2.50D)->select(~[v])",
                     "3.7500"),
-            // a DateTime: lite's own text since W4 (2026-11-16, docs/records/d-plan-2026-11-16.md), the product's zone
-            // (register S312: UTC written Z; Pure's +0000 is the compatibility edge's): a value root at the precision
-            // its digits show, a relation's timestamp cell with S312's six fraction digits
+            // a DateTime: lite's own text since W4 (2026-11-16, docs/records/d-plan-2026-11-16.md, and its audit), the
+            // product's (register S312: UTC, six fraction digits and Z; Pure's +0000 and written precision are the
+            // compatibility edge's), a value root and a relation's timestamp cell alike
             new Kind("datetime_whole", "|%2024-01-02T10:30:00", "|" + T + "%2024-01-02T10:30:00)->select(~[v])",
-                    "2024-01-02T10:30:00Z", "2024-01-02T10:30:00.000000Z"),
+                    "2024-01-02T10:30:00.000000Z", "2024-01-02T10:30:00.000000Z"),
             new Kind("datetime_millis", "|%2024-01-02T10:30:00.123",
-                    "|" + T + "%2024-01-02T10:30:00.123)->select(~[v])", "2024-01-02T10:30:00.123Z",
+                    "|" + T + "%2024-01-02T10:30:00.123)->select(~[v])", "2024-01-02T10:30:00.123000Z",
                     "2024-01-02T10:30:00.123000Z"),
             new Kind("datetime_nanos", "|%2024-01-02T10:30:00.123456789",
                     "|" + T + "%2024-01-02T10:30:00.123456789)->select(~[v])",
-                    "2024-01-02T10:30:00.123456789Z", "2024-01-02T10:30:00.123456Z"),
+                    "2024-01-02T10:30:00.123456Z", "2024-01-02T10:30:00.123456Z"),
             new Kind("date", "|%2024-01-02", "|" + T + "%2024-01-02)->select(~[v])", "2024-01-02"));
 
     private static final List<PlanCases.Written> OUTPUTS = List.of(PlanCases.Written.values());

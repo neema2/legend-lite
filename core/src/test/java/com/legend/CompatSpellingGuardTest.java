@@ -211,8 +211,11 @@ class CompatSpellingGuardTest {
             // legend-engine's +0000 and quoting the edge's)
             // resolver/Substitution.java | Cast exception: gone 2026-11-16 (W5 of docs/records/d-plan-2026-11-16.md): a run-time
             // type check raises its kind (Lite.TYPE_RAISE: CAST_IMPOSSIBLE, INSTANCE_NOT_OF), the sentence the edge's
-            // result/CellText.java | +0000 and | @_: gone 2026-11-16 (W4 of docs/records/d-plan-2026-11-16.md): lite's
-            // writers print a time-bearing cell as the product's DateTime text (S312) and refuse an instance's text (S314)
+            // result/CellText.java | @_: gone 2026-11-16 (W4 of docs/records/d-plan-2026-11-16.md): lite's writers refuse
+            // an instance's text (S314). +0000: back 2026-11-16 (W4's audit, DoD-2): legend-pure's date text, the pure/v1
+            // Arrow route's (CellText.DateText.LEGEND_PURE), where the product writes S312's six digits and Z; it moves to
+            // the edge with the engine writers
+            "result/CellText.java | +0000 | 1 | D1.8",
             // D1.4 -> D1.8 (2026-11-15): legend-engine's pivot quoting, CellText's engine half, read by the engine writers
             "result/CellText.java | presentedName | 1 | D1.8",
             // result/CsvWriter.java and result/JsonRowsWriter.java | presentedName: gone 2026-11-15 (D1.4: a pivot's

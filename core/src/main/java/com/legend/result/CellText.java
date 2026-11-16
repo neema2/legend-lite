@@ -33,11 +33,37 @@ public final class CellText {
      *  a StrictDate's day; a DateTime as the product writes one ({@link #productTime}); a structure or a text-carried value as its
      *  own text. */
     public static String pure(Object cell, ExecutionPlan.Column c) {
-        return pure(cell, c.type(), c);
+        return pure(cell, c.type(), c, PRODUCT);
     }
 
+    /** {@link #pure} with a date's text written by {@code dates}: the product's ({@link #PRODUCT}), or the one a
+     *  compatibility route hands its writer (legend-pure's, the edge's; W4's audit, 2026-11-16). */
+    public static String pure(Object cell, ExecutionPlan.Column c, DateText dates) {
+        return pure(cell, c.type(), c, dates);
+    }
+
+    /** A DATE'S TEXT IN A CELL, a closed set the writers interpret (data, never code a run is handed: W4's audit,
+     *  2026-11-16): the product's (register S312: six fraction digits and Z) or legend-pure's, which an upstream route
+     *  hands its writer -- the pure/v1 Arrow answer (DoD-2: an edge answer does not move with the product's). The
+     *  legend-pure arm moves to the edge with the engine writers (W8, D1.8). */
+    public enum DateText {
+        PRODUCT, LEGEND_PURE;
+
+        /** {@code d}'s text: {@code type} the Pure type it is read under, {@code c} its column, {@code nested} whether
+         *  it is a structure's element (which has no column of its own). */
+        String text(PureDateLiteral d, String type, ExecutionPlan.Column c, boolean nested) {
+            return switch (this) {
+                case PRODUCT -> nested ? productNested(d) : productDate(d, type, c);
+                case LEGEND_PURE -> legendPure(d, type, c, nested);
+            };
+        }
+    }
+
+    /** {@link DateText#PRODUCT}. */
+    public static final DateText PRODUCT = DateText.PRODUCT;
+
     /** {@link #pure} of a cell, or a structure's element, of Pure type {@code type} ({@code c} the column it is in). */
-    private static String pure(Object cell, String type, ExecutionPlan.Column c) {
+    private static String pure(Object cell, String type, ExecutionPlan.Column c, DateText dates) {
         String collection = collectionClass(type);
         return switch (cell) {
             case Long l -> Long.toString(l);
@@ -46,15 +72,15 @@ public final class CellText {
             case BigDecimal d -> type.equals("Float") ? pureFloat(d) : d.toPlainString();
             case Boolean b -> b.toString();
             case String s -> s;
-            case PureDateLiteral d -> pureDate(d, type, c);
+            case PureDateLiteral d -> dates.text(d, type, c, false);
             case PureTimeLiteral t -> t.toEngineString();
             // a List prints its values' texts joined (the prelude's List.toString(): joinStrings('[', ', ', ']'))
-            case List<?> l when collection.equals("List") -> joined(l, typeArguments(type).get(0), c, "[", "]");
+            case List<?> l when collection.equals("List") -> joined(l, typeArguments(type).get(0), c, "[", "]", dates);
             // a Pair prints '<first, second>' (the prelude's Pair.toString())
             case Map<?, ?> m when collection.equals("Pair") -> {
                 List<String> args = typeArguments(type);
-                yield "<" + element(m.get("first"), args.get(0), c) + ", " + element(m.get("second"), args.get(1), c)
-                        + ">";
+                yield "<" + element(m.get("first"), args.get(0), c, dates) + ", "
+                        + element(m.get("second"), args.get(1), c, dates) + ">";
             }
             // a Map prints its entries as 'key=value' in braces, comma-joined: legend-pure's map's own text (its Java
             // map's), the form every output wrote it in until now
@@ -65,8 +91,8 @@ public final class CellText {
                     if (out.length() > 1) {
                         out.append(", ");
                     }
-                    out.append(element(e.getKey(), args.get(0), c)).append('=')
-                            .append(element(e.getValue(), args.get(1), c));
+                    out.append(element(e.getKey(), args.get(0), c, dates)).append('=')
+                            .append(element(e.getValue(), args.get(1), c, dates));
                 }
                 yield out.append('}').toString();
             }
@@ -82,21 +108,23 @@ public final class CellText {
 
     /** A structure's element as Pure prints it inside its parent's text. A Pure collection holds no null, so a null
      *  element is a decode fault, refused by name rather than printed as some text. */
-    private static String element(@com.legend.base.Nullable Object v, String type, ExecutionPlan.Column c) {
+    private static String element(@com.legend.base.Nullable Object v, String type, ExecutionPlan.Column c,
+            DateText dates) {
         if (v == null) {
             throw new IllegalArgumentException("column '" + c.name() + "' (" + c.type() + "): a null " + type
                     + " inside a structure has no Pure text");
         }
-        return pure(v, type, c);
+        return pure(v, type, c, dates);
     }
 
-    private static String joined(List<?> l, String elementType, ExecutionPlan.Column c, String open, String close) {
+    private static String joined(List<?> l, String elementType, ExecutionPlan.Column c, String open, String close,
+            DateText dates) {
         StringBuilder out = new StringBuilder(open);
         for (int i = 0; i < l.size(); i++) {
             if (i > 0) {
                 out.append(", ");
             }
-            out.append(element(l.get(i), elementType, c));
+            out.append(element(l.get(i), elementType, c, dates));
         }
         return out.append(close).toString();
     }
@@ -160,10 +188,10 @@ public final class CellText {
             case BigDecimal d -> isFloat(c) ? engineCell(d.doubleValue()) : token(d.toPlainString(), d);
             case Boolean b -> Json.bool(b);
             case String s -> Json.str(s);
-            case PureDateLiteral d -> Json.str(engineDay(d, c) ? day(d) : d.toEngineJson());
+            case PureDateLiteral d -> Json.str(engineDay(d, c) ? dayText(d) : d.toEngineJson());
             case PureTimeLiteral t -> Json.str(t.toEngineString());
-            case Map<?, ?> m -> structure(declared(m), false, c);
-            case List<?> l -> structure(declared(l), false, c);
+            case Map<?, ?> m -> structure(declared(m), false, c, PRODUCT);
+            case List<?> l -> structure(declared(l), false, c, PRODUCT);
             default -> throw refused(cell, c, "legend-engine's JSON token");
         };
     }
@@ -172,15 +200,16 @@ public final class CellText {
      *  by the rules of a cell of its own kind -- a float, a date, a time spelled as one is, never as the JSON library
      *  would spell a Java value: legend-engine's tokens, or Pure's where {@code pure}. A nested value has no column of
      *  its own, so a date is its day where it has no time of day, else a timestamp's text. */
-    private static Json.Node structure(@com.legend.base.Nullable Object v, boolean pure, ExecutionPlan.Column c) {
+    private static Json.Node structure(@com.legend.base.Nullable Object v, boolean pure, ExecutionPlan.Column c,
+            DateText dates) {
         return switch (v) {
             case null -> Json.nil();
             case Map<?, ?> m -> {
                 java.util.LinkedHashMap<String, Json.Node> fields = new java.util.LinkedHashMap<>();
-                m.forEach((k, x) -> fields.put(String.valueOf(k), structure(x, pure, c)));
+                m.forEach((k, x) -> fields.put(String.valueOf(k), structure(x, pure, c, dates)));
                 yield new Json.Obj(fields);
             }
-            case List<?> l -> new Json.Arr(l.stream().map(x -> structure(x, pure, c)).toList());
+            case List<?> l -> new Json.Arr(l.stream().map(x -> structure(x, pure, c, dates)).toList());
             case Long n -> Json.num(n);
             case Integer n -> Json.num(n);
             case BigInteger b -> token(b.toString(), new BigDecimal(b));
@@ -190,7 +219,7 @@ public final class CellText {
             case BigDecimal d -> token(d.toPlainString(), d);
             case Boolean b -> Json.bool(b);
             case String s -> Json.str(s);
-            case PureDateLiteral d -> Json.str(pure ? zoned(d.trimmed())
+            case PureDateLiteral d -> Json.str(pure ? dates.text(d, "Date", c, true)
                     : !d.precision().atLeast(PureDateLiteral.Precision.HOUR) ? d.toEngineString() : d.toEngineJson());
             case PureTimeLiteral t -> Json.str(t.toEngineString());
             default -> throw refused(v, c, pure ? "Pure's JSON token" : "legend-engine's JSON token");
@@ -200,6 +229,11 @@ public final class CellText {
     /** Lite's own JSON token of a cell (its CSV's and JSON's values are Pure's): a Float as Pure's text, a Decimal at
      *  its scale, a date kind as a string of Pure's text, the rest as {@link #engine} writes it. */
     public static Json.Node pureJson(@com.legend.base.Nullable Object cell, ExecutionPlan.Column c) {
+        return pureJson(cell, c, PRODUCT);
+    }
+
+    /** {@link #pureJson} with a date's text written by {@code dates} ({@link #pure}'s note). */
+    public static Json.Node pureJson(@com.legend.base.Nullable Object cell, ExecutionPlan.Column c, DateText dates) {
         if (cell == null) {
             return Json.nil();
         }
@@ -207,9 +241,9 @@ public final class CellText {
             // a NaN or an infinite Float as its name, a string (register S119, pending the user's ruling)
             case Double d -> Double.isFinite(d) ? token(pureFloat(d), BigDecimal.valueOf(d)) : Json.str(pureFloat(d));
             case BigDecimal d -> token(isFloat(c) ? pureFloat(d) : d.toPlainString(), d);
-            case PureDateLiteral d -> Json.str(pureDate(d, c.type(), c));
-            case Map<?, ?> m -> structure(declared(m), true, c);
-            case List<?> l -> structure(declared(l), true, c);
+            case PureDateLiteral d -> Json.str(dates.text(d, c.type(), c, false));
+            case Map<?, ?> m -> structure(declared(m), true, c, dates);
+            case List<?> l -> structure(declared(l), true, c, dates);
             default -> engine(cell, c);
         };
     }
@@ -227,9 +261,9 @@ public final class CellText {
             // a Float's spelling decided in one place: its node's ({@link #pureJson})
             case Double d -> Json.write(w, pureJson(d, c));
             case BigDecimal d -> w.writeToken(isFloat(c) ? pureFloat(d) : d.toPlainString());
-            case PureDateLiteral d -> w.writeString(pureDate(d, c.type(), c));
-            case Map<?, ?> m -> Json.write(w, structure(declared(m), true, c));
-            case List<?> l -> Json.write(w, structure(declared(l), true, c));
+            case PureDateLiteral d -> w.writeString(productDate(d, c.type(), c));
+            case Map<?, ?> m -> Json.write(w, structure(declared(m), true, c, PRODUCT));
+            case List<?> l -> Json.write(w, structure(declared(l), true, c, PRODUCT));
             default -> writeEngine(w, cell, c);
         }
     }
@@ -248,10 +282,10 @@ public final class CellText {
             case BigDecimal d -> w.writeToken(d.toPlainString());
             case Boolean b -> w.writeBool(b);
             case String s -> w.writeString(s);
-            case PureDateLiteral d -> w.writeString(engineDay(d, c) ? day(d) : d.toEngineJson());
+            case PureDateLiteral d -> w.writeString(engineDay(d, c) ? dayText(d) : d.toEngineJson());
             case PureTimeLiteral t -> w.writeString(t.toEngineString());
-            case Map<?, ?> m -> Json.write(w, structure(declared(m), false, c));
-            case List<?> l -> Json.write(w, structure(declared(l), false, c));
+            case Map<?, ?> m -> Json.write(w, structure(declared(m), false, c, PRODUCT));
+            case List<?> l -> Json.write(w, structure(declared(l), false, c, PRODUCT));
             default -> throw refused(cell, c, "legend-engine's JSON token");
         }
     }
@@ -316,32 +350,52 @@ public final class CellText {
     /** Lite's text of a date (W4 of docs/records/d-plan-2026-11-16.md, 2026-11-16; the product's DateTime text,
      *  register S312: UTC with {@code Z}, never legend-pure's {@code +0000}, which is the edge's and the judges'): a
      *  value with no time of day (a year, a month, a day, a StrictDate) or a column that holds days
-     *  ({@link ExecutionPlan.Precision#DAY}) as its day; a relation's timestamp cell ({@link ExecutionPlan.Precision#INSTANT})
-     *  as S312's six fraction digits ({@link #productTime}); a value carried at the precision it was written (WRITTEN)
-     *  as it is, and a value root's instant, a nested value and a mixed column's winner (MINIMAL, or no fact) at the
-     *  precision its digits show (S118), each with {@code Z} from a minute on ({@link #zoned}) -- a DateTime's precision
-     *  is the value's, kept. */
-    private static String pureDate(PureDateLiteral d, String type, ExecutionPlan.Column c) {
+     *  ({@link ExecutionPlan.Precision#DAY}) as its day; every time-bearing value -- a relation's timestamp cell, a value
+     *  carried at the precision it was written, a value root's instant, a mixed column's winner, a nested value -- as
+     *  S312's six fraction digits and Z ({@link #productTime}), the one form the SQL's {@code DATETIME_TO_TEXT} writes
+     *  too (the orchestrator's W4 audit, 2026-11-16: "six digits and Z for every time-bearing product cell"; a value's
+     *  written precision is the edge's, legend-pure's print form, the plan's decision log). */
+    private static String productDate(PureDateLiteral d, String type, ExecutionPlan.Column c) {
+        boolean own = type.equals(c.type());
+        if (!d.precision().atLeast(PureDateLiteral.Precision.HOUR) || type.equals("StrictDate")
+                || (own && c.precision() == ExecutionPlan.Precision.DAY)) {
+            return dayText(d);
+        }
+        return productTime(d);
+    }
+
+    /** legend-pure's text of a date in a cell (the pure/v1 Arrow route's, as it answered before W4): a value with no
+     *  time of day, or a column that holds days, as its day; a value carried at the precision it was written, a nested
+     *  value and a mixed column's winner at the precision its digits show, with {@code +0000} from a minute on; a
+     *  relation's timestamp cell at nine fraction digits and {@code +0000}. */
+    private static String legendPure(PureDateLiteral d, String type, ExecutionPlan.Column c, boolean nested) {
+        if (nested) {
+            return pureZoned(d.trimmed());
+        }
         boolean own = type.equals(c.type());
         ExecutionPlan.Precision p = c.precision();
         if (p == ExecutionPlan.Precision.WRITTEN) {
-            return zoned(d);
+            return pureZoned(d);
         }
         if (!d.precision().atLeast(PureDateLiteral.Precision.HOUR) || type.equals("StrictDate")
                 || (own && p == ExecutionPlan.Precision.DAY)) {
-            return day(d);
+            return dayText(d);
         }
         if (own && p == ExecutionPlan.Precision.INSTANT) {
-            return productTime(d);
+            return d.toEngineJson();
         }
-        return zoned(d.trimmed());
+        return pureZoned(d.trimmed());
     }
 
-    /** A date at its own precision, UTC marked {@code Z} from a minute on (an hour-only date has no zone, as a minute's
-     *  first digit is where a zone is written): the product's spelling of the zone (S312). */
-    private static String zoned(PureDateLiteral d) {
-        return d.precision().atLeast(PureDateLiteral.Precision.MINUTE) ? d.toEngineString() + "Z"
+    /** A date at its own precision, legend-pure's {@code +0000} from a minute on (an hour-only date has none). */
+    private static String pureZoned(PureDateLiteral d) {
+        return d.precision().atLeast(PureDateLiteral.Precision.MINUTE) ? d.toEngineString() + "+0000"
                 : d.toEngineString();
+    }
+
+    /** A structure's date as the product writes it: its day where it has no time of day, else S312's text. */
+    private static String productNested(PureDateLiteral d) {
+        return d.precision().atLeast(PureDateLiteral.Precision.HOUR) ? productTime(d) : dayText(d);
     }
 
     /** The product's text of a relation's timestamp cell (register S312, the user's ruling of 2026-11-10: "ISO 8601
@@ -350,6 +404,8 @@ public final class CellText {
     static String productTime(PureDateLiteral d) {
         // the value's own spelling at nine fraction digits, its last three digits and its five-character GMT offset
         // replaced by Z: the same digits, carried (a time-bearing value: an hour or finer)
+        // (a value finer than a microsecond is written at six digits, as S312 rules and a relation's cell always was:
+        // the plan's decision log carries it to the user's end batch)
         String nine = d.toEngineJson();
         return nine.substring(0, nine.length() - 8) + "Z";
     }
@@ -364,7 +420,8 @@ public final class CellText {
         return !d.precision().atLeast(PureDateLiteral.Precision.HOUR) || c.precision() == ExecutionPlan.Precision.DAY;
     }
 
-    private static String day(PureDateLiteral d) {
+    /** A date's day ({@code yyyy-MM-dd}), or its own text where it is coarser than a day. */
+    public static String dayText(PureDateLiteral d) {
         java.time.LocalDateTime t = d.toInstantFloor();
         return d.precision().atLeast(PureDateLiteral.Precision.DAY)
                 ? String.format(java.util.Locale.ROOT, "%d-%02d-%02d", t.getYear(), t.getMonthValue(),

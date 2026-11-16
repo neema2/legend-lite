@@ -159,9 +159,14 @@ class EdgeSpellingHookTest {
     private static final Set<String> D1_2_MONGO = Set.of("raiseMessage", "spellingPasses", "floatToText",
             "dateTimeFormat");
 
+    /** D1.2's arms and DuckDB's {@code scanOrderPasses} (W6 of docs/records/d-plan-2026-11-16.md, 2026-11-16):
+     *  legend-engine's scan order ({@code edge.StableScanOrder}) for the corpus replay, where the product adds none. */
+    private static final Set<String> D1_2_SCAN_ORDER = Set.of("raiseMessage", "spellingPasses", "floatToText",
+            "scanOrderPasses");
+
     private static final Map<String, Set<String>> OVERRIDES = new TreeMap<>(Map.ofEntries(
             Map.entry("BigQuery", D1_2), Map.entry("ClickHouse", D1_2), Map.entry("Databricks", D1_2),
-            Map.entry("DuckDb", D1_2), Map.entry("H2", D1_2), Map.entry("MariaDb", D1_2),
+            Map.entry("DuckDb", D1_2_SCAN_ORDER), Map.entry("H2", D1_2), Map.entry("MariaDb", D1_2),
             Map.entry("MongoDb", D1_2_MONGO), Map.entry("MySql", D1_2), Map.entry("Postgres", D1_2),
             Map.entry("SQLite", D1_2), Map.entry("Snowflake", D1_2), Map.entry("Trino", D1_2)));
 

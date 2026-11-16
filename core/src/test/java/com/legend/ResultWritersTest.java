@@ -116,7 +116,7 @@ class ResultWritersTest {
         // cell with S312's six digits; legend-engine's nine digits and +0000 are the edge's (CellText.engine)
         assertEquals("2026-01-07T00:00:00.000000Z", CellText.pure(midnight, date));
         assertEquals("\"2026-01-07T00:00:00.000000Z\"", Json.toCompact(CellText.pureJson(midnight, date)));
-        assertEquals("2026-01-07T00:00:00Z",
+        assertEquals("2026-01-07T00:00:00.000000Z",
                 CellText.pure(midnight, col("v", "Date", "TIMESTAMP", ExecutionPlan.Precision.MINIMAL)));
         assertEquals("\"2026-01-07\"", Json.toCompact(CellText.engine(PureDateLiteral.parse("2026-01-07"),
                 col("s", "StrictDate", "DATE", ExecutionPlan.Precision.DAY))));
@@ -139,7 +139,7 @@ class ResultWritersTest {
         // value root at the precision its digits show (S118)
         assertEquals("2024-01-02T10:30:00.500000Z",
                 CellText.pure(half, col("t", "DateTime", "TIMESTAMP", ExecutionPlan.Precision.INSTANT)));
-        assertEquals("2024-01-02T10:30:00.5Z",
+        assertEquals("2024-01-02T10:30:00.500000Z",
                 CellText.pure(half, col("t", "DateTime", "TIMESTAMP", ExecutionPlan.Precision.MINIMAL)));
         assertEquals("2024-01-02", CellText.pure(PureDateLiteral.parse("2024-01-02"),
                 col("d", "StrictDate", "DATE", ExecutionPlan.Precision.DAY)));
@@ -147,13 +147,13 @@ class ResultWritersTest {
         // (2026-10-28, S1.4 item 1), where the writer matched the slot's spelling until then; a relation's cell carried
         // the same way spells as legend-engine's TDS does, nine digits (INSTANT, 2026-10-29: ColumnFacts.precision gives
         // the fact by the result's shape)
-        // a value written at a minute keeps its precision, its zone the product's Z (legend-pure's +0000 is the edge's
-        // and the judges'); an hour-only date has no zone
-        assertEquals("2024-01-02T10:30Z", CellText.pure(PureDateLiteral.parse("2024-01-02T10:30"),
+        // every time-bearing value in S312's one form, six digits and Z (W4's audit, 2026-11-16; a value's written
+        // precision is legend-pure's print form, the edge's: CellText.DateText.LEGEND_PURE)
+        assertEquals("2024-01-02T10:30:00.000000Z", CellText.pure(PureDateLiteral.parse("2024-01-02T10:30"),
                 col("t", "DateTime", "TEMPORAL_TEXT", ExecutionPlan.Precision.WRITTEN)));
-        assertEquals("2024-01-02T10", CellText.pure(PureDateLiteral.parse("2024-01-02T10"),
+        assertEquals("2024-01-02T10:00:00.000000Z", CellText.pure(PureDateLiteral.parse("2024-01-02T10"),
                 col("t", "DateTime", "TEMPORAL_TEXT", ExecutionPlan.Precision.WRITTEN)));
-        assertEquals("\"2024-01-02T10\"", Json.toCompact(CellText.pureJson(PureDateLiteral.parse("2024-01-02T10"),
+        assertEquals("\"2024-01-02T10:00:00.000000Z\"", Json.toCompact(CellText.pureJson(PureDateLiteral.parse("2024-01-02T10"),
                 col("t", "DateTime", "TEMPORAL_TEXT", ExecutionPlan.Precision.WRITTEN))));
         assertEquals("2024-01-02T10:30:00.000000Z", CellText.pure(PureDateLiteral.parse("2024-01-02T10:30"),
                 col("t", "DateTime", "TEMPORAL_TEXT", ExecutionPlan.Precision.INSTANT)));
@@ -161,7 +161,7 @@ class ResultWritersTest {
         assertEquals("2024-01-02", CellText.pure(PureDateLiteral.parse("2024-01-02T00:00:00"),
                 col("d", "DateTime", "DATE", ExecutionPlan.Precision.DAY)));
         // a date-time of a mixed column (its fact none: a tagged winner's) spells by the value's own precision
-        assertEquals("2024-01-02T10:30:00Z", CellText.pure(PureDateLiteral.parse("2024-01-02T10:30:00"),
+        assertEquals("2024-01-02T10:30:00.000000Z", CellText.pure(PureDateLiteral.parse("2024-01-02T10:30:00"),
                 col("m", "Any", "TAGGED<DateTime TIMESTAMP, String VARCHAR>")));
     }
 
@@ -241,7 +241,7 @@ class ResultWritersTest {
         Column c = col("v", "model::Person", "STRUCT<when DATE>");
         assertEquals("{\"when\":\"2024-01-02\",\"at\":\"2024-01-02T10:30:00.500000000+0000\",\"tick\":\"10:30:00\","
                 + "\"f\":1.0E15,\"tags\":[\"2024-01-03\"]}", Json.toCompact(CellText.engine(person, c)));
-        assertEquals("{\"when\":\"2024-01-02\",\"at\":\"2024-01-02T10:30:00.5Z\",\"tick\":\"10:30:00\","
+        assertEquals("{\"when\":\"2024-01-02\",\"at\":\"2024-01-02T10:30:00.500000Z\",\"tick\":\"10:30:00\","
                 + "\"f\":1000000000000000.0,\"tags\":[\"2024-01-03\"]}", Json.toCompact(CellText.pureJson(person, c)));
     }
 

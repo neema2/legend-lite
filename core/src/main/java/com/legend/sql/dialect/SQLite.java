@@ -3341,46 +3341,21 @@ public class SQLite extends AnsiSqlRenderer {
         };
     }
 
-    /** {@inheritDoc} {@code printf}'s six decimals, trimmed; its {@code Inf} by Pure's name (no NaN is stored: a NaN reads as NULL; measured 2026-11-15). */
+    /**
+     * {@inheritDoc} REFUSED BY NAME (W3 of docs/records/d-plan-2026-11-16.md, the user's U3: exact through a text
+     * round-trip where it costs under twice the inexact form, else refused; register S311, its proposed row): SQLite
+     * writes no shortest round-trip digits of a double (its text keeps 15, {@code printf} rounds the binary value), so
+     * the one answer must choose them among 15-, 16- and 17-digit {@code printf('%!.Ne')} texts by reading each back,
+     * then round them in integer arithmetic -- built and judged exact on the instrument's 293 values
+     * ({@code FloatTextInstrumentTest}), and measured at 4.2 times the inexact {@code printf('%.6f')} per query over
+     * 200,000 rows (1.26 s to 0.30 s, SQLite 3.53, 2026-11-16; the plan's decision log). The inexact form answered 24 of
+     * 233 values wrong (a tie rounded on its binary value, 16 digits from 1e16), so it is not kept either.
+     */
     @Override
     @SpellingArm
     protected SqlWriter floatToText(SqlWriter writer, SqlExpr x) {
-        writer.append("replace(CASE WHEN abs(").expr(asDouble(x), 0).append(") >= 1e17 THEN ");
-        hugePlain(writer, x);
-        writer.append(" ELSE ");
-        trimmedSix(writer, "rtrim", w -> w.append("printf('%.6f', ").expr(asDouble(x), 0).append(")"));
-        return writer.append(" END, 'Inf', 'Infinity')");
-    }
-
-    /** Zeros enough to pad any double's digits to its magnitude (309 digits at most). */
-    private static final String ZEROS = "0".repeat(320);
-
-    /** A Float from {@link #SHORTEST_FROM} up as plain digits (W3 of docs/records/d-plan-2026-11-16.md, register S311):
-     *  its shortest round-trip digits, the fewest of 15, 16 and 17 whose text reads back as the value (SQLite's text of a
-     *  double keeps 15, its {@code printf('%.16e')} 16: round 57; {@code %!} writes every digit asked for, measured on
-     *  3.53, 2026-11-16), the mantissa's digits padded with zeros to the exponent. */
-    private void hugePlain(SqlWriter writer, SqlExpr x) {
-        java.util.function.Consumer<SqlWriter> sci = w -> {
-            w.append("CASE");
-            for (int d = 14; d <= 15; d++) {
-                w.append(" WHEN CAST(printf('%!.").append(String.valueOf(d)).append("e', ").expr(asDouble(x), 0)
-                        .append(") AS REAL) = ").expr(asDouble(x), 0).append(" THEN printf('%!.")
-                        .append(String.valueOf(d)).append("e', ").expr(asDouble(x), 0).append(")");
-            }
-            w.append(" ELSE printf('%!.16e', ").expr(asDouble(x), 0).append(") END");
-        };
-        writer.append("CASE WHEN instr(");
-        sci.accept(writer);
-        writer.append(", 'e') = 0 THEN replace(");
-        sci.accept(writer);
-        writer.append(", '.0', '') ELSE substr(replace(substr(");
-        sci.accept(writer);
-        writer.append(", 1, instr(");
-        sci.accept(writer);
-        writer.append(", 'e') - 1), '.', '') || '").append(ZEROS).append("', 1, CAST(substr(");
-        sci.accept(writer);
-        writer.append(", instr(");
-        sci.accept(writer);
-        writer.append(", 'e') + 1) AS INTEGER) + 1 + (").expr(asDouble(x), 0).append(" < 0)) END");
+        throw new com.legend.sql.DialectCapability("a Float's text (toString) on SQLite: SQLite writes no shortest"
+                + " round-trip digits of a double, and choosing them in SQL costs over twice the query (register S311,"
+                + " U3): refused by name");
     }
 }

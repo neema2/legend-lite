@@ -34,8 +34,9 @@ public sealed interface Output
     }
 
     /** legend-engine's Arrow answer ({@link ArrowWriter}): a relation under the envelope's metadata; a graph fetch and
-     *  a value refused. */
-    record Arrow(OutputStream out, PureV1Writer.Facts facts) implements Output {
+     *  a value refused. {@code dates}: a date's text in a text column, the route's (legend-pure's, the edge's pure/v1
+     *  route: W4's audit, 2026-11-16). */
+    record Arrow(OutputStream out, PureV1Writer.Facts facts, CellText.DateText dates) implements Output {
     }
 
     /** The caller's own receiver of the answer, output only ({@link ResultSink#answers}). */
@@ -78,10 +79,11 @@ public sealed interface Output
                     java.util.UUID ran = PureV1Writer.ran(execution);
                     if (stated == null) {
                         yield new ArrowWriter(a.out(), columns -> PureV1Writer.arrowMetadata(a.facts(), sql, columns,
-                                ran));
+                                ran), a.dates());
                     }
                     PureV1Writer.envelope(a.facts(), sql, stated);
-                    yield new ArrowWriter(a.out(), columns -> PureV1Writer.arrowMetadata(a.facts(), sql, stated, ran));
+                    yield new ArrowWriter(a.out(), columns -> PureV1Writer.arrowMetadata(a.facts(), sql, stated, ran),
+                            a.dates());
                 }
                 case VALUE -> throw new com.legend.error.NotImplementedException(a.facts().valueRefusal());
             };

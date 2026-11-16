@@ -335,7 +335,8 @@ public final class PureV1Routes {
                 com.legend.TypedQuery query = com.legend.Compiler.query(model, lambda);
                 String runtime = runtimeOf(request, query);
                 try {
-                    runner.run(query, runtime, new com.legend.result.Output.Arrow(out, facts(query)));
+                    runner.run(query, runtime, new com.legend.result.Output.Arrow(out, facts(query),
+                            com.legend.result.CellText.DateText.LEGEND_PURE));
                 } catch (java.io.IOException e) {
                     throw new java.io.UncheckedIOException(e);
                 }
