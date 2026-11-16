@@ -1339,12 +1339,19 @@ public class SQLite extends AnsiSqlRenderer {
         // spellings Pure's parse accepts (Java's: trimmed, case exact) are read here -- NaN, which SQLite cannot hold,
         // raised by name (register S138), an infinity as SQLite's own (Phase 8, 2026-11-16: D's probe, NaN answered 0)
         if (target == SqlType.Scalar.DOUBLE && c.reason() == SqlExpr.Reason.USER && typeOf(v) == SqlType.Scalar.VARCHAR) {
-            return writer.append("(CASE WHEN trim(").expr(v, 0).append(") IN ('NaN', '+NaN', '-NaN') THEN ")
+            // text that is no number raises (SQLite's CAST reads 'abc' as 0 and '1.2.3' as 1.2, measured): a number is
+            // JSON's number grammar, the one test SQLite has; legend-pure's '+1', '.5', '1.', '1f' and '01' are
+            // refused by name with it (Phase 8, the list put to the orchestrator before landing)
+            return writer.append("(CASE WHEN ").expr(v, 0).append(" IS NULL THEN NULL WHEN trim(").expr(v, 0)
+                    .append(") IN ('NaN', '+NaN', '-NaN') THEN ")
                     .piece(raise(raiseArgs(SqlExpr.RaiseText.placed(com.legend.sql.RaiseKind.VALUE_NOT_HELD,
                             "parseFloat of NaN is NaN, which this database cannot hold"))))
                     .append(" WHEN trim(").expr(v, 0).append(") IN ('Infinity', '+Infinity') THEN 9e999 WHEN trim(")
-                    .expr(v, 0).append(") = '-Infinity' THEN -9e999 ELSE ")
-                    .piece(castTo(w -> w.expr(v, 0), SqlType.Scalar.VARCHAR, target)).append(" END)");
+                    .expr(v, 0).append(") = '-Infinity' THEN -9e999 WHEN CASE WHEN json_valid(").expr(v, 0)
+                    .append(") THEN json_type(").expr(v, 0).append(") IN ('integer', 'real') ELSE 0 END THEN ")
+                    .piece(castTo(w -> w.expr(v, 0), SqlType.Scalar.VARCHAR, target)).append(" ELSE ")
+                    .piece(raise(raiseArgs(new SqlExpr.RaiseText(com.legend.sql.RaiseKind.TEXT_NOT_FLOAT, List.of(v)))))
+                    .append(" END)");
         }
         return writer.piece(castTo(w -> w.expr(v, 0), typeOf(v), target));
     }

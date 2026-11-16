@@ -57,4 +57,44 @@ class ParseFloatHeldTest extends AbstractDatabaseTest {
         assertEquals(Double.NEGATIVE_INFINITY, ((Number) one("|'-Infinity'->parseFloat()")).doubleValue());
         assertEquals(1.5, ((Number) one("|'1.5'->parseFloat()")).doubleValue());
     }
+
+    @Test
+    @DisplayName("parseFloat of text that is no number raises, on every lane: never SQLite's silent 0")
+    void textThatIsNoNumberRaises() {
+        for (String text : java.util.List.of("abc", "", "0x10", "1.2.3", "1e", "-")) {
+            try {
+                Object v = one("|'" + text + "'->parseFloat()");
+                throw new AssertionError("'" + text + "' answered " + v);
+            } catch (AssertionError e) {
+                throw e;
+            } catch (Exception raised) {
+                // a raise is the answer (legend-pure's and DuckDB's)
+            }
+        }
+    }
+
+    @Test
+    @DisplayName("parseFloat of a number is that number, or refused by name where SQLite's test cannot read it")
+    void numbersAreExactOrRefusedByName() throws SQLException {
+        java.util.Map<String, Double> numbers = new java.util.LinkedHashMap<>();
+        numbers.put("1", 1.0);
+        numbers.put("-0.5", -0.5);
+        numbers.put("1e5", 1e5);
+        numbers.put("1E+5", 1e5);
+        numbers.put("+1", 1.0);
+        numbers.put(".5", 0.5);
+        numbers.put("1.", 1.0);
+        for (var n : numbers.entrySet()) {
+            Object v;
+            try {
+                v = one("|'" + n.getKey() + "'->parseFloat()");
+            } catch (Exception refused) {
+                assertTrue(String.valueOf(refused.getMessage()).contains("to DOUBLE")
+                        || String.valueOf(refused.getMessage()).toLowerCase(java.util.Locale.ROOT).contains("float"),
+                        n.getKey() + ": " + refused.getMessage());
+                continue;
+            }
+            assertEquals(n.getValue(), ((Number) v).doubleValue(), n.getKey());
+        }
+    }
 }

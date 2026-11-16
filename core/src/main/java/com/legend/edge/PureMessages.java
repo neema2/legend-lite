@@ -94,6 +94,9 @@ public final class PureMessages {
             case TEXT_NOT_INTEGER -> SqlExpr.Call.of(com.legend.sql.SqlFn.CONCAT,
                     new SqlExpr.StringLit("Could not convert string '"), r.operands().get(0),
                     new SqlExpr.StringLit("' to INT64"));
+            case TEXT_NOT_FLOAT -> SqlExpr.Call.of(com.legend.sql.SqlFn.CONCAT,
+                    new SqlExpr.StringLit("Could not convert string '"), r.operands().get(0),
+                    new SqlExpr.StringLit("' to DOUBLE"));
             case TEXT_NOT_DATE -> SqlExpr.Call.of(com.legend.sql.SqlFn.CONCAT, new SqlExpr.StringLit("Could not parse '"),
                     r.operands().get(0), new SqlExpr.StringLit("' as a date"));
         };

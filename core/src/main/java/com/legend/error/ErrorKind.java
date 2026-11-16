@@ -31,6 +31,7 @@ public enum ErrorKind {
     MAP_KEY_NULL("map key is null"),
     MAP_KEYS_NOT_UNIQUE("map keys are not unique"),
     TEXT_NOT_INTEGER("text is not an integer"),
+    TEXT_NOT_FLOAT("text is not a float"),
     TEXT_NOT_DATE("text is not a date"),
     VALUE_NOT_HELD("the value is outside the range this database can hold"),
     FRACTION_NOT_KEPT("more fraction digits than this database keeps"),
