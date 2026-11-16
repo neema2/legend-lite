@@ -5,7 +5,7 @@ BigQuery	declared	578	0
 BigQuery	dialect	35	157
 BigQuery	judge	0	0
 BigQuery	operator	249	75
-BigQuery	print	352	336
+BigQuery	print	352	294
 BigQuery	raise	0	45
 BigQuery	slot	0	0
 BigQuery	user	110	3
@@ -15,7 +15,7 @@ ClickHouse	declared	579	0
 ClickHouse	dialect	220	22
 ClickHouse	judge	0	0
 ClickHouse	operator	249	75
-ClickHouse	print	352	336
+ClickHouse	print	352	294
 ClickHouse	raise	0	45
 ClickHouse	slot	0	0
 ClickHouse	user	111	3
@@ -25,7 +25,7 @@ Databricks	declared	579	0
 Databricks	dialect	211	0
 Databricks	judge	0	0
 Databricks	operator	249	75
-Databricks	print	352	336
+Databricks	print	352	294
 Databricks	raise	0	45
 Databricks	slot	0	0
 Databricks	user	111	3
@@ -35,7 +35,7 @@ DuckDB	declared	579	0
 DuckDB	dialect	5	0
 DuckDB	judge	0	0
 DuckDB	operator	249	75
-DuckDB	print	352	336
+DuckDB	print	352	294
 DuckDB	raise	0	45
 DuckDB	slot	0	0
 DuckDB	user	111	3
@@ -45,7 +45,7 @@ H2	declared	578	0
 H2	dialect	212	497
 H2	judge	0	0
 H2	operator	249	75
-H2	print	352	336
+H2	print	352	294
 H2	raise	0	45
 H2	slot	0	0
 H2	user	110	3
@@ -55,7 +55,7 @@ MariaDB	declared	578	0
 MariaDB	dialect	32	157
 MariaDB	judge	0	0
 MariaDB	operator	249	75
-MariaDB	print	352	336
+MariaDB	print	352	294
 MariaDB	raise	0	45
 MariaDB	slot	0	0
 MariaDB	user	110	3
@@ -65,7 +65,7 @@ MySQL	declared	578	0
 MySQL	dialect	32	157
 MySQL	judge	0	0
 MySQL	operator	249	75
-MySQL	print	352	336
+MySQL	print	352	294
 MySQL	raise	0	45
 MySQL	slot	0	0
 MySQL	user	110	3
@@ -75,7 +75,7 @@ Postgres	declared	627	0
 Postgres	dialect	266	157
 Postgres	judge	0	0
 Postgres	operator	249	75
-Postgres	print	352	336
+Postgres	print	352	294
 Postgres	raise	0	45
 Postgres	slot	0	0
 Postgres	user	110	3
@@ -85,7 +85,7 @@ SQLite	declared	627	0
 SQLite	dialect	32	157
 SQLite	judge	0	0
 SQLite	operator	249	75
-SQLite	print	352	336
+SQLite	print	352	294
 SQLite	raise	0	45
 SQLite	slot	0	0
 SQLite	user	110	3
@@ -95,7 +95,7 @@ Snowflake	declared	579	0
 Snowflake	dialect	217	22
 Snowflake	judge	0	0
 Snowflake	operator	249	75
-Snowflake	print	216	288
+Snowflake	print	216	246
 Snowflake	raise	0	45
 Snowflake	slot	0	0
 Snowflake	user	111	3
@@ -105,7 +105,7 @@ Trino	declared	579	0
 Trino	dialect	210	22
 Trino	judge	0	0
 Trino	operator	249	75
-Trino	print	352	336
+Trino	print	352	294
 Trino	raise	0	45
 Trino	slot	0	0
 Trino	user	111	3
