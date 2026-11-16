@@ -337,7 +337,7 @@ channel_a	ClickHouse	TypedSelect	8	6202	49637	0	336	0
 channel_a	ClickHouse	TypedSlice	7	3639	19221	0	0	0
 channel_a	ClickHouse	TypedSort	17	17398	125427	3	550	0
 channel_a	ClickHouse	TypedWrite	1	584	4465	1	0	0
-channel_a	ClickHouse	let	244	423255	2705493	301	98688	0
+channel_a	ClickHouse	let	244	422986	2705184	296	98582	0
 channel_a	ClickHouse	meta::pure::functions::boolean::and_Boolean_1__Boolean_1__Boolean_1_	0	0	5135	0	0	0
 channel_a	ClickHouse	meta::pure::functions::boolean::between_Date_$0_1$__Date_$0_1$__Date_$0_1$__Boolean_1_	13	6737	33932	0	600	8
 channel_a	ClickHouse	meta::pure::functions::boolean::between_Number_$0_1$__Number_$0_1$__Number_$0_1$__Boolean_1_	26	11518	64365	0	283	0
@@ -959,7 +959,7 @@ channel_a	DuckDB	TypedSelect	8	2070	45719	0	183	0
 channel_a	DuckDB	TypedSlice	7	785	16662	0	0	0
 channel_a	DuckDB	TypedSort	17	18092	126298	12	6214	0
 channel_a	DuckDB	TypedWrite	1	154	4078	1	0	0
-channel_a	DuckDB	let	244	174818	2453742	162	20443	0
+channel_a	DuckDB	let	244	174717	2453641	159	20443	0
 channel_a	DuckDB	meta::pure::functions::boolean::and_Boolean_1__Boolean_1__Boolean_1_	0	0	5135	0	0	0
 channel_a	DuckDB	meta::pure::functions::boolean::between_Date_$0_1$__Date_$0_1$__Date_$0_1$__Boolean_1_	21	3327	48347	0	0	0
 channel_a	DuckDB	meta::pure::functions::boolean::between_Number_$0_1$__Number_$0_1$__Number_$0_1$__Boolean_1_	26	1650	55719	0	0	0
@@ -1270,7 +1270,7 @@ channel_a	H2	TypedSelect	8	2304	50427	0	211	0
 channel_a	H2	TypedSlice	5	778	12598	2	0	2
 channel_a	H2	TypedSort	13	4664	76739	3	111	4
 channel_a	H2	TypedWrite	1	175	4641	1	0	0
-channel_a	H2	let	203	127848	1608382	161	19802	41
+channel_a	H2	let	203	127685	1608195	158	19802	41
 channel_a	H2	meta::pure::functions::boolean::and_Boolean_1__Boolean_1__Boolean_1_	0	0	5135	0	0	0
 channel_a	H2	meta::pure::functions::boolean::between_Date_$0_1$__Date_$0_1$__Date_$0_1$__Boolean_1_	21	3369	59561	0	0	0
 channel_a	H2	meta::pure::functions::boolean::between_Number_$0_1$__Number_$0_1$__Number_$0_1$__Boolean_1_	26	1702	69603	0	0	0
@@ -2203,7 +2203,7 @@ channel_a	Postgres	TypedSelect	8	2325	45952	0	211	0
 channel_a	Postgres	TypedSlice	7	1497	17264	8	0	0
 channel_a	Postgres	TypedSort	17	16245	124905	70	3665	0
 channel_a	Postgres	TypedWrite	1	175	4079	1	0	0
-channel_a	Postgres	let	241	218995	2462241	379	33942	3
+channel_a	Postgres	let	241	218832	2462054	376	33942	3
 channel_a	Postgres	meta::pure::functions::boolean::and_Boolean_1__Boolean_1__Boolean_1_	0	0	5135	0	0	0
 channel_a	Postgres	meta::pure::functions::boolean::between_Date_$0_1$__Date_$0_1$__Date_$0_1$__Boolean_1_	21	3213	47603	0	0	0
 channel_a	Postgres	meta::pure::functions::boolean::between_Number_$0_1$__Number_$0_1$__Number_$0_1$__Boolean_1_	26	1702	54991	0	0	0
@@ -2514,7 +2514,7 @@ channel_a	SQLite	TypedSelect	8	2727	45760	8	230	0
 channel_a	SQLite	TypedSlice	7	3158	18524	35	885	0
 channel_a	SQLite	TypedSort	17	37697	145051	69	10938	0
 channel_a	SQLite	TypedWrite	1	209	4056	2	0	0
-channel_a	SQLite	let	243	223574	2479642	841	31647	1
+channel_a	SQLite	let	243	223435	2479503	838	31647	1
 channel_a	SQLite	meta::pure::functions::boolean::and_Boolean_1__Boolean_1__Boolean_1_	0	0	5135	0	0	0
 channel_a	SQLite	meta::pure::functions::boolean::between_Date_$0_1$__Date_$0_1$__Date_$0_1$__Boolean_1_	21	2647	46050	0	0	0
 channel_a	SQLite	meta::pure::functions::boolean::between_Number_$0_1$__Number_$0_1$__Number_$0_1$__Boolean_1_	26	1650	53717	0	0	0
@@ -2825,7 +2825,7 @@ channel_a	Snowflake	TypedSelect	8	2513	47828	0	321	0
 channel_a	Snowflake	TypedSlice	7	1978	19184	0	400	0
 channel_a	Snowflake	TypedSort	17	10481	122556	8	1130	0
 channel_a	Snowflake	TypedWrite	1	175	4290	1	0	0
-channel_a	Snowflake	let	244	217318	2548621	162	39004	0
+channel_a	Snowflake	let	244	217155	2548434	159	39004	0
 channel_a	Snowflake	meta::pure::functions::boolean::and_Boolean_1__Boolean_1__Boolean_1_	0	0	5135	0	0	0
 channel_a	Snowflake	meta::pure::functions::boolean::between_Date_$0_1$__Date_$0_1$__Date_$0_1$__Boolean_1_	21	3369	52190	0	0	0
 channel_a	Snowflake	meta::pure::functions::boolean::between_Number_$0_1$__Number_$0_1$__Number_$0_1$__Boolean_1_	26	1702	60477	0	0	0

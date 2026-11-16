@@ -102,7 +102,7 @@ corpus-judge	DuckDB	meta::relational::tests::mapping::extend::union::embeddedPro
 corpus-judge	DuckDB	meta::relational::tests::mapping::extend::union::inlineEmbeddedPropertyMapping	2	9844	140678	28	372	0
 corpus-judge	DuckDB	meta::relational::tests::mapping::extend::union::propertyMapping	4	101001	1351896	285	20392	0
 corpus-judge	DuckDB	meta::relational::tests::mapping::filter	9	57780	965505	190	9364	0
-corpus-judge	DuckDB	meta::relational::tests::mapping::groupBy	10	63009	1005876	226	10743	0
+corpus-judge	DuckDB	meta::relational::tests::mapping::groupBy	10	62685	1005530	220	10743	0
 corpus-judge	DuckDB	meta::relational::tests::mapping::in	4	4014	49434	12	1123	0
 corpus-judge	DuckDB	meta::relational::tests::mapping::include	1	9198	527101	56	3479	0
 corpus-judge	DuckDB	meta::relational::tests::mapping::inheritance::cross	6	49694	773705	139	7553	0
@@ -415,7 +415,7 @@ corpus-judge	H2	meta::relational::tests::mapping::extend::union::embeddedPropert
 corpus-judge	H2	meta::relational::tests::mapping::extend::union::inlineEmbeddedPropertyMapping	2	11144	144046	30	428	0
 corpus-judge	H2	meta::relational::tests::mapping::extend::union::propertyMapping	4	112581	1374670	292	23626	0
 corpus-judge	H2	meta::relational::tests::mapping::filter	9	68000	987291	204	10843	0
-corpus-judge	H2	meta::relational::tests::mapping::groupBy	10	70398	1024983	232	12545	0
+corpus-judge	H2	meta::relational::tests::mapping::groupBy	10	70050	1024589	226	12545	0
 corpus-judge	H2	meta::relational::tests::mapping::in	4	4294	52114	12	1163	0
 corpus-judge	H2	meta::relational::tests::mapping::include	1	9938	529405	56	3618	0
 corpus-judge	H2	meta::relational::tests::mapping::inheritance::cross	6	55903	788002	144	8236	0
