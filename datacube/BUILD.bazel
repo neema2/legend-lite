@@ -2625,6 +2625,10 @@ copy_to_directory(
     name = "npm_types_%s_test" % resolution,
     size = "small",
     args = [
+        # the files and options are these, and no tsconfig.json: where a test is not sandboxed (Windows) DataCube's
+        # own, in a folder above the test's, is in reach, and tsc refuses files given beside one it would not load
+        # (TS5112; 2026-11-16, the first CI run of these tests: red on Windows alone)
+        "--ignoreConfig",
         "--noEmit",
         "--strict",
         "--target",
