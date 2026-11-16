@@ -1215,10 +1215,11 @@ final class ArchitectureTest {
             "testplan.TestPlanner#plan(com.legend.TypedQuery, java.lang.String, com.legend.testplan.PlanningOptions)",
             "com.legend.TestExecution",
             "testplan.TestPlanner#facts(com.legend.TypedQuery)", "com.legend.TestExecution",
-            // W9's judge half, S2b (2026-11-16): the engine-text arm the edge's facet runs, until the arm's code moves
-            // to the edge (testplan.EngineTestText; docs/records/e-java-w9-judge-half-2026-11-16.md); TRANSITIONAL, the
-            // orchestrator's condition: S2c removes this entry or names what still needs it
-            "testplan.EngineTestText#arm(com.legend.testplan.EngineTestText$Ask)", "com.legend.edge.EdgeEngineTestText",
+            // W9's judge half, S2c (2026-11-16; the orchestrator's ruling (b), one facade, one row): the engine-text arm
+            // is the edge's (edge.SqlTextVerdicts), and every read it makes of the test planner, the planner or the
+            // lowering is the facade's (testplan.EngineTextPlanning), each of its members admitted by this one row --
+            // S2b's EngineTestText#arm allowance gone with the arm's move (docs/records/e-java-w9-judge-half-2026-11-16.md)
+            "testplan.EngineTextPlanning#*", "com.legend.edge.SqlTextVerdicts",
             // the test door's options, from the root's ExecuteOptions: planning's half, a record of closed words
             "testplan.PlanningOptions#<init>(com.legend.testexecutionplan.Edge, com.legend.executionplan.DataStores, "
                     + "java.util.Set, com.legend.testplan.PlanningOptions$JudgeMode, "
@@ -1425,7 +1426,15 @@ final class ArchitectureTest {
      *  {@code #} and the member's name, and for a method or a constructor its parameters' binary names in parentheses --
      *  the full signature, so a new overload of a listed name is no entry until it is listed (the C4 final fix round's
      *  T3, 2026-11-14: until then the key was the owner and the name, admitting every overload). */
+    /** The one row of the engine-text arm's facade (W9's judge half, S2c, 2026-11-16): every member of
+     *  {@code testplan.EngineTextPlanning} is this entry, so the edge's arm reaches the test planner through the facade
+     *  alone and the facade grows without a row per member. */
+    static final String FACADE = "testplan.EngineTextPlanning#*";
+
     static String entryKey(com.tngtech.archunit.core.domain.JavaAccess<?> a) {
+        if (a.getTargetOwner().getName().equals("com.legend.testplan.EngineTextPlanning")) {
+            return FACADE;
+        }
         String entry = a.getTargetOwner().getName().substring("com.legend.".length()) + "#" + a.getName();
         if (a.getTarget() instanceof com.tngtech.archunit.core.domain.AccessTarget.CodeUnitAccessTarget unit) {
             entry += unit.getRawParameterTypes().stream().map(com.tngtech.archunit.core.domain.JavaClass::getName)

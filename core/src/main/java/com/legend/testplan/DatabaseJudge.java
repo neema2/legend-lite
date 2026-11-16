@@ -21,7 +21,7 @@ import java.util.List;
  * over; the host judge ({@link HostJudge}) is the other arm of the same router.
  */
 
-final class DatabaseJudge {
+public final class DatabaseJudge {
     private DatabaseJudge() {
     }
 
@@ -711,7 +711,7 @@ final class DatabaseJudge {
     // returns the same verdict row; unjudged fails by name.
 
     /** A planned side for the predicate forms, or a reason it could not be. */
-    record SideRows(BodyDriver.@com.legend.base.Nullable WrappedSide side,
+    public record SideRows(BodyDriver.@com.legend.base.Nullable WrappedSide side,
             com.legend.lowering.@com.legend.base.Nullable CanonRider rider,
             @com.legend.base.Nullable String why) {
         /** The side's canon rows; {@code literal} = the pair compares in the

@@ -87,6 +87,10 @@ class ErrorShapeGuardrailTest {
             // 3 -> 2 + 1 (2026-11-09, slice 5: the rows leg's read of our rows, decided after the run, is the test's
             // run's -- SqlTextRuns -- the planning's two catches stay here)
             Map.entry("SqlTextVerdicts.java", 2),
+            // 2026-11-16 (W9's judge half, S2c, E-Java): the engine-text arm's recognition, product-side
+            // (EngineTestText.reachesThroughHelpers): an un-inlinable helper is no producer, as the arm itself reads it
+            // (the arm's own lookThrough, edge.SqlTextVerdicts, keeps its two)
+            Map.entry("EngineTestText.java", 1),
             Map.entry("SqlTextRuns.java", 1),
             // 2026-10-18 (the plan path program's step 6): the agreement gate turns ANY failure of the database
             // judge's arm -- a statement the database rejects, a dialect's refusal, a planner wall -- into the one

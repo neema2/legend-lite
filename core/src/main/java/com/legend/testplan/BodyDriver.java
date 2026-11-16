@@ -56,7 +56,7 @@ public final class BodyDriver {
      * query's lets, the renames, the frame, the features, the site ids) and WHERE its statements run: the TARGET,
      * never a session (I3, 2026-11-07: planning names a target, the run opens its session -- the runner's
      * PlanSessions.Source maps one to the other), the trace, the verdict batch and the caller's execute options. Split in two by the seam program's S2g (2026-10-31) so planning helpers can leave the driver. */
-    record ExecEnv(com.legend.planner.PlanEnv plan,
+    public record ExecEnv(com.legend.planner.PlanEnv plan,
             com.legend.executionplan.ExecutionPlan.Target target,
             PlanningOptions options,
             com.legend.testplan.@com.legend.base.Nullable VerdictBatch verdictBatch,
@@ -151,7 +151,7 @@ public final class BodyDriver {
         }
         /** The same environment with the engine-text arms' collector (an assert PLANNED for the program road, the
          *  test-is-the-product plan's M10b: {@link SqlTextVerdicts#plan}), or without one. */
-        ExecEnv withEngineText(EngineTestText.@com.legend.base.Nullable Collector c) {
+        ExecEnv withCollector(EngineTestText.@com.legend.base.Nullable Collector c) {
             return new ExecEnv(plan, target, options, verdictBatch, c,
                     failureMessage, appealOn, verdictIds, appeals);
         }
@@ -682,7 +682,7 @@ public final class BodyDriver {
 
     /** A side's plan after the canon wrap (leg 3.1): what database mode
      * composes into its verdict statement without executing it. */
-    record WrappedSide(com.legend.sql.SqlQuery plan,
+    public record WrappedSide(com.legend.sql.SqlQuery plan,
             com.legend.compiler.element.type.ExprType shapeInfo,
             com.legend.plan.ResultShape shape,
             com.legend.executionplan.ExecutionPlan.Target target,
@@ -747,11 +747,11 @@ public final class BodyDriver {
         }
         BarePlan b;
         // a side the judge evaluates outside the body's statement: SIDE, where no arm has marked the texts it reads
-        String priorOrigin = SqlTextVerdicts.marking(env, "SIDE", true);
+        String priorOrigin = EngineTestText.marking(env, "SIDE", true);
         try {
             b = planStaged(com.legend.planner.BodyPlanner.stagedSide(inlined, specs, env.plan()), value, env, null, identity, true);
         } finally {
-            SqlTextVerdicts.restoreMarking(env, priorOrigin);
+            EngineTestText.restoreMarking(env, priorOrigin);
         }
         if (fold && b.answered() == null) {
             // the planned root's own fold (executeTyped's second fold: a literal the staging exposed)
