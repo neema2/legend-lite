@@ -134,6 +134,12 @@ public final class CarrierStrategies extends SqlRewriter {
                         .withWhere(s.where() == null ? anti
                                 : SqlExpr.Call.of(com.legend.sql.SqlFn.AND,
                                         s.where(), anti));
+                // a select that folds the join's rows -- a group, an aggregate, a window, a DISTINCT, a HAVING or a
+                // QUALIFY -- folds them once, over the emulated join: copied into each branch it folded each half
+                // apart, a group present on both sides twice and a total split in two (C5-J's batch, 2, 2026-11-16)
+                if (foldsTheJoin(s)) {
+                    return isolatedFullOuter(s, fj, anti);
+                }
                 com.legend.sql.SqlUnion union = new com.legend.sql.SqlUnion(
                         List.of(leftBranch, rightBranch), true, s.outputs());
                 if (s.orderBy().isEmpty() && s.limit() == null
@@ -747,6 +753,153 @@ public final class CarrierStrategies extends SqlRewriter {
         }
         into.add(s);
         padded.add(pad);
+    }
+
+    /** Whether {@code s} folds the rows of its FROM: groups them, aggregates or windows over them, or keeps them
+     *  distinct -- what the FULL OUTER emulation must not copy into each of its branches. */
+    private static boolean foldsTheJoin(SqlSelect s) {
+        // a STAR select keeps the copy: its columns are the join's own, so the union would carry each side whole
+        if (s.projections().isEmpty()) {
+            return false;
+        }
+        return s.distinct() || !s.groupBy().isEmpty() || s.having() != null || s.qualify() != null
+                || s.projections().stream().anyMatch(p -> foldsRows(p.expr()))
+                || s.orderBy().stream().anyMatch(k -> foldsRows(k.expr()));
+    }
+
+    /** Whether {@code e} holds an aggregate or a window. */
+    private static boolean foldsRows(SqlExpr e) {
+        if (e instanceof com.legend.sql.SqlAgg || e instanceof SqlExpr.WindowCall) {
+            return true;
+        }
+        for (SqlExpr k : e.children()) {
+            if (foldsRows(k)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * The FULL OUTER emulation for a select that folds the join's rows ({@link #foldsTheJoin}): the join emulated alone,
+     * its LEFT branch UNION ALL its anti-joined RIGHT branch projecting each column the select reads from either side
+     * under a name of its own, and the select -- its WHERE, groups, aggregates, windows, DISTINCT, order and limit --
+     * over that union once, each such column read from it (C5-J's batch, 2, 2026-11-16: until then the whole select
+     * was copied into both branches, so a group present on both sides came out twice and a total split in two).
+     * Refused by name where a column's type is unknown, or where the select holds a subquery (one could read the
+     * join's sides by their aliases, which the union hides).
+     */
+    private static com.legend.sql.SqlQuery isolatedFullOuter(SqlSelect s, com.legend.sql.SqlSource.Join fj,
+            SqlExpr anti) {
+        // the aliases of the join's sources, either side's (a side may itself be a join)
+        List<com.legend.sql.SqlSource> sources = new ArrayList<>();
+        leaves(fj, false, sources, new ArrayList<>());
+        java.util.Set<String> sides = new java.util.HashSet<>();
+        for (com.legend.sql.SqlSource src : sources) {
+            sides.add(src.alias());
+        }
+        java.util.Map<List<String>, SqlExpr.Column> read = new java.util.LinkedHashMap<>();
+        for (SqlExpr e : selectExpressions(s)) {
+            readColumns(e, sides, read);
+        }
+        String alias = "_fullj";
+        List<SqlSelect.Projection> columns = new ArrayList<>();
+        List<com.legend.sql.OutputCol> outs = new ArrayList<>();
+        java.util.Map<List<String>, SqlExpr> renamed = new java.util.HashMap<>();
+        for (java.util.Map.Entry<List<String>, SqlExpr.Column> c : read.entrySet()) {
+            if (!(c.getValue().type() instanceof com.legend.sql.TypeFact.Typed t)) {
+                throw new DialectCapability("FULL OUTER JOIN emulation under a fold: the column "
+                        + c.getKey().get(0) + "." + c.getKey().get(1) + " has no known type");
+            }
+            String name = "_fj" + columns.size();
+            // either side of a full join may be the NULL row
+            com.legend.sql.OutputCol out = new com.legend.sql.OutputCol(name, t.type(), true);
+            columns.add(new SqlSelect.Projection(c.getValue(), name, out));
+            outs.add(out);
+            renamed.put(c.getKey(), SqlExpr.Column.of(alias, name, t.type(), true,
+                    com.legend.sql.OutputCol.Origin.DERIVED));
+        }
+        if (columns.isEmpty()) {
+            // a fold that reads neither side (count(*)): the union still has a column
+            com.legend.sql.OutputCol out = new com.legend.sql.OutputCol("_fj0",
+                    com.legend.sql.SqlType.Scalar.INTEGER, false);
+            columns.add(new SqlSelect.Projection(new SqlExpr.IntLit(1), "_fj0", out));
+            outs.add(out);
+        }
+        SqlSelect leftBranch = new SqlSelect(columns, false, new com.legend.sql.SqlSource.Join(fj.left(), fj.right(),
+                com.legend.sql.SqlSource.Join.Kind.LEFT, fj.on()), null, List.of(), null, null, List.of(), null, null,
+                outs);
+        SqlSelect rightBranch = new SqlSelect(columns, false, new com.legend.sql.SqlSource.Join(fj.left(), fj.right(),
+                com.legend.sql.SqlSource.Join.Kind.RIGHT, fj.on()), anti, List.of(), null, null, List.of(), null, null,
+                outs);
+        com.legend.sql.SqlSource joined = new com.legend.sql.SqlSource.Subselect(
+                new com.legend.sql.SqlUnion(List.of(leftBranch, rightBranch), true, outs), alias, null);
+        java.util.function.UnaryOperator<SqlExpr> over = e -> reread(e, sides, renamed);
+        SqlExpr where = s.where();
+        SqlExpr having = s.having();
+        SqlExpr qualify = s.qualify();
+        return new SqlSelect(
+                s.projections().stream().map(p -> new SqlSelect.Projection(over.apply(p.expr()), p.alias(), p.out()))
+                        .toList(),
+                s.distinct(), joined, where == null ? null : over.apply(where), s.groupBy().stream().map(over).toList(),
+                having == null ? null : over.apply(having), qualify == null ? null : over.apply(qualify),
+                s.orderBy().stream().map(k -> new SqlSelect.SortKey(over.apply(k.expr()), k.ascending(), k.nullOrder(),
+                        k.outputName())).toList(),
+                s.limit(), s.offset(), s.outputs());
+    }
+
+    /** Every expression of {@code s}'s clauses. */
+    private static List<SqlExpr> selectExpressions(SqlSelect s) {
+        List<SqlExpr> all = new ArrayList<>();
+        s.projections().forEach(p -> all.add(p.expr()));
+        if (s.where() != null) {
+            all.add(s.where());
+        }
+        all.addAll(s.groupBy());
+        if (s.having() != null) {
+            all.add(s.having());
+        }
+        if (s.qualify() != null) {
+            all.add(s.qualify());
+        }
+        s.orderBy().forEach(k -> all.add(k.expr()));
+        return all;
+    }
+
+    /** The columns {@code e} reads from either side of the join, by alias and name, in reading order; a subquery is
+     *  refused (it could read either side by its alias). */
+    private static void readColumns(SqlExpr e, java.util.Set<String> sides,
+            java.util.Map<List<String>, SqlExpr.Column> read) {
+        if (e instanceof SqlExpr.Exists || e instanceof SqlExpr.InSubquery || e instanceof SqlExpr.ScalarSubquery) {
+            throw new DialectCapability("FULL OUTER JOIN emulation under a fold: a subquery in the select");
+        }
+        if (e instanceof SqlExpr.Column c && sides.contains(c.table())) {
+            read.putIfAbsent(List.of(java.util.Objects.requireNonNull(c.table()), c.name()), c);
+            return;
+        }
+        for (SqlExpr k : e.children()) {
+            readColumns(k, sides, read);
+        }
+    }
+
+    /** {@code e} with each column of either side read from the union's column instead. */
+    private static SqlExpr reread(SqlExpr e, java.util.Set<String> sides, java.util.Map<List<String>, SqlExpr> renamed) {
+        if (e instanceof SqlExpr.Column c && sides.contains(c.table())) {
+            return java.util.Objects.requireNonNull(renamed.get(List.of(java.util.Objects.requireNonNull(c.table()),
+                    c.name())));
+        }
+        List<SqlExpr> kids = e.children();
+        if (kids.isEmpty()) {
+            return e;
+        }
+        List<SqlExpr> mapped = new ArrayList<>(kids.size());
+        boolean changed = false;
+        for (SqlExpr k : kids) {
+            SqlExpr m = reread(k, sides, renamed);
+            changed |= m != k;
+            mapped.add(m);
+        }
+        return changed ? e.withChildren(mapped) : e;
     }
 
     /** A fresh re-aliased copy of a simple source (Table / Subselect /
