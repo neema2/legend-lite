@@ -138,6 +138,41 @@ A worker stops and asks the orchestrator before it builds or pushes, when:
 The orchestrator decides what the rulings already settle and records it in §12. It brings to the user only what needs
 a ruling, batched in §10. It does not wait on that batch unless the work is blocked.
 
+## 4b. THE DESIGN, from a clean sheet (the user asked for it, 2026-11-16, about 14:35; adopted about 14:50)
+
+1. **The contract.**
+   - The product returns typed results only: every cell a typed value, every error a kind plus its typed operands.
+   - The edge is a Java function from typed results to upstream's bytes: legend-pure's Float and date prints,
+     `TDSNull`, the JSON envelope, error sentences. It does no SQL.
+   - A short, listed set of things legend-engine computes inside the query (a Float's toString within an expression)
+     are the edge's lowering variants: exactly legend-engine's SQL.
+   - A run-time raise can return no rows, so its SQL raises a structured marker (the kind plus its operands as data),
+     and the edge words the sentence in Java. No sentence is built in SQL.
+2. **One classification table.** Every compatibility difference is one of four kinds: (A) how a value is shown,
+   (B) a computation inside the query, (C) the protocol and plan text, (D) the judges. Each row records upstream's
+   answer (from the pinned sources), the product's, the edge mechanism and the test. The user rules every product
+   answer in one batch (§10).
+3. **The safety net first: the edge golden net.** Every upstream-facing output on DuckDB, H2 and SQLite is recorded
+   at PR1's head `26717de291` (D's base) as golden files: PCT A and B outcomes and texts, the corpora, pure/v1. One
+   local target diffs against them in minutes. Run on d-stage, the diff is exactly D's edge drift. After that, every
+   push keeps it empty, except ruled moves. Built by E-SQL on `claude/total-wall-edge-contract`, capped at one day.
+4. **Separation by the build:** product targets can't depend on the edge, and product tests run without it.
+5. **Order, by leverage:**
+   - (a) typed errors and operands;
+   - (b) one Java presenter at the edge, then every SQL print form deleted;
+   - (c) the judges on typed comparisons;
+   - (d) the B items as legend-engine's SQL, their PCT moves ruled;
+   - (e) the plan text;
+   - (f) the guard to zero;
+   - (g) lean product SQL.
+6. **Workers by layer:** D the edge (presenter, B items, plan text), E-Java the judges, E-SQL the net, then lean SQL.
+   One writer per branch.
+7. **Checks:**
+   - per push, the dependent tests plus the golden net;
+   - per merged piece, the Linux-only throwaway CI (`.github/workflows/stage-linux.yml` on d-stage, removed before
+     review) plus a lane round, running behind;
+   - per PR, full CI and one review.
+
 ## 4a. THE SEQUENCE: one step at a time (the user, 2026-11-16 ~14:05)
 
 The user, verbatim: "What's going on? Why are we again rabbit holing on random error messages? Why is everything going
@@ -488,6 +523,7 @@ run, and the user's merge word.
 | 2026-11-16 13:40 | D's Float-text inventory received. Decided (§5 item 2):<br>- a raise sentence's Float stays in the query with legend-engine's cast;<br>- the product's `toRepresentation` and `format('%r')` are refused by name (S314; confirmation in §10 item 7a);<br>- ClickHouse's product `format('%s', Float)` becomes S311's one call;<br>- the shortest-text emulations are deleted only when no judge and no carrier reaches them;<br>- carriers carry typed values where a database's cast does not read back (Snowflake), which is E-SQL's work, measured first.<br>All of it is built after the freeze lifts. |
 | 2026-11-16 13:50 | P2 checkpoint audit, reviewer B (at `89d4eae3b`): four MUSTs, three verified by the orchestrator. (1) A merge dropped three register amendments (S138, S170, S181). (2) The query-store page answers upstream's API in lite's words, so two TS suites go red. (3) The edge's host routes lost upstream's words and prefix for a missing parameter, so the Python execute test goes red and a test was widened. (4) Product lowering throws legend-pure's window-frame sentence. Plus SHOULDs S1 to S8. All went to D as fixes, allowed during the freeze. S8 decided: the edge receiver's refusals move to planning, so the run decides nothing (G4). Reviewer A pending. |
 | 2026-11-16 14:00 | P2 checkpoint audit, reviewer A: four MUSTs. (1) W6's H2 quoting reads a different column: a lowercase-quoted `"order"` is no longer found (probed). Decided: restore the pre-W6 product quoting on H2 exactly, and keep the rule as one guard row for the user's ruling (§10 item 8). (2) The edge's host routes and ServiceTestRunner word errors in lite's words. (3) The host's Arrow route writes the product's S312 dates where it wrote legend-pure's. (4) pure/v1's missing-parameter prefix changed, and a test was widened. Plus SHOULDs S1 to S5. All went to D. The fast loop gains the upstream-words suites (§8). |
+| 2026-11-16 14:50 | **The clean-sheet design adopted (§4b).** CI goes Linux-only and throwaway (the user: "Yes for CI do (a) the throwaway version"). Draft PR #112 is closed, and D adds `stage-linux.yml` to d-stage. E-SQL builds the edge golden net first (reference `26717de291`), then returns to E-v3. Round 66 is fully settled: Snowflake's alternation shows no slowdown. D's local stage (a) found two more of D's own regressions (Python's store words, a text plan's raises), fixed in `c34b3d5f5`. |
 | 2026-11-16 14:25 | **The user: all of D's pieces now, then CI on a PR** ("Can we do all the D pieces now? Float, text, errors etc - move everything to edge and then run a PR CI to check"). D on d-stage, in this order, each piece in its own commits:<br>1. the rest of the audit fixes;<br>2. the edge's Float;<br>3. legend-engine's plan text;<br>4. the guard to zero.<br>E-Java in parallel on `claude/total-wall-d-judges` (judge files only): S2c's facade, then W10. D merges it in and stays the only writer on d-stage. CI on a PR is the full suite; whether to open it as a draft now is asked of the user. At the end: one review, one lane round for the nine databases CI doesn't cover, the final CI, the user's word. |
 | 2026-11-16 14:20 | **The user's word:** D may run a plain `bazel clean` (not `--expunge`, no cache deletion) on its own machine ("Feel free to clean up bazel clean on the D session"). Step 1 runs staged on D's machine. The fresh runner stood down: it could not fit, it deleted nothing, and the CI dispatch was refused (403). |
 | 2026-11-16 14:15 | **The user calibrated it:** one writer per branch, so streams on separate branches run side by side. Checks by level: the edit; the push (the dependent tests by Bazel's dependency query); the step's lane round and audit, running behind; CI per PR. Reports go to the user once per step. E-SQL and E-Java resume on their own branches. Step 1's baseline runs on a fresh machine because D's disk is spent. |
