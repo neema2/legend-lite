@@ -1500,6 +1500,13 @@ public class Postgres extends AnsiSqlRenderer {
         if (e instanceof SqlExpr.ArrayLit a) {
             return arrayLiteral(writer, a);
         }
+        // a list literal spells its own type (arrayLiteral): a cast to that same type is written once (E-v3,
+        // 2026-11-16: CAST(CAST(ARRAY[..] AS BIGINT[]) AS BIGINT[]), 174 times on channel A)
+        if (e instanceof SqlExpr.Cast c && c.value() instanceof SqlExpr.ArrayLit a
+                && c.target() instanceof SqlType.Array && listElement(a) instanceof SqlType el
+                && castTypeName(c.target()).equals(carrier(el) + "[]")) {
+            return arrayLiteral(writer, a);
+        }
         if (e instanceof SqlExpr.OrderedListAgg ola) {
             // DuckDB's list(value ORDER BY key), as the LIST aggregate: NULL over no row, a list value held as jsonb
             SqlExpr v = ola.value();
