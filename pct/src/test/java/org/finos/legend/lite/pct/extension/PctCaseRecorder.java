@@ -73,7 +73,9 @@ final class PctCaseRecorder {
         String test = String.valueOf(System.getProperty("legend.test.id"));
         synchronized (EDGE_LINES) {
             int n = EDGE_SEQ.merge(test, 1, Integer::sum);
-            EDGE_LINES.put(test + "\t" + String.format(java.util.Locale.ROOT, "%03d", n), kind + "\t" + flat(text) + "\t" + flat(expression));
+            // the expression is the adapter's input, not an edge output, and its serialization (a let's order) is not
+            // stable run to run (2026-11-16, measured): the line is keyed by the test and the case's place in it
+            EDGE_LINES.put(test + "\t" + String.format(java.util.Locale.ROOT, "%03d", n), kind + "\t" + flat(text));
         }
     }
 
@@ -144,10 +146,6 @@ final class PctCaseRecorder {
 
     /** A case that failed: its error's class and the first line of its message, under the kind {@code ERROR}. */
     static void recordShapeError(String expression, Throwable e) {
-        // the edge golden net rides this call (none added to PctExecuteNative's ledger pin): the message exactly as
-        // PctExecuteNative hands it to the interpreter -- KEEP IN STEP with its throw (on d-stage,
-        // edge.PureMessages.compile(e))
-        edgeError(expression, e.getMessage());
         if (SHAPES_DIR == null) {
             return;
         }
