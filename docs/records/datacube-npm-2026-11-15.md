@@ -57,3 +57,24 @@ Source and save dialogs are fetched when opened. This keeps the existing standal
 startup-size budgets intact while adding lifecycle ownership. No size ceiling was raised. One source guard was
 corrected, with a dated explanation, to distinguish the platform's `AbortSignal` abort listener (available in Node)
 from DOM listeners; its screen-import and DOM-global restrictions remain.
+
+## Verification, 2026-11-15
+
+Implementation checkpoint: `a6c31e0e0`, pushed to `fork/make_packageable_codex`. Its runtime-lifecycle checkpoints
+are `231386080` and `87b2b099f`. No npm package was published.
+
+- `bazel test --lockfile_mode=error //gates:local` passed on macOS arm64: 544 test targets passed and two were
+  skipped by Bazel; 241 targets executed in the final run and the remaining successful results were cached.
+  Invocation: `dad4debb-9eea-482f-a2c5-a6fa6e739ae6`. This includes the architectural guards, browser scenarios,
+  JVM/WebAssembly differential checks, and the new consumer and lifecycle regressions.
+- `//datacube:npm_consumer_test` passed with the actual archive installed offline in a separate application:
+  strict public declarations and CSS imports, a nested static asset URL, CSV rows/filter/group/pivot, local
+  save/open, malformed Parquet refusal, dispose/remount, held-file cancellation, startup cancellation during
+  WASM and ICU downloads, and startup cancellation behind a blocked IndexedDB open. It verified no unexpected
+  network requests, browser errors, or surviving workers, and no leaked late storage connection.
+- The original startup bundle budgets passed unchanged. The focused dialog, touch, query-store, planner, and
+  database-lifecycle checks passed. The test import manifest was regenerated with `//datacube:test_imports`.
+- `git diff --check` passed before the implementation checkpoint.
+
+The tested archive is `bazel-bin/datacube/legend-lite-datacube.tgz` (about 16 MB compressed). Its SHA-256 is
+`c5cc0b2d0fd68406807c9635678fece4feb294d631f3763c5834437820681ae2`.
