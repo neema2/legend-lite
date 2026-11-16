@@ -260,11 +260,46 @@ public final class Sessions {
      *  over each other: the correctness audit's S8). Reentrant: a request's nested views of its own session wait on
      *  nothing. */
     static Session locked(Session owner) {
+        return locked(owner, WAIT);
+    }
+
+    /** {@link #locked(Session)}, waiting at most {@code wait} for the owner's lock (the wait's own test). */
+    static Session locked(Session owner, java.time.Duration wait) {
         Session root = owner;
         while (root instanceof View v) {
             root = v.owner;
         }
-        return new Locked(owner, root.requests);
+        return new Locked(owner, root.requests, wait);
+    }
+
+    /** How long a request waits for a kept session another request holds ({@link #locked}), or for the system
+     *  catalog's turn ({@link SystemDatabase.Leases}), before it is refused by name (C5-J's batch, 4(b), P3, the user's
+     *  ruling of 2026-11-16): legend-engine's pool waits as long for a connection (Hikari's connectionTimeout, the
+     *  engine's {@code AuthenticationStrategy.CONNECTION_TIMEOUT}, 30 s). Until then a request waited for ever. */
+    public static final java.time.Duration WAIT = java.time.Duration.ofSeconds(30);
+
+    /** Takes {@code lock}, waiting at most {@code wait} for another request to let it go; past that, refused by name in
+     *  legend-engine's pool's words and lite's reason ({@code what} the lock's holder). A thread interrupted while it
+     *  waits is refused at once. */
+    static void acquire(java.util.concurrent.locks.ReentrantLock lock, java.time.Duration wait, String what) {
+        boolean taken;
+        try {
+            taken = lock.tryLock(wait.toMillis(), java.util.concurrent.TimeUnit.MILLISECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("interrupted while waiting for " + what + ", which another request holds",
+                    e);
+        }
+        if (!taken) {
+            throw new IllegalStateException(busy(wait, what));
+        }
+    }
+
+    /** The refusal's words: legend-engine's pool's ({@code HikariPool}: "Connection is not available, request timed out
+     *  after 30000ms."), then what lite waited for (register S-batch-7, its wording pending the user's ruling). */
+    static String busy(java.time.Duration wait, String what) {
+        return "Connection is not available, request timed out after " + wait.toMillis() + "ms: another request holds "
+                + what;
     }
 
     /** {@link #locked}'s view: the lock held from its making to its first close. */
@@ -273,8 +308,8 @@ public final class Sessions {
         private final java.util.concurrent.locks.ReentrantLock lock;
         private final java.util.concurrent.atomic.AtomicBoolean held = new java.util.concurrent.atomic.AtomicBoolean(true);
 
-        Locked(Session owner, java.util.concurrent.locks.ReentrantLock lock) {
-            lock.lock();
+        Locked(Session owner, java.util.concurrent.locks.ReentrantLock lock, java.time.Duration wait) {
+            acquire(lock, wait, "this database's session");
             this.owner = owner;
             this.lock = lock;
         }

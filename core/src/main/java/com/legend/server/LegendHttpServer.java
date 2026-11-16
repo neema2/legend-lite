@@ -40,9 +40,16 @@ import java.util.regex.Pattern;
 public class LegendHttpServer {
 
     private final HttpServer server;
+    /** The most requests the server handles at once (C5-J's batch, 4(b), P1, the user's ruling of 2026-11-16): each
+     *  runs on its own virtual thread, and a request beyond the ceiling waits for one to finish -- queued, never
+     *  refused. */
+    public static final int MAX_CONCURRENT_REQUESTS = 1024;
+
     /** The requests' threads, one virtual thread each ({@link #start}). */
     private final java.util.concurrent.ExecutorService requests =
             java.util.concurrent.Executors.newVirtualThreadPerTaskExecutor();
+    /** The requests running now: a permit each, {@link #MAX_CONCURRENT_REQUESTS} of them. */
+    private final java.util.concurrent.Semaphore running;
     private final PureLspServer lspServer;
     private final Origins origins;
     /** The saved-query store {@code --query-store DIR} names, or null (its calls are then refused). */
@@ -70,6 +77,17 @@ public class LegendHttpServer {
      *  platform's path separator). */
     public LegendHttpServer(int port, java.net.InetAddress bind, Origins origins,
             java.nio.file.@com.legend.base.Nullable Path queryStore, String sources) throws IOException {
+        this(port, bind, origins, queryStore, sources, MAX_CONCURRENT_REQUESTS);
+    }
+
+    /** On the loopback interface, handling at most {@code ceiling} requests at once (the ceiling's own test). */
+    LegendHttpServer(int port, int ceiling) throws IOException {
+        this(port, java.net.InetAddress.getLoopbackAddress(), Origins.LOOPBACK, null, NO_SOURCES, ceiling);
+    }
+
+    private LegendHttpServer(int port, java.net.InetAddress bind, Origins origins,
+            java.nio.file.@com.legend.base.Nullable Path queryStore, String sources, int ceiling) throws IOException {
+        this.running = new java.util.concurrent.Semaphore(ceiling, true);
         // the folders validated once, where the server starts: a folder that is none refuses the start, never every
         // query after it (the A delta audit's 5, 2026-11-11)
         validateSources(sources);
@@ -421,12 +439,28 @@ public class LegendHttpServer {
         }
     }
 
-    /** Each request on its own virtual thread (C5-J's batch, 4(a), 2026-11-16): until then the JDK server had no
+    /** Each request on its own virtual thread, at most {@link #MAX_CONCURRENT_REQUESTS} at once (C5-J's batch, 4(a)
+     *  and P1, 2026-11-16): until then the JDK server had no
      *  executor and ran every request on its one dispatcher thread, so a request that did not finish -- a client that
      *  sent its headers and never its body, a long query -- held every route. A database's work stays one request at
      *  a time behind its session's lock (PlanSessions); the LSP's documents behind PureLspServer's monitor. */
     public void start() {
-        server.setExecutor(requests);
+        // a request takes a permit on its own thread, so the dispatcher never waits: one beyond the ceiling queues,
+        // in arrival order (a fair semaphore), and runs when one finishes
+        server.setExecutor(exchange -> requests.execute(() -> {
+            try {
+                running.acquire();
+            } catch (InterruptedException stopped) {
+                // the server is stopping (stop(): shutdownNow): a queued request is not handled
+                Thread.currentThread().interrupt();
+                return;
+            }
+            try {
+                exchange.run();
+            } finally {
+                running.release();
+            }
+        }));
         server.start();
         System.out.println("Legend HTTP server started on port " + server.getAddress().getPort());
     }

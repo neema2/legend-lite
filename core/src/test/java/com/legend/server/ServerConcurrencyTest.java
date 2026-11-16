@@ -59,6 +59,38 @@ class ServerConcurrencyTest {
         }
     }
 
+    /** Beyond the ceiling a request queues, never refused (P1, the user's ruling of 2026-11-16): with a ceiling of one,
+     *  a stalled request holds the one permit, and another waits until it ends -- then is answered. The product's
+     *  ceiling is {@link LegendHttpServer#MAX_CONCURRENT_REQUESTS}. */
+    @Test
+    void aRequestBeyondTheCeilingQueuesUntilOneEnds() throws Exception {
+        assertEquals(1024, LegendHttpServer.MAX_CONCURRENT_REQUESTS);
+        LegendHttpServer server = new LegendHttpServer(0, 1);
+        server.start();
+        try {
+            HttpClient client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
+            CompletableFuture<HttpResponse<String>> queued;
+            try (Socket stalled = new Socket("127.0.0.1", server.getPort())) {
+                OutputStream out = stalled.getOutputStream();
+                out.write(("POST /lsp HTTP/1.1\r\nHost: localhost\r\nContent-Type: application/json\r\n"
+                        + "Content-Length: 100\r\n\r\n{").getBytes(StandardCharsets.US_ASCII));
+                out.flush();
+                Thread.sleep(200);
+                queued = client.sendAsync(HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + server.getPort()
+                                + "/api/pure/v1/grammar/grammarToJson/lambda"))
+                        .timeout(Duration.ofSeconds(20)).POST(HttpRequest.BodyPublishers.ofString("|1")).build(),
+                        HttpResponse.BodyHandlers.ofString());
+                Thread.sleep(1000);
+                assertFalse(queued.isDone(), "a request beyond the ceiling waits while the one permit is held");
+            }
+            // the stalled request ends with its socket: the queued one runs
+            HttpResponse<String> answered = queued.get(20, TimeUnit.SECONDS);
+            assertEquals(200, answered.statusCode(), answered.body());
+        } finally {
+            server.stop();
+        }
+    }
+
     /** An Error -- here an AssertionError: JUnit rethrows an OutOfMemoryError from any test as unrecoverable, so the
      *  probe is an Error of another kind, answered the same way. */
     @Test

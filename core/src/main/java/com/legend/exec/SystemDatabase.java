@@ -70,14 +70,22 @@ public final class SystemDatabase {
 
     /** A run's leases of the system databases its plan names; closed when the run ends. */
     public static Leases leases() {
-        return new Leases();
+        return new Leases(Sessions.WAIT);
+    }
+
+    /** {@link #leases()}, waiting at most {@code wait} for a catalog's turn (the wait's own test). */
+    static Leases leases(java.time.Duration wait) {
+        return new Leases(wait);
     }
 
     /** One run's leases: its turns on the catalogs its steps reach, held until {@link #close} and rolled back then. */
     public static final class Leases implements AutoCloseable {
         private final List<Held> turns = new ArrayList<>();
+        /** How long a turn is waited for before it is refused by name ({@link Sessions#WAIT}). */
+        private final java.time.Duration wait;
 
-        private Leases() {
+        private Leases(java.time.Duration wait) {
+            this.wait = wait;
         }
 
         /**
@@ -136,7 +144,7 @@ public final class SystemDatabase {
                 throw new IllegalStateException("a run on the system catalog inside another run's turn on it, on one"
                         + " thread: its rollback would undo the other's registration");
             }
-            catalog.turn.lock();
+            Sessions.acquire(catalog.turn, wait, "the system catalog's turn");
             boolean taken = false;
             try {
                 if (catalog.broken) {
