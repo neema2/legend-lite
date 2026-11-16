@@ -38,8 +38,8 @@ import java.util.List;
  *
  * <p>KNOWN DIVERGENCES between the tables (recorded, resolved by later
  * slices — slice 1 is byte-identical by charter):
- * float — {@link #floatCanon} unfolds EVERY exponent textually and
- * unifies zeros to '0.0'; {@link #floatPrint} re-renders through
+ * float — {@link #floatValueText} is the database's text of the double,
+ * every zero '0.0'; {@link #floatPrint} re-renders through
  * DECIMAL(38,18)/HUGEINT and keeps the exponent beyond that envelope.
  * temporal — the LITERAL grammar prefixes %, print forms do not;
  * {@link #temporalCanon} normalizes both wire spellings through one
@@ -84,7 +84,7 @@ public final class LiteralSpelling {
             // Float-DECLARED side — CanonicalRenderSql.wrapWithCanon —
             // never here: this leaf also spells the FLOAT candidate of
             // an unrefined Number side, whose wire kind is the answer)
-            return floatCanon(v);
+            return floatValueText(v);
         }
         if (t == Type.Primitive.DATE_TIME || t == Type.Primitive.DATE) {
             return temporalCanon(v);
@@ -367,15 +367,6 @@ public final class LiteralSpelling {
                 new SqlExpr.StringLit(""));
     }
 
-    /**
-     * Float: fixed-point ALWAYS (H1 — pure never prints exponent
-     * notation). DuckDB's CAST is shortest-repr but switches to
-     * exponent for small/large magnitudes; those unfold through a
-     * COMPLETE textual exponent unfold. Non-finite
-     * spellings pass through — out of the claimed domain (§4), they
-     * can never equal legitimate canonical text and the parallel host
-     * referee names them residue.
-     */
     /** Rule 2's conversion for a Float-DECLARED cell (docs/JUDGING_TWO_MODES
      * §1): CAST AS DOUBLE unless the tree KNOWS the value is already a
      * DOUBLE or rides a text carrier (VARCHAR / temporal text / decimal
@@ -398,11 +389,19 @@ public final class LiteralSpelling {
         return new SqlExpr.Cast(v, SqlType.Scalar.DOUBLE, SqlExpr.Reason.PRINT);
     }
 
-    /** Pure's literal spelling of a Float: one call, {@link SqlFn#FLOAT_CANON}, which each dialect spells (2026-10-11:
-     *  the portable spelling reads the value's text some fifty times, which multiplied a dialect whose double text is
-     *  itself a long expression -- MariaDB's five-element mixed list was 545 KB of SQL). */
-    static SqlExpr floatCanon(SqlExpr v) {
-        return SqlExpr.Call.of(SqlFn.FLOAT_CANON, v);
+    /**
+     * A Float's canon for the judges' compare (W10 (b), 2026-11-16): the DATABASE's own text of the value as a double,
+     * every zero one text (Pure's {@code -0.0 == 0.0}, as the literal spelling unified them). Within one database
+     * two equal doubles have one text, so the compare is the typed one; Pure's literal spelling (the FLOAT_CANON call,
+     * the unfolded exponent, some 4,000 characters a value on DuckDB) was text no compare needs. A failure's message
+     * prints a Float through {@link Repr}, never this.
+     */
+    static SqlExpr floatValueText(SqlExpr v) {
+        // IEEE: -0.0 + 0.0 is +0.0, so every zero has the one text
+        SqlExpr zero = new SqlExpr.Cast(new SqlExpr.FloatLit(0.0), SqlType.Scalar.DOUBLE, SqlExpr.Reason.JUDGE);
+        return new SqlExpr.Cast(SqlExpr.Call.of(SqlFn.PLUS,
+                new SqlExpr.Cast(v, SqlType.Scalar.DOUBLE, SqlExpr.Reason.JUDGE), zero),
+                SqlType.Scalar.VARCHAR, SqlExpr.Reason.JUDGE);
     }
 
     /**
