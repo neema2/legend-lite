@@ -557,8 +557,13 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  RoutedEngine -- generatePlan, relationType, compile, compileErrors, returnType -- and planner.ts's UpstreamPlanner,
  *  the final audit of 9af16fbe58's T2 and its last list), and the run frame's NOT_PLANNING (T6): 63 bytes, 436,935
  *  without them. Measured 436,998 on Linux; Windows' 28 bytes more are its own build's -- the startup files name 305
- *  chunks by esbuild's content hashes, and the files embed no path, so the bytes that differ were not found here. */
-const BUDGET = 437_300;
+ *  chunks by esbuild's content hashes, and the files embed no path, so the bytes that differ were not found here.
+ *  437,300 -> 437,800 (2026-11-16, the user's ruling on the TypeScript batch, "raise both by about 300" over the
+ *  batch's measure: the tab's DuckDB start refused by name when its worker or WebAssembly does not load (T-B, +60), a
+ *  warehouse Snap's copy on a connection of its own and stoppable (T-C, about +182: snap.ts's own connection and
+ *  signal, DataCube's wiring), and a share link with no token in the page's own address, DuckDB's worker printing no
+ *  link's query string (T-F, T-G, +32); docs/records/ts-batch-2026-11-16.md). Measured 437,506 on Linux. */
+const BUDGET = 437_800;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom
@@ -795,8 +800,11 @@ const BUDGET = 437_300;
  *  frame -- engine-client's run-frame.ts, the grid road's run marker in runner.ts and the planner's guard in
  *  LitePlanner's one dispatch and the in-thread answer -- over by 108 bytes). Measured 422,108.
  *  422,500, 425,500 -> 425,500 (2026-11-14, merged main 3a217086a (#81) into the separation stream: both sides' growth
- *  together, each side's notes above, measured on the merged tree; the merge adds no file). Measured 425,382. */
-const ENGINE_BUDGET = 425_500;
+ *  together, each side's notes above, measured on the merged tree; the merge adds no file). Measured 425,382.
+ *  425,500 -> 426,000 (2026-11-16, the user's ruling on the TypeScript batch -- the grid-only page's note of the same
+ *  date: T-B, T-C (snap.ts, which this page carries too, about +185), T-F and T-G; docs/records/ts-batch-2026-11-16.md).
+ *  Measured 425,708 on Linux. */
+const ENGINE_BUDGET = 426_000;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the
