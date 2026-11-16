@@ -32,6 +32,7 @@ final class FloatCanonText {
 
         private final boolean bindText;
         private final boolean staged;
+        private final boolean fenced;
         private final int[] fresh = {0};
         private final java.util.Map<SqlExpr, SqlExpr> spelledCalls = new java.util.HashMap<>();
 
@@ -48,8 +49,17 @@ final class FloatCanonText {
          *  mantissa 24 inline (4,124 characters on DuckDB; staged, about 1,000, and 3.2x faster over 200,000 rows, the
          *  same text for every double). Only for a dialect whose derived tables read the row around them. */
         Expansion(boolean bindText, boolean staged) {
+            this(bindText, staged, false);
+        }
+
+        /** {@code fenced}: the staged layer that reads the text (the mantissa and the exponent) carries an {@code
+         *  OFFSET 0}, a fence its database's planner does not flatten through ({@code AnsiSqlRenderer.fencesFloatText}).
+         *  Unfenced, SQLite's flattener copies the mantissa's matcher -- a recursive common table expression -- into
+         *  every read of the digits and the point's position, and spends its time preparing the copies. */
+        Expansion(boolean bindText, boolean staged, boolean fenced) {
             this.bindText = bindText || staged;
             this.staged = staged;
+            this.fenced = staged && fenced;
         }
 
         @Override
@@ -66,7 +76,7 @@ final class FloatCanonText {
                     return known;
                 }
                 if (staged) {
-                    SqlExpr spelledCall = stagedSpelling(c.args().get(0), "__fc" + fresh[0]++);
+                    SqlExpr spelledCall = stagedSpelling(c.args().get(0), "__fc" + fresh[0]++, fenced);
                     spelledCalls.put(c, spelledCall);
                     return spelledCall;
                 }
@@ -128,7 +138,7 @@ final class FloatCanonText {
      *  (SELECT t, <m>, <x> FROM (SELECT CAST(v AS VARCHAR) AS t) AS a0) AS a1) AS a2)} -- the text {@code t}, the
      *  mantissa {@code m}, the exponent {@code x}, the digits {@code d} and the point's position {@code p}, each
      *  written once; the double read once, in the innermost layer. */
-    private static SqlExpr stagedSpelling(SqlExpr v, String alias) {
+    private static SqlExpr stagedSpelling(SqlExpr v, String alias, boolean fenced) {
         String a0 = alias + "_t";
         String a1 = alias + "_m";
         String a2 = alias + "_p";
@@ -139,6 +149,9 @@ final class FloatCanonText {
         SqlExpr t0 = col(a0, "t", text);
         com.legend.sql.SqlSelect l1 = layer(List.of(as(t0, "t", text), as(mantissa(t0), "m", text),
                 as(exponent(t0), "x", integer)), new com.legend.sql.SqlSource.Subselect(l0, a0, null));
+        if (fenced) {
+            l1 = l1.withOffset(0L);
+        }
         SqlExpr m = col(a1, "m", text);
         com.legend.sql.SqlSelect l2 = layer(List.of(as(col(a1, "t", text), "t", text), as(digits(m), "d", text),
                 as(SqlExpr.Call.of(SqlFn.PLUS, intLen(m), col(a1, "x", integer)), "p", integer)),

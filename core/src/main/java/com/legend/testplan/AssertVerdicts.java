@@ -1572,14 +1572,6 @@ final class AssertVerdicts {
         return arm(env).quantified(fqn, predMap, qfn == NativeFn.Verdict.ASSERT, msg, letPrefix, specs, env, hook);
     }
 
-    /** The run's judge mode rides its options (PlanningOptions.JudgeMode):
-     * one mode per run, read from the execution environment — never a JVM
-     * global. HOST is the verdict of record; DATABASE plans both sides and
-     * lets the database return the verdict row. */
-    static boolean databaseMode(BodyDriver.ExecEnv env) {
-        return env.options().judgeMode() == PlanningOptions.JudgeMode.DATABASE;
-    }
-
     /** THE ONE DISPATCH (cleanup move 2b, 2026-09-21): the run's judge mode names the
      * arm; the router classifies and hands the sides over, nowhere else forks. */
     static VerdictArm arm(BodyDriver.ExecEnv env) {
@@ -2086,19 +2078,6 @@ final class AssertVerdicts {
         return s.info().type() instanceof
                 com.legend.compiler.element.type.Type.ClassType ct
                 && com.legend.compiler.element.type.PlatformTypes.isAny(ct);
-    }
-
-    static boolean containsTreeMarker(
-            @com.legend.base.Nullable String text) {
-        return text != null && text.contains(
-                com.legend.lowering.CanonicalRenderSql.TREE_MARKER);
-    }
-
-    static List<Object> concat(List<Object> a, List<Object> b) {
-        List<Object> out = new ArrayList<>(a.size() + b.size());
-        out.addAll(a);
-        out.addAll(b);
-        return out;
     }
 
     static String typeName(TypedSpec spec) {

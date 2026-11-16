@@ -231,7 +231,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         }
         // a Float's literal spelling, expanded before every other pass unless this dialect spells it itself
         if (!spellsFloatCanon()) {
-            ps.add(new FloatCanonText.Expansion(bindsFloatText(), stagesFloatText()));
+            ps.add(new FloatCanonText.Expansion(bindsFloatText(), stagesFloatText(), fencesFloatText()));
         }
         ps.addAll(passes());
         ps.add(new StoredReads(this::readsStored));
@@ -272,6 +272,14 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
      *  §5.9): a dialect whose derived tables read the row around them, each turned on as its database is shown to
      *  answer every double the same. Base: no -- H2 refuses an outer column inside a derived table. */
     protected boolean stagesFloatText() {
+        return false;
+    }
+
+    /** Whether the staged Float canon's text layer is fenced from the planner's flattening ({@code OFFSET 0}): a
+     *  database that flattens a derived table into its reader, copying each expression into every read of its column
+     *  (SQLite, measured 2026-11-16: an assertEquals over three doubles prepared in 0.6 s unfenced, 0.03 s fenced).
+     *  Base: no. */
+    protected boolean fencesFloatText() {
         return false;
     }
 

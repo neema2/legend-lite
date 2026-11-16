@@ -252,6 +252,14 @@ public class SQLite extends AnsiSqlRenderer {
         return true;
     }
 
+    /** The staged canon's text layer fenced (2026-11-16, PR1's finding B): SQLite's flattener otherwise copies the
+     *  mantissa's matcher into every read of the digits and the point's position -- channel B's SQLite lane went
+     *  from 25 s to 103 s, its float bodies' statements preparing for seconds. */
+    @Override
+    protected boolean fencesFloatText() {
+        return true;
+    }
+
     @Override
     protected List<com.legend.sql.SqlRewriter> passes() {
         return List.of(new CarrierStrategies(CAPS), new StarExceptToColumns(),
