@@ -123,6 +123,8 @@ final class CollectionLanes {
             case TypedPackageableRef ignored -> true;
             // compile-time reflection carrier — folds before lowering
             case com.legend.compiler.spec.typed.TypedDeactivate ignored -> true;
+            // a discarded leading statement: the body's value decides (the node itself is refused where it is lowered)
+            case com.legend.compiler.spec.typed.TypedDiscarded d -> valueLane(d.value());
             // ---- lane-preserving transforms: the SOURCE decides ----
             case TypedIf i -> valueLane(PureSql.thunkBody(i.thenBranch()))
                     && i.elseBranch()

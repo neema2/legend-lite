@@ -1317,6 +1317,8 @@ public final class Lowerer {
                     when ValueCollectionOps.relationDistinct(nc) != null ->
                     distinctOf(nc);
 
+            // a lambda's leading statement whose value is discarded (S-batch-6)
+            case com.legend.compiler.spec.typed.TypedDiscarded d -> throw new NotImplementedException(d.refusal());
             // SANCTIONED frontier default (root package-info invariant is
             // scoped to hiding-prone switches): the not-yet-lowered TypedSpec
             // variants churn every milestone; each throws LOUD and NAMED.
@@ -4385,6 +4387,9 @@ public final class Lowerer {
             // static-dispatch match fold (MatchFold doc)
             case com.legend.compiler.spec.typed.TypedMatchRuntime mr ->
                     scalar(MatchFold.fold(mr), columns);
+            // a lambda's leading statement whose value is discarded: refused by name where it is planned (register
+            // S-batch-6, the user's ruling of 2026-11-16)
+            case com.legend.compiler.spec.typed.TypedDiscarded d -> throw new NotImplementedException(d.refusal());
             // SANCTIONED frontier default — see relation() above.
             default -> throw new NotImplementedException("scalar lowering not yet implemented for "
                     + spec.getClass().getSimpleName());

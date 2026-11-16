@@ -106,6 +106,18 @@ public final class AssertMessages {
         return new TypedNativeCall(f, List.of(new com.legend.compiler.spec.typed.TypedCBoolean(true, one)), one);
     }
 
+    /** {@code assert(condition, message)} with a String message: the statements an assert leading a lambda's body
+     *  stands for where {@link LambdaBodies} typed it as {@code if(condition, |rest, |fail(message))} (C5-J's batch,
+     *  3a, 2026-11-16), planned by the judges as any assert. */
+    public static TypedSpec assertWith(TypedSpec condition, TypedSpec message, SpecCompiler specs) {
+        TypedFunction f = specs.ctx().findFunction(PlatformTypes.ASSERT).stream()
+                .filter(fn -> fn.parameters().size() == 2 && fn.parameters().get(1).type() == Type.Primitive.STRING)
+                .findFirst().orElseThrow(() -> new IllegalStateException(
+                        "the platform declares assert(Boolean[1], String[1])"));
+        ExprType one = new ExprType(Type.Primitive.BOOLEAN, Multiplicity.Bounded.ONE);
+        return new TypedNativeCall(f, List.of(condition, message), one);
+    }
+
     /** The number of operands {@code fn}'s base overload takes, or -1 for a family with no message overloads. */
     static int baseArity(NativeFn.Verdict fn) {
         return switch (fn) {

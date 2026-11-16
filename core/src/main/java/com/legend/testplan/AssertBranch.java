@@ -72,6 +72,22 @@ final class AssertBranch {
      *  body was refused). */
     private static @Nullable List<TypedSpec> side(TypedSpec side, boolean last, QueryDoor.Scan scan,
             SpecCompiler specs) {
+        if (side instanceof TypedIf guard && guard.elseBranch().isPresent()
+                && guard.elseBranch().get() instanceof com.legend.compiler.spec.typed.TypedNativeCall raise
+                && com.legend.builtin.Pure.AT_ASSERTS_FAIL.contains(raise.callee().id()) && raise.args().size() == 1
+                && scan.kinds(guard.condition()).isEmpty()) {
+            // if(c, |rest, |fail(m)) is assert(c, m); rest -- the form an assert leading a side's lambda is typed in
+            // (LambdaBodies' guard; C5-J's batch, 3a, 2026-11-16): its statements, the assert first, as a body's are
+            List<TypedSpec> rest = side(guard.thenBranch(), last, scan, specs);
+            if (rest == null) {
+                return null;
+            }
+            List<TypedSpec> statements = new java.util.ArrayList<>();
+            statements.add(com.legend.compiler.spec.AssertMessages.assertWith(guard.condition(), raise.args().get(0),
+                    specs));
+            statements.addAll(rest);
+            return statements;
+        }
         EnumSet<QueryDoor.TestOnly> kinds = scan.kinds(side);
         if (kinds.equals(EnumSet.of(QueryDoor.TestOnly.ASSERT)) || QueryDoor.assertErrorRoot(side, specs)) {
             return List.of(side);

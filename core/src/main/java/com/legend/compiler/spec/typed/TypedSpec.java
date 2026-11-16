@@ -73,6 +73,7 @@ public sealed interface TypedSpec permits
         TypedConcatenate,
         TypedPackageableRef,
         TypedTableReference,
+        TypedDiscarded,
         TypedNewInstance,
         TypedCopyInstance,
         TypedRelationOp

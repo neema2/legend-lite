@@ -141,7 +141,11 @@ final class IfChecker {
     /** The corpus's {@code | fail('...'); expr;} branch shape (toDDL
      * getTable): {@code fail} ALWAYS throws, so the branch IS the fail
      * call — emitted with the FINAL expression's static type (bottom
-     * spirit: the value is unreachable, the throw effect exact). Null =
+     * spirit: the value is unreachable, the throw effect exact). A leading
+     * statement that always raises is that raise the same way: an {@code if}
+     * whose every side raises (pure's {@code propertyMappingsByPropertyName}
+     * over an embedded set: {@code if(c, |fail(..), |let si = ..; fail(..)); [];}
+     * -- C5-J's batch, 3a, 2026-11-16: until then typed and dropped). Null =
      * not this shape. */
     static @com.legend.base.Nullable TypedSpec failThenValue(Typer t, LambdaFunction lam, Env env) {
         List<ValueSpecification> stmts = lam.body();
@@ -151,9 +155,7 @@ final class IfChecker {
         TypedSpec first = null;
         for (int i = 0; i < stmts.size() - 1; i++) {
             TypedSpec s = t.synth(stmts.get(i), env);
-            if (!(s instanceof com.legend.compiler.spec.typed.TypedNativeCall nc)
-                    || !"meta::pure::functions::asserts::fail"
-                            .equals(nc.callee().qualifiedName())) {
+            if (!raises(s)) {
                 return null;
             }
             if (first == null) {
@@ -161,9 +163,25 @@ final class IfChecker {
             }
         }
         TypedSpec last = t.synth(stmts.get(stmts.size() - 1), env);
-        var fail = (com.legend.compiler.spec.typed.TypedNativeCall)
-                java.util.Objects.requireNonNull(first, "first");
-        return new com.legend.compiler.spec.typed.TypedNativeCall(
-                fail.callee(), fail.args(), last.info());
+        return raiseAt(java.util.Objects.requireNonNull(first, "first"), last.info());
+    }
+
+    /** Whether {@code s} always raises: a {@code fail} call, or an {@code if} whose every side always raises. */
+    private static boolean raises(TypedSpec s) {
+        if (s instanceof com.legend.compiler.spec.typed.TypedNativeCall nc) {
+            return "meta::pure::functions::asserts::fail".equals(nc.callee().qualifiedName());
+        }
+        return s instanceof TypedIf i && i.elseBranch().isPresent() && raises(i.thenBranch())
+                && raises(i.elseBranch().get());
+    }
+
+    /** {@code s}, which {@link #raises}, typed at {@code at}: the raise itself, its value unreachable. */
+    private static TypedSpec raiseAt(TypedSpec s, ExprType at) {
+        if (s instanceof TypedIf i) {
+            return new TypedIf(i.condition(), raiseAt(i.thenBranch(), at),
+                    java.util.Optional.of(raiseAt(i.elseBranch().orElseThrow(), at)), at);
+        }
+        var fail = (com.legend.compiler.spec.typed.TypedNativeCall) s;
+        return new com.legend.compiler.spec.typed.TypedNativeCall(fail.callee(), fail.args(), at);
     }
 }
