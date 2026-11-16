@@ -63,9 +63,9 @@ class SeedSpellingTest {
     @Test
     void h2AndDuckDbQuoteOnlyWhatTheyReserve() {
         RowLoad load = CsvSeed.rowLoad(null, "T", NameQuoting.BARE, COLS, Set.of(), ROWS);
-        for (SqlDialect d : List.of(new com.legend.sql.dialect.H2(), new com.legend.sql.dialect.DuckDb())) {
-            assertEquals("INSERT INTO T (ID, \"order\")", into(d, load), d.getClass().getSimpleName());
-        }
+        // H2 quotes its own keyword as the upper-case identifier it makes of the bare word (W6, 2026-11-16)
+        assertEquals("INSERT INTO T (ID, \"ORDER\")", into(new com.legend.sql.dialect.H2(), load));
+        assertEquals("INSERT INTO T (ID, \"order\")", into(new com.legend.sql.dialect.DuckDb(), load));
     }
 
     /** Every name is delimited once. The seed passed its names already spelled and the insert spelled them again: on

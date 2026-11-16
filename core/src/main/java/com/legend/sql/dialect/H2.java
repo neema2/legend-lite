@@ -170,60 +170,37 @@ public class H2 extends AnsiSqlRenderer {
         return java.util.List.copyOf(ps);
     }
 
-    /** H2 2.1.214 reserved words — the ENGINE's own list
-     * (h2Extension2_1_214.pure:180-192). This is the GOLDEN TEXT
-     * channel's set ({@code Ddl.createTable ENGINE_TEXT}'s
-     * column-name rule quotes exactly what the engine quotes); the
-     * EXECUTION lexicon {@link #LEXICON} derives from it. */
-    public static final Lexicon ENGINE_LEXICON = new Lexicon('"', Set.of(
-            "all", "and", "array", "as", "between", "case", "check",
-            "constraint", "cross", "current_catalog", "current_date",
-            "current_schema", "current_time", "current_timestamp",
-            "current_user", "distinct", "except", "exists", "false", "fetch",
-            "for", "foreign", "from", "full", "group", "having", "if", "in",
-            "inner", "intersect", "interval", "is", "join", "left", "like",
-            "limit", "localtime", "localtimestamp", "minus", "natural", "not",
-            "null", "offset", "on", "or", "order", "primary", "qualify",
-            "row", "rownum", "select", "table", "true", "union", "unique",
-            "unknown", "using", "values", "where", "window", "with",
-            "_rowid_", "both", "groups", "ilike", "leading", "over",
-            "partition", "range", "regexp", "rows", "top", "trailing"));
+    /** H2 2.5.252's OWN keywords, its driver's list ({@code org.h2.command.Token}'s keywords, 89; {@code H2KeywordsTest}
+     *  reads them there and holds this list to them): the words a name must be quoted to be (W6 of
+     *  docs/records/d-plan-2026-11-16.md, 2026-11-16: until then the product's quoting derived from legend-engine's
+     *  list, which the compatibility edge's H2 hands in now, {@code edge.PureText.H2}). */
+    public static final Set<String> KEYWORDS = Set.of("_rowid_", "all", "and", "any", "array", "as", "asymmetric",
+            "authorization", "between", "case", "cast", "check", "constraint", "cross", "current_catalog",
+            "current_date", "current_path", "current_role", "current_schema", "current_time", "current_timestamp",
+            "current_user", "day", "default", "distinct", "else", "end", "except", "exists", "false", "fetch", "for",
+            "foreign", "from", "full", "group", "having", "hour", "if", "in", "inner", "intersect", "interval", "is",
+            "join", "key", "left", "like", "limit", "localtime", "localtimestamp", "minus", "minute", "month", "natural",
+            "not", "null", "offset", "on", "or", "order", "primary", "qualify", "right", "row", "rownum", "second",
+            "select", "session_user", "set", "some", "symmetric", "system_user", "table", "to", "true", "uescape",
+            "union", "unique", "unknown", "user", "using", "value", "values", "when", "where", "window", "with", "year");
 
-    /** Stock H2 2.1.214 EXECUTION lexicon: the engine's list plus the
-     * words the STOCK parser rejects in alias position (witnessed:
-     * {@code AS right} &rarr; syntax error) that the engine's laxer
-     * FORK omits. Execution-dialect-only — golden text channels use
-     * {@link #ENGINE_LEXICON} or {@link EngineStyleH2#LEXICON}. */
-    public static final Lexicon LEXICON = new Lexicon('"',
-            java.util.stream.Stream.concat(
-                    ENGINE_LEXICON.reservedWords().stream(),
-                    java.util.stream.Stream.of("right"))
-                    .collect(java.util.stream.Collectors.collectingAndThen(java.util.stream.Collectors.toCollection(java.util.LinkedHashSet::new), java.util.Collections::unmodifiableSet)));
+    /** The words this H2 quotes AS WRITTEN: none in the product, which quotes each of H2's {@link #KEYWORDS} as the
+     *  upper-case identifier H2 makes of the bare word -- so a quoted name and a bare one name the same column on any
+     *  session (the third re-audit's MUST-FIX 2(c), 2026-11-12, made the rule of every keyword); the compatibility
+     *  edge's H2 hands in legend-engine's list, which it quotes as written. */
+    private final Set<String> asWritten;
 
-    /** H2 2.5.252's OWN keywords that the engine's list ({@link #ENGINE_LEXICON}) leaves bare: exactly the engine's
-     *  {@link #NON_KEYWORDS} but {@code OVER}, which that list quotes. H2's keywords are its driver's
-     *  ({@code org.h2.command.Token}, 89 of them; {@code H2KeywordsTest} reads them there and holds every one quoted). A
-     *  bare name that is one of these is quoted IN UPPER CASE -- the identifier H2 makes of the bare name, which it
-     *  folds to upper case -- so it names the same column as before and a session without the engine's non-keywords
-     *  parses it too (the third re-audit's MUST-FIX 2(c), 2026-11-12: a store's column {@code key} was written bare,
-     *  which such a session refuses). */
-    static final Set<String> FREED_BY_THE_ENGINE = java.util.Arrays.stream(NON_KEYWORDS.split(","))
-            .map(w -> w.toLowerCase(java.util.Locale.ROOT))
-            .filter(w -> !ENGINE_LEXICON.reservedWords().contains(w))
-            .collect(java.util.stream.Collectors.collectingAndThen(java.util.stream.Collectors.toCollection(
-                    java.util.TreeSet::new), java.util.Collections::unmodifiableSet));
-
-    /** {@code name} is a plain name H2 reserves and the engine's session frees ({@link #FREED_BY_THE_ENGINE}). */
-    private static boolean freedByTheEngine(String name) {
-        return name.matches("[A-Za-z_][A-Za-z0-9_$]*")
-                && FREED_BY_THE_ENGINE.contains(name.toLowerCase(java.util.Locale.ROOT));
+    /** {@code name} is a plain name H2 reserves that this H2 quotes upper-cased (not {@link #asWritten}). */
+    private boolean upperQuoted(String name) {
+        String lower = name.toLowerCase(java.util.Locale.ROOT);
+        return name.matches("[A-Za-z_][A-Za-z0-9_$]*") && KEYWORDS.contains(lower) && !asWritten.contains(lower);
     }
 
-    /** {@inheritDoc} A name H2 reserves that the engine's session frees, quoted as the upper-case identifier H2 makes
-     *  of it bare ({@link #FREED_BY_THE_ENGINE}). */
+    /** {@inheritDoc} A name H2 reserves, quoted as the upper-case identifier H2 makes of it bare, unless this H2 quotes
+     *  it as written ({@link #asWritten}). */
     @Override
     protected String ident(String name) {
-        return freedByTheEngine(name) ? delimited(name.toUpperCase(java.util.Locale.ROOT)) : super.ident(name);
+        return upperQuoted(name) ? delimited(name.toUpperCase(java.util.Locale.ROOT)) : super.ident(name);
     }
 
     /** H2: no native lists, no correlated explosion (the ONLY probed
@@ -231,7 +208,16 @@ public class H2 extends AnsiSqlRenderer {
     public static final CarrierStrategies.Caps CAPS = new CarrierStrategies.Caps(false, false, false, false);
 
     public H2() {
-        super(LEXICON);
+        this(Set.of());
+    }
+
+    /** An H2 that quotes {@code asWritten} as written -- the compatibility edge's, legend-engine's list -- and every
+     *  other keyword of H2's upper-cased. */
+    protected H2(Set<String> asWritten) {
+        super(new Lexicon('"', java.util.stream.Stream.concat(KEYWORDS.stream(), asWritten.stream())
+                .collect(java.util.stream.Collectors.collectingAndThen(java.util.stream.Collectors.toCollection(
+                        java.util.LinkedHashSet::new), java.util.Collections::unmodifiableSet))));
+        this.asWritten = java.util.Collections.unmodifiableSet(new java.util.LinkedHashSet<>(asWritten));
     }
 
     @Override
@@ -446,8 +432,8 @@ public class H2 extends AnsiSqlRenderer {
         if (quotedIdentifier(part, '"')) {
             return part;
         }
-        if (freedByTheEngine(part)) {
-            // H2's own keyword the engine's session frees: the upper-case identifier H2 makes of it bare
+        if (upperQuoted(part)) {
+            // H2's own keyword: the upper-case identifier H2 makes of it bare
             return delimited(part.toUpperCase(java.util.Locale.ROOT));
         }
         if (!part.matches("[A-Za-z_][A-Za-z0-9_$]*")

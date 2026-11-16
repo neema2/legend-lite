@@ -5,7 +5,7 @@ import java.util.Set;
 /**
  * Dialect LEXICON &mdash; pure DATA (remediation T3.2): what a backend quotes
  * and how, with no behavior attached. Each dialect class holds its own row
- * ({@link DuckDb#LEXICON}, {@link H2#LEXICON}, ...: the dialect program's
+ * ({@link DuckDb#LEXICON}, {@link H2#KEYWORDS}, ...: the dialect program's
  * Phase 1a, 2026-10-13).
  *
  * @param quoteChar     the identifier quote character

@@ -29,6 +29,31 @@ import java.util.Set;
  */
 public class EngineStyleH2 extends AnsiSqlRenderer implements EngineTextDialect {
 
+    /** H2 2.1.214's reserved words, legend-engine's own list (h2Extension2_1_214.pure:180-192; moved from the product's
+     *  H2, W6 of docs/records/d-plan-2026-11-16.md, 2026-11-16): the golden text's quoting rule
+     *  ({@code Ddl.createTable ENGINE_TEXT}'s column-name rule quotes exactly what the engine quotes). */
+    public static final java.util.Set<String> ENGINE_LEXICON_WORDS = java.util.Set.of(
+            "all", "and", "array", "as", "between", "case", "check",
+            "constraint", "cross", "current_catalog", "current_date",
+            "current_schema", "current_time", "current_timestamp",
+            "current_user", "distinct", "except", "exists", "false", "fetch",
+            "for", "foreign", "from", "full", "group", "having", "if", "in",
+            "inner", "intersect", "interval", "is", "join", "left", "like",
+            "limit", "localtime", "localtimestamp", "minus", "natural", "not",
+            "null", "offset", "on", "or", "order", "primary", "qualify",
+            "row", "rownum", "select", "table", "true", "union", "unique",
+            "unknown", "using", "values", "where", "window", "with",
+            "_rowid_", "both", "groups", "ilike", "leading", "over",
+            "partition", "range", "regexp", "rows", "top", "trailing");
+
+    /** The words the edge's executing H2 quotes as written ({@code PureText.H2}): legend-engine's list, and
+     *  {@code right}, which the stock parser rejects in alias position where the engine's fork took it. */
+    public static final java.util.Set<String> ENGINE_RESERVED = java.util.stream.Stream.concat(
+            ENGINE_LEXICON_WORDS.stream(), java.util.stream.Stream.of("right"))
+            .collect(java.util.stream.Collectors.collectingAndThen(java.util.stream.Collectors.toCollection(
+                    java.util.LinkedHashSet::new), java.util.Collections::unmodifiableSet));
+
+
     /** {@inheritDoc} 9: H2's {@code TIMESTAMP '...'} literal keeps the digits it is written with, nine at most (S181, A7, 2026-11-10). */
     @Override
     protected int literalFractionDigits() {
@@ -551,7 +576,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer implements EngineTextDialect 
      * come from the dialect lexicon — the ONE H2 list. */
     private static String engineColumnName(String name) {
         if (name.startsWith("\"")
-                || H2.ENGINE_LEXICON.reservedWords()
+                || ENGINE_LEXICON_WORDS
                         .contains(name.toLowerCase(java.util.Locale.ROOT))
                 || name.contains(" ")) {
             return '"' + name.replace("\"", "") + '"';

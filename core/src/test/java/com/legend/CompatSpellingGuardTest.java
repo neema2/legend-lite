@@ -260,7 +260,9 @@ class CompatSpellingGuardTest {
             // node DATETIME_PRINT the judges' %r and canon read, and the edge writes for DATETIME_TO_TEXT; D1.9 moves it
             "sql/dialect/DateTimePrintText.java | +0000 | 2 | JUDGE",
             "sql/dialect/FloatPrintText.java | FLOAT_PRINT | 1 | JUDGE",
-            "sql/dialect/H2.java | ENGINE_LEXICON | 3 | D1.5",
+            // sql/dialect/H2.java | ENGINE_LEXICON: gone 2026-11-16 (W6 of docs/records/d-plan-2026-11-16.md): the product
+            // quotes H2's own keywords (H2.KEYWORDS, its driver's list); legend-engine's list is the edge's
+            // (EngineStyleH2.ENGINE_RESERVED, which PureText.H2 hands in)
             "sql/dialect/H2.java | FLOAT_CANON | 1 | JUDGE",
             "sql/dialect/H2.java | FLOAT_PRINT | 1 | JUDGE",
             "sql/dialect/MariaDb.java | FLOAT_CANON | 1 | JUDGE",
