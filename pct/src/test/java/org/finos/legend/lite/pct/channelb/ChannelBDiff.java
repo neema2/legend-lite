@@ -29,11 +29,12 @@ final class ChannelBDiff {
 
     /** {@code engineManifest} is the engine's PCT manifest for the lane's database, or null where legend-engine
      *  publishes none (SQLite, MariaDB, MySQL, BigQuery): then no wire bug is the engine's frontier. */
-    /** The edge golden net (2026-11-16): every outcome, a pass too, under -Dlegend.edge.channelb, sorted. */
+    /** The edge golden net (2026-11-16): every outcome, a pass too, under -Dlegend.edge.channelb, in the order received
+     *  (the net's normalizer, tools/edgenet, sorts them: comparison stays out of this module, PctDisciplineTest). */
     static void edge(List<ChannelB.Outcome> out) throws IOException {
         String edge = System.getProperty("legend.edge.channelb");
         if (edge != null) {
-            java.util.TreeSet<String> lines = new java.util.TreeSet<>();
+            java.util.List<String> lines = new java.util.ArrayList<>();
             for (ChannelB.Outcome o : out) {
                 lines.add(o.testFqn() + "\t" + o.status() + "\t" + o.detail().replace('\n', ' ').replace('\t', ' ')
                         .replaceAll("[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}", "<id>")
