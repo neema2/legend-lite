@@ -78,9 +78,9 @@ public final class RelationalTypeInference {
                         yield first;
                     }
                     // an argument with no type leaves no type: the engine's rule maps every argument through the
-                    // failOnMatchFailure=true inferRelationalType (relationalExtension.pure:120-123, :131-137), which
-                    // fails on it (2026-11-15; until then it dropped out, typing the rest). The safe type is the
-                    // engine's fold (2026-11-13)
+                    // failOnMatchFailure=true inferRelationalType (relationalExtension.pure:120-123; its assert
+                    // :116), which fails on it (2026-11-15; until then it dropped out, typing the rest). The safe
+                    // type is the engine's fold (2026-11-13)
                     if (types.contains(null)) {
                         yield null;
                     }
@@ -371,12 +371,12 @@ public final class RelationalTypeInference {
      *  leaves no type, whichever arguments the engine's rule reads (register row S500, 2026-11-15; until then it
      *  dropped out and the rest were typed). Numeric operands alone (an OTHER, a NULL, among them) are the database's
      *  {@link #promotion}, the ruled divergence. Any other operand is typed by the engine's rule, as its safe type
-     *  where the engine's answer is its first argument's (a type at least as wide, which main had):
+     *  where the engine's answer is its first argument's (a type at least as wide, as lite typed it until
+     *  2026-11-13):
      *  <ul>
-     *    <li>plus: over CHAR and VARCHAR operands (an OTHER among them) a VARCHAR of their sizes summed, the string
-     *        concatenation the database returns (the engine's the first's, relationalExtension.pure:1408-1436, main's
-     *        the larger); else, over several, their safe type when one is possible, else no rule;</li>
-     *    <li>minus: over several, their safe type when one is possible, else no rule (:1209-1218: the first's);</li>
+     *    <li>plus and minus: over several, their safe type when one is possible, else no rule
+     *        (relationalExtension.pure:1408-1436, :1209-1218: the first's), so plus over a VARCHAR(10) and a
+     *        VARCHAR(20) is a VARCHAR(20);</li>
      *    <li>times: the safe type of its first two when one is possible, the rest unread, else no rule (:1773-1782);
      *        </li>
      *    <li>sub: when its first two have one raw kind, their safe type, or the first's where the kind has no safe
@@ -397,19 +397,7 @@ public final class RelationalTypeInference {
         }
         boolean several = types.size() > 1;
         return switch (op) {
-            case PLUS -> {
-                boolean strings = types.stream().anyMatch(RelationalTypeInference::isCharOrVarchar)
-                        && types.stream().allMatch(t -> isCharOrVarchar(t) || t instanceof RelationalDataType.Other);
-                if (strings) {
-                    int size = 0;
-                    for (RelationalDataType t : types) {
-                        size += size(t);
-                    }
-                    yield new RelationalDataType.Varchar(size);
-                }
-                yield several ? safeTypeOf(types) : null;
-            }
-            case MINUS -> several ? safeTypeOf(types) : null;
+            case PLUS, MINUS -> several ? safeTypeOf(types) : null;
             case TIMES -> several ? safeTypeOf(types.subList(0, 2)) : null;
             case SUB -> {
                 if (!several || kind(types.get(0)) != kind(types.get(1))) {
@@ -425,9 +413,9 @@ public final class RelationalTypeInference {
     /** The database's numeric promotion over every type (the operators and case, register row S500, 2026-11-15),
      *  when every type is numeric or an OTHER (a NULL, which takes the others' type) and one is numeric; null
      *  otherwise. Any approximate operand (FLOAT, DOUBLE, REAL) makes a DOUBLE, but operands of one approximate kind
-     *  keep it (two FLOATs a FLOAT, two REALs a REAL: the engine's and main's answer, 2026-11-15); else a DECIMAL or
-     *  NUMERIC operand is the answer, two of them a DECIMAL of the larger integer digits plus the larger scale; else
-     *  the widest integer kind. */
+     *  keep it (2026-11-15): two FLOATs a FLOAT, the engine's answer; two REALs a REAL, lite's until 2026-11-13 (the
+     *  engine has none). Else a DECIMAL or NUMERIC operand is the answer, two of them a DECIMAL of the larger integer
+     *  digits plus the larger scale; else the widest integer kind. */
     private static @com.legend.base.Nullable RelationalDataType promotion(List<RelationalDataType> types) {
         RelationalDataType acc = null;
         for (RelationalDataType t : types) {
@@ -600,8 +588,8 @@ public final class RelationalTypeInference {
     /** The engine's list fold (isSafeTypePossible / getSafeType over types, :1926-1951): from the first type, each next
      *  one against the accumulated safe type ({@code getSafeType(next, acc)}); null when a step has none. A type that
      *  is null (no inferred type) leaves none: the engine's {@code map} over the failOnMatchFailure=true
-     *  inferRelationalType fails on it (relationalExtension.pure:120-123, :131-137; until 2026-11-15 it dropped out);
-     *  no types, null. */
+     *  inferRelationalType fails on it (relationalExtension.pure:120-123, its assert :116; until 2026-11-15 it
+     *  dropped out); no types, null. */
     static @com.legend.base.Nullable RelationalDataType safeTypeOf(List<RelationalDataType> types) {
         RelationalDataType acc = null;
         for (RelationalDataType t : types) {

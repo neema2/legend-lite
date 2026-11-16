@@ -777,14 +777,14 @@ class KnowledgeLayerTest {
         assertEquals(new com.legend.model.RelationalDataType.Varchar(12), infer.apply(2));
     }
 
-    /** No step backwards (2026-11-15, PR #102's review; register row S500): an argument with no type leaves max, min,
+    /** No step backwards (2026-11-15; register row S500): an argument with no type leaves max, min,
      * plus, case and concat with no type, as the engine's failOnMatchFailure=true inference fails on it
      * (relationalExtension.pure:120-123) -- until then it dropped out and the rest typed the call ({@code exp} and
      * {@code parseFloat} have no lite rule; the engine types them DOUBLE and FLOAT, :754-761, :1370-1377). A string or
      * date operand of plus, minus or sub keeps a type at least the engine's (:1408-1436, :1209-1218, :1637-1645): plus
-     * over VARCHARs their sizes summed, the concatenation the database returns; sub and minus over DATEs a DATE, over
-     * TIMESTAMPs a TIMESTAMP. A case over a BIGINT and a FLOAT, or a REAL and a REAL, is the database's promotion
-     * (the engine's safe type has none). Each stays typed in the lifted view's signature. */
+     * over VARCHARs their safe type, the larger; sub and minus over DATEs a DATE, over TIMESTAMPs a TIMESTAMP. A case
+     * over a BIGINT and a FLOAT, or a REAL and a REAL, is the database's promotion (the engine's safe type has none).
+     * Each stays typed in the lifted view's signature. */
     @Test
     @DisplayName("kernel: an untyped argument leaves no type; strings, dates and numeric cases keep one")
     void noStepBackwardsInTheTypeInference() {
@@ -810,8 +810,8 @@ class KnowledgeLayerTest {
                 "plus with an untyped argument: no type (the engine's: INTEGER, the first's)");
         assertEquals(null, infer.apply(3), "case with an untyped branch: no type (the engine's: DOUBLE)");
         assertEquals(null, infer.apply(4), "concat with an untyped operand: no type (the engine's: no rule, no type)");
-        assertEquals(new com.legend.model.RelationalDataType.Varchar(30), infer.apply(5),
-                "plus over VARCHAR(10) and VARCHAR(20): VARCHAR(30) (the engine's: VARCHAR(10), the first's)");
+        assertEquals(new com.legend.model.RelationalDataType.Varchar(20), infer.apply(5),
+                "plus over VARCHAR(10) and VARCHAR(20): VARCHAR(20), their safe type (the engine's: VARCHAR(10))");
         assertEquals(new com.legend.model.RelationalDataType.Date_(), infer.apply(6),
                 "sub over DATEs: DATE (the engine's: DATE)");
         assertEquals(new com.legend.model.RelationalDataType.Timestamp(), infer.apply(7),
