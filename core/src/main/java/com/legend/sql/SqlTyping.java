@@ -396,7 +396,7 @@ public final class SqlTyping {
                     ENDS_WITH, MATCHES, REGEXP_FULL_MATCH, LIST_EXISTS,
                     LIST_FOR_ALL, IS_DISTINCT_FROM, ALL_DISTINCT, NULL_SAFE_EQUAL,
                     NULL_SAFE_NOT_EQUAL, LIST_BOOL_AND, LIST_BOOL_OR,
-                    XOR -> T_BOOLEAN;
+                    XOR, IS_NAN -> T_BOOLEAN;
             case CONCAT, CONCAT_JOIN, UPPER, LOWER, TRIM, LTRIM, RTRIM,
                     REPLACE, TRANSLATE, SUBSTRING, LEFT, RIGHT, LPAD, RPAD,
                     REVERSE_STRING, UC_FIRST, LC_FIRST, SPLIT_PART, PURE_SPLIT_PART,

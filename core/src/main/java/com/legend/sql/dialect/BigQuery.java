@@ -1612,6 +1612,7 @@ public final class BigQuery extends AnsiSqlRenderer {
             case ROUND_HALF_UP -> isDouble(a.get(0)) ? roundHalfUpOfDouble(writer, c, parentPrec) : roundHalfUp(writer, a);
             case DECIMAL_DIVIDE -> decimalDivide(writer, c.args(), parentPrec);
             case FLOAT_TO_DECIMAL -> floatToDecimalByText(writer, c.args(), parentPrec);
+            case IS_NAN -> writer.function("IS_NAN", c.args());
             // a Float, as DuckDB's answers: each has a NUMERIC overload here that a BIGNUMERIC literal would pick
             case SQRT -> writer.append("SQRT(CAST(").expr(a.get(0), 0).append(" AS FLOAT64))");
             case EXP -> writer.append("EXP(CAST(").expr(a.get(0), 0).append(" AS FLOAT64))");

@@ -25,9 +25,19 @@ public record PlanningOptions(
     public PlanningOptions {
         java.util.Objects.requireNonNull(stores, "stores");
         features = java.util.Collections.unmodifiableSet(new java.util.LinkedHashSet<>(features));
+        // the compatibility rules plan pure's raises (PlanOption.COMPATIBILITY_RAISES), lite's own never: the option
+        // follows the rules, never a caller's set (the user's ruling, 2026-11-16)
+        java.util.EnumSet<com.legend.platform.PlanOption> planned = java.util.EnumSet.noneOf(
+                com.legend.platform.PlanOption.class);
+        planned.addAll(options);
+        if (judgingRules == com.legend.testexecutionplan.TestPlan.JudgingRules.COMPILED_PURE_COMPAT) {
+            planned.add(com.legend.platform.PlanOption.COMPATIBILITY_RAISES);
+        } else if (planned.contains(com.legend.platform.PlanOption.COMPATIBILITY_RAISES)) {
+            throw new IllegalArgumentException("COMPATIBILITY_RAISES is the compatibility rules' (pure's raises where"
+                    + " lite's product answers): a body judged by lite's own rules plans none");
+        }
         // an enum set: its order the declaration's (NoSaltedIterationOrderTest)
-        options = options.isEmpty() ? java.util.Set.of()
-                : java.util.Collections.unmodifiableSet(java.util.EnumSet.copyOf(options));
+        options = planned.isEmpty() ? java.util.Set.of() : java.util.Collections.unmodifiableSet(planned);
         if (edge != null && judgingRules != com.legend.testexecutionplan.TestPlan.JudgingRules.COMPILED_PURE_COMPAT) {
             // the user's ruling of 2026-11-08 (docs/PLAN_AS_DATA_2026_11_07.md 3a.3): the edge, with the referee's
             // ledger, is the compatibility rules' -- lite's own rules plan nothing for it

@@ -2139,6 +2139,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer implements EngineTextDialect 
             case DECIMAL_DIVIDE -> writer.function("ROUND", java.util.List.of(
                     SqlExpr.Call.of(com.legend.sql.SqlFn.DIVIDE, c.args().get(0), c.args().get(1)), c.args().get(2)));
             case FLOAT_TO_DECIMAL -> floatToDecimalByCast(writer, c.args(), parentPrec);
+            case IS_NAN -> writer.append("(").expr(c.args().get(0), 7).append(" = CAST('NaN' AS DOUBLE PRECISION))");
             case FLOAT_CANON -> floatCanonByText(writer, c.args(), parentPrec);
             case FLOAT_PRINT -> floatPrintByText(writer, c, parentPrec);
             // the hooks: this dialect's own (or the base's refusal)

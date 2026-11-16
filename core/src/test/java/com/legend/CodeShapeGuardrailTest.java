@@ -344,6 +344,10 @@ class CodeShapeGuardrailTest {
             // lite's own planning options (PlanOption, 2026-11-07: the deterministic as-of join): builder-style, set
             // once before lower() beside the features, same lifecycle
             "Lowerer.deterministicAsOf",
+            // the same options whole (C5-J's batch, 2026-11-16, the user's ruling on the compatibility rules' raises):
+            // builder-style, set once by withOptions before lower() beside deterministicAsOf, read by the scalar rules
+            // (Scalars.lower: PlanOption.COMPATIBILITY_RAISES)
+            "Lowerer.planOptions",
             // (ExecutionTrace.last, the execution-trace stamp's state since batch 137: DELETED with its class by C1,
             // 2026-11-12 -- no comment is written in front of a sent statement)
             // builder-flag, same lifecycle as engineExistsJoinForm: set

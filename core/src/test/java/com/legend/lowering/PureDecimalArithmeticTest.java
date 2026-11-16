@@ -75,6 +75,11 @@ class PureDecimalArithmeticTest {
         SCALARS.put("divide(12345678901234567.89D, 1D, 2)", "12345678901234567.89");
         SCALARS.put("divide(1D, 3D, 6)", "0.333333");
         SCALARS.put("divide(10D, 4D, 0)", "3");
+        // a Float NaN or infinity rounded with a scale passes through, as IEEE and the databases do (the user's ruling,
+        // 2026-11-16, register S-batch-3; pure raises, and so do the compatibility rules: CompatibilityRaisesTest)
+        SCALARS.put("round(parseFloat('NaN'), 2)", "NaN");
+        SCALARS.put("round(parseFloat('Infinity'), 2)", "Infinity");
+        SCALARS.put("round(parseFloat('-Infinity'), 2)", "-Infinity");
     }
 
     /** Over the table, one column per probe, the rows in ID order: legend-pure's answer for each row. */
@@ -137,7 +142,22 @@ class PureDecimalArithmeticTest {
     }
 
     private static boolean same(Object got, String expected) {
-        return got instanceof Number n && new BigDecimal(n.toString()).compareTo(new BigDecimal(expected)) == 0;
+        if (expected.equals("NaN") || expected.endsWith("Infinity")) {
+            return got instanceof Number n && Double.valueOf(expected).equals(n.doubleValue());
+        }
+        return got instanceof Number n && Double.isFinite(n.doubleValue())
+                && new BigDecimal(n.toString()).compareTo(new BigDecimal(expected)) == 0;
+    }
+
+    /** A Decimal's scale written as a column's value is known only at run time: refused by name while planning (the
+     *  user's ruling, 2026-11-16, register S-batch-2), as a format string known only at run time is (S343). */
+    @Test
+    void aDivideScaleKnownOnlyAtRunTimeIsRefusedByName() {
+        String model = MODEL.replace("CONNECTION", TestBackends.inProcess().get(0).connectionBody());
+        Exception refused = org.junit.jupiter.api.Assertions.assertThrows(Exception.class, () -> Lean.service(model,
+                "|#>{store::DB.T}#->extend(~v:x|divide($x.D->toOne(), 2D, $x.ID->toOne()))->select(~v)", "test::RT"));
+        org.junit.jupiter.api.Assertions.assertTrue(String.valueOf(refused.getMessage()).contains(
+                "divide(Decimal, Decimal, scale) needs a LITERAL scale"), refused.toString());
     }
 
     /** The closest answers pinned per database ({@code pure-decimal/closest.tsv}): database, probe, answer. */

@@ -1075,10 +1075,15 @@ public final class MongoDb extends AnsiSqlRenderer {
             case FLOOR -> longOf(writer, "$floor", a);
             case FLOOR_RAW -> MongoJson.op1(writer, "$floor", a.get(0));
             case ROUND -> roundHalfEven(writer, a);
-            case ROUND_HALF_UP -> roundHalfUp(writer, a);
+            // a double rounds by its shortest digits ($toDecimal measured to give them), as legend-pure's
+            // BigDecimal.valueOf does (the user's ruling, 2026-11-16: exact where the database can be)
+            case ROUND_HALF_UP -> isDoubleValue(a.get(0)) ? roundHalfUpOfDouble(writer, c, parentPrec)
+                    : roundHalfUp(writer, a);
             // as until C5-J's batch (2026-11-15): the pipeline's own, posted with the batch for a ruling
-            case DECIMAL_DIVIDE -> decimalDivideAsDoubles(writer, a, parentPrec);
-            case FLOAT_TO_DECIMAL -> floatToDecimalByCast(writer, a, parentPrec);
+            case DECIMAL_DIVIDE -> decimalDivide(writer, a, parentPrec);
+            case FLOAT_TO_DECIMAL -> floatToDecimalByText(writer, a, parentPrec);
+            // MongoDB holds a NaN equal to itself (BSON's order)
+            case IS_NAN -> writer.append("{\"$eq\": [").expr(a.get(0), 0).append(", {\"$numberDouble\": \"NaN\"}]}");
             case SIGN -> sign(writer, a);
             case GREATEST -> MongoJson.op(writer, "$max", a);
             case LEAST -> MongoJson.op(writer, "$min", a);
@@ -1322,6 +1327,34 @@ public final class MongoDb extends AnsiSqlRenderer {
 
     private static SqlWriter scaleOrZero(SqlWriter writer, List<SqlExpr> a) {
         return a.size() > 1 ? writer.expr(a.get(1), 0) : writer.append("0");
+    }
+
+    /** {@link com.legend.sql.SqlFn#DECIMAL_DIVIDE} exactly, legend-pure's {@code left.divide(right, scale, HALF_UP)} (the
+     *  user's ruling, 2026-11-16: exact where the database can be): the portable formula's pieces in MongoDB's own
+     *  operators -- {@code A = a * 10^s}, its remainder by {@code b} ({@code $mod}, exact over Decimal128), the whole
+     *  multiple {@code A - rem} divided by {@code b} ({@code $divide} over two Decimal128s holds an integer quotient
+     *  exactly), one more away from zero where {@code 2|rem| >= |b|}, scaled back by a decimal literal. */
+    @Override
+    protected SqlWriter decimalDivide(SqlWriter writer, List<SqlExpr> a, int parentPrec) {
+        int scale = intLiteral(a.get(2), "DECIMAL_DIVIDE's scale");
+        // each operand a Decimal128 ($convert; this dialect's cast rounds to the scale, so a scale past any lite's
+        // decimal holds, 30, leaves its value)
+        SqlExpr left = new SqlExpr.Cast(a.get(0), new com.legend.sql.SqlType.Decimal(38, 30));
+        SqlExpr right = new SqlExpr.Cast(a.get(1), new com.legend.sql.SqlType.Decimal(38, 30));
+        SqlExpr big = SqlExpr.Call.of(com.legend.sql.SqlFn.TIMES, left,
+                new SqlExpr.DecimalLit(java.math.BigDecimal.ONE.movePointRight(scale)));
+        SqlExpr rem = SqlExpr.Call.of(com.legend.sql.SqlFn.REM, big, right);
+        SqlExpr whole = SqlExpr.Call.of(com.legend.sql.SqlFn.MINUS, big, rem);
+        SqlExpr away = new SqlExpr.Case(List.of(new SqlExpr.Case.When(SqlExpr.Call.of(com.legend.sql.SqlFn.GREATER_EQUAL,
+                SqlExpr.Call.of(com.legend.sql.SqlFn.TIMES, new SqlExpr.IntLit(2),
+                        SqlExpr.Call.of(com.legend.sql.SqlFn.ABS, rem)),
+                SqlExpr.Call.of(com.legend.sql.SqlFn.ABS, right)),
+                SqlExpr.Call.of(com.legend.sql.SqlFn.TIMES, SqlExpr.Call.of(com.legend.sql.SqlFn.SIGN, big),
+                        SqlExpr.Call.of(com.legend.sql.SqlFn.SIGN, right)))), new SqlExpr.IntLit(0));
+        java.math.BigDecimal unit = java.math.BigDecimal.ONE.movePointLeft(scale);
+        return writer.append("{\"$multiply\": [{\"$add\": [{\"$divide\": [").expr(whole, 0).append(", ")
+                .expr(right, 0).append("]}, ").expr(away, 0).append("]}, ")
+                .expr(new SqlExpr.DecimalLit(unit.scale() < 0 ? unit.setScale(0) : unit), 0).append("]}");
     }
 
     /** Half away from zero at a scale: {@code trunc(x * 10^s + sign(x) / 2) / 10^s}. */

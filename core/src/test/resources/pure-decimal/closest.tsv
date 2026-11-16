@@ -11,3 +11,7 @@ sqlite	divide($x.D->toOne(), 2D, 2) #1	1.00
 sqlite	divide($x.D->toOne(), 2D, 2) #2	-1.00
 sqlite	divide($x.D->toOne(), 2D, 2) #3	6172839450617284.00
 sqlite	divide($x.D->toOne(), 3D, 2) #3	4115226300411523.00
+# SQLite holds no NaN and no infinity: parseFloat('NaN') and either infinity read as 0.0 (measured, 2026-11-16)
+sqlite	round(parseFloat('NaN'), 2)	0.0
+sqlite	round(parseFloat('Infinity'), 2)	0.0
+sqlite	round(parseFloat('-Infinity'), 2)	0.0

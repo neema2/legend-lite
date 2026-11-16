@@ -1497,6 +1497,8 @@ public final class Snowflake extends AnsiSqlRenderer {
                     : roundHalfUp(writer, c);
             case DECIMAL_DIVIDE -> decimalDivide(writer, c.args(), parentPrec);
             case FLOAT_TO_DECIMAL -> floatToDecimalByText(writer, c.args(), parentPrec);
+            // Snowflake holds a NaN equal to itself
+            case IS_NAN -> writer.append("(").expr(c.args().get(0), 7).append(" = CAST('NaN' AS FLOAT))");
             // DuckDB's // truncates toward zero; x // 0 is NULL (DIV0NULL answers 0, measured)
             case INT_DIVIDE -> intDivide(writer, c);
             case BIT_NOT -> writer.append("BITNOT(").expr(a.get(0), 0).append(")");

@@ -1975,6 +1975,8 @@ public class MariaDb extends AnsiSqlRenderer {
             case ROUND_HALF_UP -> isDouble(a.get(0)) ? roundHalfUpOfDouble(writer, c, parentPrec) : roundHalfUp(writer, a);
             case DECIMAL_DIVIDE -> decimalDivide(writer, c.args(), parentPrec);
             case FLOAT_TO_DECIMAL -> floatToDecimalByText(writer, c.args(), parentPrec);
+            // MariaDB's and MySQL's doubles hold no NaN
+            case IS_NAN -> writer.append("FALSE");
             case CBRT -> writer.append("(CASE WHEN ").expr(a.get(0), 4).append(" < 0 THEN -POW(-(").expr(a.get(0), 0)
                     .append("), 1.0E0 / 3) ELSE POW(").expr(a.get(0), 0).append(", 1.0E0 / 3) END)");
             case BIT_NOT -> writer.append("CAST(~ ").expr(a.get(0), 7).append(" AS SIGNED)");

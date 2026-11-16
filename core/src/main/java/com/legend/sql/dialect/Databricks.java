@@ -1093,6 +1093,7 @@ public final class Databricks extends AnsiSqlRenderer {
                     : writer.function("ROUND", c.args());
             case DECIMAL_DIVIDE -> decimalDivide(writer, c.args(), parentPrec);
             case FLOAT_TO_DECIMAL -> floatToDecimalByText(writer, c.args(), parentPrec);
+            case IS_NAN -> writer.function("isnan", c.args());
             case ERROR -> raiseEnvelope(writer, c.args(), "raise_error");
             case DATE_TRUNC -> dateTruncDateGrained(writer, c.args(), stringLit(truncUnit(part(c.args().get(0)))));
             case FLOAT_CANON -> floatCanonByText(writer, c.args(), parentPrec);

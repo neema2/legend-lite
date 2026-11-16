@@ -870,14 +870,14 @@ public final class Postgres extends AnsiSqlRenderer {
             // double operand is refused by Postgres itself (no implicit cast)
             // ~x on BIGINT (the base's xor() is DuckDB's)
             case BIT_NOT -> writer.append("(~ CAST(").expr(a.get(0), 0).append(" AS BIGINT))");
-            case INT_DIVIDE -> writer.append("CAST(div(").expr(a.get(0), 0).append(", ").expr(a.get(1), 0)
-                    .append(") AS BIGINT)");
+            case INT_DIVIDE -> intDivide(writer, a);
             // Pure's divide-with-scale is HALF_UP; Postgres rounds double precision
             // half-EVEN and numeric half away from zero (POSTGRES_BACKEND.md §4.3),
             // and has no round(double, int) at all
             case ROUND_HALF_UP -> roundHalfUp(writer, c);
             case DECIMAL_DIVIDE -> decimalDivide(writer, c.args(), parentPrec);
             case FLOAT_TO_DECIMAL -> floatToDecimal(writer, a);
+            case IS_NAN -> isNaN(writer, a);
             // the engine's out-of-domain answer is NaN; Postgres raises
             case ACOS, ASIN -> acos(writer, c);
 
@@ -1127,6 +1127,17 @@ public final class Postgres extends AnsiSqlRenderer {
     private SqlWriter floatDivide(SqlWriter writer, List<SqlExpr> a) {
         return writer.append("(CAST(").expr(a.get(0), 0).append(" AS DOUBLE PRECISION) / CAST(")
                 .expr(a.get(1), 0).append(" AS DOUBLE PRECISION))");
+    }
+
+    /** The {@code INT_DIVIDE} arm of {@link #call} (moved whole, C5-J's batch, 2026-11-16, to keep {@code call} under
+     *  its length limit). */
+    private static SqlWriter intDivide(SqlWriter writer, List<SqlExpr> a) {
+        return writer.append("CAST(div(").expr(a.get(0), 0).append(", ").expr(a.get(1), 0).append(") AS BIGINT)");
+    }
+
+    /** The {@code IS_NAN} arm of {@link #call}: Postgres holds a NaN equal to itself and greater than every number. */
+    private static SqlWriter isNaN(SqlWriter writer, List<SqlExpr> a) {
+        return writer.append("(").expr(a.get(0), 7).append(" = CAST('NaN' AS DOUBLE PRECISION))");
     }
 
     /** The {@code FLOAT_TO_DECIMAL} arm of {@link #call}: the double's shortest text read as a NUMERIC at the scale. */

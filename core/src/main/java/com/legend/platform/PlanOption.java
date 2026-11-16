@@ -18,5 +18,14 @@ public enum PlanOption {
      * written as each database writes one: DuckDB's and Snowflake's own answer any one of tied rows, the emulation of
      * a database without one answers each (docs/SEMANTICS_REGISTER.md). The tests turn it on.
      */
-    DETERMINISTIC_AS_OF
+    DETERMINISTIC_AS_OF,
+
+    /**
+     * THE COMPATIBILITY RULES' RAISES (the user's ruling, 2026-11-16, register S-batch-3): where legend-pure raises and
+     * lite's product answers -- a Float NaN or infinity rounded with a scale, which pure reads through
+     * {@code BigDecimal.valueOf} and the product passes through as IEEE does -- a query planned under the compatibility
+     * rules raises pure's exception in pure's words. Never the product's: the test planner sets it for a body judged by
+     * the compatibility rules ({@code PlanningOptions}), and with them alone.
+     */
+    COMPATIBILITY_RAISES
 }

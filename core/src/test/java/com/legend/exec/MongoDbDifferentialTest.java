@@ -372,6 +372,27 @@ class MongoDbDifferentialTest {
         assertEquals(2, checked, "the as-of cases");
     }
 
+    /** Pure's decimal arithmetic, exact (C5-J's batch, the user's ruling of 2026-11-16: exact where the database can
+     *  be): {@code round(x, scale)} HALF_UP, a Float's through its shortest digits; {@code divide(a, b, scale)} the
+     *  exact quotient HALF_UP; {@code toDecimal(Float)} the shortest digits -- MongoDB answers as the reference, whose
+     *  answers are legend-pure's (PureDecimalArithmeticTest). Until then MongoDB rounded a Float's binary value (1.005
+     *  to 1.0), divided in doubles (2.01 / 2 to 1.00) and read a double into a Decimal128 by 15 digits. */
+    @Test
+    void decimalArithmeticAnswersAsTheReference() throws Exception {
+        String duck = com.legend.testbackend.TestBackends.platform().withStorelessRuntime(CLASSES);
+        String mongo = com.legend.testbackend.TestBackends.of(DatabaseType.MongoDB).withStorelessRuntime(CLASSES);
+        String tds = "#TDS\n id, f, d\n 1, 1.005, 2.01\n 2, 0.125, -2.01\n 3, -0.125, 12345678901234567.89\n"
+                + " 4, 2.675, 10\n 5, 0.30000000000000004, 3\n#";
+        for (String q : List.of("|round(0.125D, 2)", "|round(1.005D, 2)", "|round(-0.125D, 2)", "|round(1.005, 2)",
+                "|divide(2.01D, 2D, 2)", "|divide(-2.01D, 2D, 2)", "|divide(12345678901234567.89D, 1D, 2)",
+                "|divide(1D, 3D, 6)",
+                "|" + tds + "->extend(~v:x|$x.f->toOne()->round(2))->select(~v)",
+                "|" + tds + "->extend(~v:x|$x.f->toOne()->toDecimal())->select(~v)",
+                "|" + tds + "->extend(~v:x|divide($x.d->toOne()->toDecimal(), 3D, 2))->select(~v)")) {
+            assertEquals(run(duck, q, PlanCases.Written.CSV), run(mongo, q, PlanCases.Written.CSV), q);
+        }
+    }
+
     @Test
     void differential() throws Exception {
         // the reference is the platform's engine, the subject this test's database (their test backends' runtimes)

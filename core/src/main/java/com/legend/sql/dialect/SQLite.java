@@ -1617,6 +1617,8 @@ public final class SQLite extends AnsiSqlRenderer {
             // no decimal to hold Pure's exact answer: the double's, as until C5-J's batch (2026-11-15)
             case DECIMAL_DIVIDE -> decimalDivideAsDoubles(writer, a, parentPrec);
             case FLOAT_TO_DECIMAL -> floatToDecimalByCast(writer, a, parentPrec);
+            // SQLite holds no NaN (it stores one as NULL; measured: CAST('NaN' AS REAL) is 0.0)
+            case IS_NAN -> writer.append("0");
             case CBRT -> writer.append("(CASE WHEN ").expr(a.get(0), 4).append(" < 0 THEN -pow(-(").expr(a.get(0), 0)
                     .append("), 1.0 / 3) ELSE pow(").expr(a.get(0), 0).append(", 1.0 / 3) END)");
             case BIT_NOT -> writer.append("(~ ").expr(a.get(0), 7).append(")");

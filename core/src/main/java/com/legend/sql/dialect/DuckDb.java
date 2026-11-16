@@ -579,6 +579,7 @@ public final class DuckDb extends AnsiSqlRenderer {
                     : writer.function("ROUND", c.args());
             case DECIMAL_DIVIDE -> decimalDivide(writer, c.args(), parentPrec);
             case FLOAT_TO_DECIMAL -> floatToDecimalByText(writer, c.args(), parentPrec);
+            case IS_NAN -> writer.function("isnan", c.args());
             case ERROR -> raiseEnvelope(writer, c.args(), "error");
             case DECIMAL_TO_TEXT -> writer.expr(varcharCast(c.args().get(0)), parentPrec);
             case BOOL_TO_TEXT -> castAs(writer, c.args().get(0), "VARCHAR");

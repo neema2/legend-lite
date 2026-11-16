@@ -1061,6 +1061,7 @@ public final class Trino extends AnsiSqlRenderer {
                     : roundHalfUp(writer, c);
             case DECIMAL_DIVIDE -> decimalDivide(writer, c.args(), parentPrec);
             case FLOAT_TO_DECIMAL -> floatToDecimalByText(writer, c.args(), parentPrec);
+            case IS_NAN -> writer.function("is_nan", c.args());
 
             // ---- strings
             case MATCHES -> writer.append("regexp_like(").expr(a.get(0), 0).append(", ").expr(a.get(1), 0).append(")");

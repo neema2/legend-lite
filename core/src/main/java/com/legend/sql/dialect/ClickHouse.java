@@ -1879,6 +1879,7 @@ public final class ClickHouse extends AnsiSqlRenderer {
                     : roundHalfUp(writer, c);
             case DECIMAL_DIVIDE -> decimalDivide(writer, c.args(), parentPrec);
             case FLOAT_TO_DECIMAL -> floatToDecimalByText(writer, c.args(), parentPrec);
+            case IS_NAN -> writer.function("isNaN", c.args());
 
             // exp and log are approximations here (exp(1) is 2.718281828460626, log(e()) 0.9999999987491066, measured);
             // pow and log2 are exact, DuckDB's bits

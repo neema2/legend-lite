@@ -4,6 +4,7 @@
 package com.legend.lowering;
 
 import com.legend.compiler.element.type.Type;
+import com.legend.error.NotImplementedException;
 import com.legend.compiler.spec.typed.TypedCInteger;
 import com.legend.compiler.spec.typed.TypedNativeCall;
 import com.legend.sql.SqlExpr;
@@ -69,14 +70,13 @@ final class DecimalKindRules {
         // the exact quotient rounded HALF_UP, legend-pure's left.divide(right, scale, HALF_UP) (CompiledSupport.divideDecimal,
         // the interpreter's DivideDecimal): C5-J's batch, 1(b), 2026-11-15 -- until then DIVIDE, which forces float, then
         // rounded (2.01 / 2 at 2 places was 1.00 on DuckDB, 12345678901234567.89 / 1 lost its cents). A scale known only
-        // at run time keeps that form until it is ruled (posted with the batch's results)
-        if (args.get(2) instanceof SqlExpr.IntLit) {
-            return decimalScaleCast(n, 2, SqlExpr.Call.of(SqlFn.DECIMAL_DIVIDE, args.get(0), args.get(1), args.get(2)));
+        // at run time is refused by name (the user's ruling, 2026-11-16, register S-batch-2, as S343 refuses a format
+        // known only at run time): the exact form is made from the scale when the plan is made
+        if (!(args.get(2) instanceof SqlExpr.IntLit)) {
+            throw new NotImplementedException("divide(Decimal, Decimal, scale) needs a LITERAL scale: the exact"
+                    + " quotient is planned at its scale, so a scale known only at run time is refused");
         }
-        return decimalScaleCast(n, 2,
-                new SqlExpr.Call(SqlFn.ROUND_HALF_UP, List.of(
-                        SqlExpr.Call.of(SqlFn.DIVIDE, args.get(0),
-                                args.get(1)), args.get(2))));
+        return decimalScaleCast(n, 2, SqlExpr.Call.of(SqlFn.DECIMAL_DIVIDE, args.get(0), args.get(1), args.get(2)));
     }
 
     static SqlExpr divideRound(TypedNativeCall n, List<SqlExpr> args) {

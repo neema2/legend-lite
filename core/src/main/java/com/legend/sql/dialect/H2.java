@@ -686,9 +686,15 @@ public class H2 extends AnsiSqlRenderer {
             // H2's ROUND reads a double as Java's BigDecimal.valueOf does, then HALF_UP: Pure's round(Float, scale) as it is
             // (measured 2026-11-15: ROUND(1.005E0, 2) is 1.01, ROUND(2.5E0, 0) is 3.0), and a cast of a double to a decimal
             // likewise (1.1E0 is 1.100000000000000000) -- C5-J's batch
-            case ROUND_HALF_UP -> writer.function("ROUND", c.args());
+            // H2's ROUND is HALF_UP on a double's own digits (measured: ROUND(1.005E0, 2) is 1.01), and it refuses a
+            // NaN or an infinity ("Data conversion error"): the product passes those through, as IEEE and every other
+            // database does (the user's ruling, 2026-11-16; register S-batch-3)
+            case ROUND_HALF_UP -> isDoubleValue(c.args().get(0)) ? finiteOnly(writer, c)
+                    : writer.function("ROUND", c.args());
             case DECIMAL_DIVIDE -> decimalDivide(writer, c.args(), parentPrec);
             case FLOAT_TO_DECIMAL -> floatToDecimalByCast(writer, c.args(), parentPrec);
+            // H2 holds a NaN equal to itself and to nothing else (measured)
+            case IS_NAN -> writer.append("(").expr(c.args().get(0), 7).append(" = CAST('NaN' AS DOUBLE PRECISION))");
             case FLOAT_CANON -> floatCanonByText(writer, c.args(), parentPrec);
             case FLOAT_PRINT -> floatPrintByText(writer, c, parentPrec);
             // the hooks: this dialect's own (or the base's refusal)
@@ -1527,4 +1533,19 @@ public class H2 extends AnsiSqlRenderer {
     protected boolean writesGridReports() {
         return true;
     }
+
+    /** {@code ROUND(x, n)} over a double, a NaN or an infinity passed through as it is: {@code x - x = 0} holds for a
+     *  finite double alone (measured on H2: false for NaN and both infinities), and H2's ROUND refuses the others --
+     *  even in a branch not taken, where its argument is a constant H2 folds while planning, so ROUND reads 0 there. */
+    private SqlWriter finiteOnly(SqlWriter writer, SqlExpr.Call c) {
+        SqlExpr x = c.args().get(0);
+        SqlExpr finite = SqlExpr.Call.of(com.legend.sql.SqlFn.EQUAL, SqlExpr.Call.of(com.legend.sql.SqlFn.MINUS, x, x),
+                new SqlExpr.IntLit(0));
+        SqlExpr finiteOrZero = new SqlExpr.Case(List.of(new SqlExpr.Case.When(finite, x)), new SqlExpr.IntLit(0));
+        java.util.List<SqlExpr> args = new java.util.ArrayList<>(c.args());
+        args.set(0, finiteOrZero);
+        return writer.append("CASE WHEN ").expr(finite, 0).append(" THEN ").function("ROUND", args)
+                .append(" ELSE ").expr(x, 0).append(" END");
+    }
+
 }

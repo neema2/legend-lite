@@ -2678,7 +2678,7 @@ final class Scalars {
      *  feature flags (a flagged rule, {@link FeatureRules}, wins over the
      *  plain one for its key); loud error when unregistered. */
     static SqlExpr lower(TypedNativeCall call, List<SqlExpr> loweredArgs, Set<Feature> features,
-            com.legend.platform.ImplementationTable implementations) {
+            Set<com.legend.platform.PlanOption> options, com.legend.platform.ImplementationTable implementations) {
         com.legend.model.FunctionId key = call.callee().id();
         Rule rule = FeatureRules.select(key, features);
         if (rule != null) {
@@ -2714,7 +2714,10 @@ final class Scalars {
         if (ORDERINGS.contains(key) && loweredArgs.stream().anyMatch(a -> a instanceof SqlExpr.Tagged)) {
             loweredArgs = MixedEncoding.comparables(loweredArgs);
         }
-        return rule.apply(call, loweredArgs);
+        SqlExpr lowered = rule.apply(call, loweredArgs);
+        // the compatibility rules raise pure's exception where the product answers (the user's ruling, 2026-11-16)
+        return options.contains(com.legend.platform.PlanOption.COMPATIBILITY_RAISES)
+                ? CompatibilityRaises.of(call, loweredArgs, lowered) : lowered;
     }
 
     /** The natives that compare or order their arguments: over a tagged value they read its comparable. Equality

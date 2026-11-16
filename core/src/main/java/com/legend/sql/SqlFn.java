@@ -127,6 +127,11 @@ public enum SqlFn {
      *  round with a scale reads a Float through), at {@code scale} places, a DECIMAL(38, scale); never the double's
      *  binary expansion (C5-J's batch, 1(a) and 1(c), 2026-11-15). {@code scale} an integer literal. */
     FLOAT_TO_DECIMAL,
+    /** {@code (x)}: whether the double {@code x} is NaN, each database's own test (most databases hold a NaN equal to
+     *  itself, so no portable comparison tells it from an infinity): the compatibility rules' raise of pure's
+     *  NumberFormatException names the NaN apart (C5-J's batch, the user's ruling of 2026-11-16, register S-batch-3).
+     *  False for NULL and on a database that holds no NaN. */
+    IS_NAN,
     // Variant construction
     TO_VARIANT, BOOL_TO_TEXT,
     /** {@code (x)}: a Decimal's or a Number's text, its plain digits (the tenets audit's M-6, A6, 2026-11-10): a semantic
