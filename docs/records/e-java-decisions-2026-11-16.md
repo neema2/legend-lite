@@ -70,6 +70,37 @@ round. Until then, the pass stays in CI.
 **Why.** The upstream-fidelity tenet: lite does exactly what upstream does wherever possible. Removing a divergence
 needs no row; keeping it would have needed one. This is commit `176eaf3251`.
 
+## E4. The ledger split built; D2 and action 6 deferred, each with its reason (2026-11-16)
+
+**E1 ruled.** The orchestrator ruled the split under the user's "don't stop and ask", for the user's end batch. Built
+in `7d33dfba3e`: `RUN_SIDE_VALUE` (15 files, 3,338 lines; E-Java's 2,509 of them) and `PLANNER_SIZE` (14 files,
+7,120 lines). No row dropped, no pin moved; `theRegistersHoldTheirSides` keeps a run-side file out of the planner's.
+
+**D4 and D5 fixed** (`242f7a8a54`). D4 was a silent wrong answer: a failed typed assertSameElements whose untyped
+re-compare held passed.
+
+**D2 deferred, not dropped.** Both judges pass two spellings of one value in a rendered text today (S132's last
+sentence). Fixing the host alone would make the judges disagree (G2), so it lands with the database judge's ruled row
+changed in the same commit and a corpus measurement.
+
+**Action 6 handed off.** Projecting a keyed class to its key tree in SQL means the object JSON wire must emit, per
+runtime class, only the key fields (the subtype case reads each value's own `__type`). That is the product's object
+lowering, E-SQL's, not E-Java's files. Proposed to the orchestrator for E-SQL; the host's projection stays until then.
+
+## E5. L1: a side over a one-row let binding rides the fused row (2026-11-16)
+
+**Measured** (channel B grammar, DuckDB, BOTH): `testEqualNonPrimitive` and `testEqNonPrimitive` sent 72 statements;
+70 were the host's per-assert side reads, refused as fused cells because LetBinding puts each side over
+`FROM (SELECT <repeats>) AS __lets`, and `VerdictSql.singleValueColumns` took only a select of no FROM.
+
+**Decision.** Accept a side whose one source is a one-row derived table of no FROM; each of its columns rides the
+fused row as an uncorrelated scalar subquery over the binding, which stays one evaluation.
+
+**Result.** 72 statements to 4 (two session, two fused); both tests PASS. Characters 493K to 537K (+9%): the fused
+row computes each side again, because the verdict's own copy of the side was lowered separately (its lambda
+variables numbered differently), so O5's reuse (`readingTheVerdictsValues`) does not match it. Round trips are the
+larger cost; the reuse is a follow-up (match the side up to its lambda variables' names, or lower it once).
+
 ## Corrections
 
 **C1 (2026-11-16): D1's ledger effect was +13, not −1.**

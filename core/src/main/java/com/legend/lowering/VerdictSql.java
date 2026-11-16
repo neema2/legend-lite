@@ -1535,7 +1535,13 @@ public final class VerdictSql {
      */
     public static @com.legend.base.Nullable List<HostColumn> singleValueColumns(SqlQuery side, String aliasPrefix,
             List<String> names) {
-        if (!(side instanceof SqlSelect s) || !(s.from() instanceof SqlSource.Dual) || s.distinct()
+        // L1 (2026-11-16, E-Java's v2 lean target): a side over a ONE-ROW derived table of no FROM -- LetBinding's
+        // `FROM (SELECT <repeats>) AS __lets`, a value bound once -- answers one row too; each of its columns rides the
+        // fused row as an uncorrelated scalar subquery over that binding (the binding stays one evaluation, inside it),
+        // where it had kept a statement of its own per assert (grammar's NonPrimitive equality: one per assert)
+        boolean overABinding = side instanceof SqlSelect b && b.from() instanceof SqlSource.Subselect sub
+                && oneRowOfNoFrom(sub.inner());
+        if (!(side instanceof SqlSelect s) || !(s.from() instanceof SqlSource.Dual || overABinding) || s.distinct()
                 || s.where() != null || !s.groupBy().isEmpty() || s.having() != null || s.qualify() != null
                 || !s.orderBy().isEmpty() || s.limit() != null || s.offset() != null
                 || s.projections().size() != names.size() || s.outputs().size() != names.size()) {
@@ -1546,15 +1552,37 @@ public final class VerdictSql {
         }
         List<HostColumn> out = new ArrayList<>(names.size());
         for (int p = 0; p < names.size(); p++) {
+            OutputCol o = s.outputs().get(p);
             SqlExpr value = prefixed.projections().get(p).expr();
+            if (overABinding) {
+                // the column reads its binding's row and nothing else (the binding is the select's one source)
+                value = new SqlExpr.ScalarSubquery(new SqlSelect(List.of(prefixed.projections().get(p)), false,
+                        prefixed.from(), null, List.of(), null, null, List.of(), null, null, List.of(o)));
+            }
             if (RowBound.of(SubqueriesOut.of(value))) {
                 return null;
             }
-            OutputCol o = s.outputs().get(p);
             out.add(new HostColumn(value, new OutputCol(names.get(p), o.type(), o.nullable(), OutputCol.Origin.DERIVED),
                     side, p));
         }
         return out;
+    }
+
+    /** A select that answers exactly one row and reads no source: of {@link SqlSource.Dual}, with no filter, grouping,
+     *  window filter, distinct, order, limit or offset, and no projection that aggregates, windows or reads a row
+     *  outside a subquery (L1, 2026-11-16: LetBinding's binding row). */
+    private static boolean oneRowOfNoFrom(SqlQuery q) {
+        if (!(q instanceof SqlSelect s) || !(s.from() instanceof SqlSource.Dual) || s.distinct() || s.where() != null
+                || !s.groupBy().isEmpty() || s.having() != null || s.qualify() != null || !s.orderBy().isEmpty()
+                || s.limit() != null || s.offset() != null) {
+            return false;
+        }
+        for (SqlSelect.Projection p : s.projections()) {
+            if (RowBound.of(SubqueriesOut.of(p.expr()))) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /** An expression with each subquery taken out (E-5c step 6): a scalar subquery or an EXISTS a NULL, an IN or a
