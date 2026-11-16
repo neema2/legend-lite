@@ -77,6 +77,16 @@ final class ChannelBLane {
         ChannelBDiff.Counts c = ChannelBDiff.report(tagged, out, ledger, referee);
         System.out.println("[" + tagged + "] measured: pass=" + c.pass() + " wireBug=" + c.wireBug()
                 + " trueWireBug=" + c.trueWireBug() + " bFixesA=" + c.bFixesA());
+        // the edge golden net (2026-11-16): every outcome, a pass too, under -Dlegend.edge.channelb, sorted
+        String edge = System.getProperty("legend.edge.channelb");
+        if (edge != null) {
+            java.util.TreeSet<String> lines = new java.util.TreeSet<>();
+            for (ChannelB.Outcome o : out) {
+                lines.add(o.testFqn() + "\t" + o.status() + "\t" + o.detail().replace('\n', ' ').replace('\t', ' ')
+                        .replaceAll("[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}", "<id>"));
+            }
+            java.nio.file.Files.writeString(java.nio.file.Path.of(edge), String.join("\n", lines) + "\n");
+        }
         // every failure with its text, the lane's ledger built from these lines (2026-11-03, round 14)
         for (ChannelB.Outcome o : out) {
             if (o.status() != ChannelB.Status.PASS) {

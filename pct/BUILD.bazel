@@ -798,6 +798,41 @@ _EDGE_CLASS = {
     ] + (["@h2//jar"] if lane == "h2" else []),
 ) for (lane, backend, s) in _EDGE_LANES]
 
+# channel B on DuckDB in the net: every outcome (a pass too), as ChannelBLane writes it under -Dlegend.edge.channelb
+[java_run(
+    name = "edge_channel_b_%s" % s.lower(),
+    testonly = True,
+    srcs = UPSTREAM_TREES + [
+        "src/test/java/org/finos/legend/lite/pct/Test_LegendLite_%sFunctions_PCT.java" % s,
+        _ENGINE_MANIFEST % s,
+    ],
+    outs = [
+        "edge/channel_b_%s/verdict.txt" % s.lower(),
+        "edge/channel_b_%s/run.log" % s.lower(),
+        "edge/channel_b_%s/outcomes.tsv" % s.lower(),
+    ],
+    arguments = [
+        "{OUT_DIR}/verdict.txt",
+        "{OUT_DIR}/run.log",
+        "{OUT_DIR}/outcomes.tsv",
+        "--",
+        "--select-class=org.finos.legend.lite.pct.channelb.ChannelB%sTest" % s,
+    ],
+    jvm_flags = program_jvm_flags("pct") + [
+        "-Dpct.suite.%s=$(execpath src/test/java/org/finos/legend/lite/pct/Test_LegendLite_%sFunctions_PCT.java)" % (s, s),
+        "-Dpct.oracle.%s=$(execpath %s)" % (s, _ENGINE_MANIFEST % s),
+        "-Dlegend.edge.channelb={OUT_DIR}/outcomes.tsv",
+    ],
+    main_class = "com.legend.tools.junit.JUnitAction",
+    memory_mb = 2048,
+    mnemonic = "EdgeContractB",
+    deps = [
+        ":pct_tests_lib",
+        "//core:drivers",
+        "//tools/junit",
+    ],
+) for s in _SUITES]
+
 write_source_files(
     name = "update_edge_contract",
     testonly = True,
@@ -806,6 +841,9 @@ write_source_files(
         "src/test/resources/edge/%s_%s_%s.tsv" % (lane, s.lower(), kind): ":edge/%s_%s/%s.tsv" % (lane, s.lower(), kind)
         for (lane, backend, s) in _EDGE_LANES
         for kind in ["outcomes", "answers"]
+    } | {
+        "src/test/resources/edge/channel_b_duckdb_%s_outcomes.tsv" % s.lower(): ":edge/channel_b_%s/outcomes.tsv" % s.lower()
+        for s in _SUITES
     },
 )
 

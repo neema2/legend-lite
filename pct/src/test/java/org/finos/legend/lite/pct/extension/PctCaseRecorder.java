@@ -70,7 +70,7 @@ final class PctCaseRecorder {
         if (EDGE == null) {
             return;
         }
-        String test = String.valueOf(System.getProperty("legend.test.current"));
+        String test = String.valueOf(System.getProperty("legend.test.id"));
         synchronized (EDGE_LINES) {
             int n = EDGE_SEQ.merge(test, 1, Integer::sum);
             EDGE_LINES.put(test + "\t" + String.format(java.util.Locale.ROOT, "%03d", n), kind + "\t" + flat(text) + "\t" + flat(expression));

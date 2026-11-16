@@ -237,6 +237,11 @@ public final class JUnitMain {
                 }
                 // the running test, as its class and method: what a diagnostic names it by (the walk's door listed
                 // tests by it until the walk was deleted, 2026-11-06); a sequential run's one current test
+                // every test's name, whatever its engine (the edge golden net keys its lines by it, 2026-11-16: a
+                // vintage suite's tests have no method source)
+                if (id.isTest()) {
+                    System.setProperty("legend.test.id", id.getLegacyReportingName());
+                }
                 if (id.isTest() && id.getSource().orElse(null)
                         instanceof MethodSource ms) {
                     System.setProperty("legend.test.current", ms.getClassName() + "#" + ms.getMethodName());
@@ -248,10 +253,11 @@ public final class JUnitMain {
                     org.junit.platform.engine.TestExecutionResult result) {
                 if (id.isTest()) {
                     System.clearProperty("legend.test.current");
+                    System.clearProperty("legend.test.id");
                     if (OUTCOMES != null) {
                         String message = result.getThrowable().map(t -> String.valueOf(t.getMessage())).orElse("");
                         int nl = message.indexOf('\n');
-                        OUTCOME_LINES.put(id.getUniqueId(), result.getStatus() + "\t"
+                        OUTCOME_LINES.put(id.getLegacyReportingName(), result.getStatus() + "\t"
                                 + (nl < 0 ? message : message.substring(0, nl)).replace('\t', ' ').replace('\r', ' '));
                     }
                 }
