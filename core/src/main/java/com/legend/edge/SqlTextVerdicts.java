@@ -1,7 +1,15 @@
 // Copyright 2026 Legend Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-package com.legend.testplan;
+package com.legend.edge;
+
+import com.legend.testplan.AssertVerdicts;
+import com.legend.testplan.BodyDriver;
+import com.legend.testplan.DatabaseJudge;
+import com.legend.testplan.EngineTestText;
+import com.legend.testplan.HostSides;
+import com.legend.testplan.EngineTextPlanning;
+import com.legend.testplan.JudgePlans;
 
 import static com.legend.testexecutionplan.Verdicts.ok;
 import static com.legend.testexecutionplan.Verdicts.textsDiffer;
@@ -78,24 +86,9 @@ final class SqlTextVerdicts {
          *  until then such a side was refused and its body walked). */
         static boolean deferrable(TypedSpec side, JudgePlans.PlannedSide planned, BodyDriver.ExecEnv at,
                 BodyDriver.@com.legend.base.Nullable ExecEnv env) {
-            return planned.kind() == JudgePlans.Kind.VALUES
+            return EngineTextPlanning.values(planned)
                     && side.info().type() == com.legend.compiler.element.type.Type.Primitive.STRING
                     && toOne(side.info());
-        }
-    }
-
-    /** The origin {@code origin} put in force on the environment's text collector ({@link EngineTestText.Collector#marking}):
-     *  what was in force before, to restore; none where the environment carries no collector. */
-    static @com.legend.base.Nullable String marking(BodyDriver.ExecEnv env, String origin, boolean ifUnmarked) {
-        EngineTestText.Collector c = env.engineText();
-        return c == null ? null : c.marking(origin, ifUnmarked);
-    }
-
-    /** The origin in force on the environment's text collector restored to {@code prior}. */
-    static void restoreMarking(BodyDriver.ExecEnv env, @com.legend.base.Nullable String prior) {
-        EngineTestText.Collector c = env.engineText();
-        if (c != null) {
-            c.restoreMarking(prior);
         }
     }
 
@@ -110,23 +103,6 @@ final class SqlTextVerdicts {
             @com.legend.base.Nullable String oursOrigin) {
     }
 
-
-    /** Is {@code check} {@link #plan}'s answer where a text side is not a constant of the plan: not the arm declining
-     *  the shape (null: the walk's generic path continues) but the program road refusing the body by name -- the
-     *  callers leave the body to the walk and count the refusal once, by {@link #why}. Never judged. */
-    static boolean notAConstant(HostSides.@com.legend.base.Nullable Check check) {
-        return check != null && HostJudgment.core(check.judgment()) instanceof HostJudgment.Raise r
-                && r.failure().kind() == com.legend.testexecutionplan.Failure.Kind.NOT_A_CONSTANT;
-    }
-
-    /** The side a {@link #notAConstant} check names: its kind and planned root (the message after its label). */
-    static String why(HostSides.@com.legend.base.Nullable Check check) {
-        if (check == null) {
-            throw new IllegalStateException("the side of a check that is not a not-a-constant answer");
-        }
-        String what = String.valueOf(((HostJudgment.Raise) HostJudgment.core(check.judgment())).failure().message());
-        return what.startsWith(EngineTestText.NotAConstant.LABEL) ? what.substring(EngineTestText.NotAConstant.LABEL.length()) : what;
-    }
 
     /** A collector for one planned assert. */
     private static final class Collecting extends Deferring {
@@ -158,7 +134,7 @@ final class SqlTextVerdicts {
             if (deferredGoldenText != (deferredGolden != null)) {
                 // the arm processed the golden it read before comparing it (a strip that cut it, a route's own
                 // reading): a golden the plan reads reaches the comparison as read, or the body is the walk's
-                throw new EngineTestText.NotAConstant(EngineTestText.NotAConstant.LABEL + "a golden the plan reads, processed by the arm before its"
+                throw EngineTextPlanning.notAConstantError("a golden the plan reads, processed by the arm before its"
                         + " comparison");
             }
             collected.add(new Collected(name, deferredGoldenText ? null : golden, deferredText ? null : ours,
@@ -178,10 +154,10 @@ final class SqlTextVerdicts {
             String origin = originInForce;
             if ((deferred != null || deferredGolden != null) && !java.util.Objects.equals(origin, deferredOrigin)) {
                 // the step reads both texts under one origin: the arm marked them alike, or the body is the walk's
-                throw new EngineTestText.NotAConstant(EngineTestText.NotAConstant.LABEL + "two texts the plan reads under different statement origins");
+                throw EngineTextPlanning.notAConstantError("two texts the plan reads under different statement origins");
             }
             deferredOrigin = origin;
-            HostSides.Ask ask = new HostSides.Ask(side, identity, fold, hook, at == env ? null : at);
+            HostSides.Ask ask = EngineTextPlanning.ask(side, identity, fold, hook, at == env ? null : at);
             if (readingGolden) {
                 deferredGolden = ask;
                 return new TypedSide.Scalar(goldenToken, side.info().type().typeName());
@@ -200,7 +176,7 @@ final class SqlTextVerdicts {
      *  core program): OUR text, a side the plan reads, is planned as a side of the verdict row -- the database computes
      *  it and the equality, the row's ACTUAL column carries it back to the appeal ({@link #decide}); the golden is a
      *  constant of the plan ({@code AssertVerdicts.gateOf} admits no other). Nothing read at planning. */
-    static final class BatchTexts extends Deferring {
+    static final class BatchTexts extends Deferring implements EngineTestText.BatchTexts {
         /** The environment the arm is planned under (as {@link Collecting#env}): set once, when that environment is
          *  made from this collector ({@link #under}). */
         BodyDriver.@com.legend.base.Nullable ExecEnv env;
@@ -211,9 +187,15 @@ final class SqlTextVerdicts {
          *  it needs then ({@code AssertVerdicts.planDatabase} ends the planning). */
         boolean planning = true;
 
+        @Override
+        public void endPlanning() {
+            planning = false;
+        }
+
         /** {@code at} with this collector its engine-text collector: the environment the arm is planned under. */
-        BodyDriver.ExecEnv under(BodyDriver.ExecEnv at) {
-            env = at.withEngineText(this);
+        @Override
+        public BodyDriver.ExecEnv under(BodyDriver.ExecEnv at) {
+            env = EngineTextPlanning.withCollector(at, this);
             return env;
         }
 
@@ -230,11 +212,11 @@ final class SqlTextVerdicts {
             if (!readingOurs || oursRow != null || !deferrable(side, planned, at, env)) {
                 return null;
             }
-            DatabaseJudge.SideRows rows = DatabaseJudge.planSide(side, false, letPrefix, specs, at, hook);
-            if (rows.why() != null) {
+            com.legend.sql.SqlQuery row = EngineTextPlanning.scalarRow(side, letPrefix, specs, at, hook);
+            if (row == null) {
                 return null;
             }
-            oursRow = rows.scalarRow(false);
+            oursRow = row;
             return new TypedSide.Scalar(token, side.info().type().typeName());
         }
 
@@ -263,15 +245,23 @@ final class SqlTextVerdicts {
      * at the assert's turn, which a body planned before it runs cannot). A raise inside the arm surfaces: the caller plans it as the
      * assert's raise at its turn, as the walk raises it there.
      */
+    /** The facet's entry: {@code ask}'s assert planned ({@link #plan(TypedSpec, List, SpecCompiler, BodyDriver.ExecEnv,
+     *  AssertVerdicts.SpliceHook)}). */
+    static EngineTestText.@com.legend.base.Nullable Planned plan(EngineTestText.Ask ask) {
+        HostSides.Check c = plan(EngineTextPlanning.bare(ask), EngineTextPlanning.letPrefix(ask),
+                EngineTextPlanning.specs(ask), EngineTextPlanning.env(ask), EngineTextPlanning.hook(ask));
+        return c == null ? null : EngineTextPlanning.planned(c);
+    }
+
     static HostSides.@com.legend.base.Nullable Check plan(TypedSpec bare, List<TypedSpec> letPrefix, SpecCompiler specs,
             BodyDriver.ExecEnv env, AssertVerdicts.@com.legend.base.Nullable SpliceHook hook) {
-        String fqn = AssertVerdicts.calleeFqn(bare);
+        String fqn = EngineTextPlanning.calleeFqn(bare);
         boolean root = fqn != null && isRoot(fqn) && bare instanceof com.legend.compiler.spec.typed.TypedUserCall;
         if (!root && !equalityFamily(bare)) {
             return null;
         }
         Collecting collecting = new Collecting();
-        BodyDriver.ExecEnv planning = env.withEngineText(collecting);
+        BodyDriver.ExecEnv planning = EngineTextPlanning.withCollector(env, collecting);
         collecting.env = planning;
         TypedSide answered = null;
         EngineTestText.NotAConstant notAConstant = null;
@@ -283,7 +273,7 @@ final class SqlTextVerdicts {
             collecting.planning = false;
         }
         if (notAConstant != null) {
-            return new HostSides.Check(List.of(), new HostJudgment.Raise(com.legend.testexecutionplan.Failures.of(notAConstant,
+            return EngineTextPlanning.check(List.of(), new HostJudgment.Raise(com.legend.testexecutionplan.Failures.of(notAConstant,
                     "SqlTextVerdicts.plan: a text side not a constant")));
         }
         if (answered == null) {
@@ -300,33 +290,17 @@ final class SqlTextVerdicts {
         // item 8; the golden since 2026-11-04), planned at the step as the arm evaluated it
         HostSides.Ask ours = c.ours() == null
                 ? java.util.Objects.requireNonNull(collecting.deferred, "a deferred text with no ask")
-                : new HostSides.Ask(com.legend.compiler.spec.VerdictQueries.text(c.ours()), false, true, null);
+                : EngineTextPlanning.ask(com.legend.compiler.spec.VerdictQueries.text(c.ours()), false, true, null);
         HostSides.Ask golden = c.golden() == null
                 ? java.util.Objects.requireNonNull(collecting.deferredGolden, "a deferred golden with no ask")
-                : new HostSides.Ask(com.legend.compiler.spec.VerdictQueries.text(c.golden()), false, true, null);
+                : EngineTextPlanning.ask(com.legend.compiler.spec.VerdictQueries.text(c.golden()), false, true, null);
         // the comparison the plan's data, its appeal too: numbered in the body, carried by the verdict that judges it
         // (TestPlan.extensionsByVerdict; the plan-as-data design's step 8b, 2026-11-08)
         // (under lite's own rules a failed text is the verdict and no appeal is heard: none is numbered, so the plan
         // names none -- the slice 2 invariant audit's D2, 2026-11-08)
-        int appeal = appeals(env) ? env.appeals().add(c.appeal()) : com.legend.testexecutionplan.RootLoop.NO_APPEAL;
-        return new HostSides.Check(List.of(golden, ours), new HostJudgment.EngineText(c.name(), c.golden(), c.ours(),
+        int appeal = appeals(env) ? EngineTextPlanning.appeal(env, c.appeal()) : com.legend.testexecutionplan.RootLoop.NO_APPEAL;
+        return EngineTextPlanning.check(List.of(golden, ours), new HostJudgment.EngineText(c.name(), c.golden(), c.ours(),
                 c.textEqual(), c.decline(), c.oursOrigin(), appeal, routed));
-    }
-
-    /** Whether the arm claims {@code bare} ({@link EngineTestText#claims}): a root arm's helper, or an equality whose
-     *  sides a producer of upstream's text feeds ({@link #mayArm}, over the narrowed sides as {@link #armOf} reads
-     *  them). A static superset: the arm may still decline what it claims. */
-    static boolean claims(TypedSpec bare, List<TypedSpec> letPrefix, SpecCompiler specs) {
-        String fqn = AssertVerdicts.calleeFqn(bare);
-        if (fqn != null && isRoot(fqn) && bare instanceof com.legend.compiler.spec.typed.TypedUserCall) {
-            return true;
-        }
-        if (!equalityFamily(bare)) {
-            return false;
-        }
-        com.legend.builtin.NativeFn.Verdict fn = verdictOf(bare);
-        return mayArm(fn.bareName(), fn == com.legend.builtin.NativeFn.Verdict.ASSERT_EQUALS,
-                narrowed(bare, letPrefix, specs), letPrefix, specs);
     }
 
     /** Whether {@code bare} is {@code assertEquals} or {@code assertNotEquals}: the equality arm's family. */
@@ -342,7 +316,7 @@ final class SqlTextVerdicts {
      *  Null where the arm declines the shape. */
     private static @com.legend.base.Nullable TypedSide armOf(TypedSpec bare, List<TypedSpec> letPrefix,
             SpecCompiler specs, BodyDriver.ExecEnv env, AssertVerdicts.@com.legend.base.Nullable SpliceHook hook) {
-        String fqn = AssertVerdicts.calleeFqn(bare);
+        String fqn = EngineTextPlanning.calleeFqn(bare);
         if (fqn != null && isRoot(fqn) && bare instanceof com.legend.compiler.spec.typed.TypedUserCall root) {
             return com.legend.compiler.element.type.PlatformTypes.ASSERT_SAME_SQL.equals(fqn)
                     ? tryArmSameSql(root, letPrefix, specs, env, hook)
@@ -375,39 +349,39 @@ final class SqlTextVerdicts {
      *  run hears an appeal at planning). An appeal heard is decided after the body's run (Appeals, step 8b). */
     private static TypedSide decide(BodyDriver.ExecEnv env, String name, String golden, String ours,
             boolean textEqual, @com.legend.base.Nullable String decline, com.legend.testexecutionplan.Appeal appeal) {
-        EngineTestText.Collector collector = env.engineText();
-        if (collector instanceof Collecting && collector.planning()) {
+        EngineTestText.Collector collector = EngineTextPlanning.collector(env);
+        if (collector instanceof Collecting collecting && collecting.planning()) {
             // the arm is being PLANNED for the program road: the comparison is handed over, judged at the step --
             // where this is reached again through the collected environment with the planning over (judge), the
             // text decides below as on the walk
-            collector.collect(name, golden, ours, textEqual, decline, appeal, env);
+            collecting.collect(name, golden, ours, textEqual, decline, appeal, env);
             return ok();
         }
         // the decline is the row's data, reported at its turn (hole 5, 2026-11-08: until then it was told to the
         // listener here, while the assert was planned -- before any verdict, so attributed to none)
         boolean appeals = appeals(env);
-        com.legend.testplan.VerdictBatch batch = env.verdictBatch();
-        if (batch != null && batch.active() && !appeals) {
+        com.legend.testplan.VerdictBatch batch = EngineTextPlanning.verdictBatch(env);
+        if (batch != null && EngineTextPlanning.active(batch) && !appeals) {
             // clean mode: the text equality is the verdict row, and a failed row is the assert's failure
-            batch.defer(name, true, collector instanceof BatchTexts bt && ours == bt.token
-                    ? com.legend.lowering.VerdictSql.textEquals(golden,
+            EngineTextPlanning.defer(batch, name, true, collector instanceof BatchTexts bt && ours == bt.token
+                    ? EngineTextPlanning.textEquals(golden,
                             java.util.Objects.requireNonNull(bt.oursRow, "our text deferred with no row"))
-                    : com.legend.lowering.VerdictSql.textEquals(golden, ours), env.target(),
+                    : EngineTextPlanning.textEquals(golden, ours), EngineTextPlanning.target(env),
                     com.legend.testexecutionplan.RootLoop.NO_APPEAL, decline);
             return ok();
         }
-        if (batch != null && batch.active()) {
+        if (batch != null && EngineTextPlanning.active(batch)) {
             if (collector instanceof BatchTexts bt && ours == bt.token) {
                 // our text a side the plan reads (2026-11-04, the core program): the database computes it and the
                 // equality in the verdict row, and a failed row hands the text it read to the appeal
-                batch.defer(name, true, com.legend.lowering.VerdictSql.textEquals(golden,
-                        java.util.Objects.requireNonNull(bt.oursRow, "our text deferred with no row")), env.target(),
-                        env.appeals().add(appeal.batchedOn(new com.legend.testexecutionplan.Appeal.Batched(golden, null, false))),
+                EngineTextPlanning.defer(batch, name, true, EngineTextPlanning.textEquals(golden,
+                        java.util.Objects.requireNonNull(bt.oursRow, "our text deferred with no row")), EngineTextPlanning.target(env),
+                        EngineTextPlanning.appeal(env, appeal.batchedOn(new com.legend.testexecutionplan.Appeal.Batched(golden, null, false))),
                         decline);
                 return ok();
             }
-            batch.defer(name, true, com.legend.lowering.VerdictSql.textEquals(golden, ours), env.target(),
-                    env.appeals().add(appeal.batchedOn(new com.legend.testexecutionplan.Appeal.Batched(golden, ours, textEqual))),
+            EngineTextPlanning.defer(batch, name, true, EngineTextPlanning.textEquals(golden, ours), EngineTextPlanning.target(env),
+                    EngineTextPlanning.appeal(env, appeal.batchedOn(new com.legend.testexecutionplan.Appeal.Batched(golden, ours, textEqual))),
                     decline);
             return ok();
         }
@@ -432,7 +406,7 @@ final class SqlTextVerdicts {
     /** Whether a failed text may be appealed (the rows leg, a re-run of the arm): compatibility mode alone -- in lite's
      *  own runs the two texts are the verdict, and after a verdict the harness may only explain (the user, 2026-11-05). */
     private static boolean appeals(BodyDriver.ExecEnv env) {
-        return env.options().judgingRules()
+        return EngineTextPlanning.judgingRules(env)
                 == com.legend.testexecutionplan.TestPlan.JudgingRules.COMPILED_PURE_COMPAT;
     }
 
@@ -463,13 +437,13 @@ final class SqlTextVerdicts {
     private static @com.legend.base.Nullable String readText(TypedSpec side, List<TypedSpec> letPrefix,
             SpecCompiler specs, BodyDriver.ExecEnv env, AssertVerdicts.@com.legend.base.Nullable SpliceHook hook,
             boolean golden) {
-        Deferring deferring = env.engineText() instanceof Deferring d && d.planning() ? d : null;
+        Deferring deferring = EngineTextPlanning.collector(env) instanceof Deferring d && d.planning() ? d : null;
         if (deferring != null) {
             deferring.readingGolden = golden;
             deferring.readingOurs = !golden;
         }
         try {
-            return scalarString(JudgePlans.evalSide(side, letPrefix, specs, env, false, true, hook));
+            return scalarString(EngineTextPlanning.evalSide(side, letPrefix, specs, env, false, true, hook));
         } finally {
             if (deferring != null) {
                 deferring.readingGolden = false;
@@ -533,14 +507,14 @@ final class SqlTextVerdicts {
         // the query lambda may be LET-BOUND (`let func = {|...};
         // toSQLString($func, mapping, DatabaseType.H2, ...)`) — chased
         // like the plan-text arm chases its lambda
-        com.legend.planner.SqlTextInputs in = com.legend.planner.SqlTextInputs.of(producer, letPrefix);
+        com.legend.planner.SqlTextInputs in = EngineTextPlanning.sqlTextInputs(producer, letPrefix);
         TypedSpec lamArg = in == null ? null
                 : com.legend.compiler.spec.typed.Lets.bound(
-                        in.query(), letPrefix);
+                        EngineTextPlanning.query(in), letPrefix);
         if (in == null
                 || !(lamArg instanceof TypedLambda lam)
                 || lam.body().isEmpty()
-                || !(in.mapping() instanceof TypedPackageableRef mapping)) {
+                || !(EngineTextPlanning.mapping(in) instanceof TypedPackageableRef mapping)) {
             return null;
         }
         // the dialect: the DatabaseType overload names it; the RUNTIME
@@ -549,10 +523,10 @@ final class SqlTextVerdicts {
         // carry it on the connection, read through the let chase and a
         // helper inline
         String dbType;
-        if (in.dialect() instanceof TypedEnumValue db) {
+        if (EngineTextPlanning.dialect(in) instanceof TypedEnumValue db) {
             dbType = db.value();
         } else {
-            TypedSpec rt = com.legend.compiler.spec.typed.Lets.bound(in.runtime(), letPrefix);
+            TypedSpec rt = com.legend.compiler.spec.typed.Lets.bound(EngineTextPlanning.runtime(in), letPrefix);
             rt = new com.legend.compiler.spec.UserCallInliner(specs)
                     .inlineBody(List.of(rt)).get(0);
             com.legend.compiler.spec.typed.ExecutionContext frameCtx =
@@ -578,22 +552,22 @@ final class SqlTextVerdicts {
             // rows exactly as the frame path applies them — the same
             // recogniser, the env's tableReplace channel (the golden's
             // text already names the replaced tables)
-            env = env.withFrame(frameCtx);
-            java.util.Map<String, String> tr = env.postProcessors().tableReplace();
+            env = EngineTextPlanning.withFrame(env, frameCtx);
+            java.util.Map<String, String> tr = EngineTextPlanning.tableReplace(env);
             if (!tr.isEmpty()) {
-                env = env.withTableReplace(tr);
+                env = EngineTextPlanning.withTableReplace(env, tr);
             }
         }
         // OUR TEXT + GOLDEN TEXT: ordinary evaluation, the one router
         String golden;
         String ours;
         // the arm's texts read under REFEREE_OURS, the origin the step that reads a deferred one sends it under
-        String priorOrigin = marking(env, "REFEREE_OURS", false);
+        String priorOrigin = EngineTextPlanning.marking(env, "REFEREE_OURS", false);
         try {
             golden = readText(goldenSide, letPrefix, specs, env, hook, true);
             ours = oursText(producerSide, letPrefix, specs, env, hook);
         } finally {
-            restoreMarking(env, priorOrigin);
+            EngineTextPlanning.restoreMarking(env, priorOrigin);
         }
         if (golden == null || ours == null) {
             return null;
@@ -639,8 +613,8 @@ final class SqlTextVerdicts {
                     com.legend.compiler.spec.VerdictQueries.fromWrapped(
                             let0.value(), mapping, legCtx),
                     null, mapping.fullPath(), letCls,
-                    AssertVerdicts.replayFacts(let0.value(), lamPrefix),
-                    AssertVerdicts.unpagedRead(com.legend.compiler.spec.VerdictQueries.fromWrapped(
+                    EngineTextPlanning.replayFacts(let0.value(), lamPrefix),
+                    EngineTextPlanning.unpagedRead(com.legend.compiler.spec.VerdictQueries.fromWrapped(
                             let0.value(), mapping, legCtx)),
                     lamPrefix, specs, envF, hook, lam);
         }
@@ -652,8 +626,8 @@ final class SqlTextVerdicts {
                 com.legend.compiler.spec.VerdictQueries.fromWrapped(
                         query, mapping, legCtx),
                 null, mapping.fullPath(), rootClassFqn(lam),
-                AssertVerdicts.replayFacts(query, lamPrefix),
-                AssertVerdicts.unpagedRead(com.legend.compiler.spec.VerdictQueries.fromWrapped(
+                EngineTextPlanning.replayFacts(query, lamPrefix),
+                EngineTextPlanning.unpagedRead(com.legend.compiler.spec.VerdictQueries.fromWrapped(
                         query, mapping, legCtx)), lamPrefix,
                 specs, envF, hook, lam);
     }
@@ -664,8 +638,9 @@ final class SqlTextVerdicts {
      * nonExecutable pass installed for a toNonExecutableSQLString producer. */
     private static com.legend.compiler.spec.typed.ExecutionContext legContext(
             com.legend.compiler.spec.NativeDispatch.RoutineCall producer, BodyDriver.ExecEnv env) {
-        com.legend.compiler.spec.typed.ExecutionContext base = env.frame() == null
-                ? com.legend.compiler.spec.typed.ExecutionContext.NONE : env.frame();
+        com.legend.compiler.spec.typed.ExecutionContext frame = EngineTextPlanning.frame(env);
+        com.legend.compiler.spec.typed.ExecutionContext base = frame == null
+                ? com.legend.compiler.spec.typed.ExecutionContext.NONE : frame;
         boolean nonExec = com.legend.compiler.element.type.PlatformTypes
                 .TO_NON_EXECUTABLE_SQL_STRING.equals(producer.fqn());
         return nonExec
@@ -709,7 +684,7 @@ final class SqlTextVerdicts {
                     specs, env, hook);
         }
         TypedSpec strip = com.legend.compiler.spec.VerdictQueries
-                .sqlStripRead(resultArg, env.ctx());
+                .sqlStripRead(resultArg, EngineTextPlanning.ctx(env));
         // §8.3e hardening: from here the SQL shape is RECOGNIZED (a
         // Result-typed actual on the sql-assert form) — an underivable
         // leg WALLS counted instead of falling through to the generic
@@ -796,7 +771,7 @@ final class SqlTextVerdicts {
             resultArg = read.args().get(0);
         } else {
             TypedSpec strip = com.legend.compiler.spec.VerdictQueries
-                    .sqlStripRead(actualSide, env.ctx());
+                    .sqlStripRead(actualSide, EngineTextPlanning.ctx(env));
             // §8.3e hardening: Result-typed actual = the SQL shape is
             // recognized — underivable legs WALL counted (a null
             // fallthrough would inline getH2Versions' store read and
@@ -848,8 +823,8 @@ final class SqlTextVerdicts {
                     com.legend.compiler.spec.VerdictQueries.fromWrapped(
                             route.let().value(), fm.mappingRef(), fm.context()),
                     null, fm.mapping(), letCls,
-                    AssertVerdicts.replayFacts(route.let().value(), letPrefix),
-                    AssertVerdicts.unpagedRead(com.legend.compiler.spec.VerdictQueries.fromWrapped(
+                    EngineTextPlanning.replayFacts(route.let().value(), letPrefix),
+                    EngineTextPlanning.unpagedRead(com.legend.compiler.spec.VerdictQueries.fromWrapped(
                             route.let().value(), fm.mappingRef(), fm.context())),
                     letPrefix, specs, env, hook, fm.query());
         }
@@ -950,8 +925,8 @@ final class SqlTextVerdicts {
                     com.legend.compiler.spec.VerdictQueries.fromWrapped(
                             letStatement.value(), fm.mappingRef(), fm.context()),
                     null, fm.mapping(), letCls,
-                    AssertVerdicts.replayFacts(letStatement.value(), letPrefix),
-                    AssertVerdicts.unpagedRead(com.legend.compiler.spec.VerdictQueries.fromWrapped(
+                    EngineTextPlanning.replayFacts(letStatement.value(), letPrefix),
+                    EngineTextPlanning.unpagedRead(com.legend.compiler.spec.VerdictQueries.fromWrapped(
                             letStatement.value(), fm.mappingRef(), fm.context())),
                     letPrefix, specs, env, hook, fm.query());
         }
@@ -969,8 +944,8 @@ final class SqlTextVerdicts {
                     com.legend.compiler.spec.VerdictQueries.fromWrapped(
                             pop.rowsRead(), fm.mappingRef(), fm.context()),
                     null, fm.mapping(), null,
-                    AssertVerdicts.replayFacts(pop.rowsRead(), letPrefix),
-                    AssertVerdicts.unpagedRead(com.legend.compiler.spec.VerdictQueries.fromWrapped(
+                    EngineTextPlanning.replayFacts(pop.rowsRead(), letPrefix),
+                    EngineTextPlanning.unpagedRead(com.legend.compiler.spec.VerdictQueries.fromWrapped(
                             pop.rowsRead(), fm.mappingRef(), fm.context())),
                     letPrefix, specs, env, hook, fm.query());
         }
@@ -1190,12 +1165,12 @@ final class SqlTextVerdicts {
         String golden;
         String ours;
         // the arm's texts read under REFEREE_OURS, the origin the step that reads a deferred one sends it under
-        String priorOrigin = marking(env, "REFEREE_OURS", false);
+        String priorOrigin = EngineTextPlanning.marking(env, "REFEREE_OURS", false);
         try {
             golden = readText(goldenSide, letPrefix, specs, env, hook, true);
             ours = oursText(actualSide, letPrefix, specs, env, hook);
         } finally {
-            restoreMarking(env, priorOrigin);
+            EngineTextPlanning.restoreMarking(env, priorOrigin);
         }
         if (golden == null || ours == null) {
             return null;
@@ -1218,7 +1193,7 @@ final class SqlTextVerdicts {
         bound.addAll(bindings.lets());
         // the plan producer's bound context rides the verdict's from
         com.legend.compiler.spec.typed.ExecutionContext planCtx = producer.args().size() >= 3
-                ? com.legend.planner.BodyPlanner.boundContext(producer.args().get(2), scope, specs)
+                ? EngineTextPlanning.boundContext(producer.args().get(2), scope, specs)
                 : com.legend.compiler.spec.typed.ExecutionContext.NONE;
         // a multi-statement plan lambda ({|let a = 10; Firm.all()->...})
         // scopes its leading lets over the last statement — the rows leg
@@ -1237,8 +1212,8 @@ final class SqlTextVerdicts {
                 : com.legend.compiler.spec.VerdictQueries.fromWrapped(last, mapping, planCtx);
         return rowsLegAndVerdict(name, golden, ours, textEqual, read,
                 replay, mapping == null ? null : mapping.fullPath(), rootClassFqn(lam),
-                AssertVerdicts.replayFacts(last, bound),
-                AssertVerdicts.unpagedRead(read), bound,
+                EngineTextPlanning.replayFacts(last, bound),
+                EngineTextPlanning.unpagedRead(read), bound,
                 specs, env, hook, lam,
                 replay == null ? golden : null, bindings.lists());
     }
@@ -1384,9 +1359,9 @@ final class SqlTextVerdicts {
                 k = d.value() instanceof com.legend.values.PureDateLiteral
                         .StrictDate ? "date" : "datetime";
                 // the engine seeds the temp in the connection's zone (batch 86)
-                String iso = com.legend.lowering.LiteralSpelling.isoTimestamp(d.value());
+                String iso = EngineTextPlanning.isoTimestamp(d.value());
                 v = iso != null && zone != null
-                        ? com.legend.lowering.LiteralSpelling.inZone(iso, zone)
+                        ? EngineTextPlanning.inZone(iso, zone)
                         : d.value().toEngineString();
             } else if (e instanceof com.legend.compiler.spec.typed.TypedCString s) {
                 k = "string";
@@ -1479,17 +1454,17 @@ final class SqlTextVerdicts {
         // envelope spliced where a let-bound Result stood); its name, the one the golden reads, at the appeal
         InListSeed seed = ahead != null && temps.isEmpty()
                 ? inListSeed(query != null ? query : rowsRead, letPrefix,
-                        frameZone(hook == null ? rowsRead : hook.apply(rowsRead, java.util.Set.of())))
+                        frameZone(hook == null ? rowsRead : EngineTextPlanning.splice(hook, rowsRead, java.util.Set.of())))
                 : null;
         // the rows leg as the plan's data (step 8b, 2026-11-08): its reads planned with the assert, its replay facts
         // and the target the referee replays on; null where not planned
         com.legend.testexecutionplan.Appeal.Rows rows = ahead == null ? null : new com.legend.testexecutionplan.Appeal.Rows(ahead.rows().data(), ahead.population().data(),
-                replaySqlOrNull, mappingFqn, classFqn, facts.extentSubset(), facts.ordered(), facts.sortKeys(), goldenPlan,
+                replaySqlOrNull, mappingFqn, classFqn, EngineTextPlanning.extentSubset(facts), EngineTextPlanning.ordered(facts), EngineTextPlanning.sortKeys(facts), goldenPlan,
                 planBindings, temps,
                 seed == null ? null : new com.legend.testexecutionplan.Appeal.InListSeed(seed.kind(), seed.values()),
-                (env.appealOn() != null ? java.util.Objects.requireNonNull(env.appealOn()) : env).target(),
+                EngineTextPlanning.target(java.util.Objects.requireNonNullElse(EngineTextPlanning.appealOn(env), env)),
                 // the enumerations the referee decodes, read from the model now (hole 1, 2026-11-08)
-                JudgmentFacts.enumsOf(env.ctx(), mappingFqn, classFqn, ahead.rows().data()));
+                EngineTextPlanning.enumsOf(EngineTextPlanning.ctx(env), mappingFqn, classFqn, ahead.rows().data()));
         return decide(env, name, golden, ours, textEqual, null, new com.legend.testexecutionplan.Appeal(0, name, com.legend.testexecutionplan.Appeal.Kind.ROWS, null, rows,
                 null, com.legend.testexecutionplan.RootLoop.NO_APPEAL));
     }
@@ -1508,7 +1483,8 @@ final class SqlTextVerdicts {
         }
         // the rows planned where the appeal reads them: the body's own environment for a system-routed body's assert
         // under the database judge (ExecEnv.appealOn), this one otherwise
-        BodyDriver.ExecEnv on = env.appealOn() != null ? env.appealOn() : env;
+        BodyDriver.ExecEnv appealOn = EngineTextPlanning.appealOn(env);
+        BodyDriver.ExecEnv on = appealOn != null ? appealOn : env;
         RowsAhead ahead = new RowsAhead(sideAhead(rowsRead, letPrefix, specs, on, hook),
                 sideAhead(populationRead, letPrefix, specs, on, hook));
         return ahead;
@@ -1532,7 +1508,7 @@ final class SqlTextVerdicts {
         com.legend.testexecutionplan.Appeal.Read data() {
             JudgePlans.PlannedSide p = side;
             if (p != null) {
-                return new com.legend.testexecutionplan.Appeal.Read(p.side(), JudgePlans.shapeOf(p), null);
+                return new com.legend.testexecutionplan.Appeal.Read(EngineTextPlanning.side(p), EngineTextPlanning.shapeOf(p), null);
             }
             RuntimeException f = failure;
             if (f == null) {
@@ -1555,7 +1531,7 @@ final class SqlTextVerdicts {
         RuntimeException failure = null;
         if (read != null) {
             try {
-                side = JudgePlans.plannedSide(read, letPrefix, specs, env.withEngineText(null), false, true, hook);
+                side = EngineTextPlanning.plannedSide(read, letPrefix, specs, EngineTextPlanning.withCollector(env, null), false, true, hook);
             } catch (RuntimeException e) {
                 // any planning failure: the side's evaluation at the appeal raised the same, and the rows leg reads
                 // it there (a decline for our rows, a fault for the population) -- kept, never judged here
@@ -1639,7 +1615,7 @@ final class SqlTextVerdicts {
             // resolves the frame variable's reads to the frame's own
             // execute() call (the activities read is the frame's
             // sourceExec — ResultEnvelopeSplice)
-            TypedSpec spliced = hook.apply(
+            TypedSpec spliced = EngineTextPlanning.splice(hook, 
                     com.legend.compiler.spec.VerdictQueries
                             .activitiesRead(resultArg),
                     java.util.Set.of());
@@ -1662,23 +1638,23 @@ final class SqlTextVerdicts {
             TypedPackageableRef mappingRef =
                     ec.args().get(1) instanceof TypedPackageableRef mr ? mr : null;
             com.legend.compiler.spec.typed.ExecutionContext context = ec.args().size() >= 3
-                    ? com.legend.planner.BodyPlanner.boundContext(ec.args().get(2), letPrefix, specs)
+                    ? EngineTextPlanning.boundContext(ec.args().get(2), letPrefix, specs)
                     : com.legend.compiler.spec.typed.ExecutionContext.NONE;
             TypedSpec chain = lamArg instanceof TypedLambda lam2 && !lam2.body().isEmpty()
                     ? lam2.body().get(lam2.body().size() - 1) : null;
             AssertVerdicts.ReplayGates facts = chain != null
-                    ? AssertVerdicts.replayFacts(chain, letPrefix)
-                    : AssertVerdicts.ReplayGates.NONE;
+                    ? EngineTextPlanning.replayFacts(chain, letPrefix)
+                    : EngineTextPlanning.noReplayGates();
             // a PAGED frame chain: our unpaged population is the same chain
             // minus its tail page, wrapped in the frame's own context
             TypedSpec populationRead = chain != null && mappingRef != null
-                    ? AssertVerdicts.unpagedRead(com.legend.compiler.spec.VerdictQueries
+                    ? EngineTextPlanning.unpagedRead(com.legend.compiler.spec.VerdictQueries
                             .fromWrapped(chain, mappingRef, context))
                     : null;
             return new FrameFacts(mapping, cls, facts, populationRead, lamArg,
                     mappingRef, context);
         }
-        return new FrameFacts(null, null, AssertVerdicts.ReplayGates.NONE, null, null, null,
+        return new FrameFacts(null, null, EngineTextPlanning.noReplayGates(), null, null, null,
                 com.legend.compiler.spec.typed.ExecutionContext.NONE);
     }
 

@@ -307,13 +307,12 @@ class CompatSpellingGuardTest {
             "testplan/AssertVerdicts.java | EngineText | 3 | D1.7",
             // (BodyDriver's EngineText row gone, 2026-11-16, W9's judge half: the style's engineTestText,
             // engineTestPlanText and engineTestConnection name the engine test database, the planner none)
-            "testplan/BodyDriver.java | withEngineText | 1 | D1.7",
             // (SeedSqlForms' EngineText row gone, 2026-11-16, W9's judge half: the style's engineTestText)
             // testplan/BodyDriver.java and Seeds.java | EnginePlans: gone 2026-11-16 (W9's planner half: the routine table
             // and a toDDL statement's text through planner.UpstreamPlans)
-            "testplan/SqlTextVerdicts.java | EngineText | 1 | D1.7",
-            "testplan/SqlTextVerdicts.java | withEngineText | 3 | D1.7",
             // retagged 2026-11-15 (D1.2's end): the judging rules' choice of the generator's printing, D1.9's
+            // (2026-11-16, W9's judge half S2c: testplan/SqlTextVerdicts' two rows gone with the arm to the edge;
+            // BodyDriver's withEngineText row gone, ExecEnv.withCollector names what it installs, the arm's collector)
             "testplan/TestPlanner.java | COMPAT | 1 | D1.9"
             // retagged 2026-11-15 (D1.2's end): Java's spelling of a date value. D1.4 -> D1.8 (2026-11-16, W4): lite's
             // writers no longer read it (CellText's product half prints S312's text); what remains is legend-engine's

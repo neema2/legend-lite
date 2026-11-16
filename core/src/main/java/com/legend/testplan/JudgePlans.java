@@ -38,7 +38,7 @@ import java.util.Map;
  * inliner's splice, the natives' staging, the store resolution, the wire reconciliation) -- the one road both judges'
  * sides and the body's streamed answer (door 1, 2026-10-29) take.
  */
-final class JudgePlans {
+public final class JudgePlans {
 
     private JudgePlans() {
     }
@@ -200,7 +200,7 @@ final class JudgePlans {
     // ---- a side as a plan value, and its shaping once read (the seam program's S2f, 2026-10-30) ------------------
 
     /** The five forms a planned side's rows are shaped as. */
-    enum Kind { CONSTANT, GRAPH, TABULAR, KEYED, VALUES }
+    public enum Kind { CONSTANT, GRAPH, TABULAR, KEYED, VALUES }
 
     /**
      * A side PLANNED before any run: the plan value a verdict step's base holds ({@link TestPlan.Side}: typed
@@ -211,7 +211,7 @@ final class JudgePlans {
      * {@link #evalSide} plans, runs and shapes one side in place for the two shapes one pass cannot plan (the
      * quantified unroll, the two-branch if; the user's ruling of 2026-10-30, S4's) and the engine-text asserts (S2i).
      */
-    record PlannedSide(TestPlan.Side side, Kind kind, BodyDriver.@com.legend.base.Nullable WrappedSide wrapped,
+    public record PlannedSide(TestPlan.Side side, Kind kind, BodyDriver.@com.legend.base.Nullable WrappedSide wrapped,
             @com.legend.base.Nullable TypedSide answered, @com.legend.base.Nullable TypedSpec root,
             Type.@com.legend.base.Nullable RelationType schema) {
 

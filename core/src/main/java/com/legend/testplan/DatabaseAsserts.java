@@ -707,7 +707,7 @@ final class DatabaseAsserts implements TestDoor.Asserts {
      *  the call spliced whole -- so a let is scanned whole. */
     private static List<TypedSpec> scanned(TypedSpec statement) {
         if (statement instanceof com.legend.compiler.spec.typed.TypedUserCall u
-                && SqlTextVerdicts.isRoot(u.callee().qualifiedName())) {
+                && EngineTestText.isRoot(u.callee().qualifiedName())) {
             return u.args();
         }
         return List.of(statement);
