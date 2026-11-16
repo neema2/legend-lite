@@ -16,7 +16,7 @@
 // form: a value of it (a mint, plannedProjectData) is imported by name, unaliased, only in the files it pins (2026-11-12,
 // the C checkpoint's code audit, MUST-FIX 1); a type is free.
 
-import type { ProjectDataStatements } from './project-data.ts';
+import type { ProjectDataStatements } from './requests.ts';
 
 declare const planned: unique symbol;
 

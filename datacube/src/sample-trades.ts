@@ -10,7 +10,7 @@
 // here, by sampleTradesCsv, with the formulas the planner writes for SAMPLE_KNOBS (HostOperation.Formula), row for row:
 // test/sample-trades.test.ts holds the file to the table the plan made.
 
-import type { SynthesizeKnob, SynthesizeRequest } from '../../engine-client/src/host-operations.ts';
+import type { SynthesizeKnob, SynthesizeRequest } from '../../engine-client/src/requests.ts';
 
 /** How many trades the demo makes. */
 export const SAMPLE_TRADES = 200_000;

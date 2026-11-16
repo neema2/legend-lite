@@ -19,7 +19,7 @@ import { modelMeasures } from '../src/model-measures.ts';
 import { levelLambda, sourceWithDerived } from '../src/query.ts';
 import type { CubeSnapshot, QuerySnapshot } from '../src/snapshot.ts';
 import { plannerFor } from './catalog-builder.ts';
-import { unplanned } from '../../engine-client/test/unplanned.ts';
+import { unplanned, asTest } from '../../engine-client/test/unplanned.ts';
 
 const MODEL = `
 ###Relational
@@ -130,7 +130,7 @@ const planner = plannerFor(MODEL, 'page::Runtime', { mapping: 'page::Mapping' })
 before(async () => {
   const db = await openDatabase();
   engine = new DuckDbEngine(db.connection);
-  for (const sql of SEED) await engine.run(unplanned(sql), 0);
+  for (const sql of SEED) await asTest(engine).run(unplanned(sql), 0);
 });
 
 after(async () => {
@@ -140,7 +140,7 @@ after(async () => {
 /** The query's SQL, as the compiler plans it, and its rows, as DuckDB answers. */
 async function run(query: string): Promise<{ sql: string; rows: unknown[][] }> {
   const plan = await planner.plan(await planner.parse(`|${query}`));
-  const table = await engine.run(plan.sql, 0);
+  const table = await asTest(engine).run(plan.sql, 0);
   return { sql: plan.sql, rows: Array.from({ length: table.rowCount }, (_, i) => table.columns.map((c) => c.values[i] ?? null)) };
 }
 
@@ -189,7 +189,7 @@ describe('a page\'s model: two sources as classes over relation functions, relat
 describe("a class's grid with related columns (the class tree: query.ts relatedSource), planned and run", () => {
   /** A level's rows, each by its columns' names. */
   const level = async (s: QuerySnapshot, at: number): Promise<Record<string, unknown>[]> => {
-    const t = await engine.run((await planner.plan(levelLambda(s, { level: at, parent: [] }))).sql, 0);
+    const t = await asTest(engine).run((await planner.plan(levelLambda(s, { level: at, parent: [] }))).sql, 0);
     return Array.from({ length: t.rowCount }, (_, i) => Object.fromEntries(t.columns.map((c) => [c.name, c.values[i] ?? null])));
   };
 
@@ -297,7 +297,7 @@ describe("the model's measures added to a class's grid, planned and run", () => 
     // typed by the compiler as every row-stage column is (plan.ts typeColumns)
     const types = new Map((await measured.relationType(sourceWithDerived(folded).lambda())).map((c) => [c.name, c.type]));
     const s: CubeSnapshot = { ...folded, derived: folded.derived.map((d) => ({ ...d, type: types.get(d.name)! })) };
-    const t = await engine.run((await measured.plan(levelLambda(s, { level: 1, parent: [] }))).sql, 0);
+    const t = await asTest(engine).run((await measured.plan(levelLambda(s, { level: 1, parent: [] }))).sql, 0);
     const rows = Array.from({ length: t.rowCount }, (_, i) => Object.fromEntries(t.columns.map((c) => [c.name, c.values[i] ?? null])));
     const figures = (r: Record<string, unknown>): (number | null)[] =>
       ['grossNotional', 'bigNotional', 'averageNotional', 'regionsKnown', 'bigTrades'].map((n) => (r[n] === null ? null : Number(r[n])));
@@ -317,7 +317,7 @@ describe("the model's measures added to a class's grid, planned and run", () => 
 // a grid grouped by the groups as by any column -- a number column's rest named, a text column's left as itself.
 describe("a column's values gathered into named groups, planned and run", () => {
   const level = async (s: QuerySnapshot): Promise<Map<unknown, number>> => {
-    const t = await engine.run((await planner.plan(levelLambda(s, { level: 1, parent: [] }))).sql, 0);
+    const t = await asTest(engine).run((await planner.plan(levelLambda(s, { level: 1, parent: [] }))).sql, 0);
     const at = (name: string): readonly unknown[] => t.columns.find((c) => c.name === name)!.values;
     const keys = at(s.rows[0]!);
     return new Map(keys.map((k, i) => [k ?? null, Number(at('notional')[i])]));

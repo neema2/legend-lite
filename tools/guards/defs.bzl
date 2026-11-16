@@ -106,6 +106,16 @@ def guards_package():
         target_compatible_with = compatible_with(PLATFORMS),
         visibility = ["//tools/guards:__pkg__"],
     )
+    # what each browser bundle read and declares (tools/js/esbuild.bzl; //tools/deps:bundle_inputs_test, 2026-11-15:
+    # every bundle in every package, a new one included)
+    native.filegroup(
+        name = "guard_bundles",
+        srcs = [":" + r["name"] for r in rules if r["kind"] == "_esbuild_bundle"],
+        output_group = "bundle_inputs",
+        testonly = True,
+        target_compatible_with = compatible_with(PLATFORMS),
+        visibility = ["//tools/deps:__pkg__"],
+    )
     native.filegroup(
         name = "all_files",
         # the root package's glob would follow Bazel's convenience links (bazel-bin, bazel-out, ...) into the output

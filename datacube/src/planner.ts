@@ -1,21 +1,21 @@
 // The planner client: Pure grammar out, SQL back, over legend-engine's own
 // API (docs/UPSTREAM_ENDPOINTS_DESIGN_2026_09_27.md).
 //
-// Upstream's cached path, through the one `pure/v1` client (pure-v1.ts):
+// Upstream's cached path, through the one `pure/v1` client's planning half (pure-v1-planning.ts):
 // the query parsed (`grammarToJson/lambda`), then `execution/generatePlan`,
 // whose SQL node carries the query the tab then runs. The SAME requests go to
 // legend-lite and to legend-engine: lite serves those calls exactly and
 // nothing of its own (the made-up `/engine/plan` this replaced was deleted,
 // 2026-09-27).
 
-import type { Planner } from './cube.ts';
-import { PureV1Client, type PrintStyle, type PureV1Options } from '../../engine-client/src/pure-v1.ts';
+import type { Planner } from './planner-types.ts';
+import { PureV1Planning, type PrintStyle, type PureV1Options } from '../../engine-client/src/pure-v1-planning.ts';
 import { relationColumns, tdsColumns, type Plan, type PlanColumn } from '../../engine-client/src/relation-type.ts';
 import { toJson, type Lambda } from '../../pure-protocol/src/index.ts';
 import type { GridSource } from './model-writer.ts';
 import { callsLibrary, loadLibrary, withLibrary } from './pure-library.ts';
 import { fromPlan } from '../../engine-client/src/planned-sql.ts';
-import { planning } from '../../engine-client/src/run-frame.ts';
+import { planning } from '../../engine-client/src/plan-guard.ts';
 
 export interface UpstreamPlannerOptions extends PureV1Options {
   /**
@@ -67,7 +67,7 @@ export class PlanError extends Error {
  * cube built. E1 and E4 only at the human edges (`parse`, `print`).
  */
 export class UpstreamPlanner implements Planner {
-  readonly #client: PureV1Client;
+  readonly #client: PureV1Planning;
   readonly #useCache: boolean;
   readonly #cache = new Map<string, Plan>();
   readonly #types = new Map<string, PlanColumn[]>();
@@ -89,7 +89,7 @@ export class UpstreamPlanner implements Planner {
     this.#options = options;
     this.#now = { model: options.model, runtime: options.runtime, how: {} };
     this.#useCache = options.cache !== false;
-    this.#client = new PureV1Client(options, (m, subject) => new PlanError(m, subject));
+    this.#client = new PureV1Planning(options, (m, subject) => new PlanError(m, subject));
   }
 
   /** Where this planner's queries are planned from: its model, and the runtime they run on. */

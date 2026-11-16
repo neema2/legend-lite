@@ -32,9 +32,16 @@
 // The engine half, shared by every app that freezes rows into the tab (Studio plan A6; moved from DataCube, which keeps
 // its cube behaviour on top): the manager, the stamp it carries, the refusals and the preflight. Where a snap's
 // queries are planned is the app's (DataCube's SnapTarget adds its planner).
+//
+// SnapManager is A DOOR (C5-T, 2026-11-15: the TypeScript split of plan and run; a multi-step door, as the
+// orchestrator's note 3 accepts -- made one keyed plan later, docs/records/c5-typescript-2026-11-15.md's backlog): it
+// asks the planner -- the copy's plan, a drop's statements -- outside any run, and runs each answer inside a run frame
+// (run-frame.ts: a run plans nothing), on the hosts' plan runner (plan-runner.ts) or the local store's connection.
 
-import type { HostName, HostOperation, HostOperationsSource, SnapPull, SnapStreamSource } from './host-operations.ts';
+import type { HostName, HostOperation, SnapPull } from './host-operations.ts';
 import type { HostStreams } from './plan-runner.ts';
+import type { HostOperationsSource, SnapStreamSource } from './planner-sources.ts';
+import { inRun } from './run-frame.ts';
 import { UI_LOCALE } from './locale.ts';
 import { fn, type Lambda, type ValueSpecification } from '../../pure-protocol/src/index.ts';
 import type { QueryEngine } from './engine.ts';
@@ -247,7 +254,7 @@ export class SnapManager implements Snaps {
     // to the planner as a host operation's query) -- its values bound to its `?`s (a remote plane takes none: refused by
     // name, WarehouseEngine)
     const engine = this.#remote ?? this.#localStore();
-    const r = await engine.run(count.sql, epoch, undefined, count.params ?? []);
+    const r = await inRun("a snap's count", () => engine.run(count.sql, epoch, undefined, count.params ?? []));
     const raw = r.rowCount === 1 ? r.columns[0]?.values[0] : undefined;
     // the count is the database's one value: none, or one that is no count, is refused by name -- never read as nothing
     // to copy (G7; the orchestrator's item 4, 2026-11-12: `?? 0` copied on as if the rows were none)
@@ -338,9 +345,7 @@ export class SnapManager implements Snaps {
       // the copy dropped with it; a drop that fails too is said with the failure, never swallowed (the orchestrator's
       // item 4, 2026-11-12: the copy was left behind in silence)
       try {
-        for (const sql of await this.#statements(engine.databaseType, [{ op: 'drop', kind: 'table', target: table }])) {
-          await engine.run(sql, epoch);
-        }
+        await this.#drop(engine, table, epoch);
       } catch (d) {
         throw new Error(`${e instanceof Error ? e.message : String(e)} -- and dropping the copy ${bare} failed: ${d instanceof Error ? d.message : String(d)}`, { cause: e });
       }
@@ -386,10 +391,15 @@ export class SnapManager implements Snaps {
 
   /** Live answered: the kept snap's table goes. */
   async discard(snap: SnapInfo): Promise<void> {
-    const store = this.#localStore();
-    for (const sql of await this.#statements(store.databaseType, [
-      { op: 'drop', kind: 'table', target: named(snap.schema, snap.table) },
-    ])) await store.run(sql, 0);
+    await this.#drop(this.#localStore(), named(snap.schema, snap.table), 0);
+  }
+
+  /** A snap's table dropped from `store`: the planner's statements asked, then run in a run of their own. */
+  async #drop(store: QueryEngine & { readonly databaseType: string }, table: HostName, epoch: number): Promise<void> {
+    const drop = await this.#statements(store.databaseType, [{ op: 'drop', kind: 'table', target: table }]);
+    await inRun("a snap's drop", async () => {
+      for (const sql of drop) await store.run(sql, epoch);
+    });
   }
 }
 
