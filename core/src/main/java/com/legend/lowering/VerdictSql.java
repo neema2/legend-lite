@@ -1798,7 +1798,7 @@ public final class VerdictSql {
     private static @com.legend.base.Nullable SqlExpr sourceOf(@com.legend.base.Nullable SqlSource from,
             SqlQuery side, String col) {
         if (from instanceof SqlSource.Subselect sub) {
-            if (sub.inner().equals(side)) {
+            if (sub.inner().equals(side) || sameUpToLambdaNames(sub.inner(), side)) {
                 return SqlExpr.Column.derived(sub.alias(), col);
             }
             if (sub.inner() instanceof SqlSelect inner) {
@@ -1812,6 +1812,42 @@ public final class VerdictSql {
             return left != null ? left : sourceOf(j.right(), side, col);
         }
         return null;
+    }
+
+    /** Whether {@code a} and {@code b} are the same query but for their lambdas' parameter names (E5's follow-up,
+     *  2026-11-16): the verdict's copy of a side and the side itself are lowered apart, so their lambda variables are
+     *  numbered apart ({@code __s4}, {@code __s31}); each lambda's parameters renamed by position, in walk order, makes
+     *  the two compare equal where they are one computation, so O5's reuse reads the verdict's value once. */
+    private static boolean sameUpToLambdaNames(SqlQuery a, SqlQuery b) {
+        return new LambdaNames().rewriteRoot(a).equals(new LambdaNames().rewriteRoot(b));
+    }
+
+    /** Each lambda's parameters renamed {@code __p0}, {@code __p1}, ... in post-order, and their unqualified reads in
+     *  its body with them (an inner lambda, renamed first, already binds names of its own). */
+    private static final class LambdaNames extends com.legend.sql.SqlRewriter {
+        private int next;
+
+        @Override
+        protected SqlExpr expr(SqlExpr e) {
+            if (!(e instanceof SqlExpr.Lambda l)) {
+                return e;
+            }
+            List<String> renamed = new ArrayList<>(l.params().size());
+            java.util.Map<String, String> to = new java.util.HashMap<>();
+            for (String param : l.params()) {
+                String n = "__p" + next++;
+                renamed.add(n);
+                to.put(param, n);
+            }
+            return new SqlExpr.Lambda(renamed, reads(l.body(), to), l.type());
+        }
+
+        private static SqlExpr reads(SqlExpr e, java.util.Map<String, String> to) {
+            if (e instanceof SqlExpr.Column c && c.table() == null && to.containsKey(c.name())) {
+                return new SqlExpr.Column(null, to.get(c.name()), c.type(), c.origin());
+            }
+            return e.mapChildren(ch -> reads(ch, to));
+        }
     }
 
     /** The alias the select's {@code from} reads the CTE {@code name} under, else null. */
