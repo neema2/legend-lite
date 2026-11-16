@@ -64,6 +64,7 @@ from ._library import library
 from ._pool import _on_compiler_threads, _workers
 from .frames import Frames, ModelRefused, Reading, UntypedColumn, redact_held
 # the runs this engine's routes hand the planner's statements to (C5-P, 2026-11-15): each route plans, then runs
+from ._plans import plan_timeout
 from ._reads import count_of, read_plane, run_arrow, run_on_plane, run_plan, run_rows_json
 from .keeper import PageKeeper, Refused
 from .projects import NotAModel, ProjectDatabases, run_host_load, run_write
@@ -413,6 +414,15 @@ def _query_timeout(body: str) -> float | None | Answer:
     if isinstance(limit, bool) or not isinstance(limit, (int, float)) or limit <= 0:
         return _said(400, f"an execute's context.queryTimeOutInSeconds is a positive number of seconds, not {limit!r}")
     return float(limit)
+
+
+def _limit_of(plan: Any, asked: float | None) -> float | None:
+    """The seconds an execute's statement may run: its plan's target's connection's ``queryTimeOutInSeconds``
+    (``_plans.plan_timeout``) where the model declares one -- it WINS over the request context's, as upstream's runner
+    sets the statement's timeout from the connection (legend-engine SQLResult.java:65-68) -- else the request's
+    (``asked``), else none."""
+    declared = plan_timeout(plan)
+    return float(declared) if declared is not None else asked
 
 
 def _limited(cursor: Any, limit: float | None, run: Callable[[], Any]) -> Any:
@@ -1907,6 +1917,7 @@ class Engine:
                 # its values (a data: payload: compiler.plan_params, M3) bound to its `?`s; a failure's words name no
                 # value this engine holds (a bearer URL: M2) -- the plan read here, then handed to its run
                 sql, params = from_plan(planned['sql']), compiler.plan_params(planned.get('plan'))
+                limit = _limit_of(planned.get('plan'), limit)
                 rows = _limited(cursor, limit, lambda: run_arrow(cursor, sql, read.held_values, params))
         # upstream's headers for this answer (measured, legend-engine 4.145.0)
         return Answer(200, 'application/json', _arrow_ipc(rows, planned['metadata']),
@@ -1929,6 +1940,7 @@ class Engine:
                 said = json.loads(planned.body)
                 # the plan read here, then handed to its run, which hands its rows back as the driver read them
                 sql, params = from_plan(said['run']), compiler.plan_params(said.get('plan'))
+                limit = _limit_of(said.get('plan'), limit)
                 rows = _limited(cursor, limit, lambda: run_rows_json(cursor, sql, read.held_values, params))
         answer = _on_compiler_threads(lambda: self.planner.execute_json_answer(planned.body, rows))
         return Answer(answer.status, answer.content_type, answer.body.encode('utf-8'))

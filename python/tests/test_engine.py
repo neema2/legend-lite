@@ -204,6 +204,50 @@ class ExecuteThreads(Served):
         self.assertTrue(t_said['message'].startswith('QueryTimedOut: '), t_said)
         self.assertTrue(d_said['message'].startswith('ConversionException: '), d_said)
 
+    def declaring(self, seconds):
+        """The execute's plan as C5-J's planner will write it (the next plan version): its target's declared connection
+        carrying ``queryTimeOutInSeconds`` -- added here by hand to the planner's answer, until the planner emits it."""
+        planner = self.server.engine.planner
+        real = planner.execute_plan
+
+        def declared(body, served):
+            answer = real(body, served)
+            said = json.loads(answer.body)
+            connection = {'name': 'trades::Conn', 'store': 'trades::DB', 'databaseType': 'DuckDB',
+                          'specification': {'_type': 'InMemory'}, 'authentication': {'_type': 'Test'},
+                          'queryTimeOutInSeconds': seconds}
+            said['plan'] = {'format': 'legend-lite-plan', 'root': {'_type': 'result', 'sql': {
+                'statement': said['sql'], 'slots': [],
+                'target': {'database': {'_type': 'declared', 'connection': connection, 'project': None},
+                           'session': []}}}}
+            import dataclasses
+            return dataclasses.replace(answer, body=json.dumps(said))
+        return mock.patch.object(planner, 'execute_plan', declared)
+
+    def test_the_connections_declared_timeout_interrupts_and_wins_over_the_requests(self):
+        # the orchestrator's fidelity point (2026-11-16): upstream sets each statement's timeout from the CONNECTION's
+        # declared queryTimeOutInSeconds (SQLResult.java:65-68) -- applied with no request limit, and winning over one
+        from legend_lite import engine
+        real = engine.run_arrow
+
+        def slow(cursor, sql, held_values, params=()):
+            return real(cursor, from_plan('SELECT sum(a.range) FROM range(4000000000) a'), held_values)
+
+        for context in ({'_type': 'BaseExecutionContext'},
+                        {'_type': 'BaseExecutionContext', 'queryTimeOutInSeconds': 600}):
+            body = json.loads(self.execute_input(self.query('->select(~[desk])')))
+            body['context'] = context
+            began = time.monotonic()
+            with self.declaring(1), mock.patch.object(engine, 'run_arrow', slow):
+                status, _, said = self.post(self.EXECUTE, json.dumps(body))
+            self.assertLess(time.monotonic() - began, 10, ('the execute ran past its connection\'s limit', context))
+            self.assertEqual(status, 500, said[:300])
+            self.assertIn(b'QueryTimedOut: the query ran past its queryTimeOutInSeconds (1 s) and was interrupted', said)
+        # declared, and not reached: the execute answers as ever
+        with self.declaring(600):
+            status, _, said = self.post(self.EXECUTE, self.execute_input(self.query('->select(~[desk])')))
+        self.assertEqual(status, 200, said[:300])
+
     def test_a_query_timeout_that_is_no_number_of_seconds_is_refused_by_name(self):
         body = json.loads(self.execute_input(self.query('->select(~[desk])')))
         body['context']['queryTimeOutInSeconds'] = 'soon'

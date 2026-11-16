@@ -1121,3 +1121,39 @@ class TheBridgeTest(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class AConnectionsTimeoutTest(unittest.TestCase):
+    """C5-J's field, read by the host (the C5 batch, 2026-11-16): a plan's target's declared connection's
+    queryTimeOutInSeconds, written only where the model declares it -- every statement for that target runs under it, as
+    upstream applies it (legend-engine SQLResult.java:65-68). Absent, no limit; a value the planner never writes is
+    refused by name. The plans here are written by hand, as C5-J writes the field."""
+
+    @staticmethod
+    def target(connection_extra=None, kind='declared'):
+        if kind != 'declared':
+            return {'database': {'_type': kind, 'databaseType': 'DuckDB'}, 'session': []}
+        connection = {'name': 's::Conn', 'store': 's::DB', 'databaseType': 'DuckDB',
+                      'specification': {'_type': 'InMemory'}, 'authentication': {'_type': 'Test'}}
+        return {'database': {'_type': 'declared', 'connection': {**connection, **(connection_extra or {})},
+                             'project': None}, 'session': []}
+
+    def test_a_declared_timeout_is_read_and_none_is_no_limit(self):
+        from legend_lite._plans import plan_timeout, target_timeout
+        self.assertEqual(target_timeout(self.target({'queryTimeOutInSeconds': 7})), 7)
+        self.assertIsNone(target_timeout(self.target()))
+        self.assertIsNone(target_timeout(self.target(kind='platform')))
+        self.assertIsNone(target_timeout(self.target(kind='system')))
+        plan = {'root': {'_type': 'result', 'sql': {'statement': 'SELECT 1', 'slots': [],
+                                                    'target': self.target({'queryTimeOutInSeconds': 3})}}}
+        self.assertEqual(plan_timeout(plan), 3)
+        self.assertIsNone(plan_timeout(None), 'a text that runs alone carries no target')
+
+    def test_a_timeout_the_planner_never_writes_is_refused_by_name(self):
+        from legend_lite._plans import TargetRefused, target_timeout
+        for bad in (None, 0, -1, '7', True, 1.5):
+            with self.assertRaises(TargetRefused, msg=repr(bad)) as refused:
+                target_timeout(self.target({'queryTimeOutInSeconds': bad}))
+            self.assertIn("a connection's queryTimeOutInSeconds is a positive number of seconds", str(refused.exception))
+        with self.assertRaises(TargetRefused):
+            target_timeout({'session': []})

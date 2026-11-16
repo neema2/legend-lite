@@ -88,6 +88,46 @@ def statement_params(statement: dict[str, Any]) -> tuple[str, ...]:
     return tuple(out)
 
 
+class TargetRefused(ValueError):
+    """A plan's target not as the planner writes one: refused by name, never read past."""
+
+
+def target_timeout(target: Any) -> int | None:
+    """THE SECONDS A TARGET'S STATEMENTS MAY RUN, as the plan carries them (C5-J's field, 2026-11-16, the next plan
+    version): the declared connection's ``queryTimeOutInSeconds`` (``database.connection``, upstream's name), written only
+    where the model declares it -- every statement a runner sends for that target runs under it, as upstream applies
+    it (legend-engine SQLResult.java:65-68, ``statement.setQueryTimeout``). None: none declared, no limit; a platform's
+    or the system's database never carries one. A value the planner never writes (not a positive integer) is refused by
+    name."""
+    database = target.get('database') if isinstance(target, dict) else None
+    if not isinstance(database, dict):
+        raise TargetRefused(f'a plan\'s target names its database, not {database!r}')
+    if database.get('_type') != 'declared':
+        return None
+    connection = database.get('connection')
+    if not isinstance(connection, dict):
+        raise TargetRefused("a declared database's target carries its connection")
+    if 'queryTimeOutInSeconds' not in connection:
+        return None
+    limit = connection['queryTimeOutInSeconds']
+    if isinstance(limit, bool) or not isinstance(limit, int) or limit <= 0:
+        raise TargetRefused(f"a connection's queryTimeOutInSeconds is a positive number of seconds, not {limit!r}")
+    return limit
+
+
+def plan_timeout(plan: Any) -> int | None:
+    """``target_timeout`` of a typed result's plan (its root statement's target), or None for a text that runs alone
+    (``plan`` None, as ``plan_params`` reads it)."""
+    if plan is None:
+        return None
+    root = plan.get('root') if isinstance(plan, dict) else None
+    statement = root.get('sql') if isinstance(root, dict) else None
+    if not isinstance(statement, dict):
+        raise TargetRefused(f"a text plan's statement is its root's (a typed result's), not a "
+                            f"{root.get('_type') if isinstance(root, dict) else root!r}'s")
+    return target_timeout(statement.get('target'))
+
+
 def host_rows(names: list[str], rows: list[tuple]) -> str:
     """A result's rows as the compiler reads a host's rows back (``PureV1Api.jsonAnswer``): a JSON array of objects,
     each a column's name and its cell exactly as the driver read it -- an integer's digits, a float's shortest digits
