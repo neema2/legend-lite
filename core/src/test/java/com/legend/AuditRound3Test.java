@@ -208,7 +208,7 @@ class AuditRound3Test {
     @Test
     @DisplayName("audit: date() float-seconds carrier keeps MICROsecond precision")
     void dateCarrierMicros() throws Exception {
-        assertEquals("2015-04-16T14:51:59.999999+0000",
+        assertEquals("2015-04-16T14:51:59.999999",
                 scalar("|date(2015,4,16,14,51,59.999999)").toString());
     }
 

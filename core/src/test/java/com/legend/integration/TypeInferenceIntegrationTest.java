@@ -358,14 +358,14 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                 // writes a time-bearing value as register S312's six digits and Z (W4, 2026-11-16), so it
                 // reads back at microseconds (legend-pure's own form is the edge's)
                 var result = Lean.run(getCompletePureModelWithRuntime(), "|1973->date(11, 13, 23)", "test::TestRuntime", connection);
-                assertEquals("1973-11-13T23:00:00.000000+0000", result.rows().get(0).get(0).toString());
+                assertEquals("1973-11-13T23:00:00.000000", result.rows().get(0).get(0).toString());
         }
 
         @Test
         void testDateFromMinutePrecision() throws SQLException {
                 // PCT: date(1973, 11, 13, 23, 9) → %1973-11-13T23:09 (minute precision)
                 var result = Lean.run(getCompletePureModelWithRuntime(), "|1973->date(11, 13, 23, 9)", "test::TestRuntime", connection);
-                assertEquals("1973-11-13T23:09:00.000000+0000", result.rows().get(0).get(0).toString());
+                assertEquals("1973-11-13T23:09:00.000000", result.rows().get(0).get(0).toString());
         }
 
         @Test
@@ -373,7 +373,7 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                 // PCT: date(1973, 11, 13, 23, 9, 11.0) → %1973-11-13T23:09:11.0 (subsecond
                 // precision)
                 var result = Lean.run(getCompletePureModelWithRuntime(), "|1973->date(11, 13, 23, 9, 11.0)", "test::TestRuntime", connection);
-                assertEquals("1973-11-13T23:09:11.000000+0000", result.rows().get(0).get(0).toString());
+                assertEquals("1973-11-13T23:09:11.000000", result.rows().get(0).get(0).toString());
         }
 
         @Test

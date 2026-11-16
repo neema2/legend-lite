@@ -805,7 +805,7 @@ class DataDeliveryMatrixTest {
     static final String TYPES_CSV = "S,I,B,F,D,BO,DT,TS\\nx,1,12345678901,1.5,2.25,true,2020-01-02,2020-01-02 03:04:05\\n";
     static final String TYPES_QUERY = "|#>{x::DB.TYPES}#->select(~[S, I, B, F, D, BO, DT, TS])";
     static final List<String> TYPES_ROW = List.of("x", "1", "12345678901", "1.5", "2.25", "true", "2020-01-02",
-            "2020-01-02T03:04:05.000000000+0000");
+            "2020-01-02T03:04:05.000000000");
 
     @Test
     void theTypeRoundTrip() throws Exception {

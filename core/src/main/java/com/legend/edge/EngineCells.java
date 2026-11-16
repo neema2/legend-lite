@@ -45,7 +45,7 @@ public final class EngineCells {
             case BigDecimal d -> isFloat(c) ? engineCell(d.doubleValue()) : CellText.number(d.toPlainString(), d);
             case Boolean b -> Json.bool(b);
             case String s -> Json.str(s);
-            case PureDateLiteral d -> Json.str(engineDay(d, c) ? CellText.dayText(d) : d.toEngineJson());
+            case PureDateLiteral d -> Json.str(engineDay(d, c) ? CellText.dayText(d) : engineJson(d));
             case PureTimeLiteral t -> Json.str(t.toEngineString());
             case Map<?, ?> m -> structure(CellText.declared(m), c);
             case List<?> l -> structure(CellText.declared(l), c);
@@ -67,7 +67,7 @@ public final class EngineCells {
             case BigDecimal d -> w.writeToken(d.toPlainString());
             case Boolean b -> w.writeBool(b);
             case String s -> w.writeString(s);
-            case PureDateLiteral d -> w.writeString(engineDay(d, c) ? CellText.dayText(d) : d.toEngineJson());
+            case PureDateLiteral d -> w.writeString(engineDay(d, c) ? CellText.dayText(d) : engineJson(d));
             case PureTimeLiteral t -> w.writeString(t.toEngineString());
             case Map<?, ?> m -> Json.write(w, structure(CellText.declared(m), c));
             case List<?> l -> Json.write(w, structure(CellText.declared(l), c));
@@ -96,7 +96,7 @@ public final class EngineCells {
             case Boolean b -> Json.bool(b);
             case String s -> Json.str(s);
             case PureDateLiteral d -> Json.str(!d.precision().atLeast(PureDateLiteral.Precision.HOUR)
-                    ? d.toEngineString() : d.toEngineJson());
+                    ? d.toEngineString() : engineJson(d));
             case PureTimeLiteral t -> Json.str(t.toEngineString());
             default -> throw refused(v, c);
         };
@@ -140,6 +140,14 @@ public final class EngineCells {
         return !d.precision().atLeast(PureDateLiteral.Precision.HOUR) || c.precision() == ExecutionPlan.Precision.DAY;
     }
 
+    /** legend-engine's JSON of a date (its ServiceTestRunner / PURE_TDSOBJECT value transformer, witnessed 2026-09-16
+     *  on the stress corpus): a date-only value its literal body; a time-bearing value its seconds, NINE fraction
+     *  digits and the GMT {@code +0000} suffix whatever precision was written --
+     *  {@code 2024-06-03T09:07:00.000000000+0000}. Moved from {@code PureDateLiteral.toEngineJson} (W8, 2026-11-16). */
+    static String engineJson(PureDateLiteral d) {
+        return d.precision().atLeast(PureDateLiteral.Precision.HOUR) ? d.toNineDigits() + "+0000" : d.toNineDigits();
+    }
+
     // ---- legend-pure's date text ----------------------------------------------------------------------------------
 
     /** legend-pure's text of a date in a cell, which the {@code pure/v1} Arrow route hands its writer (W4's audit,
@@ -164,7 +172,7 @@ public final class EngineCells {
             return CellText.dayText(d);
         }
         if (own && p == ExecutionPlan.Precision.INSTANT) {
-            return d.toEngineJson();
+            return engineJson(d);
         }
         return pureZoned(d.trimmed());
     }

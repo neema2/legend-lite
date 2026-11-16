@@ -199,12 +199,21 @@ public final class Verdicts {
             // the fetch) — upstream's toRepresentation, '%' + its toString: a value with a minute carries +0000
             // (the engine runner, 2026-11-04, the assert bar: %2020-01-01T10:00:00 writes
             // '%2020-01-01T10:00:00+0000'; the engine spelling dropped the zone)
-            case com.legend.values.PureDateLiteral d ->
-                    "%" + d;
+            case com.legend.values.PureDateLiteral d -> "%" + pureText(d);
             default -> throw new com.legend.error.NotImplementedException(
                     "toRepresentation for " + v.getClass().getName()
                     + " is not modeled (spec: '<id instanceOf Type>' —"
                     + " loud until a consumer pins the id form)");
         };
+    }
+
+    /** legend-pure's text of a date, as its {@code toString} writes one: the literal body at its written precision,
+     *  with {@code +0000} from a minute on ({@code DateFormat.append} writes it inside its minute branch; an
+     *  hour-only date has none: {@code 2014-03-10T16} in its {@code TestDateFormat}). The judges' own printer (W8 of
+     *  docs/records/d-plan-2026-11-16.md, 2026-11-16: until then the value's own {@code toString}, which is the
+     *  literal body since; it moves behind the edge's hook with the judges' print forms, W10). */
+    public static String pureText(com.legend.values.PureDateLiteral d) {
+        return d.precision().atLeast(com.legend.values.PureDateLiteral.Precision.MINUTE)
+                ? d.toEngineString() + "+0000" : d.toEngineString();
     }
 }

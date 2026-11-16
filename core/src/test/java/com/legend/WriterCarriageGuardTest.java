@@ -140,7 +140,8 @@ class WriterCarriageGuardTest {
                     Map.entry("BigDecimal.valueOf", 1),
                     Map.entry("doubleValue", 1),
                     Map.entry("Double.isFinite", 2),
-                    Map.entry("atLeast", 4),
+                    // 4 -> 5 (2026-11-16, W8: legend-engine's JSON of a date, PureDateLiteral.toEngineJson until then)
+                    Map.entry("atLeast", 5),
                     Map.entry("trimmed", 2),
                     Map.entry("contains(\"\")", 1),
                     Map.entry("endsWith(\"\")", 1),

@@ -46,15 +46,15 @@ class PureDateSpellingTest {
                             new PureDateLiteral.DateWithSubsecond(y, month, day, hour, f, f, s);
                     assertEquals(String.format(Locale.ROOT, "%d-%02d-%02dT%02d:%02d:%02d.%s", y, month, day, hour, f,
                             f, s), ss.toEngineString());
-                    assertEquals(String.format(Locale.ROOT, "%d-%02d-%02dT%02d:%02d:%02d.%s+0000", y, month, day,
-                            hour, f, f, (s + "000000000").substring(0, 9)), ss.toEngineJson());
+                    assertEquals(String.format(Locale.ROOT, "%d-%02d-%02dT%02d:%02d:%02d.%s", y, month, day,
+                            hour, f, f, (s + "000000000").substring(0, 9)), ss.toNineDigits());
                 }
-                assertEquals(String.format(Locale.ROOT, "%d-%02d-%02dT%02d:00:00.000000000+0000", y, month, day,
-                        hour), new PureDateLiteral.DateWithHour(y, month, day, hour).toEngineJson());
-                assertEquals(String.format(Locale.ROOT, "%d-%02d-%02dT%02d:%02d:00.000000000+0000", y, month, day,
-                        hour, f), new PureDateLiteral.DateWithMinute(y, month, day, hour, f).toEngineJson());
-                assertEquals(String.format(Locale.ROOT, "%d-%02d-%02dT%02d:%02d:%02d.000000000+0000", y, month, day,
-                        hour, f, f), new PureDateLiteral.DateWithSecond(y, month, day, hour, f, f).toEngineJson());
+                assertEquals(String.format(Locale.ROOT, "%d-%02d-%02dT%02d:00:00.000000000", y, month, day,
+                        hour), new PureDateLiteral.DateWithHour(y, month, day, hour).toNineDigits());
+                assertEquals(String.format(Locale.ROOT, "%d-%02d-%02dT%02d:%02d:00.000000000", y, month, day,
+                        hour, f), new PureDateLiteral.DateWithMinute(y, month, day, hour, f).toNineDigits());
+                assertEquals(String.format(Locale.ROOT, "%d-%02d-%02dT%02d:%02d:%02d.000000000", y, month, day,
+                        hour, f, f), new PureDateLiteral.DateWithSecond(y, month, day, hour, f, f).toNineDigits());
             }
         }
     }

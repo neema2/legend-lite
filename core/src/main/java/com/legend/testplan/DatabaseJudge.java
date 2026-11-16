@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.legend.testplan;
 
+import com.legend.testexecutionplan.Verdicts;
 import com.legend.testexecutionplan.JudgeJson;
 import com.legend.testexecutionplan.KindClass;
 import com.legend.builtin.NativeFn;
@@ -287,7 +288,7 @@ final class DatabaseJudge {
             // toString: the written precision, the zone where a minute is written) -- the host's own printer; the
             // database carries the literal's precision in no value it could print (2026-11-05, the user: "clean
             // datetime for the clean plan")
-            return com.legend.lowering.VerdictSql.Message.literal(kind, "%" + d.value());
+            return com.legend.lowering.VerdictSql.Message.literal(kind, "%" + Verdicts.pureText(d.value()));
         }
         if (kind instanceof com.legend.compiler.element.type.Type.GenericType g && !com.legend.compiler.element.type
                 .Type.isRelation(g) && plan instanceof com.legend.sql.SqlSelect ps

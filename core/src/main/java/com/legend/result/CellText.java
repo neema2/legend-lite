@@ -305,12 +305,12 @@ public final class CellText {
      *  in UTC, six fraction digits and Z"; W4, 2026-11-16): what the SQL's {@code DATETIME_TO_TEXT} writes, so a cell
      *  and a computed text agree. */
     static String productTime(PureDateLiteral d) {
-        // the value's own spelling at nine fraction digits, its last three digits and its five-character GMT offset
-        // replaced by Z: the same digits, carried (a time-bearing value: an hour or finer)
+        // the value's own spelling at nine fraction digits, its last three digits replaced by Z: the same digits,
+        // carried (a time-bearing value: an hour or finer)
         // (a value finer than a microsecond is written at six digits, as S312 rules and a relation's cell always was:
         // the plan's decision log carries it to the user's end batch)
-        String nine = d.toEngineJson();
-        return nine.substring(0, nine.length() - 8) + "Z";
+        String nine = d.toNineDigits();
+        return nine.substring(0, nine.length() - 3) + "Z";
     }
 
     /** A date's day ({@code yyyy-MM-dd}), or its own text where it is coarser than a day. */

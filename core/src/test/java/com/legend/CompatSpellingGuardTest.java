@@ -294,6 +294,10 @@ class CompatSpellingGuardTest {
             "testexecutionplan/HostJudgment.java | EngineText | 2 | D1.7",
             "testexecutionplan/PlannedAppeals.java | EngineText | 1 | D1.7",
             "testexecutionplan/Verdicts.java | EngineText | 1 | D1.7",
+            // 2026-11-16 (W8 of docs/records/d-plan-2026-11-16.md): legend-pure's toRepresentation of a date, the judges'
+            // own printer (Verdicts.pureText), which PureDateLiteral's toString was until then; with the judges' print
+            // forms at W10
+            "testexecutionplan/Verdicts.java | +0000 | 1 | D1.9",
             "testplan/AgreementAsserts.java | EngineText | 1 | D1.7",
             "testplan/AssertVerdicts.java | EngineText | 3 | D1.7",
             "testplan/BodyDriver.java | EnginePlans | 1 | D1.7",
@@ -305,12 +309,14 @@ class CompatSpellingGuardTest {
             "testplan/SqlTextVerdicts.java | EngineText | 1 | D1.7",
             "testplan/SqlTextVerdicts.java | withEngineText | 3 | D1.7",
             // retagged 2026-11-15 (D1.2's end): the judging rules' choice of the generator's printing, D1.9's
-            "testplan/TestPlanner.java | COMPAT | 1 | D1.9",
+            "testplan/TestPlanner.java | COMPAT | 1 | D1.9"
             // retagged 2026-11-15 (D1.2's end): Java's spelling of a date value. D1.4 -> D1.8 (2026-11-16, W4): lite's
             // writers no longer read it (CellText's product half prints S312's text); what remains is legend-engine's
             // JSON of a date (toEngineJson, read by CellText's engine half, which moves with PureV1Writer at W8) and
-            // legend-pure's print form (the three toStrings, the judges' and the edge's), moved at W8 with the writers
-            "values/PureDateLiteral.java | +0000 | 4 | D1.8"
+            // legend-pure's print form (the three toStrings, the judges' and the edge's), moved at W8 with the writers.
+            // GONE 2026-11-16 (W8): toEngineJson is toNineDigits, zone-free (the product adds Z, edge.EngineCells
+            // +0000); the toStrings are the literal body; legend-pure's print form is the judges' printer
+            // (testexecutionplan.Verdicts.pureText, W10's) and the edge's (EngineCells)
     );
 
     @Test

@@ -81,15 +81,13 @@ public sealed interface PureDateLiteral
                 PureDateLiteral.DateWithSecond,
                 PureDateLiteral.DateWithSubsecond {
 
-    /** THE ENGINE'S JSON SPELLING of a date value (its ServiceTestRunner /
-     * PURE_TDSOBJECT value transformer, witnessed 2026-09-16 on the stress
-     * corpus): a date-only value prints its literal body; a time-bearing
-     * value prints seconds, NINE fractional digits and the GMT
-     * {@code +0000} suffix whatever precision was written —
-     * {@code 2024-06-03T09:07:00.000000000+0000}. One owner beside
-     * {@link #toEngineString} (the literal body) and {@link #toString}
-     * (Pure's print form). */
-    default String toEngineJson() {
+    /** A date value AT NINE FRACTION DIGITS, with no zone (W8 of docs/records/d-plan-2026-11-16.md, 2026-11-16): a
+     * date-only value its literal body; a time-bearing value its seconds and NINE fractional digits whatever
+     * precision was written -- {@code 2024-06-03T09:07:00.000000000}. Each writer adds its own zone: the product
+     * S312's {@code Z} at six digits ({@code result.CellText}), legend-engine's JSON (its ServiceTestRunner /
+     * PURE_TDSOBJECT value transformer, witnessed 2026-09-16 on the stress corpus) the GMT {@code +0000}
+     * ({@code edge.EngineCells}). One owner beside {@link #toEngineString} (the literal body). */
+    default String toNineDigits() {
         return switch (this) {
             case Year y -> y.toEngineString();
             case YearMonth ym -> ym.toEngineString();
@@ -103,7 +101,7 @@ public sealed interface PureDateLiteral
         };
     }
 
-    /** {@link #toEngineJson}'s spelling, {@code %d-%02d-%02dT%02d:%02d:%02d.%s+0000}, written by hand: a value of the
+    /** {@link #toNineDigits}'s spelling, {@code %d-%02d-%02dT%02d:%02d:%02d.%s}, written by hand: a value of the
      *  writers' every cell, where the formatter's parse of its pattern cost a fifth of a JSON or CSV writer's time
      *  (the payoff measurement, 2026-11-01). The year as it is (a sign, any digits); the others two digits. */
     private static String engineJson(int year, int month, int day, int hour, int minute, int second,
@@ -114,7 +112,7 @@ public sealed interface PureDateLiteral
         twoDigits(b, day).append('T');
         twoDigits(b, hour).append(':');
         twoDigits(b, minute).append(':');
-        twoDigits(b, second).append('.').append(nineDigits).append("+0000");
+        twoDigits(b, second).append('.').append(nineDigits);
         return b.toString();
     }
 
@@ -429,10 +427,7 @@ public sealed interface PureDateLiteral
             return spelled(4, year, month, day, hour, 0, 0, null);
         }
 
-        /** Pure's print form: an hour-only date prints WITHOUT a zone -- legend-pure's {@code DateFormat.append}
-         * writes {@code +0000} inside its minute branch ({@code 2014-03-10T16} in its {@code TestDateFormat});
-         * corrected 2026-10-29 (the result boundary program's S1.5, the upstream-fidelity tenet) from the
-         * "H1 toString spec" that put the zone on every time-bearing value, which named no upstream. */
+        /** The literal body ({@link #toEngineString}), no zone, as every date kind (W8, 2026-11-16). */
         @Override public String toString() { return toEngineString(); }
     }
 
@@ -441,10 +436,10 @@ public sealed interface PureDateLiteral
             return spelled(5, year, month, day, hour, minute, 0, null);
         }
 
-        /** Pure's print form: a value with a minute carries the {@code +0000} zone -- legend-pure's
-         * {@code DateFormat.append} writes it inside its minute branch (the citation corrected 2026-10-29, S1.5: the
-         * "H1 toString spec" cited until then named no upstream); {@link #toEngineString} stays the literal body. */
-        @Override public String toString() { return toEngineString() + "+0000"; }
+        /** The literal body ({@link #toEngineString}), no zone (W8 of docs/records/d-plan-2026-11-16.md, 2026-11-16):
+         * legend-pure's print form, which writes {@code +0000} from a minute on, is the edge's and the judges' own
+         * printer's, never this value's; the product writes S312's text ({@code result.CellText}). */
+        @Override public String toString() { return toEngineString(); }
     }
 
     record DateWithSecond(int year, int month, int day, int hour, int minute, int second) implements PureDateLiteral {
@@ -452,10 +447,10 @@ public sealed interface PureDateLiteral
             return spelled(6, year, month, day, hour, minute, second, null);
         }
 
-        /** Pure's print form: a value with a minute carries the {@code +0000} zone -- legend-pure's
-         * {@code DateFormat.append} writes it inside its minute branch (the citation corrected 2026-10-29, S1.5: the
-         * "H1 toString spec" cited until then named no upstream); {@link #toEngineString} stays the literal body. */
-        @Override public String toString() { return toEngineString() + "+0000"; }
+        /** The literal body ({@link #toEngineString}), no zone (W8 of docs/records/d-plan-2026-11-16.md, 2026-11-16):
+         * legend-pure's print form, which writes {@code +0000} from a minute on, is the edge's and the judges' own
+         * printer's, never this value's; the product writes S312's text ({@code result.CellText}). */
+        @Override public String toString() { return toEngineString(); }
     }
 
     record DateWithSubsecond(int year, int month, int day,
@@ -465,10 +460,10 @@ public sealed interface PureDateLiteral
             return spelled(7, year, month, day, hour, minute, second, subsecond);
         }
 
-        /** Pure's print form: a value with a minute carries the {@code +0000} zone -- legend-pure's
-         * {@code DateFormat.append} writes it inside its minute branch (the citation corrected 2026-10-29, S1.5: the
-         * "H1 toString spec" cited until then named no upstream); {@link #toEngineString} stays the literal body. */
-        @Override public String toString() { return toEngineString() + "+0000"; }
+        /** The literal body ({@link #toEngineString}), no zone (W8 of docs/records/d-plan-2026-11-16.md, 2026-11-16):
+         * legend-pure's print form, which writes {@code +0000} from a minute on, is the edge's and the judges' own
+         * printer's, never this value's; the product writes S312's text ({@code result.CellText}). */
+        @Override public String toString() { return toEngineString(); }
     }
 
     // ---------------------------------------------------------------
