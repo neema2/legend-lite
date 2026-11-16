@@ -1484,7 +1484,10 @@ final class SqlTextVerdicts {
         // the rows planned where the appeal reads them: the body's own environment for a system-routed body's assert
         // under the database judge (ExecEnv.appealOn), this one otherwise
         BodyDriver.ExecEnv appealOn = EngineTextPlanning.appealOn(env);
-        BodyDriver.ExecEnv on = appealOn != null ? appealOn : env;
+        // the rows leg plans under the referee's bindings (VerdictQueries.refereeBindings' lets, made-up values): its
+        // consumed lets stay its own, never the body's accumulator, by which a later read of the body's plan text
+        // would resolve a plan parameter (G10, 2026-11-16: the two judges' halves read one plan's text differently)
+        BodyDriver.ExecEnv on = EngineTextPlanning.withOwnLets(appealOn != null ? appealOn : env);
         RowsAhead ahead = new RowsAhead(sideAhead(rowsRead, letPrefix, specs, on, hook),
                 sideAhead(populationRead, letPrefix, specs, on, hook));
         return ahead;
