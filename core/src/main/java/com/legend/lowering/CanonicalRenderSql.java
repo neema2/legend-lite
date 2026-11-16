@@ -748,8 +748,10 @@ public final class CanonicalRenderSql {
                     .filter(f -> f.name().equals(k.name()))
                     .map(SqlType.Struct.Field::type)
                     .findFirst().orElse(null);
-            // a literal instance's field is the literal's value (StructGet.of), never the struct written again per field
-            SqlExpr field = SqlExpr.StructGet.of(v, k.name());
+            // a literal instance's scalar field is the literal's value (StructGet.of), never the struct written again per
+            // field; a to-many field is read through the struct, which types its elements (an empty literal list is
+            // typed Bottom[], which a dialect cannot transform: Postgres refused it, 2026-11-16)
+            SqlExpr field = k.many() ? new SqlExpr.StructGet(v, k.name()) : SqlExpr.StructGet.of(v, k.name());
             SqlExpr c;
             if (k.many()) {
                 SqlType elem = ft instanceof SqlType.Array at
