@@ -37,15 +37,15 @@ class RaisedKindTest {
     @Test
     void aSitesTokenIsItsKindAndItsPlannedWords() {
         var r = assertInstanceOf(RaisedErrors.Positioned.class,
-                RaisedErrors.unwrapped(failure("3:7" + RaisedErrors.POSITION_SEP + "LG#1"), SITES));
+                RaisedErrors.unwrapped(failure("3:7" + RaisedErrors.POSITION_SEP + RaiseKind.TOKEN + "1"), SITES));
         assertEquals(RaiseKind.DIVIDE_BY_ZERO, r.kind());
         assertEquals(3, r.line());
         assertEquals(7, r.column());
-        var error = RaisedErrors.dataErrorOf(RaisedErrors.unwrapped(failure("LG#3"), SITES));
+        var error = RaisedErrors.dataErrorOf(RaisedErrors.unwrapped(failure(RaiseKind.TOKEN + "3"), SITES));
         assertEquals(ErrorKind.INDEX_OUT_OF_BOUNDS, error.kind());
         assertEquals("The system is trying to get an element at offset 5 where the collection is of size 3",
                 error.getMessage(), "an edge plan's site says upstream's words, planned");
-        assertEquals(ErrorKind.DIVIDE_BY_ZERO, RaisedErrors.dataError("x" + RaisedErrors.SENTINEL + "LG#1"
+        assertEquals(ErrorKind.DIVIDE_BY_ZERO, RaisedErrors.dataError("x" + RaisedErrors.SENTINEL + RaiseKind.TOKEN + "1"
                 + RaisedErrors.SENTINEL, new RuntimeException(), SITES).kind());
     }
 
@@ -53,7 +53,7 @@ class RaisedKindTest {
      *  fail text spelled as a kind's name is the user's text, never that kind. */
     @Test
     void aSitesWhereIsWorded_andAUsersTextIsNeverAKind() {
-        var placed = RaisedErrors.dataErrorOf(RaisedErrors.unwrapped(failure("LG#2"), SITES));
+        var placed = RaisedErrors.dataErrorOf(RaisedErrors.unwrapped(failure(RaiseKind.TOKEN + "2"), SITES));
         assertEquals(ErrorKind.FRACTION_NOT_KEPT, placed.kind());
         assertEquals("more fraction digits than this database keeps: the DateTime parameter 't'", placed.getMessage());
         var users = RaisedErrors.dataErrorOf(RaisedErrors.unwrapped(failure("DIVIDE_BY_ZERO"), SITES));
@@ -65,10 +65,19 @@ class RaisedKindTest {
     @Test
     void anUndeclaredTokenIsRefusedByName() {
         var refused = org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class,
-                () -> RaisedErrors.unwrapped(failure("LG#4"), SITES));
+                () -> RaisedErrors.unwrapped(failure(RaiseKind.TOKEN + "4"), SITES));
         assertTrue(refused.getMessage().contains("LG#4"), refused.getMessage());
         org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class,
-                () -> RaisedErrors.unwrapped(failure("LG#1"), List.of()));
+                () -> RaisedErrors.unwrapped(failure(RaiseKind.TOKEN + "1"), List.of()));
+    }
+
+    /** A user's fail text spelled as a token, unmarked, is the user's own text, never a site (the D part 1 audit's
+     *  S4: the mark opens every token for this). */
+    @Test
+    void aUsersTextSpelledAsATokenIsNeverASite() {
+        var users = RaisedErrors.dataErrorOf(RaisedErrors.unwrapped(failure("LG#1"), SITES));
+        assertNull(users.kind());
+        assertEquals("LG#1", users.getMessage());
     }
 
     @Test

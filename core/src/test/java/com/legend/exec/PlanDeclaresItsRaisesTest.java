@@ -67,7 +67,7 @@ class PlanDeclaresItsRaisesTest {
      * EVERY TOKEN A STATEMENT CAN RAISE IS IN ITS SITE TABLE, on every relational database and on MongoDB (the P2
      * checkpoint audit's A-S5, 2026-11-16; phase D's Phase 2, raises as SITES, the same day): for each raising query a
      * database plans, its kind is among the plan's raises, every token {@code LG#<n>} a statement's text carries is a
-     * site that statement declares, and no text carries a kind's mark. (A query a database refuses by name at planning
+     * site that statement declares, and no text carries the mark outside a token. (A query a database refuses by name at planning
      * is that database's answer, not this test's.)
      */
     @Test
@@ -99,8 +99,8 @@ class PlanDeclaresItsRaisesTest {
                         wrong.add(e.getKey() + ": raises " + m.group() + ", declares " + sql.sites());
                     }
                 }
-                if (sql.statement().indexOf(RaiseKind.MARK) >= 0) {
-                    wrong.add(e.getKey() + ": a kind's mark in its text: " + sql.statement());
+                if (sql.statement().replace(RaiseKind.TOKEN, "").indexOf(RaiseKind.MARK) >= 0) {
+                    wrong.add(e.getKey() + ": the mark in its text outside a token: " + sql.statement());
                 }
             }
         }

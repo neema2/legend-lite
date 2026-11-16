@@ -111,7 +111,8 @@ public final class TypeFacts {
                 .append("  SENTINEL: '").append(unicode(com.legend.exec.RaisedErrors.SENTINEL)).append("',\n")
                 .append("  POSITION_SEP: '").append(unicode(com.legend.exec.RaisedErrors.POSITION_SEP)).append("',\n")
                 .append("  QUOTE_MARK: '").append(unicode(com.legend.exec.RaisedErrors.QUOTE_MARK)).append("',\n")
-                .append("  TOKEN: '").append(com.legend.sql.RaiseKind.TOKEN).append("',\n")
+                .append("  TOKEN: '").append(unicode(com.legend.sql.RaiseKind.TOKEN.charAt(0)))
+                .append(com.legend.sql.RaiseKind.TOKEN.substring(1)).append("',\n")
                 .append("} as const;\n");
         return out.toString();
     }
@@ -139,7 +140,8 @@ public final class TypeFacts {
                 .append("RAISE_SENTINEL = '").append(unicode(com.legend.exec.RaisedErrors.SENTINEL)).append("'\n")
                 .append("RAISE_POSITION_SEP = '").append(unicode(com.legend.exec.RaisedErrors.POSITION_SEP)).append("'\n")
                 .append("RAISE_QUOTE_MARK = '").append(unicode(com.legend.exec.RaisedErrors.QUOTE_MARK)).append("'\n")
-                .append("RAISE_TOKEN = '").append(com.legend.sql.RaiseKind.TOKEN).append("'\n");
+                .append("RAISE_TOKEN = '").append(unicode(com.legend.sql.RaiseKind.TOKEN.charAt(0)))
+                .append(com.legend.sql.RaiseKind.TOKEN.substring(1)).append("'\n");
         return out.toString();
     }
 

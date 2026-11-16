@@ -12,5 +12,5 @@ export const RAISE = {
   SENTINEL: '\u001f',
   POSITION_SEP: '\u001e',
   QUOTE_MARK: '\u001d',
-  TOKEN: 'LG#',
+  TOKEN: '\u001cLG#',
 } as const;

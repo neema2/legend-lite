@@ -978,7 +978,7 @@ describe('a raise, worded', () => {
   });
 
   it('refuses a token its statement does not declare by name, the database error kept as its cause', () => {
-    const db = new Error('Invalid Input Error: \u001fLG#1\u001f');
+    const db = new Error('Invalid Input Error: \u001f\u001cLG#1\u001f');
     const e = failure(db.message, 'SELECT a statement no plan declared', { cause: db });
     assert.ok(e instanceof QueryError && !(e instanceof PlanRaise));
     assert.match(e.message, /LG#1, which the statement does not declare/);
@@ -993,7 +993,7 @@ describe('a raise, worded', () => {
       (e: unknown) => e instanceof PlanRaise && e.message === 'division by zero');
     // the envelope a product statement raises, sent as the database's own error() writes it: read through the sites
     // the plans the tab read declared for that text
-    const sent = "SELECT error(chr(31) || 'LG#1' || chr(31))";
+    const sent = "SELECT error(chr(31) || chr(28) || 'LG#1' || chr(31))";
     declareStatementSites(sent, [{ n: 1, kind: 'DIVIDE_BY_ZERO', where: null, message: 'division by zero', upstream: null }], 'a test');
     await assert.rejects(() => inRun('a test', () => asTest(engine).run(unplanned(sent), 0)),
       (e: unknown) => e instanceof PlanRaise && e.message === 'division by zero' && e.kind === 'DIVIDE_BY_ZERO');

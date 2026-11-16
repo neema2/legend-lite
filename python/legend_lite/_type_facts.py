@@ -58,4 +58,4 @@ TYPE_FACTS: dict[str, tuple[str, str]] = {
 RAISE_SENTINEL = '\u001f'
 RAISE_POSITION_SEP = '\u001e'
 RAISE_QUOTE_MARK = '\u001d'
-RAISE_TOKEN = 'LG#'
+RAISE_TOKEN = '\u001cLG#'

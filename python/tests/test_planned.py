@@ -1143,7 +1143,7 @@ class ARaiseIsWorded(unittest.TestCase):
     def test_a_token_its_statement_does_not_declare_is_refused_by_name(self):
         from legend_lite._raised import raised_words
         with self.assertRaisesRegex(ValueError, 'LG#1, which the statement does not declare'):
-            raised_words('\x1fLG#1\x1f', 'SELECT a statement no plan declared')
+            raised_words('\x1f\x1cLG#1\x1f', 'SELECT a statement no plan declared')
 
     def test_a_raise_fired_at_a_fetch_is_worded(self):
         from legend_lite._planned import Result
@@ -1156,7 +1156,7 @@ class ARaiseIsWorded(unittest.TestCase):
         class Failing:
             def fetchall(self):
                 raise RuntimeError('Invalid Input Error: Attempting to execute an unsuccessful or closed pending query'
-                                   ' result\nError: Invalid Input Error: \x1fLG#1\x1f')
+                                   ' result\nError: Invalid Input Error: \x1f\x1cLG#1\x1f')
 
         with self.assertRaises(RuntimeError) as raised:
             Result(Failing(), 'SELECT 1 / 0').fetchall()
