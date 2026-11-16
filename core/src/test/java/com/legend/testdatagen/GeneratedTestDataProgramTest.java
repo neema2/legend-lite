@@ -556,7 +556,8 @@ class GeneratedTestDataProgramTest {
         com.legend.testexecutionplan.TestPlan plan = TestExecution.planBody(typed(ctx, "{|" + LETS
                 + "t::assertTestData('" + pure(SLICE) + "', $testData.dataCsvString, t::DB);\n"
                 + "t::loadAndTestExecution($query, [], $mapping, $runtime, $testData.dataCsvString, t::DB);}"), "t::RT",
-                ExecuteOptions.NONE.withJudgeMode(judge));
+                // the edge's style: the generator's body binds legend-engine's plan handle (as run's, 2026-11-16)
+                ExecuteOptions.NONE.withJudgeMode(judge).withStyle(com.legend.edge.PureText.UPSTREAM));
         org.junit.jupiter.api.Assertions.assertNull(com.legend.testexecutionplan.TestPlanJson.roundTripDifference(plan),
                 backend.name() + " " + judge);
     }
@@ -580,7 +581,10 @@ class GeneratedTestDataProgramTest {
      *  body's session recorded in {@code sent}. */
     private static List<String> run(TestBackend backend, PlanningOptions.JudgeMode judge, ModelContext ctx,
             String body, List<String> sent) throws Exception {
-        return run(backend, judge, ctx, body, sent, com.legend.database.PlanStyle.PRODUCT);
+        // the edge's style: a generated slice's body binds legend-engine's plan handle (the test data generator plans
+        // through executionPlan), which only the edge plans (the hook fold, 2026-11-16; the first full CI on D's stage
+        // found it planned on the product's, refused by name)
+        return run(backend, judge, ctx, body, sent, com.legend.edge.PureText.UPSTREAM);
     }
 
     /** {@link #run(TestBackend, PlanningOptions.JudgeMode, ModelContext, String, List)} planned in {@code style}. */

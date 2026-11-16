@@ -49,8 +49,9 @@ class PureDateLiteralTest {
     @Test
     void toString_zoneFromAMinuteOn() {
         assertEquals("2024-01-15T10", PureDateLiteral.parse("2024-01-15T10").toString());
-        assertEquals("2024-01-15T10:30+0000", PureDateLiteral.parse("2024-01-15T10:30").toString());
-        assertEquals("2024-01-15T10:30:00+0000", PureDateLiteral.parse("2024-01-15T10:30:00").toString());
+        // zone-free since W8 (fa107acb2, 2026-11-16): legend-pure's +0000 is its printers' (the edge's), not the value's
+        assertEquals("2024-01-15T10:30", PureDateLiteral.parse("2024-01-15T10:30").toString());
+        assertEquals("2024-01-15T10:30:00", PureDateLiteral.parse("2024-01-15T10:30:00").toString());
         assertEquals("2024-01-15", PureDateLiteral.parse("2024-01-15").toString());
     }
 
