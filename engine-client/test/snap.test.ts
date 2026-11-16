@@ -65,13 +65,14 @@ const answering = (over: (sql: string) => RawTable | Error | undefined): QueryEn
 });
 
 let engine: DuckDbEngine;
+let db: Awaited<ReturnType<typeof startNodeDuckDb>>;
 
 /** The planner, which writes each copy's statements (D5). */
 let planner: WasmGrammar;
 
 before(async () => {
   planner = await loadPlanner();
-  const db = await startNodeDuckDb(runfilesFromEnv('DUCKDB_EXTENSIONS'));
+  db = await startNodeDuckDb(runfilesFromEnv('DUCKDB_EXTENSIONS'));
   engine = new DuckDbEngine(db.connect() as ArrowishConnection);
   await inRun('a test', () => engine.run(
     unplanned(`CREATE TABLE trades AS
@@ -85,6 +86,60 @@ before(async () => {
 
 after(async () => {
   await engine?.close();
+});
+
+// A COPY STREAMED OVER THE NETWORK (2026-11-16, the TypeScript hunt's T-C): it waited on the network inside the tab's
+// one shared connection, so a stalled warehouse froze every grid's query, and nothing could stop it. The copy is made on
+// a connection of its own, and its signal ends it, the copy rolled back.
+describe('a snap from a remote plane', () => {
+  /** `p`, or a failure after `ms`: the test's bound alone, so a wait that never ends fails the test, never hangs it. */
+  const within = <T>(p: Promise<T>, ms = 5000): Promise<T> => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const late = new Promise<never>((_, no) => { timer = setTimeout(() => no(new Error(`still waiting after ${ms} ms`)), ms); });
+    return Promise.race([p, late]).finally(() => clearTimeout(timer));
+  };
+
+  it("streams on a connection of its own, the grids' connection free while it waits, and stops when told", async () => {
+    let streaming!: () => void;
+    const started = new Promise<void>((done) => { streaming = done; });
+    // a warehouse that counts the rows, says it is done, then sends nothing: a stalled network
+    const stalled = {
+      databaseType: 'DuckDB',
+      run: async () => ({ columns: [{ name: 'value', type: 'Integer', values: [1000] }], rowCount: 1, epoch: 0, elapsedMs: 0 }),
+      async *arrowChunks(_sql: unknown, signal?: AbortSignal, onReceipt?: (r: { plane: string; where: string; serverRows: number }) => void): AsyncIterable<Uint8Array> {
+        onReceipt?.({ plane: 'warehouse', where: 'a stalled warehouse', serverRows: 1000 });
+        streaming();
+        await new Promise<never>((_, stop) => signal?.addEventListener('abort', () => stop(signal.reason), { once: true }));
+      },
+    } as unknown as ConstructorParameters<typeof SnapManager>[1];
+    let closed = 0;
+    const own = async () => {
+      const connection = new DuckDbEngine(db.connect() as ArrowishConnection);
+      return { exclusive: connection.exclusive.bind(connection), close: async () => { closed++; await connection.close(); } };
+    };
+    const s = new SnapManager(engine, stalled, planner, own);
+    const stop = new AbortController();
+    const snapped = s.snap(1, { ...counting('SELECT * FROM trades'), pull: pullOf('trades'), target: target('snap_remote'), signal: stop.signal });
+    await within(started);
+    // the stream waits on the network; a grid's query on the tab's connection is answered meanwhile
+    const answered = await within(inRun('a test', () => engine.run(unplanned('SELECT 42 AS n'), 0)));
+    assert.equal(Number(answered.columns[0]!.values[0]), 42);
+    // told to stop: the snap ends, its copy rolled back, its connection closed
+    stop.abort(new Error('the grid was closed while its snap was made'));
+    await within(assert.rejects(snapped, /the grid was closed while its snap was made/));
+    const left = await inRun('a test', () => engine.run(unplanned("SELECT count(*) AS n FROM duckdb_tables() WHERE table_name = 'snap_remote'"), 0));
+    assert.equal(Number(left.columns[0]!.values[0]), 0, 'no copy is left');
+    assert.equal(closed, 1, "the copy's connection is closed");
+    assert.equal(s.isSnapped, false);
+  });
+
+  it('is refused by name where the store opens no connection of its own', async () => {
+    const remote = { databaseType: 'DuckDB', run: async () => ({ columns: [{ name: 'value', type: 'Integer', values: [1] }], rowCount: 1, epoch: 0, elapsedMs: 0 }),
+      arrowChunks: () => { throw new Error('nothing is streamed'); } } as unknown as ConstructorParameters<typeof SnapManager>[1];
+    const s = new SnapManager(engine, remote, planner);
+    await assert.rejects(s.snap(1, { ...counting('SELECT * FROM trades'), pull: pullOf('trades'), target: target('snap_none') }),
+      /the local store opens no connection of its own for a copy streamed over the network/);
+  });
 });
 
 describe('SnapManager', () => {

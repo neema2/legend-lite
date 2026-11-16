@@ -85,6 +85,11 @@ interface StreamStore {
   exclusive<T>(work: (held: HostStreams['held']) => Promise<T>): Promise<T>;
 }
 
+/** A connection of the local store's own, opened for one copy streamed over the network and closed after it. */
+export interface OwnConnection extends StreamStore {
+  close(): Promise<void>;
+}
+
 /**
  * Memory ceiling. A ~500MB tab
  * budget holds about 10M rows across every data shape measured --
@@ -189,13 +194,16 @@ export class SnapManager implements Snaps {
   /** What writes the copy's statements (the tab's planner: D5) and plans a remote plane's stream; none, a snap is
    *  refused by name. */
   readonly #host: (HostOperationsSource & Partial<SnapStreamSource>) | undefined;
+  /** A connection of the store's own, for a copy streamed from a remote plane; none, such a snap is refused by name. */
+  readonly #connect: (() => Promise<OwnConnection>) | undefined;
   #state: PlaneState = { mode: 'live' };
 
   constructor(engine: (QueryEngine & { readonly databaseType: string }) | null, remote: RemoteSource | null = null,
-    host?: HostOperationsSource & Partial<SnapStreamSource>) {
+    host?: HostOperationsSource & Partial<SnapStreamSource>, connect?: () => Promise<OwnConnection>) {
     this.#engine = engine;
     this.#remote = remote;
     this.#host = host;
+    this.#connect = connect;
   }
 
   /** The planner's statements for `operations` on a database of `databaseType`, in order. */
@@ -291,6 +299,8 @@ export class SnapManager implements Snaps {
       /** The pull (its planner's planRequest): what the planner plans again in the copy's own plan -- a remote plane's
        *  stream (snapStream), a local copy (snapCopy) -- never its statement (the user's ruling of 2026-11-12). */
       readonly pull: SnapPull;
+      /** Stops a copy streamed from a remote plane: its request ends, and its table is rolled back. */
+      readonly signal?: AbortSignal;
     },
   ): Promise<SnapInfo> {
     const estimate = await this.preflight(options.count, epoch);
@@ -322,8 +332,24 @@ export class SnapManager implements Snaps {
       const plan = await host.snapStream({ databaseType: engine.databaseType, plane: REMOTE_PLANE, ...options.pull,
         ...(schema ? { schema } : {}), table: bare });
       const remote = this.#remote;
-      const { landed } = await store.exclusive((held) => runLoad(plan, (sql, params) => held.rows(sql, params),
-        { streams: { planes: { [REMOTE_PLANE]: remote }, held } }));
+      // on a connection of its own (2026-11-16, the TypeScript hunt's T-C): the stream waits on the network, and on the
+      // store's shared connection that held every grid's query behind it; `signal` ends it, the copy rolled back
+      if (this.#connect === undefined) {
+        throw new SnapRefusal('the local store opens no connection of its own for a copy streamed over the network: it cannot be snapped');
+      }
+      const own = await this.#connect();
+      let landed: Awaited<ReturnType<typeof runLoad>>['landed'];
+      try {
+        ({ landed } = await own.exclusive((held) => runLoad(plan, (sql, params) => held.rows(sql, params),
+          { streams: { planes: { [REMOTE_PLANE]: remote }, held, ...(options.signal ? { signal: options.signal } : {}) } })));
+      } catch (e) {
+        // a close that fails too is said with the failure, never swallowed (G7)
+        await own.close().catch((c: unknown) => {
+          throw new Error(`${e instanceof Error ? e.message : String(e)} -- and closing the copy's connection failed: ${c instanceof Error ? c.message : String(c)}`, { cause: e });
+        });
+        throw e;
+      }
+      await own.close();
       const [made] = landed;
       if (made === undefined) throw new SnapRefusal('the snap\u2019s plan streamed nothing into the copy');
       pulledBy = made.receipt;

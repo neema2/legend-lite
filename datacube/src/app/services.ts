@@ -15,6 +15,7 @@ import type { ProjectDoor } from '../../../engine-client/src/doors/project-data.
 import type { CatalogObject, LiveWarehouse, WarehouseSession } from '../../../engine-client/src/warehouse-session.ts';
 import type { Lambda, ValueSpecification } from '../../../pure-protocol/src/index.ts';
 import type { Receipt } from '../../../engine-client/src/receipt.ts';
+import type { OwnConnection } from '../../../engine-client/src/snap.ts';
 import type { QueryReader } from '../../../query-store/src/index.ts';
 import type { HeldCopy } from '../app.ts';
 import type { CubeConfiguration } from '../config.ts';
@@ -152,6 +153,9 @@ export interface LocalEngine {
   readonly engine: QueryEngine & { readonly databaseType: string; run(sql: PlannedSql, epoch: number): Promise<unknown>;
     /** The database held for a write alone, one transaction (engine-client duckdb.ts exclusive: a table Output's). */
     exclusive?<T>(work: (held: HeldConnection) => Promise<T>): Promise<T> };
+  /** Another connection to the same database, set up alike: a copy streamed over the network is made on one of its own,
+   *  the grids' connection left free (the TypeScript hunt's T-C, 2026-11-16). */
+  connect?(): Promise<OwnConnection>;
 }
 
 /**

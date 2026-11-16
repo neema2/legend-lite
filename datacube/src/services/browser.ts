@@ -123,6 +123,8 @@ export async function browserServices(o: BrowserServicesOptions): Promise<Servic
             connect: () => o.duckdb.connect(),
           }, o.planner.projects))),
         engine: o.duckdb.engine,
+        // a copy streamed over the network on a connection of its own (the TypeScript hunt's T-C)
+        connect: () => o.duckdb.connect(),
       },
     },
     // opened now and waited for where a page is saved or opened: the start's first grid does not wait on IndexedDB

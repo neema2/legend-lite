@@ -43,6 +43,7 @@ import {
   SnapManager,
   type HostFrozen,
   type HostSnapTarget,
+  type OwnConnection,
   type PlaneState,
   type RemoteSource,
   type Snaps,
@@ -99,6 +100,9 @@ export interface CompileOutcome {
 export interface SnapTarget {
   /** What writes the copy's statements on the host's database: the tab's planner module (D5). */
   readonly host: HostOperationsSource;
+  /** A connection of the host's database's own, for a copy streamed from a remote plane (the tab's shared one is left
+   *  free for the grids while it waits on the network: the TypeScript hunt's T-C, 2026-11-16). */
+  readonly connect?: () => Promise<OwnConnection>;
   /** A copy to make: a table of the tab's database of its own, named by the page. */
   copy(): SnapCopy;
 }
@@ -303,6 +307,8 @@ export class CubeController {
    * (runner.ts rebased). One at a time: a second is refused while it is made.
    */
   #snapping: { readonly live: ValueSpecification } | undefined;
+  /** Ends the snap in flight: the grid closed while its copy streamed (the TypeScript hunt's T-C). */
+  readonly #snapStop = new AbortController();
   /** Closed: a snap landing after lets its copy go. */
   #closed = false;
   readonly #guard = new EpochGuard();
@@ -366,7 +372,7 @@ export class CubeController {
       },
     })
       : new SnapManager(local ? local.engine as QueryEngine & { readonly databaseType: string } : null, options.live ?? null,
-        options.snapTarget?.host);
+        options.snapTarget?.host, options.snapTarget?.connect);
   }
 
   get snaps(): Snaps {
@@ -780,6 +786,7 @@ export class CubeController {
         ...(label !== undefined ? { label } : {}),
         pull,
         count,
+        signal: this.#snapStop.signal,
         target: {
           table: copy.table,
           landed: async () => {
@@ -835,6 +842,8 @@ export class CubeController {
    */
   async close(): Promise<void> {
     this.#closed = true;
+    // a copy still streaming stops: its request ends and its table is rolled back
+    this.#snapStop.abort(new CubeRefusal('the grid was closed while its snap was made'));
     if (this.#snaps instanceof HostSnaps) await this.#snaps.close();
     else if (this.#snaps.isSnapped) await this.#snaps.release();
     this.#letCopyGo();

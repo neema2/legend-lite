@@ -325,6 +325,9 @@ export async function sha256Hex(bytes: Uint8Array): Promise<string> {
  */
 export interface HostStreams {
   readonly planes: Readonly<Record<string, HostPlane>>;
+  /** Stops a stream in flight: its plane's request ends, and the step rolls back (2026-11-16, the TypeScript hunt's
+   *  T-C: a stream waiting on a stalled network had no end). */
+  readonly signal?: AbortSignal;
   readonly held: {
     rows(sql: PlannedSql, params: readonly PlanValue[]): Promise<unknown[][]>;
     insertArrow(bytes: Uint8Array, target: { readonly schema?: string; readonly table: string }, create: boolean): Promise<void>;
@@ -370,7 +373,7 @@ async function stream(load: Load, step: StreamStep, streams: HostStreams | undef
     await run(step.prepare);
     let receipt: Receipt | undefined;
     let chunks = 0;
-    for await (const bytes of plane.arrowChunks(fromPlan(step.sql), undefined, (r) => { receipt = r; })) {
+    for await (const bytes of plane.arrowChunks(fromPlan(step.sql), streams.signal, (r) => { receipt = r; })) {
       await streams.held.insertArrow(bytes, target, chunks === 0);
       chunks += 1;
     }

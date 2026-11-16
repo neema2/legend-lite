@@ -571,6 +571,7 @@ export function pageSources(d: SourcesOf): PageSources {
    */
   const snapInto = (l: LocalEngine): SnapTarget => ({
     host: l.tables,
+    ...(l.connect ? { connect: () => l.connect!() } : {}),
     copy: () => {
       const table = freshTable('snap');
       let planner: Planner | undefined;

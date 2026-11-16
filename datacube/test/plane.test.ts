@@ -119,8 +119,12 @@ interface Copies { readonly tables: string[]; readonly disposed: string[] }
  * (`snap_1`, `snap_2`, ...), read once landed through the relation the app's model of it gives, and planned by the
  * planner the app made over that model (one of its own here).
  */
-const snapInto = (planner: Planner = new RecordingPlanner(), made: Copies = { tables: [], disposed: [] }): SnapTarget => ({
+const snapInto = (planner: Planner = new RecordingPlanner(), made: Copies = { tables: [], disposed: [] },
+  tab?: RecordingEngine): SnapTarget => ({
   host,
+  // a copy streamed from a remote plane is made on a connection of its own (the TypeScript hunt's T-C): the stand-in
+  // tab's, as another connection to its database
+  ...(tab ? { connect: async () => ({ exclusive: <T>(work: (held: HostStreams['held']) => Promise<T>) => tab.exclusive(work), close: async () => {} }) } : {}),
   copy: () => {
     const table = `snap_${made.tables.length + 1}`;
     made.tables.push(table);
@@ -356,7 +360,7 @@ describe('the snapped plane actually redirects', () => {
     const copy = new RecordingPlanner();
     const tab = new RecordingEngine();
     const warehouse = new PullingEngine();
-    const c = new CubeController(tab, live, { live: warehouse, snapTarget: snapInto(copy) });
+    const c = new CubeController(tab, live, { live: warehouse, snapTarget: snapInto(copy, undefined, tab) });
     await c.run(at(SNAPSHOT));
     live.queries.length = 0;
     live.pure.length = 0;
@@ -388,7 +392,7 @@ describe('the snapped plane actually redirects', () => {
   it('lands the pull from the warehouse in the copy\'s own table: the warehouse runs only the live plan', async () => {
     const tab = new RecordingEngine();
     const warehouse = new PullingEngine();
-    const c = new CubeController(tab, new RecordingPlanner(), { live: warehouse, snapTarget: snapInto() });
+    const c = new CubeController(tab, new RecordingPlanner(), { live: warehouse, snapTarget: snapInto(undefined, undefined, tab) });
     await c.run(at(SNAPSHOT));
     await c.snap(SNAPSHOT, 'test');
     assert.equal(warehouse.pulled.length, 1);
