@@ -650,8 +650,22 @@ final class AssociationJoins {
      * declaration order — the class-binding resolution's exact rule). */
     private java.util.Optional<com.legend.model.MappingDefinition.AssociationBinding>
             associationBindingInClosure(String mappingFqn, String assocFqn) {
+        for (String fqn : closureOf(mappingFqn)) {
+            var hit = ctx.findMapping(fqn).map(m -> m.associationBinding(assocFqn)).orElse(null);
+            if (hit != null) {
+                return java.util.Optional.of(hit);
+            }
+        }
+        return java.util.Optional.empty();
+    }
+
+    /** {@code mappingFqn} then its includes, transitively, breadth first in
+     * declaration order, each once; a mapping the model does not hold is
+     * skipped, as it has nothing to answer. */
+    private List<String> closureOf(String mappingFqn) {
         java.util.ArrayDeque<String> queue = new java.util.ArrayDeque<>();
         Set<String> seen = new LinkedHashSet<>();
+        List<String> out = new ArrayList<>();
         queue.add(mappingFqn);
         while (!queue.isEmpty()) {
             String fqn = queue.poll();
@@ -662,15 +676,12 @@ final class AssociationJoins {
             if (m.isEmpty()) {
                 continue;
             }
-            var hit = m.get().associationBinding(assocFqn);
-            if (hit != null) {
-                return java.util.Optional.of(hit);
-            }
+            out.add(fqn);
             for (var inc : m.get().includes()) {
                 queue.add(inc.mappingPath());
             }
         }
-        return java.util.Optional.empty();
+        return out;
     }
 
     /** The recursive nav materializer (set once by the resolver after
@@ -1196,9 +1207,48 @@ final class AssociationJoins {
         return pm.propertySpace() ? null : new ParentSide(pm.cond(), pm.reverse() ? 1 : 0);
     }
 
+    /** F-U2 (2026-11-14): navigating {@code prop} through a property mapping
+     * whose target set id names no set is refused, as legend-engine refuses
+     * it at planning, with its message: the target class's name and the
+     * queried mapping's (pureToSQLQuery.pure:1929-1934, doJoinToClass). The
+     * first mapping of the include closure that maps the association
+     * decides, as {@link #associationBindingInClosure} does; the id is then
+     * looked up across the QUERIED mapping's closure, where the engine looks
+     * it up ({@code $state->getClassMappingById}). */
+    private void refuseDanglingEnd(ClassSource cs, com.legend.model.AssociationDefinition assoc,
+            String prop, String targetClass) {
+        List<String> closure = closureOf(cs.mappingFqn());
+        for (String fqn : closure) {
+            var dangling = ctx.mappingAssociationEndPoison(fqn, assoc.qualifiedName(), prop);
+            if (dangling.isEmpty()) {
+                if (ctx.findMapping(fqn).map(m -> m.associationBinding(assoc.qualifiedName()) != null)
+                        .orElse(false)) {
+                    return;
+                }
+                continue;
+            }
+            for (String any : closure) {
+                if (ctx.findMapping(any).map(m -> m.bindings().withSetId(dangling.get()) != null)
+                        .orElse(false)) {
+                    return;
+                }
+            }
+            throw new MappingResolutionException("Expected 1 class mapping for '" + nameInMessage(targetClass)
+                    + "' in '" + nameInMessage(cs.mappingFqn()) + "', found 0", assoc.qualifiedName());
+        }
+    }
+
+    /** An element's name as upstream's message spells it ({@code $c.name}, {@code $state.mapping.name}): display
+     *  only, never an identity. */
+    private static String nameInMessage(String fqn) {
+        int cut = fqn.lastIndexOf("::");
+        return cut < 0 ? fqn : fqn.substring(cut + 2);
+    }
+
     private PredMaterial predicateMaterial(ClassSource cs,
             com.legend.model.AssociationDefinition assoc, String real,
             String targetClass) {
+        refuseDanglingEnd(cs, assoc, real, targetClass);
         // The predicate function: the AssociationBinding for the assoc,
         // searched across the INCLUDE CLOSURE (own mapping wins; audit V3:
         // the qualified YZ entries live in an included assoc mapping)

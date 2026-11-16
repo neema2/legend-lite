@@ -8,36 +8,59 @@ Found while modelling the study's corpora. Upstream's answer below was read from
 
 | id | what | lite today | legend-engine 4.145.0 | pinned by |
 |---|---|---|---|---|
-| F-U1 | A mapping can name a column its table does not have. | `compileModel` accepts it; only a query that reaches the property fails, at planning. So a model that compiles says little about its mappings. | Refuses at compile: `Can't find column 'NO_SUCH_COLUMN'`. | `OpenMappingGapsPinTest.fU1_aMappingToAColumnThatDoesNotExistCompiles` |
-| F-U2 | An `AssociationMapping` can name a set id that does not exist. | Accepted by `compileModel` and by planning. | Compiles, then refuses at planning: `Expected 1 class mapping for 'B' in 'M', found 0`. | `OpenMappingGapsPinTest.fU2_anAssociationMappingToASetIdThatDoesNotExistPlans` |
+| F-U1 | A mapping can name a column its table does not have. | **Closed 2026-11-14:** `compileModel` refuses it, with upstream's message. Before, it compiled, and only a query that reached the property failed. | Refuses at compile: `Can't find column 'NO_SUCH_COLUMN'`. | `OpenMappingGapsPinTest.fU1_aMappingToAColumnThatDoesNotExistIsRefusedAtCompile` |
+| F-U2 | An `AssociationMapping` can name a target set id that does not exist. | **Closed 2026-11-14 for a single-hop join:** it compiles, and planning refuses that direction with upstream's message and plans the other. **Open for a multi-hop join:** it still plans. | Compiles, then refuses that direction at planning, single-hop and multi-hop alike: `Expected 1 class mapping for 'B' in 'M', found 0`. The other direction plans. | `OpenMappingGapsPinTest.fU2_anAssociationMappingToATargetSetIdThatDoesNotExistIsRefusedAtPlanning`, `fU2_aMultiHopAssociationMappingToATargetSetIdThatDoesNotExistPlans` |
+| F-U7 | An `AssociationMapping` can name a source set id that does not exist. | Compiles and plans both directions. | Compiles, then refuses that direction at planning by another assert: `The system can't find a mapping for the property 'gap::A.bs' in the mapping 'gap::M'`. The other direction plans. | `OpenMappingGapsPinTest.fU7_anAssociationMappingFromASourceSetIdThatDoesNotExistPlans` |
 | F-U5 | A stored value outside an `EnumerationMapping` reads back as NULL, even on a `[1]` property. | No refusal at load or at read; see below. | The same answer and the same SQL: matches upstream; the loader refuses out-of-enum values before the database sees them. | `OpenMappingGapsPinTest.fU5_aValueOutsideTheEnumMappingReadsBackAsNullOnARequiredProperty` |
 | F-U3 | No vector column. | A Relational column has no VECTOR type (`DatabaseProtocolParser.parseDbType`) and Pure has no embedding type, so `corpus::Passage` carries no embedding. | not read: an absent feature here, not a divergence found | nothing |
 | F-U4 | No long-text column. | There is no TEXT or CLOB, so long text is `VARCHAR(1000000)`: above the corpus's longest section (391,046 bytes) and within Postgres's limit for a sized VARCHAR (10,485,760). | not read: an absent feature here, not a divergence found | nothing |
 
 When a pin turns red the behaviour has moved: read its failure message, then change the pin and its row deliberately.
 
-## Needs a ruling: two defect reports
+## F-U1 and F-U2: closed to match upstream (2026-11-14)
 
-Lite is laxer than upstream in both, with no register row, so each is a defect under the upstream-fidelity tenet.
-**Recommendation: close both to match upstream.** Nothing on this branch changes core's behaviour; if the owner wants the
-fix, it is a separate PR. Both were run on the pin's own model with an H2 connection. The same model with the real column
-or the real set id compiles and plans. Paths are at tag `legend-engine-4.145.0`.
+The owner ruled both fixed to match upstream, in a separate PR (#93's review, 2026-11-13). Branch
+`abs/mapping-gaps-match-upstream` closes them. Both were run on the pin's own model with an H2 connection, and the same
+model with the real column or the real set id compiles and plans. Paths are at tag `legend-engine-4.145.0`.
 
-### Defect F-U1: a mapping to a column that does not exist compiles
+### F-U1: a mapping to a column that does not exist is refused at compile
 
 - **Upstream refuses at compile.** The engine's exact error from the run:
   `org.finos.legend.engine.shared.core.operational.errorManagement.EngineException: Can't find column 'NO_SUCH_COLUMN'`
 - **Pinned source:** `legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-grammar/src/main/java/org/finos/legend/engine/language/pure/compiler/toPureGraph/HelperRelationalBuilder.java:163`
-- **Lite:** `compileModel` accepts it. Only a query that reaches the property fails, at planning.
-- **Turns red when closed:** `OpenMappingGapsPinTest.fU1_aMappingToAColumnThatDoesNotExistCompiles`
+- **Lite now:** `compileModel` refuses it at phase MODEL, with `Can't find column 'NO_SUCH_COLUMN'` behind lite's
+  source position. A tolerant build withholds the set, and a query that reaches it gives the same reason. The check is
+  `MappingValidation.validateColumns`.
 
-### Defect F-U2: an association mapping to a set id that does not exist plans
+### F-U2: an association mapping to a target set id that does not exist is refused at planning
 
-- **Upstream compiles it, then refuses at planning.** The engine's exact error from the run:
-  `Assert failure at (resource:/platform/pure/essential/tests/assert.pure line:21 column:5), "Expected 1 class mapping for 'B' in 'M', found 0"`
+- **Upstream compiles it, then refuses that direction at planning.** The engine's exact error from the run:
+  `Assert failure at (resource:/platform/pure/essential/tests/assert.pure line:21 column:5), "Expected 1 class mapping for 'B' in 'M', found 0"`.
+  The other direction, `a[setB, setA]`, plans and answers `["a"]`.
 - **Pinned source:** `legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/pureToSQLQuery/pureToSQLQuery.pure:1934`
-- **Lite:** `compileModel` and planning both accept it.
-- **Turns red when closed:** `OpenMappingGapsPinTest.fU2_anAssociationMappingToASetIdThatDoesNotExistPlans`
+- **Lite now, for a single-hop join:** `compileModel` accepts it. Planning refuses `$a.bs` at phase MAPPING with exactly
+  `Expected 1 class mapping for 'B' in 'M', found 0`, and plans `$b.a`. The normalizer records the dangling end
+  (`AssociationSynthesis`). The resolver refuses it (`AssociationJoins.refuseDanglingEnd`), looking the id up across the
+  queried mapping's include closure, as upstream does.
+- **Still open, for a multi-hop join:** upstream refuses it with the same assert and message (asked of the engine
+  runner, 2026-11-14, `bs[setA, noSuchSet]: [gap::Db]@AC > @CB`). Lite still plans it. A multi-hop end is navigated
+  through the property mapping that `AssociationSynthesis.injectMultiHopAssociationPMs` injects into the class's own
+  function, and that path reads no target set id. Pinned by
+  `fU2_aMultiHopAssociationMappingToATargetSetIdThatDoesNotExistPlans`.
+
+## Needs a ruling: F-U7, an association mapping from a source set id that does not exist
+
+Asked of the engine runner, 2026-11-14, on the pin's model with `bs[noSuchSet, setB]`:
+
+- **Upstream compiles it, then refuses that direction at planning, by a different assert:**
+  `Assert failure at (resource:/core_relational/relational/helperFunctions/helperFunctions.pure line:395 column:11), "The system can't find a mapping for the property 'gap::A.bs' in the mapping 'gap::M'"`.
+  The other direction plans and answers `["a"]`. With `a[noSuchSet, setA]` it is the mirror:
+  `... for the property 'gap::B.a' ...`, and `$a.bs` answers `["b"]`.
+- **Pinned source:** `legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/helperFunctions/helperFunctions.pure:395`
+- **Lite:** compiles it and plans both directions. A source id that names no set takes the class's own set
+  (`AssociationSynthesis.endAnchor`).
+- **Pinned by:** `OpenMappingGapsPinTest.fU7_anAssociationMappingFromASourceSetIdThatDoesNotExistPlans`, which turns red
+  when it closes.
 
 ## F-U5: matches upstream
 

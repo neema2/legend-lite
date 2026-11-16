@@ -86,7 +86,11 @@ public final class PeRatchets {
                     + " measured by //parser-equivalence:update_ratchets",
             "own_corpus.matched 3262 -> 3268 (2026-11-16, PR #93, the unstructured study, rebased onto main at 4dfbb5b76;"
                     + " it read 3246 -> 3252 on 3a217086a): the branch's models over main's, as measured by"
-                    + " //parser-equivalence:update_ratchets, not attributed element by element");
+                    + " //parser-equivalence:update_ratchets, not attributed element by element",
+            "own_corpus.matched 3268 -> 3275 (2026-11-17, the F-U1/F-U2 PR, #114, rebased onto #93 at c30396fe5; it read"
+                    + " 3252 -> 3259 on 62c1c9525): as measured: +7, the number of elements in OpenMappingGapsPinTest's"
+                    + " new multi-hop model (F-U2's open form; the F-U5 model's connection also changed), not attributed"
+                    + " element by element");
 
     public static void main(String[] args) throws Exception {
         if (args.length != 1) {

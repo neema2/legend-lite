@@ -545,6 +545,14 @@ public final class PureModelContext implements ModelContext {
                         new com.legend.model.PoisonKey.ForAssociation(associationFqn)));
     }
 
+    @Override
+    public java.util.Optional<String> mappingAssociationEndPoison(String mappingFqn,
+            String associationFqn, String propertyName) {
+        return model.findMapping(mappingFqn)
+                .map(md -> md.facts().poisons().get(
+                        new com.legend.model.PoisonKey.ForAssociationEnd(associationFqn, propertyName)));
+    }
+
     public java.util.Optional<com.legend.model.RuntimeDefinition> findRuntime(
             @com.legend.base.Nullable String fqn) {
         Objects.requireNonNull(fqn, "fqn");

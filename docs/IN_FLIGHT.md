@@ -3531,4 +3531,9 @@ oracle for #TS").
   `core/src/test/java/com/legend/compiler/OpenMappingGapsPinTest.java` (the pins for F-U1, F-U2 and F-U5; nothing in core's main sources changes);
   `tools/legend/BUILD.bazel` and `UnstructuredCorpusTest.java`; `gates/BUILD.bazel` (this line's tests in `checks` and `heavy`); the parser-equivalence ratchet; `.gitignore`.
 - **`docs/SEMANTICS_REGISTER.md` is untouched.** The proposed rows are in the study's §6.2, in full, the number left to the owner.
-- **F-U1 and F-U2** (`projects/unstructured/FINDINGS.md`) are defects under the upstream-fidelity tenet, awaiting the owner's ruling, and any fix is a separate PR.
+- **F-U1 and F-U2** (`projects/unstructured/FINDINGS.md`) were defects under the upstream-fidelity tenet. The owner ruled
+  them fixed to match upstream in a separate PR (#93's review, 2026-11-13). **Status (2026-11-14): closed on branch
+  `abs/mapping-gaps-match-upstream`, the first core change of this line, not merged.** That PR changes core's main
+  sources (`normalizer/MappingValidation`, `normalizer/AssociationSynthesis`, `resolver/AssociationJoins`, `model/PoisonKey`,
+  `compiler/element/ModelContext` and `PureModelContext`) and moves the fixture census's ceiling 949 -> 947. Still open,
+  each pinned: F-U2's multi-hop form and F-U7 (a source set id that names no set).
