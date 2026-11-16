@@ -1,3 +1,5 @@
+> **SUPERSEDED 2026-11-16 15:00** by `docs/records/total-wall-edge-program-2026-11-16.md` (the single plan of record). This file stays as the history and log of the day.
+
 # The total-wall plan, all streams in one place (2026-11-16)
 
 Written by the orchestrator at the user's prompting, 2026-11-16, about 13:20 UTC: "Do we need to pause and take giant
