@@ -585,7 +585,9 @@ final class HostJudgments {
                 ? restrictToKeys(aVals, ik, j.keys()) : aVals;
         String d = com.legend.testexec.Equality.sameElements(
                 typedSide(e, j.e()), typedSide(a, j.a()), rules) == null
-                ? null : com.legend.testexec.PureAsserts.assertSameElements(e, a, j.e().classFqn(), j.a().classFqn(), rules);
+                // the failed TYPED comparison's message, never a second, untyped one (the ledger audit's D4, 2026-11-16:
+                // an untyped re-compare that held here returned null, and the failed assert passed)
+                ? null : com.legend.testexec.PureAsserts.sameElementsMessage(e, a, j.e().classFqn(), j.a().classFqn());
         com.legend.testexec.CanonicalDivergence.probeSameElements(
                 e, a, d == null);
         // V4/V11 — the multiset BYTE VERDICT OF RECORD: rows
@@ -762,10 +764,12 @@ final class HostJudgments {
         // values, measurement only (the byte verdict it once shadowed is deleted, P1, 2026-11-07)
         com.legend.testexec.CanonicalDivergence.probeEqual(
                 name, e, a, equal, incidental);
+        // the message is the failed verdict's own sides, spelled -- no second, untyped comparison that could hold
+        // where the typed one failed (the ledger audit's D4, 2026-11-16)
         return finish(name, wantEqual, equal,
                 () -> incidental
-                        ? com.legend.testexec.PureAsserts.assertSameElements(e, a, j.e().classFqn(), j.a().classFqn(), rules)
-                        : com.legend.testexec.PureAsserts.assertEquals(e, a, j.e().classFqn(), j.a().classFqn(), rules),
+                        ? com.legend.testexec.PureAsserts.sameElementsMessage(e, a, j.e().classFqn(), j.a().classFqn())
+                        : com.legend.testexec.PureAsserts.equalsMessage(e, a, j.e().classFqn(), j.a().classFqn()),
                 () -> com.legend.testexec.PureAsserts.notEqualsMessage(e, a));
     }
 
