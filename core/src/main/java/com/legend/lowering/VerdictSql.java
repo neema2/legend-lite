@@ -633,13 +633,19 @@ public final class VerdictSql {
                 new SqlExpr.NullLit());
     }
 
-    /** Two finite doubles within {@code 2 * ulp(max(|x|, |y|))}: S15's Float leniency over two values. */
+    /** Two finite doubles within {@code ULPS * ulp(max(|x|, |y|))} ({@link com.legend.values.FloatTolerance}, the host
+     *  judge's constant too): S15's Float leniency over two values, ulp spelled {@code 2^(floor(log2(max)) - 52)}
+     *  through {@code ln} (a boundary at an exact power of two may differ from Math.ulp by one binade). The leniency's
+     *  constants are DOUBLES, said so: a dialect whose numeric charter spells a Float literal as an exact Decimal
+     *  (ClickHouse) refused the arithmetic over Float64 cells (channel B on ClickHouse, step 9, 2026-10-19). */
     private static SqlExpr withinTwoUlp(SqlExpr x, SqlExpr y) {
         SqlExpr big = SqlExpr.Call.of(SqlFn.GREATEST, SqlExpr.Call.of(SqlFn.ABS, x), SqlExpr.Call.of(SqlFn.ABS, y));
         SqlExpr zero = new SqlExpr.Cast(new SqlExpr.FloatLit(0.0), SqlType.Scalar.DOUBLE, SqlExpr.Reason.JUDGE);
         SqlExpr two = new SqlExpr.Cast(new SqlExpr.FloatLit(2.0), SqlType.Scalar.DOUBLE, SqlExpr.Reason.JUDGE);
+        SqlExpr ulps = new SqlExpr.Cast(new SqlExpr.FloatLit(com.legend.values.FloatTolerance.ULPS), SqlType.Scalar.DOUBLE,
+                SqlExpr.Reason.JUDGE);
         SqlExpr twoUlp = new SqlExpr.Case(List.of(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.EQUAL, big, zero), zero)),
-                SqlExpr.Call.of(SqlFn.TIMES, two, SqlExpr.Call.of(SqlFn.POW, two, SqlExpr.Call.of(SqlFn.MINUS,
+                SqlExpr.Call.of(SqlFn.TIMES, ulps, SqlExpr.Call.of(SqlFn.POW, two, SqlExpr.Call.of(SqlFn.MINUS,
                         SqlExpr.Call.of(SqlFn.FLOOR, SqlExpr.Call.of(SqlFn.DIVIDE, SqlExpr.Call.of(SqlFn.LN, big),
                                 SqlExpr.Call.of(SqlFn.LN, two))), new SqlExpr.IntLit(52)))), SqlExpr.Reason.JUDGE);
         SqlExpr finite = SqlExpr.Call.of(SqlFn.AND,
@@ -2937,41 +2943,13 @@ public final class VerdictSql {
     private static SqlExpr pairOk(String ec, String ac) {
         SqlExpr ve = col(ec, V);
         SqlExpr va = col(ac, V);
-        SqlExpr big = SqlExpr.Call.of(SqlFn.GREATEST,
-                SqlExpr.Call.of(SqlFn.ABS, ve), SqlExpr.Call.of(SqlFn.ABS, va));
-        SqlExpr finite = SqlExpr.Call.of(SqlFn.AND,
-                SqlExpr.Call.of(SqlFn.LESS_EQUAL, SqlExpr.Call.of(SqlFn.ABS, ve),
-                        new SqlExpr.FloatLit(Double.MAX_VALUE)),
-                SqlExpr.Call.of(SqlFn.LESS_EQUAL, SqlExpr.Call.of(SqlFn.ABS, va),
-                        new SqlExpr.FloatLit(Double.MAX_VALUE)));
-        // the leniency's constants are DOUBLES, said so: a dialect whose numeric charter spells a Float literal as
-        // an exact Decimal (ClickHouse) refused the arithmetic over Float64 cells, "no supertype for Decimal(2, 1),
-        // Float64" (channel B on ClickHouse, step 9, 2026-10-19)
-        SqlExpr zero = new SqlExpr.Cast(new SqlExpr.FloatLit(0.0), SqlType.Scalar.DOUBLE, SqlExpr.Reason.JUDGE);
-        SqlExpr two = new SqlExpr.Cast(new SqlExpr.FloatLit(2.0), SqlType.Scalar.DOUBLE, SqlExpr.Reason.JUDGE);
-        SqlExpr twoUlp = new SqlExpr.Case(List.of(new SqlExpr.Case.When(
-                SqlExpr.Call.of(SqlFn.EQUAL, big, zero), zero)),
-                SqlExpr.Call.of(SqlFn.TIMES, two,
-                        SqlExpr.Call.of(SqlFn.POW, two,
-                                SqlExpr.Call.of(SqlFn.MINUS,
-                                        SqlExpr.Call.of(SqlFn.FLOOR,
-                                                SqlExpr.Call.of(SqlFn.DIVIDE,
-                                                        SqlExpr.Call.of(SqlFn.LN, big),
-                                                        SqlExpr.Call.of(SqlFn.LN, two))),
-                                        new SqlExpr.IntLit(52)))), SqlExpr.Reason.JUDGE);
-        SqlExpr pairOk = SqlExpr.Call.of(SqlFn.OR,
+        return SqlExpr.Call.of(SqlFn.OR,
                 SqlExpr.Call.of(SqlFn.NULL_SAFE_EQUAL, col(ec, C), col(ac, C)),
                 SqlExpr.Call.of(SqlFn.AND,
                         SqlExpr.Call.of(SqlFn.AND,
                                 SqlExpr.Call.of(SqlFn.IS_NOT_NULL, ve),
                                 SqlExpr.Call.of(SqlFn.IS_NOT_NULL, va)),
-                        SqlExpr.Call.of(SqlFn.AND, finite,
-                                SqlExpr.Call.of(SqlFn.LESS_EQUAL,
-                                        SqlExpr.Call.of(SqlFn.ABS,
-                                                SqlExpr.Call.of(SqlFn.MINUS, ve, va)),
-                                        twoUlp))));
-        // a bad position exists?
-        return pairOk;
+                        withinTwoUlp(ve, va)));
     }
 
     private static List<OutputCol> cteOutputs() {

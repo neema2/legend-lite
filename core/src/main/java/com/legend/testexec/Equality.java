@@ -96,7 +96,7 @@ public final class Equality {
             return false;
         }
         double ulp = Math.ulp(Math.max(Math.abs(x), Math.abs(y)));
-        boolean ok = Math.abs(x - y) <= 2 * ulp;
+        boolean ok = Math.abs(x - y) <= com.legend.values.FloatTolerance.ULPS * ulp;
         if (ok && x != y) {
             Census.inc(Census.Key.ULP_FIRINGS);
             if (System.getenv("LL_TOL_COUNT") != null) {
