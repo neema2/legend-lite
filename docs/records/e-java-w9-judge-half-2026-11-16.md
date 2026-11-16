@@ -29,6 +29,30 @@ confirmed by D on 2026-11-16:
 | S3 | The planning to the edge. `SqlTextVerdicts` is reached through a planning seam on the style (product refuses by name); what it needs of the test planner's package becomes that seam's typed arguments | after S2; sized after S2 (the package-private surface it reads is the cost) |
 | S4 | `Appeal` and `PlannedAppeals`, already extension data, move with S2/S3 | with S3 |
 
+## Finding at S2's start (2026-11-16): S2 and S3 are one move
+
+The judgment record cannot leave alone. The test planner's own routing reads its fields: `AssertVerdicts`' database
+gate (`golden`, `ours`, `textEqual`), `AgreementAsserts` (`appeal`), `PlannedAppeals` (`appeal`), `Verdicts`
+(`oursOrigin`), `AssertRuns` (`routed`). So the engine-text family moves as a unit: its planner arm
+(`SqlTextVerdicts`), its gates, its runner (`SqlTextRuns`) and its appeals.
+
+What the planner arm reaches inside the test planner (measured): `BodyDriver.ExecEnv` (32 uses), `AssertVerdicts`'
+replay helpers (`replayFacts`, `ReplayGates`, `unpagedRead`, `adjudicate`, `calleeFqn`, `planHost`, `planDatabase`,
+`gateOf`: 28), `JudgePlans` sides (9), `HostSides` (9), `DatabaseJudge.planSide`/`SideRows` (2), `JudgmentFacts.enumsOf`
+(1); of D's planner, only `BodyPlanner.boundContext` and `SqlTextInputs.of`.
+
+**Proposed shape (sent to D and the orchestrator before it is built):**
+
+- A test-planning seam declared by the product in `testplan` (`EngineTextArm`): the planning entries the test planner
+  calls today on `SqlTextVerdicts`, over a typed facade of the ~20 internals above. The product's arm refuses by name;
+  the edge implements it (the moved `SqlTextVerdicts`).
+- The arm is handed with the style (the edge's `PureText.UPSTREAM` carries it), never found by the product.
+- The plan holds the edge's judgment by verdict (`extensionsByVerdict`); `HostJudgment` keeps one product arm naming the
+  verdict; the gates ask the arm, not the record.
+- The runner judges it through a `ServiceLoader` seam (`ExtensionJudge`, beside `ExtensionCodec`), so a run needs no
+  caller-supplied `Edge`; `SqlTextRuns` and the appeals' deciding move behind it.
+- Size: the largest single item of W9's judge half; estimated 2-3 working days, done in compile-green steps.
+
 ## Rules kept
 
 - No product class names an edge type (G5); `ArchitectureTest.onlyTheEdgeImplementsTheHooksUpstreamSide` and the
