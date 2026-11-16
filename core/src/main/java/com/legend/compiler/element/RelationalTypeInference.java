@@ -67,7 +67,9 @@ public final class RelationalTypeInference {
                 // and min over SEVERAL arguments are the safe type over all
                 // of them when one exists, else the first's -- the engine's
                 // two rules (relationalExtension.pure:1151-1197); until
-                // 2026-11-13 the first's alone
+                // 2026-11-13 the first's alone. Over numeric arguments alone they are the database's promotion, as
+                // case and plus are (register row S500, 2026-11-15): GREATEST(BIGINT, FLOAT) is a DOUBLE, where the
+                // engine's safe type has none and its fallback, the first's, is a BIGINT
                 case "max", "min" -> {
                     List<RelationalDataType> types = new ArrayList<>(f.args().size());
                     for (var arg : f.args()) {
@@ -83,6 +85,10 @@ public final class RelationalTypeInference {
                     // type is the engine's fold (2026-11-13)
                     if (types.contains(null)) {
                         yield null;
+                    }
+                    RelationalDataType numeric = promotion(types);
+                    if (numeric != null) {
+                        yield numeric;
                     }
                     RelationalDataType safe = safeTypeOf(types);
                     yield safe != null ? safe : first;
@@ -171,8 +177,10 @@ public final class RelationalTypeInference {
                 // every operand, relationalExtension.pure:463-471). An operand with no type leaves no type: the
                 // engine's map is failOnMatchFailure=true (:120-123), which fails on it (2026-11-15; until then it
                 // dropped out). An operand of another kind is concatenated as its text, so the result is still a
-                // VARCHAR, where the engine's rule (every operand a CHAR or VARCHAR) has none: its size is the string
-                // operands' alone, a floor, as before 2026-11-13 (register row S500).
+                // VARCHAR, where the engine's rule (every operand a CHAR or VARCHAR) has none, sized by that kind's
+                // widest text ({@link #textWidth}); a kind whose text has no fixed width (a FLOAT, a TIME, a BINARY)
+                // leaves no type (register row S500, 2026-11-15; until then such an operand added 0, from 2026-11-13
+                // left no type, and before that added 0). An OTHER (a NULL) adds 0, as getSize reads it.
                 // group_concat has no rule in the engine's map and is no dynafunction the engine registers
                 // (docs/engine-dynafunctions.tsv), so no type: until 2026-11-13 it was typed as a concat, a VARCHAR
                 // of one row's operand sizes, which an aggregate over many rows outgrows (2026-11-15)
@@ -183,7 +191,11 @@ public final class RelationalTypeInference {
                     }
                     int size = 0;
                     for (RelationalDataType t : types) {
-                        size += isCharOrVarchar(t) ? size(t) : 0;
+                        int w = isCharOrVarchar(t) || t instanceof RelationalDataType.Other ? size(t) : textWidth(t);
+                        if (w < 0) {
+                            yield null;
+                        }
+                        size += w;
                     }
                     yield new RelationalDataType.Varchar(size);
                 }
@@ -373,9 +385,11 @@ public final class RelationalTypeInference {
         };
     }
 
-    /** plus, minus, times and sub over several arguments (and minus, times and sub over one). An argument with no type
-     *  leaves no type, whichever arguments the engine's rule reads (register row S500, 2026-11-15; until then it
-     *  dropped out and the rest were typed). Numeric operands alone (an OTHER, a NULL, among them) are the database's
+    /** plus, minus and times over several arguments (minus and times over one, written -x and x), sub over two. An
+     *  argument with no type leaves no type, whichever arguments the engine's rule reads (register row S500,
+     *  2026-11-15; until then it dropped out and the rest were typed): times and sub read their first two alone
+     *  (relationalExtension.pure:1774-1782, :1638-1645), so {@code times(I, F, nope(x))} is the engine's FLOAT and
+     *  lite's none, the safer answer. Numeric operands alone (an OTHER, a NULL, among them) are the database's
      *  {@link #promotion}, the ruled divergence. Any other operand is typed by the engine's rule, as its safe type
      *  where the engine's answer is its first argument's (a type at least as wide, as lite typed it until
      *  2026-11-13):
@@ -394,7 +408,9 @@ public final class RelationalTypeInference {
             @com.legend.base.Nullable DatabaseDefinition db, @com.legend.base.Nullable StoreLookups ctx,
             java.util.Set<DatabaseDefinition.ViewDefinition.ViewColumnMapping> expanding) {
         List<RelationalDataType> types = everyType(args, db, ctx, expanding);
-        if (types == null) {
+        // sub is written %s-%s (extensionDefaults.pure:289): two arguments exactly, any other count no SQL, no type
+        // (2026-11-15; until then one argument had its own type)
+        if (types == null || op == DynaFn.SUB && types.size() != 2) {
             return null;
         }
         RelationalDataType numeric = promotion(types);
@@ -406,7 +422,7 @@ public final class RelationalTypeInference {
             case PLUS, MINUS -> several ? safeTypeOf(types) : null;
             case TIMES -> several ? safeTypeOf(types.subList(0, 2)) : null;
             case SUB -> {
-                if (!several || kind(types.get(0)) != kind(types.get(1))) {
+                if (kind(types.get(0)) != kind(types.get(1))) {
                     yield null;
                 }
                 RelationalDataType safe = safeTypeOf(types.subList(0, 2));
@@ -453,7 +469,9 @@ public final class RelationalTypeInference {
         boolean da = ka == Kind.DECIMAL || ka == Kind.NUMERIC;
         boolean dbx = kb == Kind.DECIMAL || kb == Kind.NUMERIC;
         if (da != dbx) {
-            return da ? a : b;  // an integer operand never widens a DECIMAL or NUMERIC
+            // the DECIMAL or NUMERIC operand as declared: the safe-type rule's answer (an integer's
+            // getDecimalIntegerPrecision is 0, :1996-2003), not the database's arithmetic, which widens it
+            return da ? a : b;
         }
         if (da) {
             int scale = Math.max(scale(a), scale(b));
@@ -483,6 +501,26 @@ public final class RelationalTypeInference {
             types.add(t);
         }
         return untyped ? null : types;
+    }
+
+    /** The widest text a database writes for a value of a kind of fixed width, or -1 where the width is not fixed
+     *  (concat's non-string operands, 2026-11-15): an integer kind its minimum's digits and sign (-128, -32768,
+     *  -2147483648, -9223372036854775808: 4, 6, 11, 20), a DECIMAL or NUMERIC its precision plus a sign and a point,
+     *  a BIT 5 ("false", the longer of H2's and Postgres's texts; another dialect's 0 or 1 is shorter), a DATE 10
+     *  (YYYY-MM-DD), a TIMESTAMP 29 (YYYY-MM-DD HH:MM:SS.nnnnnnnnn). */
+    private static int textWidth(RelationalDataType t) {
+        return switch (kind(t)) {
+            case TINYINT -> 4;
+            case SMALLINT -> 6;
+            case INTEGER -> 11;
+            case BIGINT -> 20;
+            case DECIMAL, NUMERIC -> integerDigits(t) + scale(t) + 2;
+            case BIT -> 5;
+            case DATE -> 10;
+            case TIMESTAMP -> 29;
+            case FLOAT, DOUBLE, REAL, VARCHAR, CHAR, BINARY, VARBINARY, TIME, TIMESTAMP_NS, DISTINCT, OTHER,
+                    SEMISTRUCTURED, ARRAY, OBJECT -> -1;
+        };
     }
 
     /** A CHAR or a VARCHAR: the kinds the engine's getSize and its size matches read (:2005-2011). */
