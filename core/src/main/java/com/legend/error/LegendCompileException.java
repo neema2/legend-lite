@@ -31,6 +31,23 @@ public abstract class LegendCompileException extends RuntimeException {
 
     private final Phase phase;
     private final @com.legend.base.Nullable String element;
+    /** The error's kind, where its throw site names one (D1.6): its message is lite's sentence of the kind. */
+    private final @com.legend.base.Nullable CompileKind kind;
+    private final java.util.List<String> operands;
+    /** The element's {@code [line:col]} the driver put before the sentence, if any. */
+    private final @com.legend.base.Nullable String position;
+
+    /** An error of {@code kind} over {@code operands}, its message lite's sentence ({@link CompileKind#sentence}),
+     *  after {@code position} where the driver placed it. */
+    protected LegendCompileException(Phase phase, CompileKind kind, java.util.List<String> operands,
+            @com.legend.base.Nullable String element, @com.legend.base.Nullable String position) {
+        super((position == null ? "" : position + " ") + kind.sentence(operands));
+        this.phase = java.util.Objects.requireNonNull(phase, "phase");
+        this.element = element;
+        this.kind = kind;
+        this.operands = java.util.List.copyOf(operands);
+        this.position = position;
+    }
 
     protected LegendCompileException(Phase phase, @com.legend.base.Nullable String message) {
         this(phase, message, (String) null);
@@ -41,6 +58,9 @@ public abstract class LegendCompileException extends RuntimeException {
         super(message);
         this.phase = java.util.Objects.requireNonNull(phase, "phase");
         this.element = element;
+        this.kind = null;
+        this.operands = java.util.List.of();
+        this.position = null;
     }
 
     protected LegendCompileException(Phase phase, @com.legend.base.Nullable String message,
@@ -48,6 +68,9 @@ public abstract class LegendCompileException extends RuntimeException {
         super(message, cause);
         this.phase = java.util.Objects.requireNonNull(phase, "phase");
         this.element = null;
+        this.kind = null;
+        this.operands = java.util.List.of();
+        this.position = null;
     }
 
     public Phase phase() {
@@ -62,5 +85,20 @@ public abstract class LegendCompileException extends RuntimeException {
      */
     public @com.legend.base.Nullable String element() {
         return element;
+    }
+
+    /** The error's kind, where its throw site names one (D1.6), else null: its message then is the site's own text. */
+    public @com.legend.base.Nullable CompileKind kind() {
+        return kind;
+    }
+
+    /** The kind's operands, in its sentence's order (empty where there is no kind). */
+    public java.util.List<String> operands() {
+        return operands;
+    }
+
+    /** The {@code [line:col]} the driver placed before the sentence, or null. */
+    public @com.legend.base.Nullable String position() {
+        return position;
     }
 }

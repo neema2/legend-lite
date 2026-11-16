@@ -242,7 +242,7 @@ final class TypeClassifier {
                         .collect(java.util.stream.Collectors.joining(",", "(", ")")));
         if (declared.size() != values.size()) {
             throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.MODEL,
-                    "Wrong type variables count (" + values.size() + ") for type: " + printed);
+                    com.legend.error.CompileKind.TYPE_VARIABLES_COUNT, java.util.List.of(String.valueOf(values.size()), printed));
         }
         for (int i = 0; i < values.size(); i++) {
             DeclaredVariable d = declared.get(i);
@@ -291,8 +291,8 @@ final class TypeClassifier {
                         + (def.multiplicityParams().isEmpty() ? "" : "|" + String.join(",", def.multiplicityParams()))
                         + ">";
         return new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.MODEL,
-                "Wrong " + kind + " arguments count (" + got + ") for type: "
-                        + com.legend.protocol.Protocol.splitFqn(def.qualifiedName())[1] + params);
+                com.legend.error.CompileKind.TYPE_ARGUMENTS_COUNT, java.util.List.of(kind, String.valueOf(got),
+                        com.legend.protocol.Protocol.splitFqn(def.qualifiedName())[1] + params));
     }
 
     /** FQN of a superclass / generic head reference. */

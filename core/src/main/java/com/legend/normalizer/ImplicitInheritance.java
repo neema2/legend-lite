@@ -133,7 +133,7 @@ final class ImplicitInheritance {
             var ad = AssociationSynthesis.resolveAssociation(model, r, am)
                     .orElseThrow(() -> new com.legend.error.ModelException(
                             com.legend.error.LegendCompileException.Phase.MAPPING,
-                            "Can't find association '" + am.associationName() + "'"));
+                            com.legend.error.CompileKind.MISSING, java.util.List.of("association", am.associationName())));
             for (com.legend.model.AssociationPropertyMapping apm
                     : rel.propertyMappings()) {
                 String tgtSet = apm.body() instanceof PropertyMapping.Join j

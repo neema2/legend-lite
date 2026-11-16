@@ -214,15 +214,15 @@ class DecimalKindsTest {
     @Test
     @DisplayName("a primitive takes exactly the type variable values it declares, each of its variable's type (the engine's messages)")
     void typeVariableValuesAreChecked() {
-        assertTrue(refused("Decimal(1)").getMessage().endsWith("Wrong type variables count (1) for type: Decimal"));
-        assertTrue(refused("Float(1)").getMessage().endsWith("Wrong type variables count (1) for type: Float"));
-        assertTrue(refused("Numeric").getMessage().endsWith(
+        assertTrue(com.legend.edge.PureMessages.compile(refused("Decimal(1)")).endsWith("Wrong type variables count (1) for type: Decimal"));
+        assertTrue(com.legend.edge.PureMessages.compile(refused("Float(1)")).endsWith("Wrong type variables count (1) for type: Float"));
+        assertTrue(com.legend.edge.PureMessages.compile(refused("Numeric")).endsWith(
                 "Wrong type variables count (0) for type: Numeric(precision:Integer,scale:Integer)"));
-        assertTrue(refused("Numeric()").getMessage().endsWith(
+        assertTrue(com.legend.edge.PureMessages.compile(refused("Numeric()")).endsWith(
                 "Wrong type variables count (0) for type: Numeric(precision:Integer,scale:Integer)"));
-        assertTrue(refused("Numeric(10)").getMessage().endsWith(
+        assertTrue(com.legend.edge.PureMessages.compile(refused("Numeric(10)")).endsWith(
                 "Wrong type variables count (1) for type: Numeric(precision:Integer,scale:Integer)"));
-        assertTrue(refused("Varchar").getMessage().endsWith(
+        assertTrue(com.legend.edge.PureMessages.compile(refused("Varchar")).endsWith(
                 "Wrong type variables count (0) for type: Varchar(x:Integer)"));
         assertTrue(refused("Numeric('a', 2)").getMessage().endsWith(
                 "Error for type: Numeric(precision:Integer,scale:Integer), 'a' is not an instance of Integer"));

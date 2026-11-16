@@ -56,7 +56,7 @@ final class MappingClosures {
      *  ({@code PureModel.getMapping}). */
     private static com.legend.error.ModelException missingMapping(String path) {
         return new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.MAPPING,
-                "Can't find mapping '" + path + "'");
+                com.legend.error.CompileKind.MISSING, java.util.List.of("mapping", path));
     }
 
     private MappingClosures(ModelBuilder model) {
@@ -425,7 +425,7 @@ final class MappingClosures {
                 AssociationDefinition ad =
                         model.findAssociation(am.associationName()).orElseThrow(() -> new com.legend.error.ModelException(
                                 com.legend.error.LegendCompileException.Phase.MAPPING,
-                                "Can't find association '" + am.associationName() + "'"));
+                                com.legend.error.CompileKind.MISSING, java.util.List.of("association", am.associationName())));
                 for (AssociationPropertyMapping apm : rel.propertyMappings()) {
                     if (!(apm.body() instanceof PropertyMapping.Join join)
                             || apm.sourceSetId() == null) {

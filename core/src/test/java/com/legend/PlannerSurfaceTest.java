@@ -533,6 +533,11 @@ class PlannerSurfaceTest {
             Map.entry("Compiler#compileAllBodies(ModelContext)", List.of(MODEL)),
             Map.entry("Compiler#compileErrors(String)", List.of(MODEL_TEXT)),
             Map.entry("Compiler#compileErrors(Protocol.PureModelContextData)", List.of(MODEL)),
+            // each error worded by the caller (the edge's route: legend-engine's words of a compile error's kind; D1.6,
+            // W7 of docs/records/d-plan-2026-11-16.md, 2026-11-16)
+            Map.entry("Compiler#compileErrors(String, Function<Throwable, String>)", List.of(MODEL_TEXT, CALLBACK)),
+            Map.entry("Compiler#compileErrors(Protocol.PureModelContextData, Function<Throwable, String>)",
+                    List.of(MODEL, CALLBACK)),
             Map.entry("Compiler#query(ModelContext, String)", List.of(MODEL, LAMBDA)),
             Map.entry("Compiler#query(ModelContext, ValueSpecification)", List.of(MODEL, LAMBDA)),
             Map.entry("Compiler#queryResolved(ModelContext, ValueSpecification)", List.of(MODEL, LAMBDA)),

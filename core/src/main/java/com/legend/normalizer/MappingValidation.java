@@ -80,8 +80,8 @@ final class MappingValidation {
         }
         for (String member : u.memberSetIds()) {
             if (!ids.contains(member)) {
-                throw new ModelException(LegendCompileException.Phase.MAPPING, "Can't find class mapping '" + member
-                        + "' in mapping '" + r.raw().qualifiedName() + "'", r.raw().qualifiedName());
+                throw new ModelException(LegendCompileException.Phase.MAPPING, com.legend.error.CompileKind.MISSING_CLASS_MAPPING,
+                        java.util.List.of(member, r.raw().qualifiedName()), r.raw().qualifiedName());
             }
         }
     }

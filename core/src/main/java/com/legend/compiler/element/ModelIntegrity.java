@@ -126,8 +126,8 @@ final class ModelIntegrity {
             for (String connection : binding.getValue()) {
                 if (model.findConnection(connection).isEmpty() && !model.isModelConnection(connection)
                         && !model.hasElement(connection)) {
-                    throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.MODEL,
-                            "Can't find connection '" + connection + "'");
+                    throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.MODEL, com.legend.error.CompileKind.MISSING,
+                            List.of("connection", connection));
                 }
             }
         }
@@ -155,13 +155,13 @@ final class ModelIntegrity {
         for (com.legend.model.StereotypeApplication st : stereotypes) {
             if (!profile(st.profileName(), model).stereotypes().contains(st.stereotypeName())) {
                 throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.MODEL,
-                        "Can't find stereotype '" + st.stereotypeName() + "' in profile '" + st.profileName() + "'");
+                        com.legend.error.CompileKind.MISSING_PROFILE_MEMBER, List.of("stereotype", st.stereotypeName(), st.profileName()));
             }
         }
         for (com.legend.model.TaggedValue tv : taggedValues) {
             if (!profile(tv.profileName(), model).tags().contains(tv.tagName())) {
                 throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.MODEL,
-                        "Can't find tag '" + tv.tagName() + "' in profile '" + tv.profileName() + "'");
+                        com.legend.error.CompileKind.MISSING_PROFILE_MEMBER, List.of("tag", tv.tagName(), tv.profileName()));
             }
         }
     }
@@ -181,14 +181,14 @@ final class ModelIntegrity {
 
     private static com.legend.model.ProfileDefinition profile(String fqn, ModelBuilder model) {
         return model.findProfile(fqn).orElseThrow(() -> new com.legend.error.ModelException(
-                com.legend.error.LegendCompileException.Phase.MODEL, "Can't find the profile '" + fqn + "'"));
+                com.legend.error.LegendCompileException.Phase.MODEL, com.legend.error.CompileKind.MISSING_PROFILE, List.of(fqn)));
     }
 
     /** A named mapping exists; {@code null} is a reference not written (an optional one). */
     private static void requireMapping(@com.legend.base.Nullable String mapping, ModelBuilder model) {
         if (mapping != null && model.findMapping(mapping).isEmpty()) {
             throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.MODEL,
-                    "Can't find mapping '" + mapping + "'");
+                    com.legend.error.CompileKind.MISSING, List.of("mapping", mapping));
         }
     }
 
@@ -196,7 +196,7 @@ final class ModelIntegrity {
     private static void requireRuntime(@com.legend.base.Nullable String runtime, ModelBuilder model) {
         if (runtime != null && model.findRuntime(runtime).isEmpty()) {
             throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.MODEL,
-                    "Can't find runtime '" + runtime + "'");
+                    com.legend.error.CompileKind.MISSING, List.of("runtime", runtime));
         }
     }
 
@@ -242,7 +242,7 @@ final class ModelIntegrity {
             if (e.element() != null) {
                 throw e;
             }
-            throw new com.legend.error.ModelException(e.phase(), e.getMessage(), elementFqn);
+            throw com.legend.error.ModelException.attributed(e, elementFqn);
         }
     }
 
@@ -279,8 +279,8 @@ final class ModelIntegrity {
                     supFqn + " classified as a type but has none")) instanceof com.legend.compiler.element.type.Type.ClassType)) {
                 throw new com.legend.error.ModelException(
                         com.legend.error.LegendCompileException.Phase.MODEL,
-                        "Invalid supertype: '" + com.legend.protocol.Protocol.splitFqn(cd.qualifiedName())[1] + "' cannot extend '" + supFqn
-                                + "' as it is not a class.");
+                        com.legend.error.CompileKind.INVALID_SUPERTYPE,
+                        List.of(com.legend.protocol.Protocol.splitFqn(cd.qualifiedName())[1], supFqn));
             }
         }
         java.util.Set<String> propertyNames = new java.util.HashSet<>();
@@ -508,7 +508,7 @@ final class ModelIntegrity {
         for (String include : db.includes()) {
             if (model.findDatabase(include).isEmpty()) {
                 throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.MODEL,
-                        "Can't find database '" + include + "'");
+                        com.legend.error.CompileKind.MISSING, List.of("database", include));
             }
         }
         for (var j : db.joins()) {

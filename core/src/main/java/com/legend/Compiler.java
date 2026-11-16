@@ -123,7 +123,7 @@ public final class Compiler {
             if (where.isEmpty()) {
                 throw e;
             }
-            throw new com.legend.error.ModelException(e.phase(), where.get() + " " + e.getMessage(), e.element());
+            throw com.legend.error.ModelException.placed(e, where.get());
         }
     }
 
@@ -180,7 +180,7 @@ public final class Compiler {
                 if (where.isEmpty()) {
                     throw e;
                 }
-                throw new com.legend.error.ModelException(e.phase(), where.get() + " " + e.getMessage(), e.element());
+                throw com.legend.error.ModelException.placed(e, where.get());
             }
             NormalizedModel own = new NormalizedModel(List.copyOf(layer.model().elements().subList(0, layer.own())),
                     layer.model().imports(), layer.model().legacySurfaces());
@@ -240,7 +240,7 @@ public final class Compiler {
             if (where.isEmpty()) {
                 throw e;
             }
-            throw new com.legend.error.ModelException(e.phase(), where.get() + " " + e.getMessage(), e.element());
+            throw com.legend.error.ModelException.placed(e, where.get());
         }
     }
 
@@ -711,10 +711,8 @@ public final class Compiler {
             if (srcName == null || off == null) {
                 throw e;
             }
-            throw new com.legend.error.ModelException(e.phase(),
-                    srcName + " " + ParsedModel.positionIn(java.util.Objects.requireNonNull(
-                                    module.sourceTexts().get(srcName)), off)
-                            + " " + e.getMessage(), e.element());
+            throw com.legend.error.ModelException.placed(e, srcName + " " + ParsedModel.positionIn(
+                    java.util.Objects.requireNonNull(module.sourceTexts().get(srcName)), off));
         }
     }
 
@@ -980,6 +978,13 @@ public final class Compiler {
      * signature-broken walls under the plain FQN.
      */
     public static java.util.Map<String, String> compileAllBodies(ModelContext ctx) {
+        return compileAllBodies(ctx, e -> String.valueOf(e.getMessage()));
+    }
+
+    /** {@link #compileAllBodies(ModelContext)}, each wall worded by {@code words} (a compile error's kind in the
+     *  product's sentence, or the edge's: D1.6, W7 of docs/records/d-plan-2026-11-16.md). */
+    private static java.util.Map<String, String> compileAllBodies(ModelContext ctx,
+            java.util.function.Function<Throwable, String> words) {
         SpecCompiler specs = new SpecCompiler(ctx);
         java.util.Map<String, String> walls = new java.util.LinkedHashMap<>();
         // the MODULE's own bodies: the boot layer's (the system metamodel's
@@ -1009,7 +1014,7 @@ public final class Compiler {
                 try {
                     specs.compile(tf);
                 } catch (RuntimeException e) {
-                    walls.put(tf.id().qualified(), String.valueOf(e.getMessage()));
+                    walls.put(tf.id().qualified(), words.apply(e));
                 }
             }
         }
@@ -1026,24 +1031,37 @@ public final class Compiler {
      * listed as one of its errors.
      */
     public static java.util.List<String> compileErrors(String model) {
-        return compileErrorsOf(() -> compileModel(model));
+        return compileErrorsOf(() -> compileModel(model), e -> String.valueOf(e.getMessage()));
+    }
+
+    /** {@link #compileErrors(String)}, each error worded by {@code words}: the compatibility edge's route words a compile
+     *  error's kind as legend-engine does ({@code edge.PureMessages.compile}; D1.6, W7). */
+    public static java.util.List<String> compileErrors(String model, java.util.function.Function<Throwable, String> words) {
+        return compileErrorsOf(() -> compileModel(model), words);
     }
 
     /** {@link #compileErrors(String)} for a model given as protocol records ({@link
      *  #compileModel(com.legend.protocol.Protocol.PureModelContextData)}, leg 8 step 3: a client's
      *  {@code PureModelContextData}). */
     public static java.util.List<String> compileErrors(com.legend.protocol.Protocol.PureModelContextData model) {
-        return compileErrorsOf(() -> compileModel(model));
+        return compileErrorsOf(() -> compileModel(model), e -> String.valueOf(e.getMessage()));
     }
 
-    private static java.util.List<String> compileErrorsOf(java.util.function.Supplier<ModelContext> model) {
+    /** {@link #compileErrors(com.legend.protocol.Protocol.PureModelContextData)}, each error worded by {@code words}. */
+    public static java.util.List<String> compileErrors(com.legend.protocol.Protocol.PureModelContextData model,
+            java.util.function.Function<Throwable, String> words) {
+        return compileErrorsOf(() -> compileModel(model), words);
+    }
+
+    private static java.util.List<String> compileErrorsOf(java.util.function.Supplier<ModelContext> model,
+            java.util.function.Function<Throwable, String> words) {
         ModelContext ctx;
         try {
             ctx = model.get();
         } catch (com.legend.error.LegendCompileException | com.legend.error.NotImplementedException e) {
-            return java.util.List.of(String.valueOf(e.getMessage()));
+            return java.util.List.of(words.apply(e));
         }
-        return java.util.List.copyOf(compileAllBodies(ctx).values());
+        return java.util.List.copyOf(compileAllBodies(ctx, words).values());
     }
 
 }

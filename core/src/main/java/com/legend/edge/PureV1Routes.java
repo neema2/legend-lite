@@ -24,7 +24,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-import static com.legend.server.PureV1Api.answer;
 import static com.legend.server.PureV1Api.boundParameters;
 import static com.legend.server.PureV1Api.error;
 import static com.legend.server.PureV1Api.facts;
@@ -59,6 +58,12 @@ import static com.legend.server.PureV1Api.runtimeOf;
  * </ul>
  */
 public final class PureV1Routes {
+
+    /** A route's answer, a refusal of the text in upstream's words ({@link PureMessages#compile}: D1.6, W7). */
+    static Answer answer(int status, @com.legend.base.Nullable String errorType, java.util.function.Supplier<String> call) {
+        return com.legend.server.PureV1Api.answer(status, errorType, call, PureMessages::compile);
+    }
+
 
     private PureV1Routes() {
     }
@@ -182,7 +187,7 @@ public final class PureV1Routes {
     public static Answer compile(String body) {
         List<String> errors = new ArrayList<>();
         Answer a = answer(400, "COMPILATION", () -> {
-            errors.addAll(ModelInput.of(request(body)).compileErrors());
+            errors.addAll(ModelInput.of(request(body)).compileErrors(PureMessages::compile));
             return "{\"message\":\"OK\",\"defects\":[]}";
         });
         // a body's message names its element ("in function '...'")

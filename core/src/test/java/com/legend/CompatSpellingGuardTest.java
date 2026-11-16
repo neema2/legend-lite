@@ -103,14 +103,12 @@ class CompatSpellingGuardTest {
      * SHRINK-ONLY: a row falls or goes as its step lands; a row rises or is added only with a dated justification.
      */
     static final List<String> REGISTER = List.of(
-            "compiler/element/ModelIntegrity.java | Can't find  | 7 | D1.6",
-            "compiler/element/ModelIntegrity.java | Invalid supertype | 1 | D1.6",
-            "compiler/element/TypeClassifier.java | arguments count ( | 1 | D1.6",
-            "compiler/element/TypeClassifier.java | variables count ( | 1 | D1.6",
+            // D1.6's compile messages, gone 2026-11-16 (W7 of docs/records/d-plan-2026-11-16.md): ModelIntegrity,
+            // TypeClassifier, TableReferenceChecker and the normalizer's "Can't find" raise a CompileKind, worded by the
+            // product (CompileKind.sentence) and, for upstream's clients, by the edge (PureMessages.compile)
             // D1.3 -> D1.9 (2026-11-15): the constant's users are the judges' (VerdictSql, SideShapes), the #TDS
             // literal's input read (Scalars, STAYS) and the edge (EngineStyleH2); no product text writes it any more
             "compiler/element/type/PlatformTypes.java | TDS_NULL_CELL | 2 | D1.9",
-            "compiler/spec/TableReferenceChecker.java | Can't find  | 1 | D1.6",
             // compiler/spec/TdsDesugars.java | TDS_NULL_CELL: gone 2026-11-15 (D1.3: a TDS cell's toString is cellText,
             // empty where the cell is in the product, legend-engine's TDSNull at the edge)
             "compiler/spec/TdsDesugars.java | trying to get an element at offset | 1 | D1.6",
@@ -170,10 +168,6 @@ class CompatSpellingGuardTest {
             // refused by the product's renderer, legend-pure's padding composed by the edge, edge/PurePrintForms)
             "lowering/VerdictSql.java | Repr | 3 | JUDGE",
             "lowering/VerdictSql.java | TDS_NULL_CELL | 1 | JUDGE",
-            "normalizer/ImplicitInheritance.java | Can't find  | 1 | D1.6",
-            "normalizer/MappingClosures.java | Can't find  | 2 | D1.6",
-            "normalizer/MappingNormalizer.java | Can't find  | 1 | D1.6",
-            "normalizer/MappingValidation.java | Can't find  | 1 | D1.6",
             // D1.4 -> D1.7 (2026-11-15): PlanNode is legend-engine's plan JSON (generatePlan's nodes), its comment the
             // engine's post-processor's constant: it moves with EnginePlans' text half
             "plan/PlanNode.java | executionTraceID | 1 | D1.7",

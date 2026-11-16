@@ -168,7 +168,7 @@ public final class ChannelB {
                 }
                 final String drop = src;
                 sources.removeIf(s -> s.name().equals(drop));
-                modelWalls.add(drop + ": MODEL-WALL " + first(e.getMessage()));
+                modelWalls.add(drop + ": MODEL-WALL " + first(words(e)));
             }
         }
         if (ctx == null) {
@@ -286,12 +286,12 @@ public final class ChannelB {
             // an assert failure arrives as the database's error() — a
             // REAL test failure; other SQL errors are failures too (the
             // diff against channel A adjudicates which are wire bugs)
-            return new Outcome(fqn, Status.FAIL, first(e.getMessage()), flat(e.getMessage()));
+            return new Outcome(fqn, Status.FAIL, first(words(e)), flat(words(e)));
         } catch (RuntimeException e) {
             // compile/lowering walls — channel B cannot run the shape
             return new Outcome(fqn, Status.ERROR,
-                    e.getClass().getSimpleName() + ": " + first(e.getMessage()),
-                    e.getClass().getSimpleName() + ": " + flat(e.getMessage()));
+                    e.getClass().getSimpleName() + ": " + first(words(e)),
+                    e.getClass().getSimpleName() + ": " + flat(words(e)));
         }
     }
 
@@ -448,7 +448,7 @@ public final class ChannelB {
      *  compared, and a clipped middle could hide a difference (2026-11-15, PR1's review; pinned by ChannelBTwiceTest's
      *  planted difference past the old clip, the PR1 re-review's A7). */
     static String ended(Exception e) {
-        return "ended: " + e.getClass().getSimpleName() + ": " + flat(e.getMessage());
+        return "ended: " + e.getClass().getSimpleName() + ": " + flat(words(e));
     }
 
     /** The census detail line: assert messages are MULTI-LINE
@@ -665,5 +665,11 @@ public final class ChannelB {
     private static String simpleName(String fn) {
         int i = fn.lastIndexOf("::");
         return i < 0 ? fn : fn.substring(i + 2);
+    }
+
+    /** {@code e}'s message in legend-pure's words where it is a compile error of a kind (the edge's,
+     *  {@code PureMessages.compile}; D1.6, W7 of docs/records/d-plan-2026-11-16.md): PCT is legend-pure's suite. */
+    private static String words(Throwable e) {
+        return com.legend.edge.PureMessages.compile(e);
     }
 }

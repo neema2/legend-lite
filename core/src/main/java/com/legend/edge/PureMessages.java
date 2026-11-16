@@ -146,4 +146,49 @@ public final class PureMessages {
         return new SqlExpr.Cast(x, com.legend.sql.SqlType.Scalar.VARCHAR, SqlExpr.Reason.PRINT);
     }
 
+
+    /**
+     * LEGEND-PURE'S AND LEGEND-ENGINE'S SENTENCE OF A COMPILE ERROR (phase D's D1.6, W7 of
+     * docs/records/d-plan-2026-11-16.md, 2026-11-16): {@code e}'s message as upstream words it, where an upstream
+     * client reads it (pure/v1's routes, PCT, the corpus) -- the product words its kind its own way
+     * ({@link com.legend.error.CompileKind#sentence}). An error with no kind is its own message; the driver's
+     * {@code [line:col]} stays in front.
+     */
+    public static String compile(Throwable e) {
+        String message = String.valueOf(e.getMessage());
+        // the kinded error itself, or the one a wrapper's message ends with ("in function 'f': " + its message)
+        for (Throwable t = e; t != null; t = t.getCause()) {
+            if (t instanceof com.legend.error.LegendCompileException c && c.kind() != null
+                    && message.endsWith(String.valueOf(c.getMessage()))) {
+                return message.substring(0, message.length() - String.valueOf(c.getMessage()).length()) + upstream(c);
+            }
+        }
+        return message;
+    }
+
+    /** {@code c}'s sentence as upstream words its kind, after the driver's {@code [line:col]}. */
+    private static String upstream(com.legend.error.LegendCompileException c) {
+        java.util.List<String> o = c.operands();
+        String upstream = switch (java.util.Objects.requireNonNull(c.kind(), "a kinded error")) {
+            // PureModel.getConnection, getMapping, getRuntime, getStore, getAssociation (legend-engine)
+            case MISSING -> "Can't find " + o.get(0) + " '" + o.get(1) + "'";
+            // PureModel.getProfile
+            case MISSING_PROFILE -> "Can't find the profile '" + o.get(0) + "'";
+            // HelperModelBuilder.resolveStereotype, resolveTag
+            case MISSING_PROFILE_MEMBER -> "Can't find " + o.get(0) + " '" + o.get(1) + "' in profile '" + o.get(2) + "'";
+            // ClassMappingSecondPassBuilder
+            case MISSING_CLASS_MAPPING -> "Can't find class mapping '" + o.get(0) + "' in mapping '" + o.get(1) + "'";
+            // RelationalCompilerExtension's main table rule
+            case MAIN_TABLE_UNNAMED -> "Can't find the main table for class '" + o.get(0)
+                    + "': property mappings span tables " + o.get(1)
+                    + ". Please specify a main table using the ~mainTable directive.";
+            // ClassCompilerExtension
+            case INVALID_SUPERTYPE -> "Invalid supertype: '" + o.get(0) + "' cannot extend '" + o.get(1)
+                    + "' as it is not a class.";
+            // legend-pure's GenericType validation
+            case TYPE_ARGUMENTS_COUNT -> "Wrong " + o.get(0) + " arguments count (" + o.get(1) + ") for type: " + o.get(2);
+            case TYPE_VARIABLES_COUNT -> "Wrong type variables count (" + o.get(0) + ") for type: " + o.get(1);
+        };
+        return c.position() == null ? upstream : c.position() + " " + upstream;
+    }
 }

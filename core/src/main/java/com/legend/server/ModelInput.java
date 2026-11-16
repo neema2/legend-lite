@@ -34,8 +34,8 @@ public sealed interface ModelInput {
         }
 
         @Override
-        public List<String> compileErrors() {
-            return com.legend.Compiler.compileErrors(code);
+        public List<String> compileErrors(java.util.function.Function<Throwable, String> words) {
+            return com.legend.Compiler.compileErrors(code, words);
         }
 
         @Override
@@ -62,8 +62,8 @@ public sealed interface ModelInput {
         }
 
         @Override
-        public List<String> compileErrors() {
-            return com.legend.Compiler.compileErrors(model);
+        public List<String> compileErrors(java.util.function.Function<Throwable, String> words) {
+            return com.legend.Compiler.compileErrors(model, words);
         }
 
         @Override
@@ -79,8 +79,14 @@ public sealed interface ModelInput {
      *  one), a JSON model's for this use alone. */
     <T> T with(PureV1Api.Models models, java.util.function.Function<com.legend.compiler.element.ModelContext, T> use);
 
-    /** The model compiled whole, every body included: its errors ({@code Compiler.compileErrors}). */
-    List<String> compileErrors();
+    /** The model compiled whole, every body included: its errors ({@code Compiler.compileErrors}), in the product's
+     *  words. */
+    default List<String> compileErrors() {
+        return compileErrors(e -> String.valueOf(e.getMessage()));
+    }
+
+    /** {@link #compileErrors()}, each error worded by {@code words} (the edge's route: legend-engine's; D1.6). */
+    List<String> compileErrors(java.util.function.Function<Throwable, String> words);
 
     /** The model's records: a text's as legend-engine reads it (the engine's dialect), a JSON model's as read. */
     Protocol.PureModelContextData records();

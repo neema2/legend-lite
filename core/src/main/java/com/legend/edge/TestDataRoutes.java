@@ -111,7 +111,7 @@ final class TestDataRoutes {
                 unseeded[0] = e;
                 return "";
             }
-        });
+        }, PureMessages::compile);
         return unseeded[0] != null ? unseeded(unseeded[0]) : a;
     }
 

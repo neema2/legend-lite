@@ -758,11 +758,19 @@ public final class PureV1Api {
      * </ul>
      */
     public static Answer answer(int status, @com.legend.base.Nullable String errorType, Supplier<String> call) {
+        return answer(status, errorType, call, e -> String.valueOf(e.getMessage()));
+    }
+
+    /** {@link #answer(int, String, Supplier)} with a refusal of the text worded by {@code words}: the product's own
+     *  message, or the compatibility edge's upstream sentence of a compile error's kind (D1.6, W7 of
+     *  docs/records/d-plan-2026-11-16.md: {@code edge.PureMessages.compile}). */
+    public static Answer answer(int status, @com.legend.base.Nullable String errorType, Supplier<String> call,
+            java.util.function.Function<Throwable, String> words) {
         try {
             return new Answer(200, call.get());
         } catch (RuntimeException | StackOverflowError e) {
             if (refusesTheText(e)) {
-                return error(status, errorType, String.valueOf(e.getMessage()));
+                return error(status, errorType, words.apply(e));
             }
             if (!(e instanceof IllegalArgumentException || e instanceof com.legend.error.DataError)) {
                 e.printStackTrace();
