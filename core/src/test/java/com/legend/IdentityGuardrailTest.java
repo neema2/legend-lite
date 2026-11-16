@@ -161,7 +161,11 @@ class IdentityGuardrailTest {
             Map.entry("MINT_BY_NAME", 152),   // 142 -> 18 (2026-10-10, L7 "resolve once" steps 3-4: every call built after the resolver is built by Calls, with its record)
             // 143 -> 142 (2026-09-27: the #>{}# island's record is built by ONE factory, AppliedFunction.tableReference, for the parser and the protocol reader; the parser's two mints went into it)
             Map.entry("FORM_DISPATCH_BY_NAME", 1),   // 21 -> 1 (2026-10-06, build rebuild Phase 3: ResolvedNames.form)
-            Map.entry("LOCAL_NAME_COMPARE", 86),   // 85 -> 86 (2026-11-14, java_bugFixes, measured): compiler/element/ViewSignatures reads a view column's schema "default" as the database's own, refusing a schema the database lacks in the engine's words (HelperRelationalBuilder); 87 -> 85 (2026-10-06, build rebuild Phase 3: measured); 90 -> 87 (2026-09-26, step 2: three local-name compares in the rule tables left with the bare names)
+            // 86 -> 84 (2026-11-15, java_bugFixes, measured by the guard's run): compiler/element/ViewSignatures'
+            // aggregate switch reads sum by the registry's member (DynaFn.SUM), not fn.equals("sum"): the branch's
+            // site and main's gone; the schema "default" compare stays. The 85 -> 86 note named that compare alone:
+            // the branch added two sites over main's measured 84, it and fn.equals("sum") at :135 (main's at :140)
+            Map.entry("LOCAL_NAME_COMPARE", 84),   // 85 -> 86 (2026-11-14, java_bugFixes, measured): compiler/element/ViewSignatures reads a view column's schema "default" as the database's own, refusing a schema the database lacks in the engine's words (HelperRelationalBuilder), and its aggregate switch read sum by fn.equals("sum") a second time; 87 -> 85 (2026-10-06, build rebuild Phase 3: measured); 90 -> 87 (2026-09-26, step 2: three local-name compares in the rule tables left with the bare names)
             Map.entry("CASE_NAME_LABEL", 4),
             Map.entry("PARSE_NAME_LOOKUP", 3));
 

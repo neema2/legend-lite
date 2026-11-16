@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 package com.legend.compiler.element;
+import com.legend.builtin.DynaFn;
 import com.legend.compiler.StoreLookups;
 
 import com.legend.compiler.element.type.Multiplicity;
@@ -132,12 +133,14 @@ public final class ViewSignatures {
                     // every other number (Decimal, Number) is Number; max / min
                     // over a date keep the date type, over anything else the
                     // generic collection reducer keeps the element type
-                    Type arg = inferred(fn.equals("sum") || fc.args().size() == 1 ? fc.args().get(0) : fc, db, store);
+                    // sum read by the registry's member, not its spelled name (2026-11-15)
+                    boolean sum = DynaFn.of(fn).orElseThrow() == DynaFn.SUM;
+                    Type arg = inferred(sum || fc.args().size() == 1 ? fc.args().get(0) : fc, db, store);
                     boolean numeric = arg instanceof Type.PrecisionDecimal
                             || arg instanceof Type.Primitive p && p.family() == Type.Primitive.Family.NUMERIC;
                     Type out = arg == Type.Primitive.INTEGER || arg == Type.Primitive.FLOAT || !numeric
                             ? arg : Type.Primitive.NUMBER;
-                    return new Type.Column(cm.name(), out, fn.equals("sum")
+                    return new Type.Column(cm.name(), out, sum
                             ? Multiplicity.Bounded.ONE : Multiplicity.Bounded.ZERO_ONE);
                 }
                 default -> { }
