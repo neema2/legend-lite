@@ -457,6 +457,8 @@ keyed tables' latest-version filters. (Both done 2026-11-15: §15.6a.)
 
 7. **Last, maybe:** a lane against a real Kafka-compatible broker (the user: "Real Kafka maybe at the end").
 
+**The Deephaven run side, PROPOSED 2026-11-16:** `docs/DEEPHAVEN_RUN_SIDE_2026_11_16.md` (the plan as data, one driver per runtime, a grid's base as a session table), for review with the user before the merge of `main`.
+
 **State, 2026-11-15:** steps 0 to 6 built (§15.1 to §15.5a), the filtered-mapping join fixed and the 26 latest-version
 filters on (§15.6a); the full local gate green on `claude/deephaven-3-browser` at 5a34e63d (529 of 541, the ten
 Postgres lanes and `verify_app_test` green under `tools/postgres/as_unprivileged.sh`, this container's root). Item 7
