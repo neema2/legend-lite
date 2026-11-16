@@ -43,7 +43,10 @@ final class PurePrintForms extends com.legend.sql.SqlRewriter {
 
     /** {@code x}'s legend-pure print form as a Float: the call a pass writes, for a node no pass reached. */
     static SqlExpr floatOf(SqlExpr x) {
-        return SqlExpr.Call.of(SqlFn.FLOAT_PRINT, x);
+        // legend-engine's toString of a Float in its SQL: the database's own cast to text (the orchestrator, relaying
+        // the user, 2026-11-16: "Java at the edge, not SQL" -- a Float VALUE's print is Java's, from the typed cell; in
+        // a query, legend-engine's cast; until then legend-pure's print form spelled in SQL, FLOAT_PRINT)
+        return new SqlExpr.Cast(x, com.legend.sql.SqlType.Scalar.VARCHAR, SqlExpr.Reason.USER);
     }
 
     /** {@code format}'s {@code %0<w>d} as legend-pure writes it ({@code -3} at width 5 is {@code -00003}): the digits
