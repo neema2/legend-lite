@@ -1212,7 +1212,7 @@ channel_a	DuckDB	meta::pure::functions::string::parseBoolean_String_1__Boolean_1
 channel_a	DuckDB	meta::pure::functions::string::parseDate_String_1__Date_1_	8	626	13490	0	0	0
 channel_a	DuckDB	meta::pure::functions::string::parseDecimal_String_1__Decimal_1_	7	367	10435	0	0	0
 channel_a	DuckDB	meta::pure::functions::string::parseDecimal_String_1__Integer_1__Integer_1__Decimal_1_	6	318	8943	0	0	0
-channel_a	DuckDB	meta::pure::functions::string::parseFloat_String_1__Float_1_	5	1263	8564	0	0	0
+channel_a	DuckDB	meta::pure::functions::string::parseFloat_String_1__Float_1_	5	1448	8754	0	0	0
 channel_a	DuckDB	meta::pure::functions::string::parseInteger_String_1__Integer_1_	4	166	5516	0	0	0
 channel_a	DuckDB	meta::pure::functions::string::plus_String_MANY__String_1_	6	472	12423	0	0	0
 channel_a	DuckDB	meta::pure::functions::string::regexpCount_String_1__String_1__Integer_1_	2	202	3778	0	0	0
@@ -1834,7 +1834,7 @@ channel_a	MariaDB	meta::pure::functions::string::parseBoolean_String_1__Boolean_
 channel_a	MariaDB	meta::pure::functions::string::parseDate_String_1__Date_1_	8	13205	29829	4	5131	0
 channel_a	MariaDB	meta::pure::functions::string::parseDecimal_String_1__Decimal_1_	7	374	13487	0	0	0
 channel_a	MariaDB	meta::pure::functions::string::parseDecimal_String_1__Integer_1__Integer_1__Decimal_1_	6	324	11559	0	0	0
-channel_a	MariaDB	meta::pure::functions::string::parseFloat_String_1__Float_1_	5	3684	13640	10	385	0
+channel_a	MariaDB	meta::pure::functions::string::parseFloat_String_1__Float_1_	5	3514	13470	10	385	0
 channel_a	MariaDB	meta::pure::functions::string::parseInteger_String_1__Integer_1_	4	1390	8800	4	92	0
 channel_a	MariaDB	meta::pure::functions::string::plus_String_MANY__String_1_	6	559	15120	0	0	0
 channel_a	MariaDB	meta::pure::functions::string::regexpCount_String_1__String_1__Integer_1_	2	1226	5708	2	0	0
@@ -2145,7 +2145,7 @@ channel_a	MySQL	meta::pure::functions::string::parseBoolean_String_1__Boolean_1_
 channel_a	MySQL	meta::pure::functions::string::parseDate_String_1__Date_1_	8	12957	29181	4	5131	0
 channel_a	MySQL	meta::pure::functions::string::parseDecimal_String_1__Decimal_1_	7	374	13144	0	0	0
 channel_a	MySQL	meta::pure::functions::string::parseDecimal_String_1__Integer_1__Integer_1__Decimal_1_	6	324	11265	0	0	0
-channel_a	MySQL	meta::pure::functions::string::parseFloat_String_1__Float_1_	5	3064	12755	10	270	0
+channel_a	MySQL	meta::pure::functions::string::parseFloat_String_1__Float_1_	5	2894	12585	10	270	0
 channel_a	MySQL	meta::pure::functions::string::parseInteger_String_1__Integer_1_	4	1142	8348	4	92	0
 channel_a	MySQL	meta::pure::functions::string::plus_String_MANY__String_1_	6	559	14826	0	0	0
 channel_a	MySQL	meta::pure::functions::string::regexpCount_String_1__String_1__Integer_1_	2	2072	6452	4	318	0
@@ -2767,7 +2767,7 @@ channel_a	SQLite	meta::pure::functions::string::parseBoolean_String_1__Boolean_1
 channel_a	SQLite	meta::pure::functions::string::parseDate_String_1__Date_1_	8	9653	22173	40	1080	0
 channel_a	SQLite	meta::pure::functions::string::parseDecimal_String_1__Decimal_1_	7	1002	10531	0	220	0
 channel_a	SQLite	meta::pure::functions::string::parseDecimal_String_1__Integer_1__Integer_1__Decimal_1_	6	872	9035	0	195	0
-channel_a	SQLite	meta::pure::functions::string::parseFloat_String_1__Float_1_	5	6446	13822	30	0	0
+channel_a	SQLite	meta::pure::functions::string::parseFloat_String_1__Float_1_	5	7186	14562	35	0	0
 channel_a	SQLite	meta::pure::functions::string::parseInteger_String_1__Integer_1_	4	1436	6790	0	208	0
 channel_a	SQLite	meta::pure::functions::string::plus_String_MANY__String_1_	6	505	11994	0	0	0
 channel_a	SQLite	meta::pure::functions::string::regexpCount_String_1__String_1__Integer_1_	2	4326	7748	20	1138	0
@@ -3453,7 +3453,7 @@ core	DuckDB	TypedDistinct	11	1023	31207	0	0	0
 core	DuckDB	TypedDrop	6	622	13876	0	0	0
 core	DuckDB	TypedEnumValue	1	19	2291	0	0	0
 core	DuckDB	TypedEval	1	24	1329	0	0	0
-core	DuckDB	TypedExtend	174	24926	527423	10	133	0
+core	DuckDB	TypedExtend	174	24963	527461	10	133	0
 core	DuckDB	TypedExtendAgg	25	6151	125474	1	226	0
 core	DuckDB	TypedExtendWindow	124	39553	785034	2	1268	0
 core	DuckDB	TypedFilter	48	12330	234650	26	403	0
@@ -3645,7 +3645,7 @@ core	DuckDB	meta::pure::functions::string::matches_String_1__String_1__Boolean_1
 core	DuckDB	meta::pure::functions::string::parseBoolean_String_1__Boolean_1_	1	39	1393	0	0	0
 core	DuckDB	meta::pure::functions::string::parseDate_String_1__Date_1_	3	229	5020	0	0	0
 core	DuckDB	meta::pure::functions::string::parseDecimal_String_1__Decimal_1_	2	95	2906	0	0	0
-core	DuckDB	meta::pure::functions::string::parseFloat_String_1__Float_1_	1	231	1657	0	0	0
+core	DuckDB	meta::pure::functions::string::parseFloat_String_1__Float_1_	1	268	1695	0	0	0
 core	DuckDB	meta::pure::functions::string::parseInteger_String_1__Integer_1_	3	143	4093	0	0	0
 core	DuckDB	meta::pure::functions::string::plus_String_MANY__String_1_	1	45	1595	0	0	0
 core	DuckDB	meta::pure::functions::string::regexpIndexOf_String_1__String_1__Integer_1_	4	1055	15910	0	173	0
