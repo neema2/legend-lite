@@ -34,8 +34,8 @@ import java.util.Set;
  * The SQLite EXECUTION dialect (2026-10-11, docs/CLOUD_BACKENDS_PCT_2026_10_11.md §12): a sibling of {@link BigQuery}
  * and {@link Postgres} over {@link AnsiSqlRenderer}, replacing the lexicon row SQLite was (remediation T3.2: it
  * differed then only lexically; the PCT lane measured otherwise). Every spelling here was measured on the product's own
- * driver (xerial sqlite-jdbc 3.53.1.0 since 2026-11-16, its build of SQLite 3.53.1 with the math functions and the driver's statistics
- * extension) before it was trusted; the platform's semantics are DuckDB's.
+ * driver (xerial sqlite-jdbc 3.53.1.0 since 2026-11-16, its build of SQLite 3.53.1 with the math functions and the
+ * driver's statistics extension) before it was trusted; the platform's semantics are DuckDB's.
  *
  * <p>What differs from DuckDB, measured:
  * <ul>
