@@ -79,7 +79,7 @@ public final class PureAsserts {
     /** Upstream's assertEquals text (assertEquals.pure:19-21): each side's {@code %r} where BOTH hold one value, else
      *  both as lists of representations -- the one-value form is the pair's, never a side's alone (2026-11-04, the
      *  assert bar: {@code assertEquals(1, [1, 2])} printed {@code expected: 1} where upstream prints {@code [1]}). */
-    private static String equalsMessage(List<Object> e, List<Object> a, @com.legend.base.Nullable String eClass,
+    public static String equalsMessage(List<Object> e, List<Object> a, @com.legend.base.Nullable String eClass,
             @com.legend.base.Nullable String aClass) {
         boolean ones = e.size() == 1 && a.size() == 1;
         return "\nexpected: " + (ones ? repr(e.get(0), eClass) : reprList(e, eClass))
@@ -114,13 +114,19 @@ public final class PureAsserts {
             @com.legend.base.Nullable String expectedClass,
             @com.legend.base.Nullable String actualClass,
             com.legend.testexecutionplan.TestPlan.JudgingRules rules) {
-        List<Object> es = sorted(expected);
-        List<Object> as = sorted(actual);
-        if (equal(es, as, rules)) {
+        if (equal(sorted(expected), sorted(actual), rules)) {
             return null;
         }
-        return "\nexpected: " + reprList(es, expectedClass) + "\nactual:   "
-                + reprList(as, actualClass);
+        return sameElementsMessage(expected, actual, expectedClass, actualClass);
+    }
+
+    /** Upstream's assertSameElements text over two sides a verdict has already failed: both sorted, as lists of
+     *  representations. It compares nothing (the ledger audit's D4, 2026-11-16: the message is the failed verdict's,
+     *  never a second comparison that could hold where the typed one failed). */
+    public static String sameElementsMessage(List<Object> expected, List<Object> actual,
+            @com.legend.base.Nullable String expectedClass, @com.legend.base.Nullable String actualClass) {
+        return "\nexpected: " + reprList(sorted(expected), expectedClass) + "\nactual:   "
+                + reprList(sorted(actual), actualClass);
     }
 
     /** {@code assertNotEquals(notExpected, actual)}'s message (assertNotEquals.pure:17-21): each side's

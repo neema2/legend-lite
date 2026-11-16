@@ -54,6 +54,8 @@ class VerdictChannelRegisterTest {
             // 2026-11-03, the user's ruling "no sort can be multiset compare" restored: an unsorted chain's root
             // array a multiset again, its test back beside the strict object-vs-array one
             "core/src/test/java/com/legend/testexec/EqualityJsonUnorderedRootTest.java",
+            // 2026-11-16, the ledger audit's D5: a non-finite Float in assertSameElements' sort refused by name, its test
+            "core/src/test/java/com/legend/testexec/EqualitySortNonFiniteTest.java",
             "core/src/test/java/com/legend/testexec/EqualityWorldsConformanceTest.java",
             "core/src/test/java/com/legend/testexec/PureAssertsTest.java");
 

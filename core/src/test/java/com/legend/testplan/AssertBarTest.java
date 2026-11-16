@@ -114,6 +114,13 @@ class AssertBarTest {
             new Probe("decimal-scale", "{|assertEquals(3.0D, 3.00D)}", null),
             new Probe("decimal-value", "{|assertEquals(3.0D, 3.10D)}", "\nexpected: 3.0D\nactual:   3.10D"),
             new Probe("integer-vs-float", "{|assertEquals(1, 1.0)}", "\nexpected: 1\nactual:   1.0"),
+            // the ledger audit's D4 (2026-11-16): a list of Integers against the same numbers as Floats fails, as the
+            // one-value probe above does; the message is the failed typed comparison's, never an untyped re-compare
+            // that held (which passed the assertSameElements and raised "verdict/message divergence" on assertEquals)
+            new Probe("integer-vs-float-lists", "{|assertEquals([1, 2], [1.0, 2.0])}",
+                    "\nexpected: [1, 2]\nactual:   [1.0, 2.0]"),
+            new Probe("integer-vs-float-same-elements", "{|assertSameElements([2, 1], [2.0, 1.0])}",
+                    "\nexpected: [1, 2]\nactual:   [1.0, 2.0]"),
             // the type is part of the value in lite's own runs (register S127, the user's ruling of 2026-11-04;
             // backwards-compatibility mode compares an Integer and a Decimal by text: below)
             new Probe("decimal-vs-integer", "{|assertEquals(1D, 1)}", "\nexpected: 1D\nactual:   1"),

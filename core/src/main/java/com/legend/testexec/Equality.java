@@ -365,6 +365,10 @@ public final class Equality {
     private static Comparable<Object> withinRank(@com.legend.base.Nullable Object v) {
         return (Comparable<Object>) (Comparable<?>) switch (v) {
             case null -> "";
+            // a NaN or an infinity has no decimal: refused by name, never a NumberFormatException out of the sort
+            // (the ledger audit's D5, 2026-11-16)
+            case Double d when !Double.isFinite(d) -> throw new Unjudged("sort over a non-finite Float (" + d + ")");
+            case Float f when !Float.isFinite(f) -> throw new Unjudged("sort over a non-finite Float (" + f + ")");
             case Number n -> new BigDecimal(String.valueOf(n));
             case String s -> s;
             case Boolean b -> b;
