@@ -103,18 +103,11 @@ final class HostJudgments {
                 () -> mixedFlatVsTds
                         ? name + " (TDSRow.values) raw cells do not"
                                 + " equal a whole TDS value"
-                        : tdsHostMessage(name, PureAsserts.assertEqualsTyped(
+                        // the host lattice's text, upstream's own, with no prefix of lite's (2026-11-03)
+                        : PureAsserts.assertEqualsTyped(
                                 com.legend.testexec.Equality.grid(e, eKinds),
-                                com.legend.testexec.Equality.grid(a, aKinds), rules)),
+                                com.legend.testexec.Equality.grid(a, aKinds), rules),
                 () -> PureAsserts.notEqualsMessage(e, a));
-    }
-
-    /** The TDSRow.values failure narrative — the host lattice's text, upstream's own ('\nexpected: %r\nactual:   %r'),
-     * with no prefix of lite's (2026-11-03, the core parity program: the database judge writes upstream's words, and the
-     * "assertEquals (TDSRow.values)" prefix was lite's); null iff the lattice held. */
-    static @com.legend.base.Nullable String tdsHostMessage(String name,
-            @com.legend.base.Nullable String d) {
-        return d;
     }
 
     /** The MULTISET flat-cells verdict: loose CELL pool host lattice
@@ -132,7 +125,7 @@ final class HostJudgments {
                 () -> {
                     String d = PureAsserts.assertSameElements(e, a, rules);
                     return d != null
-                            ? tdsHostMessage(family, d)
+                            ? d
                             : family + " (TDSRow.values): cell"
                                     + " multiset differs";
                 });
@@ -545,7 +538,10 @@ final class HostJudgments {
         // batch 53): instanceOf is the model's subtype relation
         // (a property-less class such as NullLiteral has nothing
         // else on the wire)
-        if (com.legend.testexec.AssertRuns.structured(v) instanceof java.util.Map<?, ?> m
+        // decided by the side's DECLARED type, never by its text: a String whose text starts with '{' is a String
+        // (E-Java's ledger audit D3, 2026-11-16: the sniff judged '{"__type": ...}' by the classifier inside it)
+        if (!"String".equals(side.returnType())
+                && com.legend.testexec.AssertRuns.structured(v) instanceof java.util.Map<?, ?> m
                 && m.get(com.legend.sql.SqlExpr.SYNTHETIC_TYPE)
                         instanceof String wireType) {
             boolean ok = j.acceptedTypes().contains(wireType);
