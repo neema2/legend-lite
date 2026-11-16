@@ -180,11 +180,14 @@ final class AssertVerdicts {
             DatabaseGate worst = DatabaseGate.PLANS;
             boolean first = true;
             for (Unrolled u : ((UnrollPlan) qp).elements()) {
-                DatabaseGate g = gateOf(u.assertion(), u.root(), u.before(), specs, env, rawHook);
-                if (g == DatabaseGate.UNPLANNED) {
-                    return g;
-                }
-                if (g == DatabaseGate.RAISES && first) {
+                // a NESTED quantification (the engine's guard idiom, DE5: testDataGeneration's createTableRowIdentifiers):
+                // an element whose root is itself a quantified assert is gated by this same rule, as planQuantified
+                // plans it -- recursively, element by element
+                DatabaseGate g = quantifiedForm(u.root()) != null
+                        ? databaseGate(u.root(), u.before(), specs, env, rawHook)
+                        : gateOf(u.assertion(), u.root(), u.before(), specs, env, rawHook);
+                // an unplanned element keeps the body off the database; a raise decides only as the first element's
+                if (g == DatabaseGate.UNPLANNED || g == DatabaseGate.RAISES && first) {
                     return g;
                 }
                 if (engineText(g) && worst != DatabaseGate.ENGINE_TEXT_READ) {
@@ -226,6 +229,16 @@ final class AssertVerdicts {
             return DatabaseGate.ENGINE_TEXT;
         }
         NativeFn.Verdict fn = NativeFn.Verdict.of(com.legend.compiler.spec.typed.Calls.calleeIdOf(bare)).orElse(null);
+        if (fn == null && bare instanceof TypedUserCall dual && dual.args().size() == 3
+                && com.legend.compiler.element.type.PlatformTypes.ASSERT_EQUALS_DUAL_GOLDEN.equals(calleeFqn(bare))) {
+            // the dual-golden root whose text arm declined is planned as its own meaning on our H2,
+            // assertEquals(upgraded, actual) (planHost's rewrite): gated as that equality (DE5's second group, 2026-11-16:
+            // the gate had looked for a verdict native on the helper's own name and refused four corpus bodies)
+            TypedSpec asEquals = com.legend.compiler.spec.VerdictQueries.assertEqualsOf(dual.args().get(1),
+                    dual.args().get(2), specs);
+            return asEquals == null ? DatabaseGate.UNPLANNED
+                    : gateOf(shape, asEquals, letPrefix, specs, env, rawHook);
+        }
         if (fn == null) {
             return DatabaseGate.UNPLANNED;
         }
@@ -1559,14 +1572,6 @@ final class AssertVerdicts {
         return arm(env).quantified(fqn, predMap, qfn == NativeFn.Verdict.ASSERT, msg, letPrefix, specs, env, hook);
     }
 
-    /** The run's judge mode rides its options (PlanningOptions.JudgeMode):
-     * one mode per run, read from the execution environment — never a JVM
-     * global. HOST is the verdict of record; DATABASE plans both sides and
-     * lets the database return the verdict row. */
-    static boolean databaseMode(BodyDriver.ExecEnv env) {
-        return env.options().judgeMode() == PlanningOptions.JudgeMode.DATABASE;
-    }
-
     /** THE ONE DISPATCH (cleanup move 2b, 2026-09-21): the run's judge mode names the
      * arm; the router classifies and hands the sides over, nowhere else forks. */
     static VerdictArm arm(BodyDriver.ExecEnv env) {
@@ -2073,19 +2078,6 @@ final class AssertVerdicts {
         return s.info().type() instanceof
                 com.legend.compiler.element.type.Type.ClassType ct
                 && com.legend.compiler.element.type.PlatformTypes.isAny(ct);
-    }
-
-    static boolean containsTreeMarker(
-            @com.legend.base.Nullable String text) {
-        return text != null && text.contains(
-                com.legend.lowering.CanonicalRenderSql.TREE_MARKER);
-    }
-
-    static List<Object> concat(List<Object> a, List<Object> b) {
-        List<Object> out = new ArrayList<>(a.size() + b.size());
-        out.addAll(a);
-        out.addAll(b);
-        return out;
     }
 
     static String typeName(TypedSpec spec) {

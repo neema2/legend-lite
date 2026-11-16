@@ -212,16 +212,17 @@ class PlanJsonTest {
         // 2026-11-12: a target's database settings (the C checkpoint's SHOULD-FIX 3); 50 the same day: a target's
         // transaction, the statements a host opens one with (the re-audit's S8); 51 the same day: a stream step's
         // statement the planner's own plan of the snapshot's pull (the user's ruling); 52 since 2026-11-13: a raise's
-        // message as its kind and operands in a statement's tree (phase D's D1.1, merged onto 51); 53 since 2026-11-15: a
-        // plan's raises, each kind its statements can send to its sentence (phase D's option (D))
-        assertTrue(json.startsWith("{\"format\":\"legend-lite-plan\",\"version\":53,"), json);
+        // message as its kind and operands in a statement's tree (phase D's D1.1, merged onto 51); 53 since 2026-11-13 (E-4):
+        // every cast's and case's reason; 54 since 2026-11-15: a plan's raises, each kind its statements can send to its
+        // sentence (phase D's option (D), its number after E's)
+        assertTrue(json.startsWith("{\"format\":\"legend-lite-plan\",\"version\":54,"), json);
     }
 
     @Test
     void anotherFormatIsRefusedByName() {
         var refused = assertThrows(IllegalArgumentException.class,
                 () -> PlanJson.read("{\"_type\":\"simple\",\"rootExecutionNode\":{}}"));
-        assertTrue(refused.getMessage().contains("not a legend-lite-plan v53 plan"), refused.getMessage());
+        assertTrue(refused.getMessage().contains("not a legend-lite-plan v54 plan"), refused.getMessage());
     }
 
     /**

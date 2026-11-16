@@ -270,6 +270,10 @@ public final class TypedQuery {
         try (var planning = com.legend.base.RunScope.plans("a query")) {
             com.legend.executionplan.ExecutionPlan plan = PlanMaker.plan(this, runtime, features, projectDatabase,
                     style);
+            com.legend.planner.PlanningObserver seen = com.legend.planner.PlanningObserver.installed();
+            if (seen != null) {
+                seen.planned(this, runtime);   // a test harness's observer (E-1): none in the product
+            }
             if (Boolean.getBoolean("legend.plan.roundtrip")) {
                 com.legend.executionplan.PlanJson.requireRoundTrip(plan);
             }

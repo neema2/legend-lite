@@ -51,12 +51,12 @@ final class PurePrintForms extends com.legend.sql.SqlRewriter {
      *  phase D's D1.3). */
     private static SqlExpr signedZeroPad(SqlExpr x, SqlExpr width) {
         SqlExpr padded = SqlExpr.Call.of(SqlFn.LPAD,
-                new SqlExpr.Cast(SqlExpr.Call.of(SqlFn.ABS, x), com.legend.sql.SqlType.Scalar.VARCHAR),
+                new SqlExpr.Cast(SqlExpr.Call.of(SqlFn.ABS, x), com.legend.sql.SqlType.Scalar.VARCHAR, SqlExpr.Reason.PRINT),
                 width, new SqlExpr.StringLit("0"));
         return new SqlExpr.Case(java.util.List.of(new SqlExpr.Case.When(
                 SqlExpr.Call.of(SqlFn.LESS, x, new SqlExpr.IntLit(0)),
                 SqlExpr.Call.of(SqlFn.CONCAT, new SqlExpr.StringLit("-"), padded))),
-                padded);
+                padded, SqlExpr.Reason.PRINT);
     }
 
     /** A join's element texts as legend-engine writes them (phase D's D1.3: the product skips an empty one), at the

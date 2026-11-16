@@ -41,10 +41,13 @@ public final class TestPlanJson {
      *  payloads bound or inline -- and the product's version 48; 18 (2026-11-12, the C checkpoint's SHOULD-FIX 3): a
      *  target may carry its database's settings, the product's version 49; 19 (2026-11-12, the re-audit's S8): a target
      *  may carry its database's transaction statements, the product's version 50; 20 (2026-11-12, the user's ruling on
-     *  a snapshot's pull): the product's version 51; 21 (2026-11-15, C5-J item 2): the body's facts, {@code facts}
-     *  (its effects, inline CSV seeds, verdicts and shape: what a runner reads of the body); 22 (2026-11-13, phase D's
-     *  D1.1; renumbered from 21 at the merge of #106 into #104, 2026-11-15): the product's version 52. */
-    public static final int VERSION = 22;
+     *  a snapshot's pull): the product's version 51; 21 (2026-11-13, phase D's D1.1): the product's version 52; 22 (2026-11-13, E-5c, the user's
+     *  ruling O5, its number after D's): a side read from its group's fused row, {@code fusedCell}, a group's agreements
+     *  one per root ({@code agreements}, each with its {@code root}), and the product's version 53 (E-4: every cast's and
+     *  case's reason); 23 (2026-11-15, main's C5-J item 2 merged into E, its 21 renumbered after E's 22): the body's
+     *  facts, {@code facts} (its effects, inline CSV seeds, verdicts and shape: what a runner reads of the body); 24
+     *  (2026-11-16, phase D's option (D), merged after E): the product's version 54 (a plan's raises). */
+    public static final int VERSION = 24;
 
     private TestPlanJson() {
     }
@@ -52,7 +55,7 @@ public final class TestPlanJson {
     /** The {@code _type} tags of a test plan's steps and sides, one spelling for the writer and the reader. */
     enum StepTag { run, frameRun, verdicts, branch }
 
-    enum SideTag { rows, keyedRows, constant }
+    enum SideTag { rows, keyedRows, constant, fusedCell }
 
     private static <E extends Enum<E>> E tag(Class<E> family, Json.Obj o, String what) {
         String name = o.getString("_type");
@@ -112,6 +115,12 @@ public final class TestPlanJson {
         // each load once, every target naming it by identity (the data-in-the-plan design's 2.6, L2)
         out.put("loads", PlanJson.hoistLoads(out));
         return Json.toCompact(out);
+    }
+
+    /** One step's JSON, as {@link #write} writes it inside a plan: what a measurement of a step's plan data reads
+     *  (the judge's plan JSON per verdict step, 2026-11-15). */
+    public static String writeStep(TestPlan.TestStep step) {
+        return Json.toCompact(step(step));
     }
 
     private static List<Object> steps(List<TestPlan.TestStep> steps) {
@@ -175,8 +184,10 @@ public final class TestPlanJson {
                 if (v.roots() != null) {
                     o.put("roots", HostJson.wRootLoop(v.roots()));
                 }
-                if (v.agreement() != null) {
-                    o.put("agreement", HostJson.wAgreement(v.agreement()));
+                if (!v.agreements().isEmpty()) {
+                    List<Object> agreements = new ArrayList<>(v.agreements().size());
+                    v.agreements().forEach(a -> agreements.add(HostJson.wAgreement(a)));
+                    o.put("agreements", agreements);
                 }
             }
             case TestPlan.Branch b -> {
@@ -206,6 +217,10 @@ public final class TestPlanJson {
                 so.put("columns", PlanJson.columnsJson(c.columns()));
                 so.put("cells", c.cells());
                 so.put("folded", c.folded());
+            }
+            case TestPlan.Side.FusedCell f -> {
+                so.put("_type", SideTag.fusedCell.name());
+                so.put("columns", PlanJson.columnsJson(f.columns()));
             }
         }
         return so;
@@ -364,7 +379,13 @@ public final class TestPlanJson {
                 Json.Obj f = o.getObjOr("fused", null);
                 Json.Obj sp = o.getObjOr("savepoint", null);
                 Json.Obj roots = o.getObjOr("roots", null);
-                Json.Obj agreement = o.getObjOr("agreement", null);
+                Json.Arr agreementsArr = o.getArrOr("agreements", null);
+                List<com.legend.testexecutionplan.Agreement> agreements = new ArrayList<>();
+                if (agreementsArr != null) {
+                    for (Json.Node an : agreementsArr.items()) {
+                        agreements.add(HostJson.rAgreement((Json.Obj) an));
+                    }
+                }
                 String rules = o.getString("rules");
                 yield new TestPlan.Verdicts(verdicts, f == null ? null : typedResult(f, "a fused verdict statement"),
                         sp == null ? null : new TestPlan.Verdicts.Savepoint(sp.getString("set"),
@@ -375,7 +396,7 @@ public final class TestPlanJson {
                             default -> throw new IllegalArgumentException("a verdict group's rules '" + rules
                                     + "': lite or compiledPureCompat");
                         }, roots == null ? null : HostJson.rRootLoop(roots),
-                        agreement == null ? null : HostJson.rAgreement(agreement));
+                        agreements);
             }
             case branch -> new TestPlan.Branch(readSide(o.getObj("condition")), readSteps(o.getArr("then")),
                     readSteps(o.getArr("otherwise")));
@@ -401,6 +422,7 @@ public final class TestPlanJson {
             }
             case constant -> new TestPlan.Side.Constant(PlanJson.columnsOf(so.getArr("columns")),
                     PlanJson.textCells(so.getArr("cells"), "a constant side"), so.getBool("folded"));
+            case fusedCell -> new TestPlan.Side.FusedCell(PlanJson.columnsOf(so.getArr("columns")));
         };
     }
 }

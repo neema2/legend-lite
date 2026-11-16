@@ -1,0 +1,104 @@
+#!/usr/bin/env python3
+"""Product SQL size analysis: sizes.tsv + sql-<dialect>.jsonl (ProductSqlMeasureTest) + the cases file."""
+import json, sys, os, statistics, collections
+
+out, cases_file = sys.argv[1], sys.argv[2]
+cases = [json.loads(l) for l in open(cases_file)]
+rows = [l.rstrip("\n").split("\t") for l in open(os.path.join(out, "sizes.tsv"))][1:]
+by = collections.defaultdict(list)
+refused = collections.Counter()
+per_case = collections.defaultdict(lambda: collections.defaultdict(int))
+for d, c, s, n, k in rows:
+    if s == "-1":
+        refused[d] += 1
+        continue
+    by[d].append((int(n), int(c), k))
+    per_case[d][int(c)] += 1
+
+def pct(xs, p):
+    xs = sorted(xs)
+    return xs[min(len(xs) - 1, int(p * len(xs)))]
+
+print(f"cases: {len(cases)}")
+print("| dialect | planned | refused | statements | per query | median | p90 | max | total chars |")
+print("|---|---|---|---|---|---|---|---|---|")
+for d in by:
+    ns = [n for n, _, _ in by[d]]
+    q = len(per_case[d])
+    print(f"| {d} | {q} | {refused[d]} | {len(ns)} | {len(ns)/max(q,1):.2f} | {int(statistics.median(ns))} | {pct(ns,.9)} | {max(ns)} | {sum(ns):,} |")
+
+def factored(sql, minlen=60):
+    """The statement's size with every repeated parenthesised group of >= minlen chars written once: greedily the
+    group saving most is replaced by a 6-char reference, until none repeats. Returns (factored size, groups)."""
+    groups_out = []
+    n = 0
+    while True:
+        reps = repeated_raw(sql, minlen)
+        if not reps:
+            return len(sql), groups_out
+        L, k, g = max(reps, key=lambda r: (r[0] - 6) * (r[1] - 1))
+        if (L - 6) * (k - 1) <= 0:
+            return len(sql), groups_out
+        groups_out.append((L, k, g))
+        n += 1
+        sql = sql.replace(g, "@r%03d" % n)
+
+def repeated_raw(sql, minlen):
+    stack, groups = [], collections.Counter()
+    instr = False
+    for i, ch in enumerate(sql):
+        if ch == "'":
+            instr = not instr
+        if instr:
+            continue
+        if ch == "(":
+            stack.append(i)
+        elif ch == ")" and stack:
+            j = stack.pop()
+            if i - j + 1 >= minlen:
+                groups[sql[j:i + 1]] += 1
+    return [(len(g), k, g) for g, k in groups.items() if k > 1]
+
+def repeated(sql, minlen=120):
+    """Balanced parenthesised groups of >= minlen chars written more than once: (length, count, excerpt)."""
+    stack, groups = [], collections.Counter()
+    instr = False
+    for i, ch in enumerate(sql):
+        if ch == "'":
+            instr = not instr
+        if instr:
+            continue
+        if ch == "(":
+            stack.append(i)
+        elif ch == ")" and stack:
+            j = stack.pop()
+            if i - j + 1 >= minlen:
+                groups[sql[j:i + 1]] += 1
+    reps = [(len(g), k, g) for g, k in groups.items() if k > 1]
+    # keep maximal ones only: drop a group contained in a bigger repeated group with the same count
+    reps.sort(reverse=True)
+    kept = []
+    for L, k, g in reps:
+        if not any(g in G and k <= K for _, K, G in kept):
+            kept.append((L, k, g))
+    return kept
+
+top = int(sys.argv[3]) if len(sys.argv) > 3 else 8
+for d in by:
+    sqls = [json.loads(l) for l in open(os.path.join(out, f"sql-{d}.jsonl"))]
+    waste_total = 0
+    biggest = sorted(sqls, key=lambda s: -len(s["sql"]))
+    fact = {}
+    for s in sqls:
+        f, gs = factored(s["sql"])
+        fact[id(s)] = (f, gs)
+        waste_total += len(s["sql"]) - f
+    total = sum(len(s["sql"]) for s in sqls)
+    print(f"\n## {d}: repeated-group waste {waste_total:,} of {total:,} chars ({100*waste_total/max(total,1):.0f}%)")
+    for s in biggest[:top]:
+        f, reps = fact[id(s)]
+        w = len(s["sql"]) - f
+        expr = cases[s["case"]]["expression"].replace("\n", " ")[:110]
+        print(f"- {len(s['sql']):>7} chars, repeated {w:>7} ({100*w/len(s['sql']):.0f}%) case {s['case']}: {expr}")
+        for L, k, g in reps[:2]:
+            print(f"    x{k} of {L}: {g[:110]}")

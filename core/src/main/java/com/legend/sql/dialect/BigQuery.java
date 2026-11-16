@@ -462,7 +462,7 @@ public class BigQuery extends AnsiSqlRenderer {
      *  casts to JSON and to text this dialect writes {@code TO_JSON_STRING(TO_JSON(key))}. */
     private static SqlExpr partitionKey(SqlExpr key) {
         return typeOf(key) == SqlType.Scalar.DOUBLE
-                ? new SqlExpr.Cast(new SqlExpr.Cast(key, SqlType.Scalar.JSON), SqlType.Scalar.VARCHAR) : key;
+                ? new SqlExpr.Cast(new SqlExpr.Cast(key, SqlType.Scalar.JSON, SqlExpr.Reason.DIALECT), SqlType.Scalar.VARCHAR, SqlExpr.Reason.DIALECT) : key;
     }
 
     /** A mode where it is written: the value of its most counted row, the least value on a tie, NULLs ignored --
@@ -499,7 +499,7 @@ public class BigQuery extends AnsiSqlRenderer {
         for (int i = 0; i < s.projections().size(); i++) {
             SqlSelect.Projection p = s.projections().get(i);
             ps.add(nullValued(p.expr())
-                    ? new SqlSelect.Projection(new SqlExpr.Cast(new SqlExpr.NullLit(), labels.get(i).type()), p.alias(),
+                    ? new SqlSelect.Projection(new SqlExpr.Cast(new SqlExpr.NullLit(), labels.get(i).type(), SqlExpr.Reason.DIALECT), p.alias(),
                             p.out())
                     : p);
         }
@@ -754,10 +754,34 @@ public class BigQuery extends AnsiSqlRenderer {
     }
 
     /** A naive date-time is a DATETIME; it holds microseconds (a literal with nine digits is refused, measured), and
-     *  a literal of a finer digit is refused at planning ({@link #literalFractionDigits}; S181, A7). */
+     *  a literal of a finer digit is refused at planning ({@link #literalFractionDigits}; S181, A7). A year BigQuery
+     *  does not hold is refused at planning ({@link #heldYear}, S340). */
     @Override
     protected String timestampLit(String iso) {
+        heldYear(iso, "date-time");
         return "DATETIME '" + iso.replace('T', ' ') + "'";
+    }
+
+    /** A date literal, its year held by BigQuery or refused at planning ({@link #heldYear}, S340). */
+    @Override
+    protected String dateLit(String iso) {
+        heldYear(iso, "date");
+        return super.dateLit(iso);
+    }
+
+    /**
+     * BigQuery holds a DATE and a DATETIME from 0001-01-01 to 9999-12-31. A literal outside that range is refused at
+     * planning, by name (S340, ruled by the user 2026-11-15, DE6 (a); the BC probe on the BigQuery lane, 2026-11-13, measured the
+     * database refusing {@code date(-43, 3, 15)} with the driver's bare "BigQueryException during runQuery"). Only a
+     * LITERAL is known here: a date COMPUTED in SQL outside the range stays the database's own raise.
+     */
+    private static void heldYear(String iso, String what) {
+        int end = iso.indexOf('-', 1);
+        long year = Long.parseLong(iso.substring(0, end < 0 ? iso.length() : end));
+        if (year < 1 || year > 9999) {
+            throw new DialectCapability("the " + what + " " + iso + " is outside BigQuery's range: it holds dates from"
+                    + " 0001-01-01 to 9999-12-31 (S340)");
+        }
     }
 
     /** NUMERIC CHARTER Rule 1: a Float literal is typed exact-decimal by the database -- {@code 1.5} alone is a
@@ -952,7 +976,7 @@ public class BigQuery extends AnsiSqlRenderer {
             return super.caseExpr(writer, c);
         }
         java.util.function.Function<SqlExpr, SqlExpr> asText = b -> textual(b) || b instanceof SqlExpr.NullLit ? b
-                : new SqlExpr.Cast(b, SqlType.Scalar.VARCHAR);
+                : new SqlExpr.Cast(b, SqlType.Scalar.VARCHAR, SqlExpr.Reason.DIALECT);
         writer.append("CASE");
         for (SqlExpr.Case.When w : c.whens()) {
             writer.append(" WHEN ").expr(w.condition(), 0).append(" THEN ").expr(asText.apply(w.then()), 0);
@@ -1098,7 +1122,7 @@ public class BigQuery extends AnsiSqlRenderer {
             if (typeOf(body) == null) {
                 throw new DialectCapability("a lambda of no known type over the empty list reached BigQuery");
             }
-            return new SqlExpr.Cast(new SqlExpr.NullLit(), java.util.Objects.requireNonNull(typeOf(body)));
+            return new SqlExpr.Cast(new SqlExpr.NullLit(), java.util.Objects.requireNonNull(typeOf(body)), SqlExpr.Reason.DIALECT);
         }
         if (listElement(xs) == SqlType.Scalar.JSON) {
             body = substitute(body, l.params().get(0), SqlExpr.Column.of(null, l.params().get(0),
@@ -1961,7 +1985,7 @@ public class BigQuery extends AnsiSqlRenderer {
                 continue;
             }
             if (conversion == 's' && arg < args.size()) {
-                args.set(arg, new SqlExpr.Cast(args.get(arg), SqlType.Scalar.VARCHAR));
+                args.set(arg, new SqlExpr.Cast(args.get(arg), SqlType.Scalar.VARCHAR, SqlExpr.Reason.DIALECT));
             }
             arg++;
         }

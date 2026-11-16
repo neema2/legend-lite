@@ -1,0 +1,149 @@
+#!/usr/bin/env python3
+"""Mechanical bind-once rewrite of constant-rooted product statements (measurement only, E3).
+
+For a statement `SELECT <expr> AS value` with no top-level FROM (a PCT expression over literals), every expression
+written more than once (a parenthesised expression, a call with its name, a list or struct literal) is bound ONCE in
+a one-row derived table and referenced by column. The rewrite is purely textual, so it is only a measurement: the
+measuring test runs before and after and counts a rewrite that errors or answers differently as not applicable.
+
+usage: bindonce.py <sql-<dialect>.jsonl> <out.jsonl> [minlen]
+"""
+import json, sys, re
+
+OPEN = {"(": ")", "[": "]", "{": "}"}
+RAISES = re.compile(r"char\(31\)|CHAR\(31\)|chr\(31\)|\berror\(|\bERROR\(", re.I)
+IDENT = re.compile(r"[A-Za-z0-9_.\"]")
+
+
+def groups(sql):
+    """Every bracketed group (start, end) outside string literals."""
+    out, stack, instr = [], [], False
+    i = 0
+    while i < len(sql):
+        ch = sql[i]
+        if ch == "'":
+            instr = not instr
+        elif not instr:
+            if ch in OPEN:
+                stack.append((ch, i))
+            elif ch in ")]}" and stack:
+                o, j = stack.pop()
+                out.append((o, j, i + 1))
+        i += 1
+    return out
+
+
+def top_level_comma(text):
+    depth, instr = 0, False
+    for ch in text[1:-1]:
+        if ch == "'":
+            instr = not instr
+        elif not instr:
+            if ch in "([{":
+                depth += 1
+            elif ch in ")]}":
+                depth -= 1
+            elif ch == "," and depth == 0:
+                return True
+    return False
+
+
+def candidates(sql, minlen):
+    """Expression spans: a call with its name, a parenthesised expression, a list or struct literal."""
+    found = {}
+    for o, j, e in groups(sql):
+        start = j
+        if o == "(":
+            k = j
+            while k > 0 and IDENT.match(sql[k - 1]):
+                k -= 1
+            name = sql[k:j]
+            if name and name.upper() in ("IN", "VALUES", "OVER", "AS", "FILTER", "WITHIN", "GROUP", "WHEN", "THEN",
+                                         "ELSE", "AND", "OR", "NOT", "ON", "FROM", "SELECT", "BY", "LATERAL"):
+                name = ""
+                k = j
+            if not name and top_level_comma(sql[j:e]):
+                continue      # a tuple or an argument list, not an expression
+            start = k if name else j
+        elif o == "[":
+            if j > 0 and (IDENT.match(sql[j - 1]) or sql[j - 1] in ")]"):
+                continue      # a subscript
+        if e - start < minlen:
+            continue
+        if RAISES.search(sql[start:e]):
+            continue      # binding a raise ahead of its condition would raise where the original does not
+        found.setdefault(sql[start:e], 0)
+        found[sql[start:e]] += 1
+    return {t: k for t, k in found.items() if k > 1}
+
+
+def depth0_has_from(sql):
+    depth, instr = 0, False
+    up = sql.upper()
+    for i, ch in enumerate(sql):
+        if ch == "'":
+            instr = not instr
+        elif not instr:
+            if ch in "([{":
+                depth += 1
+            elif ch in ")]}":
+                depth -= 1
+            elif depth == 0 and up[i:i + 6] in (" FROM ", "\nFROM ", " FROM\n", "\nFROM\n"):
+                return True
+    return False
+
+
+def rewrite(sql, minlen=40):
+    if not sql.startswith("SELECT ") or depth0_has_from(sql):
+        return None
+    bindings = []          # [name, text]
+    body = sql
+    n = 0
+    while True:
+        cands = {}
+        for t in [body] + [b[1] for b in bindings]:
+            for g, k in candidates(t, minlen).items():
+                cands[g] = cands.get(g, 0) + k
+        # also count a group that occurs once in body and once in a binding
+        allt = body + "\x00" + "\x00".join(b[1] for b in bindings)
+        best, saving = None, 0
+        for g in set(cands) | set():
+            k = allt.count(g)
+            s = (len(g) - 7) * (k - 1) - 12
+            if k > 1 and s > saving:
+                best, saving = g, s
+        if best is None:
+            break
+        n += 1
+        name = "__b%d" % n
+        body = body.replace(best, name)
+        for b in bindings:
+            b[1] = b[1].replace(best, name)
+        bindings.append([name, best])
+    if not bindings:
+        return None
+    # levels: a binding after every binding it reads
+    level = {}
+    def lv(b):
+        if b[0] in level:
+            return level[b[0]]
+        deps = [o for o in bindings if o is not b and re.search(r"\b%s\b" % o[0], b[1])]
+        level[b[0]] = 1 + max([lv(d) for d in deps], default=-1)
+        return level[b[0]]
+    for b in bindings:
+        lv(b)
+    src = None
+    for L in range(max(level.values()) + 1):
+        cols = ", ".join("%s AS %s" % (b[1], b[0]) for b in bindings if level[b[0]] == L)
+        src = "(SELECT %s) __l%d" % (cols, L) if src is None else "(SELECT __l%d.*, %s FROM %s) __l%d" % (L - 1, cols, src, L)
+    return body + " FROM " + src
+
+
+if __name__ == "__main__":
+    minlen = int(sys.argv[3]) if len(sys.argv) > 3 else 40
+    with open(sys.argv[2], "w") as out:
+        for line in open(sys.argv[1]):
+            s = json.loads(line)
+            after = rewrite(s["sql"], minlen)
+            if after is not None and len(after) < len(s["sql"]):
+                out.write(json.dumps({"case": s["case"], "before": s["sql"], "after": after}) + "\n")

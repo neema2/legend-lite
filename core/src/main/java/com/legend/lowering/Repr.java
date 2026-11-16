@@ -30,7 +30,7 @@ final class Repr {
             // CAST first: identity for a real string, and keeps a DEAD
             // size-1 branch (assertEquals' %r fast path over a known-many
             // collection) VALID SQL — DuckDB type-checks dead branches
-            SqlExpr sx = new SqlExpr.Cast(x, SqlType.Scalar.VARCHAR);
+            SqlExpr sx = new SqlExpr.Cast(x, SqlType.Scalar.VARCHAR, SqlExpr.Reason.PRINT);
             SqlExpr esc = SqlExpr.Call.of(SqlFn.REPLACE,
                     SqlExpr.Call.of(SqlFn.REPLACE,
                             SqlExpr.Call.of(SqlFn.REPLACE, sx,
@@ -66,7 +66,7 @@ final class Repr {
             // legend-pure's print form, the judges' %r of a Float (phase D's D1.2, 2026-11-15: the product's text of a
             // Float is lite's six decimals, FLOAT_TO_TEXT; an assert's message prints the value as the host judge
             // does, judge parity G2); a value the store holds as an integer its digits, as before
-            return LiteralSpelling.heldAsInteger(x) ? new SqlExpr.Cast(x, SqlType.Scalar.VARCHAR)
+            return LiteralSpelling.heldAsInteger(x) ? new SqlExpr.Cast(x, SqlType.Scalar.VARCHAR, SqlExpr.Reason.JUDGE)
                     : SqlExpr.Call.of(SqlFn.FLOAT_PRINT, x);
         }
         // numbers, booleans, and the Any carrier: the toString spelling
@@ -94,7 +94,7 @@ final class Repr {
         // (assertEquals' %r fast path inlined over a known-many
         // collection) VALID SQL — DuckDB type-checks dead branches
         // (Phase 4 channel B surfaced this on 169 essential tests)
-        SqlExpr se = new SqlExpr.Cast(e, SqlType.Scalar.VARCHAR);
+        SqlExpr se = new SqlExpr.Cast(e, SqlType.Scalar.VARCHAR, SqlExpr.Reason.PRINT);
         SqlExpr escaped = SqlExpr.Call.of(SqlFn.REPLACE,
                 SqlExpr.Call.of(SqlFn.REPLACE, se,
                         new SqlExpr.StringLit("\\"),

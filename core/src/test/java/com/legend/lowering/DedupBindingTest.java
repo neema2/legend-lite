@@ -29,7 +29,7 @@ class DedupBindingTest {
     void comparatorOperandsCarryTheElementStamp() {
         SqlExpr carried = new SqlExpr.Cast(
                 new SqlExpr.ArrayLit(List.of(new SqlExpr.StringLit("1"))),
-                new SqlType.Array(SqlType.Scalar.VARCHAR));
+                new SqlType.Array(SqlType.Scalar.VARCHAR), SqlExpr.Reason.USER);
         List<TypeFact> seen = new ArrayList<>();
         Dedup.keptDedup(carried, 0, (prior, cand) -> {
             seen.add(prior.type());

@@ -164,7 +164,7 @@ class StoreTypesTest {
     static String textType(com.legend.sql.dialect.SqlDialect dialect) {
         String sql = dialect.render(new com.legend.sql.SqlSelect(List.of(new com.legend.sql.SqlSelect.Projection(
                 new com.legend.sql.SqlExpr.Cast(com.legend.sql.SqlExpr.Column.physical("t", "c"),
-                        com.legend.sql.SqlType.Scalar.VARCHAR), "x", null)), false,
+                        com.legend.sql.SqlType.Scalar.VARCHAR, com.legend.sql.SqlExpr.Reason.USER), "x", null)), false,
                 new SqlSource.Dual(), null, List.of(), null, null, List.of(), null, null, List.of()));
         var m = java.util.regex.Pattern.compile("CAST\\([^)]*\\bc[\"`]?\\s+AS ([^)]+)\\)").matcher(sql);
         assertTrue(m.find(), sql);

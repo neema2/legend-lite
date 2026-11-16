@@ -249,6 +249,31 @@ class CatalogModelTest {
     }
 
     /**
+     * A read-only source's zoned column, read in place through the product door, answers its UTC instant: DuckDB hands
+     * the cell as an OffsetDateTime at the session's zone, UTC, and the decode carries it as the instant it is, no
+     * shift in Java (E1 item 3, 2026-11-12, the orchestrator's acceptance: a value at any other offset is refused by
+     * name, JdbcDecodeH2Test). A value written at +05:00 reads back five hours earlier, its UTC wall clock.
+     */
+    @Test
+    void aReadOnlySourcesZonedColumnAnswersItsUtcInstant() throws Exception {
+        try (java.sql.Connection conn = java.sql.DriverManager.getConnection("jdbc:duckdb:");
+             java.sql.Statement st = conn.createStatement()) {
+            // the user's table, as a catalog source finds it; the plan's declared setup puts the session in UTC
+            st.execute("CREATE TABLE orders AS SELECT CAST(1 AS BIGINT) AS id,"
+                    + " TIMESTAMPTZ '2024-01-02 10:30:00+05:00' AS \"at\"");
+            CatalogModel.Database db = CatalogModel.database("t::DB", "main", "orders",
+                    columnsOf(st, "main", "orders"), new DuckDb(), false);
+            com.legend.result.Collector collector = new com.legend.result.Collector();
+            var session = com.legend.testbackend.TestSessions.over(conn);
+            com.legend.Execution.run(db.text() + WRAPPER, db.accessor() + "->select(~[id, at])", "t::RT",
+                    com.legend.exec.SessionSource.given(session), com.legend.exec.PlanSessions.of(session),
+                    new com.legend.result.Output.Rows(collector));
+            assertEquals(List.of(List.of(1L, com.legend.values.PureDateLiteral.parse("2024-01-02T05:30:00.000000000"))),
+                    collector.collected().rows());
+        }
+    }
+
+    /**
      * The same model on a Postgres runtime (a warehouse's Postgres catalog): the zoned column is read as
      * stored, compared with a timestamp literal and grouped by its year and month in Postgres's own SQL --
      * which the session's UTC zone makes its UTC instant's.

@@ -78,11 +78,11 @@ final class QuantileOrder extends SqlRewriter {
                         new SqlExpr.Cast(
                                 SqlExpr.Call.of(SqlFn.CEILING,
                                         SqlExpr.Call.of(SqlFn.TIMES,
-                                                new SqlExpr.Cast(p, SqlType.Scalar.DOUBLE),
+                                                new SqlExpr.Cast(p, SqlType.Scalar.DOUBLE, SqlExpr.Reason.DIALECT),
                                                 new SqlAgg.Reducer(SqlAgg.Fn.COUNT,
                                                         List.of(value), distinct,
                                                         List.of()))),
-                                SqlType.Scalar.BIGINT),
+                                SqlType.Scalar.BIGINT, SqlExpr.Reason.DIALECT),
                         new SqlExpr.IntLit(1)));
     }
 
@@ -148,7 +148,7 @@ final class QuantileOrder extends SqlRewriter {
     private static SqlExpr at(SqlExpr sorted, SqlExpr zeroBased) {
         return SqlExpr.Call.of(SqlFn.LIST_GET, sorted,
                 SqlExpr.Call.of(SqlFn.PLUS,
-                        new SqlExpr.Cast(zeroBased, SqlType.Scalar.BIGINT),
+                        new SqlExpr.Cast(zeroBased, SqlType.Scalar.BIGINT, SqlExpr.Reason.DIALECT),
                         new SqlExpr.IntLit(1)));
     }
 
@@ -161,7 +161,7 @@ final class QuantileOrder extends SqlRewriter {
             case SqlExpr.Call c -> new SqlExpr.Call(c.fn(), c.args().stream()
                     .map(x -> windowize(x, w)).toList());
             case SqlExpr.Cast c -> new SqlExpr.Cast(windowize(c.value(), w),
-                    c.target(), c.conform());
+                    c.target(), c.reason());
             default -> e;
         };
     }

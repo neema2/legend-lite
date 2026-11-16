@@ -35,10 +35,8 @@ class ObservabilityGuardrailTest {
     private static final Set<String> ENV_FLAGS = Set.of(
             "LEGEND_LITE_CARRY_TRACE", "LEGEND_LITE_CMP_DEBUG",
             "LEGEND_LITE_DUMP_SQL", "LEGEND_LITE_NAVDATE_TRACE",
-            // the lean ladder's prepare/execute timing trace (2026-09-20): one
-            // line per prepared statement to the named file — the input to
-            // "is prepare time linear in text / operators"; off by default
-            "LEGEND_LITE_PREP_TRACE",
+            // LEGEND_LITE_PREP_TRACE left the list 2026-11-15: its trace (diagnostics.PrepTrace, a file the verdict
+            // batch appended to) is deleted -- the planner writes no file (PR1's review, ArchitectureTest's rule)
             // LEGEND_LITE_RAW_EXPAND_TRACE left the list 2026-10-09: the trace it switched (Overloads
             // .rawSchemaErasedExpansion) is deleted (the ledger's PARK-13, build rebuild Phase 3b)
             "LEGEND_LITE_SPLIT_TRACE",

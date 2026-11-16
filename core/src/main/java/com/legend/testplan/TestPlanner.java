@@ -77,7 +77,7 @@ public final class TestPlanner {
         boolean systemRouted;
         HostAsserts host = null;
         DatabaseAsserts database = null;
-        AgreementAsserts agreement = null;
+        TestDoor.Asserts agreement = null;
         // the body's engine-text appeals as its arms planned them, by number: the plan carries those its verdicts name
         // (step 8b, 2026-11-08)
         EngineTextAppeals textAppeals = null;
@@ -128,10 +128,14 @@ public final class TestPlanner {
                 switch (judgesNothing ? PlanningOptions.JudgeMode.HOST : mode) {
                     case HOST -> host = HostAsserts.plan(typed, runtime, on, systemRouted ? bodyEnv : null);
                     case DATABASE -> database = DatabaseAsserts.plan(typed, runtime, on, systemRouted ? bodyEnv : null);
-                    // both judges in one plan: each assert's step carries the host's sides and the database's
-                    // statement
-                    case BOTH -> agreement = AgreementAsserts.plan(typed, runtime, on, systemRouted ? bodyEnv : null,
-                            systemRouted);
+                    // both judges over the DATABASE judge's real program, ONE road (E-5c, the user's ruling O5 of
+                    // 2026-11-13; DE4, the orchestrator's ruling under the user's delegation of 2026-11-15): its fused
+                    // statements, the host reading each single-value side as a typed column of them, and a root no
+                    // fused row carries (decided at planning, keyed, the split rung) judged by the host on its own
+                    // sides. A body the database judge plans no program for is refused by name below, as under the
+                    // database judge: there is no second road.
+                    case BOTH -> agreement = AgreementAsserts.planFused(typed, runtime, on,
+                            systemRouted ? bodyEnv : null, systemRouted);
                 }
             }
         }

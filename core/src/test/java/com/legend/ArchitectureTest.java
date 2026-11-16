@@ -626,6 +626,66 @@ final class ArchitectureTest {
     }
 
     /**
+     * <strong>The planner writes no file (E-1 of the total-wall program, the user's ruling of 2026-11-12: the lean-SQL
+     * sets' capture OUT of the product).</strong> The planner's library -- its doors, {@code com.legend.planner}, lowering,
+     * the compilers, the resolver, the normalizer, the parser and the lexer, the SQL tree and its dialects -- opens no
+     * file for writing: no {@code FileOutputStream}, {@code FileWriter} or
+     * {@code RandomAccessFile}, and no {@code java.nio.file.Files} write. It compiles to WebAssembly too, where there is
+     * no file to write. A capture is a test harness's, installed as a {@code planner.PlanningObserver}
+     * ({@code com.legend.leansql.QueryCaptureListener}).
+     */
+    @Test
+    void thePlannerWritesNoFile() {
+        PLANNER_WRITES_NO_FILE.check(CORE_PROD_CLASSES);
+    }
+
+    /** {@link #thePlannerWritesNoFile} fails on a planner class that writes a file ({@code planner.PlantedFileWrite}, a
+     *  test class in the planner's package: a {@code Files.writeString} and a {@code new PrintWriter(File)}) -- the
+     *  rule bites (2026-11-15, PR1's review: it had no planted violator). */
+    @Test
+    void thePlannerFileRuleBitesAPlantedWrite() {
+        bites(PLANNER_WRITES_NO_FILE, com.legend.planner.PlantedFileWrite.class);
+    }
+
+    /** The calls that write a file: {@code java.nio.file.Files}' writers, copies, moves and channels, and a
+     *  {@code FileChannel} opened. */
+    private static final java.util.Set<String> FILES_WRITES = java.util.Set.of("write", "writeString", "newOutputStream",
+            "newBufferedWriter", "copy", "move", "createFile", "createTempFile", "newByteChannel");
+
+    /** The planner's library (its doors, {@code com.legend.planner}, lowering, the compilers, the resolver, the
+     *  normalizer, the parser and the lexer, the SQL tree and its dialects, the test planner and the diagnostics
+     *  switchboard planning reads) opens no file for writing. */
+    private static final com.tngtech.archunit.lang.ArchRule PLANNER_WRITES_NO_FILE = noClasses()
+            .that().haveFullyQualifiedName("com.legend.Compiler")
+            .or().haveFullyQualifiedName("com.legend.TypedQuery")
+            .or().haveFullyQualifiedName("com.legend.HeldModels")
+            .or().resideInAnyPackage("com.legend.planner..", "com.legend.lowering..", "com.legend.compiler..",
+                    "com.legend.resolver..", "com.legend.normalizer..", "com.legend.parser..", "com.legend.lexer..",
+                    "com.legend.sql..", "com.legend.testplan..", "com.legend.diagnostics..")
+            .should().dependOnClassesThat().haveFullyQualifiedName("java.io.FileOutputStream")
+            .orShould().dependOnClassesThat().haveFullyQualifiedName("java.io.FileWriter")
+            .orShould().dependOnClassesThat().haveFullyQualifiedName("java.io.RandomAccessFile")
+            .orShould().callConstructorWhere(com.tngtech.archunit.base.DescribedPredicate.describe(
+                    "a PrintWriter or PrintStream over a file",
+                    (com.tngtech.archunit.core.domain.JavaConstructorCall call) -> {
+                        String owner = call.getTargetOwner().getFullName();
+                        if (!owner.equals("java.io.PrintWriter") && !owner.equals("java.io.PrintStream")) {
+                            return false;
+                        }
+                        var params = call.getTarget().getRawParameterTypes();
+                        return !params.isEmpty() && (params.get(0).getFullName().equals("java.io.File")
+                                || params.get(0).getFullName().equals("java.lang.String"));
+                    }))
+            .orShould().callMethodWhere(com.tngtech.archunit.base.DescribedPredicate.describe(
+                    "a java.nio.file.Files write or a FileChannel opened",
+                    (com.tngtech.archunit.core.domain.JavaMethodCall call) ->
+                            call.getTargetOwner().getFullName().equals("java.nio.file.Files")
+                                    && FILES_WRITES.contains(call.getName())
+                            || call.getTargetOwner().getFullName().equals("java.nio.channels.FileChannel")
+                                    && call.getName().equals("open")))
+            .as("E-1: the planner writes no file; a capture is a test harness's observer");
+
+    /**
      * <strong>The test-planning library is the driver's alone (the test-is-the-product plan's B4, brought forward to
      * M3 by R17 C7, 2026-10-31).</strong> The kinds only a test's program holds -- effects, seeds, the eager run,
      * asserts -- are planned by {@code com.legend.testplan} through the planner's extension point
@@ -1129,7 +1189,9 @@ final class ArchitectureTest {
      *  what is reached, so an entry no class reaches any more goes. Moves only with a dated note naming the task.
      *  2026-11-15 (C5-J item 6): 70 entries -> 61, still exactly what is measured over core and the hosts' doors;
      *  61 -> 62 (2026-11-15, the merge of #106 into #104: phase D's PlanningOptions#withStyle, the test door's plan
-     *  style; D's two re-keyed entries, PlanMaker#plan's and ExecuteOptions' signatures, count the same). Item 3
+     *  style; D's two re-keyed entries, PlanMaker#plan's and ExecuteOptions' signatures, count the same).
+     *  And (2026-11-16, E's PR1 merged into D's stage, W1): E-1's PlanningObserver listed (the capture's hook, reached
+     *  from the root's Compiler and TypedQuery). Item 3
      *  took out the resolver's 7 (its reads of the lowering's helpers moved below both); item 2 took out 4 (the PCT
      *  runner's reads of ProgramFacts' seedsInlineCsv, shape and verdicts, and the constructor's entry; effects() keeps
      *  its Compiler caller alone) and added 2, ProgramFacts#of (Compiler) and TestPlanner#facts (the test door). */
@@ -1162,12 +1224,19 @@ final class ArchitectureTest {
             "testplan.PlanningOptions#withJudgeMode(com.legend.testplan.PlanningOptions$JudgeMode)",
             "com.legend.ExecuteOptions",
             "testplan.PlanningOptions#withOptions(java.util.Set)", "com.legend.ExecuteOptions",
+            "testplan.PlanningOptions#withSpelling(com.legend.database.SqlSpelling)", "com.legend.ExecuteOptions",
             "testplan.PlanningOptions$JudgeMode#HOST", "com.legend.ExecuteOptions",
-            // the test-data routes (edge.TestDataRoutes, the edge's since phase D's D1.0b): the raw-SQL refusal of a typed query, and the seed's one
-            // entry, which refuses
+            // the test-data routes (edge.TestDataRoutes since phase D's D1.0b): the raw-SQL refusal of a typed query,
+            // and the seed's one entry, which refuses
             "planner.ProductStatements#lowerTestDataSeed(com.legend.TypedQuery, java.lang.String)",
             "com.legend.edge.TestDataRoutes",
             "planner.QueryDoor#refuseRawSql(com.legend.TypedQuery)", "com.legend.edge.TestDataRoutes",
+            // the planning observer (E-1's capture hook), from the root's Compiler and TypedQuery: told, never asked
+            "planner.PlanningObserver#installed()", "com.legend.Compiler com.legend.TypedQuery",
+            "planner.PlanningObserver#modelCompiled(com.legend.compiler.element.ModelContext, java.lang.String)",
+            "com.legend.Compiler",
+            "planner.PlanningObserver#planned(com.legend.TypedQuery, java.lang.String)", "com.legend.TypedQuery",
+            "planner.PlanningObserver#queryTyped(com.legend.TypedQuery, java.lang.String)", "com.legend.Compiler",
             // the root's Compiler, the lowering of a resolved query (lowerResolved): QueryDoor's refusal of a typed
             // body's executeInDb read (its (List, SpecCompiler) overload, the G1 follow-up audit's, 2026-11-14), the
             // cross-store guard, the Lowerer and its object sites, the platform's registrations, and a program's facts
@@ -3670,6 +3739,9 @@ final class ArchitectureTest {
             java.util.Map.entry("com.legend.arrowipc.ArrowIpc.END", StaticKind.CONSTANT_ARRAY),
             java.util.Map.entry("com.legend.arrowipc.ZstdFrame.MAGIC", StaticKind.CONSTANT_ARRAY),
             java.util.Map.entry("com.legend.diagnostics.Census.UNPLANNED_ASSERTS", StaticKind.MEASUREMENT),
+            // 2026-11-12 (E-1, the user's ruling: the lean-SQL sets' capture out of the product): the planner's one typed
+            // observer, none in the product, a test harness's installed (com.legend.leansql.QueryCaptureListener)
+            java.util.Map.entry("com.legend.planner.PlanningObserver$Installed.OBSERVER", StaticKind.MEASUREMENT),
             java.util.Map.entry("com.legend.base.Attribution.LABEL", StaticKind.MEASUREMENT),
             java.util.Map.entry("com.legend.diagnostics.VerdictCensus.CURRENT_FAMILY", StaticKind.MEASUREMENT),
             java.util.Map.entry("com.legend.diagnostics.VerdictCensus.SQL_CENSUS", StaticKind.MEASUREMENT),

@@ -677,7 +677,7 @@ public final class TestDataPlanner {
                 parts.add(new SqlExpr.StringLit(","));
             }
             parts.add(SqlExpr.Call.of(SqlFn.COALESCE, new SqlExpr.Cast(SqlExpr.Column.derived(CSV_ROW,
-                    tempColumn(f.def(), c)), SqlType.Scalar.VARCHAR), new SqlExpr.StringLit("---null---")));
+                    tempColumn(f.def(), c)), SqlType.Scalar.VARCHAR, SqlExpr.Reason.DECLARED), new SqlExpr.StringLit("---null---")));
         }
         parts.add(new SqlExpr.StringLit("\n"));
         SqlExpr line = new SqlExpr.Call(SqlFn.CONCAT, parts, SqlTyping.UNKNOWN);
@@ -899,7 +899,7 @@ public final class TestDataPlanner {
                 new SqlExpr.StringLit(owningDatabase(ctx, seed.db(), def))));
         SqlExpr answer = new SqlExpr.JsonObject(List.of(new SqlExpr.StringLit("table"), table,
                 new SqlExpr.StringLit("rowIdentifiers"), new SqlExpr.JsonArrayAgg(identifier, order)));
-        return new SqlSelect(List.of(new SqlSelect.Projection(new SqlExpr.Cast(answer, SqlType.Scalar.VARCHAR),
+        return new SqlSelect(List.of(new SqlSelect.Projection(new SqlExpr.Cast(answer, SqlType.Scalar.VARCHAR, SqlExpr.Reason.DECLARED),
                 "seedData", null)), false, new SqlSource.Subselect(seed.rows(), "_k", null), null, List.of(), null,
                 null, List.of(), null, null, List.of());
     }
@@ -949,10 +949,10 @@ public final class TestDataPlanner {
                     new SqlExpr.StringLit("'")), SqlTyping.UNKNOWN);
         }
         return switch (c.dataType()) {
-            case RelationalDataType.BigInt x -> new SqlExpr.Cast(v, SqlType.Scalar.VARCHAR);
-            case RelationalDataType.Integer_ x -> new SqlExpr.Cast(v, SqlType.Scalar.VARCHAR);
-            case RelationalDataType.SmallInt x -> new SqlExpr.Cast(v, SqlType.Scalar.VARCHAR);
-            case RelationalDataType.TinyInt x -> new SqlExpr.Cast(v, SqlType.Scalar.VARCHAR);
+            case RelationalDataType.BigInt x -> new SqlExpr.Cast(v, SqlType.Scalar.VARCHAR, SqlExpr.Reason.DECLARED);
+            case RelationalDataType.Integer_ x -> new SqlExpr.Cast(v, SqlType.Scalar.VARCHAR, SqlExpr.Reason.DECLARED);
+            case RelationalDataType.SmallInt x -> new SqlExpr.Cast(v, SqlType.Scalar.VARCHAR, SqlExpr.Reason.DECLARED);
+            case RelationalDataType.TinyInt x -> new SqlExpr.Cast(v, SqlType.Scalar.VARCHAR, SqlExpr.Reason.DECLARED);
             default -> throw new NotImplementedException("testDataGen: the seed string's key " + table + "."
                     + c.name() + " of type " + com.legend.plan.PlanText.spell(c.dataType()) + ": its Pure"
                     + " representation is not planned (B2d.3 writes a text key and a whole-number key)");
@@ -1211,7 +1211,7 @@ public final class TestDataPlanner {
             all = and(all, SqlExpr.Call.of(SqlFn.EQUAL, SqlExpr.Column.derived("_d" + k, "n"), new SqlExpr.IntLit(0)));
             List<SqlExpr> parts = new ArrayList<>();
             parts.add(new SqlExpr.StringLit(labels.get(k) + " x"));
-            parts.add(new SqlExpr.Cast(SqlExpr.Column.derived("_u", COUNT), SqlType.Scalar.VARCHAR));
+            parts.add(new SqlExpr.Cast(SqlExpr.Column.derived("_u", COUNT), SqlType.Scalar.VARCHAR, SqlExpr.Reason.DECLARED));
             parts.add(new SqlExpr.StringLit(": "));
             for (int i = 0; i < width; i++) {
                 if (i > 0) {
@@ -1232,7 +1232,7 @@ public final class TestDataPlanner {
                     new SqlExpr.StringLit("")));
         }
         SqlExpr verdict = new SqlExpr.Case(List.of(new SqlExpr.Case.When(java.util.Objects.requireNonNull(all,
-                "a comparison of no table"), new SqlExpr.BoolLit(true))), new SqlExpr.BoolLit(false));
+                "a comparison of no table"), new SqlExpr.BoolLit(true))), new SqlExpr.BoolLit(false), SqlExpr.Reason.DECLARED);
         SqlSelect holds = new SqlSelect(List.of(new SqlSelect.Projection(verdict, "same", null)), false,
                 java.util.Objects.requireNonNull(counts), null, List.of(), null, null, List.of(), null, null,
                 List.of(new com.legend.sql.OutputCol("same", SqlType.Scalar.BOOLEAN, false)));
@@ -1293,7 +1293,7 @@ public final class TestDataPlanner {
             SqlExpr cell = sliceCell(g.def(), c, "_u", hashStrings);
             // a timestamp as the text prints it ({@link Printing}), so the comparison reads what the text wrote
             ps.add(new SqlSelect.Projection(upstreamCell(timestamp(type) ? timestampText(cell, printing)
-                    : new SqlExpr.Cast(cell, SqlType.Scalar.VARCHAR), type), "v" + i, null));
+                    : new SqlExpr.Cast(cell, SqlType.Scalar.VARCHAR, SqlExpr.Reason.DECLARED), type), "v" + i, null));
         }
         return new SqlSelect(ps, false, new SqlSource.Subselect(fetchedRows(g.clauses()), "_u", null), null,
                 List.of(), null, null, List.of(), null, null, List.of());
@@ -1339,13 +1339,13 @@ public final class TestDataPlanner {
                 SqlExpr.Call.of(SqlFn.EQUAL, x, new SqlExpr.StringLit("---null---")));
         List<SqlExpr.Case.When> whens = new ArrayList<>();
         whens.add(new SqlExpr.Case.When(new SqlExpr.Group(absent), new SqlExpr.Cast(new SqlExpr.NullLit(),
-                SqlType.Scalar.VARCHAR)));
+                SqlType.Scalar.VARCHAR, SqlExpr.Reason.DECLARED)));
         if (t instanceof RelationalDataType.Bit) {
             SqlExpr bit = SqlExpr.Call.of(SqlFn.LOWER, SqlExpr.Call.of(SqlFn.TRIM, x));
             whens.add(new SqlExpr.Case.When(oneOf(bit, "y", "1", "true"), new SqlExpr.StringLit("true")));
             whens.add(new SqlExpr.Case.When(oneOf(bit, "n", "0", "false"), new SqlExpr.StringLit("false")));
         }
-        return new SqlExpr.Case(whens, x);
+        return new SqlExpr.Case(whens, x, SqlExpr.Reason.DECLARED);
     }
 
     /** Whether {@code t} is a timestamp column's type, printed by {@link Printing}. */
@@ -1359,9 +1359,9 @@ public final class TestDataPlanner {
     private static SqlExpr timestampText(SqlExpr x, Printing printing) {
         return switch (printing) {
             case CLEAN -> new SqlExpr.Case(List.of(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.IS_NULL, x),
-                    new SqlExpr.Cast(new SqlExpr.NullLit(), SqlType.Scalar.VARCHAR))), SqlExpr.Call.of(SqlFn.CONCAT,
+                    new SqlExpr.Cast(new SqlExpr.NullLit(), SqlType.Scalar.VARCHAR, SqlExpr.Reason.DECLARED))), SqlExpr.Call.of(SqlFn.CONCAT,
                     SqlExpr.Call.of(SqlFn.STRFTIME, x, new SqlExpr.FormatLit(com.legend.sql.DateFmt.ISO_NANO)),
-                    new SqlExpr.StringLit("+0000")));
+                    new SqlExpr.StringLit("+0000")), SqlExpr.Reason.DECLARED);
             case COMPAT -> SqlExpr.Call.of(SqlFn.STRFTIME, x, new SqlExpr.FormatLit(SECONDS));
         };
     }
@@ -1458,7 +1458,7 @@ public final class TestDataPlanner {
             for (DatabaseDefinition.ColumnDefinition c : def.columns()) {
                 SqlExpr cell = g != null && g.columns().contains(c.name())
                         ? reloaded(sliceCell(def, c.name(), "_u", planned.hashStrings()), c, sqlType(c, def))
-                        : new SqlExpr.Cast(new SqlExpr.NullLit(), sqlType(c, def));
+                        : new SqlExpr.Cast(new SqlExpr.NullLit(), sqlType(c, def), SqlExpr.Reason.DECLARED);
                 // labelled by the column's declared name: the swap reads each column by it (lowering/TableSwaps)
                 ps.add(new SqlSelect.Projection(cell, c.name(), null));
             }
@@ -1482,7 +1482,7 @@ public final class TestDataPlanner {
         SqlExpr absent = SqlExpr.Call.of(SqlFn.OR, SqlExpr.Call.of(SqlFn.EQUAL, cell, new SqlExpr.StringLit("")),
                 SqlExpr.Call.of(SqlFn.EQUAL, cell, new SqlExpr.StringLit("---null---")));
         return new SqlExpr.Case(List.of(new SqlExpr.Case.When(new SqlExpr.Group(absent), new SqlExpr.Cast(
-                new SqlExpr.NullLit(), type))), cell);
+                new SqlExpr.NullLit(), type, SqlExpr.Reason.DECLARED))), cell, SqlExpr.Reason.DECLARED);
     }
 
     /**
@@ -1762,7 +1762,7 @@ public final class TestDataPlanner {
                 SqlExpr.Call.of(SqlFn.REPEAT_STR, h, SqlExpr.Call.of(SqlFn.INT_DIVIDE, length, new SqlExpr.IntLit(5))),
                 SqlExpr.Call.of(SqlFn.RIGHT, h, SqlExpr.Call.of(SqlFn.MOD, length, new SqlExpr.IntLit(5))));
         return new SqlExpr.Case(List.of(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.IS_NULL, s),
-                new SqlExpr.NullLit())), tiled);
+                new SqlExpr.NullLit())), tiled, SqlExpr.Reason.DECLARED);
     }
 
     /**
@@ -1780,7 +1780,7 @@ public final class TestDataPlanner {
         }
         SqlExpr doubled = new SqlExpr.Call(SqlFn.CONCAT, List.of(new SqlExpr.StringLit("\""),
                 replace(cell, new SqlExpr.StringLit("\""), "\"\""), new SqlExpr.StringLit("\"")), SqlTyping.UNKNOWN);
-        return new SqlExpr.Case(List.of(new SqlExpr.Case.When(quoted, doubled)), cell);
+        return new SqlExpr.Case(List.of(new SqlExpr.Case.When(quoted, doubled)), cell, SqlExpr.Reason.DECLARED);
     }
 
     /** Whether {@code cell} holds {@code text}. */

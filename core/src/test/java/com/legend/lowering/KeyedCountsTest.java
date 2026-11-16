@@ -136,7 +136,7 @@ class KeyedCountsTest {
         SqlExpr on = SqlExpr.Call.of(SqlFn.EQUAL, col("a", "c0"), col("b", "c0"));
         // the later of two dates the join makes equal is that date
         SqlExpr later = new SqlExpr.Case(List.of(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.GREATER_EQUAL,
-                col("a", "c0"), col("b", "c0")), col("a", "c0"))), col("b", "c0"));
+                col("a", "c0"), col("b", "c0")), col("a", "c0"))), col("b", "c0"), SqlExpr.Reason.OPERATOR);
         SqlSelect met = select(new SqlSource.Join(a, b, SqlSource.Join.Kind.INNER, on), null, later);
         assertEquals(true, folded(select(new SqlSource.Subselect(met, "m", null), null, count(col("m", "c0")))));
         // a count over the join itself, on either side's date

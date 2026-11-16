@@ -10,7 +10,6 @@ import com.legend.testexecutionplan.Failures;
 import com.legend.testexecutionplan.Row;
 
 import com.legend.diagnostics.Census;
-import com.legend.diagnostics.PrepTrace;
 import com.legend.executionplan.ExecutionPlan;
 import com.legend.testexecutionplan.RootLoop;
 import com.legend.testexecutionplan.TestPlan;
@@ -34,10 +33,14 @@ import java.util.Map;
  * raises exactly as before (the runner's first-failure sequencing and gate
  * 11's per-assert ledger keys are unchanged); a root's own steps (an
  * unrolled quantified assert is several statements, a static kind gate is
- * a decided outcome) decide in their order. THE SPLIT RUNG: when the fused
- * statement itself errors (a side the database rejects), the batch is
- * judged statement by statement — today's path, so the error lands on the
- * assert that owns it — counted, never a verdict change. This class sends
+ * a decided outcome) decide in their order. A FUSED STATEMENT THE DATABASE
+ * REJECTS at run (a side it raises on) fails the body by name, the
+ * database's own error first, then the verdicts the statement held: nothing
+ * is retried another way (P1.2, d67cd85c5, 2026-11-07: the run-time split
+ * rung, which judged the batch statement by statement, is deleted). The one
+ * split that remains is at PLANNING: a fused form the dialect cannot spell,
+ * each member then its own statement, or refused alone (see {@link #plan}).
+ * This class plans
  * and orders; the SQL shape is the lowering's, the judgment of a row is
  * the verdict arm's ({@link RootLoops.Judge}), and each statement is sent as a PLAN
  * by the {@link Runner} (the plan path program's step 6, 2026-10-18: a
@@ -49,7 +52,9 @@ public final class VerdictBatch {
      * the frame definitions the sides reference at its head. */
     @FunctionalInterface
     public interface Fusion {
-        SqlQuery fuse(List<SqlQuery> statements, Map<String, SqlQuery> frames);
+        /** {@code members}' rows as one statement, each row carrying its member's host columns (E-5c; none under the
+         *  database judge alone), {@code frames} at its head. */
+        SqlQuery fuse(List<com.legend.lowering.VerdictSql.Member> members, Map<String, SqlQuery> frames);
     }
 
     /** The lowering's ONE row over a generic verdict row and its ruled row (2026-11-06,
@@ -139,6 +144,13 @@ public final class VerdictBatch {
         /** The caller's message where it READS ({@link #message}): its row, sent only where the root fails. */
         @com.legend.base.Nullable SqlQuery message;
         ExecutionPlan.@com.legend.base.Nullable Target messageOn;
+        /** The HOST judge's columns this root's first fused row carries (E-5c, {@link #host}): their SQL, and their
+         *  column facts, each named as its SQL's output. None under the database judge alone. */
+        List<com.legend.lowering.VerdictSql.HostColumn> hostSql = List.of();
+        List<ExecutionPlan.Column> hostColumns = List.of();
+        /** Whether the agreement judge attached the host's half to this root ({@link #host}), host columns or none: its
+         *  first fused row then carries the host's verdict ({@link Planned#hostCarriers}; E-5c step 6, 2026-11-13). */
+        boolean hosted;
 
         Root(String listenerName) {
             this.listenerName = listenerName;
@@ -196,6 +208,40 @@ public final class VerdictBatch {
         }
         current = new Root(listenerName);
         roots.add(current);
+    }
+
+    /**
+     * The HOST judge's columns of the batch's LAST root (E-5c, the user's ruling O5 of 2026-11-13: the agreement judge
+     * reads each single-value side as typed columns of the database judge's fused row): {@code sql}, each column's
+     * expression under its output, and {@code columns}, their facts, named alike and in the same order. The root's first
+     * row that joins a fused statement carries them ({@link Planned#hostCarriers}); a root whose rows join none carries
+     * none ({@link Planned#hostUncarried}), for the planner to decide. Called with no columns, the root still has its
+     * carrier: the row the host's verdict rides (E-5c step 6, 2026-11-13).
+     */
+    public void host(List<com.legend.lowering.VerdictSql.HostColumn> sql, List<ExecutionPlan.Column> columns) {
+        if (roots.isEmpty() || current != null) {
+            throw new IllegalStateException("verdict batch: host columns for a closed root, and none is");
+        }
+        if (sql.size() != columns.size()) {
+            throw new IllegalArgumentException("verdict batch: " + sql.size() + " host columns' SQL for "
+                    + columns.size() + " column facts");
+        }
+        for (int i = 0; i < sql.size(); i++) {
+            if (!sql.get(i).out().name().equals(columns.get(i).name())) {
+                throw new IllegalArgumentException("verdict batch: a host column's SQL named '"
+                        + sql.get(i).out().name() + "' under the facts of '" + columns.get(i).name() + "'");
+            }
+        }
+        Root r = roots.get(roots.size() - 1);
+        r.hostSql = List.copyOf(sql);
+        r.hostColumns = List.copyOf(columns);
+        r.hosted = true;
+    }
+
+    /** The roots opened since the batch was last planned (E-5c step 6: the agreement judge's planner attaches the
+     *  host's half to the root an assert opened, by its index in the segment). */
+    int rootCount() {
+        return roots.size();
     }
 
     public boolean active() {
@@ -474,6 +520,22 @@ public final class VerdictBatch {
             }
             messages.put(k, sideOf(java.util.Objects.requireNonNull(a.plan())));
         }
+        // E-5c: each root the host's half was attached to (host columns or none, step 6), its first row (in the batch's order) the one that carries them, by the
+        // row's ix; a root whose carrier row joins no fused statement (keyed, the split rung) is left uncarried
+        Map<Integer, Integer> carriers = new HashMap<>();   // a carrier row's ix -> its root's index in the batch
+        for (int k = 0; k < batch.size(); k++) {
+            Root r = batch.get(k);
+            if (!r.hosted) {
+                continue;
+            }
+            for (Step s : r.steps) {
+                if (s instanceof Pending p) {
+                    carriers.put(p.ix(), k);
+                    break;
+                }
+            }
+        }
+        Map<Integer, Integer> hostCarriers = new java.util.TreeMap<>();   // a root's index -> its carrier verdict
         List<Group> out = new ArrayList<>();
         Map<Integer, Pending> members = new java.util.HashMap<>();
         // the members the dialect cannot spell (the split rung at planning): each refused at its place, nothing sent
@@ -481,11 +543,6 @@ public final class VerdictBatch {
         List<Pending> unspelled = new ArrayList<>();
         for (var g : groups.entrySet()) {
             List<Pending> all = g.getValue();
-            if (PrepTrace.on()) {
-                for (Pending p : all) {
-                    PrepTrace.branch(p.name(), runner.chars(p.query()));
-                }
-            }
             // the group as a plan value (S2e): the fused statement its wrapper over wrappers, each verdict a step with
             // no wrapper of its own here
             // a member whose statement reads a raw grid's report is keyed: its wrapper's keys are its grid's columns,
@@ -502,8 +559,7 @@ public final class VerdictBatch {
             }
             ExecutionPlan.TdsResult fusedPlan;
             try {
-                fusedPlan = typed(runner.plan(fusion.fuse(ps.stream().map(Pending::query).toList(), frames), true,
-                        g.getKey()));
+                fusedPlan = fusedOf(ps, carriers, batch, g.getKey());
             } catch (com.legend.sql.DialectCapability e) {
                 // the split rung at planning (P1, 2026-11-07, the milestone audit's 1): the fused statement the dialect
                 // cannot spell -- each member its own statement, a group with no fused statement as the keyed members'
@@ -517,13 +573,18 @@ public final class VerdictBatch {
                 }
                 continue;
             }
-            for (Map.Entry<List<Pending>, ExecutionPlan.TdsResult> part : withinBudget(ps, fusedPlan, g.getKey())) {
+            for (Map.Entry<List<Pending>, ExecutionPlan.TdsResult> part : withinBudget(ps, fusedPlan, g.getKey(),
+                    carriers, batch)) {
                 List<TestPlan.Verdict> verdicts = new ArrayList<>(part.getKey().size());
                 for (Pending p : part.getKey()) {
                     TestPlan.Verdict v = new TestPlan.Verdict(ids.next(), p.name(), armOf(p.name()), List.of(),
                             null);
                     verdicts.add(v);
                     members.put(v.id(), p);
+                    Integer root = carriers.get(p.ix());
+                    if (root != null) {
+                        hostCarriers.put(root, v.id());
+                    }
                 }
                 out.add(new Group(new TestPlan.Verdicts(verdicts, part.getValue(), runner.savepoint(),
                         runner.rules()), g.getKey(), false));
@@ -542,7 +603,14 @@ public final class VerdictBatch {
             refusals.put(u.ix(), Failures.of(refused, "VerdictBatch.plan: a member the dialect cannot spell"));
         }
         List<Group> placed = carried(batch, out, members, messages);
-        return new Planned(placed, loop(batch, placed, members, refusals, messages, messageRefusals));
+        java.util.Set<Integer> uncarried = new java.util.TreeSet<>();
+        for (int k = 0; k < batch.size(); k++) {
+            if (batch.get(k).hosted && !hostCarriers.containsKey(k)) {
+                uncarried.add(k);
+            }
+        }
+        return new Planned(placed, loop(batch, placed, members, refusals, messages, messageRefusals), hostCarriers,
+                uncarried);
     }
 
     /** The segment's roots as the plan's data (the plan-as-data design's step 5, 2026-11-08): each root's rows by the
@@ -663,9 +731,17 @@ public final class VerdictBatch {
      *  run (a session's keyed group, then its fused group, per session), and its root loop -- the judgment's data,
      *  judged at run from the plan by {@link RootLoops}. Until this step it held the members, the refusals and the
      *  messages in maps keyed by object identity and judged the rows itself. */
-    public record Planned(List<Group> groups, RootLoop loop) {
+    public record Planned(List<Group> groups, RootLoop loop, Map<Integer, Integer> hostCarriers,
+            java.util.Set<Integer> hostUncarried) {
         public Planned {
             groups = List.copyOf(groups);
+            hostCarriers = java.util.Collections.unmodifiableMap(new java.util.TreeMap<>(hostCarriers));
+            hostUncarried = java.util.Collections.unmodifiableSet(new java.util.TreeSet<>(hostUncarried));
+        }
+
+        /** A batch with no host columns (the database judge alone). */
+        public Planned(List<Group> groups, RootLoop loop) {
+            this(groups, loop, Map.of(), java.util.Set.of());
         }
     }
 
@@ -711,17 +787,41 @@ public final class VerdictBatch {
      *  member: the same members in their order, each part a fused group of its own, all planned here (2026-11-05, PCT
      *  round 22: ClickHouse's analyzer over 50 asserts of nested instances, 1.3M characters). */
     private List<Map.Entry<List<Pending>, ExecutionPlan.TdsResult>> withinBudget(List<Pending> ps,
-            ExecutionPlan.TdsResult fused, ExecutionPlan.Target on) {
+            ExecutionPlan.TdsResult fused, ExecutionPlan.Target on, Map<Integer, Integer> carriers, List<Root> batch) {
         if (ps.size() == 1 || fused.sql().statement().length() <= runner.fusedBudget()) {
             return List.of(Map.entry(ps, fused));
         }
         List<Map.Entry<List<Pending>, ExecutionPlan.TdsResult>> out = new ArrayList<>();
         int half = ps.size() / 2;
         for (List<Pending> part : List.of(ps.subList(0, half), ps.subList(half, ps.size()))) {
-            out.addAll(withinBudget(part, typed(runner.plan(fusion.fuse(part.stream().map(Pending::query).toList(),
-                    frames), true, on)), on));
+            out.addAll(withinBudget(part, fusedOf(part, carriers, batch, on), on, carriers, batch));
         }
         return out;
+    }
+
+    /** {@code ps}'s fused statement, each carrier row with its root's host columns, its plan's columns the batch's
+     *  then those columns' facts (E-5c). */
+    private ExecutionPlan.TdsResult fusedOf(List<Pending> ps, Map<Integer, Integer> carriers, List<Root> batch,
+            ExecutionPlan.Target on) {
+        List<com.legend.lowering.VerdictSql.Member> ms = new ArrayList<>(ps.size());
+        List<ExecutionPlan.Column> extra = new ArrayList<>();
+        for (Pending p : ps) {
+            Integer root = carriers.get(p.ix());
+            if (root == null) {
+                ms.add(new com.legend.lowering.VerdictSql.Member(p.query(), List.of()));
+            } else {
+                Root r = batch.get(root);
+                ms.add(new com.legend.lowering.VerdictSql.Member(p.query(), r.hostSql));
+                extra.addAll(r.hostColumns);
+            }
+        }
+        ExecutionPlan.TdsResult fused = typed(runner.plan(fusion.fuse(ms, frames), true, on));
+        if (extra.isEmpty()) {
+            return fused;
+        }
+        List<ExecutionPlan.Column> columns = new ArrayList<>(fused.columns());
+        columns.addAll(extra);
+        return new ExecutionPlan.TdsResult(fused.shape(), columns, fused.sql());
     }
 
     private static ExecutionPlan.TdsResult typed(ExecutionPlan.Node plan) {

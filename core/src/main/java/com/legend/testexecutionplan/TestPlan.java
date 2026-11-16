@@ -155,11 +155,61 @@ public record TestPlan(List<ExecutionPlan.Parameter> parameters, List<TestStep> 
         }
     }
 
+    /**
+     * The statements the test runner SENDS for {@code step} (2026-11-15, PR1's review: the judge-SQL pins counted the
+     * fused statement and the base sides alone): a verdict group's fused statement, else each verdict's wrapper; every
+     * raising verdict's wrapper (read with the raise's message bound, fused or not); each verdict's base and message
+     * sides; a branch's condition, then both sides' judge steps (a measurement counts what either side may send; a side's
+     * product steps are the product's).
+     */
+    public static List<Node> sent(TestStep step) {
+        List<Node> out = new java.util.ArrayList<>();
+        sentOf(step, out);
+        return out;
+    }
+
+    private static void sentOf(TestStep step, List<Node> out) {
+        switch (step) {
+            case Verdicts v -> {
+                if (v.fused() != null) {
+                    out.add(v.fused());
+                }
+                for (Verdict each : v.verdicts()) {
+                    if (each.wrapper() != null && (v.fused() == null || each.raises())) {
+                        out.add(each.wrapper());
+                    }
+                    each.base().forEach(side -> sideStatement(side, out));
+                    if (each.message() != null) {
+                        sideStatement(each.message(), out);
+                    }
+                }
+            }
+            case Branch b -> {
+                sideStatement(b.condition(), out);
+                b.then().forEach(inner -> sentInBranch(inner, out));
+                b.otherwise().forEach(inner -> sentInBranch(inner, out));
+            }
+            case Run r -> throw new IllegalArgumentException("a product step's statements are the product plan's");
+            case FrameRun f -> throw new IllegalArgumentException("a frame run's statement is its check's");
+        }
+    }
+
+    /** A branch side's step: its judge statements, a product step's (a Run, a FrameRun) being the product's, which a
+     *  branch side holds beside its verdicts (round 55f, 2026-11-15: thrown here, two corpus bodies' judges measured
+     *  as refused -- relationalMapper's testRelationalDatabaseMapper, projection::union's testSimpleRelationalUnion). */
+    private static void sentInBranch(TestStep step, List<Node> out) {
+        if (!(step instanceof Run) && !(step instanceof FrameRun)) {
+            sentOf(step, out);
+        }
+    }
+
     private static void sideStatement(Side side, List<Node> out) {
         switch (side) {
             case Side.Rows r -> out.add(r.result());
             case Side.KeyedRows k -> out.add(k.keyed());
             case Side.Constant c -> {
+            }
+            case Side.FusedCell f -> {
             }
         }
     }
@@ -179,21 +229,73 @@ public record TestPlan(List<ExecutionPlan.Parameter> parameters, List<TestStep> 
      * what the plan's judge asks ({@link Judge}) through the runner's open program; the runner judges nothing: the comparison rules and the messages are the judges' own code, reading the plan's
      * facts (the agreement's pairing among them, {@code agreement}). {@code roots}: the database judge's root loop of the segment this group closes (the plan-as-data
      * design's step 5, 2026-11-08), judged once the group's last verdict is in -- under the agreement judge, the
-     * database half's loop of the assert the group closes; null on every other group. {@code agreement}: under the
-     * agreement judge, the pairing of the assert this group closes (step 6), null otherwise.
+     * database half's loop of the asserts the group closes; null on every other group. {@code agreements}: under the
+     * agreement judge, the pairings of the asserts this group closes (step 6), one per root of {@code roots} in root
+     * order (E-5c, the user's ruling O5 of 2026-11-13: a segment's group may carry several asserts) -- or the one
+     * assert of a group with no loop (a raising assert's, or one the database judge declines); empty otherwise.
      */
     public record Verdicts(List<Verdict> verdicts, @com.legend.base.Nullable TdsResult fused,
             @com.legend.base.Nullable Savepoint savepoint, JudgingRules rules,
-            @com.legend.base.Nullable RootLoop roots, @com.legend.base.Nullable Agreement agreement)
+            @com.legend.base.Nullable RootLoop roots, List<Agreement> agreements)
             implements TestStep {
         public Verdicts {
             Objects.requireNonNull(rules, "a verdict group names the rules it is judged by");
             verdicts = List.copyOf(verdicts);
+            agreements = List.copyOf(agreements);
             if (verdicts.isEmpty()) {
                 throw new IllegalArgumentException("a verdict group holds at least one verdict");
             }
+            pairsItsRoots(roots, agreements);
             if (fused != null && fused.shape() != TdsResult.Shape.RELATION) {
                 throw new IllegalArgumentException("a fused verdict statement answers a relation, one row per verdict");
+            }
+            for (Verdict v : verdicts) {
+                for (Side side : v.base()) {
+                    if (side instanceof Side.FusedCell cell) {
+                        readsFused(fused, cell, v.name());
+                    }
+                }
+            }
+        }
+
+        /** The agreements a group closes pair its loop's roots, each once, in root order; a group with no loop
+         *  closes one assert at most, and a raising assert's group that one alone (E-5c, step 5b, 2026-11-13). */
+        private static void pairsItsRoots(@com.legend.base.Nullable RootLoop roots, List<Agreement> agreements) {
+            if (agreements.isEmpty()) {
+                return;
+            }
+            if (roots == null || agreements.stream().anyMatch(Agreement::raising)) {
+                if (agreements.size() != 1 || agreements.get(0).root() != 0) {
+                    throw new IllegalArgumentException("a verdict group with no root loop, or a raising assert's,"
+                            + " closes one agreement, root 0: " + agreements);
+                }
+                return;
+            }
+            if (agreements.size() != roots.roots().size()) {
+                throw new IllegalArgumentException("a verdict group's " + agreements.size() + " agreements pair a loop"
+                        + " of " + roots.roots().size() + " roots: one per root");
+            }
+            for (int i = 0; i < agreements.size(); i++) {
+                if (agreements.get(i).root() != i) {
+                    throw new IllegalArgumentException("a verdict group's agreements pair its roots in root order: "
+                            + agreements);
+                }
+            }
+        }
+
+        /** A fused-cell side of verdict {@code name} reads columns of its group's fused statement (E-5c). */
+        private static void readsFused(@com.legend.base.Nullable TdsResult fused, Side.FusedCell cell, String name) {
+            if (fused == null) {
+                throw new IllegalArgumentException(name + ": a side read from the fused row of a group with no fused"
+                        + " statement");
+            }
+            java.util.Set<String> names = new java.util.HashSet<>();
+            fused.columns().forEach(c -> names.add(c.name()));
+            for (Column c : cell.columns()) {
+                if (!names.contains(c.name())) {
+                    throw new IllegalArgumentException(name + ": a side reads the fused column '" + c.name()
+                            + "', which the group's fused statement does not answer");
+                }
             }
         }
 
@@ -201,29 +303,29 @@ public record TestPlan(List<ExecutionPlan.Parameter> parameters, List<TestStep> 
          *  outside any transaction, or no failure of its statements is one the program survives but the fused
          *  statement's. */
         public Verdicts(List<Verdict> verdicts, @com.legend.base.Nullable TdsResult fused, JudgingRules rules) {
-            this(verdicts, fused, null, rules, null, null);
+            this(verdicts, fused, null, rules, null, List.of());
         }
 
         /** A group that closes no database segment and pairs no assert. */
         public Verdicts(List<Verdict> verdicts, @com.legend.base.Nullable TdsResult fused,
                 @com.legend.base.Nullable Savepoint savepoint, JudgingRules rules) {
-            this(verdicts, fused, savepoint, rules, null, null);
+            this(verdicts, fused, savepoint, rules, null, List.of());
         }
 
         /** A group that pairs no assert. */
         public Verdicts(List<Verdict> verdicts, @com.legend.base.Nullable TdsResult fused,
                 @com.legend.base.Nullable Savepoint savepoint, JudgingRules rules,
                 @com.legend.base.Nullable RootLoop roots) {
-            this(verdicts, fused, savepoint, rules, roots, null);
+            this(verdicts, fused, savepoint, rules, roots, List.of());
         }
 
         /** The same group closing a database segment, judged by {@code r} once its last verdict is in. */
         public Verdicts withRoots(@com.legend.base.Nullable RootLoop r) {
-            return new Verdicts(verdicts, fused, savepoint, rules, r, agreement);
+            return new Verdicts(verdicts, fused, savepoint, rules, r, agreements);
         }
 
-        /** The same group closing the agreement judge's assert {@code a}. */
-        public Verdicts withAgreement(@com.legend.base.Nullable Agreement a) {
+        /** The same group closing the agreement judge's asserts {@code a}, in root order. */
+        public Verdicts withAgreements(List<Agreement> a) {
             return new Verdicts(verdicts, fused, savepoint, rules, roots, a);
         }
 
@@ -385,7 +487,7 @@ public record TestPlan(List<ExecutionPlan.Parameter> parameters, List<TestStep> 
 
     /** A side of an assert: a result the database answers (typed rows, or a keyed result's), or a constant the
      *  program wrote. */
-    public sealed interface Side permits Side.Rows, Side.KeyedRows, Side.Constant {
+    public sealed interface Side permits Side.Rows, Side.KeyedRows, Side.Constant, Side.FusedCell {
 
         /** A statement with its column facts, run as any typed result is. */
         record Rows(TdsResult result) implements Side {
@@ -398,6 +500,23 @@ public record TestPlan(List<ExecutionPlan.Parameter> parameters, List<TestStep> 
         record KeyedRows(Keyed keyed) implements Side {
             public KeyedRows {
                 Objects.requireNonNull(keyed, "keyed");
+            }
+        }
+
+        /**
+         * A side read from its group's FUSED row (E-5c, the user's ruling O5 of 2026-11-13: the agreement judge reads
+         * each single-value side as typed columns of the database judge's fused statement): {@code columns}, the side's
+         * own columns with their type facts, each NAMED as the fused statement's column it is read from, on the row of
+         * the verdict that carries it. Nothing is sent for it; its group's fused statement is read once, and the cells
+         * decode by these columns' facts as the side's own statement's would. Only in a group with a fused statement
+         * whose columns hold every one of these names ({@link Verdicts}' invariant).
+         */
+        record FusedCell(List<Column> columns) implements Side {
+            public FusedCell {
+                columns = List.copyOf(columns);
+                if (columns.isEmpty()) {
+                    throw new IllegalArgumentException("a fused-cell side reads at least one column");
+                }
             }
         }
 

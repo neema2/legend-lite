@@ -74,8 +74,13 @@ public final class Compiler {
      */
     public static ModelContext compileModel(@com.legend.base.Nullable String model) {
         Objects.requireNonNull(model, "model");
-        return buildPositioned(ModelFromText.parse(model,
+        ModelContext ctx = buildPositioned(ModelFromText.parse(model,
                 com.legend.parser.GrammarLevel.LEGEND_LITE));
+        com.legend.planner.PlanningObserver seen = com.legend.planner.PlanningObserver.installed();
+        if (seen != null) {
+            seen.modelCompiled(ctx, model);   // a test harness's observer (E-1): none in the product
+        }
+        return ctx;
     }
 
     /**
@@ -736,7 +741,12 @@ public final class Compiler {
      * model is compiled once ({@link #compileModel}) and never again per question.
      */
     public static TypedQuery query(ModelContext ctx, String query) {
-        return query(ctx, parseQuery(query));
+        TypedQuery typed = query(ctx, parseQuery(query));
+        com.legend.planner.PlanningObserver seen = com.legend.planner.PlanningObserver.installed();
+        if (seen != null) {
+            seen.queryTyped(typed, query);   // a test harness's observer (E-1): none in the product
+        }
+        return typed;
     }
 
     /** {@link #query(ModelContext, String)} for a query that arrives ALREADY PARSED — an upstream {@code pure/v1}

@@ -142,7 +142,7 @@ public final class KeyedPivot {
         // a REAL 3.14 widened to 3.140000104904175 matched no key -- audit finding D of 2026-08-18, which the staticizer
         // had fixed for itself; KeyedPivotKeyRoundTripTest)
         SqlExpr keyText = new SqlExpr.KeyCell(0, new com.legend.sql.TypeFact.Typed(SqlType.Scalar.VARCHAR, false));
-        SqlExpr onText = keySlot == SqlType.Scalar.VARCHAR ? on : new SqlExpr.Cast(on, SqlType.Scalar.VARCHAR);
+        SqlExpr onText = keySlot == SqlType.Scalar.VARCHAR ? on : new SqlExpr.Cast(on, SqlType.Scalar.VARCHAR, SqlExpr.Reason.OPERATOR);
         SqlQuery body0 = new SqlRewriter() {
             @Override
             protected SqlSource source(SqlSource s) {
@@ -213,9 +213,9 @@ public final class KeyedPivot {
                     throw new com.legend.error.NotImplementedException("a dynamic pivot's aggregate " + agg.fn()
                             + " takes no argument: its rows of a key have no CASE form");
                 }
-                args.add(new SqlExpr.Case(List.of(new SqlExpr.Case.When(isKey, new SqlExpr.IntLit(1))), null));
+                args.add(new SqlExpr.Case(List.of(new SqlExpr.Case.When(isKey, new SqlExpr.IntLit(1))), null, SqlExpr.Reason.OPERATOR));
             } else {
-                args.set(0, new SqlExpr.Case(List.of(new SqlExpr.Case.When(isKey, args.get(0))), null));
+                args.set(0, new SqlExpr.Case(List.of(new SqlExpr.Case.When(isKey, args.get(0))), null, SqlExpr.Reason.OPERATOR));
             }
             String stem = stem(i);
             ps.add(new SqlSelect.Projection(new SqlAgg.Reducer(agg.fn(), args, agg.distinct(), agg.orderBy()), stem,
@@ -233,7 +233,7 @@ public final class KeyedPivot {
         SqlSelect distinct = SqlSelect.starOf(pivot.source())
                 .withProjections(List.of(
                         new SqlSelect.Projection(on, "_pct_k", new OutputCol("_pct_k", keyTyped.type(), true)),
-                        new SqlSelect.Projection(new SqlExpr.Cast(on, SqlType.Scalar.VARCHAR), "_pct_t",
+                        new SqlSelect.Projection(new SqlExpr.Cast(on, SqlType.Scalar.VARCHAR, SqlExpr.Reason.OPERATOR), "_pct_t",
                                 new OutputCol("_pct_t", SqlType.Scalar.VARCHAR, true))))
                 .withWhere(SqlExpr.Call.of(SqlFn.IS_NOT_NULL, on))
                 .withDistinct();

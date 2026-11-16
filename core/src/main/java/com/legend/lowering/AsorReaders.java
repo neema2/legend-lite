@@ -38,14 +38,14 @@ final class AsorReaders {
                     throw new IllegalStateException("asorPkValue index must be literal");
                 }
                 SqlExpr pkJson = new SqlExpr.Cast(asorSegment(args.get(0), 6),
-                        SqlType.Scalar.JSON);
+                        SqlType.Scalar.JSON, SqlExpr.Reason.DECLARED);
                 SqlExpr text = SqlExpr.Call.of(SqlFn.REGEXP_REPLACE,
                         new SqlExpr.Cast(SqlExpr.Call.of(SqlFn.VARIANT_GET, pkJson,
                                 new SqlExpr.StringLit("pk$_" + idx.value())),
-                                SqlType.Scalar.VARCHAR),
+                                SqlType.Scalar.VARCHAR, SqlExpr.Reason.DECLARED),
                         new SqlExpr.StringLit("^\"|\"$"), new SqlExpr.StringLit(""),
                         new SqlExpr.StringLit("g"));
-                return new SqlExpr.Cast(text, PureSql.type(n.info().type()));
+                return new SqlExpr.Cast(text, PureSql.type(n.info().type()), SqlExpr.Reason.DECLARED);
             });
         }
         for (com.legend.model.FunctionId f : Pure.AT_LEGEND_LITE_ASOR_DECODE_PK_MAP) {
@@ -59,7 +59,7 @@ final class AsorReaders {
                 SqlExpr mapping = asorSegment(args.get(0), 2);
                 SqlExpr setId = asorSegment(args.get(0), 4);
                 SqlExpr pkJson = new SqlExpr.Cast(asorSegment(args.get(0), 6),
-                        SqlType.Scalar.JSON);
+                        SqlType.Scalar.JSON, SqlExpr.Reason.DECLARED);
                 List<SqlExpr.Case.When> whens = new ArrayList<>();
                 for (var e : sets.entrySet()) {
                     List<SqlExpr> kv = new ArrayList<>();
@@ -76,8 +76,8 @@ final class AsorReaders {
                 }
                 return new SqlExpr.Cast(new SqlExpr.JsonObject(List.of(
                         new SqlExpr.StringLit("pathToMapping"), mapping,
-                        new SqlExpr.StringLit("pkMap"), new SqlExpr.Case(whens, null),
-                        new SqlExpr.StringLit("setId"), setId)), SqlType.Scalar.VARCHAR);
+                        new SqlExpr.StringLit("pkMap"), new SqlExpr.Case(whens, null, SqlExpr.Reason.DECLARED),
+                        new SqlExpr.StringLit("setId"), setId)), SqlType.Scalar.VARCHAR, SqlExpr.Reason.DECLARED);
             });
         }
     }

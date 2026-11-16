@@ -161,7 +161,7 @@ final class CalendarAgg {
                                         lte(col(c, "currentMonthNum"),
                                                 col(e, "previousFiscalMonth"))),
                                 div(value, col(e, "previousFiscalMonth")))),
-                        new SqlExpr.NullLit());
+                        new SqlExpr.NullLit(), SqlExpr.Reason.OPERATOR);
             }
             case PWA -> {
                 SqlExpr first5 = lte(col(e, "currentWeek"),
@@ -186,7 +186,7 @@ final class CalendarAgg {
                                 SqlExpr.Call.of(SqlFn.TIMES,
                                         div(value, endPrevWeek),
                                         new SqlExpr.IntLit(5)))),
-                        new SqlExpr.NullLit());
+                        new SqlExpr.NullLit(), SqlExpr.Reason.OPERATOR);
             }
             case PYWA -> {
                 SqlExpr first5 = lte(col(e, "currentWeek"),
@@ -222,7 +222,7 @@ final class CalendarAgg {
     private static SqlExpr caseOf(SqlExpr cond, SqlExpr value) {
         return new SqlExpr.Case(
                 List.of(new SqlExpr.Case.When(cond, value)),
-                new SqlExpr.NullLit());
+                new SqlExpr.NullLit(), SqlExpr.Reason.OPERATOR);
     }
 
     private static SqlExpr div(SqlExpr l, SqlExpr r) {
@@ -235,7 +235,7 @@ final class CalendarAgg {
         SqlExpr endCol = new SqlExpr.Case(
                 List.of(new SqlExpr.Case.When(isAdjusted,
                         col(e, "adjustedDate"))),
-                col(e, "previousBusinessDay"));
+                col(e, "previousBusinessDay"), SqlExpr.Reason.OPERATOR);
         return and(
                 SqlExpr.Call.of(SqlFn.GREATER_EQUAL, col(c, "date"),
                         col(e, priorCol)),
@@ -278,7 +278,7 @@ final class CalendarAgg {
                 SqlExpr offset = new SqlExpr.Case(
                         List.of(new SqlExpr.Case.When(weekend,
                                 new SqlExpr.IntLit(1))),
-                        new SqlExpr.IntLit(0));
+                        new SqlExpr.IntLit(0), SqlExpr.Reason.OPERATOR);
                 yield eq(col(c, "fiscalWeekOffset"),
                         SqlExpr.Call.of(SqlFn.MINUS,
                                 col(e, "fiscalWeekOffset"), offset));
@@ -310,7 +310,7 @@ final class CalendarAgg {
                 SqlExpr yearOfPrev = new SqlExpr.Case(
                         List.of(new SqlExpr.Case.When(isJan,
                                 col(e, "previousFiscalYear"))),
-                        col(e, "currentYear"));
+                        col(e, "currentYear"), SqlExpr.Reason.OPERATOR);
                 yield and(
                         eq(col(c, "currentYear"), yearOfPrev),
                         eq(col(c, "currentMonthNum"), col(e, "previousFiscalMonth")),
@@ -321,7 +321,7 @@ final class CalendarAgg {
                 SqlExpr yearOfPrev = new SqlExpr.Case(
                         List.of(new SqlExpr.Case.When(isQ1,
                                 col(e, "previousFiscalYear"))),
-                        col(e, "currentYear"));
+                        col(e, "currentYear"), SqlExpr.Reason.OPERATOR);
                 yield and(
                         eq(col(c, "currentYear"), yearOfPrev),
                         eq(col(c, "currentQuarterNum"), col(e, "previousFiscalQuarter")),
@@ -359,7 +359,7 @@ final class CalendarAgg {
                 SqlExpr offset = new SqlExpr.Case(
                         List.of(new SqlExpr.Case.When(weekend,
                                 new SqlExpr.IntLit(2))),
-                        new SqlExpr.IntLit(1));
+                        new SqlExpr.IntLit(1), SqlExpr.Reason.OPERATOR);
                 yield eq(col(c, "fiscalWeekOffset"),
                         SqlExpr.Call.of(SqlFn.MINUS,
                                 col(e, "fiscalWeekOffset"), offset));

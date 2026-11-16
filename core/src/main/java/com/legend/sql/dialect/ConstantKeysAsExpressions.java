@@ -76,7 +76,7 @@ final class ConstantKeysAsExpressions extends SqlRewriter {
     /** A literal key as {@code CAST(<lit> AS <its own type>)}; any other key as it is. */
     private SqlExpr typedKey(SqlExpr e, String clause) {
         if (e instanceof SqlExpr.NullLit && clause.equals("GROUP BY")) {
-            return new SqlExpr.Cast(e, SqlType.Scalar.INTEGER);
+            return new SqlExpr.Cast(e, SqlType.Scalar.INTEGER, SqlExpr.Reason.DIALECT);
         }
         if (e instanceof SqlExpr.NullLit) {
             throw new DialectCapability("a NULL " + clause + " key reached " + database + ", which"
@@ -92,6 +92,6 @@ final class ConstantKeysAsExpressions extends SqlRewriter {
             throw new DialectCapability("an untyped constant " + clause + " key reached " + database + ", which"
                     + " reads a constant key otherwise and has no type to cast it to");
         }
-        return new SqlExpr.Cast(e, typed.type());
+        return new SqlExpr.Cast(e, typed.type(), SqlExpr.Reason.DIALECT);
     }
 }

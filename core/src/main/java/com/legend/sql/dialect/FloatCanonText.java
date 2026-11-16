@@ -31,6 +31,8 @@ final class FloatCanonText {
     static final class Expansion extends com.legend.sql.SqlRewriter {
 
         private final boolean bindText;
+        private final boolean staged;
+        private final boolean fenced;
         private final int[] fresh = {0};
         private final java.util.Map<SqlExpr, SqlExpr> spelledCalls = new java.util.HashMap<>();
 
@@ -38,7 +40,26 @@ final class FloatCanonText {
          *  subquery ({@code (SELECT <spelling over t> FROM (SELECT CAST(v AS VARCHAR) AS t) AS __fcN)}, the shape a
          *  common-subexpression binding takes); else the spelling reads the text in place. */
         Expansion(boolean bindText) {
-            this.bindText = bindText;
+            this(bindText, false);
+        }
+
+        /** {@code staged} (E-5a of the total-wall program, ruled 2026-11-12, docs/LEAN_PRODUCT_SQL_DESIGN_2026_11_12.md
+         *  §5.9): the text, the mantissa's digits and the point's position each a column of its own one-row derived
+         *  table, written once, and the spelling written over the columns -- the canon read its text 43 times and its
+         *  mantissa 24 inline (4,124 characters on DuckDB; staged, about 1,000, and 3.2x faster over 200,000 rows, the
+         *  same text for every double). Only for a dialect whose derived tables read the row around them. */
+        Expansion(boolean bindText, boolean staged) {
+            this(bindText, staged, false);
+        }
+
+        /** {@code fenced}: the staged layer that reads the text (the mantissa and the exponent) carries an {@code
+         *  OFFSET 0}, a fence its database's planner does not flatten through ({@code AnsiSqlRenderer.fencesFloatText}).
+         *  Unfenced, SQLite's flattener copies the mantissa's matcher -- a recursive common table expression -- into
+         *  every read of the digits and the point's position, and spends its time preparing the copies. */
+        Expansion(boolean bindText, boolean staged, boolean fenced) {
+            this.bindText = bindText || staged;
+            this.staged = staged;
+            this.fenced = staged && fenced;
         }
 
         @Override
@@ -54,8 +75,13 @@ final class FloatCanonText {
                 if (known != null) {
                     return known;
                 }
+                if (staged) {
+                    SqlExpr spelledCall = stagedSpelling(c.args().get(0), "__fc" + fresh[0]++, fenced);
+                    spelledCalls.put(c, spelledCall);
+                    return spelledCall;
+                }
                 String alias = "__fc" + fresh[0]++;
-                SqlExpr text = new SqlExpr.Cast(c.args().get(0), SqlType.Scalar.VARCHAR);
+                SqlExpr text = new SqlExpr.Cast(c.args().get(0), SqlType.Scalar.VARCHAR, SqlExpr.Reason.PRINT);
                 com.legend.sql.OutputCol t = new com.legend.sql.OutputCol("t", SqlType.Scalar.VARCHAR, true);
                 SqlExpr ref = SqlExpr.Column.of(alias, "t", SqlType.Scalar.VARCHAR, true,
                         com.legend.sql.OutputCol.Origin.DERIVED);
@@ -79,7 +105,7 @@ final class FloatCanonText {
 
     /** Pure's literal spelling of the double {@code v}, as SQL over its text. */
     static SqlExpr of(SqlExpr v) {
-        return ofText(new SqlExpr.Cast(v, SqlType.Scalar.VARCHAR));
+        return ofText(new SqlExpr.Cast(v, SqlType.Scalar.VARCHAR, SqlExpr.Reason.PRINT));
     }
 
     /** The exponent unfolded to fixed point where the text {@code base} carries one, else the text as it is: a
@@ -89,12 +115,60 @@ final class FloatCanonText {
         return new SqlExpr.Case(List.of(
                 new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.OR, has(base, "e"), has(base, "E")),
                         exponentUnfold(base))),
-                base);
+                base, SqlExpr.Reason.PRINT);
+    }
+
+    /** One column of a staged layer: {@code alias.name}, VARCHAR or INTEGER. */
+    private static SqlExpr col(String alias, String name, SqlType.Scalar type) {
+        return SqlExpr.Column.of(alias, name, type, true, com.legend.sql.OutputCol.Origin.DERIVED);
+    }
+
+    /** A one-row layer: {@code projections} over {@code from} (null: no FROM). */
+    private static com.legend.sql.SqlSelect layer(List<com.legend.sql.SqlSelect.Projection> projections,
+            com.legend.sql.SqlSource from) {
+        return new com.legend.sql.SqlSelect(projections, false, from, null, List.of(), null, null, List.of(), null,
+                null, List.of());
+    }
+
+    private static com.legend.sql.SqlSelect.Projection as(SqlExpr e, String name, SqlType.Scalar type) {
+        return new com.legend.sql.SqlSelect.Projection(e, name, new com.legend.sql.OutputCol(name, type, true));
+    }
+
+    /** E-5a's staged spelling of {@code v}: {@code (SELECT <spelling over t, d, p> FROM (SELECT t, <d>, <p> FROM
+     *  (SELECT t, <m>, <x> FROM (SELECT CAST(v AS VARCHAR) AS t) AS a0) AS a1) AS a2)} -- the text {@code t}, the
+     *  mantissa {@code m}, the exponent {@code x}, the digits {@code d} and the point's position {@code p}, each
+     *  written once; the double read once, in the innermost layer. */
+    private static SqlExpr stagedSpelling(SqlExpr v, String alias, boolean fenced) {
+        String a0 = alias + "_t";
+        String a1 = alias + "_m";
+        String a2 = alias + "_p";
+        SqlType.Scalar text = SqlType.Scalar.VARCHAR;
+        SqlType.Scalar integer = SqlType.Scalar.INTEGER;
+        com.legend.sql.SqlSelect l0 = layer(List.of(as(new SqlExpr.Cast(v, text, SqlExpr.Reason.PRINT), "t", text)),
+                new com.legend.sql.SqlSource.Dual());
+        SqlExpr t0 = col(a0, "t", text);
+        com.legend.sql.SqlSelect l1 = layer(List.of(as(t0, "t", text), as(mantissa(t0), "m", text),
+                as(exponent(t0), "x", integer)), new com.legend.sql.SqlSource.Subselect(l0, a0, null));
+        if (fenced) {
+            l1 = l1.withOffset(0L);
+        }
+        SqlExpr m = col(a1, "m", text);
+        com.legend.sql.SqlSelect l2 = layer(List.of(as(col(a1, "t", text), "t", text), as(digits(m), "d", text),
+                as(SqlExpr.Call.of(SqlFn.PLUS, intLen(m), col(a1, "x", integer)), "p", integer)),
+                new com.legend.sql.SqlSource.Subselect(l1, a1, null));
+        SqlExpr spelled = spelling(col(a2, "t", text), unfold(col(a2, "t", text), col(a2, "d", text),
+                col(a2, "p", integer)));
+        return new SqlExpr.ScalarSubquery(layer(List.of(as(spelled, "v", text)),
+                new com.legend.sql.SqlSource.Subselect(l2, a2, null)));
     }
 
     /** Pure's literal spelling of a double over {@code base}, the database's text of it. */
     static SqlExpr ofText(SqlExpr base) {
-        SqlExpr unfolded = exponentUnfold(base);
+        return spelling(base, exponentUnfold(base));
+    }
+
+    /** The spelling over the text {@code base} and its exponent's unfold {@code unfolded}. */
+    private static SqlExpr spelling(SqlExpr base, SqlExpr unfolded) {
         return new SqlExpr.Case(List.of(
                 // ZEROS UNIFY (spec §3, witness parseFloat('-000.000')):
                 // pure grants 0.0 == -0.0, so the canonical render of
@@ -117,7 +191,7 @@ final class FloatCanonText {
                         has(base, ".")),
                         SqlExpr.Call.of(SqlFn.CONCAT, base,
                                 new SqlExpr.StringLit(".0")))),
-                base);
+                base, SqlExpr.Reason.PRINT);
     }
 
     /**
@@ -130,34 +204,55 @@ final class FloatCanonText {
      * notation (H1); now neither can we, for any magnitude.
      */
     private static SqlExpr exponentUnfold(SqlExpr base) {
+        // mantissa without sign, e.g. '1.3421'; its digits '13421';
+        // intLen = digits before the dot; exp as an integer
+        SqlExpr mant = mantissa(base);
+        return unfold(base, digits(mant), SqlExpr.Call.of(SqlFn.PLUS, intLen(mant), exponent(base)));
+    }
+
+    /** The mantissa without its sign: {@code '1.3421'} of {@code '-1.3421e-08'}. */
+    private static SqlExpr mantissa(SqlExpr base) {
+        return SqlExpr.Call.of(SqlFn.REGEXP_EXTRACT, base,
+                new SqlExpr.StringLit("-?([0-9]+(?:\\.[0-9]+)?)[eE]"),
+                new SqlExpr.IntLit(1));
+    }
+
+    /** The mantissa's digits, its point removed. */
+    private static SqlExpr digits(SqlExpr mant) {
+        return SqlExpr.Call.of(SqlFn.REPLACE, mant,
+                new SqlExpr.StringLit("."), new SqlExpr.StringLit(""));
+    }
+
+    /** The mantissa's digits before its point. */
+    private static SqlExpr intLen(SqlExpr mant) {
+        SqlExpr dotPos = SqlExpr.Call.of(SqlFn.STRPOS, mant,
+                new SqlExpr.StringLit("."));
+        return new SqlExpr.Case(List.of(new SqlExpr.Case.When(
+                SqlExpr.Call.of(SqlFn.EQUAL, dotPos, new SqlExpr.IntLit(0)),
+                SqlExpr.Call.of(SqlFn.LENGTH, mant))),
+                SqlExpr.Call.of(SqlFn.MINUS, dotPos, new SqlExpr.IntLit(1)), SqlExpr.Reason.PRINT);
+    }
+
+    /** The exponent as an integer, NULL when there is none: H2 folds a constant operand at prepare time BRANCH-BLIND
+     *  (a literal golden cell), so CAST('' AS INTEGER) would raise under the untaken CASE arm. */
+    private static SqlExpr exponent(SqlExpr base) {
+        SqlExpr expText = SqlExpr.Call.of(SqlFn.REGEXP_EXTRACT,
+                base, new SqlExpr.StringLit("[eE]([+-]?[0-9]+)$"),
+                new SqlExpr.IntLit(1));
+        return new SqlExpr.Cast(new SqlExpr.Case(List.of(new SqlExpr.Case.When(
+                SqlExpr.Call.of(SqlFn.EQUAL, expText, new SqlExpr.StringLit("")),
+                new SqlExpr.NullLit())), expText, SqlExpr.Reason.PRINT), SqlType.Scalar.INTEGER,
+                SqlExpr.Reason.PRINT);
+    }
+
+    /** The text {@code base} unfolded to fixed point from its sign, its mantissa's {@code digits} and the point's
+     *  position {@code pointPos}: three shapes by where the point lands. */
+    private static SqlExpr unfold(SqlExpr base, SqlExpr digits, SqlExpr pointPos) {
         SqlExpr sign = new SqlExpr.Case(List.of(new SqlExpr.Case.When(
                 SqlExpr.Call.of(SqlFn.STARTS_WITH, base,
                         new SqlExpr.StringLit("-")),
                 new SqlExpr.StringLit("-"))),
-                new SqlExpr.StringLit(""));
-        // mantissa without sign, e.g. '1.3421'; its digits '13421';
-        // intLen = digits before the dot; exp as an integer
-        SqlExpr mant = SqlExpr.Call.of(SqlFn.REGEXP_EXTRACT, base,
-                new SqlExpr.StringLit("-?([0-9]+(?:\\.[0-9]+)?)[eE]"),
-                new SqlExpr.IntLit(1));
-        SqlExpr digits = SqlExpr.Call.of(SqlFn.REPLACE, mant,
-                new SqlExpr.StringLit("."), new SqlExpr.StringLit(""));
-        SqlExpr dotPos = SqlExpr.Call.of(SqlFn.STRPOS, mant,
-                new SqlExpr.StringLit("."));
-        SqlExpr intLen = new SqlExpr.Case(List.of(new SqlExpr.Case.When(
-                SqlExpr.Call.of(SqlFn.EQUAL, dotPos, new SqlExpr.IntLit(0)),
-                SqlExpr.Call.of(SqlFn.LENGTH, mant))),
-                SqlExpr.Call.of(SqlFn.MINUS, dotPos, new SqlExpr.IntLit(1)));
-        // the exponent digits, NULL when there are none: H2 folds a constant
-        // operand at prepare time BRANCH-BLIND (a literal golden cell), so
-        // CAST('' AS INTEGER) would raise under the untaken CASE arm
-        SqlExpr expText = SqlExpr.Call.of(SqlFn.REGEXP_EXTRACT,
-                base, new SqlExpr.StringLit("[eE]([+-]?[0-9]+)$"),
-                new SqlExpr.IntLit(1));
-        SqlExpr exp = new SqlExpr.Cast(new SqlExpr.Case(List.of(new SqlExpr.Case.When(
-                SqlExpr.Call.of(SqlFn.EQUAL, expText, new SqlExpr.StringLit("")),
-                new SqlExpr.NullLit())), expText), SqlType.Scalar.INTEGER);
-        SqlExpr pointPos = SqlExpr.Call.of(SqlFn.PLUS, intLen, exp);
+                new SqlExpr.StringLit(""), SqlExpr.Reason.PRINT);
         SqlExpr dLen = SqlExpr.Call.of(SqlFn.LENGTH, digits);
         // three shapes by where the point lands
         SqlExpr tiny = SqlExpr.Call.of(SqlFn.CONCAT,
@@ -182,7 +277,7 @@ final class FloatCanonText {
                         pointPos, new SqlExpr.IntLit(0)), tiny),
                 new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.GREATER_EQUAL,
                         pointPos, dLen), huge)),
-                mid);
+                mid, SqlExpr.Reason.PRINT);
         return SqlExpr.Call.of(SqlFn.CONCAT, sign, body);
     }
 
@@ -193,7 +288,7 @@ final class FloatCanonText {
                 new SqlExpr.Cast(
                         SqlExpr.Call.of(SqlFn.GREATEST, n,
                                 new SqlExpr.IntLit(0)),
-                        SqlType.Scalar.INTEGER),
+                        SqlType.Scalar.INTEGER, SqlExpr.Reason.PRINT),
                 new SqlExpr.StringLit("0"));
     }
 

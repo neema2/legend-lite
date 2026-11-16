@@ -200,6 +200,18 @@ public enum SqlFn {
             PARSE_INT, PARSE_DATE, ACOS, ASIN, ADD_INTERVAL, ADD_INTERVAL_TEMPORAL, STRPTIME, GUID, TIMEZONE, MAKE_DATE,
             MAKE_TIMESTAMP));
 
+    /** The functions that may leave an argument unevaluated on SOME dialect: AND, OR and COALESCE (SQL promises no
+     *  order of evaluation), and every function a dialect renders with a branch -- a CASE, ClickHouse's
+     *  {@code if}/{@code multiIf} (its short_circuit_function_evaluation), an IIF, an IF or a DECODE -- read from each
+     *  dialect's render arms (2026-11-15). Any other function evaluates all its arguments on every dialect: the
+     *  lowering's LetBinding binds a raising repeat only through those (the always-evaluated set). A render arm that
+     *  starts branching joins this set. */
+    public static final java.util.Set<SqlFn> MAY_SKIP_AN_ARGUMENT = java.util.Collections.unmodifiableSet(
+            java.util.EnumSet.of(AND, OR, COALESCE, ADD_INTERVAL, ADD_INTERVAL_TEMPORAL, ASCII_CODE, BIT_SHIFT_RIGHT,
+                    BOOL_TO_TEXT, CBRT, FLOOR_RAW, INT_DIVIDE, JSON_TYPE, LIST_BOOL_AND, LIST_BOOL_OR, LIST_CONCAT,
+                    LIST_DISTINCT, LIST_GET, LIST_POSITION, LIST_PRODUCT, MAP_EXTRACT, MAP_FROM_ENTRIES, MAP_FROM_LISTS,
+                    MAP_KEYS, MAP_VALUES, MOD, PARSE_INT, REM, REPEAT_STR, REPEAT_VALUE, RIGHT, SPLIT, SPLIT_PART));
+
     /** Whether this function draws afresh at every place it is written -- the database's random float ({@link #RANDOM})
      *  or uuid ({@link #GUID}) -- so two places of it are two values: a value holding one is computed once, in its own
      *  select, never written into its readers (the lowering's Fold.nondeterministic; the dialect's SelectLayers, the

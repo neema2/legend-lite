@@ -11,6 +11,7 @@ package com.legend.testplan;
  * system connections -- are never planning's.
  *
  * @param judgingRules lite's own, or the compatibility rules (an edge implies them)
+ * @param spelling     the dialects the program's statements are written in (D1.0's spelling hook)
  * @param options      lite's own planning options for every query of the body ({@link com.legend.platform.PlanOption}:
  *                     the tests turn on {@code DETERMINISTIC_AS_OF})
  * @param style        where the body's statements take their dialects (phase D's D1.0: the product's own, or the

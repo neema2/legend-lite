@@ -46,7 +46,7 @@ final class FrameGuard {
             whens.add(new SqlExpr.Case.When(bad, raise(com.legend.sql.RaiseKind.WINDOW_FRAME_OFFSET_INVALID)));
         }
         return new SqlExpr.Case(whens, new SqlExpr.WindowCall(w.fn(), w.partitionBy(), w.orderBy(), f.asChecked(),
-                w.type()));
+                w.type()), SqlExpr.Reason.RAISE);
     }
 
     /** A bound's signed place (before the current row negative): null for an unbounded side, which every other bound

@@ -149,10 +149,13 @@ public final class PlanJson {
      *  problem"): a stream step's {@code sql} is the planner's own plan of the snapshot's pull (its model, runtime and
      *  lambda, planned in the call that answers the plan) -- no request carries the statement a plane runs. 52 since
      *  2026-11-13 (phase D's D1.1, merged onto 51): a statement's tree may hold a {@code raiseText}, a raise's message as
-     *  its {@code kind} and its {@code operands}. 53 since 2026-11-15 (phase D's option (D), the orchestrator's go): a
-     *  plan carries {@code raises}, each product raise its statements can send, its kind's name to the kind's sentence
-     *  ({@link #raises}) -- a host words a raise from the plan it runs, never from a table of its own. */
-    public static final int VERSION = 53;
+     *  its {@code kind} and its {@code operands}. 53 since 2026-11-13 (E-4, the cast-and-case rule, its number after
+     *  D's): every {@code cast} and {@code caseExpr} of a statement's tree names its {@code reason}
+     *  ({@code SqlExpr.Reason}'s code), the cast's {@code conform} flag folded into it. 54 since 2026-11-15 (phase D's option
+     *  (D), the orchestrator's go; its number after E's, renumbered at landing): a plan carries {@code raises}, each
+     *  product raise its statements can send, its kind's name to the kind's sentence ({@link #raises}) -- a host words a
+     *  raise from the plan it runs, never from a table of its own. */
+    public static final int VERSION = 54;
 
     private PlanJson() {
     }

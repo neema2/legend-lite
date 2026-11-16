@@ -186,9 +186,10 @@ final class MixedEncoding {
         for (SqlExpr r : ranks) {
             groups.add((int) ((SqlExpr.IntLit) ((SqlExpr.StructLit) r).fields().get(0).value()).value());
         }
+        dropUndecidingPrecision(ranks);
         if (groups.size() == 1) {
             int g = groups.iterator().next();
-            if (g == 0 || g == 1) {
+            if (oneChannelOrders(ranks, g)) {
                 for (int i = 0; i < n; i++) {
                     ranks.set(i, ((SqlExpr.StructLit) ranks.get(i)).fields().get(g == 0 ? 1 : 2).value());
                 }
@@ -219,7 +220,7 @@ final class MixedEncoding {
             // the channel's array is TYPED as its slot (a NULL beside a value takes the value's type in most
             // databases, but a cast says it where the slot is the exact type, a DECIMAL(p,s) or a DATE)
             channels.add(new SqlExpr.TaggedList.Channel(s.kind(), s.type(),
-                    new SqlExpr.Cast(new SqlExpr.ArrayLit(perChannel.get(k)), new SqlType.Array(s.type()))));
+                    new SqlExpr.Cast(new SqlExpr.ArrayLit(perChannel.get(k)), new SqlType.Array(s.type()), SqlExpr.Reason.CARRIER)));
         }
         List<SqlExpr> positions = new ArrayList<>(n);
         for (int i = 1; i <= n; i++) {
@@ -287,10 +288,10 @@ final class MixedEncoding {
         if (t == Type.Primitive.INTEGER || t == Type.Primitive.FLOAT || t == Type.Primitive.NUMBER
                 || t == Type.Primitive.DECIMAL || t instanceof Type.PrecisionDecimal) {
             group = 0;
-            n = new SqlExpr.Cast(x, SqlType.Scalar.DOUBLE);
+            n = new SqlExpr.Cast(x, SqlType.Scalar.DOUBLE, SqlExpr.Reason.CARRIER);
         } else if (t == Type.Primitive.STRICT_DATE) {
             group = 1;
-            d = new SqlExpr.Cast(x, SqlType.Scalar.TIMESTAMP);
+            d = new SqlExpr.Cast(x, SqlType.Scalar.TIMESTAMP, SqlExpr.Reason.CARRIER);
         } else if (t == Type.Primitive.DATE_TIME) {
             group = 1;
             d = x;
@@ -307,7 +308,7 @@ final class MixedEncoding {
             }
         } else if (t == Type.Primitive.BOOLEAN) {
             group = 2;
-            s = new SqlExpr.Cast(x, SqlType.Scalar.VARCHAR);
+            s = new SqlExpr.Cast(x, SqlType.Scalar.VARCHAR, SqlExpr.Reason.CARRIER);
         } else if (t == Type.Primitive.STRING) {
             group = 3;
             s = x;
@@ -322,11 +323,55 @@ final class MixedEncoding {
         } else {
             return null;
         }
+        // a date's precision, its tie-break after the instant (O2's D1, 2026-11-13): legend-pure's
+        // DateFunctions.compare compares component by component, and where one date lacks the other's finer
+        // component they are ordered coarser FIRST -- %2025-02-10 before %2025-02-10T00:00:00, which share an instant
+        SqlExpr p = group == 1 ? new SqlExpr.IntLit(precisionOf(t, e).ordinal()) : new SqlExpr.NullLit();
         return new SqlExpr.StructLit(List.of(
                 new SqlExpr.StructLit.Field("g", new SqlExpr.IntLit(group)),
                 new SqlExpr.StructLit.Field("n", n != null ? n : new SqlExpr.NullLit(), SqlType.Scalar.DOUBLE),
                 new SqlExpr.StructLit.Field("d", d != null ? d : new SqlExpr.NullLit(), SqlType.Scalar.TIMESTAMP),
-                new SqlExpr.StructLit.Field("s", s != null ? s : new SqlExpr.NullLit(), SqlType.Scalar.VARCHAR)));
+                new SqlExpr.StructLit.Field("s", s != null ? s : new SqlExpr.NullLit(), SqlType.Scalar.VARCHAR),
+                new SqlExpr.StructLit.Field("p", p, SqlType.Scalar.BIGINT)));
+    }
+
+    /** A date's precision, read off its spelling where it has one (a literal, a {@code date()} call), else its type's:
+     *  a StrictDate a day, a DateTime its finest (a column's date-time). */
+    private static PureDateLiteral.Precision precisionOf(Type t, @com.legend.base.Nullable TypedSpec e) {
+        if (e != null) {
+            return Scalars.datePrecision(e);
+        }
+        return t == Type.Primitive.STRICT_DATE ? PureDateLiteral.Precision.DAY : PureDateLiteral.Precision.SUBSECOND;
+    }
+
+    /**
+     * Whether a list's ranks, all of one comparison {@code group}, may be ordered by the group's own channel alone (the
+     * number, or the instant): numbers always; dates only where every element has one precision -- otherwise two
+     * elements may share an instant and be told apart by their precision alone (O2's D1), so the whole rank is kept.
+     */
+    static boolean oneChannelOrders(List<SqlExpr> ranks, int group) {
+        return group == 0 || group == 1 && ((SqlExpr.StructLit) ranks.get(0)).fields().size() == 4;
+    }
+
+    /**
+     * {@code ranks} with the precision field dropped where it decides nothing: where the list's dates (if any) are of
+     * one precision, no two elements are told apart by it, and the rank keeps its four fields (today's SQL, byte for
+     * byte). It stays only where the list holds dates of differing precisions (O2's D1).
+     */
+    static void dropUndecidingPrecision(List<SqlExpr> ranks) {
+        Set<SqlExpr> precisions = new HashSet<>();
+        for (SqlExpr r : ranks) {
+            SqlExpr p = ((SqlExpr.StructLit) r).fields().get(4).value();
+            if (!(p instanceof SqlExpr.NullLit)) {
+                precisions.add(p);
+            }
+        }
+        if (precisions.size() > 1) {
+            return;
+        }
+        for (int i = 0; i < ranks.size(); i++) {
+            ranks.set(i, new SqlExpr.StructLit(((SqlExpr.StructLit) ranks.get(i)).fields().subList(0, 4)));
+        }
     }
 
     /** The channel of a tagged list that holds a value of {@code kind} (a needle's static kind), else -1: a kind
@@ -439,9 +484,9 @@ final class MixedEncoding {
             return cell;
         }
         if (channel.type() == SqlType.Scalar.TEMPORAL_TEXT) {
-            return new SqlExpr.Cast(cell, SqlType.Scalar.VARCHAR);
+            return new SqlExpr.Cast(cell, SqlType.Scalar.VARCHAR, SqlExpr.Reason.CARRIER);
         }
-        return new SqlExpr.Cast(cell, channel.type());
+        return new SqlExpr.Cast(cell, channel.type(), SqlExpr.Reason.CARRIER);
     }
 
     /** One expression per candidate of {@code t}, chosen by its tag: {@code CASE WHEN tag = k THEN arm(kind k,
@@ -457,7 +502,7 @@ final class MixedEncoding {
                     SqlExpr.Call.of(SqlFn.EQUAL, t.tag(), new SqlExpr.IntLit(k + 1)),
                     arm.apply(kindType(c.kind()), c.value())));
         }
-        return new SqlExpr.Case(whens, null);
+        return new SqlExpr.Case(whens, null, SqlExpr.Reason.CARRIER);
     }
 
     /** {@code args} with every tagged value read on its comparable channel: a comparison, an equality or a
@@ -531,7 +576,7 @@ final class MixedEncoding {
         x = unwrapVariant(x);
         Type t = e.info().type();
         if (t == Type.Primitive.INTEGER) {
-            vals.add(new SqlExpr.Cast(x, SqlType.Scalar.DOUBLE));
+            vals.add(new SqlExpr.Cast(x, SqlType.Scalar.DOUBLE, SqlExpr.Reason.CARRIER));
             candidates.add(new SqlExpr.Tagged.Candidate("Integer", SqlType.Scalar.BIGINT, x));
             return true;
         }
@@ -541,7 +586,7 @@ final class MixedEncoding {
             return true;
         }
         if (t == Type.Primitive.DECIMAL || t instanceof Type.PrecisionDecimal) {
-            vals.add(new SqlExpr.Cast(x, SqlType.Scalar.DOUBLE));
+            vals.add(new SqlExpr.Cast(x, SqlType.Scalar.DOUBLE, SqlExpr.Reason.CARRIER));
             SqlType slot = typeOf(x);
             if (!(slot instanceof SqlType.Decimal)) {
                 throw new com.legend.error.NotImplementedException("a Decimal among mixed kinds whose SQL type is "
@@ -551,7 +596,7 @@ final class MixedEncoding {
             return true;
         }
         if (t == Type.Primitive.STRICT_DATE) {
-            vals.add(new SqlExpr.Cast(x, SqlType.Scalar.TIMESTAMP));
+            vals.add(new SqlExpr.Cast(x, SqlType.Scalar.TIMESTAMP, SqlExpr.Reason.CARRIER));
             candidates.add(new SqlExpr.Tagged.Candidate("StrictDate", SqlType.Scalar.DATE, x));
             return true;
         }
@@ -599,14 +644,14 @@ final class MixedEncoding {
                 boolean present = i == 1 || prec.atLeast(i == 2 ? PureDateLiteral.Precision.MONTH
                         : PureDateLiteral.Precision.DAY);
                 parts.add(present ? new SqlExpr.Cast(SqlExpr.Call.of(SqlFn.SPLIT_PART, x, new SqlExpr.StringLit("-"),
-                        new SqlExpr.IntLit(i)), SqlType.Scalar.BIGINT) : new SqlExpr.IntLit(1));
+                        new SqlExpr.IntLit(i)), SqlType.Scalar.BIGINT, SqlExpr.Reason.CARRIER) : new SqlExpr.IntLit(1));
             }
         } else if (t == Type.Primitive.STRICT_DATE) {
             parts = new ArrayList<>();
             for (com.legend.sql.DatePart p : List.of(com.legend.sql.DatePart.YEAR, com.legend.sql.DatePart.MONTH,
                     com.legend.sql.DatePart.DAY)) {
                 parts.add(new SqlExpr.Cast(SqlExpr.Call.of(SqlFn.EXTRACT, new SqlExpr.DatePartLit(p), x),
-                        SqlType.Scalar.BIGINT));
+                        SqlType.Scalar.BIGINT, SqlExpr.Reason.CARRIER));
             }
         } else {
             return null;
@@ -627,7 +672,7 @@ final class MixedEncoding {
             }
         }
         if (t == Type.Primitive.STRICT_DATE) {
-            return new SqlExpr.Cast(x, SqlType.Scalar.TIMESTAMP);
+            return new SqlExpr.Cast(x, SqlType.Scalar.TIMESTAMP, SqlExpr.Reason.CARRIER);
         }
         return x;
     }
@@ -646,15 +691,15 @@ final class MixedEncoding {
         SqlExpr zero = new SqlExpr.IntLit(0);
         SqlExpr year = new SqlExpr.Cast(
                 SqlExpr.Call.of(SqlFn.SPLIT_PART, x, new SqlExpr.StringLit("-"), one),
-                SqlType.Scalar.BIGINT);
+                SqlType.Scalar.BIGINT, SqlExpr.Reason.CARRIER);
         SqlExpr month = prec.atLeast(PureDateLiteral.Precision.MONTH) ? new SqlExpr.Cast(
                 SqlExpr.Call.of(SqlFn.SPLIT_PART, x, new SqlExpr.StringLit("-"),
                         new SqlExpr.IntLit(2)),
-                SqlType.Scalar.BIGINT) : one;
+                SqlType.Scalar.BIGINT, SqlExpr.Reason.CARRIER) : one;
         SqlExpr day = prec.atLeast(PureDateLiteral.Precision.DAY) ? new SqlExpr.Cast(
                 SqlExpr.Call.of(SqlFn.SPLIT_PART, x, new SqlExpr.StringLit("-"),
                         new SqlExpr.IntLit(3)),
-                SqlType.Scalar.BIGINT) : one;
+                SqlType.Scalar.BIGINT, SqlExpr.Reason.CARRIER) : one;
         return SqlExpr.Call.of(SqlFn.MAKE_TIMESTAMP, year, month, day, zero, zero, zero);
     }
 
@@ -672,7 +717,7 @@ final class MixedEncoding {
         return new SqlExpr.Case(
                 List.of(new SqlExpr.Case.When(cond,
                         mixed ? variantBranch(thenB, thenS) : thenS)),
-                mixed && elseB != null ? variantBranch(elseB, elseS) : elseS);
+                mixed && elseB != null ? variantBranch(elseB, elseS) : elseS, SqlExpr.Reason.CARRIER);
     }
 
     /** One branch of a mixed-kind if on the variant carrier: a value is
@@ -689,7 +734,7 @@ final class MixedEncoding {
                 && mb.lower() >= 1 && Integer.valueOf(1).equals(mb.upper());
         return oneStamped
                 ? new SqlExpr.Cast(new SqlExpr.StringLit("null"),
-                        com.legend.sql.SqlType.Scalar.JSON)
+                        com.legend.sql.SqlType.Scalar.JSON, SqlExpr.Reason.CARRIER)
                 : s;
     }
 
@@ -739,7 +784,7 @@ final class MixedEncoding {
                 instanceof com.legend.compiler.element.type.Multiplicity.Bounded b
                 && b.lower() >= 1 && Integer.valueOf(1).equals(b.upper());
         SqlExpr jsonNull = new SqlExpr.Cast(new SqlExpr.StringLit("null"),
-                com.legend.sql.SqlType.Scalar.JSON);
+                com.legend.sql.SqlType.Scalar.JSON, SqlExpr.Reason.CARRIER);
         if (oneStamped && lowered instanceof SqlExpr.NullLit) {
             return jsonNull;
         }
@@ -788,7 +833,7 @@ final class MixedEncoding {
         SqlExpr object = new SqlExpr.StructLit(fields);
         // an absent object stays absent, not a struct of NULLs
         return mayBeAbsent ? new SqlExpr.Case(List.of(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.IS_NULL, v),
-                new SqlExpr.NullLit())), object) : object;
+                new SqlExpr.NullLit())), object, SqlExpr.Reason.CARRIER) : object;
     }
 
     /** {@code t} without its objects' synthetic fields, at any depth (the type {@link #declaredOnly} answers). */

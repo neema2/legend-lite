@@ -37,24 +37,29 @@ public final class ColumnFacts {
     /**
      * The plan's columns for {@code pure}, the typed schema, over {@code lowered}'s outputs, in a result of
      * {@code shape} (a relation's cells, a value root's elements: the written-precision fact differs,
-     * {@link #precision}). A column is matched to its output by name. A column no output is named after is one of two
-     * things, each said in the column: a pivot's generated column (its slot the template's type, when the template
-     * carries one); or, when no column at all matches by name and the counts agree, a value root's one output, which
-     * the wire names {@code value} (matched by position). Any other difference is a planner defect, refused by name
+     * {@link #precision}). A column is matched to its output by name, and only by name. A column no output is named
+     * after is a pivot's generated column (its slot the template's type, when the template carries one); any other
+     * difference is a planner defect, refused by name (2026-11-15, PR1's review, G7: the positional pairing of a value
+     * root's one output, the host's half deleted with E1 item 6, is deleted here too: a name that differs fails loudly),
+     * but for one NAMED pairing: a value root's {@code value} over the map binder's marker-named cell
+     * ({@link #mapBinderValue}, round 55f)
      * (a row-struct column reaches here flattened, {@code TypedRows.flat}: until 2026-10-29 one unflattened passed
      * with no slot, and the plan declared one column where the statement answered its parts).
      */
     public static List<ExecutionPlan.Column> columns(List<Pure> pure, SqlQuery lowered,
             ExecutionPlan.TdsResult.Shape shape) {
         List<OutputCol> outs = lowered.outputs();
-        boolean anyByName = pure.stream().anyMatch(p -> outs.stream().anyMatch(o -> o.name().equals(p.name())));
-        boolean positional = !anyByName && pure.size() == outs.size();
         List<SqlSource.Pivot.Using> templates = pivotTemplates(lowered);
         List<ExecutionPlan.Column> cols = new ArrayList<>(pure.size());
         for (int i = 0; i < pure.size(); i++) {
             Pure p = pure.get(i);
-            OutputCol out = positional ? outs.get(i)
-                    : outs.stream().filter(o -> o.name().equals(p.name())).findFirst().orElse(null);
+            OutputCol out = outs.stream().filter(o -> o.name().equals(p.name())).findFirst().orElse(null);
+            if (out == null && mapBinderValue(pure, outs, shape)) {
+                // a value root through a class's chain: its one column 'value' is the map binder's cell, which keeps
+                // its marker name in the statement (SqlSelect.SYNTH_MAP_COL: the renderers and ResultShape read it)
+                // -- a NAMED pairing, never a positional one (round 55f, 2026-11-15: item 10 had refused it)
+                out = outs.get(0);
+            }
             if (out != null) {
                 SqlDdl.ColumnType stored = stored(lowered, out.name(), Map.of());
                 // a raw grid's column read by the name the program wrote (the seam program's S3c, 2026-10-30): its
@@ -82,6 +87,15 @@ public final class ColumnFacts {
             }
         }
         return cols;
+    }
+
+    /** Whether {@code pure} is a value's one column {@code value} over the map binder's one output (its name the
+     *  {@link SqlSelect#SYNTH_MAP_COL} marker's), {@code shape} aside. */
+    private static boolean mapBinderValue(List<Pure> pure, List<OutputCol> outs, ExecutionPlan.TdsResult.Shape shape) {
+        // in any shape: the judge reads a value's side as rows (JudgePlans.rowsPlan, RELATION), the product's root as
+        // a VALUE -- the one column 'value' over the one marker-named output decides it either way (round 55k)
+        return pure.size() == 1 && pure.get(0).name().equals("value")
+                && outs.size() == 1 && outs.get(0).name().startsWith(SqlSelect.SYNTH_MAP_COL);
     }
 
     /** Whether {@code name} in {@code q} is a plain read, through subselects, CTEs, joins and a one-cell scalar

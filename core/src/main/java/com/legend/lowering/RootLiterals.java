@@ -41,12 +41,12 @@ final class RootLiterals {
             // renders; the slot's contract says temporal-in-text
             return new SqlExpr.Cast(
                     new SqlExpr.StringLit(cd.value().toEngineString()),
-                    SqlType.Scalar.TEMPORAL_TEXT);
+                    SqlType.Scalar.TEMPORAL_TEXT, SqlExpr.Reason.DECLARED);
         }
         if (spec instanceof TypedCDecimal cdec
                 && cdec.value().scale() <= 0) {
             return new SqlExpr.Cast(new SqlExpr.DecimalLit(cdec.value()),
-                    new SqlType.Decimal(38, 0));
+                    new SqlType.Decimal(38, 0), SqlExpr.Reason.DECLARED);
         }
         return null;
     }

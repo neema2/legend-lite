@@ -198,8 +198,9 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         return true;
     }
 
-    /** The query after this dialect's passes. */
-    private SqlQuery passed(SqlQuery query) {
+    /** The query after this dialect's passes (package-private for the cast-and-case census's test-side reader,
+     *  E-4, 2026-11-12: it counts the nodes this dialect's passes made too). */
+    SqlQuery passed(SqlQuery query) {
         SqlQuery q = query;
         for (com.legend.sql.SqlRewriter pass : renderPasses()) {
             q = pass.rewriteRoot(q);
@@ -245,7 +246,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         }
         // a Float's literal spelling, expanded before every other pass unless this dialect spells it itself
         if (!spellsFloatCanon()) {
-            ps.add(new FloatCanonText.Expansion(bindsFloatText()));
+            ps.add(new FloatCanonText.Expansion(bindsFloatText(), stagesFloatText(), fencesFloatText()));
         }
         ps.addAll(passes());
         ps.add(new StoredReads(this::readsStored));
@@ -286,6 +287,22 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
     /** Whether that expansion reads the double's text from a one-row derived table, written once (a dialect whose
      *  double text is a long expression and whose derived tables read the row around them). */
     protected boolean bindsFloatText() {
+        return false;
+    }
+
+    /** Whether the Float canon's expansion STAGES its parts -- the text, the mantissa's digits and the point's position
+     *  each a column of a one-row derived table, written once (E-5a, 2026-11-12, docs/LEAN_PRODUCT_SQL_DESIGN_2026_11_12.md
+     *  §5.9): a dialect whose derived tables read the row around them, each turned on as its database is shown to
+     *  answer every double the same. Base: no -- H2 refuses an outer column inside a derived table. */
+    protected boolean stagesFloatText() {
+        return false;
+    }
+
+    /** Whether the staged Float canon's text layer is fenced from the planner's flattening ({@code OFFSET 0}): a
+     *  database that flattens a derived table into its reader, copying each expression into every read of its column
+     *  (SQLite, measured 2026-11-16: an assertEquals over three doubles prepared in 0.6 s unfenced, 0.03 s fenced).
+     *  Base: no. */
+    protected boolean fencesFloatText() {
         return false;
     }
 
@@ -796,7 +813,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
                                     co.list()),
                             SqlExpr.Call.of(com.legend.sql.SqlFn.ERROR, SqlExpr.RaiseText.placed(
                                     com.legend.sql.RaiseKind.SIZE_NOT_MULTIPLICITY, bound)))),
-                    co.list()), parentPrec);
+                    co.list(), SqlExpr.Reason.RAISE), parentPrec);
         }
         SqlExpr len = SqlExpr.Call.of(com.legend.sql.SqlFn.LIST_LENGTH,
                 co.list());
@@ -816,7 +833,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
                                                     .SqlFn.EQUAL, len,
                                             new SqlExpr.IntLit(0))),
                             sizeErr)),
-                    co.list()), parentPrec);
+                    co.list(), SqlExpr.Reason.DIALECT), parentPrec);
         }
         // exactly one: size != 1 raises (audit slice 3 — the old guard
         // tested only >1 and let the empty flow), 1 extracts
@@ -829,7 +846,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
                                         len, new SqlExpr.IntLit(1))),
                         sizeErr)),
                 SqlExpr.Call.of(com.legend.sql.SqlFn.LIST_GET,
-                        co.list(), new SqlExpr.IntLit(1))), parentPrec);
+                        co.list(), new SqlExpr.IntLit(1)), SqlExpr.Reason.DIALECT), parentPrec);
     }
 
     /** PURE-COLLECTION carrier compaction (semantic node, audit §5
@@ -1366,7 +1383,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
     protected static SqlExpr asDouble(SqlExpr x) {
         return !(x instanceof SqlExpr.FloatLit) && x.type() instanceof com.legend.sql.TypeFact.Typed t
                 && t.type() == com.legend.sql.SqlType.Scalar.DOUBLE ? x
-                : new SqlExpr.Cast(x, com.legend.sql.SqlType.Scalar.DOUBLE);
+                : new SqlExpr.Cast(x, com.legend.sql.SqlType.Scalar.DOUBLE, SqlExpr.Reason.PRINT);
     }
 
     /** {@code text} -- a value's fixed-point text with six fraction digits -- with its trailing zeros, then a trailing
@@ -2023,7 +2040,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
     /** {@code x} as the VARCHAR cast a dialect wrote for a Decimal's or a Number's text until the Lowerer marked it
      *  ({@code SqlFn.DECIMAL_TO_TEXT}, A6, the tenets audit's M-6): every dialect's spelling of it but H2's. */
     protected static SqlExpr varcharCast(SqlExpr x) {
-        return new SqlExpr.Cast(x, com.legend.sql.SqlType.Scalar.VARCHAR);
+        return new SqlExpr.Cast(x, com.legend.sql.SqlType.Scalar.VARCHAR, SqlExpr.Reason.DIALECT);
     }
 
     /** A placeholder's declared cast: the SQL type's name, and how the value is bound as text (null: as it is). */
@@ -2375,7 +2392,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
                 SqlExpr.Column.of(null, new com.legend.sql.OutputCol("C" + width, com.legend.sql.SqlType.Scalar.VARCHAR,
                         true))), SqlExpr.Call.of(com.legend.sql.SqlFn.ERROR, SqlExpr.RaiseText.placed(
                                 com.legend.sql.RaiseKind.CSV_TOO_WIDE, "a record of the CSV"
-                + " file has more cells than its table's " + width + " column(s)")))), new SqlExpr.BoolLit(true));
+                + " file has more cells than its table's " + width + " column(s)")))), new SqlExpr.BoolLit(true), SqlExpr.Reason.RAISE);
         SqlWriter where = newWriter().expr(check, 0);
         if (where.bound() != 0) {
             throw new IllegalStateException("a CSV load's record check binds no value");

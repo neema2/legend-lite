@@ -65,7 +65,7 @@ public final class LiteralSpelling {
                 || t == Type.Primitive.STRICT_DATE) {
             // DuckDB casts: booleans print true/false, integers bare,
             // dates ISO — already the H1 forms
-            return new SqlExpr.Cast(v, SqlType.Scalar.VARCHAR);
+            return new SqlExpr.Cast(v, SqlType.Scalar.VARCHAR, SqlExpr.Reason.PRINT);
         }
         if (t == Type.Primitive.DECIMAL
                 || t instanceof Type.PrecisionDecimal) {
@@ -237,8 +237,8 @@ public final class LiteralSpelling {
                                         new SqlExpr.FormatLit(
                                                 com.legend.sql.DateFmt
                                                         .DATE)))),
-                        nine),
-                        SqlType.Scalar.TEMPORAL_TEXT);
+                        nine, SqlExpr.Reason.PRINT),
+                        SqlType.Scalar.TEMPORAL_TEXT, SqlExpr.Reason.PRINT);
             }
             // WRITTEN temporal literals spell STATICALLY — the
             // TIMESTAMP round-trip truncates written digits (the same
@@ -250,7 +250,7 @@ public final class LiteralSpelling {
             SqlExpr lit = staticTemporalText(e,
                     lane != ValueLane.SCALAR_ROOT);
             return lit == null ? null
-                    : new SqlExpr.Cast(lit, SqlType.Scalar.TEMPORAL_TEXT);
+                    : new SqlExpr.Cast(lit, SqlType.Scalar.TEMPORAL_TEXT, SqlExpr.Reason.PRINT);
         }
         if (declared instanceof SqlType.Decimal) {
             // COLUMN-ROOTED cells only: the erasure is a STORE-READ
@@ -263,7 +263,7 @@ public final class LiteralSpelling {
             if (!columnRooted(e)) {
                 return null;
             }
-            SqlExpr text = new SqlExpr.Cast(e, SqlType.Scalar.VARCHAR);
+            SqlExpr text = new SqlExpr.Cast(e, SqlType.Scalar.VARCHAR, SqlExpr.Reason.PRINT);
             // strip FRACTIONAL trailing zeros only (a dotless spelling
             // has no wire scale to erase), then a bare trailing dot
             SqlExpr stripped = new SqlExpr.Case(List.of(
@@ -276,7 +276,7 @@ public final class LiteralSpelling {
                                     SqlExpr.Call.of(SqlFn.RTRIM, text,
                                             new SqlExpr.StringLit("0")),
                                     new SqlExpr.StringLit(".")))),
-                    text);
+                    text, SqlExpr.Reason.PRINT);
             // NULL-preserving by hand: DuckDB concat treats NULL as ''
             // (a NULL cell must egress NULL, not a bare 'D')
             return new SqlExpr.Cast(new SqlExpr.Case(List.of(
@@ -284,8 +284,8 @@ public final class LiteralSpelling {
                             SqlExpr.Call.of(SqlFn.IS_NULL, e),
                             new SqlExpr.NullLit())),
                     SqlExpr.Call.of(SqlFn.CONCAT, stripped,
-                            new SqlExpr.StringLit("D"))),
-                    SqlType.Scalar.DECIMAL_TEXT);
+                            new SqlExpr.StringLit("D")), SqlExpr.Reason.PRINT),
+                    SqlType.Scalar.DECIMAL_TEXT, SqlExpr.Reason.PRINT);
         }
         return null;
     }
@@ -362,7 +362,7 @@ public final class LiteralSpelling {
      * 1.0D) normalizes away. */
     static SqlExpr decimalCanon(SqlExpr v) {
         return SqlExpr.Call.of(SqlFn.REGEXP_REPLACE,
-                new SqlExpr.Cast(v, SqlType.Scalar.VARCHAR),
+                new SqlExpr.Cast(v, SqlType.Scalar.VARCHAR, SqlExpr.Reason.PRINT),
                 new SqlExpr.StringLit("[Dd]$"),
                 new SqlExpr.StringLit(""));
     }
@@ -395,7 +395,7 @@ public final class LiteralSpelling {
                         || t.type() == SqlType.Scalar.JSON)) {
             return v;
         }
-        return new SqlExpr.Cast(v, SqlType.Scalar.DOUBLE);
+        return new SqlExpr.Cast(v, SqlType.Scalar.DOUBLE, SqlExpr.Reason.PRINT);
     }
 
     /** Pure's literal spelling of a Float: one call, {@link SqlFn#FLOAT_CANON}, which each dialect spells (2026-10-11:
@@ -424,7 +424,7 @@ public final class LiteralSpelling {
         // precision-faithful VARCHAR convention, where the text is
         // authoritative.
         SqlExpr bare = SqlExpr.Call.of(SqlFn.REGEXP_REPLACE,
-                new SqlExpr.Cast(v, SqlType.Scalar.VARCHAR),
+                new SqlExpr.Cast(v, SqlType.Scalar.VARCHAR, SqlExpr.Reason.PRINT),
                 new SqlExpr.StringLit("(\\+0000|Z)$"),
                 new SqlExpr.StringLit(""));
         SqlExpr t = SqlExpr.Call.of(SqlFn.REPLACE, bare,
@@ -440,12 +440,12 @@ public final class LiteralSpelling {
             // and rowValueDifferenceTest, measured the same day). NULL stays NULL.
             return new SqlExpr.Case(List.of(
                     new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.IS_NULL, v), new SqlExpr.NullLit()),
-                    new SqlExpr.Case.When(timeBearing, dateTimeText(v))), t);
+                    new SqlExpr.Case.When(timeBearing, dateTimeText(v))), t, SqlExpr.Reason.PRINT);
         }
         return new SqlExpr.Case(List.of(new SqlExpr.Case.When(timeBearing,
                 SqlExpr.Call.of(SqlFn.CONCAT, t,
                         new SqlExpr.StringLit("+0000")))),
-                t);
+                t, SqlExpr.Reason.PRINT);
     }
 
 
@@ -484,7 +484,7 @@ public final class LiteralSpelling {
         // own column (origin PHYSICAL), never inferred; a computed Float, and a projected one read back through a
         // frame, keep Pure's text (the output layer's step 5: a whole Float's .0 on every database).
         if (heldAsInteger(x)) {
-            return new SqlExpr.Cast(x, SqlType.Scalar.VARCHAR);
+            return new SqlExpr.Cast(x, SqlType.Scalar.VARCHAR, SqlExpr.Reason.PRINT);
         }
         return SqlExpr.Call.of(SqlFn.FLOAT_TO_TEXT, x);
     }
@@ -507,7 +507,7 @@ public final class LiteralSpelling {
      * suffix (the identity-channel wire spelling the canon strips). */
     public static SqlExpr decimalPrintD(SqlExpr x) {
         return SqlExpr.Call.of(SqlFn.CONCAT,
-                new SqlExpr.Cast(x, SqlType.Scalar.VARCHAR),
+                new SqlExpr.Cast(x, SqlType.Scalar.VARCHAR, SqlExpr.Reason.PRINT),
                 new SqlExpr.StringLit("D"));
     }
 
@@ -567,7 +567,7 @@ public final class LiteralSpelling {
                         new SqlExpr.IntLit(20 + digits));
         return new SqlExpr.Case(List.of(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.IS_NULL, x),
                 new SqlExpr.NullLit())),
-                SqlExpr.Call.of(SqlFn.CONCAT, new SqlExpr.StringLit("%"), body, new SqlExpr.StringLit("+0000")));
+                SqlExpr.Call.of(SqlFn.CONCAT, new SqlExpr.StringLit("%"), body, new SqlExpr.StringLit("+0000")), SqlExpr.Reason.PRINT);
     }
 
     /** PARTIAL-date LITERAL: the string cell IS the body (master's
@@ -647,7 +647,7 @@ public final class LiteralSpelling {
                 SqlExpr.Call.of(SqlFn.GREATER_EQUAL, colons, new SqlExpr.IntLit(2)),
                 SqlExpr.Call.of(SqlFn.NOT, SqlExpr.Call.of(SqlFn.ENDS_WITH, text, new SqlExpr.StringLit("+0000"))));
         return new SqlExpr.Case(List.of(new SqlExpr.Case.When(secondsNoZone,
-                SqlExpr.Call.of(SqlFn.CONCAT, text, new SqlExpr.StringLit("+0000")))), text);
+                SqlExpr.Call.of(SqlFn.CONCAT, text, new SqlExpr.StringLit("+0000")))), text, SqlExpr.Reason.PRINT);
     }
 
     /** Whether a timestamp's time of day is not midnight: the engine's {@code formatDateTime} rule for an ABSTRACT

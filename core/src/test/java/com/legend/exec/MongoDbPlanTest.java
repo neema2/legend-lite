@@ -405,9 +405,9 @@ class MongoDbPlanTest {
             com.legend.sql.SqlExpr big = new com.legend.sql.SqlExpr.FloatLit(1e20);
             spelled.put("text of 1e20", text(big));
             spelled.put("text of hugeint(1e20)", text(new com.legend.sql.SqlExpr.Cast(big,
-                    com.legend.sql.SqlType.Scalar.HUGEINT)));
+                    com.legend.sql.SqlType.Scalar.HUGEINT, com.legend.sql.SqlExpr.Reason.USER)));
             spelled.put("text of hugeint(1e20) + '.0'", com.legend.sql.SqlExpr.Call.of(com.legend.sql.SqlFn.CONCAT,
-                    text(new com.legend.sql.SqlExpr.Cast(big, com.legend.sql.SqlType.Scalar.HUGEINT)),
+                    text(new com.legend.sql.SqlExpr.Cast(big, com.legend.sql.SqlType.Scalar.HUGEINT, com.legend.sql.SqlExpr.Reason.USER)),
                     new com.legend.sql.SqlExpr.StringLit(".0")));
             // the product's text of a Float (FLOAT_TO_TEXT: six decimals trimmed, S311; phase D's D1.2, 2026-11-15) and
             // legend-pure's print form (FLOAT_PRINT, the judges' and the edge's)
@@ -416,7 +416,7 @@ class MongoDbPlanTest {
             spelled.put("text of 2.0", text(new com.legend.sql.SqlExpr.FloatLit(2.0)));
             spelled.put("text of 1.5e-8", text(new com.legend.sql.SqlExpr.FloatLit(1.5e-8)));
             spelled.put("text of decimal(38,18) of 1.5e-8", text(new com.legend.sql.SqlExpr.Cast(
-                    new com.legend.sql.SqlExpr.FloatLit(1.5e-8), new com.legend.sql.SqlType.Decimal(38, 18))));
+                    new com.legend.sql.SqlExpr.FloatLit(1.5e-8), new com.legend.sql.SqlType.Decimal(38, 18), com.legend.sql.SqlExpr.Reason.USER)));
             spelled.put("the product's text of 1.5e-8", com.legend.lowering.LiteralSpelling.floatPrint(
                     new com.legend.sql.SqlExpr.FloatLit(1.5e-8)));
             spelled.put("Pure's print of 1.5e-8", com.legend.sql.SqlExpr.Call.of(com.legend.sql.SqlFn.FLOAT_PRINT,
@@ -446,7 +446,7 @@ class MongoDbPlanTest {
     }
 
     private static com.legend.sql.SqlExpr text(com.legend.sql.SqlExpr e) {
-        return new com.legend.sql.SqlExpr.Cast(e, com.legend.sql.SqlType.Scalar.VARCHAR);
+        return new com.legend.sql.SqlExpr.Cast(e, com.legend.sql.SqlType.Scalar.VARCHAR, com.legend.sql.SqlExpr.Reason.USER);
     }
 
     private static Object first(Document commandResult) {

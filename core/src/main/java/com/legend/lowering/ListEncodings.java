@@ -141,7 +141,7 @@ final class ListEncodings {
             listSrc = srcOptional && !resultOne
                     ? new SqlExpr.Case(List.of(new SqlExpr.Case.When(
                             SqlExpr.Call.of(SqlFn.IS_NULL, src),
-                            new SqlExpr.ArrayLit(List.of()))), singleton)
+                            new SqlExpr.ArrayLit(List.of()))), singleton, SqlExpr.Reason.CARRIER)
                     : singleton;
         }
         // a mixed list (track L; the L1 audit, 2026-10-29): the transform ranges over its positions, the lambda's
@@ -155,7 +155,7 @@ final class ListEncodings {
             return srcOptional
                     ? new SqlExpr.Case(List.of(new SqlExpr.Case.When(
                             SqlExpr.Call.of(SqlFn.IS_NULL, src),
-                            new SqlExpr.NullLit())), applied)
+                            new SqlExpr.NullLit())), applied, SqlExpr.Reason.CARRIER)
                     : applied;
         }
         return collectionMapper
@@ -264,7 +264,7 @@ final class ListEncodings {
                 SqlExpr.Call.of(SqlFn.GREATER, lo, hi),
                 SqlExpr.Call.of(SqlFn.ERROR, new SqlExpr.RaiseText(
                         com.legend.sql.RaiseKind.SLICE_BOUNDS_INVERTED, List.of(lo, hi))))),
-                sliced);
+                sliced, SqlExpr.Reason.CARRIER);
     }
 
     /**
@@ -340,7 +340,7 @@ final class ListEncodings {
                 List.of(new SqlExpr.Case.When(
                         SqlExpr.Call.of(SqlFn.IS_NULL, e),
                         new SqlExpr.ArrayLit(List.of(), one.type()))),
-                one);
+                one, SqlExpr.Reason.CARRIER);
     }
 
     /** Clamp a (possibly negative) index to zero — PCT's slice/drop/take edge semantics. */

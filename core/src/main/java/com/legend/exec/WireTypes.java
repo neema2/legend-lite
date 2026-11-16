@@ -84,6 +84,14 @@ public final class WireTypes {
      *  or this table names no Pure type for is refused by name, never read as some kind (AGENTS.md invariant 4; the
      *  seam program's S3c audit, 2026-10-31: until then it was Any, its cell the driver's own kind). */
     public static ExecutionPlan.Column column(Statements.Reported r) {
+        if (zoned(r.driverType())) {
+            // a zoned column is refused before any row, by the type the database reports (E1 item 3, Q3, 2026-11-12):
+            // pgjdbc reports a timestamptz as TIMESTAMP (93), which the code alone would read as a DateTime and the
+            // decode would then have to shift between zones in Java
+            throw new com.legend.error.NotImplementedException("a raw grid's column '" + r.name() + "' is the"
+                    + " database's zoned type " + r.driverType() + ": cast it to TIMESTAMP at UTC in the SQL (a"
+                    + " date-time is carried, never shifted between zones)");
+        }
         String slot = r.type() == null ? null : com.legend.executionplan.ColumnFacts.slot(r.type());
         String pure = slot == null ? null : pureTypeNameOrNull(slot);
         if (pure == null) {
@@ -92,6 +100,18 @@ public final class WireTypes {
         }
         return new ExecutionPlan.Column(r.name(), pure, new ExecutionPlan.Multiplicity(r.nullable() ? 0 : 1, 1), slot,
                 null, null);
+    }
+
+    /** Whether a reported SQL type name is a zoned date-time: the standard spelling ({@code TIMESTAMP WITH TIME ZONE},
+     *  H2's and DuckDB's), Postgres's {@code timestamptz} and Snowflake's {@code TIMESTAMPTZ} / {@code TIMESTAMPLTZ}
+     *  / {@code TIMESTAMP_TZ} / {@code TIMESTAMP_LTZ} (never {@code TIMESTAMP_NTZ}, its naive one). A zoned TIME is not a date-time and is refused by the table. */
+    static boolean zoned(@com.legend.base.Nullable String driverType) {
+        if (driverType == null) {
+            return false;
+        }
+        String t = driverType.toUpperCase(java.util.Locale.ROOT).strip();
+        // Snowflake's TIMESTAMP_NTZ is its naive date-time, not zoned
+        return t.startsWith("TIMESTAMP") && (t.contains("WITH TIME ZONE") || t.endsWith("TZ") && !t.endsWith("NTZ"));
     }
 
     /** {@code declared} as the cells are read: a column whose kind is the wire's (no slot, Any: a raw grid's column

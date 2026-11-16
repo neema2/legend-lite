@@ -418,7 +418,7 @@ class CarrierDifferentialTest {
                                     new SqlExpr.Column("s", col)),
                             new SqlExpr.StringLit("DATE")),
                     new SqlExpr.StringLit("D"))),
-                    new SqlExpr.StringLit("TS"));
+                    new SqlExpr.StringLit("TS"), SqlExpr.Reason.USER);
             SqlSelect q = SqlSelect.starOf(
                             new SqlSource.Table("t", "s", List.of(), false, java.util.Map.of(), com.legend.sql.NameQuoting.BARE))
                     .withProjections(List.of(
@@ -491,7 +491,7 @@ class CarrierDifferentialTest {
                             new SqlExpr.ArrayLit(List.of(
                                     new SqlExpr.StringLit("a"),
                                     new SqlExpr.StringLit("b"))))),
-                    new SqlExpr.ArrayLit(List.of(new SqlExpr.StringLit("c"))));
+                    new SqlExpr.ArrayLit(List.of(new SqlExpr.StringLit("c"))), SqlExpr.Reason.USER);
             SqlExpr concat = SqlExpr.Call.of(com.legend.sql.SqlFn.LIST_CONCAT,
                     branched,
                     new SqlExpr.ArrayLit(List.of(new SqlExpr.StringLit("d"))));
@@ -517,7 +517,7 @@ class CarrierDifferentialTest {
     @Test
     void literalReducerFoldsRowEqual() throws Exception {
         SqlExpr nullInt = new SqlExpr.Case(List.of(new SqlExpr.Case.When(
-                new SqlExpr.BoolLit(false), new SqlExpr.IntLit(1))), null);
+                new SqlExpr.BoolLit(false), new SqlExpr.IntLit(1))), null, SqlExpr.Reason.USER);
         record Fx(com.legend.sql.SqlFn fn, List<SqlExpr> elems) { }
         List<Fx> fixtures = List.of(
                 new Fx(com.legend.sql.SqlFn.LIST_BOOL_AND, List.of(

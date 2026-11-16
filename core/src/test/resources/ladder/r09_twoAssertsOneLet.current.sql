@@ -18,23 +18,29 @@ WITH frame_r AS MATERIALIZED (SELECT frame_r__t0.ID AS id, frame_r__t0.NAME AS n
     LEFT OUTER JOIN (
       SELECT 3 AS value
     ) AS side ON TRUE
-  ) AS n), __se_1 AS (SELECT coalesce(CAST(value AS VARCHAR), '[]') AS __text, CASE WHEN value IS NOT NULL AND CAST(value AS VARCHAR) IS NULL THEN 1 ELSE 0 END AS __nulls, CASE WHEN strpos(CAST(value AS VARCHAR), 'tree') > 0 THEN 1 ELSE 0 END AS __trees, CASE WHEN value IS NOT NULL THEN 1 ELSE 0 END AS __n, concat('''', replace(replace(replace(CAST(value AS VARCHAR), '\', '\\'), '''', '\'''), '
-', '\n'), '''') AS __onew, CASE WHEN value IS NULL THEN '[]' ELSE concat('[', '''', replace(replace(replace(CAST(value AS VARCHAR), '\', '\\'), '''', '\'''), '
+  ) AS n), __se_1 AS (SELECT coalesce(__once.__oc, '[]') AS __text, CASE WHEN __once.__ov IS NOT NULL AND __once.__oc IS NULL THEN 1 ELSE 0 END AS __nulls, CASE WHEN strpos(__once.__oc, 'tree') > 0 THEN 1 ELSE 0 END AS __trees, CASE WHEN __once.__ov IS NOT NULL THEN 1 ELSE 0 END AS __n, concat('''', replace(replace(replace(CAST(__once.__ov AS VARCHAR), '\', '\\'), '''', '\'''), '
+', '\n'), '''') AS __onew, CASE WHEN __once.__ov IS NULL THEN '[]' ELSE concat('[', '''', replace(replace(replace(CAST(__once.__ov AS VARCHAR), '\', '\\'), '''', '\'''), '
 ', '\n'), '''', ']') END AS __listw
   FROM (
-    SELECT 1 AS __one
-  ) AS __one
-  LEFT OUTER JOIN (
-    SELECT 'a' AS value
-  ) AS side ON TRUE), __sa_1 AS (SELECT coalesce(CAST(value AS VARCHAR), '[]') AS __text, CASE WHEN value IS NOT NULL AND CAST(value AS VARCHAR) IS NULL THEN 1 ELSE 0 END AS __nulls, CASE WHEN strpos(CAST(value AS VARCHAR), 'tree') > 0 THEN 1 ELSE 0 END AS __trees, CASE WHEN value IS NOT NULL THEN 1 ELSE 0 END AS __n, concat('''', replace(replace(replace(CAST(value AS VARCHAR), '\', '\\'), '''', '\'''), '
-', '\n'), '''') AS __onew, CASE WHEN value IS NULL THEN '[]' ELSE concat('[', '''', replace(replace(replace(CAST(value AS VARCHAR), '\', '\\'), '''', '\'''), '
+    SELECT CAST(value AS VARCHAR) AS __oc, value AS __ov
+    FROM (
+      SELECT 1 AS __one
+    ) AS __one
+    LEFT OUTER JOIN (
+      SELECT 'a' AS value
+    ) AS side ON TRUE
+  ) AS __once), __sa_1 AS (SELECT coalesce(__once.__oc, '[]') AS __text, CASE WHEN __once.__ov IS NOT NULL AND __once.__oc IS NULL THEN 1 ELSE 0 END AS __nulls, CASE WHEN strpos(__once.__oc, 'tree') > 0 THEN 1 ELSE 0 END AS __trees, CASE WHEN __once.__ov IS NOT NULL THEN 1 ELSE 0 END AS __n, concat('''', replace(replace(replace(CAST(__once.__ov AS VARCHAR), '\', '\\'), '''', '\'''), '
+', '\n'), '''') AS __onew, CASE WHEN __once.__ov IS NULL THEN '[]' ELSE concat('[', '''', replace(replace(replace(CAST(__once.__ov AS VARCHAR), '\', '\\'), '''', '\'''), '
 ', '\n'), '''', ']') END AS __listw
   FROM (
-    SELECT 1 AS __one
-  ) AS __one
-  LEFT OUTER JOIN (
-    SELECT (SELECT t1.name FROM ( SELECT frame_r_t0.id AS id, frame_r_t0.name AS name FROM frame_r AS frame_r_t0 ORDER BY frame_r_t0.id NULLS LAST LIMIT 1 ) AS t1) AS value
-  ) AS side ON TRUE)
+    SELECT CAST(value AS VARCHAR) AS __oc, value AS __ov
+    FROM (
+      SELECT 1 AS __one
+    ) AS __one
+    LEFT OUTER JOIN (
+      SELECT (SELECT t1.name FROM ( SELECT frame_r_t0.id AS id, frame_r_t0.name AS name FROM frame_r AS frame_r_t0 ORDER BY frame_r_t0.id NULLS LAST LIMIT 1 ) AS t1) AS value
+    ) AS side ON TRUE
+  ) AS __once)
 SELECT 0 AS __ix, coalesce((p.__c_n IS NOT DISTINCT FROM CAST(p.__n_c AS BIGINT)), FALSE) AS __verdict, CAST(CAST(p.__n_c AS BIGINT) AS VARCHAR) AS __expected, CAST(p.__c_n AS VARCHAR) AS __actual, CAST(NULL AS VARCHAR) AS __unjudged, FALSE AS __lenient, coalesce((p.__c_n IS NOT DISTINCT FROM CAST(p.__n_c AS BIGINT)), FALSE) AS __holds, concat('expected size: ', CAST(CAST(p.__n_c AS BIGINT) AS VARCHAR), ', actual size: ', CAST(p.__c_n AS VARCHAR)) AS __message
 FROM __p_0 AS p
 UNION ALL

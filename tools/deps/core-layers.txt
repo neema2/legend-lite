@@ -159,6 +159,7 @@ planner	base builtin cache compiler compiler_element_type database door error ex
 # `model` already.
 # 2026-11-15 (C5-J item 1, the Java lock-down): `pure_v1` reaches `door` -- its parses through the parse doors
 # (door.Parse), each asking the run's wall before the parser runs.
+# 2026-11-15 (main 0c9032f56 merged into claude/total-wall-e, E): `edge` reaches `door` -- pure/v1's grammar routes, moved to the edge by D1.0b, parse through the parse door as C5-J item 1 made pure_v1's do.
 pure_v1	arrow_ipc base compiler compiler_element_type database door error execution_plan json model parser plan planner protocol result sql sql_dialect testdatagen
 # 2026-10-29, the doors, door 1 (docs/RESULT_BOUNDARY_START_HERE.md §4; the decisions log D63): driver reaches `json` -- the
 # body driver writes a graph fetch's objects as host rows, one per object of the array the database built (BodyDriver.host).

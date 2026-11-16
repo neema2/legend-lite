@@ -50,7 +50,7 @@ class VerdictIdsTest {
             TestDoor.Asserts asserts = switch (mode) {
                 case HOST -> HostAsserts.plan(typed, rt, env);
                 case DATABASE -> DatabaseAsserts.plan(typed, rt, env);
-                case BOTH -> AgreementAsserts.plan(typed, rt, env, null, false);
+                case BOTH -> AgreementAsserts.planFused(typed, rt, env, null, false);
             };
             assertNotNull(asserts, mode + ": the body's asserts planned");
             TestPlan plan = TestDoor.planned(typed, rt, options.planning().features(), asserts);

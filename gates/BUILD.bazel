@@ -169,6 +169,15 @@ test_suite(
         "//scripts/corpus:run_test",
         "//core:guardrails",
         "//core:census",
+        # the product-SQL size baseline (G3's guard; E3, ruled 2026-11-12): fixed query sets planned on every database,
+        # shrink-only pins per set, database and family over the statements, their characters and the plans' JSON
+        "//core:cast_case_census_test",
+        "//core:lean_sql_baseline_test",
+        # its sets' capture, run with the switch on: text and names only, no plan changed
+        "//core:query_capture_test",
+        # the corpus's set (E3, 2026-11-12): every corpus body planned on DuckDB and H2, its product statements pinned
+        "//spec:lean_sql_corpus_duckdb",
+        "//spec:lean_sql_corpus_h2",
         "//pct:pct_discipline",
         # every hand tool compiles (L1b): the manual binaries of each package, built and not run; the three whose
         # closures hold the native image or the WebAssembly planner sit in the lanes that build those anyway
@@ -443,6 +452,15 @@ test_suite(
         # core/BUILD.bazel's pg_regress_corpus_test): manual, it names a suite kept out of the repository
         # (-Dsql.corpus.regress) and fails without it
         "//core:pg_regress_corpus_test",
+        # manual measurements and guards found in no lane by PR1's review (2026-11-15): channel B run twice (the G10
+        # determinism lanes), P3's before-Christ date probe per lane, and channel A's answer snapshot
+        "//pct:pct_channel_b_twice",
+        "//pct:pct_bc_date_probe_bigquery",
+        "//pct:pct_bc_date_probe_databricks",
+        "//pct:pct_bc_date_probe_h2",
+        "//pct:pct_bc_date_probe_snowflake",
+        "//pct:pct_bc_date_probe_sqlite",
+        "//core:answer_snapshot",
         "//pct:update_ratchets_test",
         "//tools/python:requirements.test",
         # the PCT suites on other databases (2026-10-11, docs/CLOUD_BACKENDS_PCT_2026_10_11.md): the cloud lanes need an

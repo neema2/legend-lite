@@ -136,7 +136,7 @@ final class Windows {
                     .map(x -> windowize(x, partitionBy, orderBy, frame)).toList());
             case SqlExpr.Cast c ->
                     new SqlExpr.Cast(windowize(c.value(), partitionBy, orderBy, frame),
-                            c.target());
+                            c.target(), c.reason());
             // A reducer under a CASE arm must window too (audit: the first
             // agg recipe that guards with CASE would render bare).
             case SqlExpr.Case cs -> new SqlExpr.Case(
@@ -144,7 +144,7 @@ final class Windows {
                             windowize(w.condition(), partitionBy, orderBy, frame),
                             windowize(w.then(), partitionBy, orderBy, frame))).toList(),
                     cs.otherwise() == null ? null
-                            : windowize(cs.otherwise(), partitionBy, orderBy, frame));
+                            : windowize(cs.otherwise(), partitionBy, orderBy, frame), cs.reason());
             // Composite carriers: a reducer anywhere inside must window
             // (audit 15: the open default let these render bare aggregates).
             case SqlExpr.ArrayLit a -> new SqlExpr.ArrayLit(a.elements().stream()

@@ -47,7 +47,7 @@ final class CellTexts {
                     SqlExpr text = operand(cell);
                     parts.add(new SqlExpr.Case(java.util.List.of(new SqlExpr.Case.When(
                             SqlExpr.Call.of(SqlFn.IS_NULL, text), new SqlExpr.StringLit(""))),
-                            SqlExpr.Call.of(SqlFn.CONCAT, sep, text)));
+                            SqlExpr.Call.of(SqlFn.CONCAT, sep, text), SqlExpr.Reason.PRINT));
                 }
                 SqlExpr out = parts.get(0);
                 for (SqlExpr part : parts.subList(1, parts.size())) {

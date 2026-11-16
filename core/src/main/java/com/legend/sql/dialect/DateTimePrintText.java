@@ -46,7 +46,7 @@ final class DateTimePrintText {
                 new SqlExpr.StringLit("0"));
         SqlExpr fraction = new SqlExpr.Case(List.of(new SqlExpr.Case.When(
                 SqlExpr.Call.of(SqlFn.EQUAL, digits, new SqlExpr.StringLit("")), new SqlExpr.StringLit(""))),
-                SqlExpr.Call.of(SqlFn.CONCAT, new SqlExpr.StringLit("."), digits));
+                SqlExpr.Call.of(SqlFn.CONCAT, new SqlExpr.StringLit("."), digits), SqlExpr.Reason.PRINT);
         return SqlExpr.Call.of(SqlFn.CONCAT,
                 SqlExpr.Call.of(SqlFn.CONCAT,
                         SqlExpr.Call.of(SqlFn.STRFTIME, x,

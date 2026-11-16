@@ -45,7 +45,7 @@ class RaiseTextTest {
         }
     }
 
-    private static final SqlExpr OPERAND = new SqlExpr.Cast(new SqlExpr.Column("t", "operand_col"), SqlType.Scalar.VARCHAR);
+    private static final SqlExpr OPERAND = new SqlExpr.Cast(new SqlExpr.Column("t", "operand_col"), SqlType.Scalar.VARCHAR, SqlExpr.Reason.USER);
 
     /** legend-engine's text printers write legend-pure's sentence of a raise, as the edge's dialects do -- never the
      *  product's kind name (the D part 1 audit's S2, 2026-11-15): toSQLString's and planToString's text unchanged by
@@ -99,9 +99,9 @@ class RaiseTextTest {
      *  product wrote before the move (PCT's assertErrors compare legend-pure's text). */
     @Test
     void theEdgeWritesLegendPuresSentence() {
-        SqlExpr a = new SqlExpr.Cast(new SqlExpr.Column("t", "operand_col"), SqlType.Scalar.BIGINT);
+        SqlExpr a = new SqlExpr.Cast(new SqlExpr.Column("t", "operand_col"), SqlType.Scalar.BIGINT, SqlExpr.Reason.USER);
         SqlExpr before = SqlExpr.Call.of(SqlFn.CONCAT, SqlExpr.Call.of(SqlFn.CONCAT, new SqlExpr.StringLit(
-                "Cannot divide "), new SqlExpr.Cast(a, SqlType.Scalar.VARCHAR)), new SqlExpr.StringLit(" by zero"));
+                "Cannot divide "), new SqlExpr.Cast(a, SqlType.Scalar.VARCHAR, SqlExpr.Reason.USER)), new SqlExpr.StringLit(" by zero"));
         for (DatabaseType type : Databases.implemented()) {
             assertEquals(text(Databases.dialect(type), select(before)), text(com.legend.edge.PureText.dialect(type),
                     select(new SqlExpr.RaiseText(RaiseKind.DIVIDE_BY_ZERO, List.of(a)))), type + ": rem's");
@@ -120,7 +120,7 @@ class RaiseTextTest {
     }
 
     private static SqlExpr str(SqlExpr x) {
-        return new SqlExpr.Cast(x, SqlType.Scalar.VARCHAR);
+        return new SqlExpr.Cast(x, SqlType.Scalar.VARCHAR, SqlExpr.Reason.USER);
     }
 
     private static SqlExpr lit(String s) {
@@ -130,8 +130,8 @@ class RaiseTextTest {
     /** Each moved family's raise against the message the lowering wrote before the move (D1.1, families 2-12). */
     @Test
     void theEdgeWritesEachMovedFamilysSentence() {
-        SqlExpr a = new SqlExpr.Cast(new SqlExpr.Column("t", "operand_col"), SqlType.Scalar.BIGINT);
-        SqlExpr b = new SqlExpr.Cast(new SqlExpr.Column("t", "other_col"), SqlType.Scalar.BIGINT);
+        SqlExpr a = new SqlExpr.Cast(new SqlExpr.Column("t", "operand_col"), SqlType.Scalar.BIGINT, SqlExpr.Reason.USER);
+        SqlExpr b = new SqlExpr.Cast(new SqlExpr.Column("t", "other_col"), SqlType.Scalar.BIGINT, SqlExpr.Reason.USER);
         java.util.Map<SqlExpr, SqlExpr> moved = new java.util.LinkedHashMap<>();
         moved.put(new SqlExpr.RaiseText(RaiseKind.SHIFT_OUT_OF_RANGE, List.of()),
                 lit("Unsupported number of bits to shift - max bits allowed is 62"));

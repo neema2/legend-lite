@@ -61,7 +61,7 @@ final class RootNumericTypes extends SqlRewriter {
             if (t == null) {
                 ps.add(p);
             } else {
-                SqlExpr c = new SqlExpr.Cast(p.expr(), t, false);
+                SqlExpr c = new SqlExpr.Cast(p.expr(), t, SqlExpr.Reason.DIALECT);
                 ps.add(new SqlSelect.Projection(c, name, p.out()));
                 cast.put(p.expr(), c);
             }

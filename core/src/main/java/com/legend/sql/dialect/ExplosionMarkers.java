@@ -68,7 +68,7 @@ final class ExplosionMarkers {
         SqlExpr read = type == null ? SqlExpr.Column.derived(alias, name)
                 : SqlExpr.Column.of(alias, name, type, true, com.legend.sql.OutputCol.Origin.DERIVED);
         return type == SqlType.Scalar.JSON && slot == SqlType.Scalar.VARCHAR
-                ? new SqlExpr.Cast(read, SqlType.Scalar.VARCHAR) : read;
+                ? new SqlExpr.Cast(read, SqlType.Scalar.VARCHAR, SqlExpr.Reason.DIALECT) : read;
     }
 
     /** A list's element, min or max over the NULL list: NULL. */

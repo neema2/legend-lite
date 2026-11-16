@@ -131,9 +131,11 @@ interface Sql {
 // own plan of the snapshot's pull -- its request carries the pull (model, runtime, lambda), never the statement
 // 52 since 2026-11-13 (phase D's D1.1, merged onto 51): a statement's tree may hold a raise's message as its kind and
 // operands (raiseText) -- planning data this runner never reads; it sends the statement's text as written
-// 53 since 2026-11-15 (phase D's option (D)): a plan carries its raises, each kind its statements can send to its
-// sentence (PlanJson.raises) -- declared as the plan is read (declared-raises.ts), what a failure is worded from
-const PLAN_VERSION = 53;
+// 53 since 2026-11-13 (E-4): every cast and case of a statement's tree names its reason
+// 54 since 2026-11-15 (phase D's option (D); its number after E's, renumbered at landing): a plan carries its raises,
+// each kind its statements can send to its sentence (PlanJson.raises) -- declared as the plan is read
+// (declared-raises.ts), what a failure is worded from
+const PLAN_VERSION = 54;
 // the version a test's stand-in plan is written at (the doors' witnesses, engine-client/test/run-frame.test.ts); the
 // declaration above stays one line, as PlanVersionsAgreeTest reads it
 export { PLAN_VERSION };

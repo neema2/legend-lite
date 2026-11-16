@@ -1,0 +1,13 @@
+import json,re,sys,collections
+TEXT=r"\b(concat|replace|trim|ltrim|rtrim|lpad|rpad|printf|format|strftime|to_char|regexp_replace|regexp_extract|substr|substring|upper|lower|json_quote|chr)\s*\(|\|\|"
+for d in sys.argv[2:]:
+    tot=collections.Counter(); casts=collections.Counter(); n=0; chars=0
+    for l in open(f'{sys.argv[1]}/sql-{d}.jsonl'):
+        s=json.loads(l)['sql']; n+=1; chars+=len(s)
+        q=re.sub(r"'(?:[^']|'')*'","''",s)
+        tot['CAST']+=len(re.findall(r'\bCAST\s*\(',q,re.I))
+        tot['CASE']+=len(re.findall(r'\bCASE\b',q,re.I))
+        tot['text']+=len(re.findall(TEXT,q,re.I))
+        for m in re.finditer(r'AS ([A-Z_]+(?:\(\d+(?:, ?\d+)?\))?)\)',q):
+            casts[m.group(1)]+=1
+    print(f"| {d} | {n} | {tot['CAST']:,} | {tot['CASE']:,} | {tot['text']:,} | {chars:,} |", ' top cast targets:', casts.most_common(6))

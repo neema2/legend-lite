@@ -35,9 +35,10 @@ public final class RowDecode {
     /** The variant class's path (the plan's type vocabulary names a class by its path; no model here). */
     public static final String VARIANT = "meta::pure::metamodel::variant::Variant";
 
-    /** One row's cells, in {@code columns}' order: each column read from the object's field of its name, or, when no
-     *  field is named after any column and the counts agree, by position (a value root's one column, which the wire
-     *  names after its output). */
+    /** One row's cells, in {@code columns}' order: each column read from the object's field of its name (a host
+     *  names each member after the SQL's alias, the plan's column name). A row with no field for a column is refused
+     *  by name, never read by position (E1 item 6, G7, 2026-11-12: until then, when no field was named after any
+     *  column and the counts agreed, the cells were read by position). */
     public static List<Object> cells(String rowJson, List<ExecutionPlan.Column> columns) {
         Json.Node parsed = Json.parse(rowJson);
         if (!(parsed instanceof Json.Obj row)) {
@@ -49,13 +50,10 @@ public final class RowDecode {
 
     /** {@link #cells(String, List)} of a row already read as a JSON object. */
     public static List<Object> cells(Json.Obj row, List<ExecutionPlan.Column> columns) {
-        boolean anyByName = columns.stream().anyMatch(c -> row.fields().containsKey(c.name()));
-        boolean positional = !anyByName && row.fields().size() == columns.size();
-        List<Json.Node> byPosition = positional ? new ArrayList<>(row.fields().values()) : List.of();
         List<Object> out = new ArrayList<>(columns.size());
         for (int i = 0; i < columns.size(); i++) {
             ExecutionPlan.Column c = columns.get(i);
-            Json.Node node = positional ? byPosition.get(i) : row.fields().get(c.name());
+            Json.Node node = row.fields().get(c.name());
             if (node == null) {
                 throw new IllegalStateException("the row's object has no field for the plan's column '" + c.name()
                         + "' (it has " + row.fields().keySet() + "): the statement does not write the plan's columns");

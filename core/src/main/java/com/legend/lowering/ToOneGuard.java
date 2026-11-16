@@ -69,7 +69,7 @@ final class ToOneGuard {
         SqlExpr raise = SqlExpr.Call.of(SqlFn.ERROR, new SqlExpr.RaiseText(
                 com.legend.sql.RaiseKind.SIZE_NOT_MULTIPLICITY, List.of(new SqlExpr.StringLit("[1]"), n), null, "[1]"));
         SqlExpr check = new SqlExpr.Case(List.of(new SqlExpr.Case.When(
-                SqlExpr.Call.of(SqlFn.EQUAL, n, new SqlExpr.IntLit(1)), new SqlExpr.BoolLit(true))), raise);
+                SqlExpr.Call.of(SqlFn.EQUAL, n, new SqlExpr.IntLit(1)), new SqlExpr.BoolLit(true))), raise, SqlExpr.Reason.RAISE);
         List<SqlSelect.Projection> out = new ArrayList<>(cols.size());
         for (OutputCol c : cols) {
             out.add(new SqlSelect.Projection(SqlExpr.Column.of(ra, c), c.name(), c));
