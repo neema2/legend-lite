@@ -6,12 +6,14 @@ browser (the engine still answering) until Ctrl-C, and ends at once when none wa
 
 import json
 import os
+import pathlib
 import queue
 import signal
 import subprocess
 import sys
 import tempfile
 import threading
+import time
 import types
 import unittest
 import urllib.error
@@ -151,6 +153,54 @@ class Show(Shown):
             with self.assertRaises(ValueError):
                 use()
         self.assertIsNone(datacube._session._web, 'a closed cube started no web server')
+
+    def test_a_close_with_a_request_in_flight_that_takes_the_sessions_lock_returns(self):
+        # the C5 batch's P2 (2026-11-15): the last close stopped the web server under the session's lock, and the stop
+        # waits for the requests being answered -- one asking for DataCube's code (Session.headless) takes that lock, so
+        # the two waited for each other for ever. The request here is a file's part, whose DataCube code is asked for as
+        # Session.headless asks: under the session's lock, a moment after the close has begun
+        session = datacube._session
+        cube = ll.show(trades(), browser=False)
+        web = session.web()
+        engine = session.engine()
+        folder = pathlib.Path(tempfile.mkdtemp(dir=os.environ.get('TEST_TMPDIR')))
+        asked, closing, waited = threading.Event(), threading.Event(), threading.Event()
+
+        def headless():
+            asked.set()
+            closing.wait(10)
+            # the close holds the session's lock by now, as it did, or has let it go. Taken with a limit, so a close that
+            # still waits under the lock fails this test by name, the two let go, rather than hanging the suite
+            time.sleep(0.5)
+            if not session._lock.acquire(timeout=5):
+                waited.set()
+                raise OSError("the session's lock was held by a close waiting for this request")
+            try:
+                return types.SimpleNamespace(folder=folder)
+            finally:
+                session._lock.release()
+
+        engine._headless = headless
+        answered = queue.Queue()
+
+        def part():
+            request = urllib.request.Request(web.url + '/file-part.json', data=json.dumps({'at': 0, 'bytes': 'YQo='}).encode(),
+                                             headers={'Authorization': web.authorization, 'Content-Type': 'application/json'})
+            try:
+                with urllib.request.urlopen(request, timeout=30) as r:
+                    answered.put(r.status)
+            except Exception as e:
+                answered.put(e)
+        threading.Thread(target=part, daemon=True).start()
+        self.assertTrue(asked.wait(10), "the file's part never asked for DataCube's code")
+        closed = threading.Thread(target=cube.close, daemon=True)
+        closed.start()
+        closing.set()
+        closed.join(15)
+        self.assertFalse(closed.is_alive(), 'the close never returned')
+        self.assertFalse(waited.is_set(), 'the close waited for a request that waited for the session\'s lock')
+        self.assertEqual(answered.get(timeout=15), 200, 'the request in flight was answered')
+        self.assertIsNone(session._web)
 
 
 class Notebook(Shown):

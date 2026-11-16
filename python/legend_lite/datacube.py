@@ -405,29 +405,33 @@ class _Session:
                 page._shown.remove(view)
             if not page._shown:
                 self.keeper.serve(page._key, False)
-            self._stop_web_if_unused()
+            unused = self._unused_web()
+        _close_web(unused)
 
     def close(self, name: str, cube: Any) -> None:
         """``cube`` closed: when it is still its name's cube, the frame goes out of the engine (a cube the name has moved
         on from leaves the frame to the one it moved to, the audit of step 7, S3); the last tab's cube stops the web
         server."""
         with self._lock:
-            if self.cubes.get(name.lower()) is not cube:
-                self._stop_web_if_unused()
-                return
-            del self.cubes[name.lower()]
-            if name in self.frames:
-                self.frames.unregister(name)
-                if self._engine is not None:
-                    # its page asks (or is told), finds the frame gone, and stops following it
-                    self._engine.changed(name)
-            self._stop_web_if_unused()
+            if self.cubes.get(name.lower()) is cube:
+                del self.cubes[name.lower()]
+                if name in self.frames:
+                    self.frames.unregister(name)
+                    if self._engine is not None:
+                        # its page asks (or is told), finds the frame gone, and stops following it
+                        self._engine.changed(name)
+            unused = self._unused_web()
+        _close_web(unused)
 
-    def _stop_web_if_unused(self) -> None:
-        # a frame's cube in a tab is a page shown there (P12)
+    def _unused_web(self) -> WebServer | None:
+        """The web server, taken from the session when no tab or app uses it any more (a frame's cube in a tab is a page
+        shown there: P12), for the caller to close once it has let the session's lock go (``_close_web``): its close
+        waits for the requests being answered, and a request may need that lock (a page's file read by DataCube's code,
+        ``headless``) -- closed under it, the two waited for each other (the C5 batch's P2, 2026-11-15)."""
         if self._web is not None and not self.apps and not any(isinstance(p, PageTab) for p in self.pages):
-            self._web.close()
-            self._web = None
+            web, self._web = self._web, None
+            return web
+        return None
 
     def _hook(self) -> None:
         """Once: the notebook's after-cell nudge, where there is IPython; the wait at a plain script's end."""
@@ -469,6 +473,13 @@ class _Session:
                 time.sleep(1)
         except KeyboardInterrupt:
             pass
+
+
+def _close_web(web: WebServer | None) -> None:
+    """A web server taken from its session (``_Session._unused_web``), closed: never under the session's lock -- its close
+    waits for the requests being answered, which may take that lock (the C5 batch's P2)."""
+    if web is not None:
+        web.close()
 
 
 _session = _Session()
