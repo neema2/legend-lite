@@ -745,3 +745,71 @@ write_source_files(
 )
 
 guards_package()
+
+# THE EDGE GOLDEN NET (the edge program's Phase 0, 2026-11-16, docs/records/total-wall-edge-program-2026-11-16.md
+# §5.2): every PCT channel A case on the in-process databases, run as a build action, its per-test outcome
+# (JUnitMain's -Dlegend.junit.outcomes) and each case's answer as upstream sees it (PctCaseRecorder's
+# -Dlegend.edge.answers: a relation's columns and sorted rows, a value's typed cells, an error's message, ids masked),
+# diffed against golden files recorded at PR1's frozen head 26717de291. A difference at the edge is a regression unless
+# it is a ruled move, which re-records the golden (bazel run //pct:update_edge_contract) with the ruling cited.
+_EDGE_LANES = [
+    ("duckdb", "", s)
+    for s in _SUITES
+] + [("h2", "h2", "Relation")] + [
+    ("sqlite", "sqlite", s)
+    for s in _SUITES
+]
+
+_EDGE_CLASS = {
+    "duckdb": "Test_LegendLite_%sFunctions_PCT",
+    "h2": "Test_LegendLite_H2_%sFunctions_PCT",
+    "sqlite": "Test_LegendLite_SQLite_%sFunctions_PCT",
+}
+
+[java_run(
+    name = "edge_%s_%s" % (lane, s.lower()),
+    testonly = True,
+    outs = [
+        "edge/%s_%s/verdict.txt" % (lane, s.lower()),
+        "edge/%s_%s/run.log" % (lane, s.lower()),
+        "edge/%s_%s/outcomes.tsv" % (lane, s.lower()),
+        "edge/%s_%s/answers.tsv" % (lane, s.lower()),
+    ],
+    arguments = [
+        "{OUT_DIR}/verdict.txt",
+        "{OUT_DIR}/run.log",
+        "{OUT_DIR}/outcomes.tsv",
+        "{OUT_DIR}/answers.tsv",
+        "--",
+        "--select-class=org.finos.legend.lite.pct." + (_EDGE_CLASS[lane] % s),
+    ],
+    env = {"LEGENDLITE_PCT_BACKEND": backend} if backend else {},
+    jvm_flags = [
+        "-Dlegend.junit.outcomes={OUT_DIR}/outcomes.tsv",
+        "-Dlegend.edge.answers={OUT_DIR}/answers.tsv",
+    ],
+    main_class = "com.legend.tools.junit.JUnitAction",
+    memory_mb = 4096,
+    mnemonic = "EdgeContract",
+    deps = [
+        ":pct_tests_lib",
+        "//core:drivers",
+        "//tools/junit",
+    ] + (["@h2//jar"] if lane == "h2" else []),
+) for (lane, backend, s) in _EDGE_LANES]
+
+write_source_files(
+    name = "update_edge_contract",
+    testonly = True,
+    diff_test_failure_message = "{{DEFAULT_MESSAGE}}\nAn edge answer moved (the edge golden net): every difference at the edge is a regression unless it is a ruled move -- then bazel run //pct:update_edge_contract, citing the ruling in the commit",
+    files = {
+        "src/test/resources/edge/%s_%s_%s.tsv" % (lane, s.lower(), kind): ":edge/%s_%s/%s.tsv" % (lane, s.lower(), kind)
+        for (lane, backend, s) in _EDGE_LANES
+        for kind in ["outcomes", "answers"]
+    },
+)
+
+test_suite(
+    name = "edge_contract_test",
+    tests = [":update_edge_contract_tests"],
+)

@@ -108,6 +108,13 @@ import org.w3c.dom.Element;
  */
 public final class JUnitMain {
 
+    /** Where a run writes one line per test (id, status, the message's first line), when set: the edge golden
+     *  net's outcomes (2026-11-16). */
+    private static final String OUTCOMES = System.getProperty("legend.junit.outcomes");
+
+    private static final java.util.Map<String, String> OUTCOME_LINES =
+            java.util.Collections.synchronizedMap(new java.util.TreeMap<>());
+
     private JUnitMain() {}
 
     public static void main(String[] args) throws Exception {
@@ -241,10 +248,22 @@ public final class JUnitMain {
                     org.junit.platform.engine.TestExecutionResult result) {
                 if (id.isTest()) {
                     System.clearProperty("legend.test.current");
+                    if (OUTCOMES != null) {
+                        String message = result.getThrowable().map(t -> String.valueOf(t.getMessage())).orElse("");
+                        int nl = message.indexOf('\n');
+                        OUTCOME_LINES.put(id.getUniqueId(), result.getStatus() + "\t"
+                                + (nl < 0 ? message : message.substring(0, nl)).replace('\t', ' ').replace('\r', ' '));
+                    }
                 }
             }
         };
         launcher.execute(request, summary, legacy, guard);
+        if (OUTCOMES != null) {
+            // the edge golden net's outcomes (2026-11-16): one line per test, its id, status and message, sorted
+            StringBuilder lines = new StringBuilder();
+            OUTCOME_LINES.forEach((k, v) -> lines.append(k).append('\t').append(v).append('\n'));
+            java.nio.file.Files.writeString(java.nio.file.Path.of(OUTCOMES), lines);
+        }
 
         TestExecutionSummary result = summary.getSummary();
         StringWriter text = new StringWriter();
