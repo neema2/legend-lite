@@ -1335,23 +1335,34 @@ public class SQLite extends AnsiSqlRenderer {
             return writer.piece(asText(typeOf(v) == SqlType.Scalar.HUGEINT ? deliveredValue(v, SqlType.Scalar.HUGEINT)
                     : v));
         }
-        // a Float parsed from text (parseFloat): SQLite's CAST reads 'NaN' and 'Infinity' as 0 (measured), so the
-        // spellings Pure's parse accepts (Java's: trimmed, case exact) are read here -- NaN, which SQLite cannot hold,
-        // raised by name (register S138), an infinity as SQLite's own (Phase 8, 2026-11-16: D's probe, NaN answered 0)
+        // a Float parsed from text (parseFloat), EXACTLY legend-pure's interpreted grammar (the user, 2026-11-16:
+        // "Parsefloat - sure"): new BigDecimal(text) -- an optional sign, digits with an optional point, an optional
+        // exponent, no whitespace -- where SQLite's CAST read 'abc' as 0, '1.2.3' as 1.2 and 'NaN' as 0 (measured).
+        // The text is read once (t); the sign stripped (u), its leading zeros (z), a bare point or exponent given a
+        // digit (p), and the result (n) is JSON's number grammar, the one test SQLite has. A trailing f, which
+        // legend-pure strips, is refused by name as DuckDB refuses it (the register's row). NaN raises VALUE_NOT_HELD
+        // (S138) and an infinity is SQLite's own, as DuckDB and H2 read them. Prototyped against the grammar: the
+        // table and 30,000 fuzzed strings, no mismatch (Phase 8).
         if (target == SqlType.Scalar.DOUBLE && c.reason() == SqlExpr.Reason.USER && typeOf(v) == SqlType.Scalar.VARCHAR) {
-            // text that is no number raises (SQLite's CAST reads 'abc' as 0 and '1.2.3' as 1.2, measured): a number is
-            // JSON's number grammar, the one test SQLite has; legend-pure's '+1', '.5', '1.', '1f' and '01' are
-            // refused by name with it (Phase 8, the list put to the orchestrator before landing)
-            return writer.append("(CASE WHEN ").expr(v, 0).append(" IS NULL THEN NULL WHEN trim(").expr(v, 0)
-                    .append(") IN ('NaN', '+NaN', '-NaN') THEN ")
+            SqlExpr t = new SqlExpr.Column(null, "__pf_t", new com.legend.sql.TypeFact.Typed(SqlType.Scalar.VARCHAR, true),
+                    com.legend.sql.OutputCol.Origin.DERIVED);
+            return writer.append("(SELECT CASE WHEN __pf_t IS NULL THEN NULL WHEN __pf_t IN ('NaN', '+NaN', '-NaN') THEN ")
                     .piece(raise(raiseArgs(SqlExpr.RaiseText.placed(com.legend.sql.RaiseKind.VALUE_NOT_HELD,
                             "parseFloat of NaN is NaN, which this database cannot hold"))))
-                    .append(" WHEN trim(").expr(v, 0).append(") IN ('Infinity', '+Infinity') THEN 9e999 WHEN trim(")
-                    .expr(v, 0).append(") = '-Infinity' THEN -9e999 WHEN CASE WHEN json_valid(").expr(v, 0)
-                    .append(") THEN json_type(").expr(v, 0).append(") IN ('integer', 'real') ELSE 0 END THEN ")
-                    .piece(castTo(w -> w.expr(v, 0), SqlType.Scalar.VARCHAR, target)).append(" ELSE ")
-                    .piece(raise(raiseArgs(new SqlExpr.RaiseText(com.legend.sql.RaiseKind.TEXT_NOT_FLOAT, List.of(v)))))
-                    .append(" END)");
+                    .append(" WHEN __pf_t IN ('Infinity', '+Infinity') THEN 9e999 WHEN __pf_t = '-Infinity' THEN -9e999"
+                            + " WHEN __pf_t NOT GLOB '*[^0-9.eE+-]*' AND (__pf_u GLOB '[0-9]*' OR __pf_u GLOB '.[0-9]*')"
+                            + " AND replace(replace(lower(__pf_u), 'e+', 'e'), 'e-', 'e') NOT GLOB '*[+-]*'"
+                            + " AND CASE WHEN json_valid(__pf_n) THEN json_type(__pf_n) IN ('integer', 'real') ELSE 0 END"
+                            + " THEN CAST(__pf_n AS REAL) ELSE ")
+                    .piece(raise(raiseArgs(new SqlExpr.RaiseText(com.legend.sql.RaiseKind.TEXT_NOT_FLOAT, List.of(t)))))
+                    .append(" END FROM (SELECT __pf_t, __pf_u, CASE WHEN substr(__pf_t, 1, 1) = '-' THEN '-' ELSE '' END"
+                            + " || replace(replace(CASE WHEN __pf_p GLOB '*.' THEN __pf_p || '0' ELSE __pf_p END, '.e',"
+                            + " '.0e'), '.E', '.0E') AS __pf_n FROM (SELECT __pf_t, __pf_u, CASE WHEN __pf_z = '' OR"
+                            + " substr(__pf_z, 1, 1) IN ('.', 'e', 'E') THEN '0' || __pf_z ELSE __pf_z END AS __pf_p FROM"
+                            + " (SELECT __pf_t, __pf_u, ltrim(__pf_u, '0') AS __pf_z FROM (SELECT __pf_t, CASE WHEN"
+                            + " substr(__pf_t, 1, 1) IN ('+', '-') THEN substr(__pf_t, 2) ELSE __pf_t END AS __pf_u FROM"
+                            + " (SELECT ")
+                    .expr(v, 0).append(" AS __pf_t))))))");
         }
         return writer.piece(castTo(w -> w.expr(v, 0), typeOf(v), target));
     }

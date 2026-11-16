@@ -61,7 +61,7 @@ class ParseFloatHeldTest extends AbstractDatabaseTest {
     @Test
     @DisplayName("parseFloat of text that is no number raises, on every lane: never SQLite's silent 0")
     void textThatIsNoNumberRaises() {
-        for (String text : java.util.List.of("abc", "", "0x10", "1.2.3", "1e", "-")) {
+        for (String text : java.util.List.of("abc", "", "0x10", "1.2.3", "1e", "-", "+", ".", "e5", "0-9e4")) {
             try {
                 Object v = one("|'" + text + "'->parseFloat()");
                 throw new AssertionError("'" + text + "' answered " + v);
@@ -84,6 +84,14 @@ class ParseFloatHeldTest extends AbstractDatabaseTest {
         numbers.put("+1", 1.0);
         numbers.put(".5", 0.5);
         numbers.put("1.", 1.0);
+        // legend-pure's own PCT inputs (parseFloat.pure: testParseFloat, testParseZero) and the zeros' forms
+        numbers.put("+0000003.1415900000", 3.14159);
+        numbers.put("-0000003.1415900000", -3.14159);
+        numbers.put("-000.000", -0.0);
+        numbers.put("01", 1.0);
+        numbers.put("-01", -1.0);
+        numbers.put("00.5", 0.5);
+        numbers.put("1.e5", 1e5);
         for (var n : numbers.entrySet()) {
             Object v;
             try {
@@ -94,7 +102,17 @@ class ParseFloatHeldTest extends AbstractDatabaseTest {
                         n.getKey() + ": " + refused.getMessage());
                 continue;
             }
-            assertEquals(n.getValue(), ((Number) v).doubleValue(), n.getKey());
+            // Pure's equality: 0.0 == -0.0 (parseFloat.pure's testParseZero)
+            assertTrue(n.getValue() == ((Number) v).doubleValue(), n.getKey() + " answered " + v);
         }
+    }
+
+    @Test
+    @DisplayName("on SQLite, whitespace around a number raises, as legend-pure's interpreted parse does")
+    void whitespaceRaisesOnSqlite() {
+        if (!backend().name().toLowerCase(java.util.Locale.ROOT).contains("sqlite")) {
+            return;   // DuckDB's and H2's own casts trim (a divergence reported, not this change's)
+        }
+        org.junit.jupiter.api.Assertions.assertThrows(Exception.class, () -> one("|' 1 '->parseFloat()"));
     }
 }
