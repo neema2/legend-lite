@@ -159,7 +159,16 @@ public enum SqlFn {
                     MAP_KEYS, MAP_VALUES, MOD, PARSE_INT, REM, REPEAT_STR, REPEAT_VALUE, RIGHT, SPLIT, SPLIT_PART,
                     // SQLite's pad helper branches on the length (the PR1 re-review's B6, 2026-11-16: in a helper, not
                     // an arm, which the arm census missed; MaySkipCensusTest renders whole calls)
-                    LPAD, RPAD));
+                    LPAD, RPAD,
+                    // every function some dialect renders with a branch, found by MaySkipCensusTest (the PR1 re-review's
+                    // A6, 2026-11-16, made conservative: a strict function read as may-skip costs a missed binding, the
+                    // reverse a wrong raise; E-SQL may take one out with a per-dialect proof that it never skips)
+                    ACOS, ASIN, CONCAT, CONCAT_JOIN, DAYNAME, DECIMAL_TO_TEXT, DECODE_BASE64, ENCODE_BASE64,
+                    EPOCH_MS, EPOCH_SECONDS, FLOAT_CANON, FLOAT_PRINT, HASH, JARO_WINKLER, LEFT, LENGTH, LEVENSHTEIN,
+                    LIST_APPEND, LIST_AVG, LIST_FLATTEN, LIST_INIT, LIST_MEDIAN, LIST_MODE, LIST_REVERSE, LIST_SLICE,
+                    LIST_SORT, LIST_SORT_DESC, LIST_TAIL, MD5, MONTHNAME, PARSE_DATE, PURE_SPLIT_PART, RANGE_FN,
+                    REGEXP_EXTRACT_ALL, ROUND, ROUND_HALF_UP, SHA1, SHA256, TO_VARIANT, UNNEST, VARIANT_ELEMENTS,
+                    VARIANT_GET));
 
     /** Whether this function draws afresh at every place it is written -- the database's random float ({@link #RANDOM})
      *  or uuid ({@link #GUID}) -- so two places of it are two values: a value holding one is computed once, in its own

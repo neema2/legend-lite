@@ -84,65 +84,10 @@ class MaySkipCensusTest {
             }
         }
         assertTrue(rendered > 1000, "the census rendered " + rendered + " calls");
-        Map<String, TreeSet<String>> known = new TreeMap<>();
-        KNOWN.forEach((fn, dialects) -> known.put(fn, new TreeSet<>(List.of(dialects.split(",")))));
-        assertEquals(known, outside, "a function whose rendering branches, outside SqlFn.MAY_SKIP_AN_ARGUMENT"
-                + " (function -> the dialects that branch): add it to the set, or render it without a branch -- or one"
-                + " that left: shrink KNOWN, with the date");
+        assertEquals(Map.of(), outside, "a function whose rendering branches, outside SqlFn.MAY_SKIP_AN_ARGUMENT"
+                + " (function -> the dialects that branch): add it to the set -- a strict function read as may-skip"
+                + " costs a missed binding, the reverse a wrong raise (the PR1 re-review's A6, 2026-11-16)");
     }
-
-    /**
-     * The functions outside the set whose rendering branches today, as the census first found them (2026-11-16, the
-     * PR1 re-review's A6). Most are null guards ({@code CASE WHEN x IS NULL THEN NULL ELSE ...}), but behind a
-     * short-circuit OR, or in a helper, some do leave an argument unevaluated. Deciding each -- into the set, or
-     * rendered without the branch -- moves LetBinding's product SQL, which is E-SQL's (the orchestrator, 2026-11-16).
-     * SHRINK-ONLY: a new entry fails the build; a resolved one is deleted here with its date.
-     */
-    private static final Map<String, String> KNOWN = Map.ofEntries(
-            Map.entry("ACOS", "DuckDB,H2,MariaDB,MySQL,Postgres,SQLite,Snowflake"),
-            Map.entry("ASIN", "DuckDB,H2,MariaDB,MySQL,Postgres,SQLite,Snowflake"),
-            Map.entry("CONCAT", "BigQuery,MariaDB,MySQL,SQLite"),
-            Map.entry("CONCAT_JOIN", "BigQuery,MariaDB,MySQL,SQLite"),
-            Map.entry("DAYNAME", "SQLite,Snowflake"),
-            Map.entry("DECIMAL_TO_TEXT", "BigQuery,MariaDB,MongoDB,MySQL,SQLite,Snowflake"),
-            Map.entry("DECODE_BASE64", "DuckDB,Postgres,SQLite"),
-            Map.entry("ENCODE_BASE64", "BigQuery,SQLite"),
-            Map.entry("EPOCH_MS", "SQLite"),
-            Map.entry("EPOCH_SECONDS", "SQLite"),
-            Map.entry("FLOAT_CANON", "BigQuery,ClickHouse,Databricks,DuckDB,H2,MariaDB,MongoDB,MySQL,Postgres,SQLite,"
-                    + "Snowflake,Trino"),
-            Map.entry("FLOAT_PRINT", "BigQuery,ClickHouse,Databricks,DuckDB,H2,MariaDB,MongoDB,MySQL,Postgres,SQLite,"
-                    + "Snowflake,Trino"),
-            Map.entry("HASH", "BigQuery,MariaDB,MySQL,SQLite"),
-            Map.entry("JARO_WINKLER", "Databricks,MySQL,Postgres,SQLite,Trino"),
-            Map.entry("LEFT", "BigQuery,MariaDB,MySQL,SQLite"),
-            Map.entry("LENGTH", "BigQuery,MariaDB,MySQL,SQLite"),
-            Map.entry("LEVENSHTEIN", "MySQL,Postgres,SQLite"),
-            Map.entry("LIST_APPEND", "MariaDB,MySQL,SQLite"),
-            Map.entry("LIST_AVG", "Snowflake"),
-            Map.entry("LIST_FLATTEN", "MariaDB,MySQL,SQLite"),
-            Map.entry("LIST_INIT", "BigQuery,MariaDB,MySQL,SQLite"),
-            Map.entry("LIST_MEDIAN", "MySQL,Trino"),
-            Map.entry("LIST_MODE", "Trino"),
-            Map.entry("LIST_REVERSE", "MariaDB,MySQL,SQLite"),
-            Map.entry("LIST_SLICE", "BigQuery,MariaDB,MySQL,SQLite"),
-            Map.entry("LIST_SORT", "BigQuery,MariaDB,MySQL,SQLite"),
-            Map.entry("LIST_SORT_DESC", "BigQuery,MariaDB,MySQL,SQLite"),
-            Map.entry("LIST_TAIL", "BigQuery,MariaDB,MySQL,SQLite"),
-            Map.entry("MD5", "BigQuery,SQLite"),
-            Map.entry("MONTHNAME", "SQLite"),
-            Map.entry("PARSE_DATE", "MariaDB,MySQL,SQLite"),
-            Map.entry("PURE_SPLIT_PART", "ClickHouse,MariaDB,MySQL,SQLite,Snowflake"),
-            Map.entry("RANGE_FN", "BigQuery,Databricks,MariaDB,MySQL,Postgres,SQLite,Trino"),
-            Map.entry("REGEXP_EXTRACT_ALL", "ClickHouse"),
-            Map.entry("ROUND", "H2,MariaDB,MySQL,Postgres,SQLite,Snowflake,Trino"),
-            Map.entry("ROUND_HALF_UP", "BigQuery,SQLite"),
-            Map.entry("SHA1", "BigQuery,SQLite"),
-            Map.entry("SHA256", "BigQuery,SQLite"),
-            Map.entry("TO_VARIANT", "MariaDB,MySQL,Postgres,SQLite"),
-            Map.entry("UNNEST", "MySQL"),
-            Map.entry("VARIANT_ELEMENTS", "DuckDB,MariaDB,MySQL,Postgres,SQLite"),
-            Map.entry("VARIANT_GET", "BigQuery,ClickHouse,Databricks,MySQL,SQLite,Snowflake,Trino"));
 
     @Test
     void theCensusBites() {
