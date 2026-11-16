@@ -32,7 +32,7 @@ export async function connectModelHome(config: ModelHomeConfig): Promise<ModelHo
     return { client: new SdlcClient(config.sdlc), depot: new DepotClient(depot), where: config.sdlc };
   }
   const base = new URL(`${config.vendor}sdlc/`, globalThis.location.href).href;
-  const runtime = await import(/* @vite-ignore */ `${base}wasm-gc-module-runtime.js`) as {
+  const runtime = await import(/* webpackIgnore: true */ /* @vite-ignore */ `${base}wasm-gc-module-runtime.js`) as {
     load(src: string, options?: unknown): Promise<SdlcModule>;
   };
   const module = await runtime.load(`${base}classes.wasm`, {

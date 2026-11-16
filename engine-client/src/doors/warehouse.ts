@@ -15,7 +15,7 @@ import type { CatalogObject, LiveWarehouse, WarehouseSession } from '../warehous
 export async function loadWarehouseBinding(base: string): Promise<WarehouseBinding> {
   const dir = base.endsWith('/') ? base : `${base}/`;
   const runtimeUrl = `${dir}wasm-gc-module-runtime.js`;
-  const runtime = (await import(/* @vite-ignore */ runtimeUrl)) as {
+  const runtime = (await import(/* webpackIgnore: true */ /* @vite-ignore */ runtimeUrl)) as {
     load(src: string, options?: unknown): Promise<SqlApiModule>;
   };
   return new WarehouseBinding(await runtime.load(`${dir}classes.wasm`, BINDING_OPTIONS));

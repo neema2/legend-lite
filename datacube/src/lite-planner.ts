@@ -121,6 +121,8 @@ interface Transport {
   /** Which module holds the models held: one more each time a module, or a worker with its own, starts (a handle
    *  taken under another is no longer held by anything). */
   generation: number;
+  /** Ended for good (`LitePlanner.end`): its worker is stopped, and no planner of it starts another. */
+  ended?: true;
 }
 
 /** One #TS item as core reads it ({@link LitePlanner.tsItem}): its canonical text and its tree, or its error placed in
@@ -222,6 +224,7 @@ export class LitePlanner implements Planner, TableModels, ModelWriter {
 
   #ensureWorker(): PlannerWorker {
     if (this.#t.worker) return this.#t.worker;
+    if (this.#t.ended) throw new PlannerUnavailableError('the planner was ended: it starts no worker');
     const w = this.#options.worker?.()
       ?? (new Worker(this.#options.workerUrl!, { type: 'module' }) as unknown as PlannerWorker);
     // its module is its own: none of the models held before are held by it
@@ -279,6 +282,19 @@ export class LitePlanner implements Planner, TableModels, ModelWriter {
       this.#t.generation += 1;
       this.#t.pending.clear();
     });
+  }
+
+  /**
+   * ENDED FOR GOOD, with every planner made from it: its worker stopped now, what it was asked left unanswered, and
+   * none started after. For a host that lives on past the page it gave DataCube (another application's page,
+   * demo/library.ts, 2026-11-15): `dispose` lets a planner go, but work still under way on that page -- a table being
+   * read, a grid's query -- asks one afterwards, and a planner asked with no worker starts one, which nothing would
+   * end.
+   */
+  end(): void {
+    this.#t.ended = true;
+    // (kept as the worker it was: a request sent to a stopped worker goes nowhere, and says nothing)
+    this.#t.worker?.terminate();
   }
 
   /** Everything this planner holds let go -- its plans and types, its model, the planner over its library -- the
@@ -348,7 +364,7 @@ export class LitePlanner implements Planner, TableModels, ModelWriter {
       try {
         // from its asset folder alone: no loader is handed in to choose the module (2026-11-15, the C5-T review's S1, as
         // T3 took warehouse.ts's loader; tests serve a stand-in runtime from a folder of their own)
-        runtime = await (import(/* @vite-ignore */ runtimeUrl) as Promise<TeavmRuntime>);
+        runtime = await (import(/* webpackIgnore: true */ /* @vite-ignore */ runtimeUrl) as Promise<TeavmRuntime>);
       } catch (cause) {
         throw new PlannerUnavailableError(
           `could not load the planner runtime from ${runtimeUrl}`

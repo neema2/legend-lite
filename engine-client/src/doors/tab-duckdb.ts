@@ -19,11 +19,33 @@ import { inRun } from '../run-frame.ts';
  * the run side taking the started worker and loading no module (2026-11-15, the C5-T fold-in: until then
  * duckdb-tab.ts started it, one of the run layer's two named vendor loads; //tools/deps:layers_alone).
  */
-export function openDuckDbInTab(vendor: string, planner: TabDuckDbPlanner): Promise<DuckDbInTab> {
+export function openDuckDbInTab(vendor: string, planner: TabDuckDbPlanner): Promise<OpenedDuckDb> {
+  // THE WORKER IS THE DOOR'S TO END (2026-11-15: DataCube in another application's page, datacube/demo/library.ts, a
+  // page that lives on after its DuckDB): by `close`, and by a start that fails -- the planner did not answer, DuckDB's
+  // module was not there -- which ends the worker it started and starts none after
+  let worker: Worker | undefined;
+  let failed: { readonly why: unknown } | undefined;
   return openedInTab(async () => {
     await duckDbRunsHere();
-    return instantiateDuckDbInTab(new Worker(vendorAsset(vendor, 'duckdb-browser-eh.worker.js')), vendorAsset(vendor, 'duckdb-eh.wasm'));
-  }, extensionRepository(vendor), planner, connectDuckDbInTab);
+    if (failed) throw failed.why;
+    worker = new Worker(vendorAsset(vendor, 'duckdb-browser-eh.worker.js'));
+    return instantiateDuckDbInTab(worker, vendorAsset(vendor, 'duckdb-eh.wasm'));
+  }, extensionRepository(vendor), planner, connectDuckDbInTab).then((tab) => ({ ...tab, close: () => worker?.terminate() }), (why: unknown) => {
+    failed = { why };
+    worker?.terminate();
+    throw why;
+  });
+}
+
+/** The tab's DuckDB as its door hands it, with what ends it. */
+export interface OpenedDuckDb extends DuckDbInTab {
+  /**
+   * The database ended: its worker stopped, and everything it held gone with it. For a host that takes its page down
+   * while the tab lives on; a tab that closes needs no call. The worker is stopped as it stands -- not through
+   * DuckDB-WASM's own terminate, after which a statement still on its way (a grid's, as its page is taken down) is
+   * reported on the console as an error; sent to a stopped worker it goes nowhere, and says nothing.
+   */
+  close(): void;
 }
 
 /**

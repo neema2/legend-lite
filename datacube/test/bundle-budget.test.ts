@@ -557,8 +557,18 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  RoutedEngine -- generatePlan, relationType, compile, compileErrors, returnType -- and planner.ts's UpstreamPlanner,
  *  the final audit of 9af16fbe58's T2 and its last list), and the run frame's NOT_PLANNING (T6): 63 bytes, 436,935
  *  without them. Measured 436,998 on Linux; Windows' 28 bytes more are its own build's -- the startup files name 305
- *  chunks by esbuild's content hashes, and the files embed no path, so the bytes that differ were not found here. */
-const BUDGET = 437_300;
+ *  chunks by esbuild's content hashes, and the files embed no path, so the bytes that differ were not found here.
+ *  437,300 -> 437,500 (2026-11-15, the npm package -- DataCube in another application's page, datacube/npm/README.md
+ *  -- and what its review found): a host hands the app a file (DataCubeApp.open, which shares the code of a file
+ *  dropped on a flow's canvas, and says whether it landed); a page that is its host's asks nothing of the browser as
+ *  it is left (OpenDataCube.embedded); the model actions' entries are made where the host has a model home (without
+ *  one they were offered and did nothing); the tab's DuckDB's door ends the worker it started -- when its start fails,
+ *  and when its host takes the page down (engine-client's doors/tab-duckdb.ts); and a planner can be ended for good,
+ *  its worker stopped and none started after (LitePlanner.end: work still under way on a page taken down asked the
+ *  planner, which started a worker nothing ended). 152 bytes: main measured 437,243 here before them, 57 under its
+ *  budget, so no change of the app's fits without a raise. Measured 437,395 on macOS arm64, with Bazel's Node
+ *  (another Node's zlib counts some 700 bytes fewer); not measured on Linux or Windows. */
+const BUDGET = 437_500;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom
@@ -795,8 +805,12 @@ const BUDGET = 437_300;
  *  frame -- engine-client's run-frame.ts, the grid road's run marker in runner.ts and the planner's guard in
  *  LitePlanner's one dispatch and the in-thread answer -- over by 108 bytes). Measured 422,108.
  *  422,500, 425,500 -> 425,500 (2026-11-14, merged main 3a217086a (#81) into the separation stream: both sides' growth
- *  together, each side's notes above, measured on the merged tree; the merge adds no file). Measured 425,382. */
-const ENGINE_BUDGET = 425_500;
+ *  together, each side's notes above, measured on the merged tree; the merge adds no file). Measured 425,382.
+ *  425,500 -> 425,700 (2026-11-15, the npm package and its review: the grid's budget's note of the same date -- the
+ *  app's and the planner's part of it, this page holding no DuckDB: DataCubeApp.open, OpenDataCube.embedded, the model
+ *  actions' entries where the host has a model home, LitePlanner.end). 119 bytes: main measured 425,439 here before
+ *  them, 61 under its budget. Measured 425,558 on macOS arm64, with Bazel's Node; not measured on Linux or Windows. */
+const ENGINE_BUDGET = 425_700;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the

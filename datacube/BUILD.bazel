@@ -12,6 +12,7 @@ load("@rules_python//python:py_binary.bzl", "py_binary")
 load("@rules_python//python:py_test.bzl", "py_test")
 load("//tools/platforms:defs.bzl", "COMPILER_LIBRARY_PLATFORMS", "compatible_with")
 load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
+load("@bazel_lib//lib:expand_template.bzl", "expand_template")
 load("@bazel_lib//lib:params_file.bzl", "params_file")
 load("@bazel_lib//lib:write_source_files.bzl", "write_source_files")
 load("//tools/browser:defs.bzl", "browser_test")
@@ -1115,6 +1116,10 @@ test_suite(
         ":saved_pages_server_test",
         # live against the Bazel-built native warehouse (it builds the native image; not on Windows ARM64)
         ":live_snap_test",
+        # the npm package (npm/README.md): its folder judged, and its types as an application's typecheck reads them
+        ":npm_package_test",
+        ":npm_types_bundler_test",
+        ":npm_types_nodenext_test",
     ],
 )
 
@@ -1125,12 +1130,17 @@ typescript.tsc_test(
     name = "typecheck_test",
     size = "small",
     args = ["-p", package_name() + "/tsconfig.json"],
-    data = glob([
-        "src/**/*.ts",
-        "test/**/*.ts",
-        "demo/**/*.ts",
-        "tools/**/*.ts",
-    ]) + [
+    data = glob(
+        [
+            "src/**/*.ts",
+            "test/**/*.ts",
+            "demo/**/*.ts",
+            "tools/**/*.ts",
+        ],
+        # an application's code, typechecked against the package as an install of it reads (:npm_types_tests):
+        # tsconfig.json leaves it out
+        exclude = ["test/package/consumer/**"],
+    ) + [
         "package.json",
         "tsconfig.json",
         "//engine-client:engine_client",
@@ -2467,6 +2477,210 @@ js_run_binary(
     visibility = ["//python:__pkg__"],
 )
 
+# ── THE NPM PACKAGE ─────────────────────────────────────────────────────────────
+# DataCube for another application's page (npm/README.md, 2026-11-15): `bazel build //datacube:npm_package` makes the
+# folder npm packs or publishes, bazel-bin/datacube/npm/package --
+#   dist/    DataCube's module (demo/library.ts), its lazy chunks beside it, its styles, its types (demo/library-api.ts)
+#            and Roboto's faces
+#   assets/  what the module fetches as it runs, from wherever the application serves this folder: DuckDB-WASM and its
+#            extensions, the compiler's module and its worker, the saved pages' rules, the fonts
+# and package.json, the README and the licences. Nothing here publishes: `npm publish <the folder>` is a person's act,
+# and `npm pack <the folder>` makes the archive another project installs from a file.
+
+# The module: DataCube's app over the tab's services, opened by an application that hands it its data (demo/library.ts).
+# One file an application imports, everything it runs on inside it (no dependency for the application to install);
+# what a page loads only when it needs it (ECharts, the first time a chart draws) is a chunk beside it, fetched by the
+# module itself. Its styles are a second entry point of the same name, as the notebook's are (widget-styles.css says
+# why).
+#
+# Its names are minified, its syntax and whitespace are not, unlike the site's bundles: an application's own bundler
+# reads this module, and an import whose module is chosen at run time (the saved pages' rules, from the assets folder)
+# carries the comments that tell a bundler to leave it be -- `webpackIgnore: true`, `@vite-ignore`. esbuild keeps them
+# only while it keeps whitespace, and loses one when it folds a constant into the import (measured, esbuild 0.28.2:
+# --minify dropped every one, --minify-syntax the warehouse door's). Without them webpack rewrites such an import into
+# a lookup among its own modules, which finds nothing. The application's bundler does the rest of the minifying;
+# test/package/npm-entries.ts holds the comments.
+esbuild_bundle(
+    name = "library",
+    srcs = [
+        "demo/library.ts",
+        "demo/library-styles.css",
+        ":src",
+    ] + glob(["src/**/*.css"]),
+    outs = [
+        "npm/dist/datacube-meta.json",
+        "npm/dist/datacube.css",
+        "npm/dist/datacube.js",
+    ],
+    out_dirs = ["npm/dist/chunks"],
+    args = [
+        "datacube=demo/library.ts",
+        "datacube=demo/library-styles.css",
+        "--bundle",
+        "--format=esm",
+        "--target=es2022",
+        "--minify-identifiers",
+        "--keep-names",
+        "--log-level=warning",
+        "--splitting",
+        "--chunk-names=chunks/[name]-[hash]",
+        # esbuild's record of each output's modules and imports: the package's test reads it (no import left for the
+        # application to resolve); the package does not carry it
+        "--metafile=npm/dist/datacube-meta.json",
+        "--outdir=npm/dist",
+    ],
+)
+
+# The package's types: demo/library-api.ts as it is, under the name a package's declarations have. It holds
+# declarations alone and imports nothing, so the one file is the whole of what an application reads (it says so;
+# :npm_types_tests).
+copy_file(
+    name = "npm_types",
+    src = "demo/library-api.ts",
+    out = "npm/dist/index.d.ts",
+)
+
+# Roboto's faces for an application that wants DataCube's own type: the site's fonts.css, its files named where the
+# package has them (assets/fonts, beside dist/)
+expand_template(
+    name = "npm_fonts",
+    out = "npm/dist/fonts.css",
+    substitutions = {"url(vendor/fonts/": "url(../assets/fonts/"},
+    template = "demo/fonts.css",
+)
+
+copy_to_directory(
+    name = "npm_package",
+    srcs = [
+        "npm/README.md",
+        # the stylesheets' types: nothing to import, which an application's typecheck needs said (npm/css.d.ts)
+        "npm/css.d.ts",
+        "npm/package.json",
+        ":library",
+        ":npm_fonts",
+        ":npm_types",
+        # the planner's worker, which the module starts from the assets folder (the site serves it beside its bundle)
+        ":planner_worker",
+        ":vendor",
+        "//:LICENSE",
+        "//:NOTICE",
+        "//:THIRD_PARTY_NOTICES.md",
+    ],
+    out = "npm/package",
+    exclude_srcs_patterns = [
+        "npm/dist/datacube-meta.json",
+        # the page's SDLC and the warehouse's binding: a model home and a warehouse are services the library does not
+        # give (demo/library.ts), so nothing fetches them
+        "demo/vendor/sdlc/**",
+        "demo/vendor/warehouse/**",
+    ],
+    replace_prefixes = {
+        "demo/planner-worker.js": "assets/planner-worker.js",
+        "demo/vendor/": "assets/",
+        "npm/": "",
+        "npm/css.d.ts": "dist/css.d.ts",
+    },
+)
+
+# THE PACKAGE'S FOLDER, JUDGED (test/package/npm-entries.ts): its package.json's every entry point a file that is
+# there, its module with no import left for an application to resolve (esbuild's own record), its types
+# demo/library-api.ts, its assets the ones the module fetches and no other, its licences with it
+node_test(
+    name = "npm_package_test",
+    size = "small",
+    data = [
+        "demo/library-api.ts",
+        ":npm/dist/datacube-meta.json",
+        ":npm_package",
+    ],
+    entry_point = "test/package/npm-entries.ts",
+    env = {
+        "NPM_API": "$(rlocationpath demo/library-api.ts)",
+        "NPM_META": "$(rlocationpath :npm/dist/datacube-meta.json)",
+        "NPM_PACKAGE": "$(rlocationpath :npm_package)",
+    },
+)
+
+# THE PACKAGE'S TYPES AS AN APPLICATION READS THEM (test/package/consumer/app.ts): an application's code that names
+# the package, typechecked with the package installed beside it as far as a typecheck reads one -- its package.json and
+# its declarations as they ship, in node_modules -- so its types are found through its entry points alone, strictly,
+# with only the browser's types beside them, under each way an application's TypeScript resolves a package (a
+# bundler's, Node's). The first run of it found that a stylesheet's import needs types of its own (npm/css.d.ts).
+copy_to_directory(
+    name = "npm_installed_types",
+    testonly = True,
+    srcs = [
+        "npm/css.d.ts",
+        "npm/package.json",
+        ":npm_types",
+    ],
+    out = "test/package/consumer/node_modules/@legend-lite/datacube",
+    replace_prefixes = {
+        "npm/": "",
+        "npm/css.d.ts": "dist/css.d.ts",
+    },
+)
+
+[typescript.tsc_test(
+    name = "npm_types_%s_test" % resolution,
+    size = "small",
+    args = [
+        # the files and options are these, and no tsconfig.json: where a test is not sandboxed (Windows) DataCube's
+        # own, in a folder above the test's, is in reach, and tsc refuses files given beside one it would not load
+        # (TS5112; 2026-11-16, the first CI run of these tests: red on Windows alone)
+        "--ignoreConfig",
+        "--noEmit",
+        "--strict",
+        "--target",
+        "es2023",
+        "--module",
+        module,
+        "--moduleResolution",
+        resolution,
+        "--lib",
+        "es2023,dom",
+        # the package's declarations are checked too, not only read
+        "--skipLibCheck",
+        "false",
+        package_name() + "/test/package/consumer/app.ts",
+    ],
+    data = [
+        # "type": "module", by which Node's resolution reads the application's file as a module
+        "package.json",
+        "test/package/consumer/app.ts",
+        ":npm_installed_types",
+    ],
+) for resolution, module in {
+    "bundler": "esnext",
+    "nodenext": "nodenext",
+}.items()]
+
+test_suite(
+    name = "npm_types_tests",
+    tests = [
+        ":npm_types_bundler_test",
+        ":npm_types_nodenext_test",
+    ],
+)
+
+# THE PACKAGE IN AN APPLICATION'S PAGE (test/package/npm-mount.mjs): the folder served as an install of it would be, to
+# a page that imports its module and hands it data -- the app opens on it, more comes in after, DataCube touches
+# nothing of the page but its element and asks for nothing beyond the folder, and dispose leaves the page ready to
+# mount again. Linux only in CI, as the other harnesses (the same on every platform).
+browser_test(
+    name = "npm_package_browser_test",
+    size = "medium",
+    data = [
+        "demo/harness.mjs",
+        "demo/static-files.ts",
+        ":node_modules/playwright",
+        ":npm_package",
+    ],
+    entry_point = "test/package/npm-mount.mjs",
+    env = {"NPM_PACKAGE": "$(rlocationpath :npm_package)"},
+    tags = ["ci-linux-only"],
+)
+
 # THE BROWSER HARNESSES, BY HAND: `bazel run //datacube:<name>`, the manual form of the browser_tests below
 # (the same scripts; as tests they drive the Chromium Bazel fetches, by hand Playwright's own, installed once with
 # :install_browser). Several need a live engine as well (the script says which) and are tools only.
@@ -2688,6 +2902,8 @@ test_suite(
     name = "browser",
     tests = [
         ":browser_guard_test",
+        # the npm package in an application's page
+        ":npm_package_browser_test",
         ":verify_features_test",
         ":verify_remote_test",
         ":verify_smoke_test",

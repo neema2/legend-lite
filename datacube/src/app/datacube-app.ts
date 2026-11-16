@@ -96,12 +96,19 @@ export type AppStart =
   | { readonly kind: 'warehouse'; readonly key: string; readonly table?: string }
   /** The page another editor serves (`services.live.page`: Python's `ll.Page`, and `ll.show(df)`'s page of one grid:
    *  docs/DATACUBE_ONE_API_PLAN_2026_10_21.md P12), followed and reported back to it. */
-  | { readonly kind: 'live' };
+  | { readonly kind: 'live' }
+  /** Nothing: the blank page, for a host that hands its files over once the app is open (`DataCubeApp.open`: an
+   *  application DataCube is embedded in, demo/library.ts). */
+  | { readonly kind: 'blank' };
 
 
 /** The app open on its host: what takes it down (a notebook's cell re-run, its view closed). */
 export interface DataCubeApp {
   dispose(): void;
+  /** A file its host hands over (an application DataCube is embedded in: demo/library.ts), opened as the picker opens
+   *  one it is given: in place of an empty page, else a grid beside the page's. Refused as the picker's is; whether it
+   *  is on the page -- not when another page was put there meanwhile, or the person kept the one it would replace. */
+  open(file: File): Promise<boolean>;
 }
 
 export interface OpenDataCube {
@@ -117,6 +124,9 @@ export interface OpenDataCube {
   readonly taken: readonly string[];
   /** Told how to show a start that failed, once the page can say it (its empty card). */
   readonly settled: { show: (reason: string) => void };
+  /** The page is its host's own, not a tab the app has to itself (an application DataCube is embedded in:
+   *  demo/library.ts): leaving it is the host's to ask about, so the app does not ask the browser to. */
+  readonly embedded?: true;
 }
 
 /** DataCube's app, opened in `o.host` over the host's services. */
@@ -475,6 +485,9 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
   let flowTool: ((tool: FlowTool, after: string | undefined, sheet: string, now: PageDocument, editor: StepEditor | undefined,
     into?: LineEnd, port?: InputPort, at?: FlowPoint, step?: FlowStep) => void) | undefined;
   let flowFile: ((file: File) => void) | undefined;
+  /** A file the host hands over (`DataCubeApp.open`), opened as the picker opens one it is given: set with the
+   *  sources, below. */
+  let openFile!: (file: File) => Promise<boolean>;
   let flowJoinBox: ((box: string, sheet: string, now: PageDocument) => void) | undefined;
   /** JOIN… (§17.5): grid `cube` joined to another of the page -- in the tab, where a grid reads tables of its database; by
    *  the host, on a host's page (B11). Offered on a grid's menu where `offered` says. */
@@ -805,8 +818,11 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       event.preventDefault();
       event.returnValue = '';
     };
-    window.addEventListener('beforeunload', onLeave);
-    undo.push(() => window.removeEventListener('beforeunload', onLeave));
+    // (a page that is its host's own asks nothing of the browser: leaving it is the host's to ask about)
+    if (!o.embedded) {
+      window.addEventListener('beforeunload', onLeave);
+      undo.push(() => window.removeEventListener('beforeunload', onLeave));
+    }
     // the tab going (closed, navigated away): each copy its grids' host keeps for them asked to be let go -- the host
     // keeps one its page's other editor reads (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.8)
     const onGone = (): void => {
@@ -1469,15 +1485,19 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       onCubeView?.();
     };
     const said = (e: unknown): void => window.alert(e instanceof Error ? e.message : String(e));
-    createAssociation = (first) => {
-      void modelActions().then(async (m) => m && landed(await m.actions.createAssociationOf(m.of, first))).catch(said);
-    };
-    createDataSpace = () => {
-      void modelActions().then(async (m) => m && landed(await m.actions.createDataSpaceOf(m.of))).catch(said);
-    };
-    createClass = (grid, place, cube) => {
-      void makeClass(grid, place, cube).catch((e: unknown) => window.alert(`Create a Class: ${e instanceof Error ? e.message : String(e)}`));
-    };
+    // offered where the host gives a model home (§3.4): without one each returned at once, an entry that did nothing
+    // (2026-11-15, found on a host that gives none: demo/library.ts)
+    if (modelHome) {
+      createAssociation = (first) => {
+        void modelActions().then(async (m) => m && landed(await m.actions.createAssociationOf(m.of, first))).catch(said);
+      };
+      createDataSpace = () => {
+        void modelActions().then(async (m) => m && landed(await m.actions.createDataSpaceOf(m.of))).catch(said);
+      };
+      createClass = (grid, place, cube) => {
+        void makeClass(grid, place, cube).catch((e: unknown) => window.alert(`Create a Class: ${e instanceof Error ? e.message : String(e)}`));
+      };
+    }
     // ADD A GRID OVER <class>: the class this grid was made (Create a Class…), read where the page reads a class -- here,
     // where it plans and runs its own SQL, or, on a page its other editor serves (Python's), by that host (K16) -- by the
     // one rule Python's page.grid(cls=...) names it by (sources' class kind), beside the grid
@@ -1517,17 +1537,23 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
         return grid;
       };
     };
-    // A FILE DROPPED ONTO A FLOW'S CANVAS: an Input over it, opened as the picker opens a file it is given
-    flowFile = (file) => {
-      void (async () => {
-        const shown = placed;
-        const opened = await sources.opened({ kind: 'file', file }, gridCapped(page.cubes.length + 1));
-        if (placed !== shown) {
-          await opened.discard?.();
-          return;
-        }
-        page.addGrid(opened.make);
-      })().catch((e: unknown) => window.alert(`${file.name}: ${e instanceof Error ? e.message : String(e)}`));
+    // A FILE GIVEN TO THE PAGE, a grid beside its others, opened as the picker opens a file it is given; one another
+    // page overtook lands nothing
+    const beside = async (file: File): Promise<void> => {
+      const shown = placed;
+      const opened = await sources.opened({ kind: 'file', file }, gridCapped(page.cubes.length + 1));
+      if (placed !== shown) return opened.discard?.();
+      page.addGrid(opened.make);
+    };
+    // A FILE DROPPED ONTO A FLOW'S CANVAS: an Input over it
+    flowFile = (file) => void beside(file).catch((e: unknown) => window.alert(`${file.name}: ${e instanceof Error ? e.message : String(e)}`));
+    // A FILE THE HOST HANDS OVER (DataCubeApp.open: an application DataCube is embedded in): in place of an empty page,
+    // else beside its grids; whether it is on the page -- an open another page overtook, or one the person declined, is
+    // not
+    openFile = async (file) => {
+      await (page.empty ? openInPlace({ kind: 'file', file }) : beside(file));
+      await page.ready();
+      return sources.filesNow().some((f) => f.file === file);
     };
     // A TOOL OF THE PALETTE: an Input, a grid over a source picked now, a box of its own; any other tool, a box after
     // `after` -- a grid over that box's rows, read live -- over the tables that box's grid reads when it is shown. Dropped
@@ -1718,6 +1744,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
         await openInPlace(chosen);
         return null;
       }, start);
+
 
     // A BLANK PAGE (New Page; the user, 2026-10-01): every grid and chart goes, and the page
     // says what to do first -- a data source (the picker, opening in place) or a saved page (PageApp's empty page,
@@ -1972,6 +1999,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       for (const u of undo.splice(0)) u();
       page.dispose();
     },
+    open: openFile,
   };
 
   /** The reason a start opened nothing, said where the page says what is wrong. */
