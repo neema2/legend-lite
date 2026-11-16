@@ -110,6 +110,11 @@ class EdgeSpellingHookTest {
         }
 
         @Override
+        public String errorWords(RuntimeException e) {
+            return e.getMessage();
+        }
+
+        @Override
         public <F> F facet(Class<F> kind) {
             return PlanStyle.PRODUCT.facet(kind);
         }
