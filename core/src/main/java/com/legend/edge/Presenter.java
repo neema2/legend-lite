@@ -15,16 +15,60 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * LEGEND-ENGINE'S AND LEGEND-PURE'S TEXT OF A CELL (W8 of docs/records/d-plan-2026-11-16.md, D1.8, 2026-11-16): the
- * compatibility edge's half of what {@link CellText} held until then -- legend-engine's JSON token of a cell
- * ({@code pure/v1} execute's, its service tests' and its TDS objects'), a pivot column's presented name, and
- * legend-pure's date text the {@code pure/v1} Arrow route hands its writer ({@link #LEGEND_PURE}). The product writes
- * its own forms ({@link CellText}); the rules here are the same serialization rule, never a computation: each chooses
- * digits for a value it holds whole, converts no kind, shifts no zone and defaults no null.
+ * THE PRESENTER: LEGEND-ENGINE'S AND LEGEND-PURE'S TEXT OF A TYPED VALUE (Phase 3 of
+ * docs/records/total-wall-edge-program-2026-11-16.md, 2026-11-16; {@code EngineCells} until then, W8 of
+ * docs/records/d-plan-2026-11-16.md): the one formatter family the compatibility edge spells a value with, in Java
+ * over typed values, never the database's printed text -- legend-engine's JSON token of a cell ({@code pure/v1}
+ * execute's, its service tests' and its TDS objects': {@link #engine}), a pivot column's presented name
+ * ({@link #presentedName}), legend-pure's date text the {@code pure/v1} Arrow route hands its writer
+ * ({@link #LEGEND_PURE}), legend-pure's print of a value ({@link #legendPure}: a raise sentence's fixed operand at
+ * planning, a failed verdict's message) and legend-engine's text of an empty TDS cell ({@link #TDS_NULL}). The
+ * product writes its own forms ({@link CellText}); the rules here are the same serialization rule, never a
+ * computation: each chooses digits for a value it holds whole, converts no kind, shifts no zone and defaults no null.
  */
-public final class EngineCells {
+public final class Presenter {
 
-    private EngineCells() {
+    private Presenter() {
+    }
+
+    /** legend-engine's text of an empty TDS cell, which its {@code makeString} and a TDS cell's {@code toString} print
+     *  for an empty element (the product's join skips one, its cell's text is empty: register S313, S316; phase D's
+     *  D1.3). */
+    public static final String TDS_NULL = "TDSNull";
+
+    /** legend-pure's print of a value, its {@code toString}, given its Pure type's name, which must be the value's own:
+     *  an Integer's digits; a Float's shortest digits laid out with a point always, never an exponent
+     *  ({@link CellText#carriedFloat}: the one rule, which the product's carried text uses too); a Decimal at its own
+     *  scale; a Boolean; a String as it is; a StrictDate, a Date or a DateTime at the precision it was written,
+     *  {@code +0000} from a minute on ({@link #pureZoned}); a StrictTime as written. Any other type, a value that is not
+     *  its type's, and a null (a Pure value is never null: an empty one is {@code []}, the caller's) are refused by name
+     *  -- never a default (AGENTS.md invariant 4). */
+    public static String legendPure(Object value, String pureType) {
+        String text = switch (pureType) {
+            case "Integer" -> switch (value) {
+                case Long l -> Long.toString(l);
+                case Integer i -> Integer.toString(i);
+                case BigInteger b -> b.toString();
+                case null, default -> null;
+            };
+            case "Float" -> switch (value) {
+                case Double d -> CellText.carriedFloat(d);
+                case BigDecimal d -> CellText.carriedFloat(d);
+                case null, default -> null;
+            };
+            case "Decimal" -> value instanceof BigDecimal d ? d.toPlainString() : null;
+            case "Boolean" -> value instanceof Boolean b ? b.toString() : null;
+            case "String" -> value instanceof String s ? s : null;
+            case "StrictDate", "Date", "DateTime" -> value instanceof PureDateLiteral d ? pureZoned(d) : null;
+            case "StrictTime" -> value instanceof PureTimeLiteral t ? t.toEngineString() : null;
+            default -> throw new IllegalArgumentException("legend-pure's print of a " + pureType
+                    + " is not defined at the edge (" + value + ")");
+        };
+        if (text == null) {
+            throw new IllegalArgumentException("legend-pure's print of a " + pureType + ": the value " + value + " ("
+                    + (value == null ? "null" : value.getClass().getSimpleName()) + ") is not a " + pureType);
+        }
+        return text;
     }
 
     /** legend-engine's JSON token of a cell of column {@code c} ({@code pure/v1} execute, measured 4.145.0): null as
@@ -156,7 +200,7 @@ public final class EngineCells {
      *  column's winner at the precision its digits show, with {@code +0000} from a minute on; a relation's timestamp
      *  cell at nine fraction digits and {@code +0000}. Handed to a writer the edge's receiver makes (W8: a run is
      *  handed the receiver, never this text). */
-    public static final CellText.DateText LEGEND_PURE = EngineCells::legendPure;
+    public static final CellText.DateText LEGEND_PURE = Presenter::legendPure;
 
     private static String legendPure(PureDateLiteral d, String type, ExecutionPlan.Column c, boolean nested) {
         if (nested) {

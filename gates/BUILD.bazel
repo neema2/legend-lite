@@ -462,6 +462,10 @@ test_suite(
         "//pct:pct_bc_date_probe_sqlite",
         "//core:answer_snapshot",
         "//pct:update_ratchets_test",
+        # the edge golden net's updaters (2026-11-16, docs/records/total-wall-edge-program-2026-11-16.md Phase 0): the
+        # 36 diff tests of //pct:edge_contract_test (PCT's 27, the corpus's 8, pure/v1's 1), run by hand on every push
+        # of the edge program and on a re-record; found in no lane by stage-linux run 17, 2026-11-16
+        "//pct:edge_contract_test",
         "//tools/python:requirements.test",
         # the PCT suites on other databases (2026-10-11, docs/CLOUD_BACKENDS_PCT_2026_10_11.md): the cloud lanes need an
         # account's credentials (its §4, never in the repository; a CI workflow for them is not built), and the SQLite
