@@ -97,7 +97,13 @@ final class SelectMerge extends SqlRewriter {
                 || in.projections().stream().anyMatch(p -> grouping(p.expr()));
         boolean windowed = in.projections().stream().anyMatch(p -> levelled(p.expr()));
         boolean inLevels = grouped || windowed;
-        if (grouped && (filters || reads.levelled || reads.ordersBy(s, byName))) {
+        // a filter over groups is the groups' HAVING (the DuckDB plan's step 3, 2026-11-16): the outer only projects,
+        // filters and limits, the subselect has no window, UNNEST or QUALIFY (a window is computed after HAVING), and
+        // the filter is evaluated on the same groups as before
+        boolean havingFold = grouped && s.where() != null && s.groupBy().isEmpty() && s.having() == null
+                && s.qualify() == null && in.qualify() == null && !reads.levelled && !reads.grouping
+                && !reads.ordersBy(s, byName) && in.projections().stream().noneMatch(p -> windowOrUnnest(p.expr()));
+        if (grouped && !havingFold && (filters || reads.levelled || reads.ordersBy(s, byName))) {
             return null;
         }
         if (!grouped && windowed && (filters || reads.grouping || reads.ordersBy(s, byName)
@@ -107,7 +113,9 @@ final class SelectMerge extends SqlRewriter {
         for (SqlSelect.Projection p : in.projections()) {
             String name = p.outputName();
             int n = reads.count.getOrDefault(name, 0);
-            if (n > 1 && !(p.expr() instanceof SqlExpr.Column)) {
+            // an aggregate read again under a HAVING is the same aggregate, which the database computes once per group
+            if (n > 1 && !(p.expr() instanceof SqlExpr.Column)
+                    && !(havingFold && SqlAgg.aggregatesSelect(p.expr()) && SqlExpr.raisesNothing(p.expr()))) {
                 return null;
             }
             if (!SqlExpr.raisesNothing(p.expr())
@@ -116,7 +124,7 @@ final class SelectMerge extends SqlRewriter {
                 return null;
             }
         }
-        if (s.where() != null && in.where() != null && !SqlExpr.raisesNothing(s.where())) {
+        if (!havingFold && s.where() != null && in.where() != null && !SqlExpr.raisesNothing(s.where())) {
             return null;
         }
         Substitute sub2 = new Substitute(sub.alias(), byName);
@@ -131,6 +139,19 @@ final class SelectMerge extends SqlRewriter {
             ps.add(new SqlSelect.Projection(e, named ? null : name, p.out()));
         }
         SqlExpr outerWhere = s.where() == null ? null : sub2.apply(s.where());
+        if (havingFold) {
+            SqlExpr having = in.having() == null ? outerWhere
+                    : SqlExpr.Call.of(SqlFn.AND, in.having(), java.util.Objects.requireNonNull(outerWhere));
+            List<SqlSelect.SortKey> keys = new ArrayList<>(s.orderBy().size());
+            for (SqlSelect.SortKey k : s.orderBy()) {
+                keys.add(new SqlSelect.SortKey(sub2.apply(k.expr()), k.ascending(), k.nullOrder(), k.outputName()));
+            }
+            if (keys.stream().anyMatch(k -> constant(k.expr()))) {
+                return null;
+            }
+            return new SqlSelect(ps, s.distinct(), in.from(), in.where(), in.groupBy(), having, null, keys, s.limit(),
+                    s.offset(), s.outputs());
+        }
         SqlExpr where = in.where() == null ? outerWhere
                 : outerWhere == null ? in.where() : SqlExpr.Call.of(SqlFn.AND, in.where(), outerWhere);
         List<SqlSelect.SortKey> orderBy = new ArrayList<>(s.orderBy().size());
@@ -177,6 +198,19 @@ final class SelectMerge extends SqlRewriter {
             }
         }
         return true;
+    }
+
+    /** Whether {@code e} holds a window or an UNNEST: a value computed after a select's HAVING, or its rows' count. */
+    private static boolean windowOrUnnest(SqlExpr e) {
+        if (e instanceof SqlExpr.WindowCall || e instanceof SqlExpr.Call c && c.fn() == SqlFn.UNNEST) {
+            return true;
+        }
+        for (SqlExpr c : e.children()) {
+            if (windowOrUnnest(c)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** Whether {@code e} holds an aggregate or an UNNEST: a value of its select's groups or its rows' count. */
