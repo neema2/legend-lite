@@ -308,8 +308,7 @@ public final class CellText {
         // the value's own spelling at nine fraction digits: six and Z (S312), or all nine where the value is finer than
         // a microsecond -- a cell CARRIES its value, read back exactly (the orchestrator's MUST of 2026-11-16, the first
         // full CI's Cypher parity: S312 cut every cell to six digits, and a Neo4j value's nanoseconds were lost)
-        String nine = d.toNineDigits();
-        return nine.endsWith("000") ? nine.substring(0, nine.length() - 3) + "Z" : nine + "Z";
+        return d.toCarriedDigits() + "Z";
     }
 
     /** A date's day ({@code yyyy-MM-dd}), or its own text where it is coarser than a day. */
