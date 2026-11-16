@@ -312,6 +312,8 @@ describe("the tab's DuckDB starts alongside the planner's asks", () => {
         order.push(`connected ${database} in ${currentRun() ?? 'no run'} with ${setup.extensions.length}+${setup.session.length}`);
         return 'the tab';
       },
+      async () => { order.push('disposed'); },
+      () => undefined,
     );
     // the planner has not answered: DuckDB's instantiate is already under way
     await new Promise((resolve) => setTimeout(resolve, 0));

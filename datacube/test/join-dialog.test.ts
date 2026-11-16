@@ -58,6 +58,29 @@ const form = (kind: string): void => $<HTMLButtonElement>(`.dc-join-kind[data-ki
 const will = (): string[] => [...doc.querySelectorAll('.dc-join-will-line')].map((l) => l.textContent ?? '');
 
 describe('the Join window', () => {
+  it('belongs to its embedding and releases its listener before a pending inputs request answers', async () => {
+    const host = doc.createElement('div');
+    doc.body.append(host);
+    const lifetime = new AbortController();
+    let loaded!: (sides: { left: JoinSide; right: JoinSide }) => void;
+    const { asked, applied, made } = open({
+      host, signal: lifetime.signal,
+      inputs: () => new Promise((resolve) => { loaded = resolve; }),
+    });
+    assert.ok(host.querySelector('.dc-join'));
+    assert.equal(doc.body.querySelector(':scope > .dc-picker-backdrop'), null);
+    lifetime.abort();
+    assert.equal(await made, false);
+    assert.equal(host.childElementCount, 0);
+    assert.equal(doc.dispatchEvent(new doc.defaultView!.KeyboardEvent('keydown', { key: 'Escape', cancelable: true })), true);
+    loaded({ left: TRADES, right: CUSTOMERS });
+    await debounce();
+    assert.deepEqual(asked, [], 'a late inputs answer starts no summary');
+    assert.deepEqual(applied, []);
+    assert.equal(await open({ host, signal: lifetime.signal }).made, false, 'a disposed owner cannot reopen its dialog');
+    assert.equal(host.childElementCount, 0);
+  });
+
   it('reads their columns with mine, presets the plain key, and says what it will do before it joins', async () => {
     const { asked, applied, made } = open();
     await settle();

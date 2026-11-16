@@ -256,15 +256,32 @@ export class MemoryRecords implements CubeRecords {
  * The browser database saved cubes live in: `cubes` (rows, keyed by id) and `handles`
  * (file handles by cube id: `file-handles.ts`).
  */
-export function openCubeDatabase(factory: IDBFactory = globalThis.indexedDB): Promise<IDBDatabase> {
+export function openCubeDatabase(factory: IDBFactory = globalThis.indexedDB, name = 'datacube', signal?: AbortSignal): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
-    const open = factory.open('datacube', 1);
+    signal?.throwIfAborted();
+    const open = factory.open(name, 1);
+    const aborted = (): void => {
+      signal!.removeEventListener('abort', aborted);
+      reject(signal!.reason);
+    };
+    signal?.addEventListener('abort', aborted, { once: true });
     open.onupgradeneeded = () => {
+      if (signal?.aborted) { open.transaction?.abort(); return; }
       open.result.createObjectStore(BrowserRecords.STORE, { keyPath: 'id' });
       open.result.createObjectStore('handles');
     };
-    open.onsuccess = () => resolve(open.result);
-    open.onerror = () => reject(open.error ?? new Error('this browser refused its database'));
+    open.onsuccess = () => {
+      signal?.removeEventListener('abort', aborted);
+      // IndexedDB cannot cancel an open queued behind another tab's upgrade or delete. Release a late connection
+      // even though its former owner has already stopped waiting and disposed its UI and workers.
+      if (signal?.aborted) { open.result.close(); return; }
+      open.result.onversionchange = () => open.result.close();
+      resolve(open.result);
+    };
+    open.onerror = () => {
+      signal?.removeEventListener('abort', aborted);
+      reject(open.error ?? new Error('this browser refused its database'));
+    };
   });
 }
 

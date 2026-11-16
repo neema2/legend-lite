@@ -3,6 +3,20 @@
 This file says who is working, on what files, in what order, and the rules between sessions; each line's status lives
 in its own plan (plan rule 0b.16).
 
+**Browser-only DataCube npm library (2026-11-15, `make_packageable_codex`, the user's go):** package the existing
+DataCube application, WebAssembly planner and DuckDB-WASM for another web application to embed, with no backend.
+The implementation keeps the one compiler and the existing planning/execution doors. Owned areas: `datacube/npm/`
+(distribution, static assets, declarations and publishing instructions), `datacube/src/browser.ts` (the public
+browser entry), the app and browser services (blank start, file opening, host isolation and lifecycle), and an
+isolated npm-consumer browser test. Cross-area changes: `engine-client`'s tab database and door (resource cleanup),
+`query-store`'s browser records (namespaced storage and closing), their Bazel declarations, the DataCube test lane,
+and package documentation. Checkpoints are committed and pushed to this feature branch; no npm publication or
+main-branch landing is part of this task. Acceptance: install the packed artifact outside the checkout, typecheck
+and bundle a consumer, analyze a local file with all unrequested network access refused, and dispose/reopen it.
+**Implemented and verified on the feature branch:** implementation `a6c31e0e0`; the final local gate passed
+(544 targets passed, two skipped). The artifact, independent consumer checks, lifecycle review and release boundary
+are recorded in [`records/datacube-npm-2026-11-15.md`](records/datacube-npm-2026-11-15.md).
+
 **The goals of record, P1, 2026-11-08 (branch `claude/corpus-walk-deletion`):** the plan as data, designed and ruled in
 `docs/PLAN_AS_DATA_2026_11_07.md`; step 0 under way (the census moved to `diagnostics`). It touches `core/` widely
 (driver, judge, exec, testplan, executionplan, planner) over its steps, and lands in slices through PRs on the user's

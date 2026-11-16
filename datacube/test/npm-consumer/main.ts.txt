@@ -1,0 +1,102 @@
+// This is copied into a fresh application outside the checkout and typechecked there.
+// Its only product import is the installed package, just as an embedding application's is.
+import { createBrowserDataCube, type BrowserDataCube } from '@legend-lite/datacube';
+import '@legend-lite/datacube/styles.css';
+
+const host = document.querySelector<HTMLElement>('#cube')!;
+const state = document.querySelector<HTMLOutputElement>('#state')!;
+const error = document.querySelector<HTMLOutputElement>('#error')!;
+const file = document.querySelector<HTMLInputElement>('#file')!;
+let cube: BrowserDataCube | undefined;
+let starting: AbortController | undefined;
+let releaseRead: (() => void) | undefined;
+
+function report(reason: unknown): void {
+  error.textContent = reason instanceof Error ? reason.message : String(reason);
+  state.value = 'failed';
+}
+
+async function mount(): Promise<void> {
+  if (cube) throw new Error('already mounted');
+  state.value = 'starting';
+  cube = await createBrowserDataCube({
+    host,
+    assetsUrl: new URL('./assets/', import.meta.url),
+    storageNamespace: 'independent-npm-consumer',
+  });
+  state.value = 'ready';
+}
+
+file.addEventListener('change', () => {
+  const selected = file.files?.[0];
+  if (!cube || !selected) return;
+  state.value = 'opening';
+  void cube.openFile(selected).then(() => { state.value = 'opened'; }, report);
+});
+
+document.querySelector('#dispose')!.addEventListener('click', () => {
+  const mounted = cube;
+  cube = undefined;
+  if (!mounted) return;
+  state.value = 'disposing';
+  void mounted.dispose().then(() => { state.value = 'disposed'; }, report);
+});
+
+document.querySelector('#mount')!.addEventListener('click', () => { void mount().catch(report); });
+document.querySelector('#invalid')!.addEventListener('click', () => {
+  if (!cube) return;
+  state.value = 'opening-invalid';
+  void cube.openFile(new File(['This is not a Parquet file.'], 'broken.parquet')).then(
+    () => { report(new Error('Invalid Parquet unexpectedly opened')); },
+    (reason: unknown) => {
+      document.querySelector<HTMLOutputElement>('#expected-error')!.value = reason instanceof Error ? reason.message : String(reason);
+      state.value = 'refused';
+    },
+  );
+});
+document.querySelector('#hold-file')!.addEventListener('click', () => {
+  if (!cube) return;
+  const pending = document.querySelector<HTMLOutputElement>('#pending-open')!;
+  const held = new File(['region,quarter,amount\nEast,Q1,10\n'], 'held.csv');
+  Object.defineProperty(held, 'stream', { value: () => new ReadableStream<Uint8Array>({
+    start(controller) {
+      pending.value = 'reading';
+      releaseRead = () => {
+        controller.enqueue(new TextEncoder().encode('region,quarter,amount\nEast,Q1,10\n'));
+        controller.close();
+        document.querySelector<HTMLOutputElement>('#pending-read')!.value = 'released';
+      };
+    },
+  }) });
+  void cube.openFile(held).then(
+    () => { pending.value = 'unexpected-success'; report(new Error('Held file unexpectedly opened')); },
+    (reason: unknown) => {
+      document.querySelector<HTMLOutputElement>('#expected-error')!.value = reason instanceof Error
+        ? `${reason.name}: ${reason.message}` : String(reason);
+      pending.value = 'rejected';
+    },
+  );
+});
+document.querySelector('#release-file')!.addEventListener('click', () => { releaseRead?.(); });
+document.querySelector('#start-abort')!.addEventListener('click', () => {
+  if (cube) { report(new Error('already mounted')); return; }
+  starting = new AbortController();
+  state.value = 'starting-abort';
+  void createBrowserDataCube({
+    host,
+    assetsUrl: new URL('./assets/', import.meta.url),
+    storageNamespace: 'independent-npm-consumer',
+    signal: starting.signal,
+  }).then(
+    (made) => { cube = made; report(new Error('The held startup unexpectedly completed')); },
+    (reason: unknown) => {
+      document.querySelector<HTMLOutputElement>('#expected-error')!.value = reason instanceof Error
+        ? `${reason.name}: ${reason.message}` : String(reason);
+      state.value = starting?.signal.aborted ? 'aborted' : 'failed';
+    },
+  );
+});
+document.querySelector('#abort')!.addEventListener('click', () => {
+  starting?.abort(new DOMException('Consumer cancelled startup', 'AbortError'));
+});
+void mount().catch(report);

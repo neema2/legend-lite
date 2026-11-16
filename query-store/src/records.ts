@@ -58,9 +58,9 @@ export const CHANNEL = 'legend-query-store';
  * Told whenever a tab on this origin writes its browser store (a query saved in Query, say),
  * so an open list can be read again. Returns how to stop. Absent BroadcastChannel: never told.
  */
-export function watchBrowserStore(onChange: () => void): () => void {
+export function watchBrowserStore(onChange: () => void, name = CHANNEL): () => void {
   if (typeof BroadcastChannel === 'undefined') return () => undefined;
-  const channel = new BroadcastChannel(CHANNEL);
+  const channel = new BroadcastChannel(name);
   channel.onmessage = () => onChange();
   return () => channel.close();
 }
@@ -71,11 +71,22 @@ const upgraded = (e: unknown): Error =>
 
 export class BrowserRecords implements Records {
   readonly #db: Promise<IDBDatabase>;
+  readonly #channel: string;
+  #closed = false;
+  #cancelOpen: () => void = () => undefined;
 
-  constructor(factory: IDBFactory = globalThis.indexedDB) {
+  constructor(factory: IDBFactory = globalThis.indexedDB, name = DATABASE, channel = CHANNEL) {
+    this.#channel = channel;
     this.#db = new Promise((resolve, reject) => {
-      const open = factory.open(DATABASE, LAYOUT);
+      const open = factory.open(name, LAYOUT);
+      const refused = (error: unknown): void => {
+        this.#closed = true;
+        this.#cancelOpen = () => undefined;
+        reject(error);
+      };
+      this.#cancelOpen = () => refused(new Error('the saved-query store has been closed'));
       open.onupgradeneeded = (e) => {
+        if (this.#closed) { open.transaction?.abort(); return; }
         const db = open.result;
         if (e.oldVersion < 1) {
           db.createObjectStore(STORE);
@@ -96,16 +107,28 @@ export class BrowserRecords implements Records {
       // this tab closes; this tab's next call says the store must be reloaded
       open.onsuccess = () => {
         const db = open.result;
+        if (this.#closed) { db.close(); return; }
+        this.#cancelOpen = () => undefined;
         db.onversionchange = () => db.close();
         resolve(db);
       };
-      open.onblocked = () => reject(new Error('the saved queries are open in another tab of an older version: close it and reload'));
-      open.onerror = () => reject(open.error ?? new Error('IndexedDB could not open'));
+      open.onblocked = () => refused(new Error('the saved queries are open in another tab of an older version: close it and reload'));
+      open.onerror = () => refused(open.error ?? new Error('IndexedDB could not open'));
     });
+    // Opening starts before the first operation; preserve a rejection for that caller without reporting it unhandled.
+    void this.#db.catch(() => undefined);
+  }
+
+  /** Release this embedding's connection, including an open blocked by another tab; a late connection closes itself. */
+  async close(): Promise<void> {
+    this.#closed = true;
+    this.#cancelOpen();
+    await this.#db.then((db) => db.close(), () => undefined);
   }
 
   async call<T>(f: (held: ReadonlyMap<string, string>) => Called<T>): Promise<T> {
     const db = await this.#db;
+    if (this.#closed) throw new Error('the saved-query store has been closed');
     return new Promise<T>((resolve, reject) => {
       let tx: IDBTransaction;
       try {
@@ -119,7 +142,7 @@ export class BrowserRecords implements Records {
       tx.oncomplete = () => {
         // every app's open tabs hear of a write
         if (said!.changed.size > 0 && typeof BroadcastChannel !== 'undefined') {
-          const channel = new BroadcastChannel(CHANNEL);
+          const channel = new BroadcastChannel(this.#channel);
           channel.postMessage({ ids: [...said!.changed.keys()] });
           channel.close();
         }

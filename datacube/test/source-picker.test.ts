@@ -32,6 +32,26 @@ const files = (open: (f: File) => Promise<string>): NonNullable<PickerSections<s
   ({ accept: '.csv', formats: ['CSV'], open });
 
 describe('the source picker', () => {
+  it('stays in its embedding and closes with its store watch when that embedding is disposed', async () => {
+    const host = doc.createElement('div');
+    doc.body.append(host);
+    const lifetime = new AbortController();
+    let stopped = false;
+    const chosen = pickSource<string>(doc, {
+      host, signal: lifetime.signal, purpose: 'open',
+      sections: { saved: {
+        where: 'this browser', search: async () => [], open: async () => 'query',
+        watch: () => () => { stopped = true; },
+      } },
+    });
+    assert.ok(host.querySelector('.dc-picker'));
+    assert.equal(doc.body.querySelector(':scope > .dc-picker-backdrop'), null);
+    lifetime.abort();
+    assert.equal(await chosen, undefined);
+    assert.equal(host.childElementCount, 0);
+    assert.equal(stopped, true, 'the saved query subscription is released too');
+  });
+
   it('offers only the sections the host gives, in order, starting on the first', async () => {
     const chosen = pickSource<string>(doc, {
       purpose: 'add',

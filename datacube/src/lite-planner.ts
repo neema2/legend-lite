@@ -121,6 +121,8 @@ interface Transport {
   /** Which module holds the models held: one more each time a module, or a worker with its own, starts (a handle
    *  taken under another is no longer held by anything). */
   generation: number;
+  /** A browser-owned worker explicitly terminated during cancellation: never start it again. */
+  stopped?: boolean;
 }
 
 /** One #TS item as core reads it ({@link LitePlanner.tsItem}): its canonical text and its tree, or its error placed in
@@ -208,6 +210,7 @@ export class LitePlanner implements Planner, TableModels, ModelWriter {
    * the worker gives (engine-client's planner-answer.ts): one mapping of kinds to exports, wherever the module runs.
    */
   async #call(request: RequestBody): Promise<string> {
+    if (this.#t.stopped) throw new PlannerUnavailableError('the planner has been terminated');
     // the planner's one dispatch, worker or in-thread: refused inside a run of its flow (run-frame.ts, the witness), by
     // a rejected promise (async; the C4 final fix round's nit, 2026-11-14)
     planning(request.kind);
@@ -221,6 +224,7 @@ export class LitePlanner implements Planner, TableModels, ModelWriter {
   }
 
   #ensureWorker(): PlannerWorker {
+    if (this.#t.stopped) throw new PlannerUnavailableError('the planner has been terminated');
     if (this.#t.worker) return this.#t.worker;
     const w = this.#options.worker?.()
       ?? (new Worker(this.#options.workerUrl!, { type: 'module' }) as unknown as PlannerWorker);
@@ -260,23 +264,54 @@ export class LitePlanner implements Planner, TableModels, ModelWriter {
     });
   }
 
+  /**
+   * Cancel this browser-owned runtime immediately, including a worker still loading its module. A host's worker may
+   * keep native resources outside the worker and must instead be released with close().
+   */
+  terminate(): void {
+    if (this.#borrowed || this.#options.worker !== undefined) {
+      throw new Error('Only the owner of a browser planner worker may terminate it; close a borrowed or host planner');
+    }
+    if (this.#t.stopped) return;
+    this.#t.stopped = true;
+    this.#t.worker?.terminate();
+    this.#t.worker = undefined;
+    this.#t.module = undefined;
+    this.#t.generation += 1;
+    const error = new PlannerUnavailableError('the planner has been terminated');
+    for (const waiting of this.#t.pending.values()) waiting.reject(error);
+    this.#t.pending.clear();
+    this.#held = undefined;
+    this.#library = undefined;
+    this.#cache.clear();
+    this.#types.clear();
+  }
+
   /** Release the worker. The grid owns one planner for its lifetime,
    *  so this is for tests and for a host that tears a cube down. */
   dispose(): void {
+    void this.close();
+  }
+
+  /** Await the models' release and worker termination when an embedding takes its runtime down. */
+  async close(): Promise<void> {
     const released = this.#letGoAll();
-    if (this.#borrowed) return;
+    if (this.#borrowed) return released;
     const worker = this.#t.worker;
     if (worker === undefined) {
+      await released;
       this.#t.pending.clear();
       return;
     }
     // a host's worker (Python's) keeps the models it holds in the host, not in itself: each let go before the worker is
     // ended (the Phase 6 review's 3: a typer's hold of a 4 MB model outlived it); a browser's takes its own with it
-    void released.finally(() => {
+    await released.finally(() => {
       if (this.#t.worker !== worker) return;
       worker.terminate();
       this.#t.worker = undefined;
       this.#t.generation += 1;
+      const error = new PlannerUnavailableError('the planner has been closed');
+      for (const waiting of this.#t.pending.values()) waiting.reject(error);
       this.#t.pending.clear();
     });
   }

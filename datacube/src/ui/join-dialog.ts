@@ -22,6 +22,9 @@ export interface JoinCandidate {
 }
 
 export interface JoinDialogOptions {
+  /** An embedding's own overlay container and lifetime. */
+  readonly host?: HTMLElement;
+  readonly signal?: AbortSignal;
   /** My grid's name. */
   readonly mine: string;
   /** The page's other grids a join can read (tables of this tab). */
@@ -117,8 +120,9 @@ function picture(doc: Document, choice: Choice): SVGSVGElement {
 
 /** Open the window. Resolves true when a join was made, false when it was closed without one. */
 export function joinDialog(doc: Document, o: JoinDialogOptions): Promise<boolean> {
+  if (o.signal?.aborted) return Promise.resolve(false);
   return new Promise((resolve) => {
-    const backdrop = el(doc, 'div', 'dc-picker-backdrop', doc.body);
+    const backdrop = el(doc, 'div', 'dc-picker-backdrop', o.host ?? doc.body);
     const win = el(doc, 'div', 'dc-picker dc-save dc-join dc-app-floating', backdrop);
     win.setAttribute('role', 'dialog');
     win.setAttribute('aria-modal', 'true');
@@ -127,14 +131,19 @@ export function joinDialog(doc: Document, o: JoinDialogOptions): Promise<boolean
     let busy = false;
     let done = false;
     let made = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
     const finish = (): void => {
       if (done) return;
       done = true;
+      clearTimeout(timer);
+      o.signal?.removeEventListener('abort', onAbort);
       doc.removeEventListener('keydown', onKey, true);
       backdrop.remove();
       before?.focus?.();
       resolve(made);
     };
+    const onAbort = (): void => finish();
+    o.signal?.addEventListener('abort', onAbort, { once: true });
     const onKey = (e: KeyboardEvent): void => {
       if (e.key === 'Escape' && !busy) { e.preventDefault(); finish(); }
     };
@@ -478,7 +487,6 @@ export function joinDialog(doc: Document, o: JoinDialogOptions): Promise<boolean
     };
 
     let asked = 0;
-    let timer: ReturnType<typeof setTimeout> | undefined;
     const ask = async (): Promise<void> => {
       if (busy || done || !inputs) return;
       const mine = (asked += 1);
@@ -527,6 +535,7 @@ export function joinDialog(doc: Document, o: JoinDialogOptions): Promise<boolean
       busy = true;
       win.classList.add('dc-busy');
       const h = await how().catch((e: unknown) => (e instanceof Error ? e.message : String(e)));
+      if (done) return;
       if (typeof h === 'string') {
         busy = false;
         win.classList.remove('dc-busy');
@@ -536,6 +545,7 @@ export function joinDialog(doc: Document, o: JoinDialogOptions): Promise<boolean
       say('Joining…', 'working');
       try {
         await o.apply(their.value, h);
+        if (done) return;
         made = true;
         busy = false;
         finish();

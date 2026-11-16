@@ -27,6 +27,9 @@ export interface SaveDialogOptions {
   save(name: string, asNew: boolean): Promise<void>;
   /** The clock "saved 2 hours ago" is read against: the system's, or a test's own (Bazel workplan P3-16). */
   readonly now?: () => number;
+  /** An embedding's own overlay container and lifetime. */
+  readonly host?: HTMLElement;
+  readonly signal?: AbortSignal;
 }
 
 function el<K extends keyof HTMLElementTagNameMap>(doc: Document, tag: K, cls: string, parent?: Element, text?: string): HTMLElementTagNameMap[K] {
@@ -69,8 +72,9 @@ function mark(doc: Document, path: string, cls: string): SVGSVGElement {
  * closed without saving.
  */
 export function saveDialog(doc: Document, o: SaveDialogOptions): Promise<{ readonly name: string; readonly asNew: boolean } | undefined> {
+  if (o.signal?.aborted) return Promise.resolve(undefined);
   return new Promise((resolve) => {
-    const backdrop = el(doc, 'div', 'dc-picker-backdrop', doc.body);
+    const backdrop = el(doc, 'div', 'dc-picker-backdrop', o.host ?? doc.body);
     const win = el(doc, 'div', 'dc-picker dc-save dc-app-floating', backdrop);
     win.setAttribute('role', 'dialog');
     win.setAttribute('aria-modal', 'true');
@@ -81,11 +85,14 @@ export function saveDialog(doc: Document, o: SaveDialogOptions): Promise<{ reado
     const finish = (value: { name: string; asNew: boolean } | undefined): void => {
       if (done) return;
       done = true;
+      o.signal?.removeEventListener('abort', onAbort);
       doc.removeEventListener('keydown', onKey, true);
       backdrop.remove();
       before?.focus?.();
       resolve(value);
     };
+    const onAbort = (): void => finish(undefined);
+    o.signal?.addEventListener('abort', onAbort, { once: true });
     const onKey = (e: KeyboardEvent): void => {
       if (e.key === 'Escape' && !busy) { e.preventDefault(); finish(undefined); }
     };

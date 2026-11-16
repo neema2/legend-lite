@@ -872,6 +872,9 @@ export class FlowCanvas {
   dispose(): void {
     this.#gesture?.(false);
     this.#menu?.close();
+    this.#macroPop?.remove();
+    this.#macroPop = undefined;
+    this.#unchart();
     this.#palette.remove();
     this.#canvas.parentElement?.remove();
   }

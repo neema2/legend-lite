@@ -211,6 +211,7 @@ export class PageApp {
   readonly #boardHost: HTMLElement;
   readonly #empty: HTMLElement;
   readonly #menu: MenuView;
+  readonly #stopLongPress: () => void;
   /**
    * Every grid made on the page, by its id, with the maker that made it (a copy is made by the same one). Read only
    * for the ids the board still has (`#live`): one it let go is gone.
@@ -352,7 +353,7 @@ export class PageApp {
     options.host.replaceChildren(root);
     this.#root = root;
     // a sheet tab's and a chart's right-click menus, on a touch screen: a long press (an empty page has no grid to do it)
-    longPressMenus(doc);
+    this.#stopLongPress = longPressMenus(root);
     this.#menu = new MenuView(doc, {
       onSelect: (item) => this.#onMenu(item),
       onClose: () => this.#burger.setAttribute('aria-expanded', 'false'),
@@ -997,6 +998,7 @@ export class PageApp {
   dispose(): void {
     if (this.#disposed) return;
     this.#disposed = true;
+    this.#stopLongPress();
     this.#menu.close();
     this.#page.dispose();
     this.#sheetTabs.dispose();

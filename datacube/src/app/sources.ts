@@ -57,7 +57,7 @@ import { SAMPLES, sampleById, sampleFileName, type Sample } from '../samples.ts'
 import type { CubeSnapshot } from '../snapshot.ts';
 import { sourceColumns } from '../source-columns.ts';
 import type { TreeState } from '../tree.ts';
-import { pickSource, type DatabaseSession, type PickerSections, type RemoteCredentials, type SectionId } from '../ui/source-picker.ts';
+import type { DatabaseSession, PickerSections, RemoteCredentials, SectionId } from '../ui/source-picker.ts';
 import { formatOf, modelLanded, tableNameOf } from '../upload.ts';
 import type { GridStartOpened, JoinRead, JoinSourcesHost } from './join-sources.ts';
 import type { ConfiguredProject, GridRows, LocalEngine, QueryService, Services, WarehouseService } from './services.ts';
@@ -69,6 +69,8 @@ const savedQueries = () => lazily(() => import('../saved-queries.ts'));
 const queryStores = () => lazily(() => import('../../../query-store/src/index.ts'));
 // a join's opener, fetched the first time a grid joins: a page with no join never downloads it (test/bundle-budget.test.ts)
 const joinSources = () => lazily(() => import('./join-app.ts'));
+// A source supplied by the host needs no picker. Fetch its UI only when a person chooses or repairs a source.
+const sourcePicker = () => lazily(() => import('../ui/source-picker.ts'));
 
 /** A grid's place, as a maker takes it: where its rows are and how it is written down. */
 export type GridPlace = {
@@ -182,6 +184,8 @@ export interface SignedIn {
 
 export interface SourcesOf {
   readonly services: Services;
+  /** The app's source dialogs live and end with their embedding. */
+  readonly dialogs?: { readonly host: HTMLElement; readonly signal: AbortSignal };
   /**
    * The page: the cubes it holds now (a file's table goes with its last grid), and the grids it let go that an undo can
    * bring back (theirs are kept while it can).
@@ -705,7 +709,9 @@ export function pageSources(d: SourcesOf): PageSources {
     const found = on?.objects.find((o) => o.catalog === src.catalog && o.schema === src.schema && o.name === src.table);
     if (on && found) return openedTable(warehouse, on.session, found, saved, several);
     let got: Opened | undefined;
+    const { pickSource } = await sourcePicker();
     const done = await pickSource<boolean>(document, {
+      ...d.dialogs,
       purpose: 'open',
       start: 'database',
       reason: `“${saved.name}” reads ${src.name} on ${host}: sign in there to open it.`,
@@ -1101,7 +1107,9 @@ export function pageSources(d: SourcesOf): PageSources {
       }
     }
     let got: Opened | undefined;
+    const { pickSource } = await sourcePicker();
     const done = await pickSource<boolean>(document, {
+      ...d.dialogs,
       purpose: 'open',
       start: 'remote',
       reason,
@@ -1392,7 +1400,8 @@ export function pageSources(d: SourcesOf): PageSources {
         open: (given: { readonly class: string; readonly project?: string; readonly revision?: string }) => act({ kind: 'class', given }),
       } } : {}),
     };
-    const made = await pickSource(document, { purpose, sections, ...(start ? { start } : {}) });
+    const { pickSource } = await sourcePicker();
+    const made = await pickSource(document, { ...d.dialogs, purpose, sections, ...(start ? { start } : {}) });
     return made ?? undefined;
   }
 

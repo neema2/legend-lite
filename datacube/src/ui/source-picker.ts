@@ -129,6 +129,9 @@ export interface PickerSections<T> {
 }
 
 export interface PickSourceOptions<T> {
+  /** An embedding's own overlay container and lifetime. */
+  readonly host?: HTMLElement;
+  readonly signal?: AbortSignal;
   /** Adding a grid beside the others, or opening in place of the cube. */
   readonly purpose: 'add' | 'open';
   readonly sections: PickerSections<T>;
@@ -179,9 +182,10 @@ const count = (n: number): string => n.toLocaleString(UI_LOCALE);
  * choice, or undefined when they closed the window without one.
  */
 export function pickSource<T>(doc: Document, options: PickSourceOptions<T>): Promise<T | undefined> {
+  if (options.signal?.aborted) return Promise.resolve(undefined);
   return new Promise<T | undefined>((resolve) => {
     const offered = SECTIONS.filter((s) => options.sections[s.id] !== undefined);
-    const backdrop = el(doc, 'div', 'dc-picker-backdrop', doc.body);
+    const backdrop = el(doc, 'div', 'dc-picker-backdrop', options.host ?? doc.body);
     const win = el(doc, 'div', 'dc-picker dc-app-floating', backdrop);
     win.setAttribute('role', 'dialog');
     win.setAttribute('aria-modal', 'true');
@@ -198,12 +202,15 @@ export function pickSource<T>(doc: Document, options: PickSourceOptions<T>): Pro
     const finish = (value: T | undefined): void => {
       if (done) return;
       done = true;
+      options.signal?.removeEventListener('abort', onAbort);
       letGo();
       doc.removeEventListener('keydown', onKey, true);
       backdrop.remove();
       before?.focus?.();
       resolve(value);
     };
+    const onAbort = (): void => finish(undefined);
+    options.signal?.addEventListener('abort', onAbort, { once: true });
     const onKey = (e: KeyboardEvent): void => {
       if (e.key === 'Escape' && !busy) {
         e.preventDefault();

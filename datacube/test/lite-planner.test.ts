@@ -464,6 +464,38 @@ describe('LitePlanner off the main thread: the models its worker holds', () => {
   const g = globalThis as unknown as { Worker?: unknown };
   const workerPlanner = (): LitePlanner => new LitePlanner({ model: 'm', runtime: 'r', workerUrl: 'worker.js', cache: false });
 
+  it('terminating a browser worker rejects a startup still waiting for it and never starts it again', async () => {
+    class LoadingWorker extends FakeWorker {
+      override postMessage(_message: Record<string, unknown>): void {}
+    }
+    FakeWorker.made = [];
+    g.Worker = LoadingWorker;
+    try {
+      const p = workerPlanner();
+      const warming = p.warmUp();
+      assert.equal(FakeWorker.made.length, 1);
+      p.terminate();
+      p.terminate();
+      await assert.rejects(warming, /terminated/);
+      await assert.rejects(p.planText('a'), /terminated/);
+      await p.close();
+      assert.equal(FakeWorker.made.length, 1, 'cancellation never creates a replacement worker');
+      assert.deepEqual(FakeWorker.made[0]!.told, ['terminate']);
+    } finally {
+      delete g.Worker;
+    }
+  });
+
+  it('a native host worker cannot be terminated without releasing its model', async () => {
+    FakeWorker.made = [];
+    const p = new LitePlanner({ model: 'm', runtime: 'r', worker: () => new FakeWorker() as unknown as PlannerWorker });
+    await p.warmUp();
+    assert.throws(() => p.terminate(), /close a borrowed or host planner/);
+    assert.equal(FakeWorker.made[0]!.terminated, false);
+    await p.close();
+    assert.deepEqual(FakeWorker.made[0]!.told, ['release', 'terminate']);
+  });
+
   it('dispose lets its model go to the worker running, and starts none to do it', async () => {
     FakeWorker.made = [];
     g.Worker = FakeWorker;
@@ -538,12 +570,11 @@ describe('LitePlanner off the main thread: the models its worker holds', () => {
 
   // the Phase 6 review's 3: a host's worker (Python's) keeps the models it holds in the host, not in itself -- a typer's
   // hold of a 4 MB model outlived it, the release never sent once the worker was ended
-  it('dispose lets its model go on a host\'s worker before it ends the worker', async () => {
+  it('close resolves after its model is released and its host\'s worker has ended', async () => {
     FakeWorker.made = [];
     const p = new LitePlanner({ model: 'm', runtime: 'r', worker: () => new FakeWorker() as unknown as PlannerWorker, cache: false });
     await p.planText('a');
-    p.dispose();
-    await new Promise((done) => setTimeout(done, 0));
+    await p.close();
     assert.deepEqual(FakeWorker.made[0]!.told, ['release', 'terminate'], 'its model let go, then the worker ended');
   });
 });

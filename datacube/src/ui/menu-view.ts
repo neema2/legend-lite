@@ -13,6 +13,7 @@
 import type { MenuGroup, MenuItem } from './menu.ts';
 import { focusedElement } from '../focus.ts';
 import { chromeIcon } from './tile-icons.ts';
+import { longPressMenus } from './long-press.ts';
 
 export interface MenuViewOptions {
   readonly onSelect: (item: MenuItem) => void;
@@ -24,6 +25,7 @@ export class MenuView {
   readonly #options: MenuViewOptions;
   #el: HTMLElement | null = null;
   #returnFocus: Element | null = null;
+  #stopLongPress: (() => void) | undefined;
 
   constructor(doc: Document, options: MenuViewOptions) {
     this.#doc = doc;
@@ -101,6 +103,7 @@ export class MenuView {
     this.#doc.addEventListener('keydown', this.#onEscape, true);
     this.#doc.body.appendChild(menu);
     this.#el = menu;
+    this.#stopLongPress = longPressMenus(menu);
     this.#place(x, y);
     // THE MENU, NOT ITS FIRST ITEM.
     //
@@ -219,6 +222,8 @@ export class MenuView {
   /** Put the menu away, the focus back where it came from -- unless `keepFocus` (an entry moved it on). */
   close(keepFocus = false): void {
     if (!this.#el) return;
+    this.#stopLongPress?.();
+    this.#stopLongPress = undefined;
     this.#doc.removeEventListener('pointerdown', this.#onOutside, true);
     this.#doc.removeEventListener('keydown', this.#onEscape, true);
     this.#trigger = null;

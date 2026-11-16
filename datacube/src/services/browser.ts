@@ -21,7 +21,7 @@ import { writesModels, type ModelWriter } from '../model-writer.ts';
 import type { ModelOptions } from '../planner.ts';
 import { PlanThenRun } from '../runner.ts';
 import { forgetUpload, ingestFile, mountRemoteView, type DuckDbFiles } from '../upload.ts';
-import { browserBasics, tabTitle } from './browser-basics.ts';
+import { browserBasics, browserBasicsFor, tabTitle } from './browser-basics.ts';
 import type {
   ConfiguredProject,
   DatabaseService,
@@ -77,12 +77,27 @@ export interface BrowserServicesOptions {
   readonly config: TabConfig;
   /** Where the page is, for the links it makes (Studio on a project). */
   readonly location: { readonly href: string };
+  /** A component in another app: local services only, private storage names, no ownership of its title or URL. */
+  readonly embedding?: { readonly storageNamespace: string };
+}
+
+export interface BrowserServices extends Services {
+  /** Close this instance's browser storage connections after its UI has been disposed. */
+  dispose(): Promise<void>;
 }
 
 /** The tab's services, built once as the page starts, over the tab's DuckDB as engine-client's `openDuckDbInTab`
  *  started it (its session set up, its extensions the site's). */
-export async function browserServices(o: BrowserServicesOptions): Promise<Services> {
+export async function browserServices(o: BrowserServicesOptions): Promise<BrowserServices> {
   const { config } = o;
+  if (o.embedding && (config.warehouse || config.queryStore || config.depot)) {
+    throw new Error('An embedded browser DataCube uses only local services');
+  }
+  const namespace = o.embedding?.storageNamespace;
+  const releases: (() => Promise<void>)[] = [];
+  const lifetime = new AbortController();
+  let disposed = false;
+  const checkOpen = (): void => { if (disposed) throw new Error('DataCube browser services have been disposed'); };
   const modelHome = o.config.depot ? depotHome(o.config.depot.sdlc, o.config.vendor, o.location) : undefined;
   // THE STORES' RULES: the saved queries' and the saved pages', one WebAssembly module (`vendor/queries/`), fetched
   // once, at the first call of either store (a load that failed is tried again at the next)
@@ -94,7 +109,19 @@ export async function browserServices(o: BrowserServicesOptions): Promise<Servic
       throw e;
     }));
   let projectKeeper: Promise<ProjectDoor> | undefined;
+  const pages = browserPages(storeRules, namespace, releases, lifetime.signal);
+  // The owner can be cancelled before its app observes this promise. Preserve the refusal for that app without
+  // reporting an unhandled rejection when disposal is all that ever consumes this service.
+  void pages.catch(() => undefined);
   return {
+    dispose: async () => {
+      if (disposed) return;
+      disposed = true;
+      lifetime.abort();
+      const closed = await Promise.allSettled(releases.splice(0).map((release) => release()));
+      const errors = closed.filter((r): r is PromiseRejectedResult => r.status === 'rejected').map((r) => r.reason as unknown);
+      if (errors.length > 0) throw new AggregateError(errors, 'Could not close DataCube browser storage');
+    },
     engine: {
       plane: o.plane,
       label: o.planner.label,
@@ -126,14 +153,13 @@ export async function browserServices(o: BrowserServicesOptions): Promise<Servic
       },
     },
     // opened now and waited for where a page is saved or opened: the start's first grid does not wait on IndexedDB
-    pages: browserPages(storeRules),
-    queries: queryService(config, storeRules),
+    pages,
+    queries: queryService(config, storeRules, namespace, releases, checkOpen),
     ...(modelHome ? { modelHome } : {}),
-    warehouse: warehouseService(config, o.location),
+    ...(o.embedding ? {} : { warehouse: warehouseService(config, o.location) }),
     browser: {
-      ...browserBasics,
-      address: () => o.location.href,
-      title: tabTitle(),
+      ...(namespace === undefined ? browserBasics : browserBasicsFor(`${namespace}.settings`)),
+      ...(o.embedding ? {} : { address: () => o.location.href, title: tabTitle() }),
     },
   };
 }
@@ -156,16 +182,20 @@ function tabDatabase(duck: { readonly engine: DuckDbEngine; readonly db: DuckDbF
 /** SAVED PAGES, in this browser: IndexedDB when the browser gives it, else memory (this visit only, and said so), by
  *  legend-lite's own rules (core's SavedCubes, compiled to WebAssembly; the program's B6). One database holds the pages
  *  and their files' handles. */
-async function browserPages(load: () => Promise<QueriesModule>): Promise<PageService> {
+async function browserPages(load: () => Promise<QueriesModule>, namespace: string | undefined,
+  releases: (() => Promise<void>)[], signal: AbortSignal): Promise<PageService> {
   let records: CubeRecords;
   let handles: FileHandles | undefined;
   let memoryOnly = false;
   try {
-    const database = openCubeDatabase();
+    const database = openCubeDatabase(globalThis.indexedDB, namespace === undefined ? 'datacube' : `${namespace}.pages`, signal);
+    // A refused or cancelled open is handled below; a late successful open closes itself after cancellation.
+    releases.push(() => database.then((db) => db.close(), () => undefined));
     await database;
     records = new BrowserRecords(database);
     handles = new FileHandles(database);
   } catch {
+    signal.throwIfAborted();
     records = new MemoryRecords();
     memoryOnly = true;
   }
@@ -185,20 +215,32 @@ async function browserPages(load: () => Promise<QueriesModule>): Promise<PageSer
  * when it runs without a server, by legend-lite's own rules (the server's, compiled to WebAssembly: the stores' module,
  * fetched the first time a store is asked; docs/ONE_PLATFORM_PROGRAM_2026_10_12.md B5).
  */
-function queryService(config: TabConfig, load: () => Promise<QueriesModule>): QueryService {
+function queryService(config: TabConfig, load: () => Promise<QueriesModule>, namespace: string | undefined,
+  releases: (() => Promise<void>)[], checkOpen: () => void): QueryService {
   const url = config.queryStore;
   let store: Promise<QueryReader> | undefined;
   return {
-    store: () => (store ??= queryStores().then(async (m) => (url
-      ? new m.QueryStoreClient(url)
-      : new m.QueryStoreClient(m.LOCAL_API, m.wasmQueryServer({ load, records: new m.BrowserRecords(), user: config.user }).fetch)))),
+    store: () => {
+      checkOpen();
+      return (store ??= queryStores().then((m) => {
+        checkOpen();
+        if (url) return new m.QueryStoreClient(url);
+        const records = new m.BrowserRecords(globalThis.indexedDB,
+          namespace === undefined ? m.DATABASE : `${namespace}.queries`,
+          namespace === undefined ? m.CHANNEL : `${namespace}.queries.changed`);
+        releases.push(() => records.close());
+        return new m.QueryStoreClient(m.LOCAL_API, m.wasmQueryServer({ load, records, user: config.user }).fetch);
+      }));
+    },
     where: url ? `on ${hostOf(url)}` : 'in this browser',
     // the browser's store: a query saved in another tab (Legend Query) appears without reopening
     ...(url ? {} : {
       watch: (changed: () => void) => {
         let stop = (): void => undefined;
         let stopped = false;
-        void queryStores().then((m) => { if (!stopped) stop = m.watchBrowserStore(changed); });
+        void queryStores().then((m) => {
+          if (!stopped) stop = m.watchBrowserStore(changed, namespace === undefined ? m.CHANNEL : `${namespace}.queries.changed`);
+        });
         return () => { stopped = true; stop(); };
       },
     }),

@@ -855,6 +855,45 @@ describe('a page of its own', () => {
     assert.ok(onTab.some((i) => /^Rename/.test(label(i))), `the tab's own menu: ${onTab.map(label).join(' | ')}`);
   });
 
+  it('empty pages and standalone grids own touch handling until disposal, without taking host-page touches', (t) => {
+    const doc = dom.window.document;
+    const outside = doc.createElement('button');
+    const second = doc.createElement('div');
+    doc.body.append(outside, second);
+    newPage();
+    const pageRoot = page.root;
+    const cube = new CubeApp(second, SNAPSHOT, { engine, planner: new StubPlanner() });
+    const targets: EventTarget[] = [];
+    doc.addEventListener('contextmenu', (event) => { if (event.target) targets.push(event.target); }, true);
+    t.mock.timers.enable({ apis: ['setTimeout'] });
+    const hold = (element: HTMLElement): void => {
+      element.dispatchEvent(new dom.window.PointerEvent('pointerdown', {
+        bubbles: true, pointerType: 'touch', pointerId: 1, isPrimary: true,
+      }));
+      t.mock.timers.tick(HOLD_MS);
+    };
+    try {
+      hold(outside);
+      assert.deepEqual(targets, [], 'mounted DataCube leaves host touches alone');
+      hold(pageRoot);
+      assert.deepEqual(targets, [pageRoot], 'an empty page owns its root');
+      page.dispose();
+      // Reusing its former DOM as host content must not bring its touch handler back.
+      doc.body.append(pageRoot);
+      hold(pageRoot);
+      assert.deepEqual(targets, [pageRoot]);
+      hold(second);
+      assert.deepEqual(targets, [pageRoot, second], 'the other mounted grid still owns its root');
+      cube.dispose();
+      hold(second);
+      hold(outside);
+      assert.deepEqual(targets, [pageRoot, second], 'the last instance gone: all former and host roots are untouched');
+    } finally {
+      t.mock.timers.reset();
+      cube.dispose();
+    }
+  });
+
   it('a second sheet: +, shown and empty; a grid moved onto it from its menu; its chart, on the first, follows it', async () => {
     newPage();
     const a = page.addGrid(over('trades.csv'));

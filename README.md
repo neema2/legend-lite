@@ -4,6 +4,10 @@ A **clean-sheet implementation** of the [FINOS Legend](https://legend.finos.org/
 
 **Start here:** [`AGENTS.md`](AGENTS.md) for the invariants, [`core/README.md`](core/README.md) for the per-package spec, [`docs/GATES.md`](docs/GATES.md) for what must be green.
 
+**Embed DataCube in another web application:** [`datacube/npm/README.md`](datacube/npm/README.md) documents the
+browser-only library, its npm package build, static runtime assets and public API. Planning and query execution
+stay in the user's browser; no separate Legend backend is required.
+
 ---
 
 ## Architecture

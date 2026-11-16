@@ -27,6 +27,7 @@ load("@npm//datacube:typescript/package_json.bzl", typescript = "bin")
 load("//tools/postgres:defs.bzl", "EMBEDDED_POSTGRES_COMPATIBLE")
 load("//tools/guards:defs.bzl", "guards_package")
 load(":test_imports.bzl", "TEST_IMPORTS")
+load("npm/tools.bzl", "npm_archive", "npm_test_tools")
 
 npm_link_all_packages(name = "node_modules")
 
@@ -2688,6 +2689,7 @@ test_suite(
     name = "browser",
     tests = [
         ":browser_guard_test",
+        ":npm_consumer_test",
         ":verify_features_test",
         ":verify_remote_test",
         ":verify_smoke_test",
@@ -2780,6 +2782,154 @@ build_test(
         ":serve",
         ":verify_app",
     ],
+)
+
+# THE NPM LIBRARY (2026-11-15, browser-only DataCube packaging): one import initializes the existing app, compiler
+# and DuckDB in the user's browser. These are package targets, beside the compile-only //:web tier. The public
+# facade's declarations are emitted from its checked source; consumers receive no repository-relative imports.
+esbuild_bundle(
+    name = "npm_bundle",
+    srcs = [":src", "npm/styles.css"] + glob(["src/**/*.css"]),
+    outs = ["npm-build/browser.js", "npm-build/styles.css"],
+    out_dirs = ["npm-build/chunks"],
+    args = [
+        "browser=src/browser.ts",
+        "styles=npm/styles.css",
+        "--bundle",
+        "--format=esm",
+        "--platform=browser",
+        "--target=es2022",
+        "--splitting",
+        "--minify",
+        "--keep-names",
+        "--log-level=warning",
+        "--outdir=npm-build",
+        "--chunk-names=chunks/[name]-[hash]",
+    ],
+)
+
+typescript.tsc(
+    name = "npm_declarations",
+    srcs = [
+        ":src",
+        "npm/tsconfig.json",
+        ":node_modules/@types/node",
+        # NodeNext reads this library's package.json too (its split layer targets contain only their own sources).
+        "//engine-client:engine_client",
+    ] + glob(["src/**/*.d.ts"]),
+    args = [
+        "--project", package_name() + "/npm/tsconfig.json",
+        "--outDir", package_name() + "/npm-types",
+        "--rootDir", ".",
+        "--pretty", "false",
+    ],
+    out_dirs = ["npm-types"],
+)
+
+# Only the runtimes the browser-only library uses: the planner, DuckDB and the saved stores' rules. No native
+# server, remote configuration, sample data, or demo page is part of the npm distribution.
+copy_to_directory(
+    name = "npm_assets",
+    srcs = [
+        "//engine-client:planner_worker",
+        "//engine-client:node_modules/@duckdb/duckdb-wasm",
+        "//engine-client:duckdb_extensions",
+        "//query-store:page",
+        "//wasm:planner",
+    ],
+    out = "npm-assets",
+    include_srcs_patterns = [
+        "engine-client/planner-worker.js",
+        "engine-client/duckdb-extensions/**",
+        "**/dist/duckdb-eh.wasm",
+        "**/dist/duckdb-browser-eh.worker.js",
+        "wasm/planner/classes.wasm",
+        "wasm/planner/wasm-gc-module-runtime.js",
+        "query-store/page/classes.wasm",
+        "query-store/page/wasm-gc-module-runtime.js",
+    ],
+    replace_prefixes = {
+        "engine-client/planner-worker.js": "planner-worker.js",
+        "engine-client/duckdb-extensions/": "duckdb-extensions/",
+        "**/dist/": "",
+        "wasm/planner/": "",
+        "query-store/page/": "queries/",
+    },
+)
+
+copy_to_directory(
+    name = "npm_licenses",
+    srcs = ["//:LICENSE", "//:NOTICE", "//:THIRD_PARTY_NOTICES.md"],
+    out = "npm-licenses",
+)
+
+js_binary(
+    name = "npm_package_tool",
+    entry_point = "npm/make-package.mjs",
+)
+
+js_run_binary(
+    name = "npm_package",
+    srcs = [
+        ":npm_bundle",
+        ":npm_declarations",
+        ":npm_assets",
+        ":npm_licenses",
+        "npm/package.json",
+        "npm/README.md",
+        "npm/styles.d.ts",
+        "npm/copy-assets.mjs",
+    ],
+    tool = ":npm_package_tool",
+    args = [package_name(), package_name() + "/npm-package"],
+    out_dirs = ["npm-package"],
+)
+
+npm_archive(
+    name = "npm_archive",
+    package = ":npm_package",
+    out = "legend-lite-datacube.tgz",
+)
+
+# The consumer test installs with the same pinned npm that produced the archive, offline, outside the checkout.
+npm_test_tools(name = "npm_consumer_tools", testonly = True)
+
+filegroup(
+    name = "npm_consumer_fixtures",
+    srcs = glob(["test/npm-consumer/*"]),
+    testonly = True,
+)
+
+copy_file(
+    name = "npm_consumer_esbuild",
+    src = "//tools/js:esbuild",
+    out = "npm-consumer-esbuild.exe",
+    is_executable = True,
+    testonly = True,
+)
+
+browser_test(
+    name = "npm_consumer_test",
+    entry_point = "test/npm-consumer.test.mjs",
+    size = "large",
+    tags = ["ci-linux-only"],
+    data = [
+        "demo/harness.mjs",
+        "demo/static-files.ts",
+        ":npm_archive",
+        ":npm_consumer_tools",
+        ":npm_consumer_fixtures",
+        ":node_modules/playwright",
+        ":node_modules/typescript",
+        ":npm_consumer_esbuild",
+    ],
+    env = {
+        "CONSUMER_FIXTURES": "$(rlocationpaths :npm_consumer_fixtures)",
+        "CONSUMER_TOOLS": "$(rlocationpath :npm_consumer_tools)",
+        "NPM_ARCHIVE": "$(rlocationpath :npm_archive)",
+        "CONSUMER_TYPESCRIPT": "$(rlocationpaths :node_modules/typescript)",
+        "CONSUMER_ESBUILD": "$(rlocationpath :npm_consumer_esbuild)",
+    },
 )
 
 guards_package()

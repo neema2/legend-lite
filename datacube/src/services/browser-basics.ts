@@ -25,9 +25,9 @@ async function writeClipboard(text: string): Promise<void> {
 const SETTINGS_KEY = 'dataCube.settings';
 
 /** The settings this browser kept, or none. */
-function readSettings(): Record<string, unknown> | undefined {
+function readSettings(key: string): Record<string, unknown> | undefined {
   try {
-    const raw = window.localStorage.getItem(SETTINGS_KEY);
+    const raw = window.localStorage.getItem(key);
     const parsed: unknown = raw === null ? undefined : JSON.parse(raw);
     return parsed !== null && typeof parsed === 'object' ? (parsed as Record<string, unknown>) : undefined;
   } catch {
@@ -35,18 +35,20 @@ function readSettings(): Record<string, unknown> | undefined {
   }
 }
 
-function writeSettings(values: Record<string, unknown>): void {
+function writeSettings(key: string, values: Record<string, unknown>): void {
   try {
-    window.localStorage.setItem(SETTINGS_KEY, JSON.stringify(values));
+    window.localStorage.setItem(key, JSON.stringify(values));
   } catch {
     // storage refused (private window, quota): the settings hold for this visit
   }
 }
 
 /** The browser's own things every host has; a host adds its address and its tab's title where it has them. */
-export const browserBasics: Pick<BrowserService, 'download' | 'writeClipboard' | 'readSettings' | 'writeSettings'> = {
-  download, writeClipboard, readSettings, writeSettings,
-};
+export function browserBasicsFor(settingsKey: string): Pick<BrowserService, 'download' | 'writeClipboard' | 'readSettings' | 'writeSettings'> {
+  return { download, writeClipboard, readSettings: () => readSettings(settingsKey), writeSettings: (values) => writeSettings(settingsKey, values) };
+}
+
+export const browserBasics = browserBasicsFor(SETTINGS_KEY);
 
 /** This tab's title, as the page sets it (its name, whether it changed). */
 export const tabTitle = (): NonNullable<BrowserService['title']> => ({
