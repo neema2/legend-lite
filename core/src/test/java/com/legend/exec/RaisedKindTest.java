@@ -80,6 +80,27 @@ class RaisedKindTest {
         assertEquals("LG#1", users.getMessage());
     }
 
+    /** A failure the database raised itself, no envelope of lite's, is DATABASE_ERROR: its words the database's,
+     *  verbatim, and its SQLSTATE; a connection lost (SQLSTATE class 08), or a session that did not open, is
+     *  CONNECTION_ERROR (phase D's Phase 2, item 4, 2026-11-16). */
+    @Test
+    void theDatabasesOwnFailureIsItsKindWithItsOwnWords() {
+        var own = RaisedErrors.dataErrorOf(RaisedErrors.unwrapped(
+                new java.sql.SQLException("Conversion Error: no such cast", "22018"), SITES));
+        assertEquals(ErrorKind.DATABASE_ERROR, own.kind());
+        assertEquals("Conversion Error: no such cast", own.getMessage());
+        assertEquals("Conversion Error: no such cast", own.databaseMessage());
+        assertEquals("22018", own.sqlState());
+        var lost = RaisedErrors.dataErrorOf(new java.sql.SQLException("connection reset", "08006"));
+        assertEquals(ErrorKind.CONNECTION_ERROR, lost.kind());
+        var unopened = RaisedErrors.connectionError(new java.sql.SQLException("no such database", "XX000"));
+        assertEquals(ErrorKind.CONNECTION_ERROR, unopened.kind());
+        assertEquals("no such database", unopened.databaseMessage());
+        var users = RaisedErrors.dataErrorOf(RaisedErrors.unwrapped(failure("my own words"), SITES));
+        assertNull(users.kind(), "a user's fail is lite's envelope, never the database's");
+        assertNull(users.databaseMessage());
+    }
+
     @Test
     void anEdgeSentenceOrAUsersMessageIsAsWritten() {
         var edge = assertInstanceOf(RaisedErrors.Raised.class,

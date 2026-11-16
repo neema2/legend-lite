@@ -12,7 +12,7 @@ import { DuckDbEngine, type ArrowishConnection } from '../src/duckdb.ts';
 import { answer, type PlannerModule } from '../src/legend/planner-answer.ts';
 import { ConnectionSettings, establish, expandKeyed, inLoadsTransaction, PlanRefusal, runAuthored, runLoad, runPlan, targetKey, transacted, type PlanSession } from '../src/plan-runner.ts';
 import { currentRun, frameKept, inRun } from '../src/run-frame.ts';
-import { failure, PlanRaise } from '../src/raised.ts';
+import { DatabaseError, failure, PlanRaise } from '../src/raised.ts';
 import { declareStatementSites, type Site } from '../src/declared-raises.ts';
 import { heldTexts, redactHeld } from '../src/connection-settings.ts';
 import { PlanParamsRefusal, planParams, statementParams } from '../src/plan-params.ts';
@@ -972,7 +972,7 @@ describe('a raise, worded', () => {
         continue;
       }
       assert.equal(e.message, c.words, c.name);
-      assert.equal(e instanceof PlanRaise ? e.kind : undefined, c.kind, c.name);
+      assert.equal(e instanceof PlanRaise || e instanceof DatabaseError ? e.kind : undefined, c.kind, c.name);
       assert.equal(e instanceof PlanRaise ? e.where : undefined, c.where, c.name);
     }
   });

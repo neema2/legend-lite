@@ -30,6 +30,21 @@ export class PlanRaise extends QueryError {
   }
 }
 
+/** A failure the database raised itself, with no envelope of lite's (phase D's Phase 2, item 4, 2026-11-16; the user's
+ *  ruling: "I'm good with database only giving the database message too"): kind DATABASE_ERROR, its message the
+ *  database's own, verbatim, carried as the database's (`databaseMessage`), as Java's runner tells it
+ *  (exec.RaisedErrors, error.DataError). A QueryError, as every failure of a send is. */
+export class DatabaseError extends QueryError {
+  readonly kind = 'DATABASE_ERROR';
+  readonly databaseMessage: string;
+
+  constructor(message: string, sql: string, options?: { cause?: unknown }) {
+    super(message, sql, options);
+    this.name = 'DatabaseError';
+    this.databaseMessage = message;
+  }
+}
+
 /** What a database's `message` holds of a raise, as Java's runner reads it (exec.RaisedErrors.unwrapped): the text
  *  between the first two sentinels, a source position before its separator dropped, a held quote restored; and the
  *  site's number where the text is a token. Undefined where it holds no raise. */
@@ -58,7 +73,8 @@ function siteNumbered(sites: readonly Site[] | undefined, n: number): Site | und
  */
 export function failure(message: string, sql: string, options: { cause?: unknown }): QueryError {
   const raise = raiseIn(message);
-  if (raise === undefined) return new QueryError(message, sql, options);
+  // no envelope: the database's own failure, its words verbatim
+  if (raise === undefined) return new DatabaseError(message, sql, options);
   if (raise.site === undefined) return new QueryError(raise.text, sql, options);
   // read through the sites the plans the tab read declare for this statement (declared-raises.ts), never a table of
   // its own

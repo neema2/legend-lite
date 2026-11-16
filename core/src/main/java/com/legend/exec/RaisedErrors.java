@@ -210,9 +210,17 @@ public final class RaisedErrors {
     public static com.legend.error.DataError dataError(String message, Throwable cause, List<ExecutionPlan.Site> sites) {
         String text = unwrap(message);
         ExecutionPlan.Site site = text == null ? null : siteOf(text, sites);
-        return site != null ? new com.legend.error.DataError(com.legend.error.ErrorKind.valueOf(site.kind().name()),
-                        site.where(), site.words(), cause)
-                : new com.legend.error.DataError(text == null ? String.valueOf(message) : text, cause);
+        if (site != null) {
+            return new com.legend.error.DataError(com.legend.error.ErrorKind.valueOf(site.kind().name()), site.where(),
+                    site.words(), cause);
+        }
+        if (text != null && !text.equals(message)) {
+            // lite's envelope, no site: a user's fail, or the edge's sentence written in SQL (the interim)
+            return new com.legend.error.DataError(text, cause);
+        }
+        // no envelope: the database's own failure, its message verbatim (a document store's: no SQLSTATE)
+        String own = String.valueOf(message);
+        return com.legend.error.DataError.database(com.legend.error.ErrorKind.DATABASE_ERROR, null, own, own, cause);
     }
 
     /** {@code un} as the platform's typed error: a site's raise by its kind and its planned words (phase D's Phase 2:
@@ -223,7 +231,30 @@ public final class RaisedErrors {
             return new com.legend.error.DataError(com.legend.error.ErrorKind.valueOf(site.kind().name()), site.where(),
                     site.words(), un);
         }
-        return new com.legend.error.DataError(String.valueOf(un.getMessage()), un);
+        if (un instanceof Raised) {
+            // lite's envelope, no site: a user's fail (its own text), or the edge's sentence in SQL (the interim) --
+            // never the database's (phase D's Phase 2, item 4)
+            return new com.legend.error.DataError(String.valueOf(un.getMessage()), un);
+        }
+        // no envelope: the database's own failure (phase D's Phase 2, item 4, 2026-11-16), its message verbatim and its
+        // SQLSTATE; a connection lost (SQLSTATE class 08) a connection's failure
+        String own = String.valueOf(un.getMessage());
+        return com.legend.error.DataError.database(lost(un) ? com.legend.error.ErrorKind.CONNECTION_ERROR
+                : com.legend.error.ErrorKind.DATABASE_ERROR, un.getSQLState(), own, own, un);
+    }
+
+    /** Whether {@code e} is a connection's failure: the SQLSTATE class 08 (connection exception) the standard names. */
+    private static boolean lost(java.sql.SQLException e) {
+        String state = e.getSQLState();
+        return state != null && state.startsWith("08");
+    }
+
+    /** A session's open or close that failed (phase D's Phase 2, item 4, 2026-11-16): {@code CONNECTION_ERROR}, the
+     *  database's own message verbatim and its SQLSTATE; no statement ran, so no raise can be in it. */
+    static com.legend.error.DataError connectionError(java.sql.SQLException e) {
+        String own = String.valueOf(e.getMessage());
+        return com.legend.error.DataError.database(com.legend.error.ErrorKind.CONNECTION_ERROR, e.getSQLState(), own, own,
+                e);
     }
 
     /** A failed statement's error, its sites the plan's for it, with the raise the session holds read back where the
