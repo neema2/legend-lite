@@ -10,13 +10,15 @@ quickly to run PCT") and the total-wall orchestrator's answers of the same day (
 
 ## 0. In one paragraph
 
-The planner writes everything a Deephaven server is sent: each query as one batch of operations, sent exactly as
-written, with a few marked slots for the numbers only a session knows (the result's export id, a base's ticket); the
-result's columns with their types; and each grid's base as a step of its own, made once per session and skipped while
-the session holds it (a temp table, live on Deephaven). Each environment has a small Deephaven driver that fills those
-slots, sends, checks the answer against the plan's types and reads the rows: TypeScript in the browser for v0, Java's
-exec next (for PCT), Python later -- the way DuckDB already runs: one plan format, a runner per environment. No driver
-asks the planner anything, and none can: it is given no planner.
+The planner writes everything a Deephaven server is sent, as the exact bytes the server reads -- as a SQL dialect
+writes the exact text a database reads: each query as one batch of operations, with a few listed slots for the
+numbers only a session knows (export ids, four bytes each, so filling one moves nothing else); its columns with the
+three types every plan carries, the database's now saying whether it may hold a null; and each grid's base as a step
+of its own, made once per session and skipped while the session holds it (a temp table, live on Deephaven). Each
+environment has a small Deephaven driver that fills the slots, sends, checks the answer against the plan's types and
+reads the rows: TypeScript in the browser for v0, Java's exec right after (for PCT), Python later -- the way DuckDB
+already runs: one plan format, a runner per environment. No driver asks the planner anything, and none can: it is
+given no planner. No driver encodes a query either: only the planner knows Deephaven's message layouts.
 
 ## 1. Why: what the run asks the planner today, measured
 
@@ -76,39 +78,29 @@ Nothing else: no hashing a plan, no rewriting one, no choosing an operation, no 
 
 ## 3. The plan's Deephaven contract (what the planner writes)
 
-### 3.1 A query: one batch, sent as written
+### 3.1 A query: one batch, the bytes the server reads
 
-A Deephaven statement in a plan is today a batch of operations in Deephaven's protocol's JSON form (proto3 JSON of
-`BatchTableRequest`, written by `DeephavenBatch`) plus `declared`. It gains three fields and a rule:
+Today a Deephaven statement in a plan is a batch of operations in the protocol's JSON form (proto3 JSON of
+`BatchTableRequest`, written by `DeephavenBatch`), which the planner's door turns into bytes during the run. The plan
+carries the bytes instead, as a SQL plan carries the exact text a database reads:
 
-- **`ops`**, as today. Inside the batch an operation reads an earlier one by `batchOffset`, and a server's table by
-  its scope ticket (`s/NAME`, the deployment's tables): fixed text.
-- **`slots`** (new): every place the driver writes a number of its session's, listed: the result (the last
-  operation's `resultId`, the export id the driver allocates -- exactly what `DeephavenWire.batch` adds today), and
-  each reference to a grid's base (§3.2), which holds a marker ticket in the text, `legend/base/<identity>`, so the
-  text stays valid. Precedent: the dialect's parameters marker, `legend/parameters` (`DeephavenJson.PARAMETERS_TICKET`),
-  which a sender replaces. The driver fills listed slots only; it never scans text for markers.
-- **`result`** (new): each result column's name, the Java type the server must hold it as (`deephaven:type`) and
-  whether it may hold a null. The dialect already writes this for a store's columns (`DeephavenBatch.javaTypeOf`);
-  computed columns are new (measured first: M2).
-- **`identity`** (new): the statement's digest, SHA-256 of its text with its slots as markers, made by the planner.
-  It names the result for reuse (§3.3) where `keys` hashed the plan at run.
+- **`request`**: the `BatchTableRequest`'s bytes, rendered by the planner -- the dialect writes the operations as
+  today, and the planner's encoder (`ProtoWire` over the message table, §4.4) writes them in the protocol's binary
+  form. Inside the batch an operation reads an earlier one by `batchOffset`, and a server's table by its scope ticket
+  (`s/NAME`, the deployment's tables): fixed bytes. Only the result is exported.
+- **`slots`**: the byte positions where the driver writes its session's numbers -- the result's export id (the last
+  operation's `resultId`) and each grid base's export id (§3.2). An export ticket is `e` and a four-byte number
+  (`DeephavenWire.exportTicket`), so a slot is four bytes at a fixed place, and filling it changes no length the
+  encoder wrote. That is binding a value, as a SQL plan's `?` is bound; the driver fills the listed slots and nothing
+  else. A run-time parameter (none is sent yet: DH5) is uploaded as a one-row table and read by a ticket, so it is a
+  slot like the others.
+- **`columns`**: the plan's columns, as every plan has them, with their three types (§3.4).
+- **`declared`**: the store tables the batch reads, as their store declares them (DH16, unchanged).
+- **`identity`**: the statement's digest, SHA-256 of its bytes with its slots zeroed, made by the planner. It names the
+  result for reuse (§3.3), where `keys` hashed the plan during the run.
 
-Example, schematic (field names shortened; a ticket is base64 bytes in proto3 JSON, shown as text):
-
-```json
-{ "identity": "9c1e...",
-  "ops": [
-    { "aggregate": { "sourceId": { "ticket": "legend/base/3f2a..." }, "groupBy": ["region", "ccy"], "...": "..." } },
-    { "sort":      { "sourceId": { "batchOffset": 0 }, "...": "..." } } ],
-  "slots": [ { "op": 0, "reference": "sourceId", "base": "3f2a..." }, { "op": 1, "result": true } ],
-  "declared": [],
-  "result": [ { "name": "region", "type": "java.lang.String", "nullable": true },
-              { "name": "mv", "type": "double", "nullable": true } ] }
-```
-
-The driver sends these two operations, the base's export ticket in the first slot and the result's id in the second,
-and nothing else differs from the text.
+The readable form, today's JSON, stays the planner's: a test or an error message asks the planner for it, never the
+run.
 
 ### 3.2 A grid's base: a session table
 
@@ -117,8 +109,9 @@ grid sends and every result it follows) becomes a plan step of its own:
 
 - **What the planner writes:** the base's identity; its batch already in stored form (`select` and `update` where the
   query is `view` and `updateView`, so the server computes each column once a change and keeps it -- the rewrite
-  `DeephavenWire.stored` does at run today, done by the dialect); and its columns, each with its Java type and whether
-  it may be null (replacing the `nullable` question and the server-typed declaration of §1, point 3).
+  `DeephavenWire.stored` does at run today, done by the dialect), as bytes with its result's slot (§3.1); and its
+  columns with their three types (§3.4), replacing the `nullable` question and the server-typed declaration of §1,
+  point 3.
 - **What the driver does:** if its session holds the identity, nothing is sent; else the batch is sent, its columns
   checked against the plan's, and the identity's export remembered. It is kept until released (no grid reads it) or
   the session ends; after a reconnect the same step is run again -- nothing is planned again.
@@ -145,9 +138,26 @@ grid sends and every result it follows) becomes a plan step of its own:
 - **Gone: reuse of single operations above the base** (today a regroup sends only the operations where it parts from
   an earlier query). It saved little once bases came -- above a base a query is a few cheap operations -- and it is
   the part that rewrites the plan (§1, point 2). M1 measures what it costs to drop.
-- **If M1 shows it is needed,** the form that stays within the rules: each operation its own planned step with its own
-  identity, skipped when held, its references bound -- the same two rules (skip, bind) applied per operation, at the
-  price of larger plans. Not built unless M1 says so.
+- **One design, nothing held in reserve.** Finer reuse costs the server too: every table a session keeps alive keeps
+  ticking (`deephaven.ts`: "an idle table still ticks on the server, so they are not free"), so keeping each
+  operation's table, as today, keeps many more live tables than a base and the results read from it. M1 confirms the
+  gestures stay within their budgets; a gesture that misses is a defect to find, never a reason to bring
+  per-operation reuse back or to raise a budget.
+
+### 3.4 The three types, and the two facts the database's lacks
+
+Every plan column already carries three types (`ExecutionPlan.Column`): its Pure type and multiplicity; its store's
+declared type, when it is a store column read through; and its database type (`slot`, the type the database answers
+with). Deephaven needs nothing new in kind. The database type lacks two facts:
+
+- **Whether the database can return a null there.** The multiplicity is the model's promise, as upstream types it: a
+  `[1]` property read across a join that finds no row comes back null all the same. Measured on the branch during the
+  merge of `main`: the plan's types gave the wrong answer for 227 of the 315 base columns the lanes make, and the
+  lowering's own flag (`OutputCol.nullable`) the right one for all 315. The lowering knows it; the plan does not carry
+  it, which is why the run asks the planner `nullable` today.
+- **The database type as the database spells it.** `slot` is lite's neutral name (`BIGINT`); Deephaven answers in Java
+  types (`long`), and the mapping is the dialect's (`DeephavenBatch.javaTypeOf`), so the dialect writes it into the
+  plan and no driver maps a type.
 
 ## 4. One driver per runtime
 
@@ -160,33 +170,36 @@ Every driver does §2's list and nothing else, from the same plan.
   as Java's session statements take a `PlannedSql` and no `String`.
 - **What it keeps:** today's transport in `engine-client/src/deephaven.ts` (gRPC-web over the page's `fetch`, sign-in,
   token refresh, the session's keep), rows by DoGet read with apache-arrow, the live reader (`deephaven-live.ts`).
-- **What it gains:** the encoding and decoding the WASM planner does for it today -- the protocol writer
-  (`ProtoWire`), the answer's reader and the DH16 check (`DeephavenWire.made`), the schema reader (`ArrowSchema`) --
-  written in TypeScript. That is about 860 lines of Java (`ProtoWire` 353, `DeephavenWire` 483 less its planning parts,
-  `ArrowSchema` 130), over the message table `DeephavenMessages` (369 lines, a table of fields; §4.4).
+- **What it gains, and what it does not:** it fills the slots and frames the request for gRPC-web; it writes the
+  session's own few requests -- release an export, publish one under a shared name, the ticket a row read names: fixed
+  shapes, a ticket each; and it reads the batch's answer -- each export's success, error and schema -- and checks the
+  schema against the plan's columns (DH16), the Arrow schema read with apache-arrow. It encodes no query: the message
+  table stays the planner's (§4.4).
 - **The run frame:** every Deephaven send inside `inRun`, a base's included.
 
 ### 4.2 Java (next, for PCT)
 
-- `com.legend.deephaven` (`//core:deephaven_wire`, planner-free today, reached only by the WASM planner's door) moves
-  into exec as Java's Deephaven driver; its planning parts (`keys`, `stored`) move into the planner as §3 says.
+- `com.legend.deephaven` (`//core:deephaven_wire`, planner-free today, reached only by the WASM planner's door) splits:
+  the encoder (`ProtoWire`, `DeephavenMessages`) goes where the plan's bytes are made, the planner's side; the session
+  part (its requests, the answer's reader, `ArrowSchema`) moves into exec as Java's Deephaven driver. The planning
+  parts (`keys`, `stored`, `send`'s cut) go as §3 says.
 - Transport: gRPC-web, as the browser speaks it, over the JDK's `HttpClient` -- no gRPC library (to verify: M4).
 - Then a Deephaven session in exec beside the JDBC ones, registered with the acts it performs as the JDBC census
   registers its classes (opens, sends, decodes, closes), and the PCT lane on a Deephaven runtime.
 
 ### 4.3 Python (later: the path only)
 
-The same contract. Python's protobuf library reads proto3 JSON directly, so a Python driver can send the plan's
-batch through Deephaven's Python client's generated messages without an encoder of its own (to verify by reading the
-pinned client before it is promised).
+The same contract, and no encoder of its own either: the slots, the session's few requests and the answer's reader.
+Its transport (gRPC-web, or Deephaven's own Python client) is chosen when it is built.
 
 ### 4.4 Keeping the drivers identical
 
-- **One message table:** `DeephavenMessages` (each message's fields, numbers and types, checked against the pinned
-  server's `.proto` by `DeephavenMessagesTest`) becomes one data file both encoders read, so they cannot drift on a
-  field.
+- **One message table, the planner's alone:** `DeephavenMessages` -- each message's fields, their numbers and types,
+  only the subset lite writes, checked against the pinned server's `.proto` by `DeephavenMessagesTest` -- is read by
+  the planner's encoder and by nothing else, so there is one encoder and nothing to drift. A driver writes only the
+  session's fixed requests.
 - **Shared conformance fixtures:** recorded cases of a plan, a session's handles and the server's answers, with the
-  request bytes and the decoded result each driver must produce. Recorded from the pinned server by a lane, rerecorded
+  bytes each driver must send and the result it must read. Recorded from the pinned server by a lane, rerecorded
   when it moves; run by every driver's tests -- as Java's and TypeScript's DuckDB runners are held to one plan.
 
 ## 5. The door after
@@ -200,7 +213,7 @@ route `/api/lite/v1/grammar/grammarToJson/model` are registered the same way.
 ## 6. The witnesses
 
 - **What is sent is the plan's:** a test captures every request a driver sends and compares it with the plan's
-  batch, only the listed slots differing -- Deephaven's twin of `MongoDbPlanTest.theCommandSentIsThePlans_itsParametersBoundByTheLet`.
+  `request`, byte for byte, only the listed slots differing -- Deephaven's twin of `MongoDbPlanTest.theCommandSentIsThePlans_itsParametersBoundByTheLet`.
   In TypeScript against a capturing fake server, and in Java when its driver lands.
 - **No planner in a run:** the driver takes no planner (§4.1); the door's run-side operations are deleted, so a call
   cannot compile; and a Node test runs a cube's gestures through the driver under the run frame (`frameKept` true),
@@ -213,10 +226,10 @@ route `/api/lite/v1/grammar/grammarToJson/model` are registered the same way.
 
 - **M1, reuse:** bases and whole results only, against today's per-operation reuse, on the cube lane's gestures (the
   regroup and the filter within 250 ms, closing a group within 150 ms with nothing sent) and the desk lane's opening
-  and warm times (`market.mjs`). A budget missed means §3.3's per-operation steps, never a raised budget.
+  and warm times (`market.mjs`). A missed budget is a defect to find (§3.3), never a raised budget.
 - **M2, the base's types:** for every base and result the lanes make, the server's held Java type equals the type the
   plan writes. A difference is a dialect fix (DH16 strict), found before the plan carries the type.
-- **M3, size:** the TypeScript driver's bytes against what the WASM planner sheds, under the bundle budgets
+- **M3, size:** the TypeScript driver is small now (no encoder); measured under the bundle budgets anyway
   (`bundle-budget.test.ts`) and the Deephaven chunk.
 - **M4, Java's transport:** the JDK's `HttpClient` speaking gRPC-web to the pinned server (a probe) before the Java
   driver is promised.
@@ -224,7 +237,8 @@ route `/api/lite/v1/grammar/grammarToJson/model` are registered the same way.
 ## 8. The orchestrator's answers this follows (2026-11-16, pasted by the user)
 
 1. Encode on the run side, from plan data only, type-checked against the plan's types, with a once-per-session
-   establishment; never keep the planner's door open to the run.
+   establishment; never keep the planner's door open to the run. This design goes one step further: the run side
+   encodes no query at all (§3.1), only the session's few requests -- to be told to the orchestrator.
 2. Deephaven lands before DataCube's single API (`claude/datacube-engine`).
 3. Lean SQL changes shared types: `DeephavenBatch` gives arms to the new `SqlExpr` variants, `SqlSource.RowValues` and
    `readsRowLets` when E lands; the WITH reuse is not extended.
@@ -240,21 +254,21 @@ route `/api/lite/v1/grammar/grammarToJson/model` are registered the same way.
 2. **Merge `main`** (`4dfbb5b7`: C5-P, C5-J, C5-T; 85 commits, about 18 conflicts), placing the Deephaven TypeScript
    in C5-T's layers.
 3. **M1 and M2** measured on the branch.
-4. **The planner:** the statement's slots, result types and identity; the base step; the planning parts of
-   `DeephavenWire` (`keys`, `stored`) moved in; Java tests.
+4. **The planner:** the statement as bytes, its slots and identity; the columns' two facts (§3.4); the base step; the
+   encoder and the planning parts of `DeephavenWire` (`keys`, `stored`) moved to the planner's side; Java tests.
 5. **The browser's driver** in a run layer; the door narrowed and closed; DataCube's bases declared from the plan; the
    witnesses; every Deephaven lane green.
-6. **The Java driver**, re-homed into exec, with the shared fixtures (in v0's PR or the next: question Q1).
+6. **The Java driver** -- the session part re-homed into exec, with the shared fixtures -- in the PR right after v0's
+   (Q1, ruled).
 7. **The surfaces and layers registered, every lane run,** and the landing as §8, answer 6 says (the user's word for
    the PR).
 
-## 10. Questions for the user
+## 10. Rulings and questions
 
-- **Q1.** The Java driver: in v0's PR, or the PR right after it? Recommended: right after. v0 stays browser-only as
-  ruled, and the Java code moves into exec in v0 as the reference the shared fixtures are checked against, so it does
-  not sit unused.
-- **Q2.** One message table as a data file both encoders read (recommended), or a table in each language held equal
-  by the fixtures alone?
-- **Q3.** A base's column types written by the planner and checked against the server (recommended, §3.2), confirmed.
-- **Q4.** If M1 misses a budget: per-operation steps (§3.3, recommended), never a raised budget -- confirmed.
-- **Q5.** Python: the path written down (§4.3), no code now -- confirmed.
+- **Q1, ruled 2026-11-16:** the Java driver in the PR right after v0's ("yes right after").
+- **Q2, the user asked what the message table is, and the clean-sheet design for it:** answered by §3.1 and §4.4 --
+  the planner writes the exact bytes, so the table is the planner's alone and no runtime encodes. To confirm.
+- **Q3, the user asked whether every plan does not already carry the three types (Pure, store, database):** it does
+  (§3.4); the database type lacks two facts, its nullability and its own spelling. To confirm.
+- **Q4, the user asked why a fallback:** there is none; one reuse design, M1 a check on it (§3.3). To confirm.
+- **Q5, ruled 2026-11-16:** Python later ("yes python later").
