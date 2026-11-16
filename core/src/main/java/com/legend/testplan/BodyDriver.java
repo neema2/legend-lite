@@ -79,9 +79,8 @@ public final class BodyDriver {
                     // the generator's plan names the engine's test connection, as every engine test of it does (its
                     // runtime argument is not read)
                     tg -> com.legend.testdatagen.TestDataGenerationNatives.planTextResult(tg, ctx,
-                            options.style().engineText(com.legend.planner.EngineText.ENGINE_TEST_DATABASE),
-                            "TestDatabaseConnection(type = \"" + com.legend.planner.EngineText.ENGINE_TEST_DATABASE.name()
-                                    + "\")")).withOptions(options.options()),
+                            options.style().engineTestText(), options.style().engineTestConnection()))
+                            .withOptions(options.options()),
                     JudgePlans.target(com.legend.Compiler.executesOn(ctx, runtimeFqn), dialect),
                     options, null, null, null, null,
                     new com.legend.testplan.VerdictIds(), new EngineTextAppeals());
@@ -851,7 +850,7 @@ public final class BodyDriver {
         for (com.legend.compiler.spec.typed.TypedSpec statement : typed.body()) {
             if (bindsAPlanHandle(statement)) {
                 // the engine's own test database, whose plan text the edge prints (an engine test's plans name it)
-                options.style().enginePlanText(com.legend.planner.EngineText.ENGINE_TEST_DATABASE, false, null);
+                options.style().engineTestPlanText();
                 return;
             }
         }

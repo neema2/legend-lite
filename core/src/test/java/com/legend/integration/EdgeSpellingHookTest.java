@@ -93,6 +93,21 @@ class EdgeSpellingHookTest {
         public String graphKeyString(String value) {
             return PlanStyle.PRODUCT.graphKeyString(value);
         }
+
+        @Override
+        public com.legend.sql.dialect.EngineTextDialect engineTestText() {
+            return PlanStyle.PRODUCT.engineTestText();
+        }
+
+        @Override
+        public com.legend.sql.dialect.EngineTextDialect engineTestPlanText() {
+            return PlanStyle.PRODUCT.engineTestPlanText();
+        }
+
+        @Override
+        public String engineTestConnection() {
+            return PlanStyle.PRODUCT.engineTestConnection();
+        }
     };
 
     private static String sql(ExecutionPlan plan) {

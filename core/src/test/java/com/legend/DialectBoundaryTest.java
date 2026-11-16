@@ -97,7 +97,12 @@ class DialectBoundaryTest {
             // every declared type now, and Sessions also named the in-memory SQLite and, on one line, MariaDB and
             // MySQL (raisedMessage's product check); 3 -> 0, row deleted (2026-10-16, the program's Phase 5): each is
             // its connector's (an in-process instance, a held raise), and Sessions asks Connectors
-            "EngineText.java", 1);          // ENGINE_TEST_DATABASE
+            "EngineText.java", 1,           // ENGINE_TEST_DATABASE
+            // PureText.java 0 -> 1 (2026-11-16, W9's judge half, E-Java): the edge's own name for legend-engine's test
+            // database, which the judges' engine-test methods on the one hook (PlanStyle.engineTestText and the plan
+            // text and connection beside it) read; the edge may not reach the planner's EngineText (the planner-entries
+            // rule), and the knowledge is the edge's -- W9 moves EngineText's copy there too
+            "PureText.java", 1);
 
     /** Lines with a switch arm on a declared database type ({@code case Snowflake ->}) outside the dialect package, by
      *  file (added 2026-10-13, the dialect program's Phase 0: the type census saw {@code DatabaseType.X} only, so a

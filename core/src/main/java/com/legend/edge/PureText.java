@@ -25,6 +25,10 @@ public final class PureText {
     private PureText() {
     }
 
+    /** The database legend-engine's test connections declare, so the one its golden texts are written for (the
+     *  judges' engine-test methods, W9's judge half, 2026-11-16). */
+    private static final DatabaseType ENGINE_TEST_DATABASE = DatabaseType.H2;
+
     /** The edge's dialect source: upstream's spellings over the product's dialect of each database. */
     public static final PlanStyle UPSTREAM = new PlanStyle() {
         @Override
@@ -41,6 +45,23 @@ public final class PureText {
         public com.legend.sql.dialect.EngineTextDialect enginePlanText(DatabaseType type, boolean quoteIdentifiers,
                 @com.legend.base.Nullable String timeZone) {
             return PureText.enginePlanText(type, quoteIdentifiers, timeZone);
+        }
+
+        @Override
+        public com.legend.sql.dialect.EngineTextDialect engineTestText() {
+            return PureText.engineText(ENGINE_TEST_DATABASE);
+        }
+
+        @Override
+        public com.legend.sql.dialect.EngineTextDialect engineTestPlanText() {
+            return PureText.enginePlanText(ENGINE_TEST_DATABASE, false, null);
+        }
+
+        /** The connection legend-engine's test plans name: its test database's. */
+        @Override
+        public String engineTestConnection() {
+            return "TestDatabaseConnection(type = \"" + ENGINE_TEST_DATABASE.name()
+                    + "\")";
         }
 
         /** legend-engine's key argument: the date's written text, {@code +0000} after a time (D1.2). */

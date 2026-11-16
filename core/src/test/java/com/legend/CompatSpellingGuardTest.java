@@ -119,7 +119,9 @@ class CompatSpellingGuardTest {
             // 4 -> 5 (2026-11-14, S310 RULED by the user, DE2 (a): an execute's activity SQL is the style's pick, the
             // edge's printer handed to the planner's Activity.engines)
             // reclassified STAYS -> HOOK 2026-11-15 (the D part 1 audit's nit): the edge's hook, not a product semantic
-            "database/PlanStyle.java | EngineTextDialect | 5 | HOOK",
+            // 5 -> 9 (2026-11-16, W9's judge half, E-Java: the judges' engine-text methods on the one hook, declared and refused by the product --
+            // engineTestText and engineTestPlanText -- so the test planner names no engine text of its own)
+            "database/PlanStyle.java | EngineTextDialect | 9 | HOOK",
             // (Missing external parameter(s): gone 2026-11-16, W7: error.MissingParameters, worded by the edge)
             // moved from testplan/ActivityComments.java (2026-11-12, C's J10 merged at 4ef947a: the execution id one per
             // execute(), minted by the door; the activity's comment now the program runner's): a move, the count the same
@@ -295,11 +297,10 @@ class CompatSpellingGuardTest {
             "testplan/AgreementAsserts.java | EngineText | 1 | D1.7",
             "testplan/AssertVerdicts.java | EngineText | 3 | D1.7",
             "testplan/BodyDriver.java | EnginePlans | 1 | D1.7",
-            // 2 -> 3 (2026-11-16, E-Java on D's hook fold a4ac096b5: a plan handle off the edge refused by name, asking
-            // the style for the engine test database's plan text before either judge plans the body)
-            "testplan/BodyDriver.java | EngineText | 3 | D1.7",
+            // (BodyDriver's EngineText row gone, 2026-11-16, W9's judge half: the style's engineTestText,
+            // engineTestPlanText and engineTestConnection name the engine test database, the planner none)
             "testplan/BodyDriver.java | withEngineText | 1 | D1.7",
-            "testplan/SeedSqlForms.java | EngineText | 2 | D1.7",
+            // (SeedSqlForms' EngineText row gone, 2026-11-16, W9's judge half: the style's engineTestText)
             "testplan/Seeds.java | EnginePlans | 1 | D1.7",
             "testplan/SqlTextVerdicts.java | EngineText | 1 | D1.7",
             "testplan/SqlTextVerdicts.java | withEngineText | 3 | D1.7",
