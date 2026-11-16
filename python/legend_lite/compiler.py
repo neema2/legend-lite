@@ -14,7 +14,7 @@ from typing import Any
 from . import _json
 from ._library import library
 from ._planned import PlannedSql, PlanText, all_from_plan, from_plan, plan_from_answer
-from ._raised import declare_raises
+from ._raised import declare_sites
 # the plan's records and its own data's readers, theirs since C5-P (2026-11-15): named here as they always were
 from ._plans import Column, Plan, PlanParamsRefused, host_rows, plan_params, statement_params  # noqa: F401
 
@@ -108,8 +108,8 @@ def read_plan(answer: str) -> Plan:
     it, as DataCube's planner reads it (lite-planner.ts ``readPlan``) -- the values its statement binds read once, here
     (``plan_params``)."""
     out = _json.loads(answer)
-    # the raises its statement can send, worded by the planner (_raised.declare_raises; phase D's option (D))
-    declare_raises(out.get('raises'), 'a text plan')
+    # the raises its statement can send, worded by the planner (_raised.declare_sites; phase D's option (D))
+    declare_sites(out, 'a text plan')
     return Plan(from_plan(out['sql']), _columns(out['type']), plan_params(out.get('plan')))
 
 
