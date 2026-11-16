@@ -57,13 +57,22 @@ public final class ServiceSectionGrammar
     }
 
     /** One element at the cursor: {@code Service} or
-     *  {@code ExecutionEnvironment}. */
+     *  {@code ExecutionEnvironment}. The engine's rules (4.145.0) are
+     *  {@code service: documentation? SERVICE ...} and {@code execEnvs:
+     *  EXEC_ENV ...}: a documentation literal belongs to a Service, and
+     *  before an ExecutionEnvironment it is the parse refusal at the
+     *  keyword (Studio's roundtrip cases, 2026-11-14). */
     public static Protocol.Element parseElement(TokenStreamCursor c) {
+        int declStart = c.pos();
+        TokenStreamCursor.Documentation doc = c.parseDocumentation();
         if (c.peek() == TokenType.SERVICE) {
-            return parseService(c);
+            return parseService(c, declStart, doc);
         }
         if (c.isIdentifierToken(c.peek())
                 && "ExecutionEnvironment".equals(c.safeText())) {
+            if (doc != null) {
+                throw c.error("Unexpected token '" + c.safeText() + "'");
+            }
             return parseExecutionEnvironment(c);
         }
         throw c.error("unsupported ###Service element: " + c.safeText());
@@ -94,10 +103,15 @@ public final class ServiceSectionGrammar
         return true;
     }
 
-    private static Protocol.PService parseService(TokenStreamCursor c) {
-        int declStart = c.pos();
+    /** {@code declStart}: the element's first token, its documentation
+     *  when it has one (the span starts there); {@code doc} folds into
+     *  the tagged values, first. */
+    private static Protocol.PService parseService(TokenStreamCursor c,
+            int declStart,
+            TokenStreamCursor.@com.legend.base.Nullable Documentation doc) {
         c.expect(TokenType.SERVICE);
-        TokenStreamCursor.Decorations dec = c.parseDecorations();
+        TokenStreamCursor.Decorations dec =
+                c.withDocumentation(doc, c.parseDecorations());
         String qn = Protocol.unquotePath(c.parseQualifiedName());
         int cut = qn.lastIndexOf("::");
         String pkg = cut < 0 ? "" : qn.substring(0, cut);

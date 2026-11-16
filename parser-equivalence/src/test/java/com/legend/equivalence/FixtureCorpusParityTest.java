@@ -17,7 +17,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  * FixtureCorpusParityTest, adopted 2026-08-14): 215 hand-built
  * negatives + 51 grammar-first positive fixtures, vendored under
  * {@code src/test/resources/sibling-corpus} from the test-corpus
- * branch. Unlike the harvested corpus these were WRITTEN to cover
+ * branch; 221 + 55 since 2026-11-14 (Studio's grammar roundtrip, the
+ * parser tier: documentation before the activators and the Service,
+ * a content pattern's escapes, a dotted FileGeneration key, a quoted
+ * diagram view id -- each new fixture names its case). Unlike the harvested corpus these were WRITTEN to cover
  * every .g4 keyword and every walker validation — the corpus sweep
  * structurally cannot contain what the engine repos never spell
  * (that blind spot produced the entire 2026-08-14 fix wave).
@@ -130,8 +133,17 @@ class FixtureCorpusParityTest {
                 .filter(r -> !residueSeen.contains(r)).sorted().toList();
         assertEquals(List.of(), stale,
                 "residue rows now agree — remove them from LENIENT_RESIDUE");
-        // the deck is 266 sources; everything must be accounted for
-        assertEquals(266 - LENIENT_RESIDUE.size(), agree,
+        // the deck is 276 sources; everything must be accounted for
+        // (266 -> 276, 2026-11-14, Studio's grammar roundtrip, the parser
+        // tier: 4 positives -- doc-before-activators-and-services,
+        // servicestore-content-pattern-escapes,
+        // filegeneration-dotted-config-keys, diagram-quoted-view-ids -- and
+        // 6 negatives -- a documentation literal before a DeephavenApp, a
+        // Snowflake and a HostedService deployment configuration and an
+        // ExecutionEnvironment in ###Service and ###HostedService, and a
+        // one-line ''' content pattern; each negative's twin without the
+        // offending literal parses on both sides)
+        assertEquals(276 - LENIENT_RESIDUE.size(), agree,
                 "fixture-deck accounting drifted");
     }
 

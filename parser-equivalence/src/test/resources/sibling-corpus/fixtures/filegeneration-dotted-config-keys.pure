@@ -1,0 +1,14 @@
+// A FileGeneration config property name (Studio's grammar roundtrip case
+// DSL_Generation-file-and-spec, 2026-11-14): legend-engine 4.145.0's rule is
+// `configPropertyName: identifier (DOT identifier)*`, read with getText() -- the segments joined
+// by `.`, whitespace between them dropped, and a quoted segment keeping its quotes on the wire.
+###FileGeneration
+JsonSchema fixture::fg::DottedKeys
+{
+   scopeElements: [fixture::fg::Person];
+   generator.version: 'v1';
+   'schema Specification': 'DRAFT_07';
+   a . b.c: 3;
+   outer.'quoted part'.inner: true;
+   list.values: ['x', 'y'];
+}
