@@ -58,25 +58,16 @@ class SnowflakeDialectTest {
         assertFalse(sql.contains("(SELECT"), sql);
     }
 
-    /**
-     * Pure's literal spelling of a Float is spelled here, its shortest text read once per branch (2026-10-21): the
-     * portable spelling reads the double's text some fifty times, and channel B's standard suite took 57 minutes on the
-     * lane. A coalesce of a JSON value and a text parses the text and reads the JSON as a VARIANT (the zips).
-     */
+    /** A coalesce of a JSON value and a text parses the text and reads the JSON as a VARIANT (the zips). (Its Float
+     *  canon half went with SqlFn.FLOAT_CANON, 2026-11-16, W10 (b).) */
     @Test
-    void aFloatsCanonIsSpelledHere_andACoalesceOfJsonAndTextIsOneType() {
-        SqlExpr x = SqlExpr.Column.of("t", "x", SqlType.Scalar.DOUBLE, true, OutputCol.Origin.PHYSICAL);
+    void aCoalesceOfJsonAndTextIsOneType() {
         SqlExpr j = SqlExpr.Column.of("t", "j", SqlType.Scalar.JSON, true, OutputCol.Origin.PHYSICAL);
         String sql = new Snowflake().render(new SqlSelect(List.of(
-                new SqlSelect.Projection(SqlExpr.Call.of(SqlFn.FLOAT_CANON, x), "c", null),
                 new SqlSelect.Projection(SqlExpr.Call.of(SqlFn.COALESCE, j, new SqlExpr.StringLit("[]")), "z", null)),
-                false, new SqlSource.Table("t", "t", List.of(new OutputCol("x", SqlType.Scalar.DOUBLE, true),
-                        new OutputCol("j", SqlType.Scalar.JSON, true)), false, Map.of(), com.legend.sql.NameQuoting.BARE),
+                false, new SqlSource.Table("t", "t", List.of(new OutputCol("j", SqlType.Scalar.JSON, true)), false,
+                        Map.of(), com.legend.sql.NameQuoting.BARE),
                 null, List.of(), null, null, List.of(), null, null, List.of()));
-        assertTrue(sql.contains(" AS DOUBLE) = 0 THEN '0.0'"), sql);
-        assertTrue(sql.split("\"t\"\\.\"x\"", -1).length - 1 == 1, sql);
-        assertTrue(sql.contains("RPAD("), sql);
-        assertTrue(sql.length() < 12_000, sql.length() + " characters: " + sql);
         assertTrue(sql.contains("coalesce(TO_VARIANT(\"t\".\"j\"), PARSE_JSON('[]'))"), sql);
     }
 

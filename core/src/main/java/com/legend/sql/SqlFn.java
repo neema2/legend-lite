@@ -124,10 +124,6 @@ public enum SqlFn {
      *  as the VARCHAR cast they wrote until then; H2 with its number printer for every such operand (its DECFLOAT's
      *  cast writes {@code 1E+2}), where its dialect walked the expression's shape and missed some. */
     DECIMAL_TO_TEXT,
-    /** A Float's Pure literal spelling (2026-10-11): every zero {@code 0.0}, the exponent unfolded to fixed point, at
-     *  least one fraction digit -- the kind-faithful carrier's text of a double (lowering/LiteralSpelling). One call
-     *  per value, which each dialect spells (dialect/FloatCanonText the portable decomposition). */
-    FLOAT_CANON,
     /** A Float's text as Pure's {@code toString} prints it (2026-10-22): the shortest digits, plain within the
      *  database's plain range and fixed point past it where exact, at least one fraction digit (lowering/LiteralSpelling).
      *  One call per value, which each dialect spells (dialect/FloatPrintText the portable decomposition). Since phase
@@ -218,7 +214,7 @@ public enum SqlFn {
                     // A6, 2026-11-16, made conservative: a strict function read as may-skip costs a missed binding, the
                     // reverse a wrong raise; E-SQL may take one out with a per-dialect proof that it never skips)
                     ACOS, ASIN, CONCAT, CONCAT_JOIN, DAYNAME, DECIMAL_TO_TEXT, DECODE_BASE64, ENCODE_BASE64,
-                    EPOCH_MS, EPOCH_SECONDS, FLOAT_CANON, FLOAT_PRINT, HASH, JARO_WINKLER, LEFT, LENGTH, LEVENSHTEIN,
+                    EPOCH_MS, EPOCH_SECONDS, FLOAT_PRINT, HASH, JARO_WINKLER, LEFT, LENGTH, LEVENSHTEIN,
                     LIST_APPEND, LIST_AVG, LIST_FLATTEN, LIST_INIT, LIST_MEDIAN, LIST_MODE, LIST_REVERSE, LIST_SLICE,
                     LIST_SORT, LIST_SORT_DESC, LIST_TAIL, MD5, MONTHNAME, PARSE_DATE, PURE_SPLIT_PART, RANGE_FN,
                     REGEXP_EXTRACT_ALL, ROUND, ROUND_HALF_UP, SHA1, SHA256, TO_VARIANT, UNNEST, VARIANT_ELEMENTS,

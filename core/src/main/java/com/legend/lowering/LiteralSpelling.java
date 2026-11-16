@@ -392,7 +392,7 @@ public final class LiteralSpelling {
     /**
      * A Float's canon for the judges' compare (W10 (b), 2026-11-16): the DATABASE's own text of the value as a double,
      * every zero one text (Pure's {@code -0.0 == 0.0}, as the literal spelling unified them). Within one database
-     * two equal doubles have one text, so the compare is the typed one; Pure's literal spelling (the FLOAT_CANON call,
+     * two equal doubles have one text, so the compare is the typed one; Pure's literal spelling (the FLOAT_CANON call, deleted 2026-11-16,
      * the unfolded exponent, some 4,000 characters a value on DuckDB) was text no compare needs. A failure's message
      * prints a Float through {@link Repr}, never this.
      */

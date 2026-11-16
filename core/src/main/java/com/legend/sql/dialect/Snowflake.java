@@ -197,13 +197,6 @@ public class Snowflake extends AnsiSqlRenderer {
                 + " MULTI_STATEMENT_COUNT = 0, JSON_INDENT = 0, STRICT_JSON_OUTPUT = TRUE");
     }
 
-    /** {@inheritDoc} Spelled here ({@link #floatCanon}): the portable spelling reads this dialect's long double text some
-     *  fifty times. */
-    @Override
-    protected boolean spellsFloatCanon() {
-        return true;
-    }
-
     /** {@inheritDoc} Spelled here ({@link #floatPrint}): the portable spelling reads this dialect's long double text
      *  some nine times (Pure's print form). */
     @Override
@@ -1409,7 +1402,6 @@ public class Snowflake extends AnsiSqlRenderer {
             case DIVIDE -> divideAsDoubles(writer, c.args());
             case MOD -> modFloored(writer, c.args());
             case REM -> modTruncated(writer, c.args());
-            case FLOAT_CANON -> floatCanon(writer, a.get(0));
             // a double from its digits; any other value (a literal, a decimal slot) through the database's own text of
             // it, which is exact, as the portable spelling read it
             case FLOAT_PRINT -> isDouble(a.get(0)) ? floatPrint(writer, a.get(0)) : floatPrintByText(writer, c, parentPrec);
@@ -1860,19 +1852,6 @@ public class Snowflake extends AnsiSqlRenderer {
                 + d.sign() + " || " + d.unfolded() + " ELSE " + d.sign() + " || LEFT(" + d.digits() + ", 1) || IFF(LENGTH("
                 + d.digits() + ") > 1, '.' || SUBSTR(" + d.digits() + ", 2), '') || 'e' || TO_VARCHAR(" + d.exponent()
                 + ") END"));
-    }
-
-    /**
-     * Pure's literal spelling of a Float ({@link SqlFn#FLOAT_CANON}), spelled here: {@link #floatText}'s digits, every
-     * zero {@code 0.0}, placed by their exponent at every magnitude; NaN and the infinities the database's text with
-     * {@code .0}, as the portable spelling ({@link FloatCanonText}) writes them. The portable spelling reads the
-     * double's text some fifty times, and this dialect's text is an expression of its own: channel B's standard suite
-     * took 57 minutes on the lane at a76cffee (2026-10-21).
-     */
-    private SqlWriter floatCanon(SqlWriter writer, SqlExpr v) {
-        return writer.piece(shortestDigits(v, d -> "CASE WHEN " + nonFinite(d.value()) + " THEN CAST(" + d.value()
-                + " AS VARCHAR) || '.0' WHEN " + d.value() + " = 0 THEN '0.0' ELSE " + d.sign() + " || " + d.unfolded()
-                + " END"));
     }
 
     /**

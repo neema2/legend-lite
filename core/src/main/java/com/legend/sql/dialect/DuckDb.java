@@ -71,13 +71,6 @@ public class DuckDb extends AnsiSqlRenderer {
         }
     }
 
-    /** The Float canon's parts staged (E-5a, 2026-11-12): DuckDB's derived tables read the row around them; the
-     *  staged canon answered 301,001 doubles as the inline one did, 3.2x faster over 200,000 rows. */
-    @Override
-    protected boolean stagesFloatText() {
-        return true;
-    }
-
     /** {@inheritDoc} 9: a literal with a nonzero digit past the microsecond is a {@code TIMESTAMP_NS} ({@link #timestampLit}) (S181, A7, 2026-11-10). */
     @Override
     protected int literalFractionDigits() {
@@ -586,7 +579,6 @@ public class DuckDb extends AnsiSqlRenderer {
             case ERROR -> raiseEnvelope(writer, c.args(), "error");
             case DECIMAL_TO_TEXT -> writer.expr(varcharCast(c.args().get(0)), parentPrec);
             case BOOL_TO_TEXT -> castAs(writer, c.args().get(0), "VARCHAR");
-            case FLOAT_CANON -> floatCanonByText(writer, c.args(), parentPrec);
             case FLOAT_PRINT -> floatPrintByText(writer, c, parentPrec);
             case FLOAT_TO_TEXT -> floatToText(writer, c.args().get(0));
             case DATETIME_TO_TEXT, DATETIME_PRINT, CELL_TEXT, FORMAT_PADDED, INSTANCE_TEXT, RELATION_TEXT, TEXT_FORMS, TRACE_TEXT ->

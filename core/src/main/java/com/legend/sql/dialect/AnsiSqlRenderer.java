@@ -263,10 +263,6 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         if (!spellsFloatPrint()) {
             ps.add(new FloatPrintText.Expansion(bindsFloatPrint()));
         }
-        // a Float's literal spelling, expanded before every other pass unless this dialect spells it itself
-        if (!spellsFloatCanon()) {
-            ps.add(new FloatCanonText.Expansion(bindsFloatText(), stagesFloatText(), fencesFloatText()));
-        }
         ps.addAll(passes());
         ps.add(new StoredReads(this::readsStored));
         return java.util.List.copyOf(ps);
@@ -275,12 +271,6 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
     /** A HUGEINT-fact integer literal (past a signed BIGINT): bare, the database types it by its magnitude. */
     protected String hugeIntLiteral(java.math.BigDecimal v) {
         return v.toPlainString();
-    }
-
-    /** Whether this dialect writes {@link com.legend.sql.SqlFn#FLOAT_CANON} itself; else it is expanded before every
-     *  other pass ({@link FloatCanonText.Expansion}) to the portable spelling over the double's text. */
-    protected boolean spellsFloatCanon() {
-        return false;
     }
 
     /** Whether this dialect writes {@link com.legend.sql.SqlFn#FLOAT_PRINT} itself; else it is expanded before every
@@ -301,28 +291,6 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
     @SpellingArm
     protected java.util.List<com.legend.sql.SqlRewriter> spellingPasses() {
         return java.util.List.of();
-    }
-
-    /** Whether that expansion reads the double's text from a one-row derived table, written once (a dialect whose
-     *  double text is a long expression and whose derived tables read the row around them). */
-    protected boolean bindsFloatText() {
-        return false;
-    }
-
-    /** Whether the Float canon's expansion STAGES its parts -- the text, the mantissa's digits and the point's position
-     *  each a column of a one-row derived table, written once (E-5a, 2026-11-12, docs/LEAN_PRODUCT_SQL_DESIGN_2026_11_12.md
-     *  §5.9): a dialect whose derived tables read the row around them, each turned on as its database is shown to
-     *  answer every double the same. Base: no -- H2 refuses an outer column inside a derived table. */
-    protected boolean stagesFloatText() {
-        return false;
-    }
-
-    /** Whether the staged Float canon's text layer is fenced from the planner's flattening ({@code OFFSET 0}): a
-     *  database that flattens a derived table into its reader, copying each expression into every read of its column
-     *  (SQLite, measured 2026-11-16: an assertEquals over three doubles prepared in 0.6 s unfenced, 0.03 s fenced).
-     *  Base: no. */
-    protected boolean fencesFloatText() {
-        return false;
     }
 
     /** Whether this dialect reads a column STORED as {@code t} other than as the database holds
@@ -1372,12 +1340,6 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         }
         throw new IllegalStateException("a date call's first argument is its part, not " + e
                 + ": the lowering's bug");
-    }
-
-    /** A Float's literal spelling: the portable decomposition over the double's text (a dialect whose double text is
-     *  long spells it once, its own way). */
-    protected final SqlWriter floatCanonByText(SqlWriter writer, List<SqlExpr> a, int parentPrec) {
-        return writer.expr(FloatCanonText.of(a.get(0)), parentPrec);
     }
 
     /** A Float's print form ({@code c} a {@link com.legend.sql.SqlFn#FLOAT_PRINT} call): the portable decomposition
