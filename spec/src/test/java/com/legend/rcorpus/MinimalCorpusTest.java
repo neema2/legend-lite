@@ -195,12 +195,9 @@ public class MinimalCorpusTest {
                 : readAccepted(laneFile(ACCEPTED));
         // -Drcorpus.tests=<file>: the tests named there, one fully qualified name a line (a covering subset)
         java.util.Set<String> listed = testList();
-        if (LaneHolder.LANE.reference() && JudgeLedger.databasePass()) {
-            // a divergence the DATABASE verdict names and the host's kept
-            // tolerance hides (homework §4j: the calendar goldens computed
-            // in H2's decimal arithmetic) is accepted in database mode only
-            acceptedRegister.putAll(readAccepted(laneFile("database-accepted-register")));
-        }
+        // (the database pass's own accepted register went with the database judge alone, the user's O5, 2026-11-16:
+        // under BOTH a failure's message is the host's, so the host's accepted roster is the one that governs; every
+        // row of the deleted register was already one of its)
         /** the strength census of the passes (Phase 0.7) */
         java.util.Map<String, Integer> strength = new java.util.LinkedHashMap<>();
         /** every test that RAN, in discovery order, pass or fail */
@@ -1072,8 +1069,12 @@ public class MinimalCorpusTest {
             if (kind.equals("fail")) {
                 pinDifferential(lane, "lost", lost, ranNames,
                         "/rcorpus/" + lane + "-database-lost-register.txt");
-                pinDifferential(lane, "gained", gained, ranNames,
-                        "/rcorpus/" + lane + "-database-gained-register.txt");
+                // under BOTH the host's verdict is the record: the database pass gains nothing the host fails (its
+                // gained register went with the database judge alone, O5, 2026-11-16; 8 rows, all stale under BOTH)
+                if (!gained.isEmpty()) {
+                    throw new AssertionError("[" + lane + "] the database pass (BOTH) gained " + gained
+                            + ": a test the host fails cannot pass under BOTH");
+                }
             }
             return;
         }
