@@ -216,7 +216,10 @@ final class AgreementAsserts {
             List<com.legend.executionplan.ExecutionPlan.Column> cell = r.cells().get(j);
             base.add(cell == null ? hv.base().get(j) : new TestPlan.Side.FusedCell(cell));
         }
-        return new TestPlan.Verdict(v.id(), hv.name(), hv.arm(), base, v.wrapper(), hv.message()).withHost(hv.host());
+        // the database judge's name for the verdict its fused statement carries: a statement the database rejects is
+        // reported by the names it held, the same under both judges as under the database judge (PR1's finding A,
+        // 2026-11-16: the host's qualified names had made BOTH's suffix differ from DATABASE's)
+        return new TestPlan.Verdict(v.id(), v.name(), hv.arm(), base, v.wrapper(), hv.message()).withHost(hv.host());
     }
 
     /** An assertError's steps for both judges over the database judge's program (E-5c step 6), as {@link #assemble}

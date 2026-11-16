@@ -248,6 +248,10 @@ class AgreementFusedPlanTest {
             List<String> bothColumns = both.fused().columns().stream().map(ExecutionPlan.Column::name)
                     .filter(n -> !n.matches("__h\\d+_\\d+_\\d+")).toList();
             assertEquals(dbColumns, bothColumns, body);
+            // a rejected statement is reported by the names its verdicts carry: the same under both judges (PR1's
+            // finding A, 2026-11-16: BOTH had carried the host's qualified names)
+            assertEquals(db.verdicts().stream().map(TestPlan.Verdict::name).toList(),
+                    both.verdicts().stream().map(TestPlan.Verdict::name).toList(), body);
             for (TestPlan.Verdict v : db.verdicts()) {
                 assertNull(v.host(), body + ": a host verdict in the database judge's plan");
             }
