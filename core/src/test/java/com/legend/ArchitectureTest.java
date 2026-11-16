@@ -1219,6 +1219,9 @@ final class ArchitectureTest {
             // to the edge (testplan.EngineTestText; docs/records/e-java-w9-judge-half-2026-11-16.md); TRANSITIONAL, the
             // orchestrator's condition: S2c removes this entry or names what still needs it
             "testplan.EngineTestText#arm(com.legend.testplan.EngineTestText$Ask)", "com.legend.edge.EdgeEngineTestText",
+            // the closed facet list, read by the edge's style before it answers a kind (the P2 checkpoint audit's S2,
+            // 2026-11-16): data, a list of classes
+            "testplan.PlanStyleFacets#KINDS", "com.legend.edge.PureText",
             // the test door's options, from the root's ExecuteOptions: planning's half, a record of closed words
             "testplan.PlanningOptions#<init>(com.legend.testexecutionplan.Edge, com.legend.executionplan.DataStores, "
                     + "java.util.Set, com.legend.testplan.PlanningOptions$JudgeMode, "
@@ -4691,14 +4694,32 @@ final class ArchitectureTest {
                     || c.isAssignableTo(com.legend.sql.dialect.EngineTextDialect.class) || facet)) {
                 continue;
             }
-            boolean product = c.getName().startsWith("com.legend.database.PlanStyle$")
-                    && c.isAssignableTo(com.legend.database.PlanStyle.class);
+            // the product's own style, exactly its class (the P2 checkpoint audit's S2, 2026-11-16: until then any
+            // PlanStyle$* class, so a second style nested in PlanStyle passed as the product's)
+            boolean product = c.getName().equals(com.legend.database.PlanStyle.PRODUCT.getClass().getName());
             if (!product && !c.getPackageName().equals("com.legend.edge")) {
                 out.add(c.getName());
             }
         }
         java.util.Collections.sort(out);
         return out;
+    }
+
+    /** THE STYLES THE FACET TESTS HOLD ARE EVERY STYLE (the P2 checkpoint audit's S2, 2026-11-16):
+     *  {@code PlanStyleFacetsTest.STYLES} names a class for each concrete {@link com.legend.database.PlanStyle}
+     *  implementer in the product's and the edge's jars, so a new style is held to the closed facet list. */
+    @Test
+    void theFacetTestsHoldEveryStyle() {
+        java.util.Set<String> implementers = new java.util.TreeSet<>();
+        for (com.tngtech.archunit.core.domain.JavaClass c : CORE_AND_EDGE_CLASSES) {
+            if (!c.isInterface() && c.isAssignableTo(com.legend.database.PlanStyle.class)) {
+                implementers.add(c.getName());
+            }
+        }
+        java.util.Set<String> held = new java.util.TreeSet<>();
+        PlanStyleFacetsTest.STYLES.forEach(s -> held.add(s.getClass().getName()));
+        org.junit.jupiter.api.Assertions.assertEquals(implementers, held,
+                "a plan style the facet tests do not hold: add it to PlanStyleFacetsTest.STYLES");
     }
 
     @Test

@@ -20,7 +20,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class PlanStyleFacetsTest {
 
-    private static final List<PlanStyle> STYLES = List.of(PlanStyle.PRODUCT, com.legend.edge.PureText.UPSTREAM);
+    /** Every style ({@code ArchitectureTest.theFacetTestsHoldEveryStyle} holds it to the imported implementers). */
+    static final List<PlanStyle> STYLES = List.of(PlanStyle.PRODUCT, com.legend.edge.PureText.UPSTREAM);
 
     @Test
     void theEdgeAnswersEveryDeclaredKind() {

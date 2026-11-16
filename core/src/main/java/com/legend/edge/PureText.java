@@ -50,6 +50,12 @@ public final class PureText {
         /** The closed list's kinds ({@code testplan.PlanStyleFacets.KINDS}), each the edge's own; any other by name. */
         @Override
         public <F> F facet(Class<F> kind) {
+            // the closed list first (the P2 checkpoint audit's S2, 2026-11-16): a kind outside it is refused by name
+            // before any answer, so an answer added below without its declaration is unreachable
+            if (!com.legend.testplan.PlanStyleFacets.KINDS.contains(kind)) {
+                throw new com.legend.error.NotImplementedException("the test-planning facet " + kind.getName()
+                        + " is none of the declared kinds (com.legend.testplan.PlanStyleFacets.KINDS)");
+            }
             if (kind == com.legend.testplan.EngineTestText.class) {
                 return kind.cast(EdgeEngineTestText.INSTANCE);
             }
