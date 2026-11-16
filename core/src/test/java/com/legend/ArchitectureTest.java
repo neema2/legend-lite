@@ -4616,8 +4616,10 @@ final class ArchitectureTest {
     static java.util.List<String> upstreamSidesOutsideTheEdge(JavaClasses classes) {
         java.util.List<String> out = new java.util.ArrayList<>();
         for (com.tngtech.archunit.core.domain.JavaClass c : classes) {
+            // and each test-planning facet's implementer (W9's judge half, 2026-11-16: the facets are the edge's)
+            boolean facet = com.legend.testplan.PlanStyleFacets.KINDS.stream().anyMatch(c::isAssignableTo);
             if (c.isInterface() || !(c.isAssignableTo(com.legend.database.PlanStyle.class)
-                    || c.isAssignableTo(com.legend.sql.dialect.EngineTextDialect.class))) {
+                    || c.isAssignableTo(com.legend.sql.dialect.EngineTextDialect.class) || facet)) {
                 continue;
             }
             boolean product = c.getName().startsWith("com.legend.database.PlanStyle$")
@@ -4639,6 +4641,13 @@ final class ArchitectureTest {
 
     /** The rule bites a planted plan style outside the edge ({@link PlantedUpstreamStyle}, a test class planted for
      *  this alone). */
+    /** The rule bites a planted test-planning facet outside the edge ({@link PlantedEngineTestText}). */
+    @Test
+    void theHookRuleBitesAPlantedFacet() {
+        org.junit.jupiter.api.Assertions.assertEquals(java.util.List.of(PlantedEngineTestText.class.getName()),
+                upstreamSidesOutsideTheEdge(new ClassFileImporter().importClasses(PlantedEngineTestText.class)));
+    }
+
     @Test
     void theHookRuleBitesAPlantedStyle() {
         org.junit.jupiter.api.Assertions.assertEquals(java.util.List.of(PlantedUpstreamStyle.class.getName()),

@@ -1655,6 +1655,10 @@ class JavaEvalLedgerTest {
                     // 2026-11-08, the plan-as-data design's step 4 (docs/PLAN_AS_DATA_2026_11_07.md 2.2): the body's engine-text appeals by number, planning's registry
                     // (since step 8b the plan carries those its verdicts name); it holds and hands back, it decides nothing
                     "EngineTextAppeals.java",
+                    // 2026-11-16 (W9's judge half, E-Java; the orchestrator's ruling): the plan style's test-planning
+                    // facets -- the closed list of their kinds, and the engine-text assert's arm, an interface the edge
+                    // answers; declarations, nothing evaluated
+                    "PlanStyleFacets.java", "EngineTestText.java",
                     "AssertVerdicts.java",
                     "HostJudge.java", "DatabaseJudge.java",
                     "VerdictArm.java",
@@ -1763,6 +1767,9 @@ class JavaEvalLedgerTest {
                     "core/src/main/java/com/legend/edge", java.util.Set.of(
                             // the test road's compatibility rules handed to exec (the edge's typed extension point)
                             "CompatEdge.java", "EdgeCodec.java",
+                            // 2026-11-16 (W9's judge half, E-Java): the edge's answer to the plan style's engine-text
+                            // facet (testplan.EngineTestText); the arm's planning arrives behind it
+                            "EdgeEngineTestText.java",
                             // the server's composition root with legend-engine's API mounted: routes, no planning of its own
                             "EdgeServer.java",
                             // the texts of upstream's effects and refusals, and legend-pure's raise sentences, as SQL

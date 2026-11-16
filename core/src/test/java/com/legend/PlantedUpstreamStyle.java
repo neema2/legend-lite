@@ -59,4 +59,9 @@ final class PlantedUpstreamStyle implements PlanStyle {
     public String engineTestConnection() {
         throw new UnsupportedOperationException("planted");
     }
+
+    @Override
+    public <F> F facet(Class<F> kind) {
+        throw new UnsupportedOperationException("planted");
+    }
 }

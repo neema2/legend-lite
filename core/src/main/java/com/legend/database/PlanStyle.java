@@ -58,6 +58,13 @@ public interface PlanStyle {
      *  quoted (D1.2). */
     String graphKeyString(String value);
 
+    /** A TEST-PLANNING FACET of the style (W9's judge half, the orchestrator's ruling of 2026-11-16): the one hook's
+     *  typed accessor for the parts of a test's planning that are upstream's -- an engine-text assert's arm. The kinds
+     *  are a CLOSED list, declared beside the test planner ({@code testplan.PlanStyleFacets.KINDS}: this layer cannot
+     *  name them); a style answers exactly those, and a kind outside the list fails BY NAME at the call, never null and
+     *  never a default. The product answers none: each is the compatibility edge's, refused by name. */
+    <F> F facet(Class<F> kind);
+
     /** An execute's chain, written either way: the planner supplies both, the style picks one (no mode, no flag). */
     interface Activity {
         /** lite's own SQL for the chain: the product's lowering, written in the frame database's product dialect. */
@@ -87,6 +94,12 @@ public interface PlanStyle {
         public com.legend.sql.dialect.EngineTextDialect enginePlanText(DatabaseType type, boolean quoteIdentifiers,
                 @com.legend.base.Nullable String timeZone) {
             throw engineTextRefused("planToString and a plan's allocations", type);
+        }
+
+        @Override
+        public <F> F facet(Class<F> kind) {
+            throw new com.legend.error.NotImplementedException("the test-planning facet " + kind.getName()
+                    + ": upstream's forms are the compatibility edge's (com.legend.edge), never the product's");
         }
 
         @Override

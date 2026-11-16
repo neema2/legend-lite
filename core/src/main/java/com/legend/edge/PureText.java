@@ -47,6 +47,16 @@ public final class PureText {
             return PureText.enginePlanText(type, quoteIdentifiers, timeZone);
         }
 
+        /** The closed list's kinds ({@code testplan.PlanStyleFacets.KINDS}), each the edge's own; any other by name. */
+        @Override
+        public <F> F facet(Class<F> kind) {
+            if (kind == com.legend.testplan.EngineTestText.class) {
+                return kind.cast(EdgeEngineTestText.INSTANCE);
+            }
+            throw new com.legend.error.NotImplementedException("the test-planning facet " + kind.getName()
+                    + " is none of the declared kinds (com.legend.testplan.PlanStyleFacets.KINDS)");
+        }
+
         @Override
         public com.legend.sql.dialect.EngineTextDialect engineTestText() {
             return PureText.engineText(ENGINE_TEST_DATABASE);

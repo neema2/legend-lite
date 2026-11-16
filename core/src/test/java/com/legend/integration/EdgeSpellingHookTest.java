@@ -108,6 +108,11 @@ class EdgeSpellingHookTest {
         public String engineTestConnection() {
             return PlanStyle.PRODUCT.engineTestConnection();
         }
+
+        @Override
+        public <F> F facet(Class<F> kind) {
+            return PlanStyle.PRODUCT.facet(kind);
+        }
     };
 
     private static String sql(ExecutionPlan plan) {
