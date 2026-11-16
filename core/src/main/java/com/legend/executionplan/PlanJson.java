@@ -1374,17 +1374,22 @@ public final class PlanJson {
         }
     }
 
-    /** A statement's raise sites as JSON (v56): each {@code n}, {@code kind}, {@code where}, {@code message} and, in an
-     *  edge plan, {@code upstream}. */
+    /** A statement's raise sites as JSON (v56): each {@code n}, {@code kind}, its {@code where} where it has one, its
+     *  {@code message} and, in an edge plan, its {@code upstream}. */
     private static List<Map<String, Object>> sitesJson(List<ExecutionPlan.Site> sites) {
         List<Map<String, Object>> out = new ArrayList<>(sites.size());
         for (ExecutionPlan.Site site : sites) {
             Map<String, Object> so = new LinkedHashMap<>();
             so.put("n", site.n());
             so.put("kind", site.kind().name());
-            so.put("where", site.where());
+            if (site.where() != null) {
+                so.put("where", site.where());
+            }
             so.put("message", site.message());
-            so.put("upstream", site.upstream());
+            if (site.upstream() != null) {
+                // an edge plan's words alone: a product site carries none (no null written, the plan's bytes kept lean)
+                so.put("upstream", site.upstream());
+            }
             out.add(so);
         }
         return out;
