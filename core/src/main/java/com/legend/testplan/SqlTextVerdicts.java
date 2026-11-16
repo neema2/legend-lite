@@ -48,37 +48,27 @@ final class SqlTextVerdicts {
     private SqlTextVerdicts() {
     }
 
-    /** Where the arms' verdict goes while an assert is PLANNED for the program road (the test-is-the-product plan's
-     *  M10b, {@link #plan}): the comparison and its appeal, handed over instead of judged; {@code planning} while the
-     *  arm runs under it (a text side is then a constant of the plan, or OUR text deferred to the verdict step:
-     *  {@link JudgePlans#evalSide}, {@link #defer}), false once the arm has answered (the appeal it built runs later
-     *  in the same environment and reads what it needs). */
-    interface Collector {
-        /** The comparison the arm reached {@link #decide} with: its texts (ours the token of a deferred text), the
-         *  equality the arm computed, the decline, the appeal, the environment. */
-        void collect(String name, String golden, String ours, boolean textEqual,
-                @com.legend.base.Nullable String decline, com.legend.testexecutionplan.Appeal appeal, BodyDriver.ExecEnv env);
-
-        boolean planning();
-
-        /** OUR text planned as a side the plan runs (M10c item 8): where {@code planned} is a {@code VALUES} side the
-         *  arm is reading as our text, declared a String to one, planned under the environment the arm was given
-         *  ({@code at}), the collector records it as the verdict step's ASK with the statement origin the arm marked
-         *  and answers a text token the arm compares as any text; null where the side is not deferred (the caller
-         *  refuses the body by name). */
-        @com.legend.base.Nullable TypedSide defer(TypedSpec side, JudgePlans.PlannedSide planned, boolean identity,
-                boolean fold, AssertVerdicts.@com.legend.base.Nullable SpliceHook hook, BodyDriver.ExecEnv at,
-                List<TypedSpec> letPrefix, SpecCompiler specs);
-    }
-
     /** A collector that DEFERS a text side while an arm is planned: which text the arm is reading now -- OUR text
      *  ({@link #oursText}) or the GOLDEN ({@link #readText}). */
-    private abstract static class Deferring implements Collector {
+    private abstract static class Deferring implements EngineTestText.Collector {
         boolean readingOurs;
         boolean readingGolden;
         /** The statement origin the arm reading now marks its texts with, by name (null: none) -- held on the collector
          *  the planning environment carries, explicit (a thread-scoped mark until slice 5, 2026-11-09). */
         @com.legend.base.Nullable String originInForce;
+
+        @Override
+        public @com.legend.base.Nullable String marking(String origin, boolean ifUnmarked) {
+            String prior = originInForce;
+            originInForce = !ifUnmarked || prior == null || "STATEMENT".equals(prior) && !"STATEMENT".equals(origin)
+                    ? origin : prior;
+            return prior;
+        }
+
+        @Override
+        public void restoreMarking(@com.legend.base.Nullable String prior) {
+            originInForce = prior;
+        }
 
         /** Whether {@code side}, planned as {@code planned} under {@code at}, is a text this collector may defer: a
          *  {@code VALUES} side declared a String to one. A side the arm plans under an environment of its own (the
@@ -94,22 +84,18 @@ final class SqlTextVerdicts {
         }
     }
 
-    /** The origin {@code origin} put in force on the environment's text collector, by the statement origin's own rule
-     *  ({@code StatementOrigin.under} where {@code ifUnmarked}, else set): what was in force before, to restore. */
+    /** The origin {@code origin} put in force on the environment's text collector ({@link EngineTestText.Collector#marking}):
+     *  what was in force before, to restore; none where the environment carries no collector. */
     static @com.legend.base.Nullable String marking(BodyDriver.ExecEnv env, String origin, boolean ifUnmarked) {
-        if (!(env.engineText() instanceof Deferring d)) {
-            return null;
-        }
-        String prior = d.originInForce;
-        d.originInForce = !ifUnmarked || prior == null || "STATEMENT".equals(prior) && !"STATEMENT".equals(origin)
-                ? origin : prior;
-        return prior;
+        EngineTestText.Collector c = env.engineText();
+        return c == null ? null : c.marking(origin, ifUnmarked);
     }
 
     /** The origin in force on the environment's text collector restored to {@code prior}. */
     static void restoreMarking(BodyDriver.ExecEnv env, @com.legend.base.Nullable String prior) {
-        if (env.engineText() instanceof Deferring d) {
-            d.originInForce = prior;
+        EngineTestText.Collector c = env.engineText();
+        if (c != null) {
+            c.restoreMarking(prior);
         }
     }
 
@@ -124,17 +110,6 @@ final class SqlTextVerdicts {
             @com.legend.base.Nullable String oursOrigin) {
     }
 
-    /** Raised while an arm is PLANNED for the program road where a text side is not a constant of the plan (it would
-     *  send a statement at planning): the body stays on the walk, by name ({@link #plan} answers it as
-     *  {@link #notAConstant}'s check, its message the side's kind and planned root for the unplanned-assert census). */
-    static final class NotAConstant extends RuntimeException {
-        /** The message's label; the side's kind and planned root follow it. */
-        static final String LABEL = "a text side that is not a constant of the plan: ";
-
-        NotAConstant(String what) {
-            super(what);
-        }
-    }
 
     /** Is {@code check} {@link #plan}'s answer where a text side is not a constant of the plan: not the arm declining
      *  the shape (null: the walk's generic path continues) but the program road refusing the body by name -- the
@@ -150,7 +125,7 @@ final class SqlTextVerdicts {
             throw new IllegalStateException("the side of a check that is not a not-a-constant answer");
         }
         String what = String.valueOf(((HostJudgment.Raise) HostJudgment.core(check.judgment())).failure().message());
-        return what.startsWith(NotAConstant.LABEL) ? what.substring(NotAConstant.LABEL.length()) : what;
+        return what.startsWith(EngineTestText.NotAConstant.LABEL) ? what.substring(EngineTestText.NotAConstant.LABEL.length()) : what;
     }
 
     /** A collector for one planned assert. */
@@ -183,7 +158,7 @@ final class SqlTextVerdicts {
             if (deferredGoldenText != (deferredGolden != null)) {
                 // the arm processed the golden it read before comparing it (a strip that cut it, a route's own
                 // reading): a golden the plan reads reaches the comparison as read, or the body is the walk's
-                throw new NotAConstant(NotAConstant.LABEL + "a golden the plan reads, processed by the arm before its"
+                throw new EngineTestText.NotAConstant(EngineTestText.NotAConstant.LABEL + "a golden the plan reads, processed by the arm before its"
                         + " comparison");
             }
             collected.add(new Collected(name, deferredGoldenText ? null : golden, deferredText ? null : ours,
@@ -203,7 +178,7 @@ final class SqlTextVerdicts {
             String origin = originInForce;
             if ((deferred != null || deferredGolden != null) && !java.util.Objects.equals(origin, deferredOrigin)) {
                 // the step reads both texts under one origin: the arm marked them alike, or the body is the walk's
-                throw new NotAConstant(NotAConstant.LABEL + "two texts the plan reads under different statement origins");
+                throw new EngineTestText.NotAConstant(EngineTestText.NotAConstant.LABEL + "two texts the plan reads under different statement origins");
             }
             deferredOrigin = origin;
             HostSides.Ask ask = new HostSides.Ask(side, identity, fold, hook, at == env ? null : at);
@@ -299,10 +274,10 @@ final class SqlTextVerdicts {
         BodyDriver.ExecEnv planning = env.withEngineText(collecting);
         collecting.env = planning;
         TypedSide answered = null;
-        NotAConstant notAConstant = null;
+        EngineTestText.NotAConstant notAConstant = null;
         try {
             answered = armOf(bare, letPrefix, specs, planning, hook);
-        } catch (NotAConstant e) {
+        } catch (EngineTestText.NotAConstant e) {
             notAConstant = e;
         } finally {
             collecting.planning = false;
@@ -400,7 +375,7 @@ final class SqlTextVerdicts {
      *  run hears an appeal at planning). An appeal heard is decided after the body's run (Appeals, step 8b). */
     private static TypedSide decide(BodyDriver.ExecEnv env, String name, String golden, String ours,
             boolean textEqual, @com.legend.base.Nullable String decline, com.legend.testexecutionplan.Appeal appeal) {
-        Collector collector = env.engineText();
+        EngineTestText.Collector collector = env.engineText();
         if (collector instanceof Collecting && collector.planning()) {
             // the arm is being PLANNED for the program road: the comparison is handed over, judged at the step --
             // where this is reached again through the collected environment with the planning over (judge), the

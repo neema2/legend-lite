@@ -60,7 +60,7 @@ public final class BodyDriver {
             com.legend.executionplan.ExecutionPlan.Target target,
             PlanningOptions options,
             com.legend.testplan.@com.legend.base.Nullable VerdictBatch verdictBatch,
-            SqlTextVerdicts.@com.legend.base.Nullable Collector engineText,
+            EngineTestText.@com.legend.base.Nullable Collector engineText,
             com.legend.lowering.VerdictSql.@com.legend.base.Nullable FailureMessage failureMessage,
             BodyDriver.@com.legend.base.Nullable ExecEnv appealOn,
             // the body's verdict ids, one counter shared by every copy of the environment and every planner of the body
@@ -151,7 +151,7 @@ public final class BodyDriver {
         }
         /** The same environment with the engine-text arms' collector (an assert PLANNED for the program road, the
          *  test-is-the-product plan's M10b: {@link SqlTextVerdicts#plan}), or without one. */
-        ExecEnv withEngineText(SqlTextVerdicts.@com.legend.base.Nullable Collector c) {
+        ExecEnv withEngineText(EngineTestText.@com.legend.base.Nullable Collector c) {
             return new ExecEnv(plan, target, options, verdictBatch, c,
                     failureMessage, appealOn, verdictIds, appeals);
         }
