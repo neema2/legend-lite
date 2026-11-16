@@ -135,6 +135,11 @@ public final class ViewSignatures {
                     // generic collection reducer keeps the element type
                     // sum read by the registry's member, not its spelled name (2026-11-15)
                     boolean sum = DynaFn.of(fn).orElseThrow() == DynaFn.SUM;
+                    // a sum its rule does not type (over a VARCHAR, a BIT, a DATE) is Any as every untyped column is,
+                    // never its argument's type (2026-11-15; until then sum(VARCHAR) was String[1], register row S501)
+                    if (sum && RelationalTypeInference.infer(fc, db, store) == null) {
+                        break;
+                    }
                     Type arg = inferred(sum || fc.args().size() == 1 ? fc.args().get(0) : fc, db, store);
                     boolean numeric = arg instanceof Type.PrecisionDecimal
                             || arg instanceof Type.Primitive p && p.family() == Type.Primitive.Family.NUMERIC;
