@@ -211,15 +211,16 @@ class PlanJsonTest {
         // over 47 when the two merged): the payload named by its digest, its text the statement's content; 49 since
         // 2026-11-12: a target's database settings (the C checkpoint's SHOULD-FIX 3); 50 the same day: a target's
         // transaction, the statements a host opens one with (the re-audit's S8); 51 the same day: a stream step's
-        // statement the planner's own plan of the snapshot's pull (the user's ruling)
-        assertTrue(json.startsWith("{\"format\":\"legend-lite-plan\",\"version\":51,"), json);
+        // statement the planner's own plan of the snapshot's pull (the user's ruling); 54 since 2026-11-16 (C5-J's batch
+        // 4(b), P2; 52 and 53 are stream D's): a declared connection's queryTimeOutInSeconds
+        assertTrue(json.startsWith("{\"format\":\"legend-lite-plan\",\"version\":54,"), json);
     }
 
     @Test
     void anotherFormatIsRefusedByName() {
         var refused = assertThrows(IllegalArgumentException.class,
                 () -> PlanJson.read("{\"_type\":\"simple\",\"rootExecutionNode\":{}}"));
-        assertTrue(refused.getMessage().contains("not a legend-lite-plan v51 plan"), refused.getMessage());
+        assertTrue(refused.getMessage().contains("not a legend-lite-plan v54 plan"), refused.getMessage());
     }
 
     /**
