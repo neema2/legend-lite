@@ -145,12 +145,15 @@ class ExecuteThreads(Served):
                 registered = threading.Thread(target=lambda: self.frames.register('other', self.df), daemon=True)
                 registered.start()
                 registered.join(10)
+                # read while the four still run
+                waited = (parse.is_alive(), registered.is_alive())
             finally:
                 release.set()
                 for t in sent:
                     t.join(30)
-        self.assertEqual(parsed, [200], 'a parse waited for four executes running on the compiler\'s threads')
-        self.assertFalse(registered.is_alive(), "a frame's register waited for the frames' lock an execute held")
+        self.assertFalse(waited[0], 'a parse waited for four executes running on the compiler\'s threads')
+        self.assertEqual(parsed, [200])
+        self.assertFalse(waited[1], "a frame's register waited for the frames' lock an execute held")
         self.assertFalse([name for name in threads if name.startswith('legend-lite-compiler-')], threads)
         self.assertEqual(answers, [200] * 4)
 
