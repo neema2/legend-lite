@@ -15,7 +15,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-import static com.legend.server.PureV1Api.answer;
 import static com.legend.server.PureV1Api.boundParameters;
 import static com.legend.server.PureV1Api.columnNames;
 import static com.legend.server.PureV1Api.error;
@@ -33,6 +32,13 @@ import static com.legend.server.PureV1Api.tdsBuilder;
  * Python reach them through the boundary ({@code wasm/planner/Boundary}).
  */
 public final class HostAnswers {
+
+    /** pure/v1's answer of a host half, its errors in upstream's words and type names (the P2 checkpoint audit's M3 and
+     *  A-M2, 2026-11-16: until then lite's, PureV1Api.answer's default). */
+    private static com.legend.server.PureV1Api.Answer answer(int status, @com.legend.base.Nullable String errorType,
+            java.util.function.Supplier<String> call) {
+        return com.legend.server.PureV1Api.answer(status, errorType, call, PureMessages::compile, PureMessages::typeName);
+    }
 
     private HostAnswers() {
     }
@@ -76,7 +82,10 @@ public final class HostAnswers {
                     sql.value(), false, hostExecution(planned)))));
             metadata.put("legend.columns", Json.toCompact(names));
             try {
-                com.legend.result.HostRows.stream(rows, columns, new com.legend.result.ArrowWriter(out, metadata));
+                com.legend.result.HostRows.stream(rows, columns, new com.legend.result.ArrowWriter(out,
+                        // legend-pure's date text, as the server's twin writes it (EngineAnswers.arrow; the P2 checkpoint
+                        // audit's A-M3, 2026-11-16: this host route wrote the product's S312 text)
+                        cs -> metadata, EngineCells.LEGEND_PURE));
             } catch (java.io.IOException e) {
                 throw new java.io.UncheckedIOException(e);
             }

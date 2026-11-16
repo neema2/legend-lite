@@ -166,14 +166,27 @@ public final class PureMessages {
             return "Missing external parameter(s): " + String.join(", ", m.missing())
                     + (m.rest() == null ? "" : "; " + m.rest());
         }
-        // the kinded error itself, or the one a wrapper's message ends with ("in function 'f': " + its message)
+        // the kinded error itself, or the one a wrapper's message holds ("in function 'f': " + its message, and after
+        // it the inliner's " [inlined via ...]": the P2 checkpoint audit's A-S1, 2026-11-16 -- spliced where it stands)
         for (Throwable t = e; t != null; t = t.getCause()) {
-            if (t instanceof com.legend.error.LegendCompileException c && c.kind() != null
-                    && message.endsWith(String.valueOf(c.getMessage()))) {
-                return message.substring(0, message.length() - String.valueOf(c.getMessage()).length()) + upstream(c);
+            if (t instanceof com.legend.error.LegendCompileException c && c.kind() != null) {
+                String own = String.valueOf(c.getMessage());
+                int at = message.lastIndexOf(own);
+                if (at >= 0) {
+                    return message.substring(0, at) + upstream(c) + message.substring(at + own.length());
+                }
             }
         }
         return message;
+    }
+
+    /** The name an upstream answer gives an uncaught error's type (pure/v1's {@code "<type>: <message>"}): a parameter
+     *  given no value is legend-engine's {@code IllegalArgumentException} (its PlanExecutor; lite's kind,
+     *  {@code MissingParameters}, is the product's; the P2 checkpoint audit's M3/A-M4, 2026-11-16); any other error its
+     *  own class's name. */
+    public static String typeName(Throwable e) {
+        return e instanceof com.legend.error.MissingParameters ? "IllegalArgumentException"
+                : e.getClass().getSimpleName();
     }
 
     /** {@code c}'s sentence as upstream words its kind, after the driver's {@code [line:col]}. */

@@ -442,6 +442,13 @@ public final class PureV1Api {
      *  docs/records/d-plan-2026-11-16.md: {@code edge.PureMessages.compile}). */
     public static Answer answer(int status, @com.legend.base.Nullable String errorType, Supplier<String> call,
             java.util.function.Function<Throwable, String> words) {
+        return answer(status, errorType, call, words, t -> t.getClass().getSimpleName());
+    }
+
+    /** {@link #answer}, an uncaught error's type named by {@code typeName} (the compatibility edge's: upstream's name of
+     *  it; the P2 checkpoint audit's M3/A-M4, 2026-11-16). */
+    public static Answer answer(int status, @com.legend.base.Nullable String errorType, Supplier<String> call,
+            java.util.function.Function<Throwable, String> words, java.util.function.Function<Throwable, String> typeName) {
         try {
             return new Answer(200, call.get());
         } catch (RuntimeException | StackOverflowError e) {
@@ -452,7 +459,7 @@ public final class PureV1Api {
                 e.printStackTrace();
             }
             Throwable n = e instanceof com.legend.error.DataError && e.getCause() != null ? e.getCause() : e;
-            return error(500, null, n.getClass().getSimpleName() + ": " + words.apply(n));
+            return error(500, null, typeName.apply(n) + ": " + words.apply(n));
         }
     }
 

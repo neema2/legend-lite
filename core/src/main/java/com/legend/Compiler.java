@@ -1001,7 +1001,8 @@ public final class Compiler {
             try {
                 overloads = ctx.findFunction(fqn);
             } catch (RuntimeException e) {
-                walls.put(fqn, String.valueOf(e.getMessage()));
+                // the caller's words (the P2 checkpoint audit's S7, 2026-11-16: the edge's are upstream's)
+                walls.put(fqn, words.apply(e));
                 continue;
             }
             for (com.legend.compiler.element.TypedFunction tf : overloads) {

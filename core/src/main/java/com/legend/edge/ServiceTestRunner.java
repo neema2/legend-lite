@@ -211,7 +211,7 @@ public final class ServiceTestRunner implements AutoCloseable {
                 } catch (RuntimeException e) {
                     r = new Result(svc.qualifiedName(), suite.id(), test.id(), Status.FAIL,
                             "harness: " + e.getClass().getSimpleName() + ": "
-                                    + PureTestRunner.whole(e.getMessage()), 0);
+                                    + PureTestRunner.whole(PureMessages.compile(e)), 0);
                 }
                 out.add(new Result(r.serviceFqn(), r.suiteId(), r.testId(), r.status(),
                         r.reason(), (System.nanoTime() - t0) / 1_000_000L));
@@ -272,7 +272,7 @@ public final class ServiceTestRunner implements AutoCloseable {
         try {
             resolved = Compiler.resolveQuery(program.statements(), new ImportScope(List.of()), rt.ctx());
         } catch (RuntimeException e) {
-            return fail(svc, suite, test, "resolve: " + PureTestRunner.whole(e.getMessage()));
+            return fail(svc, suite, test, "resolve: " + PureTestRunner.whole(PureMessages.compile(e)));
         }
         boolean privateSession = policy == Sessions.FRESH_PER_TEST
                 || Compiler.hasStatementEffects(resolved, rt.ctx());
@@ -293,7 +293,7 @@ public final class ServiceTestRunner implements AutoCloseable {
                 if (System.getenv("LEGEND_LITE_STACKS") != null) {
                     e.printStackTrace();   // the same diagnostic switch the resolver walls honor
                 }
-                return fail(svc, suite, test, "execute: " + PureTestRunner.whole(e.getMessage()));
+                return fail(svc, suite, test, "execute: " + PureTestRunner.whole(PureMessages.compile(e)));
             }
             if (out.getBuffer().length() == 0) {
                 return fail(svc, suite, test, "execute: the platform produced no result");
