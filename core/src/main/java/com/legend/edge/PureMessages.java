@@ -161,6 +161,13 @@ public final class PureMessages {
      */
     public static String compile(Throwable e) {
         String message = String.valueOf(e.getMessage());
+        if (message.length() > 1 && message.charAt(0) == com.legend.sql.RaiseKind.MARK) {
+            // a product raise's text (MARK kind [MARK where]): its kind's name, as an upstream reader has read it since
+            // PR1 (pure/v1's answer); the mark and the where are lite's carriage, never upstream's text -- the golden
+            // net, 2026-11-16, found the mark leaking into the answer
+            int end = message.indexOf(com.legend.sql.RaiseKind.MARK, 1);
+            return end < 0 ? message.substring(1) : message.substring(1, end);
+        }
         if (e instanceof com.legend.error.MissingParameters m) {
             // legend-engine's PlanExecutor
             return "Missing external parameter(s): " + String.join(", ", m.missing())
