@@ -37,6 +37,27 @@ _chosen: Path | None = None
 THIS_USER = 'this user'
 
 
+# the store refused where every viewer would share it (the C5 batch's P4, 2026-11-15): a notebook served by `marimo run`
+# runs every viewer's session in this one process, and its viewers have no identity of their own (no sign-in; marimo's
+# session id is new each reload), so this user's folder would be every viewer's -- each one's saved pages, queries,
+# projects and settings read and overwritten by the next
+SHARED_BY_VIEWERS = ('this notebook is served to many viewers (marimo run): legend-lite keeps no saved pages, queries, '
+                     'projects or settings that every viewer would share')
+
+
+class SharedStore(OSError):
+    """A store of this user's folder asked for where every viewer would share it (``shared_by_viewers``)."""
+
+
+def shared_by_viewers() -> bool:
+    """Whether this process serves a marimo notebook to its viewers (``marimo run``: marimo's ``app_meta().mode`` is
+    ``'run'``; ``'edit'`` and ``'script'`` are one person's). Read from what is already loaded: nothing is imported to
+    ask."""
+    marimo = sys.modules.get('marimo')
+    app_meta = getattr(marimo, 'app_meta', None) if marimo is not None else None
+    return app_meta is not None and app_meta().mode == 'run'
+
+
 def home(path: str | Path | None = None) -> Path:
     """This user's legend-lite folder (made when first used). Given a path, this process keeps its things there from
     now on (a folder beside a notebook, say) and says it."""
@@ -99,7 +120,10 @@ class Settings:
 @contextlib.contextmanager
 def locked(folder: Path) -> Iterator[None]:
     """A folder of this user's held for one call, across every Python process of this user (a lock file in it). The
-    folder and the one it is in are made private to this user when this makes them."""
+    folder and the one it is in are made private to this user when this makes them. Every store kept here is reached
+    through it, so where viewers would share the folder (``shared_by_viewers``) it is refused by name: ``SharedStore``."""
+    if shared_by_viewers():
+        raise SharedStore(SHARED_BY_VIEWERS)
     folder.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
     folder.mkdir(mode=0o700, exist_ok=True)
     with open(folder / '.lock', 'a+b') as lock:

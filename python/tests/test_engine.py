@@ -874,6 +874,55 @@ class SettingsKept(Served):
         self.assertEqual(refused.exception.code, 401)
 
 
+class SharedByViewers(Served):
+    """The C5 batch's P4 (2026-11-15): a notebook served by `marimo run` runs every viewer's session in this one process,
+    and its viewers have no identity of their own, so this user's folder would be every viewer's -- its stores (the saved
+    pages, the saved queries, the model home's projects, DataCube's settings) refused by name there, and nothing written.
+    marimo edit, Jupyter and a script keep them as ever."""
+
+    def marimo(self, mode):
+        """This process as marimo leaves it in ``mode`` (its app_meta, as marimo says it)."""
+        import types
+        app_meta = lambda: types.SimpleNamespace(mode=mode)
+        return mock.patch.dict(sys.modules, {'marimo': types.SimpleNamespace(app_meta=app_meta)})
+
+    def home(self):
+        home = tempfile.TemporaryDirectory()
+        self.addCleanup(home.cleanup)
+        return home.name
+
+    def test_under_marimo_run_every_store_is_refused_by_name_and_nothing_is_written(self):
+        from legend_lite import _home
+        home = self.home()
+        with mock.patch.dict(os.environ, {'LEGEND_LITE_HOME': home}), self.marimo('run'):
+            engine = self.server.engine
+            for method, path, body in (('GET', '/settings.json', None), ('POST', '/settings.json', '{"a": 1}'),
+                                       ('GET', '/api/pure/v1/query/dataCube', None),
+                                       ('POST', '/api/pure/v1/query', '{}'),
+                                       ('POST', '/sdlc/api/projects', json.dumps({
+                                           'name': 'p', 'description': '', 'groupId': 'org.example',
+                                           'artifactId': 'p'}))):
+                said = engine.answer(method, path, '', body)
+                self.assertEqual((said.status, said.body.decode()), (403, _home.SHARED_BY_VIEWERS), (method, path))
+            # Python's own calls of the stores (a page's save, the settings) are refused by the same words
+            for call in (lambda: _home.Settings().read(), lambda: _home.Settings().write({'a': 1}),
+                         lambda: _home.store_call('lite_saved_cubes', _home.pages_folder(), 'GET', '', '', '',
+                                                  _home.THIS_USER),
+                         lambda: _home.home_call(_home.model_home_folder(), 'sdlc', 'GET', '/projects', None)):
+                with self.assertRaises(_home.SharedStore) as refused:
+                    call()
+                self.assertEqual(str(refused.exception), _home.SHARED_BY_VIEWERS)
+        self.assertEqual(list(Path(home).iterdir()), [], 'nothing kept where every viewer would share it')
+
+    def test_under_marimo_edit_the_store_is_kept_as_ever(self):
+        home = self.home()
+        with mock.patch.dict(os.environ, {'LEGEND_LITE_HOME': home}), self.marimo('edit'):
+            engine = self.server.engine
+            self.assertEqual(engine.answer('POST', '/settings.json', '', '{"a": 1}').status, 204)
+            said = engine.answer('GET', '/settings.json', '', None)
+            self.assertEqual((said.status, json.loads(said.body)), (200, {'a': 1}))
+
+
 class ModelHomeServed(Served):
     """Python's model home (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md B3): the native library's SDLC and Depot, served at
     /sdlc/api and /depot/api with the engine's token, over a git repository in this user's folder. The routes' answers

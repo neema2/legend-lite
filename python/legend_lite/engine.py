@@ -67,7 +67,8 @@ from .frames import Frames, ModelRefused, Reading, UntypedColumn, redact_held
 from ._reads import count_of, read_plane, run_arrow, run_on_plane, run_plan, run_rows_json
 from .keeper import PageKeeper, Refused
 from .projects import NotAModel, ProjectDatabases, run_host_load, run_write
-from ._home import THIS_USER, Settings, home, model_home_folder, pages_folder, queries_folder, store_call
+from ._home import (SHARED_BY_VIEWERS, THIS_USER, Settings, home, model_home_folder, pages_folder, queries_folder,
+                    shared_by_viewers, store_call)
 
 _API = '/api/pure/v1/'
 _EXECUTE = _API + 'execution/execute'
@@ -626,6 +627,9 @@ class Engine:
         """One call: ``POST`` to the API, or ``GET`` of a frame's cube (``cube.json``), its version (``version.json``) or
         a file of the site. It waits for its answer, which the compiler's threads compute when it needs the compiler,
         so it is called from a thread of the caller's own (a connection's, a message's), never a compiler thread."""
+        if (_saved_cube(path) or _saved_query(path) or _model_home(path) or path == _SETTINGS) and shared_by_viewers():
+            # this user's folder would be every viewer's (marimo run): its stores refused by name (the C5 batch's P4)
+            return _said(403, SHARED_BY_VIEWERS)
         if _saved_cube(path):
             # on the caller's thread, as the saved queries': it waits for the folder's lock holding no compiler thread
             return self._saved_cubes(method, path, query, body or '')
