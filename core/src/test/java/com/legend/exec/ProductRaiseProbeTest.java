@@ -58,15 +58,16 @@ class ProductRaiseProbeTest {
 
     /** The query planned in the product's style (the door's default) on {@code backend}'s storeless runtime, its every
      *  statement printed, then run: its JSON rows, or the failure it raised. */
-    private static Object run(com.legend.testbackend.TestBackend backend, String label, String query)
-            throws java.io.IOException, java.sql.SQLException {
-        ExecutionPlan plan = Compiler.query(Compiler.compileModel(backend.withStorelessRuntime("")), query)
-                .executionPlan(StorelessRuntime.RUNTIME);
-        System.out.println("[product raise probe] " + backend.name() + " " + label + ": "
-                + plan.answerSql().statement().replace(String.valueOf(com.legend.sql.RaiseKind.MARK), "<U+001C>")
-                        .replace("\n", " "));
+    private static Object run(com.legend.testbackend.TestBackend backend, String label, String query) {
         StringWriter out = new StringWriter();
+        // each case on its own (W2 of docs/records/d-plan-2026-11-16.md, round 57's H2 finding): a refusal at planning
+        // or at run is this case's answer, recorded by name, never an abort of the cases after it
         try {
+            ExecutionPlan plan = Compiler.query(Compiler.compileModel(backend.withStorelessRuntime("")), query)
+                    .executionPlan(StorelessRuntime.RUNTIME);
+            System.out.println("[product raise probe] " + backend.name() + " " + label + ": "
+                    + plan.answerSql().statement().replace(String.valueOf(com.legend.sql.RaiseKind.MARK), "<U+001C>")
+                            .replace("\n", " "));
             if (backend.opensJdbc()) {
                 try (java.sql.Connection c = backend.open()) {
                     PlanRunner.stream(plan, Map.of(), PlanSessions.of(com.legend.testbackend.TestSessions.over(c)),
@@ -77,14 +78,14 @@ class ProductRaiseProbeTest {
                 PlanRunner.stream(plan, Map.of(), PlanSessions.shared(), PlanCases.Written.JSON.writer(out,
                         plan.answerShape()), java.util.UUID.randomUUID());
             }
-        } catch (RuntimeException failed) {
+        } catch (RuntimeException | java.io.IOException | java.sql.SQLException failed) {
             return failed;
         }
         return out.toString();
     }
 
     @Test
-    void theProductsGuardedStatementsRunAndRaiseTheirKinds() throws java.io.IOException, java.sql.SQLException {
+    void theProductsGuardedStatementsRunAndRaiseTheirKinds() {
         var backend = backend();
         List<String> wrong = new ArrayList<>();
         // 1. a guarded division that does not raise: the literal is in the statement, its branch never taken
@@ -109,15 +110,15 @@ class ProductRaiseProbeTest {
                 + "{\"t\":\"100000000000000000000\"},{\"t\":\"0\"}]")) {
             wrong.add("a Float's text: " + describe(text));
         }
-        // 5. the edges of a Float's text (the orchestrator's round 54, 2026-11-15): whole numbers (a trim must keep their
-        // zeros), zero and its sign, the halfway region, noise above 4.5e9, NUMBER(38,6)'s 32 integer digits, the
-        // double's extremes. Exact where register S311 says every database agrees; -0 and below 5e-7 either sign of
-        // zero (S311's rows); from 1e21 up the plain digits with no exponent and no failure, as many digits as the
-        // value's magnitude (the noise is S311's; a capped text -- MySQL's FORMAT wrote 61 digits for 1e300 -- is wrong)
+        // 5. the edges of a Float's text (the orchestrator's round 54, 2026-11-15; judged since W2 of
+        // docs/records/d-plan-2026-11-16.md, round 57's finding that a magnitude-only check passed 15, 16, 21 and the
+        // exact binary digits alike): whole numbers, zero and its sign, the halfway region, noise above 4.5e9,
+        // NUMBER(38,6)'s 32 integer digits, the double's extremes -- each judged against ONE answer, the shortest
+        // round-trip digits (Java's Double.toString, which every database must agree with: register S311), rounded to
+        // six places and trimmed, a zero unsigned
         String[] values = {"100.0", "10.0", "0.0", "-0.0", "123456789.0", "0.30000000000000004", "-0.0000001",
-                "1.0E21", "1.0E32", "1.0E300", "-1.0E300", "1.7976931348623157E308", "2.2250738585072014E-308"};
-        String[][] expected = {{"100"}, {"10"}, {"0"}, {"0"}, {"123456789"}, {"0.3"}, {"0"},
-                null, null, null, null, null, {"0"}};
+                "1.0E21", "1.0E32", "1.0E300", "-1.0E300", "1.7976931348623157E308", "2.2250738585072014E-308",
+                "1.2345678901234567E40", "-9.87654321E25"};
         Object edges = run(backend, "a Float's text, its edges", "|#TDS\n  i:Integer, x:Float\n"
                 + java.util.stream.IntStream.range(0, values.length).mapToObj(i -> "  " + i + ", " + values[i] + "\n")
                         .collect(java.util.stream.Collectors.joining())
@@ -133,11 +134,10 @@ class ProductRaiseProbeTest {
             }
             for (int i = 0; i < values.length; i++) {
                 String g = i < got.size() ? got.get(i) : null;
-                boolean ok = g != null && (expected[i] != null ? List.of(expected[i]).contains(g)
-                        : g.matches("-?[0-9]+") && g.replace("-", "").length()
-                                == (int) Math.floor(Math.log10(Math.abs(Double.parseDouble(values[i])))) + 1);
-                if (!ok) {
-                    wrong.add("a Float's text of " + values[i] + ": " + g);
+                String want = floatText(Double.parseDouble(values[i]));
+                if (!want.equals(g)) {
+                    wrong.add("a Float's text of " + values[i] + ": " + g + " (the shortest round-trip form: " + want
+                            + ")");
                 }
             }
         }
@@ -157,6 +157,14 @@ class ProductRaiseProbeTest {
         System.out.println("[product raise probe] " + backend.name() + " a DateTime's text, answered: " + describe(dt));
         System.out.println("[product raise probe] " + backend.name() + ": " + wrong.size() + " wrong " + wrong);
         assertEquals(List.of(), wrong, backend.name());
+    }
+
+    /** The product's text of {@code x} (register S311): its shortest round-trip digits, rounded half up to six places,
+     *  trailing zeros trimmed, a zero unsigned. */
+    static String floatText(double x) {
+        String t = new java.math.BigDecimal(Double.toString(x)).setScale(6, java.math.RoundingMode.HALF_UP)
+                .stripTrailingZeros().toPlainString();
+        return t.equals("-0") || new java.math.BigDecimal(t).signum() == 0 ? "0" : t;
     }
 
     private static void expectKind(List<String> wrong, String label, Object answered,

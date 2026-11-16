@@ -1353,6 +1353,8 @@ junit_test(
         "//json",
         ":core",
         ":core_tests_lib",
+        # the service tests' runner, at the edge since D1.4 (2026-11-15)
+        ":edge_service_tests",
         ":test_backends",
         "@maven_test//:org_junit_jupiter_junit_jupiter_api",
         "@maven_test//:org_junit_jupiter_junit_jupiter_params",
