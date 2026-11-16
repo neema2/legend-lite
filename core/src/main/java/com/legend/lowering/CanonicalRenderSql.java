@@ -649,10 +649,16 @@ public final class CanonicalRenderSql {
      *  track carries none (docs/OBJECT_IDENTITY_2026_10_20.md §4, {@code Lowerer.objectId}), and reading it raises by
      *  name rather than answer by a shared or absent id. */
     static SqlExpr trackedId(SqlExpr object) {
-        return tracked(new SqlExpr.StructGet(object, com.legend.compiler.element.ClassLayouts.SYNTHETIC_ID));
+        // an object built here, a literal, carries its id as a field: read as the field's value (StructGet.of)
+        return tracked(SqlExpr.StructGet.of(object, com.legend.compiler.element.ClassLayouts.SYNTHETIC_ID));
     }
 
     private static SqlExpr tracked(SqlExpr id) {
+        // an id that is a literal (an object built here: StructGet.of read it off the struct) is tracked: no guard
+        // (the DuckDB plan's step 4, 2026-11-16 -- the guard was written, and bound, at each read of a let of an instance)
+        if (id instanceof SqlExpr.StringLit || id instanceof SqlExpr.IntLit) {
+            return id;
+        }
         return new SqlExpr.Case(List.of(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.IS_NULL, id),
                 SqlExpr.Call.of(SqlFn.ERROR, new SqlExpr.StringLit(UNTRACKED)))), id, SqlExpr.Reason.PRINT);
     }
