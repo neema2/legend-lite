@@ -773,10 +773,9 @@ final class TdsDesugars {
             return null;    // schema unknown (executeInDb rows): the ordinary typing serves it
         }
         if (k < 0 || k >= prt.columns().size()) {
-            throw new IllegalStateException(
-                    "The system is trying to get an element at offset " + k
-                    + " where the collection is of size "
-                    + prt.columns().size());
+            // a kind, worded by the product and, for upstream's clients, by the edge (D1.6, W7)
+            throw new com.legend.error.TypeInferenceException(com.legend.error.CompileKind.ELEMENT_AT_OFFSET,
+                    List.of(String.valueOf(k), String.valueOf(prt.columns().size())));
         }
         return synth(Calls.exact(com.legend.builtin.Pure.Lite.TRUST_ONE, List.of(
                 new AppliedProperty(vp.receiver(),

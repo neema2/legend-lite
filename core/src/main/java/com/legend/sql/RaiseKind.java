@@ -25,6 +25,9 @@ public enum RaiseKind {
     CAST_IMPOSSIBLE,
     /** A value whose run-time type is not the one a chain step needs (the resolver's run-time dispatch; W5, 2026-11-16). */
     INSTANCE_NOT_OF,
+    /** A value no arm of a match accepts (W7, 2026-11-16): the value's type, and the arms' types where the resolver's
+     *  run-time dispatch read them. */
+    MATCH_FAILURE,
     RANGE_STEP_ZERO,
     CONSTRAINT_UNEVALUABLE,
     LIST_LENGTHS_DIFFER,

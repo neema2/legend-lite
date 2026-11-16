@@ -66,6 +66,9 @@ class CompatSpellingGuardTest {
             // K8: legend-engine's compile and server sentences (D1.6; the query store's at pure/v1, D1.8)
             "Can't find ", "Invalid supertype", "arguments count (", "variables count (",
             "Missing external parameter(s)",
+            // legend-pure's match failure (W7 of docs/records/d-plan-2026-11-16.md, 2026-11-16: raised as a kind,
+            // MATCH_FAILURE, its sentence the edge's) and its collection offset sentence (TdsDesugars' compile kind)
+            "Match failure:", "trying to get an element at offset",
             // K9 and K7: Pure's print forms and the engine's trace comment
             "+0000", "@_", "executionTraceID",
             // K4: the engine corpus's scan order flag
@@ -111,14 +114,13 @@ class CompatSpellingGuardTest {
             "compiler/element/type/PlatformTypes.java | TDS_NULL_CELL | 2 | D1.9",
             // compiler/spec/TdsDesugars.java | TDS_NULL_CELL: gone 2026-11-15 (D1.3: a TDS cell's toString is cellText,
             // empty where the cell is in the product, legend-engine's TDSNull at the edge)
-            "compiler/spec/TdsDesugars.java | trying to get an element at offset | 1 | D1.6",
             // 2026-11-13 (phase D's O3): the plan style names the type it hands the planner -- the edge's printers
             // implement it; the product's style refuses it by name -- so it stays while the engine-text natives plan
             // 4 -> 5 (2026-11-14, S310 RULED by the user, DE2 (a): an execute's activity SQL is the style's pick, the
             // edge's printer handed to the planner's Activity.engines)
             // reclassified STAYS -> HOOK 2026-11-15 (the D part 1 audit's nit): the edge's hook, not a product semantic
             "database/PlanStyle.java | EngineTextDialect | 5 | HOOK",
-            "exec/PlanParameters.java | Missing external parameter(s) | 1 | D1.6",
+            // (Missing external parameter(s): gone 2026-11-16, W7: error.MissingParameters, worded by the edge)
             // moved from testplan/ActivityComments.java (2026-11-12, C's J10 merged at 4ef947a: the execution id one per
             // execute(), minted by the door; the activity's comment now the program runner's): a move, the count the same
             // exec/PlanRunner.java | traceComment and executionplan/ExecutionPlan.java's executionTraceID and traceComment:
@@ -226,7 +228,6 @@ class CompatSpellingGuardTest {
             // result/TdsObjectsWriter.java (TdsObjectsWriter 2, presentedName 1) and test/ServiceTestRunner.java
             // (PureV1Writer 1, TdsObjectsWriter 1): gone 2026-11-15 (D1.4: legend-engine's service tests and their
             // PURE_TDSOBJECT writer moved to the edge, //core:edge_service_tests)
-            "server/PureV1Api.java | Missing external parameter(s) | 1 | D1.6",
             "server/PureV1Api.java | PureV1Writer | 17 | D1.8",
             // D1.3 -> D1.9 (2026-11-15): the constant PlatformTypes names, the judges' and the edge's (above)
             "sql/SqlExpr.java | TDS_NULL_CELL | 1 | D1.9",

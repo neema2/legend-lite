@@ -144,9 +144,9 @@ class PlanRunnerTest {
                 refusal(declared("ns", "Integer", 0, null), List.of(1L, "2")));
         Map<String, Object> none = new HashMap<>();
         none.put("p", null);
-        assertEquals("Missing external parameter(s): p:Integer[1]", assertThrows(IllegalArgumentException.class,
+        assertEquals("no value for the parameter(s) p:Integer[1]", assertThrows(IllegalArgumentException.class,
                 () -> PlanParameters.check(List.of(declared("p", "Integer", 1, 1)), none)).getMessage());
-        assertEquals("Missing external parameter(s): ns:Integer[1..*]",
+        assertEquals("no value for the parameter(s) ns:Integer[1..*]",
                 refusal(declared("ns", "Integer", 1, null), List.of()));
     }
 
@@ -156,7 +156,7 @@ class PlanRunnerTest {
         String all = assertThrows(IllegalArgumentException.class, () -> PlanParameters.check(List.of(
                 declared("a", "Integer", 1, 1), declared("b", "String", 1, null), declared("f", "Float", 1, 1),
                 declared("e", "s::E", 1, 1, "A", "B")), Map.of("f", Double.NaN, "e", "X"))).getMessage();
-        assertEquals("Missing external parameter(s): a:Integer[1], b:String[1..*]; " + invalid(
+        assertEquals("no value for the parameter(s) a:Integer[1], b:String[1..*]; " + invalid(
                 "parameter 'f' (Float[1]): NaN is not finite: no SQL literal stands for it",
                 "parameter 'e' (s::E[1]): \"X\" is not a value of s::E [A, B]"), all);
     }

@@ -133,9 +133,11 @@ final class Coercions {
                         || !(args.get(2) instanceof com.legend.sql.SqlExpr.StringLit to)) {
                     throw new IllegalStateException("typeRaise's arguments are the resolver's literals: " + args);
                 }
-                com.legend.sql.SqlExpr raised = PureSql.raise(new com.legend.sql.SqlExpr.RaiseText(
-                        com.legend.sql.RaiseKind.valueOf(kind.value()), List.of(from, to), null,
-                        from.value() + " to " + to.value()), n.pos());
+                com.legend.sql.RaiseKind k = com.legend.sql.RaiseKind.valueOf(kind.value());
+                // its where: the two types, or a match's value's type alone
+                com.legend.sql.SqlExpr raised = PureSql.raise(new com.legend.sql.SqlExpr.RaiseText(k,
+                        List.of(from, to), null, k == com.legend.sql.RaiseKind.MATCH_FAILURE ? from.value()
+                                : from.value() + " to " + to.value()), n.pos());
                 return n.info().type() instanceof com.legend.compiler.element.type.Type.Primitive p && p != com.legend.compiler.element.type.Type.Primitive.BOOLEAN
                         ? new com.legend.sql.SqlExpr.Cast(raised, PureSql.type(p), com.legend.sql.SqlExpr.Reason.RAISE)
                         : raised;

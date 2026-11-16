@@ -356,7 +356,9 @@ class UpstreamProtocolFieldsTest {
         }
         String type = answer.getStringOr("errorType", "");
         return type.equals("COMPILATION") || type.equals("PARSER")
-                || answer.getStringOr("message", "").startsWith("IllegalArgumentException: ");
+                || answer.getStringOr("message", "").startsWith("IllegalArgumentException: ")
+                // a parameter given no value, a kind of its own (W7, 2026-11-16)
+                || answer.getStringOr("message", "").startsWith("MissingParameters: ");
     }
 
     private static String head(String text) {

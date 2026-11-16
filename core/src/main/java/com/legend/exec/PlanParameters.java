@@ -62,7 +62,7 @@ public final class PlanParameters {
      * {@code values} checked against {@code declared} and converted, by name: every declared parameter, its checked
      * value. A value for no declared parameter is ignored.
      *
-     * @throws IllegalArgumentException naming every problem at once: {@code Missing external parameter(s): ...} for each
+     * @throws IllegalArgumentException naming every problem at once: {@link com.legend.error.MissingParameters} for each
      *                                  required parameter given no value, {@code Invalid provided parameter(s): [...]}
      *                                  for each value that is not one its parameter takes
      */
@@ -86,15 +86,13 @@ public final class PlanParameters {
                         + problem);
             }
         }
-        List<String> problems = new ArrayList<>();
+        String wrong = invalid.isEmpty() ? null : "Invalid provided parameter(s): [" + String.join("; ", invalid) + "]";
         if (!missing.isEmpty()) {
-            problems.add("Missing external parameter(s): " + String.join(", ", missing));
+            // the missing ones a kind, worded by the product and, for upstream's clients, by the edge (D1.6, W7)
+            throw new com.legend.error.MissingParameters(missing, wrong);
         }
-        if (!invalid.isEmpty()) {
-            problems.add("Invalid provided parameter(s): [" + String.join("; ", invalid) + "]");
-        }
-        if (!problems.isEmpty()) {
-            throw new IllegalArgumentException(String.join("; ", problems));
+        if (wrong != null) {
+            throw new IllegalArgumentException(wrong);
         }
         return out;
     }

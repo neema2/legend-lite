@@ -647,7 +647,7 @@ public final class PureV1Api {
             body.add(new Json.Obj(let));
         }
         if (!missing.isEmpty()) {
-            throw new IllegalArgumentException("Missing external parameter(s): " + String.join(", ", missing));
+            throw new com.legend.error.MissingParameters(missing, null);
         }
         body.addAll(function.getArr("body").items());
         LinkedHashMap<String, Json.Node> out = new LinkedHashMap<>(function.fields());
@@ -775,7 +775,8 @@ public final class PureV1Api {
             if (!(e instanceof IllegalArgumentException || e instanceof com.legend.error.DataError)) {
                 e.printStackTrace();
             }
-            return error(500, null, named(e));
+            Throwable n = e instanceof com.legend.error.DataError && e.getCause() != null ? e.getCause() : e;
+            return error(500, null, n.getClass().getSimpleName() + ": " + words.apply(n));
         }
     }
 

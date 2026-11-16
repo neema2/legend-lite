@@ -23,6 +23,7 @@ public enum ErrorKind {
     DATE_COMPONENT_INVALID("invalid date component"),
     CAST_IMPOSSIBLE("the value cannot be cast to the requested type"),
     INSTANCE_NOT_OF("the value is not an instance of the requested type"),
+    MATCH_FAILURE("no match arm accepts the value"),
     RANGE_STEP_ZERO("range step is zero"),
     CONSTRAINT_UNEVALUABLE("constraint not evaluable: data not available"),
     LIST_LENGTHS_DIFFER("the two lists differ in length"),

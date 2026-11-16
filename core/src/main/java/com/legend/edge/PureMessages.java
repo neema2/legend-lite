@@ -68,6 +68,11 @@ public final class PureMessages {
             // [the value's run-time type's path, the needed type's] (W5: the resolver's chain dispatch, until then a
             // fail of this sentence in the product)
             case INSTANCE_NOT_OF -> new SqlExpr.StringLit("Cast exception: " + text(r, 0) + " is not a " + text(r, 1));
+            // legend-pure's Match.java, a value no branch takes ('Match failure: Integer[1] matches no branch'); the
+            // resolver's run-time dispatch over a row, its arms named (W7, 2026-11-16: until then the product's fail text)
+            case MATCH_FAILURE -> new SqlExpr.StringLit(text(r, 1).isEmpty()
+                    ? "Match failure: " + text(r, 0) + " matches no branch"
+                    : "Match failure: no arm of [" + text(r, 1) + "] accepts the row's run-time type");
             case RANGE_STEP_ZERO -> new SqlExpr.StringLit("range step must not be 0");
             // legend-pure's rows/_range assert, verbatim (#81's frame guard, merged 2026-11-14)
             case WINDOW_FRAME_INVERTED -> new SqlExpr.StringLit("Invalid window frame boundary - lower bound of window"
@@ -156,6 +161,11 @@ public final class PureMessages {
      */
     public static String compile(Throwable e) {
         String message = String.valueOf(e.getMessage());
+        if (e instanceof com.legend.error.MissingParameters m) {
+            // legend-engine's PlanExecutor
+            return "Missing external parameter(s): " + String.join(", ", m.missing())
+                    + (m.rest() == null ? "" : "; " + m.rest());
+        }
         // the kinded error itself, or the one a wrapper's message ends with ("in function 'f': " + its message)
         for (Throwable t = e; t != null; t = t.getCause()) {
             if (t instanceof com.legend.error.LegendCompileException c && c.kind() != null
@@ -188,6 +198,9 @@ public final class PureMessages {
             // legend-pure's GenericType validation
             case TYPE_ARGUMENTS_COUNT -> "Wrong " + o.get(0) + " arguments count (" + o.get(1) + ") for type: " + o.get(2);
             case TYPE_VARIABLES_COUNT -> "Wrong type variables count (" + o.get(0) + ") for type: " + o.get(1);
+            // legend-pure's collection at()
+            case ELEMENT_AT_OFFSET -> "The system is trying to get an element at offset " + o.get(0)
+                    + " where the collection is of size " + o.get(1);
         };
         return c.position() == null ? upstream : c.position() + " " + upstream;
     }

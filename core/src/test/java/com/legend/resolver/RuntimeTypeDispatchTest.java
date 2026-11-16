@@ -128,7 +128,8 @@ class RuntimeTypeDispatchTest {
         String sql = sqlOf("|rt::Vehicle.all()->project([v|$v->match(["
                 + "c:rt::Car[1]|$c.engineType])], ['e'])" + FROM);
         SQLException e = assertThrows(SQLException.class, () -> exec(sql));
-        assertTrue(e.getMessage().contains("Match failure"), e.getMessage());
+        // the product's raise is its kind (W7, 2026-11-16); legend-pure's "Match failure" sentence is the edge's
+        assertTrue(e.getMessage().contains("MATCH_FAILURE"), e.getMessage());
     }
 
     @Test

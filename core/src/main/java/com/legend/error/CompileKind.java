@@ -25,7 +25,9 @@ public enum CompileKind {
      *  the number given, the type as declared. */
     TYPE_ARGUMENTS_COUNT("%3$s takes another number of %1$s arguments than the %2$s given"),
     /** A type given another number of type variables than it declares: the number given, the type as declared. */
-    TYPE_VARIABLES_COUNT("%2$s takes another number of type variables than the %1$s given");
+    TYPE_VARIABLES_COUNT("%2$s takes another number of type variables than the %1$s given"),
+    /** A row's cell read at an offset the row does not have: the offset, the row's size. */
+    ELEMENT_AT_OFFSET("offset %1$s is outside a row of %2$s cells");
 
     private final String sentence;
 
