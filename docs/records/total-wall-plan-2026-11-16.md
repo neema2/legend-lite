@@ -213,6 +213,24 @@ a ruling, batched in §10. It does not wait on that batch unless the work is blo
 
      Known so far: Snowflake's `CAST(double AS VARCHAR)` still goes through `floatText`'s exact-digits machinery
      (`shortestDigits`, from October), alongside `floatCanon` and `floatPrint`. The revert did not touch these.
+   - **The inventory (D, 13:33) and the decisions on it (orchestrator, 13:40):**
+     - **A Float's toString inside an edge expression:** legend-engine's cast. Built on a work-in-progress branch;
+       its PCT moves are measured before it lands.
+     - **A Float in a raise sentence at the edge** (`PureMessages`): the sentence stays in the query, so the Float
+       uses legend-engine's cast. No new mechanism. Its moves are measured with the rest.
+     - **The judges' `%r` and canons:** typed (E-Java's W10a and W10b). The `FLOAT_PRINT` arms are deleted after
+       W10a, the `FLOAT_CANON` arms after W10b.
+     - **The product reaches legend-pure's Float print** through `toRepresentation` and `format`'s `%r`. Both are
+       refused by name in the product. S314 already rules "`%r` and padding at the edge", and `toRepresentation` is
+       `%r`'s function. Confirmation is in §10.
+     - **ClickHouse's product `format('%s', Float)`** writes Pure's literal text. `%s` of a value is its toString,
+       so it becomes S311's one call. This is a product fix.
+     - **The dialects' text of a double** (Snowflake's, BigQuery's, SQLite's and MariaDB's shortest-text emulations;
+       ClickHouse's `.0` regexp) is deleted once neither a judge nor a carrier reaches it.
+       - **CAUTION, carriers:** a value carried as text (a list or JSON carrying a double) must read back exactly
+         (same answers). A database's own cast does NOT always do that. Snowflake's own cast writes ten significant
+         digits, measured on its lane on 2026-10-21. So a carrier must carry the typed value, not its text, on such
+         a database. That is E-SQL's work, and it is measured per database before any emulation is deleted.
 3. **Finish moving legend-engine's plan text to the edge.** Run the corpus verdicts, then the rest of the planner's
    engine-text rows.
 4. **The guard to zero.**
@@ -382,6 +400,8 @@ run, and the user's merge word.
 6. **The edge's in-query Float `toString` as legend-engine's cast:** the list of PCT tests that move (to come from
    D, §5 item 2).
 7. **H2 `toOne` over a list,** refused by name.
+7a. **A product `toRepresentation` or `format('%r')` of a value**, refused by name. This extends S314's "`%r` and
+    padding at the edge" to `%r`'s function; the edge keeps legend-pure's text.
 8. **Any guard row that survives the one-by-one review** (§5 item 4), with its evidence.
 9. **Deferred goldens in W10,** if any are found.
 10. **The orchestrator's decisions under delegation,** listed in §12.
@@ -410,4 +430,6 @@ run, and the user's merge word.
 | 2026-11-16 13:10 | (recorded) Snowflake's timing re-run stopped (it was timing code being reverted); it is timed fresh after the revert. |
 | 2026-11-16 13:25 | E-Java's S2c: only S2c-1a (a pure move, no guard row) goes ahead during the freeze. The rest, moving `SqlTextVerdicts` to the edge, reads about 20 test-planner members. **Decided (b):** one public facade class in `testplan` (the typed seam E-Java proposed at S2's start), with one architecture entry row, rather than about 20 entry rows. It is narrower, one place to read, and one row to guard. It is built after the freeze lifts. |
 | 2026-11-16 13:35 | D's Float revert pushed (`4ff4f86e7`). Every product `floatToText` is D1.2's form, the exactness machinery and `precise_float_parsing` are gone, and the instrument is deleted. Its SQL is D1.2's statement on every dialect, so no alternation is needed. Found while checking: Snowflake's cast of a double to text still uses the October exact-digits machinery. It goes into §5 item 2's inventory. Lane round 66 is sent on `4ff4f86e7`. |
+| 2026-11-16 13:40 | D's Float-text inventory received. Decided (§5 item 2):<br>- a raise sentence's Float stays in the query with legend-engine's cast;<br>- the product's `toRepresentation` and `format('%r')` are refused by name (S314; confirmation in §10 item 7a);<br>- ClickHouse's product `format('%s', Float)` becomes S311's one call;<br>- the shortest-text emulations are deleted only when no judge and no carrier reaches them;<br>- carriers carry typed values where a database's cast does not read back (Snowflake), which is E-SQL's work, measured first.<br>All of it is built after the freeze lifts. |
+| 2026-11-16 13:50 | P2 checkpoint audit, reviewer B (at `89d4eae3b`): four MUSTs, three verified by the orchestrator. (1) A merge dropped three register amendments (S138, S170, S181). (2) The query-store page answers upstream's API in lite's words, so two TS suites go red. (3) The edge's host routes lost upstream's words and prefix for a missing parameter, so the Python execute test goes red and a test was widened. (4) Product lowering throws legend-pure's window-frame sentence. Plus SHOULDs S1 to S8. All went to D as fixes, allowed during the freeze. S8 decided: the edge receiver's refusals move to planning, so the run decides nothing (G4). Reviewer A pending. |
 | 2026-11-16 13:25 | E-SQL's item 6 (Postgres `jsonb_build_array`), committed just before the freeze, stays. It is a dialect spelling within E-v3's plan, and E-v3's review and lane round judge it. |
