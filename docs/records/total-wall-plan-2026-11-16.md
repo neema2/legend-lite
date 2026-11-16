@@ -144,16 +144,33 @@ The user, verbatim: "What's going on? Why are we again rabbit holing on random e
 so random? Why don't we have a step by step plan that we are working through? Are we trying to do too many things at
 once? Feels like we are not even getting the basics correct".
 
-So the program runs ONE step at a time, on ONE branch, with ONE worker writing.
+**Calibrated by the user the same hour** ("I think we have over indexed on one at a time and running all tests all the
+time - and now going to lose our fast dev loop - how do we calibrate properly"):
 
-- A step is done when the whole suite is green and the edge answers exactly as `main` does.
-- The next step starts only after that.
-- Workers not on the active step are paused, and nothing runs in parallel on the same branch.
-- §5 to §7 below are the detail each step draws on; they are not parallel tracks.
+- **One writer per branch, not one worker in total.** Streams on separate branches and separate files run side by
+  side:
+  - D on `claude/total-wall-d-stage` (the critical path);
+  - E-SQL on `claude/total-wall-e-sql-v3`;
+  - E-Java on `claude/total-wall-e-v3`, in its own files.
+
+  E-Java's steps on D's branch (5 and 6 below) wait until D hands over.
+- **Each stream works through its own numbered list,** one item at a time.
+- **The checks, by level:**
+
+| When | What runs | Cost |
+|---|---|---|
+| Every edit | the edited package's tests | seconds to minutes |
+| Every push | the tests that depend on the changed files, by Bazel's dependency query over the local-runnable packages (`//core`, `//pct`, `//spec`, `//datacube`, `//query-store`, `//engine-client`, `//warehouse`, Python), plus `//core:guardrails` and `//core:census`. Bazel's test cache skips the unaffected ones. | about 10 to 20 minutes |
+| End of a step | a lane round on all 12 databases, and an audit for a big step. These run BEHIND the worker, who starts the next step. Findings come back as one batch, and only a regression stops the line. | hours, not blocking |
+| Each PR | CI once | once |
+
+- **The orchestrator reports to the user once per step,** not finding by finding.
+
+The table below is D's sequence. A step is done at its push level, plus a lane round running behind.
 
 | Step | What | Who | Done when | State |
 |---|---|---|---|---|
-| 1 | **Where we really stand.** Run the whole suite CI runs, locally on d-stage's head and on `main`. Lanes: PCT on the external databases. Produce one list of every red target, ours or pre-existing. | D (lanes for the external databases) | the list exists | **ACTIVE** |
+| 1 | **Where we really stand (a one-off).** The whole suite on d-stage's `24c06a6d9`, run on a fresh machine by a measure-only session (`session_01XmdJ7mxHkc93vesmS39VX4`), against `main`'s green CI. Lane round 66 covers the external databases. Produces one list of every red target. | runner session | the list exists | **ACTIVE** (D waits for disk) |
 | 2 | **The basics correct.** Fix every red we caused, the P2 audit's MUSTs included. | D | the whole suite green, the edge identical to `main`, one lane round clean | next |
 | 3 | The edge's Float: legend-pure's print of a value in Java, and an in-query toString as legend-engine's cast (PCT moves listed first, §5 item 2). | D | step 2's bar, plus the moves ruled | |
 | 4 | legend-engine's plan text to the edge (finish W9's planner half). | D | step 2's bar | |
@@ -471,5 +488,6 @@ run, and the user's merge word.
 | 2026-11-16 13:40 | D's Float-text inventory received. Decided (§5 item 2):<br>- a raise sentence's Float stays in the query with legend-engine's cast;<br>- the product's `toRepresentation` and `format('%r')` are refused by name (S314; confirmation in §10 item 7a);<br>- ClickHouse's product `format('%s', Float)` becomes S311's one call;<br>- the shortest-text emulations are deleted only when no judge and no carrier reaches them;<br>- carriers carry typed values where a database's cast does not read back (Snowflake), which is E-SQL's work, measured first.<br>All of it is built after the freeze lifts. |
 | 2026-11-16 13:50 | P2 checkpoint audit, reviewer B (at `89d4eae3b`): four MUSTs, three verified by the orchestrator. (1) A merge dropped three register amendments (S138, S170, S181). (2) The query-store page answers upstream's API in lite's words, so two TS suites go red. (3) The edge's host routes lost upstream's words and prefix for a missing parameter, so the Python execute test goes red and a test was widened. (4) Product lowering throws legend-pure's window-frame sentence. Plus SHOULDs S1 to S8. All went to D as fixes, allowed during the freeze. S8 decided: the edge receiver's refusals move to planning, so the run decides nothing (G4). Reviewer A pending. |
 | 2026-11-16 14:00 | P2 checkpoint audit, reviewer A: four MUSTs. (1) W6's H2 quoting reads a different column: a lowercase-quoted `"order"` is no longer found (probed). Decided: restore the pre-W6 product quoting on H2 exactly, and keep the rule as one guard row for the user's ruling (§10 item 8). (2) The edge's host routes and ServiceTestRunner word errors in lite's words. (3) The host's Arrow route writes the product's S312 dates where it wrote legend-pure's. (4) pure/v1's missing-parameter prefix changed, and a test was widened. Plus SHOULDs S1 to S5. All went to D. The fast loop gains the upstream-words suites (§8). |
+| 2026-11-16 14:15 | **The user calibrated it:** one writer per branch, so streams on separate branches run side by side. Checks by level: the edit; the push (the dependent tests by Bazel's dependency query); the step's lane round and audit, running behind; CI per PR. Reports go to the user once per step. E-SQL and E-Java resume on their own branches. Step 1's baseline runs on a fresh machine because D's disk is spent. |
 | 2026-11-16 14:05 | **The user: one step at a time.** §4a added: a single numbered sequence, one active step, one writer. E-SQL and E-Java paused (priority now). D is on step 1: the whole suite on d-stage against `main`, one list of red. The orchestrator's own account: too many tracks at once, findings relayed one by one, and partial checks taken as good enough. |
 | 2026-11-16 13:25 | E-SQL's item 6 (Postgres `jsonb_build_array`), committed just before the freeze, stays. It is a dialect spelling within E-v3's plan, and E-v3's review and lane round judge it. |
