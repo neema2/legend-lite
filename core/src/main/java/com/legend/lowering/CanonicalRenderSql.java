@@ -696,7 +696,19 @@ public final class CanonicalRenderSql {
      */
     /** A key collection's element, {@code __e}, typed as the collection's element. */
     private static SqlExpr element(SqlType type) {
-        return SqlExpr.Column.of(null, "__e", type, true, com.legend.sql.OutputCol.Origin.DERIVED);
+        return element(type, true);
+    }
+
+    /** A list's element in a canon's lambda: not NULL where the list is a literal whose every element is not
+     *  (the DuckDB plan's item 3, 2026-11-16: the element's NULL guard then goes). */
+    private static SqlExpr element(SqlType type, boolean nullable) {
+        return SqlExpr.Column.of(null, "__e", type, nullable, com.legend.sql.OutputCol.Origin.DERIVED);
+    }
+
+    /** Whether {@code list} is a list literal none of whose elements can be NULL. */
+    private static boolean nonNullElements(SqlExpr list) {
+        return list instanceof SqlExpr.ArrayLit al && !al.elements().isEmpty()
+                && al.elements().stream().noneMatch(com.legend.sql.SqlTyping::mayBeNull);
     }
 
     static @com.legend.base.Nullable SqlExpr instanceCanon(SqlExpr v,
@@ -708,7 +720,7 @@ public final class CanonicalRenderSql {
                 && keys.keys().size() == 1 && keys.keys().get(0).many()) {
             var k = keys.keys().get(0);
             // the element typed as the list's (a dialect carrying a struct as JSON reads its fields by their types)
-            SqlExpr leaf = taggedLeaf(element(at.element()),
+            SqlExpr leaf = taggedLeaf(element(at.element(), !nonNullElements(v)),
                     at.element(), k.nested());
             if (leaf == null) {
                 return null;
@@ -757,7 +769,7 @@ public final class CanonicalRenderSql {
                 SqlType elem = ft instanceof SqlType.Array at
                         ? at.element() : null;
                 SqlExpr leaf = elem == null ? null
-                        : taggedLeaf(element(elem),
+                        : taggedLeaf(element(elem, !nonNullElements(SqlExpr.StructGet.of(v, k.name()))),
                                 elem, k.nested());
                 if (leaf == null) {
                     return null;
