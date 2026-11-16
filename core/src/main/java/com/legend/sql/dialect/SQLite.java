@@ -908,10 +908,22 @@ public class SQLite extends AnsiSqlRenderer {
         // read back every one. printf writes a NULL as 0.0, so the NULL is kept by a guard. 2.9x the raw form's time
         // to build a list of a million (286 vs 99 ms), the price of the right answer
         if (t == SqlType.Scalar.DOUBLE) {
-            return w -> w.append("CASE WHEN ").piece(v).append(" IS NULL THEN NULL ELSE json(printf('%!.17g', ")
-                    .piece(v).append(")) END");
+            return w -> w.append("json(").piece(exactText(v)).append(")");
         }
         return v;
+    }
+
+    /** A double's text that reads back as the same double: seventeen significant digits (SQLite's JSON and its
+     *  3.47 CAST write fifteen, measured), the NULL kept (printf writes NULL as 0.0). The Float carrier
+     *  ({@link #exactFloatText}) and the JSON carrier's number ({@link #jsonOf}). */
+    private static SqlWriter.Piece exactText(SqlWriter.Piece v) {
+        return w -> w.append("CASE WHEN ").piece(v).append(" IS NULL THEN NULL ELSE printf('%!.17g', ").piece(v)
+                .append(") END");
+    }
+
+    @Override
+    protected SqlWriter exactFloatText(SqlWriter writer, SqlExpr.Cast c) {
+        return writer.piece(exactText(w -> w.expr(c.value(), 0)));
     }
 
     /** The element read by {@code json_each}'s columns as a value of type {@code t}: a Variant element is its JSON text

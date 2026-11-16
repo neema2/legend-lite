@@ -884,6 +884,25 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
                 parentPrec);
     }
 
+    /** Whether {@code c} carries a Float as text to be read back (a carrier's cast, never a print): its text must
+     *  read back as the same double ({@link #exactFloatText}). */
+    private static boolean carriesFloatAsText(SqlExpr.Cast c) {
+        return c.reason() == SqlExpr.Reason.CARRIER && c.target() == com.legend.sql.SqlType.Scalar.VARCHAR
+                && c.value().type() instanceof com.legend.sql.TypeFact.Typed t
+                && t.type() == com.legend.sql.SqlType.Scalar.DOUBLE;
+    }
+
+    /**
+     * THE FLOAT CARRIER (Phase 8, 2026-11-16, the edge program's §7): a Float carried as text that must read back as
+     * the same double -- a carrier's cast, never a print (a print is the edge's, in Java). A database whose own cast of
+     * a double to text reads back writes that cast (the default: DuckDB's and Postgres's, measured); a database whose
+     * cast does not (SQLite 3.47's fifteen digits, Snowflake's ten) overrides with an exact form, one per database,
+     * measured on its lane (FloatCarrierExactTest). NULL stays NULL.
+     */
+    protected SqlWriter exactFloatText(SqlWriter writer, SqlExpr.Cast c) {
+        return variantAwareCast(writer, c);
+    }
+
     /** An expression, written: a leaf is spelled as text; a sub-expression is written into the same writer, so a
      *  parameter anywhere below is bound where its placeholder is written. */
     protected SqlWriter expr(SqlWriter writer, SqlExpr e, int parentPrec) {
@@ -1014,7 +1033,8 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             // a cast to the tagged carrier is the identity: the column holds the tag, an index, and the label says
             // what it indexes (docs/RESULTS_AND_RENDERERS_2026_10_22.md §5a), as a LITERAL label rides on text
             case SqlExpr.Cast c -> c.target() instanceof com.legend.sql.SqlType.Tagged
-                    ? writer.expr(c.value(), parentPrec) : variantAwareCast(writer, c);
+                    ? writer.expr(c.value(), parentPrec)
+                    : carriesFloatAsText(c) ? exactFloatText(writer, c) : variantAwareCast(writer, c);
             case SqlExpr.FoldCall f -> foldCall(writer, f);
             case SqlExpr.JsonObject j -> jsonObject(writer, j);
             case SqlExpr.JsonArray j -> jsonArray(writer, j);
