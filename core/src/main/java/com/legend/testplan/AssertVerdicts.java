@@ -859,7 +859,7 @@ final class AssertVerdicts {
         TypedSpec armRoot = split == null ? bare : split.base();
         HostSides.Check check;
         try {
-            check = fn == null ? SqlTextVerdicts.plan(bare, letPrefix, specs, env, hook)
+            check = fn == null ? engineTextArm(bare, letPrefix, specs, env, hook)
                     : planArm(fn, fn.bareName(), armRoot, letPrefix, specs, env, hook);
         } catch (RuntimeException e) {
             // the arm's classification raised under its family (none for a root arm): raised at the assert's turn,
@@ -932,7 +932,7 @@ final class AssertVerdicts {
                     // the engine-text arm (M10b): a producer shape planned under a collector, its two texts the step's
                     // sides (the golden a constant; ours a constant or a side the step reads, M10c item 8); null where
                     // the arm declines the shape, and the generic path below is the walk's
-                    HostSides.Check engineText = SqlTextVerdicts.plan(bare, letPrefix, specs, env, hook);
+                    HostSides.Check engineText = engineTextArm(bare, letPrefix, specs, env, hook);
                     if (SqlTextVerdicts.notAConstant(engineText)) {
                         // a text side the arm would evaluate by a statement at the assert's turn: the walk's, not
                         // the generic equality's (which would compare the texts the arm appeals)
@@ -2069,6 +2069,19 @@ final class AssertVerdicts {
 
     /** The root's callee — except {@code assertError}, whose arm is the host's own
      * (a non-callee here keeps it off the verdict routes). */
+    /** The ENGINE-TEXT ARM for {@code bare} (W9's judge half, S2b, 2026-11-16): null where the arm does not claim
+     *  the shape ({@link EngineTestText#claims}); else the plan style's facet's answer -- the compatibility edge's arm,
+     *  the product's style refusing by name, since upstream's text is the edge's. */
+    static HostSides.@com.legend.base.Nullable Check engineTextArm(TypedSpec bare, List<TypedSpec> letPrefix,
+            SpecCompiler specs, BodyDriver.ExecEnv env, @com.legend.base.Nullable SpliceHook hook) {
+        if (!EngineTestText.claims(bare, letPrefix, specs)) {
+            return null;
+        }
+        EngineTestText.Planned p = env.plan().style().facet(EngineTestText.class)
+                .plan(new EngineTestText.Ask(bare, letPrefix, specs, env, hook));
+        return p == null ? null : p.check;
+    }
+
     static @com.legend.base.Nullable String calleeFqn(TypedSpec bare) {
         String fqn = com.legend.compiler.spec.typed.Calls.calleeOf(bare);
         return com.legend.compiler.element.type.PlatformTypes.ASSERT_ERROR.equals(fqn) ? null : fqn;

@@ -338,6 +338,22 @@ final class SqlTextVerdicts {
                 c.textEqual(), c.decline(), c.oursOrigin(), appeal, routed));
     }
 
+    /** Whether the arm claims {@code bare} ({@link EngineTestText#claims}): a root arm's helper, or an equality whose
+     *  sides a producer of upstream's text feeds ({@link #mayArm}, over the narrowed sides as {@link #armOf} reads
+     *  them). A static superset: the arm may still decline what it claims. */
+    static boolean claims(TypedSpec bare, List<TypedSpec> letPrefix, SpecCompiler specs) {
+        String fqn = AssertVerdicts.calleeFqn(bare);
+        if (fqn != null && isRoot(fqn) && bare instanceof com.legend.compiler.spec.typed.TypedUserCall) {
+            return true;
+        }
+        if (!equalityFamily(bare)) {
+            return false;
+        }
+        com.legend.builtin.NativeFn.Verdict fn = verdictOf(bare);
+        return mayArm(fn.bareName(), fn == com.legend.builtin.NativeFn.Verdict.ASSERT_EQUALS,
+                narrowed(bare, letPrefix, specs), letPrefix, specs);
+    }
+
     /** Whether {@code bare} is {@code assertEquals} or {@code assertNotEquals}: the equality arm's family. */
     private static boolean equalityFamily(TypedSpec bare) {
         com.legend.builtin.NativeFn.Verdict fn = com.legend.builtin.NativeFn.Verdict.of(
@@ -357,13 +373,20 @@ final class SqlTextVerdicts {
                     ? tryArmSameSql(root, letPrefix, specs, env, hook)
                     : tryArmDualGolden(root, letPrefix, specs, env, hook);
         }
-        com.legend.builtin.NativeFn.Verdict fn = com.legend.builtin.NativeFn.Verdict.of(
-                com.legend.compiler.spec.typed.Calls.calleeIdOf(bare)).orElseThrow();
+        com.legend.builtin.NativeFn.Verdict fn = verdictOf(bare);
+        return tryArm(fn.bareName(), fn == com.legend.builtin.NativeFn.Verdict.ASSERT_EQUALS,
+                narrowed(bare, letPrefix, specs), letPrefix, specs, env, hook);
+    }
+
+    private static com.legend.builtin.NativeFn.Verdict verdictOf(TypedSpec bare) {
+        return com.legend.builtin.NativeFn.Verdict.of(com.legend.compiler.spec.typed.Calls.calleeIdOf(bare)).orElseThrow();
+    }
+
+    /** An equality's two sides as the arm reads them: their stamps narrowed through the lets. */
+    private static List<TypedSpec> narrowed(TypedSpec bare, List<TypedSpec> letPrefix, SpecCompiler specs) {
         List<TypedSpec> raw = bare instanceof com.legend.compiler.spec.typed.TypedUserCall u ? u.args()
                 : ((com.legend.compiler.spec.typed.TypedNativeCall) bare).args();
-        List<TypedSpec> args = com.legend.compiler.spec.ExecuteChainAssembly.narrowSideStamps(raw, letPrefix, specs);
-        return tryArm(fn.bareName(), fn == com.legend.builtin.NativeFn.Verdict.ASSERT_EQUALS, args, letPrefix, specs,
-                env, hook);
+        return com.legend.compiler.spec.ExecuteChainAssembly.narrowSideStamps(raw, letPrefix, specs);
     }
 
     /** THE ONE VERDICT SITE of the arms: {@code textEqual} the verdict (the user's ruling of 2026-09-21, option 1: a

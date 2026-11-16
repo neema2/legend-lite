@@ -1214,6 +1214,9 @@ final class ArchitectureTest {
             "testplan.TestPlanner#plan(com.legend.TypedQuery, java.lang.String, com.legend.testplan.PlanningOptions)",
             "com.legend.TestExecution",
             "testplan.TestPlanner#facts(com.legend.TypedQuery)", "com.legend.TestExecution",
+            // W9's judge half, S2b (2026-11-16): the engine-text arm the edge's facet runs, until the arm's code moves
+            // to the edge (testplan.EngineTestText; docs/records/e-java-w9-judge-half-2026-11-16.md)
+            "testplan.EngineTestText#arm(com.legend.testplan.EngineTestText$Ask)", "com.legend.edge.EdgeEngineTestText",
             // the test door's options, from the root's ExecuteOptions: planning's half, a record of closed words
             "testplan.PlanningOptions#<init>(com.legend.testexecutionplan.Edge, com.legend.executionplan.DataStores, "
                     + "java.util.Set, com.legend.testplan.PlanningOptions$JudgeMode, "

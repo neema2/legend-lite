@@ -79,8 +79,9 @@ class DatabaseHalfDe5Test {
         String passing = "{| meta::relational::functions::sqlQueryToString::h2::assertEqualsH2Compatible('a', 'b', 'b');}";
         String failing = "{| meta::relational::functions::sqlQueryToString::h2::assertEqualsH2Compatible('a', 'b', 'c');}";
         for (PlanningOptions.JudgeMode mode : PlanningOptions.JudgeMode.values()) {
-            assertEquals("PASS", run(DUAL, passing, mode), mode + ": the upgraded golden equals ours");
-            String failed = run(DUAL, failing, mode);
+            // a dual golden is upstream's engine-text root: the edge's facet plans it (W9's judge half, S2b)
+            assertEquals("PASS", onTheEdge(DUAL, passing, mode), mode + ": the upgraded golden equals ours");
+            String failed = onTheEdge(DUAL, failing, mode);
             assertTrue(failed.startsWith("AssertFailed"), mode + ": the upgraded golden differs: " + failed);
         }
     }
