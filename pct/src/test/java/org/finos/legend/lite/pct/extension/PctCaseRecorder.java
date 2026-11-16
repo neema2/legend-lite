@@ -33,13 +33,15 @@ final class PctCaseRecorder {
     }
 
     /** THE EDGE GOLDEN NET (2026-11-16, the edge program's Phase 0): with {@code -Dlegend.edge.answers=<file>}, every
-     *  case's answer as upstream sees it -- a relation's columns and its rows (sorted: an unordered result's order is
+     *  case's answer as upstream sees it -- a relation's columns and its rows (in the order received; the net's
+     *  normalizer, outside this module, sorts them: an unordered result's order is
      *  the database's), a value's typed cells, an error's message -- one line per case, keyed by the running test
-     *  and its case's place in it, written sorted when the run ends. Trace and execution ids are masked. Unset,
+     *  and its case's place in it, written in run order when the run ends (the normalizer sorts the lines). Trace and execution ids are masked. Unset,
      *  nothing is kept. */
     private static final String EDGE = System.getProperty("legend.edge.answers");
 
-    private static final java.util.Map<String, String> EDGE_LINES = new java.util.TreeMap<>();
+    // in the order the cases ran: ordering is the net's normalizer's (tools/edgenet), never this module's
+    private static final java.util.Map<String, String> EDGE_LINES = new java.util.LinkedHashMap<>();
 
     private static final java.util.Map<String, Integer> EDGE_SEQ = new java.util.HashMap<>();
 
@@ -63,8 +65,24 @@ final class PctCaseRecorder {
             "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}|\\b[0-9a-fA-F]{16,}\\b");
 
     private static String flat(String s) {
-        return IDS.matcher(s).replaceAll("<id>").replace('\t', ' ').replace("\r", "").replace("\n", "\\n");
+        String t = IDS.matcher(s).replaceAll("<id>").replace('\t', ' ').replace("\r", "").replace("\n", "\\n");
+        // every other control character escaped (a value's NUL made a golden binary to git), but the row separator
+        StringBuilder out = new StringBuilder(t.length());
+        for (int i = 0; i < t.length(); i++) {
+            char c = t.charAt(i);
+            if (c < 0x20 && c != ROW_SEPARATOR) {
+                out.append(String.format(java.util.Locale.ROOT, "\\u%04x", (int) c));
+            } else {
+                out.append(c);
+            }
+        }
+        return out.toString();
     }
+
+    /** Between a relation's rows, which the recorder writes in the order it receives them: the net's normalizer
+     *  (tools/edgenet, outside this module: comparison stays in interpreted Pure here, PctDisciplineTest) sorts them.
+     *  Compact JSON never holds it raw. */
+    private static final char ROW_SEPARATOR = '\u001e';
 
     private static void edge(String expression, String kind, String text) {
         if (EDGE == null) {
@@ -73,7 +91,9 @@ final class PctCaseRecorder {
         String test = String.valueOf(System.getProperty("legend.test.id"));
         synchronized (EDGE_LINES) {
             int n = EDGE_SEQ.merge(test, 1, Integer::sum);
-            EDGE_LINES.put(test + "\t" + String.format(java.util.Locale.ROOT, "%03d", n), kind + "\t" + flat(text) + "\t" + flat(expression));
+            // the expression is the adapter's input, not an edge output, and its serialization (a let's order) is not
+            // stable run to run (2026-11-16, measured): the line is keyed by the test and the case's place in it
+            EDGE_LINES.put(test + "\t" + String.format(java.util.Locale.ROOT, "%03d", n), kind + "\t" + flat(text));
         }
     }
 
@@ -91,8 +111,7 @@ final class PctCaseRecorder {
                     .get("rows")).items()) {
                 rows.add(write(r));
             }
-            java.util.Collections.sort(rows);
-            text.append(" rows=").append(String.join(",", rows));
+            text.append(" rows=").append(String.join(String.valueOf(ROW_SEPARATOR), rows));
             edge(expression, answer.shape().name(), text.toString());
             return;
         }
@@ -144,10 +163,6 @@ final class PctCaseRecorder {
 
     /** A case that failed: its error's class and the first line of its message, under the kind {@code ERROR}. */
     static void recordShapeError(String expression, Throwable e) {
-        // the edge golden net rides this call (none added to PctExecuteNative's ledger pin): the message exactly as
-        // PctExecuteNative hands it to the interpreter -- KEEP IN STEP with its throw (on d-stage,
-        // edge.PureMessages.compile(e))
-        edgeError(expression, com.legend.edge.PureMessages.compile(e));
         if (SHAPES_DIR == null) {
             return;
         }

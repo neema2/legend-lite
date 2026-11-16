@@ -1,0 +1,13 @@
+load("//tools/guards:defs.bzl", "guards_package")
+load("//tools/java:defs.bzl", "legend_java_library")
+
+# THE EDGE GOLDEN NET's normalizer (2026-11-16): the ordering the PCT module may not hold (PctDisciplineTest), applied
+# to its recordings before the net compares them with their goldens (pct/BUILD.bazel, edge_contract_test).
+legend_java_library(
+    name = "edgenet",
+    testonly = True,
+    srcs = ["EdgeNormalize.java"],
+    visibility = ["//pct:__pkg__"],
+)
+
+guards_package()
