@@ -254,6 +254,14 @@ public class LegendHttpServer {
      */
     public static Routes storeRoutes(String prefix, @com.legend.base.Nullable SavedQueries queryStore,
             @com.legend.base.Nullable SavedCubes cubeStore) {
+        return storeRoutes(prefix, queryStore, cubeStore, SavedQueries.LITES_WORDS);
+    }
+
+    /** {@link #storeRoutes(String, SavedQueries, SavedCubes)}, a refusal worded by {@code words}: the edge's mount at
+     *  legend-engine's path speaks legend-engine's words (D1.8, W8 of docs/records/d-plan-2026-11-16.md). */
+    public static Routes storeRoutes(String prefix, @com.legend.base.Nullable SavedQueries queryStore,
+            @com.legend.base.Nullable SavedCubes cubeStore,
+            java.util.function.Function<SavedQueries.Refusal, String> words) {
         return new Routes() {
             @Override
             public String prefix() {
@@ -271,8 +279,8 @@ public class LegendHttpServer {
                 String rest = path.substring(prefix.length());
                 SavedQueries.Answer a = rest.equals("/dataCube") || rest.startsWith("/dataCube/")
                         ? SavedCubes.answer(cubeStore, method, rest.substring("/dataCube".length()), rawQuery, body,
-                                SavedQueries.ANONYMOUS)
-                        : SavedQueries.answer(queryStore, method, rest, rawQuery, body, SavedQueries.ANONYMOUS);
+                                SavedQueries.ANONYMOUS, words)
+                        : SavedQueries.answer(queryStore, method, rest, rawQuery, body, SavedQueries.ANONYMOUS, words);
                 return new PureV1Api.Answer(a.status(), a.json());
             }
         };

@@ -27,7 +27,18 @@ class SavedQueriesTest {
 
     private SavedQueries.Answer call(String method, String rest, String query, String body, String user) {
         clock.addAndGet(10);
-        return SavedQueries.answer(new SavedQueries(new FileRecords(dir), clock::get), method, rest, query, body, user);
+        // legend-engine's query API, its refusals in its words as the edge mounts it (D1.8, W8 of
+        // docs/records/d-plan-2026-11-16.md: the product's own path speaks lite's, theProductsPathSpeaksLitesWords)
+        return SavedQueries.answer(new SavedQueries(new FileRecords(dir), clock::get), method, rest, query, body, user,
+                com.legend.edge.EdgeServer::storeWords);
+    }
+
+    @Test
+    void theProductsPathSpeaksLitesWords() {
+        SavedQueries.Answer gone = SavedQueries.answer(new SavedQueries(new FileRecords(dir), clock::get), "GET", "/q9",
+                null, "", "a");
+        assertEquals(404, gone.status());
+        assertEquals("no saved query has the ID 'q9'", obj(gone).getString("message"));
     }
 
     private static String query(String id, String name) {

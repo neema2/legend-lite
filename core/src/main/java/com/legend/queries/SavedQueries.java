@@ -39,12 +39,56 @@ public final class SavedQueries {
     /** An {@code ApplicationQueryException}: its status and the engine's {@code {"message"}} body. */
     public static final class Refusal extends RuntimeException {
         final int status;
+        private final @com.legend.base.Nullable Kind kind;
+        private final List<String> operands;
+
+        /** A refusal's kind, where the store names one (D1.8, W8 of docs/records/d-plan-2026-11-16.md, 2026-11-16):
+         *  its message is lite's sentence; legend-engine's is the compatibility edge's ({@code edge.PureMessages.store}),
+         *  for the routes mounted at legend-engine's path. */
+        public enum Kind {
+            /** No saved query has the ID: the ID. */
+            QUERY_NOT_FOUND("no saved query has the ID '%1$s'"),
+            /** Some of several IDs name no saved query: those IDs, one per line. */
+            QUERIES_NOT_FOUND("no saved query has the ID(s):\n%1$s"),
+            /** A saved query has no such version: the version, the ID. */
+            VERSION_NOT_FOUND("the saved query '%2$s' has no version '%1$s'");
+
+            private final String sentence;
+
+            Kind(String sentence) {
+                this.sentence = sentence;
+            }
+
+            String sentence(List<String> operands) {
+                return String.format(java.util.Locale.ROOT, sentence, operands.toArray());
+            }
+        }
 
         Refusal(String message, int status) {
             super(message);
             this.status = status;
+            this.kind = null;
+            this.operands = List.of();
+        }
+
+        Refusal(Kind kind, List<String> operands, int status) {
+            super(kind.sentence(operands));
+            this.status = status;
+            this.kind = kind;
+            this.operands = List.copyOf(operands);
+        }
+
+        public @com.legend.base.Nullable Kind kind() {
+            return kind;
+        }
+
+        public List<String> operands() {
+            return operands;
         }
     }
+
+    /** A refusal in the product's words: its own message. */
+    public static final java.util.function.Function<Refusal, String> LITES_WORDS = r -> String.valueOf(r.getMessage());
 
     private static final Pattern VALID_ARTIFACT_ID = Pattern.compile("^[a-z][a-z0-9_]*+(-[a-z][a-z0-9_]*+)*+$");
     private static final Pattern JAVA_NAME = Pattern.compile("^[A-Za-z_$][A-Za-z0-9_$]*(\\.[A-Za-z_$][A-Za-z0-9_$]*)*$");
@@ -105,6 +149,14 @@ public final class SavedQueries {
      */
     public static Answer answer(@com.legend.base.Nullable SavedQueries store, String method, String rest,
             @com.legend.base.Nullable String rawQuery, String body, String user) {
+        return answer(store, method, rest, rawQuery, body, user, LITES_WORDS);
+    }
+
+    /** {@link #answer(SavedQueries, String, String, String, String, String)}, a refusal worded by {@code words} (the
+     *  edge's route at legend-engine's path: legend-engine's words; D1.8). */
+    public static Answer answer(@com.legend.base.Nullable SavedQueries store, String method, String rest,
+            @com.legend.base.Nullable String rawQuery, String body, String user,
+            java.util.function.Function<Refusal, String> words) {
         if (store == null) {
             return new Answer(500, "{\"code\":-1,\"message\":\"Query store has not been configured properly"
                     + " (legend-lite: start the server with --query-store DIR)\",\"status\":\"error\"}");
@@ -133,7 +185,7 @@ public final class SavedQueries {
                 default -> notFound(rest);
             };
         } catch (Refusal r) {
-            return new Answer(r.status, Json.toCompact(Map.of("message", String.valueOf(r.getMessage()))));
+            return new Answer(r.status, Json.toCompact(Map.of("message", words.apply(r))));
         } catch (java.io.UncheckedIOException | IllegalArgumentException | ClassCastException e) {
             // the store's disk failing, or a body that is not the JSON the engine takes (a bad
             // integer, a field of the wrong kind): the engine's 500, naming the exception
@@ -228,7 +280,7 @@ public final class SavedQueries {
             }
         }
         if (!notFound.isEmpty()) {
-            throw new Refusal("Can't find queries for the following ID(s):\n" + String.join("\n", notFound), 500);
+            throw new Refusal(Refusal.Kind.QUERIES_NOT_FOUND, List.of(String.join("\n", notFound)), 500);
         }
         return Json.toCompact(out);
     }
@@ -238,7 +290,7 @@ public final class SavedQueries {
         List<Json.Obj> versions = versions(id);
         Json.Obj q = current(versions);
         if (q == null) {
-            throw new Refusal("Can't find query with ID '" + id + "'", 404);
+            throw new Refusal(Refusal.Kind.QUERY_NOT_FOUND, List.of(id), 404);
         }
         Json.Obj opened = with(q, "lastOpenAt", Json.num(clock.getAsLong()));
         versions.set(versions.indexOf(q), opened);
@@ -256,9 +308,9 @@ public final class SavedQueries {
                 }
             }
             if (versions.isEmpty()) {
-                throw new Refusal("Can't find query with ID '" + id + "'", 404);
+                throw new Refusal(Refusal.Kind.QUERY_NOT_FOUND, List.of(id), 404);
             }
-            throw new Refusal("Can't find version '" + version + "' for query with ID '" + id + "'", 404);
+            throw new Refusal(Refusal.Kind.VERSION_NOT_FOUND, List.of(String.valueOf(version), id), 404);
         }
         List<Object> out = new ArrayList<>();
         for (Json.Obj v : versions) {
@@ -267,7 +319,7 @@ public final class SavedQueries {
             }
         }
         if (out.isEmpty() && current(versions) == null) {
-            throw new Refusal("Can't find query with ID '" + id + "'", 404);
+            throw new Refusal(Refusal.Kind.QUERY_NOT_FOUND, List.of(id), 404);
         }
         return Json.toCompact(out);
     }
@@ -326,7 +378,7 @@ public final class SavedQueries {
         List<Json.Obj> versions = versions(id);
         Json.Obj q = current(versions);
         if (q == null) {
-            throw new Refusal("Can't find query with ID '" + id + "'", 404);
+            throw new Refusal(Refusal.Kind.QUERY_NOT_FOUND, List.of(id), 404);
         }
         if (!(q.get("owner") instanceof Json.Null) && !currentUser.equals(q.getString("owner"))) {
             throw new Refusal("Only owner can delete the query", 403);
@@ -343,7 +395,7 @@ public final class SavedQueries {
         List<Json.Obj> versions = versions(id);
         Json.Obj prior = current(versions);
         if (prior == null) {
-            throw new Refusal("Can't find query with ID '" + id + "'", 404);
+            throw new Refusal(Refusal.Kind.QUERY_NOT_FOUND, List.of(id), 404);
         }
         if (!(prior.get("owner") instanceof Json.Null) && !currentUser.equals(prior.getString("owner"))) {
             throw new Refusal("Only owner can update the query", 403);

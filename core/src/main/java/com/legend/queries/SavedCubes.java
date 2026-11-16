@@ -72,6 +72,13 @@ public final class SavedCubes {
      */
     public static SavedQueries.Answer answer(@com.legend.base.Nullable SavedCubes store, String method, String rest,
             @com.legend.base.Nullable String rawQuery, String body, String user) {
+        return answer(store, method, rest, rawQuery, body, user, SavedQueries.LITES_WORDS);
+    }
+
+    /** {@link #answer(SavedCubes, String, String, String, String, String)}, a refusal worded by {@code words} (D1.8). */
+    public static SavedQueries.Answer answer(@com.legend.base.Nullable SavedCubes store, String method, String rest,
+            @com.legend.base.Nullable String rawQuery, String body, String user,
+            java.util.function.Function<SavedQueries.Refusal, String> words) {
         if (store == null) {
             return new SavedQueries.Answer(500, "{\"code\":-1,\"message\":\"DataCube query store has not been configured"
                     + " properly (legend-lite: start the server with --query-store DIR)\",\"status\":\"error\"}");
@@ -96,7 +103,7 @@ public final class SavedCubes {
                 default -> notFound(rest);
             };
         } catch (SavedQueries.Refusal r) {
-            return new SavedQueries.Answer(r.status, Json.toCompact(Map.of("message", String.valueOf(r.getMessage()))));
+            return new SavedQueries.Answer(r.status, Json.toCompact(Map.of("message", words.apply(r))));
         } catch (java.io.UncheckedIOException | IllegalArgumentException | ClassCastException e) {
             // the store's disk failing, or a body of another shape: the engine's 500, naming the exception
             return SavedQueries.failed(e);
@@ -162,7 +169,7 @@ public final class SavedCubes {
     public synchronized Json.Obj get(String id) {
         Json.Obj found = records.find(id);
         if (found == null) {
-            throw new SavedQueries.Refusal("Can't find query with ID '" + id + "'", 404);
+            throw new SavedQueries.Refusal(SavedQueries.Refusal.Kind.QUERY_NOT_FOUND, java.util.List.of(id), 404);
         }
         Json.Obj opened = with(found, Map.of("lastOpenAt", Json.num(clock.getAsLong())));
         // read for the wire first: a content that cannot be read is the 500 with nothing written
@@ -195,7 +202,7 @@ public final class SavedCubes {
         }
         Json.Obj current = records.find(id);
         if (current == null) {
-            throw new SavedQueries.Refusal("Can't find query with ID '" + id + "'", 404);
+            throw new SavedQueries.Refusal(SavedQueries.Refusal.Kind.QUERY_NOT_FOUND, java.util.List.of(id), 404);
         }
         if (current.has("owner") && !user.equals(text(current, "owner"))) {
             throw new SavedQueries.Refusal("Only owner can update the query", 403);
@@ -217,7 +224,7 @@ public final class SavedCubes {
     public synchronized void delete(String id, String user) {
         Json.Obj current = records.find(id);
         if (current == null) {
-            throw new SavedQueries.Refusal("Can't find query with ID '" + id + "'", 404);
+            throw new SavedQueries.Refusal(SavedQueries.Refusal.Kind.QUERY_NOT_FOUND, java.util.List.of(id), 404);
         }
         if (current.has("owner") && !user.equals(text(current, "owner"))) {
             throw new SavedQueries.Refusal("Only owner can delete the query", 403);

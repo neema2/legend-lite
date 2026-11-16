@@ -29,7 +29,7 @@ public final class EdgeServer {
     /** legend-engine's API, mounted beside lite's own routes. */
     public static final LegendHttpServer.Mount UPSTREAM = context -> List.of(
             pureV1(runner(context.sources())),
-            LegendHttpServer.storeRoutes(QUERY_STORE, context.queryStore(), context.cubeStore()),
+            LegendHttpServer.storeRoutes(QUERY_STORE, context.queryStore(), context.cubeStore(), EdgeServer::storeWords),
             currentUser());
 
     /** The run of an upstream execute: the product's door, planned in the edge's dialects, its file: sources fenced
@@ -84,5 +84,20 @@ public final class EdgeServer {
     /** The shipped server, as {@link LegendHttpServer#serve} starts one, with legend-engine's API mounted. */
     public static void main(String[] args) throws IOException {
         LegendHttpServer.serve(args, UPSTREAM);
+    }
+    /** LEGEND-ENGINE'S SENTENCE OF A QUERY STORE'S REFUSAL (D1.8, W8 of docs/records/d-plan-2026-11-16.md, 2026-11-16):
+     *  {@code r}'s message as legend-engine's query API words it (its {@code MongoDBQueryStoreManager}), for the store
+     *  mounted at legend-engine's path; one with no kind is its own message. */
+    public static String storeWords(com.legend.queries.SavedQueries.Refusal r) {
+        com.legend.queries.SavedQueries.Refusal.Kind k = r.kind();
+        if (k == null) {
+            return String.valueOf(r.getMessage());
+        }
+        java.util.List<String> o = r.operands();
+        return switch (k) {
+            case QUERY_NOT_FOUND -> "Can't find query with ID '" + o.get(0) + "'";
+            case QUERIES_NOT_FOUND -> "Can't find queries for the following ID(s):\n" + o.get(0);
+            case VERSION_NOT_FOUND -> "Can't find version '" + o.get(0) + "' for query with ID '" + o.get(1) + "'";
+        };
     }
 }
