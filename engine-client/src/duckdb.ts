@@ -350,6 +350,8 @@ export class DuckDbEngine implements QueryEngine {
   #chain: Promise<void> = Promise.resolve();
   /** Closing is shared by the connection's owner and the tab's lifetime. */
   #closed: Promise<void> | undefined;
+  /** The owning tab is being destroyed, including requests DuckDB itself never settles after worker termination. */
+  readonly #lifetime: AbortSignal | undefined;
   /** Remote files a mounted source reads over HTTP (`readsRemote`), for the receipt. */
   readonly #reads: string[] = [];
 
@@ -358,9 +360,10 @@ export class DuckDbEngine implements QueryEngine {
    *  itself (Python's: the mount's answer carries them). */
   readonly settings: ConnectionSettings | undefined;
 
-  constructor(connection: ArrowishConnection, options: { readonly settings?: ConnectionSettings } = {}) {
+  constructor(connection: ArrowishConnection, options: { readonly settings?: ConnectionSettings; readonly lifetime?: AbortSignal } = {}) {
     this.#conn = connection;
     this.settings = options.settings;
+    this.#lifetime = options.lifetime;
   }
 
   /**
@@ -423,15 +426,17 @@ export class DuckDbEngine implements QueryEngine {
       // each send a run's, on Node (run-frame.ts sending): the held connection's statements are a plan's, run by the
       // plan runner inside its run -- refused at each send (its own, or #whole's)
       rows: async (sql, params) => {
+        this.#lifetime?.throwIfAborted();
         sending("DuckDB's connection");
         if (params.length > 0 && conn.prepare === undefined) throw new Error("this tab's database binds no statement's values");
         try {
           if (params.length === 0) return rowsOf(await conn.query(sql));
           const prepared = await conn.prepare!(sql);
           try {
+            this.#lifetime?.throwIfAborted();
             return rowsOf(await prepared.query(...params));
           } finally {
-            await prepared.close?.();
+            if (!this.#lifetime?.aborted) await prepared.close?.();
           }
         } catch (cause) {
           // the database's words, any value a kept setting binds taken out (M2)
@@ -441,6 +446,7 @@ export class DuckDbEngine implements QueryEngine {
       // a promise, refused as one (#whole's refusal rejects it): never a throw where a promise is promised
       table: async (sql) => this.#whole(sql, 0, undefined, performance.now()),
       insertArrow: async (bytes, target, create) => {
+        this.#lifetime?.throwIfAborted();
         sending("DuckDB's connection");
         const insert = conn.insertArrowFromIPCStream;
         if (typeof insert !== 'function') throw new Error("this tab's database has no Arrow import: a remote plane's rows cannot stream into it");
@@ -489,17 +495,19 @@ export class DuckDbEngine implements QueryEngine {
    * A connection that prepares none refuses it by name.
    */
   async *#bound(sql: PlannedSql, params: readonly string[]): AsyncIterable<ArrowishTable> {
+    this.#lifetime?.throwIfAborted();
     sending("DuckDB's connection");
     if (this.#conn.prepare === undefined) throw new Error("this database binds no statement's values: a plan's payload is not run here");
     const prepared = await this.#conn.prepare(sql);
     try {
+      this.#lifetime?.throwIfAborted();
       if (prepared.send !== undefined) {
         for await (const batch of await prepared.send(...params)) yield batch;
       } else {
         yield await prepared.query(...params);
       }
     } finally {
-      await prepared.close?.();
+      if (!this.#lifetime?.aborted) await prepared.close?.();
     }
   }
 
@@ -543,6 +551,7 @@ export class DuckDbEngine implements QueryEngine {
    * for. Serialising means the only cancellable query is ours.
    */
   async #serialised<T>(run: () => Promise<T>): Promise<T> {
+    this.#lifetime?.throwIfAborted();
     if (this.#closed) throw new Error('this DuckDB connection is closed');
     const previous = this.#chain;
     let release!: () => void;
@@ -551,9 +560,18 @@ export class DuckDbEngine implements QueryEngine {
     });
     // Never inherit a failure from the query ahead of us in the queue.
     await previous.catch(() => {});
+    let onAbort: (() => void) | undefined;
     try {
-      return await run();
+      const signal = this.#lifetime;
+      signal?.throwIfAborted();
+      if (!signal) return await run();
+      const stopped = new Promise<never>((_, reject) => {
+        onAbort = () => reject(signal.reason);
+        signal.addEventListener('abort', onAbort, { once: true });
+      });
+      return await Promise.race([run(), stopped]);
     } finally {
+      if (onAbort) this.#lifetime!.removeEventListener('abort', onAbort);
       release();
     }
   }
@@ -578,6 +596,7 @@ export class DuckDbEngine implements QueryEngine {
   ): Promise<RawTable> {
     // THE SEND PRIMITIVES each refuse a statement sent outside a run, on Node (run-frame.ts sending; the C5-T audit's
     // item 7, 2026-11-15): this one, #batches and #bound -- so no public method that reaches one skips it
+    this.#lifetime?.throwIfAborted();
     sending("DuckDB's connection");
     let table: ArrowishTable;
     try {
@@ -593,6 +612,7 @@ export class DuckDbEngine implements QueryEngine {
     } catch (cause) {
       throw this.#failed(cause, sql);
     }
+    this.#lifetime?.throwIfAborted();
     if (signal?.aborted) throw signal.reason ?? new Error('aborted');
     return toRawTable(table, epoch, performance.now() - started);
   }
@@ -611,11 +631,13 @@ export class DuckDbEngine implements QueryEngine {
     onBatch: (batch: ArrowishTable) => void,
     params: readonly string[] = [],
   ): Promise<void> {
+    this.#lifetime?.throwIfAborted();
     sending("DuckDB's connection");
     const send = this.#conn.send;
     if (!send) throw new Error('streaming unavailable');
 
     const cancel = async (): Promise<void> => {
+      if (this.#lifetime?.aborted) return;
       // Best effort by design: cancelSent reports whether the query
       // was still pending, and a query that already finished is not a
       // failure to cancel -- there was simply nothing left to stop.
@@ -637,6 +659,7 @@ export class DuckDbEngine implements QueryEngine {
 
     try {
       for await (const batch of batches) {
+        this.#lifetime?.throwIfAborted();
         if (signal?.aborted) {
           await cancel();
           throw signal.reason ?? new Error('aborted');
@@ -655,6 +678,8 @@ export class DuckDbEngine implements QueryEngine {
   }
 
   close(): Promise<void> {
-    return this.#closed ??= this.#chain.then(async () => { await this.#conn.close?.(); });
+    return this.#closed ??= this.#chain.then(async () => {
+      if (!this.#lifetime?.aborted) await this.#conn.close?.();
+    });
   }
 }

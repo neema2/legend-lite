@@ -52,7 +52,7 @@ export interface DuckDbInTab {
    * planner's): what a project's own database is queried on (project-data.ts), its names pointed there alone.
    */
   connect(): Promise<DuckDbEngine>;
-  /** Close every connection and terminate this tab's database worker. Idempotent. */
+  /** Reject outstanding operations and terminate the worker that owns every connection. Idempotent. */
   dispose(): Promise<void>;
   /** The settings a remote file's mount made on a connection (a bearer URL's session variable: B3's Q3), kept for the
    *  tab's database and replayed on every connection `connect` opens. */
@@ -108,20 +108,33 @@ export async function duckDbRunsHere(): Promise<void> {
  * (the C5-T audit's MUST 1, 2026-11-15; DataCube's boot.ts, "Overlapped, the slower of the two sets the floor instead of
  * their sum").
  */
-export async function instantiateDuckDbInTab(worker: Worker, module: string): Promise<TabDatabase> {
+export async function instantiateDuckDbInTab(worker: Worker, module: string, signal?: AbortSignal): Promise<TabDatabase> {
   const db = new duckdb.AsyncDuckDB(new duckdb.ConsoleLogger(duckdb.LogLevel.WARNING), worker);
   let closed: Promise<void> | undefined;
   const dispose = (): Promise<void> => (closed ??= (async () => {
     try { await db.terminate(); }
     finally { worker.terminate(); }
   })());
+  let onAbort: (() => void) | undefined;
   try {
-    await db.instantiate(module, null);
+    signal?.throwIfAborted();
+    const started = db.instantiate(module, null);
+    if (signal) {
+      const aborted = new Promise<never>((_, reject) => {
+        onAbort = () => reject(signal.reason);
+        signal.addEventListener('abort', onAbort, { once: true });
+      });
+      await Promise.race([started, aborted]);
+    } else {
+      await started;
+    }
     return { db, dispose };
   } catch (error) {
     try { await dispose(); }
     catch (cleanup) { throw new AggregateError([error, cleanup], 'DuckDB startup and cleanup failed'); }
     throw error;
+  } finally {
+    if (onAbort) signal!.removeEventListener('abort', onAbort);
   }
 }
 
@@ -134,17 +147,26 @@ export async function connectDuckDbInTab(database: TabDatabase, setup: TabSetup)
   // every connection set up alike: a setting of DuckDB's may be a session's, so none is left to the first's -- a remote
   // file's session variable included, replayed from the tab's settings (B3's Q3: a variable is one connection's)
   const settings = new ConnectionSettings();
-  const connections = new Set<DuckDbEngine>();
-  const connecting = new Set<Promise<DuckDbEngine>>();
+  const lifetime = new AbortController();
   let disposed = false;
   let closed: Promise<void> | undefined;
   const ensureOpen = (): void => {
     if (disposed) throw new Error("this tab's DuckDB is disposed");
   };
+  const whileOpen = async <T>(start: () => Promise<T>): Promise<T> => {
+    ensureOpen();
+    let abort!: () => void;
+    const stopped = new Promise<never>((_, reject) => {
+      abort = () => reject(lifetime.signal.reason);
+      lifetime.signal.addEventListener('abort', abort, { once: true });
+    });
+    try { return await Promise.race([start(), stopped]); }
+    finally { lifetime.signal.removeEventListener('abort', abort); }
+  };
   const create = async (): Promise<DuckDbEngine> => {
     ensureOpen();
-    const connection = new DuckDbEngine((await db.connect()) as unknown as ArrowishConnection, { settings });
-    connections.add(connection);
+    const connection = new DuckDbEngine((await whileOpen(() => db.connect())) as unknown as ArrowishConnection,
+      { settings, lifetime: lifetime.signal });
     try {
       ensureOpen();
       for (const statement of setup.extensions) await connection.run(statement, 0);
@@ -158,28 +180,19 @@ export async function connectDuckDbInTab(database: TabDatabase, setup: TabSetup)
       throw error;
     }
   };
-  const connect = (): Promise<DuckDbEngine> => {
-    const pending = create();
-    connecting.add(pending);
-    void pending.then(() => connecting.delete(pending), () => connecting.delete(pending));
-    return pending;
-  };
+  const connect = (): Promise<DuckDbEngine> => create();
   const dispose = (): Promise<void> => {
     disposed = true;
-    return closed ??= (async () => {
-      await Promise.allSettled(connecting);
-      const results = await Promise.allSettled([...connections].map((connection) => connection.close()));
-      const stopped = await Promise.allSettled([database.dispose()]);
-      connections.clear();
-      const errors = [...results, ...stopped].flatMap((result) => result.status === 'rejected' ? [result.reason] : []);
-      if (errors.length) throw new AggregateError(errors, "could not dispose this tab's DuckDB");
-    })();
+    // The worker owns all connections. Waiting for their native close before killing it can hang on a remote read
+    // or extension download; terminating DuckDB itself does not settle its JS promises (npm embedding review).
+    lifetime.abort(new DOMException('DataCube database disposed', 'AbortError'));
+    return closed ??= database.dispose();
   };
   const engine = await connect();
   const files = new TabFiles({
-    registerFileText: (name, text) => { ensureOpen(); return db.registerFileText(name, text); },
-    registerFileBuffer: (name, bytes) => { ensureOpen(); return db.registerFileBuffer(name, bytes); },
-    dropFile: (name) => { ensureOpen(); return db.dropFile(name); },
+    registerFileText: (name, text) => whileOpen(() => db.registerFileText(name, text)),
+    registerFileBuffer: (name, bytes) => whileOpen(() => db.registerFileBuffer(name, bytes)),
+    dropFile: (name) => whileOpen(() => db.dropFile(name)),
   });
   return {
     engine,

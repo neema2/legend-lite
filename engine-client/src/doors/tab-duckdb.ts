@@ -19,11 +19,23 @@ import { inRun } from '../run-frame.ts';
  * the run side taking the started worker and loading no module (2026-11-15, the C5-T fold-in: until then
  * duckdb-tab.ts started it, one of the run layer's two named vendor loads; //tools/deps:layers_alone).
  */
-export function openDuckDbInTab(vendor: string, planner: TabDuckDbPlanner): Promise<DuckDbInTab> {
-  return openedInTab(async () => {
-    await duckDbRunsHere();
-    return instantiateDuckDbInTab(new Worker(vendorAsset(vendor, 'duckdb-browser-eh.worker.js')), vendorAsset(vendor, 'duckdb-eh.wasm'));
-  }, extensionRepository(vendor), planner, connectDuckDbInTab, (database) => database.dispose());
+export async function openDuckDbInTab(vendor: string, planner: TabDuckDbPlanner, signal?: AbortSignal): Promise<DuckDbInTab> {
+  signal?.throwIfAborted();
+  const startup = new AbortController();
+  const abort = (): void => startup.abort(signal!.reason);
+  signal?.addEventListener('abort', abort, { once: true });
+  try {
+    return await openedInTab(async () => {
+      startup.signal.throwIfAborted();
+      await duckDbRunsHere();
+      startup.signal.throwIfAborted();
+      return instantiateDuckDbInTab(new Worker(vendorAsset(vendor, 'duckdb-browser-eh.worker.js')),
+        vendorAsset(vendor, 'duckdb-eh.wasm'), startup.signal);
+    }, extensionRepository(vendor), planner, connectDuckDbInTab, (database) => database.dispose(),
+    (reason) => startup.abort(reason), startup.signal);
+  } finally {
+    signal?.removeEventListener('abort', abort);
+  }
 }
 
 /**
@@ -37,6 +49,8 @@ export async function openedInTab<D, T>(
   planner: TabDuckDbPlanner,
   connect: (database: D, setup: TabSetup) => Promise<T>,
   dispose: (database: D) => Promise<void>,
+  cancelInstantiate: (reason: unknown) => void,
+  signal?: AbortSignal,
 ): Promise<T> {
   const asked = (async (): Promise<TabSetup> => {
     const extensions = (await planner.hostOperations(DuckDbEngine.databaseType, [
@@ -45,16 +59,31 @@ export async function openedInTab<D, T>(
     return { extensions, session: await planner.sessionSetup(DuckDbEngine.databaseType) };
   })();
   const started = instantiate();
+  let onAbort: (() => void) | undefined;
   try {
-    const [database, setup] = await Promise.all([started, asked]);
-    return await inRun("the tab's DuckDB started", () => connect(database, setup));
+    const connected = Promise.all([started, asked]).then(([database, setup]) => {
+      signal?.throwIfAborted();
+      return inRun("the tab's DuckDB started", () => connect(database, setup));
+    });
+    if (!signal) return await connected;
+    // Cancellation covers extension downloads and session setup too. DuckDB's terminate does not reject its
+    // pending requests, so waiting for connect before observing abort could keep an embedding alive forever.
+    const aborted = new Promise<never>((_, reject) => {
+      onAbort = () => reject(signal.reason);
+      if (signal.aborted) onAbort();
+      else signal.addEventListener('abort', onAbort, { once: true });
+    });
+    return await Promise.race([connected, aborted]);
   } catch (error) {
+    cancelInstantiate(error);
     const [result] = await Promise.allSettled([started]);
     if (result!.status === 'fulfilled') {
       try { await dispose(result!.value); }
       catch (cleanup) { throw new AggregateError([error, cleanup], 'DuckDB startup and cleanup failed'); }
     }
     throw error;
+  } finally {
+    if (onAbort) signal!.removeEventListener('abort', onAbort);
   }
 }
 

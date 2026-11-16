@@ -313,6 +313,7 @@ describe("the tab's DuckDB starts alongside the planner's asks", () => {
         return 'the tab';
       },
       async () => { order.push('disposed'); },
+      () => undefined,
     );
     // the planner has not answered: DuckDB's instantiate is already under way
     await new Promise((resolve) => setTimeout(resolve, 0));
