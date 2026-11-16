@@ -745,3 +745,113 @@ write_source_files(
 )
 
 guards_package()
+
+# THE EDGE GOLDEN NET (the edge program's Phase 0, 2026-11-16, docs/records/total-wall-edge-program-2026-11-16.md
+# §5.2): every PCT channel A case on the in-process databases, run as a build action, its per-test outcome
+# (JUnitMain's -Dlegend.junit.outcomes) and each case's answer as upstream sees it (PctCaseRecorder's
+# -Dlegend.edge.answers: a relation's columns and sorted rows, a value's typed cells, an error's message, ids masked),
+# diffed against golden files recorded at PR1's frozen head 26717de291. A difference at the edge is a regression unless
+# it is a ruled move, which re-records the golden (bazel run //pct:update_edge_contract) with the ruling cited.
+_EDGE_LANES = [
+    ("duckdb", "", s)
+    for s in _SUITES
+] + [("h2", "h2", "Relation")] + [
+    ("sqlite", "sqlite", s)
+    for s in _SUITES
+]
+
+_EDGE_CLASS = {
+    "duckdb": "Test_LegendLite_%sFunctions_PCT",
+    "h2": "Test_LegendLite_H2_%sFunctions_PCT",
+    "sqlite": "Test_LegendLite_SQLite_%sFunctions_PCT",
+}
+
+[java_run(
+    name = "edge_%s_%s" % (lane, s.lower()),
+    testonly = True,
+    outs = [
+        "edge/%s_%s/verdict.txt" % (lane, s.lower()),
+        "edge/%s_%s/run.log" % (lane, s.lower()),
+        "edge/%s_%s/outcomes.tsv" % (lane, s.lower()),
+        "edge/%s_%s/answers.tsv" % (lane, s.lower()),
+    ],
+    arguments = [
+        "{OUT_DIR}/verdict.txt",
+        "{OUT_DIR}/run.log",
+        "{OUT_DIR}/outcomes.tsv",
+        "{OUT_DIR}/answers.tsv",
+        "--",
+        "--select-class=org.finos.legend.lite.pct." + (_EDGE_CLASS[lane] % s),
+    ],
+    env = {"LEGENDLITE_PCT_BACKEND": backend} if backend else {},
+    jvm_flags = [
+        "-Dlegend.junit.outcomes={OUT_DIR}/outcomes.tsv",
+        "-Dlegend.edge.answers={OUT_DIR}/answers.tsv",
+    ],
+    main_class = "com.legend.tools.junit.JUnitAction",
+    memory_mb = 4096,
+    mnemonic = "EdgeContract",
+    deps = [
+        ":pct_tests_lib",
+        "//core:drivers",
+        "//tools/junit",
+    ] + (["@h2//jar"] if lane == "h2" else []),
+) for (lane, backend, s) in _EDGE_LANES]
+
+# channel B on DuckDB in the net: every outcome (a pass too), as ChannelBLane writes it under -Dlegend.edge.channelb
+[java_run(
+    name = "edge_channel_b_%s" % s.lower(),
+    testonly = True,
+    srcs = UPSTREAM_TREES + [
+        "src/test/java/org/finos/legend/lite/pct/Test_LegendLite_%sFunctions_PCT.java" % s,
+        _ENGINE_MANIFEST % s,
+    ],
+    outs = [
+        "edge/channel_b_%s/verdict.txt" % s.lower(),
+        "edge/channel_b_%s/run.log" % s.lower(),
+        "edge/channel_b_%s/outcomes.tsv" % s.lower(),
+    ],
+    arguments = [
+        "{OUT_DIR}/verdict.txt",
+        "{OUT_DIR}/run.log",
+        "{OUT_DIR}/outcomes.tsv",
+        "--",
+        "--select-class=org.finos.legend.lite.pct.channelb.ChannelB%sTest" % s,
+    ],
+    jvm_flags = program_jvm_flags("pct") + [
+        "-Dpct.suite.%s=$(execpath src/test/java/org/finos/legend/lite/pct/Test_LegendLite_%sFunctions_PCT.java)" % (s, s),
+        "-Dpct.oracle.%s=$(execpath %s)" % (s, _ENGINE_MANIFEST % s),
+        "-Dlegend.edge.channelb={OUT_DIR}/outcomes.tsv",
+    ],
+    main_class = "com.legend.tools.junit.JUnitAction",
+    memory_mb = 2048,
+    mnemonic = "EdgeContractB",
+    deps = [
+        ":pct_tests_lib",
+        "//core:drivers",
+        "//tools/junit",
+    ],
+) for s in _SUITES]
+
+write_source_files(
+    name = "update_edge_contract",
+    testonly = True,
+    diff_test_failure_message = "{{DEFAULT_MESSAGE}}\nAn edge answer moved (the edge golden net): in the diff, < is this tree (generated) and > the golden (the reference); every difference at the edge is a regression unless it is a ruled move -- then bazel run //pct:update_edge_contract, citing the ruling in the commit",
+    files = {
+        "src/test/resources/edge/%s_%s_%s.tsv" % (lane, s.lower(), kind): ":edge/%s_%s/%s.tsv" % (lane, s.lower(), kind)
+        for (lane, backend, s) in _EDGE_LANES
+        for kind in ["outcomes", "answers"]
+    } | {
+        "src/test/resources/edge/channel_b_duckdb_%s_outcomes.tsv" % s.lower(): ":edge/channel_b_%s/outcomes.tsv" % s.lower()
+        for s in _SUITES
+    },
+)
+
+test_suite(
+    name = "edge_contract_test",
+    tests = [
+        ":update_edge_contract_tests",
+        "//spec:update_edge_corpus_tests",
+        "//core:update_edge_pure_v1_tests",
+    ],
+)

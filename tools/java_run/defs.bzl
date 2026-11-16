@@ -112,6 +112,7 @@ def _java_run_impl(ctx):
         mnemonic = ctx.attr.mnemonic,
         progress_message = "%s %%{label}" % ctx.attr.mnemonic,
         resource_set = _RESOURCE_SETS[memory] if memory else None,
+        env = ctx.attr.env,
     )
     return [
         DefaultInfo(files = depset(ctx.outputs.outs)),
@@ -137,6 +138,9 @@ _java_run = rule(
         "arguments": attr.string_list(),
         "jvm_flags": attr.string_list(),
         "mnemonic": attr.string(default = "JavaRun"),
+        # the program's environment (the edge golden net, 2026-11-16: a PCT lane names its database by
+        # LEGENDLITE_PCT_BACKEND, as its junit_test's env does)
+        "env": attr.string_dict(),
         "memory_mb": attr.int(
             default = 0,
             doc = "The program's heap (-Xmx) and the scheduler's memory for the action; 0 leaves the JVM's default.",
