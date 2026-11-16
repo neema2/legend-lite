@@ -75,9 +75,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @Tag("census")
 class PlannerSurfaceTest {
 
-    /** The product's own spelling, handed to phase D's spelling doors by their refusal drivers. */
-    private static final com.legend.database.PlanStyle SPELLING = com.legend.database.PlanStyle.PRODUCT;
-
     /** What a request field carries -- every kind a value the planner reads, never a statement it sends as written,
      *  but {@link #AUTHORED_SQL}. */
     enum Kind {
@@ -342,19 +339,14 @@ class PlannerSurfaceTest {
             // the pure/v1 routes; planned.* are read of the plan half a host hands back with its rows (jsonAnswer,
             // its variable `planned`): the planner's own, echoed into the answer, never sent
             "PureV1Api.java", new TreeMap<>(fields("_type", OPTION, "planned.activities", PLAN_DATA, "body", LAMBDA,
-                    "planned.builder", PLAN_DATA, "code", MODEL_TEXT, "planned.columns", PLAN_DATA,
-                    "planned.execution", PLAN_DATA, "fullPath", NAME, "function", LAMBDA, "genericType", OBJECT,
+                    "planned.builder", PLAN_DATA, "code", MODEL_TEXT, "planned.columns", PLAN_DATA, "connectionValue",
+                    OBJECT, "planned.execution", PLAN_DATA, "fullPath", NAME, "function", LAMBDA, "genericType", OBJECT,
                     "lambda", LAMBDA, "lowerBound", VALUE, "model", MODEL_TEXT, "multiplicity", OBJECT, "name", NAME,
-                    "parameterValues", VALUE, "parameters", LAMBDA, "rawType", NAME,
-                    "planned.resultColumns", PLAN_DATA, "runtime", NAME,
+                    "parameterValues", VALUE, "parameters", LAMBDA, "rawType", NAME, "renderStyle", OPTION,
+                    "planned.resultColumns", PLAN_DATA, "runtime", NAME, "serializationFormat", OPTION,
                     "planned.shape", PLAN_DATA, "planned.sql", PLAN_DATA, "upperBound", VALUE, "value", VALUE,
                     // merged main 3a217086a (#81), 2026-11-14: tsItem's one #TS item, a query's text core's parser reads
                     "text", LAMBDA)),
-            // legend-engine's pure/v1 routes (edge.PureV1Routes since phase D's D1.0b; merged main cf865632c (#101),
-            // 2026-11-15): the keys that left PureV1Api with them
-            "PureV1Routes.java", new TreeMap<>(fields("connectionValue", OBJECT, "function", LAMBDA, "lambda", LAMBDA,
-                    "model", MODEL_TEXT, "parameterValues", VALUE, "renderStyle", OPTION, "serializationFormat",
-                    OPTION)),
             "TestDataRoutes.java", new TreeMap<>(fields("_type", OPTION, "columnValuePairs", OBJECT, "function",
                     LAMBDA, "hashStrings", OPTION, "mapping", NAME, "model", MODEL_TEXT, "name", NAME,
                     "parameterValues", VALUE, "query", LAMBDA, "rowIdentifiers", OBJECT, "runtime", NAME, "schema",
@@ -394,14 +386,11 @@ class PlannerSurfaceTest {
     /** THE HTTP SERVER'S ROUTES ({@code LegendHttpServer}): each the pure/v1 dispatcher's (the routes above), or a
      *  service that plans nothing, with what it is instead. */
     static final Map<String, String> HTTP_ROUTES = new TreeMap<>(Map.of(
-            // merged main cf865632c (#101), 2026-11-15: legend-engine's /api/pure/v1/, its store's path and its current
-            // user moved to the edge (phase D's D1.0b: EdgeServer.UPSTREAM, //core:server's main_class); the census
-            // reads that mount's routes too (2026-11-15, PR1's review); lite's own store is /api/lite/v1/query
-            "/api/pure/v1/", "legend-engine's pure/v1 API, the edge's mount: the product's door in the edge's dialects",
-            "/api/pure/v1/query", "the saved queries' store at upstream's path, the edge's mount: no planner",
-            "/api/server/v1/currentUser", "upstream's current user, the edge's mount: no planner",
+            "/api/pure/v1/", "the pure/v1 dispatcher (ROUTES)",
             "/api/lite/v1/", "the pure/v1 dispatcher (ROUTES)",
-            "/api/lite/v1/query", "lite's own path to the saved queries' and saved cubes' store: no planner",
+            "/api/pure/v1/query", "the saved queries' and saved cubes' store: no planner",
+            "/api/lite/v1/query", "lite's own path to the same store: no planner",
+            "/api/server/v1/currentUser", "the current user's name: no planner",
             "/engine/diagram", "a model's diagrams laid out: no planner",
             "/health", "the server's health: no planner",
             "/lsp", "the Pure language server: a model's diagnostics and completions, no plan",
@@ -425,8 +414,6 @@ class PlannerSurfaceTest {
             "executeJsonPlan(body)", "an ExecuteInput, planned as its plan half in the engine's JSON",
             "PureV1Api.java", "the pure/v1 routes' bodies: an ExecuteInput, a lambda's or a model's text or JSON (lite's "
                     + "own routes in it each by their reason: LITE_ROUTES)",
-            "PureV1Routes.java", "legend-engine's pure/v1 routes' bodies (the edge's, phase D's D1.0b): an ExecuteInput,"
-                    + " a lambda's or a model's text or JSON",
             "TestDataRoutes.java", "the test-data generator's requests: an ExecuteInput, its mapping, its row "
                     + "identifiers",
             "ModelInput.java", "a request's model: a PureModelContextText or a PureModelContextData"));
@@ -608,9 +595,6 @@ class PlannerSurfaceTest {
             Map.entry("Execution#run(TypedQuery, String, SessionSource, PlanSessions.Source, ProductRun.Establish,"
                     + " Set<Feature>, Output, int)", List.of(LAMBDA, NAME, SESSION, SESSION, SESSION, OPTION, OUTPUT,
                     OPTION)),
-            Map.entry("Execution#run(TypedQuery, String, SessionSource, PlanSessions.Source, ProductRun.Establish,"
-                    + " Set<Feature>, SqlSpelling, Output, int)", List.of(LAMBDA, NAME, SESSION, SESSION, SESSION,
-                    OPTION, CALLBACK, OUTPUT, OPTION)),
             Map.entry("Execution#run(String, String, String, SessionSource, PlanSessions.Source, Output)",
                     List.of(MODEL_TEXT, LAMBDA, NAME, SESSION, SESSION, OUTPUT)),
             Map.entry("Execution#run(String, String, String, SessionSource, PlanSessions.Source, Output, int)",
@@ -625,8 +609,6 @@ class PlannerSurfaceTest {
             // the sources a server admits: its configuration's text
             Map.entry("Execution#runOnProjectDatabases(TypedQuery, String, String, Output)",
                     List.of(LAMBDA, NAME, OPTION, OUTPUT)),
-            Map.entry("Execution#runOnProjectDatabases(TypedQuery, String, String, SqlSpelling, Output)",
-                    List.of(LAMBDA, NAME, OPTION, CALLBACK, OUTPUT)),
             // TestExecution: a test body planned, then run, its verdicts to the caller's listener and the referee
             Map.entry("TestExecution#planBody(TypedQuery, String, ExecuteOptions)", List.of(LAMBDA, NAME, OPTION)),
             // a test body's facts, data, before it is planned (C5-J item 2, 2026-11-15): the record its plan carries
@@ -655,7 +637,6 @@ class PlannerSurfaceTest {
             Map.entry("ExecuteOptions#withStyle(PlanStyle)", List.of(OPTION)),
             Map.entry("ExecuteOptions#withOptions(Set<PlanOption>)", List.of(OPTION)),
             Map.entry("ExecuteOptions#withEngineCompat(boolean)", List.of(OPTION)),
-            Map.entry("ExecuteOptions#withSpelling(SqlSpelling)", List.of(CALLBACK)),
             Map.entry("ExecuteOptions#recording(Edge, DataStores)", List.of(CALLBACK, DATA_REFERENCE))));
 
     /** The root doors' classes. */
@@ -735,10 +716,6 @@ class PlannerSurfaceTest {
             Map.entry("Execution#runOnProjectDatabases(TypedQuery, String, Output)", QueryRoad.REFUSES_RAW_SQL),
             Map.entry("Execution#runOnProjectDatabases(TypedQuery, String, String, Output)",
                     QueryRoad.REFUSES_RAW_SQL),
-            Map.entry("Execution#runOnProjectDatabases(TypedQuery, String, String, SqlSpelling, Output)",
-                    QueryRoad.REFUSES_RAW_SQL),
-            Map.entry("Execution#run(TypedQuery, String, SessionSource, PlanSessions.Source, ProductRun.Establish,"
-                    + " Set<Feature>, SqlSpelling, Output, int)", QueryRoad.REFUSES_RAW_SQL),
             Map.entry("TestExecution#planBody(TypedQuery, String, ExecuteOptions)", QueryRoad.TEST_ROAD),
             // it reads facts of the body and plans nothing (C5-J item 2, 2026-11-15)
             Map.entry("TestExecution#facts(TypedQuery)", QueryRoad.PLANS_NOTHING),
@@ -964,13 +941,7 @@ class PlannerSurfaceTest {
                 }
             }
         });
-        // the server's own routes, and those of the module the shipped server mounts (EdgeServer.UPSTREAM)
-        Set<String> routes = new TreeSet<>(found(httpSource, "route\\(\"([^\"]+)\""));
-        for (com.legend.server.LegendHttpServer.Routes r : com.legend.edge.EdgeServer.UPSTREAM.routes(
-                new com.legend.server.LegendHttpServer.Context("none", null, null))) {
-            routes.add(r.prefix());
-        }
-        listedAs(out, "an HTTP route", routes, HTTP_ROUTES.keySet());
+        listedAs(out, "an HTTP route", found(httpSource, "route\\(\"([^\"]+)\""), HTTP_ROUTES.keySet());
         return out;
     }
 
@@ -1622,7 +1593,7 @@ class PlannerSurfaceTest {
                 "the native export no row lists: lite_run_sql (reaches [authored])"), found);
     }
 
-    private static final List<String> SERVER_FILES = List.of("PureV1Api.java", "PureV1Routes.java", "TestDataRoutes.java",
+    private static final List<String> SERVER_FILES = List.of("PureV1Api.java", "TestDataRoutes.java",
             "ModelChanges.java", "ModelInput.java", "CreateClass.java", "CreateAssociation.java",
             "CreateDataSpace.java");
 
@@ -1639,12 +1610,6 @@ class PlannerSurfaceTest {
         out.put("PureV1Api.java", out.get("PureV1Api.java") + "\n"
                 + read("core/src/main/java/com/legend/edge/PureV1Routes.java"));
         return out;
-    }
-
-    /** The routers' sources, as one: lite's own routes (server.PureV1Api) and legend-engine's pure/v1 routes, which
-     *  phase D's D1.0b moved to the edge (edge.PureV1Routes; merged main cf865632c (#101), 2026-11-15). */
-    private static String routers(Map<String, String> files) {
-        return files.get("PureV1Api.java") + "\n" + files.get("PureV1Routes.java");
     }
 
     private static final String HTTP_SOURCE = "core/src/main/java/com/legend/server/LegendHttpServer.java";
@@ -1670,7 +1635,7 @@ class PlannerSurfaceTest {
     @Test
     void theServersSurfaceIsClosed() {
         Map<String, String> files = routeFiles();
-        assertEquals(List.of(), serverViolations(routers(files), files, httpSource()),
+        assertEquals(List.of(), serverViolations(files.get("PureV1Api.java"), files, httpSource()),
                 "the server's surface is not closed");
     }
 
@@ -1707,7 +1672,7 @@ class PlannerSurfaceTest {
         assertEquals(List.of("a route no row lists: /api/lite/v1/runSql (named for a statement)",
                 "PureV1Api.java reads the field sql, which no row declares (a field that can carry SQL)",
                 "an HTTP route no row lists: /api/lite/v1/sql (named for a statement)"),
-                serverViolations(pureV1 + "\n" + files.get("PureV1Routes.java"), files, http));
+                serverViolations(pureV1, files, http));
     }
 
     /** The open doors are named, each by its reason: every route body and every route file is open by
@@ -1743,7 +1708,7 @@ class PlannerSurfaceTest {
                 "\"name\", \"description\", \"classes\");"));
         assertEquals(List.of("CreateDataSpace.java reads the field title, which none of the closed routes' only(...)"
                 + " lists admits"),
-                serverViolations(routers(files), files, httpSource()));
+                serverViolations(files.get("PureV1Api.java"), files, httpSource()));
     }
 
     /** The root doors are closed: every public method of the five listed, by signature, its parameters' kinds. */
@@ -1819,17 +1784,7 @@ class PlannerSurfaceTest {
                 Map.entry("Execution#runOnProjectDatabases(TypedQuery, String, Output)",
                         () -> Execution.runOnProjectDatabases(typed.get(), runtime, null)),
                 Map.entry("Execution#runOnProjectDatabases(TypedQuery, String, String, Output)",
-                        () -> Execution.runOnProjectDatabases(typed.get(), runtime, null, null)),
-                // phase D's spelling doors (merged main cf865632c (#101), 2026-11-15), each with the product's spelling
-                Map.entry("TypedQuery#plan(String, SqlSpelling)", () -> typed.get().plan(runtime, SPELLING)),
-                Map.entry("TypedQuery#executionPlan(String, Set<Feature>, SqlSpelling)",
-                        () -> typed.get().executionPlan(runtime, Set.of(), SPELLING)),
-                Map.entry("TypedQuery#projectPlan(String, SqlSpelling)", () -> typed.get().projectPlan(runtime, SPELLING)),
-                Map.entry("Execution#run(TypedQuery, String, SessionSource, PlanSessions.Source, ProductRun.Establish,"
-                        + " Set<Feature>, SqlSpelling, Output, int)",
-                        () -> Execution.run(typed.get(), runtime, null, null, declared, Set.of(), SPELLING, null, 1)),
-                Map.entry("Execution#runOnProjectDatabases(TypedQuery, String, String, SqlSpelling, Output)",
-                        () -> Execution.runOnProjectDatabases(typed.get(), runtime, null, SPELLING, null))));
+                        () -> Execution.runOnProjectDatabases(typed.get(), runtime, null, null))));
         Set<String> refusing = new TreeSet<>();
         QUERY_ROADS.forEach((sig, road) -> {
             if (road == QueryRoad.REFUSES_RAW_SQL) {

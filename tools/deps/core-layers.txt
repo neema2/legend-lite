@@ -75,6 +75,9 @@ spi
 cache	base
 values	base
 error	base
+# 2026-11-16 (phase D's W9/W10, docs/records/d-plan-2026-11-16.md): the compatibility forms a run is handed -- the hook
+# the edge implements, the planner and the test planner read; interfaces only
+compat	base sql
 diagnostics	base
 lexer	base
 sql	base
