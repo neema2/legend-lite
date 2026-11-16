@@ -91,7 +91,6 @@ legend_java_library(name = "result", srcs = glob(["src/main/java/com/legend/resu
 legend_java_library(name = "error", srcs = glob(["src/main/java/com/legend/error/*.java"]), deps = ["//base"])
 # THE COMPATIBILITY FORMS A RUN IS HANDED (phase D's W9/W10, 2026-11-16): the hook the edge implements and the planner
 # and the test planner read -- interfaces only
-legend_java_library(name = "compat", srcs = glob(["src/main/java/com/legend/compat/*.java"]), deps = ["//base", ":sql"])
 # the diagnostics switchboard (-Dlegend.diagnostics, Bazel workplan P3-13): what lowering, exec and driver may turn on
 # parser-equivalence's corpus machinery reads one switch of it (Corpus.load)
 legend_java_library(name = "diagnostics", srcs = glob(["src/main/java/com/legend/diagnostics/*.java"]), deps = ["//base"], visibility = ["//parser-equivalence:__pkg__"])
@@ -389,7 +388,7 @@ legend_java_library(
 )
 
 _CORE_TARGETS = [
-    "//base", "//json", ":spi", ":cache", ":values", ":error", ":compat", ":diagnostics", ":lexer", ":sql", ":protocol", ":model", ":parser", ":door",
+    "//base", "//json", ":spi", ":cache", ":values", ":error", ":diagnostics", ":lexer", ":sql", ":protocol", ":model", ":parser", ":door",
     ":builtin", ":platform", ":compiler_element_type", ":sql_dialect", ":database", ":compiler", ":normalizer",
     ":lineage", ":validation", ":lowering", ":plan", ":resolver", ":setup", ":exec", ":testexec", ":probe", ":testdatagen",
     ":execution_plan", ":result", ":planner", ":pure_v1", ":saved_queries", ":testplan", ":execution",
@@ -401,7 +400,7 @@ _CORE_TARGETS = [
 # stands on, and none of execution (exec, testdatagen, driver, probe, ide, test, server_lib). A plan-only consumer
 # depends on this, so the build proves it carries no database and no driver.
 _PLAN_SIDE_TARGETS = [
-    "//base", "//json", ":spi", ":cache", ":values", ":error", ":compat", ":diagnostics", ":lexer", ":sql", ":protocol", ":model", ":parser", ":door",
+    "//base", "//json", ":spi", ":cache", ":values", ":error", ":diagnostics", ":lexer", ":sql", ":protocol", ":model", ":parser", ":door",
     ":builtin", ":platform", ":compiler_element_type", ":sql_dialect", ":database", ":compiler", ":normalizer",
     ":lineage", ":validation", ":lowering", ":plan", ":resolver", ":setup", ":execution_plan", ":result", ":planner", ":pure_v1",
 ]

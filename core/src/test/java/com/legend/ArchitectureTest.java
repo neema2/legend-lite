@@ -4603,4 +4603,43 @@ final class ArchitectureTest {
                 + " means a desugaring site went home — ratchet the row down in the same"
                 + " commit");
     }
+
+    /**
+     * ONE HOOK, ITS UPSTREAM SIDE THE EDGE'S (D's hook fold, 2026-11-16, agreed by D and E-Java: CompatForms, a second
+     * road with a default, deleted; {@link com.legend.database.PlanStyle} the one hook): a class that implements the
+     * plan style, or prints legend-engine's text ({@link com.legend.sql.dialect.EngineTextDialect}), is the
+     * compatibility edge's ({@code com.legend.edge}) -- the product's own style, {@code PlanStyle.PRODUCT}, is the one
+     * other, and it refuses every upstream form by name. A product class that spelled upstream's forms would be a mode.
+     */
+    static java.util.List<String> upstreamSidesOutsideTheEdge(JavaClasses classes) {
+        java.util.List<String> out = new java.util.ArrayList<>();
+        for (com.tngtech.archunit.core.domain.JavaClass c : classes) {
+            if (c.isInterface() || !(c.isAssignableTo(com.legend.database.PlanStyle.class)
+                    || c.isAssignableTo(com.legend.sql.dialect.EngineTextDialect.class))) {
+                continue;
+            }
+            boolean product = c.getName().startsWith("com.legend.database.PlanStyle$")
+                    && c.isAssignableTo(com.legend.database.PlanStyle.class);
+            if (!product && !c.getPackageName().equals("com.legend.edge")) {
+                out.add(c.getName());
+            }
+        }
+        java.util.Collections.sort(out);
+        return out;
+    }
+
+    @Test
+    void onlyTheEdgeImplementsTheHooksUpstreamSide() {
+        org.junit.jupiter.api.Assertions.assertEquals(java.util.List.of(),
+                upstreamSidesOutsideTheEdge(CORE_AND_EDGE_CLASSES),
+                "a plan style or an engine-text printer outside com.legend.edge: upstream's forms are the edge's");
+    }
+
+    /** The rule bites a planted plan style outside the edge ({@link PlantedUpstreamStyle}, a test class planted for
+     *  this alone). */
+    @Test
+    void theHookRuleBitesAPlantedStyle() {
+        org.junit.jupiter.api.Assertions.assertEquals(java.util.List.of(PlantedUpstreamStyle.class.getName()),
+                upstreamSidesOutsideTheEdge(new ClassFileImporter().importClasses(PlantedUpstreamStyle.class)));
+    }
 }
