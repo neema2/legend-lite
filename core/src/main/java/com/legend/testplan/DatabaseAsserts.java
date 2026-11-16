@@ -726,7 +726,14 @@ final class DatabaseAsserts implements TestDoor.Asserts {
     private static boolean close(VerdictBatch batch, String place, int segment, int lastAssert,
             BodyDriver.ExecEnv env, Map<Integer, List<TestPlan.Verdicts>> byStatement,
             @Nullable List<HostRoot> hostRoots) {
-        VerdictBatch.Planned planned = batch.plan();
+        return closePlanned(batch.plan(), place, segment, lastAssert, env, byStatement, hostRoots);
+    }
+
+    /** {@link #close} over the batch's plan ({@code planned}; null where the segment planned no verdict): package-
+     *  private so a test plants a plan close must refuse (the PR1 re-review's B8: DE4 (d)'s refusal by name). */
+    static boolean closePlanned(VerdictBatch.@Nullable Planned planned, String place, int segment, int lastAssert,
+            BodyDriver.ExecEnv env, Map<Integer, List<TestPlan.Verdicts>> byStatement,
+            @Nullable List<HostRoot> hostRoots) {
         List<HostRoot> roots = hostRoots == null ? null : List.copyOf(hostRoots);
         if (hostRoots != null) {
             hostRoots.clear();
