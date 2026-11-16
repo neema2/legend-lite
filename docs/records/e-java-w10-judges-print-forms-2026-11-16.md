@@ -58,6 +58,32 @@ batch. A golden that is not a constant stays refused by name, as today (UNJUDGED
 Side finding: the H2 corpus's UNJUDGED count is 45 against its ceiling of 46 (headroom, to re-pin with the next
 change to that lane).
 
+## Step 1's design, as approved (2026-11-16): on-failure side reads
+
+**The ruling (the orchestrator's, with five conditions).** The database judge's verdict row decides `holds`; it no
+longer spells a message. Each database verdict carries, as plan data, the HOST judge's planned check for the same
+assert -- its sides (planned statements) and its judgment. When `holds` is false, the runner sends that check's side
+statements and the host judgment writes the failure: the same text HOST mode gives, by construction.
+
+1. **A planned branch (charter A3(b)).** The database computes the Boolean; the runner sends the plan's named failure
+   sides and never others. Javadoc and a witness test say so: a failure side is sent only after a false `holds`, and
+   only the plan's.
+2. **The test plan's format is bumped** (numbered at landing, in merge order), with its version-history entry; an older
+   plan is refused by name.
+3. **Under BOTH, no extra statement:** the host's check is already planned and read; it is reused. Pinned.
+4. **Message parity:** a planted set of failing asserts (Float, Decimal, date, mixed list, TDS) gives byte-identical
+   messages under HOST and DATABASE; PCT's expected-failure messages unchanged on channel B DuckDB.
+5. **SideShapes' "Cannot cast a collection of size"** becomes a kind plus operands on D's Phase 2 raise marker, agreed
+   with D first; last in 4b if the marker is not ready.
+
+**What goes:** the verdict row's MESSAGE column and the `Repr` projections that spell `%r` in SQL
+(`VerdictSql` ~608, `messageAsInstances`, ~2611); the canons stay until step 2 (they decide verdicts).
+
+**Where:** `testexecutionplan.TestPlan.Verdict` gains the failure check (the host check's base and judgment);
+`DatabaseAsserts` plans it beside each database verdict (the host's planner, `HostAsserts`, already plans the same
+assert under BOTH); `testexec` (`DatabaseVerdicts.verdictOf`, the root loop) on a false `holds` runs it through the
+host judge (`HostJudgments`) for the message; `TestPlanJson` carries the field.
+
 ## State
 
 | Step | State |
