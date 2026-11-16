@@ -303,7 +303,10 @@ public class Postgres extends AnsiSqlRenderer {
     // Passes and structure
     // ==================================================================
 
-    /** A row's bound values read by a lateral of one row per row (RowLets; the lean program's step 7, 2026-11-16). */
+    /** A row's bound values read by a lateral of one row per row (RowLets; the lean program's step 7, measured
+     *  2026-11-16, Postgres 16.15, 3M rows, best of 5): the planner pulls the lateral up into the scan, so it runs as
+     *  fast as the inline form (194 against 205 ms arithmetic, 2,188 against 2,189 ms text) -- the statement written
+     *  once where it was written three times. */
     @Override
     protected boolean readsRowLets() {
         return true;

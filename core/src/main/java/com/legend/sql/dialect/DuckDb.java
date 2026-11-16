@@ -718,10 +718,14 @@ public class DuckDb extends AnsiSqlRenderer {
         return dateTruncDateGrained(writer, c.args(), spelled);
     }
 
-    /** A row's bound values read by a lateral of one row per row (RowLets; the lean program's step 7, 2026-11-16). */
+    /** A row's bound values written back where they are read (RowLets; the lean program's step 7, measured
+     *  2026-11-16, DuckDB 1.5.6, 10M rows, best of 7): DuckDB plans a lateral of one row per row as a join, not a
+     *  projection -- 617 ms against 16 ms inline for arithmetic read three times, 1,590 against 920 ms for text in a
+     *  WHERE -- and a derived table or a same-select alias is no faster than inline (it computes a projection's
+     *  repeat once already: 431-435 against 468 ms). Inline until a form measures faster. */
     @Override
     protected boolean readsRowLets() {
-        return true;
+        return false;
     }
 
     @Override

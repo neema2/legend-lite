@@ -106,6 +106,23 @@ class LetSharingTest extends AbstractDatabaseTest {
     }
 
     @Test
+    @DisplayName("a value a row writes twice is computed once beside the row, or written back where the database reads"
+            + " no lateral: the same rows either way (the lean program's step 7, 2026-11-16)")
+    void aRowsRepeatIsComputedOnce() throws SQLException {
+        String e = "(($r.AGE_VAL->toOne() * 3 + 1) * ($r.ID->toOne() + 7) - $r.AGE_VAL->toOne())";
+        String q = PEOPLE + "->extend(~sq: r|" + e + " * " + e + " + " + e + ")"
+                + "->sort(ascending(~ID))->from(test::TestRuntime)";
+        String sql = generateSql(q);
+        System.out.println("[row-lets] " + sql);
+        int bound = count(sql, "__rv0");
+        // bound once and read three times (a lateral), or written back: three copies of the value
+        assertTrue(bound == 4 || bound == 0 && count(sql, "\\* 3") == 3, sql);
+        var result = executeRelation(q);
+        assertEquals(List.of(698L * 698 + 698, 737L * 737 + 737, 1315L * 1315 + 1315),
+                result.rows().stream().map(r -> ((Number) r.get(2)).longValue()).toList(), sql);
+    }
+
+    @Test
     @DisplayName("a let read twice inside a function called three deep: one table read, not eight")
     void nestedCallsStayLinear() throws SQLException {
         String q = "test::selfJoined(test::selfJoined(test::selfJoined(" + PEOPLE + ")))"
