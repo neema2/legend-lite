@@ -96,9 +96,10 @@ def target_timeout(target: Any) -> int | None:
     """THE SECONDS A TARGET'S STATEMENTS MAY RUN, as the plan carries them (C5-J's field, 2026-11-16, the next plan
     version): the declared connection's ``queryTimeOutInSeconds`` (``database.connection``, upstream's name), written only
     where the model declares it -- every statement a runner sends for that target runs under it, as upstream applies
-    it (legend-engine SQLResult.java:65-68, ``statement.setQueryTimeout``). None: none declared, no limit; a platform's
-    or the system's database never carries one. A value the planner never writes (not a positive integer) is refused by
-    name."""
+    it (legend-engine SQLResult.java:65-68, ``statement.setQueryTimeout``). None: none declared, or 0 -- no limit, as
+    JDBC's setQueryTimeout(0) is and as every host reads it (the orchestrator's alignment, 2026-11-16) -- and a
+    platform's or the system's database never carries one. Any other value that is not a positive integer (null, a
+    negative, a fraction, a string, a boolean) is refused by name."""
     database = target.get('database') if isinstance(target, dict) else None
     if not isinstance(database, dict):
         raise TargetRefused(f'a plan\'s target names its database, not {database!r}')
@@ -110,9 +111,10 @@ def target_timeout(target: Any) -> int | None:
     if 'queryTimeOutInSeconds' not in connection:
         return None
     limit = connection['queryTimeOutInSeconds']
-    if isinstance(limit, bool) or not isinstance(limit, int) or limit <= 0:
-        raise TargetRefused(f"a connection's queryTimeOutInSeconds is a positive number of seconds, not {limit!r}")
-    return limit
+    if isinstance(limit, bool) or not isinstance(limit, int) or limit < 0:
+        raise TargetRefused(f"a connection's queryTimeOutInSeconds is a whole number of seconds, 0 for none, not "
+                            f'{limit!r}')
+    return limit or None
 
 
 def plan_timeout(plan: Any) -> int | None:

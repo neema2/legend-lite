@@ -1142,6 +1142,7 @@ class AConnectionsTimeoutTest(unittest.TestCase):
         from legend_lite._plans import plan_timeout, target_timeout
         self.assertEqual(target_timeout(self.target({'queryTimeOutInSeconds': 7})), 7)
         self.assertIsNone(target_timeout(self.target()))
+        self.assertIsNone(target_timeout(self.target({'queryTimeOutInSeconds': 0})), "0 is no limit, as JDBC's")
         self.assertIsNone(target_timeout(self.target(kind='platform')))
         self.assertIsNone(target_timeout(self.target(kind='system')))
         plan = {'root': {'_type': 'result', 'sql': {'statement': 'SELECT 1', 'slots': [],
@@ -1151,9 +1152,10 @@ class AConnectionsTimeoutTest(unittest.TestCase):
 
     def test_a_timeout_the_planner_never_writes_is_refused_by_name(self):
         from legend_lite._plans import TargetRefused, target_timeout
-        for bad in (None, 0, -1, '7', True, 1.5):
+        for bad in (None, -1, '7', '0', True, False, 1.5):
             with self.assertRaises(TargetRefused, msg=repr(bad)) as refused:
                 target_timeout(self.target({'queryTimeOutInSeconds': bad}))
-            self.assertIn("a connection's queryTimeOutInSeconds is a positive number of seconds", str(refused.exception))
+            self.assertIn("a connection's queryTimeOutInSeconds is a whole number of seconds, 0 for none",
+                          str(refused.exception))
         with self.assertRaises(TargetRefused):
             target_timeout({'session': []})
