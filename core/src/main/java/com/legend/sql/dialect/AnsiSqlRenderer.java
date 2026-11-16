@@ -1149,7 +1149,8 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
     /**
      * {@code r}'s text as a SITE of the statement under way: a checked graph's defect text as data where {@code r} is
      * one ({@code asData}: no raise, no site), the user's own message where it is a {@code fail}, else the token
-     * {@code LG#<n>} of the next site, recorded with its kind, its where, its operands and the words {@code upstream}
+     * {@code LG#<n>} of its site -- the next one, or the one an identical raise of the statement already holds -- recorded
+     * with its kind, its where, its operands and the words {@code upstream}
      * gives it (the edge's style's sentence, worded at planning: {@code database.PlanStyle#siteWords}; none in the
      * product). A raise written outside a statement's render has no table to
      * declare it, refused by name.
@@ -1169,6 +1170,15 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         }
         RaiseSite written = new RaiseSite(raiseSites.size() + 1, r.kind(), r.where(), r.operands(), null);
         written = written.worded(upstream.apply(written));
+        for (RaiseSite held : raiseSites) {
+            // the same raise written again in the statement (a guard a dialect writes twice, a CASE copied): its one
+            // site, said once -- the copies' text stays identical, so the database and the lean measure see one repeat
+            if (held.kind() == written.kind() && java.util.Objects.equals(held.where(), written.where())
+                    && held.operands().equals(written.operands())
+                    && java.util.Objects.equals(held.upstream(), written.upstream())) {
+                return new SqlExpr.StringLit(com.legend.sql.RaiseKind.token(held.n()));
+            }
+        }
         raiseSites.add(written);
         return new SqlExpr.StringLit(com.legend.sql.RaiseKind.token(written.n()));
     }

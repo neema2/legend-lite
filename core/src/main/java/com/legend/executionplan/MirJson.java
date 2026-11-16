@@ -81,11 +81,19 @@ public final class MirJson {
                 o.put("from", source(s.from()));
                 o.put("where", s.where() == null ? null : expr(s.where()));
                 o.put("groupBy", exprs(s.groupBy()));
-                o.put("having", s.having() == null ? null : expr(s.having()));
-                o.put("qualify", s.qualify() == null ? null : expr(s.qualify()));
+                // a HAVING, QUALIFY or OFFSET a select does not have is not written (the waste review of 2026-11-16: the
+                // clauses almost no select has were a null each in every select of a plan's tree); read back as none
+                if (s.having() != null) {
+                    o.put("having", expr(s.having()));
+                }
+                if (s.qualify() != null) {
+                    o.put("qualify", expr(s.qualify()));
+                }
                 o.put("orderBy", sortKeys(s.orderBy()));
                 o.put("limit", s.limit());
-                o.put("offset", s.offset());
+                if (s.offset() != null) {
+                    o.put("offset", s.offset());
+                }
                 o.put("outputs", outputCols(s.outputs()));
             }
             case SqlUnion u -> {
