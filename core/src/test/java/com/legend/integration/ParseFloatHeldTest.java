@@ -61,7 +61,7 @@ class ParseFloatHeldTest extends AbstractDatabaseTest {
     @Test
     @DisplayName("parseFloat of text that is no number raises, on every lane: never SQLite's silent 0")
     void textThatIsNoNumberRaises() {
-        for (String text : java.util.List.of("abc", "", "0x10", "1.2.3", "1e", "-", "+", ".", "e5", "0-9e4")) {
+        for (String text : java.util.List.of("abc", "", "0x10", "1.2.3", "1e", "-", "+", ".", "e5", "0-9e4", "+-1", "1_000", "nan", "inf")) {
             try {
                 Object v = one("|'" + text + "'->parseFloat()");
                 throw new AssertionError("'" + text + "' answered " + v);
