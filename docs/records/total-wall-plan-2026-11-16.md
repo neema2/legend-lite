@@ -138,6 +138,36 @@ A worker stops and asks the orchestrator before it builds or pushes, when:
 The orchestrator decides what the rulings already settle and records it in §12. It brings to the user only what needs
 a ruling, batched in §10. It does not wait on that batch unless the work is blocked.
 
+## 4a. THE SEQUENCE: one step at a time (the user, 2026-11-16 ~14:05)
+
+The user, verbatim: "What's going on? Why are we again rabbit holing on random error messages? Why is everything going
+so random? Why don't we have a step by step plan that we are working through? Are we trying to do too many things at
+once? Feels like we are not even getting the basics correct".
+
+So the program runs ONE step at a time, on ONE branch, with ONE worker writing.
+
+- A step is done when the whole suite is green and the edge answers exactly as `main` does.
+- The next step starts only after that.
+- Workers not on the active step are paused, and nothing runs in parallel on the same branch.
+- §5 to §7 below are the detail each step draws on; they are not parallel tracks.
+
+| Step | What | Who | Done when | State |
+|---|---|---|---|---|
+| 1 | **Where we really stand.** Run the whole suite CI runs, locally on d-stage's head and on `main`. Lanes: PCT on the external databases. Produce one list of every red target, ours or pre-existing. | D (lanes for the external databases) | the list exists | **ACTIVE** |
+| 2 | **The basics correct.** Fix every red we caused, the P2 audit's MUSTs included. | D | the whole suite green, the edge identical to `main`, one lane round clean | next |
+| 3 | The edge's Float: legend-pure's print of a value in Java, and an in-query toString as legend-engine's cast (PCT moves listed first, §5 item 2). | D | step 2's bar, plus the moves ruled | |
+| 4 | legend-engine's plan text to the edge (finish W9's planner half). | D | step 2's bar | |
+| 5 | The judges' engine-test text to the edge (W9's judge half: S2c's facade). | E-Java (D paused) | step 2's bar | |
+| 6 | The judges' print forms: messages in Java, canons typed, goldens parsed (W10). | E-Java | step 2's bar, no verdict flips | |
+| 7 | The guard to zero: each remaining row reviewed, survivors to the user. | D | the guard at zero or user-ruled rows | |
+| 8 | Land: PR1, then D's PRs, then one CI each and the user's word. | orchestrator | merged | |
+| 9 | E-SQL's lean SQL, E-v2 to E-v5, one PR at a time. | E-SQL | each PR's bar | |
+| 10 | E-Java's v2 and v3. | E-Java | each PR's bar | |
+
+**An option for the user at step 2:** land what is done and solid then (PR1, plus D's P1 and P2), rather than waiting
+for steps 3 to 7. The user's earlier word was that nothing lands until D is complete, so that rule holds unless the
+user changes it.
+
 ## 5. Stream D: compatibility to the edge (worker session_01XmdJ7kRamr4Sexmcrguc94, branch `claude/total-wall-d-stage`)
 
 ### Done (checked by lane round 65 on all 12 databases: no PCT outcome or text moved)
@@ -441,4 +471,5 @@ run, and the user's merge word.
 | 2026-11-16 13:40 | D's Float-text inventory received. Decided (§5 item 2):<br>- a raise sentence's Float stays in the query with legend-engine's cast;<br>- the product's `toRepresentation` and `format('%r')` are refused by name (S314; confirmation in §10 item 7a);<br>- ClickHouse's product `format('%s', Float)` becomes S311's one call;<br>- the shortest-text emulations are deleted only when no judge and no carrier reaches them;<br>- carriers carry typed values where a database's cast does not read back (Snowflake), which is E-SQL's work, measured first.<br>All of it is built after the freeze lifts. |
 | 2026-11-16 13:50 | P2 checkpoint audit, reviewer B (at `89d4eae3b`): four MUSTs, three verified by the orchestrator. (1) A merge dropped three register amendments (S138, S170, S181). (2) The query-store page answers upstream's API in lite's words, so two TS suites go red. (3) The edge's host routes lost upstream's words and prefix for a missing parameter, so the Python execute test goes red and a test was widened. (4) Product lowering throws legend-pure's window-frame sentence. Plus SHOULDs S1 to S8. All went to D as fixes, allowed during the freeze. S8 decided: the edge receiver's refusals move to planning, so the run decides nothing (G4). Reviewer A pending. |
 | 2026-11-16 14:00 | P2 checkpoint audit, reviewer A: four MUSTs. (1) W6's H2 quoting reads a different column: a lowercase-quoted `"order"` is no longer found (probed). Decided: restore the pre-W6 product quoting on H2 exactly, and keep the rule as one guard row for the user's ruling (§10 item 8). (2) The edge's host routes and ServiceTestRunner word errors in lite's words. (3) The host's Arrow route writes the product's S312 dates where it wrote legend-pure's. (4) pure/v1's missing-parameter prefix changed, and a test was widened. Plus SHOULDs S1 to S5. All went to D. The fast loop gains the upstream-words suites (§8). |
+| 2026-11-16 14:05 | **The user: one step at a time.** §4a added: a single numbered sequence, one active step, one writer. E-SQL and E-Java paused (priority now). D is on step 1: the whole suite on d-stage against `main`, one list of red. The orchestrator's own account: too many tracks at once, findings relayed one by one, and partial checks taken as good enough. |
 | 2026-11-16 13:25 | E-SQL's item 6 (Postgres `jsonb_build_array`), committed just before the freeze, stays. It is a dialect spelling within E-v3's plan, and E-v3's review and lane round judge it. |
