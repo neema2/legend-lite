@@ -1843,8 +1843,9 @@ public final class VerdictSql {
         }
 
         private static SqlExpr reads(SqlExpr e, java.util.Map<String, String> to) {
+            // the renamed copy is compared, never sent: a parameter's read is its new name alone (both sides alike)
             if (e instanceof SqlExpr.Column c && c.table() == null && to.containsKey(c.name())) {
-                return new SqlExpr.Column(null, to.get(c.name()), c.type(), c.origin());
+                return SqlExpr.Column.derived(null, to.get(c.name()));
             }
             return e.mapChildren(ch -> reads(ch, to));
         }

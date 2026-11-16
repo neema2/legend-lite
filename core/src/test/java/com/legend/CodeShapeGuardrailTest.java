@@ -50,6 +50,9 @@ class CodeShapeGuardrailTest {
      * memo cache. Everything else must be final or become part of an
      * explicit frame object. */
     private static final Set<String> MUTABLE_FIELD_ALLOWLIST = Set.of(
+            // 2026-11-16 (E5's follow-up, E-Java): VerdictSql's LambdaNames numbers the lambda parameters it renames,
+            // one instance per side compared (sameUpToLambdaNames), never shared -- its counter is that one walk's
+            "VerdictSql.next",
             // 2026-11-11 (B4, the audit's finding 2): one program's decision of its model's registration on the
             // process's catalog, a latch set once by the program's planning (ProgramState.registerOnTheCatalog), and the
             // load it decided, placed ahead of every step that reads the catalog -- one instance per program pass
