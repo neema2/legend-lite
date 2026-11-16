@@ -272,7 +272,9 @@ class ScaleCostsDuckDbTest {
         // the budget folds c2, c3 and c4 into the base's select (the null-safe sum reads each operand twice, so c4
         // alone reads the base column 28 times: 1 + 1 + 4 + 10 + 28), and c5's reads of c3 and c4 would add more than
         // 100 nodes, so it isolates; every later block reads the aliases below it (Fibonacci's growth before)
-        assertEquals(44, reads, "reads of the base column in 20 levels");
+        // since 2026-11-16 (the lean program's step 7): within each folded select, a sum read again by the next column
+        // is computed once beside the row (SqlSource.RowValues) and read by name -- 8 reads of the base column, not 44
+        assertEquals(8, reads, "reads of the base column in 20 levels");
         assertTrue(twenty.length() < 12_000, "chars: " + twenty.length());
         assertEquals(direct(fib(9)), island(fib(9)));
     }

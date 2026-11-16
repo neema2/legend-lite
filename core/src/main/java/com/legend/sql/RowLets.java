@@ -57,7 +57,7 @@ public final class RowLets {
         }
 
         private static Swap swap(Map<String, SqlExpr> values) {
-            return new Swap(Map.copyOf(values));
+            return new Swap(java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(values)));
         }
     }
 
