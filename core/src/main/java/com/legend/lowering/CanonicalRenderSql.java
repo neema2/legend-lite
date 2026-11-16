@@ -748,7 +748,8 @@ public final class CanonicalRenderSql {
                     .filter(f -> f.name().equals(k.name()))
                     .map(SqlType.Struct.Field::type)
                     .findFirst().orElse(null);
-            SqlExpr field = new SqlExpr.StructGet(v, k.name());
+            // a literal instance's field is the literal's value (StructGet.of), never the struct written again per field
+            SqlExpr field = SqlExpr.StructGet.of(v, k.name());
             SqlExpr c;
             if (k.many()) {
                 SqlType elem = ft instanceof SqlType.Array at
@@ -778,6 +779,10 @@ public final class CanonicalRenderSql {
             }
             kv.add(new SqlExpr.StringLit(k.name()));
             kv.add(c);
+        }
+        // an instance that cannot be NULL (a literal) canons with no guard
+        if (!com.legend.sql.SqlTyping.mayBeNull(v)) {
+            return new SqlExpr.JsonObject(kv);
         }
         return new SqlExpr.Case(List.of(new SqlExpr.Case.When(
                 SqlExpr.Call.of(SqlFn.IS_NULL, v),
@@ -856,7 +861,10 @@ public final class CanonicalRenderSql {
         // operand, so an unguarded String spelling read '' — the NULL
         // parentName of pair($r.values->at(0), $r.values->at(1)) beside
         // the expected ^TDSNull() (bucket 9)
-        return lit == null ? null : new SqlExpr.Case(List.of(new SqlExpr.Case.When(
+        // a field that cannot be NULL (a literal's, read off it: StructGet.of) needs no guard (the DuckDB plan's
+        // item 1, 2026-11-16)
+        return lit == null ? null : !com.legend.sql.SqlTyping.mayBeNull(field) ? lit
+                : new SqlExpr.Case(List.of(new SqlExpr.Case.When(
                 SqlExpr.Call.of(SqlFn.IS_NULL, field), new SqlExpr.NullLit())), lit, SqlExpr.Reason.PRINT);
     }
 
