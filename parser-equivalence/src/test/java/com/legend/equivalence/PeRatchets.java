@@ -97,7 +97,10 @@ public final class PeRatchets {
                     + " //parser-equivalence:update_ratchets",
             "own_corpus.matched 3300 -> 3307 (2026-11-16, the Studio roundtrip's compiler tier, the execution"
                     + " environment): its test's model (ServiceExecutionEnvironmentTest's class, store, mapping,"
-                    + " connection, runtime, execution environment and function)");
+                    + " connection, runtime, execution environment and function)",
+            "own_corpus.matched 3307 -> 3316 (2026-11-16, the Studio roundtrip's compiler tier, the generated"
+                    + " milestoning members): its test's model (GeneratedMilestoningMemberTest's Studio shape: four"
+                    + " classes, the store, the mapping and three functions)");
 
     public static void main(String[] args) throws Exception {
         if (args.length != 1) {

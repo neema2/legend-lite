@@ -3829,6 +3829,12 @@ final class ArchitectureTest {
                     // variables, column specs, collections) at the measured counts, shrink-only as before
                     java.util.Map.entry("com.legend.Compiler", 2),
                     java.util.Map.entry("com.legend.compiler.DerivedProps", 3),
+                    // ADDED 2026-11-14 (the Studio roundtrip's CORE-class-generated-milestoning-properties case):
+                    // KnowledgeLayer answers the members real pure generates on a temporal class (businessDate:
+                    // Date[1], milestoning: ...Milestoning[0..1]) to the normalizer's mapping checks as a property
+                    // definition, whose type is a TypeExpression -- one NameRef of the type's name (Temporal's rule).
+                    // A type reference answered by the model's knowledge layer, not syntax desugared below the parser
+                    java.util.Map.entry("com.legend.compiler.KnowledgeLayer", 1),
                     java.util.Map.entry("com.legend.compiler.LiteralMapUnroll", 2),
                     java.util.Map.entry("com.legend.compiler.NameResolver", 30),
                     java.util.Map.entry("com.legend.compiler.StatementInline", 5),

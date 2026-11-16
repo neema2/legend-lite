@@ -150,6 +150,14 @@ final class NewChecker {
                                     name.substring(0, name.length()
                                             - "AllVersions".length()))
                             : java.util.Optional.empty())
+                    // a member real pure GENERATES on a temporal class
+                    // (^Business(businessDate = %2020-01-01)): the one rule the
+                    // typer and graph trees read (Temporal.generatedMember) --
+                    // settable, never required (requireAllRequired walks the
+                    // declared properties only, as the engine demands nothing)
+                    .or(() -> java.util.Optional.ofNullable(com.legend.compiler.element.Temporal
+                            .generatedMember(t.model(), ni.className(), name))
+                            .map(g -> new Property.Stored(name, g.type(), g.multiplicity())))
                     .orElseThrow(() ->
                     new TypeInferenceException("class '" + ni.className() + "' has no property '" + name + "'"));
             TypedSpec value = t.synthRecordField(key.value(), env);

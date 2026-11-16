@@ -244,11 +244,65 @@ public final class KnowledgeLayer {
     /** The declared type of property {@code name} as seen from
      * {@code cd}: its own stored property, else an association end
      * injected onto it, else the same on each superclass in turn
-     * (association ends are inherited too). Null when nothing declares
+     * (association ends are inherited too), else a member real pure
+     * GENERATES on a temporal class (businessDate, processingDate,
+     * milestoning: {@code Temporal.generatedMember}, the one rule, read at
+     * lookup time as association ends are). Null when nothing declares
      * it; null class, null answer. */
     public @com.legend.base.Nullable TypeExpression propertyType(
             @com.legend.base.Nullable ClassDefinition cd, String name) {
-        return propertyType(cd, name, new java.util.HashSet<>());
+        TypeExpression found = propertyType(cd, name, new java.util.HashSet<>());
+        if (found != null) {
+            return found;
+        }
+        ClassDefinition.PropertyDefinition gen = generatedDef(cd, name);
+        return gen == null ? null : gen.type();
+    }
+
+    /** The member real pure GENERATES on {@code cd} under {@code name}
+     * (Temporal.generatedMember, the one rule), as a property definition --
+     * {@code businessDate: Date[1]}, {@code milestoning:
+     * BusinessDateMilestoning[0..1]} -- or null. Asked only after the
+     * declared, inherited and association lookups miss, so a declared
+     * property of the name wins. */
+    private ClassDefinition.@com.legend.base.Nullable PropertyDefinition generatedDef(
+            @com.legend.base.Nullable ClassDefinition cd, String name) {
+        if (cd == null || !com.legend.compiler.element.Temporal.isGeneratedMemberName(name)) {
+            return null;
+        }
+        com.legend.compiler.element.Temporal.GeneratedMember gen =
+                com.legend.compiler.element.Temporal.generatedMember(strategyOf(cd), name);
+        return gen == null ? null : new ClassDefinition.PropertyDefinition(gen.name(),
+                new TypeExpression.NameRef(gen.typeName()),
+                gen.zeroOne() ? com.legend.protocol.Multiplicity.Concrete.ZERO_ONE
+                        : com.legend.protocol.Multiplicity.Concrete.PURE_ONE,
+                List.of(), List.of(), false);
+    }
+
+    /** {@code cd}'s milestoning strategy -- its own temporal stereotype, else
+     * the nearest superclass's (the stereotype is inherited) -- or null for a
+     * non-temporal class: {@code Temporal.strategyOf} over class definitions,
+     * for the layers that run before the typed model exists. */
+    public com.legend.compiler.element.@com.legend.base.Nullable MilestoningStrategy strategyOf(ClassDefinition cd) {
+        java.util.ArrayDeque<ClassDefinition> work = new java.util.ArrayDeque<>(List.of(cd));
+        java.util.Set<String> seen = new java.util.HashSet<>();
+        while (!work.isEmpty()) {
+            ClassDefinition c = work.poll();
+            if (!seen.add(c.qualifiedName())) {
+                continue;
+            }
+            for (var st : c.stereotypes()) {
+                var s = com.legend.compiler.element.MilestoningStrategy.ofStereotypeOrNull(
+                        st.profileName(), st.stereotypeName());
+                if (s != null) {
+                    return s;
+                }
+            }
+            for (String sup : superClassFqns(c)) {
+                work.add(superClass(sup));
+            }
+        }
+        return null;
     }
 
     private @com.legend.base.Nullable TypeExpression propertyType(
@@ -275,10 +329,17 @@ public final class KnowledgeLayer {
     }
 
     /** The stored-property DEFINITION {@code name} on {@code cd} or the
-     * nearest superclass declaring it (no association ends). */
+     * nearest superclass declaring it (no association ends), else the member
+     * real pure generates on a temporal class ({@link #generatedDef}): the
+     * mapping's to-one coercion reads a generated {@code businessDate: Date[1]}
+     * as it reads a declared one. */
     public ClassDefinition.@com.legend.base.Nullable PropertyDefinition propertyDef(
             @com.legend.base.Nullable ClassDefinition cd, String name) {
-        return propertyDef(cd, name, new java.util.HashSet<>());
+        ClassDefinition.PropertyDefinition found = propertyDef(cd, name, new java.util.HashSet<>());
+        if (found != null || propertyType(cd, name, new java.util.HashSet<>()) != null) {
+            return found;   // declared, or an association end (which has no stored definition)
+        }
+        return generatedDef(cd, name);
     }
 
     private ClassDefinition.@com.legend.base.Nullable PropertyDefinition propertyDef(
