@@ -210,10 +210,9 @@ class CompatSpellingGuardTest {
             // result/CellText.java | @_: gone 2026-11-16 (W4 of docs/records/d-plan-2026-11-16.md): lite's writers refuse
             // an instance's text (S314). +0000: back 2026-11-16 (W4's audit, DoD-2): legend-pure's date text, the pure/v1
             // Arrow route's (CellText.DateText.LEGEND_PURE), where the product writes S312's six digits and Z; it moves to
-            // the edge with the engine writers
-            "result/CellText.java | +0000 | 1 | D1.8",
-            // D1.4 -> D1.8 (2026-11-15): legend-engine's pivot quoting, CellText's engine half, read by the engine writers
-            "result/CellText.java | presentedName | 1 | D1.8",
+            // the edge with the engine writers. +0000 and presentedName: gone 2026-11-16 (W8 of
+            // docs/records/d-plan-2026-11-16.md): legend-pure's date text and legend-engine's pivot quoting are
+            // edge.EngineCells
             // result/CsvWriter.java and result/JsonRowsWriter.java | presentedName: gone 2026-11-15 (D1.4: a pivot's
             // generated name bare in lite's writers, register S315)
             // D1.4 -> D1.8 (2026-11-15, the orchestrator's ruling: no exception; PureV1Writer, Output.Engine/Arrow and

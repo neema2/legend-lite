@@ -6,7 +6,6 @@ package com.legend.edge;
 import com.legend.executionplan.ExecutionPlan;
 import com.legend.result.ArrowWriter;
 import com.legend.result.Batch;
-import com.legend.result.CellText;
 import com.legend.result.ResultSink;
 
 import java.io.IOException;
@@ -47,7 +46,7 @@ public final class EngineAnswers {
     }
 
     /** legend-engine's Arrow answer onto {@code out}: a relation under the envelope's metadata, a date's text in
-     *  legend-pure's form ({@link CellText.DateText#LEGEND_PURE}); a graph fetch and a value refused. */
+     *  legend-pure's form ({@link EngineCells#LEGEND_PURE}); a graph fetch and a value refused. */
     public static ResultSink arrow(java.io.OutputStream out, PureV1Writer.Facts facts) {
         return new Planned((plan, execution) -> switch (plan.answerShape()) {
             case OBJECTS -> throw new IllegalArgumentException("ARROW_IPC answers a relation query; a graph fetch "
@@ -59,11 +58,11 @@ public final class EngineAnswers {
                 java.util.UUID ran = PureV1Writer.ran(execution);
                 if (stated == null) {
                     yield new ArrowWriter(out, columns -> PureV1Writer.arrowMetadata(facts, sql, columns, ran),
-                            CellText.DateText.LEGEND_PURE);
+                            EngineCells.LEGEND_PURE);
                 }
                 PureV1Writer.envelope(facts, sql, stated);
                 yield new ArrowWriter(out, columns -> PureV1Writer.arrowMetadata(facts, sql, stated, ran),
-                        CellText.DateText.LEGEND_PURE);
+                        EngineCells.LEGEND_PURE);
             }
             case VALUE -> throw new com.legend.error.NotImplementedException(facts.valueRefusal());
         }, "the engine's Arrow answer");

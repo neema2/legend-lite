@@ -1789,8 +1789,10 @@ class JavaEvalLedgerTest {
                             // legend-engine's answers moved from com.legend.result and com.legend.server (W8 of
                             // docs/records/d-plan-2026-11-16.md, 2026-11-16): its pure/v1 writer (spells, decides
                             // nothing), its receivers through the run's Output.Rows, and the host's plan and answer
-                            // halves (plan and write only; no connection, no JDBC)
-                            "PureV1Writer.java", "EngineAnswers.java", "HostAnswers.java"),
+                            // halves (plan and write only; no connection, no JDBC); and legend-engine's and legend-pure's
+                            // text of a cell, moved from result.CellText (spells, decides nothing:
+                            // WriterCarriageGuardTest registers its representation operations)
+                            "PureV1Writer.java", "EngineAnswers.java", "HostAnswers.java", "EngineCells.java"),
                     "core/src/main/java/com/legend/planner", PLANNER_CLASSES,
                     "core/src/main/java/com/legend/exec", EXEC_CLASSES,
                     "core/src/main/java/com/legend/testexec", TESTEXEC_CLASSES,

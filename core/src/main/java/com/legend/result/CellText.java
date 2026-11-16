@@ -17,11 +17,13 @@ import java.util.Map;
  * A typed cell's TEXT at the edge (docs/RESULT_BOUNDARY_PROGRAM_2026_10_26.md R3, R5; 2026-10-27): the spellings the
  * writers use, each a function of the session's carrier and the plan's column facts alone. A spelling is
  * serialization, never computation: it chooses digits for a value it holds whole (a Float's shortest digits, a
- * Decimal's own scale, a DateTime's fraction), converts no kind, shifts no zone and defaults no null. Two vocabularies:
- * Pure's print forms ({@link #pure}), lite's own outputs' and interpreted Pure's; and legend-engine's JSON tokens
- * ({@link #engine}), its {@code pure/v1} execute's. What the database spelled for these until the result boundary
- * program's phase 3 (the lowering's CSV and JSON wires, legend-engine's Float and DateTime text in SQL) is the same
- * rule, written where it belongs; those spellings are deleted.
+ * Decimal's own scale, a DateTime's fraction), converts no kind, shifts no zone and defaults no null. The product's
+ * vocabulary: Pure's print forms ({@link #pure}) and lite's JSON tokens ({@link #pureJson}). legend-engine's JSON
+ * tokens and legend-pure's date text are the compatibility edge's ({@code edge.EngineCells}, W8 of
+ * docs/records/d-plan-2026-11-16.md, 2026-11-16), which composes {@link #declared}, {@link #number} and
+ * {@link #dayText}. What the database spelled for these until the result boundary program's phase 3 (the lowering's
+ * CSV and JSON wires, legend-engine's Float and DateTime text in SQL) is the same rule, written where it belongs;
+ * those spellings are deleted.
  */
 public final class CellText {
 
@@ -42,25 +44,20 @@ public final class CellText {
         return pure(cell, c.type(), c, dates);
     }
 
-    /** A DATE'S TEXT IN A CELL, a closed set the writers interpret (data, never code a run is handed: W4's audit,
-     *  2026-11-16): the product's (register S312: six fraction digits and Z) or legend-pure's, which an upstream route
-     *  hands its writer -- the pure/v1 Arrow answer (DoD-2: an edge answer does not move with the product's). The
-     *  legend-pure arm moves to the edge with the engine writers (W8, D1.8). */
-    public enum DateText {
-        PRODUCT, LEGEND_PURE;
-
+    /** A DATE'S TEXT IN A CELL: the product's ({@link #PRODUCT}, register S312: six fraction digits and Z), or
+     *  legend-pure's ({@code edge.EngineCells.LEGEND_PURE}), which the edge's pure/v1 Arrow receiver hands the writer
+     *  it makes (DoD-2: an edge answer does not move with the product's). A closed enum the writers interpreted until
+     *  W8 (2026-11-16); since the engine answers are the edge's receivers ({@code edge.EngineAnswers}), the run is
+     *  handed a receiver and never this text, and legend-pure's arm is the edge's code. */
+    @FunctionalInterface
+    public interface DateText {
         /** {@code d}'s text: {@code type} the Pure type it is read under, {@code c} its column, {@code nested} whether
          *  it is a structure's element (which has no column of its own). */
-        String text(PureDateLiteral d, String type, ExecutionPlan.Column c, boolean nested) {
-            return switch (this) {
-                case PRODUCT -> nested ? productNested(d) : productDate(d, type, c);
-                case LEGEND_PURE -> legendPure(d, type, c, nested);
-            };
-        }
+        String text(PureDateLiteral d, String type, ExecutionPlan.Column c, boolean nested);
     }
 
-    /** {@link DateText#PRODUCT}. */
-    public static final DateText PRODUCT = DateText.PRODUCT;
+    /** The product's date text (register S312). */
+    public static final DateText PRODUCT = (d, type, c, nested) -> nested ? productNested(d) : productDate(d, type, c);
 
     /** {@link #pure} of a cell, or a structure's element, of Pure type {@code type} ({@code c} the column it is in). */
     private static String pure(Object cell, String type, ExecutionPlan.Column c, DateText dates) {
@@ -170,64 +167,36 @@ public final class CellText {
         return out;
     }
 
-    /** legend-engine's JSON token of a cell of column {@code c} ({@code pure/v1} execute, measured 4.145.0): null as
-     *  {@code null}; an Integer's digits; a Float as Java's {@code Double.toString} writes the double, and a NaN or an
-     *  infinite one {@code null} ({@link #engineCell}); a Decimal at its
-     *  own scale (register S104); a boolean; a text as a string; a StrictDate's day, and a DateTime's nine fraction
-     *  digits with {@code +0000}, as strings; a Variant as a string holding its JSON (measured, 4.145.0, 2026-10-28:
-     *  PARK-34's probe; the engine re-spells the JSON's numbers through its JSON library, lite keeps the database's
-     *  digits: register S115); a structure as its own JSON. */
-    public static Json.Node engine(@com.legend.base.Nullable Object cell, ExecutionPlan.Column c) {
-        if (cell == null) {
-            return Json.nil();
-        }
-        return switch (cell) {
-            case Long l -> Json.num(l);
-            case BigInteger b -> token(b.toString(), new BigDecimal(b));
-            case Double d -> engineCell(d);
-            case BigDecimal d -> isFloat(c) ? engineCell(d.doubleValue()) : token(d.toPlainString(), d);
-            case Boolean b -> Json.bool(b);
-            case String s -> Json.str(s);
-            case PureDateLiteral d -> Json.str(engineDay(d, c) ? dayText(d) : d.toEngineJson());
-            case PureTimeLiteral t -> Json.str(t.toEngineString());
-            case Map<?, ?> m -> structure(declared(m), false, c, PRODUCT);
-            case List<?> l -> structure(declared(l), false, c, PRODUCT);
-            default -> throw refused(cell, c, "legend-engine's JSON token");
-        };
-    }
-
     /** A structure's JSON (an object's declared properties, a List's elements, a Pair's, a Map's entries), each value
      *  by the rules of a cell of its own kind -- a float, a date, a time spelled as one is, never as the JSON library
-     *  would spell a Java value: legend-engine's tokens, or Pure's where {@code pure}. A nested value has no column of
-     *  its own, so a date is its day where it has no time of day, else a timestamp's text. */
-    private static Json.Node structure(@com.legend.base.Nullable Object v, boolean pure, ExecutionPlan.Column c,
-            DateText dates) {
+     *  would spell a Java value: Pure's tokens (legend-engine's are the edge's, {@code edge.EngineCells}). A nested
+     *  value has no column of its own, so a date is its day where it has no time of day, else a timestamp's text. */
+    private static Json.Node structure(@com.legend.base.Nullable Object v, ExecutionPlan.Column c, DateText dates) {
         return switch (v) {
             case null -> Json.nil();
             case Map<?, ?> m -> {
                 java.util.LinkedHashMap<String, Json.Node> fields = new java.util.LinkedHashMap<>();
-                m.forEach((k, x) -> fields.put(String.valueOf(k), structure(x, pure, c, dates)));
+                m.forEach((k, x) -> fields.put(String.valueOf(k), structure(x, c, dates)));
                 yield new Json.Obj(fields);
             }
-            case List<?> l -> new Json.Arr(l.stream().map(x -> structure(x, pure, c, dates)).toList());
+            case List<?> l -> new Json.Arr(l.stream().map(x -> structure(x, c, dates)).toList());
             case Long n -> Json.num(n);
             case Integer n -> Json.num(n);
             case BigInteger b -> token(b.toString(), new BigDecimal(b));
             // a NaN or an infinite Float as its name, a string (register S119, pending the user's ruling)
-            case Double d -> !pure ? engineFloat(d)
-                    : Double.isFinite(d) ? token(pureFloat(d), BigDecimal.valueOf(d)) : Json.str(pureFloat(d));
+            case Double d -> Double.isFinite(d) ? token(pureFloat(d), BigDecimal.valueOf(d)) : Json.str(pureFloat(d));
             case BigDecimal d -> token(d.toPlainString(), d);
             case Boolean b -> Json.bool(b);
             case String s -> Json.str(s);
-            case PureDateLiteral d -> Json.str(pure ? dates.text(d, "Date", c, true)
-                    : !d.precision().atLeast(PureDateLiteral.Precision.HOUR) ? d.toEngineString() : d.toEngineJson());
+            case PureDateLiteral d -> Json.str(dates.text(d, "Date", c, true));
             case PureTimeLiteral t -> Json.str(t.toEngineString());
-            default -> throw refused(v, c, pure ? "Pure's JSON token" : "legend-engine's JSON token");
+            default -> throw refused(v, c, "Pure's JSON token");
         };
     }
 
-    /** Lite's own JSON token of a cell (its CSV's and JSON's values are Pure's): a Float as Pure's text, a Decimal at
-     *  its scale, a date kind as a string of Pure's text, the rest as {@link #engine} writes it. */
+    /** Lite's own JSON token of a cell (its CSV's and JSON's values are Pure's): null as {@code null}; an Integer's
+     *  digits; a Float as Pure's text; a Decimal at its scale; a boolean; a text as a string; a date kind as a string
+     *  of the product's text; a structure as its own JSON. */
     public static Json.Node pureJson(@com.legend.base.Nullable Object cell, ExecutionPlan.Column c) {
         return pureJson(cell, c, PRODUCT);
     }
@@ -241,10 +210,15 @@ public final class CellText {
             // a NaN or an infinite Float as its name, a string (register S119, pending the user's ruling)
             case Double d -> Double.isFinite(d) ? token(pureFloat(d), BigDecimal.valueOf(d)) : Json.str(pureFloat(d));
             case BigDecimal d -> token(isFloat(c) ? pureFloat(d) : d.toPlainString(), d);
+            case Long l -> Json.num(l);
+            case BigInteger b -> token(b.toString(), new BigDecimal(b));
+            case Boolean b -> Json.bool(b);
+            case String s -> Json.str(s);
             case PureDateLiteral d -> Json.str(dates.text(d, c.type(), c, false));
-            case Map<?, ?> m -> structure(declared(m), true, c, dates);
-            case List<?> l -> structure(declared(l), true, c, dates);
-            default -> engine(cell, c);
+            case PureTimeLiteral t -> Json.str(t.toEngineString());
+            case Map<?, ?> m -> structure(declared(m), c, dates);
+            case List<?> l -> structure(declared(l), c, dates);
+            default -> throw refused(cell, c, "Pure's JSON token");
         };
     }
 
@@ -261,40 +235,16 @@ public final class CellText {
             // a Float's spelling decided in one place: its node's ({@link #pureJson})
             case Double d -> Json.write(w, pureJson(d, c));
             case BigDecimal d -> w.writeToken(isFloat(c) ? pureFloat(d) : d.toPlainString());
-            case PureDateLiteral d -> w.writeString(productDate(d, c.type(), c));
-            case Map<?, ?> m -> Json.write(w, structure(declared(m), true, c, PRODUCT));
-            case List<?> l -> Json.write(w, structure(declared(l), true, c, PRODUCT));
-            default -> writeEngine(w, cell, c);
-        }
-    }
-
-    /** {@link #engine}'s token of a cell written straight into {@code w}: the same choices and text as the node
-     *  ({@link #writePureJson}'s note). */
-    public static void writeEngine(Json.Writer w, @com.legend.base.Nullable Object cell, ExecutionPlan.Column c) {
-        switch (cell) {
-            case null -> w.writeNull();
             case Long l -> w.writeLong(l);
             case BigInteger b -> w.writeToken(b.toString());
-            // a Float's spelling decided in one place, its node's ({@link #engine}): a double, and a decimal the
-            // database holds under a Float column
-            case Double d -> Json.write(w, engine(d, c));
-            case BigDecimal d when isFloat(c) -> Json.write(w, engine(d, c));
-            case BigDecimal d -> w.writeToken(d.toPlainString());
             case Boolean b -> w.writeBool(b);
             case String s -> w.writeString(s);
-            case PureDateLiteral d -> w.writeString(engineDay(d, c) ? dayText(d) : d.toEngineJson());
+            case PureDateLiteral d -> w.writeString(productDate(d, c.type(), c));
             case PureTimeLiteral t -> w.writeString(t.toEngineString());
-            case Map<?, ?> m -> Json.write(w, structure(declared(m), false, c, PRODUCT));
-            case List<?> l -> Json.write(w, structure(declared(l), false, c, PRODUCT));
-            default -> throw refused(cell, c, "legend-engine's JSON token");
+            case Map<?, ?> m -> Json.write(w, structure(declared(m), c, PRODUCT));
+            case List<?> l -> Json.write(w, structure(declared(l), c, PRODUCT));
+            default -> throw refused(cell, c, "Pure's JSON token");
         }
-    }
-
-    /** {@code name} as legend-engine labels a column (its {@code mayQuotePivotColNames}, pureToSQLQuery.pure:2985;
-     *  the compiler's {@code Type.RelationType.presentPivotName}): a name holding the pivot separator {@code __|__}
-     *  that is not already quote-wrapped carries literal single quotes as part of the NAME. */
-    public static String presentedName(String name) {
-        return name.contains("__|__") && !(name.startsWith("'") && name.endsWith("'")) ? "'" + name + "'" : name;
     }
 
     // ---- Float ----------------------------------------------------------------------------------------------------
@@ -323,24 +273,6 @@ public final class CellText {
         return plain.contains(".") ? plain : plain + ".0";
     }
 
-    /** legend-engine's token of a double: Java's {@code Double.toString}; a non-finite double, which JSON has no token
-     *  for, as its name in a string -- the form its JSON library gives a NESTED value (Jackson's
-     *  {@code QUOTE_NON_NUMERIC_NUMBERS}; not measured). A relation's cell is {@link #engineCell}'s. */
-    private static Json.Node engineFloat(double d) {
-        return Double.isFinite(d) ? token(Double.toString(d), BigDecimal.valueOf(d)) : Json.str(Double.toString(d));
-    }
-
-    /** legend-engine's JSON of a relation's Float CELL: the double's text ({@link #engineFloat}), and a NaN or an
-     *  infinity {@code null}. Read from its source 2026-10-29 (S1.5, the upstream-fidelity tenet): its relational
-     *  serializer ({@code RelationalResultToJsonDefaultSerializer.processRow}) runs a Float column's transformer, the
-     *  identity ({@code SetImplTransformers.buildTransformer}), then
-     *  {@code ExecutionResultObjectMapperFactory.convertPurePrimitiveToJson}, which writes {@code null} for
-     *  {@code isNaN} or {@code isInfinite}. Phase 2 wrote the name in a string here, naming the engine without reading
-     *  it. */
-    private static Json.Node engineCell(double d) {
-        return Double.isFinite(d) ? engineFloat(d) : Json.nil();
-    }
-
     private static boolean isFloat(ExecutionPlan.Column c) {
         return c.type().equals("Float");
     }
@@ -364,35 +296,6 @@ public final class CellText {
         return productTime(d);
     }
 
-    /** legend-pure's text of a date in a cell (the pure/v1 Arrow route's, as it answered before W4): a value with no
-     *  time of day, or a column that holds days, as its day; a value carried at the precision it was written, a nested
-     *  value and a mixed column's winner at the precision its digits show, with {@code +0000} from a minute on; a
-     *  relation's timestamp cell at nine fraction digits and {@code +0000}. */
-    private static String legendPure(PureDateLiteral d, String type, ExecutionPlan.Column c, boolean nested) {
-        if (nested) {
-            return pureZoned(d.trimmed());
-        }
-        boolean own = type.equals(c.type());
-        ExecutionPlan.Precision p = c.precision();
-        if (p == ExecutionPlan.Precision.WRITTEN) {
-            return pureZoned(d);
-        }
-        if (!d.precision().atLeast(PureDateLiteral.Precision.HOUR) || type.equals("StrictDate")
-                || (own && p == ExecutionPlan.Precision.DAY)) {
-            return dayText(d);
-        }
-        if (own && p == ExecutionPlan.Precision.INSTANT) {
-            return d.toEngineJson();
-        }
-        return pureZoned(d.trimmed());
-    }
-
-    /** A date at its own precision, legend-pure's {@code +0000} from a minute on (an hour-only date has none). */
-    private static String pureZoned(PureDateLiteral d) {
-        return d.precision().atLeast(PureDateLiteral.Precision.MINUTE) ? d.toEngineString() + "+0000"
-                : d.toEngineString();
-    }
-
     /** A structure's date as the product writes it: its day where it has no time of day, else S312's text. */
     private static String productNested(PureDateLiteral d) {
         return d.precision().atLeast(PureDateLiteral.Precision.HOUR) ? productTime(d) : dayText(d);
@@ -408,16 +311,6 @@ public final class CellText {
         // the plan's decision log carries it to the user's end batch)
         String nine = d.toEngineJson();
         return nine.substring(0, nine.length() - 8) + "Z";
-    }
-
-    /** Whether legend-engine writes a date as its day: by what the database answered, never by the time of day --
-     *  its serializer writes a {@code java.sql.Timestamp} in full and only a {@code java.sql.Date} as its day
-     *  ({@code ValueTransformer}, legend-engine's relational execution), so a day without a time, or a column that
-     *  holds days ({@link ExecutionPlan.Precision#DAY}: a StrictDate's, a DATE slot's). A Date at midnight in a
-     *  TIMESTAMP column is a date-time like the column's others (2026-10-27, the result boundary program: found by
-     *  the PCT read as the engine's adapter reads it, which a column of both spellings failed). */
-    private static boolean engineDay(PureDateLiteral d, ExecutionPlan.Column c) {
-        return !d.precision().atLeast(PureDateLiteral.Precision.HOUR) || c.precision() == ExecutionPlan.Precision.DAY;
     }
 
     /** A date's day ({@code yyyy-MM-dd}), or its own text where it is coarser than a day. */
@@ -445,7 +338,7 @@ public final class CellText {
     /** A structure as a reader sees it (the lowering's {@code MixedEncoding.declaredOnly}, the same rule): an object
      *  its declared properties, its identity fields dropped -- its class alone where it declares none -- and every
      *  nested value the same. */
-    static Object declared(Object v) {
+    public static Object declared(Object v) {
         if (v instanceof Map<?, ?> m) {
             Map<String, Object> out = new java.util.LinkedHashMap<>();
             for (Map.Entry<?, ?> e : m.entrySet()) {
@@ -474,6 +367,10 @@ public final class CellText {
     /** A number written as {@code token}, its exact value {@code value} beside it. The JSON writer writes an integer
      *  number's {@code long} and any other number's token, so a whole number past a {@code long} (a HUGEINT's
      *  {@code 18446744073709551614}) is marked a non-integer and written by its token, never wrapped. */
+    public static Json.Num number(String token, BigDecimal value) {
+        return token(token, value);
+    }
+
     private static Json.Num token(String token, BigDecimal value) {
         boolean integral = token.chars().allMatch(ch -> ch == '-' || Character.isDigit(ch))
                 && value.toBigInteger().bitLength() < 64;

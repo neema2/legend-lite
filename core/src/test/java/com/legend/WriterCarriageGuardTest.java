@@ -92,26 +92,27 @@ class WriterCarriageGuardTest {
                     Map.entry("stripTrailingZeros", 2),
                     // the JSON number token: its exact decimal value beside its text (Json.Num), the double's own
                     // (BigDecimal.valueOf, exact) and a token's integral flag (fits a long: bitLength)
-                    Map.entry("BigDecimal.valueOf", 3),
+                    // 3 -> 2 (2026-11-16, W8 of docs/records/d-plan-2026-11-16.md: legend-engine's tokens and legend-pure's date text moved to edge.EngineCells, registered below)
+                    Map.entry("BigDecimal.valueOf", 2),
                     Map.entry("toBigInteger", 1),
                     Map.entry("bitLength", 1),
                     Map.entry("longValue", 1),
                     // a Float held exactly as a decimal, read as the double it is for legend-engine's Double.toString
                     // token (1), and the Num's double field (1): the declared kind's own value, no other kind
-                    Map.entry("doubleValue", 2),
+                    // 2 -> 1 (2026-11-16, W8 of docs/records/d-plan-2026-11-16.md: legend-engine's tokens and legend-pure's date text moved to edge.EngineCells, registered below)
+                    Map.entry("doubleValue", 1),
                     // NaN and the infinities have no JSON number token: written as their names in a string
                     // (3 -> 4, 2026-10-29, S1.5's D14: a relation's non-finite Float cell is null in LEGACY, as
                     // legend-engine's convertPurePrimitiveToJson writes it -- CellText.engineCell reads the finiteness
                     // the value carries, the engine's own test)
-                    Map.entry("Double.isFinite", 4),
+                    // 4 -> 2 (2026-11-16, W8 of docs/records/d-plan-2026-11-16.md: legend-engine's tokens and legend-pure's date text moved to edge.EngineCells, registered below)
+                    Map.entry("Double.isFinite", 2),
                     // a date's own precision, carried in the value (a day or less; from a minute on, legend-pure's zone
                     // rule, 2026-10-29): Pure's print form and legend-engine's day rule read it, never a clock
                     // 5 -> 7 (2026-11-16, W4's audit): legend-pure's date text for the pure/v1 Arrow route
                     // (CellText.DateText.LEGEND_PURE) beside the product's, each reading the value's own precision
-                    Map.entry("atLeast", 7),
-                    // a value root's instant, and a nested value's, without the fraction's trailing zeros: the value
-                    // lane's canon (register S118); a relation's cell keeps S312's six digits, untrimmed
-                    Map.entry("trimmed", 2),
+                    // 7 -> 3, and trimmed 2 GONE (2026-11-16, W8 of docs/records/d-plan-2026-11-16.md: legend-engine's tokens and legend-pure's date text moved to edge.EngineCells, registered below)
+                    Map.entry("atLeast", 3),
                     // a day's digits (year, month, day), spelled from the value's floor
                     // (2 -> 1 and the four clock reads getHour, getMinute, getSecond, getNano GONE, 2026-10-29: the
                     // midnight rule, the one decision by a value's clock, deleted under the upstream-fidelity tenet --
@@ -123,8 +124,26 @@ class WriterCarriageGuardTest {
                     // text tests (E2, 2026-11-12, the vocabulary extended): a slot's own word (a structure's closing
                     // '>'), a pivot column's name holding the separator and its quotes (D1's edge, P3-R5), and a
                     // Float's own digits laid out (the '.' a whole double's text gains)
-                    Map.entry("contains(\"\")", 3),
-                    Map.entry("endsWith(\"\")", 2),
+                    // contains 3 -> 2, endsWith 2 -> 1, startsWith 1 GONE (2026-11-16, W8 of docs/records/d-plan-2026-11-16.md: legend-engine's tokens and legend-pure's date text moved to edge.EngineCells, registered below: the pivot name's quotes)
+                    Map.entry("contains(\"\")", 2),
+                    Map.entry("endsWith(\"\")", 1))),
+            Map.entry("EngineCells.java", Map.ofEntries(
+                    // legend-engine's and legend-pure's text of a cell, moved from CellText (W8 of
+                    // docs/records/d-plan-2026-11-16.md, 2026-11-16), the same representation operations: a BigInteger
+                    // token's exact value and the double's own (exact) beside its text (Json.Num); a Float held exactly as
+                    // a decimal read as the double it is for Double.toString's token; a NaN or an infinity, which has no
+                    // JSON number token (null in a relation's cell, its name nested); a date's own precision (legend-
+                    // engine's day rule, legend-pure's zone from a minute on); a value at its written precision without
+                    // the fraction's trailing zeros (legend-pure's print form, register S118); a pivot column's name
+                    // holding the separator and its quotes
+                    Map.entry("new BigDecimal", 2),
+                    Map.entry("BigDecimal.valueOf", 1),
+                    Map.entry("doubleValue", 1),
+                    Map.entry("Double.isFinite", 2),
+                    Map.entry("atLeast", 4),
+                    Map.entry("trimmed", 2),
+                    Map.entry("contains(\"\")", 1),
+                    Map.entry("endsWith(\"\")", 1),
                     Map.entry("startsWith(\"\")", 1))),
             Map.entry("ArrowWriter.java", Map.ofEntries(
                     // Arrow's representation of a value held whole (track A, 2026-10-29): a decimal's unscaled digits
@@ -261,6 +280,11 @@ class WriterCarriageGuardTest {
         files.add(SourceFiles.file("core/src/main/java/com/legend/edge/ServiceTestRunner.java"));
         // legend-engine's PURE_TDSOBJECT writer, moved from result/ to the edge with its runner (D1.4, 2026-11-15)
         files.add(SourceFiles.file("core/src/main/java/com/legend/edge/TdsObjectsWriter.java"));
+        // legend-engine's pure/v1 writer and its receivers, and legend-engine's and legend-pure's cell text, moved from
+        // result/ to the edge (W8 of docs/records/d-plan-2026-11-16.md, 2026-11-16): scanned where they live
+        files.add(SourceFiles.file("core/src/main/java/com/legend/edge/PureV1Writer.java"));
+        files.add(SourceFiles.file("core/src/main/java/com/legend/edge/EngineAnswers.java"));
+        files.add(SourceFiles.file("core/src/main/java/com/legend/edge/EngineCells.java"));
         // 10 -> 50 (E2, 2026-11-12): exec's sources joined the scan
         GuardCoverage.assertFloor("WriterCarriageGuardTest", files.size(), 50);
         StringBuilder drift = new StringBuilder();
