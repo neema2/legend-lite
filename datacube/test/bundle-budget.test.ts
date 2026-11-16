@@ -557,8 +557,11 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  RoutedEngine -- generatePlan, relationType, compile, compileErrors, returnType -- and planner.ts's UpstreamPlanner,
  *  the final audit of 9af16fbe58's T2 and its last list), and the run frame's NOT_PLANNING (T6): 63 bytes, 436,935
  *  without them. Measured 436,998 on Linux; Windows' 28 bytes more are its own build's -- the startup files name 305
- *  chunks by esbuild's content hashes, and the files embed no path, so the bytes that differ were not found here. */
-const BUDGET = 437_300;
+ *  chunks by esbuild's content hashes, and the files embed no path, so the bytes that differ were not found here.
+ *  437,300 -> 438,100 (2026-11-16, the user's ruling U2 (a), relayed by the orchestrator: a product raise worded in
+ *  lite's words on every host, phase D's option (D): raised.ts, declared-raises.ts and the envelope's marks; lazily
+ *  loaded measured worse on two pages). Measured 438,076 over main's 437,233. */
+const BUDGET = 438_100;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom
@@ -795,8 +798,10 @@ const BUDGET = 437_300;
  *  frame -- engine-client's run-frame.ts, the grid road's run marker in runner.ts and the planner's guard in
  *  LitePlanner's one dispatch and the in-thread answer -- over by 108 bytes). Measured 422,108.
  *  422,500, 425,500 -> 425,500 (2026-11-14, merged main 3a217086a (#81) into the separation stream: both sides' growth
- *  together, each side's notes above, measured on the merged tree; the merge adds no file). Measured 425,382. */
-const ENGINE_BUDGET = 425_500;
+ *  together, each side's notes above, measured on the merged tree; the merge adds no file). Measured 425,382.
+ *  425,500 -> 425,650 (2026-11-16, the user's ruling U2 (a), relayed by the orchestrator: option (D)'s raise
+ *  wording, as the grid's note). Measured 425,638 over main's 425,473. */
+const ENGINE_BUDGET = 425_650;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the
