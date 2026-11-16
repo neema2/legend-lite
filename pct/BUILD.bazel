@@ -849,5 +849,8 @@ write_source_files(
 
 test_suite(
     name = "edge_contract_test",
-    tests = [":update_edge_contract_tests"],
+    tests = [
+        ":update_edge_contract_tests",
+        "//spec:update_edge_corpus_tests",
+    ],
 )

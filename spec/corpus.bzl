@@ -77,13 +77,15 @@ def corpus_lane(
         testonly = True,
         srcs = data + UPSTREAM_TREES + host_srcs + committed + ["@h2_engine//jar:file"],
         roots = UPSTREAM_ROOTS,
-        outs = [host + "/judge-host.tsv", host + "/verdict.txt", host + "/host.log"] + host_measured,
-        arguments = ["{OUT_DIR}/verdict.txt", "{OUT_DIR}/host.log", "{OUT_DIR}/judge-host.tsv"] +
+        outs = [host + "/judge-host.tsv", host + "/verdict.txt", host + "/host.log", host + "/outcomes.tsv"] + host_measured,
+        arguments = ["{OUT_DIR}/verdict.txt", "{OUT_DIR}/host.log", "{OUT_DIR}/judge-host.tsv", "{OUT_DIR}/outcomes.tsv"] +
                     ["{OUT_DIR}/" + f.split("/")[-1] for f in host_measured] + ["--"] +
                     _SELECT + ["--fail-if-no-tests"],
         jvm_flags = _pass_flags(golden) + [
             "-Dlegend.judge.mode=host",
             "-Dlegend.judge.ledger={OUT_DIR}/judge-host.tsv",
+            # the edge golden net's per-test outcomes (2026-11-16)
+            "-Dlegend.junit.outcomes={OUT_DIR}/outcomes.tsv",
         ] + committed_flag + jvm_flags + host_jvm_flags,
         main_class = "com.legend.tools.junit.JUnitAction",
         memory_mb = memory_mb,
@@ -96,14 +98,16 @@ def corpus_lane(
         testonly = True,
         srcs = data + UPSTREAM_TREES + host_srcs + committed + ["@h2_engine//jar:file", ":" + host],
         roots = database_roots,
-        outs = [database + "/judge-database.tsv", database + "/verdict.txt", database + "/database.log"] +
-               database_measured,
-        arguments = ["{OUT_DIR}/verdict.txt", "{OUT_DIR}/database.log", "{OUT_DIR}/judge-database.tsv"] +
+        outs = [database + "/judge-database.tsv", database + "/verdict.txt", database + "/database.log",
+                database + "/outcomes.tsv"] + database_measured,
+        arguments = ["{OUT_DIR}/verdict.txt", "{OUT_DIR}/database.log", "{OUT_DIR}/judge-database.tsv",
+                     "{OUT_DIR}/outcomes.tsv"] +
                     ["{OUT_DIR}/" + f.split("/")[-1] for f in database_measured] + ["--"] +
                     _SELECT + ["--fail-if-no-tests"],
         jvm_flags = _pass_flags(golden) + [
             "-Dlegend.judge.mode=database",
             "-Dlegend.judge.ledger={OUT_DIR}/judge-database.tsv",
+            "-Dlegend.junit.outcomes={OUT_DIR}/outcomes.tsv",
             # the host pass's outputs: its verdict (the database pass means nothing without it), its ledger (the
             # per-assert join) and its measured rosters (the database pass's LOST/GAINED are against them)
             "-Dlegend.judge.host.verdict={HOST_DIR}/verdict.txt",
