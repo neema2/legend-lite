@@ -2882,9 +2882,21 @@ public class MongoDb extends AnsiSqlRenderer {
         MongoJson.op1(writer, "$abs", x);
         writer.append(", 1e17]}, ");
         MongoJson.op1(writer, "$toString", x);
-        writer.append(", {\"$toString\": {\"$round\": [");
-        MongoJson.op1(writer, "$toDecimal", x);
-        return writer.append(", 6]}}]}}}}, \"in\": {\"$let\": {\"vars\": {\"e\": {\"$indexOfCP\": [\"$$s\", \"E\"]}},"
+        // below 1e17 (W3's instrument, 2026-11-16): the double's own text as a Decimal128 (a Decimal128 of the double
+        // keeps 15 digits), rounded half up to six places in exact decimal arithmetic ($round rounds half to even)
+        writer.append(", {\"$let\": {\"vars\": {\"d\": {\"$toDecimal\": ");
+        MongoJson.op1(writer, "$toString", x);
+        // the value times 10^6 rounded half up as a whole Decimal128, its digits plain (exponent 0), padded to seven, the
+        // point put back before the last six, the sign in front (a negative zero trimmed to 0 below)
+        writer.append("}}, \"in\": {\"$let\": {\"vars\": {\"q\": {\"$toString\": {\"$floor\": {\"$add\":"
+                + " [{\"$multiply\": [{\"$abs\": \"$$d\"}, {\"$toDecimal\": \"1000000\"}]},"
+                + " {\"$toDecimal\": \"0.5\"}]}}}}, \"in\": {\"$let\": {\"vars\": {\"t\": {\"$cond\":"
+                + " [{\"$lt\": [{\"$strLenCP\": \"$$q\"}, 7]}, {\"$concat\": [{\"$substrCP\": [\"0000000\", 0,"
+                + " {\"$subtract\": [7, {\"$strLenCP\": \"$$q\"}]}]}, \"$$q\"]}, \"$$q\"]}}, \"in\": {\"$concat\":"
+                + " [{\"$cond\": [{\"$lt\": [\"$$d\", 0]}, \"-\", \"\"]}, {\"$substrCP\": [\"$$t\", 0,"
+                + " {\"$subtract\": [{\"$strLenCP\": \"$$t\"}, 6]}]}, \".\", {\"$substrCP\": [\"$$t\","
+                + " {\"$subtract\": [{\"$strLenCP\": \"$$t\"}, 6]}, 6]}]}}}}}}}");
+        return writer.append("]}}}}, \"in\": {\"$let\": {\"vars\": {\"e\": {\"$indexOfCP\": [\"$$s\", \"E\"]}},"
                 + " \"in\": {\"$cond\": [{\"$lt\": [\"$$e\", 0]},"
                 + " {\"$rtrim\": {\"input\": {\"$rtrim\": {\"input\": {\"$replaceAll\": {\"input\": \"$$s\","
                 + " \"find\": \"-0.000000\", \"replacement\": \"0.000000\"}}, \"chars\": \"0\"}}, \"chars\": \".\"}},"

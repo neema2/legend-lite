@@ -3607,15 +3607,34 @@ public class MariaDb extends AnsiSqlRenderer {
                 || composite && (wire.equals("JSON") || wire.equals("VARCHAR"));
     }
 
-    /** {@inheritDoc} {@code FORMAT}'s six decimals in the {@code en_US} locale, its grouping commas taken out, trimmed
-     *  by the standard's trailing trim: the same text as the other databases at every magnitude (measured 2026-11-15 on
-     *  the embedded MariaDB and MySQL, from 1e-7 to 1.7976931348623157e308: a DECIMAL(65, 6) cast saturates past
-     *  10^59, and MySQL's text of ROUND writes an exponent from 10^15; the orchestrator's rule, the same text on every
-     *  database). No NaN or infinity is stored. MySQL inherits it. */
+    /** {@inheritDoc} Register S311's one answer (W3 of docs/records/d-plan-2026-11-16.md, its instrument, 2026-11-16):
+     *  the database's own text of the double ({@code CAST(x AS CHAR)}, its shortest round-trip digits) -- from
+     *  {@link #SHORTEST_FROM} written out plain, below it read as a {@code DECIMAL(65, 6)}, which rounds it half up, and
+     *  trimmed by the standard's trailing trim. Until then {@code FORMAT(x, 6)} rounded the binary value (a tie below its
+     *  digits, 45 of 288 values wrong on the probe; from 1e17 the binary digits). No NaN or infinity is stored. MySQL
+     *  inherits it. */
     @Override
     @SpellingArm
     protected SqlWriter floatToText(SqlWriter writer, SqlExpr x) {
-        return trimmedSixStandard(writer, w -> w.append("REPLACE(FORMAT(").expr(asDouble(x), 0)
-                .append(", 6, 'en_US'), ',', '')"));
+        // from 1e17 the text's digits padded to its magnitude, read from the raw cast here (the base reads a VARCHAR
+        // cast, which this dialect writes as legend-pure's print form)
+        SqlExpr v = SqlExpr.Call.of(com.legend.sql.SqlFn.ABS, asDouble(x));
+        String sv = "CAST(§ AS CHAR)";
+        String at = "LOCATE('e', " + sv + ")";
+        String plain = "CASE WHEN " + at + " = 0 THEN " + sv + " ELSE RPAD(REPLACE(LEFT(" + sv + ", " + at
+                + " - 1), '.', ''), CAST(SUBSTRING(" + sv + ", " + at + " + 1) AS SIGNED) + 1, '0') END";
+        writer.append("CASE WHEN ").expr(v, 0).append(" >= 1e17 THEN CONCAT(CASE WHEN ").expr(asDouble(x), 0)
+                .append(" < 0 THEN '-' ELSE '' END, ");
+        String[] parts = plain.split("§", -1);
+        for (int i = 0; i < parts.length; i++) {
+            writer.append(parts[i]);
+            if (i < parts.length - 1) {
+                writer.expr(v, 0);
+            }
+        }
+        writer.append(") ELSE ");
+        trimmedSixStandard(writer, t -> t.append("CAST(CAST(CAST(").expr(asDouble(x), 0)
+                .append(" AS CHAR) AS DECIMAL(65, 6)) AS CHAR)"));
+        return writer.append(" END");
     }
 }

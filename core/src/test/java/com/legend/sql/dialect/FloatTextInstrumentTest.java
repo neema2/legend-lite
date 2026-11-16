@@ -35,10 +35,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  * fractions, six-place ties, and the two values the audit named. The external databases run the same judgment in
  * {@code ProductRaiseProbeTest}'s lanes.
  */
-class FloatTextInstrumentTest {
+public class FloatTextInstrumentTest {
 
     /** The sample, fixed by its seed: every run judges the same values. */
-    static List<Double> sample() {
+    public static List<Double> sample() {
         Set<Double> values = new LinkedHashSet<>();
         values.add(9.925379613776776E34);
         values.add(2.82879384806159E17);
