@@ -22506,3 +22506,29 @@ outside a run. It is now SPLIT, as Java's is. Branch `claude/c5-python` off cf86
   (two DuckDB threads pulling at once would raise "cannot enter context"; measured on one); `_reads.end_read`'s
   `suppress(duckdb.Error)`, moved unchanged; `_stream`'s begin before its `try` (pre-existing); the closure test's
   static half gated by `target_compatible_with`. A6 found one hole (A4), fixed.
+
+## 2026-11-16 — E: DE5's second group taught, pulled forward for PR1 (the corpus's database registers)
+
+The orchestrator's call under the user's delegation (2026-11-15): BOTH is reachable through the public API
+(`ExecuteOptions.withJudgeMode`), so the five corpus bodies DE4's deletion of the second road had stopped planning under
+BOTH are carried before PR1 lands. Each was refused by the DATABASE judge's static gate:
+
+- testQualifier and the three milestoning `alloy::` bodies end in `assertEqualsH2Compatible`, the dual-golden root.
+  - Its text arm declines these shapes. `planHost` plans the root as its own meaning on our H2,
+    `assertEquals(upgraded, actual)`.
+  - But `AssertVerdicts.gateOf` looked for a verdict native on the helper's own name and answered UNPLANNED.
+  - It now gates the rewritten equality.
+- testModelConnectionJoin's `let res = executionPlan(...)` raises a model error at planning (a class its mapping does
+  not map).
+  - The host judge's planner fails the body with it.
+  - The database half's static pass now raises it too (a LegendCompileException), instead of refusing the body.
+
+REGISTERS (both lanes, DuckDB and H2):
+- `<lane>-database-accepted-register.txt`: testQualifier moves from `judge-parity-gap:database-planner-refuses(P5)` to
+  the host roster's own entry, `by-design:test-data-generator-fetch-text(S193)`: the database judge now reaches the
+  host's verdict, the same engine-text failure the host lane accepts.
+- The three milestoning `alloy::` bodies' P5 entries are removed: they PASS under the database judge.
+- testModelConnectionJoin is in neither register: it fails with the host's own MappingResolutionException under every
+  judge (both fail rosters already list it).
+
+Pinned by `DatabaseHalfDe5Test`, each test red with its fix reverted.
