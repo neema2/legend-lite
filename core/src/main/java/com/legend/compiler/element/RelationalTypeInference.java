@@ -138,11 +138,11 @@ public final class RelationalTypeInference {
                                 : infer(f.args().get(0), db, ctx, expanding);
                 // length and indexOf are INTEGER whatever their arguments (relationalExtension.pure:1061-1069,
                 // :961-969). position, a registered dynafunction that returns an integer, is INTEGER as the database
-                // returns it, though the engine's map has no rule for it (register row S400, 2026-11-15); charindex and
+                // returns it, though the engine's map has no rule for it (register row S500, 2026-11-15); charindex and
                 // locate are not registered dynafunctions and have no rule (asked of the engine: EMPTY); until
                 // 2026-11-14 INTEGER, rules only lite had
                 case "length", "indexOf", "position" -> new RelationalDataType.Integer_();
-                // sub is the database's promotion over every argument, as plus is (register row S400, 2026-11-15):
+                // sub is the database's promotion over every argument, as plus is (register row S500, 2026-11-15):
                 // the engine types it its first argument's type when its first two have one raw kind, else no rule
                 // (relationalExtension.pure:1637-1645). Until 2026-11-13 the safe type over all its arguments, with an
                 // INTEGER default
@@ -205,7 +205,7 @@ public final class RelationalTypeInference {
                 // over several arguments are their FIRST argument's type when a safe type is possible, else no rule
                 // (relationalExtension.pure:1408-1436, :1209-1218), so plus(INTEGER, FLOAT) is the engine's INTEGER
                 // where the database returns 1.5; times is the safe type of its first two arguments, the rest unread
-                // (:1773-1782). Lite diverges (register row S400, 2026-11-15). divide is DOUBLE, above.
+                // (:1773-1782). Lite diverges (register row S500, 2026-11-15). divide is DOUBLE, above.
                 case "plus" -> {
                     if (f.args().size() == 1) {
                         // plus over one argument widens it, the engine's rule (relationalExtension.pure:1408-1436):

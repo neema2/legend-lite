@@ -413,7 +413,7 @@ class KnowledgeLayerTest {
         assertEquals(new com.legend.model.RelationalDataType.BigInt(), infer.apply(5), "count: BIGINT");
         assertEquals(new com.legend.model.RelationalDataType.Varchar(3), infer.apply(6), "substring of a CHAR(3)");
         assertEquals(null, infer.apply(7), "substring of an INTEGER: no type");
-        assertEquals(null, infer.apply(8), "sub of two VARCHARs: no type (the engine's the first's; S400)");
+        assertEquals(null, infer.apply(8), "sub of two VARCHARs: no type (the engine's the first's; S500)");
         assertEquals(null, infer.apply(9), "sub of a VARCHAR and an INTEGER: no rule");
         assertEquals(null, infer.apply(10), "group_concat: no rule");
     }
@@ -424,7 +424,7 @@ class KnowledgeLayerTest {
      * at precision 31, a FLOAT a DOUBLE and no rule for a REAL (:1717-1741), a float literal FLOAT (:148), {@code upper}
      * and {@code lower} no rule (a view column {@code Any[0..1]}); {@code plus} over one argument widens it
      * (:1408-1436). The numeric operators over several arguments ({@code plus}, {@code minus}, {@code times}) are the
-     * database's promotion over every argument, where the engine's rules misstate it (2026-11-15, register row S400). */
+     * database's promotion over every argument, where the engine's rules misstate it (2026-11-15, register row S500). */
     @Test
     @DisplayName("kernel: the operators, sum, average, a float literal and upper/lower are typed as the database returns them")
     void theOperatorsAndAggregatesAreTypedByTheEnginesRules() {
@@ -451,17 +451,17 @@ class KnowledgeLayerTest {
         assertEquals(new com.legend.model.RelationalDataType.Double_(), infer.apply(3), "plus of a FLOAT: DOUBLE");
         assertEquals(null, infer.apply(4), "plus of a VARCHAR: no rule");
         assertEquals(new com.legend.model.RelationalDataType.Double_(), infer.apply(5),
-                "plus of an INTEGER and a FLOAT: DOUBLE, as the database returns it (the engine's: the first's; S400)");
+                "plus of an INTEGER and a FLOAT: DOUBLE, as the database returns it (the engine's: the first's; S500)");
         assertEquals(new com.legend.model.RelationalDataType.Double_(), infer.apply(6),
-                "plus of a BIGINT and a FLOAT: DOUBLE (the engine's: no safe type, no rule; S400)");
+                "plus of a BIGINT and a FLOAT: DOUBLE (the engine's: no safe type, no rule; S500)");
         assertEquals(new com.legend.model.RelationalDataType.Numeric(6, 2), infer.apply(7),
                 "minus of a NUMERIC and an INTEGER: the NUMERIC");
         assertEquals(new com.legend.model.RelationalDataType.Integer_(), infer.apply(8),
-                "minus of one argument: its own (the engine's: no rule; S400)");
+                "minus of one argument: its own (the engine's: no rule; S500)");
         assertEquals(null, infer.apply(9),
-                "times reads every argument: a VARCHAR third, no type (the engine's: FLOAT, the third unread; S400)");
+                "times reads every argument: a VARCHAR third, no type (the engine's: FLOAT, the third unread; S500)");
         assertEquals(new com.legend.model.RelationalDataType.Integer_(), infer.apply(10),
-                "times of one argument: its own (the engine's: no type; S400)");
+                "times of one argument: its own (the engine's: no type; S500)");
         assertEquals(new com.legend.model.RelationalDataType.Double_(), infer.apply(11), "divide: DOUBLE");
         assertEquals(new com.legend.model.RelationalDataType.Double_(), infer.apply(12), "average: DOUBLE");
         assertEquals(new com.legend.model.RelationalDataType.Integer_(), infer.apply(13), "sum of a SMALLINT: INTEGER");
@@ -587,7 +587,7 @@ class KnowledgeLayerTest {
     /** The rules only lite had (2026-11-14): like, charindex and locate are keys of no entry of the engine's map, so no
      * type ({@link #ENGINE_CASES}: the engine answers EMPTY for each, and fails each with failOnMatchFailure true); like
      * was BIT here and the two INTEGER. position, a registered dynafunction the engine's map also has no rule for, is
-     * INTEGER, as the database returns it (2026-11-15, register row S400). */
+     * INTEGER, as the database returns it (2026-11-15, register row S500). */
     @Test
     @DisplayName("kernel: like, charindex and locate have no rule, as in the engine; position is INTEGER")
     void theRulesOnlyLiteHadAreGone() {
