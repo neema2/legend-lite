@@ -370,6 +370,8 @@ or its own plan; when it's done, it's struck through here with its commit.
 | F30 | pure/v1 answers a scalar `execute` (e.g. `->size()`) with 500 COMPILATION "a SCALAR result's serialization is unprobed" (found by the net's pure/v1 goldens at `26717de291`). legend-engine answers the value. Read upstream's answer and build it. | after D |
 | F31 | pure/v1's error answer for a driver error carries the driver's text WITH the SQL statement (H2 `'abc'->parseInteger()`: "Data conversion error converting \"abc\"; SQL statement: SELECT CAST(...)"). Phase 2 types it (a parse raise); the edge's words follow upstream's answer, read from the engine runner. | D, Phase 2 |
 | F32 | A user's fully-qualified call to an internal native RESOLVES today: `meta::legend::lite::typeRaise('a','b','c')`, `cellText('a')`, and presumably `trustOne`, which skips toOne's guard (D measured, 2026-11-16). `INTERNAL_DESUGAR` keeps out bare names only. Refuse internal natives by name to user code, with a test. | D, before landing (Phase 9) |
+| F33 | The edge golden net (`//pct:edge_contract_test`: PCT's 27 diff tests, the corpus's 8, pure/v1's 1) is in `//gates:heavy` (D, `431987e1f`, after run 17's lane guard), so CI never runs it; every worker runs it by hand on every push. Before landing, it runs in a per-push CI lane. That adds the PCT SQLite recording to CI, which `gates/BUILD.bazel` marks as the user's call. | orchestrator, before landing (Phase 9) |
+| F34 | Lane sessions measure the parse table only through the probe, since `core_tests_integration_<lane>` exists for sqlite and h2 alone. Decide whether the external lanes get integration targets, or whether the probe stays the one cross-database check. | after Phase 8 |
 
 ## 10. Rulings for the user
 
