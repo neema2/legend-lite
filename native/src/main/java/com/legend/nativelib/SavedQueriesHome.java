@@ -35,7 +35,10 @@ final class SavedQueriesHome {
                     b = Compiler.text(body), u = Compiler.text(user);
             a = Folded.of(() -> {
                 SavedQueries.Answer answer = SavedQueries.answer(new SavedQueries(new FileRecords(Path.of(f)),
-                        System::currentTimeMillis), m, r, q.isEmpty() ? null : q, b, u);
+                        System::currentTimeMillis), m, r, q.isEmpty() ? null : q, b, u,
+                        // upstream's /api/pure/v1/query, so legend-engine's words (the stage-(a) red, 2026-11-16: W8 left
+                        // this host on lite's; the page's and the server's mount word it so)
+                        com.legend.edge.StoreWords::of);
                 return answer.status() + "\n" + answer.json();
             });
         } catch (Throwable failure) {
@@ -55,7 +58,10 @@ final class SavedQueriesHome {
                     b = Compiler.text(body), u = Compiler.text(user);
             a = Folded.of(() -> {
                 SavedQueries.Answer answer = SavedCubes.answer(new SavedCubes(new FileCubeRecords(Path.of(f)),
-                        System::currentTimeMillis), m, r, q.isEmpty() ? null : q, b, u);
+                        System::currentTimeMillis), m, r, q.isEmpty() ? null : q, b, u,
+                        // upstream's /api/pure/v1/query, so legend-engine's words (the stage-(a) red, 2026-11-16: W8 left
+                        // this host on lite's; the page's and the server's mount word it so)
+                        com.legend.edge.StoreWords::of);
                 return answer.status() + "\n" + answer.json();
             });
         } catch (Throwable failure) {

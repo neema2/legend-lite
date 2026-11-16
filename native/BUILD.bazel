@@ -35,6 +35,7 @@ legend_java_library(
     deps = [
         ":graal_api",
         # the saved queries' rules over a folder (SavedQueriesHome: the program's B5)
+        "//core:edge_store_words",
         "//core:saved_queries",
         "//depot-server:rules",
         "//sdlc-server:git_storage",

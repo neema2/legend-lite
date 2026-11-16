@@ -114,7 +114,7 @@ legend_java_library(
     name = "edge_store_words",
     srcs = ["src/main/java/com/legend/edge/StoreWords.java"],
     deps = [":saved_queries"],
-    visibility = ["//query-store:__pkg__"],
+    visibility = ["//native:__pkg__", "//query-store:__pkg__"],
 )
 legend_java_library(name = "protocol", srcs = glob(["src/main/java/com/legend/protocol/**/*.java"]), deps = ["//base", "//json", ":values"], visibility = ["//datacube:__pkg__"])
 legend_java_library(name = "model", srcs = glob(["src/main/java/com/legend/model/*.java"]), deps = ["//base", ":protocol"])
