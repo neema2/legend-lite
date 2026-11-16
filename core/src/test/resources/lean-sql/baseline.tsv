@@ -3521,7 +3521,7 @@ core	DuckDB	meta::pure::functions::collection::pair_U_1__V_1__Pair_1_	1	43	3010	
 core	DuckDB	meta::pure::functions::collection::removeDuplicatesBy_T_MANY__Function_1__T_MANY_	1	1055	23482	1	262	0
 core	DuckDB	meta::pure::functions::collection::removeDuplicates_T_MANY__Function_1__T_MANY_	2	1381	33642	1	278	0
 core	DuckDB	meta::pure::functions::collection::removeDuplicates_T_MANY__T_MANY_	4	1657	39454	1	278	0
-core	DuckDB	meta::pure::functions::collection::size_Any_MANY__Integer_1_	27	22506	1438794	10	6042	0
+core	DuckDB	meta::pure::functions::collection::size_Any_MANY__Integer_1_	27	23050	1446210	10	6314	0
 core	DuckDB	meta::pure::functions::collection::sort_T_m__Function_$0_1$__Function_$0_1$__T_m_	1	330	6743	0	36	0
 core	DuckDB	meta::pure::functions::collection::sort_T_m__Function_$0_1$__T_m_	1	103	2112	0	0	0
 core	DuckDB	meta::pure::functions::collection::sort_T_m__T_m_	2	2905	54996	5	796	0
@@ -3748,7 +3748,7 @@ core	SQLite	meta::pure::functions::collection::isDistinct_T_MANY__Boolean_1_	2	1
 core	SQLite	meta::pure::functions::collection::isEmpty_Any_MANY__Boolean_1_	1	73	380747	1	0	0
 core	SQLite	meta::pure::functions::collection::removeDuplicates_T_MANY__Function_1__T_MANY_	1	10976	38927	45	4284	0
 core	SQLite	meta::pure::functions::collection::removeDuplicates_T_MANY__T_MANY_	1	10976	38927	45	4284	0
-core	SQLite	meta::pure::functions::collection::size_Any_MANY__Integer_1_	17	32580	241569	214	10121	0
+core	SQLite	meta::pure::functions::collection::size_Any_MANY__Integer_1_	17	33540	249401	214	10841	0
 core	SQLite	meta::pure::functions::collection::sort_T_m__T_m_	2	43705	95454	182	35199	0
 core	SQLite	meta::pure::functions::date::date_Integer_1__Integer_1__Integer_1__Integer_1__Integer_1__Number_1__DateTime_1_	1	1076	6635	1	375	0
 core	SQLite	meta::pure::functions::math::plus_Integer_MANY__Integer_1_	1	21	2458	0	0	0
