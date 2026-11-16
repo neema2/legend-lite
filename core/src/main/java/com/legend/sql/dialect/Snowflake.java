@@ -537,6 +537,10 @@ public class Snowflake extends AnsiSqlRenderer {
     private SqlWriter explodedColumn(SqlWriter writer, String table, SqlExpr.Column c, Map<String, SqlExpr> cols) {
         SqlExpr list = java.util.Objects.requireNonNull(cols.get(c.name()), "exploded column");
         SqlType t = typeOf(c) != null ? typeOf(c) : listElement(list);
+        // a FLATTEN over the list itself (one list, holding no NULL: flattensDirectly) reads its element as VALUE
+        if (cols.size() == 1 && holdsNoNull(list)) {
+            return writer.piece(typed(w -> w.append(aliasIdent(table)).append(".\"VALUE\""), t));
+        }
         return writer.piece(typed(w -> w.append("GET(").expr(list, 0).append(", ").append(aliasIdent(table))
                 .append(".\"INDEX\")"), t));
     }
@@ -3287,8 +3291,13 @@ public class Snowflake extends AnsiSqlRenderer {
                 || c.fn() == SqlFn.LESS || c.fn() == SqlFn.LESS_EQUAL);
     }
 
-    private static SqlWriter.Piece markerPositions(SqlSelect m) {
+    private SqlWriter.Piece markerPositions(SqlSelect m) {
         List<SqlExpr> lists = m.projections().stream().map(p -> ((SqlExpr.Call) p.expr()).args().get(0)).toList();
+        // one list that holds no NULL is flattened itself, written once (the lean program's E-v3, 2026-11-16): FLATTEN
+        // skips only an undefined (NULL) element, and its INDEX is the element's position, as the range's would be
+        if (lists.size() == 1 && holdsNoNull(lists.get(0))) {
+            return w -> w.expr(lists.get(0), 0);
+        }
         return w -> {
             w.append("ARRAY_GENERATE_RANGE(0, ");
             if (lists.size() == 1) {
@@ -3299,6 +3308,13 @@ public class Snowflake extends AnsiSqlRenderer {
             }
             w.append(")");
         };
+    }
+
+    /** Whether {@code list} can hold no NULL element: a compacted list, or a literal whose every element is a value. */
+    private static boolean holdsNoNull(SqlExpr list) {
+        return list instanceof SqlExpr.CompactList
+                || list instanceof SqlExpr.ArrayLit al && al.elements().stream()
+                        .noneMatch(com.legend.sql.SqlTyping::mayBeNull);
     }
 
     /** A {@code data:} payload bound as one parameter, split here (round 2, 2026-11-11, measured): each element a
