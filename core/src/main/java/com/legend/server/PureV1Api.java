@@ -148,15 +148,6 @@ public final class PureV1Api {
         throw new IllegalArgumentException("the request body is not a JSON object");
     }
 
-
-
-
-
-
-
-
-
-
     /**
      * legend-lite's own {@code /api/lite/v1/compilation/compile} (the user's decision, 2026-10-10; legend-engine has
      * no such route, so a client that may be talking to it asks this first and, answered 404, asks
@@ -262,19 +253,6 @@ public final class PureV1Api {
         return answer(400, "COMPILATION", () -> Json.toCompact(make.apply(request(body))));
     }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
     /**
      * A host's refusal of a call it could not finish -- its database refusing the SQL, say -- answered as
      * {@link #answer} answers a database's refusal: 500, the engine's error shape, no {@code errorType}.
@@ -347,41 +325,6 @@ public final class PureV1Api {
     public static String head(String text) {
         return text.length() <= 200 ? text : text.substring(0, 200) + "...";
     }
-
-    /** The TDS builder: each column's name, Pure type and relational spelling. */
-    public static Map<String, Object> tdsBuilder(QueryPlan plan) {
-        List<Map<String, Object>> columns = new ArrayList<>();
-        for (var c : UpstreamRelationType.columns(plan.rootType())) {
-            columns.add(builderColumn(c.name(), c.type()));
-        }
-        Map<String, Object> builder = new LinkedHashMap<>();
-        builder.put("_type", "tdsBuilder");
-        builder.put("columns", columns);
-        return builder;
-    }
-
-    /** One column of the TDS builder: its name, its Pure type as the builder writes it, its relational spelling. */
-    private static Map<String, Object> builderColumn(String name, com.legend.compiler.element.type.Type type) {
-        Map<String, Object> col = new LinkedHashMap<>();
-        col.put("name", name);
-        col.put("type", UpstreamRelationType.tdsTypePath(type));
-        col.put("relationalType", UpstreamRelationType.relationalSpelling(type));
-        return col;
-    }
-
-    public static List<String> columnNames(QueryPlan plan) {
-        List<String> names = new ArrayList<>();
-        for (var c : UpstreamRelationType.columns(plan.rootType())) {
-            names.add(c.name());
-        }
-        return names;
-    }
-
-
-
-
-
-
 
     /** The runtime: the request's own, else the one the query's {@code ->from}s bind -- every door's one rule
      *  ({@link com.legend.TypedQuery#runtime}: several refused by name; the checkpoint tenets audit's 1, 2026-11-10:

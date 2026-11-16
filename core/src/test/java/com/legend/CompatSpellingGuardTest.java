@@ -76,7 +76,11 @@ class CompatSpellingGuardTest {
             // K9 and K7: Pure's print forms and the engine's trace comment
             "+0000", "@_", "executionTraceID",
             // K4: the engine corpus's scan order flag
-            "legend.exec.engineScanOrder");
+            "legend.exec.engineScanOrder",
+            // legend-engine's TDS builder's type, and the session statement freeing the engine's words on H2 (the P2
+            // checkpoint audit's S5, 2026-11-16: until then caught by no list). "TDSNull" is not listed yet: as a
+            // literal it is also the Pure type's own name (16 product literals), so its sites are sorted in Phase 7
+            "tdsBuilder", "SET NON_KEYWORDS");
 
     /** The compatibility machinery, matched as whole words in code. */
     static final List<String> SYMBOLS = List.of(
@@ -144,6 +148,9 @@ class CompatSpellingGuardTest {
             // TDS text's (Render's dateTimeTextTds, dateTimeTextOfText), which the product now refuses by name
             // (RELATION_TEXT) and only the edge writes: both move with D1.9's hook, which hands the lowering the edge's
             // and the judges' compositions
+            // listed 2026-11-16 (the P2 checkpoint audit's S5): an execute's plan JSON written in SQL, legend-engine's
+            // builder type; Phase 6 takes the plan text to the edge
+            "lowering/JsonEmission.java | tdsBuilder | 1 | D1.7",
             "lowering/LiteralSpelling.java | +0000 | 7 | D1.9",
             "lowering/LiteralSpelling.java | FLOAT_CANON | 1 | JUDGE",
             // FLOAT_PRINT, reclassified D1.2 -> JUDGE 2026-11-15 (phase D's D1.2): the product's text of a Float is
@@ -253,6 +260,7 @@ class CompatSpellingGuardTest {
             // Reached through a LocalH2 connection's testDataSetupSqls run as written (CsvSeed.declaredSteps via
             // LoadPlanner), H2 file and tcp databases (H2Connector), and H2 files an earlier lite made.
             "sql/dialect/H2.java | ENGINE_LEXICON | 3 | RULING",
+            "sql/dialect/H2.java | SET NON_KEYWORDS | 1 | RULING", // listed 2026-11-16 (S5): the same ruling's session half
             "sql/dialect/H2.java | FLOAT_CANON | 1 | JUDGE",
             "sql/dialect/H2.java | FLOAT_PRINT | 1 | JUDGE",
             "sql/dialect/MariaDb.java | FLOAT_CANON | 1 | JUDGE",

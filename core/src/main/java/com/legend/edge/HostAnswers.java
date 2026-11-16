@@ -16,13 +16,11 @@ import java.util.List;
 import java.util.Map;
 
 import static com.legend.server.PureV1Api.boundParameters;
-import static com.legend.server.PureV1Api.columnNames;
 import static com.legend.server.PureV1Api.error;
 import static com.legend.server.PureV1Api.head;
 import static com.legend.server.PureV1Api.modelText;
 import static com.legend.server.PureV1Api.request;
 import static com.legend.server.PureV1Api.runtimeOf;
-import static com.legend.server.PureV1Api.tdsBuilder;
 
 /**
  * LEGEND-ENGINE'S EXECUTE, ITS PLAN AND ANSWER HALVES FOR A HOST (W8 of docs/records/d-plan-2026-11-16.md, D1.8,
@@ -370,4 +368,34 @@ public final class HostAnswers {
         return new Hosted(query, runtimeOf(request, query));
     }
 
+    /** The TDS builder (moved from server.PureV1Api, the P2 checkpoint audit's S5, 2026-11-16: legend-engine's
+     *  {@code tdsBuilder}, the edge's alone): each column's name, Pure type and relational spelling. */
+    private static Map<String, Object> tdsBuilder(QueryPlan plan) {
+        List<Map<String, Object>> columns = new ArrayList<>();
+        for (var c : UpstreamRelationType.columns(plan.rootType())) {
+            columns.add(builderColumn(c.name(), c.type()));
+        }
+        Map<String, Object> builder = new LinkedHashMap<>();
+        builder.put("_type", "tdsBuilder");
+        builder.put("columns", columns);
+        return builder;
+    }
+
+    /** One column of the TDS builder: its name, its Pure type as the builder writes it, its relational spelling. */
+    private static Map<String, Object> builderColumn(String name, com.legend.compiler.element.type.Type type) {
+        Map<String, Object> col = new LinkedHashMap<>();
+        col.put("name", name);
+        col.put("type", UpstreamRelationType.tdsTypePath(type));
+        col.put("relationalType", UpstreamRelationType.relationalSpelling(type));
+        return col;
+    }
+
+    /** The answer's column names, in order. */
+    private static List<String> columnNames(QueryPlan plan) {
+        List<String> names = new ArrayList<>();
+        for (var c : UpstreamRelationType.columns(plan.rootType())) {
+            names.add(c.name());
+        }
+        return names;
+    }
 }

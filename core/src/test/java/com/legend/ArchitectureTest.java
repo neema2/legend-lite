@@ -1858,6 +1858,22 @@ final class ArchitectureTest {
                     + " batch -- executionplan, values, json, base, error, the Arrow framer -- and no compiler,"
                     + " lowering, sql, exec, resolver, setup, plan or server class")
             .check(CORE_PROD_CLASSES);
+        // the edge's writers are carriage too (the P2 checkpoint audit's S4, 2026-11-16): legend-engine's tokens and
+        // envelope over the same typed batch, reading what com.legend.result's writers read, and each other
+        noClasses()
+            .that().haveNameMatching("com\\.legend\\.edge\\.(PureV1Writer|TdsObjectsWriter|EngineCells)(\\$.*)?")
+            .should().dependOnClassesThat(com.tngtech.archunit.core.domain.JavaClass.Predicates.resideInAPackage(
+                    "com.legend..")
+                    .and(com.tngtech.archunit.base.DescribedPredicate.not(com.tngtech.archunit.core.domain.JavaClass
+                            .Predicates.resideInAnyPackage("com.legend.result..", "com.legend.executionplan..",
+                                    "com.legend.values..", "com.legend.json..", "com.legend.base..",
+                                    "com.legend.error..", "com.legend.arrowipc..")))
+                    .and(com.tngtech.archunit.base.DescribedPredicate.not(com.tngtech.archunit.core.domain.JavaClass
+                            .Predicates.belongToAnyOf(com.legend.edge.PureV1Writer.class,
+                                    com.legend.edge.TdsObjectsWriter.class, com.legend.edge.EngineCells.class))))
+            .as("the edge's writers are carriage only (R3, S4): the plan's column facts and the typed batch, no planning"
+                    + " or server class")
+            .check(CORE_AND_EDGE_CLASSES);
     }
 
     /**
@@ -2444,10 +2460,8 @@ final class ArchitectureTest {
             .and().doNotHaveFullyQualifiedName("com.legend.ExecuteOptions")
             .and().doNotHaveFullyQualifiedName("com.legend.TypedQuery")
             .and().doNotHaveFullyQualifiedName("com.legend.Execution")
-            // 2026-11-15 (the D part 1 audit's M2): pure/v1's host plan halves (PureV1Api.arrowPlan, jsonPlan) take the
-            // style from the host's door (the Boundary hands the edge's) and hand it on; the product names no style but
-            // its own (G5), so it picks none
-            .and().doNotHaveFullyQualifiedName("com.legend.server.PureV1Api")
+            // (PureV1Api's exemption, 2026-11-15's M2, went 2026-11-16 with the P2 checkpoint audit's S3: its host plan
+            // halves moved to the edge's HostAnswers, so it calls no door taking a style)
             .should().callMethodWhere(new com.tngtech.archunit.base.DescribedPredicate<
                     com.tngtech.archunit.core.domain.JavaMethodCall>("a door taking a PlanStyle") {
                 @Override
