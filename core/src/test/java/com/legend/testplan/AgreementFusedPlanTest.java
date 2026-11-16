@@ -149,8 +149,16 @@ class AgreementFusedPlanTest {
         // the message 'x' is not the inner assert's: it fails, under both plans alike
         Told fusedTold = new Told();
         AssertFailed fusedFailed = assertThrows(AssertFailed.class, () -> run(plan, fusedTold));
-        // (until DE4, 2026-11-15, compared with the second road's plan, deleted: one road)
-        assertNotNull(fusedFailed.getMessage());
+        // parity with the HOST judge's own run of the body (G2; the PR1 re-review's A5, 2026-11-16: until DE4 this
+        // compared with the second road's plan, deleted -- the host judge's plan is the reference now): the same
+        // failure text and the same verdicts told, in order
+        TestPlan hostPlan = com.legend.TestExecution.planBody(typed(AN_ASSERT_ERROR), StorelessRuntime.RUNTIME,
+                ExecuteOptions.NONE.withJudgeMode(PlanningOptions.JudgeMode.HOST));
+        assertEquals(TestPlan.Judge.HOST, hostPlan.judge());
+        Told hostTold = new Told();
+        AssertFailed hostFailed = assertThrows(AssertFailed.class, () -> run(hostPlan, hostTold));
+        assertEquals(hostFailed.getMessage(), fusedFailed.getMessage(), "the failure in the host's words");
+        assertEquals(hostTold.verdicts, fusedTold.verdicts, "the verdicts told");
         assertEquals("assertEquals pass", fusedTold.verdicts.get(0));
     }
 
