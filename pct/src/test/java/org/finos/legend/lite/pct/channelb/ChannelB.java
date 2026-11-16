@@ -431,11 +431,16 @@ public final class ChannelB {
                     OPTIONS);
             told.add("ended: pass");
         } catch (java.sql.SQLException | RuntimeException e) {
-            // the whole message: the twice guard compares two runs' records, and a clipped middle could hide a
-            // difference (2026-11-15, PR1's review)
-            told.add("ended: " + e.getClass().getSimpleName() + ": " + flat(e.getMessage()));
+            told.add(ended(e));
         }
         return told;
+    }
+
+    /** How a run ended, for the twice guard's record: the failure's class and its WHOLE message -- two runs' records are
+     *  compared, and a clipped middle could hide a difference (2026-11-15, PR1's review; pinned by ChannelBTwiceTest's
+     *  planted difference past the old clip, the PR1 re-review's A7). */
+    static String ended(Exception e) {
+        return "ended: " + e.getClass().getSimpleName() + ": " + flat(e.getMessage());
     }
 
     /** The census detail line: assert messages are MULTI-LINE

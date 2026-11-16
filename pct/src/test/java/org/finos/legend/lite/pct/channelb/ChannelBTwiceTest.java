@@ -52,4 +52,16 @@ class ChannelBTwiceTest {
                 calls(List.of("ended: pass"), List.of("ended: SQLException: boom")));
         assertTrue(differs != null && differs.contains("ended: SQLException: boom"), String.valueOf(differs));
     }
+
+    /** Two runs whose failures differ only in the MIDDLE of a long message -- past the old clip, which kept 400
+     *  characters at each end -- are two answers (the PR1 re-review's A7: the clip fix had no pin). */
+    @Test
+    void twoFailuresDifferingOnlyPastTheOldClipAreNamed() {
+        String head = "h".repeat(500);
+        String tail = "t".repeat(500);
+        String one = ChannelB.ended(new RuntimeException(head + "ONE" + tail));
+        String two = ChannelB.ended(new RuntimeException(head + "TWO" + tail));
+        String differs = ChannelB.twice(calls("{}", "{}"), calls(List.of(one), List.of(two)));
+        assertTrue(differs != null && differs.startsWith("run twice, two answers:"), String.valueOf(differs));
+    }
 }
