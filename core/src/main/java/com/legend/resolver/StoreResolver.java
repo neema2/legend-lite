@@ -355,17 +355,33 @@ public final class StoreResolver {
      *  (a relation let read twice) resolves to ONE tree, so the lowering's identity-sharing (SharedRelations) shares it
      *  as one relation -- as it already does for a table read, which passes through as itself (2026-11-15, the
      *  derivative-pricing review's finding: a class read was rebuilt at every visit, two equal trees, pasted twice).
-     *  A node under two contexts (two mappings) still resolves twice: {@code Context} is a value. */
-    private final java.util.IdentityHashMap<TypedSpec, Map<Context, TypedSpec>> resolvedOnce =
+     *  A node under two contexts (two mappings) still resolves twice: {@code Context} is a value. The resolution's one
+     *  side effect a later sibling reads, the serialize envelope's state ({@link #serializeTypeCfg},
+     *  {@link #checkedEnvelope}), is replayed on a hit where the first visit set it; the temporal frame is restored by
+     *  every chain on exit, and the fresh-name counter only keeps names apart (one shared tree is one set of names). */
+    private final java.util.IdentityHashMap<TypedSpec, Map<Context, Resolved>> resolvedOnce =
             new java.util.IdentityHashMap<>();
 
+    /** A memoized resolution and the envelope state it left, where it changed it. */
+    private record Resolved(TypedSpec tree, boolean setsEnvelope,
+            GraphEmission.@com.legend.base.Nullable SerializeTypeConfig cfg, boolean checked) {}
+
     private TypedSpec resolveNode(TypedSpec n, Context context) {
-        Map<Context, TypedSpec> byContext = resolvedOnce.get(n);
-        if (byContext != null && byContext.containsKey(context)) {
-            return byContext.get(context);
+        Map<Context, Resolved> byContext = resolvedOnce.get(n);
+        Resolved hit = byContext == null ? null : byContext.get(context);
+        if (hit != null) {
+            if (hit.setsEnvelope()) {
+                serializeTypeCfg = hit.cfg();
+                checkedEnvelope = hit.checked();
+            }
+            return hit.tree();
         }
+        var cfg0 = serializeTypeCfg;
+        boolean checked0 = checkedEnvelope;
         TypedSpec r = resolveNodeOnce(n, context);
-        resolvedOnce.computeIfAbsent(n, k -> new java.util.HashMap<>()).put(context, r);
+        boolean sets = serializeTypeCfg != cfg0 || checkedEnvelope != checked0;
+        resolvedOnce.computeIfAbsent(n, k -> new java.util.HashMap<>())
+                .put(context, new Resolved(r, sets, serializeTypeCfg, checkedEnvelope));
         return r;
     }
 
