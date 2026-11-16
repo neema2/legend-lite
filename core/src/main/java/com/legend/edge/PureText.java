@@ -192,14 +192,14 @@ public final class PureText {
         /** legend-pure's print forms (a Float's, a DateTime's) for the product's text of each ({@link PurePrintForms}; D1.2). */
         @Override
         protected java.util.List<com.legend.sql.SqlRewriter> spellingPasses() {
-            return PurePrintForms.passes();
+            return PurePrintForms.passes(PurePrintForms.FloatLiteral.PRINT_AS_FLOAT);
         }
 
         /** legend-pure's print form of a Float ({@link PurePrintForms}; D1.2): a node no pass reached. */
         @Override
         protected com.legend.sql.dialect.SqlWriter floatToText(com.legend.sql.dialect.SqlWriter writer,
                 com.legend.sql.SqlExpr x) {
-            return writer.expr(PurePrintForms.floatOf(x), 0);
+            return writer.expr(PurePrintForms.floatOf(x, PurePrintForms.FloatLiteral.PRINT_AS_FLOAT), 0);
         }
 
         /** legend-pure's sentence of a raise ({@link PureMessages}). */
