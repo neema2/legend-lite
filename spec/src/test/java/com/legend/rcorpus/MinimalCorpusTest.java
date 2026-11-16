@@ -227,7 +227,7 @@ public class MinimalCorpusTest {
                 }
                 MinimalCorpus.Result r;
                 long tStart = System.nanoTime();
-                long firingsBefore = com.legend.sql.dialect.StableScanOrder.firings();
+                long firingsBefore = com.legend.edge.StableScanOrder.firings();
                 long[] originsBefore = com.legend.exec.StatementOrigin.snapshot();
                 int fallbacksBefore = com.legend.diagnostics.Census.fallbackReasons().size();
                 int unplannedBefore = com.legend.diagnostics.Census.unplannedAsserts().size();
@@ -317,7 +317,7 @@ public class MinimalCorpusTest {
                 for (String label : bodyLabels) {
                     unplannedRows.add(r.fqn() + "\t" + r.status() + "\t" + label);
                 }
-                long fired = com.legend.sql.dialect.StableScanOrder.firings() - firingsBefore;
+                long fired = com.legend.edge.StableScanOrder.firings() - firingsBefore;
                 if (fired > 0) {
                     engineOrder.add(ENGINE_ORDER + " " + r.fqn() + " :: x" + fired);
                 }

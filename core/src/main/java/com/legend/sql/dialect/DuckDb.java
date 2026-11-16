@@ -723,16 +723,21 @@ public class DuckDb extends AnsiSqlRenderer {
         return dateTruncDateGrained(writer, c.args(), spelled);
     }
 
+    /** The passes that make an implicit scan order explicit, where {@link #passes} runs them: none in the product (a
+     *  statement carries no order it did not ask for, the user's ruling of 2026-09-20); the compatibility edge's DuckDB
+     *  supplies legend-engine's ({@code edge.StableScanOrder}, the corpus replay's; W6, 2026-11-16). */
+    protected java.util.List<com.legend.sql.SqlRewriter> scanOrderPasses() {
+        return java.util.List.of();
+    }
+
     @Override
     protected java.util.List<com.legend.sql.SqlRewriter> passes() {
         // carrier strategies FIRST (base contract), then this dialect's
         // structural rewrites
-        // StableScanOrder is ENGINE-CORPUS-COMPAT ONLY (user ruling,
-        // 2026-08-29): the engine's own tests assert positionally while
-        // relying on H2's implicit scan order — replaying them on DuckDB
-        // needs the order made explicit. The PLATFORM default stays
-        // order-honest (no sort demanded = no order guaranteed); the
-        // corpus runner opts in, the ENGINE_CASED precedent.
+        // the engine's scan order (edge.StableScanOrder) is ENGINE-CORPUS-COMPAT ONLY (user ruling, 2026-08-29): the
+        // engine's own tests assert positionally while relying on H2's implicit scan order -- replaying them on DuckDB
+        // needs the order made explicit. The product stays order-honest (no sort demanded = no order guaranteed); the
+        // compatibility edge's DuckDB supplies it, the corpus runner opting in (scanOrderPasses; W6, 2026-11-16).
         java.util.List<com.legend.sql.SqlRewriter> ps =
                 new java.util.ArrayList<>(java.util.List.of(
                         new CarrierStrategies(CAPS),
@@ -748,9 +753,9 @@ public class DuckDb extends AnsiSqlRenderer {
         // a chain of levels laid out again, each value once at its lowest level: two words' identical windows one
         // (SelectLayers, 2026-11-04, #169)
         ps.add(new SelectLayers(java.util.function.UnaryOperator.identity()));
-        if (Boolean.getBoolean("legend.exec.engineScanOrder")) {
-            ps.add(new StableScanOrder());
-        }
+        // the scan-order passes the compatibility edge supplies (legend-engine's corpus replay; W6, 2026-11-16): none in
+        // the product, which carries no order it did not ask for
+        ps.addAll(scanOrderPasses());
         // last of this dialect's passes (StoredReads follows), on the statement root only: a stored Variant
         // column leaving through a star is read as JSON (docs/VARIANT_STORAGE_CENSUS_2026_09_27.md, the 2026-10-12
         // addendum)

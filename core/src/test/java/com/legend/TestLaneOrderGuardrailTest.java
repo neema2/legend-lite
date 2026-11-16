@@ -64,7 +64,8 @@ class TestLaneOrderGuardrailTest {
                 "com/legend/executionplan/MirJson.java",
                 "com/legend/sql/ScanOrder.java",
                 "com/legend/sql/dialect/LateralExplodeToUnion.java",
-                "com/legend/sql/dialect/StableScanOrder.java",
+                // moved to the compatibility edge 2026-11-16 (W6 of docs/records/d-plan-2026-11-16.md)
+                "com/legend/edge/StableScanOrder.java",
                 "com/legend/sql/dialect/UnqualifyPivotArgs.java")),
                 filesMatching(ROW_ORDER_MINT),
                 "SqlExpr.RowOrder is minted outside its owners: a product path is adding a"
@@ -74,19 +75,21 @@ class TestLaneOrderGuardrailTest {
 
     @Test
     void emulationIsInstalledOnlyBehindTheSwitch() throws IOException {
-        assertEquals(new TreeSet<>(List.of("com/legend/sql/dialect/DuckDb.java")),
-                filesMatching(PASS_INSTALL), "StableScanOrder is installed outside DuckDb's pass list");
-        assertEquals(new TreeSet<>(List.of("com/legend/sql/dialect/DuckDb.java")),
+        // the edge's DuckDB installs it since 2026-11-16 (W6 of docs/records/d-plan-2026-11-16.md: legend-engine's scan
+        // order is compatibility; the product's DuckDb asks the edge for its scan-order passes and has none)
+        assertEquals(new TreeSet<>(List.of("com/legend/edge/PureText.java")),
+                filesMatching(PASS_INSTALL), "StableScanOrder is installed outside the edge's DuckDB");
+        assertEquals(new TreeSet<>(List.of("com/legend/edge/PureText.java")),
                 filesMatching(SWITCH_LITERAL),
-                "legend.exec.engineScanOrder is named outside DuckDb: only the corpus lanes'"
-                + " build flags (spec/corpus.bzl) set it, only DuckDb's pass list reads it");
+                "legend.exec.engineScanOrder is named outside the edge's DuckDB: only the corpus lanes'"
+                + " build flags (spec/corpus.bzl) set it, only the edge's DuckDB reads it");
         String duck = Files.readString(Runfile.property("core.duckdb_dialect"));
         assertEquals(1, count(SWITCH_READ, duck), "the switch is read exactly once");
         assertEquals(1, count(PASS_INSTALL, duck), "the pass is installed exactly once");
         String shape = duck.replaceAll("\\s+", " ");
-        assertEquals(true, shape.contains(
-                "if (Boolean.getBoolean(\"legend.exec.engineScanOrder\")) { ps.add(new StableScanOrder()); }"),
-                "the pass must be installed INSIDE the switch's if-block — never unconditionally");
+        assertEquals(true, shape.contains("return Boolean.getBoolean(\"legend.exec.engineScanOrder\") ?"
+                + " java.util.List.of(new StableScanOrder()) : java.util.List.of();"),
+                "the pass must be installed only where the switch is on — never unconditionally");
         assertEquals(0, count(Pattern.compile("setProperty\\(\"legend\\.exec\\.engineScanOrder\""), duck),
                 "product never sets the switch");
     }
@@ -99,7 +102,7 @@ class TestLaneOrderGuardrailTest {
                 // (the driver's until slice 5, 2026-11-09: the test's planner's since)
                 "com/legend/testplan/JudgePlans.java",
                 "com/legend/lowering/CanonicalRenderSql.java",
-                "com/legend/sql/dialect/StableScanOrder.java")),
+                "com/legend/edge/StableScanOrder.java")),
                 filesMatching(STABILIZE),
                 "ScanOrder.stabilize is applied from a new site: the assert canon wrap and the"
                 + " test-lane pass are the only two — a product render path must not order");

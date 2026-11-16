@@ -2384,7 +2384,7 @@ junit_test(
     # single files, and the jar lists
     data = [
         "src/main/java/com/legend/compiler/spec/LiteralUnroll.java",
-        "src/main/java/com/legend/sql/dialect/DuckDb.java",
+        "src/main/java/com/legend/edge/PureText.java",
         ":authored_door_jars",
         ":build_time_jars",
         ":core_test_jar",
@@ -2396,7 +2396,7 @@ junit_test(
     # read, as one declared list (SourceFiles, P3-27): no guard walks a directory
     jvm_flags = [
         "-Dcore.literal_unroll=$(rlocationpath src/main/java/com/legend/compiler/spec/LiteralUnroll.java)",
-        "-Dcore.duckdb_dialect=$(rlocationpath src/main/java/com/legend/sql/dialect/DuckDb.java)",
+        "-Dcore.duckdb_dialect=$(rlocationpath src/main/java/com/legend/edge/PureText.java)",
         "-Dlegend.sources=$(rlocationpath :guardrails_sources)",
         "-Dlegend.product.jars=$(rlocationpath :product_jars)",
         "-Dlegend.test.jars=$(rlocationpath :core_test_jar)",

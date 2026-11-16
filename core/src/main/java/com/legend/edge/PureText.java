@@ -114,6 +114,14 @@ public final class PureText {
 
     /** DuckDB, spelled as upstream spells it. */
     public static final class DuckDb extends com.legend.sql.dialect.DuckDb {
+        /** legend-engine's scan order made explicit for its corpus's replay (StableScanOrder, behind the corpus lanes'
+         *  {@code legend.exec.engineScanOrder}; moved here from the product's dialect, W6, 2026-11-16). */
+        @Override
+        protected java.util.List<com.legend.sql.SqlRewriter> scanOrderPasses() {
+            return Boolean.getBoolean("legend.exec.engineScanOrder") ? java.util.List.of(new StableScanOrder())
+                    : java.util.List.of();
+        }
+
         /** legend-pure's print forms (a Float's, a DateTime's) for the product's text of each ({@link PurePrintForms}; D1.2). */
         @Override
         protected java.util.List<com.legend.sql.SqlRewriter> spellingPasses() {

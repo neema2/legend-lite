@@ -3757,7 +3757,7 @@ final class ArchitectureTest {
             java.util.Map.entry("com.legend.probe.Shadow.SEEN", StaticKind.MEASUREMENT),
             java.util.Map.entry("com.legend.probe.Shadow.TABLES", StaticKind.MEASUREMENT),
             java.util.Map.entry("com.legend.probe.Shadow.ROWS", StaticKind.MEASUREMENT),
-            java.util.Map.entry("com.legend.sql.dialect.StableScanOrder.FIRINGS", StaticKind.MEASUREMENT),
+            java.util.Map.entry("com.legend.edge.StableScanOrder.FIRINGS", StaticKind.MEASUREMENT),
             java.util.Map.entry("com.legend.sql.dialect.SQLite.MONTHS", StaticKind.CONSTANT_ARRAY),
             java.util.Map.entry("com.legend.sql.dialect.SQLite.DAYS", StaticKind.CONSTANT_ARRAY),
             java.util.Map.entry("com.legend.sql.dialect.SqliteDigests.MD5_K", StaticKind.CONSTANT_ARRAY),
