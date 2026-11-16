@@ -156,7 +156,10 @@ public enum SqlFn {
             java.util.EnumSet.of(AND, OR, COALESCE, ADD_INTERVAL, ADD_INTERVAL_TEMPORAL, ASCII_CODE, BIT_SHIFT_RIGHT,
                     BOOL_TO_TEXT, CBRT, FLOOR_RAW, INT_DIVIDE, JSON_TYPE, LIST_BOOL_AND, LIST_BOOL_OR, LIST_CONCAT,
                     LIST_DISTINCT, LIST_GET, LIST_POSITION, LIST_PRODUCT, MAP_EXTRACT, MAP_FROM_ENTRIES, MAP_FROM_LISTS,
-                    MAP_KEYS, MAP_VALUES, MOD, PARSE_INT, REM, REPEAT_STR, REPEAT_VALUE, RIGHT, SPLIT, SPLIT_PART));
+                    MAP_KEYS, MAP_VALUES, MOD, PARSE_INT, REM, REPEAT_STR, REPEAT_VALUE, RIGHT, SPLIT, SPLIT_PART,
+                    // SQLite's pad helper branches on the length (the PR1 re-review's B6, 2026-11-16: in a helper, not
+                    // an arm, which the arm census missed; MaySkipCensusTest renders whole calls)
+                    LPAD, RPAD));
 
     /** Whether this function draws afresh at every place it is written -- the database's random float ({@link #RANDOM})
      *  or uuid ({@link #GUID}) -- so two places of it are two values: a value holding one is computed once, in its own
