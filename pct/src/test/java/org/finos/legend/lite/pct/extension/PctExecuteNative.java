@@ -152,7 +152,6 @@ public class PctExecuteNative extends NativeFunction {
             // (docs/RESULT_BOUNDARY_PROGRAM_2026_10_26.md, phase 4).
             PctPlanRoute.Answer answer = PctPlanRoute.execute(model, pureExpression);
             PctCaseRecorder.recordShape(pureExpression, answer);   // the shape census: -Dlegend.diagnostics=pct-shapes
-            PctCaseRecorder.edgeAnswer(pureExpression, answer);    // the edge golden net: -Dlegend.edge.answers
             return switch (answer.shape()) {
                 case RELATION -> {
                     System.out.println("[LegendLite PCT] engine JSON: " + answer.engineJson());
@@ -189,10 +188,7 @@ public class PctExecuteNative extends NativeFunction {
             // from platform-raised text (provenance-sentinel scoped).
             // remapErrorMessage — the last adapter arm that ever touched
             // a message — is DELETED; native errors cross whole.
-            // the edge golden net records the message exactly as it is handed to the interpreter
-            String message = e.getMessage();
-            PctCaseRecorder.edgeError(pureExpression, message);
-            throw new PureExecutionException(src, message, e);
+            throw new PureExecutionException(src, e.getMessage(), e);
         }
     }
 }

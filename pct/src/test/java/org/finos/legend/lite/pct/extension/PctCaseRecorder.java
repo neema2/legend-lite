@@ -128,6 +128,7 @@ final class PctCaseRecorder {
     }
 
     static void recordShape(String expression, PctPlanRoute.Answer answer) {
+        edgeAnswer(expression, answer);   // the edge golden net rides this call: none added to PctExecuteNative's pin
         if (SHAPES_DIR == null) {
             return;
         }
@@ -143,6 +144,10 @@ final class PctCaseRecorder {
 
     /** A case that failed: its error's class and the first line of its message, under the kind {@code ERROR}. */
     static void recordShapeError(String expression, Throwable e) {
+        // the edge golden net rides this call (none added to PctExecuteNative's ledger pin): the message exactly as
+        // PctExecuteNative hands it to the interpreter -- KEEP IN STEP with its throw (on d-stage,
+        // edge.PureMessages.compile(e))
+        edgeError(expression, e.getMessage());
         if (SHAPES_DIR == null) {
             return;
         }
