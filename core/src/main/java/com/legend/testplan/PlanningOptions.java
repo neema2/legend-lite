@@ -58,7 +58,15 @@ public record PlanningOptions(
      *  judges, the host's verdict of record, a disagreement a failure naming both (AgreementArm). One mode per run,
      *  carried on the run's options -- never a JVM global. The one judge-mode enumeration (2026-11-09: the door's
      *  options kept a copy of it, mapped by a switch). */
-    public enum JudgeMode { HOST, DATABASE, BOTH }
+    /** The judge of a run: {@code HOST}, or {@code BOTH} (the host's verdict of record, the database judge's agreement
+     *  checked). {@code DATABASE} is the arm BOTH plans, never a run's judge since the database judge alone was retired
+     *  (the user's O5, met 2026-11-16): {@link #RUNS} are a run's, which the test planner refuses any other than. */
+    public enum JudgeMode {
+        HOST, DATABASE, BOTH;
+
+        /** The judges a run may name. */
+        public static final java.util.List<JudgeMode> RUNS = java.util.List.of(HOST, BOTH);
+    }
 
     public PlanningOptions withJudgeMode(JudgeMode mode) {
         return new PlanningOptions(edge, stores, features, mode, judgingRules, options, style);

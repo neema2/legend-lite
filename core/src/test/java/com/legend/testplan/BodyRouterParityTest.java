@@ -517,7 +517,7 @@ class BodyRouterParityTest {
     @MethodSource("backends")
     void aBodyPlannedTwiceIsTheSamePlan(TestBackend backend) {
         ModelContext ctx = Compiler.compileModel(frameModel(backend));
-        for (PlanningOptions.JudgeMode mode : PlanningOptions.JudgeMode.values()) {
+        for (PlanningOptions.JudgeMode mode : PlanningOptions.JudgeMode.RUNS) {
             for (String body : List.of(
                     "{| assertSize(" + EXECUTE + ".activities, 1);}",
                     "{| let r = " + EXECUTE + "; assert($r.activities->at(0)->cast(@meta::relational::mapping::"
@@ -554,7 +554,7 @@ class BodyRouterParityTest {
         Run host = run(backend, ctx, "x::RT", body, "select count(*) from FIRM", FIRM_ROWS,
                 PlanningOptions.JudgeMode.HOST);
         assertEquals("ok", host.outcome(), backend + " HOST: " + host.verdicts());
-        for (PlanningOptions.JudgeMode mode : PlanningOptions.JudgeMode.values()) {
+        for (PlanningOptions.JudgeMode mode : PlanningOptions.JudgeMode.RUNS) {
             Run r = run(backend, ctx, "x::RT", body, "select count(*) from FIRM", FIRM_ROWS, mode);
             assertEquals(host.outcome(), r.outcome(), backend + " " + mode);
             assertEquals(host.verdicts(), r.verdicts(), backend + " " + mode + ": the verdicts told");
@@ -586,7 +586,7 @@ class BodyRouterParityTest {
     @MethodSource("backends")
     void aRunsExecutesShareItsId_aSecondRunHasAnotherAndTheSamePlan(TestBackend backend) throws Exception {
         ModelContext ctx = Compiler.compileModel(frameModel(backend));
-        for (PlanningOptions.JudgeMode mode : PlanningOptions.JudgeMode.values()) {
+        for (PlanningOptions.JudgeMode mode : PlanningOptions.JudgeMode.RUNS) {
             for (String body : List.of(
                     "{| let a = " + EXECUTE + "; let b = " + EXECUTE + "; assert($a.activities->at(0)" + COMMENT
                             + " == $b.activities->at(0)" + COMMENT + ");}",
@@ -820,12 +820,12 @@ class BodyRouterParityTest {
                 // an assert after a failing one: planned, judged after the first failure raised -- never
                 "{| assertEquals(3, 1 + 1); assertEquals(2, 1 + 1);}",
                 "{| assertEquals(1, 1); let x = 2; assertEquals($x, 2); 'done';}")) {
-            assertParity(backend, ctx, RT, body, "select 1", List.of(), com.legend.testplan.PlanningOptions.JudgeMode.DATABASE);
+            assertParity(backend, ctx, RT, body, "select 1", List.of(), com.legend.testplan.PlanningOptions.JudgeMode.BOTH);
         }
         // a relation's toString against a literal: a string equality the database judges (not the rendered form the
         // host reads: that is toCSV's, pinned walked below) -- legend-pure's text, the edge's alone (D1.3, 2026-11-15)
         inCompatibilityMode(() -> assertParity(backend, ctx, RT, "{| assertEquals('a\n1\n', #TDS\na\n1\n#->toString());}",
-                "select 1", List.of(), com.legend.testplan.PlanningOptions.JudgeMode.DATABASE));
+                "select 1", List.of(), com.legend.testplan.PlanningOptions.JudgeMode.BOTH));
     }
 
     /** M7: the assert shapes whose DATABASE arm reads a side on the host at the assert's turn ({@code assertEq} over
@@ -848,7 +848,7 @@ class BodyRouterParityTest {
                 "{| assertEquals(#TDS\na\n1.5\n#, #TDS\na\n1\n#);}")) {
             assertEquals(BodyClass.ASSERT_PROGRAM, BodyClass.of(typed(ctx, body), "x::RT", true), body);
             Run routed = run(backend, ctx, "x::RT", body, "select 1", List.of(),
-                    com.legend.testplan.PlanningOptions.JudgeMode.DATABASE);
+                    com.legend.testplan.PlanningOptions.JudgeMode.BOTH);
             // MOVED 2026-11-04 (the core program): the database planner plans these grid pairs -- names or widths
             // that differ decide false at planning, kinds that differ are spelled in the expected's
             assertEquals(1, routed.moved, "the router moved the body: " + body);
@@ -895,7 +895,7 @@ class BodyRouterParityTest {
                 // the rendered text under assertSameElements: the lines a multiset
                 java.util.Map.entry("{| assertSameElements('a\n2\n1\n', #TDS\na\n1\n2\n#" + csv + ");}", "ok"))) {
             Run moved = assertParity(backend, ctx, "x::RT", c.getKey(), "select count(*) from FIRM", FIRM_ROWS,
-                    com.legend.testplan.PlanningOptions.JudgeMode.DATABASE);
+                    com.legend.testplan.PlanningOptions.JudgeMode.BOTH);
             assertTrue(moved.outcome.startsWith(c.getValue()), c.getKey() + " -> " + moved.outcome);
         }
     }
@@ -921,7 +921,7 @@ class BodyRouterParityTest {
         // the golden a text of its own with ours's rows, so the referee replays it after the run
         String sameRows = "SELECT * FROM (" + ours + ") AS q";
         for (com.legend.testplan.PlanningOptions.JudgeMode mode : List.of(com.legend.testplan.PlanningOptions.JudgeMode.HOST,
-                com.legend.testplan.PlanningOptions.JudgeMode.DATABASE)) {
+                com.legend.testplan.PlanningOptions.JudgeMode.BOTH)) {
             // the appeal held at the first assert, the payload's read after it -- decided, MATCH
             String appealThenData = "{| meta::relational::functions::asserts::assertSameSQL('" + pure(sameRows)
                     + "', " + producer + "); assertEquals(2, " + DATA_SOURCE + "->size());}";
@@ -995,7 +995,7 @@ class BodyRouterParityTest {
         String scanColumns = "{| " + columns + " assertEquals(" + goldenList + "], " + columnTexts + ");}";
         assertTrue(BodyClass.systemRouted(typed(ctx, held), "x::RT"), "system-routed: " + held);
         assertTrue(BodyClass.systemRouted(typed(ctx, scanColumns), "x::RT"), "system-routed: " + scanColumns);
-        for (com.legend.testplan.PlanningOptions.JudgeMode mode : List.of(com.legend.testplan.PlanningOptions.JudgeMode.HOST, com.legend.testplan.PlanningOptions.JudgeMode.DATABASE)) {
+        for (com.legend.testplan.PlanningOptions.JudgeMode mode : List.of(com.legend.testplan.PlanningOptions.JudgeMode.HOST, com.legend.testplan.PlanningOptions.JudgeMode.BOTH)) {
             for (var c : List.of(java.util.Map.entry(held, "ok"), java.util.Map.entry(failed, "AssertFailed"),
                     java.util.Map.entry(rows, "ok"), java.util.Map.entry(scanColumns, "ok"))) {
                 // the program has ONE target, the system database (M10a; systemRoutedPrograms' store-free case)
@@ -1030,7 +1030,7 @@ class BodyRouterParityTest {
                 + " let tree = $p.result->meta::pure::lineage::scanProperties::propertyTree::buildPropertyTree();"
                 + " let f = $tree->meta::pure::lineage::scanColumns::scanColumns(x::M)->removeDuplicates();";
         for (var mode : List.of(com.legend.testplan.PlanningOptions.JudgeMode.HOST,
-                com.legend.testplan.PlanningOptions.JudgeMode.DATABASE)) {
+                com.legend.testplan.PlanningOptions.JudgeMode.BOTH)) {
             Run r = run(backend, ctx, "x::RT", "{| " + columns + " assertEquals(1, $f->size());}",
                     "select count(*) from FIRM", FIRM_ROWS, mode);
             assertTrue(r.outcome.startsWith("ModelException: ") && r.outcome.contains(
@@ -1061,7 +1061,7 @@ class BodyRouterParityTest {
                 + " let f = $tree->meta::pure::lineage::scanColumns::scanColumns(x::M)->removeDuplicates();"
                 + " assertEquals(1, $f->size());}";
         for (var mode : List.of(com.legend.testplan.PlanningOptions.JudgeMode.HOST,
-                com.legend.testplan.PlanningOptions.JudgeMode.DATABASE)) {
+                com.legend.testplan.PlanningOptions.JudgeMode.BOTH)) {
             Run r = run(backend, ctx, "x::RT", body, "select count(*) from FIRM", FIRM_ROWS, mode);
             assertTrue(r.outcome.startsWith("RawSqlRefusal: an executeInDb's SQL in a query"), mode + ": " + r.outcome);
         }
@@ -1075,7 +1075,7 @@ class BodyRouterParityTest {
     @MethodSource("backends")
     void helperAssertPrograms(TestBackend backend) throws Exception {
         ModelContext ctx = Compiler.compileModel(frameModel(backend));
-        for (com.legend.testplan.PlanningOptions.JudgeMode mode : List.of(com.legend.testplan.PlanningOptions.JudgeMode.HOST, com.legend.testplan.PlanningOptions.JudgeMode.DATABASE)) {
+        for (com.legend.testplan.PlanningOptions.JudgeMode mode : List.of(com.legend.testplan.PlanningOptions.JudgeMode.HOST, com.legend.testplan.PlanningOptions.JudgeMode.BOTH)) {
             for (var c : List.of(
                     // the keys agree (v is no key): held
                     java.util.Map.entry("{| x::assertSame(^x::Key(k='a', v=1), ^x::Key(k='a', v=2));}", "ok"),
@@ -1109,7 +1109,7 @@ class BodyRouterParityTest {
     @MethodSource("backends")
     void quantifiedPrograms(TestBackend backend) throws Exception {
         ModelContext ctx = Compiler.compileModel(model(backend, false));
-        for (com.legend.testplan.PlanningOptions.JudgeMode mode : List.of(com.legend.testplan.PlanningOptions.JudgeMode.HOST, com.legend.testplan.PlanningOptions.JudgeMode.DATABASE)) {
+        for (com.legend.testplan.PlanningOptions.JudgeMode mode : List.of(com.legend.testplan.PlanningOptions.JudgeMode.HOST, com.legend.testplan.PlanningOptions.JudgeMode.BOTH)) {
             for (var c : List.of(
                     // the unroll: an assert family that is no simple predicate
                     java.util.Map.entry("{| [1, 2]->map(x|assertEquals($x, $x)); true;}", "ok"),
@@ -1197,7 +1197,7 @@ class BodyRouterParityTest {
                 assertFalse(BodyClass.systemRouted(typed(ctx, body), "x::RT"), "no system read: " + body);
                 assertEquals(expected, BodyClass.of(typed(ctx, body), "x::RT", true), body);
                 for (com.legend.testplan.PlanningOptions.JudgeMode mode : List.of(com.legend.testplan.PlanningOptions.JudgeMode.HOST,
-                        com.legend.testplan.PlanningOptions.JudgeMode.DATABASE)) {
+                        com.legend.testplan.PlanningOptions.JudgeMode.BOTH)) {
                     Run moved = assertParity(backend, ctx, "x::RT", body, "select count(*) from FIRM", FIRM_ROWS, mode);
                     assertEquals("ok", moved.outcome, body);
                     assertEquals(0, originsOf(moved.origins)[StatementOrigin.SYSTEM.ordinal()],
@@ -1233,7 +1233,7 @@ class BodyRouterParityTest {
                 + " assertEquals(['Acme', 'Bolt'], $r.values.rows.values);}";
         assertMixedParity(backend, ctx, "x::RT", mixed, "select count(*) from FIRM", FIRM_ROWS);
         Run routed = run(backend, ctx, "x::RT", mixed, "select count(*) from FIRM", FIRM_ROWS,
-                com.legend.testplan.PlanningOptions.JudgeMode.DATABASE);
+                com.legend.testplan.PlanningOptions.JudgeMode.BOTH);
         assertEquals(1, routed.moved, "under the database judge the mixed body moves: " + mixed);
         assertEquals("ok", routed.outcome, mixed);
     }
@@ -1250,7 +1250,7 @@ class BodyRouterParityTest {
                 + " let result = " + EXECUTE.replace("x::RT.runtimeValue", "$runtime") + ";"
                 + " assertEquals(['Cyl'], $result.values.rows.values);}";
         assertEquals(BodyClass.FRAME_PROGRAM, BodyClass.of(typed(ctx, body), "x::RT", true), body);
-        for (com.legend.testplan.PlanningOptions.JudgeMode mode : List.of(com.legend.testplan.PlanningOptions.JudgeMode.HOST, com.legend.testplan.PlanningOptions.JudgeMode.DATABASE)) {
+        for (com.legend.testplan.PlanningOptions.JudgeMode mode : List.of(com.legend.testplan.PlanningOptions.JudgeMode.HOST, com.legend.testplan.PlanningOptions.JudgeMode.BOTH)) {
             Run moved = assertParity(backend, ctx, "x::RT", body, "select count(*) from FIRM", FIRM_ROWS, mode);
             assertEquals("ok", moved.outcome, body);
             assertEquals(0, originsOf(moved.origins)[StatementOrigin.SYSTEM.ordinal()],
@@ -1336,7 +1336,7 @@ class BodyRouterParityTest {
                 "{| let r = " + EXECUTE_TEMPORAL + "; assertSize($r.values.rows, 1); assertEquals(['New'],"
                         + " $r.values.rows.values);}")) {
             assertParity(backend, ctx, "x::RT", body, "select count(*) from FIRM", FIRM_ROWS,
-                    com.legend.testplan.PlanningOptions.JudgeMode.DATABASE);
+                    com.legend.testplan.PlanningOptions.JudgeMode.BOTH);
         }
     }
 
@@ -1361,7 +1361,7 @@ class BodyRouterParityTest {
             assertParity(backend, ctx, "x::RT", body, "select count(*) from FIRM", FIRM_ROWS,
                     com.legend.testplan.PlanningOptions.JudgeMode.HOST);
             assertParity(backend, ctx, "x::RT", body, "select count(*) from FIRM", FIRM_ROWS,
-                    com.legend.testplan.PlanningOptions.JudgeMode.DATABASE);
+                    com.legend.testplan.PlanningOptions.JudgeMode.BOTH);
         }
         // a store-free assert beside a system read: the program has ONE target, so its statement runs on the system
         // session where the walk ran it on the body's -- the one difference M10a makes for a body (the M10a audit's A):
@@ -1370,7 +1370,7 @@ class BodyRouterParityTest {
         // program fuses them into one
         String storeFree = "{| assertEquals('ABC', 'abc'->toUpper()); assertEquals('M', x::M.name);}";
         assertTrue(BodyClass.systemRouted(typed(ctx, storeFree), "x::RT"));
-        for (com.legend.testplan.PlanningOptions.JudgeMode mode : List.of(com.legend.testplan.PlanningOptions.JudgeMode.HOST, com.legend.testplan.PlanningOptions.JudgeMode.DATABASE)) {
+        for (com.legend.testplan.PlanningOptions.JudgeMode mode : List.of(com.legend.testplan.PlanningOptions.JudgeMode.HOST, com.legend.testplan.PlanningOptions.JudgeMode.BOTH)) {
             Run moved = run(backend, ctx, "x::RT", storeFree, "select count(*) from FIRM", FIRM_ROWS, mode);
             assertEquals("ok", moved.outcome, "outcome: " + storeFree);
             assertEquals(1, moved.moved, "the router moved the body: " + storeFree);
@@ -1437,7 +1437,7 @@ class BodyRouterParityTest {
         String sameRows = "SELECT" + ours.substring("select".length());
         String otherRows = ours + " where \"root\".ID = 1";
         int oursLeg = StatementOrigin.REFEREE_OURS.ordinal();
-        for (com.legend.testplan.PlanningOptions.JudgeMode mode : List.of(com.legend.testplan.PlanningOptions.JudgeMode.HOST, com.legend.testplan.PlanningOptions.JudgeMode.DATABASE)) {
+        for (com.legend.testplan.PlanningOptions.JudgeMode mode : List.of(com.legend.testplan.PlanningOptions.JudgeMode.HOST, com.legend.testplan.PlanningOptions.JudgeMode.BOTH)) {
             // the text equal: the verdict, no replay (the user's ruling of 2026-09-21) -- pinned absolutely, so a
             // vacuous pass (the step handing the comparison over instead of judging it: found by the corpus before this
             // pin existed) cannot hide behind two roads agreeing
@@ -1546,7 +1546,7 @@ class BodyRouterParityTest {
                             "select count(*) from FIRM", FIRM_ROWS, com.legend.testplan.PlanningOptions.JudgeMode.HOST));
             assertTrue(golden.contains(c.getKey() == qualified ? "Acme!" : "Acme"), "the value bound: " + golden);
             for (com.legend.testplan.PlanningOptions.JudgeMode mode : List.of(com.legend.testplan.PlanningOptions.JudgeMode.HOST,
-                    com.legend.testplan.PlanningOptions.JudgeMode.DATABASE)) {
+                    com.legend.testplan.PlanningOptions.JudgeMode.BOTH)) {
                 Run held = assertParity(backend, ctx, "x::RT", "{| " + c.getKey() + " assertEquals('" + pure(golden)
                         + "', " + c.getValue() + ");}", "select count(*) from FIRM", FIRM_ROWS, mode);
                 assertEquals("ok", held.outcome, mode + ": " + c.getKey());
@@ -1590,7 +1590,7 @@ class BodyRouterParityTest {
             assertParity(backend, ctx, "x::RT", body, "select count(*) from FIRM", FIRM_ROWS,
                     com.legend.testplan.PlanningOptions.JudgeMode.HOST);
             assertParity(backend, ctx, "x::RT", body, "select count(*) from FIRM", FIRM_ROWS,
-                    com.legend.testplan.PlanningOptions.JudgeMode.DATABASE);
+                    com.legend.testplan.PlanningOptions.JudgeMode.BOTH);
         }
         Run held = run(backend, ctx, "x::RT", "{| " + seeded + " assertSize($r.values.rows, 3);}",
                 "select count(*) from FIRM", FIRM_ROWS, com.legend.testplan.PlanningOptions.JudgeMode.HOST);
@@ -1777,7 +1777,7 @@ class BodyRouterParityTest {
      *  statement of its own under the arm's mark, one statement more, until the walk was deleted, 2026-11-06). */
     private static void assertParityTextInRow(TestBackend backend, ModelContext ctx, String runtime, String body,
             String check, List<String> setup) throws Exception {
-        assertParity(backend, ctx, runtime, body, check, setup, com.legend.testplan.PlanningOptions.JudgeMode.DATABASE);
+        assertParity(backend, ctx, runtime, body, check, setup, com.legend.testplan.PlanningOptions.JudgeMode.BOTH);
     }
 
     /** {@code body} is a moved class's, yet its judge's planner refuses it by a named rule: the router refuses the body

@@ -161,7 +161,7 @@ public class MinimalCorpusTest {
         // set for the whole JVM by the build, never flipped here (Bazel workplan P3-01)
         // a scoped run (-Drcorpus.test) runs the database judge on its tests alone; the host pass, an action, is the
         // whole corpus's, so only a full run waits on it (pinJudgeDifferential skips a scoped run likewise)
-        if ("database".equalsIgnoreCase(System.getProperty("legend.judge.mode", "host"))
+        if (JudgeLedger.databasePass()
                 && System.getProperty("rcorpus.test", "").trim().isEmpty()) {
             JudgeLedger.requireHostPassed();
         }
@@ -195,7 +195,7 @@ public class MinimalCorpusTest {
                 : readAccepted(laneFile(ACCEPTED));
         // -Drcorpus.tests=<file>: the tests named there, one fully qualified name a line (a covering subset)
         java.util.Set<String> listed = testList();
-        if (LaneHolder.LANE.reference() && "database".equalsIgnoreCase(System.getProperty("legend.judge.mode", "host"))) {
+        if (LaneHolder.LANE.reference() && JudgeLedger.databasePass()) {
             // a divergence the DATABASE verdict names and the host's kept
             // tolerance hides (homework §4j: the calendar goldens computed
             // in H2's decimal arithmetic) is accepted in database mode only
@@ -498,9 +498,8 @@ public class MinimalCorpusTest {
         for (String t : ran) {
             ranTaggedEngineOrder.add(ENGINE_ORDER + " " + t);
         }
-        boolean databaseMode = "database".equalsIgnoreCase(
-                System.getProperty("legend.judge.mode", "host"));
-        boolean bothMode = "both".equalsIgnoreCase(System.getProperty("legend.judge.mode", "host"));
+        boolean databaseMode = JudgeLedger.databasePass();
+        boolean bothMode = !databaseMode && "both".equalsIgnoreCase(System.getProperty("legend.judge.mode", "host"));
         if (bothMode) {
             // THE AGREEMENT GATE (the plan path program's step 6, 2026-10-18) judges verdicts: both arms over every
             // side. The engine-order register is per CI pass (host, database), and the gate's statements are both
@@ -540,7 +539,7 @@ public class MinimalCorpusTest {
      * disagreements and one-sided adjudications pinned at ZERO; the database judge's
      * declines pinned by {@code rcorpus/<lane>-judge-unjudged-ceiling.txt}. */
     private static void pinJudgeDifferential(String only) throws java.io.IOException {
-        if (!only.isEmpty() || !"database".equalsIgnoreCase(System.getProperty("legend.judge.mode", "host"))) {
+        if (!only.isEmpty() || !JudgeLedger.databasePass()) {
             return;
         }
         String lane = LaneHolder.LANE.rosters();
@@ -622,7 +621,7 @@ public class MinimalCorpusTest {
         int weak = strength.getOrDefault("CARDINALITY", 0);
         int[] floor = ceilings().strength();
         String mode = System.getProperty("legend.judge.mode", "host");
-        if ("database".equalsIgnoreCase(mode) || "both".equalsIgnoreCase(mode)) {
+        if (JudgeLedger.databasePass() || "both".equalsIgnoreCase(mode)) {
             // leg 3.1: database mode reports its strength against host mode's
             // floors; the differential gate (leg 3.3) pins it. BOTH judges
             // likewise (2026-11-02, the walker-deletion program): its verdict of
@@ -1032,7 +1031,7 @@ public class MinimalCorpusTest {
         }
         // A MEASURED roster this pass generates (P2-15): written, and its exact check is the diff test's
         String measuredOut = System.getProperty("rcorpus.measured.out", "").trim();
-        boolean databasePass = "database".equalsIgnoreCase(System.getProperty("legend.judge.mode", "host"));
+        boolean databasePass = JudgeLedger.databasePass();
         if (MEASURED.contains(resource) && !measuredOut.isEmpty() && only.isEmpty()
                 && databasePass == resource.contains("-database-")) {
             return;   // written by writeMeasured, held to the committed copy by the lane's diff test
@@ -1053,7 +1052,7 @@ public class MinimalCorpusTest {
                 gained.add(r);
             }
         }
-        if ("database".equalsIgnoreCase(System.getProperty("legend.judge.mode", "host"))) {
+        if (JudgeLedger.databasePass()) {
             // leg 3.1: DATABASE mode is judged AGAINST host mode's roster —
             // the differential is printed (LOST = fails in database mode
             // only; GAINED = passes in database mode only). The FAIL
@@ -1317,7 +1316,7 @@ public class MinimalCorpusTest {
             return;
         }
         String lane = LaneHolder.LANE.rosters();
-        if ("database".equalsIgnoreCase(System.getProperty("legend.judge.mode", "host"))) {
+        if (JudgeLedger.databasePass()) {
             writeRoster(out, lane + "-database-engine-order-register.txt", engineOrder);
             return;
         }

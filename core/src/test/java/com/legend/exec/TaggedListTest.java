@@ -315,14 +315,12 @@ class TaggedListTest {
                         + "type=meta::relational::runtime::DatabaseType.DuckDB);\n"
                         + "let rs = meta::relational::metamodel::execute::executeInDb('" + q[0] + "', $c);\n";
                 for (com.legend.testplan.PlanningOptions.JudgeMode mode : List.of(com.legend.testplan.PlanningOptions.JudgeMode.HOST,
-                        com.legend.testplan.PlanningOptions.JudgeMode.DATABASE, com.legend.testplan.PlanningOptions.JudgeMode.BOTH)) {
+                        com.legend.testplan.PlanningOptions.JudgeMode.BOTH)) {
                     Exception failed = assertThrows(Exception.class, () -> Program.last(
                             StorelessRuntime.with(MODEL, Databases.PLATFORM),
                             let + "assertEquals(" + q[1] + ", $rs.rows.values);}", StorelessRuntime.RUNTIME, c,
                             com.legend.ExecuteOptions.NONE.withJudgeMode(mode)), mode + " " + q[1]);
-                    if (mode != com.legend.testplan.PlanningOptions.JudgeMode.DATABASE || q[1].startsWith("['")) {
-                        assertEquals(q[2], failed.getMessage(), mode + " " + q[1]);
-                    }
+                    assertEquals(q[2], failed.getMessage(), mode + " " + q[1]);
                 }
             }
         }
@@ -354,7 +352,7 @@ class TaggedListTest {
             // decline is the host's to decide, so the BOTH case alone does not show the database judge decides it)
             Lean.Result database = Program.last(StorelessRuntime.with(MODEL, Databases.PLATFORM),
                     CONN_LET + "assertEquals([1, 'x', 2, 'y'], $rs.rows.values);}", StorelessRuntime.RUNTIME, c,
-                    com.legend.ExecuteOptions.NONE.withJudgeMode(com.legend.testplan.PlanningOptions.JudgeMode.DATABASE));
+                    com.legend.ExecuteOptions.NONE.withJudgeMode(com.legend.testplan.PlanningOptions.JudgeMode.BOTH));
             assertEquals(true, database.one());
             // a row's cells read in a lambda are on the variant carrier: the literal list meets them there
             assertEquals(List.of(true, false), Program.last(StorelessRuntime.with(MODEL, Databases.PLATFORM),

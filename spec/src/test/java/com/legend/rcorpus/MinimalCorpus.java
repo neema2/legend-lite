@@ -336,10 +336,10 @@ public final class MinimalCorpus {
         com.legend.testplan.PlanningOptions.JudgeMode judgeMode = switch (
                 System.getProperty("legend.judge.mode", "host").toLowerCase(java.util.Locale.ROOT)) {
             case "host" -> com.legend.testplan.PlanningOptions.JudgeMode.HOST;
-            case "database" -> com.legend.testplan.PlanningOptions.JudgeMode.DATABASE;
             case "both" -> com.legend.testplan.PlanningOptions.JudgeMode.BOTH;   // the agreement gate (step 6, 2026-10-18)
             default -> throw new IllegalArgumentException("legend.judge.mode='"
-                    + System.getProperty("legend.judge.mode") + "': 'host', 'database' or 'both'");
+                    + System.getProperty("legend.judge.mode") + "': 'host' or 'both' (the database judge alone retired, O5,"
+                    + " 2026-11-16)");
         };
         runner = new PureTestRunner(ctx, RUNTIME, MinimalCorpus::openWorkspace, sharedSetups,
                 discovery.setupsByPackage(), new CorpusObserver(),

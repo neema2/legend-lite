@@ -73,6 +73,12 @@ public final class TestPlanner {
     static TestPlan plan(TypedQuery given, @Nullable String runtimeFqn, SqlDialect dialect,
             PlanningOptions options, com.legend.testexecutionplan.BodyFacts facts) {
         PlanningOptions.JudgeMode mode = options.judgeMode();
+        if (!PlanningOptions.JudgeMode.RUNS.contains(mode)) {
+            // the database judge ALONE is no run's judge (the user's O5, met 2026-11-16: BOTH matched it verdict for
+            // verdict on every lane and both corpora); it remains the arm BOTH plans (AgreementAsserts)
+            throw new IllegalArgumentException("the database judge alone is not a run's judge: HOST or BOTH"
+                    + " (DATABASE-alone retired, O5, 2026-11-16)");
+        }
         TypedQuery typed;
         BodyClass bodyClass;
         boolean systemRouted;

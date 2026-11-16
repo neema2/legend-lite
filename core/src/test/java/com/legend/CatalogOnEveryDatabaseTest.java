@@ -89,7 +89,7 @@ class CatalogOnEveryDatabaseTest {
         for (DatabaseType type : Databases.relational()) {
             var ctx = Compiler.compileModel(model(type));
             var onCatalog = Compiler.compileModel(model(catalogOf(type)));
-            for (PlanningOptions.JudgeMode mode : PlanningOptions.JudgeMode.values()) {
+            for (PlanningOptions.JudgeMode mode : PlanningOptions.JudgeMode.RUNS) {
                 ExecuteOptions options = ExecuteOptions.NONE.withJudgeMode(mode);
                 TestPlan plan = TestExecution.planBody(Compiler.query(ctx, body), "s::RT", options);
                 List<ExecutionPlan.Sql> sqls = sqls(plan);

@@ -44,7 +44,7 @@ class VerdictIdsTest {
         ModelContext ctx = Compiler.compileModel(StorelessRuntime.with("", Databases.PLATFORM));
         TypedQuery typed = typed(ctx, BODY);
         String rt = StorelessRuntime.RUNTIME;
-        for (com.legend.testplan.PlanningOptions.JudgeMode mode : com.legend.testplan.PlanningOptions.JudgeMode.values()) {
+        for (com.legend.testplan.PlanningOptions.JudgeMode mode : com.legend.testplan.PlanningOptions.JudgeMode.RUNS) {
             ExecuteOptions options = ExecuteOptions.NONE.withJudgeMode(mode);
             BodyDriver.ExecEnv env = BodyDriver.bodyEnv(typed, rt, Databases.dialect(Databases.PLATFORM), options.planning());
             TestDoor.Asserts asserts = switch (mode) {

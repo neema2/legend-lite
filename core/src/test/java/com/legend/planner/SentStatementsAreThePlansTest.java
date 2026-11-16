@@ -175,7 +175,7 @@ class SentStatementsAreThePlansTest {
             var ctx = Compiler.compileModel(PlanMakerTest.model(b.type().name()));
             for (com.legend.testplan.PlanningOptions.JudgeMode judge : List.of(
                     com.legend.testplan.PlanningOptions.JudgeMode.HOST,
-                    com.legend.testplan.PlanningOptions.JudgeMode.DATABASE)) {
+                    com.legend.testplan.PlanningOptions.JudgeMode.BOTH)) {
                 com.legend.ExecuteOptions options = com.legend.ExecuteOptions.NONE.withJudgeMode(judge);
                 com.legend.testexecutionplan.TestPlan plan = com.legend.TestExecution.planBody(typed(ctx, body), "s::RT",
                         options);

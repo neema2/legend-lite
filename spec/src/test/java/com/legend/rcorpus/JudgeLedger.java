@@ -41,8 +41,16 @@ final class JudgeLedger {
         if (!path.isEmpty()) {
             return Path.of(path);
         }
-        return "database".equalsIgnoreCase(System.getProperty("legend.judge.mode", "host"))
+        return JudgeLedger.databasePass()
                 ? com.legend.testing.TestOutputs.file("judge-database.tsv") : null;
+    }
+
+    /** Whether this is a lane's DATABASE pass ({@code -Drcorpus.pass=database}, spec/corpus.bzl): the pass whose
+     *  database judge's verdicts are measured against the host pass's. It runs under BOTH since the database judge
+     *  alone was retired as a run's mode (the user's O5, met 2026-11-16: BOTH matched it with 0 differences on both
+     *  corpora, per test, per assert and in the registers), so the pass is named by its role, not by its judge. */
+    static boolean databasePass() {
+        return "database".equals(System.getProperty("rcorpus.pass", ""));
     }
 
     /** An input file named by {@code -D<property>}: an exec path in a build action (the corpus passes, P2-15), a

@@ -105,7 +105,11 @@ def corpus_lane(
                     ["{OUT_DIR}/" + f.split("/")[-1] for f in database_measured] + ["--"] +
                     _SELECT + ["--fail-if-no-tests"],
         jvm_flags = _pass_flags(golden) + [
-            "-Dlegend.judge.mode=database",
+            # the database pass, named by its role (JudgeLedger.databasePass), runs under BOTH: the database judge alone
+            # was retired as a run's mode (the user's O5, met 2026-11-16 -- BOTH matched it with 0 differences on both
+            # corpora, per test, per assert and in the registers)
+            "-Dlegend.judge.mode=both",
+            "-Drcorpus.pass=database",
             "-Dlegend.judge.ledger={OUT_DIR}/judge-database.tsv",
             "-Dlegend.junit.outcomes={OUT_DIR}/outcomes.tsv",
             # the host pass's outputs: its verdict (the database pass means nothing without it), its ledger (the

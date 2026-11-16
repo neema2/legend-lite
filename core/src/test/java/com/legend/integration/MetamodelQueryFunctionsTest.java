@@ -238,7 +238,7 @@ class MetamodelQueryFunctionsTest {
         // message spells a table's name this way, while the database judge passed them
         assertEquals(List.of("s2.T2"), values("{|" + TABLE + " " + QUALIFIED + ";}"));
         String model = StorelessRuntime.with(MODEL, LaneFloor.backend().type());
-        for (com.legend.testplan.PlanningOptions.JudgeMode judge : com.legend.testplan.PlanningOptions.JudgeMode.values()) {
+        for (com.legend.testplan.PlanningOptions.JudgeMode judge : com.legend.testplan.PlanningOptions.JudgeMode.RUNS) {
             com.legend.ExecuteOptions options = com.legend.ExecuteOptions.NONE.withJudgeMode(judge);
             Program.Report holds = Program.run(model, "{|" + TABLE + " assert($t.name == 'T2', | 'Table : ' + "
                     + QUALIFIED + " + ' missing');}", StorelessRuntime.RUNTIME, connection, options);

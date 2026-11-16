@@ -295,12 +295,14 @@ class AgreementFusedPlanTest {
 
     private static TestPlan planned(String body, PlanningOptions.JudgeMode mode) {
         TypedQuery typed = typed(body);
-        ExecuteOptions options = ExecuteOptions.NONE.withJudgeMode(mode);
+        // the database judge's ARM, planned as BOTH plans it (PlanningOptions, the planner's own: the door offers HOST
+        // and BOTH alone since DATABASE-alone's retirement, O5, 2026-11-16)
+        PlanningOptions planning = ExecuteOptions.NONE.planning().withJudgeMode(mode);
         BodyDriver.ExecEnv env = BodyDriver.bodyEnv(typed, StorelessRuntime.RUNTIME,
-                Databases.dialect(Databases.PLATFORM), options.planning());
+                Databases.dialect(Databases.PLATFORM), planning);
         DatabaseAsserts asserts = DatabaseAsserts.plan(typed, StorelessRuntime.RUNTIME, env);
         assertNotNull(asserts, body + ": planned for the database judge");
-        return TestDoor.planned(typed, StorelessRuntime.RUNTIME, options.planning().features(), asserts);
+        return TestDoor.planned(typed, StorelessRuntime.RUNTIME, planning.features(), asserts);
     }
 
     private static List<TestPlan.Verdicts> groups(TestPlan plan) {

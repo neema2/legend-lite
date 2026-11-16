@@ -130,7 +130,7 @@ class GeneratedTestDataProgramTest {
     static List<org.junit.jupiter.params.provider.Arguments> backendsAndJudges() {
         List<org.junit.jupiter.params.provider.Arguments> out = new ArrayList<>();
         for (TestBackend b : TestBackends.inProcess()) {
-            for (PlanningOptions.JudgeMode m : PlanningOptions.JudgeMode.values()) {
+            for (PlanningOptions.JudgeMode m : PlanningOptions.JudgeMode.RUNS) {
                 out.add(org.junit.jupiter.params.provider.Arguments.of(b, m));
             }
         }

@@ -78,7 +78,7 @@ class DatabaseHalfDe5Test {
     void aDualGoldenRootIsJudgedByTheDatabaseHalf() {
         String passing = "{| meta::relational::functions::sqlQueryToString::h2::assertEqualsH2Compatible('a', 'b', 'b');}";
         String failing = "{| meta::relational::functions::sqlQueryToString::h2::assertEqualsH2Compatible('a', 'b', 'c');}";
-        for (PlanningOptions.JudgeMode mode : PlanningOptions.JudgeMode.values()) {
+        for (PlanningOptions.JudgeMode mode : PlanningOptions.JudgeMode.RUNS) {
             // a dual golden is upstream's engine-text root: the edge's facet plans it (W9's judge half, S2b)
             assertEquals("PASS", onTheEdge(DUAL, passing, mode), mode + ": the upgraded golden equals ours");
             String failed = onTheEdge(DUAL, failing, mode);
@@ -94,7 +94,7 @@ class DatabaseHalfDe5Test {
                 + " p::M, " + StorelessRuntime.RUNTIME + ".runtimeValue, []);"
                 + " assertNotEmpty($p.rootExecutionNode.executionNodes);}";
         String host = onTheEdge(UNMAPPED, body, PlanningOptions.JudgeMode.HOST);
-        for (PlanningOptions.JudgeMode mode : PlanningOptions.JudgeMode.values()) {
+        for (PlanningOptions.JudgeMode mode : PlanningOptions.JudgeMode.RUNS) {
             String got = onTheEdge(UNMAPPED, body, mode);
             assertTrue(got.startsWith("MappingResolutionException"), mode + ": " + got);
             assertEquals(host, got, mode + ": the host's own error");
@@ -110,7 +110,7 @@ class DatabaseHalfDe5Test {
                 + " assertNotEmpty($p.rootExecutionNode.executionNodes);}";
         String host = onTheEdge(UNMAPPED, body, PlanningOptions.JudgeMode.HOST);
         assertTrue(host.startsWith("AssertFailed"), "HOST: " + host);
-        for (PlanningOptions.JudgeMode mode : PlanningOptions.JudgeMode.values()) {
+        for (PlanningOptions.JudgeMode mode : PlanningOptions.JudgeMode.RUNS) {
             assertEquals(host, onTheEdge(UNMAPPED, body, mode), mode + ": the earlier assert's failure first");
         }
     }
@@ -123,7 +123,7 @@ class DatabaseHalfDe5Test {
                 + " assertNotEmpty($p.rootExecutionNode.executionNodes);}";
         String host = onTheEdge(UNMAPPED, body, PlanningOptions.JudgeMode.HOST);
         assertTrue(host.startsWith("MappingResolutionException"), "HOST: " + host);
-        for (PlanningOptions.JudgeMode mode : PlanningOptions.JudgeMode.values()) {
+        for (PlanningOptions.JudgeMode mode : PlanningOptions.JudgeMode.RUNS) {
             assertEquals(host, onTheEdge(UNMAPPED, body, mode), mode.toString());
         }
     }
@@ -136,7 +136,7 @@ class DatabaseHalfDe5Test {
         String body = "{| let p = meta::pure::executionPlan::executionPlan(|p::A.all()->project([a|$a.x], ['x']),"
                 + " p::M, " + StorelessRuntime.RUNTIME + ".runtimeValue, []);"
                 + " assertNotEmpty($p.rootExecutionNode.executionNodes);}";
-        for (PlanningOptions.JudgeMode mode : PlanningOptions.JudgeMode.values()) {
+        for (PlanningOptions.JudgeMode mode : PlanningOptions.JudgeMode.RUNS) {
             String got = run(UNMAPPED, body, mode);
             assertTrue(got.startsWith("NotImplementedException") && got.contains("compatibility edge"),
                     mode + ": " + got);

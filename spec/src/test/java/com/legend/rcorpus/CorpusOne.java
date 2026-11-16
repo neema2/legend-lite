@@ -32,7 +32,11 @@ public final class CorpusOne {
                     + " CorpusOn; corpus_one runs the database judge scoped to a test");
         }
         System.setProperty("rcorpus.backend", args[0]);
-        System.setProperty("legend.judge.mode", args[1]);
+        // the database pass runs under BOTH, named by its role (JudgeLedger.databasePass; DATABASE-alone retired, O5)
+        System.setProperty("legend.judge.mode", args[1].equals("database") ? "both" : args[1]);
+        if (args[1].equals("database")) {
+            System.setProperty("rcorpus.pass", "database");
+        }
         System.setProperty("legend.exec.engineScanOrder", "true");
         if (args.length == 3) {
             System.setProperty("rcorpus.test", args[2]);

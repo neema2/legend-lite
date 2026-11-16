@@ -225,7 +225,7 @@ class AssertBarTest {
     ));
 
     private static final List<com.legend.testplan.PlanningOptions.JudgeMode> JUDGES = List.of(com.legend.testplan.PlanningOptions.JudgeMode.HOST,
-            com.legend.testplan.PlanningOptions.JudgeMode.DATABASE, com.legend.testplan.PlanningOptions.JudgeMode.BOTH);
+            com.legend.testplan.PlanningOptions.JudgeMode.BOTH);
 
     /** A failing assert's message that raises: its evaluation's error is the test's, as upstream's (the assert bar,
      *  2026-11-04) -- under every judge. */
@@ -308,7 +308,7 @@ class AssertBarTest {
      *  their messages: a caller's message is a column of its own assert's row inside it (the user, 2026-11-04: "the
      *  'fuse' step to do all assert together in one go"). Measured as the statements a passing body sends. */
     @Test
-    void aSegmentsAssertsAreOneStatementUnderTheDatabaseJudge() throws Exception {
+    void aSegmentsAssertsAreAtMostOneStatementUnderBoth() throws Exception {
         try (Connection c = TestBackends.platform().open()) {
             for (String body : List.of(
                     "{|assertEquals(1, 1); assertEquals('a', 'a'); assert(2 > 1);}",
@@ -316,9 +316,12 @@ class AssertBarTest {
                 int bodyOrigin = com.legend.exec.StatementOrigin.BODY.ordinal();
                 long before = com.legend.exec.StatementOrigin.snapshot()[bodyOrigin];
                 Program.last(StorelessRuntime.with(MODEL, Databases.PLATFORM), body, StorelessRuntime.RUNTIME, c,
-                        ExecuteOptions.NONE.withJudgeMode(com.legend.testplan.PlanningOptions.JudgeMode.DATABASE));
+                        ExecuteOptions.NONE.withJudgeMode(com.legend.testplan.PlanningOptions.JudgeMode.BOTH));
                 long sent = com.legend.exec.StatementOrigin.snapshot()[bodyOrigin] - before;
-                org.junit.jupiter.api.Assertions.assertEquals(1L, sent, "one fused statement: " + body);
+                // at most the one fused statement: under BOTH a body whose asserts read nothing of a database is judged
+                // by the host alone and sends none (TestPlanner's judgesNothing; until the database judge alone was
+                // retired, O5 2026-11-16, this ran under it and sent exactly one)
+                org.junit.jupiter.api.Assertions.assertTrue(sent <= 1L, "one fused statement at most: " + body + " sent " + sent);
             }
         }
     }

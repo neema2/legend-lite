@@ -956,9 +956,10 @@ test_suite(
 )
 
 # THE JUDGE MATRIX (the asserts-as-plan-nodes program, step 7, 2026-11-04; docs/ASSERT_NODES_PLAN_2026_11_04.md): the
-# packages whose tests run a body through a judge (testing.Program, the lanes' floors) again under the database judge
-# alone and under BOTH (testing.Program reads -Dlegend.test.judge), so every assert core holds is held by both judges
-# and their agreement, as the host's run holds it. Measured that day: the packages importing testing.Program or
+# packages whose tests run a body through a judge (testing.Program, the lanes' floors) again under BOTH
+# (testing.Program reads -Dlegend.test.judge), so every assert core holds is held by both judges and their agreement,
+# as the host's run holds it. (The database judge alone ran here too until its retirement as a run's mode, the user's
+# O5, met 2026-11-16: BOTH plans and runs its arm, and fails on any disagreement.) Measured that day: the packages importing testing.Program or
 # LaneFloor, and the root package (its testcases); core under each judge ran 28 of 28 at 6038d060. Linux only in CI
 # for cost (the host's run is every platform's).
 _JUDGED_PACKAGES = ["compiler", "exec", "integration", "lowering", "normalizer", "planner",
@@ -978,7 +979,7 @@ _JUDGED_PACKAGES = ["compiler", "exec", "integration", "lowering", "normalizer",
         ":core_tests_lib",
         ":drivers",
     ],
-) for p in _JUDGED_PACKAGES for judge in ["DATABASE", "BOTH"]]
+) for p in _JUDGED_PACKAGES for judge in ["BOTH"]]
 
 [junit_test(
     name = "core_tests_root_judge_" + judge.lower(),
@@ -992,12 +993,12 @@ _JUDGED_PACKAGES = ["compiler", "exec", "integration", "lowering", "normalizer",
         ":core_tests_lib",
         ":drivers",
     ],
-) for judge in ["DATABASE", "BOTH"]]
+) for judge in ["BOTH"]]
 
 test_suite(
     name = "core_tests_judges",
     tests = [":core_tests_" + p + "_judge_" + judge.lower() for p in _JUDGED_PACKAGES + ["root"]
-             for judge in ["DATABASE", "BOTH"]],
+             for judge in ["BOTH"]],
     visibility = ["//gates:__pkg__"],
 )
 
