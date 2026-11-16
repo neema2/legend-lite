@@ -66,7 +66,9 @@ const DOOR_LAYER = env('KIND') === 'doors';
  *  COMPUTED_DOORS of the final audit of 9af16fbe58's T4; 2026-11-15, the C5-T fold-in: moved out of the run layer into
  *  the doors, which hand the run side the loaded object). Shrink-only; each a door module's. */
 const COMPUTED_DOORS = new Map([
-  ["engine-client/src/doors/tab-duckdb.ts new Worker(vendorAsset(vendor, 'duckdb-browser-eh.worker.js'))",
+  // renamed 2026-11-16 (the TypeScript hunt's T-G): the door starts DuckDB's worker behind one that prints no link's
+  // query string (engine-client/vendor/duckdb-redacting.worker.js); the same one load, by its new name
+  ["engine-client/src/doors/tab-duckdb.ts new Worker(vendorAsset(vendor, 'duckdb-redacting.worker.js'))",
     "DuckDB's own worker, started by its door from the page's vendor directory, once the browser is known to run it:"
       + ' the run side instantiates DuckDB in the worker it is handed'],
   ['engine-client/src/doors/warehouse.ts import(runtimeUrl)',

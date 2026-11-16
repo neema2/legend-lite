@@ -536,6 +536,26 @@ filegroup(
     ],
 )
 
+# DuckDB's worker for a tab, run behind one that prints no link's query string: served beside the library's worker in
+# each app's vendor folder, and started by the tab's door (2026-11-16, the TypeScript hunt's T-G)
+filegroup(
+    name = "duckdb_redacting_worker",
+    srcs = ["vendor/duckdb-redacting.worker.js"],
+    visibility = [
+        "//datacube:__pkg__",
+        "//query:__pkg__",
+        "//studio:__pkg__",
+    ],
+)
+
+# the worker's console, given a presigned link's text, prints its address alone (T-G)
+node_test(
+    name = "duckdb_worker_test",
+    size = "small",
+    data = [":duckdb_redacting_worker"],
+    entry_point = "test/duckdb-worker.test.ts",
+)
+
 # the tab's warehouse driver held to the corpus Python's driver is held to too: //datacube:one_api_ledger_test (L12)
 # names it as the warehouse's proof on both hosts, so reads it (copied to the output tree, where a JavaScript test reads
 # its data: rules_js)
@@ -550,6 +570,7 @@ test_suite(
     name = "tests",
     tests = [
         ":arrow_ipc_test",
+        ":duckdb_worker_test",
         ":model_data_test",
         ":node_duckdb_test",
         ":plan_runner_test",

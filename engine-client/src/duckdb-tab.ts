@@ -71,7 +71,7 @@ export interface TabSetup {
 }
 
 /** A file of the vendor folder `vendor` names, as an absolute URL: the worker resolves its module against its own
- *  location, not the page's (DuckDB's worker script, `duckdb-browser-eh.worker.js`, is started by the door from here). */
+ *  location, not the page's (DuckDB's worker script, `duckdb-redacting.worker.js` running `duckdb-browser-eh.worker.js`, is started by the door from here). */
 export function vendorAsset(vendor: string, f: string): string {
   return new URL(f, new URL(vendor, globalThis.location.href)).href;
 }

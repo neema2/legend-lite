@@ -71,6 +71,8 @@ check('built a Parquet fixture', parquet.length > 0, `${parquet.length} bytes`);
 
 // ---- serve it, and the harness page, with RANGE support -------------
 let rangeRequests = 0;
+/** HEAD requests refused on a presigned link (below). */
+let signedHeads = 0;
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -83,6 +85,13 @@ const { port: PORT, close: closeServer } = await serve(ROOT, {
   headers: cors,
   route: async (req, res, url) => {
     if (url.pathname === '/data/trades.parquet') { // portable: an HTTP route
+      // a link presigned for GET, as object storage signs one, refuses a HEAD (DuckDB-WASM's runtime then logs the link)
+      if (req.method === 'HEAD' && url.searchParams.has('X-Amz-Signature')) {
+        signedHeads += 1;
+        res.writeHead(403, cors);
+        res.end();
+        return true;
+      }
       // Object storage serves ranges, and DuckDB relies on it: it reads
       // the footer first to find the row groups. A server without range
       // support forces a whole-file download, which is the difference
@@ -205,6 +214,34 @@ check(
   'and it did so without page errors',
   appProblems.length === 0,
   appProblems.slice(0, 2).join(' | '),
+);
+
+// ---- and over a PRESIGNED link: its token is printed nowhere ---------
+//
+// DuckDB-WASM's runtime prints a remote file's URL as it is when a request fails ("HEAD request failed: <url>"), and a
+// link presigned for GET refuses a HEAD as a matter of course. The tab's DuckDB runs behind a worker that prints every
+// URL with its query string left out (engine-client/vendor/duckdb-redacting.worker.js; 2026-11-16, the TypeScript
+// hunt's T-G): no console message of the page or of its workers, and no word on the page, holds the signature.
+const signed = await browser.newPage();
+const printed = [];
+signed.on('console', (m) => printed.push(m.text()));
+signed.on('worker', (w) => w.on('console', (m) => printed.push(`[worker] ${m.text()}`)));
+const presigned = `http://127.0.0.1:${PORT}/data/trades.parquet?X-Amz-Signature=SENTINEL-SIGNATURE&X-Amz-Expires=600`;
+await signed.goto(`http://127.0.0.1:${PORT}/demo/index.html?remote=${encodeURIComponent(presigned)}`);
+// the mount is tried: the link refuses DuckDB's HEAD, and the runtime's line about it is printed (or the wait ends)
+for (const end = Date.now() + 60_000; Date.now() < end && !(signedHeads > 0 && printed.some((l) => l.includes('trades.parquet')));) {
+  await new Promise((done) => setTimeout(done, 100));
+}
+const said = `${printed.join('\n')}\n${await signed.textContent('body').catch(() => '')}`;
+check(
+  "a presigned link's signature is printed nowhere: not in the console, not on the page",
+  !said.includes('SENTINEL'),
+  said.split('\n').filter((l) => l.includes('SENTINEL')).slice(0, 2).join(' | '),
+);
+check(
+  'and the link itself was named in the console, its query string left out',
+  printed.some((l) => l.includes('/data/trades.parquet?[query string not shown]')),
+  printed.filter((l) => l.includes('trades.parquet')).slice(0, 2).join(' | ') || `${signedHeads} HEAD requests refused; ${printed.length} messages: ${printed.slice(0, 3).join(' | ')}`,
 );
 
 await browser.close();

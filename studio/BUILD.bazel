@@ -104,6 +104,7 @@ copy_to_directory(
         # its extensions, pinned (MODULE.bazel): ICU for the session's time zone; JSON, Parquet and httpfs when a
         # page reads such a file
         "//engine-client:duckdb_extensions",
+        "//engine-client:duckdb_redacting_worker",
         "//legend-art:fonts",
         "//legend-art:styles",
         "//query:cube_styles",
@@ -120,6 +121,8 @@ copy_to_directory(
         "engine-client/duckdb-extensions/**",
         "**/dist/duckdb-eh.wasm",
         "**/dist/duckdb-browser-eh.worker.js",
+        # DuckDB's worker run behind one that prints no link's query string (2026-11-16, the TypeScript hunt's T-G)
+        "engine-client/vendor/duckdb-redacting.worker.js",
         "legend-art/fonts/roboto-latin-400-normal.woff2",
         "legend-art/fonts/roboto-latin-500-normal.woff2",
         "legend-art/fonts/roboto-latin-700-normal.woff2",
@@ -133,6 +136,7 @@ copy_to_directory(
     ],
     replace_prefixes = {
         "engine-client/duckdb-extensions/": "duckdb-extensions/",
+        "engine-client/vendor/": "",
         "wasm/planner/": "",
         "sdlc-server/page/": "sdlc/",
         "**/dist/": "",

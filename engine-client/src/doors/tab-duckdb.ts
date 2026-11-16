@@ -17,12 +17,14 @@ import { inRun } from '../run-frame.ts';
  * DuckDB in this tab from `vendor` (the folder of duckdb-eh.wasm and its worker), set up as `planner` answers. Its
  * worker is started here, from the deployment's vendor folder, once the browser is known to run it: a door's wiring,
  * the run side taking the started worker and loading no module (2026-11-15, the C5-T fold-in: until then
- * duckdb-tab.ts started it, one of the run layer's two named vendor loads; //tools/deps:layers_alone).
+ * duckdb-tab.ts started it, one of the run layer's two named vendor loads; //tools/deps:layers_alone). The worker is
+ * DuckDB's own run behind engine-client/vendor/duckdb-redacting.worker.js, which prints no link's query string
+ * (2026-11-16, the TypeScript hunt's T-G).
  */
 export function openDuckDbInTab(vendor: string, planner: TabDuckDbPlanner): Promise<DuckDbInTab> {
   return openedInTab(async () => {
     await duckDbRunsHere();
-    return instantiateDuckDbInTab(new Worker(vendorAsset(vendor, 'duckdb-browser-eh.worker.js')), vendorAsset(vendor, 'duckdb-eh.wasm'));
+    return instantiateDuckDbInTab(new Worker(vendorAsset(vendor, 'duckdb-redacting.worker.js')), vendorAsset(vendor, 'duckdb-eh.wasm'));
   }, extensionRepository(vendor), planner, connectDuckDbInTab);
 }
 

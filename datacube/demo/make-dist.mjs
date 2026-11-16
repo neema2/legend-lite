@@ -36,7 +36,7 @@ for (const f of ['planner-worker.js', 'trades.pure']) {
   await cp(join(ROOT, 'demo', f), join(DIST, f));
 }
 for (const f of ['classes.wasm', 'wasm-gc-module-runtime.js',
-  'duckdb-eh.wasm', 'duckdb-browser-eh.worker.js']) {
+  'duckdb-eh.wasm', 'duckdb-browser-eh.worker.js', 'duckdb-redacting.worker.js']) {
   await cp(v(f), join(DIST, 'vendor', f));
 }
 // the page's other modules, each fetched the first time the page asks for it: the saved stores' rules (vendor/queries,
