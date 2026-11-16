@@ -1690,9 +1690,12 @@ public class ClickHouse extends AnsiSqlRenderer {
         // grammar, the text trimmed and the f stripped before toFloat64 (Phase 8)
         if (isParseFloat(c)) {
             SqlExpr x = c.value();
-            return guardedParseFloat(writer, x, w -> w.append("match(").expr(x, 0).append(", '" + FLOAT_GRAMMAR + "')"),
-                    w -> w.append("toFloat64(trimBoth(replaceRegexpOne(").expr(x, 0)
-                            .append(", '[fF][[:space:]]*$', '')))"));
+            // multiIf evaluates every branch (the local probe, 2026-11-16: toFloat64 raised CANNOT_PARSE_TEXT on 'abc'), so
+            // the conversion reads '0' where the grammar refuses and the text itself where it matches
+            SqlWriter.Piece matches = w -> w.append("match(").expr(x, 0).append(", '" + FLOAT_GRAMMAR + "')");
+            return guardedParseFloat(writer, x, matches,
+                    w -> w.append("toFloat64(trimBoth(replaceRegexpOne(if(").piece(matches).append(", ").expr(x, 0)
+                            .append(", '0'), '[fF][[:space:]]*$', '')))"));
         }
         // an array is never NULL here ("Cannot convert NULL to a non-nullable type", measured): no list is the empty one
         if (c.value() instanceof SqlExpr.NullLit && c.target() instanceof SqlType.Array) {
@@ -1804,9 +1807,13 @@ public class ClickHouse extends AnsiSqlRenderer {
             case IS_NOT_NULL -> isNotNullTest(writer, c.args());
             case IN -> inList(writer, c.args(), parentPrec);
             // 64-bit parse (PCT Long.MIN/MAX round-trips)
-            case PARSE_INT -> guardedParseInt(writer, c.args().get(0),
-                    w -> w.append("match(").expr(c.args().get(0), 0).append(", '^[+-]?[0-9]+$')"),
-                    w -> castAs(w, c.args().get(0), "BIGINT"));
+            // multiIf evaluates every branch: the cast reads '0' where the grammar refuses (as parseFloat's)
+            case PARSE_INT -> {
+                SqlExpr x = c.args().get(0);
+                SqlWriter.Piece matches = w -> w.append("match(").expr(x, 0).append(", '^[+-]?[0-9]+$')");
+                yield guardedParseInt(writer, x, matches, w -> w.append("CAST(if(").piece(matches).append(", ")
+                        .expr(x, 0).append(", '0') AS " + castTypeName(SqlType.Scalar.BIGINT) + ")"));
+            }
             case PI -> writer.append("pi()");
             case CEILING -> bigintOf(writer, "ceil", c.args());
             case FLOOR -> bigintOf(writer, "floor", c.args());

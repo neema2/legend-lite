@@ -878,9 +878,16 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
     protected SqlWriter guardedParseFloat(SqlWriter writer, SqlExpr s, SqlWriter.Piece matches, SqlWriter.Piece cast) {
         return writer.append("(CASE WHEN ").expr(s, 4).append(" IS NULL THEN NULL WHEN ").piece(matches)
                 .append(" THEN ").piece(cast).append(" ELSE ")
-                .expr(SqlExpr.Call.of(com.legend.sql.SqlFn.ERROR,
-                        new SqlExpr.RaiseText(com.legend.sql.RaiseKind.TEXT_NOT_FLOAT, java.util.List.of(s))), 0)
+                .piece(w -> raiseAs(w, SqlExpr.Call.of(com.legend.sql.SqlFn.ERROR,
+                        new SqlExpr.RaiseText(com.legend.sql.RaiseKind.TEXT_NOT_FLOAT, java.util.List.of(s))),
+                        com.legend.sql.SqlType.Scalar.DOUBLE))
                 .append(" END)");
+    }
+
+    /** A raise written as a CASE's branch whose other branches are {@code slot}: the raise itself here; a database
+     *  whose raise has a type of its own (Postgres: text) types it as the slot, so the branches unify. */
+    protected SqlWriter raiseAs(SqlWriter writer, SqlExpr raise, com.legend.sql.SqlType slot) {
+        return writer.expr(raise, 0);
     }
 
     /** The parseFloat grammar ({@link #guardedParseFloat}) as a POSIX pattern, anchored. */
@@ -901,8 +908,9 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
     protected SqlWriter guardedParseInt(SqlWriter writer, SqlExpr s, SqlWriter.Piece matches, SqlWriter.Piece cast) {
         return writer.append("(CASE WHEN ").expr(s, 4).append(" IS NULL THEN NULL WHEN ").piece(matches)
                 .append(" THEN ").piece(cast).append(" ELSE ")
-                .expr(SqlExpr.Call.of(com.legend.sql.SqlFn.ERROR,
-                        new SqlExpr.RaiseText(com.legend.sql.RaiseKind.TEXT_NOT_INTEGER, java.util.List.of(s))), 0)
+                .piece(w -> raiseAs(w, SqlExpr.Call.of(com.legend.sql.SqlFn.ERROR,
+                        new SqlExpr.RaiseText(com.legend.sql.RaiseKind.TEXT_NOT_INTEGER, java.util.List.of(s))),
+                        com.legend.sql.SqlType.Scalar.BIGINT))
                 .append(" END)");
     }
 

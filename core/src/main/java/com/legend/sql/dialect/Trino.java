@@ -850,6 +850,15 @@ public class Trino extends AnsiSqlRenderer {
 
     @Override
     protected SqlWriter variantAwareCast(SqlWriter writer, SqlExpr.Cast c) {
+        // parseFloat: a refusal raised Trino's own "Cannot cast" (round 72): legend-pure's grammar in Java regex (\s for
+        // the POSIX class), the trailing f stripped and the text trimmed before the cast, else lite's kind (Phase 8)
+        if (isParseFloat(c)) {
+            SqlExpr x = c.value();
+            return guardedParseFloat(writer, x,
+                    w -> w.append("regexp_like(").expr(x, 0)
+                            .append(", '" + FLOAT_GRAMMAR.replace("[[:space:]]", "\\s") + "')"),
+                    w -> w.append("CAST(trim(regexp_replace(").expr(x, 0).append(", '[fF]\\s*$', '')) AS DOUBLE)"));
+        }
         if (c.target() == SqlType.Scalar.TEMPORAL_TEXT || c.target() == SqlType.Scalar.DECIMAL_TEXT) {
             return super.variantAwareCast(writer, c);
         }

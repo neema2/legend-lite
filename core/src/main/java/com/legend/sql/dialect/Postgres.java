@@ -1864,6 +1864,14 @@ public class Postgres extends AnsiSqlRenderer {
                 ? w -> w.append("CAST(").piece(text).append(" AS ").append(castTypeName(slot)).append(")") : text;
     }
 
+    /** A guarded parse's raise, typed as the slot (the raise is text here, {@link #raise}): "CASE types character
+     *  varying and double precision cannot be matched" otherwise (the local probe, 2026-11-16). */
+    @Override
+    protected SqlWriter raiseAs(SqlWriter writer, SqlExpr raise, SqlType slot) {
+        return raise instanceof SqlExpr.Call call && call.fn() == SqlFn.ERROR
+                ? writer.piece(raise(call.args(), slot)) : super.raiseAs(writer, raise, slot);
+    }
+
     /** A condition, or an operand of AND or OR, that IS error() (a filter of fail(...): the timeseries library's
      *  refusals) raised as a boolean,
      *  as a CASE's raising branch takes its CASE's type: the raise is text here ({@link #raise}), and Postgres refuses
