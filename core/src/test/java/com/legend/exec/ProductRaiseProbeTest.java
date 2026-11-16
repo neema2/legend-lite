@@ -101,9 +101,10 @@ class ProductRaiseProbeTest {
         // 3. toOne() over two rows: the kind and its where, the bound
         Object two = run(backend, "toOne over two rows", "|" + ROWS + "->map(r|$r.x)->toOne()->from("
                 + StorelessRuntime.RUNTIME + ")");
-        if (two instanceof com.legend.sql.DialectCapability dc) {
+        if (two instanceof com.legend.sql.DialectCapability dc && backend.name().equalsIgnoreCase("h2")) {
             // a database with no list encoding (H2's) refuses the list toOne() reads by name at planning, never
-            // answering (the orchestrator's W3 item 5, 2026-11-16: the size check, or a refusal by name the probe asserts)
+            // answering (the orchestrator's W3 item 5, 2026-11-16: the size check, or a refusal by name the probe asserts;
+            // H2's alone, the P2 checkpoint audit's A-S4: on any other database the refusal is wrong)
             if (!String.valueOf(dc.getMessage()).contains("LIST_GET reached a dialect without a list encoding")) {
                 wrong.add("toOne over two rows: expected the list's refusal by name, got " + describe(two));
             }
@@ -121,8 +122,9 @@ class ProductRaiseProbeTest {
         // ONE simple format call per database, six decimals trimmed): whole numbers, a fraction, a third, 0.1 + 0.2, a
         // nine-digit integer, zero. S311's recorded divergences -- a huge value's digits, a six-place tie, a value
         // below 5e-7, -0 -- are the register's, by database, and not judged here
+        // -0.0 prints 0 on every database (S311's ruled line, the P2 checkpoint audit's case, 2026-11-16)
         String[] values = {"100.0", "10.0", "0.0", "123456789.0", "0.30000000000000004", "1234567.89",
-                "-98765.4321", "0.3333333333333333", "42.125"};
+                "-98765.4321", "0.3333333333333333", "42.125", "-0.0"};
         Object edges = run(backend, "a Float's text, ordinary values", "|#TDS\n  i:Integer, x:Float\n"
                 + java.util.stream.IntStream.range(0, values.length).mapToObj(i -> "  " + i + ", " + values[i] + "\n")
                         .collect(java.util.stream.Collectors.joining())
@@ -144,6 +146,17 @@ class ProductRaiseProbeTest {
                 }
             }
         }
+        // 5b. NaN's text (S311, ruled 2026-11-10: NaN): "NaN" where the database holds it, else the kind by name
+        // (S138's VALUE_NOT_HELD: a database that holds no NaN), never another text (the P2 checkpoint audit's case)
+        Object nan = run(backend, "NaN's text", "|#TDS\n  x:String\n  NaN\n#->extend(~t: r|"
+                + "$r.x->toOne()->parseFloat()->toString())->select(~t)->from(" + StorelessRuntime.RUNTIME + ")");
+        if (!(nan instanceof String n5 && n5.contains("NaN"))) {
+            if (nan instanceof Throwable) {
+                expectKind(wrong, "NaN's text", nan, com.legend.error.ErrorKind.VALUE_NOT_HELD, null);
+            } else {
+                wrong.add("NaN's text: " + describe(nan));
+            }
+        }
         // 6. a DateTime's text (D1.2, register S312): ISO 8601 in UTC, six fraction digits and Z
         Object dt = run(backend, "a DateTime's text", "|#TDS\n  x:DateTime\n  2014-01-01T10:20:30.5\n#->extend(~t: r|"
                 + "$r.x->toOne()->toString())->select(~t)->from(" + StorelessRuntime.RUNTIME + ")");
@@ -157,6 +170,7 @@ class ProductRaiseProbeTest {
         System.out.println("[product raise probe] " + backend.name() + " a Float's text, answered: " + describe(text));
         System.out.println("[product raise probe] " + backend.name() + " a Float's text, ordinary values "
                 + List.of(values) + ", answered: " + describe(edges));
+        System.out.println("[product raise probe] " + backend.name() + " NaN's text, answered: " + describe(nan));
         System.out.println("[product raise probe] " + backend.name() + " a DateTime's text, answered: " + describe(dt));
         System.out.println("[product raise probe] " + backend.name() + ": " + wrong.size() + " wrong " + wrong);
         assertEquals(List.of(), wrong, backend.name());

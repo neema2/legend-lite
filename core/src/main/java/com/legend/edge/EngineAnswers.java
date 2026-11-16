@@ -94,11 +94,18 @@ public final class EngineAnswers {
         @Override
         public void execution(java.util.UUID id) {
             this.execution = id;
+            if (writer != null) {
+                writer.execution(id);   // passed on as every other call is (the P2 checkpoint audit's A-S3, 2026-11-16)
+            }
         }
 
         @Override
         public void planned(ExecutionPlan plan) {
             writer = maker.make(plan, execution);
+            if (execution != null) {
+                writer.execution(execution);   // the writer is told the execution it is for, whichever came first (A-S3)
+            }
+            writer.planned(plan);
         }
 
         private ResultSink writer() {
