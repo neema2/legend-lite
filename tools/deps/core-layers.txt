@@ -131,7 +131,9 @@ exec_program	base error exec execution_plan result
 # legend-engine's plan text (edge.EnginePlans, EngineAllocations) moved from the planner lowers and renders a query in
 # the engine's text through the product's lowering, its natives' catalog, its scan relations and its DDL generator
 edge	arrow_ipc base builtin compiler compiler_element_type database door error execution_plan json lineage lowering model parser plan planner platform protocol pure_v1 resolver result setup sql sql_dialect test_plan testdatagen testplan values
-edge_server	base edge execution pure_v1 saved_queries server_lib
+# 2026-11-16 (the P2 checkpoint audit's M2): edge_store_words -- legend-engine's query-store sentences, their own target
+edge_server	base edge edge_store_words execution pure_v1 saved_queries server_lib
+edge_store_words	saved_queries
 # 2026-11-15 (phase D's D1.4): legend-engine's service tests at the edge, the runner and its PURE_TDSOBJECT writer
 # 2026-11-16 (W8 of docs/records/d-plan-2026-11-16.md): edge_service_tests reaches edge -- PureV1Writer moved there
 edge_service_tests	base compiler edge error exec execution_plan json model planner protocol result sql test test_execution test_plan testexec values

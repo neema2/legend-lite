@@ -108,6 +108,14 @@ legend_java_library(
     visibility = ["//native:__pkg__", "//query-store:__pkg__"],
 )
 # visible to //datacube: its catalog corpus and offer facts generators read the protocol directly
+# legend-engine's sentence of a query store's refusal (the P2 checkpoint audit's M2, 2026-11-16): the edge's, its own
+# target so the query-store page (TeaVM) words upstream's path with it and carries no server or planner
+legend_java_library(
+    name = "edge_store_words",
+    srcs = ["src/main/java/com/legend/edge/StoreWords.java"],
+    deps = [":saved_queries"],
+    visibility = ["//query-store:__pkg__"],
+)
 legend_java_library(name = "protocol", srcs = glob(["src/main/java/com/legend/protocol/**/*.java"]), deps = ["//base", "//json", ":values"], visibility = ["//datacube:__pkg__"])
 legend_java_library(name = "model", srcs = glob(["src/main/java/com/legend/model/*.java"]), deps = ["//base", ":protocol"])
 legend_java_library(
@@ -470,6 +478,7 @@ legend_java_library(
         "src/main/java/com/legend/edge/EdgeServer.java",
         "src/main/java/com/legend/edge/ServiceTestRunner.java",
         "src/main/java/com/legend/edge/TdsObjectsWriter.java",
+        "src/main/java/com/legend/edge/StoreWords.java",
     ]),
     # //wasm (D1.0b, 2026-11-12): the compiler's boundary answers legend-engine's routes in the tab and Python
     visibility = ["//spec:__pkg__", "//pct:__pkg__", "//tools/census:__pkg__", "//wasm:__pkg__"],
@@ -494,7 +503,7 @@ legend_java_library(
     name = "edge_server",
     srcs = ["src/main/java/com/legend/edge/EdgeServer.java"],
     visibility = ["//spec:__pkg__", "//pct:__pkg__"],
-    deps = ["//base", ":edge", ":execution", ":pure_v1", ":saved_queries", ":server_lib"],
+    deps = ["//base", ":edge", ":edge_store_words", ":execution", ":pure_v1", ":saved_queries", ":server_lib"],
 )
 
 # MONGODB'S CONNECTOR (docs/MONGODB_PLAN_2026_10_16.md §5.2, D12; 2026-10-17): a session on a MongoDBConnection, and

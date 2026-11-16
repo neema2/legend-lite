@@ -29,7 +29,7 @@ public final class QueriesPage {
     public static String answer(String method, String rest, String rawQuery, String body, String user, String records) {
         MemoryRecords held = MemoryRecords.of(records);
         SavedQueries.Answer a = SavedQueries.answer(new SavedQueries(held, System::currentTimeMillis), method, rest,
-                rawQuery.isEmpty() ? null : rawQuery, body, user);
+                rawQuery.isEmpty() ? null : rawQuery, body, user, com.legend.edge.StoreWords::of);
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("status", a.status());
         out.put("body", a.json());
@@ -50,7 +50,7 @@ public final class QueriesPage {
     public static String cubes(String method, String rest, String rawQuery, String body, String user, String rows) {
         MemoryCubeRecords held = MemoryCubeRecords.of(rows);
         SavedQueries.Answer a = SavedCubes.answer(new SavedCubes(held, System::currentTimeMillis), method, rest,
-                rawQuery.isEmpty() ? null : rawQuery, body, user);
+                rawQuery.isEmpty() ? null : rawQuery, body, user, com.legend.edge.StoreWords::of);
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("status", a.status());
         out.put("body", a.json());

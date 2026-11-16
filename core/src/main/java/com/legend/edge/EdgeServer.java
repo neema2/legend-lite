@@ -85,19 +85,9 @@ public final class EdgeServer {
     public static void main(String[] args) throws IOException {
         LegendHttpServer.serve(args, UPSTREAM);
     }
-    /** LEGEND-ENGINE'S SENTENCE OF A QUERY STORE'S REFUSAL (D1.8, W8 of docs/records/d-plan-2026-11-16.md, 2026-11-16):
-     *  {@code r}'s message as legend-engine's query API words it (its {@code MongoDBQueryStoreManager}), for the store
-     *  mounted at legend-engine's path; one with no kind is its own message. */
+    /** LEGEND-ENGINE'S SENTENCE OF A QUERY STORE'S REFUSAL: {@link StoreWords} (moved there 2026-11-16, the P2
+     *  checkpoint audit's M2: the query-store page words upstream's path with it too). */
     public static String storeWords(com.legend.queries.SavedQueries.Refusal r) {
-        com.legend.queries.SavedQueries.Refusal.Kind k = r.kind();
-        if (k == null) {
-            return String.valueOf(r.getMessage());
-        }
-        java.util.List<String> o = r.operands();
-        return switch (k) {
-            case QUERY_NOT_FOUND -> "Can't find query with ID '" + o.get(0) + "'";
-            case QUERIES_NOT_FOUND -> "Can't find queries for the following ID(s):\n" + o.get(0);
-            case VERSION_NOT_FOUND -> "Can't find version '" + o.get(0) + "' for query with ID '" + o.get(1) + "'";
-        };
+        return StoreWords.of(r);
     }
 }

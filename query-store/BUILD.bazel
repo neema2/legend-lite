@@ -17,6 +17,8 @@ legend_java_library(
     name = "page_entry",
     srcs = ["java/com/legend/queries/page/QueriesPage.java"],
     deps = [
+        # legend-engine's words for upstream's /api/pure/v1/query (the P2 checkpoint audit's M2, 2026-11-16)
+        "//core:edge_store_words",
         "//core:saved_queries",
         "//json",
         # TeaVM's annotations, at compile time only
