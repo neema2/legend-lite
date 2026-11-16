@@ -185,7 +185,7 @@ gets the same columns.
 | 3 | A | an empty TDS cell, a join with an empty element | `TDSNull` | empty, skipped (S313, S316) | presenter | done (D1.3) |
 | 4 | A | legend-engine's JSON cell tokens and envelope | engine's writer | lite's writers | `edge.EngineCells`, `PureV1Writer` at the edge | done (W8) |
 | 5 | A | error sentences | upstream's words | the kind, lite's sentence | `PureMessages`, Java | done for kinds (W5, W7); the query store's words fixed (`24c06a6d9`, `c34b3d5f5`) |
-| 6 | A | an instance's `toString`, `format` `%r` and `%0Nd`, `toRepresentation` | legend-pure's print | refused by name (S314; `toRepresentation` §10 item 8) | presenter | instance done; `%r` and `toRepresentation`: Phase 3 |
+| 6 | A | an instance's `toString`, `format` `%r` and `%0Nd`, `toRepresentation` | legend-pure's print | refused by name in the product (S314; `toRepresentation` RULED §10 item 8); the edge keeps upstream's text | presenter | instance done; `%r` and `toRepresentation`: Phase 3 |
 | 7 | A | a pivot's generated column name | quoted | bare (S315) | edge writers | done |
 | 8 | B | a Float's `toString` inside an expression | legend-engine's cast per database | S311 one call | edge lowering variant | Phase 5; PCT moves listed and ruled first |
 | 9 | B | a raise sentence's operand (`PureMessages` in SQL) | upstream's sentence | the kind | **a structured raise marker; the sentence in Java** | Phase 2 |
@@ -385,12 +385,7 @@ or its own plan; when it's done, it's struck through here with its commit.
 5. **A value finer than a microsecond: its text is cut to six digits.** The value itself is carried exactly.
 6. *(rule later)* The B-row PCT moves (Phase 5), listed when measured.
 7. **H2 `toOne` over a list: refused by name now** (RULED by the user, 2026-11-16: "refuse now or do narrow fix for h2 but then have follow up to do lists properly for everything"). The narrow fix is F2, and lists done properly is F1.
-8. *(with the user, after an explanation)* The product's `toRepresentation` and `format('%r')`. Options:
-   - (a) refuse by name (S314 extended);
-   - (b) a simple product form;
-   - (c) keep legend-pure's text (against the design).
-
-   The recommendation is (a).
+8. **The product's `toRepresentation` and `format('%r')`: refused by name in the PRODUCT. The edge (PCT, legend-engine clients) keeps legend-pure's exact text** (RULED by the user, 2026-11-16: "refuse in product but not in compatibility"). It extends S314. How the edge produces that text is settled in Phase 3 and Phase 5 against upstream. Follow-up F4 is a product form, on demand.
 9. **H2's quoting rule and `NON_KEYWORDS` stay in the product as a ruled row.** They decide which column a declared
    name reads in H2 data made legend-engine's way. Restored by D, `9c28a1a7e`.
 10. *(rule later)* Guard survivors (Phase 7) and deferred goldens (Phase 4b).
@@ -417,6 +412,7 @@ About four working days to D's landing, with the three workers in parallel.
 
 | When (UTC) | Entry |
 |---|---|
+| 2026-11-16 15:35 | **The user ruled §10 item 8:** the product refuses `toRepresentation` and `format('%r')` by name; the edge keeps legend-pure's exact text. Every open ruling is now decided except items 6 and 10, which wait for their data. |
 | 2026-11-16 15:30 | **The user ruled §10 item 7:** H2 `toOne` over a list stays refused by name now. Follow-ups F2 (`toOne` by counting, lean SQL) and F1 (lists properly everywhere). **§9 is now the written follow-up list (F1 to F26), at the user's word:** "We should have a written down list of real follow ups we want either way so we don't forget". |
 | 2026-11-16 15:20 | **Phase 4b design: on-failure side reads** (E-Java's option 1, approved by the orchestrator). A database verdict's fused row keeps only `holds`. The test plan carries each verdict's two typed side reads as data (`Verdict.failureSides`), which the runner sends only after a false `holds`; the message is then formatted in Java by the host judge's formatter. This is a planned branch (charter A3(b): the database decides, the runner follows the plan's named side). It adds a test-plan format bump, numbered at landing, and no extra statement under BOTH. The alternative, a JSON carrier of each side built in SQL for every verdict, was rejected: it is print and carrier text in SQL. SideShapes' raise sentence becomes a kind plus operands, using D's Phase 2 marker. *(For the user's phase report.)* |
 | 2026-11-16 15:15 | **Phase 4a done** (E-Java, `42b38e44aa` on `claude/total-wall-d-judges`). The engine-text arm is at the edge behind one facade, with one architecture row; the `EngineTestText#arm` allowance is gone. `AssertVerdicts` is at 1,520, and `SqlTextVerdicts` has left the product (1,152 lines, now in the edge). Channel B DuckDB is unchanged under HOST, DATABASE and BOTH; core testplan (every judge), integration, root, both corpus verdicts, guardrails and census are green. D merges it. E-Java has started 4b (step a: messages in Java). |
