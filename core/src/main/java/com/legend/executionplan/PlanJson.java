@@ -154,8 +154,10 @@ public final class PlanJson {
      *  ({@code SqlExpr.Reason}'s code), the cast's {@code conform} flag folded into it. 54 since 2026-11-15 (phase D's option
      *  (D), the orchestrator's go; its number after E's, renumbered at landing): a plan carries {@code raises}, each
      *  product raise its statements can send, its kind's name to the kind's sentence ({@link #raises}) -- a host words a
-     *  raise from the plan it runs, never from a table of its own. */
-    public static final int VERSION = 54;
+     *  raise from the plan it runs, never from a table of its own. 55 since 2026-11-16 (the P2 checkpoint audit's S1:
+     *  80f69d4cf added it unbumped): each statement carries {@code raises}, the kinds its renderer wrote, and the plan's
+     *  {@code raises} is their union -- a v54 plan, whose statements carry none, is refused by its version. */
+    public static final int VERSION = 55;
 
     private PlanJson() {
     }
