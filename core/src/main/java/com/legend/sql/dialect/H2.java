@@ -1294,6 +1294,17 @@ public class H2 extends AnsiSqlRenderer {
      * guessing a column's type. */
     @Override
     protected SqlWriter variantAwareCast(SqlWriter writer, SqlExpr.Cast c) {
+        // parseFloat: a refusal raised H2's own conversion error, never lite's kind (the user's error design,
+        // 2026-11-16): legend-pure's grammar, Java regex (\p{Space} for the POSIX class REGEXP_LIKE does not read),
+        // the trailing f stripped before H2's cast, which holds NaN and Infinity itself (Phase 8)
+        if (isParseFloat(c)) {
+            SqlExpr x = c.value();
+            return guardedParseFloat(writer, x,
+                    w -> w.append("REGEXP_LIKE(").expr(x, 0)
+                            .append(", '" + FLOAT_GRAMMAR.replace("[[:space:]]", "\\p{Space}") + "')"),
+                    w -> w.append("CAST(TRIM(REGEXP_REPLACE(").expr(x, 0)
+                            .append(", '[fF]\\p{Space}*$', '')) AS DOUBLE PRECISION)"));
+        }
         if (c.target() == com.legend.sql.SqlType.Scalar.JSON) {
             return jsonParseCast(writer, c);
         }
