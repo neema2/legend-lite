@@ -368,7 +368,11 @@ any left and hands the list to D.
   - the suites the change touches;
   - PCT DuckDB channels A and B;
   - for an edge change, both corpus verdicts;
-  - for a product form, a timing alternation on the in-process databases.
+  - for a product form, a timing alternation on the in-process databases;
+  - for any edge change, the suites that assert upstream's words and texts: `//query-store:wasm_test`,
+    `//datacube:saved_pages_page_test`, `//datacube:python_execute_test` and `UpstreamProtocolFieldsTest`. The lane
+    rounds don't run them. *(Lesson: the P2 audit found edge routes answering in lite's words, which round 65 could
+    not see.)*
 
   No full gate per step.
 - **Lane rounds:** six lane sessions, measuring only, on all 12 databases. One round per finished step, on its final
@@ -402,7 +406,11 @@ run, and the user's merge word.
 7. **H2 `toOne` over a list,** refused by name.
 7a. **A product `toRepresentation` or `format('%r')` of a value**, refused by name. This extends S314's "`%r` and
     padding at the edge" to `%r`'s function; the edge keeps legend-pure's text.
-8. **Any guard row that survives the one-by-one review** (§5 item 4), with its evidence.
+8. **Any guard row that survives the one-by-one review** (§5 item 4), with its evidence. **The first candidate:**
+   H2's product quoting rule (legend-engine's word list as written, the session-freed words upper-cased) and the
+   session's `NON_KEYWORDS`. The evidence is that they decide which column a declared name reads in H2 data made
+   legend-engine's way. W6 dropped them, and a lowercase-quoted `"order"` column then failed to be found (P2 audit,
+   probed on H2 2.5.252), so they are restored pending your ruling.
 9. **Deferred goldens in W10,** if any are found.
 10. **The orchestrator's decisions under delegation,** listed in §12.
 
@@ -432,4 +440,5 @@ run, and the user's merge word.
 | 2026-11-16 13:35 | D's Float revert pushed (`4ff4f86e7`). Every product `floatToText` is D1.2's form, the exactness machinery and `precise_float_parsing` are gone, and the instrument is deleted. Its SQL is D1.2's statement on every dialect, so no alternation is needed. Found while checking: Snowflake's cast of a double to text still uses the October exact-digits machinery. It goes into §5 item 2's inventory. Lane round 66 is sent on `4ff4f86e7`. |
 | 2026-11-16 13:40 | D's Float-text inventory received. Decided (§5 item 2):<br>- a raise sentence's Float stays in the query with legend-engine's cast;<br>- the product's `toRepresentation` and `format('%r')` are refused by name (S314; confirmation in §10 item 7a);<br>- ClickHouse's product `format('%s', Float)` becomes S311's one call;<br>- the shortest-text emulations are deleted only when no judge and no carrier reaches them;<br>- carriers carry typed values where a database's cast does not read back (Snowflake), which is E-SQL's work, measured first.<br>All of it is built after the freeze lifts. |
 | 2026-11-16 13:50 | P2 checkpoint audit, reviewer B (at `89d4eae3b`): four MUSTs, three verified by the orchestrator. (1) A merge dropped three register amendments (S138, S170, S181). (2) The query-store page answers upstream's API in lite's words, so two TS suites go red. (3) The edge's host routes lost upstream's words and prefix for a missing parameter, so the Python execute test goes red and a test was widened. (4) Product lowering throws legend-pure's window-frame sentence. Plus SHOULDs S1 to S8. All went to D as fixes, allowed during the freeze. S8 decided: the edge receiver's refusals move to planning, so the run decides nothing (G4). Reviewer A pending. |
+| 2026-11-16 14:00 | P2 checkpoint audit, reviewer A: four MUSTs. (1) W6's H2 quoting reads a different column: a lowercase-quoted `"order"` is no longer found (probed). Decided: restore the pre-W6 product quoting on H2 exactly, and keep the rule as one guard row for the user's ruling (§10 item 8). (2) The edge's host routes and ServiceTestRunner word errors in lite's words. (3) The host's Arrow route writes the product's S312 dates where it wrote legend-pure's. (4) pure/v1's missing-parameter prefix changed, and a test was widened. Plus SHOULDs S1 to S5. All went to D. The fast loop gains the upstream-words suites (§8). |
 | 2026-11-16 13:25 | E-SQL's item 6 (Postgres `jsonb_build_array`), committed just before the freeze, stays. It is a dialect spelling within E-v3's plan, and E-v3's review and lane round judge it. |
