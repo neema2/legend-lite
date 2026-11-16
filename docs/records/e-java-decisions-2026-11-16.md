@@ -101,6 +101,26 @@ row computes each side again, because the verdict's own copy of the side was low
 variables numbered differently), so O5's reuse (`readingTheVerdictsValues`) does not match it. Round trips are the
 larger cost; the reuse is a follow-up (match the side up to its lambda variables' names, or lower it once).
 
+## E6. The DATABASE-only printed rows on the last two lanes, traced (2026-11-16)
+
+Measured on D's stage (`ec87b5d333`), channel B essential with `-Dlegend.diagnostics=dump-sql`, each judge alone:
+
+| Lane | `[verdict]` rows, DATABASE | BOTH | Status differences |
+|---|---|---|---|
+| SQLite essential | 837 | 831 | 0 (both PASS) |
+| Postgres essential | 837 | 836 | 0 (both PASS) |
+
+- **SQLite, 6 rows:** all `string::tests::format::testFormatDate`'s `assertEq`s. DATABASE sends one body statement
+  holding them; BOTH sends six standalone `WITH __se` statements beside the host's side reads, read on a path that
+  does not print `[verdict]`. No judge declined (`judge-declines` printed nothing). A print gap with a different
+  statement shape, not a judging gap.
+- **Postgres, 1 row:** an `assertEquals` of `1973-11-05`, the same print gap as the 39 rows traced on Postgres
+  grammar (E2).
+
+**Decision.** Item 3's comparison is complete on every local lane: no status difference anywhere. The print gap is
+a diagnostic, not a verdict; making BOTH print the rows it reads is a small follow-up in `testexec`. Item 14 (retiring
+the DATABASE-alone pass) still waits for the CI-only databases, as E2 says.
+
 ## Corrections
 
 **C1 (2026-11-16): D1's ledger effect was +13, not −1.**
