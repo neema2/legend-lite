@@ -635,12 +635,18 @@ final class ArchitectureTest {
         PLANNER_WRITES_NO_FILE.check(CORE_PROD_CLASSES);
     }
 
-    /** {@link #thePlannerWritesNoFile} fails on a planner class that writes a file ({@code planner.PlantedFileWrite}, a
-     *  test class in the planner's package: a {@code Files.writeString} and a {@code new PrintWriter(File)}) -- the
-     *  rule bites (2026-11-15, PR1's review: it had no planted violator). */
+    /** {@link #thePlannerWritesNoFile} fails on a planner class that writes a file, by EACH of its clauses alone
+     *  ({@code planner.PlantedFileWrite.EACH}, test classes in the planner's package, one write each: the file streams,
+     *  the print streams over a file or its name, every {@code Files} writer, copy, move, create and channel, a
+     *  {@code FileChannel} opened) -- the rule bites (2026-11-15, PR1's review: it had no planted violator; the PR1
+     *  re-review's A3, 2026-11-16: one violator per clause, since the rule fails when any one fires). */
     @Test
     void thePlannerFileRuleBitesAPlantedWrite() {
-        bites(PLANNER_WRITES_NO_FILE, com.legend.planner.PlantedFileWrite.class);
+        for (Class<?> planted : com.legend.planner.PlantedFileWrite.EACH) {
+            bites(PLANNER_WRITES_NO_FILE, planted);
+        }
+        org.junit.jupiter.api.Assertions.assertEquals(17, com.legend.planner.PlantedFileWrite.EACH.size(),
+                "one planted violator per clause of the rule");
     }
 
     /** The calls that write a file: {@code java.nio.file.Files}' writers, copies, moves and channels, and a
