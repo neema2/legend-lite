@@ -1112,6 +1112,15 @@ final class Scalars {
                                 instanceof com.legend.compiler.element.type.Type.RelationType)) {
                     return args.get(0);
                 }
+                // a list of any kinds on the variant carrier (a concatenation, a range joined to a literal): the
+                // carrier's order is the variant's, not Pure's across kinds -- refused by name, never a wrong order,
+                // for every overload (bare, comparator, key); a tagged list's bare sort orders by Pure's kind order
+                // (the mixed-list ruling of 2026-11-12; E-Java's find, 2026-11-16; E-v2's review, A-M3)
+                if (PlatformTypes.isAny(n.args().get(0).info().type())
+                        && (n.args().size() > 1 || asTaggedList(n.args().get(0), args.get(0)) == null)) {
+                    throw new com.legend.error.NotImplementedException("sort of a list of mixed kinds (Any): Pure's"
+                            + " order across kinds is not kept on the variant carrier; sort a list of one kind");
+                }
                 if (n.args().size() == 1) {
                     TypedSpec sortOperand = n.args().get(0);
                     SqlExpr sortLowered = args.get(0);
@@ -1120,14 +1129,6 @@ final class Scalars {
                     SqlExpr.TaggedList mixed = asTaggedList(sortOperand, sortLowered);
                     if (mixed != null) {
                         return TaggedLists.sort(mixed, "_tls");
-                    }
-                    // a list of any kinds on the variant carrier (a concatenation, a range joined to a literal): the
-                    // carrier's order is the variant's, not Pure's across kinds -- refused by name, never a wrong order
-                    // (the mixed-list ruling of 2026-11-12: a sort across kinds is refused; E-Java's find, 2026-11-16:
-                    // range(...)->concatenate(['a'])->sort() put 'a' first)
-                    if (PlatformTypes.isAny(sortOperand.info().type())) {
-                        throw new com.legend.error.NotImplementedException("sort of a list of mixed kinds (Any): Pure's"
-                                + " order across kinds is not kept on the variant carrier; sort a list of one kind");
                     }
                     // STAMP-read (pair-#4 eliminated): only many-
                     // stamped operands reach here, and a many-stamped
@@ -1591,12 +1592,13 @@ final class Scalars {
                 if (args.size() == 2) {
                     // audit §4: a to-one first operand carriers as its
                     // one-element list (list_append(VARCHAR, x) is a
-                    // binder error — the missing asList wrap)
-                    return new SqlExpr.Call(SqlFn.LIST_APPEND, List.of(
-                            PureSql.asList(args.get(0),
-                                    !isToOne(n.args().get(0))),
-                            args.get(1)));
+                    // binder error — the missing asList wrap); an Integer meeting a DOUBLE guarded (A-S2)
+                    SqlExpr[] exact = ListEncodings.exactAdd(PureSql.asList(args.get(0),
+                            !isToOne(n.args().get(0))), args.get(1));
+                    return new SqlExpr.Call(SqlFn.LIST_APPEND, List.of(exact[0], exact[1]));
                 }
+                SqlExpr[] exactInsert = ListEncodings.exactAdd(args.get(0), args.get(2));
+                args = List.of(exactInsert[0], args.get(1), exactInsert[1]);
                 SqlExpr l = args.get(0);
                 SqlExpr idx = args.get(1);
                 SqlExpr inserted = SqlExpr.Call.of(SqlFn.LIST_CONCAT,

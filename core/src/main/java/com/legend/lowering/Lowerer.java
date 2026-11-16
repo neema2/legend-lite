@@ -493,10 +493,12 @@ public final class Lowerer {
         if (!engineText) {
             // a relation's size counts its rows with no wrapper (CountCollapse, the DuckDB plan's step 1, 2026-11-16)
             q = CountCollapse.apply(q);
-            q = LetBinding.bindRowRepeats(q);
         }
         // a count of rows a declared key makes one is 1 (KeyedCounts: the time model's D2), then the unread pruned
-        return SubselectPrune.prune(engineText ? q : KeyedCounts.fold(q, tableKeys), !engineText);
+        q = SubselectPrune.prune(engineText ? q : KeyedCounts.fold(q, tableKeys), !engineText);
+        // a row's repeat bound beside the row AFTER the prune (E-v2's review, A-M4): bound first, a column reading a
+        // raising bound value looked raise-free to the prune, which dropped it, and the value with it on H2
+        return engineText ? q : LetBinding.bindRowRepeats(q);
     }
 
     /**

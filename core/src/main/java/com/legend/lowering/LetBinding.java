@@ -600,7 +600,12 @@ final class LetBinding {
 
     private static SqlSelect bindRowIn(SqlSelect s) {
         java.util.Set<String> rows = rowAliases(s.from());
-        if (rows == null || rows.isEmpty() || s.projections().isEmpty() || !s.groupBy().isEmpty()
+        // a star reads the FROM's every column, the bound values' too: a select with a star keeps its terms (E-v2's
+        // review, B-M1: SELECT *, ... FROM a JOIN b CROSS JOIN LATERAL (...) answered one column more than its plan)
+        if (rows == null || rows.isEmpty() || s.projections().isEmpty()
+                || s.projections().stream().anyMatch(p -> p.expr() instanceof SqlExpr.Star
+                        || p.expr() instanceof SqlExpr.StarExcept)
+                || !s.groupBy().isEmpty()
                 || s.having() != null || s.qualify() != null || Fold.unnestInProjections(s)
                 || terms(s).stream().anyMatch(LetBinding::aggregates)) {
             return s;
