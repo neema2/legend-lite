@@ -383,10 +383,10 @@ public final class PureMessages {
             case MISSING_PROFILE_MEMBER -> "Can't find " + o.get(0) + " '" + o.get(1) + "' in profile '" + o.get(2) + "'";
             // ClassMappingSecondPassBuilder
             case MISSING_CLASS_MAPPING -> "Can't find class mapping '" + o.get(0) + "' in mapping '" + o.get(1) + "'";
-            // RelationalCompilerExtension's main table rule
+            // RelationalCompilerExtension's main table rule, its exact text (legend-engine 4.145.0,
+            // RelationalCompilerExtension.java:350; F12, 2026-11-16: the tables the mappings span are lite's own words)
             case MAIN_TABLE_UNNAMED -> "Can't find the main table for class '" + o.get(0)
-                    + "': property mappings span tables " + o.get(1)
-                    + ". Please specify a main table using the ~mainTable directive.";
+                    + "'. Please specify a main table using the ~mainTable directive.";
             // ClassCompilerExtension
             case INVALID_SUPERTYPE -> "Invalid supertype: '" + o.get(0) + "' cannot extend '" + o.get(1)
                     + "' as it is not a class.";
