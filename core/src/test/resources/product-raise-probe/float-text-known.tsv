@@ -4,11 +4,6 @@
 # (half an ulp from the value, the mantissa even), which Java accepts and Postgres's shortest form does not: Postgres
 # writes 17 digits (docs/records/d-plan-2026-11-16.md, the decision log and its proposed S311 row)
 postgres	-6.871798049391594E16	-68717980493915936
-# 2026-11-16 (W3's instrument): a double whose shortest form needs 17 digits, where ClickHouse's own text (toString)
-# and its printf's 17th digit are a 17-digit form that reads back but is not the closest (Java's): the digit past the
-# sixth decimal moves (the plan's decision log, its proposed S311 row)
-clickhouse	2.1503981020101822E11	215039810201.01825
-clickhouse	-9.319058508336139E11	-931905850833.614
-clickhouse	3.6239507530722573E12	3623950753072.258
-clickhouse	-9.620935855310807E11	-962093585531.0808
-clickhouse	-9.491193477161847E13	-94911934771618.48
+# clickhouse's five rows (2.1503981020101822E11, -9.319058508336139E11, 3.6239507530722573E12, -9.620935855310807E11,
+# -9.491193477161847E13): gone 2026-11-16 (round 63's ask): its 17-digit form is the closest one, from the double's
+# own bits (ClickHouse.floatToText), so S311's one answer is expected there

@@ -3322,12 +3322,26 @@ public class ClickHouse extends AnsiSqlRenderer {
         String tm = "if(position(__ts, 'e') = 0, __ts, substring(__ts, 1, position(__ts, 'e') - 1))";
         String te = "if(position(__ts, 'e') = 0, 0, toInt32(replaceAll(substring(__ts, position(__ts, 'e') + 1), '+', '')))";
         String tf = "if(position(" + tm + ", '.') = 0, 0, length(" + tm + ") - position(" + tm + ", '.'))";
+        // from 1 to 1e17 the 17-digit form is the CLOSEST (Java's), from the double's own bits (the orchestrator's round
+        // 63: ClickHouse's 17th digit moved the 4th-5th decimal of five values in 1e11-1e13): the value exactly as an
+        // integer __xn over 10^__xk -- its 53-bit mantissa times 5^k (10^k / 2^k, exact), or times 2^e for a whole
+        // number -- rounded half up to 17 digits; elsewhere toString's text (its 17th digit is below the sixth place)
+        String len = "toInt32(length(toString(__xn)))";
+        String p10 = "toUInt256(concat('1', repeat('0', toUInt64(greatest(%s, 0)))))";
+        String x17 = "if(" + len + " <= 17, toString(__xn), toString(intDiv(__xn + toUInt256(5) * " + p10.formatted(len
+                + " - 18") + ", " + p10.formatted(len + " - 17") + ")))";
         String parts = "arrayMap((__d14, __p14, __d15, __p15, __e15, __d17, __p17) -> " + chosen + ", ["
                 + d.formatted("__c14") + "], [" + e.formatted("__c14") + " - length(" + d.formatted("__c14") + ") + 1], ["
                 + d.formatted("__c15") + "], [" + e.formatted("__c15") + " - length(" + d.formatted("__c15") + ") + 1], ["
-                + e.formatted("__c15") + "], [replaceAll(" + tm + ", '.', '')], [" + te + " - " + tf + "])[1]";
-        String texts = "arrayMap((__c14, __c15, __ts) -> " + parts + ", [printf('%.14e', __v)], [printf('%.15e', __v)],"
-                + " [toString(__v)])[1]";
+                + e.formatted("__c15") + "], [if(__xn = 0, replaceAll(" + tm + ", '.', ''), " + x17 + ")], [if(__xn = 0, "
+                + te + " - " + tf + ", if(" + len + " <= 17, -__xk, " + len + " - 17 - __xk))])[1]";
+        String e2 = "(toInt32(bitShiftRight(reinterpretAsUInt64(__v), 52)) - 1075)";
+        String mantissa = "toUInt256(bitAnd(reinterpretAsUInt64(__v), 4503599627370495) + 4503599627370496)";
+        String exactN = "if(__v >= 1 AND __v < 1e17, if(" + e2 + " >= 0, " + mantissa + " * toUInt256(pow(2, greatest("
+                + e2 + ", 0))), " + mantissa + " * intDiv(" + p10.formatted("-" + e2) + ", toUInt256(pow(2, greatest(-"
+                + e2 + ", 0))))), toUInt256(0))";
+        String texts = "arrayMap((__c14, __c15, __ts, __xn, __xk) -> " + parts + ", [printf('%.14e', __v)], [printf('%.15e',"
+                + " __v)], [toString(__v)], [" + exactN + "], [toInt32(greatest(-" + e2 + ", 0))])[1]";
         java.util.function.Consumer<SqlWriter> unsigned = w -> w.append("arrayMap(__v -> " + texts + ", [abs(")
                 .expr(asDouble(x), 0).append(")])[1]");
         // the unsigned text computed once (its lambda's __u): from 1e17 signed as it is; below, the sign inside the
