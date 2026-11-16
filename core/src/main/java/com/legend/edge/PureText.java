@@ -178,12 +178,6 @@ public final class PureText {
 
     /** H2, spelled as upstream spells it. */
     public static final class H2 extends com.legend.sql.dialect.H2 {
-        /** legend-engine's reserved words, quoted as written as the engine quotes them (W6, 2026-11-16: its lexicon the
-         *  edge's, {@link EngineStyleH2#ENGINE_RESERVED}); H2's other keywords upper-cased as the product's are. */
-        public H2() {
-            super(EngineStyleH2.ENGINE_RESERVED);
-        }
-
         /** legend-pure's print forms (a Float's, a DateTime's) for the product's text of each ({@link PurePrintForms}; D1.2). */
         @Override
         protected java.util.List<com.legend.sql.SqlRewriter> spellingPasses() {

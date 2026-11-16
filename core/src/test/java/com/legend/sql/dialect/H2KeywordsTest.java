@@ -115,34 +115,30 @@ class H2KeywordsTest {
         }
     }
 
-    /** The product's keywords ({@link H2#KEYWORDS}) are H2's own, its driver's list, exactly (W6 of
-     *  docs/records/d-plan-2026-11-16.md, 2026-11-16: legend-engine's list is the compatibility edge's). */
+    /** A word the engine's session frees, quoted, names the same column the bare word named: the identifier H2 makes of
+     *  a bare word, which it folds to upper case (a plain bare name shows it), so the dialect changed how it writes the
+     *  name, never which column it names. (Some freed words parse bare in a column list and not in a select list -- bare
+     *  {@code any} is read as the quantifier there -- so the identity is read from the catalog.) */
     @Test
-    void theProductsKeywordsAreH2sOwn() throws ReflectiveOperationException {
-        assertEquals(new TreeSet<>(h2Keywords().stream().map(w -> w.toLowerCase(Locale.ROOT)).toList()),
-                new TreeSet<>(H2.KEYWORDS));
-    }
-
-    /** Every keyword, quoted, names the column the bare word names where a session takes it bare: the identifier H2
-     *  makes of a bare word, which it folds to upper case (the product's rule for each of H2's keywords since W6; the
-     *  engine's session's freed words were its first, the third re-audit's MUST-FIX 2(c)). The identity is read from the
-     *  catalog. */
-    @Test
-    void aKeywordQuotedIsTheColumnItNamesBare() throws SQLException {
-        try (Connection c = DriverManager.getConnection("jdbc:h2:mem:h2_keywords_upper");
+    void aFreedWordQuotedIsTheColumnItNamedBare() throws SQLException {
+        assertEquals(new TreeSet<>(List.of("any", "asymmetric", "authorization", "cast", "current_path", "current_role",
+                "day", "default", "else", "end", "hour", "key", "minute", "month", "second", "session_user", "set", "some",
+                "symmetric", "system_user", "to", "uescape", "user", "value", "when", "year")),
+                new TreeSet<>(H2.FREED_BY_THE_ENGINE));
+        try (Connection c = DriverManager.getConnection("jdbc:h2:mem:h2_keywords_freed");
                 Statement st = c.createStatement()) {
-            List<String> words = new ArrayList<>(new TreeSet<>(H2.KEYWORDS));
-            st.execute("CREATE TABLE T_UPPER (plain_name INTEGER, " + String.join(", ", words.stream()
+            st.execute(H2.SESSION_SETUP.get(0));
+            st.execute("CREATE TABLE T_FREED (plain_name INTEGER, " + String.join(", ", H2.FREED_BY_THE_ENGINE.stream()
                     .map(w -> new H2().physicalName(w) + " INTEGER").toList()) + ")");
             List<String> stored = new ArrayList<>();
             try (ResultSet rs = st.executeQuery("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME"
-                    + " = 'T_UPPER' ORDER BY ORDINAL_POSITION")) {
+                    + " = 'T_FREED' ORDER BY ORDINAL_POSITION")) {
                 while (rs.next()) {
                     stored.add(rs.getString(1));
                 }
             }
             List<String> expected = new ArrayList<>(List.of("PLAIN_NAME"));
-            for (String w : words) {
+            for (String w : H2.FREED_BY_THE_ENGINE) {
                 assertEquals("\"" + w.toUpperCase(Locale.ROOT) + "\"", new H2().physicalName(w));
                 expected.add(w.toUpperCase(Locale.ROOT));
             }

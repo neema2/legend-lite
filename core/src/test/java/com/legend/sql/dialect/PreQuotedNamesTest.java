@@ -33,9 +33,7 @@ import org.junit.jupiter.api.Test;
  *   one identifier: the marker inside it is never the statement's code ({@link InjectionFuzzTest#finding});</li>
  *   <li>the audit's H2 statement is carried as data: one column, labelled exactly the name, on a live H2;</li>
  *   <li>an ordinary name is written byte for byte as before the check, on every dialect and engine-text printer too
- *   (the golden {@code pre-quoted-names.tsv}, rendered before the change; its two H2 lines for a name {@code select}
- *   re-rendered 2026-11-16, W6 of docs/records/d-plan-2026-11-16.md: the product's H2 quotes each of H2's own keywords
- *   as the upper-case identifier H2 makes of it bare, {@code "SELECT"}).</li>
+ *   (the golden {@code pre-quoted-names.tsv}, rendered before the change).</li>
  * </ul>
  */
 class PreQuotedNamesTest {

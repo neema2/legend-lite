@@ -102,6 +102,8 @@ class CompatSpellingGuardTest {
             "HOOK",   // the edge's hook: a type the product's plan style names so the edge hands its printers in, the
                       // product's style refusing it by name (O3; the D part 1 audit's nit, 2026-11-15)
             "JUDGE",  // the judges' own canon on the test road (D0 §10): not compatibility, never moved
+            "RULING", // a row standing for the USER'S RULING, with its evidence beside it (U5, 2026-11-15/16: a surviving
+                      // row shows who calls it and what breaks without it; added 2026-11-16, the P2 checkpoint audit's A-M1)
             "STAYS"); // a product semantic sharing the spelling: lowering/DateFormats.java's pattern letter Z is +0000
 
     /**
@@ -242,9 +244,15 @@ class CompatSpellingGuardTest {
             // node DATETIME_PRINT the judges' %r and canon read, and the edge writes for DATETIME_TO_TEXT; D1.9 moves it
             "sql/dialect/DateTimePrintText.java | +0000 | 2 | JUDGE",
             "sql/dialect/FloatPrintText.java | FLOAT_PRINT | 1 | JUDGE",
-            // sql/dialect/H2.java | ENGINE_LEXICON: gone 2026-11-16 (W6 of docs/records/d-plan-2026-11-16.md): the product
-            // quotes H2's own keywords (H2.KEYWORDS, its driver's list); legend-engine's list is the edge's
-            // (EngineStyleH2.ENGINE_RESERVED, which PureText.H2 hands in)
+            // FOR THE USER'S RULING (the P2 checkpoint audit's A-M1, 2026-11-16; W6's change, 4fc24e0a3, reverted the same
+            // day): the product's H2 quotes legend-engine's word list as written, upper-casing the words its session
+            // frees (NON_KEYWORDS), and that decides WHICH COLUMN a declared name reads in H2 data made legend-engine's
+            // way. Probed on the H2 2.5.252 jar (MODE=LEGACY, the product's NON_KEYWORDS): a table made as legend-engine
+            // quotes, CREATE TABLE T (ID INT, "order" INT, "range" INT, "select" INT), is read by "t0"."order"; W6's
+            // H2-keyword quoting ("t0"."ORDER", "t0".range, "t0"."SELECT") fails with Column "t0.ORDER" not found.
+            // Reached through a LocalH2 connection's testDataSetupSqls run as written (CsvSeed.declaredSteps via
+            // LoadPlanner), H2 file and tcp databases (H2Connector), and H2 files an earlier lite made.
+            "sql/dialect/H2.java | ENGINE_LEXICON | 3 | RULING",
             "sql/dialect/H2.java | FLOAT_CANON | 1 | JUDGE",
             "sql/dialect/H2.java | FLOAT_PRINT | 1 | JUDGE",
             "sql/dialect/MariaDb.java | FLOAT_CANON | 1 | JUDGE",
