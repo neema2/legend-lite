@@ -53,6 +53,39 @@ replay helpers (`replayFacts`, `ReplayGates`, `unpagedRead`, `adjudicate`, `call
   caller-supplied `Edge`; `SqlTextRuns` and the appeals' deciding move behind it.
 - Size: the largest single item of W9's judge half; estimated 2-3 working days, done in compile-green steps.
 
+## S2c: the arm's code to the edge (planned 2026-11-16, after S2b `e2417f667e`)
+
+**The orchestrator's condition:** when S2c lands, `AssertVerdicts` is at or below 1,520 lines and `SqlTextVerdicts`
+at or below 1,157 (both stripped), and `ArchitectureTest`'s allowance for `EngineTestText#arm` is gone or names what
+still needs it. Moving lines between product files to meet a pin is not a move; the arm's code goes to the edge.
+
+**The surface, measured (the arm's callers in the test planner, and what the arm reads of it):**
+
+| From | Calls into the arm |
+|---|---|
+| `AssertVerdicts` | `engineTextArm` (the facet, S2b); `tryArm`, `tryArmSameSql`, `tryArmDualGolden` (the database judge's path, lines ~441-534); `isRoot`, `mayArm`, `notAConstant`, `why`; `BatchTexts` |
+| `BodyDriver` | `ExecEnv`'s `engineText` collector field and `withEngineText`; `marking`/`restoreMarking` around a side's planning |
+| `JudgePlans` | `env.engineText()` (the collector), `NotAConstant` |
+| `DatabaseAsserts` | `isRoot` |
+
+| The arm reads | Uses |
+|---|---|
+| `BodyDriver.ExecEnv` (`ctx`, `target`, `frame`, `engineText`, `appealOn`, `appeals`, `verdictBatch`, `options`, `postProcessors`, `withEngineText`, `withFrame`, `withTableReplace`) | 32 |
+| `AssertVerdicts` (`replayFacts`, `ReplayGates`, `unpagedRead`, `adjudicate`, `calleeFqn`, `planHost`, `planDatabase`, `gateOf`) | 28 |
+| `JudgePlans` (`PlannedSide`, `plannedSide`, `evalSide`, `shapeOf`, `Kind`) | 9 |
+| `HostSides` (`Ask`, `Check`) | 9 |
+| `DatabaseJudge.planSide`/`SideRows`, `JudgmentFacts.enumsOf` | 3 |
+
+**Order (each compile-green and pushed; the pins stay transitional until the last):**
+
+1. **S2c-1, the facade.** A public context in `testplan` (`EngineTextPlanning`) that the edge's arm calls for each
+   read above, implemented by the test planner over `ExecEnv`; the arm's state types (the collector, `Collected`,
+   `NotAConstant`, `BatchTexts`) become the facet's own types.
+2. **S2c-2, the callers.** Every call into the arm listed above goes through the facet (`env`'s style), so the test
+   planner names no `SqlTextVerdicts` member.
+3. **S2c-3, the move.** `SqlTextVerdicts` moves to `com.legend.edge` over the facade; the bridge `EngineTestText.arm`
+   and its `ArchitectureTest` entry go; the pins return below 1,520 and 1,157.
+
 ## Rules kept
 
 - No product class names an edge type (G5); `ArchitectureTest.onlyTheEdgeImplementsTheHooksUpstreamSide` and the
