@@ -192,7 +192,7 @@ class ProductRaiseProbeTest {
             new Parse("parseFloat", "+-1", "raise"), new Parse("parseFloat", "0x10", "raise"),
             new Parse("parseFloat", " 1 ", "1.0"), new Parse("parseFloat", "1f", "1.0"),
             new Parse("parseFloat", "1e5", "100000.0"), new Parse("parseFloat", "NaN", "NaN"),
-            new Parse("parseFloat", "Infinity", "Infinity"),
+            new Parse("parseFloat", "Infinity", "Infinity"), new Parse("parseFloat", "12", "12.0"),
             new Parse("parseInteger", "abc", "raise"), new Parse("parseInteger", "", "raise"),
             new Parse("parseInteger", "+-1", "raise"), new Parse("parseInteger", "0x10", "raise"),
             new Parse("parseInteger", "1f", "raise"), new Parse("parseInteger", "1e5", "raise"),
@@ -234,11 +234,10 @@ class ProductRaiseProbeTest {
                     ? rows.substring(rows.indexOf("\"t\":") + 4).replaceAll("[}\\]\\s\"]", "") : null;
             switch (p.expect()) {
                 case "either" -> { }
-                case "raise" -> {
-                    if (!(got instanceof Throwable)) {
-                        wrong.add(label + ": expected a raise, answered " + describe(got));
-                    }
-                }
+                // lite's own kind by name on every database, never the database's own error (the user's error design,
+                // 2026-11-16 21:20: lite's guard runs on every database for every Pure-defined runtime error)
+                case "raise" -> expectKind(wrong, label, got, p.fn().equals("parseFloat")
+                        ? com.legend.error.ErrorKind.TEXT_NOT_FLOAT : com.legend.error.ErrorKind.TEXT_NOT_INTEGER, null);
                 case "NaN", "Infinity" -> {
                     if (got instanceof Throwable) {
                         expectKind(wrong, label, got, com.legend.error.ErrorKind.VALUE_NOT_HELD, null);

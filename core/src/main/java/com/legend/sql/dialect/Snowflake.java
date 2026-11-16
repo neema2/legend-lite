@@ -1308,6 +1308,14 @@ public class Snowflake extends AnsiSqlRenderer {
 
     @Override
     protected SqlWriter variantAwareCast(SqlWriter writer, SqlExpr.Cast c) {
+        // parseFloat: legend-pure's grammar, lite's TEXT_NOT_FLOAT by name, never the cast's own error (Phase 8)
+        if (isParseFloat(c)) {
+            SqlExpr x = c.value();
+            return guardedParseFloat(writer, x, w -> w.append("REGEXP_LIKE(").expr(x, 0).append(", ")
+                            .append(stringLit(FLOAT_GRAMMAR)).append(")"),
+                    w -> w.append("CAST(TRIM(REGEXP_REPLACE(").expr(x, 0).append(", ")
+                            .append(stringLit("[fF][[:space:]]*$")).append(", '')) AS DOUBLE)"));
+        }
         SqlType target = c.target();
         SqlExpr v = c.value();
         if (target == SqlType.Scalar.TEMPORAL_TEXT || target == SqlType.Scalar.DECIMAL_TEXT) {
@@ -1500,9 +1508,11 @@ public class Snowflake extends AnsiSqlRenderer {
             case INT_DIVIDE -> intDivide(writer, c);
             case BIT_NOT -> writer.append("BITNOT(").expr(a.get(0), 0).append(")");
             // a 64-bit integer text: CAST rounds a decimal text ('1.5' is 2, measured), so the text is checked first
-            case PARSE_INT -> writer.append("CAST(CASE WHEN REGEXP_LIKE(").expr(a.get(0), 0).append(", ")
-                    .append(stringLit("\\s*[-+]?[0-9]+\\s*")).append(") THEN ").expr(a.get(0), 0).append(" ELSE ")
-                    .expr(a.get(0), 0).append(" || ' is not an integer' END AS BIGINT)");
+            // legend-pure's parseInteger, lite's TEXT_NOT_INTEGER by name, never the cast's own error (Phase 8)
+            case PARSE_INT -> guardedParseInt(writer, a.get(0),
+                    w -> w.append("REGEXP_LIKE(").expr(a.get(0), 0).append(", ").append(stringLit("^[+-]?[0-9]+$"))
+                            .append(")"),
+                    w -> w.append("CAST(").expr(a.get(0), 0).append(" AS BIGINT)"));
             // an ISO text with an offset is its UTC instant (a TIMESTAMP_NTZ cast drops the offset, measured)
             case PARSE_DATE -> writer.append("CAST(CONVERT_TIMEZONE('UTC', TO_TIMESTAMP_TZ(").expr(a.get(0), 0)
                     .append(")) AS TIMESTAMP_NTZ)");
