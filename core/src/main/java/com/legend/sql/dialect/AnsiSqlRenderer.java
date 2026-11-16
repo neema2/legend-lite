@@ -861,12 +861,25 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
      * textual view has no compaction — it drops host-side; the
      * checkedOne/processNoOp precedent). */
     protected SqlWriter compactList(SqlWriter writer, SqlExpr.CompactList cl, int parentPrec) {
+        // a list that can hold no NULL is its own compaction (E-v3, 2026-11-16): the filter would keep every element
+        if (holdsNoNull(cl.list())) {
+            return writer.expr(cl.list(), parentPrec);
+        }
         return writer.expr(SqlExpr.Call.of(
                 com.legend.sql.SqlFn.LIST_FILTER, cl.list(),
                 new SqlExpr.Lambda(java.util.List.of("x"),
                         SqlExpr.Call.of(com.legend.sql.SqlFn.IS_NOT_NULL,
                                 SqlExpr.Column.derived(null, "x")))),
                 parentPrec);
+    }
+
+    /** Whether {@code list} can hold no NULL element: a compacted list, a range (integers from a start by a step), or
+     *  a literal whose every element is a value. */
+    protected static boolean holdsNoNull(SqlExpr list) {
+        return list instanceof SqlExpr.CompactList
+                || list instanceof SqlExpr.Call c && c.fn() == com.legend.sql.SqlFn.RANGE_FN
+                || list instanceof SqlExpr.ArrayLit al && al.elements().stream()
+                        .noneMatch(com.legend.sql.SqlTyping::mayBeNull);
     }
 
     /** An expression, written: a leaf is spelled as text; a sub-expression is written into the same writer, so a

@@ -3318,13 +3318,6 @@ public class Snowflake extends AnsiSqlRenderer {
         };
     }
 
-    /** Whether {@code list} can hold no NULL element: a compacted list, or a literal whose every element is a value. */
-    private static boolean holdsNoNull(SqlExpr list) {
-        return list instanceof SqlExpr.CompactList
-                || list instanceof SqlExpr.ArrayLit al && al.elements().stream()
-                        .noneMatch(com.legend.sql.SqlTyping::mayBeNull);
-    }
-
     /** A {@code data:} payload bound as one parameter, split here (round 2, 2026-11-11, measured): each element a
      *  VARIANT, a frame's record its place as FLATTEN's index (from 0, the payload's order); an empty array no row. */
     @Override

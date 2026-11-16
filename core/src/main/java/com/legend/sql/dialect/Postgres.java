@@ -1120,9 +1120,16 @@ public class Postgres extends AnsiSqlRenderer {
         SqlWriter.Piece step = a.size() > 2 ? w -> w.expr(a.get(2), 0) : w -> w.append("1");
         // (generate_series's arguments: Postgres's planner estimates its rows from them, so a raise within them is
         // written as no planner evaluates, SqlWriter.planned)
-        return writer.append("ARRAY(SELECT g FROM generate_series(CAST(").planned(start)
+        writer.append("ARRAY(SELECT g FROM generate_series(CAST(").planned(start)
                 .append(" AS BIGINT), CAST(").planned(stop).append(" AS BIGINT), CAST(").planned(step)
-                .append(" AS BIGINT)) AS g WHERE CASE WHEN ").piece(step).append(" > 0 THEN g < ").piece(stop)
+                .append(" AS BIGINT)) AS g WHERE ");
+        // a step the program spelled as a number names its direction: the bound's comparison is that side's alone
+        // (E-v3, 2026-11-16: the CASE on a literal's sign read a spelled token the database need not re-read)
+        Long spelled = a.size() > 2 ? (a.get(2) instanceof SqlExpr.IntLit l ? Long.valueOf(l.value()) : null) : 1L;
+        if (spelled != null && spelled != 0) {
+            return writer.append(spelled > 0 ? "g < " : "g > ").piece(stop).append(")");
+        }
+        return writer.append("CASE WHEN ").piece(step).append(" > 0 THEN g < ").piece(stop)
                 .append(" ELSE g > ").piece(stop).append(" END)");
     }
 
