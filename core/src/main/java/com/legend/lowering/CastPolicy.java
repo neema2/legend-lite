@@ -116,7 +116,7 @@ final class CastPolicy {
             boolean variantTarget = c.target() instanceof Type.ClassType t
                     && PlatformTypes.isVariant(t);
             return variantTarget
-                    ? SqlExpr.Call.of(SqlFn.VARIANT_ELEMENTS, value)
+                    ? Fold.variantElements(value)
                     // A to-many cast targets an ARRAY of the element type —
                     // expressed in the TYPE (SqlType.Array). JSON null stays
                     // SQL NULL (real relation-land pins toVariant(NULL) =

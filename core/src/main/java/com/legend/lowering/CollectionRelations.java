@@ -62,14 +62,14 @@ final class CollectionRelations {
         Type elem = (Type.requireRelationSchema(cr.info().type()))
                 .columns().get(0).type();
         SqlExpr list = elem instanceof Type.ClassType
-                ? SqlExpr.Call.of(SqlFn.VARIANT_ELEMENTS, value)
+                ? Fold.variantElements(value)
                 : value;
         // A VARIANT ELEMENT column keeps JSON elements; the list may
         // itself be a variant (fromJson(...)->toMany(@Variant)).
         if (cr.value().info().type() instanceof Type.ClassType vc
                 && com.legend.compiler.element.type.PlatformTypes.isVariant(vc)
                 && !(elem instanceof Type.ClassType)) {
-            list = SqlExpr.Call.of(SqlFn.VARIANT_ELEMENTS, value);
+            list = Fold.variantElements(value);
         }
         return SqlSelect.starOf(new SqlSource.Subselect(
                 rows(list, cr.column(),

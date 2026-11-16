@@ -1682,4 +1682,17 @@ final class Fold {
         }
         return ps;
     }
+
+    /** A variant's elements: {@code value} itself where it is already a list (a variant's elements, or a value typed
+     *  as an array of JSON), else {@code VARIANT_ELEMENTS(value)} -- never the elements of elements, which a dialect writes as
+     *  the list cast back to JSON and taken apart again (the DuckDB plan's item 2, 2026-11-16). */
+    static SqlExpr variantElements(SqlExpr value) {
+        if (value instanceof SqlExpr.Call c && c.fn() == SqlFn.VARIANT_ELEMENTS
+                || value.type() instanceof com.legend.sql.TypeFact.Typed t
+                        && t.type() instanceof com.legend.sql.SqlType.Array a
+                        && a.element() == com.legend.sql.SqlType.Scalar.JSON) {
+            return value;
+        }
+        return SqlExpr.Call.of(SqlFn.VARIANT_ELEMENTS, value);
+    }
 }

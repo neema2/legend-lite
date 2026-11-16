@@ -1193,7 +1193,14 @@ public class DuckDb extends AnsiSqlRenderer {
      */
     @Override
     protected SqlWriter variantElements(SqlWriter writer, List<SqlExpr> args) {
+        // a value typed JSON is written as it is: CAST(x AS JSON) of a JSON x is x (the DuckDB plan's item 2, 2026-11-16)
+        boolean json0 = !storedVariant(args.get(0)) && args.get(0).type() instanceof com.legend.sql.TypeFact.Typed t
+                && t.type() == com.legend.sql.SqlType.Scalar.JSON;
         SqlWriter.Piece json = w -> {
+            if (json0) {
+                w.expr(args.get(0), 0);
+                return;
+            }
             w.append("CAST(");
             if (storedVariant(args.get(0))) {
                 navigated(w, args.get(0));
