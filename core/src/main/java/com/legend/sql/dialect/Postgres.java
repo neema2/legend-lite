@@ -399,7 +399,7 @@ public class Postgres extends AnsiSqlRenderer {
                 String k = stringLit(entry.fields().get(0).name());
                 String v = stringLit(entry.fields().get(1).name());
                 SqlWriter.Piece entries = w -> w.append("ARRAY(SELECT jsonb_build_object('key', __me -> " + k
-                        + ", 'value', __me -> " + v + ") FROM ").piece(unnest(p -> p.expr(xs, 0)))
+                        + ", 'value', __me -> " + v + ") FROM ").piece(unnest(new ExprPiece(xs)))
                         .append(" WITH ORDINALITY AS __mu(__me, __mo) ORDER BY __mo)");
                 yield writer.piece(nullIfNull(xs, keysChecked(entries)));
             }
@@ -412,7 +412,7 @@ public class Postgres extends AnsiSqlRenderer {
                 SqlWriter.Piece entries = w -> w.append("ARRAY(SELECT jsonb_build_object('key', ")
                         .piece(asJsonb(v -> v.append("__mk"), kt)).append(", 'value', ")
                         .piece(asJsonb(v -> v.append("(").expr(vs, 0).append(")[__mo]"), vt)).append(") FROM ")
-                        .piece(unnest(p -> p.expr(ks, 0))).append(" WITH ORDINALITY AS __mu(__mk, __mo) ORDER BY __mo)");
+                        .piece(unnest(new ExprPiece(ks))).append(" WITH ORDINALITY AS __mu(__mk, __mo) ORDER BY __mo)");
                 yield writer.append("(CASE WHEN ").expr(ks, 4).append(" IS NULL OR ").expr(vs, 4)
                         .append(" IS NULL THEN NULL WHEN cardinality(").expr(ks, 0).append(") <> cardinality(")
                         .expr(vs, 0).append(") THEN ").piece(mapRaise(com.legend.sql.RaiseKind.MAP_KEYS_MISALIGNED)).append(" ELSE ").piece(keysChecked(entries)).append(" END)");
@@ -424,7 +424,7 @@ public class Postgres extends AnsiSqlRenderer {
                 for (int i = 0; i < a.size(); i++) {
                     SqlExpr map = a.get(i);
                     writer.append(i > 0 ? " UNION ALL " : "").append("SELECT " + i + " AS s, __me -> 'key' AS k,"
-                            + " __me -> 'value' AS v, __mo AS o FROM ").piece(unnest(p -> p.expr(map, 0)))
+                            + " __me -> 'value' AS v, __mo AS o FROM ").piece(unnest(new ExprPiece(map)))
                             .append(" WITH ORDINALITY AS __mu" + i + "(__me, __mo)");
                 }
                 yield writer.append(") AS __mg GROUP BY __mg.k ORDER BY min(__mg.s), (array_agg(__mg.o ORDER BY"
@@ -438,7 +438,7 @@ public class Postgres extends AnsiSqlRenderer {
                 boolean keys = c.fn() == SqlFn.MAP_KEYS;
                 SqlWriter.Piece read = w -> {
                     w.append("ARRAY(SELECT ").piece(held(u -> u.append(keys ? "__me -> 'key'" : "__me -> 'value'"),
-                            keys ? mt.key() : mt.value(), 0)).append(" FROM ").piece(unnest(p -> p.expr(m, 0)))
+                            keys ? mt.key() : mt.value(), 0)).append(" FROM ").piece(unnest(new ExprPiece(m)))
                             .append(" WITH ORDINALITY AS __mu(__me, __mo)");
                     if (c.fn() == SqlFn.MAP_EXTRACT) {
                         w.append(" WHERE __me -> 'key' = ").piece(asJsonb(u -> u.expr(a.get(1), 0), mt.key()));
