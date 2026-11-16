@@ -491,6 +491,8 @@ public final class Lowerer {
         // step 7's second half (2026-11-16): what a FROM select writes more than once over its own row, computed once
         // beside the row (LetBinding.bindRowRepeats; a database that reads no lateral writes it back, RowLets.Inline)
         if (!engineText) {
+            // a relation's size counts its rows with no wrapper (CountCollapse, the DuckDB plan's step 1, 2026-11-16)
+            q = CountCollapse.apply(q);
             q = LetBinding.bindRowRepeats(q);
         }
         // a count of rows a declared key makes one is 1 (KeyedCounts: the time model's D2), then the unread pruned
