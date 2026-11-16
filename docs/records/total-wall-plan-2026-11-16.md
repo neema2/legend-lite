@@ -302,6 +302,18 @@ a ruling, batched in §10. It does not wait on that batch unless the work is blo
   - a standing timing set;
   - the mixed-list correctness floor (refusals by name where a value can't be held exactly).
 
+### Built on `claude/total-wall-e-sql-v3` so far (E-v2 merged in; the gate 40/40 green)
+1. Snowflake reads a NULL-free list directly with `FLATTEN`; channel A 762K → 719.5K characters.
+2. Snowflake writes `IFF` for a one-WHEN CASE.
+3. Postgres: no fence around `unnest` of a constant list; subselects 1,696 → 1,267. A map's `unnest` is read once.
+4. Every SQL database: compacting a list that cannot hold a NULL is the list itself. Postgres's literal-step range
+   writes `g < stop`.
+5. Postgres writes a list literal's type once.
+6. Postgres builds a small literal list as `jsonb_build_array(x)`. Its checks were running at the freeze.
+
+Snowflake's items are timed on its lane in E-v3's lane round. Text-level spellings that cannot be slower are the only
+kind allowed without a timing.
+
 ### Left, in order (each stacked on the last, one review and one lane round each)
 1. **E-v3: Snowflake and Postgres.**
    - Snowflake: read its largest repeats once, its own idioms (`IFF`, `ARRAY_*`), and RowValues read the faster way by
@@ -387,3 +399,5 @@ run, and the user's merge word.
 | 2026-11-16 12:55 | (recorded) S2b's pins grew transitionally (AssertVerdicts 1,520 → 1,529, SqlTextVerdicts 1,157 → 1,173); S2c takes both back below the earlier numbers. |
 | 2026-11-16 13:05 | (recorded) D interrupted: commit the planner-text move as it stands, then the Float revert before anything else. |
 | 2026-11-16 13:10 | (recorded) Snowflake's timing re-run stopped (it was timing code being reverted); it is timed fresh after the revert. |
+| 2026-11-16 13:25 | E-Java's S2c: only S2c-1a (a pure move, no guard row) goes ahead during the freeze. The rest, moving `SqlTextVerdicts` to the edge, reads about 20 test-planner members. **Decided (b):** one public facade class in `testplan` (the typed seam E-Java proposed at S2's start), with one architecture entry row, rather than about 20 entry rows. It is narrower, one place to read, and one row to guard. It is built after the freeze lifts. |
+| 2026-11-16 13:25 | E-SQL's item 6 (Postgres `jsonb_build_array`), committed just before the freeze, stays. It is a dialect spelling within E-v3's plan, and E-v3's review and lane round judge it. |
