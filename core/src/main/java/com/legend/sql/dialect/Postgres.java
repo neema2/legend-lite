@@ -463,12 +463,13 @@ public class Postgres extends AnsiSqlRenderer {
 
     /** {@code entries} when their keys are each non-NULL and distinct; DuckDB's error otherwise. */
     private SqlWriter.Piece keysChecked(SqlWriter.Piece entries) {
-        return w -> w.append("(CASE WHEN (SELECT count(*) FROM ").piece(unnest(entries))
-                .append(" AS __mk(e) WHERE jsonb_typeof(e -> 'key') = 'null') > 0 THEN ")
-                .piece(mapRaise(com.legend.sql.RaiseKind.MAP_KEY_NULL)).append(" WHEN (SELECT count(DISTINCT e -> 'key') FROM ")
-                        .piece(unnest(entries)).append(" AS __mk(e)) < cardinality(").piece(entries)
-                .append(") THEN ").piece(mapRaise(com.legend.sql.RaiseKind.MAP_KEYS_NOT_UNIQUE)).append(" ELSE ").piece(entries)
-                .append(" END)");
+        // both checks in one pass over the entries, NULL when they hold, so the entries are read twice, not four times
+        // (E-v3, 2026-11-16): a NULL or empty list passes as before (no row, no raise), a NULL key raises first
+        return w -> w.append("coalesce((SELECT CASE WHEN bool_or(jsonb_typeof(e -> 'key') = 'null') THEN ")
+                .piece(mapRaise(com.legend.sql.RaiseKind.MAP_KEY_NULL))
+                .append(" WHEN count(DISTINCT e -> 'key') < count(*) THEN ")
+                .piece(mapRaise(com.legend.sql.RaiseKind.MAP_KEYS_NOT_UNIQUE)).append(" END FROM ").piece(unnest(entries))
+                .append(" AS __mk(e)), ").piece(entries).append(")");
     }
 
     /** A map's raise of {@code kind} (DuckDB's words the edge's, D1.1), raised as a map (the CASE's type). */
