@@ -34,10 +34,11 @@ final class MixedEncoding {
      * SQL slot that holds it exactly, which a SELECTION returns as a tagged value ({@link #tagged}: the winner's kind
      * survives as a type, never as a spelling; 2026-10-23). (A third channel of spellings went with track L's L2.)
      */
-    record MixedElems(List<SqlExpr> vals, List<SqlExpr.Tagged.Candidate> candidates) {
+    record MixedElems(List<SqlExpr> vals, List<SqlExpr.Tagged.Candidate> candidates, List<SqlExpr> computedIntegers) {
 
+        /** The comparables, guarded once over the list's distinct computed Integers ({@link #guardedRanks}). */
         SqlExpr valList() {
-            return new SqlExpr.ArrayLit(vals);
+            return guardedRanks(new SqlExpr.ArrayLit(vals), computedIntegers);
         }
 
         /** The selection: the candidate at the FIRST position of {@code winner} in the comparables (Pure's max and
@@ -117,6 +118,7 @@ final class MixedEncoding {
         List<SqlType> slots = new ArrayList<>(n);
         List<SqlExpr> values = new ArrayList<>(n);
         List<SqlExpr> ranks = new ArrayList<>(n);
+        java.util.Set<SqlExpr> computedIntegers = new java.util.LinkedHashSet<>();
         for (int i = 0; i < n; i++) {
             TypedSpec e = c.elements().get(i);
             SqlExpr x = unwrapVariant(lowered.get(i));
@@ -173,6 +175,9 @@ final class MixedEncoding {
             if (rank == null) {
                 return null;
             }
+            if (t == Type.Primitive.INTEGER && !(unwrapLiteral(x) instanceof SqlExpr.IntLit)) {
+                computedIntegers.add(x);
+            }
             kinds.add(kind);
             slots.add(slot);
             values.add(x);
@@ -227,7 +232,7 @@ final class MixedEncoding {
             positions.add(new SqlExpr.IntLit(i));
         }
         SqlExpr.TaggedList tl = new SqlExpr.TaggedList(new SqlExpr.ArrayLit(positions), new SqlExpr.ArrayLit(tags),
-                new SqlExpr.ArrayLit(ranks), channels);
+                guardedRanks(new SqlExpr.ArrayLit(ranks), List.copyOf(computedIntegers)), channels);
         // an element that may be empty ([0..1]-stamped) contributes nothing when it is: the list's positions are
         // those whose element is present (Pure's collection holds no empties; the plain arm's CompactList)
         return compacts(c) ? tl.withPositions(TaggedLists.presentPositions(tl)) : tl;
@@ -553,12 +558,13 @@ final class MixedEncoding {
             List<SqlExpr> lowered) {
         List<SqlExpr> vals = new ArrayList<>();
         List<SqlExpr.Tagged.Candidate> candidates = new ArrayList<>();
+        java.util.Set<SqlExpr> computed = new java.util.LinkedHashSet<>();
         for (int i = 0; i < elems.size(); i++) {
-            if (!encodeMixed(elems.get(i), lowered.get(i), vals, candidates)) {
+            if (!encodeMixed(elems.get(i), lowered.get(i), vals, candidates, computed)) {
                 return null;
             }
         }
-        return new MixedElems(vals, candidates);
+        return new MixedElems(vals, candidates, List.copyOf(computed));
     }
 
     /**
@@ -570,13 +576,17 @@ final class MixedEncoding {
     private static boolean encodeMixed(TypedSpec e,
                                        SqlExpr x,
                                        List<SqlExpr> vals,
-                                       List<SqlExpr.Tagged.Candidate> candidates) {
+                                       List<SqlExpr.Tagged.Candidate> candidates,
+                                       java.util.Set<SqlExpr> computed) {
         // a carrier-wrapped element unwraps: identity/comparable both
         // build from the RAW value (floatRepr over json cannot type)
         x = unwrapVariant(x);
         Type t = e.info().type();
         if (t == Type.Primitive.INTEGER) {
             vals.add(new SqlExpr.Cast(x, SqlType.Scalar.DOUBLE, SqlExpr.Reason.CARRIER));
+            if (!(unwrapLiteral(x) instanceof SqlExpr.IntLit)) {
+                computed.add(x);
+            }
             candidates.add(new SqlExpr.Tagged.Candidate("Integer", SqlType.Scalar.BIGINT, x));
             return true;
         }
@@ -1007,5 +1017,49 @@ final class MixedEncoding {
         return CollectionLanes.valueLane(c) && c.elements().stream().anyMatch(e ->
                 e.info().multiplicity() instanceof com.legend.compiler.element.type.Multiplicity.Bounded b
                 && b.lower() == 0);
+    }
+
+    /** 2^53, past which a DOUBLE does not hold every integer. */
+    private static final long EXACT_IN_A_DOUBLE = 1L << 53;
+
+    /**
+     * A mixed list's ranks (its numbers as DOUBLE), guarded ONCE over its distinct COMPUTED Integers: a literal is
+     * decided at planning (TaggedLists' and the extremes' refusals of one the double does not hold); a computed one is
+     * not known there, so the database raises when any of them is beyond 2^53, where two could share a rank (the PR1
+     * re-review's A2, 2026-11-16; docs/records/pr1-rulings-2026-11-15.md, R4: a known wrong order, now a refusal by
+     * name). One check per distinct expression over the whole list -- the orchestrator's choice (c) after measuring a
+     * guard per element at about twice a 2,000-element sort's time. No computed Integer: the ranks as they are.
+     */
+    static SqlExpr guardedRanks(SqlExpr ranks, List<SqlExpr> computedIntegers) {
+        if (computedIntegers.isEmpty()) {
+            return ranks;
+        }
+        SqlExpr beyond = beyondAnExactDouble(computedIntegers.get(0));
+        for (SqlExpr x : computedIntegers.subList(1, computedIntegers.size())) {
+            beyond = SqlExpr.Call.of(SqlFn.OR, beyond, beyondAnExactDouble(x));
+        }
+        return Scalars.guarded(beyond, new SqlExpr.RaiseText(com.legend.sql.RaiseKind.VALUE_NOT_HELD,
+                List.of(new SqlExpr.StringLit("an Integer beyond 2^53 in a mixed list's order: its DOUBLE rank does"
+                        + " not hold it exactly (refused until the kinds-kept carrier ranks numbers exactly)"))),
+                ranks);
+    }
+
+    private static SqlExpr beyondAnExactDouble(SqlExpr x) {
+        return SqlExpr.Call.of(SqlFn.GREATER, SqlExpr.Call.of(SqlFn.ABS, x), new SqlExpr.IntLit(EXACT_IN_A_DOUBLE));
+    }
+
+    private static SqlExpr unwrapLiteral(SqlExpr v) {
+        SqlExpr at = v;
+        while (true) {
+            if (at instanceof SqlExpr.Cast c) {
+                at = c.value();
+            } else if (at instanceof SqlExpr.Group g) {
+                at = g.inner();
+            } else if (at instanceof SqlExpr.Call c && c.fn() == SqlFn.NEGATE && c.args().size() == 1) {
+                at = c.args().get(0);
+            } else {
+                return at;
+            }
+        }
     }
 }

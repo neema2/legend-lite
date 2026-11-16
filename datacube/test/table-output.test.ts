@@ -14,7 +14,7 @@ import type { TableOutput } from '../src/layout/flow.ts';
 import { writeTable, type TableWriteHost } from '../src/table-output.ts';
 import { catalogColumns } from '../src/upload.ts';
 import { plannerFor } from './catalog-builder.ts';
-import { unplanned } from '../../engine-client/test/unplanned.ts';
+import { unplanned, asTest } from '../../engine-client/test/unplanned.ts';
 
 describe('a box written into a table of its host\'s database, in one transaction', () => {
   let engine: DuckDbEngine;
@@ -50,7 +50,7 @@ describe('a box written into a table of its host\'s database, in one transaction
     lambda([], keep === undefined ? source : fn('filter', source, lambda(['x'], keep(variable('x')))));
   const out = (name: string, mode: TableOutput['mode'], keys?: string[]): TableOutput => ({ format: 'table', name, mode, ...(keys ? { keys } : {}) });
   const rows = async (table: string): Promise<string> => {
-    const t = await engine.exclusive((held) => held.rows(unplanned(`SELECT id, name, amount FROM ${table} ORDER BY id`), []));
+    const t = await asTest(engine).exclusive((held) => held.rows(unplanned(`SELECT id, name, amount FROM ${table} ORDER BY id`), []));
     return t.map((r) => r.map(String).join(':')).join(' ');
   };
 
@@ -58,9 +58,9 @@ describe('a box written into a table of its host\'s database, in one transaction
     const db = await openDatabase();
     engine = new DuckDbEngine(db.connection);
     models = plannerFor('', 'local::RT');
-    for (const t of ['tw_src', 'tw_out', 'tw_none']) await engine.run(unplanned(`DROP TABLE IF EXISTS ${t}`), 0);
-    await engine.run(unplanned('CREATE TABLE tw_src (id INTEGER, name VARCHAR, amount DOUBLE)'), 0);
-    await engine.run(unplanned("INSERT INTO tw_src VALUES (1, 'a', 1.5), (2, 'b', 2.5), (3, 'c', 3.5)"), 0);
+    for (const t of ['tw_src', 'tw_out', 'tw_none']) await asTest(engine).run(unplanned(`DROP TABLE IF EXISTS ${t}`), 0);
+    await asTest(engine).run(unplanned('CREATE TABLE tw_src (id INTEGER, name VARCHAR, amount DOUBLE)'), 0);
+    await asTest(engine).run(unplanned("INSERT INTO tw_src VALUES (1, 'a', 1.5), (2, 'b', 2.5), (3, 'c', 3.5)"), 0);
     const written = await models.tablesModel([{ table: 'tw_src', convertible: true, columns: await catalogColumns(engine, models, 'tw_src') }], 'DuckDB');
     source = written.tables[0]!.source;
   });
@@ -87,9 +87,9 @@ describe('a box written into a table of its host\'s database, in one transaction
   });
 
   it('merges by its keys: a row of the same key updated, a new one added', async () => {
-    await engine.run(unplanned("UPDATE tw_src SET amount = amount * 10 WHERE id = 2"), 0);
-    await engine.run(unplanned("INSERT INTO tw_src VALUES (4, 'd', 4.5)"), 0);
-    await engine.run(unplanned('DELETE FROM tw_out WHERE id >= 3'), 0);
+    await asTest(engine).run(unplanned("UPDATE tw_src SET amount = amount * 10 WHERE id = 2"), 0);
+    await asTest(engine).run(unplanned("INSERT INTO tw_src VALUES (4, 'd', 4.5)"), 0);
+    await asTest(engine).run(unplanned('DELETE FROM tw_out WHERE id >= 3'), 0);
     assert.equal(await writeTable(rowsOf(), out('tw_out', 'merge', ['id']), host()), 4);
     assert.equal(await rows('tw_out'), '1:a:1.5 2:b:25 3:c:3.5 4:d:4.5');
   });
@@ -97,7 +97,7 @@ describe('a box written into a table of its host\'s database, in one transaction
   it('refuses in words a table of the page\'s own, and one an append has not', async () => {
     await assert.rejects(() => writeTable(rowsOf(), out('tw_src', 'overwrite'), host()), /one of this page's own tables/);
     await assert.rejects(() => writeTable(rowsOf(), out('tw_none', 'append'), host()), /has no table 'tw_none'/);
-    const made = await engine.exclusive((held) => held.rows(unplanned("SELECT count(*) FROM information_schema.tables WHERE table_name = 'tw_none'"), []));
+    const made = await asTest(engine).exclusive((held) => held.rows(unplanned("SELECT count(*) FROM information_schema.tables WHERE table_name = 'tw_none'"), []));
     assert.equal(Number(made[0]?.[0]), 0, 'nothing made');
   });
 });

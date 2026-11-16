@@ -361,7 +361,18 @@ public final class LeanSqlBaseline {
     public static boolean isRefusal(Throwable e) {
         return e instanceof com.legend.error.LegendCompileException
                 || e instanceof com.legend.error.NotImplementedException
-                || e instanceof com.legend.sql.DialectCapability || e instanceof UnsupportedOperationException;
+                || e instanceof com.legend.sql.DialectCapability || isRenderArmRefusal(e);
+    }
+
+    /** A dialect's render arm that cannot express a variant throws {@code UnsupportedOperationException} (AGENTS.md
+     *  invariant 3): that, thrown FROM a dialect, is a refusal; the same class thrown anywhere else (an immutable
+     *  collection mutated while planning) is a defect, never counted as refused (the PR1 re-review's B7, 2026-11-16). */
+    public static boolean isRenderArmRefusal(Throwable e) {
+        if (e.getClass() != UnsupportedOperationException.class) {
+            return false;
+        }
+        StackTraceElement[] at = e.getStackTrace();
+        return at.length > 0 && at[0].getClassName().startsWith("com.legend.sql.dialect.");
     }
 
     /** {@code model} with the storeless runtime on {@code type}: its in-process declaration where the connector has

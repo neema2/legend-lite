@@ -3,7 +3,7 @@ set	database	family	statements	chars	plan	subselects	repeated	refused
 corpus	DuckDB	meta::external::store::relational::modelJoins::test	1	1798	9404	1	0	0
 corpus	DuckDB	meta::pure::alloy::connections::tests::relationalMapper	0	0	0	0	0	0
 corpus	DuckDB	meta::pure::executionPlan::m2m2r::tests	1	1005	3841	0	310	0
-corpus	DuckDB	meta::pure::executionPlan::tests	0	0	256	0	0	8
+corpus	DuckDB	meta::pure::executionPlan::tests	0	0	256	0	0	7
 corpus	DuckDB	meta::pure::executionPlan::tests::datetime	0	0	0	0	0	1
 corpus	DuckDB	meta::pure::executionPlan::tests::execution	0	0	0	0	0	2
 corpus	DuckDB	meta::pure::graphFetch::tests::XStore::inMemoryAndRelational	0	0	0	0	0	0
@@ -40,8 +40,8 @@ corpus	DuckDB	meta::relational::graphFetch::tests::union::relationalGraphFetchUn
 corpus	DuckDB	meta::relational::graphFetch::tests::union::rootLevel	0	0	512	0	0	0
 corpus	DuckDB	meta::relational::metamodel::execute::tests	0	0	256	0	0	0
 corpus	DuckDB	meta::relational::tds::schema::tests	0	0	0	0	0	1
-corpus	DuckDB	meta::relational::testDataGeneration::tests	148	721342	3192776	696	168566	3
-corpus	DuckDB	meta::relational::testDataGeneration::tests::alloy	74	250848	862416	0	62707	10
+corpus	DuckDB	meta::relational::testDataGeneration::tests	156	748663	3301884	713	175107	2
+corpus	DuckDB	meta::relational::testDataGeneration::tests::alloy	77	314544	1061445	0	70261	7
 corpus	DuckDB	meta::relational::tests::advanced::contractmoneyscenario	0	0	0	0	0	0
 corpus	DuckDB	meta::relational::tests::advanced::failures	0	0	512	0	0	0
 corpus	DuckDB	meta::relational::tests::advanced::failures::moveFilterInOnClause	0	0	0	0	0	0
@@ -114,7 +114,7 @@ corpus	DuckDB	meta::relational::tests::mapping::inheritance::relational::union	0
 corpus	DuckDB	meta::relational::tests::mapping::innerjoin::isolation	0	0	0	0	0	0
 corpus	DuckDB	meta::relational::tests::mapping::join	0	0	0	0	0	1
 corpus	DuckDB	meta::relational::tests::mapping::merge	0	0	0	0	0	0
-corpus	DuckDB	meta::relational::tests::mapping::modelJoin::advanced	24	24174	90711	0	740	1
+corpus	DuckDB	meta::relational::tests::mapping::modelJoin::advanced	25	25836	96571	0	781	0
 corpus	DuckDB	meta::relational::tests::mapping::modelJoin::milestoning	9	12486	44589	0	0	0
 corpus	DuckDB	meta::relational::tests::mapping::modelJoin::simple	10	7394	29269	0	0	0
 corpus	DuckDB	meta::relational::tests::mapping::modelJoin::union	4	4561	16864	0	1033	0
@@ -316,7 +316,7 @@ corpus	DuckDB	meta::relational::validation::tests::milestoning	1	33	1034	0	0	0
 corpus	H2	meta::external::store::relational::modelJoins::test	1	1843	10017	1	0	0
 corpus	H2	meta::pure::alloy::connections::tests::relationalMapper	0	0	0	0	0	0
 corpus	H2	meta::pure::executionPlan::m2m2r::tests	1	933	3904	0	250	0
-corpus	H2	meta::pure::executionPlan::tests	0	0	256	0	0	8
+corpus	H2	meta::pure::executionPlan::tests	0	0	256	0	0	7
 corpus	H2	meta::pure::executionPlan::tests::datetime	0	0	0	0	0	1
 corpus	H2	meta::pure::executionPlan::tests::execution	0	0	0	0	0	2
 corpus	H2	meta::pure::graphFetch::tests::XStore::inMemoryAndRelational	0	0	0	0	0	0
@@ -353,8 +353,8 @@ corpus	H2	meta::relational::graphFetch::tests::union::relationalGraphFetchUnionW
 corpus	H2	meta::relational::graphFetch::tests::union::rootLevel	0	0	512	0	0	0
 corpus	H2	meta::relational::metamodel::execute::tests	0	0	256	0	0	0
 corpus	H2	meta::relational::tds::schema::tests	0	0	0	0	0	1
-corpus	H2	meta::relational::testDataGeneration::tests	148	701418	3097059	696	151880	3
-corpus	H2	meta::relational::testDataGeneration::tests::alloy	74	231991	787779	0	51187	10
+corpus	H2	meta::relational::testDataGeneration::tests	156	727149	3199888	713	157273	2
+corpus	H2	meta::relational::testDataGeneration::tests::alloy	77	294205	979581	0	58282	7
 corpus	H2	meta::relational::tests::advanced::contractmoneyscenario	0	0	0	0	0	0
 corpus	H2	meta::relational::tests::advanced::failures	0	0	512	0	0	0
 corpus	H2	meta::relational::tests::advanced::failures::moveFilterInOnClause	0	0	0	0	0	0
@@ -427,7 +427,7 @@ corpus	H2	meta::relational::tests::mapping::inheritance::relational::union	0	0	0
 corpus	H2	meta::relational::tests::mapping::innerjoin::isolation	0	0	0	0	0	0
 corpus	H2	meta::relational::tests::mapping::join	0	0	0	0	0	1
 corpus	H2	meta::relational::tests::mapping::merge	0	0	0	0	0	0
-corpus	H2	meta::relational::tests::mapping::modelJoin::advanced	24	22861	94770	0	680	1
+corpus	H2	meta::relational::tests::mapping::modelJoin::advanced	25	24436	100606	0	721	0
 corpus	H2	meta::relational::tests::mapping::modelJoin::milestoning	9	11918	45636	0	0	0
 corpus	H2	meta::relational::tests::mapping::modelJoin::simple	10	6982	31777	0	0	0
 corpus	H2	meta::relational::tests::mapping::modelJoin::union	4	4301	17284	0	933	0

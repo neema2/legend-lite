@@ -7,7 +7,6 @@ import com.legend.compiler.element.ModelContext;
 import com.legend.error.LegendCompileException;
 import com.legend.error.ModelException;
 import com.legend.json.Json;
-import com.legend.parser.PmcdParser;
 import com.legend.protocol.ModelComposer;
 
 import java.util.ArrayList;
@@ -218,7 +217,7 @@ public final class ModelChanges {
         }
         List<int[]> cuts = new ArrayList<>();
         int[] lineStarts = lineStarts(project);
-        for (Json.Node n : Json.parseObject(PmcdParser.parseDocument(project, true)).getArr("elements").items()) {
+        for (Json.Node n : Json.parseObject(com.legend.door.Parse.documentJson(project, true)).getArr("elements").items()) {
             Json.Obj e = (Json.Obj) n;
             if (!"sectionIndex".equals(e.getStringOr("_type", "")) && replaced.contains(pathOf(e))) {
                 Json.Obj at = e.getObj("sourceInformation");
@@ -446,7 +445,7 @@ public final class ModelChanges {
     /** The model's elements, by path, as protocol (no source information). */
     static Map<String, Json.Obj> elementsOf(String model) {
         Map<String, Json.Obj> out = new LinkedHashMap<>();
-        for (Json.Node n : Json.parseObject(PmcdParser.parseDocument(model, false)).getArr("elements").items()) {
+        for (Json.Node n : Json.parseObject(com.legend.door.Parse.documentJson(model, false)).getArr("elements").items()) {
             Json.Obj e = (Json.Obj) n;
             if (!"sectionIndex".equals(e.getStringOr("_type", ""))) {
                 out.put(pathOf(e), e);
@@ -476,7 +475,7 @@ public final class ModelChanges {
 
     /** The one element a text holds, as protocol. */
     static Json.Obj element(String text) {
-        for (Json.Node n : Json.parseObject(PmcdParser.parseDocument(text, false)).getArr("elements").items()) {
+        for (Json.Node n : Json.parseObject(com.legend.door.Parse.documentJson(text, false)).getArr("elements").items()) {
             Json.Obj e = (Json.Obj) n;
             if (!"sectionIndex".equals(e.getStringOr("_type", ""))) {
                 return e;

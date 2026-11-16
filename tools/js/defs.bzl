@@ -3,6 +3,10 @@
 Every node:test file runs with the same settings, so no target spells them itself:
 
   * TypeScript run directly, types stripped (--experimental-strip-types), its warning silenced;
+  * AsyncLocalStorage on Node's AsyncContextFrame (--experimental-async-context-frame, Node 24's default; C5-T,
+    2026-11-15): the run frame (engine-client/src/run-frame.ts) then costs no promise hooks. Without it, once a test
+    had entered a run, every promise in its process paid 67-80 ns more and each run 170-200 ns; with it, a run pays
+    at most 43 ns and a promise nothing (docs/witness-cost-homework/README.md, "Node 22.16, the flag and Node 24");
   * two reporters: `spec` for the log, and //tools/js:strict_reporter for the EXIT CODE (Node counts a suite whose
     body throws as `# fail 0` and exits 0; the strict reporter fails the process on any `test:fail`);
   * a pinned locale and clock, LANG=C, LC_ALL=C, TZ=UTC, so a verdict never depends on the desk; a target that
@@ -48,7 +52,7 @@ def node_test(name, entry_point, data = [], wasm = False, env = {}, platform_env
     # else the runfiles tree's main-repository directory, where rules_js runs a test
     chdir = kwargs.get("chdir")
     up = "/".join([".."] * len(chdir.split("/"))) if chdir else "."
-    options = ["--experimental-strip-types", "--import=%s/%s" % (up, _ZONE)] + (["--experimental-wasm-exnref"] if wasm else []) + [
+    options = ["--experimental-strip-types", "--experimental-async-context-frame", "--import=%s/%s" % (up, _ZONE)] + (["--experimental-wasm-exnref"] if wasm else []) + [
         "--disable-warning=ExperimentalWarning",
         "--test-reporter=spec",
         "--test-reporter-destination=stdout",

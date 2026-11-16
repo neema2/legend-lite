@@ -219,19 +219,38 @@ class AuditRound3Test {
     @Test
     @DisplayName("audit: a malformed date pattern and a zone-shifted Z not at the end are refused BY NAME")
     void malformedDatePatternsAreRefusedByName() {
-        // an unterminated quote: a malformed input, a ModelException of the LOWER phase (b915e2940, F-M3-1; upstream's
-        // DateFormatPattern answers IllegalArgumentException "Missing closing quote in format string: ...", legend-pure
-        // 5.99.0); kept as is by the C4 final fix round's ruling of B3, 2026-11-14
+        // a pattern that never ends -- a quote left open swallows the brace, or there is no brace -- is refused at
+        // planning with legend-pure's words (C5-J item 5, 2026-11-15; register S342): pure finds the end as
+        // FormatTools.findEndOfDateFormatString does, quotes read, and refuses a literal format string's unended pattern
+        // when it compiles it (FormatValidator; its TestFormat.testPatternWithNoEnd pins `%t{yyyy "abc}`). Until then
+        // lite said "unterminated quote in date pattern" (b915e2940) and threw a bare IllegalStateException without a
+        // brace; pure's pattern parser's "Missing closing quote" is never reached through %t
         var unterminated = assertThrows(com.legend.error.ModelException.class,
                 () -> scalar("|format('%t{yyyy\"P}', [%2014-03-05])"));
-        assertTrue(String.valueOf(unterminated.getMessage()).contains("unterminated quote in date pattern: yyyy\"P"),
+        assertEquals("Could not find end of date format starting at index 2 of: %t{yyyy\"P}",
                 unterminated.getMessage());
+        var unclosed = assertThrows(com.legend.error.ModelException.class,
+                () -> scalar("|format('on %t{yyyy-MM-dd', [%2014-03-05])"));
+        assertEquals("Could not find end of date format starting at index 5 of: on %t{yyyy-MM-dd", unclosed.getMessage());
         // a Z inside a zone-shifted pattern: not implemented, refused by name (the C4 final fix round's B4: until then a
         // bare IllegalStateException, which the server answered 500 as a bug)
         var zoned = assertThrows(com.legend.error.NotImplementedException.class,
                 () -> scalar("|format('%t{[UTC]yyyy Z dd}', [%2014-03-05T01:02:03])"));
         assertTrue(String.valueOf(zoned.getMessage()).contains(
                 "a zone-shifted date pattern supports Z only as a suffix: [UTC]yyyy Z dd"), zoned.getMessage());
+    }
+
+    @Test
+    @DisplayName("C5-J item 5: a date pattern's quotes are read as legend-pure reads them")
+    void aDatePatternsQuotesAreReadAsPureReadsThem() throws Exception {
+        // a brace inside quoted text does not end the pattern (FormatTools.findEndOfDateFormatString): until 2026-11-15
+        // lite ended it at the first brace and refused 'yyyy"' as an unterminated quote
+        assertEquals("2014}", scalar("|format('%t{yyyy\"}\"}', [%2014-03-05])"));
+        // inside quoted text a backslash makes text of the character after it (DateFormatPattern.parseQuotedText): the
+        // format string %t{yyyy"a\"b"} writes the year, then a"b
+        assertEquals("2014a\"b", scalar("|format('%t{yyyy\"a\\\\\"b\"}', [%2014-03-05])"));
+        // a quoted Z in a zone-shifted pattern is text, not the offset: until 2026-11-15 refused as a Z not at the end
+        assertEquals("2014Z", scalar("|format('%t{[UTC]yyyy\"Z\"}', [%2014-03-05T01:02:03])"));
     }
 
     @Test

@@ -322,9 +322,17 @@ public final class ChannelB {
             plan = TestExecution.planBody(com.legend.Compiler.queryResolved(ctx, resolved),
                     com.legend.testbackend.StorelessRuntime.RUNTIME, OPTIONS);
         } catch (com.legend.error.LegendCompileException | com.legend.error.NotImplementedException
-                | com.legend.sql.DialectCapability | UnsupportedOperationException refused) {
+                | com.legend.sql.DialectCapability refused) {
             // a planning refusal: the body adds no judge SQL (its run fails as it does without the measure); any other
             // exception is a defect, and fails the body with its stack (G7, round 55f, 2026-11-15)
+            return;
+        } catch (UnsupportedOperationException e) {
+            // a render arm's refusal only (thrown from a dialect); the same class from elsewhere is a defect (B7)
+            StackTraceElement[] at = e.getStackTrace();
+            if (e.getClass() != UnsupportedOperationException.class || at.length == 0
+                    || !at[0].getClassName().startsWith("com.legend.sql.dialect.")) {
+                throw e;
+            }
             return;
         }
         judgeSql(plan.steps());
@@ -431,11 +439,16 @@ public final class ChannelB {
                     OPTIONS);
             told.add("ended: pass");
         } catch (java.sql.SQLException | RuntimeException e) {
-            // the whole message: the twice guard compares two runs' records, and a clipped middle could hide a
-            // difference (2026-11-15, PR1's review)
-            told.add("ended: " + e.getClass().getSimpleName() + ": " + flat(e.getMessage()));
+            told.add(ended(e));
         }
         return told;
+    }
+
+    /** How a run ended, for the twice guard's record: the failure's class and its WHOLE message -- two runs' records are
+     *  compared, and a clipped middle could hide a difference (2026-11-15, PR1's review; pinned by ChannelBTwiceTest's
+     *  planted difference past the old clip, the PR1 re-review's A7). */
+    static String ended(Exception e) {
+        return "ended: " + e.getClass().getSimpleName() + ": " + flat(e.getMessage());
     }
 
     /** The census detail line: assert messages are MULTI-LINE

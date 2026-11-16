@@ -5,7 +5,15 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { NOT_PLANNING, currentRun, frameKept, inRun, planning } from '../src/run-frame.ts';
+import { currentRun, frameKept, inRun, sending } from '../src/run-frame.ts';
+import { NOT_PLANNING, planning, readRunsWith } from '../src/plan-guard.ts';
+import { DuckDbEngine, type ArrowishTable } from '../src/duckdb.ts';
+import { WarehouseBinding, WarehouseEngine } from '../src/warehouse.ts';
+import { openedInTab, synthesizedInTab } from '../src/doors/tab-duckdb.ts';
+import { dataLoaded } from '../src/doors/project-data.ts';
+import { PLAN_VERSION } from '../src/plan-runner.ts';
+import type { PlannedSql } from '../src/planned-sql.ts';
+import { unplanned, unplannedPlan } from './unplanned.ts';
 import { answer, type PlannerModule } from '../src/legend/planner-answer.ts';
 import { WorkerPort } from '../src/legend/wasm-grammar.ts';
 import { HttpEngine, RoutedEngine } from '../src/legend/engine.ts';
@@ -20,6 +28,12 @@ const module = { exports: { planHeldOrError: () => 'OK\nSELECT 1',
 describe('the run frame', () => {
   it('is kept under Node: the witness is not blind here', () => {
     assert.equal(frameKept, true);
+  });
+
+  it("reads the run through run-frame.ts's reader, installed once: a second install is refused by name (MUST 1)", () => {
+    // run-frame.ts, which opens a run, installed its reader as it loaded; the planner's side (plan-guard.ts, a record
+    // the planner reaches) holds no way to open one, and no other module may put a blind reader in its place
+    assert.throws(() => readRunsWith(() => undefined), /the run frame reader is installed once/);
   });
 
   it('refuses a planner entry inside a run, across its awaits, and not outside it or after it', async () => {
@@ -164,5 +178,200 @@ describe('the run frame', () => {
     } finally {
       delete g.Worker;
     }
+  });
+});
+
+// EVERY SEND ON NODE FRAMED (C5-T, 2026-11-15): the two choke points -- DuckDB's connection (duckdb.ts) and the
+// warehouse's submit (warehouse.ts) -- refuse a statement sent outside a run, before anything reaches the database,
+// and send it inside one. A browser and the headless V8 keep no frame (frameKept): the layers' rule holds the line
+// there (//tools/deps:layers_alone).
+describe('a statement is sent inside a run, on Node (the choke points, C5-T)', () => {
+  const OUTSIDE = (where: string): RegExp => new RegExp(`${where} was sent a statement outside a run: a statement is sent by a run`);
+
+  it('refuses a send outside a run by name, and lets one inside a run through', async () => {
+    assert.throws(() => sending("DuckDB's connection"), OUTSIDE("DuckDB's connection"));
+    await inRun("a test's run", async () => sending("DuckDB's connection"));
+  });
+
+  it("DuckDB's connection: a run, a stream, and the held connection's rows, table and Arrow import, refused outside a run before anything is sent", async () => {
+    const sent: string[] = [];
+    const empty: ArrowishTable = { numRows: 0, schema: { fields: [] }, getChildAt: () => null };
+    const engine = new DuckDbEngine({
+      query: (sql) => { sent.push(sql); return empty; },
+      prepare: async (sql) => ({ query: async () => { sent.push(sql); return empty; } }),
+      insertArrowFromIPCStream: async () => { sent.push('an Arrow import'); },
+    });
+    const refused = OUTSIDE("DuckDB's connection");
+    await assert.rejects(engine.run(unplanned('SELECT 1'), 0), refused);
+    await assert.rejects(engine.stream({ sql: unplanned('SELECT 2'), columns: [] }, 0, () => {}), refused);
+    await assert.rejects(engine.exclusive((held) => held.rows(unplanned('SELECT 3'), [])), refused);
+    // a promise refused as one: the held table rejects, never throws where a promise is promised (the C5-T audit's nit)
+    let threw = false;
+    await assert.rejects(engine.exclusive(async (held) => {
+      let answered: Promise<unknown>;
+      try {
+        answered = held.table(unplanned('SELECT 4'));
+      } catch (error) {
+        threw = true;
+        throw error;
+      }
+      return answered;
+    }), refused);
+    assert.equal(threw, false, 'the held table threw where a promise is promised');
+    await assert.rejects(engine.exclusive((held) => held.insertArrow(new Uint8Array(), { table: 't' }, true)), refused);
+    assert.deepEqual(sent, [], 'a statement refused is never sent');
+    // inside a run, each is sent
+    await inRun("a test's run", async () => {
+      await engine.run(unplanned('SELECT 1'), 0);
+      await engine.exclusive(async (held) => {
+        await held.rows(unplanned('SELECT 3'), []);
+        await held.table(unplanned('SELECT 4'));
+        await held.insertArrow(new Uint8Array(), { table: 't' }, true);
+      });
+    });
+    assert.deepEqual(sent, ['SELECT 1', 'SELECT 3', 'SELECT 4', 'an Arrow import']);
+  });
+
+  it("DuckDB's streaming connection -- Node's real path (send, #batches): a run and a stream refused outside a run, sent inside one (the C5-T final audit's item 5)", async () => {
+    const sent: string[] = [];
+    const empty: ArrowishTable = { numRows: 0, schema: { fields: [] }, getChildAt: () => null };
+    const batches = (): AsyncIterable<ArrowishTable> => (async function* () { yield empty; })();
+    const engine = new DuckDbEngine({
+      query: (sql) => { sent.push(`query ${sql}`); return empty; },
+      // DuckDB-WASM's Node connection streams: a run and a stream go by send, batch by batch (duckdb.ts #batches)
+      send: async (sql) => { sent.push(`send ${sql}`); return batches(); },
+      prepare: async (sql) => ({ query: async () => { sent.push(`prepared ${sql}`); return empty; } }),
+    });
+    const refused = OUTSIDE("DuckDB's connection");
+    await assert.rejects(engine.run(unplanned('SELECT 1'), 0), refused);
+    await assert.rejects(engine.stream({ sql: unplanned('SELECT 2'), columns: [] }, 0, () => {}), refused);
+    assert.deepEqual(sent, [], 'a statement refused is never sent');
+    await inRun("a test's run", async () => {
+      await engine.run(unplanned('SELECT 1'), 0);
+      await engine.stream({ sql: unplanned('SELECT 2'), columns: [] }, 0, () => {});
+    });
+    assert.deepEqual(sent, ['send SELECT 1', 'send SELECT 2'], 'each sent by send, inside the run');
+  });
+
+  it("the warehouse's submit: refused outside a run before the binding is asked for it, and asked inside one", async () => {
+    const asked: string[] = [];
+    const binding = new WarehouseBinding({ exports: {
+      call: (op: string): string => { asked.push(op); throw new Error('the test stops at the call'); },
+      read: (): string => '{}',
+    } });
+    // a session already expired: no refresh is scheduled (the token is a sentinel, never a credential)
+    const engine = new WarehouseEngine(binding,
+      { baseUrl: 'http://warehouse.invalid', token: 'sentinel-token', principal: 'tester', expiresAt: '2000-01-01T00:00:00Z' },
+      'main', 'DuckDB');
+    await assert.rejects(engine.run(unplanned('SELECT 1'), 0), OUTSIDE("the warehouse's submit"));
+    assert.deepEqual(asked, [], 'a statement refused is never submitted');
+    await assert.rejects(inRun("a test's run", () => engine.run(unplanned('SELECT 1'), 0)), /the test stops at the call/);
+    assert.deepEqual(asked, ['submit']);
+  });
+});
+
+// THE FRAME'S COST ON NODE (C5-T, 2026-11-15; docs/witness-cost-homework/README.md): Node 22's AsyncLocalStorage turns
+// promise hooks on at its first run and keeps them, so once a test had entered a run every promise in its process paid
+// for the frame; on Node's AsyncContextFrame (22's --experimental-async-context-frame, Node 24's default) none does.
+// tools/js/defs.bzl sets the flag for every node_test, which this pins.
+describe("the frame's cost on Node", () => {
+  it('AsyncLocalStorage runs on AsyncContextFrame: no promise hooks, so a promise pays nothing for the frame', () => {
+    const major = Number(process.versions.node.split('.')[0]);
+    assert.ok(major >= 24 || process.execArgv.includes('--experimental-async-context-frame'),
+      `Node ${process.versions.node} runs this test without --experimental-async-context-frame (execArgv: `
+      + `${JSON.stringify(process.execArgv)}): every promise pays the run frame's hooks; node_test sets it (tools/js/defs.bzl)`);
+  });
+});
+
+// THE TAB'S START OVERLAPS THE PLANNER'S (the C5-T audit's MUST 1, 2026-11-15): DuckDB's download and instantiate send no
+// statement, so the door begins them at once, alongside the planner's asks -- which, on a page, wait for the planner's
+// own start -- and connects with the setup answered inside a run once both are in. A page then waits for the slower of
+// the planner's start and DuckDB's, never their sum (DataCube's boot.ts).
+describe("the tab's DuckDB starts alongside the planner's asks", () => {
+  it("instantiate begins before the planner answers; the asks are outside a run, the connection inside one", async () => {
+    const order: string[] = [];
+    let answer!: () => void;
+    const plannerStarted = new Promise<void>((resolve) => { answer = resolve; });
+    const statement = unplanned("SET TimeZone = 'UTC'");
+    const planner = {
+      hostOperations: async (databaseType: string): Promise<PlannedSql[][]> => {
+        order.push(`asked hostOperations(${databaseType})${currentRun() === undefined ? '' : ' INSIDE A RUN'}`);
+        await plannerStarted;
+        return [[statement]];
+      },
+      sessionSetup: async (databaseType: string): Promise<readonly PlannedSql[]> => {
+        order.push(`asked sessionSetup(${databaseType})${currentRun() === undefined ? '' : ' INSIDE A RUN'}`);
+        return [statement];
+      },
+    };
+    const opened = openedInTab(
+      async () => { order.push('instantiate begun'); return 'the database'; },
+      'https://site/vendor/duckdb-extensions',
+      planner,
+      async (database, setup) => {
+        order.push(`connected ${database} in ${currentRun() ?? 'no run'} with ${setup.extensions.length}+${setup.session.length}`);
+        return 'the tab';
+      },
+    );
+    // the planner has not answered: DuckDB's instantiate is already under way
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.deepEqual(order, ['asked hostOperations(DuckDB)', 'instantiate begun']);
+    answer();
+    assert.equal(await opened, 'the tab');
+    assert.deepEqual(order, ['asked hostOperations(DuckDB)', 'instantiate begun', 'asked sessionSetup(DuckDB)',
+      "connected the database in the tab's DuckDB started with 1+1"]);
+  });
+});
+
+// THE PAGES' TWO DOORS, WITNESSED (2026-11-15, the C5-T review's S2, as openedInTab is above): a project's Data rows
+// loaded where an engine runs (Query's warehouse seed) and a table synthesized in the tab's DuckDB (DataCube's demo
+// sample) -- each asks its planner outside any run, then sends the answer's statements inside one, on Node's frame.
+describe("the pages' doors ask outside a run and send inside one", () => {
+  /** A one-statement load, as a planner answers one (a ONCE load at the plan's root). */
+  const loadPlan = unplannedPlan(JSON.stringify({ format: 'legend-lite-plan', version: PLAN_VERSION, root: {
+    _type: 'load', identity: "the test's rows", cadence: 'ONCE', steps: [{ _type: 'statement', sql: 'CREATE TABLE t (n INT)' }],
+  } }));
+  /** A DuckDB engine over a connection that records each statement it is sent, and the run it was sent in. */
+  const recording = (order: string[]): DuckDbEngine => {
+    const empty: ArrowishTable = { numRows: 0, schema: { fields: [] }, getChildAt: () => null };
+    const sent = (how: string, sql: string): void => { order.push(`${how} ${sql} in ${currentRun() ?? 'no run'}`); };
+    return new DuckDbEngine({
+      query: (sql) => { sent('ran', sql); return empty; },
+      prepare: async (sql) => ({ query: async () => { sent('held rows', sql); return empty; } }),
+      insertArrowFromIPCStream: async () => { sent('imported', 'Arrow'); },
+    });
+  };
+  const asked = (order: string[], what: string): void => {
+    order.push(`asked ${what}${currentRun() === undefined ? '' : ` INSIDE A RUN (${currentRun()})`}`);
+  };
+
+  it("dataLoaded (Query's warehouse seed): projectData asked outside a run, the load's statement run inside one", async () => {
+    const order: string[] = [];
+    const engine = recording(order);
+    await dataLoaded(engine, {
+      projectData: async (model, databaseType) => {
+        asked(order, `projectData(${model}, ${databaseType})`);
+        return { name: 'p', open: [], use: [], close: [], load: loadPlan };
+      },
+    }, 'the model', "the test's seed");
+    assert.deepEqual(order, ['asked projectData(the model, DuckDB)', 'ran CREATE TABLE t (n INT) in a load']);
+    // a model with no Data rows is refused by name, nothing sent
+    const none: string[] = [];
+    await assert.rejects(dataLoaded(recording(none), { projectData: async () => ({ name: 'p', open: [], use: [], close: [] }) },
+      'the model', "the test's seed"), /the test's seed holds no Data rows to load/);
+    assert.deepEqual(none, []);
+  });
+
+  it("synthesizedInTab (DataCube's demo sample): synthesize asked outside a run, the plan's statement sent on the held connection inside one", async () => {
+    const order: string[] = [];
+    const engine = recording(order);
+    await synthesizedInTab(engine, {
+      synthesize: async (request) => {
+        asked(order, `synthesize(${request.table})`);
+        return loadPlan;
+      },
+    }, { databaseType: 'DuckDB', model: 'the model', database: 'trades::DB', schema: 'default', table: 'TRADES', count: 10 });
+    // held.rows with no value bound sends by the connection's query, as engine.run does
+    assert.deepEqual(order, ['asked synthesize(TRADES)', 'ran CREATE TABLE t (n INT) in a load']);
   });
 });

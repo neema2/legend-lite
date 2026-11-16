@@ -27,6 +27,7 @@ import { TimeseriesView, type MountOn, type TsGrid, type TsTogether } from '../s
 import { MARKET_SPECS } from '../src/examples/markets.ts';
 import { plannerFor, readText } from './catalog-builder.ts';
 import { writtenText } from '../src/timeseries-text.ts';
+import { asTest } from '../../engine-client/test/unplanned.ts';
 
 /** The file the viewer's grid of prices was opened over, as a page records it: what the code that builds a tile opens. */
 const PRICES_FILE: FileSource = { _type: 'file', name: 'prices.csv', format: 'csv', size: 1, sha256: '00', columns: [] };
@@ -58,7 +59,7 @@ before(async () => {
   // a query planned and run: its rows, and the SQL its plan ran (the Query window's)
   plan = async (query) => {
     const planned = await planner.plan(query);
-    return { rows: await engine.execute(planned, 0), sql: planned.sql };
+    return { rows: await asTest(engine).execute(planned, 0), sql: planned.sql };
   };
   const snapshot: CubeSnapshot = {
     source: { query: r.source }, columns: [...MARKET_SPECS], derived: [], rows: [], pivotOn: [], sorts: [], epoch: 1,

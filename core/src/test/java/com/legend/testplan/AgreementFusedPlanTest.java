@@ -27,6 +27,7 @@ import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -138,8 +139,8 @@ class AgreementFusedPlanTest {
     }
 
     @Test
-    @DisplayName("an assertError keeps its own steps, as the agreement judge plans them today; the segment before it"
-            + " closes, and the run tells what today's plan tells")
+    @DisplayName("an assertError keeps its own steps; the segment before it closes, and the inner assert's pass is told"
+            + " before the raising verdict fails")
     void anAssertErrorKeepsItsOwnSteps() {
         TestPlan plan = fused(AN_ASSERT_ERROR);
         List<TestPlan.Verdicts> groups = groups(plan);
@@ -148,10 +149,16 @@ class AgreementFusedPlanTest {
         // the message 'x' is not the inner assert's: it fails, under both plans alike
         Told fusedTold = new Told();
         AssertFailed fusedFailed = assertThrows(AssertFailed.class, () -> run(plan, fusedTold));
-        Told todayTold = new Told();
-        AssertFailed todayFailed = assertThrows(AssertFailed.class, () -> run(today(AN_ASSERT_ERROR), todayTold));
-        assertEquals(todayFailed.getMessage(), fusedFailed.getMessage());
-        assertEquals(todayTold.verdicts, fusedTold.verdicts);
+        // parity with the HOST judge's own run of the body (G2; the PR1 re-review's A5, 2026-11-16: until DE4 this
+        // compared with the second road's plan, deleted -- the host judge's plan is the reference now): the same
+        // failure text and the same verdicts told, in order
+        TestPlan hostPlan = com.legend.TestExecution.planBody(typed(AN_ASSERT_ERROR), StorelessRuntime.RUNTIME,
+                ExecuteOptions.NONE.withJudgeMode(PlanningOptions.JudgeMode.HOST));
+        assertEquals(TestPlan.Judge.HOST, hostPlan.judge());
+        Told hostTold = new Told();
+        AssertFailed hostFailed = assertThrows(AssertFailed.class, () -> run(hostPlan, hostTold));
+        assertEquals(hostFailed.getMessage(), fusedFailed.getMessage(), "the failure in the host's words");
+        assertEquals(hostTold.verdicts, fusedTold.verdicts, "the verdicts told");
         assertEquals("assertEquals pass", fusedTold.verdicts.get(0));
     }
 
@@ -175,20 +182,68 @@ class AgreementFusedPlanTest {
     }
 
     @Test
-    @DisplayName("a root whose rows ride no fused statement (decided at planning, DE4) declines the fused program, and"
-            + " the body keeps today's agreement path")
-    void anUncarriedRootKeepsTodaysPath() {
+    @DisplayName("a segment decided at planning plans on ONE road (DE4 (a)): the decided step carries each root's host"
+            + " verdict and its agreement, and both judges take the planned outcome")
+    void aDecidedSegmentPlansOnOneRoad() {
         String body = "{| assertIs(Integer, Integer);}";
         TypedQuery typed = typed(body);
         ExecuteOptions options = ExecuteOptions.NONE.withJudgeMode(PlanningOptions.JudgeMode.BOTH);
         BodyDriver.ExecEnv env = BodyDriver.bodyEnv(typed, StorelessRuntime.RUNTIME,
                 Databases.dialect(Databases.PLATFORM), options.planning());
-        // the orchestrator, 2026-11-15: DE4's three groups keep today's behaviour until the user's ruling
-        assertNull(AgreementAsserts.planFused(typed, StorelessRuntime.RUNTIME, env, null, false),
-                body + ": a root no fused row carries declines the fused program");
-        TestPlan plan = today(body);
+        // the orchestrator's ruling under the user's delegation, 2026-11-15 (docs/records/pr1-rulings-2026-11-15.md, R1)
+        assertNotNull(AgreementAsserts.planFused(typed, StorelessRuntime.RUNTIME, env, null, false),
+                body + ": a decided segment plans the fused program");
+        TestPlan plan = fused(body);
         assertEquals(TestPlan.Judge.AGREEMENT, plan.judge());
-        assertEquals(1, groups(plan).stream().mapToInt(g -> g.agreements().size()).sum(), body);
+        List<TestPlan.Verdicts> groups = groups(plan);
+        assertEquals(1, groups.size(), body + ": the one decided step");
+        assertNull(groups.get(0).fused(), body + ": a decided step sends no fused statement");
+        assertEquals(1, groups.get(0).agreements().size(), body);
+        Told told = new Told();
+        run(plan, told);
+        assertEquals(List.of("assertIs pass"), told.verdicts);
+    }
+
+    @Test
+    @DisplayName("DE4 (d), refused by name: a root whose host columns read the body's store, its fused row on another"
+            + " session; the same root on the body's own session is carried")
+    void aStoreBoundRootOnAnotherSessionIsRefusedByName() {
+        String body = "{| assertEquals(1, 1);}";
+        TypedQuery typed = typed(body);
+        ExecuteOptions options = ExecuteOptions.NONE.withJudgeMode(PlanningOptions.JudgeMode.BOTH);
+        BodyDriver.ExecEnv env = BodyDriver.bodyEnv(typed, StorelessRuntime.RUNTIME,
+                Databases.dialect(Databases.PLATFORM), options.planning());
+        HostAsserts host = java.util.Objects.requireNonNull(HostAsserts.plan(typed, StorelessRuntime.RUNTIME, env));
+        HostAsserts.Planned hp = java.util.Objects.requireNonNull(host.planned(0));
+        int carrier = hp.verdict().id();
+        com.legend.executionplan.ExecutionPlan.Target body0 = env.target();
+        com.legend.executionplan.ExecutionPlan.Target other = new com.legend.executionplan.ExecutionPlan.Target(
+                body0.database(), List.of("-- another session"), body0.loads(), body0.raiseReadBack(),
+                body0.settings(), body0.transaction());
+        TestPlan.Verdicts step = new TestPlan.Verdicts(List.of(hp.verdict()), null, null,
+                options.planning().judgingRules());
+        List<DatabaseAsserts.HostRoot> roots = List.of(new DatabaseAsserts.HostRoot(0, hp, Map.of(), true));
+        com.legend.testexecutionplan.RootLoop loop = new com.legend.testexecutionplan.RootLoop(List.of(), Map.of());
+        VerdictBatch.Planned elsewhere = new VerdictBatch.Planned(List.of(new VerdictBatch.Group(step, other, false)),
+                loop, Map.of(0, carrier), java.util.Set.of());
+        String why = DatabaseAsserts.uncarried(elsewhere, roots, env);
+        assertNotNull(why, "a store-bound root on another session");
+        assertTrue(why.contains("(DE4 d)") && why.contains("another session"), why);
+        // and the segment's close refuses it by that name, at planning (the PR1 re-review's B8): one root in its loop,
+        // as the host's half attaches one
+        com.legend.testexecutionplan.RootLoop oneRoot = new com.legend.testexecutionplan.RootLoop(List.of(
+                new com.legend.testexecutionplan.RootLoop.Root(hp.verdict().name(), List.of(
+                        new com.legend.testexecutionplan.RootLoop.Row(hp.verdict().name(), carrier, null, null,
+                                com.legend.testexecutionplan.RootLoop.NO_APPEAL, null)), null)), Map.of());
+        VerdictBatch.Planned elsewhereOneRoot = new VerdictBatch.Planned(List.of(new VerdictBatch.Group(step, other,
+                false)), oneRoot, Map.of(0, carrier), java.util.Set.of());
+        com.legend.error.NotImplementedException refused = assertThrows(com.legend.error.NotImplementedException.class,
+                () -> DatabaseAsserts.closePlanned(elsewhereOneRoot, "b8.", 0, 0, env, new java.util.HashMap<>(),
+                        new ArrayList<>(roots)));
+        assertEquals(why, refused.getMessage());
+        VerdictBatch.Planned here = new VerdictBatch.Planned(List.of(new VerdictBatch.Group(step, body0, false)),
+                loop, Map.of(0, carrier), java.util.Set.of());
+        assertNull(DatabaseAsserts.uncarried(here, roots, env), "on the body's own session it is carried");
     }
 
     @Test
@@ -213,6 +268,10 @@ class AgreementFusedPlanTest {
             List<String> bothColumns = both.fused().columns().stream().map(ExecutionPlan.Column::name)
                     .filter(n -> !n.matches("__h\\d+_\\d+_\\d+")).toList();
             assertEquals(dbColumns, bothColumns, body);
+            // a rejected statement is reported by the names its verdicts carry: the same under both judges (PR1's
+            // finding A, 2026-11-16: BOTH had carried the host's qualified names)
+            assertEquals(db.verdicts().stream().map(TestPlan.Verdict::name).toList(),
+                    both.verdicts().stream().map(TestPlan.Verdict::name).toList(), body);
             for (TestPlan.Verdict v : db.verdicts()) {
                 assertNull(v.host(), body + ": a host verdict in the database judge's plan");
             }
@@ -232,17 +291,6 @@ class AgreementFusedPlanTest {
         assertEquals(TestPlan.Judge.AGREEMENT, plan.judge());
         assertNull(TestPlanJson.roundTripDifference(plan), "the plan reads back as written");
         return plan;
-    }
-
-    /** {@code body} planned for both judges as the test planner plans it today ({@link AgreementAsserts#plan}). */
-    private static TestPlan today(String body) {
-        TypedQuery typed = typed(body);
-        ExecuteOptions options = ExecuteOptions.NONE.withJudgeMode(PlanningOptions.JudgeMode.BOTH);
-        BodyDriver.ExecEnv env = BodyDriver.bodyEnv(typed, StorelessRuntime.RUNTIME,
-                Databases.dialect(Databases.PLATFORM), options.planning());
-        AgreementAsserts asserts = AgreementAsserts.plan(typed, StorelessRuntime.RUNTIME, env, null, false);
-        assertNotNull(asserts, body + ": planned for both judges today");
-        return TestDoor.planned(typed, StorelessRuntime.RUNTIME, options.planning().features(), asserts);
     }
 
     private static TestPlan planned(String body, PlanningOptions.JudgeMode mode) {

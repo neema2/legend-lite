@@ -63,11 +63,21 @@ public final class TsShow {
         String of(LambdaFunction query, String column);
     }
 
+    /** The island's reader: its text as its tree, a {@link SqlTranslationException} where it does not read. The
+     *  server hands in the parse door ({@code door.Parse::tsIsland}, which asks the run's wall: C5-J's last round,
+     *  2026-11-15), since this layer cannot ask it (invariant 7b); it is asked once the grids are read, as the text
+     *  was read here until then. */
+    @FunctionalInterface
+    public interface Reader {
+        TsAst.Query read(String text);
+    }
+
     /** No position: what the statement writes that its island's text did not. */
     private static final SqlAst.Pos NONE = new SqlAst.Pos(0, 0);
 
-    /** {@code query} as one {@code #TS} statement, or why not; {@code types} the compiler's, over the query's model. */
-    public static Shown of(LambdaFunction query, Types types) {
+    /** {@code query} as one {@code #TS} statement, or why not; {@code types} the compiler's, over the query's model;
+     *  {@code reader} reads the island's text. */
+    public static Shown of(LambdaFunction query, Types types, Reader reader) {
         List<ValueSpecification> body = query.body();
         if (body.isEmpty() || !(body.get(body.size() - 1) instanceof SqlIsland island)
                 || island.language() != IslandLanguage.TS) {
@@ -90,7 +100,7 @@ public final class TsShow {
         }
         TsAst.Query q;
         try {
-            q = TsParser.parse(island.sql());
+            q = reader.read(island.sql());
         } catch (SqlTranslationException e) {
             return new Shown(null, "its #TS does not read: " + e.getMessage());
         }

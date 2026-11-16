@@ -169,6 +169,14 @@ final class AgreementRuns {
                 TestPlan.JudgingRules rules) {
             Run r = byHost.get(verdict.id());
             if (r != null) {
+                TestPlan.Host h = verdict.host();
+                com.legend.testexecutionplan.Failure before = h == null ? null : h.assertion().beforeTheArm();
+                if (before != null) {
+                    // raised before its arm (a let's held model error): at its root's turn, after the earlier roots
+                    // decided and reported, as the host judge raises it (the PR1 re-review's B1, G2) -- never ahead
+                    heldErrors.putIfAbsent(r.pairing.root(), com.legend.testexecutionplan.Failures.raised(before));
+                    return;
+                }
                 r.hostSides(verdict, rows, message, listener, rules);
                 return;
             }
@@ -205,7 +213,10 @@ final class AgreementRuns {
                 return raised.decided(verdict, listener, reader);
             }
             RootLoops.Run db = database;
-            if (db != null) {
+            // an assert's host verdict on its own sides, no member of the database half's loop (DE4: a keyed or
+            // split-rung root's, read by the host where no fused row carries it), is the host's alone
+            boolean hostsOwn = byHost.containsKey(verdict.id()) && db != null && !db.members().contains(verdict.id());
+            if (db != null && !hostsOwn) {
                 // a member's row to the database half's loop (an assert's host verdict on its first member is one); a
                 // verdict of no member answers none (the carrier where every root was decided at planning)
                 db.received(verdict, row);

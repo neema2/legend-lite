@@ -1309,8 +1309,14 @@ const EXAMPLE_BUDGET = 4_000;
  *  date). Measured 449,707.
  *  450,500 -> 453,800 (2026-11-13, main's #95 -- the total wall -- merged into the timeseries branch, the user:
  *  "let's merge in here": main's growth and the branch's together, each side's notes above; the merge adds no
- *  file). Measured 453,495. */
-const WIDGET_BUDGET = 453_800;
+ *  file). Measured 453,495.
+ *  453,800 -> 454,100 (2026-11-15, the C5-T last round, PR #105: the user approved raising the Windows budget, relayed
+ *  by the orchestrator -- "you can tell the session I approve raising budget for windows" -- re-pinned after T1-T4 as
+ *  ruled. The run layers' split left the module at the line: Linux 453,806 after T1, 453,807 after T4 (this test's
+ *  own measure; T2-T4 move no product byte but the page modules' types), and CI's Windows 18 bytes over Linux in run
+ *  43692166249 (453,809 there, at 8e4648d02e). Grid 437,261 and engine 425,448 at the same head, under their pins).
+ *  Measured 453,807. */
+const WIDGET_BUDGET = 454_100;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {
