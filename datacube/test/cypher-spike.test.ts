@@ -15,6 +15,11 @@ import { plannerFor } from './catalog-builder.ts';
 import { agg, asc, col, fn, from, lambda, variable, type ValueSpecification } from '../../pure-protocol/src/index.ts';
 import { unplanned, asTest } from '../../engine-client/test/unplanned.ts';
 
+/** A text query planned as lite API v1 plans one (2026-11-17: no text entry): query/parse, then query/plan of its tree. */
+async function planTextOf(p: { parse(text: string): Promise<import('../../pure-protocol/src/index.ts').Lambda>; plan(query: import('../../pure-protocol/src/index.ts').Lambda): Promise<import('../../engine-client/src/relation-type.ts').Plan> }, text: string) {
+  return p.plan(await p.parse(text));
+}
+
 // the island's integration model (core/src/test/java/com/legend/integration/CypherIslandIntegrationTest.java): people,
 // firms and cities -- a person's firm an association, a firm's city a class-typed property -- over three tables
 const MODEL = `
@@ -87,7 +92,7 @@ after(async () => engine?.close());
 
 /** A query's rows, each its cells joined by '|' (null as 'null'), as the island's integration test writes them. */
 async function rows(query: string): Promise<string[]> {
-  return written(await asTest(engine).execute(await planner.planText(query), 0));
+  return written(await asTest(engine).execute(await planTextOf(planner, query), 0));
 }
 
 function written(t: ResultTable): string[] {

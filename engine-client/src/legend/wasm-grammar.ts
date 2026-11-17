@@ -212,11 +212,14 @@ export class WasmGrammar implements Grammar {
    *  text does not run alone -- the execution plan it renders from, whose data: payloads its `?`s bind (plan-params.ts
    *  reads them: the tenets audit's M3). */
   async plan(model: PureModelContext, lambda: Lambda, runtime: string): Promise<{ sql: PlannedSql; type: unknown; plan?: unknown }> {
-    const read = JSON.parse(unfold(await this.#port.ask({ kind: 'planModel', model: model.code, lambda: toJson(lambda), runtime }))) as {
-      sql: string; type: unknown; plan?: unknown; raises?: unknown;
-    };
-    declareSites(read, 'a text plan');
-    return { ...read, sql: fromPlan(read.sql) };
+    // lite API v1's query/plan (the rename train, 2026-11-17: planModel until then; the TS host's own rewrite of this
+    // file supersedes these lines): lite's plan, its answering statement and its columns read from it
+    const { plan } = JSON.parse(unfold(await this.#port.ask({ kind: 'queryPlan',
+      request: `{"model":${JSON.stringify(model.code)},"query":${toJson(lambda)},"runtime":${JSON.stringify(runtime)}}` }))) as {
+      plan: { root: { columns: { name: string; type: string }[]; sql: { statement: string } } } };
+    declareSites(plan, 'a plan');
+    const type = { columns: plan.root.columns.map((c) => ({ name: c.name, genericType: { rawType: { fullPath: c.type } } })) };
+    return { sql: fromPlan(plan.root.sql.statement), type, plan };
   }
 
   /** The SQL a query compiles to on its runtime -- legend-lite's plan, shown to a person ("Show SQL"). */

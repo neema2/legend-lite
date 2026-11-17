@@ -16,7 +16,7 @@ import { DatabaseError, failure, PlanRaise } from '../src/raised.ts';
 import { declareStatementSites, type Site } from '../src/declared-raises.ts';
 import { heldTexts, redactHeld } from '../src/connection-settings.ts';
 import { PlanParamsRefusal, planParams, statementParams } from '../src/plan-params.ts';
-import { relationColumns } from '../src/relation-type.ts';
+import type { PlanColumn } from '../src/relation-type.ts';
 import { BrowserEngine } from '../src/legend/browser-engine.ts';
 import { QueryError } from '../src/engine.ts';
 import { SecretStore } from '../src/host-operations.ts';
@@ -70,9 +70,17 @@ const ok = (tagged: string): string => {
   if (tag !== 'OK') throw new Error(rest.join('\n'));
   return rest.join('\n');
 };
-/** A program planned as an execution plan (the planner protocol's executionPlan kind): its statements in order. */
+/** query/plan's answer (`{"plan":<PlanJson>}`) as its plan's own text, its numbers' digits whole. */
+const planJsonOf = (answered: string): string => {
+  assert.ok(answered.startsWith('{"plan":') && answered.endsWith('}'), answered.slice(0, 120));
+  return answered.slice('{"plan":'.length, -1);
+};
+/** `lambdaJson` planned over the model held as `h` (lite API v1's query/plan, held): its plan's text. */
+const heldPlan = (h: number, lambdaJson: string, runtime: string): string =>
+  planJsonOf(ok(answer(m, { kind: 'queryPlanHeld', handle: h, request: `{"query":${lambdaJson},"runtime":${JSON.stringify(runtime)}}` })));
+/** A program planned as an execution plan (the planner protocol's queryPlanHeld kind): its statements in order. */
 const planned = (...body: ValueSpecification[]): PlanText =>
-  unplannedPlan(ok(answer(m, { kind: 'executionPlan', handle, lambda: toJson(lambda([], ...body)), runtime: 'w::RT' })));
+  unplannedPlan(heldPlan(handle, toJson(lambda([], ...body)), 'w::RT'));
 const src = (): ValueSpecification => accessor('w::DB', 'SRC');
 const target = (): ValueSpecification => accessor('w::DB', 'T');
 /** A host's session over a held connection: its statements sent one at a time, its transactions the plan's (S8). */
@@ -337,20 +345,15 @@ Runtime x::BareRT { mappings: []; connections: [ x::DB: [ c: x::Bare ] ]; }
 
 describe("a plan's loads, established on a database the host made for its target", () => {
   let loaded: number;
-  /** A text query planned over the held model: the execution plan its text renders from (Boundary.planned's `plan`). */
-  const executionPlanOf = (query: string, runtime: string): PlanText => {
-    const planned = looseJson(ok(answer(m, { kind: 'plan', handle: loaded, query, runtime }))) as { plan?: unknown };
-    assert.ok(planned.plan !== undefined, 'a text that does not run alone carries its execution plan');
-    return unplannedPlan(JSON.stringify(planned.plan));
+  /** A text query's tree, as lite API v1 reads one (query/parse), its JSON whole. */
+  const parsed = (query: string): string => {
+    const answered = ok(answer(m, { kind: 'queryParse', request: JSON.stringify({ text: query }) }));
+    return answered.slice('{"query":'.length, -1);
   };
-  /** A text query's execution plan, asked as the planner's executionPlan kind (its lambda read from the text). */
-  const executionPlanOfLambda = (query: string, runtime: string): PlanText => {
-    // the http answer: its status, its media type, then the body
-    const [status, , ...body] = ok(answer(m, { kind: 'pureV1', path: '/api/pure/v1/grammar/grammarToJson/lambda', query: '', body: query })).split('\n');
-    assert.equal(status, '200', body.join('\n'));
-    const lambdaJson = body.join('\n');
-    return unplannedPlan(ok(answer(m, { kind: 'executionPlan', handle: loaded, lambda: lambdaJson, runtime })));
-  };
+  /** A text query planned over the held model (query/parse, then query/plan held: lite API v1, no text entry). */
+  const executionPlanOf = (query: string, runtime: string): PlanText => unplannedPlan(heldPlan(loaded, parsed(query), runtime));
+  /** The same, asked as a host asks it (the two were one road's two entries until lite API v1). */
+  const executionPlanOfLambda = executionPlanOf;
   /** A database of its own, as a host makes one for a target: a fresh DuckDB-WASM. */
   const fresh = async (): Promise<{ readonly engine: DuckDbEngine; readonly on: <T>(work: (s: PlanSession) => Promise<T>) => Promise<T> }> => {
     const db = await startNodeDuckDb(runfilesFromEnv('DUCKDB_EXTENSIONS'));
@@ -527,19 +530,23 @@ Runtime m::RT { mappings: [m::MM]; connections: [ ModelStore: [ json: #{ JsonMod
 `;
   };
   const QUERY = '|m::P.all()->project(~[name: p|$p.name])';
-  const planOf = async (model: string): Promise<{ sql: string; type: unknown; plan?: { root: { sql: { content: Record<string, string> } } } }> =>
-    looseJson(ok(answer(m, { kind: 'planModel', model, lambda: toJson(await grammar.lambda(QUERY)), runtime: 'm::RT' })));
+  /** query/plan (lite API v1, unheld): its statement, its columns, and its plan (which carries the payload). */
+  const planOf = async (model: string): Promise<{ sql: string; columns: PlanColumn[]; plan: { root: { sql: { content: Record<string, string> } } } }> => {
+    const plan = looseJson(planJsonOf(ok(answer(m, { kind: 'queryPlan', request: `{"model":${JSON.stringify(model)},"query":${toJson(await grammar.lambda(QUERY))},"runtime":"m::RT"}` })))) as {
+      root: { columns: PlanColumn[]; sql: { statement: string; content: Record<string, string> } } };
+    return { sql: plan.root.sql.statement, columns: plan.root.columns.map((c) => ({ name: c.name, type: c.type })), plan };
+  };
 
   it('the text plan binds the payload: read from its content by digest, bound, its records back in payload order', async () => {
     const body = await planOf(jsonModel(RECORDS));
     assert.ok(body.sql.includes('?') && !body.sql.includes('back') && !body.sql.includes('data:'), body.sql);
     const params = planParams(body.plan);
     assert.deepEqual(params.map((p) => looseJson(p) as unknown), [RECORDS]);
-    const answered = await inRun('a test', () => asTest(engine).execute({ sql: unplanned(body.sql), columns: relationColumns(body.type), params }, 0));
+    const answered = await inRun('a test', () => asTest(engine).execute({ sql: unplanned(body.sql), columns: body.columns, params }, 0));
     assert.deepEqual(answered.columns[0]!.values, RECORDS.map((r) => r.name));
     // an empty array: no record, no row
     const empty = await planOf(jsonModel([]));
-    const none = await inRun('a test', () => asTest(engine).execute({ sql: unplanned(empty.sql), columns: relationColumns(empty.type), params: planParams(empty.plan) }, 0));
+    const none = await inRun('a test', () => asTest(engine).execute({ sql: unplanned(empty.sql), columns: empty.columns, params: planParams(empty.plan) }, 0));
     assert.equal(none.rowCount, 0);
   });
 
@@ -688,8 +695,8 @@ describe("a snapshot's stream, planned and run on DuckDB-WASM in one transaction
     const source = plane([chunkOf(1, 4), chunkOf(5, 3)]);
     const { landed } = await snap(plan, source);
     // the plane's statement is the planner's own plan of the pull, made in the call that answered the plan
-    const pulled = ok(answer(m, { kind: 'planJson', handle, lambda: PULL.lambda, runtime: PULL.runtime }));
-    assert.equal(step['sql'], (looseJson(pulled) as { sql: string }).sql);
+    const pulled = looseJson(heldPlan(handle, PULL.lambda, PULL.runtime)) as { root: { sql: { statement: string } } };
+    assert.equal(step['sql'], pulled.root.sql.statement);
     assert.deepEqual(source.asked, [step['sql']], 'the plane ran the plan\'s statement');
     assert.equal(landed.length, 1);
     assert.equal(landed[0]!.rows, 7);

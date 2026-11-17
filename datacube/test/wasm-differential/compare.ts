@@ -19,8 +19,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { it } from 'node:test';
 
-import { relationColumns } from '../../../engine-client/src/relation-type.ts';
-import { LitePlanner } from '../../src/lite-planner.ts';
+import { gridPlan, LitePlanner } from '../../src/lite-planner.ts';
 import { toJson } from '../../../pure-protocol/src/index.ts';
 import { MODEL, queries, RUNTIME } from './cases.ts';
 import { runfileDirUrl, runfileFromEnv } from '../../../tools/js/runfiles.mts';
@@ -39,14 +38,15 @@ function blocks(text: string): Map<string, string> {
 }
 
 // The JVM side keeps the refusal's kind; the TS planner drops it by
-// design. Compare on the parts both sides carry. An OK answer is the plan
-// -- its SQL and the compiler's result type -- read through the product's
-// own reader, so the types are held to the JVM too.
+// design. Compare on the parts both sides carry: a refusal's message (lite
+// API v1's one error shape, its JSON). An OK answer is query/plan's -- lite's
+// plan -- read through the product's own reader (gridPlan), so its statement
+// and its columns are held to the JVM too.
 function norm(s: string): string {
   const [tag, ...rest] = s.split('\n');
-  if (tag === 'ERR') return `ERR\n${rest.slice(1).join('\n')}`;
-  const body = JSON.parse(rest.join('\n')) as { sql: string; type: unknown };
-  return `OK\n${JSON.stringify({ sql: body.sql, columns: relationColumns(body.type) })}`;
+  if (tag === 'ERR') return `ERR\n${(JSON.parse(rest.join('\n')) as { message: string }).message}`;
+  const plan = gridPlan(rest.join('\n'), 'the JVM\'s answer');
+  return `OK\n${JSON.stringify({ sql: plan.sql, columns: plan.columns })}`;
 }
 
 it('DataCube\'s own queries plan the same in WASM and on the JVM', async () => {
@@ -70,11 +70,11 @@ it('DataCube\'s own queries plan the same in WASM and on the JVM', async () => {
       actual = `OK\n${JSON.stringify({ sql: plan.sql, columns: plan.columns })}`;
       planned++;
     } catch (e) {
-      // planJsonOrError's ERR text, reassembled the way the JVM half writes
-      // it, so a refusal compares as a refusal rather than as a crash.
-      actual = `ERR\n?\n${(e as Error).message}`;
+      // the refusal's message, as the JVM half's is read, so a refusal compares
+      // as a refusal rather than as a crash.
+      actual = `ERR\n${(e as Error).message}`;
     }
-    if (norm(expected) !== (actual.startsWith('OK\n') ? actual : norm(actual))) {
+    if (norm(expected) !== actual) {
       differ.push(`${name}\n  query: ${toJson(query)}\n  jvm : ${JSON.stringify(expected)}`
         + `\n  wasm: ${JSON.stringify(actual)}`);
     }

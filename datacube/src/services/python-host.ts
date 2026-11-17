@@ -42,7 +42,7 @@ import type { ResultTable } from '../../../engine-client/src/result.ts';
 import { toJson, type Lambda } from '../../../pure-protocol/src/index.ts';
 import { LitePlanner } from '../lite-planner.ts';
 import { type ModelOptions } from '../planner.ts';
-import type { PlannerWorker, Request, RequestKind, Response } from '../../../engine-client/src/legend/planner-protocol.ts';
+import type { LiteOperation, PlannerWorker, Request, RequestKind, Response } from '../../../engine-client/src/legend/planner-protocol.ts';
 import { ExactNumber, fromJson, readValueSpecification, type ValueSpecification } from '../../../pure-protocol/src/index.ts';
 import { base64 } from '../headless/web.ts';
 import { CubeStoreClient } from '../cube-store.ts';
@@ -185,31 +185,30 @@ async function asked(link: PythonLink, path: string): Promise<string> {
   return answer.text();
 }
 
-/** A host's HTTP answer folded as the planner module folds its own (planner.Folded.of): a 200's body (`read` from it,
- *  where the route wraps what the module answers bare), or a refusal's kind and message -- its JSON's errorType (else
- *  its status) and message (else its body). */
-function folded(id: number, answer: globalThis.Response, text: string, read: (body: string) => string = (b) => b): Response {
-  if (answer.status === 200) return { id, ok: true, answer: `OK\n${read(text)}` };
-  let kind = String(answer.status);
-  let message = text;
+/** Each lite API v1 operation's route under the host's /api/lite/v1 (operation `a/b`, kind `aB`: the spec's rule). */
+const OPERATION_PATHS: Readonly<Record<LiteOperation, string>> = {
+  modelCheck: 'model/check', modelElements: 'model/elements', queryParse: 'query/parse', queryPrint: 'query/print',
+  queryType: 'query/type', queryPlan: 'query/plan', modelCreateClass: 'model/createClass',
+  modelCreateAssociation: 'model/createAssociation', modelCreateDataSpace: 'model/createDataSpace', tsItem: 'ts/item',
+  tsStatement: 'ts/statement',
+};
+
+/** A host's HTTP answer folded as the planner module folds its own (planner.Folded): a 200's body, or the route's
+ *  refusal -- lite API v1's one error shape {kind, message, where?, raise?} (§3) -- as it answered it. A refusal that is
+ *  not that shape is the host's own failure, said as one with what it answered. */
+function folded(id: number, answer: globalThis.Response, text: string): Response {
+  if (answer.status === 200) return { id, ok: true, answer: `OK\n${text}` };
+  let refusal: { kind?: unknown; message?: unknown } | undefined;
   try {
-    const refusal = JSON.parse(text) as { errorType?: unknown; message?: unknown };
-    if (typeof refusal.errorType === 'string') kind = refusal.errorType;
-    if (typeof refusal.message === 'string') message = refusal.message;
-  } catch { /* not JSON: the body is the message */ }
-  return { id, ok: true, answer: `ERR\n${kind}\n${message}` };
+    refusal = JSON.parse(text) as { kind?: unknown; message?: unknown };
+  } catch { /* not JSON: refused below by what it answered */ }
+  if (typeof refusal?.kind === 'string' && typeof refusal.message === 'string') return { id, ok: true, answer: `ERR\n${text}` };
+  return { id, ok: false, error: `the engine answered ${answer.status} with no refusal of lite's: ${text.slice(0, 200)}` };
 }
 
-/** A model's text as the routes read a model (a PureModelContext of text). */
-const textModel = (code: string): string => JSON.stringify({ _type: 'text', code });
-
 /** The tab's worker's requests a Python host is not asked, each with why: the tab's own, or no page's. */
-const NOT_ASKED: Readonly<Record<Exclude<RequestKind, 'hold' | 'release' | 'planJson' | 'modelElements' | 'parseLambda'
-  | 'printLambda' | 'lambdaRelationType' | 'modelAction' | 'tsItem' | 'jsonToTs'>, string>> = {
-  plan: "a page plans a query's protocol tree (planJson), not its text",
-  relationType: "a page types a query on legend-engine's route (lambdaRelationType), not its text",
-  planModel: "an unheld plan is Query's, in its tab",
-  executionPlan: "a write is planned and run where its rows are: Python's own headless writer, on its database",
+const NOT_ASKED: Readonly<Record<Exclude<RequestKind, 'hold' | 'release' | 'queryPlanHeld' | 'queryTypeHeld' | LiteOperation>,
+  string>> = {
   tableModel: "a table's model is the tab's own database's",
   catalogColumnsSql: "a catalog's reading is the tab's own database's",
   executePlan: "execute's halves are the tab's: a Python host plans and runs in one call (plan-and-run)",
@@ -225,7 +224,6 @@ const NOT_ASKED: Readonly<Record<Exclude<RequestKind, 'hold' | 'release' | 'plan
   projectData: "a project's Data rows are held by Python itself (C5)",
   hostOperations: "a host's operations are the tab's own database's",
   warm: "warming the planner is the tab's",
-  compileErrors: "a model's compile is Studio's and Query's, in their tab",
   pureV1: "a DataCube planner asks legend-lite's own routes (H2): legend-engine's pure/v1 is the edge's",
 };
 
@@ -279,45 +277,31 @@ function pythonWorker(link: PythonLink, project = false): PlannerWorker {
           held.delete(body.handle);
           reply({ id, ok: true, answer: 'OK\n' });
           return;
-        // lite's own grammar, typing and routes (the edge audit's H2, 2026-11-17): each on the host's lite route, its
-        // answer folded as the module folds its own
-        case 'modelElements':
-          call('/api/lite/v1/grammar/modelElements', JSON.stringify({ text: body.text, sourceInformation: body.sourceInformation }),
-            (answer, text) => folded(id, answer, text));
+        // lite API v1's operations (docs/records/lite-api-v1-2026-11-17.md §2): each on the host's own route, its request
+        // the route's body, its answer the route's -- the same JSON the module answers -- folded as the module folds it
+        case 'modelCheck': case 'modelElements': case 'queryParse': case 'queryPrint': case 'queryType': case 'queryPlan':
+        case 'modelCreateClass': case 'modelCreateAssociation': case 'modelCreateDataSpace': case 'tsItem': case 'tsStatement':
+          call(`/api/lite/v1/${OPERATION_PATHS[body.kind]}`, body.request, (answer, text) => folded(id, answer, text));
           return;
-        case 'parseLambda':
-          call('/api/lite/v1/grammar/parseLambda', JSON.stringify({ text: body.text, sourceInformation: body.sourceInformation }),
-            (answer, text) => folded(id, answer, text));
-          return;
-        case 'printLambda':
-          // the route wraps the text the module answers bare
-          call('/api/lite/v1/grammar/printLambda', `{"lambda":${body.lambda},"style":${JSON.stringify(body.style)}}`,
-            (answer, text) => folded(id, answer, text, (b) => (JSON.parse(b) as { text: string }).text));
-          return;
-        case 'lambdaRelationType':
-          call('/api/lite/v1/compilation/lambdaRelationType', `{"model":${textModel(body.model)},"lambda":${body.lambda}}`,
-            (answer, text) => folded(id, answer, text));
-          return;
-        case 'modelAction':
-          call(`/api/lite/v1/model/${body.action}`, body.body, (answer, text) => folded(id, answer, text));
-          return;
-        case 'tsItem':
-          call('/api/lite/v1/grammar/tsItem', JSON.stringify({ text: body.text }), (answer, text) => folded(id, answer, text));
-          return;
-        case 'jsonToTs':
-          call('/api/lite/v1/grammar/jsonToTs/lambda', `{"model":${textModel(body.model)},"lambda":${body.lambda}}`,
-            (answer, text) => folded(id, answer, text));
-          return;
-        case 'planJson': {
+        case 'queryPlanHeld': case 'queryTypeHeld': {
           const kept = held.get(body.handle);
           if (kept === undefined) {
-            reply({ id, ok: true, answer: `ERR\nMODEL\nno model held as ${body.handle} on this page` });
+            reply({ id, ok: true, answer: `ERR\n${JSON.stringify({ kind: 'internal', message: `no model held as ${body.handle} on this page` })}` });
             return;
           }
-          // the dry run: plan-and-run's planning half, over the model Python holds of that text, never run -- a project's
-          // own (a saved query's: ModelOptions.project) said so, as plan-and-run says it
-          call('/plan.json', JSON.stringify({ lambda: body.lambda, model: kept.model, runtime: body.runtime,
-            ...(kept.library === undefined ? {} : { library: kept.library }), ...(project ? { project } : {}) }), (answer, text) =>
+          // the request without its model ({query, runtime} or {query}), the held model's added: spliced, never parsed, so
+          // the query's numbers keep their digits
+          const withModel = (more: Record<string, unknown>): string =>
+            `${body.request.slice(0, -1)},${JSON.stringify(more).slice(1)}`;
+          if (body.kind === 'queryTypeHeld') {
+            // query/type on the host's own route, over the model it holds of that text
+            call('/api/lite/v1/query/type', withModel({ model: kept.model }), (answer, text) => folded(id, answer, text));
+            return;
+          }
+          // the dry run: plan-and-run's planning half, query/plan over the model Python holds of that text, never run -- a
+          // project's own (a saved query's: ModelOptions.project) said so, as plan-and-run says it
+          call('/plan.json', withModel({ model: kept.model, ...(kept.library === undefined ? {} : { library: kept.library }),
+            ...(project ? { project } : {}) }), (answer, text) =>
             (answer.ok
               ? { id, ok: true, answer: (JSON.parse(text) as { plan: string }).plan }
               : { id, ok: false, error: `the engine answered ${answer.status}: ${text}` }));
