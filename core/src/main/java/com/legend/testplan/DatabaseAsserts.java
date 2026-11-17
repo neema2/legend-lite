@@ -888,7 +888,10 @@ final class DatabaseAsserts implements TestDoor.Asserts {
             }
             List<ExecutionPlan.Column> columns = rows.result().columns();
             List<com.legend.sql.OutputCol> outputs = w.plan().outputs();
-            if (outputs.size() != columns.size()) {
+            // a raw grid's cell (no slot: its kind is the wire's, ColumnFacts.rawGridCell) has no type the fused
+            // statement can give the other rows' NULLs -- the union would take theirs (DuckDB's JSON for Any) -- so
+            // it keeps its own statement, read by the type its result reports, as a grid does
+            if (outputs.size() != columns.size() || columns.stream().anyMatch(c -> c.slot() == null)) {
                 continue;
             }
             List<String> names = new ArrayList<>(columns.size());
