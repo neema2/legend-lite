@@ -108,8 +108,11 @@ public final class PlanAllocations {
         }
         TypedNativeCall pnBound =
                 (TypedNativeCall) pn.withChildren(bound);
+        // the style asked BEFORE the walk's refusals are caught (J16/K4 of the edge audit, 2026-11-17, G7): the product's
+        // style refuses legend-engine's plan by name, and that refusal fails the body -- it is never "no rows"
+        UpstreamPlans upstream = env.style().facet(UpstreamPlans.class);
         try {
-            var rows = env.style().facet(UpstreamPlans.class).planRows(scope, pnBound,
+            var rows = upstream.planRows(scope, pnBound,
                     planTimeZone(pnBound, letPrefix), planMapping(pnBound), planEnumParameters(pnBound), specs, env);
             env.planRows().put(scope, rows);
             env.planRows().put(PlanRows.scopeId(pnBound), rows);
