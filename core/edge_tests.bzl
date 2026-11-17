@@ -15,6 +15,7 @@ EDGE_TEST_SRCS = [
     "src/test/java/com/legend/CellTextDirectTest.java",
     "src/test/java/com/legend/DecimalKindsTest.java",
     "src/test/java/com/legend/EdgeSeparationTest.java",
+    "src/test/java/com/legend/HookRulingTest.java",
     "src/test/java/com/legend/PlanStyleFacetsTest.java",
     "src/test/java/com/legend/PlannerSurfaceTest.java",
     "src/test/java/com/legend/ReferenceIntegrityTest.java",
