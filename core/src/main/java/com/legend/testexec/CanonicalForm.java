@@ -56,18 +56,14 @@ public final class CanonicalForm {
             // Decimal: SCALE-PRESERVING (X2 — engine equality is
             // getValue().equals; the scale IS identity)
             case BigDecimal bd -> new Result.Text(bd.toPlainString());
-            // TEMPORAL: PureDateLiteral is THE wire carrier (D-arc) —
-            // written precision survives, so the render is exact per H1:
-            // date-only precisions print bare, time-bearing forms take
-            // the GMT-normalized +0000 suffix. A java.sql or java.time
-            // temporal reaching here is a fetch-seam LEAK and reports
-            // as unmodeled-kind residue, never grows an arm.
-            // the zone from the HOUR on (register S121, pending: legend-pure writes it from the minute)
-            case com.legend.values.PureDateLiteral d ->
-                    new Result.Text(d.precision().atLeast(
-                            com.legend.values.PureDateLiteral.Precision.HOUR)
-                            ? d.toEngineString() + "+0000"
-                            : d.toEngineString());
+            // TEMPORAL: PureDateLiteral is THE wire carrier (D-arc) --
+            // written precision survives, so the render is exact per H1: the
+            // literal's own text at its written precision, every zone already
+            // GMT-normalized by the parser (census C5, 2026-11-17: legend-pure's
+            // +0000 suffix is the edge's spelling, never the instrument's -- the
+            // text alone is injective). A java.sql or java.time temporal reaching
+            // here is a fetch-seam LEAK and reports as unmodeled-kind residue.
+            case com.legend.values.PureDateLiteral d -> new Result.Text(d.toEngineString());
             default -> new Result.Residue(
                     "unmodeled-kind:" + v.getClass().getSimpleName());
         };

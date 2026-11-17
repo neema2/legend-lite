@@ -276,11 +276,12 @@ class EdgeSeparationTest {
      *  ways with the register ({@link #everyOpenCompatRowIsCounted}). */
     static final Map<String, String> CSG_OPEN = Map.ofEntries(
             // B9 -> C5 (E-P5) 2026-11-17: the judges' canon's alone (LiteralSpelling.temporalCanon)
-            Map.entry("sql/dialect/DateTimePrintText.java | +0000", "B12 2026-11-17 (format %r arm, LiteralSpelling.temporalCanon's gone by C5 step C)"),
+            Map.entry("sql/dialect/DateTimePrintText.java | +0000", "B12 2026-11-17 (format %r arm, LiteralSpelling.temporalCanon's gone by C5 step C)")
             // B11 -> C5 2026-11-17 (the orchestrator's ruling): the judges' canon (temporalCanon x2, dateTimeLiteralAt via
             // CanonicalRenderSql), closed by C5's step C (E-SQL's)
             // lowering/Repr.java | Repr, lowering/Scalars.java | Repr: gone 2026-11-17, census B12's 2b (Repr deleted)
-            Map.entry("testexec/CanonicalForm.java | +0000", "C5 2026-11-17"));
+            // (testexec/CanonicalForm.java | +0000 closed: 2026-11-17, census C5, E-Java -- the instrument's own date text)
+            );
             // testexec/SideShapes.java | Cannot cast a collection of size: GONE 2026-11-17 (C5's step E, E-P5), worded at
             // planning by the plan's style (SideShape.sizeWords, TestPlan.answerSizeWords)
             // B11 -> C5 2026-11-17 (the orchestrator's ruling): the host judge's +0000, C5's step B (E-P5's)
@@ -307,7 +308,8 @@ class EdgeSeparationTest {
     static final Set<String> OPEN_LINES = Set.of(
             // C1 closed 2026-11-17 (E-Java): the judges' behaviours the style's and the run hook's, the judging rules
             // data, the compatibility preset the edge's CompatRules
-            "B12", "C5");
+            // C5 closed 2026-11-17 (its last line, CanonicalForm's +0000, E-Java's)
+            "B12");
 
     private static Set<String> linesOf(Map<String, String> m) {
         Set<String> out = new TreeSet<>();

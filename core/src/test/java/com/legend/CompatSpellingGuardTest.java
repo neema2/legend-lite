@@ -286,7 +286,8 @@ class CompatSpellingGuardTest {
             // (the EngineText rows of AssertRuns, HostJudgments, HostJson, HostJudgment, NamedExtensions, Verdicts and
             // AssertVerdicts: gone 2026-11-17, census C3 -- the engine-text comparison the edge's own record
             // (edge/EngineTextJudgment), held by the product's neutral HostJudgment.EdgeJudged)
-            "testexec/CanonicalForm.java | +0000 | 1 | JUDGE",
+            // (testexec/CanonicalForm.java | +0000 gone 2026-11-17, census C5, E-Java: the instrument renders a date's own
+            // GMT-normalized text; legend-pure's suffix is the edge's)
             // testexec/SideShapes.java | Cannot cast a collection of size | GONE 2026-11-17 (C5's step E, E-P5): a side's
             // and the body's answer's size refusal worded at planning (SideShape.sizeWords, TestPlan.answerSizeWords)
             // (testexec/SqlTextRuns.java's rows went with it to the edge: 2026-11-17, census C2: the referee and the appeals moved to the edge (the orchestrator's P1+P2))
