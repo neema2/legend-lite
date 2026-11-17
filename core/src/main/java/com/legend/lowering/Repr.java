@@ -25,7 +25,7 @@ final class Repr {
 
     /** The TYPE-directed spelling (the {@code toRepresentation} native's
      * rule). */
-    static SqlExpr of(Type t, SqlExpr x) {
+    static SqlExpr of(Styled styled, Type t, SqlExpr x) {
         if (t == Type.Primitive.STRING) {
             // CAST first: identity for a real string, and keeps a DEAD
             // size-1 branch (assertEquals' %r fast path over a known-many
@@ -53,13 +53,13 @@ final class Repr {
         }
         if (t == Type.Primitive.DATE || t == Type.Primitive.STRICT_DATE || t == Type.Primitive.DATE_TIME) {
             return Scalars.cat(new SqlExpr.StringLit("%"),
-                    Scalars.pureToString(t, x));
+                    Scalars.pureToString(styled, t, x));
         }
         if (t == Type.Primitive.DECIMAL || t instanceof Type.PrecisionDecimal) {
             // a declared-precision Decimal IS a Decimal: its representation carries the D too (2026-11-04, the
             // asserts-as-plan-nodes program: a literal 3.0D is typed Decimal(2,1), and the database judge's
             // per-element message printed 3.0 where upstream prints 3.0D)
-            return Scalars.cat(Scalars.pureToString(Type.Primitive.DECIMAL, x),
+            return Scalars.cat(Scalars.pureToString(styled, Type.Primitive.DECIMAL, x),
                     new SqlExpr.StringLit("D"));
         }
         if (t == Type.Primitive.FLOAT) {
@@ -71,7 +71,7 @@ final class Repr {
         }
         // numbers, booleans, and the Any carrier: the toString spelling
         // IS the representation
-        return Scalars.pureToString(t, x);
+        return Scalars.pureToString(styled, t, x);
     }
 
     // (userCall, a USER's toRepresentation marked REPRESENTATION_TEXT: gone 2026-11-17, the separation census's B8 (i) --
@@ -81,7 +81,7 @@ final class Repr {
     /** The {@code %r} directive's arm ({@code format('%r', x)}): the
      * NODE-directed spelling — a date literal prints its {@code %}
      * form; strings quote with backslash-escapes. */
-    static SqlExpr of(@com.legend.base.Nullable TypedSpec typed, SqlExpr e) {
+    static SqlExpr of(Styled styled, @com.legend.base.Nullable TypedSpec typed, SqlExpr e) {
         if (typed != null) {
             SqlExpr dp = Scalars.dateReprOf(typed, e);
             if (dp != null) {
@@ -91,7 +91,7 @@ final class Repr {
                 // a number, a Boolean, a Decimal: pure's representation by its type (format('%r', [1]) is '1', a
                 // Decimal's '3.0D' -- until 2026-11-04 every %r quoted as a String: the asserts-as-plan-nodes program
                 // reached it through assertNotEq's message, '%r should not equal %r')
-                return of(p, e);
+                return of(styled, p, e);
             }
         }
         // CAST first: identity for a real string; keeps a DEAD branch

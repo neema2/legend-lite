@@ -559,18 +559,18 @@ final class TaggedLists {
     }
 
     /** The list's print, Pure's: {@code [e1, e2, ...]}, each element printed as its kind. */
-    static SqlExpr print(SqlExpr.TaggedList tl) {
+    static SqlExpr print(Styled styled, SqlExpr.TaggedList tl) {
         // the product's text, a JSON array (the user's ruling of 2026-11-10; D1.3, 2026-11-15), beside legend-pure's
-        return SqlExpr.Call.of(SqlFn.TEXT_FORMS, json(tl), pure(tl));
+        return SqlExpr.Call.of(SqlFn.TEXT_FORMS, json(styled, tl), pure(styled, tl));
     }
 
     /** A mixed list as a JSON array: each element as its kind writes a JSON value -- a number and a Boolean as their
      *  text, anything else a JSON string of its text. */
-    private static SqlExpr json(SqlExpr.TaggedList tl) {
+    private static SqlExpr json(Styled styled, SqlExpr.TaggedList tl) {
         String p = "_tlj";
         // through map's one carrier emission (the carrier purity ratchet: no new direct LIST_ site)
         SqlExpr texts = map(tl, new SqlExpr.Lambda(List.of(p),
-                MixedEncoding.perCandidate(tl.element(SqlExpr.Column.derived(null, p)), TaggedLists::jsonValue)));
+                MixedEncoding.perCandidate(tl.element(SqlExpr.Column.derived(null, p)), (k, v) -> jsonValue(styled, k, v))));
         return Scalars.cat(new SqlExpr.StringLit("["),
                 SqlExpr.Call.of(SqlFn.COALESCE,
                         new SqlExpr.ReduceCollection(SqlAgg.Fn.STRING_AGG, texts, List.of(new SqlExpr.StringLit(","))),
@@ -579,8 +579,8 @@ final class TaggedLists {
     }
 
     /** {@code v} of kind {@code k} as a JSON value's text. */
-    static SqlExpr jsonValue(Type k, SqlExpr v) {
-        SqlExpr text = Scalars.pureToString(k, v);
+    static SqlExpr jsonValue(Styled styled, Type k, SqlExpr v) {
+        SqlExpr text = Scalars.pureToString(styled, k, v);
         if (k == Type.Primitive.INTEGER || k == Type.Primitive.FLOAT || k == Type.Primitive.DECIMAL
                 || k == Type.Primitive.NUMBER || k == Type.Primitive.BOOLEAN) {
             return text;
@@ -592,10 +592,10 @@ final class TaggedLists {
     }
 
     /** A mixed list as legend-pure prints it, {@code [e1, e2]}: the compatibility edge's. */
-    private static SqlExpr pure(SqlExpr.TaggedList tl) {
+    private static SqlExpr pure(Styled styled, SqlExpr.TaggedList tl) {
         String p = "_tlp";
         SqlExpr texts = SqlExpr.Call.of(SqlFn.LIST_TRANSFORM, tl.positions(), new SqlExpr.Lambda(List.of(p),
-                Scalars.pureToString(new Type.ClassType(com.legend.compiler.element.type.PlatformTypes.ANY),
+                Scalars.pureToString(styled, new Type.ClassType(com.legend.compiler.element.type.PlatformTypes.ANY),
                         tl.element(SqlExpr.Column.derived(null, p)))));
         return Scalars.cat(new SqlExpr.StringLit("["),
                 SqlExpr.Call.of(SqlFn.COALESCE,

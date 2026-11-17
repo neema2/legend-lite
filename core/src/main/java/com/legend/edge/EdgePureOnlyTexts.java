@@ -34,6 +34,13 @@ final class EdgePureOnlyTexts implements com.legend.lowering.PureOnlyTexts {
                 padded, SqlExpr.Reason.PRINT);
     }
 
+    /** An instance's {@code toString}: legend-pure's anonymous-instance name, {@code @_} and the instance's identity
+     *  (the edge's pass composed it from the INSTANCE_TEXT marker until B8, 2026-11-17). */
+    @Override
+    public SqlExpr instanceText(SqlExpr id) {
+        return SqlExpr.Call.of(SqlFn.CONCAT, new SqlExpr.StringLit("@_"), id);
+    }
+
     /** A user's {@code toRepresentation}: legend-pure's representation as the lowering writes it, as it is (the
      *  edge's pass unwrapped REPRESENTATION_TEXT to it until B8 (i), 2026-11-17). */
     @Override
