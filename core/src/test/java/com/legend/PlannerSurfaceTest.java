@@ -1423,7 +1423,10 @@ class PlannerSurfaceTest {
 
     private static List<String> nativeSources() {
         List<String> out = new ArrayList<>();
-        for (var f : SourceFiles.under("native/src/main/java/com/legend/nativelib")) {
+        // the edge's native entries too (the separation census's A2, 2026-11-17: SavedQueriesHome moved there; it calls
+        // the boundary's surface as before)
+        for (var f : SourceFiles.under("native/src/main/java/com/legend/nativelib",
+                "native/src/edge/java/com/legend/edge/nativelib")) {
             if (f.getFileName().toString().endsWith(".java")) {
                 try {
                     out.add(Files.readString(f, StandardCharsets.UTF_8));

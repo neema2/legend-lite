@@ -98,7 +98,6 @@ class EdgeSeparationTest {
             Map.entry("com.legend.lowering.TaggedLists -> SqlFn.TEXT_FORMS", "B8 2026-11-17"),
             Map.entry("com.legend.lowering.TypedRows -> com.legend.lowering.Render", "B17 2026-11-17"),
             Map.entry("com.legend.lowering.VerdictSql -> com.legend.lowering.Repr", "C5 2026-11-17"),
-            Map.entry("com.legend.nativelib.SavedQueriesHome -> com.legend.edge.StoreWords", "A2 2026-11-17"),
             Map.entry("com.legend.plan.PurePrint -> (stands in a product package)", "B6 2026-11-17"),
             Map.entry("com.legend.plan.UpstreamRelationType -> (stands in a product package)", "B6 2026-11-17"),
             Map.entry("com.legend.planner.BodyPlanner -> com.legend.planner.UpstreamPlans", "B2 2026-11-17"),
@@ -106,7 +105,6 @@ class EdgeSeparationTest {
             Map.entry("com.legend.planner.ProductStatements -> com.legend.planner.UpstreamPlans", "B2 2026-11-17"),
             Map.entry("com.legend.planner.QueryParameters -> com.legend.plan.PurePrint", "B6 2026-11-17"),
             Map.entry("com.legend.planner.UpstreamPlans -> (stands in a product package)", "B2 2026-11-17"),
-            Map.entry("com.legend.queries.page.QueriesPage -> com.legend.edge.StoreWords", "A3 2026-11-17"),
             Map.entry("com.legend.server.ConnectionResolver -> com.legend.server.PureV1Api", "B7 2026-11-17"),
             Map.entry("com.legend.server.LegendHttpServer -> com.legend.server.PureV1Api", "B7 2026-11-17"),
             Map.entry("com.legend.server.ModelChanges -> com.legend.server.PureV1Api", "B7 2026-11-17"),
@@ -337,10 +335,11 @@ class EdgeSeparationTest {
             Map.entry("testplan/PlanningOptions.java | COMPILED_PURE_COMPAT", "C1 2026-11-17"),
             Map.entry("testplan/TestPlanner.java | COMPILED_PURE_COMPAT", "C1 2026-11-17"));
 
-    /** The census's open lines (docs/records/f-separation-census-2026-11-17.md; closed: A4, B14 ruled; records only:
+    /** The census's open lines (docs/records/f-separation-census-2026-11-17.md; closed: A4, B14 ruled; A2, A3 moved to
+     *  the edge 2026-11-17 (A4 extended to the native image and the page module); records only:
      *  B15, B16, C6, C7). Each must hold at least one entry in the count ({@link #everyOpenLineIsCounted}), so an empty
      *  count cannot read DONE with a line left. A line closes by leaving this set with its last entry. */
-    static final Set<String> OPEN_LINES = Set.of("A1", "A2", "A3", "A5", "A6", "B1", "B2", "B3", "B4", "B5", "B6",
+    static final Set<String> OPEN_LINES = Set.of("A1", "A5", "A6", "B1", "B2", "B3", "B4", "B5", "B6",
             "B7", "B8", "B9", "B10", "B11", "B12", "B13", "B17", "C1", "C2", "C3", "C4", "C5");
 
     private static Set<String> linesOf(Map<String, String> m) {
@@ -378,8 +377,6 @@ class EdgeSeparationTest {
      *  {@code edge_direct_dependents} genquery), each with its census line. */
     static final Map<String, String> BUILD_OPEN = Map.ofEntries(
             Map.entry("//wasm:boundary", "A1 2026-11-17"),
-            Map.entry("//native:entry", "A2 2026-11-17"),
-            Map.entry("//query-store:page_entry", "A3 2026-11-17"),
             Map.entry("//core:core_tests_lib", "A5 2026-11-17"),
             Map.entry("//core:test_cases", "A5 2026-11-17"),
             Map.entry("//core:seam_benchmark", "A6 2026-11-17"),
