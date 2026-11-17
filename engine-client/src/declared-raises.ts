@@ -15,9 +15,9 @@
 export interface Site {
   readonly n: number;
   readonly kind: string;
-  readonly where?: string;
+  readonly where?: string | null;
   readonly message: string;
-  readonly upstream?: string;
+  readonly upstream?: string | null;
 }
 
 const declared = new Map<string, readonly Site[]>();
