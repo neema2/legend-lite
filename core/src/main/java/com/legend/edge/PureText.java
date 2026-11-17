@@ -99,6 +99,18 @@ public final class PureText {
             if (kind == com.legend.lowering.DateTimeTexts.class) {
                 return kind.cast(EdgeDateTimeTexts.INSTANCE);
             }
+            if (kind == com.legend.testplan.CrossKindNumbers.class) {
+                // compiled legend-pure's number equality across kinds (S127; census C1)
+                return kind.cast(CompiledPureNumbers.INSTANCE);
+            }
+            if (kind == com.legend.testdatagen.TestDataPlanner.Printing.class) {
+                // a test-data generator's timestamp text as legend-engine's test-data CSV writes it (L9; census C1)
+                return kind.cast((com.legend.testdatagen.TestDataPlanner.Printing) EnginePlans::testDataTimestampText);
+            }
+            if (kind == com.legend.compiler.spec.RelationCounting.class) {
+                // upstream counts a relation passed to assertSize/assertNotEmpty as ONE value (S137; census C1)
+                return kind.cast(UpstreamRelationCounting.INSTANCE);
+            }
             if (kind == com.legend.testexecutionplan.JsonGrammar.class) {
                 // upstream's JSON grammar (register S144; census C1, 2026-11-17)
                 return kind.cast(JsonSimpleGrammar.INSTANCE);

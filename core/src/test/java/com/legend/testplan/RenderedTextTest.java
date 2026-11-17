@@ -21,11 +21,10 @@ import org.junit.jupiter.api.Test;
 /**
  * A RENDERED TEXT asserted against its golden. In lite's own runs the two strings ARE the verdict (the user,
  * 2026-11-05: after a verdict the harness may only explain a failure) -- under the database judge the database computes
- * the render and the equality. Only in backwards-compatibility mode does a ruled comparison decide where the strings
- * differ: an unsorted query's tokens as a multiset (S131). Run under each judge by the lane ({@code legend.test.judge}).
+ * the render and the equality. Backwards-compatibility mode's ruled comparison (S131) is the edge's: {@code RenderedTextEdgeTest}. Run under each judge by the lane ({@code legend.test.judge}).
  */
 class RenderedTextTest {
-    private static final String MODEL = """
+    static final String MODEL = """
             Class r::P { name: String[1]; }
             ###Relational
             Database r::DB ( Table PT (NAME VARCHAR(20)) )
@@ -42,11 +41,17 @@ class RenderedTextTest {
 
     @BeforeEach
     void setUp() throws Exception {
-        conn = TestBackends.platform().open();
-        try (Statement st = conn.createStatement()) {
+        conn = seeded();
+    }
+
+    /** A platform session holding PT's two names: this test's and its edge twin's ({@code RenderedTextEdgeTest}). */
+    static Connection seeded() throws Exception {
+        Connection c = TestBackends.platform().open();
+        try (Statement st = c.createStatement()) {
             st.execute("CREATE TABLE PT (NAME VARCHAR)");
             st.execute("INSERT INTO PT VALUES ('ann'), ('bob')");
         }
+        return c;
     }
 
     @AfterEach
@@ -60,13 +65,6 @@ class RenderedTextTest {
                 + "', r::P.all()->map(p|$p.name)->sort()->joinStrings(','));}", "r::RT", conn).value();
     }
 
-    /** The names in the query's arrival order, joined, judged in backwards-compatibility mode. */
-    private Object runCompat(String golden) throws Exception {
-        return Program.last(MODEL, "{| assertEquals('" + golden + "', r::P.all()->map(p|$p.name)->joinStrings(','));}",
-                "r::RT", conn, com.legend.ExecuteOptions.NONE.withJudgeMode(Program.laneJudge())
-                        .withEngineCompat(true)).value();
-    }
-
     @Test
     @DisplayName("the strings equal: the comparison holds")
     void equalStrings() throws Exception {
@@ -78,19 +76,5 @@ class RenderedTextTest {
     void theStringsAreTheVerdict() {
         AssertFailed e = assertThrows(AssertFailed.class, () -> run("bob,ann"));
         assertTrue(e.getMessage().contains("bob,ann") && e.getMessage().contains("ann,bob"), e.getMessage());
-    }
-
-    @Test
-    @DisplayName("compatibility mode: the strings differ, the unsorted query's tokens agree -- the ruled comparison"
-            + " holds (S131)")
-    void compatTokensAgree() throws Exception {
-        assertEquals(Boolean.TRUE, runCompat("bob,ann"));
-    }
-
-    @Test
-    @DisplayName("compatibility mode: the tokens differ -- the ruled comparison fails with its own message")
-    void compatTokensDiffer() {
-        AssertFailed e = assertThrows(AssertFailed.class, () -> runCompat("ann,cy"));
-        assertTrue(e.getMessage().contains("cy"), e.getMessage());
     }
 }
