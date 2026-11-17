@@ -131,10 +131,9 @@ public final class LiteV1Api {
             case "/api/lite/v1/model/createClass" -> modelChanges(body, ModelChanges::createClass);
             case "/api/lite/v1/model/createAssociation" -> modelChanges(body, ModelChanges::createAssociation);
             case "/api/lite/v1/model/createDataSpace" -> modelChanges(body, ModelChanges::createDataSpace);
-            // legend-engine's routes are the edge's (com.legend.edge.PureV1Routes, D1.0b, 2026-11-12)
-            // a pure/v1 path is legend-engine's API, answered in its old words (the D part 1 audit's nit, 2026-11-15)
-            default -> error(404, null, (path.startsWith("/api/pure/v1/") ? "no such legend-engine API in legend-lite: "
-                    : "no such legend-lite API: ") + path);
+            // every other path, in lite's own words (B7, the orchestrator's ruling (3) of 2026-11-17: the product names
+            // nothing engine-shaped, not even its paths' prefix; with the edge mounted, the edge serves legend-engine's)
+            default -> error(404, null, "no such legend-lite API: " + path);
         };
     }
 

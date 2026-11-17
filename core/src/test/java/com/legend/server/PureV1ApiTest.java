@@ -717,6 +717,10 @@ class PureV1ApiTest {
                 missing.json());
         assertEquals("{\"code\":-1,\"message\":\"no such legend-lite API: /api/lite/v1/nope\",\"status\":\"error\"}",
                 LiteV1Api.route("/api/lite/v1/nope", null, "", NO_RUN).json());
+        // the product names no legend-engine path: one of its, unknown to lite's own routes, is answered in lite's words
+        // (B7, the orchestrator's ruling (3) of 2026-11-17; until then "no such legend-engine API in legend-lite")
+        assertEquals("{\"code\":-1,\"message\":\"no such legend-lite API: /api/pure/v1/nope\",\"status\":\"error\"}",
+                LiteV1Api.route("/api/pure/v1/nope", null, "", NO_RUN).json());
 
         String[] ran = new String[1];
         LiteV1Api.Answer refused = com.legend.edge.PureV1Routes.route("/api/pure/v1/execution/execute", null,
