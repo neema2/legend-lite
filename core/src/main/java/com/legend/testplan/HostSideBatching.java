@@ -86,7 +86,15 @@ final class HostSideBatching {
             return;
         }
         SqlQuery batch = HostSideBatch.batch(sides);
-        if (JudgePlans.runner(env).chars(batch) > JudgePlans.runner(env).fusedBudget()) {
+        int chars;
+        try {
+            chars = JudgePlans.runner(env).chars(batch);
+        } catch (com.legend.sql.DialectCapability refused) {
+            // the split rung at planning: a batch the dialect cannot write (H2 writes no STRUCT slot) leaves each side
+            // its own statement
+            return;
+        }
+        if (chars > JudgePlans.runner(env).fusedBudget()) {
             if (run.size() == 1) {
                 return;
             }
