@@ -3,6 +3,8 @@
 
 package com.legend.testplan;
 
+import com.legend.edge.RawLedger;
+
 import com.legend.Compiler;
 import com.legend.ExecuteOptions;
 import com.legend.Execution;
@@ -2030,7 +2032,7 @@ class BodyRouterParityTest {
                 }
             }
             TypedQuery q = typed(ctx, body);
-            RawSqlBoundary.Recorder recorder = new RawSqlBoundary.Recorder();
+            RawLedger.Recorder recorder = new RawLedger.Recorder();
             // a run under the compatibility rules is handed the edge, which records the ledger; lite's own records
             // none (the plan-as-data design's step 8, 2026-11-08: an edge implies the compatibility rules)
             ExecuteOptions options = (COMPAT.get()

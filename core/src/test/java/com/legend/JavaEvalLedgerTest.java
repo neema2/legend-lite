@@ -1810,6 +1810,9 @@ class JavaEvalLedgerTest {
                             // legend-engine's text dialect type, moved from com.legend.sql.dialect (Phase 6's B3,
                             // 2026-11-17): an interface its printers implement, decides nothing
                             "EngineTextDialect.java",
+                            // the referee's raw-SQL ledger (Raw, FileRead, Recorder), moved from sql.dialect's
+                            // RawSqlBoundary (Phase 6's B4 (i), 2026-11-17): records the statements run, decides nothing
+                            "RawLedger.java",
                             // the referee's load of a fixture's rows, planned (the edge's appeals, G6)
                             "RefereeLoad.java",
                             // legend-engine's service tests (D1.4, 2026-11-15, moved from com.legend.test and

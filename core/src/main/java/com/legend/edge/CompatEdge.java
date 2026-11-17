@@ -16,25 +16,25 @@ import java.util.Map;
 
 /**
  * THE COMPATIBILITY EDGE (docs/PLAN_AS_DATA_2026_11_07.md 2.7, the design's step 8): what a run under the compatibility
- * rules hands the test road, holding the referee's ledger ({@link RawSqlBoundary.Recorder}). At planning it plans each
+ * rules hands the test road, holding the referee's ledger ({@link RawLedger.Recorder}). At planning it plans each
  * effect's ledger texts and each seed's referee's copy into the test plan ({@link EffectTexts}, {@link RefereeLoad});
  * at run it records them as each step's events say ({@link #seeded}, {@link #effectRan}). Lite's own runs hand no edge,
  * and plan nothing for it.
  */
 public final class CompatEdge implements Edge {
 
-    private final RawSqlBoundary.Recorder recorder;
+    private final RawLedger.Recorder recorder;
     private final DataStores stores;
 
     /** {@code stores}: the run's own, which resolve a file the plan's loads read by its reference (the referee reads
      *  the same verified bytes, B2b). */
-    public CompatEdge(RawSqlBoundary.Recorder recorder, DataStores stores) {
+    public CompatEdge(RawLedger.Recorder recorder, DataStores stores) {
         this.recorder = recorder;
         this.stores = stores;
     }
 
     /** The ledger this edge records into: the referee replays the goldens over it. */
-    public RawSqlBoundary.Recorder recorder() {
+    public RawLedger.Recorder recorder() {
         return recorder;
     }
 
@@ -76,7 +76,7 @@ public final class CompatEdge implements Edge {
                 case ExecutionPlan.LoadStep.File f -> {
                     switch (f.delivery()) {
                         case ExecutionPlan.LoadStep.Delivery.Reads reads -> recorder.recordRead(
-                                new RawSqlBoundary.FileRead(bytes(f, copy), reads.statements(), reads.after()));
+                                new RawLedger.FileRead(bytes(f, copy), reads.statements(), reads.after()));
                     }
                 }
                 // a host's statement, bound from its own store (B3's Q3): a HOST_SESSION load's alone, never a seed's
