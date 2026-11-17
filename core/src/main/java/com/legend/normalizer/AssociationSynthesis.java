@@ -423,11 +423,34 @@ final class AssociationSynthesis {
                     "AssociationMapping for '" + am.associationName()
                   + "' has no property mappings; mapping=" + md.qualifiedName());
         }
-        // Pick the FIRST property mapping as the primary; multi-PM
+        // A property mapping whose written TARGET set id names no set (F-U2,
+        // 2026-11-14): legend-engine compiles it (RelationalValidator's
+        // validateAssociationId only warns) and refuses THAT direction at
+        // planning, the other planning (pureToSQLQuery.pure's doJoinToClass:
+        // "Expected 1 class mapping for 'B' in 'M', found 0"). Recorded here
+        // per direction, read where the resolver navigates it, which looks
+        // the id up under the QUERIED mapping, as the engine does: a mapping
+        // that includes this one may hold the set. The primary is the first
+        // property mapping whose target is a set of this mapping's closure;
+        // when none is, the first, as before -- each direction whose id names
+        // no set where it is queried is refused there.
+        AssociationPropertyMapping firstAm = null;
+        for (AssociationPropertyMapping apm : rel.propertyMappings()) {
+            String written = writtenTargetSetId(apm);
+            if (written != null && !namesASet(md, written)) {
+                ledger.poison(new com.legend.model.PoisonKey.ForAssociationEnd(
+                        ad.qualifiedName(), apm.propertyName()), written);
+            } else if (firstAm == null) {
+                firstAm = apm;
+            }
+        }
+        if (firstAm == null) {
+            firstAm = rel.propertyMappings().get(0);
+        }
+        // Pick the FIRST such property mapping as the primary; multi-PM
         // disambiguation by [srcSetId, tgtSetId] could differentiate
         // direction-specific joins but the predicate condition is the
         // same regardless (it describes the association in one place).
-        AssociationPropertyMapping firstAm = rel.propertyMappings().get(0);
         if (!(firstAm.body() instanceof PropertyMapping.Join firstJoin)) {
             throw new NotImplementedException(
                     "AssociationMapping property body kind "
@@ -739,10 +762,31 @@ final class AssociationSynthesis {
         return null;
     }
 
+    /** The {@code [source, target]} target id a property mapping writes (its
+     * join's own routing first, as the injection pass reads it); null when
+     * unwritten. */
+    private static @com.legend.base.Nullable String writtenTargetSetId(AssociationPropertyMapping apm) {
+        return apm.body() instanceof PropertyMapping.Join join && join.targetSetId() != null
+                ? join.targetSetId() : apm.targetSetId();
+    }
+
+    /** Whether {@code setId} is the id of a set this mapping sees: its own or
+     * an included one, or an embedded set's {@code <ownerId>_<property>}. */
+    private static boolean namesASet(ResolvedMapping md, String setId) {
+        return md.set(setId) != null || anchorOfSet(md, setId) != null;
+    }
+
     /** One end's anchor: the set its id names when written and resolvable
-     * (the engine's rule), else the class's ({@link #anchorTableOf}). An
-     * unresolvable id is only a WARNING in the engine
-     * (validateAssociationId's useWarning), so the class rule stands in. */
+     * (the engine's rule), else the class's ({@link #anchorTableOf}). A
+     * TARGET id that names no set of this mapping's closure reaches here
+     * only when every property mapping's does (F-U2: its direction is
+     * refused at planning unless the queried mapping holds the set, which
+     * an including mapping may). A SOURCE id that names no set still meets
+     * the class rule: legend-engine
+     * refuses that direction at planning by another assert
+     * (helperFunctions.pure:395, "The system can't find a mapping for the
+     * property ..."), and lite plans it -- the open finding F-U7
+     * (projects/unstructured/FINDINGS.md). */
     private static LegacyMappingDefinition.@com.legend.base.Nullable TableReference endAnchor(
             ResolvedMapping md, String classFqn, @com.legend.base.Nullable String setId,
             ModelBuilder model) {

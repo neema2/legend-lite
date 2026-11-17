@@ -87,7 +87,13 @@ class FixtureWriteCensusTest {
      *  TsScaleMeasureTest 5 at 10M rows, TimeseriesLibraryTest 2; the documents', the oracle's, the replay's and the
      *  spike's 1 each), the dialect tests' own tables (SelectLayersTest 2, SharedRelationsInPlaceTest 2) and the
      *  ClickHouse and Snowflake backends' schemas (2, 3); 25. 925, 947 -> 950 (2026-11-14, merged main 3a217086a
-     *  (#81) into the separation stream, measured by the census's run on the merged tree): both sides' moves together. */
+     *  (#81) into the separation stream, measured by the census's run on the merged tree): both sides' moves together.
+     *  950 -> 952 (2026-11-16, PR #93, the unstructured study, rebased onto main at 4dfbb5b76, measured by the census's
+     *  run; it read 947 -> 949 on 3a217086a): the study's F-U5 pin, written before this census (2026-11-09), its DuckDB
+     *  table and the one row outside ColorMap that is the finding (OpenMappingGapsPinTest, 2; its F-U1/F-U2 follow-up PR
+     *  is the place to move them onto the plan's loads). 952 -> 950 (2026-11-17, the F-U1/F-U2 PR, #114, rebased onto
+     *  #93 at c30396fe5, measured by the census's run; it read 949 -> 947 on 62c1c9525): those two moved onto the plan's
+     *  load, the row the connection's test data (OpenMappingGapsPinTest, 0). */
     private static final int CEILING = 950;
 
     /** Each file's literal write sends (2026-11-11, B2c: the baseline as measured). */

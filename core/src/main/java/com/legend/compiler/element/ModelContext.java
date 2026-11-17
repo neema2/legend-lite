@@ -176,6 +176,14 @@ public interface ModelContext extends StoreLookups {
         return Optional.empty();
     }
 
+    /** The set id an association's property mapping for {@code propertyName}
+     * names as its target, in {@code mapping}, when no set has that id: the
+     * direction is refused at planning (F-U2). */
+    default Optional<String> mappingAssociationEndPoison(String mappingFqn, String associationFqn,
+            String propertyName) {
+        return Optional.empty();
+    }
+
     /** Member set ids of a MIXED-KIND Operation union (a Pure member —
      * resolver-side arm synthesis, route b); {@code null} otherwise. */
     /** The member CLASSES of a union Operation mapping of {@code classFqn}

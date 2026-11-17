@@ -1,0 +1,158 @@
+CREDIT AGREEMENT
+dated as of March 2, 2023
+among
+Hartsmere Packaging Holdings, Inc.,
+as the Borrower,
+THE LENDERS PARTY HERETO
+and
+Pellbrook Bank, N.A.,
+as Administrative Agent
+
+This Credit Agreement is entered into as of March 2, 2023, among Hartsmere Packaging Holdings, Inc., a Delaware entity (the “Borrower”), each lender from time to time party hereto (collectively, the “Lenders”), and Pellbrook Bank, N.A., as administrative agent and collateral agent (in such capacities, the “Administrative Agent”).
+
+ARTICLE I
+DEFINITIONS
+
+Section 1.01 Defined Terms. As used in this Agreement, the following terms have the meanings set forth below:
+
+“Business Day” means any day other than a Saturday, Sunday or other day on which commercial banks in New York City are authorized or required by law to close.
+
+“Consolidated EBITDA” means, for any period, Consolidated Net Income for such period plus, without duplication and to the extent deducted in determining such Consolidated Net Income, interest expense, income taxes, depreciation and amortization, and non-recurring charges not exceeding fifteen percent of Consolidated EBITDA for such period.
+
+“Consolidated Interest Charges” means, for any period, all cash interest, premium payments and the interest component of Capitalized Leases of the Borrower and its Subsidiaries for such period.
+
+“Consolidated Total Net Debt” means, as of any date, the aggregate principal amount of Indebtedness of the Borrower and its Subsidiaries on a consolidated basis, minus unrestricted cash and Cash Equivalents not exceeding $75,000,000.
+
+“Consolidated Total Net Leverage Ratio” means, as of any date, the ratio of (a) Consolidated Total Net Debt as of such date to (b) Consolidated EBITDA for the four consecutive Fiscal Quarters most recently ended.
+
+“Consolidated Senior Secured Net Leverage Ratio” means, as of any date, the ratio of (a) Consolidated Total Net Debt secured by a Lien on any assets of the Borrower or its Subsidiaries to (b) Consolidated EBITDA for the four consecutive Fiscal Quarters most recently ended.
+
+“Fiscal Quarter” means each fiscal quarter of the Borrower, ending on the last day of March, June, September and December.
+
+“Liquidity” means, as of any date, the sum of unrestricted cash and Cash Equivalents of the Borrower and its Subsidiaries and the unused Revolving Commitments then available to be drawn.
+
+“SOFR” means the secured overnight financing rate as administered by the relevant administrator, and “Term SOFR” means the forward-looking term rate based on SOFR for the applicable interest period.
+
+“Threshold Amount” means $70,000,000.
+
+ARTICLE II
+THE CREDITS
+
+Section 2.01 Commitments. Subject to the terms and conditions set forth herein:
+
+(a) Revolving Credit Facility. Each Lender severally agrees to make loans to the Borrower under the Revolving Credit Facility in an aggregate principal amount not exceeding its commitment, the aggregate of all such commitments being $75,000,000 on the date hereof. All amounts outstanding under the Revolving Credit Facility are due on March 28, 2028.
+
+(b) Delayed Draw Term Facility. Each Lender severally agrees to make loans to the Borrower under the Delayed Draw Term Facility in an aggregate principal amount not exceeding its commitment, the aggregate of all such commitments being $225,000,000 on the date hereof. All amounts outstanding under the Delayed Draw Term Facility are due on March 28, 2029.
+
+(c) Term B Facility. Each Lender severally agrees to make loans to the Borrower under the Term B Facility in an aggregate principal amount not exceeding its commitment, the aggregate of all such commitments being $200,000,000 on the date hereof. All amounts outstanding under the Term B Facility are due on March 28, 2030.
+
+Section 2.08 Interest and Fees. Interest on the Loans is payable in arrears as follows:
+
+(a) Revolving Credit Facility. Loans under the Revolving Credit Facility bear interest at Term SOFR plus 3.50% per annum. The Borrower shall pay a commitment fee of 0.25% per annum on the unused portion of the Revolving Credit Facility.
+
+(b) Delayed Draw Term Facility. Loans under the Delayed Draw Term Facility bear interest at Term SOFR plus 3.50% per annum, subject to a Term SOFR floor of 0.00%. The Borrower shall pay a commitment fee of 3.75% per annum on the unused portion of the Delayed Draw Term Facility. The Delayed Draw Term Facility amortizes in equal quarterly instalments of 0.625% of its original principal amount.
+
+(c) Term B Facility. Loans under the Term B Facility bear interest at Term SOFR plus 3.00% per annum, subject to a Term SOFR floor of 0.75%. The Term B Facility amortizes in equal quarterly instalments of 0.250% of its original principal amount.
+
+ARTICLE III
+YIELD PROTECTION AND TAXES
+
+Section 3.01 Taxes. All payments by or on account of any obligation of the Borrower hereunder shall be made free and clear of Taxes, except as required by applicable law.
+
+ARTICLE IV
+CONDITIONS PRECEDENT
+
+Section 4.01 Conditions to Effectiveness. The obligation of each Lender to make its initial Loan is subject to receipt by the Administrative Agent of executed counterparts of this Agreement, customary opinions of counsel and evidence of the Collateral having been perfected.
+
+ARTICLE V
+REPRESENTATIONS AND WARRANTIES
+
+Section 5.01 Organization. The Borrower is duly organized and validly existing under the laws of Delaware and has all requisite power to carry on its business.
+
+Section 5.02 No Default. No Default has occurred and is continuing, and none would result from the consummation of the transactions contemplated hereby.
+
+ARTICLE VI
+AFFIRMATIVE COVENANTS
+
+Section 6.01 Financial Statements. The Borrower shall deliver to the Administrative Agent:
+
+(a) within 45 days after the end of each of the first three Fiscal Quarters of each fiscal year, consolidated balance sheets and related statements of income and cash flows, certified by a Financial Officer as fairly presenting the financial condition of the Borrower and its Subsidiaries, together with a compliance certificate setting forth the calculations under Section 7.11.
+
+Section 6.09 Collateral and Guarantees. The Obligations shall be secured by first-priority Liens on the following, in favour of the Administrative Agent for the benefit of the Lenders:
+
+(a) with respect to the Revolving Credit Facility, all equity interests in each direct Subsidiary of the Borrower, limited to 65% of the voting equity of a foreign Subsidiary.
+
+(b) with respect to the Revolving Credit Facility, all inventory of the Borrower and each Guarantor, wherever located.
+
+(c) with respect to the Delayed Draw Term Facility, substantially all assets of the Borrower and each Guarantor, including converting plants and tooling.
+
+(d) with respect to the Term B Facility, substantially all assets of the Borrower and each Guarantor, including converting plants and tooling.
+
+ARTICLE VII
+NEGATIVE COVENANTS
+
+Section 7.01 Indebtedness.
+
+(a) Indebtedness Basket. The Borrower shall not, and shall not permit any Subsidiary to, create, incur or assume any Indebtedness other than Indebtedness under this Agreement and other Indebtedness in an aggregate principal amount at any time outstanding not exceeding $170,000,000 (the “General Debt Basket”).
+
+Section 7.02 Liens.
+
+(a) Liens Basket. The Borrower shall not, and shall not permit any Subsidiary to, create or permit to exist any Lien on any of its property, other than Liens securing the Obligations and other Liens securing obligations not exceeding $65,000,000 at any time outstanding (the “General Lien Basket”).
+
+Section 7.03 [Reserved].
+
+Section 7.04 [Reserved].
+
+Section 7.05 Asset Sales.
+
+(a) Asset Sales Basket. The Borrower shall not, and shall not permit any Subsidiary to, make any Disposition other than Dispositions for fair market value, at least 75% in cash, in an aggregate amount in any fiscal year not exceeding $120,000,000.
+
+Section 7.06 Restricted Payments.
+
+(a) Restricted Payments Basket. The Borrower shall not declare or make any Restricted Payment other than Restricted Payments in an aggregate amount during the term of this Agreement not exceeding $125,000,000, so long as no Default has occurred and is continuing.
+
+Section 7.07 [Reserved].
+
+Section 7.08 [Reserved].
+
+Section 7.09 [Reserved].
+
+Section 7.10 [Reserved].
+
+Section 7.11 Financial Covenants.
+
+(a) Maximum Total Net Leverage Ratio. Subject to Section 7.11(d), the Borrower shall not permit the Consolidated Total Net Leverage Ratio as of the last day of any Fiscal Quarter, commencing with the Fiscal Quarter ending June 30, 2023, to exceed the ratio set forth below opposite the period in which such Fiscal Quarter ends:
+Fiscal Quarter ending June 30, 2023 through the Fiscal Quarter ending September 30, 2023: 5.75:1.00
+Fiscal Quarter ending December 31, 2023 through the Fiscal Quarter ending March 31, 2024: 5.25:1.00
+Fiscal Quarter ending June 30, 2024 and each Fiscal Quarter thereafter: 4.75:1.00
+
+(b) Minimum Fixed Charge Coverage Ratio. The Borrower shall not permit the ratio of Consolidated EBITDA less Capital Expenditures to Consolidated Fixed Charges for any period of four consecutive Fiscal Quarters, commencing with the period ending June 30, 2023, to be less than 2.75:1.00.
+
+(c) [Reserved].
+
+(d) Equity Cure. In the event the Borrower fails to comply with Section 7.11(a) as of the last day of any Fiscal Quarter, the Borrower shall have the right, until the fifteenth Business Day after the date on which financial statements for such Fiscal Quarter are required to be delivered, to receive cash common equity contributions (the “Cure Right”), and the amount so received shall be deemed to increase Consolidated EBITDA for such Fiscal Quarter solely for the purpose of determining compliance with such covenant. The Cure Right may not be exercised in more than two of any four consecutive Fiscal Quarters or more than four times during the term of this Agreement.
+
+ARTICLE VIII
+EVENTS OF DEFAULT
+
+Section 8.01 Events of Default. Any of the following constitutes an Event of Default:
+
+(a) Non-Payment. The Borrower fails to pay (i) any principal of any Loan when due, or (ii) any interest on any Loan or any fee within three Business Days after the same becomes due.
+
+(b) Cross-Default. The Borrower or any Subsidiary fails to make any payment when due, beyond any applicable grace period, in respect of Indebtedness having an aggregate principal amount of more than $70,000,000 (the Threshold Amount), or any such Indebtedness becomes due before its stated maturity as a result of a default thereunder.
+
+(c) Change of Control. There occurs any Change of Control, being any person or group other than the Permitted Holders acquiring more than 35% of the voting equity of the Borrower.
+
+Section 8.02 Remedies. If any Event of Default occurs and is continuing, the Administrative Agent may, and at the request of the Required Lenders shall, declare the commitments terminated and all Obligations immediately due and payable.
+
+ARTICLE IX
+THE ADMINISTRATIVE AGENT
+
+Section 9.01 Appointment. Each Lender irrevocably appoints Pellbrook Bank, N.A. as Administrative Agent and authorizes it to act on such Lender's behalf.
+
+ARTICLE X
+MISCELLANEOUS
+
+Section 10.01 Amendments. No amendment of any provision of this Agreement shall be effective unless in writing and signed by the Required Lenders and the Borrower.
+
+Section 10.14 Governing Law. THIS AGREEMENT SHALL BE GOVERNED BY, AND CONSTRUED IN ACCORDANCE WITH, THE LAW OF THE STATE OF NEW YORK.

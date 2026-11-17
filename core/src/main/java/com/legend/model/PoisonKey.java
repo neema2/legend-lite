@@ -17,7 +17,12 @@ package com.legend.model;
  *   <li>{@link ForSet}: ONE non-root set of a multi-set class is withheld —
  *       the per-set fault isolation arm;</li>
  *   <li>{@link ForAssociation}: the association's join synthesis is withheld
- *       (the class bindings stay queryable).</li>
+ *       (the class bindings stay queryable);</li>
+ *   <li>{@link ForAssociationEnd}: ONE direction of an association is
+ *       refused at planning -- its property mapping names a target set id
+ *       no set has (legend-engine refuses that direction at planning and
+ *       plans the other: pureToSQLQuery.pure's doJoinToClass, F-U2,
+ *       2026-11-14).</li>
  * </ul>
  */
 public sealed interface PoisonKey {
@@ -32,5 +37,10 @@ public sealed interface PoisonKey {
 
     record ForAssociation(String associationFqn) implements PoisonKey {
         @Override public String toString() { return associationFqn; }
+    }
+
+    /** The direction that navigates {@code propertyName} of the association. */
+    record ForAssociationEnd(String associationFqn, String propertyName) implements PoisonKey {
+        @Override public String toString() { return associationFqn + "." + propertyName; }
     }
 }

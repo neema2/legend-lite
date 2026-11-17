@@ -1,0 +1,832 @@
+# The unstructured study's answer key: 50 cases, written from the source files before any tuning.
+# Frozen 2026-11-09 (DECISIONS.md entry 2)
+# resolved by ABS, 2026-11-09, each case read against its question
+#
+# Ids are those of CANDIDATES.md, kept for traceability; the gaps are the cases that were cut.
+#
+# A text pointer is relative to its corpus's directory under projects/unstructured/corpus: edgar for EDGAR, emails for
+# SALES, loans for LENDING. charStart and charEnd are Unicode code points of the file; sha256 is of exactly that span
+# as UTF-8; snippet is at most 25 words of it, for the reader. A pointer never copies the passage.
+#
+# route: text is passage retrieval. structured is a Pure query answered by the semantic layer, over any class the model
+# maps. both means each route is judged against its own expected, on its own part of the case.
+# A structured query names its filing or agreement. Its rows are compared as a set, numbers by value.
+#
+# The hit rule: before any cut, results are deduped by sha256 into one row per hash, and that row carries every
+# (path, charStart) holding the hash. A hit is credited when any accepted (path, charStart) is among the row's
+# locations. Each result shows its own agreement, with source, section, date and sha256.
+#
+# match is required on every text list, with no default. all: the case needs every accepted pointer credited. any: one
+# credited pointer answers it, and the others are equally good. On an empty list it has nothing to test.
+#
+# superseded, on every time-aware case, lists the earlier pointers that must not be credited. A hit on one is reported
+# as its own verdict, STALE_HIT, never as a pass. On the structured route a superseded row is matched by value, against
+# its rows; the csv line is provenance.
+#
+# A negative case expects the empty set: nothing in the corpus. An error is not an empty result.
+
+cases:
+  - id: C01
+    corpus: "SALES"
+    type: time-aware
+    route: both
+    question: "What size and limit did Quillon put in for the Kestrelline 5.125% 2034s, and was that their final order?"
+    expected:
+      text:
+        match: all
+        accepted:
+          - {path: "bodies/MSG-0005.txt", charStart: 53, charEnd: 167, sha256: 9f9f9e400d3ba5c3d0a54e9f1f88438b59496e6cb479e24183723b82b053a281, snippet: "Please put us in for $20mm of the Kestrelline 5.125% 2034s at a 99.75 limit. That limit is hard: we drop above it."}
+          - {path: "bodies/MSG-0005.txt", charStart: 169, charEnd: 216, sha256: 17d349212b20333170d0b1c037ecdedbc1381e73a4069e7e0f412d416db44195, snippet: "Please replace our earlier order with this one."}
+      structured:
+        - query: "sales::AllocationRequest.all()->filter(r|$r.client.clientId == 'C-01' && $r.deal.dealId == 'D-01')->project(~[requested:x|$x.requestedQtyUsd, limitPrice:x|$x.limitPrice, sensitivity:x|$x.priceSensitivity])"
+          rows: [[20000000, 99.75, "Hard"]]
+    superseded:
+      - {path: "bodies/MSG-0002.txt", charStart: 34, charEnd: 94, sha256: 486be8a6c991cd0cf356b49569064f84bde6d58bad0f7af54bdaaae1b3cd5f6e}
+      - {path: "bodies/MSG-0003.txt", charStart: 11, charEnd: 48, sha256: f97a5936d72a6747361319cd4967d7f68621fbf4f9a010a85527b2c672b44e4c}
+    why_hard: "A superseded order ($25mm at 99.55, soft) sits earlier in the same thread, and the desk's acknowledgement repeats it."
+    author: ABS
+    reviewer: "Claude Fable 5.1 (independent session, 2026-11-09)"
+    status: resolved
+  - id: C02
+    corpus: "SALES"
+    type: lookup
+    route: text
+    question: "Why was Soren's order in the Tarnwick 7.875% 2031s paused?"
+    expected:
+      text:
+        match: all
+        accepted:
+          - {path: "bodies/MSG-0021.txt", charStart: 8, charEnd: 173, sha256: a3344641ce350201b183c7e2af9786868f371b9da21ef0af10e2523db72b6a68, snippet: "I have to pause your order in Tarnwick 7.875% 2031s. Compliance has placed it on hold: the account is pending its annual sanctions re-screen, which"}
+    why_hard: "Two compliance holds read alike (MSG-0021, MSG-0044), and only the greeting carries the first name Soren."
+    author: ABS
+    reviewer: "not sampled (10 of 50 reviewed at random, seed 20261109; REVIEW_2026_11_09.md)"
+    status: resolved
+  - id: C03
+    corpus: "SALES"
+    type: multi-hop
+    route: both
+    question: "What was the final book size and coverage on the Kestrelline deal, and what was Quillon allocated?"
+    expected:
+      text:
+        match: all
+        accepted:
+          - {path: "bodies/MSG-0006.txt", charStart: 8, charEnd: 117, sha256: b1e91382e7d64cdb282111c52b91b2e1bef0590bc3324301c399fa1ba248a168, snippet: "Allocations are out on Kestrelline 5.125% 2034s. Final book $2.85bn, 3.8x covered on $750mm, re-offer 99.714."}
+          - {path: "bodies/MSG-0006.txt", charStart: 119, charEnd: 278, sha256: dc5dfedc471bcc5f55b256784204e294495c2bca8080abae9fcf15baccd29295, snippet: "You are done on $5.25mm of your $20mm (26.3%). Syndicate allocated strictly pro rata to order size once the book closed, and no account was"}
+      structured:
+        - query: "sales::AllocationRequest.all()->filter(r|$r.client.clientId == 'C-01' && $r.deal.dealId == 'D-01')->project(~[bookSize:x|$x.deal.bookSizeUsd, allocated:x|$x.allocatedQtyUsd])"
+          rows: [[2850000000, 5250000]]
+    why_hard: "Book and allocation are separate paragraphs; an earlier $1.95bn book update is a trap, and four other deals' notices have this wording with other figures."
+    author: ABS
+    reviewer: "not sampled (10 of 50 reviewed at random, seed 20261109; REVIEW_2026_11_09.md)"
+    status: resolved
+  - id: C04
+    corpus: "SALES"
+    type: multi-hop
+    route: both
+    question: "Which clients were declined on any deal, on which, and why?"
+    expected:
+      text:
+        match: all
+        accepted:
+          - {path: "bodies/MSG-0010.txt", charStart: 9, charEnd: 109, sha256: 20d325d6a3d3c5d07343d1443822de2144aba68ca6ba1052246ecc4f36ac973a, snippet: "Coming back on your $15mm order in Kestrelline 5.125% 2034s. Unfortunately we cannot allocate to it."}
+          - {path: "bodies/MSG-0035.txt", charStart: 11, charEnd: 100, sha256: 420d468bef9f63048c4a2d23454422146ff28faa24e367e30dda4d474b6b5c4f, snippet: "Coming back on your $3mm order in Lumencrest IPO. Unfortunately we cannot allocate to it."}
+          - {path: "bodies/MSG-0060.txt", charStart: 12, charEnd: 102, sha256: 525d93d357118d66e800132cc66b42c25282ad1351749e7ed23e7002d64965f9, snippet: "Coming back on your $10mm order in Caldrith block. Unfortunately we cannot allocate to it."}
+          - {path: "bodies/MSG-0010.txt", charStart: 111, charEnd: 216, sha256: 91b580be6ec10e4fa56f1ce32517a153d980495c1de611fa2d5394fd2bc11e9a, snippet: "The deal re-offered at 99.714, which is above your 99.65 hard limit, so the order dropped at the reprice."}
+          - {path: "bodies/MSG-0035.txt", charStart: 102, charEnd: 269, sha256: 0501c7ecd3c3744c68e246ead80d2836f74af56711c04a74103c1a2f0ab1c9aa, snippet: "The institutional tranche is closed to private-bank accounts under the syndicate's allocation policy, and the priced level of $18.00 is through your limit in any"}
+          - {path: "bodies/MSG-0060.txt", charStart: 104, charEnd: 198, sha256: 2b7a38f5fde92b74474b713278de3271f247beed86b8b0f6cf62076229d672c3, snippet: "The block cleared at $12.18, above your $11.90 hard limit, so the order did not make the book."}
+      structured:
+        - query: "sales::AllocationRequest.all()->filter(r|$r.status == sales::AllocationStatus.Declined)->project(~[client:x|$x.client.legalName, deal:x|$x.deal.issuer])"
+          rows: [["Velmara Life Assurance plc", "Kestrelline Logistics Inc."], ["Hallerbrunn Privatbank AG", "Lumencrest Therapeutics Inc."], ["Sorrelmead Teachers Pension Fund", "Caldrith Materials Inc."]]
+    why_hard: "Three unconnected threads, none of which uses the word declined."
+    author: ABS
+    reviewer: "Claude Fable 5.1 (independent session, 2026-11-09)"
+    status: resolved
+  - id: C05
+    corpus: "LENDING"
+    type: number
+    route: both
+    question: "In CA-003, what is the Senior Secured Net Leverage threshold for the quarter ending September 30, 2025?"
+    expected:
+      text:
+        match: all
+        accepted:
+          - {path: "agreements/CA-003.txt", charStart: 6889, charEnd: 7618, sha256: f2dd00e6d5d7926496c64f71956324ff49c548cb635ec28794b0f28dc31cf9b1, snippet: "Fiscal Quarter ending September 30, 2025 and each Fiscal Quarter thereafter: 4.00:1.00"}
+      structured:
+        - query: "lending::Covenant.all()->filter(c|$c.agreement.agreementId == 'CA-003' && $c.kind == lending::CovenantKind.MaxSeniorSecuredLeverage)->project(~[effectiveFrom:x|$x.steps.effectiveFrom, level:x|$x.steps.threshold])->filter(x|$x.effectiveFrom == %2025-09-30)"
+          rows: [["2025-09-30", 4.0]]
+    why_hard: "The last of four step-down rows; CA-009, the same borrower's restated agreement, has a near-identical clause with different levels."
+    author: ABS
+    reviewer: "not sampled (10 of 50 reviewed at random, seed 20261109; REVIEW_2026_11_09.md)"
+    status: resolved
+  - id: C06
+    corpus: "LENDING"
+    type: number
+    route: text
+    question: "How many times may CA-003's Cure Right be exercised over the life of the agreement?"
+    expected:
+      text:
+        match: all
+        accepted:
+          - {path: "agreements/CA-003.txt", charStart: 8187, charEnd: 8876, sha256: 3b6cc8dd84e5ad3e55a44c9e0f817c41011891901a80bcd1e39a875cb580b60b, snippet: "The Cure Right may not be exercised in more than three of any four consecutive Fiscal Quarters or more than five times during the term"}
+    why_hard: "The same sentence also gives 'three of any four' quarters, and eleven other agreements have near-identical cure clauses."
+    author: ABS
+    reviewer: "not sampled (10 of 50 reviewed at random, seed 20261109; REVIEW_2026_11_09.md)"
+    status: resolved
+  - id: C07
+    corpus: "LENDING"
+    type: lookup
+    route: both
+    question: "Which agreements carry a maximum capital expenditures covenant, and at what amounts?"
+    expected:
+      text:
+        match: all
+        accepted:
+          - {path: "agreements/CA-003.txt", charStart: 7938, charEnd: 8185, sha256: eab0a50eed37b56b013d43175a1517162fe8c99181638cb25012f81d3cead105, snippet: "(c) Maximum Capital Expenditures. The Borrower shall not make, or permit its Subsidiaries to make, Capital Expenditures in any fiscal year exceeding $70,000,000 in the"}
+          - {path: "agreements/CA-004.txt", charStart: 7925, charEnd: 8173, sha256: 6d5fa8acef5df60c489ea48c743fc6ec0bd7efa5db431fa82aaa548753b6b96e, snippet: "(c) Maximum Capital Expenditures. The Borrower shall not make, or permit its Subsidiaries to make, Capital Expenditures in any fiscal year exceeding $130,000,000 in the"}
+      structured:
+        - query: "lending::Covenant.all()->filter(c|$c.kind == lending::CovenantKind.MaxCapex)->project(~[agreement:x|$x.agreement.agreementId, threshold:x|$x.threshold])"
+          rows: [["CA-003", 70000000], ["CA-004", 130000000]]
+    why_hard: "Clause (c) of Section 7.11 is a liquidity test or [Reserved] in most agreements: same reference, different content."
+    author: ABS
+    reviewer: "not sampled (10 of 50 reviewed at random, seed 20261109; REVIEW_2026_11_09.md)"
+    status: resolved
+  - id: C08
+    corpus: "LENDING"
+    type: number
+    route: both
+    question: "What is the cross-default threshold in each agreement that has one?"
+    expected:
+      text:
+        match: all
+        accepted:
+          - {path: "agreements/CA-001.txt", charStart: 10247, charEnd: 10582, sha256: 1ce32b4187e2e06a90ec3ff0215d51ca790c5184e279b2a0bf481f94240b122f, snippet: "aggregate principal amount of more than $70,000,000 (the Threshold Amount), or any such Indebtedness becomes due before its stated maturity as a result of a"}
+          - {path: "agreements/CA-002.txt", charStart: 8562, charEnd: 8897, sha256: 049ca158da63f58eb1a50186e487442f13640240dc51ba91a4369aeb0470736e, snippet: "aggregate principal amount of more than $60,000,000 (the Threshold Amount), or any such Indebtedness becomes due before its stated maturity as a result of a"}
+          - {path: "agreements/CA-003.txt", charStart: 9180, charEnd: 9515, sha256: c0fd622b5e9ea1a8a05810410468df3bd4b4970178b34fbc6bb57f0513a8b6b6, snippet: "aggregate principal amount of more than $65,000,000 (the Threshold Amount), or any such Indebtedness becomes due before its stated maturity as a result of a"}
+          - {path: "agreements/CA-004.txt", charStart: 9152, charEnd: 9487, sha256: 7eed77bbb707bd194de170197147d4820afe9a7b504fb57db9cba89c5324659e, snippet: "aggregate principal amount of more than $75,000,000 (the Threshold Amount), or any such Indebtedness becomes due before its stated maturity as a result of a"}
+          - {path: "agreements/CA-005.txt", charStart: 9512, charEnd: 9847, sha256: 4b00d2ad10caf0abd5ea4c632103c0ea2b94a7e09d18f32718124d02c8cb9146, snippet: "aggregate principal amount of more than $25,000,000 (the Threshold Amount), or any such Indebtedness becomes due before its stated maturity as a result of a"}
+          - {path: "agreements/CA-006.txt", charStart: 8937, charEnd: 9272, sha256: c0fd622b5e9ea1a8a05810410468df3bd4b4970178b34fbc6bb57f0513a8b6b6, snippet: "aggregate principal amount of more than $65,000,000 (the Threshold Amount), or any such Indebtedness becomes due before its stated maturity as a result of a"}
+          - {path: "agreements/CA-007.txt", charStart: 9531, charEnd: 9866, sha256: b3ad7eb0eda33d4f0060f32e9ca7c7a719982eb8eee8b689422d79f2b5488de7, snippet: "aggregate principal amount of more than $45,000,000 (the Threshold Amount), or any such Indebtedness becomes due before its stated maturity as a result of a"}
+          - {path: "agreements/CA-008.txt", charStart: 7967, charEnd: 8302, sha256: b3ad7eb0eda33d4f0060f32e9ca7c7a719982eb8eee8b689422d79f2b5488de7, snippet: "aggregate principal amount of more than $45,000,000 (the Threshold Amount), or any such Indebtedness becomes due before its stated maturity as a result of a"}
+          - {path: "agreements/CA-009.txt", charStart: 9896, charEnd: 10231, sha256: 7eed77bbb707bd194de170197147d4820afe9a7b504fb57db9cba89c5324659e, snippet: "aggregate principal amount of more than $75,000,000 (the Threshold Amount), or any such Indebtedness becomes due before its stated maturity as a result of a"}
+          - {path: "agreements/CA-010.txt", charStart: 8283, charEnd: 8618, sha256: 722a319a29d79fa0d1f21f756e1f6015d174606a99add9cdf2ed72cb2f5c6ed8, snippet: "aggregate principal amount of more than $80,000,000 (the Threshold Amount), or any such Indebtedness becomes due before its stated maturity as a result of a"}
+          - {path: "agreements/CA-011.txt", charStart: 9363, charEnd: 9698, sha256: c51ef7edec1050353aa7b744caa247d641f7cd06a78bee689a802ca7e52a4e38, snippet: "aggregate principal amount of more than $85,000,000 (the Threshold Amount), or any such Indebtedness becomes due before its stated maturity as a result of a"}
+          - {path: "agreements/CA-012.txt", charStart: 9002, charEnd: 9337, sha256: 722a319a29d79fa0d1f21f756e1f6015d174606a99add9cdf2ed72cb2f5c6ed8, snippet: "aggregate principal amount of more than $80,000,000 (the Threshold Amount), or any such Indebtedness becomes due before its stated maturity as a result of a"}
+      structured:
+        - query: "lending::EventOfDefault.all()->filter(e|$e.kind == lending::DefaultKind.CrossDefault)->project(~[agreement:x|$x.agreement.agreementId, threshold:x|$x.crossDefaultThresholdUsd])"
+          rows: [["CA-001", 70000000], ["CA-002", 60000000], ["CA-003", 65000000], ["CA-004", 75000000], ["CA-005", 25000000], ["CA-006", 65000000], ["CA-007", 45000000], ["CA-008", 45000000], ["CA-009", 75000000], ["CA-010", 80000000], ["CA-011", 85000000], ["CA-012", 80000000]]
+    why_hard: "Twelve near-identical clauses that differ only in the figure, so a top-k cut will miss some: this is a recall test."
+    author: ABS
+    reviewer: "not sampled (10 of 50 reviewed at random, seed 20261109; REVIEW_2026_11_09.md)"
+    status: resolved
+  - id: C09
+    corpus: "EDGAR 13F"
+    type: number
+    route: both
+    question: "By issuer, what was Berkshire's largest holding by value in its most recent 13F, and did the total match the cover page?"
+    expected:
+      text:
+        match: all
+        accepted:
+          - {path: "13F-HR/1067983_0001193125-26-352200/cover.txt", charStart: 792, charEnd: 1590, sha256: 3cc6a6b66f66317353689991ce9cb30be1293ace75a37f7e3e5de17aacd6ea7f, snippet: "formData.summaryPage.tableValueTotal: 299253556246"}
+      structured:
+        - query: "edgar::Holding.all()->filter(h|$h.filing.accession == '0001193125-26-352200')->project(~[issuer:x|$x.issuer, value:x|$x.value])->groupBy(~issuer, ~total:x|$x.value:y|$y->sum())->sort(~total->descending())->limit(1)"
+          rows: [["APPLE INC", 65950296923]]
+        - query: "edgar::Holding.all()->filter(h|$h.filing.accession == '0001193125-26-352200')->project(~[accession:x|$x.filing.accession, value:x|$x.value])->groupBy(~accession, ~total:x|$x.value:y|$y->sum())"
+          rows: [["0001193125-26-352200", 299253556246]]
+    why_hard: "The largest single row is American Express ($50.4bn), but Apple's 12 rows combine to $65.95bn; the earlier 13F is a near-duplicate, and the cover page's total is on the text route."
+    author: ABS
+    reviewer: "Claude Fable 5.1 (independent session, 2026-11-09)"
+    status: resolved
+  - id: C10
+    corpus: "EDGAR 10-K/10-Q/8-K"
+    type: lookup
+    route: text
+    question: "In Apple's latest 10-K Item 7, what did management say drove the change in Services revenue?"
+    expected:
+      text:
+        match: all
+        accepted:
+          - {path: "10-K/320193_0000320193-26-000026/item_7.txt", charStart: 6908, charEnd: 7682, sha256: ee33c2f1e9e36bf6c6a5ef9ec621aff736d21857c97725cc4d50cb1b40d9e3b6, snippet: "Services net sales increased during 2026 compared to 2025 primarily due to higher net sales from advertising and cloud services."}
+    why_hard: "The Q2 10-Q gives a different list (it adds the App Store) in an almost identical sentence, and the Q3 10-Q repeats the 10-K's."
+    author: ABS
+    reviewer: "not sampled (10 of 50 reviewed at random, seed 20261109; REVIEW_2026_11_09.md)"
+    status: resolved
+  - id: C11
+    corpus: "EDGAR 13F"
+    type: time-aware
+    route: structured
+    question: "How many Delta Air Lines shares did Berkshire report in its most recent 13F?"
+    expected:
+      structured:
+        - query: "edgar::Holding.all()->filter(h|$h.filing.accession == '0001193125-26-352200' && $h.cusip == '247361702')->project(~[issuer:x|$x.issuer, shares:x|$x.shares])"
+          rows: [["DELTA AIR LINES INC", 57320000]]
+    superseded:
+      - {path: "13F-HR/1067983_0001193125-26-226661/holdings.csv", charStart: 2761, charEnd: 2816, sha256: 61f0819ecbf71ce73bc55508959e1f4f4bd7885e925b025ea0eb6ab71982408b, rows: [["DELTA AIR LINES INC", 39809456]]}
+    why_hard: "The prior quarter's row is identical in shape, with 39,809,456 shares."
+    author: ABS
+    reviewer: "not sampled (10 of 50 reviewed at random, seed 20261109; REVIEW_2026_11_09.md)"
+    status: resolved
+  - id: C14
+    corpus: "EDGAR 13F"
+    type: multi-hop
+    route: structured
+    question: "By how many shares did Berkshire's Lennar class B position change between its two 13Fs?"
+    expected:
+      structured:
+        - query: "edgar::Holding.all()->filter(h|$h.cusip == '526057302' && ($h.filing.accession == '0001193125-26-226661' || $h.filing.accession == '0001193125-26-352200'))->project(~[cusip:x|$x.cusip, signed:x|if($x.filing.accession == '0001193125-26-352200', |$x.shares, |0 - $x.shares)])->groupBy(~cusip, ~change:x|$x.signed:y|$y->sum())->select(~[change])"
+          rows: [[60414]]
+    why_hard: "Needs the row from each filing; the CUSIP differs from the class A rows, which share the issuer name. Provenance: 237,703 shares in 0001193125-26-226661 and 298,117 in 0001193125-26-352200."
+    author: ABS
+    reviewer: "Claude Fable 5.1 (independent session, 2026-11-09)"
+    status: resolved
+  - id: C15
+    corpus: "EDGAR 13F"
+    type: number
+    route: structured
+    question: "What was Renaissance Technologies' largest position by reported value?"
+    expected:
+      structured:
+        - query: "edgar::Holding.all()->filter(h|$h.filing.accession == '0001037389-26-000059')->project(~[issuer:x|$x.issuer, value:x|$x.value])->groupBy(~issuer, ~total:x|$x.value:y|$y->sum())->sort(~total->descending())->limit(1)"
+          rows: [["NVIDIA CORPORATION", 1418869170]]
+    why_hard: "A 3,140-row table in which Alphabet's combined value comes close; no passage states the ranking."
+    author: ABS
+    reviewer: "not sampled (10 of 50 reviewed at random, seed 20261109; REVIEW_2026_11_09.md)"
+    status: resolved
+  - id: C16
+    corpus: "EDGAR 13F"
+    type: multi-hop
+    route: both
+    question: "What share of Renaissance's reported portfolio was its NVIDIA position?"
+    expected:
+      text:
+        match: all
+        accepted:
+          - {path: "13F-HR/1037389_0001037389-26-000059/cover.txt", charStart: 772, charEnd: 1524, sha256: 223bc93b2d8cdd9eb383ffea070596232cae2ebed36439e2c8499467eefea7b2, snippet: "formData.summaryPage.tableValueTotal: 72617871974"}
+      structured:
+        - query: "edgar::Holding.all()->filter(h|$h.filing.accession == '0001037389-26-000059' && $h.cusip == '67066G104')->project(~[issuer:x|$x.issuer, value:x|$x.value])"
+          rows: [["NVIDIA CORPORATION", 1418869170]]
+    why_hard: "Needs a table row and the cover page's total, which are in different files."
+    author: ABS
+    reviewer: "not sampled (10 of 50 reviewed at random, seed 20261109; REVIEW_2026_11_09.md)"
+    status: resolved
+  - id: C17
+    corpus: "EDGAR 13F"
+    type: keyword-only
+    route: structured
+    question: "Which issuer is CUSIP 91307C102 in Renaissance's 13F?"
+    expected:
+      structured:
+        - query: "edgar::Holding.all()->filter(h|$h.filing.accession == '0001037389-26-000059' && $h.cusip == '91307C102')->project(~[issuer:x|$x.issuer])"
+          rows: [["UNITED THERAPEUTICS CORP DEL"]]
+    why_hard: "An opaque identifier: nothing about it is semantic."
+    author: ABS
+    reviewer: "not sampled (10 of 50 reviewed at random, seed 20261109; REVIEW_2026_11_09.md)"
+    status: resolved
+  - id: C20
+    corpus: "EDGAR 13F"
+    type: number
+    route: text
+    question: "What total value did Renaissance report on its cover page?"
+    expected:
+      text:
+        match: all
+        accepted:
+          - {path: "13F-HR/1037389_0001037389-26-000059/cover.txt", charStart: 772, charEnd: 1524, sha256: 223bc93b2d8cdd9eb383ffea070596232cae2ebed36439e2c8499467eefea7b2, snippet: "formData.summaryPage.tableValueTotal: 72617871974"}
+    why_hard: "An unformatted 11-digit field beside the 3,140 entry count."
+    author: ABS
+    reviewer: "not sampled (10 of 50 reviewed at random, seed 20261109; REVIEW_2026_11_09.md)"
+    status: resolved
+  - id: C21
+    corpus: "EDGAR 13F"
+    type: lookup
+    route: text
+    question: "On what date was Berkshire's most recent 13F signed?"
+    expected:
+      text:
+        match: all
+        accepted:
+          - {path: "13F-HR/1067983_0001193125-26-352200/cover.txt", charStart: 792, charEnd: 1590, sha256: 3cc6a6b66f66317353689991ce9cb30be1293ace75a37f7e3e5de17aacd6ea7f, snippet: "formData.signatureBlock.signatureDate: 08-14-2026"}
+    why_hard: "The earlier cover page has the same signature block with a different date."
+    author: ABS
+    reviewer: "not sampled (10 of 50 reviewed at random, seed 20261109; REVIEW_2026_11_09.md)"
+    status: resolved
+  - id: C22
+    corpus: "EDGAR 13F"
+    type: negative
+    route: structured
+    question: "How many Tesla shares did Berkshire hold at June 30, 2026?"
+    expected:
+      structured:
+        - query: "edgar::Holding.all()->filter(h|$h.filing.accession == '0001193125-26-352200' && $h.issuer->contains('TESLA'))->project(~[issuer:x|$x.issuer, shares:x|$x.shares])"
+          rows: []
+      answer: "nothing in the corpus"
+    why_hard: "Renaissance's 13F has a Tesla row, so a retriever that blurs filers will return it."
+    author: ABS
+    reviewer: "not sampled (10 of 50 reviewed at random, seed 20261109; REVIEW_2026_11_09.md)"
+    status: resolved
+  - id: C23
+    corpus: "EDGAR 13F"
+    type: negative
+    route: structured
+    question: "Which of Renaissance's positions are reported as put options?"
+    expected:
+      structured:
+        - query: "edgar::Holding.all()->filter(h|$h.filing.accession == '0001037389-26-000059' && $h.putCall->isNotEmpty())->project(~[issuer:x|$x.issuer, putCall:x|$x.putCall])"
+          rows: []
+      answer: "nothing in the corpus"
+    why_hard: "The table has a put_call column, which invites an answer, but it is empty on all 3,140 rows."
+    author: ABS
+    reviewer: "Claude Fable 5.1 (independent session, 2026-11-09)"
+    status: resolved
+  - id: C24
+    corpus: "EDGAR 10-K/10-Q/8-K"
+    type: time-aware
+    route: text
+    question: "What is JPMorgan's most recently reported supplementary leverage ratio?"
+    expected:
+      text:
+        match: any
+        accepted:
+          - {path: "10-Q/19617_0001628280-26-069523/item_2.txt", charStart: 15855, charEnd: 16627, sha256: cba9f2848ecb0d66438d30cf728cefa79698a4a50bfe0926d0f89e8bddcd4f55, snippet: "•SLR was 5.5%."}
+          - {path: "10-Q/19617_0001628280-26-069523/item_2.txt", charStart: 2284, charEnd: 3012, sha256: 1ed9c5fb0b822eceb46d835987c95d6b332d1e159f1c19c1e377c4563bd25ff9, snippet: "Supplementary leverage ratio (“SLR”)(c)  5.5  5.5  5.6  5.8  5.8  5.5  5.8"}
+    superseded:
+      - {path: "10-K/19617_0001628280-26-008131/item_7.txt", charStart: 10287, charEnd: 11028, sha256: 5686a1160a62165dd7478f93e53ad364acc01c71171cc6b1c937519ac6bc2f7d}
+    why_hard: "A matching bullet in the 10-K says 5.8%, and the 10-Q's table row carries seven periods, of which the first is the latest."
+    author: ABS
+    reviewer: "not sampled (10 of 50 reviewed at random, seed 20261109; REVIEW_2026_11_09.md)"
+    status: resolved
+  - id: C25
+    corpus: "EDGAR 10-K/10-Q/8-K"
+    type: time-aware
+    route: text
+    question: "What is JPMorgan's latest Standardized CET1 ratio?"
+    expected:
+      text:
+        match: all
+        accepted:
+          - {path: "10-Q/19617_0001628280-26-069523/item_2.txt", charStart: 15855, charEnd: 16627, sha256: cba9f2848ecb0d66438d30cf728cefa79698a4a50bfe0926d0f89e8bddcd4f55, snippet: "•CET1 capital was $304 billion, and the Standardized and Advanced CET1 ratios were each 14.0%."}
+    superseded:
+      - {path: "10-K/19617_0001628280-26-008131/item_7.txt", charStart: 10287, charEnd: 11028, sha256: 5686a1160a62165dd7478f93e53ad364acc01c71171cc6b1c937519ac6bc2f7d}
+    why_hard: "A matching bullet in the 10-K gives 14.6%."
+    author: ABS
+    reviewer: "not sampled (10 of 50 reviewed at random, seed 20261109; REVIEW_2026_11_09.md)"
+    status: resolved
+  - id: C27
+    corpus: "EDGAR 10-K/10-Q/8-K"
+    type: number
+    route: text
+    question: "What were Apple's Services net sales for fiscal 2026?"
+    expected:
+      text:
+        match: all
+        accepted:
+          - {path: "10-K/320193_0000320193-26-000026/item_7.txt", charStart: 6184, charEnd: 6906, sha256: 8946a0cedeaa4dc8726e89dfbed8aaf2022742b7dea5d98c25010f29e766a1fb, snippet: "Services (1)  123,301  13%  109,158  14%  96,169"}
+    why_hard: "Quarterly and year-to-date figures for the same line sit in two 10-Qs, and 2025's is in the same row."
+    author: ABS
+    reviewer: "not sampled (10 of 50 reviewed at random, seed 20261109; REVIEW_2026_11_09.md)"
+    status: resolved
+  - id: C29
+    corpus: "EDGAR 10-K/10-Q/8-K"
+    type: lookup
+    route: text
+    question: "What drove the increase in Apple's R&D expense in fiscal 2026?"
+    expected:
+      text:
+        match: all
+        accepted:
+          - {path: "10-K/320193_0000320193-26-000026/item_7.txt", charStart: 9193, charEnd: 9864, sha256: 9f64f70f73aee03155b33fadecf3c7e1df499ddb75be716b7f204adfc411a661, snippet: "R&D expense increased during 2026 compared to 2025 primarily due to higher infrastructure-related costs, including investments in artificial intelligence, and headcount-related expenses."}
+    why_hard: "The Risk Factors discuss artificial intelligence at length without giving this driver."
+    author: ABS
+    reviewer: "not sampled (10 of 50 reviewed at random, seed 20261109; REVIEW_2026_11_09.md)"
+    status: resolved
+  - id: C31
+    corpus: "EDGAR 10-K/10-Q/8-K"
+    type: multi-hop
+    route: text
+    question: "What were Apple's fiscal 2026 Services net sales and Services gross margin percentage?"
+    expected:
+      text:
+        match: all
+        accepted:
+          - {path: "10-K/320193_0000320193-26-000026/item_7.txt", charStart: 6184, charEnd: 6906, sha256: 8946a0cedeaa4dc8726e89dfbed8aaf2022742b7dea5d98c25010f29e766a1fb, snippet: "Services (1)  123,301  13%  109,158  14%  96,169"}
+          - {path: "10-K/320193_0000320193-26-000026/item_7.txt", charStart: 7683, charEnd: 8429, sha256: 1018681a296a93fe9e6d203108b43d22b271ccadd95a3ef2d763493029ec9ae1, snippet: "Services  76.2%  75.4%  73.9%"}
+    why_hard: "Two tables with the same row label, 'Services', in different passages."
+    author: ABS
+    reviewer: "Claude Fable 5.1 (independent session, 2026-11-09)"
+    status: resolved
+  - id: C32
+    corpus: "EDGAR 10-K/10-Q/8-K"
+    type: keyword-only
+    route: text
+    question: "When were the initial results of the Section 232 semiconductor investigation published?"
+    expected:
+      text:
+        match: any
+        accepted:
+          - {path: "10-K/320193_0000320193-26-000026/item_7.txt", charStart: 2183, charEnd: 4821, sha256: 0745cc758afd521e0cd56563382fd2900d130a55ed4e40f5f4376f9ae62689a5, snippet: "On January 14, 2026, initial results were published of the previously announced U.S. Department of Commerce investigation under Section 232 of the Trade Expansion Act"}
+          - {path: "10-Q/320193_0000320193-26-000013/item_2.txt", charStart: 4430, charEnd: 6990, sha256: 9e21b717ede0a257f1ee5336e38a9491bc5b8e65ff842cd7fcf002a4c98687e5, snippet: "On January 14, 2026, initial results were published of the previously announced U.S. Department of Commerce investigation under Section 232 of the Trade Expansion Act"}
+          - {path: "10-Q/320193_0000320193-26-000020/item_2.txt", charStart: 4596, charEnd: 7246, sha256: 1fafd1ab3b3a7494002a07c8a85bf47efe7bb651ea491305a6127627b52bc176, snippet: "On January 14, 2026, initial results were published of the previously announced U.S. Department of Commerce investigation under Section 232 of the Trade Expansion Act"}
+    why_hard: "A statute number that an embedding treats like any other; three filings state it, and all three are accepted."
+    author: ABS
+    reviewer: "not sampled (10 of 50 reviewed at random, seed 20261109; REVIEW_2026_11_09.md)"
+    status: resolved
+  - id: C36
+    corpus: "EDGAR 10-K/10-Q/8-K"
+    type: keyword-only
+    route: text
+    question: "How much HQLA did JPMorgan report at December 31, 2025?"
+    expected:
+      text:
+        match: all
+        accepted:
+          - {path: "10-K/19617_0001628280-26-008131/item_7.txt", charStart: 10287, charEnd: 11028, sha256: 5686a1160a62165dd7478f93e53ad364acc01c71171cc6b1c937519ac6bc2f7d, snippet: "•As of December 31, 2025, the Firm had eligible end-of-period High Quality Liquid Assets (“HQLA”) of approximately $915 billion and unencumbered marketable securities with a"}
+    why_hard: "An acronym; the 10-Q has its own HQLA figure for a later date."
+    author: ABS
+    reviewer: "not sampled (10 of 50 reviewed at random, seed 20261109; REVIEW_2026_11_09.md)"
+    status: resolved
+  - id: C38
+    corpus: "EDGAR 10-K/10-Q/8-K"
+    type: number
+    route: text
+    question: "How did JPMorgan's average total VaR change in the third quarter of 2026 against the second?"
+    expected:
+      text:
+        match: any
+        accepted:
+          - {path: "10-Q/19617_0001628280-26-069523/item_3.txt", charStart: 5608, charEnd: 6153, sha256: 918f7b22c0bec7c685664396bce14702fb16b79b805a2aebd0784c040d04446b, snippet: "Average total VaR for the three months ended September 30, 2026 decreased by $1 million, when compared with June 30, 2026, driven by the sale"}
+          - {path: "10-Q/19617_0001628280-26-069523/item_2.txt", charStart: 239839, charEnd: 240384, sha256: 918f7b22c0bec7c685664396bce14702fb16b79b805a2aebd0784c040d04446b, snippet: "Average total VaR for the three months ended September 30, 2026 decreased by $1 million, when compared with June 30, 2026, driven by the sale"}
+    why_hard: "The next paragraph gives a different comparison (+$15 million against the prior year) in the same words."
+    author: ABS
+    reviewer: "not sampled (10 of 50 reviewed at random, seed 20261109; REVIEW_2026_11_09.md)"
+    status: resolved
+  - id: C40
+    corpus: "EDGAR 10-K/10-Q/8-K"
+    type: negative
+    route: text
+    question: "What did JPMorgan's 8-K of October 13, 2026 report under Item 2.02?"
+    expected:
+      text:
+        match: all
+        accepted: []
+      answer: "nothing in the corpus"
+    why_hard: "The filing is in the corpus but declares only Items 7.01 and 9.01, so no text was extracted; other JPMorgan 8-K text is the distractor."
+    author: ABS
+    reviewer: "Claude Fable 5.1 (independent session, 2026-11-09)"
+    status: resolved
+  - id: C42
+    corpus: "EDGAR 10-K/10-Q/8-K"
+    type: keyword-only
+    route: text
+    question: "In which fiscal quarter did Apple announce the MacBook Neo?"
+    expected:
+      text:
+        match: all
+        accepted:
+          - {path: "10-K/320193_0000320193-26-000026/item_7.txt", charStart: 723, charEnd: 1368, sha256: 8a24a37762cdd95d1c2a20d7d8cbc5f2ccd2c19affc0991414cefabd7e6f703e, snippet: "•MacBook Neo, MacBook Air and MacBook Pro"}
+    why_hard: "A product name in a bullet list; the quarter is a heading lines above."
+    author: ABS
+    reviewer: "not sampled (10 of 50 reviewed at random, seed 20261109; REVIEW_2026_11_09.md)"
+    status: resolved
+  - id: C43
+    corpus: "SALES"
+    type: time-aware
+    route: text
+    question: "How big was the book on the Kestrelline deal?"
+    expected:
+      text:
+        match: all
+        accepted:
+          - {path: "bodies/MSG-0006.txt", charStart: 8, charEnd: 117, sha256: b1e91382e7d64cdb282111c52b91b2e1bef0590bc3324301c399fa1ba248a168, snippet: "Allocations are out on Kestrelline 5.125% 2034s. Final book $2.85bn, 3.8x covered on $750mm, re-offer 99.714."}
+    superseded:
+      - {path: "bodies/MSG-0008.txt", charStart: 12, charEnd: 120, sha256: e2be1b9f11011858f70e3c943936baaaab16bf114e51b6f659faf71ade71e7b8}
+      - {path: "bodies/MSG-0011.txt", charStart: 13, charEnd: 121, sha256: e2be1b9f11011858f70e3c943936baaaab16bf114e51b6f659faf71ade71e7b8}
+    why_hard: "A confident $1.95bn update appears in two earlier emails; the final $2.85bn is one clause of an allocation notice."
+    author: ABS
+    reviewer: "not sampled (10 of 50 reviewed at random, seed 20261109; REVIEW_2026_11_09.md)"
+    status: resolved
+  - id: C44
+    corpus: "SALES"
+    type: time-aware
+    route: text
+    question: "What was the latest price guidance on the Kestrelline new issue?"
+    expected:
+      text:
+        match: any
+        accepted:
+          - {path: "bodies/MSG-0008.txt", charStart: 122, charEnd: 149, sha256: cbb76caa3b81fc2e0c21890b8b201bb6555e302cecd3b94ea156c98b2e0f2793, snippet: "Guidance is now T+120 area."}
+          - {path: "bodies/MSG-0011.txt", charStart: 123, charEnd: 151, sha256: 8b5cc6fedf26d6cf1358119c0cf1a45bfc6a527e1c8be740f6d7fccb89f6acf0, snippet: "We have moved to T+120 area."}
+    superseded:
+      - {path: "bodies/MSG-0001.txt", charStart: 104, charEnd: 171, sha256: 629b797fd05f1a4f310c29a6332f24738ac82498db9e8d304af33db704685a74}
+    why_hard: "The first pitch says T+135, and the two later emails word the update differently."
+    author: ABS
+    reviewer: "not sampled (10 of 50 reviewed at random, seed 20261109; REVIEW_2026_11_09.md)"
+    status: resolved
+  - id: C45
+    corpus: "SALES"
+    type: time-aware
+    route: text
+    question: "Is Ostermark's Tarnwick order still on compliance hold?"
+    expected:
+      text:
+        match: all
+        accepted:
+          - {path: "bodies/MSG-0022.txt", charStart: 8, charEnd: 84, sha256: 969496137f138b48737aa198426323726bafe7b94e7c7b8a630dd453fc468429, snippet: "Compliance cleared the hold on your Tarnwick 7.875% 2031s order at 13:20 ET."}
+    superseded:
+      - {path: "bodies/MSG-0021.txt", charStart: 8, charEnd: 173, sha256: a3344641ce350201b183c7e2af9786868f371b9da21ef0af10e2523db72b6a68}
+    why_hard: "The hold email has far more words on the subject than the short clearance that replaces it."
+    author: ABS
+    reviewer: "Claude Fable 5.1 (independent session, 2026-11-09)"
+    status: resolved
+  - id: C48
+    corpus: "SALES"
+    type: lookup
+    route: text
+    question: "Why did Velmara's Kestrelline order drop?"
+    expected:
+      text:
+        match: all
+        accepted:
+          - {path: "bodies/MSG-0010.txt", charStart: 111, charEnd: 216, sha256: 91b580be6ec10e4fa56f1ce32517a153d980495c1de611fa2d5394fd2bc11e9a, snippet: "The deal re-offered at 99.714, which is above your 99.65 hard limit, so the order dropped at the reprice."}
+    why_hard: "The reason depends on a reprice the email only mentions; Quillon's order in the same deal survived it."
+    author: ABS
+    reviewer: "not sampled (10 of 50 reviewed at random, seed 20261109; REVIEW_2026_11_09.md)"
+    status: resolved
+  - id: C49
+    corpus: "SALES"
+    type: lookup
+    route: text
+    question: "Why could Hallerbrunn not be allocated on Lumencrest?"
+    expected:
+      text:
+        match: all
+        accepted:
+          - {path: "bodies/MSG-0035.txt", charStart: 102, charEnd: 269, sha256: 0501c7ecd3c3744c68e246ead80d2836f74af56711c04a74103c1a2f0ab1c9aa, snippet: "The institutional tranche is closed to private-bank accounts under the syndicate's allocation policy, and the priced level of $18.00 is through your limit in any"}
+    why_hard: "Two reasons in one sentence, and Sorrelmead's scale-back is a near neighbour."
+    author: ABS
+    reviewer: "not sampled (10 of 50 reviewed at random, seed 20261109; REVIEW_2026_11_09.md)"
+    status: resolved
+  - id: C51
+    corpus: "SALES"
+    type: multi-hop
+    route: both
+    question: "What did Brantoak ask for on Tarnwick, and what did it get?"
+    expected:
+      text:
+        match: all
+        accepted:
+          - {path: "bodies/MSG-0016.txt", charStart: 39, charEnd: 132, sha256: 35d49d4e3ed0f04b4cf121bab66f2879a3d3734a767694ad597b216d393fc20c, snippet: "Order is $30mm, limit 99.50. There is some give if the book is strong, but speak to me first."}
+          - {path: "bodies/MSG-0017.txt", charStart: 114, charEnd: 272, sha256: 80701a7cc069b2aaf15f333b3b9c2fc22e93d2723c6b2886861e91932b1e632c, snippet: "You are done on $9.7mm of your $30mm (32.3%). Syndicate allocated strictly pro rata to order size once the book closed, and no account was"}
+      structured:
+        - query: "sales::AllocationRequest.all()->filter(r|$r.client.clientId == 'C-02' && $r.deal.dealId == 'D-02')->project(~[requested:x|$x.requestedQtyUsd, limitPrice:x|$x.limitPrice, allocated:x|$x.allocatedQtyUsd])"
+          rows: [[30000000, 99.5, 9700000]]
+    why_hard: "A request and a fill in separate emails a day apart; Ostermark's order is in the same deal."
+    author: ABS
+    reviewer: "not sampled (10 of 50 reviewed at random, seed 20261109; REVIEW_2026_11_09.md)"
+    status: resolved
+  - id: C53
+    corpus: "SALES"
+    type: multi-hop
+    route: both
+    question: "What was Ysolde's limit on Ashgrove and what fill rate did it receive?"
+    expected:
+      text:
+        match: all
+        accepted:
+          - {path: "bodies/MSG-0026.txt", charStart: 49, charEnd: 142, sha256: 6d6c000e6048da101bb6c935900ecec18029c127fc82e1f0296597ae66cce0f2, snippet: "Order is $60mm, limit 99.90. There is some give if the book is strong, but speak to me first."}
+          - {path: "bodies/MSG-0027.txt", charStart: 112, charEnd: 272, sha256: 961f0ddb7a959c892d6393fb4cb24f56fb9efabd7e9b9288868bd15aadfc0ea2, snippet: "You are done on $19.35mm of your $60mm (32.3%). Syndicate allocated strictly pro rata to order size once the book closed, and no account was"}
+      structured:
+        - query: "sales::AllocationRequest.all()->filter(r|$r.client.clientId == 'C-05' && $r.deal.dealId == 'D-03')->project(~[requested:x|$x.requestedQtyUsd, limitPrice:x|$x.limitPrice, allocated:x|$x.allocatedQtyUsd])"
+          rows: [[60000000, 99.9, 19350000]]
+    why_hard: "Quillon's Ashgrove order was filled in full under a different rule."
+    author: ABS
+    reviewer: "not sampled (10 of 50 reviewed at random, seed 20261109; REVIEW_2026_11_09.md)"
+    status: resolved
+  - id: C55
+    corpus: "SALES"
+    type: number
+    route: text
+    question: "What was the minimum-ticket threshold on the Tarnwick deal?"
+    expected:
+      text:
+        match: all
+        accepted:
+          - {path: "bodies/MSG-0023.txt", charStart: 87, charEnd: 176, sha256: 69aeb1ce36a095a747c890ff64ac185982e6c5d38171f19668c7909a54ef96e2, snippet: "Tickets at or below $5mm were filled in full under the syndicate's minimum-ticket policy."}
+    why_hard: "The same sentence with $2mm appears for Kestrelline and Ashgrove."
+    author: ABS
+    reviewer: "not sampled (10 of 50 reviewed at random, seed 20261109; REVIEW_2026_11_09.md)"
+    status: resolved
+  - id: C56
+    corpus: "SALES"
+    type: keyword-only
+    route: both
+    question: "Which deal carries identifier SYN-G235E9Y6, and when does it settle?"
+    expected:
+      text:
+        match: all
+        accepted:
+          - {path: "bodies/MSG-0038.txt", charStart: 10, charEnd: 64, sha256: 77c20aaa217849fcfa1df6795a33c55953d15ea0223be44da9013eed4c63b0f6, snippet: "Settlement instructions for Portwain follow-on, $12mm:"}
+          - {path: "bodies/MSG-0038.txt", charStart: 66, charEnd: 222, sha256: 6c0a7dfd1ba3f266cec29d9227752434e95e982f5f65040be72c70809f907302, snippet: "Trade date 2026-06-02, settling T+1. Deliver versus payment through Merrowfield Clearing, DTC participant 9X41, reference D-05/C02. Identifier SYN-G235E9Y6."}
+      structured:
+        - query: "sales::Deal.all()->filter(d|$d.identifier == 'SYN-G235E9Y6')->project(~[issuer:x|$x.issuer])"
+          rows: [["Portwain Semiconductor Corp."]]
+    why_hard: "An invented token that embeddings cannot place; the issuer's name is in the previous paragraph."
+    author: ABS
+    reviewer: "not sampled (10 of 50 reviewed at random, seed 20261109; REVIEW_2026_11_09.md)"
+    status: resolved
+  - id: C59
+    corpus: "SALES"
+    type: keyword-only
+    route: text
+    question: "On which deal was talk 'S+350 at 99 OID'?"
+    expected:
+      text:
+        match: all
+        accepted:
+          - {path: "bodies/MSG-0045.txt", charStart: 12, charEnd: 158, sha256: 6bc5c5e31a542358aaa7a0ea1751e1725bb60a5a11de24a63af847b68d8d1486, snippet: "Wanted you to see this before the screens fill up. Bexford Health, $600mm 6-year term loan B, first lien, proceeds fund the Northgate acquisition."}
+          - {path: "bodies/MSG-0045.txt", charStart: 160, charEnd: 232, sha256: d9965d6901831b4d3324fba7c9a9f5370db1596a482c66009d5d24ea7ca00f04, snippet: "Talk is S+350 at 99 OID. Happy to walk you through the credit if useful."}
+    why_hard: "Loan jargon that embeds poorly, and the issuer is in the previous paragraph."
+    author: ABS
+    reviewer: "not sampled (10 of 50 reviewed at random, seed 20261109; REVIEW_2026_11_09.md)"
+    status: resolved
+  - id: C60
+    corpus: "SALES"
+    type: negative
+    route: text
+    question: "What was the final re-offer price on the Wexcombe 2031s?"
+    expected:
+      text:
+        match: all
+        accepted: []
+      answer: "nothing in the corpus"
+    why_hard: "The deal has not priced; Ysolde's 99.50 limit looks like an answer."
+    author: ABS
+    reviewer: "Claude Fable 5.1 (independent session, 2026-11-09)"
+    status: resolved
+  - id: C63
+    corpus: "LENDING"
+    type: time-aware
+    route: both
+    question: "What is Hartsmere's current cross-default threshold?"
+    expected:
+      text:
+        match: all
+        accepted:
+          - {path: "agreements/CA-007.txt", charStart: 9531, charEnd: 9866, sha256: b3ad7eb0eda33d4f0060f32e9ca7c7a719982eb8eee8b689422d79f2b5488de7, snippet: "aggregate principal amount of more than $45,000,000 (the Threshold Amount), or any such Indebtedness becomes due before its stated maturity as a result of a"}
+      structured:
+        - query: "lending::EventOfDefault.all()->filter(e|$e.agreement.agreementId == 'CA-007' && $e.kind == lending::DefaultKind.CrossDefault)->project(~[threshold:x|$x.crossDefaultThresholdUsd])"
+          rows: [[45000000]]
+    superseded:
+      - {path: "agreements/CA-001.txt", charStart: 10247, charEnd: 10582, sha256: 1ce32b4187e2e06a90ec3ff0215d51ca790c5184e279b2a0bf481f94240b122f}
+    why_hard: "CA-001 (2023) and CA-007 (2025) are one borrower's agreements, with a word-for-word clause and different figures."
+    author: ABS
+    reviewer: "not sampled (10 of 50 reviewed at random, seed 20261109; REVIEW_2026_11_09.md)"
+    status: resolved
+  - id: C64
+    corpus: "LENDING"
+    type: time-aware
+    route: both
+    question: "Under Vennick's current credit agreement, what is the maximum Senior Secured Net Leverage Ratio for the first test period?"
+    expected:
+      text:
+        match: all
+        accepted:
+          - {path: "agreements/CA-008.txt", charStart: 5920, charEnd: 6657, sha256: db05f9069c4a6a881aaefb91a379b9451ab09d44887f412332960b912407fc69, snippet: "Fiscal Quarter ending September 30, 2025 through the Fiscal Quarter ending December 31, 2025: 4.00:1.00"}
+      structured:
+        - query: "lending::Covenant.all()->filter(c|$c.agreement.agreementId == 'CA-008' && $c.kind == lending::CovenantKind.MaxSeniorSecuredLeverage)->project(~[effectiveFrom:x|$x.steps.effectiveFrom, level:x|$x.steps.threshold])->sort(~effectiveFrom->ascending())->limit(1)"
+          rows: [["2025-09-30", 4.0]]
+    superseded:
+      - {path: "agreements/CA-002.txt", charStart: 6589, charEnd: 7216, sha256: 6fafd1d4ddc54d7a6fb5109178f32f043fe6d1fb76cbc74bb8361743fb5e1bc6}
+    why_hard: "The 2023 agreement's first row is the same shape at 5.50; the restated one starts at 4.00."
+    author: ABS
+    reviewer: "not sampled (10 of 50 reviewed at random, seed 20261109; REVIEW_2026_11_09.md)"
+    status: resolved
+  - id: C68
+    corpus: "LENDING"
+    type: time-aware
+    route: both
+    question: "What is the first maximum Total Net Leverage level in Lissadell's current agreement?"
+    expected:
+      text:
+        match: all
+        accepted:
+          - {path: "agreements/CA-012.txt", charStart: 6982, charEnd: 7695, sha256: 948329cb942091c95eb5d75329eb671a042cd0064595a2650a226dcb5fe03089, snippet: "Fiscal Quarter ending December 31, 2025 through the Fiscal Quarter ending March 31, 2026: 4.75:1.00"}
+      structured:
+        - query: "lending::Covenant.all()->filter(c|$c.agreement.agreementId == 'CA-012' && $c.kind == lending::CovenantKind.MaxTotalLeverage)->project(~[effectiveFrom:x|$x.steps.effectiveFrom, level:x|$x.steps.threshold])->sort(~effectiveFrom->ascending())->limit(1)"
+          rows: [["2025-12-31", 4.75]]
+    superseded:
+      - {path: "agreements/CA-006.txt", charStart: 6812, charEnd: 7629, sha256: 53269168646d906a44a216e4ed99e96cf5d5fded7764157a6c7e99efc69a2778}
+    why_hard: "The restated agreement starts at 4.75, and the 2023 one at 5.50, in the same table shape."
+    author: ABS
+    reviewer: "not sampled (10 of 50 reviewed at random, seed 20261109; REVIEW_2026_11_09.md)"
+    status: resolved
+  - id: C70
+    corpus: "LENDING"
+    type: multi-hop
+    route: both
+    question: "In CA-011, which leverage test may be cured, and how long does the Borrower have to do it?"
+    expected:
+      text:
+        match: all
+        accepted:
+          - {path: "agreements/CA-011.txt", charStart: 7456, charEnd: 8083, sha256: 875cccc3249a384b2b6a483b332ffd2e73c0993123424e5e8ebac1fb8621f2cc, snippet: "(a) Maximum Senior Secured Net Leverage Ratio. Subject to Section 7.11(d), the Borrower shall not permit the Consolidated Senior Secured Net Leverage Ratio as of"}
+          - {path: "agreements/CA-011.txt", charStart: 8391, charEnd: 9059, sha256: 554ccbb6fef8877df30ea0fa1bd4b7c8e7e50999387e058949a8c80551e91277, snippet: "the Borrower shall have the right, until the tenth Business Day after the date on which financial statements for such Fiscal Quarter are required to"}
+      structured:
+        - query: "lending::Covenant.all()->filter(c|$c.agreement.agreementId == 'CA-011' && $c.equityCureAllowed)->project(~[kind:x|$x.kind, clause:x|$x.clauseRef])"
+          rows: [["MaxSeniorSecuredLeverage", "Section 7.11(a)"]]
+    why_hard: "The test and the cure are separate clauses joined only by a cross-reference."
+    author: ABS
+    reviewer: "not sampled (10 of 50 reviewed at random, seed 20261109; REVIEW_2026_11_09.md)"
+    status: resolved
+  - id: C73
+    corpus: "LENDING"
+    type: keyword-only
+    route: both
+    question: "What is the “General Lien Basket” in CA-007?"
+    expected:
+      text:
+        match: all
+        accepted:
+          - {path: "agreements/CA-007.txt", charStart: 6905, charEnd: 7204, sha256: 6ad7f675d774a05e07ef7d8ade4f8223a00ab9848824d0e3f2458a40c7556662, snippet: "other Liens securing obligations not exceeding $185,000,000 at any time outstanding (the “General Lien Basket”)."}
+      structured:
+        - query: "lending::Covenant.all()->filter(c|$c.agreement.agreementId == 'CA-007' && $c.kind == lending::CovenantKind.Liens)->project(~[threshold:x|$x.threshold])"
+          rows: [[185000000]]
+    why_hard: "A defined term in quotes, repeated in other agreements with other amounts."
+    author: ABS
+    reviewer: "not sampled (10 of 50 reviewed at random, seed 20261109; REVIEW_2026_11_09.md)"
+    status: resolved
+  - id: C75
+    corpus: "LENDING"
+    type: keyword-only
+    route: both
+    question: "What does Section 7.05(a) of CA-012 limit, and to how much?"
+    expected:
+      text:
+        match: all
+        accepted:
+          - {path: "agreements/CA-012.txt", charStart: 6569, charEnd: 6815, sha256: ce16ae2533c66d5f0b54065c830a25874ad52ce56c7a182e15f1f5e48cca38aa, snippet: "in an aggregate amount in any fiscal year not exceeding $60,000,000."}
+      structured:
+        - query: "lending::Covenant.all()->filter(c|$c.agreement.agreementId == 'CA-012' && $c.clauseRef == 'Section 7.05(a)')->project(~[kind:x|$x.kind, threshold:x|$x.threshold])"
+          rows: [["AssetSales", 60000000]]
+    why_hard: "A clause reference, and the block's text does not contain it."
+    author: ABS
+    reviewer: "not sampled (10 of 50 reviewed at random, seed 20261109; REVIEW_2026_11_09.md)"
+    status: resolved
+  - id: C76
+    corpus: "LENDING"
+    type: keyword-only
+    route: text
+    question: "What does “Threshold Amount” mean in CA-006?"
+    expected:
+      text:
+        match: all
+        accepted:
+          - {path: "agreements/CA-006.txt", charStart: 2606, charEnd: 2643, sha256: 278e82a0d346310251a64a237199d4f53d34b3ebe10daa1a70c86cf39758aed6, snippet: "“Threshold Amount” means $65,000,000."}
+    why_hard: "One short definition among twelve with the same words."
+    author: ABS
+    reviewer: "not sampled (10 of 50 reviewed at random, seed 20261109; REVIEW_2026_11_09.md)"
+    status: resolved
+  - id: C77
+    corpus: "LENDING"
+    type: lookup
+    route: both
+    question: "Which agreement has an insolvency event of default, and how long may an involuntary proceeding stay undismissed?"
+    expected:
+      text:
+        match: all
+        accepted:
+          - {path: "agreements/CA-012.txt", charStart: 9339, charEnd: 9546, sha256: c049bbba89022e88b31544f0bc273a4d7616fe568f447c52688417534991f121, snippet: "or any such proceeding is instituted against it and remains undismissed for 60 calendar days."}
+      structured:
+        - query: "lending::EventOfDefault.all()->filter(e|$e.kind == lending::DefaultKind.Insolvency)->project(~[agreement:x|$x.agreement.agreementId, graceDays:x|$x.gracePeriodDays])"
+          rows: [["CA-012", 60]]
+    why_hard: "Only one of twelve agreements has this clause, and clause (c) in the others is something else."
+    author: ABS
+    reviewer: "not sampled (10 of 50 reviewed at random, seed 20261109; REVIEW_2026_11_09.md)"
+    status: resolved
+  - id: C78
+    corpus: "LENDING"
+    type: negative
+    route: text
+    question: "What is the minimum tangible net worth covenant in CA-001?"
+    expected:
+      text:
+        match: all
+        accepted: []
+      answer: "nothing in the corpus"
+    why_hard: "It is the kind of covenant a credit agreement has; a retriever will offer the nearest financial test."
+    author: ABS
+    reviewer: "not sampled (10 of 50 reviewed at random, seed 20261109; REVIEW_2026_11_09.md)"
+    status: resolved
+  - id: C80
+    corpus: "LENDING"
+    type: negative
+    route: text
+    question: "What is the EURIBOR margin on the euro tranche in any agreement?"
+    expected:
+      text:
+        match: all
+        accepted: []
+      answer: "nothing in the corpus"
+    why_hard: "The interest clauses look like the answer, and they all say Term SOFR."
+    author: ABS
+    reviewer: "Claude Fable 5.1 (independent session, 2026-11-09)"
+    status: resolved

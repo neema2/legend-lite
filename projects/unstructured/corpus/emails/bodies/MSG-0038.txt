@@ -1,0 +1,12 @@
+Hi Ilse,
+
+Settlement instructions for Portwain follow-on, $12mm:
+
+Trade date 2026-06-02, settling T+1. Deliver versus payment through Merrowfield Clearing, DTC participant 9X41, reference D-05/C02. Identifier SYN-G235E9Y6.
+
+Ops will chase if the SSIs on file are stale.
+
+Rafael
+Rafael Ostrander | Equity Sales | Merrowfield Securities
+
+For institutional investors only. Indicative and subject to allocation; not an offer or a commitment to deal. Refer to the offering document.
