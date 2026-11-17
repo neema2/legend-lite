@@ -55,6 +55,12 @@ public final class NoEdgeRun implements EdgeRun {
         }
 
         @Override
+        public com.legend.testexecutionplan.JsonGrammar json() {
+            // lite's own runs read strict JSON (register S144)
+            return com.legend.testexecutionplan.JudgeJson.STRICT;
+        }
+
+        @Override
         public void writing() {
             // no appeal is held: nothing a write could stale
         }

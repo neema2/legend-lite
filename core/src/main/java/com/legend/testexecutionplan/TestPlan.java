@@ -437,12 +437,6 @@ public record TestPlan(List<ExecutionPlan.Parameter> parameters, List<TestStep> 
             return upstream;
         }
 
-        /** Whether a JSON text is read by upstream's json-simple 1.1.1 grammar: compatibility mode's; lite reads
-         *  strict JSON (S144, the user's ruling of 2026-11-07). */
-        public boolean jsonSimpleGrammar() {
-            return upstream;
-        }
-
         /** Whether a failure is worded in legend-pure's words: compatibility mode's; lite words it by its own
          *  sentences (isolated BOTH, the orchestrator's ruling of 2026-11-17). */
         public boolean legendPureWords() {

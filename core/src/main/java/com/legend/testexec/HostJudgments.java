@@ -357,7 +357,7 @@ final class HostJudgments {
             case HostJudgment.Decided d -> decided(d);
             case HostJudgment.SameElements s -> sameElementsOf(s, sides, rules);
             case HostJudgment.Equals e -> equalsOf(e, sides, rules);
-            case HostJudgment.Json js -> jsonOf(js, sides, rules);
+            case HostJudgment.Json js -> jsonOf(js, sides, rules, run.hearing().json());
             case HostJudgment.Rendered r -> renderedOf(r, sides, rules);
             case HostJudgment.Raise r -> throw com.legend.testexecutionplan.Failures.raised(r.failure());
             case HostJudgment.EngineText e -> run.engineText(e, sides, rules);
@@ -955,23 +955,23 @@ final class HostJudgments {
     }
 
     private static @com.legend.base.Nullable TypedSide jsonOf(HostJudgment.Json j, List<TypedSide> pair,
-            com.legend.testexecutionplan.TestPlan.JudgingRules rules) {
+            com.legend.testexecutionplan.TestPlan.JudgingRules rules, com.legend.testexecutionplan.JsonGrammar grammar) {
         String ejson = com.legend.testexec.AssertRuns.jsonSideTextOf(pair.get(0));
         String ajson = com.legend.testexec.AssertRuns.jsonSideTextOf(pair.get(1));
         if (ejson == null || ajson == null) {
             return null;   // non-[1]-string shape: generic path
         }
-        // the GOLDEN side parses first and names itself when it does not: both texts read as the rules read JSON
-        // (JudgeJson, register S144: strict in lite's own runs, upstream's json-simple grammar under the compatibility
-        // rules -- the milestoned graph-fetch goldens end in a stray `"` json-simple reads past)
+        // the GOLDEN side parses first and names itself when it does not: both texts read by the run's JSON grammar
+        // (register S144; census C1, 2026-11-17: the product's strict form, upstream's json-simple the edge's, through
+        // the run's hearing -- the milestoned graph-fetch goldens end in a stray `"` json-simple reads past)
         Object expected;
         try {
-            expected = JudgeJson.read(ejson, rules);
+            expected = grammar.read(ejson);
         } catch (IllegalStateException e) {
             throw new IllegalStateException(
                     "golden JSON does not parse: " + e.getMessage(), e);
         }
-        Object actual = JudgeJson.read(ajson, rules);
+        Object actual = grammar.read(ajson);
         // no [x] for x (the user's ruling, 2026-11-03): a result serialized otherwise than the engine serializes it
         // is the serializer's to fix.
         // D3 for graph results: an INCIDENTAL-order chain (a root

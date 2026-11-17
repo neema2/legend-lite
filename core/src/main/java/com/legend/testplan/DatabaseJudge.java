@@ -3,6 +3,7 @@
 package com.legend.testplan;
 
 import com.legend.testexecutionplan.Verdicts;
+import com.legend.testexecutionplan.JsonGrammar;
 import com.legend.testexecutionplan.JudgeJson;
 import com.legend.testexecutionplan.KindClass;
 import com.legend.builtin.NativeFn;
@@ -954,8 +955,7 @@ public final class DatabaseJudge {
                     crossNumberKinds(ek, ak, rules.integerDecimalByText()),
                     rules.floatTolerance() && ek == com.legend.compiler.element.type.Type.Primitive.FLOAT
                             && ak == com.legend.compiler.element.type.Type.Primitive.FLOAT,
-                    com.legend.lowering.VerdictSql.decimalByValue(rules.decimalScale(), ek), lite(env),
-                    env.plan().styled());
+                    com.legend.lowering.VerdictSql.decimalByValue(rules.decimalScale(), ek), lite(env), env.plan().styled());
             if (row == null) {
                 return unjudged(name, "per-element: a kind with no spelling (" + ek.typeName() + " vs "
                         + ak.typeName() + ")");
@@ -1078,11 +1078,11 @@ public final class DatabaseJudge {
         if (goldenText == null) {
             return unjudged(name, "json golden is not a literal");
         }
-        // the golden read as the rules read JSON (JudgeJson, register S144): strict in lite's own runs, upstream's
-        // json-simple grammar under the compatibility rules
+        // the golden read as the plan's style reads JSON (register S144; census C1, 2026-11-17): the product's strict
+        // form, upstream's json-simple grammar the edge's (JsonGrammar, a two-form kind)
         Object goldenRead;
         try {
-            goldenRead = JudgeJson.read(goldenText, env.options().judgingRules());
+            goldenRead = env.options().style().twoForm(JsonGrammar.class, JudgeJson.STRICT).read(goldenText);
         } catch (IllegalStateException malformed) {
             // the host judge's words for the same golden (com.legend.testexec.HostJudgments.jsonOf): a golden the rules refuse fails the test
             throw new IllegalStateException("golden JSON does not parse: " + malformed.getMessage(), malformed);
