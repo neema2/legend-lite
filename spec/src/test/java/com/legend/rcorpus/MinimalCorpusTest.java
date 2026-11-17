@@ -510,20 +510,10 @@ public class MinimalCorpusTest {
             pinRoster(only, ranTaggedEngineOrder, engineOrder, ENGINE_ORDER,
                     laneFile(databaseMode ? "database-engine-order-register" : "engine-order-register"), false);
         }
-        if (databaseMode) {
-            Files.write(com.legend.testing.TestOutputs.file("corpus2-outside-body.txt"), artifactRows);
-            pinArtifactRegister(only, ran, artifactRows,
-                    laneFile("database-outside-body-register"));
-            // THE HOST-COMPARED REGISTER (2026-09-21): under the database judge, every test
-            // with an assert decided WITHOUT a verdict row (a comparison in Java over two
-            // database-computed sides — the lineage, TDG, identity and metadata arms) is a
-            // named row; exact, shrink-only — the number that must reach zero
-            Files.write(com.legend.testing.TestOutputs.file("corpus2-host-compared.txt"), hostComparedRows);
-
-            pinArtifactRegister(only, ran, hostComparedRows,
-                    laneFile("database-host-compared-register"), "host-compared",
-                    "an assert was decided outside a verdict row and its test is not registered");
-        }
+        // (the database pass's OUTSIDE-BODY and HOST-COMPARED registers went with the database judge alone: O5 +
+        // measured 2026-11-17, they measure a property of the retired mode -- under BOTH the host's collection and grid
+        // sides keep their own statements by design. BOTH's statements and size are held by the judge-SQL ratchets,
+        // pct/.../channelb/ratchets.tsv's channel_b.<suite>.judge.{statements,chars,plan}, and the lean-SQL baseline.)
         pinChannels(only, corpus);
         pinStrength(only, strength);
         pinJudgeDifferential(only);
