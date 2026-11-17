@@ -17,7 +17,7 @@ import java.util.List;
  * comparisons), when this composition moves to the edge or is deleted. Moved unchanged from the lowering's
  * {@code LiteralSpelling.dateTimeText} (phase D's D1.2, 2026-11-15). A pass of the base renderer, run first.
  */
-final class DateTimePrintText {
+@com.legend.base.OpenLine("B12") final class DateTimePrintText {
 
     private DateTimePrintText() {
     }

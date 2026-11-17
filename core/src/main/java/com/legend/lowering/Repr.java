@@ -19,7 +19,7 @@ import com.legend.sql.SqlType;
  * Decimal the {@code D} suffix; everything else is the toString
  * spelling.
  */
-final class Repr {
+@com.legend.base.OpenLine("C5") final class Repr {
 
     private Repr() {
     }
