@@ -328,7 +328,7 @@ class CompatSpellingGuardTest {
             // (lowering/Render.java | TDSNull | D1.3: gone 2026-11-17, census B17 -- a relation's text moved to the edge,
             // edge.RelationTextLowering)
             // the judges' compatibility mode's branches (E-Java, census C1)
-            "testexec/Equality.java | COMPILED_PURE_COMPAT | 1 | D1.9",
+            // testexec/Equality.java | COMPILED_PURE_COMPAT gone (2026-11-17, census C1 2c: the cross-kind rule asked of the run hook, HostForms)
             "testexecutionplan/TestPlan.java | COMPILED_PURE_COMPAT | 1 | D1.9",   // 3 -> 1 (2026-11-17, C1 step 1: each judging fact a named accessor over one field)
             "testexecutionplan/TestPlanJson.java | COMPILED_PURE_COMPAT | 2 | D1.9",
             "testplan/PlanningOptions.java | COMPILED_PURE_COMPAT | 1 | D1.9"   // 2 -> 1 (2026-11-17, C1 step 1: the edge check asks edgeAppeals())

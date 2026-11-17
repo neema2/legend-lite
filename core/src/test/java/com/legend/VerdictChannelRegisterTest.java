@@ -60,7 +60,12 @@ class VerdictChannelRegisterTest {
             "core/src/test/java/com/legend/testexec/EqualityCompatEdgeTest.java",
             // 2026-11-17 (census C1): the compatibility rules' rendered-text comparison moved from TdsCompare to the
             // edge -- the same 2-ULP cell rule (Equality.withinTwoUlp), not a new caller
-            "core/src/main/java/com/legend/edge/UpstreamRenderedTexts.java");
+            "core/src/main/java/com/legend/edge/UpstreamRenderedTexts.java",
+            // 2026-11-17 (census C1's step 2c): compiled legend-pure's cross-kind rule moved from Equality to the
+            // edge's HostForms -- it names the judge's kinds (Equality.Kind), never a second equality
+            "core/src/main/java/com/legend/edge/CompiledPureHostForms.java",
+            // the hook's signature and lite's form name the judge's kinds (Equality.Kind) -- the same 2026-11-17 move
+            "core/src/main/java/com/legend/testexec/HostForms.java");
 
     private static final java.util.regex.Pattern JUDGE_REF =
             java.util.regex.Pattern.compile("(?<![A-Za-z0-9_])Equality(::|\\.(?!java\\b))");

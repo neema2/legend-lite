@@ -291,6 +291,8 @@ class HookRulingTest {
         assertTrue(com.legend.testexec.NoEdgeRun.NONE.wordsAlike(), "lite's judges write alike");
         assertTrue(productHearing().renderedTexts() == com.legend.testexec.RenderedTexts.Product.STRINGS,
                 "lite's runs hold two differing strings as differing");
+        assertTrue(productHearing().hostForms() == com.legend.testexec.HostForms.Product.STRICT,
+                "lite's runs never equal two number kinds");
         assertFalse(com.legend.edge.AppealRun.with(null).wordsAlike(), "the edge's words are the host's alone");
         assertTrue(com.legend.ExecuteOptions.NONE.edge() == com.legend.testexecutionplan.NoEdge.NONE,
                 "the product's options carry the product's edge hook, never a null");
