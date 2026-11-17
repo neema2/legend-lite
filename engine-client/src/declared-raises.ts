@@ -22,21 +22,10 @@ export interface Site {
 
 const declared = new Map<string, readonly Site[]>();
 
-function sitesOf(value: unknown, what: string): readonly Site[] {
-  if (!Array.isArray(value)) throw new Error(`${what}'s raise sites are not a list`);
-  return value.map((s, i) => {
-    const site = s as Site;
-    if (site === null || typeof site !== 'object' || site.n !== i + 1 || typeof site.kind !== 'string' || typeof site.message !== 'string') {
-      throw new Error(`${what}'s raise site ${i + 1} is not a site numbered in order`);
-    }
-    return site;
-  });
-}
-
-/** The sites `sites` of the statement `text`, declared; refused by name where the text was declared otherwise. */
+/** The sites `sites` of the statement `text`, declared; a text declared otherwise before refused by name. */
 export function declareStatementSites(text: string, sites: readonly Site[], what: string): void {
   const held = declared.get(text);
-  if (held !== undefined && JSON.stringify(held) !== JSON.stringify(sites)) throw new Error(`${what} declares the raise sites of a statement otherwise than before`);
+  if (held && JSON.stringify(held) !== JSON.stringify(sites)) throw new Error(`${what} declares a statement's raise sites otherwise`);
   declared.set(text, sites);
 }
 
@@ -44,18 +33,16 @@ export function declareStatementSites(text: string, sites: readonly Site[], what
  *  `sites`, each statement text beside them (`statement`, `sql`, `run`, `statements`). Refused by name where the answer
  *  carries no `raises` (a plan of PlanJson v53 or later always does). */
 export function declareSites(answer: unknown, what: string): void {
-  if (answer === null || typeof answer !== 'object' || (answer as { raises?: unknown }).raises === null
-    || typeof (answer as { raises?: unknown }).raises !== 'object') throw new Error(`${what} carries no raises`);
+  if (typeof (answer as { raises?: unknown } | null)?.raises !== 'object') throw new Error(`${what} carries no raises`);
   const walk = (node: unknown): void => {
-    if (Array.isArray(node)) { node.forEach(walk); return; }
-    if (node === null || typeof node !== 'object') return;
+    if (!node || typeof node !== 'object') return;
     const o = node as Record<string, unknown>;
-    if (o.sites !== undefined) {
-      const sites = sitesOf(o.sites, what);
-      for (const key of ['statement', 'sql', 'run'] as const) if (typeof o[key] === 'string') declareStatementSites(o[key] as string, sites, what);
-      if (Array.isArray(o.statements)) for (const t of o.statements) if (typeof t === 'string') declareStatementSites(t, sites, what);
+    if (Array.isArray(o.sites)) {
+      for (const t of [o.statement, o.sql, o.run, ...(Array.isArray(o.statements) ? o.statements : [])]) {
+        if (typeof t === 'string') declareStatementSites(t, o.sites as Site[], what);
+      }
     }
-    for (const v of Object.values(o)) walk(v);
+    Object.values(o).forEach(walk);
   };
   walk(answer);
 }

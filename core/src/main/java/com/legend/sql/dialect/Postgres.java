@@ -788,7 +788,9 @@ public class Postgres extends AnsiSqlRenderer {
             // joinStrings' interleaved concat, never flattened
             case CONCAT_JOIN -> writer.function("concat", c.args());
             // 64-bit parse (PCT Long.MIN/MAX round-trips)
-            case PARSE_INT -> castAs(writer, typedText(c.args().get(0)), "BIGINT");
+            case PARSE_INT -> guardedParseInt(writer, c.args().get(0),
+                    w -> w.expr(typedText(c.args().get(0)), 6).append(" ~ '^[+-]?[0-9]+$'"),
+                    w -> castAs(w, typedText(c.args().get(0)), "BIGINT"));
             // parseDate(text): the ISO text as a timestamp
             case PARSE_DATE -> castAs(writer, typedText(c.args().get(0)), "TIMESTAMP");
             case PI -> writer.append("pi()");
@@ -1474,6 +1476,13 @@ public class Postgres extends AnsiSqlRenderer {
     /** Composite casts other than DECIMAL are the collection carrier's (leg P4). */
     @Override
     protected SqlWriter variantAwareCast(SqlWriter writer, SqlExpr.Cast c) {
+        // parseFloat: '0x10' read 16 and '1f' raised Postgres's own error (the probe, measured): legend-pure's grammar,
+        // the f stripped before Postgres's cast, which reads NaN, Infinity and whitespace itself (Phase 8)
+        if (isParseFloat(c)) {
+            SqlExpr x = c.value();
+            return guardedParseFloat(writer, x, w -> w.expr(x, 6).append(" ~ '" + FLOAT_GRAMMAR + "'"),
+                    w -> w.append("CAST(regexp_replace(").expr(x, 0).append(", '[fF][[:space:]]*$', '') AS DOUBLE PRECISION)"));
+        }
         if (c.target() instanceof SqlType.Array arr) {
             return listCast(writer, c, arr);
         }
@@ -1838,13 +1847,23 @@ public class Postgres extends AnsiSqlRenderer {
     }
 
     private SqlWriter.Piece raise(List<SqlExpr> a, @com.legend.base.Nullable SqlType slot, boolean unnestable) {
+        return raise(a, slot, unnestable, null);
+    }
+
+    /** {@link #raise} whose message also joins {@code rowTerm} cut to nothing, so it depends on the row
+     *  ({@link #raiseAs}). */
+    private SqlWriter.Piece raise(List<SqlExpr> a, @com.legend.base.Nullable SqlType slot, boolean unnestable,
+            @com.legend.base.Nullable SqlExpr rowTerm) {
         SqlWriter.Piece text = w -> {
             w.append("CAST(CAST(chr(31) || ");
             if (a.size() > 1) {
                 w.expr(a.get(1), 0).append(" || chr(30) || ");
             }
-            w.append("(").expr(a.get(0), 0).append(") || chr(31)")
-                    .append(unnestable || w.inPlanned() ? " || left(CAST(random() AS VARCHAR), 0)" : "")
+            w.append("(").expr(a.get(0), 0).append(") || chr(31)");
+            if (rowTerm != null) {
+                w.append(" || left(CAST(").expr(rowTerm, 0).append(" AS VARCHAR), 0)");
+            }
+            w.append(unnestable || w.inPlanned() ? " || left(CAST(random() AS VARCHAR), 0)" : "")
                     .append(" AS TIMESTAMPTZ) AS VARCHAR)");
         };
         // typed as its slot (never evaluated: the TIMESTAMPTZ cast raises first) -- a list of scalars too
@@ -1853,6 +1872,24 @@ public class Postgres extends AnsiSqlRenderer {
                         || arr.element() instanceof SqlType.Decimal);
         return typed && slot != null
                 ? w -> w.append("CAST(").piece(text).append(" AS ").append(castTypeName(slot)).append(")") : text;
+    }
+
+    /** A guarded parse's raise, typed as the slot (the raise is text here, {@link #raise}): "CASE types character
+     *  varying and double precision cannot be matched" otherwise (the local probe, 2026-11-16). */
+    @Override
+    protected SqlWriter raiseAs(SqlWriter writer, SqlExpr raise, SqlType slot) {
+        if (!(raise instanceof SqlExpr.Call call && call.fn() == SqlFn.ERROR)) {
+            return super.raiseAs(writer, raise, slot);
+        }
+        // the raise depends on its row: a site's message is a constant token (D's Phase 2), and a STABLE cast of a
+        // constant is pre-evaluated wherever the planner estimates (a write's join and filter conditions: the Cypher
+        // island's storeId parse fired at planning, 124 cypher_parity_postgres regressions, 2026-11-17) -- the parsed
+        // text, cut to nothing, joins it: immutable, never NULL in this arm (the guard's IS NULL arm is first), no
+        // planner cost (unlike the volatile term a list's raise carries)
+        SqlExpr rowTerm = call.args().get(0) instanceof SqlExpr.RaiseText r && !r.operands().isEmpty()
+                ? r.operands().get(0) : null;
+        return writer.piece(raise(raised(call).args(), slot,
+                slot instanceof SqlType.Array || slot instanceof SqlType.Map, rowTerm));
     }
 
     /** A condition, or an operand of AND or OR, that IS error() (a filter of fail(...): the timeseries library's

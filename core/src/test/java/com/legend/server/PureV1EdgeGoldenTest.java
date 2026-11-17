@@ -66,6 +66,25 @@ class PureV1EdgeGoldenTest {
     private static final java.util.regex.Pattern IDS = java.util.regex.Pattern.compile(
             "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}");
 
+    /** The runner the net records pure/v1 through: the SHIPPED route's, the one the server mounts
+     *  ({@code edge.EdgeServer.runner}, planned in the edge's dialects; F31, 2026-11-17 -- until then the product's
+     *  ConnectionResolver.RUNNER, a road no client of pure/v1 runs). Held so by {@link #theRecorderIsTheShippedRoute}. */
+    static final PureV1Api.Runner RECORDER = com.legend.edge.EdgeServer.runner(null);
+
+    /** THE GUARD (the orchestrator's condition 2 on F31, 2026-11-17): the net records through the shipped edge route
+     *  it claims, by type -- the product's runner, a planted violator, is refused. */
+    @Test
+    void theRecorderIsTheShippedRoute() {
+        org.junit.jupiter.api.Assertions.assertTrue(shipped(RECORDER), "the pure/v1 net records the shipped route");
+        org.junit.jupiter.api.Assertions.assertFalse(shipped(ConnectionResolver.RUNNER),
+                "the product's runner is not the shipped edge route: a recorder running it records a road no pure/v1"
+                        + " client runs");
+    }
+
+    private static boolean shipped(PureV1Api.Runner runner) {
+        return runner instanceof com.legend.edge.EdgeServer.Shipped;
+    }
+
     @Test
     void everyRequestsAnswer() throws IOException {
         String model = Json.toCompact(Map.of("_type", "text", "code", resource("upstream-api/trades-h2.pure")));
@@ -76,7 +95,7 @@ class PureV1EdgeGoldenTest {
                 String function = com.legend.edge.PureV1Routes.grammarToJsonLambda(r.getValue(), false).json();
                 PureV1Api.Answer a = com.legend.edge.PureV1Routes.execute("{\"clientVersion\":\"vX_X_X\",\"function\":"
                         + function + ",\"model\":" + model + ",\"context\":{\"_type\":\"BaseExecutionContext\"}}",
-                        ConnectionResolver.RUNNER);
+                        RECORDER);
                 // the answer without its plan's activities (the SQL: lean SQL moves it; not the edge's text)
                 String json = a.json();
                 try {
