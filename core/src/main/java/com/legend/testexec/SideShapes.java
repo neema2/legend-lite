@@ -244,6 +244,15 @@ public final class SideShapes {
                 + " columns " + s.columns() + " nor a per-key column of its templates " + s.templates());
     }
 
+    /** A required side's refusal of no rows (C5's step E, 2026-11-17): the words its plan carries -- the compatibility
+     *  edge's legend-pure sentence, worded at planning ({@code SideShape.sizeWords}) -- else lite's own sentence of the
+     *  kind, its bound. The run spells no legend-pure text. */
+    private static IllegalStateException noRows(com.legend.testexecutionplan.SideShape s) {
+        String words = s.sizeWords();
+        return new IllegalStateException(words != null ? words
+                : com.legend.error.ErrorKind.SIZE_NOT_MULTIPLICITY.sentence() + ": " + s.multiplicity());
+    }
+
     /** A value side's rules, read from the plan's shape (a required root of no rows refuses; a scalar of two rows
      *  refuses; a null cell in a collection is the TDSNull value under a TDSNull root, a null slot on the Any and
      *  variant lanes, a lowering defect otherwise). */
@@ -251,8 +260,7 @@ public final class SideShapes {
         long lower = s.lower();
         if (s.scalar()) {
             if (rows.rows().isEmpty() && lower >= 1) {
-                throw new IllegalStateException("Cannot cast a collection of size 0 to multiplicity "
-                        + s.multiplicity());
+                throw noRows(s);
             }
             if (rows.rows().size() > 1) {
                 throw new IllegalStateException("scalar-shaped result returned more than one row — the to-one"
@@ -282,7 +290,7 @@ public final class SideShapes {
             }
         }
         if (rows.rows().isEmpty() && lower >= 1) {
-            throw new IllegalStateException("Cannot cast a collection of size 0 to multiplicity " + s.multiplicity());
+            throw noRows(s);
         }
         if (values.size() < lower) {
             throw new IllegalStateException("collection-shaped result holds " + values.size()

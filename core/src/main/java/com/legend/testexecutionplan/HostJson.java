@@ -184,6 +184,7 @@ final class HostJson {
         o.put("tdsNullRoot", x.tdsNullRoot());
         o.put("nullableRoot", x.nullableRoot());
         o.put("listCarrier", x.listCarrier());
+        o.put("sizeWords", x.sizeWords() == null ? null : x.sizeWords());
         return o;
     }
 
@@ -199,7 +200,8 @@ final class HostJson {
         boolean v_tdsNullRoot = bool(field(o, "tdsNullRoot", "SideShape"));
         boolean v_nullableRoot = bool(field(o, "nullableRoot", "SideShape"));
         boolean v_listCarrier = bool(field(o, "listCarrier", "SideShape"));
-        return new SideShape(v_kind, v_typeName, v_columns, v_templates, v_oneCarrier, v_scalar, v_lower, v_multiplicity, v_tdsNullRoot, v_nullableRoot, v_listCarrier);
+        @Nullable String v_sizeWords = absent(o, "sizeWords", "SideShape") ? null : str(o.get("sizeWords"));
+        return new SideShape(v_kind, v_typeName, v_columns, v_templates, v_oneCarrier, v_scalar, v_lower, v_multiplicity, v_tdsNullRoot, v_nullableRoot, v_listCarrier, v_sizeWords);
     }
 
     static Map<String, Object> wSideShapeColumn(SideShape.Column x) {

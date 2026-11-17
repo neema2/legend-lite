@@ -183,8 +183,9 @@ public final class EngineTextPlanning {
         return p.kind() == JudgePlans.Kind.VALUES;
     }
 
-    public static com.legend.testexecutionplan.SideShape shapeOf(JudgePlans.PlannedSide p) {
-        return JudgePlans.shapeOf(p);
+    public static com.legend.testexecutionplan.SideShape shapeOf(JudgePlans.PlannedSide p,
+            com.legend.database.PlanStyle style) {
+        return JudgePlans.shapeOf(p, style);
     }
 
     /** {@code side} planned as the database judge's rows: its one-row relation of its value, or null where the side

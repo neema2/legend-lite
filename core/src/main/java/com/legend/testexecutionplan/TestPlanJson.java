@@ -48,8 +48,9 @@ public final class TestPlanJson {
      *  facts, {@code facts} (its effects, inline CSV seeds, verdicts and shape: what a runner reads of the body); 24
      *  (2026-11-16, phase D's option (D), merged after E): the product's version 54 (a plan's raises); 25 (2026-11-16, the P2 checkpoint audit's S1):
      *  the product's version 55 (each statement's raises); 26 (2026-11-16, phase D's Phase 2, raises as SITES): the
-     *  product's version 56 (each statement's raise sites, its token's words planned). */
-    public static final int VERSION = 26;
+     *  product's version 56 (each statement's raise sites, its token's words planned); 27 (2026-11-17, C5's step E):
+     *  a side's shape carries its size refusal's words, planned ({@code SideShape.sizeWords}). */
+    public static final int VERSION = 27;
 
     private TestPlanJson() {
     }
