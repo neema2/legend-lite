@@ -127,6 +127,31 @@ final class ConstantPools {
         return out;
     }
 
+    /** Every resource of {@code jars} -- each entry that is no class file, directory or manifest (a .pure prelude, a
+     *  .tsv table, a service file) -- by "jar name!/path", with its text read as UTF-8. */
+    static Map<String, String> resourcesOfJars(List<Path> jars) {
+        Map<String, String> out = new TreeMap<>();
+        for (Path jar : jars) {
+            try (JarFile f = new JarFile(jar.toFile())) {
+                Enumeration<JarEntry> entries = f.entries();
+                while (entries.hasMoreElements()) {
+                    JarEntry e = entries.nextElement();
+                    String n = e.getName();
+                    if (e.isDirectory() || n.endsWith(".class") || n.equals("META-INF/MANIFEST.MF")) {
+                        continue;
+                    }
+                    try (var in = f.getInputStream(e)) {
+                        out.put(jar.getFileName() + "!/" + n, new String(in.readAllBytes(),
+                                java.nio.charset.StandardCharsets.UTF_8));
+                    }
+                }
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        }
+        return out;
+    }
+
     /** Whether {@code word} stands in {@code text} as a whole word: no letter, digit or underscore either side (a pool
      *  entry holds a token inside a longer string, a descriptor or a concatenation's recipe). */
     static boolean hasWord(String text, String word) {
