@@ -320,9 +320,9 @@ class CompatSpellingGuardTest {
             // literal where it read TDS_NULL_CELL (the constant gone)
             "lowering/Scalars.java | TDSNull | 2 | STAYS",
             // TDSNull as the judges' text (E-Java, Phase 4b: census B10/C5)
-            // 5 -> 3, D1.9 -> STAYS (2026-11-17, census C5's step C, C-2): an expected ^TDSNull() and a golden's null cell
-            // are a typed TypedNullCell; what stays reads a golden's written 'TDSNull' cell text as INPUT
-            "compiler/spec/VerdictQueries.java | TDSNull | 3 | STAYS",
+            // 5 -> 4, D1.9 -> STAYS (2026-11-17, census C5's step C, C-2): an expected ^TDSNull(), a written 'TDSNull'
+            // cell and a golden's null cell are a typed TypedNullCell; what stays reads that written text as INPUT
+            "compiler/spec/VerdictQueries.java | TDSNull | 4 | STAYS",
             // (lowering/Render.java | TDSNull | D1.3: gone 2026-11-17, census B17 -- a relation's text moved to the edge,
             // edge.RelationTextLowering)
             // the judges' compatibility mode's branches (E-Java, census C1)

@@ -758,7 +758,10 @@ public final class VerdictQueries {
         for (com.legend.compiler.spec.typed.TypedSpec e : c.elements()) {
             if (e instanceof com.legend.compiler.spec.typed.TypedNewInstance ni
                     && com.legend.compiler.element.type.PlatformTypes.TDS_NULL_FQN
-                            .equals(ni.classFqn())) {
+                            .equals(ni.classFqn())
+                    // the written 'TDSNull' cell (lite's adjudicated policy, PureAsserts: an expected 'TDSNull'
+                    // equals an actual NULL cell), read as INPUT and typed here, never by the judges
+                    || e instanceof com.legend.compiler.spec.typed.TypedCString cs && cs.value().equals("TDSNull")) {
                 any = true;
                 // a present null cell, typed (C5 step C, C-2: never the String 'TDSNull' it was spelled as)
                 out.add(new com.legend.compiler.spec.typed.TypedNullCell(
