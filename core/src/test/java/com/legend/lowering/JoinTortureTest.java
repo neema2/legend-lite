@@ -71,7 +71,7 @@ class JoinTortureTest {
     }
 
     private String sqlOf(String query) {
-        SqlQuery q = new Lowerer(com.legend.lowering.PlatformRegistrations.catalogTable()).lower(Compiler.query(Compiler.compileModel(MODEL), query).expression());
+        SqlQuery q = new Lowerer(com.legend.lowering.PlatformRegistrations.catalogTable()).withStyled(com.legend.lowering.Styled.PRODUCT).lower(Compiler.query(Compiler.compileModel(MODEL), query).expression());
         return TestBackends.platform().dialect().render(q);
     }
 
