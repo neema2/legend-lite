@@ -1,7 +1,7 @@
 WITH frame_r AS MATERIALIZED (SELECT frame_r__t0.*
   FROM T AS frame_r__t0), frame_s AS MATERIALIZED (SELECT frame_s__t0.*
   FROM T AS frame_s__t0
-  WHERE frame_s__t0.AMOUNT > 1.0), __p_0 AS (SELECT c.__n AS __c_n, n.__c AS __n_c, n.value AS __n_value
+  WHERE frame_s__t0.AMOUNT > 1.0E0), __p_0 AS (SELECT c.__n AS __c_n, n.__c AS __n_c, n.value AS __n_value
   FROM (
     SELECT COUNT(*) AS __n
     FROM frame_r AS frame_r_t0
