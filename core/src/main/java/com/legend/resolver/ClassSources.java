@@ -1237,6 +1237,7 @@ public final class ClassSources {
                         l.info());
             }
             case TypedCString ignored -> n;
+            case com.legend.compiler.spec.typed.TypedNullCell ignored -> n;
             case TypedCInteger ignored -> n;
             case TypedCFloat ignored -> n;
             case TypedCDecimal ignored -> n;

@@ -182,7 +182,7 @@ final class HostJudge {
         HostJudgment.SideFacts e = facts(args.get(0));
         HostJudgment.SideFacts a = facts(args.get(1));
         HostJudgment.Keys keys = JudgmentFacts.keys(args.get(0), args.get(1), env.ctx());
-        return new HostSides.Check(List.of(canonAsk(args.get(0), hook), canonAsk(args.get(1), hook)),
+        return new HostSides.Check(List.of(canonAsk(com.legend.compiler.spec.VerdictQueries.tdsNullSentinel(args.get(0)), hook), canonAsk(args.get(1), hook)),
                 new HostJudgment.SameElements(e, a, gridPair, keys));
     }
 
@@ -307,7 +307,7 @@ final class HostJudge {
                 AssertVerdicts.bareRowStamp(args.get(0), letPrefix), AssertVerdicts.bareRowStamp(args.get(1), letPrefix),
                 AssertVerdicts.wrappedRelationStamp(args.get(0), letPrefix),
                 AssertVerdicts.wrappedRelationStamp(args.get(1), letPrefix));
-        return new HostSides.Check(List.of(canonAsk(args.get(0), hook), canonAsk(args.get(1), hook)),
+        return new HostSides.Check(List.of(canonAsk(com.legend.compiler.spec.VerdictQueries.tdsNullSentinel(args.get(0)), hook), canonAsk(args.get(1), hook)),
                 new HostJudgment.Equals(name, wantEqual, incidental, gridPair, e, a, keys, flat));
     }
 

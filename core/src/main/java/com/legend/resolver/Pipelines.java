@@ -1192,6 +1192,7 @@ public final class Pipelines {
                                     rewriteRowReads(b, rowVar, prefixes, stripped, varRewrite))
                                     .toList(), l.info());
             case TypedCString ignored -> n;
+            case com.legend.compiler.spec.typed.TypedNullCell ignored -> n;
             case TypedCInteger ignored -> n;
             case TypedCFloat ignored -> n;
             case TypedCDecimal ignored -> n;
@@ -1316,6 +1317,7 @@ public final class Pipelines {
                             prefixColumns(c.source(), rowVar, colPrefix, varRewrite),
                             c.target(), c.info(), c.wire());
             case TypedCString ignored -> n;
+            case com.legend.compiler.spec.typed.TypedNullCell ignored -> n;
             case TypedCInteger ignored -> n;
             case TypedCFloat ignored -> n;
             case TypedCDecimal ignored -> n;

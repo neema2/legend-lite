@@ -173,8 +173,8 @@ public final class Equality {
         java.util.Objects.requireNonNull(rules, "an equality names the rules it judges by");
         Object e = et.value();
         Object a = at.value();
-        if ("TDSNull".equals(e) && a == null) {
-            return true;   // the engine's null sentinel in a TDS cell
+        if (com.legend.sql.SqlExpr.NULL_CELL_WIRE.equals(e) && a == null) {
+            return true;   // an expected present null cell (C5 step C, C-2) beside a NULL cell
         }
         if (e == null || a == null) {
             return e == a;

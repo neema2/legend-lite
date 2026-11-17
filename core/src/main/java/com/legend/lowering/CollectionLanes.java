@@ -112,6 +112,7 @@ final class CollectionLanes {
             case TypedCFloat ignored -> true;
             case TypedCDecimal ignored -> true;
             case TypedCString ignored -> true;
+            case com.legend.compiler.spec.typed.TypedNullCell ignored -> true;   // an expected present null cell (C5 step C)
             case TypedCBoolean ignored -> true;
             case TypedCDate ignored -> true;
             case TypedCTime ignored -> true;
