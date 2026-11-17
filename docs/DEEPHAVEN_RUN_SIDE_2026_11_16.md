@@ -222,7 +222,7 @@ but then should be part of the plan".
 
 ### 7.1 The browser, TypeScript (v0)
 
-- **Which runner, and who asks it (2026-11-17, OPEN: §10.3 H1-H3):** DataCube's engine contract, ratified 2026-11-13,
+- **Which runner, and who asks it (2026-11-17; answered in §10.3, H1 and H3):** DataCube's engine contract, ratified 2026-11-13,
   puts the planner, the runner and the database together in one engine and has DataCube send only Pure (its R1:
   "everything multi-step happens inside the engine"). Under it, the Deephaven engine in the tab is the WebAssembly
   planner, the tab's one runner and the Deephaven session; DataCube sends a grid's query, its base a `let`, and never
@@ -352,7 +352,7 @@ What the code does where it differs from the text above, each for a reason, and 
   run beside another lane, the board's six seconds of ticks fetched two results (and, after the restart, sent 18
   operations) -- a following not yet live when the ticks began; run alone it sent and fetched nothing, both times.
 
-### 10.3 Homework before more code (2026-11-17)
+### 10.3 Homework before more code (2026-11-17; H1-H3 answered the same day, from the code)
 
 What is settled, each with a precedent in the code: the base as a `let`; the planner choosing splice or step from the
 database's one fact; the verbs (create if it does not exist, under the identity; drop, the runtime's timing); a step
@@ -375,10 +375,35 @@ build resumes:
 - **H5, the cost of a base of its own.** M1 again with the base a step: the filter measured 70 ms slower (within its
   250 ms budget) when the base was its own table; confirmed or found to be worse, on the same gestures.
 
+**The answers (read 2026-11-17 on `claude/datacube-engine` @417a80b62, the contract and its built tab engine):**
+
+- **H1.** The contract's tab engine answers `query` by planning with the plane's planner (`p.plan(ask.query)`) and
+  running the plan on a DATABASE ADAPTER, `QueryEngine.execute(plan)` (`datacube/src/engines/tab-engine.ts` 527-545),
+  a project's database chosen by its connection (`engineFor`, C5). So Deephaven is a database adapter -- a
+  `QueryEngine` chosen by a Deephaven connection, as `DeephavenEngine` already is -- not an engine of its own, and the
+  engine knows of it only its planner's dialect and the adapter's session. DataCube sends Pure: the base as a `let` is
+  what the contract asks of it. Nothing on the contract's surfaces changes; the contract's owner is told that
+  `engineFor` offers one more adapter.
+- **H3.** A plan that needs more than its answer's statement already travels with it: the text plan carries the steps
+  it depends on (B3.2: a target's loads, its bound values), and the host runs them before the text. A kept base is one
+  more such step: the planner writes it as a SETUP step of the answer (create if it does not exist, under its identity),
+  the answer statement reading it through a binding; the Deephaven adapter runs the setup through a function of the
+  shared runner (`plan-runner.ts`, the verbs performed through its session) and the answer itself -- rows, a window, a
+  follow -- as DuckDB's adapter runs `plan.sql`. One runner's code, no Deephaven loop, the same call on `main` today and
+  behind the contract.
+- **H2.** The contract has no call for a result followed live; Deephaven's following stays where it works, in the
+  adapter (`QueryEngine`'s follow), until the contract adds one. The kept base does not need it. Raised with the
+  contract's owner, with the tab's live DuckDB beside it.
+- **H4, H5** are the build's first measurements: the identity guard before anything is built on the planner's step, the
+  gestures' times once the lanes run; either failing stops the build and comes back here.
+
 ## 11. The order of work
 
-(2026-11-17: steps 1-3 done, and step 4's runtime, doors and witnesses built; the rest waits on §10.3, then a one-page
-correction for the user to rule, then the build.)
+(2026-11-17: steps 1-3 done, and step 4's runtime, doors and witnesses built. The rest, in order, after §10.3's answers:
+the planner's kept `let` as a setup step with the identity guard (H4); the shared runner's setup function and the
+Deephaven adapter running through it, the steps packed inside a statement deleted; DataCube's base as a `let`,
+`server-base.ts`'s interim and fragment deleted; every lane, the cube's and the board's base checks on their merits
+(H5); then step 5.)
 
 
 1. Merge `main` (`4dfbb5b7`: C5-P, C5-J, C5-T; 85 commits, about 18 conflicts), the Deephaven TypeScript placed in
