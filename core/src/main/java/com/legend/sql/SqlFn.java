@@ -160,11 +160,8 @@ public enum SqlFn {
      *  the join's {@code STRING_AGG} drops a {@code NULL}. legend-engine prints an empty TDS cell as {@code TDSNull}: the
      *  compatibility edge writes that (edge/PurePrintForms). */
     CELL_TEXT,
-    /** {@code format}'s {@code %0<w>d} ({@code x}, then the width): legend-pure pads the digits and then signs
-     *  ({@code -3} at width 5 is {@code -00003}). Only legend-pure's {@code format} writes it: the product's renderer
-     *  refuses it by name ({@code dialect.PureOnlyText}), the compatibility edge composes it (edge/PurePrintForms;
-     *  phase D's D1.3, 2026-11-15: until then the lowering composed it, Scalars.signedZeroPad). */
-    FORMAT_PADDED,
+    // (FORMAT_PADDED, format's %0<w>d: gone 2026-11-17, the separation census's B8 (i) -- the edge composes it at
+    // lowering through the plan style's PureOnlyTexts facet, edge.EdgePureOnlyTexts; the product refuses at lowering)
     /** An instance's {@code toString} ({@code id}, the instance's identity): legend-pure prints an instance without a
      *  {@code toString} of its own by its repository id, {@code @_} and the id. The product writes an object by graph
      *  fetch: its renderer refuses this by name ({@code dialect.PureOnlyText}); the compatibility edge composes it
