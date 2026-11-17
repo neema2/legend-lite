@@ -52,5 +52,8 @@ public final class PlanStyleFacets {
             DateLiteralTexts.class,
             // the word a rendered golden writes for a null cell (census C1, 2026-11-17): none in the product (lite
             // writes it empty), legend-engine's TDSNull at the edge
-            com.legend.compiler.spec.GoldenNullWord.class);
+            com.legend.compiler.spec.GoldenNullWord.class,
+            // an execute's routing activity (J5 of the edge audit, 2026-11-17): the product records none, the edge
+            // legend-engine's AggregationAwareActivity, the routed query's print
+            com.legend.planner.RoutedQueries.class);
 }
