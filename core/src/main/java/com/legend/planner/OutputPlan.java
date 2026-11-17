@@ -99,7 +99,8 @@ public final class OutputPlan {
                         .DropTable(null, table, new com.legend.sql.NameQuoting(false, true))), target)));
             }
             steps.add(new ExecutionPlan.Effect(PlanMaker.copyInto(query, runtime, dialect, target, null, table)));
-            steps.add(PlanMaker.countOf(table, dialect, target));
+            // the product's plan (executionPlan(runtime) above, and the copy's own: PlanMaker.copyInto)
+            steps.add(PlanMaker.countOf(table, dialect, target, com.legend.database.PlanStyle.PRODUCT));
             return ExecutionPlan.writing(read.parameters(), new ExecutionPlan.Sequence(steps));
         }
     }
