@@ -1351,7 +1351,10 @@ public class SQLite extends AnsiSqlRenderer {
                             + " ELSE __pf_s END AS __pf_t FROM (SELECT trim(")
                     .expr(v, 0).append(", char(9, 10, 11, 12, 13, 32)) AS __pf_s)))))))");
         }
-        return writer.piece(castTo(w -> w.expr(v, 0), typeOf(v), target));
+        // a whole number already (a rounding to no places, a floor, a ceiling): cast as it is, never rounded again
+        boolean whole = alreadyWhole(v) && (target == SqlType.Scalar.INTEGER || target == SqlType.Scalar.BIGINT
+                || target == SqlType.Scalar.HUGEINT);
+        return writer.piece(castTo(w -> w.expr(v, 0), whole ? null : typeOf(v), target));
     }
 
     /** A Variant's value as {@code to}: a scalar by its SQL value ({@code ->> '$'}: a string unquoted, a boolean 1 or

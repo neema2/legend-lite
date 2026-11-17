@@ -905,6 +905,22 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             + "([eE][+-]?[0-9]+)?[fF]?)[[:space:]]*$";
 
     /** Whether {@code c} is a parseFloat: a user's cast of text to a Float. */
+    /** Whether {@code v} is already a whole number though of a double's type: a rounding to no places (ROUND or
+     *  ROUND_HALF_UP of one operand, or of a literal 0 places), a floor or a ceiling. A cast of it to an integer needs no
+     *  rounding of its own (S20's waste look, 2026-11-17: a Float rounded to an Integer was rounded twice once the
+     *  Float literal became a double). */
+    protected static boolean alreadyWhole(SqlExpr v) {
+        if (!(v instanceof SqlExpr.Call c)) {
+            return false;
+        }
+        return switch (c.fn()) {
+            case ROUND, ROUND_HALF_UP -> c.args().size() == 1
+                    || (c.args().size() == 2 && c.args().get(1) instanceof SqlExpr.IntLit i && i.value() == 0);
+            case FLOOR, CEILING, FLOOR_RAW -> c.args().size() == 1;
+            default -> false;
+        };
+    }
+
     protected static boolean isParseFloat(SqlExpr.Cast c) {
         return c.target() == com.legend.sql.SqlType.Scalar.DOUBLE && c.reason() == SqlExpr.Reason.USER
                 && c.value().type() instanceof com.legend.sql.TypeFact.Typed t
@@ -1349,8 +1365,15 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
      * dodged integer truncation.
      */
     protected final SqlWriter divideAsDoubles(SqlWriter writer, List<SqlExpr> a) {
-        return writer.append("(CAST(").expr(a.get(0), 0).append(" AS DOUBLE) / CAST(").expr(a.get(1), 0)
-                .append(" AS DOUBLE))");
+        return writer.append("(").piece(dividedAsDouble(a.get(0))).append(" / ").piece(dividedAsDouble(a.get(1))).append(")");
+    }
+
+    /** {@code x} as a double: a double's Float literal as it is (the dialect writes it as its double: S20's DOUBLE kind),
+     *  any other operand cast (S20's waste look, 2026-11-17: H2 wrote CAST(CAST(1.75 AS DOUBLE PRECISION) AS DOUBLE)). */
+    private static SqlWriter.Piece dividedAsDouble(SqlExpr x) {
+        return x instanceof SqlExpr.FloatLit f && f.isDouble() && Double.isFinite(f.value())
+                ? w -> w.expr(x, 0)
+                : w -> w.append("CAST(").expr(x, 0).append(" AS DOUBLE)");
     }
 
     /** Pure's mod: the remainder with the divisor's sign, {@code MOD(MOD(x, y) + y, y)}. */

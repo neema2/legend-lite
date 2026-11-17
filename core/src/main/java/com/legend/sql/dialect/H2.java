@@ -1314,6 +1314,12 @@ public class H2 extends AnsiSqlRenderer {
 
     @Override
     protected SqlWriter variantAwareCast(SqlWriter writer, SqlExpr.Cast c) {
+        // a double's Float literal is H2's double already (floatLiteral: CAST(x AS DOUBLE PRECISION)): its cast to a
+        // double is the identity, never written again (S20's waste look, 2026-11-17)
+        if (c.target() == com.legend.sql.SqlType.Scalar.DOUBLE && c.value() instanceof SqlExpr.FloatLit f && f.isDouble()
+                && Double.isFinite(f.value())) {
+            return writer.expr(f, 0);
+        }
         // parseFloat: a refusal raised H2's own conversion error, never lite's kind (the user's error design,
         // 2026-11-16): legend-pure's grammar, Java regex (\p{Space} for the POSIX class REGEXP_LIKE does not read),
         // the trailing f stripped before H2's cast, which holds NaN and Infinity itself (Phase 8)
