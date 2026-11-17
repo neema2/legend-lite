@@ -18,10 +18,19 @@ package com.legend.lowering;
  *                             flat (a nesting that changes no answer)
  * @param elideWireCasts       a mapping's wire coercion is not written as a SQL cast: the reader converts the value on
  *                             the wire ({@link CastPolicy})
+ * @param existsAsJoinDistinct a filter's correlated {@code EXISTS} over a to-many join is a join to the distinct keys
+ *                             ({@link ExistsJoinForm}; until 2026-11-17 {@code withEngineExistsJoinForm}): each planner
+ *                             chooses it as before, the product's planners too
  */
 public record LoweringShape(boolean shareRelations, boolean foldKeyedCounts, boolean pruneComputed,
-        boolean viewsAsDerivedTables, boolean elideWireCasts) {
+        boolean viewsAsDerivedTables, boolean elideWireCasts, boolean existsAsJoinDistinct) {
 
     /** The product's shape: lean SQL. */
-    public static final LoweringShape LEAN = new LoweringShape(true, true, true, false, false);
+    public static final LoweringShape LEAN = new LoweringShape(true, true, true, false, false, false);
+
+    /** This shape, an {@code EXISTS} over a to-many join written as a join to the distinct keys. */
+    public LoweringShape withExistsAsJoinDistinct() {
+        return new LoweringShape(shareRelations, foldKeyedCounts, pruneComputed, viewsAsDerivedTables, elideWireCasts,
+                true);
+    }
 }

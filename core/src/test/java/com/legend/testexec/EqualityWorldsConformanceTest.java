@@ -106,16 +106,12 @@ class EqualityWorldsConformanceTest {
         // STATIC [] == [] arm answers true, this pins the RUNTIME path)
         diverge(true, null, "[]->head()", "[]->head()", null, null,
                 "SQL NULL vs pure true — recorded Phase-2 residual");
-        // NUMERIC CHARTER Rule 1 (2026-09-17): Float literals render BARE
-        // (the engine's own literal processor) and the database adds them
-        // in DECIMAL — 0.1 + 0.2 IS 0.3 in SQL on both backends, the engine's
-        // relational verdict (S20, held for the user's re-ruling 2026-11-05).
-        // World 1 over the double arithmetic (0.30000000000000004): clean mode
-        // compares a Float EXACTLY (S15/S132, the user's ruling of 2026-11-05,
-        // built that day), so the two worlds diverge here; the 2-ULP tolerance
-        // is compatibility mode's alone, pinned below.
-        diverge(false, true, "(0.1 + 0.2)", "0.3", 0.1d + 0.2d, 0.3d,
-                "clean mode's exact Float vs the database's DECIMAL arithmetic over bare literals");
+        // register S20 (the user's ruling "yes on IEEE", 2026-11-05; built 2026-11-17, Phase 5b): a Float literal is the
+        // double in the product, so the database adds 0.1 + 0.2 as legend-pure's compiled runtime does
+        // (0.30000000000000004), and clean mode compares a Float EXACTLY (S15/S132): the two worlds agree. Until S20 the
+        // literals were DECIMALs (the numeric charter's Rule 1) and World 2 answered true. The 2-ULP tolerance is
+        // compatibility mode's alone, pinned below.
+        agree(false, "(0.1 + 0.2)", "0.3", 0.1d + 0.2d, 0.3d);
         assertEquals(true, Equality.same(Equality.Typed.of(0.1d + 0.2d), Equality.Typed.of(0.3d),
                 com.legend.testexecutionplan.TestPlan.JudgingRules.COMPILED_PURE_COMPAT),
                 "compatibility mode's 2-ULP tolerance holds 0.1 + 0.2 as 0.3");

@@ -198,6 +198,19 @@ public final class Lowerer {
      * convertDateToSqlString: the dbTimeZone, default GMT) — batch 86. */
     private @com.legend.base.Nullable String dbTimeZone;
 
+    /** How the target's database computes with a Float literal (register S20, built 2026-11-17, Phase 5b): the
+     *  target dialect's, passed by the planner as data (the lowering imports no dialect); a user's Float literal is
+     *  built with it, asked only where one is lowered (naming the target can need the runtime's database); none (no
+     *  target named) refuses one by name. */
+    private java.util.function.Supplier<com.legend.sql.SqlExpr.FloatLit.@com.legend.base.Nullable Kind> floatLiteralKind =
+            () -> null;
+
+    public Lowerer withFloatLiteralKind(
+            java.util.function.Supplier<com.legend.sql.SqlExpr.FloatLit.@com.legend.base.Nullable Kind> kind) {
+        this.floatLiteralKind = kind;
+        return this;
+    }
+
     public Lowerer withDbTimeZone(@com.legend.base.Nullable String zone) {
         this.dbTimeZone = zone;
         return this;
@@ -274,6 +287,26 @@ public final class Lowerer {
         return new Styled(pureOnlyTexts);
     }
 
+    /** legend-engine's result envelope ({@link ResultEnvelopes}, Phase 6's B5, 2026-11-17): the plan style's facet,
+     *  asked only when an {@code executeLegendQuery} envelope is lowered, with its refusal. A Lowerer no planner handed a
+     *  style refuses it the same way. */
+    private java.util.function.Function<java.util.function.Supplier<? extends RuntimeException>, ResultEnvelopes>
+            resultEnvelopes = refusal -> {
+                throw refusal.get();
+            };
+
+    /** The plan style's result-envelope facet, {@code style} its request ({@code (refusal) -> style.facet(..)}). */
+    public Lowerer withResultEnvelopes(
+            java.util.function.Function<java.util.function.Supplier<? extends RuntimeException>, ResultEnvelopes> style) {
+        this.resultEnvelopes = style;
+        return this;
+    }
+
+    /** The result-envelope facet, the product's refusal {@code refusal}. */
+    ResultEnvelopes resultEnvelopes(java.util.function.Supplier<? extends RuntimeException> refusal) {
+        return resultEnvelopes.apply(refusal);
+    }
+
     /** The plan style's relation-text facet, {@code style} its request ({@code (refusal) -> style.facet(..)}). */
     public Lowerer withRelationTexts(
             java.util.function.Function<java.util.function.Supplier<? extends RuntimeException>, RelationTexts> style) {
@@ -332,12 +365,10 @@ public final class Lowerer {
         return SqlSelect.starOf(new SqlSource.Cte(cte.name(), nextAlias(), cte.outputs()));
     }
 
-    /** Engine-parity join-distinct exists (ExistsJoinForm) — DRIVER
-     * opt-in; the standalone-SQL surface keeps lean correlated EXISTS. */
-    private boolean engineExistsJoinForm;
-
-    public Lowerer withEngineExistsJoinForm() {
-        this.engineExistsJoinForm = true;
+    /** A filter's correlated EXISTS over a to-many join as a join to the distinct keys (ExistsJoinForm), the shape's
+     *  {@link LoweringShape#existsAsJoinDistinct}; the standalone-SQL surface keeps the correlated EXISTS. */
+    public Lowerer withExistsAsJoinDistinct() {
+        this.shape = shape.withExistsAsJoinDistinct();
         return this;
     }
 
@@ -2228,7 +2259,7 @@ public final class Lowerer {
             case WHERE -> {
                 SqlSelect m = src.withWhere(
                         mergeWhere(src.where(), predicate, f.stamp()));
-                yield engineExistsJoinForm
+                yield shape.existsAsJoinDistinct()
                         ? ExistsJoinForm.rewrite(m, this::nextAlias,
                                 whereZones::get)
                         : m;
@@ -3656,7 +3687,9 @@ public final class Lowerer {
             // B8: exact digits emit as DecimalLit under the Float label (see CFloat)
             case TypedCFloat c -> c.exact() != null
                     ? new SqlExpr.DecimalLit(c.exact())
-                    : new SqlExpr.FloatLit(c.value());
+                    : SqlExpr.FloatLit.of(c.value(), java.util.Objects.requireNonNull(floatLiteralKind.get(),
+                            "a Float literal lowered with no target named: how its database computes it is the"
+                            + " target's (SqlDialect.floatLiteralKind)"));
             case TypedCDecimal c ->
                     new SqlExpr.DecimalLit(c.value());
             // Date literals: full dates/timestamps render typed; PARTIAL

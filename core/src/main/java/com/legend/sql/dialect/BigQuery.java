@@ -766,7 +766,14 @@ public class BigQuery extends AnsiSqlRenderer {
      *  FLOAT64 here, so it is spelled {@code BIGNUMERIC '1.5'} ({@code 0.1 + 0.2} is 0.3, measured); a magnitude
      *  BIGNUMERIC cannot hold, and NaN and the infinities, are FLOAT64. */
     @Override
-    protected String floatLiteral(double v) {
+    public com.legend.sql.SqlExpr.FloatLit.Kind floatLiteralKind() {
+        // S20's DOUBLE literal waits on this lane's measurement (an F-row of the edge program, 2026-11-17): the DECIMAL
+        // of its digits, written below
+        return com.legend.sql.SqlExpr.FloatLit.Kind.DECIMAL;
+    }
+
+    @Override
+    protected String decimalFloatLiteral(double v) {
         // a negative zero keeps its sign, cast from its text (the orchestrator's round 56, 2026-11-15: the digits'
         // BigDecimal has no -0, so -0.0 was written 0.0)
         if (v == 0.0 && Double.doubleToRawLongBits(v) != 0L) {

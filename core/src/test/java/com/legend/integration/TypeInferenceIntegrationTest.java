@@ -22,6 +22,19 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
 
+        /** A Decimal's arithmetic, or null where the lane's database holds no exact decimal and refuses it BY NAME (D2a,
+         *  the orchestrator's ruling (c) of 2026-11-17: on such a database the refusal IS the expected outcome, never an
+         *  approximate value) -- the refusal asserted here. */
+        private Lean.Result decimalOrRefused(String query) {
+                try {
+                        return Lean.run(getCompletePureModelWithRuntime(), query, "test::TestRuntime", connection);
+                } catch (com.legend.sql.DialectCapability refused) {
+                        assertTrue(String.valueOf(refused.getMessage()).contains("holds no exact decimal"),
+                                        refused.getMessage());
+                        return null;
+                }
+        }
+
         @BeforeEach
         void setUp() throws SQLException {
                 connection = backend().open();
@@ -856,7 +869,10 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
         @Test
         void testDecimalLiteralTracking() throws SQLException {
                 // Pure Decimal literal 3.0D should be tracked as DECIMAL through IR
-                var result = Lean.run(getCompletePureModelWithRuntime(), "|1.0D + 2.0D + 3.0D", "test::TestRuntime", connection);
+                var result = decimalOrRefused("|1.0D + 2.0D + 3.0D");
+                if (result == null) {
+                        return;
+                }
                 assertTrue(result.columns().get(0).type().startsWith("Decimal"), "Decimal literals should produce Decimal Pure type");
                 assertEquals(6.0, ((Number) result.rows().get(0).get(0)).doubleValue(), 1e-10);
         }
@@ -961,7 +977,10 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
         @Test
         void testDecimalTimes() throws SQLException {
                 // PCT: |19.905D * 17774D => 353791.470D
-                var result = Lean.run(getCompletePureModelWithRuntime(), "|19.905D * 17774D", "test::TestRuntime", connection);
+                var result = decimalOrRefused("|19.905D * 17774D");
+                if (result == null) {
+                        return;
+                }
                 assertTrue(result.columns().get(0).type().startsWith("Decimal"), "Decimal multiplication should produce Decimal Pure type");
                 assertEquals(353791.47, ((Number) result.rows().get(0).get(0)).doubleValue(), 0.01);
         }
@@ -2225,7 +2244,10 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                 // PCT test: testDecimalTimes - 19.905D * 17774D should produce 353791.470D
                 // (scale 3)
                 // not 353791.4700D (scale 4) from spurious .0 on integer-valued decimals
-                var result = Lean.run(getCompletePureModelWithRuntime(), "|19.905D * 17774D", "test::TestRuntime", connection);
+                var result = decimalOrRefused("|19.905D * 17774D");
+                if (result == null) {
+                        return;
+                }
                 Object value = result.rows().get(0).get(0);
                 assertNotNull(value);
                 // Should be 353791.470 with scale 3, not 353791.4700 with scale 4
@@ -2247,7 +2269,10 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
         void testDivideWithScale() throws SQLException {
                 // PCT test: testDecimalDivide - divide(3.1415D, 0.1D, 2) should give 31.42
                 // Pure's divide(a, b, scale) divides and rounds to scale decimal places
-                var result = Lean.run(getCompletePureModelWithRuntime(), "|meta::pure::functions::math::divide(3.1415D, 0.1D, 2)", "test::TestRuntime", connection);
+                var result = decimalOrRefused("|meta::pure::functions::math::divide(3.1415D, 0.1D, 2)");
+                if (result == null) {
+                        return;
+                }
                 Object value = result.rows().get(0).get(0);
                 assertNotNull(value);
                 assertEquals(0, new java.math.BigDecimal("31.42")
@@ -2694,7 +2719,10 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
         void testDecimalLiteralWithExplicitScale() throws SQLException {
                 // Regression guard: 1.0D must preserve scale 1 and return DECIMAL, not INTEGER
                 // (stripTrailingZeros approach would strip to "1" → DuckDB returns INTEGER)
-                var result = Lean.run(getCompletePureModelWithRuntime(), "|1.0D + 0.0D", "test::TestRuntime", connection);
+                var result = decimalOrRefused("|1.0D + 0.0D");
+                if (result == null) {
+                        return;
+                }
                 Object value = result.rows().get(0).get(0);
                 assertNotNull(value);
                 assertInstanceOf(java.math.BigDecimal.class, value, "1.0D should return BigDecimal, not Integer");
@@ -2703,7 +2731,10 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
         @Test
         void testIntegerValuedDecimalPreservesType() throws SQLException {
                 // Regression guard: 17774D (no decimal point in source) must stay DECIMAL type
-                var result = Lean.run(getCompletePureModelWithRuntime(), "|17774D + 0.0D", "test::TestRuntime", connection);
+                var result = decimalOrRefused("|17774D + 0.0D");
+                if (result == null) {
+                        return;
+                }
                 Object value = result.rows().get(0).get(0);
                 assertNotNull(value);
                 assertInstanceOf(java.math.BigDecimal.class, value, "17774D should return BigDecimal, not Integer");
@@ -2714,7 +2745,10 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
         void testMixedDecimalIntegerArithmetic() throws SQLException {
                 // Regression guard: mixing decimals with integers should produce correct scale
                 // |19.905D * 17774 should give scale 3 (from 19.905)
-                var result = Lean.run(getCompletePureModelWithRuntime(), "|19.905D * 17774", "test::TestRuntime", connection);
+                var result = decimalOrRefused("|19.905D * 17774");
+                if (result == null) {
+                        return;
+                }
                 Object value = result.rows().get(0).get(0);
                 assertNotNull(value);
                 assertEquals(new java.math.BigDecimal("353791.470"), value);

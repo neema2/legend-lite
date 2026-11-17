@@ -1732,7 +1732,9 @@ public class MariaDb extends AnsiSqlRenderer {
                             SqlType.Scalar.DOUBLE))
                     .append(" END)");
         }
-        return writer.piece(castTo(w -> w.expr(v, 0), typeOf(v), target));
+        // a whole number already (a rounding to no places, a floor, a ceiling): cast as it is, never rounded again
+        boolean whole = alreadyWhole(v) && (target == SqlType.Scalar.INTEGER || target == SqlType.Scalar.BIGINT);
+        return writer.piece(castTo(w -> w.expr(v, 0), whole ? null : typeOf(v), target));
     }
 
     /** A Variant's value as {@code to}: a scalar by its SQL value ({@code JSON_VALUE}: a string unquoted), as text a

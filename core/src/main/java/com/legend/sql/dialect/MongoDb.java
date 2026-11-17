@@ -277,7 +277,7 @@ public class MongoDb extends AnsiSqlRenderer {
             case SqlExpr.JsonKindLit k -> MongoJson.literal(writer, jsonKindName(k.kind()));
             case SqlExpr.TypeNameLit t -> MongoJson.literal(writer, typeofName(t.scalar()));
             case SqlExpr.IntLit i -> writer.append("{\"$numberLong\": \"").append(i.value()).append("\"}");
-            case SqlExpr.FloatLit f -> writer.append("{\"$numberDouble\": \"").append(floatLiteral(f.value()))
+            case SqlExpr.FloatLit f -> writer.append("{\"$numberDouble\": \"").append(plainFloat(f.value()))
                     .append("\"}");
             case SqlExpr.DecimalLit d -> writer.append("{\"$numberDecimal\": \"").append(d.value().toPlainString())
                     .append("\"}");

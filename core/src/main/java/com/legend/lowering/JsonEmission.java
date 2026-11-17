@@ -37,7 +37,7 @@ final class JsonEmission {
 
     static SqlExpr lower(Lowerer lw, TypedSpec n, ColumnResolver columns) {
         return n instanceof TypedJsonAccess ja ? access(lw, ja, columns)
-                : result(lw, (TypedJsonResult) n);
+                : result(lw, (TypedJsonResult) n, columns);
     }
 
     /** meta::json navigation on the variant lane (JsonChecker's
@@ -68,31 +68,28 @@ final class JsonEmission {
     }
 
     /**
-     * The engine's RESULT JSON of a TDS/class-rooted query (the string
-     * entry's value — {@link com.legend.compiler.spec.typed.TypedJsonResult}):
-     * ONE scalar subquery over the chain's rows. TDS: {@code {"builder":
-     * {"_type":"tdsBuilder","columns":[{"name","type"}…]},"activities":
-     * [{"_type":"relational","sql":…}],"result":{"columns":[…],"rows":
-     * [{"values":[…]}…]}}} — row cells wrap as variants so each keeps its
-     * JSON kind (strings quoted, numbers bare); rows aggregate in the
-     * chain's own order. Class: the classBuilder envelope with the rows
-     * as {@code objects}. An absent activity text is the empty array.
+     * The RESULT JSON of a TDS/class/serialized-rooted query (the string entry's value,
+     * {@link com.legend.compiler.spec.typed.TypedJsonResult}): ONE scalar subquery over the chain's rows. Its TDS, CLASS
+     * and VALUES kinds are legend-engine's envelopes, composed by the plan style's {@link ResultEnvelopes} facet (the
+     * edge's) from the product's parts and refused by the product's at lowering ({@link #refused}); TDS_JSON and
+     * TDS_JSON_KV are legend-pure's toJSON documents, the product's.
      */
-    /** A JSON value as its compact text (the database's own spelling). */
-    private static SqlExpr text(SqlExpr json) {
-        return new SqlExpr.Cast(json, PureSql.type(Type.Primitive.STRING), SqlExpr.Reason.CARRIER);
+    /** THE PRODUCT'S REFUSAL of legend-engine's result envelope (Phase 6's B5, 2026-11-17, the orchestrator's ruling):
+     *  at lowering, by name, pointing to the product's result writers. */
+    static com.legend.error.ModelException refused() {
+        return new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.LOWER,
+                "executeLegendQuery's result envelope is legend-engine's JSON, the compatibility edge's: the product"
+                        + " writes a query's rows by its result writers (JSON, CSV, Arrow)");
     }
 
-    static SqlExpr result(Lowerer lw, TypedJsonResult jr) {
+    static SqlExpr result(Lowerer lw, TypedJsonResult jr, ColumnResolver columns) {
         String alias = "_lq";   // the wrapper select's own scope — no collision possible
-        SqlExpr activities = jr.sql() == null
-                ? new SqlExpr.JsonArray(List.of())
-                : new SqlExpr.JsonArray(List.of(
-                        new SqlExpr.JsonObject(List.of(
-                                new SqlExpr.StringLit("_type"),
-                                new SqlExpr.StringLit("relational"),
-                                new SqlExpr.StringLit("sql"),
-                                new SqlExpr.StringLit(jr.sql())))));
+        boolean upstream = jr.kind() == TypedJsonResult.Kind.TDS || jr.kind() == TypedJsonResult.Kind.CLASS
+                || jr.kind() == TypedJsonResult.Kind.VALUES;
+        ResultEnvelopes envelopes = upstream ? lw.resultEnvelopes(JsonEmission::refused) : null;
+        if (jr.kind() == TypedJsonResult.Kind.VALUES) {
+            return Objects.requireNonNull(envelopes, "the envelope facet").values(lw.scalar(jr.chain(), columns));
+        }
         SqlQuery inner;
         SqlExpr envelope;
         if (jr.kind() == TypedJsonResult.Kind.CLASS) {
@@ -100,21 +97,16 @@ final class JsonEmission {
             // objects array as JSON text): the objects ARE that array
             inner = lw.lower(jr.chain());
             String col = inner.outputs().get(0).name();
-            SqlExpr builder = new SqlExpr.JsonObject(List.of(
-                    new SqlExpr.StringLit("_type"), new SqlExpr.StringLit("classBuilder")));
-            envelope = new SqlExpr.JsonObject(List.of(
-                    new SqlExpr.StringLit("builder"), builder,
-                    new SqlExpr.StringLit("activities"), activities,
-                    new SqlExpr.StringLit("objects"),
-                    new SqlExpr.Cast(SqlExpr.Column.derived(alias, col),
-                            SqlType.Scalar.JSON, SqlExpr.Reason.CARRIER)));
+            envelope = Objects.requireNonNull(envelopes, "the envelope facet").classes(
+                    new SqlExpr.Cast(SqlExpr.Column.derived(alias, col), SqlType.Scalar.JSON, SqlExpr.Reason.CARRIER),
+                    jr.sql());
         } else {
             SqlSelect rel = lw.relation(jr.chain());
             inner = rel;
             List<String> names = rel.outputs().stream().map(o -> o.name()).toList();
             Type.RelationType schema = Type.relationSchema(jr.chain().info().type());
             List<SqlExpr> colMeta = new ArrayList<>();
-            List<SqlExpr> colNames = new ArrayList<>();
+            List<String> typeNames = new ArrayList<>();
             List<SqlExpr> cells = new ArrayList<>();
             boolean bareTdsJson = jr.kind() == TypedJsonResult.Kind.TDS_JSON;
             boolean keyValue = jr.kind() == TypedJsonResult.Kind.TDS_JSON_KV;
@@ -143,7 +135,7 @@ final class JsonEmission {
                     meta.add(new SqlExpr.StringLit(metaType));
                 }
                 colMeta.add(new SqlExpr.JsonObject(meta));
-                colNames.add(new SqlExpr.StringLit(name));
+                typeNames.add(typeName);
                 cells.add(SqlExpr.Column.derived(alias, name));
                 rowObject.add(new SqlExpr.StringLit(name));
                 rowObject.add(SqlExpr.Column.derived(alias, name));
@@ -165,33 +157,8 @@ final class JsonEmission {
                         new SqlExpr.StringLit("columns"), new SqlExpr.JsonArray(colMeta),
                         new SqlExpr.StringLit("rows"), rows));
             } else {
-                // THE ENGINE'S BYTES (RelationalResultToJsonDefaultSerializer, a
-                // hand-written stream): `{"builder": ` + builder (Jackson compact)
-                // + `, "activities": [` + activities (compact, comma-joined) +
-                // `], "result" : {"columns" : [` + names (compact) + `], "rows" : [`
-                // + rows, each `{"values": [` + cells (comma-joined) + `]}`,
-                // comma-joined + `]}}`. The compact pieces ARE the database's
-                // compact JSON; the skeleton's separators are the engine's own —
-                // the result string a test reads (`$json->contains('"result" :
-                // {…')`) is the engine's, byte for byte, as ordinary compiled Pure.
-                SqlExpr builder = new SqlExpr.JsonObject(List.of(
-                        new SqlExpr.StringLit("_type"), new SqlExpr.StringLit("tdsBuilder"),
-                        new SqlExpr.StringLit("columns"), new SqlExpr.JsonArray(colMeta)));
-                SqlExpr rowText = new SqlExpr.Call(SqlFn.CONCAT, List.of(
-                        new SqlExpr.StringLit("{\"values\": "),
-                        text(new SqlExpr.JsonArray(cells)),
-                        new SqlExpr.StringLit("}")));
-                SqlExpr rowsText = new SqlExpr.Call(SqlFn.COALESCE, List.of(
-                        new com.legend.sql.SqlAgg.Reducer(com.legend.sql.SqlAgg.Fn.STRING_AGG,
-                                List.of(rowText, new SqlExpr.StringLit(",")), false, List.of()),
-                        new SqlExpr.StringLit("")));
-                envelope = new SqlExpr.Call(SqlFn.CONCAT, List.of(
-                        new SqlExpr.StringLit("{\"builder\": "), text(builder),
-                        new SqlExpr.StringLit(", \"activities\": "), text(activities),
-                        new SqlExpr.StringLit(", \"result\" : {\"columns\" : "),
-                        text(new SqlExpr.JsonArray(colNames)),
-                        new SqlExpr.StringLit(", \"rows\" : ["), rowsText,
-                        new SqlExpr.StringLit("]}}")));
+                // legend-engine's TDS result: the edge's envelope (ResultEnvelopes.tds)
+                envelope = Objects.requireNonNull(envelopes, "the envelope facet").tds(names, typeNames, cells, jr.sql());
             }
         }
         SqlSelect agg = new SqlSelect(
