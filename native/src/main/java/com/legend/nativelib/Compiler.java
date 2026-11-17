@@ -534,19 +534,6 @@ public final class Compiler {
         return answer(a);
     }
 
-    /** A host's refusal of a call it could not finish, in the engine's error shape ({@code Boundary.refusal}). */
-    @CEntryPoint(name = "lite_pure_v1_refusal")
-    static CCharPointer refusal(IsolateThread thread, CCharPointer message) {
-        String a;
-        try {
-            String m = text(message);
-            a = Folded.http(() -> Boundary.refusal(m));
-        } catch (Throwable failure) {
-            a = Folded.failure(failure);
-        }
-        return answer(a);
-    }
-
     /** Releases a string this library returned. */
     @CEntryPoint(name = "lite_free")
     static void free(IsolateThread thread, CCharPointer p) {

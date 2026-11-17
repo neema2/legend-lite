@@ -25,6 +25,7 @@ import com.legend.lowering.TypedRows;
 import com.legend.model.ConnectionDefinition;
 import com.legend.model.FunctionId;
 import com.legend.plan.PlanColumns;
+import com.legend.plan.PureSpelling;
 import com.legend.plan.ResultShape;
 import com.legend.platform.Feature;
 import com.legend.resolver.StagedRows;
@@ -970,11 +971,13 @@ public final class PlanMaker {
                             + ": the streaming graph root answers one object per row");
                 }
                 yield new ExecutionPlan.TdsResult(ExecutionPlan.TdsResult.Shape.OBJECTS, List.of(
-                        new ExecutionPlan.Column(outs.get(0).name(), root.type().typeName(),
+                        // the plain type path (PlanColumns.of's rule, 2026-11-17)
+                        new ExecutionPlan.Column(outs.get(0).name(), PureSpelling.typePath(root.type()),
                                 PlanColumns.multiplicity(root.multiplicity()),
                                 ColumnFacts.slot(outs.get(0).type()), null,
-                                ColumnFacts.precision(root.type().typeName(),
-                                        outs.get(0).type(), ExecutionPlan.TdsResult.Shape.OBJECTS))),
+                                ColumnFacts.precision(PureSpelling.typePath(root.type()),
+                                        outs.get(0).type(), ExecutionPlan.TdsResult.Shape.OBJECTS),
+                                PlanColumns.decimal(root.type()))),
                         sql(lowered, dialect, target));
             }
             case TABULAR -> {
@@ -1077,11 +1080,13 @@ public final class PlanMaker {
                         .requireNonNull(facts.get(f.column().name()), () -> "the fixed column '" + f.column().name()
                                 + "' has no facts in the typed schema " + facts.keySet()), field);
                 case KeyedPivot.PerKey k -> new ExecutionPlan.Keyed.PerKey(
-                        new ExecutionPlan.Column(k.template().name(), k.template().type().typeName(),
+                        // the plain type path (PlanColumns.of's rule, 2026-11-17)
+                        new ExecutionPlan.Column(k.template().name(), PureSpelling.typePath(k.template().type()),
                                 PlanColumns.multiplicity(k.template().multiplicity()),
                                 ColumnFacts.slot(k.slot()), null,
-                                ColumnFacts.precision(k.template().type().typeName(),
-                                        k.slot(), ExecutionPlan.TdsResult.Shape.RELATION)),
+                                ColumnFacts.precision(PureSpelling.typePath(k.template().type()),
+                                        k.slot(), ExecutionPlan.TdsResult.Shape.RELATION),
+                                PlanColumns.decimal(k.template().type())),
                         k.nameCell(), field);
             });
         }

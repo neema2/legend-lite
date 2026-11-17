@@ -1076,6 +1076,105 @@
       "refusal": {
         "kind": "request"
       }
+    },
+    {
+      "name": "a DECIMAL(10,2) column planned: its type the plain path, its digits data (decimal), its slot and store the database's",
+      "op": "query/plan",
+      "request": {
+        "model": "###Relational\nDatabase t::D ( Table PRICES ( P DECIMAL(10,2) ) )\n###Connection\nRelationalDatabaseConnection t::C { type: DuckDB; specification: DuckDB { }; auth: Test; }\n###Runtime\nRuntime t::RT { mappings: [ ]; connections: [ t::D: [ c: t::C ] ]; }\n",
+        "query": {
+          "_type": "lambda",
+          "body": [
+            {
+              "_type": "func",
+              "function": "select",
+              "parameters": [
+                {
+                  "_type": "classInstance",
+                  "type": ">",
+                  "value": {
+                    "path": [
+                      "t::D",
+                      "PRICES"
+                    ]
+                  }
+                },
+                {
+                  "_type": "classInstance",
+                  "type": "colSpec",
+                  "value": {
+                    "name": "P"
+                  }
+                }
+              ]
+            }
+          ],
+          "parameters": []
+        },
+        "runtime": "t::RT"
+      },
+      "answerIncludes": {
+        "plan": {
+          "root": {
+            "columns": [
+              {
+                "name": "P",
+                "type": "Decimal",
+                "slot": "DECIMAL(10,2)",
+                "store": {
+                  "_type": "scaled",
+                  "kind": "DECIMAL",
+                  "precision": 10,
+                  "scale": 2
+                },
+                "decimal": {
+                  "precision": 10,
+                  "scale": 2
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "a computed decimal planned: its type the plain path, the compiler's digits data (Decimal(38,18)), whatever the database's slot",
+      "op": "query/plan",
+      "request": {
+        "model": "###Relational\nDatabase t::D ( Table PRICES ( P DECIMAL(10,2) ) )\n###Connection\nRelationalDatabaseConnection t::C { type: DuckDB; specification: DuckDB { }; auth: Test; }\n###Runtime\nRuntime t::RT { mappings: [ ]; connections: [ t::D: [ c: t::C ] ]; }\n",
+        "query": {
+          "_type": "lambda",
+          "body": [
+            {
+              "_type": "func",
+              "function": "toDecimal",
+              "parameters": [
+                {
+                  "_type": "integer",
+                  "value": 8
+                }
+              ]
+            }
+          ],
+          "parameters": []
+        },
+        "runtime": "t::RT"
+      },
+      "answerIncludes": {
+        "plan": {
+          "root": {
+            "columns": [
+              {
+                "type": "Decimal",
+                "decimal": {
+                  "precision": 38,
+                  "scale": 18
+                }
+              }
+            ]
+          }
+        }
+      }
     }
   ]
 }

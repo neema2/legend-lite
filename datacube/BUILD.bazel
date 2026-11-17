@@ -121,6 +121,8 @@ _PLANNER = [
     "src/model-writer.ts",
     "src/planner-types.ts",
     "src/planner.ts",
+    # legend-engine's TinyInt read, planner.ts's lazy chunk (H10, 2026-11-17); to the edge with planner.ts at H11
+    "src/engine-booleans.ts",
     "src/pure-library.ts",
     # the library's text, which pure-library.ts loads on first use
     "src/pure-library-text.ts",

@@ -765,7 +765,8 @@ class PlanAndRunRoutes(Served):
 
     def test_the_stores_need_the_token(self):
         # the saved queries and the saved pages (B5, B6): this user's, so only a page holding the engine's token asks
-        for path in ('/api/pure/v1/query/search', '/api/pure/v1/query/dataCube/search'):
+        for path in ('/api/pure/v1/query/search', '/api/pure/v1/query/dataCube/search', '/api/lite/v1/queries/search',
+                     '/api/lite/v1/queries/dataCube/search'):
             self.assertEqual(self.post(path, '{}', headers={'Authorization': 'Bearer nope'})[0], 401, path)
 
     def test_both_need_the_token_and_neither_is_a_get(self):
@@ -894,10 +895,11 @@ class TheEdgeSeam(unittest.TestCase):
 
 
 class TheProductsStore(unittest.TestCase):
-    """The edge program's H6 (2026-11-17): the saved queries and pages at lite's own mount (/api/lite/v1/query, as the
-    server mounts them), answered by the native library's PRODUCT entries in lite's words -- the same rules, the same
-    folders, the same records; legend-engine's mount (/api/pure/v1/query) is the edge's, in legend-engine's words, kept
-    until the TS hosts move their clients."""
+    """The edge program's H6 (2026-11-17): the saved queries and pages at lite's own route (/api/lite/v1/queries, as the
+    server mounts them; the route renamed by the orchestrator's ruling of that day, H6 (b)), answered by the native
+    library's PRODUCT entries in lite's words and refused in lite's one error shape ({kind, message}) -- the same rules,
+    the same folders, the same records; legend-engine's mount (/api/pure/v1/query) is the edge's, in legend-engine's
+    words, until it moves into legend_lite.edge (H5)."""
 
     def setUp(self):
         self.place = tempfile.TemporaryDirectory()
@@ -908,25 +910,37 @@ class TheProductsStore(unittest.TestCase):
         self.addCleanup(home.stop)
 
     def test_a_missing_query_is_refused_in_each_mounts_own_words(self):
-        lite = self.engine.answer('GET', '/api/lite/v1/query/nope', '', None)
-        self.assertEqual((lite.status, json.loads(lite.body)), (404, {'message': "no saved query has the ID 'nope'"}))
+        lite = self.engine.answer('GET', '/api/lite/v1/queries/nope', '', None)
+        self.assertEqual((lite.status, json.loads(lite.body)),
+                         (404, {'kind': 'request', 'message': "no saved query has the ID 'nope'"}))
         engine = self.engine.answer('GET', '/api/pure/v1/query/nope', '', None)
         self.assertEqual((engine.status, json.loads(engine.body)), (404, {'message': "Can't find query with ID 'nope'"}))
 
-    def test_a_page_saved_at_lites_mount_is_the_one_record_both_mounts_read(self):
-        made = self.engine.answer('POST', '/api/lite/v1/query/dataCube', '',
+    def test_a_route_lites_store_does_not_serve_is_refused_by_name(self):
+        said = self.engine.answer('GET', '/api/lite/v1/queries/dataCube/a/b', '', None)
+        self.assertEqual((said.status, json.loads(said.body)),
+                         (404, {'kind': 'request', 'message': 'no such legend-lite API: /api/lite/v1/queries/dataCube/a/b'}))
+
+    def test_a_page_saved_at_lites_route_is_the_one_record_both_mounts_read(self):
+        made = self.engine.answer('POST', '/api/lite/v1/queries/dataCube', '',
                                   json.dumps({'id': 'p-9', 'name': 'Both', 'content': {'kind': 'datacube.page'}}))
         self.assertEqual(made.status, 200, made.body)
-        for mount in ('/api/lite/v1/query/dataCube', '/api/pure/v1/query/dataCube'):
+        for mount in ('/api/lite/v1/queries/dataCube', '/api/pure/v1/query/dataCube'):
             read = self.engine.answer('GET', mount + '/p-9', '', None)
             self.assertEqual((read.status, json.loads(read.body)['name']), (200, 'Both'), mount)
-        missing = self.engine.answer('GET', '/api/lite/v1/query/dataCube/nope', '', None)
-        self.assertEqual(missing.status, 404)
-        self.assertNotIn("Can't find", json.loads(missing.body)['message'], "lite's mount speaks lite's words")
+        missing = self.engine.answer('GET', '/api/lite/v1/queries/dataCube/nope', '', None)
+        self.assertEqual((missing.status, json.loads(missing.body)),
+                         (404, {'kind': 'request', 'message': "no saved query has the ID 'nope'"}))
+
+    def test_lites_operations_are_not_its_stores(self):
+        # /api/lite/v1/query/<op> is lite's API, never the store's: the store's route is /queries
+        said = self.engine.answer('POST', '/api/lite/v1/query/parse', '', json.dumps({'text': '|1 + 2'}))
+        self.assertEqual(said.status, 200, said.body)
+        self.assertIn('query', json.loads(said.body))
 
 
 class SavedPagesKept(unittest.TestCase):
-    """The page's saved pages (step 2d, B6): upstream's /api/pure/v1/query/dataCube, answered by legend-lite's own rules
+    """The page's saved pages (step 2d, B6; at lite's route since H6, 2026-11-17): /api/lite/v1/queries/dataCube, answered by legend-lite's own rules
     in the native library over this user's folder, one file each -- the folder's layout the one its pages were kept in
     before, so they open as they were. The rules themselves are held to DataCube's one suite on every store
     (datacube/test/saved-pages/conformance.ts); these are what only Python's folder can be asked."""
@@ -938,7 +952,7 @@ class SavedPagesKept(unittest.TestCase):
         self.engine = Engine(ll.Frames(), pages=self.folder)
 
     def call(self, method, path='', body=None):
-        return self.engine.answer(method, '/api/pure/v1/query/dataCube' + path, '', body)
+        return self.engine.answer(method, '/api/lite/v1/queries/dataCube' + path, '', body)
 
     def test_a_page_kept_before_the_rules_were_java_opens_as_it_was(self):
         # as the page's own store wrote it through Python (json.dump of its row): its content the page's JSON text

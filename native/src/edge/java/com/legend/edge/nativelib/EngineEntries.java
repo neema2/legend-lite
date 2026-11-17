@@ -35,6 +35,21 @@ final class EngineEntries {
         return Compiler.answer(a);
     }
 
+    /** A host's refusal of a call it could not finish -- its database refusing the SQL, say -- in legend-engine's
+     *  error shape, as the edge answers one ({@code EdgeBoundary.refused}, over {@code EngineEnvelope.refused}): moved
+     *  from {@code nativelib.Compiler} with {@code Boundary.refusal}'s deletion (the edge program's H5, 2026-11-17). */
+    @CEntryPoint(name = "lite_pure_v1_refusal")
+    static CCharPointer refused(IsolateThread thread, CCharPointer message) {
+        String a;
+        try {
+            String m = Compiler.text(message);
+            a = Folded.http(() -> EdgeBoundary.refused(m));
+        } catch (Throwable failure) {
+            a = Folded.failure(failure);
+        }
+        return Compiler.answer(a);
+    }
+
     /** Execute's plan half in upstream's Arrow format: the SQL and the schema metadata ({@code Boundary.executePlan}). */
     @CEntryPoint(name = "lite_execute_plan")
     static CCharPointer executePlan(IsolateThread thread, CCharPointer body, CCharPointer models) {
