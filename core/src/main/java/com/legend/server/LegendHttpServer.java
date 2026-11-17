@@ -182,7 +182,7 @@ public class LegendHttpServer {
 
         // lite's own API (LiteV1Api; legend-engine's pure/v1 routes are the edge's, mounted by the shipped binary's
         // root: phase D's D1.0b, 2026-11-12)
-        route("/api/lite/v1/", new PureV1Handler(runner));
+        route("/api/lite/v1/", new LiteV1Handler(runner));
         // the saved queries and DataCube's saved pages, lite's own route (the orchestrator's ruling of 2026-11-12: the
         // store is the product's; legend-engine's /api/pure/v1/query is the edge's adapter over the same store)
         route("/api/lite/v1/query", new ModuleHandler(storeRoutes("/api/lite/v1/query", queryStore, cubeStore)));
@@ -324,10 +324,10 @@ public class LegendHttpServer {
         }
     }
 
-    private static final class PureV1Handler implements HttpHandler {
+    private static final class LiteV1Handler implements HttpHandler {
         private final LiteV1Api.Runner runner;
 
-        PureV1Handler(LiteV1Api.Runner runner) {
+        LiteV1Handler(LiteV1Api.Runner runner) {
             this.runner = runner;
         }
 
