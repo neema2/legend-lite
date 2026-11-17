@@ -46,7 +46,9 @@ record SharedSubtrees(int minNodes, Set<SqlExpr> read) {
 
     /** These subtrees, with {@code names} read by their names. */
     SharedSubtrees reading(Set<SqlExpr> names) {
-        return new SharedSubtrees(minNodes, Set.copyOf(names));
+        // a lookup alone, but kept in the names' order: a salted order may reach no text (NoSaltedIterationOrderTest)
+        return new SharedSubtrees(minNodes,
+                java.util.Collections.unmodifiableSet(new java.util.LinkedHashSet<>(names)));
     }
 
     /** The subtrees of {@code exprs} (a select's columns, in order) worth computing once, smallest first: a helper reads
