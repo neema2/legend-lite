@@ -510,7 +510,7 @@ public final class TestDataPlanner {
     private static String unidentified(String owner, TestDataGenerator.Located loc, String table,
             @com.legend.base.Nullable String view) {
         String keys = loc.def().columns().stream().filter(DatabaseDefinition.ColumnDefinition::primaryKey)
-                .map(c -> c.name() + ":" + com.legend.plan.PlanText.spell(c.dataType()))
+                .map(c -> c.name() + ":" + typeText(c.dataType()))
                 .collect(java.util.stream.Collectors.joining(","));
         return "Row Identifers should be provided for the root table" + (view == null ? "" : " of the view (" + view
                 + ")") + ": " + owner + "." + physical(loc.schema(), table) + " [" + keys + "]\n";
@@ -961,7 +961,7 @@ public final class TestDataPlanner {
             case RelationalDataType.SmallInt x -> new SqlExpr.Cast(v, SqlType.Scalar.VARCHAR, SqlExpr.Reason.DECLARED);
             case RelationalDataType.TinyInt x -> new SqlExpr.Cast(v, SqlType.Scalar.VARCHAR, SqlExpr.Reason.DECLARED);
             default -> throw new NotImplementedException("testDataGen: the seed string's key " + table + "."
-                    + c.name() + " of type " + com.legend.plan.PlanText.spell(c.dataType()) + ": its Pure"
+                    + c.name() + " of type " + typeText(c.dataType()) + ": its Pure"
                     + " representation is not planned (B2d.3 writes a text key and a whole-number key)");
         };
     }
@@ -1851,5 +1851,15 @@ public final class TestDataPlanner {
             return new SqlExpr.DecimalLit(new java.math.BigDecimal(n.toString()));
         }
         throw new NotImplementedException("testDataGen: row identifier value " + v.getClass());
+    }
+
+    /** A key column's type as the Relational grammar writes it ({@link RelationalDataType#sqlText}); one with no
+     *  spelling yet is refused by name. */
+    private static String typeText(RelationalDataType t) {
+        try {
+            return RelationalDataType.sqlText(t);
+        } catch (IllegalArgumentException pending) {
+            throw new NotImplementedException("testDataGen: the type spelling for " + t + " is pending");
+        }
     }
 }

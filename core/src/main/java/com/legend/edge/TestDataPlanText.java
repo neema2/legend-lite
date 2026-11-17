@@ -4,7 +4,6 @@
 package com.legend.edge;
 
 import com.legend.compiler.element.ModelContext;
-import com.legend.plan.PlanText;
 import com.legend.protocol.spec.LambdaFunction;
 import com.legend.protocol.spec.ValueSpecification;
 import com.legend.testdatagen.TestDataGenerationNatives;
