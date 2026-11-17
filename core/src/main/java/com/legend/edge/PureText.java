@@ -165,6 +165,14 @@ public final class PureText {
 
     /** DuckDB, spelled as upstream spells it. */
     public static final class DuckDb extends com.legend.sql.dialect.DuckDb {
+        /** A Float literal as legend-engine's default literal processor writes it ({@link PurePrintForms#engineFloat}):
+         *  legend-pure's print, bare -- the product writes the double (S20). */
+        @Override
+        protected String floatLiteral(double v) {
+            String upstream = PurePrintForms.engineFloat(v);
+            return upstream != null ? upstream : super.floatLiteral(v);
+        }
+
         /** legend-engine's scan order made explicit for its corpus's replay (StableScanOrder, behind the corpus lanes'
          *  {@code legend.exec.engineScanOrder}; moved here from the product's dialect, W6, 2026-11-16). */
         @Override
@@ -198,6 +206,14 @@ public final class PureText {
 
     /** H2, spelled as upstream spells it. */
     public static final class H2 extends com.legend.sql.dialect.H2 {
+        /** A Float literal as legend-engine's default literal processor writes it ({@link PurePrintForms#engineFloat}):
+         *  legend-pure's print, bare -- the product writes the double (S20). */
+        @Override
+        protected String floatLiteral(double v) {
+            String upstream = PurePrintForms.engineFloat(v);
+            return upstream != null ? upstream : super.floatLiteral(v);
+        }
+
         /** legend-pure's print forms (a Float's, a DateTime's) for the product's text of each ({@link PurePrintForms}; D1.2). */
         @Override
         protected java.util.List<com.legend.sql.SqlRewriter> spellingPasses() {
@@ -223,6 +239,14 @@ public final class PureText {
 
     /** Postgres, spelled as upstream spells it. */
     public static final class Postgres extends com.legend.sql.dialect.Postgres {
+        /** A Float literal as legend-engine's default literal processor writes it ({@link PurePrintForms#engineFloat}):
+         *  legend-pure's print, bare -- the product writes the double (S20). */
+        @Override
+        protected String floatLiteral(double v) {
+            String upstream = PurePrintForms.engineFloat(v);
+            return upstream != null ? upstream : super.floatLiteral(v);
+        }
+
         /** legend-pure's print forms (a Float's, a DateTime's) for the product's text of each ({@link PurePrintForms}; D1.2). */
         @Override
         protected java.util.List<com.legend.sql.SqlRewriter> spellingPasses() {
@@ -248,6 +272,14 @@ public final class PureText {
 
     /** Databricks, spelled as upstream spells it. */
     public static final class Databricks extends com.legend.sql.dialect.Databricks {
+        /** A Float literal as legend-engine's default literal processor writes it ({@link PurePrintForms#engineFloat}):
+         *  legend-pure's print, bare -- the product writes the double (S20). */
+        @Override
+        protected String floatLiteral(double v) {
+            String upstream = PurePrintForms.engineFloat(v);
+            return upstream != null ? upstream : super.floatLiteral(v);
+        }
+
         /** legend-pure's print forms (a Float's, a DateTime's) for the product's text of each ({@link PurePrintForms}; D1.2). */
         @Override
         protected java.util.List<com.legend.sql.SqlRewriter> spellingPasses() {
@@ -398,6 +430,14 @@ public final class PureText {
 
     /** Trino, spelled as upstream spells it. */
     public static final class Trino extends com.legend.sql.dialect.Trino {
+        /** A Float literal as legend-engine's default literal processor writes it ({@link PurePrintForms#engineFloat}):
+         *  legend-pure's print, bare -- the product writes the double (S20). */
+        @Override
+        protected String floatLiteral(double v) {
+            String upstream = PurePrintForms.engineFloat(v);
+            return upstream != null ? upstream : super.floatLiteral(v);
+        }
+
         /** legend-pure's print forms (a Float's, a DateTime's) for the product's text of each ({@link PurePrintForms}; D1.2). */
         @Override
         protected java.util.List<com.legend.sql.SqlRewriter> spellingPasses() {

@@ -2628,6 +2628,8 @@ public class Postgres extends AnsiSqlRenderer {
         if (v == 0.0 && Double.doubleToRawLongBits(v) != 0L) {
             return "CAST('-0' AS DOUBLE PRECISION)";
         }
-        return super.floatLiteral(v);
+        // a Float literal is the double (S20, Phase 5b, 2026-11-17): an exponent literal is a NUMERIC here, so the
+        // double's digits cast (unmeasured locally: the Postgres lane measures it)
+        return Double.isFinite(v) ? Double.toString(v) + "::float8" : super.floatLiteral(v);
     }
 }

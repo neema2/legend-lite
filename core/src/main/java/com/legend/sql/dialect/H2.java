@@ -1540,13 +1540,14 @@ public class H2 extends AnsiSqlRenderer {
         return writer.append(" END");
     }
 
-    /** A Float literal: the base's, but a negative zero, cast from its text -- an exponent literal is a NUMERIC here,
-     *  which has no -0 (the orchestrator's round 56, 2026-11-15: -0.0 was written 0.0). */
+    /** A Float literal is the double (S20, Phase 5b, 2026-11-17): H2 reads an exponent literal as a DECFLOAT and a
+     *  plain one as a NUMERIC (measured, 2.5.252), so the double's digits cast; a negative zero cast from its text (the
+     *  orchestrator's round 56, 2026-11-15: -0.0 was written 0.0). */
     @Override
     protected String floatLiteral(double v) {
         if (v == 0.0 && Double.doubleToRawLongBits(v) != 0L) {
             return "CAST('-0.0' AS DOUBLE PRECISION)";
         }
-        return super.floatLiteral(v);
+        return Double.isFinite(v) ? "CAST(" + Double.toString(v) + " AS DOUBLE PRECISION)" : super.floatLiteral(v);
     }
 }

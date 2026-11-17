@@ -353,7 +353,9 @@ public class Snowflake extends AnsiSqlRenderer {
         }
         // the literal is the DECIMAL of its digits (SqlTyping.decimalLitType, DuckDB's reading): Snowflake drops a
         // trailing zero's scale (17.0 is a NUMBER(2,0), its text '17', measured), so such a literal spells its type
-        String plain = super.floatLiteral(v);
+        // S20's DOUBLE literal is not built here yet (Phase 5b, 2026-11-17: the Snowflake lane measures its form
+        // first); the literal stays the DECIMAL of its digits
+        String plain = plainFloat(v);
         java.math.BigDecimal digits = com.legend.sql.SqlTyping.floatDecimal(v);
         if (digits != null && digits.scale() > 0 && digits.stripTrailingZeros().scale() < digits.scale()) {
             return "CAST(" + plain + " AS NUMBER(" + Math.max(digits.precision(), digits.scale()) + "," + digits.scale()

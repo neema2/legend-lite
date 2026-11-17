@@ -447,16 +447,6 @@ public class Trino extends AnsiSqlRenderer {
         return w -> w.expr(e, 0);
     }
 
-    /** A Float literal is its digits, a DECIMAL (the numeric charter's Rule 1); past a DECIMAL's 38 digits Trino
-     *  refuses it ("not a valid DECIMAL literal", measured: a double's exact expansion, 48 digits; DuckDB reads such a
-     *  literal as a DOUBLE): it is the double's shortest text instead (a DOUBLE where that is in exponent form). */
-    @Override
-    protected String floatLiteral(double v) {
-        String plain = super.floatLiteral(v);
-        return plain.replace("-", "").replace(".", "").replaceFirst("^0+", "").length() > 38 ? Double.toString(v)
-                : plain;
-    }
-
     /** An integer past a signed BIGINT: a bare one is refused ("Invalid numeric literal", measured); a DECIMAL's
      *  holds 38 digits. */
     @Override

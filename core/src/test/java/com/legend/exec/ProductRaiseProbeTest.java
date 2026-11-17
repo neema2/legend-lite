@@ -163,6 +163,14 @@ class ProductRaiseProbeTest {
         if (!(dt instanceof String t6) || !t6.replace(" ", "").equals("[{\"t\":\"2014-01-01T10:20:30.500000Z\"}]")) {
             wrong.add("a DateTime's text: " + describe(dt));
         }
+        // 7. a Float literal is the double (register S20, built 2026-11-17, Phase 5b): IEEE arithmetic on every
+        // database -- 0.1 + 0.2 is the double 0.30000000000000004, and eighteen written digits are the double's
+        // (DuckDB's DECIMAL(18) raised "Overflow in multiplication" on 123456789.123456789 * 3.0 until then); each
+        // case's SQL is printed above, so a lane shows which DOUBLE form ran
+        Object sum = run(backend, "0.1 + 0.2", "|0.1 + 0.2");
+        Object product = run(backend, "123456789.123456789 * 3.0", "|123456789.123456789 * 3.0");
+        expectDouble(wrong, "0.1 + 0.2", sum, 0.1 + 0.2);
+        expectDouble(wrong, "123456789.123456789 * 3.0", product, 123456789.123456789 * 3.0);
         // what came back, each case's (the orchestrator, 2026-11-15: every lane's log shows it, not only the count)
         System.out.println("[product raise probe] " + backend.name() + " guarded, no raise, answered: " + describe(rows));
         System.out.println("[product raise probe] " + backend.name() + " divide by zero, raised: " + describe(zero));
@@ -172,6 +180,9 @@ class ProductRaiseProbeTest {
                 + List.of(values) + ", answered: " + describe(edges));
         System.out.println("[product raise probe] " + backend.name() + " NaN's text, answered: " + describe(nan));
         System.out.println("[product raise probe] " + backend.name() + " a DateTime's text, answered: " + describe(dt));
+        System.out.println("[product raise probe] " + backend.name() + " 0.1 + 0.2, answered: " + describe(sum));
+        System.out.println("[product raise probe] " + backend.name() + " 123456789.123456789 * 3.0, answered: "
+                + describe(product));
         System.out.println("[product raise probe] " + backend.name() + ": " + wrong.size() + " wrong " + wrong);
         assertEquals(List.of(), wrong, backend.name());
     }
@@ -182,6 +193,15 @@ class ProductRaiseProbeTest {
         String t = new java.math.BigDecimal(Double.toString(x)).setScale(6, java.math.RoundingMode.HALF_UP)
                 .stripTrailingZeros().toPlainString();
         return t.equals("-0") || new java.math.BigDecimal(t).signum() == 0 ? "0" : t;
+    }
+
+    /** {@code answered}'s one value (a JSON row's number) is the double {@code want}, exactly. */
+    private static void expectDouble(List<String> wrong, String label, Object answered, double want) {
+        java.util.regex.Matcher m = answered instanceof String s
+                ? java.util.regex.Pattern.compile("-?[0-9][0-9.eE+-]*").matcher(s) : null;
+        if (m == null || !m.find() || Double.parseDouble(m.group()) != want) {
+            wrong.add(label + ": expected the double " + want + ", got " + describe(answered));
+        }
     }
 
     private static void expectKind(List<String> wrong, String label, Object answered,

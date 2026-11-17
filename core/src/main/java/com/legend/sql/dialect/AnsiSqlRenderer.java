@@ -2755,8 +2755,18 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
      * Float's own text (a point always present, never E-notation), so the
      * database types it DECIMAL, never INTEGER (1e18 spells
      * {@code 1000000000000000000.0}) and never DOUBLE. */
+    /** A Float literal is the double (register S20, the user's ruling of 2026-11-05: "every Float literal a DOUBLE,
+     *  IEEE everywhere (S119), exact arithmetic is Decimal's"; built 2026-11-17, Phase 5b): its shortest digits in
+     *  exponent form, which DuckDB, Trino and Databricks read as a DOUBLE ({@code 1.5E0}, {@code -0.0E0}); a dialect
+     *  whose exponent literal is no DOUBLE spells its own. Not finite: the plain form, as before. */
     protected String floatLiteral(double v) {
-        return plainFloat(v);
+        return Double.isFinite(v) ? doubleLiteral(v) : plainFloat(v);
+    }
+
+    /** The double's shortest digits ({@code Double.toString}, which read back as the same double) in exponent form. */
+    protected static String doubleLiteral(double v) {
+        String s = Double.toString(v);
+        return s.contains("E") ? s : s + "E0";
     }
 
     static String plainFloat(double v) {

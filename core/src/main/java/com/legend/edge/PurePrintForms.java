@@ -93,6 +93,19 @@ final class PurePrintForms extends com.legend.sql.SqlRewriter {
         return new SqlExpr.Cast(operand, com.legend.sql.SqlType.Scalar.VARCHAR, SqlExpr.Reason.USER);
     }
 
+    /** A finite Float literal's text in legend-engine's SQL under its default literal processor ({@code
+     *  extensionDefaults.pure:134}: format {@code %s}, legend-pure's {@code toString}): legend-pure's compiled print of the
+     *  double, bare ({@link com.legend.result.CellText#carriedFloat}; zero {@code 0.0} for either sign, as
+     *  {@code CompiledSupport.primitiveToString} writes it); null where it is not finite. The edge's dialects write a Float
+     *  literal so where the product writes the double (register S20, Phase 5b, 2026-11-17); a {@code toString}'s operand on
+     *  H2 is cast to its FLOAT by {@link FloatLiteral#PRINT_AS_FLOAT} above it. */
+    static @com.legend.base.Nullable String engineFloat(double v) {
+        if (!Double.isFinite(v)) {
+            return null;
+        }
+        return v == 0.0 ? "0.0" : com.legend.result.CellText.carriedFloat(v);
+    }
+
     /** {@link #floatOf(SqlExpr, FloatLiteral)} under the default literal processor. */
     static SqlExpr floatOf(SqlExpr x) {
         return floatOf(x, FloatLiteral.PRINT_BARE);
