@@ -195,7 +195,9 @@ class JavaEvalLedgerTest {
             // reader unwraps the m3 carrier stamp — LambdaFunction<ft> —
             // via PlatformTypes.functionTypeOf; a TYPE read, no evaluation)
             // path only (2026-10-31, the seam program's S2g): the activity rows' Java derivation left the driver for the planner
-            Map.entry("core/src/main/java/com/legend/planner/AggAwareActivities.java", 211),
+            // the path planner/ -> edge/ (2026-11-17, J5 of the edge audit: legend-engine's routed-query print, the edge's form
+            // of the planner's two-form RoutedQueries; nothing evaluated differently, the row follows the file)
+            Map.entry("core/src/main/java/com/legend/edge/AggAwareActivities.java", 211),
             // ADVERSARIAL_TENET_AUDIT_2026_08_18 §5: the grid egress was
             // "the sixth class the JDBC guard doesn't name" — these four
             // rows pin it until the relation-typed fetchDb leg DELETES
@@ -1594,7 +1596,7 @@ class JavaEvalLedgerTest {
                     // a side's plan (S4a, 2026-10-31): a statement's or a verdict side's body prepared under its system
                     // route, lowered and wrapped as its judge reads it, with no session; the driver opens the route
                     "SidePlanner.java",
-                    "SqlTextInputs.java", "PlanAllocations.java", "AggAwareActivities.java",
+                    "SqlTextInputs.java", "PlanAllocations.java",
                     // the product's statement road (the test-is-the-product plan's M2, B11, 2026-10-31): a query's and
                     // a program's statements planned by the test road's front half (inlined with the lets kept, natives
                     // staged, resolved with the lets' bindings, prepared, lowered with the product's configuration and
@@ -1899,6 +1901,10 @@ class JavaEvalLedgerTest {
                             // decides nothing
                             "PlanText.java", "PlanSupportFunctions.java", "PlanEnumForm.java", "PreciseTypes.java",
                             "RelationalMapperRenames.java", "PlanNode.java", "PlanConn.java", "EnginePlanRows.java",
+                            // legend-engine's AggregationAwareActivity, the routed query's print, moved from the
+                            // planner (J5 of the edge audit, 2026-11-17): the edge's form of the two-form RoutedQueries;
+                            // spells a routed chain, decides nothing
+                            "AggAwareActivities.java",
                             // legend-engine's sentence of a query store's refusal (the P2 checkpoint audit's M2,
                             // 2026-11-16): a kind to its words, no state, no evaluation; its own target for the page
                             "StoreWords.java",

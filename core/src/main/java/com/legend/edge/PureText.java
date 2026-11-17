@@ -123,6 +123,10 @@ public final class PureText {
                 // upstream's JSON grammar (register S144; census C1, 2026-11-17)
                 return kind.cast(JsonSimpleGrammar.INSTANCE);
             }
+            if (kind == com.legend.planner.RoutedQueries.class) {
+                // legend-engine's AggregationAwareActivity, the routed query's print (J5 of the edge audit, 2026-11-17)
+                return kind.cast((com.legend.planner.RoutedQueries) AggAwareActivities::rewrittenQuery);
+            }
             throw new com.legend.error.NotImplementedException("the two-form kind " + kind.getName()
                     + " is none of the declared kinds (com.legend.testplan.PlanStyleFacets.TWO_FORMS)");
         }

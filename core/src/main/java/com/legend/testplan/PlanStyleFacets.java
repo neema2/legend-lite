@@ -49,5 +49,8 @@ public final class PlanStyleFacets {
             RenderedTextRule.class,
             // a date literal's text in the database judge's failure message (census C1, 2026-11-17): lite's own, the
             // edge's legend-pure toRepresentation
-            DateLiteralTexts.class);
+            DateLiteralTexts.class,
+            // an execute's routing activity (J5 of the edge audit, 2026-11-17): the product records none, the edge
+            // legend-engine's AggregationAwareActivity, the routed query's print
+            com.legend.planner.RoutedQueries.class);
 }

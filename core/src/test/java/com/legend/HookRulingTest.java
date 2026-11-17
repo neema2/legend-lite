@@ -215,9 +215,18 @@ class HookRulingTest {
                 // ruled comparison where they differ)
                 com.legend.testplan.RenderedTextRule.class,
                 // DateLiteralTexts (census C1, 2026-11-17: a date literal's message text, lite's or legend-pure's)
-                com.legend.testplan.DateLiteralTexts.class),
+                com.legend.testplan.DateLiteralTexts.class,
+                // RoutedQueries (J5 of the edge audit, 2026-11-17: an execute's routing activity, none in the product,
+                // legend-engine's AggregationAwareActivity at the edge)
+                com.legend.planner.RoutedQueries.class),
                 com.legend.testplan.PlanStyleFacets.TWO_FORMS,
                 "the two-form kinds, an exact set: a kind is added here with its family and its dated reason");
+        com.legend.planner.RoutedQueries noRouting = (chain, ctx, specs) -> null;
+        assertTrue(PlanStyle.PRODUCT.twoForm(com.legend.planner.RoutedQueries.class, noRouting) == noRouting,
+                "the product records no routing activity");
+        Object edgeRouted = com.legend.edge.PureText.UPSTREAM.twoForm(com.legend.planner.RoutedQueries.class, noRouting);
+        assertTrue(edgeRouted != noRouting && edgeRouted.getClass().getPackageName().equals("com.legend.edge"),
+                "the edge answers legend-engine's routed query: " + edgeRouted.getClass());
         assertTrue(PlanStyle.PRODUCT.twoForm(com.legend.lowering.DateTimeTexts.class,
                 com.legend.lowering.Styled.LITE_DATE_TIMES) == com.legend.lowering.Styled.LITE_DATE_TIMES,
                 "the product's DateTime text is lite's");
