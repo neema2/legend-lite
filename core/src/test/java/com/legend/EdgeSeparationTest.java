@@ -91,13 +91,13 @@ class EdgeSeparationTest {
             Map.entry("com.legend.sql.dialect.DateTimePrintText -> (stands in a product package)",
                     "B12 2026-11-17 (format %r arm, LiteralSpelling.temporalCanon's gone by C5 step C)"),
             Map.entry("com.legend.lowering.Repr -> (stands in a product package)", "B12 2026-11-17"),
-            Map.entry("com.legend.lowering.Scalars -> com.legend.lowering.Repr", "B12 2026-11-17"),
             // planner.Boundary -> com.legend.edge.HostAnswers, PureText, PureV1Routes: gone 2026-11-17 (A1, E-P5): the
             // pure/v1 route and execute's halves moved to com.legend.edge.wasm.EdgeBoundary (//wasm:edge_boundary)
             // B7 CLOSED 2026-11-17 (E-P5, D's split by content): server/PureV1Api is the product's own API kit,
             // server/LiteV1Api in //core:lite_v1 (lite's routes, answer and refusal kinds, LiteV1Api.RefusalKind);
             // legend-engine's ExecuteInput binding moved to the edge (edge.ExecuteInputs); its 7 lines left with it
-            Map.entry("com.legend.lowering.VerdictSql -> com.legend.lowering.Repr", "C5 2026-11-17"));
+            // lowering.VerdictSql -> lowering.Repr: gone 2026-11-17 (C5 step A, the PureOnlyTexts facet's representation)
+            Map.entry("com.legend.lowering.Scalars -> com.legend.lowering.Repr", "B12 2026-11-17"));
 
     /** TEST SIDE: the same. */
     static final Map<String, String> TEST_OPEN = Map.ofEntries(
@@ -158,6 +158,9 @@ class EdgeSeparationTest {
             // planner's configuration, the facet list)
             Map.entry("com.legend.lowering.PureOnlyTexts -> (stands in a product package)", "B8 HOOK-RULED 2026-11-17"),
             Map.entry("com.legend.lowering.Scalars -> com.legend.lowering.PureOnlyTexts", "B8 HOOK-RULED 2026-11-17"),
+            // C5 step A (2026-11-17): an assert message's element text, legend-pure's representation, asked of the facet
+            // with its refusal (the lowering's VerdictSql, as Scalars asks it for toRepresentation)
+            Map.entry("com.legend.lowering.VerdictSql -> com.legend.lowering.PureOnlyTexts", "C5 HOOK-RULED 2026-11-17"),
             // B17, the relation-text facet (the orchestrator's ruling of 2026-11-17: its signatures, and forwarders to
             // product helpers the product uses itself; HookRulingTest pins both and its one implementer)
             Map.entry("com.legend.lowering.Lowerer -> com.legend.lowering.RelationTexts", "B17 HOOK-RULED 2026-11-17"),
@@ -280,7 +283,6 @@ class EdgeSeparationTest {
             // CanonicalRenderSql), closed by C5's step C (E-SQL's)
             Map.entry("lowering/Repr.java | Repr", "B12 2026-11-17"),
             Map.entry("lowering/Scalars.java | Repr", "B12 2026-11-17"),
-            Map.entry("lowering/VerdictSql.java | Repr", "C5 2026-11-17"),
             Map.entry("testexec/CanonicalForm.java | +0000", "C5 2026-11-17"),
             // testexec/SideShapes.java | Cannot cast a collection of size: GONE 2026-11-17 (C5's step E, E-P5), worded at
             // planning by the plan's style (SideShape.sizeWords, TestPlan.answerSizeWords)

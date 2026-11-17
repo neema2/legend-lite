@@ -1747,8 +1747,11 @@ final class Scalars {
         for (com.legend.model.FunctionId f : Pure.AT_STRING_TO_REPRESENTATION) {
             // a USER's toRepresentation: legend-pure's text, the edge's (the user's ruling of 2026-11-16, §10 item 8:
             // "refuse in product but not in compatibility"); the style's facet asked with the product's refusal (B8 (i))
-            RULES.put(f, (StyledRule) (n, args, styled) -> styled.pureOnly().apply(TextRefusals::representation)
-                    .representation(Repr.of(styled, n.args().get(0).info().type(), args.get(0))));
+            RULES.put(f, (StyledRule) (n, args, styled) -> {
+                PureOnlyTexts texts = styled.pureOnly().apply(TextRefusals::representation);
+                // legend-pure's representation, the edge's (C5's step A, 2026-11-17: moved from lowering.Repr)
+                return texts.representation(texts.representationOf(styled, n.args().get(0).info().type(), args.get(0)));
+            });
         }
         // chunk(s, n): fixed-size chunking IS the regex '.{1,n}' swept
         // globally (chunk.pure spec: 'abcdefghijklmnop'->chunk(5) =
@@ -3606,7 +3609,7 @@ final class Scalars {
 
     /** The static text of a date literal that is no DateTime (a StrictDate, a year, a month): components padded, as
      *  written. {@code null} for a non-literal. A DateTime's is {@link #dateTimeText}'s node (D1.2). */
-    private static @com.legend.base.Nullable SqlExpr dateLiteralText(TypedSpec spec) {
+    static @com.legend.base.Nullable SqlExpr dateLiteralText(TypedSpec spec) {
         return spec instanceof TypedCDate cd ? new SqlExpr.StringLit(cd.value().toEngineString()) : null;
     }
 
