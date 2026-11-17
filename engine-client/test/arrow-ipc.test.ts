@@ -10,7 +10,7 @@ import { DuckDbEngine, type ArrowishConnection } from '../src/duckdb.ts';
 import { startNodeDuckDb } from '../src/node-require.ts';
 import { inRun } from '../src/run-frame.ts';
 import { runfilesFromEnv } from '../../tools/js/runfiles.mts';
-import { unplanned } from './unplanned.ts';
+import { asTest, unplanned } from './unplanned.ts';
 
 let engine: DuckDbEngine;
 
@@ -40,14 +40,14 @@ describe('rows a page makes, as Arrow', () => {
 
   it('instants and truths: TIMESTAMP_MS and BOOLEAN in DuckDB, each instant its UTC milliseconds, either side of the epoch', async () => {
     const at = [Date.UTC(2026, 9, 25, 14, 30, 0, 123), 0, -1, Date.UTC(1969, 6, 20, 20, 17), Date.UTC(2262, 0, 1)];
-    await engine.exclusive((held) => held.insertArrow(arrowIpcStream(at.length, {
+    await asTest(engine).exclusive((held) => held.insertArrow(arrowIpcStream(at.length, {
       stamp: { instants: (i) => at[i]! },
       ok: { truths: (i) => i % 2 === 0 },
     }), { table: 'made_times' }, true));
-    const types = await engine.run(
+    const types = await asTest(engine).run(
       unplanned("SELECT column_name, data_type FROM information_schema.columns WHERE table_name = 'made_times' ORDER BY ordinal_position"), 0);
     assert.deepEqual(types.columns.map((c) => c.values), [['stamp', 'ok'], ['TIMESTAMP_MS', 'BOOLEAN']]);
-    const rows = await engine.run(unplanned("SELECT strftime(stamp, '%Y-%m-%d %H:%M:%S.%g') AS stamp, ok FROM made_times"), 0);
+    const rows = await asTest(engine).run(unplanned("SELECT strftime(stamp, '%Y-%m-%d %H:%M:%S.%g') AS stamp, ok FROM made_times"), 0);
     assert.deepEqual(rows.columns.map((c) => c.values), [
       ['2026-10-25 14:30:00.123', '1970-01-01 00:00:00.000', '1969-12-31 23:59:59.999', '1969-07-20 20:17:00.000', '2262-01-01 00:00:00.000'],
       [true, false, true, false, true],
@@ -55,7 +55,7 @@ describe('rows a page makes, as Arrow', () => {
   });
 
   it('days, and a null in any kind: DATE, and NULL where a row has no value', async () => {
-    await engine.exclusive((held) => held.insertArrow(arrowIpcStream(3, {
+    await asTest(engine).exclusive((held) => held.insertArrow(arrowIpcStream(3, {
       d: { doubles: (i) => (i === 1 ? null : i / 2) },
       n: { integers: (i) => (i === 0 ? null : -i) },
       t: { text: ['a', 'b'], pick: (i) => (i === 2 ? null : i) },
@@ -63,10 +63,10 @@ describe('rows a page makes, as Arrow', () => {
       ok: { truths: (i) => (i === 0 ? null : i === 1) },
       day: { days: (i) => (i === 2 ? null : 20_000 + i) },
     }), { table: 'made_nulls' }, true));
-    const types = await engine.run(
+    const types = await asTest(engine).run(
       unplanned("SELECT data_type FROM information_schema.columns WHERE table_name = 'made_nulls' AND column_name = 'day'"), 0);
     assert.deepEqual(types.columns[0]!.values, ['DATE']);
-    const rows = await engine.run(
+    const rows = await asTest(engine).run(
       unplanned("SELECT d, CAST(n AS VARCHAR) AS n, t, strftime(stamp, '%H') AS stamp, ok, strftime(day, '%Y-%m-%d') AS day FROM made_nulls"), 0);
     assert.deepEqual(rows.columns.map((c) => c.values), [
       [0, null, 1], [null, '-1', '-2'], ['a', 'b', null], ['00', null, '02'], [null, true, false],

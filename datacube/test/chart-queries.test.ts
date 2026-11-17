@@ -569,7 +569,7 @@ describe('a date-time by 5 minutes, planned and run: its buckets and their ends'
       };
       const spec: ChartSpec = { version: 2, mark: 'candlestick', x: 'ts', grain: 'minute5', y: candleMeasures('px', 'seq', 'sz'),
         options: { ...DEFAULT_OPTIONS, sort: { by: 'x', direction: 'asc' } } };
-      const t = await e.execute(await p.plan(chartQuery(s, spec).query), 0);
+      const t = await asTest(e).execute(await p.plan(chartQuery(s, spec).query), 0);
       assert.deepEqual(values(t, axisName(spec)!).map(String), ['2024-01-15T09:30:00', '2024-01-15T09:35:00', '2024-01-15T09:40:00']);
       assert.deepEqual(values(t, 'minBy_px_by_seq').map(Number), [10, 12, 13]);
       assert.deepEqual(values(t, 'max_px').map(Number), [14, 12, 13]);
@@ -590,7 +590,7 @@ describe('a date-time by 5 minutes, planned and run: its buckets and their ends'
       rows: ['ts_minute5'],
       sorts: [{ column: 'ts_minute5', direction: 'asc' }],
     };
-    const t = await engine2.execute(await printsPlanner.plan(levelLambda(s, { level: 1, parent: [] })), 0);
+    const t = await asTest(engine2).execute(await printsPlanner.plan(levelLambda(s, { level: 1, parent: [] })), 0);
     assert.deepEqual(values(t, 'ts_minute5').map(String), ['2024-01-15T09:30:00', '2024-01-15T09:35:00', '2024-01-15T09:40:00']);
     assert.deepEqual(values(t, 'px'), [21, 12, 13]);
   });

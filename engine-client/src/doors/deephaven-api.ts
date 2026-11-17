@@ -5,8 +5,9 @@
 
 import type { DhModule } from '../deephaven-live.ts';
 
-/** The library the Deephaven server at `serverUrl` serves, loaded. */
-export async function deephavenApi(serverUrl: string): Promise<DhModule> {
+/** The library the Deephaven server at `serverUrl` serves, loaded: as the live reader reads it (`DhModule`), or as a
+ *  caller that reads more of it names it (a test's console, `M`). */
+export async function deephavenApi<M = DhModule>(serverUrl: string): Promise<M> {
   const url = `${serverUrl}/jsapi/dh-core.js`;
-  return ((await import(/* @vite-ignore */ url)) as { default: DhModule }).default;
+  return ((await import(/* @vite-ignore */ url)) as { default: M }).default;
 }

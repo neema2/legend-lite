@@ -28,6 +28,7 @@ import type { DuckDbEngine, HeldConnection } from './duckdb.ts';
 import type { RawTable } from './engine.ts';
 import type { IngestPlans } from './requests.ts';
 import { runLoad, type PlanValue } from './plan-runner.ts';
+import { inRun } from './run-frame.ts';
 import type { PlannedSql, PlanText } from './planned-sql.ts';
 import type { LiveEvent, LiveReader } from './live.ts';
 import type { Plan } from './relation-type.ts';
@@ -232,7 +233,8 @@ export class LiveDuckDb {
    *  batch, as Arrow IPC, by the database's own Arrow import). Its last statement's first cell answered: a keep's rows
    *  deleted. */
   #run(plan: PlanText, held: Readonly<Record<string, Uint8Array>> = {}): Promise<number> {
-    return this.#writer.exclusive(async (conn: HeldConnection) => {
+    // a write is a run of its own (C5-T: on Node every statement is a run's): its plan's load, held for it alone
+    return inRun('a live table write', () => this.#writer.exclusive(async (conn: HeldConnection) => {
       let last: unknown[][] = [];
       await runLoad(plan, async (sql: PlannedSql, params: readonly PlanValue[]) => { last = await conn.rows(sql, params); }, {
         values: {
@@ -244,7 +246,7 @@ export class LiveDuckDb {
         },
       });
       return Number(last[0]?.[0] ?? 0);
-    });
+    }));
   }
 
   #changed(state: TableState, rows: number): void {
@@ -368,28 +370,31 @@ export class DuckDbLiveReader implements LiveReader {
     const versions = stale.map((k) => this.#live.versions(k.tables));
     let changed = false;
     const failed: string[] = [];
-    for (const sql of this.#snapshot.begin) await this.#conn.run(sql, 0);
-    try {
-      for (const [i, kept] of stale.entries()) {
-        let result: ResultTable;
-        try {
-          result = await this.#conn.execute(kept.plan, kept.epoch);
-        } catch (e) {
-          this.#kept.delete(kept.plan.sql);
-          failed.push(e instanceof Error ? e.message : String(e));
-          continue;
+    // an emit's reruns are a run of their own (C5-T: on Node every statement is a run's), in one snapshot
+    await inRun('a live emit', async () => {
+      for (const sql of this.#snapshot.begin) await this.#conn.run(sql, 0);
+      try {
+        for (const [i, kept] of stale.entries()) {
+          let result: ResultTable;
+          try {
+            result = await this.#conn.execute(kept.plan, kept.epoch);
+          } catch (e) {
+            this.#kept.delete(kept.plan.sql);
+            failed.push(e instanceof Error ? e.message : String(e));
+            continue;
+          }
+          const next = digest(result);
+          counts.reruns++;
+          if (next === kept.digest) counts.unchanged++;
+          else changed = true;
+          kept.result = result;
+          kept.digest = next;
+          kept.versions = versions[i] ?? [];
         }
-        const next = digest(result);
-        counts.reruns++;
-        if (next === kept.digest) counts.unchanged++;
-        else changed = true;
-        kept.result = result;
-        kept.digest = next;
-        kept.versions = versions[i] ?? [];
+      } finally {
+        for (const sql of this.#snapshot.commit) await this.#conn.run(sql, 0);
       }
-    } finally {
-      for (const sql of this.#snapshot.commit) await this.#conn.run(sql, 0);
-    }
+    });
     if (this.#closed) return;
     for (const why of failed) for (const listener of [...this.#listeners]) listener({ since, ended: null, failed: why });
     if (!changed) return;
@@ -417,7 +422,10 @@ export class DuckDbLiveReader implements LiveReader {
 /** A connection of the database's, its session set up. */
 async function connected(options: LiveDuckDbOptions): Promise<DuckDbEngine> {
   const engine = await options.connect();
-  for (const statement of options.setup ?? []) await engine.run(statement, 0);
+  // the session's setup, the planner's statements, sent in a run of its own (C5-T)
+  await inRun("a live connection's setup", async () => {
+    for (const statement of options.setup ?? []) await engine.run(statement, 0);
+  });
   return engine;
 }
 

@@ -222,6 +222,10 @@ class PlannerSurfaceTest {
                     VALUE, "scale", VALUE)),
             door("frameLoad", p("request", REQUEST), fields("databaseType", NAME, "held", DATA_REFERENCE, "as", NAME,
                     "live", OPTION, "schema", NAME, "relation", NAME)),
+            // 2026-11-16 (claude/deephaven-3-browser, the merge of main 4dfbb5b7; the desk roadmap's C0, the user's go of
+            // 2026-11-14): a dataset's three landing plans, its batch by the name the host holds it under -- never a row
+            door("ingestPlans", p("request", REQUEST), fields("databaseType", NAME, "model", MODEL_TEXT, "database", NAME,
+                    "schema", NAME, "table", NAME, "held", DATA_REFERENCE, "deployment", NAME)),
             door("databaseFromCatalog", p("catalogJson", REQUEST), fields(with(CATALOG, "databaseType", NAME, "path",
                     DATA_REFERENCE, "body", INTERNAL))),
             door("tableModel", p("tableJson", REQUEST), fields(with(CATALOG, "databaseType", NAME, "tables",
@@ -261,6 +265,7 @@ class PlannerSurfaceTest {
             Map.entry("remoteMountOrError", "remoteMount"), Map.entry("snapStreamOrError", "snapStream"),
             Map.entry("snapCopyOrError", "snapCopy"), Map.entry("outputPlanOrError", "outputPlan"),
             Map.entry("authoredOrError", "authored"), Map.entry("synthesizeOrError", "synthesize"),
+            Map.entry("ingestPlansOrError", "ingestPlans"), // 2026-11-16, the merge of main 4dfbb5b7 (C0's ingest plans)
             Map.entry("databaseFromCatalogOrError", "databaseFromCatalog"),
             Map.entry("tableModelOrError", "tableModel"), Map.entry("catalogColumnsSqlOrError", "catalogColumnsSql"),
             Map.entry("sessionSetupOrError", "sessionSetup"), Map.entry("hostOperationsOrError", "hostOperations"),
@@ -281,6 +286,7 @@ class PlannerSurfaceTest {
             Map.entry("lite_remote_mount", "remoteMount"), Map.entry("lite_snap_stream", "snapStream"),
             Map.entry("lite_snap_copy", "snapCopy"), Map.entry("lite_output_plan", "outputPlan"),
             Map.entry("lite_synthesize", "synthesize"), Map.entry("lite_frame_load", "frameLoad"),
+            Map.entry("lite_ingest_plans", "ingestPlans"), // 2026-11-16, the merge of main 4dfbb5b7 (C0's ingest plans)
             Map.entry("lite_database_from_catalog", "databaseFromCatalog"),
             Map.entry("lite_table_model", "tableModel"), Map.entry("lite_catalog_columns_sql", "catalogColumnsSql"),
             Map.entry("lite_session_setup", "sessionSetup"), Map.entry("lite_host_operations", "hostOperations"),
@@ -322,6 +328,9 @@ class PlannerSurfaceTest {
                     "a test-data request"),
             Map.entry("/api/pure/v1/testData/generation/DONOTUSE_generateTestData", "a model and a query"),
             Map.entry("/api/lite/v1/compilation/compile", "a model"),
+            // 2026-11-16 (claude/deephaven-3-browser, the merge of main 4dfbb5b7; docs/ONE_CONNECTION_DESK_2026_10_28.md D1,
+            // D5): lite's own model JSON, its own words (a Deephaven connection, a SQLite datasource) as lite's JSON
+            Map.entry("/api/lite/v1/grammar/grammarToJson/model", "a model's text"),
             // merged main 3a217086a (#81), 2026-11-14: #TS's two lite routes (upstream has no #TS)
             Map.entry("/api/lite/v1/grammar/jsonToTs/lambda", "a model and a lambda's protocol JSON, shown as #TS"),
             Map.entry("/api/lite/v1/grammar/tsItem", "one #TS item's text, read by core's parser"),
@@ -435,6 +444,8 @@ class PlannerSurfaceTest {
     static final Map<String, String> LITE_ROUTES = new TreeMap<>(Map.of(
             "/api/lite/v1/compilation/compile", "OPEN: its body is a model, upstream's PureModelContext, read as"
                     + " upstream's compile reads one (ModelInput)",
+            "/api/lite/v1/grammar/grammarToJson/model", "OPEN: its body is a model's text, upstream's grammarToJson/model's"
+                    + " own shape (E2), read through the parse door at lite's dialect (2026-11-16, the merge of main 4dfbb5b7)",
             "/api/lite/v1/grammar/jsonToTs/lambda", "CLOSED jsonToTsLambda: model, lambda",
             "/api/lite/v1/grammar/tsItem", "CLOSED tsItem: text",
             "/api/lite/v1/model/createClass", "CLOSED FILE ModelChanges.java",
@@ -757,6 +768,7 @@ class PlannerSurfaceTest {
             Map.entry("snapCopy", List.of("lite_snap_copy", "request")),
             Map.entry("outputPlan", List.of("lite_output_plan", "request")),
             Map.entry("synthesize", List.of("lite_synthesize", "request")),
+            Map.entry("ingestPlans", List.of("lite_ingest_plans", "request")), // 2026-11-16 (C0's ingest plans)
             Map.entry("sessionSetup", List.of("lite_session_setup", "databaseType")),
             Map.entry("projectData", List.of("lite_project_data", "model", "databaseType")),
             Map.entry("hostOperations", List.of("lite_host_operations", "databaseType", "operations")),

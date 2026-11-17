@@ -16,7 +16,7 @@ import { startNodeDuckDb, type NodeDuckDb } from '../src/node-require.ts';
 import type { Plan } from '../src/relation-type.ts';
 import { runfilesFromEnv } from '../../tools/js/runfiles.mts';
 import { loadPlanner } from './planner.ts';
-import { unplanned } from './unplanned.ts';
+import { asTest, unplanned } from './unplanned.ts';
 
 let db: NodeDuckDb;
 
@@ -91,7 +91,7 @@ async function opened(whole = false): Promise<LiveDuckDb> {
 async function look(sql: string): Promise<RawTable> {
   const engine = new DuckDbEngine(db.connect() as ArrowishConnection);
   try {
-    return await engine.run(unplanned(sql), 0);
+    return await asTest(engine).run(unplanned(sql), 0);
   } finally {
     await engine.close();
   }
@@ -118,7 +118,8 @@ const value = (r: { columns: readonly { values: readonly unknown[] }[] }): unkno
 
 /** A reader that has read `plans` in the view of epoch 1, followed, and what it is told. */
 async function following(live: LiveDuckDb, ...plans: Plan[]): Promise<{ reader: DuckDbLiveReader; told: LiveEvent[] }> {
-  const reader = await live.reader();
+  // the test stands where a grid's runner does: each of its reads a run of its own (C5-T: asTest)
+  const reader = asTest(await live.reader());
   for (const p of plans) await reader.execute(p, 1);
   await reader.follow(1);
   const told: LiveEvent[] = [];
@@ -248,7 +249,7 @@ describe('the live DuckDB', () => {
 
   it('what a reader follows is its view\'s: a result read before the view followed is let go, one read after it is followed', async () => {
     live = await opened();
-    const reader = await live.reader();
+    const reader = asTest(await live.reader());
     await reader.execute(NEWS, 1);
     await reader.follow(1);
     assert.equal(reader.following, 1);

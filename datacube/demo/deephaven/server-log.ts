@@ -46,7 +46,7 @@ export async function openServerLog(url: string, psk: string): Promise<{
   run(code: string): Promise<void>;
 }> {
   // the server's own library, loaded by its door (C5-T: a module chosen at run time is a door's)
-  const dh = (await deephavenApi(url)) as unknown as Dh;
+  const dh = await deephavenApi<Dh>(url);
   const client = new dh.CoreClient(url);
   await client.login({ type: 'io.deephaven.authentication.psk.PskAuthenticationHandler', token: psk });
   const ide = await client.getAsIdeConnection();
