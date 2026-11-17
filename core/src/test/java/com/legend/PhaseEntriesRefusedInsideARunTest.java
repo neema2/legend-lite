@@ -132,8 +132,9 @@ class PhaseEntriesRefusedInsideARunTest {
                 "MATCH (p:Person) RETURN p.name AS name"));
         // and a product caller of them, the server's #TS item route (the compiler's island seams read their text while
         // typing, phase G, whose own question is asked first: "type a spec")
-        out.put("parse a timeseries item (phase C) <- the server's tsItem", () -> com.legend.server.LiteV1Api.tsItem(
-                "{\"text\": \"avg(CLOSE, 3) AS m\"}"));
+        // (lite's API v1, 2026-11-17: the route's own Java is tsItemOf, its request read by the one road)
+        out.put("parse a timeseries item (phase C) <- the server's tsItem", () -> com.legend.server.LiteV1Api.tsItemOf(
+                "avg(CLOSE, 3) AS m"));
         // a test body's facts (the C5-J audit's nit, 2026-11-15): planning that asks on its own, never by the typing it
         // starts -- the body typed outside the run, so only the facts planner's own question can refuse it
         TypedQuery body = Compiler.query(ctx, QUERY);

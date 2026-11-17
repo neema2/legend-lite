@@ -926,13 +926,16 @@ const ACTIONS = {
 } as const;
 
 /** `query/type`'s answer (`{columns: [{name, type, enumeration?}]}`) as the columns DataCube reads: an enumeration's
- *  column is read as its value's name, a String (relation-type.ts `PlanColumn.enumeration`). */
+ *  column (`enumeration: true`, its type the enumeration's path; the spec's §2) is read as its value's name, a String
+ *  (relation-type.ts `PlanColumn.enumeration`). Any other `enumeration` is refused by name. */
 function typedColumns(answer: unknown): PlanColumn[] {
   const columns = (answer as { columns?: unknown }).columns;
   if (!Array.isArray(columns)) throw new Error('the query type carries no columns');
   return (columns as readonly { name?: unknown; type?: unknown; enumeration?: unknown }[]).map((c) => {
     if (typeof c.name !== 'string' || typeof c.type !== 'string') throw new Error(`a typed column without a name and a type: ${JSON.stringify(c)}`);
-    return typeof c.enumeration === 'string' ? { name: c.name, type: 'String', enumeration: c.enumeration } : { name: c.name, type: pureType(c.type) };
+    if (c.enumeration === undefined) return { name: c.name, type: pureType(c.type) };
+    if (c.enumeration !== true) throw new Error(`a typed column whose enumeration is not true: ${JSON.stringify(c)}`);
+    return { name: c.name, type: 'String', enumeration: c.type };
   });
 }
 
@@ -948,13 +951,17 @@ function decode(answer: string, subject: Lambda | string): string {
   const rest = nl < 0 ? '' : answer.slice(nl + 1);
   if (tag === 'OK') return rest;
   if (tag === 'ERR') {
-    let refusal: { message?: unknown };
+    let refusal: { kind?: unknown; message?: unknown };
     try {
-      refusal = JSON.parse(rest) as { message?: unknown };
+      refusal = JSON.parse(rest) as { kind?: unknown; message?: unknown };
     } catch {
       throw new PlannerUnavailableError(`the planner module returned an unreadable refusal: ${JSON.stringify(rest.slice(0, 120))}`);
     }
-    throw new PlanError(typeof refusal.message === 'string' && refusal.message !== '' ? refusal.message : 'the planner refused the query', subject);
+    // §3's shape, read as written: a refusal with no kind or no words is no refusal of lite's (no stand-in words)
+    if (typeof refusal.kind !== 'string' || typeof refusal.message !== 'string') {
+      throw new PlannerUnavailableError(`the planner module returned a refusal not in lite's shape: ${JSON.stringify(rest.slice(0, 120))}`);
+    }
+    throw new PlanError(refusal.message, subject);
   }
   throw new PlannerUnavailableError(
     `the planner module returned an unrecognised answer: ${JSON.stringify(answer.slice(0, 120))}`,

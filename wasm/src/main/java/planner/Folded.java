@@ -47,12 +47,9 @@ public final class Folded {
         }
     }
 
-    /** A failure as a refusal: lite API v1's error shape, as the server's routes classify it. */
+    /** A failure as a refusal: lite API v1's error shape ({@code {kind, message, where?, raise?}}), as the server's
+     *  routes classify it ({@link com.legend.server.LiteV1Api#refusal}). */
     public static String failure(Throwable e) {
-        com.legend.server.LiteV1Api.Refusal r = com.legend.server.LiteV1Api.refusal(e);
-        java.util.Map<String, Object> out = new java.util.LinkedHashMap<>();
-        out.put("kind", r.kind().text());
-        out.put("message", r.message());
-        return "ERR\n" + com.legend.json.Json.toCompact(out);
+        return "ERR\n" + com.legend.server.LiteV1Api.refusal(e).json();
     }
 }

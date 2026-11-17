@@ -1,5 +1,5 @@
 {
-  "_comment": "LITE API V1'S CONFORMANCE SUITE (docs/records/lite-api-v1-2026-11-17.md §5, the user's go of 2026-11-17): one set of cases every binding answers alike -- the browser's exports (core's LiteApiConformanceTest), the server's /api/lite/v1 routes (the TS host's reader) and Python's native entries (the Python session's reader). A case is an operation (§2's name), its request, and its 'answer' (exact JSON) or 'answerIncludes' (each key it names equal, recursively; each array item it names matched by some item of the answer's array). Refusals ({kind}) and the run's parameter cases join with the rename train (§3, §4).",
+  "_comment": "LITE API V1'S CONFORMANCE SUITE (docs/records/lite-api-v1-2026-11-17.md §5, the user's go of 2026-11-17): one set of cases every binding answers alike -- the browser's exports (core's LiteApiConformanceTest), the server's /api/lite/v1 routes (the TS host's reader) and Python's native entries (the Python session's reader). A case is an operation (§2's name), its request, and its 'answer' (exact JSON) or 'answerIncludes' (each key it names equal, recursively; each array item it names matched by some item of the answer's array). A refusal case names its 'refusal' as {kind} alone (§3: the kind is the contract; the words are the product's), answered as the binding's error shape. The run's parameter cases are query/run's, the server's and Python's (§4).",
   "cases": [
     {
       "name": "a query's text, parsed to its tree",
@@ -422,7 +422,7 @@
       }
     },
     {
-      "name": "a model's every error, each its kind and message",
+      "name": "a model's every error, each its kind, message and where",
       "op": "model/check",
       "request": {
         "model": "Class demo::Desk\n{\n  name: Strin[1];\n}\n"
@@ -431,7 +431,8 @@
         "errors": [
           {
             "kind": "compile",
-            "message": "[1:1] Unknown type: 'Strin' is not a known primitive, class, or enum"
+            "message": "[1:1] Unknown type: 'Strin' is not a known primitive, class, or enum",
+            "where": "[1:1]"
           }
         ]
       }
@@ -458,6 +459,594 @@
             "_type": "relational",
             "package": "t",
             "name": "DB"
+          }
+        ]
+      }
+    },
+    {
+      "name": "a text that does not parse is refused, kind parse",
+      "op": "query/parse",
+      "request": {
+        "text": "|1 +"
+      },
+      "refusal": {
+        "kind": "parse"
+      }
+    },
+    {
+      "name": "a request holding a key the operation does not read is refused, kind request",
+      "op": "model/check",
+      "request": {
+        "model": "Class a::B {}",
+        "models": []
+      },
+      "refusal": {
+        "kind": "request"
+      }
+    },
+    {
+      "name": "a request lacking a key the operation reads is refused, kind request",
+      "op": "query/plan",
+      "request": {
+        "model": "###Pure\nClass t::P { name: String[1]; age: Integer[1]; }\nEnum t::Side { BUY, SELL }\n###Relational\nDatabase t::DB ( Table PERSON ( NAME VARCHAR(200), AGE INTEGER ) )\n###Mapping\nMapping t::M ( t::P: Relational { ~mainTable [t::DB] PERSON name: [t::DB] PERSON.NAME, age: [t::DB] PERSON.AGE } )\n###Connection\nRelationalDatabaseConnection t::C { type: DuckDB; specification: DuckDB { }; auth: Test; }\n###Runtime\nRuntime t::RT { mappings: [ t::M ]; connections: [ t::DB: [ c: t::C ] ]; }\n",
+        "query": {
+          "_type": "lambda",
+          "body": [
+            {
+              "_type": "func",
+              "function": "project",
+              "parameters": [
+                {
+                  "_type": "func",
+                  "function": "getAll",
+                  "parameters": [
+                    {
+                      "_type": "packageableElementPtr",
+                      "fullPath": "t::P"
+                    }
+                  ]
+                },
+                {
+                  "_type": "classInstance",
+                  "type": "colSpecArray",
+                  "value": {
+                    "colSpecs": [
+                      {
+                        "function1": {
+                          "_type": "lambda",
+                          "body": [
+                            {
+                              "_type": "property",
+                              "parameters": [
+                                {
+                                  "_type": "var",
+                                  "name": "p"
+                                }
+                              ],
+                              "property": "name"
+                            }
+                          ],
+                          "parameters": [
+                            {
+                              "_type": "var",
+                              "name": "p"
+                            }
+                          ]
+                        },
+                        "name": "name"
+                      },
+                      {
+                        "function1": {
+                          "_type": "lambda",
+                          "body": [
+                            {
+                              "_type": "property",
+                              "parameters": [
+                                {
+                                  "_type": "var",
+                                  "name": "p"
+                                }
+                              ],
+                              "property": "age"
+                            }
+                          ],
+                          "parameters": [
+                            {
+                              "_type": "var",
+                              "name": "p"
+                            }
+                          ]
+                        },
+                        "name": "age"
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          ],
+          "parameters": []
+        }
+      },
+      "refusal": {
+        "kind": "request"
+      }
+    },
+    {
+      "name": "a style no query prints in is refused, kind request",
+      "op": "query/print",
+      "request": {
+        "query": {
+          "_type": "lambda",
+          "body": [
+            {
+              "_type": "func",
+              "function": "project",
+              "parameters": [
+                {
+                  "_type": "func",
+                  "function": "getAll",
+                  "parameters": [
+                    {
+                      "_type": "packageableElementPtr",
+                      "fullPath": "t::P"
+                    }
+                  ]
+                },
+                {
+                  "_type": "classInstance",
+                  "type": "colSpecArray",
+                  "value": {
+                    "colSpecs": [
+                      {
+                        "function1": {
+                          "_type": "lambda",
+                          "body": [
+                            {
+                              "_type": "property",
+                              "parameters": [
+                                {
+                                  "_type": "var",
+                                  "name": "p"
+                                }
+                              ],
+                              "property": "name"
+                            }
+                          ],
+                          "parameters": [
+                            {
+                              "_type": "var",
+                              "name": "p"
+                            }
+                          ]
+                        },
+                        "name": "name"
+                      },
+                      {
+                        "function1": {
+                          "_type": "lambda",
+                          "body": [
+                            {
+                              "_type": "property",
+                              "parameters": [
+                                {
+                                  "_type": "var",
+                                  "name": "p"
+                                }
+                              ],
+                              "property": "age"
+                            }
+                          ],
+                          "parameters": [
+                            {
+                              "_type": "var",
+                              "name": "p"
+                            }
+                          ]
+                        },
+                        "name": "age"
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          ],
+          "parameters": []
+        },
+        "style": "fancy"
+      },
+      "refusal": {
+        "kind": "request"
+      }
+    },
+    {
+      "name": "a model that does not compile is refused when a query is typed over it, kind compile",
+      "op": "query/type",
+      "request": {
+        "model": "Class demo::Desk\n{\n  name: Strin[1];\n}\n",
+        "query": {
+          "_type": "lambda",
+          "body": [
+            {
+              "_type": "func",
+              "function": "project",
+              "parameters": [
+                {
+                  "_type": "func",
+                  "function": "getAll",
+                  "parameters": [
+                    {
+                      "_type": "packageableElementPtr",
+                      "fullPath": "t::P"
+                    }
+                  ]
+                },
+                {
+                  "_type": "classInstance",
+                  "type": "colSpecArray",
+                  "value": {
+                    "colSpecs": [
+                      {
+                        "function1": {
+                          "_type": "lambda",
+                          "body": [
+                            {
+                              "_type": "property",
+                              "parameters": [
+                                {
+                                  "_type": "var",
+                                  "name": "p"
+                                }
+                              ],
+                              "property": "name"
+                            }
+                          ],
+                          "parameters": [
+                            {
+                              "_type": "var",
+                              "name": "p"
+                            }
+                          ]
+                        },
+                        "name": "name"
+                      },
+                      {
+                        "function1": {
+                          "_type": "lambda",
+                          "body": [
+                            {
+                              "_type": "property",
+                              "parameters": [
+                                {
+                                  "_type": "var",
+                                  "name": "p"
+                                }
+                              ],
+                              "property": "age"
+                            }
+                          ],
+                          "parameters": [
+                            {
+                              "_type": "var",
+                              "name": "p"
+                            }
+                          ]
+                        },
+                        "name": "age"
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          ],
+          "parameters": []
+        }
+      },
+      "refusal": {
+        "kind": "compile"
+      }
+    },
+    {
+      "name": "a query's tree nested deeper than 64 is read (a grid's query nests so; the request's depth is the server's, 4096)",
+      "op": "query/print",
+      "request": {
+        "query": {
+          "_type": "lambda",
+          "body": [
+            {
+              "_type": "func",
+              "function": "not",
+              "parameters": [
+                {
+                  "_type": "func",
+                  "function": "not",
+                  "parameters": [
+                    {
+                      "_type": "func",
+                      "function": "not",
+                      "parameters": [
+                        {
+                          "_type": "func",
+                          "function": "not",
+                          "parameters": [
+                            {
+                              "_type": "func",
+                              "function": "not",
+                              "parameters": [
+                                {
+                                  "_type": "func",
+                                  "function": "not",
+                                  "parameters": [
+                                    {
+                                      "_type": "func",
+                                      "function": "not",
+                                      "parameters": [
+                                        {
+                                          "_type": "func",
+                                          "function": "not",
+                                          "parameters": [
+                                            {
+                                              "_type": "func",
+                                              "function": "not",
+                                              "parameters": [
+                                                {
+                                                  "_type": "func",
+                                                  "function": "not",
+                                                  "parameters": [
+                                                    {
+                                                      "_type": "func",
+                                                      "function": "not",
+                                                      "parameters": [
+                                                        {
+                                                          "_type": "func",
+                                                          "function": "not",
+                                                          "parameters": [
+                                                            {
+                                                              "_type": "func",
+                                                              "function": "not",
+                                                              "parameters": [
+                                                                {
+                                                                  "_type": "func",
+                                                                  "function": "not",
+                                                                  "parameters": [
+                                                                    {
+                                                                      "_type": "func",
+                                                                      "function": "not",
+                                                                      "parameters": [
+                                                                        {
+                                                                          "_type": "func",
+                                                                          "function": "not",
+                                                                          "parameters": [
+                                                                            {
+                                                                              "_type": "func",
+                                                                              "function": "not",
+                                                                              "parameters": [
+                                                                                {
+                                                                                  "_type": "func",
+                                                                                  "function": "not",
+                                                                                  "parameters": [
+                                                                                    {
+                                                                                      "_type": "func",
+                                                                                      "function": "not",
+                                                                                      "parameters": [
+                                                                                        {
+                                                                                          "_type": "func",
+                                                                                          "function": "not",
+                                                                                          "parameters": [
+                                                                                            {
+                                                                                              "_type": "func",
+                                                                                              "function": "not",
+                                                                                              "parameters": [
+                                                                                                {
+                                                                                                  "_type": "func",
+                                                                                                  "function": "not",
+                                                                                                  "parameters": [
+                                                                                                    {
+                                                                                                      "_type": "func",
+                                                                                                      "function": "not",
+                                                                                                      "parameters": [
+                                                                                                        {
+                                                                                                          "_type": "func",
+                                                                                                          "function": "not",
+                                                                                                          "parameters": [
+                                                                                                            {
+                                                                                                              "_type": "func",
+                                                                                                              "function": "not",
+                                                                                                              "parameters": [
+                                                                                                                {
+                                                                                                                  "_type": "func",
+                                                                                                                  "function": "not",
+                                                                                                                  "parameters": [
+                                                                                                                    {
+                                                                                                                      "_type": "func",
+                                                                                                                      "function": "not",
+                                                                                                                      "parameters": [
+                                                                                                                        {
+                                                                                                                          "_type": "func",
+                                                                                                                          "function": "not",
+                                                                                                                          "parameters": [
+                                                                                                                            {
+                                                                                                                              "_type": "func",
+                                                                                                                              "function": "not",
+                                                                                                                              "parameters": [
+                                                                                                                                {
+                                                                                                                                  "_type": "func",
+                                                                                                                                  "function": "not",
+                                                                                                                                  "parameters": [
+                                                                                                                                    {
+                                                                                                                                      "_type": "func",
+                                                                                                                                      "function": "not",
+                                                                                                                                      "parameters": [
+                                                                                                                                        {
+                                                                                                                                          "_type": "func",
+                                                                                                                                          "function": "not",
+                                                                                                                                          "parameters": [
+                                                                                                                                            {
+                                                                                                                                              "_type": "func",
+                                                                                                                                              "function": "not",
+                                                                                                                                              "parameters": [
+                                                                                                                                                {
+                                                                                                                                                  "_type": "func",
+                                                                                                                                                  "function": "not",
+                                                                                                                                                  "parameters": [
+                                                                                                                                                    {
+                                                                                                                                                      "_type": "func",
+                                                                                                                                                      "function": "not",
+                                                                                                                                                      "parameters": [
+                                                                                                                                                        {
+                                                                                                                                                          "_type": "func",
+                                                                                                                                                          "function": "not",
+                                                                                                                                                          "parameters": [
+                                                                                                                                                            {
+                                                                                                                                                              "_type": "func",
+                                                                                                                                                              "function": "not",
+                                                                                                                                                              "parameters": [
+                                                                                                                                                                {
+                                                                                                                                                                  "_type": "func",
+                                                                                                                                                                  "function": "not",
+                                                                                                                                                                  "parameters": [
+                                                                                                                                                                    {
+                                                                                                                                                                      "_type": "func",
+                                                                                                                                                                      "function": "not",
+                                                                                                                                                                      "parameters": [
+                                                                                                                                                                        {
+                                                                                                                                                                          "_type": "func",
+                                                                                                                                                                          "function": "not",
+                                                                                                                                                                          "parameters": [
+                                                                                                                                                                            {
+                                                                                                                                                                              "_type": "boolean",
+                                                                                                                                                                              "value": true
+                                                                                                                                                                            }
+                                                                                                                                                                          ]
+                                                                                                                                                                        }
+                                                                                                                                                                      ]
+                                                                                                                                                                    }
+                                                                                                                                                                  ]
+                                                                                                                                                                }
+                                                                                                                                                              ]
+                                                                                                                                                            }
+                                                                                                                                                          ]
+                                                                                                                                                        }
+                                                                                                                                                      ]
+                                                                                                                                                    }
+                                                                                                                                                  ]
+                                                                                                                                                }
+                                                                                                                                              ]
+                                                                                                                                            }
+                                                                                                                                          ]
+                                                                                                                                        }
+                                                                                                                                      ]
+                                                                                                                                    }
+                                                                                                                                  ]
+                                                                                                                                }
+                                                                                                                              ]
+                                                                                                                            }
+                                                                                                                          ]
+                                                                                                                        }
+                                                                                                                      ]
+                                                                                                                    }
+                                                                                                                  ]
+                                                                                                                }
+                                                                                                              ]
+                                                                                                            }
+                                                                                                          ]
+                                                                                                        }
+                                                                                                      ]
+                                                                                                    }
+                                                                                                  ]
+                                                                                                }
+                                                                                              ]
+                                                                                            }
+                                                                                          ]
+                                                                                        }
+                                                                                      ]
+                                                                                    }
+                                                                                  ]
+                                                                                }
+                                                                              ]
+                                                                            }
+                                                                          ]
+                                                                        }
+                                                                      ]
+                                                                    }
+                                                                  ]
+                                                                }
+                                                              ]
+                                                            }
+                                                          ]
+                                                        }
+                                                      ]
+                                                    }
+                                                  ]
+                                                }
+                                              ]
+                                            }
+                                          ]
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          "parameters": []
+        }
+      },
+      "answer": {
+        "text": "|!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!true"
+      }
+    },
+    {
+      "name": "a Decimal column typed by its plain path, its precision and scale no part of the name",
+      "op": "query/type",
+      "request": {
+        "model": "###Relational\nDatabase t::D ( Table PRICES ( P DECIMAL(10,2) ) )\n###Connection\nRelationalDatabaseConnection t::C { type: DuckDB; specification: DuckDB { }; auth: Test; }\n###Runtime\nRuntime t::RT { mappings: [ ]; connections: [ t::D: [ c: t::C ] ]; }\n",
+        "query": {
+          "_type": "lambda",
+          "body": [
+            {
+              "_type": "func",
+              "function": "select",
+              "parameters": [
+                {
+                  "_type": "classInstance",
+                  "type": ">",
+                  "value": {
+                    "path": [
+                      "t::D",
+                      "PRICES"
+                    ]
+                  }
+                },
+                {
+                  "_type": "classInstance",
+                  "type": "colSpec",
+                  "value": {
+                    "name": "P"
+                  }
+                }
+              ]
+            }
+          ],
+          "parameters": []
+        }
+      },
+      "answer": {
+        "columns": [
+          {
+            "name": "P",
+            "type": "Decimal"
           }
         ]
       }

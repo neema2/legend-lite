@@ -26,17 +26,34 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class LiteApiConformanceTest {
 
+    /** The suite's own reading depth: a case's tree nests as deep as a grid's query (the server reads a request to 4096,
+     *  LiteV1Api's REQUEST), past the parser's default of 64. */
+    private static final Json.Config DEEP = new Json.Config(4096);
+
     @Test
     void theBrowsersOperationsAnswerEachCase() throws Exception {
         Json.Obj fixture = (Json.Obj) Json.parse(Files.readString(Runfile.property("lite.api.cases"),
-                StandardCharsets.UTF_8));
+                StandardCharsets.UTF_8), DEEP);
         List<String> failures = new ArrayList<>();
         int asked = 0;
         for (Json.Node n : fixture.getArr("cases").items()) {
             Json.Obj c = (Json.Obj) n;
             String name = c.getString("name");
-            Json.Node answer = Json.parse(asked(c.getString("op"), Json.toCompact(c.get("request"))));
+            String folded = folded(c.getString("op"), Json.toCompact(c.get("request")));
             asked++;
+            if (c.has("refusal")) {
+                // a refusal case names its kind alone (§3: the kind is the contract, the words the product's)
+                if (!folded.startsWith("ERR\n") || !includes(c.get("refusal"),
+                        Json.parse(folded.substring("ERR\n".length()), DEEP))) {
+                    failures.add(name + ": answered " + folded);
+                }
+                continue;
+            }
+            if (!folded.startsWith("OK\n")) {
+                failures.add(name + ": refused " + folded);
+                continue;
+            }
+            Json.Node answer = Json.parse(folded.substring("OK\n".length()), DEEP);
             if (c.has("answer")) {
                 if (!c.get("answer").equals(answer)) {
                     failures.add(name + ": answered " + Json.toCompact(answer));
@@ -47,6 +64,12 @@ class LiteApiConformanceTest {
         }
         assertTrue(asked > 0, "the suite holds cases");
         assertEquals(List.of(), failures);
+    }
+
+    /** {@code op} asked as the tab's export folds it: {@code "OK\n"} and the answer, or {@code "ERR\n"} and the
+     *  refusal ({@code planner.Folded}). */
+    private static String folded(String op, String request) {
+        return planner.Folded.of(() -> asked(op, request));
     }
 
     /** {@code op} asked of the browser's operation of that name (the spec's §2): its answer's JSON. */
@@ -61,6 +84,7 @@ class LiteApiConformanceTest {
             case "model/createClass" -> Boundary.modelCreateClass(request);
             case "model/createAssociation" -> Boundary.modelCreateAssociation(request);
             case "model/createDataSpace" -> Boundary.modelCreateDataSpace(request);
+            case "ts/item" -> Boundary.tsItem(request);
             case "ts/statement" -> Boundary.tsStatement(request);
             default -> throw new AssertionError("the browser binding has no operation '" + op + "'");
         };
