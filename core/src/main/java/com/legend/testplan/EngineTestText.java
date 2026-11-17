@@ -57,4 +57,7 @@ public interface EngineTestText {
 
     /** The side a {@link #notAConstant} check names: its kind and planned root. */
     String why(HostSides.@com.legend.base.Nullable Check check);
+
+    /** How the plan holds the two texts of the edge's comparison {@code judgment} (census C3, 2026-11-17). */
+    TextsHeld textsHeld(com.legend.testexecutionplan.Extension judgment);
 }

@@ -290,19 +290,12 @@ class EdgeSeparationTest {
             Map.entry("lowering/VerdictSql.java | Repr", "C5 2026-11-17"),
             Map.entry("lowering/VerdictSql.java | TDS_NULL_CELL", "C5 2026-11-17"),
             Map.entry("sql/SqlExpr.java | TDS_NULL_CELL", "B10 2026-11-17"),
-            Map.entry("testexec/AssertRuns.java | EngineText", "C3 2026-11-17"),
             Map.entry("testexec/CanonicalForm.java | +0000", "C5 2026-11-17"),
-            Map.entry("testexec/HostJudgments.java | EngineText", "C3 2026-11-17"),
             Map.entry("testexec/SideShapes.java | Cannot cast a collection of size", "C5 2026-11-17"),
             Map.entry("testexec/SideShapes.java | TDS_NULL_CELL", "C5 2026-11-17"),
-            Map.entry("testexecutionplan/HostJson.java | EngineText", "C3 2026-11-17"),
-            Map.entry("testexecutionplan/HostJudgment.java | EngineText", "C3 2026-11-17"),
-            Map.entry("testexecutionplan/NamedExtensions.java | EngineText", "C3 2026-11-17"),
-            Map.entry("testexecutionplan/Verdicts.java | EngineText", "C3 2026-11-17"),
             // B11 -> C5 2026-11-17 (the orchestrator's ruling): the host judge's +0000, C5's step B (E-P5's)
             Map.entry("testexecutionplan/Verdicts.java | +0000", "C5 2026-11-17 (E-P5's step B)"),
             // (testplan/AgreementAsserts.java | EngineText closed: 2026-11-17, (b) of the orchestrator's order: the fused agreement path deleted)
-            Map.entry("testplan/AssertVerdicts.java | EngineText", "C3 2026-11-17"),
             Map.entry("compiler/spec/VerdictQueries.java | TDSNull", "B10 2026-11-17"),
             Map.entry("lowering/CanonicalRenderSql.java | TDSNull", "C5 2026-11-17"),
             Map.entry("lowering/VerdictSql.java | TDSNull", "B10 2026-11-17"),
@@ -330,7 +323,7 @@ class EdgeSeparationTest {
      *  B15, B16, C6, C7). Each must hold at least one entry in the count ({@link #everyOpenLineIsCounted}), so an empty
      *  count cannot read DONE with a line left. A line closes by leaving this set with its last entry. */
     static final Set<String> OPEN_LINES = Set.of(
-            "B8", "B10", "B12", "C1", "C3", "C5");
+            "B8", "B10", "B12", "C1", "C5");
 
     private static Set<String> linesOf(Map<String, String> m) {
         Set<String> out = new TreeSet<>();

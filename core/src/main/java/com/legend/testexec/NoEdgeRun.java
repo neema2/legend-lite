@@ -17,7 +17,7 @@ import java.util.function.Function;
 
 /**
  * THE PRODUCT'S ANSWER TO THE EDGE'S RUN HOOK (census C2, 2026-11-17; G7, no null): a run hears no compatibility
- * appeal. Its hearing tells the caller's listener as it is, and refuses an engine-text judgment and an appeal BY NAME,
+ * appeal. Its hearing tells the caller's listener as it is, and refuses an edge-judged comparison and an appeal BY NAME,
  * pointing to the edge -- as a plan naming an appeal is refused when the run opens. Every other implementation of
  * {@link EdgeRun} and {@link EdgeHearing} is the edge's.
  */
@@ -44,9 +44,9 @@ public final class NoEdgeRun implements EdgeRun {
     private record Hearing(@Nullable AssertListener listener) implements EdgeHearing {
 
         @Override
-        public TypedSide engineText(HostJudgment j, List<TypedSide> sides, TestPlan.JudgingRules rules,
+        public TypedSide judged(HostJudgment.EdgeJudged j, List<TypedSide> sides, TestPlan.JudgingRules rules,
                 boolean messaged) {
-            throw new NotImplementedException("an engine-text judgment " + WHY);
+            throw new NotImplementedException("an edge-judged comparison " + WHY);
         }
 
         @Override

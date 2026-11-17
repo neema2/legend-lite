@@ -300,8 +300,8 @@ final class SqlTextVerdicts {
         // (under lite's own rules a failed text is the verdict and no appeal is heard: none is numbered, so the plan
         // names none -- the slice 2 invariant audit's D2, 2026-11-08)
         int appeal = appeals(env) ? EngineTextPlanning.appeal(env, ((Appeal) c.appeal())::numbered) : com.legend.testexecutionplan.RootLoop.NO_APPEAL;
-        return EngineTextPlanning.check(List.of(golden, ours), new HostJudgment.EngineText(c.name(), c.golden(), c.ours(),
-                c.textEqual(), c.decline(), c.oursOrigin(), appeal, routed));
+        return EngineTextPlanning.check(List.of(golden, ours), new HostJudgment.EdgeJudged(new EngineTextJudgment(
+                c.name(), c.golden(), c.ours(), c.textEqual(), c.decline()), appeal, c.oursOrigin(), routed));
     }
 
     /** Whether {@code bare} is {@code assertEquals} or {@code assertNotEquals}: the equality arm's family. */

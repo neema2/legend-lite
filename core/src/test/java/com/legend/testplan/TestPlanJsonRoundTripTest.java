@@ -119,7 +119,8 @@ class TestPlanJsonRoundTripTest {
                 new HostJudgment.Json(true),
                 new HostJudgment.Rendered("rendered", false, "form", null, "aForm", true, true),
                 new HostJudgment.Raise(FAILURE),
-                new HostJudgment.EngineText("text", "golden", "ours", false, "decline", "origin", 1, true),
+                new HostJudgment.EdgeJudged(new com.legend.edge.EngineTextJudgment("text", "golden", "ours", false, "decline"), 1,
+                        "origin", true),
                 new HostJudgment.AssertError("expected", 3L, null, FAILURE, part),
                 new HostJudgment.Messaged(new HostJudgment.Size(true), 1, "unplanned"),
                 new HostJudgment.Negated(new HostJudgment.Size(false), "NOT_SIZE"));

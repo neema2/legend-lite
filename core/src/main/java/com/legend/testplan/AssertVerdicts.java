@@ -140,8 +140,8 @@ public final class AssertVerdicts {
             return false;
         }
         HostAssert shape = planHost(bare, letPrefix, specs, env, rawHook);
-        return shape != null && HostJudgment.core(shape.check().judgment()) instanceof HostJudgment.EngineText e
-                && e.golden() != null && e.ours() != null && e.textEqual();
+        return shape != null && HostJudgment.core(shape.check().judgment()) instanceof HostJudgment.EdgeJudged e
+                && EngineTextGates.textsHeld(env, e) == TextsHeld.CONSTANTS_EQUAL;
     }
 
     /** Whether {@code g} is an engine-text assert's: its texts constants of the plan, or OUR text a side the verdict
@@ -212,21 +212,19 @@ public final class AssertVerdicts {
         if (HostJudgment.core(shape.check().judgment()) instanceof HostJudgment.Raise) {
             return DatabaseGate.RAISES;
         }
-        if (HostJudgment.core(shape.check().judgment()) instanceof HostJudgment.EngineText e) {
-            if (e.golden() == null) {
+        if (HostJudgment.core(shape.check().judgment()) instanceof HostJudgment.EdgeJudged e) {
+            return switch (EngineTextGates.textsHeld(env, e)) {
                 // a golden the plan reads: the arm processes its golden at planning, and the verdict row composes the
                 // database judge's text equality with the golden a constant -- the walk's, by name
-                com.legend.diagnostics.Census.unplannedAssert("database: a golden read at the step: " + shapeOf(bare));
-                return DatabaseGate.UNPLANNED;
-            }
-            if (e.ours() == null) {
+                case GOLDEN_READ -> { com.legend.diagnostics.Census.unplannedAssert("database: a golden read at the step: "
+                        + shapeOf(bare)); yield DatabaseGate.UNPLANNED; }
                 // our text a side the plan reads (M10c item 8; the database judge since 2026-11-04, the core
                 // program): the verdict row computes it and the equality, its ACTUAL column the appeal's text
-                return DatabaseGate.ENGINE_TEXT_READ;
-            }
-            // an engine-text assert (M10b): its texts constants of the plan, its appeal the batch row's -- the walk's
-            // own deferral, planDatabase's adjudicate under the collecting batch; nothing read at planning
-            return DatabaseGate.ENGINE_TEXT;
+                case OURS_READ -> DatabaseGate.ENGINE_TEXT_READ;
+                // an engine-text assert (M10b): its texts constants of the plan, its appeal the batch row's -- the
+                // walk's own deferral, planDatabase's adjudicate under the collecting batch; nothing read at planning
+                case CONSTANTS_EQUAL, CONSTANTS_DIFFER -> DatabaseGate.ENGINE_TEXT;
+            };
         }
         NativeFn.Verdict fn = NativeFn.Verdict.of(com.legend.compiler.spec.typed.Calls.calleeIdOf(bare)).orElse(null);
         if (fn == null && bare instanceof TypedUserCall dual && dual.args().size() == 3
@@ -1453,13 +1451,13 @@ public final class AssertVerdicts {
     record UnrollPlan(List<Unrolled> elements) implements QuantifiedPlan {
     }
 
-    /** Whether {@code j} is, or holds (an unrolled quantified assert's part), an engine-text judgment: the one whose
+    /** Whether {@code j} is, or holds (an unrolled quantified assert's part), an edge-judged comparison: the one whose
      *  appeal reads the user store, which a system-routed body's program cannot carry (M10b's refusal). */
-    static boolean holdsEngineText(HostJudgment judgment) {
+    static boolean holdsEdgeJudged(HostJudgment judgment) {
         HostJudgment j = HostJudgment.core(judgment);
-        return j instanceof HostJudgment.EngineText
+        return j instanceof HostJudgment.EdgeJudged
                 || j instanceof HostJudgment.Unrolled u
-                        && u.parts().stream().anyMatch(p -> holdsEngineText(p.judgment()));
+                        && u.parts().stream().anyMatch(p -> holdsEdgeJudged(p.judgment()));
     }
 
     /** Whether one statement origin serves every part of {@code j}: the program road sends a verdict step's sides

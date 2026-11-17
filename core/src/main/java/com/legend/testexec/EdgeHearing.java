@@ -18,17 +18,17 @@ import java.util.function.Function;
  * ONE RUN'S HEARING OF ITS COMPATIBILITY APPEALS (census C2, the orchestrator's P2 of 2026-11-17): opened by an
  * {@link EdgeRun} for one run of a plan, told what the run's judges hear and asked, after the run, to decide what it
  * held. A ruled hook (HookRulingTest): signatures only; the edge implements it, the product's {@link NoEdgeRun}
- * refusing an engine-text judgment and an appeal by name.
+ * refusing an edge-judged comparison and an appeal by name.
  */
 public interface EdgeHearing {
 
     /** The listener the run's judges tell: the caller's, its reports kept back while an appeal is held. */
     @Nullable AssertListener listener();
 
-    /** The edge's judgment {@code j} (an engine text's) judged at its verdict step over its two text {@code sides},
-     *  under {@code rules} ({@code messaged}: its assert carries a caller's message): equal holds, else the appeal
-     *  heard. */
-    TypedSide engineText(HostJudgment j, List<TypedSide> sides, TestPlan.JudgingRules rules, boolean messaged);
+    /** The edge's comparison {@code j} judged at its verdict step over its two {@code sides}, under {@code rules}
+     *  ({@code messaged}: its assert carries a caller's message): equal holds, else the appeal heard (census C3,
+     *  2026-11-17: its facts the edge's own record). */
+    TypedSide judged(HostJudgment.EdgeJudged j, List<TypedSide> sides, TestPlan.JudgingRules rules, boolean messaged);
 
     /** The database judge's failed {@code row}, whose appeal is numbered {@code number}, heard. */
     TypedSide rowAppealed(int number, List<Object> row, boolean messaged);

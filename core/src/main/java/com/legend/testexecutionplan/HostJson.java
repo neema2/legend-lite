@@ -564,29 +564,21 @@ final class HostJson {
         return new HostJudgment.Raise(v_failure);
     }
 
-    static Map<String, Object> wHjEngineText(HostJudgment.EngineText x) {
+    static Map<String, Object> wHjEdgeJudged(HostJudgment.EdgeJudged x) {
         Map<String, Object> o = new LinkedHashMap<>();
-        o.put("name", x.name());
-        o.put("golden", x.golden() == null ? null : x.golden());
-        o.put("ours", x.ours() == null ? null : x.ours());
-        o.put("textEqual", x.textEqual());
-        o.put("decline", x.decline() == null ? null : x.decline());
-        o.put("oursOrigin", x.oursOrigin() == null ? null : x.oursOrigin());
+        o.put("judgment", TestPlanJson.extension(x.judgment()));
         o.put("appeal", x.appeal());
-        o.put("routed", x.routed());
+        o.put("sideOrigin", x.sideOrigin() == null ? null : x.sideOrigin());
+        o.put("counted", x.counted());
         return o;
     }
 
-    static HostJudgment.EngineText rHjEngineText(Json.Obj o) {
-        String v_name = str(field(o, "name", "EngineText"));
-        @Nullable String v_golden = absent(o, "golden", "EngineText") ? null : str(o.get("golden"));
-        @Nullable String v_ours = absent(o, "ours", "EngineText") ? null : str(o.get("ours"));
-        boolean v_textEqual = bool(field(o, "textEqual", "EngineText"));
-        @Nullable String v_decline = absent(o, "decline", "EngineText") ? null : str(o.get("decline"));
-        @Nullable String v_oursOrigin = absent(o, "oursOrigin", "EngineText") ? null : str(o.get("oursOrigin"));
-        int v_appeal = Math.toIntExact(num(field(o, "appeal", "EngineText")));
-        boolean v_routed = bool(field(o, "routed", "EngineText"));
-        return new HostJudgment.EngineText(v_name, v_golden, v_ours, v_textEqual, v_decline, v_oursOrigin, v_appeal, v_routed);
+    static HostJudgment.EdgeJudged rHjEdgeJudged(Json.Obj o) {
+        Extension v_judgment = TestPlanJson.readExtension(obj(field(o, "judgment", "EdgeJudged")));
+        int v_appeal = Math.toIntExact(num(field(o, "appeal", "EdgeJudged")));
+        @Nullable String v_sideOrigin = absent(o, "sideOrigin", "EdgeJudged") ? null : str(o.get("sideOrigin"));
+        boolean v_counted = bool(field(o, "counted", "EdgeJudged"));
+        return new HostJudgment.EdgeJudged(v_judgment, v_appeal, v_sideOrigin, v_counted);
     }
 
     static Map<String, Object> wHjAssertError(HostJudgment.AssertError x) {
@@ -993,10 +985,10 @@ final class HostJson {
                 o.putAll(wHjRaise(m));
                 yield o;
             }
-            case HostJudgment.EngineText m -> {
+            case HostJudgment.EdgeJudged m -> {
                 Map<String, Object> o = new LinkedHashMap<>();
-                o.put(TAG, "EngineText");
-                o.putAll(wHjEngineText(m));
+                o.put(TAG, "EdgeJudged");
+                o.putAll(wHjEdgeJudged(m));
                 yield o;
             }
             case HostJudgment.AssertError m -> {
@@ -1044,7 +1036,7 @@ final class HostJson {
             case "Json" -> rHjJson(o);
             case "Rendered" -> rHjRendered(o);
             case "Raise" -> rHjRaise(o);
-            case "EngineText" -> rHjEngineText(o);
+            case "EdgeJudged" -> rHjEdgeJudged(o);
             case "AssertError" -> rHjAssertError(o);
             case "Messaged" -> rHjMessaged(o);
             case "Negated" -> new HostJudgment.Negated(rHostJudgment(obj(field(o, "inner", "Negated"))),

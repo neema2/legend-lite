@@ -42,7 +42,7 @@ final class AssertRuns {
             com.legend.testexecutionplan.TestPlan.JudgingRules rules,
             java.util.function.@com.legend.base.Nullable Supplier<TypedSide> message, BodyRun run) {
         TypedSide v = judgedOrFellThrough(com.legend.testexec.HostJudgments.judge(j, sides, rules, message, run));
-        if (v != null && HostJudgment.core(j) instanceof HostJudgment.EngineText e && e.routed()) {
+        if (v != null && HostJudgment.core(j) instanceof HostJudgment.EdgeJudged e && e.counted()) {
             sqlTextRouted(a.name());
         }
         return v;

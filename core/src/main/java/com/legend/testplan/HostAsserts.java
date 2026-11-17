@@ -222,7 +222,7 @@ final class HostAsserts implements TestDoor.Asserts {
                 raisedByAnAssert = true;
             } else {
                 p = planAssert(statement, bare, letPrefix, frames, specs, env, env);
-                if (p != null && bodyEnv != null && AssertVerdicts.holdsEngineText(p.assertion().check().judgment())) {
+                if (p != null && bodyEnv != null && AssertVerdicts.holdsEdgeJudged(p.assertion().check().judgment())) {
                     // an engine-text assert of a system-routed body: its arm planned on the program's environment, its
                     // compatibility APPEAL on the body's -- the user's tables, the referee, the store provision
                     // (ExecEnv.appealOn: the database judge's split, the host's since 2026-11-06; until then the whole
