@@ -131,6 +131,7 @@ public final class LiteV1Api {
             case "/api/lite/v1/model/createClass" -> modelChanges(body, ModelChanges::createClass);
             case "/api/lite/v1/model/createAssociation" -> modelChanges(body, ModelChanges::createAssociation);
             case "/api/lite/v1/model/createDataSpace" -> modelChanges(body, ModelChanges::createDataSpace);
+            case LiteV1Planning.MODEL_ELEMENTS, LiteV1Planning.PARSE_LAMBDA, LiteV1Planning.PRINT_LAMBDA, LiteV1Planning.LAMBDA_RELATION_TYPE -> LiteV1Planning.route(path, body, models);
             // every other path, in lite's own words (B7, the orchestrator's ruling (3) of 2026-11-17: the product names
             // nothing engine-shaped, not even its paths' prefix; with the edge mounted, the edge serves legend-engine's)
             default -> error(404, null, "no such legend-lite API: " + path);
