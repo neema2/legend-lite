@@ -2003,6 +2003,9 @@ public class MariaDb extends AnsiSqlRenderer {
             case CONCAT -> writer.append("CONCAT_WS('', ").join(flattenConcat(a), ", ", (w, x) -> w.piece(asText(x)))
                     .append(")");
             case CONCAT_JOIN -> writer.append("CONCAT_WS('', ").join(a, ", ", (w, x) -> w.piece(asText(x))).append(")");
+            // the product's join of a row's cells: CONCAT_WS skips a NULL part with its separator (as CONCAT above)
+            // each part is already a text: written as it is (asText would cast it again, round 75's lean note)
+            case CONCAT_WS -> writer.append("CONCAT_WS(").list(a).append(")");
             case LENGTH -> writer.append("CHAR_LENGTH(").piece(asText(a.get(0))).append(")");
             case LEFT, RIGHT -> writer.piece(leftRight(c.fn(), a));
             case LPAD -> pad(writer, "LPAD", a);
