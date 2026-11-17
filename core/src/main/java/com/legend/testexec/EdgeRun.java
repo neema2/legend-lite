@@ -18,4 +18,9 @@ public interface EdgeRun {
     /** The hearing of {@code plan}'s appeals for one run of it, its reports to {@code callers}; the run's execution id
      *  {@code execution}. A plan naming an appeal this run cannot hear is refused by name. */
     EdgeHearing open(TestPlan plan, @Nullable AssertListener callers, java.util.UUID execution);
+
+    /** Whether both judges of an isolated run write the same words, so their messages are compared beside their
+     *  verdicts (census C1, the orchestrator's ruling of 2026-11-17: the run hook decides, never the rules): lite's
+     *  runs do, both judges writing lite's sentences; the edge's words are the host's alone, the verdicts compared. */
+    boolean wordsAlike();
 }

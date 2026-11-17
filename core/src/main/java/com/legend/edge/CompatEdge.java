@@ -148,4 +148,10 @@ public final class CompatEdge implements Edge {
         }
         return found;
     }
+
+    @Override
+    public boolean records() {
+        // the edge's recorder: the referee's ledger, planned at each effect and seed step
+        return true;
+    }
 }

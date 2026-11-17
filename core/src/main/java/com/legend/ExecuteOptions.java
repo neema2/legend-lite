@@ -21,24 +21,25 @@ import com.legend.testplan.PlanningOptions;
  */
 public record ExecuteOptions(PlanningOptions planning, com.legend.executionplan.DataStores stores) {
 
-    /** Options with {@code edge} (the compatibility edge the run is handed, with the referee's raw-SQL ledger; null =
-     *  none: lite's own rules -- an edge implies the compatibility rules, the plan-as-data design's step 8),
+    /** Options with {@code edge} (the compatibility edge the run is handed, with the referee's raw-SQL ledger;
+     *  {@code NoEdge.NONE}: none, lite's own rules -- an edge implies the compatibility rules, the plan-as-data design's step 8),
      *  {@code stores} (where a load's data reference resolves, for planning and for the run alike) and
      *  {@code features}, judged on the host. */
     public ExecuteOptions(
-            com.legend.testexecutionplan.@com.legend.base.Nullable Edge edge,
+            com.legend.testexecutionplan.Edge edge,
             com.legend.executionplan.DataStores stores,
             java.util.Set<com.legend.platform.Feature> features) {
         this(new PlanningOptions(edge, stores, features, PlanningOptions.JudgeMode.HOST,
-                PlanningOptions.rules(edge != null), java.util.Set.of(), com.legend.database.PlanStyle.PRODUCT),
+                PlanningOptions.rules(edge.records()), java.util.Set.of(), com.legend.database.PlanStyle.PRODUCT),
                 stores);
     }
 
-    public static final ExecuteOptions NONE = new ExecuteOptions(null, com.legend.executionplan.DataStores.none(),
+    public static final ExecuteOptions NONE = new ExecuteOptions(com.legend.testexecutionplan.NoEdge.NONE,
+            com.legend.executionplan.DataStores.none(),
             java.util.Set.of());
 
-    /** The compatibility edge the run is handed, or null (lite's own rules). */
-    public com.legend.testexecutionplan.@com.legend.base.Nullable Edge edge() {
+    /** The compatibility edge the run is handed, or the product's {@code NoEdge.NONE} (lite's own rules). */
+    public com.legend.testexecutionplan.Edge edge() {
         return planning.edge();
     }
 
