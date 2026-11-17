@@ -19,6 +19,7 @@ import { type TimeseriesSpec, type TsSeries } from '../src/timeseries-spec.ts';
 import { seriesQuery, TS_DATE, TS_LOWER, TS_UPPER, TS_VALUE, type TsInputs } from '../src/timeseries-query.ts';
 import { lambda } from '../../pure-protocol/src/index.ts';
 import { DATACUBE_LIBRARY } from '../src/pure-library-text.ts';
+import { withLibrary } from '../src/pure-library.ts';
 import { readSeriesTexts } from '../src/timeseries-text.ts';
 import { asTest } from '../../engine-client/test/unplanned.ts';
 
@@ -225,7 +226,11 @@ before(async () => {
   files = db.files;
   const r = await ingestFile(engine, files, new File([CSV], 'prices.csv'), writer);
   planner = plannerFor(r.model, r.runtime);
-  spiked = plannerFor(`${r.model}\n${DATACUBE_LIBRARY}\n${SPIKE}`, r.runtime);
+  // over the library from the start (ModelOptions.overLibrary): the library held once, apart, never added again by a
+  // query that calls it (2026-11-17: the text-query held form, which skipped that step, went with lite API v1's 2b)
+  const spikeModel = `${r.model}\n${SPIKE}`;
+  spiked = planner.withModel(withLibrary(spikeModel, DATACUBE_LIBRARY), r.runtime,
+    { overLibrary: { model: spikeModel, library: DATACUBE_LIBRARY } });
   const snapshot: CubeSnapshot = {
     source: { query: r.source },
     columns: [
