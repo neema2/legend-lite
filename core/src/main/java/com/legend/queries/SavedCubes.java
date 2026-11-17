@@ -80,8 +80,8 @@ public final class SavedCubes {
             @com.legend.base.Nullable String rawQuery, String body, String user,
             java.util.function.Function<SavedQueries.Refusal, String> words) {
         if (store == null) {
-            return new SavedQueries.Answer(500, "{\"code\":-1,\"message\":\"DataCube query store has not been configured"
-                    + " properly (legend-lite: start the server with --query-store DIR)\",\"status\":\"error\"}");
+            return SavedQueries.refused(new SavedQueries.Refusal(SavedQueries.Refusal.Kind.STORE_NOT_CONFIGURED,
+                    java.util.List.of("page"), 500), words);
         }
         try {
             String[] parts = rest.isEmpty() ? new String[0] : rest.substring(1).split("/", -1);
@@ -103,10 +103,10 @@ public final class SavedCubes {
                 default -> notFound(rest, words);
             };
         } catch (SavedQueries.Refusal r) {
-            return new SavedQueries.Answer(r.status, Json.toCompact(Map.of("message", words.apply(r))));
+            return SavedQueries.refused(r, words);
         } catch (java.io.UncheckedIOException | IllegalArgumentException | ClassCastException e) {
-            // the store's disk failing, or a body of another shape: the engine's 500, naming the exception
-            return SavedQueries.failed(e);
+            // the store's disk failing, or a body of another shape: a 500, naming the exception
+            return SavedQueries.failed(e, words);
         }
     }
 
@@ -183,7 +183,7 @@ public final class SavedCubes {
     public synchronized Json.Obj create(Json.Obj query, String user) {
         String id = validate(query);
         if (records.find(id) != null) {
-            throw new SavedQueries.Refusal("Query with ID '" + id + "' already existed", 400);
+            throw new SavedQueries.Refusal(SavedQueries.Refusal.Kind.ID_TAKEN, java.util.List.of(id), 400);
         }
         Json.Node now = Json.num(clock.getAsLong());
         Map<String, Json.Node> stamps = new LinkedHashMap<>();
@@ -199,14 +199,14 @@ public final class SavedCubes {
     /** {@code PUT dataCube/{id}}: only the owner's; its id never changed, its creation kept. */
     public synchronized Json.Obj update(String id, Json.Obj query, String user) {
         if (!id.equals(validate(query))) {
-            throw new SavedQueries.Refusal("Updating query ID is not supported", 400);
+            throw new SavedQueries.Refusal(SavedQueries.Refusal.Kind.ID_CHANGED, java.util.List.of(), 400);
         }
         Json.Obj current = records.find(id);
         if (current == null) {
             throw new SavedQueries.Refusal(SavedQueries.Refusal.Kind.QUERY_NOT_FOUND, java.util.List.of(id), 404);
         }
         if (current.has("owner") && !user.equals(text(current, "owner"))) {
-            throw new SavedQueries.Refusal("Only owner can update the query", 403);
+            throw new SavedQueries.Refusal(SavedQueries.Refusal.Kind.NOT_OWNER, java.util.List.of("update"), 403);
         }
         Json.Node now = Json.num(clock.getAsLong());
         Map<String, Json.Node> stamps = new LinkedHashMap<>();
@@ -228,7 +228,7 @@ public final class SavedCubes {
             throw new SavedQueries.Refusal(SavedQueries.Refusal.Kind.QUERY_NOT_FOUND, java.util.List.of(id), 404);
         }
         if (current.has("owner") && !user.equals(text(current, "owner"))) {
-            throw new SavedQueries.Refusal("Only owner can delete the query", 403);
+            throw new SavedQueries.Refusal(SavedQueries.Refusal.Kind.NOT_OWNER, java.util.List.of("delete"), 403);
         }
         records.remove(id);
     }
@@ -236,13 +236,13 @@ public final class SavedCubes {
     /** The page's id, once its record is one the rules take (the engine's {@code validateQuery}, as far as a page's). */
     private static String validate(Json.Obj q) {
         if (!(q.has("id") && q.get("id") instanceof Json.Str id && !id.value().isEmpty())) {
-            throw new SavedQueries.Refusal("Query ID is missing or empty", 400);
+            throw new SavedQueries.Refusal(SavedQueries.Refusal.Kind.FIELD_MISSING, java.util.List.of("ID", "id"), 400);
         }
         if (!(q.has("name") && q.get("name") instanceof Json.Str n && !n.value().isEmpty())) {
-            throw new SavedQueries.Refusal("Query name is missing or empty", 400);
+            throw new SavedQueries.Refusal(SavedQueries.Refusal.Kind.FIELD_MISSING, java.util.List.of("name", "name"), 400);
         }
         if (!q.has("content") || q.get("content") instanceof Json.Null) {
-            throw new SavedQueries.Refusal("Query content is missing", 400);
+            throw new SavedQueries.Refusal(SavedQueries.Refusal.Kind.FIELD_MISSING, java.util.List.of("content", "pageContent"), 400);
         }
         pageId(id.value());
         // the fields the rules read later, of their kinds (a check, not a cast: see searchShape)
@@ -278,7 +278,7 @@ public final class SavedCubes {
                 throw new IllegalArgumentException("QuerySearchSpecification.searchTermSpecification is not an object");
             }
             if (!(term.has("searchTerm") && term.get("searchTerm") instanceof Json.Str)) {
-                throw new SavedQueries.Refusal("Query search spec expecting a search term", 500);
+                throw new SavedQueries.Refusal(SavedQueries.Refusal.Kind.NO_SEARCH_TERM, java.util.List.of(), 500);
             }
             kind(term, "exactMatchName", "QuerySearchTermSpecification", true);
             kind(term, "includeOwner", "QuerySearchTermSpecification", true);

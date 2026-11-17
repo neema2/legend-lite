@@ -54,7 +54,33 @@ public final class SavedQueries {
             VERSION_NOT_FOUND("the saved query '%2$s' has no version '%1$s'"),
             /** A path the store does not serve: the path under the store, its mount's (B7, the orchestrator's ruling (3)
              *  of 2026-11-17: lite's words for lite's mount; legend-engine's path and words the edge's, StoreWords). */
-            NO_SUCH_ROUTE("no such legend-lite API: /api/lite/v1/queries%1$s");
+            NO_SUCH_ROUTE("no such legend-lite API: /api/lite/v1/queries%1$s"),
+            // J9 of the edge audit (2026-11-17): every refusal a kind with its facts, lite's sentence here,
+            // legend-engine's the edge's (StoreWords); a page's refusals are a query's
+            /** A required field missing or empty: its name in lite's words, its field (the edge's key). */
+            FIELD_MISSING("the %1$s is missing or empty"),
+            /** An execution context of a _type the store does not serve: the _type, the served ones. */
+            UNSERVED_CONTEXT("the execution context of _type '%1$s' is not served (%2$s)"),
+            /** The project group ID is not a Java name. */
+            INVALID_GROUP_ID("the project group ID is invalid"),
+            /** The project artifact ID is not an artifact ID. */
+            INVALID_ARTIFACT_ID("the project artifact ID is invalid"),
+            /** The ID is taken: the ID. */
+            ID_TAKEN("the ID '%1$s' is already taken"),
+            /** An update would change the ID. */
+            ID_CHANGED("the ID cannot be changed"),
+            /** Only the owner may do it: the act (update, delete). */
+            NOT_OWNER("only the owner can %1$s it"),
+            /** A search's limit of 0 or less. */
+            LIMIT_NOT_POSITIVE("the limit must be greater than 0"),
+            /** More IDs asked at once than the store serves: the most it serves. */
+            TOO_MANY("at most %1$s can be fetched at once"),
+            /** A search specification with no search term. */
+            NO_SEARCH_TERM("the search specification has no search term"),
+            /** The store is not configured: which store (query, page). */
+            STORE_NOT_CONFIGURED("the %1$s store is not configured: start the server with --query-store DIR"),
+            /** A request the store could not read, or its disk failing: the exception's class, its message. */
+            MALFORMED("the request could not be served: %2$s");
 
             private final String sentence;
 
@@ -113,17 +139,17 @@ public final class SavedQueries {
             "versionId", "originalVersionId", "executionContext", "content", "taggedValues", "stereotypes",
             "defaultParameterValues", "gridConfig");
 
-    /** The execution contexts served, each with its required fields and the engine's message for one missing. */
+    /** The execution contexts served, each with its required fields and the field's name in lite's words. */
     private static final Map<String, Map<String, String>> CONTEXT_FIELDS = orderedContexts();
 
     private static Map<String, Map<String, String>> orderedContexts() {
         Map<String, String> explicit = new LinkedHashMap<>();
-        explicit.put("mapping", "Query mapping is missing or empty");
-        explicit.put("runtime", "Query runtime is missing or empty");
+        explicit.put("mapping", "execution context's mapping");
+        explicit.put("runtime", "execution context's runtime");
         Map<String, Map<String, String>> out = new LinkedHashMap<>();
         out.put("explicitExecutionContext", java.util.Collections.unmodifiableMap(explicit));
         out.put("dataSpaceExecutionContext",
-                Map.of("dataSpacePath", "Query data Space execution context dataSpace path is missing or empty"));
+                Map.of("dataSpacePath", "execution context's data space path"));
         return java.util.Collections.unmodifiableMap(out);
     }
 
@@ -161,8 +187,7 @@ public final class SavedQueries {
             @com.legend.base.Nullable String rawQuery, String body, String user,
             java.util.function.Function<Refusal, String> words) {
         if (store == null) {
-            return new Answer(500, "{\"code\":-1,\"message\":\"Query store has not been configured properly"
-                    + " (legend-lite: start the server with --query-store DIR)\",\"status\":\"error\"}");
+            return refused(new Refusal(Refusal.Kind.STORE_NOT_CONFIGURED, List.of("query"), 500), words);
         }
         try {
             String[] parts = rest.isEmpty() ? new String[0] : rest.substring(1).split("/", -1);
@@ -187,35 +212,38 @@ public final class SavedQueries {
                 default -> notFound(rest, words);
             };
         } catch (Refusal r) {
-            return new Answer(r.status, Json.toCompact(Map.of("message", words.apply(r))));
+            return refused(r, words);
         } catch (java.io.UncheckedIOException | IllegalArgumentException | ClassCastException e) {
             // the store's disk failing, or a body that is not the JSON the engine takes (a bad
-            // integer, a field of the wrong kind): the engine's 500, naming the exception
-            return failed(e);
+            // integer, a field of the wrong kind): a 500, naming the exception
+            return failed(e, words);
         }
     }
 
-    /** The engine's 500 for an exception, naming it: {@code {"code", "message", "status"}}, in that order. */
-    static Answer failed(RuntimeException e) {
+    /** A refusal answered: its status, and {@code {"kind", "message"}} -- its kind as data (lower case; {@code refused}
+     *  where it names none) and its words its mount's ({@code words}: lite's on lite's route; the edge's mount at
+     *  legend-engine's path rewrites the shape too, edge.StoreWords). J9 of the edge audit, 2026-11-17: the engine's
+     *  envelope ({@code code}, {@code status}) is the edge's alone. */
+    static Answer refused(Refusal r, java.util.function.Function<Refusal, String> words) {
         Map<String, Object> out = new LinkedHashMap<>();
-        out.put("code", -1);
-        out.put("message", e.getClass().getSimpleName() + ": " + e.getMessage());
-        out.put("status", "error");
-        return new Answer(500, Json.toCompact(out));
+        out.put("kind", r.kind() == null ? "refused" : r.kind().name().toLowerCase(java.util.Locale.ROOT));
+        out.put("message", words.apply(r));
+        return new Answer(r.status, Json.toCompact(out));
+    }
+
+    /** A 500 for an exception: {@link Refusal.Kind#MALFORMED}, naming it. */
+    static Answer failed(RuntimeException e, java.util.function.Function<Refusal, String> words) {
+        return refused(new Refusal(Refusal.Kind.MALFORMED, List.of(e.getClass().getSimpleName(),
+                String.valueOf(e.getMessage())), 500), words);
     }
 
     private static Answer ok(String json) {
         return new Answer(200, json);
     }
 
-    /** A path the store does not serve ({@code rest}, under the store), worded by its mount's {@code words}, in the
-     *  error shape: {@code {"code", "message", "status"}}. */
+    /** A path the store does not serve ({@code rest}, under the store), worded by its mount's {@code words}. */
     static Answer notFound(String rest, java.util.function.Function<Refusal, String> words) {
-        Map<String, Object> out = new LinkedHashMap<>();
-        out.put("code", -1);
-        out.put("message", words.apply(new Refusal(Refusal.Kind.NO_SUCH_ROUTE, List.of(rest), 404)));
-        out.put("status", "error");
-        return new Answer(404, Json.toCompact(out));
+        return refused(new Refusal(Refusal.Kind.NO_SUCH_ROUTE, List.of(rest), 404), words);
     }
 
     private static List<String> queryParams(@com.legend.base.Nullable String rawQuery, String name) {
@@ -258,7 +286,7 @@ public final class SavedQueries {
         }
         Integer limit = spec.has("limit") && !(spec.get("limit") instanceof Json.Null) ? spec.getInt("limit") : null;
         if (limit != null && limit <= 0) {
-            throw new Refusal("Limit should be greater than 0", 400);
+            throw new Refusal(Refusal.Kind.LIMIT_NOT_POSITIVE, List.of(), 400);
         }
         int max = Math.min(MAX_NUMBER_OF_QUERIES, limit == null ? Integer.MAX_VALUE : limit);
         List<Json.Obj> limited = new ArrayList<>(matches.subList(0, Math.min(max, matches.size())));
@@ -274,7 +302,7 @@ public final class SavedQueries {
     /** {@code GET query/batch?queryIds=...}. */
     public synchronized String batch(List<String> queryIds) {
         if (queryIds.size() > GET_QUERIES_LIMIT) {
-            throw new Refusal("Can't fetch more than " + GET_QUERIES_LIMIT + " queries", 400);
+            throw new Refusal(Refusal.Kind.TOO_MANY, List.of(Integer.toString(GET_QUERIES_LIMIT)), 400);
         }
         List<Object> out = new ArrayList<>();
         TreeSet<String> notFound = new TreeSet<>();
@@ -339,7 +367,7 @@ public final class SavedQueries {
         String id = query.getString("id");
         List<Json.Obj> versions = versions(id);
         if (current(versions) != null) {
-            throw new Refusal("Query with ID '" + id + "' already existed", 400);
+            throw new Refusal(Refusal.Kind.ID_TAKEN, List.of(id), 400);
         }
         long now = clock.getAsLong();
         Map<String, Json.Node> fields = clientFields(query);
@@ -360,7 +388,7 @@ public final class SavedQueries {
         queryShape(query);
         validate(query);
         if (!id.equals(query.getString("id"))) {
-            throw new Refusal("Updating query ID is not supported", 400);
+            throw new Refusal(Refusal.Kind.ID_CHANGED, List.of(), 400);
         }
         return Json.toCompact(view(newVersion(id, clientFields(query), currentUser), List.of()));
     }
@@ -388,7 +416,7 @@ public final class SavedQueries {
             throw new Refusal(Refusal.Kind.QUERY_NOT_FOUND, List.of(id), 404);
         }
         if (!(q.get("owner") instanceof Json.Null) && !currentUser.equals(q.getString("owner"))) {
-            throw new Refusal("Only owner can delete the query", 403);
+            throw new Refusal(Refusal.Kind.NOT_OWNER, List.of("delete"), 403);
         }
         long now = clock.getAsLong();
         Json.Obj deleted = with(with(q, "deletedAt", Json.num(now)), "validUntil", Json.num(now));
@@ -405,7 +433,7 @@ public final class SavedQueries {
             throw new Refusal(Refusal.Kind.QUERY_NOT_FOUND, List.of(id), 404);
         }
         if (!(prior.get("owner") instanceof Json.Null) && !currentUser.equals(prior.getString("owner"))) {
-            throw new Refusal("Only owner can update the query", 403);
+            throw new Refusal(Refusal.Kind.NOT_OWNER, List.of("update"), 403);
         }
         long now = clock.getAsLong();
         versions.set(versions.indexOf(prior), with(prior, "validUntil", Json.num(now)));
@@ -422,34 +450,36 @@ public final class SavedQueries {
 
     /** The engine's {@code validateQuery}. */
     private static void validate(Json.Obj q) {
-        nonEmpty(q, "id", "Query ID is missing or empty");
-        nonEmpty(q, "name", "Query name is missing or empty");
-        nonEmpty(q, "groupId", "Query project group ID is missing or empty");
-        nonEmpty(q, "artifactId", "Query project artifact ID is missing or empty");
-        nonEmpty(q, "versionId", "Query project version is missing or empty");
+        nonEmpty(q, "id", "ID");
+        nonEmpty(q, "name", "name");
+        nonEmpty(q, "groupId", "project group ID");
+        nonEmpty(q, "artifactId", "project artifact ID");
+        nonEmpty(q, "versionId", "project version");
         Json.Node ctx = q.has("executionContext") ? q.get("executionContext") : Json.nil();
         if (ctx instanceof Json.Obj c) {
             String ctxType = String.valueOf(stringOr(c, "_type"));
             Map<String, String> required = CONTEXT_FIELDS.get(ctxType);
             if (required == null) {
-                throw new Refusal("Query execution context of _type '" + ctxType
-                        + "' is not served by legend-lite (" + String.join(", ", CONTEXT_FIELDS.keySet()) + ")", 400);
+                throw new Refusal(Refusal.Kind.UNSERVED_CONTEXT, List.of(ctxType,
+                        String.join(", ", CONTEXT_FIELDS.keySet())), 400);
             }
             required.forEach((field, message) -> nonEmpty(c, field, message));
         }
-        nonEmpty(q, "content", "Query content is missing or empty");
+        nonEmpty(q, "content", "content");
         if (!JAVA_NAME.matcher(q.getString("groupId")).matches()) {
-            throw new Refusal("Query project group ID is invalid", 400);
+            throw new Refusal(Refusal.Kind.INVALID_GROUP_ID, List.of(), 400);
         }
         if (!VALID_ARTIFACT_ID.matcher(q.getString("artifactId")).matches()) {
-            throw new Refusal("Query project artifact ID is invalid", 400);
+            throw new Refusal(Refusal.Kind.INVALID_ARTIFACT_ID, List.of(), 400);
         }
     }
 
-    private static void nonEmpty(Json.Obj o, String field, String message) {
+    /** {@code field} of {@code o} refused where it is missing or empty: {@link Refusal.Kind#FIELD_MISSING}, its name
+     *  in lite's words ({@code name}) and the field (the edge's key to legend-engine's sentence). */
+    private static void nonEmpty(Json.Obj o, String field, String name) {
         String v = stringOr(o, field);
         if (v == null || v.isEmpty()) {
-            throw new Refusal(message, 400);
+            throw new Refusal(Refusal.Kind.FIELD_MISSING, List.of(name, field), 400);
         }
     }
 
@@ -457,7 +487,7 @@ public final class SavedQueries {
         if (spec.has("searchTermSpecification") && spec.get("searchTermSpecification") instanceof Json.Obj term) {
             String searchTerm = stringOr(term, "searchTerm");
             if (searchTerm == null) {
-                throw new Refusal("Query search spec expecting a search term", 500);
+                throw new Refusal(Refusal.Kind.NO_SEARCH_TERM, List.of(), 500);
             }
             boolean includeOwner = term.getBoolOr("includeOwner", false);
             String owner = stringOr(q, "owner");
