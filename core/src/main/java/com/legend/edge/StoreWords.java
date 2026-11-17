@@ -75,4 +75,29 @@ public final class StoreWords {
         }
         return words;
     }
+
+    /** The kinds legend-engine answers in its error envelope ({@code {"code":-1,"message",...,"status":"error"}}): a
+     *  store not configured, a path it does not serve, an exception's 500; every other refusal is {@code {"message"}}
+     *  alone. */
+    private static final java.util.Set<String> ENVELOPED = java.util.Set.of(
+            "store_not_configured", "no_such_route", "malformed");
+
+    /** The product store's answer ({@code {"kind", "message"}}, the message already worded by {@link #of}) in
+     *  legend-engine's shape, byte for byte: an enveloped kind's {@code {"code":-1,"message",...,"status":"error"}},
+     *  any other refusal's {@code {"message"}}; a success as it is. Every edge mount of the stores answers through it
+     *  (the server's, EdgeServer; the native library's, SavedQueriesHome). J9 of the edge audit, 2026-11-17: the
+     *  envelope moved here from the product's store. */
+    public static String engineShape(int status, String json) {
+        return SavedQueries.reshaped(status, json, (kind, message) -> {
+            java.util.Map<String, Object> out = new java.util.LinkedHashMap<>();
+            if (ENVELOPED.contains(kind)) {
+                out.put("code", -1);
+                out.put("message", message);
+                out.put("status", "error");
+            } else {
+                out.put("message", message);
+            }
+            return out;
+        });
+    }
 }
