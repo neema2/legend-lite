@@ -243,10 +243,11 @@ public final class RaisedErrors {
                 : com.legend.error.ErrorKind.DATABASE_ERROR, un.getSQLState(), own, own, un);
     }
 
-    /** Whether {@code e} is a connection's failure: the SQLSTATE class 08 (connection exception) the standard names. */
+    /** Whether {@code e} is a connection's failure: JDBC's own types of the SQLSTATE class 08 (connection exception),
+     *  which the driver chooses -- exec reads the type, never the text. */
     private static boolean lost(java.sql.SQLException e) {
-        String state = e.getSQLState();
-        return state != null && state.startsWith("08");
+        return e instanceof java.sql.SQLNonTransientConnectionException
+                || e instanceof java.sql.SQLTransientConnectionException;
     }
 
     /** A session's open or close that failed (phase D's Phase 2, item 4, 2026-11-16): {@code CONNECTION_ERROR}, the

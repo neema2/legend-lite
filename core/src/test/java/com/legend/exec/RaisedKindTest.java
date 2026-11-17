@@ -91,7 +91,7 @@ class RaisedKindTest {
         assertEquals("Conversion Error: no such cast", own.getMessage());
         assertEquals("Conversion Error: no such cast", own.databaseMessage());
         assertEquals("22018", own.sqlState());
-        var lost = RaisedErrors.dataErrorOf(new java.sql.SQLException("connection reset", "08006"));
+        var lost = RaisedErrors.dataErrorOf(new java.sql.SQLNonTransientConnectionException("connection reset", "08006"));
         assertEquals(ErrorKind.CONNECTION_ERROR, lost.kind());
         var unopened = RaisedErrors.connectionError(new java.sql.SQLException("no such database", "XX000"));
         assertEquals(ErrorKind.CONNECTION_ERROR, unopened.kind());
