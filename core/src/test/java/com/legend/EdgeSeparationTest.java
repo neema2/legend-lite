@@ -101,7 +101,14 @@ class EdgeSeparationTest {
             // lowering.Repr -> (stands in a product package), lowering.Scalars -> lowering.Repr: gone 2026-11-17 with
             // Repr, census B12's 2b
             Map.entry("com.legend.sql.dialect.DateTimePrintText -> (stands in a product package)",
-                    "B12 2026-11-17 (the edge's DATETIME_PRINT composition; no product emitter since B12 2b)"));
+                    "B12 2026-11-17 (the edge's DATETIME_PRINT composition; no product emitter since B12 2b)"),
+            // K10a, 2026-11-17 (the orchestrator's ruling): exec says a raise site's message alone; legend-pure's words of
+            // a site still ride the product plan (written by the dialect, carried by the planner, the load steps and the
+            // plan's JSON), unread by exec, until K10b moves them to the test plan's edge data
+            Map.entry("com.legend.executionplan.PlanJson -> ExecutionPlan.Site.upstream", "K10b 2026-11-17"),
+            Map.entry("com.legend.planner.PlanMaker -> RaiseSite.upstream", "K10b 2026-11-17"),
+            Map.entry("com.legend.setup.LoadSteps -> RaiseSite.upstream", "K10b 2026-11-17"),
+            Map.entry("com.legend.sql.dialect.AnsiSqlRenderer -> RaiseSite.upstream", "K10b 2026-11-17"));
 
     /** TEST SIDE: the same. */
     static final Map<String, String> TEST_OPEN = Map.ofEntries(
@@ -322,7 +329,7 @@ class EdgeSeparationTest {
      *  B15, B16, C6, C7). Each must hold at least one entry in the count ({@link #everyOpenLineIsCounted}), so an empty
      *  count cannot read DONE with a line left. A line closes by leaving this set with its last entry. */
     static final Set<String> OPEN_LINES = Set.of(
-            "B12", "C1", "C5");
+            "B12", "C1", "C5", "K10b");
 
     private static Set<String> linesOf(Map<String, String> m) {
         Set<String> out = new TreeSet<>();
