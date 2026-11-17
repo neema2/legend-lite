@@ -205,6 +205,16 @@ const NOT_ASKED: Readonly<Record<Exclude<RequestKind, 'hold' | 'release' | 'pure
   projectData: "a project's Data rows are held by Python itself (C5)",
   hostOperations: "a host's operations are the tab's own database's",
   warm: "warming the planner is the tab's",
+  // lite's own grammar, typing, compile and routes (the edge audit's H2 and H3, 2026-11-17): asked of a Python host on
+  // its lite routes once they exist (H2's page half, landing with them); until then this page asks pure/v1's
+  modelElements: "a model's elements are asked of a Python host on its lite route, once it has one (H2)",
+  parseLambda: "a lambda's text is parsed by a Python host on its lite route, once it has one (H2)",
+  printLambda: "a lambda is printed by a Python host on its lite route, once it has one (H2)",
+  lambdaRelationType: "a lambda is typed by a Python host on its lite route, once it has one (H2)",
+  compileErrors: "a model's compile is Studio's and Query's, in their tab",
+  modelAction: "a model's action is asked of a Python host on its lite route with H2's page half",
+  tsItem: "a #TS item is read by a Python host on its lite route with H2's page half",
+  jsonToTs: "a #TS statement is shown by a Python host on its lite route with H2's page half",
 };
 
 /**
