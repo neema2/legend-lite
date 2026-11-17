@@ -37,6 +37,27 @@ final class PurePrintForms extends com.legend.sql.SqlRewriter {
         return java.util.List.of(new PurePrintForms(floatLiteral), new TdsNullCells());
     }
 
+    /** The edge's first passes where the product writes a Float literal as the double (register S20, built
+     *  2026-11-17, Phase 5b) and legend-engine writes it bare, its default literal processor: {@link #passes}, then
+     *  {@link EngineFloatLiterals}. The edge program's §6 row 21 (the orchestrator's ruling R2, 2026-11-17): a Float
+     *  literal's typing inside a query is a computation, kind B, the edge lowering variant -- the edge computes as
+     *  legend-engine does, DECIMAL where it writes bare. */
+    static java.util.List<com.legend.sql.SqlRewriter> enginePasses(FloatLiteral floatLiteral) {
+        return java.util.List.of(new PurePrintForms(floatLiteral), new EngineFloatLiterals(), new TdsNullCells());
+    }
+
+    /** Every Float literal no {@code toString} took ({@link #floatOf} writes those, first), as legend-engine writes it:
+     *  legend-pure's print, a {@link SqlExpr.DecimalLit} -- a node, not a spelling, so the fact the envelope reads is
+     *  the decimal the database computes with (2026-11-17: the literal's TEXT alone, under a DOUBLE fact, dropped an
+     *  average's DOUBLE cast at the edge, four corpus groupBys' referee rows). Not finite: as the product writes it. */
+    private static final class EngineFloatLiterals extends com.legend.sql.SqlRewriter {
+        @Override
+        protected SqlExpr expr(SqlExpr e) {
+            return e instanceof SqlExpr.FloatLit f && engineFloat(f.value()) instanceof String print
+                    ? new SqlExpr.DecimalLit(new java.math.BigDecimal(print)) : e;
+        }
+    }
+
     /** The edge's pass after {@link PurePrintForms}: a {@link SqlFn#CELL_TEXT} no join read (a TDS cell's
      *  {@code toString}), legend-engine's {@code TDSNull} where the cell is empty (D1.3, 2026-11-15: until then the
      *  compiler's desugar wrote {@code if(isEmpty(cell), 'TDSNull', toString(cell))}, which this answers alike). */
@@ -96,9 +117,7 @@ final class PurePrintForms extends com.legend.sql.SqlRewriter {
     /** A finite Float literal's text in legend-engine's SQL under its default literal processor ({@code
      *  extensionDefaults.pure:134}: format {@code %s}, legend-pure's {@code toString}): legend-pure's compiled print of the
      *  double, bare ({@link com.legend.result.CellText#carriedFloat}; zero {@code 0.0} for either sign, as
-     *  {@code CompiledSupport.primitiveToString} writes it); null where it is not finite. The edge's dialects write a Float
-     *  literal so where the product writes the double (register S20, Phase 5b, 2026-11-17); a {@code toString}'s operand on
-     *  H2 is cast to its FLOAT by {@link FloatLiteral#PRINT_AS_FLOAT} above it. */
+     *  {@code CompiledSupport.primitiveToString} writes it); null where it is not finite ({@link EngineFloatLiterals}). */
     static @com.legend.base.Nullable String engineFloat(double v) {
         if (!Double.isFinite(v)) {
             return null;

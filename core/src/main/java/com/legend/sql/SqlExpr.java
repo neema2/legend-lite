@@ -658,11 +658,13 @@ public sealed interface SqlExpr
     record FloatLit(double value, TypeFact type)
             implements SqlExpr {
         public FloatLit {
-            // a Float literal is the double (register S20, the user's ruling
-            // of 2026-11-05, built 2026-11-17: Phase 5b): the dialects write
-            // it in their DOUBLE form, so the fact is a DOUBLE (until then
-            // the numeric charter's Rule 1, a DECIMAL of its digits)
-            type = SqlTyping.T_DOUBLE;
+            // NUMERIC CHARTER Rule 1: the DECIMAL of the digits' own precision
+            // (DuckDB `19.75` is DECIMAL(4,2); H2 NUMERIC) -- what the edge
+            // writes (legend-engine's bare literal) and the lowering decides
+            // its envelope by. The product writes the double (register S20,
+            // built 2026-11-17, Phase 5b), under which the envelope's DOUBLE
+            // cast is a no-op: the lowering knows no database to say which.
+            type = SqlTyping.decimalLitType(BigDecimal.valueOf(value));
         }
 
         public FloatLit(double value) {
