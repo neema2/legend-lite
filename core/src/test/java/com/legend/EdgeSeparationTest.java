@@ -64,7 +64,7 @@ class EdgeSeparationTest {
 
     /** The SqlFn members only the edge spells (census B8). */
     static final Set<String> EDGE_ONLY_SQLFN = Set.of("FLOAT_PRINT", "DATETIME_PRINT", "INSTANCE_TEXT",
-            "RELATION_TEXT", "REPRESENTATION_TEXT", "TEXT_FORMS", "TRACE_TEXT");
+            "RELATION_TEXT", "TEXT_FORMS", "TRACE_TEXT");
 
     /** The referee and the appeals (census C2; G6: the edge's alone). */
     static final Set<String> REFEREE = Set.of("com.legend.testexec.SqlReplayReferee", "com.legend.testexec.Appeals",
@@ -87,7 +87,6 @@ class EdgeSeparationTest {
             Map.entry("com.legend.lowering.Lowerer -> SqlFn.TRACE_TEXT", "B8 2026-11-17"),
             Map.entry("com.legend.lowering.Repr -> (stands in a product package)", "B12 2026-11-17"),
             Map.entry("com.legend.lowering.Repr -> SqlFn.FLOAT_PRINT", "C5 2026-11-17"),
-            Map.entry("com.legend.lowering.Repr -> SqlFn.REPRESENTATION_TEXT", "B12 2026-11-17"),
             Map.entry("com.legend.lowering.Scalars -> SqlFn.DATETIME_PRINT", "B8 2026-11-17"),
             Map.entry("com.legend.lowering.Scalars -> SqlFn.INSTANCE_TEXT", "B8 2026-11-17"),
             Map.entry("com.legend.lowering.Scalars -> SqlFn.TEXT_FORMS", "B8 2026-11-17"),
