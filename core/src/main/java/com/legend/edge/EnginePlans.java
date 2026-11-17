@@ -244,7 +244,7 @@ public final class EnginePlans {
         @Override
         public String generatedTestDataPlan(com.legend.compiler.spec.typed.TypedTestDataGen tg,
                 com.legend.compiler.element.ModelContext ctx) {
-            return com.legend.testdatagen.TestDataGenerationNatives.planTextResult(tg, ctx,
+            return TestDataPlanText.planTextResult(tg, ctx,
                     PureText.engineText(EngineText.ENGINE_TEST_DATABASE),
                     "TestDatabaseConnection(type = \"" + EngineText.ENGINE_TEST_DATABASE.name() + "\")");
         }

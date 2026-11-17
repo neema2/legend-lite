@@ -1803,6 +1803,10 @@ class JavaEvalLedgerTest {
                             // for a plan's PureExp lines, moved from com.legend.plan (Phase 6's C, 2026-11-17): spell
                             // the plan's text, decide nothing
                             "InProtocol.java", "PurePrint.java",
+                            // legend-engine's planTestDataGeneration plan text over the generator's fetches (Phase 6's
+                            // B13, 2026-11-17, moved from testdatagen's printer): spells the generator's data, decides
+                            // nothing
+                            "TestDataPlanText.java",
                             // the referee's load of a fixture's rows, planned (the edge's appeals, G6)
                             "RefereeLoad.java",
                             // legend-engine's service tests (D1.4, 2026-11-15, moved from com.legend.test and
