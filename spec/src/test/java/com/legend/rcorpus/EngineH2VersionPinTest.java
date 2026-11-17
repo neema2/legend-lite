@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.legend.rcorpus;
 
-import com.legend.sql.dialect.RawSqlBoundary;
+import com.legend.edge.RawSqlBoundary;
 import org.junit.jupiter.api.Test;
 
 import java.nio.file.Files;

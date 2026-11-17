@@ -32,12 +32,12 @@ import com.legend.lineage.ScanColumns;
 import com.legend.lineage.ScanRelations;
 import com.legend.lowering.SqlPostProcessors;
 import com.legend.model.ConnectionDefinition;
+import com.legend.plan.EnumMappings;
 import com.legend.plan.LazyRows;
 import com.legend.plan.PlanNode;
 import com.legend.plan.PlanRows;
 import com.legend.plan.PlanSupportFunctions;
 import com.legend.plan.PlanText;
-import com.legend.plan.PurePrint;
 import com.legend.protocol.spec.AppliedFunction;
 import com.legend.protocol.spec.AppliedProperty;
 import com.legend.protocol.spec.CString;
@@ -94,7 +94,7 @@ public final class PlanAllocations {
                 }
                 String fn = PlanText.enumMapFnOf(
                         env.ctx(), pmr.fullPath(), et.fqn());
-                var em = PlanText.enumMappingOf(
+                var em = EnumMappings.of(
                         env.ctx(), pmr.fullPath(), et.fqn());
                 if (fn != null && em != null && seenFns.add(fn)) {
                     supportFns.add(PlanSupportFunctions

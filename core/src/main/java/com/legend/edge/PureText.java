@@ -36,16 +36,7 @@ public final class PureText {
             return PureText.dialect(type);
         }
 
-        @Override
-        public com.legend.sql.dialect.EngineTextDialect engineText(DatabaseType type) {
-            return PureText.engineText(type);
-        }
 
-        @Override
-        public com.legend.sql.dialect.EngineTextDialect enginePlanText(DatabaseType type, boolean quoteIdentifiers,
-                @com.legend.base.Nullable String timeZone) {
-            return PureText.enginePlanText(type, quoteIdentifiers, timeZone);
-        }
 
         /** The closed list's kinds ({@code testplan.PlanStyleFacets.KINDS}), each the edge's own; any other by name. */
         @Override
@@ -79,6 +70,9 @@ public final class PureText {
             if (kind == com.legend.lowering.PureOnlyTexts.class) {
                 return kind.cast(EdgePureOnlyTexts.INSTANCE);
             }
+            if (kind == com.legend.lowering.ResultEnvelopes.class) {
+                return kind.cast(EngineResultEnvelopes.INSTANCE);
+            }
             throw new com.legend.error.NotImplementedException("the test-planning facet " + kind.getName()
                     + " is none of the declared kinds (com.legend.testplan.PlanStyleFacets.KINDS)");
         }
@@ -89,22 +83,7 @@ public final class PureText {
             return facet(kind);
         }
 
-        @Override
-        public com.legend.sql.dialect.EngineTextDialect engineTestText() {
-            return PureText.engineText(ENGINE_TEST_DATABASE);
-        }
 
-        @Override
-        public com.legend.sql.dialect.EngineTextDialect engineTestPlanText() {
-            return PureText.enginePlanText(ENGINE_TEST_DATABASE, false, null);
-        }
-
-        /** The connection legend-engine's test plans name: its test database's. */
-        @Override
-        public String engineTestConnection() {
-            return "TestDatabaseConnection(type = \"" + ENGINE_TEST_DATABASE.name()
-                    + "\")";
-        }
 
         /** legend-engine's key argument: the date's written text, {@code +0000} after a time (D1.2). */
         @Override
@@ -123,12 +102,19 @@ public final class PureText {
         public String activitySql(Activity activity) {
             return activity.engines();
         }
+
+        /** legend-engine's trace comment around the execution's id (its executor's, RelationalExecutor.java:332; D1.4,
+         *  2026-11-15; from the edge's spelling pass to the style, B8 (ii), 2026-11-17). */
+        @Override
+        public TraceCell traceCell() {
+            return new TraceCell("-- \"executionTraceID\" : \"", "\"");
+        }
     };
 
     /** legend-engine's exact SQL text for {@code type}, as {@code toSQLString} prints it: Composite takes the engine's
      *  DEFAULT spellings (native trim/pad/cbrt, plain char_length). A fresh printer per use: a dialect keeps state while
      *  it writes a statement (moved here from the planner's {@code EngineText}, phase D, 2026-11-12). */
-    public static com.legend.sql.dialect.EngineTextDialect engineText(DatabaseType type) {
+    public static EngineTextDialect engineText(DatabaseType type) {
         return switch (type) {
             case H2 -> new EngineStyleH2();
             case DB2 -> new EngineStyleDB2();
@@ -142,7 +128,7 @@ public final class PureText {
 
     /** legend-engine's exact PLAN text for {@code type}: the plan goldens pin Composite to the DB2-family spelling
      *  (paren-wrapped conjunctions, quoted boolean placeholders) — unlike {@link #engineText}. */
-    public static com.legend.sql.dialect.EngineTextDialect enginePlanText(DatabaseType type, boolean quoteIdentifiers,
+    public static EngineTextDialect enginePlanText(DatabaseType type, boolean quoteIdentifiers,
             @com.legend.base.Nullable String timeZone) {
         return switch (type) {
             case H2 -> new EngineStyleH2(quoteIdentifiers, timeZone);
@@ -177,6 +163,23 @@ public final class PureText {
 
     /** DuckDB, spelled as upstream spells it. */
     public static final class DuckDb extends com.legend.sql.dialect.DuckDb {
+        /** A Float literal computes as legend-engine's: its bare print, a DECIMAL (the edge program's §6 row 21, the
+         *  orchestrator's ruling R2 of 2026-11-17; the product's is the double, register S20). */
+        @Override
+        public com.legend.sql.SqlExpr.FloatLit.Kind floatLiteralKind() {
+            return com.legend.sql.SqlExpr.FloatLit.Kind.DECIMAL;
+        }
+
+        /** legend-engine's H2 text (its connection declares {@link RawSqlBoundary#ENGINE_TEXT}, as legend-engine's test
+         *  corpus's executeInDb calls do) translated for DuckDB ({@link RawSqlBoundary#translated}: keyword column names
+         *  quoted, H2's type kinds mapped, {@code CURRENT_TIMESTAMP()} without parens); the product runs a raw statement
+         *  as written (Phase 6's B4 (ii), 2026-11-17). */
+        @Override
+        public String raw(String statement, @com.legend.base.Nullable String writtenFor) {
+            return RawSqlBoundary.ENGINE_TEXT.equals(writtenFor)
+                    ? RawSqlBoundary.translated(statement, types -> types, bare -> bare) : statement;
+        }
+
         /** legend-engine's scan order made explicit for its corpus's replay (StableScanOrder, behind the corpus lanes'
          *  {@code legend.exec.engineScanOrder}; moved here from the product's dialect, W6, 2026-11-16). */
         @Override
@@ -210,6 +213,13 @@ public final class PureText {
 
     /** H2, spelled as upstream spells it. */
     public static final class H2 extends com.legend.sql.dialect.H2 {
+        /** A Float literal computes as legend-engine's: its bare print, a DECIMAL (the edge program's §6 row 21, the
+         *  orchestrator's ruling R2 of 2026-11-17; the product's is the double, register S20). */
+        @Override
+        public com.legend.sql.SqlExpr.FloatLit.Kind floatLiteralKind() {
+            return com.legend.sql.SqlExpr.FloatLit.Kind.DECIMAL;
+        }
+
         /** legend-pure's print forms (a Float's, a DateTime's) for the product's text of each ({@link PurePrintForms}; D1.2). */
         @Override
         protected java.util.List<com.legend.sql.SqlRewriter> spellingPasses() {
@@ -235,6 +245,27 @@ public final class PureText {
 
     /** Postgres, spelled as upstream spells it. */
     public static final class Postgres extends com.legend.sql.dialect.Postgres {
+        /** A Float literal computes as legend-engine's: its bare print, a DECIMAL (the edge program's §6 row 21, the
+         *  orchestrator's ruling R2 of 2026-11-17; the product's is the double, register S20). */
+        @Override
+        public com.legend.sql.SqlExpr.FloatLit.Kind floatLiteralKind() {
+            return com.legend.sql.SqlExpr.FloatLit.Kind.DECIMAL;
+        }
+
+        /** legend-engine's H2 text translated in the flavor DuckDB shares, its column types Postgres's (2026-10-12,
+         *  docs/CLOUD_BACKENDS_PCT_2026_10_11.md §20: the 8-byte double is DOUBLE PRECISION, and SMALLINT is the
+         *  smallest integer, there is no TINYINT) and a bare column name in lower case, as Postgres folds a bare name
+         *  and spells a store's (decision D8); the product runs a raw statement as written (Phase 6's B4 (ii)). */
+        @Override
+        public String raw(String statement, @com.legend.base.Nullable String writtenFor) {
+            return RawSqlBoundary.ENGINE_TEXT.equals(writtenFor)
+                    ? RawSqlBoundary.translated(statement,
+                            types -> types.replaceAll("(?i)\\bDOUBLE\\b(?!\\s+PRECISION)", "DOUBLE PRECISION")
+                                    .replaceAll("(?i)\\bTINYINT\\b", "SMALLINT"),
+                            bare -> bare.toLowerCase(java.util.Locale.ROOT))
+                    : statement;
+        }
+
         /** legend-pure's print forms (a Float's, a DateTime's) for the product's text of each ({@link PurePrintForms}; D1.2). */
         @Override
         protected java.util.List<com.legend.sql.SqlRewriter> spellingPasses() {
@@ -260,6 +291,13 @@ public final class PureText {
 
     /** Databricks, spelled as upstream spells it. */
     public static final class Databricks extends com.legend.sql.dialect.Databricks {
+        /** A Float literal computes as legend-engine's: its bare print, a DECIMAL (the edge program's §6 row 21, the
+         *  orchestrator's ruling R2 of 2026-11-17; the product's is the double, register S20). */
+        @Override
+        public com.legend.sql.SqlExpr.FloatLit.Kind floatLiteralKind() {
+            return com.legend.sql.SqlExpr.FloatLit.Kind.DECIMAL;
+        }
+
         /** legend-pure's print forms (a Float's, a DateTime's) for the product's text of each ({@link PurePrintForms}; D1.2). */
         @Override
         protected java.util.List<com.legend.sql.SqlRewriter> spellingPasses() {
@@ -335,6 +373,14 @@ public final class PureText {
 
     /** SQLite, spelled as upstream spells it. */
     public static final class SQLite extends com.legend.sql.dialect.SQLite {
+        /** A Decimal's arithmetic as REAL arithmetic, as legend-engine would write it here, where the product refuses it by
+         *  name (no exact decimal: the edge program's §6 row 22, the orchestrator's ruling (c) of 2026-11-17, under the
+         *  user's 5b approval and the standing no-silent-approximation rule). */
+        @Override
+        protected boolean refusesDecimalArithmetic() {
+            return false;
+        }
+
         /** legend-pure's print forms (a Float's, a DateTime's) for the product's text of each ({@link PurePrintForms}; D1.2). */
         @Override
         protected java.util.List<com.legend.sql.SqlRewriter> spellingPasses() {
@@ -410,6 +456,13 @@ public final class PureText {
 
     /** Trino, spelled as upstream spells it. */
     public static final class Trino extends com.legend.sql.dialect.Trino {
+        /** A Float literal computes as legend-engine's: its bare print, a DECIMAL (the edge program's §6 row 21, the
+         *  orchestrator's ruling R2 of 2026-11-17; the product's is the double, register S20). */
+        @Override
+        public com.legend.sql.SqlExpr.FloatLit.Kind floatLiteralKind() {
+            return com.legend.sql.SqlExpr.FloatLit.Kind.DECIMAL;
+        }
+
         /** legend-pure's print forms (a Float's, a DateTime's) for the product's text of each ({@link PurePrintForms}; D1.2). */
         @Override
         protected java.util.List<com.legend.sql.SqlRewriter> spellingPasses() {

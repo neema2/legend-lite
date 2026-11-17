@@ -56,6 +56,7 @@ Database types planned with it: H2.
 | `GREATEST` | spelled | `greatest` |  | 52 |
 | `LEAST` | spelled | `least` |  | 8 |
 | `CONCAT_JOIN` | spelled | `concat` |  | 0 |
+| `CONCAT_WS` | spelled | `concat_ws` |  | 0 |
 | `LIST_FILTER` | refused | `reached a dialect without a list encoding` | `via AnsiSqlRenderer.listCall` | 23 |
 | `LIST_TRANSFORM` | refused | `reached a dialect without a list encoding` | `via AnsiSqlRenderer.listCall` | 31 |
 | `LIST_CONCAT` | refused | `reached a dialect without a list encoding` | `via AnsiSqlRenderer.listCall` | 2 |
@@ -209,12 +210,9 @@ Database types planned with it: H2.
 | `DATETIME_TO_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `DATETIME_PRINT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `CELL_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
-| `FORMAT_PADDED` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `INSTANCE_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `RELATION_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
-| `REPRESENTATION_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `TEXT_FORMS` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
-| `TRACE_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `VARIANT_ELEMENTS` | refused | `variant navigation reached a dialect without JSON support` | `via AnsiSqlRenderer.variantElements` | 2 |
 | `VARIANT_GET` | emulated | `variantGet` |  | 14 |
 | `JSON_TYPE` | emulated | `jsonType` |  | 1 |
@@ -248,7 +246,7 @@ Database types planned with it: Postgres.
 | `IS_NOT_NULL` | spelled | `an operator (isNotNullTest)` |  | 89 |
 | `IN` | emulated | `inList` |  | 6 |
 | `COALESCE` | emulated | `coalesceArm` |  | 552 |
-| `PARSE_INT` | emulated | `guardedParseInt:  ~ '^[+-]?[0-9]+$', BIGINT` |  | 11 |
+| `PARSE_INT` | emulated | `parseInt` |  | 11 |
 | `CONCAT` | emulated | `concatFlat` |  | 756 |
 | `LENGTH` | emulated | `by its operands: length(…) / length(CAST(… AS VARCHAR))` |  | 73 |
 | `UPPER` | spelled | `upper` |  | 2 |
@@ -256,6 +254,7 @@ Database types planned with it: Postgres.
 | `GREATEST` | spelled | `greatest` |  | 52 |
 | `LEAST` | spelled | `least` |  | 8 |
 | `CONCAT_JOIN` | spelled | `concat` |  | 0 |
+| `CONCAT_WS` | spelled | `concat_ws` |  | 0 |
 | `LIST_FILTER` | emulated | `composed in a block` | `via Postgres.listCall` | 23 |
 | `LIST_TRANSFORM` | emulated | `listTransform` |  | 31 |
 | `LIST_CONCAT` | emulated | `listConcat` |  | 2 |
@@ -346,14 +345,14 @@ Database types planned with it: Postgres.
 | `MAKE_DATE` | emulated | `make_date(, CAST(… AS INTEGER))` |  | 2 |
 | `MAKE_TIMESTAMP` | emulated | `makeTimestamp` |  | 10 |
 | `DATE_TRUNC` | emulated | `dateTrunc` |  | 0 |
-| `ADD_INTERVAL` | emulated | `intervalUnit, part: … + … * INTERVAL '1 …'` |  | 93 |
+| `ADD_INTERVAL` | emulated | `addInterval` |  | 93 |
 | `DATE_DIFF` | emulated | `dateDiff` |  | 53 |
 | `TIME_BUCKET` | emulated | `timeBucket` |  | 109 |
 | `TIMEZONE` | spelled | `timezone` |  | 6 |
 | `DATE_AT_TIME` | spelled | `an operator (+)` |  | 0 |
 | `EPOCH_NS` | refused | `a nanosecond epoch: Postgres keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)` |  | 0 |
 | `FROM_EPOCH_NS` | refused | `a nanosecond epoch: Postgres keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)` |  | 0 |
-| `ADD_INTERVAL_TEMPORAL` | emulated | `intervalUnit, part: … + … * INTERVAL '1 …'` |  | 0 |
+| `ADD_INTERVAL_TEMPORAL` | emulated | `addInterval` |  | 0 |
 | `EPOCH_SECONDS` | emulated | `CAST(extract(epoch FROM …) AS DOUBLE PRECISION)` |  | 0 |
 | `EPOCH_MS` | emulated | `CAST(trunc(extract(epoch FROM …) * 1000) AS BIGINT)` |  | 24 |
 | `FROM_EPOCH_SECONDS` | emulated | `…TIMESTAMP '1970-01-01 00:00:00' + … * INTERVAL '1 second'` |  | 0 |
@@ -409,12 +408,9 @@ Database types planned with it: Postgres.
 | `DATETIME_TO_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `DATETIME_PRINT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `CELL_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
-| `FORMAT_PADDED` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `INSTANCE_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `RELATION_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
-| `REPRESENTATION_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `TEXT_FORMS` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
-| `TRACE_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `VARIANT_ELEMENTS` | emulated | `by its operands: composed / composed` |  | 2 |
 | `VARIANT_GET` | emulated | `variantGet` |  | 14 |
 | `JSON_TYPE` | emulated | `jsonType` |  | 1 |
@@ -456,6 +452,7 @@ Database types planned with it: Snowflake.
 | `GREATEST` | spelled | `greatest_ignore_nulls` |  | 52 |
 | `LEAST` | spelled | `least_ignore_nulls` |  | 8 |
 | `CONCAT_JOIN` | emulated | `concat` |  | 0 |
+| `CONCAT_WS` | emulated | `ARRAY_TO_STRING(ARRAY_CONSTRUCT_COMPACT(…), …)` |  | 0 |
 | `LIST_FILTER` | emulated | `composed in a block` | `via Snowflake.list` | 42 |
 | `LIST_TRANSFORM` | emulated | `composed in a block` | `via Snowflake.list` | 36 |
 | `LIST_CONCAT` | emulated | `composed in a block` | `via Snowflake.list` | 5 |
@@ -609,12 +606,9 @@ Database types planned with it: Snowflake.
 | `DATETIME_TO_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `DATETIME_PRINT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `CELL_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
-| `FORMAT_PADDED` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `INSTANCE_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `RELATION_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
-| `REPRESENTATION_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `TEXT_FORMS` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
-| `TRACE_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `VARIANT_ELEMENTS` | emulated | `variantElements` |  | 4 |
 | `VARIANT_GET` | emulated | `variantGet` |  | 15 |
 | `JSON_TYPE` | emulated | `(CASE WHEN … IS NULL THEN NULL ELSE DECODE(TYPEOF(TO_VARIANT(…)), 'NULL_VALUE...` |  | 1 |
@@ -656,6 +650,7 @@ Database types planned with it: Trino.
 | `GREATEST` | spelled | `greatest` |  | 52 |
 | `LEAST` | spelled | `least` |  | 8 |
 | `CONCAT_JOIN` | emulated | `concat_ws('', , )` |  | 0 |
+| `CONCAT_WS` | spelled | `concat_ws` |  | 0 |
 | `LIST_FILTER` | emulated | `by its operands: transform(filter(zip(…, zip_with(…, …, …)), "__z" -> "__z"[2]), "__z" -> "__z... / filter(…, …)` | `via Trino.listCall` | 42 |
 | `LIST_TRANSFORM` | emulated | `by its operands: zip_with(…, …, …) / transform(…, …)` | `via Trino.listCall` | 36 |
 | `LIST_CONCAT` | emulated | `composed in a block` | `via Trino.listCall` | 5 |
@@ -809,12 +804,9 @@ Database types planned with it: Trino.
 | `DATETIME_TO_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `DATETIME_PRINT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `CELL_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
-| `FORMAT_PADDED` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `INSTANCE_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `RELATION_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
-| `REPRESENTATION_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `TEXT_FORMS` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
-| `TRACE_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `VARIANT_ELEMENTS` | emulated | `variantElements` |  | 4 |
 | `VARIANT_GET` | emulated | `variantGet` |  | 15 |
 | `JSON_TYPE` | emulated | `jsonType` |  | 1 |
@@ -848,7 +840,7 @@ Database types planned with it: BigQuery.
 | `IS_NOT_NULL` | spelled | `an operator (isNotNullTest)` |  | 89 |
 | `IN` | emulated | `in` |  | 6 |
 | `COALESCE` | emulated | `coalesceArm` |  | 552 |
-| `PARSE_INT` | emulated | `guardedParseInt: REGEXP_CONTAINS(, , , ^[+-]?[0-9]+$, ), CAST(,  AS INT64)` |  | 11 |
+| `PARSE_INT` | emulated | `parseInt` |  | 11 |
 | `CONCAT` | emulated | `flattenConcat, asText: CONCAT(, IFNULL(…, ''))` |  | 756 |
 | `LENGTH` | emulated | `asText: LENGTH(…)` |  | 73 |
 | `UPPER` | spelled | `UPPER` |  | 2 |
@@ -856,6 +848,7 @@ Database types planned with it: BigQuery.
 | `GREATEST` | emulated | `nullSkipping: …GREATEST` |  | 52 |
 | `LEAST` | emulated | `nullSkipping: …LEAST` |  | 8 |
 | `CONCAT_JOIN` | emulated | `asText: CONCAT(, IFNULL(…, ''))` |  | 0 |
+| `CONCAT_WS` | emulated | `ARRAY_TO_STRING([…], …)` |  | 0 |
 | `LIST_FILTER` | emulated | `listFilter` |  | 23 |
 | `LIST_TRANSFORM` | emulated | `listTransform` |  | 31 |
 | `LIST_CONCAT` | emulated | `emptyList, listElement: ARRAY_CONCAT(, IFNULL(…, ))` |  | 2 |
@@ -949,7 +942,7 @@ Database types planned with it: BigQuery.
 | `ADD_INTERVAL` | emulated | `intervalUnit, part: (… + INTERVAL CAST(… AS INT64) …)` |  | 93 |
 | `DATE_DIFF` | emulated | `dateDiff` |  | 53 |
 | `TIME_BUCKET` | emulated | `timeBucket` |  | 109 |
-| `TIMEZONE` | emulated | `by its operands: DATETIME(…, …) / TIMESTAMP(CAST(… AS DATETIME), …)` |  | 6 |
+| `TIMEZONE` | emulated | `timezone` |  | 6 |
 | `DATE_AT_TIME` | spelled | `DATETIME` |  | 0 |
 | `EPOCH_NS` | refused | `a nanosecond epoch: BigQuery keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)` |  | 0 |
 | `FROM_EPOCH_NS` | refused | `a nanosecond epoch: BigQuery keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)` |  | 0 |
@@ -1009,12 +1002,9 @@ Database types planned with it: BigQuery.
 | `DATETIME_TO_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `DATETIME_PRINT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `CELL_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
-| `FORMAT_PADDED` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `INSTANCE_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `RELATION_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
-| `REPRESENTATION_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `TEXT_FORMS` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
-| `TRACE_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `VARIANT_ELEMENTS` | emulated | `variantElements` |  | 2 |
 | `VARIANT_GET` | emulated | `variantGet` |  | 14 |
 | `JSON_TYPE` | emulated | `jsonType` |  | 1 |
@@ -1056,6 +1046,7 @@ Database types planned with it: Databricks.
 | `GREATEST` | spelled | `greatest` |  | 52 |
 | `LEAST` | spelled | `least` |  | 8 |
 | `CONCAT_JOIN` | emulated | `concat_ws('', , )` |  | 0 |
+| `CONCAT_WS` | spelled | `concat_ws` |  | 0 |
 | `LIST_FILTER` | emulated | `list, oneBasedIndex: filter(…, …)` | `via Databricks.listCall` | 42 |
 | `LIST_TRANSFORM` | emulated | `list, oneBasedIndex: transform(…, …)` | `via Databricks.listCall` | 36 |
 | `LIST_CONCAT` | emulated | `list: concat(, coalesce(…, array()))` | `via Databricks.listCall` | 5 |
@@ -1209,12 +1200,9 @@ Database types planned with it: Databricks.
 | `DATETIME_TO_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `DATETIME_PRINT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `CELL_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
-| `FORMAT_PADDED` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `INSTANCE_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `RELATION_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
-| `REPRESENTATION_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `TEXT_FORMS` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
-| `TRACE_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `VARIANT_ELEMENTS` | emulated | `variantElements` |  | 4 |
 | `VARIANT_GET` | emulated | `variantGet` |  | 15 |
 | `JSON_TYPE` | emulated | `jsonType` |  | 1 |
@@ -1256,6 +1244,7 @@ Database types planned with it: DuckDB.
 | `GREATEST` | spelled | `greatest` |  | 53 |
 | `LEAST` | spelled | `least` |  | 8 |
 | `CONCAT_JOIN` | spelled | `concat` |  | 0 |
+| `CONCAT_WS` | spelled | `concat_ws` |  | 0 |
 | `LIST_FILTER` | spelled | `list_filter` | `via DuckDb.listCall` | 42 |
 | `LIST_TRANSFORM` | spelled | `list_transform` | `via DuckDb.listCall` | 37 |
 | `LIST_CONCAT` | spelled | `list_concat` | `via DuckDb.listCall` | 5 |
@@ -1409,12 +1398,9 @@ Database types planned with it: DuckDB.
 | `DATETIME_TO_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `DATETIME_PRINT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `CELL_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
-| `FORMAT_PADDED` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `INSTANCE_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `RELATION_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
-| `REPRESENTATION_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `TEXT_FORMS` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
-| `TRACE_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `VARIANT_ELEMENTS` | emulated | `variantElements` |  | 4 |
 | `VARIANT_GET` | emulated | `variantGet` |  | 15 |
 | `JSON_TYPE` | spelled | `json_type` |  | 1 |
@@ -1456,6 +1442,7 @@ Database types planned with it: ClickHouse.
 | `GREATEST` | emulated | `unified: greatest(, )` |  | 52 |
 | `LEAST` | emulated | `unified: least(, )` |  | 8 |
 | `CONCAT_JOIN` | spelled | `concat` |  | 0 |
+| `CONCAT_WS` | emulated | `arrayStringConcat(arrayFilter("__x" -> "__x" IS NOT NULL, […]), …)` |  | 0 |
 | `LIST_FILTER` | emulated | `lambdaArrays: arrayFilter(…, …)` | `via ClickHouse.listCall` | 42 |
 | `LIST_TRANSFORM` | emulated | `lambdaArrays: arrayMap(…, …)` | `via ClickHouse.listCall` | 36 |
 | `LIST_CONCAT` | emulated | `list: arrayConcat(, …)` | `via ClickHouse.listCall` | 5 |
@@ -1609,12 +1596,9 @@ Database types planned with it: ClickHouse.
 | `DATETIME_TO_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `DATETIME_PRINT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `CELL_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
-| `FORMAT_PADDED` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `INSTANCE_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `RELATION_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
-| `REPRESENTATION_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `TEXT_FORMS` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
-| `TRACE_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `VARIANT_ELEMENTS` | emulated | `variantElements` |  | 4 |
 | `VARIANT_GET` | emulated | `variantGet` |  | 15 |
 | `JSON_TYPE` | emulated | `multiIf(isNull(…), NULL, JSONType(…) = 'Null', 'NULL', JSONType(…) = 'String'...` |  | 1 |
@@ -1656,6 +1640,7 @@ Database types planned with it: SQLite.
 | `GREATEST` | emulated | `nullSkipping: …max` |  | 52 |
 | `LEAST` | emulated | `nullSkipping: …min` |  | 8 |
 | `CONCAT_JOIN` | emulated | `asText: concat(, …)` |  | 0 |
+| `CONCAT_WS` | spelled | `concat_ws` |  | 0 |
 | `LIST_FILTER` | emulated | `composed in a block` | `via SQLite.lists` | 23 |
 | `LIST_TRANSFORM` | emulated | `composed in a block` | `via SQLite.lists` | 31 |
 | `LIST_CONCAT` | emulated | `concatLists` | `via SQLite.lists` | 2 |
@@ -1809,12 +1794,9 @@ Database types planned with it: SQLite.
 | `DATETIME_TO_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `DATETIME_PRINT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `CELL_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
-| `FORMAT_PADDED` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `INSTANCE_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `RELATION_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
-| `REPRESENTATION_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `TEXT_FORMS` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
-| `TRACE_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `VARIANT_ELEMENTS` | emulated | `variantElements` |  | 2 |
 | `VARIANT_GET` | emulated | `variantGet` |  | 14 |
 | `JSON_TYPE` | emulated | `(CASE json_type(…) WHEN 'null' THEN 'NULL' WHEN 'text' THEN 'VARCHAR' WHEN 't...` |  | 1 |
@@ -1856,6 +1838,7 @@ Database types planned with it: MariaDB.
 | `GREATEST` | emulated | `nullSkipping: …GREATEST` |  | 12 |
 | `LEAST` | emulated | `nullSkipping: …LEAST` |  | 8 |
 | `CONCAT_JOIN` | emulated | `asText: CONCAT_WS('', , …)` |  | 0 |
+| `CONCAT_WS` | spelled | `CONCAT_WS` |  | 0 |
 | `LIST_FILTER` | emulated | `composed in a block` | `via MariaDb.lists` | 23 |
 | `LIST_TRANSFORM` | emulated | `composed in a block` | `via MariaDb.lists` | 31 |
 | `LIST_CONCAT` | emulated | `composed in a block` | `via MariaDb.lists` | 2 |
@@ -2009,12 +1992,9 @@ Database types planned with it: MariaDB.
 | `DATETIME_TO_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `DATETIME_PRINT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `CELL_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
-| `FORMAT_PADDED` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `INSTANCE_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `RELATION_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
-| `REPRESENTATION_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `TEXT_FORMS` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
-| `TRACE_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `VARIANT_ELEMENTS` | emulated | `variantElements` |  | 2 |
 | `VARIANT_GET` | emulated | `variantGet` |  | 14 |
 | `JSON_TYPE` | emulated | `(CASE JSON_TYPE(…) WHEN 'NULL' THEN 'NULL' WHEN 'STRING' THEN 'VARCHAR' WHEN ...` |  | 1 |
@@ -2056,6 +2036,7 @@ Database types planned with it: MySQL.
 | `GREATEST` | emulated | `nullSkipping: …GREATEST` | `as MariaDb` | 12 |
 | `LEAST` | emulated | `nullSkipping: …LEAST` | `as MariaDb` | 8 |
 | `CONCAT_JOIN` | emulated | `asText: CONCAT_WS('', , …)` | `as MariaDb` | 0 |
+| `CONCAT_WS` | spelled | `CONCAT_WS` | `as MariaDb` | 0 |
 | `LIST_FILTER` | emulated | `composed in a block` | `as MariaDb, via MariaDb.lists` | 23 |
 | `LIST_TRANSFORM` | emulated | `composed in a block` | `as MariaDb, via MariaDb.lists` | 31 |
 | `LIST_CONCAT` | emulated | `composed in a block` | `as MariaDb, via MariaDb.lists` | 2 |
@@ -2209,12 +2190,9 @@ Database types planned with it: MySQL.
 | `DATETIME_TO_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` | `as MariaDb` | 0 |
 | `DATETIME_PRINT` | not_here | `renderer bug: is expanded before any dialect reads it` | `as MariaDb` | 0 |
 | `CELL_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` | `as MariaDb` | 0 |
-| `FORMAT_PADDED` | not_here | `renderer bug: is expanded before any dialect reads it` | `as MariaDb` | 0 |
 | `INSTANCE_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` | `as MariaDb` | 0 |
 | `RELATION_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` | `as MariaDb` | 0 |
-| `REPRESENTATION_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` | `as MariaDb` | 0 |
 | `TEXT_FORMS` | not_here | `renderer bug: is expanded before any dialect reads it` | `as MariaDb` | 0 |
-| `TRACE_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` | `as MariaDb` | 0 |
 | `VARIANT_ELEMENTS` | emulated | `variantElements` | `as MariaDb` | 2 |
 | `VARIANT_GET` | emulated | `variantGet` | `as MariaDb` | 14 |
 | `JSON_TYPE` | emulated | `(CASE JSON_TYPE(…) WHEN 'NULL' THEN 'NULL' WHEN 'STRING' THEN 'VARCHAR' WHEN ...` | `as MariaDb` | 1 |
@@ -2256,6 +2234,7 @@ Database types planned with it: MongoDB.
 | `GREATEST` | emulated | `$max` |  | 0 |
 | `LEAST` | emulated | `$min` |  | 0 |
 | `CONCAT_JOIN` | emulated | `$concat` |  | 0 |
+| `CONCAT_WS` | emulated | `eachAfterSeparator` |  | 0 |
 | `LIST_FILTER` | emulated | `listFilter` |  | 0 |
 | `LIST_TRANSFORM` | emulated | `listMap` |  | 0 |
 | `LIST_CONCAT` | emulated | `listConcat` |  | 0 |
@@ -2409,12 +2388,9 @@ Database types planned with it: MongoDB.
 | `DATETIME_TO_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `DATETIME_PRINT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `CELL_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
-| `FORMAT_PADDED` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `INSTANCE_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `RELATION_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
-| `REPRESENTATION_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `TEXT_FORMS` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
-| `TRACE_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `VARIANT_ELEMENTS` | emulated | `variantElements` |  | 0 |
 | `VARIANT_GET` | emulated | `variantGet` |  | 0 |
 | `JSON_TYPE` | emulated | `jsonType` |  | 0 |
@@ -2456,6 +2432,7 @@ Database types planned with it: no database type's own (it extends `AnsiSqlRende
 | `GREATEST` | spelled | `greatest` |  | — |
 | `LEAST` | spelled | `least` |  | — |
 | `CONCAT_JOIN` | spelled | `concat` |  | — |
+| `CONCAT_WS` | spelled | `concat_ws` |  | — |
 | `LIST_FILTER` | emulated | `listCall` |  | — |
 | `LIST_TRANSFORM` | emulated | `listCall` |  | — |
 | `LIST_CONCAT` | emulated | `listCall` |  | — |
@@ -2609,12 +2586,9 @@ Database types planned with it: no database type's own (it extends `AnsiSqlRende
 | `DATETIME_TO_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | — |
 | `DATETIME_PRINT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | — |
 | `CELL_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | — |
-| `FORMAT_PADDED` | not_here | `renderer bug: is expanded before any dialect reads it` |  | — |
 | `INSTANCE_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | — |
 | `RELATION_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | — |
-| `REPRESENTATION_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | — |
 | `TEXT_FORMS` | not_here | `renderer bug: is expanded before any dialect reads it` |  | — |
-| `TRACE_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | — |
 | `VARIANT_ELEMENTS` | refused | `variant navigation reached a dialect without JSON support` | `via AnsiSqlRenderer.variantElements` | — |
 | `VARIANT_GET` | refused | `variant navigation reached a dialect without JSON support` | `via AnsiSqlRenderer.variantGet` | — |
 | `JSON_TYPE` | spelled | `json_type` |  | — |
@@ -2656,6 +2630,7 @@ Database types planned with it: no database type's own (it extends `EngineStyleH
 | `GREATEST` | spelled | `greatest` | `as EngineStyleH2` | — |
 | `LEAST` | spelled | `least` | `as EngineStyleH2` | — |
 | `CONCAT_JOIN` | spelled | `concat` |  | — |
+| `CONCAT_WS` | spelled | `concat_ws` | `as EngineStyleH2` | — |
 | `LIST_FILTER` | emulated | `listCall` | `as EngineStyleH2` | — |
 | `LIST_TRANSFORM` | emulated | `listCall` | `as EngineStyleH2` | — |
 | `LIST_CONCAT` | emulated | `listCall` | `as EngineStyleH2` | — |
@@ -2809,12 +2784,9 @@ Database types planned with it: no database type's own (it extends `EngineStyleH
 | `DATETIME_TO_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` | `as EngineStyleH2` | — |
 | `DATETIME_PRINT` | not_here | `renderer bug: is expanded before any dialect reads it` | `as EngineStyleH2` | — |
 | `CELL_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` | `as EngineStyleH2` | — |
-| `FORMAT_PADDED` | not_here | `renderer bug: is expanded before any dialect reads it` | `as EngineStyleH2` | — |
 | `INSTANCE_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` | `as EngineStyleH2` | — |
 | `RELATION_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` | `as EngineStyleH2` | — |
-| `REPRESENTATION_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` | `as EngineStyleH2` | — |
 | `TEXT_FORMS` | not_here | `renderer bug: is expanded before any dialect reads it` | `as EngineStyleH2` | — |
-| `TRACE_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` | `as EngineStyleH2` | — |
 | `VARIANT_ELEMENTS` | refused | `variant navigation reached a dialect without JSON support` | `as EngineStyleH2, via AnsiSqlRenderer.variantElements` | — |
 | `VARIANT_GET` | refused | `variant navigation reached a dialect without JSON support` | `as EngineStyleH2, via AnsiSqlRenderer.variantGet` | — |
 | `JSON_TYPE` | spelled | `json_type` | `as EngineStyleH2` | — |
@@ -2856,6 +2828,7 @@ Database types planned with it: no database type's own (it extends `EngineStyleD
 | `GREATEST` | spelled | `greatest` | `as EngineStyleDB2, as EngineStyleH2` | — |
 | `LEAST` | spelled | `least` | `as EngineStyleDB2, as EngineStyleH2` | — |
 | `CONCAT_JOIN` | spelled | `concat` | `as EngineStyleDB2` | — |
+| `CONCAT_WS` | spelled | `concat_ws` | `as EngineStyleDB2, as EngineStyleH2` | — |
 | `LIST_FILTER` | emulated | `listCall` | `as EngineStyleDB2, as EngineStyleH2` | — |
 | `LIST_TRANSFORM` | emulated | `listCall` | `as EngineStyleDB2, as EngineStyleH2` | — |
 | `LIST_CONCAT` | emulated | `listCall` | `as EngineStyleDB2, as EngineStyleH2` | — |
@@ -3009,12 +2982,9 @@ Database types planned with it: no database type's own (it extends `EngineStyleD
 | `DATETIME_TO_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` | `as EngineStyleDB2, as EngineStyleH2` | — |
 | `DATETIME_PRINT` | not_here | `renderer bug: is expanded before any dialect reads it` | `as EngineStyleDB2, as EngineStyleH2` | — |
 | `CELL_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `FORMAT_PADDED` | not_here | `renderer bug: is expanded before any dialect reads it` | `as EngineStyleDB2, as EngineStyleH2` | — |
 | `INSTANCE_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` | `as EngineStyleDB2, as EngineStyleH2` | — |
 | `RELATION_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `REPRESENTATION_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` | `as EngineStyleDB2, as EngineStyleH2` | — |
 | `TEXT_FORMS` | not_here | `renderer bug: is expanded before any dialect reads it` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `TRACE_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` | `as EngineStyleDB2, as EngineStyleH2` | — |
 | `VARIANT_ELEMENTS` | refused | `variant navigation reached a dialect without JSON support` | `as EngineStyleDB2, as EngineStyleH2, via AnsiSqlRenderer.variantElements` | — |
 | `VARIANT_GET` | refused | `variant navigation reached a dialect without JSON support` | `as EngineStyleDB2, as EngineStyleH2, via AnsiSqlRenderer.variantGet` | — |
 | `JSON_TYPE` | spelled | `json_type` | `as EngineStyleDB2, as EngineStyleH2` | — |

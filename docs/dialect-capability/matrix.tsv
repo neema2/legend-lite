@@ -31,6 +31,7 @@ H2	H2	call	LOWER	spelled	lower		3
 H2	H2	call	GREATEST	spelled	greatest		52
 H2	H2	call	LEAST	spelled	least		8
 H2	H2	call	CONCAT_JOIN	spelled	concat		0
+H2	H2	call	CONCAT_WS	spelled	concat_ws		0
 H2	H2	call	LIST_FILTER	refused	reached a dialect without a list encoding	via AnsiSqlRenderer.listCall	23
 H2	H2	call	LIST_TRANSFORM	refused	reached a dialect without a list encoding	via AnsiSqlRenderer.listCall	31
 H2	H2	call	LIST_CONCAT	refused	reached a dialect without a list encoding	via AnsiSqlRenderer.listCall	2
@@ -184,12 +185,9 @@ H2	H2	call	FLOAT_TO_TEXT	emulated	floatToText		0
 H2	H2	call	DATETIME_TO_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 H2	H2	call	DATETIME_PRINT	not_here	renderer bug: is expanded before any dialect reads it		0
 H2	H2	call	CELL_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
-H2	H2	call	FORMAT_PADDED	not_here	renderer bug: is expanded before any dialect reads it		0
 H2	H2	call	INSTANCE_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 H2	H2	call	RELATION_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
-H2	H2	call	REPRESENTATION_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 H2	H2	call	TEXT_FORMS	not_here	renderer bug: is expanded before any dialect reads it		0
-H2	H2	call	TRACE_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 H2	H2	call	VARIANT_ELEMENTS	refused	variant navigation reached a dialect without JSON support	via AnsiSqlRenderer.variantElements	2
 H2	H2	call	VARIANT_GET	emulated	variantGet		14
 H2	H2	call	JSON_TYPE	emulated	jsonType		1
@@ -256,7 +254,7 @@ Postgres	Postgres	call	IS_NULL	spelled	an operator (isNullTest)		522
 Postgres	Postgres	call	IS_NOT_NULL	spelled	an operator (isNotNullTest)		89
 Postgres	Postgres	call	IN	emulated	inList		6
 Postgres	Postgres	call	COALESCE	emulated	coalesceArm		552
-Postgres	Postgres	call	PARSE_INT	emulated	guardedParseInt:  ~ '^[+-]?[0-9]+$', BIGINT		11
+Postgres	Postgres	call	PARSE_INT	emulated	parseInt		11
 Postgres	Postgres	call	CONCAT	emulated	concatFlat		756
 Postgres	Postgres	call	LENGTH	emulated	by its operands: length(…) / length(CAST(… AS VARCHAR))		73
 Postgres	Postgres	call	UPPER	spelled	upper		2
@@ -264,6 +262,7 @@ Postgres	Postgres	call	LOWER	spelled	lower		3
 Postgres	Postgres	call	GREATEST	spelled	greatest		52
 Postgres	Postgres	call	LEAST	spelled	least		8
 Postgres	Postgres	call	CONCAT_JOIN	spelled	concat		0
+Postgres	Postgres	call	CONCAT_WS	spelled	concat_ws		0
 Postgres	Postgres	call	LIST_FILTER	emulated	composed in a block	via Postgres.listCall	23
 Postgres	Postgres	call	LIST_TRANSFORM	emulated	listTransform		31
 Postgres	Postgres	call	LIST_CONCAT	emulated	listConcat		2
@@ -354,14 +353,14 @@ Postgres	Postgres	call	DATE_TRUNC_DAY	emulated	castAs: DATE		4
 Postgres	Postgres	call	MAKE_DATE	emulated	make_date(, CAST(… AS INTEGER))		2
 Postgres	Postgres	call	MAKE_TIMESTAMP	emulated	makeTimestamp		10
 Postgres	Postgres	call	DATE_TRUNC	emulated	dateTrunc		0
-Postgres	Postgres	call	ADD_INTERVAL	emulated	intervalUnit, part: … + … * INTERVAL '1 …'		93
+Postgres	Postgres	call	ADD_INTERVAL	emulated	addInterval		93
 Postgres	Postgres	call	DATE_DIFF	emulated	dateDiff		53
 Postgres	Postgres	call	TIME_BUCKET	emulated	timeBucket		109
 Postgres	Postgres	call	TIMEZONE	spelled	timezone		6
 Postgres	Postgres	call	DATE_AT_TIME	spelled	an operator (+)		0
 Postgres	Postgres	call	EPOCH_NS	refused	a nanosecond epoch: Postgres keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)		0
 Postgres	Postgres	call	FROM_EPOCH_NS	refused	a nanosecond epoch: Postgres keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)		0
-Postgres	Postgres	call	ADD_INTERVAL_TEMPORAL	emulated	intervalUnit, part: … + … * INTERVAL '1 …'		0
+Postgres	Postgres	call	ADD_INTERVAL_TEMPORAL	emulated	addInterval		0
 Postgres	Postgres	call	EPOCH_SECONDS	emulated	CAST(extract(epoch FROM …) AS DOUBLE PRECISION)		0
 Postgres	Postgres	call	EPOCH_MS	emulated	CAST(trunc(extract(epoch FROM …) * 1000) AS BIGINT)		24
 Postgres	Postgres	call	FROM_EPOCH_SECONDS	emulated	…TIMESTAMP '1970-01-01 00:00:00' + … * INTERVAL '1 second'		0
@@ -417,12 +416,9 @@ Postgres	Postgres	call	FLOAT_TO_TEXT	emulated	floatToText		0
 Postgres	Postgres	call	DATETIME_TO_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 Postgres	Postgres	call	DATETIME_PRINT	not_here	renderer bug: is expanded before any dialect reads it		0
 Postgres	Postgres	call	CELL_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
-Postgres	Postgres	call	FORMAT_PADDED	not_here	renderer bug: is expanded before any dialect reads it		0
 Postgres	Postgres	call	INSTANCE_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 Postgres	Postgres	call	RELATION_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
-Postgres	Postgres	call	REPRESENTATION_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 Postgres	Postgres	call	TEXT_FORMS	not_here	renderer bug: is expanded before any dialect reads it		0
-Postgres	Postgres	call	TRACE_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 Postgres	Postgres	call	VARIANT_ELEMENTS	emulated	by its operands: composed / composed		2
 Postgres	Postgres	call	VARIANT_GET	emulated	variantGet		14
 Postgres	Postgres	call	JSON_TYPE	emulated	jsonType		1
@@ -497,6 +493,7 @@ Snowflake	Snowflake	call	LOWER	spelled	lower		3
 Snowflake	Snowflake	call	GREATEST	spelled	greatest_ignore_nulls		52
 Snowflake	Snowflake	call	LEAST	spelled	least_ignore_nulls		8
 Snowflake	Snowflake	call	CONCAT_JOIN	emulated	concat		0
+Snowflake	Snowflake	call	CONCAT_WS	emulated	ARRAY_TO_STRING(ARRAY_CONSTRUCT_COMPACT(…), …)		0
 Snowflake	Snowflake	call	LIST_FILTER	emulated	composed in a block	via Snowflake.list	42
 Snowflake	Snowflake	call	LIST_TRANSFORM	emulated	composed in a block	via Snowflake.list	36
 Snowflake	Snowflake	call	LIST_CONCAT	emulated	composed in a block	via Snowflake.list	5
@@ -650,12 +647,9 @@ Snowflake	Snowflake	call	FLOAT_TO_TEXT	emulated	floatToText		0
 Snowflake	Snowflake	call	DATETIME_TO_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 Snowflake	Snowflake	call	DATETIME_PRINT	not_here	renderer bug: is expanded before any dialect reads it		0
 Snowflake	Snowflake	call	CELL_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
-Snowflake	Snowflake	call	FORMAT_PADDED	not_here	renderer bug: is expanded before any dialect reads it		0
 Snowflake	Snowflake	call	INSTANCE_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 Snowflake	Snowflake	call	RELATION_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
-Snowflake	Snowflake	call	REPRESENTATION_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 Snowflake	Snowflake	call	TEXT_FORMS	not_here	renderer bug: is expanded before any dialect reads it		0
-Snowflake	Snowflake	call	TRACE_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 Snowflake	Snowflake	call	VARIANT_ELEMENTS	emulated	variantElements		4
 Snowflake	Snowflake	call	VARIANT_GET	emulated	variantGet		15
 Snowflake	Snowflake	call	JSON_TYPE	emulated	(CASE WHEN … IS NULL THEN NULL ELSE DECODE(TYPEOF(TO_VARIANT(…)), 'NULL_VALUE...		1
@@ -730,6 +724,7 @@ Trino	Trino	call	LOWER	spelled	lower		3
 Trino	Trino	call	GREATEST	spelled	greatest		52
 Trino	Trino	call	LEAST	spelled	least		8
 Trino	Trino	call	CONCAT_JOIN	emulated	concat_ws('', , )		0
+Trino	Trino	call	CONCAT_WS	spelled	concat_ws		0
 Trino	Trino	call	LIST_FILTER	emulated	by its operands: transform(filter(zip(…, zip_with(…, …, …)), "__z" -> "__z"[2]), "__z" -> "__z... / filter(…, …)	via Trino.listCall	42
 Trino	Trino	call	LIST_TRANSFORM	emulated	by its operands: zip_with(…, …, …) / transform(…, …)	via Trino.listCall	36
 Trino	Trino	call	LIST_CONCAT	emulated	composed in a block	via Trino.listCall	5
@@ -883,12 +878,9 @@ Trino	Trino	call	FLOAT_TO_TEXT	emulated	floatToText		0
 Trino	Trino	call	DATETIME_TO_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 Trino	Trino	call	DATETIME_PRINT	not_here	renderer bug: is expanded before any dialect reads it		0
 Trino	Trino	call	CELL_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
-Trino	Trino	call	FORMAT_PADDED	not_here	renderer bug: is expanded before any dialect reads it		0
 Trino	Trino	call	INSTANCE_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 Trino	Trino	call	RELATION_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
-Trino	Trino	call	REPRESENTATION_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 Trino	Trino	call	TEXT_FORMS	not_here	renderer bug: is expanded before any dialect reads it		0
-Trino	Trino	call	TRACE_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 Trino	Trino	call	VARIANT_ELEMENTS	emulated	variantElements		4
 Trino	Trino	call	VARIANT_GET	emulated	variantGet		15
 Trino	Trino	call	JSON_TYPE	emulated	jsonType		1
@@ -955,7 +947,7 @@ BigQuery	BigQuery	call	IS_NULL	spelled	an operator (isNullTest)		522
 BigQuery	BigQuery	call	IS_NOT_NULL	spelled	an operator (isNotNullTest)		89
 BigQuery	BigQuery	call	IN	emulated	in		6
 BigQuery	BigQuery	call	COALESCE	emulated	coalesceArm		552
-BigQuery	BigQuery	call	PARSE_INT	emulated	guardedParseInt: REGEXP_CONTAINS(, , , ^[+-]?[0-9]+$, ), CAST(,  AS INT64)		11
+BigQuery	BigQuery	call	PARSE_INT	emulated	parseInt		11
 BigQuery	BigQuery	call	CONCAT	emulated	flattenConcat, asText: CONCAT(, IFNULL(…, ''))		756
 BigQuery	BigQuery	call	LENGTH	emulated	asText: LENGTH(…)		73
 BigQuery	BigQuery	call	UPPER	spelled	UPPER		2
@@ -963,6 +955,7 @@ BigQuery	BigQuery	call	LOWER	spelled	LOWER		3
 BigQuery	BigQuery	call	GREATEST	emulated	nullSkipping: …GREATEST		52
 BigQuery	BigQuery	call	LEAST	emulated	nullSkipping: …LEAST		8
 BigQuery	BigQuery	call	CONCAT_JOIN	emulated	asText: CONCAT(, IFNULL(…, ''))		0
+BigQuery	BigQuery	call	CONCAT_WS	emulated	ARRAY_TO_STRING([…], …)		0
 BigQuery	BigQuery	call	LIST_FILTER	emulated	listFilter		23
 BigQuery	BigQuery	call	LIST_TRANSFORM	emulated	listTransform		31
 BigQuery	BigQuery	call	LIST_CONCAT	emulated	emptyList, listElement: ARRAY_CONCAT(, IFNULL(…, ))		2
@@ -1056,7 +1049,7 @@ BigQuery	BigQuery	call	DATE_TRUNC	emulated	dateTrunc		0
 BigQuery	BigQuery	call	ADD_INTERVAL	emulated	intervalUnit, part: (… + INTERVAL CAST(… AS INT64) …)		93
 BigQuery	BigQuery	call	DATE_DIFF	emulated	dateDiff		53
 BigQuery	BigQuery	call	TIME_BUCKET	emulated	timeBucket		109
-BigQuery	BigQuery	call	TIMEZONE	emulated	by its operands: DATETIME(…, …) / TIMESTAMP(CAST(… AS DATETIME), …)		6
+BigQuery	BigQuery	call	TIMEZONE	emulated	timezone		6
 BigQuery	BigQuery	call	DATE_AT_TIME	spelled	DATETIME		0
 BigQuery	BigQuery	call	EPOCH_NS	refused	a nanosecond epoch: BigQuery keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)		0
 BigQuery	BigQuery	call	FROM_EPOCH_NS	refused	a nanosecond epoch: BigQuery keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)		0
@@ -1116,12 +1109,9 @@ BigQuery	BigQuery	call	FLOAT_TO_TEXT	emulated	floatToText		0
 BigQuery	BigQuery	call	DATETIME_TO_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 BigQuery	BigQuery	call	DATETIME_PRINT	not_here	renderer bug: is expanded before any dialect reads it		0
 BigQuery	BigQuery	call	CELL_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
-BigQuery	BigQuery	call	FORMAT_PADDED	not_here	renderer bug: is expanded before any dialect reads it		0
 BigQuery	BigQuery	call	INSTANCE_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 BigQuery	BigQuery	call	RELATION_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
-BigQuery	BigQuery	call	REPRESENTATION_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 BigQuery	BigQuery	call	TEXT_FORMS	not_here	renderer bug: is expanded before any dialect reads it		0
-BigQuery	BigQuery	call	TRACE_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 BigQuery	BigQuery	call	VARIANT_ELEMENTS	emulated	variantElements		2
 BigQuery	BigQuery	call	VARIANT_GET	emulated	variantGet		14
 BigQuery	BigQuery	call	JSON_TYPE	emulated	jsonType		1
@@ -1196,6 +1186,7 @@ Databricks	Databricks	call	LOWER	spelled	lower		3
 Databricks	Databricks	call	GREATEST	spelled	greatest		52
 Databricks	Databricks	call	LEAST	spelled	least		8
 Databricks	Databricks	call	CONCAT_JOIN	emulated	concat_ws('', , )		0
+Databricks	Databricks	call	CONCAT_WS	spelled	concat_ws		0
 Databricks	Databricks	call	LIST_FILTER	emulated	list, oneBasedIndex: filter(…, …)	via Databricks.listCall	42
 Databricks	Databricks	call	LIST_TRANSFORM	emulated	list, oneBasedIndex: transform(…, …)	via Databricks.listCall	36
 Databricks	Databricks	call	LIST_CONCAT	emulated	list: concat(, coalesce(…, array()))	via Databricks.listCall	5
@@ -1349,12 +1340,9 @@ Databricks	Databricks	call	FLOAT_TO_TEXT	emulated	floatToText		0
 Databricks	Databricks	call	DATETIME_TO_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 Databricks	Databricks	call	DATETIME_PRINT	not_here	renderer bug: is expanded before any dialect reads it		0
 Databricks	Databricks	call	CELL_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
-Databricks	Databricks	call	FORMAT_PADDED	not_here	renderer bug: is expanded before any dialect reads it		0
 Databricks	Databricks	call	INSTANCE_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 Databricks	Databricks	call	RELATION_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
-Databricks	Databricks	call	REPRESENTATION_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 Databricks	Databricks	call	TEXT_FORMS	not_here	renderer bug: is expanded before any dialect reads it		0
-Databricks	Databricks	call	TRACE_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 Databricks	Databricks	call	VARIANT_ELEMENTS	emulated	variantElements		4
 Databricks	Databricks	call	VARIANT_GET	emulated	variantGet		15
 Databricks	Databricks	call	JSON_TYPE	emulated	jsonType		1
@@ -1429,6 +1417,7 @@ DuckDb	DuckDB	call	LOWER	spelled	lower		3
 DuckDb	DuckDB	call	GREATEST	spelled	greatest		53
 DuckDb	DuckDB	call	LEAST	spelled	least		8
 DuckDb	DuckDB	call	CONCAT_JOIN	spelled	concat		0
+DuckDb	DuckDB	call	CONCAT_WS	spelled	concat_ws		0
 DuckDb	DuckDB	call	LIST_FILTER	spelled	list_filter	via DuckDb.listCall	42
 DuckDb	DuckDB	call	LIST_TRANSFORM	spelled	list_transform	via DuckDb.listCall	37
 DuckDb	DuckDB	call	LIST_CONCAT	spelled	list_concat	via DuckDb.listCall	5
@@ -1582,12 +1571,9 @@ DuckDb	DuckDB	call	FLOAT_TO_TEXT	emulated	floatToText		0
 DuckDb	DuckDB	call	DATETIME_TO_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 DuckDb	DuckDB	call	DATETIME_PRINT	not_here	renderer bug: is expanded before any dialect reads it		0
 DuckDb	DuckDB	call	CELL_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
-DuckDb	DuckDB	call	FORMAT_PADDED	not_here	renderer bug: is expanded before any dialect reads it		0
 DuckDb	DuckDB	call	INSTANCE_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 DuckDb	DuckDB	call	RELATION_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
-DuckDb	DuckDB	call	REPRESENTATION_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 DuckDb	DuckDB	call	TEXT_FORMS	not_here	renderer bug: is expanded before any dialect reads it		0
-DuckDb	DuckDB	call	TRACE_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 DuckDb	DuckDB	call	VARIANT_ELEMENTS	emulated	variantElements		4
 DuckDb	DuckDB	call	VARIANT_GET	emulated	variantGet		15
 DuckDb	DuckDB	call	JSON_TYPE	spelled	json_type		1
@@ -1662,6 +1648,7 @@ ClickHouse	ClickHouse	call	LOWER	spelled	lowerUTF8		3
 ClickHouse	ClickHouse	call	GREATEST	emulated	unified: greatest(, )		52
 ClickHouse	ClickHouse	call	LEAST	emulated	unified: least(, )		8
 ClickHouse	ClickHouse	call	CONCAT_JOIN	spelled	concat		0
+ClickHouse	ClickHouse	call	CONCAT_WS	emulated	arrayStringConcat(arrayFilter("__x" -> "__x" IS NOT NULL, […]), …)		0
 ClickHouse	ClickHouse	call	LIST_FILTER	emulated	lambdaArrays: arrayFilter(…, …)	via ClickHouse.listCall	42
 ClickHouse	ClickHouse	call	LIST_TRANSFORM	emulated	lambdaArrays: arrayMap(…, …)	via ClickHouse.listCall	36
 ClickHouse	ClickHouse	call	LIST_CONCAT	emulated	list: arrayConcat(, …)	via ClickHouse.listCall	5
@@ -1815,12 +1802,9 @@ ClickHouse	ClickHouse	call	FLOAT_TO_TEXT	emulated	floatToText		0
 ClickHouse	ClickHouse	call	DATETIME_TO_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 ClickHouse	ClickHouse	call	DATETIME_PRINT	not_here	renderer bug: is expanded before any dialect reads it		0
 ClickHouse	ClickHouse	call	CELL_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
-ClickHouse	ClickHouse	call	FORMAT_PADDED	not_here	renderer bug: is expanded before any dialect reads it		0
 ClickHouse	ClickHouse	call	INSTANCE_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 ClickHouse	ClickHouse	call	RELATION_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
-ClickHouse	ClickHouse	call	REPRESENTATION_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 ClickHouse	ClickHouse	call	TEXT_FORMS	not_here	renderer bug: is expanded before any dialect reads it		0
-ClickHouse	ClickHouse	call	TRACE_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 ClickHouse	ClickHouse	call	VARIANT_ELEMENTS	emulated	variantElements		4
 ClickHouse	ClickHouse	call	VARIANT_GET	emulated	variantGet		15
 ClickHouse	ClickHouse	call	JSON_TYPE	emulated	multiIf(isNull(…), NULL, JSONType(…) = 'Null', 'NULL', JSONType(…) = 'String'...		1
@@ -1895,6 +1879,7 @@ SQLite	SQLite	call	LOWER	spelled	lower		3
 SQLite	SQLite	call	GREATEST	emulated	nullSkipping: …max		52
 SQLite	SQLite	call	LEAST	emulated	nullSkipping: …min		8
 SQLite	SQLite	call	CONCAT_JOIN	emulated	asText: concat(, …)		0
+SQLite	SQLite	call	CONCAT_WS	spelled	concat_ws		0
 SQLite	SQLite	call	LIST_FILTER	emulated	composed in a block	via SQLite.lists	23
 SQLite	SQLite	call	LIST_TRANSFORM	emulated	composed in a block	via SQLite.lists	31
 SQLite	SQLite	call	LIST_CONCAT	emulated	concatLists	via SQLite.lists	2
@@ -2048,12 +2033,9 @@ SQLite	SQLite	call	FLOAT_TO_TEXT	emulated	floatToText		0
 SQLite	SQLite	call	DATETIME_TO_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 SQLite	SQLite	call	DATETIME_PRINT	not_here	renderer bug: is expanded before any dialect reads it		0
 SQLite	SQLite	call	CELL_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
-SQLite	SQLite	call	FORMAT_PADDED	not_here	renderer bug: is expanded before any dialect reads it		0
 SQLite	SQLite	call	INSTANCE_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 SQLite	SQLite	call	RELATION_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
-SQLite	SQLite	call	REPRESENTATION_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 SQLite	SQLite	call	TEXT_FORMS	not_here	renderer bug: is expanded before any dialect reads it		0
-SQLite	SQLite	call	TRACE_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 SQLite	SQLite	call	VARIANT_ELEMENTS	emulated	variantElements		2
 SQLite	SQLite	call	VARIANT_GET	emulated	variantGet		14
 SQLite	SQLite	call	JSON_TYPE	emulated	(CASE json_type(…) WHEN 'null' THEN 'NULL' WHEN 'text' THEN 'VARCHAR' WHEN 't...		1
@@ -2128,6 +2110,7 @@ MariaDb	MariaDB	call	LOWER	spelled	lower		3
 MariaDb	MariaDB	call	GREATEST	emulated	nullSkipping: …GREATEST		12
 MariaDb	MariaDB	call	LEAST	emulated	nullSkipping: …LEAST		8
 MariaDb	MariaDB	call	CONCAT_JOIN	emulated	asText: CONCAT_WS('', , …)		0
+MariaDb	MariaDB	call	CONCAT_WS	spelled	CONCAT_WS		0
 MariaDb	MariaDB	call	LIST_FILTER	emulated	composed in a block	via MariaDb.lists	23
 MariaDb	MariaDB	call	LIST_TRANSFORM	emulated	composed in a block	via MariaDb.lists	31
 MariaDb	MariaDB	call	LIST_CONCAT	emulated	composed in a block	via MariaDb.lists	2
@@ -2281,12 +2264,9 @@ MariaDb	MariaDB	call	FLOAT_TO_TEXT	emulated	floatToText		0
 MariaDb	MariaDB	call	DATETIME_TO_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 MariaDb	MariaDB	call	DATETIME_PRINT	not_here	renderer bug: is expanded before any dialect reads it		0
 MariaDb	MariaDB	call	CELL_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
-MariaDb	MariaDB	call	FORMAT_PADDED	not_here	renderer bug: is expanded before any dialect reads it		0
 MariaDb	MariaDB	call	INSTANCE_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 MariaDb	MariaDB	call	RELATION_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
-MariaDb	MariaDB	call	REPRESENTATION_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 MariaDb	MariaDB	call	TEXT_FORMS	not_here	renderer bug: is expanded before any dialect reads it		0
-MariaDb	MariaDB	call	TRACE_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 MariaDb	MariaDB	call	VARIANT_ELEMENTS	emulated	variantElements		2
 MariaDb	MariaDB	call	VARIANT_GET	emulated	variantGet		14
 MariaDb	MariaDB	call	JSON_TYPE	emulated	(CASE JSON_TYPE(…) WHEN 'NULL' THEN 'NULL' WHEN 'STRING' THEN 'VARCHAR' WHEN ...		1
@@ -2361,6 +2341,7 @@ MySql	MySQL	call	LOWER	spelled	lower	as MariaDb	3
 MySql	MySQL	call	GREATEST	emulated	nullSkipping: …GREATEST	as MariaDb	12
 MySql	MySQL	call	LEAST	emulated	nullSkipping: …LEAST	as MariaDb	8
 MySql	MySQL	call	CONCAT_JOIN	emulated	asText: CONCAT_WS('', , …)	as MariaDb	0
+MySql	MySQL	call	CONCAT_WS	spelled	CONCAT_WS	as MariaDb	0
 MySql	MySQL	call	LIST_FILTER	emulated	composed in a block	as MariaDb, via MariaDb.lists	23
 MySql	MySQL	call	LIST_TRANSFORM	emulated	composed in a block	as MariaDb, via MariaDb.lists	31
 MySql	MySQL	call	LIST_CONCAT	emulated	composed in a block	as MariaDb, via MariaDb.lists	2
@@ -2514,12 +2495,9 @@ MySql	MySQL	call	FLOAT_TO_TEXT	emulated	floatToText	as MariaDb	0
 MySql	MySQL	call	DATETIME_TO_TEXT	not_here	renderer bug: is expanded before any dialect reads it	as MariaDb	0
 MySql	MySQL	call	DATETIME_PRINT	not_here	renderer bug: is expanded before any dialect reads it	as MariaDb	0
 MySql	MySQL	call	CELL_TEXT	not_here	renderer bug: is expanded before any dialect reads it	as MariaDb	0
-MySql	MySQL	call	FORMAT_PADDED	not_here	renderer bug: is expanded before any dialect reads it	as MariaDb	0
 MySql	MySQL	call	INSTANCE_TEXT	not_here	renderer bug: is expanded before any dialect reads it	as MariaDb	0
 MySql	MySQL	call	RELATION_TEXT	not_here	renderer bug: is expanded before any dialect reads it	as MariaDb	0
-MySql	MySQL	call	REPRESENTATION_TEXT	not_here	renderer bug: is expanded before any dialect reads it	as MariaDb	0
 MySql	MySQL	call	TEXT_FORMS	not_here	renderer bug: is expanded before any dialect reads it	as MariaDb	0
-MySql	MySQL	call	TRACE_TEXT	not_here	renderer bug: is expanded before any dialect reads it	as MariaDb	0
 MySql	MySQL	call	VARIANT_ELEMENTS	emulated	variantElements	as MariaDb	2
 MySql	MySQL	call	VARIANT_GET	emulated	variantGet	as MariaDb	14
 MySql	MySQL	call	JSON_TYPE	emulated	(CASE JSON_TYPE(…) WHEN 'NULL' THEN 'NULL' WHEN 'STRING' THEN 'VARCHAR' WHEN ...	as MariaDb	1
@@ -2594,6 +2572,7 @@ MongoDb	MongoDB	call	LOWER	emulated	guardedOp: $toLower		0
 MongoDb	MongoDB	call	GREATEST	emulated	$max		0
 MongoDb	MongoDB	call	LEAST	emulated	$min		0
 MongoDb	MongoDB	call	CONCAT_JOIN	emulated	$concat		0
+MongoDb	MongoDB	call	CONCAT_WS	emulated	eachAfterSeparator		0
 MongoDb	MongoDB	call	LIST_FILTER	emulated	listFilter		0
 MongoDb	MongoDB	call	LIST_TRANSFORM	emulated	listMap		0
 MongoDb	MongoDB	call	LIST_CONCAT	emulated	listConcat		0
@@ -2747,12 +2726,9 @@ MongoDb	MongoDB	call	FLOAT_TO_TEXT	emulated	floatToText		0
 MongoDb	MongoDB	call	DATETIME_TO_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 MongoDb	MongoDB	call	DATETIME_PRINT	not_here	renderer bug: is expanded before any dialect reads it		0
 MongoDb	MongoDB	call	CELL_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
-MongoDb	MongoDB	call	FORMAT_PADDED	not_here	renderer bug: is expanded before any dialect reads it		0
 MongoDb	MongoDB	call	INSTANCE_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 MongoDb	MongoDB	call	RELATION_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
-MongoDb	MongoDB	call	REPRESENTATION_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 MongoDb	MongoDB	call	TEXT_FORMS	not_here	renderer bug: is expanded before any dialect reads it		0
-MongoDb	MongoDB	call	TRACE_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 MongoDb	MongoDB	call	VARIANT_ELEMENTS	emulated	variantElements		0
 MongoDb	MongoDB	call	VARIANT_GET	emulated	variantGet		0
 MongoDb	MongoDB	call	JSON_TYPE	emulated	jsonType		0
@@ -2827,6 +2803,7 @@ EngineStyleH2	-	call	LOWER	spelled	lower		-
 EngineStyleH2	-	call	GREATEST	spelled	greatest		-
 EngineStyleH2	-	call	LEAST	spelled	least		-
 EngineStyleH2	-	call	CONCAT_JOIN	spelled	concat		-
+EngineStyleH2	-	call	CONCAT_WS	spelled	concat_ws		-
 EngineStyleH2	-	call	LIST_FILTER	emulated	listCall		-
 EngineStyleH2	-	call	LIST_TRANSFORM	emulated	listCall		-
 EngineStyleH2	-	call	LIST_CONCAT	emulated	listCall		-
@@ -2980,12 +2957,9 @@ EngineStyleH2	-	call	FLOAT_TO_TEXT	emulated	floatToText		-
 EngineStyleH2	-	call	DATETIME_TO_TEXT	not_here	renderer bug: is expanded before any dialect reads it		-
 EngineStyleH2	-	call	DATETIME_PRINT	not_here	renderer bug: is expanded before any dialect reads it		-
 EngineStyleH2	-	call	CELL_TEXT	not_here	renderer bug: is expanded before any dialect reads it		-
-EngineStyleH2	-	call	FORMAT_PADDED	not_here	renderer bug: is expanded before any dialect reads it		-
 EngineStyleH2	-	call	INSTANCE_TEXT	not_here	renderer bug: is expanded before any dialect reads it		-
 EngineStyleH2	-	call	RELATION_TEXT	not_here	renderer bug: is expanded before any dialect reads it		-
-EngineStyleH2	-	call	REPRESENTATION_TEXT	not_here	renderer bug: is expanded before any dialect reads it		-
 EngineStyleH2	-	call	TEXT_FORMS	not_here	renderer bug: is expanded before any dialect reads it		-
-EngineStyleH2	-	call	TRACE_TEXT	not_here	renderer bug: is expanded before any dialect reads it		-
 EngineStyleH2	-	call	VARIANT_ELEMENTS	refused	variant navigation reached a dialect without JSON support	via AnsiSqlRenderer.variantElements	-
 EngineStyleH2	-	call	VARIANT_GET	refused	variant navigation reached a dialect without JSON support	via AnsiSqlRenderer.variantGet	-
 EngineStyleH2	-	call	JSON_TYPE	spelled	json_type		-
@@ -3060,6 +3034,7 @@ EngineStyleDB2	-	call	LOWER	spelled	lower	as EngineStyleH2	-
 EngineStyleDB2	-	call	GREATEST	spelled	greatest	as EngineStyleH2	-
 EngineStyleDB2	-	call	LEAST	spelled	least	as EngineStyleH2	-
 EngineStyleDB2	-	call	CONCAT_JOIN	spelled	concat		-
+EngineStyleDB2	-	call	CONCAT_WS	spelled	concat_ws	as EngineStyleH2	-
 EngineStyleDB2	-	call	LIST_FILTER	emulated	listCall	as EngineStyleH2	-
 EngineStyleDB2	-	call	LIST_TRANSFORM	emulated	listCall	as EngineStyleH2	-
 EngineStyleDB2	-	call	LIST_CONCAT	emulated	listCall	as EngineStyleH2	-
@@ -3213,12 +3188,9 @@ EngineStyleDB2	-	call	FLOAT_TO_TEXT	emulated	floatToText	as EngineStyleH2	-
 EngineStyleDB2	-	call	DATETIME_TO_TEXT	not_here	renderer bug: is expanded before any dialect reads it	as EngineStyleH2	-
 EngineStyleDB2	-	call	DATETIME_PRINT	not_here	renderer bug: is expanded before any dialect reads it	as EngineStyleH2	-
 EngineStyleDB2	-	call	CELL_TEXT	not_here	renderer bug: is expanded before any dialect reads it	as EngineStyleH2	-
-EngineStyleDB2	-	call	FORMAT_PADDED	not_here	renderer bug: is expanded before any dialect reads it	as EngineStyleH2	-
 EngineStyleDB2	-	call	INSTANCE_TEXT	not_here	renderer bug: is expanded before any dialect reads it	as EngineStyleH2	-
 EngineStyleDB2	-	call	RELATION_TEXT	not_here	renderer bug: is expanded before any dialect reads it	as EngineStyleH2	-
-EngineStyleDB2	-	call	REPRESENTATION_TEXT	not_here	renderer bug: is expanded before any dialect reads it	as EngineStyleH2	-
 EngineStyleDB2	-	call	TEXT_FORMS	not_here	renderer bug: is expanded before any dialect reads it	as EngineStyleH2	-
-EngineStyleDB2	-	call	TRACE_TEXT	not_here	renderer bug: is expanded before any dialect reads it	as EngineStyleH2	-
 EngineStyleDB2	-	call	VARIANT_ELEMENTS	refused	variant navigation reached a dialect without JSON support	as EngineStyleH2, via AnsiSqlRenderer.variantElements	-
 EngineStyleDB2	-	call	VARIANT_GET	refused	variant navigation reached a dialect without JSON support	as EngineStyleH2, via AnsiSqlRenderer.variantGet	-
 EngineStyleDB2	-	call	JSON_TYPE	spelled	json_type	as EngineStyleH2	-
@@ -3293,6 +3265,7 @@ EngineStyleComposite	-	call	LOWER	spelled	lower	as EngineStyleDB2, as EngineStyl
 EngineStyleComposite	-	call	GREATEST	spelled	greatest	as EngineStyleDB2, as EngineStyleH2	-
 EngineStyleComposite	-	call	LEAST	spelled	least	as EngineStyleDB2, as EngineStyleH2	-
 EngineStyleComposite	-	call	CONCAT_JOIN	spelled	concat	as EngineStyleDB2	-
+EngineStyleComposite	-	call	CONCAT_WS	spelled	concat_ws	as EngineStyleDB2, as EngineStyleH2	-
 EngineStyleComposite	-	call	LIST_FILTER	emulated	listCall	as EngineStyleDB2, as EngineStyleH2	-
 EngineStyleComposite	-	call	LIST_TRANSFORM	emulated	listCall	as EngineStyleDB2, as EngineStyleH2	-
 EngineStyleComposite	-	call	LIST_CONCAT	emulated	listCall	as EngineStyleDB2, as EngineStyleH2	-
@@ -3446,12 +3419,9 @@ EngineStyleComposite	-	call	FLOAT_TO_TEXT	emulated	floatToText	as EngineStyleDB2
 EngineStyleComposite	-	call	DATETIME_TO_TEXT	not_here	renderer bug: is expanded before any dialect reads it	as EngineStyleDB2, as EngineStyleH2	-
 EngineStyleComposite	-	call	DATETIME_PRINT	not_here	renderer bug: is expanded before any dialect reads it	as EngineStyleDB2, as EngineStyleH2	-
 EngineStyleComposite	-	call	CELL_TEXT	not_here	renderer bug: is expanded before any dialect reads it	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	FORMAT_PADDED	not_here	renderer bug: is expanded before any dialect reads it	as EngineStyleDB2, as EngineStyleH2	-
 EngineStyleComposite	-	call	INSTANCE_TEXT	not_here	renderer bug: is expanded before any dialect reads it	as EngineStyleDB2, as EngineStyleH2	-
 EngineStyleComposite	-	call	RELATION_TEXT	not_here	renderer bug: is expanded before any dialect reads it	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	REPRESENTATION_TEXT	not_here	renderer bug: is expanded before any dialect reads it	as EngineStyleDB2, as EngineStyleH2	-
 EngineStyleComposite	-	call	TEXT_FORMS	not_here	renderer bug: is expanded before any dialect reads it	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	TRACE_TEXT	not_here	renderer bug: is expanded before any dialect reads it	as EngineStyleDB2, as EngineStyleH2	-
 EngineStyleComposite	-	call	VARIANT_ELEMENTS	refused	variant navigation reached a dialect without JSON support	as EngineStyleDB2, as EngineStyleH2, via AnsiSqlRenderer.variantElements	-
 EngineStyleComposite	-	call	VARIANT_GET	refused	variant navigation reached a dialect without JSON support	as EngineStyleDB2, as EngineStyleH2, via AnsiSqlRenderer.variantGet	-
 EngineStyleComposite	-	call	JSON_TYPE	spelled	json_type	as EngineStyleDB2, as EngineStyleH2	-

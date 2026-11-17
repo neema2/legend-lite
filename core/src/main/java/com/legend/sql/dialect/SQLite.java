@@ -126,13 +126,6 @@ public class SQLite extends AnsiSqlRenderer {
         return true;
     }
 
-    /** The engine's H2 text is refused here: SQLite has no translation of it (decision D2: raw text runs on the
-     *  database its connection declares; only the engine's H2 text is translated, for H2, DuckDB and Postgres). */
-    @Override
-    public String fromEngineText(String statement) {
-        throw new DialectCapability("the engine's H2 text reached SQLite, which has no translation of it");
-    }
-
     /** {@inheritDoc} The payload bound as one parameter, split by the database (the JSON pass, 2026-11-11: until then
      *  a session table in its {@code temp} schema its load made and its release dropped). */
     @Override
@@ -443,10 +436,15 @@ public class SQLite extends AnsiSqlRenderer {
         }
         if (label instanceof SqlType.Decimal d) {
             // printf reads a NULL as 0 and writes '0.00' (measured 2026-10-11 for the Float text, and 2026-10-27 here:
-            // a NULL decimal cell read back as 0.00 on the typed plan): a NULL stays NULL
+            // a NULL decimal cell read back as 0.00 on the typed plan): a NULL stays NULL. A label of scale 0 promises
+            // nothing of the value's digits (a #TDS Decimal column is typed DECIMAL(38, 0), and 0.1 in it is a REAL
+            // here): its text is the value's own -- an integer's digits, a REAL's shortest (the scale-0 text, textOf)
+            // -- never printf('%.0f'), which read 0.1 back as 0 (F49, E-P5's FloatAndDecimalTest, 2026-11-17)
+            SqlExpr text = d.scale() == 0 ? new SqlExpr.Cast(e, SqlType.Scalar.VARCHAR, SqlExpr.Reason.DIALECT)
+                    : SqlExpr.Call.of(SqlFn.FORMAT, new SqlExpr.StringLit("%." + d.scale() + "f"), e);
             return new SqlExpr.Case(List.of(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.IS_NULL, e),
                     new SqlExpr.Cast(new SqlExpr.NullLit(), SqlType.Scalar.DOUBLE, SqlExpr.Reason.DIALECT))),
-                    SqlExpr.Call.of(SqlFn.FORMAT, new SqlExpr.StringLit("%." + d.scale() + "f"), e), SqlExpr.Reason.DIALECT);
+                    text, SqlExpr.Reason.DIALECT);
         }
         if (label == SqlType.Scalar.DOUBLE) {
             return new SqlExpr.Cast(e, SqlType.Scalar.DOUBLE, SqlExpr.Reason.DIALECT);
@@ -1351,7 +1349,10 @@ public class SQLite extends AnsiSqlRenderer {
                             + " ELSE __pf_s END AS __pf_t FROM (SELECT trim(")
                     .expr(v, 0).append(", char(9, 10, 11, 12, 13, 32)) AS __pf_s)))))))");
         }
-        return writer.piece(castTo(w -> w.expr(v, 0), typeOf(v), target));
+        // a whole number already (a rounding to no places, a floor, a ceiling): cast as it is, never rounded again
+        boolean whole = alreadyWhole(v) && (target == SqlType.Scalar.INTEGER || target == SqlType.Scalar.BIGINT
+                || target == SqlType.Scalar.HUGEINT);
+        return writer.piece(castTo(w -> w.expr(v, 0), whole ? null : typeOf(v), target));
     }
 
     /** A Variant's value as {@code to}: a scalar by its SQL value ({@code ->> '$'}: a string unquoted, a boolean 1 or
@@ -1561,8 +1562,43 @@ public class SQLite extends AnsiSqlRenderer {
         return false;
     }
 
+    /** The arithmetic a Decimal operand is refused in here (D2a, the orchestrator's decision of 2026-11-17, found by
+     *  FloatAndDecimalTest): SQLite holds no exact decimal -- a decimal is a REAL, and the driver shipped (sqlite-jdbc
+     *  3.47.1.0) carries no decimal extension ({@code decimal_add}: "no such function", measured) -- so a Decimal's sum,
+     *  difference, product, quotient or remainder would be the double's, silently approximate ({@code 0.1D + 0.2D},
+     *  {@code rem(0.3D, 0.1D)}). Refused by name, never approximated (G7). */
+    private static final Set<SqlFn> DECIMAL_ARITHMETIC = Set.of(SqlFn.PLUS, SqlFn.MINUS, SqlFn.TIMES, SqlFn.DIVIDE,
+            SqlFn.MOD, SqlFn.REM);
+
+    /** Whether a Decimal's arithmetic is refused here: the product's, by the no-silent-approximation rule (D2a). The
+     *  compatibility edge writes it as REAL arithmetic, as legend-engine would here (the edge program's §6 row 22). */
+    protected boolean refusesDecimalArithmetic() {
+        return true;
+    }
+
+    /** Whether {@code e} is a Decimal value: of a Decimal fact, and holding a Decimal of the user's -- a Decimal
+     *  literal, a cast to a Decimal, or a column read as one -- not the lowering's own Float literal (an average's
+     *  {@code 1.0 *}, a DECIMAL fact by its digits, a REAL here like every Float). */
+    private static boolean holdsADecimal(SqlExpr e) {
+        if (!(e.type() instanceof com.legend.sql.TypeFact.Typed t && t.type() instanceof SqlType.Decimal)) {
+            return false;
+        }
+        return switch (e) {
+            case SqlExpr.DecimalLit d -> true;
+            case SqlExpr.Column col -> true;
+            case SqlExpr.Cast cast -> cast.target() instanceof SqlType.Decimal || holdsADecimal(cast.value());
+            case SqlExpr.FloatLit f -> false;
+            default -> e.children().stream().anyMatch(SQLite::holdsADecimal);
+        };
+    }
+
     @Override
     protected SqlWriter call(SqlWriter writer, SqlExpr.Call c, int parentPrec) {
+        if (refusesDecimalArithmetic() && DECIMAL_ARITHMETIC.contains(c.fn())
+                && c.args().stream().anyMatch(SQLite::holdsADecimal)) {
+            throw new DialectCapability("a Decimal's arithmetic (" + c.fn() + ") reached SQLite, which holds no exact"
+                    + " decimal (a decimal is a REAL there): refused, never approximated");
+        }
         if (REPEATING.contains(c.fn()) && c.args().stream().anyMatch(SQLite::bindable)) {
             return writer.piece(over(c.args(), refs -> w -> calls(w, (SqlExpr.Call) c.withChildren(refs), 0)));
         }
@@ -1594,7 +1630,7 @@ public class SQLite extends AnsiSqlRenderer {
             case PI -> writer.append("pi()");
             case FLOAT_PRINT -> floatPrintByText(writer, c, parentPrec);
             case FLOAT_TO_TEXT -> floatToText(writer, c.args().get(0));
-            case DATETIME_TO_TEXT, DATETIME_PRINT, CELL_TEXT, INSTANCE_TEXT, RELATION_TEXT, REPRESENTATION_TEXT, TEXT_FORMS, TRACE_TEXT ->
+            case DATETIME_TO_TEXT, DATETIME_PRINT, CELL_TEXT, INSTANCE_TEXT, RELATION_TEXT, TEXT_FORMS ->
                     throw expandedFirst(c);
             // the hooks: this dialect's own (or the base's refusal)
             case HASH -> hashSigned(writer, c.args());

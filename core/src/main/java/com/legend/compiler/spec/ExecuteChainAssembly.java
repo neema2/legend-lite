@@ -376,17 +376,10 @@ public final class ExecuteChainAssembly {
         }
         ExprType str = ExprType.one(Type.Primitive.STRING);
         if (root instanceof com.legend.compiler.spec.typed.TypedSerialize) {
-            TypedSpec parts = new TypedCollection(List.of(
-                    new com.legend.compiler.spec.typed.TypedCString(
-                            "{\"builder\":{\"_type\":\"json\"},\"values\":", str),
-                    chain,
-                    new com.legend.compiler.spec.typed.TypedCString("}", str)),
-                    new ExprType(Type.Primitive.STRING,
-                            Multiplicity.Bounded.ZERO_MANY), false);
-            return call(model, "meta::pure::functions::string::joinStrings",
-                    List.of(parts,
-                            new com.legend.compiler.spec.typed.TypedCString("", str)),
-                    str);
+            // legend-engine's json-builder envelope around the serialized value: the edge's (lowering.ResultEnvelopes,
+            // Phase 6's B5, 2026-11-17), the product's refusal at lowering
+            return new com.legend.compiler.spec.typed.TypedJsonResult(chain,
+                    com.legend.compiler.spec.typed.TypedJsonResult.Kind.VALUES, null, str);
         }
         Type t = chain.info().type();
         if (t instanceof Type.Primitive p

@@ -249,12 +249,6 @@ public class MongoDb extends AnsiSqlRenderer {
         return writer.append("{\"$toString\": ").expr(r.column(), 0).append("}");
     }
 
-    /** {@inheritDoc} The engine's H2 text has no translation into a pipeline. */
-    @Override
-    public String fromEngineText(String statement) {
-        throw new DialectCapability("the engine's H2 text reached MongoDb, which runs no SQL text");
-    }
-
     // ==================================================================
     // Expressions
     // ==================================================================
@@ -283,7 +277,7 @@ public class MongoDb extends AnsiSqlRenderer {
             case SqlExpr.JsonKindLit k -> MongoJson.literal(writer, jsonKindName(k.kind()));
             case SqlExpr.TypeNameLit t -> MongoJson.literal(writer, typeofName(t.scalar()));
             case SqlExpr.IntLit i -> writer.append("{\"$numberLong\": \"").append(i.value()).append("\"}");
-            case SqlExpr.FloatLit f -> writer.append("{\"$numberDouble\": \"").append(floatLiteral(f.value()))
+            case SqlExpr.FloatLit f -> writer.append("{\"$numberDouble\": \"").append(plainFloat(f.value()))
                     .append("\"}");
             case SqlExpr.DecimalLit d -> writer.append("{\"$numberDecimal\": \"").append(d.value().toPlainString())
                     .append("\"}");
@@ -1255,7 +1249,7 @@ public class MongoDb extends AnsiSqlRenderer {
             case BOOL_TO_TEXT -> MongoJson.op1(writer, "$toString", a.get(0));
             case FLOAT_PRINT -> floatPrintByText(writer, c, parentPrec);
             case FLOAT_TO_TEXT -> floatToText(writer, a.get(0));
-            case DATETIME_TO_TEXT, DATETIME_PRINT, CELL_TEXT, INSTANCE_TEXT, RELATION_TEXT, REPRESENTATION_TEXT, TEXT_FORMS, TRACE_TEXT ->
+            case DATETIME_TO_TEXT, DATETIME_PRINT, CELL_TEXT, INSTANCE_TEXT, RELATION_TEXT, TEXT_FORMS ->
                     throw expandedFirst(c);
             // ---- raising
             case ERROR -> raise(writer, a);

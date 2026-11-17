@@ -178,13 +178,6 @@ public class DuckDb extends AnsiSqlRenderer {
         return IN_MEMORY;
     }
 
-    /** The engine's H2 text translated for DuckDB (the raw-SQL boundary's own rewrite: keyword column names quoted,
-     *  H2's type kinds mapped, {@code CURRENT_TIMESTAMP()} without parens). */
-    @Override
-    public String fromEngineText(String statement) {
-        return RawSqlBoundary.translated(statement, types -> types, bare -> bare);
-    }
-
     /** DuckDB's aggregates, each by its name in the shared {@code name(args)} form (the dialect program's Phase 1,
      *  2026-10-13: an exhaustive switch, so a new aggregate asks this dialect too). */
     @Override
@@ -494,6 +487,28 @@ public class DuckDb extends AnsiSqlRenderer {
         };
     }
 
+    /** A product of two Decimals whose digits together pass 18 (D1, the orchestrator's decision of 2026-11-17, found by
+     *  FloatAndDecimalTest): DuckDB keeps such a product a DECIMAL(18) when both operands fit 18 digits, and raises
+     *  "Overflow in multiplication of DECIMAL(18)" for a value Pure computes exactly ({@code 123456789.123456789D *
+     *  3.0D}). A DECIMAL(38) one before them, {@code CAST(1 AS DECIMAL(38,0)) * x * y}, makes the product a DECIMAL(38)
+     *  at the operands' own scales, exact -- no scale written, since an operand's fact may not be the database's (a
+     *  relation literal's column claims DECIMAL(38,0) where DuckDB holds the literal's DECIMAL(18,9): measured). Any
+     *  other product as written. */
+    private static SqlExpr.Call decimalProductWidened(SqlExpr.Call c) {
+        if (c.args().size() == 2 && decimalOf(c.args().get(0)) instanceof com.legend.sql.SqlType.Decimal x
+                && decimalOf(c.args().get(1)) instanceof com.legend.sql.SqlType.Decimal y
+                && x.precision() + y.precision() > 18) {
+            SqlExpr wide = new SqlExpr.Cast(new SqlExpr.IntLit(1), new com.legend.sql.SqlType.Decimal(38, 0),
+                    SqlExpr.Reason.OPERATOR);
+            return new SqlExpr.Call(c.fn(), List.of(wide, c.args().get(0), c.args().get(1)));
+        }
+        return c;
+    }
+
+    private static com.legend.sql.SqlType.@com.legend.base.Nullable Decimal decimalOf(SqlExpr e) {
+        return e.type() instanceof com.legend.sql.TypeFact.Typed t && t.type() instanceof com.legend.sql.SqlType.Decimal d ? d : null;
+    }
+
     @Override
     protected SqlWriter call(SqlWriter writer, SqlExpr.Call c, int parentPrec) {
         List<SqlExpr> a = c.args();
@@ -532,8 +547,9 @@ public class DuckDb extends AnsiSqlRenderer {
             // ---- each function as this dialect spells it, by name (the dialect program's Phase 1, D1, 2026-10-13:
             // an exhaustive switch; a spelling several databases share is a named helper of the base)
             // the ANSI operators
-            case AND, OR, EQUAL, NOT_EQUAL, LESS, LESS_EQUAL, GREATER, GREATER_EQUAL, PLUS, MINUS, TIMES ->
+            case AND, OR, EQUAL, NOT_EQUAL, LESS, LESS_EQUAL, GREATER, GREATER_EQUAL, PLUS, MINUS ->
                     infix(writer, c, parentPrec);
+            case TIMES -> infix(writer, decimalProductWidened(c), parentPrec);
             // the shared spellings this dialect's lanes prove
             case NOT -> notPrefix(writer, c.args(), parentPrec);
             // Pure's divide is a Float division: both operands DOUBLE
@@ -585,7 +601,7 @@ public class DuckDb extends AnsiSqlRenderer {
             case BOOL_TO_TEXT -> castAs(writer, c.args().get(0), "VARCHAR");
             case FLOAT_PRINT -> floatPrintByText(writer, c, parentPrec);
             case FLOAT_TO_TEXT -> floatToText(writer, c.args().get(0));
-            case DATETIME_TO_TEXT, DATETIME_PRINT, CELL_TEXT, INSTANCE_TEXT, RELATION_TEXT, REPRESENTATION_TEXT, TEXT_FORMS, TRACE_TEXT ->
+            case DATETIME_TO_TEXT, DATETIME_PRINT, CELL_TEXT, INSTANCE_TEXT, RELATION_TEXT, TEXT_FORMS ->
                     throw expandedFirst(c);
             // the hooks: this dialect's own (or the base's refusal)
             case LIST_FILTER, LIST_TRANSFORM, LIST_CONCAT, LIST_GET, LIST_AT, LIST_POSITION, LIST_ZIP, LIST_DISTINCT,

@@ -73,13 +73,6 @@ public class Trino extends AnsiSqlRenderer {
     // Session and structure
     // ==================================================================
 
-    /** The engine's H2 text is refused here: Trino has no translation of it (decision D2: raw text runs on the
-     *  database its connection declares; only the engine's H2 text is translated, for H2, DuckDB and Postgres). */
-    @Override
-    public String fromEngineText(String statement) {
-        throw new DialectCapability("the engine's H2 text reached Trino, which has no translation of it");
-    }
-
     /** {@inheritDoc} 9: its {@code TIMESTAMP '...'} literal is typed by the digits it is written with (measured) (S181,
      *  A7, 2026-11-10). Kept at nine by the user's rule, "refuse if the db cannot handle" (round 34, 2026-11-11): Trino's
      *  {@code TIMESTAMP(9)} keeps them, and so does every arm that reads a date-time (the orchestrator's correction,
@@ -445,16 +438,6 @@ public class Trino extends AnsiSqlRenderer {
             return w -> w.append("CAST(").expr(e, 0).append(" AS " + type + ")");
         }
         return w -> w.expr(e, 0);
-    }
-
-    /** A Float literal is its digits, a DECIMAL (the numeric charter's Rule 1); past a DECIMAL's 38 digits Trino
-     *  refuses it ("not a valid DECIMAL literal", measured: a double's exact expansion, 48 digits; DuckDB reads such a
-     *  literal as a DOUBLE): it is the double's shortest text instead (a DOUBLE where that is in exponent form). */
-    @Override
-    protected String floatLiteral(double v) {
-        String plain = super.floatLiteral(v);
-        return plain.replace("-", "").replace(".", "").replaceFirst("^0+", "").length() > 38 ? Double.toString(v)
-                : plain;
     }
 
     /** An integer past a signed BIGINT: a bare one is refused ("Invalid numeric literal", measured); a DECIMAL's
@@ -967,7 +950,7 @@ public class Trino extends AnsiSqlRenderer {
             case DIVIDE -> divideAsDoubles(writer, c.args());
             case FLOAT_PRINT -> floatPrintByText(writer, c, parentPrec);
             case FLOAT_TO_TEXT -> floatToText(writer, c.args().get(0));
-            case DATETIME_TO_TEXT, DATETIME_PRINT, CELL_TEXT, INSTANCE_TEXT, RELATION_TEXT, REPRESENTATION_TEXT, TEXT_FORMS, TRACE_TEXT ->
+            case DATETIME_TO_TEXT, DATETIME_PRINT, CELL_TEXT, INSTANCE_TEXT, RELATION_TEXT, TEXT_FORMS ->
                     throw expandedFirst(c);
             // the hooks: this dialect's own (or the base's refusal)
             case ROUND -> roundHalfEven(writer, c.args());

@@ -334,12 +334,12 @@ class CodeShapeGuardrailTest {
             // driver-scoped emission opt-in (builder-style, set once
             // before lower()): engine-parity join-distinct exists form —
             // the standalone-SQL surface constructs without it
-            "Lowerer.engineExistsJoinForm",
+            // (Lowerer.engineExistsJoinForm: gone 2026-11-17, Phase 6's B5 -- the shape's existsAsJoinDistinct)
             // Phase 2a (batch 136): the two lowering MODES that were
             // thread-locals — verbatim equality (save/set/restore around
             // the two mapping-definition sites) and the engine-text
             // option (builder-style, set once before lower())
-            "Lowerer.verbatimEquality", "Lowerer.engineText",
+            "Lowerer.verbatimEquality", "Lowerer.shape",   // engineText until 2026-11-17 (Phase 6's B5: a LoweringShape, the edge's choice)
             // the query's execution feature flags (Feature): builder-style,
             // set once by the executor before lower(), same lifecycle as
             // engineText — a flag selects an emission during the lowering

@@ -43,12 +43,15 @@ class HookRulingTest {
             com.legend.testexec.EdgeHearing.class, List.of(
                     () -> productHearing().engineText(null, List.of(), null, false),
                     () -> productHearing().rowAppealed(0, List.of(), false)),
-            // census B3 (and B1's PlanStyle signatures naming it): legend-engine's text printers
-            com.legend.sql.dialect.EngineTextDialect.class, List.of(
-                    () -> each(t -> PlanStyle.PRODUCT.engineText(t)),
-                    () -> each(t -> PlanStyle.PRODUCT.enginePlanText(t, true, null)),
-                    () -> PlanStyle.PRODUCT.engineTestText(),
-                    () -> PlanStyle.PRODUCT.engineTestPlanText()),
+            // census B3 and B1 (EngineTextDialect and PlanStyle's signatures naming it): CLOSED 2026-11-17 by Phase 6 --
+            // the interface is com.legend.edge's and the style names no engine text; its entry gone
+            // census B2, 2026-11-17 (Phase 6): upstream's plan text, the planner's facet -- signatures only since its
+            // routine table moved to planner.PlanTextRoutines
+            com.legend.planner.UpstreamPlans.class, List.of(
+                    () -> PlanStyle.PRODUCT.facet(com.legend.planner.UpstreamPlans.class)),
+            // census B5, 2026-11-17 (Phase 6): legend-engine's result envelope, composed at lowering
+            com.legend.lowering.ResultEnvelopes.class, List.of(
+                    () -> PlanStyle.PRODUCT.facet(com.legend.lowering.ResultEnvelopes.class)),
             // census B8 (i), 2026-11-17: the texts only legend-pure writes, composed at lowering
             com.legend.lowering.PureOnlyTexts.class, List.of(
                     () -> PlanStyle.PRODUCT.facet(com.legend.lowering.PureOnlyTexts.class)));
@@ -78,13 +81,6 @@ class HookRulingTest {
                 new com.legend.testexecutionplan.BodyFacts(false, false, true, "A"));
     }
 
-    /** {@code call} on every database type (each refused alike; no database named). */
-    private static void each(java.util.function.Consumer<com.legend.model.ConnectionDefinition.DatabaseType> call) {
-        for (com.legend.model.ConnectionDefinition.DatabaseType t
-                : com.legend.model.ConnectionDefinition.DatabaseType.values()) {
-            call.accept(t);
-        }
-    }
 
     /** (a): an interface declaring signatures only -- no static method, no default method, no field. */
     @Test
@@ -118,6 +114,16 @@ class HookRulingTest {
         }
     }
 
+    /** A TWO-FORM HOOK (the orchestrator's ruling of 2026-11-17, B8 (ii)): the product's style answers its own lite
+     *  form, holding no upstream knowledge; the upstream form is in the edge's override alone. An execution's trace
+     *  text: the product's the id itself, the edge's legend-engine's comment around it. */
+    @Test
+    void theTwoFormHooksAnswerTheProductsOwnFormAndTheEdgesUpstreamOne() {
+        assertEquals(null, PlanStyle.PRODUCT.traceCell(), "the product writes the id alone");
+        assertEquals(new PlanStyle.TraceCell("-- \"executionTraceID\" : \"", "\""),
+                com.legend.edge.PureText.UPSTREAM.traceCell());
+    }
+
     /** (b): the product's style refuses each way of reaching the hook, by name, pointing to the edge. */
     @Test
     void theProductRefusesEachRuledHookByName() {
@@ -148,10 +154,9 @@ class HookRulingTest {
         assertEquals(new TreeSet<>(List.of(
                 "EdgeHearing <- com.legend.edge.Appeals",
                 "EdgeRun <- com.legend.edge.AppealRun",
-                "EngineTextDialect <- com.legend.edge.EngineStyleComposite",
-                "EngineTextDialect <- com.legend.edge.EngineStyleDB2",
-                "EngineTextDialect <- com.legend.edge.EngineStyleH2",
-                "PureOnlyTexts <- com.legend.edge.EdgePureOnlyTexts")), implementers);
+                "PureOnlyTexts <- com.legend.edge.EdgePureOnlyTexts",
+                "ResultEnvelopes <- com.legend.edge.EngineResultEnvelopes",
+                "UpstreamPlans <- com.legend.edge.EnginePlans$1")), implementers);
         assertFalse(implementers.isEmpty());
         // the product's refusals are the ones named, and each implements a ruled hook
         for (String refusal : PRODUCT_REFUSALS) {

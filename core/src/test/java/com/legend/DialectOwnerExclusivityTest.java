@@ -64,7 +64,11 @@ class DialectOwnerExclusivityTest {
             // session tests whose subject is another database's text on that session: legend-engine's H2 SQL in an
             // executeInDb, translated for DuckDB (D2), and a connection helper whose overloads declare H2 and DuckDB
             new Crossing("core/src/test/java/com/legend/exec/ExecuteInDbDuckDbTest.java", "H2", 6,
-                    "legend-engine's H2 text run on a DuckDB session, translated (D2)"));
+                    "legend-engine's H2 text run on a DuckDB session, translated (D2)"),
+            // 2026-11-17 (F's census line A5, D's ask): ExecuteInDbDuckDbTest's edge-road cases split into their own
+            // test, the edge's: the same H2 text on the same DuckDB session, translated on the edge's road
+            new Crossing("core/src/test/java/com/legend/exec/ExecuteInDbDuckDbEdgeTest.java", "H2", 6,
+                    "legend-engine's H2 text run on a DuckDB session, translated on the edge's road (B4 (ii))"));
             // (RawGridSchemaDuckDbTest's crossing gone with the test, 2026-10-30: the stamp it tested deleted, S3c)
 
     /** {@code DatabaseType.valueOf} and {@code .values()}: the vocabulary reading a name, deciding nothing. */
@@ -300,7 +304,8 @@ class DialectOwnerExclusivityTest {
         assertEquals(Set.of(), DatabaseOwners.of(dialect + "Stars.java",
                 "/** like class Stars extends Postgres */ final class Stars { static class In extends DuckDb {} }")
                 .databases());
-        assertEquals(Set.of("H2"), DatabaseOwners.of(dialect + "RawSqlBoundary.java", "").databases());
+        assertEquals(Set.of("H2"), DatabaseOwners.of("core/src/main/java/com/legend/edge/RawSqlBoundary.java", "")
+                .databases());
         assertEquals(DatabaseOwners.Kind.VOCABULARY,
                 DatabaseOwners.of("core/src/main/java/com/legend/parser/section/ConnectionSectionGrammar.java", "")
                         .kind());

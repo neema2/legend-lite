@@ -270,11 +270,11 @@ class DuckDbOutputPlanTest {
             Map<String, Object> request = request(c, "trades", "totals", "create", DECIMAL_SUM, null, false);
             com.legend.json.Json.Obj sources = com.legend.json.Json.parseObject(planner.Boundary.tableModel(
                     com.legend.json.Json.toCompact(Map.of("databaseType", "DuckDB", "tables", request.get("tables")))));
-            com.legend.compiler.element.type.Type total = com.legend.plan.UpstreamRelationType.columns(
+            com.legend.compiler.element.type.Type total = com.legend.plan.PureSpelling.relationColumns(
                     com.legend.Compiler.query(com.legend.Compiler.compileModel(sources.getString("model")), DECIMAL_SUM)
                             .resultType()).get(1).type();
             assertTrue(!(total instanceof com.legend.compiler.element.type.Type.PrecisionDecimal)
-                    && com.legend.plan.UpstreamRelationType.typePath(total).equals("Decimal"), String.valueOf(total));
+                    && com.legend.plan.PureSpelling.typePath(total).equals("Decimal"), String.valueOf(total));
             assertEquals(2, run(c, plan(request)));
             assertEquals(List.of(List.of("FX", "15.50"), List.of("Rates", "20.25")),
                     rows(c, "SELECT desk, total FROM totals ORDER BY desk"));

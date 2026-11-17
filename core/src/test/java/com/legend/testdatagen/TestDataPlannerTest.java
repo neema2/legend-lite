@@ -35,6 +35,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class TestDataPlannerTest {
 
+    /** Upstream's printing, the compatibility edge's (Phase 6's B13, 2026-11-17: the generator's COMPAT spelling moved to
+     *  the plan style's UpstreamPlans facet). */
+    private static final TestDataPlanner.Printing UPSTREAM =
+            com.legend.edge.PureText.UPSTREAM.facet(com.legend.planner.UpstreamPlans.class).testDataTimestampText()::apply;
+
+
     private static final String MODEL = """
             ###Relational
             Database t::DB
@@ -172,7 +178,7 @@ class TestDataPlannerTest {
                     + " ['f', 'a', 'l'])");
             List<TestDataGenerator.TableRowIds> one = List.of(ids("MIXED", "ID", 1L, 2L));
             assertEquals("default\nMIXED\n\"last name\",AGE,ID,firstName\nkim,40,2,bob\nlee,30,1,ann\n-----\n",
-                    text(c, dialect, TestDataPlanner.route(ctx, mixed, "t::M", one, null, false).csv()), type.name());
+                    text(c, dialect, TestDataPlanner.route(ctx, mixed, "t::M", one, null, false, UPSTREAM).csv()), type.name());
             // the function's text: its header as before (upper-cased plain names, sorted so)
             assertEquals("default\nMIXED\nAGE,FIRSTNAME,ID,last name\n30,ann,1,lee\n40,bob,2,kim\n-----\n",
                     text(c, dialect, TestDataPlanner.plan(ctx, mixed, "t::M", one, null, false, PlannerViews.of(ctx),
@@ -183,7 +189,7 @@ class TestDataPlannerTest {
             TestDataPlanner.Seed seed = TestDataPlanner.seed(ctx, none, "t::M", true,
                     PlannerViews.queries(ctx, "t::M", "t::RT"));
             assertEquals("default\nNONE\nID,N\n\n-----\n", text(c, dialect,
-                    TestDataPlanner.route(ctx, none, "t::M", List.of(), seed, false).csv()), type.name());
+                    TestDataPlanner.route(ctx, none, "t::M", List.of(), seed, false, UPSTREAM).csv()), type.name());
         }
     }
 
@@ -221,7 +227,7 @@ class TestDataPlannerTest {
                     + String.join(",\n", line.formatted("B"), line.formatted("Z"), line.formatted("a"),
                             line.formatted("b")) + "\n  ])\n", text(c, dialect, TestDataPlanner.seedString(ctx, seed)),
                     type.name());
-            assertTrue(text(c, dialect, TestDataPlanner.seedJson(ctx, seed)).endsWith("\"rowIdentifiers\":["
+            assertTrue(text(c, dialect, TestDataPlanner.seedJson(ctx, seed, NO_TIMESTAMP_KEY)).endsWith("\"rowIdentifiers\":["
                     + "{\"columnValuePairs\":[{\"name\":\"CODE\",\"value\":\"B\"}]},"
                     + "{\"columnValuePairs\":[{\"name\":\"CODE\",\"value\":\"Z\"}]},"
                     + "{\"columnValuePairs\":[{\"name\":\"CODE\",\"value\":\"a\"}]},"
@@ -607,15 +613,15 @@ class TestDataPlannerTest {
             assertEquals(table.formatted("KEYS") + "{\"columnValuePairs\":[{\"name\":\"ID\",\"value\":1}]},"
                     + "{\"columnValuePairs\":[{\"name\":\"ID\",\"value\":2}]},"
                     + "{\"columnValuePairs\":[{\"name\":\"ID\",\"value\":3}]}]}",
-                    text(c, dialect, TestDataPlanner.seedJson(ctx, three)));
+                    text(c, dialect, TestDataPlanner.seedJson(ctx, three, NO_TIMESTAMP_KEY)));
             assertEquals(table.formatted("CODES") + "{\"columnValuePairs\":[{\"name\":\"CODE\",\"value\":\"a'b\"}]},"
                     + "{\"columnValuePairs\":[{\"name\":\"CODE\",\"value\":\"c\\\\d\"}]},"
                     + "{\"columnValuePairs\":[{\"name\":\"CODE\",\"value\":\"e\\nf\"}]}]}",
-                    text(c, dialect, TestDataPlanner.seedJson(ctx, codes)));
+                    text(c, dialect, TestDataPlanner.seedJson(ctx, codes, NO_TIMESTAMP_KEY)));
             // no key: an empty list
             assertEquals(table.formatted("KEYS") + "]}", text(c, dialect, TestDataPlanner.seedJson(ctx,
                     TestDataPlanner.seed(ctx, query("|t::K.all()->filter(k|$k.id > 99)->project([k|$k.name], ['n'])"),
-                            "t::M", false, queries))));
+                            "t::M", false, queries), NO_TIMESTAMP_KEY)));
         }
     }
 
@@ -687,17 +693,24 @@ class TestDataPlannerTest {
                     + "17.0,2,2021-02-03,2020-01-02 03:04:05\n" + big + ",4,2020-01-02,2020-01-02 03:04:05\n"
                     + "---null---,3,---null---,---null---\n-----\n",
                     text(c, dialect, TestDataPlanner.plan(ctx, q, "t::M", ids, null, false, PlannerViews.of(ctx),
-                            TestDataPlanner.Printing.COMPAT).csv()), type.name());
-            // the seed's JSON: a timestamp key as upstream's ValueTransformer writes it, lite's canonical text
+                            UPSTREAM).csv()), type.name());
+            // the seed's JSON: a timestamp key as the caller writes it (here the product's DateTime text; the seed
+            // route's, upstream's ValueTransformer text, is the edge's: TestDataRoutesTest, B11, 2026-11-17)
             TestDataPlanner.Seed stamps = TestDataPlanner.seed(ctx, query("|t::S.all()->project([x|$x.n], ['n'])"),
                     "t::M", false, PlannerViews.queries(ctx, "t::M", "t::RT"));
             assertEquals("{\"table\":{\"_type\":\"table\",\"table\":\"STAMPS\",\"schema\":\"default\",\"database\":"
                     + "\"t::DB\"},\"rowIdentifiers\":[{\"columnValuePairs\":[{\"name\":\"STAMP\",\"value\":"
-                    + "\"2020-01-02T03:04:05.123000000+0000\"}]},{\"columnValuePairs\":[{\"name\":\"STAMP\",\"value\":"
-                    + "\"2020-01-03T00:00:00.000000000+0000\"}]}]}", text(c, dialect, TestDataPlanner.seedJson(ctx, stamps)),
+                    + "\"2020-01-02T03:04:05.123000Z\"}]},{\"columnValuePairs\":[{\"name\":\"STAMP\",\"value\":"
+                    + "\"2020-01-03T00:00:00.000000Z\"}]}]}", text(c, dialect, TestDataPlanner.seedJson(ctx, stamps,
+                    x -> com.legend.sql.SqlExpr.Call.of(com.legend.sql.SqlFn.DATETIME_TO_TEXT, x))),
                     type.name());
         }
     }
+
+    /** A seed's timestamp key text where the seed holds none (the route's own is the edge's: B11, 2026-11-17). */
+    private static final java.util.function.UnaryOperator<com.legend.sql.SqlExpr> NO_TIMESTAMP_KEY = x -> {
+        throw new AssertionError("this seed holds no timestamp key");
+    };
 
     /** EVENT {@code id}'s AMOUNT as the database casts it to a text. */
     private static String cast(Connection c, int id) throws Exception {

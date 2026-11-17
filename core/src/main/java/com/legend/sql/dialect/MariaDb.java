@@ -185,13 +185,6 @@ public class MariaDb extends AnsiSqlRenderer {
     // Session and structure
     // ==================================================================
 
-    /** The engine's H2 text is refused here: MariaDB has no translation of it (decision D2: raw text runs on the
-     *  database its connection declares; only the engine's H2 text is translated, for H2, DuckDB and Postgres). */
-    @Override
-    public String fromEngineText(String statement) {
-        throw new DialectCapability("the engine's H2 text reached MariaDB, which has no translation of it");
-    }
-
     /** {@inheritDoc} 6: its {@code DATETIME(6)}, its finest (S181, A7, 2026-11-10). */
     @Override
     protected int literalFractionDigits() {
@@ -1739,7 +1732,9 @@ public class MariaDb extends AnsiSqlRenderer {
                             SqlType.Scalar.DOUBLE))
                     .append(" END)");
         }
-        return writer.piece(castTo(w -> w.expr(v, 0), typeOf(v), target));
+        // a whole number already (a rounding to no places, a floor, a ceiling): cast as it is, never rounded again
+        boolean whole = alreadyWhole(v) && (target == SqlType.Scalar.INTEGER || target == SqlType.Scalar.BIGINT);
+        return writer.piece(castTo(w -> w.expr(v, 0), whole ? null : typeOf(v), target));
     }
 
     /** A Variant's value as {@code to}: a scalar by its SQL value ({@code JSON_VALUE}: a string unquoted), as text a
@@ -1992,7 +1987,7 @@ public class MariaDb extends AnsiSqlRenderer {
             // mixed list, measured 2026-10-11)
             case FLOAT_PRINT -> floatPrintByText(writer, c, parentPrec);
             case FLOAT_TO_TEXT -> floatToText(writer, c.args().get(0));
-            case DATETIME_TO_TEXT, DATETIME_PRINT, CELL_TEXT, INSTANCE_TEXT, RELATION_TEXT, REPRESENTATION_TEXT, TEXT_FORMS, TRACE_TEXT ->
+            case DATETIME_TO_TEXT, DATETIME_PRINT, CELL_TEXT, INSTANCE_TEXT, RELATION_TEXT, TEXT_FORMS ->
                     throw expandedFirst(c);
             // NULL-skipping, as DuckDB's (MariaDB's GREATEST/LEAST are NULL for any NULL argument)
             case GREATEST -> writer.piece(nullSkipping("GREATEST", a));

@@ -173,25 +173,17 @@ public enum SqlFn {
      *  ({@code dialect.PureOnlyText}); the compatibility edge writes {@code x}, today's SQL (edge/PurePrintForms; the
      *  user's ruling of 2026-11-10, "objects and relations are refused", relayed 2026-11-15; phase D's D1.3). */
     RELATION_TEXT,
-    /** A value's representation ({@code x}, legend-pure's {@code toRepresentation} of it, then what it is as a string
-     *  literal; {@code format}'s {@code %r} joins once the judges' messages are Java, Phase 4b): legend-pure's text. The product refuses it by name (the user's
-     *  ruling of 2026-11-16, docs/records/total-wall-edge-program-2026-11-16.md §10 item 8: "refuse in product but not
-     *  in compatibility"; register S314's extension) -- its renderer's {@code dialect.PureOnlyText}; the compatibility
-     *  edge writes {@code x}, the SQL the lowering wrote until then (edge/PurePrintForms; Phase 3). The judges' own
-     *  messages write the representation unwrapped (lowering.VerdictSql). */
-    REPRESENTATION_TEXT,
+    // (a user's toRepresentation: gone 2026-11-17, the separation census's B8 (i) -- the edge
+    // writes legend-pure's representation at lowering through the plan style's PureOnlyTexts facet; the product
+    // refuses at lowering)
     /** A value's text in two forms ({@code product}, then {@code pure}): the product's (a list's JSON array; the user's
      *  ruling of 2026-11-10, start-here §5.4, relayed 2026-11-15) and legend-pure's ({@code [a, 1]}), where the two
      *  differ in their composition, not one spelling. The base renderer keeps the product's
      *  ({@code dialect.TextForms}); the compatibility edge keeps legend-pure's (edge/PurePrintForms). Phase D's D1.3,
      *  2026-11-15: until the hook has a lowering half, legend-pure's form is composed beside the product's. */
     TEXT_FORMS,
-    /** An execution's trace text in an activity's row ({@code id}, the execution's id the runner binds): the product's
-     *  is the id (the user's ruling of 2026-11-10, C1: "The execution id lives in lite's trace and in the edge's
-     *  activity report"; phase D's D1.4, 2026-11-15) -- the base renderer writes the operand ({@code dialect.TextForms});
-     *  the compatibility edge writes legend-engine's comment around it, {@code -- "executionTraceID" : "<id>"}
-     *  (edge/PurePrintForms). Until then the runner bound the comment itself. */
-    TRACE_TEXT,
+    // (an execution's trace text: gone 2026-11-17, the separation census's B8 (ii) -- the plan style's
+    // traceText, the product's the id, the edge's legend-engine's comment, written at lowering)
     // Variant navigation: logical JSON access; text-extraction idioms are rendering
     VARIANT_ELEMENTS, VARIANT_GET, JSON_TYPE,
     /** json_array_length(doc): the element count of a JSON array (the size of a serialized class collection — database-mode assertSize). */

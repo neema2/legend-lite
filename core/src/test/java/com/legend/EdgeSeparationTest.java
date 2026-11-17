@@ -50,16 +50,13 @@ class EdgeSeparationTest {
      *  open line until it moves to the edge or is ruled; a product class depending on one is an entry too. */
     static final Map<String, String> COMPAT_CLASSES = Map.ofEntries(
             Map.entry("com.legend.planner.UpstreamPlans", "B2"),
-            Map.entry("com.legend.sql.dialect.EngineTextDialect", "B3"),
-            Map.entry("com.legend.sql.dialect.RawSqlBoundary", "B4"),
-            Map.entry("com.legend.plan.PurePrint", "B6"),
-            Map.entry("com.legend.plan.UpstreamRelationType", "B6"),
             Map.entry("com.legend.server.PureV1Api", "B7"),
             Map.entry("com.legend.sql.dialect.FloatPrintText", "B9"),
             Map.entry("com.legend.sql.dialect.DateTimePrintText", "B9"),
             // B17 (2026-11-17): Render's relation text moved to the edge (edge.RelationTextLowering); what stays in
             // Render is the product's row helpers, and the facet the edge answers stands here until hooks are ruled
             Map.entry("com.legend.lowering.RelationTexts", "B17"),
+            Map.entry("com.legend.lowering.ResultEnvelopes", "B5"),
             Map.entry("com.legend.lowering.PureOnlyTexts", "B8"),
             Map.entry("com.legend.lowering.Repr", "C5"),
             Map.entry("com.legend.testplan.EngineTestText", "C4"),
@@ -68,7 +65,7 @@ class EdgeSeparationTest {
 
     /** The SqlFn members only the edge spells (census B8). */
     static final Set<String> EDGE_ONLY_SQLFN = Set.of("FLOAT_PRINT", "DATETIME_PRINT", "INSTANCE_TEXT",
-            "RELATION_TEXT", "REPRESENTATION_TEXT", "TEXT_FORMS", "TRACE_TEXT");
+            "RELATION_TEXT", "TEXT_FORMS");
 
     /** The referee and the appeals in the product packages they stood in (census C2, closed 2026-11-17: moved to
      *  com.legend.edge, whose classes the CODE guard already keeps out of the product): a tripwire, should one return. */
@@ -89,45 +86,29 @@ class EdgeSeparationTest {
             Map.entry("com.legend.lowering.Lowerer -> com.legend.lowering.RelationTexts", "B17 2026-11-17"),
             Map.entry("com.legend.lowering.RelationTexts -> (stands in a product package)", "B17 2026-11-17"),
             Map.entry("com.legend.planner.PlanEnv -> com.legend.lowering.RelationTexts", "B17 2026-11-17"),
-            Map.entry("com.legend.lowering.Lowerer -> SqlFn.TRACE_TEXT", "B8 2026-11-17"),
             Map.entry("com.legend.lowering.Repr -> (stands in a product package)", "B12 2026-11-17"),
             Map.entry("com.legend.lowering.Repr -> SqlFn.FLOAT_PRINT", "C5 2026-11-17"),
             // (the orchestrator's ruling, 2026-11-17: lite's message Float reads FLOAT_PRINT's shortest digits until B9
             // splits it into a product node and the edge's spelling)
             Map.entry("com.legend.lowering.LiteText -> SqlFn.FLOAT_PRINT", "B9 2026-11-17"),
-            Map.entry("com.legend.lowering.Repr -> SqlFn.REPRESENTATION_TEXT", "B12 2026-11-17"),
             Map.entry("com.legend.lowering.Scalars -> SqlFn.DATETIME_PRINT", "B8 2026-11-17"),
             Map.entry("com.legend.lowering.Scalars -> SqlFn.INSTANCE_TEXT", "B8 2026-11-17"),
             Map.entry("com.legend.lowering.Scalars -> SqlFn.TEXT_FORMS", "B8 2026-11-17"),
             Map.entry("com.legend.lowering.Scalars -> com.legend.lowering.Repr", "B12 2026-11-17"),
             Map.entry("com.legend.lowering.TaggedLists -> SqlFn.TEXT_FORMS", "B8 2026-11-17"),
             Map.entry("com.legend.lowering.VerdictSql -> com.legend.lowering.Repr", "C5 2026-11-17"),
-            Map.entry("com.legend.plan.PurePrint -> (stands in a product package)", "B6 2026-11-17"),
-            Map.entry("com.legend.plan.UpstreamRelationType -> (stands in a product package)", "B6 2026-11-17"),
-            Map.entry("com.legend.planner.BodyPlanner -> com.legend.planner.UpstreamPlans", "B2 2026-11-17"),
-            Map.entry("com.legend.planner.PlanAllocations -> com.legend.planner.UpstreamPlans", "B2 2026-11-17"),
-            Map.entry("com.legend.planner.ProductStatements -> com.legend.planner.UpstreamPlans", "B2 2026-11-17"),
-            Map.entry("com.legend.planner.QueryParameters -> com.legend.plan.PurePrint", "B6 2026-11-17"),
-            Map.entry("com.legend.planner.UpstreamPlans -> (stands in a product package)", "B2 2026-11-17"),
             Map.entry("com.legend.server.ConnectionResolver -> com.legend.server.PureV1Api", "B7 2026-11-17"),
             Map.entry("com.legend.server.LegendHttpServer -> com.legend.server.PureV1Api", "B7 2026-11-17"),
             Map.entry("com.legend.server.ModelChanges -> com.legend.server.PureV1Api", "B7 2026-11-17"),
             Map.entry("com.legend.server.ModelInput -> com.legend.server.PureV1Api", "B7 2026-11-17"),
             Map.entry("com.legend.server.PureV1Api -> (stands in a product package)", "B7 2026-11-17"),
-            Map.entry("com.legend.server.PureV1Api -> com.legend.plan.UpstreamRelationType", "B6 2026-11-17"),
             Map.entry("com.legend.sql.dialect.AnsiSqlRenderer -> com.legend.sql.dialect.DateTimePrintText", "B9 2026-11-17"),
             Map.entry("com.legend.sql.dialect.AnsiSqlRenderer -> com.legend.sql.dialect.FloatPrintText", "B9 2026-11-17"),
             Map.entry("com.legend.sql.dialect.DateTimePrintText -> (stands in a product package)", "B9 2026-11-17"),
-            Map.entry("com.legend.sql.dialect.DuckDb -> com.legend.sql.dialect.RawSqlBoundary", "B4 2026-11-17"),
             Map.entry("com.legend.sql.dialect.FloatPrintText -> (stands in a product package)", "B9 2026-11-17"),
-            Map.entry("com.legend.sql.dialect.Postgres -> com.legend.sql.dialect.RawSqlBoundary", "B4 2026-11-17"),
-            Map.entry("com.legend.sql.dialect.RawSqlBoundary -> (stands in a product package)", "B4 2026-11-17"),
-            Map.entry("com.legend.testdatagen.TestDataGenerationNatives -> com.legend.sql.dialect.EngineTextDialect", "B13 2026-11-17"),
-            Map.entry("com.legend.testdatagen.TestDataGenerator -> com.legend.sql.dialect.EngineTextDialect", "B13 2026-11-17"),
             Map.entry("planner.Boundary -> com.legend.edge.HostAnswers", "A1 2026-11-17"),
             Map.entry("planner.Boundary -> com.legend.edge.PureText", "A1 2026-11-17"),
             Map.entry("planner.Boundary -> com.legend.edge.PureV1Routes", "A1 2026-11-17"),
-            Map.entry("planner.Boundary -> com.legend.plan.UpstreamRelationType", "A1 2026-11-17"),
             Map.entry("planner.Boundary -> com.legend.server.PureV1Api", "A1 2026-11-17"),
             Map.entry("planner.Folded -> com.legend.server.PureV1Api", "A1 2026-11-17"));
 
@@ -141,7 +122,6 @@ class EdgeSeparationTest {
             // (AgreementAsserts -> EngineTextAppeals closed: 2026-11-17, (b) of the orchestrator's order: the fused agreement path deleted)
             Map.entry("com.legend.testplan.AssertVerdicts -> JudgingRules.COMPILED_PURE_COMPAT", "C1 2026-11-17"),
             Map.entry("com.legend.testplan.AssertVerdicts -> com.legend.testplan.EngineTestText", "C4 2026-11-17"),
-            Map.entry("com.legend.testplan.BodyDriver -> com.legend.planner.UpstreamPlans", "B2 2026-11-17"),
             Map.entry("com.legend.testplan.BodyDriver -> com.legend.testplan.EngineTestText", "C4 2026-11-17"),
             Map.entry("com.legend.testplan.DatabaseAsserts -> com.legend.testplan.EngineTestText", "C4 2026-11-17"),
             Map.entry("com.legend.testplan.DatabaseJudge -> JudgingRules.COMPILED_PURE_COMPAT", "C1 2026-11-17"),
@@ -150,10 +130,8 @@ class EdgeSeparationTest {
             Map.entry("com.legend.testplan.EngineTextPlanning -> com.legend.testplan.EngineTestText", "C4 2026-11-17"),
             Map.entry("com.legend.testplan.JudgePlans -> com.legend.testplan.EngineTestText", "C4 2026-11-17"),
             Map.entry("com.legend.testplan.PlanStyleFacets -> com.legend.lowering.RelationTexts", "B17 2026-11-17"),
-            Map.entry("com.legend.testplan.PlanStyleFacets -> com.legend.planner.UpstreamPlans", "B2 2026-11-17"),
             Map.entry("com.legend.testplan.PlanStyleFacets -> com.legend.testplan.EngineTestText", "C4 2026-11-17"),
             Map.entry("com.legend.testplan.PlanningOptions -> JudgingRules.COMPILED_PURE_COMPAT", "C1 2026-11-17"),
-            Map.entry("com.legend.testplan.Seeds -> com.legend.planner.UpstreamPlans", "B2 2026-11-17"),
             Map.entry("com.legend.testplan.TestPlanner -> JudgingRules.COMPILED_PURE_COMPAT", "C1 2026-11-17"));
             // (census C2 CLOSED 2026-11-17: the referee and the appeals moved to com.legend.edge -- the run hook EdgeRun
             // in the referee's slot, the planner holding the edge's records by number -- its 30 entries deleted)
@@ -162,17 +140,41 @@ class EdgeSeparationTest {
      *  a product hook that is (a) an interface of signatures only, (b) refused by the product's style by name, (c)
      *  implemented in the edge alone and (d) pinned (HookRulingTest) is the separation, not a leak -- allowed, and
      *  not counted. The hooks that fail a criterion stay open in the maps above, the criterion named here:
-     *  UpstreamPlans (B2) fails (a): its static routines() holds the plan-text natives' table and the unformatted
-     *  form's stripping; RelationTexts (B17) fails (a): its static forwarders reach the lowering's text helpers;
+     *  UpstreamPlans (B2) met (a) 2026-11-17 (its routine table moved to planner.PlanTextRoutines) and is ruled below;
+     *  RelationTexts (B17) fails (a): its static forwarders reach the lowering's text helpers;
      *  EngineTestText (C4) fails (a): its static gates (armFor, reachesUpstreamText, marking); EngineTextPlanning (C4)
      *  fails (a): a facade class with logic. PlanStyleFacets meets (a) (the orchestrator's ruling of 2026-11-17: a
      *  final class holding only the closed list of kind types, the list (d) lives on); its edges to the kinds stay
      *  counted under each kind's own line until that kind is ruled. */
     static final Map<String, String> HOOKS_RULED = Map.ofEntries(
-            Map.entry("com.legend.database.PlanStyle -> com.legend.sql.dialect.EngineTextDialect",
-                    "B1 HOOK-RULED 2026-11-17"),
-            Map.entry("com.legend.sql.dialect.EngineTextDialect -> (stands in a product package)",
-                    "B3 HOOK-RULED 2026-11-17"),
+            // B1, B3: CLOSED 2026-11-17 (Phase 6): EngineTextDialect is com.legend.edge's, PlanStyle names no engine
+            // text; their two entries gone
+            // B2, 2026-11-17 (Phase 6): UpstreamPlans, signatures only since its routine table moved to
+            // planner.PlanTextRoutines -- the interface, and the product's code that only asks the style for it
+            Map.entry("com.legend.planner.UpstreamPlans -> (stands in a product package)", "B2 HOOK-RULED 2026-11-17"),
+            Map.entry("com.legend.planner.BodyPlanner -> com.legend.planner.UpstreamPlans", "B2 HOOK-RULED 2026-11-17"),
+            Map.entry("com.legend.planner.PlanAllocations -> com.legend.planner.UpstreamPlans",
+                    "B2 HOOK-RULED 2026-11-17"),
+            Map.entry("com.legend.planner.PlanTextRoutines -> com.legend.planner.UpstreamPlans",
+                    "B2 HOOK-RULED 2026-11-17"),
+            Map.entry("com.legend.testplan.BodyDriver -> com.legend.planner.UpstreamPlans", "B2 HOOK-RULED 2026-11-17"),
+            Map.entry("com.legend.testplan.PlanStyleFacets -> com.legend.planner.UpstreamPlans",
+                    "B2 HOOK-RULED 2026-11-17"),
+            Map.entry("com.legend.testplan.Seeds -> com.legend.planner.UpstreamPlans", "B2 HOOK-RULED 2026-11-17"),
+            // SeedSqlForms: the test planner's arm of legend-engine's setUpDataSQLs (toDDL.pure): it reads the call's
+            // arguments and asks the hook for the statements' text, holding none itself
+            Map.entry("com.legend.testplan.SeedSqlForms -> com.legend.planner.UpstreamPlans", "B2 HOOK-RULED 2026-11-17"),
+            // TestPlanner: asks the hook for the test-data generator's timestamp text when one is printed (B13)
+            Map.entry("com.legend.testplan.TestPlanner -> com.legend.planner.UpstreamPlans", "B2 HOOK-RULED 2026-11-17"),
+            // B5, 2026-11-17 (Phase 6): legend-engine's result envelope, a hook from birth -- the interface, and the
+            // product's code that only asks the style for it with the call's refusal
+            Map.entry("com.legend.lowering.ResultEnvelopes -> (stands in a product package)", "B5 HOOK-RULED 2026-11-17"),
+            Map.entry("com.legend.lowering.Lowerer -> com.legend.lowering.ResultEnvelopes", "B5 HOOK-RULED 2026-11-17"),
+            Map.entry("com.legend.lowering.JsonEmission -> com.legend.lowering.ResultEnvelopes",
+                    "B5 HOOK-RULED 2026-11-17"),
+            Map.entry("com.legend.planner.PlanEnv -> com.legend.lowering.ResultEnvelopes", "B5 HOOK-RULED 2026-11-17"),
+            Map.entry("com.legend.testplan.PlanStyleFacets -> com.legend.lowering.ResultEnvelopes",
+                    "B5 HOOK-RULED 2026-11-17"),
             Map.entry("com.legend.testplan.PlanStyleFacets -> (stands in a product package)",
                     "C4 HOOK-RULED 2026-11-17"),
             // B8 (i), 2026-11-17: the texts only legend-pure writes, a hook from birth -- the interface, and the
@@ -281,25 +283,20 @@ class EdgeSeparationTest {
      *  ways with the register ({@link #everyOpenCompatRowIsCounted}). */
     static final Map<String, String> CSG_OPEN = Map.ofEntries(
             Map.entry("compiler/element/type/PlatformTypes.java | TDS_NULL_CELL", "B10 2026-11-17"),
-            Map.entry("lowering/JsonEmission.java | tdsBuilder", "B5 2026-11-17"),
             Map.entry("lowering/LiteText.java | FLOAT_PRINT", "B9 2026-11-17"),
             Map.entry("lowering/LiteralSpelling.java | +0000", "B11 2026-11-17"),
-            Map.entry("lowering/Lowerer.java | withEngineText", "B5 2026-11-17"),
             Map.entry("lowering/Repr.java | FLOAT_PRINT", "C5 2026-11-17"),
             Map.entry("lowering/Repr.java | Repr", "B12 2026-11-17"),
             Map.entry("lowering/Scalars.java | Repr", "B12 2026-11-17"),
             Map.entry("lowering/VerdictSql.java | Repr", "C5 2026-11-17"),
             Map.entry("lowering/VerdictSql.java | TDS_NULL_CELL", "C5 2026-11-17"),
-            Map.entry("plan/PlanNode.java | executionTraceID", "B5 2026-11-17"),
             Map.entry("sql/SqlExpr.java | TDS_NULL_CELL", "B10 2026-11-17"),
             Map.entry("sql/SqlFn.java | FLOAT_PRINT", "B9 2026-11-17"),
             Map.entry("sql/SqlTyping.java | FLOAT_PRINT", "B9 2026-11-17"),
-            Map.entry("sql/dialect/AnsiSqlRenderer.java | RawSqlBoundary", "B4 2026-11-17"),
             Map.entry("sql/dialect/BigQuery.java | FLOAT_PRINT", "B9 2026-11-17"),
             Map.entry("sql/dialect/ClickHouse.java | FLOAT_PRINT", "B9 2026-11-17"),
             Map.entry("sql/dialect/Databricks.java | FLOAT_PRINT", "B9 2026-11-17"),
             Map.entry("sql/dialect/DuckDb.java | FLOAT_PRINT", "B9 2026-11-17"),
-            Map.entry("sql/dialect/DuckDb.java | RawSqlBoundary", "B4 2026-11-17"),
             Map.entry("sql/dialect/DateTimePrintText.java | +0000", "B9 2026-11-17"),
             Map.entry("sql/dialect/FloatPrintText.java | FLOAT_PRINT", "B9 2026-11-17"),
             Map.entry("sql/dialect/H2.java | FLOAT_PRINT", "B9 2026-11-17"),
@@ -307,15 +304,9 @@ class EdgeSeparationTest {
             Map.entry("sql/dialect/MongoDb.java | FLOAT_PRINT", "B9 2026-11-17"),
             Map.entry("sql/dialect/MySql.java | FLOAT_PRINT", "B9 2026-11-17"),
             Map.entry("sql/dialect/Postgres.java | FLOAT_PRINT", "B9 2026-11-17"),
-            Map.entry("sql/dialect/Postgres.java | RawSqlBoundary", "B4 2026-11-17"),
-            Map.entry("sql/dialect/RawSqlBoundary.java | RawSqlBoundary", "B4 2026-11-17"),
             Map.entry("sql/dialect/SQLite.java | FLOAT_PRINT", "B9 2026-11-17"),
             Map.entry("sql/dialect/Snowflake.java | FLOAT_PRINT", "B9 2026-11-17"),
             Map.entry("sql/dialect/Trino.java | FLOAT_PRINT", "B9 2026-11-17"),
-            Map.entry("testdatagen/TestDataGenerationNatives.java | EngineTextDialect", "B13 2026-11-17"),
-            Map.entry("testdatagen/TestDataGenerator.java | EngineTextDialect", "B13 2026-11-17"),
-            Map.entry("testdatagen/TestDataPlanner.java | +0000", "B11 2026-11-17"),
-            Map.entry("testdatagen/TestDataPlanner.java | COMPAT", "B13 2026-11-17"),
             Map.entry("testexec/AssertRuns.java | EngineText", "C3 2026-11-17"),
             Map.entry("testexec/CanonicalForm.java | +0000", "C5 2026-11-17"),
             Map.entry("testexec/HostJudgments.java | EngineText", "C3 2026-11-17"),
@@ -328,7 +319,6 @@ class EdgeSeparationTest {
             Map.entry("testexecutionplan/Verdicts.java | +0000", "B11 2026-11-17"),
             // (testplan/AgreementAsserts.java | EngineText closed: 2026-11-17, (b) of the orchestrator's order: the fused agreement path deleted)
             Map.entry("testplan/AssertVerdicts.java | EngineText", "C3 2026-11-17"),
-            Map.entry("testplan/TestPlanner.java | COMPAT", "C1 2026-11-17"),
             Map.entry("compiler/spec/VerdictQueries.java | TDSNull", "B10 2026-11-17"),
             Map.entry("lowering/CanonicalRenderSql.java | TDSNull", "C5 2026-11-17"),
             Map.entry("lowering/VerdictSql.java | TDSNull", "B10 2026-11-17"),
@@ -344,12 +334,15 @@ class EdgeSeparationTest {
             Map.entry("testplan/TestPlanner.java | COMPILED_PURE_COMPAT", "C1 2026-11-17"));
 
     /** The census's open lines (docs/records/f-separation-census-2026-11-17.md; closed: A4, B14 ruled; A2, A3 moved to
-     *  the edge 2026-11-17 (A4 extended to the native image and the page module); B1, B3 HOOK-RULED 2026-11-17
-     *  (EngineTextDialect, {@link #HOOKS_RULED}); records only:
+     *  the edge 2026-11-17 (A4 extended to the native image and the page module); A5, A6 split off the edge 2026-11-17;
+     *  B1, B3 HOOK-RULED 2026-11-17 (EngineTextDialect, {@link #HOOKS_RULED}), then moved to the edge by Phase 6 (2026-11-17); B4, B6, B13
+     *  CLOSED 2026-11-17 by Phase 6 (RawSqlBoundary, PurePrint and UpstreamRelationType, the test-data generator's text
+     *  moved to the edge); B2 HOOK-RULED 2026-11-17 (UpstreamPlans, signatures only); B5 CLOSED 2026-11-17
+     *  (the lowering's shape options, the trace comment and the result envelope the edge's); records only:
      *  B15, B16, C6, C7). Each must hold at least one entry in the count ({@link #everyOpenLineIsCounted}), so an empty
      *  count cannot read DONE with a line left. A line closes by leaving this set with its last entry. */
-    static final Set<String> OPEN_LINES = Set.of("A1", "A5", "A6", "B2", "B4", "B5", "B6",
-            "B7", "B8", "B9", "B10", "B11", "B12", "B13", "B17", "C1", "C3", "C4", "C5");
+    static final Set<String> OPEN_LINES = Set.of("A1",
+            "B7", "B8", "B9", "B10", "B11", "B12", "B17", "C1", "C3", "C4", "C5");
 
     private static Set<String> linesOf(Map<String, String> m) {
         Set<String> out = new TreeSet<>();
@@ -385,11 +378,10 @@ class EdgeSeparationTest {
     /** BUILD: the direct dependents of an edge target, within the product's roots' closure (core/BUILD.bazel's
      *  {@code edge_direct_dependents} genquery), each with its census line. */
     static final Map<String, String> BUILD_OPEN = Map.ofEntries(
-            Map.entry("//wasm:boundary", "A1 2026-11-17"),
-            Map.entry("//core:core_tests_lib", "A5 2026-11-17"),
-            Map.entry("//core:test_cases", "A5 2026-11-17"),
-            Map.entry("//core:seam_benchmark", "A6 2026-11-17"),
-            Map.entry("//core:data_delivery_matrix_postgres_test", "A6 2026-11-17"));
+            // A5, A6 closed 2026-11-17 (E-P5): the product's test library, its cases and its test targets carry no edge
+            // library (the edge's tests are core_edge_tests_lib's, run in targets tagged edge_test;
+            // //tools/deps:edge_separation_closure_test holds every untagged core test target to it)
+            Map.entry("//wasm:boundary", "A1 2026-11-17"));
 
     static Set<String> buildFound() {
         try {

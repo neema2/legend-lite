@@ -418,7 +418,7 @@ final class Scalars {
                     case SqlExpr.IntLit i when i.value() == Long.MIN_VALUE ->
                             new SqlExpr.DecimalLit(java.math.BigDecimal.valueOf(i.value()).negate());
                     case SqlExpr.IntLit i -> new SqlExpr.IntLit(-i.value());
-                    case SqlExpr.FloatLit fl -> new SqlExpr.FloatLit(-fl.value());
+                    case SqlExpr.FloatLit fl -> fl.negated();
                     case SqlExpr.DecimalLit d -> new SqlExpr.DecimalLit(d.value().negate());
                     case SqlExpr e -> new SqlExpr.Call(SqlFn.MINUS,
                             List.of(new SqlExpr.IntLit(0), e));
@@ -1747,8 +1747,10 @@ final class Scalars {
         // best-effort text (message-position cosmetics only — pass/fail
         // never rides this).
         for (com.legend.model.FunctionId f : Pure.AT_STRING_TO_REPRESENTATION) {
-            RULES.put(f, (n, args) -> Repr.userCall(
-                    n.args().get(0).info().type(), args.get(0)));
+            // a USER's toRepresentation: legend-pure's text, the edge's (the user's ruling of 2026-11-16, §10 item 8:
+            // "refuse in product but not in compatibility"); the style's facet asked with the product's refusal (B8 (i))
+            RULES.put(f, (StyledRule) (n, args, styled) -> styled.pureOnly().apply(TextRefusals::representation)
+                    .representation(Repr.of(n.args().get(0).info().type(), args.get(0))));
         }
         // chunk(s, n): fixed-size chunking IS the regex '.{1,n}' swept
         // globally (chunk.pure spec: 'abcdefghijklmnop'->chunk(5) =

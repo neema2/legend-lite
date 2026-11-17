@@ -194,7 +194,7 @@ final class JudgmentFacts {
     /** {@code enumFqn} decoded under {@code mappingFqn}: a source value to the value's name; null where the mapping's
      *  enumeration mapping reads another enumeration's value, or the enumeration is unknown. */
     private static @Nullable Map<String, String> decodeOf(ModelContext ctx, String mappingFqn, String enumFqn) {
-        var em = com.legend.plan.PlanText.enumMappingOf(ctx, mappingFqn, enumFqn);
+        var em = com.legend.plan.EnumMappings.of(ctx, mappingFqn, enumFqn);
         if (em == null) {
             var en = ctx.findEnum(enumFqn).orElse(null);
             if (en == null) {

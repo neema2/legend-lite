@@ -51,7 +51,7 @@ import java.util.stream.Stream;
  *     (the engine's grouping), the package's setups run THROUGH THE
  *     PLATFORM once per session, every raw SQL a body executes recorded
  *     for the referee (the platform's {@link
- *     com.legend.sql.dialect.RawSqlBoundary} ledger); a test that carries
+ *     com.legend.edge.RawSqlBoundary} ledger); a test that carries
  *     its own inline data runs on a private workspace;</li>
  * <li><b>run + judge</b> — the PRODUCT's test runner ({@link PureTestRunner},
  *     upstream boundary batch 7a): sessions, setups, the body through the ONE
@@ -533,10 +533,10 @@ public final class MinimalCorpus {
         private @com.legend.base.Nullable Connection mirrorConn;
         /** The session's non-query statements so far — the referee's seed
          * ledger prefix for every later test of the session. */
-        private final List<com.legend.sql.dialect.RawSqlBoundary.Raw> seedLedger = new ArrayList<>();
-        private @com.legend.base.Nullable com.legend.sql.dialect.RawSqlBoundary.Recorder recorder;
+        private final List<com.legend.edge.RawLedger.Raw> seedLedger = new ArrayList<>();
+        private @com.legend.base.Nullable com.legend.edge.RawLedger.Recorder recorder;
         private @com.legend.base.Nullable com.legend.harness.ReplayReferee referee;
-        private com.legend.sql.dialect.RawSqlBoundary.Recorder.@com.legend.base.Nullable Mark mark;
+        private com.legend.edge.RawLedger.Recorder.@com.legend.base.Nullable Mark mark;
         private @com.legend.base.Nullable String currentTest;
 
         @Override
@@ -591,7 +591,7 @@ public final class MinimalCorpus {
             // the raw-SQL ledger of THIS test (Phase 2b): the session's seed
             // prefix, then everything the setups and the body execute; the
             // executor appends through the options, the referee reads it
-            recorder = new com.legend.sql.dialect.RawSqlBoundary.Recorder(
+            recorder = new com.legend.edge.RawLedger.Recorder(
                     shared ? seedLedger : List.of());
             referee = new com.legend.harness.ReplayReferee(recorder);
             // the test resources ride the same options as a store (data: docs/DATA_IN_THE_PLAN_2026_11_09.md L1,

@@ -198,6 +198,19 @@ public final class Lowerer {
      * convertDateToSqlString: the dbTimeZone, default GMT) — batch 86. */
     private @com.legend.base.Nullable String dbTimeZone;
 
+    /** How the target's database computes with a Float literal (register S20, built 2026-11-17, Phase 5b): the
+     *  target dialect's, passed by the planner as data (the lowering imports no dialect); a user's Float literal is
+     *  built with it, asked only where one is lowered (naming the target can need the runtime's database); none (no
+     *  target named) refuses one by name. */
+    private java.util.function.Supplier<com.legend.sql.SqlExpr.FloatLit.@com.legend.base.Nullable Kind> floatLiteralKind =
+            () -> null;
+
+    public Lowerer withFloatLiteralKind(
+            java.util.function.Supplier<com.legend.sql.SqlExpr.FloatLit.@com.legend.base.Nullable Kind> kind) {
+        this.floatLiteralKind = kind;
+        return this;
+    }
+
     public Lowerer withDbTimeZone(@com.legend.base.Nullable String zone) {
         this.dbTimeZone = zone;
         return this;
@@ -209,12 +222,12 @@ public final class Lowerer {
     /** Pre-bind a free variable to an execution-plan TEMPLATE parameter
      * ({@code ${name}} — the plan printer's vocabulary): the variable
      * resolves through the ordinary let-binding channel. */
-    /** The two lowering MODES (batch 136): VERBATIM equality under the mapping's
-     * own definition (NullSemantics.verbatim); ENGINE-TEXT (CastPolicy). */
+    /** VERBATIM equality under the mapping's own definition (NullSemantics.verbatim). */
     private boolean verbatimEquality;
-    private boolean engineText;
+    /** The statement's shape (LoweringShape, Phase 6's B5, 2026-11-17): the product's lean unless its caller asks. */
+    private LoweringShape shape = LoweringShape.LEAN;
     /** The query's execution feature flags (FeatureRules): builder-style like
-     *  engineText; LEGACY_SQL_NULL_UNSAFE_EQUALS selects the verbatim equality
+     *  the shape; LEGACY_SQL_NULL_UNSAFE_EQUALS selects the verbatim equality
      *  form (plain {@code =}) at the four scalar sites. */
     private java.util.Set<com.legend.platform.Feature> features = java.util.Set.of();
     private boolean legacyNullUnsafeEquals;
@@ -244,6 +257,19 @@ public final class Lowerer {
                 throw refusal.get();
             };
 
+    /** An execution's trace text in a TDS cell (the separation census's B8 (ii), 2026-11-17): the plan style's
+     *  {@code traceText}, the id in the product's. A Lowerer no planner handed a style refuses one by name. */
+    private java.util.function.Function<SqlExpr, SqlExpr> traceText = id -> {
+        throw new IllegalStateException("an execution's trace text in a TDS cell: a Lowerer no planner handed a plan"
+                + " style (PlanEnv.configure) has none");
+    };
+
+    /** The plan style's trace text ({@code style.traceText}). */
+    public Lowerer withTraceText(java.util.function.Function<SqlExpr, SqlExpr> style) {
+        this.traceText = style;
+        return this;
+    }
+
     /** The texts only legend-pure writes ({@link PureOnlyTexts}, the separation census's B8 (i), 2026-11-17): the plan
      *  style's facet, asked only when a native's rule meets one, with that call's own refusal. A Lowerer no planner
      *  handed a style refuses each the same way. */
@@ -264,6 +290,26 @@ public final class Lowerer {
         return new Scalars.Styled(pureOnlyTexts);
     }
 
+    /** legend-engine's result envelope ({@link ResultEnvelopes}, Phase 6's B5, 2026-11-17): the plan style's facet,
+     *  asked only when an {@code executeLegendQuery} envelope is lowered, with its refusal. A Lowerer no planner handed a
+     *  style refuses it the same way. */
+    private java.util.function.Function<java.util.function.Supplier<? extends RuntimeException>, ResultEnvelopes>
+            resultEnvelopes = refusal -> {
+                throw refusal.get();
+            };
+
+    /** The plan style's result-envelope facet, {@code style} its request ({@code (refusal) -> style.facet(..)}). */
+    public Lowerer withResultEnvelopes(
+            java.util.function.Function<java.util.function.Supplier<? extends RuntimeException>, ResultEnvelopes> style) {
+        this.resultEnvelopes = style;
+        return this;
+    }
+
+    /** The result-envelope facet, the product's refusal {@code refusal}. */
+    ResultEnvelopes resultEnvelopes(java.util.function.Supplier<? extends RuntimeException> refusal) {
+        return resultEnvelopes.apply(refusal);
+    }
+
     /** The plan style's relation-text facet, {@code style} its request ({@code (refusal) -> style.facet(..)}). */
     public Lowerer withRelationTexts(
             java.util.function.Function<java.util.function.Supplier<? extends RuntimeException>, RelationTexts> style) {
@@ -271,15 +317,16 @@ public final class Lowerer {
         return this;
     }
 
-    public Lowerer withEngineText() {
-        this.engineText = true;
+    /** The statement's shape ({@link LoweringShape}); the product's is {@link LoweringShape#LEAN}. */
+    public Lowerer withShape(LoweringShape shape) {
+        this.shape = java.util.Objects.requireNonNull(shape, "a lowering shape");
         return this;
     }
 
     /** A RELATION READ MORE THAN ONCE IS WRITTEN ONCE (2026-11-04, {@link SharedRelations}): a let's value is one node
      *  of the statement's tree wherever its name is read, and it lowers once, a common table expression ({@code
-     *  __let<n>}) at the statement's head that each read names. Off in engine-text mode (legend-engine's own SQL, which
-     *  pastes it) and where the frame extracts the statement's subqueries as its own expressions (the engine's
+     *  __let<n>}) at the statement's head that each read names. Off where the shape asks
+     *  ({@link LoweringShape#shareRelations}) and where the frame extracts the statement's subqueries as its own expressions (the engine's
      *  cteExtractionPostProcessor: {@link #sharingRelations}). */
     private boolean shareRelations = true;
     /** While a statement lowers ({@link #lower(List)}): its shared relations; null between statements. */
@@ -321,12 +368,10 @@ public final class Lowerer {
         return SqlSelect.starOf(new SqlSource.Cte(cte.name(), nextAlias(), cte.outputs()));
     }
 
-    /** Engine-parity join-distinct exists (ExistsJoinForm) — DRIVER
-     * opt-in; the standalone-SQL surface keeps lean correlated EXISTS. */
-    private boolean engineExistsJoinForm;
-
-    public Lowerer withEngineExistsJoinForm() {
-        this.engineExistsJoinForm = true;
+    /** A filter's correlated EXISTS over a to-many join as a join to the distinct keys (ExistsJoinForm), the shape's
+     *  {@link LoweringShape#existsAsJoinDistinct}; the standalone-SQL surface keeps the correlated EXISTS. */
+    public Lowerer withExistsAsJoinDistinct() {
+        this.shape = shape.withExistsAsJoinDistinct();
         return this;
     }
 
@@ -502,7 +547,7 @@ public final class Lowerer {
         }
         TypedSpec root = withQueryLets(body);
         SqlQuery q;
-        if (sharing == null && shareRelations && !engineText) {
+        if (sharing == null && shareRelations && shape.shareRelations()) {
             // a relation read more than once, written once (SharedRelations): the statement's own names are its
             // query lets and plan parameters, which its head reads as every part of it does
             SharedRelations.Frame frame =
@@ -525,7 +570,7 @@ public final class Lowerer {
             q = LetBinding.bindRepeats(q);
         }
         // a count of rows a declared key makes one is 1 (KeyedCounts: the time model's D2), then the unread pruned
-        return SubselectPrune.prune(engineText ? q : KeyedCounts.fold(q, tableKeys), !engineText);
+        return SubselectPrune.prune(shape.foldKeyedCounts() ? KeyedCounts.fold(q, tableKeys) : q, shape.pruneComputed());
     }
 
     /**
@@ -580,7 +625,7 @@ public final class Lowerer {
     /** The rows a write or a merge writes: {@code source} lowered, each of its columns one of {@code t}'s (the checker
      *  types them so, by name: WriteChecker). */
     private SqlQuery writtenRows(TypedSpec source, TypedTableReference t, String op) {
-        SqlQuery rows = namedColumns(SubselectPrune.prune(lower(source), !engineText));
+        SqlQuery rows = namedColumns(SubselectPrune.prune(lower(source), shape.pruneComputed()));
         java.util.Set<String> declared = new java.util.LinkedHashSet<>();
         java.util.Objects.requireNonNull(Type.schemaView(t.info().type()), "a store table's type is a relation")
                 .columns().forEach(c -> declared.add(c.name()));
@@ -1201,11 +1246,9 @@ public final class Lowerer {
             case TypedTableReference t -> tableRead(t);
 
             case TypedTds tds -> tdsLiteral(tds);
-            // a VIEW at relation position: the engine plans it as an inline
-            // derived table aliased by the view (ViewSelectSQLQuery —
-            // personview_0, its root table "root" inside); the product
-            // render is lean — the body lowers flat, a name is not a nesting
-            case TypedViewRelation v -> engineText
+            // a VIEW at relation position: lean, the body lowers flat (a name is not a nesting); a derived table
+            // aliased by the view where the shape asks (LoweringShape#viewsAsDerivedTables)
+            case TypedViewRelation v -> shape.viewsAsDerivedTables()
                     ? SqlSelect.starOf(new SqlSource.Subselect(relation(v.body()), nextAlias(), v.view()))
                     : relation(v.body());
 
@@ -2219,7 +2262,7 @@ public final class Lowerer {
             case WHERE -> {
                 SqlSelect m = src.withWhere(
                         mergeWhere(src.where(), predicate, f.stamp()));
-                yield engineExistsJoinForm
+                yield shape.existsAsJoinDistinct()
                         ? ExistsJoinForm.rewrite(m, this::nextAlias,
                                 whereZones::get)
                         : m;
@@ -2849,8 +2892,9 @@ public final class Lowerer {
                         throw new IllegalStateException("a TDS cell is the plan parameter '" + parameter + "', which"
                                 + " the statement's lowering does not bind (bindPlanParam)");
                     }
-                    // an execution's trace text: the id in the product, legend-engine's comment at the edge (D1.4)
-                    cells.add(SqlExpr.Call.of(SqlFn.TRACE_TEXT, bound));
+                    // an execution's trace text: the id in the product, legend-engine's comment at the edge (D1.4;
+                    // the plan style's two-form hook since B8 (ii), 2026-11-17)
+                    cells.add(traceText.apply(bound));
                     continue;
                 }
                 cells.add(Scalars.tdsCell(row.get(i), schema.columns().get(i).type()));
@@ -3646,7 +3690,9 @@ public final class Lowerer {
             // B8: exact digits emit as DecimalLit under the Float label (see CFloat)
             case TypedCFloat c -> c.exact() != null
                     ? new SqlExpr.DecimalLit(c.exact())
-                    : new SqlExpr.FloatLit(c.value());
+                    : SqlExpr.FloatLit.of(c.value(), java.util.Objects.requireNonNull(floatLiteralKind.get(),
+                            "a Float literal lowered with no target named: how its database computes it is the"
+                            + " target's (SqlDialect.floatLiteralKind)"));
             case TypedCDecimal c ->
                     new SqlExpr.DecimalLit(c.value());
             // Date literals: full dates/timestamps render typed; PARTIAL
@@ -4532,7 +4578,7 @@ public final class Lowerer {
 
     /** The cast policy over an ALREADY-LOWERED source (CastPolicy owns every arm). */
     private SqlExpr cast(TypedCast c, SqlExpr value) {
-        return CastPolicy.lower(c, value, Stamps.isMany(c), engineText);
+        return CastPolicy.lower(c, value, Stamps.isMany(c), shape.elideWireCasts());
     }
 
     /**

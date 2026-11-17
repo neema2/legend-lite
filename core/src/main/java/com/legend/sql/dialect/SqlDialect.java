@@ -13,6 +13,12 @@ import com.legend.sql.SqlQuery;
  */
 public interface SqlDialect {
 
+    /** How this dialect's database computes with a Float literal (register S20, built 2026-11-17, Phase 5b): the
+     *  planner passes it to the lowering as data, which builds the literal's fact by it, and the dialect writes the
+     *  literal by that fact -- one source for both. The compatibility edge's is legend-engine's DECIMAL (the edge
+     *  program's §6 row 21). */
+    com.legend.sql.SqlExpr.FloatLit.Kind floatLiteralKind();
+
     /** A query as SQL text: a statement with no bound parameters (one reaching the text is refused). */
     String render(SqlQuery query);
 
@@ -343,16 +349,16 @@ public interface SqlDialect {
     }
 
     /**
-     * A raw statement as this session runs it (decision D2, the dialect program's Phase 1c): raw text is in the language
-     * of the database its connection DECLARES ({@code writtenFor}, that type's name), and is translated only when it
-     * runs on another. The engine's H2 text (legend-engine's test database's: its corpus's setup, an H2 connection's
-     * {@code executeInDb}) is this dialect's {@link #fromEngineText}; text written for any other database, or by this
-     * session's own dialect ({@code writtenFor} null), runs as written, as legend-engine sends it.
+     * A raw statement as this session runs it: AS WRITTEN, on every database (Phase 6's B4 (ii), 2026-11-17, ruled by the
+     * orchestrator under the user's "match engine": legend-engine sends executeInDb's text untranslated -- legend-pure
+     * 5.99.0's interpreted ExecuteInDb.java:127 takes the text and :191 runs statement.execute(sql); legend-engine
+     * 4.145.0's relationalExtension.pure:31-33 hands it there). {@code writtenFor} is the database its connection
+     * declares; the compatibility edge's dialects translate legend-engine's H2 text for DuckDB and Postgres
+     * ({@code edge.PureText.DuckDb}, {@code edge.PureText.Postgres}), the product never.
      */
-    String raw(String statement, @com.legend.base.Nullable String writtenFor);
-
-    /** One statement of the engine's H2 text as this database runs it: H2's own, translated, or refused by name. */
-    String fromEngineText(String statement);
+    default String raw(String statement, @com.legend.base.Nullable String writtenFor) {
+        return statement;
+    }
 
     /** The path a written model's specification names for this database's in-memory session, where legend-engine must
      *  be given one (it opens the path a specification names, and refuses one that names none); null when this

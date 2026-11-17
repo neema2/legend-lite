@@ -172,14 +172,13 @@ public final class PlanParameters {
         return v instanceof String s ? "\"" + s + "\"" : String.valueOf(v);
     }
 
-    /** A Float as its literal is typed (the numeric charter's Rule 1, {@code SqlTyping.floatDecimal}): its plain digits
-     *  as a decimal, an extreme magnitude as a double; a value that is not finite has no literal, and is refused. */
+    /** A Float as its literal is typed: the double (register S20, built 2026-11-17, Phase 5b; until then the numeric
+     *  charter's Rule 1, its plain digits as a decimal); a value that is not finite has no literal, and is refused. */
     private static Conversion floatValue(double d) {
         if (!Double.isFinite(d)) {
             return new Refused(d + " is not finite: no SQL literal stands for it");
         }
-        BigDecimal plain = com.legend.sql.SqlTyping.floatDecimal(d);
-        return new Converted(plain != null ? plain : (Object) d);
+        return new Converted(d);
     }
 
     /** A date, which a slot passes as its text: a year outside 1 to 9999 has none a database's cast reads (the correctness

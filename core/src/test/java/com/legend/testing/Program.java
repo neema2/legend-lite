@@ -56,12 +56,11 @@ public final class Program {
         return run(model, body, runtime, c, ExecuteOptions.NONE.withJudgeMode(laneJudge()));
     }
 
-    /** The platform's default options in the compatibility edge's plan style ({@code edge.PureText.UPSTREAM}): a body
-     *  whose answer is legend-pure's or legend-engine's exact text -- the engine-text natives ({@code toSQLString},
-     *  {@code planToString}, the DDL generators), an activity's SQL -- which the product's style refuses by name
-     *  (phase D's O3, 2026-11-13: legend-engine's text is the edge's). */
-    public static ExecuteOptions upstream() {
-        return ExecuteOptions.NONE.withJudgeMode(laneJudge()).withStyle(com.legend.edge.PureText.UPSTREAM);
+    /** The platform's default options, a body's judge the lane's: the base an edge test sets its plan style on
+     *  ({@code testing.EdgeProgram.upstream()}, Phase 7's build half, 2026-11-17: the product's test harness names no
+     *  edge class). */
+    public static ExecuteOptions defaults() {
+        return ExecuteOptions.NONE.withJudgeMode(laneJudge());
     }
 
     /** The lane's judge for a body whose test names none ({@code -Dlegend.test.judge=HOST|DATABASE|BOTH}; the host
