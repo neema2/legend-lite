@@ -318,6 +318,11 @@ What the code does where it differs from the text above, each for a reason, and 
   the group's key, a helper reading columns the group had not kept; the server refused the options desk's smile chart.
   The dialect's shared subtrees now leave alone what a view reads by a name (`SharedSubtrees.read`;
   `DeephavenDialectTest.aGroupKeyReadByItsNameLendsNoHelperToTheViewAfterTheGroup`).
+- **The lanes (2026-11-17, after DataCube's doors):** corpus, desk, door, feed, flat, market, `deephaven_test` and the
+  live desk in the tab pass; cube and board fail on the base checks alone (above), and the cube's filter at 251 ms
+  against its 250 ms budget, its 15 operations sent each time with no base on the server. One timing finding to watch:
+  run beside another lane, the board's six seconds of ticks fetched two results (and, after the restart, sent 18
+  operations) -- a following not yet live when the ticks began; run alone it sent and fetched nothing, both times.
 
 ## 11. The order of work
 
