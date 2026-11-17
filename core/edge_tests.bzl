@@ -92,3 +92,42 @@ EDGE_TEST_SRCS = [
     "src/test/java/com/legend/testplan/ExecEnvCatalogTest.java",
     "src/test/java/com/legend/testplan/TestPlanJsonRoundTripTest.java",
 ]
+
+def edge_test_classes(packages = None, root = False):
+    """The edge's test classes (each EDGE_TEST_SRCS file named *Test), as --select-class arguments: those in
+    `packages` (com.legend.<p>, its subpackages included) and, with `root`, the root package's own; every one when
+    `packages` is None. The edge's test targets select them by class, so a product test never runs there twice and
+    the product's test targets, which carry no edge library, never see one (F's census line A5, 2026-11-17)."""
+    out = []
+    for src in EDGE_TEST_SRCS:
+        path = src[len("src/test/java/"):-len(".java")]
+        if not path.endswith("Test"):
+            continue
+        rel = path[len("com/legend/"):]
+        parts = rel.split("/")
+        top = parts[0] if len(parts) > 1 else None
+        if packages != None and not (top in packages or (root and top == None)):
+            continue
+        out.append("--select-class=" + path.replace("/", "."))
+    return out
+
+def product_tests_closure(name, extra = []):
+    """THE PRODUCT'S TEST TARGETS' CLOSURE (F's census line A5, the orchestrator's word of 2026-11-17: "provable"
+    means the product's tests build and pass with no edge target in their closure): every testonly java_test and
+    java_binary of this package not tagged "edge_test", and `extra`, with all they reach -- a genquery
+    //tools/deps:edge_separation_closure_test meets with the edge's targets. Call it last in the BUILD file, so every
+    target is seen: a new product test target is covered without a list to keep."""
+    targets = sorted([
+        "//core:" + r["name"]
+        for r in native.existing_rules().values()
+        if (r["kind"] == "java_test" or (r["kind"] == "java_binary" and r.get("testonly"))) and
+           "edge_test" not in r.get("tags", [])
+    ] + extra)
+    native.genquery(
+        name = name,
+        testonly = True,
+        expression = "deps(set(%s))" % " ".join(targets),
+        opts = ["--noimplicit_deps"],
+        scope = targets,
+        visibility = ["//tools/deps:__pkg__"],
+    )
