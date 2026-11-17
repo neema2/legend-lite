@@ -1,5 +1,8 @@
 # Deephaven on the run side: the design (2026-11-16)
 
+**2026-11-17: the plan now is docs/DATACUBE_ENGINE_AND_DEEPHAVEN_PLAN_2026_11_17.md (PROPOSED, for the user's ruling):
+it supersedes §10.3's answers and §11's order below; §0-§9 stand.**
+
 **Status: RULED by the user on 2026-11-16 ("Let's go"); being built on `claude/deephaven-3-browser`. Corrected
 2026-11-17 (§4.1, §5.2, §7.1, §10.2-§10.3, §11): the build drifted from §2, and this design had not been reconciled
 with DataCube's engine contract (docs/DATACUBE_ENGINE_CONTRACT_2026_11_12.md, ratified 2026-11-13, on
