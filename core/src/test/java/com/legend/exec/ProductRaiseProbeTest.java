@@ -165,6 +165,15 @@ class ProductRaiseProbeTest {
             wrong.add("a text holding ?: " + describe(q));
         }
         System.out.println("[product raise probe] " + backend.name() + " a text holding ?, answered: " + describe(q));
+        // 5d. a parsed Integer's text (round 73: on Snowflake a raise typed VARCHAR beside the BIGINT conversion made
+        // the guard a scaled NUMBER, whose text is 17.00000): the Integer's own digits
+        Object pi = run(backend, "a parsed Integer's text", "|#TDS\n  x:String\n  17\n#->extend(~t: r|"
+                + "$r.x->toOne()->parseInteger()->toString())->select(~t)->from(" + StorelessRuntime.RUNTIME + ")");
+        if (!(pi instanceof String p5 && p5.replace(" ", "").equals("[{\"t\":\"17\"}]"))) {
+            wrong.add("a parsed Integer's text: " + describe(pi));
+        }
+        System.out.println("[product raise probe] " + backend.name() + " a parsed Integer's text, answered: "
+                + describe(pi));
         // 6. a DateTime's text (D1.2, register S312): ISO 8601 in UTC, six fraction digits and Z
         Object dt = run(backend, "a DateTime's text", "|#TDS\n  x:DateTime\n  2014-01-01T10:20:30.5\n#->extend(~t: r|"
                 + "$r.x->toOne()->toString())->select(~t)->from(" + StorelessRuntime.RUNTIME + ")");

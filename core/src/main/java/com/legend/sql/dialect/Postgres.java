@@ -1869,7 +1869,7 @@ public class Postgres extends AnsiSqlRenderer {
     @Override
     protected SqlWriter raiseAs(SqlWriter writer, SqlExpr raise, SqlType slot) {
         return raise instanceof SqlExpr.Call call && call.fn() == SqlFn.ERROR
-                ? writer.piece(raise(call.args(), slot)) : super.raiseAs(writer, raise, slot);
+                ? writer.piece(raise(raised(call).args(), slot)) : super.raiseAs(writer, raise, slot);
     }
 
     /** A condition, or an operand of AND or OR, that IS error() (a filter of fail(...): the timeseries library's

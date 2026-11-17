@@ -1805,6 +1805,15 @@ public class Snowflake extends AnsiSqlRenderer {
 
     // ---- error(): no raise function
 
+    /** A guarded parse's raise, typed as the slot (the bare raise is VARCHAR here, {@link #raise}): round 73 measured
+     *  CASE ... THEN CAST(x AS BIGINT) ELSE <VARCHAR raise> END unify to a scaled NUMBER, parseInteger('17') read
+     *  back as 17.00000 in the database judge's statement. */
+    @Override
+    protected SqlWriter raiseAs(SqlWriter writer, SqlExpr raise, SqlType slot) {
+        return raise instanceof SqlExpr.Call call && call.fn() == SqlFn.ERROR
+                ? writer.piece(raise(raised(call).args(), slot)) : super.raiseAs(writer, raise, slot);
+    }
+
     /**
      * error(msg[, 'line:col']): the sentinel-wrapped message cast to a type it cannot parse -- the driver's error
      * carries it whole ({@code Numeric value '␟msg␟' is not recognized}, measured with 300 characters), and
