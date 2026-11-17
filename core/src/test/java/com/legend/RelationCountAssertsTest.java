@@ -20,8 +20,9 @@ import org.junit.jupiter.api.Test;
 /**
  * A RELATION COUNTED AS ONE VALUE (register S137, the user's ruling of 2026-11-05): {@code assertSize},
  * {@code assertEmpty} and {@code assertNotEmpty} take a collection, so upstream counts a relation passed to them as
- * one value. Backwards-compatibility mode does exactly that; lite's own runs refuse the three over a relation at
- * planning and name the assert that says what the test means. Under the lane's judge.
+ * one value. The edge's form does exactly that ({@code RelationCountAssertsEdgeTest}, census C1, 2026-11-17); lite's
+ * own runs refuse the three over a relation at planning and name the assert that says what the test means. Under the
+ * lane's judge.
  */
 class RelationCountAssertsTest {
 
@@ -61,18 +62,5 @@ class RelationCountAssertsTest {
     @DisplayName("what lite asks for instead holds: the relation's size")
     void sizeSaysIt() {
         assertTrue(run("|assertEquals(2, " + TWO_ROWS + "->size())", false).passed());
-    }
-
-    @Test
-    @DisplayName("backwards-compatibility mode counts the relation as ONE value, as upstream does")
-    void upstreamInCompat() {
-        assertTrue(run("|assertNotEmpty(" + TWO_ROWS + ")", true).passed());
-        assertTrue(run("|assertSize(" + TWO_ROWS + ", 1)", true).passed());
-        com.legend.error.AssertFailed size = assertThrows(com.legend.error.AssertFailed.class,
-                () -> run("|assertSize(" + TWO_ROWS + ", 2)", true));
-        assertTrue(size.getMessage().contains("expected size: 2, actual size: 1"), size.getMessage());
-        // upstream fails it with '%s is not empty' printing the relation itself, a text lite does not spell: refused
-        ModelException empty = assertThrows(ModelException.class, () -> run("|assertEmpty(" + TWO_ROWS + ")", true));
-        assertTrue(empty.getMessage().contains("which lite does not spell"), empty.getMessage());
     }
 }

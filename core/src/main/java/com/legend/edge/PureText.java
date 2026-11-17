@@ -99,6 +99,10 @@ public final class PureText {
             if (kind == com.legend.lowering.DateTimeTexts.class) {
                 return kind.cast(EdgeDateTimeTexts.INSTANCE);
             }
+            if (kind == com.legend.compiler.spec.RelationCounting.class) {
+                // upstream counts a relation passed to assertSize/assertNotEmpty as ONE value (S137; census C1)
+                return kind.cast(UpstreamRelationCounting.INSTANCE);
+            }
             if (kind == com.legend.testexecutionplan.JsonGrammar.class) {
                 // upstream's JSON grammar (register S144; census C1, 2026-11-17)
                 return kind.cast(JsonSimpleGrammar.INSTANCE);

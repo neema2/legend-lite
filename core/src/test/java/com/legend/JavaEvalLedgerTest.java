@@ -1886,6 +1886,10 @@ class JavaEvalLedgerTest {
                             // JsonGrammar kind (census C1, 2026-11-17: moved from testexecutionplan.JudgeJson): reads
                             // a test's JSON text into values for the judges' own comparison -- no session, no statement
                             "JsonSimpleGrammar.java",
+                            // upstream counts a relation passed to assertSize/assertNotEmpty as ONE value (register
+                            // S137), the edge's form of the two-form RelationCounting kind (census C1, 2026-11-17:
+                            // moved from compiler.spec.RelationCountAsserts) -- a typed tree rewritten at planning
+                            "UpstreamRelationCounting.java",
                             // legend-engine's ExecuteInput read at the edge (B7 of the separation census, 2026-11-17,
                             // moved unchanged from server.PureV1Api): its parameterValues bound to the lambda as lets --
                             // a protocol rearrangement, no session, no value computed (the database computes each)

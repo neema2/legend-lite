@@ -223,11 +223,8 @@ public final class TestPlanner {
      *  rules refuse it, the compatibility rules count it as upstream does). */
     private static TypedQuery lifted(TypedQuery given, PlanningOptions options) {
         List<com.legend.compiler.spec.typed.TypedSpec> lifted = com.legend.compiler.spec.AssertLift.lift(given.body());
-        if (options.judgingRules().relationCountedAsOne()) {
-            lifted = com.legend.compiler.spec.RelationCountAsserts.countedAsOne(lifted);
-        } else {
-            com.legend.compiler.spec.RelationCountAsserts.refuse(lifted);
-        }
+        lifted = options.style().twoForm(com.legend.compiler.spec.RelationCounting.class,
+                com.legend.compiler.spec.RelationCountAsserts.REFUSED).counted(lifted);
         TypedQuery out = lifted == given.body() ? given : given.withBody(lifted);
         // the run's planning options reach the body's own statements (its lets, checks and answer, which
         // ProductStatements plans by the query's options) as they reach its asserts (the planner's env): the final

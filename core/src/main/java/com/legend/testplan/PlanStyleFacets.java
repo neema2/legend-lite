@@ -34,5 +34,8 @@ public final class PlanStyleFacets {
             com.legend.lowering.ListTexts.class,
             // a judge's JSON grammar (census C1, the orchestrator's ruling of 2026-11-17, register S144): the product's
             // strict JSON, the edge's upstream json-simple 1.1.1
-            com.legend.testexecutionplan.JsonGrammar.class);
+            com.legend.testexecutionplan.JsonGrammar.class,
+            // how a test counts a relation passed to assertSize/assertEmpty/assertNotEmpty (census C1, 2026-11-17,
+            // register S137): the product refuses it, the edge counts it as one value
+            com.legend.compiler.spec.RelationCounting.class);
 }

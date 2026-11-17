@@ -449,12 +449,6 @@ public record TestPlan(List<ExecutionPlan.Parameter> parameters, List<TestStep> 
             return upstream;
         }
 
-        /** Whether a relation passed to assertSize, assertEmpty or assertNotEmpty is ONE value, as upstream counts
-         *  it: compatibility mode's; lite refuses it (S137, the user's ruling of 2026-11-05). */
-        public boolean relationCountedAsOne() {
-            return upstream;
-        }
-
         /** Whether a run may hear the compatibility edge's appeals: compatibility mode's alone (the user's ruling of
          *  2026-11-08, docs/PLAN_AS_DATA_2026_11_07.md 3a.3). */
         public boolean edgeAppeals() {

@@ -125,10 +125,15 @@ class AssertVerdictSpliceTest {
         return Program.last(MODEL, query, "e::RT", conn, com.legend.testing.EdgeProgram.upstream());
     }
 
+    /** {@code query} in the product's own plan style, the lane's judge: where the product's form decides (a relation
+     *  counted as one value is refused at planning, before any engine text is asked for). */
+    private static Lean.Result runProduct(String query) throws SQLException {
+        return Program.last(MODEL, query, "e::RT", conn, Program.defaults());
+    }
+
     /** {@code query} under backwards-compatibility mode's rules (upstream's), the lane's judge. */
     private static Lean.Result runCompat(String query) throws SQLException {
-        return Program.last(MODEL, query, "e::RT", conn,
-                ExecuteOptions.NONE.withJudgeMode(Program.laneJudge()).withEngineCompat(true));
+        return Program.last(MODEL, query, "e::RT", conn, com.legend.testing.EdgeProgram.compat());
     }
 
     @Test
@@ -250,9 +255,10 @@ class AssertVerdictSpliceTest {
                 + " assertSize($result.values, 1);}";
         Object one = runCompat(envelope).one();
         assertEquals(Boolean.TRUE, one);
-        // lite's own rules refuse the relation counted as one value (register S137, the user's ruling of 2026-11-05)
+        // the product refuses the relation counted as one value (register S137, the user's ruling of 2026-11-05; the
+        // edge's style counts it as upstream does, census C1, 2026-11-17)
         com.legend.error.ModelException refused = assertThrows(com.legend.error.ModelException.class,
-                () -> run(envelope));
+                () -> runProduct(envelope));
         assertTrue(refused.getMessage().contains("assertSize over a relation counts the relation as ONE value"),
                 refused.getMessage());
         Object rows = run(
@@ -349,8 +355,9 @@ class AssertVerdictSpliceTest {
                 + "->project([p|$p.age], ['age']), e::M, e::RT.runtimeValue, []);"
                 + " assertEmpty($result.values.rows);}").one();
         assertEquals(Boolean.TRUE, emptied);
-        // the relation itself: upstream counts it as one value, so lite's own rules refuse it (register S137)
-        assertThrows(com.legend.error.ModelException.class, () -> run(
+        // the relation itself: upstream counts it as one value, so the product refuses it (register S137; the edge's
+        // style counts it as upstream does, census C1, 2026-11-17)
+        assertThrows(com.legend.error.ModelException.class, () -> runProduct(
                 "{|let result = execute(|e::Person.all()"
                 + "->project([p|$p.age], ['age']), e::M, e::RT.runtimeValue, []);"
                 + " assertNotEmpty($result.values);}"));

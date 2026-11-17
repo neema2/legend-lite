@@ -22,4 +22,12 @@ public final class EdgeProgram {
     public static ExecuteOptions upstream() {
         return Program.defaults().withStyle(com.legend.edge.PureText.UPSTREAM);
     }
+
+    /** The compatibility rules' options (census C1, the orchestrator's ruling of 2026-11-17: a test of upstream's
+     *  behaviour is an edge test): upstream's leniencies, the edge's plan style -- whose two-form kinds answer
+     *  upstream's behaviour -- and the lane's judge. */
+    public static ExecuteOptions compat() {
+        return ExecuteOptions.NONE.withJudgeMode(Program.laneJudge()).withEngineCompat(true)
+                .withStyle(com.legend.edge.PureText.UPSTREAM);
+    }
 }
