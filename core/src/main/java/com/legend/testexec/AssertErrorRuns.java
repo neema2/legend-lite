@@ -36,13 +36,13 @@ final class AssertErrorRuns {
             } catch (com.legend.error.AssertFailed | com.legend.error.DataError | com.legend.error.ModelException e) {
                 message = String.valueOf(e.getMessage());
             }
-            return judged(a.expected(), a.line(), a.column(), message, null);
+            return judged(a.expected(), a.line(), a.column(), message, null, rules);
         }
         com.legend.testexecutionplan.Failure planned = a.caught();
         if (planned != null) {
             // the error f raised while it was planned, as the plan's data: its message; no position (planning sends
             // no statement, so no database's raise carries one)
-            return judged(a.expected(), a.line(), a.column(), String.valueOf(planned.message()), null);
+            return judged(a.expected(), a.line(), a.column(), String.valueOf(planned.message()), null, rules);
         }
         RuntimeException raised = null;
         try {
@@ -52,12 +52,17 @@ final class AssertErrorRuns {
             raised = e;
         }
         return judged(a.expected(), a.line(), a.column(), raised == null ? null : String.valueOf(raised.getMessage()),
-                raised instanceof com.legend.error.DataError ? raised.getCause() : null);
+                raised instanceof com.legend.error.DataError ? raised.getCause() : null, rules);
     }
 
     private static TypedSide judged(String expected, @com.legend.base.Nullable Long expectedLine,
             @com.legend.base.Nullable Long expectedColumn, @com.legend.base.Nullable String caughtMessage,
-            @com.legend.base.Nullable Throwable caughtCause) {
+            @com.legend.base.Nullable Throwable caughtCause, com.legend.testexecutionplan.TestPlan.JudgingRules rules) {
+        boolean lite = HostJudgments.lite(rules);
+        if (caughtMessage == null && lite) {
+            throw new com.legend.error.AssertFailed(HostJudgments.sentence(
+                    com.legend.error.AssertSentence.NO_ERROR, "expected", LiteWords.quoted(expected)));
+        }
         if (caughtMessage == null) {
             // interpreted AssertError.java: PureAssertFail("No error was
             // thrown") — a FAIL, not an orchestration error
@@ -70,6 +75,11 @@ final class AssertErrorRuns {
         // pure's expectation is then an HONEST failure, never a strip
         // coincidence. The old broad prefix regex is deleted.
         String actual = caughtMessage;
+        if (!actual.equals(expected) && lite) {
+            throw new com.legend.error.AssertFailed(HostJudgments.sentence(
+                    com.legend.error.AssertSentence.ERROR, "expected", LiteWords.quoted(expected), "actual",
+                    LiteWords.quoted(actual)));
+        }
         if (!actual.equals(expected)) {
             // assertError.pure:24 — the /4 body's assertEquals format,
             // verbatim

@@ -52,6 +52,11 @@ public final class TestRunner {
             @Nullable AssertListener callers, @Nullable SqlReplayReferee referee, @Nullable Output answer,
             java.util.UUID execution) {
         lites(answer);
+        // both judges isolated: each plan its own run, then compared (IsolatedRun)
+        if (plan.steps().size() == 1 && plan.steps().get(0) instanceof com.legend.testexecutionplan.TestPlan.Isolated pair) {
+            IsolatedRun.run(pair, sessions, stores, edge, callers, referee, answer, execution);
+            return;
+        }
         // the caller's session source is called back before the plan's run opens: it plans nothing
         try (var callbacks = com.legend.base.RunScope.callingBack();
                 Sessions.Session session = sessions.open(plan.session())) {
@@ -75,6 +80,13 @@ public final class TestRunner {
             com.legend.executionplan.DataStores stores, com.legend.testexecutionplan.@Nullable Edge edge,
             @Nullable AssertListener callers, @Nullable SqlReplayReferee referee,
             @Nullable Output answer, com.legend.exec.StatementOrigin origin, java.util.UUID execution) {
+        if (plan.steps().size() == 1 && plan.steps().get(0) instanceof TestPlan.Isolated pair) {
+            // both judges isolated on the caller's own session: read-only plans alone (IsolatedRun's refusal)
+            lites(answer);
+            IsolatedRun.run(pair, com.legend.exec.SessionSource.given(session), stores, edge, callers, referee, answer,
+                    execution);
+            return;
+        }
         com.legend.testexecutionplan.PlannedAppeals.requireCarried(plan);
         lites(answer);
         // the caller's answer sink and listener are called back during the run, and before its plan's run scope opens
@@ -513,4 +525,5 @@ public final class TestRunner {
             }
         }
     }
+
 }

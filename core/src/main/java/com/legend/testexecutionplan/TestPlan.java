@@ -136,6 +136,49 @@ public record TestPlan(List<ExecutionPlan.Parameter> parameters, List<TestStep> 
         return !(answer() instanceof ExecutionPlan.Constant);
     }
 
+    /** Whether this plan WRITES (the orchestrator's ruling on isolated BOTH, 2026-11-17): any statement that is not a
+     *  pure read -- a DDL, a DML, a plan load, a temp or staged table -- decided from the plan's own data alone: the
+     *  body's effects and inline-CSV seeds (its facts), its session target's loads, and every write node a step holds
+     *  (an update, an effect, a load), a branch's sides and each judge's plan of a pair included -- a write to the
+     *  graph's system database aside, which each run leases for itself. A plan that writes
+     *  cannot run both judges in turn on one given session: the second would read the first's writes. */
+    public boolean writes() {
+        if (facts.effects() || facts.seedsInlineCsv() || !session.loads().isEmpty() && !system(session)) {
+            return true;
+        }
+        return steps.stream().anyMatch(TestPlan::writes);
+    }
+
+    private static boolean writes(TestStep step) {
+        return switch (step) {
+            case Run r -> writes(r.node());
+            case FrameRun f -> false;
+            case Verdicts v -> false;
+            case Branch b -> b.then().stream().anyMatch(TestPlan::writes)
+                    || b.otherwise().stream().anyMatch(TestPlan::writes);
+            case Isolated pair -> pair.host().writes() || pair.database().writes();
+        };
+    }
+
+    private static boolean writes(Node node) {
+        return switch (node) {
+            case ExecutionPlan.Update u -> !system(u.sql().target());
+            case ExecutionPlan.Effect e -> !system(e.sql().target());
+            case ExecutionPlan.Load l -> !system(l.target());
+            case ExecutionPlan.Sequence s -> s.steps().stream().anyMatch(TestPlan::writes);
+            case ExecutionPlan.TdsResult t -> false;
+            case ExecutionPlan.Keyed k -> false;
+            case ExecutionPlan.Check c -> false;
+            case ExecutionPlan.Constant c -> false;
+        };
+    }
+
+    /** Whether {@code target} is the graph's system database: leased for each run, never the caller's session, so a
+     *  write there (the system metamodel store's seed) is no write to the session two judges would share. */
+    private static boolean system(ExecutionPlan.Target target) {
+        return target.database() instanceof ExecutionPlan.Database.System;
+    }
+
     /** The statements a verdict group or a branch may read, each a typed or keyed result: a group's fused statement,
      *  each verdict's wrapper, base sides and message; a branch's condition and both sides' steps' (whichever side
      *  runs). What the runner's callback for the step declares; a product step or a frame run has none here. */

@@ -1,7 +1,7 @@
 // Copyright 2026 Legend Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-package com.legend.testexecutionplan;
+package com.legend.error;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -11,9 +11,13 @@ import java.util.Map;
  * A FAILED ASSERT'S SENTENCE IN THE PRODUCT, ONE TABLE FOR BOTH JUDGES (the user's judge model, 2026-11-17: the host and
  * database judges are interchangeable in the product, so they must agree on the message as well as the verdict). Each
  * row is one assert kind's sentence, its slots named in braces. The host judge fills a row in Java; the database judge's
- * SQL is generated from the same row at planning. A slot's value is written by the product's own value writer (a Float
- * in six decimals, S311; a DateTime as the product writes one; a collection as {@code [a, b]}), so a failure message
- * shows a value exactly as the product shows it. Data only: no rule here decides a verdict.
+ * SQL is generated from the same row at planning. A slot's value is written as the product writes it (a Float in six
+ * decimals, S311; a DateTime in ISO 8601 UTC; a Decimal's plain digits), a String QUOTED JSON-style ({@code "a"},
+ * {@code ""}), inside a collection or a row too, so a String is never mistaken for a list ({@code ["a, b"]} against
+ * {@code ["a", "b"]}); a collection as {@code [a, b]}, a row as {@code [1, "a"]}. A size reads {@code expected size 2,
+ * got 3}; a quantified assert's element is named by Pure's zero-based index, the one {@code ->at(i)} takes (the
+ * user's direction, 2026-11-17, relayed by the orchestrator: lite picks its own best messages). Data only: no rule
+ * here decides a verdict.
  *
  * <p>Compatibility mode (PCT, the corpus) keeps legend-pure's words, the edge's; this table is the product's.
  */
@@ -22,7 +26,7 @@ public enum AssertSentence {
     EQUALS_ROWS("expected the rows {expected}, got {actual}"),
     NOT_EQUALS("expected a value other than {actual}"),
     SAME_ELEMENTS("expected the elements {expected} in any order, got {actual}"),
-    SIZE("expected {expected} values, got {actual}"),
+    SIZE("expected size {expected}, got {actual}"),
     NOT_SIZE("expected a size other than {size}"),
     CONTAINS("expected {collection} to contain {value}"),
     NOT_CONTAINS("expected {collection} not to contain {value}"),
@@ -34,9 +38,9 @@ public enum AssertSentence {
     IS_NOT("expected an instance other than {actual}"),
     WITHIN_TOLERANCE("expected {expected} within {delta}, got {actual}"),
     JSON_EQUALS("expected the JSON {expected}, got {actual}"),
-    ERROR("expected the error \"{expected}\", got \"{actual}\""),
-    NO_ERROR("expected the error \"{expected}\", got none"),
-    AT_ELEMENT("{sentence} at element {index}");
+    ERROR("expected the error {expected}, got {actual}"),
+    NO_ERROR("expected the error {expected}, got none"),
+    AT_INDEX("{sentence} at index {index}");
 
     private final String template;
 
