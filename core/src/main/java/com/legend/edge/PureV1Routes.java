@@ -8,7 +8,6 @@ import com.legend.parser.PmcdParser;
 import com.legend.parser.SpecParser;
 import com.legend.plan.PlanSupportFunctions;
 import com.legend.plan.QueryPlan;
-import com.legend.plan.UpstreamRelationType;
 import com.legend.protocol.ModelComposer;
 import com.legend.protocol.ProtocolReader;
 import com.legend.protocol.PureComposer;
@@ -215,7 +214,7 @@ public final class PureV1Routes {
                     ctx -> com.legend.Compiler.query(ctx, lambda).resultType().type());
             String path = com.legend.compiler.element.type.Type.schemaView(t) != null
                     ? "meta::pure::metamodel::relation::Relation"
-                    : UpstreamRelationType.typePath(t);
+                    : com.legend.plan.PureSpelling.typePath(t);
             return Json.toCompact(Map.of("returnType", path));
         });
     }
@@ -363,7 +362,7 @@ public final class PureV1Routes {
     static Map<String, Object> executionPlan(QueryPlan plan, Map<String, Object> connection) {
         List<Map<String, Object>> tdsColumns = new ArrayList<>();
         List<Map<String, Object>> resultColumns = new ArrayList<>();
-        List<com.legend.compiler.element.type.Type.Column> typed = UpstreamRelationType.columns(plan.rootType());
+        List<com.legend.compiler.element.type.Type.Column> typed = com.legend.plan.PureSpelling.relationColumns(plan.rootType());
         for (int i = 0; i < typed.size(); i++) {
             var c = typed.get(i);
             Map<String, Object> col = new LinkedHashMap<>();

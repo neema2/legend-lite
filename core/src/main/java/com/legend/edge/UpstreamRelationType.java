@@ -1,7 +1,7 @@
 // Copyright 2026 Legend Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-package com.legend.plan;
+package com.legend.edge;
 
 import com.legend.compiler.element.type.ExprType;
 import com.legend.compiler.element.type.Multiplicity;
@@ -18,7 +18,7 @@ import java.util.Map;
  * docs/UPSTREAM_ENDPOINTS_DESIGN_2026_09_27.md). ONE renderer for every surface that
  * hands a type to a client: the {@code pure/v1} endpoints and the browser planner module,
  * so a client reads one shape whichever answered. In {@code plan} beside
- * {@link PreciseTypes}: plan facts on compiler types, no execution.
+ * {@code PreciseTypes}: plan facts on compiler types, no execution.
  *
  * <p>Plain maps in upstream's key order ({@code _type} first, then alphabetical);
  * each surface serialises them with its own writer. The TYPE NAMES are legend-lite's
@@ -38,7 +38,7 @@ public final class UpstreamRelationType {
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("_type", "relationType");
         List<Map<String, Object>> columns = new ArrayList<>();
-        for (Type.Column c : columns(root)) {
+        for (Type.Column c : com.legend.plan.PureSpelling.relationColumns(root)) {
             Map<String, Object> col = new LinkedHashMap<>();
             col.put("genericType", genericType(c.type()));
             col.put("multiplicity", multiplicity(c.multiplicity()));
@@ -49,27 +49,13 @@ public final class UpstreamRelationType {
         return out;
     }
 
-    /** The root's columns: a relation's schema, or the one-column {@code value}
-     *  relation of a scalar or collection root (the wire's scalarRoot contract). */
-    public static List<Type.Column> columns(ExprType root) {
-        Type.RelationType schema = Type.schemaView(root.type());
-        return schema != null
-                ? schema.columns()
-                : List.of(new Type.Column("value", root.type(), root.multiplicity()));
-    }
-
     /**
      * A TDS column's type as execute's builder and a plan's tdsColumns write it: an enumeration
      * column is {@code String} there (measured, 4.145.0, 2026-09-30), though lambdaRelationType
      * names the enumeration.
      */
     public static String tdsTypePath(Type t) {
-        return t instanceof Type.EnumType ? "String" : typePath(t);
-    }
-
-    /** A column type's name as a client reads it: its path, a decimal as {@code Decimal}. */
-    public static String typePath(Type t) {
-        return t instanceof Type.PrecisionDecimal ? "Decimal" : t.typeName();
+        return t instanceof Type.EnumType ? "String" : com.legend.plan.PureSpelling.typePath(t);
     }
 
     /**
@@ -87,7 +73,7 @@ public final class UpstreamRelationType {
             // the plain String's VARCHAR(1024), as it does every computed string (recorded)
             return "VARCHAR(1024)";
         }
-        return switch (typePath(t)) {
+        return switch (com.legend.plan.PureSpelling.typePath(t)) {
             case "Integer" -> "INTEGER";
             case "Float", "Decimal", "Number" -> "FLOAT";
             case "String" -> "VARCHAR(1024)";
@@ -100,7 +86,7 @@ public final class UpstreamRelationType {
             // the engine spells no other (measured, 4.145.0, 2026-10-28: it refuses a StrictTime, a list and a
             // VARBINARY column before it executes), so neither does lite
             default -> throw new com.legend.error.NotImplementedException(
-                    "plan: legend-engine has no relational spelling of " + typePath(t)
+                    "plan: legend-engine has no relational spelling of " + com.legend.plan.PureSpelling.typePath(t)
                             + " (it refuses such a column before it executes)");
         };
     }
@@ -108,7 +94,7 @@ public final class UpstreamRelationType {
     static Map<String, Object> genericType(Type t) {
         Map<String, Object> raw = new LinkedHashMap<>();
         raw.put("_type", "packageableType");
-        raw.put("fullPath", typePath(t));
+        raw.put("fullPath", com.legend.plan.PureSpelling.typePath(t));
         List<Map<String, Object>> typeVariableValues = new ArrayList<>();
         if (t instanceof Type.PrecisionDecimal d) {
             typeVariableValues.add(integer(d.precision()));

@@ -126,13 +126,6 @@ public class SQLite extends AnsiSqlRenderer {
         return true;
     }
 
-    /** The engine's H2 text is refused here: SQLite has no translation of it (decision D2: raw text runs on the
-     *  database its connection declares; only the engine's H2 text is translated, for H2, DuckDB and Postgres). */
-    @Override
-    public String fromEngineText(String statement) {
-        throw new DialectCapability("the engine's H2 text reached SQLite, which has no translation of it");
-    }
-
     /** {@inheritDoc} The payload bound as one parameter, split by the database (the JSON pass, 2026-11-11: until then
      *  a session table in its {@code temp} schema its load made and its release dropped). */
     @Override
@@ -443,10 +436,15 @@ public class SQLite extends AnsiSqlRenderer {
         }
         if (label instanceof SqlType.Decimal d) {
             // printf reads a NULL as 0 and writes '0.00' (measured 2026-10-11 for the Float text, and 2026-10-27 here:
-            // a NULL decimal cell read back as 0.00 on the typed plan): a NULL stays NULL
+            // a NULL decimal cell read back as 0.00 on the typed plan): a NULL stays NULL. A label of scale 0 promises
+            // nothing of the value's digits (a #TDS Decimal column is typed DECIMAL(38, 0), and 0.1 in it is a REAL
+            // here): its text is the value's own -- an integer's digits, a REAL's shortest (the scale-0 text, textOf)
+            // -- never printf('%.0f'), which read 0.1 back as 0 (F49, E-P5's FloatAndDecimalTest, 2026-11-17)
+            SqlExpr text = d.scale() == 0 ? new SqlExpr.Cast(e, SqlType.Scalar.VARCHAR, SqlExpr.Reason.DIALECT)
+                    : SqlExpr.Call.of(SqlFn.FORMAT, new SqlExpr.StringLit("%." + d.scale() + "f"), e);
             return new SqlExpr.Case(List.of(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.IS_NULL, e),
                     new SqlExpr.Cast(new SqlExpr.NullLit(), SqlType.Scalar.DOUBLE, SqlExpr.Reason.DIALECT))),
-                    SqlExpr.Call.of(SqlFn.FORMAT, new SqlExpr.StringLit("%." + d.scale() + "f"), e), SqlExpr.Reason.DIALECT);
+                    text, SqlExpr.Reason.DIALECT);
         }
         if (label == SqlType.Scalar.DOUBLE) {
             return new SqlExpr.Cast(e, SqlType.Scalar.DOUBLE, SqlExpr.Reason.DIALECT);

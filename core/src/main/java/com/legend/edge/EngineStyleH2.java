@@ -1705,12 +1705,6 @@ public class EngineStyleH2 extends AnsiSqlRenderer implements EngineTextDialect 
         out.add(orLike ? w -> w.append("(").expr(e, 0).append(")") : w -> w.expr(e, 3));
     }
 
-    /** The engine's H2 text is this text's own language. */
-    @Override
-    public String fromEngineText(String statement) {
-        return statement;
-    }
-
     /** Engine aggregate names are lowercase ({@code sum(}, {@code count(}
      * — every aggregation golden's spelling), and the string aggregate is
      * {@code listagg} (h2SqlDialect.pure). */

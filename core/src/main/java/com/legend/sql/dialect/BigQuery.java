@@ -107,13 +107,6 @@ public class BigQuery extends AnsiSqlRenderer {
     // Session and structure
     // ==================================================================
 
-    /** The engine's H2 text is refused here: BigQuery has no translation of it (decision D2: raw text runs on the
-     *  database its connection declares; only the engine's H2 text is translated, for H2, DuckDB and Postgres). */
-    @Override
-    public String fromEngineText(String statement) {
-        throw new DialectCapability("the engine's H2 text reached BigQuery, which has no translation of it");
-    }
-
     /** {@inheritDoc} 6: its {@code DATETIME} keeps microseconds (a literal of nine digits is refused, measured) (S181, A7, 2026-11-10). */
     @Override
     protected int literalFractionDigits() {
@@ -1539,52 +1532,21 @@ public class BigQuery extends AnsiSqlRenderer {
     // Scalar functions -- every SqlFn decided here
     // ==================================================================
 
-    /** This database's plain spellings, {@code name(args)}: each function {@link #call} writes as a bare call of its
-     *  name (folded from one arm each, 2026-11-17: the method's line limit, CodeShapeGuardrailTest). */
-    private static final java.util.Map<SqlFn, String> PLAIN_NAMES = java.util.Map.ofEntries(
-            java.util.Map.entry(SqlFn.ABS, "ABS"),
-            java.util.Map.entry(SqlFn.ACOS, "ACOS"),
-            java.util.Map.entry(SqlFn.ASIN, "ASIN"),
-            java.util.Map.entry(SqlFn.ATAN, "ATAN"),
-            java.util.Map.entry(SqlFn.ATAN2, "ATAN2"),
-            java.util.Map.entry(SqlFn.CBRT, "CBRT"),
-            java.util.Map.entry(SqlFn.CHR, "CHR"),
-            java.util.Map.entry(SqlFn.COS, "COS"),
-            java.util.Map.entry(SqlFn.COSH, "COSH"),
-            java.util.Map.entry(SqlFn.COT, "COT"),
-            java.util.Map.entry(SqlFn.SIN, "SIN"),
-            java.util.Map.entry(SqlFn.SINH, "SINH"),
-            java.util.Map.entry(SqlFn.TAN, "TAN"),
-            java.util.Map.entry(SqlFn.TANH, "TANH"),
-            java.util.Map.entry(SqlFn.LOWER, "LOWER"),
-            java.util.Map.entry(SqlFn.UPPER, "UPPER"),
-            java.util.Map.entry(SqlFn.LTRIM, "LTRIM"),
-            java.util.Map.entry(SqlFn.RTRIM, "RTRIM"),
-            java.util.Map.entry(SqlFn.TRIM, "TRIM"),
-            java.util.Map.entry(SqlFn.REPLACE, "REPLACE"),
-            java.util.Map.entry(SqlFn.TRANSLATE, "TRANSLATE"),
-            java.util.Map.entry(SqlFn.STARTS_WITH, "STARTS_WITH"),
-            java.util.Map.entry(SqlFn.ENDS_WITH, "ENDS_WITH"),
-            java.util.Map.entry(SqlFn.STRPOS, "STRPOS"),
-            java.util.Map.entry(SqlFn.SPLIT, "SPLIT"),
-            java.util.Map.entry(SqlFn.ASCII_CODE, "ASCII"),
-            java.util.Map.entry(SqlFn.REVERSE_STRING, "REVERSE"),
-            java.util.Map.entry(SqlFn.REPEAT_STR, "REPEAT"),
-            java.util.Map.entry(SqlFn.LEVENSHTEIN, "EDIT_DISTANCE"),
-            java.util.Map.entry(SqlFn.FLOOR_RAW, "FLOOR"),
-            java.util.Map.entry(SqlFn.MATCHES, "REGEXP_CONTAINS"),
-            java.util.Map.entry(SqlFn.SUBSTRING, "SUBSTR"),
-            java.util.Map.entry(SqlFn.LIST_REVERSE, "ARRAY_REVERSE"),
-            java.util.Map.entry(SqlFn.LIST_LENGTH, "ARRAY_LENGTH"),
-            java.util.Map.entry(SqlFn.DATE_AT_TIME, "DATETIME"));
+    /** {@code PARSE_INT}: legend-pure's parseInteger, lite's TEXT_NOT_INTEGER by name, never the cast's own error
+     *  (Phase 8). Out of {@link #call} 2026-11-17 for its line limit (CodeShapeGuardrailTest), the SQL unchanged. */
+    private SqlWriter parseInt(SqlWriter writer, SqlExpr x) {
+        return guardedParseInt(writer, x,
+                w -> w.append("REGEXP_CONTAINS(").expr(x, 0).append(", " + stringLit("^[+-]?[0-9]+$") + ")"),
+                w -> w.append("CAST(").expr(x, 0).append(" AS INT64)"));
+    }
 
-    /** A plain spelling's name; a function the grouped arm names but the table lacks is refused by name. */
-    private static String plainName(SqlFn fn) {
-        String name = PLAIN_NAMES.get(fn);
-        if (name == null) {
-            throw new IllegalStateException(fn + " is in the plain spellings' arm but not in PLAIN_NAMES");
-        }
-        return name;
+    /** {@code TIMEZONE} (zone, t): an instant to the zone's time, a naive t read in the zone. Out of {@link #call}
+     *  2026-11-17 for its line limit, the SQL unchanged. */
+    private SqlWriter timezone(SqlWriter writer, List<SqlExpr> a) {
+        return isInstant(a.get(1))
+                ? writer.append("DATETIME(").expr(a.get(1), 0).append(", ").expr(a.get(0), 0).append(")")
+                : writer.append("TIMESTAMP(CAST(").expr(a.get(1), 0).append(" AS DATETIME), ").expr(a.get(0), 0)
+                        .append(")");
     }
 
     @Override
@@ -1629,13 +1591,42 @@ public class BigQuery extends AnsiSqlRenderer {
             case TO_VARIANT -> variantConstruct(writer, c.args());
             case VARIANT_GET -> variantGet(writer, c.args());
             case VARIANT_ELEMENTS -> variantElements(writer, c.args());
-            // this database's plain spellings, name(args): PLAIN_NAMES (folded 2026-11-17, the method's line limit);
-            // among them DATE_AT_TIME, DATETIME(date, time): the date-time at that time of that day
-            case ABS, ACOS, ASIN, ATAN, ATAN2, CBRT, CHR, COS, COSH, COT, SIN, SINH, TAN, TANH, LOWER, UPPER, LTRIM,
-                 RTRIM, TRIM, REPLACE, TRANSLATE, STARTS_WITH, ENDS_WITH, STRPOS, SPLIT, ASCII_CODE, REVERSE_STRING,
-                 REPEAT_STR, LEVENSHTEIN, FLOOR_RAW, MATCHES, SUBSTRING, LIST_REVERSE, LIST_LENGTH, DATE_AT_TIME ->
-                    writer.function(plainName(c.fn()), c.args());
+            // this database's plain spellings: name(args)
+            case ABS -> writer.function("ABS", c.args());
+            case ACOS -> writer.function("ACOS", c.args());
+            case ASIN -> writer.function("ASIN", c.args());
+            case ATAN -> writer.function("ATAN", c.args());
+            case ATAN2 -> writer.function("ATAN2", c.args());
+            case CBRT -> writer.function("CBRT", c.args());
+            case CHR -> writer.function("CHR", c.args());
             case COALESCE -> coalesceArm(writer, c);
+            case COS -> writer.function("COS", c.args());
+            case COSH -> writer.function("COSH", c.args());
+            case COT -> writer.function("COT", c.args());
+            case SIN -> writer.function("SIN", c.args());
+            case SINH -> writer.function("SINH", c.args());
+            case TAN -> writer.function("TAN", c.args());
+            case TANH -> writer.function("TANH", c.args());
+            case LOWER -> writer.function("LOWER", c.args());
+            case UPPER -> writer.function("UPPER", c.args());
+            case LTRIM -> writer.function("LTRIM", c.args());
+            case RTRIM -> writer.function("RTRIM", c.args());
+            case TRIM -> writer.function("TRIM", c.args());
+            case REPLACE -> writer.function("REPLACE", c.args());
+            case TRANSLATE -> writer.function("TRANSLATE", c.args());
+            case STARTS_WITH -> writer.function("STARTS_WITH", c.args());
+            case ENDS_WITH -> writer.function("ENDS_WITH", c.args());
+            case STRPOS -> writer.function("STRPOS", c.args());
+            case SPLIT -> writer.function("SPLIT", c.args());
+            case ASCII_CODE -> writer.function("ASCII", c.args());
+            case REVERSE_STRING -> writer.function("REVERSE", c.args());
+            case REPEAT_STR -> writer.function("REPEAT", c.args());
+            case LEVENSHTEIN -> writer.function("EDIT_DISTANCE", c.args());
+            case FLOOR_RAW -> writer.function("FLOOR", c.args());
+            case MATCHES -> writer.function("REGEXP_CONTAINS", c.args());
+            case SUBSTRING -> writer.function("SUBSTR", c.args());
+            case LIST_REVERSE -> writer.function("ARRAY_REVERSE", c.args());
+            case LIST_LENGTH -> writer.function("ARRAY_LENGTH", c.args());
             case IN -> in(writer, c, parentPrec);
             // never "--x": that is a comment
             case NEGATE -> writer.append("-(").expr(a.get(0), 0).append(")");
@@ -1668,9 +1659,7 @@ public class BigQuery extends AnsiSqlRenderer {
             case RADIANS -> writer.append("(CAST(").expr(a.get(0), 0).append(" AS FLOAT64) * (ACOS(-1) / 180))");
             case BIT_NOT -> writer.append("(~ CAST(").expr(a.get(0), 0).append(" AS INT64))");
             // legend-pure's parseInteger, lite's TEXT_NOT_INTEGER by name, never the cast's own error (Phase 8)
-            case PARSE_INT -> guardedParseInt(writer, a.get(0),
-                    w -> w.append("REGEXP_CONTAINS(").expr(a.get(0), 0).append(", " + stringLit("^[+-]?[0-9]+$") + ")"),
-                    w -> w.append("CAST(").expr(a.get(0), 0).append(" AS INT64)"));
+            case PARSE_INT -> parseInt(writer, a.get(0));
             case DECIMAL_TO_TEXT -> writer.expr(varcharCast(c.args().get(0)), parentPrec);
             case BOOL_TO_TEXT -> writer.append("CAST(").expr(a.get(0), 0).append(" AS STRING)");
             // NULL-skipping, as DuckDB's (BigQuery's are NULL for any NULL argument, measured): each argument stands
@@ -1729,13 +1718,12 @@ public class BigQuery extends AnsiSqlRenderer {
                     .append(")");
             case DATE_DIFF -> writer.piece(dateDiff(a));
             case TIME_BUCKET -> writer.piece(timeBucket(a));
+            // DATETIME(date, time): the date-time at that time of that day
+            case DATE_AT_TIME -> writer.function("DATETIME", c.args());
             // DuckDB's timezone(zone, t): a naive t read in the zone (its instant); an instant to the zone's time
             // (an operand is an instant by its type, or as a timezone() of a naive one: format's zone shift is
             // timezone(zone, timezone('UTC', t)), whose inner call is typed naive but renders a TIMESTAMP)
-            case TIMEZONE -> isInstant(a.get(1))
-                    ? writer.append("DATETIME(").expr(a.get(1), 0).append(", ").expr(a.get(0), 0).append(")")
-                    : writer.append("TIMESTAMP(CAST(").expr(a.get(1), 0).append(" AS DATETIME), ").expr(a.get(0), 0)
-                            .append(")");
+            case TIMEZONE -> timezone(writer, a);
             // DuckDB's epoch(ts) is DOUBLE seconds; epoch_ms truncates toward zero (measured), as DIV does
             case EPOCH_SECONDS -> writer.append("(CAST(UNIX_MICROS(").piece(instant(a.get(0)))
                     .append(") AS FLOAT64) / 1000000)");

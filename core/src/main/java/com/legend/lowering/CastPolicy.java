@@ -42,16 +42,14 @@ final class CastPolicy {
     // identity and reorders the merge. The SOUND seam is the
     // PROPERTY-READ PAIRING (property meets its mapped column uniquely,
     // no name lookup) — the next attempt builds THERE. The Cast.conform
-    // provenance + engine-text elision + rebuild transports stay: they
+    // provenance + wire-cast elision + rebuild transports stay: they
     // are the correct plumbing for that seam.
 
     /** The cast policy over an ALREADY-LOWERED source (scalar or window channel). */
-    static SqlExpr lower(TypedCast c, SqlExpr value, boolean isMany, boolean engineText) {
-        if (c.wire() && engineText) {
-            // the mapping's WIRE coercion — the engine runtime converts on
-            // the wire and its SQL/plan text never spells it; execution
-            // (boundary inactive) keeps the SQL cast (DuckDB does not
-            // wire-convert — audit 19 F7)
+    static SqlExpr lower(TypedCast c, SqlExpr value, boolean isMany, boolean elideWireCasts) {
+        if (c.wire() && elideWireCasts) {
+            // the mapping's WIRE coercion, elided where the shape asks (LoweringShape#elideWireCasts): its reader
+            // converts on the wire; the lean shape keeps the SQL cast (DuckDB does not wire-convert — audit 19 F7)
             return value;
         }
         boolean variantSource = c.source().info().type()

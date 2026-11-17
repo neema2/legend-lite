@@ -1,7 +1,9 @@
 // Copyright 2026 Legend Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-package com.legend.sql.dialect;
+package com.legend.edge;
+
+import com.legend.sql.dialect.SqlDialect;
 
 /**
  * legend-engine's own text for a database whose engine spelling is built (the engine's test database H2, DB2 and

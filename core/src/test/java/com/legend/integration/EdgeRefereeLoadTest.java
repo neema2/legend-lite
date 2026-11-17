@@ -3,13 +3,15 @@
 
 package com.legend.integration;
 
+import com.legend.edge.RawLedger;
+
 import com.legend.edge.CompatEdge;
 import com.legend.edge.RefereeLoad;
 import com.legend.executionplan.DataRef;
 import com.legend.executionplan.DataStores;
 import com.legend.executionplan.ExecutionPlan;
 import com.legend.setup.LoadSteps;
-import com.legend.sql.dialect.RawSqlBoundary;
+import com.legend.edge.RawSqlBoundary;
 import com.legend.testexecutionplan.Extension;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -41,17 +43,17 @@ class EdgeRefereeLoadTest {
     @Test
     void theStepsThatRanAreRecordedAsTheRefereesCopy(@TempDir Path resources) throws Exception {
         Files.write(resources.resolve("ids.csv"), CSV);
-        RawSqlBoundary.Recorder recorder = new RawSqlBoundary.Recorder();
+        RawLedger.Recorder recorder = new RawLedger.Recorder();
         CompatEdge edge = new CompatEdge(recorder, DataStores.resources(resources));
         List<Extension> planned = edge.seed(copy(DataStores.sha256(CSV)).steps(), copy(DataStores.sha256(CSV))
                 .content());
         // every step ran: the statement, the blob's two inserts, the file's statements as one entry
         edge.seeded(planned, List.of(false, false, false));
-        List<RawSqlBoundary.Raw> seeds = recorder.seeds();
+        List<RawLedger.Raw> seeds = recorder.seeds();
         assertEquals(List.of("CREATE TABLE T (ID INTEGER)", "INSERT INTO T VALUES (1)", "INSERT INTO T VALUES (2)"),
-                seeds.subList(0, 3).stream().map(RawSqlBoundary.Raw::sql).toList());
+                seeds.subList(0, 3).stream().map(RawLedger.Raw::sql).toList());
         assertNull(seeds.get(0).read());
-        RawSqlBoundary.FileRead read = seeds.get(3).read();
+        RawLedger.FileRead read = seeds.get(3).read();
         assertArrayEquals(CSV, read.bytes(), "the bytes the plan's load read");
         assertEquals(List.of("SET @legend_csv = ?", "INSERT INTO U SELECT 1"), read.statements());
         assertEquals(List.of("SET @legend_csv = NULL"), read.after());
@@ -60,19 +62,19 @@ class EdgeRefereeLoadTest {
     @Test
     void aFailedStepAndThoseAfterItAreNotRecorded(@TempDir Path resources) throws Exception {
         Files.write(resources.resolve("ids.csv"), CSV);
-        RawSqlBoundary.Recorder recorder = new RawSqlBoundary.Recorder();
+        RawLedger.Recorder recorder = new RawLedger.Recorder();
         CompatEdge edge = new CompatEdge(recorder, DataStores.resources(resources));
         LoadSteps copy = copy(DataStores.sha256(CSV));
         // the run tells the steps before the failure: the statement alone
         edge.seeded(edge.seed(copy.steps(), copy.content()), List.of(false));
-        assertEquals(List.of("CREATE TABLE T (ID INTEGER)"), recorder.seeds().stream().map(RawSqlBoundary.Raw::sql)
+        assertEquals(List.of("CREATE TABLE T (ID INTEGER)"), recorder.seeds().stream().map(RawLedger.Raw::sql)
                 .toList());
     }
 
     @Test
     void aFileThatIsNotThePlansIsRefusedByName(@TempDir Path resources) throws Exception {
         Files.write(resources.resolve("ids.csv"), "ID\n9\n".getBytes(StandardCharsets.UTF_8));
-        CompatEdge edge = new CompatEdge(new RawSqlBoundary.Recorder(), DataStores.resources(resources));
+        CompatEdge edge = new CompatEdge(new RawLedger.Recorder(), DataStores.resources(resources));
         LoadSteps copy = copy(DataStores.sha256(CSV));
         IllegalStateException refused = assertThrows(IllegalStateException.class,
                 () -> edge.seeded(edge.seed(copy.steps(), copy.content()), List.of(false, false, false)));
