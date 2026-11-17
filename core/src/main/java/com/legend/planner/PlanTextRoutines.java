@@ -19,19 +19,14 @@ public final class PlanTextRoutines {
     }
 
     /** The routine table of the plan-text natives (the catalog's JAVA_ROUTINE rows), each asking the style's facet
-     *  when it is CALLED: a body that names none plans on any style, and one that does is refused by name by the
-     *  product's at that call, as before. */
+     *  for its text when it is CALLED: a body that names none plans on any style, and one that does is refused by name
+     *  by the product's at that call. */
     public static Map<String, NativeDispatch.Routine> of(SpecCompiler specs, PlanEnv env) {
-        NativeDispatch.Routine text = (call, letPrefix) -> java.util.Objects.requireNonNull(
-                env.style().facet(UpstreamPlans.class).planToString(call, letPrefix, specs, env), "plan text");
-        NativeDispatch.Routine sqlText = (call, letPrefix) -> java.util.Objects.requireNonNull(
-                env.style().facet(UpstreamPlans.class).toSqlString(call, letPrefix, specs, env), "sql text");
-        return Map.of(
-                com.legend.builtin.NativeFn.JavaRoutine.PLAN_TO_STRING.fqn(), text,
-                com.legend.builtin.NativeFn.JavaRoutine.PLAN_TO_STRING_WITHOUT_FORMATTING.fqn(),
-                (call, letPrefix) -> text.value(call, letPrefix).replace("\n", "").replace(" ", ""),
-                com.legend.builtin.NativeFn.JavaRoutine.TO_SQL_STRING.fqn(), sqlText,
-                com.legend.builtin.NativeFn.JavaRoutine.TO_SQL_STRING_PRETTY.fqn(), sqlText,
-                com.legend.builtin.NativeFn.JavaRoutine.TO_NON_EXECUTABLE_SQL_STRING.fqn(), sqlText);
+        Map<String, NativeDispatch.Routine> table = new java.util.LinkedHashMap<>();
+        for (com.legend.builtin.NativeFn.JavaRoutine routine : com.legend.builtin.NativeFn.JavaRoutine.values()) {
+            table.put(routine.fqn(), (call, letPrefix) -> env.style().facet(UpstreamPlans.class)
+                    .routineText(routine, call, letPrefix, specs, env));
+        }
+        return Map.copyOf(table);
     }
 }

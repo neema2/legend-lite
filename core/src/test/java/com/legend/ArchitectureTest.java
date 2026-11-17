@@ -1262,7 +1262,7 @@ final class ArchitectureTest {
             "lowering.Lowerer#<init>(java.util.function.Function, java.util.function.Predicate, "
                     + "com.legend.platform.ImplementationTable)", "com.legend.Compiler com.legend.edge.EnginePlans",
             "lowering.Lowerer#lower(java.util.List)", "com.legend.Compiler com.legend.edge.EnginePlans",
-            "lowering.Lowerer#withEngineExistsJoinForm()", "com.legend.Compiler com.legend.edge.EnginePlans",
+            "lowering.Lowerer#withExistsAsJoinDistinct()", "com.legend.Compiler com.legend.edge.EnginePlans",
             "lowering.Lowerer#withInstanceKeys(java.util.function.Function)", "com.legend.Compiler",
             "lowering.Lowerer#withObjectIdentity(java.util.function.Function)", "com.legend.Compiler",
             "lowering.ObjectSites#<init>()", "com.legend.Compiler",
@@ -1337,7 +1337,7 @@ final class ArchitectureTest {
             // lowering and the plan's environment, so each of those reaches is listed here, by signature and caller
             "lowering.Lowerer#bindPlanParam(com.legend.sql.SqlExpr$PlanParam)", "com.legend.edge.EnginePlans",
             "lowering.Lowerer#withShape(com.legend.lowering.LoweringShape)", "com.legend.edge.EnginePlans",
-            "lowering.LoweringShape#<init>(boolean, boolean, boolean, boolean, boolean)", "com.legend.edge.EnginePlans",
+            "lowering.LoweringShape#<init>(boolean, boolean, boolean, boolean, boolean, boolean)", "com.legend.edge.EnginePlans",
             "lowering.Lowerer#withFeatures(java.util.Set)", "com.legend.edge.EnginePlans",
             "lowering.Lowerer#withOptions(java.util.Set)", "com.legend.edge.EnginePlans",
             "lowering.PlanParams#kindOf(com.legend.compiler.element.type.Type)", "com.legend.edge.EnginePlans",

@@ -322,12 +322,10 @@ public final class Lowerer {
         return SqlSelect.starOf(new SqlSource.Cte(cte.name(), nextAlias(), cte.outputs()));
     }
 
-    /** Engine-parity join-distinct exists (ExistsJoinForm) — DRIVER
-     * opt-in; the standalone-SQL surface keeps lean correlated EXISTS. */
-    private boolean engineExistsJoinForm;
-
-    public Lowerer withEngineExistsJoinForm() {
-        this.engineExistsJoinForm = true;
+    /** A filter's correlated EXISTS over a to-many join as a join to the distinct keys (ExistsJoinForm), the shape's
+     *  {@link LoweringShape#existsAsJoinDistinct}; the standalone-SQL surface keeps the correlated EXISTS. */
+    public Lowerer withExistsAsJoinDistinct() {
+        this.shape = shape.withExistsAsJoinDistinct();
         return this;
     }
 
@@ -2218,7 +2216,7 @@ public final class Lowerer {
             case WHERE -> {
                 SqlSelect m = src.withWhere(
                         mergeWhere(src.where(), predicate, f.stamp()));
-                yield engineExistsJoinForm
+                yield shape.existsAsJoinDistinct()
                         ? ExistsJoinForm.rewrite(m, this::nextAlias,
                                 whereZones::get)
                         : m;

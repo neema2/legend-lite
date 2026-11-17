@@ -961,7 +961,7 @@ public final class Compiler {
                 .withInstanceKeys(t -> com.legend.compiler.element.EqualityKeys.resolve(ctx, t))
                 .withObjectIdentity(new com.legend.lowering.ObjectSites()::idOf);
         if (!temporalRoot) {
-            lw = lw.withEngineExistsJoinForm();
+            lw = lw.withExistsAsJoinDistinct();
         }
         return lw.lower(body);
     }
