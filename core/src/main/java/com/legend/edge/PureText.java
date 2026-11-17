@@ -158,6 +158,15 @@ public final class PureText {
             return UPSTREAM.dialect(type);
         }
 
+        /** Refused by name (census C4, 2026-11-17, the orchestrator's ruling): the pure/v1 routes plan a query, never a
+         *  test body, so no judge asks this style whether it judges legend-engine's text; a judge that did is a bug. */
+        @Override
+        public boolean judgesEngineText() {
+            throw new com.legend.error.NotImplementedException("judging legend-engine's text under the pure/v1 route's"
+                    + " style: the pure/v1 routes plan queries, never a test body's asserts (PCT and the corpus plan"
+                    + " under UPSTREAM)");
+        }
+
         @Override
         public String activitySql(Activity activity) {
             return UPSTREAM.activitySql(activity);
