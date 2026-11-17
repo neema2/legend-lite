@@ -265,7 +265,8 @@ class CompatSpellingGuardTest {
             // JUDGE, now B12's (2026-11-17, census C5's step C): the judges' canon no longer emits the node; its last
             // product emitter, format's %r (Scalars), refused in the product by B12's 2b (F's, 2026-11-17): the edge's
             // DateTime texts write it now
-            "sql/dialect/DateTimePrintText.java | +0000 | 2 | JUDGE",
+            // (sql/dialect/DateTimePrintText.java | +0000: gone 2026-11-17 with the class, census B12 -- legend-pure's
+            // DateTime print the edge's composition, edge.PureDateTimePrint)
             // RULED by the user, 2026-11-16, the edge program §10 item 9 ("I agree with all"): it stays in the product
             // (the P2 checkpoint audit's A-M1; W6's change, 4fc24e0a3, reverted the same day). The product's H2 quotes legend-engine's word list as written, upper-casing the words its session
             // frees (NON_KEYWORDS), and that decides WHICH COLUMN a declared name reads in H2 data made legend-engine's

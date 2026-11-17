@@ -1919,6 +1919,10 @@ class JavaEvalLedgerTest {
                             // edge's form of the two-form ListTexts kind (the separation census's B8, TEXT_FORMS gone
                             // from SqlFn 2026-11-17) -- planning work, no session, no value computed
                             "PureListTexts.java",
+                            // legend-pure's print form of a DateTime, composed from the product's nodes (census B12,
+                            // 2026-11-17: moved from sql.dialect.DateTimePrintText, the DATETIME_PRINT node gone) --
+                            // planning work, no session, no value computed
+                            "PureDateTimePrint.java",
                             // upstream's JSON grammar, json-simple 1.1.1 (register S144), the edge's form of the two-form
                             // JsonGrammar kind (census C1, 2026-11-17: moved from testexecutionplan.JudgeJson): reads
                             // a test's JSON text into values for the judges' own comparison -- no session, no statement

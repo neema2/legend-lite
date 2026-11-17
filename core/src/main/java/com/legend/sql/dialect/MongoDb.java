@@ -1249,7 +1249,7 @@ public class MongoDb extends AnsiSqlRenderer {
             case BOOL_TO_TEXT -> MongoJson.op1(writer, "$toString", a.get(0));
             case FLOAT_SHORTEST_TEXT -> floatShortestTextByCast(writer, c, parentPrec);
             case FLOAT_TO_TEXT -> floatToText(writer, a.get(0));
-            case DATETIME_TO_TEXT, DATETIME_PRINT, DATETIME_CANON_TEXT, CELL_TEXT ->
+            case DATETIME_TO_TEXT, DATETIME_CANON_TEXT, CELL_TEXT ->
                     throw expandedFirst(c);
             // ---- raising
             case ERROR -> raise(writer, a);
