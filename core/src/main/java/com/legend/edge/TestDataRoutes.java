@@ -57,11 +57,11 @@ public final class TestDataRoutes {
      *  class nested in {@code PureText} is an edge dialect): a timestamp as
      *  legend-engine's test-data CSV writes it (L9; census C1); the rest -- the refusal of a starting table no identifier
      *  names, the tables' and the columns' order, the header's names, the relation tree admitted -- the function's
-     *  rules, lite's own ({@code Printing.CLEAN}): upstream's words of the refusal are {@link PureMessages}'s, through
+     *  rules, lite's own ({@code LitePrinting}): upstream's words of the refusal are {@link PureMessages}'s, through
      *  {@code errorWords}. */
     private static final class EngineTestDataPrinting implements com.legend.testdatagen.TestDataPlanner.Printing {
         private static final com.legend.testdatagen.TestDataPlanner.Printing LITES =
-                com.legend.testdatagen.TestDataPlanner.Printing.CLEAN;
+                com.legend.testdatagen.LitePrinting.INSTANCE;
 
         @Override
         public com.legend.sql.SqlExpr timestampText(com.legend.sql.SqlExpr x) {
