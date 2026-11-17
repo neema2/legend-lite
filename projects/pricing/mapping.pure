@@ -1,0 +1,56 @@
+###Mapping
+
+Mapping pricing::Mapping
+(
+   pricing::PrInterpMethod: EnumerationMapping PrInterpMethodCode
+   {
+      LOG_LINEAR_DF: ['LOG_LINEAR_DF'],
+      LINEAR_ZERO: ['LINEAR_ZERO'],
+      LINEAR_DF: ['LINEAR_DF']
+   }
+
+   pricing::PrCurveKnot[prCurveKnot]: Relational
+   {
+      ~primaryKey
+      (
+         [pricing::Store]PR_CURVE_KNOT.SCENARIO_ID,
+         [pricing::Store]PR_CURVE_KNOT.CURVE_ID,
+         [pricing::Store]PR_CURVE_KNOT.KNOT_IDX
+      )
+      ~mainTable [pricing::Store]PR_CURVE_KNOT
+      scenarioId: [pricing::Store]PR_CURVE_KNOT.SCENARIO_ID,
+      curveId: [pricing::Store]PR_CURVE_KNOT.CURVE_ID,
+      knotIdx: [pricing::Store]PR_CURVE_KNOT.KNOT_IDX,
+      knotT: [pricing::Store]PR_CURVE_KNOT.KNOT_T,
+      zeroRate: [pricing::Store]PR_CURVE_KNOT.ZERO_RATE,
+      interpMethod: EnumerationMapping PrInterpMethodCode: [pricing::Store]PR_CURVE_KNOT.INTERP_METHOD
+   }
+
+   pricing::PrCashflow[prCashflow]: Relational
+   {
+      ~primaryKey
+      (
+         [pricing::Store]PR_CASHFLOW.TRADE_ID,
+         [pricing::Store]PR_CASHFLOW.LEG_ID,
+         [pricing::Store]PR_CASHFLOW.CF_IDX
+      )
+      ~mainTable [pricing::Store]PR_CASHFLOW
+      tradeId: [pricing::Store]PR_CASHFLOW.TRADE_ID,
+      legId: [pricing::Store]PR_CASHFLOW.LEG_ID,
+      cfIdx: [pricing::Store]PR_CASHFLOW.CF_IDX,
+      instrumentType: [pricing::Store]PR_CASHFLOW.INSTRUMENT_TYPE,
+      currency: [pricing::Store]PR_CASHFLOW.CCY,
+      csa: [pricing::Store]PR_CASHFLOW.CSA,
+      discountCurveId: [pricing::Store]PR_CASHFLOW.DISCOUNT_CURVE_ID,
+      projCurveId: [pricing::Store]PR_CASHFLOW.PROJ_CURVE_ID,
+      accrualStartT: [pricing::Store]PR_CASHFLOW.ACCRUAL_START_T,
+      accrualEndT: [pricing::Store]PR_CASHFLOW.ACCRUAL_END_T,
+      payT: [pricing::Store]PR_CASHFLOW.PAY_T,
+      dcf: [pricing::Store]PR_CASHFLOW.DCF,
+      notional: [pricing::Store]PR_CASHFLOW.NOTIONAL,
+      fixedRate: [pricing::Store]PR_CASHFLOW.FIXED_RATE,
+      spread: [pricing::Store]PR_CASHFLOW.SPREAD,
+      isFloat: [pricing::Store]PR_CASHFLOW.IS_FLOAT,
+      payReceive: [pricing::Store]PR_CASHFLOW.PAY_RECEIVE
+   }
+)

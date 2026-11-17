@@ -290,6 +290,43 @@ py_test(
     ],
 )
 
+py_library(
+    name = "pricing",
+    srcs = glob(["pricing/**/*.py"]),
+    imports = ["."],
+    deps = [
+        ":legend_lite",
+        "@pypi//duckdb",
+        "@pypi//pyarrow",
+    ],
+)
+
+py_test(
+    name = "pricing_test",
+    size = "medium",
+    srcs = [
+        "tests/main.py",
+        "tests/test_pricing.py",
+    ],
+    args = ["test_pricing"],
+    data = [
+        "//native:compiler",
+        "//projects:pricing_files",
+    ],
+    env = _ENV | {
+        "PYTHONTZPATH": "",
+        "PRICING_PROJECT_FILES": "$(rlocationpaths //projects:pricing_files)",
+    },
+    main = "tests/main.py",
+    target_compatible_with = _PLATFORMS,
+    deps = [
+        ":legend_lite",
+        ":pricing",
+        "@pypi//tzdata",
+        "@rules_python//python/runfiles",
+    ],
+)
+
 # The frames: queries over pandas, polars and Arrow frames answered as pandas computes them, Live and Snapped, the
 # model writer's conversions, the refusals.
 py_test(
