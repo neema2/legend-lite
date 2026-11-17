@@ -165,7 +165,10 @@ class CompatSpellingGuardTest {
             // caller) deleted. 6 -> 3 (2026-11-17, B17's forwarders: dateTimeTextTds and dateTimeTextOfText, which only a
             // relation's text wrote, moved to edge.RelationTextLowering). What stays: the judges' canon (temporalCanon x2,
             // dateTimeLiteralAt: census line C5, E-Java's)
-            "lowering/LiteralSpelling.java | +0000 | 3 | D1.9",
+            // 3 -> 1, D1.9 -> STAYS (2026-11-17, census C5's step C, E-SQL's): the judges' canon is lite's spelling
+            // (temporalCanon, dateTimeLiteralAt: Z, built from product nodes); what stays reads legend-pure's +0000 as
+            // INPUT (a wire text already suffixed is normalized before the canon), no spelling written
+            "lowering/LiteralSpelling.java | +0000 | 1 | STAYS",
             // FLOAT_PRINT, reclassified D1.2 -> JUDGE 2026-11-15 (phase D's D1.2): the product's text of a Float is
             // FLOAT_TO_TEXT, lite's six decimals (register S311); FLOAT_PRINT, legend-pure's print form, stays in each
             // product dialect as the JUDGES' %r of a Float in an assert's message (lowering/Repr: the database judge
@@ -267,6 +270,8 @@ class CompatSpellingGuardTest {
             // B9 -> C5 (E-P5) 2026-11-17 (census B9, the orchestrator's ruling (a)): a message's DateTime text is the
             // two-form hook lowering.DateTimeTexts (lite's DATETIME_TO_TEXT in the product); the composition stays for
             // the judges' canon alone, its one emitter LiteralSpelling.temporalCanon, closed by C5's step C
+            // JUDGE, now B12's (2026-11-17, census C5's step C): the judges' canon no longer emits the node; its one
+            // product emitter left is format's %r (Scalars), refused in the product by B12's 2b (F's)
             "sql/dialect/DateTimePrintText.java | +0000 | 2 | JUDGE",
             "sql/dialect/FloatPrintText.java | FLOAT_PRINT | 1 | JUDGE",
             // RULED by the user, 2026-11-16, the edge program §10 item 9 ("I agree with all"): it stays in the product
