@@ -428,17 +428,35 @@ public final class TestDataGenerator {
         return com.legend.testexecutionplan.Verdicts.repr(v);
     }
 
-    // ===== the tdg PLAN PRINTER (planTestDataGeneration text) =====
+    // ===== the tdg PLAN's FETCHES (planTestDataGeneration), as data =====
 
-    /** The engine's planTestDataGeneration plan text: MultiResultSequence
-     * of per-fetch Allocations (res_cN names in tree order), each a
-     * Relational node whose SQL is the ENGINE-H2 spelling of the fetch —
-     * parents referenced as {@code ${res_cN}} placeholders. Pure text,
-     * no execution. */
-    public static String planText(ModelContext ctx,
-            LambdaFunction resolvedQuery, String mappingFqn,
-            List<TableRowIds> rowIds, MilestoningDates dates,
-            com.legend.sql.dialect.EngineTextDialect text, String connection) {
+    /** A column of a generator plan's fetch: its name as demanded and its declared relational type. */
+    public record FetchColumn(String name, com.legend.model.RelationalDataType type) {
+    }
+
+    /** A node of the generator's plan (legend-engine's planTestDataGeneration), as DATA: the fetches the generator
+     *  builds and their SQL trees; legend-engine's text of them is the edge's ({@code edge.TestDataPlanText}, Phase
+     *  6's B13, 2026-11-17: the generator names no engine text). */
+    public sealed interface FetchNode permits Fetch, Unidentified {
+    }
+
+    /** A fetch: its result name ({@code res_c0}, {@code res_c0_c1}, ... in tree order), its table, its demanded
+     *  columns, its query (the root's by its identifiers, a child's by its parent's join) and its children's. */
+    public record Fetch(String res, String db, String schema, String table, List<FetchColumn> columns,
+            SqlSelect query, List<FetchNode> children) implements FetchNode {
+    }
+
+    /** A root with no row identifiers: legend-engine plans an Error node over a sample of the root's primary key
+     *  columns ({@code select top 5}, testDataGeneration.pure:511, getRowIdentifiersForRoot's assert). */
+    public record Unidentified(String db, String schema, String table, List<FetchColumn> keys, SqlSelect sample)
+            implements FetchNode {
+    }
+
+    /** The generator plan's root fetches for {@code resolvedQuery} over {@code mappingFqn}, from {@code rowIds} and
+     *  live on {@code dates}: each a {@link Fetch} with its children, or an {@link Unidentified} root. Pure data, no
+     *  execution. */
+    public static List<FetchNode> planFetches(ModelContext ctx, LambdaFunction resolvedQuery, String mappingFqn,
+            List<TableRowIds> rowIds, @com.legend.base.Nullable MilestoningDates dates) {
         List<ScanRelations.Rel> roots =
                 ScanRelations.relTree(ctx, resolvedQuery, mappingFqn);
         roots = roots.stream().map(r -> expandIfView(ctx, r, null))
@@ -447,78 +465,43 @@ public final class TestDataGenerator {
         for (ScanRelations.Rel r : roots) {
             collectColMap(ctx, r, colMap, null);
         }
-        StringBuilder kids = new StringBuilder();
+        List<FetchNode> out = new ArrayList<>();
         int ri = 0;
         for (ScanRelations.Rel r : roots) {
-            planNode(ctx, r, null, "res_c" + ri++, rowIds, dates, colMap,
-                    kids, text, connection);
+            out.add(planNode(ctx, r, null, "res_c" + ri++, rowIds, dates, colMap));
         }
-        return "MultiResultSequence\n(\n"
-                + "  type = meta::pure::metamodel::type::Any\n"
-                + "  (\n"
-                + com.legend.plan.PlanText.indent(kids.toString(), "    ")
-                + "  )\n)\n";
+        return out;
     }
 
-    private static void planNode(ModelContext ctx, ScanRelations.Rel rel,
+    private static FetchNode planNode(ModelContext ctx, ScanRelations.Rel rel,
             ScanRelations.@com.legend.base.Nullable Rel parent, String res,
             List<TableRowIds> rowIds,
-            @com.legend.base.Nullable MilestoningDates dates, Map<String, List<String>> colMap,
-            StringBuilder out, com.legend.sql.dialect.EngineTextDialect text, String connection) {
+            @com.legend.base.Nullable MilestoningDates dates, Map<String, List<String>> colMap) {
         Located loc = locate(ctx, rel.db(), rel.table());
         String tbl = java.util.Objects.requireNonNull(rel.table(), "rel.table()");
         List<String> cols = java.util.Objects.requireNonNull(
                 colMap.get(loc.schema() + "\n" + tbl),
                 "no column map for " + tbl);
-        String relType = relationType(rel, loc, cols);
         if (parent == null && rootIds(loc, rel, rowIds) == null) {
-            // the engine's plan for a ROOT without row identifiers is an
-            // Error node carrying the top-5 sample query
-            // (testDataGeneration.pure:511, planTestDataGeneration's
-            // getRowIdentifiersForRoot assert): message + the sampled
-            // Relational, no Allocation
             // the sample selects the PRIMARY KEY columns only
             List<String> pkCols = loc.def().columns().stream()
                     .filter(c -> c.primaryKey()).map(c -> c.name()).toList();
-            out.append(planRootErrorNode(loc, rel, tbl, pkCols,
-                    relationType(rel, loc, pkCols), text, connection));
-            return;
+            String alias = tbl.toLowerCase(java.util.Locale.ROOT) + "_0";
+            return new Unidentified(rel.db(), loc.schema(), tbl, columns(loc, pkCols),
+                    sample(5, pkCols, alias, loc, tbl));
         }
-        // the fetch as the engine prints the query it built (its own aliases), from IR
-        String sql = text.renderAsAliased(parent == null ? planRootFetch(loc, rel, cols, rowIds, dates)
-                : planChildFetch(ctx, loc, parent, rel, cols, res, dates));
-        String inner = "Relational\n(\n"
-                + "  type = " + relType + "\n"
-                + "  resultSizeRange = *\n"
-                + "  resultColumns = [" + cols.stream()
-                        .map(c -> "(\"" + c + "\", "
-                                + com.legend.plan.PlanText.spell(
-                                        column(loc.def(), c).dataType())
-                                + ")")
-                        .collect(java.util.stream.Collectors
-                                .joining(", ")) + "]\n"
-                + "  sql = " + sql + "\n"
-                + "  connection = " + connection + "\n"
-                + ")\n";
-        out.append(com.legend.plan.PlanText.allocation(res,
-                "  type = " + relType + "\n  resultSizeRange = *\n",
-                inner));
+        SqlSelect query = parent == null ? planRootFetch(loc, rel, cols, rowIds, dates)
+                : planChildFetch(ctx, loc, parent, rel, cols, res, dates);
+        List<FetchNode> children = new ArrayList<>();
         int ci = 0;
         for (ScanRelations.Rel child : rel.children()) {
-            planNode(ctx, child, rel, res + "_c" + ci++, rowIds, dates,
-                    colMap, out, text, connection);
+            children.add(planNode(ctx, child, rel, res + "_c" + ci++, rowIds, dates, colMap));
         }
+        return new Fetch(res, rel.db(), loc.schema(), tbl, columns(loc, cols), query, children);
     }
 
-    private static String relationType(ScanRelations.Rel rel, Located loc,
-            List<String> cols) {
-        return "Relation[name=" + rel.table() + ", type=TABLE, schema="
-                + loc.schema() + ", database=" + rel.db() + ", columns=["
-                + cols.stream().map(c -> "(\"" + c + "\","
-                        + com.legend.plan.PlanText.spell(
-                                column(loc.def(), c).dataType()) + ")")
-                        .collect(java.util.stream.Collectors.joining(", "))
-                + "]]";
+    private static List<FetchColumn> columns(Located loc, List<String> names) {
+        return names.stream().map(c -> new FetchColumn(c, column(loc.def(), c).dataType())).toList();
     }
 
     private static @com.legend.base.Nullable TableRowIds rootIds(Located loc,
@@ -531,43 +514,6 @@ public final class TestDataGenerator {
             }
         }
         return ids;
-    }
-
-    /** The engine's Error node for a root without row identifiers:
-     * the assert message (primary key columns as name:TYPE) over the
-     * sampled {@code select top 5} of the root table. */
-    private static String planRootErrorNode(Located loc,
-            ScanRelations.Rel rel, String tbl, List<String> cols,
-            String relType, com.legend.sql.dialect.EngineTextDialect text, String connection) {
-        String alias = tbl.toLowerCase(java.util.Locale.ROOT) + "_0";
-        String pk = loc.def().columns().stream()
-                .filter(c -> c.primaryKey())
-                .map(c -> c.name() + ":" + com.legend.plan.PlanText.spell(
-                        c.dataType()))
-                .collect(java.util.stream.Collectors.joining(","));
-        String qualified = "default".equals(loc.schema()) ? tbl
-                : loc.schema() + "." + tbl;
-        String sql = text.renderAsAliased(sample(5, cols, alias, loc, tbl));
-        String inner = "Relational\n(\n"
-                + "  type = " + relType + "\n"
-                + "  resultSizeRange = *\n"
-                + "  resultColumns = [" + cols.stream()
-                        .map(c -> "(\"" + c + "\", "
-                                + com.legend.plan.PlanText.spell(
-                                        column(loc.def(), c).dataType())
-                                + ")")
-                        .collect(java.util.stream.Collectors
-                                .joining(", ")) + "]\n"
-                + "  sql = " + sql + "\n"
-                + "  connection = " + connection + "\n"
-                + ")\n";
-        return "Error\n(\n"
-                + "  type = meta::pure::metamodel::type::Any\n"
-                + "  message = Row Identifers should be provided for the root"
-                + " table: " + rel.db() + "." + qualified + " [" + pk
-                + "]\\n\n"
-                + "  (\n" + com.legend.plan.PlanText.indent(inner, "    ")
-                + "  )\n)\n";
     }
 
     /** The engine's root fetch in its plan: the demanded columns of the root, under {@code "root"}, the rows of its

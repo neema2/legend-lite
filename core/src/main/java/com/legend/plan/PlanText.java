@@ -253,7 +253,7 @@ public final class PlanText {
         // (testMapWithOpenVariable's golden)
         if (last.info().type()
                 instanceof com.legend.compiler.element.type.Type.Primitive) {
-            return "  type = " + pureTypeName(last.info().type())
+            return "  type = " + PureSpelling.typeName(last.info().type())
                     + "\n  resultSizeRange = " + size + "\n";
         }
         return "  type = Class[impls=(" + rootClassFqn + " | "
@@ -436,13 +436,6 @@ public final class PlanText {
                 + "  values=[" + valueText + "]\n)\n";
     }
 
-    /** Engine pure-type spelling for plan type lines ({@code String},
-     * {@code Integer}, ...). */
-    public static String pureTypeName(
-            com.legend.compiler.element.type.Type t) {
-        return pureName(t);
-    }
-
     private static java.util.Map<String, String> docsOf(
             com.legend.compiler.spec.typed.TypedSpec last) {
         java.util.Map<String, String> docs = new java.util.LinkedHashMap<>();
@@ -547,7 +540,7 @@ public final class PlanText {
             }
             sb.append('(')
                     .append(doc.isEmpty() ? name : "\"" + name + "\"")
-                    .append(", ").append(pureName(cols.get(i).type()))
+                    .append(", ").append(PureSpelling.typeName(cols.get(i).type()))
                     .append(", ").append(db)
                     .append(", \"").append(doc).append("\"");
             // ENUM columns append their ENUMERATION-MAPPING id (the
@@ -568,51 +561,6 @@ public final class PlanText {
             sb.append(')');
         }
         return sb.toString();
-    }
-
-    /** The mapping's ENUMERATION-MAPPING for an enum FQN — read off the
-     * NORMALIZED artifact, whose list is already include-flattened at
-     * Phase E (exact match first, simple-name second — parsed mappings
-     * may hold either spelling), or null. */
-    public static com.legend.model.@com.legend.base.Nullable EnumerationMapping enumMappingOf(
-            ModelContext ctx, String mappingFqn, String enumFqn) {
-        return enumMappingOf(ctx, mappingFqn, enumFqn, new java.util.HashSet<>());
-    }
-
-    /** The mapping's own enumeration mappings first, then its INCLUDED
-     * mappings' (real pure: an included mapping's enumeration mappings
-     * are visible through the include — the enum-decoded rows leg over
-     * a mapping that includes the store mapping). */
-    private static com.legend.model.@com.legend.base.Nullable EnumerationMapping enumMappingOf(
-            ModelContext ctx, String mappingFqn, String enumFqn,
-            java.util.Set<String> seen) {
-        if (!seen.add(mappingFqn)) {
-            return null;
-        }
-        var md = ctx.findMapping(mappingFqn).orElse(null);
-        if (md == null) {
-            return null;
-        }
-        var ems = md.enumerationMappings();
-        String simple = enumFqn.substring(enumFqn.lastIndexOf(':') + 1);
-        for (var em : ems) {
-            if (em.enumName().equals(enumFqn)) {
-                return em;
-            }
-        }
-        for (var em : ems) {
-            if (em.enumName().equals(simple)
-                    || em.enumName().endsWith("::" + simple)) {
-                return em;
-            }
-        }
-        for (var inc : md.includes()) {
-            var em = enumMappingOf(ctx, inc.mappingPath(), enumFqn, seen);
-            if (em != null) {
-                return em;
-            }
-        }
-        return null;
     }
 
     /** enumMappingOf's id, disambiguated: a mapping may declare SEVERAL
@@ -668,46 +616,10 @@ public final class PlanText {
      * mapping carries no enumeration mapping for the enum. */
     public static @com.legend.base.Nullable String enumMapFnOf(ModelContext ctx, String mappingFqn,
             String enumFqn) {
-        var em = enumMappingOf(ctx, mappingFqn, enumFqn);
+        var em = EnumMappings.of(ctx, mappingFqn, enumFqn);
         String id = em == null ? null : em.mappingId();
         return id == null ? null
                 : "enumMap_" + mappingFqn.replace("::", "_") + "_" + id;
-    }
-
-    private static String pureName(
-            com.legend.compiler.element.type.Type t) {
-        if (t == com.legend.compiler.element.type.Type.Primitive.STRING) {
-            return "String";
-        }
-        if (t == com.legend.compiler.element.type.Type.Primitive.INTEGER) {
-            return "Integer";
-        }
-        if (t == com.legend.compiler.element.type.Type.Primitive.FLOAT) {
-            return "Float";
-        }
-        if (t == com.legend.compiler.element.type.Type.Primitive.BOOLEAN) {
-            return "Boolean";
-        }
-        if (t == com.legend.compiler.element.type.Type.Primitive.STRICT_DATE) {
-            return "StrictDate";
-        }
-        if (t == com.legend.compiler.element.type.Type.Primitive.DATE_TIME) {
-            return "DateTime";
-        }
-        if (t == com.legend.compiler.element.type.Type.Primitive.DATE) {
-            return "Date";
-        }
-        if (t == com.legend.compiler.element.type.Type.Primitive.DECIMAL) {
-            return "Decimal";
-        }
-        if (t == com.legend.compiler.element.type.Type.Primitive.NUMBER) {
-            return "Number";
-        }
-        // enum-typed columns/parameters spell the enumeration FQN
-        if (t instanceof com.legend.compiler.element.type.Type.EnumType et) {
-            return et.fqn();
-        }
-        throw new NotImplementedException("plan: pure type name for " + t);
     }
 
     /** {@code plan}'s top select with its from-tree's LEFTMOST subselect

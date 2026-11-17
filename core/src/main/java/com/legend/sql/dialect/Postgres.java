@@ -258,23 +258,6 @@ public class Postgres extends AnsiSqlRenderer {
         return bindPayload(writer, u).append(" AS JSONB)) WITH ORDINALITY AS legend_payload(value, ordinality)");
     }
 
-    /** The engine's H2 text in the flavor DuckDB shares, its column types Postgres's (2026-10-12,
-     *  docs/CLOUD_BACKENDS_PCT_2026_10_11.md §20: the 8-byte double is DOUBLE PRECISION, and SMALLINT is the smallest
-     *  integer, there is no TINYINT) and a bare column name in lower case, as Postgres folds a bare name and spells a
-     *  store's ({@link #physicalName}, decision D8). */
-    @Override
-    public String fromEngineText(String statement) {
-        return RawSqlBoundary.translated(statement,
-                types -> ENGINE_TINYINT.matcher(ENGINE_DOUBLE.matcher(types).replaceAll("DOUBLE PRECISION"))
-                        .replaceAll("SMALLINT"),
-                bare -> bare.toLowerCase(java.util.Locale.ROOT));
-    }
-
-    private static final java.util.regex.Pattern ENGINE_DOUBLE =
-            java.util.regex.Pattern.compile("(?i)\\bDOUBLE\\b(?!\\s+PRECISION)");
-
-    private static final java.util.regex.Pattern ENGINE_TINYINT = java.util.regex.Pattern.compile("(?i)\\bTINYINT\\b");
-
     /** No native PIVOT: static pivots are emulated by the carrier pass; a dynamic
      * pivot needs a key-discovery round trip the browser planner cannot make. */
     // the probe plan's facts (2026-10-20): Postgres: "target lists can have at most 1664 entries" (MaxTupleAttributeNumber); REPEATABLE READ is its snapshot
@@ -762,53 +745,19 @@ public class Postgres extends AnsiSqlRenderer {
     // the empty collection as a list: a reduction, an element or a rearrangement of it is the empty collection
     // itself, NULL, as DuckDB answers over NULL (Postgres types every array: a reduction over an untyped NULL is
     // refused, "could not determine polymorphic type", measured); a concatenation is its other lists (listConcat)
-    /** This database's plain spellings, {@code name(args)}: each function {@link #call} writes as a bare call of its
-     *  name (folded from one arm each, 2026-11-17: the method's line limit, CodeShapeGuardrailTest). */
-    private static final java.util.Map<SqlFn, String> PLAIN_NAMES = java.util.Map.ofEntries(
-            java.util.Map.entry(SqlFn.CONCAT_JOIN, "concat"),
-            java.util.Map.entry(SqlFn.CONCAT_WS, "concat_ws"),
-            java.util.Map.entry(SqlFn.ABS, "abs"),
-            java.util.Map.entry(SqlFn.ASCII_CODE, "ascii"),
-            java.util.Map.entry(SqlFn.ATAN, "atan"),
-            java.util.Map.entry(SqlFn.ATAN2, "atan2"),
-            java.util.Map.entry(SqlFn.CBRT, "cbrt"),
-            java.util.Map.entry(SqlFn.COS, "cos"),
-            java.util.Map.entry(SqlFn.COSH, "cosh"),
-            java.util.Map.entry(SqlFn.COT, "cot"),
-            java.util.Map.entry(SqlFn.DEGREES, "degrees"),
-            java.util.Map.entry(SqlFn.FLOOR_RAW, "floor"),
-            java.util.Map.entry(SqlFn.GREATEST, "greatest"),
-            java.util.Map.entry(SqlFn.LEAST, "least"),
-            java.util.Map.entry(SqlFn.LEFT, "left"),
-            java.util.Map.entry(SqlFn.LOWER, "lower"),
-            java.util.Map.entry(SqlFn.LTRIM, "ltrim"),
-            java.util.Map.entry(SqlFn.MD5, "md5"),
-            java.util.Map.entry(SqlFn.RADIANS, "radians"),
-            java.util.Map.entry(SqlFn.REPEAT_STR, "repeat"),
-            java.util.Map.entry(SqlFn.REPLACE, "replace"),
-            java.util.Map.entry(SqlFn.TRANSLATE, "translate"),
-            java.util.Map.entry(SqlFn.REVERSE_STRING, "reverse"),
-            java.util.Map.entry(SqlFn.RIGHT, "right"),
-            java.util.Map.entry(SqlFn.RTRIM, "rtrim"),
-            java.util.Map.entry(SqlFn.SIN, "sin"),
-            java.util.Map.entry(SqlFn.SINH, "sinh"),
-            java.util.Map.entry(SqlFn.SPLIT_PART, "split_part"),
-            java.util.Map.entry(SqlFn.STARTS_WITH, "starts_with"),
-            java.util.Map.entry(SqlFn.STRPOS, "strpos"),
-            java.util.Map.entry(SqlFn.SUBSTRING, "substr"),
-            java.util.Map.entry(SqlFn.TAN, "tan"),
-            java.util.Map.entry(SqlFn.TANH, "tanh"),
-            java.util.Map.entry(SqlFn.TIMEZONE, "timezone"),
-            java.util.Map.entry(SqlFn.TRIM, "trim"),
-            java.util.Map.entry(SqlFn.UPPER, "upper"));
+    /** {@code PARSE_INT} (64-bit, PCT Long.MIN/MAX round-trips): the text's grammar guarded, then a BIGINT cast. Out of
+     *  {@link #call} 2026-11-17 for its line limit (CodeShapeGuardrailTest), the SQL unchanged. */
+    private SqlWriter parseInt(SqlWriter writer, SqlExpr x) {
+        return guardedParseInt(writer, x, w -> w.expr(typedText(x), 6).append(" ~ '^[+-]?[0-9]+$'"),
+                w -> castAs(w, typedText(x), "BIGINT"));
+    }
 
-    /** A plain spelling's name; a function the grouped arm names but the table lacks is refused by name. */
-    private static String plainName(SqlFn fn) {
-        String name = PLAIN_NAMES.get(fn);
-        if (name == null) {
-            throw new IllegalStateException(fn + " is in the plain spellings' arm but not in PLAIN_NAMES");
-        }
-        return name;
+    /** {@code ADD_INTERVAL} (unitFn, amount, date): amount times a one-unit interval -- exact for every unit and any
+     *  BIGINT amount (make_interval takes INTEGER). Out of {@link #call} 2026-11-17 for its line limit, the SQL
+     *  unchanged. */
+    private SqlWriter addInterval(SqlWriter writer, List<SqlExpr> a, int parentPrec) {
+        return op(writer, parentPrec, () -> writer.expr(a.get(2), 5).append(" + ").expr(a.get(1), 6)
+                .append(" * INTERVAL '1 ").append(intervalUnit(part(a.get(0)))).append("'"));
     }
 
     @Override
@@ -834,18 +783,12 @@ public class Postgres extends AnsiSqlRenderer {
             case XOR -> xorAsAndOr(writer, c.args(), parentPrec);
             // NULL-skipping flat concat (the database's concat skips NULL arguments)
             case CONCAT -> concatFlat(writer, c.args());
-            // this database's plain spellings, name(args): PLAIN_NAMES (folded 2026-11-17, the method's line limit);
-            // among them joinStrings' interleaved concat (CONCAT_JOIN, never flattened) and the product's join of a
-            // row's cells (CONCAT_WS skips a NULL part with its separator, measured, Phase 3)
-            case CONCAT_JOIN, CONCAT_WS, ABS, ASCII_CODE, ATAN, ATAN2, CBRT, COS, COSH, COT, DEGREES, FLOOR_RAW,
-                 GREATEST, LEAST, LEFT, LOWER, LTRIM, MD5, RADIANS, REPEAT_STR, REPLACE, TRANSLATE, REVERSE_STRING,
-                 RIGHT, RTRIM, SIN, SINH, SPLIT_PART, STARTS_WITH, STRPOS, SUBSTRING, TAN, TANH, TIMEZONE, TRIM,
-                 UPPER ->
-                    writer.function(plainName(c.fn()), c.args());
+            // joinStrings' interleaved concat, never flattened
+            case CONCAT_JOIN -> writer.function("concat", c.args());
+            // the product's join of a row's cells: CONCAT_WS skips a NULL part with its separator (measured, Phase 3)
+            case CONCAT_WS -> writer.function("concat_ws", c.args());
             // 64-bit parse (PCT Long.MIN/MAX round-trips)
-            case PARSE_INT -> guardedParseInt(writer, c.args().get(0),
-                    w -> w.expr(typedText(c.args().get(0)), 6).append(" ~ '^[+-]?[0-9]+$'"),
-                    w -> castAs(w, typedText(c.args().get(0)), "BIGINT"));
+            case PARSE_INT -> parseInt(writer, c.args().get(0));
             // parseDate(text): the ISO text as a timestamp
             case PARSE_DATE -> castAs(writer, typedText(c.args().get(0)), "TIMESTAMP");
             case PI -> writer.append("pi()");
@@ -863,19 +806,54 @@ public class Postgres extends AnsiSqlRenderer {
             case BOOL_TO_TEXT -> castAs(writer, c.args().get(0), "VARCHAR");
             case FLOAT_PRINT -> floatPrintByText(writer, c, parentPrec);
             case FLOAT_TO_TEXT -> floatToText(writer, c.args().get(0));
-            case DATETIME_TO_TEXT, DATETIME_PRINT, CELL_TEXT, INSTANCE_TEXT, RELATION_TEXT, REPRESENTATION_TEXT, TEXT_FORMS, TRACE_TEXT ->
+            case DATETIME_TO_TEXT, DATETIME_PRINT, CELL_TEXT, INSTANCE_TEXT, RELATION_TEXT, TEXT_FORMS, TRACE_TEXT ->
                     throw expandedFirst(c);
             case CURRENT_USER_FN -> writer.append("current_user");
             // the hooks: this dialect's own (or the base's refusal)
             case BIT_AND, BIT_OR, BIT_XOR, BIT_SHIFT_LEFT, BIT_SHIFT_RIGHT -> bitOp(writer, c.fn(), c.args());
             case ROUND -> roundHalfEven(writer, c.args());
             case HASH -> hashSigned(writer, c.args());
+            // this database's plain spellings: name(args)
+            case ABS -> writer.function("abs", c.args());
+            case ASCII_CODE -> writer.function("ascii", c.args());
+            case ATAN -> writer.function("atan", c.args());
+            case ATAN2 -> writer.function("atan2", c.args());
+            case CBRT -> writer.function("cbrt", c.args());
             // chr takes a 32-bit code; a computed Integer is a BIGINT here (IQ island, 2026-10-17: CHAR(65 + MOD(id, 26)))
             case CHR -> writer.append("chr(CAST(").expr(c.args().get(0), 0).append(" AS INTEGER))");
             case COALESCE -> coalesceArm(writer, c);
+            case COS -> writer.function("cos", c.args());
+            case COSH -> writer.function("cosh", c.args());
+            case COT -> writer.function("cot", c.args());
+            case DEGREES -> writer.function("degrees", c.args());
+            case FLOOR_RAW -> writer.function("floor", c.args());
+            case GREATEST -> writer.function("greatest", c.args());
+            case LEAST -> writer.function("least", c.args());
+            case LEFT -> writer.function("left", c.args());
+            case LOWER -> writer.function("lower", c.args());
+            case LTRIM -> writer.function("ltrim", c.args());
+            case MD5 -> writer.function("md5", c.args());
+            case RADIANS -> writer.function("radians", c.args());
+            case REPEAT_STR -> writer.function("repeat", c.args());
+            case REPLACE -> writer.function("replace", c.args());
+            case TRANSLATE -> writer.function("translate", c.args());
+            case REVERSE_STRING -> writer.function("reverse", c.args());
+            case RIGHT -> writer.function("right", c.args());
+            case RTRIM -> writer.function("rtrim", c.args());
+            case SIN -> writer.function("sin", c.args());
+            case SINH -> writer.function("sinh", c.args());
+            case SPLIT_PART -> writer.function("split_part", c.args());
+            case STARTS_WITH -> writer.function("starts_with", c.args());
+            case STRPOS -> writer.function("strpos", c.args());
+            case SUBSTRING -> writer.function("substr", c.args());
+            case TAN -> writer.function("tan", c.args());
+            case TANH -> writer.function("tanh", c.args());
+            case TIMEZONE -> writer.function("timezone", c.args());
             // a date plus a time of day is the timestamp at it
             case DATE_AT_TIME -> op(writer, parentPrec, () -> writer.expr(a.get(0), 5).append(" + ")
                     .expr(a.get(1), 6));
+            case TRIM -> writer.function("trim", c.args());
+            case UPPER -> writer.function("upper", c.args());
             // a Float, as DuckDB's answers; each of these has a numeric overload on Postgres, which a
             // numeric argument would pick (sqrt(9.0) is 3.000000000000000)
             case SQRT -> writer.append("sqrt(CAST(").expr(a.get(0), 0).append(" AS DOUBLE PRECISION))");
@@ -949,9 +927,7 @@ public class Postgres extends AnsiSqlRenderer {
             case MAKE_TIMESTAMP -> makeTimestamp(writer, c);
             // (unitFn, amount, date): amount × a one-unit interval — exact for every
             // unit and any BIGINT amount (make_interval takes INTEGER)
-            case ADD_INTERVAL, ADD_INTERVAL_TEMPORAL -> op(writer, parentPrec, () -> writer.expr(a.get(2), 5)
-                    .append(" + ").expr(a.get(1), 6).append(" * INTERVAL '1 ")
-                    .append(intervalUnit(part(a.get(0)))).append("'"));
+            case ADD_INTERVAL, ADD_INTERVAL_TEMPORAL -> addInterval(writer, a, parentPrec);
             case DATE_DIFF -> writer.piece(dateDiff(a));
             // the origins are the base's (weeks align to the Monday 1969-12-29, everything else to
             // 1970); date_bin bins fixed-length intervals, so months and years count whole calendar

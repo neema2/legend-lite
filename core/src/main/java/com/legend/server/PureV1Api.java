@@ -9,7 +9,6 @@ import com.legend.parser.PmcdParser;
 import com.legend.parser.SpecParser;
 import com.legend.plan.PlanSupportFunctions;
 import com.legend.plan.QueryPlan;
-import com.legend.plan.UpstreamRelationType;
 import com.legend.protocol.ModelComposer;
 import com.legend.protocol.ProtocolReader;
 import com.legend.protocol.PureComposer;
@@ -231,10 +230,10 @@ public final class PureV1Api {
      */
     public static com.legend.protocol.ts.TsShow.Types tsTypes(com.legend.compiler.element.ModelContext ctx) {
         return (query, column) -> {
-            for (com.legend.compiler.element.type.Type.Column c : UpstreamRelationType.columns(com.legend.Compiler
+            for (com.legend.compiler.element.type.Type.Column c : com.legend.plan.PureSpelling.relationColumns(com.legend.Compiler
                     .query(ctx, query).resultType())) {
                 if (c.name().equals(column)) {
-                    return UpstreamRelationType.typePath(c.type());
+                    return com.legend.plan.PureSpelling.typePath(c.type());
                 }
             }
             throw new IllegalStateException("the relation has no column " + column);

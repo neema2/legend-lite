@@ -33,4 +33,11 @@ final class EdgePureOnlyTexts implements com.legend.lowering.PureOnlyTexts {
                 SqlExpr.Call.of(SqlFn.CONCAT, new SqlExpr.StringLit("-"), padded))),
                 padded, SqlExpr.Reason.PRINT);
     }
+
+    /** A user's {@code toRepresentation}: legend-pure's representation as the lowering writes it, as it is (the
+     *  edge's pass unwrapped REPRESENTATION_TEXT to it until B8 (i), 2026-11-17). */
+    @Override
+    public SqlExpr representation(SqlExpr text) {
+        return text;
+    }
 }

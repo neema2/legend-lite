@@ -146,7 +146,7 @@ public final class ProductStatements {
         boolean temporal = Temporal.anyTemporalGetAll(body, ctx);
         final List<TypedSpec> stageEnv = body;
         body.replaceAll(b -> NativeDispatch.stage(b, stageEnv,
-                UpstreamPlans.routines(specs, env)));
+                PlanTextRoutines.of(specs, env)));
         body = BodyPlanner.resolver(specs, env).resolve(body, runtime);   // Phase H
         // the SQL is for this runtime's session: the runtime decided first (no runtime is refused there, by name),
         // then every store the statement touches must be bound to it (C3b)

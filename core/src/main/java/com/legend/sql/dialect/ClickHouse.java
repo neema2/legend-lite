@@ -118,13 +118,6 @@ public class ClickHouse extends AnsiSqlRenderer {
     // Session and structure
     // ==================================================================
 
-    /** The engine's H2 text is refused here: ClickHouse has no translation of it (decision D2: raw text runs on the
-     *  database its connection declares; only the engine's H2 text is translated, for H2, DuckDB and Postgres). */
-    @Override
-    public String fromEngineText(String statement) {
-        throw new DialectCapability("the engine's H2 text reached ClickHouse, which has no translation of it");
-    }
-
     /** {@inheritDoc} 9: a literal of a digit past the microsecond is a {@code DateTime64(9)} ({@link #timestampLit}),
      *  which keeps all nine (round 34, 2026-11-11, the user's rule "refuse if the db cannot handle": ClickHouse can;
      *  measured on 25.8: arithmetic, a time zone, a comparison and a mixed if keep nine; until then 6, and nine PCT tests
@@ -1834,7 +1827,7 @@ public class ClickHouse extends AnsiSqlRenderer {
             case XOR -> xorAsAndOr(writer, c.args(), parentPrec);
             case FLOAT_PRINT -> floatPrintByText(writer, c, parentPrec);
             case FLOAT_TO_TEXT -> floatToText(writer, c.args().get(0));
-            case DATETIME_TO_TEXT, DATETIME_PRINT, CELL_TEXT, INSTANCE_TEXT, RELATION_TEXT, REPRESENTATION_TEXT, TEXT_FORMS, TRACE_TEXT ->
+            case DATETIME_TO_TEXT, DATETIME_PRINT, CELL_TEXT, INSTANCE_TEXT, RELATION_TEXT, TEXT_FORMS, TRACE_TEXT ->
                     throw expandedFirst(c);
             // the hooks: this dialect's own (or the base's refusal)
             case ROUND -> roundHalfEven(writer, c.args());

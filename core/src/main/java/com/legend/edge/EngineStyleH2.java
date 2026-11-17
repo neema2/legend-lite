@@ -1705,12 +1705,6 @@ public class EngineStyleH2 extends AnsiSqlRenderer implements EngineTextDialect 
         out.add(orLike ? w -> w.append("(").expr(e, 0).append(")") : w -> w.expr(e, 3));
     }
 
-    /** The engine's H2 text is this text's own language. */
-    @Override
-    public String fromEngineText(String statement) {
-        return statement;
-    }
-
     /** Engine aggregate names are lowercase ({@code sum(}, {@code count(}
      * — every aggregation golden's spelling), and the string aggregate is
      * {@code listagg} (h2SqlDialect.pure). */
@@ -2147,7 +2141,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer implements EngineTextDialect 
             case ROUND_HALF_UP -> writer.function("ROUND", c.args());
             case FLOAT_PRINT -> floatPrintByText(writer, c, parentPrec);
             case FLOAT_TO_TEXT -> floatToText(writer, c.args().get(0));
-            case DATETIME_TO_TEXT, DATETIME_PRINT, CELL_TEXT, INSTANCE_TEXT, RELATION_TEXT, REPRESENTATION_TEXT, TEXT_FORMS, TRACE_TEXT ->
+            case DATETIME_TO_TEXT, DATETIME_PRINT, CELL_TEXT, INSTANCE_TEXT, RELATION_TEXT, TEXT_FORMS, TRACE_TEXT ->
                     throw expandedFirst(c);
             // the hooks: this dialect's own (or the base's refusal)
             case LIST_FILTER, LIST_TRANSFORM, LIST_CONCAT, LIST_GET, LIST_AT, LIST_POSITION, LIST_ZIP, LIST_DISTINCT,

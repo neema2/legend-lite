@@ -16,4 +16,7 @@ public interface PureOnlyTexts {
 
     /** {@code format}'s {@code %0<width>d} of {@code value}: legend-pure pads the digits, then signs. */
     SqlExpr formatPadded(SqlExpr value, SqlExpr.IntLit width);
+
+    /** A user's {@code toRepresentation}, {@code text} legend-pure's representation as the lowering writes it. */
+    SqlExpr representation(SqlExpr text);
 }
