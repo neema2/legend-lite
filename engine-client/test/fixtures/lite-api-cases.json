@@ -1,5 +1,5 @@
 {
-  "_comment": "LITE API V1'S CONFORMANCE SUITE (docs/records/lite-api-v1-2026-11-17.md §5, the user's go of 2026-11-17): one set of cases every binding answers alike -- the browser's exports (core's LiteApiConformanceTest), the server's /api/lite/v1 routes (the TS host's reader) and Python's native entries (the Python session's reader). A case is an operation (§2's name), its request, and its 'answer' (exact JSON) or 'answerIncludes' (each key it names equal, recursively; each array item it names matched by some item of the answer's array). A refusal case names its 'refusal' as {kind} alone (§3: the kind is the contract; the words are the product's), answered as the binding's error shape. The run's parameter cases are query/run's, the server's and Python's (§4). A case may name its 'bindings' (of browser, server, python; every binding when absent): an operation a host alone serves (user, query/run) names the hosts that serve it, and a binding without it skips the case. Where the answer is the host's own (who the user is), a case gives 'answerShape': each key the answer holds and its JSON type (string, number, boolean, object, array).",
+  "_comment": "LITE API V1'S CONFORMANCE SUITE (docs/records/lite-api-v1-2026-11-17.md §5, the user's go of 2026-11-17): one set of cases every binding answers alike -- the browser's exports (core's LiteApiConformanceTest), the server's /api/lite/v1 routes (the TS host's reader) and Python's native entries (the Python session's reader). A case is an operation (§2's name), its request, and its 'answer' (exact JSON) or 'answerIncludes' (each key it names equal, recursively; each array item it names matched by some item of the answer's array). A refusal case names its 'refusal' as {kind} alone (§3: the kind is the contract; the words are the product's), answered as the binding's error shape. The run's parameter cases are query/run's, the server's and Python's (§4). A case may name its 'bindings' (of browser, server, python; every binding when absent): an operation a host alone serves (user, query/run) names the hosts that serve it, and a binding without it skips the case. Where the answer is the host's own (who the user is), a case gives 'answerShape': each key the answer holds and its JSON type (string, number, boolean, object, array). The saved records' store is asked by two store operations, each a GET of one record by its id: 'queries/get' {id} is GET /api/lite/v1/queries/<id> and 'queries/dataCube/get' {id} is GET /api/lite/v1/queries/dataCube/<id> (a host serving the store on its own way asks its store the same).",
   "cases": [
     {
       "name": "a query's text, parsed to its tree",
@@ -1612,6 +1612,34 @@
             "2022-05-06"
           ]
         ]
+      }
+    },
+    {
+      "name": "a saved query that does not exist is refused, kind notFound (404; the user, 2026-11-17)",
+      "op": "queries/get",
+      "bindings": [
+        "server",
+        "python"
+      ],
+      "request": {
+        "id": "no-such-query"
+      },
+      "refusal": {
+        "kind": "notFound"
+      }
+    },
+    {
+      "name": "a saved page that does not exist is refused, kind notFound (404; the user, 2026-11-17)",
+      "op": "queries/dataCube/get",
+      "bindings": [
+        "server",
+        "python"
+      ],
+      "request": {
+        "id": "no-such-page"
+      },
+      "refusal": {
+        "kind": "notFound"
       }
     }
   ]
