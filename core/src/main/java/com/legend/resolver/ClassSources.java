@@ -770,6 +770,15 @@ public final class ClassSources {
                 return composeModelToModel(mappingFqn, classFqn, binding,
                         pipeline, mapper, ctor, src, upstreamMapping, contextKey);
             }
+            // a PRIMITIVE-typed pipeline is an M2M set whose ~src is a primitive (`~src StrictDate`): legend-engine
+            // compiles it and serves it as a class-typed property's child only; as a query's root its graph fetch
+            // asserts this, verbatim (graphExtension.pure calculateSourceTree, 4.145.0; legend-studio's roundtrip
+            // case DSL_Mapping-m2m-primitivetype-source, 2026-11-16)
+            if (pipeline.info().type() instanceof Type.Primitive primitiveSource) {
+                throw new MappingResolutionException("Pure mapping does not have a class as ~src for root of tree"
+                        + " (class '" + classFqn + "' in mapping '" + mappingFqn + "' is mapped from the primitive '"
+                        + primitiveSource.typeName() + "')", classFqn);
+            }
             throw new IllegalStateException("resolver bug: mapping pipeline for '"
                     + classFqn + "' in '" + mappingFqn + "' types as "
                     + pipeline.info().type().typeName() + ", expected a relation row");
@@ -1458,6 +1467,17 @@ public final class ClassSources {
                         + " mapping '" + mapping.qualifiedName() + "'",
                         classFqn);
             }
+        }
+        if (setId == null && local.size() == 1 && !local.get(0).root()
+                && ctx.mixedUnionMembers(mapping.qualifiedName(), classFqn) != null) {
+            // a MIXED-KIND UNION's class-level answer is the union, built
+            // per member (build's mixed route), never one member: a member
+            // whose binding is withheld (a fan-out explosion's set, a
+            // roadmap poison) left ONE surviving member here, served alone
+            // as the class -- the other branch's rows silently missing (the
+            // independent review of the Studio roundtrip's M2M cases,
+            // 2026-11-16)
+            return null;
         }
         if (local.size() == 1) {
             // the mapping's own binding beats every include's (the engine's

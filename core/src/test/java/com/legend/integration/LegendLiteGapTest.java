@@ -116,9 +116,14 @@ class LegendLiteGapTest {
     }
 
     @Test
-    @DisplayName("an M2M explosion (prop*:) is refused by the mapping normalizer")
+    @DisplayName("an M2M explosion (prop*:) over a to-many source builds; a query through the class is refused (S418)")
     void m2mExplosion() {
-        rejectsWith("an M2M explosion", "M2M explosion", """
+        // 71-mapping-surface2.pure's. CLOSED at model build 2026-11-16 (the Studio roundtrip's M2M cases, as
+        // legend-engine 4.145.0 compiles it): a [1] transform composes as the plain binding (M2MExplodeTest), any other
+        // builds with the class mapping poisoned and refused by name at use, lite composing no fan-out (register S418,
+        // pending). The file stays excluded by the user's ruling of 2026-10-30, "exclude rather than defer" (S405's
+        // question), until S418 is ruled.
+        accepts("an M2M explosion over a to-many source", """
                 Class demo::Src { k: String[1]; parts: String[*]; }
                 Class demo::Tgt { k: String[1]; part: String[0..1]; }
                 ###Mapping
@@ -144,7 +149,8 @@ class LegendLiteGapTest {
         // CLOSED for a to-one $src property path 2026-11-14 (the Studio roundtrip's normalizer session: the decode
         // executes as the engine's in-memory M2M, an unmapped code raising; M2MEnumTransformTest holds the answers);
         // 8115 stays excluded for m2mComplexPropertyPassthrough's TradeLink. The to-many source's per-element decode
-        // is the gap that remains.
+        // is the gap that remains. 2026-11-16: TradeLink's passthrough builds too (m2mComplexPropertyPassthrough);
+        // 8115 stays excluded by the 2026-10-30 ruling until register S419 is ruled.
         accepts("an M2M enumeration transform over a to-one source", """
                 Enum demo::Side { BUY, SELL }
                 Class demo::Src { k: String[1]; code: String[0..1]; }
@@ -170,10 +176,14 @@ class LegendLiteGapTest {
     }
 
     @Test
-    @DisplayName("an M2M complex property passthrough, a class-typed property mapped with no set, is refused")
+    @DisplayName("an M2M complex property passthrough builds; a read through it is refused (S419)")
     void m2mComplexPropertyPassthrough() {
-        // 8115-m2m-gaps.pure's (2026-10-30, the improvement plan's Phase 5): the engine passes the source object through
-        rejectsWith("a complex property passthrough", "targets unmapped class", """
+        // 8115-m2m-gaps.pure's (2026-10-30, the improvement plan's Phase 5): the engine passes the source object through.
+        // CLOSED at model build 2026-11-16 (the Studio roundtrip's M2M cases, as legend-engine 4.145.0 compiles it): the
+        // class's other properties are served and a read through the passthrough is refused, a lite gap
+        // (M2MPassThroughTest; register S419, pending). 8115-m2m-gaps.pure stays excluded by the user's ruling of
+        // 2026-10-30, "exclude rather than defer" (S405's question), until S419 is ruled.
+        accepts("a complex property passthrough", """
                 Class demo::Firm { name: String[1]; }
                 Class demo::Src { k: String[1]; firm: demo::Firm[0..1]; }
                 Class demo::Tgt { k: String[1]; firm: demo::Firm[0..1]; }

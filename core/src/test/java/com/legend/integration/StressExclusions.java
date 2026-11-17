@@ -26,9 +26,11 @@ final class StressExclusions {
             "55-canonical-store.pure",
             "maps canonical::MonetaryTrade's amount to stress::Money~USD, so it falls "
                     + "with 29-money.pure: the Money measure's mapping and runtime alone.",
+            // 2026-11-16 (the Studio roundtrip's M2M cases): the explosion builds now, its class refused at use
+            // (register S418, pending); kept out by the 2026-10-30 ruling, "exclude rather than defer", until S418 is ruled
             "71-mapping-surface2.pure",
-            "M2M explosion 'part*' (one target instance per source collection element) "
-                    + "is refused by the mapping normalizer.",
+            "M2M explosion 'part*' (one target instance per source collection element): the model builds, "
+                    + "and a query through the class is refused by name, lite composing no fan-out (S418, pending).",
             "75-surface-gaps.pure",
             "M2M local mapping property '+localTag' colliding with a declared property "
                     + "of the target class is refused by the mapping normalizer.",
@@ -40,9 +42,11 @@ final class StressExclusions {
             // from 8114-m2m.pure, which lite loads (the user's choice: exclude them rather than defer them in lite)
             // 2026-11-14: its enumeration transforms compile and execute now (the Studio roundtrip's normalizer
             // session, M2MEnumTransformTest); TradeLink's passthrough keeps the file out
+            // 2026-11-16 (the Studio roundtrip's M2M cases): the passthrough builds now, a read through it refused
+            // (register S419, pending); kept out by the 2026-10-30 ruling until S419 is ruled
             "8115-m2m-gaps.pure",
-            "a class-typed property mapped with no set (a passthrough) 'targets unmapped class': refused by the "
-                    + "mapping normalizer.",
+            "a class-typed property mapped with no set (a passthrough): the model builds, and a read through it "
+                    + "is refused by name, lite serving no passthrough yet (S419, pending).",
             // 2026-10-30: the services over 8115's and 75's M2M mappings, generated apart so they leave with them (the
             // improvement plan's Phase 5), as 94-canonical-services.pure leaves with 55
             "94-gap-services.pure",

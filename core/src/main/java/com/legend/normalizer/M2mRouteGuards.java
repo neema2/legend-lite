@@ -91,6 +91,26 @@ final class M2mRouteGuards {
                 }
             }
             final String tgtSet = pb.targetSetId();
+            if (sets.isEmpty() && tgtSet != null) {
+                // a PASS-THROUGH (the class mapped nowhere in the closure):
+                // legend-engine 4.145.0 lets the class's default id through
+                // (ClassMappingThirdPassBuilder allowComplexPropertyMapping
+                // PassThrough) and, for an id no set of ANY class answers
+                // (classMappingByIdRecursive), raises its message, verbatim.
+                // An id another class's set answers (a subclass's) is the
+                // engine's routed check, which lite does not make: the
+                // set-routed refusal below. legend-studio's roundtrip case
+                // DSL_Snowflake-m2m-udf-function-activator, 2026-11-16
+                if (com.legend.model.SetId.isDefault(tgtSet, routedClass)) {
+                    return;
+                }
+                boolean anySetAnswers = closure.stream().flatMap(m -> m.classMappings().stream())
+                        .anyMatch(cm -> setIdMatches(cm, tgtSet));
+                if (!anySetAnswers) {
+                    throw new ModelException(LegendCompileException.Phase.MAPPING,
+                            "Can't find class mapping '" + tgtSet + "'; mapping=" + md.qualifiedName());
+                }
+            }
             ClassMapping routed = sets.stream()
                     .filter(cm -> setIdMatches(cm, tgtSet))
                     .findFirst().orElseGet(MissProbe::miss);

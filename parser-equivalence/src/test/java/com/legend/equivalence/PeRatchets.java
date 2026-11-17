@@ -124,7 +124,12 @@ public final class PeRatchets {
                     + " (3), RelationalMappingIntegrationTest.testViewFilterThroughJoins (5) and"
                     + " testViewFilterThroughASelfJoinReadsTheFarRow (3), and"
                     + " ElementParserTest.viewFilterJoinMediatedCarriesEachJoinsTypeAndDb (1); measured by"
-                    + " //parser-equivalence:update_ratchets");
+                    + " //parser-equivalence:update_ratchets",
+            "own_corpus.matched 3362 -> 3397 (2026-11-17, rebased onto #8 and #10; built 2026-11-16, the Studio"
+                    + " roundtrip's M2M cases: a primitive ~src, an explode property, a pass-through): their tests'"
+                    + " models (M2MPrimitiveSourceTest, M2MExplodeTest and M2MPassThroughTest, each with its roundtrip"
+                    + " case's model verbatim, and the review's: a union with a withheld fan-out branch, a fan-out"
+                    + " explode's typed element), measured by //parser-equivalence:update_ratchets");
 
     public static void main(String[] args) throws Exception {
         if (args.length != 1) {

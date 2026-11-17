@@ -33,6 +33,17 @@ plan's connection specifications, `ConnectionPlans`, `ConnectionWire`, `MongoDbC
 ratchet (`own_corpus.matched`): the cases' models are test snippets. The M2M and the groupBy/XStore sessions work beside
 it on the same base.
 
+**legend-studio's grammar roundtrip, the M2M cases, 2026-11-16** (branch `claude/studio-m2m-c43016`, a PR into the
+fork's `studio-compatibility-dev`, neema2/legend-lite#113): three of Studio's 133 roundtrip cases
+(DSL_Mapping-m2m-primitivetype-source, DSL_Mapping-xstore-mapping, DSL_Snowflake-m2m-udf-function-activator) compile as
+legend-engine 4.145.0 compiles them; the fourth, DSL_Service-basic (a Pure class mapping with no `~src`), stays refused
+at build by the user's ruling of 2026-11-17 (register S21; Studio's case now declares a `~src`). Files:
+`normalizer/MappingNormalizer.java` (`synthM2M`, `explodeRefusal`, `withheldReason`, `sourcePathType`,
+`m2mPropertyValue`), `normalizer/M2mRouteGuards.java`, `compiler/spec/Typer.java` (`classReference`),
+`resolver/ClassSources.java` (`findBinding`), three `integration/M2M*Test.java`, register rows S417-S419 (pending; the
+numbers the coordinating session assigned) and S21's ruling. Two sessions work beside it on the same branch (relational
+`groupBy` with the ServiceStore end of a ModelJoin; a View's join filter, `sqlNull()`, a two-server MongoDB connection).
+
 **Active lines and their order (the user, 2026-10-04).** Several sessions push to `main`; each announces a cross-area
 edit here before landing it and lands with the full chain. The priorities are **Bazel, Studio, and the database owner
 with the compiler's plan/execution split**, in this order:

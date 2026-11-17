@@ -337,6 +337,14 @@ public final class MappingNormalizer {
                         FunctionDefinition setFn =
                                 synthesizeClassMapping(md, cm, model, true, ledger);
                         lifted.add(setFn);
+                        String withheld = withheldReason(cm, md, model);
+                        if (withheld != null) {
+                            // typed (lifted), never bound: a fan-out
+                            // explosion (a lite gap)
+                            ledger.poison(new PoisonKey.ForSet(cm.className(),
+                                    ResolvedMapping.idOf(cm)), withheld);
+                            continue;
+                        }
                         classBindings.add(cm instanceof ClassMapping.Relational rSrc
                                 ? new MappingDefinition.ClassBinding.Relational(
                                         cm.className(), cm.setId(),
@@ -399,6 +407,15 @@ public final class MappingNormalizer {
                 continue;
             }
             lifted.add(fn);
+            String withheld = withheldReason(cm, md, model);
+            if (withheld != null) {
+                // a fan-out explosion: its constructor is typed (lifted, so
+                // the eager body pass checks it, as legend-engine's third
+                // pass does) and never bound -- a query through the class
+                // raises the reason
+                ledger.poison(new PoisonKey.ForClass(cm.className()), withheld);
+                continue;
+            }
             if (cm instanceof ClassMapping.Relational aggMain
                     && aggMain.aggregation() != null) {
                 AggregateViewLift.lift(md, aggMain, model, lifted, classBindings, declaredKeys, ledger);
@@ -1158,7 +1175,8 @@ public final class MappingNormalizer {
             // pipeline is "every instance of the source, mapped" — with
             // no source there is no extent to iterate, so there is
             // nothing this could execute. Refuse where the meaning runs
-            // out, not where the syntax does.
+            // out, not where the syntax does. KEPT by the user's ruling
+            // of 2026-11-17 (register S21).
             throw new ModelException(LegendCompileException.Phase.NORMALIZE,
                     "Pure class mapping for '" + pcm.className()
                     + "' in mapping '" + md.qualifiedName()
@@ -1193,22 +1211,68 @@ public final class MappingNormalizer {
                         model.knowledge().propertyType(tgt, pb.propertyName()) != null));
                 continue;
             }
-            if (pb.explode()) {
-                throw new ModelException(LegendCompileException.Phase.NORMALIZE,
-                        "M2M explosion '" + pb.propertyName() + "*' is a"
-                      + " roadmap feature (index-aligned zip fan-out — one"
-                      + " target instance per source element); mapping="
-                      + md.qualifiedName());
-            }
             String keyName = M2mRouteGuards.m2mBindingKey(pb, tgt, md,
                     b -> model.knowledge().propertyType(tgt, b) != null);
-            fields.put(keyName, new KeyExpression(pb.enumMappingId() != null
+            ValueSpecification value = pb.enumMappingId() != null
                     ? m2mEnumDecode(pb, srcFqn, pcm.className(), md, model)
-                    : m2mPropertyValue(pb, tgt, md, model, ledger), false, false));
+                    : m2mPropertyValue(pb, tgt, srcFqn, md, model, ledger);
+            if (pb.explode() && explodeRefusal(pb, srcFqn, pcm.className(), md, model) != null) {
+                // a FAN-OUT explosion: its element is typed against the
+                // property, as legend-engine's third pass types it (its
+                // multiplicity checked against [*]); the binding is
+                // withheld by the driver (withheldReason), so this body is
+                // never run
+                value = Calls.exact(Pure.Lite.TRUST_ONE, List.of(value));
+            }
+            fields.put(keyName, new KeyExpression(value, false, false));
         }
         return Calls.platform("map", List.of(source,
                 new LambdaFunction(List.of(srcBind),
                                    List.of(buildNewInstance(pcm.className(), fields)))));
+    }
+
+
+    /**
+     * An explode property ({@code legalName*: $src.firstName}) whose transform is exactly one value. legend-engine
+     * 4.145.0 compiles any transform, checking its multiplicity against {@code [*]} ({@code
+     * ClassMappingThirdPassBuilder}), and runs a fan-out: per source, each explode property's transform is a list, the
+     * lists must have one size, and one target is made per index ({@code graphFetchInMemory.pure} {@code
+     * propertyExplosionCodes}; {@code inMemory.pure} {@code transformWithMapping} zips the same lists). A {@code [1]}
+     * transform makes one target per source, which is the plain binding: it composes so (null here). Any other -- a
+     * {@code [0..1]} one (no target when empty), a to-many one, a computed one whose multiplicity is not read here -- is
+     * a lite gap, this reason: the class mapping's body is typed and its binding withheld (the model builds, a query
+     * through the class is refused by name; register S418).
+     */
+    private static @com.legend.base.Nullable String explodeRefusal(ClassMapping.Pure.PropertyBinding pb,
+            @com.legend.base.Nullable String srcFqn, String ownerClassFqn, ResolvedMapping md, ModelBuilder model) {
+        Multiplicity.Concrete m = sourcePathMultiplicity(pb.expression(), srcFqn, model);
+        if (m != null && m.lowerBound() == 1 && m.upperBound() != null && m.upperBound() == 1) {
+            return null;
+        }
+        return "explode property '" + pb.propertyName() + "*' of '" + ownerClassFqn
+                + "' maps " + (m == null ? "a transform whose multiplicity is not a $src property path's"
+                        : "a transform of multiplicity " + m)
+                + ": legend-engine makes one target per element of the explode properties' lists; lite composes an"
+                + " explosion of exactly one value per source only (no fan-out yet); mapping=" + md.qualifiedName();
+    }
+
+    /**
+     * Why a Pure class mapping that compiles is not BOUND: a fan-out explosion ({@link #explodeRefusal}, a lite gap);
+     * null for every other set. Its function is lifted all the same, so the eager body pass types its bindings as
+     * legend-engine's third pass does.
+     */
+    private static @com.legend.base.Nullable String withheldReason(ClassMapping cm, ResolvedMapping md,
+            ModelBuilder model) {
+        if (!(cm instanceof ClassMapping.Pure pcm)) {
+            return null;
+        }
+        for (ClassMapping.Pure.PropertyBinding pb : pcm.propertyBindings()) {
+            String fanOut = pb.explode() ? explodeRefusal(pb, pcm.sourceClass(), pcm.className(), md, model) : null;
+            if (fanOut != null) {
+                return fanOut;
+            }
+        }
+        return null;
     }
 
     /**
@@ -1271,7 +1335,7 @@ public final class MappingNormalizer {
      *  ({@code $src.p}, {@code $src.p.q}: the product of each step's declared
      *  multiplicity), or null for any other expression. */
     private static Multiplicity.@com.legend.base.Nullable Concrete sourcePathMultiplicity(
-            ValueSpecification expr, String srcFqn, ModelBuilder model) {
+            ValueSpecification expr, @com.legend.base.Nullable String srcFqn, ModelBuilder model) {
         List<String> path = new ArrayList<>();
         ValueSpecification at = expr;
         while (at instanceof AppliedProperty ap) {
@@ -1301,9 +1365,37 @@ public final class MappingNormalizer {
         return new Multiplicity.Concrete(lower, upper);
     }
 
+    /** The type of a {@code $src} property path over {@code srcFqn} ({@code $src}, {@code $src.p}, {@code $src.p.q}:
+     *  the last step's declared type), or null for any other expression. */
+    private static @com.legend.base.Nullable String sourcePathType(ValueSpecification expr,
+            @com.legend.base.Nullable String srcFqn, ModelBuilder model) {
+        List<String> path = new ArrayList<>();
+        ValueSpecification at = expr;
+        while (at instanceof AppliedProperty ap) {
+            path.add(0, ap.property());
+            at = ap.receiver();
+        }
+        if (!(at instanceof Variable v) || !v.name().equals("src") || srcFqn == null) {
+            return null;
+        }
+        String owner = srcFqn;
+        for (String step : path) {
+            java.util.Optional<ClassDefinition> cd = model.knowledge().hierarchyClass(owner);
+            if (cd.isEmpty()) {
+                return null;   // a step past a value: not a $src property path
+            }
+            ClassDefinition.PropertyDefinition prop = model.knowledge().propertyDef(cd.get(), step);
+            if (prop == null || !(prop.type() instanceof TypeExpression.NameRef nr)) {
+                return null;
+            }
+            owner = nr.name();
+        }
+        return owner;
+    }
+
     private static ValueSpecification m2mPropertyValue(
             ClassMapping.Pure.PropertyBinding pb, @com.legend.base.Nullable ClassDefinition tgt,
-            ResolvedMapping md, ModelBuilder model, MappingLedger ledger) {
+            @com.legend.base.Nullable String srcFqn, ResolvedMapping md, ModelBuilder model, MappingLedger ledger) {
         if (tgt == null) return pb.expression();
         TypeExpression propType = model.knowledge().propertyType(tgt, pb.propertyName());
         if (propType == null && pb.propertyName().endsWith("AllVersions")) {
@@ -1314,11 +1406,27 @@ public final class MappingNormalizer {
         String innerFqn = nr.name();
         if (model.knowledge().hierarchyClass(innerFqn).isEmpty()) return pb.expression();
         if (!ledger.isMapped(innerFqn)) {
-            throw new ModelException(LegendCompileException.Phase.NORMALIZE, 
-                    "M2M class-typed property '" + pb.propertyName() + "' on '"
-                  + tgt.qualifiedName() + "' targets unmapped class '" + innerFqn
-                  + "'; map '" + innerFqn + "' or use Embedded. Mapping="
-                  + md.qualifiedName());
+            // a PASS-THROUGH: the class is mapped nowhere in the mapping, so
+            // the transform's own objects are the property's values.
+            // legend-engine 4.145.0 compiles it when the property's type is
+            // among the transform's generalizations (ClassMappingThirdPass
+            // Builder allowComplexPropertyMappingPassThrough; the target id,
+            // the class's default one or none, is MappingValidation's
+            // check), else "Can't find class mapping '<default id>'" -- read
+            // here for a $src property path, by the constructor's own
+            // subsumption for any other transform -- and runs it
+            // (testComplexTypePassThrough*). The raw value composes; a read
+            // through it is refused by the M2M child and slot refusals, a
+            // lite gap (register S419; legend-studio's roundtrip case
+            // DSL_Snowflake-m2m-udf-function-activator, 2026-11-16)
+            String transformType = sourcePathType(pb.expression(), srcFqn, model);
+            if (transformType != null && !model.knowledge().isSubtype(transformType, innerFqn)) {
+                throw new ModelException(LegendCompileException.Phase.MAPPING, "Can't find class mapping '"
+                        + (pb.targetSetId() != null ? pb.targetSetId()
+                                : com.legend.model.SetId.defaultFor(innerFqn))
+                        + "'; mapping=" + md.qualifiedName());
+            }
+            return pb.expression();
         }
         // audit 21a heads honored: the line's [targetSetId] route rides
         // the cast — the whole-$src graph child dispatches by it. No
