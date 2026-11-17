@@ -13,6 +13,15 @@ public enum UpstreamDateLiteralTexts implements com.legend.testplan.DateLiteralT
 
     @Override
     public String text(com.legend.values.PureDateLiteral d) {
-        return "%" + com.legend.testexecutionplan.Verdicts.pureText(d);
+        return "%" + pureText(d);
+    }
+
+    /** legend-pure's text of a date, as its {@code toString} writes one: the literal body at its written precision,
+     *  with {@code +0000} from a minute on ({@code DateFormat.append} writes it inside its minute branch; an
+     *  hour-only date has none: {@code 2014-03-10T16} in its {@code TestDateFormat}). Moved from the product's
+     *  {@code testexecutionplan.Verdicts} (census C5's Verdicts row, 2026-11-17: its last reader). */
+    static String pureText(com.legend.values.PureDateLiteral d) {
+        return d.precision().atLeast(com.legend.values.PureDateLiteral.Precision.MINUTE)
+                ? d.toEngineString() + "+0000" : d.toEngineString();
     }
 }
