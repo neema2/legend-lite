@@ -190,10 +190,10 @@ public class Snowflake extends AnsiSqlRenderer {
                 + " MULTI_STATEMENT_COUNT = 0, JSON_INDENT = 0, STRICT_JSON_OUTPUT = TRUE");
     }
 
-    /** {@inheritDoc} Spelled here ({@link #floatPrint}): the portable spelling reads this dialect's long double text
+    /** {@inheritDoc} Spelled here ({@link #floatShortestText}): the portable spelling reads this dialect's long double text
      *  some nine times (Pure's print form). */
     @Override
-    protected boolean spellsFloatPrint() {
+    protected boolean spellsFloatShortestText() {
         return true;
     }
 
@@ -1414,7 +1414,8 @@ public class Snowflake extends AnsiSqlRenderer {
             case REM -> modTruncated(writer, c.args());
             // a double from its digits; any other value (a literal, a decimal slot) through the database's own text of
             // it, which is exact, as the portable spelling read it
-            case FLOAT_PRINT -> isDouble(a.get(0)) ? floatPrint(writer, a.get(0)) : floatPrintByText(writer, c, parentPrec);
+            case FLOAT_SHORTEST_TEXT -> isDouble(a.get(0)) ? floatShortestText(writer, a.get(0))
+                    : floatShortestTextByCast(writer, c, parentPrec);
             case FLOAT_TO_TEXT -> floatToText(writer, a.get(0));
             case DATETIME_TO_TEXT, DATETIME_PRINT, CELL_TEXT, RELATION_TEXT, TEXT_FORMS ->
                     throw expandedFirst(c);
@@ -1880,14 +1881,14 @@ public class Snowflake extends AnsiSqlRenderer {
     }
 
     /**
-     * Pure's print form of a Float ({@link SqlFn#FLOAT_PRINT}), spelled here from {@link #floatText}'s digits, the value
-     * read once: what the portable spelling (dialect/FloatPrintText) makes of {@link #floatText}'s text, which it read
+     * Pure's print form of a Float ({@link SqlFn#FLOAT_SHORTEST_TEXT}), spelled here from {@link #floatText}'s digits, the value
+     * read once: what the portable spelling (dialect/FloatShortestText) makes of {@link #floatText}'s text, which it read
      * nine times (Snowflake's PCT statement for {@code 1.5 + 2.25} was 48 KB, 46 KB of it the text nine times, measured
      * 2026-10-22). The text where it is plain (an exponent from -4 to 15); past it, a whole value's exact digits under
      * 10^38 with {@code .0}; a value from 10^-17 below 10^-4 at eighteen places with its trailing zeros trimmed; else
      * the text with its exponent. NaN and the infinities are Pure's names, which are Java's.
      */
-    private SqlWriter floatPrint(SqlWriter writer, SqlExpr v) {
+    private SqlWriter floatShortestText(SqlWriter writer, SqlExpr v) {
         return writer.piece(shortestDigits(v, d -> {
             String x = d.value();
             String fractionFree = x + " = FLOOR(" + x + ") AND ABS(" + x + ") < 1e38";

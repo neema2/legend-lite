@@ -42,7 +42,7 @@ public final class PureMessages {
             case INSERT_OUT_OF_BOUNDS -> new SqlExpr.StringLit("add(set, index, value): index out of bounds");
             // [the value]: legend-pure's 'Unable to compute sqrt of <x>', <x> as Pure prints a Float (K2)
             case SQRT_OF_NEGATIVE -> cat(new SqlExpr.StringLit("Unable to compute sqrt of "),
-                    SqlExpr.Call.of(com.legend.sql.SqlFn.FLOAT_PRINT, r.operands().get(0)));
+                    SqlExpr.Call.of(com.legend.sql.SqlFn.FLOAT_SHORTEST_TEXT, r.operands().get(0)));
             // [the bound] (a size known empty) or [the bound, the size]: 'Cannot cast a collection of size <n> to
             // multiplicity <bound>'
             case SIZE_NOT_MULTIPLICITY -> r.operands().size() == 1
@@ -128,7 +128,7 @@ public final class PureMessages {
     /** {@link #words}, or null where an operand is not a literal printed exactly. Each arm mirrors {@link #sentence}'s,
      *  its operand at the same place: a text the planner knew as it is ({@code text}), a value as the database's cast
      *  to text writes it ({@code str}: an Integer's digits, a date's ISO day, a text itself), a Float as legend-pure
-     *  prints it ({@code FLOAT_PRINT}). */
+     *  prints it ({@code FLOAT_SHORTEST_TEXT}). */
     private static @com.legend.base.Nullable String wordsOrNull(com.legend.sql.RaiseKind kind,
             java.util.List<SqlExpr> o) {
         for (SqlExpr x : o) {

@@ -10,17 +10,18 @@ import com.legend.sql.SqlType;
 import java.util.List;
 
 /**
- * {@link SqlFn#FLOAT_PRINT} spelled through a database's text of a double ({@code CAST(v AS VARCHAR)}), the portable
- * decomposition, moved unchanged from the lowering's {@code LiteralSpelling.floatPrint} (2026-10-22). It reads the
- * text some nine times through the pieces it pastes. That is cheap where a double's text is a CAST. A dialect whose
- * double text is itself a long expression spells the call its own way, the value read once: Snowflake from its
- * digits, BigQuery over its text bound once. Snowflake's PCT statement for {@code 1.5 + 2.25} was 48 KB on this path
- * (measured 2026-10-22). (legend-engine's text, the {@code FLOAT_PRINT_ENGINE} call, went with the database-written
- * wires in the result boundary program's phase 3, 2026-10-27: the engine writer spells it in Java, result.CellText.)
+ * {@link SqlFn#FLOAT_SHORTEST_TEXT}, lite's canonical text of a Float, spelled through a database's text of a double
+ * ({@code CAST(v AS VARCHAR)}): the portable decomposition (moved unchanged from the lowering's
+ * {@code LiteralSpelling.floatPrint} 2026-10-22; renamed from FloatPrintText 2026-11-17, census B9: it is lite's own
+ * spelling, measured equal to its writers' text). It reads the text some nine times through the pieces it pastes. That
+ * is cheap where a double's text is a CAST. A dialect whose double text is itself a long expression spells the call its
+ * own way, the value read once: Snowflake from its digits ({@code spellsFloatShortestText}), BigQuery over its text
+ * bound once ({@code readsLongTextOnce}). Snowflake's PCT statement for {@code 1.5 + 2.25} was 48 KB on this path
+ * (measured 2026-10-22).
  */
-final class FloatPrintText {
+final class FloatShortestText {
 
-    private FloatPrintText() {
+    private FloatShortestText() {
     }
 
     /**
@@ -44,7 +45,7 @@ final class FloatPrintText {
 
         @Override
         protected SqlExpr expr(SqlExpr e) {
-            if (e instanceof SqlExpr.Call c && c.fn() == SqlFn.FLOAT_PRINT) {
+            if (e instanceof SqlExpr.Call c && c.fn() == SqlFn.FLOAT_SHORTEST_TEXT) {
                 SqlExpr x = expr(c.args().get(0));
                 // a double's text is the dialect's long expression; any other value's (a literal, a decimal slot) is
                 // the database's own cast, read in place as before
@@ -92,16 +93,16 @@ final class FloatPrintText {
         }
     }
 
-    /** Pure's print form of the double {@code x}, as SQL over its text. */
+    /** Lite's canonical text of the double {@code x}, as SQL over its text. */
     static SqlExpr of(SqlExpr x) {
         return print(x, new SqlExpr.Cast(x, SqlType.Scalar.VARCHAR, SqlExpr.Reason.PRINT));
     }
 
     /**
-     * Pure's print form of the double {@code x} whose text is {@code s}: {@code s} read where it is written, the value
+     * Lite's canonical text of the double {@code x} whose text is {@code s}: {@code s} read where it is written, the value
      * where it is (a dialect that binds the two once reads them as columns; {@code ofText}, a pass-through to here whose
      * function parameter had gone, deleted 2026-10-28: the phase 3 audit's nit, the start page's S1.4 item 4).
-     * Pure prints a Float via its MINIMAL decimal repr: DuckDB's shortest round-trip VARCHAR cast already matches
+     * Lite writes a Float as its MINIMAL decimal repr: DuckDB's shortest round-trip VARCHAR cast already matches
      * ('1.5', '2.0') EXCEPT where it chooses exponent notation -- those re-render plain through a DECIMAL(38,18) cast
      * with trailing zeros trimmed (and a bare trailing dot restored to '.0'). Magnitudes outside DECIMAL(38,18) keep the
      * exponent form.
@@ -146,7 +147,7 @@ final class FloatPrintText {
                 SqlExpr.Call.of(SqlFn.CONCAT, plain, new SqlExpr.StringLit("0")))),
                 plain, SqlExpr.Reason.PRINT);
         // a whole value the database writes without a fraction (Postgres's double 3, an integer slot a Float
-        // declares) takes Pure's .0: a Float's text always has a fraction (the output layer's step 5, 2026-10-18)
+        // declares) takes .0: a Float's text always has a fraction (the output layer's step 5, 2026-10-18)
         SqlExpr bare = SqlExpr.Call.of(SqlFn.AND, SqlExpr.Call.of(SqlFn.NOT, hasExp),
                 SqlExpr.Call.of(SqlFn.EQUAL, SqlExpr.Call.of(SqlFn.STRPOS, s, new SqlExpr.StringLit(".")),
                         new SqlExpr.IntLit(0)));
@@ -162,7 +163,7 @@ final class FloatPrintText {
         return new SqlExpr.Case(List.of(new SqlExpr.Case.When(guard, x)), null, SqlExpr.Reason.PRINT);
     }
 
-    /** The text of a double that is no number, in Pure's spelling, which is Java's ({@code NaN}, {@code Infinity},
+    /** The text of a double that is no number, by Java's names ({@code NaN}, {@code Infinity},
      *  {@code -Infinity}), from the database's own: DuckDB writes {@code nan}, {@code inf} and {@code -inf}, H2 and
      *  Postgres write Java's (the channel A shadow run of 2026-10-18 found {@code acos(2.0)} printed {@code nan.0};
      *  the plan path program's step 7). The spelled tokens are compared, nothing computed (docs/WORLD_MAP.md). */

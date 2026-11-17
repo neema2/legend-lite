@@ -67,7 +67,7 @@ final class Repr {
             // Float is lite's six decimals, FLOAT_TO_TEXT; an assert's message prints the value as the host judge
             // does, judge parity G2); a value the store holds as an integer its digits, as before
             return LiteralSpelling.heldAsInteger(x) ? new SqlExpr.Cast(x, SqlType.Scalar.VARCHAR, SqlExpr.Reason.JUDGE)
-                    : SqlExpr.Call.of(SqlFn.FLOAT_PRINT, x);
+                    : SqlExpr.Call.of(SqlFn.FLOAT_SHORTEST_TEXT, x);
         }
         // numbers, booleans, and the Any carrier: the toString spelling
         // IS the representation
