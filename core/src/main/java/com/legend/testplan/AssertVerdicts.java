@@ -1373,13 +1373,26 @@ public final class AssertVerdicts {
                     specs, env, rawHook == null ? null : rawHook::apply);
         }
         TypedSide last = null;
-        for (TypedSpec element : elements) {
+        VerdictBatch batch = DatabaseJudge.lite(env) ? env.verdictBatch() : null;
+        for (int index = 0; index < elements.size(); index++) {
+            TypedSpec element = elements.get(index);
             List<TypedSpec> reduced = com.legend.compiler.spec.VerdictQueries
                     .unrolledElement(specs, letPrefix, sh.lam(), element, rawHook);
             List<TypedSpec> lets = new java.util.ArrayList<>(
                     reduced.subList(0, reduced.size() - 1));
             TypedSpec bareStmt = reduced.get(reduced.size() - 1);
-            TypedSide v = adjudicate(bareStmt, lets, specs, env, rawHook);
+            TypedSide v;
+            // lite's sentence names the element by its zero-based index, as the host judge's does
+            AutoCloseable scope = batch == null ? () -> { } : batch.atElement(index);
+            try {
+                v = adjudicate(bareStmt, lets, specs, env, rawHook);
+            } finally {
+                try {
+                    scope.close();
+                } catch (Exception e) {
+                    throw new IllegalStateException(e);
+                }
+            }
             if (v == null) {
                 throw new com.legend.error.NotImplementedException(
                         "unrolled quantified assert: element verdict not"

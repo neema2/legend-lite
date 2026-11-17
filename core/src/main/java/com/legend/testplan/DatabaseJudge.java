@@ -895,7 +895,7 @@ public final class DatabaseJudge {
                     crossNumberKinds(ek, ak, compat),
                     compat && ek == com.legend.compiler.element.type.Type.Primitive.FLOAT
                             && ak == com.legend.compiler.element.type.Type.Primitive.FLOAT,
-                    com.legend.lowering.VerdictSql.decimalByValue(compat, ek));
+                    com.legend.lowering.VerdictSql.decimalByValue(compat, ek), lite(env));
             if (row == null) {
                 return unjudged(name, "per-element: a kind with no spelling (" + ek.typeName() + " vs "
                         + ak.typeName() + ")");
@@ -915,7 +915,8 @@ public final class DatabaseJudge {
             if (AssertVerdicts.elementTyped(args.get(0), specs) && AssertVerdicts.elementTyped(args.get(1), specs)) {
                 TypedSpec cond = com.legend.resolver.ChainNormalizer.identityCondition(
                         specs.ctx(), args.get(0), args.get(1));
-                return databaseCondition(name, cond, true, letPrefix, specs, env, hook);
+                return databaseCondition(name, cond, true, letPrefix, specs, env, hook, lite(env)
+                        ? com.legend.lowering.VerdictSql.sentence(com.legend.error.AssertSentence.SAME_INSTANCE) : null);
             }
             return unjudged(name, "is: neither an enum pair nor a tracked element pair");
         }
@@ -943,7 +944,7 @@ public final class DatabaseJudge {
                         .map(com.legend.compiler.element.type.Type.Primitive::typeName).orElse(type);
                 return runVerdict(name, true, com.legend.lowering.VerdictSql.instanceOfDecided(side.scalarRow(false),
                         decided.value(), typePath, p.typeName(),
-                        p == com.legend.compiler.element.type.Type.Primitive.STRING), side.on(env));
+                        p == com.legend.compiler.element.type.Type.Primitive.STRING, lite(env)), side.on(env));
             }
             return databaseCondition(name, cond, true, letPrefix, specs, env, hook);
         }

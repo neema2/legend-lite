@@ -588,8 +588,22 @@ public final class VerdictSql {
      *  parity program: the host's message, PureAsserts.assertInstanceOf). */
     public static SqlQuery instanceOfDecided(SqlQuery valueScalar, boolean holds, String type, String actual,
             boolean quote) {
+        return instanceOfDecided(valueScalar, holds, type, actual, quote, false);
+    }
+
+    /** {@code lite}: lite's own sentence ({@code AssertSentence.INSTANCE_OF}), a String quoted JSON-style. */
+    public static SqlQuery instanceOfDecided(SqlQuery valueScalar, boolean holds, String type, String actual,
+            boolean quote, boolean lite) {
         OneRow a = rowOf("a", valueScalar);
         SqlExpr text = asText(a.col(C));
+        if (lite) {
+            SqlExpr value = SqlExpr.Call.of(SqlFn.COALESCE, quote ? Repr.lite(Type.Primitive.STRING, text) : text,
+                    new SqlExpr.StringLit("[]"));
+            return predicateOver(List.of(), List.of(a), new SqlExpr.BoolLit(holds), new SqlExpr.StringLit("true"),
+                    new SqlExpr.StringLit(holds ? "true" : "false"), new SqlExpr.NullLit(), sentence(
+                            com.legend.error.AssertSentence.INSTANCE_OF, java.util.Map.of("type",
+                                    new SqlExpr.StringLit(type), "actual", value)));
+        }
         SqlExpr repr = SqlExpr.Call.of(SqlFn.COALESCE, reprNewlines(quote ? quoted(text) : text),
                 new SqlExpr.StringLit("[]"));
         SqlExpr message = SqlExpr.Call.of(SqlFn.CONCAT, new SqlExpr.StringLit("expected "), repr,
@@ -632,6 +646,13 @@ public final class VerdictSql {
      */
     public static @com.legend.base.Nullable SqlQuery perElement(SqlQuery pairs, Type expectedKind, Type actualKind,
             boolean neverEqual, boolean floats, boolean decimalByValue) {
+        return perElement(pairs, expectedKind, actualKind, neverEqual, floats, decimalByValue, false);
+    }
+
+    /** {@code lite}: each element written by lite's own rules, and the failure lite's sentence naming the first failing
+     *  element by its zero-based index ({@code AssertSentence.AT_INDEX} over {@code EQUALS}). */
+    public static @com.legend.base.Nullable SqlQuery perElement(SqlQuery pairs, Type expectedKind, Type actualKind,
+            boolean neverEqual, boolean floats, boolean decimalByValue, boolean lite) {
         SqlQuery numbered = SideOrdinal.withOrdinal(pairs);
         OutputCol valueOut = pairs.outputs().get(0);
         SqlExpr value = SqlExpr.Column.of("__s", numbered.outputs(), valueOut.name());
@@ -663,8 +684,10 @@ public final class VerdictSql {
         OutputCol rnOut = new OutputCol(RN, SqlType.Scalar.BIGINT, false);
         SqlQuery rows = new SqlSelect(List.of(
                 new SqlSelect.Projection(SqlExpr.Call.of(SqlFn.COALESCE, ok, new SqlExpr.BoolLit(false)), "__ok", okOut),
-                new SqlSelect.Projection(Repr.of(expectedKind, first), "__re", reOut),
-                new SqlSelect.Projection(Repr.of(actualKind, second), "__ra", raOut),
+                new SqlSelect.Projection(lite ? Repr.lite(expectedKind, first) : Repr.of(expectedKind, first), "__re",
+                        reOut),
+                new SqlSelect.Projection(lite ? Repr.lite(actualKind, second) : Repr.of(actualKind, second), "__ra",
+                        raOut),
                 new SqlSelect.Projection(SqlExpr.Column.of("__s", numbered.outputs(), SideOrdinal.ORD), RN, rnOut)),
                 false, new SqlSource.Subselect(numbered, "__s", null), null, List.of(), null, null, List.of(), null,
                 null, List.of(okOut, reOut, raOut, rnOut));
@@ -675,7 +698,10 @@ public final class VerdictSql {
         OutputCol n = new OutputCol("__n", SqlType.Scalar.BIGINT, false);
         OutputCol fe = new OutputCol("__fe", SqlType.Scalar.VARCHAR, true);
         OutputCol fa = new OutputCol("__fa", SqlType.Scalar.VARCHAR, true);
+        OutputCol fi = new OutputCol("__fi", SqlType.Scalar.BIGINT, true);
         OneRow b = new OneRow("b", new SqlSelect(List.of(
+                new SqlSelect.Projection(new SqlAgg.Reducer(SqlAgg.Fn.MIN, List.of(failingAt), false, List.of()),
+                        "__fi", fi),
                 new SqlSelect.Projection(new SqlAgg.Reducer(SqlAgg.Fn.COUNT, List.of(failingAt), false, List.of()),
                         "__n", n),
                 new SqlSelect.Projection(new SqlAgg.Reducer(SqlAgg.Fn.ARG_MIN,
@@ -684,11 +710,19 @@ public final class VerdictSql {
                         List.of(SqlExpr.Column.of("__pe", pe, "__ra"), failingAt), false, List.of()), "__fa", fa)),
                 false, new SqlSource.Table("__pe", "__pe", pe, false, java.util.Map.of(),
                         com.legend.sql.NameQuoting.BARE), null, List.of(), null, null, List.of(), null, null,
-                List.of(n, fe, fa)),
-                List.of(n, fe, fa));
+                List.of(fi, n, fe, fa)),
+                List.of(fi, n, fe, fa));
+        // the first failing element's zero-based index: its 1-based ordinal less one
+        SqlExpr index = new SqlExpr.Cast(SqlExpr.Call.of(SqlFn.MINUS, b.col("__fi"), new SqlExpr.IntLit(1)),
+                SqlType.Scalar.VARCHAR, SqlExpr.Reason.JUDGE);
+        SqlExpr message = lite ? sentence(com.legend.error.AssertSentence.AT_INDEX, java.util.Map.of("sentence",
+                sentence(com.legend.error.AssertSentence.EQUALS, java.util.Map.of(
+                        "expected", SqlExpr.Call.of(SqlFn.COALESCE, b.col("__fe"), new SqlExpr.StringLit("[]")),
+                        "actual", SqlExpr.Call.of(SqlFn.COALESCE, b.col("__fa"), new SqlExpr.StringLit("[]")))),
+                "index", index)) : null;
         return predicateOver(List.of(new SqlWith.Cte("__pe", rows)), List.of(b),
                 SqlExpr.Call.of(SqlFn.EQUAL, b.col("__n"), new SqlExpr.IntLit(0)), b.col("__fe"), b.col("__fa"),
-                new SqlExpr.NullLit());
+                new SqlExpr.NullLit(), message);
     }
 
     /** Two finite doubles within {@code ULPS * ulp(max(|x|, |y|))} ({@link com.legend.values.FloatTolerance}, the host
@@ -2493,6 +2527,27 @@ public final class VerdictSql {
         // the select's outputs are rebuilt from its projections by its constructor
         return new SqlSelect(ps, sel.distinct(), sel.from(), sel.where(), sel.groupBy(), sel.having(), sel.qualify(),
                 sel.orderBy(), sel.limit(), sel.offset(), sel.outputs());
+    }
+
+    /** {@code row}, a self-contained verdict row, its message lite's sentence for an unrolled quantifier's element
+     *  {@code index} ({@code AssertSentence.AT_INDEX}: the row's message, then the zero-based index). */
+    public static SqlQuery atIndex(SqlQuery row, int index) {
+        java.util.function.UnaryOperator<SqlSelect> at = sel -> {
+            List<SqlSelect.Projection> ps = new ArrayList<>();
+            for (SqlSelect.Projection p : sel.projections()) {
+                ps.add(MESSAGE.equals(p.alias()) ? new SqlSelect.Projection(sentence(
+                        com.legend.error.AssertSentence.AT_INDEX, java.util.Map.of("sentence", p.expr(), "index",
+                                new SqlExpr.StringLit(Integer.toString(index)))), p.alias(), p.out()) : p);
+            }
+            return sel.withProjections(ps);
+        };
+        if (row instanceof SqlWith w && w.body() instanceof SqlSelect body) {
+            return new SqlWith(w.ctes(), at.apply(body));
+        }
+        if (row instanceof SqlSelect sel) {
+            return at.apply(sel);
+        }
+        throw new IllegalStateException("a verdict row is a select, not " + row.getClass().getSimpleName());
     }
 
     /** The frame's sentence under lite's own rules, by the assert's family: two grids' rows, the elements in any order,

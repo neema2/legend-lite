@@ -78,6 +78,10 @@ public final class TestPlanner {
      */
     static TestPlan planIsolated(TypedQuery typed, @Nullable String given, PlanningOptions options) {
         TestPlan host = plan(typed, given, options.withJudgeMode(PlanningOptions.JudgeMode.HOST));
+        if (host.judge() != TestPlan.Judge.HOST || !host.facts().verdicts()) {
+            // a body with no assert has nothing two judges could disagree on: planned once
+            return host;
+        }
         TestPlan database = plan(typed, given, options.withJudgeMode(PlanningOptions.JudgeMode.DATABASE));
         TestPlan both = new TestPlan(List.of(), List.of(new TestPlan.Isolated(host, database)),
                 TestPlan.Judge.AGREEMENT, java.util.Map.of(), java.util.Map.of(), host.answersLastVerdict(),

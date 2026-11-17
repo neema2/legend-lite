@@ -87,6 +87,13 @@ public final class LiteWords {
         return values.size() == 1 ? value(values.get(0), instanceClass) : values(values, instanceClass);
     }
 
+    /** One side of a PAIR's text (assertEquals' rule, the database judge's too): each side bare where BOTH hold one
+     *  value, else each in brackets. */
+    public static String pairSide(List<?> values, List<?> other, @Nullable String instanceClass) {
+        return values.size() == 1 && other.size() == 1 ? value(values.get(0), instanceClass)
+                : values(values, instanceClass);
+    }
+
     /** {@code row}'s sentence filled: each slot's text by name. */
     public static String sentence(AssertSentence row, Map<String, String> slots) {
         return row.fill(slots);

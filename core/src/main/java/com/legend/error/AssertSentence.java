@@ -36,6 +36,12 @@ public enum AssertSentence {
     FALSE("expected false, got true"),
     IS("expected the same instance as {expected}, got {actual}"),
     IS_NOT("expected an instance other than {actual}"),
+    /** assertIs over two element references, no operand to name (the orchestrator's ruling, 2026-11-17). */
+    SAME_INSTANCE("expected the same instance"),
+    INSTANCE_OF("expected an instance of {type}, got {actual}"),
+    /** assertTdsEquivalent: rows zipped IN ORDER, numbers within the delta (and times within the time delta), every
+     *  other cell equal -- so no "in any order". */
+    TDS_EQUIVALENT("expected the rows {expected} within {delta}, got {actual}"),
     WITHIN_TOLERANCE("expected {expected} within {delta}, got {actual}"),
     JSON_EQUALS("expected the JSON {expected}, got {actual}"),
     ERROR("expected the error {expected}, got {actual}"),

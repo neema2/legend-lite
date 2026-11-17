@@ -20,8 +20,9 @@ import java.util.Objects;
  * BOTH JUDGES, ISOLATED (the user's judge model, 2026-11-17; the orchestrator's (b') and its ruling on given sessions,
  * the same day): a pair's two plans each RUN ALONE, the host judge's first, each on its own session where the caller's
  * source opens one per plan, both in turn on a caller's GIVEN session where neither writes. Neither run sees the other's
- * rows or verdicts. Each run's verdicts and failure are recorded, then COMPARED: the same asserts in the same order,
- * each with the same verdict and the same message, and the same failure text. Where they agree the caller hears the
+ * rows or verdicts. Each run's verdicts and failure are recorded, then COMPARED: as many asserts, in the same order,
+ * each with the same verdict and the same message, and the same failure text (an assert's NAME is each planner's
+ * report of it -- a helper's, or the assert inside it -- and is not compared). Where they agree the caller hears the
  * host's verdicts and the run ends as the host's did (the host is the product's default judge until the database's gap
  * list is empty); where they differ the body fails by name, both texts quoted ({@link JudgesDisagree}).
  *
@@ -112,7 +113,9 @@ final class IsolatedRun {
         for (int i = 0; i < n; i++) {
             Heard h = i < host.verdicts.size() ? host.verdicts.get(i) : null;
             Heard d = i < database.verdicts.size() ? database.verdicts.get(i) : null;
-            if (!Objects.equals(h, d)) {
+            // the verdict and its message: the name each planner gives an assert (a helper's, or the assert inside it)
+            // is how it is reported, not what it decides
+            if (h == null || d == null || h.pass() != d.pass() || !Objects.equals(h.detail(), d.detail())) {
                 return "the judges disagree at assert " + i + ": host " + describe(h) + "; database " + describe(d)
                         + (h == null ? " (host's run " + quote(host.ending()) + ")" : "")
                         + (d == null ? " (database's run " + quote(database.ending()) + ")" : "") + notes(database);

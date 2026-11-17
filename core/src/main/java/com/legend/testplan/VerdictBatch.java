@@ -183,6 +183,16 @@ public final class VerdictBatch {
     private final SelfContained selfContained;
     private final Runner runner;
     private final List<Root> roots = new ArrayList<>();
+    /** The zero-based index of the unrolled quantifier's element being planned under lite's own rules, or -1. */
+    private int elementIndex = -1;
+
+    /** Rows deferred until the returned scope closes are an unrolled quantifier's element {@code index}: lite's
+     *  sentence names it ({@code AssertSentence.AT_INDEX}). */
+    public AutoCloseable atElement(int index) {
+        int before = elementIndex;
+        elementIndex = index;
+        return () -> elementIndex = before;
+    }
     private @com.legend.base.Nullable Root current;
     /** The frames the body's asserts read by reference: name → the frame's
      * plan (leg 3.4 step 2), defined once per body. */
@@ -292,6 +302,10 @@ public final class VerdictBatch {
         }
         // the row self-contained (M8b): its polarity and its message in the statement, nothing of the assert kept
         SqlQuery row = selfContained.wrap(query, name, wantEqual);
+        if (elementIndex >= 0) {
+            // an unrolled quantifier's element: lite's sentence names it by its zero-based index
+            row = com.legend.lowering.VerdictSql.atIndex(row, elementIndex);
+        }
         Pending of = orElseOf.peek();
         if (of != null) {
             // the verdict of the root's last row's ruled comparison (orElse): attached to that row, never a step of its
