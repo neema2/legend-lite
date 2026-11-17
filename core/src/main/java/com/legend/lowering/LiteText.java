@@ -46,7 +46,7 @@ final class LiteText {
             return new SqlExpr.Cast(x, SqlType.Scalar.VARCHAR, SqlExpr.Reason.JUDGE);
         }
         if (t instanceof Type.PrecisionDecimal) {
-            return Scalars.pureToString(Type.Primitive.DECIMAL, x);
+            return Scalars.pureToString(Styled.PRODUCT, Type.Primitive.DECIMAL, x);
         }
         if (t == Type.Primitive.FLOAT) {
             // a message's Float at full round-trip precision (the orchestrator's ruling, 2026-11-17): FLOAT_PRINT, the
@@ -54,7 +54,7 @@ final class LiteText {
             return LiteralSpelling.heldAsInteger(x) ? new SqlExpr.Cast(x, SqlType.Scalar.VARCHAR, SqlExpr.Reason.JUDGE)
                     : javaExponent(SqlExpr.Call.of(SqlFn.FLOAT_PRINT, x));
         }
-        return Scalars.pureToString(t, x);
+        return Scalars.pureToString(Styled.PRODUCT, t, x);
     }
 
     /** {@code text}, a Float's FLOAT_PRINT text, its exponent form (a magnitude past DECIMAL(38,18), each database

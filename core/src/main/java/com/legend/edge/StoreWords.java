@@ -28,6 +28,8 @@ public final class StoreWords {
             case QUERY_NOT_FOUND -> "Can't find query with ID '" + o.get(0) + "'";
             case QUERIES_NOT_FOUND -> "Can't find queries for the following ID(s):\n" + o.get(0);
             case VERSION_NOT_FOUND -> "Can't find version '" + o.get(0) + "' for query with ID '" + o.get(1) + "'";
+            // legend-engine's path, the edge's mount's (B7, the orchestrator's ruling (3) of 2026-11-17)
+            case NO_SUCH_ROUTE -> "no such legend-engine API in legend-lite: /api/pure/v1/query" + o.get(0);
         };
     }
 }

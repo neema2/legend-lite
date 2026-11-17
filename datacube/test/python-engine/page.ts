@@ -185,7 +185,10 @@ async function run(): Promise<void> {
       const q: Lambda = onTheFrame(query, served.source);
       const there = await remote.run(q, snapshot, CASES[i]!.scope);
       const here = await tab.run(q, snapshot, CASES[i]!.scope);
-      equal(there.sql, here.sql, `${name}: the SQL Python's engine reports is the tab's plan:`);
+      // the ANSWERS agree; the SQL need not (Phase 5b, 2026-11-17): Python's engine answers legend-engine's pure/v1
+      // execute, planned at the compatibility edge, which writes a Float literal as legend-engine does (5000.0, the
+      // orchestrator's ruling R2: the edge program's §6 row 21), where the tab's product planner writes the double
+      // (5000.0E0, register S20). The SQL Python PLANNED is the tab's plan, below (PlanAndRun: lite's own planner)
       const inOrder = ordered(here.sql);
       const a = shape(there.rows, inOrder);
       const b = shape(here.rows, inOrder);

@@ -129,13 +129,13 @@ class ErrorShapeGuardrailTest {
             // "internal": letting it escape dropped the TCP connection and the
             // client saw a socket error with no message
             // 6 -> 5 (2026-09-27, upstream pure/v1 API): /engine/plan deleted with its
-            // handler; its bug-vs-honest split moved to PureV1Api (below)
+            // handler; its bug-vs-honest split moved to LiteV1Api (below)
             // 5 -> 4 (2026-09-29, plan W0.1): /engine/sql deleted with its handler
             Map.entry("LegendHttpServer.java", 4),
             // 1 = the pure/v1 call boundary (2026-09-27): one catch for every upstream
             // call; a non-honest failure is a BUG, logged whole and answered 500 in the
             // engine's error shape, the split /engine/plan's handler made before it
-            Map.entry("PureV1Api.java", 1),
+            Map.entry("LiteV1Api.java", 1),
             // 2 = the LSP protocol boundary (reviewed): dispatch converts
             // failures to JSON-RPC error responses; rebuild converts a
             // compile crash into published diagnostics

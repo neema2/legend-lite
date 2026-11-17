@@ -143,81 +143,66 @@ public final class VerdictSql {
      */
     public record Message(Type kind, boolean sorted, boolean listed, @com.legend.base.Nullable String literal,
             boolean lite, boolean canon, @com.legend.base.Nullable String kindText,
-            @com.legend.base.Nullable String canonClass) {
+            @com.legend.base.Nullable String canonClass, Styled styled) {
+        /** {@code styled}: the planning environment's style, the text helpers' (B8, 2026-11-17: an explicit style
+         *  from every caller, never an implicit product default -- the seam agreed with E-Java); legend-pure's words
+         *  ({@code lite} false), the side's own kind. */
         public Message(Type kind, boolean sorted, boolean listed, @com.legend.base.Nullable String literal,
-                boolean lite, boolean canon, @com.legend.base.Nullable String kindText) {
-            this(kind, sorted, listed, literal, lite, canon, kindText, null);
-        }
-
-        public Message(Type kind, boolean sorted, boolean listed, @com.legend.base.Nullable String literal,
-                boolean lite, boolean canon) {
-            this(kind, sorted, listed, literal, lite, canon, null);
-        }
-
-        public Message(Type kind, boolean sorted, boolean listed, @com.legend.base.Nullable String literal,
-                boolean lite) {
-            this(kind, sorted, listed, literal, lite, false);
+                Styled styled) {
+            this(kind, sorted, listed, literal, false, false, null, null, styled);
         }
 
         /** This message with the side's KIND as lite's sentence names it where two texts tie
          *  ({@code AssertSentence.EQUALS_KINDS}). */
         public Message withKindText(String kindText) {
-            return new Message(kind, sorted, listed, literal, lite, canon, kindText, canonClass);
-        }
-
-        public Message(Type kind, boolean sorted, boolean listed, @com.legend.base.Nullable String literal) {
-            this(kind, sorted, listed, literal, false);
+            return new Message(kind, sorted, listed, literal, lite, canon, kindText, canonClass, styled);
         }
 
         /** A side of no one primitive kind (a mixed-kind collection, a literal channel), written by lite's own rules
          *  from each element's CANON ({@link #liteOfCanon}: its runtime kind read off the canon's mark), in the side's
-         *  own order (the orchestrator's ruling, 2026-11-17). */
-        public static Message fromCanon(boolean sorted) {
-            return fromCanon(sorted, null);
+         *  own order (the orchestrator's ruling, 2026-11-17); {@code classFqn}: the side's declared class, prefixed to
+         *  an element whose canon is its JSON object (an instance as the product writes it), or null. */
+        public static Message fromCanon(boolean sorted, @com.legend.base.Nullable String classFqn, Styled styled) {
+            return new Message(Type.Primitive.STRING, sorted, false, null, true, true, null, classFqn, styled);
         }
 
-        /** {@code classFqn}: the side's declared class, prefixed to an element whose canon is its JSON object (an
-         *  instance as the product writes it, the orchestrator's ruling of 2026-11-17). */
-        public static Message fromCanon(boolean sorted, @com.legend.base.Nullable String classFqn) {
-            return new Message(Type.Primitive.STRING, sorted, false, null, true, true, null, classFqn);
-        }
-
-        public Message(Type kind, boolean sorted, boolean listed) {
-            this(kind, sorted, listed, null);
+        public Message(Type kind, boolean sorted, boolean listed, Styled styled) {
+            this(kind, sorted, listed, null, styled);
         }
 
         /** This message written by lite's own rules ({@link LiteText#of}: a String quoted JSON-style, every value its
          *  product text), or legend-pure's ({@code lite} false). */
         public Message withLite(boolean lite) {
-            return new Message(kind, sorted, listed, literal, lite, canon, kindText, canonClass);
+            return new Message(kind, sorted, listed, literal, lite, canon, kindText, canonClass, styled);
         }
 
         /** A LITERAL side (one value the planner holds): {@code text}, its representation spelled at planning. */
-        public static Message literal(Type kind, String text) {
-            return new Message(kind, false, false, text);
+        public static Message literal(Type kind, String text, Styled styled) {
+            return new Message(kind, false, false, text, styled);
         }
 
         /** {@code kind}'s message for a side, or null where its elements' representation is no one primitive's. */
-        public static @com.legend.base.Nullable Message of(@com.legend.base.Nullable Type kind, boolean sorted) {
-            return of(kind, sorted, false);
+        public static @com.legend.base.Nullable Message of(@com.legend.base.Nullable Type kind, boolean sorted,
+                Styled styled) {
+            return of(kind, sorted, false, styled);
         }
 
         /** {@code kind}'s elements as a List's {@code %s} writes them (assertEmpty.pure: {@code '%s is not empty'}
          *  over {@code ^List<Any>(values=$collection)}; the host's {@code PureAsserts.notEmptyMessage}): a String
          *  as it is, every other kind its representation. */
-        public static @com.legend.base.Nullable Message listed(@com.legend.base.Nullable Type kind) {
-            return of(kind, false, true);
+        public static @com.legend.base.Nullable Message listed(@com.legend.base.Nullable Type kind, Styled styled) {
+            return of(kind, false, true, styled);
         }
 
         /** Instances of a GENERIC class (a {@code Pair}) carried as structs of primitive fields -- the caller has seen
          *  the side's plan answer such a struct: each written as the host writes an instance with no id,
          *  {@code <1|a instanceOf meta::pure::functions::collection::Pair>} ({@link #genericInstanceRepr}'s rule). */
-        public static Message instances(Type.GenericType kind, boolean sorted) {
-            return new Message(kind, sorted, false);
+        public static Message instances(Type.GenericType kind, boolean sorted, Styled styled) {
+            return new Message(kind, sorted, false, styled);
         }
 
         private static @com.legend.base.Nullable Message of(@com.legend.base.Nullable Type kind, boolean sorted,
-                boolean listed) {
+                boolean listed, Styled styled) {
             if (kind == null) {
                 return null;
             }
@@ -227,7 +212,7 @@ public final class VerdictSql {
                     || kind == Type.Primitive.FLOAT || kind == Type.Primitive.DECIMAL || kind == Type.Primitive.STRING
                     || kind == Type.Primitive.BOOLEAN || kind == Type.Primitive.DATE
                     || kind == Type.Primitive.STRICT_DATE || kind == Type.Primitive.DATE_TIME;
-            return spelled ? new Message(kind, sorted, listed) : null;
+            return spelled ? new Message(kind, sorted, listed, styled) : null;
         }
     }
 
@@ -617,24 +602,20 @@ public final class VerdictSql {
         return contains(collRows, valScalar, null);
     }
 
-    /** {@code valueWritten}: the value's kind, where the collection's rows are {@link #writtenRows} and the message
-     *  writes both as upstream does (assertContains.pure: '%s does not contain %r', the collection's representations
-     *  joined '[', ', ', ']'); null, the canons'. */
-    public static SqlQuery contains(SqlQuery collRows, SqlQuery valScalar, @com.legend.base.Nullable Type valueWritten) {
+    /** {@code valueWritten}: the value's message (its kind, the planning style, and lite's rules or legend-pure's),
+     *  where the collection's rows are {@link #writtenRows} and the message writes both as upstream does
+     *  (assertContains.pure: '%s does not contain %r', the collection's representations joined '[', ', ', ']'), the
+     *  lite sentence ({@code AssertSentence.CONTAINS}) where it is lite's; null, the canons'. */
+    public static SqlQuery contains(SqlQuery collRows, SqlQuery valScalar,
+            @com.legend.base.Nullable Message valueWritten) {
         return contains(collRows, valScalar, valueWritten, false);
-    }
-
-    /** {@code lite}: the written form's lite sentence ({@code AssertSentence.CONTAINS}), the value written by lite's
-     *  rules; else legend-pure's words. */
-    public static SqlQuery contains(SqlQuery collRows, SqlQuery valScalar, @com.legend.base.Nullable Type valueWritten,
-            boolean lite) {
-        return contains(collRows, valScalar, valueWritten, lite, false);
     }
 
     /** {@code negated}: {@code assertNotContains} (#28): the same verdict row over the written collection, its failure
      *  the negated sentence -- lite's {@code NOT_CONTAINS}, or legend-pure's '%s should not contain %r'. */
-    public static SqlQuery contains(SqlQuery collRows, SqlQuery valScalar, @com.legend.base.Nullable Type valueWritten,
-            boolean lite, boolean negated) {
+    public static SqlQuery contains(SqlQuery collRows, SqlQuery valScalar,
+            @com.legend.base.Nullable Message valueWritten, boolean negated) {
+        boolean lite = valueWritten != null && valueWritten.lite();
         OutputCol vc = new OutputCol(C, SqlType.Scalar.VARCHAR, true);
         SqlSource v0 = new SqlSource.Table("__v0", "__v0", valScalar.outputs(), false, java.util.Map.of(), com.legend.sql.NameQuoting.BARE);
         OneRow v = new OneRow("v", new SqlSelect(List.of(new SqlSelect.Projection(
@@ -662,7 +643,7 @@ public final class VerdictSql {
             OneRow l = writtenListOf("l", "__a");
             OutputCol wo = new OutputCol(W, SqlType.Scalar.VARCHAR, true);
             OneRow vw = new OneRow("vw", new SqlSelect(List.of(new SqlSelect.Projection(
-                    written(new Message(valueWritten, false, false).withLite(lite),
+                    written(new Message(valueWritten.kind(), false, false, valueWritten.styled()).withLite(lite),
                             SqlExpr.Column.of("__v0", valScalar.outputs(), "value")), W, wo)),
                     false, v0, null, List.of(), null, null, List.of(), null, null, List.of(wo)), List.of(wo));
             ops.add(l);
@@ -761,14 +742,14 @@ public final class VerdictSql {
      * spelling (the caller declines by name). One statement: the pairs read once, numbered in their own select.
      */
     public static @com.legend.base.Nullable SqlQuery perElement(SqlQuery pairs, Type expectedKind, Type actualKind,
-            boolean neverEqual, boolean floats, boolean decimalByValue) {
-        return perElement(pairs, expectedKind, actualKind, neverEqual, floats, decimalByValue, false);
+            boolean neverEqual, boolean floats, boolean decimalByValue, Styled styled) {
+        return perElement(pairs, expectedKind, actualKind, neverEqual, floats, decimalByValue, false, styled);
     }
 
     /** {@code lite}: each element written by lite's own rules, and the failure lite's sentence naming the first failing
      *  element by its zero-based index ({@code AssertSentence.AT_INDEX} over {@code EQUALS}). */
     public static @com.legend.base.Nullable SqlQuery perElement(SqlQuery pairs, Type expectedKind, Type actualKind,
-            boolean neverEqual, boolean floats, boolean decimalByValue, boolean lite) {
+            boolean neverEqual, boolean floats, boolean decimalByValue, boolean lite, Styled styled) {
         SqlQuery numbered = SideOrdinal.withOrdinal(pairs);
         OutputCol valueOut = pairs.outputs().get(0);
         SqlExpr value = SqlExpr.Column.of("__s", numbered.outputs(), valueOut.name());
@@ -800,10 +781,10 @@ public final class VerdictSql {
         OutputCol rnOut = new OutputCol(RN, SqlType.Scalar.BIGINT, false);
         SqlQuery rows = new SqlSelect(List.of(
                 new SqlSelect.Projection(SqlExpr.Call.of(SqlFn.COALESCE, ok, new SqlExpr.BoolLit(false)), "__ok", okOut),
-                new SqlSelect.Projection(lite ? LiteText.of(expectedKind, first) : Repr.of(expectedKind, first), "__re",
-                        reOut),
-                new SqlSelect.Projection(lite ? LiteText.of(actualKind, second) : Repr.of(actualKind, second), "__ra",
-                        raOut),
+                new SqlSelect.Projection(lite ? LiteText.of(expectedKind, first) : Repr.of(styled, expectedKind, first),
+                        "__re", reOut),
+                new SqlSelect.Projection(lite ? LiteText.of(actualKind, second) : Repr.of(styled, actualKind, second),
+                        "__ra", raOut),
                 new SqlSelect.Projection(SqlExpr.Column.of("__s", numbered.outputs(), SideOrdinal.ORD), RN, rnOut)),
                 false, new SqlSource.Subselect(numbered, "__s", null), null, List.of(), null, null, List.of(), null,
                 null, List.of(okOut, reOut, raOut, rnOut));
@@ -1471,7 +1452,8 @@ public final class VerdictSql {
     private static SqlQuery writtenStatement(SqlQuery eRows, SqlQuery aRows, boolean byCanonText,
             List<SqlExpr.Case.When> moreUnjudged, List<SqlWith.Cte> extraCtes,
             @com.legend.base.Nullable SqlQuery eCells, @com.legend.base.Nullable SqlQuery aCells, boolean alwaysList) {
-        Message written = Message.fromCanon(false);
+        // lite's own text, written from each canon's mark (liteOfCanon): the product's, so the product's style
+        Message written = Message.fromCanon(false, null, Styled.PRODUCT);
         return withWrittenSides(statementOf(new Folded("__e", eRows, sideFacts("__e", true, byCanonText, written)),
                 new Folded("__a", aRows, sideFacts("__a", true, byCanonText, written)),
                 moreUnjudged, extraCtes, eCells, aCells), alwaysList, byCanonText);
@@ -2847,7 +2829,7 @@ public final class VerdictSql {
         return PlatformTypes.isNil(m.kind()) ? new SqlExpr.Cast(new SqlExpr.NullLit(), SqlType.Scalar.VARCHAR, SqlExpr.Reason.JUDGE)
                 : m.lite() ? LiteText.of(m.kind(), value)
                 : m.listed() && m.kind() == Type.Primitive.STRING ? new SqlExpr.Cast(value, SqlType.Scalar.VARCHAR, SqlExpr.Reason.JUDGE)
-                : Repr.of(m.kind(), value);
+                : Repr.of(m.styled(), m.kind(), value);
     }
 
     /** A row's element as the failure message writes it ({@link Message}), and the value the sorted form orders by:

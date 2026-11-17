@@ -162,11 +162,9 @@ public enum SqlFn {
     CELL_TEXT,
     // (FORMAT_PADDED, format's %0<w>d: gone 2026-11-17, the separation census's B8 (i) -- the edge composes it at
     // lowering through the plan style's PureOnlyTexts facet, edge.EdgePureOnlyTexts; the product refuses at lowering)
-    /** An instance's {@code toString} ({@code id}, the instance's identity): legend-pure prints an instance without a
-     *  {@code toString} of its own by its repository id, {@code @_} and the id. The product writes an object by graph
-     *  fetch: its renderer refuses this by name ({@code dialect.PureOnlyText}); the compatibility edge composes it
-     *  (edge/PurePrintForms; phase D's D1.3, 2026-11-15). */
-    INSTANCE_TEXT,
+    // (an instance's toString: gone 2026-11-17, the separation census's B8 -- the edge writes '@_' and
+    // the id at lowering through the plan style's PureOnlyTexts facet, read by Scalars.pureToString under the caller's
+    // explicit Styled; the product refuses at lowering)
     /** A relation's text ({@code x}, then what the text is as a string literal: {@code toString}'s {@code #TDS} text,
      *  {@code toCSV}, a TDS's {@code csv}): legend-pure's and legend-engine's texts of rows. The product writes a
      *  relation's rows by its result writers (JSON, CSV, Arrow): its renderer refuses this by name

@@ -35,9 +35,25 @@ public interface PlanStyle {
     @com.legend.base.Nullable
     TraceCell traceCell();
 
+    /** THE RAISES A PLAN WRITES AS THE PLAIN OPERATION (B7, the user's ruling of 2026-11-17: "pure/v1 matches
+     *  legend-engine"; D's census, docs/records/pure-v1-engine-census-2026-11-17.md, class A): a check of a kind in
+     *  this set is not written -- the operation alone is, and the database's own error passes through, as
+     *  legend-engine's SQL has no check of its own there. A two-form hook returning DATA (the orchestrator's criteria of
+     *  2026-11-17, as {@link #traceCell}): the product's, none (every check of lite's kept); the compatibility edge's PCT
+     *  and corpus style, none either (legend-pure's guarded words); the edge's pure/v1 style, class A. */
+    java.util.Set<com.legend.sql.RaiseKind> plainRaises();
+
     /** The text written before and after an execution's id in a trace cell. */
     record TraceCell(String before, String after) {
     }
+
+    /** A TWO-FORM HOOK's form (the orchestrator's ruling of 2026-11-17, census B9; F's design): a value with a
+     *  PRODUCT form, lite's one canonical form ({@code productForm}, the caller's, passed explicitly every time: no
+     *  default), and an upstream form only the compatibility edge holds. The product's style answers
+     *  {@code productForm}; the edge's answers its own implementation of {@code kind}. The kinds are a CLOSED list,
+     *  declared beside the test planner ({@code testplan.PlanStyleFacets.TWO_FORMS}: this layer cannot name them); a
+     *  kind outside it is refused by name by the edge, and {@code HookRulingTest} pins the list as an exact set. */
+    <F> F twoForm(Class<F> kind, F productForm);
 
     /** A graph fetch's key argument that is a date, from its written text (no zone): the product's text of the type
      *  (a DateTime ISO 8601 in UTC with six fraction digits and {@code Z}, a date as written), the edge legend-engine's
@@ -126,6 +142,18 @@ public interface PlanStyle {
         @Override
         public @com.legend.base.Nullable TraceCell traceCell() {
             return null;
+        }
+
+        /** The product writes every check of its own. */
+        @Override
+        public java.util.Set<com.legend.sql.RaiseKind> plainRaises() {
+            return java.util.Set.of();
+        }
+
+        /** The product's form, the caller's own: lite's canonical form, no upstream knowledge. */
+        @Override
+        public <F> F twoForm(Class<F> kind, F productForm) {
+            return kind.cast(java.util.Objects.requireNonNull(productForm, "a two-form hook's product form"));
         }
 
         @Override

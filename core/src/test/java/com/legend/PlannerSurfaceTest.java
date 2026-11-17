@@ -302,7 +302,7 @@ class PlannerSurfaceTest {
             "lite_warehouse_call", "the warehouse's SQL API, a database server of its own, as its binding speaks it",
             "lite_warehouse_read", "the warehouse's SQL API's read"));
 
-    /** THE SERVER'S ROUTES ({@code PureV1Api.route}'s dispatch), each with what its body is: upstream's protocol shapes,
+    /** THE SERVER'S ROUTES ({@code LiteV1Api.route}'s dispatch), each with what its body is: upstream's protocol shapes,
      *  whose fields are {@link #SERVER_FIELDS}'s. */
     static final Map<String, String> ROUTES = new TreeMap<>(Map.ofEntries(
             Map.entry("/api/pure/v1/grammar/grammarToJson/lambda", "a lambda's text"),
@@ -338,7 +338,7 @@ class PlannerSurfaceTest {
     static final Map<String, Map<String, Kind>> SERVER_FIELDS = new TreeMap<>(Map.of(
             // the pure/v1 routes; planned.* are read of the plan half a host hands back with its rows (jsonAnswer,
             // its variable `planned`): the planner's own, echoed into the answer, never sent
-            "PureV1Api.java", new TreeMap<>(fields("_type", OPTION, "planned.activities", PLAN_DATA, "body", LAMBDA,
+            "LiteV1Api.java", new TreeMap<>(fields("_type", OPTION, "planned.activities", PLAN_DATA, "body", LAMBDA,
                     "planned.builder", PLAN_DATA, "code", MODEL_TEXT, "planned.columns", PLAN_DATA, "connectionValue",
                     OBJECT, "planned.execution", PLAN_DATA, "fullPath", NAME, "function", LAMBDA, "genericType", OBJECT,
                     "lambda", LAMBDA, "lowerBound", VALUE, "model", MODEL_TEXT, "multiplicity", OBJECT, "name", NAME,
@@ -412,7 +412,7 @@ class PlannerSurfaceTest {
             "pureV1(body)", "a pure/v1 route's body, dispatched by its path (ROUTES)",
             "executePlan(body)", "an ExecuteInput, planned as its plan half in upstream's Arrow format",
             "executeJsonPlan(body)", "an ExecuteInput, planned as its plan half in the engine's JSON",
-            "PureV1Api.java", "the pure/v1 routes' bodies: an ExecuteInput, a lambda's or a model's text or JSON (lite's "
+            "LiteV1Api.java", "the pure/v1 routes' bodies: an ExecuteInput, a lambda's or a model's text or JSON (lite's "
                     + "own routes in it each by their reason: LITE_ROUTES)",
             "TestDataRoutes.java", "the test-data generator's requests: an ExecuteInput, its mapping, its row "
                     + "identifiers",
@@ -429,7 +429,7 @@ class PlannerSurfaceTest {
             "CreateAssociation.java", "CreateDataSpace.java");
 
     /** LITE'S OWN ROUTES, EACH BY ITS REASON (the final audit of 9af16fbe58's J4, 2026-11-14: #TS's two sat under the
-     *  {@code PureV1Api.java} row of {@link #UPSTREAM_PROTOCOL}, open, though upstream has no #TS): every
+     *  {@code LiteV1Api.java} row of {@link #UPSTREAM_PROTOCOL}, open, though upstream has no #TS): every
      *  {@code /api/lite/} route, CLOSED -- by its method's {@code only(...)} over exactly the keys listed, or by its
      *  route file ({@link #CLOSED_ROUTE_FILES}) -- or OPEN because its body is upstream's own shape, said why.
      *  {@link #liteRouteViolations} holds each row to the route switch and each closed method to its {@code only}. */
@@ -485,11 +485,11 @@ class PlannerSurfaceTest {
     }
 
     /** The fields named for a statement that are the plan's own, read back: where, and why. */
-    private static final Set<String> PLAN_STATEMENTS = Set.of("PureV1Api.java.planned.sql");
+    private static final Set<String> PLAN_STATEMENTS = Set.of("LiteV1Api.java.planned.sql");
 
     /** The variables through which a file reads the planner's own JSON back, never a request's: their keys are read
      *  as {@code variable.key}. */
-    private static final Map<String, Set<String>> INTERNAL_RECEIVERS = Map.of("PureV1Api.java", Set.of("planned"));
+    private static final Map<String, Set<String>> INTERNAL_RECEIVERS = Map.of("LiteV1Api.java", Set.of("planned"));
 
     /** THE ROOT DOORS (AGENTS.md: {@code Compiler}, {@code TypedQuery}, {@code HeldModels} the plan side's,
      *  {@code Execution} and {@code TestExecution} the runs'): every public method, by its signature, with its
@@ -1601,13 +1601,13 @@ class PlannerSurfaceTest {
                 "the native export no row lists: lite_run_sql (reaches [authored])"), found);
     }
 
-    private static final List<String> SERVER_FILES = List.of("PureV1Api.java", "TestDataRoutes.java",
+    private static final List<String> SERVER_FILES = List.of("LiteV1Api.java", "TestDataRoutes.java",
             "ModelChanges.java", "ModelInput.java", "CreateClass.java", "CreateAssociation.java",
             "CreateDataSpace.java");
 
     /** The server's route files by name. Phase D's D1.0b (2026-11-12) moved pure/v1's upstream routes and
      *  TestDataRoutes to the compatibility edge ({@code com.legend.edge}): a file is read where it lives, and pure/v1's
-     *  one surface -- the product's {@code PureV1Api} and the edge's {@code PureV1Routes}, which it hands upstream's
+     *  one surface -- the product's {@code LiteV1Api} and the edge's {@code PureV1Routes}, which it hands upstream's
      *  paths -- is read as the one file it was (merged with C4's surface check, 2026-11-15). */
     private static Map<String, String> routeFiles() {
         Map<String, String> out = new TreeMap<>();
@@ -1617,7 +1617,7 @@ class PlannerSurfaceTest {
         }
         // W8 (docs/records/d-plan-2026-11-16.md, 2026-11-16): the host answer halves (arrowPlan, jsonPlan, jsonAnswer)
         // moved to the edge's HostAnswers; read as part of the same surface, so its planned.* reads stay censused
-        out.put("PureV1Api.java", out.get("PureV1Api.java") + "\n"
+        out.put("LiteV1Api.java", out.get("LiteV1Api.java") + "\n"
                 + read("core/src/main/java/com/legend/edge/PureV1Routes.java") + "\n"
                 + read("core/src/main/java/com/legend/edge/HostAnswers.java"));
         return out;
@@ -1646,7 +1646,7 @@ class PlannerSurfaceTest {
     @Test
     void theServersSurfaceIsClosed() {
         Map<String, String> files = routeFiles();
-        assertEquals(List.of(), serverViolations(files.get("PureV1Api.java"), files, httpSource()),
+        assertEquals(List.of(), serverViolations(files.get("LiteV1Api.java"), files, httpSource()),
                 "the server's surface is not closed");
     }
 
@@ -1654,7 +1654,7 @@ class PlannerSurfaceTest {
      *  widened, or a new lite route, is named. */
     @Test
     void liteRoutesAreEachClosedOrOpenByTheirReason() {
-        String source = routeFiles().get("PureV1Api.java");
+        String source = routeFiles().get("LiteV1Api.java");
         assertEquals(List.of(), liteRouteViolations(source, LITE_ROUTES));
         String unclosed = source.replace("ModelChanges.only(request, \"a tsItem request\", \"text\");", "");
         String widened = source.replace("\"a jsonToTs/lambda request\", \"model\", \"lambda\");",
@@ -1673,15 +1673,15 @@ class PlannerSurfaceTest {
     @Test
     void theServersSurfaceRefusesAPlantedRoute() {
         Map<String, String> files = routeFiles();
-        String pureV1 = files.get("PureV1Api.java").replace(
+        String pureV1 = files.get("LiteV1Api.java").replace(
                 "            case \"/api/lite/v1/compilation/compile\" ->",
-                "            case \"/api/lite/v1/runSql\" -> runSql(PureV1Api.request(body).getString(\"sql\"));\n"
+                "            case \"/api/lite/v1/runSql\" -> runSql(LiteV1Api.request(body).getString(\"sql\"));\n"
                         + "            case \"/api/lite/v1/compilation/compile\" ->");
-        files.put("PureV1Api.java", pureV1);
+        files.put("LiteV1Api.java", pureV1);
         String http = httpSource().replace("        route(\"/health\",",
                 "        route(\"/api/lite/v1/sql\", exchange -> { });\n        route(\"/health\",");
         assertEquals(List.of("a route no row lists: /api/lite/v1/runSql (named for a statement)",
-                "PureV1Api.java reads the field sql, which no row declares (a field that can carry SQL)",
+                "LiteV1Api.java reads the field sql, which no row declares (a field that can carry SQL)",
                 "an HTTP route no row lists: /api/lite/v1/sql (named for a statement)"),
                 serverViolations(pureV1, files, http));
     }
@@ -1719,7 +1719,7 @@ class PlannerSurfaceTest {
                 "\"name\", \"description\", \"classes\");"));
         assertEquals(List.of("CreateDataSpace.java reads the field title, which none of the closed routes' only(...)"
                 + " lists admits"),
-                serverViolations(files.get("PureV1Api.java"), files, httpSource()));
+                serverViolations(files.get("LiteV1Api.java"), files, httpSource()));
     }
 
     /** The root doors are closed: every public method of the five listed, by signature, its parameters' kinds. */

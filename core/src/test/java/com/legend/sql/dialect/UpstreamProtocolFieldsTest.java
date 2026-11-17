@@ -8,7 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.legend.model.ConnectionDefinition.DatabaseType;
 import com.legend.json.Json;
-import com.legend.server.PureV1Api;
+import com.legend.server.LiteV1Api;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -243,7 +243,7 @@ class UpstreamProtocolFieldsTest {
     private static Function<String, Outcome> route(String path) {
         return body -> {
             List<String> ran = new ArrayList<>();
-            PureV1Api.Answer a = com.legend.edge.PureV1Routes.route("/api/pure/v1/" + path, null, body, (query, runtime, output) ->
+            LiteV1Api.Answer a = com.legend.edge.PureV1Routes.route("/api/pure/v1/" + path, null, body, (query, runtime, output) ->
                     ran.addAll(InjectionFuzzTest.statements(com.legend.executionplan.PlanJson.write(
                             query.executionPlan(runtime)))));
             List<String> all = new ArrayList<>(statements(a.json()));
@@ -252,9 +252,9 @@ class UpstreamProtocolFieldsTest {
         };
     }
 
-    private static Function<String, Outcome> answer(Function<String, PureV1Api.Answer> door) {
+    private static Function<String, Outcome> answer(Function<String, LiteV1Api.Answer> door) {
         return body -> {
-            PureV1Api.Answer a = door.apply(body);
+            LiteV1Api.Answer a = door.apply(body);
             return new Outcome(a.status(), a.json(), statements(a.json()));
         };
     }
@@ -341,7 +341,7 @@ class UpstreamProtocolFieldsTest {
 
     /** Whether a route's refusal is lite's NAMED one (the C4 audit's M3, 2026-11-13): its refusal of the text, with an
      *  errorType (PARSER or COMPILATION: a LegendCompileException, a NotImplementedException, a DialectCapability, as
-     *  {@code PureV1Api.answer} writes it); a malformed request said as one, an IllegalArgumentException's words (the
+     *  {@code LiteV1Api.answer} writes it); a malformed request said as one, an IllegalArgumentException's words (the
      *  server's answer for a request it cannot read, never logged as a bug); or upstream's own text for a test-data
      *  generation given no row identifiers (R3 of B2d.3, as the engine answers it). A 500 of any other class is a bug. */
     static boolean refusedByName(Outcome o) {

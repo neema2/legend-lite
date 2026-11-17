@@ -26,9 +26,6 @@ final class PureOnlyText {
                         + " of a relation", "the product writes a relation's rows by its result writers (JSON, CSV, "
                         + "Arrow)");
             }
-            if (e instanceof SqlExpr.Call c && c.fn() == SqlFn.INSTANCE_TEXT) {
-                throw refused("toString of an instance", "the product writes an object by graph fetch");
-            }
             return super.expr(e);
         }
 

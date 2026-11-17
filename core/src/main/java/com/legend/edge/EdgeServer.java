@@ -5,7 +5,7 @@ package com.legend.edge;
 
 import com.legend.queries.SavedQueries;
 import com.legend.server.LegendHttpServer;
-import com.legend.server.PureV1Api;
+import com.legend.server.LiteV1Api;
 
 import java.io.IOException;
 import java.util.List;
@@ -36,16 +36,16 @@ public final class EdgeServer {
      *  to {@code sources} as the server's own runner fences them. */
     public static Shipped runner(@com.legend.base.Nullable String sources) {
         return (query, runtime, output) -> com.legend.Execution.runOnProjectDatabases(query, runtime, sources,
-                PureText.UPSTREAM, output);
+                PureText.PURE_V1, output);
     }
 
     /** The shipped route's runner, by its type: what an edge golden net that claims to record pure/v1 must run
      *  ({@code PureV1EdgeGoldenTest}; the orchestrator's condition 2 on F31, 2026-11-17). */
-    public interface Shipped extends PureV1Api.Runner {
+    public interface Shipped extends LiteV1Api.Runner {
     }
 
     /** {@code /api/pure/v1/...}: POST only, as upstream serves it. */
-    static LegendHttpServer.Routes pureV1(PureV1Api.Runner runner) {
+    static LegendHttpServer.Routes pureV1(LiteV1Api.Runner runner) {
         return new LegendHttpServer.Routes() {
             @Override
             public String prefix() {
@@ -53,10 +53,10 @@ public final class EdgeServer {
             }
 
             @Override
-            public PureV1Api.Answer answer(String method, String path, @com.legend.base.Nullable String rawQuery,
+            public LiteV1Api.Answer answer(String method, String path, @com.legend.base.Nullable String rawQuery,
                     String body) {
                 if (!"POST".equals(method)) {
-                    return new PureV1Api.Answer(405, "{\"error\":\"Method not allowed\"}");
+                    return new LiteV1Api.Answer(405, "{\"error\":\"Method not allowed\"}");
                 }
                 return PureV1Routes.route(path, rawQuery, body, runner);
             }
@@ -72,9 +72,9 @@ public final class EdgeServer {
             }
 
             @Override
-            public PureV1Api.Answer answer(String method, String path, @com.legend.base.Nullable String rawQuery,
+            public LiteV1Api.Answer answer(String method, String path, @com.legend.base.Nullable String rawQuery,
                     String body) {
-                return new PureV1Api.Answer(200, "\"" + SavedQueries.ANONYMOUS + "\"");
+                return new LiteV1Api.Answer(200, "\"" + SavedQueries.ANONYMOUS + "\"");
             }
         };
     }

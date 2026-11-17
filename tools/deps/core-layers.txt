@@ -86,7 +86,9 @@ builtin	base door error model parser protocol
 platform	base builtin error model
 compiler_element_type	base builtin model platform protocol sql
 sql_dialect	base sql
-database	base error model sql_dialect
+# 2026-11-17 (B7, the pure/v1 match-engine build): `database` names `sql` directly -- PlanStyle.plainRaises answers a
+# set of sql.RaiseKind; it reached `sql` through `sql_dialect` already, so no new reach.
+database	base error model sql sql_dialect
 # 2026-11-15 (C5-J's last round, A1, the embedded languages' readers): `compiler` reaches `door` -- an island's text
 # (#SQL, #IQ, #TS, #Cypher) is read through the parse doors (door.Parse), each asking the run's wall first; the readers
 # sit in `protocol`, which cannot ask (invariant 7b). `compiler` reached `door` through `builtin` already.
@@ -130,9 +132,9 @@ exec_program	base error exec execution_plan result
 # 2026-11-16 (W9's planner half, docs/records/d-plan-2026-11-16.md): builtin lineage lowering platform resolver setup --
 # legend-engine's plan text (edge.EnginePlans, EngineAllocations) moved from the planner lowers and renders a query in
 # the engine's text through the product's lowering, its natives' catalog, its scan relations and its DDL generator
-edge	arrow_ipc base builtin compiler compiler_element_type database door error execution_plan json lineage lowering model parser plan planner platform protocol pure_v1 resolver result setup sql sql_dialect test_plan testdatagen testplan values
+edge	arrow_ipc base builtin compiler compiler_element_type database door error execution_plan json lineage lite_v1 lowering model parser plan planner platform protocol resolver result setup sql sql_dialect test_plan testdatagen testplan values
 # 2026-11-16 (the P2 checkpoint audit's M2): edge_store_words -- legend-engine's query-store sentences, their own target
-edge_server	base edge edge_store_words execution pure_v1 saved_queries server_lib
+edge_server	base edge edge_store_words execution lite_v1 saved_queries server_lib
 edge_store_words	saved_queries
 # 2026-11-15 (phase D's D1.4): legend-engine's service tests at the edge, the runner and its PURE_TDSOBJECT writer
 # 2026-11-16 (W8 of docs/records/d-plan-2026-11-16.md): edge_service_tests reaches edge -- PureV1Writer moved there
@@ -170,7 +172,10 @@ planner	base builtin cache compiler compiler_element_type database door error ex
 # 2026-11-15 (C5-J item 1, the Java lock-down): `pure_v1` reaches `door` -- its parses through the parse doors
 # (door.Parse), each asking the run's wall before the parser runs.
 # 2026-11-15 (main 0c9032f56 merged into claude/total-wall-e, E): `edge` reaches `door` -- pure/v1's grammar routes, moved to the edge by D1.0b, parse through the parse door as C5-J item 1 made pure_v1's do.
-pure_v1	arrow_ipc base compiler compiler_element_type database door error execution_plan json model parser plan planner protocol result sql sql_dialect testdatagen
+# 2026-11-17 (B7 of the separation census, D's split by content): `pure_v1` is `lite_v1` -- the product's API kit
+# (server/LiteV1Api, lite's own routes, answer and refusal kinds); legend-engine's ExecuteInput binding moved to the edge
+# (edge.ExecuteInputs). The same reach, renamed.
+lite_v1	arrow_ipc base compiler compiler_element_type database door error execution_plan json model parser plan planner protocol result sql sql_dialect testdatagen
 # 2026-10-29, the doors, door 1 (docs/RESULT_BOUNDARY_START_HERE.md §4; the decisions log D63): driver reaches `json` -- the
 # body driver writes a graph fetch's objects as host rows, one per object of the array the database built (BodyDriver.host).
 # 2026-11-09 (docs/PLAN_AS_DATA_2026_11_07.md section 11, slice 5): `driver` deleted. Its planning classes are
@@ -203,4 +208,4 @@ test	base compiler error exec execution_plan json model planner protocol result 
 saved_queries	base json
 # 2026-11-09 (the full audit): `server_lib` reaches no runtime library -- the server hands pure/v1 the product door;
 # `cache`, `lowering` and `setup` were declared and unused.
-server_lib	base compiler compiler_element_type database error execution execution_plan json model parser plan planner protocol pure_v1 result saved_queries sql_dialect
+server_lib	base compiler compiler_element_type database error execution execution_plan json lite_v1 model parser plan planner protocol result saved_queries sql_dialect

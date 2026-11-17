@@ -83,6 +83,15 @@ public final class PureText {
             return facet(kind);
         }
 
+        /** The edge's form of each declared two-form kind (none declared yet: the kinds arrive with their families,
+         *  census B9's DateTime and F's TEXT_FORMS); a kind outside the closed list is refused by name. */
+        @Override
+        public <F> F twoForm(Class<F> kind, F productForm) {
+            java.util.Objects.requireNonNull(productForm, "a two-form hook's product form");
+            throw new com.legend.error.NotImplementedException("the two-form kind " + kind.getName()
+                    + " is none of the declared kinds (com.legend.testplan.PlanStyleFacets.TWO_FORMS)");
+        }
+
 
 
         /** legend-engine's key argument: the date's written text, {@code +0000} after a time (D1.2). */
@@ -108,6 +117,85 @@ public final class PureText {
         @Override
         public TraceCell traceCell() {
             return new TraceCell("-- \"executionTraceID\" : \"", "\"");
+        }
+
+        /** PCT and the corpus keep legend-pure's guarded words: no raise written plain (B7, 2026-11-17). */
+        @Override
+        public java.util.Set<com.legend.sql.RaiseKind> plainRaises() {
+            return java.util.Set.of();
+        }
+    };
+
+    /** CENSUS CLASS A (docs/records/pure-v1-engine-census-2026-11-17.md): the kinds legend-engine 4.145.0's pure/v1
+     *  route writes no check for in its SQL -- the database decides (rem's and divide's {@code mod} and {@code /},
+     *  {@code sqrt}, the shifts, {@code toOne}'s {@code processNoOp}, {@code slice}, {@code range}, {@code processCast},
+     *  the parses' plain casts). */
+    static final java.util.Set<com.legend.sql.RaiseKind> ENGINE_UNCHECKED = java.util.Collections.unmodifiableSet(
+            java.util.EnumSet.of(com.legend.sql.RaiseKind.DIVIDE_BY_ZERO, com.legend.sql.RaiseKind.SQRT_OF_NEGATIVE,
+                    com.legend.sql.RaiseKind.SHIFT_OUT_OF_RANGE, com.legend.sql.RaiseKind.SIZE_NOT_MULTIPLICITY,
+                    com.legend.sql.RaiseKind.SLICE_BOUNDS_INVERTED, com.legend.sql.RaiseKind.RANGE_STEP_ZERO,
+                    com.legend.sql.RaiseKind.CAST_IMPOSSIBLE, com.legend.sql.RaiseKind.TEXT_NOT_INTEGER,
+                    com.legend.sql.RaiseKind.TEXT_NOT_FLOAT, com.legend.sql.RaiseKind.TEXT_NOT_DATE));
+
+    /** THE PURE/V1 ROUTE'S STYLE (B7, the user's ruling of 2026-11-17: pure/v1 matches legend-engine): {@link #UPSTREAM}
+     *  in every dialect and facet, but a raise legend-engine writes no check for ({@link #ENGINE_UNCHECKED}) is the plain
+     *  operation, the database's own error passing through. Handed by the pure/v1 routes alone ({@link PureV1Routes},
+     *  {@link EdgeServer#runner}); PCT and the corpus keep {@link #UPSTREAM}. */
+    public static final PlanStyle PURE_V1 = new PlanStyle() {
+        @Override
+        public SqlDialect dialect(DatabaseType type) {
+            return UPSTREAM.dialect(type);
+        }
+
+        @Override
+        public String activitySql(Activity activity) {
+            return UPSTREAM.activitySql(activity);
+        }
+
+        @Override
+        public @com.legend.base.Nullable TraceCell traceCell() {
+            return UPSTREAM.traceCell();
+        }
+
+        @Override
+        public String graphKeyDate(String written) {
+            return UPSTREAM.graphKeyDate(written);
+        }
+
+        @Override
+        public String graphKeyString(String value) {
+            return UPSTREAM.graphKeyString(value);
+        }
+
+        @Override
+        public @com.legend.base.Nullable String errorWords(RuntimeException e) {
+            return UPSTREAM.errorWords(e);
+        }
+
+        @Override
+        public @com.legend.base.Nullable String siteWords(com.legend.sql.dialect.RaiseSite site) {
+            return UPSTREAM.siteWords(site);
+        }
+
+        @Override
+        public <F> F facet(Class<F> kind) {
+            return UPSTREAM.facet(kind);
+        }
+
+        @Override
+        public <F> F facet(Class<F> kind, java.util.function.Supplier<? extends RuntimeException> refusal) {
+            return UPSTREAM.facet(kind, refusal);
+        }
+
+        /** UPSTREAM's form of each two-form hook: pure/v1 differs from it in its plain raises alone. */
+        @Override
+        public <F> F twoForm(Class<F> kind, F productForm) {
+            return UPSTREAM.twoForm(kind, productForm);
+        }
+
+        @Override
+        public java.util.Set<com.legend.sql.RaiseKind> plainRaises() {
+            return ENGINE_UNCHECKED;
         }
     };
 

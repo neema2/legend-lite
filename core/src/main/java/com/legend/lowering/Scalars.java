@@ -60,12 +60,6 @@ final class Scalars {
         }
     }
 
-    /** The plan style's text facets a STYLED rule reads (the separation census's B8 (i), 2026-11-17): each asked
-     *  with the call's own refusal, the product's style throwing it. Handed in by the Lowerer, never held. */
-    record Styled(java.util.function.Function<java.util.function.Supplier<? extends RuntimeException>, PureOnlyTexts>
-            pureOnly) {
-    }
-
     /** A rule that reads the plan style's text facets ({@link Styled}): reached only through {@link #lower}. */
     interface StyledRule extends Rule {
         SqlExpr styled(TypedNativeCall call, List<SqlExpr> args, Styled styled);
@@ -432,10 +426,14 @@ final class Scalars {
                 Pure.AT_MATH_BIT_SHIFT_RIGHT, SqlFn.BIT_SHIFT_RIGHT).entrySet()) {
             SqlFn fn = shift.getValue();
             for (com.legend.model.FunctionId f : shift.getKey()) {
-                RULES.put(f, (n, args) -> {
+                RULES.put(f, (StyledRule) (n, args, styled) -> {
                     SqlExpr shifted = SqlExpr.Call.of(fn,
                             new SqlExpr.Cast(args.get(0), SqlType.Scalar.BIGINT, SqlExpr.Reason.OPERATOR),
                             args.get(1));
+                    if (styled.plain().contains(com.legend.sql.RaiseKind.SHIFT_OUT_OF_RANGE)) {
+                        // the plan style writes the shift plain (B7): the database's own shift, no bound
+                        return shifted;
+                    }
                     SqlExpr boundError = SqlExpr.Call.of(SqlFn.ERROR,
                             new SqlExpr.RaiseText(com.legend.sql.RaiseKind.SHIFT_OUT_OF_RANGE, List.of()));
                     if (args.get(1) instanceof SqlExpr.IntLit sh) {
@@ -459,12 +457,12 @@ final class Scalars {
             // Decimal kind preservation lives in DecimalKindRules
             // (X-audit); the integer÷integer zero guard lives there too
             // (Part-1 fix — pure's BigDecimal lane raises)
-            RULES.put(f, DecimalKindRules::divide);
+            RULES.put(f, (StyledRule) DecimalKindRules::divide);
         }
         family(SqlFn.MOD, Pure.AT_MATH_MOD);
         // rem(a, 0): real pure raises 'Cannot divide 5 by zero'
         for (com.legend.model.FunctionId f : Pure.AT_MATH_REM) {
-            RULES.put(f, (n, rawArgs) -> {
+            RULES.put(f, (StyledRule) (n, rawArgs, styled) -> {
                 var args = decimalJoin(rawArgs);
                 if (args.get(1) instanceof SqlExpr.IntLit lit && lit.value() != 0) {
                     // a literal divisor that is not zero: no guard to raise (the Cypher island's x % 2 inside a
@@ -477,7 +475,7 @@ final class Scalars {
                 return guarded(
                         SqlExpr.Call.of(SqlFn.EQUAL, args.get(1), new SqlExpr.IntLit(0)),
                         new SqlExpr.RaiseText(com.legend.sql.RaiseKind.DIVIDE_BY_ZERO, List.of(args.get(0))),
-                        new SqlExpr.Call(SqlFn.REM, args));
+                        new SqlExpr.Call(SqlFn.REM, args), styled);
             });
         }
         family(SqlFn.ABS, Pure.AT_MATH_ABS);
@@ -999,7 +997,7 @@ final class Scalars {
         // 2026-11-15: CELL_TEXT), legend-engine's 'TDSNull' cell the
         // compatibility edge's.
         for (com.legend.model.FunctionId f : Pure.AT_STRING_MAKE_STRING) {
-            RULES.put(f, (n, args) -> {
+            RULES.put(f, (StyledRule) (n, args, styled) -> {
                 SqlExpr sep = args.size() == 2 ? args.get(1)
                         : args.size() == 4 ? args.get(2) : new SqlExpr.StringLit("");
                 // LIST position, WRAP-BY-STAMP (burn-to-zero): stamps
@@ -1019,7 +1017,7 @@ final class Scalars {
                 if (mixed != null) {
                     // a mixed list (track L): each element printed as its kind
                     strs = SqlExpr.Call.of(SqlFn.LIST_TRANSFORM, mixed.positions(),
-                            new SqlExpr.Lambda(List.of("_tlp"), pureToString(Type.Primitive.STRING,
+                            new SqlExpr.Lambda(List.of("_tlp"), pureToString(styled, Type.Primitive.STRING,
                                     mixed.element(SqlExpr.Column.derived(null, "_tlp")))));
                 } else {
                     SqlExpr coll = PureSql.asList(args.get(0),
@@ -1750,7 +1748,7 @@ final class Scalars {
             // a USER's toRepresentation: legend-pure's text, the edge's (the user's ruling of 2026-11-16, §10 item 8:
             // "refuse in product but not in compatibility"); the style's facet asked with the product's refusal (B8 (i))
             RULES.put(f, (StyledRule) (n, args, styled) -> styled.pureOnly().apply(TextRefusals::representation)
-                    .representation(Repr.of(n.args().get(0).info().type(), args.get(0))));
+                    .representation(Repr.of(styled, n.args().get(0).info().type(), args.get(0))));
         }
         // chunk(s, n): fixed-size chunking IS the regex '.{1,n}' swept
         // globally (chunk.pure spec: 'abcdefghijklmnop'->chunk(5) =
@@ -1918,13 +1916,13 @@ final class Scalars {
         // DOMAIN guards RAISED IN SQL with real pure's messages (error()
         // runs in the database — literal AND runtime values alike).
         for (com.legend.model.FunctionId f : Pure.AT_MATH_SQRT) {
-            RULES.put(f, (n, args) -> {
+            RULES.put(f, (StyledRule) (n, args, styled) -> {
                 SqlExpr x = new SqlExpr.Cast(args.get(0), SqlType.Scalar.DOUBLE, SqlExpr.Reason.OPERATOR);
                 return guarded(
                         SqlExpr.Call.of(SqlFn.LESS, x, new SqlExpr.IntLit(0)),
                         // the value, the edge's sentence's operand, printed there as Pure prints a Float (D1.1)
                         new SqlExpr.RaiseText(com.legend.sql.RaiseKind.SQRT_OF_NEGATIVE, List.of(x)),
-                        SqlExpr.Call.of(SqlFn.SQRT, args.get(0)));
+                        SqlExpr.Call.of(SqlFn.SQRT, args.get(0)), styled);
             });
         }
         family(SqlFn.BIT_NOT, Pure.AT_MATH_BIT_NOT);
@@ -2352,7 +2350,7 @@ final class Scalars {
         // (2014-01-01T00:00:00.000+0000) — SQL's VARCHAR cast uses a space
         // separator and no offset. Other types keep the plain cast.
         for (com.legend.model.FunctionId f : com.legend.model.FunctionId.all(Pure.AT_RELATION_TO_STRING, Pure.AT_STRING_TO_STRING)) {
-            RULES.put(f, (n, args) -> {
+            RULES.put(f, (StyledRule) (n, args, styled) -> {
                 Type t = n.args().get(0).info().type();
                 // A LATE-BOUND grid cell read (Phase 1c) is PHYSICAL —
                 // present it as the map-binder scalar cell (the
@@ -2377,7 +2375,7 @@ final class Scalars {
                 if (t == Type.Primitive.FLOAT) {
                     return floatRepr(args.get(0));
                 }
-                return pureToString(t, args.get(0));
+                return pureToString(styled, t, args.get(0));
             });
         }
         // isDistinctFrom (DEEP_AUDIT §5k) = SQL IS DISTINCT FROM; pure's 1-arg isDistinct
@@ -2532,10 +2530,10 @@ final class Scalars {
         // truncates; 2026-10-17, the IQ island's scale)
         for (com.legend.model.FunctionId f : Pure.AT_LEGEND_LITE_QUOTIENT) {
             // a zero divisor raises as rem's does (DIVIDE_BY_ZERO, the dividend its operand): DuckDB's // gives NULL
-            RULES.put(f, (n, args) -> guarded(
+            RULES.put(f, (StyledRule) (n, args, styled) -> guarded(
                     SqlExpr.Call.of(SqlFn.EQUAL, args.get(1), new SqlExpr.IntLit(0)),
                     new SqlExpr.RaiseText(com.legend.sql.RaiseKind.DIVIDE_BY_ZERO, List.of(args.get(0))),
-                    SqlExpr.Call.of(SqlFn.INT_DIVIDE, args.get(0), args.get(1))));
+                    SqlExpr.Call.of(SqlFn.INT_DIVIDE, args.get(0), args.get(1)), styled));
         }
         for (com.legend.model.FunctionId f : Pure.AT_LEGEND_LITE_INSTANT_IN) {
             RULES.put(f, (n, args) -> new SqlExpr.Call(SqlFn.TIMEZONE, List.of(new SqlExpr.StringLit("UTC"),
@@ -2849,15 +2847,15 @@ final class Scalars {
      */
     /** Package-visible for the RENDER phase (F4.2): the CSV cell rule is
      *  {@code toString()->escapeCSVString()} — one print form, one owner. */
-    static SqlExpr pureToString(Type t, SqlExpr x) {
+    static SqlExpr pureToString(Styled styled, Type t, SqlExpr x) {
         if (x instanceof SqlExpr.TaggedList tl) {
-            return TaggedLists.print(tl);   // a mixed list prints as Pure's [e1, e2, ...], each as its kind (track L)
+            return TaggedLists.print(styled, tl);   // a mixed list prints as Pure's [e1, e2, ...], each as its kind (track L)
         }
         if (x instanceof SqlExpr.Tagged tg) {
             // a mixed selection's winner prints as the candidate it is, each by its own static kind; a Decimal with
             // its D, as the spelling carrier's print form kept it (LiteralSpelling.printForm: "D-decimals")
             return MixedEncoding.perCandidate(tg, (k, v) -> k == Type.Primitive.DECIMAL
-                    ? LiteralSpelling.decimalPrintD(v) : pureToString(k, v));
+                    ? LiteralSpelling.decimalPrintD(v) : pureToString(styled, k, v));
         }
         if (t == Type.Primitive.FLOAT) {
             return floatRepr(x);
@@ -2953,7 +2951,7 @@ final class Scalars {
         // their own arm), never an instance struct
         if (t instanceof Type.ClassType && Type.schemaView(t) == null
                 && InstanceEquality.userClass(t)) {
-            return SqlExpr.Call.of(SqlFn.INSTANCE_TEXT, CanonicalRenderSql.trackedId(x));
+            return styled.pureOnly().apply(TextRefusals::instanceText).instanceText(CanonicalRenderSql.trackedId(x));
         }
         if ((Type.schemaView(t) != null && !scalarCell)
                 || com.legend.compiler.element.type.PlatformTypes
@@ -3041,6 +3039,12 @@ final class Scalars {
     }
 
     /** {@code CASE WHEN cond THEN error(msg) ELSE value END} — a DATABASE-raised guard. */
+    /** {@link #guarded(SqlExpr, SqlExpr.RaiseText, SqlExpr)} under the plan style ({@code PlanStyle.plainRaises}, B7,
+     *  2026-11-17): a kind the style writes plain is the operation alone, the database's own error passing through. */
+    static SqlExpr guarded(SqlExpr cond, SqlExpr.RaiseText msg, SqlExpr value, Styled styled) {
+        return styled.plain().contains(msg.kind()) ? value : guarded(cond, msg, value);
+    }
+
     static SqlExpr guarded(SqlExpr cond, SqlExpr.RaiseText msg, SqlExpr value) {
         return new SqlExpr.Case(List.of(new SqlExpr.Case.When(cond,
                 SqlExpr.Call.of(SqlFn.ERROR, msg))), value, SqlExpr.Reason.RAISE);
@@ -3463,7 +3467,7 @@ final class Scalars {
             if (d == 'r') {
                 // legend-pure's representation, the judges' Repr: the assert bodies' messages write it, so it moves
                 // with the judges (D1.9; the product's own refusal waits for it, 2026-11-15)
-                spread.set(argIdx, Repr.of(typed, spread.get(argIdx)));
+                spread.set(argIdx, Repr.of(styled, typed, spread.get(argIdx)));
                 out.append("%s");
                 argIdx++;
                 i += 2;
@@ -3507,7 +3511,7 @@ final class Scalars {
             if (d == 's' && typed != null && typed.info().type() instanceof Type.Primitive p
                     && (p == Type.Primitive.INTEGER || p == Type.Primitive.FLOAT || p == Type.Primitive.DECIMAL
                             || p == Type.Primitive.NUMBER)) {
-                spread.set(argIdx, pureToString(p, spread.get(argIdx)));
+                spread.set(argIdx, pureToString(styled, p, spread.get(argIdx)));
                 out.append("%s");
                 argIdx++;
                 i += 2;

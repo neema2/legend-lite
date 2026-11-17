@@ -162,9 +162,10 @@ class CompatSpellingGuardTest {
             // lowering/JsonEmission.java | tdsBuilder: GONE 2026-11-17 (Phase 6's B5): legend-engine's result envelope is
             // the edge's (edge.EngineResultEnvelopes, the lowering.ResultEnvelopes facet), refused by the product at LOWER
             // 7 -> 6 (2026-11-17, F's separation census line B11): the dead pair dateTimeLiteral / dateTimePrint (no
-            // caller) deleted. What stays: the TDS text's (dateTimeTextTds, dateTimeTextOfText x2: F's B17, moved with
-            // Render's relation text) and the judges' canon (temporalCanon x2, dateTimeLiteralAt: census line C5, E-Java's)
-            "lowering/LiteralSpelling.java | +0000 | 6 | D1.9",
+            // caller) deleted. 6 -> 3 (2026-11-17, B17's forwarders: dateTimeTextTds and dateTimeTextOfText, which only a
+            // relation's text wrote, moved to edge.RelationTextLowering). What stays: the judges' canon (temporalCanon x2,
+            // dateTimeLiteralAt: census line C5, E-Java's)
+            "lowering/LiteralSpelling.java | +0000 | 3 | D1.9",
             // FLOAT_PRINT, reclassified D1.2 -> JUDGE 2026-11-15 (phase D's D1.2): the product's text of a Float is
             // FLOAT_TO_TEXT, lite's six decimals (register S311); FLOAT_PRINT, legend-pure's print form, stays in each
             // product dialect as the JUDGES' %r of a Float in an assert's message (lowering/Repr: the database judge
@@ -238,7 +239,7 @@ class CompatSpellingGuardTest {
             // formats. traceComment 1 -> 2 and executionTraceID +1 (2026-11-15): the trace comment's method moved here
             // from ExecutionPlan (its two rows gone above), the engine answer's activity its one Java reader
             // result/Output.java and result/PureV1Writer.java rows: gone 2026-11-16 (W8): legend-engine's writer is the
-            // edge's (edge.PureV1Writer), written through Output.Rows by edge.EngineAnswers; server/PureV1Api.java's
+            // edge's (edge.PureV1Writer), written through Output.Rows by edge.EngineAnswers; server/LiteV1Api.java's
             // PureV1Writer 17 gone with it (its host answer halves are edge.HostAnswers)
             // result/TdsObjectsWriter.java (TdsObjectsWriter 2, presentedName 1) and test/ServiceTestRunner.java
             // (PureV1Writer 1, TdsObjectsWriter 1): gone 2026-11-15 (D1.4: legend-engine's service tests and their
