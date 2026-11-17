@@ -31,6 +31,7 @@ public enum ErrorKind {
     MAP_KEY_NULL("map key is null"),
     MAP_KEYS_NOT_UNIQUE("map keys are not unique"),
     TEXT_NOT_INTEGER("text is not an integer"),
+    TEXT_NOT_FLOAT("text is not a float"),
     TEXT_NOT_DATE("text is not a date"),
     VALUE_NOT_HELD("the value is outside the range this database can hold"),
     FRACTION_NOT_KEPT("more fraction digits than this database keeps"),
@@ -38,7 +39,21 @@ public enum ErrorKind {
     WINDOW_FRAME_INVERTED("window frame starts after it ends"),
     WINDOW_FRAME_OFFSET_INVALID("window frame offset is negative or empty"),
     /** {@code fail(message)}: the user's own message is the error's text; this word only where none was given. */
-    USER_FAIL("fail");
+    USER_FAIL("fail"),
+    /** A failure the database raised with no site of lite's (phase D's Phase 2, item 4, 2026-11-16; the user's ruling:
+     *  "I'm good with database only giving the database message too"): its message is the database's own, verbatim,
+     *  carried as the database's ({@link DataError#databaseMessage}), its SQLSTATE where the driver gives one. Not a
+     *  raise kind: no statement writes it. */
+    DATABASE_ERROR("the database refused the statement"),
+    /** A session that could not be opened, or a connection lost (a driver's SQLSTATE class 08): the database's own
+     *  message, as {@link #DATABASE_ERROR}'s. Not a raise kind. */
+    CONNECTION_ERROR("the connection to the database failed");
+
+    /** Whether the kind is the database's own failure ({@link #DATABASE_ERROR}, {@link #CONNECTION_ERROR}), never a
+     *  raise a statement writes. */
+    public boolean isDatabases() {
+        return this == DATABASE_ERROR || this == CONNECTION_ERROR;
+    }
 
     private final String sentence;
 

@@ -77,6 +77,14 @@ class RuntimeTypeDispatchTest {
         conn.close();
     }
 
+    /** The kind of the site {@code e} raised, read through {@code statement}'s sites as exec reads it. */
+    private static com.legend.sql.RaiseKind raisedKind(SQLException e,
+            com.legend.sql.dialect.RenderedStatement statement) {
+        var raised = (com.legend.exec.RaisedErrors.Raised) com.legend.exec.RaisedErrors.unwrapped(e,
+                com.legend.planner.PlanMaker.sites(statement.sites()));
+        return raised.kind();
+    }
+
     private static String sqlOf(String query) {
         return ResolvedSql.of(MODEL, query);
     }
@@ -125,11 +133,12 @@ class RuntimeTypeDispatchTest {
     @Test
     @DisplayName("match: no arm accepts the row's run-time type — raises like pure")
     void matchNoArmRaises() {
-        String sql = sqlOf("|rt::Vehicle.all()->project([v|$v->match(["
+        var statement = ResolvedSql.statement(MODEL, "|rt::Vehicle.all()->project([v|$v->match(["
                 + "c:rt::Car[1]|$c.engineType])], ['e'])" + FROM);
-        SQLException e = assertThrows(SQLException.class, () -> exec(sql));
-        // the product's raise is its kind (W7, 2026-11-16); legend-pure's "Match failure" sentence is the edge's
-        assertTrue(e.getMessage().contains("MATCH_FAILURE"), e.getMessage());
+        SQLException e = assertThrows(SQLException.class, () -> exec(statement.sql()));
+        // the product's raise is its kind (W7, 2026-11-16), read through the statement's sites as exec reads it (phase
+        // D's Phase 2: the database raises the site's token); legend-pure's "Match failure" sentence is the edge's
+        assertEquals(com.legend.sql.RaiseKind.MATCH_FAILURE, raisedKind(e, statement));
     }
 
     @Test
