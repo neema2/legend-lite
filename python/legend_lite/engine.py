@@ -145,6 +145,8 @@ _PLAN_AND_RUN, _PLAN = '/plan-and-run.json', '/plan.json'
 _APPS = ('query', 'studio')
 _CURRENT_USER = '/api/server/v1/currentUser'
 _LITE_API = '/api/lite/v1/'
+# lite's query/run (the spec's §2): a host's own operation -- planned by the product, run on this engine's DuckDB
+_QUERY_RUN = _LITE_API + 'query/run'
 # the planner's answer to the plan a page's rows are of, in their Arrow schema's metadata
 _PLAN_KEY = b'legend.plan'
 # the only places a page's remote file may be read from (remote.json), each as DuckDB's httpfs names it: never this
@@ -544,6 +546,9 @@ class Engine:
             # who a page's caller is: this user (the stores name the same; there is no sign-in)
             return Answer(200, 'application/json', json.dumps(_QUERY_USER).encode('utf-8'))
         if method == 'POST':
+            if path == _QUERY_RUN:
+                # lite's query/run: a host's own (it runs), planned by the product's query/plan, run here
+                return _workers().submit(self._answered, self._query_run, body or '').result()
             if path.startswith(_LITE_API):
                 # LITE'S OWN API, v1 (the spec's §2, §5): one route per operation, its native entry's answer
                 return self._lite_operation(path, body or '')
@@ -605,6 +610,85 @@ class Engine:
         by the product's one rule (``compiler.lite_route``), its planning on the compiler's threads."""
         status, said = _on_compiler_threads(lambda: compiler.lite_route(path, body))
         return Answer(status, 'application/json', said.encode('utf-8'))
+
+    def _query_run(self, body: str) -> Answer:
+        """LITE'S query/run ON PYTHON'S SERVER (the spec's §2, §4; the host train, 2026-11-17): ``{model, query, runtime,
+        params?, format?}`` -- the query's tree planned by the product's query/plan over the model Python holds of that
+        text, its run's values bound at run (``_params.bind``: checked against the plan's declarations, every problem
+        named at once), and run where the model's rows are: the tables this engine serves (a page's frames and files, a
+        snap's copies), else a project's own Data rows in a database of the project's own (C5) -- never one read in the
+        other's place (F28). The answer is ARROW (results stay Arrow on Python: the user's go of 2026-11-17): each
+        column's Pure type its field's ``legend.type``, the answer's shape the stream's ``legend.shape``, as the
+        server's Arrow answer carries them (LiteV1Planning.ShapedArrow); ``format`` ``json`` is refused by name, kind
+        ``unsupported``. A refusal is lite's one error shape, its status by its kind (``compiler.refused_route``)."""
+        def refused(error: LegendError) -> Answer:
+            status, said = compiler.refused_route(error)
+            return Answer(status, 'application/json', said.encode('utf-8'))
+
+        def request(message: str) -> Answer:
+            return refused(LegendError(f'a query/run request {message}', compiler.error_kind('REQUEST')))
+
+        try:
+            asked = _json.loads(body)
+        except ValueError:
+            return request('is JSON')
+        if not isinstance(asked, dict):
+            return request('is a JSON object')
+        unknown = sorted(set(asked) - {'model', 'query', 'runtime', 'params', 'format'})
+        if unknown:
+            return request(f'has no key {", ".join(unknown)}')
+        missing = [k for k in ('model', 'query', 'runtime') if k not in asked]
+        if missing:
+            return request(f'names no {", ".join(missing)}')
+        if not (isinstance(asked['model'], str) and isinstance(asked['query'], dict) and isinstance(asked['runtime'], str)):
+            return request("is {model: a model's text, query: a query's tree, runtime: a runtime's path}")
+        params = asked.get('params', {})
+        if not isinstance(params, dict):
+            return request("names its params by name, a JSON object")
+        form = asked.get('format', 'json')
+        if form not in ('json', 'arrow'):
+            return request(f"runs in the format json or arrow, not {form!r}")
+        if form == 'json':
+            return refused(LegendError("Python answers query/run in Arrow (format arrow): its rows stay Arrow",
+                                       compiler.error_kind('UNSUPPORTED')))
+        plan_asked = {'lambda': _json.dumps(asked['query']), 'runtime': asked['runtime']}
+
+        def run(planned: str, rows_of: Callable[[compiler.Plan], pa.Table]) -> Answer:
+            try:
+                plan = self.planner.read(planned)
+            except LegendError as error:
+                return refused(error)
+            try:
+                rows = rows_of(plan)
+            except (ParametersRefused, PlanParamsRefused) as wrong:
+                return refused(compiler.parameters_refused(str(wrong)))
+            except (duckdb.Error, UntypedColumn) as failure:
+                message = redact_held(f'{type(failure).__name__}: {failure}', self.frames.held_values())
+                return refused(LegendError(message, compiler.error_kind('INTERNAL')))
+            shape = _json.loads(planned[len('OK\n'):])['plan']['root']['shape']
+            rows = rows.replace_schema_metadata({**(rows.schema.metadata or {}), b'legend.shape': shape.encode('utf-8')})
+            sink = pa.BufferOutputStream()
+            with pyarrow.ipc.new_stream(sink, rows.schema) as writer:
+                writer.write_table(rows)
+            return Answer(200, 'application/vnd.apache.arrow.stream', sink.getvalue().to_pybytes())
+
+        try:
+            with self.frames.reading() as read:
+                self._noted(self.frames.models())
+                planned = self.frames.plan_over(asked['model'], lambda held: self.planner.plan(plan_asked['lambda'],
+                                                                                               held, asked['runtime']))
+                if planned is not None:
+                    # a column of the model's own type (an enumeration's) carried, as the server's query/run carries it
+                    return run(planned, lambda plan: read.run(plan, params, model_types=True))
+            with self.projects.using(asked['model'], surface=True) as project:
+                if project is None:
+                    # neither: a model of tables this engine does not serve, with no Data rows of its own (F28)
+                    return refused(LegendError(self._unserved(asked['model']), compiler.error_kind('REQUEST')))
+                planned = self.planner.plan(plan_asked['lambda'], project.held, asked['runtime'])
+                return run(planned, lambda plan: run_plan(project.cursor, plan, (), params, model_types=True))
+        except (ModelRefused, NotAModel) as no_model:
+            # the model's own refusal by the compiler: its kind and where, as the compiler said them
+            return refused(no_model)
 
     def _answered(self, work: Callable[[str], Answer], body: str) -> Answer:
         """A page's planner call answered, never a dropped call: what the call itself does not answer is a bug,

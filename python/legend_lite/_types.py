@@ -25,6 +25,15 @@ def plain_type(name: str) -> str:
     return fact[0]
 
 
+def is_model_type(name: str) -> bool:
+    """A type the MODEL declares -- a class's or an enumeration's path (``demo::types::Country``) -- rather than a
+    primitive of legend-lite's lattice: a column typed so is carried as the driver read it, never converted, as the
+    server reads one (JdbcDecode.byPureType: "a class instance, an enumeration's value, Any: the driver's own kind")
+    and the TS host's typedByPlan carries it (the host train, 2026-11-17: Query's query/run on Python). Only a path
+    names one: a bare name the lattice does not know stays refused (``plain_type``)."""
+    return name not in TYPE_FACTS and '::' in name
+
+
 def is_integer(name: str) -> bool:
     """An Integer, by either compiler's name for one (``precisePrimitives::BigInt`` too)."""
     return plain_type(name) == 'Integer'

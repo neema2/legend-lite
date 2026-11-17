@@ -381,6 +381,31 @@ class TypedByPlan(unittest.TestCase):
         self.assertTrue(pd.isna(out['i'][1]) and pd.isna(out['b'][1]))
 
 
+class ModelTypesCarried(unittest.TestCase):
+    """lite's query/run (``model_types``) carries a column the plan types with the MODEL's own type -- an
+    enumeration's path, a class's -- as the driver read it, never converted (the server's JdbcDecode.byPureType; the
+    host train, 2026-11-17: Query's query/run on Python over a project with an enumeration); a bare name the lattice
+    does not know is still refused, and without ``model_types`` (DataCube's frames) a model's type is refused too
+    (TypedByPlan's pin)."""
+
+    def test_an_enumerations_column_is_carried_and_a_bare_unknown_name_refused(self):
+        from legend_lite._plans import Column, Plan
+        from legend_lite._planned import PlannedSql
+        from legend_lite._reads import UntypedColumn, typed_by_plan
+        rows = pa.table({'Country': ['US', None]})
+
+        def plan(type_):
+            return Plan(PlannedSql('SELECT 1'), (Column('Country', type_, {'name': 'Country', 'type': type_}),))
+
+        typed = typed_by_plan(rows, plan('demo::types::Country'), model_types=True)
+        self.assertEqual((typed.column('Country').to_pylist(), typed.schema.field('Country').metadata[b'legend.type']),
+                         (['US', None], b'demo::types::Country'))
+        with self.assertRaisesRegex(UntypedColumn, "'Countri'"):
+            typed_by_plan(rows, plan('Countri'), model_types=True)
+        with self.assertRaisesRegex(UntypedColumn, "'demo::types::Country'"):
+            typed_by_plan(rows, plan('demo::types::Country'))
+
+
 class TypeNamesAreReadHere(unittest.TestCase):
     """A column's type is read in one place (legend_lite/_types.py, over the generated _type_facts.py), as DataCube's
     guardrails test holds engine-client's types.ts the one: no other module of the package spells a type's name to
