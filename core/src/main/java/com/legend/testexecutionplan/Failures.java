@@ -28,7 +28,7 @@ public final class Failures {
     /** {@link #of(RuntimeException, String)}, its message as {@code message} words it (a plan style's words of the
      *  error, {@code PlanStyle.errorWords}: 2026-11-16). */
     public static Failure of(RuntimeException e, String where, @Nullable String message) {
-        Failure.Kind kind = Failure.Kind.named(e.getClass().getName());
+        Failure.Kind kind = e instanceof Failure.Kinded k ? k.failureKind() : Failure.Kind.named(e.getClass().getName());
         if (kind == null) {
             throw new IllegalStateException("a planning failure of a class the test plan does not name ("
                     + e.getClass().getName() + ", planned at " + where + "): " + e.getMessage(), e);
