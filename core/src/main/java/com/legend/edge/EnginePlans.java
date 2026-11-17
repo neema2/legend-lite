@@ -164,10 +164,9 @@ public final class EnginePlans {
                 t -> com.legend.compiler.element.ClassLayouts.layoutOf(env.ctx(), t),
                 f -> env.ctx().findClass(f).isPresent(), env.ctx().implementations())
                 .withFeatures(BodyPlanner.featuresOf(env, body)).withOptions(env.options()).withShape(UPSTREAM_SHAPE)
-                .withFloatLiteralKind(env::floatLiteralKind)
-                // the plan environment's style's text facets and plain raises (the audit's K6, 2026-11-17: until then
-                // this lowering ran with the Lowerer's implicit product default)
-                .withStyled(env.styled());
+                // and the plan environment's style's text facets and plain raises (the audit's K6, 2026-11-17: until
+                // then this lowering ran with the Lowerer's implicit product default)
+                .withFloatLiteralKind(env::floatLiteralKind).withStyled(env.styled());
         if (!temporalRoot) {
             lw = lw.withExistsAsJoinDistinct();
         }
