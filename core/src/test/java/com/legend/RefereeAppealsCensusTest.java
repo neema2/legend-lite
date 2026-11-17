@@ -34,30 +34,20 @@ class RefereeAppealsCensusTest {
 
     /** The referee and the appeals (their own files under {@link #MAIN}). */
     static final Map<String, String> CLASSES = Map.of(
-            "SqlReplayReferee", "testexec/SqlReplayReferee.java",
-            "Appeals", "testexec/Appeals.java",
-            "Appeal", "testexecutionplan/Appeal.java",
-            "PlannedAppeals", "testexecutionplan/PlannedAppeals.java",
+            "SqlReplayReferee", "edge/SqlReplayReferee.java",
+            "Appeals", "edge/Appeals.java",
+            "Appeal", "edge/Appeal.java",
+            "PlannedAppeals", "edge/PlannedAppeals.java",
             "AppealsByVerdict", "testplan/AppealsByVerdict.java",
             "EngineTextAppeals", "testplan/EngineTextAppeals.java");
 
-    /** Each class's product reachers outside the edge, measured on d-stage 885328d0 (2026-11-17): the census line C2's
-     *  named entries, each burning down as the move lands. */
+    /** Each class's product reachers outside the edge: NONE (2026-11-17, census C2 closed -- the referee and the
+     *  appeals moved to com.legend.edge, the run reaching them through the run hook EdgeRun in the referee's slot, the
+     *  planner holding the edge's records by number, opaque; AppealsByVerdict and EngineTextAppeals are gone, their
+     *  generic bookkeeping the product's NumberedExtensions). Shrink-only: any reacher is a regression. */
     static final Map<String, Set<String>> REACHERS = Map.of(
-            "SqlReplayReferee", Set.of("TestExecution.java", "test/PureTestRunner.java", "test/TestObserver.java",
-                    "testexec/SqlTextRuns.java", "testexec/TestRunner.java"),
-            "Appeals", Set.of("testexec/BodyRun.java", "testexec/TestRunner.java"),
-            "Appeal", Set.of("testexec/RootLoops.java",
-                    "testexec/SqlReplayReferee.java", "testexec/SqlTextRuns.java", "testexec/TestRunner.java",
-                    "testexecutionplan/HostJson.java",
-                    "testexecutionplan/PlannedAppeals.java", "testexecutionplan/TestPlanJson.java",
-                    "testplan/EngineTestText.java", "testplan/EngineTextAppeals.java",
-                    "testplan/EngineTextPlanning.java", "testplan/JudgmentFacts.java"),
-            "PlannedAppeals", Set.of("testexec/TestRunner.java", "testexecutionplan/TestPlanJson.java",
-                    "testplan/AppealsByVerdict.java"),
-            "AppealsByVerdict", Set.of("testplan/TestPlanner.java"),
-            "EngineTextAppeals", Set.of("testplan/AppealsByVerdict.java",
-                    "testplan/BodyDriver.java", "testplan/TestPlanner.java"));
+            "SqlReplayReferee", Set.of(), "Appeals", Set.of(), "Appeal", Set.of(), "PlannedAppeals", Set.of(),
+            "AppealsByVerdict", Set.of(), "EngineTextAppeals", Set.of());
 
     @Test
     void theRefereeAndTheAppealsAreReachedByTheirNamedEntriesAlone() throws IOException {
@@ -78,7 +68,11 @@ class RefereeAppealsCensusTest {
             }
         }
         Map<String, Set<String>> pinned = new TreeMap<>();
-        REACHERS.forEach((k, v) -> pinned.put(k, new TreeSet<>(v)));
+        REACHERS.forEach((k, v) -> {
+            if (!v.isEmpty()) {
+                pinned.put(k, new TreeSet<>(v));
+            }
+        });
         assertEquals(pinned, found, "the referee's and the appeals' reachers moved: a new one is a compatibility path "
                 + "entering the product's test road (G6: the edge's alone); one gone is a re-pin, dated, on census C2");
     }

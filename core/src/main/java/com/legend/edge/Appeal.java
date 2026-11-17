@@ -119,6 +119,11 @@ public record Appeal(int number, String name, Kind kind, @Nullable String contra
     public record Enums(List<String> enums, Map<String, Map<String, String>> decodes, Map<String, String> properties) {
         public static final Enums NONE = new Enums(List.of(), Map.of(), Map.of());
 
+        /** The enumerations the product read from the model at planning (census C2, 2026-11-17). */
+        public static Enums of(com.legend.testexecutionplan.EnumFacts f) {
+            return new Enums(f.enums(), f.decodes(), f.properties());
+        }
+
         public Enums {
             enums = List.copyOf(enums);
             Map<String, Map<String, String>> d = new LinkedHashMap<>();

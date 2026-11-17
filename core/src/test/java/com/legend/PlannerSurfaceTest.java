@@ -618,14 +618,14 @@ class PlannerSurfaceTest {
             Map.entry("TestExecution#planBody(TypedQuery, String, ExecuteOptions)", List.of(LAMBDA, NAME, OPTION)),
             // a test body's facts, data, before it is planned (C5-J item 2, 2026-11-15): the record its plan carries
             Map.entry("TestExecution#facts(TypedQuery)", List.of(LAMBDA)),
-            Map.entry("TestExecution#runProgram(TypedQuery, String, SessionSource, AssertListener, SqlReplayReferee,"
+            Map.entry("TestExecution#runProgram(TypedQuery, String, SessionSource, AssertListener, EdgeRun,"
                     + " ExecuteOptions)", List.of(LAMBDA, NAME, SESSION, CALLBACK, CALLBACK, OPTION)),
-            Map.entry("TestExecution#runProgram(TypedQuery, String, SessionSource, AssertListener, SqlReplayReferee,"
+            Map.entry("TestExecution#runProgram(TypedQuery, String, SessionSource, AssertListener, EdgeRun,"
                     + " ExecuteOptions, Output)", List.of(LAMBDA, NAME, SESSION, CALLBACK, CALLBACK, OPTION, OUTPUT)),
-            Map.entry("TestExecution#runBody(TestPlan, Sessions.Session, AssertListener, SqlReplayReferee,"
+            Map.entry("TestExecution#runBody(TestPlan, Sessions.Session, AssertListener, EdgeRun,"
                     + " ExecuteOptions, Output)", List.of(PLAN_DATA, SESSION, CALLBACK, CALLBACK, OPTION, OUTPUT)),
-            Map.entry("TestExecution#runFixture(TestPlan, Sessions.Session, ExecuteOptions)",
-                    List.of(PLAN_DATA, SESSION, OPTION)),
+            Map.entry("TestExecution#runFixture(TestPlan, Sessions.Session, EdgeRun, ExecuteOptions)",
+                    List.of(PLAN_DATA, SESSION, CALLBACK, OPTION)),
             // ExecuteOptions, the test door's options (the follow-up audit's G1, 2026-11-14: a parameter of three root
             // doors that no row read): its constructors, accessors and withers, each a closed word, a data store or the
             // compatibility edge's callback -- no field a statement's text
@@ -724,9 +724,9 @@ class PlannerSurfaceTest {
             Map.entry("TestExecution#planBody(TypedQuery, String, ExecuteOptions)", QueryRoad.TEST_ROAD),
             // it reads facts of the body and plans nothing (C5-J item 2, 2026-11-15)
             Map.entry("TestExecution#facts(TypedQuery)", QueryRoad.PLANS_NOTHING),
-            Map.entry("TestExecution#runProgram(TypedQuery, String, SessionSource, AssertListener, SqlReplayReferee,"
+            Map.entry("TestExecution#runProgram(TypedQuery, String, SessionSource, AssertListener, EdgeRun,"
                     + " ExecuteOptions)", QueryRoad.TEST_ROAD),
-            Map.entry("TestExecution#runProgram(TypedQuery, String, SessionSource, AssertListener, SqlReplayReferee,"
+            Map.entry("TestExecution#runProgram(TypedQuery, String, SessionSource, AssertListener, EdgeRun,"
                     + " ExecuteOptions, Output)", QueryRoad.TEST_ROAD)));
 
     /** Every violation of {@link #QUERY_ROADS} over {@code doors} (a signature to its kinds): a door that takes a

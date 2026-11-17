@@ -292,10 +292,11 @@ class CompatSpellingGuardTest {
             "testexec/HostJudgments.java | EngineText | 1 | D1.7",
             "testexec/SideShapes.java | Cannot cast a collection of size | 3 | JUDGE",
             "testexec/SideShapes.java | TDS_NULL_CELL | 1 | JUDGE",
-            "testexec/SqlTextRuns.java | EngineText | 1 | D1.7",
+            // (testexec/SqlTextRuns.java's rows went with it to the edge: 2026-11-17, census C2: the referee and the appeals moved to the edge (the orchestrator's P1+P2))
             "testexecutionplan/HostJson.java | EngineText | 4 | D1.7",
             "testexecutionplan/HostJudgment.java | EngineText | 2 | D1.7",
-            "testexecutionplan/PlannedAppeals.java | EngineText | 1 | D1.7",
+            // (PlannedAppeals' generic half renamed NamedExtensions, the same pattern case: 2026-11-17, census C2: the referee and the appeals moved to the edge (the orchestrator's P1+P2))
+            "testexecutionplan/NamedExtensions.java | EngineText | 1 | D1.7",
             "testexecutionplan/Verdicts.java | EngineText | 1 | D1.7",
             // 2026-11-16 (W8 of docs/records/d-plan-2026-11-16.md): legend-pure's toRepresentation of a date, the judges'
             // own printer (Verdicts.pureText), which PureDateLiteral's toString was until then; with the judges' print
@@ -332,7 +333,6 @@ class CompatSpellingGuardTest {
             // the judges' compatibility mode's branches (E-Java, census C1)
             "testexec/Equality.java | COMPILED_PURE_COMPAT | 1 | D1.9",
             "testexec/HostJudgments.java | COMPILED_PURE_COMPAT | 1 | D1.9",
-            "testexec/SqlTextRuns.java | COMPILED_PURE_COMPAT | 1 | D1.9",
             "testexecutionplan/JudgeJson.java | COMPILED_PURE_COMPAT | 1 | D1.9",
             "testexecutionplan/TestPlan.java | COMPILED_PURE_COMPAT | 3 | D1.9",
             "testexecutionplan/TestPlanJson.java | COMPILED_PURE_COMPAT | 2 | D1.9",

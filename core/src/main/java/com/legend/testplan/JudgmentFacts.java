@@ -146,7 +146,7 @@ final class JudgmentFacts {
      * mapping that maps none decodes BY NAME, the identity over the enumeration's values (real pure's); a source value
      * naming another enumeration's value decodes nothing (no entry).
      */
-    static EnumFacts enumsOf(ModelContext ctx, @Nullable String mappingFqn,
+    static com.legend.testexecutionplan.EnumFacts enumsOf(ModelContext ctx, @Nullable String mappingFqn,
             @Nullable String classFqn, com.legend.testexecutionplan.@Nullable SideShape shape) {
         java.util.Set<String> enums = new java.util.LinkedHashSet<>();
         for (com.legend.testexecutionplan.SideShape.Column column : shape == null
@@ -169,7 +169,7 @@ final class JudgmentFacts {
                 }
             }
         }
-        return new EnumFacts(java.util.List.copyOf(enums), decodes, properties);
+        return new com.legend.testexecutionplan.EnumFacts(java.util.List.copyOf(enums), decodes, properties);
     }
 
     /** {@code classFqn}'s properties of an enumeration type into {@code out} (a name already there is a more derived

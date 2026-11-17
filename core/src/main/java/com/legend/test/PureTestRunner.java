@@ -225,8 +225,9 @@ public final class PureTestRunner implements AutoCloseable {
      *  planned whole, then run with its statements counted as seeding (slice 5, 2026-11-09: the run's origin is passed,
      *  where a thread-scoped SEED mark around the program counted them until then). */
     private void runSetup(ValueSpecification call, com.legend.exec.Sessions.Session target, ExecuteOptions options) {
+        // a setup hears no compatibility appeal (it asserts nothing): the product's run (census C2, 2026-11-17)
         TestExecution.runFixture(TestExecution.planBody(Compiler.queryResolved(ctx, call), runtimeFqn, options), target,
-                options);
+                com.legend.testexec.NoEdgeRun.NONE, options);
     }
 
     private List<String> runSetups(PureTests.TestCase t, com.legend.exec.Sessions.Session conn, boolean shared,

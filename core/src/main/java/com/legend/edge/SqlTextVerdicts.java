@@ -99,7 +99,7 @@ final class SqlTextVerdicts {
      *  APPEAL that decides a failed text -- the plan's {@code Appeal} record (step 8b), heard at the step on a failed
      *  text alone and decided after the run. Planning's record alone: the plan carries its data ({@code EngineText}). */
     record Collected(String name, @com.legend.base.Nullable String golden, @com.legend.base.Nullable String ours,
-            boolean textEqual, @com.legend.base.Nullable String decline, Appeal appeal,
+            boolean textEqual, @com.legend.base.Nullable String decline, com.legend.testexecutionplan.Extension appeal,
             @com.legend.base.Nullable String oursOrigin) {
     }
 
@@ -123,10 +123,7 @@ final class SqlTextVerdicts {
 
         @Override
         public void collect(String name, String golden, String ours, boolean textEqual,
-                @com.legend.base.Nullable String decline, com.legend.testexecutionplan.Extension extension,
-                BodyDriver.ExecEnv env) {
-            // the edge's own record, handed through the product's collector opaque (census C2, 2026-11-17)
-            Appeal appeal = (Appeal) extension;
+                @com.legend.base.Nullable String decline, com.legend.testexecutionplan.Extension appeal, BodyDriver.ExecEnv env) {
             boolean deferredText = ours == token;
             if (deferredText != (deferred != null)) {
                 throw new IllegalStateException(name + ": " + (deferredText
@@ -204,8 +201,7 @@ final class SqlTextVerdicts {
 
         @Override
         public void collect(String name, String golden, String ours, boolean textEqual,
-                @com.legend.base.Nullable String decline, com.legend.testexecutionplan.Extension appeal,
-                BodyDriver.ExecEnv env) {
+                @com.legend.base.Nullable String decline, com.legend.testexecutionplan.Extension appeal, BodyDriver.ExecEnv env) {
             throw new IllegalStateException(name + ": the database judge's texts are rows of its batch, never collected");
         }
 
@@ -302,7 +298,7 @@ final class SqlTextVerdicts {
         // (TestPlan.extensionsByVerdict; the plan-as-data design's step 8b, 2026-11-08)
         // (under lite's own rules a failed text is the verdict and no appeal is heard: none is numbered, so the plan
         // names none -- the slice 2 invariant audit's D2, 2026-11-08)
-        int appeal = appeals(env) ? EngineTextPlanning.appeal(env, c.appeal()::numbered) : com.legend.testexecutionplan.RootLoop.NO_APPEAL;
+        int appeal = appeals(env) ? EngineTextPlanning.appeal(env, ((Appeal) c.appeal())::numbered) : com.legend.testexecutionplan.RootLoop.NO_APPEAL;
         return EngineTextPlanning.check(List.of(golden, ours), new HostJudgment.EngineText(c.name(), c.golden(), c.ours(),
                 c.textEqual(), c.decline(), c.oursOrigin(), appeal, routed));
     }
@@ -1468,8 +1464,7 @@ final class SqlTextVerdicts {
                 seed == null ? null : new Appeal.InListSeed(seed.kind(), seed.values()),
                 EngineTextPlanning.target(java.util.Objects.requireNonNullElse(EngineTextPlanning.appealOn(env), env)),
                 // the enumerations the referee decodes, read from the model now (hole 1, 2026-11-08)
-                enumsOf(EngineTextPlanning.enumsOf(EngineTextPlanning.ctx(env), mappingFqn, classFqn,
-                        ahead.rows().data().shape())));
+                Appeal.Enums.of(EngineTextPlanning.enumsOf(EngineTextPlanning.ctx(env), mappingFqn, classFqn, ahead.rows().data().shape())));
         return decide(env, name, golden, ours, textEqual, null, new Appeal(0, name, Appeal.Kind.ROWS, null, rows,
                 null, com.legend.testexecutionplan.RootLoop.NO_APPEAL));
     }
@@ -1672,11 +1667,6 @@ final class SqlTextVerdicts {
                 instanceof com.legend.compiler.element.type.Type
                         .ClassType ct
                 ? ct.fqn() : null;
-    }
-
-    /** The enumerations the referee decodes, as the appeal carries them. */
-    private static Appeal.Enums enumsOf(com.legend.testplan.EnumFacts f) {
-        return new Appeal.Enums(f.enums(), f.decodes(), f.properties());
     }
 
 }

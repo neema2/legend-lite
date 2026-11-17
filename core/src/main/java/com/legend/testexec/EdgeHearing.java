@@ -25,10 +25,10 @@ public interface EdgeHearing {
     /** The listener the run's judges tell: the caller's, its reports kept back while an appeal is held. */
     @Nullable AssertListener listener();
 
-    /** An engine-text judgment {@code e} judged at its verdict step over its two text {@code sides}, under
-     *  {@code rules} ({@code messaged}: its assert carries a caller's message): equal holds, else the appeal heard. */
-    TypedSide engineText(HostJudgment.EngineText e, List<TypedSide> sides, TestPlan.JudgingRules rules,
-            boolean messaged);
+    /** The edge's judgment {@code j} (an engine text's) judged at its verdict step over its two text {@code sides},
+     *  under {@code rules} ({@code messaged}: its assert carries a caller's message): equal holds, else the appeal
+     *  heard. */
+    TypedSide engineText(HostJudgment j, List<TypedSide> sides, TestPlan.JudgingRules rules, boolean messaged);
 
     /** The database judge's failed {@code row}, whose appeal is numbered {@code number}, heard. */
     TypedSide rowAppealed(int number, List<Object> row, boolean messaged);

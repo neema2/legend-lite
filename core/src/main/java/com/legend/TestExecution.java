@@ -82,8 +82,8 @@ public final class TestExecution {
 
     /** A fixture's {@code plan} (a package's setup, planned by {@link #planBody}) run on {@code session}, its
      *  statements counted as seeding (the census's SEED). */
-    public static void runFixture(TestPlan plan, Sessions.Session session, ExecuteOptions options) {
-        TestRunner.run(plan, session, options.stores(), options.edge(), null, com.legend.testexec.NoEdgeRun.NONE, null, StatementOrigin.SEED,
+    public static void runFixture(TestPlan plan, Sessions.Session session, EdgeRun edgeRun, ExecuteOptions options) {
+        TestRunner.run(plan, session, options.stores(), options.edge(), null, edgeRun, null, StatementOrigin.SEED,
                 java.util.UUID.randomUUID());
     }
 }

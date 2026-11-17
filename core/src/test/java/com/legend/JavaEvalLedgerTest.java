@@ -1040,7 +1040,7 @@ class JavaEvalLedgerTest {
             Map.entry("core/src/main/java/com/legend/testexec/AssertRuns.java", 143),   // 208 -> 143 (2026-11-17, (b) of the orchestrator's order: the fused agreement path deleted: the agreement judge's held host half and its verdict of record went). new (2026-11-09, slice 5 (docs/PLAN_AS_DATA_2026_11_07.md, "Slice 5: the spec"): the verdicts' run half, from testplan/AssertVerdicts (1789 -> 1536): a planned verdict step judged at its turn)
             Map.entry("core/src/main/java/com/legend/testexec/AssertErrorRuns.java", 80),   // 70 -> 80 (2026-11-17, isolated BOTH and #28, the orchestrator's ruling: lite's sentence table beside the compat words; C1 moves the compat half to the edge and re-pins DOWN). new (2026-11-09, slice 5 (docs/PLAN_AS_DATA_2026_11_07.md, "Slice 5: the spec"): assertError's run half, from testplan/AssertVerdicts: the planned failure compared with the raised one)
             Map.entry("core/src/main/java/com/legend/testexec/SideShapes.java", 287),   // new (2026-11-09, slice 5 (docs/PLAN_AS_DATA_2026_11_07.md, "Slice 5: the spec"): a side's row-count and shape contract at run, from TestPlanner's Moved and AssertVerdicts: counting rows, never computing a cell); 279 -> 287 (2026-11-12, the C4 exec-id item, B3's check): the cardinality holder hands on answers() and execution() to the sink it holds -- two delegating methods, no value computed -- so the door's execution id reaches a writer under it
-            Map.entry("core/src/main/java/com/legend/testexec/SqlTextRuns.java", 220),   // 224 -> 220 (2026-11-11, B2d.2 of the total-wall program: the TDG appeal's case deleted with its kind; nothing evaluated)   // 233 -> 224 (2026-11-09, mutable static state: the census suspend toggles around the appeal's runs deleted with SqlTypeCensus, a dead census; nothing evaluated)   // new (2026-11-09, slice 5 (docs/PLAN_AS_DATA_2026_11_07.md, "Slice 5: the spec"): the engine-text appeal decided after the run, from testplan/SqlTextVerdicts (1491 -> 1259))
+            Map.entry("core/src/main/java/com/legend/edge/SqlTextRuns.java", 220),   // MOVED (2026-11-17, census C2: the referee and the appeals moved to the edge (the orchestrator's P1+P2)). 224 -> 220 (2026-11-11, B2d.2 of the total-wall program: the TDG appeal's case deleted with its kind; nothing evaluated)   // 233 -> 224 (2026-11-09, mutable static state: the census suspend toggles around the appeal's runs deleted with SqlTypeCensus, a dead census; nothing evaluated)   // new (2026-11-09, slice 5 (docs/PLAN_AS_DATA_2026_11_07.md, "Slice 5: the spec"): the engine-text appeal decided after the run, from testplan/SqlTextVerdicts (1491 -> 1259))
             Map.entry("core/src/main/java/com/legend/testexec/DatabaseVerdicts.java", 38),   // new (2026-11-09, slice 5 (docs/PLAN_AS_DATA_2026_11_07.md, "Slice 5: the spec"): the database judge's verdict over its row, from testplan/DatabaseJudge (819 -> 790))
             Map.entry("core/src/main/java/com/legend/testexecutionplan/Verdicts.java", 151),   // 148 -> 151 (2026-11-16, W8 of docs/records/d-plan-2026-11-16.md: legend-pure's text of a date, pureText, the judges' own printer where PureDateLiteral.toString wrote it until then -- the minute rule moved, nothing evaluated)   // new (2026-11-09, slice 5 (docs/PLAN_AS_DATA_2026_11_07.md, "Slice 5: the spec"): the shared value spelling (repr, wireId) from testexec/PureAsserts (257 -> 218), read by planning's messages and the run's judges)
             Map.entry("core/src/main/java/com/legend/testexec/TdsCompare.java", 236));   // 235 -> 236 (2026-11-09, slice 5 (docs/PLAN_AS_DATA_2026_11_07.md, "Slice 5: the spec"): one import line: the judged side's type is the test plan's library's, com.legend.testexecutionplan.TypedSide; nothing evaluated)   // 350 -> 235 (2026-11-07, P1: the host judge's byte channel deleted -- a canon rider built and declined at run since the plan path's step 6, 2026-10-18, the dual verdict it fed, its canon framing, its census and the grid canons it read; nothing evaluated, nothing judged differently)   // 346 -> 350 (2026-11-05, the exact-comparison report (the user's ruling S15/S132, 2026-11-05: clean mode compares Floats exactly, measured first): a print under -Dlegend.diagnostics=judge-declines where the 2-ULP tolerance, not equality, decided a verdict; a measurement, nothing evaluated)   // 207 -> 346 (2026-11-03, the user's ruling "no sort can be multiset compare" restored: grids' row multiset unless the actual side is sorted, renderedText with its line / token multiset and cell rule, ordLeniency, as at de641baf (344) plus the per-side column kinds kept (+2); judgement only, nothing evaluated)   // 344 -> 207 (2026-11-03, the user's ruling: never more lenient than upstream -- the multiset, rendered-text, cell-pool, unordered-JSON and stamped-kind paths deleted)   // 343 -> 344 (2026-10-31, the seam program's S4a): the import of CanonRider, the lowering's now; nothing evaluated   // in judge since 2026-10-30 (D71)   // 366 -> 343 (2026-09-20, one float rule: the printed-precision cell tolerance DELETED; cellEquals delegates to Equality.withinTwoUlp)
@@ -1439,7 +1439,7 @@ class JavaEvalLedgerTest {
                     // SqlTypeCensus.java and PrimitiveCensus.java deleted 2026-11-09 (the full audit, no mutable static
                     // state): neither had a feeder -- their probe and record lost their last callers -- so every count
                     // read zero; the PCT gates that pinned them were dead gates
-                    "SqlReplayReferee.java",
+                    // (SqlReplayReferee.java moved to the edge: 2026-11-17, census C2: the referee and the appeals moved to the edge (the orchestrator's P1+P2))
                     // 2026-11-07, P1.2 (the goals of record: a compatibility appeal is decided after the body's run):
                     // whether the assert being judged carries a caller's message, so an appeal held under it is refused
                     // by name if it fails (the message is unread after the run) -- a flag, no value judged
@@ -1453,7 +1453,10 @@ class JavaEvalLedgerTest {
                     // (HostJudgments, AssertRuns, AssertErrorRuns, DatabaseVerdicts, SideShapes, HostSideShapes), the
                     // the plan's run (TestRun; the agreement rule, AgreementArm and AgreementRuns, went: 2026-11-17, (b) of the orchestrator's order: the fused agreement path deleted). They judge rows the plan
                     // read, compute nothing the database did not, and reach no planning library
-                    "TestRunner.java", "BodyRun.java", "Appeals.java", "SqlTextRuns.java",
+                    "TestRunner.java", "BodyRun.java",
+                    // (2026-11-17, census C2: the referee and the appeals moved to the edge (the orchestrator's P1+P2): Appeals.java and SqlTextRuns.java moved there) the run's hook in the
+                    // referee's slot -- signatures, and the product's refusal, which judges nothing
+                    "EdgeRun.java", "EdgeHearing.java", "NoEdgeRun.java",
                     "HostJudgments.java", "AssertRuns.java", "AssertErrorRuns.java", "DatabaseVerdicts.java",
                     "SideShapes.java", "HostSideShapes.java", "TestRun.java",
                     // 2026-11-17 (isolated BOTH, the orchestrator's ruling): each judge's plan run alone and the two
@@ -1604,7 +1607,9 @@ class JavaEvalLedgerTest {
                     // 2026-11-08 (the plan-as-data design's step 8b): the appeals a test plan's verdicts name, by verdict
                     // (the plan's extensionsByVerdict, built from the arms' planned records) and by number at run; a
                     // walk over the plan's data, nothing evaluated
-                    "AppealsByVerdict.java",
+                    // (2026-11-17, census C2: the referee and the appeals moved to the edge (the orchestrator's P1+P2): AppealsByVerdict folded into NumberedExtensions) the edge's records by
+                    // number, opaque, and the plan's extensionsByVerdict built from them; nothing evaluated
+                    "NumberedExtensions.java",
                     // an assert under an if (the asserts-as-plan-nodes program, step 4, 2026-11-04): a branch
                     // statement's parts read from the typed tree -- its condition, each side a statement a judge plans
                     // or a constant -- so each side is planned as a body of its own by the same judge's planner, the
@@ -1655,7 +1660,7 @@ class JavaEvalLedgerTest {
                     "JudgmentFacts.java",
                     // 2026-11-08, the plan-as-data design's step 4 (docs/PLAN_AS_DATA_2026_11_07.md 2.2): the body's engine-text appeals by number, planning's registry
                     // (since step 8b the plan carries those its verdicts name); it holds and hands back, it decides nothing
-                    "EngineTextAppeals.java",
+                    // (EngineTextAppeals.java renamed NumberedExtensions: 2026-11-17, census C2: the referee and the appeals moved to the edge (the orchestrator's P1+P2))
                     // 2026-11-16 (W9's judge half, E-Java; the orchestrator's ruling): the plan style's test-planning
                     // facets -- the closed list of their kinds, and the engine-text assert's arm, an interface the edge
                     // answers; declarations, nothing evaluated
@@ -1776,6 +1781,10 @@ class JavaEvalLedgerTest {
                             "EdgeEngineTestText.java",
                             // 2026-11-16 (W9's judge half, S2c): the engine-text arm itself, moved from the test planner
                             "SqlTextVerdicts.java",
+                            // 2026-11-17, census C2: the referee and the appeals moved to the edge (the orchestrator's P1+P2): the appeal (its record, its JSON, the plan's by number),
+                            // the run that hears it (AppealRun, Appeals), its decision (SqlTextRuns) and the referee's SPI
+                            "Appeal.java", "AppealJson.java", "PlannedAppeals.java", "AppealRun.java", "Appeals.java",
+                            "SqlTextRuns.java", "SqlReplayReferee.java",
                             // the server's composition root with legend-engine's API mounted: routes, no planning of its own
                             "EdgeServer.java",
                             // the texts of upstream's effects and refusals, and legend-pure's raise sentences, as SQL
@@ -1985,9 +1994,10 @@ class JavaEvalLedgerTest {
             // 2026-11-09, slice 5: the test's run holds the body's sessions (the run record's) and never a connection
             "core/src/main/java/com/legend/testexec/TestRunner.java",
             "core/src/main/java/com/legend/testexec/TestRun.java",
-            "core/src/main/java/com/legend/testexec/Appeals.java",
-            "core/src/main/java/com/legend/testexec/SqlTextRuns.java",
-            "core/src/main/java/com/legend/testexec/SqlReplayReferee.java",
+            // (2026-11-17, census C2: the referee and the appeals moved to the edge (the orchestrator's P1+P2))
+            "core/src/main/java/com/legend/edge/Appeals.java",
+            "core/src/main/java/com/legend/edge/SqlTextRuns.java",
+            "core/src/main/java/com/legend/edge/SqlReplayReferee.java",
             "core/src/main/java/com/legend/testdatagen/TestDataGenerationNatives.java",
             // 2026-10-29 (the doors): the generator itself -- every statement the plan runner's
             "core/src/main/java/com/legend/testdatagen/TestDataGenerator.java");

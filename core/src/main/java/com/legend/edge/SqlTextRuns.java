@@ -116,8 +116,7 @@ final class SqlTextRuns {
 
     /** The database judge's failed row's appeal heard (step 8b): the texts its row compared, ours read from the row's
      *  actual cell where the plan reads it, recorded for the decision after the run. */
-    static TypedSide rowAppealed(Appeal a, List<Object> row, Appeals run,
-            boolean messaged) {
+    static TypedSide rowAppealed(Appeal a, List<Object> row, Appeals run, boolean messaged) {
         Appeal.Batched b = java.util.Objects.requireNonNull(a.batched(), "a row appeal with no row's texts");
         String ours = b.ours() != null ? b.ours() : actualText(row);
         if (ours == null) {

@@ -1,7 +1,7 @@
 // Copyright 2026 Legend Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-package com.legend.testplan;
+package com.legend.testexecutionplan;
 
 import java.util.List;
 import java.util.Map;

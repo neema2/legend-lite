@@ -47,7 +47,7 @@ final class BodyRun {
     }
 
     /** An engine-text judgment at its verdict step ({@link EdgeHearing#engineText}). */
-    TypedSide engineText(com.legend.testexecutionplan.HostJudgment.EngineText e, java.util.List<TypedSide> sides,
+    TypedSide engineText(com.legend.testexecutionplan.HostJudgment e, java.util.List<TypedSide> sides,
             com.legend.testexecutionplan.TestPlan.JudgingRules rules) {
         return hearing.engineText(e, sides, rules, messaged > 0);
     }

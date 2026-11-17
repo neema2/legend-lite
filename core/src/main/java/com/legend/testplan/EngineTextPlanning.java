@@ -230,7 +230,7 @@ public final class EngineTextPlanning {
         return AssertVerdicts.calleeFqn(bare);
     }
 
-    public static EnumFacts enumsOf(ModelContext ctx,
+    public static com.legend.testexecutionplan.EnumFacts enumsOf(ModelContext ctx,
             @com.legend.base.Nullable String mappingFqn, @com.legend.base.Nullable String classFqn,
             com.legend.testexecutionplan.@com.legend.base.Nullable SideShape shape) {
         return JudgmentFacts.enumsOf(ctx, mappingFqn, classFqn, shape);

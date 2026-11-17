@@ -44,9 +44,9 @@ public final class NoEdgeRun implements EdgeRun {
     private record Hearing(@Nullable AssertListener listener) implements EdgeHearing {
 
         @Override
-        public TypedSide engineText(HostJudgment.EngineText e, List<TypedSide> sides, TestPlan.JudgingRules rules,
+        public TypedSide engineText(HostJudgment j, List<TypedSide> sides, TestPlan.JudgingRules rules,
                 boolean messaged) {
-            throw new NotImplementedException(e.name() + ": an engine-text judgment " + WHY);
+            throw new NotImplementedException("an engine-text judgment " + WHY);
         }
 
         @Override

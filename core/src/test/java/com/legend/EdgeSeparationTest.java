@@ -70,8 +70,9 @@ class EdgeSeparationTest {
     static final Set<String> EDGE_ONLY_SQLFN = Set.of("FLOAT_PRINT", "DATETIME_PRINT", "INSTANCE_TEXT",
             "RELATION_TEXT", "REPRESENTATION_TEXT", "TEXT_FORMS", "TRACE_TEXT");
 
-    /** The referee and the appeals (census C2; G6: the edge's alone). */
-    static final Set<String> REFEREE = Set.of("com.legend.edge.SqlReplayReferee", "com.legend.testexec.Appeals",
+    /** The referee and the appeals in the product packages they stood in (census C2, closed 2026-11-17: moved to
+     *  com.legend.edge, whose classes the CODE guard already keeps out of the product): a tripwire, should one return. */
+    static final Set<String> REFEREE = Set.of("com.legend.testexec.SqlReplayReferee", "com.legend.testexec.Appeals",
             "com.legend.testexecutionplan.Appeal", "com.legend.testexecutionplan.PlannedAppeals",
             "com.legend.testplan.AppealsByVerdict", "com.legend.testplan.EngineTextAppeals");
 
@@ -132,58 +133,30 @@ class EdgeSeparationTest {
 
     /** TEST SIDE: the same. */
     static final Map<String, String> TEST_OPEN = Map.ofEntries(
-            Map.entry("com.legend.TestExecution -> com.legend.edge.SqlReplayReferee", "C2 2026-11-17"),
-            Map.entry("com.legend.test.PureTestRunner -> com.legend.edge.SqlReplayReferee", "C2 2026-11-17"),
-            Map.entry("com.legend.test.TestObserver -> com.legend.edge.SqlReplayReferee", "C2 2026-11-17"),
-            Map.entry("com.legend.testexec.Appeals -> (stands in a product package)", "C2 2026-11-17"),
-            Map.entry("com.legend.testexec.BodyRun -> com.legend.testexec.Appeals", "C2 2026-11-17"),
             Map.entry("com.legend.testexec.Equality -> JudgingRules.COMPILED_PURE_COMPAT", "C1 2026-11-17"),
             Map.entry("com.legend.testexec.HostJudgments -> JudgingRules.COMPILED_PURE_COMPAT", "C1 2026-11-17"),
-            Map.entry("com.legend.edge.SqlReplayReferee -> (stands in a product package)", "C2 2026-11-17"),
-            Map.entry("com.legend.edge.SqlReplayReferee -> com.legend.testexecutionplan.Appeal", "C2 2026-11-17"),
-            Map.entry("com.legend.testexec.SqlTextRuns -> JudgingRules.COMPILED_PURE_COMPAT", "C1 2026-11-17"),
-            Map.entry("com.legend.testexec.SqlTextRuns -> com.legend.edge.SqlReplayReferee", "C2 2026-11-17"),
-            Map.entry("com.legend.testexec.SqlTextRuns -> com.legend.testexecutionplan.Appeal", "C2 2026-11-17"),
-            Map.entry("com.legend.testexec.TestRunner -> com.legend.testexec.Appeals", "C2 2026-11-17"),
-            Map.entry("com.legend.testexec.TestRunner -> com.legend.edge.SqlReplayReferee", "C2 2026-11-17"),
-            Map.entry("com.legend.testexec.TestRunner -> com.legend.testexecutionplan.PlannedAppeals", "C2 2026-11-17"),
-            Map.entry("com.legend.testexecutionplan.Appeal -> (stands in a product package)", "C2 2026-11-17"),
-            Map.entry("com.legend.testexecutionplan.HostJson -> com.legend.testexecutionplan.Appeal", "C2 2026-11-17"),
             Map.entry("com.legend.testexecutionplan.JudgeJson -> JudgingRules.COMPILED_PURE_COMPAT", "C1 2026-11-17"),
-            Map.entry("com.legend.testexecutionplan.PlannedAppeals -> (stands in a product package)", "C2 2026-11-17"),
-            Map.entry("com.legend.testexecutionplan.PlannedAppeals -> com.legend.testexecutionplan.Appeal", "C2 2026-11-17"),
             Map.entry("com.legend.testexecutionplan.TestPlan -> JudgingRules.COMPILED_PURE_COMPAT", "C1 2026-11-17"),
             Map.entry("com.legend.testexecutionplan.TestPlanJson -> JudgingRules.COMPILED_PURE_COMPAT", "C1 2026-11-17"),
-            Map.entry("com.legend.testexecutionplan.TestPlanJson -> com.legend.testexecutionplan.Appeal", "C2 2026-11-17"),
-            Map.entry("com.legend.testexecutionplan.TestPlanJson -> com.legend.testexecutionplan.PlannedAppeals", "C2 2026-11-17"),
             // (AgreementAsserts -> EngineTextAppeals closed: 2026-11-17, (b) of the orchestrator's order: the fused agreement path deleted)
-            Map.entry("com.legend.testplan.AppealsByVerdict -> (stands in a product package)", "C2 2026-11-17"),
-            Map.entry("com.legend.testplan.AppealsByVerdict -> com.legend.testexecutionplan.PlannedAppeals", "C2 2026-11-17"),
-            Map.entry("com.legend.testplan.AppealsByVerdict -> com.legend.testplan.EngineTextAppeals", "C2 2026-11-17"),
             Map.entry("com.legend.testplan.AssertVerdicts -> JudgingRules.COMPILED_PURE_COMPAT", "C1 2026-11-17"),
             Map.entry("com.legend.testplan.AssertVerdicts -> com.legend.testplan.EngineTestText", "C4 2026-11-17"),
             Map.entry("com.legend.testplan.BodyDriver -> com.legend.planner.UpstreamPlans", "B2 2026-11-17"),
             Map.entry("com.legend.testplan.BodyDriver -> com.legend.testplan.EngineTestText", "C4 2026-11-17"),
-            Map.entry("com.legend.testplan.BodyDriver -> com.legend.testplan.EngineTextAppeals", "C2 2026-11-17"),
             Map.entry("com.legend.testplan.DatabaseAsserts -> com.legend.testplan.EngineTestText", "C4 2026-11-17"),
             Map.entry("com.legend.testplan.DatabaseJudge -> JudgingRules.COMPILED_PURE_COMPAT", "C1 2026-11-17"),
             Map.entry("com.legend.testplan.EngineTestText -> (stands in a product package)", "C4 2026-11-17"),
-            Map.entry("com.legend.testplan.EngineTestText -> com.legend.testexecutionplan.Appeal", "C2 2026-11-17"),
-            Map.entry("com.legend.testplan.EngineTextAppeals -> (stands in a product package)", "C2 2026-11-17"),
-            Map.entry("com.legend.testplan.EngineTextAppeals -> com.legend.testexecutionplan.Appeal", "C2 2026-11-17"),
             Map.entry("com.legend.testplan.EngineTextPlanning -> (stands in a product package)", "C4 2026-11-17"),
-            Map.entry("com.legend.testplan.EngineTextPlanning -> com.legend.testexecutionplan.Appeal", "C2 2026-11-17"),
             Map.entry("com.legend.testplan.EngineTextPlanning -> com.legend.testplan.EngineTestText", "C4 2026-11-17"),
-            Map.entry("com.legend.testplan.EngineTextPlanning -> com.legend.testplan.EngineTextAppeals", "C2 2026-11-17"),
             Map.entry("com.legend.testplan.JudgePlans -> com.legend.testplan.EngineTestText", "C4 2026-11-17"),
-            Map.entry("com.legend.testplan.JudgmentFacts -> com.legend.testexecutionplan.Appeal", "C2 2026-11-17"),
             Map.entry("com.legend.testplan.PlanStyleFacets -> com.legend.lowering.RelationTexts", "B17 2026-11-17"),
             Map.entry("com.legend.testplan.PlanStyleFacets -> com.legend.planner.UpstreamPlans", "B2 2026-11-17"),
             Map.entry("com.legend.testplan.PlanStyleFacets -> com.legend.testplan.EngineTestText", "C4 2026-11-17"),
             Map.entry("com.legend.testplan.PlanningOptions -> JudgingRules.COMPILED_PURE_COMPAT", "C1 2026-11-17"),
             Map.entry("com.legend.testplan.Seeds -> com.legend.planner.UpstreamPlans", "B2 2026-11-17"),
-            Map.entry("com.legend.testplan.TestPlanner -> JudgingRules.COMPILED_PURE_COMPAT", "C1 2026-11-17"),
-            Map.entry("com.legend.testplan.TestPlanner -> com.legend.testplan.AppealsByVerdict", "C2 2026-11-17"));
+            Map.entry("com.legend.testplan.TestPlanner -> JudgingRules.COMPILED_PURE_COMPAT", "C1 2026-11-17"));
+            // (census C2 CLOSED 2026-11-17: the referee and the appeals moved to com.legend.edge -- the run hook EdgeRun
+            // in the referee's slot, the planner holding the edge's records by number -- its 30 entries deleted)
 
     /** HOOKS ARE TERMINAL (the orchestrator's ruling of 2026-11-17, on the user's "the edge's typed extension point"):
      *  a product hook that is (a) an interface of signatures only, (b) refused by the product's style by name, (c)
@@ -348,10 +321,9 @@ class EdgeSeparationTest {
             Map.entry("testexec/HostJudgments.java | EngineText", "C3 2026-11-17"),
             Map.entry("testexec/SideShapes.java | Cannot cast a collection of size", "C5 2026-11-17"),
             Map.entry("testexec/SideShapes.java | TDS_NULL_CELL", "C5 2026-11-17"),
-            Map.entry("testexec/SqlTextRuns.java | EngineText", "C3 2026-11-17"),
             Map.entry("testexecutionplan/HostJson.java | EngineText", "C3 2026-11-17"),
             Map.entry("testexecutionplan/HostJudgment.java | EngineText", "C3 2026-11-17"),
-            Map.entry("testexecutionplan/PlannedAppeals.java | EngineText", "C3 2026-11-17"),
+            Map.entry("testexecutionplan/NamedExtensions.java | EngineText", "C3 2026-11-17"),
             Map.entry("testexecutionplan/Verdicts.java | EngineText", "C3 2026-11-17"),
             Map.entry("testexecutionplan/Verdicts.java | +0000", "B11 2026-11-17"),
             // (testplan/AgreementAsserts.java | EngineText closed: 2026-11-17, (b) of the orchestrator's order: the fused agreement path deleted)
@@ -363,7 +335,6 @@ class EdgeSeparationTest {
             Map.entry("testexec/Equality.java | TDSNull", "B10 2026-11-17"),
             Map.entry("testexec/Equality.java | COMPILED_PURE_COMPAT", "C1 2026-11-17"),
             Map.entry("testexec/HostJudgments.java | COMPILED_PURE_COMPAT", "C1 2026-11-17"),
-            Map.entry("testexec/SqlTextRuns.java | COMPILED_PURE_COMPAT", "C1 2026-11-17"),
             Map.entry("testexecutionplan/JudgeJson.java | COMPILED_PURE_COMPAT", "C1 2026-11-17"),
             Map.entry("testexecutionplan/TestPlan.java | COMPILED_PURE_COMPAT", "C1 2026-11-17"),
             Map.entry("testexecutionplan/TestPlanJson.java | COMPILED_PURE_COMPAT", "C1 2026-11-17"),
@@ -378,7 +349,7 @@ class EdgeSeparationTest {
      *  B15, B16, C6, C7). Each must hold at least one entry in the count ({@link #everyOpenLineIsCounted}), so an empty
      *  count cannot read DONE with a line left. A line closes by leaving this set with its last entry. */
     static final Set<String> OPEN_LINES = Set.of("A1", "A5", "A6", "B2", "B4", "B5", "B6",
-            "B7", "B8", "B9", "B10", "B11", "B12", "B13", "B17", "C1", "C2", "C3", "C4", "C5");
+            "B7", "B8", "B9", "B10", "B11", "B12", "B13", "B17", "C1", "C3", "C4", "C5");
 
     private static Set<String> linesOf(Map<String, String> m) {
         Set<String> out = new TreeSet<>();
