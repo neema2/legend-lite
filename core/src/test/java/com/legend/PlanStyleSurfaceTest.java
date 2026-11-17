@@ -47,21 +47,30 @@ class PlanStyleSurfaceTest {
     static final List<String> KINDS = List.of("com.legend.testplan.EngineTestText", "com.legend.planner.UpstreamPlans",
             "com.legend.lowering.RelationTexts", "com.legend.lowering.PureOnlyTexts", "com.legend.lowering.ResultEnvelopes");
 
+    private static final String PRODUCT_ENUM = "the product's NEVER form (census C1 2c, S127, 2026-11-17), found"
+            + " 2026-11-17";
+
     /** Members of a TWO_FORMS kind that break criterion (a), each with its reason: found 2026-11-17. */
     static final Map<String, String> TWO_FORM_EXCEPTIONS = Map.ofEntries(
             // the product's own form held in the kind type itself: found by this guard 2026-11-17, reported to the
             // orchestrator (move the product's form out of the kind, or rule it), pinned so the kind grows no further
             Map.entry("TestDataPlanner$Printing#CLEAN (field)", "the product's clean timestamp form (L9, census C1"
                     + " 2026-11-17), found 2026-11-17"),
-            Map.entry("CrossKindNumbers#Product (nested type)", "the product's NEVER form (census C1 2c, S127,"
-                    + " 2026-11-17), found 2026-11-17"));
+            Map.entry("CrossKindNumbers#Product (nested type)", PRODUCT_ENUM),
+            // and every member of it, so the excepted nested type grows no further (the review of 7c37c88d7d)
+            Map.entry("CrossKindNumbers#Product#private <init>() (in a nested type)", PRODUCT_ENUM),
+            Map.entry("CrossKindNumbers#Product#public boolean byText(com.legend.compiler.element.type.Type, com.legend.compiler.element.type.Type) (in a nested type)", PRODUCT_ENUM),
+            Map.entry("CrossKindNumbers#Product#public static com.legend.testplan.CrossKindNumbers$Product valueOf(java.lang.String) (in a nested type)", PRODUCT_ENUM),
+            Map.entry("CrossKindNumbers#Product#public static com.legend.testplan.CrossKindNumbers$Product[] values() (in a nested type)", PRODUCT_ENUM),
+            Map.entry("CrossKindNumbers#Product#public static final com.legend.testplan.CrossKindNumbers$Product NEVER (in a nested type)", PRODUCT_ENUM),
+            Map.entry("CrossKindNumbers#Product#static {} (in a nested type)", PRODUCT_ENUM));
 
     /** PlanStyle's declared methods. */
     static final Set<String> STYLE_METHODS = Set.of(
             "private static java.lang.String dateTimeText(java.lang.String)",
-            "public abstract F facet(java.lang.Class<F>)",
-            "public abstract F facet(java.lang.Class<F>, java.util.function.Supplier<? extends java.lang.RuntimeException>)",
-            "public abstract F twoForm(java.lang.Class<F>, F)",
+            "public abstract <F> F facet(java.lang.Class<F>)",
+            "public abstract <F> F facet(java.lang.Class<F>, java.util.function.Supplier<? extends java.lang.RuntimeException>)",
+            "public abstract <F> F twoForm(java.lang.Class<F>, F)",
             "public abstract boolean judgesEngineText()",
             "public abstract com.legend.database.PlanStyle$TraceCell traceCell()",
             "public abstract com.legend.sql.dialect.SqlDialect dialect(com.legend.model.ConnectionDefinition$DatabaseType)",
@@ -90,14 +99,29 @@ class PlanStyleSurfaceTest {
 
     private static String described(Method m) {
         String mods = Modifier.toString(m.getModifiers() & Modifier.methodModifiers());
-        return (m.isDefault() ? "default " : "") + (mods.isEmpty() ? "" : mods + " ")
+        // a type variable's bounds (the review of 7c37c88d7d, 2026-11-17: <F> and <F extends X> read alike before)
+        String vars = m.getTypeParameters().length == 0 ? "" : Arrays.stream(m.getTypeParameters())
+                .map(v -> v.getName() + Arrays.stream(v.getBounds()).map(java.lang.reflect.Type::getTypeName)
+                        .filter(b -> !b.equals("java.lang.Object")).map(b -> " extends " + b)
+                        .collect(Collectors.joining(" &")))
+                .collect(Collectors.joining(", ", "<", "> "));
+        return (m.isDefault() ? "default " : "") + (mods.isEmpty() ? "" : mods + " ") + vars
                 + m.getGenericReturnType().getTypeName() + " " + signature(m);
     }
 
-    /** What breaks criterion (a) in {@code kind}: "Kind#member (what)". */
+    /** What breaks criterion (a) in {@code kind}: "Kind#member (what)", its superinterfaces' breaks behind
+     *  "Kind<-Super", and every member of a nested type it holds (the review of 7c37c88d7d, 2026-11-17: a superinterface's
+     *  default and an excepted nested type's growth were unseen). */
     static List<String> breaksOfA(Class<?> kind) {
         List<String> out = new ArrayList<>();
         String k = kind.getName().substring(kind.getName().lastIndexOf('.') + 1);
+        for (Class<?> sup : kind.getInterfaces()) {
+            if (!sup.getName().startsWith("java.")) {
+                for (String b : breaksOfA(sup)) {
+                    out.add(k + "<-" + b);
+                }
+            }
+        }
         if (!kind.isInterface()) {
             out.add(k + " (no interface)");
         }
@@ -118,6 +142,9 @@ class PlanStyleSurfaceTest {
         }
         for (Class<?> n : kind.getDeclaredClasses()) {
             out.add(k + "#" + n.getSimpleName() + " (nested type)");
+            for (String m : OpenClassMembersTest.membersOf(n)) {
+                out.add(k + "#" + n.getSimpleName() + "#" + m + " (in a nested type)");
+            }
         }
         return out;
     }
@@ -183,6 +210,58 @@ class PlanStyleSurfaceTest {
                 + " edge's forms -- list it here with its ruling");
     }
 
+    /** PlanStyle's whole surface as the open-class walk reads it (the review of 7c37c88d7d, 2026-11-17: its nested types
+     *  Activity and TraceCell, its PRODUCT field and that anonymous class were unpinned). Measured 2026-11-17. */
+    static final Set<String> STYLE_SURFACE = Set.of(
+            "$1 (anonymous or local class)",
+            "$1#<init>()",
+            "$1#public F facet(java.lang.Class<F>)",
+            "$1#public F facet(java.lang.Class<F>, java.util.function.Supplier<? extends java.lang.RuntimeException>)",
+            "$1#public F twoForm(java.lang.Class<F>, F)",
+            "$1#public boolean judgesEngineText()",
+            "$1#public com.legend.database.PlanStyle$TraceCell traceCell()",
+            "$1#public com.legend.sql.dialect.SqlDialect dialect(com.legend.model.ConnectionDefinition$DatabaseType)",
+            "$1#public java.lang.String activitySql(com.legend.database.PlanStyle$Activity)",
+            "$1#public java.lang.String errorWords(java.lang.RuntimeException)",
+            "$1#public java.lang.String graphKeyDate(java.lang.String)",
+            "$1#public java.lang.String graphKeyString(java.lang.String)",
+            "$1#public java.lang.String siteWords(com.legend.sql.dialect.RaiseSite)",
+            "$1#public java.util.Set<com.legend.sql.RaiseKind> plainRaises()",
+            "Activity#public abstract java.lang.String engines()",
+            "Activity#public abstract java.lang.String lites()",
+            "TraceCell#private final java.lang.String after",
+            "TraceCell#private final java.lang.String before",
+            "TraceCell#public <init>(java.lang.String, java.lang.String)",
+            "TraceCell#public final boolean equals(java.lang.Object)",
+            "TraceCell#public final int hashCode()",
+            "TraceCell#public final java.lang.String toString()",
+            "TraceCell#public java.lang.String after()",
+            "TraceCell#public java.lang.String before()",
+            "private static java.lang.String dateTimeText(java.lang.String)",
+            "public abstract F facet(java.lang.Class<F>)",
+            "public abstract F facet(java.lang.Class<F>, java.util.function.Supplier<? extends java.lang.RuntimeException>)",
+            "public abstract F twoForm(java.lang.Class<F>, F)",
+            "public abstract boolean judgesEngineText()",
+            "public abstract com.legend.database.PlanStyle$TraceCell traceCell()",
+            "public abstract com.legend.sql.dialect.SqlDialect dialect(com.legend.model.ConnectionDefinition$DatabaseType)",
+            "public abstract java.lang.String activitySql(com.legend.database.PlanStyle$Activity)",
+            "public abstract java.lang.String errorWords(java.lang.RuntimeException)",
+            "public abstract java.lang.String graphKeyDate(java.lang.String)",
+            "public abstract java.lang.String graphKeyString(java.lang.String)",
+            "public abstract java.lang.String siteWords(com.legend.sql.dialect.RaiseSite)",
+            "public abstract java.util.Set<com.legend.sql.RaiseKind> plainRaises()",
+            "public abstract static Activity (class)",
+            "public static final TraceCell (class)",
+            "public static final com.legend.database.PlanStyle PRODUCT",
+            "static {}");
+
+    @Test
+    void thePlanStylesWholeSurfaceIsPinned() {
+        Set<String> surface = OpenClassMembersTest.membersOf(PlanStyle.class);
+        assertEquals(new TreeSet<>(STYLE_SURFACE), new TreeSet<>(surface), "PlanStyle's nested types, fields or its"
+                + " PRODUCT's anonymous class changed: pin it with its ruling");
+    }
+
     @Test
     void theStylesOverridersArePinned() {
         Map<String, Set<String>> found = overriders(classes("legend.product.jars", "legend.edge.jars",
@@ -196,24 +275,25 @@ class PlanStyleSurfaceTest {
     @Test
     void theGuardBites() {
         String k = "PlanStyleSurfaceTest$PlantedKind#";
-        assertEquals(List.of(k + "twice(int) (method with a body)", k + "of() (static method)", k + "ZERO (field)",
-                k + "Product (nested type)"), sorted(breaksOfA(PlantedKind.class), List.of("twice", "of", "ZERO",
-                "Product")));
+        List<String> breaks = breaksOfA(PlantedKind.class);
+        assertTrue(breaks.containsAll(List.of(k + "twice(int) (method with a body)", k + "of() (static method)",
+                k + "ZERO (field)", k + "Product (nested type)", k + "Product#public int one(int) (in a nested type)",
+                "PlanStyleSurfaceTest$PlantedKind<-PlanStyleSurfaceTest$PlantedHelper#helper() (method with a body)")),
+                "four breaks of its own, a nested type's member, and a superinterface's default: " + breaks);
         Map<String, Set<String>> found = overriders(new ClassFileImporter().importClasses(PlantedStyle.class));
         assertEquals(1, found.size());
         assertEquals(Set.of("judgesEngineText"), found.values().iterator().next(), "its one override is read");
     }
 
-    private static List<String> sorted(List<String> breaks, List<String> order) {
-        List<String> out = new ArrayList<>();
-        for (String o : order) {
-            breaks.stream().filter(b -> b.startsWith("PlanStyleSurfaceTest$PlantedKind#" + o)).forEach(out::add);
+    /** A planted helper a kind extends: its default breaks (a) through the kind. */
+    interface PlantedHelper {
+        default int helper() {
+            return 0;
         }
-        return out;
     }
 
-    /** A planted two-form kind breaking (a) four ways. */
-    interface PlantedKind {
+    /** A planted two-form kind breaking (a) four ways, and a fifth through its superinterface. */
+    interface PlantedKind extends PlantedHelper {
         int ZERO = 0;
 
         int one(int x);

@@ -43,16 +43,19 @@ class HookLambdasTest {
     /** "caller#method" -> the class objects named beside its twoForm call. Measured 2026-11-17. */
     static final Map<String, Set<String>> TWO_FORM_CALLERS = Map.ofEntries(
             // the lowering's style: a DateTime's and a list's texts (and the PureOnlyTexts facet beside them)
-            Map.entry("com.legend.planner.PlanEnv#styled", Set.of("com.legend.lowering.DateTimeTexts",
+            Map.entry("com.legend.planner.PlanEnv#styled()", Set.of("com.legend.lowering.DateTimeTexts",
                     "com.legend.lowering.ListTexts", "com.legend.lowering.PureOnlyTexts")),
             // the database judge: a JSON golden's grammar (S144), two number kinds (S127)
-            Map.entry("com.legend.testplan.DatabaseJudge#jsonStringsEqual",
-                    Set.of("com.legend.testexecutionplan.JsonGrammar")),
-            Map.entry("com.legend.testplan.DatabaseJudge#numbers", Set.of("com.legend.testplan.CrossKindNumbers")),
+            Map.entry("com.legend.testplan.DatabaseJudge#jsonStringsEqual(java.lang.String, java.util.List,"
+                    + " java.util.List, com.legend.compiler.spec.SpecCompiler, com.legend.testplan.BodyDriver$ExecEnv,"
+                    + " com.legend.testplan.AssertVerdicts$SpliceHook)", Set.of("com.legend.testexecutionplan.JsonGrammar")),
+            Map.entry("com.legend.testplan.DatabaseJudge#numbers(com.legend.testplan.BodyDriver$ExecEnv)",
+                    Set.of("com.legend.testplan.CrossKindNumbers")),
             // the test planner: a relation counted by an assert (S137); a test-data timestamp's text (L9)
-            Map.entry("com.legend.testplan.TestPlanner#lifted", Set.of("com.legend.compiler.spec.RelationCounting",
-                    "com.legend.platform.PlanOption")),
-            Map.entry("com.legend.testplan.TestPlanner#plan", Set.of("com.legend.testdatagen.TestDataPlanner$Printing")));
+            Map.entry("com.legend.testplan.TestPlanner#lifted(com.legend.TypedQuery, com.legend.testplan.PlanningOptions)",
+                    Set.of("com.legend.compiler.spec.RelationCounting", "com.legend.platform.PlanOption")),
+            Map.entry("com.legend.testplan.TestPlanner#plan(com.legend.TypedQuery, java.lang.String,"
+                    + " com.legend.testplan.PlanningOptions)", Set.of("com.legend.testdatagen.TestDataPlanner$Printing")));
 
     /** The hook types: the ruled hooks, the facet kinds, the two-form kinds, the plan style. */
     static Set<String> hookTypes() {
@@ -93,12 +96,16 @@ class HookLambdasTest {
                 continue;
             }
             for (JavaCodeUnit u : c.getCodeUnits()) {
+                // a call or a method reference, each method by its full signature (the review of the loader sites'
+                // twin, 9702998c08, 2026-11-17: a reference was unseen, overloads shared a key)
                 boolean asks = u.getMethodCallsFromSelf().stream().anyMatch(call -> call.getName().equals("twoForm")
-                        && call.getTargetOwner().isAssignableTo(PlanStyle.class.getName()));
+                        && call.getTargetOwner().isAssignableTo(PlanStyle.class.getName()))
+                        || u.getMethodReferencesFromSelf().stream().anyMatch(ref -> ref.getName().equals("twoForm")
+                        && ref.getTargetOwner().isAssignableTo(PlanStyle.class.getName()));
                 if (asks) {
                     Set<String> objects = new TreeSet<>();
                     u.getReferencedClassObjects().forEach(o -> objects.add(o.getRawType().getName()));
-                    out.put(c.getName() + "#" + u.getName(), objects);
+                    out.put(ServiceLoaderSitesTest.key(c, u), objects);
                 }
             }
         }
@@ -145,7 +152,7 @@ class HookLambdasTest {
         String top = HookLambdasTest.class.getName();
         assertEquals(Map.of(top, Set.of("com.legend.lowering.DateTimeTexts")), lambdaHooks(pools, hookTypes()),
                 "the hook lambdas are read; a Supplier, a Function or a Runnable of other types is no hook");
-        assertEquals(Map.of(PlantedHookLambda.class.getName() + "#ask",
+        assertEquals(Map.of(PlantedHookLambda.class.getName() + "#ask(com.legend.database.PlanStyle)",
                 Set.of("com.legend.lowering.DateTimeTexts")), twoFormCallers(new ClassFileImporter()
                 .importClasses(PlantedHookLambda.class)));
     }
