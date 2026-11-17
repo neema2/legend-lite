@@ -340,14 +340,10 @@ class CompatSpellingGuardTest {
             // edge.RelationTextLowering)
             // the judges' compatibility mode's branches (E-Java, census C1)
             "testexec/Equality.java | COMPILED_PURE_COMPAT | 1 | D1.9",
-            "testexec/HostJudgments.java | COMPILED_PURE_COMPAT | 1 | D1.9",
-            "testexecutionplan/JudgeJson.java | COMPILED_PURE_COMPAT | 1 | D1.9",
-            "testexecutionplan/TestPlan.java | COMPILED_PURE_COMPAT | 3 | D1.9",
+            "testexecutionplan/TestPlan.java | COMPILED_PURE_COMPAT | 1 | D1.9",   // 3 -> 1 (2026-11-17, C1 step 1: each judging fact a named accessor over one field)
             "testexecutionplan/TestPlanJson.java | COMPILED_PURE_COMPAT | 2 | D1.9",
             "testplan/AssertVerdicts.java | COMPILED_PURE_COMPAT | 1 | D1.9",
-            "testplan/DatabaseJudge.java | COMPILED_PURE_COMPAT | 2 | D1.9",
-            "testplan/PlanningOptions.java | COMPILED_PURE_COMPAT | 2 | D1.9",
-            "testplan/TestPlanner.java | COMPILED_PURE_COMPAT | 1 | D1.9"
+            "testplan/PlanningOptions.java | COMPILED_PURE_COMPAT | 1 | D1.9"   // 2 -> 1 (2026-11-17, C1 step 1: the edge check asks edgeAppeals())
             // retagged 2026-11-15 (D1.2's end): Java's spelling of a date value. D1.4 -> D1.8 (2026-11-16, W4): lite's
             // writers no longer read it (CellText's product half prints S312's text); what remains is legend-engine's
             // JSON of a date (toEngineJson, read by CellText's engine half, which moves with PureV1Writer at W8) and

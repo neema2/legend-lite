@@ -21,7 +21,7 @@ final class HostJudgments {
     /** Whether the host judge words a failure by lite's own sentences ({@link LiteWords}): lite's own rules; the
      *  compatibility rules keep legend-pure's words. */
     static boolean lite(com.legend.testexecutionplan.TestPlan.JudgingRules rules) {
-        return rules == com.legend.testexecutionplan.TestPlan.JudgingRules.LITE;
+        return !rules.legendPureWords();
     }
 
     /** The platform's primitive types, named by their short names. */
@@ -1007,7 +1007,7 @@ final class HostJudgments {
             // clean mode (the user, 2026-11-05: after a verdict the harness may only explain): the two strings ARE the
             // verdict; the ruled row comparison after a failed text is compatibility mode's alone
             boolean held = et.equals(at)
-                    || rules == com.legend.testexecutionplan.TestPlan.JudgingRules.COMPILED_PURE_COMPAT
+                    || rules.renderedTextRuled()
                             && com.legend.testexec.TdsCompare.renderedText(
                                     j.aForm() != null ? et : at, j.aForm() != null ? at : et,
                                     form, j.sortedOrder());
