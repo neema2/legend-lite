@@ -1231,20 +1231,18 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
      */
     @SpellingArm
     protected SqlExpr raiseMessage(SqlExpr.RaiseText r) {
-        return site(r, written -> null);
+        return site(r);
     }
 
     /**
      * {@code r}'s text as a SITE of the statement under way: a checked graph's defect text as data where {@code r} is
      * one ({@code asData}: no raise, no site), the user's own message where it is a {@code fail}, else the token
      * {@code LG#<n>} of its site -- the next one, or the one an identical raise of the statement already holds -- recorded
-     * with its kind, its where, its operands and the words {@code upstream}
-     * gives it (the edge's style's sentence, worded at planning: {@code database.PlanStyle#siteWords}; none in the
-     * product). A raise written outside a statement's render has no table to
-     * declare it, refused by name.
+     * with its kind, its where and its operands (no words: the plan's style is offered the statement's sites where the
+     * planner makes it, {@code database.PlanStyle#siteWords}; K10b, 2026-11-17). A raise written outside a statement's
+     * render has no table to declare it, refused by name.
      */
-    protected final SqlExpr site(SqlExpr.RaiseText r,
-            java.util.function.Function<RaiseSite, @com.legend.base.Nullable String> upstream) {
+    protected final SqlExpr site(SqlExpr.RaiseText r) {
         if (r.asData() != null) {
             // the kind's text as data in an answer (a checked graph's defect): the product's words, worded at planning
             return new SqlExpr.StringLit(r.asData());
@@ -1256,14 +1254,12 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             throw new IllegalStateException("a raise of " + r.kind() + " written outside a statement's render: no"
                     + " statement's site table declares it (" + getClass().getSimpleName() + ")");
         }
-        RaiseSite written = new RaiseSite(raiseSites.size() + 1, r.kind(), r.where(), r.operands(), null);
-        written = written.worded(upstream.apply(written));
+        RaiseSite written = new RaiseSite(raiseSites.size() + 1, r.kind(), r.where(), r.operands());
         for (RaiseSite held : raiseSites) {
             // the same raise written again in the statement (a guard a dialect writes twice, a CASE copied): its one
             // site, said once -- the copies' text stays identical, so the database and the lean measure see one repeat
             if (held.kind() == written.kind() && java.util.Objects.equals(held.where(), written.where())
-                    && held.operands().equals(written.operands())
-                    && java.util.Objects.equals(held.upstream(), written.upstream())) {
+                    && held.operands().equals(written.operands())) {
                 return new SqlExpr.StringLit(com.legend.sql.RaiseKind.token(held.n()));
             }
         }

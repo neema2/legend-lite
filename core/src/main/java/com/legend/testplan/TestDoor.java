@@ -148,6 +148,11 @@ public final class TestDoor {
                 byStep.put(i, edge.seed(referee.steps(), referee.content()));
             });
         }
+        // legend-pure's words of the raise sites this planning call's style recorded (K10b of the edge audit, the
+        // orchestrator's ruling (A) of 2026-11-17), read ONCE, after the planning above, and each record held at the step
+        // that sends its statement -- the hearing's data, whatever edge hook the run is handed; the product's style
+        // records none
+        siteWordsByStep(steps, EngineTextGates.siteWords(style), byStep);
         // whether the body's last statement is an assert, whose verdict is then the body's answer: a fact of the plan
         // (the slice 2 invariant audit's hole 3, 2026-11-08)
         boolean answersLastVerdict = asserts.at(body.body().size() - 1) != null;
@@ -159,6 +164,64 @@ public final class TestDoor {
                 PlanMaker.testSessionTarget(body.context(), runtime, style), facts, null,
                 style.twoForm(FailureWords.class, LiteFailureWords.LITE).upstreamWords());
         return plan.withAnswerSizeWords(answerSizeWords(plan, style));
+    }
+
+    /** Each of {@code words}' records (a statement text's raise sites' words) held at the first of {@code steps} that
+     *  sends that text, beside the step's other records. A text no step sends is never run, so never raises: its
+     *  records are not the plan's. */
+    private static void siteWordsByStep(List<TestPlan.TestStep> steps,
+            Map<String, List<com.legend.testexecutionplan.Extension>> words,
+            Map<Integer, List<com.legend.testexecutionplan.Extension>> byStep) {
+        if (words.isEmpty()) {
+            return;
+        }
+        java.util.Set<String> filed = new java.util.HashSet<>();
+        for (int i = 0; i < steps.size(); i++) {
+            List<String> texts = new java.util.ArrayList<>();
+            switch (steps.get(i)) {
+                case TestPlan.Run r -> textsOf(r.node(), texts);
+                case TestPlan.FrameRun f -> textsOf(f.check(), texts);
+                case TestPlan.Verdicts v -> TestPlan.statements(v).forEach(n -> textsOf(n, texts));
+                case TestPlan.Branch b -> TestPlan.statements(b).forEach(n -> textsOf(n, texts));
+                case TestPlan.Isolated p -> throw new IllegalStateException("an isolated pair is assembled after its two"
+                        + " plans, each filed at its own door");
+            }
+            for (String text : texts) {
+                List<com.legend.testexecutionplan.Extension> records = words.get(text);
+                if (records != null && filed.add(text)) {
+                    List<com.legend.testexecutionplan.Extension> at = new java.util.ArrayList<>(
+                            byStep.getOrDefault(i, List.of()));
+                    at.addAll(records);
+                    byStep.put(i, at);
+                }
+            }
+        }
+    }
+
+    /** The texts of the statements {@code node} sends, in order. */
+    private static void textsOf(ExecutionPlan.Node node, List<String> into) {
+        switch (node) {
+            case ExecutionPlan.Sequence s -> s.steps().forEach(step -> textsOf(step, into));
+            case ExecutionPlan.TdsResult t -> into.add(t.sql().statement());
+            case ExecutionPlan.Keyed k -> {
+                into.add(k.keys().statement());
+                into.add(k.body().statement());
+            }
+            case ExecutionPlan.Update u -> into.add(u.sql().statement());
+            case ExecutionPlan.Check c -> into.add(c.sql().statement());
+            case ExecutionPlan.Effect e -> into.add(e.sql().statement());
+            case ExecutionPlan.Load l -> {
+                for (ExecutionPlan.LoadStep step : l.steps()) {
+                    if (step instanceof ExecutionPlan.LoadStep.File f
+                            && f.delivery() instanceof ExecutionPlan.LoadStep.Delivery.Reads reads) {
+                        into.addAll(reads.statements());
+                    }
+                }
+            }
+            case ExecutionPlan.Constant c -> {
+                // rows, no statement
+            }
+        }
     }
 
     /** The body's answer's refusal of no rows, worded at planning as {@code style} words it (C5's step E, 2026-11-17):

@@ -820,13 +820,12 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
      * docs/records/d-phase2-raise-marker-2026-11-16.md): the statement raises the bare token {@code LG#<n>}
      * ({@link com.legend.sql.dialect.RaiseSite#token}) and this says what it means -- its kind, its where (a fixed text known at
      * planning, or none), and its words RENDERED AT PLANNING: {@code message}, the product's sentence
-     * ({@code error.ErrorKind}'s, then {@code ": "} and the where), and {@code upstream}, legend-pure's sentence in a plan
-     * the compatibility edge wrote (its {@code PlanStyle#siteWords}), null in the product's. Run time is a lookup:
-     * nothing is worded there. Exec says {@code message} alone (K10a of the edge audit, 2026-11-17); {@code upstream}
-     * is unread by exec and leaves the product plan for the test plan's edge data with K10b.
+     * ({@code error.ErrorKind}'s, then {@code ": "} and the where). Run time is a lookup: nothing is worded there, and
+     * exec says {@code message} alone (K10a of the edge audit, 2026-11-17). Legend-pure's words of a site are no
+     * component of it: they are the compatibility edge's records, keyed by the statement's text and {@code n}, held by a
+     * test plan's edge data (K10b, 2026-11-17).
      */
-    public record Site(int n, com.legend.sql.RaiseKind kind, @com.legend.base.Nullable String where, String message,
-            @com.legend.base.Nullable String upstream) {
+    public record Site(int n, com.legend.sql.RaiseKind kind, @com.legend.base.Nullable String where, String message) {
         public Site {
             if (n < 1) {
                 throw new IllegalArgumentException("a raise site is numbered from 1: " + n);

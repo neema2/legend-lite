@@ -25,14 +25,15 @@ class RaiseEnvelopeConformanceTest {
     void javasRunnerReadsEachEnvelopeAsTheHostsDo() throws Exception {
         Json.Obj fixture = (Json.Obj) Json.parse(Files.readString(Runfile.property("raise.fixture"),
                 StandardCharsets.UTF_8));
-        // the statement's site table (PlanJson v56's sites): each message error.ErrorKind's sentence and its where,
-        // the one source (phase D's Phase 2, raises as SITES, 2026-11-16)
+        // the statement's site table (PlanJson's sites): each message error.ErrorKind's sentence and its where, the one
+        // source (phase D's Phase 2, raises as SITES, 2026-11-16); a site's upstream words are no component of it
+        // (K10b, 2026-11-17: the edge's records), so a fixture's are not read
         List<com.legend.executionplan.ExecutionPlan.Site> sites = new java.util.ArrayList<>();
         for (Json.Node n : fixture.getArr("sites").items()) {
             Json.Obj so = (Json.Obj) n;
             var site = new com.legend.executionplan.ExecutionPlan.Site(so.getInt("n"),
                     com.legend.sql.RaiseKind.valueOf(so.getString("kind")), so.getStringOr("where", null),
-                    so.getString("message"), so.getStringOr("upstream", null));
+                    so.getString("message"));
             assertEquals(com.legend.executionplan.ExecutionPlan.Site.sentence(site.kind(), site.where()),
                     site.message(), "the fixture's site " + site.n() + " is ErrorKind's sentence and its where");
             sites.add(site);

@@ -75,7 +75,17 @@ final class JdbcStatements implements Statements {
     /** {@link #failed(SQLException)} of a statement whose plan declares {@code sites}: a token it raised read through
      *  them (phase D's Phase 2, 2026-11-16). */
     private com.legend.error.DataError failed(SQLException e, List<ExecutionPlan.Site> sites) {
-        com.legend.error.DataError failure = RaisedErrors.dataError(e, sites, () -> heldBy(e));
+        return turned(RaisedErrors.dataError(e, sites, () -> heldBy(e)));
+    }
+
+    /** {@link #failed(SQLException)} of the plan's {@code statement}: a token it raised read through its sites, the
+     *  raise carrying the statement's text beside its site (K10b of the edge audit, 2026-11-17). */
+    private com.legend.error.DataError failed(SQLException e, PlannedSql statement) {
+        return turned(RaisedErrors.dataError(e, statement, () -> heldBy(e)));
+    }
+
+    /** {@code failure}, the turn rolled back first where the database aborted it. */
+    private com.legend.error.DataError turned(com.legend.error.DataError failure) {
         if (state.inTurn() && aborts()) {
             // a statement failed inside a run's turn on the catalog (§3 rule 3, A4) on a database that has aborted the
             // turn's whole transaction (DuckDB), refusing every statement until a rollback: the turn rolls back now and
@@ -273,7 +283,7 @@ final class JdbcStatements implements Statements {
         try {
             return send(c, statement, Send.TEXT_EXECUTE, Bind.NOTHING, JdbcStatements::executedOf);
         } catch (SQLException e) {
-            throw failed(e, statement.sites());
+            throw failed(e, statement);
         }
     }
 
@@ -284,7 +294,7 @@ final class JdbcStatements implements Statements {
         try {
             return send(c, statement, Send.UPDATE, st -> bindAll(st, slots, values), JdbcStatements::countOf);
         } catch (SQLException e) {
-            throw naming(e, failed(e, statement.sites()), slots);
+            throw naming(e, failed(e, statement), slots);
         }
     }
 
@@ -294,7 +304,7 @@ final class JdbcStatements implements Statements {
         try {
             return send(c, statement, Send.TEXT_QUERY, Bind.NOTHING, a -> reported(rowsOf(a).getMetaData()));
         } catch (SQLException e) {
-            throw failed(e, statement.sites());
+            throw failed(e, statement);
         }
     }
 
@@ -307,7 +317,7 @@ final class JdbcStatements implements Statements {
                 return md == null ? List.<Reported>of() : reported(md);
             });
         } catch (SQLException e) {
-            throw failed(e, statement.sites());
+            throw failed(e, statement);
         }
     }
 
@@ -332,7 +342,7 @@ final class JdbcStatements implements Statements {
                 }
             }, JdbcStatements::executedOf);
         } catch (SQLException e) {
-            throw failed(e, statement.sites());
+            throw failed(e, statement);
         }
     }
 
@@ -391,7 +401,7 @@ final class JdbcStatements implements Statements {
                 return Boolean.TRUE;   // the rows went to the act's sink
             });
         } catch (SQLException e) {
-            throw naming(e, failed(e, statement.sites()), slots);
+            throw naming(e, failed(e, statement), slots);
         }
     }
 
@@ -443,7 +453,7 @@ final class JdbcStatements implements Statements {
                 return Boolean.TRUE;   // the rows went to the act's sink
             });
         } catch (SQLException e) {
-            throw naming(e, failed(e, statement.sites()), slots);
+            throw naming(e, failed(e, statement), slots);
         }
     }
 
@@ -472,7 +482,7 @@ final class JdbcStatements implements Statements {
                 return Boolean.TRUE;   // the rows went to the act's sink
             });
         } catch (SQLException e) {
-            throw naming(e, failed(e, statement.sites()), slots);
+            throw naming(e, failed(e, statement), slots);
         }
     }
 
