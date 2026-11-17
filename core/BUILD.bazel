@@ -19,7 +19,7 @@ load("//tools/runfiles:defs.bzl", "executable_of")
 load("//tools/platforms:defs.bzl", "compatible_with")
 load(":layers.bzl", "core_layer_queries")
 load(":stress.bzl", "LINKED_PROJECTS", "STRESS_GENERATED", "stress_index", "stress_layout")
-load(":edge_tests.bzl", "EDGE_TEST_SRCS", "edge_test_classes", "product_tests_closure")
+load(":edge_tests.bzl", "EDGE_TEST_SRCS", "edge_test_classes", "product_exclusions", "product_tests_closure")
 
 # PRIVATE BY DEFAULT (Bazel workplan P1-20): a target is visible outside core only where it says to whom.
 package(default_visibility = ["//visibility:private"])
@@ -891,7 +891,7 @@ _CORE_MANUAL_PROBES = {
     # in its own target
     select = ["--select-package=com.legend." + p] + (
         ["--exclude-classname=.*CorpusDifferentialTest"] if p == "integration" else []
-    ) + ["--exclude-classname=" + c for c in _CORE_MANUAL_PROBES.get(p, [])],
+    ) + ["--exclude-classname=" + c for c in _CORE_MANUAL_PROBES.get(p, [])] + product_exclusions(),
     exclude_tags = _CORE_TEST_EXCLUDED_TAGS,
     runtime_deps = [
         ":core_tests_lib",
@@ -936,7 +936,8 @@ junit_test(
     name = "core_tests_root",
     memory_mb = _CORE_TEST_MEMORY_MB,
     size = "medium",
-    select = ["--select-package=com.legend"] + ["--exclude-package=com.legend." + p for p in _CORE_TEST_PACKAGES],
+    select = ["--select-package=com.legend"] + ["--exclude-package=com.legend." + p for p in _CORE_TEST_PACKAGES] +
+             product_exclusions(),
     exclude_tags = _CORE_TEST_EXCLUDED_TAGS,
     runtime_deps = [
         ":core_tests_lib",
@@ -1003,7 +1004,7 @@ _JUDGED_PACKAGES = ["compiler", "exec", "integration", "lowering", "normalizer",
     size = "large" if p in _CORE_TEST_LARGE else "medium",
     select = ["--select-package=com.legend." + p] + (
         ["--exclude-classname=.*CorpusDifferentialTest"] if p == "integration" else []
-    ) + ["--exclude-classname=" + c for c in _CORE_MANUAL_PROBES.get(p, [])],
+    ) + ["--exclude-classname=" + c for c in _CORE_MANUAL_PROBES.get(p, [])] + product_exclusions(),
     exclude_tags = _CORE_TEST_EXCLUDED_TAGS,
     tags = ["ci-linux-only"],
     runtime_deps = [
@@ -1017,7 +1018,8 @@ _JUDGED_PACKAGES = ["compiler", "exec", "integration", "lowering", "normalizer",
     memory_mb = _CORE_TEST_MEMORY_MB,
     jvm_flags = ["-Dlegend.test.judge=" + judge],
     size = "medium",
-    select = ["--select-package=com.legend"] + ["--exclude-package=com.legend." + p for p in _CORE_TEST_PACKAGES],
+    select = ["--select-package=com.legend"] + ["--exclude-package=com.legend." + p for p in _CORE_TEST_PACKAGES] +
+             product_exclusions(),
     exclude_tags = _CORE_TEST_EXCLUDED_TAGS,
     tags = ["ci-linux-only"],
     runtime_deps = [
@@ -1066,7 +1068,7 @@ junit_test(
     memory_mb = 1024,
     jvm_flags = ["-Dlegend.test.judge=" + judge],
     size = "large",
-    select = edge_test_classes(_JUDGED_PACKAGES, root = True) + ["--exclude-classname=.*CorpusDifferentialTest"] +
+    select = edge_test_classes(_JUDGED_PACKAGES, root_besides = _CORE_TEST_PACKAGES) + ["--exclude-classname=.*CorpusDifferentialTest"] +
              ["--exclude-classname=" + c for p in _CORE_MANUAL_PROBES for c in _CORE_MANUAL_PROBES[p]],
     exclude_tags = _CORE_TEST_EXCLUDED_TAGS,
     tags = ["ci-linux-only", "edge_test"],
@@ -2487,7 +2489,7 @@ junit_test(
         "--include-tag=guardrail",
         "--exclude-classname=com.legend.ArchitectureTest",
         "--exclude-classname=com.legend.EdgeSeparationTest",
-    ],
+    ] + product_exclusions(),
     runtime_deps = [
         ":core_tests_lib",
         ":duckdb_cells",
@@ -2532,6 +2534,8 @@ junit_test(
     select = [
         "--select-class=com.legend.ArchitectureTest",
         "--select-class=com.legend.EdgeSeparationTest",
+        # a product guard that loads the edge's dialects by name (core/edge_tests.bzl EDGE_AT_RUN)
+        "--select-class=com.legend.sql.dialect.DialectVocabularyTest",
     ],
     # :duckdb_cells too: ArchitectureTest judges every product library (theImportIsEveryProductLibrary);
     # :postgres_cells since 2026-10-30 (D69: a registered JDBC class the guards had never judged)

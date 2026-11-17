@@ -95,22 +95,39 @@ EDGE_TEST_SRCS = [
     "src/test/java/com/legend/testplan/TestPlanJsonRoundTripTest.java",
 ]
 
-def edge_test_classes(packages = None, root = False):
+# a file whose class is not its name
+_CLASS_OF = {
+    "src/test/java/com/legend/integration/JoinedTextTest.java": "com.legend.integration.CellTextsTest",
+}
+
+# THE PRODUCT'S TEST CLASSES THAT JUDGE THE EDGE AT RUN TIME (A5, 2026-11-17): compiled without the edge, they read it
+# by name -- the lanes' floors name the edge's tests (LaneFloorTest), the dialect vocabulary loads the edge's dialects
+# (DialectVocabularyTest) -- so they run on the edge's side, and every product target excludes them by name.
+EDGE_AT_RUN = [
+    "com.legend.sql.dialect.DialectVocabularyTest",
+    "com.legend.testing.LaneFloorTest",
+]
+
+def product_exclusions():
+    """--exclude-classname arguments for the product's targets: the EDGE_AT_RUN classes."""
+    return ["--exclude-classname=" + c.replace(".", "\\.") for c in EDGE_AT_RUN]
+
+def edge_test_classes(packages = None, root_besides = None):
     """The edge's test classes (each EDGE_TEST_SRCS file named *Test), as --select-class arguments: those in
-    `packages` (com.legend.<p>, its subpackages included) and, with `root`, the root package's own; every one when
+    `packages` (com.legend.<p>, its subpackages included) and, with `root_besides`, the root target's (com.legend less
+    the packages `root_besides` lists, as core_tests_root selects); every one when
     `packages` is None. The edge's test targets select them by class, so a product test never runs there twice and
     the product's test targets, which carry no edge library, never see one (F's census line A5, 2026-11-17)."""
     out = []
-    for src in EDGE_TEST_SRCS:
-        path = src[len("src/test/java/"):-len(".java")]
-        if not path.endswith("Test"):
+    names = [_CLASS_OF.get(src, src[len("src/test/java/"):-len(".java")].replace("/", ".")) for src in EDGE_TEST_SRCS]
+    for name in names + EDGE_AT_RUN:
+        if not name.endswith("Test"):
             continue
-        rel = path[len("com/legend/"):]
-        parts = rel.split("/")
+        parts = name[len("com.legend."):].split(".")
         top = parts[0] if len(parts) > 1 else None
-        if packages != None and not (top in packages or (root and top == None)):
+        if packages != None and not (top in packages or (root_besides != None and top not in root_besides)):
             continue
-        out.append("--select-class=" + path.replace("/", "."))
+        out.append("--select-class=" + name)
     return out
 
 def product_tests_closure(name, extra = []):
