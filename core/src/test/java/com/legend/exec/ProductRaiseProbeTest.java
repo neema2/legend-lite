@@ -171,6 +171,33 @@ class ProductRaiseProbeTest {
         Object product = run(backend, "123456789.123456789 * 3.0", "|123456789.123456789 * 3.0");
         expectDouble(wrong, "0.1 + 0.2", sum, 0.1 + 0.2);
         expectDouble(wrong, "123456789.123456789 * 3.0", product, 123456789.123456789 * 3.0);
+        // 8. the four ways (the user's request, 2026-11-17; FloatAndDecimalTest): a Float literal and a Float column
+        // answer the double's, a Decimal literal and a Decimal column the exact; each case's SQL printed above. The Float
+        // rows are judged (S20); the Decimal rows are printed for the lanes (D1: DuckDB's DECIMAL(18) product overflow;
+        // D2: SQLite's Decimal is no exact decimal -- both open, 2026-11-17)
+        String row = "|#TDS\n  a:%1$s, b:%1$s\n  %2$s, %3$s\n#->extend(~v: r|%4$s)->select(~v)->from("
+                + StorelessRuntime.RUNTIME + ")";
+        String[][] fourWays = {{"0.1", "0.2", "$a + $b"}, {"0.3", "0.1", "rem($a, $b)"},
+                {"123456789.123456789", "3.0", "$a * $b"}};
+        for (String[] w : fourWays) {
+            String lit = w[2].replace("$a", w[0]).replace("$b", w[1]);
+            String col = w[2].replace("$a", "$r.a->toOne()").replace("$b", "$r.b->toOne()");
+            Object fl = run(backend, "four ways: Float literal " + lit, "|" + lit);
+            Object fc = run(backend, "four ways: Float column " + col, String.format(row, "Float", w[0], w[1], col));
+            Object dl = run(backend, "four ways: Decimal literal " + lit,
+                    "|" + w[2].replace("$a", w[0] + "D").replace("$b", w[1] + "D"));
+            Object dc = run(backend, "four ways: Decimal column " + col, String.format(row, "Decimal", w[0], w[1], col));
+            double want = switch (w[2]) {
+                case "$a + $b" -> Double.parseDouble(w[0]) + Double.parseDouble(w[1]);
+                case "rem($a, $b)" -> Double.parseDouble(w[0]) % Double.parseDouble(w[1]);
+                default -> Double.parseDouble(w[0]) * Double.parseDouble(w[1]);
+            };
+            expectDouble(wrong, "four ways: Float literal " + lit, fl, want);
+            expectDouble(wrong, "four ways: Float column " + col, fc, want);
+            System.out.println("[product raise probe] " + backend.name() + " four ways " + lit + ": Float literal "
+                    + describe(fl) + ", Float column " + describe(fc) + ", Decimal literal " + describe(dl)
+                    + ", Decimal column " + describe(dc));
+        }
         // what came back, each case's (the orchestrator, 2026-11-15: every lane's log shows it, not only the count)
         System.out.println("[product raise probe] " + backend.name() + " guarded, no raise, answered: " + describe(rows));
         System.out.println("[product raise probe] " + backend.name() + " divide by zero, raised: " + describe(zero));
