@@ -341,7 +341,7 @@ class TaggedListTest {
                 + "assertSize([1, 2], 2);\n"
                 + "assertEquals(2, $rs.rows->at(0).getInteger('N'));}";
         try (Connection c = TestBackends.platform().open()) {
-            for (com.legend.testplan.PlanningOptions.JudgeMode mode : com.legend.testplan.PlanningOptions.JudgeMode.RUNS) {
+            for (com.legend.testplan.PlanningOptions.JudgeMode mode : java.util.List.of(com.legend.testplan.PlanningOptions.JudgeMode.HOST, com.legend.testplan.PlanningOptions.JudgeMode.BOTH)) {
                 Program.last(StorelessRuntime.with(MODEL, Databases.PLATFORM), body, StorelessRuntime.RUNTIME, c,
                         com.legend.ExecuteOptions.NONE.withJudgeMode(mode));
             }
