@@ -141,7 +141,7 @@ public final class Boundary {
     /**
      * A query written as Pure TEXT planned: {@code {"sql": ..., "type": RelationType}}, the type in legend-engine's
      * {@code lambdaRelationType} shape through the one renderer the server's {@code pure/v1} answers use
-     * ({@code UpstreamRelationType}) -- so a host reads a column's type from the compiler, never from the engine's
+     * ({@code plan.RelationTypeJson}) -- so a host reads a column's type from the compiler, never from the engine's
      * wire (docs/DATACUBE_TYPED_VALUES_DESIGN_2026_09_27.md, step 1).
      */
     public static String plan(String model, String query, String runtime) {
@@ -150,11 +150,11 @@ public final class Boundary {
 
     /**
      * A query written as Pure TEXT, typed compile-only: upstream {@code lambdaRelationType}'s answer
-     * ({@code UpstreamRelationType}), no runtime, no lowering. How the tab types a cube's source and calculated
+     * ({@code plan.RelationTypeJson}), no runtime, no lowering. How the tab types a cube's source and calculated
      * columns before any level query runs.
      */
     public static String relationType(String model, String query) {
-        return com.legend.json.Json.toCompact(com.legend.edge.UpstreamRelationType.of(
+        return com.legend.json.Json.toCompact(com.legend.plan.RelationTypeJson.of(
                 com.legend.Compiler.query(com.legend.Compiler.compileModel(model), query).resultType()));
     }
 
@@ -185,7 +185,7 @@ public final class Boundary {
         }
         java.util.Map<String, Object> out = new java.util.LinkedHashMap<>();
         out.put("sql", p.sql());
-        out.put("type", com.legend.edge.UpstreamRelationType.of(p.rootType()));
+        out.put("type", com.legend.plan.RelationTypeJson.of(p.rootType()));
         // the raises its statement can send, by kind, to their sentences (PlanJson.raises; phase D's option (D),
         // 2026-11-15): what a host words a failure with, read from the answer, never from a table of its own
         out.put("raises", com.legend.executionplan.PlanJson.raises(p.plan()));
@@ -243,14 +243,14 @@ public final class Boundary {
     /** A lambda's protocol JSON typed, compile-only, over a model held: upstream's {@code lambdaRelationType} answer. */
     public static String relationTypeJsonHeld(int handle, String lambdaJson) {
         return MODELS.with(handle, ctx -> com.legend.json.Json.toCompact(
-                com.legend.edge.UpstreamRelationType.of(com.legend.Compiler.query(ctx,
+                com.legend.plan.RelationTypeJson.of(com.legend.Compiler.query(ctx,
                         com.legend.protocol.ProtocolReader.lambda(lambdaJson)).resultType())));
     }
 
     /** {@link #relationType} over a model held. */
     public static String relationTypeHeld(int handle, String query) {
         return MODELS.with(handle, ctx -> com.legend.json.Json.toCompact(
-                com.legend.edge.UpstreamRelationType.of(com.legend.Compiler.query(ctx, query).resultType())));
+                com.legend.plan.RelationTypeJson.of(com.legend.Compiler.query(ctx, query).resultType())));
     }
 
     // ---- a model's data and its tables
