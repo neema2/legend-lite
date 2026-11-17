@@ -34,7 +34,7 @@ public final class JudgeJson {
 
     /** {@code text} read under {@code rules}; a text the rules refuse raises {@link IllegalStateException}. */
     public static @Nullable Object read(String text, TestPlan.JudgingRules rules) {
-        if (rules == TestPlan.JudgingRules.COMPILED_PURE_COMPAT) {
+        if (rules.jsonSimpleGrammar()) {
             return new JsonSimple(text).parse();
         }
         try {

@@ -1987,7 +1987,7 @@ public final class AssertVerdicts {
      *  family: {@code rows} alone. */
     private static TypedSide textFirst(String name, boolean wantEqual, com.legend.sql.@com.legend.base.Nullable SqlQuery textRow,
             BodyDriver.ExecEnv env, java.util.function.Supplier<TypedSide> rows) {
-        if (env.options().judgingRules() != com.legend.testexecutionplan.TestPlan.JudgingRules.COMPILED_PURE_COMPAT) {
+        if (!env.options().judgingRules().renderedTextRuled()) {
             // clean mode (the user, 2026-11-05: after a verdict the harness may only explain): the two strings are the
             // verdict; the ruled row comparison is compatibility mode's alone
             if (textRow == null) {

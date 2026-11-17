@@ -53,8 +53,7 @@ public final class TestPlanner {
         // body is classed and planned as any other
         // its texts print a timestamp as the body is judged (L9, the user's ruling of 2026-11-12): lite's own rules the
         // clean form, the compatibility rules upstream's
-        com.legend.testdatagen.TestDataPlanner.Printing printing = options.judgingRules()
-                == com.legend.testexecutionplan.TestPlan.JudgingRules.COMPILED_PURE_COMPAT
+        com.legend.testdatagen.TestDataPlanner.Printing printing = options.judgingRules().upstreamTestDataTimestamps()
                 // asked when a timestamp is printed, never before: a body judged by the compatibility rules on a style
                 // whose facet refuses (a product-style test) plans as before unless it prints one
                 ? x -> options.style().facet(com.legend.planner.UpstreamPlans.class).testDataTimestampText().apply(x)
@@ -224,10 +223,10 @@ public final class TestPlanner {
      *  rules refuse it, the compatibility rules count it as upstream does). */
     private static TypedQuery lifted(TypedQuery given, PlanningOptions options) {
         List<com.legend.compiler.spec.typed.TypedSpec> lifted = com.legend.compiler.spec.AssertLift.lift(given.body());
-        if (options.judgingRules() == com.legend.testexecutionplan.TestPlan.JudgingRules.LITE) {
-            com.legend.compiler.spec.RelationCountAsserts.refuse(lifted);
-        } else {
+        if (options.judgingRules().relationCountedAsOne()) {
             lifted = com.legend.compiler.spec.RelationCountAsserts.countedAsOne(lifted);
+        } else {
+            com.legend.compiler.spec.RelationCountAsserts.refuse(lifted);
         }
         TypedQuery out = lifted == given.body() ? given : given.withBody(lifted);
         // the run's planning options reach the body's own statements (its lets, checks and answer, which
