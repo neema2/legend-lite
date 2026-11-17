@@ -80,7 +80,9 @@ class CompatSpellingGuardTest {
             // legend-engine's TDS builder's type, and the session statement freeing the engine's words on H2 (the P2
             // checkpoint audit's S5, 2026-11-16: until then caught by no list). "TDSNull" is not listed yet: as a
             // literal it is also the Pure type's own name (16 product literals), so its sites are sorted in Phase 7
-            "tdsBuilder", "SET NON_KEYWORDS");
+            "tdsBuilder", "SET NON_KEYWORDS",
+            // legend-engine's text of an empty TDS cell (the separation census's B10, 2026-11-17: until then not listed)
+            "TDSNull");
 
     /** The compatibility machinery, matched as whole words in code. */
     static final List<String> SYMBOLS = List.of(
@@ -297,7 +299,24 @@ class CompatSpellingGuardTest {
             // retagged 2026-11-15 (D1.2's end): the judging rules' choice of the generator's printing, D1.9's
             // (2026-11-16, W9's judge half S2c: testplan/SqlTextVerdicts' two rows gone with the arm to the edge;
             // BodyDriver's withEngineText row gone, ExecEnv.withCollector names what it installs, the arm's collector)
-            "testplan/TestPlanner.java | COMPAT | 1 | D1.9"
+            "testplan/TestPlanner.java | COMPAT | 1 | D1.9",
+            // REGISTERED 2026-11-17 (the separation census, docs/records/f-separation-census-2026-11-17.md): 'TDSNull'
+            // (B10) joined the scan; what stood is registered, each with its owner.
+            // TDSNull as INPUT and LANGUAGE (STAYS): the #TDS literal's cell token, Pure's meta::pure::tds::TDSNull
+            // class, and the sentinel ^TDSNull() lowers to
+            "compiler/element/type/PlatformTypes.java | TDSNull | 1 | STAYS",
+            "compiler/spec/TdsChecker.java | TDSNull | 1 | STAYS",
+            "compiler/spec/TdsNullForms.java | TDSNull | 3 | STAYS",
+            "compiler/spec/Typer.java | TDSNull | 4 | STAYS",
+            "lowering/Scalars.java | TDSNull | 1 | STAYS",
+            "sql/SqlExpr.java | TDSNull | 1 | STAYS",
+            // TDSNull as the judges' text (E-Java, Phase 4b: census B10/C5)
+            "compiler/spec/VerdictQueries.java | TDSNull | 5 | D1.9",
+            "lowering/CanonicalRenderSql.java | TDSNull | 5 | D1.9",
+            "lowering/VerdictSql.java | TDSNull | 2 | D1.9",
+            "testexec/Equality.java | TDSNull | 1 | D1.9",
+            // TDSNull as legend-engine's relation text in the product's lowering (D, census B10's move)
+            "lowering/Render.java | TDSNull | 1 | D1.3"
             // retagged 2026-11-15 (D1.2's end): Java's spelling of a date value. D1.4 -> D1.8 (2026-11-16, W4): lite's
             // writers no longer read it (CellText's product half prints S312's text); what remains is legend-engine's
             // JSON of a date (toEngineJson, read by CellText's engine half, which moves with PureV1Writer at W8) and
