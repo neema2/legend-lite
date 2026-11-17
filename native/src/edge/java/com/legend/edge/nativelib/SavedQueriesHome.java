@@ -1,5 +1,6 @@
-package com.legend.nativelib;
+package com.legend.edge.nativelib;
 
+import com.legend.nativelib.Compiler;
 import com.legend.queries.FileCubeRecords;
 import com.legend.queries.FileRecords;
 import com.legend.queries.SavedCubes;
@@ -13,12 +14,14 @@ import planner.Folded;
 import java.nio.file.Path;
 
 /**
- * PYTHON'S SAVED QUERIES (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md B5): legend-engine's query store as legend-lite's
+ * PYTHON'S SAVED QUERIES (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md B5), AT THE EDGE (the separation census's A2,
+ * 2026-11-17: they answer upstream's /api/pure/v1/query, so legend-engine's words; the native image carries the edge as
+ * the server does, the orchestrator's extension of ruling A4): legend-engine's query store as legend-lite's
  * rules answer it ({@link SavedQueries}, the very rules its server runs on the JVM and the page runs compiled to
  * WebAssembly), over a folder in this user's legend-lite folder, one JSON file per query ({@link FileRecords}, the
  * server's layout). Each call is one request -- {@code rest} the path after {@code /api/pure/v1/query}, {@code query}
  * its raw query string (empty for none) -- as {@code user}, answered {@code "OK\n<status>\n<body>"} as
- * {@link ModelHome}'s are. The caller serializes the calls on a folder, across processes too (Python holds a lock around
+ * {@code ModelHome}'s are. The caller serializes the calls on a folder, across processes too (Python holds a lock around
  * each); nothing is kept in memory between calls. DataCube's saved pages are answered the same way ({@link SavedCubes},
  * B6), over Python's {@code ll.home()/pages}.
  */
