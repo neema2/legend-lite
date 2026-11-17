@@ -38,14 +38,16 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 @Tag("guardrail")
 class HookLambdasTest {
 
-    /** Product class (top) -> the hook types its lambdas implement. Measured 2026-11-17. */
-    static final Map<String, Set<String>> LAMBDA_HOOKS = Map.ofEntries(
+    /** Product class (top) -> the hook types its lambdas implement, each with its number of call sites (a second lambda
+     *  of a pinned type in a pinned class -- upstream's form beside the product's -- changes the number: the review of
+     *  C.12, 2026-11-17). Measured 2026-11-17. */
+    static final Map<String, Map<String, Integer>> LAMBDA_HOOKS = Map.ofEntries(
             // two-form kinds' PRODUCT forms, written as lambdas (no ruled hook, facet kind or style is implemented by a
             // product lambda): a DateTime's text, lite's (census B9); a test-data timestamp's, lite's clean form (L9)
-            Map.entry("com.legend.lowering.Styled", Set.of("com.legend.lowering.DateTimeTexts")),
+            Map.entry("com.legend.lowering.Styled", Map.of("com.legend.lowering.DateTimeTexts", 1)),
             // (TestDataPlanner -> Printing: gone 2026-11-17 with K12, a095d0b56 -- Printing is no functional interface now,
             // its product form the class LitePrinting); a routed query's activity, the product's (J5, fb8c299b9e)
-            Map.entry("com.legend.planner.PlanAllocations", Set.of("com.legend.planner.RoutedQueries")));
+            Map.entry("com.legend.planner.PlanAllocations", Map.of("com.legend.planner.RoutedQueries", 1)));
 
     /** "caller#method(params)" -> the class objects named beside its twoForm call, and its number of reaches (calls and
      *  references). Measured 2026-11-17. */
@@ -142,18 +144,33 @@ class HookLambdasTest {
                 .isAssignableTo(h));
     }
 
-    /** Each class of {@code pools} (the edge's aside) making a lambda of a hook type, by top class. */
-    static Map<String, Set<String>> lambdaHooks(Map<String, ConstantPools.Pool> pools, Set<String> hooks,
-                                                JavaClasses classes) {
-        Map<String, Set<String>> out = new TreeMap<>();
+    /** Each class of {@code pools} (the edge's aside) making a lambda of a hook type, by top class, with the number
+     *  of its call sites per type (its nested classes' summed in). */
+    static Map<String, Map<String, Integer>> lambdaHooks(Map<String, ConstantPools.Pool> pools, Set<String> hooks,
+                                                         JavaClasses classes) {
+        Map<String, Map<String, Integer>> out = new TreeMap<>();
         pools.forEach((name, pool) -> {
             if (name.startsWith("com.legend.edge.")) {
                 return;
             }
-            for (String t : pool.indyTypes()) {
+            pool.indySites().forEach((t, n) -> {
                 if (hook(t, hooks, classes)) {
-                    out.computeIfAbsent(top(name), k -> new TreeSet<>()).add(t);
+                    out.computeIfAbsent(top(name), k -> new TreeMap<>()).merge(t, n, Integer::sum);
                 }
+            });
+        });
+        return out;
+    }
+
+    /** Each class of {@code pools} (the edge's aside) whose pool names MethodHandleProxies at all -- a call, a class
+     *  literal, a reflective lookup (the review of C.12: the call scan alone misses the last two; LambdaMetafactory
+     *  cannot be read this way, every lambda's bootstrap names it). */
+    static Set<String> proxiesNamed(Map<String, ConstantPools.Pool> pools) {
+        Set<String> out = new TreeSet<>();
+        pools.forEach((name, pool) -> {
+            if (!name.startsWith("com.legend.edge.") && pool.utf8().stream().anyMatch(t -> t.contains(
+                    "java/lang/invoke/MethodHandleProxies") || t.contains("java.lang.invoke.MethodHandleProxies"))) {
+                out.add(name);
             }
         });
         return out;
@@ -240,7 +257,8 @@ class HookLambdasTest {
     @Test
     void theProductsHookLambdasArePinned() {
         List<java.nio.file.Path> jars = ConstantPools.jars("legend.product.jars", "legend.authored.jars");
-        Map<String, Set<String>> found = lambdaHooks(ConstantPools.poolsOfJars(jars), hookTypes(), importJars(jars));
+        Map<String, Map<String, Integer>> found = lambdaHooks(ConstantPools.poolsOfJars(jars), hookTypes(),
+                importJars(jars));
         assertEquals(new TreeMap<>(LAMBDA_HOOKS), found, "a product class implements a hook type by a lambda or a method"
                 + " reference beyond its pin: a ruled hook, a facet kind or a style is the edge's to implement; a"
                 + " two-form kind's product form is pinned here with its reason");
@@ -257,9 +275,12 @@ class HookLambdasTest {
 
     @Test
     void noProductClassMakesAnInterfaceByAFactory() {
-        assertEquals(DIRECT_FACTORIES, directFactories(importJars(ConstantPools.jars("legend.product.jars",
-                "legend.authored.jars"))), "a product method calls LambdaMetafactory or MethodHandleProxies directly: a"
-                + " hook implemented with no class and no lambda the pool shows; pin it with its reason");
+        List<java.nio.file.Path> jars = ConstantPools.jars("legend.product.jars", "legend.authored.jars");
+        assertEquals(DIRECT_FACTORIES, directFactories(importJars(jars)), "a product method calls LambdaMetafactory or"
+                + " MethodHandleProxies directly: a hook implemented with no class and no lambda the pool shows; pin it"
+                + " with its reason");
+        assertEquals(Set.of(), proxiesNamed(ConstantPools.poolsOfJars(jars)), "a product class names"
+                + " MethodHandleProxies (a class literal, a reflective lookup): pin it with its reason");
     }
 
     @Test
@@ -279,18 +300,24 @@ class HookLambdasTest {
         JavaClasses classes = new ClassFileImporter().importClasses(PlantedHookLambda.class, PlantedSubTexts.class,
                 PlantedTwoForm.class, PlantedFactory.class);
         Map<String, ConstantPools.Pool> pools = new TreeMap<>();
-        for (Class<?> c : List.of(PlantedHookLambda.class)) {
+        for (Class<?> c : List.of(PlantedHookLambda.class, PlantedHookLambda.Twice.class)) {
             pools.put(c.getName(), ConstantPools.pool(ConstantPools.bytesOf(c)));
         }
         String top = HookLambdasTest.class.getName();
-        assertEquals(Map.of(top, Set.of("com.legend.lowering.DateTimeTexts", PlantedSubTexts.class.getName())),
-                lambdaHooks(pools, hookTypes(), classes), "the hook lambdas are read, a sub-interface's too; a Supplier,"
-                        + " a Function, a BiFunction or a Runnable of other types is no hook");
+        assertEquals(Map.of(top, Map.of("com.legend.lowering.DateTimeTexts", 4, PlantedSubTexts.class.getName(), 1)),
+                lambdaHooks(pools, hookTypes(), classes), "the hook lambdas are read with their sites (text's, ask's and"
+                        + " ask(int)'s, the nested Twice's), a sub-interface's too; a Supplier, a Function, a BiFunction"
+                        + " or a Runnable of other types is no hook");
         assertEquals(Map.of(PlantedSubTexts.class.getName(), Set.of("com.legend.lowering.DateTimeTexts"),
                 PlantedTwoForm.class.getName(), Set.of("com.legend.lowering.ListTexts")), classHooks(classes,
                 hookTypes()), "a class implementing a two-form kind and a sub-interface of one are read");
         assertEquals(Set.of(PlantedFactory.class.getName() + "#proxy()", PlantedFactory.class.getName()
-                + "#metafactory()"), directFactories(classes), "a direct factory call is read; a lambda is not one");
+                + "#metafactory()", PlantedFactory.class.getName() + "#byReference()"), directFactories(classes),
+                "a direct factory call or reference is read; a lambda is not one");
+        assertEquals(Set.of(PlantedFactory.class.getName()), proxiesNamed(Map.of(PlantedFactory.class.getName(),
+                ConstantPools.pool(ConstantPools.bytesOf(PlantedFactory.class)), PlantedHookLambda.class.getName(),
+                ConstantPools.pool(ConstantPools.bytesOf(PlantedHookLambda.class)))), "MethodHandleProxies named in a"
+                + " pool is read; a lambda's pool does not name it");
         String p = PlantedHookLambda.class.getName();
         assertEquals(Map.of(p + "#ask(com.legend.database.PlanStyle)", Set.of("com.legend.lowering.DateTimeTexts",
                         "(twoForm reaches 1)"),
@@ -317,6 +344,12 @@ class HookLambdasTest {
 
         static Object metafactory() throws Exception {
             return java.lang.invoke.LambdaMetafactory.metafactory(null, null, null, null, null, null);
+        }
+
+        static Object byReference() {
+            java.util.function.BiFunction<Class<Runnable>, java.lang.invoke.MethodHandle, Runnable> f =
+                    java.lang.invoke.MethodHandleProxies::asInterfaceInstance;
+            return f.apply(Runnable.class, null);
         }
     }
 
@@ -361,6 +394,13 @@ class HookLambdasTest {
         static java.util.function.BiFunction<Class<com.legend.lowering.DateTimeTexts>, com.legend.lowering.DateTimeTexts,
                 com.legend.lowering.DateTimeTexts> byReference(PlanStyle style) {
             return style::twoForm;
+        }
+
+        /** A second lambda of the pinned type in a nested class: its site counted under the top class. */
+        static final class Twice {
+            static com.legend.lowering.DateTimeTexts again() {
+                return (x, written) -> written == null ? x : x;
+            }
         }
     }
 }

@@ -9,7 +9,6 @@ import com.legend.sql.dialect.SqlDialect;
 import com.tngtech.archunit.core.domain.JavaClass;
 import com.tngtech.archunit.core.domain.JavaClasses;
 import com.tngtech.archunit.core.domain.JavaCodeUnit;
-import com.tngtech.archunit.core.domain.JavaModifier;
 import com.tngtech.archunit.core.importer.ClassFileImporter;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -144,9 +143,32 @@ class SqlFnSortedTest {
     static final Set<String> NO_WRITER = Set.of("DAYNAME", "FROM_EPOCH_MS", "FROM_EPOCH_SECONDS", "JSON_ARRAY_LENGTH",
             "MONTHNAME", "TRANSLATE");
 
+    /** The functions both sides write, measured 2026-11-17: a function the edge writes and a product class only
+     *  compares lands here as a new entry (the review of C.13: a comparison reads as a write). */
+    static final Set<String> BOTH_WRITERS = Set.of(
+            // the product's lowering and the edge's compositions (upstream's texts, its plans, its renderings) each
+            // build calls of these: the product's own functions, the edge composing with them -- measured 2026-11-17
+            "ABS", "AND", "CELL_TEXT", "COALESCE", "CONCAT", "DATETIME_TO_TEXT", "ENDS_WITH", "EQUAL",
+            "FLOAT_SHORTEST_TEXT", "FLOAT_TO_TEXT", "GREATER", "GREATER_EQUAL", "IN", "IS_NOT_NULL", "IS_NULL", "LENGTH",
+            "LESS", "LESS_EQUAL", "LIST_TRANSFORM", "LPAD", "MINUS", "NOT", "NOT_EQUAL", "OR", "PARSE_INT", "REPLACE",
+            "RTRIM", "STRFTIME", "STRPOS", "SUBSTRING");
+
+    /** The functions both sides write, as {@code writers} has them. */
+    static Set<String> both(Map<String, Set<String>> writers) {
+        Set<String> out = new TreeSet<>();
+        writers.forEach((n, w) -> {
+            if (w.stream().anyMatch(x -> x.startsWith("product: ")) && w.stream().anyMatch(x -> x.startsWith("edge: "))) {
+                out.add(n);
+            }
+        });
+        return out;
+    }
+
     /** The classes that name every function to type or decode it and write none. Beside them, two kinds of class are
      *  no writer: one assignable to {@code SqlDialect}, with its nested classes (a renderer, the product's or the edge's:
-     *  an arm per function), and javac's switch map (a dispatch's table). */
+     *  an arm per function; a dialect's decompositions write MIR too, so leaving them out only makes the sort stricter --
+     *  a function a renderer alone writes measures NO_WRITER and is pinned), and javac's switch map (a dispatch's
+     *  table). */
     static final Map<String, String> FN_READERS = Map.of(
             "com.legend.sql.SqlFn", "the enum's own",
             "com.legend.sql.SqlTyping", "the typing rules, one per function",
@@ -168,27 +190,39 @@ class SqlFnSortedTest {
         return c.getFields().stream().anyMatch(f -> f.getName().startsWith("$SwitchMap$"));
     }
 
-    private static boolean renderer(JavaClasses classes, String top) {
-        return classes.contain(top) && classes.get(top).isAssignableTo(SqlDialect.class.getName());
+    /** Whether {@code c} is a renderer or nested in one, at any depth. */
+    private static boolean renderer(JavaClass c) {
+        for (java.util.Optional<JavaClass> x = java.util.Optional.of(c); x.isPresent(); x = x.get().getEnclosingClass()) {
+            if (x.get().isAssignableTo(SqlDialect.class.getName())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** Each function's writers over {@code classes}, "fn" -> {"product: class", "edge: class"}: a read of its constant
      *  ({@code SqlFn.X}) in a class not {@link #FN_READERS}', a renderer's or a switch map. Its limits: a comparison
-     *  ({@code fn == SqlFn.X}) reads as a write, so a product class comparing an edge-only function makes it read
-     *  PRODUCT (the census counts that naming, {@link EdgeSeparationTest#EDGE_ONLY_SQLFN}, once it is sorted EDGE_ONLY);
-     *  a name the field accesses do not show -- {@code SqlFn.valueOf}, a qualified enum pattern's bootstrap -- is unseen
-     *  (neither is in core's main sources, 2026-11-17). */
+     *  ({@code fn == SqlFn.X}) reads as a write, so a function the edge writes and a product class only compares measures
+     *  PRODUCT -- which is why the functions both sides write are pinned ({@link #BOTH_WRITERS}): such a function is a
+     *  new entry there, with its reason; a name the field accesses do not show -- {@code SqlFn.valueOf}, a qualified enum
+     *  pattern's bootstrap -- is unseen (neither is in core's main sources, 2026-11-17). */
     static Map<String, Set<String>> fnWriters(JavaClasses classes, Predicate<String> edge) {
+        return constantWriters(classes, edge, SqlFn.class.getName(), FN_READERS.keySet());
+    }
+
+    /** Each constant of the enum {@code owner} with its writers over {@code classes} (see {@link #fnWriters}), the
+     *  classes {@code readers} names (top classes) aside. */
+    static Map<String, Set<String>> constantWriters(JavaClasses classes, Predicate<String> edge, String owner,
+                                                    Set<String> readers) {
         Map<String, Set<String>> out = new TreeMap<>();
         for (JavaClass c : classes) {
             String top = top(c.getName());
-            if (FN_READERS.containsKey(top) || c.isAssignableTo(SqlDialect.class.getName()) || renderer(classes, top)
-                    || switchMap(c)) {
+            if (readers.contains(top) || top.equals(top(owner)) || renderer(c) || switchMap(c)) {
                 continue;
             }
             String side = (edge.test(c.getName()) ? "edge: " : "product: ") + c.getName();
             c.getFieldAccessesFromSelf().forEach(a -> {
-                if (a.getTarget().getOwner().getName().equals(SqlFn.class.getName())) {
+                if (a.getTarget().getOwner().getName().equals(owner)) {
                     out.computeIfAbsent(a.getTarget().getName(), k -> new TreeSet<>()).add(side);
                 }
             });
@@ -251,6 +285,36 @@ class SqlFnSortedTest {
         assertEquals(List.of(), wrong, "a function's sort and its writers differ (one the edge alone writes is"
                 + " EDGE_ONLY, the product's dialects refusing it by name; one no class writes is pinned NO_WRITER):"
                 + explain(wrong, writers));
+        Set<String> both = both(writers);
+        both.retainAll(values);
+        assertEquals(new TreeSet<>(BOTH_WRITERS), both, "the functions both sides write differ from their pin: a new one"
+                + " (the edge writes it, a product class names it -- a comparison reads as a write) is pinned with its"
+                + " reason, or sorted EDGE_ONLY; one gone is deleted");
+    }
+
+    // ---- the aggregate functions, measured the same way (the review of C.13's NOTE: SqlAgg.Fn was sorted nowhere) ----
+
+    /** The aggregate functions only the edge writes, and the ones no class writes, measured 2026-11-17; every other is
+     *  the product's. */
+    static final Set<String> EDGE_ONLY_AGG = Set.of();
+    static final Set<String> NO_WRITER_AGG = Set.of();
+
+    /** The aggregate functions both sides write, measured 2026-11-17: a list and a string aggregation, the product's
+     *  and the edge's compositions alike. */
+    static final Set<String> BOTH_AGG = Set.of("LIST", "STRING_AGG");
+
+    @Test
+    void theAggregatesAreSortedByTheirWriters() {
+        JavaClasses classes = importJars("legend.product.jars", "legend.authored.jars", "legend.edge.jars");
+        String owner = com.legend.sql.SqlAgg.Fn.class.getName();
+        Map<String, Set<String>> writers = constantWriters(classes, SqlFnSortedTest::edgeSide, owner, FN_READERS.keySet());
+        List<String> values = Arrays.stream(com.legend.sql.SqlAgg.Fn.values()).map(Enum::name).toList();
+        Set<String> product = new TreeSet<>(values);
+        product.removeAll(EDGE_ONLY_AGG);
+        List<String> wrong = misSorted(sorted(product, EDGE_ONLY_AGG), NO_WRITER_AGG, measured(writers, values));
+        assertEquals(List.of(), wrong, "an aggregate function's sort and its writers differ:" + explain(wrong, writers));
+        assertEquals(new TreeSet<>(BOTH_AGG), both(writers), "the aggregate functions both sides write differ from their"
+                + " pin: pin a new one with its reason (or sort it EDGE_ONLY); delete one gone");
     }
 
     // ---- the MIR's nodes, sorted by their writers (the same review: "the edge-only SqlExpr variants are sorted
@@ -286,13 +350,30 @@ class SqlFnSortedTest {
         return out;
     }
 
-    /** Each node's writers over {@code classes}, "node" -> {"product: class", "edge: class"}: a constructor call or
-     *  reference, or a static factory of the node's own returning it, in a class not {@link #NODE_REBUILDERS}'. */
-    static Map<String, Set<String>> nodeWriters(JavaClasses classes, Set<String> nodes, Predicate<String> edge) {
+    /** The nodes {@code m} constructs (a call or a {@code ::new}) and does not read: a factory's, whatever it returns
+     *  and wherever it lives; a rebuild reads the node it remakes (its accessors, its fields), and the codec decodes. */
+    static Set<String> made(JavaCodeUnit m, Set<String> nodes) {
+        if (m.getOwner().getName().equals("com.legend.executionplan.MirJson")) {
+            return Set.of();
+        }
+        Set<String> made = new TreeSet<>();
+        Stream.concat(m.getConstructorCallsFromSelf().stream().map(x -> x.getTargetOwner().getName()),
+                m.getConstructorReferencesFromSelf().stream().map(x -> x.getTargetOwner().getName()))
+                .filter(nodes::contains).forEach(made::add);
+        Stream.concat(m.getMethodCallsFromSelf().stream().map(x -> x.getTargetOwner().getName()),
+                m.getFieldAccesses().stream().map(x -> x.getTargetOwner().getName())).forEach(made::remove);
+        return made;
+    }
+
+    /** Each node's writers over {@code classes}, "node" -> {"product: class", "edge: class"}: in a class
+     *  {@code rebuilder} does not name, a constructor call or reference, or a call or reference to a method that makes
+     *  the node ({@link #made}: one level, so a factory returning a supertype, or a helper hosted in a rebuilder, is
+     *  seen -- the review of C.13, 2026-11-17). */
+    static Map<String, Set<String>> nodeWriters(JavaClasses classes, Set<String> nodes, Predicate<String> edge,
+                                                Predicate<String> rebuilder) {
         Map<String, Set<String>> out = new TreeMap<>();
         for (JavaClass c : classes) {
-            String top = top(c.getName());
-            if (NODE_REBUILDERS.containsKey(top)) {
+            if (rebuilder.test(c.getName())) {
                 continue;
             }
             String side = (edge.test(c.getName()) ? "edge: " : "product: ") + c.getName();
@@ -301,16 +382,18 @@ class SqlFnSortedTest {
                         u.getConstructorReferencesFromSelf().stream().map(x -> x.getTargetOwner().getName()))
                         .filter(nodes::contains)
                         .forEach(n -> out.computeIfAbsent(n, k -> new TreeSet<>()).add(side));
-                Stream.concat(u.getMethodCallsFromSelf().stream().map(x -> x.getTarget()),
-                        u.getMethodReferencesFromSelf().stream().map(x -> x.getTarget()))
-                        .filter(t -> nodes.contains(t.getOwner().getName())
-                                && t.getRawReturnType().getName().equals(t.getOwner().getName())
-                                && t.resolveMember().map(m -> m.getModifiers().contains(JavaModifier.STATIC))
-                                .orElse(false))
-                        .forEach(t -> out.computeIfAbsent(t.getOwner().getName(), k -> new TreeSet<>()).add(side));
+                Stream.concat(u.getMethodCallsFromSelf().stream().map(x -> x.getTarget().resolveMember()),
+                        u.getMethodReferencesFromSelf().stream().map(x -> x.getTarget().resolveMember()))
+                        .flatMap(java.util.Optional::stream)
+                        .forEach(m -> made(m, nodes).forEach(n -> out.computeIfAbsent(n, k -> new TreeSet<>())
+                                .add(side)));
             }
         }
         return out;
+    }
+
+    private static boolean nodeRebuilder(String name) {
+        return NODE_REBUILDERS.containsKey(top(name));
     }
 
     private static Map<String, Kind> nodeSort(Set<String> nodes, Set<String> edgeOnly) {
@@ -322,10 +405,13 @@ class SqlFnSortedTest {
 
     @Test
     void theNodesAreSortedByTheirWriters() {
-        Set<String> nodes = leaves(SqlExpr.class);
-        assertTrue(nodes.size() > 40, "the nodes are read: " + nodes.size());
+        // the expression nodes and the sources (the review's NOTE: SqlSource was sorted nowhere)
+        Set<String> nodes = new TreeSet<>(leaves(SqlExpr.class));
+        nodes.addAll(leaves(com.legend.sql.SqlSource.class));
+        assertTrue(nodes.size() > 50, "the nodes are read: " + nodes.size());
         JavaClasses classes = importJars("legend.product.jars", "legend.authored.jars", "legend.edge.jars");
-        Map<String, Set<String>> writers = nodeWriters(classes, nodes, SqlFnSortedTest::edgeSide);
+        Map<String, Set<String>> writers = nodeWriters(classes, nodes, SqlFnSortedTest::edgeSide,
+                SqlFnSortedTest::nodeRebuilder);
         Map<String, Kind> sort = nodeSort(nodes, EDGE_ONLY_NODES);
         Set<String> all = new TreeSet<>(sort.keySet());
         List<String> wrong = misSorted(sort, NO_WRITER_NODES, measured(writers, all));
@@ -350,8 +436,8 @@ class SqlFnSortedTest {
 
     /** The planted classes, read as the jars are: the switch's map javac writes beside them included. */
     private static JavaClasses planted() {
-        return new ClassFileImporter().withImportOption(l -> l.contains("SqlFnSortedTest"))
-                .importPackages(SqlFnSortedTest.class.getPackageName());
+        return new ClassFileImporter().withImportOption(l -> l.contains("SqlFnSortedTest")
+                || l.contains("SqlExpr$FloatLit")).importPackages(SqlFnSortedTest.class.getPackageName());
     }
 
     private static boolean plantedEdge(String name) {
@@ -365,23 +451,30 @@ class SqlFnSortedTest {
     void theMeasurementBites() {
         JavaClasses classes = planted();
         Map<String, Set<String>> writers = fnWriters(classes, SqlFnSortedTest::plantedEdge);
-        List<String> names = List.of("ABS", "DAYNAME", "MONTHNAME", "TRANSLATE");
+        List<String> names = List.of("ABS", "DAYNAME", "MONTHNAME", "TRANSLATE", "LEFT");
         assertEquals(Map.of("ABS", "PRODUCT", "DAYNAME", "EDGE_ONLY", "MONTHNAME", "NO_WRITER", "TRANSLATE",
-                "NO_WRITER"), measured(writers, names), "a switch's map and a renderer write nothing: " + writers);
-        Map<String, Kind> wrongSort = sorted(Set.of("ABS", "DAYNAME", "MONTHNAME"), Set.of("TRANSLATE"));
+                "NO_WRITER", "LEFT", "NO_WRITER"), measured(writers, names), "a switch's map, a renderer and a class"
+                + " nested in one write nothing: " + writers);
+        assertEquals(Set.of(), both(writers));
+        assertEquals(Set.of("ABS"), both(Map.of("ABS", Set.of("product: P", "edge: E"), "DAYNAME", Set.of("edge: E"))),
+                "a function both sides write is read as both");
+        Map<String, Kind> wrongSort = sorted(Set.of("ABS", "DAYNAME", "MONTHNAME", "LEFT"), Set.of("TRANSLATE"));
         assertEquals(List.of("DAYNAME: sorted PRODUCT, measured EDGE_ONLY", "TRANSLATE: sorted EDGE_ONLY, measured"
-                + " NO_WRITER"), misSorted(wrongSort, Set.of("MONTHNAME"), measured(writers, names)));
+                + " NO_WRITER"), misSorted(wrongSort, Set.of("MONTHNAME", "LEFT"), measured(writers, names)));
         assertEquals(List.of("TRANSLATE: pinned NO_WRITER, sorted EDGE_ONLY (no writer is the product's: its dialects"
                 + " render it)"), misSorted(wrongSort, Set.of("MONTHNAME", "TRANSLATE"), Map.of()));
-        assertEquals(List.of(), misSorted(sorted(Set.of("ABS", "MONTHNAME", "TRANSLATE"), Set.of("DAYNAME")),
-                Set.of("MONTHNAME", "TRANSLATE"), measured(writers, names)), "the right sort passes");
+        assertEquals(List.of(), misSorted(sorted(Set.of("ABS", "MONTHNAME", "TRANSLATE", "LEFT"), Set.of("DAYNAME")),
+                Set.of("MONTHNAME", "TRANSLATE", "LEFT"), measured(writers, names)), "the right sort passes");
 
         Set<String> nodes = Set.of(SqlExpr.StringLit.class.getName(), SqlExpr.IntLit.class.getName(),
-                SqlExpr.FloatLit.class.getName(), SqlExpr.NullLit.class.getName());
-        Map<String, Set<String>> made = nodeWriters(classes, nodes, SqlFnSortedTest::plantedEdge);
+                SqlExpr.FloatLit.class.getName(), SqlExpr.NullLit.class.getName(), SqlExpr.BoolLit.class.getName());
+        Map<String, Set<String>> made = nodeWriters(classes, nodes, SqlFnSortedTest::plantedEdge,
+                n -> n.endsWith("$PlantedRebuilder") || nodeRebuilder(n));
         assertEquals(Map.of(SqlExpr.StringLit.class.getName(), "EDGE_ONLY", SqlExpr.IntLit.class.getName(), "PRODUCT",
-                SqlExpr.FloatLit.class.getName(), "PRODUCT", SqlExpr.NullLit.class.getName(), "NO_WRITER"),
-                measured(made, nodes), "a constructor, a constructor reference and a static factory each write: " + made);
+                SqlExpr.FloatLit.class.getName(), "PRODUCT", SqlExpr.NullLit.class.getName(), "NO_WRITER",
+                SqlExpr.BoolLit.class.getName(), "PRODUCT"), measured(made, nodes), "a constructor, a constructor"
+                + " reference, a reference to a factory and a call to a factory hosted in a rebuilder each write; a"
+                + " rebuild does not: " + made);
         assertEquals(List.of(SqlExpr.StringLit.class.getName() + ": sorted PRODUCT, measured EDGE_ONLY"),
                 misSorted(nodeSort(nodes, Set.of()), Set.of(SqlExpr.NullLit.class.getName()), measured(made, nodes)));
     }
@@ -395,7 +488,9 @@ class SqlFnSortedTest {
 
         static Object make() {
             java.util.function.LongFunction<SqlExpr.IntLit> f = SqlExpr.IntLit::new;
-            return List.of(f.apply(1), SqlExpr.FloatLit.of(1.0, SqlExpr.FloatLit.Kind.DOUBLE));
+            java.util.function.BiFunction<Double, SqlExpr.FloatLit.Kind, SqlExpr.FloatLit> g = SqlExpr.FloatLit::of;
+            return List.of(f.apply(1), g.apply(1.0, SqlExpr.FloatLit.Kind.DOUBLE), PlantedRebuilder.boolOf(true),
+                    PlantedRebuilder.rebuildNull(null));
         }
     }
 
@@ -424,11 +519,29 @@ class SqlFnSortedTest {
         }
     }
 
-    /** Planted renderer: an arm per function (no write). */
+    /** Planted renderer: an arm per function (no write), its nested class's too. */
     @SuppressWarnings("unused")
     abstract static class PlantedRenderer implements SqlDialect {
         static Object arm() {
             return SqlFn.TRANSLATE;
+        }
+
+        static final class Arms {
+            static Object arm() {
+                return SqlFn.LEFT;
+            }
+        }
+    }
+
+    /** Planted rebuilder: a factory it hosts (returning a supertype) writes for its caller; a rebuild does not. */
+    @SuppressWarnings("unused")
+    static final class PlantedRebuilder {
+        static SqlExpr boolOf(boolean b) {
+            return new SqlExpr.BoolLit(b);
+        }
+
+        static SqlExpr rebuildNull(SqlExpr.NullLit n) {
+            return new SqlExpr.NullLit(n.type());
         }
     }
 }

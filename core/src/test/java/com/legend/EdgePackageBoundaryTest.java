@@ -29,21 +29,25 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * themselves: an edge class compiled into a product library (or a product class into the edge's) passed every
  * dependency rule.
  * <ul>
- *   <li>no source of core (main or test) checks a {@code com.legend} package by a prefix without its separator
+ *   <li>no source under core/src (main, test, the drivers' and the scale trees) checks a {@code com.legend} package,
+ *   the root included, by a prefix without its separator
  *   ({@code startsWith("com.legend.x")}, {@code "com/legend/x"}): a package and the ones under it are
  *   {@code equals(p) || startsWith(p + ".")};</li>
  *   <li>the product's and the hosts' jars hold no class under {@code com/legend/edge/};</li>
- *   <li>the edge's jar holds no class outside it.</li>
+ *   <li>the edge's jars -- the edge library's and the ones the hosts' list carries -- hold no class outside it (every
+ *   edge target's jar: C.11's one source).</li>
  * </ul>
  */
 @Tag("guardrail")
 class EdgePackageBoundaryTest {
 
-    /** A package-prefix check with no separator: {@code startsWith("com.legend.x")} or {@code "com/legend/x"}, its last
-     *  segment a package's (lower case; a class-name prefix such as {@code "com.legend.edge.PureText"} is another
-     *  check). */
+    /** A package-prefix check with no separator: {@code startsWith("com.legend")}, {@code startsWith("com.legend.x")}
+     *  or {@code "com/legend/x"}, every segment a package's (lower case; a class-name prefix such as
+     *  {@code "com.legend.edge.PureText"} is another check). Its limits, none in core today (grepped 2026-11-17): a
+     *  constant argument ({@code startsWith(EDGE_PKG)}), the two-argument {@code startsWith(s, 0)}, an ArchUnit pattern
+     *  ({@code "com.legend.edge*.."}), {@code matches}, {@code regionMatches} and {@code indexOf}. */
     private static final Pattern DOTLESS = Pattern.compile(
-            "startsWith\\(\\s*\"(com[./]legend(?:[./][A-Za-z_][A-Za-z0-9_]*)*[./][a-z_][a-z0-9_]*)\"\\s*\\)");
+            "startsWith\\(\\s*\"(com[./]legend(?:[./][a-z_][a-z0-9_]*)*)\"\\s*\\)");
 
     /** The dotless prefix checks in {@code source} (comments aside, strings kept), "path: the literal". */
     static List<String> dotless(String path, String source) {
@@ -66,7 +70,8 @@ class EdgePackageBoundaryTest {
     @Test
     void noPackagePrefixCheckLacksItsSeparator() {
         List<String> found = new ArrayList<>();
-        for (Path p : SourceFiles.under("core/src/main/java", "core/src/test/java")) {
+        // every tree of core/src (main, test, the drivers' and the scale trees: the review of C.14, 2026-11-17)
+        for (Path p : SourceFiles.under("core/src")) {
             String path = SourceFiles.path(p);
             if (path.endsWith(".java") && !path.endsWith("/EdgePackageBoundaryTest.java")) {
                 found.addAll(dotless(path, read(p)));
@@ -123,7 +128,15 @@ class EdgePackageBoundaryTest {
 
     @Test
     void theEdgesJarHoldsOnlyEdgeClasses() {
-        Set<String> edge = classEntries(ConstantPools.jars("legend.edge.jars"));
+        // the edge library's jar and the edge's jars the hosts' list carries (set aside from the product's scan above,
+        // so read here: the review of C.14, 2026-11-17); every edge target's jar is C.11's one source
+        List<Path> jars = new ArrayList<>(ConstantPools.jars("legend.edge.jars"));
+        for (Path jar : ConstantPools.jars("legend.product.jars", "legend.authored.jars")) {
+            if (EDGE_JARS_IN_THE_HOSTS_LIST.contains(jar.getFileName().toString())) {
+                jars.add(jar);
+            }
+        }
+        Set<String> edge = classEntries(jars);
         assertTrue(edge.size() > 10, "the edge's classes are read: " + edge.size());
         List<String> stray = edge.stream().filter(e -> !edgeEntry(e)).toList();
         assertEquals(List.of(), stray, "a product class compiled into the edge's jar");
@@ -143,6 +156,8 @@ class EdgePackageBoundaryTest {
                 + "  boolean d(String p) { return p.startsWith(" + q + "com/legend/edge" + q + "); }\n}\n";
         assertEquals(List.of("X.java: startsWith(\"com.legend.edge\") -- a prefix with no separator",
                 "X.java: startsWith(\"com/legend/edge\") -- a prefix with no separator"), dotless("X.java", src));
+        assertEquals(List.of("Z.java: startsWith(\"com.legend\") -- a prefix with no separator"), dotless("Z.java",
+                "class Z { boolean k(String n) { return n.startsWith(\"com.legend\"); } }"), "the root package too");
         assertTrue(edgeEntry("libedge.jar!/com/legend/edge/PureText.class"));
         assertTrue(!edgeEntry("libx.jar!/com/legend/edgecase/Y.class"));
         assertEquals(List.of(), dotless("Y.java", "class Y { boolean k(String n) { return n.startsWith(\"com.legend"
