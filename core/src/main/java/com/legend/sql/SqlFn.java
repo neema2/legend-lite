@@ -147,9 +147,10 @@ public enum SqlFn {
     FLOAT_TO_TEXT,
     /** A DateTime's text ({@code toString}, {@code format}'s {@code %s}): the product's is ISO 8601 in UTC, six fraction
      *  digits and {@code Z} (the user's ruling of 2026-11-10, D_BRIEF §1; phase D's D1.2, 2026-11-15), a STRFTIME the
-     *  base renderer expands it to ({@code dialect.DateTimeText}). A literal's call carries, second, the text the
-     *  literal was written in -- the compatibility edge's (legend-pure prints a literal at its written precision); the
-     *  product reads the value alone. The compatibility edge writes legend-pure's print form for it (edge.PureDateTimePrint). */
+     *  base renderer expands it to ({@code dialect.DateTimeText}). One operand, the value (the audit's K15, 2026-11-17:
+     *  a literal's written text, which legend-pure prints at its written precision, is the edge's alone, through the
+     *  style's two-form DateTimeTexts). The compatibility edge's dialects print it legend-pure's way
+     *  (edge.PureDateTimePrint; census B12, 2026-11-17). */
     DATETIME_TO_TEXT,
     // (DATETIME_PRINT, legend-pure's print form of a DateTime: gone 2026-11-17, census B12 -- the edge composes it from
     // the product's nodes, edge.PureDateTimePrint, at lowering and in its print pass)

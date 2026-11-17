@@ -277,7 +277,6 @@ class EdgeSeparationTest {
     static final Map<String, String> CSG_OPEN = Map.ofEntries(
             // B9 -> C5 (E-P5) 2026-11-17: the judges' canon's alone (LiteralSpelling.temporalCanon)
             // sql/dialect/DateTimePrintText.java | +0000: gone 2026-11-17 with the class, census B12
-            Map.entry("compiler/element/type/PlatformTypes.java | TDS_NULL_CELL", "B10 2026-11-17"),
             // B11 -> C5 2026-11-17 (the orchestrator's ruling): the judges' canon (temporalCanon x2, dateTimeLiteralAt via
             // CanonicalRenderSql), closed by C5's step C (E-SQL's)
             // lowering/Repr.java | Repr, lowering/Scalars.java | Repr: gone 2026-11-17, census B12's 2b (Repr deleted)
@@ -303,13 +302,16 @@ class EdgeSeparationTest {
      *  two-form hook DateTimeTexts, its canon composition relabelled C5);
      *  B8 CLOSED 2026-11-17 (its last entry, LiteralSpelling -> DATETIME_PRINT, gone with C5's step C: the judges'
      *  canon is lite's DATETIME_CANON_TEXT);
+     *  B10 CLOSED 2026-11-17 (the judges' TDSNull sentinel gone with C5's step C, C-2: an expected null cell is a
+     *  typed TypedNullCell, its canon lite's bare null, its wire SqlExpr.NULL_CELL_WIRE);
      *  B12 CLOSED 2026-11-17 (F's 2b: format's %r refused in the product, lowering.Repr deleted; legend-pure's DateTime
-     *  print the edge's composition, edge.PureDateTimePrint, sql.dialect.DateTimePrintText deleted);
+     *  print the edge's: the product's DATETIME_TO_TEXT printed by the edge's dialects, a literal its written text,
+     *  edge.PureDateTimePrint, sql.dialect.DateTimePrintText deleted);
      *  records only:
      *  B15, B16, C6, C7). Each must hold at least one entry in the count ({@link #everyOpenLineIsCounted}), so an empty
      *  count cannot read DONE with a line left. A line closes by leaving this set with its last entry. */
     static final Set<String> OPEN_LINES = Set.of(
-            "B10", "C1", "C5");
+            "C1", "C5");
 
     private static Set<String> linesOf(Map<String, String> m) {
         Set<String> out = new TreeSet<>();

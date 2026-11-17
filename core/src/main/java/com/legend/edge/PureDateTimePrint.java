@@ -3,7 +3,6 @@
 
 package com.legend.edge;
 
-import com.legend.base.Nullable;
 import com.legend.sql.SqlExpr;
 import com.legend.sql.SqlFn;
 
@@ -12,17 +11,12 @@ import java.util.List;
 /**
  * legend-pure's print form of a DateTime, composed by the edge from the product's own nodes (census B12, 2026-11-17:
  * moved from the product's {@code sql.dialect.DateTimePrintText}, unchanged; the {@code DATETIME_PRINT} node it expanded
- * left the MIR). Written by the edge's DateTime texts at lowering ({@link EdgeDateTimeTexts}) and by its print pass
- * ({@link PurePrintForms}).
+ * left the MIR). Written by the edge's print pass for the product's {@code DATETIME_TO_TEXT} ({@link PurePrintForms}); a
+ * literal's text is its written text ({@link EdgeDateTimeTexts}).
  */
 final class PureDateTimePrint {
 
     private PureDateTimePrint() {
-    }
-
-    /** {@code x}'s print form; a literal's {@code written} text, where given, is printed as written with {@code +0000}. */
-    static SqlExpr of(SqlExpr x, @Nullable String written) {
-        return written != null ? new SqlExpr.StringLit(written + "+0000") : of(x);
     }
 
     /**

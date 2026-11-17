@@ -177,8 +177,7 @@ final class PurePrintForms extends com.legend.sql.SqlRewriter {
         }
         if (e instanceof SqlExpr.Call c && c.fn() == SqlFn.DATETIME_TO_TEXT) {
             // legend-pure's print form, composed here (census B12, 2026-11-17: the DATETIME_PRINT node gone)
-            return PureDateTimePrint.of(expr(c.args().get(0)),
-                    c.args().size() > 1 && c.args().get(1) instanceof SqlExpr.StringLit written ? written.value() : null);
+            return PureDateTimePrint.of(expr(c.args().get(0)));
         }
         return super.expr(e);
     }
