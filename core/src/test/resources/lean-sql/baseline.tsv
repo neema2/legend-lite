@@ -2680,7 +2680,7 @@ channel_a	SQLite	meta::pure::functions::math::max_Integer_$1_MANY$__Integer_1_	2
 channel_a	SQLite	meta::pure::functions::math::max_Integer_1__Integer_1__Integer_1_	2	102	2742	0	0	0
 channel_a	SQLite	meta::pure::functions::math::max_Integer_MANY__Integer_$0_1$_	1	103	1464	2	0	0
 channel_a	SQLite	meta::pure::functions::math::max_Number_$1_MANY$__Number_1_	3	2603	31138	10	627	0
-channel_a	SQLite	meta::pure::functions::math::max_Number_1__Number_1__Number_1_	3	2106	24519	15	480	0
+channel_a	SQLite	meta::pure::functions::math::max_Number_1__Number_1__Number_1_	3	2541	24954	17	514	0
 channel_a	SQLite	meta::pure::functions::math::max_Number_MANY__Number_$0_1$_	1	117	1477	2	0	0
 channel_a	SQLite	meta::pure::functions::math::median_Float_MANY__Float_1_	2	1509	5802	4	380	0
 channel_a	SQLite	meta::pure::functions::math::median_Integer_MANY__Float_1_	2	1459	5207	4	380	0
@@ -2731,7 +2731,7 @@ channel_a	SQLite	meta::pure::functions::math::times_Decimal_MANY__Decimal_1_	1	9
 channel_a	SQLite	meta::pure::functions::math::times_Float_MANY__Float_1_	1	53	1580	0	0	0
 channel_a	SQLite	meta::pure::functions::math::times_Integer_MANY__Integer_1_	6	677	10514	0	128	0
 channel_a	SQLite	meta::pure::functions::math::times_Number_MANY__Number_1_	2	149	3041	0	0	0
-channel_a	SQLite	meta::pure::functions::math::toDecimal_Number_1__Decimal_1_	3	272	3828	0	20	0
+channel_a	SQLite	meta::pure::functions::math::toDecimal_Number_1__Decimal_1_	3	707	4263	2	54	0
 channel_a	SQLite	meta::pure::functions::math::toDegrees_Number_1__Float_1_	1	56	1288	0	0	0
 channel_a	SQLite	meta::pure::functions::math::toFloat_Number_1__Float_1_	3	139	3906	0	0	0
 channel_a	SQLite	meta::pure::functions::math::toRadians_Number_1__Float_1_	1	42	1245	0	0	0
