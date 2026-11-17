@@ -288,7 +288,12 @@ class PlannerSurfaceTest {
             Map.entry("lite_execute_plan", "executePlan"), Map.entry("lite_execute_json_plan", "executeJsonPlan"),
             Map.entry("lite_execute_json_answer", "executeJsonAnswer"),
             Map.entry("lite_execute_arrow_answer", "executeArrowAnswer"), Map.entry("lite_warm_model", "warmModel"),
-            Map.entry("lite_pure_v1_refusal", "refusal")));
+            Map.entry("lite_pure_v1_refusal", "refusal"),
+            // lite's own grammar and typing for Python's product (the edge program's H4, 2026-11-17): the four doors the
+            // tab exports (its A1), asked by the native library instead of legend-engine's pure/v1 routes
+            Map.entry("lite_model_elements", "modelElements"), Map.entry("lite_parse_lambda", "parseLambda"),
+            Map.entry("lite_print_lambda", "printLambda"),
+            Map.entry("lite_lambda_relation_type", "lambdaRelationType")));
 
     /** The native library's exports that are no planner door, each with what it is instead. */
     static final Map<String, String> NATIVE_SERVICES = new TreeMap<>(Map.of(
