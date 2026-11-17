@@ -12,7 +12,7 @@ import type { HostOperationsSource } from '../../engine-client/src/planner-sourc
 import { UI_LOCALE } from '../../engine-client/src/locale.ts';
 import type { Lambda, ValueSpecification } from '../../pure-protocol/src/index.ts';
 import type { QueryEngine } from '../../engine-client/src/query-engine.ts';
-import type { PrintStyle } from '../../engine-client/src/pure-v1.ts';
+import type { PrintStyle } from './planner-types.ts';
 import { EpochGuard, type Stale } from './epoch.ts';
 import {
   buildColumnModel,

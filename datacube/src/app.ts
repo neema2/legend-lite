@@ -19,7 +19,7 @@ import { UI_LOCALE } from '../../engine-client/src/locale.ts';
 import { hostOf, receiptLabel, receiptLines } from '../../engine-client/src/receipt.ts';
 import type { LiveWarehouse } from '../../engine-client/src/warehouse-session.ts';
 import { sessionExpired } from '../../engine-client/src/warehouse-session.ts';
-import type { PrintStyle } from '../../engine-client/src/pure-v1.ts';
+import type { PrintStyle } from './planner-types.ts';
 import { isQueryFailure, type QueryLens, type QueryRunner } from './runner.ts';
 import {
   CubeController,
@@ -3168,7 +3168,7 @@ export class CubeApp {
       get snapshot() { return app.#snapshot; },
       get configuration() { return app.#config; },
       run: (query, snapshot, signal) => this.#controller.runQuery(query, snapshot, undefined, signal),
-      print: (query) => this.#controller.print(query, 'PRETTY'),
+      print: (query) => this.#controller.print(query, 'pretty'),
       tsStatement: (query) => this.#controller.tsStatement(query),
       format: (value, column, type, headline) =>
         this.#formatters.format(value, headline ? headlineFormat(this.#formats[column], type, value) : this.#formats[column], type),
@@ -3997,7 +3997,7 @@ export class CubeApp {
   async code(): Promise<{ readonly pure: string; readonly sql: string }> {
     const view = this.#view;
     if (!view) throw new CubeRefusal('its rows are not read yet: its query is the one they are read by');
-    return { pure: await this.printQuery(view.query, 'PRETTY'), sql: view.sql };
+    return { pure: await this.printQuery(view.query, 'pretty'), sql: view.sql };
   }
 
   /** Text onto the clipboard, by its host's (a flow's box's Code copied); refused in words where its host has none. */

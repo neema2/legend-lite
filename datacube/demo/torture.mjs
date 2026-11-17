@@ -78,7 +78,7 @@ const check = (name, ok, detail = '') => {
 const PLANNER = new UpstreamPlanner({ baseUrl: ENGINE, model: MODEL, runtime: 'torture::RT', cache: false });
 
 /** A query as the engine prints it, for a failure's message. */
-const shown = async (query) => (await PLANNER.print(query, 'STANDARD')).slice(0, 110);
+const shown = async (query) => (await PLANNER.print(query, 'standard')).slice(0, 110);
 
 async function plan(query) {
   try {

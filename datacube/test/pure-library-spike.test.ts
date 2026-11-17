@@ -241,7 +241,7 @@ before(async () => {
     epoch: 1,
   };
   inputs = new Map([['px', { snapshot, filter: undefined }]]);
-  source = (await planner.print(lambda([], r.source), 'STANDARD')).trim().replace(/^\|/, '');
+  source = (await planner.print(lambda([], r.source), 'standard')).trim().replace(/^\|/, '');
 });
 
 after(async () => {

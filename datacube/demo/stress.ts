@@ -97,7 +97,7 @@ async function attempt(
     // print is what the outcome records for a person to read.
     query = await levelWithValues(snapshot, scope, async (values) =>
       deps.engine.execute(await deps.planner.plan(values), snapshot.epoch));
-    pure = await deps.planner.print(query, 'STANDARD');
+    pure = await deps.planner.print(query, 'standard');
   } catch (e) {
     // The query builder refusing is still a refusal, not a crash: it
     // declines shapes the cube cannot express.

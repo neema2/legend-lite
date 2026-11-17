@@ -96,7 +96,7 @@ it('the compiler prints every query so that it parses back to the same tree, byt
   });
   const differ: string[] = [];
   for (const { name, query } of queries()) {
-    for (const style of ['STANDARD', 'PRETTY'] as const) {
+    for (const style of ['standard', 'pretty'] as const) {
       const text = await planner.compose(query, style);
       const again = await planner.parse(text);
       if (toJson(again) !== toJson(query)) {
