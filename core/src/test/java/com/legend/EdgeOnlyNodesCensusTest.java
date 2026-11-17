@@ -53,6 +53,9 @@ class EdgeOnlyNodesCensusTest {
     static final Map<SqlFn, Map<String, Integer>> EMITTERS = Map.of(
             // legend-pure's DateTime print: the judges' (a literal's written text kept), its product rendering the
             // judges' too (CompatSpellingGuardTest's DateTimePrintText JUDGE row) until Phases 4b and 5
+            // 2026-11-17 (census B9): a judge's message's DateTime text is the two-form hook DateTimeTexts; the two
+            // product emitters left are LiteralSpelling's (the judges' canon, C5, E-P5's step C) and Scalars' (format's
+            // %r, refused in the product by census B12's 2b, F's: the user's §10 item 8)
             SqlFn.DATETIME_PRINT, Map.of("lowering/LiteralSpelling.java", 1, "lowering/Scalars.java", 1),
             // (FORMAT_PADDED: gone from SqlFn 2026-11-17, B8 (i) -- the edge composes it at lowering)
             // (INSTANCE_TEXT: gone from SqlFn 2026-11-17, B8 -- the edge writes it at lowering, Scalars.pureToString)

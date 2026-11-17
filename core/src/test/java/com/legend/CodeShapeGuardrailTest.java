@@ -336,7 +336,10 @@ class CodeShapeGuardrailTest {
             // thread-locals — verbatim equality (save/set/restore around
             // the two mapping-definition sites) and the engine-text
             // option (builder-style, set once before lower())
-            "Lowerer.verbatimEquality", "Lowerer.shape",   // engineText until 2026-11-17 (Phase 6's B5: a LoweringShape, the edge's choice)
+            "Lowerer.verbatimEquality", "Lowerer.shape",
+            // a DateTime's text in a message, the style's two-form answer (census B9, 2026-11-17): builder-style, set
+            // once by withStyled before lower(), beside the style's other text facets
+            "Lowerer.dateTimes",   // engineText until 2026-11-17 (Phase 6's B5: a LoweringShape, the edge's choice)
             // the query's execution feature flags (Feature): builder-style,
             // set once by the executor before lower(), same lifecycle as
             // engineText — a flag selects an emission during the lowering

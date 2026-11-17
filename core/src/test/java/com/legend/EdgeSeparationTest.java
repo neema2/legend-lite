@@ -53,10 +53,11 @@ class EdgeSeparationTest {
             Map.entry("com.legend.planner.UpstreamPlans", "B2"),
             Map.entry("com.legend.server.PureV1Api", "B7"),
             Map.entry("com.legend.sql.dialect.FloatPrintText", "B9"),
-            Map.entry("com.legend.sql.dialect.DateTimePrintText", "B9"),
             // B17 (2026-11-17): Render's relation text moved to the edge (edge.RelationTextLowering); what stays in
             // Render is the product's row helpers, and the facet the edge answers stands here until hooks are ruled
             Map.entry("com.legend.lowering.RelationTexts", "B17"),
+            // B9 -> C5 (E-P5) 2026-11-17: the judges' canon's alone (LiteralSpelling.temporalCanon)
+            Map.entry("com.legend.sql.dialect.DateTimePrintText", "C5"),
             Map.entry("com.legend.lowering.ResultEnvelopes", "B5"),
             Map.entry("com.legend.lowering.PureOnlyTexts", "B8"),
             Map.entry("com.legend.lowering.Repr", "C5"),
@@ -81,10 +82,19 @@ class EdgeSeparationTest {
 
     /** CODE: "source class -> target", each entry its census line and date. */
     static final Map<String, String> CODE_OPEN = Map.ofEntries(
+            // B8 -> B12 2026-11-17 (census B9, the orchestrator's ruling): format's %r arm keeps legend-pure's DateTime
+            // print form until it is refused in the product by B12's 2b (F's; the user's §10 item 8)
+            Map.entry("com.legend.lowering.Scalars -> SqlFn.DATETIME_PRINT",
+                    "B12 2026-11-17 (format %r arm: refused in the product by B12 2b, the user's §10 item 8)"),
+            // B9 -> C5 (E-P5) 2026-11-17 (the orchestrator's ruling (a)): the composition the judges' canon alone emits
+            // (LiteralSpelling.temporalCanon), closed by C5's step C
+            Map.entry("com.legend.sql.dialect.AnsiSqlRenderer -> com.legend.sql.dialect.DateTimePrintText",
+                    "C5 2026-11-17 (E-P5: LiteralSpelling.temporalCanon)"),
+            Map.entry("com.legend.sql.dialect.DateTimePrintText -> (stands in a product package)",
+                    "C5 2026-11-17 (E-P5: LiteralSpelling.temporalCanon)"),
             Map.entry("com.legend.lowering.LiteralSpelling -> SqlFn.DATETIME_PRINT", "B8 2026-11-17"),
             Map.entry("com.legend.lowering.Repr -> (stands in a product package)", "B12 2026-11-17"),
             Map.entry("com.legend.lowering.Repr -> SqlFn.FLOAT_PRINT", "C5 2026-11-17"),
-            Map.entry("com.legend.lowering.Scalars -> SqlFn.DATETIME_PRINT", "B8 2026-11-17"),
             Map.entry("com.legend.lowering.Scalars -> SqlFn.TEXT_FORMS", "B8 2026-11-17"),
             Map.entry("com.legend.lowering.Scalars -> com.legend.lowering.Repr", "B12 2026-11-17"),
             Map.entry("com.legend.lowering.TaggedLists -> SqlFn.TEXT_FORMS", "B8 2026-11-17"),
@@ -94,9 +104,7 @@ class EdgeSeparationTest {
             Map.entry("com.legend.server.ModelChanges -> com.legend.server.PureV1Api", "B7 2026-11-17"),
             Map.entry("com.legend.server.ModelInput -> com.legend.server.PureV1Api", "B7 2026-11-17"),
             Map.entry("com.legend.server.PureV1Api -> (stands in a product package)", "B7 2026-11-17"),
-            Map.entry("com.legend.sql.dialect.AnsiSqlRenderer -> com.legend.sql.dialect.DateTimePrintText", "B9 2026-11-17"),
             Map.entry("com.legend.sql.dialect.AnsiSqlRenderer -> com.legend.sql.dialect.FloatPrintText", "B9 2026-11-17"),
-            Map.entry("com.legend.sql.dialect.DateTimePrintText -> (stands in a product package)", "B9 2026-11-17"),
             Map.entry("com.legend.sql.dialect.FloatPrintText -> (stands in a product package)", "B9 2026-11-17"),
             // planner.Boundary -> com.legend.edge.HostAnswers, PureText, PureV1Routes: gone 2026-11-17 (A1, E-P5): the
             // pure/v1 route and execute's halves moved to com.legend.edge.wasm.EdgeBoundary (//wasm:edge_boundary)
@@ -312,6 +320,8 @@ class EdgeSeparationTest {
      *  so the spellings a dependency graph cannot see count too ("file | spelling" as the register writes it). Exact both
      *  ways with the register ({@link #everyOpenCompatRowIsCounted}). */
     static final Map<String, String> CSG_OPEN = Map.ofEntries(
+            // B9 -> C5 (E-P5) 2026-11-17: the judges' canon's alone (LiteralSpelling.temporalCanon)
+            Map.entry("sql/dialect/DateTimePrintText.java | +0000", "C5 2026-11-17 (E-P5: LiteralSpelling.temporalCanon)"),
             Map.entry("compiler/element/type/PlatformTypes.java | TDS_NULL_CELL", "B10 2026-11-17"),
             Map.entry("lowering/LiteralSpelling.java | +0000", "B11 2026-11-17"),
             Map.entry("lowering/Repr.java | FLOAT_PRINT", "C5 2026-11-17"),
@@ -326,7 +336,6 @@ class EdgeSeparationTest {
             Map.entry("sql/dialect/ClickHouse.java | FLOAT_PRINT", "B9 2026-11-17"),
             Map.entry("sql/dialect/Databricks.java | FLOAT_PRINT", "B9 2026-11-17"),
             Map.entry("sql/dialect/DuckDb.java | FLOAT_PRINT", "B9 2026-11-17"),
-            Map.entry("sql/dialect/DateTimePrintText.java | +0000", "B9 2026-11-17"),
             Map.entry("sql/dialect/FloatPrintText.java | FLOAT_PRINT", "B9 2026-11-17"),
             Map.entry("sql/dialect/H2.java | FLOAT_PRINT", "B9 2026-11-17"),
             Map.entry("sql/dialect/MariaDb.java | FLOAT_PRINT", "B9 2026-11-17"),
