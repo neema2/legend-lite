@@ -1815,9 +1815,9 @@ class JavaEvalLedgerTest {
                             "RawLedger.java",
                             // legend-engine's H2 text translated for DuckDB and Postgres, moved from sql.dialect with
                             // its two dialect arms (Phase 6's B4 (ii), 2026-11-17, the orchestrator's ruling (a)): the
-                            // product runs a raw statement as written, as legend-engine does; the edge's dialects
+                            // product runs a raw statement as written, as legend-engine does; the edge's dialects (PureText's)
                             // translate -- a text rewrite at the edge, decides nothing
-                            "RawSqlBoundary.java", "EdgeDuckDb.java", "EdgePostgres.java",
+                            "RawSqlBoundary.java",
                             // the referee's load of a fixture's rows, planned (the edge's appeals, G6)
                             "RefereeLoad.java",
                             // legend-engine's service tests (D1.4, 2026-11-15, moved from com.legend.test and

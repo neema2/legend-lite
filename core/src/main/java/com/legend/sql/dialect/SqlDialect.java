@@ -348,7 +348,7 @@ public interface SqlDialect {
      * 5.99.0's interpreted ExecuteInDb.java:127 takes the text and :191 runs statement.execute(sql); legend-engine
      * 4.145.0's relationalExtension.pure:31-33 hands it there). {@code writtenFor} is the database its connection
      * declares; the compatibility edge's dialects translate legend-engine's H2 text for DuckDB and Postgres
-     * ({@code edge.EdgeDuckDb}, {@code edge.EdgePostgres}), the product never.
+     * ({@code edge.PureText.DuckDb}, {@code edge.PureText.Postgres}), the product never.
      */
     default String raw(String statement, @com.legend.base.Nullable String writtenFor) {
         return statement;

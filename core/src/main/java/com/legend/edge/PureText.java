@@ -123,9 +123,9 @@ public final class PureText {
      *  product's own source refuses it. */
     public static SqlDialect dialect(DatabaseType type) {
         return switch (type) {
-            case DuckDB -> new EdgeDuckDb();
+            case DuckDB -> new DuckDb();
             case H2 -> new H2();
-            case Postgres -> new EdgePostgres();
+            case Postgres -> new Postgres();
             case Databricks -> new Databricks();
             case Snowflake -> new Snowflake();
             case BigQuery -> new BigQuery();
@@ -142,6 +142,17 @@ public final class PureText {
 
     /** DuckDB, spelled as upstream spells it. */
     public static final class DuckDb extends com.legend.sql.dialect.DuckDb {
+
+        /** legend-engine's H2 text (its connection declares {@link RawSqlBoundary#ENGINE_TEXT}, as legend-engine's test
+         *  corpus's executeInDb calls do) translated for DuckDB ({@link RawSqlBoundary#translated}: keyword column names
+         *  quoted, H2's type kinds mapped, {@code CURRENT_TIMESTAMP()} without parens); the product runs a raw statement
+         *  as written (Phase 6's B4 (ii), 2026-11-17). */
+        @Override
+        public String raw(String statement, @com.legend.base.Nullable String writtenFor) {
+            return RawSqlBoundary.ENGINE_TEXT.equals(writtenFor)
+                    ? RawSqlBoundary.translated(statement, types -> types, bare -> bare) : statement;
+        }
+
         /** legend-engine's scan order made explicit for its corpus's replay (StableScanOrder, behind the corpus lanes'
          *  {@code legend.exec.engineScanOrder}; moved here from the product's dialect, W6, 2026-11-16). */
         @Override
@@ -200,6 +211,27 @@ public final class PureText {
 
     /** Postgres, spelled as upstream spells it. */
     public static final class Postgres extends com.legend.sql.dialect.Postgres {
+
+        private static final java.util.regex.Pattern ENGINE_DOUBLE =
+                java.util.regex.Pattern.compile("(?i)\\bDOUBLE\\b(?!\\s+PRECISION)");
+
+        private static final java.util.regex.Pattern ENGINE_TINYINT =
+                java.util.regex.Pattern.compile("(?i)\\bTINYINT\\b");
+
+        /** legend-engine's H2 text translated in the flavor DuckDB shares, its column types Postgres's (2026-10-12,
+         *  docs/CLOUD_BACKENDS_PCT_2026_10_11.md §20: the 8-byte double is DOUBLE PRECISION, and SMALLINT is the
+         *  smallest integer, there is no TINYINT) and a bare column name in lower case, as Postgres folds a bare name
+         *  and spells a store's (decision D8); the product runs a raw statement as written (Phase 6's B4 (ii)). */
+        @Override
+        public String raw(String statement, @com.legend.base.Nullable String writtenFor) {
+            return RawSqlBoundary.ENGINE_TEXT.equals(writtenFor)
+                    ? RawSqlBoundary.translated(statement,
+                            types -> ENGINE_TINYINT.matcher(ENGINE_DOUBLE.matcher(types).replaceAll("DOUBLE PRECISION"))
+                                    .replaceAll("SMALLINT"),
+                            bare -> bare.toLowerCase(java.util.Locale.ROOT))
+                    : statement;
+        }
+
         /** legend-pure's print forms (a Float's, a DateTime's) for the product's text of each ({@link PurePrintForms}; D1.2). */
         @Override
         protected java.util.List<com.legend.sql.SqlRewriter> spellingPasses() {
