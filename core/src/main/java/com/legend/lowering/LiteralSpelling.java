@@ -450,22 +450,10 @@ public final class LiteralSpelling {
     /** The canon's suffix of a time-bearing value: lite's UTC designator (census C5's step C, 2026-11-17). */
     private static final String INSTANT_SUFFIX = "Z";
 
-    /** A timestamp's canon text: {@code T}-separated, the fraction's digits with their trailing zeros trimmed (a
-     *  timestamp carries no written precision), {@link #INSTANT_SUFFIX} -- composed from product nodes (STRFTIME at
-     *  nine digits, which every SQL dialect spells). */
+    /** A timestamp's canon text: lite's {@link SqlFn#DATETIME_CANON_TEXT} node, which the base renderer composes
+     *  ({@code dialect.DateTimeCanonText}): one node in the plan's tree. */
     private static SqlExpr instantAtItsDigits(SqlExpr x) {
-        SqlExpr digits = SqlExpr.Call.of(SqlFn.RTRIM,
-                SqlExpr.Call.of(SqlFn.STRFTIME, x,
-                        new SqlExpr.FormatLit(List.of(com.legend.sql.DateFmt.Part.SUBSEC_NANO))),
-                new SqlExpr.StringLit("0"));
-        SqlExpr fraction = new SqlExpr.Case(List.of(new SqlExpr.Case.When(
-                SqlExpr.Call.of(SqlFn.EQUAL, digits, new SqlExpr.StringLit("")), new SqlExpr.StringLit(""))),
-                SqlExpr.Call.of(SqlFn.CONCAT, new SqlExpr.StringLit("."), digits), SqlExpr.Reason.PRINT);
-        return SqlExpr.Call.of(SqlFn.CONCAT,
-                SqlExpr.Call.of(SqlFn.CONCAT,
-                        SqlExpr.Call.of(SqlFn.STRFTIME, x, new SqlExpr.FormatLit(com.legend.sql.DateFmt.ISO_LOCAL)),
-                        fraction),
-                new SqlExpr.StringLit(INSTANT_SUFFIX));
+        return SqlExpr.Call.of(SqlFn.DATETIME_CANON_TEXT, x);
     }
 
 

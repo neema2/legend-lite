@@ -1417,7 +1417,7 @@ public class Snowflake extends AnsiSqlRenderer {
             case FLOAT_SHORTEST_TEXT -> isDouble(a.get(0)) ? floatShortestText(writer, a.get(0))
                     : floatShortestTextByCast(writer, c, parentPrec);
             case FLOAT_TO_TEXT -> floatToText(writer, a.get(0));
-            case DATETIME_TO_TEXT, DATETIME_PRINT, CELL_TEXT ->
+            case DATETIME_TO_TEXT, DATETIME_PRINT, DATETIME_CANON_TEXT, CELL_TEXT ->
                     throw expandedFirst(c);
             // the hooks: this dialect's own (or the base's refusal)
             case ROUND -> roundHalfEven(writer, c.args());
