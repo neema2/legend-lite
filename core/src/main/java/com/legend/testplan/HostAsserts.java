@@ -65,6 +65,9 @@ final class HostAsserts implements TestDoor.Asserts {
 
     /** The planned asserts by the statement's place in the body. */
     private final Map<Integer, Planned> byStatement;
+    /** The host side batches' steps by statement (the orchestrator's (1), 2026-11-17): a batched run's merged step at
+     *  its last statement, nothing at the others; absent where the statement's own step stands. */
+    private final Map<Integer, List<TestPlan.TestStep>> batched;
     /** The branches planned, by the statement's place. */
     private final Map<Integer, Branched> branches;
     /** The stamp parameter minted for each frame let, by the let's place (M9c): the comment the let's eager run
@@ -72,8 +75,9 @@ final class HostAsserts implements TestDoor.Asserts {
     private final Map<Integer, String> frameStamps;
 
     private HostAsserts(Map<Integer, Planned> byStatement, Map<Integer, String> frameStamps,
-            Map<Integer, Branched> branches) {
+            Map<Integer, Branched> branches, Map<Integer, List<TestPlan.TestStep>> batched) {
         this.byStatement = Collections.unmodifiableMap(new LinkedHashMap<>(byStatement));
+        this.batched = Collections.unmodifiableMap(new LinkedHashMap<>(batched));
         this.frameStamps = Collections.unmodifiableMap(new LinkedHashMap<>(frameStamps));
         this.branches = Collections.unmodifiableMap(new LinkedHashMap<>(branches));
         // (the plan-as-data design's step 5, 2026-11-08: no map by verdict -- the run reads a verdict's host facts
@@ -250,7 +254,7 @@ final class HostAsserts implements TestDoor.Asserts {
         if (pendingLet != null && !raisedByAnAssert) {
             throw pendingLet;
         }
-        return new HostAsserts(planned, frameStamps, branches);
+        return new HostAsserts(planned, frameStamps, branches, HostSideBatching.steps(planned, env));
     }
 
     /** A branch statement planned: its condition a side (the lets before it), each side's statements a body of their
@@ -522,6 +526,10 @@ final class HostAsserts implements TestDoor.Asserts {
         Branched b = branches.get(statement);
         if (b != null) {
             return List.of(b.node());
+        }
+        List<TestPlan.TestStep> merged = batched.get(statement);
+        if (merged != null) {
+            return merged;
         }
         Planned p = byStatement.get(statement);
         return p == null ? null : List.of(p.step());

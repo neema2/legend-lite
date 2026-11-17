@@ -278,6 +278,8 @@ public record TestPlan(List<ExecutionPlan.Parameter> parameters, List<TestStep> 
             case Side.KeyedRows k -> out.add(k.keyed());
             case Side.Constant c -> {
             }
+            case Side.FusedCell f -> {
+            }
         }
     }
 
@@ -313,6 +315,29 @@ public record TestPlan(List<ExecutionPlan.Parameter> parameters, List<TestStep> 
             }
             if (fused != null && fused.shape() != TdsResult.Shape.RELATION) {
                 throw new IllegalArgumentException("a fused verdict statement answers a relation, one row per verdict");
+            }
+            for (Verdict v : verdicts) {
+                for (Side side : v.base()) {
+                    if (side instanceof Side.FusedCell cell) {
+                        readsFused(fused, cell, v.name());
+                    }
+                }
+            }
+        }
+
+        /** A fused-cell side of verdict {@code name} reads columns of its group's fused statement. */
+        private static void readsFused(@com.legend.base.Nullable TdsResult fused, Side.FusedCell cell, String name) {
+            if (fused == null) {
+                throw new IllegalArgumentException(name + ": a side read from the fused row of a group with no fused"
+                        + " statement");
+            }
+            java.util.Set<String> names = new java.util.HashSet<>();
+            fused.columns().forEach(c -> names.add(c.name()));
+            for (Column c : cell.columns()) {
+                if (!names.contains(c.name())) {
+                    throw new IllegalArgumentException(name + ": a side reads the fused column '" + c.name()
+                            + "', which the group's fused statement does not answer");
+                }
             }
         }
 
@@ -492,7 +517,7 @@ public record TestPlan(List<ExecutionPlan.Parameter> parameters, List<TestStep> 
 
     /** A side of an assert: a result the database answers (typed rows, or a keyed result's), or a constant the
      *  program wrote. */
-    public sealed interface Side permits Side.Rows, Side.KeyedRows, Side.Constant {
+    public sealed interface Side permits Side.Rows, Side.KeyedRows, Side.Constant, Side.FusedCell {
 
         /** A statement with its column facts, run as any typed result is. */
         record Rows(TdsResult result) implements Side {
@@ -508,6 +533,22 @@ public record TestPlan(List<ExecutionPlan.Parameter> parameters, List<TestStep> 
             }
         }
 
+        /**
+         * A side read from its group's FUSED row (E-5c; the host plan's own batch since the orchestrator's (1),
+         * 2026-11-17: consecutive asserts' single-value sides read by one statement, no verdict in it): {@code columns}, the side's
+         * own columns with their type facts, each NAMED as the fused statement's column it is read from, on the row of
+         * the verdict that carries it. Nothing is sent for it; its group's fused statement is read once, and the cells
+         * decode by these columns' facts as the side's own statement's would. Only in a group with a fused statement
+         * whose columns hold every one of these names ({@link Verdicts}' invariant).
+         */
+        record FusedCell(List<Column> columns) implements Side {
+            public FusedCell {
+                columns = List.copyOf(columns);
+                if (columns.isEmpty()) {
+                    throw new IllegalArgumentException("a fused-cell side reads at least one column");
+                }
+            }
+        }
         /**
          * A constant the program wrote (a literal side: {@code assertEquals(3, ...)}'s 3): its columns with their
          * type facts, and its rows as TEXT cells, each cell the literal's spelling as the program wrote it (null an

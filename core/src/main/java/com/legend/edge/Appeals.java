@@ -330,6 +330,8 @@ final class Appeals implements com.legend.testexec.EdgeHearing {
                     source, executions);
             case TestPlan.Side.Constant c -> throw new IllegalStateException("an appeal's side is a constant: its"
                     + " answer is the planned side's own, never read");
+            case TestPlan.Side.FusedCell f -> throw new IllegalStateException("an appeal's side is read from a batch"
+                    + " row: its answer is the planned side's own, never read again");
         };
     }
 }

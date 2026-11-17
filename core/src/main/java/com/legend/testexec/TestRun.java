@@ -159,13 +159,23 @@ final class TestRun {
                 // survive (an assertError's) is read under the group's savepoint, so the transaction stays live for
                 // the steps after it
                 ProgramRunner.Savepoint guard = guard(group, open);
-                for (TestPlan.Verdict each : group.verdicts()) {
+                // the host plan's own batch (the orchestrator's (1), 2026-11-17): consecutive asserts' single-value
+                // sides read by ONE statement, each verdict's cells its row (by the row's index); the batch's failure
+                // is its first batched verdict's, as a fused statement's was -- nothing retried (G7)
+                Map<Integer, Map<String, Object>> batch = hostAll && group.fused() != null ? hostBatch(group, open)
+                        : null;
+                if (hostAll && group.fused() != null && batch == null) {
+                    return;
+                }
+                for (int at = 0; at < group.verdicts().size(); at++) {
+                    TestPlan.Verdict each = group.verdicts().get(at);
                     if (!hostAll && (each.wrapper() != null || each.base().isEmpty())) {
                         continue;
                     }
+                    Map<String, Object> row = batch == null ? null : batch.get(at);
                     // the read's own failure is the verdict's (its sides could not be read); a savepoint statement's
                     // is the program's
-                    List<PlanRunner.Rows> sides = open.guarded(guard, () -> hostSides(each, open), e -> {
+                    List<PlanRunner.Rows> sides = open.guarded(guard, () -> hostSides(each, row, open), e -> {
                         judges.sidesFailed(each, e instanceof IOException io ? new UncheckedIOException(io)
                                 : (RuntimeException) e);
                         return null;
@@ -178,6 +188,37 @@ final class TestRun {
             if (judge == TestPlan.Judge.DATABASE) {
                 databaseVerdicts(group, open);
             }
+        }
+
+        /** The host batch of {@code group} read once: each row's cells by column name, by the row's verdict's place in
+         *  the group (the index column); null where the read failed -- told to the group's first batched verdict, whose
+         *  failure it is, as a fused statement's rejection was the program's. */
+        private @Nullable Map<Integer, Map<String, Object>> hostBatch(TestPlan.Verdicts group,
+                ProgramRunner.OpenProgram open) throws IOException {
+            ExecutionPlan.TdsResult fused = java.util.Objects.requireNonNull(group.fused());
+            Map<Integer, Map<String, Object>> rows = new HashMap<>();
+            try {
+                for (List<Object> row : open.read(fused, null, Map.of()).rows()) {
+                    if (row.isEmpty() || !(row.get(0) instanceof Number index)) {
+                        throw new IllegalStateException("a host batch row's first cell is its index: "
+                                + (row.isEmpty() ? "no cell" : row.get(0)));
+                    }
+                    Map<String, Object> cells = new HashMap<>();
+                    for (int c = 1; c < fused.columns().size(); c++) {
+                        cells.put(fused.columns().get(c).name(), row.get(c));
+                    }
+                    rows.put(index.intValue(), cells);
+                }
+            } catch (DataError e) {
+                for (TestPlan.Verdict v : group.verdicts()) {
+                    if (v.base().stream().anyMatch(side -> side instanceof TestPlan.Side.FusedCell)) {
+                        judges.sidesFailed(v, e);
+                        return null;
+                    }
+                }
+                throw e;
+            }
+            return rows;
         }
 
         /**
@@ -194,7 +235,7 @@ final class TestRun {
             }
             TestPlan.Verdict each = group.verdicts().get(0);
             RuntimeException[] caught = new RuntimeException[1];
-            List<PlanRunner.Rows> sides = open.guarded(guard(group, open), () -> hostSides(each, open), e -> {
+            List<PlanRunner.Rows> sides = open.guarded(guard(group, open), () -> hostSides(each, null, open), e -> {
                 if (e instanceof DataError || e instanceof com.legend.error.ModelException) {
                     // the errors assertError takes; any other is a wall, raised as it was -- never judged as "no error"
                     caught[0] = (RuntimeException) e;
@@ -295,14 +336,31 @@ final class TestRun {
                 ? new ProgramRunner.Savepoint(sp.plannedSet(), sp.plannedRollbackTo(), sp.plannedRelease()) : null;
     }
 
-    /** {@code each}'s base sides read for the host judge, in the base's order. */
-    private static List<PlanRunner.Rows> hostSides(TestPlan.Verdict each, ProgramRunner.OpenProgram open)
-            throws IOException {
+    /** {@code each}'s base sides read for the host judge, in the base's order: a fused cell from its batch {@code row},
+     *  every other side its own statement. */
+    private static List<PlanRunner.Rows> hostSides(TestPlan.Verdict each, @Nullable Map<String, Object> row,
+            ProgramRunner.OpenProgram open) throws IOException {
         List<PlanRunner.Rows> sides = new ArrayList<>(each.base().size());
         for (TestPlan.Side side : each.base()) {
-            sides.add(sideRows(side, open));
+            if (side instanceof TestPlan.Side.FusedCell cell) {
+                sides.add(cellsOf(cell, java.util.Objects.requireNonNull(row, "a fused cell with no batch row")));
+            } else {
+                sides.add(sideRows(side, open));
+            }
         }
         return sides;
+    }
+
+    /** A fused cell's one row, read from its batch row by its columns' names. */
+    private static PlanRunner.Rows cellsOf(TestPlan.Side.FusedCell cell, Map<String, Object> row) {
+        List<Object> cells = new ArrayList<>(cell.columns().size());
+        for (ExecutionPlan.Column c : cell.columns()) {
+            if (!row.containsKey(c.name())) {
+                throw new IllegalStateException("a fused cell's column '" + c.name() + "' its batch row lacks");
+            }
+            cells.add(row.get(c.name()));
+        }
+        return new PlanRunner.Rows(cell.columns(), List.of(cells));
     }
 
     /** A side's typed rows: a statement's or a keyed result's read through the open program, a constant's its TEXT
@@ -317,6 +375,8 @@ final class TestRun {
             case TestPlan.Side.Rows r -> r.result();
             case TestPlan.Side.KeyedRows k -> k.keyed();
             case TestPlan.Side.Constant c -> throw new IllegalStateException("a constant side sends no statement");
+            case TestPlan.Side.FusedCell f -> throw new IllegalStateException("a fused-cell side sends no statement:"
+                    + " it is read from its group's batch row");
         };
     }
 
