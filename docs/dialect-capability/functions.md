@@ -205,13 +205,11 @@ Database types planned with it: H2.
 | `TO_VARIANT` | emulated | `variantConstruct` |  | 8 |
 | `BOOL_TO_TEXT` | emulated | `CASE WHEN … THEN 'true' WHEN NOT … THEN 'false' END` |  | 2 |
 | `DECIMAL_TO_TEXT` | emulated | `REGEXP_REPLACE(TO_CHAR(…), '^(-?)\.', '$10.')` |  | 0 |
-| `FLOAT_PRINT` | emulated | `floatPrintByText` |  | 0 |
+| `FLOAT_SHORTEST_TEXT` | emulated | `floatShortestTextByCast` |  | 0 |
 | `FLOAT_TO_TEXT` | emulated | `floatToText` |  | 0 |
 | `DATETIME_TO_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `DATETIME_PRINT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `CELL_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
-| `RELATION_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
-| `TEXT_FORMS` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `VARIANT_ELEMENTS` | refused | `variant navigation reached a dialect without JSON support` | `via AnsiSqlRenderer.variantElements` | 2 |
 | `VARIANT_GET` | emulated | `variantGet` |  | 14 |
 | `JSON_TYPE` | emulated | `jsonType` |  | 1 |
@@ -402,13 +400,11 @@ Database types planned with it: Postgres.
 | `TO_VARIANT` | emulated | `variantConstruct` |  | 8 |
 | `BOOL_TO_TEXT` | emulated | `castAs: VARCHAR` |  | 2 |
 | `DECIMAL_TO_TEXT` | emulated | `varcharCast` |  | 0 |
-| `FLOAT_PRINT` | emulated | `floatPrintByText` |  | 0 |
+| `FLOAT_SHORTEST_TEXT` | emulated | `floatShortestTextByCast` |  | 0 |
 | `FLOAT_TO_TEXT` | emulated | `floatToText` |  | 0 |
 | `DATETIME_TO_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `DATETIME_PRINT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `CELL_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
-| `RELATION_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
-| `TEXT_FORMS` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `VARIANT_ELEMENTS` | emulated | `by its operands: composed / composed` |  | 2 |
 | `VARIANT_GET` | emulated | `variantGet` |  | 14 |
 | `JSON_TYPE` | emulated | `jsonType` |  | 1 |
@@ -599,13 +595,11 @@ Database types planned with it: Snowflake.
 | `TO_VARIANT` | emulated | `variantConstruct` |  | 8 |
 | `BOOL_TO_TEXT` | emulated | `castAs: VARCHAR` |  | 2 |
 | `DECIMAL_TO_TEXT` | emulated | `varcharCast` |  | 0 |
-| `FLOAT_PRINT` | emulated | `by its operands: composed / composed` |  | 0 |
+| `FLOAT_SHORTEST_TEXT` | emulated | `by its operands: composed / composed` |  | 0 |
 | `FLOAT_TO_TEXT` | emulated | `floatToText` |  | 0 |
 | `DATETIME_TO_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `DATETIME_PRINT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `CELL_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
-| `RELATION_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
-| `TEXT_FORMS` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `VARIANT_ELEMENTS` | emulated | `variantElements` |  | 4 |
 | `VARIANT_GET` | emulated | `variantGet` |  | 15 |
 | `JSON_TYPE` | emulated | `(CASE WHEN … IS NULL THEN NULL ELSE DECODE(TYPEOF(TO_VARIANT(…)), 'NULL_VALUE...` |  | 1 |
@@ -796,13 +790,11 @@ Database types planned with it: Trino.
 | `TO_VARIANT` | emulated | `variantConstruct` |  | 8 |
 | `BOOL_TO_TEXT` | emulated | `CAST(… AS VARCHAR)` |  | 2 |
 | `DECIMAL_TO_TEXT` | emulated | `varcharCast` |  | 0 |
-| `FLOAT_PRINT` | emulated | `floatPrintByText` |  | 0 |
+| `FLOAT_SHORTEST_TEXT` | emulated | `floatShortestTextByCast` |  | 0 |
 | `FLOAT_TO_TEXT` | emulated | `floatToText` |  | 0 |
 | `DATETIME_TO_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `DATETIME_PRINT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `CELL_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
-| `RELATION_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
-| `TEXT_FORMS` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `VARIANT_ELEMENTS` | emulated | `variantElements` |  | 4 |
 | `VARIANT_GET` | emulated | `variantGet` |  | 15 |
 | `JSON_TYPE` | emulated | `jsonType` |  | 1 |
@@ -993,13 +985,11 @@ Database types planned with it: BigQuery.
 | `TO_VARIANT` | emulated | `variantConstruct` |  | 8 |
 | `BOOL_TO_TEXT` | emulated | `CAST(… AS STRING)` |  | 2 |
 | `DECIMAL_TO_TEXT` | emulated | `varcharCast` |  | 0 |
-| `FLOAT_PRINT` | emulated | `floatPrintByText` |  | 0 |
+| `FLOAT_SHORTEST_TEXT` | emulated | `floatShortestTextByCast` |  | 0 |
 | `FLOAT_TO_TEXT` | emulated | `floatToText` |  | 0 |
 | `DATETIME_TO_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `DATETIME_PRINT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `CELL_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
-| `RELATION_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
-| `TEXT_FORMS` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `VARIANT_ELEMENTS` | emulated | `variantElements` |  | 2 |
 | `VARIANT_GET` | emulated | `variantGet` |  | 14 |
 | `JSON_TYPE` | emulated | `jsonType` |  | 1 |
@@ -1190,13 +1180,11 @@ Database types planned with it: Databricks.
 | `TO_VARIANT` | emulated | `variantConstruct` |  | 8 |
 | `BOOL_TO_TEXT` | emulated | `CAST(… AS STRING)` |  | 2 |
 | `DECIMAL_TO_TEXT` | emulated | `varcharCast` |  | 0 |
-| `FLOAT_PRINT` | emulated | `floatPrintByText` |  | 0 |
+| `FLOAT_SHORTEST_TEXT` | emulated | `floatShortestTextByCast` |  | 0 |
 | `FLOAT_TO_TEXT` | emulated | `floatToText` |  | 0 |
 | `DATETIME_TO_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `DATETIME_PRINT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `CELL_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
-| `RELATION_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
-| `TEXT_FORMS` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `VARIANT_ELEMENTS` | emulated | `variantElements` |  | 4 |
 | `VARIANT_GET` | emulated | `variantGet` |  | 15 |
 | `JSON_TYPE` | emulated | `jsonType` |  | 1 |
@@ -1387,13 +1375,11 @@ Database types planned with it: DuckDB.
 | `TO_VARIANT` | emulated | `variantConstruct` |  | 8 |
 | `BOOL_TO_TEXT` | emulated | `castAs: VARCHAR` |  | 2 |
 | `DECIMAL_TO_TEXT` | emulated | `varcharCast` |  | 0 |
-| `FLOAT_PRINT` | emulated | `floatPrintByText` |  | 0 |
+| `FLOAT_SHORTEST_TEXT` | emulated | `floatShortestTextByCast` |  | 0 |
 | `FLOAT_TO_TEXT` | emulated | `floatToText` |  | 0 |
 | `DATETIME_TO_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `DATETIME_PRINT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `CELL_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
-| `RELATION_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
-| `TEXT_FORMS` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `VARIANT_ELEMENTS` | emulated | `variantElements` |  | 4 |
 | `VARIANT_GET` | emulated | `variantGet` |  | 15 |
 | `JSON_TYPE` | spelled | `json_type` |  | 1 |
@@ -1584,13 +1570,11 @@ Database types planned with it: ClickHouse.
 | `TO_VARIANT` | emulated | `variantConstruct` |  | 8 |
 | `BOOL_TO_TEXT` | spelled | `toString` |  | 2 |
 | `DECIMAL_TO_TEXT` | emulated | `varcharCast` |  | 0 |
-| `FLOAT_PRINT` | emulated | `floatPrintByText` |  | 0 |
+| `FLOAT_SHORTEST_TEXT` | emulated | `floatShortestTextByCast` |  | 0 |
 | `FLOAT_TO_TEXT` | emulated | `floatToText` |  | 0 |
 | `DATETIME_TO_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `DATETIME_PRINT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `CELL_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
-| `RELATION_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
-| `TEXT_FORMS` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `VARIANT_ELEMENTS` | emulated | `variantElements` |  | 4 |
 | `VARIANT_GET` | emulated | `variantGet` |  | 15 |
 | `JSON_TYPE` | emulated | `multiIf(isNull(…), NULL, JSONType(…) = 'Null', 'NULL', JSONType(…) = 'String'...` |  | 1 |
@@ -1781,13 +1765,11 @@ Database types planned with it: SQLite.
 | `TO_VARIANT` | emulated | `variantConstruct` |  | 8 |
 | `BOOL_TO_TEXT` | emulated | `textOf` |  | 2 |
 | `DECIMAL_TO_TEXT` | emulated | `varcharCast` |  | 0 |
-| `FLOAT_PRINT` | emulated | `floatPrintByText` |  | 0 |
+| `FLOAT_SHORTEST_TEXT` | emulated | `floatShortestTextByCast` |  | 0 |
 | `FLOAT_TO_TEXT` | emulated | `floatToText` |  | 0 |
 | `DATETIME_TO_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `DATETIME_PRINT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `CELL_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
-| `RELATION_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
-| `TEXT_FORMS` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `VARIANT_ELEMENTS` | emulated | `variantElements` |  | 2 |
 | `VARIANT_GET` | emulated | `variantGet` |  | 14 |
 | `JSON_TYPE` | emulated | `(CASE json_type(…) WHEN 'null' THEN 'NULL' WHEN 'text' THEN 'VARCHAR' WHEN 't...` |  | 1 |
@@ -1978,13 +1960,11 @@ Database types planned with it: MariaDB.
 | `TO_VARIANT` | emulated | `variantConstruct` |  | 8 |
 | `BOOL_TO_TEXT` | emulated | `textOf` |  | 2 |
 | `DECIMAL_TO_TEXT` | emulated | `varcharCast` |  | 0 |
-| `FLOAT_PRINT` | emulated | `floatPrintByText` |  | 0 |
+| `FLOAT_SHORTEST_TEXT` | emulated | `floatShortestTextByCast` |  | 0 |
 | `FLOAT_TO_TEXT` | emulated | `floatToText` |  | 0 |
 | `DATETIME_TO_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `DATETIME_PRINT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `CELL_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
-| `RELATION_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
-| `TEXT_FORMS` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `VARIANT_ELEMENTS` | emulated | `variantElements` |  | 2 |
 | `VARIANT_GET` | emulated | `variantGet` |  | 14 |
 | `JSON_TYPE` | emulated | `(CASE JSON_TYPE(…) WHEN 'NULL' THEN 'NULL' WHEN 'STRING' THEN 'VARCHAR' WHEN ...` |  | 1 |
@@ -2175,13 +2155,11 @@ Database types planned with it: MySQL.
 | `TO_VARIANT` | emulated | `variantConstruct` | `as MariaDb` | 8 |
 | `BOOL_TO_TEXT` | emulated | `textOf` | `as MariaDb` | 2 |
 | `DECIMAL_TO_TEXT` | emulated | `varcharCast` | `as MariaDb` | 0 |
-| `FLOAT_PRINT` | emulated | `floatPrintByText` | `as MariaDb` | 0 |
+| `FLOAT_SHORTEST_TEXT` | emulated | `floatShortestTextByCast` | `as MariaDb` | 0 |
 | `FLOAT_TO_TEXT` | emulated | `floatToText` | `as MariaDb` | 0 |
 | `DATETIME_TO_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` | `as MariaDb` | 0 |
 | `DATETIME_PRINT` | not_here | `renderer bug: is expanded before any dialect reads it` | `as MariaDb` | 0 |
 | `CELL_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` | `as MariaDb` | 0 |
-| `RELATION_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` | `as MariaDb` | 0 |
-| `TEXT_FORMS` | not_here | `renderer bug: is expanded before any dialect reads it` | `as MariaDb` | 0 |
 | `VARIANT_ELEMENTS` | emulated | `variantElements` | `as MariaDb` | 2 |
 | `VARIANT_GET` | emulated | `variantGet` | `as MariaDb` | 14 |
 | `JSON_TYPE` | emulated | `(CASE JSON_TYPE(…) WHEN 'NULL' THEN 'NULL' WHEN 'STRING' THEN 'VARCHAR' WHEN ...` | `as MariaDb` | 1 |
@@ -2372,13 +2350,11 @@ Database types planned with it: MongoDB.
 | `TO_VARIANT` | emulated | `variantConstruct` |  | 0 |
 | `BOOL_TO_TEXT` | emulated | `op1: $toString` |  | 0 |
 | `DECIMAL_TO_TEXT` | emulated | `varcharCast` |  | 0 |
-| `FLOAT_PRINT` | emulated | `floatPrintByText` |  | 0 |
+| `FLOAT_SHORTEST_TEXT` | emulated | `floatShortestTextByCast` |  | 0 |
 | `FLOAT_TO_TEXT` | emulated | `floatToText` |  | 0 |
 | `DATETIME_TO_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `DATETIME_PRINT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `CELL_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
-| `RELATION_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
-| `TEXT_FORMS` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `VARIANT_ELEMENTS` | emulated | `variantElements` |  | 0 |
 | `VARIANT_GET` | emulated | `variantGet` |  | 0 |
 | `JSON_TYPE` | emulated | `jsonType` |  | 0 |
@@ -2569,13 +2545,11 @@ Database types planned with it: no database type's own (it extends `AnsiSqlRende
 | `TO_VARIANT` | refused | `toVariant reached a dialect without JSON support` | `via AnsiSqlRenderer.variantConstruct` | — |
 | `BOOL_TO_TEXT` | emulated | `cast(… as varchar)` |  | — |
 | `DECIMAL_TO_TEXT` | emulated | `varcharCast` |  | — |
-| `FLOAT_PRINT` | emulated | `floatPrintByText` |  | — |
+| `FLOAT_SHORTEST_TEXT` | emulated | `floatShortestTextByCast` |  | — |
 | `FLOAT_TO_TEXT` | emulated | `floatToText` |  | — |
 | `DATETIME_TO_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | — |
 | `DATETIME_PRINT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | — |
 | `CELL_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | — |
-| `RELATION_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | — |
-| `TEXT_FORMS` | not_here | `renderer bug: is expanded before any dialect reads it` |  | — |
 | `VARIANT_ELEMENTS` | refused | `variant navigation reached a dialect without JSON support` | `via AnsiSqlRenderer.variantElements` | — |
 | `VARIANT_GET` | refused | `variant navigation reached a dialect without JSON support` | `via AnsiSqlRenderer.variantGet` | — |
 | `JSON_TYPE` | spelled | `json_type` |  | — |
@@ -2766,13 +2740,11 @@ Database types planned with it: no database type's own (it extends `EngineStyleH
 | `TO_VARIANT` | refused | `toVariant reached a dialect without JSON support` | `as EngineStyleH2, via AnsiSqlRenderer.variantConstruct` | — |
 | `BOOL_TO_TEXT` | emulated | `cast(… as varchar)` | `as EngineStyleH2` | — |
 | `DECIMAL_TO_TEXT` | emulated | `varcharCast` | `as EngineStyleH2` | — |
-| `FLOAT_PRINT` | emulated | `floatPrintByText` | `as EngineStyleH2` | — |
+| `FLOAT_SHORTEST_TEXT` | emulated | `floatShortestTextByCast` | `as EngineStyleH2` | — |
 | `FLOAT_TO_TEXT` | emulated | `floatToText` | `as EngineStyleH2` | — |
 | `DATETIME_TO_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` | `as EngineStyleH2` | — |
 | `DATETIME_PRINT` | not_here | `renderer bug: is expanded before any dialect reads it` | `as EngineStyleH2` | — |
 | `CELL_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` | `as EngineStyleH2` | — |
-| `RELATION_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` | `as EngineStyleH2` | — |
-| `TEXT_FORMS` | not_here | `renderer bug: is expanded before any dialect reads it` | `as EngineStyleH2` | — |
 | `VARIANT_ELEMENTS` | refused | `variant navigation reached a dialect without JSON support` | `as EngineStyleH2, via AnsiSqlRenderer.variantElements` | — |
 | `VARIANT_GET` | refused | `variant navigation reached a dialect without JSON support` | `as EngineStyleH2, via AnsiSqlRenderer.variantGet` | — |
 | `JSON_TYPE` | spelled | `json_type` | `as EngineStyleH2` | — |
@@ -2963,13 +2935,11 @@ Database types planned with it: no database type's own (it extends `EngineStyleD
 | `TO_VARIANT` | refused | `toVariant reached a dialect without JSON support` | `as EngineStyleDB2, as EngineStyleH2, via AnsiSqlRenderer.variantConstruct` | — |
 | `BOOL_TO_TEXT` | emulated | `cast(… as varchar)` | `as EngineStyleDB2, as EngineStyleH2` | — |
 | `DECIMAL_TO_TEXT` | emulated | `varcharCast` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `FLOAT_PRINT` | emulated | `floatPrintByText` | `as EngineStyleDB2, as EngineStyleH2` | — |
+| `FLOAT_SHORTEST_TEXT` | emulated | `floatShortestTextByCast` | `as EngineStyleDB2, as EngineStyleH2` | — |
 | `FLOAT_TO_TEXT` | emulated | `floatToText` | `as EngineStyleDB2, as EngineStyleH2` | — |
 | `DATETIME_TO_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` | `as EngineStyleDB2, as EngineStyleH2` | — |
 | `DATETIME_PRINT` | not_here | `renderer bug: is expanded before any dialect reads it` | `as EngineStyleDB2, as EngineStyleH2` | — |
 | `CELL_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `RELATION_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `TEXT_FORMS` | not_here | `renderer bug: is expanded before any dialect reads it` | `as EngineStyleDB2, as EngineStyleH2` | — |
 | `VARIANT_ELEMENTS` | refused | `variant navigation reached a dialect without JSON support` | `as EngineStyleDB2, as EngineStyleH2, via AnsiSqlRenderer.variantElements` | — |
 | `VARIANT_GET` | refused | `variant navigation reached a dialect without JSON support` | `as EngineStyleDB2, as EngineStyleH2, via AnsiSqlRenderer.variantGet` | — |
 | `JSON_TYPE` | spelled | `json_type` | `as EngineStyleDB2, as EngineStyleH2` | — |

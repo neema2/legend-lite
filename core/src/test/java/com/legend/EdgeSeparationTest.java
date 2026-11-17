@@ -51,7 +51,6 @@ class EdgeSeparationTest {
      *  open line until it moves to the edge or is ruled; a product class depending on one is an entry too. */
     static final Map<String, String> COMPAT_CLASSES = Map.ofEntries(
             Map.entry("com.legend.planner.UpstreamPlans", "B2"),
-            Map.entry("com.legend.sql.dialect.FloatPrintText", "B9"),
             // B17 (2026-11-17): Render's relation text moved to the edge (edge.RelationTextLowering); what stays in
             // Render is the product's row helpers, and the facet the edge answers stands here until hooks are ruled
             Map.entry("com.legend.lowering.RelationTexts", "B17"),
@@ -65,8 +64,7 @@ class EdgeSeparationTest {
             Map.entry("com.legend.testplan.PlanStyleFacets", "C4"));
 
     /** The SqlFn members only the edge spells (census B8). */
-    static final Set<String> EDGE_ONLY_SQLFN = Set.of("FLOAT_PRINT", "DATETIME_PRINT",
-            "RELATION_TEXT", "TEXT_FORMS");
+    static final Set<String> EDGE_ONLY_SQLFN = Set.of("DATETIME_PRINT");
 
     /** The referee and the appeals in the product packages they stood in (census C2, closed 2026-11-17: moved to
      *  com.legend.edge, whose classes the CODE guard already keeps out of the product): a tripwire, should one return. */
@@ -93,15 +91,7 @@ class EdgeSeparationTest {
             Map.entry("com.legend.sql.dialect.DateTimePrintText -> (stands in a product package)",
                     "B12 2026-11-17 (format %r arm, LiteralSpelling.temporalCanon's gone by C5 step C)"),
             Map.entry("com.legend.lowering.Repr -> (stands in a product package)", "B12 2026-11-17"),
-            Map.entry("com.legend.lowering.Repr -> SqlFn.FLOAT_PRINT", "C5 2026-11-17"),
-            // (the orchestrator's ruling, 2026-11-17: lite's message Float reads FLOAT_PRINT's shortest digits until B9
-            // splits it into a product node and the edge's spelling)
-            Map.entry("com.legend.lowering.LiteText -> SqlFn.FLOAT_PRINT", "B9 2026-11-17"),
-            Map.entry("com.legend.lowering.Scalars -> SqlFn.TEXT_FORMS", "B8 2026-11-17"),
             Map.entry("com.legend.lowering.Scalars -> com.legend.lowering.Repr", "B12 2026-11-17"),
-            Map.entry("com.legend.lowering.TaggedLists -> SqlFn.TEXT_FORMS", "B8 2026-11-17"),
-            Map.entry("com.legend.sql.dialect.AnsiSqlRenderer -> com.legend.sql.dialect.FloatPrintText", "B9 2026-11-17"),
-            Map.entry("com.legend.sql.dialect.FloatPrintText -> (stands in a product package)", "B9 2026-11-17"),
             // planner.Boundary -> com.legend.edge.HostAnswers, PureText, PureV1Routes: gone 2026-11-17 (A1, E-P5): the
             // pure/v1 route and execute's halves moved to com.legend.edge.wasm.EdgeBoundary (//wasm:edge_boundary)
             // B7 CLOSED 2026-11-17 (E-P5, D's split by content): server/PureV1Api is the product's own API kit,
@@ -178,7 +168,6 @@ class EdgeSeparationTest {
             // product's code that only asks the style for it with the call's refusal (the lowering, its rules, the
             // planner's configuration, the facet list)
             Map.entry("com.legend.lowering.PureOnlyTexts -> (stands in a product package)", "B8 HOOK-RULED 2026-11-17"),
-            Map.entry("com.legend.lowering.Lowerer -> com.legend.lowering.PureOnlyTexts", "B8 HOOK-RULED 2026-11-17"),
             Map.entry("com.legend.lowering.Scalars -> com.legend.lowering.PureOnlyTexts", "B8 HOOK-RULED 2026-11-17"),
             // B17, the relation-text facet (the orchestrator's ruling of 2026-11-17: its signatures, and forwarders to
             // product helpers the product uses itself; HookRulingTest pins both and its one implementer)
@@ -291,30 +280,13 @@ class EdgeSeparationTest {
             // B9 -> C5 (E-P5) 2026-11-17: the judges' canon's alone (LiteralSpelling.temporalCanon)
             Map.entry("sql/dialect/DateTimePrintText.java | +0000", "B12 2026-11-17 (format %r arm, LiteralSpelling.temporalCanon's gone by C5 step C)"),
             Map.entry("compiler/element/type/PlatformTypes.java | TDS_NULL_CELL", "B10 2026-11-17"),
-            Map.entry("lowering/LiteText.java | FLOAT_PRINT", "B9 2026-11-17"),
             // B11 -> C5 2026-11-17 (the orchestrator's ruling): the judges' canon (temporalCanon x2, dateTimeLiteralAt via
             // CanonicalRenderSql), closed by C5's step C (E-SQL's)
-            Map.entry("lowering/Repr.java | FLOAT_PRINT", "C5 2026-11-17"),
             Map.entry("lowering/Repr.java | Repr", "B12 2026-11-17"),
             Map.entry("lowering/Scalars.java | Repr", "B12 2026-11-17"),
             Map.entry("lowering/VerdictSql.java | Repr", "C5 2026-11-17"),
             Map.entry("lowering/VerdictSql.java | TDS_NULL_CELL", "C5 2026-11-17"),
             Map.entry("sql/SqlExpr.java | TDS_NULL_CELL", "B10 2026-11-17"),
-            Map.entry("sql/SqlFn.java | FLOAT_PRINT", "B9 2026-11-17"),
-            Map.entry("sql/SqlTyping.java | FLOAT_PRINT", "B9 2026-11-17"),
-            Map.entry("sql/dialect/BigQuery.java | FLOAT_PRINT", "B9 2026-11-17"),
-            Map.entry("sql/dialect/ClickHouse.java | FLOAT_PRINT", "B9 2026-11-17"),
-            Map.entry("sql/dialect/Databricks.java | FLOAT_PRINT", "B9 2026-11-17"),
-            Map.entry("sql/dialect/DuckDb.java | FLOAT_PRINT", "B9 2026-11-17"),
-            Map.entry("sql/dialect/FloatPrintText.java | FLOAT_PRINT", "B9 2026-11-17"),
-            Map.entry("sql/dialect/H2.java | FLOAT_PRINT", "B9 2026-11-17"),
-            Map.entry("sql/dialect/MariaDb.java | FLOAT_PRINT", "B9 2026-11-17"),
-            Map.entry("sql/dialect/MongoDb.java | FLOAT_PRINT", "B9 2026-11-17"),
-            Map.entry("sql/dialect/MySql.java | FLOAT_PRINT", "B9 2026-11-17"),
-            Map.entry("sql/dialect/Postgres.java | FLOAT_PRINT", "B9 2026-11-17"),
-            Map.entry("sql/dialect/SQLite.java | FLOAT_PRINT", "B9 2026-11-17"),
-            Map.entry("sql/dialect/Snowflake.java | FLOAT_PRINT", "B9 2026-11-17"),
-            Map.entry("sql/dialect/Trino.java | FLOAT_PRINT", "B9 2026-11-17"),
             Map.entry("testexec/AssertRuns.java | EngineText", "C3 2026-11-17"),
             Map.entry("testexec/CanonicalForm.java | +0000", "C5 2026-11-17"),
             Map.entry("testexec/HostJudgments.java | EngineText", "C3 2026-11-17"),
@@ -349,11 +321,13 @@ class EdgeSeparationTest {
      *  moved to the edge); B2 HOOK-RULED 2026-11-17 (UpstreamPlans, signatures only); B5 CLOSED 2026-11-17
      *  (the lowering's shape options, the trace comment and the result envelope the edge's); B7 CLOSED 2026-11-17 (the
      *  product's API kit LiteV1Api, legend-engine's ExecuteInput binding the edge's); B11 CLOSED 2026-11-17 (its last rows the judges' canon and the host judge's +0000, relabelled C5);
+     *  B9 CLOSED 2026-11-17 (the Float rename its last entries; its hooks ruled terminal, its DateTime family the
+     *  two-form hook DateTimeTexts, its canon composition relabelled C5);
      *  records only:
      *  B15, B16, C6, C7). Each must hold at least one entry in the count ({@link #everyOpenLineIsCounted}), so an empty
      *  count cannot read DONE with a line left. A line closes by leaving this set with its last entry. */
     static final Set<String> OPEN_LINES = Set.of(
-            "B8", "B9", "B10", "B12", "C1", "C3", "C4", "C5");
+            "B8", "B10", "B12", "C1", "C3", "C4", "C5");
 
     private static Set<String> linesOf(Map<String, String> m) {
         Set<String> out = new TreeSet<>();
@@ -435,7 +409,7 @@ class EdgeSeparationTest {
                 com.legend.planner.PlantedCompatReach.class);
         Set<String> code = found(planted, n -> true);
         for (String want : List.of("com.legend.planner.PlantedCompatReach -> com.legend.edge.Presenter",
-                "com.legend.planner.PlantedCompatReach -> SqlFn.TEXT_FORMS",
+                "com.legend.planner.PlantedCompatReach -> SqlFn.DATETIME_PRINT",
                 "com.legend.planner.PlantedCompatReach -> JudgingRules.COMPILED_PURE_COMPAT")) {
             assertFalse(!code.contains(want), "the CODE and TEST SIDE guards bite: " + want + " in " + code);
         }

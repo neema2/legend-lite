@@ -2139,9 +2139,9 @@ public class EngineStyleH2 extends AnsiSqlRenderer implements EngineTextDialect 
             case NULL_SAFE_EQUAL -> notDistinctFrom(writer, c.args());
             // Pure's divide-with-scale is HALF_UP: plain ROUND (half away from zero)
             case ROUND_HALF_UP -> writer.function("ROUND", c.args());
-            case FLOAT_PRINT -> floatPrintByText(writer, c, parentPrec);
+            case FLOAT_SHORTEST_TEXT -> floatShortestTextByCast(writer, c, parentPrec);
             case FLOAT_TO_TEXT -> floatToText(writer, c.args().get(0));
-            case DATETIME_TO_TEXT, DATETIME_PRINT, CELL_TEXT, RELATION_TEXT, TEXT_FORMS ->
+            case DATETIME_TO_TEXT, DATETIME_PRINT, CELL_TEXT ->
                     throw expandedFirst(c);
             // the hooks: this dialect's own (or the base's refusal)
             case LIST_FILTER, LIST_TRANSFORM, LIST_CONCAT, LIST_GET, LIST_AT, LIST_POSITION, LIST_ZIP, LIST_DISTINCT,

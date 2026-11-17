@@ -50,10 +50,10 @@ final class RelationTextLowering implements RelationTexts {
         return relationText(lowerToString(tc, relation, alias, deferredTds), "toString");
     }
 
-    /** A relation's {@code text} ({@code what} it is), marked as the lowering marked it until B17 (the edge's passes
-     *  unwrap it: edge.PurePrintForms). */
+    /** A relation's {@code text} ({@code what} it is): the text itself (B8, 2026-11-17: the RELATION_TEXT marker the
+     *  edge's pass unwrapped is gone with the product's render-time refusal; the product refuses at lowering). */
     private static SqlExpr relationText(SqlExpr text, String what) {
-        return SqlExpr.Call.of(SqlFn.RELATION_TEXT, text, new SqlExpr.StringLit(what));
+        return text;
     }
 
     private static SqlExpr cat(SqlExpr... parts) {
@@ -513,7 +513,7 @@ final class RelationTextLowering implements RelationTexts {
             rendered = cat(new SqlExpr.StringLit("'"),
                     SqlExpr.Call.of(SqlFn.REPLACE,
                             SqlExpr.Call.of(SqlFn.REPLACE,
-                                    RelationTexts.pureToString(EdgePureOnlyTexts.INSTANCE, t, c),
+                                    RelationTexts.pureToString(EdgePureOnlyTexts.INSTANCE, PureListTexts.INSTANCE, t, c),
                                     new SqlExpr.StringLit("\\"),
                                     new SqlExpr.StringLit("\\\\")),
                             new SqlExpr.StringLit("'"),
@@ -562,10 +562,10 @@ final class RelationTextLowering implements RelationTexts {
             // witness testMax_Floats/Numbers_Relation_Aggregate).
             // INTEGER slots (an all-int Number column) and the VARCHAR
             // mixed-identity carrier keep their own spellings.
-            rendered = RelationTexts.pureToString(EdgePureOnlyTexts.INSTANCE, Type.Primitive.FLOAT,
+            rendered = RelationTexts.pureToString(EdgePureOnlyTexts.INSTANCE, PureListTexts.INSTANCE, Type.Primitive.FLOAT,
                     new SqlExpr.Cast(c, SqlType.Scalar.DOUBLE, SqlExpr.Reason.PRINT));
         } else {
-            rendered = RelationTexts.pureToString(EdgePureOnlyTexts.INSTANCE, t, c);
+            rendered = RelationTexts.pureToString(EdgePureOnlyTexts.INSTANCE, PureListTexts.INSTANCE, t, c);
         }
         return new SqlExpr.Case(List.of(new SqlExpr.Case.When(
                 SqlExpr.Call.of(SqlFn.IS_NULL, c),
@@ -690,7 +690,7 @@ final class RelationTextLowering implements RelationTexts {
             // 'yyyy-MM-dd HH:mm:ss', the fraction dropped: docs/OUTPUT_LAYER_DESIGN_2026_10_10.md §3, gap 4)
             rendered = dateTimeText(c);
         } else {
-            rendered = escapeCsv(RelationTexts.pureToString(EdgePureOnlyTexts.INSTANCE, t, c));
+            rendered = escapeCsv(RelationTexts.pureToString(EdgePureOnlyTexts.INSTANCE, PureListTexts.INSTANCE, t, c));
         }
         return new SqlExpr.Case(List.of(new SqlExpr.Case.When(
                 SqlExpr.Call.of(SqlFn.IS_NULL, c),

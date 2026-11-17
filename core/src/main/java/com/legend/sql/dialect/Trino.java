@@ -948,9 +948,9 @@ public class Trino extends AnsiSqlRenderer {
             case TODAY -> writer.append("current_date");
             // Pure's divide is a Float division: both operands DOUBLE
             case DIVIDE -> divideAsDoubles(writer, c.args());
-            case FLOAT_PRINT -> floatPrintByText(writer, c, parentPrec);
+            case FLOAT_SHORTEST_TEXT -> floatShortestTextByCast(writer, c, parentPrec);
             case FLOAT_TO_TEXT -> floatToText(writer, c.args().get(0));
-            case DATETIME_TO_TEXT, DATETIME_PRINT, CELL_TEXT, RELATION_TEXT, TEXT_FORMS ->
+            case DATETIME_TO_TEXT, DATETIME_PRINT, CELL_TEXT ->
                     throw expandedFirst(c);
             // the hooks: this dialect's own (or the base's refusal)
             case ROUND -> roundHalfEven(writer, c.args());

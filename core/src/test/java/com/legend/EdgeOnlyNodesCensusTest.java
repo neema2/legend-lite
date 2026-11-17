@@ -3,12 +3,7 @@
 
 package com.legend;
 
-import com.legend.model.ConnectionDefinition.DatabaseType;
-import com.legend.sql.SqlExpr;
 import com.legend.sql.SqlFn;
-import com.legend.sql.SqlSelect;
-import com.legend.sql.SqlSource;
-import com.legend.sql.dialect.SqlDialect;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
@@ -23,7 +18,6 @@ import java.util.regex.Pattern;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -44,9 +38,8 @@ class EdgeOnlyNodesCensusTest {
 
     private static final Path MAIN = Path.of("core/src/main/java/com/legend");
 
-    /** The edge-only members (FLOAT_PRINT is CompatSpellingGuardTest's, its JUDGE rows). */
-    static final List<SqlFn> EDGE_ONLY = List.of(SqlFn.DATETIME_PRINT,
-            SqlFn.RELATION_TEXT, SqlFn.TEXT_FORMS);
+    /** The edge-only members (FLOAT_PRINT was renamed FLOAT_SHORTEST_TEXT, a product node, 2026-11-17, census B9). */
+    static final List<SqlFn> EDGE_ONLY = List.of(SqlFn.DATETIME_PRINT);
 
     /** Each member's emitting sites, "file (under core/src/main/java/com/legend)" -> occurrences in code, measured on
      *  d-stage 885328d0 (2026-11-17, the census's B8); a member with no product site has no entry. */
@@ -57,14 +50,14 @@ class EdgeOnlyNodesCensusTest {
             // product emitters left are LiteralSpelling's (the judges' canon, C5, E-P5's step C) and Scalars' (format's
             // %r, refused in the product by census B12's 2b, F's: the user's §10 item 8)
             // LiteralSpelling's gone 2026-11-17 (census C5's step C: the canon is lite's spelling)
-            SqlFn.DATETIME_PRINT, Map.of("lowering/Scalars.java", 1),
+            SqlFn.DATETIME_PRINT, Map.of("lowering/Scalars.java", 1));
             // (FORMAT_PADDED: gone from SqlFn 2026-11-17, B8 (i) -- the edge composes it at lowering)
             // (INSTANCE_TEXT: gone from SqlFn 2026-11-17, B8 -- the edge writes it at lowering, Scalars.pureToString)
-            // (RELATION_TEXT, a relation's text: no product site since B17, 2026-11-17 -- the edge's
-            // RelationTextLowering writes it, asked through the plan style's RelationTexts facet; the product refuses)
             // (REPRESENTATION_TEXT: gone from SqlFn 2026-11-17, B8 (i) -- the edge writes it at lowering)
-            // a value's text in two forms, the product's kept
-            SqlFn.TEXT_FORMS, Map.of("lowering/Scalars.java", 1, "lowering/TaggedLists.java", 1));
+            // (RELATION_TEXT: gone from SqlFn 2026-11-17, B8 -- the edge's RelationTextLowering returns the text
+            // itself; the product refuses through the RelationTexts facet)
+            // (TEXT_FORMS: gone from SqlFn 2026-11-17, B8 -- a list's text is the two-form hook ListTexts, the
+            // product's form ProductListTexts, the edge's PureListTexts; HookRulingTest pins it)
             // (TRACE_TEXT: gone from SqlFn 2026-11-17, B8 (ii) -- the plan style's traceText, HookRulingTest)
 
     @Test
@@ -141,37 +134,7 @@ class EdgeOnlyNodesCensusTest {
         assertTrue(code.contains("SqlFn.TRACE_TEXT"), code);
     }
 
-    private static SqlSelect projecting(SqlExpr e) {
-        return SqlSelect.starOf(new SqlSource.Dual()).withProjections(List.of(new SqlSelect.Projection(e, "v", null)));
-    }
-
-    /** Every relational database the product executes on, as its registry lists them (MongoDB's pipeline writes no
-     *  SQL text). */
-    private static final List<DatabaseType> PRODUCT = com.legend.database.Databases.relational();
-
-    @Test
-    void theProductRefusesLegendPuresTextsByName() {
-        Map<String, SqlExpr> refused = Map.of(
-                "RELATION_TEXT", SqlExpr.Call.of(SqlFn.RELATION_TEXT, new SqlExpr.StringLit("t"),
-                        new SqlExpr.StringLit("toCSV")));
-        for (DatabaseType type : PRODUCT) {
-            SqlDialect dialect = com.legend.database.Databases.dialect(type);
-            refused.forEach((name, node) -> {
-                UnsupportedOperationException e = assertThrows(UnsupportedOperationException.class,
-                        () -> dialect.render(projecting(node)), type + " writes " + name);
-                assertTrue(e.getMessage().contains("legend-pure's text"), type + " " + name + ": " + e.getMessage());
-            });
-        }
-    }
-
-    @Test
-    void theProductWritesItsOwnFormNeverUpstreamsText() {
-        for (DatabaseType type : PRODUCT) {
-            SqlDialect dialect = com.legend.database.Databases.dialect(type);
-            // a value's text in two forms: the product's (the first), never legend-pure's
-            String forms = dialect.render(projecting(SqlExpr.Call.of(SqlFn.TEXT_FORMS,
-                    new SqlExpr.StringLit("product_form"), new SqlExpr.StringLit("pure_form"))));
-            assertTrue(forms.contains("product_form") && !forms.contains("pure_form"), type + ": " + forms);
-        }
-    }
+    // theProductRefusesLegendPuresTextsByName and theProductWritesItsOwnFormNeverUpstreamsText went 2026-11-17 with
+    // RELATION_TEXT and TEXT_FORMS (B8): no dialect meets either now; the product's refusal of a relation's text and
+    // its own list text are HookRulingTest's (the RelationTexts facet, the ListTexts two-form kind).
 }
