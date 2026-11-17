@@ -372,16 +372,20 @@ def arrow_of(chunks: Iterable[bytes]) -> pa.Table:
 
 
 @runs("a remote plane's read")
-def read_plane(plane: Any, sql: PlannedSql) -> pa.Table:
+def read_plane(plane: Any, sql: PlannedSql, params: Sequence[Any] = ()) -> pa.Table:
     """A plan's statement sent to a remote plane (the warehouse's SQL API: ``plane.arrow_chunks``, which takes a
-    PlannedSql alone), its answer read as one Arrow table (C5-P, 2026-11-15: until then sent in no run). The plane is
-    handed in: this module imports no plane's client. Its binding's calls are the native library's services, framed
-    here on whatever thread the binding runs them (the compiler's pool copies the caller's context)."""
-    return arrow_of(plane.arrow_chunks(sql))
+    PlannedSql and the values its ``?``s bind, positional, bound at run), its answer read as one Arrow table (C5-P,
+    2026-11-15: until then sent in no run). The plane is handed in: this module imports no plane's client. Its binding's
+    calls are the native library's services, framed here on whatever thread the binding runs them (the compiler's pool
+    copies the caller's context)."""
+    return arrow_of(plane.arrow_chunks(sql, None, tuple(params)))
 
 
 @runs("a remote plane's read")
-def run_on_plane(plane: Any, plan: Plan, on_receipt: Callable[[dict[str, Any]], None] | None = None) -> pa.Table:
+def run_on_plane(plane: Any, plan: Plan, on_receipt: Callable[[dict[str, Any]], None] | None = None,
+                 values: dict[str, Any] | None = None) -> pa.Table:
     """A plan run on a remote plane (``read_plane``), its rows typed by the plan; ``on_receipt`` hears what the plane
-    issued for it (its statement and its count)."""
-    return typed_by_plan(arrow_of(plane.arrow_chunks(plan.sql, on_receipt)), plan)
+    issued for it (its statement and its count). Its statement's values bound as a local run binds them (``bind``: its
+    payloads, and each declared parameter's checked value), carried to the plane positionally (the host train,
+    2026-11-17)."""
+    return typed_by_plan(arrow_of(plane.arrow_chunks(plan.sql, on_receipt, bind(plan, values))), plan)

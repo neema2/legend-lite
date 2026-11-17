@@ -252,7 +252,7 @@ class WitnessTest(unittest.TestCase):
             w.write_table(rows)
 
         class Plane:
-            def arrow_chunks(self, sql, on_receipt=None):
+            def arrow_chunks(self, sql, on_receipt=None, params=()):
                 on_receipt({'statementId': 's1', 'serverRows': 3, 'as': 'rita', 'where': 'a stand-in'})
                 yield sink.getvalue().to_pybytes()
 
@@ -266,7 +266,7 @@ class WitnessTest(unittest.TestCase):
     def test_a_streams_failed_rollback_is_said_with_its_failure(self):
         # G7 (the final audit's item 4, 2026-11-12): a rollback that failed too was suppressed, the failure said alone
         class Plane:
-            def arrow_chunks(self, sql, on_receipt=None):
+            def arrow_chunks(self, sql, on_receipt=None, params=()):
                 raise ConnectionResetError('the connection was reset')
                 yield b''
 
@@ -774,7 +774,7 @@ class C5SplitTest(unittest.TestCase):
         pulls = []
 
         class Plane:
-            def arrow_chunks(self, sql, on_receipt=None):
+            def arrow_chunks(self, sql, on_receipt=None, params=()):
                 on_receipt({'statementId': 's1', 'serverRows': 9, 'as': 'rita', 'where': 'a stand-in'})
                 for _ in range(3):
                     pulls.append((current_run(), threading.current_thread() is threading.main_thread()))
@@ -802,7 +802,7 @@ class C5SplitTest(unittest.TestCase):
         seen = []
 
         class Plane:
-            def arrow_chunks(self, sql, on_receipt=None):
+            def arrow_chunks(self, sql, on_receipt=None, params=()):
                 self.sql = sql
                 seen.append(current_run())
                 seen.append(warehouse._on_library(current_run))
@@ -839,7 +839,7 @@ class C5SplitTest(unittest.TestCase):
             def __init__(self, ask):
                 self.ask = ask
 
-            def arrow_chunks(self, sql, on_receipt=None):
+            def arrow_chunks(self, sql, on_receipt=None, params=()):
                 self.ask()
                 yield b''
 
@@ -941,7 +941,7 @@ class FollowupTest(unittest.TestCase):
         # a plane failing as its statement is asked for (no generator: at once) failed before the stream's try, and left
         # the transaction its begin opened; it is rolled back now, and the plane's failure raised
         class Plane:
-            def arrow_chunks(self, sql, on_receipt=None):
+            def arrow_chunks(self, sql, on_receipt=None, params=()):
                 raise ConnectionResetError('the plane refused at once')
 
         plan = compiler.snap_stream({'databaseType': 'DuckDB', 'plane': 'warehouse', **_pull(), 'table': 'never'})
@@ -1180,6 +1180,35 @@ class BindAtRun(unittest.TestCase):
     def p(name, type_, lower=1, upper=1, enum=()):
         from legend_lite._plans import Declared
         return Declared(name, type_, lower, upper, tuple(enum))
+
+    def test_a_remote_planes_run_binds_as_a_local_run_does(self):
+        # the warehouse's statement API binds at run (the host train, 2026-11-17, the orchestrator's ruling (a)): the
+        # plane is handed the plan's payloads and each parameter's checked value, positionally -- the same _params.bind
+        from legend_lite._plans import Column, Plan
+        from legend_lite._reads import run_on_plane
+        from legend_lite._planned import PlannedSql
+        import pyarrow as pa
+        import pyarrow.ipc
+        handed = []
+        rows = pa.table({'n': pa.array([1], pa.int64())})
+        sink = pa.BufferOutputStream()
+        with pyarrow.ipc.new_stream(sink, rows.schema) as w:
+            w.write_table(rows)
+
+        class Plane:
+            def arrow_chunks(self, sql, on_receipt=None, params=()):
+                handed.append(tuple(params))
+                yield sink.getvalue().to_pybytes()
+
+        plan = Plan(PlannedSql('SELECT ? AS n WHERE ? = ?'), (Column('n', 'Integer', {'name': 'n', 'type': 'Integer'}),), (),
+                    (self.p('desk', 'String'),), (('payload', 'a payload'), ('parameter', 'desk'), ('payload', 'b')))
+        with in_run("a test's run"):
+            run_on_plane(Plane(), plan, None, {'desk': 'FX'})
+        self.assertEqual(handed, [('a payload', 'FX', 'b')])
+        from legend_lite._params import ParametersRefused
+        with in_run("a test's run"), self.assertRaises(ParametersRefused):
+            run_on_plane(Plane(), plan)
+        self.assertEqual(len(handed), 1, 'nothing sent before every value checked')
 
     def test_a_declaration_is_read_strictly(self):
         from legend_lite._plans import PlanParametersRefused, declared

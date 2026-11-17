@@ -21,13 +21,36 @@ import urllib.error
 import urllib.request
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass, replace
-from datetime import datetime
+from datetime import date, datetime
+from decimal import Decimal
 from typing import Any
 from urllib.parse import urlsplit
 
 from . import _services
 from ._planned import PlannedSql, Unframed, require
 from ._runframe import current_run, runs
+
+# a whole number the statement API binds: 64-bit, as the server's DuckDB binds an int64
+_INT64 = range(-2 ** 63, 2 ** 63)
+
+
+def _parameter(value: Any) -> Any:
+    """One of a run's bound values as the statement API carries it (``parameters``, positional, bound at run by the
+    server's prepared statement): a JSON string, a whole number (64-bit), any other number (a double), a boolean or
+    null. A Decimal goes as its exact text, as a date does (ISO); a DateTime is already its text (_params). A value of
+    no such kind -- a list among them -- is refused by name, never sent."""
+    if value is None or isinstance(value, (bool, str, float)):
+        return value
+    if isinstance(value, int):
+        if value not in _INT64:
+            raise WarehouseError(f'the warehouse binds a whole number of 64 bits, not {value}')
+        return value
+    if isinstance(value, Decimal):
+        return str(value)
+    if isinstance(value, date) and not isinstance(value, datetime):
+        return value.isoformat()
+    raise WarehouseError(f'the warehouse binds a string, a number, a boolean or null, not {type(value).__name__}: {value!r}')
+
 
 # how long one call may take on the wire: a poll waits up to 10 s on the server (the binding's), a chunk is read whole
 _WIRE_TIMEOUT_S = 120
@@ -258,18 +281,23 @@ class Warehouse:
                 f"{'its rows uncounted' if rows is None else f'{rows:,} rows'}, submitted {found['submittedAt']}")
         return said + (f", finished {found['finishedAt']}" if found.get('finishedAt') else '') + '.'
 
-    def arrow_chunks(self, sql: PlannedSql, on_receipt: Callable[[dict[str, Any]], None] | None = None) -> Iterator[bytes]:
+    def arrow_chunks(self, sql: PlannedSql, on_receipt: Callable[[dict[str, Any]], None] | None = None,
+                     params: tuple[Any, ...] | list[Any] = ()) -> Iterator[bytes]:
         """The result of ``sql`` as the server wrote it: one Arrow IPC stream per chunk, in order. The statement is
         closed once every chunk is read, so the server frees it; ``on_receipt`` hears what the server issued for it
         (its id and its count) before the first chunk. Only a plan's statement is sent (_planned.py), and only inside a run
-        (C5-P)."""
+        (C5-P). ``params``: the values its ``?``s bind, in order (_params.bind), carried as the statement API's positional
+        ``parameters`` and bound by the server at run -- never pasted into its text (the host train, 2026-11-17: the
+        orchestrator's ruling (a)); none, the key is not sent."""
         planned = require(sql, 'the warehouse')
+        parameters = [_parameter(v) for v in params]
         # a plane's send is a run's, as the one send is (C5-P, 2026-11-15: the audit's item 2 -- framed by construction,
         # whatever name the method is reached by): sent in no run, refused by name before anything is submitted
         if current_run() is None:
             raise Unframed("a plan's statement is sent to the warehouse only inside a run (_runframe.runs, in_run): the"
                            ' run side sends it, handed what the planner answered (G4)')
-        step = self._call('submit', {'sql': planned, 'catalog': self._catalog})
+        step = self._call('submit', {'sql': planned, 'catalog': self._catalog,
+                                     **({'parameters': parameters} if parameters else {})})
         statement = step.get('statementId')
         # where a read that ends early leaves its statement (the caller stops, or a call fails): still running,
         # cancelled; done, its result closed; read to the end (or failed there), nothing -- the tab's rule
