@@ -229,9 +229,9 @@ public final class DatabaseJudge {
         // sort for assertSameElements' cell pool), where its elements are of one known primitive kind (2026-11-04, the
         // assert bar: the message read the canons, Strings unquoted and assertSameElements in canon-text order)
         com.legend.lowering.VerdictSql.Message me = written(re, ie, cellPool,
-                java.util.Objects.requireNonNull(we).plan(), eSpec);
+                java.util.Objects.requireNonNull(we).plan(), eSpec, env.plan().styled());
         com.legend.lowering.VerdictSql.Message ma = written(ra, ia, cellPool,
-                java.util.Objects.requireNonNull(wa).plan(), aSpec);
+                java.util.Objects.requireNonNull(wa).plan(), aSpec, env.plan().styled());
         com.legend.sql.SqlQuery vq = com.legend.lowering.VerdictSql.equality(
                 new com.legend.lowering.VerdictSql.Side(
                         java.util.Objects.requireNonNull(we).plan(), "__canon" + ie,
@@ -281,23 +281,24 @@ public final class DatabaseJudge {
     /** How a side's canon {@code i} is written in the failure message: its typed kind's (a literal channel's kind is
      *  no element's, but an empty side's, Nil, which writes no element); null where it is no one primitive. */
     private static com.legend.lowering.VerdictSql.@com.legend.base.Nullable Message written(
-            com.legend.lowering.CanonRider r, int i, boolean sorted, com.legend.sql.SqlQuery plan, TypedSpec side) {
+            com.legend.lowering.CanonRider r, int i, boolean sorted, com.legend.sql.SqlQuery plan, TypedSpec side,
+            com.legend.lowering.Styled styled) {
         com.legend.compiler.element.type.Type kind = r.kinds().get(i);
         if (side instanceof com.legend.compiler.spec.typed.TypedCDate d) {
             // a date LITERAL: its text spelled once at planning, as upstream's toRepresentation writes it ('%' + its
             // toString: the written precision, the zone where a minute is written) -- the host's own printer; the
             // database carries the literal's precision in no value it could print (2026-11-05, the user: "clean
             // datetime for the clean plan")
-            return com.legend.lowering.VerdictSql.Message.literal(kind, "%" + Verdicts.pureText(d.value()));
+            return com.legend.lowering.VerdictSql.Message.literal(kind, "%" + Verdicts.pureText(d.value()), styled);
         }
         if (kind instanceof com.legend.compiler.element.type.Type.GenericType g && !com.legend.compiler.element.type
                 .Type.isRelation(g) && plan instanceof com.legend.sql.SqlSelect ps
                 && com.legend.lowering.VerdictSql.primitiveStruct(ps) != null) {
             // instances of a generic class carried as structs (a Pair): each written as the host writes one
-            return com.legend.lowering.VerdictSql.Message.instances(g, sorted);
+            return com.legend.lowering.VerdictSql.Message.instances(g, sorted, styled);
         }
         return i != r.literalIndex() || com.legend.compiler.element.type.PlatformTypes.isNil(kind)
-                ? com.legend.lowering.VerdictSql.Message.of(kind, sorted) : null;
+                ? com.legend.lowering.VerdictSql.Message.of(kind, sorted, styled) : null;
     }
 
     /** Whether {@code e} and {@code a} are two numbers of different known kinds that are never equal (S127): any such
@@ -516,7 +517,8 @@ public final class DatabaseJudge {
         // the assert bar: upstream's '%s is not empty', the host's)
         com.legend.lowering.CanonRider r = side.rider();
         com.legend.lowering.VerdictSql.Message listed = r == null || r.declined() != null || r.tdsWrapped()
-                || r.kinds().isEmpty() ? null : com.legend.lowering.VerdictSql.Message.listed(r.kinds().get(0));
+                || r.kinds().isEmpty() ? null : com.legend.lowering.VerdictSql.Message.listed(r.kinds().get(0),
+                        env.plan().styled());
         com.legend.sql.SqlQuery vq = sw.shape() == com.legend.plan.ResultShape.GRAPH
                 ? com.legend.lowering.VerdictSql.emptyOfGraph(sw.plan(), wantEmpty)
                 : listed != null ? com.legend.lowering.VerdictSql.empty(com.legend.lowering.VerdictSql.writtenRows(
@@ -545,13 +547,13 @@ public final class DatabaseJudge {
         // both written as upstream's message writes them where each names one primitive kind (2026-11-04, the assert
         // bar: the canons left a String unquoted)
         com.legend.lowering.VerdictSql.Message cm = literal ? null
-                : written(cr, 0, false, java.util.Objects.requireNonNull(c.side()).plan(), coll);
+                : written(cr, 0, false, java.util.Objects.requireNonNull(c.side()).plan(), coll, env.plan().styled());
         com.legend.lowering.VerdictSql.Message vm = literal ? null
-                : written(vr, 0, false, java.util.Objects.requireNonNull(v.side()).plan(), val);
+                : written(vr, 0, false, java.util.Objects.requireNonNull(v.side()).plan(), val, env.plan().styled());
         if (cm != null && vm != null && !cr.tdsWrapped()) {
             return runVerdict(name, true, com.legend.lowering.VerdictSql.contains(
                     com.legend.lowering.VerdictSql.writtenRows(java.util.Objects.requireNonNull(c.side()).plan(),
-                            "__canon0", cr.many(), cm), v.scalarRow(false), vm.kind()), c.on(env));
+                            "__canon0", cr.many(), cm), v.scalarRow(false), vm), c.on(env));
         }
         return runVerdict(name, true, com.legend.lowering.VerdictSql.contains(c.rows(literal), v.scalarRow(literal)),
                 c.on(env));
@@ -866,7 +868,7 @@ public final class DatabaseJudge {
                     crossNumberKinds(ek, ak, compat),
                     compat && ek == com.legend.compiler.element.type.Type.Primitive.FLOAT
                             && ak == com.legend.compiler.element.type.Type.Primitive.FLOAT,
-                    com.legend.lowering.VerdictSql.decimalByValue(compat, ek));
+                    com.legend.lowering.VerdictSql.decimalByValue(compat, ek), env.plan().styled());
             if (row == null) {
                 return unjudged(name, "per-element: a kind with no spelling (" + ek.typeName() + " vs "
                         + ak.typeName() + ")");

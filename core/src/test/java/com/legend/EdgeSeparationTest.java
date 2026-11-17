@@ -65,7 +65,7 @@ class EdgeSeparationTest {
             Map.entry("com.legend.testplan.PlanStyleFacets", "C4"));
 
     /** The SqlFn members only the edge spells (census B8). */
-    static final Set<String> EDGE_ONLY_SQLFN = Set.of("FLOAT_PRINT", "DATETIME_PRINT", "INSTANCE_TEXT",
+    static final Set<String> EDGE_ONLY_SQLFN = Set.of("FLOAT_PRINT", "DATETIME_PRINT",
             "RELATION_TEXT", "TEXT_FORMS");
 
     /** The referee and the appeals (census C2; G6: the edge's alone). */
@@ -82,14 +82,9 @@ class EdgeSeparationTest {
     /** CODE: "source class -> target", each entry its census line and date. */
     static final Map<String, String> CODE_OPEN = Map.ofEntries(
             Map.entry("com.legend.lowering.LiteralSpelling -> SqlFn.DATETIME_PRINT", "B8 2026-11-17"),
-            // B17 (2026-11-17): the relation-text facet the edge answers, asked by the lowering, wired by the planner
-            Map.entry("com.legend.lowering.Lowerer -> com.legend.lowering.RelationTexts", "B17 2026-11-17"),
-            Map.entry("com.legend.lowering.RelationTexts -> (stands in a product package)", "B17 2026-11-17"),
-            Map.entry("com.legend.planner.PlanEnv -> com.legend.lowering.RelationTexts", "B17 2026-11-17"),
             Map.entry("com.legend.lowering.Repr -> (stands in a product package)", "B12 2026-11-17"),
             Map.entry("com.legend.lowering.Repr -> SqlFn.FLOAT_PRINT", "C5 2026-11-17"),
             Map.entry("com.legend.lowering.Scalars -> SqlFn.DATETIME_PRINT", "B8 2026-11-17"),
-            Map.entry("com.legend.lowering.Scalars -> SqlFn.INSTANCE_TEXT", "B8 2026-11-17"),
             Map.entry("com.legend.lowering.Scalars -> SqlFn.TEXT_FORMS", "B8 2026-11-17"),
             Map.entry("com.legend.lowering.Scalars -> com.legend.lowering.Repr", "B12 2026-11-17"),
             Map.entry("com.legend.lowering.TaggedLists -> SqlFn.TEXT_FORMS", "B8 2026-11-17"),
@@ -156,7 +151,6 @@ class EdgeSeparationTest {
             Map.entry("com.legend.testplan.EngineTextPlanning -> com.legend.testplan.EngineTextAppeals", "C2 2026-11-17"),
             Map.entry("com.legend.testplan.JudgePlans -> com.legend.testplan.EngineTestText", "C4 2026-11-17"),
             Map.entry("com.legend.testplan.JudgmentFacts -> com.legend.testexecutionplan.Appeal", "C2 2026-11-17"),
-            Map.entry("com.legend.testplan.PlanStyleFacets -> com.legend.lowering.RelationTexts", "B17 2026-11-17"),
             Map.entry("com.legend.testplan.PlanStyleFacets -> com.legend.testplan.EngineTestText", "C4 2026-11-17"),
             Map.entry("com.legend.testplan.PlanningOptions -> JudgingRules.COMPILED_PURE_COMPAT", "C1 2026-11-17"),
             Map.entry("com.legend.testplan.TestPlanner -> JudgingRules.COMPILED_PURE_COMPAT", "C1 2026-11-17"),
@@ -167,7 +161,8 @@ class EdgeSeparationTest {
      *  implemented in the edge alone and (d) pinned (HookRulingTest) is the separation, not a leak -- allowed, and
      *  not counted. The hooks that fail a criterion stay open in the maps above, the criterion named here:
      *  UpstreamPlans (B2) met (a) 2026-11-17 (its routine table moved to planner.PlanTextRoutines) and is ruled below;
-     *  RelationTexts (B17) fails (a): its static forwarders reach the lowering's text helpers;
+     *  RelationTexts (B17) meets (a) under the facade rule since 2026-11-17 (its refusal moved to TextRefusals; its
+     *  forwarders reach product helpers alone) and is ruled below;
      *  EngineTestText (C4) fails (a): its static gates (armFor, reachesUpstreamText, marking); EngineTextPlanning (C4)
      *  fails (a): a facade class with logic. PlanStyleFacets meets (a) (the orchestrator's ruling of 2026-11-17: a
      *  final class holding only the closed list of kind types, the list (d) lives on); its edges to the kinds stay
@@ -209,6 +204,15 @@ class EdgeSeparationTest {
             Map.entry("com.legend.lowering.PureOnlyTexts -> (stands in a product package)", "B8 HOOK-RULED 2026-11-17"),
             Map.entry("com.legend.lowering.Lowerer -> com.legend.lowering.PureOnlyTexts", "B8 HOOK-RULED 2026-11-17"),
             Map.entry("com.legend.lowering.Scalars -> com.legend.lowering.PureOnlyTexts", "B8 HOOK-RULED 2026-11-17"),
+            // B17, the relation-text facet (the orchestrator's ruling of 2026-11-17: its signatures, and forwarders to
+            // product helpers the product uses itself; HookRulingTest pins both and its one implementer)
+            Map.entry("com.legend.lowering.Lowerer -> com.legend.lowering.RelationTexts", "B17 HOOK-RULED 2026-11-17"),
+            Map.entry("com.legend.lowering.RelationTexts -> com.legend.lowering.PureOnlyTexts", "B17 HOOK-RULED 2026-11-17"),
+            Map.entry("com.legend.lowering.RelationTexts -> (stands in a product package)", "B17 HOOK-RULED 2026-11-17"),
+            Map.entry("com.legend.planner.PlanEnv -> com.legend.lowering.RelationTexts", "B17 HOOK-RULED 2026-11-17"),
+            Map.entry("com.legend.testplan.PlanStyleFacets -> com.legend.lowering.RelationTexts", "B17 HOOK-RULED 2026-11-17"),
+            // the style's text facets as the lowering's static helpers read them (B8, the Styled seam, 2026-11-17)
+            Map.entry("com.legend.lowering.Styled -> com.legend.lowering.PureOnlyTexts", "B8 HOOK-RULED 2026-11-17"),
             Map.entry("com.legend.planner.PlanEnv -> com.legend.lowering.PureOnlyTexts", "B8 HOOK-RULED 2026-11-17"),
             Map.entry("com.legend.testplan.PlanStyleFacets -> com.legend.lowering.PureOnlyTexts",
                     "B8 HOOK-RULED 2026-11-17"));
@@ -362,14 +366,14 @@ class EdgeSeparationTest {
 
     /** The census's open lines (docs/records/f-separation-census-2026-11-17.md; closed: A4, B14 ruled; A2, A3 moved to
      *  the edge 2026-11-17 (A4 extended to the native image and the page module); A5, A6 split off the edge 2026-11-17; A1 the embedded hosts' engine routes to the edge 2026-11-17;
-     *  B1, B3 HOOK-RULED 2026-11-17 (EngineTextDialect, {@link #HOOKS_RULED}), then moved to the edge by Phase 6 (2026-11-17); B4, B6, B13
+     *  B1, B3, B17 HOOK-RULED 2026-11-17 (EngineTextDialect, {@link #HOOKS_RULED}), then moved to the edge by Phase 6 (2026-11-17); B4, B6, B13
      *  CLOSED 2026-11-17 by Phase 6 (RawSqlBoundary, PurePrint and UpstreamRelationType, the test-data generator's text
      *  moved to the edge); B2 HOOK-RULED 2026-11-17 (UpstreamPlans, signatures only); B5 CLOSED 2026-11-17
      *  (the lowering's shape options, the trace comment and the result envelope the edge's); records only:
      *  B15, B16, C6, C7). Each must hold at least one entry in the count ({@link #everyOpenLineIsCounted}), so an empty
      *  count cannot read DONE with a line left. A line closes by leaving this set with its last entry. */
     static final Set<String> OPEN_LINES = Set.of(
-            "B7", "B8", "B9", "B10", "B11", "B12", "B17", "C1", "C2", "C3", "C4", "C5");
+            "B7", "B8", "B9", "B10", "B11", "B12", "C1", "C2", "C3", "C4", "C5");
 
     private static Set<String> linesOf(Map<String, String> m) {
         Set<String> out = new TreeSet<>();
@@ -451,7 +455,7 @@ class EdgeSeparationTest {
                 com.legend.planner.PlantedCompatReach.class);
         Set<String> code = found(planted, n -> true);
         for (String want : List.of("com.legend.planner.PlantedCompatReach -> com.legend.edge.Presenter",
-                "com.legend.planner.PlantedCompatReach -> SqlFn.INSTANCE_TEXT",
+                "com.legend.planner.PlantedCompatReach -> SqlFn.TEXT_FORMS",
                 "com.legend.planner.PlantedCompatReach -> JudgingRules.COMPILED_PURE_COMPAT")) {
             assertFalse(!code.contains(want), "the CODE and TEST SIDE guards bite: " + want + " in " + code);
         }

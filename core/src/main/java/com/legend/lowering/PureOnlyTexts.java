@@ -17,6 +17,9 @@ public interface PureOnlyTexts {
     /** {@code format}'s {@code %0<width>d} of {@code value}: legend-pure pads the digits, then signs. */
     SqlExpr formatPadded(SqlExpr value, SqlExpr.IntLit width);
 
+    /** An instance's {@code toString}, {@code id} its identity: legend-pure prints its repository id. */
+    SqlExpr instanceText(SqlExpr id);
+
     /** A user's {@code toRepresentation}, {@code text} legend-pure's representation as the lowering writes it. */
     SqlExpr representation(SqlExpr text);
 }

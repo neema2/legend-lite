@@ -172,10 +172,16 @@ public record PlanEnv(ModelContext ctx, @Nullable String runtimeFqn,
                 new com.legend.sql.SqlExpr.StringLit(comment.after())));
     }
 
+    /** The style's text facets as the lowering's static helpers read them (a judge's lowering, which holds no
+     *  Lowerer; the Lowerer's own, {@link #configure}): each asked with its call's refusal (B8, 2026-11-17). */
+    public com.legend.lowering.Styled styled() {
+        return new com.legend.lowering.Styled(r -> style.facet(com.legend.lowering.PureOnlyTexts.class, r));
+    }
+
     public com.legend.lowering.Lowerer configure(com.legend.lowering.Lowerer lowerer) {
         return lowerer.withDbTimeZone(timeZone())
                 .withRelationTexts(r -> style.facet(com.legend.lowering.RelationTexts.class, r))
-                .withPureOnlyTexts(r -> style.facet(com.legend.lowering.PureOnlyTexts.class, r))
+                .withStyled(styled())
                 .withResultEnvelopes(r -> style.facet(com.legend.lowering.ResultEnvelopes.class, r))
                 .withTraceText(this::traceText);
     }
