@@ -225,6 +225,7 @@ public final class TestPlanJson {
             case TestPlan.Side.FusedCell f -> {
                 so.put("_type", SideTag.fusedCell.name());
                 so.put("index", f.index());
+                so.put("at", f.at());
                 so.put("columns", PlanJson.columnsJson(f.columns()));
             }
         }
@@ -415,7 +416,7 @@ public final class TestPlanJson {
             }
             case constant -> new TestPlan.Side.Constant(PlanJson.columnsOf(so.getArr("columns")),
                     PlanJson.textCells(so.getArr("cells"), "a constant side"), so.getBool("folded"));
-            case fusedCell -> new TestPlan.Side.FusedCell(so.getInt("index"),
+            case fusedCell -> new TestPlan.Side.FusedCell(so.getInt("index"), so.getInt("at"),
                     PlanJson.columnsOf(so.getArr("columns")));
         };
     }

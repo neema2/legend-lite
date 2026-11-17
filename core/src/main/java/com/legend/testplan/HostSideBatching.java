@@ -86,6 +86,12 @@ final class HostSideBatching {
         for (HostAsserts.Planned p : planned) {
             cells.add(columns(p, env, sides, schema));
         }
+        // the batch's cells decode by their sides' own planned columns (a UNION ALL's column takes the type its
+        // branches share -- H2 read a literal grid's Integer as its VARCHAR slot's text, 2026-11-17)
+        List<ExecutionPlan.Column> own = new ArrayList<>();
+        cells.stream().flatMap(m -> m.values().stream())
+                .sorted(java.util.Comparator.comparingInt(TestPlan.Side.FusedCell::index))
+                .forEach(c -> own.addAll(c.columns()));
         if (sides.size() < 2) {
             return;
         }
@@ -107,7 +113,16 @@ final class HostSideBatching {
                     instanceof ExecutionPlan.TdsResult t)) {
                 return;
             }
-            statement = t;
+            List<ExecutionPlan.Column> columns = new ArrayList<>(t.columns().subList(0, 2));
+            if (own.size() + 2 != t.columns().size()) {
+                throw new IllegalStateException("a host batch's columns are its index, its order and its sides'");
+            }
+            for (int c = 0; c < own.size(); c++) {
+                ExecutionPlan.Column col = own.get(c);
+                columns.add(new ExecutionPlan.Column(t.columns().get(c + 2).name(), col.type(), col.multiplicity(),
+                        col.slot(), col.store(), col.precision()));
+            }
+            statement = new ExecutionPlan.TdsResult(t.shape(), columns, t.sql());
         } catch (com.legend.sql.DialectCapability refused) {
             // the split rung at planning: a batch the dialect cannot write leaves each side its own statement
             return;
@@ -167,20 +182,17 @@ final class HostSideBatching {
                 names.add("__h" + at + "_" + c);
             }
             HostSideBatch.BatchSide batched = !byName ? null
-                    : HostSideBatch.side(statement, "__h" + at + "_", names);
+                    : HostSideBatch.side(statement, "__h" + at + "_", names, w.storeFree());
             if (batched == null) {
                 continue;
             }
-            List<ExecutionPlan.Column> renamed = new ArrayList<>(columns.size());
+            int place = schema.size();
             for (int c = 0; c < columns.size(); c++) {
-                ExecutionPlan.Column col = columns.get(c);
-                renamed.add(new ExecutionPlan.Column(names.get(c), col.type(), col.multiplicity(), col.slot(),
-                        col.store(), col.precision()));
                 schema.add(new com.legend.compiler.element.type.Type.RelationType.Column(names.get(c),
                         typed.get(c).type(), new com.legend.compiler.element.type.Multiplicity.Bounded(0, 1)));
             }
             sides.add(batched);
-            own.put(k, new TestPlan.Side.FusedCell(at, renamed));
+            own.put(k, new TestPlan.Side.FusedCell(at, place, columns));
         }
         return own;
     }

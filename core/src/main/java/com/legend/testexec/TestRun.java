@@ -212,11 +212,7 @@ final class TestRun {
                 }
                 throw e;
             }
-            Map<String, Integer> positions = new HashMap<>();
-            for (int c = 0; c < fused.columns().size(); c++) {
-                positions.put(fused.columns().get(c).name(), c);
-            }
-            return new Batch(rows, positions);
+            return new Batch(rows);
         }
 
         /**
@@ -334,8 +330,8 @@ final class TestRun {
                 ? new ProgramRunner.Savepoint(sp.plannedSet(), sp.plannedRollbackTo(), sp.plannedRelease()) : null;
     }
 
-    /** A group's host batch as read: its rows by their side's index, each column's place by its name. */
-    private record Batch(Map<Integer, List<List<Object>>> rows, Map<String, Integer> positions) {
+    /** A group's host batch as read: its rows by their side's index. */
+    private record Batch(Map<Integer, List<List<Object>>> rows) {
     }
 
     /** {@code each}'s base sides read for the host judge, in the base's order: a batched side from its group's
@@ -353,24 +349,11 @@ final class TestRun {
         return sides;
     }
 
-    /** A batched side's rows: the batch's rows of its index, in their order, each read by its columns' names. */
+    /** A batched side's rows: the batch's rows of its index, in their order, its columns read from its place on. */
     private static PlanRunner.Rows cellsOf(TestPlan.Side.FusedCell cell, Batch batch) {
-        int[] at = new int[cell.columns().size()];
-        for (int c = 0; c < at.length; c++) {
-            Integer p = batch.positions().get(cell.columns().get(c).name());
-            if (p == null) {
-                throw new IllegalStateException("a batched side's column '" + cell.columns().get(c).name()
-                        + "' the batch lacks");
-            }
-            at[c] = p;
-        }
         List<List<Object>> out = new ArrayList<>();
         for (List<Object> row : batch.rows().getOrDefault(cell.index(), List.of())) {
-            List<Object> cells = new ArrayList<>(at.length);
-            for (int p : at) {
-                cells.add(row.get(p));
-            }
-            out.add(cells);
+            out.add(new ArrayList<>(row.subList(cell.at(), cell.at() + cell.columns().size())));
         }
         return new PlanRunner.Rows(cell.columns(), out);
     }

@@ -130,18 +130,29 @@ public final class HostSideBatch {
 
     /**
      * {@code side}, a host side's planned statement, as a side of a batch whose columns are {@code names} (one per
-     * output): inline where it is a single value of no FROM ({@link #singleValueColumns}); else numbered, where its
-     * statement may be a derived table (no WITH: a CTE inside a derived table is not every database's); null otherwise.
+     * output), each typed as the side's own output is -- a UNION ALL's column takes the type its branches share, so
+     * the other branches' typed slots carry the type the side's statement answers, never a slot the plan reads it by
+     * (H2's ID column is VARCHAR under a BIGINT slot: a BIGINT slot made the union answer 7 where the side answers
+     * '7', 2026-11-17). Inline where it is a single value of no FROM ({@link #singleValueColumns}); else numbered,
+     * where its statement may be a derived table (no WITH: a CTE inside a derived table is not every database's) and
+     * {@code typedByItsTree}: the side reads no stored table, so the types its tree says are the types its cells
+     * have (a stored table's column is the database's DDL, which the model's type need not be); null otherwise.
      */
-    public static @com.legend.base.Nullable BatchSide side(SqlQuery side, String aliasPrefix, List<String> names) {
+    public static @com.legend.base.Nullable BatchSide side(SqlQuery side, String aliasPrefix, List<String> names,
+            boolean typedByItsTree) {
         if (side.outputs().size() != names.size()) {
             return null;
         }
         List<HostColumn> inline = singleValueColumns(side, aliasPrefix, names);
         if (inline != null) {
-            return new BatchSide(inline, null, false, inline.stream().map(h -> nullable(h.out())).toList());
+            List<OutputCol> outs = new ArrayList<>(names.size());
+            for (int c = 0; c < names.size(); c++) {
+                outs.add(new OutputCol(names.get(c), side.outputs().get(c).type(), true, OutputCol.Origin.DERIVED));
+            }
+            return new BatchSide(inline, null, false, outs);
         }
-        if (side instanceof com.legend.sql.SqlWith || sorted(side) && SideOrdinal.defined(side) == null) {
+        if (!typedByItsTree || side instanceof com.legend.sql.SqlWith
+                || sorted(side) && SideOrdinal.defined(side) == null) {
             // a WITH is no derived table every database reads; a sort whose ordinal the plan cannot define would be
             // read by its arrival through the batch's selects, which a database need not keep (SideOrdinal)
             return null;
@@ -155,8 +166,7 @@ public final class HostSideBatch {
         }
         List<OutputCol> outs = new ArrayList<>(names.size());
         for (int c = 0; c < names.size(); c++) {
-            OutputCol o = sideOuts.get(c);
-            outs.add(new OutputCol(names.get(c), o.type(), true, OutputCol.Origin.DERIVED));
+            outs.add(new OutputCol(names.get(c), sideOuts.get(c).type(), true, OutputCol.Origin.DERIVED));
         }
         return new BatchSide(null, numbered, defined != null, outs);
     }
@@ -170,10 +180,6 @@ public final class HostSideBatch {
             return true;
         }
         return !s.orderBy().isEmpty() || s.from() instanceof SqlSource.Subselect sub && sorted(sub.inner());
-    }
-
-    private static OutputCol nullable(OutputCol o) {
-        return new OutputCol(o.name(), o.type(), true, OutputCol.Origin.DERIVED);
     }
 
     /**

@@ -331,13 +331,9 @@ public record TestPlan(List<ExecutionPlan.Parameter> parameters, List<TestStep> 
                 throw new IllegalArgumentException(name + ": a side read from the fused row of a group with no fused"
                         + " statement");
             }
-            java.util.Set<String> names = new java.util.HashSet<>();
-            fused.columns().forEach(c -> names.add(c.name()));
-            for (Column c : cell.columns()) {
-                if (!names.contains(c.name())) {
-                    throw new IllegalArgumentException(name + ": a side reads the fused column '" + c.name()
-                            + "', which the group's fused statement does not answer");
-                }
+            if (cell.at() + cell.columns().size() > fused.columns().size()) {
+                throw new IllegalArgumentException(name + ": a side reads the batch's columns from " + cell.at()
+                        + ", past the " + fused.columns().size() + " it answers");
             }
         }
 
@@ -537,14 +533,15 @@ public record TestPlan(List<ExecutionPlan.Parameter> parameters, List<TestStep> 
          * A side read from its group's batch (the host plan's own batch, the orchestrator's (1), 2026-11-17:
          * consecutive asserts' sides read by one statement, no verdict in it): {@code index}, the side's place in the
          * batch, its rows the batch's rows of that index in their order; {@code columns}, the side's own columns with
-         * their type facts, each NAMED as the batch's column it is read from. Nothing is sent for it; its group's batch
-         * is read once, and the cells decode by these columns' facts as the side's own statement's would. Only in a
-         * group with a batch whose columns hold every one of these names ({@link Verdicts}' invariant).
+         * their names and type facts, read from the batch's columns at {@code at} on, in order. Nothing is sent for
+         * it; its group's batch is read once, and the cells decode by these columns' facts as the side's own
+         * statement's would. Only in a group with a batch that answers those columns ({@link Verdicts}' invariant).
          */
-        record FusedCell(int index, List<Column> columns) implements Side {
+        record FusedCell(int index, int at, List<Column> columns) implements Side {
             public FusedCell {
-                if (index < 0) {
-                    throw new IllegalArgumentException("a batched side's index is its place in the batch");
+                if (index < 0 || at < 0) {
+                    throw new IllegalArgumentException("a batched side's index is its place in the batch, its columns"
+                            + " a place among the batch's");
                 }
                 columns = List.copyOf(columns);
                 if (columns.isEmpty()) {
