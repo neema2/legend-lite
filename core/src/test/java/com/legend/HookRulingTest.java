@@ -36,6 +36,13 @@ class HookRulingTest {
 
     /** The ruled hooks, each with the PRODUCT style's calls that would hand one out. */
     static final Map<Class<?>, List<Executable>> RULED = Map.of(
+            // census C2, 2026-11-17 (the orchestrator's ruling that day: NoEdgeRun is the product's refusal, by name):
+            // the edge's run hook, and the hearing it opens
+            com.legend.testexec.EdgeRun.class, List.of(
+                    () -> com.legend.testexec.NoEdgeRun.NONE.open(planNaming(), null, java.util.UUID.randomUUID())),
+            com.legend.testexec.EdgeHearing.class, List.of(
+                    () -> productHearing().engineText(null, List.of(), null, false),
+                    () -> productHearing().rowAppealed(0, List.of(), false)),
             // census B3 (and B1's PlanStyle signatures naming it): legend-engine's text printers
             com.legend.sql.dialect.EngineTextDialect.class, List.of(
                     () -> each(t -> PlanStyle.PRODUCT.engineText(t)),
@@ -45,6 +52,31 @@ class HookRulingTest {
             // census B8 (i), 2026-11-17: the texts only legend-pure writes, composed at lowering
             com.legend.lowering.PureOnlyTexts.class, List.of(
                     () -> PlanStyle.PRODUCT.facet(com.legend.lowering.PureOnlyTexts.class)));
+
+    /** The product's refusals of a ruled hook (criterion (b)): its own implementations, which refuse by name, pinned. */
+    static final java.util.Set<String> PRODUCT_REFUSALS = java.util.Set.of(
+            "com.legend.testexec.NoEdgeRun", "com.legend.testexec.NoEdgeRun$Hearing");
+
+    /** A test plan naming one appeal, by its verdict's number: what the product's run refuses to open. */
+    private static com.legend.testexecutionplan.TestPlan planNaming() {
+        return plan(Map.of(0, List.of(new com.legend.testexecutionplan.Extension() { })));
+    }
+
+    /** The product's hearing, opened on a plan naming no appeal. */
+    private static com.legend.testexec.EdgeHearing productHearing() {
+        return com.legend.testexec.NoEdgeRun.NONE.open(plan(Map.of()), null, java.util.UUID.randomUUID());
+    }
+
+    private static com.legend.testexecutionplan.TestPlan plan(
+            Map<Integer, List<com.legend.testexecutionplan.Extension>> byVerdict) {
+        var target = new com.legend.executionplan.ExecutionPlan.Target(
+                new com.legend.executionplan.ExecutionPlan.Database.Platform(
+                        com.legend.planner.ConnectionPlans.type(com.legend.database.Databases.PLATFORM), null),
+                List.of(), List.of(), null, null, null);
+        return new com.legend.testexecutionplan.TestPlan(List.of(), List.of(),
+                com.legend.testexecutionplan.TestPlan.Judge.HOST, Map.of(), byVerdict, false, target,
+                new com.legend.testexecutionplan.BodyFacts(false, false, true, "A"));
+    }
 
     /** {@code call} on every database type (each refused alike; no database named). */
     private static void each(java.util.function.Consumer<com.legend.model.ConnectionDefinition.DatabaseType> call) {
@@ -105,7 +137,8 @@ class HookRulingTest {
         TreeSet<String> implementers = new TreeSet<>();
         for (Class<?> hook : RULED.keySet()) {
             for (JavaClass c : all) {
-                if (!c.getName().equals(hook.getName()) && c.isAssignableTo(hook.getName())) {
+                if (!c.getName().equals(hook.getName()) && c.isAssignableTo(hook.getName())
+                        && !PRODUCT_REFUSALS.contains(c.getName())) {
                     assertTrue(c.getPackageName().startsWith("com.legend.edge"),
                             c.getName() + " implements " + hook.getName() + " outside the edge");
                     implementers.add(hook.getSimpleName() + " <- " + c.getName());
@@ -113,11 +146,18 @@ class HookRulingTest {
             }
         }
         assertEquals(new TreeSet<>(List.of(
+                "EdgeHearing <- com.legend.edge.Appeals",
+                "EdgeRun <- com.legend.edge.AppealRun",
                 "EngineTextDialect <- com.legend.edge.EngineStyleComposite",
                 "EngineTextDialect <- com.legend.edge.EngineStyleDB2",
                 "EngineTextDialect <- com.legend.edge.EngineStyleH2",
                 "PureOnlyTexts <- com.legend.edge.EdgePureOnlyTexts")), implementers);
         assertFalse(implementers.isEmpty());
+        // the product's refusals are the ones named, and each implements a ruled hook
+        for (String refusal : PRODUCT_REFUSALS) {
+            JavaClass c = all.get(refusal);
+            assertTrue(RULED.keySet().stream().anyMatch(h -> c.isAssignableTo(h.getName())), refusal);
+        }
     }
 
     private static JavaClasses classes(String... properties) {

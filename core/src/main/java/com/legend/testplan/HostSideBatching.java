@@ -18,10 +18,13 @@ import java.util.Map;
  * THE HOST PLAN'S OWN SIDE BATCHES (the orchestrator's (1), ruled 2026-11-17): isolated BOTH sent each host assert's
  * sides as statements of their own, and the host's round trips were most of its cost (DuckDB channel B essential 2275
  * round trips against the fused agreement's 892). Each run of consecutive plain host asserts -- one verdict, no
- * savepoint, no raise, nothing planned between them -- has its SINGLE-VALUE sides read by ONE statement, the
- * {@link HostSideBatch} of their rows, a step at the run's last statement carrying every assert's verdict, each batched
- * side a fused cell of its row. No verdict in it: the host judges the cells as it judges a side's own rows. The split
- * rung is at planning: a batch the dialect refuses to write leaves the run as it was (nothing retried at run, G7).
+ * savepoint, no raise, no error for an answer, nothing planned between them; one assert is a run too -- has its sides
+ * read by ONE statement, the {@link HostSideBatch} of them, a step at the run's last statement carrying every assert's
+ * verdict, each batched side a fused cell: its rows the batch's rows of its index. No verdict in it: the host judges the
+ * cells as it judges a side's own rows. A run whose batch is longer than the database takes is batched in halves. The
+ * split rung is at planning: a batch the dialect refuses to write leaves the run as it was (nothing retried at run,
+ * G7). A side that raises fails the batch, told to the run's first batched assert, as a fused statement's rejection
+ * failed the program.
  */
 final class HostSideBatching {
 
@@ -66,7 +69,7 @@ final class HostSideBatching {
 
     private static void close(List<Integer> run, Map<Integer, HostAsserts.Planned> byStatement,
             BodyDriver.ExecEnv env, Map<Integer, List<TestPlan.TestStep>> out) {
-        if (run.size() < 2) {
+        if (run.isEmpty()) {
             return;
         }
         List<HostAsserts.Planned> planned = new ArrayList<>(run.size());
@@ -89,6 +92,9 @@ final class HostSideBatching {
         }
         SqlQuery batch = HostSideBatch.batch(sides);
         if (JudgePlans.runner(env).chars(batch) > JudgePlans.runner(env).fusedBudget()) {
+            if (run.size() == 1) {
+                return;
+            }
             // longer than the database takes in one statement: the run in two halves, each batched on its own
             int half = run.size() / 2;
             close(new ArrayList<>(run.subList(0, half)), byStatement, env, out);
@@ -149,8 +155,7 @@ final class HostSideBatching {
                 continue;
             }
             // the side's statement as it is planned on its own, the body's frames attached to the batch instead
-            SqlQuery statement = side.kind() == JudgePlans.Kind.VALUES ? w.plan()
-                    : com.legend.lowering.VerdictSql.inBranchOrder(w.plan());
+            SqlQuery statement = com.legend.lowering.VerdictSql.inBranchOrder(w.plan());
             List<com.legend.sql.OutputCol> outputs = statement.outputs();
             if (outputs.size() != columns.size()) {
                 continue;
