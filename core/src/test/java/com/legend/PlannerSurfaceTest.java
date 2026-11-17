@@ -298,6 +298,12 @@ class PlannerSurfaceTest {
             Map.entry("touchSystemMetamodel", "touchSystemMetamodel"), Map.entry("hashBootSource", "hashBootSource"),
             Map.entry("resolveBootLayer", "resolveBootLayer"), Map.entry("zoneProbe", "zoneProbe")));
 
+    /** THE NATIVE LIBRARY'S EDGE EXPORTS: each the one edge door it delegates to ({@link #EDGE_BOUNDARY}; the
+     *  HOST/DataCube stream, 2026-11-17, as the tab's: {@link #TAB_EDGE_EXPORTS}). */
+    static final Map<String, String> NATIVE_EDGE_EXPORTS = new TreeMap<>(Map.of(
+            "lite_pure_v1", "pureV1", "lite_execute_plan", "executePlan", "lite_execute_json_plan", "executeJsonPlan",
+            "lite_execute_json_answer", "executeJsonAnswer", "lite_execute_arrow_answer", "executeArrowAnswer"));
+
     /** THE NATIVE LIBRARY'S EXPORTS: each the one boundary door it delegates to. */
     static final Map<String, String> NATIVE_EXPORTS = new TreeMap<>(Map.ofEntries(
             Map.entry("lite_hold_model", "holdModel"), Map.entry("lite_release_model", "releaseModel"),
@@ -309,10 +315,7 @@ class PlannerSurfaceTest {
             Map.entry("lite_database_from_catalog", "databaseFromCatalog"),
             Map.entry("lite_table_model", "tableModel"), Map.entry("lite_catalog_columns_sql", "catalogColumnsSql"),
             Map.entry("lite_session_setup", "sessionSetup"), Map.entry("lite_host_operations", "hostOperations"),
-            Map.entry("lite_project_data", "projectData"), Map.entry("lite_pure_v1", "pureV1"),
-            Map.entry("lite_execute_plan", "executePlan"), Map.entry("lite_execute_json_plan", "executeJsonPlan"),
-            Map.entry("lite_execute_json_answer", "executeJsonAnswer"),
-            Map.entry("lite_execute_arrow_answer", "executeArrowAnswer"), Map.entry("lite_warm_model", "warmModel"),
+            Map.entry("lite_project_data", "projectData"),                                     Map.entry("lite_warm_model", "warmModel"),
             Map.entry("lite_pure_v1_refusal", "refusal"),
             // LITE'S OWN API, v1 (docs/records/lite-api-v1-2026-11-17.md §5, §7; the host train, 2026-11-17): one entry
             // per operation by the spec's one rule (a/b -> lite_a_b), its request JSON in, the Boundary member of the
@@ -998,7 +1001,7 @@ class PlannerSurfaceTest {
         exports(out, "the tab's export", Pattern.compile("@JSExport\\s+public static \\S+ (\\w+)\\("),
                 List.of(tabSource), TAB_EXPORTS, Map.of(), TAB_EDGE_EXPORTS);
         exports(out, "the native export", Pattern.compile("@CEntryPoint\\(name = \"(\\w+)\"\\)"), nativeSources,
-                NATIVE_EXPORTS, NATIVE_SERVICES, Map.of());
+                NATIVE_EXPORTS, NATIVE_SERVICES, NATIVE_EDGE_EXPORTS);
         return out;
     }
 
@@ -1252,16 +1255,20 @@ class PlannerSurfaceTest {
                 out.add("a Python planner kind's row differs from its listing: " + kind + " " + r);
             }
         });
+        // a kind answered by a planner door or by an edge door (NATIVE_EDGE_EXPORTS; step 2c, 2026-11-17)
+        Map<String, Door> doors = withEdge();
+        Map<String, String> natives = new TreeMap<>(NATIVE_EXPORTS);
+        natives.putAll(NATIVE_EDGE_EXPORTS);
         PY_KINDS.forEach((kind, r) -> {
-            String door = NATIVE_EXPORTS.get(r.get(0));
-            if (door == null || !BOUNDARY.containsKey(door)) {
+            String door = natives.get(r.get(0));
+            if (door == null || !doors.containsKey(door)) {
                 out.add("a Python planner kind answered by no listed door: " + kind + " (" + r.get(0) + ")");
-            } else if (BOUNDARY.get(door).params().size() != r.size() - 1) {
+            } else if (doors.get(door).params().size() != r.size() - 1) {
                 out.add("a Python planner kind's fields are not its door's parameters: " + kind + " -> " + door);
             } else {
                 for (int i = 1; i < r.size(); i++) {
                     sqlRule(out, "python " + kind + "." + r.get(i), r.get(i),
-                            BOUNDARY.get(door).params().get(i - 1).kind());
+                            doors.get(door).params().get(i - 1).kind());
                 }
             }
         });
@@ -1275,7 +1282,8 @@ class PlannerSurfaceTest {
         for (String name : names) {
             Set<String> expands = PY_PATTERNS.getOrDefault(name, Set.of(name));
             for (String e : expands) {
-                if (!NATIVE_EXPORTS.containsKey(e) && !NATIVE_SERVICES.containsKey(e)) {
+                if (!NATIVE_EXPORTS.containsKey(e) && !NATIVE_EDGE_EXPORTS.containsKey(e)
+                        && !NATIVE_SERVICES.containsKey(e)) {
                     out.add("a native name Python spells that no row lists: " + name);
                 }
             }
@@ -1387,9 +1395,10 @@ class PlannerSurfaceTest {
                 seen.add(name);
                 String body = bodyAfter(source, m.end());
                 Set<String> delegates = new TreeSet<>();
-                Matcher call = Pattern.compile("Boundary\\.(\\w+)\\(").matcher(body);
+                // a call, or a method reference (Folded.of(Boundary::refusalKinds); step 2c, 2026-11-17)
+                Matcher call = Pattern.compile("Boundary(?:\\.(\\w+)\\(|::(\\w+))").matcher(body);
                 while (call.find()) {
-                    delegates.add(call.group(1));
+                    delegates.add(call.group(1) != null ? call.group(1) : call.group(2));
                 }
                 if (edge.containsKey(name)) {
                     // an edge export reaches its one edge door (EdgeBoundary.<door>, which the pattern reads as well)
