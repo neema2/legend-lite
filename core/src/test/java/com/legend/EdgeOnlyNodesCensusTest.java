@@ -46,7 +46,7 @@ class EdgeOnlyNodesCensusTest {
 
     /** The edge-only members (FLOAT_PRINT is CompatSpellingGuardTest's, its JUDGE rows). */
     static final List<SqlFn> EDGE_ONLY = List.of(SqlFn.DATETIME_PRINT, SqlFn.INSTANCE_TEXT,
-            SqlFn.RELATION_TEXT, SqlFn.TEXT_FORMS, SqlFn.TRACE_TEXT);
+            SqlFn.RELATION_TEXT, SqlFn.TEXT_FORMS);
 
     /** Each member's emitting sites, "file (under core/src/main/java/com/legend)" -> occurrences in code, measured on
      *  d-stage 885328d0 (2026-11-17, the census's B8); a member with no product site has no entry. */
@@ -61,9 +61,8 @@ class EdgeOnlyNodesCensusTest {
             // RelationTextLowering writes it, asked through the plan style's RelationTexts facet; the product refuses)
             // (REPRESENTATION_TEXT: gone from SqlFn 2026-11-17, B8 (i) -- the edge writes it at lowering)
             // a value's text in two forms, the product's kept
-            SqlFn.TEXT_FORMS, Map.of("lowering/Scalars.java", 1, "lowering/TaggedLists.java", 1),
-            // an execution's trace text, the id alone in the product
-            SqlFn.TRACE_TEXT, Map.of("lowering/Lowerer.java", 1));
+            SqlFn.TEXT_FORMS, Map.of("lowering/Scalars.java", 1, "lowering/TaggedLists.java", 1));
+            // (TRACE_TEXT: gone from SqlFn 2026-11-17, B8 (ii) -- the plan style's traceText, HookRulingTest)
 
     @Test
     void eachEdgeOnlyNodeIsWrittenAtItsPinnedSitesAlone() throws IOException {
@@ -171,11 +170,6 @@ class EdgeOnlyNodesCensusTest {
             String forms = dialect.render(projecting(SqlExpr.Call.of(SqlFn.TEXT_FORMS,
                     new SqlExpr.StringLit("product_form"), new SqlExpr.StringLit("pure_form"))));
             assertTrue(forms.contains("product_form") && !forms.contains("pure_form"), type + ": " + forms);
-            // an execution's trace: the id alone, never legend-engine's comment around it
-            String trace = dialect.render(projecting(SqlExpr.Call.of(SqlFn.TRACE_TEXT,
-                    new SqlExpr.StringLit("the_id"))));
-            assertTrue(trace.contains("the_id"), type + ": " + trace);
-            assertFalse(trace.contains("executionTraceID"), type + ": " + trace);
         }
     }
 }

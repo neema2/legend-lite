@@ -213,7 +213,6 @@ Database types planned with it: H2.
 | `INSTANCE_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `RELATION_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `TEXT_FORMS` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
-| `TRACE_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `VARIANT_ELEMENTS` | refused | `variant navigation reached a dialect without JSON support` | `via AnsiSqlRenderer.variantElements` | 2 |
 | `VARIANT_GET` | emulated | `variantGet` |  | 14 |
 | `JSON_TYPE` | emulated | `jsonType` |  | 1 |
@@ -412,7 +411,6 @@ Database types planned with it: Postgres.
 | `INSTANCE_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `RELATION_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `TEXT_FORMS` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
-| `TRACE_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `VARIANT_ELEMENTS` | emulated | `by its operands: composed / composed` |  | 2 |
 | `VARIANT_GET` | emulated | `variantGet` |  | 14 |
 | `JSON_TYPE` | emulated | `jsonType` |  | 1 |
@@ -611,7 +609,6 @@ Database types planned with it: Snowflake.
 | `INSTANCE_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `RELATION_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `TEXT_FORMS` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
-| `TRACE_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `VARIANT_ELEMENTS` | emulated | `variantElements` |  | 4 |
 | `VARIANT_GET` | emulated | `variantGet` |  | 15 |
 | `JSON_TYPE` | emulated | `(CASE WHEN … IS NULL THEN NULL ELSE DECODE(TYPEOF(TO_VARIANT(…)), 'NULL_VALUE...` |  | 1 |
@@ -810,7 +807,6 @@ Database types planned with it: Trino.
 | `INSTANCE_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `RELATION_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `TEXT_FORMS` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
-| `TRACE_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `VARIANT_ELEMENTS` | emulated | `variantElements` |  | 4 |
 | `VARIANT_GET` | emulated | `variantGet` |  | 15 |
 | `JSON_TYPE` | emulated | `jsonType` |  | 1 |
@@ -1009,7 +1005,6 @@ Database types planned with it: BigQuery.
 | `INSTANCE_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `RELATION_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `TEXT_FORMS` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
-| `TRACE_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `VARIANT_ELEMENTS` | emulated | `variantElements` |  | 2 |
 | `VARIANT_GET` | emulated | `variantGet` |  | 14 |
 | `JSON_TYPE` | emulated | `jsonType` |  | 1 |
@@ -1208,7 +1203,6 @@ Database types planned with it: Databricks.
 | `INSTANCE_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `RELATION_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `TEXT_FORMS` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
-| `TRACE_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `VARIANT_ELEMENTS` | emulated | `variantElements` |  | 4 |
 | `VARIANT_GET` | emulated | `variantGet` |  | 15 |
 | `JSON_TYPE` | emulated | `jsonType` |  | 1 |
@@ -1407,7 +1401,6 @@ Database types planned with it: DuckDB.
 | `INSTANCE_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `RELATION_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `TEXT_FORMS` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
-| `TRACE_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `VARIANT_ELEMENTS` | emulated | `variantElements` |  | 4 |
 | `VARIANT_GET` | emulated | `variantGet` |  | 15 |
 | `JSON_TYPE` | spelled | `json_type` |  | 1 |
@@ -1606,7 +1599,6 @@ Database types planned with it: ClickHouse.
 | `INSTANCE_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `RELATION_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `TEXT_FORMS` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
-| `TRACE_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `VARIANT_ELEMENTS` | emulated | `variantElements` |  | 4 |
 | `VARIANT_GET` | emulated | `variantGet` |  | 15 |
 | `JSON_TYPE` | emulated | `multiIf(isNull(…), NULL, JSONType(…) = 'Null', 'NULL', JSONType(…) = 'String'...` |  | 1 |
@@ -1805,7 +1797,6 @@ Database types planned with it: SQLite.
 | `INSTANCE_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `RELATION_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `TEXT_FORMS` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
-| `TRACE_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `VARIANT_ELEMENTS` | emulated | `variantElements` |  | 2 |
 | `VARIANT_GET` | emulated | `variantGet` |  | 14 |
 | `JSON_TYPE` | emulated | `(CASE json_type(…) WHEN 'null' THEN 'NULL' WHEN 'text' THEN 'VARCHAR' WHEN 't...` |  | 1 |
@@ -2004,7 +1995,6 @@ Database types planned with it: MariaDB.
 | `INSTANCE_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `RELATION_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `TEXT_FORMS` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
-| `TRACE_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `VARIANT_ELEMENTS` | emulated | `variantElements` |  | 2 |
 | `VARIANT_GET` | emulated | `variantGet` |  | 14 |
 | `JSON_TYPE` | emulated | `(CASE JSON_TYPE(…) WHEN 'NULL' THEN 'NULL' WHEN 'STRING' THEN 'VARCHAR' WHEN ...` |  | 1 |
@@ -2203,7 +2193,6 @@ Database types planned with it: MySQL.
 | `INSTANCE_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` | `as MariaDb` | 0 |
 | `RELATION_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` | `as MariaDb` | 0 |
 | `TEXT_FORMS` | not_here | `renderer bug: is expanded before any dialect reads it` | `as MariaDb` | 0 |
-| `TRACE_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` | `as MariaDb` | 0 |
 | `VARIANT_ELEMENTS` | emulated | `variantElements` | `as MariaDb` | 2 |
 | `VARIANT_GET` | emulated | `variantGet` | `as MariaDb` | 14 |
 | `JSON_TYPE` | emulated | `(CASE JSON_TYPE(…) WHEN 'NULL' THEN 'NULL' WHEN 'STRING' THEN 'VARCHAR' WHEN ...` | `as MariaDb` | 1 |
@@ -2402,7 +2391,6 @@ Database types planned with it: MongoDB.
 | `INSTANCE_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `RELATION_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `TEXT_FORMS` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
-| `TRACE_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `VARIANT_ELEMENTS` | emulated | `variantElements` |  | 0 |
 | `VARIANT_GET` | emulated | `variantGet` |  | 0 |
 | `JSON_TYPE` | emulated | `jsonType` |  | 0 |
@@ -2601,7 +2589,6 @@ Database types planned with it: no database type's own (it extends `AnsiSqlRende
 | `INSTANCE_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | — |
 | `RELATION_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | — |
 | `TEXT_FORMS` | not_here | `renderer bug: is expanded before any dialect reads it` |  | — |
-| `TRACE_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | — |
 | `VARIANT_ELEMENTS` | refused | `variant navigation reached a dialect without JSON support` | `via AnsiSqlRenderer.variantElements` | — |
 | `VARIANT_GET` | refused | `variant navigation reached a dialect without JSON support` | `via AnsiSqlRenderer.variantGet` | — |
 | `JSON_TYPE` | spelled | `json_type` |  | — |
@@ -2800,7 +2787,6 @@ Database types planned with it: no database type's own (it extends `EngineStyleH
 | `INSTANCE_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` | `as EngineStyleH2` | — |
 | `RELATION_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` | `as EngineStyleH2` | — |
 | `TEXT_FORMS` | not_here | `renderer bug: is expanded before any dialect reads it` | `as EngineStyleH2` | — |
-| `TRACE_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` | `as EngineStyleH2` | — |
 | `VARIANT_ELEMENTS` | refused | `variant navigation reached a dialect without JSON support` | `as EngineStyleH2, via AnsiSqlRenderer.variantElements` | — |
 | `VARIANT_GET` | refused | `variant navigation reached a dialect without JSON support` | `as EngineStyleH2, via AnsiSqlRenderer.variantGet` | — |
 | `JSON_TYPE` | spelled | `json_type` | `as EngineStyleH2` | — |
@@ -2999,7 +2985,6 @@ Database types planned with it: no database type's own (it extends `EngineStyleD
 | `INSTANCE_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` | `as EngineStyleDB2, as EngineStyleH2` | — |
 | `RELATION_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` | `as EngineStyleDB2, as EngineStyleH2` | — |
 | `TEXT_FORMS` | not_here | `renderer bug: is expanded before any dialect reads it` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `TRACE_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` | `as EngineStyleDB2, as EngineStyleH2` | — |
 | `VARIANT_ELEMENTS` | refused | `variant navigation reached a dialect without JSON support` | `as EngineStyleDB2, as EngineStyleH2, via AnsiSqlRenderer.variantElements` | — |
 | `VARIANT_GET` | refused | `variant navigation reached a dialect without JSON support` | `as EngineStyleDB2, as EngineStyleH2, via AnsiSqlRenderer.variantGet` | — |
 | `JSON_TYPE` | spelled | `json_type` | `as EngineStyleDB2, as EngineStyleH2` | — |
