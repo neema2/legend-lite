@@ -110,11 +110,9 @@ class EqualityWorldsConformanceTest {
         // double in the product, so the database adds 0.1 + 0.2 as legend-pure's compiled runtime does
         // (0.30000000000000004), and clean mode compares a Float EXACTLY (S15/S132): the two worlds agree. Until S20 the
         // literals were DECIMALs (the numeric charter's Rule 1) and World 2 answered true. The 2-ULP tolerance is
-        // compatibility mode's alone, pinned below.
+        // compatibility mode's alone, pinned by the edge's
+        // EqualityCompatEdgeTest.
         agree(false, "(0.1 + 0.2)", "0.3", 0.1d + 0.2d, 0.3d);
-        assertEquals(true, Equality.same(Equality.Typed.of(0.1d + 0.2d), Equality.Typed.of(0.3d),
-                com.legend.testexecutionplan.TestPlan.JudgingRules.COMPILED_PURE_COMPAT),
-                "compatibility mode's 2-ULP tolerance holds 0.1 + 0.2 as 0.3");
         // X2 (VERDICT_RULE_AUDIT): in-SQL '=' is SCALE-BLIND for
         // decimals (both engine lanes lower == to SQL) while the
         // interpreted ASSERT judgment is scale-sensitive
@@ -127,11 +125,7 @@ class EqualityWorldsConformanceTest {
         diverge(false, true, "8", "8D", 8L, new java.math.BigDecimal("8"),
                 "SQL numeric coercion vs engine same-kind-only eq");
         // register S139 (the user's ruling, 2026-11-05): lite's own rules compare a Decimal by value, so the two worlds
-        // agree; compatibility mode keeps the engine assert seam's scale-sensitive equals
+        // agree; compatibility mode keeps the engine assert seam's scale-sensitive equals (EqualityCompatEdgeTest)
         agree(true, "3.0d", "3.00d", new java.math.BigDecimal("3.0"), new java.math.BigDecimal("3.00"));
-        assertEquals(false, Equality.same(Equality.Typed.of(new java.math.BigDecimal("3.0")),
-                Equality.Typed.of(new java.math.BigDecimal("3.00")),
-                com.legend.testexecutionplan.TestPlan.JudgingRules.COMPILED_PURE_COMPAT),
-                "compatibility mode: the engine assert seam's scale-sensitive equals");
     }
 }
