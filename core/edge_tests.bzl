@@ -91,6 +91,8 @@ EDGE_TEST_SRCS = [
     "src/test/java/com/legend/sql/dialect/BinaryCollateTest.java",
     "src/test/java/com/legend/sql/dialect/BoundaryRequestFieldsFuzzTest.java",
     "src/test/java/com/legend/sql/dialect/CapabilityMatrix.java",
+    # legend-pure's words of an assert's failure, the edge's (C5's step B, 2026-11-17: edge.EdgePureWords)
+    "src/test/java/com/legend/testexec/PureAssertsTest.java",
     "src/test/java/com/legend/sql/dialect/CapabilityReach.java",
     "src/test/java/com/legend/sql/dialect/CatalogGridTest.java",
     "src/test/java/com/legend/sql/dialect/DialectVocabularyTest.java",
