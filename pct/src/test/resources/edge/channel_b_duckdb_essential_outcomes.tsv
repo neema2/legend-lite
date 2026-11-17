@@ -109,9 +109,9 @@ meta::pure::functions::collection::tests::zip::testZipSecondListEmpty	PASS
 meta::pure::functions::collection::tests::zip::testZipSecondListLonger	PASS	
 meta::pure::functions::collection::tests::zip::testZipSecondListsIsOfPairs	PASS	
 meta::pure::functions::date::tests::testAdjustByDays	PASS	
-meta::pure::functions::date::tests::testAdjustByDaysBigNumber	ERROR	DataError: <the first raise> (the database rejected the verdict statement of [assertEquals, assertEquals])
+meta::pure::functions::date::tests::testAdjustByDaysBigNumber	ERROR	DataError: Conversion Error: date field value out of range: "33803336-12-17"
 meta::pure::functions::date::tests::testAdjustByHours	PASS	
-meta::pure::functions::date::tests::testAdjustByHoursBigNumber	ERROR	DataError: <the first raise> (the database rejected the verdict statement of [assertEquals, assertEquals])
+meta::pure::functions::date::tests::testAdjustByHoursBigNumber	ERROR	DataError: Conversion Error: timestamp field value out of range: "1410404-07-12T00:00:00"
 meta::pure::functions::date::tests::testAdjustByMicroseconds	PASS	
 meta::pure::functions::date::tests::testAdjustByMicrosecondsBigNumber	PASS	
 meta::pure::functions::date::tests::testAdjustByMilliseconds	PASS	
@@ -119,11 +119,11 @@ meta::pure::functions::date::tests::testAdjustByMillisecondsBigNumber	PASS
 meta::pure::functions::date::tests::testAdjustByMinutes	PASS	
 meta::pure::functions::date::tests::testAdjustByMinutesBigNumber	PASS	
 meta::pure::functions::date::tests::testAdjustByMonths	PASS	
-meta::pure::functions::date::tests::testAdjustByMonthsBigNumber	ERROR	DataError: <the first raise> (the database rejected the verdict statement of [assertEquals, assertEquals])
+meta::pure::functions::date::tests::testAdjustByMonthsBigNumber	ERROR	DataError: Conversion Error: date field value out of range: "800002016-02-29"
 meta::pure::functions::date::tests::testAdjustBySeconds	PASS	
 meta::pure::functions::date::tests::testAdjustBySecondsBigNumber	PASS	
 meta::pure::functions::date::tests::testAdjustByWeeks	PASS	
-meta::pure::functions::date::tests::testAdjustByWeeksBigNumber	ERROR	DataError: <the first raise> (the database rejected the verdict statement of [assertEquals, assertEquals])
+meta::pure::functions::date::tests::testAdjustByWeeksBigNumber	ERROR	DataError: Conversion Error: date field value out of range: "236611261-10-03"
 meta::pure::functions::date::tests::testAdjustByYears	PASS	
 meta::pure::functions::date::tests::testDateDiffDays	PASS	
 meta::pure::functions::date::tests::testDateDiffHours	PASS	
