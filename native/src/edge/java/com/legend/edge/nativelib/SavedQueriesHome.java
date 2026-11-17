@@ -42,7 +42,9 @@ final class SavedQueriesHome {
                         // upstream's /api/pure/v1/query, so legend-engine's words (the stage-(a) red, 2026-11-16: W8 left
                         // this host on lite's; the page's and the server's mount word it so)
                         com.legend.edge.StoreWords::of);
-                return answer.status() + "\n" + answer.json();
+                // and in legend-engine's shape (J9 of the edge audit, 2026-11-17: the product's store answers {kind,
+                // message}; legend-engine's {message} and its envelope are the edge's)
+                return answer.status() + "\n" + com.legend.edge.StoreWords.engineShape(answer.status(), answer.json());
             });
         } catch (Throwable failure) {
             a = Folded.failure(failure);
@@ -65,7 +67,9 @@ final class SavedQueriesHome {
                         // upstream's /api/pure/v1/query, so legend-engine's words (the stage-(a) red, 2026-11-16: W8 left
                         // this host on lite's; the page's and the server's mount word it so)
                         com.legend.edge.StoreWords::of);
-                return answer.status() + "\n" + answer.json();
+                // and in legend-engine's shape (J9 of the edge audit, 2026-11-17: the product's store answers {kind,
+                // message}; legend-engine's {message} and its envelope are the edge's)
+                return answer.status() + "\n" + com.legend.edge.StoreWords.engineShape(answer.status(), answer.json());
             });
         } catch (Throwable failure) {
             a = Folded.failure(failure);
