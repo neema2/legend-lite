@@ -53,7 +53,10 @@ public final class Lowered {
     public static com.legend.sql.SqlQuery lowerInZone(TypedQuery query, @com.legend.base.Nullable String zone,
             List<SqlExpr.PlanParam> slots) {
         QueryDoor.refuseRawSql(query);
+        // a Float literal as the query's runtime's database computes it in the product (register S20, Phase 5b)
         return ProductStatements.configured(query, false, false, slots, Set.of(), new ObjectSites())
-                .withDbTimeZone(zone).lower(query.body());
+                .withDbTimeZone(zone).withFloatLiteralKind(() -> com.legend.database.PlanStyle.PRODUCT.dialect(
+                        com.legend.Compiler.executesOn(query.context(), query.runtime(null)).type()).floatLiteralKind())
+                .lower(query.body());
     }
 }

@@ -2762,19 +2762,13 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         return com.legend.sql.SqlExpr.FloatLit.Kind.DOUBLE;
     }
 
-    /** A Float literal of the DECIMAL kind: legend-pure's print of the double, bare -- its shortest digits laid out
-     *  positionally, a point always ({@code 0.000000013421}, {@code 134210000.0}), as legend-engine's default literal
-     *  processor writes it ({@code extensionDefaults.pure:134}, {@code CompiledSupport.primitiveToString}: zero
-     *  {@code 0.0} for either sign) -- the DECIMAL of those digits. Not finite: the plain form. */
+    /** A Float literal of the DECIMAL kind: its plain digits, a DECIMAL of them, or an extreme magnitude in exponent
+     *  form, a DOUBLE ({@link #plainFloat}, the numeric charter's Rule 1: the text every Float literal had before S20).
+     *  The edge writes legend-engine's literal so; legend-engine writes an extreme one positionally too, which DuckDB
+     *  reads as a DECIMAL up to 38 digits (a pre-existing difference at |x| < 1e-6 and >= 1e15; under a toString the
+     *  edge writes legend-pure's print, edge.PurePrintForms). */
     protected String decimalFloatLiteral(double v) {
-        if (!Double.isFinite(v)) {
-            return plainFloat(v);
-        }
-        if (v == 0.0) {
-            return "0.0";
-        }
-        String plain = new java.math.BigDecimal(Double.toString(v)).stripTrailingZeros().toPlainString();
-        return plain.contains(".") ? plain : plain + ".0";
+        return plainFloat(v);
     }
 
     /** A Float literal is the double (register S20, the user's ruling of 2026-11-05: "every Float literal a DOUBLE,

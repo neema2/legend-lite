@@ -70,7 +70,7 @@ class PlanRunnerTest {
         assertEquals(new BigDecimal("1000"), one("Decimal", new BigDecimal("1E+3")));
         // a Number: a Long, a Double (as a Float), a BigDecimal (as a Decimal)
         assertEquals(7L, one("Number", 7L));
-        assertEquals(new BigDecimal("1.5"), one("Number", 1.5d));
+        assertEquals(1.5d, one("Number", 1.5d));
         assertEquals(new BigDecimal("2.50"), one("Number", new BigDecimal("2.50")));
     }
 
@@ -78,16 +78,16 @@ class PlanRunnerTest {
         return ((PlanParameters.One) PlanParameters.check(List.of(p), Map.of(p.name(), value)).get(p.name())).value();
     }
 
-    /** A Float binds as its literal is typed (the numeric charter's Rule 1): its plain digits as a decimal; at an
-     *  extreme magnitude (at least 1e15, or below 1e-6) a double, as the literal is written in exponent form. */
+    /** A Float binds as the double (register S20, built 2026-11-17, Phase 5b: until then the numeric charter's Rule 1,
+     *  its plain digits as a decimal): every magnitude, the value itself. */
     @Test
     void aFloatIsBoundAsItsLiteralIsTyped() {
-        assertEquals(new BigDecimal("1.1"), one("Float", 1.1d));
-        assertEquals(new BigDecimal("5.0"), one("Float", 5.0d));
-        assertEquals(new BigDecimal("0.0"), one("Float", -0.0d));
-        assertEquals(new BigDecimal("999999999999999.9"), one("Float", 999999999999999.9d));
+        assertEquals(1.1d, one("Float", 1.1d));
+        assertEquals(5.0d, one("Float", 5.0d));
+        assertEquals(-0.0d, one("Float", -0.0d));
+        assertEquals(999999999999999.9d, one("Float", 999999999999999.9d));
         assertEquals(1e15d, one("Float", 1e15d));
-        assertEquals(new BigDecimal("0.0000010"), one("Float", 1e-6d));
+        assertEquals(1e-6d, one("Float", 1e-6d));
         assertEquals(9.99e-7d, one("Float", 9.99e-7d));
         assertEquals(Double.MAX_VALUE, one("Float", Double.MAX_VALUE));
     }
