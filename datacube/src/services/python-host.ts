@@ -43,6 +43,7 @@ import { toJson, type Lambda } from '../../../pure-protocol/src/index.ts';
 import { LitePlanner } from '../lite-planner.ts';
 import { type ModelOptions } from '../planner.ts';
 import type { LiteOperation, PlannerWorker, Request, RequestKind, Response } from '../../../engine-client/src/legend/planner-protocol.ts';
+import { OPERATION_PATHS, folded, withModel } from './lite-routes.ts';
 import { ExactNumber, fromJson, readValueSpecification, type ValueSpecification } from '../../../pure-protocol/src/index.ts';
 import { base64 } from '../headless/web.ts';
 import { CubeStoreClient } from '../cube-store.ts';
@@ -185,27 +186,6 @@ async function asked(link: PythonLink, path: string): Promise<string> {
   return answer.text();
 }
 
-/** Each lite API v1 operation's route under the host's /api/lite/v1 (operation `a/b`, kind `aB`: the spec's rule). */
-const OPERATION_PATHS: Readonly<Record<LiteOperation, string>> = {
-  modelCheck: 'model/check', modelElements: 'model/elements', queryParse: 'query/parse', queryPrint: 'query/print',
-  queryType: 'query/type', queryPlan: 'query/plan', modelCreateClass: 'model/createClass',
-  modelCreateAssociation: 'model/createAssociation', modelCreateDataSpace: 'model/createDataSpace', tsItem: 'ts/item',
-  tsStatement: 'ts/statement',
-};
-
-/** A host's HTTP answer folded as the planner module folds its own (planner.Folded): a 200's body, or the route's
- *  refusal -- lite API v1's one error shape {kind, message, where?, raise?} (§3) -- as it answered it. A refusal that is
- *  not that shape is the host's own failure, said as one with what it answered. */
-function folded(id: number, answer: globalThis.Response, text: string): Response {
-  if (answer.status === 200) return { id, ok: true, answer: `OK\n${text}` };
-  let refusal: { kind?: unknown; message?: unknown } | undefined;
-  try {
-    refusal = JSON.parse(text) as { kind?: unknown; message?: unknown };
-  } catch { /* not JSON: refused below by what it answered */ }
-  if (typeof refusal?.kind === 'string' && typeof refusal.message === 'string') return { id, ok: true, answer: `ERR\n${text}` };
-  return { id, ok: false, error: `the engine answered ${answer.status} with no refusal of lite's: ${text.slice(0, 200)}` };
-}
-
 /** The tab's worker's requests a Python host is not asked, each with why: the tab's own, or no page's. */
 const NOT_ASKED: Readonly<Record<Exclude<RequestKind, 'hold' | 'release' | 'queryPlanHeld' | 'queryTypeHeld' | LiteOperation>,
   string>> = {
@@ -289,18 +269,14 @@ function pythonWorker(link: PythonLink, project = false): PlannerWorker {
             reply({ id, ok: true, answer: `ERR\n${JSON.stringify({ kind: 'internal', message: `no model held as ${body.handle} on this page` })}` });
             return;
           }
-          // the request without its model ({query, runtime} or {query}), the held model's added: spliced, never parsed, so
-          // the query's numbers keep their digits
-          const withModel = (more: Record<string, unknown>): string =>
-            `${body.request.slice(0, -1)},${JSON.stringify(more).slice(1)}`;
           if (body.kind === 'queryTypeHeld') {
             // query/type on the host's own route, over the model it holds of that text
-            call('/api/lite/v1/query/type', withModel({ model: kept.model }), (answer, text) => folded(id, answer, text));
+            call('/api/lite/v1/query/type', withModel(body.request, { model: kept.model }), (answer, text) => folded(id, answer, text));
             return;
           }
           // the dry run: plan-and-run's planning half, query/plan over the model Python holds of that text, never run -- a
           // project's own (a saved query's: ModelOptions.project) said so, as plan-and-run says it
-          call('/plan.json', withModel({ model: kept.model, ...(kept.library === undefined ? {} : { library: kept.library }),
+          call('/plan.json', withModel(body.request, { model: kept.model, ...(kept.library === undefined ? {} : { library: kept.library }),
             ...(project ? { project } : {}) }), (answer, text) =>
             (answer.ok
               ? { id, ok: true, answer: (JSON.parse(text) as { plan: string }).plan }
