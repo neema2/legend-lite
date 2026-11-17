@@ -148,11 +148,11 @@ public final class MappingFromProtocol {
         List<MappingInclude> includes = new ArrayList<>();
         for (Protocol.PMappingInclude inc : m.includedMappings()) {
             if (inc.includedDataSpace() != null) {
-                // include dataspace rides the PROTOCOL record only: its
-                // compile semantic (splice the dataspace's default-context
-                // mapping) needs dataspace resolution the compiler does not
-                // do yet, and a dataspace path in the model include list
-                // would mis-resolve as a mapping name
+                // include dataspace: a MARKER, rewritten by name resolution to
+                // the data space's default context's mapping before any walker
+                // of the includes sees it (MappingInclude.dataSpace; 2026-11-14:
+                // the include was dropped here, a silent drop)
+                includes.add(new MappingInclude(inc.includedDataSpace(), List.of(), true));
                 continue;
             }
             List<MappingInclude.StoreSubstitution> subs = new ArrayList<>();
@@ -170,7 +170,9 @@ public final class MappingFromProtocol {
         List<MappingInclude> includes = new ArrayList<>();
         for (Protocol.PMappingInclude inc : m.includedMappings()) {
             if (inc.includedDataSpace() != null) {
-                continue;   // protocol-carried only — see toCanonical above
+                // the marker name resolution rewrites (see includesOf above)
+                includes.add(new MappingInclude(inc.includedDataSpace(), List.of(), true));
+                continue;
             }
             // Read the FULL list, not the emitted pair: engine keeps only a
             // lone substitution and nulls both paths when there are several
@@ -189,10 +191,15 @@ public final class MappingFromProtocol {
         }
 
         List<ClassMapping> classMappings = new ArrayList<>();
+        List<LegacyMappingDefinition.ForeignSet> foreignSets = new ArrayList<>();
         for (Protocol.PClassMapping cm : m.classMappings()) {
             ClassMapping built = classMapping(cm);
             if (built != null) {
                 classMappings.add(built);
+            } else if (cm instanceof Protocol.PServiceStoreClassMapping ss) {
+                // not mapped, but kept by its set's identity: a cross-store
+                // line may name it (2026-11-16, register row S413)
+                foreignSets.add(new LegacyMappingDefinition.ForeignSet(ss.className(), ss.id(), "ServiceStore"));
             }
         }
 
@@ -209,7 +216,7 @@ public final class MappingFromProtocol {
         // in the compiler reads them). `tests` (the LEGACY test block) has no
         // model field at all and never had one; the legacy parser drops it too.
         return new LegacyMappingDefinition(m.qualifiedName(), includes,
-                classMappings, associations, enums);
+                classMappings, associations, enums, foreignSets);
     }
 
     // The WIRE discriminators, not the router FQNs: MappingProtocolParser
@@ -502,7 +509,7 @@ public final class MappingFromProtocol {
         }
         return new ClassMapping.RelationFunction.Col(pm.property(), pm.column(),
                 pm.localMappingProperty() != null, pm.enumMappingId(), nested,
-                pm.inlineSetId(), pm.expr());
+                pm.inlineSetId(), pm.expr(), pm.bindingTransformer());
     }
 
     private static AssociationMapping associationMapping(Protocol.PAssociationMapping am) {
@@ -516,7 +523,7 @@ public final class MappingFromProtocol {
                         src == null || tgt == null ? null : src,
                         src == null || tgt == null ? null : tgt,
                         bodyOf(pm.property(), pm.relationalOperation(), null,
-                                null, null)));
+                                null, null, null)));
             }
             return new AssociationMapping.Relational(rel.association().path(), pms);
         }
@@ -703,7 +710,7 @@ public final class MappingFromProtocol {
             // is the OtherwiseEmbedded's own fallbackSetId, not a per-property
             // set route, and the legacy parser leaves the inner Join unrouted.
             PropertyMapping fallback = bodyOf(oth.property(), oth.otherwiseOp(),
-                    mainDb, null, null);
+                    mainDb, null, null, null);
             return new PropertyMapping.OtherwiseEmbedded(oth.property(), subs,
                     oth.otherwiseTarget(), fallback);
         }
@@ -712,6 +719,9 @@ public final class MappingFromProtocol {
                     + pm.getClass().getSimpleName() + " is not ported yet");
         }
         if (rel.localMappingProperty() != null) {
+            // a binding on a local property rides its body: the normalizer
+            // refuses it with the engine's words (a local property is
+            // primitive-typed, and the engine binds complex properties only)
             Protocol.PLocalProp lp = rel.localMappingProperty();
             return new PropertyMapping.LocalProperty(rel.property(),
                     new com.legend.protocol.TypeExpression.NameRef(lp.type(), null),
@@ -720,14 +730,14 @@ public final class MappingFromProtocol {
                             lp.upperBound() == null ? null
                                     : Integer.valueOf(lp.upperBound().intValue())),
                     bodyOf(rel.property(), rel.relationalOperation(), mainDb,
-                            rel.enumMappingId(), rel.target()));
+                            rel.enumMappingId(), rel.target(), rel.bindingTransformer()));
         }
         if (rel.target() != null) {
             targetSets.put(rel.property(), rel.target());
         }
 
         return bodyOf(rel.property(), rel.relationalOperation(), mainDb,
-                rel.enumMappingId(), rel.target());
+                rel.enumMappingId(), rel.target(), rel.bindingTransformer());
     }
 
     /**
@@ -744,7 +754,8 @@ public final class MappingFromProtocol {
     private static PropertyMapping bodyOf(String property, Protocol.PRelOp rawOp,
             @com.legend.base.Nullable String mainDb,
             @com.legend.base.Nullable String enumMappingId,
-            @com.legend.base.Nullable String targetSetId) {
+            @com.legend.base.Nullable String targetSetId,
+            @com.legend.base.Nullable String binding) {
         // The PM's own database comes off the PROTOCOL node (always
         // resolved); the OPERATION is transformed under that database so
         // inner self-references elide exactly as the legacy parser left
@@ -759,6 +770,16 @@ public final class MappingFromProtocol {
                     "a join navigation requires a database — either a"
                             + " ~mainTable directive or an explicit [DB]"
                             + " qualifier");
+            if (binding != null && (jn.terminal() == null || enumMappingId != null)) {
+                // the binding decodes a COLUMN's semi-structured value:
+                // a join to an instance has none, and an enumeration
+                // mapping decodes the same value to an enum
+                throw new UnsupportedMappingShape("property '" + property
+                        + "' pairs Binding " + binding + " with "
+                        + (jn.terminal() == null ? "a join to an instance (no terminal column)"
+                                : "an EnumerationMapping")
+                        + ": a Binding transformer decodes a column's value");
+            }
             if (jn.terminal() == null) {
                 if (enumMappingId != null) {
                     throw new UnsupportedMappingShape("EnumerationMapping on a"
@@ -768,19 +789,32 @@ public final class MappingFromProtocol {
                         targetSetId);
             }
             return new PropertyMapping.JoinTerminalColumn(property, navDb,
-                    jn.chain(), jn.terminal(), enumMappingId, enumMappingId != null);
+                    jn.chain(), jn.terminal(), enumMappingId, enumMappingId != null, binding);
         }
         if (op instanceof RelationalOperation.ColumnRef cr) {
             String colDb = require(db, "a column reference requires a database"
                     + " — either a ~mainTable directive or an explicit [DB]"
                     + " qualifier");
+            if (binding != null && enumMappingId != null) {
+                throw new UnsupportedMappingShape("property '" + property
+                        + "' pairs Binding " + binding + " with an EnumerationMapping:"
+                        + " a Binding transformer decodes a column's value");
+            }
             return enumMappingId == null
-                    ? new PropertyMapping.Column(property, colDb, cr.table(), cr.column())
+                    ? new PropertyMapping.Column(property, colDb, cr.table(), cr.column(), binding)
                     : new PropertyMapping.EnumeratedColumn(property, enumMappingId,
                             colDb, cr.table(), cr.column());
         }
+        if (binding != null && enumMappingId != null) {
+            throw new UnsupportedMappingShape("property '" + property
+                    + "' pairs Binding " + binding + " with an EnumerationMapping:"
+                    + " a Binding transformer decodes a column's value");
+        }
+        // engine: any relational operation may be bound (extractFromSemiStructured,
+        // parseJson): the binding rides the expression and the normalizer
+        // refuses what lite does not decode yet, per class
         return enumMappingId == null
-                ? new PropertyMapping.Expression(property, op)
+                ? new PropertyMapping.Expression(property, op, binding)
                 : new PropertyMapping.EnumeratedExpression(property, enumMappingId, op);
     }
 

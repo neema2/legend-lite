@@ -104,6 +104,24 @@ class MongoDbPlanTest {
         return out.toString();
     }
 
+    /** A connection naming several servers seeds the client's cluster with every one, in order, as legend-engine
+     *  4.145.0's MongoDBStoreConnectionProvider does ({@code b.hosts(serverAddresses)}); one server is a list of one
+     *  (the Studio roundtrip case CORE-unknown-elements-stores-and-connections, 2026-11-16). */
+    @Test
+    void aConnectionNamingSeveralServersSeedsTheClientWithEach() {
+        com.legend.executionplan.Connection twoServers = new com.legend.executionplan.Connection("test::Conn",
+                "test::Store", com.legend.executionplan.DatabaseType.MongoDB,
+                new com.legend.executionplan.ConnectionSpecification.MongoDbDatasource(List.of(
+                        new com.legend.executionplan.ConnectionSpecification.MongoDbDatasource.Server("localhost", 27071),
+                        new com.legend.executionplan.ConnectionSpecification.MongoDbDatasource.Server(
+                                "myhost.example.com", 27072)), "legend_db"),
+                new com.legend.executionplan.AuthenticationSpec.UsernamePassword(EmbeddedMongoDb.USER,
+                        "systemproperties:" + PASSWORD_PROPERTY));
+        assertEquals(List.of(new com.mongodb.ServerAddress("localhost", 27071),
+                        new com.mongodb.ServerAddress("myhost.example.com", 27072)),
+                MongoDbConnector.settings(twoServers).getClusterSettings().getHosts());
+    }
+
     @Test
     void aFilteredSortedSelectStreamsItsRows() throws Exception {
         assertEquals("[{\"name\":\"Ann\",\"age\":34},{\"name\":\"Cy\",\"age\":41}]",

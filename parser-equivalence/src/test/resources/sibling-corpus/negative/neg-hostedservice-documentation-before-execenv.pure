@@ -1,0 +1,19 @@
+// A documentation literal where legend-engine 4.145.0's grammar has no slot for one (Studio's grammar
+// roundtrip work, 2026-11-14): the parse refuses at the keyword. Without the literal the element
+// parses on both sides (doc-before-activators-and-services.pure holds the kinds that admit one).
+// Here: an ExecutionEnvironment in ###HostedService, which hosts the same rule.
+###HostedService
+'''
+A documented environment.
+'''
+ExecutionEnvironment fixture::neg::Env
+{
+   executions:
+   [
+      UAT:
+      {
+         mapping: fixture::neg::Mapping1;
+         runtime: fixture::neg::Runtime1;
+      }
+   ];
+}

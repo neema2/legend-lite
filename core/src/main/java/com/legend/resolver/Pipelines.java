@@ -123,6 +123,77 @@ public final class Pipelines {
                 ? c.args().get(0) : n;
     }
 
+    /**
+     * An embedded instance seen through its wrappers, for a LEAF read through it: {@code toOne}/{@code trustOne}
+     * ({@link #unwrapToOne}), and a semi-structured object's emptiness guard -- {@code if(isEmpty($v), |[],
+     * |^C(...))} over a Variant {@code $v}, the normalizer's decode of a Binding transformer (VariantDecode). The
+     * guard is looked through only where every leaf of that instance reads a key of {@code $v} ({@link #readsKeyOf},
+     * checked, never assumed: VariantDecode's output has the shape, a guard a user wrote over other leaves does not),
+     * so a leaf read through the guard is the instance's leaf: empty when the object is. Any other shape is returned
+     * unwrapped of toOne only; the guard is never looked through where the WHOLE instance is the value (graph output
+     * keeps it, and stays loud).
+     */
+    static TypedSpec embeddedView(TypedSpec n) {
+        TypedSpec u = unwrapToOne(n);
+        String deferred = deferredReason(u);
+        if (deferred != null) {
+            throw new com.legend.error.NotImplementedException(deferred);
+        }
+        return u instanceof com.legend.compiler.spec.typed.TypedIf i && guardedValue(i) != null
+                ? i.elseBranch().orElseThrow() : u;
+    }
+
+    /** The reason of a DEFERRED object -- {@code cast(fail('reason'), @C)} to a class, the value the normalizer gives
+     *  a key it cannot decode yet (VariantDecode) -- or null. A leaf is never read through it: the read is refused
+     *  with the reason. */
+    private static @com.legend.base.Nullable String deferredReason(TypedSpec u) {
+        return u instanceof com.legend.compiler.spec.typed.TypedCast cast
+                && com.legend.compiler.element.type.Type.asClassType(cast.info().type()) != null
+                && cast.source() instanceof com.legend.compiler.spec.typed.TypedNativeCall fail
+                && com.legend.builtin.Pure.AT_ASSERTS_FAIL.contains(fail.callee().id())
+                && fail.args().size() == 1
+                && fail.args().get(0) instanceof com.legend.compiler.spec.typed.TypedCString reason
+                ? reason.value() : null;
+    }
+
+    /** The Variant {@code $v} of a decoded object's guard {@code if(isEmpty($v), |[], |^C(...))} whose every leaf
+     *  reads a key of {@code $v}; null for any other {@code if}. */
+    private static @com.legend.base.Nullable TypedSpec guardedValue(com.legend.compiler.spec.typed.TypedIf i) {
+        if (i.elseBranch().isPresent()
+                && i.elseBranch().get() instanceof com.legend.compiler.spec.typed.TypedNewInstance ctor
+                && i.thenBranch() instanceof com.legend.compiler.spec.typed.TypedCollection none
+                && none.elements().isEmpty()
+                && i.condition() instanceof com.legend.compiler.spec.typed.TypedNativeCall c
+                && c.args().size() == 1
+                && com.legend.builtin.Pure.AT_COLLECTION_IS_EMPTY.contains(c.callee().id())
+                && com.legend.compiler.element.type.Type.asClassType(c.args().get(0).info().type())
+                        instanceof com.legend.compiler.element.type.Type.ClassType vt
+                && com.legend.compiler.element.type.PlatformTypes.isVariant(vt)
+                && ctor.properties().values().stream().allMatch(leaf -> readsKeyOf(leaf, c.args().get(0)))) {
+            return c.args().get(0);
+        }
+        return null;
+    }
+
+    /** Whether {@code leaf} is one key of the Variant {@code v}, read and nothing else, so empty when {@code v} is:
+     *  {@code to}/{@code toMany} of {@code get(v, key)} (under toOne, toOneMany), or the guarded instance of
+     *  {@code get(v, key)}; or a deferred key ({@link #deferredReason}), whose read is refused, never answered. */
+    private static boolean readsKeyOf(TypedSpec leaf, TypedSpec v) {
+        TypedSpec u = unwrapToOne(leaf);
+        if (deferredReason(u) != null) {
+            return true;
+        }
+        if (u instanceof com.legend.compiler.spec.typed.TypedNativeCall many && many.args().size() == 1
+                && com.legend.builtin.Pure.AT_MULTIPLICITY_TO_ONE_MANY.contains(many.callee().id())) {
+            u = many.args().get(0);
+        }
+        TypedSpec read = u instanceof com.legend.compiler.spec.typed.TypedCast cast ? cast.source()
+                : u instanceof com.legend.compiler.spec.typed.TypedIf nested ? guardedValue(nested) : null;
+        return read instanceof com.legend.compiler.spec.typed.TypedNativeCall get && get.args().size() == 2
+                && com.legend.builtin.Pure.AT_VARIANT_NAVIGATION_GET.contains(get.callee().id())
+                && get.args().get(0).equals(v);
+    }
+
     private Pipelines() {
     }
 

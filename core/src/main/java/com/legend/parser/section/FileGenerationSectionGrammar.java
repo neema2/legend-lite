@@ -65,9 +65,7 @@ public final class FileGenerationSectionGrammar
         List<Protocol.PConfigProperty> props = new ArrayList<>();
         while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
             int keyStart = c.pos();
-            // a quoted property name keeps its QUOTES on the wire
-            String key = c.peek() == TokenType.STRING
-                    ? SectionParse.rawStringToken(c) : c.parseIdentifier();
+            String key = configPropertyName(c);
             // NAMED fields are once-only (engine validateAndExtract...;
             // sectioned negative pins #4/#6); arbitrary CONFIG properties
             // accumulate and may repeat
@@ -122,6 +120,36 @@ public final class FileGenerationSectionGrammar
         return new Protocol.PFileGeneration(pkg, name,
                 SectionParse.lowerFirst(kind), typeSpan, outputPath,
                 scopeElements, props, c.spanOf(declStart, c.pos() - 1));
+    }
+
+    /** The engine's {@code configPropertyName: identifier (DOT
+     *  identifier)*}, read with {@code getText()} (4.145.0,
+     *  FileGenerationParseTreeWalker): the segments' texts joined by
+     *  {@code .}, a quoted segment KEEPING its quotes on the wire
+     *  ({@code generator.version}, {@code 'schema Specification'};
+     *  Studio's roundtrip case DSL_Generation-file-and-spec, 2026-11-14).
+     *  A segment is one identifier token as written — not
+     *  {@link TokenStreamCursor#parseIdentifier()}, which unquotes, and
+     *  glues a digit-led name the engine's lexer splits. */
+    private static String configPropertyName(TokenStreamCursor c) {
+        StringBuilder name = new StringBuilder(configPropertySegment(c));
+        while (c.peek() == TokenType.DOT) {
+            c.advance();
+            name.append('.').append(configPropertySegment(c));
+        }
+        return name.toString();
+    }
+
+    private static String configPropertySegment(TokenStreamCursor c) {
+        if (c.peek() == TokenType.STRING) {
+            return SectionParse.rawStringToken(c);
+        }
+        if (!c.isIdentifierToken(c.peek())) {
+            throw c.error("expected identifier, got " + c.peek());
+        }
+        String segment = c.text();
+        c.advance();
+        return segment;
     }
 
     private static Protocol.PConfigValue parseConfigValue(TokenStreamCursor c) {

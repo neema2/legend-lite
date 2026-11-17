@@ -23,6 +23,39 @@ last-print-wins proposal's full row is in PR #90, for the owner to rule and land
 prices.csv is in file order on purpose, and the consumer sorts by (symbol, date); the oracle's PR leaves the ratchet
 alone, so this one merges first.
 
+**Studio's grammar roundtrip, three small cases, 2026-11-16** (branch `claude/studio-small-fixes-e5d6c7`, a PR into the
+fork's `studio-compatibility-dev`, neema2/legend-lite#113): `STO_Relational-mapping-join-chains-and-distinct` (a
+relational `case`/`if` branch that is `sqlNull()`: `normalizer/RelOpTranslator`), `STO_Relational-database-operations-
+and-join-types` (a View's `~filter` through typed joins: `parser/TokenStreamCursor`, `DatabaseProtocolParser`,
+`MappingProtocolParser`, `model/FromProtocol`, `normalizer/ViewRelation`, `JoinChainEmission`) and
+`CORE-unknown-elements-stores-and-connections` (a MongoDB connection naming several servers: the model's and the
+plan's connection specifications, `ConnectionPlans`, `ConnectionWire`, `MongoDbConnector`). Also the parser-equivalence
+ratchet (`own_corpus.matched`): the cases' models are test snippets. The M2M and the groupBy/XStore sessions work beside
+it on the same base.
+
+**legend-studio's grammar roundtrip, the M2M cases, 2026-11-16** (branch `claude/studio-m2m-c43016`, a PR into the
+fork's `studio-compatibility-dev`, neema2/legend-lite#113): three of Studio's 133 roundtrip cases
+(DSL_Mapping-m2m-primitivetype-source, DSL_Mapping-xstore-mapping, DSL_Snowflake-m2m-udf-function-activator) compile as
+legend-engine 4.145.0 compiles them; the fourth, DSL_Service-basic (a Pure class mapping with no `~src`), stays refused
+at build by the user's ruling of 2026-11-17 (register S21; Studio's case now declares a `~src`). Files:
+`normalizer/MappingNormalizer.java` (`synthM2M`, `explodeRefusal`, `withheldReason`, `sourcePathType`,
+`m2mPropertyValue`), `normalizer/M2mRouteGuards.java`, `compiler/spec/Typer.java` (`classReference`),
+`resolver/ClassSources.java` (`findBinding`), three `integration/M2M*Test.java`, register rows S417-S419 (pending; the
+numbers the coordinating session assigned) and S21's ruling. Two sessions work beside it on the same branch (relational
+`groupBy` with the ServiceStore end of a ModelJoin; a View's join filter, `sqlNull()`, a two-server MongoDB connection).
+
+**The Studio roundtrip's post-pin constructs, 2026-11-16** (branch `claude/studio-post-pin-c90406`, one PR into the
+fork's `studio-compatibility-dev`; the user's ruling "Build ahead, ledgered": constructs newer than the 4.145.0 pin,
+read from the release that introduced each, without bumping the pin): a Relation mapping's embedded block reads every
+line kind (4.145.0's grammar, a parity gap), its row accessor `$row` (4.151.0), a column spec's annotations printed
+(4.150.0), a DataQualityRelationComparison's `additionalColumnsToPersist` (4.148.0). Files:
+`parser/{MappingProtocolParser,SpecParser}.java`, `protocol/{MappingEmitter,RelationMappingReader,PureComposer,
+DataQualityComposer,DataQualityReader,TailEmitter,Protocol}.java`, `protocol/spec/ValueSpecification.java`,
+`parser/section/DataQualityValidationSectionGrammar.java`, `model/ClassMapping.java`,
+`normalizer/{MappingNormalizer,RelationReads}.java`; tests `WithChildrenFieldPreservationTest` (a known defect fixed)
+and five new ones; in `parser-equivalence`, `ModelComposerParityTest`, `OwnCorpusConformanceTest`,
+`FixtureAdjudicationTest`, `PeRatchets` and `ratchets.tsv` (own_corpus 3397 -> 3420 on studio-compatibility-dev 298f71ba7); the register rows S420-S422.
+
 **Active lines and their order (the user, 2026-10-04).** Several sessions push to `main`; each announces a cross-area
 edit here before landing it and lands with the full chain. The priorities are **Bazel, Studio, and the database owner
 with the compiler's plan/execution split**, in this order:
@@ -3520,3 +3553,12 @@ oracle for #TS").
   `docs/GATES.md`; this file. No main source, no word of the library and no register row is touched (a contributor
   never edits `docs/SEMANTICS_REGISTER.md`, the user's standing rule, 2026-11-08): each DIFF is posted with the PR and
   its proposed register row written there in full, for the user to rule.
+
+## The Studio roundtrip's groupBy and ServiceStore-XStore cases, 2026-11-16
+
+Branch `claude/studio-xstore-groupby-f61d8b` (the user's fork), from `studio-compatibility-dev` at `a812e317e`; one PR
+into that branch. Two of the 133 grammar roundtrip cases: `STO_Relational-relational-mapping-groupby` (a `~groupBy` key
+naming a table the class does not reach) and `STO_ServiceStore-path-offset` (a ServiceStore set as an XStore end).
+Files: `normalizer/GroupBySynthesis.java`, `normalizer/AssociationSynthesis.java`, `normalizer/XStorePureEnds.java`,
+`model/LegacyMappingDefinition.java` and its rebuild sites (`model/MappingFromProtocol.java`,
+`compiler/NameResolver.java`, `normalizer/StoreSubstitutionRewrite.java`), two core tests, two pending register rows.

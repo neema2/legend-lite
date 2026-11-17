@@ -57,6 +57,14 @@ public final class WalledBodies {
         REASONS.put("meta::pure::executionPlan::MultiExecutionContext$prop$allContexts",
                 new Wall(Kind.ENGINE_MACHINERY, "the engine's plan-time context flattening — the platform reads"
                 + " ExecutionOptionContext's feature flags directly (ContextReading.contextFeatures)"));
+        // a service execution environment's runtime rebuilt from data at run time (2026-11-14, the Studio roundtrip's
+        // DSL_ExecutionEnvironment cases): the prelude carries SingleExecutionParameters as the service getters'
+        // return type; its rebuildRuntime body calls getRuntimeWithModelQueryConnection and mergeRuntimes, the
+        // engine's runtime assembly, and is reached only through getWithRuntime, itself walled (Pure.WALLED_NATIVES)
+        REASONS.put("meta::legend::service::metamodel::SingleExecutionParameters$prop$rebuildRuntime",
+                new Wall(Kind.ENGINE_MACHINERY, "the engine's run-time runtime assembly for a service execution"
+                + " environment's keyed execution (getRuntimeWithModelQueryConnection, mergeRuntimes) -- the"
+                + " platform plans against a declared runtime and never executes a runtime value"));
         // the printer's bodies on the prelude's vocabulary classes (the census's B3 rows)
         for (String p : new String[] {"dataTypeToSqlText", "dynaFuncDispatch", "joinProcessor",
                 "lateralJoinProcessor", "literalProcessor",

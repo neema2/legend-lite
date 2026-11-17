@@ -402,6 +402,14 @@ final class AssociationSynthesis {
                     ad0.property2().targetClassFqn());
         }
         if (am instanceof AssociationMapping.Cross xs && ad0 != null) {
+            // an end in a store lite does not execute (ServiceStore): the
+            // model compiles, as the engine's does; navigating is refused
+            // with the reason (register row S413, pending)
+            String foreign = XStorePureEnds.foreignEndReason(md, xs, ad0);
+            if (foreign != null) {
+                recordWithheld(md, am, model, ledger, foreign);
+                return null;
+            }
             return MappingNormalizer.synthesizeXStoreMapping(md, xs, model,
                     ad0.property1().targetClassFqn(),
                     ad0.property2().targetClassFqn());

@@ -25,6 +25,10 @@ import java.util.List;
  * descriptive &mdash; "the model the parser produced" &mdash; and avoids the
  * generic {@code Result} suffix.
  *
+ * <p>{@code elementSpans} holds each element's whole span as its record carried it (2026-11-13): a model parsed from
+ * a text has one per element beside its offset (the parser's), a model given as records has the ones its JSON
+ * carried and no offsets. {@link #position} names where an element starts, {@link #span} gives the whole span.
+ *
  * @param elements parsed packageable elements, in source order
  * @param imports  accumulated import scope
  */
@@ -34,15 +38,15 @@ public record ParsedModel(List<PackageableElement> elements, ImportScope imports
                           java.util.Map<String, ImportScope> elementImports,
                           java.util.Map<String, String> elementSources,
                           List<UnclaimedSection> unclaimedSections,
-                          java.util.Map<String, Position> elementSpans) {
+                          java.util.Map<String, com.legend.protocol.SourceInfo> elementSpans) {
 
     /** A {@code ###} section no registered grammar claims — explicit and
      *  reportable, never lexer silence (SectionGrammarRegistry step 1). */
     public record UnclaimedSection(String name, int startOffset, int endOffset) {
     }
 
-    /** Where an element starts, as a model given as protocol records says it ({@code ModelFromProtocol}): its
-     *  source information's start. A model parsed from text keeps offsets into its text instead. */
+    /** Where a record the compiler's model cannot represent starts ({@code ModelFromProtocol.Unrepresentable}): its
+     *  source information's start. */
     public record Position(int line, int column) {
     }
 
@@ -61,13 +65,9 @@ public record ParsedModel(List<PackageableElement> elements, ImportScope imports
                 : List.copyOf(unclaimedSections);
         elementSpans = elementSpans == null ? java.util.Map.of()
                 : java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(elementSpans));
-        if (!elementSpans.isEmpty() && !elementOffsets.isEmpty()) {
-            // one model, one kind of position: offsets into its text, or the spans its records carried
-            throw new IllegalArgumentException("a model has offsets into a text or spans from its records, not both");
-        }
     }
 
-    /** A model parsed from text: its elements' offsets into that text, and no spans. */
+    /** A model with no element spans: its elements' offsets into its text, when it has one. */
     public ParsedModel(List<PackageableElement> elements, ImportScope imports,
                        @com.legend.base.Nullable String source,
                        java.util.Map<String, Integer> elementOffsets,
@@ -79,19 +79,29 @@ public record ParsedModel(List<PackageableElement> elements, ImportScope imports
     }
 
     /**
-     * Where the element with key {@code key} ({@link #keyOf}) starts, as {@code "[line:col]"}: from its span for a
-     * model given as records, from its offset into the source for a model parsed from one text; empty when the model
-     * does not say (records without source information, a model with no source text). The one rule an error's
+     * Where the element with key {@code key} ({@link #keyOf}) starts, as {@code "[line:col]"}: from its offset into the
+     * source for a model parsed from one text, from its span's start for a model given as records; empty when the
+     * model does not say (records without source information, a model with no source text). The one rule an error's
      * position is decorated by.
      */
     public java.util.Optional<String> position(String key) {
-        Position span = elementSpans.get(key);
-        if (span != null) {
-            return java.util.Optional.of("[" + span.line() + ":" + span.column() + "]");
-        }
         Integer offset = elementOffsets.get(key);
-        return offset == null || source == null ? java.util.Optional.empty()
-                : java.util.Optional.of(positionIn(source, offset));
+        if (offset != null && source != null) {
+            return java.util.Optional.of(positionIn(source, offset));
+        }
+        com.legend.protocol.SourceInfo span = elementSpans.get(key);
+        return span == null ? java.util.Optional.empty()
+                : java.util.Optional.of("[" + span.startLine() + ":" + span.startColumn() + "]");
+    }
+
+    /**
+     * The whole span of the element with key {@code key} ({@link #keyOf}), as its record carried it -- the parser's
+     * for a model parsed from a text, the client's for a model given as records (its {@code sourceInformation}, source
+     * id included); empty when the record carried none. What an error about the element is placed by where a client
+     * reads a position as a field (legend-engine's {@code sourceInformation}): never made up when absent.
+     */
+    public java.util.Optional<com.legend.protocol.SourceInfo> span(String key) {
+        return java.util.Optional.ofNullable(elementSpans.get(key));
     }
 
     /** {@code "[line:col]"} of char {@code offset} in {@code text}, both from 1 -- how an error names a place in the

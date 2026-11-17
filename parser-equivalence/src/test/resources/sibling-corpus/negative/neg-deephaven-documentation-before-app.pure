@@ -1,0 +1,14 @@
+// A documentation literal where legend-engine 4.145.0's grammar has no slot for one (Studio's grammar
+// roundtrip work, 2026-11-14): the parse refuses at the keyword. Without the literal the element
+// parses on both sides (doc-before-activators-and-services.pure holds the kinds that admit one).
+// Here: a DeephavenApp -- the Deephaven grammar has no documentation rule at all.
+###Deephaven
+'''
+A documented app.
+'''
+DeephavenApp fixture::neg::MyApp
+{
+    applicationName: 'MyTestApp';
+    function: fixture::neg::myFunc(String[1], Integer[*]):Any[*];
+    ownership: Deployment { identifier: 'owner123' };
+}

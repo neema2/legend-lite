@@ -204,6 +204,7 @@ public final class StoreResolver {
         }
         List<TypedSpec> out = new ArrayList<>(body.size());
         for (TypedSpec stmt00 : body) {
+            refuseServiceKeyedFrom(stmt00);
             TypedSpec stmt0 = stmt00 instanceof com.legend.compiler.spec.typed.TypedLet let
                     ? let.withChildren(List.of(com.legend.compiler.spec.typed.TypedSubst
                             .renameBinders(let.value(), reserved, queryScope)))
@@ -266,6 +267,28 @@ public final class StoreResolver {
         }
         return n;
     }
+
+    /** A SERVICE EXECUTION ENVIRONMENT's keyed execution, {@code from(T[m],
+     * SingleExecutionParameters[1])} ({@code ->from(env->get($key))}): the
+     * typer keeps it as the declared call (FromChecker), and here it is
+     * refused by name. Its mapping and runtime are the environment's entry
+     * under a key the service receives as a parameter when it runs; resolving
+     * a store against any one entry would guess that key (AGENTS.md
+     * invariant 4), so no store is resolved. */
+    static void refuseServiceKeyedFrom(TypedSpec n) {
+        if (n instanceof TypedNativeCall c && SERVICE_KEYED_FROM.equals(c.callee().id())) {
+            throw new com.legend.error.NotImplementedException("from(SingleExecutionParameters): the execution"
+                    + " context is a service execution environment's entry chosen by a key the service receives"
+                    + " as a parameter when it runs; a query is planned against a mapping and a runtime, and the"
+                    + " platform never guesses the key -- spell from(mapping, runtime) to plan it");
+        }
+        for (TypedSpec c : n.children()) {
+            refuseServiceKeyedFrom(c);
+        }
+    }
+
+    private static final com.legend.model.FunctionId SERVICE_KEYED_FROM =
+            com.legend.model.FunctionId.of(Pure.FROM__T_m__SINGLE_EXECUTION_PARAMETERS_1);
 
     /** POST-CONDITION (core/README rule 9) — {@link StoreEscapees}. */
     static void assertNoStoreOnlyEscapees(TypedSpec n) {

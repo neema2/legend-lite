@@ -109,6 +109,8 @@ JsonMappingIntegrationTest$BothJsonTests#testBothJsonProperties	measured 2026-11
 JsonMappingIntegrationTest$OrderJsonItemsScalarTests#testMixedOrderProperties	measured 2026-11-05 (H2 2.5.252): expected: <Bob> but was: <null>
 JsonMappingIntegrationTest$OrderJsonItemsScalarTests#testOrderJsonProperties	measured 2026-11-05 (H2 2.5.252): expected: <Alice> but was: <null>
 JsonMappingIntegrationTest$OrderScalarItemsJsonTests#testOrderItemJsonProperties	measured 2026-11-05 (H2 2.5.252): No value present
+JsonSourceToManyTest#arraysReadWhole	measured 2026-11-14 (the Studio roundtrip's normalizer session, a JSON source's to-many property read whole as a list H2 has no encoding for): LIST_FILTER reached a dialect without a list encoding
+JsonSourceToManyTest#functionsOfTheArray	measured 2026-11-14 (the Studio roundtrip's normalizer session, a JSON source's to-many property read whole as a list H2 has no encoding for): LIST_FILTER reached a dialect without a list encoding
 PivotCheckerTest$MultiColumnPivot#testTwoColumnPivot	measured 2026-11-11 (B3, the text plan is the keyed plan the lane runs; H2 has no EXCLUDE): Should use EXCLUDE to remove pivot columns ==> expected: <true> but was: <false>
 PivotCheckerTest$SqlGeneration#testMultiColumnPivotSql	measured 2026-11-11 (B3, the text plan is the keyed plan the lane runs; H2 has no EXCLUDE): Should use EXCLUDE clause ==> expected: <true> but was: <false>
 RelationApiIntegrationTest$SelectProjectTests#testProjectStructArrayCrossProduct	measured 2026-10-29: Should use UNNEST for array access ==> expected: <true> but was: <false>

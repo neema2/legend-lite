@@ -955,8 +955,15 @@ final class Typer {
             // the simple-name fallback must not leak downstream (the H
             // resolver's mapping bindings are FQN-keyed).
             String fqn = cls.get().qualifiedName();
+            // a PRIMITIVE's reference binds T to the primitive itself -- the identity phase F's
+            // TypeClassifier.findType gives the name (primitive first; a precise primitive is its base). A
+            // ClassType of the primitive's path is a second spelling no slot typed by the primitive accepts: an M2M
+            // `~src StrictDate` set's synthesized getAll(StrictDate) failed `d: $src` with "expected StrictDate, got
+            // meta::pure::metamodel::type::StrictDate" (legend-studio's roundtrip case
+            // DSL_Mapping-m2m-primitivetype-source, 2026-11-16)
+            Type element = Type.Primitive.findByFqn(fqn).<Type>map(p -> p).orElseGet(() -> new Type.ClassType(fqn));
             Type classOf = new Type.GenericType(com.legend.compiler.element.type.PlatformTypes.CLASS_METACLASS,
-                    List.of(new Type.ClassType(fqn)));
+                    List.of(element));
             return new TypedPackageableRef(fqn, ExprType.one(classOf));
         }
         // A bare ENUMERATION reference (STR_GeographicEntityType->toString())
@@ -1022,6 +1029,14 @@ final class Typer {
         if (ctx.findRuntime(ref.fullPath()).isPresent()) {
             return new TypedPackageableRef(ref.fullPath(), ExprType.one(new Type.ClassType(
                     com.legend.compiler.element.type.PlatformTypes.PACKAGEABLE_RUNTIME)));
+        }
+        // an EXECUTION ENVIRONMENT element is upstream's ExecutionEnvironmentInstance
+        // (ServiceCompilerExtensionImpl's value-specification builder types the
+        // reference as an instance value of it): get(EEI[1], key) and
+        // getWithRuntime(EEI[1], key, data) are declared over it
+        if (ctx.findExecutionEnvironment(ref.fullPath()).isPresent()) {
+            return new TypedPackageableRef(ref.fullPath(), ExprType.one(new Type.ClassType(
+                    com.legend.compiler.element.type.PlatformTypes.EXECUTION_ENVIRONMENT_INSTANCE)));
         }
         // a CONNECTION element stays Any[1] — the prelude carries no
         // PackageableConnection; its typing is owed with the connection natives

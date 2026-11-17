@@ -151,6 +151,11 @@ public interface ModelContext extends StoreLookups {
         return Optional.empty();
     }
 
+    /** The {@code ###Service} ExecutionEnvironment element for {@code fqn}, if present &mdash; what a service
+     *  query's environment reference names ({@code env->get($key)}: a value of upstream's
+     *  ExecutionEnvironmentInstance). */
+    Optional<com.legend.model.ExecutionEnvironmentDefinition> findExecutionEnvironment(String fqn);
+
     /** Every {@code ###Data} element, in ingest order &mdash; what a project's own database is filled from
      *  ({@code com.legend.setup.ProjectData}, docs/ONE_PLATFORM_PROGRAM_2026_10_12.md C5). */
     default java.util.stream.Stream<com.legend.model.DataDefinition> dataElements() {

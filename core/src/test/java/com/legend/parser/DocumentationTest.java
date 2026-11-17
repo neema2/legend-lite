@@ -147,4 +147,87 @@ class DocumentationTest {
         String json = wire("Class model::A\n{\n  fullName() {'''\n  Formatted name.\n  '''}: String[1];\n}\n");
         assertFalse(json.contains("\"value\":\"doc\""), json);
     }
+
+    /** The one element of a document, its section index set aside. */
+    private static Protocol.Element sectionElement(String src) {
+        java.util.List<Protocol.Element> elements = PmcdParser.parseModel(src).elements().stream()
+                .filter(e -> !(e instanceof Protocol.PSectionIndex)).toList();
+        assertEquals(1, elements.size(), src);
+        return elements.get(0);
+    }
+
+    private static void assertDocumented(String text, java.util.List<Protocol.PTaggedValue> tvs,
+            @com.legend.base.Nullable com.legend.protocol.SourceInfo span) {
+        Protocol.PTaggedValue doc = tvs.get(0);
+        assertEquals(DOC + ".doc", doc.tag().profile() + "." + doc.tag().value());
+        assertEquals(text, doc.value());
+        assertTrue(doc.multiLine());
+        // the element starts at its documentation (line 2: the section header is line 1)
+        assertEquals(2, java.util.Objects.requireNonNull(span).startLine());
+        assertEquals(1, span.startColumn());
+    }
+
+    @Test
+    @DisplayName("a block before a Service or a function activator is its doc tagged value, first; the element starts at"
+            + " the block (Studio's grammar roundtrip, 2026-11-14)")
+    void onServicesAndFunctionActivators() {
+        Protocol.PService s = (Protocol.PService) sectionElement("###Service\n'''\nA documented service.\n'''\n"
+                + "Service {a::P.t = 'x'} a::S\n{\n   pattern: '/s';\n   documentation: 'its own field';\n"
+                + "   execution: Single\n   {\n      query: |1;\n      mapping: a::M;\n      runtime: a::R;\n   }\n}\n");
+        assertDocumented("A documented service.", s.taggedValues(), s.sourceInformation());
+        assertEquals("t", s.taggedValues().get(1).tag().value());
+        assertEquals("its own field", s.documentation());
+        String common = "   function : a::f():Integer[1];\n   ownership : Deployment { identifier: '1' };\n}\n";
+        // section, kind, the kind's own required keys
+        String[][] activators = {
+                {"Snowflake", "SnowflakeApp", "   applicationName : 'x';\n"},
+                {"Snowflake", "SnowflakeM2MUdf",
+                        "   udfName : 'x';\n   deploymentSchema : 'x';\n   deploymentStage : 'x';\n"},
+                {"MemSql", "MemSqlFunction", "   functionName : 'x';\n"},
+                {"BigQuery", "BigQueryFunction", "   functionName : 'x';\n"},
+                {"HostedService", "HostedService", "   pattern : '/x';\n"},
+                {"FunctionJar", "FunctionJar", ""},
+        };
+        for (String[] sectionKind : activators) {
+            String kind = sectionKind[1];
+            Protocol.PFunctionActivator a = (Protocol.PFunctionActivator) sectionElement("###" + sectionKind[0]
+                    + "\n'''\n  A documented " + kind + ".\n'''\n" + kind + " a::A\n{\n" + sectionKind[2] + common);
+            assertEquals(kind, a.kind());
+            assertDocumented("  A documented " + kind + ".", a.taggedValues(), a.sourceInformation());
+        }
+    }
+
+    @Test
+    @DisplayName("a block before a deployment configuration, an ExecutionEnvironment or a DeephavenApp is refused:"
+            + " the engine's rules there have no documentation")
+    void refusedWhereTheGrammarHasNoSlot() {
+        String doc = "'''\nA documented element.\n'''\n";
+        String env = " a::Env\n{\n   executions:\n   [\n      UAT:\n      {\n         mapping: a::M;\n"
+                + "         runtime: a::R;\n      }\n   ];\n}\n";
+        String[][] cases = {
+                {"###Service\n", "ExecutionEnvironment", env},
+                {"###HostedService\n", "ExecutionEnvironment", env},
+                {"###Snowflake\n", "SnowflakeAppDeploymentConfiguration", " a::C\n{\n   activationConnection : a::Conn;\n}\n"},
+                {"###MemSql\n", "MemSqlFunctionDeploymentConfiguration", " a::C\n{\n   activationConnection : a::Conn;\n}\n"},
+                {"###BigQuery\n", "BigQueryFunctionDeploymentConfiguration",
+                        " a::C\n{\n   activationConnection : a::Conn;\n}\n"},
+                {"###HostedService\n", "HostedServiceDeploymentConfiguration", " a::C\n{\n}\n"},
+        };
+        for (String[] c : cases) {
+            // without the block the element parses: the refusal is the block's
+            sectionElementOrNone(c[0] + c[1] + c[2]);
+            ParseException e = assertThrows(ParseException.class,
+                    () -> PmcdParser.parseModel(c[0] + doc + c[1] + c[2]), c[1]);
+            assertEquals("[5:1] Unexpected token '" + c[1] + "'", e.getMessage());
+        }
+        String app = "DeephavenApp a::App\n{\n   applicationName: 'x';\n   function: a::f():Integer[1];\n"
+                + "   ownership: Deployment { identifier: '1' };\n}\n";
+        sectionElement("###Deephaven\n" + app);
+        assertThrows(ParseException.class, () -> PmcdParser.parseModel("###Deephaven\n" + doc + app));
+    }
+
+    /** The document parses; a deployment configuration may leave no element (the engine's walkers drop some). */
+    private static void sectionElementOrNone(String src) {
+        PmcdParser.parseModel(src);
+    }
 }

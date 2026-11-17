@@ -111,6 +111,21 @@ final class ViewRelation {
                 ? views.body(innerView)
                 : Calls.platform("tableReference",
                         List.of(new PackageableElementPtr(db), new CString(phys)));
+        // A ~filter THROUGH JOINS is a class mapping's: legend-engine 4.145.0 reads a View and a class mapping's set
+        // as one RelationalMappingSpecification (processRelationalMappingSpecification, pureToSQLQuery.pure), so an
+        // (INNER) first join replaces the main relation with the row-exploding one
+        // (getRelationalElementWithInnerJoin; JoinChainEmission.innerFilteredRelation, the class mapping's own) and
+        // any other filters the rows through the chain (applyTypeFilter; below, as MappingNormalizer's
+        // applyJoinMediatedFilter). The Studio roundtrip case STO_Relational-database-operations-and-join-types
+        // (2026-11-16); this was a refusal at the strict lift.
+        FilterMapping filter = view.filter();
+        String filterOwner = "view '" + viewName + "', " + owner(md, db);
+        if (filter instanceof FilterMapping.JoinMediated inner && "INNER".equals(inner.joinType())) {
+            DatabaseDefinition.FilterDefinition fd = JoinChainEmission.filterOf(inner, model, filterOwner);
+            source = JoinChainEmission.innerFilteredRelation(Pipeline.forView(source, views), db, phys, inner,
+                    fd.name(), fd.condition(), null, filterOwner, model, md);
+            filter = null;
+        }
         // JOIN-NAVIGATING view columns (orderPnl: @Join | T.COL) hoist as
         // slots on a real Pipeline — the same pass-2 machinery PM bodies
         // use; the JoinNavigation arm of RelOpTranslator then resolves
@@ -132,13 +147,14 @@ final class ViewRelation {
         // alias and the terminal read silently bound through another
         // chain's slot (audit 18 finding 2; slotFor is loud now).
         DatabaseDefinition.FilterDefinition viewFilterDef = null;
-        if (view.filter() != null) {
-            if (!(view.filter() instanceof FilterMapping.Direct direct)) {
-                throw new NotImplementedException(
-                        "view '" + viewName + "' used as a join target has a"
-                      + " join-mediated ~filter; only direct view filters"
-                      + " expand as relations. " + owner(md, db));
-            }
+        FilterMapping.JoinMediated viaJoins = null;
+        if (filter instanceof FilterMapping.JoinMediated jm) {
+            JoinChainEmission.emitJoinChain(vp, jm.joins(), jm.sourceDb(),
+                    viewName + "_filter", null, db, phys, r, model, md,
+                    /*classTypedTerminus*/ false);
+            viewFilterDef = JoinChainEmission.filterOf(jm, model, filterOwner);
+            viaJoins = jm;
+        } else if (filter instanceof FilterMapping.Direct direct) {
             String dbFqn = switch (direct.filter()) {
                 case FilterPointer.Cross c -> c.db();
                 case FilterPointer.Local l -> db;
@@ -173,8 +189,24 @@ final class ViewRelation {
         scope.put(phys, r);
         MappingNormalizer.seedAliasScope(scope, vp, r, phys);
         if (viewFilterDef != null) {
-            ValueSpecification cond = RelOpTranslator.translate(
-                    viewFilterDef.condition(), scope, null, r, vp.view());
+            ValueSpecification cond;
+            if (viaJoins != null) {
+                // the condition reads the chain's TERMINUS: legend-engine 4.145.0's applyTypeFilter re-points every
+                // reference to the last join's table at the last join node (reprocessAliases), so a chain that ends
+                // on the main table (a self-join) filters by the far row, as innerFilteredRelation binds it.
+                // MappingNormalizer.applyJoinMediatedFilter binds the main table first (a follow-up, not this case's)
+                String terminalAlias = JoinChainEmission.slotFor(vp, viaJoins.joins());
+                ValueSpecification terminalRow = new AppliedProperty(r, terminalAlias);
+                Map<String, ValueSpecification> filterScope = new LinkedHashMap<>();
+                String terminalTable = vp.aliasToTargetTable.get(terminalAlias);
+                if (terminalTable != null) {
+                    filterScope.put(terminalTable, terminalRow);
+                }
+                scope.forEach(filterScope::putIfAbsent);
+                cond = RelOpTranslator.translate(viewFilterDef.condition(), filterScope, terminalRow, r, vp.view());
+            } else {
+                cond = RelOpTranslator.translate(viewFilterDef.condition(), scope, null, r, vp.view());
+            }
             src = Calls.platform("filter", List.of(src,
                     new LambdaFunction(List.of(r), List.of(cond))));
         }
@@ -423,7 +455,8 @@ final class ViewRelation {
                 RelationalOperation.ColumnRef r = (RelationalOperation.ColumnRef) frameRewrite(
                         new RelationalOperation.ColumnRef(col.database(), col.table(), col.column()),
                         view, viewName, md);
-                yield new PropertyMapping.Column(col.propertyName(), col.database(), r.table(), r.column());
+                yield new PropertyMapping.Column(col.propertyName(), col.database(), r.table(), r.column(),
+                        col.binding());
             }
             case PropertyMapping.EnumeratedColumn ec -> {
                 RelationalOperation.ColumnRef r = (RelationalOperation.ColumnRef) frameRewrite(
@@ -433,7 +466,7 @@ final class ViewRelation {
                         ec.database(), r.table(), r.column());
             }
             case PropertyMapping.Expression ex -> new PropertyMapping.Expression(ex.propertyName(),
-                    frameRewrite(ex.expression(), view, viewName, md));
+                    frameRewrite(ex.expression(), view, viewName, md), ex.binding());
             case PropertyMapping.LocalProperty lp -> new PropertyMapping.LocalProperty(
                     lp.propertyName(), lp.type(), lp.multiplicity(),
                     pmThroughFrame(lp.body(), view, viewName, md));

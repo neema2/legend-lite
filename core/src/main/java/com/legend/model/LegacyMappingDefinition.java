@@ -46,13 +46,17 @@ import java.util.Objects;
  * @param associationMappings  per-association mappings ({@link AssociationMapping.Relational})
  * @param enumerationMappings  per-enumeration mappings; each translates source
  *                             values to enum members
+ * @param foreignSets          the class mappings in a store lite does not execute
+ *                             (ServiceStore): not mapped here, each kept by its
+ *                             set's identity alone
  */
 public record LegacyMappingDefinition(
         String qualifiedName,
         List<MappingInclude> includes,
         List<ClassMapping> classMappings,
         List<AssociationMapping> associationMappings,
-        List<EnumerationMapping> enumerationMappings)
+        List<EnumerationMapping> enumerationMappings,
+        List<ForeignSet> foreignSets)
         implements PackageableElement {
 
     public LegacyMappingDefinition {
@@ -61,6 +65,39 @@ public record LegacyMappingDefinition(
         classMappings = classMappings == null ? List.of() : List.copyOf(classMappings);
         associationMappings = associationMappings == null ? List.of() : List.copyOf(associationMappings);
         enumerationMappings = enumerationMappings == null ? List.of() : List.copyOf(enumerationMappings);
+        foreignSets = List.copyOf(Objects.requireNonNull(foreignSets, "foreignSets"));
+    }
+
+    /** A mapping with no class mapping in a foreign store (every mapping the
+     *  tests write by hand). */
+    public LegacyMappingDefinition(String qualifiedName, List<MappingInclude> includes,
+            List<ClassMapping> classMappings, List<AssociationMapping> associationMappings,
+            List<EnumerationMapping> enumerationMappings) {
+        this(qualifiedName, includes, classMappings, associationMappings, enumerationMappings, List.of());
+    }
+
+    /**
+     * A class mapping in a store lite does not execute (a ServiceStore one): the
+     * model maps nothing for it -- a query of its class finds no set -- and keeps
+     * only the set's identity, so a cross-store line naming the set reads it as
+     * that store's set rather than as a set the mapping lacks (legend-engine
+     * compiles such a line; it rejects a missing set). 2026-11-16, the Studio
+     * roundtrip's STO_ServiceStore-path-offset; register row S413.
+     *
+     * @param className the mapped class's name (an FQN once names resolve)
+     * @param setId     the declared set id, or null for the class's default
+     * @param store     the store kind as the grammar spells it ({@code ServiceStore})
+     */
+    public record ForeignSet(String className, @com.legend.base.Nullable String setId, String store) {
+        public ForeignSet {
+            Objects.requireNonNull(className, "className");
+            Objects.requireNonNull(store, "store");
+        }
+
+        /** The set's effective id: the declared one, else the class's default. */
+        public String effectiveId() {
+            return SetId.of(setId, className);
+        }
     }
 
     /**
@@ -76,7 +113,7 @@ public record LegacyMappingDefinition(
         Objects.requireNonNull(newClassMappings, "classMappings");
         return new LegacyMappingDefinition(
                 qualifiedName, includes, List.copyOf(newClassMappings),
-                associationMappings, enumerationMappings);
+                associationMappings, enumerationMappings, foreignSets);
     }
 
 

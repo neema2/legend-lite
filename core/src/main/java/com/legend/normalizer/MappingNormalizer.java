@@ -156,6 +156,22 @@ public final class MappingNormalizer {
             java.util.@com.legend.base.Nullable Map<String, String> wallSink, LiftedViews views) {
         Objects.requireNonNull(parsed, "parsed");
         Objects.requireNonNull(model, "model");
+        // an include dataspace marker is name resolution's to rewrite
+        // (NameResolver.resolveDataSpaceIncludes); one reaching a normalize,
+        // strict or tolerant, would be read as a mapping path (a tolerant
+        // build walled its mapping at resolution, with the reason, and
+        // dropped the marker)
+        for (PackageableElement el : parsed.elements()) {
+            List<MappingInclude> incs = el instanceof LegacyMappingDefinition lm ? lm.includes()
+                    : el instanceof CleanSheetMappingDefinition cs ? cs.includes() : List.of();
+            for (MappingInclude inc : incs) {
+                if (inc.dataSpace()) {
+                    throw new IllegalStateException("resolver bug: mapping '" + el.qualifiedName()
+                            + "' still holds the include dataspace marker '" + inc.mappingPath()
+                            + "' past name resolution");
+                }
+            }
+        }
         List<PackageableElement> out = new ArrayList<>(parsed.elements().size());
         List<FunctionDefinition> lifted = new ArrayList<>();
         java.util.Map<String, LegacyMappingDefinition> legacySurfaces =
@@ -321,6 +337,14 @@ public final class MappingNormalizer {
                         FunctionDefinition setFn =
                                 synthesizeClassMapping(md, cm, model, true, ledger);
                         lifted.add(setFn);
+                        String withheld = withheldReason(cm, md, model);
+                        if (withheld != null) {
+                            // typed (lifted), never bound: a fan-out
+                            // explosion (a lite gap)
+                            ledger.poison(new PoisonKey.ForSet(cm.className(),
+                                    ResolvedMapping.idOf(cm)), withheld);
+                            continue;
+                        }
                         classBindings.add(cm instanceof ClassMapping.Relational rSrc
                                 ? new MappingDefinition.ClassBinding.Relational(
                                         cm.className(), cm.setId(),
@@ -383,6 +407,15 @@ public final class MappingNormalizer {
                 continue;
             }
             lifted.add(fn);
+            String withheld = withheldReason(cm, md, model);
+            if (withheld != null) {
+                // a fan-out explosion: its constructor is typed (lifted, so
+                // the eager body pass checks it, as legend-engine's third
+                // pass does) and never bound -- a query through the class
+                // raises the reason
+                ledger.poison(new PoisonKey.ForClass(cm.className()), withheld);
+                continue;
+            }
             if (cm instanceof ClassMapping.Relational aggMain
                     && aggMain.aggregation() != null) {
                 AggregateViewLift.lift(md, aggMain, model, lifted, classBindings, declaredKeys, ledger);
@@ -886,12 +919,24 @@ public final class MappingNormalizer {
                         false, false));
                 continue;
             }
-            // a ROW-EXPRESSION binding (explicit-src form) rebinds $src to THIS row
+            // a ROW-EXPRESSION binding rebinds its row accessor ($src, or 4.151.0's $row) to THIS row
             ValueSpecification read = c.expr() != null
-                    ? ClassMapping.RelationFunction.Col.bindSrc(c.expr(), row)
+                    ? ClassMapping.RelationFunction.Col.bindRow(c.expr(), row)
                     : new AppliedProperty(row, java.util.Objects.requireNonNull(
                             c.column(), "column read on an embedded ~func col"));
-            if (c.enumMappingId() != null) {
+            if (c.binding() != null) {
+                if (c.enumMappingId() != null) {
+                    throw new ModelException(LegendCompileException.Phase.NORMALIZE,
+                            "Relation mapping property '" + c.property() + "' pairs Binding "
+                            + c.binding() + " with an EnumerationMapping: a Binding transformer"
+                            + " decodes a column's value; mapping=" + md.qualifiedName());
+                }
+                // a Binding transformer: the column's semi-structured value
+                // decoded into the class-typed property, as the relational
+                // property mapping's (VariantDecode; 2026-11-14)
+                read = VariantDecode.bound(c.binding(), ownerClassFqn, c.property(), read,
+                        md.qualifiedName(), model);
+            } else if (c.enumMappingId() != null) {
                 // enum-decoded column: the same source-value decode chain
                 // every other enum-mapped read synthesizes
                 read = translateEnumeratedSource(c.property(), c.enumMappingId(),
@@ -944,19 +989,9 @@ public final class MappingNormalizer {
             AssociationMapping.Cross xs, ModelBuilder model,
             String classA, String classB) {
         AssociationDefinition ad = model.findAssociation(xs.associationName()).orElseThrow();
-        // the line's [srcSet, tgtSet] ids select the sets: srcSet = the
-        // OWNING end's, tgtSet = the line's target end's (engine
-        // PropertyMappingBuilder uses them the same way)
-        String setA = null;
-        String setB = null;
-        if (!xs.propertyMappings2().isEmpty()) {
-            var l0 = xs.propertyMappings2().get(0);
-            boolean p1 = l0.propertyName().equals(ad.property1().propertyName());
-            setA = p1 ? l0.targetSetId() : l0.sourceSetId();
-            setB = p1 ? l0.sourceSetId() : l0.targetSetId();
-        }
-        XStorePureEnds.XEnd endA = XStorePureEnds.xstoreEndOf(md, classA, setA, model);
-        XStorePureEnds.XEnd endB = XStorePureEnds.xstoreEndOf(md, classB, setB, model);
+        XStorePureEnds.EndSets sets = XStorePureEnds.endSets(xs, ad);
+        XStorePureEnds.XEnd endA = XStorePureEnds.xstoreEndOf(md, classA, sets.a(), model);
+        XStorePureEnds.XEnd endB = XStorePureEnds.xstoreEndOf(md, classB, sets.b(), model);
         if (endA.pure() || endB.pure() || endA.lossyView() || endB.lossyView()) {
             // route A (docs/XSTORE_LEG.md): a Pure-set end has no relation
             // at normalize time — property-space emission, sets pinned by id.
@@ -1064,15 +1099,6 @@ public final class MappingNormalizer {
         // column view (the testRelational*/mixed sub-family)
         XStorePureEnds.XEnd endA = XStorePureEnds.xstoreEndOf(md, classA, null, model);
         XStorePureEnds.XEnd endB = XStorePureEnds.xstoreEndOf(md, classB, null, model);
-        if (endA.pure() || endB.pure()) {
-            throw new NotImplementedException(
-                    "ModelJoin association '" + mj.associationName()
-                    + "' has a Pure-set end — the property-space route"
-                    + " covers XStore only so far (mapping="
-                    + md.qualifiedName() + ")");
-        }
-        ClassMapping.RelationFunction rfA = endA.colsView();
-        ClassMapping.RelationFunction rfB = endB.colsView();
         if (mj.lambda().parameters().size() != 2) {
             throw new NotImplementedException(
                     "ModelJoin for '" + mj.associationName() + "' needs a"
@@ -1086,6 +1112,15 @@ public final class MappingNormalizer {
                 classA, classB, p0, p1, t0, t1);
         String aVar = pair[0];
         String bVar = pair[1];
+        if (endA.pure() || endB.pure()) {
+            // a Pure-set end has no relation at normalize time: the
+            // property-space route, as an XStore with a Pure-set end takes
+            // (2026-11-14; until then refused here)
+            return XStorePureEnds.synthesizeModelJoin(md, mj, classA, classB,
+                    endA, endB, aVar, bVar);
+        }
+        ClassMapping.RelationFunction rfA = endA.colsView();
+        ClassMapping.RelationFunction rfB = endB.colsView();
         Variable srcRow = new Variable("srcRow");
         Variable tgtRow = new Variable("tgtRow");
         Map<String, Variable> rowByVar = Map.of(aVar, srcRow, bVar, tgtRow);
@@ -1140,7 +1175,8 @@ public final class MappingNormalizer {
             // pipeline is "every instance of the source, mapped" — with
             // no source there is no extent to iterate, so there is
             // nothing this could execute. Refuse where the meaning runs
-            // out, not where the syntax does.
+            // out, not where the syntax does. KEPT by the user's ruling
+            // of 2026-11-17 (register S21).
             throw new ModelException(LegendCompileException.Phase.NORMALIZE,
                     "Pure class mapping for '" + pcm.className()
                     + "' in mapping '" + md.qualifiedName()
@@ -1175,36 +1211,191 @@ public final class MappingNormalizer {
                         model.knowledge().propertyType(tgt, pb.propertyName()) != null));
                 continue;
             }
-            if (pb.explode()) {
-                throw new ModelException(LegendCompileException.Phase.NORMALIZE,
-                        "M2M explosion '" + pb.propertyName() + "*' is a"
-                      + " roadmap feature (index-aligned zip fan-out — one"
-                      + " target instance per source element); mapping="
-                      + md.qualifiedName());
-            }
-            if (pb.enumMappingId() != null) {
-                // parsed and RECORDED (the mft/testExplosion corpus
-                // families) — dropping the transformer would read raw
-                // source values as enum names, silently wrong
-                throw new ModelException(LegendCompileException.Phase.NORMALIZE,
-                        "M2M enum transformer 'EnumerationMapping "
-                      + pb.enumMappingId() + "' on '" + pb.propertyName()
-                      + "' is a roadmap feature (source-value decode on"
-                      + " the M2M read); mapping=" + md.qualifiedName());
-            }
             String keyName = M2mRouteGuards.m2mBindingKey(pb, tgt, md,
                     b -> model.knowledge().propertyType(tgt, b) != null);
-            fields.put(keyName,
-                    new KeyExpression(m2mPropertyValue(pb, tgt, md, model, ledger), false, false));
+            ValueSpecification value = pb.enumMappingId() != null
+                    ? m2mEnumDecode(pb, srcFqn, pcm.className(), md, model)
+                    : m2mPropertyValue(pb, tgt, srcFqn, md, model, ledger);
+            if (pb.explode() && explodeRefusal(pb, srcFqn, pcm.className(), md, model) != null) {
+                // a FAN-OUT explosion: its element is typed against the
+                // property, as legend-engine's third pass types it (its
+                // multiplicity checked against [*]); the binding is
+                // withheld by the driver (withheldReason), so this body is
+                // never run
+                value = Calls.exact(Pure.Lite.TRUST_ONE, List.of(value));
+            }
+            fields.put(keyName, new KeyExpression(value, false, false));
         }
         return Calls.platform("map", List.of(source,
                 new LambdaFunction(List.of(srcBind),
                                    List.of(buildNewInstance(pcm.className(), fields)))));
     }
 
+
+    /**
+     * An explode property ({@code legalName*: $src.firstName}) whose transform is exactly one value. legend-engine
+     * 4.145.0 compiles any transform, checking its multiplicity against {@code [*]} ({@code
+     * ClassMappingThirdPassBuilder}), and runs a fan-out: per source, each explode property's transform is a list, the
+     * lists must have one size, and one target is made per index ({@code graphFetchInMemory.pure} {@code
+     * propertyExplosionCodes}; {@code inMemory.pure} {@code transformWithMapping} zips the same lists). A {@code [1]}
+     * transform makes one target per source, which is the plain binding: it composes so (null here). Any other -- a
+     * {@code [0..1]} one (no target when empty), a to-many one, a computed one whose multiplicity is not read here -- is
+     * a lite gap, this reason: the class mapping's body is typed and its binding withheld (the model builds, a query
+     * through the class is refused by name; register S418).
+     */
+    private static @com.legend.base.Nullable String explodeRefusal(ClassMapping.Pure.PropertyBinding pb,
+            @com.legend.base.Nullable String srcFqn, String ownerClassFqn, ResolvedMapping md, ModelBuilder model) {
+        Multiplicity.Concrete m = sourcePathMultiplicity(pb.expression(), srcFqn, model);
+        if (m != null && m.lowerBound() == 1 && m.upperBound() != null && m.upperBound() == 1) {
+            return null;
+        }
+        return "explode property '" + pb.propertyName() + "*' of '" + ownerClassFqn
+                + "' maps " + (m == null ? "a transform whose multiplicity is not a $src property path's"
+                        : "a transform of multiplicity " + m)
+                + ": legend-engine makes one target per element of the explode properties' lists; lite composes an"
+                + " explosion of exactly one value per source only (no fan-out yet); mapping=" + md.qualifiedName();
+    }
+
+    /**
+     * Why a Pure class mapping that compiles is not BOUND: a fan-out explosion ({@link #explodeRefusal}, a lite gap);
+     * null for every other set. Its function is lifted all the same, so the eager body pass types its bindings as
+     * legend-engine's third pass does.
+     */
+    private static @com.legend.base.Nullable String withheldReason(ClassMapping cm, ResolvedMapping md,
+            ModelBuilder model) {
+        if (!(cm instanceof ClassMapping.Pure pcm)) {
+            return null;
+        }
+        for (ClassMapping.Pure.PropertyBinding pb : pcm.propertyBindings()) {
+            String fanOut = pb.explode() ? explodeRefusal(pb, pcm.sourceClass(), pcm.className(), md, model) : null;
+            if (fanOut != null) {
+                return fanOut;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * An M2M enum transformer ({@code side: EnumerationMapping M: $src.code}):
+     * the source value decoded by the enumeration mapping, as legend-engine's
+     * in-memory M2M does it (graphFetchInMemory.pure {@code generateTransformer},
+     * its {@code toDomainValue}; probed on the engine 2026-11-14): an empty
+     * source is empty, a mapped code is its enum value, and any other code
+     * RAISES {@code Unmapped value: <code>} -- never a null (the relational
+     * decode's {@code []} tail is the relational read's, F10).
+     *
+     * <p>The decode reads the source once per row, so the source's
+     * multiplicity is read from the model: a {@code $src} property path
+     * ({@code $src.code}, {@code $src.a.code}). A {@code [1]} source decodes
+     * bare (every arm is {@code [1]}); a {@code [0..1]} source is guarded by
+     * its emptiness. A to-many source and a computed source expression are
+     * refused by name: their decode is a per-element map, which the M2M
+     * composition does not substitute yet.
+     */
+    private static ValueSpecification m2mEnumDecode(
+            ClassMapping.Pure.PropertyBinding pb, String srcFqn, String ownerClassFqn,
+            ResolvedMapping md, ModelBuilder model) {
+        Multiplicity.Concrete srcMult = sourcePathMultiplicity(pb.expression(), srcFqn, model);
+        if (srcMult == null || srcMult.upperBound() == null || srcMult.upperBound() > 1) {
+            throw new ModelException(LegendCompileException.Phase.NORMALIZE,
+                    "M2M enum transformer 'EnumerationMapping " + pb.enumMappingId()
+                  + "' on '" + pb.propertyName() + "' decodes "
+                  + (srcMult == null ? "a computed source expression"
+                          : "a to-many source")
+                  + ": lite decodes a to-one $src property path (a per-element"
+                  + " decode is not composed on the M2M read yet); mapping="
+                  + md.qualifiedName());
+        }
+        ValueSpecification src = pb.expression();
+        // the engine's IllegalArgumentException text, raised by the database;
+        // the else branch is reached only by a present value, so the
+        // to-one read is true by construction (trustOne, no guard)
+        ValueSpecification code = srcMult.lowerBound() >= 1 ? src
+                : Calls.exact(Pure.Lite.TRUST_ONE, List.of(src));
+        ValueSpecification decoded = translateEnumeratedSource(pb.propertyName(),
+                pb.enumMappingId(), src, md, ownerClassFqn, model,
+                enumFqn -> Calls.form(com.legend.platform.CoreFn.CAST, List.of(
+                        Calls.exact(Pure.FAIL__STRING_1.qualifiedName(), List.of(
+                                Calls.exact(Pure.STRING_PLUS__STRING_MANY.qualifiedName(),
+                                        List.of(new PureCollection(List.of(
+                                                new CString("Unmapped value: "),
+                                                Calls.exact(Pure.TO_STRING__ANY_1.qualifiedName(),
+                                                        List.of(code)))))))),
+                        new TypeAnnotation.Named(new TypeExpression.NameRef(enumFqn)))));
+        if (srcMult.lowerBound() >= 1) {
+            return decoded;
+        }
+        return Calls.form(com.legend.platform.CoreFn.IF, List.of(
+                Calls.exact(Pure.IS_EMPTY__T_MANY.qualifiedName(), List.of(src)),
+                new LambdaFunction(List.of(), List.of(new PureCollection(List.of()))),
+                new LambdaFunction(List.of(), List.of(decoded))));
+    }
+
+    /** The multiplicity of a {@code $src} property path over {@code srcFqn}
+     *  ({@code $src.p}, {@code $src.p.q}: the product of each step's declared
+     *  multiplicity), or null for any other expression. */
+    private static Multiplicity.@com.legend.base.Nullable Concrete sourcePathMultiplicity(
+            ValueSpecification expr, @com.legend.base.Nullable String srcFqn, ModelBuilder model) {
+        List<String> path = new ArrayList<>();
+        ValueSpecification at = expr;
+        while (at instanceof AppliedProperty ap) {
+            path.add(0, ap.property());
+            at = ap.receiver();
+        }
+        if (!(at instanceof Variable v) || !v.name().equals("src") || path.isEmpty()) {
+            return null;
+        }
+        String owner = srcFqn;
+        int lower = 1;
+        Integer upper = 1;
+        for (String step : path) {
+            java.util.Optional<ClassDefinition> cd = owner == null ? java.util.Optional.empty()
+                    : model.knowledge().hierarchyClass(owner);
+            if (cd.isEmpty()) {
+                return null;   // a step past a value: not a $src property path
+            }
+            ClassDefinition.PropertyDefinition prop = model.knowledge().propertyDef(cd.get(), step);
+            if (prop == null || !(prop.multiplicity() instanceof Multiplicity.Concrete m)) {
+                return null;
+            }
+            lower = Math.min(lower, m.lowerBound());
+            upper = upper == null || m.upperBound() == null ? null : upper * m.upperBound();
+            owner = prop.type() instanceof TypeExpression.NameRef nr ? nr.name() : null;
+        }
+        return new Multiplicity.Concrete(lower, upper);
+    }
+
+    /** The type of a {@code $src} property path over {@code srcFqn} ({@code $src}, {@code $src.p}, {@code $src.p.q}:
+     *  the last step's declared type), or null for any other expression. */
+    private static @com.legend.base.Nullable String sourcePathType(ValueSpecification expr,
+            @com.legend.base.Nullable String srcFqn, ModelBuilder model) {
+        List<String> path = new ArrayList<>();
+        ValueSpecification at = expr;
+        while (at instanceof AppliedProperty ap) {
+            path.add(0, ap.property());
+            at = ap.receiver();
+        }
+        if (!(at instanceof Variable v) || !v.name().equals("src") || srcFqn == null) {
+            return null;
+        }
+        String owner = srcFqn;
+        for (String step : path) {
+            java.util.Optional<ClassDefinition> cd = model.knowledge().hierarchyClass(owner);
+            if (cd.isEmpty()) {
+                return null;   // a step past a value: not a $src property path
+            }
+            ClassDefinition.PropertyDefinition prop = model.knowledge().propertyDef(cd.get(), step);
+            if (prop == null || !(prop.type() instanceof TypeExpression.NameRef nr)) {
+                return null;
+            }
+            owner = nr.name();
+        }
+        return owner;
+    }
+
     private static ValueSpecification m2mPropertyValue(
             ClassMapping.Pure.PropertyBinding pb, @com.legend.base.Nullable ClassDefinition tgt,
-            ResolvedMapping md, ModelBuilder model, MappingLedger ledger) {
+            @com.legend.base.Nullable String srcFqn, ResolvedMapping md, ModelBuilder model, MappingLedger ledger) {
         if (tgt == null) return pb.expression();
         TypeExpression propType = model.knowledge().propertyType(tgt, pb.propertyName());
         if (propType == null && pb.propertyName().endsWith("AllVersions")) {
@@ -1215,11 +1406,27 @@ public final class MappingNormalizer {
         String innerFqn = nr.name();
         if (model.knowledge().hierarchyClass(innerFqn).isEmpty()) return pb.expression();
         if (!ledger.isMapped(innerFqn)) {
-            throw new ModelException(LegendCompileException.Phase.NORMALIZE, 
-                    "M2M class-typed property '" + pb.propertyName() + "' on '"
-                  + tgt.qualifiedName() + "' targets unmapped class '" + innerFqn
-                  + "'; map '" + innerFqn + "' or use Embedded. Mapping="
-                  + md.qualifiedName());
+            // a PASS-THROUGH: the class is mapped nowhere in the mapping, so
+            // the transform's own objects are the property's values.
+            // legend-engine 4.145.0 compiles it when the property's type is
+            // among the transform's generalizations (ClassMappingThirdPass
+            // Builder allowComplexPropertyMappingPassThrough; the target id,
+            // the class's default one or none, is MappingValidation's
+            // check), else "Can't find class mapping '<default id>'" -- read
+            // here for a $src property path, by the constructor's own
+            // subsumption for any other transform -- and runs it
+            // (testComplexTypePassThrough*). The raw value composes; a read
+            // through it is refused by the M2M child and slot refusals, a
+            // lite gap (register S419; legend-studio's roundtrip case
+            // DSL_Snowflake-m2m-udf-function-activator, 2026-11-16)
+            String transformType = sourcePathType(pb.expression(), srcFqn, model);
+            if (transformType != null && !model.knowledge().isSubtype(transformType, innerFqn)) {
+                throw new ModelException(LegendCompileException.Phase.MAPPING, "Can't find class mapping '"
+                        + (pb.targetSetId() != null ? pb.targetSetId()
+                                : com.legend.model.SetId.defaultFor(innerFqn))
+                        + "'; mapping=" + md.qualifiedName());
+            }
+            return pb.expression();
         }
         // audit 21a heads honored: the line's [targetSetId] route rides
         // the cast — the whole-$src graph child dispatches by it. No
@@ -1560,10 +1767,48 @@ public final class MappingNormalizer {
             // to(get(...), @Type) — typed text-extraction + cast. Engine uses
             // `to` (not `cast`) so the Variant text access (->>) strips JSON
             // string quotes before casting to the declared property type.
-            ValueSpecification value = (prop.type() instanceof TypeExpression.NameRef nr)
-                    ? Calls.platform("to", List.of(get,
-                            new TypeAnnotation.Named(new TypeExpression.NameRef(nr.name()))))
-                    : get;
+            // A TO-MANY property reads its array element by element:
+            // toMany(get(...), @Type), at least one where the property says
+            // so (toOneMany) -- `to` read it as ONE value, refused as [0..1]
+            // against a [1..*] property and a silent truncation against [*]
+            // (2026-11-14, the Studio roundtrip's DSL_Mapping-basic-M2M).
+            ValueSpecification value = get;
+            if (prop.type() instanceof TypeExpression.NameRef nr) {
+                TypeAnnotation.Named type = new TypeAnnotation.Named(
+                        new TypeExpression.NameRef(nr.name()));
+                Multiplicity.Concrete m = prop.multiplicity() instanceof Multiplicity.Concrete c ? c : null;
+                boolean many = m == null || m.upperBound() == null || m.upperBound() > 1;
+                if (!many) {
+                    value = Calls.platform("to", List.of(get, type));
+                } else {
+                    if (model.knowledge().hierarchyClass(nr.name()).isPresent()) {
+                        // a nested ARRAY of objects: lite serves a nested
+                        // JSON object as an embedded instance only. A lite
+                        // gap, not an engine refusal (the engine accepts the
+                        // model), so by §6's line it is a
+                        // NotImplementedException: the model builds, the
+                        // class is poisoned, and every query through it is
+                        // refused by name (2026-11-16, the review of
+                        // neema2/legend-lite#113 -- until then a
+                        // ModelException that failed the whole strict build).
+                        // The CLASS, not the key: the resolver reads a JSON
+                        // source's properties from the class declaration
+                        // (JsonSourceFrame), where a deferred key is not
+                        // seen -- a read through this property answered
+                        // null (measured that day)
+                        throw new NotImplementedException(
+                                "JSON-source class '" + rcm.className() + "' property '"
+                              + prop.name() + "' is a to-many class-typed property ("
+                              + nr.name() + "): lite does not read a nested array of"
+                              + " objects from a JSON source yet; mapping="
+                              + md.qualifiedName());
+                    }
+                    value = Calls.form(com.legend.platform.CoreFn.TO_MANY, List.of(get, type));
+                    if (m != null && m.lowerBound() >= 1) {
+                        value = Calls.exact(Pure.TO_ONE_MANY__T_MANY.qualifiedName(), List.of(value));
+                    }
+                }
+            }
             fields.put(prop.name(), new KeyExpression(value, false, false));
         }
         return Calls.platform("map", List.of(source,
@@ -1744,7 +1989,7 @@ public final class MappingNormalizer {
 
         // Apply ~groupBy (with aggregate decomposition).
         if (!rcm.groupBy().isEmpty()) {
-            p.expr = GroupBySynthesis.applyGroupBy(p.expr, rcm, rowBind, mainTable, p, md);
+            p.expr = GroupBySynthesis.applyGroupBy(p.expr, rcm, rowBind, mainDb, mainTable, p, md, model);
             // stage 2: the deferred class-typed Join PMs navigate the
             // GROUPED relation — the join condition's source-side reads
             // redirect to the grouped OUTPUT columns (a condition column
@@ -1994,8 +2239,14 @@ public final class MappingNormalizer {
                                     rowBind, pipeline.view()),
                             md, ownerClassFqn, model),
                     false);
-            case PropertyMapping.Column col -> new CtorField(col.propertyName(),
-                    DeclaredCoercions.coerceColumnToDeclared(
+            case PropertyMapping.Column col -> new CtorField(col.propertyName(), col.binding() != null
+                    // a Binding transformer: the column's semi-structured value
+                    // decoded into the class-typed property (VariantDecode)
+                    ? VariantDecode.bound(col.binding(), ownerClassFqn, col.propertyName(),
+                            RelOpTranslator.columnRead(col.table(), col.column(), tableScope, defaultTable,
+                                    pipeline.view()),
+                            md.qualifiedName(), model)
+                    : DeclaredCoercions.coerceColumnToDeclared(
                             RelOpTranslator.columnRead(col.table(), col.column(), tableScope, defaultTable, pipeline.view()),
                             col, ownerClassFqn, model, pipeline.ledger()),
                     false);
@@ -2003,6 +2254,14 @@ public final class MappingNormalizer {
                     translateEnumeratedColumn(ec, tableScope, defaultTable, md, pipeline,
                             ownerClassFqn, model),
                     false);
+            case PropertyMapping.Expression expr when expr.binding() != null ->
+                    // engine: any relational operation may be bound; lite
+                    // decodes a bound column (plain or at a join's end) -- a lite
+                    // gap, refused by name, the class mapping poisoned
+                    throw new NotImplementedException("property '" + expr.propertyName()
+                            + "': Binding " + expr.binding() + " over a computed relational"
+                            + " expression is not supported yet (lite decodes a bound column,"
+                            + " or a join's terminal column); mapping=" + md.qualifiedName());
             case PropertyMapping.Expression expr -> new CtorField(expr.propertyName(),
                     DeclaredCoercions.coerceToDeclaredNumeric(
                             RelOpTranslator.translate(expr.expression(), tableScope, null,
@@ -2027,7 +2286,12 @@ public final class MappingNormalizer {
                 ValueSpecification read = RelOpTranslator.translate(
                         jtc.terminalColumn(), scope, null, rowBind, pipeline.view());
                 yield new CtorField(jtc.propertyName(),
-                        jtc.enumMapped()
+                        jtc.binding() != null
+                                // a Binding transformer over the joined row's
+                                // column (`@J1 > @J2 | T.COL`): the same decode
+                                ? VariantDecode.bound(jtc.binding(), ownerClassFqn,
+                                        jtc.propertyName(), read, md.qualifiedName(), model)
+                                : jtc.enumMapped()
                                 ? translateEnumeratedSource(jtc.propertyName(),
                                         jtc.enumMappingId(), read, md,
                                         ownerClassFqn, model)
@@ -2041,6 +2305,17 @@ public final class MappingNormalizer {
                         false);
             }
             case PropertyMapping.LocalProperty lp -> {
+                if (lp.body() instanceof PropertyMapping.Column c && c.binding() != null
+                        || lp.body() instanceof PropertyMapping.JoinTerminalColumn j && j.binding() != null
+                        || lp.body() instanceof PropertyMapping.Expression e && e.binding() != null) {
+                    // the engine's refusal (HelperRelationalBuilder): a local
+                    // property is primitive-typed
+                    throw new ModelException(LegendCompileException.Phase.NORMALIZE,
+                            "Binding transformer can be used with complex properties only. Property '"
+                            + lp.propertyName() + "' return type is '"
+                            + (lp.type() instanceof TypeExpression.NameRef nr ? nr.name() : lp.type())
+                            + "'; mapping=" + md.qualifiedName());
+                }
                 CtorField inner = translatePmToField(lp.body(), rowBind, tableScope,
                         defaultTable, pipeline, ownerClassFqn, md, model, false);
                 yield new CtorField(lp.propertyName(), inner.value(), true);
@@ -2379,6 +2654,18 @@ public final class MappingNormalizer {
     static ValueSpecification translateEnumeratedSource(
             String propertyName, @com.legend.base.Nullable String enumMappingId, ValueSpecification sourceRead,
             ResolvedMapping md, String ownerClassFqn, ModelBuilder model) {
+        return translateEnumeratedSource(propertyName, enumMappingId, sourceRead, md,
+                ownerClassFqn, model, enumFqn -> new PureCollection(List.of()));
+    }
+
+    /** {@link #translateEnumeratedSource(String, String, ValueSpecification,
+     *  ResolvedMapping, String, ModelBuilder)} with the chain's last arm, the
+     *  value of a code no entry maps, given the enumeration's FQN: the
+     *  relational read's {@code []}, the M2M read's raise. */
+    static ValueSpecification translateEnumeratedSource(
+            String propertyName, @com.legend.base.Nullable String enumMappingId, ValueSpecification sourceRead,
+            ResolvedMapping md, String ownerClassFqn, ModelBuilder model,
+            java.util.function.Function<String, ValueSpecification> unmapped) {
         EnumerationMapping em = null;
         List<EnumerationMapping> ems =
                 md.enumerationMappingsWithIncludes();
@@ -2424,7 +2711,7 @@ public final class MappingNormalizer {
                                     + " enum type exists (or the property is not enum-typed);"
                                     + " mapping=" + md.qualifiedName());
         }
-        ValueSpecification tail = new PureCollection(List.of());
+        ValueSpecification tail = unmapped.apply(em.enumName());
         List<EnumerationMapping.EnumValueMapping> values = em.valueMappings();
         // An entry naming a NON-EXISTENT enum value is a COMPILE error —
         // the real engine resolves every entry against the enumeration

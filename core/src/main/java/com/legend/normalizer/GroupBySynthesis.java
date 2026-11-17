@@ -131,8 +131,9 @@ final class GroupBySynthesis {
 
     static ValueSpecification applyGroupBy(ValueSpecification source,
                                                   ClassMapping.Relational rcm,
-                                                  Variable rowBind, String mainTable,
-                                                  Pipeline p, ResolvedMapping md) {
+                                                  Variable rowBind, String mainDb, String mainTable,
+                                                  Pipeline p, ResolvedMapping md,
+                                                  com.legend.compiler.ModelBuilder model) {
         Map<String, ValueSpecification> scope = new LinkedHashMap<>();
         scope.put(mainTable, rowBind);
         MappingNormalizer.seedAliasScope(scope, p, rowBind, mainTable);
@@ -189,8 +190,11 @@ final class GroupBySynthesis {
         // Build key ColSpecs.
         List<ColSpec> keyCols = new ArrayList<>(keyOps.size());
         for (int i = 0; i < keyOps.size(); i++) {
-            ValueSpecification keyValue = RelOpTranslator.translate(keyOps.get(i), scope, null,
-                    rowBind, p.view());
+            RelationalOperation key = keyOps.get(i);
+            ValueSpecification keyValue = key instanceof RelationalOperation.ColumnRef cr
+                    && unreached(cr, scope, p)
+                    ? mainRowColumn(cr, rowBind, mainDb, mainTable, model, md)
+                    : RelOpTranslator.translate(key, scope, null, rowBind, p.view());
             keyCols.add(new ColSpec(keyNames[i],
                     new LambdaFunction(List.of(rowBind), List.of(keyValue)), null));
         }
@@ -221,6 +225,44 @@ final class GroupBySynthesis {
         // upstream's relation groupBy takes bare column names; batch 5 leg 5d)
         return Calls.exact(Pure.Lite.GROUP_BY_COMPUTED_KEYS, List.of(source,
                 new ColSpecArray(keyCols), new ColSpecArray(aggCols)));
+    }
+
+    /** Whether a column key names a table the class's rows do not reach: neither the main table nor a table a join
+     *  of the mapping lands on (and not one it lands on twice -- the translator's ambiguity wall keeps that). */
+    private static boolean unreached(RelationalOperation.ColumnRef key,
+            Map<String, ValueSpecification> scope, Pipeline p) {
+        String table = MappingNormalizer.canonicalTable(key.table());
+        return !scope.containsKey(table) && !p.view().ambiguousTables().contains(table);
+    }
+
+    /**
+     * A {@code ~groupBy} column key over a table the class does not reach groups by the MAIN relation's column of
+     * that name, as legend-engine 4.145.0 runs it: {@code pureToSQLQuery.pure}'s {@code applyGroupBy} re-aliases every
+     * key column onto the root node ({@code reprocessAliases(first = <the key's alias>, second = <the last join node of
+     * the bare root>)}) and the SQL writer prints that alias and the column's name ({@code group by "root".ID} for
+     * {@code ~groupBy(FIRM.ID)} over {@code ~mainTable PERSON}); its compiler resolves the key against the database
+     * alone (2026-11-16, the Studio roundtrip's STO_Relational-relational-mapping-groupby; until then refused at
+     * compile, "ColumnRef references table ... not in scope").
+     *
+     * <p>A main relation with no column of that name (exact): the engine compiles the mapping and its database fails
+     * every query of the class. Lite cannot send that statement; the class is withheld and a query of it is refused by
+     * name -- register row S414, pending.
+     */
+    private static ValueSpecification mainRowColumn(RelationalOperation.ColumnRef key, Variable rowBind,
+            String mainDb, String mainTable, com.legend.compiler.ModelBuilder model, ResolvedMapping md) {
+        boolean has = model.knowledge().table(mainDb, mainTable)
+                .map(t -> t.columns().stream().anyMatch(c -> c.name().equals(key.column())))
+                .orElseGet(() -> model.findView(mainDb, mainTable)
+                        .map(v -> v.columnMappings().stream().anyMatch(c -> c.name().equals(key.column())))
+                        .orElse(false));
+        if (!has) {
+            throw new NotImplementedException("~groupBy key " + key.table() + "." + key.column()
+                    + " names a table the class mapping does not reach, so it groups by the main relation's column '"
+                    + key.column() + "' (legend-engine's \"root\"." + key.column() + "), and '" + mainTable
+                    + "' has no such column: legend-engine's database fails the query, lite refuses it"
+                    + " (register row S414); mapping=" + md.qualifiedName());
+        }
+        return new AppliedProperty(rowBind, key.column());
     }
 
     /**
@@ -269,6 +311,15 @@ final class GroupBySynthesis {
     }
 
     static @com.legend.base.Nullable RelationalOperation pmAsRelationalOp(PropertyMapping pm) {
+        if (pm instanceof PropertyMapping.Column c && c.binding() != null
+                || pm instanceof PropertyMapping.JoinTerminalColumn j && j.binding() != null
+                || pm instanceof PropertyMapping.Expression e && e.binding() != null) {
+            // a Binding transformer's decode under ~groupBy is not built:
+            // refused by name, never read as the raw column (2026-11-14)
+            throw new com.legend.error.NotImplementedException(
+                    "property '" + pm.propertyName() + "' is bound by a Binding transformer"
+                    + " under a ~groupBy mapping: not supported yet");
+        }
         if (pm instanceof PropertyMapping.Column col) {
             return new RelationalOperation.ColumnRef(col.database(), col.table(), col.column());
         }

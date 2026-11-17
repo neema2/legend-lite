@@ -598,6 +598,35 @@ class DynaFunctionIntegrationTest extends AbstractDatabaseTest {
             assertTrue(labels.contains("Active"));
             assertTrue(labels.contains("Inactive"));
         }
+
+        /** A branch that is the store's NULL literal is the absent value of the other branch's type, as legend-engine
+         *  4.145.0's relational type inference reads it (sqlNull is Other, which getSafeType absorbs): the property
+         *  typed String[0..1] / Integer[0..1] compiles, and the rows read NULL where the branch is taken (the Studio
+         *  roundtrip case STO_Relational-mapping-join-chains-and-distinct, 2026-11-16). A parenthesized branch,
+         *  (sqlNull()), is the same value. */
+        @Test
+        @DisplayName("if/case with a sqlNull() branch types as the other branch, NULL where taken")
+        void testSqlNullBranch() throws SQLException {
+            sql("CREATE TABLE TQ (ID INT, QTY INT)",
+                "INSERT INTO TQ VALUES (1, 5000), (2, 10)");
+            String model = withRuntime("""
+                    ###Pure
+                    import model::*;
+                    import store::*;
+
+                    Class model::R { id: Integer[1]; bucket: String[0..1]; code: Integer[0..1]; }
+                    ###Relational
+                    Database store::DB ( Table TQ ( ID INTEGER, QTY INTEGER ) )
+                    ###Mapping
+                    import model::*;
+                    import store::*;
+                    Mapping model::M ( R: Relational { ~mainTable [store::DB] TQ id: [store::DB] TQ.ID, bucket: if(greaterThan([store::DB] TQ.QTY, 1000), 'LARGE', (sqlNull())), code: case(greaterThan([store::DB] TQ.QTY, 1000), sqlNull(), lessThan([store::DB] TQ.QTY, 100), 1, 2) } )
+                    """, "store::DB", "model::M");
+            var result = exec(model,
+                    "model::R.all()->sortBy(x|$x.id)->project([x|$x.bucket, x|$x.code], ['bucket', 'code'])");
+            assertEquals(java.util.Arrays.asList("LARGE", null), colStr(result, 0));
+            assertEquals(java.util.Arrays.asList(null, 1), colInt(result, 1));
+        }
     }
 
     // ==================== Misc DynaFunctions ====================

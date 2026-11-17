@@ -138,9 +138,13 @@ class OneIndexTest {
         MappingDefinition md = ctx.findMapping("w::M").orElseThrow();
         assertTrue(md.facts().poisons().isEmpty(), md.facts().poisons().toString());
         assertTrue(ctx.mappingPoison("w::M", "w::Person").isEmpty());
-        // an unmapped class-typed target is a USER-model error: a strict
-        // build rejects it (§6's line, step 6); a MODULE build stamps a
-        // per-class POISON under the class key, raised at use
+        // a class-typed target mapped nowhere, from a transform not of its
+        // type, is a USER-model error (legend-engine's "Can't find class
+        // mapping"): a strict build rejects it (§6's line, step 6); a MODULE
+        // build stamps a per-class POISON under the class key, raised at use.
+        // (`firm: $src.firm`, the transform of the property's own type, is a
+        // pass-through the engine compiles: since 2026-11-16, the Studio
+        // roundtrip's M2M cases, lite compiles it too)
         ModelContext poisoned = Compiler.buildModule(Compiler.parseSources(List.of(
                 new Compiler.ModelSource("m.pure", """
                 Class w::Person { name: String[1]; firm: w::Firm[0..1]; }
@@ -153,12 +157,12 @@ class OneIndexTest {
                 )
                 ###Mapping
                 Mapping w::M2 (
-                  *w::Person : Pure { ~src w::Person name: $src.name, firm: $src.firm }
+                  *w::Person : Pure { ~src w::Person name: $src.name, firm: $src.name }
                 )
                 """))).model()).context();
         String reason = poisoned.findMapping("w::M2").orElseThrow().facts().poisons()
                 .get(new com.legend.model.PoisonKey.ForClass("w::Person"));
-        assertTrue(reason != null && reason.contains("w::Firm"), String.valueOf(reason));
+        assertTrue(reason != null && reason.contains("Can't find class mapping 'w_Firm'"), String.valueOf(reason));
         assertEquals(reason, poisoned.mappingPoison("w::M2", "w::Person").orElseThrow());
     }
 

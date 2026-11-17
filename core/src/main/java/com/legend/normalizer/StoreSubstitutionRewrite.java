@@ -112,7 +112,7 @@ final class StoreSubstitutionRewrite {
         return switch (p) {
             case PropertyMapping.Column c -> new PropertyMapping.Column(
                     c.propertyName(), java.util.Objects.requireNonNull(db(c.database(), m)),
-                    c.table(), c.column());
+                    c.table(), c.column(), c.binding());
             case PropertyMapping.EnumeratedExpression e ->
                     new PropertyMapping.EnumeratedExpression(e.propertyName(),
                             e.enumMappingId(), op(e.expression(), m));
@@ -131,9 +131,9 @@ final class StoreSubstitutionRewrite {
                             java.util.Objects.requireNonNull(db(j.database(), m)),
                             j.joins().stream().map(c -> chain(c, m)).toList(),
                             op(j.terminalColumn(), m), j.enumMappingId(),
-                            j.enumMapped());
+                            j.enumMapped(), j.binding());
             case PropertyMapping.Expression e -> new PropertyMapping.Expression(
-                    e.propertyName(), op(e.expression(), m));
+                    e.propertyName(), op(e.expression(), m), e.binding());
             case PropertyMapping.Embedded e -> new PropertyMapping.Embedded(
                     e.propertyName(),
                     e.propertyMappings().stream().map(x -> pm(x, m)).toList());
@@ -399,6 +399,6 @@ final class StoreSubstitutionRewrite {
                 out.classMappings(),
                 out.associationMappings().stream()
                         .map(am -> applyAssoc(am, q)).toList(),
-                out.enumerationMappings());
+                out.enumerationMappings(), out.foreignSets());
     }
 }

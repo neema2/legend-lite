@@ -2801,6 +2801,114 @@ class RelationalMappingIntegrationTest {
             assertTrue(labels.stream().anyMatch(l -> l.contains("Widget $")));
         }
 
+        /** A View's ~filter through joins is a class mapping's (legend-engine 4.145.0 reads both through
+         *  processRelationalMappingSpecification): an (INNER) first join row-explodes (getRelationalElementWithInnerJoin:
+         *  one row per matching child), any other filters the rows through the chain. It was refused at the strict lift
+         *  (the Studio roundtrip case STO_Relational-database-operations-and-join-types, 2026-11-16). */
+        @Test
+        @DisplayName("View ~filter through joins: (INNER) one row per matching child, untyped through the chain")
+        void testViewFilterThroughJoins() throws SQLException {
+            sql("CREATE TABLE FIRMS (ID INT, NAME VARCHAR, TYPE VARCHAR)",
+                "CREATE TABLE PERSONS (ID INT, NAME VARCHAR, FIRM_ID INT)",
+                "INSERT INTO FIRMS VALUES (1, 'Acme', 'CORP'), (2, 'Shell', 'LLC')",
+                "INSERT INTO PERSONS VALUES (1, 'Alice', 1), (2, 'Bob', 2), (3, 'Carl', 1), (4, 'Dana', NULL)");
+
+            String base = """
+                ###Pure
+                import store::*;
+                import test::*;
+
+                Class test::Person { id: Integer[1]; name: String[1]; }
+                Class test::Firm { id: Integer[1]; name: String[1]; }
+                ###Relational
+                Database store::DB (
+                    Table FIRMS (ID INT PRIMARY KEY, NAME VARCHAR(50), TYPE VARCHAR(10))
+                    Table PERSONS (ID INT PRIMARY KEY, NAME VARCHAR(50), FIRM_ID INT)
+                    Join Person_Firm(PERSONS.FIRM_ID = FIRMS.ID)
+                    Filter CorpFirm(FIRMS.TYPE = 'CORP')
+                    Filter Staffed(PERSONS.ID > 0)
+                    View CorpPersonInner (
+                        ~filter [store::DB] (INNER) @Person_Firm | [store::DB] CorpFirm
+                        id: PERSONS.ID PRIMARY KEY,
+                        name: PERSONS.NAME
+                    )
+                    View CorpPersonVia (
+                        ~filter [store::DB] @Person_Firm | [store::DB] CorpFirm
+                        id: PERSONS.ID PRIMARY KEY,
+                        name: PERSONS.NAME
+                    )
+                    View StaffedFirm (
+                        ~filter [store::DB] (INNER) @Person_Firm | [store::DB] Staffed
+                        id: FIRMS.ID,
+                        name: FIRMS.NAME
+                    )
+                )
+                ###Mapping
+                import store::*;
+                import test::*;
+                Mapping test::Inner (
+                    test::Person: Relational { ~mainTable [store::DB] CorpPersonInner
+                        id: [store::DB] CorpPersonInner.id, name: [store::DB] CorpPersonInner.name }
+                    test::Firm: Relational { ~mainTable [store::DB] StaffedFirm
+                        id: [store::DB] StaffedFirm.id, name: [store::DB] StaffedFirm.name }
+                )
+                Mapping test::Via (
+                    test::Person: Relational { ~mainTable [store::DB] CorpPersonVia
+                        id: [store::DB] CorpPersonVia.id, name: [store::DB] CorpPersonVia.name }
+                )
+                """;
+            String model = withRuntime(base, "store::DB", "test::Inner");
+
+            var inner = exec(model, "test::Person.all()->project(~[id, name])->sort(~id->ascending())");
+            assertEquals(List.of("Alice", "Carl"), colStr(inner, 1));
+            // the engine's INNER realization keeps one firm row per matching person: Acme twice
+            var firms = exec(model, "test::Firm.all()->project(~[name])->sort(~name->ascending())");
+            assertEquals(List.of("Acme", "Acme", "Shell"), colStr(firms, 0));
+
+            var through = exec(withRuntime(base, "store::DB", "test::Via"), "test::Person.all()->project(~[id, name])->sort(~id->ascending())");
+            assertEquals(List.of("Alice", "Carl"), colStr(through, 1));
+        }
+
+        /** A View's ~filter through a join that ends back on its main table (a self-join) filters by the chain's
+         *  FAR row: legend-engine 4.145.0's applyTypeFilter re-points the last join's table at the last join node
+         *  (the independent review of the Studio roundtrip PR, 2026-11-16, found the main row read instead). */
+        @Test
+        @DisplayName("View ~filter through a self-join reads the chain's far row")
+        void testViewFilterThroughASelfJoinReadsTheFarRow() throws SQLException {
+            sql("CREATE TABLE STAFF (ID INT, NAME VARCHAR, AGE INT, MANAGER_ID INT)",
+                "INSERT INTO STAFF VALUES (1, 'Ann', 70, NULL), (2, 'Bea', 30, 1), (3, 'Cal', 70, 2), (4, 'Dov', 20, 1)");
+
+            String model = withRuntime("""
+                ###Pure
+                import store::*;
+                import test::*;
+
+                Class test::Staff { id: Integer[1]; name: String[1]; }
+                ###Relational
+                Database store::DB (
+                    Table STAFF (ID INT PRIMARY KEY, NAME VARCHAR(50), AGE INT, MANAGER_ID INT)
+                    Join Staff_Manager(STAFF.MANAGER_ID = {target}.ID)
+                    Filter Senior(STAFF.AGE > 60)
+                    View SeniorManaged (
+                        ~filter [store::DB] @Staff_Manager | [store::DB] Senior
+                        id: STAFF.ID PRIMARY KEY,
+                        name: STAFF.NAME
+                    )
+                )
+                ###Mapping
+                import store::*;
+                import test::*;
+                Mapping test::M (
+                    test::Staff: Relational { ~mainTable [store::DB] SeniorManaged
+                        id: [store::DB] SeniorManaged.id, name: [store::DB] SeniorManaged.name }
+                )
+                """, "store::DB", "test::M");
+
+            // the staff whose MANAGER is over 60 (Ann manages Bea and Dov), not the staff over 60 (Ann, Cal)
+            var r = exec(model, "test::Staff.all()->project(~[id, name])->sort(~id->ascending())");
+            assertEquals(List.of("Bea", "Dov"), colStr(r, 1));
+        }
+
         @Test
         @DisplayName("View with multi-hop and independent join chains")
         void testViewMultiJoinChains() throws SQLException {

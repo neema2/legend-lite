@@ -746,11 +746,14 @@ class MappingNormalizerTest {
     @Test
     void m2mClassTypedBinding_unmappedTargetThrows() {
         // department: $src.department — target type model::DeptInfo — but
-        // NO ClassMapping for DeptInfo exists anywhere in the model. Post-R3,
-        // M2M class-typed bindings lower to NewInstanceCast(target, ...),
-        // which requires the target to have its own synth fn. Without one,
-        // the lowerer would emit a dangling reference, so the normalizer
-        // refuses at synth time.
+        // NO ClassMapping for DeptInfo exists anywhere in the model: a
+        // pass-through, which legend-engine 4.145.0 compiles only when the
+        // property's type is among the transform's generalizations
+        // (ClassMappingThirdPassBuilder allowComplexPropertyMappingPassThrough).
+        // model::Department is not a model::DeptInfo, so it is the engine's
+        // "Can't find class mapping '<default id>'" (until 2026-11-16, the
+        // Studio roundtrip's M2M cases: every unmapped class-typed target was
+        // refused, "targets unmapped class").
         ParsedModel parsed = com.legend.testing.Own.model(
                 "Class model::DeptInfo { name: String[1]; } "
                         + "Class model::Department { name: String[1]; } "
@@ -763,10 +766,8 @@ class MappingNormalizerTest {
                         + "  } "
                         + ")");
         String exMsg = poisonReasons(parsed);
-        assertTrue(exMsg.contains("model::DeptInfo"),
-                () -> "Expected error to name the missing target type; got: " + exMsg);
-        assertTrue(exMsg.contains("unmapped class"),
-                () -> "Expected error to mention 'unmapped class'; got: " + exMsg);
+        assertTrue(exMsg.contains("Can't find class mapping 'model_DeptInfo'"),
+                () -> "Expected legend-engine's error naming the target's default id; got: " + exMsg);
     }
 
     @Test
@@ -5384,23 +5385,33 @@ class MappingNormalizerTest {
     }
 
     @Test
-    @DisplayName("m2mExplosion_poisonsAccurately_evenWhenMultiplicityWouldPass")
-    void m2mExplosion_poisonsAccurately_evenWhenMultiplicityWouldPass() {
-        // 'name*' over a [1]-shaped expression: before audit 21a the marker
-        // was dropped and this compiled SILENTLY (the corpus site was loud
-        // only via a [*]-into-[1] multiplicity accident). Now: designed
-        // poison naming the real feature gap.
-        ParsedModel parsed = com.legend.testing.Own.model(
+    @DisplayName("m2mExplosion_oneValueComposes_aFanOutPoisonsByName")
+    void m2mExplosion_oneValueComposes_aFanOutPoisonsByName() {
+        // audit 21a: the explode marker is never dropped silently. 'name*'
+        // over a [1] $src path makes one target per source, which is the
+        // plain binding: legend-engine 4.145.0's answer, composed so since
+        // 2026-11-16 (the Studio roundtrip's M2M cases; until then a poison).
+        // 'name*' over a to-many path is a fan-out, which lite does not
+        // compose: a poison naming the explode property (register S418)
+        String oneValue = poisonReasons(com.legend.testing.Own.model(
                 "Class model::T { name: String[1]; } "
-                        + "Class model::S { x: String[1]; } "
+                        + "Class model::S { x: String[1]; xs: String[*]; } "
                         + "\n###Mapping\nMapping my::M ( "
                         + "  *model::T: Pure { ~src model::S "
                         + "    name*: $src.x "
                         + "  } "
-                        + ")");
-        String reason = poisonReasons(parsed);
-        assertTrue(reason.contains("explosion"),
-                () -> "Expected the designed explosion wall; got: " + reason);
+                        + ")"));
+        assertEquals("", oneValue, "a [1] explosion composes as the plain binding");
+        String fanOut = poisonReasons(com.legend.testing.Own.model(
+                "Class model::T { name: String[1]; } "
+                        + "Class model::S { x: String[1]; xs: String[*]; } "
+                        + "\n###Mapping\nMapping my::M ( "
+                        + "  *model::T: Pure { ~src model::S "
+                        + "    name*: $src.xs "
+                        + "  } "
+                        + ")"));
+        assertTrue(fanOut.contains("explode property 'name*'"),
+                () -> "Expected the explosion's poison; got: " + fanOut);
     }
 
     @Test

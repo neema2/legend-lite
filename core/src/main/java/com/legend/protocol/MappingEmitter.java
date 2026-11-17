@@ -94,35 +94,7 @@ final class MappingEmitter {
                         if (j > 0) {
                             b.append(',');
                         }
-                        Protocol.PRelationFnPropertyMapping pm =
-                                rf.propertyMappings().get(j);
-                        if (pm.nested() != null) {
-                            relationFnEmbedded(b, pm);
-                            continue;
-                        }
-                        if (pm.inlineSetId() != null) {
-                            // prop () Inline [set] (probe relation-inline)
-                            b.append("{\"_type\":\"relationFunction"
-                                    + "EmbeddedPropertyMapping\",\"id\":");
-                            str(b, pm.inlineSetId());
-                            b.append(",\"property\":{\"class\":");
-                            str(b, java.util.Objects.requireNonNull(
-                                    pm.ownerClass()));
-                            b.append(",\"property\":");
-                            str(b, pm.property());
-                            b.append(",\"sourceInformation\":");
-                            srcInfo(b, pm.propertySourceInformation());
-                            b.append("},\"propertyMappings\":[]");
-                            if (pm.source() != null) {
-                                b.append(",\"source\":");
-                                str(b, pm.source());
-                            }
-                            b.append(",\"sourceInformation\":");
-                            srcInfo(b, pm.sourceInformation());
-                            b.append('}');
-                            continue;
-                        }
-                        relationFnPm(b, pm);
+                        relationFnLine(b, rf.propertyMappings().get(j));
                     }
                     b.append(']');
                     if (rf.relationFunction() != null) {
@@ -1118,25 +1090,65 @@ final class MappingEmitter {
         }
     }
 
-    /** {@code prop ( street: COL, ... )} in a Relation mapping —
-     *  embedded with NESTED classless pms (probe relation-embedded). */
-    static void relationFnEmbedded(StringBuilder b,
-            Protocol.PRelationFnPropertyMapping pm) {
-        b.append("{\"_type\":\"relationFunctionEmbeddedPropertyMapping\","
-                + "\"property\":{\"class\":");
-        str(b, java.util.Objects.requireNonNull(pm.ownerClass()));
-        b.append(",\"property\":");
+    /** ONE line of a Relation class mapping, in the outer block or an embedded one (upstream's walker visits both
+     *  alike): an embedded block, an inline-embedded set, or a plain or local binding. A line inside an embedded
+     *  block has no class ({@code ownerClass} null), and its property pointer then has no {@code class} key, as a
+     *  nested plain line's (probe relation-embedded). */
+    static void relationFnLine(StringBuilder b, Protocol.PRelationFnPropertyMapping pm) {
+        if (pm.nested() != null) {
+            relationFnEmbedded(b, pm);
+        } else if (pm.inlineSetId() != null) {
+            relationFnInline(b, pm);
+        } else {
+            relationFnPm(b, pm);
+        }
+    }
+
+    /** {@code prop () Inline [set]} (probe relation-inline). */
+    private static void relationFnInline(StringBuilder b, Protocol.PRelationFnPropertyMapping pm) {
+        b.append("{\"_type\":\"relationFunctionEmbeddedPropertyMapping\",\"id\":");
+        str(b, java.util.Objects.requireNonNull(pm.inlineSetId()));
+        relationFnPointer(b, pm);
+        b.append(",\"propertyMappings\":[]");
+        if (pm.source() != null) {
+            b.append(",\"source\":");
+            str(b, pm.source());
+        }
+        b.append(",\"sourceInformation\":");
+        srcInfo(b, pm.sourceInformation());
+        b.append('}');
+    }
+
+    /** {@code ,"property":{["class",]"property","sourceInformation"}}: the class only on an outer line. */
+    private static void relationFnPointer(StringBuilder b, Protocol.PRelationFnPropertyMapping pm) {
+        b.append(",\"property\":{");
+        if (pm.ownerClass() != null) {
+            b.append("\"class\":");
+            str(b, pm.ownerClass());
+            b.append(',');
+        }
+        b.append("\"property\":");
         str(b, pm.property());
         b.append(",\"sourceInformation\":");
         srcInfo(b, pm.propertySourceInformation());
-        b.append("},\"propertyMappings\":[");
+        b.append('}');
+    }
+
+    /** {@code prop ( street: COL, ... )} in a Relation mapping —
+     *  embedded with NESTED classless pms (probe relation-embedded); a nested
+     *  line may be any line ({@link #relationFnLine}). */
+    static void relationFnEmbedded(StringBuilder b,
+            Protocol.PRelationFnPropertyMapping pm) {
+        b.append("{\"_type\":\"relationFunctionEmbeddedPropertyMapping\"");
+        relationFnPointer(b, pm);
+        b.append(",\"propertyMappings\":[");
         List<Protocol.PRelationFnPropertyMapping> nested =
                 java.util.Objects.requireNonNull(pm.nested());
         for (int i = 0; i < nested.size(); i++) {
             if (i > 0) {
                 b.append(',');
             }
-            relationFnPm(b, nested.get(i));
+            relationFnLine(b, nested.get(i));
         }
         b.append(']');
         if (pm.source() != null) {
@@ -1185,17 +1197,7 @@ final class MappingEmitter {
             str(b, lp.type());
             b.append('}');
         }
-        b.append(",\"property\":{");
-        if (pm.ownerClass() != null) {
-            b.append("\"class\":");
-            str(b, pm.ownerClass());
-            b.append(',');
-        }
-        b.append("\"property\":");
-        str(b, pm.property());
-        b.append(",\"sourceInformation\":");
-        srcInfo(b, pm.propertySourceInformation());
-        b.append('}');
+        relationFnPointer(b, pm);
         if (pm.source() != null) {
             b.append(",\"source\":");
             str(b, pm.source());

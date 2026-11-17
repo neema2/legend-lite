@@ -1,0 +1,39 @@
+// A quoted diagram view id (Studio's grammar roundtrip case DSL_Diagram-view-options,
+// 2026-11-14): legend-engine 4.145.0's rule is `viewId: identifier | VALID_DIAGRAM_VIEW_ID`, read
+// with getText(), so a quoted id keeps its quotes and escapes on the wire -- as a class view's id
+// and as a property or generalization view's source and target, whose spans cover the quotes.
+###Diagram
+Diagram fixture::dq::QuotedViews
+{
+   classView 'person view'
+   {
+      class: fixture::dq::Person;
+      position: (-120.5,-40.0);
+      rectangle: (150.25,80.0);
+   }
+   classView 'firm\'s view'
+   {
+      class: fixture::dq::Firm;
+      position: (300.0,-0.5);
+      rectangle: (120.0,44.0);
+   }
+   classView plainView
+   {
+      class: fixture::dq::Address;
+      position: (0.0,0.0);
+      rectangle: (100.0,30.0);
+   }
+   propertyView
+   {
+      property: fixture::dq::Person.firm;
+      source: 'person view';
+      target: 'firm\'s view';
+      points: [(-45.375,0.0),(300.0,21.5)];
+   }
+   generalizationView
+   {
+      source: plainView;
+      target: 'person view';
+      points: [(50.0,15.0),(-45.375,0.0)];
+   }
+}

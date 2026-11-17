@@ -259,7 +259,10 @@ public class SpecBodyCensusTest {
         // MultiExecutionContext (ExecutionOptionContext's superclass); its
         // allContexts body is the engine's plan-time context flattening — walled
         // with its reason (the platform reads the option context's flags directly)
-        org.junit.jupiter.api.Assertions.assertTrue(walled.size() <= 26,
+        // 26 -> 27 (2026-11-14, the Studio roundtrip's DSL_ExecutionEnvironment cases): the prelude carries the
+        // service metamodel's SingleExecutionParameters (the service getters' return type, by Java demand); its
+        // rebuildRuntime body is the engine's run-time runtime assembly -- walled with its reason
+        org.junit.jupiter.api.Assertions.assertTrue(walled.size() <= 27,
                 () -> "spec body census WALLED rows GREW: " + walled.size()
                         + " > 23 (shrink-only; a new wall needs its reason in WalledBodies):\n  "
                         + String.join("\n  ", walled.keySet()));

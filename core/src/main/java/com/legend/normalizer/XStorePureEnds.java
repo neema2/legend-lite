@@ -69,6 +69,93 @@ final class XStorePureEnds {
         }
     }
 
+    /** The set ids an XStore association's ends name, {@code a} property1's
+     *  target class's, {@code b} property2's; null where the lines name none. */
+    record EndSets(@com.legend.base.Nullable String a, @com.legend.base.Nullable String b) {
+    }
+
+    /** The line's {@code [srcSet, tgtSet]} ids select the sets: srcSet = the
+     *  OWNING end's, tgtSet = the line's target end's (engine
+     *  {@code PropertyMappingBuilder} uses them the same way). The first line
+     *  speaks for the association. */
+    static EndSets endSets(AssociationMapping.Cross xs, AssociationDefinition ad) {
+        if (xs.propertyMappings2().isEmpty()) {
+            return new EndSets(null, null);
+        }
+        var l0 = xs.propertyMappings2().get(0);
+        boolean p1 = l0.propertyName().equals(ad.property1().propertyName());
+        return new EndSets(p1 ? l0.targetSetId() : l0.sourceSetId(),
+                p1 ? l0.sourceSetId() : l0.targetSetId());
+    }
+
+    /**
+     * Why an XStore association is withheld, when an end is a set in a store
+     * lite does not execute (a ServiceStore class mapping: no set lite builds
+     * matches the end, a foreign one does); null otherwise. legend-engine
+     * 4.145.0 compiles such a line ({@code PropertyMappingBuilder.visit(
+     * XStorePropertyMapping)} finds the set by id; {@code $that} types as the
+     * ServiceStore set's mapping class, {@code +props} included) and runs it,
+     * calling the services; lite compiles the model, emits no predicate, and a
+     * query navigating the association is refused with this reason (2026-11-16,
+     * the Studio roundtrip's STO_ServiceStore-path-offset; register row S413,
+     * pending). A set id the mapping does not have at all is not this: it stays
+     * {@link #xstoreEndOf}'s compile error, as the engine's is.
+     */
+    static @com.legend.base.Nullable String foreignEndReason(ResolvedMapping md,
+            AssociationMapping.Cross xs, AssociationDefinition ad) {
+        EndSets sets = endSets(xs, ad);
+        String[][] ends = {
+            {ad.property1().targetClassFqn(), sets.a()},
+            {ad.property2().targetClassFqn(), sets.b()},
+        };
+        LegacyMappingDefinition.ForeignSet foreign = null;
+        for (String[] end : ends) {
+            if (hasSet(md, end[0], end[1])) {
+                continue;
+            }
+            LegacyMappingDefinition.ForeignSet f = foreignSetOf(md, end[0], end[1]);
+            if (f == null) {
+                // an end naming no set at all: synthesis raises the compile
+                // error, as before
+                return null;
+            }
+            if (foreign == null) {
+                foreign = f;
+            }
+        }
+        return foreign == null ? null
+                : "XStore association '" + ad.qualifiedName() + "' joins set '" + foreign.effectiveId()
+                        + "' of '" + foreign.className() + "', a " + foreign.store() + " class mapping: lite"
+                        + " does not execute " + foreign.store() + " (register row S413)";
+    }
+
+    /** Whether a class mapping of the closure, of any kind, is the end. */
+    private static boolean hasSet(ResolvedMapping md, String classFqn, @com.legend.base.Nullable String setId) {
+        for (LegacyMappingDefinition m : md.closure()) {
+            for (ClassMapping cm : m.classMappings()) {
+                if (cm.className().equals(classFqn)
+                        && (setId == null || setId.equals(ResolvedMapping.idOf(cm)))) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /** The foreign set of the closure that is the end. */
+    private static LegacyMappingDefinition.@com.legend.base.Nullable ForeignSet foreignSetOf(
+            ResolvedMapping md, String classFqn, @com.legend.base.Nullable String setId) {
+        for (LegacyMappingDefinition m : md.closure()) {
+            for (LegacyMappingDefinition.ForeignSet f : m.foreignSets()) {
+                if (f.className().equals(classFqn)
+                        && (setId == null || setId.equals(f.effectiveId()))) {
+                    return f;
+                }
+            }
+        }
+        return null;
+    }
+
     static XEnd xstoreEndOf(ResolvedMapping md,
             String classFqn, @com.legend.base.Nullable String setId, ModelBuilder model) {
         // the end sets may live in INCLUDED mappings (modelJoins:
@@ -114,7 +201,11 @@ final class XStorePureEnds {
                 // keeps the column-space emission verbatim.
                 boolean lossy = false;
                 for (PropertyMapping pm : rcm.propertyMappings()) {
-                    if (pm instanceof PropertyMapping.Column c) {
+                    if (pm instanceof PropertyMapping.Column c && c.binding() != null) {
+                        // a Binding-decoded column is an object, not the
+                        // column: the view cannot carry it (2026-11-14)
+                        lossy = true;
+                    } else if (pm instanceof PropertyMapping.Column c) {
                         cols.add(new ClassMapping.RelationFunction.Col(
                                 c.propertyName(), c.column(), false));
                     } else if (pm instanceof PropertyMapping.LocalProperty lp) {
@@ -231,6 +322,42 @@ final class XStorePureEnds {
                         + md.qualifiedName() + ")");
             }
         }
+        return predicate(md, xs.associationName(), classA, classB, endA, endB,
+                srcRow, tgtRow, cond);
+    }
+
+    /**
+     * The property-space synthesis of a ModelJoin with a Pure-set end
+     * ({@code {firm: Firm[1], employee: Person[1] | $firm.legalName ==
+     * $employee.firstName}}): the lambda's two parameters, paired with the
+     * association's ends ({@link ModelJoinNesting#pairEndVars}: {@code aVar}
+     * the first end's), rename onto the predicate's rows exactly as an
+     * XStore line's {@code $this}/{@code $that} do, and the same predicate is
+     * emitted -- the sets pinned by id, the condition over the end classes,
+     * the resolver substituting each side through its set's composed
+     * bindings (2026-11-14, the Studio roundtrip's
+     * DSL_Mapping-model-join-mapping; until then refused, "the property-space
+     * route covers XStore only so far").
+     */
+    static FunctionDefinition synthesizeModelJoin(ResolvedMapping md,
+            AssociationMapping.ModelJoin mj, String classA, String classB,
+            XEnd endA, XEnd endB, String aVar, String bVar) {
+        Variable srcRow = new Variable("srcRow");
+        Variable tgtRow = new Variable("tgtRow");
+        ValueSpecification cond = renameReads(
+                mj.lambda().body().get(mj.lambda().body().size() - 1),
+                Map.of(aVar, srcRow, bVar, tgtRow),
+                Map.of(aVar, endA, bVar, endB));
+        return predicate(md, mj.associationName(), classA, classB, endA, endB,
+                srcRow, tgtRow, cond);
+    }
+
+    /** {@code legacyAssocPredicate(a, b, 'setA', 'setB', {srcRow, tgtRow | cond})}
+     *  as the association's synthesized function. */
+    private static FunctionDefinition predicate(ResolvedMapping md,
+            String associationName, String classA, String classB,
+            XEnd endA, XEnd endB, Variable srcRow, Variable tgtRow,
+            ValueSpecification cond) {
         Variable a = new Variable("a");
         Variable b = new Variable("b");
         ValueSpecification body = Calls.exact(Pure.Lite.LEGACY_ASSOC_PREDICATE,
@@ -248,7 +375,7 @@ final class XStorePureEnds {
                         new TypeExpression.NameRef(classB),
                         Multiplicity.Concrete.PURE_ONE);
         return new FunctionDefinition(
-                SynthFqn.mappingAssoc(md.qualifiedName(), xs.associationName()),
+                SynthFqn.mappingAssoc(md.qualifiedName(), associationName),
                 List.of(), List.of(), List.of(pA, pB),
                 new TypeExpression.NameRef(
                         "meta::pure::metamodel::type::Boolean"),
@@ -257,7 +384,7 @@ final class XStorePureEnds {
                 List.of(), List.of())
                 .withSynthesizedFrom(new FunctionDefinition.Synthesized(
                         SynthHat.ASSOC, md.qualifiedName(),
-                        xs.associationName()));
+                        associationName));
     }
 
     /** {@code $this.p}/{@code $that.p} → the oriented row var's read —
@@ -295,9 +422,16 @@ final class XStorePureEnds {
             case PureCollection pc -> new PureCollection(
                     pc.values().stream().map(x ->
                             renameReads(x, rowByVar, endByVar)).toList());
-            case LambdaFunction lf -> new LambdaFunction(lf.parameters(),
-                    lf.body().stream().map(x ->
-                            renameReads(x, rowByVar, endByVar)).toList());
+            case LambdaFunction lf -> {
+                // a lambda's own parameter SHADOWS an end's variable inside it: a ModelJoin names its ends as
+                // the user wrote them ({firm, employee | ... ->exists(employee | $employee.id == 1)}); an
+                // XStore's this/that cannot be shadowed
+                Map<String, Variable> rows = new java.util.HashMap<>(rowByVar);
+                lf.parameters().forEach(p -> rows.remove(p.name()));
+                yield new LambdaFunction(lf.parameters(),
+                        lf.body().stream().map(x ->
+                                renameReads(x, rows, endByVar)).toList());
+            }
             default -> v.mapChildren(x -> renameReads(x, rowByVar, endByVar));
         };
     }

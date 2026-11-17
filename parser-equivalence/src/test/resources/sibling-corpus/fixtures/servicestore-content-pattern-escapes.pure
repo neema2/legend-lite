@@ -1,0 +1,97 @@
+// A ServiceStore content pattern's `expected` (Studio's grammar roundtrip case
+// DSL_Data-basic-dataElement, 2026-11-14). legend-engine 4.145.0 reads it with
+// fromGrammarString(text, false) for EqualToJson -- the JSON keeps its escapes as written, so
+// \", \\ and \' reach the wire unchanged -- and fromGrammarString(text, true) for EqualTo, which
+// unescapes. A ''' text block is a STRING to the engine's lexer too: the block's layout, unescaped
+// for EqualTo only. One pattern reader serves the body patterns, the query parameters and the
+// header parameters. The body patterns stand side by side, the parameters comma-separated.
+###Data
+Data fixture::cp::BodyPatterns
+{
+  ServiceStore
+  #{
+    [
+      {
+        request:
+        {
+          method: POST;
+          url: '/employees';
+          bodyPatterns:
+          [
+            EqualToJson
+            #{
+              expected:'{\"name\": \"A \\ B\", \"nick\": \"it\'s\"}';
+            }#
+            EqualToJson
+            #{
+              expected:'''
+                {"block": "kept \"as\" written\n"}
+                ''';
+            }#
+            EqualTo
+            #{
+              expected: 'it\'s a \"quoted\" \\ body';
+            }#
+          ];
+        };
+        response:
+        {
+          body:
+            ExternalFormat
+            #{
+              contentType: 'application/json';
+              data: '[]';
+            }#;
+        };
+      }
+    ]
+  }#
+}
+
+Data fixture::cp::ParameterPatterns
+{
+  ServiceStore
+  #{
+    [
+      {
+        request:
+        {
+          method: GET;
+          urlPath: '/employees';
+          headerParameters:
+          {
+            region:
+              EqualToJson
+              #{
+                expected:'{\"region\": \"EM\\EA\"}';
+              }#
+          };
+          queryParameters:
+          {
+            name:
+              EqualTo
+              #{
+                expected: '''
+                  a block,\tunescaped
+                  ''';
+              }#,
+            id:
+              EqualTo
+              #{
+                expected: 'it\'s';
+              }#
+          };
+        };
+        response:
+        {
+          body:
+            ExternalFormat
+            #{
+              contentType: 'application/json';
+              data: '[]';
+            }#;
+        };
+      }
+    ]
+  }#
+}

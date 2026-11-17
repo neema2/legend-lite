@@ -203,9 +203,10 @@ public sealed interface ValueSpecification permits
                         : (LambdaFunction) cs.get(i++);
                 LambdaFunction f2 = old.function2() == null ? null
                         : (LambdaFunction) cs.get(i++);
+                // a rewrite keeps the spec's annotations (until 2026-11-16 it dropped them)
                 yield new ColSpec(old.name(), f1, f2, old.alias(),
                         cs.subList(i, cs.size()), old.qualified(), old.pos(),
-                        old.colType(), old.colTypeMult());
+                        old.colType(), old.colTypeMult(), old.stereotypes(), old.taggedValues());
             }
         };
     }

@@ -1363,11 +1363,8 @@ final class Substitution {
             TypedSpec cur = target.bindings().get(path.get(0));
             int hop = 1;
             while (cur != null && hop < path.size()) {
-                TypedSpec inner = cur;
-                if (inner instanceof TypedNativeCall c1 && c1.args().size() == 1
-                        && com.legend.builtin.Pure.isToOneCall(c1.callee().qualifiedName())) {
-                    inner = c1.args().get(0);
-                }
+                // toOne, and a decoded object's emptiness guard (Pipelines.embeddedView)
+                TypedSpec inner = Pipelines.embeddedView(cur);
                 var ow = otherwiseOf(inner);
                 if (ow != null) {
                     inner = ow.args().get(0);
@@ -1394,12 +1391,7 @@ final class Substitution {
                 TypedSpec curT = ha.targetBindings().get(path.get(1));
                 int h = 2;
                 while (curT != null && h < path.size()) {
-                    TypedSpec inner4 = curT;
-                    if (inner4 instanceof TypedNativeCall c4
-                            && c4.args().size() == 1
-                            && com.legend.builtin.Pure.isToOneCall(c4.callee().qualifiedName())) {
-                        inner4 = c4.args().get(0);
-                    }
+                    TypedSpec inner4 = Pipelines.embeddedView(curT);
                     var ow4 = otherwiseOf(inner4);
                     if (ow4 != null) {
                         inner4 = ow4.args().get(0);
@@ -2447,11 +2439,8 @@ final class Substitution {
         }
         TypedSpec headBinding = target.bindings().get(head);
         if (headBinding != null) {
-            TypedSpec inner = headBinding;
-            if (inner instanceof TypedNativeCall c && c.args().size() == 1
-                    && com.legend.builtin.Pure.isToOneCall(c.callee().qualifiedName())) {
-                inner = c.args().get(0);
-            }
+            // toOne, and a decoded object's emptiness guard (Pipelines.embeddedView)
+            TypedSpec inner = Pipelines.embeddedView(headBinding);
             // A class-typed navigate-slot read ($row.alias): the step was
             // demanded and registered under this HEAD — dispatch like an
             // association (target bindings, prefixed columns).
@@ -3435,11 +3424,8 @@ final class Substitution {
             @com.legend.base.Nullable TypedSpec cur, List<String> path, int hop) {
         int h = hop;
         while (cur != null && h < path.size()) {
-            TypedSpec inner = cur;
-            if (inner instanceof TypedNativeCall c && c.args().size() == 1
-                    && com.legend.builtin.Pure.isToOneCall(c.callee().qualifiedName())) {
-                inner = c.args().get(0);
-            }
+            // toOne, and a decoded object's emptiness guard (Pipelines.embeddedView)
+            TypedSpec inner = Pipelines.embeddedView(cur);
             var ow = otherwiseOf(inner);
             if (ow != null) {
                 inner = ow.args().get(0);

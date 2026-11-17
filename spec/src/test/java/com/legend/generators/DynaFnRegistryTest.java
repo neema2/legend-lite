@@ -102,8 +102,12 @@ class DynaFnRegistryTest {
      *  them at load (2026-10-06, the build rebuild's Phase 2): the hand pin's history (169 -> 168 -> 162) ended when
      *  engine-handlers.tsv carried each id's FQN, and that column went with the join. 162 -> 142 (2026-10-06, Phase 3):
      *  the 26 versions that got rows declare 20 engine handler ids (isEmpty[0..1], average/median on Integer and Float,
-     *  the [1..*] date max/min, the Boolean comparisons, ...). */
-    static final int UNDECLARED_ENGINE_IDS_MAX = 142;
+     *  the [1..*] date max/min, the Boolean comparisons, ...). 142 -> 144 (2026-11-14, the Studio roundtrip's
+     *  DSL_ExecutionEnvironment cases): not a declaration lost but the registry read GREW -- engine-handlers.tsv now
+     *  also harvests the pinned service extension's handler registrations (ServiceCompilerExtensionImpl, six ids);
+     *  four are declared (get twice, getWithRuntime, from(SingleExecutionParameters)), and the two service
+     *  validation assertions (assertCollectionEmpty, assertTabularDataSetEmpty) are not. */
+    static final int UNDECLARED_ENGINE_IDS_MAX = 144;
 
     @Test
     @DisplayName("the engine handler ids the platform declares nowhere only shrink; the residue is still needed")

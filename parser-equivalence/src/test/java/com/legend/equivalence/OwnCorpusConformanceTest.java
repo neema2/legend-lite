@@ -90,6 +90,13 @@ class OwnCorpusConformanceTest {
             // connection type the engine's DatabaseType enum lacks
             return "LITE-DESIGN-sqlite-backend";
         }
+        if (builtAheadDqAdditionalColumns(text)) {
+            // BUILT AHEAD of the 4.145.0 pin, 2026-11-16 (REVIEWED: the Studio roundtrip's post-pin constructs, the
+            // user's ruling "Build ahead, ledgered"; docs/SEMANTICS_REGISTER.md S422): legend-engine 4.148.0's
+            // DataQualityRelationComparison key, which the pinned referee's grammar lacks
+            // (DataQualityAdditionalColumnsTest). Retires when the pin reaches 4.148.0.
+            return "BUILT-AHEAD-dq-additional-columns-to-persist";
+        }
         if (msg.contains("Unsupported column data type 'TIMESTAMP_NS'")) {
             // the TIMESTAMP_NS column type (2026-11-13, REVIEWED, the final
             // audit's item 2; docs/SEMANTICS_REGISTER.md S64): a lite
@@ -145,6 +152,24 @@ class OwnCorpusConformanceTest {
             return "PURE-DIALECT-xstore-tolerance";
         }
         return null;
+    }
+
+    /** The key line is the referee's ONLY refusal: the 4.145.0 referee answers a bare "Unexpected token" at it, so the
+     *  proof is that the text without its {@code additionalColumnsToPersist: [...];} lines parses on the referee. */
+    static boolean builtAheadDqAdditionalColumns(String text) {
+        if (!text.contains("additionalColumnsToPersist:")) {
+            return false;
+        }
+        String without = text.replaceAll("(?m)^[ \\t]*additionalColumnsToPersist:[ \\t]*\\[[^\\]]*\\];[ \\t]*\\n", "");
+        if (without.contains("additionalColumnsToPersist")) {
+            return false;
+        }
+        try {
+            PureGrammarParser.newInstance().parseModel(without);
+            return true;
+        } catch (Throwable stillRefused) {
+            return false;
+        }
     }
 
     /** A required-field row is acceptable ONLY as a deliberate
@@ -237,6 +262,9 @@ class OwnCorpusConformanceTest {
         // pattern-default was CONFORMED away (required on both surfaces);
         // every remaining class is DECIDED-KEEP or proposed-KEEP there.
         Map<String, Integer> pins = new TreeMap<>(Map.ofEntries(
+                // 0 -> 1 (2026-11-16, REVIEWED, the Studio roundtrip's post-pin constructs, the user's "Build ahead,
+                // ledgered"; S422): DataQualityAdditionalColumnsTest's model, 4.148.0's key the 4.145.0 referee refuses
+                Map.entry("BUILT-AHEAD-dq-additional-columns-to-persist", 1),
                 // 13 -> 15 (2026-08-21, REVIEWED): the D4 variance pins
                 // (VarianceD4Test, extension host declared in
                 // OwnDialectCensusTest) — the contravariance spec cannot

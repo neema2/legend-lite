@@ -1882,6 +1882,31 @@ final class ElementParserTest {
     }
 
     @Test
+    void viewFilterJoinMediatedCarriesEachJoinsTypeAndDb() {
+        // viewFilterMappingJoin's joinSequence is a class mapping's: a (TYPE) before any pointer, a [db] re-anchoring
+        // the next (RelationalParserGrammar.g4:143, 240-244); the Studio roundtrip case
+        // STO_Relational-database-operations-and-join-types failed at the '(' (2026-11-16)
+        DatabaseDefinition db = (DatabaseDefinition) com.legend.testing.Platform.model(
+                "\n###Relational\nDatabase s::Db ( Table T ( X INTEGER ) "
+                + "Join J1(T.X = T.X) Join J2(T.X = T.X) Join J3(T.X = T.X) "
+                + "Filter F(T.X = 1) "
+                + "View V ( ~filter [s::Db] (INNER) @J1 > (OUTER) [o::Db]@J2 > @J3 | [s::Db] F  a: T.X ) )")
+                .elements().get(0);
+        FilterMapping.JoinMediated jm = (FilterMapping.JoinMediated) db.views().get(0).filter();
+        assertEquals("s::Db", jm.sourceDb());
+        assertEquals(List.of("J1", "J2", "J3"), jm.joins().stream().map(j -> j.joinName()).toList());
+        // the leading (INNER) is the filter's, as a class mapping's (MappingFromProtocol.filterMapping); a > (OUTER)
+        // rides its own hop
+        assertEquals("INNER", jm.joinType());
+        assertEquals(java.util.Arrays.asList(null, com.legend.model.JoinType.OUTER, null),
+                jm.joins().stream().map(j -> j.joinType()).toList());
+        // a hop without its own [db] takes the FIRST db, not the hop before's (visitJoinSequence's parameter is not
+        // reassigned)
+        assertEquals(java.util.Arrays.asList("s::Db", "o::Db", "s::Db"),
+                jm.joins().stream().map(j -> j.databaseName()).toList());
+    }
+
+    @Test
     void viewFilterJoinMediatedCrossTarget() {
         // ~filter [s::Db] @J | [other::Db] F → JoinMediated(.., Cross("other::Db", "F"))
         DatabaseDefinition db = (DatabaseDefinition) com.legend.testing.Platform.model(

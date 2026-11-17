@@ -2130,12 +2130,16 @@ public final class Protocol {
 
     /** {@code DataQualityRelationComparison} (ZTailProbe
      *  "dq-relation-comparison"): source/target lambdas, key names, and a
-     *  strategy tag ({@code MD5Hash} &rarr; {@code md5Hash}). */
+     *  strategy tag ({@code MD5Hash} &rarr; {@code md5Hash}).
+     *  {@code additionalColumnsToPersist} is legend-engine 4.148.0's, built
+     *  ahead of the pin (docs/SEMANTICS_REGISTER.md S422): empty when not
+     *  written. */
     public record PDataQualityRelationComparison(String pkg, String name,
                                                  com.legend.protocol.spec.ValueSpecification source,
                                                  com.legend.protocol.spec.ValueSpecification target,
                                                  List<String> keys,
                                                  List<String> columnsToCompare,
+                                                 List<String> additionalColumnsToPersist,
                                                  @com.legend.base.Nullable Double expectedMatch,
                                                  PReconStrategy strategy,
                                                  @com.legend.base.Nullable List<PDqTestSuite> testSuites,

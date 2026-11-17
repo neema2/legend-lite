@@ -484,9 +484,20 @@ public sealed interface ClassMapping permits ClassMapping.Relational,
         public record Col(String property, @com.legend.base.Nullable String column, boolean local,
                 @com.legend.base.Nullable String enumMappingId, List<Col> embedded,
                 @com.legend.base.Nullable String inlineSetId,
-                @com.legend.base.Nullable com.legend.protocol.spec.ValueSpecification expr) {
+                @com.legend.base.Nullable com.legend.protocol.spec.ValueSpecification expr,
+                @com.legend.base.Nullable String binding) {
             public Col {
                 embedded = embedded == null ? List.of() : List.copyOf(embedded);
+            }
+
+            /** No {@code Binding} transformer ({@code binding}: the element path a
+             *  bound column's semi-structured value is decoded by, engine
+             *  {@code RelationFunctionPropertyMapping.bindingTransformer}). */
+            public Col(String property, @com.legend.base.Nullable String column, boolean local,
+                    @com.legend.base.Nullable String enumMappingId, List<Col> embedded,
+                    @com.legend.base.Nullable String inlineSetId,
+                    @com.legend.base.Nullable com.legend.protocol.spec.ValueSpecification expr) {
+                this(property, column, local, enumMappingId, embedded, inlineSetId, expr, null);
             }
 
             /** Column-name form (no row expression). */
@@ -496,16 +507,46 @@ public sealed interface ClassMapping permits ClassMapping.Relational,
                 this(property, column, local, enumMappingId, embedded, inlineSetId, null);
             }
 
-            /** Replace every {@code $src} in a row-expression binding with the ROW
-             *  variable — the normalizer's inlining step for {@link #expr()} cols. */
-            public static com.legend.protocol.spec.ValueSpecification bindSrc(
+            /** The names a row-expression binding reads its row by: {@code $src}, legend-engine 4.145.0's (the pin;
+             *  {@code ClassMappingSecondPassBuilder.compileRelationPropertyLambda} binds {@code src}), and
+             *  {@code $row}, 4.151.0's (#5338 renamed the accessor; it binds {@code row} and no longer {@code src}).
+             *  Lite binds both, built ahead of the pin on the user's ruling of 2026-11-16 ("Build ahead, ledgered";
+             *  docs/SEMANTICS_REGISTER.md S420): the pinned corpus spells {@code $src}, Studio's {@code $row}. */
+            static final List<String> ROW_NAMES = List.of("src", "row");
+
+            /** Replace every {@code $src} or {@code $row} in a row-expression binding with the ROW variable — the
+             *  normalizer's inlining step for {@link #expr()} cols. A lambda that declares a parameter of one of
+             *  those names shadows it in its body ({@code map(row|$row.x)} reads its own parameter), as the
+             *  engine's scope does. */
+            public static com.legend.protocol.spec.ValueSpecification bindRow(
                     com.legend.protocol.spec.ValueSpecification v,
                     com.legend.protocol.spec.ValueSpecification row) {
-                if (v instanceof com.legend.protocol.spec.Variable var
-                        && "src".equals(var.name())) {
+                return bindRow(v, row, ROW_NAMES);
+            }
+
+            private static com.legend.protocol.spec.ValueSpecification bindRow(
+                    com.legend.protocol.spec.ValueSpecification v,
+                    com.legend.protocol.spec.ValueSpecification row, List<String> names) {
+                if (v instanceof com.legend.protocol.spec.Variable var && names.contains(var.name())) {
                     return row;
                 }
-                return v.mapChildren(c -> bindSrc(c, row));
+                if (v instanceof com.legend.protocol.spec.LambdaFunction lf) {
+                    // the names this lambda's parameters do not shadow, in ROW_NAMES's order
+                    List<String> open = new java.util.ArrayList<>();
+                    for (String name : names) {
+                        if (lf.parameters().stream().noneMatch(p -> p.name().equals(name))) {
+                            open.add(name);
+                        }
+                    }
+                    if (open.isEmpty()) {
+                        return v;
+                    }
+                    if (open.size() < names.size()) {
+                        List<String> inner = List.copyOf(open);
+                        return v.mapChildren(c -> bindRow(c, row, inner));
+                    }
+                }
+                return v.mapChildren(c -> bindRow(c, row, names));
             }
 
             /** An EMBEDDED block ({@code prop ( sub: COL, ... )}). */

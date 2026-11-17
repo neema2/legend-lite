@@ -54,6 +54,16 @@ final class FromChecker {
             }
         }
         Application a = t.checkGeneric(af, env);
+        // A SERVICE EXECUTION ENVIRONMENT's keyed execution (from(T[m],
+        // SingleExecutionParameters[1]), engine ServiceCompilerExtensionImpl):
+        // typed as declared and kept as that call, never absorbed into a bound
+        // context -- its mapping and runtime are chosen by a key the service
+        // receives as a parameter, so no execution context exists to read here.
+        // Store resolution refuses it by name (StoreResolver.refuseServiceKeyedFrom).
+        if (com.legend.model.FunctionId.of(com.legend.builtin.Pure.FROM__T_m__SINGLE_EXECUTION_PARAMETERS_1)
+                .equals(a.chosen().id())) {
+            return CallNodes.mint(t.model().implementations(), a.chosen(), a.args(), a.out());
+        }
         List<TypedPackageableRef> refs = new ArrayList<>(a.args().size() - 1);
         // the runtime VALUE argument (a constructed instance, a helper call,
         // a let-bound variable): the special form's rule reads the execution

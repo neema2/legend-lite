@@ -564,9 +564,15 @@ public final class PureComposer {
     }
 
     /** {@code tail}: as {@link #visit(ValueSpecification, boolean)}'s -- a lone column spec's text ends with its last
-     *  lambda ({@code ~a:x|$x.b}), which the grammar reads as any lambda ({@code oneColSpec: ... COLON anyLambda}). */
+     *  lambda ({@code ~a:x|$x.b}), which the grammar reads as any lambda ({@code oneColSpec: ... COLON anyLambda}).
+     *  <p>A spec's stereotypes and tagged values lead it ({@code ~[<<p.s>> {p.t = 'v'} name:x|...]}), as legend-engine
+     *  4.150.0 prints them (#5245, {@code d455688a9f}: {@code printColSpec} writes {@code renderAnnotations} first,
+     *  never a documentation block). The pinned 4.145.0 parses and carries them and prints none; lite prints them,
+     *  built ahead of the pin on the user's ruling of 2026-11-16 ("Build ahead, ledgered"; docs/SEMANTICS_REGISTER.md
+     *  S421), so a model's text round-trips (the Studio roundtrip's CORE-relation-expression-syntax). */
     private String printColSpec(ColSpec col, boolean tail) {
-        return convertIdentifier(col.name())
+        return DomainComposer.annotations(col.stereotypes(), col.taggedValues())
+                + convertIdentifier(col.name())
                 + (col.colType() != null ? ":" + printGenericType(col.colType()) : "")
                 // a deliberate difference (docs/SEMANTICS_REGISTER.md S39): upstream's printColSpec leaves a declared
                 // multiplicity out, and its print then reads back without it; lite writes it, as the grammar spells it

@@ -506,6 +506,17 @@ public final class PlatformTypes {
      * {@code runtimeValue} is the Runtime): what a runtime reference types as
      * — from(T[m], PackageableRuntime[1]) takes it as declared (batch 5). */
     public static final String PACKAGEABLE_RUNTIME = "meta::pure::runtime::PackageableRuntime";
+    /** A {@code ###Service} {@code ExecutionEnvironment} ELEMENT is upstream's ExecutionEnvironmentInstance
+     * (legend-engine 4.145.0 core_service/service/metamodel.pure; ServiceCompilerExtensionImpl types the reference as
+     * an instance value of it): what an environment reference types as, so {@code get(EEI[1], ...)} takes it as
+     * declared (2026-11-14, the Studio roundtrip's DSL_ExecutionEnvironment cases). */
+    public static final String EXECUTION_ENVIRONMENT_INSTANCE =
+            "meta::legend::service::metamodel::ExecutionEnvironmentInstance";
+    /** What an environment's {@code get}/{@code getWithRuntime} answers, and what {@code from(T[m],
+     * SingleExecutionParameters[1])} takes: one keyed execution's mapping and runtime, chosen by a key the service
+     * receives as a parameter (helperFunctions.pure, mappingExtension.pure at 4.145.0). */
+    public static final String SINGLE_EXECUTION_PARAMETERS =
+            "meta::legend::service::metamodel::SingleExecutionParameters";
     public static final String CONNECTION_STORE = "meta::core::runtime::ConnectionStore";
     public static final String WITH_CHAINED_MAPPINGS = "meta::pure::mapping::withChainedMappings";
     public static final String MODEL_CHAIN_CONNECTION =

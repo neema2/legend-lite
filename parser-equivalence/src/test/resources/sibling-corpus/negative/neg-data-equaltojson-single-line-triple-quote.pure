@@ -1,0 +1,37 @@
+// A content pattern's `expected` written as a ONE-line ''' literal (Studio's grammar roundtrip work,
+// 2026-11-14). legend-engine 4.145.0's STRING is `TextBlock | String`, and a TextBlock needs a line
+// break after its opening ''': `'''{}'''` lexes as three adjacent strings, and the pattern's
+// grammar (expected: STRING;) refuses. servicestore-content-pattern-escapes.pure holds the forms it
+// admits.
+###Data
+Data fixture::neg::SingleLineTripleQuote
+{
+  ServiceStore
+  #{
+    [
+      {
+        request:
+        {
+          method: POST;
+          url: '/employees';
+          bodyPatterns:
+          [
+            EqualToJson
+            #{
+              expected:'''{"name": "A"}''';
+            }#
+          ];
+        };
+        response:
+        {
+          body:
+            ExternalFormat
+            #{
+              contentType: 'application/json';
+              data: '[]';
+            }#;
+        };
+      }
+    ]
+  }#
+}

@@ -621,19 +621,12 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
                     advance();
                     String firstDb = Protocol.unquotePath(parseQualifiedName());
                     expect(TokenType.BRACKET_CLOSE);
-                    if (peek() == TokenType.AT) {
-                        // join-mediated: the joins carry the FIRST db, and the
-                        // filter's own db comes from the pointer after the pipe
-                        while (peek() == TokenType.AT) {
-                            int jS = pos;
-                            advance();
-                            String jn = parseIdentifier();
-                            fjoins.add(new Protocol.PJoinPtr(firstDb, null, jn,
-                                    spanOf(jS, pos - 1)));
-                            if (peek() == TokenType.GREATER_THAN) {
-                                advance();          // chain separator '>'
-                            }
-                        }
+                    if (peek() == TokenType.AT || peek() == TokenType.PAREN_OPEN) {
+                        // join-mediated: the joins start at the FIRST db, each
+                        // with its (TYPE) and re-anchoring [db] as a class
+                        // mapping's ~filter reads them; the filter's own db
+                        // comes from the pointer after the pipe
+                        fjoins = parseJoinSequence(firstDb);
                         expect(TokenType.PIPE);
                         if (peek() != TokenType.BRACKET_OPEN) {
                             // viewFilterMappingJoin ENDS in a databasePointer:
