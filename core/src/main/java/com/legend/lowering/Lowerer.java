@@ -838,16 +838,14 @@ public final class Lowerer {
         // The resolved GRAPH envelope keeps its CLASS-typed info (the
         // result-shape contract) but lowers as a relation.
         if (spec instanceof TypedSerializeGraph g) {
-            // the value of an engine execute(...) (the splice's mark): the
-            // engine JsonBuilder's cardinality rule, exactly one object bare
-            // and zero or several as the array -- the scalar position's fold
-            // (SnapshotEnvelope). COMPATIBILITY ONLY (the user, 2026-11-03:
-            // "the right clean thing in lite, the backward-compatible thing
-            // in compatibility mode"): lite's own root stays the array, and
-            // the streaming root (one object per row) never folds
+            // the value of an engine execute(...) (the splice's mark), the style's form (the audit's J3, 2026-11-17:
+            // LoweringForms#executeValues): the product's lite's own root, the array (the user, 2026-11-03: "the right
+            // clean thing in lite, the backward-compatible thing in compatibility mode"); the edge's the engine
+            // JsonBuilder's cardinality rule, exactly one object bare -- the scalar position's fold (SnapshotEnvelope).
+            // The streaming root (one object per row) never folds
             if (g.engineExecuteCardinality() && !streamingGraphRoot) {
-                return conformJsonEgress(SnapshotEnvelope.fold(
-                        serializeGraph(g.asArrayWrapped(), false)));
+                return conformJsonEgress(styled().forms().executeValues(() -> serializeGraph(g, false),
+                        () -> SnapshotEnvelope.fold(serializeGraph(g.asArrayWrapped(), false))));
             }
             return conformJsonEgress(serializeGraph(g, streamingGraphRoot));
         }
