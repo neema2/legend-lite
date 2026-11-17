@@ -1597,6 +1597,9 @@ class JavaEvalLedgerTest {
                     // route, lowered and wrapped as its judge reads it, with no session; the driver opens the route
                     "SidePlanner.java",
                     "SqlTextInputs.java", "PlanAllocations.java",
+                    // an execute's routing activity text, a two-form hook of the plan style (J5 of the edge audit,
+                    // 2026-11-17): signatures only, the product's form none, the edge's legend-engine's print
+                    "RoutedQueries.java",
                     // the product's statement road (the test-is-the-product plan's M2, B11, 2026-10-31): a query's and
                     // a program's statements planned by the test road's front half (inlined with the lets kept, natives
                     // staged, resolved with the lets' bindings, prepared, lowered with the product's configuration and
