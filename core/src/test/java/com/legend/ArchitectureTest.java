@@ -1332,7 +1332,8 @@ final class ArchitectureTest {
             // facet planner.UpstreamPlans; it lowers and renders a query in legend-engine's text through the product's
             // lowering and the plan's environment, so each of those reaches is listed here, by signature and caller
             "lowering.Lowerer#bindPlanParam(com.legend.sql.SqlExpr$PlanParam)", "com.legend.edge.EnginePlans",
-            "lowering.Lowerer#withEngineText()", "com.legend.edge.EnginePlans",
+            "lowering.Lowerer#withShape(com.legend.lowering.LoweringShape)", "com.legend.edge.EnginePlans",
+            "lowering.LoweringShape#<init>(boolean, boolean, boolean, boolean, boolean)", "com.legend.edge.EnginePlans",
             "lowering.Lowerer#withFeatures(java.util.Set)", "com.legend.edge.EnginePlans",
             "lowering.Lowerer#withOptions(java.util.Set)", "com.legend.edge.EnginePlans",
             "lowering.PlanParams#kindOf(com.legend.compiler.element.type.Type)", "com.legend.edge.EnginePlans",

@@ -160,7 +160,8 @@ class CompatSpellingGuardTest {
             // (edge/PurePrintForms). LiteralSpelling's row went (it writes FLOAT_TO_TEXT); Repr's added (the judges' arm)
             // lowering/Lowerer.java | TDS_NULL_CELL: gone 2026-11-15 (D1.3: a row's cells joined skip an empty one, the
             // CELL_TEXT node; legend-engine's TDSNull is the edge's, edge/PurePrintForms)
-            "lowering/Lowerer.java | withEngineText | 1 | D1.7",
+            // lowering/Lowerer.java | withEngineText: gone 2026-11-17 (Phase 6's B5: the lowering takes a LoweringShape, the
+            // product's LEAN; legend-engine's shape is the edge's choice, EnginePlans.UPSTREAM_SHAPE)
             "lowering/Repr.java | FLOAT_PRINT | 1 | JUDGE",
             // D1.3 -> D1.9 (2026-11-15): Repr is the judges' %r (and format's %r, which the assert bodies write): it
             // moves with the judges
