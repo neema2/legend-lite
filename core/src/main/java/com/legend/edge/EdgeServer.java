@@ -36,7 +36,7 @@ public final class EdgeServer {
      *  to {@code sources} as the server's own runner fences them. */
     public static Shipped runner(@com.legend.base.Nullable String sources) {
         return (query, runtime, output) -> com.legend.Execution.runOnProjectDatabases(query, runtime, sources,
-                PureText.UPSTREAM, output);
+                PureText.PURE_V1, output);
     }
 
     /** The shipped route's runner, by its type: what an edge golden net that claims to record pure/v1 must run

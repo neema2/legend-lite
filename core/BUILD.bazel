@@ -167,7 +167,7 @@ legend_java_library(
     name = "database",
     srcs = glob(["src/main/java/com/legend/database/*.java"]),
     visibility = ["//datacube:__pkg__"],
-    deps = ["//base", ":error", ":model", ":sql_dialect"],
+    deps = ["//base", ":error", ":model", ":sql", ":sql_dialect"],
 )
 
 # the compiler quartet: resolver-of-names, element compiler, typer, typed tree

@@ -176,6 +176,7 @@ public record PlanEnv(ModelContext ctx, @Nullable String runtimeFqn,
         return lowerer.withDbTimeZone(timeZone())
                 .withRelationTexts(r -> style.facet(com.legend.lowering.RelationTexts.class, r))
                 .withPureOnlyTexts(r -> style.facet(com.legend.lowering.PureOnlyTexts.class, r))
+                .withPlainRaises(style.plainRaises())
                 .withResultEnvelopes(r -> style.facet(com.legend.lowering.ResultEnvelopes.class, r))
                 .withTraceText(this::traceText);
     }

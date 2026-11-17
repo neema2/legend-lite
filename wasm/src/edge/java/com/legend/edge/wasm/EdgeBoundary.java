@@ -54,8 +54,9 @@ public final class EdgeBoundary {
      * texts.
      */
     public static com.legend.server.PureV1Api.Answer executePlan(String body, String modelsJson) {
-        // pure/v1's execute plans in the compatibility edge's style (the D part 1 audit's M2, 2026-11-15)
-        return com.legend.edge.HostAnswers.arrowPlan(body, models(modelsJson), com.legend.edge.PureText.UPSTREAM);
+        // pure/v1's execute plans in the compatibility edge's pure/v1 style (the D part 1 audit's M2, 2026-11-15; B7,
+        // 2026-11-17: legend-engine's unchecked raises plain, PureText.PURE_V1)
+        return com.legend.edge.HostAnswers.arrowPlan(body, models(modelsJson), com.legend.edge.PureText.PURE_V1);
     }
 
     /**
@@ -66,7 +67,7 @@ public final class EdgeBoundary {
      * {@code modelsJson}: the only models the host runs, a JSON array of their texts.
      */
     public static com.legend.server.PureV1Api.Answer executeJsonPlan(String body, String modelsJson) {
-        return com.legend.edge.HostAnswers.jsonPlan(body, models(modelsJson), com.legend.edge.PureText.UPSTREAM);
+        return com.legend.edge.HostAnswers.jsonPlan(body, models(modelsJson), com.legend.edge.PureText.PURE_V1);
     }
 
     /**

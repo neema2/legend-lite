@@ -25,6 +25,11 @@ final class PlantedUpstreamStyle implements PlanStyle {
     }
 
     @Override
+    public java.util.Set<com.legend.sql.RaiseKind> plainRaises() {
+        throw new UnsupportedOperationException("planted");
+    }
+
+    @Override
     public String activitySql(Activity activity) {
         throw new UnsupportedOperationException("planted");
     }

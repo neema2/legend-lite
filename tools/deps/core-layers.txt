@@ -86,7 +86,9 @@ builtin	base door error model parser protocol
 platform	base builtin error model
 compiler_element_type	base builtin model platform protocol sql
 sql_dialect	base sql
-database	base error model sql_dialect
+# 2026-11-17 (B7, the pure/v1 match-engine build): `database` names `sql` directly -- PlanStyle.plainRaises answers a
+# set of sql.RaiseKind; it reached `sql` through `sql_dialect` already, so no new reach.
+database	base error model sql sql_dialect
 # 2026-11-15 (C5-J's last round, A1, the embedded languages' readers): `compiler` reaches `door` -- an island's text
 # (#SQL, #IQ, #TS, #Cypher) is read through the parse doors (door.Parse), each asking the run's wall first; the readers
 # sit in `protocol`, which cannot ask (invariant 7b). `compiler` reached `door` through `builtin` already.

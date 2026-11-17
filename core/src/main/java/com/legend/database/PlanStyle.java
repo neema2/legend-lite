@@ -35,6 +35,14 @@ public interface PlanStyle {
     @com.legend.base.Nullable
     TraceCell traceCell();
 
+    /** THE RAISES A PLAN WRITES AS THE PLAIN OPERATION (B7, the user's ruling of 2026-11-17: "pure/v1 matches
+     *  legend-engine"; D's census, docs/records/pure-v1-engine-census-2026-11-17.md, class A): a check of a kind in
+     *  this set is not written -- the operation alone is, and the database's own error passes through, as
+     *  legend-engine's SQL has no check of its own there. A two-form hook returning DATA (the orchestrator's criteria of
+     *  2026-11-17, as {@link #traceCell}): the product's, none (every check of lite's kept); the compatibility edge's PCT
+     *  and corpus style, none either (legend-pure's guarded words); the edge's pure/v1 style, class A. */
+    java.util.Set<com.legend.sql.RaiseKind> plainRaises();
+
     /** The text written before and after an execution's id in a trace cell. */
     record TraceCell(String before, String after) {
     }
@@ -126,6 +134,12 @@ public interface PlanStyle {
         @Override
         public @com.legend.base.Nullable TraceCell traceCell() {
             return null;
+        }
+
+        /** The product writes every check of its own. */
+        @Override
+        public java.util.Set<com.legend.sql.RaiseKind> plainRaises() {
+            return java.util.Set.of();
         }
 
         @Override
