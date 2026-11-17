@@ -131,11 +131,12 @@ _QUERIES, _QUERY_USER = '/api/pure/v1/query', THIS_USER
 # DataCube's saved pages, at upstream's routes beside the queries (/api/pure/v1/query/dataCube): the saved pages' rules,
 # the server's and the page's, over this user's folder (B6); their caller the same user
 _CUBES = _QUERIES + '/dataCube'
-# THE PRODUCT'S STORE at lite's own mount (the edge program's H6, 2026-11-17: the server mounts it so too,
-# LegendHttpServer's /api/lite/v1/query): the same rules over the same folders, refused in LITE'S words by the native
-# library's product entries (lite_store_queries, lite_store_cubes). The legend-engine mount above is the edge's
-# (SavedQueriesHome, legend-engine's words), served until the TS hosts move their clients here (the orchestrator's D-b)
-_LITE_QUERIES = '/api/lite/v1/query'
+# THE PRODUCT'S STORE at lite's own route (the edge program's H6, 2026-11-17: the server mounts it so too,
+# LegendHttpServer's /api/lite/v1/queries; the route renamed with the orchestrator's ruling of that day, H6 (b)): the
+# same rules over the same folders, worded in LITE'S words by the native library's product entries (lite_store_queries,
+# lite_store_cubes), a refusal in lite's one error shape ({kind, message}: _lites_refusal). The legend-engine mount
+# above is the edge's (SavedQueriesHome, legend-engine's words), served until it moves into legend_lite.edge (H5)
+_LITE_QUERIES = '/api/lite/v1/queries'
 _LITE_CUBES = _LITE_QUERIES + '/dataCube'
 # PLANANDRUN (docs/DATACUBE_ONE_APP_DESIGN_2026_10_11.md §15): a page's grid planned against the model Python holds and
 # run on its DuckDB, in one call; and its dry run, plan-and-run's planning half (the page's compile check) -- the host's
@@ -358,7 +359,7 @@ def _under(path: str, mount: str) -> bool:
 
 
 def _saved_query(path: str) -> bool:
-    """A call of the query store's at either mount (``/api/lite/v1/query`` or ``/api/pure/v1/query``, ``.../{id}``,
+    """A call of the query store's at either mount (``/api/lite/v1/queries`` or ``/api/pure/v1/query``, ``.../{id}``,
     ``.../search``, ...), DataCube's saved pages' (``.../dataCube...``) among them."""
     return _under(path, _LITE_QUERIES) or _under(path, _QUERIES)
 
@@ -374,6 +375,22 @@ def _stored(entry: str, folder: Path, *asked: str) -> Answer:
     if status == 204:
         return Answer(204, 'text/plain; charset=utf-8', b'')
     return Answer(status, 'application/json', answered.encode('utf-8'))
+
+
+def _lites_refusal(answer: Answer) -> Answer:
+    """A store's answer at lite's route: a refusal (400 and above) in lite's one error shape (the spec's §3,
+    ``{kind, message}``), its status kept -- ``internal`` at 500 and above, else ``request`` -- its message the store's
+    own words, as the server's lite route answers it (LegendHttpServer.storeRoutes); any other answer as it was."""
+    if answer.status < 400:
+        return answer
+    try:
+        said = json.loads(answer.body)
+    except ValueError:
+        said = None
+    message = said['message'] if isinstance(said, dict) and isinstance(said.get('message'), str) \
+        else answer.body.decode('utf-8')
+    kind = compiler.error_kind('INTERNAL' if answer.status >= 500 else 'REQUEST')
+    return Answer(answer.status, 'application/json', json.dumps({'kind': kind, 'message': message}).encode('utf-8'))
 
 
 def _saved_cube(path: str) -> bool:
@@ -728,7 +745,8 @@ class Engine:
             return _said(405, 'the query store answers GET, POST, PUT and DELETE')
         # lite's mount, the product's entry and lite's words; legend-engine's, the edge's (H6)
         if _under(path, _LITE_QUERIES):
-            return _stored('lite_store_queries', queries_folder(), method, path[len(_LITE_QUERIES):], query, body)
+            return _lites_refusal(_stored('lite_store_queries', queries_folder(), method, path[len(_LITE_QUERIES):],
+                                          query, body))
         return _stored('lite_saved_queries', queries_folder(), method, path[len(_QUERIES):], query, body)
 
     def _saved_cubes(self, method: str, path: str, query: str, body: str) -> Answer:
@@ -739,7 +757,8 @@ class Engine:
             return _said(405, "DataCube's saved pages answer GET, POST, PUT and DELETE")
         # lite's mount, the product's entry and lite's words; legend-engine's, the edge's (H6)
         if _under(path, _LITE_CUBES):
-            return _stored('lite_store_cubes', self.pages_folder(), method, path[len(_LITE_CUBES):], query, body)
+            return _lites_refusal(_stored('lite_store_cubes', self.pages_folder(), method, path[len(_LITE_CUBES):],
+                                          query, body))
         return _stored('lite_saved_cubes', self.pages_folder(), method, path[len(_CUBES):], query, body)
 
     def _settings_kept(self, body: str) -> Answer:
