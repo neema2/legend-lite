@@ -235,7 +235,7 @@ input).
 | `TO_VARIANT` | E | E | E | E | E | E | E | E | E | E | E | E· | R | R | R |
 | `BOOL_TO_TEXT` | E | E | E | E | E | E | E | S | E | E | E | E· | E | E | E |
 | `DECIMAL_TO_TEXT` | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E | E | E |
-| `FLOAT_PRINT` | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E | E | E |
+| `FLOAT_SHORTEST_TEXT` | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E | E | E |
 | `FLOAT_TO_TEXT` | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E· | E | E | E |
 | `DATETIME_TO_TEXT` | – | – | – | – | – | – | – | – | – | – | – | – | – | – | – |
 | `DATETIME_PRINT` | – | – | – | – | – | – | – | – | – | – | – | – | – | – | – |

@@ -205,7 +205,7 @@ Database types planned with it: H2.
 | `TO_VARIANT` | emulated | `variantConstruct` |  | 8 |
 | `BOOL_TO_TEXT` | emulated | `CASE WHEN … THEN 'true' WHEN NOT … THEN 'false' END` |  | 2 |
 | `DECIMAL_TO_TEXT` | emulated | `REGEXP_REPLACE(TO_CHAR(…), '^(-?)\.', '$10.')` |  | 0 |
-| `FLOAT_PRINT` | emulated | `floatPrintByText` |  | 0 |
+| `FLOAT_SHORTEST_TEXT` | emulated | `floatShortestTextByCast` |  | 0 |
 | `FLOAT_TO_TEXT` | emulated | `floatToText` |  | 0 |
 | `DATETIME_TO_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `DATETIME_PRINT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
@@ -403,7 +403,7 @@ Database types planned with it: Postgres.
 | `TO_VARIANT` | emulated | `variantConstruct` |  | 8 |
 | `BOOL_TO_TEXT` | emulated | `castAs: VARCHAR` |  | 2 |
 | `DECIMAL_TO_TEXT` | emulated | `varcharCast` |  | 0 |
-| `FLOAT_PRINT` | emulated | `floatPrintByText` |  | 0 |
+| `FLOAT_SHORTEST_TEXT` | emulated | `floatShortestTextByCast` |  | 0 |
 | `FLOAT_TO_TEXT` | emulated | `floatToText` |  | 0 |
 | `DATETIME_TO_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `DATETIME_PRINT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
@@ -601,7 +601,7 @@ Database types planned with it: Snowflake.
 | `TO_VARIANT` | emulated | `variantConstruct` |  | 8 |
 | `BOOL_TO_TEXT` | emulated | `castAs: VARCHAR` |  | 2 |
 | `DECIMAL_TO_TEXT` | emulated | `varcharCast` |  | 0 |
-| `FLOAT_PRINT` | emulated | `by its operands: composed / composed` |  | 0 |
+| `FLOAT_SHORTEST_TEXT` | emulated | `by its operands: composed / composed` |  | 0 |
 | `FLOAT_TO_TEXT` | emulated | `floatToText` |  | 0 |
 | `DATETIME_TO_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `DATETIME_PRINT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
@@ -799,7 +799,7 @@ Database types planned with it: Trino.
 | `TO_VARIANT` | emulated | `variantConstruct` |  | 8 |
 | `BOOL_TO_TEXT` | emulated | `CAST(… AS VARCHAR)` |  | 2 |
 | `DECIMAL_TO_TEXT` | emulated | `varcharCast` |  | 0 |
-| `FLOAT_PRINT` | emulated | `floatPrintByText` |  | 0 |
+| `FLOAT_SHORTEST_TEXT` | emulated | `floatShortestTextByCast` |  | 0 |
 | `FLOAT_TO_TEXT` | emulated | `floatToText` |  | 0 |
 | `DATETIME_TO_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `DATETIME_PRINT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
@@ -997,7 +997,7 @@ Database types planned with it: BigQuery.
 | `TO_VARIANT` | emulated | `variantConstruct` |  | 8 |
 | `BOOL_TO_TEXT` | emulated | `CAST(… AS STRING)` |  | 2 |
 | `DECIMAL_TO_TEXT` | emulated | `varcharCast` |  | 0 |
-| `FLOAT_PRINT` | emulated | `floatPrintByText` |  | 0 |
+| `FLOAT_SHORTEST_TEXT` | emulated | `floatShortestTextByCast` |  | 0 |
 | `FLOAT_TO_TEXT` | emulated | `floatToText` |  | 0 |
 | `DATETIME_TO_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `DATETIME_PRINT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
@@ -1195,7 +1195,7 @@ Database types planned with it: Databricks.
 | `TO_VARIANT` | emulated | `variantConstruct` |  | 8 |
 | `BOOL_TO_TEXT` | emulated | `CAST(… AS STRING)` |  | 2 |
 | `DECIMAL_TO_TEXT` | emulated | `varcharCast` |  | 0 |
-| `FLOAT_PRINT` | emulated | `floatPrintByText` |  | 0 |
+| `FLOAT_SHORTEST_TEXT` | emulated | `floatShortestTextByCast` |  | 0 |
 | `FLOAT_TO_TEXT` | emulated | `floatToText` |  | 0 |
 | `DATETIME_TO_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `DATETIME_PRINT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
@@ -1393,7 +1393,7 @@ Database types planned with it: DuckDB.
 | `TO_VARIANT` | emulated | `variantConstruct` |  | 8 |
 | `BOOL_TO_TEXT` | emulated | `castAs: VARCHAR` |  | 2 |
 | `DECIMAL_TO_TEXT` | emulated | `varcharCast` |  | 0 |
-| `FLOAT_PRINT` | emulated | `floatPrintByText` |  | 0 |
+| `FLOAT_SHORTEST_TEXT` | emulated | `floatShortestTextByCast` |  | 0 |
 | `FLOAT_TO_TEXT` | emulated | `floatToText` |  | 0 |
 | `DATETIME_TO_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `DATETIME_PRINT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
@@ -1591,7 +1591,7 @@ Database types planned with it: ClickHouse.
 | `TO_VARIANT` | emulated | `variantConstruct` |  | 8 |
 | `BOOL_TO_TEXT` | spelled | `toString` |  | 2 |
 | `DECIMAL_TO_TEXT` | emulated | `varcharCast` |  | 0 |
-| `FLOAT_PRINT` | emulated | `floatPrintByText` |  | 0 |
+| `FLOAT_SHORTEST_TEXT` | emulated | `floatShortestTextByCast` |  | 0 |
 | `FLOAT_TO_TEXT` | emulated | `floatToText` |  | 0 |
 | `DATETIME_TO_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `DATETIME_PRINT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
@@ -1789,7 +1789,7 @@ Database types planned with it: SQLite.
 | `TO_VARIANT` | emulated | `variantConstruct` |  | 8 |
 | `BOOL_TO_TEXT` | emulated | `textOf` |  | 2 |
 | `DECIMAL_TO_TEXT` | emulated | `varcharCast` |  | 0 |
-| `FLOAT_PRINT` | emulated | `floatPrintByText` |  | 0 |
+| `FLOAT_SHORTEST_TEXT` | emulated | `floatShortestTextByCast` |  | 0 |
 | `FLOAT_TO_TEXT` | emulated | `floatToText` |  | 0 |
 | `DATETIME_TO_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `DATETIME_PRINT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
@@ -1987,7 +1987,7 @@ Database types planned with it: MariaDB.
 | `TO_VARIANT` | emulated | `variantConstruct` |  | 8 |
 | `BOOL_TO_TEXT` | emulated | `textOf` |  | 2 |
 | `DECIMAL_TO_TEXT` | emulated | `varcharCast` |  | 0 |
-| `FLOAT_PRINT` | emulated | `floatPrintByText` |  | 0 |
+| `FLOAT_SHORTEST_TEXT` | emulated | `floatShortestTextByCast` |  | 0 |
 | `FLOAT_TO_TEXT` | emulated | `floatToText` |  | 0 |
 | `DATETIME_TO_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `DATETIME_PRINT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
@@ -2185,7 +2185,7 @@ Database types planned with it: MySQL.
 | `TO_VARIANT` | emulated | `variantConstruct` | `as MariaDb` | 8 |
 | `BOOL_TO_TEXT` | emulated | `textOf` | `as MariaDb` | 2 |
 | `DECIMAL_TO_TEXT` | emulated | `varcharCast` | `as MariaDb` | 0 |
-| `FLOAT_PRINT` | emulated | `floatPrintByText` | `as MariaDb` | 0 |
+| `FLOAT_SHORTEST_TEXT` | emulated | `floatShortestTextByCast` | `as MariaDb` | 0 |
 | `FLOAT_TO_TEXT` | emulated | `floatToText` | `as MariaDb` | 0 |
 | `DATETIME_TO_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` | `as MariaDb` | 0 |
 | `DATETIME_PRINT` | not_here | `renderer bug: is expanded before any dialect reads it` | `as MariaDb` | 0 |
@@ -2383,7 +2383,7 @@ Database types planned with it: MongoDB.
 | `TO_VARIANT` | emulated | `variantConstruct` |  | 0 |
 | `BOOL_TO_TEXT` | emulated | `op1: $toString` |  | 0 |
 | `DECIMAL_TO_TEXT` | emulated | `varcharCast` |  | 0 |
-| `FLOAT_PRINT` | emulated | `floatPrintByText` |  | 0 |
+| `FLOAT_SHORTEST_TEXT` | emulated | `floatShortestTextByCast` |  | 0 |
 | `FLOAT_TO_TEXT` | emulated | `floatToText` |  | 0 |
 | `DATETIME_TO_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `DATETIME_PRINT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
@@ -2581,7 +2581,7 @@ Database types planned with it: no database type's own (it extends `AnsiSqlRende
 | `TO_VARIANT` | refused | `toVariant reached a dialect without JSON support` | `via AnsiSqlRenderer.variantConstruct` | — |
 | `BOOL_TO_TEXT` | emulated | `cast(… as varchar)` |  | — |
 | `DECIMAL_TO_TEXT` | emulated | `varcharCast` |  | — |
-| `FLOAT_PRINT` | emulated | `floatPrintByText` |  | — |
+| `FLOAT_SHORTEST_TEXT` | emulated | `floatShortestTextByCast` |  | — |
 | `FLOAT_TO_TEXT` | emulated | `floatToText` |  | — |
 | `DATETIME_TO_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | — |
 | `DATETIME_PRINT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | — |
@@ -2779,7 +2779,7 @@ Database types planned with it: no database type's own (it extends `EngineStyleH
 | `TO_VARIANT` | refused | `toVariant reached a dialect without JSON support` | `as EngineStyleH2, via AnsiSqlRenderer.variantConstruct` | — |
 | `BOOL_TO_TEXT` | emulated | `cast(… as varchar)` | `as EngineStyleH2` | — |
 | `DECIMAL_TO_TEXT` | emulated | `varcharCast` | `as EngineStyleH2` | — |
-| `FLOAT_PRINT` | emulated | `floatPrintByText` | `as EngineStyleH2` | — |
+| `FLOAT_SHORTEST_TEXT` | emulated | `floatShortestTextByCast` | `as EngineStyleH2` | — |
 | `FLOAT_TO_TEXT` | emulated | `floatToText` | `as EngineStyleH2` | — |
 | `DATETIME_TO_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` | `as EngineStyleH2` | — |
 | `DATETIME_PRINT` | not_here | `renderer bug: is expanded before any dialect reads it` | `as EngineStyleH2` | — |
@@ -2977,7 +2977,7 @@ Database types planned with it: no database type's own (it extends `EngineStyleD
 | `TO_VARIANT` | refused | `toVariant reached a dialect without JSON support` | `as EngineStyleDB2, as EngineStyleH2, via AnsiSqlRenderer.variantConstruct` | — |
 | `BOOL_TO_TEXT` | emulated | `cast(… as varchar)` | `as EngineStyleDB2, as EngineStyleH2` | — |
 | `DECIMAL_TO_TEXT` | emulated | `varcharCast` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `FLOAT_PRINT` | emulated | `floatPrintByText` | `as EngineStyleDB2, as EngineStyleH2` | — |
+| `FLOAT_SHORTEST_TEXT` | emulated | `floatShortestTextByCast` | `as EngineStyleDB2, as EngineStyleH2` | — |
 | `FLOAT_TO_TEXT` | emulated | `floatToText` | `as EngineStyleDB2, as EngineStyleH2` | — |
 | `DATETIME_TO_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` | `as EngineStyleDB2, as EngineStyleH2` | — |
 | `DATETIME_PRINT` | not_here | `renderer bug: is expanded before any dialect reads it` | `as EngineStyleDB2, as EngineStyleH2` | — |

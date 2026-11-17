@@ -97,7 +97,7 @@ class SnowflakeDialectTest {
     @Test
     void aFloatsPrintFormsAreSpelledHere_theValueReadOnce() {
         SqlExpr x = SqlExpr.Column.of("t", "x", SqlType.Scalar.DOUBLE, true, OutputCol.Origin.PHYSICAL);
-        for (SqlFn fn : List.of(SqlFn.FLOAT_PRINT)) {
+        for (SqlFn fn : List.of(SqlFn.FLOAT_SHORTEST_TEXT)) {
             String sql = new Snowflake().render(new SqlSelect(List.of(new SqlSelect.Projection(
                     SqlExpr.Call.of(fn, x), "p", null)), false, new SqlSource.Table("t", "t",
                     List.of(new OutputCol("x", SqlType.Scalar.DOUBLE, true)), false, Map.of(),
@@ -112,7 +112,7 @@ class SnowflakeDialectTest {
             assertTrue(sql.contains("THEN 'NaN' WHEN "), sql);
         }
         String literal = new Snowflake().render(new SqlSelect(List.of(new SqlSelect.Projection(
-                SqlExpr.Call.of(SqlFn.FLOAT_PRINT, new SqlExpr.FloatLit(1.5)), "p", null)), false,
+                SqlExpr.Call.of(SqlFn.FLOAT_SHORTEST_TEXT, new SqlExpr.FloatLit(1.5)), "p", null)), false,
                 new SqlSource.Dual(), null, List.of(), null, null, List.of(), null, null, List.of()));
         assertFalse(literal.contains("NUMBER(38, 28)"), literal);
         // the product's text (D1.2, 2026-11-15; the user's ruling of 2026-11-10): six decimals trimmed, NaN and the

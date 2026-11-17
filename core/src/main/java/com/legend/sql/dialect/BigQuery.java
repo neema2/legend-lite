@@ -202,7 +202,7 @@ public class BigQuery extends AnsiSqlRenderer {
      *  (Pure's) and over a thousand (legend-engine's), each read this dialect's text of a double, its own subquery (the
      *  served statement for {@code 1.5 + 2.25} was 321 KB, measured 2026-10-22). */
     @Override
-    protected boolean bindsFloatPrint() {
+    protected boolean readsLongTextOnce() {
         return true;
     }
 
@@ -1581,7 +1581,7 @@ public class BigQuery extends AnsiSqlRenderer {
                     + " code points) reached BigQuery, whose binary collation is not measured");
             case DATE_TRUNC_DAY -> castAs(writer, c.args().get(0), "DATE");
             case ERROR -> raiseEnvelope(writer, c.args(), "ERROR");
-            case FLOAT_PRINT -> floatPrintByText(writer, c, parentPrec);
+            case FLOAT_SHORTEST_TEXT -> floatShortestTextByCast(writer, c, parentPrec);
             case FLOAT_TO_TEXT -> floatToText(writer, c.args().get(0));
             case DATETIME_TO_TEXT, DATETIME_PRINT, CELL_TEXT, INSTANCE_TEXT, RELATION_TEXT, TEXT_FORMS ->
                     throw expandedFirst(c);
