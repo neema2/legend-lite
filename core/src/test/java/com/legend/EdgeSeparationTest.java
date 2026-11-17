@@ -58,7 +58,8 @@ class EdgeSeparationTest {
             Map.entry("com.legend.sql.dialect.DateTimePrintText", "B12"),
             Map.entry("com.legend.lowering.ResultEnvelopes", "B5"),
             Map.entry("com.legend.lowering.PureOnlyTexts", "B8"),
-            Map.entry("com.legend.lowering.Repr", "C5"),
+            // (com.legend.lowering.Repr: deleted 2026-11-17, census B12's 2b -- legend-pure's representation the edge's
+            // EdgePureOnlyTexts, toRepresentation's since C5 step A, format's %r's since 2b)
             Map.entry("com.legend.testplan.EngineTestText", "C4"),
             Map.entry("com.legend.testplan.EngineTextPlanning", "C4"),
             Map.entry("com.legend.testplan.PlanStyleFacets", "C4"));
@@ -80,24 +81,22 @@ class EdgeSeparationTest {
 
     /** CODE: "source class -> target", each entry its census line and date. */
     static final Map<String, String> CODE_OPEN = Map.ofEntries(
-            // B8 -> B12 2026-11-17 (census B9, the orchestrator's ruling): format's %r arm keeps legend-pure's DateTime
-            // print form until it is refused in the product by B12's 2b (F's; the user's §10 item 8)
-            Map.entry("com.legend.lowering.Scalars -> SqlFn.DATETIME_PRINT",
-                    "B12 2026-11-17 (format %r arm: refused in the product by B12 2b, the user's §10 item 8)"),
+            // lowering.Scalars -> SqlFn.DATETIME_PRINT: gone 2026-11-17, census B12's 2b (F's; the user's §10 item 8):
+            // format's %r refused in the product by name, the edge's EdgePureOnlyTexts.formatR its text
             // B9 -> C5 (E-P5) 2026-11-17 (the orchestrator's ruling (a)): the composition the judges' canon alone emits
             // (LiteralSpelling.temporalCanon), closed by C5's step C
             Map.entry("com.legend.sql.dialect.AnsiSqlRenderer -> com.legend.sql.dialect.DateTimePrintText",
                     "B12 2026-11-17 (format %r arm, LiteralSpelling.temporalCanon's gone by C5 step C)"),
-            Map.entry("com.legend.sql.dialect.DateTimePrintText -> (stands in a product package)",
-                    "B12 2026-11-17 (format %r arm, LiteralSpelling.temporalCanon's gone by C5 step C)"),
-            Map.entry("com.legend.lowering.Repr -> (stands in a product package)", "B12 2026-11-17"),
             // planner.Boundary -> com.legend.edge.HostAnswers, PureText, PureV1Routes: gone 2026-11-17 (A1, E-P5): the
             // pure/v1 route and execute's halves moved to com.legend.edge.wasm.EdgeBoundary (//wasm:edge_boundary)
             // B7 CLOSED 2026-11-17 (E-P5, D's split by content): server/PureV1Api is the product's own API kit,
             // server/LiteV1Api in //core:lite_v1 (lite's routes, answer and refusal kinds, LiteV1Api.RefusalKind);
             // legend-engine's ExecuteInput binding moved to the edge (edge.ExecuteInputs); its 7 lines left with it
             // lowering.VerdictSql -> lowering.Repr: gone 2026-11-17 (C5 step A, the PureOnlyTexts facet's representation)
-            Map.entry("com.legend.lowering.Scalars -> com.legend.lowering.Repr", "B12 2026-11-17"));
+            // lowering.Repr -> (stands in a product package), lowering.Scalars -> lowering.Repr: gone 2026-11-17 with
+            // Repr, census B12's 2b
+            Map.entry("com.legend.sql.dialect.DateTimePrintText -> (stands in a product package)",
+                    "B12 2026-11-17 (the edge's DATETIME_PRINT composition; no product emitter since B12 2b)"));
 
     /** TEST SIDE: the same. */
     static final Map<String, String> TEST_OPEN = Map.ofEntries(
@@ -281,8 +280,7 @@ class EdgeSeparationTest {
             Map.entry("compiler/element/type/PlatformTypes.java | TDS_NULL_CELL", "B10 2026-11-17"),
             // B11 -> C5 2026-11-17 (the orchestrator's ruling): the judges' canon (temporalCanon x2, dateTimeLiteralAt via
             // CanonicalRenderSql), closed by C5's step C (E-SQL's)
-            Map.entry("lowering/Repr.java | Repr", "B12 2026-11-17"),
-            Map.entry("lowering/Scalars.java | Repr", "B12 2026-11-17"),
+            // lowering/Repr.java | Repr, lowering/Scalars.java | Repr: gone 2026-11-17, census B12's 2b (Repr deleted)
             Map.entry("lowering/VerdictSql.java | TDS_NULL_CELL", "C5 2026-11-17"),
             Map.entry("sql/SqlExpr.java | TDS_NULL_CELL", "B10 2026-11-17"),
             Map.entry("testexec/CanonicalForm.java | +0000", "C5 2026-11-17"),
