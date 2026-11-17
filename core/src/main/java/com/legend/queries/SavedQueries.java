@@ -189,7 +189,7 @@ public final class SavedQueries {
         if (store == null) {
             return refused(new Refusal(Refusal.Kind.STORE_NOT_CONFIGURED, List.of("query"), 500), words);
         }
-        try {
+        return served(() -> {
             String[] parts = rest.isEmpty() ? new String[0] : rest.substring(1).split("/", -1);
             String id = parts.length > 0 ? java.net.URLDecoder.decode(parts[0], StandardCharsets.UTF_8) : "";
             if (parts.length > 0 && "dataCube".equals(parts[0])) {
@@ -211,11 +211,18 @@ public final class SavedQueries {
                 case "PUT 2 patchQuery" -> ok(store.patch(id, body, user));
                 default -> notFound(rest, words);
             };
+        }, words);
+    }
+
+    /** A route served, its refusal or failure answered in {@code words} -- the one catch both stores share (J9 of the
+     *  edge audit, 2026-11-17): a {@link Refusal} is its kind's answer; the store's disk failing, or a body that is not
+     *  the JSON the engine takes (a bad integer, a field of the wrong kind), is a 500 naming the exception. */
+    static Answer served(java.util.function.Supplier<Answer> route, java.util.function.Function<Refusal, String> words) {
+        try {
+            return route.get();
         } catch (Refusal r) {
             return refused(r, words);
         } catch (java.io.UncheckedIOException | IllegalArgumentException | ClassCastException e) {
-            // the store's disk failing, or a body that is not the JSON the engine takes (a bad
-            // integer, a field of the wrong kind): a 500, naming the exception
             return failed(e, words);
         }
     }

@@ -83,7 +83,7 @@ public final class SavedCubes {
             return SavedQueries.refused(new SavedQueries.Refusal(SavedQueries.Refusal.Kind.STORE_NOT_CONFIGURED,
                     java.util.List.of("page"), 500), words);
         }
-        try {
+        return SavedQueries.served(() -> {
             String[] parts = rest.isEmpty() ? new String[0] : rest.substring(1).split("/", -1);
             String id = parts.length > 0
                     ? java.net.URLDecoder.decode(parts[0], java.nio.charset.StandardCharsets.UTF_8) : "";
@@ -102,12 +102,7 @@ public final class SavedCubes {
                 }
                 default -> notFound(rest, words);
             };
-        } catch (SavedQueries.Refusal r) {
-            return SavedQueries.refused(r, words);
-        } catch (java.io.UncheckedIOException | IllegalArgumentException | ClassCastException e) {
-            // the store's disk failing, or a body of another shape: a 500, naming the exception
-            return SavedQueries.failed(e, words);
-        }
+        }, words);
     }
 
     private static SavedQueries.Answer ok(Object json) {

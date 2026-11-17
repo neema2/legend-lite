@@ -1945,6 +1945,9 @@ class JavaEvalLedgerTest {
                             // planner (J5 of the edge audit, 2026-11-17): the edge's form of the two-form RoutedQueries;
                             // spells a routed chain, decides nothing
                             "AggAwareActivities.java",
+                            // legend-engine's shape of a query store's answer (J9 of the edge audit, 2026-11-17): a
+                            // refusal's JSON rewritten in its envelope at legend-engine's path; spells, decides nothing
+                            "StoreShapes.java",
                             // legend-engine's sentence of a query store's refusal (the P2 checkpoint audit's M2,
                             // 2026-11-16): a kind to its words, no state, no evaluation; its own target for the page
                             "StoreWords.java",
