@@ -1357,7 +1357,8 @@ final class ArchitectureTest {
             "planner.PlanEnv#postProcessors()", "com.legend.edge.EnginePlans",
             "planner.PlanEnv#queryLets()", "com.legend.edge.EnginePlans",
             "planner.PlanEnv#runtimeFqn()", "com.legend.edge.EnginePlans",
-            "planner.PlanEnv#style()", "com.legend.edge.EngineAllocations com.legend.edge.EnginePlans",
+            // planner.PlanEnv#style() GONE 2026-11-17 (Phase 6's A, the orchestrator's approved method list): the edge
+            // reaches its own engine-text printers (edge.PureText), no longer the plan style's engine methods
             "planner.PlanEnv#tableReplace()", "com.legend.edge.EnginePlans",
             "planner.PlanEnv#withFeatures(java.util.Set)", "com.legend.edge.EnginePlans",
             "planner.QueryParameters#of(com.legend.compiler.spec.typed.TypedLambda)", "com.legend.edge.EnginePlans",

@@ -132,7 +132,8 @@ class CompatSpellingGuardTest {
             // 5 -> 9 (2026-11-16, W9's judge half, E-Java: the judges' engine-text methods on the one hook, declared and refused by the product --
             // engineTestText and engineTestPlanText -- so the test planner names no engine text of its own)
             // 9 -> 8 (2026-11-16, W9's planner half: the activity's engines() takes no printer, the edge's facet picks it)
-            "database/PlanStyle.java | EngineTextDialect | 8 | HOOK",
+            // GONE 2026-11-17 (Phase 6's A, the orchestrator's approved method list): PlanStyle names no engine text;
+            // upstream's forms are its UpstreamPlans facet's, the edge's (8 -> 0, the row deleted)
             // (Missing external parameter(s): gone 2026-11-16, W7: error.MissingParameters, worded by the edge)
             // moved from testplan/ActivityComments.java (2026-11-12, C's J10 merged at 4ef947a: the execution id one per
             // execute(), minted by the door; the activity's comment now the program runner's): a move, the count the same
