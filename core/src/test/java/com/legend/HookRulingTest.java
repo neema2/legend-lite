@@ -296,11 +296,11 @@ class HookRulingTest {
         assertTrue(com.legend.edge.TestDataRoutes.ROUTE.getClass().getPackageName().equals("com.legend.edge"),
                 "the server routes' form is the edge's");
         assertTrue(PlanStyle.PRODUCT.twoForm(com.legend.lowering.LoweringForms.class,
-                com.legend.lowering.LoweringForms.PRODUCT) == com.legend.lowering.LoweringForms.PRODUCT,
+                com.legend.lowering.ProductLoweringForms.INSTANCE) == com.legend.lowering.ProductLoweringForms.INSTANCE,
                 "the product lowers in its own forms");
         Object edgeForms = com.legend.edge.PureText.UPSTREAM.twoForm(com.legend.lowering.LoweringForms.class,
-                com.legend.lowering.LoweringForms.PRODUCT);
-        assertTrue(edgeForms != com.legend.lowering.LoweringForms.PRODUCT
+                com.legend.lowering.ProductLoweringForms.INSTANCE);
+        assertTrue(edgeForms != com.legend.lowering.ProductLoweringForms.INSTANCE
                 && edgeForms.getClass().getPackageName().equals("com.legend.edge"),
                 "the edge answers its own lowering forms: " + edgeForms.getClass());
         Runnable productForm = () -> { };
@@ -513,7 +513,7 @@ class HookRulingTest {
     /** The raises {@code style}'s lowering forms write plain ({@code LoweringForms#raise}), asked kind by kind. */
     private static java.util.Set<com.legend.sql.RaiseKind> plainOf(PlanStyle style) {
         com.legend.lowering.LoweringForms forms = style.twoForm(com.legend.lowering.LoweringForms.class,
-                com.legend.lowering.LoweringForms.PRODUCT);
+                com.legend.lowering.ProductLoweringForms.INSTANCE);
         com.legend.sql.SqlExpr checked = new com.legend.sql.SqlExpr.StringLit("checked");
         com.legend.sql.SqlExpr plain = new com.legend.sql.SqlExpr.StringLit("plain");
         java.util.Set<com.legend.sql.RaiseKind> out = java.util.EnumSet.noneOf(com.legend.sql.RaiseKind.class);

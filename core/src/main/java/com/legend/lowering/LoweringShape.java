@@ -17,7 +17,7 @@ package com.legend.lowering;
  * @param forms                a view at relation position and a mapping's wire coercion, the shape's two-form choices
  *                             ({@link LoweringForms#view}, {@link LoweringForms#wireCast}; the audit's K5, 2026-11-17:
  *                             until then two flags the product branched on, set by the edge alone): the product's
- *                             {@link LoweringForms#PRODUCT} lowers a view flat and writes a wire cast; legend-engine's
+ *                             {@link ProductLoweringForms} lowers a view flat and writes a wire cast; legend-engine's
  *                             (the edge's) nests a view as a derived table and leaves a wire coercion to its reader
  * @param existsAsJoinDistinct a filter's correlated {@code EXISTS} over a to-many join is a join to the distinct keys
  *                             ({@link ExistsJoinForm}; until 2026-11-17 {@code withEngineExistsJoinForm}): each planner
@@ -27,7 +27,7 @@ public record LoweringShape(boolean shareRelations, boolean foldKeyedCounts, boo
         LoweringForms forms, boolean existsAsJoinDistinct) {
 
     /** The product's shape: lean SQL. */
-    public static final LoweringShape LEAN = new LoweringShape(true, true, true, LoweringForms.PRODUCT, false);
+    public static final LoweringShape LEAN = new LoweringShape(true, true, true, ProductLoweringForms.INSTANCE, false);
 
     /** This shape, an {@code EXISTS} over a to-many join written as a join to the distinct keys. */
     public LoweringShape withExistsAsJoinDistinct() {

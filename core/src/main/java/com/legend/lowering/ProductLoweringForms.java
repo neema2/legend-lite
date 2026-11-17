@@ -1,0 +1,43 @@
+// Copyright 2026 Legend Contributors
+// SPDX-License-Identifier: Apache-2.0
+
+package com.legend.lowering;
+
+import com.legend.sql.RaiseKind;
+import com.legend.sql.SqlExpr;
+import com.legend.sql.SqlSelect;
+
+import java.util.function.Supplier;
+
+/**
+ * THE PRODUCT'S FORM OF THE LOWERING'S TWO-FORM CHOICES ({@link LoweringForms}; a product class of its own since
+ * 2026-11-17, the orchestrator's ruling: a two-form kind holds types only, criterion (a)): every check written, a view
+ * lowered flat, a wire coercion's cast written, an execute's values lite's array.
+ */
+public final class ProductLoweringForms implements LoweringForms {
+
+    public static final ProductLoweringForms INSTANCE = new ProductLoweringForms();
+
+    private ProductLoweringForms() {
+    }
+
+    @Override
+    public SqlExpr raise(RaiseKind kind, Supplier<SqlExpr> checked, SqlExpr plain) {
+        return checked.get();
+    }
+
+    @Override
+    public SqlSelect view(SqlSelect body, Supplier<String> alias, String view) {
+        return body;
+    }
+
+    @Override
+    public SqlExpr wireCast(SqlExpr value, Supplier<SqlExpr> written) {
+        return written.get();
+    }
+
+    @Override
+    public SqlSelect executeValues(Supplier<SqlSelect> array, Supplier<SqlSelect> oneBare) {
+        return array.get();
+    }
+}
