@@ -30,7 +30,7 @@ public record ExecuteOptions(PlanningOptions planning, com.legend.executionplan.
             com.legend.executionplan.DataStores stores,
             java.util.Set<com.legend.platform.Feature> features) {
         this(new PlanningOptions(edge, stores, features, PlanningOptions.JudgeMode.HOST,
-                PlanningOptions.rules(edge.records()), java.util.Set.of(), com.legend.database.PlanStyle.PRODUCT),
+                edge.rules(), java.util.Set.of(), com.legend.database.PlanStyle.PRODUCT),
                 stores);
     }
 

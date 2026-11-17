@@ -58,7 +58,7 @@ final class AssertErrorRuns {
     private static TypedSide judged(String expected, @com.legend.base.Nullable Long expectedLine,
             @com.legend.base.Nullable Long expectedColumn, @com.legend.base.Nullable String caughtMessage,
             @com.legend.base.Nullable Throwable caughtCause, com.legend.testexecutionplan.TestPlan.JudgingRules rules) {
-        boolean lite = HostJudgments.lite(rules);
+        boolean lite = !rules.legendPureWords();   // HostJudgments.lite's rule: lite's own rules write lite's sentences
         if (caughtMessage == null && lite) {
             throw new com.legend.error.AssertFailed(HostJudgments.sentence(
                     com.legend.error.AssertSentence.NO_ERROR, "expected", LiteWords.quoted(expected)));

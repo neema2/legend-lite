@@ -320,11 +320,15 @@ class HookRulingTest {
     @Test
     void theHooksCapabilitiesAreTheProductsAndTheEdges() {
         assertFalse(com.legend.testexecutionplan.NoEdge.NONE.records(), "the product records no ledger");
+        assertTrue(com.legend.testexecutionplan.NoEdge.NONE.rules()
+                == com.legend.testexecutionplan.TestPlan.JudgingRules.LITE, "the product's runs judge by lite's rules");
         assertTrue(new com.legend.edge.CompatEdge(new com.legend.edge.RawLedger.Recorder(),
                 com.legend.executionplan.DataStores.none()).records(), "the edge's recorder records the ledger");
         assertTrue(com.legend.testexec.NoEdgeRun.NONE.wordsAlike(), "lite's judges write alike");
         assertTrue(productHearing().renderedTexts() == com.legend.testexec.RenderedTexts.Product.STRINGS,
                 "lite's runs hold two differing strings as differing");
+        assertTrue(productHearing().hostForms() == com.legend.testexec.HostForms.Product.STRICT,
+                "lite's runs never equal two number kinds");
         assertFalse(com.legend.edge.AppealRun.with(null).wordsAlike(), "the edge's words are the host's alone");
         assertTrue(com.legend.ExecuteOptions.NONE.edge() == com.legend.testexecutionplan.NoEdge.NONE,
                 "the product's options carry the product's edge hook, never a null");

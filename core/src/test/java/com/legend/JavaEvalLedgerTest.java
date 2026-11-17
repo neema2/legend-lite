@@ -306,7 +306,7 @@ class JavaEvalLedgerTest {
             // 416 -> 441 (step 2b): grid cells by COLUMN kind and the mixed
             // verdict's leniency-only test moved here from TdsCompare (-59)
             // and AssertVerdicts; PureAsserts -24, JsonCompare gone (-25)
-            Map.entry("core/src/main/java/com/legend/testexec/Equality.java", 447),   // 452 -> 447 (2026-11-17, C5's step C, C-3: Equality.scalar's unread message text deleted, ordered/sameElements decisions)
+            Map.entry("core/src/main/java/com/legend/testexec/Equality.java", 441),   // 447 -> 441 (2026-11-17, census C1 step 2c: compiled legend-pure's cross-kind rule asked of the run hook, HostForms, moved to the edge's CompiledPureHostForms); 452 -> 447 (2026-11-17, C5's step C, C-3: Equality.scalar's unread message text deleted, ordered/sameElements decisions)
               // 444 -> 452 (2026-11-08, the plan-as-data design's step 1 (docs/PLAN_AS_DATA_2026_11_07.md 2.5): the judges' types the exec way -- a judged value carries the plan's type name, never the compiler's Type: declaredNumeric reads a declared kind from that name, the same decisions as the Type arms it replaces; nothing evaluated)   // 461 -> 444 (2026-11-07, P1: the host judge's byte channel deleted -- a canon rider built and declined at run since the plan path's step 6, 2026-10-18, the dual verdict it fed, its canon framing, its census and the grid canons it read; nothing evaluated, nothing judged differently)   // 498 -> 461 (2026-11-06, the S132 scope fix, the user's "okay": two Strings compare exactly under every rule set, the float-token comparison inside any two Strings deleted; a rendered text's 2-ULP cells stay TdsCompare's on the host, the rows in the verdict row on the database judge) 494 -> 498 (2026-11-05, the exact-comparison report (the user's ruling S15/S132, 2026-11-05: clean mode compares Floats exactly, measured first): a print under -Dlegend.diagnostics=judge-declines where the 2-ULP tolerance, not equality, decided a verdict; a measurement, nothing evaluated)   // 502 -> 494 (2026-11-04, the explicit rule: the rules each verdict is judged by are its plan step's, ExecutionPlan.JudgingRules, handed to the judge -- the thread-local and its scope deleted, the comparisons take the rules as a parameter)   // 498 -> 502 (2026-11-04, register S127 ruled by the user: two numbers of different kinds are never equal in lite's own runs; in backwards-compatibility mode compiled legend-pure's rule, an Integer and a Decimal by their texts -- integerAndDecimal; one comparison, nothing computed)   // 487 -> 498 (2026-11-04, backwards-compatibility mode (the user, 2026-11-04: lite's own runs exact, PCT and the corpus in compat mode): S132's float tokens in a String scoped to a compat run's judgment (compat); the comparison itself unchanged)   // 485 -> 487 (2026-11-03, S132 narrowed: two spellings of one double fail as text, never tolerated -- the H2 percentile witness; judgement only, nothing evaluated)   // 420 -> 485 (2026-11-03, the user's ruling "no sort can be multiset compare" restored: pureJsonUnorderedRoot, an unsorted chain's root array as a multiset, back (+28); with it the same day's S15 float-token tolerance the user allowed, floatTokensWithinTwoUlp and the STRING arm that calls it (+37), measured here; judgement only, nothing evaluated)   // 448 -> 420 (2026-11-03, the user's ruling: never more lenient than upstream -- the multiset, rendered-text, cell-pool, unordered-JSON and stamped-kind paths deleted)   // 447 -> 448 (2026-10-30, D71): in judge, out of exec -- the one exec import the move needs (the census); no rule changed   // 451 -> 447 (cleanup move 3: the ULP-firing counter moved to the one census owner; no rule changed)
             // 242 -> 218 -> 229 (step 2b): the equality API is gone; the typed
             // message facade (assertEqualsTyped) builds a grid's narrative
@@ -1471,12 +1471,15 @@ class JavaEvalLedgerTest {
                     // (2026-11-17, census C2: the referee and the appeals moved to the edge (the orchestrator's P1+P2): Appeals.java and SqlTextRuns.java moved there) the run's hook in the
                     // referee's slot -- signatures, and the product's refusal, which judges nothing
                     "EdgeRun.java", "EdgeHearing.java", "NoEdgeRun.java",
-                    // legend-pure's words of an assert's failure at run, the edge's answer (C5's step B, 2026-11-17): a ruled
-                    // hook, signatures only
-                    "PureWords.java",
                     // whether a rendered text that differs from its golden is held, asked of the run's hearing (census
                     // C1, 2026-11-17, S131/S132): the signature and lite's form, never; nothing evaluated
                     "RenderedTexts.java",
+                    // the host judge's behaviours the run hook answers, and the plan's rules carried with them (census
+                    // C1's step 2c, 2026-11-17): signatures, lite's form and a record; nothing evaluated
+                    "HostForms.java", "HostRules.java",
+                    // legend-pure's words of an assert's failure at run, the edge's answer (C5's step B, 2026-11-17): a ruled
+                    // hook, signatures only
+                    "PureWords.java",
                     "HostJudgments.java", "AssertRuns.java", "AssertErrorRuns.java", "DatabaseVerdicts.java",
                     "SideShapes.java", "HostSideShapes.java", "TestRun.java",
                     // 2026-11-17 (isolated BOTH, the orchestrator's ruling): each judge's plan run alone and the two
@@ -1953,6 +1956,10 @@ class JavaEvalLedgerTest {
                             // legend-engine's TDSNull read as a golden's null cell, the edge's form of the two-form
                             // GoldenNullWord kind (census C1, 2026-11-17): one word compared, nothing evaluated
                             "UpstreamGoldenNullWord.java",
+                            // compiled legend-pure's host equality, the edge's form of the run hook's HostForms (census
+                            // C1's step 2c, 2026-11-17, S127: moved from testexec.Equality) -- two values the judge
+                            // holds compared by their texts, no session, no statement
+                            "CompiledPureHostForms.java",
                             // upstream counts a relation passed to assertSize/assertNotEmpty as ONE value (register
                             // S137), the edge's form of the two-form RelationCounting kind (census C1, 2026-11-17:
                             // moved from compiler.spec.RelationCountAsserts) -- a typed tree rewritten at planning

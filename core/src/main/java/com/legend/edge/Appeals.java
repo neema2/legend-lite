@@ -154,6 +154,12 @@ final class Appeals implements com.legend.testexec.EdgeHearing {
         return UpstreamRenderedTexts.INSTANCE;
     }
 
+    /** Compiled legend-pure's host equality (S127; census C1's step 2c, 2026-11-17). */
+    @Override
+    public com.legend.testexec.HostForms hostForms() {
+        return CompiledPureHostForms.INSTANCE;
+    }
+
     /** A step of the body that writes is about to run ({@code PlanRunner.ProgramSink#writing}), told to the body's open
      *  appeals (each body's run holds its own record of them, slice 5). */
     @Override
