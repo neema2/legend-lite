@@ -1097,6 +1097,8 @@ public class MongoDb extends AnsiSqlRenderer {
             // ---- strings (a string operator over null errors or answers "", so each is null-guarded)
             case CONCAT -> concatSkippingNull(writer, a);
             case CONCAT_JOIN -> MongoJson.op(writer, "$concat", a);
+            // the product's join of a row's cells: no separator-join operator, so D1.3's form (Phase 3)
+            case CONCAT_WS -> writer.expr(CellTexts.eachAfterSeparator(a.get(0), a.subList(1, a.size())), parentPrec);
             case LENGTH -> length(writer, a);
             case UPPER -> MongoJson.guardedOp(writer, "$toUpper", a);
             case LOWER -> MongoJson.guardedOp(writer, "$toLower", a);

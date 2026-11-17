@@ -1654,6 +1654,9 @@ public class BigQuery extends AnsiSqlRenderer {
                     (w, x) -> w.append("IFNULL(").piece(asText(x)).append(", '')")).append(")");
             case CONCAT_JOIN -> writer.append("CONCAT(").join(a, ", ",
                     (w, x) -> w.append("IFNULL(").piece(asText(x)).append(", '')")).append(")");
+            // a row's cells joined (Phase 3): no CONCAT_WS here; ARRAY_TO_STRING omits a NULL element
+            case CONCAT_WS -> writer.append("ARRAY_TO_STRING([").join(a.subList(1, a.size()), ", ",
+                    (w, x) -> w.piece(asText(x))).append("], ").expr(a.get(0), 0).append(")");
             case LENGTH -> writer.append("LENGTH(").piece(asText(a.get(0))).append(")");
             // a negative count is all but that many (DuckDB's, measured); BigQuery's LEFT/RIGHT raise on it
             case LEFT, RIGHT -> writer.piece(leftRight(c.fn(), a));

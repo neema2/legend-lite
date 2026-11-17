@@ -787,6 +787,8 @@ public class Postgres extends AnsiSqlRenderer {
             case CONCAT -> concatFlat(writer, c.args());
             // joinStrings' interleaved concat, never flattened
             case CONCAT_JOIN -> writer.function("concat", c.args());
+            // the product's join of a row's cells: CONCAT_WS skips a NULL part with its separator (measured, Phase 3)
+            case CONCAT_WS -> writer.function("concat_ws", c.args());
             // 64-bit parse (PCT Long.MIN/MAX round-trips)
             case PARSE_INT -> castAs(writer, typedText(c.args().get(0)), "BIGINT");
             // parseDate(text): the ISO text as a timestamp

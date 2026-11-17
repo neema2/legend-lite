@@ -1031,6 +1031,8 @@ public class Trino extends AnsiSqlRenderer {
             // NULL-ignoring, as DuckDB's concat (Trino's concat is NULL if any argument is)
             case CONCAT -> writer.append("concat_ws('', ").join(flattenConcat(a), ", ", this::asText).append(")");
             case CONCAT_JOIN -> writer.append("concat_ws('', ").join(a, ", ", this::asText).append(")");
+            // the product's join of a row's cells: concat_ws skips a NULL part with its separator (as concat above)
+            case CONCAT_WS -> writer.append("concat_ws(").join(a, ", ", this::asText).append(")");
             // integer division truncates toward zero, as DuckDB's //
             // a zero divisor is NULL, as DuckDB's: Trino folds a constant division by zero to its own error even in a
             // CASE's untaken arm (the platform's own raise, measured), and nullif breaks inside a lambda
