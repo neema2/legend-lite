@@ -41,7 +41,7 @@ class ResultEnvelopeRefusalTest {
     @Test
     void theProductsStyleRefusesTheEnvelopeAtLowerByName() {
         for (boolean styled : new boolean[] {true, false}) {
-            Lowerer lowerer = new Lowerer(PlatformRegistrations.catalogTable());
+            Lowerer lowerer = new Lowerer(PlatformRegistrations.catalogTable()).withStyled(com.legend.lowering.Styled.PRODUCT);
             if (styled) {
                 lowerer = lowerer.withResultEnvelopes(r -> PlanStyle.PRODUCT.facet(ResultEnvelopes.class, r));
             }

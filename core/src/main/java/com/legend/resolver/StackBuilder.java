@@ -730,6 +730,7 @@ final class StackBuilder {
                     && i.elseBranch().map(e -> projectable(e, rowVar)).orElse(true);
             case TypedCollection c -> c.elements().stream().allMatch(x -> projectable(x, rowVar));
             case TypedCString ignored -> true;
+            case com.legend.compiler.spec.typed.TypedNullCell ignored -> true;
             case TypedCInteger ignored -> true;
             case TypedCFloat ignored -> true;
             case TypedCDecimal ignored -> true;

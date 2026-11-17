@@ -103,7 +103,7 @@ final class HostJudgments {
     static TypedSide tdsRowValuesVerdict(String name,
             boolean wantEqual, HostJudgment.FlatFacts flat,
             SideFetch ef, SideFetch af,
-            boolean incidental, com.legend.testexecutionplan.TestPlan.JudgingRules rules) {
+            boolean incidental, com.legend.testexecutionplan.TestPlan.JudgingRules rules, BodyRun run) {
         List<Object> e = ef.values();
         List<Object> a = af.values();
         // audit 22b F2: raw cells (a bare .rows view) never equal a
@@ -140,14 +140,14 @@ final class HostJudgments {
                         ? name + " (TDSRow.values) raw cells do not"
                                 + " equal a whole TDS value"
                         // an incidental order compares the rows as a multiset: "in any order"
-                        : lite(rules) && incidental ? sameElementsWords(e, a, null, null, rules)
+                        : lite(rules) && incidental ? sameElementsWords(e, a, null, null, rules, run)
                         : lite(rules) ? sentence(com.legend.error.AssertSentence.EQUALS, "expected", LiteWords.pairSide(e, a, null), "actual",
                                 LiteWords.pairSide(a, e, null))
                         : tdsHostMessage(name, PureAsserts.assertEqualsTyped(
                                 com.legend.testexec.Equality.grid(e, eKinds),
-                                com.legend.testexec.Equality.grid(a, aKinds), rules)),
+                                com.legend.testexec.Equality.grid(a, aKinds), rules, run.pureWords())),
                 () -> lite(rules) ? sentence(com.legend.error.AssertSentence.NOT_EQUALS, "actual", LiteWords.pairSide(a, e, null))
-                        : PureAsserts.notEqualsMessage(e, a));
+                        : run.pureWords().notEquals(e, a));
     }
 
     /** The TDSRow.values failure narrative — the host lattice's text, upstream's own ('\nexpected: %r\nactual:   %r'),
@@ -162,7 +162,7 @@ final class HostJudgments {
      * (direction-aware sentinel — pool matching, never a sorted zip:
      * sorting separates an expected 'TDSNull' from its NULL cell). */
     static TypedSide tdsRowValuesSameElements(String family,
-            SideFetch ef, SideFetch af, com.legend.testexecutionplan.TestPlan.JudgingRules rules) {
+            SideFetch ef, SideFetch af, com.legend.testexecutionplan.TestPlan.JudgingRules rules, BodyRun run) {
         List<Object> e = ef.values();
         List<Object> a = af.values();
         boolean hostHeld = e.size() == a.size()
@@ -172,9 +172,9 @@ final class HostJudgments {
         return finish(family, true, hostHeld,
                 () -> {
                     if (lite(rules)) {
-                        return sameElementsWords(e, a, null, null, rules);
+                        return sameElementsWords(e, a, null, null, rules, run);
                     }
-                    String d = PureAsserts.assertSameElements(e, a, rules);
+                    String d = PureAsserts.assertSameElements(e, a, rules, run.pureWords());
                     return d != null
                             ? tdsHostMessage(family, d)
                             : family + " (TDSRow.values): cell"
@@ -341,22 +341,22 @@ final class HostJudgments {
         java.util.Objects.requireNonNull(rules, "a judgment names the rules it judges by");
         return switch (j) {
             case HostJudgment.TdsEquivalent t -> tdsEquivalentOf(t, sides, rules);
-            case HostJudgment.GridPair g -> gridPairOf(g, sides, rules);
-            case HostJudgment.Size s -> sizeOf(s, sides, rules);
-            case HostJudgment.Contains c -> containsOf(c, sides, rules);
-            case HostJudgment.Tolerance t -> toleranceOf(sides, rules);
+            case HostJudgment.GridPair g -> gridPairOf(g, sides, rules, run);
+            case HostJudgment.Size s -> sizeOf(s, sides, rules, run);
+            case HostJudgment.Contains c -> containsOf(c, sides, rules, run);
+            case HostJudgment.Tolerance t -> toleranceOf(sides, rules, run);
             case HostJudgment.Condition c -> conditionOf(c, sides, rules);
             case HostJudgment.AllRows a -> allRowsOf(a, sides);
-            case HostJudgment.Rows r -> rowsOf(r, sides, rules);
+            case HostJudgment.Rows r -> rowsOf(r, sides, rules, run);
             case HostJudgment.Unrolled u -> unrolledOf(u, sides, rules, run);
             case HostJudgment.Subset s -> subsetOf(s, sides, rules);
-            case HostJudgment.Empty e -> emptyOf(e, sides.get(0), rules);
-            case HostJudgment.Eq e -> eqOf(e, sides, rules);
-            case HostJudgment.InstanceOf i -> instanceOfOf(i, sides.get(0), rules);
+            case HostJudgment.Empty e -> emptyOf(e, sides.get(0), rules, run);
+            case HostJudgment.Eq e -> eqOf(e, sides, rules, run);
+            case HostJudgment.InstanceOf i -> instanceOfOf(i, sides.get(0), rules, run);
             case HostJudgment.Is i -> isOf(i, sides, rules);
             case HostJudgment.Decided d -> decided(d);
-            case HostJudgment.SameElements s -> sameElementsOf(s, sides, rules);
-            case HostJudgment.Equals e -> equalsOf(e, sides, rules);
+            case HostJudgment.SameElements s -> sameElementsOf(s, sides, rules, run);
+            case HostJudgment.Equals e -> equalsOf(e, sides, rules, run);
             case HostJudgment.Json js -> jsonOf(js, sides, rules, run.hearing().json());
             case HostJudgment.Rendered r -> renderedOf(r, sides, run.hearing().renderedTexts());
             case HostJudgment.Raise r -> throw com.legend.testexecutionplan.Failures.raised(r.failure());
@@ -432,7 +432,7 @@ final class HostJudgments {
                 : com.legend.testexecutionplan.Verdicts.fail(liteFailure != null ? liteFailure : d);
     }
 
-    private static TypedSide gridPairOf(HostJudgment.GridPair j, List<TypedSide> grids, com.legend.testexecutionplan.TestPlan.JudgingRules rules) {
+    private static TypedSide gridPairOf(HostJudgment.GridPair j, List<TypedSide> grids, com.legend.testexecutionplan.TestPlan.JudgingRules rules, BodyRun run) {
         TypedSide.Tabular te = grids.get(0) instanceof TypedSide.Tabular t0 ? t0 : null;
         TypedSide.Tabular ta = grids.get(1) instanceof TypedSide.Tabular t1 ? t1 : null;
         if (te == null || ta == null) {
@@ -452,27 +452,23 @@ final class HostJudgments {
                         ? sentence(com.legend.error.AssertSentence.EQUALS, "expected", liteRows(te), "actual", liteRows(ta))
                         : sentence(com.legend.error.AssertSentence.NOT_EQUALS, "actual", liteRows(ta)));
             }
-            String e = gridText(te);
-            String a = gridText(ta);
-            return com.legend.testexecutionplan.Verdicts.fail(j.wantEqual() ? "\nexpected: " + e + "\nactual:   " + a
-                    : e + " should not equal " + a);
+            return com.legend.testexecutionplan.Verdicts.fail(run.pureWords().grids(gridRows(te), gridRows(ta),
+                    j.wantEqual()));
         }
         return com.legend.testexecutionplan.Verdicts.ok();
     }
 
-    /** A grid's rows framed as the database judge frames a side's canons: none {@code []}, one its cells, several in
-     *  brackets; a row's cells by {@code %r}, comma-separated. */
-    private static String gridText(TypedSide.Tabular t) {
-        List<String> rows = new ArrayList<>(t.rows().size());
+    /** A grid's rows, each its cells (legend-pure's framing is the run's words: {@link PureWords#grids}). */
+    private static List<List<Object>> gridRows(TypedSide.Tabular t) {
+        List<List<Object>> rows = new ArrayList<>(t.rows().size());
         for (com.legend.testexecutionplan.Row r : t.rows()) {
-            rows.add(r.values().stream().map(com.legend.testexecutionplan.Verdicts::repr)
-                    .collect(java.util.stream.Collectors.joining(", ")));
+            rows.add(r.values());
         }
-        return rows.isEmpty() ? "[]" : rows.size() == 1 ? rows.get(0) : "[" + String.join(", ", rows) + "]";
+        return rows;
     }
 
     private static TypedSide sizeOf(HostJudgment.Size j, List<TypedSide> both,
-            com.legend.testexecutionplan.TestPlan.JudgingRules rules) {
+            com.legend.testexecutionplan.TestPlan.JudgingRules rules, BodyRun run) {
         Object n = com.legend.testexec.AssertRuns.one(com.legend.testexec.AssertRuns.decodeSide(both.get(0)), "assertSize size");
         // D3: the size rule is per-result-kind — grid ROWS,
         // graph array length, values otherwise; the ONE-CARRIER
@@ -498,11 +494,11 @@ final class HostJudgments {
         return heldSize ? com.legend.testexecutionplan.Verdicts.ok()
                 : com.legend.testexecutionplan.Verdicts.fail(lite(rules)
                         ? sentence(com.legend.error.AssertSentence.SIZE, "expected", LiteWords.value(n), "actual", Long.toString(actual))
-                        : "expected size: " + n + ", actual size: " + actual);
+                        : run.pureWords().size(n, actual));
     }
 
     private static @com.legend.base.Nullable TypedSide containsOf(HostJudgment.Contains j, List<TypedSide> both,
-            com.legend.testexecutionplan.TestPlan.JudgingRules rules) {
+            com.legend.testexecutionplan.TestPlan.JudgingRules rules, BodyRun run) {
         List<Object> coll = com.legend.testexec.AssertRuns.decodeSide(both.get(0));
         List<Object> val = com.legend.testexec.AssertRuns.decodeSide(both.get(1));
         if (val.size() != 1) {
@@ -515,25 +511,27 @@ final class HostJudgments {
                 : com.legend.testexecutionplan.Verdicts.fail(lite(rules)
                         ? sentence(com.legend.error.AssertSentence.CONTAINS, "collection", LiteWords.values(coll, j.collection().classFqn()),
                                 "value", LiteWords.value(val.get(0), j.value().classFqn()))
-                        : com.legend.testexec.PureAsserts.containsMessage(coll, val.get(0),
-                        j.collection().classFqn(), j.value().classFqn()));
+                        : run.pureWords().notContains(coll, val.get(0), j.collection().classFqn(),
+                                j.value().classFqn()));
     }
 
     private static TypedSide toleranceOf(List<TypedSide> three,
-            com.legend.testexecutionplan.TestPlan.JudgingRules rules) {
+            com.legend.testexecutionplan.TestPlan.JudgingRules rules, BodyRun run) {
         Number e = (Number) com.legend.testexec.AssertRuns.one(com.legend.testexec.AssertRuns.decodeSide(three.get(0)), "tolerance expected");
         Number a = (Number) com.legend.testexec.AssertRuns.one(com.legend.testexec.AssertRuns.decodeSide(three.get(1)), "tolerance actual");
         Number delta = (Number) com.legend.testexec.AssertRuns.one(com.legend.testexec.AssertRuns.decodeSide(three.get(2)), "tolerance delta");
-        String d = toleranceMessage(e, a, delta, rules);
+        String d = toleranceMessage(e, a, delta, rules, run);
         return d == null ? com.legend.testexecutionplan.Verdicts.ok() : com.legend.testexecutionplan.Verdicts.fail(d);
     }
 
     /** {@code assertEqWithinTolerance}'s failure, or null where it holds: legend-pure's words, or lite's sentence. */
     private static @com.legend.base.Nullable String toleranceMessage(Number e, Number a, Number delta,
-            com.legend.testexecutionplan.TestPlan.JudgingRules rules) {
-        String d = com.legend.testexec.PureAsserts.assertEqWithinTolerance(e, a, delta);
-        if (d == null || !lite(rules)) {
-            return d;
+            com.legend.testexecutionplan.TestPlan.JudgingRules rules, BodyRun run) {
+        if (com.legend.testexec.PureAsserts.withinTolerance(e, a, delta)) {
+            return null;
+        }
+        if (!lite(rules)) {
+            return run.pureWords().pair(e, null, a, null);
         }
         return sentence(com.legend.error.AssertSentence.WITHIN_TOLERANCE, "expected", LiteWords.value(e), "delta", LiteWords.value(delta),
                 "actual", LiteWords.value(a));
@@ -571,31 +569,29 @@ final class HostJudgments {
             }
             return com.legend.testexecutionplan.Verdicts.ok();
         }
-        return com.legend.testexecutionplan.Verdicts.fail(negatedWords(n.kind(), sides, rules));
+        return com.legend.testexecutionplan.Verdicts.fail(negatedWords(n.kind(), sides, rules, run));
     }
 
     /** A default-message assert's failure: lite's sentence, or legend-pure's words (the prelude's bodies, which these
      *  natives replace: assertNotEq '%r should not equal %r', assertIsNot 'Should not be identical to: %r',
      *  assertNotContains '%s should not contain %r', assertNotSize 'size should not equal: %s'). */
     private static String negatedWords(String kind, List<TypedSide> sides,
-            com.legend.testexecutionplan.TestPlan.JudgingRules rules) {
+            com.legend.testexecutionplan.TestPlan.JudgingRules rules, BodyRun run) {
         List<Object> first = com.legend.testexec.AssertRuns.decodeSide(sides.get(0));
         List<Object> second = sides.size() > 1 ? com.legend.testexec.AssertRuns.decodeSide(sides.get(1)) : List.of();
         boolean lite = lite(rules);
         return switch (kind) {
             case "NOT_EQ" -> lite ? sentence(com.legend.error.AssertSentence.NOT_EQUALS, "actual",
                     LiteWords.side(second, null))
-                    : com.legend.testexec.PureAsserts.notEqualsMessage(first, second);
+                    : run.pureWords().notEquals(first, second);
             case "IS_NOT" -> lite ? sentence(com.legend.error.AssertSentence.IS_NOT, "actual",
                     LiteWords.side(second, null))
-                    : "Should not be identical to: " + com.legend.testexecutionplan.Verdicts.repr(
-                            com.legend.testexec.AssertRuns.one(second, "assertIsNot actual"));
+                    : run.pureWords().identical(com.legend.testexec.AssertRuns.one(second, "assertIsNot actual"));
             // the sides are the collection's, then the value's (planContains)
             case "NOT_CONTAINS" -> lite ? sentence(com.legend.error.AssertSentence.NOT_CONTAINS, "collection",
                     LiteWords.values(first, null), "value", LiteWords.side(second, null))
-                    : com.legend.testexec.PureAsserts.reprList(first, null) + " should not contain "
-                            + com.legend.testexecutionplan.Verdicts.repr(com.legend.testexec.AssertRuns.one(second,
-                                    "assertNotContains value"));
+                    : run.pureWords().contains(first, com.legend.testexec.AssertRuns.one(second,
+                            "assertNotContains value"));
             // the sides are the size's, then the collection's (planSize)
             case "NOT_SIZE" -> lite ? sentence(com.legend.error.AssertSentence.NOT_SIZE, "size",
                     LiteWords.side(first, null))
@@ -631,7 +627,7 @@ final class HostJudgments {
     }
 
     private static TypedSide emptyOf(HostJudgment.Empty j, TypedSide er,
-            com.legend.testexecutionplan.TestPlan.JudgingRules rules) {
+            com.legend.testexecutionplan.TestPlan.JudgingRules rules, BodyRun run) {
         boolean wantEmpty = j.wantEmpty();
         boolean empty = er instanceof TypedSide.Tabular te3
                 ? te3.rows().isEmpty()
@@ -647,18 +643,18 @@ final class HostJudgments {
                     : com.legend.error.AssertSentence.NOT_EMPTY.fill(java.util.Map.of()));
         }
         return com.legend.testexecutionplan.Verdicts.fail(wantEmpty
-                        ? com.legend.testexec.PureAsserts.notEmptyMessage(com.legend.testexec.AssertRuns.decodeSide(er))
+                        ? run.pureWords().notEmpty(com.legend.testexec.AssertRuns.decodeSide(er))
                         : "Expected non-empty collection");
     }
 
-    private static TypedSide eqOf(HostJudgment.Eq j, List<TypedSide> pair, com.legend.testexecutionplan.TestPlan.JudgingRules rules) {
+    private static TypedSide eqOf(HostJudgment.Eq j, List<TypedSide> pair, com.legend.testexecutionplan.TestPlan.JudgingRules rules, BodyRun run) {
         SideFetch ef = sideCanonOf(pair.get(0));
         SideFetch af = sideCanonOf(pair.get(1));
         Object ee = com.legend.testexec.AssertRuns.one(ef.values(), "assertEq expected");
         Object aa = com.legend.testexec.AssertRuns.one(af.values(), "assertEq actual");
         // eq's non-primitive identity rule throws LOUD here (P2-5)
-        String pure = com.legend.testexec.PureAsserts.assertEq(ee, aa, rules);
-        String d = pure == null || !lite(rules) ? pure
+        String d = com.legend.testexec.PureAsserts.eqHolds(ee, aa, rules) ? null
+                : !lite(rules) ? com.legend.testexec.PureAsserts.assertEq(ee, aa, rules, run.pureWords())
                 : LiteWords.equalsSentence(LiteWords.identity(ee, j.e().classFqn()),
                         LiteWords.identity(aa, j.a().classFqn()), () -> LiteWords.kind(ee, j.e().classFqn()),
                         () -> LiteWords.kind(aa, j.a().classFqn()), ee, aa);
@@ -669,7 +665,7 @@ final class HostJudgments {
     }
 
     private static @com.legend.base.Nullable TypedSide instanceOfOf(HostJudgment.InstanceOf j, TypedSide side,
-            com.legend.testexecutionplan.TestPlan.JudgingRules rules) {
+            com.legend.testexecutionplan.TestPlan.JudgingRules rules, BodyRun run) {
         Object v = com.legend.testexec.AssertRuns.one(com.legend.testexec.AssertRuns.decodeSide(side), "assertInstanceOf instance");
         String type = j.typeName();
         if (type == null) {
@@ -687,13 +683,12 @@ final class HostJudgments {
                 return com.legend.testexecutionplan.Verdicts.fail(sentence(com.legend.error.AssertSentence.INSTANCE_OF, "type", typeName(type), "actual",
                         LiteWords.value(v, wireType)));
             }
-            return ok ? com.legend.testexecutionplan.Verdicts.ok() : com.legend.testexecutionplan.Verdicts.fail("expected " + com.legend.testexecutionplan.Verdicts.repr(v,
-                    wireType) + " to be an instance of " + type + ", actual: " + wireType);
+            return ok ? com.legend.testexecutionplan.Verdicts.ok()
+                    : com.legend.testexecutionplan.Verdicts.fail(run.pureWords().notInstanceOf(v, wireType, type, wireType));
         }
-        String d = com.legend.testexec.PureAsserts.assertInstanceOf(v, type);
-        if (d != null && lite(rules)) {
-            d = sentence(com.legend.error.AssertSentence.INSTANCE_OF, "type", typeName(type), "actual", LiteWords.value(v));
-        }
+        String d = com.legend.testexec.PureAsserts.notAnInstanceOf(v, type) == null ? null : lite(rules)
+                ? sentence(com.legend.error.AssertSentence.INSTANCE_OF, "type", typeName(type), "actual", LiteWords.value(v))
+                : com.legend.testexec.PureAsserts.assertInstanceOf(v, type, run.pureWords());
         return d == null ? com.legend.testexecutionplan.Verdicts.ok() : com.legend.testexecutionplan.Verdicts.fail(d);
     }
 
@@ -705,7 +700,8 @@ final class HostJudgments {
                         : j.name() + ": the element references differ");
     }
 
-    private static TypedSide sameElementsOf(HostJudgment.SameElements j, List<TypedSide> pair, com.legend.testexecutionplan.TestPlan.JudgingRules rules) {
+    private static TypedSide sameElementsOf(HostJudgment.SameElements j, List<TypedSide> pair,
+            com.legend.testexecutionplan.TestPlan.JudgingRules rules, BodyRun run) {
         SideFetch ef = sideCanonOf(pair.get(0));
         SideFetch af = sideCanonOf(pair.get(1));
         // §8 leg 1 — TABULAR sides under the MULTISET form:
@@ -713,7 +709,7 @@ final class HostJudgments {
         // column-grouped — loose multiset IS this assert's
         // reference semantics, audit 9)
         if (ef.grid() != null || af.grid() != null) {
-            return tdsRowValuesSameElements("assertSameElements", ef, af, rules);
+            return tdsRowValuesSameElements("assertSameElements", ef, af, rules, run);
         }
         // a CLASS-kind side that rode a JSON carrier (a polymorphic
         // Node[1] program value) arrives as object text: decode it
@@ -730,7 +726,7 @@ final class HostJudgments {
                 typedSide(e, j.e()), typedSide(a, j.a()), rules) == null
                 // the failed TYPED comparison's message, never a second, untyped one (the ledger audit's D4, 2026-11-16:
                 // an untyped re-compare that held here returned null, and the failed assert passed)
-                ? null : sameElementsWords(e, a, j.e().classFqn(), j.a().classFqn(), rules);
+                ? null : sameElementsWords(e, a, j.e().classFqn(), j.a().classFqn(), rules, run);
         com.legend.testexec.CanonicalDivergence.probeSameElements(
                 e, a, d == null);
         // V4/V11 — the multiset BYTE VERDICT OF RECORD: rows
@@ -790,7 +786,7 @@ final class HostJudgments {
 
     /** {@link HostJudgment.Rows} judged over its sides: each row as the element arm judges it, the first failure. */
     private static @com.legend.base.Nullable TypedSide rowsOf(HostJudgment.Rows j, List<TypedSide> sides,
-            com.legend.testexecutionplan.TestPlan.JudgingRules rules) {
+            com.legend.testexecutionplan.TestPlan.JudgingRules rules, BodyRun run) {
         List<Object> rows;
         if (j.pairing() == null && !(sides.get(0) instanceof TypedSide.Tabular)) {
             // the per-element operand pairs (planPerElement): one value per element, each a {first, second} the
@@ -817,16 +813,16 @@ final class HostJudgments {
             Object row = rows.get(index);
             Object e = rowArgValue(j.args().get(0), row, j.name());
             Object a = rowArgValue(j.args().get(1), row, j.name());
+            List<Object> es = java.util.Collections.singletonList(e);
+            List<Object> as = java.util.Collections.singletonList(a);
             String d = j.tolerance()
                     ? toleranceMessage(number(e, j.name()), number(a, j.name()),
-                            number(rowArgValue(j.args().get(2), row, j.name()), j.name()), rules)
-                    : com.legend.testexec.PureAsserts.assertEquals(
-                            java.util.Collections.singletonList(e), java.util.Collections.singletonList(a),
-                            j.expectedClass(), j.actualClass(), rules);
-            if (d != null && lite(rules) && !j.tolerance()) {
-                d = LiteWords.equalsSentence(LiteWords.value(e, j.expectedClass()), LiteWords.value(a, j.actualClass()),
-                        () -> LiteWords.kind(e, j.expectedClass()), () -> LiteWords.kind(a, j.actualClass()), e, a);
-            }
+                            number(rowArgValue(j.args().get(2), row, j.name()), j.name()), rules, run)
+                    : com.legend.testexec.PureAsserts.holds(es, as, rules) ? null
+                    : lite(rules) ? LiteWords.equalsSentence(LiteWords.value(e, j.expectedClass()),
+                            LiteWords.value(a, j.actualClass()), () -> LiteWords.kind(e, j.expectedClass()),
+                            () -> LiteWords.kind(a, j.actualClass()), e, a)
+                    : run.pureWords().equals(es, as, j.expectedClass(), j.actualClass());
             if (d != null) {
                 return com.legend.testexecutionplan.Verdicts.fail(lite(rules)
                         ? sentence(com.legend.error.AssertSentence.AT_INDEX, "sentence", d, "index", Integer.toString(index)) : d);
@@ -890,7 +886,8 @@ final class HostJudgments {
                 + " not a number: " + v);
     }
 
-    private static TypedSide equalsOf(HostJudgment.Equals j, List<TypedSide> pair, com.legend.testexecutionplan.TestPlan.JudgingRules rules) {
+    private static TypedSide equalsOf(HostJudgment.Equals j, List<TypedSide> pair,
+            com.legend.testexecutionplan.TestPlan.JudgingRules rules, BodyRun run) {
         String name = j.name();
         boolean wantEqual = j.wantEqual();
         boolean incidental = j.incidental();
@@ -898,7 +895,7 @@ final class HostJudgments {
         SideFetch af = sideCanonOf(pair.get(1));
         // the FLAT-CELLS verdict (the host cell lattice)
         if (ef.grid() != null || af.grid() != null) {
-            return tdsRowValuesVerdict(name, wantEqual, j.flat(), ef, af, incidental, rules);
+            return tdsRowValuesVerdict(name, wantEqual, j.flat(), ef, af, incidental, rules, run);
         }
         // X5: a same-class KEYED pair restricts both sides to
         // the key tree — the engine's own equality relation for
@@ -927,7 +924,7 @@ final class HostJudgments {
         // where the typed one failed (the ledger audit's D4, 2026-11-16)
         return finish(name, wantEqual, equal,
                 () -> incidental
-                        ? sameElementsWords(e, a, j.e().classFqn(), j.a().classFqn(), rules)
+                        ? sameElementsWords(e, a, j.e().classFqn(), j.a().classFqn(), rules, run)
                         // a class side carried as JSON text is written as that JSON (the shared canon's, ruling 5)
                         : lite(rules) && (LiteWords.jsonCarried(ef.values()) || LiteWords.jsonCarried(af.values()))
                                 ? LiteWords.equalsSentence(LiteWords.carriedSide(ef.values(), af.values(), j.e().classFqn()),
@@ -937,18 +934,19 @@ final class HostJudgments {
                                 LiteWords.pairSide(a, e, j.a().classFqn()), () -> LiteWords.sideKind(e, j.e().classFqn()),
                                 () -> LiteWords.sideKind(a, j.a().classFqn()), e.size() == 1 ? e.get(0) : null,
                                 a.size() == 1 ? a.get(0) : null)
-                        : com.legend.testexec.PureAsserts.equalsMessage(e, a, j.e().classFqn(), j.a().classFqn()),
+                        : run.pureWords().equals(e, a, j.e().classFqn(), j.a().classFqn()),
                 () -> lite(rules) ? sentence(com.legend.error.AssertSentence.NOT_EQUALS, "actual", LiteWords.pairSide(a, e, j.a().classFqn()))
-                        : com.legend.testexec.PureAsserts.notEqualsMessage(e, a));
+                        : run.pureWords().notEquals(e, a));
     }
 
     /** assertSameElements' failure words over two sides a verdict has failed: legend-pure's, or lite's sentence with
      *  each side's values in its own order -- neither judge sorts for the message, "in any order" is the sentence's
      *  (the orchestrator's ruling, 2026-11-17). */
     private static String sameElementsWords(List<Object> e, List<Object> a, @com.legend.base.Nullable String eClass,
-            @com.legend.base.Nullable String aClass, com.legend.testexecutionplan.TestPlan.JudgingRules rules) {
+            @com.legend.base.Nullable String aClass, com.legend.testexecutionplan.TestPlan.JudgingRules rules,
+            BodyRun run) {
         if (!lite(rules)) {
-            return com.legend.testexec.PureAsserts.sameElementsMessage(e, a, eClass, aClass);
+            return com.legend.testexec.PureAsserts.sameElementsMessage(e, a, eClass, aClass, run.pureWords());
         }
         return sentence(com.legend.error.AssertSentence.SAME_ELEMENTS, "expected", LiteWords.values(e, eClass),
                 "actual", LiteWords.values(a, aClass));

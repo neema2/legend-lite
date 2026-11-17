@@ -781,9 +781,9 @@ public final class VerdictSql {
         OutputCol rnOut = new OutputCol(RN, SqlType.Scalar.BIGINT, false);
         SqlQuery rows = new SqlSelect(List.of(
                 new SqlSelect.Projection(SqlExpr.Call.of(SqlFn.COALESCE, ok, new SqlExpr.BoolLit(false)), "__ok", okOut),
-                new SqlSelect.Projection(lite ? LiteText.of(expectedKind, first) : Repr.of(styled, expectedKind, first),
+                new SqlSelect.Projection(lite ? LiteText.of(expectedKind, first) : represented(styled, expectedKind, first),
                         "__re", reOut),
-                new SqlSelect.Projection(lite ? LiteText.of(actualKind, second) : Repr.of(styled, actualKind, second),
+                new SqlSelect.Projection(lite ? LiteText.of(actualKind, second) : represented(styled, actualKind, second),
                         "__ra", raOut),
                 new SqlSelect.Projection(SqlExpr.Column.of("__s", numbered.outputs(), SideOrdinal.ORD), RN, rnOut)),
                 false, new SqlSource.Subselect(numbered, "__s", null), null, List.of(), null, null, List.of(), null,
@@ -2829,7 +2829,13 @@ public final class VerdictSql {
         return PlatformTypes.isNil(m.kind()) ? new SqlExpr.Cast(new SqlExpr.NullLit(), SqlType.Scalar.VARCHAR, SqlExpr.Reason.JUDGE)
                 : m.lite() ? LiteText.of(m.kind(), value)
                 : m.listed() && m.kind() == Type.Primitive.STRING ? new SqlExpr.Cast(value, SqlType.Scalar.VARCHAR, SqlExpr.Reason.JUDGE)
-                : Repr.of(m.styled(), m.kind(), value);
+                : represented(m.styled(), m.kind(), value);
+    }
+
+    /** legend-pure's representation of a judged value, the compatibility rules' message (C5's step A, 2026-11-17: the
+     *  edge's, the plan style's PureOnlyTexts facet; the product's style refuses it by name). */
+    private static SqlExpr represented(Styled styled, Type kind, SqlExpr value) {
+        return styled.pureOnly().apply(TextRefusals::representation).representationOf(styled, kind, value);
     }
 
     /** A row's element as the failure message writes it ({@link Message}), and the value the sorted form orders by:
@@ -2961,7 +2967,7 @@ public final class VerdictSql {
         }
         return new SqlExpr.Case(List.of(new SqlExpr.Case.When(
                 SqlExpr.Call.of(SqlFn.EQUAL, cell, new SqlExpr.StringLit("''")),
-                new SqlExpr.StringLit(PlatformTypes.TDS_NULL_CELL))), cell, SqlExpr.Reason.JUDGE);
+                new SqlExpr.StringLit(CanonicalRenderSql.NULL_CELL))), cell, SqlExpr.Reason.JUDGE);
     }
 
     /** A grid side's loose CELL pool: one row per cell of every row, the
@@ -3011,8 +3017,9 @@ public final class VerdictSql {
                 SqlType.Scalar.VARCHAR, SqlExpr.Reason.JUDGE);
         if (peer.expected()) {
             c = new SqlExpr.Case(List.of(new SqlExpr.Case.When(
-                    SqlExpr.Call.of(SqlFn.EQUAL, c, new SqlExpr.StringLit("'TDSNull'")),
-                    new SqlExpr.StringLit("TDSNull"))), c, SqlExpr.Reason.JUDGE);
+                    SqlExpr.Call.of(SqlFn.EQUAL, c,
+                            new SqlExpr.StringLit("'" + CanonicalRenderSql.NULL_CELL_WIRE + "'")),
+                    new SqlExpr.StringLit(CanonicalRenderSql.NULL_CELL))), c, SqlExpr.Reason.JUDGE);
         }
         SqlExpr value = peer.wrapped() instanceof SqlSelect ps && !ps.projections().isEmpty()
                 ? doubleValue(ps.projections().get(0), "w", peer.isFloat()) : new SqlExpr.NullLit();
