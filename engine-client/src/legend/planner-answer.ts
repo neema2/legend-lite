@@ -12,13 +12,11 @@ export interface PlannerModule {
     holdModelOrError(model: string): string;
     holdModelOverOrError(model: string, library: string): string;
     releaseModelOrError(handle: number): string;
-    planHeldOrError(handle: number, query: string, runtime: string): string;
-    relationTypeHeldOrError(handle: number, query: string): string;
+    // lite API v1's query/plan and query/type over a model held: its handle, the request without its model
+    queryPlanHeldOrError(handle: number, request: string): string;
+    queryTypeHeldOrError(handle: number, request: string): string;
     tableModelOrError(table: string): string;
     catalogColumnsSqlOrError(schema: string, table: string): string;
-    planJsonHeldOrError(handle: number, lambdaJson: string, runtime: string): string;
-    executionPlanJsonHeldOrError(handle: number, lambdaJson: string, runtime: string): string;
-    planJsonOrError(model: string, lambdaJson: string, runtime: string): string;
     // legend-engine's pure/v1 -- and lite's own /api/lite/v1/compilation/compile -- routed as legend-lite's server
     // routes them (PureV1Api), and execute's two halves for a host that runs the SQL (PureV1Api.jsonPlan, jsonAnswer):
     // `OK\n<status>\n<type>\n<body>`
@@ -59,13 +57,10 @@ export function answer(m: PlannerModule, r: RequestBody): string {
     case 'hold': return r.library === undefined ? m.exports.holdModelOrError(r.model)
       : m.exports.holdModelOverOrError(r.model, r.library);
     case 'release': return m.exports.releaseModelOrError(r.handle);
-    case 'plan': return m.exports.planHeldOrError(r.handle, r.query, r.runtime);
-    case 'relationType': return m.exports.relationTypeHeldOrError(r.handle, r.query);
+    case 'queryPlanHeld': return m.exports.queryPlanHeldOrError(r.handle, r.request);
+    case 'queryTypeHeld': return m.exports.queryTypeHeldOrError(r.handle, r.request);
     case 'tableModel': return m.exports.tableModelOrError(r.table);
     case 'catalogColumnsSql': return m.exports.catalogColumnsSqlOrError(r.schema, r.table);
-    case 'planJson': return m.exports.planJsonHeldOrError(r.handle, r.lambda, r.runtime);
-    case 'executionPlan': return m.exports.executionPlanJsonHeldOrError(r.handle, r.lambda, r.runtime);
-    case 'planModel': return m.exports.planJsonOrError(r.model, r.lambda, r.runtime);
     case 'pureV1': return m.exports.pureV1OrError(r.path, r.query, r.body);
     case 'modelCheck': return m.exports.modelCheckOrError(r.request);
     case 'modelElements': return m.exports.modelElementsOrError(r.request);

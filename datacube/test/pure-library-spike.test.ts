@@ -22,6 +22,11 @@ import { DATACUBE_LIBRARY } from '../src/pure-library-text.ts';
 import { readSeriesTexts } from '../src/timeseries-text.ts';
 import { asTest } from '../../engine-client/test/unplanned.ts';
 
+/** A text query planned as lite API v1 plans one (2026-11-17: no text entry): query/parse, then query/plan of its tree. */
+async function planTextOf(p: { parse(text: string): Promise<import('../../pure-protocol/src/index.ts').Lambda>; plan(query: import('../../pure-protocol/src/index.ts').Lambda): Promise<import('../../engine-client/src/relation-type.ts').Plan> }, text: string) {
+  return p.plan(await p.parse(text));
+}
+
 // -- the prices of timeseries-queries.test.ts: two instruments over 40 weekdays from 2024-01-01, and a third on fewer --
 
 function weekdays(n: number): string[] {
@@ -264,7 +269,7 @@ async function today(expr: string, value = TS_VALUE): Promise<Map<string, number
 /** A spike query's answer: Pure text over the prices (`$prices`), run; its AAA rows' `out` by date. */
 async function spikeLine(text: string, out: string, symbol = 'AAA'): Promise<Map<string, number | null>> {
   const query = `|${text.replaceAll('$prices', source)}`;
-  const t = await asTest(engine).execute(await spiked.planText(query), 0);
+  const t = await asTest(engine).execute(await planTextOf(spiked, query), 0);
   const symbols = column(t, 'symbol');
   const dates = column(t, 'day').map((d) => String(d).slice(0, 10));
   const values = column(t, out).map(num);
@@ -343,7 +348,7 @@ describe('the Pure library spike: one function of each family, held to today\'s 
   });
 
   it('a figure of each whole line (max drawdown): a group by the line, its working columns gone with the group', async () => {
-    const t = await asTest(engine).execute(await spiked.planText(`|${source}->spike::maxDrawdownOf(~symbol, ~day, ~close, ~mdd)`), 0);
+    const t = await asTest(engine).execute(await planTextOf(spiked, `|${source}->spike::maxDrawdownOf(~symbol, ~day, ~close, ~mdd)`), 0);
     assert.deepEqual(t.columns.map((c) => c.name), ['symbol', 'mdd'], 'a group keeps only its keys and figures');
     const of = new Map(column(t, 'symbol').map((s, i) => [s, num(column(t, 'mdd')[i])] as const));
     // the writer's running figure at the line's last date (its answer comes latest first)
@@ -366,17 +371,17 @@ describe('the Pure library spike: one function of each family, held to today\'s 
 
 describe('the Pure library spike: the gaps, as they are today', () => {
   it('GAP 1, closed by without: a function drops its working columns, its answer the table\'s and its own', async () => {
-    const t = await asTest(engine).execute(await spiked.planText(`|${source}->spike::zscores(~symbol, ~day, ~close, 10, ~z)`), 0);
+    const t = await asTest(engine).execute(await planTextOf(spiked, `|${source}->spike::zscores(~symbol, ~day, ~close, 10, ~z)`), 0);
     assert.deepEqual(t.columns.map((c) => c.name), ['symbol', 'day', 'close', 'volume', 'z']);
   });
 
   it('a function over its own answer: the first call\'s working columns are gone, so the second makes them again', async () => {
-    const t = await asTest(engine).execute(await spiked.planText(`|${source}->spike::zscores(~symbol, ~day, ~close, 10, ~z)->spike::zscores(~symbol, ~day, ~z, 5, ~zz)`), 0);
+    const t = await asTest(engine).execute(await planTextOf(spiked, `|${source}->spike::zscores(~symbol, ~day, ~close, 10, ~z)->spike::zscores(~symbol, ~day, ~z, 5, ~zz)`), 0);
     assert.deepEqual(t.columns.map((c) => c.name), ['symbol', 'day', 'close', 'volume', 'z', 'zz']);
   });
 
   it('GAP 2, closed: a caller\'s column of a working name is the caller\'s, the function\'s own renamed at the call', async () => {
-    const t = await asTest(engine).execute(await spiked.planText(`|${source}->extend(~ts_m:x|1)->spike::zscores(~symbol, ~day, ~close, 10, ~z)`), 0);
+    const t = await asTest(engine).execute(await planTextOf(spiked, `|${source}->extend(~ts_m:x|1)->spike::zscores(~symbol, ~day, ~close, 10, ~z)`), 0);
     assert.deepEqual(t.columns.map((c) => c.name), ['symbol', 'day', 'close', 'volume', 'ts_m', 'z']);
     assert.ok(column(t, 'ts_m').every((v) => num(v) === 1), 'the caller\'s ts_m untouched');
     same(ramped(await spikeLine('$prices->extend(~ts_m:x|1)->spike::zscores(~symbol, ~day, ~close, 10, ~z)', 'z'), 10),
@@ -384,13 +389,13 @@ describe('the Pure library spike: the gaps, as they are today', () => {
   });
 
   it('GAP 3, closed: a declared return is held to each call, so a body leaking a column is refused by name', async () => {
-    await assert.rejects(spiked.planText(`|${source}->spike::leaks(~symbol, ~day, ~close, ~o)`),
+    await assert.rejects(planTextOf(spiked, `|${source}->spike::leaks(~symbol, ~day, ~close, ~o)`),
       (e: Error) => /spike::leaks/.test(e.message) && /\[ts_a\] not declared/.test(e.message), 'the leak is named');
   });
 
   it('a word told as a parameter folds: one function of a type keeps one branch, the SQL the other\'s none', async () => {
-    const log = await spiked.planText(`|${source}->spike::returnsOf(~symbol, ~day, ~close, 'log', ~r)`);
-    const simple = await spiked.planText(`|${source}->spike::returnsOf(~symbol, ~day, ~close, 'simple', ~r)`);
+    const log = await planTextOf(spiked, `|${source}->spike::returnsOf(~symbol, ~day, ~close, 'log', ~r)`);
+    const simple = await planTextOf(spiked, `|${source}->spike::returnsOf(~symbol, ~day, ~close, 'simple', ~r)`);
     assert.match(log.sql, /LN\(|LOG\(/i);
     assert.doesNotMatch(simple.sql, /LN\(|LOG\(/i, 'the simple return\'s SQL has no log: the word was compared, never sent');
     same(await spikeLine('$prices->spike::returnsOf(~symbol, ~day, ~close, \'simple\', ~r)', 'r'), await today("returns(close['AAA'], 1, 'simple')"), 'returns');
@@ -399,7 +404,7 @@ describe('the Pure library spike: the gaps, as they are today', () => {
   it('the SQL a library function plans to, beside today\'s writer\'s, for the same figure', async () => {
     const ts = await spec("exponential_moving_average(close['AAA'], beta => 0.9)");
     const writer_ = await planner.plan(seriesQuery(inputs, ts, ts.series[0]!, {}, {}).query);
-    const library = await spiked.planText(`|${source}->spike::ema(~symbol, ~day, ~close, 0.9, ~e)`);
+    const library = await planTextOf(spiked, `|${source}->spike::ema(~symbol, ~day, ~close, 0.9, ~e)`);
     console.log(`SQL characters: today's writer ${writer_.sql.length}, the library's ${library.sql.length}`);
     assert.ok(library.sql.length < writer_.sql.length * 3, 'the same order of size');
   });

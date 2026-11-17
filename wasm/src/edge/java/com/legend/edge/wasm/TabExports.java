@@ -12,7 +12,7 @@ import planner.Folded;
  * (and {@link #pureV1OrError} routes legend-lite's own {@code /api/lite/v1/compilation/compile} too, as the server
  * does).
  * The JVM differential ({@code JvmMain}) runs the same compositions over the boundary ({@code Folded.of} of
- * {@code Boundary.plan} and {@code planJson}), so it compares the tab's own answers.
+ * {@code Boundary.queryParse} then {@code queryPlan}), so it compares the tab's own answers.
  *
  * <p>AT THE EDGE (F's separation census line A1, 2026-11-17): four of these exports answer legend-engine's routes
  * through the edge ({@code EdgeBoundary}), so this class -- the module's one entry -- is the edge's
@@ -52,31 +52,7 @@ public final class TabExports {
         return Folded.http(() -> EdgeBoundary.executeArrowAnswer(plan, rows));
     }
 
-    // ---- planning and typing
-
-    /** {@link Boundary#planSql}: the SQL alone, unfolded (a refusal is thrown). */
-    @JSExport
-    public static String plan(String model, String query, String runtime) {
-        return Boundary.planSql(model, query, runtime);
-    }
-
-    /** {@link Boundary#plan}. */
-    @JSExport
-    public static String planOrError(String model, String query, String runtime) {
-        return Folded.of(() -> Boundary.plan(model, query, runtime));
-    }
-
-    /** {@link Boundary#relationType}. */
-    @JSExport
-    public static String relationTypeOrError(String model, String query) {
-        return Folded.of(() -> Boundary.relationType(model, query));
-    }
-
-    /** {@link Boundary#planJson}. */
-    @JSExport
-    public static String planJsonOrError(String model, String lambdaJson, String runtime) {
-        return Folded.of(() -> Boundary.planJson(model, lambdaJson, runtime));
-    }
+    // ---- models held: the binding's cache (lite API v1 §7a)
 
     /** {@link Boundary#holdModel}: the handle, or the refusal of a model that does not compile. */
     @JSExport
@@ -102,28 +78,16 @@ public final class TabExports {
         });
     }
 
-    /** {@link Boundary#planHeld}. */
+    /** {@code query/plan} over a model held ({@link Boundary#queryPlanHeld}). */
     @JSExport
-    public static String planHeldOrError(int handle, String query, String runtime) {
-        return Folded.of(() -> Boundary.planHeld(handle, query, runtime));
+    public static String queryPlanHeldOrError(int handle, String request) {
+        return Folded.of(() -> Boundary.queryPlanHeld(handle, request));
     }
 
-    /** {@link Boundary#planJsonHeld}. */
+    /** {@code query/type} over a model held ({@link Boundary#queryTypeHeld}). */
     @JSExport
-    public static String planJsonHeldOrError(int handle, String lambdaJson, String runtime) {
-        return Folded.of(() -> Boundary.planJsonHeld(handle, lambdaJson, runtime));
-    }
-
-    /** {@link Boundary#executionPlanJsonHeld}. */
-    @JSExport
-    public static String executionPlanJsonHeldOrError(int handle, String lambdaJson, String runtime) {
-        return Folded.of(() -> Boundary.executionPlanJsonHeld(handle, lambdaJson, runtime));
-    }
-
-    /** {@link Boundary#relationTypeHeld}. */
-    @JSExport
-    public static String relationTypeHeldOrError(int handle, String query) {
-        return Folded.of(() -> Boundary.relationTypeHeld(handle, query));
+    public static String queryTypeHeldOrError(int handle, String request) {
+        return Folded.of(() -> Boundary.queryTypeHeld(handle, request));
     }
 
     // ---- lite API v1's operations (docs/records/lite-api-v1-2026-11-17.md §2, the user's go of 2026-11-17): each the
@@ -367,6 +331,10 @@ public final class TabExports {
             + "->sort([~region->ascending()])->limit(10)";
 
     public static void main(String[] args) {
-        System.out.println(Boundary.planSql(MODEL, QUERY, RUNTIME));
+        // a text query is query/parse, then query/plan (lite API v1 §2)
+        String parsed = Boundary.queryParse("{\"text\":" + com.legend.json.Json.toCompact(QUERY) + "}");
+        String query = com.legend.json.Json.toCompact(com.legend.json.Json.parseObject(parsed).get("query"));
+        System.out.println(Boundary.queryPlan("{\"model\":" + com.legend.json.Json.toCompact(MODEL) + ",\"query\":" + query
+                + ",\"runtime\":" + com.legend.json.Json.toCompact(RUNTIME) + "}"));
     }
 }

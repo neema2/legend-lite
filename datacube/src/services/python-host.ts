@@ -207,11 +207,8 @@ function folded(id: number, answer: globalThis.Response, text: string): Response
 }
 
 /** The tab's worker's requests a Python host is not asked, each with why: the tab's own, or no page's. */
-const NOT_ASKED: Readonly<Record<Exclude<RequestKind, 'hold' | 'release' | 'planJson' | LiteOperation>, string>> = {
-  plan: "a page plans a query's protocol tree (planJson), not its text",
-  relationType: "a page types a query on legend-engine's route (lambdaRelationType), not its text",
-  planModel: "an unheld plan is Query's, in its tab",
-  executionPlan: "a write is planned and run where its rows are: Python's own headless writer, on its database",
+const NOT_ASKED: Readonly<Record<Exclude<RequestKind, 'hold' | 'release' | 'queryPlanHeld' | 'queryTypeHeld' | LiteOperation>,
+  string>> = {
   tableModel: "a table's model is the tab's own database's",
   catalogColumnsSql: "a catalog's reading is the tab's own database's",
   executePlan: "execute's halves are the tab's: a Python host plans and runs in one call (plan-and-run)",
@@ -286,16 +283,25 @@ function pythonWorker(link: PythonLink, project = false): PlannerWorker {
         case 'modelCreateClass': case 'modelCreateAssociation': case 'modelCreateDataSpace': case 'tsItem': case 'tsStatement':
           call(`/api/lite/v1/${OPERATION_PATHS[body.kind]}`, body.request, (answer, text) => folded(id, answer, text));
           return;
-        case 'planJson': {
+        case 'queryPlanHeld': case 'queryTypeHeld': {
           const kept = held.get(body.handle);
           if (kept === undefined) {
             reply({ id, ok: true, answer: `ERR\n${JSON.stringify({ kind: 'internal', message: `no model held as ${body.handle} on this page` })}` });
             return;
           }
-          // the dry run: plan-and-run's planning half, over the model Python holds of that text, never run -- a project's
-          // own (a saved query's: ModelOptions.project) said so, as plan-and-run says it
-          call('/plan.json', JSON.stringify({ lambda: body.lambda, model: kept.model, runtime: body.runtime,
-            ...(kept.library === undefined ? {} : { library: kept.library }), ...(project ? { project } : {}) }), (answer, text) =>
+          // the request without its model ({query, runtime} or {query}), the held model's added: spliced, never parsed, so
+          // the query's numbers keep their digits
+          const withModel = (more: Record<string, unknown>): string =>
+            `${body.request.slice(0, -1)},${JSON.stringify(more).slice(1)}`;
+          if (body.kind === 'queryTypeHeld') {
+            // query/type on the host's own route, over the model it holds of that text
+            call('/api/lite/v1/query/type', withModel({ model: kept.model }), (answer, text) => folded(id, answer, text));
+            return;
+          }
+          // the dry run: plan-and-run's planning half, query/plan over the model Python holds of that text, never run -- a
+          // project's own (a saved query's: ModelOptions.project) said so, as plan-and-run says it
+          call('/plan.json', withModel({ model: kept.model, ...(kept.library === undefined ? {} : { library: kept.library }),
+            ...(project ? { project } : {}) }), (answer, text) =>
             (answer.ok
               ? { id, ok: true, answer: (JSON.parse(text) as { plan: string }).plan }
               : { id, ok: false, error: `the engine answered ${answer.status}: ${text}` }));
