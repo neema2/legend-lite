@@ -75,6 +75,9 @@ _RUN = [
     "src/deephaven-held.ts",
     "src/deephaven-live.ts",
     "src/deephaven-rows.ts",
+    # 2026-11-17 (docs/DEEPHAVEN_RUN_SIDE_2026_11_16.md §4, §7.1): the planner's steps as a runtime reads them -- the
+    # places filled, the answers read, the declared tables checked (DH16); it encodes nothing
+    "src/deephaven-steps.ts",
     "src/deephaven.ts",
     "src/duckdb-live.ts",
     "src/duckdb-tab.ts",
@@ -420,6 +423,20 @@ node_test(
 
 # what a runtime's Deephaven server must hold when it connects (deephaven-held.ts, docs/DEPLOYMENT_DESIGN_2026_11_14.md
 # §9 step 3): every table tried, any refused refusing the whole by name -- no server here
+# WHAT A DEEPHAVEN SESSION SENDS IS THE PLAN'S (docs/DEEPHAVEN_RUN_SIDE_2026_11_16.md §9, 2026-11-17): a capturing
+# stand-in for the server, the planner's plan of a read, the bytes sent compared with the plan's
+node_test(
+    name = "deephaven_session_test",
+    size = "small",
+    data = [
+        ":engine_client",
+        ":node_modules/apache-arrow",
+        "test/planner.ts",
+    ],
+    entry_point = "test/deephaven-session.test.ts",
+    wasm = True,
+)
+
 node_test(
     name = "deephaven_held_test",
     size = "small",
@@ -604,6 +621,7 @@ test_suite(
     tests = [
         ":arrow_ipc_test",
         ":deephaven_held_test",
+        ":deephaven_session_test",
         ":duckdb_live_test",
         ":model_data_test",
         ":node_duckdb_test",

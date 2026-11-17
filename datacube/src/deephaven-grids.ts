@@ -123,7 +123,7 @@ class Server {
         engine = await DeephavenEngine.open({
           url,
           signIn: { type: 'io.deephaven.authentication.psk.PskAuthenticationHandler', token },
-        }, (op, args) => this.#o.module.deephaven(op, args), { live: deephavenApi(url) });
+        }, { live: deephavenApi(url) });
       } catch (e) {
         throw new Error(`the Deephaven server at ${url} is not answering: ${e instanceof Error ? e.message : String(e)}`);
       }

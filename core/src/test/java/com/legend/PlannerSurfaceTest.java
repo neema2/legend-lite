@@ -226,6 +226,11 @@ class PlannerSurfaceTest {
             // 2026-11-14): a dataset's three landing plans, its batch by the name the host holds it under -- never a row
             door("ingestPlans", p("request", REQUEST), fields("databaseType", NAME, "model", MODEL_TEXT, "database", NAME,
                     "schema", NAME, "table", NAME, "held", DATA_REFERENCE, "deployment", NAME)),
+            // 2026-11-17 (docs/DEEPHAVEN_RUN_SIDE_2026_11_16.md §8, the user's go of 2026-11-16): a Deephaven server's
+            // planning alone -- its topics, a deployment's plan and validation, what a runtime's servers hold -- each
+            // operation closed by only(...); what a session sends is its runtime's, from the plans, never asked here
+            new Door("deephaven", List.of(p("op", OPTION), p("argsJson", REQUEST)), new TreeMap<>(fields("model",
+                    MODEL_TEXT, "database", NAME, "deployment", NAME, "runtime", NAME))),
             door("databaseFromCatalog", p("catalogJson", REQUEST), fields(with(CATALOG, "databaseType", NAME, "path",
                     DATA_REFERENCE, "body", INTERNAL))),
             door("tableModel", p("tableJson", REQUEST), fields(with(CATALOG, "databaseType", NAME, "tables",
@@ -266,6 +271,7 @@ class PlannerSurfaceTest {
             Map.entry("snapCopyOrError", "snapCopy"), Map.entry("outputPlanOrError", "outputPlan"),
             Map.entry("authoredOrError", "authored"), Map.entry("synthesizeOrError", "synthesize"),
             Map.entry("ingestPlansOrError", "ingestPlans"), // 2026-11-16, the merge of main 4dfbb5b7 (C0's ingest plans)
+            Map.entry("deephavenOrError", "deephaven"), // 2026-11-17, its planning alone (DEEPHAVEN_RUN_SIDE §8)
             Map.entry("databaseFromCatalogOrError", "databaseFromCatalog"),
             Map.entry("tableModelOrError", "tableModel"), Map.entry("catalogColumnsSqlOrError", "catalogColumnsSql"),
             Map.entry("sessionSetupOrError", "sessionSetup"), Map.entry("hostOperationsOrError", "hostOperations"),
@@ -287,6 +293,7 @@ class PlannerSurfaceTest {
             Map.entry("lite_snap_copy", "snapCopy"), Map.entry("lite_output_plan", "outputPlan"),
             Map.entry("lite_synthesize", "synthesize"), Map.entry("lite_frame_load", "frameLoad"),
             Map.entry("lite_ingest_plans", "ingestPlans"), // 2026-11-16, the merge of main 4dfbb5b7 (C0's ingest plans)
+            Map.entry("lite_deephaven", "deephaven"), // 2026-11-17, its planning alone (DEEPHAVEN_RUN_SIDE §8)
             Map.entry("lite_database_from_catalog", "databaseFromCatalog"),
             Map.entry("lite_table_model", "tableModel"), Map.entry("lite_catalog_columns_sql", "catalogColumnsSql"),
             Map.entry("lite_session_setup", "sessionSetup"), Map.entry("lite_host_operations", "hostOperations"),
@@ -769,6 +776,7 @@ class PlannerSurfaceTest {
             Map.entry("outputPlan", List.of("lite_output_plan", "request")),
             Map.entry("synthesize", List.of("lite_synthesize", "request")),
             Map.entry("ingestPlans", List.of("lite_ingest_plans", "request")), // 2026-11-16 (C0's ingest plans)
+            Map.entry("deephaven", List.of("lite_deephaven", "op", "args")), // 2026-11-17 (DEEPHAVEN_RUN_SIDE §8)
             Map.entry("sessionSetup", List.of("lite_session_setup", "databaseType")),
             Map.entry("projectData", List.of("lite_project_data", "model", "databaseType")),
             Map.entry("hostOperations", List.of("lite_host_operations", "databaseType", "operations")),

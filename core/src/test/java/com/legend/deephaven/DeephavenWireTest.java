@@ -238,7 +238,7 @@ class DeephavenWireTest {
                         + "->sort([~region->ascending(), ~desk->descending()])",
                 "#>{risk::Ref.trades}#->select(~[id, region])->concatenate(#>{risk::Ref.trades}#->select(~[id, region]))");
         for (String query : queries) {
-            String plan = Compiler.query(ctx, query).plan("risk::RT").sql();
+            String plan = DeephavenStepsTest.readable(Compiler.query(ctx, query).plan("risk::RT").sql());
             byte[] bytes = DeephavenWire.batch(plan, 3);
             Json.Obj read = ProtoWire.read("BatchTableRequest", bytes);
             assertArrayEquals(bytes, ProtoWire.write("BatchTableRequest", read, b -> b), query);
@@ -275,7 +275,7 @@ class DeephavenWireTest {
                 """.replace("type: DuckDB;\n  specification: DuckDB { };\n  auth: Test;",
                 "type: Deephaven;\n  specification: Deephaven { host: 'localhost'; port: 8443; useTls: true; };\n"
                         + "  auth: PreSharedKey { keyVaultReference: 'deephaven.psk'; };");
-        return Compiler.query(Compiler.compileModel(model), query).plan("risk::RT").sql();
+        return DeephavenStepsTest.readable(Compiler.query(Compiler.compileModel(model), query).plan("risk::RT").sql());
     }
 
     /** The operations a request sends: each one's name, its result's export id, and the references it reads. */

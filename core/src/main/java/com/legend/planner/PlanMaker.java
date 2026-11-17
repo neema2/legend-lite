@@ -1210,7 +1210,17 @@ public final class PlanMaker {
     /** {@code statement} final for {@code target}: rendered in {@code dialect}, each placeholder's binding as the
      *  dialect decided it, the typed tree kept (the judges' plans take it too, JudgePlans, step 6). */
     public static ExecutionPlan.Sql sql(SqlQuery statement, SqlDialect dialect, ExecutionPlan.Target target) {
-        return sql(dialect.renderStatement(statement), target, statement);
+        RenderedStatement rendered = dialect.renderStatement(statement);
+        if (dialect.writesTableOperations()) {
+            // a batch of table operations, written as the steps a runtime sends as they are, its places listed
+            // (docs/DEEPHAVEN_RUN_SIDE_2026_11_16.md §4): it binds no parameter (a Deephaven plan's are refused, DH5)
+            if (!rendered.binds().isEmpty() || !rendered.regions().isEmpty()) {
+                throw new IllegalStateException("a batch of table operations binds no parameter and holds no region");
+            }
+            rendered = new RenderedStatement(com.legend.deephaven.DeephavenSteps.of(rendered.sql()), List.of(),
+                    List.of());
+        }
+        return sql(rendered, target, statement);
     }
 
     /** A placeholder's binding, as the dialect decided it, in the plan's own terms. */

@@ -13,7 +13,7 @@
 // The engine is itself the reader of one grid (its own `execute`, `follow`, `onLive`), for a page of one.
 
 import type {
-  DeephavenColumn, DeephavenPlanner, DeephavenServer, DeephavenSessionOptions, KeptResult,
+  DeephavenServer, DeephavenSessionOptions, KeptResult,
 } from './deephaven.ts';
 import { DeephavenSession } from './deephaven.ts';
 import { checkHeld, type HeldTable } from './deephaven-held.ts';
@@ -100,7 +100,6 @@ interface Counts {
 /** What a grid's reader reads through: the engine's session, its live reader, its bases and its counts -- the page's. */
 interface EngineCore {
   session(): DeephavenSession;
-  supplied(): Record<string, number>;
   liveClient(): Promise<LiveClient>;
   readonly counts: Counts;
   receipt(): Receipt;
@@ -114,29 +113,23 @@ interface EngineCore {
 export class DeephavenEngine implements QueryEngine {
   readonly name = 'deephaven';
   readonly #server: DeephavenServer;
-  readonly #planner: DeephavenPlanner;
   readonly #options: DeephavenEngineOptions;
   #session: DeephavenSession;
   #live: Promise<LiveClient> | null = null;
   /** The whole results followed, by their text, each for the readers that read it. */
   readonly #whole = new Map<string, SharedFollowing>();
   readonly #readers = new Set<DeephavenReader>();
-  /** The grids' bases kept on the server (B1), by the name a query reads each by. */
-  readonly #bases = new Map<string, KeptResult>();
   readonly #counts: Counts = { queries: 0, planned: 0, sent: 0, fetched: 0, live: 0, remade: 0, reconnects: 0 };
   readonly #core: EngineCore;
   /** The reader of a page of one grid: the engine's own `execute`, `follow` and `onLive`. */
   readonly #own: DeephavenReader;
 
-  private constructor(server: DeephavenServer, planner: DeephavenPlanner, options: DeephavenEngineOptions,
-    session: DeephavenSession) {
+  private constructor(server: DeephavenServer, options: DeephavenEngineOptions, session: DeephavenSession) {
     this.#server = server;
-    this.#planner = planner;
     this.#options = options;
     this.#session = session;
     this.#core = {
       session: () => this.#session,
-      supplied: () => this.#supplied(),
       liveClient: () => this.#liveClient(),
       counts: this.#counts,
       receipt: () => this.#receipt(),
@@ -154,13 +147,12 @@ export class DeephavenEngine implements QueryEngine {
    * person's first gesture (measured: a group's opening 390 ms slower); loaded now, it is parsed while the first view
    * waits on the server. A library that fails to load is said by the first follow that needs it.
    */
-  static async open(server: DeephavenServer, planner: DeephavenPlanner,
-    options: DeephavenEngineOptions): Promise<DeephavenEngine> {
+  static async open(server: DeephavenServer, options: DeephavenEngineOptions): Promise<DeephavenEngine> {
     // a session the server forgot ends the live side as a server gone does: each reader's host signs in again -- while
     // it is the engine's session (one a reconnect let go of is forgotten as it closes, and is no server gone)
     let ended: (why: string) => void = () => { /* no engine yet */ };
-    const session = await DeephavenSession.open(server, planner, { ...options, onForgotten: (why) => ended(why) });
-    const engine = new DeephavenEngine(server, planner, options, session);
+    const session = await DeephavenSession.open(server, { ...options, onForgotten: (why) => ended(why) });
+    const engine = new DeephavenEngine(server, options, session);
     ended = (why) => { if (engine.#session === session) engine.#ended(why); };
     engine.#liveClient().catch(() => { /* said by the follow that needs it */ });
     return engine;
@@ -234,7 +226,7 @@ export class DeephavenEngine implements QueryEngine {
     const session = this.#session;
     let kept: KeptResult;
     try {
-      kept = await session.keepAlive(plan.sql, this.#supplied());
+      kept = await session.keepAlive(plan.sql);
     } catch (e) {
       // never a following left behind that no one makes: the next read follows it again
       if (this.#whole.get(plan.sql) === f) this.#whole.delete(plan.sql);
@@ -298,57 +290,13 @@ export class DeephavenEngine implements QueryEngine {
   }
 
   /**
-   * A GRID'S BASE KEPT ON THE SERVER (docs/DEEPHAVEN_PLAN_2026_10_22.md B1): `plan` -- the grid's base query and its
-   * leaf-level calculated columns -- made once with its result stored, so the server computes the calculations once a
-   * change and every query the grid sends, and every result it follows, reads them; kept until `letBaseGo`. Answers
-   * the name a query reads it by (a table of that name, which this engine supplies on every send), the stored
-   * result's columns as the plan names them, and its columns as the server holds them (`held`: the base is declared as
-   * it is held, DH16). A base kept already is answered at once.
-   */
-  async keepBase(plan: string): Promise<{
-    readonly name: string;
-    readonly columns: readonly string[];
-    readonly held: readonly DeephavenColumn[];
-  }> {
-    const session = this.#session;
-    const stored = await session.stored(plan);
-    let kept = this.#bases.get(stored.name);
-    if (kept === undefined) {
-      kept = await session.keepAlive(stored.plan, this.#supplied());
-      if (session !== this.#session) {
-        kept.release();
-        throw new QueryError('the Deephaven session changed while the base was made', plan);
-      }
-      this.#bases.get(stored.name)?.release();
-      this.#bases.set(stored.name, kept);
-    }
-    return { name: stored.name, columns: stored.columns, held: kept.columns };
-  }
-
-  /**
    * Each of `tables` read on the server once (deephaven-held.ts: what a runtime's server must hold when it connects,
    * docs/DEPLOYMENT_DESIGN_2026_11_14.md §9): each made and let go, its columns checked against its store (DH16); any
    * missing or held otherwise refuses the whole, naming each (`DeephavenNotHeld`).
    */
   async holds(tables: readonly HeldTable[]): Promise<void> {
     const session = this.#session;
-    await checkHeld(tables, (sql) => session.keepAlive(sql, this.#supplied()));
-  }
-
-  /** Whether the base named `name` is kept now: a reconnect lets every one go. */
-  keepsBase(name: string): boolean {
-    return this.#bases.has(name);
-  }
-
-  /** The base named `name` let go: idle in the session, then gone past its keep (deephaven.ts). */
-  letBaseGo(name: string): void {
-    this.#bases.get(name)?.release();
-    this.#bases.delete(name);
-  }
-
-  /** The tables this engine supplies on a send: each base, by its name. */
-  #supplied(): Record<string, number> {
-    return Object.fromEntries([...this.#bases].map(([name, kept]) => [name, kept.exportId]));
+    await checkHeld(tables, (sql) => session.keepAlive(sql));
   }
 
   #liveClient(): Promise<LiveClient> {
@@ -375,15 +323,13 @@ export class DeephavenEngine implements QueryEngine {
   async reconnect(): Promise<void> {
     // its end is the server gone while it is the engine's session (as `open`'s)
     let ended: (why: string) => void = () => { /* not the engine's yet */ };
-    const session = await DeephavenSession.open(this.#server, this.#planner,
-      { ...this.#options, onForgotten: (why) => ended(why) });
+    const session = await DeephavenSession.open(this.#server, { ...this.#options, onForgotten: (why) => ended(why) });
     ended = (why) => { if (this.#session === session) this.#ended(why); };
     const old = this.#session;
     for (const f of this.#whole.values()) stopFollowing(f);
     this.#whole.clear();
     for (const r of this.#readers) r.reset();
-    // the old session's bases went with it: each grid makes its own again on its next query
-    this.#bases.clear();
+    // the old session's kept steps went with it: each plan makes its own again when next run (deephaven.ts)
     const live = this.#live;
     this.#live = null;
     live?.then((l) => l.close(), () => { /* it never opened */ });
@@ -467,7 +413,7 @@ export class DeephavenReader implements QueryEngine {
     // the rows asked for as soon as the result's export is named: the server answers once it has made it (G1)
     let reading: Promise<Uint8Array> | null = null;
     try {
-      kept = await session.keepAlive(plan.sql, this.#core.supplied(), (exportId) => {
+      kept = await session.keepAlive(plan.sql, (exportId) => {
         if (signal?.aborted) return;
         reading = session.rows(exportId);
         reading.catch(() => { /* a refused batch is said by keepAlive */ });
@@ -676,7 +622,7 @@ export class DeephavenReader implements QueryEngine {
     let kept: KeptResult;
     try {
       // published as soon as it is named, while the server makes it: the window's rows a round trip sooner (N1)
-      kept = await session.keepAlive(plan.sql, this.#core.supplied(), (exportId) => {
+      kept = await session.keepAlive(plan.sql, (exportId) => {
         session.publishKept(exportId).catch(() => { /* asked again below, and said there */ });
       });
     } catch (e) {

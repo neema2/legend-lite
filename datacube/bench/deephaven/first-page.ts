@@ -53,7 +53,7 @@ async function main(): Promise<void> {
   const planner = new LitePlanner({ model: MODEL(at.hostname, Number(at.port)), runtime: 'risk::LiveRuntime',
     assetBaseUrl: './' });
   await planner.warmUp();
-  const session = await DeephavenSession.open(server, (op, args) => planner.deephaven(op, args));
+  const session = await DeephavenSession.open(server);
   const live = await LiveClient.open(server, () => { /* the run fails on its own */ }, deephavenApi(server.url));
   // the source made and kept alive once, as the cube's first view makes it
   (await session.keepAlive((await planner.planText(source('') + SHAPES.level)).sql)).release();

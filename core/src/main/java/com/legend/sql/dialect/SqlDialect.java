@@ -241,6 +241,13 @@ public interface SqlDialect {
         return false;
     }
 
+    /** Whether a statement of this database is a batch of table operations a server reads as its protocol's binary
+     *  messages (Deephaven's: docs/DEEPHAVEN_RUN_SIDE_2026_11_16.md §4), which the planner writes as the bytes it sends,
+     *  their run-time places listed -- never SQL text a session sends as it is. Default: not. */
+    default boolean writesTableOperations() {
+        return false;
+    }
+
     /** Whether this database runs IN THIS PROCESS (an embedded engine, a private instance of which the platform opens:
      *  H2, DuckDB, SQLite) or on a SERVER: a plan writes the system metamodel store's tables as its target's setup on
      *  the one and as its sessions' own TEMPORARY tables on the other (the plan path program's step 9, 2026-10-19; until

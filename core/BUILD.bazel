@@ -285,9 +285,9 @@ legend_java_library(
     visibility = ["//datacube:__pkg__"],
     srcs = _PLANNER_SRCS,
     deps = [
-        "//base", ":builtin", ":cache", ":compiler", ":compiler_element_type", ":database", ":door", ":error",
-        ":execution_plan", ":lineage", ":lowering", ":model", ":normalizer", ":parser", ":plan", ":platform",
-        ":protocol", ":resolver", ":setup", ":sql", ":sql_dialect", ":validation", ":values",
+        "//base", ":builtin", ":cache", ":compiler", ":compiler_element_type", ":database", ":deephaven_wire",
+        ":door", ":error", ":execution_plan", ":lineage", ":lowering", ":model", ":normalizer", ":parser", ":plan",
+        ":platform", ":protocol", ":resolver", ":setup", ":sql", ":sql_dialect", ":validation", ":values",
     ],
 )
 

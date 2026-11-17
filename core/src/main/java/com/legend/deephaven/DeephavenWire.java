@@ -321,7 +321,7 @@ public final class DeephavenWire {
     }
 
     /** {@code op} with its result exported as {@code exportId}. */
-    private static Json.Obj exported(Json.Obj op, int exportId) {
+    static Json.Obj exported(Json.Obj op, int exportId) {
         String name = op.fields().keySet().iterator().next();
         LinkedHashMap<String, Json.Node> body = new LinkedHashMap<>(op.getObj(name).fields());
         body.put("resultId", ticket(exportTicket(exportId)));
@@ -472,7 +472,7 @@ public final class DeephavenWire {
         return new Json.Obj(t);
     }
 
-    private static byte[] refuseParameters(byte[] ticket) {
+    static byte[] refuseParameters(byte[] ticket) {
         if (Arrays.equals(ticket, PARAMETERS.getBytes(StandardCharsets.UTF_8))) {
             throw new UnsupportedOperationException("a Deephaven plan with parameters is not sent yet: its values"
                     + " are uploaded as a one-row table first, which no sender builds yet"

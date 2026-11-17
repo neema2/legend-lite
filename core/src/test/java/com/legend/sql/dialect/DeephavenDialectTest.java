@@ -76,7 +76,9 @@ class DeephavenDialectTest {
         assertTrue(deephaven.contains("type: Deephaven;"), deephaven);
         String query = "#>{risk::Ref.trades}#->groupBy(~[desk], ~[total:x|$x.notional:y|$y->sum()])->sort(~desk->ascending())";
         String planned = Compiler.query(Compiler.compileModel(deephaven), query).plan("risk::RT").sql();
-        assertEquals(batch(query), planned);
+        // the plan's statement is the dialect's batch written as the steps the server reads (DeephavenSteps:
+        // docs/DEEPHAVEN_RUN_SIDE_2026_11_16.md §4)
+        assertEquals(com.legend.deephaven.DeephavenSteps.of(batch(query)), planned);
     }
 
     /** A relation the statement reads twice is written once as a common table expression (the lowering's

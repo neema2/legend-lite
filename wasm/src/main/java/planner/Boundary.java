@@ -882,158 +882,46 @@ public final class Boundary {
     }
 
     /**
-     * What a host sends a Deephaven server and reads back (docs/DEEPHAVEN_PLAN_2026_10_22.md DH21, DH22;
-     * {@code com.legend.deephaven.DeephavenWire}), one operation by name, its arguments a JSON object: {@code batch}
-     * ({@code plan}, {@code exportId}: the plan's request, its result exported under that id in the host's session),
-     * {@code publish} ({@code exportId}, {@code name}), {@code releaseExport} ({@code exportId}, which ends the name
-     * too) and {@code doGet} ({@code exportId}: the Flight ticket its rows are read by) -- each answered as its bytes
-     * in base64 -- {@code made} ({@code answers}: a batch's answer, each message in base64, {@code exports}: what its
-     * {@code send} exports, as it answered them), answered {@code {"refused", "mismatch", "columns"}}: the server's
-     * refusal, a table it holds otherwise than its store declares (DH16), each null when there is none, and each made
-     * table's columns by its export, {@code [{"name", "type"}]}; {@code keys} ({@code plan}), answered
-     * {@code {"keys"}}, each operation's; and {@code send} ({@code plan}, {@code alive}: the session's tables, key to
-     * export id, {@code supplied}?: the tables the session supplies itself, name to export id, {@code nextExportId}),
-     * answered {@code {"request", "exports": [{"key", "exportId", "declared"?}], "result"}}, {@code declared} the store's
-     * table an export's operation reads, as {@code made} reads it back; and {@code stored} ({@code plan}), answered
-     * {@code {"plan", "columns"}}, the
-     * plan with its result stored; {@code nullable} ({@code handle}, {@code lambda}, {@code runtime}), answered
-     * {@code {"nullable"}}: which of the query's result columns may be null, as the planner lowers it -- sound across
-     * an outer join, where the relation type keeps a joined column's own multiplicity (a grid's base, B1). The host carries the bytes; it builds
-     * none and reads none itself. An operation not listed is refused by name.
+     * A DEEPHAVEN SERVER'S PLANNING (docs/DEEPHAVEN_RUN_SIDE_2026_11_16.md §8; docs/DEPLOYMENT_DESIGN_2026_11_14.md §9),
+     * one operation by name, its arguments a JSON object each closed by {@code only(...)}: {@code topics}
+     * ({@code model}, {@code database}: the topics a database's streams read), {@code plan} ({@code model},
+     * {@code deployment}: a deployment's plan for its live server, data for lite's fixed loader), {@code holds}
+     * ({@code model}, {@code runtime}: each table a runtime's servers must hold when it connects, with the plan that reads
+     * it), {@code validate} ({@code model}, {@code deployment}: every reason it cannot be landed). Planning alone: what a
+     * session sends and reads is its runtime's, from the plans (the browser's deephaven.ts), never asked here. An
+     * operation not listed is refused by name.
      */
     public static String deephaven(String op, String argsJson) {
         com.legend.json.Json.Obj a = com.legend.json.Json.parseObject(argsJson);
-        java.util.Base64.Encoder b64 = java.util.Base64.getEncoder();
         return switch (op) {
-            case "batch" -> b64.encodeToString(
-                    com.legend.deephaven.DeephavenWire.batch(a.getString("plan"), a.getInt("exportId")));
-            case "publish" -> b64.encodeToString(
-                    com.legend.deephaven.DeephavenWire.publish(a.getInt("exportId"), a.getString("name")));
-            case "releaseExport" -> b64.encodeToString(
-                    com.legend.deephaven.DeephavenWire.releaseExport(a.getInt("exportId")));
-            case "doGet" -> b64.encodeToString(com.legend.deephaven.DeephavenWire.doGet(a.getInt("exportId")));
             // the topics a database's streams read, from its model (the desk roadmap's B1: the world's feed writes
             // each landing table's rows to its topic, and the door keeps each as its dataset lands)
-            case "topics" -> MODELS.withText(a.getString("model"), ctx -> topics(
-                    com.legend.planner.IngestTopics.of(ctx, a.getString("database"))));
+            case "topics" -> {
+                only(a, "a database's topics", "model", "database");
+                yield MODELS.withText(a.getString("model"), ctx -> topics(
+                        com.legend.planner.IngestTopics.of(ctx, a.getString("database"))));
+            }
             // a deployment's plan for its live Deephaven server (docs/DEPLOYMENT_DESIGN_2026_11_14.md §9): data, for
             // lite's fixed loader (core/src/main/deephaven/legend-loader.groovy); never code
-            case "plan" -> MODELS.withText(a.getString("model"), ctx -> com.legend.json.Json.toCompact(java.util.Map.of(
-                    "plan", com.legend.planner.DeploymentPlanner.deephaven(ctx, a.getString("deployment")).data())));
-            // what a runtime's servers must hold when it connects (docs/DEPLOYMENT_DESIGN_2026_11_14.md §9): each table a
-            // deployment lands there, with the plan that reads it whole (its columns checked against the store, DH16)
-            case "holds" -> MODELS.withText(a.getString("model"), ctx -> holds(ctx, a.getString("runtime")));
+            case "plan" -> {
+                only(a, "a deployment's plan", "model", "deployment");
+                yield MODELS.withText(a.getString("model"), ctx -> com.legend.json.Json.toCompact(java.util.Map.of(
+                        "plan", com.legend.planner.DeploymentPlanner.deephaven(ctx, a.getString("deployment")).data())));
+            }
+            // what a runtime's servers must hold when it connects (docs/DEPLOYMENT_DESIGN_2026_11_14.md §9): each table
+            // a deployment lands there, with the plan that reads it whole (its columns checked against the store, DH16)
+            case "holds" -> {
+                only(a, "what a runtime's servers hold", "model", "runtime");
+                yield MODELS.withText(a.getString("model"), ctx -> holds(ctx, a.getString("runtime")));
+            }
             // every reason a deployment cannot be landed (its validate), empty when it can
-            case "validate" -> MODELS.withText(a.getString("model"), ctx -> com.legend.json.Json.toCompact(java.util.Map.of(
-                    "problems", com.legend.planner.DeploymentPlanner.validate(ctx, a.getString("deployment")))));
-            case "keys" -> com.legend.json.Json.toCompact(java.util.Map.of("keys",
-                    com.legend.deephaven.DeephavenWire.keys(a.getString("plan"))));
-            case "send" -> {
-                java.util.Map<String, Integer> alive = new java.util.LinkedHashMap<>();
-                a.getObj("alive").fields().forEach((key, id) ->
-                        alive.put(key, (int) ((com.legend.json.Json.Num) id).longValue()));
-                java.util.Map<String, Integer> supplied = new java.util.LinkedHashMap<>();
-                if (a.has("supplied")) {
-                    a.getObj("supplied").fields().forEach((name, id) ->
-                            supplied.put(name, (int) ((com.legend.json.Json.Num) id).longValue()));
-                }
-                com.legend.deephaven.DeephavenWire.Send sent = com.legend.deephaven.DeephavenWire.send(
-                        a.getString("plan"), alive, supplied, a.getInt("nextExportId"));
-                java.util.List<Object> exports = new java.util.ArrayList<>();
-                for (com.legend.deephaven.DeephavenWire.Export e : sent.exports()) {
-                    java.util.Map<String, Object> one = new java.util.LinkedHashMap<>();
-                    one.put("key", e.key());
-                    one.put("exportId", e.exportId());
-                    if (e.declared() != null) {
-                        java.util.List<Object> columns = new java.util.ArrayList<>();
-                        for (com.legend.deephaven.DeephavenWire.DeclaredColumn c : e.declared().columns()) {
-                            java.util.Map<String, Object> col = new java.util.LinkedHashMap<>();
-                            col.put("name", c.name());
-                            col.put("column", c.column());
-                            col.put("type", c.type());
-                            col.put("declared", c.declared());
-                            columns.add(col);
-                        }
-                        java.util.Map<String, Object> declared = new java.util.LinkedHashMap<>();
-                        declared.put("table", e.declared().table());
-                        declared.put("columns", columns);
-                        one.put("declared", declared);
-                    }
-                    exports.add(one);
-                }
-                java.util.Map<String, Object> out = new java.util.LinkedHashMap<>();
-                out.put("request", b64.encodeToString(sent.request()));
-                out.put("exports", exports);
-                out.put("result", sent.result());
-                yield com.legend.json.Json.toCompact(out);
+            case "validate" -> {
+                only(a, "a deployment's validation", "model", "deployment");
+                yield MODELS.withText(a.getString("model"), ctx -> com.legend.json.Json.toCompact(java.util.Map.of(
+                        "problems", com.legend.planner.DeploymentPlanner.validate(ctx, a.getString("deployment")))));
             }
-            case "nullable" -> MODELS.with(a.getInt("handle"), ctx -> {
-                java.util.List<Boolean> nullable = new java.util.ArrayList<>();
-                // the SQL's own nullability, read from the plan's statement tree (its metadata, never the executor's):
-                // an outer join's other side may hold a null where the model's type says [1], so the type cannot say it
-                com.legend.sql.SqlQuery tree = com.legend.Compiler.query(ctx,
-                        com.legend.protocol.ProtocolReader.lambda(a.getString("lambda")))
-                        .plan(a.getString("runtime")).statement().tree();
-                if (tree == null) {
-                    throw new IllegalStateException("the plan of a grid's base holds no SQL tree: which of its columns"
-                            + " may hold a null is not known");
-                }
-                for (com.legend.sql.OutputCol c : tree.outputs()) {
-                    nullable.add(c.nullable());
-                }
-                return com.legend.json.Json.toCompact(java.util.Map.of("nullable", nullable));
-            });
-            case "stored" -> {
-                com.legend.deephaven.DeephavenWire.Stored st = com.legend.deephaven.DeephavenWire.stored(
-                        a.getString("plan"));
-                java.util.Map<String, Object> out = new java.util.LinkedHashMap<>();
-                out.put("plan", st.plan());
-                out.put("columns", st.columns());
-                yield com.legend.json.Json.toCompact(out);
-            }
-            case "made" -> {
-                java.util.List<byte[]> answers = new java.util.ArrayList<>();
-                for (com.legend.json.Json.Node n : a.getArr("answers").items()) {
-                    answers.add(java.util.Base64.getDecoder().decode(((com.legend.json.Json.Str) n).value()));
-                }
-                java.util.List<com.legend.deephaven.DeephavenWire.Export> exports = new java.util.ArrayList<>();
-                for (com.legend.json.Json.Node n : a.getArr("exports").items()) {
-                    com.legend.json.Json.Obj e = (com.legend.json.Json.Obj) n;
-                    com.legend.json.Json.Obj d = e.getObjOr("declared", null);
-                    com.legend.deephaven.DeephavenWire.Declared declared = null;
-                    if (d != null) {
-                        java.util.List<com.legend.deephaven.DeephavenWire.DeclaredColumn> columns =
-                                new java.util.ArrayList<>();
-                        for (com.legend.json.Json.Node c : d.getArr("columns").items()) {
-                            com.legend.json.Json.Obj col = (com.legend.json.Json.Obj) c;
-                            columns.add(new com.legend.deephaven.DeephavenWire.DeclaredColumn(col.getString("name"),
-                                    col.getString("column"), col.getString("type"), col.getString("declared")));
-                        }
-                        declared = new com.legend.deephaven.DeephavenWire.Declared(d.getString("table"), columns);
-                    }
-                    exports.add(new com.legend.deephaven.DeephavenWire.Export(e.getString("key"), e.getInt("exportId"),
-                            declared));
-                }
-                com.legend.deephaven.DeephavenWire.Made m = com.legend.deephaven.DeephavenWire.made(answers, exports);
-                java.util.Map<String, Object> columns = new java.util.LinkedHashMap<>();
-                m.columns().forEach((id, cs) -> {
-                    java.util.List<Object> list = new java.util.ArrayList<>();
-                    for (com.legend.deephaven.ArrowSchema.Column c : cs) {
-                        java.util.Map<String, Object> col = new java.util.LinkedHashMap<>();
-                        col.put("name", c.name());
-                        col.put("type", c.type());
-                        list.add(col);
-                    }
-                    columns.put(String.valueOf(id), list);
-                });
-                java.util.Map<String, Object> out = new java.util.LinkedHashMap<>();
-                out.put("refused", m.refused());
-                out.put("mismatch", m.mismatch());
-                out.put("columns", columns);
-                yield com.legend.json.Json.toCompact(out);
-            }
-            default -> throw new IllegalArgumentException("no Deephaven operation '" + op
-                    + "': batch, keys, send, stored, nullable, publish, releaseExport, doGet, made");
+            default -> throw new IllegalArgumentException("no Deephaven planning operation '" + op
+                    + "': topics, plan, holds, validate");
         };
     }
 

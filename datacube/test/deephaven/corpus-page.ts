@@ -9,7 +9,6 @@ import { DeephavenSession, type DeephavenServer } from '../../../engine-client/s
 import { byPosition, deephavenRows } from '../../../engine-client/src/deephaven-rows.ts';
 import { relationColumns, type Plan } from '../../../engine-client/src/relation-type.ts';
 // @ts-ignore the module's runtime, served beside the page from //wasm:planner
-import { load } from './wasm-gc-module-runtime.js';
 import { unplanned } from '../../../engine-client/test/unplanned.ts';
 
 interface Case {
@@ -38,9 +37,9 @@ try {
     signIn: { type: 'io.deephaven.authentication.psk.PskAuthenticationHandler', token: config.psk },
   };
   const cases = (await (await fetch('cases.json')).json() as Case[]).filter((c) => c.sql !== undefined);
-  const teavm = await load('classes.wasm', { stackDeobfuscator: { enabled: false } });
-  const exports = teavm.exports as { deephavenOrError(op: string, args: string): string };
-  const session = await DeephavenSession.open(server, async (op, args) => exports.deephavenOrError(op, JSON.stringify(args)));
+  // the cases' plans are the planner's, made before the page (core's DeephavenCorpusCases): the session takes no
+  // planner of its own
+  const session = await DeephavenSession.open(server);
 
   let pending: unknown[] = [];
   const flush = async (): Promise<void> => {

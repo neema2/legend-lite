@@ -44,7 +44,7 @@ try {
   const held = exports.holdModelOrError(DESK_MODEL(corpus!, desk!, environments!));
   if (!held.startsWith('OK\n')) throw new Error(`the trading model did not compile: ${held.replace(/\n/g, ' | ')}`);
   const handle = Number(held.slice(3));
-  const session = await DeephavenSession.open(server, async (op, args) => exports.deephavenOrError(op, JSON.stringify(args)));
+  const session = await DeephavenSession.open(server);
   const live = await LiveClient.open(server, (why) => { feed.setupError ??= `the live reader ended: ${why}`; },
     deephavenApi(server.url));
   const planned = (query: string): Plan => {

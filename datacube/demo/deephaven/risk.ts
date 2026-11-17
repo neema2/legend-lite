@@ -81,7 +81,7 @@ export async function openRisk(config: RiskConfig): Promise<Risk> {
   const engine = await DeephavenEngine.open({
     url: config.url,
     signIn: { type: 'io.deephaven.authentication.psk.PskAuthenticationHandler', token: config.psk },
-  }, (op, args) => planner.deephaven(op, args), { live: deephavenApi(config.url) });
+  }, { live: deephavenApi(config.url) });
   const source = await planner.parse(SOURCE);
   const query = source.body[0];
   if (query === undefined) throw new Error('the risk source parsed to no expression');

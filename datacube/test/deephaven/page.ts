@@ -472,9 +472,8 @@ try {
   const seeded = await (await (await seeder.getAsIdeConnection()).startSession('groovy')).runCode(SEED);
   if (seeded.error) throw new Error(`seeding failed: ${seeded.error}`);
 
-  const planner = async (op: string, args: Readonly<Record<string, unknown>>): Promise<string> =>
-    exports.deephavenOrError(op, JSON.stringify(args));
-  const session = await DeephavenSession.open(server, planner);
+  // the session takes no planner: each plan is the planner's, asked before it runs (docs/DEEPHAVEN_RUN_SIDE_2026_11_16.md)
+  const session = await DeephavenSession.open(server);
   const planned = (query: string): Plan => {
     const plan = exports.planOrError(model, query, 'risk::RT');
     if (!plan.startsWith('OK\n')) throw new Error(`the planner refused it: ${plan.replace(/\n/g, ' | ')}`);
@@ -622,8 +621,11 @@ try {
   });
   await check('a refused plan names the server\'s own reason', async () => {
     try {
-      await session.keepAlive('{"ops": [{"view": {"sourceId": {"ticket": {"ticket": "cy9ub3N1Y2g="}},'
-        + ' "columnSpecs": ["x = 1"]}}]}');
+      // a table the model declares and the server does not hold: planned as any read is, refused by the server
+      const absent = exports.planOrError(model.replace('  Table ticks (sym VARCHAR(8), px DOUBLE)',
+        '  Table ticks (sym VARCHAR(8), px DOUBLE)\n  Table nosuch (x INTEGER)'), '#>{risk::Ref.nosuch}#', 'risk::RT');
+      if (!absent.startsWith('OK\n')) return `the planner refused the absent table's read: ${absent}`;
+      await session.keepAlive((JSON.parse(absent.slice(3)) as { sql: string }).sql);
       return 'a plan reading a table the server does not have was accepted';
     } catch (e) {
       return /DeephavenRefused/.test(String(e)) ? null : `refused otherwise: ${String(e)}`;

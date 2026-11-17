@@ -1792,6 +1792,13 @@ public final class Deephaven extends AnsiSqlRenderer {
         return true;
     }
 
+    /** {@inheritDoc} A Deephaven statement is its batch of table operations, written by the planner as the bytes the
+     *  server reads (docs/DEEPHAVEN_RUN_SIDE_2026_11_16.md §4). */
+    @Override
+    public boolean writesTableOperations() {
+        return true;
+    }
+
     /** The Java type a Deephaven column holds a store's declared column as (DH16's one mapping): what a server's table
      *  is checked against, and what a topic's reader takes a dataset's column as (the desk roadmap's B1). A type no
      *  Deephaven column holds is refused by name. */

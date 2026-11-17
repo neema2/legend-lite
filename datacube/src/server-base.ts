@@ -18,7 +18,6 @@
 import type { DeephavenEngine } from '../../engine-client/src/deephaven-engine.ts';
 import type { QueryEngine } from '../../engine-client/src/engine.ts';
 import type { PlanColumn } from '../../engine-client/src/relation-type.ts';
-import { familyOf, hasTimeOfDay, isDay, isFloat, isFractional, isNumeric } from '../../engine-client/src/types.ts';
 import { accessor, toJson, type Lambda, type ValueSpecification } from '../../pure-protocol/src/index.ts';
 import type { LitePlanner } from './lite-planner.ts';
 import type { LevelScope } from './query.ts';
@@ -70,26 +69,6 @@ interface Base {
   readonly key: string;
   readonly name: string | null;
   readonly runner: QueryRunner;
-}
-
-/** A base column's type as the base's table declares it: the store type the server HOLDS it as (`held`, its
- *  `deephaven:type`), as every server table is checked against its declaration (DH16, decided strict) -- where that
- *  is the kind the plan computes it as; null: one the fragment does not write. */
-function columnType(c: PlanColumn, held: string | null): string | null {
-  const integral = isNumeric(c.type) && !isFractional(c.type);
-  switch (held) {
-    case 'java.lang.Boolean': return familyOf(c.type) === 'boolean' ? 'BIT' : null;
-    case 'byte': return integral ? 'TINYINT' : null;
-    case 'short': return integral ? 'SMALLINT' : null;
-    case 'int': return integral ? 'INTEGER' : null;
-    case 'long': return integral ? 'BIGINT' : null;
-    case 'float': return isFloat(c.type) ? 'REAL' : null;
-    case 'double': return isFloat(c.type) ? 'DOUBLE' : null;
-    case 'java.lang.String': return familyOf(c.type) === 'text' ? 'VARCHAR(65535)' : null;
-    case 'java.time.LocalDate': return isDay(c.type) ? 'DATE' : null;
-    case 'java.time.Instant': return hasTimeOfDay(c.type) ? 'TIMESTAMP' : null;
-    default: return null;
-  }
 }
 
 /**
@@ -155,11 +134,7 @@ export class ServerBases {
   async current(key: string, snapshot: CubeSnapshot): Promise<MadeBase> {
     const held = this.#held.get(key);
     if (held === undefined) throw new Error('a base no grid holds was read');
-    const was = held.made;
-    const made = await was;
-    if (made.name === null || this.#engine.keepsBase(made.name)) return made;
-    // its session went: made again, once for every grid that reads it
-    if (held.made === was) held.made = this.#make(snapshot);
+    void snapshot;
     return held.made;
   }
 
@@ -172,30 +147,21 @@ export class ServerBases {
     this.#held.delete(key);
     held.made.then((made) => {
       if (made.name === null) return;
-      this.#engine.letBaseGo(made.name);
       this.#declared.delete(made.name);
       this.#declare();
     }, () => { /* never made: nothing to let go */ });
   }
 
-  /** `snapshot`'s base made on the server, stored, and declared as a table of the bases' model. */
+  /**
+   * `snapshot`'s base. INTERIM (2026-11-17, docs/DEEPHAVEN_RUN_SIDE_2026_11_16.md §5): the base kept on the server by
+   * a declared table and a name the session swapped as it sent went with the runtime that took no planner; until the
+   * planner keeps a query's base as a step of its own (§5.2, held for lean SQL E's answer on `let`), every query reads
+   * its base as written -- no base on the server, said by `based` (B1's `asWritten`). Deleted with this class's model
+   * fragment when the step lands.
+   */
   async #make(snapshot: CubeSnapshot): Promise<MadeBase> {
-    const lambda = this.#options.baseOf(snapshot).lambda();
-    const plan = await this.#planner.plan(lambda);
-    // a column the lowering never leaves null is declared so: no null guard, no null flag on a sort by it (G1)
-    const nullable = await this.#planner.nullable(lambda);
-    const kept = await this.#engine.keepBase(plan.sql);
-    const types = plan.columns.map((c) => columnType(c, kept.held.find((h) => h.name === c.name)?.type ?? null));
-    const declared = kept.columns.length === plan.columns.length && nullable.length === plan.columns.length
-      && kept.columns.every((c, i) => c === plan.columns[i]?.name) && types.every((t) => t !== null);
-    if (!declared) {
-      this.#engine.letBaseGo(kept.name);
-      return { name: null, columns: '' };
-    }
-    const columns = plan.columns.map((c, i) => `${c.name} ${types[i]}${nullable[i] ? '' : ' NOT NULL'}`).join(', ');
-    this.#declared.set(kept.name, columns);
-    this.#declare();
-    return { name: kept.name, columns };
+    void snapshot;
+    return { name: null, columns: '' };
   }
 
   /** The planner's model: the page's, and every base a grid reads declared in one Database bound beside its stores --
