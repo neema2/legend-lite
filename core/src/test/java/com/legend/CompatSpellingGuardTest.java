@@ -273,7 +273,8 @@ class CompatSpellingGuardTest {
             // legend-engine's seed route's key (upstreamKeyText: SeedDataGeneration's ValueTransformer, nine digits and
             // +0000), the edge's routes' (TestDataRoutes), moving with the generator's engine text at W9
             "testdatagen/TestDataPlanner.java | +0000 | 1 | D1.7",
-            "testdatagen/TestDataPlanner.java | COMPAT | 3 | D1.9",
+            // testdatagen/TestDataPlanner.java | COMPAT: GONE 2026-11-17 (Phase 6's B13): the printing is the timestamp text
+            // itself; upstream's is the UpstreamPlans facet's
             "testexec/AssertRuns.java | EngineText | 1 | D1.7",
             "testexec/CanonicalForm.java | +0000 | 1 | JUDGE",
             "testexec/HostJudgments.java | EngineText | 1 | D1.7",
@@ -289,7 +290,7 @@ class CompatSpellingGuardTest {
             // forms at W10
             "testexecutionplan/Verdicts.java | +0000 | 1 | D1.9",
             "testplan/AgreementAsserts.java | EngineText | 1 | D1.7",
-            "testplan/AssertVerdicts.java | EngineText | 3 | D1.7",
+            "testplan/AssertVerdicts.java | EngineText | 3 | D1.7"
             // (BodyDriver's EngineText row gone, 2026-11-16, W9's judge half: the style's engineTestText,
             // engineTestPlanText and engineTestConnection name the engine test database, the planner none)
             // (SeedSqlForms' EngineText row gone, 2026-11-16, W9's judge half: the style's engineTestText)
@@ -298,7 +299,8 @@ class CompatSpellingGuardTest {
             // retagged 2026-11-15 (D1.2's end): the judging rules' choice of the generator's printing, D1.9's
             // (2026-11-16, W9's judge half S2c: testplan/SqlTextVerdicts' two rows gone with the arm to the edge;
             // BodyDriver's withEngineText row gone, ExecEnv.withCollector names what it installs, the arm's collector)
-            "testplan/TestPlanner.java | COMPAT | 1 | D1.9"
+            // testplan/TestPlanner.java | COMPAT: GONE 2026-11-17 (Phase 6's B13): upstream's test-data timestamp text is
+            // the UpstreamPlans facet's (the edge's), asked when one is printed; lite's own is TestDataPlanner.Printing.CLEAN
             // retagged 2026-11-15 (D1.2's end): Java's spelling of a date value. D1.4 -> D1.8 (2026-11-16, W4): lite's
             // writers no longer read it (CellText's product half prints S312's text); what remains is legend-engine's
             // JSON of a date (toEngineJson, read by CellText's engine half, which moves with PureV1Writer at W8) and
