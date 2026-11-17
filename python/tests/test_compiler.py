@@ -49,8 +49,9 @@ class Trees(unittest.TestCase):
     def test_a_refusal_says_what_and_where(self):
         with self.assertRaises(ll.LegendError) as e:
             ll.parse('|1 +')
-        self.assertEqual('PARSER', e.exception.kind)
-        self.assertIn('[1:5]', e.exception.message)
+        self.assertEqual(ll.compiler.error_kind('PARSE'), e.exception.kind)
+        # where: the position, its own field (the spec's §3)
+        self.assertEqual('[1:5]', e.exception.where)
 
 
 class LitesOwnEntries(unittest.TestCase):
@@ -137,7 +138,8 @@ class TheProductsKinds(unittest.TestCase):
             ll.parse('|1 +')
         self.assertEqual(refused.exception.kind, kinds['PARSE'])
         self.assertTrue(compiler.refuses_the_text(refused.exception))
-        self.assertEqual((refused.exception.where, refused.exception.raise_), (None, None))
+        # a parse refusal says where (its position), and raised nothing (no raise_: the spec's §3)
+        self.assertEqual((refused.exception.where, refused.exception.raise_), ('[1:5]', None))
 
 
 class LiteApiConformance(unittest.TestCase):
@@ -162,13 +164,34 @@ class LiteApiConformance(unittest.TestCase):
         fixture = _json.loads(Path(os.environ['LEGEND_LITE_API_CASES']).read_text(encoding='utf-8'))
         cases = fixture['cases']
         self.assertTrue(cases, 'the suite holds cases')
+        shapes = {'string': str, 'number': (int, float), 'boolean': bool, 'object': dict, 'array': list}
+        asked = 0
         for case in cases:
+            bindings = case.get('bindings')
+            if bindings is not None:
+                unknown = set(bindings) - {'browser', 'server', 'python'}
+                self.assertFalse(unknown, f"{case['name']}: a binding the suite does not know: {sorted(unknown)}")
+                if 'python' not in bindings:
+                    continue
+            asked += 1
             with self.subTest(case['name']):
+                if 'refusal' in case:
+                    # §3: the kind is the contract, the words the product's
+                    with self.assertRaises(compiler.LegendError) as refused:
+                        compiler.operation(case['op'], case['request'])
+                    self.assertEqual(refused.exception.kind, case['refusal']['kind'])
+                    continue
                 answer = compiler.operation(case['op'], case['request'])
                 if 'answer' in case:
                     self.assertEqual(answer, case['answer'])
+                elif 'answerShape' in case:
+                    self.assertEqual(set(answer), set(case['answerShape']))
+                    for key, kind in case['answerShape'].items():
+                        self.assertIsInstance(answer[key], shapes[kind], key)
+                        self.assertNotIsInstance(answer[key], bool if kind == 'number' else ())
                 else:
                     self.assertTrue(self.includes(case['answerIncludes'], answer), _json.dumps(answer)[:2000])
+        self.assertTrue(asked, 'the suite holds cases Python answers')
 
     def test_an_integer_is_exact_on_the_python_binding(self):
         # ruled 7: an Integer an exact JSON number, 2^63-1 kept on all three bindings
@@ -209,16 +232,16 @@ class Compiling(unittest.TestCase):
         for call in (lambda: ll.parse('|1 +'), lambda: ll.plan_text(MODEL, '1 +', 'trades::RT')):
             with self.assertRaises(ll.LegendError) as e:
                 call()
-            self.assertEqual(e.exception.kind, 'PARSER')
+            self.assertEqual(e.exception.kind, ll.compiler.error_kind('PARSE'))
         bad = ll.parse("|#>{trades::DB.TRADES}#->filter(x|$x.nope == 1)")
         for call in (lambda: ll.relation_type(MODEL, bad), lambda: ll.plan(MODEL, bad, 'trades::RT')):
             with self.assertRaises(ll.LegendError) as e:
                 call()
-            self.assertEqual(e.exception.kind, 'COMPILATION')
+            self.assertEqual(e.exception.kind, ll.compiler.error_kind('COMPILE'))
             self.assertIn("'nope'", e.exception.message)
         with self.assertRaises(ll.LegendError) as e:
             ll.table_model({'table': 'orders'})
-        self.assertEqual(e.exception.kind, '500')
+        self.assertEqual(e.exception.kind, ll.compiler.error_kind('INTERNAL'))
         self.assertEqual(e.exception.message, 'IllegalArgumentException: Missing required field: databaseType')
 
     def test_writes_a_tables_whole_model_from_its_catalog(self):

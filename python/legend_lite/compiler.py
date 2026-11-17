@@ -113,6 +113,8 @@ def operation(op: str, request: dict[str, Any]) -> Any:
     ``model/check``, ...), its request in and its answer out, through the native entry the spec's one rule names
     (operation ``a/b`` -> ``lite_a_b``) -- the binding every public function below is a thin layer over. No
     ``query/run``: Python runs a plan on its own database (``Frames.run``)."""
+    if op == 'user':
+        return user(request)
     entry = OPERATIONS.get(op)
     if entry is None:
         raise ValueError(f"lite's API has no operation '{op}' this binding asks (it asks {sorted(OPERATIONS)})")
@@ -128,6 +130,16 @@ OPERATIONS = {
 }
 
 
+def user(request: dict[str, Any] | None = None) -> dict[str, str]:
+    """``user`` (the spec's §2, a host's own operation): who the store keeps saved queries for -- this user, as Python's
+    stores name the caller (_home.THIS_USER; there is no sign-in), ``{"user": <name>}``. Its request holds no key: one
+    that does is refused by name (kind ``request``), as the server's route refuses it."""
+    from ._home import THIS_USER
+    if request:
+        raise LegendError(f'a user request holds no key (it holds {", ".join(sorted(request))})', error_kind('REQUEST'))
+    return {'user': THIS_USER}
+
+
 def lite_route(path: str, body: str) -> tuple[int, str]:
     """LITE'S OWN API, v1, AS A ROUTE (the spec's §2, §3, §5; the host train, 2026-11-17): ``/api/lite/v1/<operation>``
     with its request JSON, answered by the operation's native entry (``operation``) -- 200 and the answer's JSON, or
@@ -136,10 +148,11 @@ def lite_route(path: str, body: str) -> tuple[int, str]:
     went in one step (ruled 5). The one rule Python's server and DataCube's code in this process (_headless) answer by."""
     prefix = '/api/lite/v1/'
     op = path[len(prefix):] if path.startswith(prefix) else None
-    if op not in OPERATIONS:
+    if op not in OPERATIONS and op != 'user':
         return _refused_route(LegendError(f'no such legend-lite API: {path}', error_kind('REQUEST')))
     try:
-        asked = _json.loads(body)
+        # the user operation's request may be empty, as the server's route reads it
+        asked = {} if op == 'user' and not body.strip() else _json.loads(body)
     except ValueError:
         asked = None
     if not isinstance(asked, dict):
