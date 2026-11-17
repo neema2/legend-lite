@@ -337,7 +337,13 @@ class EdgeSeparationTest {
         for (Map<String, String> m : List.of(BUILD_OPEN, CODE_OPEN, TEST_OPEN, CSG_OPEN)) {
             counted.addAll(linesOf(m));
         }
-        assertEquals(new TreeSet<>(OPEN_LINES), counted, "the census's open lines and the lines this count holds"
+        // the edge audit's open items (2026-11-17, EdgeAuditOpenTest), each its own line: none is a census line
+        Set<String> audit = EdgeAuditOpenTest.lines();
+        assertTrue(java.util.Collections.disjoint(audit, OPEN_LINES), "an audit id is a census line: " + audit);
+        counted.addAll(audit);
+        Set<String> open = new TreeSet<>(OPEN_LINES);
+        open.addAll(audit);
+        assertEquals(open, counted, "the census's open lines and the lines this count holds"
                 + " differ: an open line with no entry would read DONE with work left; an entry of a closed or"
                 + " unknown line is a stale entry");
     }
@@ -404,8 +410,12 @@ class EdgeSeparationTest {
         for (Map<String, String> m : List.of(BUILD_OPEN, CODE_OPEN, TEST_OPEN, CSG_OPEN)) {
             m.values().forEach(v -> byLine.merge(v.split(" ")[0], 1, Integer::sum));
         }
+        // the edge audit's open items (2026-11-17): what no guard sees yet, counted all the same
+        EdgeAuditOpenTest.AUDIT_OPEN.forEach(i -> byLine.merge(i.id(), 1, Integer::sum));
+        int audit = EdgeAuditOpenTest.AUDIT_OPEN.size();
         System.out.println("[edge separation] lines left: " + (BUILD_OPEN.size() + CODE_OPEN.size() + TEST_OPEN.size()
-                + CSG_OPEN.size()) + " (BUILD " + BUILD_OPEN.size() + ", CODE " + CODE_OPEN.size() + ", TEST SIDE "
-                + TEST_OPEN.size() + ", TEXT " + CSG_OPEN.size() + "); by census line " + byLine);
+                + CSG_OPEN.size() + audit) + " (BUILD " + BUILD_OPEN.size() + ", CODE " + CODE_OPEN.size()
+                + ", TEST SIDE " + TEST_OPEN.size() + ", TEXT " + CSG_OPEN.size() + ", AUDIT " + audit
+                + "); by census line " + byLine);
     }
 }
