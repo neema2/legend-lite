@@ -49,6 +49,17 @@ public interface PlanStyle {
      *  is legend-engine's text, for engine clients. */
     String activitySql(Activity activity);
 
+    /** AN EXECUTION'S TRACE TEXT in a TDS cell, around the execution's id bound when the plan runs (the separation
+     *  census's B8 (ii), 2026-11-17; D1.4, 2026-11-15): the product's is the id itself (null: nothing around it); the
+     *  compatibility edge's is legend-engine's trace comment around it. A two-form hook (the orchestrator's ruling of
+     *  2026-11-17): the product answers its own lite form, the edge's override alone holds the upstream form. */
+    @com.legend.base.Nullable
+    TraceCell traceCell();
+
+    /** The text written before and after an execution's id in a trace cell. */
+    record TraceCell(String before, String after) {
+    }
+
     /** A graph fetch's key argument that is a date, from its written text (no zone): the product's text of the type
      *  (a DateTime ISO 8601 in UTC with six fraction digits and {@code Z}, a date as written), the edge legend-engine's
      *  ({@code +0000} after a time) (phase D's D1.2, 2026-11-15; register S312). */
@@ -154,6 +165,11 @@ public interface PlanStyle {
         @Override
         public String activitySql(Activity activity) {
             return activity.lites();
+        }
+
+        @Override
+        public @com.legend.base.Nullable TraceCell traceCell() {
+            return null;
         }
 
         @Override

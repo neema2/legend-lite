@@ -123,6 +123,13 @@ public final class PureText {
         public String activitySql(Activity activity) {
             return activity.engines();
         }
+
+        /** legend-engine's trace comment around the execution's id (its executor's, RelationalExecutor.java:332; D1.4,
+         *  2026-11-15; from the edge's spelling pass to the style, B8 (ii), 2026-11-17). */
+        @Override
+        public TraceCell traceCell() {
+            return new TraceCell("-- \"executionTraceID\" : \"", "\"");
+        }
     };
 
     /** legend-engine's exact SQL text for {@code type}, as {@code toSQLString} prints it: Composite takes the engine's

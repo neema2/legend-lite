@@ -80,6 +80,11 @@ class EdgeSpellingHookTest {
         }
 
         @Override
+        public @com.legend.base.Nullable TraceCell traceCell() {
+            return PlanStyle.PRODUCT.traceCell();
+        }
+
+        @Override
         public String activitySql(Activity activity) {
             return PlanStyle.PRODUCT.activitySql(activity);
         }

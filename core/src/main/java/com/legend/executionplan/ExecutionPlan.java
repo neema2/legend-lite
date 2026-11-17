@@ -132,7 +132,7 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
 
     /** The prefix of an EXECUTION's stamp: a parameter no Pure parameter can spell, bound by the runner to the id of
      *  the execution it names ({@link Sql#stamp}, and a slot reading one: an activity row's comment; legend-engine's
-     *  comment around the id is the edge's plan's, TRACE_TEXT, phase D's D1.4, 2026-11-15). The planner's names spell
+     *  comment around the id is the edge's plan's, phase D's D1.4, 2026-11-15). The planner's names spell
      *  it ({@code planner.ProgramFrames.STAMP}). */
     public static final String STAMP = "#stamp";
 

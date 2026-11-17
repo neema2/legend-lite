@@ -31,6 +31,11 @@ final class PlantedUpstreamStyle implements PlanStyle {
     }
 
     @Override
+    public @com.legend.base.Nullable TraceCell traceCell() {
+        throw new UnsupportedOperationException("planted");
+    }
+
+    @Override
     public String activitySql(Activity activity) {
         throw new UnsupportedOperationException("planted");
     }

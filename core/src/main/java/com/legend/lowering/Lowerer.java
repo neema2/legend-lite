@@ -244,6 +244,19 @@ public final class Lowerer {
                 throw refusal.get();
             };
 
+    /** An execution's trace text in a TDS cell (the separation census's B8 (ii), 2026-11-17): the plan style's
+     *  {@code traceText}, the id in the product's. A Lowerer no planner handed a style refuses one by name. */
+    private java.util.function.Function<SqlExpr, SqlExpr> traceText = id -> {
+        throw new IllegalStateException("an execution's trace text in a TDS cell: a Lowerer no planner handed a plan"
+                + " style (PlanEnv.configure) has none");
+    };
+
+    /** The plan style's trace text ({@code style.traceText}). */
+    public Lowerer withTraceText(java.util.function.Function<SqlExpr, SqlExpr> style) {
+        this.traceText = style;
+        return this;
+    }
+
     /** The texts only legend-pure writes ({@link PureOnlyTexts}, the separation census's B8 (i), 2026-11-17): the plan
      *  style's facet, asked only when a native's rule meets one, with that call's own refusal. A Lowerer no planner
      *  handed a style refuses each the same way. */
@@ -2849,8 +2862,9 @@ public final class Lowerer {
                         throw new IllegalStateException("a TDS cell is the plan parameter '" + parameter + "', which"
                                 + " the statement's lowering does not bind (bindPlanParam)");
                     }
-                    // an execution's trace text: the id in the product, legend-engine's comment at the edge (D1.4)
-                    cells.add(SqlExpr.Call.of(SqlFn.TRACE_TEXT, bound));
+                    // an execution's trace text: the id in the product, legend-engine's comment at the edge (D1.4;
+                    // the plan style's two-form hook since B8 (ii), 2026-11-17)
+                    cells.add(traceText.apply(bound));
                     continue;
                 }
                 cells.add(Scalars.tdsCell(row.get(i), schema.columns().get(i).type()));
