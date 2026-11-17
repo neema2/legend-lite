@@ -1,10 +1,15 @@
 // Copyright 2026 Legend Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-package com.legend.testexecutionplan;
+package com.legend.edge;
 
 import com.legend.base.Nullable;
 import com.legend.executionplan.ExecutionPlan;
+import com.legend.testexecutionplan.Extension;
+import com.legend.testexecutionplan.Failure;
+import com.legend.testexecutionplan.RootLoop;
+import com.legend.testexecutionplan.SideShape;
+import com.legend.testexecutionplan.TestPlan;
 
 import java.util.Collections;
 import java.util.LinkedHashMap;

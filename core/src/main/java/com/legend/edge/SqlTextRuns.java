@@ -102,7 +102,7 @@ final class SqlTextRuns {
      * its own on the body's sessions, Appeals), the golden replayed by the {@code referee} with the plan's enumerations (no model: hole 1), its verdict
      * the appeal's. Reports go to {@code listener}. Inside a judging scope that plans nothing.
      */
-    static TypedSide decideAppeal(com.legend.testexecutionplan.Appeal a, String golden, String ours, boolean textEqual,
+    static TypedSide decideAppeal(Appeal a, String golden, String ours, boolean textEqual,
             @com.legend.base.Nullable SqlReplayReferee referee,
             com.legend.testexecutionplan.@com.legend.base.Nullable AssertListener listener, com.legend.testexec.SideReader reader,
             java.util.function.Function<com.legend.executionplan.ExecutionPlan.Target, com.legend.exec.Sessions.Session> sessions) {
@@ -116,9 +116,9 @@ final class SqlTextRuns {
 
     /** The database judge's failed row's appeal heard (step 8b): the texts its row compared, ours read from the row's
      *  actual cell where the plan reads it, recorded for the decision after the run. */
-    static TypedSide rowAppealed(com.legend.testexecutionplan.Appeal a, List<Object> row, Appeals run,
+    static TypedSide rowAppealed(Appeal a, List<Object> row, Appeals run,
             boolean messaged) {
-        com.legend.testexecutionplan.Appeal.Batched b = java.util.Objects.requireNonNull(a.batched(), "a row appeal with no row's texts");
+        Appeal.Batched b = java.util.Objects.requireNonNull(a.batched(), "a row appeal with no row's texts");
         String ours = b.ours() != null ? b.ours() : actualText(row);
         if (ours == null) {
             return fail(a.name() + " (sql-text): our text side, a String to one, read no string at the verdict step");
@@ -132,12 +132,12 @@ final class SqlTextRuns {
     }
 
     /** The rows leg itself, from the plan's data: OUR rows as planned, the golden replayed via the referee, judged. */
-    private static TypedSide rowsLegNow(com.legend.testexecutionplan.Appeal a, String golden, String ours, boolean textEqual,
+    private static TypedSide rowsLegNow(Appeal a, String golden, String ours, boolean textEqual,
             @com.legend.base.Nullable SqlReplayReferee referee,
             com.legend.testexecutionplan.@com.legend.base.Nullable AssertListener listener, com.legend.testexec.SideReader reader,
             java.util.function.Function<com.legend.executionplan.ExecutionPlan.Target, com.legend.exec.Sessions.Session> sessions) {
         String name = a.name();
-        com.legend.testexecutionplan.Appeal.Rows r = a.rows();
+        Appeal.Rows r = a.rows();
         if (r == null) {
             // no fallback (2026-11-06, the plan ahead): an appeal's rows and stores are planned with its assert
             throw new IllegalStateException(name + " (sql-text): an appeal whose rows were not planned with its assert");
@@ -147,7 +147,7 @@ final class SqlTextRuns {
         }
         // the stores' fixtures were the caller's to provide before the body's run, from the plan's data
         // (PlannedAppeals.stores; hole 4, 2026-11-08: until then the listener was asked again here, by name)
-        com.legend.testexecutionplan.Appeal.Unlisted unlisted = r.rows().unlisted();
+        Appeal.Unlisted unlisted = r.rows().unlisted();
         if (unlisted != null) {
             // our rows' planning failed with a class off the closed list: the same decline, in its words
             return underivable(listener, name, unlisted.simpleName(), unlisted.message(), textEqual, golden, ours);
@@ -186,7 +186,7 @@ final class SqlTextRuns {
         }
         List<SqlReplayReferee.TempTable> temps = r.temps().stream()
                 .map(t -> new SqlReplayReferee.TempTable(t.name(), t.kind(), t.values())).toList();
-        com.legend.testexecutionplan.Appeal.InListSeed seed = r.seed();
+        Appeal.InListSeed seed = r.seed();
         SqlReplayReferee.RowVerdict rv;
         // the referee replays the golden beside the body's session, counting its own statements under REFEREE_GOLDEN
         rv = r.goldenPlan() != null
@@ -234,13 +234,13 @@ final class SqlTextRuns {
 
     /** One side of the rows leg read after the run: its failure raised as planned; a constant its text decoded; else
      *  its rows through the edge's reader (a plan of its own on the body's sessions), shaped by the plan; none: null. */
-    private static @com.legend.base.Nullable TypedSide read(com.legend.testexecutionplan.Appeal.Read read,
+    private static @com.legend.base.Nullable TypedSide read(Appeal.Read read,
             com.legend.testexec.SideReader reader) {
         com.legend.testexecutionplan.Failure f = read.failure();
         if (f != null) {
             throw com.legend.testexecutionplan.Failures.raised(f);
         }
-        com.legend.testexecutionplan.Appeal.Unlisted unlisted = read.unlisted();
+        Appeal.Unlisted unlisted = read.unlisted();
         if (unlisted != null) {
             // the population's planning failed with a class off the closed list: a fault, in its words
             throw new IllegalStateException("an appeal's side whose planning failed (" + unlisted.simpleName() + "): "

@@ -75,9 +75,11 @@ public final class EngineTextPlanning {
         return env.withTableReplace(tr);
     }
 
-    /** The plan's appeal {@code a}, numbered in the body. */
-    public static int appeal(BodyDriver.ExecEnv env, com.legend.testexecutionplan.Appeal a) {
-        return env.appeals().add(a);
+    /** The edge's record numbered in the body: {@code numbered} makes it, given its number (census C2, 2026-11-17:
+     *  the product holds the edge's records by number, no appeal type). */
+    public static int appeal(BodyDriver.ExecEnv env,
+            java.util.function.IntFunction<com.legend.testexecutionplan.Extension> numbered) {
+        return env.appeals().add(numbered);
     }
 
     public static @com.legend.base.Nullable String marking(BodyDriver.ExecEnv env, String origin, boolean ifUnmarked) {
@@ -228,10 +230,10 @@ public final class EngineTextPlanning {
         return AssertVerdicts.calleeFqn(bare);
     }
 
-    public static com.legend.testexecutionplan.Appeal.Enums enumsOf(ModelContext ctx,
+    public static EnumFacts enumsOf(ModelContext ctx,
             @com.legend.base.Nullable String mappingFqn, @com.legend.base.Nullable String classFqn,
-            com.legend.testexecutionplan.Appeal.Read rows) {
-        return JudgmentFacts.enumsOf(ctx, mappingFqn, classFqn, rows);
+            com.legend.testexecutionplan.@com.legend.base.Nullable SideShape shape) {
+        return JudgmentFacts.enumsOf(ctx, mappingFqn, classFqn, shape);
     }
 
     // ---- the planner's and the lowering's reads ---------------------------------------------------------------------

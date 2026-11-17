@@ -68,7 +68,7 @@ public final class BodyDriver {
             com.legend.testplan.VerdictIds verdictIds,
             // the body's engine-text appeals by number, shared likewise (the plan-as-data design's step 4, 2026-11-08):
             // planning's registry, the plan carrying those its verdicts name (step 8b)
-            EngineTextAppeals appeals) {
+            NumberedExtensions appeals) {
 
         /** A body's environment at its start: its planning half fresh ({@link com.legend.planner.PlanEnv#of}, the
          *  options' features), a fresh trace, no batch. */
@@ -83,7 +83,7 @@ public final class BodyDriver {
                             .withOptions(options.options()),
                     JudgePlans.target(com.legend.Compiler.executesOn(ctx, runtimeFqn), dialect),
                     options, null, null, null, null,
-                    new com.legend.testplan.VerdictIds(), new EngineTextAppeals());
+                    new com.legend.testplan.VerdictIds(), new NumberedExtensions());
         }
 
         ModelContext ctx() {

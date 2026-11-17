@@ -156,7 +156,7 @@ public final class TestRunner {
         /** The database judge's segments, read from the plan (step 5, 2026-11-08), or null under another judge. */
         private final com.legend.testexec.RootLoops.@Nullable Runs databaseRuns;
         /** A database root's failed row's appeal, by its number in the plan (step 8b, 2026-11-08). */
-        private final java.util.function.IntFunction<com.legend.testexec.RootLoops.Appeal> rowAppeals;
+        private final java.util.function.IntFunction<com.legend.testexec.RootLoops.RowAppeal> rowAppeals;
         /** The verdict steps whose engine-text check reads OUR text as a side the step runs, by the origin the walk's
          *  arm marked for it (M10c item 8). */
         private final java.util.Map<Integer, com.legend.exec.StatementOrigin> deferredTextOrigins;

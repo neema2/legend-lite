@@ -3,7 +3,6 @@
 
 package com.legend.testexec;
 
-import com.legend.testexecutionplan.Appeal;
 
 import com.legend.testexecutionplan.Failures;
 
@@ -48,7 +47,7 @@ public final class RootLoops {
      * pass by another judgment (the SQL-text referee's rows; under the compatibility rules held, its assert holding
      * until the appeal is decided after the body's run, P1.2, 2026-11-07), raises its own failure otherwise. Never
      * consulted on a held row. */
-    public interface Appeal {
+    public interface RowAppeal {
         /** The failed {@code row} ({@code VerdictSql.schema}'s columns) decided: a pass returns, a failure raises. */
         TypedSide appeal(List<Object> row);
     }
@@ -133,7 +132,7 @@ public final class RootLoops {
          *  run of its own; a failed row's appeal is {@code appeals}' by its number. */
         public void judge(@com.legend.base.Nullable AssertListener l, @com.legend.base.Nullable SideReader reader,
                 boolean messages, Judge judge,
-                java.util.function.IntFunction<Appeal> appeals, BodyRun run) {
+                java.util.function.IntFunction<RowAppeal> appeals, BodyRun run) {
             counted();
             for (RootLoop.Root r : loop.roots()) {
                 root(r, l, reader, messages, judge, appeals, run);
@@ -145,7 +144,7 @@ public final class RootLoops {
          *  carries several asserts, each agreed in root order). Returns where it holds; raises its failure. */
         public void judgeRoot(int root, @com.legend.base.Nullable AssertListener l,
                 @com.legend.base.Nullable SideReader reader, boolean messages, Judge judge,
-                java.util.function.IntFunction<Appeal> appeals, BodyRun run) {
+                java.util.function.IntFunction<RowAppeal> appeals, BodyRun run) {
             if (root < 0 || root >= loop.roots().size()) {
                 throw new IllegalStateException("root " + root + " of a segment's loop of " + loop.roots().size()
                         + " roots");
@@ -157,7 +156,7 @@ public final class RootLoops {
         /** One root judged at its turn: its verdict to the listener, its failure raised. */
         private void root(RootLoop.Root r, @com.legend.base.Nullable AssertListener l,
                 @com.legend.base.Nullable SideReader reader, boolean messages, Judge judge,
-                java.util.function.IntFunction<Appeal> appeals, BodyRun run) {
+                java.util.function.IntFunction<RowAppeal> appeals, BodyRun run) {
             RuntimeException failure = null;
             boolean reported = true;
             // whether a row of this root was judged (or its refusal counted): the verdict census's own fact for
@@ -225,7 +224,7 @@ public final class RootLoops {
          *  generic row whose ruled comparison was decided at planning raises that decision where it fails or was never
          *  written), a failed row heard by its appeal where it has one. */
         private void row(RootLoop.Row p, RootLoop.Root r, Judge judge,
-                java.util.function.IntFunction<Appeal> appeals, BodyRun run) {
+                java.util.function.IntFunction<RowAppeal> appeals, BodyRun run) {
             List<Object> row = p.verdict() == RootLoop.NO_VERDICT ? null : rows.get(p.verdict());
             Failure orElse = p.orElse();
             if (row == null && orElse != null && p.verdict() == RootLoop.NO_VERDICT) {
@@ -257,7 +256,7 @@ public final class RootLoops {
                 // P1.2, 2026-11-07), the root holding until it is decided; a messaged root marked, its message unread
                 // after the run
                 com.legend.diagnostics.Diagnostics.judgeSend("appeal", p.name());
-                Appeal appeal = appeals.apply(p.appeal());
+                RowAppeal appeal = appeals.apply(p.appeal());
                 if (r.message() != null) {
                     try (var messaged = run.messaged()) {
                         appeal.appeal(row);

@@ -106,7 +106,7 @@ public final class TestPlanner {
         DatabaseAsserts database = null;
         // the body's engine-text appeals as its arms planned them, by number: the plan carries those its verdicts name
         // (step 8b, 2026-11-08)
-        EngineTextAppeals textAppeals = null;
+        NumberedExtensions textAppeals = null;
         // THE WALL's rule 2 (2026-11-06): the body is PLANNED -- lifted, classed, its environment made, its asserts
         // planned -- with no run started, no session opened and no statement sent, each refused by name (until then
         // only the asserts' planning was scoped, and the system database's session was opened just before it)
@@ -187,7 +187,7 @@ public final class TestPlanner {
             // heard at their verdicts' steps, decided after the run from these records. Under lite's own rules the
             // verdicts name none, so the plan carries none; whatever the rules, a plan naming an appeal it does not
             // carry is refused (PlannedAppeals.requireCarried, the slice 2 invariant audit's D2)
-            plan = plan.withExtensionsByVerdict(AppealsByVerdict.of(plan, textAppeals));
+            plan = plan.withExtensionsByVerdict(textAppeals.byVerdict(plan));
         }
         com.legend.testexecutionplan.TestPlanJson.requireRoundTrip(plan);
         if (com.legend.diagnostics.Diagnostics.on("decoded-plan")) {

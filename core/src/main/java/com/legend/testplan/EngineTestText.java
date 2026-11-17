@@ -169,7 +169,7 @@ public interface EngineTestText {
         /** The comparison the arm reached {@code SqlTextVerdicts.decide} with: its texts (ours the token of a deferred text), the
          *  equality the arm computed, the decline, the appeal, the environment. */
         void collect(String name, String golden, String ours, boolean textEqual,
-                @com.legend.base.Nullable String decline, com.legend.testexecutionplan.Appeal appeal, BodyDriver.ExecEnv env);
+                @com.legend.base.Nullable String decline, com.legend.testexecutionplan.Extension appeal, BodyDriver.ExecEnv env);
 
         boolean planning();
 

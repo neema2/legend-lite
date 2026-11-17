@@ -72,15 +72,15 @@ final class Appeals implements com.legend.testexec.EdgeHearing {
     private final java.util.UUID execution;
 
     /** The plan's appeals by number (its own data, step 8b) and the referee that replays a golden, or none. */
-    private final Map<Integer, com.legend.testexecutionplan.Appeal> planned;
+    private final Map<Integer, Appeal> planned;
     private final @Nullable SqlReplayReferee referee;
 
     /** {@code plan}'s appeals heard for one run, its reports to {@code listener}, decided by {@code referee}. A plan
      *  naming an appeal it does not carry is refused before anything runs (PlannedAppeals.requireCarried). */
     Appeals(TestPlan plan, @Nullable AssertListener listener, java.util.UUID execution,
             @Nullable SqlReplayReferee referee) {
-        com.legend.testexecutionplan.PlannedAppeals.requireCarried(plan);
-        this.planned = com.legend.testexecutionplan.PlannedAppeals.byNumber(plan);
+        PlannedAppeals.requireCarried(plan);
+        this.planned = PlannedAppeals.byNumber(plan);
         this.referee = referee;
         this.execution = java.util.Objects.requireNonNull(execution, "execution");
         this.listener = listener;
@@ -101,14 +101,14 @@ final class Appeals implements com.legend.testexec.EdgeHearing {
 
     @Override
     public TypedSide rowAppealed(int number, List<Object> row, boolean messaged) {
-        return SqlTextRuns.rowAppealed(com.legend.testexecutionplan.PlannedAppeals.of(planned, number), row, this,
+        return SqlTextRuns.rowAppealed(PlannedAppeals.of(planned, number), row, this,
                 messaged);
     }
 
     /** How each held appeal is decided after the run: from the plan's data by its number, by the referee. */
     private Decider decider() {
         return (n, golden, ours, textEqual, l, reader, sessions) -> SqlTextRuns.decideAppeal(
-                com.legend.testexecutionplan.PlannedAppeals.of(planned, n), golden, ours, textEqual, referee, l,
+                PlannedAppeals.of(planned, n), golden, ours, textEqual, referee, l,
                 reader, sessions);
     }
 

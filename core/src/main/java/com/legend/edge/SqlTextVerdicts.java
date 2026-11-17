@@ -99,7 +99,7 @@ final class SqlTextVerdicts {
      *  APPEAL that decides a failed text -- the plan's {@code Appeal} record (step 8b), heard at the step on a failed
      *  text alone and decided after the run. Planning's record alone: the plan carries its data ({@code EngineText}). */
     record Collected(String name, @com.legend.base.Nullable String golden, @com.legend.base.Nullable String ours,
-            boolean textEqual, @com.legend.base.Nullable String decline, com.legend.testexecutionplan.Appeal appeal,
+            boolean textEqual, @com.legend.base.Nullable String decline, Appeal appeal,
             @com.legend.base.Nullable String oursOrigin) {
     }
 
@@ -123,7 +123,10 @@ final class SqlTextVerdicts {
 
         @Override
         public void collect(String name, String golden, String ours, boolean textEqual,
-                @com.legend.base.Nullable String decline, com.legend.testexecutionplan.Appeal appeal, BodyDriver.ExecEnv env) {
+                @com.legend.base.Nullable String decline, com.legend.testexecutionplan.Extension extension,
+                BodyDriver.ExecEnv env) {
+            // the edge's own record, handed through the product's collector opaque (census C2, 2026-11-17)
+            Appeal appeal = (Appeal) extension;
             boolean deferredText = ours == token;
             if (deferredText != (deferred != null)) {
                 throw new IllegalStateException(name + ": " + (deferredText
@@ -201,7 +204,8 @@ final class SqlTextVerdicts {
 
         @Override
         public void collect(String name, String golden, String ours, boolean textEqual,
-                @com.legend.base.Nullable String decline, com.legend.testexecutionplan.Appeal appeal, BodyDriver.ExecEnv env) {
+                @com.legend.base.Nullable String decline, com.legend.testexecutionplan.Extension appeal,
+                BodyDriver.ExecEnv env) {
             throw new IllegalStateException(name + ": the database judge's texts are rows of its batch, never collected");
         }
 
@@ -298,7 +302,7 @@ final class SqlTextVerdicts {
         // (TestPlan.extensionsByVerdict; the plan-as-data design's step 8b, 2026-11-08)
         // (under lite's own rules a failed text is the verdict and no appeal is heard: none is numbered, so the plan
         // names none -- the slice 2 invariant audit's D2, 2026-11-08)
-        int appeal = appeals(env) ? EngineTextPlanning.appeal(env, c.appeal()) : com.legend.testexecutionplan.RootLoop.NO_APPEAL;
+        int appeal = appeals(env) ? EngineTextPlanning.appeal(env, c.appeal()::numbered) : com.legend.testexecutionplan.RootLoop.NO_APPEAL;
         return EngineTextPlanning.check(List.of(golden, ours), new HostJudgment.EngineText(c.name(), c.golden(), c.ours(),
                 c.textEqual(), c.decline(), c.oursOrigin(), appeal, routed));
     }
@@ -348,7 +352,7 @@ final class SqlTextVerdicts {
      *  the batch's root loop; else decided now -- a failed text under the compatibility rules refused by name (no body's
      *  run hears an appeal at planning). An appeal heard is decided after the body's run (Appeals, step 8b). */
     private static TypedSide decide(BodyDriver.ExecEnv env, String name, String golden, String ours,
-            boolean textEqual, @com.legend.base.Nullable String decline, com.legend.testexecutionplan.Appeal appeal) {
+            boolean textEqual, @com.legend.base.Nullable String decline, Appeal appeal) {
         EngineTestText.Collector collector = EngineTextPlanning.collector(env);
         if (collector instanceof Collecting collecting && collecting.planning()) {
             // the arm is being PLANNED for the program road: the comparison is handed over, judged at the step --
@@ -376,12 +380,12 @@ final class SqlTextVerdicts {
                 // equality in the verdict row, and a failed row hands the text it read to the appeal
                 EngineTextPlanning.defer(batch, name, true, EngineTextPlanning.textEquals(golden,
                         java.util.Objects.requireNonNull(bt.oursRow, "our text deferred with no row")), EngineTextPlanning.target(env),
-                        EngineTextPlanning.appeal(env, appeal.batchedOn(new com.legend.testexecutionplan.Appeal.Batched(golden, null, false))),
+                        EngineTextPlanning.appeal(env, appeal.batchedOn(new Appeal.Batched(golden, null, false))::numbered),
                         decline);
                 return ok();
             }
             EngineTextPlanning.defer(batch, name, true, EngineTextPlanning.textEquals(golden, ours), EngineTextPlanning.target(env),
-                    EngineTextPlanning.appeal(env, appeal.batchedOn(new com.legend.testexecutionplan.Appeal.Batched(golden, ours, textEqual))),
+                    EngineTextPlanning.appeal(env, appeal.batchedOn(new Appeal.Batched(golden, ours, textEqual))::numbered),
                     decline);
             return ok();
         }
@@ -584,7 +588,7 @@ final class SqlTextVerdicts {
             // dialect — text stays the contract, counted forever
             final String g = golden;
             return decide(env, name, golden, ours, textEqual, "foreign-dialect:" + dbType,
-                    new com.legend.testexecutionplan.Appeal(0, name, com.legend.testexecutionplan.Appeal.Kind.CONTRACT, name + " (sql-text, " + dbType
+                    new Appeal(0, name, Appeal.Kind.CONTRACT, name + " (sql-text, " + dbType
                             + " — text is the contract)", null, null, com.legend.testexecutionplan.RootLoop.NO_APPEAL));
         }
         // a MULTI-STATEMENT lambda (leading lets, then the query — the
@@ -958,7 +962,7 @@ final class SqlTextVerdicts {
     }
 
     private record PopulationShape(@com.legend.base.Nullable TypedSpec rowsRead,
-            List<com.legend.testexecutionplan.Appeal.TempTable> temps) {
+            List<Appeal.TempTable> temps) {
     }
 
     /** The statement index of an exec-sql read: {@code sql($res, n)} /
@@ -1042,7 +1046,7 @@ final class SqlTextVerdicts {
                         == com.legend.compiler.element.type.Type.Primitive.INTEGER
                         ? "population:integer" : "population:string";
                 return new PopulationShape(null, List.of(
-                        new com.legend.testexecutionplan.Appeal.TempTable("tempTableForIn_" + var,
+                        new Appeal.TempTable("tempTableForIn_" + var,
                                 kind, List.of())));
             }
             if (var == null && isPopulationGolden(golden)) {
@@ -1182,7 +1186,7 @@ final class SqlTextVerdicts {
         if (bindings == null) {
             final String g = golden;
             return decide(env, name, golden, ours, textEqual, "plan-params-unbindable",
-                    new com.legend.testexecutionplan.Appeal(0, name, com.legend.testexecutionplan.Appeal.Kind.CONTRACT, name + " (plan-text, params unbindable —"
+                    new Appeal(0, name, Appeal.Kind.CONTRACT, name + " (plan-text, params unbindable —"
                             + " text is the contract)", null, null, com.legend.testexecutionplan.RootLoop.NO_APPEAL));
         }
         String filled = golden;
@@ -1441,7 +1445,7 @@ final class SqlTextVerdicts {
             @com.legend.base.Nullable TypedSpec query,
             @com.legend.base.Nullable String goldenPlan,
             java.util.Map<String, List<String>> planBindings,
-            List<com.legend.testexecutionplan.Appeal.TempTable> temps) {
+            List<Appeal.TempTable> temps) {
         // BLOCK-COMPILER RUNG 2a (2026-09-21): the text assert's verdict is the golden text against our rendered
         // text, the same string equality every assertEquals compiles to (a row of the body's statement under the
         // batch), and the referee is its APPEAL on a failed text only (a byte-equal text needs none: the user's
@@ -1458,14 +1462,15 @@ final class SqlTextVerdicts {
                 : null;
         // the rows leg as the plan's data (step 8b, 2026-11-08): its reads planned with the assert, its replay facts
         // and the target the referee replays on; null where not planned
-        com.legend.testexecutionplan.Appeal.Rows rows = ahead == null ? null : new com.legend.testexecutionplan.Appeal.Rows(ahead.rows().data(), ahead.population().data(),
+        Appeal.Rows rows = ahead == null ? null : new Appeal.Rows(ahead.rows().data(), ahead.population().data(),
                 replaySqlOrNull, mappingFqn, classFqn, EngineTextPlanning.extentSubset(facts), EngineTextPlanning.ordered(facts), EngineTextPlanning.sortKeys(facts), goldenPlan,
                 planBindings, temps,
-                seed == null ? null : new com.legend.testexecutionplan.Appeal.InListSeed(seed.kind(), seed.values()),
+                seed == null ? null : new Appeal.InListSeed(seed.kind(), seed.values()),
                 EngineTextPlanning.target(java.util.Objects.requireNonNullElse(EngineTextPlanning.appealOn(env), env)),
                 // the enumerations the referee decodes, read from the model now (hole 1, 2026-11-08)
-                EngineTextPlanning.enumsOf(EngineTextPlanning.ctx(env), mappingFqn, classFqn, ahead.rows().data()));
-        return decide(env, name, golden, ours, textEqual, null, new com.legend.testexecutionplan.Appeal(0, name, com.legend.testexecutionplan.Appeal.Kind.ROWS, null, rows,
+                enumsOf(EngineTextPlanning.enumsOf(EngineTextPlanning.ctx(env), mappingFqn, classFqn,
+                        ahead.rows().data().shape())));
+        return decide(env, name, golden, ours, textEqual, null, new Appeal(0, name, Appeal.Kind.ROWS, null, rows,
                 null, com.legend.testexecutionplan.RootLoop.NO_APPEAL));
     }
 
@@ -1508,21 +1513,21 @@ final class SqlTextVerdicts {
             @com.legend.base.Nullable RuntimeException failure) {
 
         /** The side as the plan's data (step 8b): its statement and its shape, or its failure, or none. */
-        com.legend.testexecutionplan.Appeal.Read data() {
+        Appeal.Read data() {
             JudgePlans.PlannedSide p = side;
             if (p != null) {
-                return new com.legend.testexecutionplan.Appeal.Read(EngineTextPlanning.side(p), EngineTextPlanning.shapeOf(p), null);
+                return new Appeal.Read(EngineTextPlanning.side(p), EngineTextPlanning.shapeOf(p), null);
             }
             RuntimeException f = failure;
             if (f == null) {
-                return com.legend.testexecutionplan.Appeal.Read.NONE;
+                return Appeal.Read.NONE;
             }
             // a class off the closed list keeps its words alone, the rows leg's only read of it (the slice 2 audit,
             // 2026-11-08): the body's planning goes on, as when the failure was kept until the appeal was heard
             return com.legend.testexecutionplan.Failure.Kind.named(f.getClass().getName()) == null
-                    ? new com.legend.testexecutionplan.Appeal.Read(null, null, null,
-                            new com.legend.testexecutionplan.Appeal.Unlisted(f.getClass().getSimpleName(), f.getMessage()))
-                    : new com.legend.testexecutionplan.Appeal.Read(null, null, com.legend.testexecutionplan.Failures.of(f, "SqlTextVerdicts.sideAhead: an appeal's side"));
+                    ? new Appeal.Read(null, null, null,
+                            new Appeal.Unlisted(f.getClass().getSimpleName(), f.getMessage()))
+                    : new Appeal.Read(null, null, com.legend.testexecutionplan.Failures.of(f, "SqlTextVerdicts.sideAhead: an appeal's side"));
         }
     }
 
@@ -1668,4 +1673,10 @@ final class SqlTextVerdicts {
                         .ClassType ct
                 ? ct.fqn() : null;
     }
+
+    /** The enumerations the referee decodes, as the appeal carries them. */
+    private static Appeal.Enums enumsOf(com.legend.testplan.EnumFacts f) {
+        return new Appeal.Enums(f.enums(), f.decodes(), f.properties());
+    }
+
 }

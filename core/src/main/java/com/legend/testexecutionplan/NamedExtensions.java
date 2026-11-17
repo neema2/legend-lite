@@ -9,14 +9,13 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * THE APPEALS A TEST PLAN NAMES AND CARRIES, READ FROM THE PLAN ALONE (the slice 2 invariant audit, 2026-11-08: the
- * run's reads and the self-containment check, moved from the test planner's {@code AppealsByVerdict}): the numbers its
- * verdicts name, the appeals it carries by number, and the check that every number named is
- * carried.
+ * THE EDGE RECORDS A TEST PLAN'S VERDICTS NAME, READ FROM THE PLAN ALONE (the slice 2 invariant audit, 2026-11-08;
+ * census C2, 2026-11-17: the appeal type moved to the edge, its numbers stay plan data): the numbers its verdicts name,
+ * and the check that each is carried.
  */
-public final class PlannedAppeals {
+public final class NamedExtensions {
 
-    private PlannedAppeals() {
+    private NamedExtensions() {
     }
 
     /** The appeal numbers {@code plan}'s verdicts name, by verdict id: an engine text's (through the wrappers and parts
@@ -27,15 +26,14 @@ public final class PlannedAppeals {
         return out;
     }
 
-    /** {@code plan} is self-contained: every appeal its verdicts name, it carries -- refused by name otherwise. */
+    /** {@code plan} is self-contained: every verdict naming the edge's records carries one per number it names, in
+     *  order (the plan's {@code extensionsByVerdict}, built so) -- refused by name otherwise. */
     public static void requireCarried(TestPlan plan) {
-        Map<Integer, Appeal> carried = byNumber(plan);
         named(plan).forEach((verdict, numbers) -> {
-            for (int n : numbers) {
-                if (!carried.containsKey(n)) {
-                    throw new IllegalStateException("a test plan whose verdict " + verdict + " names appeal " + n
-                            + ", which the plan does not carry");
-                }
+            List<Extension> carried = plan.extensionsByVerdict().getOrDefault(verdict, List.of());
+            if (carried.size() != numbers.size()) {
+                throw new IllegalStateException("a test plan whose verdict " + verdict + " names the edge's records "
+                        + numbers + ", and carries " + carried.size());
             }
         });
     }
@@ -142,34 +140,5 @@ public final class PlannedAppeals {
             }
         }
         return out;
-    }
-    /** The appeals {@code plan} carries, by number, in their numbers' order -- the order their arms were planned. */
-    public static Map<Integer, Appeal> byNumber(TestPlan plan) {
-        Map<Integer, Appeal> found = new java.util.HashMap<>();
-        int last = 0;
-        for (List<Extension> at : plan.extensionsByVerdict().values()) {
-            for (Extension e : at) {
-                if (e instanceof Appeal a) {
-                    found.put(a.number(), a);
-                    last = Math.max(last, a.number());
-                }
-            }
-        }
-        Map<Integer, Appeal> out = new LinkedHashMap<>();
-        for (int n = 1; n <= last; n++) {
-            Appeal a = found.get(n);
-            if (a != null) {
-                out.put(n, a);
-            }
-        }
-        return out;
-    }
-    /** The appeal numbered {@code n} the plan carries: one heard that the plan does not carry is refused by name. */
-    public static Appeal of(Map<Integer, Appeal> planned, int n) {
-        Appeal a = planned.get(n);
-        if (a == null) {
-            throw new IllegalStateException("an appeal heard (number " + n + ") that the test plan does not carry");
-        }
-        return a;
     }
 }

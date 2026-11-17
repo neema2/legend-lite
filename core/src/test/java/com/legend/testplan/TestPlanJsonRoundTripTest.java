@@ -10,7 +10,7 @@ import com.legend.edge.EffectTexts;
 import com.legend.edge.RefereeLoad;
 import com.legend.executionplan.DatabaseType;
 import com.legend.executionplan.ExecutionPlan;
-import com.legend.testexecutionplan.Appeal;
+import com.legend.edge.Appeal;
 import com.legend.testexecutionplan.Assertion;
 import com.legend.testexecutionplan.Extension;
 import com.legend.testexecutionplan.Failure;

@@ -83,7 +83,7 @@ public final class TestPlanJson {
     /** G11's guard for a test body's plan: it survives its JSON, or it is refused by name, never run. */
     public static void requireRoundTrip(TestPlan plan) {
         // the plan is self-contained: every appeal its verdicts name, it carries (the slice 2 invariant audit's D2)
-        PlannedAppeals.requireCarried(plan);
+        NamedExtensions.requireCarried(plan);
         String why = roundTripDifference(plan);
         if (why != null) {
             throw new IllegalStateException("a test plan that is not portable data (G11): " + why);
@@ -295,13 +295,7 @@ public final class TestPlanJson {
             List<Object> written = new ArrayList<>(records.size());
             for (Extension e : records) {
                 Map<String, Object> o = null;
-                if (e instanceof Appeal a) {
-                    // the test plan's own record (an engine-text assert's appeal, step 8b): its own codec
-                    o = new LinkedHashMap<>();
-                    o.put("_type", "appeal");
-                    o.putAll(HostJson.wAppeal(a));
-                }
-                for (ExtensionCodec c : o != null ? List.<ExtensionCodec>of() : codecs) {
+                for (ExtensionCodec c : codecs) {
                     o = c.write(e);
                     if (o != null) {
                         break;
@@ -326,8 +320,8 @@ public final class TestPlanJson {
             for (Json.Node n : ((Json.Arr) e.getValue()).items()) {
                 Json.Obj o = (Json.Obj) n;
                 String tag = o.getString("_type");
-                Extension read = "appeal".equals(tag) ? HostJson.rAppeal(o) : null;
-                for (ExtensionCodec c : read != null ? List.<ExtensionCodec>of() : codecs) {
+                Extension read = null;
+                for (ExtensionCodec c : codecs) {
                     read = c.read(tag, o);
                     if (read != null) {
                         break;

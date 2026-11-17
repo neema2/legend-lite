@@ -536,7 +536,7 @@ public final class ReplayReferee implements com.legend.edge.SqlReplayReferee {
             @com.legend.base.Nullable String mappingFqn,
             @com.legend.base.Nullable String rootClassFqn,
             com.legend.edge.SqlReplayReferee.ReplayFacts facts,
-            com.legend.testexecutionplan.Appeal.Enums enums) {
+            com.legend.edge.Appeal.Enums enums) {
         com.legend.edge.SqlReplayReferee.RowVerdict v = verify0(session, goldenSql, ours, mappingFqn, rootClassFqn, facts, enums);
         OUTCOMES.computeIfAbsent("verify " + v.outcome(), k -> new java.util.concurrent.atomic.LongAdder()).increment();
         return v;
@@ -548,7 +548,7 @@ public final class ReplayReferee implements com.legend.edge.SqlReplayReferee {
             @com.legend.base.Nullable String mappingFqn,
             @com.legend.base.Nullable String rootClassFqn,
             com.legend.edge.SqlReplayReferee.ReplayFacts facts,
-            com.legend.testexecutionplan.Appeal.Enums enums) {
+            com.legend.edge.Appeal.Enums enums) {
         // the STATIC extent-subset fact of the verified chain (computed on
         // the platform's typed chain — a class extent through subset-
         // preserving ops) arms the graph compare's pk-collapse exactly as
@@ -568,7 +568,7 @@ public final class ReplayReferee implements com.legend.edge.SqlReplayReferee {
             @com.legend.base.Nullable String mappingFqn,
             @com.legend.base.Nullable String rootClassFqn,
             com.legend.edge.SqlReplayReferee.ReplayFacts facts,
-            com.legend.testexecutionplan.Appeal.Enums enums,
+            com.legend.edge.Appeal.Enums enums,
             List<com.legend.edge.SqlReplayReferee.TempTable> temps) {
         com.legend.edge.SqlReplayReferee.RowVerdict v = verify1(session, goldenSql, ours, mappingFqn, rootClassFqn, facts, enums, temps);
         OUTCOMES.computeIfAbsent("verify8 " + v.outcome(), k -> new java.util.concurrent.atomic.LongAdder()).increment();
@@ -581,7 +581,7 @@ public final class ReplayReferee implements com.legend.edge.SqlReplayReferee {
             @com.legend.base.Nullable String mappingFqn,
             @com.legend.base.Nullable String rootClassFqn,
             com.legend.edge.SqlReplayReferee.ReplayFacts facts,
-            com.legend.testexecutionplan.Appeal.Enums enums,
+            com.legend.edge.Appeal.Enums enums,
             List<com.legend.edge.SqlReplayReferee.TempTable> temps) {
         try {
             List<String> seeds = tempSeeds(temps);
@@ -656,7 +656,7 @@ public final class ReplayReferee implements com.legend.edge.SqlReplayReferee {
             @com.legend.base.Nullable String mappingFqn,
             @com.legend.base.Nullable String rootClassFqn,
             com.legend.edge.SqlReplayReferee.ReplayFacts facts,
-            com.legend.testexecutionplan.Appeal.Enums enums) {
+            com.legend.edge.Appeal.Enums enums) {
         com.legend.edge.SqlReplayReferee.RowVerdict v = verifyPlan0(session, goldenPlan, bindings, ours, mappingFqn, rootClassFqn, facts, enums);
         OUTCOMES.computeIfAbsent("verifyPlan " + v.outcome(), k -> new java.util.concurrent.atomic.LongAdder()).increment();
         return v;
@@ -669,7 +669,7 @@ public final class ReplayReferee implements com.legend.edge.SqlReplayReferee {
             @com.legend.base.Nullable String mappingFqn,
             @com.legend.base.Nullable String rootClassFqn,
             com.legend.edge.SqlReplayReferee.ReplayFacts facts,
-            com.legend.testexecutionplan.Appeal.Enums enums) {
+            com.legend.edge.Appeal.Enums enums) {
         // allocation tables materialized on the referee for THIS replay —
         // dropped after the verdict (the family mirror is shared state)
         List<String> allocTables = new java.util.ArrayList<>();
@@ -756,7 +756,7 @@ public final class ReplayReferee implements com.legend.edge.SqlReplayReferee {
             TypedSide ours,
             @com.legend.base.Nullable String mappingFqn,
             @com.legend.base.Nullable String rootClassFqn,
-            com.legend.testexecutionplan.Appeal.Enums enums,
+            com.legend.edge.Appeal.Enums enums,
             @com.legend.base.Nullable List<String> extraSeeds,
             com.legend.edge.SqlReplayReferee.ReplayFacts facts) {
         java.util.Map<Integer, java.util.Map<String, String>> enumDecode =

@@ -63,7 +63,7 @@ public interface SqlReplayReferee {
             @com.legend.base.Nullable String mappingFqn,
             @com.legend.base.Nullable String rootClassFqn,
             ReplayFacts facts,
-            com.legend.testexecutionplan.Appeal.Enums enums);
+            Appeal.Enums enums);
 
     /** The verdict arm's STATIC facts about the verified chain, the
      * referee's comparison gates (Phase 0.5 — they rode thread-locals
@@ -122,7 +122,7 @@ public interface SqlReplayReferee {
             @com.legend.base.Nullable String mappingFqn,
             @com.legend.base.Nullable String rootClassFqn,
             ReplayFacts facts,
-            com.legend.testexecutionplan.Appeal.Enums enums,
+            Appeal.Enums enums,
             java.util.List<TempTable> temps) {
         return verify(session, goldenSql, ours, mappingFqn, rootClassFqn,
                 facts, enums);
@@ -142,7 +142,7 @@ public interface SqlReplayReferee {
             @com.legend.base.Nullable String mappingFqn,
             @com.legend.base.Nullable String rootClassFqn,
             ReplayFacts facts,
-            com.legend.testexecutionplan.Appeal.Enums enums) {
+            Appeal.Enums enums) {
         return RowVerdict.declined("plan replay not supported by this oracle");
     }
 
