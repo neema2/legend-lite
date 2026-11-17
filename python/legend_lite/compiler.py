@@ -16,7 +16,8 @@ from ._library import library
 from ._planned import PlannedSql, PlanText, all_from_plan, from_plan, plan_from_answer
 from ._raised import declare_sites
 # the plan's records and its own data's readers, theirs since C5-P (2026-11-15): named here as they always were
-from ._plans import Column, Plan, PlanParamsRefused, host_rows, plan_params, statement_params  # noqa: F401
+from ._plans import (Column, Plan, PlanParamsRefused, host_rows, plan_binding, plan_params,  # noqa: F401
+                     statement_params)
 
 Tree = dict[str, Any]
 
@@ -46,6 +47,12 @@ def refusal_kinds() -> dict[str, str]:
     if _KINDS is None:
         _KINDS = _json.loads(_answer(library().call('lite_refusal_kinds')))
     return _KINDS
+
+
+def parameters_refused(message: str) -> LegendError:
+    """A run's parameter values refused (the run side's ``_params.check``, its words ``message``) as lite's error: the
+    product's ``parameters`` kind (the lite API spec's §3, ruled 6)."""
+    return LegendError(message, refusal_kinds()['PARAMETERS'])
 
 
 def refuses_the_text(refused: LegendError) -> bool:
@@ -118,7 +125,9 @@ def read_plan(answer: str) -> Plan:
     out = _json.loads(answer)
     # the raises its statement can send, worded by the planner (_raised.declare_sites; phase D's option (D))
     declare_sites(out, 'a text plan')
-    return Plan(from_plan(out['sql']), _columns(out['type']), plan_params(out.get('plan')))
+    # its payloads, its declared parameters and its slots: a parameter bound at RUN (Plan.bind; the lite API spec's §4)
+    payloads, parameters, slots = plan_binding(out.get('plan'))
+    return Plan(from_plan(out['sql']), _columns(out['type']), payloads, parameters, slots)
 
 
 def plan(model: str, tree: Tree, runtime: str) -> Plan:

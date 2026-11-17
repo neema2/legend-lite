@@ -44,6 +44,7 @@ import duckdb
 import pyarrow as pa
 
 from . import _host, compiler
+from ._params import ParametersRefused
 from ._planned import Database, connect
 # the run side (C5-P, 2026-11-15): what sends a plan's statements and reads their answer, frames.py's until then and
 # named here as they always were; frames.py plans, then hands the run its statements
@@ -250,11 +251,12 @@ class Table:
             self._ready()
             return self._model().plan(self._tree(query), self.runtime)
 
-    def execute(self, query: str | dict[str, Any]) -> pa.Table:
-        """Runs a query over this table (as ``plan`` takes it) and answers as an Arrow table, typed by its plan."""
+    def execute(self, query: str | dict[str, Any], params: dict[str, Any] | None = None) -> pa.Table:
+        """Runs a query over this table (as ``plan`` takes it) and answers as an Arrow table, typed by its plan: its
+        declared parameters bound at run from ``params`` (the lite API spec's ``query/run``, §4)."""
         with self._frames._lock:
             self._ready()
-            return self._frames.run(self._model().plan(self._tree(query), self.runtime))
+            return self._frames.run(self._model().plan(self._tree(query), self.runtime), params)
 
 
 @dataclass
@@ -366,12 +368,17 @@ class Frames:
             self._tables[key] = table
             return table
 
-    def run(self, plan: compiler.Plan) -> pa.Table:
+    def run(self, plan: compiler.Plan, params: dict[str, Any] | None = None) -> pa.Table:
         """PYTHON'S EXECUTOR: a plan's SQL run on this database, its rows typed by the plan (``typed_by_plan``) --
         a table's query, a grid's rows, and a page's grid planned and run in Python (the engine's plan-and-run.json).
-        Only SQL a planner wrote for this database comes here (the run: ``_reads.run_plan``)."""
+        Only SQL a planner wrote for this database comes here (the run: ``_reads.run_plan``). Its declared parameters
+        are bound at this run from ``params``, checked before anything is sent: a value refused is lite's
+        ``parameters`` refusal (``compiler.parameters_refused``; the lite API spec's §3 and §4, 2026-11-17)."""
         with self._lock:
-            return run_plan(self.connection, plan, self.held_values())
+            try:
+                return run_plan(self.connection, plan, self.held_values(), params)
+            except ParametersRefused as refused:
+                raise compiler.parameters_refused(str(refused)) from None
 
     def held_values(self) -> tuple[str, ...]:
         """Every value the kept remote files' settings bind that the engine holds (a bearer URL): what a failure's words

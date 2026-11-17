@@ -1165,3 +1165,106 @@ class ARaiseIsWorded(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class BindAtRun(unittest.TestCase):
+    """A plan's parameters bound at RUN (the lite API spec's §4, 2026-11-17; Java's PlanParameters.check and the TS host's
+    checkParameters, one rule): each declaration read strictly; every value checked before anything is sent, every
+    problem named at once, the missing first; each value converted by its declared Pure type; an Integer within the
+    64-bit range on every host, a Python bool no Integer."""
+
+    @staticmethod
+    def p(name, type_, lower=1, upper=1, enum=()):
+        from legend_lite._plans import Declared
+        return Declared(name, type_, lower, upper, tuple(enum))
+
+    def test_a_declaration_is_read_strictly(self):
+        from legend_lite._plans import PlanParametersRefused, declared
+        ok = {'name': 'd', 'type': 'String', 'multiplicity': {'lower': 0}, 'enumValues': []}
+        self.assertEqual(declared(ok), self.p('d', 'String', 0, None))
+        for bad in ({**ok, 'extra': 1}, {**ok, 'multiplicity': {'lower': 0, 'upper': None}}, {**ok, 'enumValues': [1]},
+                    {**ok, 'multiplicity': {'lower': True}}, {'name': 'd'}, 'd'):
+            with self.subTest(bad=bad), self.assertRaisesRegex(
+                    PlanParametersRefused, "a plan parameter declared without its name, type, multiplicity and enumeration's values"):
+                declared(bad)
+
+    def test_every_problem_is_named_at_once_the_missing_first(self):
+        from legend_lite._params import ParametersRefused, check
+        declared = [self.p('a', 'Integer'), self.p('b', 'String', 0, None), self.p('c', 'Integer'), self.p('x', 'Boolean')]
+        with self.assertRaises(ParametersRefused) as refused:
+            check(declared, {'b': 'one value', 'c': [1, 2], 'x': 'yes', 'unknown': 1})
+        self.assertEqual(str(refused.exception),
+                         "no value for the parameter(s) a:Integer[1]; values their parameters do not take: "
+                         "[parameter 'b' (String[*]): takes a list, given one value; "
+                         "parameter 'c' (Integer[1]): takes one value, given a list of 2; "
+                         "parameter 'x' (Boolean[1]): given \"yes\" (string): a Boolean is a boolean]")
+        with self.assertRaises(ParametersRefused) as refused:
+            check([self.p('n', 'Integer', 1, 2)], {'n': [1, 2, 3]})
+        self.assertEqual(str(refused.exception),
+                         "values their parameters do not take: [parameter 'n' (Integer[1..2]): takes 1..2 values, given 3]")
+
+    def test_each_type_takes_its_values(self):
+        from legend_lite._params import Many, NoValue, One, check
+        cases = [
+            ('Integer', 2 ** 63 - 1, 2 ** 63 - 1), ('Integer', -(2 ** 63), -(2 ** 63)), ('Float', 1.5, 1.5), ('Float', 2, 2.0),
+            ('Decimal', '-12.30', '-12.30'), ('Number', 3, 3), ('Number', 0.5, 0.5), ('Number', '1.25', '1.25'),
+            ('Boolean', False, False), ('String', '', ''), ('StrictDate', '2026-11-17', '2026-11-17'),
+            ('DateTime', '2026-11-17T09:30Z', '2026-11-17 09:30:00.000000000'),
+            ('DateTime', '2026-11-17 09:30:01.5', '2026-11-17 09:30:01.500000000'),
+            ('Date', '2026-11-17', '2026-11-17'), ('Date', '2026-11-17T01:02:03.123456789', '2026-11-17 01:02:03.123456789'),
+        ]
+        for type_, given, bound in cases:
+            with self.subTest(type=type_, given=given):
+                self.assertEqual(check([self.p('v', type_)], {'v': given}), {'v': One(bound)})
+        self.assertEqual(check([self.p('c', 'p::Colour', enum=('RED', 'BLUE'))], {'c': 'BLUE'}), {'c': One('BLUE')})
+        self.assertEqual(check([self.p('o', 'String', 0, 1), self.p('l', 'Integer', 0, None)], {'l': []}),
+                         {'o': NoValue(), 'l': NoValue()})
+        self.assertEqual(check([self.p('l', 'Integer', 1, None)], {'l': [1, 2]}), {'l': Many((1, 2))})
+
+    def test_each_type_refuses_what_it_does_not_take(self):
+        from legend_lite._params import ParametersRefused, check
+        cases = [
+            ('Integer', True, 'given true (boolean): an Integer is a whole number within the 64-bit range'),
+            ('Integer', 2 ** 63, f'given {2 ** 63} (number): an Integer is a whole number within the 64-bit range'),
+            ('Integer', 1.0, 'given 1.0 (number): an Integer is a whole number within the 64-bit range'),
+            ('Number', 2 ** 63, f'given {2 ** 63} (number): an Integer is a whole number within the 64-bit range'),
+            ('Float', float('nan'), 'nan is not finite: no SQL literal stands for it'),
+            ('Decimal', '1e3', 'given "1e3" (string): a Decimal is its plain digits as text'),
+            ('StrictDate', '0000-01-01', '0000-01-01 is outside the years 1 to 9999: no date text a database reads stands for it'),
+            ('DateTime', '2026-11-17', 'given "2026-11-17" (string): a DateTime is its ISO 8601 text in UTC, '
+                                       'YYYY-MM-DDTHH:MM[:SS[.fffffffff]]'),
+            ('p::Unknown', 1, 'a p::Unknown value is not bound by a plan'),
+        ]
+        for type_, given, why in cases:
+            with self.subTest(type=type_, given=given), self.assertRaises(ParametersRefused) as refused:
+                check([self.p('v', type_)], {'v': given})
+            self.assertEqual(str(refused.exception),
+                             f"values their parameters do not take: [parameter 'v' ({type_}[1]): {why}]")
+        with self.assertRaises(ParametersRefused) as refused:
+            check([self.p('c', 'p::Colour', enum=('RED',))], {'c': 'BLUE'})
+        self.assertIn('"BLUE" is not a value of p::Colour [RED]', str(refused.exception))
+        with self.assertRaises(ParametersRefused) as refused:
+            check([self.p('l', 'Integer', 0, None)], {'l': [1, None]})
+        self.assertIn('a list holds no null', str(refused.exception))
+
+    def test_a_plans_slots_bind_payloads_and_parameters_in_order(self):
+        import hashlib
+        from legend_lite._params import bind
+        from legend_lite._plans import Plan, PlanParamsRefused, plan_binding
+        payload = '[1,2]'
+        digest = hashlib.sha256(payload.encode()).hexdigest()
+        plan = {'parameters': [{'name': 'd', 'type': 'String', 'multiplicity': {'lower': 0, 'upper': 1}, 'enumValues': []}],
+                'root': {'_type': 'result', 'sql': {'statement': 'S', 'content': {digest: payload}, 'slots': [
+                    {'parameter': 'd', 'binding': {'_type': 'one', 'nullType': 'VARCHAR'}},
+                    {'parameter': 'p', 'binding': {'_type': 'payload', 'digest': digest}},
+                    {'parameter': 'd', 'binding': {'_type': 'one', 'asText': {}}}]}}}
+        payloads, parameters, slots = plan_binding(plan)
+        bound = Plan(PlannedSql.__new__(PlannedSql), (), payloads, parameters, slots)
+        self.assertEqual(bind(bound, {'d': 'x'}), ('x', payload, 'x'))
+        self.assertEqual(bind(bound, {}), (None, payload, None), "an optional given none binds a typed null")
+        # a one slot of no declared parameter, and a dynamic pivot that takes parameters, refused by name
+        undeclared = {**plan, 'parameters': []}
+        with self.assertRaisesRegex(PlanParamsRefused, "'d' binds a value the run supplies"):
+            plan_binding(undeclared)
+        with self.assertRaisesRegex(PlanParamsRefused, 'a dynamic pivot that takes parameters is not run here'):
+            plan_binding({**plan, 'root': {'_type': 'keyed'}})

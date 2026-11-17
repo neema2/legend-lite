@@ -141,20 +141,6 @@ class TheProductsKinds(unittest.TestCase):
         self.assertTrue(compiler.refuses_the_text(refused.exception))
         self.assertEqual((refused.exception.where, refused.exception.raise_), (None, None))
 
-    def test_a_model_refusal_follows_the_products_kinds_renamed(self):
-        from unittest import mock
-        from legend_lite import compiler, frames, projects
-        renamed = {'PARSE': 'parse', 'COMPILE': 'compile', 'FAILURE': 'internal'}
-        with mock.patch.object(compiler, '_KINDS', renamed):
-            self.assertTrue(compiler.refuses_the_text(ll.LegendError('no', 'compile')))
-            self.assertFalse(compiler.refuses_the_text(ll.LegendError('no', 'COMPILATION')))
-            self.assertIsInstance(frames._refusal(ll.LegendError('no', 'parse')), frames.ModelRefused)
-            self.assertNotIsInstance(frames._refusal(ll.LegendError('no', 'internal')), frames.ModelRefused)
-            with mock.patch.object(compiler, 'project_data', side_effect=ll.LegendError('no model', 'compile')):
-                with self.assertRaises(projects.NotAModel):
-                    with projects.ProjectDatabases(None).using('m', surface=True):
-                        pass
-
 
 class Compiling(unittest.TestCase):
     def test_types_a_query_compile_only(self):

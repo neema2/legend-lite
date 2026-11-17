@@ -62,6 +62,8 @@ py_library(
 # //python:run_closure_test imports it with these deps alone, and reads every import of the package's modules for the
 # rule both ways
 _RUN_SRCS = [
+    # a plan's parameters, checked and bound at run (the lite API spec's §4, 2026-11-17)
+    "legend_lite/_params.py",
     "legend_lite/_reads.py",
     "legend_lite/_runs.py",
     # the service key, the warehouse's wire alone, and the warehouse's client over it (C5-P, A1: :compiler's until then)
