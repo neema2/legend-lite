@@ -31,8 +31,7 @@ class PureAssertsTest {
     private static final PureWords W = com.legend.edge.EdgePureWords.INSTANCE;
 
     /** Lite's own rules: what these comparisons are judged by (the explicit rule, 2026-11-04). */
-    private static final com.legend.testexecutionplan.TestPlan.JudgingRules LITE =
-            com.legend.testexecutionplan.TestPlan.JudgingRules.LITE;
+    private static final HostRules LITE = HostRules.LITE;
 
     private static boolean same(@com.legend.base.Nullable Object e, @com.legend.base.Nullable Object a) {
         return Equality.same(Equality.Typed.of(e), Equality.Typed.of(a), LITE);

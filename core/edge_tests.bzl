@@ -49,6 +49,8 @@ EDGE_TEST_SRCS = [
     "src/test/java/com/legend/RelationCountAssertsEdgeTest.java",
     "src/test/java/com/legend/testplan/CompiledPureNumbersEdgeTest.java",
     "src/test/java/com/legend/testplan/RenderedTextEdgeTest.java",
+    # G10 (2026-11-17): an assert whose sides both raise, under the compatibility rules on the edge's door too
+    "src/test/java/com/legend/testplan/HostSideOrderTest.java",
     "src/test/java/com/legend/testexec/EqualityCompatEdgeTest.java",
     "src/test/java/com/legend/ReferenceIntegrityTest.java",
     "src/test/java/com/legend/ResultWritersTest.java",
@@ -86,6 +88,8 @@ EDGE_TEST_SRCS = [
     "src/test/java/com/legend/integration/TextPlanSourceTest.java",
     "src/test/java/com/legend/integration/TypeInferenceIntegrationTest.java",
     "src/test/java/com/legend/integration/WritePlansH2Test.java",
+    # the engine execute()'s values root, the edge's fold beside the product's array (the audit's J3, 2026-11-17)
+    "src/test/java/com/legend/lowering/EngineExecuteCardinalityTest.java",
     "src/test/java/com/legend/lowering/AggOrderNullPlacementTest.java",
     "src/test/java/com/legend/lowering/OptionalCollectionNullDropTest.java",
     "src/test/java/com/legend/lowering/ToOneLaneTest.java",

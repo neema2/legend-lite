@@ -21,11 +21,11 @@ public final class PlantedRulesReach {
     }
 
     static boolean byText(JudgingRules rules) {
-        return rules.edgeAppeals();
+        return rules.legendPureWords();
     }
 
     static boolean byTextAgain(JudgingRules rules) {
-        return !rules.edgeAppeals();
+        return !rules.legendPureWords();
     }
 
     static Predicate<JudgingRules> words() {

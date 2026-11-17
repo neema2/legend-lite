@@ -43,14 +43,23 @@ class HookLambdasTest {
             // two-form kinds' PRODUCT forms, written as lambdas (no ruled hook, facet kind or style is implemented by a
             // product lambda): a DateTime's text, lite's (census B9); a test-data timestamp's, lite's clean form (L9)
             Map.entry("com.legend.lowering.Styled", Set.of("com.legend.lowering.DateTimeTexts")),
-            Map.entry("com.legend.testdatagen.TestDataPlanner", Set.of("com.legend.testdatagen.TestDataPlanner$Printing")));
+            // (TestDataPlanner -> Printing: gone 2026-11-17 with K12, a095d0b56 -- Printing is no functional interface now,
+            // its product form the class LitePrinting); a routed query's activity, the product's (J5, fb8c299b9e)
+            Map.entry("com.legend.planner.PlanAllocations", Set.of("com.legend.planner.RoutedQueries")));
 
     /** "caller#method(params)" -> the class objects named beside its twoForm call, and its number of reaches (calls and
      *  references). Measured 2026-11-17. */
     static final Map<String, Set<String>> TWO_FORM_CALLERS = Map.ofEntries(
             // the lowering's style: a DateTime's and a list's texts (and the PureOnlyTexts facet beside them)
             Map.entry("com.legend.planner.PlanEnv#styled()", Set.of("com.legend.lowering.DateTimeTexts",
-                    "com.legend.lowering.ListTexts", "com.legend.lowering.PureOnlyTexts", "(twoForm reaches 2)")),
+                    "com.legend.lowering.ListTexts", "com.legend.lowering.PureOnlyTexts",
+                    // + LoweringForms (K5, train 5)
+                    "com.legend.lowering.LoweringForms", "(twoForm reaches 3)")),
+            // a routed query's activity rows (J5, fb8c299b9e, train 5)
+            Map.entry("com.legend.planner.PlanAllocations#registerActivityRows("
+                    + "com.legend.compiler.spec.typed.TypedNativeCall, com.legend.compiler.spec.typed.TypedSpec,"
+                    + " java.util.List, com.legend.compiler.spec.SpecCompiler, java.lang.String, java.lang.String,"
+                    + " com.legend.planner.PlanEnv)", Set.of("com.legend.planner.RoutedQueries", "(twoForm reaches 1)")),
             // the database judge: a JSON golden's grammar (S144), two number kinds (S127)
             Map.entry("com.legend.testplan.DatabaseJudge#jsonStringsEqual(java.lang.String, java.util.List,"
                     + " java.util.List, com.legend.compiler.spec.SpecCompiler, com.legend.testplan.BodyDriver$ExecEnv,"
@@ -90,6 +99,10 @@ class HookLambdasTest {
             Map.entry("com.legend.lowering.ProductListTexts", Set.of("com.legend.lowering.ListTexts")),
             Map.entry("com.legend.testexecutionplan.JudgeJson", Set.of("com.legend.testexecutionplan.JsonGrammar")),
             Map.entry("com.legend.testplan.CrossKindNumbers$Product", Set.of("com.legend.testplan.CrossKindNumbers")),
+            // trains 5 and 6 (2026-11-17): the lowering forms' product answer, an anonymous class in the kind (K5,
+            // fd1df9928, a criterion (a) exception); the test-data printing's product form, its own class (K12, a095d0b56)
+            Map.entry("com.legend.lowering.LoweringForms$1", Set.of("com.legend.lowering.LoweringForms")),
+            Map.entry("com.legend.testdatagen.LitePrinting", Set.of("com.legend.testdatagen.TestDataPlanner$Printing")),
             // D's train 4 (census C1, 2026-11-17): a rendered golden's null word, none (c013b2565c); a date literal's
             // message text, lite's (4bc94e2d8f); the rendered-text rule, strings (a9c14bb4ca) -- each nested in its kind
             Map.entry("com.legend.compiler.spec.GoldenNullWord$Product", Set.of("com.legend.compiler.spec.GoldenNullWord")),

@@ -70,17 +70,22 @@ class EngineExecuteCardinalityTest {
         assertInstanceOf(SqlExpr.JsonArrayAgg.class, top(own.plan()));
 
         // the same chain as the values of an engine execute(...): the splice marks it, the resolver carries the mark
-        // to the graph, the root folds over the same aggregate
+        // to the graph; the root's form is the plan style's (the audit's J3, 2026-11-17: LoweringForms#executeValues):
+        // the product's stays lite's array, the edge's folds over the same aggregate
         TypedSpec spliced = valuesRead(chain);
         assertTrue(serialize(spliced).engineExecuteCardinality(), "the splice marks the execute()'s serialize");
-        Compiler.LoweredQuery compat = com.legend.planner.Lowered.lower(q.withBody(List.of(spliced)), "s::RT", false);
-        assertTrue(graph(compat.root()).engineExecuteCardinality(), "the resolver carries the mark to its graph");
+        Compiler.LoweredQuery product = com.legend.planner.Lowered.lower(q.withBody(List.of(spliced)), "s::RT", false);
+        assertTrue(graph(product.root()).engineExecuteCardinality(), "the resolver carries the mark to its graph");
+        assertInstanceOf(SqlExpr.JsonArrayAgg.class, top(product.plan()), "the product's root stays lite's array");
+        Compiler.LoweredQuery compat = com.legend.planner.Lowered.lower(q.withBody(List.of(spliced)), "s::RT", false,
+                com.legend.edge.PureText.UPSTREAM);
         SqlExpr folded = top(compat.plan());
         assertInstanceOf(SqlExpr.Case.class, folded);
         assertNotNull(SnapshotEnvelope.foldedAggregate(folded), "the singleton fold over the array aggregate");
 
         // the streaming root (one object per row) never folds
-        SqlExpr streamed = top(com.legend.planner.Lowered.lower(q.withBody(List.of(spliced)), "s::RT", true).plan());
+        SqlExpr streamed = top(com.legend.planner.Lowered.lower(q.withBody(List.of(spliced)), "s::RT", true,
+                com.legend.edge.PureText.UPSTREAM).plan());
         assertNull(SnapshotEnvelope.foldedAggregate(streamed));
         assertFalse(streamed instanceof SqlExpr.JsonArrayAgg);
     }

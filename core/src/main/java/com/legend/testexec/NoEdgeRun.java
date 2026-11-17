@@ -78,6 +78,12 @@ public final class NoEdgeRun implements EdgeRun {
         }
 
         @Override
+        public HostForms hostForms() {
+            // lite's own runs: two number kinds never equal (S127)
+            return HostForms.Product.STRICT;
+        }
+
+        @Override
         public void writing() {
             // no appeal is held: nothing a write could stale
         }

@@ -462,6 +462,13 @@ def broken(sources: dict[str, str]) -> list[str]:
         if name in (RUN | SEAM | PLANNER) - {'__init__'} and package:
             out.append(f'{name} imports the package itself, whose __init__ imports the compiler and reaches the doors: a'
                        ' run, seam or planner module imports its own modules by name (C5-P\'s final round, item 1)')
+        if 'edge' in modules:
+            # THE EDGE'S LAYER RULE (the edge program's H5 groundwork, 2026-11-17, the orchestrator's D-a): every module
+            # read here is the product's (the package's top level; the edge is its own subpackage, legend_lite/edge), so
+            # none imports the edge -- by any spelling, a function's own import too; the edge composes the product
+            # through its own door (legend_lite.edge.engine), never the reverse
+            out.append(f'{name} imports the edge (legend_lite.edge): the product never imports it -- the edge depends on'
+                       ' the product, one way, and composes it at its own door')
         if name in RUN and not modules <= RUN | SEAM | LOADER:
             out.append(f'{name} (run) imports {sorted(modules - RUN - SEAM - LOADER)}: the run side imports the run side'
                        ' and the seam alone (the loader by its service key alone)')
@@ -597,6 +604,12 @@ class RunClosureTest(unittest.TestCase):
             (planner, 'from ._planned import PlannedSql, send'): 'the planner sends nothing',
             ('_library', 'from ._planned import connect'): 'the planner sends nothing',
             ('_pool', 'from ._planned import Database'): 'the planner sends nothing',
+            # the edge's layer rule (H5's groundwork, 2026-11-17): no product module imports the edge, by any spelling
+            ('engine', 'from .edge import engine'): 'imports the edge',
+            ('datacube', 'from . import edge'): 'imports the edge',
+            ('page', 'def f():\n    import legend_lite.edge'): 'imports the edge',
+            ('__init__', 'from legend_lite.edge import EngineRoutes'): 'imports the edge',
+            ('_edge_seam', 'from legend_lite import edge'): 'imports the edge',
             # the native library by its two keys (A1)
             ('warehouse', 'from ._library import library'): 'the run side imports',
             ('_reads', 'from ._loader import loaded'): "the native library's loader: its two keys alone",
