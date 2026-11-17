@@ -16,6 +16,8 @@ EDGE_TEST_SRCS = [
     "src/test/java/com/legend/DecimalKindsTest.java",
     "src/test/java/com/legend/EdgeSeparationTest.java",
     "src/test/java/com/legend/HookRulingTest.java",
+    # the two hook registries agree (the GUARD stream, 2026-11-17): it reads HookRulingTest and EdgeSeparationTest
+    "src/test/java/com/legend/HookRulingsAgreeTest.java",
     "src/test/java/com/legend/PlanStyleFacetsTest.java",
     # the edge's extension records walked as data (census C2, 2026-11-17: the appeals moved to com.legend.edge)
     "src/test/java/com/legend/PlanTypesAreDataTest.java",
