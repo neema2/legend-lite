@@ -56,6 +56,20 @@ class HookLambdasTest {
                     + " java.util.List, com.legend.compiler.spec.SpecCompiler, com.legend.testplan.BodyDriver$ExecEnv,"
                     + " com.legend.testplan.AssertVerdicts$SpliceHook)", Set.of("com.legend.testexecutionplan.JsonGrammar",
                     "(twoForm reaches 1)")),
+            // D's train 4 (census C1, 2026-11-17): the rendered golden's null word and the rendered-text rule asked by
+            // the database judge's asserts; a date literal's text asked where a written literal is spelled
+            Map.entry("com.legend.testplan.AssertVerdicts#renderedRows(java.lang.String, boolean, java.util.List,"
+                    + " java.util.List, com.legend.compiler.spec.SpecCompiler, com.legend.testplan.BodyDriver$ExecEnv,"
+                    + " com.legend.testplan.AssertVerdicts$SpliceHook, boolean, boolean,"
+                    + " com.legend.compiler.spec.VerdictQueries$RenderedSide, java.lang.String)",
+                    Set.of("com.legend.compiler.spec.GoldenNullWord", "(twoForm reaches 1)")),
+            Map.entry("com.legend.testplan.AssertVerdicts#textFirst(java.lang.String, boolean, com.legend.sql.SqlQuery,"
+                    + " com.legend.testplan.BodyDriver$ExecEnv, java.util.function.Supplier)",
+                    Set.of("com.legend.testplan.RenderedTextRule", "(twoForm reaches 1)")),
+            Map.entry("com.legend.testplan.DatabaseJudge#written(com.legend.lowering.CanonRider, int, boolean,"
+                    + " com.legend.sql.SqlQuery, com.legend.compiler.spec.typed.TypedSpec,"
+                    + " com.legend.testplan.BodyDriver$ExecEnv)", Set.of("com.legend.testplan.DateLiteralTexts",
+                    "(twoForm reaches 1)")),
             Map.entry("com.legend.testplan.DatabaseJudge#numbers(com.legend.testplan.BodyDriver$ExecEnv)",
                     Set.of("com.legend.testplan.CrossKindNumbers", "(twoForm reaches 1)")),
             // the test planner: a relation counted by an assert (S137); a test-data timestamp's text (L9)
@@ -76,6 +90,11 @@ class HookLambdasTest {
             Map.entry("com.legend.lowering.ProductListTexts", Set.of("com.legend.lowering.ListTexts")),
             Map.entry("com.legend.testexecutionplan.JudgeJson", Set.of("com.legend.testexecutionplan.JsonGrammar")),
             Map.entry("com.legend.testplan.CrossKindNumbers$Product", Set.of("com.legend.testplan.CrossKindNumbers")),
+            // D's train 4 (census C1, 2026-11-17): a rendered golden's null word, none (c013b2565c); a date literal's
+            // message text, lite's (4bc94e2d8f); the rendered-text rule, strings (a9c14bb4ca) -- each nested in its kind
+            Map.entry("com.legend.compiler.spec.GoldenNullWord$Product", Set.of("com.legend.compiler.spec.GoldenNullWord")),
+            Map.entry("com.legend.testplan.DateLiteralTexts$Product", Set.of("com.legend.testplan.DateLiteralTexts")),
+            Map.entry("com.legend.testplan.RenderedTextRule$Product", Set.of("com.legend.testplan.RenderedTextRule")),
             // the product's style, PlanStyle.PRODUCT (PlanStyleSurfaceTest's OVERRIDERS)
             Map.entry("com.legend.database.PlanStyle$1", Set.of("com.legend.database.PlanStyle")),
             // the ruled hooks' product answers, each refusing by name (census C1, C2; HookRulingsAgreeTest's
