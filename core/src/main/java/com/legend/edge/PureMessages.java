@@ -333,6 +333,12 @@ public final class PureMessages {
             // sentence alone (error.MissingParameters; the orchestrator, 2026-11-17)
             return "Missing external parameter(s): " + String.join(",", m.missing());
         }
+        for (Throwable t = e; t != null; t = t.getCause()) {
+            if (t instanceof com.legend.testdatagen.TestDataPlanner.NoRowIdentifiers n) {
+                // legend-pure's assert, worded from the generator's facts (J7/K12 of the edge audit, 2026-11-17)
+                return noRowIdentifiers(n);
+            }
+        }
         // the kinded error itself, or the one a wrapper's message holds ("in function 'f': " + its message, and after
         // it the inliner's " [inlined via ...]": the P2 checkpoint audit's A-S1, 2026-11-16 -- spliced where it stands)
         for (Throwable t = e; t != null; t = t.getCause()) {
@@ -401,5 +407,27 @@ public final class PureMessages {
                     + " (docs/SEMANTICS_REGISTER.md S170)";
         };
         return c.position() == null ? upstream : c.position() + " " + upstream;
+    }
+
+    /** legend-pure's sentence of a test-data generation's starting table no identifier names (J7/K12 of the edge audit,
+     *  2026-11-17: moved from testdatagen.TestDataPlanner, whose refusal is the product's kind and facts): its
+     *  {@code getRowIdentifiersForTable} assert (TDG:482-518; a view's, TDG:510, :558) -- {@link #unidentified}, then
+     *  {@code Example:\n} and the table's first 5 keys written as {@code createTableRowIdentifiers(...)} code. Planning
+     *  reads no row, so the example's list is empty (the user's ruling R3, 2026-11-11; register S300). */
+    static String noRowIdentifiers(com.legend.testdatagen.TestDataPlanner.NoRowIdentifiers n) {
+        return unidentified(n) + "Example:\n"
+                + "  meta::relational::testDataGeneration::createTableRowIdentifiers(" + n.database() + ", '"
+                + n.schema() + "', '" + n.table() + "', [\n\n  ])\n";
+    }
+
+    /** Upstream's no-identifiers text up to its example, the function's and the server routes' error node's
+     *  (J7/K12 of the edge audit, 2026-11-17): {@code Row Identifers should be provided for the root table[ of the view
+     *  (V)]: <db>.<[schema.]table> [<key>:<type>,...]\n}. */
+    static String unidentified(com.legend.testdatagen.TestDataPlanner.NoRowIdentifiers n) {
+        String keys = n.keys().stream().map(c -> c.name() + ":" + com.legend.plan.PlanText.spell(c.dataType()))
+                .collect(java.util.stream.Collectors.joining(","));
+        return "Row Identifers should be provided for the root table" + (n.view() == null ? "" : " of the view ("
+                + n.view() + ")") + ": " + n.database() + "."
+                + com.legend.testdatagen.TestDataPlanner.physical(n.schema(), n.table()) + " [" + keys + "]\n";
     }
 }
