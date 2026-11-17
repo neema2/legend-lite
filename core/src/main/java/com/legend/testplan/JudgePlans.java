@@ -104,7 +104,7 @@ public final class JudgePlans {
      *  legacy executor attached them at its render ({@code BodyDriver.renderFor}), and a side's plan needs
      *  them the same way (the plan path program's step 6, 2026-10-18: `//spec:corpus_h2`'s database pass found
      *  660 row legs reading a frame that was not there). In host mode a frame is pasted, and the plan is its own. */
-    private static SqlQuery withFrames(SqlQuery plan, BodyDriver.ExecEnv env) {
+    static SqlQuery withFrames(SqlQuery plan, BodyDriver.ExecEnv env) {
         var batch = env.verdictBatch();
         return batch == null ? plan : com.legend.sql.FrameCtes.attach(plan, batch.frames());
     }

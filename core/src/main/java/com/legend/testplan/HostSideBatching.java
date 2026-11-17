@@ -121,13 +121,17 @@ final class HostSideBatching {
             BodyDriver.@Nullable WrappedSide w = side.wrapped();
             if (side.side() != base.get(k) || side.kind() != JudgePlans.Kind.VALUES || w == null
                     || !JudgePlans.shapeOf(side).scalar() || !(side.side() instanceof TestPlan.Side.Rows rows)
-                    || !w.storeFree() && !w.target().equals(env.target()) || side.schema() == null
-                    || side.schema().columns().size() != rows.result().columns().size()) {
+                    || !w.storeFree() && !w.target().equals(env.target())) {
                 continue;
             }
             List<ExecutionPlan.Column> columns = rows.result().columns();
-            List<com.legend.sql.OutputCol> outputs = w.plan().outputs();
-            if (outputs.size() != columns.size() || columns.stream().anyMatch(c -> c.slot() == null)) {
+            // the side as its own statement is planned: with the body's frames (a frame read inside a subquery is
+            // a CTE the batch would not carry, so a framed side is a WITH and keeps its own statement)
+            com.legend.sql.SqlQuery statement = JudgePlans.withFrames(w.plan(), env);
+            List<com.legend.compiler.element.type.Type.RelationType.Column> typed =
+                    com.legend.lowering.TypedRows.schema(w.shapeInfo()).columns();
+            List<com.legend.sql.OutputCol> outputs = statement.outputs();
+            if (typed.size() != columns.size() || outputs.size() != columns.size() || columns.stream().anyMatch(c -> c.slot() == null)) {
                 continue;
             }
             List<String> names = new ArrayList<>(columns.size());
@@ -137,7 +141,7 @@ final class HostSideBatching {
                 names.add(prefix + k + "_" + c);
             }
             List<HostSideBatch.HostColumn> hc = !byName ? null
-                    : HostSideBatch.singleValueColumns(w.plan(), prefix + k + "_", names);
+                    : HostSideBatch.singleValueColumns(statement, prefix + k + "_", names);
             if (hc == null) {
                 continue;
             }
@@ -148,7 +152,6 @@ final class HostSideBatching {
                         col.store(), col.precision()));
             }
             out.addAll(hc);
-            List<com.legend.compiler.element.type.Type.RelationType.Column> typed = side.schema().columns();
             for (int c = 0; c < typed.size(); c++) {
                 schema.add(new com.legend.compiler.element.type.Type.RelationType.Column(names.get(c),
                         typed.get(c).type(), typed.get(c).multiplicity()));
