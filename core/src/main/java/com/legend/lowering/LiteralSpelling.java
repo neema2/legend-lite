@@ -575,7 +575,8 @@ public final class LiteralSpelling {
 
     /** legend-pure's print form of a DateTime as a {@link SqlFn#DATETIME_PRINT} node, for the judges' canon above alone
      *  (census C5, E-Java's): a message's DateTime text is the style's two-form hook since census B9 (2026-11-17,
-     *  lowering.DateTimeTexts), the node's composition the edge's ({@code edge.DateTimePrintText}). */
+     *  lowering.DateTimeTexts); the node's composition stays the product renderer's for this canon alone
+     *  ({@code dialect.DateTimePrintText}, C5, E-P5's step C). */
     private static SqlExpr dateTimeText(SqlExpr x) {
         return SqlExpr.Call.of(SqlFn.DATETIME_PRINT, x);
     }

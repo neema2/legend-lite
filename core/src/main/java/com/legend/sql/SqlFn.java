@@ -153,8 +153,8 @@ public enum SqlFn {
      *  edge's form of a DateTime in a message (census B9, 2026-11-17: the two-form hook lowering.DateTimeTexts) and its
      *  text of {@link #DATETIME_TO_TEXT};
      *  never the product's (phase D's D1.2, 2026-11-15: until then the lowering composed it in place,
-     *  LiteralSpelling.dateTimeText). Expanded by the edge's spelling pass ({@code edge.DateTimePrintText}; census B9,
-     *  2026-11-17: the product's renderer refuses it, its message text of a DateTime is DATETIME_TO_TEXT). */
+     *  LiteralSpelling.dateTimeText). Expanded before every other pass ({@code dialect.DateTimePrintText}), for the
+     *  judges' canon alone since census B9 (2026-11-17: C5, E-P5's, LiteralSpelling.temporalCanon). */
     DATETIME_PRINT,
     /** An element's text in a {@code makeString} ({@code x}, one operand, {@code NULL} where the element is empty): the
      *  product's join skips an empty element (the user's ruling of 2026-11-10, D_BRIEF §1: "makeString skips empty

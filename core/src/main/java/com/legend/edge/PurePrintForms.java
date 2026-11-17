@@ -34,14 +34,13 @@ final class PurePrintForms extends com.legend.sql.SqlRewriter {
     /** The edge's first pass, as a list a dialect returns, a Float literal under {@code toString} written by
      *  {@code floatLiteral}. */
     static java.util.List<com.legend.sql.SqlRewriter> passes(FloatLiteral floatLiteral) {
-        return java.util.List.of(new PurePrintForms(floatLiteral), new TdsNullCells(), new UnguardedParses(),
-                new DateTimePrintText.Expansion());
+        return java.util.List.of(new PurePrintForms(floatLiteral), new TdsNullCells(), new UnguardedParses());
     }
 
     /** {@link #passes(FloatLiteral)} for legend-engine's TEXT printers ({@code EngineStyleH2} and its family), which
      *  spell a parse as the engine prints it themselves ({@code cast(x as integer)}): no {@link UnguardedParses}. */
     static java.util.List<com.legend.sql.SqlRewriter> enginePasses(FloatLiteral floatLiteral) {
-        return java.util.List.of(new PurePrintForms(floatLiteral), new TdsNullCells(), new DateTimePrintText.Expansion());
+        return java.util.List.of(new PurePrintForms(floatLiteral), new TdsNullCells());
     }
 
     /**

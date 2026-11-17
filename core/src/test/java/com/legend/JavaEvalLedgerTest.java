@@ -1820,10 +1820,8 @@ class JavaEvalLedgerTest {
                             // lowering.JsonEmission (Phase 6's B5, 2026-11-17): composes the envelope's SQL from the
                             // product's parts, decides nothing
                             "EngineResultEnvelopes.java",
-                            // legend-pure's DateTime print form, moved from the product's renderer (census B9,
-                            // 2026-11-17): a spelling pass composing the node from STRFTIME nodes, and the two-form hook's
-                            // edge form naming the node -- each decides nothing
-                            "DateTimePrintText.java",
+                            // the two-form hook DateTimeTexts' edge form (census B9, 2026-11-17): names legend-pure's
+                            // DateTime node, decides nothing
                             "EdgeDateTimeTexts.java",
                             // legend-engine's H2 text translated for DuckDB and Postgres, moved from sql.dialect with
                             // its two dialect arms (Phase 6's B4 (ii), 2026-11-17, the orchestrator's ruling (a)): the

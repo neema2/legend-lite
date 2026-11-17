@@ -262,9 +262,10 @@ class CompatSpellingGuardTest {
             // engine's list once more to derive H2's own keywords; the same D1.5 move takes it)
             // 2026-11-15 (D1.2): legend-pure's DateTime text, moved here from lowering/LiteralSpelling (dateTimeText) as the
             // node DATETIME_PRINT the judges' %r and canon read, and the edge writes for DATETIME_TO_TEXT; D1.9 moves it
-            // sql/dialect/DateTimePrintText.java | +0000: GONE 2026-11-17 (census B9): the composition is the edge's
-            // (edge.DateTimePrintText, a spelling pass); a message's DateTime text is the two-form hook
-            // lowering.DateTimeTexts, lite's DATETIME_TO_TEXT in the product
+            // B9 -> C5 (E-P5) 2026-11-17 (census B9, the orchestrator's ruling (a)): a message's DateTime text is the
+            // two-form hook lowering.DateTimeTexts (lite's DATETIME_TO_TEXT in the product); the composition stays for
+            // the judges' canon alone, its one emitter LiteralSpelling.temporalCanon, closed by C5's step C
+            "sql/dialect/DateTimePrintText.java | +0000 | 2 | JUDGE",
             "sql/dialect/FloatPrintText.java | FLOAT_PRINT | 1 | JUDGE",
             // RULED by the user, 2026-11-16, the edge program §10 item 9 ("I agree with all"): it stays in the product
             // (the P2 checkpoint audit's A-M1; W6's change, 4fc24e0a3, reverted the same day). The product's H2 quotes legend-engine's word list as written, upper-casing the words its session
