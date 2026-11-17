@@ -1,7 +1,7 @@
 // Copyright 2026 Legend Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-package com.legend.plan;
+package com.legend.edge;
 
 import com.legend.compiler.spec.typed.TypedCInteger;
 import com.legend.compiler.spec.typed.TypedCString;
@@ -69,8 +69,8 @@ public final class PurePrint {
             }
             var p = ft.params().get(i);
             sb.append(l.parameters().get(i)).append(':')
-                    .append(PureSpelling.typeName(p.type()))
-                    .append('[').append(PureSpelling.sizeRange(p.multiplicity()))
+                    .append(com.legend.plan.PureSpelling.typeName(p.type()))
+                    .append('[').append(com.legend.plan.PureSpelling.sizeRange(p.multiplicity()))
                     .append(']');
         }
         return sb.append(" | ").append(source(l.body().get(0)))

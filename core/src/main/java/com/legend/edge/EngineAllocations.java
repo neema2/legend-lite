@@ -38,7 +38,6 @@ import com.legend.plan.PlanNode;
 import com.legend.plan.PlanRows;
 import com.legend.plan.PlanSupportFunctions;
 import com.legend.plan.PlanText;
-import com.legend.plan.PurePrint;
 import com.legend.protocol.spec.AppliedFunction;
 import com.legend.protocol.spec.AppliedProperty;
 import com.legend.protocol.spec.CString;

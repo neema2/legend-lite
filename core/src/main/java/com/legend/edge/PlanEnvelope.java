@@ -9,7 +9,7 @@ import com.legend.compiler.spec.typed.TypedSpec;
 
 /** The plan-text ENVELOPE assembly (extracted from BodyDriver at
  * the file guardrail): applies the temp-table IN protocol
- * (plan/InProtocol) and picks the envelope — the engine's rule:
+ * (edge/InProtocol) and picks the envelope — the engine's rule:
  * let-allocations stay in the outer Sequence and the
  * RelationalBlockExecutionNode wraps only [in-allocs, Relational];
  * with no lets the block IS the envelope. The planner's since the seam
@@ -26,11 +26,11 @@ public final class PlanEnvelope {
             com.legend.model.ConnectionDefinition.DatabaseType dbType,
             com.legend.sql.dialect.EngineTextDialect pd, boolean hasParams) {
         EngineText.InListTempTables inList = EngineText.inListTempTables(dbType);
-        var inp = com.legend.plan.InProtocol.apply(es.plan(),
-                com.legend.plan.InProtocol.thresholdFor(connName, inList.threshold()),
+        var inp = InProtocol.apply(es.plan(),
+                InProtocol.thresholdFor(connName, inList.threshold()),
                 inList.tablePrefix());
         java.util.List<String> inTexts = inp == null ? java.util.List.of()
-                : com.legend.plan.InProtocol.allNodeTexts(inp, connName,
+                : InProtocol.allNodeTexts(inp, connName,
                         inList.threshold(), pd::collectionSplice, pd::inTempTableSelect);
         var planOut = inp != null ? inp.plan() : es.plan();
         boolean pushDownEnums = BodyPlanner.pushDownEnums(env, java.util.List.of(term));

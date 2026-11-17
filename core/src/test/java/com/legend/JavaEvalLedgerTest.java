@@ -1799,6 +1799,10 @@ class JavaEvalLedgerTest {
                             // moved from com.legend.plan (Phase 6's C, 2026-11-17, the orchestrator's approved method
                             // list): spells a compiled type, decides nothing
                             "UpstreamRelationType.java",
+                            // legend-engine's in-collection temp-table protocol text and legend-pure's source printer
+                            // for a plan's PureExp lines, moved from com.legend.plan (Phase 6's C, 2026-11-17): spell
+                            // the plan's text, decide nothing
+                            "InProtocol.java", "PurePrint.java",
                             // the referee's load of a fixture's rows, planned (the edge's appeals, G6)
                             "RefereeLoad.java",
                             // legend-engine's service tests (D1.4, 2026-11-15, moved from com.legend.test and
