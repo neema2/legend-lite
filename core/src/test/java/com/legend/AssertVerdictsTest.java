@@ -82,8 +82,8 @@ class AssertVerdictsTest {
         com.legend.error.AssertFailed e = assertThrows(
                 com.legend.error.AssertFailed.class, () -> run(
                 "{|assertEquals('a', ['a','b']->last())}"));
-        assertTrue(e.getMessage().contains("expected: 'a'"),
-                e.getMessage());
+        // lite's own sentence (the user's judge model, 2026-11-17)
+        assertEquals("expected \"a\", got \"b\"", e.getMessage());
     }
 
     @Test
@@ -94,7 +94,7 @@ class AssertVerdictsTest {
         com.legend.error.AssertFailed e = assertThrows(
                 com.legend.error.AssertFailed.class, () -> run(
                 "{|assert((1 + 1) == 3)}"));
-        assertEquals("Assert failed", e.getMessage());
+        assertEquals("expected true, got false", e.getMessage());
     }
 
     @Test
@@ -107,9 +107,7 @@ class AssertVerdictsTest {
         com.legend.error.AssertFailed e = assertThrows(
                 com.legend.error.AssertFailed.class, () -> run(
                 "{|assertInstanceOf('x', Integer)}"));
-        assertTrue(e.getMessage().contains(
-                "to be an instance of Integer, actual: String"),
-                e.getMessage());
+        assertEquals("expected an instance of Integer, got \"x\"", e.getMessage());
     }
 
     @Test
@@ -123,8 +121,7 @@ class AssertVerdictsTest {
                 com.legend.error.AssertFailed.class, () -> run(
                 "{|assertTdsEquivalent(#TDS\n  id\n  1\n#, #TDS\n"
                 + "  id\n  2\n#, 0.01)}"));
-        assertTrue(e.getMessage().contains("assertTdsEquivalent"),
-                e.getMessage());
+        assertEquals("expected the rows [[1]] within 0.01, got [[2]]", e.getMessage());
     }
 
     /** Under the agreement gate (both judges; the plan path program's step 6, 2026-10-18). */

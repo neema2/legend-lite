@@ -156,8 +156,8 @@ final class AgreementPerRootTest {
         Told told = new Told();
         AssertFailed failed = assertThrows(AssertFailed.class,
                 () -> run(plan(new Root(true, true), new Root(false, false)), told));
-        assertEquals("Assert failed", failed.getMessage(), "a failure both judges agree on: the host's words");
-        assertEquals(List.of("assert@2 pass", "assert@3 fail: Assert failed"), told.verdicts);
+        assertEquals("expected true, got false", failed.getMessage(), "a failure both judges agree on: the host's words");
+        assertEquals(List.of("assert@2 pass", "assert@3 fail: expected true, got false"), told.verdicts);
     }
 
     @Test
@@ -178,7 +178,7 @@ final class AgreementPerRootTest {
         Told told = new Told();
         AssertFailed failed = assertThrows(AssertFailed.class,
                 () -> run(plan(new Root(true, false), new Root(true, true)), told));
-        assertTrue(failed.getMessage().startsWith("assert: THE JUDGES DISAGREE — the host judge fails (Assert failed),"
+        assertTrue(failed.getMessage().startsWith("assert: THE JUDGES DISAGREE — the host judge fails (expected true, got false),"
                 + " the database judge holds"), failed.getMessage());
         assertEquals(List.of("assert@2 fail: " + failed.getMessage()), told.verdicts);
     }

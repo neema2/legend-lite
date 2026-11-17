@@ -62,16 +62,15 @@ class AssertErrorNativeTest {
     }
 
     @Test
-    @DisplayName("message mismatch fails with assertError.pure:24's exact spelling")
+    @DisplayName("message mismatch fails with lite's sentence, both errors quoted")
     void messageMismatch() {
         com.legend.error.AssertFailed e = assertThrows(
                 com.legend.error.AssertFailed.class, () -> run(
                 "{|assertError(|[1,2]->at(3), 'wrong expectation')}"));
-        assertEquals("Execution error message mismatch.\n"
-                + "The actual message was \"The system is trying to get an"
-                + " element at offset 3 where the collection is of size 2\"\n"
-                + "where the expected message was:\"wrong expectation\"",
-                e.getMessage());
+        // lite's own sentence (the user's judge model, 2026-11-17): legend-pure's assertError.pure:24 spelling is the
+        // compatibility rules'
+        assertEquals("expected the error \"wrong expectation\", got \"The system is trying to get an"
+                + " element at offset 3 where the collection is of size 2\"", e.getMessage());
     }
 
     @Test
@@ -80,7 +79,7 @@ class AssertErrorNativeTest {
         com.legend.error.AssertFailed e = assertThrows(
                 com.legend.error.AssertFailed.class, () -> run(
                 "{|assertError(|1 + 2, 'anything')}"));
-        assertEquals("No error was thrown", e.getMessage());
+        assertEquals("expected the error \"anything\", got none", e.getMessage());
     }
 
     // leg 2 (assertError positions): the raise emission threads the
@@ -148,7 +147,7 @@ class AssertErrorNativeTest {
         com.legend.error.AssertFailed e = assertThrows(
                 com.legend.error.AssertFailed.class, () -> run(
                 "{|assertError(|date(2016, 2, 29), 'anything')}"));
-        assertEquals("No error was thrown", e.getMessage());
+        assertEquals("expected the error \"anything\", got none", e.getMessage());
     }
 
     // ---- B7 (RaisedErrors): the ONE envelope owner's spec — sentinel

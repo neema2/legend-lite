@@ -107,7 +107,7 @@ class AgreementFusedPlanTest {
         Told told = new Told();
         AssertFailed failed = assertThrows(AssertFailed.class, () -> run(plan, told));
         assertFalse(failed.getMessage().contains("DISAGREE"), failed.getMessage());
-        assertTrue(failed.getMessage().contains("expected: 3"), failed.getMessage());
+        assertEquals("expected 3, got 2", failed.getMessage());
         assertEquals(List.of("assertEquals pass", "assertEquals fail: " + failed.getMessage()), told.verdicts);
     }
 

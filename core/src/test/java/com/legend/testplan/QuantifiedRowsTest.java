@@ -52,8 +52,8 @@ class QuantifiedRowsTest {
                 + "->forAll(p | assertEqWithinTolerance($p.first->cast(@Float), $p.second->cast(@Float), 0.001))}"));
         AssertFailed e = assertThrows(AssertFailed.class, () -> run("{|[1.5, 2.5]->zip([1.5, 2.6])"
                 + "->forAll(p | assertEqWithinTolerance($p.first, $p.second, 0.001))}"));
-        assertTrue(e.getMessage().contains("expected: 2.5") && e.getMessage().contains("actual:   2.6"),
-                e.getMessage());
+        // lite's own sentence, the failing row by its zero-based index (the user's judge model, 2026-11-17)
+        assertEquals("expected 2.5 within 0.001, got 2.6 at index 1", e.getMessage());
     }
 
     @Test
@@ -62,8 +62,7 @@ class QuantifiedRowsTest {
         assertEquals(Boolean.TRUE, run("{|[1, 2, 3]->zip([1, 2, 3])->forAll(p | assertEquals($p.first, $p.second))}"));
         AssertFailed e = assertThrows(AssertFailed.class,
                 () -> run("{|['a', 'b']->zip(['a', 'c'])->forAll(p | assertEquals($p.first, $p.second))}"));
-        assertTrue(e.getMessage().contains("expected: 'b'") && e.getMessage().contains("actual:   'c'"),
-                e.getMessage());
+        assertEquals("expected \"b\", got \"c\" at index 1", e.getMessage());
     }
 
     @Test
@@ -88,6 +87,6 @@ class QuantifiedRowsTest {
         assertEquals(Boolean.TRUE, run("{|[1, 2]->zip([1, 2])->forAll(p | assertEquals($p.first + 1, $p.second + 1))}"));
         AssertFailed e = assertThrows(AssertFailed.class,
                 () -> run("{|[1, 2]->zip([1, 3])->forAll(p | assertEquals($p.first + 1, $p.second + 1))}"));
-        assertEquals("\nexpected: 3\nactual:   4", e.getMessage());
+        assertEquals("expected 3, got 4 at index 1", e.getMessage());
     }
 }

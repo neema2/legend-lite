@@ -24,6 +24,18 @@ final class HostJudgments {
         return rules == com.legend.testexecutionplan.TestPlan.JudgingRules.LITE;
     }
 
+    /** The platform's primitive types, named by their short names. */
+    private static final java.util.Set<String> PRIMITIVES = java.util.Set.of("Boolean", "Integer", "Float", "Decimal",
+            "Number", "String", "Date", "StrictDate", "DateTime", "StrictTime", "LatestDate");
+
+    /** A type as lite's sentence names it, as the database judge does (upstream's elementToPath): a primitive by its
+     *  short name, any other type by its full path. */
+    static String typeName(String type) {
+        String prefix = "meta::pure::metamodel::type::";
+        return type.startsWith(prefix) && PRIMITIVES.contains(type.substring(prefix.length()))
+                ? type.substring(prefix.length()) : type;
+    }
+
     /** {@code row} filled from slot/value-text pairs, in order. */
     static String sentence(com.legend.error.AssertSentence row, String... slotsAndTexts) {
         java.util.Map<String, String> slots = new java.util.LinkedHashMap<>();
@@ -623,7 +635,7 @@ final class HostJudgments {
                         instanceof String wireType) {
             boolean ok = j.acceptedTypes().contains(wireType);
             if (!ok && lite(rules)) {
-                return com.legend.testexecutionplan.Verdicts.fail(sentence(com.legend.error.AssertSentence.INSTANCE_OF, "type", type, "actual",
+                return com.legend.testexecutionplan.Verdicts.fail(sentence(com.legend.error.AssertSentence.INSTANCE_OF, "type", typeName(type), "actual",
                         LiteWords.value(v, wireType)));
             }
             return ok ? com.legend.testexecutionplan.Verdicts.ok() : com.legend.testexecutionplan.Verdicts.fail("expected " + com.legend.testexecutionplan.Verdicts.repr(v,
@@ -631,7 +643,7 @@ final class HostJudgments {
         }
         String d = com.legend.testexec.PureAsserts.assertInstanceOf(v, type);
         if (d != null && lite(rules)) {
-            d = sentence(com.legend.error.AssertSentence.INSTANCE_OF, "type", type, "actual", LiteWords.value(v));
+            d = sentence(com.legend.error.AssertSentence.INSTANCE_OF, "type", typeName(type), "actual", LiteWords.value(v));
         }
         return d == null ? com.legend.testexecutionplan.Verdicts.ok() : com.legend.testexecutionplan.Verdicts.fail(d);
     }

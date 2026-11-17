@@ -290,10 +290,27 @@ public final class DatabaseJudge {
         if (m == null || !lite) {
             return m;
         }
-        // a date literal's text is legend-pure's print: lite writes the value's own text, in SQL
-        com.legend.lowering.VerdictSql.Message plain = m.literal() != null
-                ? com.legend.lowering.VerdictSql.Message.of(m.kind(), sorted) : m;
-        return plain == null ? null : plain.withLite(true);
+        if (m.literal() != null && side instanceof com.legend.compiler.spec.typed.TypedCDate d) {
+            // a date LITERAL: lite's text of its value, spelled at planning (the host's LiteWords.dateText rule: its
+            // day, or ISO 8601 in UTC with six fraction digits and Z) -- its written text may name a precision no
+            // database timestamp reads (an hour alone)
+            return new com.legend.lowering.VerdictSql.Message(m.kind(), sorted, false, liteDate(d.value()), true);
+        }
+        return m.withLite(true);
+    }
+
+    /** A date's lite text (the host's {@code LiteWords.dateText}): its day where it has no time of day (its own text
+     *  where coarser than a day), else ISO 8601 in UTC with six fraction digits and Z. */
+    static String liteDate(com.legend.values.PureDateLiteral d) {
+        java.time.LocalDateTime t = d.toInstantFloor();
+        if (!d.precision().atLeast(com.legend.values.PureDateLiteral.Precision.HOUR)) {
+            return d.precision().atLeast(com.legend.values.PureDateLiteral.Precision.DAY)
+                    ? String.format(java.util.Locale.ROOT, "%d-%02d-%02d", t.getYear(), t.getMonthValue(),
+                            t.getDayOfMonth())
+                    : d.toEngineString();
+        }
+        return String.format(java.util.Locale.ROOT, "%04d-%02d-%02dT%02d:%02d:%02d.%06dZ", t.getYear(),
+                t.getMonthValue(), t.getDayOfMonth(), t.getHour(), t.getMinute(), t.getSecond(), t.getNano() / 1000);
     }
 
     /** {@code m} written by lite's own rules where the run's are lite's. */

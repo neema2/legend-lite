@@ -235,7 +235,8 @@ class AssertVerdictSpliceTest {
                 + " e::Person.all()->project([p|$p.age], ['age'])"
                 + "->sort('age')->from(e::M, e::RT));}"));
         // upstream's words under either judge (2026-11-03, the core parity program)
-        assertTrue(String.valueOf(e.getMessage()).contains("expected: [30, 41]"),
+        // lite's own sentence over two grids' rows (the user's judge model, 2026-11-17)
+        assertTrue(String.valueOf(e.getMessage()).contains("expected the rows [[30], [41]]"),
                 e.getMessage());
     }
 
@@ -295,7 +296,7 @@ class AssertVerdictSpliceTest {
                 + " $result.values.rows.values);}"));
         // upstream's words under either judge (2026-11-03, the core parity program: the host's "(TDSRow.values)"
         // prefix was lite's)
-        assertTrue(String.valueOf(e.getMessage()).contains("expected: ['p1', 40, 'p2', 30]"),
+        assertTrue(String.valueOf(e.getMessage()).contains("expected [\"p1\", 40, \"p2\", 30]"),
                 e.getMessage());
     }
 

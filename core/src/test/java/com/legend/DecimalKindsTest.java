@@ -154,7 +154,8 @@ class DecimalKindsTest {
             assertEquals("\nexpected: 0.3D\nactual:   0.30D", scale.getMessage());
             AssertFailed kind = assertThrows(AssertFailed.class,
                     () -> judged(c, "|assertEquals(0.3, " + ROW_ONE + ".a + " + ROW_ONE + ".b)"));
-            assertEquals("\nexpected: 0.3\nactual:   0.30D", kind.getMessage());
+            // lite's own sentence, each value its product text (the user's judge model, 2026-11-17)
+            assertEquals("expected 0.3, got 0.30", kind.getMessage());
             assertThrows(AssertFailed.class, () -> judged(c, "|assertEquals(0.4D, " + ROW_ONE + ".a + " + ROW_ONE + ".b)"));
         }
     }
@@ -165,7 +166,8 @@ class DecimalKindsTest {
         String body = "|assertEquals(0.3, " + ROW_ONE + ".fa + " + ROW_ONE + ".fb)";
         try (Connection c = seeded()) {
             AssertFailed exact = assertThrows(AssertFailed.class, () -> judged(c, body));
-            assertEquals("\nexpected: 0.3\nactual:   0.30000000000000004", exact.getMessage());
+            // S311's six decimals print both as 0.3: the verdict is exact, the words cannot show the difference
+            assertEquals("expected 0.3, got 0.3", exact.getMessage());
             assertTrue(Program.run(model(), body, "m::RT", c, com.legend.ExecuteOptions.NONE
                     .withJudgeMode(Program.laneJudge()).withEngineCompat(true)).passed());
         }

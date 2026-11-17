@@ -1823,14 +1823,15 @@ class BodyRouterParityTest {
     }
 
     /** The text {@code expr} evaluates to after {@code lets} on the program road, read off the failure of an assert
-     *  that cannot hold ({@code assertEquals}'s {@code actual:} line, its representation unescaped): a golden the walk
+     *  that cannot hold (lite's sentence's actual, after its last {@code , got }, JSON-unquoted): a golden the walk
      *  read off a body answering {@code expr} alone until it was deleted (2026-11-06), where neither the router nor the
      *  product's door answers that value as a body's answer. */
     private static String actualOf(TestBackend backend, ModelContext ctx, String runtime, String lets, String expr,
             List<String> setup) throws Exception {
         Run run = run(backend, ctx, runtime, "{| " + lets + " assertEquals('no such text', " + expr + ");}",
                 "select count(*) from FIRM", setup, com.legend.testplan.PlanningOptions.JudgeMode.HOST);
-        String marker = "\nactual:   ";
+        // lite's own sentence (the user's judge model, 2026-11-17): the actual after its last ", got ", JSON-quoted
+        String marker = ", got ";
         int from = run.outcome.lastIndexOf(marker);
         assertTrue(run.outcome.startsWith("AssertFailed") && from >= 0, "an assert's failure naming its actual: "
                 + run.outcome);
@@ -1838,7 +1839,7 @@ class BodyRouterParityTest {
         if (shown.startsWith("[") && shown.endsWith("]")) {
             shown = shown.substring(1, shown.length() - 1);   // a collection of the one text
         }
-        assertTrue(shown.length() >= 2 && shown.startsWith("'") && shown.endsWith("'"), "one text: " + shown);
+        assertTrue(shown.length() >= 2 && shown.startsWith("\"") && shown.endsWith("\""), "one text: " + shown);
         StringBuilder text = new StringBuilder();
         for (int i = 1; i < shown.length() - 1; i++) {
             char ch = shown.charAt(i);
