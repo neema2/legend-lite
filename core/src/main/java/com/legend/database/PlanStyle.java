@@ -47,6 +47,14 @@ public interface PlanStyle {
     record TraceCell(String before, String after) {
     }
 
+    /** A TWO-FORM HOOK's form (the orchestrator's ruling of 2026-11-17, census B9; F's design): a value with a
+     *  PRODUCT form, lite's one canonical form ({@code productForm}, the caller's, passed explicitly every time: no
+     *  default), and an upstream form only the compatibility edge holds. The product's style answers
+     *  {@code productForm}; the edge's answers its own implementation of {@code kind}. The kinds are a CLOSED list,
+     *  declared beside the test planner ({@code testplan.PlanStyleFacets.TWO_FORMS}: this layer cannot name them); a
+     *  kind outside it is refused by name by the edge, and {@code HookRulingTest} pins the list as an exact set. */
+    <F> F twoForm(Class<F> kind, F productForm);
+
     /** A graph fetch's key argument that is a date, from its written text (no zone): the product's text of the type
      *  (a DateTime ISO 8601 in UTC with six fraction digits and {@code Z}, a date as written), the edge legend-engine's
      *  ({@code +0000} after a time) (phase D's D1.2, 2026-11-15; register S312). */
@@ -140,6 +148,12 @@ public interface PlanStyle {
         @Override
         public java.util.Set<com.legend.sql.RaiseKind> plainRaises() {
             return java.util.Set.of();
+        }
+
+        /** The product's form, the caller's own: lite's canonical form, no upstream knowledge. */
+        @Override
+        public <F> F twoForm(Class<F> kind, F productForm) {
+            return kind.cast(java.util.Objects.requireNonNull(productForm, "a two-form hook's product form"));
         }
 
         @Override

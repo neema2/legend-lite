@@ -83,6 +83,15 @@ public final class PureText {
             return facet(kind);
         }
 
+        /** The edge's form of each declared two-form kind (none declared yet: the kinds arrive with their families,
+         *  census B9's DateTime and F's TEXT_FORMS); a kind outside the closed list is refused by name. */
+        @Override
+        public <F> F twoForm(Class<F> kind, F productForm) {
+            java.util.Objects.requireNonNull(productForm, "a two-form hook's product form");
+            throw new com.legend.error.NotImplementedException("the two-form kind " + kind.getName()
+                    + " is none of the declared kinds (com.legend.testplan.PlanStyleFacets.TWO_FORMS)");
+        }
+
 
 
         /** legend-engine's key argument: the date's written text, {@code +0000} after a time (D1.2). */
@@ -176,6 +185,12 @@ public final class PureText {
         @Override
         public <F> F facet(Class<F> kind, java.util.function.Supplier<? extends RuntimeException> refusal) {
             return UPSTREAM.facet(kind, refusal);
+        }
+
+        /** UPSTREAM's form of each two-form hook: pure/v1 differs from it in its plain raises alone. */
+        @Override
+        public <F> F twoForm(Class<F> kind, F productForm) {
+            return UPSTREAM.twoForm(kind, productForm);
         }
 
         @Override
