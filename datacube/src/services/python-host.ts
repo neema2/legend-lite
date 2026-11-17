@@ -184,6 +184,8 @@ async function asked(link: PythonLink, path: string): Promise<string> {
   return answer.text();
 }
 
+const LITE_ROUTE = 'asked on its lite route (H2)';
+
 /** The tab's worker's requests a Python host is not asked, each with why: the tab's own, or no page's. */
 const NOT_ASKED: Readonly<Record<Exclude<RequestKind, 'hold' | 'release' | 'pureV1' | 'planJson'>, string>> = {
   plan: "a page plans a query's protocol tree (planJson), not its text",
@@ -207,14 +209,14 @@ const NOT_ASKED: Readonly<Record<Exclude<RequestKind, 'hold' | 'release' | 'pure
   warm: "warming the planner is the tab's",
   // lite's own grammar, typing, compile and routes (the edge audit's H2 and H3, 2026-11-17): asked of a Python host on
   // its lite routes once they exist (H2's page half, landing with them); until then this page asks pure/v1's
-  modelElements: "a model's elements are asked of a Python host on its lite route, once it has one (H2)",
-  parseLambda: "a lambda's text is parsed by a Python host on its lite route, once it has one (H2)",
-  printLambda: "a lambda is printed by a Python host on its lite route, once it has one (H2)",
-  lambdaRelationType: "a lambda is typed by a Python host on its lite route, once it has one (H2)",
-  compileErrors: "a model's compile is Studio's and Query's, in their tab",
-  modelAction: "a model's action is asked of a Python host on its lite route with H2's page half",
-  tsItem: "a #TS item is read by a Python host on its lite route with H2's page half",
-  jsonToTs: "a #TS statement is shown by a Python host on its lite route with H2's page half",
+  modelElements: LITE_ROUTE,
+  parseLambda: LITE_ROUTE,
+  printLambda: LITE_ROUTE,
+  lambdaRelationType: LITE_ROUTE,
+  compileErrors: LITE_ROUTE,
+  modelAction: LITE_ROUTE,
+  tsItem: LITE_ROUTE,
+  jsonToTs: LITE_ROUTE,
 };
 
 /**
