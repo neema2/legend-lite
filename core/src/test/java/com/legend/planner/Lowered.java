@@ -55,6 +55,8 @@ public final class Lowered {
         QueryDoor.refuseRawSql(query);
         // a Float literal as the caller's target database computes it (register S20, Phase 5b)
         return ProductStatements.configured(query, false, false, slots, Set.of(), new ObjectSites())
-                .withDbTimeZone(zone).withFloatLiteralKind(() -> floatLiteralKind).lower(query.body());
+                .withDbTimeZone(zone).withFloatLiteralKind(() -> floatLiteralKind)
+                // the product's style, chosen explicitly (the audit's K6, 2026-11-17: a Lowerer has no implicit one)
+                .withStyled(com.legend.lowering.Styled.PRODUCT).lower(query.body());
     }
 }
