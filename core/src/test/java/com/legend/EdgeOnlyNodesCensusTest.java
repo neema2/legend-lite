@@ -145,9 +145,9 @@ class EdgeOnlyNodesCensusTest {
         return SqlSelect.starOf(new SqlSource.Dual()).withProjections(List.of(new SqlSelect.Projection(e, "v", null)));
     }
 
-    private static final List<DatabaseType> PRODUCT = List.of(DatabaseType.DuckDB, DatabaseType.H2,
-            DatabaseType.Postgres, DatabaseType.SQLite, DatabaseType.MariaDB, DatabaseType.MySQL, DatabaseType.Trino,
-            DatabaseType.Databricks, DatabaseType.Snowflake, DatabaseType.BigQuery, DatabaseType.ClickHouse);
+    /** Every relational database the product executes on, as its registry lists them (MongoDB's pipeline writes no
+     *  SQL text). */
+    private static final List<DatabaseType> PRODUCT = com.legend.database.Databases.relational();
 
     @Test
     void theProductRefusesLegendPuresTextsByName() {
