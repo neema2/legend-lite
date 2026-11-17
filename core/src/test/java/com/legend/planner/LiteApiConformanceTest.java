@@ -39,6 +39,9 @@ class LiteApiConformanceTest {
         for (Json.Node n : fixture.getArr("cases").items()) {
             Json.Obj c = (Json.Obj) n;
             String name = c.getString("name");
+            if (!servedHere(c)) {
+                continue;
+            }
             String folded = folded(c.getString("op"), Json.toCompact(c.get("request")));
             asked++;
             if (c.has("refusal")) {
@@ -54,7 +57,11 @@ class LiteApiConformanceTest {
                 continue;
             }
             Json.Node answer = Json.parse(folded.substring("OK\n".length()), DEEP);
-            if (c.has("answer")) {
+            if (c.has("answerShape")) {
+                if (!shaped(c.getObj("answerShape"), answer)) {
+                    failures.add(name + ": answered " + Json.toCompact(answer));
+                }
+            } else if (c.has("answer")) {
                 if (!c.get("answer").equals(answer)) {
                     failures.add(name + ": answered " + Json.toCompact(answer));
                 }
@@ -64,6 +71,48 @@ class LiteApiConformanceTest {
         }
         assertTrue(asked > 0, "the suite holds cases");
         assertEquals(List.of(), failures);
+    }
+
+    /** Whether the case is the browser binding's: it names no bindings, or names {@code browser}; a binding that is
+     *  none of the three is refused by name. */
+    private static boolean servedHere(Json.Obj c) {
+        if (!c.has("bindings")) {
+            return true;
+        }
+        boolean here = false;
+        for (Json.Node b : c.getArr("bindings").items()) {
+            String binding = ((Json.Str) b).value();
+            if (!java.util.Set.of("browser", "server", "python").contains(binding)) {
+                // a binding no reader is: a typo would skip the case silently everywhere
+                throw new AssertionError("a case names a binding that is none of browser, server, python: " + binding);
+            }
+            here |= binding.equals("browser");
+        }
+        // a case naming the browser is asked of it, and an operation it has not fails by name (asked's default)
+        return here;
+    }
+
+    /** Whether {@code answer} holds each key {@code shape} names, of the JSON type it names. */
+    private static boolean shaped(Json.Obj shape, Json.Node answer) {
+        if (!(answer instanceof Json.Obj a)) {
+            return false;
+        }
+        for (var e : shape.fields().entrySet()) {
+            Json.Node v = a.fields().get(e.getKey());
+            String type = ((Json.Str) e.getValue()).value();
+            boolean ok = switch (type) {
+                case "string" -> v instanceof Json.Str;
+                case "object" -> v instanceof Json.Obj;
+                case "array" -> v instanceof Json.Arr;
+                case "number" -> v instanceof Json.Num;
+                case "boolean" -> v instanceof Json.Bool;
+                default -> throw new AssertionError("a shape's type this reader does not know: " + type);
+            };
+            if (!ok) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /** {@code op} asked as the tab's export folds it: {@code "OK\n"} and the answer, or {@code "ERR\n"} and the

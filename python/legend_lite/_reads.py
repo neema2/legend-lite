@@ -18,6 +18,7 @@ import duckdb
 import pyarrow as pa
 import pyarrow.ipc
 
+from ._params import bind
 from ._planned import Database, PlannedSql, Result, send
 from ._plans import Plan, host_rows
 from ._runframe import current_run, in_run, runs
@@ -264,17 +265,20 @@ class Reading:
             raise failure from None
 
     @runs('a read')
-    def run(self, plan: Plan) -> pa.Table:
-        """A plan's SQL run as this read sees the database, its rows typed by the plan (``typed_by_plan``)."""
-        return typed_by_plan(self.fetched(self.execute(plan.sql, plan.params)), plan)
+    def run(self, plan: Plan, values: dict[str, Any] | None = None) -> pa.Table:
+        """A plan's SQL run as this read sees the database, its rows typed by the plan (``typed_by_plan``): its declared
+        parameters bound at this run from ``values`` (``_params.bind``, checked before anything is sent: the lite API
+        spec's §4, 2026-11-17)."""
+        return typed_by_plan(self.fetched(self.execute(plan.sql, bind(plan, values))), plan)
 
 
 @runs('a plan')
-def run_plan(target: Database, plan: Plan, held: Iterable[str]) -> pa.Table:
+def run_plan(target: Database, plan: Plan, held: Iterable[str], values: dict[str, Any] | None = None) -> pa.Table:
     """PYTHON'S EXECUTOR: a plan's SQL run on ``target``, its rows typed by the plan (``typed_by_plan``), a failure's words
-    with every value in ``held`` taken out, at the statement and at its fetch (``fetched_redacted``). Only SQL a planner
-    wrote for this database comes here."""
-    return typed_by_plan(fetched_redacted(target, plan.sql, held, plan.params, Result.to_arrow_table), plan)
+    with every value in ``held`` taken out, at the statement and at its fetch (``fetched_redacted``); its declared
+    parameters bound at this run from ``values`` (``_params.bind``: the lite API spec's §4). Only SQL a planner wrote for
+    this database comes here."""
+    return typed_by_plan(fetched_redacted(target, plan.sql, held, bind(plan, values), Result.to_arrow_table), plan)
 
 
 @runs('an execute')

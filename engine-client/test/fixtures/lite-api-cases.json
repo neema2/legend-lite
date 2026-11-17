@@ -1,5 +1,5 @@
 {
-  "_comment": "LITE API V1'S CONFORMANCE SUITE (docs/records/lite-api-v1-2026-11-17.md §5, the user's go of 2026-11-17): one set of cases every binding answers alike -- the browser's exports (core's LiteApiConformanceTest), the server's /api/lite/v1 routes (the TS host's reader) and Python's native entries (the Python session's reader). A case is an operation (§2's name), its request, and its 'answer' (exact JSON) or 'answerIncludes' (each key it names equal, recursively; each array item it names matched by some item of the answer's array). A refusal case names its 'refusal' as {kind} alone (§3: the kind is the contract; the words are the product's), answered as the binding's error shape. The run's parameter cases are query/run's, the server's and Python's (§4).",
+  "_comment": "LITE API V1'S CONFORMANCE SUITE (docs/records/lite-api-v1-2026-11-17.md §5, the user's go of 2026-11-17): one set of cases every binding answers alike -- the browser's exports (core's LiteApiConformanceTest), the server's /api/lite/v1 routes (the TS host's reader) and Python's native entries (the Python session's reader). A case is an operation (§2's name), its request, and its 'answer' (exact JSON) or 'answerIncludes' (each key it names equal, recursively; each array item it names matched by some item of the answer's array). A refusal case names its 'refusal' as {kind} alone (§3: the kind is the contract; the words are the product's), answered as the binding's error shape. The run's parameter cases are query/run's, the server's and Python's (§4). A case may name its 'bindings' (of browser, server, python; every binding when absent): an operation a host alone serves (user, query/run) names the hosts that serve it, and a binding without it skips the case. Where the answer is the host's own (who the user is), a case gives 'answerShape': each key the answer holds and its JSON type (string, number, boolean, object, array).",
   "cases": [
     {
       "name": "a query's text, parsed to its tree",
@@ -1049,6 +1049,32 @@
             "type": "Decimal"
           }
         ]
+      }
+    },
+    {
+      "name": "the current user: who the store keeps saved queries for, a name",
+      "op": "user",
+      "bindings": [
+        "server",
+        "python"
+      ],
+      "request": {},
+      "answerShape": {
+        "user": "string"
+      }
+    },
+    {
+      "name": "a user request holding a key is refused, kind request",
+      "op": "user",
+      "bindings": [
+        "server",
+        "python"
+      ],
+      "request": {
+        "who": "me"
+      },
+      "refusal": {
+        "kind": "request"
       }
     }
   ]

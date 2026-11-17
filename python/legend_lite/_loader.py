@@ -30,8 +30,10 @@ _NAMES = {'darwin': 'libcompiler.dylib', 'linux': 'libcompiler.so', 'win32': 'li
 
 # each entry point and how many C strings it takes after its isolate thread
 _ARITY = {
-    'lite_plan_json': 3, 'lite_plan_text': 3, 'lite_hold_model': 1, 'lite_hold_model_over': 2, 'lite_release_model': 1, 'lite_plan_json_held': 3,
-    'lite_relation_type_held': 2, 'lite_execution_plan_json_held': 3, 'lite_plan_text_held': 3, 'lite_relation_type_text_held': 2, 'lite_file_load': 1, 'lite_remote_mount': 1,
+    'lite_hold_model': 1, 'lite_hold_model_over': 2, 'lite_release_model': 1,
+    # query/plan and query/type over a held model: the binding's cache (the lite API spec's §7a, 2026-11-17)
+    'lite_query_plan_held': 2, 'lite_query_type_held': 2,
+    'lite_file_load': 1, 'lite_remote_mount': 1,
     # a snapshot's stream and a frame's attach, as plans (the user's ruling of 2026-11-11)
     'lite_snap_stream': 1, 'lite_snap_copy': 1, 'lite_output_plan': 1, 'lite_synthesize': 1, 'lite_frame_load': 1,
     'lite_database_from_catalog': 1, 'lite_table_model': 1, 'lite_catalog_columns_sql': 2, 'lite_session_setup': 1,
@@ -39,6 +41,10 @@ _ARITY = {
     'lite_project_data': 2,
     # a host's named operations (D5)
     'lite_host_operations': 2,
+    # LITE'S OWN API, v1: one entry per operation, its request JSON in (the lite API spec's §5, §7, 2026-11-17)
+    'lite_model_check': 1, 'lite_model_elements': 1, 'lite_query_parse': 1, 'lite_query_print': 1, 'lite_query_type': 1,
+    'lite_query_plan': 1, 'lite_model_create_class': 1, 'lite_model_create_association': 1,
+    'lite_model_create_data_space': 1, 'lite_ts_item': 1, 'lite_ts_statement': 1,
     'lite_pure_v1': 3, 'lite_execute_plan': 2, 'lite_pure_v1_refusal': 1,
     # the planner protocol's execute halves for a host's own database, and its warm (C2)
     'lite_execute_json_plan': 2, 'lite_execute_json_answer': 2, 'lite_warm_model': 1,
@@ -47,10 +53,14 @@ _ARITY = {
     'lite_execute_arrow_answer': 2,
     # the site's media types, the one table every host serving a site answers with (C4)
     'lite_site_types': 0,
+    # lite's refusal kinds by name (the lite API spec's §3, 2026-11-17)
+    'lite_refusal_kinds': 0,
     # the warehouse's SQL API, as the one binding speaks it (C3)
     'lite_warehouse_call': 2, 'lite_warehouse_read': 3,
     # Python's model home (native/.../ModelHome.java): a repository's folder, then a request's method, target and body
     'lite_sdlc_handle': 4, 'lite_depot_handle': 4, 'lite_saved_queries': 6, 'lite_saved_cubes': 6,
+    # the product's saved queries and pages at lite's mount, in lite's words (the edge program's H6, 2026-11-17)
+    'lite_store_queries': 6, 'lite_store_cubes': 6,
 }
 
 
@@ -59,9 +69,11 @@ _ARITY = {
 # planner's, refused inside a run of its flow (_runframe.py, the witness, 2026-11-13), by Loaded.call itself (C5-P's
 # audit M1, 2026-11-15). _library.py writes the same set (_NOT_PLANNING, which PlannerSurfaceTest reads), held equal
 # to this one when it loads.
+# (lite_store_queries, lite_store_cubes: the product's saved queries and pages, at lite's mount in lite's words --
+# the edge program's H6, 2026-11-17)
 NOT_PLANNING = frozenset({
     'lite_site_types', 'lite_warehouse_call', 'lite_warehouse_read', 'lite_sdlc_handle', 'lite_depot_handle',
-    'lite_saved_queries', 'lite_saved_cubes', 'lite_release_model',
+    'lite_saved_queries', 'lite_saved_cubes', 'lite_release_model', 'lite_store_queries', 'lite_store_cubes',
 })
 
 # THE SERVICE KEY'S NAMES (_services.py): the warehouse's SQL API, as the one binding speaks it -- the run side's, and

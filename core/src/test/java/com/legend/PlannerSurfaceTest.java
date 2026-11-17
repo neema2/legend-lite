@@ -298,38 +298,55 @@ class PlannerSurfaceTest {
             Map.entry("touchSystemMetamodel", "touchSystemMetamodel"), Map.entry("hashBootSource", "hashBootSource"),
             Map.entry("resolveBootLayer", "resolveBootLayer"), Map.entry("zoneProbe", "zoneProbe")));
 
+    /** THE NATIVE LIBRARY'S EDGE EXPORTS: each the one edge door it delegates to ({@link #EDGE_BOUNDARY}; the
+     *  HOST/DataCube stream, 2026-11-17, as the tab's: {@link #TAB_EDGE_EXPORTS}). */
+    static final Map<String, String> NATIVE_EDGE_EXPORTS = new TreeMap<>(Map.of(
+            "lite_pure_v1", "pureV1", "lite_execute_plan", "executePlan", "lite_execute_json_plan", "executeJsonPlan",
+            "lite_execute_json_answer", "executeJsonAnswer", "lite_execute_arrow_answer", "executeArrowAnswer"));
+
     /** THE NATIVE LIBRARY'S EXPORTS: each the one boundary door it delegates to. */
     static final Map<String, String> NATIVE_EXPORTS = new TreeMap<>(Map.ofEntries(
-            Map.entry("lite_plan_json", "planJson"), Map.entry("lite_plan_text", "plan"),
             Map.entry("lite_hold_model", "holdModel"), Map.entry("lite_release_model", "releaseModel"),
             Map.entry("lite_hold_model_over", "holdModelOver"), // merged main 3a217086a (#81), 2026-11-14: the held model over a library
-            Map.entry("lite_plan_json_held", "planJsonHeld"),
-            Map.entry("lite_execution_plan_json_held", "executionPlanJsonHeld"),
-            Map.entry("lite_relation_type_held", "relationTypeJsonHeld"), Map.entry("lite_plan_text_held", "planHeld"),
-            Map.entry("lite_relation_type_text_held", "relationTypeHeld"), Map.entry("lite_file_load", "fileLoad"),
+            Map.entry("lite_file_load", "fileLoad"),
             Map.entry("lite_remote_mount", "remoteMount"), Map.entry("lite_snap_stream", "snapStream"),
             Map.entry("lite_snap_copy", "snapCopy"), Map.entry("lite_output_plan", "outputPlan"),
             Map.entry("lite_synthesize", "synthesize"), Map.entry("lite_frame_load", "frameLoad"),
             Map.entry("lite_database_from_catalog", "databaseFromCatalog"),
             Map.entry("lite_table_model", "tableModel"), Map.entry("lite_catalog_columns_sql", "catalogColumnsSql"),
             Map.entry("lite_session_setup", "sessionSetup"), Map.entry("lite_host_operations", "hostOperations"),
-            Map.entry("lite_project_data", "projectData"), Map.entry("lite_pure_v1", "pureV1"),
-            Map.entry("lite_execute_plan", "executePlan"), Map.entry("lite_execute_json_plan", "executeJsonPlan"),
-            Map.entry("lite_execute_json_answer", "executeJsonAnswer"),
-            Map.entry("lite_execute_arrow_answer", "executeArrowAnswer"), Map.entry("lite_warm_model", "warmModel"),
-            Map.entry("lite_pure_v1_refusal", "refusal")));
+            Map.entry("lite_project_data", "projectData"),                                     Map.entry("lite_warm_model", "warmModel"),
+            Map.entry("lite_pure_v1_refusal", "refusal"),
+            // LITE'S OWN API, v1 (docs/records/lite-api-v1-2026-11-17.md §5, §7; the host train, 2026-11-17): one entry
+            // per operation by the spec's one rule (a/b -> lite_a_b), its request JSON in, the Boundary member of the
+            // same operation; no lite_query_run (Python runs a plan itself); and the held model's two (§7a)
+            Map.entry("lite_model_check", "modelCheck"), Map.entry("lite_model_elements", "modelElements"),
+            Map.entry("lite_query_parse", "queryParse"), Map.entry("lite_query_print", "queryPrint"),
+            Map.entry("lite_query_type", "queryType"), Map.entry("lite_query_plan", "queryPlan"),
+            Map.entry("lite_model_create_class", "modelCreateClass"),
+            Map.entry("lite_model_create_association", "modelCreateAssociation"),
+            Map.entry("lite_model_create_data_space", "modelCreateDataSpace"),
+            Map.entry("lite_ts_item", "tsItem"), Map.entry("lite_ts_statement", "tsStatement"),
+            Map.entry("lite_query_plan_held", "queryPlanHeld"), Map.entry("lite_query_type_held", "queryTypeHeld"),
+            // the lite API spec's §3 (2026-11-17): lite's error kinds by name, read by a host, never its own constant
+            Map.entry("lite_refusal_kinds", "refusalKinds")));
+
 
     /** The native library's exports that are no planner door, each with what it is instead. */
-    static final Map<String, String> NATIVE_SERVICES = new TreeMap<>(Map.of(
-            "lite_site_types", "the site's types, a constant of the build (Folded's answer of them)",
-            "lite_free", "the answer's memory freed",
-            "lite_unfreed", "the count of answers not yet freed (a leak's witness)",
-            "lite_sdlc_handle", "the model home's SDLC store, opened on a folder (its rules, sdlc-server's)",
-            "lite_depot_handle", "the model home's depot, opened on a folder",
-            "lite_saved_queries", "the saved queries' rules over a folder",
-            "lite_saved_cubes", "the saved cubes' rules over a folder",
-            "lite_warehouse_call", "the warehouse's SQL API, a database server of its own, as its binding speaks it",
-            "lite_warehouse_read", "the warehouse's SQL API's read"));
+    static final Map<String, String> NATIVE_SERVICES = new TreeMap<>(Map.ofEntries(
+            Map.entry("lite_site_types", "the site's types, a constant of the build (Folded's answer of them)"),
+            Map.entry("lite_free", "the answer's memory freed"),
+            Map.entry("lite_unfreed", "the count of answers not yet freed (a leak's witness)"),
+            Map.entry("lite_sdlc_handle", "the model home's SDLC store, opened on a folder (its rules, sdlc-server's)"),
+            Map.entry("lite_depot_handle", "the model home's depot, opened on a folder"),
+            Map.entry("lite_saved_queries", "the saved queries' rules over a folder"),
+            Map.entry("lite_saved_cubes", "the saved cubes' rules over a folder"),
+            // the product's twins at lite's mount, in lite's words (the edge program's H6, 2026-11-17)
+            Map.entry("lite_store_queries", "the saved queries' rules over a folder, at lite's mount"),
+            Map.entry("lite_store_cubes", "the saved cubes' rules over a folder, at lite's mount"),
+            Map.entry("lite_warehouse_call",
+                    "the warehouse's SQL API, a database server of its own, as its binding speaks it"),
+            Map.entry("lite_warehouse_read", "the warehouse's SQL API's read")));
 
     /** THE SERVER'S ROUTES ({@code LiteV1Api.route}'s dispatch), each with what its body is: upstream's protocol shapes,
      *  whose fields are {@link #SERVER_FIELDS}'s. */
@@ -834,13 +851,8 @@ class PlannerSurfaceTest {
             // merged main 3a217086a (#81), 2026-11-14: Python holds a model over its library
             Map.entry("hold", List.of("lite_hold_model_over", "model", "library")),
             Map.entry("release", List.of("lite_release_model", "handle")),
-            Map.entry("plan", List.of("lite_plan_text_held", "handle", "query", "runtime")),
-            Map.entry("relationType", List.of("lite_relation_type_text_held", "handle", "query")),
             Map.entry("tableModel", List.of("lite_table_model", "table")),
             Map.entry("catalogColumnsSql", List.of("lite_catalog_columns_sql", "schema", "table")),
-            Map.entry("planJson", List.of("lite_plan_json_held", "handle", "lambda", "runtime")),
-            Map.entry("executionPlan", List.of("lite_execution_plan_json_held", "handle", "lambda", "runtime")),
-            Map.entry("planModel", List.of("lite_plan_json", "model", "lambda", "runtime")),
             Map.entry("pureV1", List.of("lite_pure_v1", "path", "query", "body")),
             Map.entry("executePlan", List.of("lite_execute_json_plan", "body", "models")),
             Map.entry("executeAnswer", List.of("lite_execute_json_answer", "plan", "rows")),
@@ -853,7 +865,23 @@ class PlannerSurfaceTest {
             Map.entry("sessionSetup", List.of("lite_session_setup", "databaseType")),
             Map.entry("projectData", List.of("lite_project_data", "model", "databaseType")),
             Map.entry("hostOperations", List.of("lite_host_operations", "databaseType", "operations")),
-            Map.entry("warm", List.of("lite_warm_model", "model"))));
+            Map.entry("warm", List.of("lite_warm_model", "model")),
+            // LITE'S OWN API, v1 (the spec's §5, §7; the host train, 2026-11-17): each operation's kind (a/b -> aB), its
+            // native entry, the request carried whole; and the held model's two (§7a)
+            Map.entry("modelCheck", List.of("lite_model_check", "request")),
+            Map.entry("modelElements", List.of("lite_model_elements", "request")),
+            Map.entry("queryParse", List.of("lite_query_parse", "request")),
+            Map.entry("queryPrint", List.of("lite_query_print", "request")),
+            Map.entry("queryType", List.of("lite_query_type", "request")),
+            Map.entry("queryPlan", List.of("lite_query_plan", "request")),
+            Map.entry("modelCreateClass", List.of("lite_model_create_class", "request")),
+            Map.entry("modelCreateAssociation", List.of("lite_model_create_association", "request")),
+            Map.entry("modelCreateDataSpace", List.of("lite_model_create_data_space", "request")),
+            Map.entry("tsItem", List.of("lite_ts_item", "request")),
+            Map.entry("tsStatement", List.of("lite_ts_statement", "request")),
+            Map.entry("queryPlanHeld", List.of("lite_query_plan_held", "handle", "request")),
+            Map.entry("queryTypeHeld", List.of("lite_query_type_held", "handle", "request"))));
+
 
     /** The kinds Python's planner refuses by name ({@code _planner.REFUSED}). */
     static final Set<String> PY_REFUSED = Set.of("authored");
@@ -973,7 +1001,7 @@ class PlannerSurfaceTest {
         exports(out, "the tab's export", Pattern.compile("@JSExport\\s+public static \\S+ (\\w+)\\("),
                 List.of(tabSource), TAB_EXPORTS, Map.of(), TAB_EDGE_EXPORTS);
         exports(out, "the native export", Pattern.compile("@CEntryPoint\\(name = \"(\\w+)\"\\)"), nativeSources,
-                NATIVE_EXPORTS, NATIVE_SERVICES, Map.of());
+                NATIVE_EXPORTS, NATIVE_SERVICES, NATIVE_EDGE_EXPORTS);
         return out;
     }
 
@@ -1227,16 +1255,20 @@ class PlannerSurfaceTest {
                 out.add("a Python planner kind's row differs from its listing: " + kind + " " + r);
             }
         });
+        // a kind answered by a planner door or by an edge door (NATIVE_EDGE_EXPORTS; step 2c, 2026-11-17)
+        Map<String, Door> doors = withEdge();
+        Map<String, String> natives = new TreeMap<>(NATIVE_EXPORTS);
+        natives.putAll(NATIVE_EDGE_EXPORTS);
         PY_KINDS.forEach((kind, r) -> {
-            String door = NATIVE_EXPORTS.get(r.get(0));
-            if (door == null || !BOUNDARY.containsKey(door)) {
+            String door = natives.get(r.get(0));
+            if (door == null || !doors.containsKey(door)) {
                 out.add("a Python planner kind answered by no listed door: " + kind + " (" + r.get(0) + ")");
-            } else if (BOUNDARY.get(door).params().size() != r.size() - 1) {
+            } else if (doors.get(door).params().size() != r.size() - 1) {
                 out.add("a Python planner kind's fields are not its door's parameters: " + kind + " -> " + door);
             } else {
                 for (int i = 1; i < r.size(); i++) {
                     sqlRule(out, "python " + kind + "." + r.get(i), r.get(i),
-                            BOUNDARY.get(door).params().get(i - 1).kind());
+                            doors.get(door).params().get(i - 1).kind());
                 }
             }
         });
@@ -1250,7 +1282,8 @@ class PlannerSurfaceTest {
         for (String name : names) {
             Set<String> expands = PY_PATTERNS.getOrDefault(name, Set.of(name));
             for (String e : expands) {
-                if (!NATIVE_EXPORTS.containsKey(e) && !NATIVE_SERVICES.containsKey(e)) {
+                if (!NATIVE_EXPORTS.containsKey(e) && !NATIVE_EDGE_EXPORTS.containsKey(e)
+                        && !NATIVE_SERVICES.containsKey(e)) {
                     out.add("a native name Python spells that no row lists: " + name);
                 }
             }
@@ -1362,9 +1395,10 @@ class PlannerSurfaceTest {
                 seen.add(name);
                 String body = bodyAfter(source, m.end());
                 Set<String> delegates = new TreeSet<>();
-                Matcher call = Pattern.compile("Boundary\\.(\\w+)\\(").matcher(body);
+                // a call, or a method reference (Folded.of(Boundary::refusalKinds); step 2c, 2026-11-17)
+                Matcher call = Pattern.compile("Boundary(?:\\.(\\w+)\\(|::(\\w+))").matcher(body);
                 while (call.find()) {
-                    delegates.add(call.group(1));
+                    delegates.add(call.group(1) != null ? call.group(1) : call.group(2));
                 }
                 if (edge.containsKey(name)) {
                     // an edge export reaches its one edge door (EdgeBoundary.<door>, which the pattern reads as well)

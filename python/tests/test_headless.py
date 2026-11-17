@@ -1030,7 +1030,8 @@ class OneRead(unittest.TestCase):
         """A query DataCube's code makes of its host (calls.ts ``query``), as it reads the answer: Arrow, base64. The test
         stands in for DataCube's planner: its own question is declared answered first, as the bridge sends only what the
         session's planner answered (the orchestrator's ruling of 2026-11-12, _planned.py across_the_bridge)."""
-        self.headless._answered.record('plan', 'OK\n' + json.dumps({'sql': sql, 'raises': {}}))
+        self.headless._answered.record('queryPlan', 'OK\n' + json.dumps({'plan': {'raises': {}, 'root': {
+            '_type': 'tdsResult', 'columns': [], 'sql': {'statement': sql, 'slots': []}}}}))
         said = self.headless.evaluate(f'legendLiteHost.query({json.dumps(sql)})')
         return pyarrow.ipc.open_stream(base64.b64decode(said)).read_all().to_pylist()
 
