@@ -115,6 +115,16 @@ class HookRulingTest {
         assertEquals(null, PlanStyle.PRODUCT.traceCell(), "the product writes the id alone");
         assertEquals(new PlanStyle.TraceCell("-- \"executionTraceID\" : \"", "\""),
                 com.legend.edge.PureText.UPSTREAM.traceCell());
+        // the raises a plan writes plain (B7, 2026-11-17): the product's none, PCT's and the corpus's none (legend-pure's
+        // guarded words), the pure/v1 route's legend-engine's census class A
+        assertEquals(java.util.Set.of(), PlanStyle.PRODUCT.plainRaises(), "the product writes every check of its own");
+        assertEquals(java.util.Set.of(), com.legend.edge.PureText.UPSTREAM.plainRaises(), "PCT keeps legend-pure's words");
+        assertEquals(java.util.EnumSet.of(com.legend.sql.RaiseKind.DIVIDE_BY_ZERO, com.legend.sql.RaiseKind.SQRT_OF_NEGATIVE,
+                com.legend.sql.RaiseKind.SHIFT_OUT_OF_RANGE, com.legend.sql.RaiseKind.SIZE_NOT_MULTIPLICITY,
+                com.legend.sql.RaiseKind.SLICE_BOUNDS_INVERTED, com.legend.sql.RaiseKind.RANGE_STEP_ZERO,
+                com.legend.sql.RaiseKind.CAST_IMPOSSIBLE, com.legend.sql.RaiseKind.TEXT_NOT_INTEGER,
+                com.legend.sql.RaiseKind.TEXT_NOT_FLOAT, com.legend.sql.RaiseKind.TEXT_NOT_DATE),
+                com.legend.edge.PureText.PURE_V1.plainRaises(), "pure/v1 writes legend-engine's unchecked raises plain");
     }
 
     /** PlanStyle.twoForm (the orchestrator's ruling of 2026-11-17, census B9): its kinds are a CLOSED list, pinned here

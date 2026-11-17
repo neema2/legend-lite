@@ -69,7 +69,7 @@ class PureV1EdgeGoldenTest {
     /** The runner the net records pure/v1 through: the SHIPPED route's, the one the server mounts
      *  ({@code edge.EdgeServer.runner}, planned in the edge's dialects; F31, 2026-11-17 -- until then the product's
      *  ConnectionResolver.RUNNER, a road no client of pure/v1 runs). Held so by {@link #theRecorderIsTheShippedRoute}. */
-    static final PureV1Api.Runner RECORDER = com.legend.edge.EdgeServer.runner(null);
+    static final LiteV1Api.Runner RECORDER = com.legend.edge.EdgeServer.runner(null);
 
     /** THE GUARD (the orchestrator's condition 2 on F31, 2026-11-17): the net records through the shipped edge route
      *  it claims, by type -- the product's runner, a planted violator, is refused. */
@@ -81,13 +81,13 @@ class PureV1EdgeGoldenTest {
                         + " client runs");
     }
 
-    private static boolean shipped(PureV1Api.Runner runner) {
+    private static boolean shipped(LiteV1Api.Runner runner) {
         return runner instanceof com.legend.edge.EdgeServer.Shipped;
     }
 
-    private static String answer(java.util.function.Supplier<PureV1Api.Answer> call) {
+    private static String answer(java.util.function.Supplier<LiteV1Api.Answer> call) {
         try {
-            PureV1Api.Answer a = call.get();
+            LiteV1Api.Answer a = call.get();
             String json = a.json();
             try {
                 json = Json.toCompact(Json.parseObject(json));   // compact, as the net has always written it

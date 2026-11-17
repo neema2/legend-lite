@@ -426,10 +426,14 @@ final class Scalars {
                 Pure.AT_MATH_BIT_SHIFT_RIGHT, SqlFn.BIT_SHIFT_RIGHT).entrySet()) {
             SqlFn fn = shift.getValue();
             for (com.legend.model.FunctionId f : shift.getKey()) {
-                RULES.put(f, (n, args) -> {
+                RULES.put(f, (StyledRule) (n, args, styled) -> {
                     SqlExpr shifted = SqlExpr.Call.of(fn,
                             new SqlExpr.Cast(args.get(0), SqlType.Scalar.BIGINT, SqlExpr.Reason.OPERATOR),
                             args.get(1));
+                    if (styled.plain().contains(com.legend.sql.RaiseKind.SHIFT_OUT_OF_RANGE)) {
+                        // the plan style writes the shift plain (B7): the database's own shift, no bound
+                        return shifted;
+                    }
                     SqlExpr boundError = SqlExpr.Call.of(SqlFn.ERROR,
                             new SqlExpr.RaiseText(com.legend.sql.RaiseKind.SHIFT_OUT_OF_RANGE, List.of()));
                     if (args.get(1) instanceof SqlExpr.IntLit sh) {
@@ -453,12 +457,12 @@ final class Scalars {
             // Decimal kind preservation lives in DecimalKindRules
             // (X-audit); the integer÷integer zero guard lives there too
             // (Part-1 fix — pure's BigDecimal lane raises)
-            RULES.put(f, DecimalKindRules::divide);
+            RULES.put(f, (StyledRule) DecimalKindRules::divide);
         }
         family(SqlFn.MOD, Pure.AT_MATH_MOD);
         // rem(a, 0): real pure raises 'Cannot divide 5 by zero'
         for (com.legend.model.FunctionId f : Pure.AT_MATH_REM) {
-            RULES.put(f, (n, rawArgs) -> {
+            RULES.put(f, (StyledRule) (n, rawArgs, styled) -> {
                 var args = decimalJoin(rawArgs);
                 if (args.get(1) instanceof SqlExpr.IntLit lit && lit.value() != 0) {
                     // a literal divisor that is not zero: no guard to raise (the Cypher island's x % 2 inside a
@@ -471,7 +475,7 @@ final class Scalars {
                 return guarded(
                         SqlExpr.Call.of(SqlFn.EQUAL, args.get(1), new SqlExpr.IntLit(0)),
                         new SqlExpr.RaiseText(com.legend.sql.RaiseKind.DIVIDE_BY_ZERO, List.of(args.get(0))),
-                        new SqlExpr.Call(SqlFn.REM, args));
+                        new SqlExpr.Call(SqlFn.REM, args), styled);
             });
         }
         family(SqlFn.ABS, Pure.AT_MATH_ABS);
@@ -1912,13 +1916,13 @@ final class Scalars {
         // DOMAIN guards RAISED IN SQL with real pure's messages (error()
         // runs in the database — literal AND runtime values alike).
         for (com.legend.model.FunctionId f : Pure.AT_MATH_SQRT) {
-            RULES.put(f, (n, args) -> {
+            RULES.put(f, (StyledRule) (n, args, styled) -> {
                 SqlExpr x = new SqlExpr.Cast(args.get(0), SqlType.Scalar.DOUBLE, SqlExpr.Reason.OPERATOR);
                 return guarded(
                         SqlExpr.Call.of(SqlFn.LESS, x, new SqlExpr.IntLit(0)),
                         // the value, the edge's sentence's operand, printed there as Pure prints a Float (D1.1)
                         new SqlExpr.RaiseText(com.legend.sql.RaiseKind.SQRT_OF_NEGATIVE, List.of(x)),
-                        SqlExpr.Call.of(SqlFn.SQRT, args.get(0)));
+                        SqlExpr.Call.of(SqlFn.SQRT, args.get(0)), styled);
             });
         }
         family(SqlFn.BIT_NOT, Pure.AT_MATH_BIT_NOT);
@@ -2526,10 +2530,10 @@ final class Scalars {
         // truncates; 2026-10-17, the IQ island's scale)
         for (com.legend.model.FunctionId f : Pure.AT_LEGEND_LITE_QUOTIENT) {
             // a zero divisor raises as rem's does (DIVIDE_BY_ZERO, the dividend its operand): DuckDB's // gives NULL
-            RULES.put(f, (n, args) -> guarded(
+            RULES.put(f, (StyledRule) (n, args, styled) -> guarded(
                     SqlExpr.Call.of(SqlFn.EQUAL, args.get(1), new SqlExpr.IntLit(0)),
                     new SqlExpr.RaiseText(com.legend.sql.RaiseKind.DIVIDE_BY_ZERO, List.of(args.get(0))),
-                    SqlExpr.Call.of(SqlFn.INT_DIVIDE, args.get(0), args.get(1))));
+                    SqlExpr.Call.of(SqlFn.INT_DIVIDE, args.get(0), args.get(1)), styled));
         }
         for (com.legend.model.FunctionId f : Pure.AT_LEGEND_LITE_INSTANT_IN) {
             RULES.put(f, (n, args) -> new SqlExpr.Call(SqlFn.TIMEZONE, List.of(new SqlExpr.StringLit("UTC"),
@@ -3017,6 +3021,12 @@ final class Scalars {
     }
 
     /** {@code CASE WHEN cond THEN error(msg) ELSE value END} — a DATABASE-raised guard. */
+    /** {@link #guarded(SqlExpr, SqlExpr.RaiseText, SqlExpr)} under the plan style ({@code PlanStyle.plainRaises}, B7,
+     *  2026-11-17): a kind the style writes plain is the operation alone, the database's own error passing through. */
+    static SqlExpr guarded(SqlExpr cond, SqlExpr.RaiseText msg, SqlExpr value, Styled styled) {
+        return styled.plain().contains(msg.kind()) ? value : guarded(cond, msg, value);
+    }
+
     static SqlExpr guarded(SqlExpr cond, SqlExpr.RaiseText msg, SqlExpr value) {
         return new SqlExpr.Case(List.of(new SqlExpr.Case.When(cond,
                 SqlExpr.Call.of(SqlFn.ERROR, msg))), value, SqlExpr.Reason.RAISE);

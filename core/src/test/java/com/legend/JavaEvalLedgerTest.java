@@ -1863,7 +1863,11 @@ class JavaEvalLedgerTest {
                             // legend-pure's text of a list (a list's toString, a mixed list's elements printed), the
                             // edge's form of the two-form ListTexts kind (the separation census's B8, TEXT_FORMS gone
                             // from SqlFn 2026-11-17) -- planning work, no session, no value computed
-                            "PureListTexts.java"),
+                            "PureListTexts.java",
+                            // legend-engine's ExecuteInput read at the edge (B7 of the separation census, 2026-11-17,
+                            // moved unchanged from server.PureV1Api): its parameterValues bound to the lambda as lets --
+                            // a protocol rearrangement, no session, no value computed (the database computes each)
+                            "ExecuteInputs.java"),
                     "core/src/main/java/com/legend/planner", PLANNER_CLASSES,
                     "core/src/main/java/com/legend/exec", EXEC_CLASSES,
                     "core/src/main/java/com/legend/testexec", TESTEXEC_CLASSES,
@@ -1879,8 +1883,9 @@ class JavaEvalLedgerTest {
                             "CreateAssociation.java", "CreateClass.java", "CreateDataSpace.java", "ModelChanges.java",
                             // 2026-09-27, legend-engine's pure/v1 calls: parse, emit,
                             // compile and PLAN only -- no connection, no JDBC, no value
-                            // computed; the plan's SQL is the database's to run
-                            "PureV1Api.java",
+                            // computed; the plan's SQL is the database's to run (lite's own API kit since B7,
+                            // 2026-11-17: PureV1Api renamed, its engine content the edge's)
+                            "LiteV1Api.java",
                             // 2026-11-03, the one reader (docs/TS_A3_ONE_READER_PLAN_2026_11_03.md step 2): one #TS
                             // item's parsed tree written as data for the route that answers it -- each node's kind,
                             // place and parts, a number's text as the parser read it; parse only, no connection, no

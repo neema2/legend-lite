@@ -416,16 +416,16 @@ class CreateClassTest {
     // Through the route, and what cannot be a class
     // ---------------------------------------------------------------------
 
-    private static final PureV1Api.Runner NO_RUN = (query, runtime, output) -> {
+    private static final LiteV1Api.Runner NO_RUN = (query, runtime, output) -> {
         throw new AssertionError("nothing is run here");
     };
 
-    private static PureV1Api.Answer route(String body) {
-        return PureV1Api.route("/api/lite/v1/model/createClass", null, body, NO_RUN);
+    private static LiteV1Api.Answer route(String body) {
+        return LiteV1Api.route("/api/lite/v1/model/createClass", null, body, NO_RUN);
     }
 
     private static void refused(String body, String expected) {
-        PureV1Api.Answer a = route(body);
+        LiteV1Api.Answer a = route(body);
         assertEquals(400, a.status(), a.json());
         Json.Obj error = Json.parseObject(a.json());
         assertEquals("COMPILATION", error.getString("errorType"));
@@ -435,7 +435,7 @@ class CreateClassTest {
     @Test
     @DisplayName("answered through pure/v1's routing, as the tab and Python ask it")
     void throughTheRoute() {
-        PureV1Api.Answer a = route(body("", TAB, QUERY, "Trade", KEYED + ", " + WHERE));
+        LiteV1Api.Answer a = route(body("", TAB, QUERY, "Trade", KEYED + ", " + WHERE));
         assertEquals(200, a.status(), a.json());
         assertEquals(8, Json.parseObject(a.json()).getArr("changes").items().size());
     }

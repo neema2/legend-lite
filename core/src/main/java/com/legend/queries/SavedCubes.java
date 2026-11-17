@@ -93,14 +93,14 @@ public final class SavedCubes {
             }
             return switch (method + " " + parts.length) {
                 case "POST 0" -> ok(store.create(object(body), user));
-                case "POST 1" -> "search".equals(id) ? ok(store.search(object(body), user)) : notFound(rest);
+                case "POST 1" -> "search".equals(id) ? ok(store.search(object(body), user)) : notFound(rest, words);
                 case "GET 1" -> ok(store.get(id));
                 case "PUT 1" -> ok(store.update(id, object(body), user));
                 case "DELETE 1" -> {
                     store.delete(id, user);
                     yield new SavedQueries.Answer(204, "");
                 }
-                default -> notFound(rest);
+                default -> notFound(rest, words);
             };
         } catch (SavedQueries.Refusal r) {
             return new SavedQueries.Answer(r.status, Json.toCompact(Map.of("message", words.apply(r))));
@@ -114,9 +114,10 @@ public final class SavedCubes {
         return new SavedQueries.Answer(200, Json.toCompact(json));
     }
 
-    private static SavedQueries.Answer notFound(String rest) {
-        return new SavedQueries.Answer(404, "{\"code\":-1,\"message\":\"no such legend-engine API in legend-lite: "
-                + "/api/pure/v1/query/dataCube" + rest + "\",\"status\":\"error\"}");
+    /** A path the page store does not serve, under the query store's {@code /dataCube} ({@link SavedQueries#notFound}). */
+    private static SavedQueries.Answer notFound(String rest,
+            java.util.function.Function<SavedQueries.Refusal, String> words) {
+        return SavedQueries.notFound("/dataCube" + rest, words);
     }
 
     private static Json.Obj object(String body) {

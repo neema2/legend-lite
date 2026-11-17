@@ -102,7 +102,7 @@ final class ArchitectureTest {
             java.util.Map.entry("exec_program", "com.legend.exec.ProgramRunner"),
             java.util.Map.entry("result", "com.legend.result.Batch"),
             java.util.Map.entry("planner", "com.legend.Compiler"),
-            java.util.Map.entry("pure_v1", "com.legend.server.PureV1Api"),
+            java.util.Map.entry("lite_v1", "com.legend.server.LiteV1Api"),
             // the test-planning library (the test-is-the-product plan's M3c, R17 C7, 2026-10-31)
             java.util.Map.entry("testplan", "com.legend.testplan.TestDoor"),
             // the door (the driver until slice 5, 2026-11-09)
@@ -2521,7 +2521,7 @@ final class ArchitectureTest {
             .and().doNotHaveFullyQualifiedName("com.legend.ExecuteOptions")
             .and().doNotHaveFullyQualifiedName("com.legend.TypedQuery")
             .and().doNotHaveFullyQualifiedName("com.legend.Execution")
-            // (PureV1Api's exemption, 2026-11-15's M2, went 2026-11-16 with the P2 checkpoint audit's S3: its host plan
+            // (LiteV1Api's exemption, 2026-11-15's M2, went 2026-11-16 with the P2 checkpoint audit's S3: its host plan
             // halves moved to the edge's HostAnswers, so it calls no door taking a style)
             .should().callMethodWhere(new com.tngtech.archunit.base.DescribedPredicate<
                     com.tngtech.archunit.core.domain.JavaMethodCall>("a door taking a PlanStyle") {
@@ -2880,8 +2880,8 @@ final class ArchitectureTest {
     }
 
     /**
-     * <strong>The pure/v1 API is plan side (2026-10-08, //core:pure_v1).</strong>
-     * {@code PureV1Api} lives in {@code com.legend.server}, which the
+     * <strong>The pure/v1 API is plan side (2026-10-08, //core:pure_v1; //core:lite_v1 since B7, 2026-11-17).</strong>
+     * {@code LiteV1Api} lives in {@code com.legend.server}, which the
      * JDBC funnel above exempts, but it is the plan side's: the compiler's
      * boundary answers with it (Python's engine for DataCube,
      * docs/DATACUBE_PYTHON_SHOW_DESIGN_2026_10_08.md), and its one run is
@@ -2892,7 +2892,7 @@ final class ArchitectureTest {
     @Test
     void thePureV1ApiReachesNoDatabase() {
         noClasses()
-            .that().haveNameMatching("com\\.legend\\.server\\.PureV1Api(\\$.*)?")
+            .that().haveNameMatching("com\\.legend\\.server\\.LiteV1Api(\\$.*)?")
             .should().dependOnClassesThat()
             .resideInAnyPackage(JDBC_AND_DRIVERS)
             .as("the pure/v1 API is plan side: its host runs its queries")
@@ -3289,7 +3289,7 @@ final class ArchitectureTest {
             .as("the server mints an execution's id at its two host doors alone (edge.HostAnswers.jsonPlan, arrowPlan)");
 
     /**
-     * THE SERVER'S MINTS ARE ITS HOST DOORS' (the C final audit's J5, 2026-11-12): {@code PureV1Api.jsonPlan} and
+     * THE SERVER'S MINTS ARE ITS HOST DOORS' (the C final audit's J5, 2026-11-12): {@code LiteV1Api.jsonPlan} and
      * {@code arrowPlan} answer a HOST that runs the plan's statement itself (Python's engine), so no run of the
      * platform's has a door to mint the execution's id: each mints the one id its plan half reports (jsonPlan's, which
      * {@code jsonAnswer} and {@code arrowAnswer} report back with the host's rows; arrowPlan's, in its activities).
@@ -3499,6 +3499,38 @@ final class ArchitectureTest {
 
     /** The classes of core and of the hosts' doors ({@code //core:product_jars} and {@code //core:authored_door_jars}:
      *  the boundary, the tab's adapter and the native entry), the import checked to hold each door. */
+    /**
+     * THE PURE/V1 STYLE'S CALLERS (B7, the orchestrator's condition (2) on the {@code plainRaises} hook, 2026-11-17):
+     * {@code edge.PureText.PURE_V1} -- legend-engine's unchecked raises written plain, the user's ruling "pure/v1
+     * matches engine" -- is selected by the pure/v1 routes alone: the route module, the shipped server's runner and the
+     * embedded hosts' execute halves. PCT and the corpus keep {@code UPSTREAM}; a new caller is a ruling, not an edit.
+     */
+    @Test
+    void thePureV1StyleIsSelectedByThePureV1RoutesAlone() {
+        java.util.Set<String> callers = new java.util.TreeSet<>();
+        // the shipped server's runner stands in its own target (//core:edge_server), outside the imported jars: read from
+        // the edge's test classpath, which holds it
+        java.util.List<com.tngtech.archunit.core.domain.JavaClass> classes = new java.util.ArrayList<>();
+        coreAndTheHostsDoors().forEach(classes::add);
+        try {
+            new ClassFileImporter().importClasses(Class.forName("com.legend.edge.EdgeServer")).forEach(classes::add);
+        } catch (ClassNotFoundException e) {
+            throw new IllegalStateException("the shipped server's runner (//core:edge_server) is not on this test's"
+                    + " classpath", e);
+        }
+        for (com.tngtech.archunit.core.domain.JavaClass c : classes) {
+            for (com.tngtech.archunit.core.domain.JavaFieldAccess a : c.getFieldAccessesFromSelf()) {
+                if (a.getTargetOwner().getName().equals("com.legend.edge.PureText") && a.getName().equals("PURE_V1")
+                        && !a.getOriginOwner().getName().startsWith("com.legend.edge.PureText")) {
+                    callers.add(a.getOriginOwner().getName().replaceAll("\\$.*$", ""));
+                }
+            }
+        }
+        org.junit.jupiter.api.Assertions.assertEquals(new java.util.TreeSet<>(java.util.Set.of(
+                "com.legend.edge.EdgeServer", "com.legend.edge.PureV1Routes", "com.legend.edge.wasm.EdgeBoundary")),
+                callers, "PureText.PURE_V1 is selected by the pure/v1 routes alone (B7, 2026-11-17)");
+    }
+
     private static JavaClasses coreAndTheHostsDoors() {
         java.util.List<java.util.jar.JarFile> jars = new java.util.ArrayList<>();
         try {

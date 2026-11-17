@@ -21,7 +21,7 @@ public final class PlanCases {
     }
 
     /** A query with parameters, and the same query with each parameter a {@code let} of its value -- how the server
-     *  binds a request's values today ({@code PureV1Api.boundParameters}) -- with the values as the runner takes them:
+     *  binds a request's values today ({@code edge.ExecuteInputs.boundParameters}) -- with the values as the runner takes them:
      *  each its Pure type's Java value ({@code exec.PlanParameters}), a list a List. */
     public record Parameterised(String parameters, String lets, String body, java.util.Map<String, Object> values) {
 
