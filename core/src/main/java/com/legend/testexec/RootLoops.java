@@ -365,6 +365,7 @@ public final class RootLoops {
                     }
                     case TestPlan.FrameRun f -> {
                     }
+                    case TestPlan.Isolated p -> throw new IllegalStateException("an isolated pair is run at the top, as two plans");
                 }
             }
         }

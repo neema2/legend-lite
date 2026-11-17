@@ -267,6 +267,12 @@ class SentStatementsAreThePlansTest {
                         com.legend.testexecutionplan.TestPlan.statements(v);
                 case com.legend.testexecutionplan.TestPlan.Branch br ->
                         com.legend.testexecutionplan.TestPlan.statements(br);
+                case com.legend.testexecutionplan.TestPlan.Isolated p -> {
+                    // each judge's plan runs alone, the host's first
+                    out.addAll(ordered(p.host()));
+                    out.addAll(ordered(p.database()));
+                    yield List.of();
+                }
             };
             for (ExecutionPlan.Node node : nodes) {
                 nodeTexts(node, out);

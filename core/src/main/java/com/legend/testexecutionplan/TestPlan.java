@@ -71,7 +71,23 @@ public record TestPlan(List<ExecutionPlan.Parameter> parameters, List<TestStep> 
     public enum Judge { HOST, DATABASE, AGREEMENT }
 
     /** A step of a test body's program. */
-    public sealed interface TestStep permits Run, FrameRun, Verdicts, Branch {
+    public sealed interface TestStep permits Run, FrameRun, Verdicts, Branch, Isolated {
+    }
+
+    /** BOTH JUDGES, ISOLATED (the user's judge model, 2026-11-17; the orchestrator's (b'), the same day): the body
+     *  planned by the HOST judge alone and by the DATABASE judge alone -- each sub-plan byte-identical to what that
+     *  judge plans by itself (TestPlannerIsolationTest) -- run each in its own run, and the two runs' assert outcomes
+     *  compared by the runner, verdict and message, at this step. The one step of a plan whose judge is
+     *  {@link Judge#AGREEMENT}. */
+    public record Isolated(TestPlan host, TestPlan database) implements TestStep {
+        public Isolated {
+            Objects.requireNonNull(host, "host");
+            Objects.requireNonNull(database, "database");
+            if (host.judge() != Judge.HOST || database.judge() != Judge.DATABASE) {
+                throw new IllegalArgumentException("an agreement holds a HOST plan and a DATABASE plan, not "
+                        + host.judge() + " and " + database.judge());
+            }
+        }
     }
 
     /** A product step as the product's plan holds it (never a sequence: a program's steps are one list). */
@@ -152,6 +168,11 @@ public record TestPlan(List<ExecutionPlan.Parameter> parameters, List<TestStep> 
             }
             case Run r -> throw new IllegalArgumentException("a product step's statements are the product plan's");
             case FrameRun f -> throw new IllegalArgumentException("a frame run's statement is its check's");
+            // each judge's plan is its own: its statements are its steps'
+            case Isolated iso -> {
+                iso.host().steps().forEach(each -> statementsOf(each, out));
+                iso.database().steps().forEach(each -> statementsOf(each, out));
+            }
         }
     }
 
@@ -191,6 +212,10 @@ public record TestPlan(List<ExecutionPlan.Parameter> parameters, List<TestStep> 
             }
             case Run r -> throw new IllegalArgumentException("a product step's statements are the product plan's");
             case FrameRun f -> throw new IllegalArgumentException("a frame run's statement is its check's");
+            case Isolated iso -> {
+                iso.host().steps().forEach(each -> sentOf(each, out));
+                iso.database().steps().forEach(each -> sentOf(each, out));
+            }
         }
     }
 

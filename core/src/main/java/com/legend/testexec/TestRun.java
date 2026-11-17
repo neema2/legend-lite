@@ -85,6 +85,7 @@ final class TestRun {
                         databaseAlone ? StatementOrigin.BODY : textOrigin.apply(i));
                 case TestPlan.Branch b -> new ProgramRunner.Callback(i, TestPlan.statements(b),
                         databaseAlone ? StatementOrigin.BODY : null);
+                case TestPlan.Isolated p -> throw new IllegalStateException("an isolated pair is run at the top, as two plans");
             });
         }
         return new ProgramRunner.Program(plan.parameters(), steps);
@@ -113,6 +114,7 @@ final class TestRun {
                 case TestPlan.Branch b -> branch(b, open);
                 case TestPlan.Run r -> throw new IllegalStateException("a callback at a product step");
                 case TestPlan.FrameRun f -> throw new IllegalStateException("a callback at a frame run");
+                case TestPlan.Isolated p -> throw new IllegalStateException("an isolated pair is run at the top, as two plans");
             }
         }
 
@@ -132,6 +134,7 @@ final class TestRun {
                             + " branches");
                     case TestPlan.FrameRun f -> throw new IllegalStateException("a branch's side holds verdict groups"
                             + " and branches");
+                    case TestPlan.Isolated p -> throw new IllegalStateException("an isolated pair is run at the top, as two plans");
                 }
             }
         }

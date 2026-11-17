@@ -43,6 +43,9 @@ public final class PlannedAppeals {
     private static void walk(List<? extends TestPlan.TestStep> steps, Map<Integer, List<Integer>> out) {
         for (TestPlan.TestStep step : steps) {
             switch (step) {
+                // each judge's plan carries its own appeals, checked when it runs
+                case TestPlan.Isolated i -> {
+                }
                 case TestPlan.Verdicts group -> {
                     for (TestPlan.Verdict v : group.verdicts()) {
                         TestPlan.Host host = v.host();

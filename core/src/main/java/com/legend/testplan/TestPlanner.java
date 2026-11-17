@@ -65,6 +65,22 @@ public final class TestPlanner {
     }
 
     /**
+     * BOTH JUDGES, ISOLATED (the user's judge model, 2026-11-17; (b')): the body planned by each judge alone, exactly as
+     * that judge plans it by itself, the two plans held by one step at which the runner compares their verdicts and
+     * messages. Neither plan sees the other: no host column in a database statement, no fused agreement. Not yet the
+     * planner's answer under BOTH: the runner's half lands first.
+     */
+    static TestPlan planIsolated(TypedQuery typed, @Nullable String given, PlanningOptions options) {
+        TestPlan host = plan(typed, given, options.withJudgeMode(PlanningOptions.JudgeMode.HOST));
+        TestPlan database = plan(typed, given, options.withJudgeMode(PlanningOptions.JudgeMode.DATABASE));
+        TestPlan both = new TestPlan(List.of(), List.of(new TestPlan.Isolated(host, database)),
+                TestPlan.Judge.AGREEMENT, java.util.Map.of(), java.util.Map.of(), host.answersLastVerdict(),
+                host.session(), host.facts());
+        com.legend.testexecutionplan.TestPlanJson.requireRoundTrip(both);
+        return both;
+    }
+
+    /**
      * {@code given} PLANNED WHOLE by the test door, its asserts by its judge's planner: lifted, classed, its environment
      * made -- with no run started, no session opened, no statement sent, and nothing told to anyone (hole 4,
      * 2026-11-08: planning is handed no listener and no referee, so what it decides reaches the caller only as the

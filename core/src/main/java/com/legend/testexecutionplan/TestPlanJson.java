@@ -55,7 +55,7 @@ public final class TestPlanJson {
     }
 
     /** The {@code _type} tags of a test plan's steps and sides, one spelling for the writer and the reader. */
-    enum StepTag { run, frameRun, verdicts, branch }
+    enum StepTag { run, frameRun, verdicts, branch, isolated }
 
     enum SideTag { rows, keyedRows, constant, fusedCell }
 
@@ -197,6 +197,12 @@ public final class TestPlanJson {
                 o.put("condition", side(b.condition()));
                 o.put("then", steps(b.then()));
                 o.put("otherwise", steps(b.otherwise()));
+            }
+            case TestPlan.Isolated a -> {
+                // each judge's plan whole, as that judge's plan is written by itself: the isolation is in the data
+                o.put("_type", StepTag.isolated.name());
+                o.put("host", write(a.host()));
+                o.put("database", write(a.database()));
             }
         }
         return o;
@@ -356,6 +362,7 @@ public final class TestPlanJson {
     private static TestPlan.TestStep readStep(Json.Obj o) {
         return switch (tag(StepTag.class, o, "test plan step")) {
             case run -> new TestPlan.Run(PlanJson.nodeOf(o.getObj("node")));
+            case isolated -> new TestPlan.Isolated(read(o.getString("host")), read(o.getString("database")));
             case frameRun -> {
                 if (!(PlanJson.nodeOf(o.getObj("check")) instanceof ExecutionPlan.Check c)) {
                     throw new IllegalArgumentException("a frame run's step is a check");

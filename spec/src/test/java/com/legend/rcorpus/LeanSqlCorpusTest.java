@@ -123,6 +123,11 @@ class LeanSqlCorpusTest {
                     steps(b.then(), productSql, productNodes, counted, countedPlan);
                     steps(b.otherwise(), productSql, productNodes, counted, countedPlan);
                 }
+                // each judge's plan alone, the host's first (the isolated pair, 2026-11-17)
+                case TestPlan.Isolated p -> {
+                    steps(p.host().steps(), productSql, productNodes, judgeSql, judgePlan);
+                    steps(p.database().steps(), productSql, productNodes, judgeSql, judgePlan);
+                }
             }
         }
     }
@@ -282,6 +287,10 @@ class LeanSqlCorpusTest {
                     categorize(b.then(), test, c, ex);
                     categorize(b.otherwise(), test, c, ex);
                 }
+                case TestPlan.Isolated p -> {
+                    categorize(p.host().steps(), test, c, ex);
+                    categorize(p.database().steps(), test, c, ex);
+                }
                 case TestPlan.Run r -> {
                 }
                 case TestPlan.FrameRun f -> {
@@ -338,6 +347,10 @@ class LeanSqlCorpusTest {
                     walkHost(b.then(), host);
                     walkHost(b.otherwise(), host);
                 }
+                case TestPlan.Isolated p -> {
+                    walkHost(p.host().steps(), host);
+                    walkHost(p.database().steps(), host);
+                }
                 case TestPlan.Run r -> {
                 }
                 case TestPlan.FrameRun f -> {
@@ -353,6 +366,10 @@ class LeanSqlCorpusTest {
                 case TestPlan.Branch b -> {
                     walkDatabase(b.then(), database);
                     walkDatabase(b.otherwise(), database);
+                }
+                case TestPlan.Isolated p -> {
+                    walkDatabase(p.host().steps(), database);
+                    walkDatabase(p.database().steps(), database);
                 }
                 case TestPlan.Run r -> {
                 }

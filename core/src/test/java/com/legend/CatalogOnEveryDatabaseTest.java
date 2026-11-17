@@ -233,6 +233,10 @@ class CatalogOnEveryDatabaseTest {
                 case TestPlan.FrameRun f -> out.add(f.check().sql());
                 case TestPlan.Verdicts v -> TestPlan.statements(v).forEach(n -> out.addAll(sqls(n)));
                 case TestPlan.Branch b -> TestPlan.statements(b).forEach(n -> out.addAll(sqls(n)));
+                case TestPlan.Isolated p -> {
+                    out.addAll(sqls(p.host()));
+                    out.addAll(sqls(p.database()));
+                }
             }
         }
         return out;
