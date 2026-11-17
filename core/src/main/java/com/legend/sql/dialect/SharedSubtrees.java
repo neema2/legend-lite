@@ -33,8 +33,21 @@ import java.util.Set;
  * @param minNodes the fewest nodes a shared subtree has for a helper of its own: below it, writing it twice costs the
  *                 dialect less than a helper does (Deephaven's formulas, compiled by the server: 5; DuckDB's helpers, a
  *                 select of their own: 50)
+ * @param read     what the select's columns read by a name already, written as that name: none of it, and nothing
+ *                 inside it, is a helper (a grouped select's key and aggregates, a window -- a helper inside one would
+ *                 read columns the group did not keep; 2026-11-17, the options desk's smile chart, its bin a group key
+ *                 refused by the server)
  */
-record SharedSubtrees(int minNodes) {
+record SharedSubtrees(int minNodes, Set<SqlExpr> read) {
+
+    SharedSubtrees(int minNodes) {
+        this(minNodes, Set.of());
+    }
+
+    /** These subtrees, with {@code names} read by their names. */
+    SharedSubtrees reading(Set<SqlExpr> names) {
+        return new SharedSubtrees(minNodes, Set.copyOf(names));
+    }
 
     /** The subtrees of {@code exprs} (a select's columns, in order) worth computing once, smallest first: a helper reads
      *  the helpers inside it by their names. */
@@ -74,7 +87,7 @@ record SharedSubtrees(int minNodes) {
     /** Every candidate subtree of {@code e} ({@link #candidate}), each time it is written. */
     private void countIn(SqlExpr e, Map<SqlExpr, Integer> count) {
         SqlExpr x = bare(e);
-        if (!composite(x)) {
+        if (!composite(x) || read.contains(e) || read.contains(x)) {
             return;
         }
         if (candidate(x)) {
@@ -87,7 +100,7 @@ record SharedSubtrees(int minNodes) {
 
     private void countIn(SqlExpr e, Set<SqlExpr> within) {
         SqlExpr x = bare(e);
-        if (!composite(x)) {
+        if (!composite(x) || read.contains(e) || read.contains(x)) {
             return;
         }
         if (candidate(x)) {
@@ -101,7 +114,7 @@ record SharedSubtrees(int minNodes) {
     /** The candidate subtrees {@code e} computes whenever it is computed: not those only a branch of it reads. */
     private void always(SqlExpr e, Set<SqlExpr> out) {
         SqlExpr x = bare(e);
-        if (!composite(x)) {
+        if (!composite(x) || read.contains(e) || read.contains(x)) {
             return;
         }
         if (candidate(x)) {

@@ -205,10 +205,13 @@ final class DeephavenBatch {
      * (docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md K11: seconds of the options desk's first show).
      *
      * @param specs   a view's columns, in order
+     * @param read    what the view reads by a name already (the select's group keys, aggregates and windows): no
+     *                helper is made of it or of anything inside it, which the view never writes
      * @param helpers the helpers' names, which the caller drops after the view
      * @return the columns with the helpers among them
      */
-    private static List<Spec> withShared(List<Spec> specs, List<String> helpers) {
+    private static List<Spec> withShared(List<Spec> specs, java.util.Set<SqlExpr> read, List<String> helpers) {
+        SharedSubtrees subtrees = FORMULA_SUBTREES.reading(read);
         List<SqlExpr> exprs = new ArrayList<>();
         for (Spec spec : specs) {
             if (spec.expr() != null) {
@@ -216,7 +219,7 @@ final class DeephavenBatch {
             }
         }
         // smallest first, so a helper reads the helpers inside it by their names
-        List<SqlExpr> shared = FORMULA_SUBTREES.shared(exprs);
+        List<SqlExpr> shared = subtrees.shared(exprs);
         if (shared.isEmpty()) {
             return specs;
         }
@@ -225,7 +228,7 @@ final class DeephavenBatch {
         for (Spec spec : specs) {
             if (spec.expr() != null) {
                 SqlExpr whole = SharedSubtrees.bare(spec.expr());
-                java.util.Set<SqlExpr> within = FORMULA_SUBTREES.within(spec.expr());
+                java.util.Set<SqlExpr> within = subtrees.within(spec.expr());
                 for (SqlExpr h : shared) {
                     // a column before this one computes it, or this column is it: read by that column's name
                     if (within.contains(h) && !named.contains(h) && !h.equals(whole)) {
@@ -434,7 +437,7 @@ final class DeephavenBatch {
         scope.outputs.putAll(outputs);
         // the subtrees its columns share, each computed once (#withShared); a DISTINCT keeps its outputs only
         List<String> helpers = new ArrayList<>();
-        specs = withShared(specs, helpers);
+        specs = withShared(specs, scope.computed.keySet(), helpers);
         if (!s.distinct()) {
             hidden.addAll(helpers);
         }

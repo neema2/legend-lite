@@ -57,6 +57,11 @@ public final class EmbeddedDeephaven implements AutoCloseable {
     private final Path application;
     private Process server;
 
+    /** How many times the server has started: each start's log is kept under its own name (a restart's log would
+     *  otherwise replace the one before it, and with it the reason for a refusal before the restart; 2026-11-17, the
+     *  Deephaven v0 desk lane). */
+    private int starts;
+
     private EmbeddedDeephaven(Path root, Path data, String psk, int port, Path application)
             throws IOException {
         this.root = root;
@@ -133,6 +138,7 @@ public final class EmbeddedDeephaven implements AutoCloseable {
     private Process launch() throws IOException {
         Path log = data.resolve("server.log");
         Files.deleteIfExists(log);
+        starts++;
         String java = Path.of(System.getProperty("java.home"), "bin", "java").toString();
         Path etc = root.resolve("etc");
         List<String> command = new ArrayList<>(List.of(java, "-server",
@@ -285,7 +291,8 @@ public final class EmbeddedDeephaven implements AutoCloseable {
             return;
         }
         try {
-            Files.copy(log, Path.of(outputs).resolve(data.getFileName() + "-server.log"),
+            String name = data.getFileName() + "-server" + (starts > 1 ? "-" + starts : "") + ".log";
+            Files.copy(log, Path.of(outputs).resolve(name),
                     java.nio.file.StandardCopyOption.REPLACE_EXISTING);
         } catch (IOException e) {
             System.err.println("the Deephaven server's log was not kept: " + e);

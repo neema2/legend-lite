@@ -947,4 +947,21 @@ class DeephavenDialectTest {
         assertTrue(rolling.contains("{\"rollingGroup\": {\"reverseWindowScale\": {\"ticks\": {\"ticks\": 2}},"
                 + " \"forwardWindowScale\": {\"ticks\": {\"ticks\": 1}}}}") && rolling.contains(" = firstObj(__x"), rolling);
     }
+    @Test
+    void aGroupKeyReadByItsNameLendsNoHelperToTheViewAfterTheGroup() {
+        // the options desk's smile chart (2026-11-17): a ratio binned as DataCube bins it (calc-presets.ts placed: the
+        // division's floor read five times), grouped by its bin -- after the group the bin is its key, read by the key's
+        // name, so no helper is made of what is inside it: a helper there would read columns the group did not keep,
+        // which the server refuses ("Cannot find variable or class t0__pnl")
+        String m = "($x.pnl->toOne() / $x.notional->toOne())";
+        String k = "floor($x.m / 0.05)";
+        String q = "#>{risk::Ref.trades}#->join(#>{risk::Ref.instrument}#, meta::pure::functions::relation::JoinKind.INNER,"
+                + " {a,b|$a.instrument == $b.iid})->extend(~[m:x|" + m + "])"
+                + "->extend(~[m__bin:x|if($x.m < ((" + k + " * 5) / 100), |" + k + " - 1, |if($x.m >= (((" + k
+                + " + 1) * 5) / 100), |" + k + " + 1, |" + k + "))])"
+                + "->groupBy(~[m__bin, desk], ~[avg:x|$x.pnl:y|$y->average()])";
+        String b = batch(q);
+        assertTrue(b.contains("\"columnSpecs\": [\"m__bin = __g0\", \"desk = t0__desk\", \"avg = __r0\"]"), b);
+        assertFalse(b.contains("__e0"), b);
+    }
 }

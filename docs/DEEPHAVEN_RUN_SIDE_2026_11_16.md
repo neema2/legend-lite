@@ -294,6 +294,31 @@ runtime and the plan's declared requests. No request gains a field. `ingestPlans
 - **M2 (types)** is measured as it is built: the plan carries each column's Deephaven type and the runtime refuses a
   server that holds otherwise (DH16), so every Deephaven lane run is the measurement, each refusal a dialect fix.
 
+### 10.2 As built (2026-11-17, step 4 in progress)
+
+What the code does where it differs from the text above, each for a reason, and what is interim:
+
+- **The plan's statement** on a Deephaven target is the steps document (`com.legend.deephaven.DeephavenSteps`,
+  format `legend-deephaven-steps`): v0 writes one kept step a plan, the query's whole batch, and the session's three
+  requests. A step exports each operation that reads a store's table (checked against its declaration, DH16, then let
+  go by the declared release) and its last operation, its result.
+- **The server answers once for every operation of a batch**, an exported one naming its export, any other naming its
+  place (measured on 42.7): the runtime reads every answer for its success and matches the exported ones by id
+  (`deephaven-steps.ts made`).
+- **No Deephaven type on the plan's result columns** (§4.1 `columns`): nothing reads it -- the runtime checks the
+  store tables a step reads (`declared`), which carry their Java types already. It is added when something reads it,
+  the rule the user ruled for nullability (§13).
+- **A kept result's lifetime** is the session's keep: held while read, then idle among the 128 most lately read, the
+  least lately read let go first. No hold counting.
+- **INTERIM, the base read inline.** Until the planner keeps a query's `let` as a step (§5.2, held for lean SQL E's
+  answer, §12 answer 3), DataCube's queries read their base as written: no base on the server
+  (`datacube/src/server-base.ts #make`, marked INTERIM). The checks that count bases fail by design until it lands:
+  the cube lane's "the grid's base" and its per-gesture base counts, and the board lane's "the grids read N bases".
+- **Found by the inline base:** a chart's bin, grouped by, lent a helper to the view after the group of what was inside
+  the group's key, a helper reading columns the group had not kept; the server refused the options desk's smile chart.
+  The dialect's shared subtrees now leave alone what a view reads by a name (`SharedSubtrees.read`;
+  `DeephavenDialectTest.aGroupKeyReadByItsNameLendsNoHelperToTheViewAfterTheGroup`).
+
 ## 11. The order of work
 
 1. Merge `main` (`4dfbb5b7`: C5-P, C5-J, C5-T; 85 commits, about 18 conflicts), the Deephaven TypeScript placed in
