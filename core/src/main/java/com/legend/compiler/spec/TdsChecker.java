@@ -91,7 +91,7 @@ final class TdsChecker {
 
         List<Type.Column> columns = new ArrayList<>(names.size());
         for (int c = 0; c < names.size(); c++) {
-            Type type = types.get(c) != null ? types.get(c) : inferredType(rows, c);
+            Type type = types.get(c) != null ? scaledByItsCells(types.get(c), rows, c) : inferredType(rows, c);
             // HONEST multiplicity: a column whose DATA carries null cells
             // is [0..1] — typing it [1] hid the null-safe equality arms
             // (engine nullSafeEqualsOperation: [0..1]==[0..1] joins/
@@ -162,6 +162,37 @@ final class TdsChecker {
         boolean single = cell.length() >= 2 && cell.startsWith("'") && cell.endsWith("'");
         boolean dbl = cell.length() >= 2 && cell.startsWith("\"") && cell.endsWith("\"");
         return single || dbl ? cell.substring(1, cell.length() - 1) : cell;
+    }
+
+    /** An annotated Decimal column's scale is its cells' own, the largest written ({@code 0.10} is 2,
+     *  {@code 123456789.123456789} 9): F51, 2026-11-17 -- until then a column {@code a:Decimal} was typed a scale-0
+     *  DECIMAL(38, 0), so a database casting the column to it cut every fraction (ClickHouse's {@code 0.1 + 0.2}
+     *  answered 0, measured in round 76) and a rule reading its scale truncated (DuckDB's widened product). A column
+     *  of no decimal cell (empty, null, integral) keeps scale 0, which its cells hold exactly. Any other type as
+     *  annotated. */
+    private static Type scaledByItsCells(Type annotated, List<List<String>> rows, int c) {
+        if (!(annotated instanceof Type.PrecisionDecimal d)) {
+            return annotated;
+        }
+        int scale = d.scale();
+        for (List<String> row : rows) {
+            String cell = c < row.size() ? row.get(c).strip() : "";
+            if (cell.isEmpty() || cell.equals("null")) {
+                continue;
+            }
+            String digits = cell.endsWith("d") || cell.endsWith("D") ? cell.substring(0, cell.length() - 1) : cell;
+            try {
+                scale = Math.max(scale, new java.math.BigDecimal(digits).scale());
+            } catch (NumberFormatException notANumber) {
+                throw new TypeInferenceException("TDS column " + c + " is annotated Decimal and its cell '" + cell
+                        + "' is no decimal number");
+            }
+        }
+        if (scale > Type.PrecisionDecimal.MAX_PRECISION) {
+            throw new TypeInferenceException("TDS column " + c + " is annotated Decimal and a cell holds " + scale
+                    + " decimal places, past a DECIMAL's " + Type.PrecisionDecimal.MAX_PRECISION);
+        }
+        return new Type.PrecisionDecimal(d.precision(), scale);
     }
 
     /** An explicit {@code col:Type} annotation (engine {@code mapTdsColumnType}); unknown types fail loudly. */
