@@ -24,21 +24,22 @@ class Trees(unittest.TestCase):
         self.assertEqual(tree['body'][0]['value'], 'café ✓ 日本 \U0001F600')
         self.assertEqual(ll.parse(ll.print_tree(tree)), tree)
 
-    def test_a_nul_in_text_is_refused_before_the_call(self):
-        with self.assertRaises(ValueError):
-            ll.parse("|'a\x00b'")
+    def test_a_nul_in_text_travels_in_the_requests_json(self):
+        # the lite API's request is JSON (the spec's §5, 2026-11-17), which carries a NUL escaped: no C string ends at it
+        tree = ll.parse("|'a\x00b'")
+        self.assertEqual(tree['body'][0]['value'], 'a\x00b')
 
     def test_text_to_tree_and_back(self):
         tree = ll.parse(GROUP)
         self.assertEqual(tree['_type'], 'lambda')
         self.assertEqual(ll.parse(ll.print_tree(tree)), tree, 'printing and parsing again is the same tree')
-        self.assertNotIn('\n', ll.print_tree(tree, 'STANDARD'))
+        self.assertNotIn('\n', ll.print_tree(tree, 'standard'))
 
     def test_numbers_stay_exact(self):
         tree = ll.parse('|[1.50D, 9007199254740993, 0.1]')
         values = [v['value'] for v in tree['body'][0]['values']]
         self.assertEqual(values, [Decimal('1.50'), 9007199254740993, Decimal('0.1')])
-        self.assertEqual(ll.print_tree(tree, 'STANDARD'), '|[1.50D, 9007199254740993, 0.1]')
+        self.assertEqual(ll.print_tree(tree, 'standard'), '|[1.50D, 9007199254740993, 0.1]')
         self.assertEqual(_json.dumps({'d': Decimal('12.30'), 'i': 2 ** 70}), '{"d":12.30,"i":1180591620717411303424}')
         # laid out as json.dumps lays it out, the numbers still exact
         value = {'a': [1, {'b': 'é', 'c': []}, {}], 'd': None, 'e': [True, 0.5]}
@@ -77,7 +78,7 @@ Runtime s::RT { mappings: []; connections: [ s::DB: [ c: s::Conn ] ]; }
 
         with mock.patch.object(type(library()), 'call', lambda self, name, *args: no_edge(name, *args)):
             tree = compiler.parse('|#>{s::DB.t}#->select(~[desk])')
-            self.assertEqual(compiler.parse(compiler.print_tree(tree, 'STANDARD')), tree)
+            self.assertEqual(compiler.parse(compiler.print_tree(tree, 'standard')), tree)
             self.assertEqual([c.name for c in compiler.relation_type(self.MODEL, tree)], ['desk'])
             named = {f"{e['package']}::{e['name']}" for e in compiler.model_elements(self.MODEL)}
             self.assertLessEqual({'s::DB', 's::Conn', 's::RT'}, named)
@@ -140,6 +141,41 @@ class TheProductsKinds(unittest.TestCase):
         self.assertEqual(refused.exception.kind, kinds['PARSE'])
         self.assertTrue(compiler.refuses_the_text(refused.exception))
         self.assertEqual((refused.exception.where, refused.exception.raise_), (None, None))
+
+
+class LiteApiConformance(unittest.TestCase):
+    """LITE API V1'S CONFORMANCE SUITE, THE PYTHON BINDING (docs/records/lite-api-v1-2026-11-17.md §5, 2026-11-17): each
+    case of engine-client/test/fixtures/lite-api-cases.json asked of Python's native entries (``compiler.operation``,
+    the spec's one rule: operation a/b -> lite_a_b) and its answer held to the case's -- exact (``answer``), or each key
+    it names equal and each array item it names matched by some item (``answerIncludes``) -- as the browser's exports
+    (core's LiteApiConformanceTest) and the server's routes are by their own readers, so the three cannot drift."""
+
+    @staticmethod
+    def includes(expected, actual):
+        if isinstance(expected, dict):
+            return isinstance(actual, dict) and all(k in actual and LiteApiConformance.includes(v, actual[k])
+                                                    for k, v in expected.items())
+        if isinstance(expected, list):
+            return isinstance(actual, list) and all(any(LiteApiConformance.includes(e, a) for a in actual)
+                                                    for e in expected)
+        return expected == actual and type(expected) is type(actual)
+
+    def test_pythons_entries_answer_each_case(self):
+        from legend_lite import compiler
+        fixture = _json.loads(Path(os.environ['LEGEND_LITE_API_CASES']).read_text(encoding='utf-8'))
+        cases = fixture['cases']
+        self.assertTrue(cases, 'the suite holds cases')
+        for case in cases:
+            with self.subTest(case['name']):
+                answer = compiler.operation(case['op'], case['request'])
+                if 'answer' in case:
+                    self.assertEqual(answer, case['answer'])
+                else:
+                    self.assertTrue(self.includes(case['answerIncludes'], answer), _json.dumps(answer)[:2000])
+
+    def test_an_integer_is_exact_on_the_python_binding(self):
+        # ruled 7: an Integer an exact JSON number, 2^63-1 kept on all three bindings
+        self.assertEqual(ll.parse('|9223372036854775807')['body'][0]['value'], 2 ** 63 - 1)
 
 
 class Compiling(unittest.TestCase):
@@ -237,7 +273,10 @@ class Compiling(unittest.TestCase):
                     '        open BIT\n    )\n)\n')
         self.assertEqual(m['model'], database + '\n' + connection('Conn', 'RT'))
         self.assertEqual((m['runtime'], m['accessor']), ('shop::RT', '#>{shop::DB.orders}#'))
-        self.assertEqual((m['conversions'], m['excluded'], m['bitColumns']), ([], [], ['open']))
+        self.assertEqual((m['conversions'], m['excluded']), ([], []))
+        # legend-engine's TinyInt for a BIT column is the legend-engine client's alone (the edge program's H10,
+        # 2026-11-17): the product's table model names none
+        self.assertNotIn('bitColumns', m)
 
     def test_a_held_model_is_compiled_once_and_plans_as_a_model_given_each_time(self):
         # docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §9: the same answers, the model compiled once

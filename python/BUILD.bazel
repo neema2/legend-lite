@@ -293,12 +293,15 @@ py_test(
         "test_corpus",
     ],
     data = [
+        "//engine-client:test/fixtures/lite-api-cases.json",
         "//native:compiler",
         "//wasm:corpus/model.pure",
         "//wasm:corpus/queries.tsv",
         "//wasm:jvm_answers",
     ],
     env = _ENV | {
+        # lite API v1's conformance suite, one file every binding reads (the spec's §5, 2026-11-17)
+        "LEGEND_LITE_API_CASES": "$(rlocationpath //engine-client:test/fixtures/lite-api-cases.json)",
         "LEGEND_LITE_CORPUS_MODEL": "$(rlocationpath //wasm:corpus/model.pure)",
         "LEGEND_LITE_CORPUS_QUERIES": "$(rlocationpath //wasm:corpus/queries.tsv)",
         "LEGEND_LITE_JVM_ANSWERS": "$(rlocationpath //wasm:jvm_answers)",

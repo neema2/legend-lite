@@ -172,7 +172,7 @@ class Calls(Served):
 
         status, headers, body = self.post('/api/pure/v1/grammar/jsonToGrammar/lambda?renderStyle=STANDARD', json.dumps(tree))
         self.assertEqual((status, headers['Content-Type']), (200, 'text/plain'))
-        self.assertEqual(body.decode('utf-8'), ll.print_tree(tree, 'STANDARD'))
+        self.assertEqual(body.decode('utf-8'), ll.print_tree(tree, 'standard'))
 
         status, _, body = self.post('/api/pure/v1/compilation/lambdaRelationType',
                                     json.dumps({'lambda': tree, 'model': {'_type': 'text', 'code': self.table.model}}))

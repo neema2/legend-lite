@@ -22,6 +22,10 @@ from .compiler import (
     LegendError,
     Plan,
     catalog_columns_sql,
+    check,
+    create_association,
+    create_class,
+    create_data_space,
     database_from_catalog,
     model_elements,
     parse,
@@ -31,6 +35,8 @@ from .compiler import (
     relation_type,
     session_setup,
     table_model,
+    ts_item,
+    ts_statement,
 )
 
 # Frames, Engine, show, DataCube and Page are not listed: `from legend_lite import *` would import duckdb
@@ -38,8 +44,9 @@ from .compiler import (
 # Nor is home: it is the whole package's (//python:legend_lite, beside the engine that keeps its pages), not the
 # compiler's bindings'
 __all__ = [
-    'Column', 'HeldModel', 'LegendError', 'Plan', 'catalog_columns_sql', 'database_from_catalog', 'model_elements', 'parse',
-    'plan', 'plan_text', 'print_tree', 'relation_type', 'session_setup', 'table_model',
+    'Column', 'HeldModel', 'LegendError', 'Plan', 'catalog_columns_sql', 'check', 'create_association', 'create_class',
+    'create_data_space', 'database_from_catalog', 'model_elements', 'parse', 'plan', 'plan_text', 'print_tree',
+    'relation_type', 'session_setup', 'table_model', 'ts_item', 'ts_statement',
 ]
 
 

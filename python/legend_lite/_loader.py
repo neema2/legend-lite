@@ -40,7 +40,11 @@ _ARITY = {
     # a host's named operations (D5)
     'lite_host_operations': 2,
     # lite's own grammar and typing (the edge program's H4, 2026-11-17): the product's, never pure/v1's
-    'lite_model_elements': 2, 'lite_parse_lambda': 2, 'lite_print_lambda': 2, 'lite_lambda_relation_type': 2,
+    'lite_parse_lambda': 2, 'lite_print_lambda': 2, 'lite_lambda_relation_type': 2,
+    # LITE'S OWN API, v1: one entry per operation, its request JSON in (the lite API spec's §5, §7, 2026-11-17)
+    'lite_model_check': 1, 'lite_model_elements': 1, 'lite_query_parse': 1, 'lite_query_print': 1, 'lite_query_type': 1,
+    'lite_query_plan': 1, 'lite_model_create_class': 1, 'lite_model_create_association': 1,
+    'lite_model_create_data_space': 1, 'lite_ts_statement': 1,
     # the planner protocol's other lite kinds (the edge program's H2/H4 pairing, 2026-11-17)
     'lite_model_action': 2, 'lite_ts_item': 1, 'lite_json_to_ts': 2, 'lite_compile_errors': 1,
     'lite_pure_v1': 3, 'lite_execute_plan': 2, 'lite_pure_v1_refusal': 1,
