@@ -599,7 +599,7 @@ public class DuckDb extends AnsiSqlRenderer {
             case ERROR -> raiseEnvelope(writer, c.args(), "error");
             case DECIMAL_TO_TEXT -> writer.expr(varcharCast(c.args().get(0)), parentPrec);
             case BOOL_TO_TEXT -> castAs(writer, c.args().get(0), "VARCHAR");
-            case FLOAT_PRINT -> floatPrintByText(writer, c, parentPrec);
+            case FLOAT_SHORTEST_TEXT -> floatShortestTextByCast(writer, c, parentPrec);
             case FLOAT_TO_TEXT -> floatToText(writer, c.args().get(0));
             case DATETIME_TO_TEXT, DATETIME_PRINT, CELL_TEXT, INSTANCE_TEXT, RELATION_TEXT, TEXT_FORMS ->
                     throw expandedFirst(c);

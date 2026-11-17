@@ -51,7 +51,6 @@ class EdgeSeparationTest {
     static final Map<String, String> COMPAT_CLASSES = Map.ofEntries(
             Map.entry("com.legend.planner.UpstreamPlans", "B2"),
             Map.entry("com.legend.server.PureV1Api", "B7"),
-            Map.entry("com.legend.sql.dialect.FloatPrintText", "B9"),
             Map.entry("com.legend.sql.dialect.DateTimePrintText", "B9"),
             // B17 (2026-11-17): Render's relation text moved to the edge (edge.RelationTextLowering); what stays in
             // Render is the product's row helpers, and the facet the edge answers stands here until hooks are ruled
@@ -64,7 +63,7 @@ class EdgeSeparationTest {
             Map.entry("com.legend.testplan.PlanStyleFacets", "C4"));
 
     /** The SqlFn members only the edge spells (census B8). */
-    static final Set<String> EDGE_ONLY_SQLFN = Set.of("FLOAT_PRINT", "DATETIME_PRINT", "INSTANCE_TEXT",
+    static final Set<String> EDGE_ONLY_SQLFN = Set.of("DATETIME_PRINT", "INSTANCE_TEXT",
             "RELATION_TEXT", "TEXT_FORMS");
 
     /** The referee and the appeals (census C2; G6: the edge's alone). */
@@ -86,7 +85,6 @@ class EdgeSeparationTest {
             Map.entry("com.legend.lowering.RelationTexts -> (stands in a product package)", "B17 2026-11-17"),
             Map.entry("com.legend.planner.PlanEnv -> com.legend.lowering.RelationTexts", "B17 2026-11-17"),
             Map.entry("com.legend.lowering.Repr -> (stands in a product package)", "B12 2026-11-17"),
-            Map.entry("com.legend.lowering.Repr -> SqlFn.FLOAT_PRINT", "C5 2026-11-17"),
             Map.entry("com.legend.lowering.Scalars -> SqlFn.DATETIME_PRINT", "B8 2026-11-17"),
             Map.entry("com.legend.lowering.Scalars -> SqlFn.INSTANCE_TEXT", "B8 2026-11-17"),
             Map.entry("com.legend.lowering.Scalars -> SqlFn.TEXT_FORMS", "B8 2026-11-17"),
@@ -99,9 +97,7 @@ class EdgeSeparationTest {
             Map.entry("com.legend.server.ModelInput -> com.legend.server.PureV1Api", "B7 2026-11-17"),
             Map.entry("com.legend.server.PureV1Api -> (stands in a product package)", "B7 2026-11-17"),
             Map.entry("com.legend.sql.dialect.AnsiSqlRenderer -> com.legend.sql.dialect.DateTimePrintText", "B9 2026-11-17"),
-            Map.entry("com.legend.sql.dialect.AnsiSqlRenderer -> com.legend.sql.dialect.FloatPrintText", "B9 2026-11-17"),
             Map.entry("com.legend.sql.dialect.DateTimePrintText -> (stands in a product package)", "B9 2026-11-17"),
-            Map.entry("com.legend.sql.dialect.FloatPrintText -> (stands in a product package)", "B9 2026-11-17"),
             Map.entry("planner.Boundary -> com.legend.edge.HostAnswers", "A1 2026-11-17"),
             Map.entry("planner.Boundary -> com.legend.edge.PureText", "A1 2026-11-17"),
             Map.entry("planner.Boundary -> com.legend.edge.PureV1Routes", "A1 2026-11-17"),
@@ -308,28 +304,12 @@ class EdgeSeparationTest {
     static final Map<String, String> CSG_OPEN = Map.ofEntries(
             Map.entry("compiler/element/type/PlatformTypes.java | TDS_NULL_CELL", "B10 2026-11-17"),
             Map.entry("lowering/LiteralSpelling.java | +0000", "B11 2026-11-17"),
-            Map.entry("lowering/Repr.java | FLOAT_PRINT", "C5 2026-11-17"),
             Map.entry("lowering/Repr.java | Repr", "B12 2026-11-17"),
             Map.entry("lowering/Scalars.java | Repr", "B12 2026-11-17"),
             Map.entry("lowering/VerdictSql.java | Repr", "C5 2026-11-17"),
             Map.entry("lowering/VerdictSql.java | TDS_NULL_CELL", "C5 2026-11-17"),
             Map.entry("sql/SqlExpr.java | TDS_NULL_CELL", "B10 2026-11-17"),
-            Map.entry("sql/SqlFn.java | FLOAT_PRINT", "B9 2026-11-17"),
-            Map.entry("sql/SqlTyping.java | FLOAT_PRINT", "B9 2026-11-17"),
-            Map.entry("sql/dialect/BigQuery.java | FLOAT_PRINT", "B9 2026-11-17"),
-            Map.entry("sql/dialect/ClickHouse.java | FLOAT_PRINT", "B9 2026-11-17"),
-            Map.entry("sql/dialect/Databricks.java | FLOAT_PRINT", "B9 2026-11-17"),
-            Map.entry("sql/dialect/DuckDb.java | FLOAT_PRINT", "B9 2026-11-17"),
             Map.entry("sql/dialect/DateTimePrintText.java | +0000", "B9 2026-11-17"),
-            Map.entry("sql/dialect/FloatPrintText.java | FLOAT_PRINT", "B9 2026-11-17"),
-            Map.entry("sql/dialect/H2.java | FLOAT_PRINT", "B9 2026-11-17"),
-            Map.entry("sql/dialect/MariaDb.java | FLOAT_PRINT", "B9 2026-11-17"),
-            Map.entry("sql/dialect/MongoDb.java | FLOAT_PRINT", "B9 2026-11-17"),
-            Map.entry("sql/dialect/MySql.java | FLOAT_PRINT", "B9 2026-11-17"),
-            Map.entry("sql/dialect/Postgres.java | FLOAT_PRINT", "B9 2026-11-17"),
-            Map.entry("sql/dialect/SQLite.java | FLOAT_PRINT", "B9 2026-11-17"),
-            Map.entry("sql/dialect/Snowflake.java | FLOAT_PRINT", "B9 2026-11-17"),
-            Map.entry("sql/dialect/Trino.java | FLOAT_PRINT", "B9 2026-11-17"),
             Map.entry("testdatagen/TestDataPlanner.java | +0000", "B11 2026-11-17"),
             Map.entry("testexec/AssertRuns.java | EngineText", "C3 2026-11-17"),
             Map.entry("testexec/CanonicalForm.java | +0000", "C5 2026-11-17"),

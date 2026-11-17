@@ -471,7 +471,7 @@ public final class LiteralSpelling {
     /**
      * A Float's text ({@code toString}, {@code format}'s {@code %f}): one call, {@link SqlFn#FLOAT_TO_TEXT}, which each
      * dialect writes -- the product six decimals trimmed (the user's ruling of 2026-11-10), the compatibility edge
-     * legend-pure's print form (phase D's D1.2, 2026-11-15; until then this was Pure's form, FLOAT_PRINT, everywhere).
+     * legend-pure's print form (phase D's D1.2, 2026-11-15; until then this was Pure's form, FLOAT_SHORTEST_TEXT, everywhere).
      */
     public static SqlExpr floatPrint(SqlExpr x) {
         // (D1.2: the product's text of an integer-held value is its digits too, the same text as six decimals trimmed,

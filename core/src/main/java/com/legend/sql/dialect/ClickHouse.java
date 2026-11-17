@@ -1825,7 +1825,7 @@ public class ClickHouse extends AnsiSqlRenderer {
             // Pure's divide is a Float division: both operands DOUBLE
             case DIVIDE -> divideAsDoubles(writer, c.args());
             case XOR -> xorAsAndOr(writer, c.args(), parentPrec);
-            case FLOAT_PRINT -> floatPrintByText(writer, c, parentPrec);
+            case FLOAT_SHORTEST_TEXT -> floatShortestTextByCast(writer, c, parentPrec);
             case FLOAT_TO_TEXT -> floatToText(writer, c.args().get(0));
             case DATETIME_TO_TEXT, DATETIME_PRINT, CELL_TEXT, INSTANCE_TEXT, RELATION_TEXT, TEXT_FORMS ->
                     throw expandedFirst(c);

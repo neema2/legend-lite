@@ -162,6 +162,9 @@ class CompatSpellingGuardTest {
             // lowering/JsonEmission.java | tdsBuilder: GONE 2026-11-17 (Phase 6's B5): legend-engine's result envelope is
             // the edge's (edge.EngineResultEnvelopes, the lowering.ResultEnvelopes facet), refused by the product at LOWER
             "lowering/LiteralSpelling.java | +0000 | 7 | D1.9",
+            // FLOAT_PRINT's rows: GONE 2026-11-17 (census B9, the orchestrator's ruling): measured equal to lite's writers'
+            // text inside its windows, the node is lite's canonical Float text, FLOAT_SHORTEST_TEXT, a product node in
+            // every dialect and the judges' message text alike; the symbol stays scanned so the old name cannot return
             // FLOAT_PRINT, reclassified D1.2 -> JUDGE 2026-11-15 (phase D's D1.2): the product's text of a Float is
             // FLOAT_TO_TEXT, lite's six decimals (register S311); FLOAT_PRINT, legend-pure's print form, stays in each
             // product dialect as the JUDGES' %r of a Float in an assert's message (lowering/Repr: the database judge
@@ -171,7 +174,6 @@ class CompatSpellingGuardTest {
             // CELL_TEXT node; legend-engine's TDSNull is the edge's, edge/PurePrintForms)
             // lowering/Lowerer.java | withEngineText: gone 2026-11-17 (Phase 6's B5: the lowering takes a LoweringShape, the
             // product's LEAN; legend-engine's shape is the edge's choice, EnginePlans.UPSTREAM_SHAPE)
-            "lowering/Repr.java | FLOAT_PRINT | 1 | JUDGE",
             // D1.3 -> D1.9 (2026-11-15): Repr is the judges' %r (and format's %r, which the assert bodies write): it
             // moves with the judges
             "lowering/Repr.java | Repr | 2 | D1.9",
@@ -240,12 +242,6 @@ class CompatSpellingGuardTest {
             "sql/SqlExpr.java | TDS_NULL_CELL | 1 | D1.9",
             // 1 -> 2 each (2026-11-16, the PR1 re-review's A6): both named again in SqlFn.MAY_SKIP_AN_ARGUMENT, a set of
             // functions, not a spelling
-            "sql/SqlFn.java | FLOAT_PRINT | 2 | JUDGE",
-            "sql/SqlTyping.java | FLOAT_PRINT | 1 | JUDGE",
-            "sql/dialect/BigQuery.java | FLOAT_PRINT | 1 | JUDGE",
-            "sql/dialect/ClickHouse.java | FLOAT_PRINT | 1 | JUDGE",
-            "sql/dialect/Databricks.java | FLOAT_PRINT | 1 | JUDGE",
-            "sql/dialect/DuckDb.java | FLOAT_PRINT | 1 | JUDGE",
             // sql/dialect/{AnsiSqlRenderer,DuckDb,Postgres,RawSqlBoundary}.java's RawSqlBoundary rows: GONE 2026-11-17 (Phase
             // 6's B4 (ii)): the product runs a raw statement as written; the translation is the edge's
             // sql/dialect/EngineTextDialect.java: GONE 2026-11-17 (Phase 6's B3, the orchestrator's GO): the interface is
@@ -257,7 +253,6 @@ class CompatSpellingGuardTest {
             // 2026-11-15 (D1.2): legend-pure's DateTime text, moved here from lowering/LiteralSpelling (dateTimeText) as the
             // node DATETIME_PRINT the judges' %r and canon read, and the edge writes for DATETIME_TO_TEXT; D1.9 moves it
             "sql/dialect/DateTimePrintText.java | +0000 | 2 | JUDGE",
-            "sql/dialect/FloatPrintText.java | FLOAT_PRINT | 1 | JUDGE",
             // RULED by the user, 2026-11-16, the edge program §10 item 9 ("I agree with all"): it stays in the product
             // (the P2 checkpoint audit's A-M1; W6's change, 4fc24e0a3, reverted the same day). The product's H2 quotes legend-engine's word list as written, upper-casing the words its session
             // frees (NON_KEYWORDS), and that decides WHICH COLUMN a declared name reads in H2 data made legend-engine's
@@ -268,16 +263,8 @@ class CompatSpellingGuardTest {
             // LoadPlanner), H2 file and tcp databases (H2Connector), and H2 files an earlier lite made.
             "sql/dialect/H2.java | ENGINE_LEXICON | 3 | RULED",
             "sql/dialect/H2.java | SET NON_KEYWORDS | 1 | RULED", // listed 2026-11-16 (S5): the same ruling's session half
-            "sql/dialect/H2.java | FLOAT_PRINT | 1 | JUDGE",
-            "sql/dialect/MariaDb.java | FLOAT_PRINT | 1 | JUDGE",
             // sql/dialect/MongoDb.java | +0000: gone 2026-11-15 (D1.2: its date-time format a @SpellingArm hook,
             // dateTimeFormat, the product's ISO with Z; legend-pure's +0000 the edge's MongoDb's)
-            "sql/dialect/MongoDb.java | FLOAT_PRINT | 1 | JUDGE",
-            "sql/dialect/MySql.java | FLOAT_PRINT | 1 | JUDGE",
-            "sql/dialect/Postgres.java | FLOAT_PRINT | 1 | JUDGE",
-            "sql/dialect/SQLite.java | FLOAT_PRINT | 1 | JUDGE",
-            "sql/dialect/Snowflake.java | FLOAT_PRINT | 1 | JUDGE",
-            "sql/dialect/Trino.java | FLOAT_PRINT | 1 | JUDGE",
             // D1.4 -> D1.7 (2026-11-16, W4 of docs/records/d-plan-2026-11-16.md): the generator's CLEAN timestamp text is
             // the product's DateTime text (DATETIME_TO_TEXT, S312), as lite's writers print the cell; what remains is
             // legend-engine's seed route's key (upstreamKeyText: SeedDataGeneration's ValueTransformer, nine digits and

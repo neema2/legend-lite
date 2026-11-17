@@ -44,7 +44,7 @@ class EdgeOnlyNodesCensusTest {
 
     private static final Path MAIN = Path.of("core/src/main/java/com/legend");
 
-    /** The edge-only members (FLOAT_PRINT is CompatSpellingGuardTest's, its JUDGE rows). */
+    /** The edge-only members (FLOAT_PRINT was renamed FLOAT_SHORTEST_TEXT, a product node, 2026-11-17, census B9). */
     static final List<SqlFn> EDGE_ONLY = List.of(SqlFn.DATETIME_PRINT, SqlFn.INSTANCE_TEXT,
             SqlFn.RELATION_TEXT, SqlFn.TEXT_FORMS);
 
