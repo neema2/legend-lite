@@ -660,6 +660,64 @@ class Planes(Served):
         self.assertEqual(asked, ['execute', '/api/pure/v1/grammar/grammarToJson/lambda'])
 
 
+class QueryRunRoute(Served):
+    """LITE'S query/run ON PYTHON'S SERVER (the spec's §2, §4; the host train, 2026-11-17): a query's tree planned by the
+    product's query/plan, its run's values bound at run, run where the model's rows are -- the frames' tables, else a
+    project's own Data rows -- and answered as Arrow (results stay Arrow on Python), each column's type its field's
+    legend.type and the answer's shape the stream's legend.shape, as the server's Arrow answer carries them."""
+
+    def ask(self, **asked):
+        status, headers, body = self.post('/api/lite/v1/query/run', json.dumps(asked))
+        return status, headers, body
+
+    def frame_query(self, steps=GROUP):
+        return {'model': self.table.model, 'query': ll.parse('|' + self.table.accessor + steps),
+                'runtime': self.table.runtime, 'format': 'arrow'}
+
+    def test_a_frames_query_runs_here_its_rows_typed_and_shaped(self):
+        status, headers, body = self.ask(**self.frame_query())
+        self.assertEqual((status, headers['Content-Type']), (200, 'application/vnd.apache.arrow.stream'), body[:300])
+        rows = pyarrow.ipc.open_stream(pa.py_buffer(body)).read_all()
+        self.assertEqual(rows.schema.metadata[b'legend.shape'], b'RELATION')
+        self.assertEqual({f.name: f.metadata[b'legend.type'] for f in rows.schema}, {'desk': b'String', 'q': b'Float'})
+        kept = self.df[self.df.qty > 5]
+        self.assertEqual(rows.to_pylist(), [{'desk': d, 'q': q} for d, q in kept.groupby('desk')['qty'].sum().sort_index().items()])
+
+    def test_its_values_are_bound_at_run_and_checked_first(self):
+        asked = {'model': self.table.model, 'runtime': self.table.runtime, 'format': 'arrow',
+                 'query': ll.parse('{d: String[1]|' + self.table.accessor + '->filter(x|$x.desk == $d)->select(~[desk])}')}
+        status, _, body = self.ask(**asked, params={'d': 'FX'})
+        self.assertEqual(status, 200, body[:300])
+        self.assertEqual(set(pyarrow.ipc.open_stream(pa.py_buffer(body)).read_all().column('desk').to_pylist()), {'FX'})
+        for params in ({}, {'d': 1}):
+            status, _, body = self.ask(**asked, params=params)
+            self.assertEqual((status, json.loads(body)['kind']), (400, 'parameters'), params)
+
+    def test_a_projects_query_runs_on_its_own_rows(self):
+        status, _, body = self.ask(model=PARTY, query=ll.parse(PARTY_QUERY),
+                                   runtime='demo::party::Runtime', format='arrow')
+        self.assertEqual(status, 200, body[:300])
+        rows = pyarrow.ipc.open_stream(pa.py_buffer(body)).read_all()
+        self.assertEqual(rows.column('name').to_pylist(), ['Halberd Securities', 'Meridian Capital'])
+
+    def test_each_refusal_is_lites_by_its_kind(self):
+        good = self.frame_query()
+        for asked, status, kind in (
+                ({**good, 'format': 'json'}, 400, 'unsupported'),
+                ({**good, 'format': 'csv'}, 400, 'request'),
+                ({**good, 'extra': 1}, 400, 'request'),
+                ({k: v for k, v in good.items() if k != 'runtime'}, 400, 'request'),
+                ({**good, 'query': ll.parse('|' + self.table.accessor + '->select(~[nope])')}, 400, 'compile'),
+                ({**good, 'model': good['model'] + '\n###Pure\nClass a::B {'}, 400, 'parse'),
+                # a project's model with no Data rows, over tables this engine does not serve (F28)
+                ({'model': PARTY.split('###Data')[0], 'query': ll.parse(PARTY_QUERY), 'runtime': 'demo::party::Runtime',
+                  'format': 'arrow'}, 400, 'request')):
+            with self.subTest(asked={k: v for k, v in asked.items() if k not in ('query', 'model')}):
+                got, headers, body = self.ask(**asked)
+                self.assertEqual((got, headers['Content-Type'], json.loads(body)['kind']), (status, 'application/json', kind),
+                                 body[:300])
+
+
 class PlanAndRunRoutes(Served):
     """PLANANDRUN ON PYTHON (docs/DATACUBE_ONE_APP_DESIGN_2026_10_11.md §15): a page's grid planned against the model
     Python holds and run on its DuckDB in one call (plan-and-run.json), and its dry run (plan.json, the page's compile

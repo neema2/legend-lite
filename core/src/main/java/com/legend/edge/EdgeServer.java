@@ -98,7 +98,7 @@ public final class EdgeServer {
     }
 
     /** The product store's routes at legend-engine's path, each refusal in legend-engine's shape ({@link
-     *  StoreShapes#engineShape}; J9 of the edge audit, 2026-11-17: the envelope moved here from the product's store). */
+     *  StoreWords#engineShape}; J9 of the edge audit, 2026-11-17: the envelope moved here from the product's store). */
     static LegendHttpServer.Routes engineShaped(LegendHttpServer.Routes store) {
         return new LegendHttpServer.Routes() {
             @Override
@@ -115,7 +115,7 @@ public final class EdgeServer {
             public com.legend.server.LiteV1Api.Answer answer(String method, String path,
                     @com.legend.base.Nullable String rawQuery, String body) throws java.io.IOException {
                 com.legend.server.LiteV1Api.Answer a = store.answer(method, path, rawQuery, body);
-                return new com.legend.server.LiteV1Api.Answer(a.status(), StoreShapes.engineShape(a.status(), a.json()));
+                return new com.legend.server.LiteV1Api.Answer(a.status(), StoreWords.engineShape(a.status(), a.json()));
             }
         };
     }

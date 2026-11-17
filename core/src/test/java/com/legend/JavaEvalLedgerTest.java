@@ -1874,9 +1874,6 @@ class JavaEvalLedgerTest {
                             // planToString/toSQLString, a toDDL statement, a $plan handle's node model, an execute's
                             // activity SQL -- planning work, no session; the style's UpstreamPlans facet
                             "EnginePlans.java", "EngineText.java", "PlanEnvelope.java", "EngineAllocations.java",
-                            // legend-engine's shape of a query store's answer (J9 of the edge audit, 2026-11-17): a
-                            // refusal's JSON rewritten in its envelope at legend-engine's path; spells, decides nothing
-                            "StoreShapes.java",
                             // legend-engine's sentence of a query store's refusal (the P2 checkpoint audit's M2,
                             // 2026-11-16): a kind to its words, no state, no evaluation; its own target for the page
                             "StoreWords.java",

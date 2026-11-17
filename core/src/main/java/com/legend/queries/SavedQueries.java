@@ -238,6 +238,20 @@ public final class SavedQueries {
         return new Answer(r.status, Json.toCompact(out));
     }
 
+    /** A store's answer ({@code status}, {@code json}) with its refusal re-shaped: a refusal's {@code {"kind",
+     *  "message"}} written as {@code shape} makes it of the two, any other answer as it is -- for a mount that answers a
+     *  refusal in another shape (the edge's at legend-engine's path, edge.StoreWords; J9 of the edge audit,
+     *  2026-11-17). */
+    public static String reshaped(int status, String json,
+            java.util.function.BiFunction<String, String, Map<String, Object>> shape) {
+        if (status < 400 || !(Json.parse(json) instanceof Json.Obj o)
+                || !(o.fields().get("kind") instanceof Json.Str k)
+                || !(o.fields().get("message") instanceof Json.Str m)) {
+            return json;
+        }
+        return Json.toCompact(shape.apply(k.value(), m.value()));
+    }
+
     /** A 500 for an exception: {@link Refusal.Kind#MALFORMED}, naming it. */
     static Answer failed(RuntimeException e, java.util.function.Function<Refusal, String> words) {
         return refused(new Refusal(Refusal.Kind.MALFORMED, List.of(e.getClass().getSimpleName(),
