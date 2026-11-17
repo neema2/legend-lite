@@ -152,7 +152,8 @@ class TestPlanJsonRoundTripTest {
                 new HostJudgment.Raise(FAILURE),
                 new HostJudgment.EngineText("text", "golden", "ours", false, "decline", "origin", 1, true),
                 new HostJudgment.AssertError("expected", 3L, null, FAILURE, part),
-                new HostJudgment.Messaged(new HostJudgment.Size(true), 1, "unplanned"));
+                new HostJudgment.Messaged(new HostJudgment.Size(true), 1, "unplanned"),
+                new HostJudgment.Negated(new HostJudgment.Size(false), "NOT_SIZE"));
     }
 
     /** Any database's target: the round trip does not depend on which. */

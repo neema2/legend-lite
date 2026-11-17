@@ -248,7 +248,7 @@ class MetamodelMappingStoreTest {
                 "{| assertEquals(ext::AMapping->" + BY_ID + "('a'), ext::B1Mapping->"
                         + BY_ID + "('b1')); }"));
         // lite's own sentence: an instance as its class and its properties (the orchestrator's ruling, 2026-11-17)
-        assertTrue(ex.getMessage().startsWith("expected meta::pure::mapping::SetImplementation {\"id\": \"a\""),
+        assertTrue(ex.getMessage().startsWith("expected meta::pure::mapping::SetImplementation {\"id\":\"a\""),
                 ex.getMessage());
     }
 

@@ -187,17 +187,17 @@ class AssertBarTest {
             // an instance of a generic class (a Pair) written as upstream's toRepresentation writes any instance,
             // '<id instanceOf path>', its path the raw class's
             new Probe("assertEquals-pairs-message", "{|assertEquals(pair(1, 'a'), pair(1, 'b'))}",
-                    "expected meta::pure::functions::collection::Pair {\"first\": 1, \"second\": \"a\"}, got meta::pure::functions::collection::Pair {\"first\": 1, \"second\": \"b\"}"),
+                    "expected meta::pure::functions::collection::Pair {\"first\":1,\"second\":\"a\"}, got meta::pure::functions::collection::Pair {\"first\":1,\"second\":\"b\"}"),
             new Probe("assertEquals-pair-collections-message",
                     "{|assertEquals([pair(1, 'a'), pair(2, 'b')], [pair(1, 'b'), pair(2, 'b')])}",
-                    "expected [meta::pure::functions::collection::Pair {\"first\": 1, \"second\": \"a\"}, meta::pure::functions::collection::Pair {\"first\": 2, \"second\": \"b\"}], got [meta::pure::functions::collection::Pair {\"first\": 1, \"second\": \"b\"}, "
-                            + "meta::pure::functions::collection::Pair {\"first\": 2, \"second\": \"b\"}]"),
+                    "expected [meta::pure::functions::collection::Pair {\"first\":1,\"second\":\"a\"}, meta::pure::functions::collection::Pair {\"first\":2,\"second\":\"b\"}], got [meta::pure::functions::collection::Pair {\"first\":1,\"second\":\"b\"}, "
+                            + "meta::pure::functions::collection::Pair {\"first\":2,\"second\":\"b\"}]"),
             new Probe("assertSameElements-pairs-message",
                     "{|assertSameElements([pair(2, 'b'), pair(1, 'a')], [pair(1, 'a'), pair(3, 'c')])}",
-                    "expected the elements [meta::pure::functions::collection::Pair {\"first\": 2, \"second\": \"b\"}, meta::pure::functions::collection::Pair {\"first\": 1, \"second\": \"a\"}] in any order, "
-                            + "got [meta::pure::functions::collection::Pair {\"first\": 1, \"second\": \"a\"}, meta::pure::functions::collection::Pair {\"first\": 3, \"second\": \"c\"}]"),
+                    "expected the elements [meta::pure::functions::collection::Pair {\"first\":2,\"second\":\"b\"}, meta::pure::functions::collection::Pair {\"first\":1,\"second\":\"a\"}] in any order, "
+                            + "got [meta::pure::functions::collection::Pair {\"first\":1,\"second\":\"a\"}, meta::pure::functions::collection::Pair {\"first\":3,\"second\":\"c\"}]"),
             new Probe("assertContains-pairs-message", "{|assertContains([pair(1, 'a')], pair(2, 'b'))}",
-                    "expected [meta::pure::functions::collection::Pair {\"first\": 1, \"second\": \"a\"}] to contain meta::pure::functions::collection::Pair {\"first\": 2, \"second\": \"b\"}"),
+                    "expected [meta::pure::functions::collection::Pair {\"first\":1,\"second\":\"a\"}] to contain meta::pure::functions::collection::Pair {\"first\":2,\"second\":\"b\"}"),
             new Probe("message-not-read-where-assertEmpty-holds",
                     "{|let x = [1, 2]; assertEmpty([], | $x->at(5)->toString());}", null),
             new Probe("format-message-reads-a-let",

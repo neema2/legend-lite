@@ -69,6 +69,9 @@ public final class VerdictSql {
     /** A planning-time hint the frame reads and drops: the negated assert is {@code assertIsNot} (#28), its sentence
      *  {@code AssertSentence.IS_NOT} (legend-pure's 'Should not be identical to: %r'), not the not-equal one. */
     private static final String IS_NOT_HINT = "__isnot";
+    /** A planning-time hint the frame reads and drops: the two sides are JSON documents, the sentence
+     *  {@code AssertSentence.JSON_EQUALS}. */
+    private static final String JSON_HINT = "__json";
     /** Each side's kind as lite's sentence names it where the two texts tie: the frame's, dropped there. */
     private static final String EXPECTED_KIND = "__ekind";
     private static final String ACTUAL_KIND = "__akind";
@@ -139,7 +142,13 @@ public final class VerdictSql {
      * each side's elements in brackets, in their order).
      */
     public record Message(Type kind, boolean sorted, boolean listed, @com.legend.base.Nullable String literal,
-            boolean lite, boolean canon, @com.legend.base.Nullable String kindText) {
+            boolean lite, boolean canon, @com.legend.base.Nullable String kindText,
+            @com.legend.base.Nullable String canonClass) {
+        public Message(Type kind, boolean sorted, boolean listed, @com.legend.base.Nullable String literal,
+                boolean lite, boolean canon, @com.legend.base.Nullable String kindText) {
+            this(kind, sorted, listed, literal, lite, canon, kindText, null);
+        }
+
         public Message(Type kind, boolean sorted, boolean listed, @com.legend.base.Nullable String literal,
                 boolean lite, boolean canon) {
             this(kind, sorted, listed, literal, lite, canon, null);
@@ -153,7 +162,7 @@ public final class VerdictSql {
         /** This message with the side's KIND as lite's sentence names it where two texts tie
          *  ({@code AssertSentence.EQUALS_KINDS}). */
         public Message withKindText(String kindText) {
-            return new Message(kind, sorted, listed, literal, lite, canon, kindText);
+            return new Message(kind, sorted, listed, literal, lite, canon, kindText, canonClass);
         }
 
         public Message(Type kind, boolean sorted, boolean listed, @com.legend.base.Nullable String literal) {
@@ -164,7 +173,13 @@ public final class VerdictSql {
          *  from each element's CANON ({@link #liteOfCanon}: its runtime kind read off the canon's mark), in the side's
          *  own order (the orchestrator's ruling, 2026-11-17). */
         public static Message fromCanon(boolean sorted) {
-            return new Message(Type.Primitive.STRING, sorted, false, null, true, true);
+            return fromCanon(sorted, null);
+        }
+
+        /** {@code classFqn}: the side's declared class, prefixed to an element whose canon is its JSON object (an
+         *  instance as the product writes it, the orchestrator's ruling of 2026-11-17). */
+        public static Message fromCanon(boolean sorted, @com.legend.base.Nullable String classFqn) {
+            return new Message(Type.Primitive.STRING, sorted, false, null, true, true, null, classFqn);
         }
 
         public Message(Type kind, boolean sorted, boolean listed) {
@@ -174,7 +189,7 @@ public final class VerdictSql {
         /** This message written by lite's own rules ({@link Repr#lite}: a String quoted JSON-style, every value its
          *  product text), or legend-pure's ({@code lite} false). */
         public Message withLite(boolean lite) {
-            return new Message(kind, sorted, listed, literal, lite, canon, kindText);
+            return new Message(kind, sorted, listed, literal, lite, canon, kindText, canonClass);
         }
 
         /** A LITERAL side (one value the planner holds): {@code text}, its representation spelled at planning. */
@@ -1105,8 +1120,8 @@ public final class VerdictSql {
                 SqlExpr.Call.of(SqlFn.NOT, equal),
                 new SqlExpr.StringLit("json: not byte-equal (keys sorted, compact)"))),
                 null, SqlExpr.Reason.JUDGE);
-        return predicateOver(List.of(new SqlWith.Cte("__e", eRows), new SqlWith.Cte("__a", aRows)),
-                List.of(eo, ao), equal, eo.col(C), ao.col(C), unjudged);
+        return withHint(predicateOver(List.of(new SqlWith.Cte("__e", eRows), new SqlWith.Cte("__a", aRows)),
+                List.of(eo, ao), equal, eo.col(C), ao.col(C), unjudged), JSON_HINT);
     }
 
     /** {@code assertJsonStringsEqual} over a document whose root array has
@@ -1119,7 +1134,7 @@ public final class VerdictSql {
                 "value", vOut, List.of(vOut), new SqlSource.Subselect(aDocRows, "d", null));
         SqlQuery aRows = rowsOf(new SqlExpr.Cast(SqlExpr.Column.of("w", List.of(vOut), "value"),
                 SqlType.Scalar.VARCHAR, SqlExpr.Reason.JUDGE), elements);
-        return statement(eElementRows, aRows, true, true, true, List.of());
+        return withHint(statement(eElementRows, aRows, true, true, true, List.of()), JSON_HINT);
     }
 
     /** One verdict row from a predicate: {@code __verdict} never NULL, the
@@ -2440,18 +2455,18 @@ public final class VerdictSql {
     }
 
     /** {@code value}, a struct of primitive fields, written by lite's own rules (the orchestrator's ruling, 2026-11-17):
-     *  its class, then its properties as a JSON object, each value its lite text ({@link Repr#lite}; an empty one
-     *  {@code []}) -- {@code meta::pure::functions::collection::Pair {"first": 1, "second": "a"}}. */
+     *  its class, then its properties as the product's compact JSON object, each value its lite text ({@link Repr#lite};
+     *  an empty one {@code null}) -- {@code meta::pure::functions::collection::Pair {"first":1,"second":"a"}}. */
     private static SqlExpr instanceLite(SqlExpr value, String typeFqn) {
         SqlType.Struct st = (SqlType.Struct) ((com.legend.sql.TypeFact.Typed) value.type()).type();
         List<SqlExpr> parts = new ArrayList<>();
         parts.add(new SqlExpr.StringLit(typeFqn + " {"));
         boolean first = true;
         for (SqlType.Struct.Field f : st.fields()) {
-            parts.add(new SqlExpr.StringLit((first ? "" : ", ") + "\"" + f.name() + "\": "));
+            parts.add(new SqlExpr.StringLit((first ? "" : ",") + "\"" + f.name() + "\":"));
             first = false;
             SqlExpr v = new SqlExpr.StructGet(value, f.name());
-            parts.add(SqlExpr.Call.of(SqlFn.COALESCE, Repr.lite(pureKind(f.type()), v), new SqlExpr.StringLit("[]")));
+            parts.add(SqlExpr.Call.of(SqlFn.COALESCE, Repr.lite(pureKind(f.type()), v), new SqlExpr.StringLit("null")));
         }
         parts.add(new SqlExpr.StringLit("}"));
         return new SqlExpr.Call(SqlFn.CONCAT, parts);
@@ -2708,13 +2723,14 @@ public final class VerdictSql {
         SqlSelect.Projection fixed = projectionOf(sel, MESSAGE);
         SqlSelect.Projection multiset = projectionOf(sel, MULTISET_HINT);
         SqlSelect.Projection isNot = projectionOf(sel, IS_NOT_HINT);
+        SqlSelect.Projection json = projectionOf(sel, JSON_HINT);
         SqlSelect.Projection ek = projectionOf(sel, EXPECTED_KIND);
         SqlSelect.Projection ak = projectionOf(sel, ACTUAL_KIND);
         SqlExpr message = fixed != null ? fixed.expr()
                 : isNot != null && !wantEqual ? (lite
                         ? sentence(com.legend.error.AssertSentence.IS_NOT, java.util.Map.of("actual", a))
                         : SqlExpr.Call.of(SqlFn.CONCAT, new SqlExpr.StringLit("Should not be identical to: "), a))
-                : lite ? liteFrame(multiset != null ? "assertSameElements" : name, wantEqual, cells, e, a,
+                : lite ? liteFrame(json != null, multiset != null, wantEqual, e, a,
                         ek == null ? null : ek.expr(), ak == null ? null : ak.expr()) : wantEqual
                 ? SqlExpr.Call.of(SqlFn.CONCAT, new SqlExpr.StringLit("\nexpected: "), e,
                         new SqlExpr.StringLit("\nactual:   "), a)
@@ -2727,6 +2743,7 @@ public final class VerdictSql {
         ps.remove(ek);
         ps.remove(ak);
         ps.remove(isNot);
+        ps.remove(json);
         ps.add(new SqlSelect.Projection(holds, HOLDS, new OutputCol(HOLDS, SqlType.Scalar.BOOLEAN, false)));
         ps.add(new SqlSelect.Projection(message, MESSAGE, new OutputCol(MESSAGE, SqlType.Scalar.VARCHAR, true)));
         // the select's outputs are rebuilt from its projections by its constructor
@@ -2737,10 +2754,15 @@ public final class VerdictSql {
     /** {@code row}, a verdict row before it is made self-contained, marked {@code assertIsNot}'s (#28): the frame writes
      *  that sentence where it fails. */
     public static SqlQuery withIsNotHint(SqlQuery row) {
+        return withHint(row, IS_NOT_HINT);
+    }
+
+    /** {@code row} carrying the frame's hint {@code alias}, a Boolean column the frame reads and drops. */
+    private static SqlQuery withHint(SqlQuery row, String alias) {
         java.util.function.UnaryOperator<SqlSelect> mark = sel -> {
             List<SqlSelect.Projection> ps = new ArrayList<>(sel.projections());
-            ps.add(new SqlSelect.Projection(new SqlExpr.BoolLit(true), IS_NOT_HINT,
-                    new OutputCol(IS_NOT_HINT, SqlType.Scalar.BOOLEAN, false)));
+            ps.add(new SqlSelect.Projection(new SqlExpr.BoolLit(true), alias,
+                    new OutputCol(alias, SqlType.Scalar.BOOLEAN, false)));
             return sel.withProjections(ps);
         };
         if (row instanceof SqlWith w && w.body() instanceof SqlSelect body) {
@@ -2781,15 +2803,13 @@ public final class VerdictSql {
 
     /** The frame's sentence under lite's own rules, by the assert's family: two grids' rows, the elements in any order,
      *  two JSON texts, or two values; a negated family names the actual alone. */
-    private static SqlExpr liteFrame(String name, boolean wantEqual, boolean cells, SqlExpr e, SqlExpr a,
+    private static SqlExpr liteFrame(boolean json, boolean multiset, boolean wantEqual, SqlExpr e, SqlExpr a,
             @com.legend.base.Nullable SqlExpr expectedKind, @com.legend.base.Nullable SqlExpr actualKind) {
         if (!wantEqual) {
             return sentence(com.legend.error.AssertSentence.NOT_EQUALS, java.util.Map.of("actual", a));
         }
-        com.legend.error.AssertSentence row = name.endsWith("assertSameElements")
-                ? com.legend.error.AssertSentence.SAME_ELEMENTS
-                : name.endsWith("assertJsonStringsEqual") ? com.legend.error.AssertSentence.JSON_EQUALS
-                : com.legend.error.AssertSentence.EQUALS;
+        com.legend.error.AssertSentence row = json ? com.legend.error.AssertSentence.JSON_EQUALS
+                : multiset ? com.legend.error.AssertSentence.SAME_ELEMENTS : com.legend.error.AssertSentence.EQUALS;
         SqlExpr plain = sentence(row, java.util.Map.of("expected", e, "actual", a));
         if (row != com.legend.error.AssertSentence.EQUALS || expectedKind == null || actualKind == null) {
             return plain;
@@ -3017,7 +3037,7 @@ public final class VerdictSql {
     /** {@code value} as the failure message writes it: its kind's representation; an empty side's (Nil) none, as it
      *  holds no element. */
     private static SqlExpr written(Message m, SqlExpr value, SqlExpr canon) {
-        return m.canon() ? liteOfCanon(canon) : written(m, value);
+        return m.canon() ? liteOfCanon(canon, m.canonClass()) : written(m, value);
     }
 
     /** An element's lite text from its CANON (legend-pure's print, the mixed-kind canon's spelling): a String
@@ -3025,6 +3045,11 @@ public final class VerdictSql {
      *  every other element as written -- each element's runtime kind read off its canon's mark, per row, in a CASE
      *  (the orchestrator's ruling, 2026-11-17). */
     static SqlExpr liteOfCanon(SqlExpr canon) {
+        return liteOfCanon(canon, null);
+    }
+
+    /** {@code classFqn}: an element whose canon is a JSON object (an instance) is written class-prefixed. */
+    static SqlExpr liteOfCanon(SqlExpr canon, @com.legend.base.Nullable String classFqn) {
         SqlExpr c = asText(canon);
         SqlExpr len = SqlExpr.Call.of(SqlFn.LENGTH, c);
         SqlExpr inner = SqlExpr.Call.of(SqlFn.SUBSTRING, c, new SqlExpr.IntLit(2),
@@ -3051,7 +3076,29 @@ public final class VerdictSql {
                 SqlExpr.Call.of(SqlFn.SUBSTRING, c, new SqlExpr.IntLit(2),
                         SqlExpr.Call.of(SqlFn.MINUS, marker, new SqlExpr.IntLit(2))),
                 new SqlExpr.StringLit(")"));
-        return new SqlExpr.Case(List.of(
+        List<SqlExpr.Case.When> instance = new ArrayList<>();
+        if (classFqn != null) {
+            // an instance's JSON object, class-prefixed
+            instance.add(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.EQUAL, first, new SqlExpr.StringLit("{")),
+                    SqlExpr.Call.of(SqlFn.CONCAT, new SqlExpr.StringLit(classFqn + " "), c)));
+            // a side carried as one JSON array of instances: one written bare, several each prefixed, in brackets
+            SqlExpr second = SqlExpr.Call.of(SqlFn.SUBSTRING, c, new SqlExpr.IntLit(2), new SqlExpr.IntLit(1));
+            SqlExpr objects = SqlExpr.Call.of(SqlFn.SUBSTRING, c, new SqlExpr.IntLit(2),
+                    SqlExpr.Call.of(SqlFn.MINUS, len, new SqlExpr.IntLit(2)));
+            SqlExpr several = SqlExpr.Call.of(SqlFn.CONCAT, new SqlExpr.StringLit("[" + classFqn + " "),
+                    SqlExpr.Call.of(SqlFn.REPLACE, objects, new SqlExpr.StringLit("},{"),
+                            new SqlExpr.StringLit("}, " + classFqn + " {")), new SqlExpr.StringLit("]"));
+            SqlExpr one = SqlExpr.Call.of(SqlFn.CONCAT, new SqlExpr.StringLit(classFqn + " "), objects);
+            instance.add(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.AND, SqlExpr.Call.of(SqlFn.AND,
+                    SqlExpr.Call.of(SqlFn.EQUAL, first, new SqlExpr.StringLit("[")),
+                    SqlExpr.Call.of(SqlFn.EQUAL, second, new SqlExpr.StringLit("{"))),
+                    SqlExpr.Call.of(SqlFn.EQUAL, last, new SqlExpr.StringLit("]"))),
+                    new SqlExpr.Case(List.of(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.EQUAL,
+                            SqlExpr.Call.of(SqlFn.STRPOS, objects, new SqlExpr.StringLit("},{")), new SqlExpr.IntLit(0)),
+                            one)), several, SqlExpr.Reason.JUDGE)));
+        }
+        List<SqlExpr.Case.When> whens = new ArrayList<>(instance);
+        whens.addAll(List.of(
                 new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.AND, SqlExpr.Call.of(SqlFn.AND,
                         SqlExpr.Call.of(SqlFn.EQUAL, first, new SqlExpr.StringLit("<")),
                         SqlExpr.Call.of(SqlFn.EQUAL, last, new SqlExpr.StringLit(">"))),
@@ -3063,8 +3110,8 @@ public final class VerdictSql {
                 new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.EQUAL, first, new SqlExpr.StringLit("%")), rest),
                 new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.AND,
                         SqlExpr.Call.of(SqlFn.EQUAL, last, new SqlExpr.StringLit("D")),
-                        SqlExpr.Call.of(SqlFn.GREATER, len, new SqlExpr.IntLit(1))), butLast)),
-                c, SqlExpr.Reason.JUDGE);
+                        SqlExpr.Call.of(SqlFn.GREATER, len, new SqlExpr.IntLit(1))), butLast)));
+        return new SqlExpr.Case(whens, c, SqlExpr.Reason.JUDGE);
     }
 
     private static SqlExpr written(Message m, SqlExpr value) {

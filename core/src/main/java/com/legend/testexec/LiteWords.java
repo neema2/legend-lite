@@ -249,8 +249,8 @@ public final class LiteWords {
         return sb.toString();
     }
 
-    /** An instance as lite writes it (the orchestrator's ruling, 2026-11-17: as the product writes one in its results):
-     *  its class, then its properties as a JSON object, each value its lite text -- {@code m::P {"name": "a"}}; an
+    /** An instance as lite writes it (the orchestrator's rulings, 2026-11-17: the product's own compact JSON, null for
+     *  an empty property, class-prefixed): {@code m::P {"name":"a","age":null}}; an
      *  instance with no property to show, its class alone. The class is the one the instance carries on its wire
      *  ({@code __type}), else the side's declared class. */
     static String instance(Map<?, ?> m, @Nullable String instanceClass) {
@@ -261,10 +261,26 @@ public final class LiteWords {
             if (e.getKey() instanceof String k && k.startsWith("__")) {
                 continue;   // an identity field the database carries, no property
             }
-            sb.append(sb.length() == 0 ? "" : ", ").append(quoted(String.valueOf(e.getKey()))).append(": ")
-                    .append(e.getValue() instanceof List<?> l ? values(l, null) : value(e.getValue()));
+            sb.append(sb.length() == 0 ? "" : ",").append(quoted(String.valueOf(e.getKey()))).append(':')
+                    .append(jsonValue(e.getValue()));
         }
         return sb.length() == 0 ? cls : cls + " {" + sb + "}";
+    }
+
+    /** A property's value in an instance's compact JSON: an empty one {@code null}, a collection its values comma-joined
+     *  in brackets, any other its lite text. */
+    private static String jsonValue(@Nullable Object v) {
+        if (v == null || v instanceof List<?> l && l.isEmpty()) {
+            return "null";
+        }
+        if (v instanceof List<?> l) {
+            StringBuilder sb = new StringBuilder("[");
+            for (Object e : l) {
+                sb.append(sb.length() == 1 ? "" : ",").append(jsonValue(e));
+            }
+            return sb.append(']').toString();
+        }
+        return value(v);
     }
 
     /** A value as an IDENTITY assert names it ({@code assertEq}, {@code assertIs}): an instance the database tracks by

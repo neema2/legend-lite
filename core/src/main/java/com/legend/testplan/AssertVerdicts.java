@@ -694,17 +694,15 @@ public final class AssertVerdicts {
                     yield null;
                 }
                 VerdictBatch batch = env.verdictBatch();
-                AutoCloseable scope = fn == NativeFn.Verdict.ASSERT_IS_NOT && batch != null ? batch.asIsNot() : () -> { };
+                Runnable restore = fn == NativeFn.Verdict.ASSERT_IS_NOT && batch != null ? batch.asIsNot() : () -> { };
+                TypedSide negated;
                 try {
-                    yield DatabaseJudge.databaseVerdict(name, false, args.get(0), args.get(1), letPrefix, specs, env,
-                            hook, false, false);
+                    negated = DatabaseJudge.databaseVerdict(name, false, args.get(0), args.get(1), letPrefix, specs,
+                            env, hook, false, false);
                 } finally {
-                    try {
-                        scope.close();
-                    } catch (Exception e) {
-                        throw new IllegalStateException(e);
-                    }
+                    restore.run();
                 }
+                yield negated;
             }
             case ASSERT_NOT_CONTAINS -> args.size() < 2 ? null
                     : DatabaseJudge.databaseContains(name, args.get(0), args.get(1), letPrefix, specs, env, hook, true);
@@ -1415,15 +1413,11 @@ public final class AssertVerdicts {
             TypedSpec bareStmt = reduced.get(reduced.size() - 1);
             TypedSide v;
             // lite's sentence names the element by its zero-based index, as the host judge's does
-            AutoCloseable scope = batch == null ? () -> { } : batch.atElement(index);
+            Runnable restore = batch == null ? () -> { } : batch.atElement(index);
             try {
                 v = adjudicate(bareStmt, lets, specs, env, rawHook);
             } finally {
-                try {
-                    scope.close();
-                } catch (Exception e) {
-                    throw new IllegalStateException(e);
-                }
+                restore.run();
             }
             if (v == null) {
                 throw new com.legend.error.NotImplementedException(
@@ -1610,7 +1604,7 @@ public final class AssertVerdicts {
         String msg = aargs.size() >= 2
                 && aargs.get(1) instanceof
                         com.legend.compiler.spec.typed.TypedCString cs
-                ? cs.value() : defaultConditionMessage(fqn.endsWith("::assert"), env);
+                ? cs.value() : defaultConditionMessage(qfn == NativeFn.Verdict.ASSERT, env);
         if (aargs.size() >= 2 && !(aargs.get(1) instanceof
                 com.legend.compiler.spec.typed.TypedCString)) {
             throw new com.legend.error.NotImplementedException(

@@ -166,8 +166,8 @@ class DecimalKindsTest {
         String body = "|assertEquals(0.3, " + ROW_ONE + ".fa + " + ROW_ONE + ".fb)";
         try (Connection c = seeded()) {
             AssertFailed exact = assertThrows(AssertFailed.class, () -> judged(c, body));
-            // S311's six decimals print both as 0.3: the verdict is exact, the words cannot show the difference
-            assertEquals("expected 0.3, got 0.3", exact.getMessage());
+            // a message's Float at full round-trip precision (the orchestrator's ruling, 2026-11-17)
+            assertEquals("expected 0.3, got 0.30000000000000004", exact.getMessage());
             assertTrue(Program.run(model(), body, "m::RT", c, com.legend.ExecuteOptions.NONE
                     .withJudgeMode(Program.laneJudge()).withEngineCompat(true)).passed());
         }

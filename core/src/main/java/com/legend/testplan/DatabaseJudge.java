@@ -304,8 +304,9 @@ public final class DatabaseJudge {
             return m;
         }
         if (m == null) {
-            // no one primitive kind (a mixed-kind collection, a literal channel): each element from its canon's mark
-            return com.legend.lowering.VerdictSql.Message.fromCanon(sorted);
+            // no one primitive kind (a mixed-kind collection, a literal channel, an instance carried as its JSON):
+            // each element from its canon's mark, an instance's class-prefixed
+            return com.legend.lowering.VerdictSql.Message.fromCanon(sorted, classOf(side));
         }
         if (m.literal() != null && side instanceof com.legend.compiler.spec.typed.TypedCDate d) {
             // a date LITERAL: lite's text of its value, spelled at planning (the host's LiteWords.dateText rule: its

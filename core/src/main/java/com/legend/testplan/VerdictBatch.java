@@ -188,8 +188,8 @@ public final class VerdictBatch {
     /** Whether the rows deferred now are {@code assertIsNot}'s (#28): the frame's sentence is its. */
     private boolean isNot;
 
-    /** Rows deferred until the returned scope closes are {@code assertIsNot}'s. */
-    public AutoCloseable asIsNot() {
+    /** Rows deferred until the returned restore runs are {@code assertIsNot}'s. */
+    public Runnable asIsNot() {
         boolean before = isNot;
         isNot = true;
         return () -> isNot = before;
@@ -197,7 +197,7 @@ public final class VerdictBatch {
 
     /** Rows deferred until the returned scope closes are an unrolled quantifier's element {@code index}: lite's
      *  sentence names it ({@code AssertSentence.AT_INDEX}). */
-    public AutoCloseable atElement(int index) {
+    public Runnable atElement(int index) {
         int before = elementIndex;
         elementIndex = index;
         return () -> elementIndex = before;
