@@ -187,6 +187,7 @@ H2	H2	call	CELL_TEXT	not_here	renderer bug: is expanded before any dialect reads
 H2	H2	call	FORMAT_PADDED	not_here	renderer bug: is expanded before any dialect reads it		0
 H2	H2	call	INSTANCE_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 H2	H2	call	RELATION_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
+H2	H2	call	REPRESENTATION_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 H2	H2	call	TEXT_FORMS	not_here	renderer bug: is expanded before any dialect reads it		0
 H2	H2	call	TRACE_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 H2	H2	call	VARIANT_ELEMENTS	refused	variant navigation reached a dialect without JSON support	via AnsiSqlRenderer.variantElements	2
@@ -419,6 +420,7 @@ Postgres	Postgres	call	CELL_TEXT	not_here	renderer bug: is expanded before any d
 Postgres	Postgres	call	FORMAT_PADDED	not_here	renderer bug: is expanded before any dialect reads it		0
 Postgres	Postgres	call	INSTANCE_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 Postgres	Postgres	call	RELATION_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
+Postgres	Postgres	call	REPRESENTATION_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 Postgres	Postgres	call	TEXT_FORMS	not_here	renderer bug: is expanded before any dialect reads it		0
 Postgres	Postgres	call	TRACE_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 Postgres	Postgres	call	VARIANT_ELEMENTS	emulated	by its operands: composed / composed		2
@@ -651,6 +653,7 @@ Snowflake	Snowflake	call	CELL_TEXT	not_here	renderer bug: is expanded before any
 Snowflake	Snowflake	call	FORMAT_PADDED	not_here	renderer bug: is expanded before any dialect reads it		0
 Snowflake	Snowflake	call	INSTANCE_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 Snowflake	Snowflake	call	RELATION_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
+Snowflake	Snowflake	call	REPRESENTATION_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 Snowflake	Snowflake	call	TEXT_FORMS	not_here	renderer bug: is expanded before any dialect reads it		0
 Snowflake	Snowflake	call	TRACE_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 Snowflake	Snowflake	call	VARIANT_ELEMENTS	emulated	variantElements		4
@@ -883,6 +886,7 @@ Trino	Trino	call	CELL_TEXT	not_here	renderer bug: is expanded before any dialect
 Trino	Trino	call	FORMAT_PADDED	not_here	renderer bug: is expanded before any dialect reads it		0
 Trino	Trino	call	INSTANCE_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 Trino	Trino	call	RELATION_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
+Trino	Trino	call	REPRESENTATION_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 Trino	Trino	call	TEXT_FORMS	not_here	renderer bug: is expanded before any dialect reads it		0
 Trino	Trino	call	TRACE_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 Trino	Trino	call	VARIANT_ELEMENTS	emulated	variantElements		4
@@ -1115,6 +1119,7 @@ BigQuery	BigQuery	call	CELL_TEXT	not_here	renderer bug: is expanded before any d
 BigQuery	BigQuery	call	FORMAT_PADDED	not_here	renderer bug: is expanded before any dialect reads it		0
 BigQuery	BigQuery	call	INSTANCE_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 BigQuery	BigQuery	call	RELATION_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
+BigQuery	BigQuery	call	REPRESENTATION_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 BigQuery	BigQuery	call	TEXT_FORMS	not_here	renderer bug: is expanded before any dialect reads it		0
 BigQuery	BigQuery	call	TRACE_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 BigQuery	BigQuery	call	VARIANT_ELEMENTS	emulated	variantElements		2
@@ -1347,6 +1352,7 @@ Databricks	Databricks	call	CELL_TEXT	not_here	renderer bug: is expanded before a
 Databricks	Databricks	call	FORMAT_PADDED	not_here	renderer bug: is expanded before any dialect reads it		0
 Databricks	Databricks	call	INSTANCE_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 Databricks	Databricks	call	RELATION_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
+Databricks	Databricks	call	REPRESENTATION_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 Databricks	Databricks	call	TEXT_FORMS	not_here	renderer bug: is expanded before any dialect reads it		0
 Databricks	Databricks	call	TRACE_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 Databricks	Databricks	call	VARIANT_ELEMENTS	emulated	variantElements		4
@@ -1579,6 +1585,7 @@ DuckDb	DuckDB	call	CELL_TEXT	not_here	renderer bug: is expanded before any diale
 DuckDb	DuckDB	call	FORMAT_PADDED	not_here	renderer bug: is expanded before any dialect reads it		0
 DuckDb	DuckDB	call	INSTANCE_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 DuckDb	DuckDB	call	RELATION_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
+DuckDb	DuckDB	call	REPRESENTATION_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 DuckDb	DuckDB	call	TEXT_FORMS	not_here	renderer bug: is expanded before any dialect reads it		0
 DuckDb	DuckDB	call	TRACE_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 DuckDb	DuckDB	call	VARIANT_ELEMENTS	emulated	variantElements		4
@@ -1811,6 +1818,7 @@ ClickHouse	ClickHouse	call	CELL_TEXT	not_here	renderer bug: is expanded before a
 ClickHouse	ClickHouse	call	FORMAT_PADDED	not_here	renderer bug: is expanded before any dialect reads it		0
 ClickHouse	ClickHouse	call	INSTANCE_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 ClickHouse	ClickHouse	call	RELATION_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
+ClickHouse	ClickHouse	call	REPRESENTATION_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 ClickHouse	ClickHouse	call	TEXT_FORMS	not_here	renderer bug: is expanded before any dialect reads it		0
 ClickHouse	ClickHouse	call	TRACE_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 ClickHouse	ClickHouse	call	VARIANT_ELEMENTS	emulated	variantElements		4
@@ -2043,6 +2051,7 @@ SQLite	SQLite	call	CELL_TEXT	not_here	renderer bug: is expanded before any diale
 SQLite	SQLite	call	FORMAT_PADDED	not_here	renderer bug: is expanded before any dialect reads it		0
 SQLite	SQLite	call	INSTANCE_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 SQLite	SQLite	call	RELATION_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
+SQLite	SQLite	call	REPRESENTATION_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 SQLite	SQLite	call	TEXT_FORMS	not_here	renderer bug: is expanded before any dialect reads it		0
 SQLite	SQLite	call	TRACE_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 SQLite	SQLite	call	VARIANT_ELEMENTS	emulated	variantElements		2
@@ -2275,6 +2284,7 @@ MariaDb	MariaDB	call	CELL_TEXT	not_here	renderer bug: is expanded before any dia
 MariaDb	MariaDB	call	FORMAT_PADDED	not_here	renderer bug: is expanded before any dialect reads it		0
 MariaDb	MariaDB	call	INSTANCE_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 MariaDb	MariaDB	call	RELATION_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
+MariaDb	MariaDB	call	REPRESENTATION_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 MariaDb	MariaDB	call	TEXT_FORMS	not_here	renderer bug: is expanded before any dialect reads it		0
 MariaDb	MariaDB	call	TRACE_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 MariaDb	MariaDB	call	VARIANT_ELEMENTS	emulated	variantElements		2
@@ -2507,6 +2517,7 @@ MySql	MySQL	call	CELL_TEXT	not_here	renderer bug: is expanded before any dialect
 MySql	MySQL	call	FORMAT_PADDED	not_here	renderer bug: is expanded before any dialect reads it	as MariaDb	0
 MySql	MySQL	call	INSTANCE_TEXT	not_here	renderer bug: is expanded before any dialect reads it	as MariaDb	0
 MySql	MySQL	call	RELATION_TEXT	not_here	renderer bug: is expanded before any dialect reads it	as MariaDb	0
+MySql	MySQL	call	REPRESENTATION_TEXT	not_here	renderer bug: is expanded before any dialect reads it	as MariaDb	0
 MySql	MySQL	call	TEXT_FORMS	not_here	renderer bug: is expanded before any dialect reads it	as MariaDb	0
 MySql	MySQL	call	TRACE_TEXT	not_here	renderer bug: is expanded before any dialect reads it	as MariaDb	0
 MySql	MySQL	call	VARIANT_ELEMENTS	emulated	variantElements	as MariaDb	2
@@ -2739,6 +2750,7 @@ MongoDb	MongoDB	call	CELL_TEXT	not_here	renderer bug: is expanded before any dia
 MongoDb	MongoDB	call	FORMAT_PADDED	not_here	renderer bug: is expanded before any dialect reads it		0
 MongoDb	MongoDB	call	INSTANCE_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 MongoDb	MongoDB	call	RELATION_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
+MongoDb	MongoDB	call	REPRESENTATION_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 MongoDb	MongoDB	call	TEXT_FORMS	not_here	renderer bug: is expanded before any dialect reads it		0
 MongoDb	MongoDB	call	TRACE_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 MongoDb	MongoDB	call	VARIANT_ELEMENTS	emulated	variantElements		0
@@ -2971,6 +2983,7 @@ EngineStyleH2	-	call	CELL_TEXT	not_here	renderer bug: is expanded before any dia
 EngineStyleH2	-	call	FORMAT_PADDED	not_here	renderer bug: is expanded before any dialect reads it		-
 EngineStyleH2	-	call	INSTANCE_TEXT	not_here	renderer bug: is expanded before any dialect reads it		-
 EngineStyleH2	-	call	RELATION_TEXT	not_here	renderer bug: is expanded before any dialect reads it		-
+EngineStyleH2	-	call	REPRESENTATION_TEXT	not_here	renderer bug: is expanded before any dialect reads it		-
 EngineStyleH2	-	call	TEXT_FORMS	not_here	renderer bug: is expanded before any dialect reads it		-
 EngineStyleH2	-	call	TRACE_TEXT	not_here	renderer bug: is expanded before any dialect reads it		-
 EngineStyleH2	-	call	VARIANT_ELEMENTS	refused	variant navigation reached a dialect without JSON support	via AnsiSqlRenderer.variantElements	-
@@ -3203,6 +3216,7 @@ EngineStyleDB2	-	call	CELL_TEXT	not_here	renderer bug: is expanded before any di
 EngineStyleDB2	-	call	FORMAT_PADDED	not_here	renderer bug: is expanded before any dialect reads it	as EngineStyleH2	-
 EngineStyleDB2	-	call	INSTANCE_TEXT	not_here	renderer bug: is expanded before any dialect reads it	as EngineStyleH2	-
 EngineStyleDB2	-	call	RELATION_TEXT	not_here	renderer bug: is expanded before any dialect reads it	as EngineStyleH2	-
+EngineStyleDB2	-	call	REPRESENTATION_TEXT	not_here	renderer bug: is expanded before any dialect reads it	as EngineStyleH2	-
 EngineStyleDB2	-	call	TEXT_FORMS	not_here	renderer bug: is expanded before any dialect reads it	as EngineStyleH2	-
 EngineStyleDB2	-	call	TRACE_TEXT	not_here	renderer bug: is expanded before any dialect reads it	as EngineStyleH2	-
 EngineStyleDB2	-	call	VARIANT_ELEMENTS	refused	variant navigation reached a dialect without JSON support	as EngineStyleH2, via AnsiSqlRenderer.variantElements	-
@@ -3435,6 +3449,7 @@ EngineStyleComposite	-	call	CELL_TEXT	not_here	renderer bug: is expanded before 
 EngineStyleComposite	-	call	FORMAT_PADDED	not_here	renderer bug: is expanded before any dialect reads it	as EngineStyleDB2, as EngineStyleH2	-
 EngineStyleComposite	-	call	INSTANCE_TEXT	not_here	renderer bug: is expanded before any dialect reads it	as EngineStyleDB2, as EngineStyleH2	-
 EngineStyleComposite	-	call	RELATION_TEXT	not_here	renderer bug: is expanded before any dialect reads it	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	REPRESENTATION_TEXT	not_here	renderer bug: is expanded before any dialect reads it	as EngineStyleDB2, as EngineStyleH2	-
 EngineStyleComposite	-	call	TEXT_FORMS	not_here	renderer bug: is expanded before any dialect reads it	as EngineStyleDB2, as EngineStyleH2	-
 EngineStyleComposite	-	call	TRACE_TEXT	not_here	renderer bug: is expanded before any dialect reads it	as EngineStyleDB2, as EngineStyleH2	-
 EngineStyleComposite	-	call	VARIANT_ELEMENTS	refused	variant navigation reached a dialect without JSON support	as EngineStyleDB2, as EngineStyleH2, via AnsiSqlRenderer.variantElements	-
