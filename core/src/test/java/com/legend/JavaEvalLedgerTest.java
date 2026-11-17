@@ -1834,6 +1834,10 @@ class JavaEvalLedgerTest {
                             // B13, 2026-11-17, moved from testdatagen's printer): spells the generator's data, decides
                             // nothing
                             "TestDataPlanText.java",
+                            // legend-engine's planTestDataGeneration shape as data, the fetch tree and its view walk,
+                            // moved from testdatagen.TestDataGenerator (J6 of the edge audit, 2026-11-17): plans the
+                            // generator's fetches for the edge's text, decides nothing, runs nothing
+                            "TestDataFetches.java",
                             // legend-engine's text dialect type, moved from com.legend.sql.dialect (Phase 6's B3,
                             // 2026-11-17): an interface its printers implement, decides nothing
                             "EngineTextDialect.java",
