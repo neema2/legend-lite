@@ -1371,9 +1371,9 @@ public class BigQuery extends AnsiSqlRenderer {
         if (isParseFloat(c)) {
             SqlExpr x = c.value();
             return guardedParseFloat(writer, x, w -> w.append("REGEXP_CONTAINS(").expr(x, 0)
-                            .append(", '" + FLOAT_GRAMMAR + "')"),
+                            .append(", " + stringLit(FLOAT_GRAMMAR) + ")"),
                     w -> w.append("CAST(TRIM(REGEXP_REPLACE(").expr(x, 0)
-                            .append(", '[fF][[:space:]]*$', '')) AS FLOAT64)"));
+                            .append(", " + stringLit("[fF][[:space:]]*$") + ", '')) AS FLOAT64)"));
         }
         SqlType target = c.target();
         SqlExpr v = c.value();
@@ -1650,7 +1650,7 @@ public class BigQuery extends AnsiSqlRenderer {
             case BIT_NOT -> writer.append("(~ CAST(").expr(a.get(0), 0).append(" AS INT64))");
             // legend-pure's parseInteger, lite's TEXT_NOT_INTEGER by name, never the cast's own error (Phase 8)
             case PARSE_INT -> guardedParseInt(writer, a.get(0),
-                    w -> w.append("REGEXP_CONTAINS(").expr(a.get(0), 0).append(", '^[+-]?[0-9]+$')"),
+                    w -> w.append("REGEXP_CONTAINS(").expr(a.get(0), 0).append(", " + stringLit("^[+-]?[0-9]+$") + ")"),
                     w -> w.append("CAST(").expr(a.get(0), 0).append(" AS INT64)"));
             case DECIMAL_TO_TEXT -> writer.expr(varcharCast(c.args().get(0)), parentPrec);
             case BOOL_TO_TEXT -> writer.append("CAST(").expr(a.get(0), 0).append(" AS STRING)");

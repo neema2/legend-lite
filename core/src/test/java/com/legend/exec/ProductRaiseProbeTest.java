@@ -157,6 +157,14 @@ class ProductRaiseProbeTest {
                 wrong.add("NaN's text: " + describe(nan));
             }
         }
+        // 5c. a user's text holding '?' (round 73: BigQuery's driver counts a '?' inside a literal as a placeholder,
+        // so a dialect writes none raw): the text itself
+        Object q = run(backend, "a text holding ?", "|#TDS\n  k:Integer\n  1\n#->extend(~t: r|'what?')->select(~t)"
+                + "->from(" + StorelessRuntime.RUNTIME + ")");
+        if (!(q instanceof String q5 && q5.replace(" ", "").equals("[{\"t\":\"what?\"}]"))) {
+            wrong.add("a text holding ?: " + describe(q));
+        }
+        System.out.println("[product raise probe] " + backend.name() + " a text holding ?, answered: " + describe(q));
         // 6. a DateTime's text (D1.2, register S312): ISO 8601 in UTC, six fraction digits and Z
         Object dt = run(backend, "a DateTime's text", "|#TDS\n  x:DateTime\n  2014-01-01T10:20:30.5\n#->extend(~t: r|"
                 + "$r.x->toOne()->toString())->select(~t)->from(" + StorelessRuntime.RUNTIME + ")");
@@ -193,6 +201,9 @@ class ProductRaiseProbeTest {
             new Parse("parseFloat", " 1 ", "1.0"), new Parse("parseFloat", "1f", "1.0"),
             new Parse("parseFloat", "1e5", "100000.0"), new Parse("parseFloat", "NaN", "NaN"),
             new Parse("parseFloat", "Infinity", "Infinity"), new Parse("parseFloat", "12", "12.0"),
+            // the grammar's optional parts, which a database's own conversion may not read (round 73: MongoDB's)
+            new Parse("parseFloat", "+1", "1.0"), new Parse("parseFloat", ".5", "0.5"),
+            new Parse("parseFloat", "5.", "5.0"),
             new Parse("parseInteger", "abc", "raise"), new Parse("parseInteger", "", "raise"),
             new Parse("parseInteger", "+-1", "raise"), new Parse("parseInteger", "0x10", "raise"),
             new Parse("parseInteger", "1f", "raise"), new Parse("parseInteger", "1e5", "raise"),
