@@ -202,6 +202,11 @@ public final class EnginePlans {
     /** The planner's facet of upstream's plan text ({@link UpstreamPlans}), answered by the edge's style
      *  ({@code PureText.UPSTREAM}): its routines are the planner's ({@link UpstreamPlans#routines}), each asking here when
      *  it is called (W9's planner half, 2026-11-16: until then this class was the planner's own). */
+    /** The engine's default post-processor stamps EVERY SelectSQLQuery with this comment and generateSQLExecutionNode
+     *  copies it (defaultPostProcessor.pure:71) -- a constant, never gated (Phase 6's B5, 2026-11-17: moved from
+     *  plan.PlanNode, the plan's record; the comment is legend-engine's content, not the plan's schema). */
+    static final String EXEC_TRACE_COMMENT = "-- \"executionTraceID\" : \"${execID}\"";
+
     static final UpstreamPlans FACET = new UpstreamPlans() {
         @Override
         public String planToString(com.legend.compiler.spec.NativeDispatch.RoutineCall call,
@@ -800,7 +805,7 @@ public final class EnginePlans {
         com.legend.plan.PlanNode sqlNode = new com.legend.plan.PlanNode(
                 "SQLExecutionNode", java.util.List.of(), es.sql(),
                 java.util.List.of(),
-                com.legend.plan.PlanNode.EXEC_TRACE_COMMENT,
+                EXEC_TRACE_COMMENT,
                 planConnOf(pc2, env));
         com.legend.plan.PlanNode rel = new com.legend.plan.PlanNode(
                 "RelationalInstantiationExecutionNode",
