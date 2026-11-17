@@ -331,7 +331,7 @@ public final class Lowerer {
     /** A RELATION READ MORE THAN ONCE IS WRITTEN ONCE (2026-11-04, {@link SharedRelations}): a let's value is one node
      *  of the statement's tree wherever its name is read, and it lowers once, a common table expression ({@code
      *  __let<n>}) at the statement's head that each read names. Off where the shape asks
-     *  ({@link LoweringShape#shareRelations}) and where the frame extracts the statement's subqueries as its own expressions (the engine's
+     *  (the shape's form, {@link LoweringForms#relations}) and where the frame extracts the statement's subqueries as its own expressions (the engine's
      *  cteExtractionPostProcessor: {@link #sharingRelations}). */
     private boolean shareRelations = true;
     /** While a statement lowers ({@link #lower(List)}): its shared relations; null between statements. */
@@ -552,18 +552,9 @@ public final class Lowerer {
         }
         TypedSpec root = withQueryLets(body);
         SqlQuery q;
-        if (sharing == null && shareRelations && shape.shareRelations()) {
-            // a relation read more than once, written once (SharedRelations): the statement's own names are its
-            // query lets and plan parameters, which its head reads as every part of it does
-            SharedRelations.Frame frame =
-                    new SharedRelations.Frame(SharedRelations.of(root, new java.util.HashSet<>(letBindings.keySet())));
-            sharing = frame;
-            try {
-                SqlQuery reads = lower(root);   // first: the reads write the expressions
-                q = SqlWith.prepend(List.copyOf(frame.written), reads);
-            } finally {
-                sharing = null;
-            }
+        if (sharing == null && shareRelations) {
+            // a relation read more than once, written once (SharedRelations), as the shape's form chooses (J23)
+            q = shape.forms().relations(() -> sharedLower(root), () -> lower(root));
         } else {
             q = lower(root);
         }
@@ -575,7 +566,23 @@ public final class Lowerer {
             q = LetBinding.bindRepeats(q);
         }
         // a count of rows a declared key makes one is 1 (KeyedCounts: the time model's D2), then the unread pruned
-        return SubselectPrune.prune(shape.foldKeyedCounts() ? KeyedCounts.fold(q, tableKeys) : q, shape.pruneComputed());
+        SqlQuery counted = shape.forms().keyedCounts(q, x -> KeyedCounts.fold(x, tableKeys));
+        return shape.forms().computedPruning(() -> SubselectPrune.prune(counted, true),
+                () -> SubselectPrune.prune(counted, false));
+    }
+
+    /** {@code root} lowered with each relation it reads more than once written once (SharedRelations): the statement's
+     *  own names are its query lets and plan parameters, which its head reads as every part of it does. */
+    private SqlQuery sharedLower(TypedSpec root) {
+        SharedRelations.Frame frame =
+                new SharedRelations.Frame(SharedRelations.of(root, new java.util.HashSet<>(letBindings.keySet())));
+        sharing = frame;
+        try {
+            SqlQuery reads = lower(root);   // first: the reads write the expressions
+            return SqlWith.prepend(List.copyOf(frame.written), reads);
+        } finally {
+            sharing = null;
+        }
     }
 
     /**
@@ -630,7 +637,9 @@ public final class Lowerer {
     /** The rows a write or a merge writes: {@code source} lowered, each of its columns one of {@code t}'s (the checker
      *  types them so, by name: WriteChecker). */
     private SqlQuery writtenRows(TypedSpec source, TypedTableReference t, String op) {
-        SqlQuery rows = namedColumns(SubselectPrune.prune(lower(source), shape.pruneComputed()));
+        SqlQuery lowered = lower(source);
+        SqlQuery rows = namedColumns(shape.forms().computedPruning(() -> SubselectPrune.prune(lowered, true),
+                () -> SubselectPrune.prune(lowered, false)));
         java.util.Set<String> declared = new java.util.LinkedHashSet<>();
         java.util.Objects.requireNonNull(Type.schemaView(t.info().type()), "a store table's type is a relation")
                 .columns().forEach(c -> declared.add(c.name()));
