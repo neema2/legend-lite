@@ -123,7 +123,7 @@ class LeanSqlCorpusTest {
         // the edge's style, as the corpus lanes plan it (the orchestrator's (A), 2026-11-16): the corpus is upstream's
         // suite and CI runs it through the edge; on the product's ~300 bodies were refused by name and left the metric.
         // The product's own leanness is core's baseline (LeanSqlBaseline, the product's style)
-        return new com.legend.ExecuteOptions(null,
+        return new com.legend.ExecuteOptions(com.legend.testexecutionplan.NoEdge.NONE,
                 com.legend.executionplan.DataStores.resources(Corpus.RELATIONAL.getParent().getParent()),
                 java.util.Set.of()).withJudgeMode(mode).withStyle(com.legend.edge.PureText.UPSTREAM);
     }
