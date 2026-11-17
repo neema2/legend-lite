@@ -1037,7 +1037,7 @@ class JavaEvalLedgerTest {
             // produced sides, never produces a result.
             Map.entry("core/src/main/java/com/legend/testexec/HostJudgments.java", 788),   // 633 -> 788 (2026-11-17, isolated BOTH and #28, the orchestrator's ruling: lite's sentence table beside the compat words; C1 moves the compat half to the edge and re-pins DOWN). new (2026-11-09, slice 5 (docs/PLAN_AS_DATA_2026_11_07.md, "Slice 5: the spec"): the host judge's run half, from testplan/HostJudge (864 -> 237): the host lattice's judgment over the rows the plan read, the judgment record the plan's)
             Map.entry("core/src/main/java/com/legend/testexec/HostSideShapes.java", 27),   // new (2026-11-09, slice 5 (docs/PLAN_AS_DATA_2026_11_07.md, "Slice 5: the spec"): the host sides' row-count contract at run, from testplan/HostJudge)
-            Map.entry("core/src/main/java/com/legend/testexec/AssertRuns.java", 208),   // new (2026-11-09, slice 5 (docs/PLAN_AS_DATA_2026_11_07.md, "Slice 5: the spec"): the verdicts' run half, from testplan/AssertVerdicts (1789 -> 1536): a planned verdict step judged at its turn)
+            Map.entry("core/src/main/java/com/legend/testexec/AssertRuns.java", 143),   // 208 -> 143 (2026-11-17, (b) of the orchestrator's order: the fused agreement path deleted: the agreement judge's held host half and its verdict of record went). new (2026-11-09, slice 5 (docs/PLAN_AS_DATA_2026_11_07.md, "Slice 5: the spec"): the verdicts' run half, from testplan/AssertVerdicts (1789 -> 1536): a planned verdict step judged at its turn)
             Map.entry("core/src/main/java/com/legend/testexec/AssertErrorRuns.java", 80),   // 70 -> 80 (2026-11-17, isolated BOTH and #28, the orchestrator's ruling: lite's sentence table beside the compat words; C1 moves the compat half to the edge and re-pins DOWN). new (2026-11-09, slice 5 (docs/PLAN_AS_DATA_2026_11_07.md, "Slice 5: the spec"): assertError's run half, from testplan/AssertVerdicts: the planned failure compared with the raised one)
             Map.entry("core/src/main/java/com/legend/testexec/SideShapes.java", 287),   // new (2026-11-09, slice 5 (docs/PLAN_AS_DATA_2026_11_07.md, "Slice 5: the spec"): a side's row-count and shape contract at run, from TestPlanner's Moved and AssertVerdicts: counting rows, never computing a cell); 279 -> 287 (2026-11-12, the C4 exec-id item, B3's check): the cardinality holder hands on answers() and execution() to the sink it holds -- two delegating methods, no value computed -- so the door's execution id reaches a writer under it
             Map.entry("core/src/main/java/com/legend/testexec/SqlTextRuns.java", 220),   // 224 -> 220 (2026-11-11, B2d.2 of the total-wall program: the TDG appeal's case deleted with its kind; nothing evaluated)   // 233 -> 224 (2026-11-09, mutable static state: the census suspend toggles around the appeal's runs deleted with SqlTypeCensus, a dead census; nothing evaluated)   // new (2026-11-09, slice 5 (docs/PLAN_AS_DATA_2026_11_07.md, "Slice 5: the spec"): the engine-text appeal decided after the run, from testplan/SqlTextVerdicts (1491 -> 1259))
@@ -1451,11 +1451,11 @@ class JavaEvalLedgerTest {
                     // the run's entry and sink (TestRunner, Answer), the run record (BodyRun), the held appeals and their
                     // decision after the run (Appeals, SqlTextRuns), the judges' run halves over rows the database read
                     // (HostJudgments, AssertRuns, AssertErrorRuns, DatabaseVerdicts, SideShapes, HostSideShapes), the
-                    // agreement rule (AgreementArm, AgreementRuns) and the plan's run (TestRun). They judge rows the plan
+                    // the plan's run (TestRun; the agreement rule, AgreementArm and AgreementRuns, went: 2026-11-17, (b) of the orchestrator's order: the fused agreement path deleted). They judge rows the plan
                     // read, compute nothing the database did not, and reach no planning library
                     "TestRunner.java", "BodyRun.java", "Appeals.java", "SqlTextRuns.java",
                     "HostJudgments.java", "AssertRuns.java", "AssertErrorRuns.java", "DatabaseVerdicts.java",
-                    "SideShapes.java", "HostSideShapes.java", "AgreementArm.java", "AgreementRuns.java", "TestRun.java",
+                    "SideShapes.java", "HostSideShapes.java", "TestRun.java",
                     // 2026-11-17 (isolated BOTH, the orchestrator's ruling): each judge's plan run alone and the two
                     // runs' verdict texts compared (IsolatedRun: it compares, evaluates nothing); the host judge's lite
                     // text of a value it read (LiteWords, LiteText's twin in SQL)
@@ -1600,16 +1600,7 @@ class JavaEvalLedgerTest {
     private static final java.util.Set<String> TESTPLAN_FROM_DRIVER =
             java.util.Set.of(
                     "JudgePlans.java",
-                    // the agreement judge's asserts planned before the program (the walker-deletion program,
-                    // 2026-11-02): each statement-root assert's step carries the host half's base sides (HostAsserts)
-                    // and the database half's verdict statement (DatabaseAsserts.planEach), the router's sink holding
-                    // the agreement rule (AgreementArm.agree) through AssertVerdicts' seam. Plans only; sends nothing;
-                    // judges through the two judges' seams
-                    "AgreementAsserts.java",
-                    // 2026-11-08 (the plan-as-data design's step 6): the agreement judge run from the plan -- each
-                    // assert's pairing and its database half's root loop read off the group that closes it, the host
-                    // half held and the agreement rule deciding through AssertVerdicts' seam, as the planner's One did;
-                    // sends nothing, plans nothing
+                    // (AgreementAsserts.java and the agreement judge's run from the plan went: 2026-11-17, (b) of the orchestrator's order: the fused agreement path deleted)
                     // 2026-11-08 (the plan-as-data design's step 8b): the appeals a test plan's verdicts name, by verdict
                     // (the plan's extensionsByVerdict, built from the arms' planned records) and by number at run; a
                     // walk over the plan's data, nothing evaluated
@@ -1979,7 +1970,6 @@ class JavaEvalLedgerTest {
             "core/src/main/java/com/legend/testplan/JudgePlans.java",
             "core/src/main/java/com/legend/testplan/AssertVerdicts.java",
             "core/src/main/java/com/legend/edge/SqlTextVerdicts.java",
-            "core/src/main/java/com/legend/testexec/AgreementArm.java",
             "core/src/main/java/com/legend/testplan/VerdictArm.java",
             "core/src/main/java/com/legend/testplan/SeedSqlForms.java",
             "core/src/main/java/com/legend/testplan/AssertErrorNative.java",

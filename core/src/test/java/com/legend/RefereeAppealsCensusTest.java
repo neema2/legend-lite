@@ -47,7 +47,7 @@ class RefereeAppealsCensusTest {
             "SqlReplayReferee", Set.of("TestExecution.java", "test/PureTestRunner.java", "test/TestObserver.java",
                     "testexec/SqlTextRuns.java", "testexec/TestRunner.java"),
             "Appeals", Set.of("testexec/BodyRun.java", "testexec/TestRunner.java"),
-            "Appeal", Set.of("testexec/AgreementRuns.java", "testexec/RootLoops.java",
+            "Appeal", Set.of("testexec/RootLoops.java",
                     "testexec/SqlReplayReferee.java", "testexec/SqlTextRuns.java", "testexec/TestRunner.java",
                     "testexecutionplan/HostJson.java",
                     "testexecutionplan/PlannedAppeals.java", "testexecutionplan/TestPlanJson.java",
@@ -56,7 +56,7 @@ class RefereeAppealsCensusTest {
             "PlannedAppeals", Set.of("testexec/TestRunner.java", "testexecutionplan/TestPlanJson.java",
                     "testplan/AppealsByVerdict.java"),
             "AppealsByVerdict", Set.of("testplan/TestPlanner.java"),
-            "EngineTextAppeals", Set.of("testplan/AgreementAsserts.java", "testplan/AppealsByVerdict.java",
+            "EngineTextAppeals", Set.of("testplan/AppealsByVerdict.java",
                     "testplan/BodyDriver.java", "testplan/TestPlanner.java"));
 
     @Test

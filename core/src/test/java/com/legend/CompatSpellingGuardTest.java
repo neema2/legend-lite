@@ -296,7 +296,7 @@ class CompatSpellingGuardTest {
             // own printer (Verdicts.pureText), which PureDateLiteral's toString was until then; with the judges' print
             // forms at W10
             "testexecutionplan/Verdicts.java | +0000 | 1 | D1.9",
-            "testplan/AgreementAsserts.java | EngineText | 1 | D1.7",
+            // (testplan/AgreementAsserts.java | EngineText went: 2026-11-17, (b) of the orchestrator's order: the fused agreement path deleted)
             "testplan/AssertVerdicts.java | EngineText | 3 | D1.7",
             // (BodyDriver's EngineText row gone, 2026-11-16, W9's judge half: the style's engineTestText,
             // engineTestPlanText and engineTestConnection name the engine test database, the planner none)

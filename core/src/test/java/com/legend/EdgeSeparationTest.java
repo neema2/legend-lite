@@ -157,7 +157,7 @@ class EdgeSeparationTest {
             Map.entry("com.legend.testexecutionplan.TestPlanJson -> JudgingRules.COMPILED_PURE_COMPAT", "C1 2026-11-17"),
             Map.entry("com.legend.testexecutionplan.TestPlanJson -> com.legend.testexecutionplan.Appeal", "C2 2026-11-17"),
             Map.entry("com.legend.testexecutionplan.TestPlanJson -> com.legend.testexecutionplan.PlannedAppeals", "C2 2026-11-17"),
-            Map.entry("com.legend.testplan.AgreementAsserts -> com.legend.testplan.EngineTextAppeals", "C2 2026-11-17"),
+            // (AgreementAsserts -> EngineTextAppeals closed: 2026-11-17, (b) of the orchestrator's order: the fused agreement path deleted)
             Map.entry("com.legend.testplan.AppealsByVerdict -> (stands in a product package)", "C2 2026-11-17"),
             Map.entry("com.legend.testplan.AppealsByVerdict -> com.legend.testexecutionplan.PlannedAppeals", "C2 2026-11-17"),
             Map.entry("com.legend.testplan.AppealsByVerdict -> com.legend.testplan.EngineTextAppeals", "C2 2026-11-17"),
@@ -320,7 +320,7 @@ class EdgeSeparationTest {
             Map.entry("testexecutionplan/PlannedAppeals.java | EngineText", "C3 2026-11-17"),
             Map.entry("testexecutionplan/Verdicts.java | EngineText", "C3 2026-11-17"),
             Map.entry("testexecutionplan/Verdicts.java | +0000", "B11 2026-11-17"),
-            Map.entry("testplan/AgreementAsserts.java | EngineText", "C3 2026-11-17"),
+            // (testplan/AgreementAsserts.java | EngineText closed: 2026-11-17, (b) of the orchestrator's order: the fused agreement path deleted)
             Map.entry("testplan/AssertVerdicts.java | EngineText", "C3 2026-11-17"),
             Map.entry("testplan/TestPlanner.java | COMPAT", "C1 2026-11-17"),
             Map.entry("compiler/spec/VerdictQueries.java | TDSNull", "B10 2026-11-17"),

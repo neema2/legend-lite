@@ -126,7 +126,7 @@ class CodeShapeGuardrailTest {
             // 2026-11-08, the plan-as-data design's step 6: one agreement-judged assert's run state -- the host half's
             // verdict held until the database half's rows are in, and an assertError's raising row -- once per run,
             // read from the plan's pairing (the planner's One held them until then, unscanned: no visibility)
-            "AgreementRuns.held", "AgreementRuns.heldHost", "AgreementRuns.raisingRow",
+            // (AgreementRuns.held, heldHost and raisingRow went: 2026-11-17, (b) of the orchestrator's order: the fused agreement path deleted)
             "Lowerer.instanceIdOf", "TemporalFrame.forEachDateColumn", "DatabaseProtocolParser.currentSchemaDeclSpan",
             "DatabaseProtocolParser.schemaStretchSpan", "CypherToPure.leading", "SqlToPure.name", "Batch.other",
             "PureV1Writer.firstObject",
