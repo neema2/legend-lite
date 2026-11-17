@@ -40,5 +40,8 @@ public final class PlanStyleFacets {
             com.legend.compiler.spec.RelationCounting.class,
             // a test-data generator's timestamp text (census C1, 2026-11-17, L9): the product's clean form, the
             // edge's legend-engine test-data CSV
-            com.legend.testdatagen.TestDataPlanner.Printing.class);
+            com.legend.testdatagen.TestDataPlanner.Printing.class,
+            // two numbers of different kinds at planning (census C1, 2026-11-17, register S127): never equal in the
+            // product, compiled legend-pure's Integer/Decimal-by-text at the edge
+            CrossKindNumbers.class);
 }
