@@ -41,6 +41,10 @@ public interface EdgeHearing {
      *  json-simple grammar at the edge. */
     com.legend.testexecutionplan.JsonGrammar json();
 
+    /** Whether a rendered text that differs from its golden is held (census C1, 2026-11-17): the product's
+     *  {@link RenderedTexts.Product#STRINGS}, upstream's ruled comparison at the edge. */
+    RenderedTexts renderedTexts();
+
     /** A step of the body that writes is about to run. */
     void writing();
 

@@ -249,7 +249,7 @@ public final class Equality {
         if (ek == Kind.STRING) {
             // two Strings compare exactly, as legend-pure's equal does, under every rule set and both judges (2026-11-06,
             // the user's "okay" to the S132 scope fix): S132's 2-ULP floats apply to a RENDERED result's text alone --
-            // the host's rendered arm compares its cells (TdsCompare.renderedText), the database judge its rows in the
+            // the host's rendered arm compares its cells (the edge's UpstreamRenderedTexts), the database judge its rows in the
             // same verdict row (VerdictSql.either) -- never to two Strings a body computed
             return e.equals(a);
         }

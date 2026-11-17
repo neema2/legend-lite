@@ -148,6 +148,12 @@ final class Appeals implements com.legend.testexec.EdgeHearing {
         return JsonSimpleGrammar.INSTANCE;
     }
 
+    /** The compatibility rules' rendered-text comparison (S131, S132; census C1, 2026-11-17). */
+    @Override
+    public com.legend.testexec.RenderedTexts renderedTexts() {
+        return UpstreamRenderedTexts.INSTANCE;
+    }
+
     /** A step of the body that writes is about to run ({@code PlanRunner.ProgramSink#writing}), told to the body's open
      *  appeals (each body's run holds its own record of them, slice 5). */
     @Override

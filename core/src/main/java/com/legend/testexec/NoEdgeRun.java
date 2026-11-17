@@ -72,6 +72,12 @@ public final class NoEdgeRun implements EdgeRun {
         }
 
         @Override
+        public RenderedTexts renderedTexts() {
+            // lite's own runs: the two strings are the verdict
+            return RenderedTexts.Product.STRINGS;
+        }
+
+        @Override
         public void writing() {
             // no appeal is held: nothing a write could stale
         }
