@@ -232,6 +232,9 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         if (!spellsFloatCanon()) {
             ps.add(new FloatCanonText.Expansion(bindsFloatText()));
         }
+        if (!spellsErf()) {
+            ps.add(new ErfMath.Expansion(bindsFloatText(), expandsErfInline()));
+        }
         ps.addAll(passes());
         ps.add(new StoredReads(this::readsStored));
         return java.util.List.copyOf(ps);
@@ -263,6 +266,17 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
     /** Whether that expansion reads the double's text from a one-row derived table, written once (a dialect whose
      *  double text is a long expression and whose derived tables read the row around them). */
     protected boolean bindsFloatText() {
+        return false;
+    }
+
+    /** Whether this dialect writes {@link com.legend.sql.SqlFn#ERF} natively; else it is expanded via {@link ErfMath}. */
+    protected boolean spellsErf() {
+        return false;
+    }
+
+    /** Whether {@link ErfMath.Expansion} expands compound arguments inline because this dialect deduplicates repeated
+     *  subexpressions itself (DuckDB). */
+    protected boolean expandsErfInline() {
         return false;
     }
 
@@ -1269,6 +1283,11 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         }
         throw new IllegalStateException("a date call's first argument is its part, not " + e
                 + ": the lowering's bug");
+    }
+
+    /** Guard against unlowered {@link com.legend.sql.SqlFn#ERF}: must be handled by {@link ErfMath.Expansion} or dialect. */
+    protected final SqlWriter erfApprox(SqlWriter writer, List<SqlExpr> a, int parentPrec) {
+        throw new IllegalStateException("ERF must be lowered by ErfMath.Expansion before rendering");
     }
 
     /** A Float's literal spelling: the portable decomposition over the double's text (a dialect whose double text is

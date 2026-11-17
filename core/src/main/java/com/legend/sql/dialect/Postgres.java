@@ -88,6 +88,11 @@ public final class Postgres extends AnsiSqlRenderer {
     }
 
     @Override
+    protected boolean spellsErf() {
+        return true;
+    }
+
+    @Override
     public @com.legend.base.Nullable RaiseReadBack raiseReadBack() {
         return null;   // its errors carry a raise's text
     }
@@ -756,12 +761,12 @@ public final class Postgres extends AnsiSqlRenderer {
         };
     }
 
+    /** The empty collection as a list: a reduction, an element or a rearrangement of it is the empty collection
+     *  itself, NULL, as DuckDB answers over a NULL list (Postgres types every array: a reduction over an untyped
+     *  NULL is refused, "could not determine polymorphic type", measured); a concatenation is its other lists
+     *  (listConcat). */
     @Override
     protected SqlWriter call(SqlWriter writer, SqlExpr.Call c, int parentPrec) {
-        // the empty collection as a list: a reduction, an element or a rearrangement of it is the empty collection
-        // itself, NULL, as DuckDB answers over a NULL list (Postgres types every array: a reduction over an untyped
-        // NULL is refused, "could not determine polymorphic type", measured); a concatenation is its other lists
-        // (listConcat)
         if (emptyCollection(c)) {
             return writer.append("NULL");
         }
@@ -803,6 +808,7 @@ public final class Postgres extends AnsiSqlRenderer {
             case DECIMAL_TO_TEXT -> writer.expr(varcharCast(c.args().get(0)), parentPrec);
             case BOOL_TO_TEXT -> castAs(writer, c.args().get(0), "VARCHAR");
             case FLOAT_CANON -> floatCanonByText(writer, c.args(), parentPrec);
+            case ERF -> writer.function("erf", c.args());
             case FLOAT_PRINT -> floatPrintByText(writer, c, parentPrec);
             case CURRENT_USER_FN -> writer.append("current_user");
             // the hooks: this dialect's own (or the base's refusal)

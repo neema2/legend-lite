@@ -45,6 +45,7 @@ PROJECT_DEPS = {
     "core-tenor": [],
     "core-types": [],
     "core-units": [],
+    "pricing": [],
     # the property-graph profile (docs/CYPHER_STUDY_2026_10_15.md §5.6): one Profile, no dependencies
     "graph": [],
     # the timeseries library (the user, 2026-10-30: not DataCube's; docs/TS_LANGUAGE_BUILD_2026_10_30.md P1): functions
@@ -189,7 +190,7 @@ filegroup(
     visibility = [
         "//core:__pkg__",
         "//scripts/corpus:__pkg__",
-    ],
+    ] + (["//python:__pkg__"] if project == "pricing" else []),
 ) for project in PROJECT_DEPS]
 
 # a project directory the graph does not name would be compiled by nothing
