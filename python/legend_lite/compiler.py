@@ -8,7 +8,6 @@ compiled once and planned against many times, for as long as it is open.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from typing import Any
 
 from . import _json
@@ -73,16 +72,6 @@ def refuses_the_text(refused: LegendError) -> bool:
     return refused.kind in (error_kind('PARSE'), error_kind('COMPILE'))
 
 
-@dataclass(frozen=True)
-class Answer:
-    """An HTTP answer of legend-engine's ``pure/v1`` API, as legend-lite's server gives it: its status, media
-    type and body."""
-
-    status: int
-    content_type: str
-    body: str
-
-
 def _answer(text: str) -> str:
     """The compiler's answer, or its refusal raised in lite's one error shape (``planner.Folded``: ``OK`` and the
     answer, or ``ERR`` and §3's ``{kind, message, where?, raise?}``). A kind the product does not say is refused by
@@ -103,9 +92,10 @@ def _answer(text: str) -> str:
     raise OSError(f'the native library answered something unrecognised: {text[:120]!r}')
 
 
-def _http(text: str) -> Answer:
-    status, content_type, body = _answer(text).split('\n', 2)
-    return Answer(int(status), content_type, body)
+def folded(text: str) -> str:
+    """The native library's fold read as this binding reads every answer (``OK`` and the answer, or ``ERR`` and lite's
+    error raised): for the edge's entries, which answer in legend-engine's shape (legend_lite.edge)."""
+    return _answer(text)
 
 
 def operation(op: str, request: dict[str, Any]) -> Any:
@@ -400,39 +390,3 @@ def project_data(model: str, database_type: str) -> dict[str, Any]:
     # its steps typed as it runs
     load = {} if answered.get('load') is None else {'load': plan_from_answer(_json.dumps(answered['load']))}
     return {**answered, **load, **{step: all_from_plan(answered[step]) for step in ('open', 'use', 'close')}}
-
-
-
-def pure_v1(path: str, query: str, body: str) -> Answer:
-    """One call of legend-engine's ``pure/v1`` API, answered by legend-lite's server code (``PureV1Api``) --
-    every endpoint it serves but execute's run: ``path`` as requested (``/api/pure/v1/...``), ``query`` its raw
-    query string (``''`` for none)."""
-    return _http(library().call('lite_pure_v1', path, query, body))
-
-
-def execute_plan(body: str, models: list[str]) -> Answer:
-    """The plan half of execute in upstream's Arrow format: for an ``ExecuteInput`` over one of ``models``
-    (the only models this host runs), an answer whose body is ``{"sql", "metadata"}`` -- the SQL to run, and
-    the Arrow schema metadata upstream's answer carries; any other answer is a refusal, to be sent as it is."""
-    return _http(library().call('lite_execute_plan', body, _json.dumps(models)))
-
-
-def execute_json_plan(body: str, models: list[str]) -> Answer:
-    """The plan half of execute in legend-engine's JSON, for a host that runs the SQL on its own database (the tab's, and
-    Python's: docs/ONE_PLATFORM_PROGRAM_2026_10_12.md C1): an answer whose body is ``{"sql", "run", "shape",
-    "resultColumns", "builder", ...}`` -- ``run`` the typed statement the server runs, whose rows go back to
-    :func:`execute_json_answer`; any other answer is a refusal, to be sent as it is."""
-    return _http(library().call('lite_execute_json_plan', body, _json.dumps(models)))
-
-
-def execute_json_answer(plan: str, rows: str) -> Answer:
-    """Execute's answer in legend-engine's JSON: ``plan`` the plan half's body, ``rows`` the rows the database answered
-    its ``run`` statement with (a JSON array of objects, each a column's name and its cell as the driver read it:
-    :func:`host_rows`), decoded by the plan's columns and written by legend-lite's server's own writer -- the server's
-    answer text."""
-    return _http(library().call('lite_execute_json_answer', plan, rows))
-
-
-def refusal(message: str) -> Answer:
-    """A database's refusal, as legend-lite's server answers one (``500``, legend-engine's error shape)."""
-    return _http(library().call('lite_pure_v1_refusal', message))

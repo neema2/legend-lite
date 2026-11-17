@@ -105,26 +105,6 @@ class Served(unittest.TestCase):
         """A cube query as the client sends it: over the table, then ->from(runtime) (fromRuntime)."""
         return ll.parse('|' + self.table.accessor + steps + '->from(' + self.table.runtime + ')')
 
-    def execute_input(self, tree, model=None):
-        return json.dumps({
-            'clientVersion': 'vX_X_X',
-            'function': tree,
-            'model': {'_type': 'text', 'code': self.table.model if model is None else model},
-            'context': {'_type': 'BaseExecutionContext', 'queryTimeOutInSeconds': 60, 'enableConstraints': True},
-        })
-
-    def arrow(self, steps):
-        status, headers, body = self.post('/api/pure/v1/execution/execute?serializationFormat=ARROW_IPC',
-                                          self.execute_input(self.query(steps)))
-        self.assertEqual(status, 200, body[:300])
-        return headers, read_arrow(body)
-
-
-def read_arrow(body):
-    """An ARROW_IPC answer read as upstream writes it: one zstd frame around an Arrow IPC stream."""
-    with pa.input_stream(pa.py_buffer(body), compression='zstd') as stream:
-        return pyarrow.ipc.open_stream(stream).read_all()
-
 
 class UnexpectedFailures(Served):
     """The C5 follow-up's audit item 3 (2026-11-15): a failure no route answers is still an answer -- a 500 naming it,
@@ -157,105 +137,6 @@ class UnexpectedFailures(Served):
             self.assertEqual(said.status, 500, text)
             self.assertIn('RuntimeError: the live frame could not be read', text)
             self.assertNotIn('held-0123456789', text)
-
-    def test_an_executes_unexpected_failure_says_no_held_value(self):
-        calls = []
-
-        def frame():
-            calls.append(1)
-            if len(calls) > 1:
-                raise RuntimeError('the live frame could not be read: X-Amz-Signature=held-0123456789')
-            return trades()
-
-        self.frames.register('broken', frame)
-        # a value the engine holds (a bearer URL's): never in an answer's words
-        held = 'X-Amz-Signature=held-0123456789'
-        original = self.frames.held_values
-        self.frames.held_values = lambda: (*original(), held)
-        status, _, body = self.post('/api/pure/v1/execution/execute?serializationFormat=ARROW_IPC',
-                                    self.execute_input(self.query('->select(~[desk])')))
-        # answered by the API's own catch (the server's refusal), its words with the held value taken out
-        said = body.decode('utf-8')
-        self.assertIn('RuntimeError: the live frame could not be read', said)
-        self.assertNotIn('held-0123456789', said)
-
-
-class Calls(Served):
-    def test_parse_print_and_types_are_the_compilers(self):
-        text = '|' + self.table.accessor + GROUP
-        status, headers, body = self.post('/api/pure/v1/grammar/grammarToJson/lambda?returnSourceInformation=false',
-                                          text, 'text/plain')
-        self.assertEqual((status, headers['Content-Type']), (200, 'application/json'))
-        tree = json.loads(body)
-        self.assertEqual(tree, ll.parse(text))
-
-        status, headers, body = self.post('/api/pure/v1/grammar/jsonToGrammar/lambda?renderStyle=STANDARD', json.dumps(tree))
-        self.assertEqual((status, headers['Content-Type']), (200, 'text/plain'))
-        self.assertEqual(body.decode('utf-8'), ll.print_tree(tree, 'standard'))
-
-        status, _, body = self.post('/api/pure/v1/compilation/lambdaRelationType',
-                                    json.dumps({'lambda': tree, 'model': {'_type': 'text', 'code': self.table.model}}))
-        self.assertEqual(status, 200, body)
-        self.assertEqual([(c['name'], c['genericType']['rawType']['fullPath']) for c in json.loads(body)['columns']],
-                         [('desk', 'String'), ('q', 'Float')])
-
-    def test_execute_answers_upstreams_arrow_with_the_rows_duckdb_computes(self):
-        headers, rows = self.arrow(GROUP)
-        self.assertEqual((headers['Content-Type'], headers['x-legend-response-format']), ('application/json', 'FormatNotSet'))
-        self.assertEqual(rows.to_pylist(), self.table.execute(GROUP).to_pylist())
-        self.assertEqual(rows.to_pylist(), [{'desk': 'EQ', 'q': 27.5}, {'desk': 'FX', 'q': 40.75}])
-        metadata = {k.decode(): v.decode() for k, v in rows.schema.metadata.items()}
-        self.assertEqual(list(metadata), ['legend.builder', 'legend.activities', 'legend.columns'])
-        self.assertEqual(json.loads(metadata['legend.columns']), ['desk', 'q'])
-        self.assertEqual(json.loads(metadata['legend.builder']), {'_type': 'tdsBuilder', 'columns': [
-            # the relational spellings as legend-engine writes them (legend-lite's server's builder)
-            {'name': 'desk', 'type': 'String', 'relationalType': 'VARCHAR(1024)'},
-            {'name': 'q', 'type': 'Float', 'relationalType': 'FLOAT'},
-        ]})
-        [activity] = json.loads(metadata['legend.activities'])
-        self.assertEqual(list(activity), ['comment', 'sql'])
-        self.assertEqual(activity['sql'], self.table.plan(GROUP).sql)
-
-    def test_an_empty_answer_is_its_columns_and_no_batch_as_upstreams(self):
-        status, _, body = self.post('/api/pure/v1/execution/execute?serializationFormat=ARROW_IPC',
-                                    self.execute_input(self.query("->filter(x|$x.desk == 'NONE')")))
-        self.assertEqual(status, 200, body[:300])
-        with pa.input_stream(pa.py_buffer(body), compression='zstd') as stream:
-            reader = pyarrow.ipc.open_stream(stream)
-            self.assertEqual((reader.schema.names, list(reader)), (['id', 'desk', 'qty'], []))
-
-    def test_live_the_next_query_reads_the_frame_as_it_is_then(self):
-        _, before = self.arrow(GROUP)
-        self.df.loc[1, 'qty'] = 100.0
-        _, after = self.arrow(GROUP)
-        self.assertNotEqual(after.to_pylist(), before.to_pylist())
-        self.assertEqual(after.to_pylist(), [{'desk': 'EQ', 'q': 107.5}, {'desk': 'FX', 'q': 40.75}])
-
-    def test_requests_at_once_are_each_answered(self):
-        answers = [None] * 12
-
-        def ask(i):
-            # a request that fails says how in its place, rather than leaving it None
-            try:
-                answers[i] = self.arrow(GROUP)[1].to_pylist()
-            except Exception as failure:
-                answers[i] = repr(failure)
-
-        threads = [threading.Thread(target=ask, args=(i,)) for i in range(len(answers))]
-        for t in threads:
-            t.start()
-        for t in threads:
-            t.join()
-        self.assertEqual(answers, [[{'desk': 'EQ', 'q': 27.5}, {'desk': 'FX', 'q': 40.75}]] * len(answers))
-        self.assertEqual(ll.compiler.library().unfreed(), 0)
-
-
-    def test_a_burst_of_connections_waits_its_turn(self):
-        # the listening queue holds a burst, never socketserver's five: macOS resets a connection the queue has no room
-        # for (the engine's comment says when it was seen); the burst itself depends on the machine's load, so the
-        # queue's length is what is held here
-        self.assertGreaterEqual(self.server._server.request_queue_size, 128)
-
 
 PARTY = """Class demo::party::Party
 {
@@ -445,33 +326,6 @@ class ProjectQueries(Served):
             projects.run_host_load(plan('t'), Database(con), planes={})
         self.assertEqual(exists('t'), 0)
 
-    def test_a_projects_query_answers_its_own_rows(self):
-        status, _, body = self.post('/api/pure/v1/execution/execute', self.project_input())
-        self.assertEqual(status, 200, body)
-        self.assertEqual([r['values'] for r in json.loads(body)['result']['rows']],
-                         [['Halberd Securities'], ['Meridian Capital']])
-        status, _, body = self.post('/api/pure/v1/execution/execute?serializationFormat=ARROW_IPC', self.project_input())
-        self.assertEqual(status, 200, body[:300])
-        self.assertEqual(read_arrow(body).column('name').to_pylist(), ['Halberd Securities', 'Meridian Capital'])
-        # one database for the project, asked twice; beside the frames, which answer as before
-        self.assertEqual(len(self.server.engine.projects.names), 1)
-        _, rows = self.arrow('->select(~[desk])->distinct()->sort(~desk->ascending())')
-        self.assertEqual(rows.column('desk').to_pylist(), ['EQ', 'FX', 'RATES'])
-        # nothing of the project's beside the frames: its table is in its own database alone
-        main = self.frames.connection._con.execute(
-            "SELECT count(*) FROM duckdb_tables() WHERE database_name = current_database() AND table_name = 'PARTY'")
-        self.assertEqual(main.fetchone()[0], 0)
-
-    def test_each_version_its_own_database(self):
-        later = PARTY.replace('2,Halberd Securities', '3,Kestrel Partners')
-        for model, want in ((PARTY, [['Halberd Securities'], ['Meridian Capital']]),
-                            (later, [['Kestrel Partners'], ['Meridian Capital']]),
-                            (PARTY, [['Halberd Securities'], ['Meridian Capital']])):
-            status, _, body = self.post('/api/pure/v1/execution/execute', self.project_input(model))
-            self.assertEqual(status, 200, body)
-            self.assertEqual([r['values'] for r in json.loads(body)['result']['rows']], want)
-        self.assertEqual(len(self.server.engine.projects.names), 2)
-
     def test_a_page_plans_and_runs_a_projects_query_on_its_own_rows(self):
         # a saved query opened on Python's page (C5): planned over the project's model held beside its database, its
         # mapping in the query, and run there -- and its dry run (the page's compile check) planned over that model too.
@@ -568,68 +422,6 @@ class ProjectQueries(Served):
                 self.assertEqual(status, 500, body)
                 self.assertIn('LegendError: the library could not be held over the model', body.decode())
 
-    def test_kept_for_the_process_and_named_by_what_it_holds(self):
-        for _ in range(2):
-            self.assertEqual(self.post('/api/pure/v1/execution/execute', self.project_input())[0], 200)
-        # the same rows, another class beside them: the same database, no second one made
-        with_a_class = PARTY.replace('###Relational', 'Class demo::party::Other { x: Integer[1]; }\n\n###Relational', 1)
-        self.assertEqual(self.post('/api/pure/v1/execution/execute', self.project_input(with_a_class))[0], 200)
-        self.assertEqual(len(self.server.engine.projects.names), 1)
-
-    def test_a_data_element_over_an_undeclared_table_is_refused_by_name(self):
-        bad = PARTY.replace('PARTY.PARTY:\n', 'PARTY.NOPE:\n')
-        status, _, body = self.post('/api/pure/v1/execution/execute', self.project_input(bad))
-        self.assertEqual(status, 500, body)
-        self.assertIn('fills PARTY.NOPE, which no Database of the model declares', json.loads(body)['message'])
-
-
-class Refusals(Served):
-    def error(self, path, body, content_type='application/json'):
-        status, headers, raw = self.post(path, body, content_type)
-        self.assertEqual(headers['Content-Type'], 'application/json')
-        return status, json.loads(raw)
-
-    def test_a_query_that_does_not_compile_is_the_engines_compilation_error(self):
-        status, body = self.error('/api/pure/v1/execution/execute?serializationFormat=ARROW_IPC',
-                                  self.execute_input(self.query('->select(~[nope])')))
-        self.assertEqual((status, body['errorType'], body['status']), (500, 'COMPILATION', 'error'))
-
-    def test_a_model_the_engine_does_not_serve_is_refused(self):
-        other = self.table.model.replace('trades::DB', 'other::DB')
-        status, body = self.error('/api/pure/v1/execution/execute?serializationFormat=ARROW_IPC',
-                                  self.execute_input(self.query(''), model=other))
-        self.assertEqual(status, 500)
-        self.assertIn('the models it serves', body['message'])
-
-    def test_execute_in_json_answers_as_legend_lites_server(self):
-        # legend-engine's JSON too (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md C1): DuckDB writes the rows as the server's
-        # database writes them, the compiler arranges them with the server's own writers
-        status, _, body = self.post('/api/pure/v1/execution/execute',
-                                    self.execute_input(self.query('->select(~[desk, qty])->sort(~qty->ascending())')))
-        self.assertEqual(status, 200, body)
-        answer = json.loads(body)
-        self.assertEqual(answer['builder']['_type'], 'tdsBuilder')
-        self.assertEqual([c['name'] for c in answer['builder']['columns']], ['desk', 'qty'])
-        self.assertEqual(answer['activities'][0]['_type'], 'relational')
-        self.assertEqual(answer['result']['columns'], ['desk', 'qty'])
-        self.assertEqual([r['values'] for r in answer['result']['rows']],
-                         [[d, q] for d, q in sorted(zip(self.df['desk'], self.df['qty']), key=lambda r: r[1])])
-        # a refusal in the engine's shape, as the Arrow answer's
-        status, refused = self.error('/api/pure/v1/execution/execute', self.execute_input(self.query('->select(~[nope])')))
-        self.assertEqual((status, refused['errorType']), (500, 'COMPILATION'))
-
-    def test_the_database_refusing_is_answered_in_the_engines_shape(self):
-        status, body = self.error('/api/pure/v1/execution/execute?serializationFormat=ARROW_IPC',
-                                  self.execute_input(self.query('->extend(~[n: x|$x.desk->toOne()->parseInteger()])')))
-        self.assertEqual((status, body['code'], body['status']), (500, -1, 'error'))
-        self.assertNotIn('errorType', body)
-        self.assertIn('Conversion', body['message'])
-
-    def test_a_path_the_api_does_not_serve_is_404_in_the_engines_shape(self):
-        status, body = self.error('/api/pure/v1/nope', '{}')
-        self.assertEqual((status, body['message']), (404, 'no such legend-engine API in legend-lite: /api/pure/v1/nope'))
-
-
 class Planes(Served):
     """Where the engine plans (R3): one planner, Python's own, which every call the compiler answers goes through, and
     which services.json names for the page."""
@@ -639,32 +431,30 @@ class Planes(Served):
         local = {'word': 'local', 'label': 'Plan local (in Python: the native library)'}
         self.assertEqual((said['plane'], said['planes']), (local, [local]))
 
-    def test_every_call_goes_through_the_planner_it_was_made_with(self):
+    def test_every_plan_goes_through_the_planner_it_was_made_with(self):
         asked = []
 
         class Counting(NativePlanner):
-            def answer(self, path, query, body):
-                asked.append(path)
-                return super().answer(path, query, body)
-
-            def execute_plan(self, body, models):
-                asked.append('execute')
-                return super().execute_plan(body, models)
+            def plan(self, query, held, runtime):
+                asked.append(runtime)
+                return super().plan(query, held, runtime)
 
         self.server.close()
         # the one place an engine makes its planner, patched for this engine alone
         with mock.patch('legend_lite.engine.NativePlanner', Counting):
             self.server = WebServer(Engine(self.frames))
-        self.arrow(GROUP)
-        self.post('/api/pure/v1/grammar/grammarToJson/lambda', '|1')
-        self.assertEqual(asked, ['execute', '/api/pure/v1/grammar/grammarToJson/lambda'])
+        status, _, body = self.post('/plan-and-run.json', json.dumps({
+            'lambda': json.dumps(ll.parse('|' + self.table.accessor + GROUP)), 'model': self.table.model,
+            'runtime': self.table.runtime}))
+        self.assertEqual(status, 200, body[:300])
+        self.assertEqual(asked, [self.table.runtime])
 
 
 class PlanAndRunRoutes(Served):
     """PLANANDRUN ON PYTHON (docs/DATACUBE_ONE_APP_DESIGN_2026_10_11.md §15): a page's grid planned against the model
     Python holds and run on its DuckDB in one call (plan-and-run.json), and its dry run (plan.json, the page's compile
     check) -- only over the models this engine serves, no handle crossing, never a dropped call. A question about the
-    Pure query alone is legend-engine's own route (/api/pure/v1/...), as every Legend server answers it."""
+    Pure query alone is lite's own API (/api/lite/v1/<op>); legend-engine's is the edge's (H5)."""
 
     def plan_and_run(self, steps, model=None):
         return self.post('/plan-and-run.json', json.dumps({
@@ -765,8 +555,7 @@ class PlanAndRunRoutes(Served):
 
     def test_the_stores_need_the_token(self):
         # the saved queries and the saved pages (B5, B6): this user's, so only a page holding the engine's token asks
-        for path in ('/api/pure/v1/query/search', '/api/pure/v1/query/dataCube/search', '/api/lite/v1/queries/search',
-                     '/api/lite/v1/queries/dataCube/search'):
+        for path in ('/api/lite/v1/queries/search', '/api/lite/v1/queries/dataCube/search'):
             self.assertEqual(self.post(path, '{}', headers={'Authorization': 'Bearer nope'})[0], 401, path)
 
     def test_both_need_the_token_and_neither_is_a_get(self):
@@ -860,9 +649,9 @@ class ModelHomeServed(Served):
 
 
 class TheEdgeSeam(unittest.TestCase):
-    """The edge program's H5 groundwork (2026-11-17, the orchestrator's D-a): the product's engine answers what its own
-    routes do not serve through an EdgeRoutes -- its own refusal, NO_EDGE_ROUTES, unless the edge's door gives it
-    another -- never None (G7), and never by importing the edge."""
+    """The edge program's H5 (2026-11-17, the orchestrator's D-a): the product's engine answers the calls its EdgeRoutes
+    serve through them -- NO_EDGE_ROUTES, which serves none, unless the edge's door gives it another -- never None (G7),
+    and never by importing the edge."""
 
     def test_an_engine_carries_the_products_refusal_and_answers_through_it(self):
         from legend_lite._edge_seam import NO_EDGE_ROUTES
@@ -871,22 +660,26 @@ class TheEdgeSeam(unittest.TestCase):
         said = engine.answer('POST', '/no-such-route.json', '', '{}')
         self.assertEqual((said.status, said.body), (404, b'no such path: /no-such-route.json'))
 
-    def test_a_call_its_own_routes_do_not_serve_goes_to_its_edge_routes(self):
+    def test_a_call_its_edge_routes_serve_goes_to_them_and_only_that(self):
         asked = []
 
         class Routes:
+            def serves(self, method, path):
+                return path.startswith('/theirs/')
+
             def answer(self, engine, method, path, query, body):
                 asked.append((method, path, query, body))
                 return engine_module.Answer(200, 'text/plain', b'the routes given')
 
         from legend_lite import engine as engine_module
         engine = Engine(ll.Frames(), edge=Routes())
-        said = engine.answer('POST', '/no-such-route.json', 'a=1', '{}')
-        self.assertEqual((said.status, said.body, asked), (200, b'the routes given',
-                                                           [('POST', '/no-such-route.json', 'a=1', '{}')]))
-        # its own routes stay its own
+        said = engine.answer('GET', '/theirs/x', 'a=1', None)
+        self.assertEqual((said.status, said.body, asked), (200, b'the routes given', [('GET', '/theirs/x', 'a=1', None)]))
+        # its own routes stay its own, and a call neither serves is the product's refusal
         self.assertEqual(engine.answer('GET', '/services.json', '', None).status, 200)
-        self.assertEqual(asked, [('POST', '/no-such-route.json', 'a=1', '{}')])
+        said = engine.answer('POST', '/no-such-route.json', '', '{}')
+        self.assertEqual((said.status, said.body), (404, b'no such path: /no-such-route.json'))
+        self.assertEqual(len(asked), 1)
 
     def test_none_is_no_edge_routes(self):
         for wrong in (None, object(), 'edge'):
@@ -899,7 +692,7 @@ class TheProductsStore(unittest.TestCase):
     server mounts them; the route renamed by the orchestrator's ruling of that day, H6 (b)), answered by the native
     library's PRODUCT entries in lite's words and refused in lite's one error shape ({kind, message}) -- the same rules,
     the same folders, the same records; legend-engine's mount (/api/pure/v1/query) is the edge's, in legend-engine's
-    words, until it moves into legend_lite.edge (H5)."""
+    words (legend_lite.edge, H5): a product engine serves no such route."""
 
     def setUp(self):
         self.place = tempfile.TemporaryDirectory()
@@ -913,21 +706,21 @@ class TheProductsStore(unittest.TestCase):
         lite = self.engine.answer('GET', '/api/lite/v1/queries/nope', '', None)
         self.assertEqual((lite.status, json.loads(lite.body)),
                          (404, {'kind': 'request', 'message': "no saved query has the ID 'nope'"}))
+        # legend-engine's mount: none on the product's engine (the edge's, H5)
         engine = self.engine.answer('GET', '/api/pure/v1/query/nope', '', None)
-        self.assertEqual((engine.status, json.loads(engine.body)), (404, {'message': "Can't find query with ID 'nope'"}))
+        self.assertEqual((engine.status, engine.body), (404, b'no such path: /api/pure/v1/query/nope'))
 
     def test_a_route_lites_store_does_not_serve_is_refused_by_name(self):
         said = self.engine.answer('GET', '/api/lite/v1/queries/dataCube/a/b', '', None)
         self.assertEqual((said.status, json.loads(said.body)),
                          (404, {'kind': 'request', 'message': 'no such legend-lite API: /api/lite/v1/queries/dataCube/a/b'}))
 
-    def test_a_page_saved_at_lites_route_is_the_one_record_both_mounts_read(self):
+    def test_a_page_saved_at_lites_route_is_read_there(self):
         made = self.engine.answer('POST', '/api/lite/v1/queries/dataCube', '',
                                   json.dumps({'id': 'p-9', 'name': 'Both', 'content': {'kind': 'datacube.page'}}))
         self.assertEqual(made.status, 200, made.body)
-        for mount in ('/api/lite/v1/queries/dataCube', '/api/pure/v1/query/dataCube'):
-            read = self.engine.answer('GET', mount + '/p-9', '', None)
-            self.assertEqual((read.status, json.loads(read.body)['name']), (200, 'Both'), mount)
+        read = self.engine.answer('GET', '/api/lite/v1/queries/dataCube/p-9', '', None)
+        self.assertEqual((read.status, json.loads(read.body)['name']), (200, 'Both'))
         missing = self.engine.answer('GET', '/api/lite/v1/queries/dataCube/nope', '', None)
         self.assertEqual((missing.status, json.loads(missing.body)),
                          (404, {'kind': 'request', 'message': "no saved query has the ID 'nope'"}))
@@ -1058,6 +851,12 @@ class NoFiles(Served):
 
 
 class OnlyItsOwnPage(Served):
+    def test_a_burst_of_connections_waits_its_turn(self):
+        # the listening queue holds a burst, never socketserver's five: macOS resets a connection the queue has no room
+        # for (the engine's comment says when it was seen); the burst itself depends on the machine's load, so the
+        # queue's length is what is held here
+        self.assertGreaterEqual(self.server._server.request_queue_size, 128)
+
     def raw(self, method, path, headers, body=b''):
         port = int(self.server.url.rsplit(':', 1)[1])
         connection = http.client.HTTPConnection('127.0.0.1', port, timeout=30)
@@ -1077,43 +876,44 @@ class OnlyItsOwnPage(Served):
     def test_a_request_without_the_token_is_refused(self):
         tree = json.dumps(ll.parse('|1'))
         for given in ({}, {'Authorization': 'Bearer nope'}, {'Authorization': self.server.token}):
-            status, _, _ = self.raw('POST', '/api/pure/v1/grammar/jsonToGrammar/lambda',
+            status, _, _ = self.raw('POST', '/api/lite/v1/query/print',
                                     {'Host': self.host(), 'Content-Length': str(len(tree))} | given, tree.encode())
             self.assertEqual(status, 401, given)
 
     def test_a_host_that_is_not_this_machine_is_refused(self):
         port = self.server.url.rsplit(':', 1)[1]
         for host in ('evil.example:' + port, '127.0.0.1:1', 'localhost'):
-            status, _, _ = self.raw('POST', '/api/pure/v1/grammar/jsonToGrammar/lambda',
+            status, _, _ = self.raw('POST', '/api/lite/v1/query/print',
                                     {'Host': host, 'Authorization': self.server.authorization, 'Content-Length': '2'}, b'{}')
             self.assertEqual(status, 403, host)
-        status, _, _ = self.raw('POST', '/api/pure/v1/grammar/grammarToJson/lambda?returnSourceInformation=false',
+        asked = json.dumps({'text': '|1'}).encode()
+        status, _, _ = self.raw('POST', '/api/lite/v1/query/parse',
                                 {'Host': 'localhost:' + port, 'Authorization': self.server.authorization,
-                                 'Content-Length': '2'}, b'|1')
+                                 'Content-Length': str(len(asked))}, asked)
         self.assertEqual(status, 200)
 
     def test_no_cross_origin_request_is_answered(self):
-        status, headers, _ = self.raw('OPTIONS', '/api/pure/v1/execution/execute', {
+        status, headers, _ = self.raw('OPTIONS', '/api/lite/v1/query/plan', {
             'Host': self.host(), 'Origin': 'http://evil.example', 'Access-Control-Request-Method': 'POST'})
         self.assertEqual(status, 405)
         self.assertFalse([h for h in headers if h.lower().startswith('access-control-')], headers)
 
     def test_a_body_past_the_limit_is_refused_unread(self):
-        status, _, _ = self.raw('POST', '/api/pure/v1/grammar/grammarToJson/lambda',
+        status, _, _ = self.raw('POST', '/api/lite/v1/query/parse',
                                 {'Host': self.host(), 'Authorization': self.server.authorization,
                                  'Content-Length': str(64 * 1024 * 1024)})
         self.assertEqual(status, 413)
 
     def test_a_length_that_is_not_ascii_digits_or_a_body_not_utf8_is_answered(self):
         for length, body, status in (('²', b'', 411), ('2', b'\xff\xfe', 400)):
-            got, _, _ = self.raw('POST', '/api/pure/v1/grammar/grammarToJson/lambda',
+            got, _, _ = self.raw('POST', '/api/lite/v1/query/parse',
                                  {'Host': self.host(), 'Authorization': self.server.authorization,
                                   'Content-Length': length}, body)
             self.assertEqual(got, status, length)
 
     def test_a_refused_request_s_body_is_read_so_its_answer_arrives(self):
         body = b'x' * 200_000
-        status, _, answer = self.raw('POST', '/api/pure/v1/grammar/grammarToJson/lambda',
+        status, _, answer = self.raw('POST', '/api/lite/v1/query/parse',
                                      {'Host': self.host(), 'Content-Length': str(len(body))}, body)
         self.assertEqual(status, 401)
         self.assertIn(b"the engine's token", answer)
@@ -1122,7 +922,7 @@ class OnlyItsOwnPage(Served):
         url = self.server.url
         self.server.close()
         self.server = WebServer(Engine(self.frames))  # tearDown closes this one
-        request = urllib.request.Request(url + '/api/pure/v1/nope', b'{}', {'Authorization': 'Bearer x'})
+        request = urllib.request.Request(url + '/api/lite/v1/nope', b'{}', {'Authorization': 'Bearer x'})
         with self.assertRaises(urllib.error.URLError) as refused:
             urllib.request.urlopen(request, timeout=5)
         self.assertNotIsInstance(refused.exception, urllib.error.HTTPError)
@@ -1133,8 +933,8 @@ class OnlyItsOwnPage(Served):
         idle = [socket.create_connection(('127.0.0.1', port)) for _ in range(6)]
         try:
             # more idle connections than the compiler's pool has threads: a request is still answered
-            tree = json.dumps(ll.parse('|1'))
-            status, _, _ = self.raw('POST', '/api/pure/v1/grammar/jsonToGrammar/lambda',
+            tree = json.dumps({'query': ll.parse('|1')})
+            status, _, _ = self.raw('POST', '/api/lite/v1/query/print',
                                     {'Host': self.host(), 'Authorization': self.server.authorization,
                                      'Content-Length': str(len(tree))}, tree.encode())
             self.assertEqual(status, 200)
@@ -1277,8 +1077,8 @@ class AppsServed(unittest.TestCase):
         self.assertEqual(self.call('GET', '/api/server/v1/currentUser', self.cookie(token='wrong'))[0], 401)
         status, _, body = self.call('GET', '/api/server/v1/currentUser', self.cookie())
         self.assertEqual((status, json.loads(body)), (200, THIS_USER))
-        # the store, the model home and pure/v1, as the token reads them
-        self.assertEqual(self.call('POST', '/api/pure/v1/query/search', self.cookie(), '{}')[0], 200)
+        # the store and the model home, as the token reads them
+        self.assertEqual(self.call('POST', '/api/lite/v1/queries/search', self.cookie(), '{}')[0], 200)
         self.assertEqual(self.call('GET', '/sdlc/api/projects', self.cookie())[0], 200)
         self.assertEqual(self.call('GET', '/sdlc/api/projects')[0], 401)
 
@@ -1288,7 +1088,7 @@ class AppsServed(unittest.TestCase):
         user = '/api/server/v1/currentUser'
         for site in ('same-site', 'cross-site', 'none'):
             self.assertEqual(self.call('GET', user, self.cookie(site=site))[0], 401, site)
-        self.assertEqual(self.call('POST', '/api/pure/v1/query/search', self.cookie(site='same-site'), '{}')[0], 401)
+        self.assertEqual(self.call('POST', '/api/lite/v1/queries/search', self.cookie(site='same-site'), '{}')[0], 401)
         # a browser that marks no call: its Origin decides
         own = f'http://127.0.0.1:{self.port}'
         self.assertEqual(self.call('GET', user, {**self.cookie(site=None), 'Origin': own})[0], 200)
