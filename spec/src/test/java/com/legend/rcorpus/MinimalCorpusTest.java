@@ -160,7 +160,7 @@ public class MinimalCorpusTest {
         // the engine's scan order for the corpus goldens is the lane's -Dlegend.exec.engineScanOrder (spec/corpus.bzl),
         // set for the whole JVM by the build, never flipped here (Bazel workplan P3-01)
         // a scoped run (-Drcorpus.test) runs the database judge on its tests alone; the host pass, an action, is the
-        // whole corpus's, so only a full run waits on it (pinJudgeDifferential skips a scoped run likewise)
+        // whole corpus's, so only a full run waits on it 
         if (JudgeLedger.databasePass()
                 && System.getProperty("rcorpus.test", "").trim().isEmpty()) {
             JudgeLedger.requireHostPassed();
@@ -516,82 +516,11 @@ public class MinimalCorpusTest {
         // pct/.../channelb/ratchets.tsv's channel_b.<suite>.judge.{statements,chars,plan}, and the lean-SQL baseline.)
         pinChannels(only, corpus);
         pinStrength(only, strength);
-        pinJudgeDifferential(only);
-    }
-
-    /** LEG 3.3 — THE DIFFERENTIAL GATE (docs/JUDGING_TWO_MODES_2026_09_17.md §4): a
-     * DATABASE-mode lane that wrote its per-assert ledger ({@link JudgeLedger#path})
-     * and was handed the HOST pass's ({@code legend.judge.ledger.host}) joins the two
-     * per assert: the same verdict everywhere the registers do not name — unregistered
-     * disagreements and one-sided adjudications pinned at ZERO; the database judge's
-     * declines pinned by {@code rcorpus/<lane>-judge-unjudged-ceiling.txt}. */
-    private static void pinJudgeDifferential(String only) throws java.io.IOException {
-        if (!only.isEmpty() || !JudgeLedger.databasePass()) {
-            return;
-        }
-        String lane = LaneHolder.LANE.rosters();
-        JudgeLedger.Differential x = JudgeLedger.diff(
-                JudgeLedger.read(JudgeLedger.input("legend.judge.ledger.host")),
-                JudgeLedger.read(JudgeLedger.path()));
-        java.util.Set<String> registered = new java.util.HashSet<>();
-        // "differential": a test that FAILS in both modes for the same reason but
-        // whose per-assert ledgers differ in WHERE the failure lands — since one
-        // statement per body (2026-09-20) a let's frame rides the fused statement,
-        // so a broken frame fails at the assert in database mode and at the let in
-        // host mode; named with its reason, never absorbed
-        // (the gained and accepted registers went with the database judge alone, O5, 2026-11-16)
-        for (String r : List.of("lost", "differential")) {
-            registered.addAll(registerTests("/rcorpus/" + lane + "-database-" + r + "-register.txt"));
-        }
-        registered.addAll(registerTests(laneFile(ACCEPTED)));
-        // UNTRIAGED: disagreements recorded as found but not yet explained — a
-        // work list, not a reason. Shrink-only: an entry whose test no longer
-        // disagrees must be deleted (below), so the list cannot outlive its cause.
-        java.util.Set<String> untriaged = registerTests("/rcorpus/" + lane + "-database-untriaged-register.txt");
-        registered.addAll(untriaged);
-        List<String> unregistered = x.unregistered(registered);
-        System.out.println("[judge-differential] " + lane + ": asserts agree=" + x.agree()
-                + " disagree=" + x.disagree().size() + " unjudged-in-database=" + x.unjudged().size()
-                + " host-only=" + x.hostOnly().size() + " database-only=" + x.databaseOnly().size()
-                + " | unregistered=" + unregistered.size() + " | unjudged by family "
-                + x.unjudgedByFamily());
-        for (String u : unregistered) {
-            System.out.println("[judge-differential] UNREGISTERED " + u);
-        }
-        java.util.Set<String> disagreeing = x.tests();
-        List<String> staleUntriaged = untriaged.stream()
-                .filter(t -> !disagreeing.contains(t)).toList();
-        org.junit.jupiter.api.Assertions.assertEquals(List.of(), staleUntriaged,
-                "untriaged entries whose test no longer disagrees — delete them from "
-                + lane + "-database-untriaged-register.txt (the work is done, or moved)");
-        org.junit.jupiter.api.Assertions.assertEquals(List.of(), unregistered,
-                "the host and database judges DISAGREE on an assert of a test no register names"
-                + " (a verdict pair, or one judge adjudicating what the other never reached) — a bug"
-                + " in one mode (host is the reference): fix it, or name the test on the lane's"
-                + " register with its reason");
-        // From the classpath, like the registers, and REQUIRED: this read was a
-        // path relative to the working directory, which under Bazel is the
-        // runfiles root — the file was never found, and a missing ceiling read as
-        // "no ceiling" (found 2026-09-23; the DuckDB pin is 0 and so was the count,
-        // so nothing slipped through).
-        String ceilingResource = "/rcorpus/" + lane + "-judge-unjudged-ceiling.txt";
-        int ceiling;
-        try (var in = MinimalCorpusTest.class.getResourceAsStream(ceilingResource)) {
-            if (in == null) {
-                throw new IllegalStateException("no unjudged ceiling for the " + lane + " lane: "
-                        + ceilingResource + " pins how many asserts the database judge may decline");
-            }
-            ceiling = Integer.parseInt(new String(in.readAllBytes(),
-                    java.nio.charset.StandardCharsets.UTF_8).trim());
-        }
-        org.junit.jupiter.api.Assertions.assertTrue(x.unjudged().size() <= ceiling,
-                "asserts the database judge declines grew: " + x.unjudged().size() + " > " + ceiling
-                + " — a shape the host judges and the database does not is a work item, never a"
-                + " fallback (" + x.unjudgedByFamily() + ")");
-        if (x.unjudged().size() < ceiling) {
-            System.out.println("[judge-differential] unjudged ceiling " + ceiling + " -> "
-                    + x.unjudged().size() + " (re-pin: headroom is not a pin)");
-        }
+        // (the per-assert differential gate, its differential and untriaged registers and the unjudged ceiling went
+        // with the database judge alone -- O5 + measured 2026-11-17: under BOTH a per-assert disagreement IS an assert
+        // failure (AgreementArm), and the test-level lost differential against the host pass guards it; every affected
+        // DuckDB test is already in the host fail roster. The guards that remain: the test-level lost and gained
+        // differential, BOTH's agreement failures, and the engine-order register at 119/119 within the host's.)
     }
 
     /** Phase 0.7 — the STRENGTH census of the passes (audit §3's ladder),
