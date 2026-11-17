@@ -140,9 +140,24 @@ final class ConstantPools {
                     if (e.isDirectory() || n.endsWith(".class") || n.equals("META-INF/MANIFEST.MF")) {
                         continue;
                     }
+                    String key = jar.getFileName() + "!/" + n;
+                    // refused by name, never read as junk (the review of 139f03aba2, 2026-11-17): an archive inside the
+                    // jar, a resource that is no UTF-8 text, a key two jars share
+                    if (n.matches(".*\\.(jar|zip|war|gz|tgz|xz)$")) {
+                        throw new IllegalStateException(key + ": a nested archive this scan cannot read");
+                    }
+                    String text;
                     try (var in = f.getInputStream(e)) {
-                        out.put(jar.getFileName() + "!/" + n, new String(in.readAllBytes(),
-                                java.nio.charset.StandardCharsets.UTF_8));
+                        text = java.nio.charset.StandardCharsets.UTF_8.newDecoder()
+                                .onMalformedInput(java.nio.charset.CodingErrorAction.REPORT)
+                                .onUnmappableCharacter(java.nio.charset.CodingErrorAction.REPORT)
+                                .decode(java.nio.ByteBuffer.wrap(in.readAllBytes())).toString();
+                    } catch (java.nio.charset.CharacterCodingException bad) {
+                        throw new IllegalStateException(key + ": a resource that is no UTF-8 text, which this scan cannot"
+                                + " read", bad);
+                    }
+                    if (out.put(key, text) != null) {
+                        throw new IllegalStateException(key + ": two jars of one name hold this resource");
                     }
                 }
             } catch (IOException e) {
@@ -170,13 +185,14 @@ final class ConstantPools {
 
     /** The jars a test's system property lists (as core/BUILD.bazel's {@code rlocationpaths} spell them). */
     static List<Path> jars(String... properties) {
-        List<Path> out = new ArrayList<>();
+        // one jar named by two properties is read once (a jar the edge's list and the hosts' list both carry)
+        java.util.Set<Path> out = new LinkedHashSet<>();
         for (String p : properties) {
             for (Path jar : com.legend.testing.Runfile.listed(p)) {
-                out.add(jar);
+                out.add(jar.toAbsolutePath().normalize());
             }
         }
-        return out;
+        return new ArrayList<>(out);
     }
 
     /** The class file of {@code c}, from its class loader. */
