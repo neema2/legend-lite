@@ -47,7 +47,18 @@ class HookRulingTest {
                     () -> PlanStyle.PRODUCT.facet(com.legend.lowering.ResultEnvelopes.class)),
             // census B8 (i), 2026-11-17: the texts only legend-pure writes, composed at lowering
             com.legend.lowering.PureOnlyTexts.class, List.of(
-                    () -> PlanStyle.PRODUCT.facet(com.legend.lowering.PureOnlyTexts.class)));
+                    () -> PlanStyle.PRODUCT.facet(com.legend.lowering.PureOnlyTexts.class)),
+            // census B17, 2026-11-17: a relation's legend-pure text, composed at lowering (a facade: FACADES)
+            com.legend.lowering.RelationTexts.class, List.of(
+                    () -> PlanStyle.PRODUCT.facet(com.legend.lowering.RelationTexts.class)));
+
+    /** A ruled hook's static FORWARDERS (the orchestrator's facade rule, 2026-11-17): each forwards one call to a
+     *  helper the product itself uses, and the set is pinned exactly -- shrink-only, a new one is seen. Every other
+     *  method of a ruled hook is a bare signature. */
+    static final Map<Class<?>, java.util.Set<String>> FACADES = Map.of(
+            // pureToString (Scalars', every value's text), dateTimeText (LiteralSpelling's, the product's cells),
+            // kindType (MixedEncoding's, the lowering's mixed lists)
+            com.legend.lowering.RelationTexts.class, java.util.Set.of("pureToString", "dateTimeText", "kindType"));
 
 
     /** (a): an interface declaring signatures only -- no static method, no default method, no field. */
@@ -55,10 +66,20 @@ class HookRulingTest {
     void eachRuledHookIsAnInterfaceOfSignaturesOnly() {
         for (Class<?> hook : RULED.keySet()) {
             assertTrue(hook.isInterface(), hook + " is no interface");
+            java.util.Set<String> forwarders = new java.util.TreeSet<>();
             for (Method m : hook.getDeclaredMethods()) {
-                assertTrue(Modifier.isAbstract(m.getModifiers()) && !Modifier.isStatic(m.getModifiers())
-                        && !m.isDefault(), hook.getSimpleName() + "." + m.getName() + " is not a bare signature");
+                if (m.isSynthetic()) {
+                    continue;   // a lambda's body (a forwarder's style answering the edge's texts), no member
+                }
+                if (Modifier.isStatic(m.getModifiers())) {
+                    forwarders.add(m.getName());
+                    continue;
+                }
+                assertTrue(Modifier.isAbstract(m.getModifiers()) && !m.isDefault(),
+                        hook.getSimpleName() + "." + m.getName() + " is not a bare signature");
             }
+            assertEquals(new java.util.TreeSet<>(FACADES.getOrDefault(hook, java.util.Set.of())), forwarders,
+                    hook.getSimpleName() + "'s static forwarders are not its pinned product-helper set");
             assertEquals(0, hook.getDeclaredFields().length, hook + " declares a field");
             assertEquals(0, hook.getDeclaredClasses().length, hook + " declares a nested type");
         }
@@ -120,6 +141,7 @@ class HookRulingTest {
         }
         assertEquals(new TreeSet<>(List.of(
                 "PureOnlyTexts <- com.legend.edge.EdgePureOnlyTexts",
+                "RelationTexts <- com.legend.edge.RelationTextLowering",
                 "ResultEnvelopes <- com.legend.edge.EngineResultEnvelopes",
                 "UpstreamPlans <- com.legend.edge.EnginePlans$1")), implementers);
         assertFalse(implementers.isEmpty());

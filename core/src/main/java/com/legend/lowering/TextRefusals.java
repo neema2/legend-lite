@@ -26,6 +26,13 @@ final class TextRefusals {
         return refused("toString of an instance", "the product writes an object by graph fetch");
     }
 
+    /** {@code what} of a relation ({@code toCSV}, a TDS's {@code csv}, a relation's {@code toString}): the product
+     *  writes a relation's rows by its result writers (B17, 2026-11-17; moved here from RelationTexts the same day). */
+    static ModelException relation(String what) {
+        return refused(what + " of a relation", "the product writes a relation's rows by its result writers (JSON, CSV,"
+                + " Arrow)");
+    }
+
     /** A user's {@code toRepresentation}. */
     static ModelException representation() {
         return refused("toRepresentation", "the product writes a value's text by toString and format's %s, %d, %f and"
