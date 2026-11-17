@@ -165,7 +165,10 @@ class CompatSpellingGuardTest {
             // caller) deleted. 6 -> 3 (2026-11-17, B17's forwarders: dateTimeTextTds and dateTimeTextOfText, which only a
             // relation's text wrote, moved to edge.RelationTextLowering). What stays: the judges' canon (temporalCanon x2,
             // dateTimeLiteralAt: census line C5, E-Java's)
-            "lowering/LiteralSpelling.java | +0000 | 3 | D1.9",
+            // 3 -> 1, D1.9 -> STAYS (2026-11-17, census C5's step C, E-SQL's): the judges' canon is lite's spelling
+            // (temporalCanon, dateTimeLiteralAt: Z, built from product nodes); what stays reads legend-pure's +0000 as
+            // INPUT (a wire text already suffixed is normalized before the canon), no spelling written
+            "lowering/LiteralSpelling.java | +0000 | 1 | STAYS",
             // FLOAT_PRINT's rows: GONE 2026-11-17 (census B9, the orchestrator's ruling): measured equal to lite's writers'
             // text inside its windows, the node is lite's canonical Float text, FLOAT_SHORTEST_TEXT, a product node in
             // every dialect and the judges' message text alike; the symbol stays scanned so the old name cannot return
@@ -259,6 +262,8 @@ class CompatSpellingGuardTest {
             // B9 -> C5 (E-P5) 2026-11-17 (census B9, the orchestrator's ruling (a)): a message's DateTime text is the
             // two-form hook lowering.DateTimeTexts (lite's DATETIME_TO_TEXT in the product); the composition stays for
             // the judges' canon alone, its one emitter LiteralSpelling.temporalCanon, closed by C5's step C
+            // JUDGE, now B12's (2026-11-17, census C5's step C): the judges' canon no longer emits the node; its one
+            // product emitter left is format's %r (Scalars), refused in the product by B12's 2b (F's)
             "sql/dialect/DateTimePrintText.java | +0000 | 2 | JUDGE",
             // RULED by the user, 2026-11-16, the edge program §10 item 9 ("I agree with all"): it stays in the product
             // (the P2 checkpoint audit's A-M1; W6's change, 4fc24e0a3, reverted the same day). The product's H2 quotes legend-engine's word list as written, upper-casing the words its session

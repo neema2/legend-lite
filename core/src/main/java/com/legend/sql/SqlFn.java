@@ -159,6 +159,12 @@ public enum SqlFn {
      *  LiteralSpelling.dateTimeText). Expanded before every other pass ({@code dialect.DateTimePrintText}), for the
      *  judges' canon alone since census B9 (2026-11-17: C5, E-P5's, LiteralSpelling.temporalCanon). */
     DATETIME_PRINT,
+    /** THE JUDGES' CANON OF A TIMESTAMP (census C5's step C, 2026-11-17): {@code T}-separated, the fraction's digits
+     *  with their trailing zeros trimmed (a timestamp carries no written precision), {@code Z} -- lite's spelling, which
+     *  every side of a comparison is written in, so lite's date equality (A1) is kept and no message reads it.
+     *  Expanded before every other pass by the base renderer ({@code dialect.DateTimeCanonText}), from STRFTIME at
+     *  nine digits, which every SQL dialect spells; one node in a plan's tree. */
+    DATETIME_CANON_TEXT,
     /** An element's text in a {@code makeString} ({@code x}, one operand, {@code NULL} where the element is empty): the
      *  product's join skips an empty element (the user's ruling of 2026-11-10, D_BRIEF §1: "makeString skips empty
      *  elements"; phase D's D1.3, 2026-11-15) -- the base renderer writes the text alone ({@code dialect.CellTexts}),
@@ -218,7 +224,7 @@ public enum SqlFn {
                     VARIANT_GET,
                     // a Float's and a DateTime's text, branching on the value's magnitude and kind (D's W3, its
                     // instrument, and S312's form, 2026-11-16; found by MaySkipCensusTest at the merge of PR1's head)
-                    FLOAT_TO_TEXT, DATETIME_PRINT, DATETIME_TO_TEXT,
+                    FLOAT_TO_TEXT, DATETIME_PRINT, DATETIME_CANON_TEXT, DATETIME_TO_TEXT,
                     // the product's join of a row's cells skips a NULL part by design (Phase 3, 2026-11-17; found by
                     // MaySkipCensusTest: MariaDB, MySQL, SQLite, BigQuery and MongoDB branch or skip)
                     CONCAT_WS));
