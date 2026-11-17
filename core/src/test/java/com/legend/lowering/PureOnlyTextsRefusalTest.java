@@ -69,4 +69,16 @@ class PureOnlyTextsRefusalTest {
         assertEquals(REPRESENTATION, e.getMessage());
         assertEquals(LegendCompileException.Phase.LOWER, e.phase());
     }
+
+    /** format's %r (census B12's 2b, 2026-11-17: the product refuses it by name, the user's §10 item 8): the arm asks
+     *  formatR with this refusal: its sentence and phase. */
+    @Test
+    void formatRsRefusalIsNamed() {
+        ModelException e = assertThrows(ModelException.class,
+                () -> Styled.PRODUCT.pureOnly().apply(TextRefusals::formatR)
+                        .formatR(Styled.PRODUCT, null, new SqlExpr.StringLit("a")));
+        assertEquals("format's %r is legend-pure's text, the compatibility edge's: the product's format writes %s, %d,"
+                + " %f and %t{}", e.getMessage());
+        assertEquals(LegendCompileException.Phase.LOWER, e.phase());
+    }
 }

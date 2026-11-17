@@ -49,8 +49,9 @@ class EdgeOnlyNodesCensusTest {
             // 2026-11-17 (census B9): a judge's message's DateTime text is the two-form hook DateTimeTexts; the two
             // product emitters left are LiteralSpelling's (the judges' canon, C5, E-P5's step C) and Scalars' (format's
             // %r, refused in the product by census B12's 2b, F's: the user's §10 item 8)
-            // LiteralSpelling's gone 2026-11-17 (census C5's step C: the canon is lite's spelling)
-            SqlFn.DATETIME_PRINT, Map.of("lowering/Scalars.java", 1));
+            // LiteralSpelling's gone 2026-11-17 (census C5's step C: the canon is lite's spelling); Scalars' gone
+            // 2026-11-17 (census B12's 2b: format's %r refused in the product, the edge's formatR writes it)
+            );
             // (FORMAT_PADDED: gone from SqlFn 2026-11-17, B8 (i) -- the edge composes it at lowering)
             // (INSTANCE_TEXT: gone from SqlFn 2026-11-17, B8 -- the edge writes it at lowering, Scalars.pureToString)
             // (REPRESENTATION_TEXT: gone from SqlFn 2026-11-17, B8 (i) -- the edge writes it at lowering)

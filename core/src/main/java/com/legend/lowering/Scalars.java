@@ -3450,12 +3450,10 @@ final class Scalars {
             // %r: pure's REPR — a string in quotes with \-escapes, a date
             // with its % literal prefix.
             if (d == 'r') {
-                // legend-pure's representation, the judges' Repr: the assert bodies' messages write it, so it moves
-                // with the judges (D1.9; the product's own refusal waits for it, 2026-11-15). A DateTime's %r stays
-                // legend-pure's print form on every style (census B9, the orchestrator's ruling, 2026-11-17): the user's
-                // §10 item 8 refuses format's %r in the product, census B12's 2b (F's), so it is not re-spelled first
-                spread.set(argIdx, Repr.of(new Styled(styled.pureOnly(), styled.plain(), FORMAT_R_DATE_TIMES,
-                        styled.lists()), typed, spread.get(argIdx)));
+                // legend-pure's representation, the edge's (census B12's 2b, 2026-11-17; the user's §10 item 8: "%r and
+                // padding at the edge"): the style's facet asked with %r's own refusal -- the product refuses it by name
+                spread.set(argIdx, styled.pureOnly().apply(TextRefusals::formatR).formatR(styled, typed,
+                        spread.get(argIdx)));
                 out.append("%s");
                 argIdx++;
                 i += 2;
@@ -3567,20 +3565,8 @@ final class Scalars {
         return dateText(SqlFn.DATETIME_TO_TEXT, typed, e);
     }
 
-    /** format's %r of a DateTime: legend-pure's print form ({@link SqlFn#DATETIME_PRINT}) on every style, until census
-     *  B12's 2b refuses format's %r in the product (the user's §10 item 8; F's): no byte moves before then. */
-    private static final DateTimeTexts FORMAT_R_DATE_TIMES = (x, written) -> new SqlExpr.Call(SqlFn.DATETIME_PRINT,
-            written == null ? List.of(x) : List.of(x, new SqlExpr.StringLit(written)));
-
-    /** A date's representation ({@code %r}, the judges' message), or null when not a date: a DateTime's the style's
-     *  two-form text ({@link Styled#dateTimes}: lite's, or legend-pure's print form on the edge's style; census B9,
-     *  2026-11-17), any other date literal's as written. */
-    static @com.legend.base.Nullable SqlExpr dateReprOf(Styled styled, TypedSpec typed, SqlExpr e) {
-        if (typed.info().type() == Type.Primitive.DATE_TIME) {
-            return styled.dateTimes().dateTimeText(e, typed instanceof TypedCDate cd ? cd.value().toEngineString() : null);
-        }
-        return dateLiteralText(typed);
-    }
+    // (FORMAT_R_DATE_TIMES, format's %r of a DateTime in legend-pure's print form on every style: gone 2026-11-17 with
+    // census B12's 2b -- %r is the edge's, its DateTime the style's two-form text)
 
     private static @com.legend.base.Nullable SqlExpr dateText(SqlFn dateTime, TypedSpec typed, SqlExpr e) {
         if (typed.info().type() == Type.Primitive.DATE_TIME) {
