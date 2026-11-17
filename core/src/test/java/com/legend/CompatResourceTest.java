@@ -6,6 +6,7 @@ package com.legend;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
@@ -44,8 +45,17 @@ class CompatResourceTest {
             for (String lit : CompatSpellingGuardTest.LITERALS) {
                 int n = 0;
                 if (lit.startsWith("^") && lit.endsWith("$")) {
+                    // a whole literal, as the source guard reads it: the whole of a quoted string ('...' in Pure, "..."
+                    // elsewhere) or the whole of a table's cell (the review of 139f03aba2, 2026-11-17: never a whole line,
+                    // which an indented, quoted literal never is)
                     String whole = lit.substring(1, lit.length() - 1);
-                    n = (int) text.lines().filter(l -> l.equals(whole)).count();
+                    for (String quoted : List.of("'" + whole + "'", "\"" + whole + "\"")) {
+                        for (int at = text.indexOf(quoted); at >= 0; at = text.indexOf(quoted, at + quoted.length())) {
+                            n++;
+                        }
+                    }
+                    n += (int) text.lines().flatMap(l -> java.util.Arrays.stream(l.split("\t", -1)))
+                            .filter(cell -> cell.equals(whole)).count();
                 } else {
                     for (int at = text.indexOf(lit); at >= 0; at = text.indexOf(lit, at + lit.length())) {
                         n++;
@@ -66,9 +76,16 @@ class CompatResourceTest {
         return out;
     }
 
+    /** What the scan must at least read (the review of 139f03aba2, 2026-11-17: with no hit left, an empty read would pass):
+     *  the product jars' resources today number 6, the prelude among them. */
+    static final int RESOURCE_FLOOR = 6;
+
     @Test
     void theResourcesHoldOnlyThePinnedSpellings() {
-        Map<String, Integer> found = hits(ConstantPools.resourcesOfJars(ConstantPools.jars("legend.product.jars")));
+        Map<String, String> resources = ConstantPools.resourcesOfJars(ConstantPools.jars("legend.product.jars"));
+        assertTrue(resources.size() >= RESOURCE_FLOOR && resources.keySet().stream().anyMatch(k -> k.endsWith(
+                "!/com/legend/builtin/prelude.pure")), "the scan read the product's resources: " + resources.keySet());
+        Map<String, Integer> found = hits(resources);
         assertEquals(new TreeMap<>(RESOURCE_HITS), found, "a compatibility spelling in a product resource that its pin"
                 + " does not list (or one more of a pinned one): move it to the edge, or pin it here with its reason; a pin"
                 + " gone or fallen is lowered");
@@ -76,12 +93,15 @@ class CompatResourceTest {
         REASONS.forEach((k, why) -> assertTrue(why.matches(".*\\d{4}-\\d{2}-\\d{2}.*"), k + ": " + why));
     }
 
-    /** A planted resource set: a literal, a whole-line pattern, a symbol as a word (and not inside a longer word). */
+    /** A planted resource set: a literal, a whole-literal pattern as a quoted string in Pure and as a table's cell (not as
+     *  part of a longer string), a symbol as a word (and not inside a longer word). */
     @Test
     void theScanBites() {
         Map<String, Integer> found = hits(Map.of("planted.jar!/planted.pure",
-                "toString(){'TDSNull'}\nCannot get \nRepr and Representation\nCannot get x\n"));
+                "toString(){'TDSNull'}\n    fail('Cannot get ');\nRepr and Representation\n'Cannot get x'\n",
+                "planted.jar!/planted.tsv", "a\tCannot get \tb\n"));
         assertEquals(Map.of("planted.jar!/planted.pure | TDSNull", 1, "planted.jar!/planted.pure | Cannot get ", 1,
-                "planted.jar!/planted.pure | Repr", 1), found);
+                "planted.jar!/planted.pure | Repr", 1, "planted.jar!/planted.tsv | Cannot get ", 1), found,
+                "a whole literal is a whole quoted string or a whole cell, never part of one");
     }
 }
