@@ -38,6 +38,9 @@ _RECORDS = [
     "src/legend/pmcd.ts",
     "src/legend/wire.ts",
     "src/locale.ts",
+    # 2026-11-17 (claude/deephaven-3-browser, main's app rule //tools/deps:app_runs_test): a column a page makes, a shape
+    # an app names without reaching arrow-ipc.ts, which writes it
+    "src/made-columns.ts",
     "src/plan-guard.ts",
     "src/plan-params.ts",
     "src/planned-sql.ts",

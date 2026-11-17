@@ -10,7 +10,7 @@
 // then the clock: a beat every `beatMs` (the market's step, the feed's messages, the bank's day every 100 ms), its rows
 // written every `flushMs` -- one write a table, so the database sees a few batches a second, never a row at a time.
 
-import type { MadeColumn } from '../../../engine-client/src/arrow-ipc.ts';
+import type { MadeColumn } from '../../../engine-client/src/made-columns.ts';
 import { dayOf } from './format.ts';
 import { dayRows, makeBank, type Bank, type DayRows } from './bank.ts';
 import { CoinbaseFeed } from './coinbase.ts';

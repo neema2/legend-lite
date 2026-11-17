@@ -12,6 +12,7 @@ import {
 } from 'apache-arrow';
 
 import type { ArrowishTable } from './duckdb.ts';
+import type { MadeColumn } from './made-columns.ts';
 
 /** One Arrow IPC stream (the stream format) as the table a connection's `query` answers. */
 export function arrowIpcTable(stream: Uint8Array): ArrowishTable {
@@ -25,22 +26,7 @@ export function arrowIpcAnswer(stream: Uint8Array): { readonly table: ArrowishTa
   return { table: table as unknown as ArrowishTable, metadata: table.schema.metadata };
 }
 
-/**
- * A column a page makes, row by row: doubles (DOUBLE); whole numbers, each in 32 bits, held as 64-bit integers
- * (BIGINT); text, each row one of a few values (VARCHAR); instants, each its milliseconds since the epoch, UTC
- * (TIMESTAMP_MS: what a table's TIMESTAMP takes); truths (BOOLEAN); or days, each its days since the epoch (DATE). Any
- * row's value may be null (the value null; text's pick null), the column's validity then written. The last three for
- * the live market's tables (docs/DUCKDB_LIVE_2026_10_25.md L2): a print's time, a story's flag, an order's date.
- */
-export type MadeColumn =
-  | { readonly doubles: (row: number) => number | null }
-  | { readonly integers: (row: number) => number | null }
-  | { readonly text: readonly string[]; readonly pick: (row: number) => number | null }
-  | { readonly instants: (row: number) => number | null }
-  | { readonly truths: (row: number) => boolean | null }
-  | { readonly days: (row: number) => number | null };
-
-/** `rows` rows of columns a page made, in order, as one Arrow IPC stream (the stream format). */
+/** `rows` rows of columns a page made (made-columns.ts MadeColumn each), in order, as one Arrow IPC stream (the stream format). */
 export function arrowIpcStream(rows: number, columns: Readonly<Record<string, MadeColumn>>): Uint8Array {
   const vectors: Record<string, Vector> = {};
   for (const [name, column] of Object.entries(columns)) {

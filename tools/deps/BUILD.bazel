@@ -411,11 +411,14 @@ node_test(
         "//studio:src",
     ],
     entry_point = "app-runs.test.ts",
+    # 2026-11-17 (claude/deephaven-3-browser): SOURCES holds the runfiles helper too (every node_test carries it), which
+    # a Node page imports (the market feed's process, datacube/demo/market-sim/door/feed-main.ts): the re-export walk
+    # reads it rather than naming it unread
     env = {
         "LAYERED_SRCS": "$(rlocationpath :app_runs_layered)",
         "PLANNER_SRCS": "$(rlocationpath :planner_layer_srcs)",
         "RUN_SRCS": "$(rlocationpath :run_layer_srcs)",
-        "SOURCES": "$(rlocationpaths //datacube:sources) $(rlocationpaths //engine-client:sources) $(rlocationpaths //query:src) $(rlocationpaths //studio:src) $(rlocationpaths //datacube:pages) $(rlocationpaths //query:pages) $(rlocationpaths //studio:pages) $(rlocationpaths //depot-client:depot_client) $(rlocationpaths //legend-art:legend_art) $(rlocationpaths //model-changes:model_changes) $(rlocationpaths //model-changes:records) $(rlocationpaths //pure-protocol:pure_protocol) $(rlocationpaths //query-store:query_store) $(rlocationpaths //sdlc-client:records) $(rlocationpaths //sdlc-client:sdlc_client)",
+        "SOURCES": "$(rlocationpaths //datacube:sources) $(rlocationpaths //engine-client:sources) $(rlocationpaths //query:src) $(rlocationpaths //studio:src) $(rlocationpaths //datacube:pages) $(rlocationpaths //query:pages) $(rlocationpaths //studio:pages) $(rlocationpaths //depot-client:depot_client) $(rlocationpaths //legend-art:legend_art) $(rlocationpaths //model-changes:model_changes) $(rlocationpaths //model-changes:records) $(rlocationpaths //pure-protocol:pure_protocol) $(rlocationpaths //query-store:query_store) $(rlocationpaths //sdlc-client:records) $(rlocationpaths //sdlc-client:sdlc_client) $(rlocationpaths //tools/js:runfiles)",
     },
 )
 

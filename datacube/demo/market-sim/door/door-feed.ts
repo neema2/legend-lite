@@ -9,7 +9,7 @@
 // text as it is, an instant its epoch milliseconds, a truth a JSON boolean, a day its ISO date (a LocalDate column is
 // refused by that reader, so a day travels as text), a value the row has not a null.
 
-import type { MadeColumn } from '../../../../engine-client/src/arrow-ipc.ts';
+import type { MadeColumn } from '../../../../engine-client/src/made-columns.ts';
 import type { MarketSink } from '../market.ts';
 import type { DoorTopic, KafkaDoor } from './kafka-door.ts';
 

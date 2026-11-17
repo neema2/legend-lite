@@ -26,8 +26,11 @@ import { ServerBases } from '../../src/server-base.ts';
 import type { CubeSnapshot } from '../../src/snapshot.ts';
 import type { GridCommand } from '../../src/grid-commands.ts';
 import type { TreeState } from '../../src/tree.ts';
-import type { DeephavenCounts } from '../../../engine-client/src/deephaven-engine.ts';
+import type { openDeephaven } from '../../../engine-client/src/doors/deephaven.ts';
 import { CONNECTION, STORES, isRiskSource, openRisk, type RiskConfig } from './risk.ts';
+
+/** The engine's counts, as its door hands the engine. */
+type DeephavenCounts = Awaited<ReturnType<typeof openDeephaven>>['counts'];
 
 /** One grid as the page shows it, for a person and for its test. */
 interface ShownGrid {

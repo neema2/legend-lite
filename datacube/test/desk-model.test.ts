@@ -29,10 +29,23 @@ const texts: readonly (readonly [string, string])[] = Object.entries(screens as 
 /** Every source the screens name: a call of one of the desk's model's functions. */
 const sources = texts.filter(([, text]) => text.startsWith('market::screens::'));
 
-/** A source's plan: its operations, as the Deephaven target writes them. */
-async function opsOf(text: string): Promise<{ readonly ops: readonly Record<string, Record<string, unknown>>[]; readonly columns: number }> {
+/** A Deephaven plan's steps (docs/DEEPHAVEN_RUN_SIDE_2026_11_16.md §4): each kept or not, and its operations as the
+ *  dialect wrote them (its readable form, a person's and a test's: no runtime reads it). */
+function stepsOf(sql: string): readonly { readonly kept: boolean; readonly ops: readonly Record<string, Record<string, unknown>>[] }[] {
+  const plan = JSON.parse(sql) as { format: string; steps: { kept: boolean; readable: string }[] };
+  assert.equal(plan.format, 'legend-deephaven-steps');
+  return plan.steps.map((s) => ({ kept: s.kept, ops: (JSON.parse(s.readable) as { ops: Record<string, Record<string, unknown>>[] }).ops }));
+}
+
+/** A source's plan: its operations, as the Deephaven target writes them, and its steps. */
+async function opsOf(text: string): Promise<{
+  readonly ops: readonly Record<string, Record<string, unknown>>[];
+  readonly columns: number;
+  readonly steps: ReturnType<typeof stepsOf>;
+}> {
   const plan = await planner.planText(`|${text}`);
-  return { ops: (JSON.parse(plan.sql) as { ops: Record<string, Record<string, unknown>>[] }).ops, columns: plan.columns.length };
+  const steps = stepsOf(plan.sql);
+  return { ops: steps.flatMap((s) => s.ops), columns: plan.columns.length, steps };
 }
 
 describe('the trading desk\'s model', () => {
@@ -55,13 +68,12 @@ describe('the trading desk\'s model', () => {
   });
 
   for (const [name, text] of sources) {
-    it(`${name}, ${text}, plans on the market's Deephaven runtime, and is a grid's base the server can store`, async () => {
-      const { ops, columns } = await opsOf(text);
+    it(`${name}, ${text}, plans on the market's Deephaven runtime as a step the server keeps`, async () => {
+      const { ops, columns, steps } = await opsOf(text);
       assert.ok(ops.length > 0 && columns > 0, `${text}: ${ops.length} operations, ${columns} columns`);
-      // a grid over it keeps its base stored on the server (src/server-base.ts B1): its plan has a stored form
-      // (2026-10-27: a view's shared subtrees' helpers, dropped after it, had none -- three of the desk's tabs empty)
-      const stored = await planner.deephaven('stored', { plan: (await planner.planText(`|${text}`)).sql });
-      assert.ok(stored.startsWith('OK\n'), `${text}: its base has no stored form: ${stored.replace(/\n/g, ' | ')}`);
+      // its table kept on the server while it is read (the design's §6: every table kept is a step of the plan; until
+      // 2026-11-17 a base's stored form, which the runtime that took no planner deleted)
+      assert.deepEqual(steps.map((s) => s.kept), [true], `${text}: its steps' kept flags`);
     });
 
     it(`${name} plans in the tab too: the same query, DuckDB's SQL, the same columns`, async () => {

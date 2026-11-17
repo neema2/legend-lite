@@ -295,6 +295,18 @@ wins.
 
   (Until C the line read PENDING for both D3 and D4, corrected 2026-11-09 by the tenets re-audit's B-3.) Exec sends no
   statement the plan does not contain.
+
+  **A runtime whose requests are not SQL text keeps the same rule, in one sentence** (Deephaven's table operations; the
+  user's ruling of 2026-11-16, "the one-sentence rule in place of a list of special acts";
+  docs/DEEPHAVEN_RUN_SIDE_2026_11_16.md §2): *every request a runtime sends is one the plan declares; the runtime
+  chooses only when* -- when a table's lifetime ends (its drop), and how the caller takes the rows (fetched once, or
+  followed live). Writing its session's export ids into the places the plan lists is binding, as a `?` is bound. Its
+  other duties are bookkeeping that decides no answer: its session's handles, the tables it holds, waiting for a table
+  another send is making, and the session's keep (a cache bound: letting a table go changes when the server works,
+  never what an answer is). It is given no planner, encodes no request, and reads no type to plan with. Code: the
+  planner writes each step's bytes and the session's requests (`com.legend.deephaven.DeephavenSteps`); the browser's
+  runtime fills, sends and checks them (`engine-client/src/deephaven-steps.ts`, `deephaven.ts`), witnessed byte for
+  byte by `engine-client/test/deephaven-session.test.ts` (2026-11-17).
 - **A4 — The guards' text matches the code.** `JavaEvalLedgerTest`'s javadoc names classes that are gone, and says the
   decode cluster computes nothing, which was false for five sites on 2026-11-07. AGENTS.md invariant 3 described the
   type hole until 2026-11-09, when the hole was deleted (P4) and the text corrected. Both are corrected as the code

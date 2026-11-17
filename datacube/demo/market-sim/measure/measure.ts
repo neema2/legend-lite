@@ -12,8 +12,11 @@
 // driver (measure.mjs) judges against the budgets stated before it ran.
 
 import { openDuckDbInTab } from '../../../../engine-client/src/doors/tab-duckdb.ts';
-import type { DuckDbLiveReader } from '../../../../engine-client/src/duckdb-live.ts';
+import type { openLiveDuckDb } from '../../../../engine-client/src/doors/live-duckdb.ts';
 import type { Plan } from '../../../../engine-client/src/relation-type.ts';
+
+/** A grid's reader of the live engine, as its door hands the engine. */
+type DuckDbLiveReader = Awaited<ReturnType<Awaited<ReturnType<typeof openLiveDuckDb>>['live']['reader']>>;
 import type { Lambda } from '../../../../pure-protocol/src/index.ts';
 import { chartQuery } from '../../../src/chart-spec.ts';
 import { openCube, type CubeDocument } from '../../../src/cube-document.ts';

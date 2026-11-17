@@ -316,6 +316,11 @@ statements take a `PlannedSql` and no `String`, minted only where a plan is read
 (`ArchitectureTest.onlyThePlansReadersMintPlannedSql`, `aSessionsStatementsTakeNoText`; the C checkpoint's MUST-FIX 1,
 2026-11-12), and witnessed at run on every road (`SentStatementsAreThePlansTest`; MongoDB's command,
 `MongoDbPlanTest.theCommandSentIsThePlans_itsParametersBoundByTheLet`).
+A runtime whose requests are not SQL text keeps the same rule in one sentence (Deephaven; the user's ruling of
+2026-11-16; `docs/TENET_CHARTER.md` A3): **every request a runtime sends is one the plan declares; the runtime chooses
+only when** (a table's drop; its rows fetched once or followed live). Its session's ids are written into the places the
+plan lists, as a `?` is bound; it is given no planner, encodes no request and reads no type to plan with
+(`DeephavenSteps`; witnessed byte for byte by `engine-client/test/deephaven-session.test.ts`).
 A run-time parameter's placeholder is typed by its DECLARED Pure type when the plan
 is made, per database, as upstream's database extension writes its template (D1 of docs/GOALS_OF_RECORD_2026_11_07.md;
 `SqlDialect`'s `parameterType`, a date or date-time bound as its text); the type hole that let the runner write a

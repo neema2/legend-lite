@@ -15,9 +15,12 @@ import type { CubeView } from '../../src/cube.ts';
 import { sourceWithDerived } from '../../src/query.ts';
 import { ServerBases } from '../../src/server-base.ts';
 import type { GridCommand } from '../../src/grid-commands.ts';
-import type { DeephavenCounts } from '../../../engine-client/src/deephaven-engine.ts';
+import type { openDeephaven } from '../../../engine-client/src/doors/deephaven.ts';
 import { CONNECTION, STORES, openRisk, type RiskConfig } from './risk.ts';
 import { openServerLog, type ServerOp } from './server-log.ts';
+
+/** The engine's counts, as its door hands the engine. */
+type DeephavenCounts = Awaited<ReturnType<typeof openDeephaven>>['counts'];
 
 /** DataCube's row height (app.ts DATACUBE_ROW_HEIGHT): a row's place times it is where the grid scrolls to show it. */
 const ROW_HEIGHT = 20;

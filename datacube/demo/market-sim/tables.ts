@@ -4,7 +4,7 @@
 // LiveRows). How each lands -- appended, or latest by key, and how much history it keeps -- is its ingest's, planned
 // (docs/DESK_DATA_ROADMAP_2026_10_29.md C0), never this file's.
 
-import type { MadeColumn } from '../../../engine-client/src/arrow-ipc.ts';
+import type { MadeColumn } from '../../../engine-client/src/made-columns.ts';
 
 /** A column's kind, by the store's type: VARCHAR text, DOUBLE, INTEGER, TIMESTAMP an instant (ms), BIT a truth, DATE a
  *  day (days since the epoch). */
@@ -89,7 +89,7 @@ export class TableRows {
     this.count++;
   }
 
-  /** The rows as columns, the live engine's (arrow-ipc.ts MadeColumn each). */
+  /** The rows as columns, the live engine's (made-columns.ts MadeColumn each). */
   rows(): Record<string, MadeColumn> {
     const out: Record<string, MadeColumn> = {};
     this.#columns.forEach(([name, kind], i) => {

@@ -196,13 +196,18 @@ const CENSUS = new Map<string, { readonly calls: Readonly<Record<string, number>
   ['datacube/src/app/datacube-app.ts', { calls: { 'engine.rows(': 1 }, why: SERVICES_ROWS }],
   ['datacube/src/app/join-flow.ts', { calls: { 'engine.rows(': 1 }, why: SERVICES_ROWS }],
   ['datacube/src/app/join-sources.ts', { calls: { 'engine.rows(': 1 }, why: SERVICES_ROWS }],
-  ['datacube/src/app/sources.ts', { calls: { 'engine.rows(': 9 }, why: SERVICES_ROWS }],
+  // 2026-11-17 (claude/deephaven-3-browser): 9 to 10 -- a saved query reopened by its data space's runtime
+  // (reopenedSavedQuery), the services' rows as every other source's
+  ['datacube/src/app/sources.ts', { calls: { 'engine.rows(': 10 }, why: SERVICES_ROWS }],
   ['datacube/src/app/timeseries-together.ts', { calls: { 'engine.rows(': 1 }, why: SERVICES_ROWS }],
   ['datacube/src/headless/grid.ts', { calls: { 'engine.exclusive(': 1 },
     why: "the headless grid's table output: the host's database held for writeTable, a DOOR (table-output.ts), which runs its one plan there" }],
   ['engine-client/src/legend/engine.ts', { calls: { 'server.execute(': 1 },
     why: "legend-engine's execute, the SERVER's door (pure/v1's execute: the server plans and runs in one request), passed on by the server layer's engine" }],
   // the pages (2026-11-15, the C5-T last round's T4)
+  // 2026-11-17 (claude/deephaven-3-browser): the trading desk's page, its sources typed and its pickers' values read by
+  // the rows of the runtime its context runs on -- planned and run by DataCube's runner (localHost), a door
+  ['datacube/demo/deephaven/market/desk.ts', { calls: { 'engine.rows(': 1 }, why: SERVICES_ROWS }],
   ['datacube/demo/remote-harness.ts', { calls: { 'engine.execute(': 1 },
     why: "the remote harness page's query: a plan its planner answered, executed on the engine the tab's door handed" }],
   ['datacube/demo/stress.ts', { calls: { 'engine.execute(': 2 },

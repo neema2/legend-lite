@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { describe, it } from 'node:test';
 
-import type { MadeColumn } from '../../../engine-client/src/arrow-ipc.ts';
+import type { MadeColumn } from '../../../engine-client/src/made-columns.ts';
 import { runfile } from '../../../tools/js/runfiles.mts';
 import { MarketWorld, type MarketSettings } from '../../demo/market-sim/market.ts';
 import { JavaRandom } from '../../demo/market-sim/random.ts';

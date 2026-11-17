@@ -22,6 +22,15 @@ function windowExtend(name: string, w: WindowSpec): Promise<string> {
 
 const base = { partition: [] as string[], order: [] as { column: string; direction: 'asc' | 'desc' }[] };
 
+/** A Deephaven plan's operations as the dialect wrote them: its one step's readable form (a person's and a test's; no
+ *  runtime reads it -- docs/DEEPHAVEN_RUN_SIDE_2026_11_16.md §4). */
+function readable(sql: string): string {
+  const plan = JSON.parse(sql) as { format: string; steps: { readable: string }[] };
+  assert.equal(plan.format, 'legend-deephaven-steps', sql.slice(0, 200));
+  assert.equal(plan.steps.length, 1);
+  return plan.steps[0]!.readable;
+}
+
 describe('window columns as Pure', () => {
   it('a running sum: partition, order, frame', async () => {
     assert.equal((await windowExtend('cum', { ...base, fn: 'sum', column: 'notional',
@@ -148,7 +157,7 @@ describe('every window DataCube writes plans on Deephaven', () => {
   const planned = async (query: Parameters<typeof planner.plan>[0], what: string, refused: string[]): Promise<void> => {
     try {
       const plan = await planner.plan(query);
-      if (!plan.sql.startsWith('{"ops": [')) refused.push(`${what}: not Deephaven's operations: ${plan.sql}`);
+      if (!readable(plan.sql).startsWith('{"ops": [')) refused.push(`${what}: not Deephaven's operations: ${plan.sql}`);
     } catch (e) {
       refused.push(`${what}: ${String(e)}`);
     }
@@ -219,10 +228,11 @@ describe('a candlestick plans on Deephaven (K3)', () => {
       y: candleMeasures('px', 'seq', 'sz'), options: { ...DEFAULT_OPTIONS, sort: { by: 'x', direction: 'asc' } } });
     const plan = await planner.plan(query);
     // the server's own: the bucket its lowerBin, the open and close its sortedFirst and sortedLast by the number
-    assert.ok(plan.sql.startsWith('{"ops": ['), plan.sql);
-    assert.match(plan.sql, /lowerBin\(/);
-    assert.match(plan.sql, /"sortedFirst": \{"columns": \[\{"columnName": "[^"]*seq"\}\]\}/);
-    assert.match(plan.sql, /"sortedLast": \{"columns": \[\{"columnName": "[^"]*seq"\}\]\}/);
+    const ops = readable(plan.sql);
+    assert.ok(ops.startsWith('{"ops": ['), ops);
+    assert.match(ops, /lowerBin\(/);
+    assert.match(ops, /"sortedFirst": \{"columns": \[\{"columnName": "[^"]*seq"\}\]\}/);
+    assert.match(ops, /"sortedLast": \{"columns": \[\{"columnName": "[^"]*seq"\}\]\}/);
   });
 });
 

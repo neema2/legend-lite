@@ -7,9 +7,11 @@ import type { CubeSource, QuerySource } from '../../src/cube-document.ts';
 import { LitePlanner } from '../../src/lite-planner.ts';
 import type { ColumnSpec, CubeSnapshot } from '../../src/snapshot.ts';
 import type { ValueSpecification } from '../../../pure-protocol/src/index.ts';
-import { DeephavenEngine } from '../../../engine-client/src/deephaven-engine.ts';
-import { deephavenApi } from '../../../engine-client/src/doors/deephaven-api.ts';
+import { openDeephaven } from '../../../engine-client/src/doors/deephaven.ts';
 import { MODEL } from './model.ts';
+
+/** The engine, as its door hands it. */
+type DeephavenEngine = Awaited<ReturnType<typeof openDeephaven>>;
 
 export const RUNTIME = 'risk::LiveRuntime';
 /** The grids' connection to the server, and the store it binds: each base's table is bound to the same (B1). */
@@ -78,10 +80,10 @@ export async function openRisk(config: RiskConfig): Promise<Risk> {
   const model = MODEL(at.hostname, Number(at.port));
   const planner = new LitePlanner({ model, runtime: RUNTIME, assetBaseUrl: './' });
   await planner.warmUp();
-  const engine = await DeephavenEngine.open({
+  const engine = await openDeephaven({
     url: config.url,
     signIn: { type: 'io.deephaven.authentication.psk.PskAuthenticationHandler', token: config.psk },
-  }, { live: deephavenApi(config.url) });
+  });
   const source = await planner.parse(SOURCE);
   const query = source.body[0];
   if (query === undefined) throw new Error('the risk source parsed to no expression');

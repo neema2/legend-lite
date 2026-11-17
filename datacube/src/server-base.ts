@@ -15,8 +15,8 @@
 // planner and engine -- grids over the same base read one table, made once and let go when no grid reads it -- and the
 // fragment declares every base a grid reads, so one grid's new base never takes another's from the planner's model.
 
-import type { DeephavenEngine } from '../../engine-client/src/deephaven-engine.ts';
-import type { QueryEngine } from '../../engine-client/src/engine.ts';
+import type { openDeephaven } from '../../engine-client/src/doors/deephaven.ts';
+import type { QueryEngine } from '../../engine-client/src/query-engine.ts';
 import type { PlanColumn } from '../../engine-client/src/relation-type.ts';
 import { accessor, toJson, type Lambda, type ValueSpecification } from '../../pure-protocol/src/index.ts';
 import type { LitePlanner } from './lite-planner.ts';
@@ -24,6 +24,9 @@ import type { LevelScope } from './query.ts';
 import { PlanThenRun, QueryFailure, rebased, type QueryRunner, type RunOutcome, type RunWindow } from './runner.ts';
 import type { CubeSnapshot } from './snapshot.ts';
 import type { ResultTable } from '../../engine-client/src/result.ts';
+
+/** The engine, as its door hands it. */
+type DeephavenEngine = Awaited<ReturnType<typeof openDeephaven>>;
 
 /** The Database the bases are declared in, and the runtime that binds it beside the grid's own stores. */
 const BASES = 'legend::Bases';

@@ -9,13 +9,16 @@
 // rows (the desk opened from Open…'s Examples, or a saved page of it): the desk's model held by a module of its own, its
 // tables made by the planner's statements, the world begun.
 
-import type { DuckDbInTab } from '../../../engine-client/src/duckdb-tab.ts';
+import type { openDuckDbInTab } from '../../../engine-client/src/doors/tab-duckdb.ts';
 import type { Services } from '../../src/app/services.ts';
 import type { LitePlanner } from '../../src/lite-planner.ts';
 import type { LiveSource } from '../../src/live-in-tab.ts';
 import { openDesk, type Desk } from '../deephaven/market/desk.ts';
 import { IN_TAB } from '../deephaven/market/model.ts';
 import type { MarketSettings } from './market.ts';
+
+/** The tab's DuckDB, as its door hands it. */
+type DuckDbInTab = Awaited<ReturnType<typeof openDuckDbInTab>>;
 
 export interface MarketInTabOptions {
   /** The tab's module: the market's model is held by a planner of its own over it (`withModel`). */

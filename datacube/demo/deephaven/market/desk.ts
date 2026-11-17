@@ -17,6 +17,7 @@ import type { Services } from '../../../src/app/services.ts';
 import type { ExamplePage } from '../../../src/examples/catalog.ts';
 import type { LiveSource } from '../../../src/live-in-tab.ts';
 import { runOn } from '../../../src/run-on.ts';
+import { localHost } from '../../../src/runner.ts';
 import { DESK_SPACE, IN_TAB, ON_DEEPHAVEN } from './model.ts';
 import { DESK, MARKET_PROJECT, type MarketValues, type SourceTypes } from './screens.ts';
 
@@ -80,8 +81,9 @@ async function written(services: Services, model: () => Promise<string>, context
       .map((c) => ({ name: c.name, type: c.type }));
     const values: MarketValues = async (query) => {
       const lambda = await parsed(query);
-      const table = rows.runner !== undefined ? (await rows.runner.host.planAndRun(lambda, 1)).rows
-        : await rows.engine.execute(await rows.planner.plan(lambda), 1);
+      // planned and run by DataCube's runner, a door (runner.ts): the rows' own host, or one over their planner and engine
+      const host = rows.runner !== undefined ? rows.runner.host : localHost(rows.planner, rows.engine);
+      const table = (await host.planAndRun(lambda, 1)).rows;
       const column = table.columns[0];
       return column === undefined ? [] : [...column.values].filter((v) => v !== null && v !== undefined).map(String);
     };

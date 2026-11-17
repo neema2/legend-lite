@@ -23,8 +23,9 @@
 // planner's, host-operations.ts) -- is the planner's. Every followed result runs again whole (an incremental view,
 // ClickHouse's lesson, only where measured: §3).
 
-import { arrowIpcStream, type MadeColumn } from './arrow-ipc.ts';
+import { arrowIpcStream } from './arrow-ipc.ts';
 import type { DuckDbEngine, HeldConnection } from './duckdb.ts';
+import type { MadeColumn } from './made-columns.ts';
 import type { RawTable } from './engine.ts';
 import type { IngestPlans } from './requests.ts';
 import { runLoad, type PlanValue } from './plan-runner.ts';
@@ -43,7 +44,7 @@ export interface LiveTable {
   readonly held: string;
 }
 
-/** Rows a page made, a column at a time (arrow-ipc.ts MadeColumn), each named as the table's column it goes in. */
+/** Rows a page made, a column at a time (made-columns.ts MadeColumn), each named as the table's column it goes in. */
 export type LiveRows = Readonly<Record<string, MadeColumn>>;
 
 export interface LiveDuckDbOptions {

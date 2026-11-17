@@ -9,11 +9,14 @@
 // made, its writer begun. Until then it is a name and a way to start.
 
 import type { PlannedSql } from '../../engine-client/src/planned-sql.ts';
-import type { DuckDbLiveReader } from '../../engine-client/src/duckdb-live.ts';
-import type { QueryEngine, RawTable } from '../../engine-client/src/engine.ts';
+import type { openLiveDuckDb } from '../../engine-client/src/doors/live-duckdb.ts';
+import type { QueryEngine, RawTable } from '../../engine-client/src/query-engine.ts';
 import type { Plan } from '../../engine-client/src/relation-type.ts';
 import type { ResultTable } from '../../engine-client/src/result.ts';
 import { measured } from '../../engine-client/src/timeline.ts';
+
+/** A grid's reader of the live engine, as its door hands the engine. */
+type DuckDbLiveReader = Awaited<ReturnType<Awaited<ReturnType<typeof openLiveDuckDb>>['live']['reader']>>;
 import type { GridRows, LiveGrid, LiveRows } from './app/services.ts';
 import type { Planner } from './cube.ts';
 import { PlanThenRun } from './runner.ts';

@@ -4,12 +4,13 @@
 // write mode, its retention kept at the plan's cadence) -- and the world started, its rows written into them. Spells no
 // SQL and loads no data outside a plan: every statement is the planner's, each batch a value the land plan attaches.
 
-import { LiveDuckDb, type LiveTable } from '../../../engine-client/src/duckdb-live.ts';
-import type { DuckDbEngine } from '../../../engine-client/src/duckdb.ts';
-import type { HostOperationsSource, IngestPlansSource } from '../../../engine-client/src/planner-sources.ts';
+import { openLiveDuckDb, type LiveDuckDbDoorOptions } from '../../../engine-client/src/doors/live-duckdb.ts';
 import { MarketWorld, type MarketSettings } from './market.ts';
 import { MARKET_TABLES, WORLD, type MarketTable } from './tables.ts';
 import { DESK_IN_TAB } from '../deephaven/market/model.ts';
+
+/** The live engine, as its door hands it. */
+type LiveDuckDb = Awaited<ReturnType<typeof openLiveDuckDb>>['live'];
 
 /** The store the market's tables are the model's of, and the world's own status store's. */
 const STORE = 'store::DB';
@@ -20,9 +21,9 @@ const HELD = 'batch';
 
 export interface LiveMarketOptions {
   /** A connection of the tab's DuckDB, set up (duckdb-tab.ts DuckDbInTab.connect): the writer's and each reader's. */
-  readonly connect: () => Promise<DuckDbEngine>;
+  readonly connect: LiveDuckDbDoorOptions['connect'];
   /** The planner, over `model`: each table's plans, and a reader's snapshot statements. */
-  readonly planner: HostOperationsSource & IngestPlansSource;
+  readonly planner: LiveDuckDbDoorOptions['planner'];
   /** The model the tables are declared by: the corpus, the desk's own and its environments (model.ts DESK_MODEL). */
   readonly model: string;
   /** The world's size and pace. */
@@ -49,27 +50,18 @@ function databaseOf(table: MarketTable): string {
 }
 
 export async function openLiveMarket(o: LiveMarketOptions): Promise<LiveMarket> {
-  const t0 = performance.now();
-  // the engine's own timer off: the market's cycle emits, right after it writes
-  // a reader's snapshot's statements, the planner's, asked before the engine opens: its run takes them (C5-T)
-  const [begin, commit] = await o.planner.hostOperations('DuckDB', [
-    { op: 'transaction', step: 'begin' },
-    { op: 'transaction', step: 'commit' },
-  ]);
-  const live = await LiveDuckDb.open({ connect: o.connect, transaction: { begin: begin ?? [], commit: commit ?? [] },
-    timer: false });
-  // each table's plans, the planner's from its ingest's declaration
-  const tables: LiveTable[] = await Promise.all(MARKET_TABLES.map(async (t) => ({
-    name: t.name,
-    held: HELD,
-    plans: await o.planner.ingestPlans({
-      databaseType: live.databaseType, model: o.model, database: databaseOf(t), schema: 'default', table: t.name, held: HELD,
+  // the planner's answers -- a reader's snapshot statements, each table's plans from its ingest's declaration -- then the
+  // engine opened and the tables made, by its door (the engine's own timer off: the market's cycle emits, right after it
+  // writes)
+  const { live, askedMs, madeMs } = await openLiveDuckDb({
+    connect: o.connect, planner: o.planner, timer: false,
+    tables: MARKET_TABLES.map((t) => ({
+      name: t.name,
+      held: HELD,
       // what each table keeps: the tab's deployment's keep (environments.pure), as a Deephaven server's is its own's
-      deployment: DESK_IN_TAB,
-    }),
-  })));
-  const tDdl = performance.now();
-  await live.declare(tables);
+      request: { model: o.model, database: databaseOf(t), schema: 'default', deployment: DESK_IN_TAB },
+    })),
+  });
   const t1 = performance.now();
   const timer = o.timer !== false;
   const world = await MarketWorld.open({ ...o.settings, timer, flushes: false },
@@ -85,7 +77,7 @@ export async function openLiveMarket(o: LiveMarketOptions): Promise<LiveMarket> 
   return {
     live,
     world,
-    started: { ddl: tDdl - t0, tables: t1 - tDdl, world: performance.now() - t1 },
+    started: { ddl: askedMs, tables: madeMs, world: performance.now() - t1 },
     close: async () => {
       if (cycle !== undefined) clearInterval(cycle);
       world.close();

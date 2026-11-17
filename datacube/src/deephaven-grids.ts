@@ -9,10 +9,8 @@
 // The server and its key are the deployment's: a test server's key is a test key, never a production browser's.
 
 import type { PlannedSql } from '../../engine-client/src/planned-sql.ts';
-import { DeephavenEngine } from '../../engine-client/src/deephaven-engine.ts';
-import { deephavenApi } from '../../engine-client/src/doors/deephaven-api.ts';
-import { heldTablesOf } from '../../engine-client/src/deephaven-held.ts';
-import type { QueryEngine, RawTable, ResultWindow, WindowedResult } from '../../engine-client/src/engine.ts';
+import { checkOnConnect, openDeephaven } from '../../engine-client/src/doors/deephaven.ts';
+import type { QueryEngine, RawTable, ResultWindow, WindowedResult } from '../../engine-client/src/query-engine.ts';
 import type { Plan } from '../../engine-client/src/relation-type.ts';
 import type { ResultTable } from '../../engine-client/src/result.ts';
 import { measured } from '../../engine-client/src/timeline.ts';
@@ -22,6 +20,9 @@ import type { Lambda } from '../../pure-protocol/src/index.ts';
 import { PlanAndRun, PlanThenRun, QueryFailure, localHost, type PlanAndRunHost, type QueryRunner, type RunWindow } from './runner.ts';
 import type { DeephavenServerOf } from './runtime-connections.ts';
 import { ServerBases, type ServerBaseOptions, type ServerBaseRunner } from './server-base.ts';
+
+/** The engine, as its door hands it. */
+type DeephavenEngine = Awaited<ReturnType<typeof openDeephaven>>;
 
 export interface DeephavenGridsOptions {
   /** legend-lite's module in the tab: each model held by a planner of its own over it; the server's wire is its (DH11). */
@@ -120,10 +121,10 @@ class Server {
       }
       let engine: DeephavenEngine;
       try {
-        engine = await DeephavenEngine.open({
+        engine = await openDeephaven({
           url,
           signIn: { type: 'io.deephaven.authentication.psk.PskAuthenticationHandler', token },
-        }, { live: deephavenApi(url) });
+        });
       } catch (e) {
         throw new Error(`the Deephaven server at ${url} is not answering: ${e instanceof Error ? e.message : String(e)}`);
       }
@@ -159,7 +160,7 @@ class Server {
       // grid of the model is refused, naming each table missing or held otherwise (DeephavenNotHeld)
       // -- asked once the model is held, so the question finds it compiled
       const checked = Promise.all([this.engine(), warmed]).then(async ([engine]) => {
-        await engine.holds(heldTablesOf(await planner.deephaven('holds', { model, runtime })));
+        await checkOnConnect(engine, () => planner.deephaven('holds', { model, runtime }));
         return engine;
       });
       // a refusal is said by each grid that reads; the model is held afresh for the next (below)
