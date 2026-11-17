@@ -97,6 +97,11 @@ class ErrorShapeGuardrailTest {
             // outcome Errored, raised as a failure naming both judges' verdicts (AgreementArm.agree); the class
             // cannot be narrowed without letting some failure of that arm escape the gate's comparison
             Map.entry("AgreementArm.java", 1),
+            // 2026-11-17 (isolated BOTH, the orchestrator's ruling): IsolatedRun.runAlone records how a judge's run
+            // ENDED -- the failure is data compared with the other judge's -- then the host's failure is rethrown or
+            // JudgesDisagree raised; nothing is swallowed (IsolatedRunTest pins each outcome). Net 0 once the fused
+            // path's deletion takes AgreementArm's sentinel
+            Map.entry("IsolatedRun.java", 1),
             // D5 (reviewed): the generic checked-exception carrier —
             // getOrOpen tunnels the caller's E through compute's
             // unchecked boundary; catch(RuntimeException) rethrows

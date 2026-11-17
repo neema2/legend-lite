@@ -191,6 +191,10 @@ class HarnessDisciplineTest {
             // ruling "no sort can be multiset compare" restored: an unsorted side may compare as a multiset, so the
             // rendered-text probe's two-sided line sort is back with the policy it measures)
             Map.entry("CanonicalDivergence.java", 7),
+            // 2026-11-17 (isolated BOTH, the orchestrator's ruling): LiteWords.canonJson sorts a JSON root's elements
+            // where the root's order is incidental -- the database canon's sorted root mirrored, two-sided, gated on the
+            // side being JSON (the shared canon)
+            Map.entry("LiteWords.java", 1),
             // (MetamodelWalk.java: its 3 record-accessor `.distinct()`
             // sites left with the resolvePrimaryKey arm — metamodel-as-
             // relations batch 5, 2026-09-02)

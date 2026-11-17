@@ -79,6 +79,12 @@ final class IsolatedRun {
         Recording host = runAlone(pair.host(), sessions, stores, edge, referee, answer, execution);
         // the database judge's run answers nobody: the host's answer is the body's
         Recording database = runAlone(pair.database(), sessions, stores, edge, referee, null, execution);
+        conclude(host, database, callers);
+    }
+
+    /** The two recorded runs concluded: the caller hears the host's verdicts; then {@link JudgesDisagree} where the runs
+     *  differ, else the host's failure rethrown, else the body passed. A recorded failure is never swallowed. */
+    static void conclude(Recording host, Recording database, @Nullable AssertListener callers) {
         @Nullable String difference = difference(host, database);
         if (callers != null) {
             for (Heard h : host.verdicts) {

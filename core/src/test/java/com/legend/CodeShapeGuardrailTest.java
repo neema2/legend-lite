@@ -97,6 +97,9 @@ class CodeShapeGuardrailTest {
             // writer's first object, the walk's segment state (deleted at M10), a statement's own stamp in its
             // frames' recorder (frozen into its reads), the body router's opened answer sink (opened only to answer,
             // as the walk opens it)
+            // 2026-11-17 (isolated BOTH and #28, the orchestrator's ruling): the batch's sentence frame (an unrolled
+            // element's index, assertIsNot's rows), set and restored by scope while one body is planned
+            "VerdictBatch.scope",
             "VerdictBatch.current", "CanonRider.wrap", "CanonRider.declined", "Lowerer.dbTimeZone",
             // 2026-11-01, the test-is-the-product plan's M7: the planned batch's one-shot latch -- the flush counted
             // once, when its groups start to run (the walk's flush, or the program road's first row), never for a

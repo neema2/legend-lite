@@ -161,6 +161,10 @@ class CompatSpellingGuardTest {
             // CELL_TEXT node; legend-engine's TDSNull is the edge's, edge/PurePrintForms)
             "lowering/Lowerer.java | withEngineText | 1 | D1.7",
             "lowering/Repr.java | FLOAT_PRINT | 1 | JUDGE",
+            // 2026-11-17 (isolated BOTH, the orchestrator's ruling): lite's message Float at full round-trip precision
+            // reads the database's shortest digits, today FLOAT_PRINT's arms; an OPEN row on census line B9, which
+            // splits FLOAT_PRINT into a product shortest-digits node and the edge's Pure spelling, and then this row goes
+            "lowering/LiteText.java | FLOAT_PRINT | 1 | JUDGE",
             // D1.3 -> D1.9 (2026-11-15): Repr is the judges' %r (and format's %r, which the assert bodies write): it
             // moves with the judges
             "lowering/Repr.java | Repr | 2 | D1.9",
