@@ -2633,10 +2633,11 @@ java_jars(
 # EdgeSeparationTest holds the set to the census's open A lines. The roots: the product's JVM libraries and the hosts'
 # doors (the JS apps reach the JVM through //wasm and //native alone), and core's test libraries (A5, A6). The shipped
 # //core:server is rooted AT the edge (EdgeServer, ruled A4) and is no root here.
-# the native library's and the query-store page's upstream entries are the edge's too (A2, A3, 2026-11-17)
+# the native library's upstream entry is the edge's too (A2, 2026-11-17); the query-store page's was (A3) until it
+# answered lite's own /api/lite/v1/queries in lite's words (lite's API v1, H6, 2026-11-17): a product root below
 # the embedded hosts' engine routes and the tab's module entry are the edge's too (A1, 2026-11-17)
 _EDGE_TARGETS = ("//core:edge + //core:edge_server + //core:edge_service_tests + //core:edge_store_words + " +
-                 "//native:edge_entry + //query-store:edge_page_entry + //wasm:edge_boundary + //wasm:edge_tab")
+                 "//native:edge_entry + //wasm:edge_boundary + //wasm:edge_tab")
 
 _EDGE_SEPARATION_ROOTS = [
     "//core:core",
@@ -2645,6 +2646,8 @@ _EDGE_SEPARATION_ROOTS = [
     "//core:test_cases",
     # (seam_benchmark and data_delivery_matrix_postgres_test left 2026-11-17, A6: the edge's tests, tagged edge_test)
     "//native:entry",
+    # the query-store page's entry (lite's API v1, H6, 2026-11-17: the product's, lite's words at lite's route)
+    "//query-store:page_entry",
     "//sdlc-server/grammar",
     "//wasm:boundary",
     "//wasm:jvm_main",
@@ -2660,7 +2663,7 @@ genquery(
     # the edge's own entries outside core named in the expression (A2, A3): in scope, never roots
     # the edge's targets in scope too: a root reaching one through no other root still finds it (2026-11-17, A6's
     # roots left: they had brought //core:edge_server into the scope)
-    scope = _EDGE_SEPARATION_ROOTS + ["//native:edge_entry", "//query-store:edge_page_entry", "//core:edge",
+    scope = _EDGE_SEPARATION_ROOTS + ["//native:edge_entry", "//core:edge",
                                       "//core:edge_server", "//core:edge_service_tests", "//core:edge_store_words",
                                       "//wasm:edge_boundary", "//wasm:edge_tab"],
 )
@@ -2683,7 +2686,7 @@ genquery(
     # the edge's own entries outside core named in the expression (A2, A3): in scope, never roots
     # the edge's targets in scope too: a root reaching one through no other root still finds it (2026-11-17, A6's
     # roots left: they had brought //core:edge_server into the scope)
-    scope = _EDGE_SEPARATION_ROOTS + [":planted_edge_reach", "//native:edge_entry", "//query-store:edge_page_entry", "//core:edge",
+    scope = _EDGE_SEPARATION_ROOTS + [":planted_edge_reach", "//native:edge_entry", "//core:edge",
                                       "//core:edge_server", "//core:edge_service_tests", "//core:edge_store_words",
                                       "//wasm:edge_boundary", "//wasm:edge_tab"],
 )

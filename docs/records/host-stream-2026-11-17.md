@@ -92,7 +92,8 @@ reader of DataCube's conformance cases.
 | e86ceb2c40 | The TS client by operation: `LiteServer` (a server) and `TabEngine` (the tab), lite's error shape (`src/lite-error.ts`), the Arrow read (`legend.shape`, `legend.type`), and 64-bit Integer parameters given as bigints. Query, Studio and query-store's `currentUser` are re-pointed. |
 | 684ce57010 | The server binding's reader of `lite-api-cases.json` (`//engine-client:lite_api_server_test`). |
 | 6afe479900 | Query's cube planner prints through `query/print`, in the cube's own words (after DataCube's 5d9b9583ee). |
-| (next commit) | The guards' findings fixed, listed below, and `query/run` through `LiteServer` in Arrow and in JSON over a real server. |
+| b0d46482ba | The guards' findings fixed, listed below, and `query/run` through `LiteServer` in Arrow and in JSON over a real server. Its commit message also says Query's remote cube had printed 'pretty' as standard. That was wrong: that print implements engine-remote's `RemoteExecutor`, whose style is legend-engine's `'PRETTY'`. The next commit restores the mapping. |
+| (next commit) | H6, whole (the orchestrator's ruling of 2026-11-17), plus DataCube's 507a0afe0 merged and the server reader on its `bindings` and `answerShape`. See "H6" below. |
 
 ### Guard findings and what was done
 
@@ -116,6 +117,24 @@ reader of DataCube's conformance cases.
   `duckdb.ts` `jsonBound` binds a bigint within 2^53 as its exact number. One past 2^53 is refused by name before
   anything is sent. A server binds it exactly (`lite-api-server.test.ts`).
 
+### H6: the query store at lite's route, in lite's words
+
+- The page's store module is the product's. Its entry, `query-store/java/com/legend/queries/page/QueriesPage.java`,
+  answers `/api/lite/v1/queries[...]` in `SavedQueries.LITES_WORDS`.
+  - It moved by `git mv` from `com.legend.edge.queries`, census A3. Its exports are unchanged: `answer`, `cubes`.
+  - Its target is `//query-store:page_entry`. It is now one of the build's edge-separation roots
+    (`_EDGE_SEPARATION_ROOTS`), so the separation query proves it reaches no edge target. The query reads empty, and
+    the planted bite still shows.
+- `query-store/src/wasm-server.ts` answers lite's `queries` and `user`. A refusal is `{kind, message}` with the store's
+  status, as the server's store mount answers it. A store's not-found stays 404, kind request, pending the user's word
+  on a `notFound` kind.
+- `query-store/src/client.ts` asks `/api/lite/v1/queries`.
+- The edge's `/api/pure/v1/query` stays the server's, byte-exact.
+- `query-store/test/conformance.ts` is one suite in two dialects:
+  - LITE, which the server and the page both run;
+  - ENGINE, legend-engine's path and words, which the server runs.
+- `LiteV1Api.read` words a request that may hold no keys as "(it holds none)".
+
 ### Open, for others
 
 1. **native/ does not build on the train.** `nativelib/Compiler.java` calls the Boundary methods that DataCube's 2c
@@ -125,5 +144,6 @@ reader of DataCube's conformance cases.
 3. **DuckDB's Integer placeholder is bound bare (D1).** On DuckDB-WASM, every Integer parameter is therefore a DOUBLE.
    A typed placeholder (`CAST(? AS BIGINT)`, the value bound as its text) would bind it exactly in the tab. That is a
    planner ruling, not this stream's.
-4. **H6 is staged, not landed.** The query store's own routes, with a product page entry in lite's words, are saved as
-   a patch for after the train.
+4. **`PLAN_VERSION = 57` in `plan-runner.ts`** (the orchestrator's ask) pairs with E-P5's K10b, Java's 57, on
+   `claude/total-wall-p5-k10`. It is this stream's last commit. Alone, it makes the tab refuse a 56 plan, so it lands
+   with p5-k10.
