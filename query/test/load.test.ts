@@ -91,7 +91,7 @@ describe('load', () => {
     }
   });
 
-  it('aggregates every column with aggregate(), which legend-engine runs (groupBy with no key it cannot)', async () => {
+  it('aggregates every column with groupBy and no key, read back as it was built (the edge program\'s N4)', async () => {
     await roundTrip({
       ...emptyQuery(SOURCE),
       columns: [{ ...col('Trades', 'tradeId'), aggregate: 'count' }, { ...col('Quantity', 'quantity'), aggregate: 'sum' }],
@@ -159,7 +159,7 @@ describe('load', () => {
         col('qty', 'quantity'),
       ],
     });
-    // no keys: aggregate()
+    // no keys: groupBy(~[], ...)
     await roundTrip({
       ...emptyQuery(SOURCE),
       columns: [{ ...col('vwap', 'price'), aggregate: 'wavg', weight: 'qty' }, col('qty', 'quantity')],
