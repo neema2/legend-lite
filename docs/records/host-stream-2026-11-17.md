@@ -298,3 +298,22 @@ its compat entry, a target the app loads only when configured `engine: legend-en
   - the pinned entry, which passes.
 - With the entry exception removed from the rule, `ts_layering_test` goes red on the pinned entry's line.
 
+### Train fixes after the hand-off (2026-11-17)
+
+- **532086c491. query/parse's grammar level is decided by the compiler.**
+  - DataCube found `//core:census` red: `ParserBoundaryArchTest.dialectIsConfinedToTheNamedClasses` refused
+    `LiteV1Planning` naming `GrammarLevel.LEGEND_LITE`.
+  - Fix: `Compiler.parseQueryJson(text)` beside `parseQuery`, through the parse door. `LiteV1Planning` names no level.
+  - Red on revert at `LiteV1Planning.java:71`.
+  - I had run guardrails but not census.
+- **query/run's format is required** (the orchestrator's ruling: spec §4, "by the caller's ask, never by guessing",
+  G7).
+  - The server binding had defaulted a missing `format` to json. A request without it is now refused by name, kind
+    `request`: "a query/run request names no format (it holds model, query, runtime, format; optional params)".
+  - `PlannerSurfaceTest`'s closed-route pin moved with a dated note: format required, params optional.
+  - The edge test's and `LiteV1PlanningTest`'s requests now send it.
+  - The TS client always sent it (`LiteServer`'s typed `RunFormat`: arrow, or json when asked).
+  - Red on revert: `LiteV1PlanningTest.queryRunRequiresItsFormat`.
+  - Python's server and DataCube's two conformance cases (format missing → request; json → rows) are theirs.
+- Both touch only Java server files and cherry-pick onto cf581689cb in order.
+
