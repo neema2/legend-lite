@@ -2622,7 +2622,10 @@ genquery(
                  _EDGE_TARGETS + ")",
     opts = ["--noimplicit_deps"],
     # the edge's own entries outside core named in the expression (A2, A3): in scope, never roots
-    scope = _EDGE_SEPARATION_ROOTS + ["//native:edge_entry", "//query-store:edge_page_entry"],
+    # the edge's targets in scope too: a root reaching one through no other root still finds it (2026-11-17, A6's
+    # roots left: they had brought //core:edge_server into the scope)
+    scope = _EDGE_SEPARATION_ROOTS + ["//native:edge_entry", "//query-store:edge_page_entry", "//core:edge",
+                                      "//core:edge_server", "//core:edge_service_tests", "//core:edge_store_words"],
 )
 
 java_jars(
