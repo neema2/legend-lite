@@ -104,9 +104,18 @@ class IsolatedRunTest {
                 run(new IllegalStateException("expected 1, got 2"), false, "expected 1, got 2"), false, null)));
         assertThrows(IsolatedRun.JudgesDisagree.class,
                 () -> IsolatedRun.conclude(run(null, true, null), run(null, false, "x"), false, null));
-        // an ending of another class disagrees
+        // a run that failed against one that passed disagrees
         assertThrows(IsolatedRun.JudgesDisagree.class, () -> IsolatedRun.conclude(run(null, true, null),
                 run(new IllegalArgumentException("boom"), true, null), false, null));
+        // the database's own error stopping its run before the assert the host failed: both fail, the host's failure
+        // is the body's (the fused agreement's outcome, by verdict)
+        RuntimeException hostOwn = new IllegalStateException("Conversion Error: date field value out of range");
+        assertSame(hostOwn, assertThrows(RuntimeException.class, () -> IsolatedRun.conclude(
+                run(hostOwn, false, "Conversion Error: date field value out of range"),
+                run(new IllegalArgumentException("DataError: out of range")), false, null)));
+        // ... but not where the host held it
+        assertThrows(IsolatedRun.JudgesDisagree.class, () -> IsolatedRun.conclude(run(null, true, null),
+                run(new IllegalArgumentException("DataError: out of range")), false, null));
     }
 
     @Test

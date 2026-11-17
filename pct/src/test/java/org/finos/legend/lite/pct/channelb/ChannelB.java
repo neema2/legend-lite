@@ -343,6 +343,12 @@ public final class ChannelB {
      *  verdict step's plan JSON. */
     private static void judgeSql(List<com.legend.testexecutionplan.TestPlan.TestStep> steps) {
         for (com.legend.testexecutionplan.TestPlan.TestStep step : steps) {
+            if (step instanceof com.legend.testexecutionplan.TestPlan.Isolated pair) {
+                // BOTH isolated (2026-11-17, the orchestrator's (a)): the judge's SQL is the database judge's plan, as
+                // it was the fused program's (E-5c: BOTH planned the database judge's program)
+                judgeSql(pair.database().steps());
+                continue;
+            }
             if (step instanceof com.legend.testexecutionplan.TestPlan.Verdicts
                     || step instanceof com.legend.testexecutionplan.TestPlan.Branch) {
                 for (com.legend.executionplan.ExecutionPlan.Node n : com.legend.testexecutionplan.TestPlan.sent(step)) {

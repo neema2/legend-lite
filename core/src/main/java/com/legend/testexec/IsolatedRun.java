@@ -140,6 +140,12 @@ final class IsolatedRun {
                     && (h.report() != Report.VERDICT || d.report() != Report.VERDICT)) {
                 continue;
             }
+            if (!messages && (d == null && database.failure != null && !held(h)
+                    || h == null && host.failure != null && !held(d))) {
+                // a run its own error stopped before this assert, the other failing it: under the compatibility rules
+                // both FAIL the body (the fused agreement raised the database's error here; the words are the host's)
+                break;
+            }
             // the verdict (and its message): the name each planner gives an assert (a helper's, or the assert inside
             // it) is how it is reported, not what it decides
             if (h == null || d == null || h.report() != d.report() || h.pass() != d.pass()
@@ -151,13 +157,18 @@ final class IsolatedRun {
         }
         @Nullable RuntimeException hf = host.failure;
         @Nullable RuntimeException df = database.failure;
-        boolean endsAlike = messages ? host.ending().equals(database.ending())
-                : hf == null ? df == null : df != null && hf.getClass() == df.getClass();
+        // under the compatibility rules the verdict alone: both runs passed, or both failed
+        boolean endsAlike = messages ? host.ending().equals(database.ending()) : (hf == null) == (df == null);
         if (!endsAlike) {
             return "the judges' runs ended differently: host " + quote(host.ending()) + "; database "
                     + quote(database.ending());
         }
         return null;
+    }
+
+    /** Whether {@code h} is a verdict that held. */
+    private static boolean held(@Nullable Heard h) {
+        return h != null && h.report() == Report.VERDICT && h.pass();
     }
 
     private static String describe(@Nullable Heard h) {
