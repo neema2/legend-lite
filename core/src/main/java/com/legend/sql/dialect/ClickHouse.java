@@ -859,7 +859,14 @@ public class ClickHouse extends AnsiSqlRenderer {
     /** NUMERIC CHARTER Rule 1: a Float literal is an exact Decimal of its own digits ({@code 1.5} alone is a Float64
      *  here); NaN and the infinities are Float64. */
     @Override
-    protected String floatLiteral(double v) {
+    public com.legend.sql.SqlExpr.FloatLit.Kind floatLiteralKind() {
+        // S20's DOUBLE literal waits on this lane's measurement (an F-row of the edge program, 2026-11-17): the DECIMAL
+        // of its digits, written below
+        return com.legend.sql.SqlExpr.FloatLit.Kind.DECIMAL;
+    }
+
+    @Override
+    protected String decimalFloatLiteral(double v) {
         // a negative zero keeps its sign, cast from its text (the orchestrator's round 56, 2026-11-15: the digits'
         // BigDecimal has no -0, so -0.0 was written 0.0)
         if (v == 0.0 && Double.doubleToRawLongBits(v) != 0L) {
@@ -1827,7 +1834,7 @@ public class ClickHouse extends AnsiSqlRenderer {
             case XOR -> xorAsAndOr(writer, c.args(), parentPrec);
             case FLOAT_PRINT -> floatPrintByText(writer, c, parentPrec);
             case FLOAT_TO_TEXT -> floatToText(writer, c.args().get(0));
-            case DATETIME_TO_TEXT, DATETIME_PRINT, CELL_TEXT, FORMAT_PADDED, INSTANCE_TEXT, RELATION_TEXT, REPRESENTATION_TEXT, TEXT_FORMS, TRACE_TEXT ->
+            case DATETIME_TO_TEXT, DATETIME_PRINT, CELL_TEXT, INSTANCE_TEXT, RELATION_TEXT, REPRESENTATION_TEXT, TEXT_FORMS, TRACE_TEXT ->
                     throw expandedFirst(c);
             // the hooks: this dialect's own (or the base's refusal)
             case ROUND -> roundHalfEven(writer, c.args());
@@ -1892,6 +1899,11 @@ public class ClickHouse extends AnsiSqlRenderer {
             // NULL-ignoring, as DuckDB's concat
             case CONCAT -> writer.append("concat(").join(flattenConcat(a), ", ", this::asText).append(")");
             case CONCAT_JOIN -> writer.append("concat(").join(a, ", ", this::asText).append(")");
+            // the product's join of a row's cells: the parts with their NULLs filtered out, joined (Phase 3). Each part
+            // goes into the array as it is (already a text) -- asText's coalesce would turn the NULL the filter drops
+            // into '' (lane round 75, 2026-11-17: 'a, , c')
+            case CONCAT_WS -> writer.append("arrayStringConcat(arrayFilter(\"__x\" -> \"__x\" IS NOT NULL, [")
+                    .list(a.subList(1, a.size())).append("]), ").expr(a.get(0), 0).append(")");
             // the platform guards a zero divisor with its own raise; ClickHouse folds a constant operation in a branch
             // not taken and raises its own (measured), so each is its non-raising form, the guard's message the one
             // a zero divisor raises; unguarded, a zero divisor is NULL, as DuckDB's (the OrZero forms answer 0). Pure's

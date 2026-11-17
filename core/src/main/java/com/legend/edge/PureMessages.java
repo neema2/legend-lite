@@ -329,8 +329,9 @@ public final class PureMessages {
         if (e instanceof com.legend.error.MissingParameters m) {
             // legend-engine's parameter validation, its exact join (4.145.0,
             // FunctionParametersParametersValidation.java:52: makeString(","); F11, 2026-11-16)
-            return "Missing external parameter(s): " + String.join(",", m.missing())
-                    + (m.rest() == null ? "" : "; " + m.rest());
+            // the sentence ends where upstream's does: lite's rest (a value no parameter takes) is the product's
+            // sentence alone (error.MissingParameters; the orchestrator, 2026-11-17)
+            return "Missing external parameter(s): " + String.join(",", m.missing());
         }
         // the kinded error itself, or the one a wrapper's message holds ("in function 'f': " + its message, and after
         // it the inliner's " [inlined via ...]": the P2 checkpoint audit's A-S1, 2026-11-16 -- spliced where it stands)

@@ -968,7 +968,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             // declared kind converts ONCE at the root select (Rule 2).
             // (Retired: `CAST(x AS DOUBLE)`, 6975118a6 — double arithmetic
             // everywhere: 55.00000000000001 for 55.0.)
-            case SqlExpr.FloatLit f -> writer.append(floatLiteral(f.value()));
+            case SqlExpr.FloatLit f -> writer.append(f.isDouble() ? floatLiteral(f.value()) : decimalFloatLiteral(f.value()));
             // a scale-0 DECIMAL-fact literal (a pure d-suffixed integer:
             // 17774d) CASTS so the wire reads DECIMAL — bare digits read
             // INTEGER by magnitude (probed 1.5.0; the (10,3)<>(15,3)
@@ -1447,7 +1447,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
 
     /** A call the base renderer's first passes expand or refuse ({@link com.legend.sql.SqlFn#DATETIME_TO_TEXT},
      *  {@link com.legend.sql.SqlFn#DATETIME_PRINT}, {@link com.legend.sql.SqlFn#CELL_TEXT},
-     *  {@link com.legend.sql.SqlFn#FORMAT_PADDED}, {@link com.legend.sql.SqlFn#INSTANCE_TEXT}: {@link DateTimeText},
+     *  {@link com.legend.sql.SqlFn#INSTANCE_TEXT}: {@link DateTimeText},
      *  {@link DateTimePrintText}, {@link CellTexts}, {@link PureOnlyText}): one reaching a dialect's arm is a renderer
      *  bug, refused by name. */
     protected static IllegalStateException expandedFirst(SqlExpr.Call c) {
@@ -2818,8 +2818,34 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
      * Float's own text (a point always present, never E-notation), so the
      * database types it DECIMAL, never INTEGER (1e18 spells
      * {@code 1000000000000000000.0}) and never DOUBLE. */
-    protected String floatLiteral(double v) {
+    /** The product's: the double (register S20, "IEEE everywhere"). A dialect whose DOUBLE literal its lane has not
+     *  measured yet says DECIMAL (ClickHouse, BigQuery, Snowflake: an F-row of the edge program, 2026-11-17). */
+    @Override
+    public com.legend.sql.SqlExpr.FloatLit.Kind floatLiteralKind() {
+        return com.legend.sql.SqlExpr.FloatLit.Kind.DOUBLE;
+    }
+
+    /** A Float literal of the DECIMAL kind: its plain digits, a DECIMAL of them, or an extreme magnitude in exponent
+     *  form, a DOUBLE ({@link #plainFloat}, the numeric charter's Rule 1: the text every Float literal had before S20).
+     *  The edge writes legend-engine's literal so; legend-engine writes an extreme one positionally too, which DuckDB
+     *  reads as a DECIMAL up to 38 digits (a pre-existing difference at |x| < 1e-6 and >= 1e15; under a toString the
+     *  edge writes legend-pure's print, edge.PurePrintForms). */
+    protected String decimalFloatLiteral(double v) {
         return plainFloat(v);
+    }
+
+    /** A Float literal is the double (register S20, the user's ruling of 2026-11-05: "every Float literal a DOUBLE,
+     *  IEEE everywhere (S119), exact arithmetic is Decimal's"; built 2026-11-17, Phase 5b): its shortest digits in
+     *  exponent form, which DuckDB, Trino and Databricks read as a DOUBLE ({@code 1.5E0}, {@code -0.0E0}); a dialect
+     *  whose exponent literal is no DOUBLE spells its own. Not finite: the plain form, as before. */
+    protected String floatLiteral(double v) {
+        return Double.isFinite(v) ? doubleLiteral(v) : plainFloat(v);
+    }
+
+    /** The double's shortest digits ({@code Double.toString}, which read back as the same double) in exponent form. */
+    protected static String doubleLiteral(double v) {
+        String s = Double.toString(v);
+        return s.contains("E") ? s : s + "E0";
     }
 
     static String plainFloat(double v) {

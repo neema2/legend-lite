@@ -27,6 +27,7 @@ EDGE_TEST_SRCS = [
     "src/test/java/com/legend/exec/SeamBenchmark.java",
     "src/test/java/com/legend/exec/SeamBenchmarkDuckDbTest.java",
     "src/test/java/com/legend/exec/SeamBenchmarkH2Test.java",
+    "src/test/java/com/legend/exec/TaggedListEdgeTest.java",
     "src/test/java/com/legend/integration/CatalogTurnFailureTest.java",
     "src/test/java/com/legend/integration/CsvJsonColumnTest.java",
     "src/test/java/com/legend/integration/DataDeliveryMatrixTest.java",

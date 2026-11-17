@@ -33,7 +33,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class TaggedListTest {
 
-    private static final String MODEL = """
+    static final String MODEL = """
             Enum s::Colour { RED, GREEN }
             Enum s::Alpha { Z }
             ###Relational
@@ -210,7 +210,7 @@ class TaggedListTest {
 
     /** A query on a session the program's own connection literal names, as the corpus's tests do (its rows ordered:
      *  a row's cells read in a lambda are aggregated in the scan's order, and a union's is the planner's). */
-    private static final String CONN_LET =
+    static final String CONN_LET =
             "{| let c = ^meta::external::store::relational::runtime::TestDatabaseConnection("
                     + "type=meta::relational::runtime::DatabaseType.DuckDB);\n"
                     + "let rs = meta::relational::metamodel::execute::executeInDb("
@@ -328,6 +328,26 @@ class TaggedListTest {
         }
     }
 
+    /** A raw grid's cell (an {@code executeInDb} grid's, its kind the wire's: no slot) as an assert's side beside a
+     *  fused assert, under BOTH (G10, 2026-11-16, the corpus's {@code ddl::dropAndCreateTable}): the side keeps its own
+     *  statement, decided by its shape at planning (DatabaseAsserts.attachHost). Fused, its column in the verdict
+     *  statement took the other member's NULL pad of no type (DuckDB's JSON), which no Pure type names. */
+    @Test
+    void aRawGridCellBesideAFusedAssertHoldsUnderBoth() throws Exception {
+        String body = "{| let c = ^meta::external::store::relational::runtime::TestDatabaseConnection("
+                + "type=meta::relational::runtime::DatabaseType.DuckDB);\n"
+                + "let rs = meta::relational::metamodel::execute::executeInDb("
+                + "'select count(*) as N from (select 1 union all select 2) t', $c);\n"
+                + "assertSize([1, 2], 2);\n"
+                + "assertEquals(2, $rs.rows->at(0).getInteger('N'));}";
+        try (Connection c = TestBackends.platform().open()) {
+            for (com.legend.testplan.PlanningOptions.JudgeMode mode : java.util.List.of(com.legend.testplan.PlanningOptions.JudgeMode.HOST, com.legend.testplan.PlanningOptions.JudgeMode.BOTH)) {
+                Program.last(StorelessRuntime.with(MODEL, Databases.PLATFORM), body, StorelessRuntime.RUNTIME, c,
+                        com.legend.ExecuteOptions.NONE.withJudgeMode(mode));
+            }
+        }
+    }
+
     @Test
     void anUntypedGridsCellsAreReadOnTheVariantLane() throws Exception {
         // the corpus's whole-TDS idiom (testUsingSameAggFunctionTwice: a literal list against $result.values.rows
@@ -377,9 +397,13 @@ class TaggedListTest {
                     + "'select 9 as Z', $c);\n"
                     + "$rs.rows->filter(r | [1, 'x'] == $r.values)->size()"
                     + " + $rs2.rows->map(x | $x.Z)->toOne()->cast(@Integer);"));
-            // a raw grid's text is refused by name: its header is written from columns that exist only when it runs
+            // a relation's text is the compatibility edge's: the product refuses any relation's toString at lowering,
+            // naming the call and its result writers (B17, 2026-11-17, the orchestrator's ruling of the moved test)
             Exception text = assertThrows(Exception.class, () -> program(c, "$rs->toString();"));
-            assertTrue(String.valueOf(text.getMessage()).contains("toString over a raw grid"), text.toString());
+            assertTrue(String.valueOf(text.getMessage()).contains("toString of a relation is legend-pure's text")
+                    && text.getMessage().contains("result writers"), text.toString());
+            // (on the edge a raw grid's text is refused by name: TaggedListEdgeTest, the edge's test -- F's census
+            // line A5, 2026-11-17: a product test names no edge class)
         }
     }
 }

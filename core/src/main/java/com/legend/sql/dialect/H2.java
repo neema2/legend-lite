@@ -662,6 +662,8 @@ public class H2 extends AnsiSqlRenderer {
             case CONCAT -> concatFlat(writer, c.args());
             // joinStrings' interleaved concat, never flattened
             case CONCAT_JOIN -> writer.function("concat", c.args());
+            // the product's join of a row's cells: CONCAT_WS skips a NULL part with its separator (measured, Phase 3)
+            case CONCAT_WS -> writer.function("concat_ws", c.args());
             case PI -> writer.append("pi()");
             case CEILING -> bigintOf(writer, "ceil", c.args());
             case FLOOR -> bigintOf(writer, "floor", c.args());
@@ -691,7 +693,7 @@ public class H2 extends AnsiSqlRenderer {
             case ROUND_HALF_UP -> writer.function("ROUND", c.args());
             case FLOAT_PRINT -> floatPrintByText(writer, c, parentPrec);
             case FLOAT_TO_TEXT -> floatToText(writer, c.args().get(0));
-            case DATETIME_TO_TEXT, DATETIME_PRINT, CELL_TEXT, FORMAT_PADDED, INSTANCE_TEXT, RELATION_TEXT, REPRESENTATION_TEXT, TEXT_FORMS, TRACE_TEXT ->
+            case DATETIME_TO_TEXT, DATETIME_PRINT, CELL_TEXT, INSTANCE_TEXT, RELATION_TEXT, REPRESENTATION_TEXT, TEXT_FORMS, TRACE_TEXT ->
                     throw expandedFirst(c);
             // the hooks: this dialect's own (or the base's refusal)
             case LIST_FILTER, LIST_TRANSFORM, LIST_CONCAT, LIST_GET, LIST_AT, LIST_POSITION, LIST_ZIP, LIST_DISTINCT,
@@ -1566,13 +1568,14 @@ public class H2 extends AnsiSqlRenderer {
         return writer.append(" END");
     }
 
-    /** A Float literal: the base's, but a negative zero, cast from its text -- an exponent literal is a NUMERIC here,
-     *  which has no -0 (the orchestrator's round 56, 2026-11-15: -0.0 was written 0.0). */
+    /** A Float literal is the double (S20, Phase 5b, 2026-11-17): H2 reads an exponent literal as a DECFLOAT and a
+     *  plain one as a NUMERIC (measured, 2.5.252), so the double's digits cast; a negative zero cast from its text (the
+     *  orchestrator's round 56, 2026-11-15: -0.0 was written 0.0). */
     @Override
     protected String floatLiteral(double v) {
         if (v == 0.0 && Double.doubleToRawLongBits(v) != 0L) {
             return "CAST('-0.0' AS DOUBLE PRECISION)";
         }
-        return super.floatLiteral(v);
+        return Double.isFinite(v) ? "CAST(" + Double.toString(v) + " AS DOUBLE PRECISION)" : super.floatLiteral(v);
     }
 }

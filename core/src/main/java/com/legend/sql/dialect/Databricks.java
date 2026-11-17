@@ -1108,7 +1108,7 @@ public class Databricks extends AnsiSqlRenderer {
             case DATE_TRUNC -> dateTruncDateGrained(writer, c.args(), stringLit(truncUnit(part(c.args().get(0)))));
             case FLOAT_PRINT -> floatPrintByText(writer, c, parentPrec);
             case FLOAT_TO_TEXT -> floatToText(writer, c.args().get(0));
-            case DATETIME_TO_TEXT, DATETIME_PRINT, CELL_TEXT, FORMAT_PADDED, INSTANCE_TEXT, RELATION_TEXT, REPRESENTATION_TEXT, TEXT_FORMS, TRACE_TEXT ->
+            case DATETIME_TO_TEXT, DATETIME_PRINT, CELL_TEXT, INSTANCE_TEXT, RELATION_TEXT, REPRESENTATION_TEXT, TEXT_FORMS, TRACE_TEXT ->
                     throw expandedFirst(c);
             // the hooks: this dialect's own (or the base's refusal)
             case ROUND -> roundHalfEven(writer, c.args());
@@ -1180,6 +1180,8 @@ public class Databricks extends AnsiSqlRenderer {
             // NULL-ignoring, as DuckDB's concat (Spark's concat is NULL if any argument is)
             case CONCAT -> writer.append("concat_ws('', ").join(flattenConcat(a), ", ", this::asText).append(")");
             case CONCAT_JOIN -> writer.append("concat_ws('', ").join(a, ", ", this::asText).append(")");
+            // the product's join of a row's cells: concat_ws skips a NULL part with its separator (as concat above)
+            case CONCAT_WS -> writer.append("concat_ws(").join(a, ", ", this::asText).append(")");
             case INT_DIVIDE -> writer.append("(").expr(a.get(0), 6).append(" div ").expr(a.get(1), 6).append(")");
             // the base spells VARCHAR, which needs a length here
             case DECIMAL_TO_TEXT -> writer.expr(varcharCast(c.args().get(0)), parentPrec);

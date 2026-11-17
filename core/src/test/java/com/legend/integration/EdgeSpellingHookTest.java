@@ -123,6 +123,11 @@ class EdgeSpellingHookTest {
         public <F> F facet(Class<F> kind) {
             return PlanStyle.PRODUCT.facet(kind);
         }
+
+        @Override
+        public <F> F facet(Class<F> kind, java.util.function.Supplier<? extends RuntimeException> refusal) {
+            return PlanStyle.PRODUCT.facet(kind, refusal);
+        }
     };
 
     private static String sql(ExecutionPlan plan) {
@@ -194,11 +199,35 @@ class EdgeSpellingHookTest {
     private static final Set<String> D1_2_SCAN_ORDER = Set.of("raiseMessage", "spellingPasses", "floatToText",
             "scanOrderPasses");
 
+    /** THE EDGE'S IN-QUERY VARIANTS: the decisions an edge dialect takes because legend-engine computes inside the
+     *  query differently (the edge program's §2.3, kind B), each a listed row of its §6. {@code floatLiteralKind}
+     *  (row 21, the orchestrator's ruling R2 of 2026-11-17, Phase 5b): a Float literal computes as legend-engine's bare
+     *  literal, a DECIMAL, where the product's is the double (register S20); on the databases whose product writes the
+     *  double and legend-engine the bare decimal; the user, 2026-11-17, approved 5b's landing ('Okay'). */
+    static final Set<String> ROW_21 = Set.of("floatLiteralKind");
+
+    /** Row 22 (the orchestrator's ruling (c) of 2026-11-17, under the user's 5b approval and the standing
+     *  no-silent-approximation rule): SQLite's Decimal arithmetic -- the product refuses it, holding no exact decimal;
+     *  the edge writes it as REAL arithmetic, as legend-engine would there. */
+    static final Set<String> ROW_22 = Set.of("refusesDecimalArithmetic");
+
+    private static Set<String> withRow22(Set<String> arms) {
+        Set<String> out = new TreeSet<>(arms);
+        out.addAll(ROW_22);
+        return out;
+    }
+
+    private static Set<String> withRow21(Set<String> arms) {
+        Set<String> out = new TreeSet<>(arms);
+        out.addAll(ROW_21);
+        return out;
+    }
+
     private static final Map<String, Set<String>> OVERRIDES = new TreeMap<>(Map.ofEntries(
-            Map.entry("BigQuery", D1_2), Map.entry("ClickHouse", D1_2), Map.entry("Databricks", D1_2),
-            Map.entry("DuckDb", D1_2_SCAN_ORDER), Map.entry("H2", D1_2), Map.entry("MariaDb", D1_2),
-            Map.entry("MongoDb", D1_2_MONGO), Map.entry("MySql", D1_2), Map.entry("Postgres", D1_2),
-            Map.entry("SQLite", D1_2), Map.entry("Snowflake", D1_2), Map.entry("Trino", D1_2)));
+            Map.entry("BigQuery", D1_2), Map.entry("ClickHouse", D1_2), Map.entry("Databricks", withRow21(D1_2)),
+            Map.entry("DuckDb", withRow21(D1_2_SCAN_ORDER)), Map.entry("H2", withRow21(D1_2)), Map.entry("MariaDb", D1_2),
+            Map.entry("MongoDb", D1_2_MONGO), Map.entry("MySql", D1_2), Map.entry("Postgres", withRow21(D1_2)),
+            Map.entry("SQLite", withRow22(D1_2)), Map.entry("Snowflake", D1_2), Map.entry("Trino", withRow21(D1_2))));
 
     /** The methods {@code c} declares that override a product dialect's method which is not a
      *  {@link com.legend.sql.dialect.SpellingArm}: a decision the edge must not take ({@code EdgeMayOverride}, used
@@ -230,7 +259,10 @@ class EdgeSpellingHookTest {
     void theEdgesDialectsOverrideSpellingOnly() {
         List<String> decisions = new java.util.ArrayList<>();
         for (Class<?> c : PureText.class.getDeclaredClasses()) {
-            decisions.addAll(decisionsOverridden(c));
+            // a listed in-query variant (row 21) is the edge's by ruling, not a mode
+            decisionsOverridden(c).stream().filter(d -> !ROW_21.contains(d.substring(d.indexOf('.') + 1))
+                            && !ROW_22.contains(d.substring(d.indexOf('.') + 1)))
+                    .forEach(decisions::add);
         }
         assertEquals(List.of(), decisions, "an edge dialect overriding a decision: planning would be a mode");
     }

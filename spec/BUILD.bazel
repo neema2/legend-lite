@@ -19,7 +19,6 @@ _MEASURED_ROSTERS = ["src/test/resources/rcorpus/%s-%s.txt" % (lane, m) for lane
     "skipped-roster",
     "unordered-register",
     "engine-order-register",
-    "database-engine-order-register",
 )]
 
 # what the corpus passes read of spec's tree: everything but the rosters they measure
@@ -177,10 +176,11 @@ junit_test(
     upstream = True,
 )
 
-# Maven gates 4 and 11: the relational corpus against DuckDB under the HOST judge (gate 4; the build action
-# :judge_host_duckdb, writing its per-assert ledger), then under the DATABASE judge (the action :judge_database_duckdb),
-# which joins the two per assert (MinimalCorpusTest.pinJudgeDifferential; gate 11). The lane, a suite, is red unless
-# both passed (CorpusVerdictTest, quoting the failing pass's log) and the committed rosters equal the measured ones
+# Maven gate 4: the relational corpus against DuckDB under the HOST judge (the build action :judge_host_duckdb, writing
+# its per-assert ledger). The database judge's pass (gate 11) left the corpus 2026-11-17 (the user's judge model: it
+# agreed with the host on 61% of the corpus's tests, about 95% of the rest compatibility-rule noise -- the corpus is
+# compatibility, judged by the HOST). The lane, a suite, is red unless the pass passed (CorpusVerdictTest, quoting its
+# log) and the committed rosters equal the measured ones
 # (bazel run //spec:update_rcorpus_duckdb re-blesses a reviewed change). spec/corpus.bzl.
 # memory_mb 1024: java_run's smallest size, above the old test's 768.
 corpus_lane(
@@ -225,10 +225,9 @@ corpus_lane(
     tags = ["manual"],
 )
 
-# Maven gate 5, the same two passes on H2: :corpus_duckdb's shape.
+# Maven gate 5, the same pass on H2: :corpus_duckdb's shape.
 # memory_mb 4096, not the rule's 4864 (live peak 3235 MB, measured 2026-10-04): CI's 7 GB macOS runner runs this
-# lane, and ran it green at -Xmx4g from 2026-09-23 to 2026-10-04 (Bazel workplan P1-21). The two passes, actions,
-# never run at once (the database pass waits for the host's outputs).
+# lane, and ran it green at -Xmx4g from 2026-09-23 to 2026-10-04 (Bazel workplan P1-21).
 corpus_lane(
     name = "corpus_h2",
     memory_mb = 4096,
@@ -274,7 +273,7 @@ corpus_lane(
     runtime_deps = [":spec_tests_lib"],
 ) for lane in ["duckdb", "h2"]]
 
-#   bazel run //spec:corpus_one -- <lane: a test backend's name, duckdb or h2> <host|database> [<test fqn>]
+#   bazel run //spec:corpus_one -- <lane: a test backend's name, duckdb or h2> <host|both> [<test fqn>]
 legend_java_binary(
     name = "corpus_one",
     testonly = True,
@@ -742,7 +741,7 @@ write_source_files(
     files = {
         "src/test/resources/edge/corpus_%s_%s_%s" % (lane, judge, f): ":judge_%s_%s/%s" % (judge, lane, f)
         for lane in ["duckdb", "h2"]
-        for judge in ["host", "database"]
+        for judge in ["host"]
         for f in ["outcomes.tsv", "judge-%s.tsv" % judge]
     },
     visibility = ["//pct:__pkg__"],
