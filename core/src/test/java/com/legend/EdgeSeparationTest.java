@@ -174,7 +174,6 @@ class EdgeSeparationTest {
             Map.entry("com.legend.testplan.EngineTextPlanning -> com.legend.testplan.EngineTextAppeals", "C2 2026-11-17"),
             Map.entry("com.legend.testplan.JudgePlans -> com.legend.testplan.EngineTestText", "C4 2026-11-17"),
             Map.entry("com.legend.testplan.JudgmentFacts -> com.legend.testexecutionplan.Appeal", "C2 2026-11-17"),
-            Map.entry("com.legend.testplan.PlanStyleFacets -> (stands in a product package)", "C4 2026-11-17"),
             Map.entry("com.legend.testplan.PlanStyleFacets -> com.legend.lowering.RelationTexts", "B17 2026-11-17"),
             Map.entry("com.legend.testplan.PlanStyleFacets -> com.legend.planner.UpstreamPlans", "B2 2026-11-17"),
             Map.entry("com.legend.testplan.PlanStyleFacets -> com.legend.testplan.EngineTestText", "C4 2026-11-17"),
@@ -190,13 +189,16 @@ class EdgeSeparationTest {
      *  UpstreamPlans (B2) fails (a): its static routines() holds the plan-text natives' table and the unformatted
      *  form's stripping; RelationTexts (B17) fails (a): its static forwarders reach the lowering's text helpers;
      *  EngineTestText (C4) fails (a): its static gates (armFor, reachesUpstreamText, marking); EngineTextPlanning (C4)
-     *  fails (a): a facade class with logic; PlanStyleFacets (C4) fails (a) as worded: a final class holding the
-     *  kinds' closed list (types only), not an interface. */
+     *  fails (a): a facade class with logic. PlanStyleFacets meets (a) (the orchestrator's ruling of 2026-11-17: a
+     *  final class holding only the closed list of kind types, the list (d) lives on); its edges to the kinds stay
+     *  counted under each kind's own line until that kind is ruled. */
     static final Map<String, String> HOOKS_RULED = Map.ofEntries(
             Map.entry("com.legend.database.PlanStyle -> com.legend.sql.dialect.EngineTextDialect",
                     "B1 HOOK-RULED 2026-11-17"),
             Map.entry("com.legend.sql.dialect.EngineTextDialect -> (stands in a product package)",
-                    "B3 HOOK-RULED 2026-11-17"));
+                    "B3 HOOK-RULED 2026-11-17"),
+            Map.entry("com.legend.testplan.PlanStyleFacets -> (stands in a product package)",
+                    "C4 HOOK-RULED 2026-11-17"));
 
     // ---- the guards ---------------------------------------------------------------------------------------------
 
@@ -268,15 +270,23 @@ class EdgeSeparationTest {
     @Test
     void theProductsCodeNamesNoCompatibilityButItsOpenLines() {
         Set<String> f = found(classes("legend.product.jars", "legend.authored.jars"), n -> !testSide(n));
-        Set<String> allowed = new TreeSet<>(CODE_OPEN.keySet());
-        allowed.addAll(HOOKS_RULED.keySet());
-        assertEquals(allowed, f, "CODE: a product class names the compatibility vocabulary"
+        f.removeAll(HOOKS_RULED.keySet());
+        assertEquals(new TreeSet<>(CODE_OPEN.keySet()), f, "CODE: a product class names the compatibility vocabulary"
                 + " outside its census line (a new entry is a regression; a gone one closes, delete its entry)");
+    }
+
+    /** Each ruled hook entry still stands (a gone one is deleted from {@link #HOOKS_RULED}, not left to read as held). */
+    @Test
+    void everyRuledHookEntryStands() {
+        Set<String> f = found(classes("legend.product.jars", "legend.authored.jars"), n -> true);
+        assertEquals(new TreeSet<>(HOOKS_RULED.keySet()), new TreeSet<>(f.stream().filter(HOOKS_RULED::containsKey)
+                .toList()), "a ruled hook's entry is gone: delete it from HOOKS_RULED");
     }
 
     @Test
     void theTestSideNamesNoCompatibilityButItsOpenLines() {
         Set<String> f = found(classes("legend.product.jars"), EdgeSeparationTest::testSide);
+        f.removeAll(HOOKS_RULED.keySet());
         assertEquals(new TreeSet<>(TEST_OPEN.keySet()), f, "TEST SIDE: the test infrastructure names the compatibility"
                 + " vocabulary outside its census line");
     }

@@ -58,6 +58,24 @@ class HookRulingTest {
         }
     }
 
+    /** The closed list of the plan style's facet kinds (the orchestrator's ruling of 2026-11-17: a registry meets (a)
+     *  when it holds only the kinds' class literals): a private constructor and one field, KINDS, a list of interfaces;
+     *  no method, no nested type. */
+    @Test
+    void theFacetRegistryHoldsNothingButItsList() {
+        Class<?> registry = com.legend.testplan.PlanStyleFacets.class;
+        assertEquals(0, registry.getDeclaredMethods().length, "PlanStyleFacets declares a method");
+        assertEquals(0, registry.getDeclaredClasses().length, "PlanStyleFacets declares a nested type");
+        assertEquals(List.of("KINDS"), java.util.Arrays.stream(registry.getDeclaredFields())
+                .filter(f -> !f.isSynthetic()).map(java.lang.reflect.Field::getName).toList());
+        for (java.lang.reflect.Constructor<?> c : registry.getDeclaredConstructors()) {
+            assertTrue(Modifier.isPrivate(c.getModifiers()) && c.getParameterCount() == 0, c.toString());
+        }
+        for (Class<?> kind : com.legend.testplan.PlanStyleFacets.KINDS) {
+            assertTrue(kind.isInterface(), kind + " is no interface");
+        }
+    }
+
     /** (b): the product's style refuses each way of reaching the hook, by name, pointing to the edge. */
     @Test
     void theProductRefusesEachRuledHookByName() {
