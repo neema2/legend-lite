@@ -115,7 +115,9 @@ public final class PeRatchets {
                     + " as the reference grammar reads it -- serverURLs [localhost:27017], where an IP address was refused"
                     + " (GRAMMAR-REFUSAL-nullmsg, stage-linux 43917161620) -- and the stage's new test models; UP)",
             "own_corpus.matched 3284 -> 3287 (2026-11-17, phase D's Phase 2, 8d38788b0: InterimEdgeSitesTest's model --"
-                    + " its s::DB, s::Conn and s::RT -- matches the reference grammar; UP)");
+                    + " its s::DB, s::Conn and s::RT -- matches the reference grammar; UP)",
+            "own_corpus.matched 3287 -> 3290 (2026-11-17, A1 0902f0f33 (its 1c18e97f4): BoundaryLiteExportsTest's model --"
+                    + " its t::P, t::DB and t::M -- matches the reference grammar; UP; stage-linux run 44097841621)");
 
     public static void main(String[] args) throws Exception {
         if (args.length != 1) {
