@@ -280,10 +280,11 @@ class OpenClassMembersTest {
     }
 
     /** THE FACADES LIST THEIR MEMBERS (C.4's second half, 2026-11-17: the orchestrator's step-A ruling, "one named
-     *  facade, members listed, no #*"): every row of {@code ArchitectureTest.PLANNER_ENTRIES} for a facade names one
-     *  member by its full signature (no whole-class key, however spelt), and every read any class of the edge's jar makes
-     *  of a facade -- nested classes included -- keys, through {@code ArchitectureTest.entryKey}, exactly as this test
-     *  spells the member itself, and is listed for its caller. Red if a whole-class keying comes back. */
+     *  facade, members listed, no #*"; widened 2026-11-17 to every owner): every row of
+     *  {@code ArchitectureTest.PLANNER_ENTRIES} names one member by its full signature or field name (no whole-class key,
+     *  however spelt), and every read any class of the edge's jar makes of the planners -- nested classes included --
+     *  keys, through {@code ArchitectureTest.entryKey}, exactly as this test spells the member itself, and is listed for
+     *  its caller. Red if a whole-class keying comes back. */
     @Test
     void theFacadesAreListedByMember() {
         // every row names one member: a method or constructor by its signature, a field by its name (2026-11-17, after
