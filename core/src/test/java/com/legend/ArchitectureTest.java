@@ -2450,6 +2450,35 @@ final class ArchitectureTest {
     }
 
     /**
+     * ONLY THE EDGE IMPLEMENTS A STYLE'S FACET (the terminal-hook criteria, the orchestrator's ruling relayed to E-SQL,
+     * 2026-11-17): every kind of the closed list ({@code testplan.PlanStyleFacets.KINDS}: {@code planner.UpstreamPlans},
+     * {@code testplan.EngineTestText}) is a product hook whose types are the product's, which the product's style refuses
+     * by name ({@code PlanStyle.PRODUCT.facet}, pinned by {@code EdgeSpellingHookTest}), and which only
+     * {@code com.legend.edge} implements -- this rule. {@link #theFacetRuleBitesAPlantedImplementer} shows it bites.
+     */
+    @Test
+    void onlyTheEdgeImplementsAStylesFacet() {
+        for (Class<?> kind : com.legend.testplan.PlanStyleFacets.KINDS) {
+            facetImplementersAreTheEdges(kind).check(CORE_AND_EDGE_CLASSES);
+        }
+    }
+
+    static com.tngtech.archunit.lang.ArchRule facetImplementersAreTheEdges(Class<?> kind) {
+        return classes().that().areAssignableTo(kind).and().areNotInterfaces()
+                .should().resideInAnyPackage("com.legend.edge..")
+                .as("a plan style's facet " + kind.getSimpleName() + " is implemented by the compatibility edge alone");
+    }
+
+    /** {@link #onlyTheEdgeImplementsAStylesFacet} fails on an implementer outside the edge
+     *  ({@code planner.PlantedDialect.Facet}, a test class planted for this alone). */
+    @Test
+    void theFacetRuleBitesAPlantedImplementer() {
+        org.junit.jupiter.api.Assertions.assertThrows(AssertionError.class,
+                () -> facetImplementersAreTheEdges(com.legend.planner.UpstreamPlans.class).check(
+                        new ClassFileImporter().importClasses(com.legend.planner.PlantedDialect.Facet.class)));
+    }
+
+    /**
      * ONLY THE EDGE SPELLS A PLAN UPSTREAM'S WAY (phase D's D1.0, guard (b), 2026-11-12): the doors that take a
      * {@link com.legend.database.PlanStyle} -- {@code TypedQuery.executionPlan}/{@code projectPlan},
      * {@code Execution.run}/{@code runOnProjectDatabases}, {@code ExecuteOptions}/{@code PlanningOptions.withDialects}
