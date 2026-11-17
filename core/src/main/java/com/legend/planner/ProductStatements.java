@@ -378,7 +378,7 @@ public final class ProductStatements {
             boolean temporal, boolean streaming, List<SqlExpr.PlanParam> slots,
             ObjectSites sites) {
         return configured(query, temporal, streaming, slots, BodyPlanner.featuresOf(env, body), sites)
-                .withDbTimeZone(env.timeZone()).withOptions(env.options());
+                .withDbTimeZone(env.timeZone()).withOptions(env.options()).withFloatLiteralKind(env::floatLiteralKind);
     }
 
     /**

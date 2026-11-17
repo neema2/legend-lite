@@ -165,6 +165,13 @@ public final class PureText {
 
     /** DuckDB, spelled as upstream spells it. */
     public static final class DuckDb extends com.legend.sql.dialect.DuckDb {
+        /** A Float literal computes as legend-engine's: its bare print, a DECIMAL (the edge program's §6 row 21, the
+         *  orchestrator's ruling R2 of 2026-11-17; the product's is the double, register S20). */
+        @Override
+        public com.legend.sql.SqlExpr.FloatLit.Kind floatLiteralKind() {
+            return com.legend.sql.SqlExpr.FloatLit.Kind.DECIMAL;
+        }
+
         /** legend-engine's scan order made explicit for its corpus's replay (StableScanOrder, behind the corpus lanes'
          *  {@code legend.exec.engineScanOrder}; moved here from the product's dialect, W6, 2026-11-16). */
         @Override
@@ -176,7 +183,7 @@ public final class PureText {
         /** legend-pure's print forms (a Float's, a DateTime's) for the product's text of each ({@link PurePrintForms}; D1.2). */
         @Override
         protected java.util.List<com.legend.sql.SqlRewriter> spellingPasses() {
-            return PurePrintForms.enginePasses(PurePrintForms.FloatLiteral.PRINT_BARE);
+            return PurePrintForms.passes();
         }
 
         /** legend-pure's print form of a Float ({@link PurePrintForms}; D1.2): a node no pass reached. */
@@ -198,10 +205,17 @@ public final class PureText {
 
     /** H2, spelled as upstream spells it. */
     public static final class H2 extends com.legend.sql.dialect.H2 {
+        /** A Float literal computes as legend-engine's: its bare print, a DECIMAL (the edge program's §6 row 21, the
+         *  orchestrator's ruling R2 of 2026-11-17; the product's is the double, register S20). */
+        @Override
+        public com.legend.sql.SqlExpr.FloatLit.Kind floatLiteralKind() {
+            return com.legend.sql.SqlExpr.FloatLit.Kind.DECIMAL;
+        }
+
         /** legend-pure's print forms (a Float's, a DateTime's) for the product's text of each ({@link PurePrintForms}; D1.2). */
         @Override
         protected java.util.List<com.legend.sql.SqlRewriter> spellingPasses() {
-            return PurePrintForms.enginePasses(PurePrintForms.FloatLiteral.PRINT_AS_FLOAT);
+            return PurePrintForms.passes(PurePrintForms.FloatLiteral.PRINT_AS_FLOAT);
         }
 
         /** legend-pure's print form of a Float ({@link PurePrintForms}; D1.2): a node no pass reached. */
@@ -223,10 +237,17 @@ public final class PureText {
 
     /** Postgres, spelled as upstream spells it. */
     public static final class Postgres extends com.legend.sql.dialect.Postgres {
+        /** A Float literal computes as legend-engine's: its bare print, a DECIMAL (the edge program's §6 row 21, the
+         *  orchestrator's ruling R2 of 2026-11-17; the product's is the double, register S20). */
+        @Override
+        public com.legend.sql.SqlExpr.FloatLit.Kind floatLiteralKind() {
+            return com.legend.sql.SqlExpr.FloatLit.Kind.DECIMAL;
+        }
+
         /** legend-pure's print forms (a Float's, a DateTime's) for the product's text of each ({@link PurePrintForms}; D1.2). */
         @Override
         protected java.util.List<com.legend.sql.SqlRewriter> spellingPasses() {
-            return PurePrintForms.enginePasses(PurePrintForms.FloatLiteral.PRINT_BARE);
+            return PurePrintForms.passes();
         }
 
         /** legend-pure's print form of a Float ({@link PurePrintForms}; D1.2): a node no pass reached. */
@@ -248,10 +269,17 @@ public final class PureText {
 
     /** Databricks, spelled as upstream spells it. */
     public static final class Databricks extends com.legend.sql.dialect.Databricks {
+        /** A Float literal computes as legend-engine's: its bare print, a DECIMAL (the edge program's §6 row 21, the
+         *  orchestrator's ruling R2 of 2026-11-17; the product's is the double, register S20). */
+        @Override
+        public com.legend.sql.SqlExpr.FloatLit.Kind floatLiteralKind() {
+            return com.legend.sql.SqlExpr.FloatLit.Kind.DECIMAL;
+        }
+
         /** legend-pure's print forms (a Float's, a DateTime's) for the product's text of each ({@link PurePrintForms}; D1.2). */
         @Override
         protected java.util.List<com.legend.sql.SqlRewriter> spellingPasses() {
-            return PurePrintForms.enginePasses(PurePrintForms.FloatLiteral.PRINT_BARE);
+            return PurePrintForms.passes();
         }
 
         /** legend-pure's print form of a Float ({@link PurePrintForms}; D1.2): a node no pass reached. */
@@ -398,10 +426,17 @@ public final class PureText {
 
     /** Trino, spelled as upstream spells it. */
     public static final class Trino extends com.legend.sql.dialect.Trino {
+        /** A Float literal computes as legend-engine's: its bare print, a DECIMAL (the edge program's §6 row 21, the
+         *  orchestrator's ruling R2 of 2026-11-17; the product's is the double, register S20). */
+        @Override
+        public com.legend.sql.SqlExpr.FloatLit.Kind floatLiteralKind() {
+            return com.legend.sql.SqlExpr.FloatLit.Kind.DECIMAL;
+        }
+
         /** legend-pure's print forms (a Float's, a DateTime's) for the product's text of each ({@link PurePrintForms}; D1.2). */
         @Override
         protected java.util.List<com.legend.sql.SqlRewriter> spellingPasses() {
-            return PurePrintForms.enginePasses(PurePrintForms.FloatLiteral.PRINT_BARE);
+            return PurePrintForms.passes();
         }
 
         /** legend-pure's print form of a Float ({@link PurePrintForms}; D1.2): a node no pass reached. */

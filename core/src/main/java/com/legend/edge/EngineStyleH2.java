@@ -2465,6 +2465,13 @@ public class EngineStyleH2 extends AnsiSqlRenderer implements EngineTextDialect 
         throw new DialectCapability("a TYPEOF compared with " + type + "'s name reached the engine text");
     }
 
+    /** A Float literal computes as legend-engine's ({@code cast(x as float)} is this printer's spelling of it, its
+     *  fact the DECIMAL of its digits as before S20: the edge program's §6 row 21, 2026-11-17). */
+    @Override
+    public com.legend.sql.SqlExpr.FloatLit.Kind floatLiteralKind() {
+        return com.legend.sql.SqlExpr.FloatLit.Kind.DECIMAL;
+    }
+
     /** legend-pure's print forms (a Float's, a DateTime's) for the product's text of each ({@link PurePrintForms}; phase D's D1.2,
      *  2026-11-15). */
     @Override

@@ -163,7 +163,8 @@ public final class EnginePlans {
         com.legend.lowering.Lowerer lw = new com.legend.lowering.Lowerer(
                 t -> com.legend.compiler.element.ClassLayouts.layoutOf(env.ctx(), t),
                 f -> env.ctx().findClass(f).isPresent(), env.ctx().implementations())
-                .withFeatures(BodyPlanner.featuresOf(env, body)).withOptions(env.options());
+                .withFeatures(BodyPlanner.featuresOf(env, body)).withOptions(env.options())
+                .withFloatLiteralKind(env::floatLiteralKind);
         if (!temporalRoot) {
             lw = lw.withEngineExistsJoinForm();
         }

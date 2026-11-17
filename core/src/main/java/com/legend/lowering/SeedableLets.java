@@ -35,8 +35,10 @@ public final class SeedableLets {
             var let = new TypedLet(qe.getKey(), qe.getValue(),
                     qe.getValue().info());
             try {
+                // a probe whose tree is discarded: a Float literal's kind changes no answer to "can it seed?"
                 new Lowerer(t -> ClassLayouts.layoutOf(ctx, t),
                         f -> ctx.findClass(f).isPresent(), ctx.implementations())
+                        .withFloatLiteralKind(() -> com.legend.sql.SqlExpr.FloatLit.Kind.DOUBLE)
                         .lower(List.of(let, qe.getValue()));
                 out.add(let);
             } catch (RuntimeException notScalar) {

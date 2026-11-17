@@ -906,7 +906,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             // declared kind converts ONCE at the root select (Rule 2).
             // (Retired: `CAST(x AS DOUBLE)`, 6975118a6 — double arithmetic
             // everywhere: 55.00000000000001 for 55.0.)
-            case SqlExpr.FloatLit f -> writer.append(floatLiteral(f.value()));
+            case SqlExpr.FloatLit f -> writer.append(f.isDouble() ? floatLiteral(f.value()) : decimalFloatLiteral(f.value()));
             // a scale-0 DECIMAL-fact literal (a pure d-suffixed integer:
             // 17774d) CASTS so the wire reads DECIMAL — bare digits read
             // INTEGER by magnitude (probed 1.5.0; the (10,3)<>(15,3)
@@ -2755,6 +2755,28 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
      * Float's own text (a point always present, never E-notation), so the
      * database types it DECIMAL, never INTEGER (1e18 spells
      * {@code 1000000000000000000.0}) and never DOUBLE. */
+    /** The product's: the double (register S20, "IEEE everywhere"). A dialect whose DOUBLE literal its lane has not
+     *  measured yet says DECIMAL (ClickHouse, BigQuery, Snowflake: an F-row of the edge program, 2026-11-17). */
+    @Override
+    public com.legend.sql.SqlExpr.FloatLit.Kind floatLiteralKind() {
+        return com.legend.sql.SqlExpr.FloatLit.Kind.DOUBLE;
+    }
+
+    /** A Float literal of the DECIMAL kind: legend-pure's print of the double, bare -- its shortest digits laid out
+     *  positionally, a point always ({@code 0.000000013421}, {@code 134210000.0}), as legend-engine's default literal
+     *  processor writes it ({@code extensionDefaults.pure:134}, {@code CompiledSupport.primitiveToString}: zero
+     *  {@code 0.0} for either sign) -- the DECIMAL of those digits. Not finite: the plain form. */
+    protected String decimalFloatLiteral(double v) {
+        if (!Double.isFinite(v)) {
+            return plainFloat(v);
+        }
+        if (v == 0.0) {
+            return "0.0";
+        }
+        String plain = new java.math.BigDecimal(Double.toString(v)).stripTrailingZeros().toPlainString();
+        return plain.contains(".") ? plain : plain + ".0";
+    }
+
     /** A Float literal is the double (register S20, the user's ruling of 2026-11-05: "every Float literal a DOUBLE,
      *  IEEE everywhere (S119), exact arithmetic is Decimal's"; built 2026-11-17, Phase 5b): its shortest digits in
      *  exponent form, which DuckDB, Trino and Databricks read as a DOUBLE ({@code 1.5E0}, {@code -0.0E0}); a dialect
