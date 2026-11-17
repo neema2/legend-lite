@@ -143,7 +143,14 @@ public final class PmcdParser {
      * engine's parser then records none (its span builder answers null; CorpusSweepTest's claim 1c).
      */
     public static String parseDocument(String source, boolean sourceInformation) {
-        String json = parseDocument(source);
+        return parseDocument(source, sourceInformation, LEVEL);
+    }
+
+    /** {@link #parseDocument(String, boolean)} at {@code dialect}: the product's door parses at legend-lite's one
+     *  grammar (J21 of the edge audit, 2026-11-17, the user's "yes to the rule"); this class's level-less entries are
+     *  legend-engine's, which the edge's door alone reaches ({@code ArchitectureTest.legendEnginesGrammarIsTheEdgesAlone}). */
+    public static String parseDocument(String source, boolean sourceInformation, GrammarLevel dialect) {
+        String json = ProtocolEmitter.emit(parse(source, dialect).model());
         return sourceInformation ? json : com.legend.protocol.SourceInformation.withoutSpans(json);
     }
 
@@ -225,7 +232,7 @@ public final class PmcdParser {
             long[] range = {bd.contentStart(), contentEnd};
             List<DocElement> elements;
             List<String> imports;
-            if (dialect != LEVEL && !BUILT_IN_SECTIONS.contains(bd.name()) && !TAIL_SECTIONS.contains(bd.name())) {
+            if (!dialect.refusesLiteExtensions() && !BUILT_IN_SECTIONS.contains(bd.name()) && !TAIL_SECTIONS.contains(bd.name())) {
                 // a section only a registered grammar can read (lite's and the platform's dialects): the registry's
                 Registered reg = registered(ts, source, bd.name(), range, bd.nameOffset(), dialect, unclaimed);
                 if (reg == null) {

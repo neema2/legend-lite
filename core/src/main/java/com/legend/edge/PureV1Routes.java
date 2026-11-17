@@ -125,13 +125,13 @@ public final class PureV1Routes {
     public static Answer grammarToJsonLambda(String text, boolean returnSourceInformation) {
         // through the parse door, which asks the run's wall (C5-J item 1, 2026-11-15; main's change, carried to the edge
         // where phase D moved the route)
-        return answer(400, "PARSER", () -> com.legend.door.Parse.lambdaJson(text, returnSourceInformation));
+        return answer(400, "PARSER", () -> EngineGrammar.lambdaJson(text, returnSourceInformation));
     }
 
     /** E2: a model's text to its PMCD JSON. */
     public static Answer grammarToJsonModel(String text, boolean returnSourceInformation) {
         // through the parse door (C5-J item 1, 2026-11-15)
-        return answer(400, "PARSER", () -> com.legend.door.Parse.documentJson(text, returnSourceInformation));
+        return answer(400, "PARSER", () -> EngineGrammar.documentJson(text, returnSourceInformation));
     }
 
     /**
@@ -281,7 +281,7 @@ public final class PureV1Routes {
                 // lite's own plan -- what runs a data: payload, a file: path, a pivot's keys -- reaches a lite host by
                 // lite's own routes (the planner's text plan's `plan`, arrowPlan's and jsonPlan's `plan`, the planner
                 // protocol's executionPlan)
-                return Json.toCompact(executionPlan(plan, connectionOf(model.records(), runtime, target.store())));
+                return Json.toCompact(executionPlan(plan, connectionOf(EngineGrammar.records(model), runtime, target.store())));
             });
         });
     }
