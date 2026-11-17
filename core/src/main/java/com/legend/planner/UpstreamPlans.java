@@ -20,7 +20,7 @@ import java.util.List;
  * plan-text natives' routine table that asks it is the planner's, {@link PlanTextRoutines}, holding no text and no logic
  * of upstream's (the dispatch and the unformatted form's strip are the edge's).
  */
-public interface UpstreamPlans {
+@com.legend.base.OpenLine("B2") public interface UpstreamPlans {
 
     /** A plan-text native's text ({@code planToString} and its unformatted form, {@code toSQLString} and its forms):
      *  legend-engine's, for the planner's routine table ({@link PlanTextRoutines}). */

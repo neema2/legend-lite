@@ -20,7 +20,7 @@ import java.util.List;
  * callers alone (one "#*" row until 2026-11-17, the GUARD stream's C.4); {@code OpenClassMembersTest} pins the whole
  * member set.
  */
-public final class EngineTextPlanning {
+@com.legend.base.OpenLine("C4") public final class EngineTextPlanning {
 
     private EngineTextPlanning() {
     }

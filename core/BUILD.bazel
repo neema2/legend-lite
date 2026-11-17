@@ -2540,6 +2540,7 @@ junit_test(
         "--select-class=com.legend.HookRulingsAgreeTest",
         "--select-class=com.legend.JudgingRulesReachTest",
         "--select-class=com.legend.OpenClassMembersTest",
+        "--select-class=com.legend.OpenLineMarkedTest",
         # every implementation of the test plan's Extension is the edge's (census C2, 2026-11-17), so the guard that
         # walks them as data reads them here
         "--select-class=com.legend.PlanTypesAreDataTest",
