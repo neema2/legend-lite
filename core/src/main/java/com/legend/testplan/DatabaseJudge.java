@@ -162,7 +162,7 @@ public final class DatabaseJudge {
                     // both spelled in the expected's kinds where the columns' kinds differ (the grid owner's rule)
                     pq = com.legend.lowering.VerdictSql.gridPair(gridSide(we.plan(), se, csvStrings),
                             gridSide(wa.plan(), gridPairArm && sameNames(se, sa) ? se : sa, csvStrings),
-                            canonicalOrder, env.options().judgingRules().floatTolerance());
+                            canonicalOrder, env.options().judgingRules().floatTolerance(), lite(env));
                 } else {
                     pq = com.legend.lowering.VerdictSql.gridPair(we.plan(), wa.plan(), canonicalOrder);
                 }
@@ -197,9 +197,9 @@ public final class DatabaseJudge {
                             java.util.Objects.requireNonNull(pw).plan(),
                             "__canon" + pr.literalIndex(), !gridE, peerFloat);
                     com.legend.sql.SqlQuery gq = cellPool
-                            ? com.legend.lowering.VerdictSql.gridCells(grid, peer, gridE)
+                            ? com.legend.lowering.VerdictSql.gridCells(grid, peer, gridE, lite(env))
                             : com.legend.lowering.VerdictSql.gridRows(grid, peer, gridE,
-                                    canonicalOrder);
+                                    canonicalOrder, lite(env));
                     return runVerdict(name, wantEqual, message.apply(gq),
                             env.withTarget(gw.storeFree() ? pw.target() : gw.target()));
                 }
@@ -287,8 +287,12 @@ public final class DatabaseJudge {
             com.legend.lowering.CanonRider r, int i, boolean sorted, com.legend.sql.SqlQuery plan, TypedSpec side,
             boolean lite) {
         com.legend.lowering.VerdictSql.Message m = written(r, i, sorted, plan, side);
-        if (m == null || !lite) {
+        if (!lite) {
             return m;
+        }
+        if (m == null) {
+            // no one primitive kind (a mixed-kind collection, a literal channel): each element from its canon's mark
+            return com.legend.lowering.VerdictSql.Message.fromCanon(sorted);
         }
         if (m.literal() != null && side instanceof com.legend.compiler.spec.typed.TypedCDate d) {
             // a date LITERAL: lite's text of its value, spelled at planning (the host's LiteWords.dateText rule: its
@@ -646,7 +650,7 @@ public final class DatabaseJudge {
                     + (delta.why() != null ? delta.why() : timeDelta.why()));
         }
         return runVerdict(name, true, com.legend.lowering.VerdictSql.gridTolerance(g1, g2, kinds,
-                        delta.rows(false), timeDelta.rows(false), n1),
+                        delta.rows(false), timeDelta.rows(false), n1, lite(env)),
                 env.withTarget(w1.storeFree() ? w2.target() : w1.target()));
     }
 

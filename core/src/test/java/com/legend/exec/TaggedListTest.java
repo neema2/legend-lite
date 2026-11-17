@@ -303,12 +303,12 @@ class TaggedListTest {
     void aFailingMultisetOverARawGridFailsUnderEachJudge() throws Exception {
         String[][] cases = {
                 {"select * from (select 1 as A, \\'x\\' as B union all select 2, \\'y\\') t order by A",
-                        "[1, 'x', 2, 'z']", "\nexpected: [1, 2, 'x', 'z']\nactual:   [1, 2, 'x', 'y']"},
-                {"select 10 as A union all select 2", "[2, 11]", "\nexpected: [2, 11]\nactual:   [2, 10]"},
+                        "[1, 'x', 2, 'z']", "expected the elements [1, \"x\", 2, \"z\"] in any order, got [1, \"x\", 2, \"y\"]"},
+                {"select 10 as A union all select 2", "[2, 11]", "expected the elements [2, 11] in any order, got [10, 2]"},
                 {"select \\'b\\' as A union all select \\'a\\'", "['a', 'c']",
-                        "\nexpected: ['a', 'c']\nactual:   ['a', 'b']"},
+                        "expected the elements [\"a\", \"c\"] in any order, got [\"b\", \"a\"]"},
                 {"select 10 as A, \\'b\\' as B union all select 2, \\'a\\'", "[2, 'a', 11, 'b']",
-                        "\nexpected: [2, 11, 'a', 'b']\nactual:   [2, 10, 'a', 'b']"}};
+                        "expected the elements [2, \"a\", 11, \"b\"] in any order, got [10, \"b\", 2, \"a\"]"}};
         try (Connection c = TestBackends.platform().open()) {
             for (String[] q : cases) {
                 String let = "{| let c = ^meta::external::store::relational::runtime::TestDatabaseConnection("
@@ -320,9 +320,9 @@ class TaggedListTest {
                             StorelessRuntime.with(MODEL, Databases.PLATFORM),
                             let + "assertEquals(" + q[1] + ", $rs.rows.values);}", StorelessRuntime.RUNTIME, c,
                             com.legend.ExecuteOptions.NONE.withJudgeMode(mode)), mode + " " + q[1]);
-                    if (mode != com.legend.testplan.PlanningOptions.JudgeMode.DATABASE || q[1].startsWith("['")) {
-                        assertEquals(q[2], failed.getMessage(), mode + " " + q[1]);
-                    }
+                    // lite's own sentence, each side in its own order, the same under every judge (the user's judge
+                    // model and the orchestrator's ruling, 2026-11-17: neither judge sorts for the message)
+                    assertEquals(q[2], failed.getMessage(), mode + " " + q[1]);
                 }
             }
         }

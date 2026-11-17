@@ -34,19 +34,7 @@ public final class LiteWords {
     /** One value's text in a message. */
     public static String value(@Nullable Object v, @Nullable String instanceClass) {
         if (v instanceof Map<?, ?> m) {
-            // its id, or (an instance with none) its values in order, '|'-joined, each written as a value is
-            String id = com.legend.testexecutionplan.Verdicts.wireId(v);
-            if (id == null) {
-                StringBuilder sb = new StringBuilder();
-                for (Object field : m.values()) {
-                    if (sb.length() > 0) {
-                        sb.append('|');
-                    }
-                    sb.append(value(field));
-                }
-                id = sb.toString();
-            }
-            return "<" + (instanceClass == null ? "?" : instanceClass) + " " + id + ">";
+            return instance(m, instanceClass);
         }
         return switch (v) {
             case null -> "[]";
@@ -146,5 +134,96 @@ public final class LiteWords {
         java.time.LocalDateTime t = d.toInstantFloor();
         return String.format(java.util.Locale.ROOT, "%04d-%02d-%02dT%02d:%02d:%02d.%06dZ", t.getYear(),
                 t.getMonthValue(), t.getDayOfMonth(), t.getHour(), t.getMinute(), t.getSecond(), t.getNano() / 1000);
+    }
+
+    /** A JSON document as the database judge's canon writes it in a message (the orchestrator's ruling, 2026-11-17:
+     *  both judges write the shared canon's JSON): minified -- whitespace outside strings dropped -- and, where the
+     *  root's order is incidental, the root array's elements in their texts' order, comma-joined. */
+    public static String canonJson(String json, boolean unorderedRoot) {
+        String min = minified(json);
+        if (!unorderedRoot || !min.startsWith("[") || !min.endsWith("]")) {
+            return min;
+        }
+        List<String> elements = new java.util.ArrayList<>();
+        int depth = 0;
+        boolean inString = false;
+        int start = 1;
+        for (int i = 1; i < min.length() - 1; i++) {
+            char c = min.charAt(i);
+            if (inString) {
+                if (c == '\\') {
+                    i++;
+                } else if (c == '"') {
+                    inString = false;
+                }
+            } else if (c == '"') {
+                inString = true;
+            } else if (c == '{' || c == '[') {
+                depth++;
+            } else if (c == '}' || c == ']') {
+                depth--;
+            } else if (c == ',' && depth == 0) {
+                elements.add(min.substring(start, i));
+                start = i + 1;
+            }
+        }
+        if (min.length() > 2) {
+            elements.add(min.substring(start, min.length() - 1));
+        }
+        java.util.Collections.sort(elements);
+        return "[" + String.join(", ", elements) + "]";
+    }
+
+    /** {@code json} with every whitespace character outside a string dropped. */
+    private static String minified(String json) {
+        StringBuilder sb = new StringBuilder(json.length());
+        boolean inString = false;
+        for (int i = 0; i < json.length(); i++) {
+            char c = json.charAt(i);
+            if (inString) {
+                sb.append(c);
+                if (c == '\\' && i + 1 < json.length()) {
+                    sb.append(json.charAt(++i));
+                } else if (c == '"') {
+                    inString = false;
+                }
+            } else if (c == '"') {
+                inString = true;
+                sb.append(c);
+            } else if (!Character.isWhitespace(c)) {
+                sb.append(c);
+            }
+        }
+        return sb.toString();
+    }
+
+    /** An instance as lite writes it (the orchestrator's ruling, 2026-11-17: as the product writes one in its results):
+     *  its class, then its properties as a JSON object, each value its lite text -- {@code m::P {"name": "a"}}; an
+     *  instance with no property to show, its class alone. The class is the one the instance carries on its wire
+     *  ({@code __type}), else the side's declared class. */
+    static String instance(Map<?, ?> m, @Nullable String instanceClass) {
+        Object wireType = m.get(com.legend.sql.SqlExpr.SYNTHETIC_TYPE);
+        String cls = wireType instanceof String t ? t : instanceClass == null ? "?" : instanceClass;
+        StringBuilder sb = new StringBuilder();
+        for (Map.Entry<?, ?> e : m.entrySet()) {
+            if (e.getKey() instanceof String k && k.startsWith("__")) {
+                continue;   // an identity field the database carries, no property
+            }
+            sb.append(sb.length() == 0 ? "" : ", ").append(quoted(String.valueOf(e.getKey()))).append(": ")
+                    .append(e.getValue() instanceof List<?> l ? values(l, null) : value(e.getValue()));
+        }
+        return sb.length() == 0 ? cls : cls + " {" + sb + "}";
+    }
+
+    /** A value as an IDENTITY assert names it ({@code assertEq}, {@code assertIs}): an instance the database tracks by
+     *  identity as its class and that identity, {@code m::P (instance i1)} -- the two judges' one text, the database
+     *  holding no properties for it; any other value as {@link #value} writes it. */
+    public static String identity(@Nullable Object v, @Nullable String instanceClass) {
+        if (v instanceof Map<?, ?> m && com.legend.testexecutionplan.Verdicts.wireId(v) instanceof String id) {
+            Object wireType = m.get(com.legend.sql.SqlExpr.SYNTHETIC_TYPE);
+            String cls = wireType instanceof String t ? t : instanceClass == null ? "?" : instanceClass;
+            return cls + " (instance " + id + ")";
+        }
+        return value(v, instanceClass);
     }
 }

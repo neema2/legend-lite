@@ -139,6 +139,8 @@ final class HostJudgments {
                 () -> mixedFlatVsTds
                         ? name + " (TDSRow.values) raw cells do not"
                                 + " equal a whole TDS value"
+                        // an incidental order compares the rows as a multiset: "in any order"
+                        : lite(rules) && incidental ? sameElementsWords(e, a, null, null, rules)
                         : lite(rules) ? sentence(com.legend.error.AssertSentence.EQUALS, "expected", LiteWords.pairSide(e, a, null), "actual",
                                 LiteWords.pairSide(a, e, null))
                         : tdsHostMessage(name, PureAsserts.assertEqualsTyped(
@@ -446,7 +448,7 @@ final class HostJudgments {
             // '[age] (2 rows) does not match' was lite's)
             if (lite(rules)) {
                 return com.legend.testexecutionplan.Verdicts.fail(j.wantEqual()
-                        ? sentence(com.legend.error.AssertSentence.EQUALS_ROWS, "expected", liteRows(te), "actual", liteRows(ta))
+                        ? sentence(com.legend.error.AssertSentence.EQUALS, "expected", liteRows(te), "actual", liteRows(ta))
                         : sentence(com.legend.error.AssertSentence.NOT_EQUALS, "actual", liteRows(ta)));
             }
             String e = gridText(te);
@@ -612,7 +614,8 @@ final class HostJudgments {
         // eq's non-primitive identity rule throws LOUD here (P2-5)
         String pure = com.legend.testexec.PureAsserts.assertEq(ee, aa, rules);
         String d = pure == null || !lite(rules) ? pure
-                : sentence(com.legend.error.AssertSentence.EQUALS, "expected", LiteWords.value(ee), "actual", LiteWords.value(aa));
+                : sentence(com.legend.error.AssertSentence.EQUALS, "expected", LiteWords.identity(ee, j.e().classFqn()),
+                        "actual", LiteWords.identity(aa, j.a().classFqn()));
         com.legend.testexec.CanonicalDivergence.probeEqual("assertEq",
                 java.util.Collections.singletonList(ee),
                 java.util.Collections.singletonList(aa), d == null);
@@ -887,14 +890,15 @@ final class HostJudgments {
     }
 
     /** assertSameElements' failure words over two sides a verdict has failed: legend-pure's, or lite's sentence with
-     *  each side's values sorted as legend-pure sorts them (the database judge's order too). */
+     *  each side's values in its own order -- neither judge sorts for the message, "in any order" is the sentence's
+     *  (the orchestrator's ruling, 2026-11-17). */
     private static String sameElementsWords(List<Object> e, List<Object> a, @com.legend.base.Nullable String eClass,
             @com.legend.base.Nullable String aClass, com.legend.testexecutionplan.TestPlan.JudgingRules rules) {
         if (!lite(rules)) {
             return com.legend.testexec.PureAsserts.sameElementsMessage(e, a, eClass, aClass);
         }
-        return sentence(com.legend.error.AssertSentence.SAME_ELEMENTS, "expected", LiteWords.values(com.legend.testexec.PureAsserts.sorted(e), eClass),
-                "actual", LiteWords.values(com.legend.testexec.PureAsserts.sorted(a), aClass));
+        return sentence(com.legend.error.AssertSentence.SAME_ELEMENTS, "expected", LiteWords.values(e, eClass),
+                "actual", LiteWords.values(a, aClass));
     }
 
     private static @com.legend.base.Nullable TypedSide jsonOf(HostJudgment.Json j, List<TypedSide> pair,
@@ -929,7 +933,9 @@ final class HostJudgments {
                 : com.legend.testexec.Equality.pureJson(expected, actual);
         return diff == null ? com.legend.testexecutionplan.Verdicts.ok()
                                 : com.legend.testexecutionplan.Verdicts.fail(lite(rules)
-                                        ? sentence(com.legend.error.AssertSentence.JSON_EQUALS, "expected", ejson, "actual", ajson)
+                                        ? sentence(com.legend.error.AssertSentence.JSON_EQUALS, "expected",
+                                                LiteWords.canonJson(ejson, incidentalRoot), "actual",
+                                                LiteWords.canonJson(ajson, incidentalRoot))
                                         : "assertJsonStringsEqual: FIRST DIFF at " + diff);
     
     }

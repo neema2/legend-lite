@@ -23,7 +23,6 @@ import java.util.Map;
  */
 public enum AssertSentence {
     EQUALS("expected {expected}, got {actual}"),
-    EQUALS_ROWS("expected the rows {expected}, got {actual}"),
     NOT_EQUALS("expected a value other than {actual}"),
     SAME_ELEMENTS("expected the elements {expected} in any order, got {actual}"),
     SIZE("expected size {expected}, got {actual}"),

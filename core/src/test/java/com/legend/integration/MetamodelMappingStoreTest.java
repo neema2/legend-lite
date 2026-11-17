@@ -247,9 +247,9 @@ class MetamodelMappingStoreTest {
         var ex = assertThrows(com.legend.error.AssertFailed.class, () -> run(
                 "{| assertEquals(ext::AMapping->" + BY_ID + "('a'), ext::B1Mapping->"
                         + BY_ID + "('b1')); }"));
-        assertTrue(ex.getMessage().contains(" instanceOf meta::pure::mapping::SetImplementation>"),
+        // lite's own sentence: an instance as its class and its properties (the orchestrator's ruling, 2026-11-17)
+        assertTrue(ex.getMessage().startsWith("expected meta::pure::mapping::SetImplementation {\"id\": \"a\""),
                 ex.getMessage());
-        assertTrue(ex.getMessage().contains("expected: <a|"), ex.getMessage());
     }
 
     @Test

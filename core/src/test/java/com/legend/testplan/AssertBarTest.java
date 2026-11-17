@@ -120,7 +120,7 @@ class AssertBarTest {
             new Probe("integer-vs-float-lists", "{|assertEquals([1, 2], [1.0, 2.0])}",
                     "expected [1, 2], got [1, 2]"),
             new Probe("integer-vs-float-same-elements", "{|assertSameElements([2, 1], [2.0, 1.0])}",
-                    "expected the elements [1, 2] in any order, got [1, 2]"),
+                    "expected the elements [2, 1] in any order, got [2, 1]"),
             // the type is part of the value in lite's own runs (register S127, the user's ruling of 2026-11-04;
             // backwards-compatibility mode compares an Integer and a Decimal by text: below)
             new Probe("decimal-vs-integer", "{|assertEquals(1D, 1)}", "expected 1, got 1"),
