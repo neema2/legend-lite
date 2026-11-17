@@ -143,15 +143,6 @@ export interface ExecutePlan {
   readonly plan?: unknown;
 }
 
-/** `model`'s text, the one form the tab's lite kinds read a model in; any other refused by name. */
-function modelTextOf(model: PureModelContext, what: string): string {
-  const m = model as { readonly _type?: string; readonly code?: unknown };
-  if (m._type !== 'text' || typeof m.code !== 'string') {
-    throw new EngineError(`a query is ${what} in the tab over a model given as its text, not a ${String(m._type)}`, 400);
-  }
-  return m.code;
-}
-
 export class WasmGrammar implements Grammar {
   readonly #port: PlannerPort;
   /** pure/v1 in the tab: the server's client over the planner. */
@@ -236,11 +227,10 @@ export class WasmGrammar implements Grammar {
     return this.#pureV1.modelText(model, style);
   }
 
-  /** A lambda's relation type over a model given as its text, in Grammar's shape: `query/type`, each column's Pure type
-   *  its genericType's path (relation-type.ts reads it back); a model given otherwise is refused by name. */
-  async relationType(model: PureModelContext, lambda: Lambda): Promise<RelationTypeAnswer> {
-    const columns = await this.queryType(modelTextOf(model, 'typed'), lambda);
-    return { columns: columns.map((c) => ({ name: c.name, genericType: { rawType: { fullPath: c.type } } })) } as unknown as RelationTypeAnswer;
+  /** `compilation/lambdaRelationType`, legend-engine's shape (Grammar is the edge's), answered in the tab by the edge's
+   *  own route as `returnType` is (PureV1Routes, UpstreamRelationType). Lite's own typing is `queryType`. */
+  relationType(model: PureModelContext, lambda: Lambda): Promise<RelationTypeAnswer> {
+    return this.#pureV1.relationType(model, lambda);
   }
 
   /** `compilation/lambdaReturnType`, answered in the tab as the server answers it (PureV1Api.route). */
@@ -280,18 +270,18 @@ export class WasmGrammar implements Grammar {
     return answered(await this.#port.ask({ kind: 'executeAnswer', plan, rows }));
   }
 
-  /** The SQL a query compiles to on its runtime, the type of its result (upstream's relationType shape), and -- where the
-   *  text does not run alone -- the execution plan it renders from, whose data: payloads its `?`s bind (plan-params.ts
+  /** `query/plan` over a model's text: the SQL a query compiles
+   *  to on its runtime, its columns (each its name and Pure type, as the plan states them), and the execution plan, whose data: payloads its `?`s bind (plan-params.ts
    *  reads them: the tenets audit's M3). */
-  async plan(model: PureModelContext, lambda: Lambda, runtime: string): Promise<{ sql: PlannedSql; type: unknown; plan?: unknown }> {
-    // lite API v1's query/plan (the rename train, 2026-11-17: planModel until then; the TS host's own rewrite of this
-    // file supersedes these lines): lite's plan, its answering statement and its columns read from it
+  async plan(model: PureModelContext, lambda: Lambda, runtime: string): Promise<{
+    sql: PlannedSql; columns: readonly { readonly name: string; readonly type: string }[]; plan?: unknown;
+  }> {
+    // lite API v1's query/plan (2026-11-17): lite's plan, its answering statement and its columns read from it
     const { plan } = JSON.parse(unfold(await this.#port.ask({ kind: 'queryPlan',
       request: `{"model":${JSON.stringify(model.code)},"query":${toJson(lambda)},"runtime":${JSON.stringify(runtime)}}` }))) as {
       plan: { root: { columns: { name: string; type: string }[]; sql: { statement: string } } } };
     declareSites(plan, 'a plan');
-    const type = { columns: plan.root.columns.map((c) => ({ name: c.name, genericType: { rawType: { fullPath: c.type } } })) };
-    return { sql: fromPlan(plan.root.sql.statement), type, plan };
+    return { sql: fromPlan(plan.root.sql.statement), columns: plan.root.columns, plan };
   }
 
   /** The SQL a query compiles to on its runtime -- legend-lite's plan, shown to a person ("Show SQL"). */

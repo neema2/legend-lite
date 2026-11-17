@@ -35,9 +35,10 @@ export class LiteServer implements LiteEngine {
     this.#format = format;
   }
 
-  /** One operation asked: its answer, or its refusal thrown as lite's (a body in no refusal's shape refused by name). */
-  async #ask(operation: string, request: unknown, signal?: AbortSignal): Promise<Response> {
-    const res = await this.#fetch(`${this.#base}/lite/v1/${operation}`, {
+  /** One operation asked at its route (`a/b`): its answer, or its refusal thrown as lite's (a body in no refusal's shape
+   *  refused by name). */
+  async #ask(route: string, request: unknown, signal?: AbortSignal): Promise<Response> {
+    const res = await this.#fetch(`${this.#base}/lite/v1/${route}`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: toJson(request), ...(signal ? { signal } : {}),
     });
     if (res.ok) return res;
@@ -46,13 +47,13 @@ export class LiteServer implements LiteEngine {
     try {
       refusal = liteError(JSON.parse(text));
     } catch (e) {
-      throw new LiteRefusal({ kind: 'internal', message: `the server answered ${operation} ${res.status} in no refusal's shape (${(e as Error).message})` }, res.status);
+      throw new LiteRefusal({ kind: 'internal', message: `the server answered ${route} ${res.status} in no refusal's shape (${(e as Error).message})` }, res.status);
     }
     throw new LiteRefusal(refusal, res.status);
   }
 
-  async #text(operation: string, request: unknown, signal?: AbortSignal): Promise<string> {
-    return (await this.#ask(operation, request, signal)).text();
+  async #text(route: string, request: unknown, signal?: AbortSignal): Promise<string> {
+    return (await this.#ask(route, request, signal)).text();
   }
 
   async modelCheck(model: string): Promise<readonly LiteError[]> {

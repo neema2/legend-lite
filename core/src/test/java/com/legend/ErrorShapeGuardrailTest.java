@@ -138,6 +138,10 @@ class ErrorShapeGuardrailTest {
             // call; a non-honest failure is a BUG, logged whole and answered 500 in the
             // engine's error shape, the split /engine/plan's handler made before it
             Map.entry("LiteV1Api.java", 1),
+            // 1 = the pure/v1 call boundary's engine half (2026-11-17, lite's API v1 J18): legend-engine's envelope
+            // and its catch moved byte for byte from LiteV1Api to the edge; LiteV1Api's one catch above is now lite's
+            // own boundary, answering {kind, message, where?, raise?} (a bug logged whole, kind internal, 500)
+            Map.entry("EngineEnvelope.java", 1),
             // 2 = the LSP protocol boundary (reviewed): dispatch converts
             // failures to JSON-RPC error responses; rebuild converts a
             // compile crash into published diagnostics

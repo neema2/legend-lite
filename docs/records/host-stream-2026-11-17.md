@@ -79,3 +79,51 @@ budgets, the verify e2e lanes, and `core_tests_server` in full. They are handed 
 3. `claude/total-wall-b3-batch`'s T-D (`studio/src/ui/editor.ts` `rowsTable`) meets this piece's `resultView` edit.
    The merge is mechanical: T-D's `rowsTable` over `r.columns.map((c) => c.name)` and `r.rows`.
 4. H6 (the query store onto `/api/lite/v1/query`, its own page entry) is next.
+
+## Lite API v1, the host train (2026-11-17)
+
+The spec of record is `docs/records/lite-api-v1-2026-11-17.md`, on `claude/total-wall-h-datacube` at c075f4a32. The
+orchestrator's go was "Go on the apps". This stream owns the server binding, the TS client, the apps' re-point and a TS
+reader of DataCube's conformance cases.
+
+| Commit | What |
+|---|---|
+| a7fedfc878 | The server binding. Lite's routes are `/api/lite/v1/<operation>` (LiteV1Api, LiteV1Planning). Lite's one error shape is `{kind, message, where?, raise?}`, its status by kind (J18). legend-engine's envelope moved to the edge (`edge/EngineEnvelope`). Also `queries/` and `user`, `query/run` in json or arrow, and the edge-off boot test. |
+| e86ceb2c40 | The TS client by operation: `LiteServer` (a server) and `TabEngine` (the tab), lite's error shape (`src/lite-error.ts`), the Arrow read (`legend.shape`, `legend.type`), and 64-bit Integer parameters given as bigints. Query, Studio and query-store's `currentUser` are re-pointed. |
+| 684ce57010 | The server binding's reader of `lite-api-cases.json` (`//engine-client:lite_api_server_test`). |
+| 6afe479900 | Query's cube planner prints through `query/print`, in the cube's own words (after DataCube's 5d9b9583ee). |
+| (next commit) | The guards' findings fixed, listed below, and `query/run` through `LiteServer` in Arrow and in JSON over a real server. |
+
+### Guard findings and what was done
+
+- `PlannedSqlTest.UNKNOWN_CASTS` (shrink-only): no new `as unknown as`.
+  - `arrowIpcTyped` reads through `arrowIpcAnswer`, which now also gives each field's metadata.
+  - `WasmGrammar.relationType`, which is the edge's Grammar shape, is answered by the edge's own route in the tab, as
+    `returnType` is.
+  - Query's cube types its columns through lite's `query/type`.
+  - No pin moved.
+- `PlannedSqlTest.FETCHES`: `LiteServer`'s one send keeps its pinned text, `${route}`. No pin moved.
+- `PlatformNamesGuardrailTest` (bare-name arms): `query/print`'s style and `query/run`'s format are each read through
+  one enum table, `LiteV1Planning.spelled`, not a switch over words. The count is back to 188. No pin moved.
+- `JavaEvalLedgerTest`'s funnel register and `ErrorShapeGuardrailTest`'s broad catches: `edge/EngineEnvelope.java` is
+  registered, each with a dated note. It is the file the envelope moved to. Its catch is the engine half of the pure/v1
+  boundary; LiteV1Api keeps lite's own.
+- The tab's DuckDB (DuckDB-WASM) binds values through JSON. Measured on 1.33:
+  - a JSON integer past 2^53 is refused ("Invalid column type encountered");
+  - a bigint cannot be stringified;
+  - a JSON number is bound as a DOUBLE, even `1`.
+
+  `duckdb.ts` `jsonBound` binds a bigint within 2^53 as its exact number. One past 2^53 is refused by name before
+  anything is sent. A server binds it exactly (`lite-api-server.test.ts`).
+
+### Open, for others
+
+1. **native/ does not build on the train.** `nativelib/Compiler.java` calls the Boundary methods that DataCube's 2c
+   removed. It is Python's binding, and Python has been told. `//core:guardrails_edge` cannot build until it moves.
+2. **`RaiseEnvelopeConformanceTest` is red.** DataCube's H9 put lite's words in the shared fixture, and Java's
+   `RaisedErrors` still prefers upstream's (the audit's K10). That is the Java half of H9.
+3. **DuckDB's Integer placeholder is bound bare (D1).** On DuckDB-WASM, every Integer parameter is therefore a DOUBLE.
+   A typed placeholder (`CAST(? AS BIGINT)`, the value bound as its text) would bind it exactly in the tab. That is a
+   planner ruling, not this stream's.
+4. **H6 is staged, not landed.** The query store's own routes, with a product page entry in lite's words, are saved as
+   a patch for after the train.

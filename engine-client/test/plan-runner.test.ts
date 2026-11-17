@@ -359,8 +359,11 @@ describe("lite's query/run in the tab on lite's own plan, its parameters bound a
     assert.deepEqual(one.columns, [{ name: 'id', type: 'Integer' }, { name: 'name', type: 'String' }]);
     assert.deepEqual(one.rows, [[2, 'b']]);
     assert.deepEqual((await tab.queryRun(MODEL, query, 'w::RT', { n: 0 })).rows, [[1, 'a'], [2, 'b']]);
-    // an Integer parameter in the 64-bit range, a bigint past 2^53 (spec §4): bound exactly
-    assert.deepEqual((await tab.queryRun(MODEL, query, 'w::RT', { n: 9223372036854775806n })).rows, []);
+    // an Integer parameter given as a bigint (spec §4): within 2^53 bound exactly; past it the tab's DuckDB, which binds
+    // through JSON, refuses it by name before anything is sent (a server binds it exactly: lite-api-server.test.ts)
+    assert.deepEqual((await tab.queryRun(MODEL, query, 'w::RT', { n: 1n })).rows, [[2, 'b']]);
+    await assert.rejects(tab.queryRun(MODEL, query, 'w::RT', { n: 9223372036854775806n }), (e: unknown) =>
+      e instanceof RangeError && e.message.includes('9223372036854775806 is not bound (a legend-lite server binds it exactly)'));
     // the value is bound, never written: query/plan's statement carries its placeholder
     const sql = statementOf(await tab.queryPlan(MODEL, query, 'w::RT'));
     assert.match(sql, /\?/);

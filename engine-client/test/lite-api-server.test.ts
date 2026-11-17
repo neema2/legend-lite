@@ -12,7 +12,8 @@ import { describe, it } from 'node:test';
 import { runfileFromEnv } from '../../tools/js/runfiles.mts';
 import { liteServer } from '../../query-store/test/lite-server.ts';
 import { parseExact } from '../src/values.ts';
-import { liteError, type LiteErrorKind } from '../src/lite-error.ts';
+import { liteError, LiteRefusal, type LiteErrorKind } from '../src/lite-error.ts';
+import { LiteServer } from '../src/doors/lite-server.ts';
 
 const server = liteServer();
 
@@ -76,4 +77,79 @@ describe("lite API v1's conformance suite over legend-lite's server", () => {
       else assert.ok(includes(c.answerIncludes, answer), text);
     });
   }
+});
+
+// THE SERVER BINDING'S OWN: query/run (the browser binding plans and never runs, so the shared file holds no run). The
+// TS client (LiteServer) asks the one server for the same rows in each format: Arrow, as the apps ask (spec §4), and
+// JSON. Both answers must be the same typed rows: an Integer's 2^63-1 is exact (a bigint) in each, a StrictDate its
+// text, the shape and each column's Pure type read from the Arrow stream's metadata as the JSON answer states them.
+
+/** A project with its own Data rows, which the server loads into the in-memory DuckDB it makes (LiteV1PlanningTest's). */
+const PARTY = `Class proj::Party { id: Integer[1]; name: String[1]; joined: StrictDate[1]; }
+###Relational
+Database proj::PartyDB ( Schema PARTY ( Table PARTY (ID BIGINT PRIMARY KEY, NAME VARCHAR(200), JOINED DATE) ) )
+###Mapping
+Mapping proj::PartyMapping
+(
+  *proj::Party: Relational
+  {
+    ~primaryKey ([proj::PartyDB] PARTY.PARTY.ID)
+    ~mainTable [proj::PartyDB] PARTY.PARTY
+    id: [proj::PartyDB] PARTY.PARTY.ID,
+    name: [proj::PartyDB] PARTY.PARTY.NAME,
+    joined: [proj::PartyDB] PARTY.PARTY.JOINED
+  }
+)
+###Connection
+RelationalDatabaseConnection proj::Conn { store: proj::PartyDB; type: DuckDB; specification: DuckDB { }; auth: Test; }
+###Runtime
+Runtime proj::RT { mappings: [ proj::PartyMapping ]; connections: [ proj::PartyDB: [ db: proj::Conn ] ]; }
+###Data
+Data proj::PartyData
+{
+  Relational
+  #{
+    PARTY.PARTY:
+      'ID,NAME,JOINED\n1,Meridian Capital,2021-03-04\n9223372036854775807,Halberd Securities,2022-05-06\n';
+  }#
+}
+`;
+
+const RUNTIME = 'proj::RT';
+const SINCE = '{since: StrictDate[1]|proj::Party.all()->filter(p|$p.joined >= $since)'
+  + '->project(~[id: p|$p.id, name: p|$p.name, joined: p|$p.joined])->sort(~id->ascending())'
+  + '->from(proj::PartyMapping, proj::RT)}';
+const UP_TO = '{n: Integer[1]|proj::Party.all()->filter(p|$p.id <= $n)'
+  + '->project(~[id: p|$p.id])->sort(~id->ascending())->from(proj::PartyMapping, proj::RT)}';
+
+describe("query/run on legend-lite's server through the TS client, in Arrow and in JSON", () => {
+  const arrow = (): LiteServer => new LiteServer(server.api());
+  const json = (): LiteServer => new LiteServer(server.api(), globalThis.fetch.bind(globalThis), 'json');
+
+  it('the same typed rows in each format: the shape, each column its Pure type, the cells exact', async () => {
+    const query = await arrow().queryParse(SINCE);
+    const expected = {
+      shape: 'RELATION',
+      columns: [{ name: 'id', type: 'Integer' }, { name: 'name', type: 'String' }, { name: 'joined', type: 'StrictDate' }],
+      rows: [[1, 'Meridian Capital', '2021-03-04'], [9223372036854775807n, 'Halberd Securities', '2022-05-06']],
+    };
+    assert.deepEqual(await json().queryRun(PARTY, query, RUNTIME, { since: '2020-01-01' }), expected);
+    assert.deepEqual(await arrow().queryRun(PARTY, query, RUNTIME, { since: '2020-01-01' }), expected);
+  });
+
+  it('an Integer parameter in the 64-bit range is bound exact, 2^63-1 given as a bigint', async () => {
+    const query = await arrow().queryParse(UP_TO);
+    for (const server of [arrow(), json()]) {
+      const answer = await server.queryRun(PARTY, query, RUNTIME, { n: 9223372036854775807n });
+      assert.deepEqual(answer.rows, [[1], [9223372036854775807n]]);
+    }
+  });
+
+  it("a refusal is lite's, thrown as a LiteRefusal with its kind's status: a parameter missing is kind parameters", async () => {
+    const query = await arrow().queryParse(SINCE);
+    for (const server of [arrow(), json()]) {
+      await assert.rejects(server.queryRun(PARTY, query, RUNTIME, {}),
+        (e: unknown) => e instanceof LiteRefusal && e.kind === 'parameters' && e.status === 400 && /since/.test(e.message));
+    }
+  });
 });

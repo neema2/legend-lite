@@ -71,13 +71,25 @@ public final class LiteV1Planning {
     /** {@code query/print}: {@code {text}}, in the style {@code pretty} or {@code standard}; any other refused by
      *  name. */
     public static String queryPrint(Json.Obj query, String style) {
-        PureComposer.Style s = switch (style) {
-            case "pretty" -> PureComposer.Style.PRETTY;
-            case "standard" -> PureComposer.Style.STANDARD;
-            default -> throw new LiteV1Api.MalformedRequest("a query prints in the style pretty or standard, not '"
-                    + style + "'");
-        };
+        PureComposer.Style s = spelled(PureComposer.Style.class, style, "a query prints in the style pretty or standard");
         return Json.toCompact(Map.of("text", PureComposer.lambda(query, s)));
+    }
+
+    /** {@code query/run}'s formats (lite's API v1 spec §4), by their spec words: {@code json} and {@code arrow}. */
+    private enum Format { JSON, ARROW }
+
+    /**
+     * The constant of {@code words} whose name in lower case is {@code word}: lite's API v1 spells each choice so
+     * ({@code pretty}, {@code arrow}), one table per choice and no switch over words. Any other word is refused by name,
+     * kind request: {@code what}, then the word given.
+     */
+    private static <E extends Enum<E>> E spelled(Class<E> words, String word, String what) {
+        for (E e : words.getEnumConstants()) {
+            if (e.name().toLowerCase(java.util.Locale.ROOT).equals(word)) {
+                return e;
+            }
+        }
+        throw new LiteV1Api.MalformedRequest(what + ", not '" + word + "'");
     }
 
     /** {@code query/type}: {@code {columns: [{name, type, enumeration?}]}}, the query's result typed by the compiler,
@@ -126,12 +138,7 @@ public final class LiteV1Planning {
             Map<String, Object> values = values(queryJson,
                     request.has("params") ? LiteV1Api.object(request, "params") : new Json.Obj(new java.util.LinkedHashMap<>()));
             String format = request.has("format") ? LiteV1Api.text(request, "format") : "json";
-            asArrow[0] = switch (format) {
-                case "json" -> false;
-                case "arrow" -> true;
-                default -> throw new LiteV1Api.MalformedRequest("a query runs in the format json or arrow, not '"
-                        + format + "'");
-            };
+            asArrow[0] = spelled(Format.class, format, "a query runs in the format json or arrow") == Format.ARROW;
             return models.with(LiteV1Api.text(request, "model"), ctx -> {
                 com.legend.TypedQuery typed = com.legend.Compiler.query(ctx, query);
                 Answered rows = new Answered();
