@@ -46,6 +46,36 @@ class FloatTextTest {
         }
     }
 
+    /** A Float literal's {@code toString} at the compatibility edge is legend-engine's SQL (Phase 5, row 8 of the edge
+     *  program, 2026-11-16): the literal as its literal processor writes it, then the database's cast. The default
+     *  processor writes legend-pure's print bare, an exact numeric the database prints as written (legend-engine passes
+     *  {@code testFloatToStringWithNegativeExponent} on DuckDB); H2's writes {@code CAST(%s AS FLOAT)}, a double, which
+     *  H2 prints with an exponent ({@code h2Extension2_1_214.pure:152}). The H2 answers are legend-engine's own: its H2
+     *  manifest's expected failures (legend-engine 4.145.0,
+     *  {@code legend-engine-xt-relationalStore-h2-PCT/.../relational-h2/EssentialFunctions_manifest.json:628-632}:
+     *  {@code testFloatToStringWithNegativeExponent} "expected: '0.000000013421' actual: '1.3421E-8'",
+     *  {@code testFloatToStringWithPositiveExponent} "expected: '134210000.0' actual: '1.3421E8'"); the edge is
+     *  identical to legend-engine on each database (the orchestrator's ruling, 2026-11-16). */
+    @Test
+    void anEdgeFloatLiteralsTextIsLegendEnginesSql() throws Exception {
+        TestBackend backend = LaneFloor.backend();
+        String model = backend.withStorelessRuntime("");
+        // legend-engine writes a Float literal CAST(%s AS FLOAT) on this lane's database (its H2 processor)
+        boolean floatLiteralCast = backend.name().equals("h2");
+        try (Connection c = backend.open()) {
+            assertEquals(floatLiteralCast ? "1.3421E-8" : "0.000000013421", edge(model, c, "|0.000000013421->toString()"),
+                    backend.name());
+            assertEquals(floatLiteralCast ? "1.3421E-8" : "0.000000013421", edge(model, c, "|1.3421e-8->toString()"), backend.name());
+            assertEquals(floatLiteralCast ? "1.3421E8" : "134210000.0", edge(model, c, "|1.3421e8->toString()"), backend.name());
+            assertEquals("17.0", edge(model, c, "|17.000->toString()"), backend.name());
+        }
+    }
+
+    private static String edge(String model, Connection c, String query) throws Exception {
+        return Lean.runInStyle(model, query, StorelessRuntime.RUNTIME, c, com.legend.edge.PureText.UPSTREAM).rows()
+                .get(0).get(0).toString();
+    }
+
     private static String scalar(String model, Connection c, String query) throws Exception {
         return Lean.run(model, query, StorelessRuntime.RUNTIME, c).rows().get(0).get(0).toString();
     }

@@ -9,7 +9,8 @@ import com.legend.sql.SqlFn;
 /**
  * LEGEND-PURE'S PRINT FORMS AT THE EDGE (phase D's D1.2, 2026-11-15): each product text node written as legend-pure's
  * form of it, which each product dialect spells for the judges already -- a Float's ({@link SqlFn#FLOAT_TO_TEXT}, lite's
- * six decimals) as {@link SqlFn#FLOAT_PRINT}, a DateTime's ({@link SqlFn#DATETIME_TO_TEXT}, ISO with {@code Z}) as
+ * six decimals) as legend-engine writes it in a query ({@link #floatOf}: the database's cast, a literal legend-pure's
+ * print; Phase 5, 2026-11-16, until then {@link SqlFn#FLOAT_PRINT}), a DateTime's ({@link SqlFn#DATETIME_TO_TEXT}, ISO with {@code Z}) as
  * {@link SqlFn#DATETIME_PRINT} (a literal's written text kept, its second operand), a joined element's
  * ({@link SqlFn#CELL_TEXT}, D1.3: the product skips an empty one) as its text or {@code TDSNull}, and the texts only
  * legend-pure writes (D1.3: the product refuses them by name), {@code format}'s padded {@code %0<w>d}
@@ -19,12 +20,21 @@ import com.legend.sql.SqlFn;
  */
 final class PurePrintForms extends com.legend.sql.SqlRewriter {
 
-    private PurePrintForms() {
+    private final FloatLiteral floatLiteral;
+
+    private PurePrintForms(FloatLiteral floatLiteral) {
+        this.floatLiteral = floatLiteral;
     }
 
-    /** The edge's first pass, as a list a dialect returns. */
+    /** The edge's first pass, as a list a dialect returns, under the default Float literal processor. */
     static java.util.List<com.legend.sql.SqlRewriter> passes() {
-        return java.util.List.of(new PurePrintForms(), new TdsNullCells());
+        return passes(FloatLiteral.PRINT_BARE);
+    }
+
+    /** The edge's first pass, as a list a dialect returns, a Float literal under {@code toString} written by
+     *  {@code floatLiteral}. */
+    static java.util.List<com.legend.sql.SqlRewriter> passes(FloatLiteral floatLiteral) {
+        return java.util.List.of(new PurePrintForms(floatLiteral), new TdsNullCells());
     }
 
     /** The edge's pass after {@link PurePrintForms}: a {@link SqlFn#CELL_TEXT} no join read (a TDS cell's
@@ -37,9 +47,55 @@ final class PurePrintForms extends com.legend.sql.SqlRewriter {
         }
     }
 
-    /** {@code x}'s legend-pure print form as a Float: the call a pass writes, for a node no pass reached. */
+    /** How a Float LITERAL reaches the database in legend-engine's SQL: its literal processor for a Float, per
+     *  database (legend-engine 4.145.0, read). Lite writes a Float literal bare already, except at an extreme magnitude
+     *  ({@link com.legend.sql.SqlTyping#floatDecimal}); under a {@code toString} the edge writes it as upstream does, so
+     *  the database's cast prints what legend-engine's prints (Phase 5, row 8 of the edge program, 2026-11-16). */
+    enum FloatLiteral {
+        /** The default processor ({@code extensionDefaults.pure}'s {@code getDefaultLiteralProcessors}: format
+         *  {@code %s}, legend-pure's {@code toString}), which DuckDB, Postgres, Snowflake, Databricks, BigQuery, Trino and
+         *  ClickHouse keep: legend-pure's print, bare ({@link com.legend.result.CellText#carriedFloat}), an exact numeric
+         *  the database prints as written ({@code 0.000000013421}, where a DOUBLE prints {@code 1.3421e-08}). The
+         *  closest form where legend-engine has no extension (SQLite, MariaDB, MySQL, MongoDB). */
+        PRINT_BARE,
+        /** H2's processor ({@code h2Extension2_1_214.pure}'s {@code getLiteralProcessorsForH2}: format
+         *  {@code CAST(%s AS FLOAT)}): legend-pure's print cast to H2's FLOAT, a double, which H2's cast prints
+         *  {@code 1.3421E-8} (legend-engine's H2 manifest expects that failure of
+         *  {@code testFloatToStringWithNegativeExponent}). */
+        PRINT_AS_FLOAT,
+        /** A dialect that spells a Float literal as legend-engine's processor already ({@code EngineStyleH2}'s
+         *  {@code cast(x as float)}): the literal as it is. */
+        AS_SPELLED;
+
+        SqlExpr of(SqlExpr.FloatLit f) {
+            if (!Double.isFinite(f.value())) {
+                return f;
+            }
+            return switch (this) {
+                case PRINT_BARE -> print(f);
+                case PRINT_AS_FLOAT -> new SqlExpr.Cast(print(f), com.legend.sql.SqlType.Scalar.DOUBLE,
+                        SqlExpr.Reason.DECLARED);
+                case AS_SPELLED -> f;
+            };
+        }
+
+        private static SqlExpr print(SqlExpr.FloatLit f) {
+            return new SqlExpr.DecimalLit(new java.math.BigDecimal(com.legend.result.CellText.carriedFloat(f.value())));
+        }
+    }
+
+    /** A Float's {@code toString} in a query as legend-engine writes it, its {@code toString} dynaFunction: the
+     *  database's cast ({@code cast(%s as varchar)}, legend-engine 4.145.0's {@code duckdbExtension.pure} and
+     *  {@code h2Extension2_1_214.pure}), a literal operand written by {@code literal}. The pass's rule, and a node no
+     *  pass reached. */
+    static SqlExpr floatOf(SqlExpr x, FloatLiteral literal) {
+        SqlExpr operand = x instanceof SqlExpr.FloatLit f ? literal.of(f) : x;
+        return new SqlExpr.Cast(operand, com.legend.sql.SqlType.Scalar.VARCHAR, SqlExpr.Reason.USER);
+    }
+
+    /** {@link #floatOf(SqlExpr, FloatLiteral)} under the default literal processor. */
     static SqlExpr floatOf(SqlExpr x) {
-        return SqlExpr.Call.of(SqlFn.FLOAT_PRINT, x);
+        return floatOf(x, FloatLiteral.PRINT_BARE);
     }
 
     /** {@code format}'s {@code %0<w>d} as legend-pure writes it ({@code -3} at width 5 is {@code -00003}): the digits
@@ -101,7 +157,7 @@ final class PurePrintForms extends com.legend.sql.SqlRewriter {
             return j;
         }
         if (e instanceof SqlExpr.Call c && c.fn() == SqlFn.FLOAT_TO_TEXT) {
-            return floatOf(expr(c.args().get(0)));
+            return floatOf(expr(c.args().get(0)), floatLiteral);
         }
         if (e instanceof SqlExpr.Call c && c.fn() == SqlFn.DATETIME_TO_TEXT) {
             java.util.List<SqlExpr> args = new java.util.ArrayList<>(c.args().size());
