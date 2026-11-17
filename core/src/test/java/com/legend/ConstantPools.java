@@ -71,11 +71,17 @@ final class ConstantPools {
                 while (entries.hasMoreElements()) {
                     JarEntry e = entries.nextElement();
                     String n = e.getName();
-                    if (!n.endsWith(".class") || n.equals("module-info.class") || n.startsWith("META-INF/")) {
+                    // a multi-release jar's versioned class (META-INF/versions/N/a/b/C.class) is the same class, read
+                    // too: its pool joins the base one's (the review of 08adb5c923, 2026-11-17)
+                    if (n.matches("META-INF/versions/\\d+/.+")) {
+                        n = n.replaceFirst("META-INF/versions/\\d+/", "");
+                    }
+                    if (!n.endsWith(".class") || n.endsWith("module-info.class") || n.startsWith("META-INF/")) {
                         continue;
                     }
                     try (var in = f.getInputStream(e)) {
-                        out.put(n.substring(0, n.length() - ".class".length()).replace('/', '.'), utf8(in.readAllBytes()));
+                        out.computeIfAbsent(n.substring(0, n.length() - ".class".length()).replace('/', '.'),
+                                k -> new LinkedHashSet<>()).addAll(utf8(in.readAllBytes()));
                     }
                 }
             } catch (IOException e) {
@@ -83,6 +89,22 @@ final class ConstantPools {
             }
         }
         return out;
+    }
+
+    /** Whether {@code word} stands in {@code text} as a whole word: no letter, digit or underscore either side (a pool
+     *  entry holds a token inside a longer string, a descriptor or a concatenation's recipe). */
+    static boolean hasWord(String text, String word) {
+        for (int i = text.indexOf(word); i >= 0; i = text.indexOf(word, i + 1)) {
+            int end = i + word.length();
+            if ((i == 0 || !wordChar(text.charAt(i - 1))) && (end == text.length() || !wordChar(text.charAt(end)))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean wordChar(char c) {
+        return c == '_' || (c < 128 && Character.isLetterOrDigit(c));
     }
 
     /** The jars a test's system property lists (as core/BUILD.bazel's {@code rlocationpaths} spell them). */
