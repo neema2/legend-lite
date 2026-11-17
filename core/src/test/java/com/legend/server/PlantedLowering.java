@@ -115,7 +115,7 @@ public final class PlantedLowering {
         }
 
         public static Object routines() {
-            return com.legend.planner.UpstreamPlans.routines(null, null);
+            return com.legend.planner.PlanTextRoutines.of(null, null);
         }
     }
 

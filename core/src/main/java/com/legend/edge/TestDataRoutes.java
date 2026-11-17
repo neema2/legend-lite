@@ -84,7 +84,7 @@ final class TestDataRoutes {
                 TestDataPlanner.Seed seed = defaultSeed ? seed(ctx, r, true) : null;
                 // a root no identifier names and no seed starts: upstream's error node, answered by unseeded below
                 TestDataPlanner.Planned planned = TestDataPlanner.route(ctx, r.query(), r.mapping(), ids, seed,
-                        r.json().getBoolOr("hashStrings", false));
+                        r.json().getBoolOr("hashStrings", false), EnginePlans::testDataTimestampText);
                 return run(ctx, planned.csv(), r.runtime(), runner);
             });
         });

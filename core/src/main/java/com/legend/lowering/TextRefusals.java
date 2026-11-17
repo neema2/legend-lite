@@ -21,6 +21,12 @@ final class TextRefusals {
         return refused("format's %0" + width + "d", "the product's format writes %s, %d, %f and %t{}");
     }
 
+    /** A user's {@code toRepresentation}. */
+    static ModelException representation() {
+        return refused("toRepresentation", "the product writes a value's text by toString and format's %s, %d, %f and"
+                + " %t{}");
+    }
+
     private static ModelException refused(String what, String instead) {
         return new ModelException(LegendCompileException.Phase.LOWER,
                 what + " is legend-pure's text, the compatibility edge's: " + instead);

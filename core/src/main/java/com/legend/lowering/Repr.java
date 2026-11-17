@@ -74,15 +74,9 @@ final class Repr {
         return Scalars.pureToString(t, x);
     }
 
-    /** A USER's {@code toRepresentation} of a value: {@link #of}, legend-pure's text, marked
-     *  {@link SqlFn#REPRESENTATION_TEXT} -- the product refuses it by name (the user's ruling of 2026-11-16,
-     *  docs/records/total-wall-edge-program-2026-11-16.md §10 item 8: "refuse in product but not in compatibility"),
-     *  the compatibility edge writes it as it is. {@code format}'s {@code %r} is not marked yet: the platform's own
-     *  asserts write their messages with it (the prelude's assertNotEq), until the judges' messages are Java at the
-     *  edge (Phase 4b); a judge's message writes {@link #of} unmarked. */
-    static SqlExpr userCall(Type t, SqlExpr x) {
-        return SqlExpr.Call.of(SqlFn.REPRESENTATION_TEXT, of(t, x), new SqlExpr.StringLit("toRepresentation"));
-    }
+    // (userCall, a USER's toRepresentation marked REPRESENTATION_TEXT: gone 2026-11-17, the separation census's B8 (i) --
+    // the toRepresentation rule asks the plan style's PureOnlyTexts facet with the product's refusal; the edge writes
+    // of(t, x) as it is. format's %r is not refused yet: the platform's own asserts write their messages with it.)
 
     /** The {@code %r} directive's arm ({@code format('%r', x)}): the
      * NODE-directed spelling — a date literal prints its {@code %}

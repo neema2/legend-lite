@@ -9,7 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.legend.compiler.element.type.ExprType;
-import com.legend.plan.UpstreamRelationType;
+import com.legend.plan.PureSpelling;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -114,7 +114,7 @@ class PostgresCatalogTest {
                 db.conversions());
         ExprType root = com.legend.Compiler.query(com.legend.Compiler.compileModel(db.text() + WRAPPER), db.accessor()).resultType();
         Map<String, String> types = new LinkedHashMap<>();
-        UpstreamRelationType.columns(root).forEach(c -> types.put(c.name(), UpstreamRelationType.typePath(c.type())));
+        PureSpelling.relationColumns(root).forEach(c -> types.put(c.name(), PureSpelling.typePath(c.type())));
         assertEquals("String", types.get("ip"));
         assertEquals("String", types.get("ia"));
         assertEquals(com.legend.compiler.element.type.PlatformTypes.VARIANT, types.get("jb"));

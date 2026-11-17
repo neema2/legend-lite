@@ -251,7 +251,7 @@ public final class BodyPlanner {
             SpecCompiler specs, PlanEnv env) {
         final List<TypedSpec> stageEnv = body;
         body.replaceAll(b -> NativeDispatch
-                .stage(b, stageEnv, UpstreamPlans.routines(specs, env)));
+                .stage(b, stageEnv, PlanTextRoutines.of(specs, env)));
         return resolvedToExecute(resolver(specs, env), body, env);
     }
 

@@ -73,13 +73,6 @@ public class Trino extends AnsiSqlRenderer {
     // Session and structure
     // ==================================================================
 
-    /** The engine's H2 text is refused here: Trino has no translation of it (decision D2: raw text runs on the
-     *  database its connection declares; only the engine's H2 text is translated, for H2, DuckDB and Postgres). */
-    @Override
-    public String fromEngineText(String statement) {
-        throw new DialectCapability("the engine's H2 text reached Trino, which has no translation of it");
-    }
-
     /** {@inheritDoc} 9: its {@code TIMESTAMP '...'} literal is typed by the digits it is written with (measured) (S181,
      *  A7, 2026-11-10). Kept at nine by the user's rule, "refuse if the db cannot handle" (round 34, 2026-11-11): Trino's
      *  {@code TIMESTAMP(9)} keeps them, and so does every arm that reads a date-time (the orchestrator's correction,
@@ -957,7 +950,7 @@ public class Trino extends AnsiSqlRenderer {
             case DIVIDE -> divideAsDoubles(writer, c.args());
             case FLOAT_PRINT -> floatPrintByText(writer, c, parentPrec);
             case FLOAT_TO_TEXT -> floatToText(writer, c.args().get(0));
-            case DATETIME_TO_TEXT, DATETIME_PRINT, CELL_TEXT, INSTANCE_TEXT, RELATION_TEXT, REPRESENTATION_TEXT, TEXT_FORMS, TRACE_TEXT ->
+            case DATETIME_TO_TEXT, DATETIME_PRINT, CELL_TEXT, INSTANCE_TEXT, RELATION_TEXT, TEXT_FORMS, TRACE_TEXT ->
                     throw expandedFirst(c);
             // the hooks: this dialect's own (or the base's refusal)
             case ROUND -> roundHalfEven(writer, c.args());

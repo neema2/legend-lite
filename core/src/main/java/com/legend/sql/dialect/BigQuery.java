@@ -107,13 +107,6 @@ public class BigQuery extends AnsiSqlRenderer {
     // Session and structure
     // ==================================================================
 
-    /** The engine's H2 text is refused here: BigQuery has no translation of it (decision D2: raw text runs on the
-     *  database its connection declares; only the engine's H2 text is translated, for H2, DuckDB and Postgres). */
-    @Override
-    public String fromEngineText(String statement) {
-        throw new DialectCapability("the engine's H2 text reached BigQuery, which has no translation of it");
-    }
-
     /** {@inheritDoc} 6: its {@code DATETIME} keeps microseconds (a literal of nine digits is refused, measured) (S181, A7, 2026-11-10). */
     @Override
     protected int literalFractionDigits() {
@@ -1621,7 +1614,7 @@ public class BigQuery extends AnsiSqlRenderer {
             case ERROR -> raiseEnvelope(writer, c.args(), "ERROR");
             case FLOAT_PRINT -> floatPrintByText(writer, c, parentPrec);
             case FLOAT_TO_TEXT -> floatToText(writer, c.args().get(0));
-            case DATETIME_TO_TEXT, DATETIME_PRINT, CELL_TEXT, INSTANCE_TEXT, RELATION_TEXT, REPRESENTATION_TEXT, TEXT_FORMS, TRACE_TEXT ->
+            case DATETIME_TO_TEXT, DATETIME_PRINT, CELL_TEXT, INSTANCE_TEXT, RELATION_TEXT, TEXT_FORMS, TRACE_TEXT ->
                     throw expandedFirst(c);
             // the hooks: this dialect's own (or the base's refusal)
             case HASH -> hashSigned(writer, c.args());

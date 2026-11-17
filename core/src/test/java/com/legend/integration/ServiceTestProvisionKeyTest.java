@@ -215,7 +215,7 @@ class ServiceTestProvisionKeyTest {
         String json;
         try (ServiceTestRunner r = runner(Compiler.compileModel(MODEL))) {
             json = r.planJson(service("local::ServiceA"), "suiteA", "readsA", com.legend.ExecuteOptions.recording(
-                    new com.legend.edge.CompatEdge(new com.legend.sql.dialect.RawSqlBoundary.Recorder(),
+                    new com.legend.edge.CompatEdge(new com.legend.edge.RawLedger.Recorder(),
                             com.legend.executionplan.DataStores.none()), com.legend.executionplan.DataStores.none()));
         }
         com.legend.json.Json.Obj plan = (com.legend.json.Json.Obj) com.legend.json.Json.parse(json,

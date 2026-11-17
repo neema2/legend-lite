@@ -178,13 +178,6 @@ public class DuckDb extends AnsiSqlRenderer {
         return IN_MEMORY;
     }
 
-    /** The engine's H2 text translated for DuckDB (the raw-SQL boundary's own rewrite: keyword column names quoted,
-     *  H2's type kinds mapped, {@code CURRENT_TIMESTAMP()} without parens). */
-    @Override
-    public String fromEngineText(String statement) {
-        return RawSqlBoundary.translated(statement, types -> types, bare -> bare);
-    }
-
     /** DuckDB's aggregates, each by its name in the shared {@code name(args)} form (the dialect program's Phase 1,
      *  2026-10-13: an exhaustive switch, so a new aggregate asks this dialect too). */
     @Override
@@ -608,7 +601,7 @@ public class DuckDb extends AnsiSqlRenderer {
             case BOOL_TO_TEXT -> castAs(writer, c.args().get(0), "VARCHAR");
             case FLOAT_PRINT -> floatPrintByText(writer, c, parentPrec);
             case FLOAT_TO_TEXT -> floatToText(writer, c.args().get(0));
-            case DATETIME_TO_TEXT, DATETIME_PRINT, CELL_TEXT, INSTANCE_TEXT, RELATION_TEXT, REPRESENTATION_TEXT, TEXT_FORMS, TRACE_TEXT ->
+            case DATETIME_TO_TEXT, DATETIME_PRINT, CELL_TEXT, INSTANCE_TEXT, RELATION_TEXT, TEXT_FORMS, TRACE_TEXT ->
                     throw expandedFirst(c);
             // the hooks: this dialect's own (or the base's refusal)
             case LIST_FILTER, LIST_TRANSFORM, LIST_CONCAT, LIST_GET, LIST_AT, LIST_POSITION, LIST_ZIP, LIST_DISTINCT,

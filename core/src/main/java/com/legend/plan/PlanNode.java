@@ -22,12 +22,6 @@ public record PlanNode(String kind, List<PlanNode> children,
                        @com.legend.base.Nullable String sqlComment,
                        @com.legend.base.Nullable PlanConn connection) {
 
-    /** The engine's default post-processor stamps EVERY SelectSQLQuery
-     * with this comment and generateSQLExecutionNode copies it
-     * (defaultPostProcessor.pure:71) — a constant, never gated. */
-    public static final String EXEC_TRACE_COMMENT =
-            "-- \"executionTraceID\" : \"${execID}\"";
-
     public PlanNode(String kind, List<PlanNode> children,
             @com.legend.base.Nullable String sqlQuery,
             List<Param> functionParameters) {

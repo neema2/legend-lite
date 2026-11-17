@@ -78,8 +78,8 @@ public final class BodyDriver {
                     options.features(),
                     // the generator's plan names the engine's test connection, as every engine test of it does (its
                     // runtime argument is not read)
-                    tg -> com.legend.testdatagen.TestDataGenerationNatives.planTextResult(tg, ctx,
-                            options.style().engineTestText(), options.style().engineTestConnection()))
+                    tg -> options.style().facet(com.legend.planner.UpstreamPlans.class)
+                            .generatedTestDataPlan(tg, ctx))
                             .withOptions(options.options()),
                     JudgePlans.target(com.legend.Compiler.executesOn(ctx, runtimeFqn), dialect),
                     options, null, null, null, null,
@@ -305,7 +305,7 @@ public final class BodyDriver {
         env.queryLets().putAll(inliner.queryLets());
         final java.util.List<TypedSpec> stageEnv = body;
         body.replaceAll(b -> com.legend.compiler.spec.NativeDispatch
-                .stage(b, stageEnv, com.legend.planner.UpstreamPlans.routines(specs, env.plan())));
+                .stage(b, stageEnv, com.legend.planner.PlanTextRoutines.of(specs, env.plan())));
         TypedSpec preRoot = com.legend.compiler.spec.typed.Lets.bare(body.get(body.size() - 1));
         while (preRoot instanceof com.legend.compiler.spec.typed.TypedFrom pf) {
             preRoot = pf.source();
@@ -843,14 +843,14 @@ public final class BodyDriver {
 
     /** A plan handle ({@code executionPlan}'s value: legend-engine's plan, its nodes and its text) is the compatibility
      *  edge's alone (D's hook fold, a4ac096b5, 2026-11-16): on any other style the body is refused BY NAME before
-     *  either judge plans it -- the style's own refusal ({@code enginePlanText}), one place, so every judge reports the
+     *  either judge plans it -- the style's own refusal (its {@code UpstreamPlans} facet, Phase 6's A, 2026-11-17), one place, so every judge reports the
      *  same failure -- where it had walled late, in the store resolver, under a generic message. On the edge the call
      *  answers its printer, which is not kept. */
     static void refusePlanHandlesOffTheEdge(com.legend.TypedQuery typed, PlanningOptions options) {
         for (com.legend.compiler.spec.typed.TypedSpec statement : typed.body()) {
             if (bindsAPlanHandle(statement)) {
                 // the engine's own test database, whose plan text the edge prints (an engine test's plans name it)
-                options.style().engineTestPlanText();
+                options.style().facet(com.legend.planner.UpstreamPlans.class);
                 return;
             }
         }

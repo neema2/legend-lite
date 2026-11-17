@@ -85,37 +85,45 @@ class PureV1EdgeGoldenTest {
         return runner instanceof com.legend.edge.EdgeServer.Shipped;
     }
 
+    private static String answer(java.util.function.Supplier<PureV1Api.Answer> call) {
+        try {
+            PureV1Api.Answer a = call.get();
+            String json = a.json();
+            try {
+                json = Json.toCompact(Json.parseObject(json));   // compact, as the net has always written it
+            } catch (RuntimeException notJson) {
+                // an answer that is no JSON object is recorded as it is
+            }
+            return a.status() + "\t" + json;
+        } catch (RuntimeException e) {
+            return "THREW\t" + e.getClass().getSimpleName() + ": " + e.getMessage();
+        }
+    }
+
+    private static void line(StringBuilder out, String name, String line) {
+        out.append(name).append('\t')
+                .append(IDS.matcher(line).replaceAll("<id>").replace("\n", "\\n").replace("\r", "")).append('\n');
+    }
+
     @Test
     void everyRequestsAnswer() throws IOException {
         String model = Json.toCompact(Map.of("_type", "text", "code", resource("upstream-api/trades-h2.pure")));
         StringBuilder out = new StringBuilder();
         for (Map.Entry<String, String> r : REQUESTS.entrySet()) {
-            String line;
+            String body;
             try {
                 String function = com.legend.edge.PureV1Routes.grammarToJsonLambda(r.getValue(), false).json();
-                PureV1Api.Answer a = com.legend.edge.PureV1Routes.execute("{\"clientVersion\":\"vX_X_X\",\"function\":"
-                        + function + ",\"model\":" + model + ",\"context\":{\"_type\":\"BaseExecutionContext\"}}",
-                        RECORDER);
-                // the answer without its plan's activities (the SQL: lean SQL moves it; not the edge's text)
-                String json = a.json();
-                try {
-                    Json.Obj o = Json.parseObject(json);
-                    Map<String, Object> kept = new LinkedHashMap<>();
-                    for (Map.Entry<String, Json.Node> f : o.fields().entrySet()) {
-                        if (!f.getKey().equals("activities")) {
-                            kept.put(f.getKey(), f.getValue());
-                        }
-                    }
-                    json = Json.toCompact(kept);
-                } catch (RuntimeException notJson) {
-                    // an answer that is no JSON object is recorded as it is
-                }
-                line = a.status() + "\t" + json;
+                body = "{\"clientVersion\":\"vX_X_X\",\"function\":" + function + ",\"model\":" + model
+                        + ",\"context\":{\"_type\":\"BaseExecutionContext\"}}";
             } catch (RuntimeException e) {
-                line = "THREW\t" + e.getClass().getSimpleName() + ": " + e.getMessage();
+                line(out, r.getKey(), "THREW\t" + e.getClass().getSimpleName() + ": " + e.getMessage());
+                continue;
             }
-            out.append(r.getKey()).append('\t')
-                    .append(IDS.matcher(line).replaceAll("<id>").replace("\n", "\\n").replace("\r", "")).append('\n');
+            // the execute answer, its plan's activities (the SQL text the edge prints) included: Phase 6 moves the
+            // edge's plan text, so it is the net's to see (the orchestrator, 2026-11-17; recorded before, dropped)
+            line(out, r.getKey(), answer(() -> com.legend.edge.PureV1Routes.execute(body, RECORDER)));
+            // the plan the edge generates for the same request (pure/v1's generatePlan): legend-engine's plan text
+            line(out, "plan." + r.getKey(), answer(() -> com.legend.edge.PureV1Routes.generatePlan(body)));
         }
         String path = System.getProperty("legend.edge.purev1");
         if (path != null) {
