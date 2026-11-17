@@ -285,24 +285,20 @@ class CompatSpellingGuardTest {
             // the edge's routes (edge/TestDataRoutes), which hand it to seedJson; the generator writes no zone text
             // testdatagen/TestDataPlanner.java | COMPAT: GONE 2026-11-17 (Phase 6's B13): the printing is the timestamp text
             // itself; upstream's is the UpstreamPlans facet's
-            "testexec/AssertRuns.java | EngineText | 1 | D1.7",
+            // (the EngineText rows of AssertRuns, HostJudgments, HostJson, HostJudgment, NamedExtensions, Verdicts and
+            // AssertVerdicts: gone 2026-11-17, census C3 -- the engine-text comparison the edge's own record
+            // (edge/EngineTextJudgment), held by the product's neutral HostJudgment.EdgeJudged)
             "testexec/CanonicalForm.java | +0000 | 1 | JUDGE",
-            "testexec/HostJudgments.java | EngineText | 1 | D1.7",
             // testexec/SideShapes.java | Cannot cast a collection of size | GONE 2026-11-17 (C5's step E, E-P5): a side's
             // and the body's answer's size refusal worded at planning (SideShape.sizeWords, TestPlan.answerSizeWords)
             "testexec/SideShapes.java | TDS_NULL_CELL | 1 | JUDGE",
             // (testexec/SqlTextRuns.java's rows went with it to the edge: 2026-11-17, census C2: the referee and the appeals moved to the edge (the orchestrator's P1+P2))
-            "testexecutionplan/HostJson.java | EngineText | 4 | D1.7",
-            "testexecutionplan/HostJudgment.java | EngineText | 2 | D1.7",
             // (PlannedAppeals' generic half renamed NamedExtensions, the same pattern case: 2026-11-17, census C2: the referee and the appeals moved to the edge (the orchestrator's P1+P2))
-            "testexecutionplan/NamedExtensions.java | EngineText | 1 | D1.7",
-            "testexecutionplan/Verdicts.java | EngineText | 1 | D1.7",
             // 2026-11-16 (W8 of docs/records/d-plan-2026-11-16.md): legend-pure's toRepresentation of a date, the judges'
             // own printer (Verdicts.pureText), which PureDateLiteral's toString was until then; with the judges' print
             // forms at W10
             "testexecutionplan/Verdicts.java | +0000 | 1 | D1.9",
             // (testplan/AgreementAsserts.java | EngineText went: 2026-11-17, (b) of the orchestrator's order: the fused agreement path deleted)
-            "testplan/AssertVerdicts.java | EngineText | 3 | D1.7",
             // (BodyDriver's EngineText row gone, 2026-11-16, W9's judge half: the style's engineTestText,
             // engineTestPlanText and engineTestConnection name the engine test database, the planner none)
             // (SeedSqlForms' EngineText row gone, 2026-11-16, W9's judge half: the style's engineTestText)

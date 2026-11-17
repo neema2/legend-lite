@@ -46,10 +46,10 @@ final class BodyRun {
         return messaged > 0;
     }
 
-    /** An engine-text judgment at its verdict step ({@link EdgeHearing#engineText}). */
-    TypedSide engineText(com.legend.testexecutionplan.HostJudgment e, java.util.List<TypedSide> sides,
+    /** An edge-judged comparison at its verdict step ({@link EdgeHearing#judged}). */
+    TypedSide judged(com.legend.testexecutionplan.HostJudgment.EdgeJudged e, java.util.List<TypedSide> sides,
             com.legend.testexecutionplan.TestPlan.JudgingRules rules) {
-        return hearing.engineText(e, sides, rules, messaged > 0);
+        return hearing.judged(e, sides, rules, messaged > 0);
     }
 
     /** A step of the body that writes is about to run ({@link EdgeHearing#writing}). */
