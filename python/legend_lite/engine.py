@@ -66,6 +66,7 @@ from ._pool import _on_compiler_threads, _workers
 from .frames import Frames, ModelRefused, Reading, UntypedColumn, redact_held
 # the runs this engine's routes hand the planner's statements to (C5-P, 2026-11-15): each route plans, then runs
 from ._reads import count_of, read_plane, run_arrow, run_on_plane, run_plan, run_rows_json
+from ._edge_seam import NO_EDGE_ROUTES, EdgeRoutes, edge_routes
 from .keeper import PageKeeper, Refused
 from .projects import NotAModel, ProjectDatabases, run_host_load, run_write
 from ._home import THIS_USER, Settings, home, model_home_folder, pages_folder, queries_folder, store_call
@@ -497,13 +498,16 @@ class Engine:
 
     def __init__(self, frames: Frames, site: str | Path | None = None,
                  headless: Callable[[], Any] | None = None, pages: str | Path | None = None,
-                 keeper: PageKeeper | None = None) -> None:
+                 keeper: PageKeeper | None = None, edge: EdgeRoutes = NO_EDGE_ROUTES) -> None:
         """``headless``: DataCube's own non-screen code over the frames' database (legend_lite._headless), made when
         first asked for -- what reads a page's file into it (file.json). Absent, the engine takes no file, and says so
         (services.json). ``pages``: the folder the page's Save and Open… keep pages in (step 2d, B6): this user's
         (``home()/pages``) when not given. ``keeper``: the one copy of each page it serves (keeper.py), its session's,
         which Python's pages write too; one of its own when not given."""
         self.frames = frames
+        # the routes it answers besides its own (_edge_seam): the product's own refusal unless the edge's door
+        # (legend_lite.edge.engine) gives it legend-engine's -- never None (the edge program's H5 groundwork)
+        self.edge = edge_routes(edge)
         self.keeper = keeper if keeper is not None else PageKeeper()
         self._headless = headless
         # where the frames' DuckDB was pointed for its extensions (a remote file's httpfs), once it was
@@ -604,7 +608,9 @@ class Engine:
             if path == _SOURCE:
                 return _workers().submit(self._source_said, body or '').result()
             if not path.startswith(_API):
-                return _said(404, f'no such path: {path}')
+                # none of its own: the edge's routes, the product's own refusal unless the edge's door composed this
+                # engine (_edge_seam)
+                return self.edge.answer(self, method, path, query, body)
             return _workers().submit(self._api, path, query, body or '').result()
         if method != 'GET':
             return _said(405, 'this engine answers GET and POST')

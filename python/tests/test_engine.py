@@ -839,6 +839,41 @@ class ModelHomeServed(Served):
         self.assertEqual(self.call('DELETE', '/settings.json')[0], 405)
 
 
+class TheEdgeSeam(unittest.TestCase):
+    """The edge program's H5 groundwork (2026-11-17, the orchestrator's D-a): the product's engine answers what its own
+    routes do not serve through an EdgeRoutes -- its own refusal, NO_EDGE_ROUTES, unless the edge's door gives it
+    another -- never None (G7), and never by importing the edge."""
+
+    def test_an_engine_carries_the_products_refusal_and_answers_through_it(self):
+        from legend_lite._edge_seam import NO_EDGE_ROUTES
+        engine = Engine(ll.Frames())
+        self.assertIs(engine.edge, NO_EDGE_ROUTES)
+        said = engine.answer('POST', '/no-such-route.json', '', '{}')
+        self.assertEqual((said.status, said.body), (404, b'no such path: /no-such-route.json'))
+
+    def test_a_call_its_own_routes_do_not_serve_goes_to_its_edge_routes(self):
+        asked = []
+
+        class Routes:
+            def answer(self, engine, method, path, query, body):
+                asked.append((method, path, query, body))
+                return engine_module.Answer(200, 'text/plain', b'the routes given')
+
+        from legend_lite import engine as engine_module
+        engine = Engine(ll.Frames(), edge=Routes())
+        said = engine.answer('POST', '/no-such-route.json', 'a=1', '{}')
+        self.assertEqual((said.status, said.body, asked), (200, b'the routes given',
+                                                           [('POST', '/no-such-route.json', 'a=1', '{}')]))
+        # its own routes stay its own
+        self.assertEqual(engine.answer('GET', '/services.json', '', None).status, 200)
+        self.assertEqual(asked, [('POST', '/no-such-route.json', 'a=1', '{}')])
+
+    def test_none_is_no_edge_routes(self):
+        for wrong in (None, object(), 'edge'):
+            with self.assertRaisesRegex(TypeError, "an engine's edge routes answer what its own routes do not"):
+                Engine(ll.Frames(), edge=wrong)
+
+
 class TheProductsStore(unittest.TestCase):
     """The edge program's H6 (2026-11-17): the saved queries and pages at lite's own mount (/api/lite/v1/query, as the
     server mounts them), answered by the native library's PRODUCT entries in lite's words -- the same rules, the same
