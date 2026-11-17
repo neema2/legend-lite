@@ -178,25 +178,37 @@ class PlannerSurfaceTest {
 
     /** THE BOUNDARY'S DOORS, each listed with its fields' kinds (2026-11-13). */
     static final Map<String, Door> BOUNDARY = listed(
-            door("pureV1", p("path", ROUTE), p("rawQuery", OPTION), p("body", ROUTE_BODY)),
-            door("executePlan", p("body", ROUTE_BODY), p("modelsJson", MODEL_TEXT)),
-            door("executeJsonPlan", p("body", ROUTE_BODY), p("modelsJson", MODEL_TEXT)),
-            door("executeJsonAnswer", p("plan", PLAN_DATA), p("rows", RUN_ROWS)),
-            door("executeArrowAnswer", p("plan", PLAN_DATA), p("rows", RUN_ROWS)),
-            door("refusal", p("message", MESSAGE)),
-            door("planSql", p("model", MODEL_TEXT), p("query", LAMBDA), p("runtime", NAME)),
-            door("plan", p("model", MODEL_TEXT), p("query", LAMBDA), p("runtime", NAME)),
-            door("relationType", p("model", MODEL_TEXT), p("query", LAMBDA)),
-            door("planJson", p("model", MODEL_TEXT), p("lambdaJson", LAMBDA), p("runtime", NAME)),
+            // lite's API v1, the browser binding (docs/records/lite-api-v1-2026-11-17.md §2, the user's go of
+            // 2026-11-17; the HOST/DataCube stream, step 2c): each operation's request JSON through the one road
+            // (LiteV1Api.operate, whose closures the server's rows read: LITE_ROUTES), the held forms over a handle
+            // (§7a). Until then planSql, plan, relationType, planJson, planHeld, planJsonHeld, executionPlanJsonHeld,
+            // relationTypeJsonHeld, relationTypeHeld and refusal (legend-engine's envelope, the edge's
+            // EngineEnvelope.refused); pureV1 and execute's halves are the edge's EdgeBoundary since F's A1
+            // (2026-11-17), their rows stale here until this step
             door("holdModel", p("model", MODEL_TEXT)),
+            // a request's model text compiled once by this host's held models, for the edge's routes (EdgeBoundary; F's
+            // A1, 2026-11-17): unlisted until step 2c, which found it so
+            new Door("withModelText", List.of(p("text", MODEL_TEXT),
+                    new Param("use", java.util.function.Function.class, CALLBACK)), Map.of()),
             // merged main 3a217086a (#81), 2026-11-14: a model held over a library (both Pure text, compiled by the planner)
             door("holdModelOver", p("model", MODEL_TEXT), p("library", MODEL_TEXT)),
             door("releaseModel", handle()),
-            door("planHeld", handle(), p("query", LAMBDA), p("runtime", NAME)),
-            door("planJsonHeld", handle(), p("lambdaJson", LAMBDA), p("runtime", NAME)),
-            door("executionPlanJsonHeld", handle(), p("lambdaJson", LAMBDA), p("runtime", NAME)),
-            door("relationTypeJsonHeld", handle(), p("lambdaJson", LAMBDA)),
-            door("relationTypeHeld", handle(), p("query", LAMBDA)),
+            new Door("queryPlanHeld", List.of(handle(), p("request", REQUEST)),
+                    new TreeMap<>(fields("query", LAMBDA, "runtime", NAME))),
+            new Door("queryTypeHeld", List.of(handle(), p("request", REQUEST)), new TreeMap<>(fields("query", LAMBDA))),
+            // each operation's request closed by the one road's read(body, ...), the server's own: LITE_ROUTES' rows
+            door("modelCheck", p("request", REQUEST)),
+            door("modelElements", p("request", REQUEST)),
+            door("queryParse", p("request", REQUEST)),
+            door("queryPrint", p("request", REQUEST)),
+            door("queryType", p("request", REQUEST)),
+            door("queryPlan", p("request", REQUEST)),
+            door("modelCreateClass", p("request", REQUEST)),
+            door("modelCreateAssociation", p("request", REQUEST)),
+            door("modelCreateDataSpace", p("request", REQUEST)),
+            door("tsItem", p("request", REQUEST)),
+            door("tsStatement", p("request", REQUEST)),
+            door("refusalKinds"),
             // a host's file read into its database: the file by the name the host keeps it under, its digest
             door("fileLoad", p("request", REQUEST), fields("databaseType", NAME, "file", OBJECT, "name",
                     DATA_REFERENCE, "digest", DATA_REFERENCE, "size", VALUE, "format", OPTION, "into", OBJECT,
@@ -237,6 +249,21 @@ class PlannerSurfaceTest {
             door("resolveBootLayer"),
             door("zoneProbe", p("utcIso", VALUE), p("zone", NAME)));
 
+    /** THE EDGE'S DOORS ({@code com.legend.edge.wasm.EdgeBoundary}, F's census line A1, 2026-11-17: legend-engine's
+     *  pure/v1 API and execute's halves left planner.Boundary for the edge), each with its fields' kinds -- the rows that
+     *  stood in {@link #BOUNDARY} until the HOST/DataCube stream's step 2c (2026-11-17), where they had gone stale. */
+    static final Map<String, Door> EDGE_BOUNDARY = listed(
+            door("pureV1", p("path", ROUTE), p("rawQuery", OPTION), p("body", ROUTE_BODY)),
+            door("executePlan", p("body", ROUTE_BODY), p("modelsJson", MODEL_TEXT)),
+            door("executeJsonPlan", p("body", ROUTE_BODY), p("modelsJson", MODEL_TEXT)),
+            door("executeJsonAnswer", p("plan", PLAN_DATA), p("rows", RUN_ROWS)),
+            door("executeArrowAnswer", p("plan", PLAN_DATA), p("rows", RUN_ROWS)));
+
+    /** THE TAB'S EDGE EXPORTS: each the one edge door it delegates to ({@link #EDGE_BOUNDARY}; step 2c, 2026-11-17). */
+    static final Map<String, String> TAB_EDGE_EXPORTS = new TreeMap<>(Map.of(
+            "pureV1OrError", "pureV1", "executeJsonPlanOrError", "executeJsonPlan",
+            "executeJsonAnswerOrError", "executeJsonAnswer", "executeArrowAnswerOrError", "executeArrowAnswer"));
+
     /** THE HOST OPERATIONS' FIELDS ({@code HostOperationsJson}: every operation closed by its {@code op}). */
     static final Map<String, Kind> HOST_OPERATION_FIELDS = new TreeMap<>(fields("op", OPTION, "kind", OPTION,
             "target", OBJECT, "replace", OPTION, "from", OBJECT, "relation", OBJECT, "database", NAME, "schema", NAME,
@@ -248,16 +275,18 @@ class PlannerSurfaceTest {
 
     /** THE TAB'S EXPORTS: each the one boundary door it delegates to. */
     static final Map<String, String> TAB_EXPORTS = new TreeMap<>(Map.ofEntries(
-            Map.entry("pureV1OrError", "pureV1"), Map.entry("executeJsonPlanOrError", "executeJsonPlan"),
-            Map.entry("executeJsonAnswerOrError", "executeJsonAnswer"),
-            Map.entry("executeArrowAnswerOrError", "executeArrowAnswer"), Map.entry("plan", "planSql"),
-            Map.entry("planOrError", "plan"), Map.entry("relationTypeOrError", "relationType"),
-            Map.entry("planJsonOrError", "planJson"), Map.entry("holdModelOrError", "holdModel"),
+            // lite's API v1, the browser binding (2026-11-17, step 2c): <op>OrError per operation (the spec's rule: a/b
+            // is aB), the held forms over a handle; pureV1 and execute's halves the edge's own (EdgeBoundary, F's A1)
+            Map.entry("holdModelOrError", "holdModel"),
             Map.entry("holdModelOverOrError", "holdModelOver"), // merged main 3a217086a (#81), 2026-11-14: the held model over a library
-            Map.entry("releaseModelOrError", "releaseModel"), Map.entry("planHeldOrError", "planHeld"),
-            Map.entry("planJsonHeldOrError", "planJsonHeld"),
-            Map.entry("executionPlanJsonHeldOrError", "executionPlanJsonHeld"),
-            Map.entry("relationTypeHeldOrError", "relationTypeHeld"), Map.entry("fileLoadOrError", "fileLoad"),
+            Map.entry("releaseModelOrError", "releaseModel"), Map.entry("queryPlanHeldOrError", "queryPlanHeld"),
+            Map.entry("queryTypeHeldOrError", "queryTypeHeld"), Map.entry("modelCheckOrError", "modelCheck"),
+            Map.entry("modelElementsOrError", "modelElements"), Map.entry("queryParseOrError", "queryParse"),
+            Map.entry("queryPrintOrError", "queryPrint"), Map.entry("queryTypeOrError", "queryType"),
+            Map.entry("queryPlanOrError", "queryPlan"), Map.entry("modelCreateClassOrError", "modelCreateClass"),
+            Map.entry("modelCreateAssociationOrError", "modelCreateAssociation"),
+            Map.entry("modelCreateDataSpaceOrError", "modelCreateDataSpace"), Map.entry("tsItemOrError", "tsItem"),
+            Map.entry("tsStatementOrError", "tsStatement"), Map.entry("fileLoadOrError", "fileLoad"),
             Map.entry("remoteMountOrError", "remoteMount"), Map.entry("snapStreamOrError", "snapStream"),
             Map.entry("snapCopyOrError", "snapCopy"), Map.entry("outputPlanOrError", "outputPlan"),
             Map.entry("authoredOrError", "authored"), Map.entry("synthesizeOrError", "synthesize"),
@@ -876,6 +905,11 @@ class PlannerSurfaceTest {
             }
             d.fields().forEach((f, k) -> sqlRule(out, name + "." + f, f, k));
         });
+        EDGE_BOUNDARY.forEach((name, d) -> {
+            for (Param p : d.params()) {
+                sqlRule(out, name + "(" + p.name() + ")", p.name(), p.kind());
+            }
+        });
         HOST_OPERATION_FIELDS.forEach((f, k) -> sqlRule(out, "a host operation's " + f, f, k));
 
         // the doors: the class's public statics, each listed with its parameters' types
@@ -937,9 +971,9 @@ class PlannerSurfaceTest {
 
         // the exports: each delegates to the one listed door its row names
         exports(out, "the tab's export", Pattern.compile("@JSExport\\s+public static \\S+ (\\w+)\\("),
-                List.of(tabSource), TAB_EXPORTS, Map.of());
+                List.of(tabSource), TAB_EXPORTS, Map.of(), TAB_EDGE_EXPORTS);
         exports(out, "the native export", Pattern.compile("@CEntryPoint\\(name = \"(\\w+)\"\\)"), nativeSources,
-                NATIVE_EXPORTS, NATIVE_SERVICES);
+                NATIVE_EXPORTS, NATIVE_SERVICES, Map.of());
         return out;
     }
 
@@ -992,6 +1026,13 @@ class PlannerSurfaceTest {
     /** Every door {@link #UPSTREAM_PROTOCOL} and {@link #CLOSED_ROUTE_FILES} do not name, and every row that names no
      *  such door: the doors are {@code boundary}'s parameters of kind {@link Kind#ROUTE_BODY} ({@code door(param)}) and
      *  the server's route files ({@code routeFiles}) -- each open by upstream's reason, or closed. */
+    /** The planner's doors and the edge's together: the open doors live on both (step 2c, 2026-11-17). */
+    static Map<String, Door> withEdge() {
+        Map<String, Door> out = new TreeMap<>(BOUNDARY);
+        out.putAll(EDGE_BOUNDARY);
+        return out;
+    }
+
     static List<String> openViolations(Map<String, Door> boundary, Set<String> routeFiles) {
         List<String> out = new ArrayList<>();
         Set<String> open = new TreeSet<>(routeFiles);
@@ -1312,7 +1353,7 @@ class PlannerSurfaceTest {
     }
 
     private static void exports(List<String> out, String what, Pattern export, List<String> sources,
-            Map<String, String> listed, Map<String, String> services) {
+            Map<String, String> listed, Map<String, String> services, Map<String, String> edge) {
         Set<String> seen = new TreeSet<>();
         for (String source : sources) {
             Matcher m = export.matcher(source);
@@ -1325,7 +1366,15 @@ class PlannerSurfaceTest {
                 while (call.find()) {
                     delegates.add(call.group(1));
                 }
-                if (services.containsKey(name)) {
+                if (edge.containsKey(name)) {
+                    // an edge export reaches its one edge door (EdgeBoundary.<door>, which the pattern reads as well)
+                    if (!delegates.equals(Set.of(edge.get(name)))) {
+                        out.add(what + " " + name + " delegates to " + delegates + ", not its edge row's "
+                                + edge.get(name));
+                    } else if (!EDGE_BOUNDARY.containsKey(edge.get(name))) {
+                        out.add(what + " " + name + " delegates to an unlisted edge door: " + edge.get(name));
+                    }
+                } else if (services.containsKey(name)) {
                     if (!delegates.isEmpty()) {
                         out.add(what + " " + name + " is listed as no planner door, and reaches " + delegates);
                     }
@@ -1346,6 +1395,11 @@ class PlannerSurfaceTest {
             }
         }
         for (String name : services.keySet()) {
+            if (!seen.contains(name)) {
+                out.add(what + " listed and gone: " + name);
+            }
+        }
+        for (String name : edge.keySet()) {
             if (!seen.contains(name)) {
                 out.add(what + " listed and gone: " + name);
             }
@@ -1399,6 +1453,10 @@ class PlannerSurfaceTest {
     private static final Pattern CALL = Pattern.compile("(?<![\\w.])(\\w+)\\(");
     /** An operation's keys, {@code Map.entry("op", List.of("op", ...))}: what {@code HostOperationsJson} admits. */
     private static final Pattern ENTRY = Pattern.compile("Map\\.entry\\(\\s*\"\\w+\"\\s*,\\s*List\\.of\\(([^)]*)\\)\\)");
+    /** Lite's API v1 closure, {@code LiteV1Api.read(body, "<what>", Set.of(<optional>), <keys>)}: what the one road's
+     *  request admits, its optional keys and its required ones (the held forms' closure; step 2c, 2026-11-17). */
+    private static final Pattern LITE_READ = Pattern.compile(
+            "\\bread\\(\\s*\\w+\\s*,\\s*\"[^\"]*\"\\s*,\\s*((?:java\\.util\\.)?Set\\.of\\([^)]*\\)(?:\\s*,\\s*\"[^\"]*\")*)\\)");
 
     /** What a scan collects: the keys a body reads, the keys its {@code only(...)} lists admit, or both. */
     private enum Scan { READS, ADMITS, BOTH }
@@ -1430,7 +1488,7 @@ class PlannerSurfaceTest {
             }
         }
         if (scan != Scan.READS) {
-            for (Pattern admits : List.of(ONLY, ENTRY)) {
+            for (Pattern admits : List.of(ONLY, ENTRY, LITE_READ)) {
                 Matcher only = admits.matcher(body);
                 while (only.find()) {
                     Matcher key = Pattern.compile("\"([^\"]*)\"").matcher(only.group(1));
@@ -1740,14 +1798,14 @@ class PlannerSurfaceTest {
      *  {@link #UPSTREAM_PROTOCOL}'s reason or closed ({@link #CLOSED_ROUTE_FILES}), and each row names such a door. */
     @Test
     void theOpenDoorsAreNamedByTheirReason() {
-        assertEquals(List.of(), openViolations(BOUNDARY, routeFiles().keySet()), "an open door is not named");
+        assertEquals(List.of(), openViolations(withEdge(), routeFiles().keySet()), "an open door is not named");
     }
 
     /** The check names a door planted with a route's body and a route file planted beside the listed ones, and a row
      *  whose door is gone (the boundary without {@code executePlan}). */
     @Test
     void anOpenDoorNoRowNamesIsNamed() {
-        Map<String, Door> boundary = new TreeMap<>(BOUNDARY);
+        Map<String, Door> boundary = withEdge();
         boundary.put("runBody", door("runBody", p("body", ROUTE_BODY)));
         boundary.remove("executePlan");
         Set<String> files = new TreeSet<>(routeFiles().keySet());

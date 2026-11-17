@@ -18,11 +18,7 @@ class BoundaryLiteExportsTest {
 
     /** {@code e} folded: {@code "ERR\n"} and its refusal's JSON, as the server's routes classify it. */
     private static String refusal(Throwable e) {
-        LiteV1Api.Refusal r = LiteV1Api.refusal(e);
-        java.util.Map<String, Object> out = new java.util.LinkedHashMap<>();
-        out.put("kind", r.kind().text());
-        out.put("message", r.message());
-        return "ERR\n" + Json.toCompact(out);
+        return "ERR\n" + LiteV1Api.refusal(e).json();
     }
 
     @Test
