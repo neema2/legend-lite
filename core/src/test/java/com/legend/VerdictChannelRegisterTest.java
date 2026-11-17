@@ -55,9 +55,8 @@ class VerdictChannelRegisterTest {
             "core/src/test/java/com/legend/testexec/EqualityJsonUnorderedRootTest.java",
             "core/src/test/java/com/legend/testexec/EqualityWorldsConformanceTest.java",
             "core/src/test/java/com/legend/testexec/PureAssertsTest.java",
-            // 2026-11-17 (census C1's K14, the orchestrator's ruling): the compatibility rules' asserts moved here, an
-            // edge test, from EqualityWorldsConformanceTest and PureAssertsTest -- the same calls, not a new caller
-            "core/src/test/java/com/legend/testexec/EqualityCompatEdgeTest.java",
+            // (EqualityCompatEdgeTest, 2026-11-17 K14's temporary entry: gone with step 2c -- it judges through the edge's
+            // door now, the run hook's HostForms, and calls no equality of the judge's)
             // 2026-11-17 (census C1): the compatibility rules' rendered-text comparison moved from TdsCompare to the
             // edge -- the same 2-ULP cell rule (Equality.withinTwoUlp), not a new caller
             "core/src/main/java/com/legend/edge/UpstreamRenderedTexts.java",
