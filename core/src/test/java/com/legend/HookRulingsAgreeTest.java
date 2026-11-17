@@ -24,7 +24,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * by hand, apart: an entry could leave the count naming a hook nothing proves. Now:
  * <ul>
  *   <li>every HOOKS_RULED entry's hook (its target, or its source where it "stands in a product package") is a hook
- *   {@code RULED} proves, or one of the {@link #RULED_NOT_HOOKS} pinned here with the test that pins it;</li>
+ *   {@code RULED} proves, or the entry is one of the {@link #RULED_NOT_HOOKS}, pinned here by the exact entry with the
+ *   test that pins it (a new dependency on either class is no such entry);</li>
  *   <li>every HOOKS_RULED entry names its ruling ("<line> HOOK-RULED <date>");</li>
  *   <li>every hook {@code RULED} proves is either a hook HOOKS_RULED takes out of the count, or one of the
  *   {@link #RULED_UNCOUNTED} -- product hooks no map ever counted, pinned here by name.</li>
@@ -33,15 +34,16 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @Tag("guardrail")
 class HookRulingsAgreeTest {
 
-    /** Classes HOOKS_RULED takes out of the count that are not hooks, each with its ruling and the test that pins it
-     *  in place of HookRulingTest's four criteria. */
+    /** The HOOKS_RULED entries whose class is not a hook, each by its EXACT entry (the class standing in a product
+     *  package, and nothing that depends on it) with its ruling and the test that pins it in place of HookRulingTest's
+     *  four criteria. */
     static final Map<String, String> RULED_NOT_HOOKS = Map.of(
             // the closed list of kind types (a final class of one field): HookRulingTest.theFacetRegistryHoldsNothingButItsList
-            "com.legend.testplan.PlanStyleFacets", "C4 HOOK-RULED 2026-11-17, the registry: HookRulingTest"
-                    + ".theFacetRegistryHoldsNothingButItsList",
+            "com.legend.testplan.PlanStyleFacets -> (stands in a product package)", "C4 HOOK-RULED 2026-11-17, the"
+                    + " registry: HookRulingTest.theFacetRegistryHoldsNothingButItsList",
             // the listed facade, forwarding alone: JavaEvalLedgerTest's pin of 193, shrink-only
-            "com.legend.testplan.EngineTextPlanning", "C4 HOOK-RULED 2026-11-17, the listed facade: JavaEvalLedgerTest"
-                    + " (EngineTextPlanning, 193)");
+            "com.legend.testplan.EngineTextPlanning -> (stands in a product package)", "C4 HOOK-RULED 2026-11-17, the"
+                    + " listed facade: JavaEvalLedgerTest (EngineTextPlanning, 193)");
 
     /** Hooks RULED proves that no map ever counted (no product class names them as compatibility): each by name, with
      *  its ruling. */
@@ -66,7 +68,7 @@ class HookRulingsAgreeTest {
         hooksRuled.forEach((entry, ruling) -> {
             String hook = hookOf(entry);
             counted.add(hook);
-            if (!ruled.contains(hook) && !RULED_NOT_HOOKS.containsKey(hook)) {
+            if (!ruled.contains(hook) && !RULED_NOT_HOOKS.containsKey(entry)) {
                 out.add(entry + ": " + hook + " is no hook HookRulingTest.RULED proves");
             }
             if (!ruling.matches("[A-Z][0-9]+ HOOK-RULED \\d{4}-\\d{2}-\\d{2}.*")) {
@@ -98,21 +100,26 @@ class HookRulingsAgreeTest {
                 "EdgeSeparationTest.HOOKS_RULED and HookRulingTest.RULED disagree");
     }
 
-    /** An entry naming an unproven hook, an entry with no ruling, and a proven hook neither counted nor pinned are each
-     *  found. */
+    /** An entry naming an unproven hook, a new dependency on a pinned non-hook, an entry with no ruling, a proven hook
+     *  neither counted nor pinned, and a pinned uncounted hook RULED no longer proves are each found. */
     @Test
     void theCrossCheckBites() {
         Map<String, String> planted = new LinkedHashMap<>(EdgeSeparationTest.HOOKS_RULED);
         planted.put("com.legend.lowering.Scalars -> com.legend.lowering.Repr", "C5 HOOK-RULED 2026-11-17");
+        planted.put("com.legend.lowering.Lowerer -> com.legend.testplan.EngineTextPlanning", "C4 HOOK-RULED 2026-11-17");
         planted.put("com.legend.lowering.Lowerer -> com.legend.lowering.PureOnlyTexts", "ruled, trust me");
         Set<String> ruled = new TreeSet<>(ruledHooks());
         ruled.add("com.legend.planner.PlantedHook");
+        ruled.remove("com.legend.testexec.EdgeRun");
         List<String> found = disagreements(planted, ruled);
         for (String want : List.of("com.legend.lowering.Scalars -> com.legend.lowering.Repr: com.legend.lowering.Repr is"
-                + " no hook", "com.legend.lowering.Lowerer -> com.legend.lowering.PureOnlyTexts: its ruling",
-                "com.legend.planner.PlantedHook: proven by HookRulingTest.RULED")) {
+                + " no hook", "com.legend.lowering.Lowerer -> com.legend.testplan.EngineTextPlanning: com.legend"
+                + ".testplan.EngineTextPlanning is no hook", "com.legend.lowering.Lowerer -> com.legend.lowering"
+                + ".PureOnlyTexts: its ruling", "com.legend.planner.PlantedHook: proven by HookRulingTest.RULED",
+                "com.legend.testexec.EdgeRun: pinned as an uncounted ruled hook")) {
             assertTrue(found.stream().anyMatch(f -> f.startsWith(want)), "the cross-check bites: " + want + " in "
                     + found);
         }
+        assertEquals(5, found.size(), "exactly the five planted disagreements: " + found);
     }
 }
