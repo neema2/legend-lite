@@ -116,6 +116,10 @@ class PhaseEntriesRefusedInsideARunTest {
         out.put("parse a query (phase C) <- Parse.query", () -> com.legend.door.Parse.query(QUERY,
                 com.legend.parser.GrammarLevel.LEGEND_LITE));
         out.put("parse a lambda (phase C)", () -> com.legend.door.Parse.lambdaJson(QUERY, false));
+        // lite's API v1 (2026-11-17): query/parse reads lite's own grammar, its islands included, through the door's
+        // dialect-named overload
+        out.put("parse a lambda (phase C) <- Parse.lambdaJson at lite's grammar", () -> com.legend.door.Parse.lambdaJson(
+                QUERY, false, com.legend.parser.GrammarLevel.LEGEND_LITE));
         out.put("read a model's records (phase B) <- Parse.model", () -> com.legend.door.Parse.model(records));
         // C5-J's last round (A1, 2026-11-15): the embedded languages' readers, each through its door -- an island's
         // SQL by each dialect (Postgres's for #SQL, SAP IQ's for #IQ), a #TS query and item, a #Cypher statement

@@ -65,7 +65,10 @@ public final class LiteV1Planning {
     /** {@code query/parse}: {@code {query}}, the lambda's tree, its numbers as written. Text without a leading {@code |}
      *  reads as a lambda of no parameters. */
     public static String queryParse(String text) {
-        return "{\"query\":" + com.legend.door.Parse.lambdaJson(text, false) + "}";
+        // the product's grammar, its islands (#Cypher{...}#, #SQL, #TS ...) included, the level the compiler's to decide
+        // (ParserBoundaryArchTest.dialectIsConfinedToTheNamedClasses); legend-engine's grammarToJson (the edge's) reads
+        // legend-engine's
+        return "{\"query\":" + com.legend.Compiler.parseQueryJson(text) + "}";
     }
 
     /** {@code query/print}: {@code {text}}, in the style {@code pretty} or {@code standard}; any other refused by

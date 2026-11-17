@@ -5,6 +5,7 @@ package com.legend.server;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.legend.json.Json;
@@ -134,6 +135,17 @@ class LiteV1PlanningTest {
         assertEquals(200, parsed.status(), parsed.json());
         assertTrue(parsed.json().contains("9223372036854775807"), parsed.json());
         assertTrue(parsed.json().contains("0.1000000000000000000001"), parsed.json());
+    }
+
+    @Test
+    @DisplayName("query/parse reads lite's own grammar: an island (#Cypher{...}#) parses, as legend-engine's route does not")
+    void parseReadsLitesGrammar() {
+        String text = "|#Cypher{MATCH (p:Person) WHERE p.age > 30 RETURN p.name}#";
+        LiteV1Api.Answer parsed = call("query/parse", request("text", text));
+        assertEquals(200, parsed.status(), parsed.json());
+        assertTrue(parsed.json().contains("MATCH (p:Person)"), parsed.json());
+        // legend-engine's grammarToJson, the edge's, reads legend-engine's grammar: no island of lite's
+        assertThrows(RuntimeException.class, () -> com.legend.door.Parse.lambdaJson(text, false));
     }
 
     @Test

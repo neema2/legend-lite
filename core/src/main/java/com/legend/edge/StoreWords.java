@@ -30,6 +30,74 @@ public final class StoreWords {
             case VERSION_NOT_FOUND -> "Can't find version '" + o.get(0) + "' for query with ID '" + o.get(1) + "'";
             // legend-engine's path, the edge's mount's (B7, the orchestrator's ruling (3) of 2026-11-17)
             case NO_SUCH_ROUTE -> "no such legend-engine API in legend-lite: /api/pure/v1/query" + o.get(0);
+            // J9 of the edge audit (2026-11-17): legend-engine's sentences of the store's refusals, moved from the
+            // product's queries.SavedQueries and SavedCubes, byte for byte
+            case FIELD_MISSING -> named(MISSING, "missing field", o.get(1));
+            case UNSERVED_CONTEXT -> "Query execution context of _type '" + o.get(0) + "' is not served by legend-lite ("
+                    + o.get(1) + ")";
+            case INVALID_GROUP_ID -> "Query project group ID is invalid";
+            case INVALID_ARTIFACT_ID -> "Query project artifact ID is invalid";
+            case ID_TAKEN -> "Query with ID '" + o.get(0) + "' already existed";
+            case ID_CHANGED -> "Updating query ID is not supported";
+            case NOT_OWNER -> "Only owner can " + o.get(0) + " the query";
+            case LIMIT_NOT_POSITIVE -> "Limit should be greater than 0";
+            case TOO_MANY -> "Can't fetch more than " + o.get(0) + " queries";
+            case NO_SEARCH_TERM -> "Query search spec expecting a search term";
+            case STORE_NOT_CONFIGURED -> named(STORES, "store", o.get(0))
+                    + " has not been configured properly (legend-lite: start the server with --query-store DIR)";
+            case MALFORMED -> o.get(0) + ": " + o.get(1);
         };
+    }
+
+    /** legend-engine's name of a store not configured, by the store the product names. */
+    private static final java.util.Map<String, String> STORES = java.util.Map.of(
+            "query", "Query store", "page", "DataCube query store");
+
+    /** legend-engine's sentence of a required field missing, by the field (its {@code validateQuery}; a DataCube
+     *  page's content, its own validate). */
+    private static final java.util.Map<String, String> MISSING = java.util.Map.ofEntries(
+            java.util.Map.entry("id", "Query ID is missing or empty"),
+            java.util.Map.entry("name", "Query name is missing or empty"),
+            java.util.Map.entry("groupId", "Query project group ID is missing or empty"),
+            java.util.Map.entry("artifactId", "Query project artifact ID is missing or empty"),
+            java.util.Map.entry("versionId", "Query project version is missing or empty"),
+            java.util.Map.entry("content", "Query content is missing or empty"),
+            java.util.Map.entry("mapping", "Query mapping is missing or empty"),
+            java.util.Map.entry("runtime", "Query runtime is missing or empty"),
+            java.util.Map.entry("dataSpacePath", "Query data Space execution context dataSpace path is missing or empty"),
+            java.util.Map.entry("pageContent", "Query content is missing"));
+
+    /** {@code key}'s entry in {@code table}; a key it lacks is refused by name, never defaulted. */
+    private static String named(java.util.Map<String, String> table, String what, String key) {
+        String words = table.get(key);
+        if (words == null) {
+            throw new IllegalStateException("no legend-engine words for the " + what + " '" + key + "'");
+        }
+        return words;
+    }
+
+    /** The kinds legend-engine answers in its error envelope ({@code {"code":-1,"message",...,"status":"error"}}): a
+     *  store not configured, a path it does not serve, an exception's 500; every other refusal is {@code {"message"}}
+     *  alone. */
+    private static final java.util.Set<String> ENVELOPED = java.util.Set.of(
+            "store_not_configured", "no_such_route", "malformed");
+
+    /** The product store's answer ({@code {"kind", "message"}}, the message already worded by {@link #of}) in
+     *  legend-engine's shape, byte for byte: an enveloped kind's {@code {"code":-1,"message",...,"status":"error"}},
+     *  any other refusal's {@code {"message"}}; a success as it is. Every edge mount of the stores answers through it
+     *  (the server's, EdgeServer; the native library's, SavedQueriesHome). J9 of the edge audit, 2026-11-17: the
+     *  envelope moved here from the product's store. */
+    public static String engineShape(int status, String json) {
+        return SavedQueries.reshaped(status, json, (kind, message) -> {
+            java.util.Map<String, Object> out = new java.util.LinkedHashMap<>();
+            if (ENVELOPED.contains(kind)) {
+                out.put("code", -1);
+                out.put("message", message);
+                out.put("status", "error");
+            } else {
+                out.put("message", message);
+            }
+            return out;
+        });
     }
 }

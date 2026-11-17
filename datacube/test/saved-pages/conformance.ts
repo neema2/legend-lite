@@ -53,9 +53,9 @@ export function conformance(name: string, target: () => Target): void {
       const made = await store().create(page('a', 'Alpha', { owner: 'someone else' }));
       assert.equal(made.owner, target().user, 'the owner is the current user, whatever the request says');
       assert.ok(made.createdAt !== undefined && made.lastUpdatedAt === made.createdAt);
-      await assert.rejects(store().create(page('a', 'Again')), refused(400, `Query with ID '${id('a')}' already existed`));
-      await assert.rejects(store().create({ ...page('x', 'x'), id: '' }), refused(400, 'Query ID is missing or empty'));
-      await assert.rejects(store().create(page('b', '')), refused(400, 'Query name is missing or empty'));
+      await assert.rejects(store().create(page('a', 'Again')), refused(400, `the ID '${id('a')}' is already taken`));
+      await assert.rejects(store().create({ ...page('x', 'x'), id: '' }), refused(400, 'the ID is missing or empty'));
+      await assert.rejects(store().create(page('b', '')), refused(400, 'the name is missing or empty'));
     });
 
     it('stamps lastOpenAt when a page is read', async () => {
@@ -70,7 +70,7 @@ export function conformance(name: string, target: () => Target): void {
 
     it('updates and deletes the owner\'s page, and never changes an id', async () => {
       const made = await store().create(page('u', 'Alpha'));
-      await assert.rejects(store().update(id('u'), page('v', 'Moved')), refused(400, 'Updating query ID is not supported'));
+      await assert.rejects(store().update(id('u'), page('v', 'Moved')), refused(400, 'the ID cannot be changed'));
       await assert.rejects(store().update(id('none'), page('none', 'N')), refused(404, `no saved query has the ID '${id('none')}'`));
       await new Promise((r) => setTimeout(r, 5));
       const updated = await store().update(id('u'), page('u', 'Alpha 2'));
@@ -123,12 +123,12 @@ export function conformance(name: string, target: () => Target): void {
         assert.equal(r.status, 500, r.text);
         assert.deepEqual(r.json, { kind: 'internal', message });
       };
-      await wrong('{"limit":"ten"}', 'IllegalArgumentException: QuerySearchSpecification.limit is not a number');
+      await wrong('{"limit":"ten"}', 'the request could not be served: QuerySearchSpecification.limit is not a number');
       await wrong('{"searchTermSpecification":{"searchTerm":"x","includeOwner":"yes"}}',
-        'IllegalArgumentException: QuerySearchTermSpecification.includeOwner is not a boolean');
+        'the request could not be served: QuerySearchTermSpecification.includeOwner is not a boolean');
       const noTerm = await raw('POST', '/search', '{"searchTermSpecification":{}}');
       assert.equal(noTerm.status, 500);
-      assert.deepEqual(noTerm.json, { kind: 'internal', message: 'Query search spec expecting a search term' });
+      assert.deepEqual(noTerm.json, { kind: 'internal', message: 'the search specification has no search term' });
       const unknown = await raw('GET', `/${id('a')}/nothing`);
       assert.equal(unknown.status, 404);
       assert.equal((unknown.json as { kind?: string }).kind, 'request');

@@ -30,6 +30,8 @@
       {"returnType": "jboolean", "parameterTypes": ["void*"]},
       {"returnType": "jbyte", "parameterTypes": ["void*"]},
       {"returnType": "jint", "parameterTypes": ["struct(jlong,jlong,jlong,void*,void*,void*)"]},
+      {"returnType": "jint", "parameterTypes": ["void*", "jlong", "jboolean"]},
+      {"returnType": "jint", "parameterTypes": ["void*", "jlong", "jdouble"]},
       {"returnType": "jint", "parameterTypes": ["void*", "jlong", "jlong"]},
       {"returnType": "jint", "parameterTypes": ["void*", "jlong", "void*"]},
       {"returnType": "jint", "parameterTypes": ["void*", "jlong"]},

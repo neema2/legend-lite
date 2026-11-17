@@ -5,6 +5,7 @@ engine's own page answered (its token, a local Host, no cross-origin answer)."""
 
 import http.client
 import json
+import datetime
 from decimal import Decimal
 import os
 import socket
@@ -26,6 +27,7 @@ import pyarrow as pa
 import pyarrow.ipc
 
 import legend_lite as ll
+from legend_lite import _json
 from legend_lite.engine import Engine, NativePlanner, WebServer
 from legend_lite.keeper import page_hash
 from legend_lite._home import THIS_USER, locked
@@ -490,10 +492,33 @@ class QueryRunRoute(Served):
         rows = pyarrow.ipc.open_stream(pa.py_buffer(body)).read_all()
         self.assertEqual(rows.column('name').to_pylist(), ['Halberd Securities', 'Meridian Capital'])
 
+    def test_json_is_the_servers_typed_rows_its_cells_as_the_server_writes_them(self):
+        # ONE contract (the orchestrator's ruling of 2026-11-17): json, the default, in the server's shape and cells
+        frame = pa.table({
+            'i': pa.array([9007199254740993, None], pa.int64()),
+            'f': pa.array([1e16, 0.1]),
+            'd': pa.array([Decimal('12.30'), Decimal('-0.05')], pa.decimal128(10, 2)),
+            's': pa.array(['é', None]),
+            'b': pa.array([True, False]),
+            'day': pa.array([datetime.date(2024, 1, 2), None]),
+            'at': pa.array([datetime.datetime(2024, 1, 2, 3, 4, 5, 120000), None], pa.timestamp('us')),
+        })
+        table = self.frames.register('typed', frame)
+        for asked in ({}, {'format': 'json'}):
+            status, headers, body = self.ask(model=table.model, query=ll.parse('|' + table.accessor + '->select()'),
+                                             runtime=table.runtime, **asked)
+            self.assertEqual((status, headers['Content-Type']), (200, 'application/json'), body[:300])
+            self.assertEqual(body.decode('utf-8'), '{"shape":"RELATION","columns":['
+                             '{"name":"i","type":"Integer"},{"name":"f","type":"Float"},{"name":"d","type":"Decimal"},'
+                             '{"name":"s","type":"String"},{"name":"b","type":"Boolean"},'
+                             '{"name":"day","type":"StrictDate"},{"name":"at","type":"DateTime"}],"rows":['
+                             '[9007199254740993,10000000000000000.0,"12.30","é",true,"2024-01-02",'
+                             '"2024-01-02T03:04:05.120000Z"],'
+                             '[null,0.1,"-0.05",null,false,null,null]]}')
+
     def test_each_refusal_is_lites_by_its_kind(self):
         good = self.frame_query()
         for asked, status, kind in (
-                ({**good, 'format': 'json'}, 400, 'unsupported'),
                 ({**good, 'format': 'csv'}, 400, 'request'),
                 ({**good, 'extra': 1}, 400, 'request'),
                 ({k: v for k, v in good.items() if k != 'runtime'}, 400, 'request'),
@@ -506,6 +531,29 @@ class QueryRunRoute(Served):
                 got, headers, body = self.ask(**asked)
                 self.assertEqual((got, headers['Content-Type'], json.loads(body)['kind']), (status, 'application/json', kind),
                                  body[:300])
+
+
+class QueryRunConformance(unittest.TestCase):
+    """LITE API V1'S CONFORMANCE SUITE, query/run ON PYTHON'S SERVER (the spec's §5; the orchestrator's word of
+    2026-11-17: so the route cannot go missing again): each case of engine-client/test/fixtures/lite-api-cases.json
+    whose operation is query/run and whose bindings name python, asked of Python's engine at /api/lite/v1/query/run --
+    its answer exact (``answer``), its refusal's kind (``refusal``) -- as the server's reader asks its route. The
+    other operations are the bindings lane's (test_compiler.LiteApiConformance)."""
+
+    def test_pythons_server_answers_each_query_run_case(self):
+        fixture = json.loads(Path(os.environ['LEGEND_LITE_API_CASES']).read_text(encoding='utf-8'))
+        cases = [c for c in fixture['cases'] if c['op'] == 'query/run'
+                 and 'python' in c.get('bindings', ['browser', 'server', 'python'])]
+        for case in cases:
+            with self.subTest(case['name']):
+                engine = Engine(ll.Frames())
+                said = engine.answer('POST', '/api/lite/v1/query/run', '', json.dumps(case['request']))
+                if 'refusal' in case:
+                    self.assertGreaterEqual(said.status, 400, said.body[:300])
+                    self.assertEqual(json.loads(said.body)['kind'], case['refusal']['kind'])
+                else:
+                    self.assertEqual(said.status, 200, said.body[:300])
+                    self.assertEqual(_json.loads(said.body), case["answer"])
 
 
 class PlanAndRunRoutes(Served):

@@ -142,8 +142,10 @@ public final class Conn implements AutoCloseable {
     }
 
     /**
-     * Runs one statement with parameters ({@code ?}), each a String, a Long or null; the caller closes
-     * the result. For the warehouse's own tables (history), never a user's SQL.
+     * Runs one statement with parameters ({@code ?}), each a String, a Long, a Double, a Boolean or null; the caller
+     * closes the result. The warehouse's own statements (its tables, its history), and since 2026-11-17 a user's
+     * statement with the values its request binds (the API's parameters, the orchestrator's ruling (a)). Any other
+     * value is refused by name, never bound as its text.
      */
     public Result execute(String sql, @com.legend.base.Nullable Object... params) throws DuckException {
         MemorySegment ps;
@@ -162,13 +164,20 @@ public final class Conn implements AutoCloseable {
                 int st;
                 if (p == null) st = (int) d.bindNull.invokeExact(ps, at);
                 else if (p instanceof Long x) st = (int) d.bindInt64.invokeExact(ps, at, (long) x);
-                else st = (int) d.bindVarchar.invokeExact(ps, at, a.allocateFrom(p.toString()));
+                else if (p instanceof Double x) st = (int) d.bindDouble.invokeExact(ps, at, (double) x);
+                else if (p instanceof Boolean x) st = (int) d.bindBoolean.invokeExact(ps, at, (boolean) x);
+                else if (p instanceof String x) st = (int) d.bindVarchar.invokeExact(ps, at, a.allocateFrom(x));
+                else {
+                    destroyPrepared(ps);
+                    throw new IllegalArgumentException("parameter " + at + " is a " + p.getClass().getSimpleName()
+                            + ", which the warehouse does not bind");
+                }
                 if (st != 0) {
                     destroyPrepared(ps);
                     throw new DuckException(-1, "could not bind parameter " + at + " of " + sql);
                 }
             }
-        } catch (DuckException e) {
+        } catch (DuckException | IllegalArgumentException e) {
             throw e;
         } catch (Throwable t) {
             throw Duck.fail(t);

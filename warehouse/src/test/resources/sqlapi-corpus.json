@@ -909,6 +909,84 @@
      "read": {}
     }
    ]
+  },
+  {
+   "name": "a statement's values, bound at run: its parameters carried, never pasted into its text",
+   "action": {
+    "kind": "run",
+    "token": "tok1",
+    "sql": "SELECT desk FROM trading.trades WHERE qty > ? AND desk = ? AND price < ? AND live = ? AND note IS NOT DISTINCT FROM ?",
+    "catalog": "main",
+    "parameters": [
+     3,
+     "desk-a",
+     1.5,
+     true,
+     null
+    ]
+   },
+   "outcome": {
+    "chunks": [],
+    "statementId": "s9",
+    "rowCount": 0
+   },
+   "exchanges": [
+    {
+     "op": "submit",
+     "args": {
+      "sql": "SELECT desk FROM trading.trades WHERE qty > ? AND desk = ? AND price < ? AND live = ? AND note IS NOT DISTINCT FROM ?",
+      "catalog": "main",
+      "parameters": [
+       3,
+       "desk-a",
+       1.5,
+       true,
+       null
+      ],
+      "token": "tok1"
+     },
+     "call": {
+      "method": "POST",
+      "path": "/sql/v1/statements",
+      "headers": {
+       "Authorization": "Bearer tok1",
+       "Content-Type": "application/json"
+      },
+      "body": "{\"sql\":\"SELECT desk FROM trading.trades WHERE qty > ? AND desk = ? AND price < ? AND live = ? AND note IS NOT DISTINCT FROM ?\",\"catalog\":\"main\",\"timeoutMs\":300000,\"waitMs\":10000,\"rowsPerChunk\":100000,\"resultFormat\":\"arrow\",\"parameters\":[3,\"desk-a\",1.5,true,null]}"
+     },
+     "answer": {
+      "status": 200,
+      "body": "{\"statementId\":\"s9\",\"state\":\"succeeded\",\"result\":{\"columns\":[],\"rowCount\":0,\"chunkCount\":0}}"
+     },
+     "read": {
+      "step": "done",
+      "statementId": "s9",
+      "rowCount": 0,
+      "chunkCount": 0
+     }
+    },
+    {
+     "op": "closeStatement",
+     "args": {
+      "statementId": "s9",
+      "token": "tok1"
+     },
+     "call": {
+      "method": "DELETE",
+      "path": "/sql/v1/statements/s9",
+      "headers": {
+       "Authorization": "Bearer tok1",
+       "Content-Type": "application/json"
+      },
+      "body": null
+     },
+     "answer": {
+      "status": 200,
+      "body": "{\"statementId\":\"s9\",\"closed\":true}"
+     },
+     "read": {}
+    }
+   ]
   }
  ]
 }
