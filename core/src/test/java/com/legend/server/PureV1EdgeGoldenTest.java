@@ -69,7 +69,13 @@ class PureV1EdgeGoldenTest {
     private static String answer(java.util.function.Supplier<PureV1Api.Answer> call) {
         try {
             PureV1Api.Answer a = call.get();
-            return a.status() + "\t" + a.json();
+            String json = a.json();
+            try {
+                json = Json.toCompact(Json.parseObject(json));   // compact, as the net has always written it
+            } catch (RuntimeException notJson) {
+                // an answer that is no JSON object is recorded as it is
+            }
+            return a.status() + "\t" + json;
         } catch (RuntimeException e) {
             return "THREW\t" + e.getClass().getSimpleName() + ": " + e.getMessage();
         }

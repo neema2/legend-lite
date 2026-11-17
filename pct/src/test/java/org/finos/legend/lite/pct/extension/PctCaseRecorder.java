@@ -106,17 +106,18 @@ final class PctCaseRecorder {
             com.legend.json.Json.Obj json = com.legend.json.Json.parseObject(answer.engineJson());
             StringBuilder text = new StringBuilder("columns=").append(write(((com.legend.json.Json.Obj) json.get("builder"))
                     .get("columns")));
+            // the plan text the edge prints (its activities: legend-engine's SQL for the execution), so a move of the
+            // edge's plan text is a visible line too (Phase 6's first item, the orchestrator, 2026-11-17); written
+            // before the rows, which the normalizer orders (EdgeNormalize: the rows after "rows=" as a set)
+            if (json.has("activities")) {
+                text.append(" activities=").append(write(json.get("activities")));
+            }
             java.util.List<String> rows = new java.util.ArrayList<>();
             for (com.legend.json.Json.Node r : ((com.legend.json.Json.Arr) ((com.legend.json.Json.Obj) json.get("result"))
                     .get("rows")).items()) {
                 rows.add(write(r));
             }
             text.append(" rows=").append(String.join(String.valueOf(ROW_SEPARATOR), rows));
-            // the plan text the edge prints (its activities: legend-engine's SQL for the execution), so a move of the
-            // edge's plan text is a visible line too (Phase 6's first item, the orchestrator, 2026-11-17)
-            if (json.has("activities")) {
-                text.append(" activities=").append(write(json.get("activities")));
-            }
             edge(expression, answer.shape().name(), text.toString());
             return;
         }
