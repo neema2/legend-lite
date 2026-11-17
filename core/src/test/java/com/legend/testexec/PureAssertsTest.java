@@ -39,7 +39,7 @@ class PureAssertsTest {
     }
 
     private static boolean ordered(List<Object> e, List<Object> a) {
-        return Equality.ordered(Equality.Typed.all(e, null), Equality.Typed.all(a, null), LITE) == null;
+        return Equality.ordered(Equality.Typed.all(e, null), Equality.Typed.all(a, null), LITE);
     }
 
 

@@ -71,14 +71,14 @@ public final class TdsCompare {
         List<Equality.Typed> te = Equality.grid(ef, eKinds);
         List<Equality.Typed> ta = Equality.grid(af, aKinds);
         if (ordered) {
-            return Equality.ordered(te, ta, rules) == null;
+            return Equality.ordered(te, ta, rules);
         }
         if (!Equality.rowMultiset(te, ta, Math.max(1, eKinds.size()), rules)) {
             return false;
         }
         // C0.4: a multiset pass the POSITIONAL compare would reject is a
         // pass that depends on order leniency — countable per sweep
-        ordLeniency("row-multiset", () -> Equality.ordered(te, ta, rules) == null);
+        ordLeniency("row-multiset", () -> Equality.ordered(te, ta, rules));
         return true;
     }
 

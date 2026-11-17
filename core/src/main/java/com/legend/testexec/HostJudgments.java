@@ -124,7 +124,7 @@ final class HostJudgments {
         } else {
             List<com.legend.testexec.Equality.Typed> te = com.legend.testexec.Equality.grid(e, eKinds);
             List<com.legend.testexec.Equality.Typed> ta = com.legend.testexec.Equality.grid(a, aKinds);
-            hostHeld = com.legend.testexec.Equality.ordered(te, ta, rules) == null;
+            hostHeld = com.legend.testexec.Equality.ordered(te, ta, rules);
             if (!hostHeld && incidental && e.size() == a.size()) {
                 // ROW COHESION (audit 9): the incidental-order fallback
                 // matches ROW TUPLES of the grid's width — cross-row
@@ -723,7 +723,7 @@ final class HostJudgments {
         List<Object> a = ik != null
                 ? restrictToKeys(aVals, ik, j.keys()) : aVals;
         String d = com.legend.testexec.Equality.sameElements(
-                typedSide(e, j.e()), typedSide(a, j.a()), rules) == null
+                typedSide(e, j.e()), typedSide(a, j.a()), rules)
                 // the failed TYPED comparison's message, never a second, untyped one (the ledger audit's D4, 2026-11-16:
                 // an untyped re-compare that held here returned null, and the failed assert passed)
                 ? null : sameElementsWords(e, a, j.e().classFqn(), j.a().classFqn(), rules, run);
@@ -914,8 +914,8 @@ final class HostJudgments {
         List<com.legend.testexec.Equality.Typed> te = typedSide(e, j.e());
         List<com.legend.testexec.Equality.Typed> ta = typedSide(a, j.a());
         boolean equal = incidental
-                ? com.legend.testexec.Equality.sameElements(te, ta, rules) == null
-                : com.legend.testexec.Equality.ordered(te, ta, rules) == null;
+                ? com.legend.testexec.Equality.sameElements(te, ta, rules)
+                : com.legend.testexec.Equality.ordered(te, ta, rules);
         // R1a divergence instrument (CANONICAL_FORM_SPEC §0): the host lattice vs a canonical render of the same
         // values, measurement only (the byte verdict it once shadowed is deleted, P1, 2026-11-07)
         com.legend.testexec.CanonicalDivergence.probeEqual(
