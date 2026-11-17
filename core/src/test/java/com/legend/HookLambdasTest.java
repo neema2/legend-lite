@@ -314,10 +314,14 @@ class HookLambdasTest {
         assertEquals(Set.of(PlantedFactory.class.getName() + "#proxy()", PlantedFactory.class.getName()
                 + "#metafactory()", PlantedFactory.class.getName() + "#byReference()"), directFactories(classes),
                 "a direct factory call or reference is read; a lambda is not one");
-        assertEquals(Set.of(PlantedFactory.class.getName()), proxiesNamed(Map.of(PlantedFactory.class.getName(),
-                ConstantPools.pool(ConstantPools.bytesOf(PlantedFactory.class)), PlantedHookLambda.class.getName(),
-                ConstantPools.pool(ConstantPools.bytesOf(PlantedHookLambda.class)))), "MethodHandleProxies named in a"
-                + " pool is read; a lambda's pool does not name it");
+        Map<String, ConstantPools.Pool> proxyPools = new TreeMap<>();
+        for (Class<?> c : List.of(PlantedFactory.class, PlantedProxyLiteral.class, PlantedProxyByName.class,
+                PlantedHookLambda.class)) {
+            proxyPools.put(c.getName(), ConstantPools.pool(ConstantPools.bytesOf(c)));
+        }
+        assertEquals(Set.of(PlantedFactory.class.getName(), PlantedProxyLiteral.class.getName(),
+                PlantedProxyByName.class.getName()), proxiesNamed(proxyPools), "MethodHandleProxies named in a pool --"
+                + " a call, a class literal, its dotted name -- is read; a lambda's pool does not name it");
         String p = PlantedHookLambda.class.getName();
         assertEquals(Map.of(p + "#ask(com.legend.database.PlanStyle)", Set.of("com.legend.lowering.DateTimeTexts",
                         "(twoForm reaches 1)"),
@@ -325,6 +329,22 @@ class HookLambdasTest {
                         "com.legend.lowering.ListTexts", "(twoForm reaches 2)"),
                 p + "#byReference(com.legend.database.PlanStyle)", Set.of("(twoForm reaches 1)")),
                 twoFormCallers(new ClassFileImporter().importClasses(PlantedHookLambda.class)));
+    }
+
+    /** A planted class naming MethodHandleProxies by a class literal alone. */
+    @SuppressWarnings("unused")
+    static final class PlantedProxyLiteral {
+        static Object type() {
+            return java.lang.invoke.MethodHandleProxies.class;
+        }
+    }
+
+    /** A planted class naming MethodHandleProxies by its dotted name alone (a reflective lookup). */
+    @SuppressWarnings("unused")
+    static final class PlantedProxyByName {
+        static Object type() throws ReflectiveOperationException {
+            return Class.forName("java.lang.invoke.MethodHandleProxies");
+        }
     }
 
     /** A planted sub-interface of a two-form kind. */
@@ -383,11 +403,13 @@ class HookLambdasTest {
         }
 
         static com.legend.lowering.DateTimeTexts ask(PlanStyle style) {
-            return style.twoForm(com.legend.lowering.DateTimeTexts.class, (x, written) -> x);
+            return style.twoForm(com.legend.lowering.DateTimeTexts.class, (x, written) -> written == null ? x : null);
         }
 
         static Object ask(PlanStyle style, int n) {
-            return List.of(style.twoForm(com.legend.lowering.DateTimeTexts.class, (x, written) -> x),
+            // each lambda's body its own: a site count that holds without line numbers too (-g:none dedupes equal ones)
+            return List.of(style.twoForm(com.legend.lowering.DateTimeTexts.class, (x, written) -> written != null ? x
+                    : null),
                     style.twoForm(com.legend.lowering.ListTexts.class, null));
         }
 

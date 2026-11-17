@@ -34,15 +34,11 @@ final class ConstantPools {
 
     /** A class's pool as text: every UTF-8 entry (names, descriptors and string constants alike), and the string
      *  constants alone (the UTF-8 entries a {@code CONSTANT_String} names: a literal, a folded or borrowed constant, a
-     *  switch label, a concatenation's recipe). */
+     *  switch label, a concatenation's recipe); and each invokedynamic call site's type (a lambda's or a method
+     *  reference's functional interface), with its number of sites (one pool entry per site; javac shares an entry
+     *  between identical method references, and between identical lambda bodies when a class is compiled without line
+     *  numbers, -g:none -- Bazel compiles with them). */
     record Pool(Set<String> utf8, Set<String> strings, Set<String> indyTypes, Map<String, Integer> indySites) {
-        Pool(Set<String> utf8, Set<String> strings) {
-            this(utf8, strings, Set.of(), Map.of());
-        }
-
-        Pool(Set<String> utf8, Set<String> strings, Set<String> indyTypes) {
-            this(utf8, strings, indyTypes, Map.of());
-        }
     }
 
     /** The UTF-8 entries of the class file {@code bytes}' constant pool, in pool order. */
