@@ -62,6 +62,8 @@ legend_java_library(
         "//core:edge_store_words",
         "//core:saved_queries",
         "//wasm:boundary",
+        # legend-engine's pure/v1 call and execute's halves (EngineEntries: the census's A1, 2026-11-17)
+        "//wasm:edge_boundary",
     ],
 )
 

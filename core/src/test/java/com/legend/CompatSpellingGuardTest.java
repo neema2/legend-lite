@@ -161,9 +161,11 @@ class CompatSpellingGuardTest {
             // builder type; Phase 6 takes the plan text to the edge
             // lowering/JsonEmission.java | tdsBuilder: GONE 2026-11-17 (Phase 6's B5): legend-engine's result envelope is
             // the edge's (edge.EngineResultEnvelopes, the lowering.ResultEnvelopes facet), refused by the product at LOWER
-            // 7 -> 4 (2026-11-17, B17's forwarders: dateTimeTextTds and dateTimeTextOfText, which only a relation's
-            // text wrote, moved to edge.RelationTextLowering)
-            "lowering/LiteralSpelling.java | +0000 | 4 | D1.9",
+            // 7 -> 6 (2026-11-17, F's separation census line B11): the dead pair dateTimeLiteral / dateTimePrint (no
+            // caller) deleted. 6 -> 3 (2026-11-17, B17's forwarders: dateTimeTextTds and dateTimeTextOfText, which only a
+            // relation's text wrote, moved to edge.RelationTextLowering). What stays: the judges' canon (temporalCanon x2,
+            // dateTimeLiteralAt: census line C5, E-Java's)
+            "lowering/LiteralSpelling.java | +0000 | 3 | D1.9",
             // FLOAT_PRINT, reclassified D1.2 -> JUDGE 2026-11-15 (phase D's D1.2): the product's text of a Float is
             // FLOAT_TO_TEXT, lite's six decimals (register S311); FLOAT_PRINT, legend-pure's print form, stays in each
             // product dialect as the JUDGES' %r of a Float in an assert's message (lowering/Repr: the database judge
@@ -280,11 +282,9 @@ class CompatSpellingGuardTest {
             "sql/dialect/SQLite.java | FLOAT_PRINT | 1 | JUDGE",
             "sql/dialect/Snowflake.java | FLOAT_PRINT | 1 | JUDGE",
             "sql/dialect/Trino.java | FLOAT_PRINT | 1 | JUDGE",
-            // D1.4 -> D1.7 (2026-11-16, W4 of docs/records/d-plan-2026-11-16.md): the generator's CLEAN timestamp text is
-            // the product's DateTime text (DATETIME_TO_TEXT, S312), as lite's writers print the cell; what remains is
-            // legend-engine's seed route's key (upstreamKeyText: SeedDataGeneration's ValueTransformer, nine digits and
-            // +0000), the edge's routes' (TestDataRoutes), moving with the generator's engine text at W9
-            "testdatagen/TestDataPlanner.java | +0000 | 1 | D1.7",
+            // testdatagen/TestDataPlanner.java | +0000: gone 2026-11-17 (F's separation census line B11): legend-engine's
+            // seed route's key (upstreamKeyText: SeedDataGeneration's ValueTransformer, nine digits and +0000) moved to
+            // the edge's routes (edge/TestDataRoutes), which hand it to seedJson; the generator writes no zone text
             // testdatagen/TestDataPlanner.java | COMPAT: GONE 2026-11-17 (Phase 6's B13): the printing is the timestamp text
             // itself; upstream's is the UpstreamPlans facet's
             "testexec/AssertRuns.java | EngineText | 1 | D1.7",

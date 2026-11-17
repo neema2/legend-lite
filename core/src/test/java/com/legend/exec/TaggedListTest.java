@@ -33,7 +33,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class TaggedListTest {
 
-    private static final String MODEL = """
+    static final String MODEL = """
             Enum s::Colour { RED, GREEN }
             Enum s::Alpha { Z }
             ###Relational
@@ -210,7 +210,7 @@ class TaggedListTest {
 
     /** A query on a session the program's own connection literal names, as the corpus's tests do (its rows ordered:
      *  a row's cells read in a lambda are aggregated in the scan's order, and a union's is the planner's). */
-    private static final String CONN_LET =
+    static final String CONN_LET =
             "{| let c = ^meta::external::store::relational::runtime::TestDatabaseConnection("
                     + "type=meta::relational::runtime::DatabaseType.DuckDB);\n"
                     + "let rs = meta::relational::metamodel::execute::executeInDb("
@@ -402,12 +402,8 @@ class TaggedListTest {
             Exception text = assertThrows(Exception.class, () -> program(c, "$rs->toString();"));
             assertTrue(String.valueOf(text.getMessage()).contains("toString of a relation is legend-pure's text")
                     && text.getMessage().contains("result writers"), text.toString());
-            // and on the edge a raw grid's text is refused by name: its header is written from columns that exist
-            // only when it runs
-            Exception grid = assertThrows(Exception.class, () -> Program.last(StorelessRuntime.with(MODEL,
-                    Databases.PLATFORM), CONN_LET + "$rs->toString();}", StorelessRuntime.RUNTIME, c,
-                    Program.upstream()));
-            assertTrue(String.valueOf(grid.getMessage()).contains("toString over a raw grid"), grid.toString());
+            // (on the edge a raw grid's text is refused by name: TaggedListEdgeTest, the edge's test -- F's census
+            // line A5, 2026-11-17: a product test names no edge class)
         }
     }
 }

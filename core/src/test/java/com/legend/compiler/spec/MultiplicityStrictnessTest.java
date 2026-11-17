@@ -208,7 +208,7 @@ class MultiplicityStrictnessTest {
     /** {@code query}'s size error at the edge, whose sentence carries the size the database counted (the D part 1 audit's S5, 2026-11-15). */
     private static void edgeSize(Connection c, String query, int size) {
         Exception edge = assertThrows(Exception.class, () -> com.legend.testing.Program.last(StorelessRuntime.with("",
-                Databases.PLATFORM), query, StorelessRuntime.RUNTIME, c, com.legend.testing.Program.upstream()));
+                Databases.PLATFORM), query, StorelessRuntime.RUNTIME, c, com.legend.testing.EdgeProgram.upstream()));
         assertTrue(String.valueOf(edge.getMessage()).contains("Cannot cast a collection of size " + size + " to"),
                 query + " at the edge: " + edge.getMessage());
     }

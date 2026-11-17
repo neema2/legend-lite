@@ -54,7 +54,7 @@ final class TestDataRoutes {
             Request r = Request.of(PureV1Api.request(body));
             // doored first, before the seed scans the query's relations (the final audit of 9af16fbe58's J8)
             return ModelInput.of(r.json().getObj("model")).with(models, ctx -> run(doored(ctx, r),
-                    TestDataPlanner.seedJson(ctx, seed(ctx, r, true)), r.runtime(), runner));
+                    TestDataPlanner.seedJson(ctx, seed(ctx, r, true), TestDataRoutes::upstreamKeyText), r.runtime(), runner));
         });
     }
 
@@ -89,6 +89,20 @@ final class TestDataRoutes {
             });
         });
         return a.status() == 200 ? new PureV1Api.Answer(200, a.json(), "text/plain") : a;
+    }
+
+    /** A timestamp key as upstream's seed route writes it ({@code ValueTransformer}, SeedDataGeneration.java:192:
+     *  nine fraction digits and the GMT zone); a NULL stays NULL. Moved here from the generator
+     *  (TestDataPlanner.upstreamKeyText) unchanged, F's separation census line B11, 2026-11-17. */
+    private static com.legend.sql.SqlExpr upstreamKeyText(com.legend.sql.SqlExpr x) {
+        return new com.legend.sql.SqlExpr.Case(java.util.List.of(new com.legend.sql.SqlExpr.Case.When(
+                com.legend.sql.SqlExpr.Call.of(com.legend.sql.SqlFn.IS_NULL, x),
+                new com.legend.sql.SqlExpr.Cast(new com.legend.sql.SqlExpr.NullLit(), com.legend.sql.SqlType.Scalar.VARCHAR,
+                        com.legend.sql.SqlExpr.Reason.DECLARED))),
+                com.legend.sql.SqlExpr.Call.of(com.legend.sql.SqlFn.CONCAT,
+                        com.legend.sql.SqlExpr.Call.of(com.legend.sql.SqlFn.STRFTIME, x,
+                                new com.legend.sql.SqlExpr.FormatLit(com.legend.sql.DateFmt.ISO_NANO)),
+                        new com.legend.sql.SqlExpr.StringLit("+0000")), com.legend.sql.SqlExpr.Reason.DECLARED);
     }
 
     /** A route's root no identifier names ({@link TestDataPlanner.Unseeded}, raised at planning): upstream's error

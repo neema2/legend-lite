@@ -92,7 +92,8 @@ junit_test(
     scope = [target],
 ) for name, target in [
     ("plan_side", "//core:plan_side"),
-    ("wasm", "//wasm:tab"),
+    # the module: its entry class is :edge_tab's since the census's A1 (2026-11-17), so its closure is the module's
+    ("wasm", "//wasm:edge_tab"),
     ("native", "//native:entry"),
     ("native_image", "//warehouse:server_lib"),
     ("arrow_ipc", "//arrow_ipc"),
@@ -457,3 +458,22 @@ junit_test(
 )
 
 guards_package()
+
+# THE PRODUCT'S TESTS REACH NO EDGE (Phase 7's build half, F's separation census lines A5/A6, 2026-11-17): every
+# //core test target not tagged edge_test, with the product test library and its cases, and all they reach, met with
+# the edge's targets -- empty (the closure is //core:product_test_targets_closure, made last in core/BUILD.bazel so a
+# new product test target is covered unasked). The edge's own tests run in the targets tagged edge_test
+# (core/edge_tests.bzl); EdgeSeparationClosureTest.productTestsReachNoEdge.
+junit_test(
+    name = "edge_separation_closure_test",
+    memory_mb = 768,
+    size = "small",
+    srcs = ["EdgeSeparationClosureTest.java"],
+    data = ["//core:product_test_targets_closure"],
+    jvm_flags = ["-Dclosure.product_tests_closure=$(rlocationpath //core:product_test_targets_closure)"],
+    select = ["--select-class=com.legend.tools.deps.EdgeSeparationClosureTest"],
+    deps = [
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+)
