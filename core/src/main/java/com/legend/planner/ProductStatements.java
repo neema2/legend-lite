@@ -378,7 +378,9 @@ public final class ProductStatements {
             boolean temporal, boolean streaming, List<SqlExpr.PlanParam> slots,
             ObjectSites sites) {
         return configured(query, temporal, streaming, slots, BodyPlanner.featuresOf(env, body), sites)
-                .withDbTimeZone(env.timeZone()).withOptions(env.options());
+                .withDbTimeZone(env.timeZone()).withOptions(env.options())
+                // a relation's text: the style's facet, asked with the call's refusal (B17, 2026-11-17)
+                .withRelationTexts(r -> env.style().facet(com.legend.lowering.RelationTexts.class, r));
     }
 
     /**

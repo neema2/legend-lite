@@ -80,6 +80,11 @@ public interface PlanStyle {
      *  never a default. The product answers none: each is the compatibility edge's, refused by name. */
     <F> F facet(Class<F> kind);
 
+    /** {@link #facet(Class)}, asked where the call that needs it is known (the separation census's B17, 2026-11-17: a
+     *  lowering facet, {@code lowering.RelationTexts}): the product's style throws {@code refusal}'s exception -- the
+     *  call's own sentence, a user can act on, and its phase -- the edge's answers as {@link #facet(Class)} does. */
+    <F> F facet(Class<F> kind, java.util.function.Supplier<? extends RuntimeException> refusal);
+
     /** An execute's chain, written either way: the planner supplies both, the style picks one (no mode, no flag). */
     interface Activity {
         /** lite's own SQL for the chain: the product's lowering, written in the frame database's product dialect. */
@@ -124,6 +129,11 @@ public interface PlanStyle {
         public <F> F facet(Class<F> kind) {
             throw new com.legend.error.NotImplementedException("the test-planning facet " + kind.getName()
                     + ": upstream's forms are the compatibility edge's (com.legend.edge), never the product's");
+        }
+
+        @Override
+        public <F> F facet(Class<F> kind, java.util.function.Supplier<? extends RuntimeException> refusal) {
+            throw refusal.get();
         }
 
         @Override

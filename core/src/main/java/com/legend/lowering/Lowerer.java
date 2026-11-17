@@ -235,6 +235,22 @@ public final class Lowerer {
         return this;
     }
 
+    /** A RELATION'S TEXT ({@link RelationTexts}, the separation census's B17, 2026-11-17): the plan style's facet,
+     *  asked only when a {@code toCSV}, a TDS's {@code csv} or a relation's {@code toString} is lowered, with that call's
+     *  own refusal (the product's style throws it, at lowering, by name). A Lowerer no planner handed a style refuses
+     *  each the same way. */
+    private java.util.function.Function<java.util.function.Supplier<? extends RuntimeException>, RelationTexts>
+            relationTexts = refusal -> {
+                throw refusal.get();
+            };
+
+    /** The plan style's relation-text facet, {@code style} its request ({@code (refusal) -> style.facet(..)}). */
+    public Lowerer withRelationTexts(
+            java.util.function.Function<java.util.function.Supplier<? extends RuntimeException>, RelationTexts> style) {
+        this.relationTexts = style;
+        return this;
+    }
+
     public Lowerer withEngineText() {
         this.engineText = true;
         return this;
@@ -4188,12 +4204,6 @@ public final class Lowerer {
                 : collected;
     }
 
-    /** A relation's {@code text} ({@code what} it is): legend-pure's and legend-engine's, the edge's -- the product's
-     *  renderer refuses it by name (phase D's D1.3, 2026-11-15). */
-    private static SqlExpr relationText(SqlExpr text, String what) {
-        return SqlExpr.Call.of(SqlFn.RELATION_TEXT, text, new SqlExpr.StringLit(what));
-    }
-
     private SqlExpr scalarValueTailArms(TypedSpec spec, ColumnResolver columns) {
         return switch (spec) {
             // makeString/joinStrings over the $r.values TDSRow-cells
@@ -4238,7 +4248,8 @@ public final class Lowerer {
             // (its rows are the result writers'), written by the edge (phase D's D1.3, 2026-11-15)
             case TypedNativeCall tc when PlatformTypes.TO_CSV
                     .equals(tc.callee().qualifiedName()) ->
-                relationText(Render.lowerToCsv(tc, this::relation, nextAlias(), deferredTds), "toCSV");
+                relationTexts.apply(() -> RelationTexts.refused("toCSV")).toCsv(tc, this::relation, nextAlias(),
+                        deferredTds);
             // the TDS class's csv property (tds.pure:19 `csv: String[1]`)
             // over a relation: the csv TEXT the engine prints for a TDS —
             // header names joined ', ', ','-joined cells with TDSNull, no
@@ -4246,13 +4257,14 @@ public final class Lowerer {
             case TypedPropertyAccess csvRead
                     when csvRead.property().equals(PlatformTypes.TDS_CSV_PROPERTY)
                     && Render.csvOverRelation(csvRead) ->
-                relationText(Render.lowerTdsCsvProperty(csvRead, this::relation, nextAlias()), "a TDS's csv");
+                relationTexts.apply(() -> RelationTexts.refused("a TDS's csv")).csvProperty(csvRead, this::relation,
+                        nextAlias());
             // F4.2c (RENDER): relation toString — the '#TDS' text form
             case TypedNativeCall tc when
                     "meta::pure::functions::relation::toString"
                             .equals(tc.callee().qualifiedName()) ->
-                relationText(Render.lowerToString(tc, this::relation, nextAlias(),
-                        deferredTds), "toString");
+                relationTexts.apply(() -> RelationTexts.refused("toString")).relationToString(tc, this::relation,
+                        nextAlias(), deferredTds);
             // F13c — every operation built on equal() over objects (docs/OBJECT_IDENTITY_2026_10_20.md §3.3): ONE
             // owner of the relation — the same canon the verdict layer byte-judges with. eq = identity (__id
             // compare); equal = key-tree canon (keyed) or identity (keyless). A claimed shape it cannot lower is

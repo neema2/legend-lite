@@ -17,6 +17,9 @@ public final class PlanStyleFacets {
     }
 
     /** The facet kinds, in the order they were added: the engine-text assert's arm (W9's judge half, 2026-11-16);
-     *  upstream's plan text at planning (W9's planner half, 2026-11-16: {@code planner.UpstreamPlans}). */
-    public static final List<Class<?>> KINDS = List.of(EngineTestText.class, com.legend.planner.UpstreamPlans.class);
+     *  upstream's plan text at planning (W9's planner half, 2026-11-16: {@code planner.UpstreamPlans}); a relation's
+     *  text at lowering (the separation census's B17, 2026-11-17: {@code lowering.RelationTexts}, asked with its
+     *  call's refusal). */
+    public static final List<Class<?>> KINDS = List.of(EngineTestText.class, com.legend.planner.UpstreamPlans.class,
+            com.legend.lowering.RelationTexts.class);
 }

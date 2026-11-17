@@ -192,7 +192,9 @@ public final class BodyPlanner {
                 t -> identity ? ClassLayouts.layoutOf(ctx, t, true)
                         : ClassLayouts.objectLayoutOf(ctx, t),
                 f -> ctx.findClass(f).isPresent(), ctx.implementations()).withEngineExistsJoinForm()
-                .withDbTimeZone(env.timeZone()).sharingRelations(!env.postProcessors().extractCtes());
+                .withDbTimeZone(env.timeZone()).sharingRelations(!env.postProcessors().extractCtes())
+                // a relation's text: the style's facet, asked with the call's refusal (B17, 2026-11-17)
+                .withRelationTexts(r -> env.style().facet(com.legend.lowering.RelationTexts.class, r));
         // D91: the <<equality.Key>> resolver rides EVERY lane — equal()
         // over keyed instances is the key relation on the execute path
         // too (the structural fallback erased class identity and read
