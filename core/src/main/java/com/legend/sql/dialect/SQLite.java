@@ -1511,8 +1511,8 @@ public class SQLite extends AnsiSqlRenderer {
      *  3.47.1.0) carries no decimal extension ({@code decimal_add}: "no such function", measured) -- so a Decimal's sum,
      *  difference, product, quotient or remainder would be the double's, silently approximate ({@code 0.1D + 0.2D},
      *  {@code rem(0.3D, 0.1D)}). Refused by name, never approximated (G7). */
-    private static final Set<SqlFn> DECIMAL_ARITHMETIC = java.util.EnumSet.of(SqlFn.PLUS, SqlFn.MINUS, SqlFn.TIMES,
-            SqlFn.DIVIDE, SqlFn.MOD, SqlFn.REM);
+    private static final Set<SqlFn> DECIMAL_ARITHMETIC = Set.of(SqlFn.PLUS, SqlFn.MINUS, SqlFn.TIMES, SqlFn.DIVIDE,
+            SqlFn.MOD, SqlFn.REM);
 
     /** Whether {@code e} is a Decimal value: of a Decimal fact, and holding a Decimal of the user's -- a Decimal
      *  literal, a cast to a Decimal, or a column read as one -- not the lowering's own Float literal (an average's
