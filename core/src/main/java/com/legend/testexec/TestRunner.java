@@ -183,6 +183,11 @@ public final class TestRunner {
             }
         }
 
+        @Override
+        public String raisedMessage(TestPlan.Verdict verdict, RuntimeException error) {
+            return run.caughtMessage(error, rules(verdict));
+        }
+
         /** The rules {@code verdict}'s step names. */
         private com.legend.testexecutionplan.TestPlan.JudgingRules rules(TestPlan.Verdict verdict) {
             return java.util.Objects.requireNonNull(rulesOf.get(verdict.id()),
@@ -198,10 +203,12 @@ public final class TestRunner {
         Moved(TestPlan planned, com.legend.testexecutionplan.Edge edge,
                 @Nullable Output answer, @Nullable ResultSink early, @Nullable AssertListener listener,
                 BodyRun run) {
-            if (!edge.records() && !planned.extensionsByStep().isEmpty()) {
+            if (!edge.records() && planned.extensionsByStep().values().stream().flatMap(List::stream)
+                    .anyMatch(e -> !(e instanceof com.legend.testexecutionplan.Extension.Heard))) {
                 // records planned for the edge (the compatibility rules' ledger texts) with no edge to hand them: the
                 // plan was made for another run, refused by name, never run with its records dropped (the slice 3
-                // invariant audit, 2026-11-08)
+                // invariant audit, 2026-11-08); a record the run's hearing reads (a raise site's planned words, K10b,
+                // 2026-11-17) is no ledger record, and a run without the ledger hook hears it as any other
                 throw new IllegalStateException("a test plan carrying the edge's records at steps "
                         + planned.extensionsByStep().keySet() + " run with no edge");
             }

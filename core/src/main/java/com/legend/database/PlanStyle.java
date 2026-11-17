@@ -71,13 +71,14 @@ public interface PlanStyle {
     @com.legend.base.Nullable
     String errorWords(RuntimeException e);
 
-    /** THE WORDS OF A RAISE SITE, WORDED AT PLANNING (phase D's Phase 2, raises as SITES, 2026-11-16): the sentence
-     *  {@code site} (its kind, raised from its operands, planning literals) reads in this style's answers, carried in
-     *  the plan beside the product's sentence ({@code ExecutionPlan.Site#upstream}) and read back at run, never worded
-     *  there. The product's: none (null), its sentence is {@code error.ErrorKind}'s; the compatibility edge's,
-     *  legend-pure's sentence ({@code edge.PureMessages#words}), refused by name for an operand it cannot word. */
-    @com.legend.base.Nullable
-    String siteWords(com.legend.sql.dialect.RaiseSite site);
+    /** THE WORDS OF A STATEMENT'S RAISE SITES, OFFERED AT PLANNING (phase D's Phase 2, raises as SITES, 2026-11-16;
+     *  reshaped by K10b of the edge audit, 2026-11-17: the words are no component of the product's plan): the planner
+     *  offers each statement it makes, {@code text}, with the raise sites its render wrote, {@code sites}, numbered 1..k
+     *  as {@code text} raises their tokens. It answers nothing. The product's answer is lite's own form -- no upstream
+     *  words: a site says its kind's sentence ({@code ExecutionPlan.Site#message}) and nothing is recorded; the
+     *  compatibility edge's recorder ({@code edge.PureText#recording}, one per planning call) records legend-pure's
+     *  words of each site as its own data, which the door that minted it reads once after planning. */
+    void siteWords(String text, java.util.List<com.legend.sql.dialect.RaiseSite> sites);
 
     /** A TEST-PLANNING FACET of the style (W9's judge half, the orchestrator's ruling of 2026-11-16): the one hook's
      *  typed accessor for the parts of a test's planning that are upstream's -- an engine-text assert's arm. The kinds
@@ -121,10 +122,13 @@ public interface PlanStyle {
             return e.getMessage();
         }
 
-        /** The product's site carries its kind's sentence alone: no upstream words. */
+        /** LITE'S FORM, BY NAME (K10b, 2026-11-17; the hook criterion (b): the product answers its own form): a
+         *  product site says its kind's sentence ({@code ExecutionPlan.Site#message}), so the product records NO
+         *  upstream words of any statement -- the plan carries none, and nothing is kept. */
         @Override
-        public @com.legend.base.Nullable String siteWords(com.legend.sql.dialect.RaiseSite site) {
-            return null;
+        public void siteWords(String text, java.util.List<com.legend.sql.dialect.RaiseSite> sites) {
+            java.util.Objects.requireNonNull(text, "the offered statement's text");
+            java.util.Objects.requireNonNull(sites, "the offered statement's raise sites");
         }
 
         @Override

@@ -44,10 +44,14 @@ public final class PureText {
             return PureMessages.compile(e);
         }
 
-        /** legend-pure's sentence of a site, worded at planning from its literal operands ({@link PureMessages#words}). */
+        /** The TEMPLATE records nothing (K10b, 2026-11-17): a plan made in it directly is one no edge door reads
+         *  back -- a query's, whose run says each site's product message (K10a) -- so no words are kept for it. A door
+         *  that answers legend-pure's words of its sites plans in a fresh recorder of this style instead
+         *  ({@link #recording}), and reads it once. */
         @Override
-        public String siteWords(com.legend.sql.dialect.RaiseSite site) {
-            return PureMessages.words(site.kind(), site.operands());
+        public void siteWords(String text, java.util.List<com.legend.sql.dialect.RaiseSite> sites) {
+            java.util.Objects.requireNonNull(text, "the offered statement's text");
+            java.util.Objects.requireNonNull(sites, "the offered statement's raise sites");
         }
 
         @Override
@@ -216,9 +220,10 @@ public final class PureText {
             return UPSTREAM.errorWords(e);
         }
 
+        /** UPSTREAM's template answer: nothing recorded ({@link #recording} makes the recorder a door reads). */
         @Override
-        public @com.legend.base.Nullable String siteWords(com.legend.sql.dialect.RaiseSite site) {
-            return UPSTREAM.siteWords(site);
+        public void siteWords(String text, java.util.List<com.legend.sql.dialect.RaiseSite> sites) {
+            UPSTREAM.siteWords(text, sites);
         }
 
         @Override
@@ -242,6 +247,20 @@ public final class PureText {
             return ENGINE_UNCHECKED;
         }
     };
+
+    /** A FRESH RECORDER of legend-pure's words of the raise sites of one planning call (K10b of the edge audit, the
+     *  orchestrator's ruling (A) of 2026-11-17): {@code template} ({@link #UPSTREAM} or {@link #PURE_V1}) in every
+     *  answer, but each statement the planner offers recorded with its sites' words ({@link SiteWordsRecorder}). Minted
+     *  per planning call by the door that reads it -- never held in a static, a long-lived field or a cache -- and read
+     *  by that door exactly once, after which it is sealed. Any other template refused by name. */
+    public static SiteWordsRecorder recording(PlanStyle template) {
+        if (template != UPSTREAM && template != PURE_V1) {
+            throw new com.legend.error.NotImplementedException("a recorder of raise sites' words over the plan style "
+                    + template.getClass().getName() + ": the compatibility edge records over its own templates alone"
+                    + " (PureText.UPSTREAM, PureText.PURE_V1), never over a recorder or the product's style");
+        }
+        return new SiteWordsRecorder(template);
+    }
 
     /** legend-engine's exact SQL text for {@code type}, as {@code toSQLString} prints it: Composite takes the engine's
      *  DEFAULT spellings (native trim/pad/cbrt, plain char_length). A fresh printer per use: a dialect keeps state while
@@ -333,12 +352,12 @@ public final class PureText {
             return writer.expr(PurePrintForms.floatOf(x), 0);
         }
 
-        /** A raise's site, legend-pure's sentence worded at planning in the plan's site table ({@link PlanStyle#siteWords});
+        /** A raise's site, worded at planning by the edge's recorder of the plan's sites ({@link PlanStyle#siteWords});
          *  a site it cannot word there (a computed operand) legend-pure's sentence in SQL, the interim
          *  ({@link PureMessages#sentence}; phase D's Phase 2, 2026-11-16). */
         @Override
         protected com.legend.sql.SqlExpr raiseMessage(com.legend.sql.SqlExpr.RaiseText r) {
-            return PureMessages.wordable(r) ? site(r, UPSTREAM::siteWords)
+            return PureMessages.wordable(r) ? site(r)
                     : PureMessages.sentence(r);
         }
     }
@@ -365,12 +384,12 @@ public final class PureText {
             return writer.expr(PurePrintForms.floatOf(x, PurePrintForms.FloatLiteral.PRINT_AS_FLOAT), 0);
         }
 
-        /** A raise's site, legend-pure's sentence worded at planning in the plan's site table ({@link PlanStyle#siteWords});
+        /** A raise's site, worded at planning by the edge's recorder of the plan's sites ({@link PlanStyle#siteWords});
          *  a site it cannot word there (a computed operand) legend-pure's sentence in SQL, the interim
          *  ({@link PureMessages#sentence}; phase D's Phase 2, 2026-11-16). */
         @Override
         protected com.legend.sql.SqlExpr raiseMessage(com.legend.sql.SqlExpr.RaiseText r) {
-            return PureMessages.wordable(r) ? site(r, UPSTREAM::siteWords)
+            return PureMessages.wordable(r) ? site(r)
                     : PureMessages.sentence(r);
         }
     }
@@ -411,12 +430,12 @@ public final class PureText {
             return writer.expr(PurePrintForms.floatOf(x), 0);
         }
 
-        /** A raise's site, legend-pure's sentence worded at planning in the plan's site table ({@link PlanStyle#siteWords});
+        /** A raise's site, worded at planning by the edge's recorder of the plan's sites ({@link PlanStyle#siteWords});
          *  a site it cannot word there (a computed operand) legend-pure's sentence in SQL, the interim
          *  ({@link PureMessages#sentence}; phase D's Phase 2, 2026-11-16). */
         @Override
         protected com.legend.sql.SqlExpr raiseMessage(com.legend.sql.SqlExpr.RaiseText r) {
-            return PureMessages.wordable(r) ? site(r, UPSTREAM::siteWords)
+            return PureMessages.wordable(r) ? site(r)
                     : PureMessages.sentence(r);
         }
     }
@@ -443,12 +462,12 @@ public final class PureText {
             return writer.expr(PurePrintForms.floatOf(x), 0);
         }
 
-        /** A raise's site, legend-pure's sentence worded at planning in the plan's site table ({@link PlanStyle#siteWords});
+        /** A raise's site, worded at planning by the edge's recorder of the plan's sites ({@link PlanStyle#siteWords});
          *  a site it cannot word there (a computed operand) legend-pure's sentence in SQL, the interim
          *  ({@link PureMessages#sentence}; phase D's Phase 2, 2026-11-16). */
         @Override
         protected com.legend.sql.SqlExpr raiseMessage(com.legend.sql.SqlExpr.RaiseText r) {
-            return PureMessages.wordable(r) ? site(r, UPSTREAM::siteWords)
+            return PureMessages.wordable(r) ? site(r)
                     : PureMessages.sentence(r);
         }
     }
@@ -468,12 +487,12 @@ public final class PureText {
             return writer.expr(PurePrintForms.floatOf(x), 0);
         }
 
-        /** A raise's site, legend-pure's sentence worded at planning in the plan's site table ({@link PlanStyle#siteWords});
+        /** A raise's site, worded at planning by the edge's recorder of the plan's sites ({@link PlanStyle#siteWords});
          *  a site it cannot word there (a computed operand) legend-pure's sentence in SQL, the interim
          *  ({@link PureMessages#sentence}; phase D's Phase 2, 2026-11-16). */
         @Override
         protected com.legend.sql.SqlExpr raiseMessage(com.legend.sql.SqlExpr.RaiseText r) {
-            return PureMessages.wordable(r) ? site(r, UPSTREAM::siteWords)
+            return PureMessages.wordable(r) ? site(r)
                     : PureMessages.sentence(r);
         }
     }
@@ -493,12 +512,12 @@ public final class PureText {
             return writer.expr(PurePrintForms.floatOf(x), 0);
         }
 
-        /** A raise's site, legend-pure's sentence worded at planning in the plan's site table ({@link PlanStyle#siteWords});
+        /** A raise's site, worded at planning by the edge's recorder of the plan's sites ({@link PlanStyle#siteWords});
          *  a site it cannot word there (a computed operand) legend-pure's sentence in SQL, the interim
          *  ({@link PureMessages#sentence}; phase D's Phase 2, 2026-11-16). */
         @Override
         protected com.legend.sql.SqlExpr raiseMessage(com.legend.sql.SqlExpr.RaiseText r) {
-            return PureMessages.wordable(r) ? site(r, UPSTREAM::siteWords)
+            return PureMessages.wordable(r) ? site(r)
                     : PureMessages.sentence(r);
         }
     }
@@ -526,12 +545,12 @@ public final class PureText {
             return writer.expr(PurePrintForms.floatOf(x), 0);
         }
 
-        /** A raise's site, legend-pure's sentence worded at planning in the plan's site table ({@link PlanStyle#siteWords});
+        /** A raise's site, worded at planning by the edge's recorder of the plan's sites ({@link PlanStyle#siteWords});
          *  a site it cannot word there (a computed operand) legend-pure's sentence in SQL, the interim
          *  ({@link PureMessages#sentence}; phase D's Phase 2, 2026-11-16). */
         @Override
         protected com.legend.sql.SqlExpr raiseMessage(com.legend.sql.SqlExpr.RaiseText r) {
-            return PureMessages.wordable(r) ? site(r, UPSTREAM::siteWords)
+            return PureMessages.wordable(r) ? site(r)
                     : PureMessages.sentence(r);
         }
     }
@@ -551,12 +570,12 @@ public final class PureText {
             return writer.expr(PurePrintForms.floatOf(x), 0);
         }
 
-        /** A raise's site, legend-pure's sentence worded at planning in the plan's site table ({@link PlanStyle#siteWords});
+        /** A raise's site, worded at planning by the edge's recorder of the plan's sites ({@link PlanStyle#siteWords});
          *  a site it cannot word there (a computed operand) legend-pure's sentence in SQL, the interim
          *  ({@link PureMessages#sentence}; phase D's Phase 2, 2026-11-16). */
         @Override
         protected com.legend.sql.SqlExpr raiseMessage(com.legend.sql.SqlExpr.RaiseText r) {
-            return PureMessages.wordable(r) ? site(r, UPSTREAM::siteWords)
+            return PureMessages.wordable(r) ? site(r)
                     : PureMessages.sentence(r);
         }
     }
@@ -576,12 +595,12 @@ public final class PureText {
             return writer.expr(PurePrintForms.floatOf(x), 0);
         }
 
-        /** A raise's site, legend-pure's sentence worded at planning in the plan's site table ({@link PlanStyle#siteWords});
+        /** A raise's site, worded at planning by the edge's recorder of the plan's sites ({@link PlanStyle#siteWords});
          *  a site it cannot word there (a computed operand) legend-pure's sentence in SQL, the interim
          *  ({@link PureMessages#sentence}; phase D's Phase 2, 2026-11-16). */
         @Override
         protected com.legend.sql.SqlExpr raiseMessage(com.legend.sql.SqlExpr.RaiseText r) {
-            return PureMessages.wordable(r) ? site(r, UPSTREAM::siteWords)
+            return PureMessages.wordable(r) ? site(r)
                     : PureMessages.sentence(r);
         }
     }
@@ -608,12 +627,12 @@ public final class PureText {
             return writer.expr(PurePrintForms.floatOf(x), 0);
         }
 
-        /** A raise's site, legend-pure's sentence worded at planning in the plan's site table ({@link PlanStyle#siteWords});
+        /** A raise's site, worded at planning by the edge's recorder of the plan's sites ({@link PlanStyle#siteWords});
          *  a site it cannot word there (a computed operand) legend-pure's sentence in SQL, the interim
          *  ({@link PureMessages#sentence}; phase D's Phase 2, 2026-11-16). */
         @Override
         protected com.legend.sql.SqlExpr raiseMessage(com.legend.sql.SqlExpr.RaiseText r) {
-            return PureMessages.wordable(r) ? site(r, UPSTREAM::siteWords)
+            return PureMessages.wordable(r) ? site(r)
                     : PureMessages.sentence(r);
         }
     }
@@ -633,12 +652,12 @@ public final class PureText {
             return writer.expr(PurePrintForms.floatOf(x), 0);
         }
 
-        /** A raise's site, legend-pure's sentence worded at planning in the plan's site table ({@link PlanStyle#siteWords});
+        /** A raise's site, worded at planning by the edge's recorder of the plan's sites ({@link PlanStyle#siteWords});
          *  a site it cannot word there (a computed operand) legend-pure's sentence in SQL, the interim
          *  ({@link PureMessages#sentence}; phase D's Phase 2, 2026-11-16). */
         @Override
         protected com.legend.sql.SqlExpr raiseMessage(com.legend.sql.SqlExpr.RaiseText r) {
-            return PureMessages.wordable(r) ? site(r, UPSTREAM::siteWords)
+            return PureMessages.wordable(r) ? site(r)
                     : PureMessages.sentence(r);
         }
     }
@@ -664,12 +683,12 @@ public final class PureText {
             return writer.expr(PurePrintForms.floatOf(x), 0);
         }
 
-        /** A raise's site, legend-pure's sentence worded at planning in the plan's site table ({@link PlanStyle#siteWords});
+        /** A raise's site, worded at planning by the edge's recorder of the plan's sites ({@link PlanStyle#siteWords});
          *  a site it cannot word there (a computed operand) legend-pure's sentence in SQL, the interim
          *  ({@link PureMessages#sentence}; phase D's Phase 2, 2026-11-16). */
         @Override
         protected com.legend.sql.SqlExpr raiseMessage(com.legend.sql.SqlExpr.RaiseText r) {
-            return PureMessages.wordable(r) ? site(r, UPSTREAM::siteWords)
+            return PureMessages.wordable(r) ? site(r)
                     : PureMessages.sentence(r);
         }
     }

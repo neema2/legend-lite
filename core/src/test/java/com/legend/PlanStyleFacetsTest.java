@@ -22,7 +22,9 @@ class PlanStyleFacetsTest {
 
     /** Every style ({@code ArchitectureTest.theFacetTestsHoldEveryStyle} holds it to the imported implementers). */
     static final List<PlanStyle> STYLES = List.of(PlanStyle.PRODUCT, com.legend.edge.PureText.UPSTREAM,
-            com.legend.edge.PureText.PURE_V1);
+            com.legend.edge.PureText.PURE_V1,
+            // K10b, 2026-11-17: the edge's recorder of one planning call's raise sites' words, its template's answers
+            com.legend.edge.PureText.recording(com.legend.edge.PureText.UPSTREAM));
 
     @Test
     void theEdgeAnswersEveryDeclaredKind() {

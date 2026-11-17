@@ -129,7 +129,7 @@ public final class PureMessages {
      *  its operand at the same place: a text the planner knew as it is ({@code text}), a value as the database's cast
      *  to text writes it ({@code str}: an Integer's digits, a date's ISO day, a text itself), a Float as legend-pure
      *  prints it ({@code FLOAT_SHORTEST_TEXT}). */
-    private static @com.legend.base.Nullable String wordsOrNull(com.legend.sql.RaiseKind kind,
+    static @com.legend.base.Nullable String wordsOrNull(com.legend.sql.RaiseKind kind,
             java.util.List<SqlExpr> o) {
         for (SqlExpr x : o) {
             if (!(x instanceof SqlExpr.StringLit || x instanceof SqlExpr.IntLit || x instanceof SqlExpr.FloatLit

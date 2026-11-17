@@ -67,10 +67,9 @@ class EdgeSeparationTest {
     /** The SqlFn members only the edge spells (census B8). */
     static final Set<String> EDGE_ONLY_SQLFN = Set.of("DATETIME_PRINT");
 
-    /** The records whose {@code upstream} component holds legend-pure's words of a raise site (K10a, 2026-11-17): every
-     *  product read of it is counted on K10b's line until the words move to the test plan's edge data. */
-    static final Set<String> UPSTREAM_WORDED = Set.of("com.legend.executionplan.ExecutionPlan$Site",
-            "com.legend.sql.dialect.RaiseSite");
+    // (UPSTREAM_WORDED, the records whose upstream component held legend-pure's words of a raise site: gone 2026-11-17,
+    // K10b -- ExecutionPlan.Site and RaiseSite carry no upstream, the words the edge's records (edge.SiteWords), so no
+    // product read of them can return)
 
     /** The referee and the appeals in the product packages they stood in (census C2, closed 2026-11-17: moved to
      *  com.legend.edge, whose classes the CODE guard already keeps out of the product): a tripwire, should one return. */
@@ -101,14 +100,10 @@ class EdgeSeparationTest {
             // lowering.Repr -> (stands in a product package), lowering.Scalars -> lowering.Repr: gone 2026-11-17 with
             // Repr, census B12's 2b
             Map.entry("com.legend.sql.dialect.DateTimePrintText -> (stands in a product package)",
-                    "B12 2026-11-17 (the edge's DATETIME_PRINT composition; no product emitter since B12 2b)"),
-            // K10a, 2026-11-17 (the orchestrator's ruling): exec says a raise site's message alone; legend-pure's words of
-            // a site still ride the product plan (written by the dialect, carried by the planner, the load steps and the
-            // plan's JSON), unread by exec, until K10b moves them to the test plan's edge data
-            Map.entry("com.legend.executionplan.PlanJson -> ExecutionPlan.Site.upstream", "K10b 2026-11-17"),
-            Map.entry("com.legend.planner.PlanMaker -> RaiseSite.upstream", "K10b 2026-11-17"),
-            Map.entry("com.legend.setup.LoadSteps -> RaiseSite.upstream", "K10b 2026-11-17"),
-            Map.entry("com.legend.sql.dialect.AnsiSqlRenderer -> RaiseSite.upstream", "K10b 2026-11-17"));
+                    "B12 2026-11-17 (the edge's DATETIME_PRINT composition; no product emitter since B12 2b)"));
+            // (K10b CLOSED 2026-11-17: PlanJson -> ExecutionPlan.Site.upstream, PlanMaker, LoadSteps and AnsiSqlRenderer
+            // -> RaiseSite.upstream gone -- a site carries no upstream words; the planner offers each statement's sites
+            // to the plan style, whose edge recorder keeps legend-pure's words as the test plan's edge data)
 
     /** TEST SIDE: the same. */
     static final Map<String, String> TEST_OPEN = Map.ofEntries(
@@ -256,14 +251,6 @@ class EdgeSeparationTest {
                     }
                 });
             }
-            // a raise site's legend-pure words read in the product (K10a of the edge audit, 2026-11-17: exec says the site's
-            // message alone; the words leave the product plan for the test plan's edge data with K10b)
-            c.getMethodCallsFromSelf().forEach(m -> {
-                String owner = m.getTarget().getOwner().getName();
-                if (UPSTREAM_WORDED.contains(owner) && m.getTarget().getName().equals("upstream")) {
-                    out.add(src + " -> " + owner.substring(owner.lastIndexOf('.') + 1).replace('$', '.') + ".upstream");
-                }
-            });
         }
         return out;
     }
@@ -329,7 +316,7 @@ class EdgeSeparationTest {
      *  B15, B16, C6, C7). Each must hold at least one entry in the count ({@link #everyOpenLineIsCounted}), so an empty
      *  count cannot read DONE with a line left. A line closes by leaving this set with its last entry. */
     static final Set<String> OPEN_LINES = Set.of(
-            "B12", "C1", "C5", "K10b");
+            "B12", "C1", "C5");   // K10b closed 2026-11-17 (its four CODE entries gone with Site's and RaiseSite's upstream)
 
     private static Set<String> linesOf(Map<String, String> m) {
         Set<String> out = new TreeSet<>();

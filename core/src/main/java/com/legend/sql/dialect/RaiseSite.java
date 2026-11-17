@@ -15,12 +15,11 @@ import java.util.Objects;
  * statement, numbered as it was written ({@code AnsiSqlRenderer.raiseMessage}, the one writer). The statement's SQL
  * raises the bare token {@link RaiseKind#token} ({@code LG#<n>}) -- no kind name, no where, no value -- and the plan carries
  * what the token means: its kind, its where (a fixed text known at planning, or none) and the operands its raise was
- * built from (the edge words upstream's sentence from them at planning, never at run). {@code upstream}: legend-pure's
- * sentence where the statement was written in the compatibility edge's style ({@code database.PlanStyle#siteWords}),
- * null in the product's.
+ * built from. The words a site reads in are not its own: the plan's style is offered each statement's sites where the
+ * planner makes it ({@code database.PlanStyle#siteWords}; K10b of the edge audit, 2026-11-17: legend-pure's words are
+ * the compatibility edge's records, never a component of the product's site).
  */
-public record RaiseSite(int n, RaiseKind kind, @com.legend.base.Nullable String where, List<SqlExpr> operands,
-        @com.legend.base.Nullable String upstream) {
+public record RaiseSite(int n, RaiseKind kind, @com.legend.base.Nullable String where, List<SqlExpr> operands) {
 
     public RaiseSite {
         if (n < 1) {
@@ -31,10 +30,5 @@ public record RaiseSite(int n, RaiseKind kind, @com.legend.base.Nullable String 
         if (kind == RaiseKind.USER_FAIL) {
             throw new IllegalArgumentException("a user's fail raises its own message, never a site's token");
         }
-    }
-
-    /** This site, worded {@code words} upstream's way (the style's, at planning). */
-    public RaiseSite worded(@com.legend.base.Nullable String words) {
-        return new RaiseSite(n, kind, where, operands, words);
     }
 }

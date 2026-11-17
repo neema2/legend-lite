@@ -1832,6 +1832,10 @@ class JavaEvalLedgerTest {
                             "EdgeServer.java",
                             // the texts of upstream's effects and refusals, and legend-pure's raise sentences, as SQL
                             "EffectTexts.java", "PureMessages.java",
+                            // 2026-11-17 (K10b, the orchestrator's ruling (A)): legend-pure's words of a planned raise
+                            // site (its record) and one planning call's recorder of them -- words of literal operands at
+                            // planning, the edge's data; nothing evaluated, no connection
+                            "SiteWords.java", "SiteWordsRecorder.java",
                             // legend-engine's text printers (O3) and the dialects spelled upstream's way (D1.0)
                             "EngineStyleH2.java", "EngineStyleDB2.java", "EngineStyleComposite.java", "PureText.java",
                             // legend-pure's print forms written for the product's text nodes, one rewrite (D1.2,

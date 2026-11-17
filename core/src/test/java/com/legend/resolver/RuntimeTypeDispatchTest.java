@@ -81,7 +81,8 @@ class RuntimeTypeDispatchTest {
     private static com.legend.sql.RaiseKind raisedKind(SQLException e,
             com.legend.sql.dialect.RenderedStatement statement) {
         var raised = (com.legend.exec.RaisedErrors.Raised) com.legend.exec.RaisedErrors.unwrapped(e,
-                com.legend.planner.PlanMaker.sites(statement.sites()));
+                com.legend.planner.PlanMaker.sites(statement.sql(), statement.sites(),
+                        com.legend.database.PlanStyle.PRODUCT));
         return raised.kind();
     }
 

@@ -150,6 +150,11 @@ final class TestRunTest {
         }
 
         @Override
+        public String raisedMessage(TestPlan.Verdict verdict, RuntimeException error) {
+            return String.valueOf(error.getMessage());
+        }
+
+        @Override
         public void fused(TestPlan.Verdicts group, com.legend.error.DataError rejected) {
             events.add(rejected == null ? "fused" : "fused rejected: " + rejected.getMessage().split("\n")[0]);
         }

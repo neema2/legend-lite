@@ -51,6 +51,14 @@ class AssertErrorNativeTest {
                 com.legend.ExecuteOptions.NONE.withStyle(com.legend.edge.PureText.UPSTREAM));
     }
 
+    /** {@code query} under the COMPATIBILITY RULES, heard by the edge's run (K10b of the edge audit, 2026-11-17):
+     *  assertError matches a raise of a planned site by legend-pure's words of it, the edge's records looked up by the
+     *  run's hearing ({@code EdgeHearing.raisedWords}) -- never the product plan's, whose sites say lite's message. */
+    private static Lean.Result compat(String query) {
+        return com.legend.testing.EdgeProgram.run(StorelessRuntime.with("", Databases.PLATFORM), query,
+                StorelessRuntime.RUNTIME, conn, com.legend.testing.EdgeProgram.compat()).side();
+    }
+
     // assertError.pure:36 testSimpleAssertError, verbatim body
     @Test
     @DisplayName("matching message passes (spec testSimpleAssertError)")
@@ -138,11 +146,12 @@ class AssertErrorNativeTest {
     @Test
     @DisplayName("date ctor guards: month-aware day validation, spec spellings")
     void newDateErrors() throws Exception {
-        run("{|assertError(|date(2016, 13), 'Invalid month: 13')}");
-        run("{|assertError(|date(2016, 12, 32), 'Invalid day: 2016-12-32')}");
-        run("{|assertError(|date(2016, 2, 30), 'Invalid day: 2016-2-30')}");
-        run("{|assertError(|date(2015, 2, 29), 'Invalid day: 2015-2-29')}");
-        run("{|assertError(|date(2016, 12, 31, 24), 'Invalid hour: 24')}");
+        // legend-pure's words of each raise site, through the compatibility run's hearing (K10b, 2026-11-17)
+        compat("{|assertError(|date(2016, 13), 'Invalid month: 13')}");
+        compat("{|assertError(|date(2016, 12, 32), 'Invalid day: 2016-12-32')}");
+        compat("{|assertError(|date(2016, 2, 30), 'Invalid day: 2016-2-30')}");
+        compat("{|assertError(|date(2015, 2, 29), 'Invalid day: 2015-2-29')}");
+        compat("{|assertError(|date(2016, 12, 31, 24), 'Invalid hour: 24')}");
         // leap-year Feb 29 is LEGAL — no error is the assert failure
         com.legend.error.AssertFailed e = assertThrows(
                 com.legend.error.AssertFailed.class, () -> run(

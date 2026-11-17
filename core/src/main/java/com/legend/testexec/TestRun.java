@@ -54,6 +54,10 @@ final class TestRun {
         /** The program's reader, from its first verdict step on (null once the program has ended): a verdict's
          *  message read on demand, where the verdict fails. */
         void reader(@Nullable SideReader reader);
+
+        /** The message {@code verdict}'s assertError matches the {@code error} its base raised by, under the rules its
+         *  step names ({@code AssertErrorRuns.caughtMessage}; K10b, 2026-11-17). */
+        String raisedMessage(TestPlan.Verdict verdict, RuntimeException error);
     }
 
     /** {@code plan} run: its steps in order on the program's session, its verdict steps judged by {@code judges}, its
@@ -253,8 +257,10 @@ final class TestRun {
                 Map<String, PlanParameters.Checked> bound = new HashMap<>();
                 PlanParameters.Checked none = new PlanParameters.None();
                 RuntimeException error = raised;
+                // the message the database judge matches: under the compatibility rules a planned site's raise is
+                // legend-pure's words of it, looked up in the plan's records (K10b, 2026-11-17)
                 bound.put(TestPlan.Verdict.RAISED_MESSAGE,
-                        error != null ? new PlanParameters.One(String.valueOf(error.getMessage())) : none);
+                        error != null ? new PlanParameters.One(judges.raisedMessage(each, error)) : none);
                 com.legend.exec.RaisedErrors.Positioned at = error instanceof DataError d
                         && d.getCause() instanceof com.legend.exec.RaisedErrors.Positioned p ? p : null;
                 bound.put(TestPlan.Verdict.RAISED_LINE, at != null ? new PlanParameters.One((long) at.line()) : none);

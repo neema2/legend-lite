@@ -12,4 +12,10 @@ package com.legend.testexecutionplan;
  * {@code ServiceLoader} seam). Under lite's own rules nothing is planned for the edge.
  */
 public interface Extension {
+
+    /** A record the run's HEARING reads ({@code testexec.EdgeHearing}), never the ledger's hook ({@link Edge}): held
+     *  at the step that sends its statement, whatever edge hook the run was handed (K10b of the edge audit, 2026-11-17:
+     *  a raise site's planned words, which a compatibility run heard by the edge's hearing looks up). */
+    interface Heard extends Extension {
+    }
 }

@@ -28,11 +28,10 @@ class RaisedKindTest {
 
     /** A statement's site table: site 1 a division by zero, site 2 a fraction kept, placed. */
     private static final List<ExecutionPlan.Site> SITES = List.of(
-            new ExecutionPlan.Site(1, RaiseKind.DIVIDE_BY_ZERO, null, "division by zero", null),
+            new ExecutionPlan.Site(1, RaiseKind.DIVIDE_BY_ZERO, null, "division by zero"),
             new ExecutionPlan.Site(2, RaiseKind.FRACTION_NOT_KEPT, "the DateTime parameter 't'",
-                    "more fraction digits than this database keeps: the DateTime parameter 't'", null),
-            new ExecutionPlan.Site(3, RaiseKind.INDEX_OUT_OF_BOUNDS, null, "index out of bounds",
-                    "The system is trying to get an element at offset 5 where the collection is of size 3"));
+                    "more fraction digits than this database keeps: the DateTime parameter 't'"),
+            new ExecutionPlan.Site(3, RaiseKind.INDEX_OUT_OF_BOUNDS, null, "index out of bounds"));
 
     @Test
     void aSitesTokenIsItsKindAndItsPlannedWords() {
@@ -43,8 +42,9 @@ class RaisedKindTest {
         assertEquals(7, r.column());
         var error = RaisedErrors.dataErrorOf(RaisedErrors.unwrapped(failure(RaiseKind.TOKEN + "3"), SITES));
         assertEquals(ErrorKind.INDEX_OUT_OF_BOUNDS, error.kind());
-        assertEquals("The system is trying to get an element at offset 5 where the collection is of size 3",
-                error.getMessage(), "an edge plan's site says upstream's words, planned");
+        // lite's message, the site's planned sentence (K10a/K10b, 2026-11-17: legend-pure's words of a site are the
+        // edge's records, looked up by its hearing -- the edge's test, AssertErrorNativeTest -- never exec's)
+        assertEquals("index out of bounds", error.getMessage(), "a site says its planned product message");
         assertEquals(ErrorKind.DIVIDE_BY_ZERO, RaisedErrors.dataError("x" + RaisedErrors.SENTINEL + RaiseKind.TOKEN + "1"
                 + RaisedErrors.SENTINEL, new RuntimeException(), SITES).kind());
     }

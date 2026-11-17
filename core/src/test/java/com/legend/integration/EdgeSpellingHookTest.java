@@ -104,8 +104,8 @@ class EdgeSpellingHookTest {
         }
 
         @Override
-        public @com.legend.base.Nullable String siteWords(com.legend.sql.dialect.RaiseSite site) {
-            return null;
+        public void siteWords(String text, java.util.List<com.legend.sql.dialect.RaiseSite> sites) {
+            PlanStyle.PRODUCT.siteWords(text, sites);
         }
 
         @Override

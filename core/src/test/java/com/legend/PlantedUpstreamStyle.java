@@ -55,8 +55,8 @@ final class PlantedUpstreamStyle implements PlanStyle {
     }
 
     @Override
-    public @com.legend.base.Nullable String siteWords(com.legend.sql.dialect.RaiseSite site) {
-        return null;
+    public void siteWords(String text, java.util.List<com.legend.sql.dialect.RaiseSite> sites) {
+        throw new UnsupportedOperationException("planted");
     }
 
     @Override
