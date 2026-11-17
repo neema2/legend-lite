@@ -1506,8 +1506,36 @@ public class SQLite extends AnsiSqlRenderer {
         return false;
     }
 
+    /** The arithmetic a Decimal operand is refused in here (D2a, the orchestrator's decision of 2026-11-17, found by
+     *  FloatAndDecimalTest): SQLite holds no exact decimal -- a decimal is a REAL, and the driver shipped (sqlite-jdbc
+     *  3.47.1.0) carries no decimal extension ({@code decimal_add}: "no such function", measured) -- so a Decimal's sum,
+     *  difference, product, quotient or remainder would be the double's, silently approximate ({@code 0.1D + 0.2D},
+     *  {@code rem(0.3D, 0.1D)}). Refused by name, never approximated (G7). */
+    private static final Set<SqlFn> DECIMAL_ARITHMETIC = java.util.EnumSet.of(SqlFn.PLUS, SqlFn.MINUS, SqlFn.TIMES,
+            SqlFn.DIVIDE, SqlFn.MOD, SqlFn.REM);
+
+    /** Whether {@code e} is a Decimal value: of a Decimal fact, and holding a Decimal of the user's -- a Decimal
+     *  literal, a cast to a Decimal, or a column read as one -- not the lowering's own Float literal (an average's
+     *  {@code 1.0 *}, a DECIMAL fact by its digits, a REAL here like every Float). */
+    private static boolean holdsADecimal(SqlExpr e) {
+        if (!(e.type() instanceof com.legend.sql.TypeFact.Typed t && t.type() instanceof SqlType.Decimal)) {
+            return false;
+        }
+        return switch (e) {
+            case SqlExpr.DecimalLit d -> true;
+            case SqlExpr.Column col -> true;
+            case SqlExpr.Cast cast -> cast.target() instanceof SqlType.Decimal || holdsADecimal(cast.value());
+            case SqlExpr.FloatLit f -> false;
+            default -> e.children().stream().anyMatch(SQLite::holdsADecimal);
+        };
+    }
+
     @Override
     protected SqlWriter call(SqlWriter writer, SqlExpr.Call c, int parentPrec) {
+        if (DECIMAL_ARITHMETIC.contains(c.fn()) && c.args().stream().anyMatch(SQLite::holdsADecimal)) {
+            throw new DialectCapability("a Decimal's arithmetic (" + c.fn() + ") reached SQLite, which holds no exact"
+                    + " decimal (a decimal is a REAL there): refused, never approximated");
+        }
         if (REPEATING.contains(c.fn()) && c.args().stream().anyMatch(SQLite::bindable)) {
             return writer.piece(over(c.args(), refs -> w -> calls(w, (SqlExpr.Call) c.withChildren(refs), 0)));
         }

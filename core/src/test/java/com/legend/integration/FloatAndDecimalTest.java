@@ -28,6 +28,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  * </ul>
  * {@code round} with a scale is marked: lite rounds half-even where legend-pure rounds half-up over the shortest
  * decimal (F47, open until it lands): its lines pin today's answer and name the gap.
+ * <p>A database that holds no exact decimal refuses a Decimal's arithmetic BY NAME (D2a, 2026-11-17: SQLite, whose
+ * decimal is a REAL), never answering an approximate value; there, a Decimal column's other rows are left out until its
+ * read keeps the value (F49: a Decimal column read on that database came back truncated to an integer, E-SQL's).
  */
 @org.junit.jupiter.api.extension.ExtendWith(LaneFloor.class)
 class FloatAndDecimalTest {
@@ -63,11 +66,40 @@ class FloatAndDecimalTest {
                 Object decimalWant = decimalAnswer(calc);
                 check(wrong, backend.name() + " " + calc.name() + " Float literal", floatWant, floatLiteral);
                 check(wrong, backend.name() + " " + calc.name() + " Float column", floatWant, floatColumn);
+                if (noExactDecimal(decimalLiteral)) {
+                    // D2a: the database holds no exact decimal -- its Decimal arithmetic refused by name, never
+                    // approximated; a Decimal column's other rows wait on F49
+                    if (!calc.name().startsWith("round")) {
+                        refusedByName(wrong, backend.name() + " " + calc.name() + " Decimal column", decimalColumn);
+                    } else {
+                        check(wrong, backend.name() + " " + calc.name() + " Decimal literal", decimalWant,
+                                decimalLiteral);
+                    }
+                    continue;
+                }
                 check(wrong, backend.name() + " " + calc.name() + " Decimal literal", decimalWant, decimalLiteral);
                 check(wrong, backend.name() + " " + calc.name() + " Decimal column", decimalWant, decimalColumn);
             }
         }
         assertEquals(List.of(), wrong, backend.name());
+    }
+
+    private static final String NO_EXACT_DECIMAL = "holds no exact decimal";
+
+    /** Whether {@code answer} is the database's named refusal of a Decimal's arithmetic (D2a). */
+    private static boolean noExactDecimal(Object answer) {
+        for (Throwable t = answer instanceof Throwable th ? th : null; t != null; t = t.getCause()) {
+            if (String.valueOf(t.getMessage()).contains(NO_EXACT_DECIMAL)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static void refusedByName(List<String> wrong, String label, Object answer) {
+        if (!noExactDecimal(answer)) {
+            wrong.add(label + ": want the refusal by name (" + NO_EXACT_DECIMAL + "), got " + answer);
+        }
     }
 
     /** The double's answer: Java's own arithmetic on the doubles, legend-pure's compiled runtime. */
