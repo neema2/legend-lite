@@ -27,6 +27,6 @@ public final class PlanTextRoutines {
             table.put(routine.fqn(), (call, letPrefix) -> env.style().facet(UpstreamPlans.class)
                     .routineText(routine, call, letPrefix, specs, env));
         }
-        return Map.copyOf(table);
+        return java.util.Collections.unmodifiableMap(table);
     }
 }
