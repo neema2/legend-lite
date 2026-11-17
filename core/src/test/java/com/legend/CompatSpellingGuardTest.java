@@ -91,7 +91,10 @@ class CompatSpellingGuardTest {
             "StableScanOrder", "ENGINE_LEXICON",
             "withEngineText", "EngineText", "EnginePlans", "EngineTextDialect", "EngineStyleH2", "EngineStyleDB2",
             "EngineStyleComposite", "RawSqlBoundary",
-            "COMPAT");
+            "COMPAT",
+            // the judges' compatibility mode (the separation census's C1, 2026-11-17: its branches outside TestPlanner
+            // stood unlisted)
+            "COMPILED_PURE_COMPAT");
 
     /** The steps a row may name: a D slice that removes it, or a terminal class that keeps it, with its reason. */
     static final Set<String> STEPS = Set.of(
@@ -301,7 +304,7 @@ class CompatSpellingGuardTest {
             // BodyDriver's withEngineText row gone, ExecEnv.withCollector names what it installs, the arm's collector)
             "testplan/TestPlanner.java | COMPAT | 1 | D1.9",
             // REGISTERED 2026-11-17 (the separation census, docs/records/f-separation-census-2026-11-17.md): 'TDSNull'
-            // (B10) joined the scan; what stood is registered, each with its owner.
+            // (B10) and COMPILED_PURE_COMPAT (C1) joined the scan; what stood is registered, each with its owner.
             // TDSNull as INPUT and LANGUAGE (STAYS): the #TDS literal's cell token, Pure's meta::pure::tds::TDSNull
             // class, and the sentinel ^TDSNull() lowers to
             "compiler/element/type/PlatformTypes.java | TDSNull | 1 | STAYS",
@@ -316,7 +319,18 @@ class CompatSpellingGuardTest {
             "lowering/VerdictSql.java | TDSNull | 2 | D1.9",
             "testexec/Equality.java | TDSNull | 1 | D1.9",
             // TDSNull as legend-engine's relation text in the product's lowering (D, census B10's move)
-            "lowering/Render.java | TDSNull | 1 | D1.3"
+            "lowering/Render.java | TDSNull | 1 | D1.3",
+            // the judges' compatibility mode's branches (E-Java, census C1)
+            "testexec/Equality.java | COMPILED_PURE_COMPAT | 1 | D1.9",
+            "testexec/HostJudgments.java | COMPILED_PURE_COMPAT | 1 | D1.9",
+            "testexec/SqlTextRuns.java | COMPILED_PURE_COMPAT | 1 | D1.9",
+            "testexecutionplan/JudgeJson.java | COMPILED_PURE_COMPAT | 1 | D1.9",
+            "testexecutionplan/TestPlan.java | COMPILED_PURE_COMPAT | 3 | D1.9",
+            "testexecutionplan/TestPlanJson.java | COMPILED_PURE_COMPAT | 2 | D1.9",
+            "testplan/AssertVerdicts.java | COMPILED_PURE_COMPAT | 1 | D1.9",
+            "testplan/DatabaseJudge.java | COMPILED_PURE_COMPAT | 2 | D1.9",
+            "testplan/PlanningOptions.java | COMPILED_PURE_COMPAT | 2 | D1.9",
+            "testplan/TestPlanner.java | COMPILED_PURE_COMPAT | 1 | D1.9"
             // retagged 2026-11-15 (D1.2's end): Java's spelling of a date value. D1.4 -> D1.8 (2026-11-16, W4): lite's
             // writers no longer read it (CellText's product half prints S312's text); what remains is legend-engine's
             // JSON of a date (toEngineJson, read by CellText's engine half, which moves with PureV1Writer at W8) and
