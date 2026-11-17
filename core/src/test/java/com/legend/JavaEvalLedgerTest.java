@@ -1868,6 +1868,10 @@ class JavaEvalLedgerTest {
                             // the two-form hook DateTimeTexts' edge form (census B9, 2026-11-17): names legend-pure's
                             // DateTime node, decides nothing
                             "EdgeDateTimeTexts.java",
+                            // the two-form LoweringForms kind's edge forms (the audit's K5, 2026-11-17): legend-engine's
+                            // plain raises (B7's census class A), a view nested and a wire cast left to the reader --
+                            // picks a lowered shape, planning work, no session, no value computed
+                            "EdgeLoweringForms.java",
                             // legend-engine's H2 text translated for DuckDB and Postgres, moved from sql.dialect with
                             // its two dialect arms (Phase 6's B4 (ii), 2026-11-17, the orchestrator's ruling (a)): the
                             // product runs a raw statement as written, as legend-engine does; the edge's dialects (PureText's)

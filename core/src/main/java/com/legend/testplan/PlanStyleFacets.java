@@ -52,5 +52,9 @@ public final class PlanStyleFacets {
             DateLiteralTexts.class,
             // the word a rendered golden writes for a null cell (census C1, 2026-11-17): none in the product (lite
             // writes it empty), legend-engine's TDSNull at the edge
-            com.legend.compiler.spec.GoldenNullWord.class);
+            com.legend.compiler.spec.GoldenNullWord.class,
+            // the lowering's two-form choices (the audit's K5, the orchestrator's ruling of 2026-11-17: the product
+            // branched on edge-only flags): a raise (B7's plain set), a view's nesting and a wire cast -- the product
+            // writes every check, lowers a view flat and writes the cast; the edge's forms legend-engine's
+            com.legend.lowering.LoweringForms.class);
 }
