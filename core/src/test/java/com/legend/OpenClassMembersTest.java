@@ -146,7 +146,6 @@ class OpenClassMembersTest {
                     "public static java.util.List<com.legend.compiler.spec.typed.TypedSpec> letPrefix(com.legend.testplan.TextAsk)",
                     "public static java.util.List<java.lang.String> sortKeys(com.legend.testplan.AssertVerdicts$ReplayGates)",
                     "public static java.util.Map<java.lang.String, java.lang.String> tableReplace(com.legend.testplan.BodyDriver$ExecEnv)",
-                    "public static void defer(com.legend.testplan.VerdictBatch, java.lang.String, boolean, com.legend.sql.SqlQuery, com.legend.executionplan.ExecutionPlan$Target)",
                     "public static void defer(com.legend.testplan.VerdictBatch, java.lang.String, boolean, com.legend.sql.SqlQuery, com.legend.executionplan.ExecutionPlan$Target, int, java.lang.String)",
                     "public static void restoreMarking(com.legend.testplan.BodyDriver$ExecEnv, java.lang.String)")),
             // C4 (the closed list of kinds)

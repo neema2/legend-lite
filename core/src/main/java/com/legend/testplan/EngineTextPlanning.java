@@ -103,11 +103,6 @@ import java.util.List;
         batch.defer(name, wantEqual, query, on, appeal, decline);
     }
 
-    public static void defer(VerdictBatch batch, String name, boolean wantEqual, com.legend.sql.SqlQuery query,
-            com.legend.executionplan.ExecutionPlan.Target on) {
-        batch.defer(name, wantEqual, query, on);
-    }
-
     // ---- an assert's ask and check --------------------------------------------------------------------------------
 
     public static TypedSpec bare(TextAsk ask) {
