@@ -297,7 +297,9 @@ class PlannerSurfaceTest {
             // the planner protocol's other lite kinds, for Python's headless DataCube and its own calls (the edge
             // program's H2/H4 pairing, 2026-11-17): the DataCube session's Boundary members of these names
             Map.entry("lite_model_action", "modelAction"), Map.entry("lite_ts_item", "tsItem"),
-            Map.entry("lite_json_to_ts", "jsonToTs"), Map.entry("lite_compile_errors", "compileErrors")));
+            Map.entry("lite_json_to_ts", "jsonToTs"), Map.entry("lite_compile_errors", "compileErrors"),
+            // the lite API spec's §3 (2026-11-17): lite's refusal kinds by name, read by a host, never its own constant
+            Map.entry("lite_refusal_kinds", "refusalKinds")));
 
     /** The native library's exports that are no planner door, each with what it is instead. */
     static final Map<String, String> NATIVE_SERVICES = new TreeMap<>(Map.ofEntries(

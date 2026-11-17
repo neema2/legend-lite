@@ -538,6 +538,20 @@ public final class Compiler {
         return answer(a);
     }
 
+    /** LITE'S REFUSAL KINDS by name ({@code Boundary.refusalKinds}: {@code LiteV1Api.RefusalKind}'s names and the
+     *  texts a refusal of each is folded with) -- so a host reads the kinds from the product, never from a constant of
+     *  its own (the lite API spec's §3, 2026-11-17). */
+    @CEntryPoint(name = "lite_refusal_kinds")
+    static CCharPointer refusalKinds(IsolateThread thread) {
+        String a;
+        try {
+            a = Folded.of(Boundary::refusalKinds);
+        } catch (Throwable failure) {
+            a = Folded.failure(failure);
+        }
+        return answer(a);
+    }
+
     /** A host's refusal of a call it could not finish, in the engine's error shape ({@code Boundary.refusal}). */
     @CEntryPoint(name = "lite_pure_v1_refusal")
     static CCharPointer refusal(IsolateThread thread, CCharPointer message) {

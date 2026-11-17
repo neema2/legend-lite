@@ -126,6 +126,36 @@ class ThePlannerKinds(unittest.TestCase):
                         'the entry reads JSON\'s spelling alone')
 
 
+class TheProductsKinds(unittest.TestCase):
+    """The lite API spec's §3 (2026-11-17): a refusal's kind is the product's (LiteV1Api.RefusalKind), read from the
+    native library (lite_refusal_kinds), never a spelling of Python's own -- so a rename in the product needs no edit
+    here; and a refusal carries lite's error shape (kind, message, where, raise_)."""
+
+    def test_the_kinds_are_the_products_and_a_refusal_says_one(self):
+        from legend_lite import compiler
+        kinds = compiler.refusal_kinds()
+        self.assertLessEqual({'PARSE', 'COMPILE'}, set(kinds))
+        with self.assertRaises(ll.LegendError) as refused:
+            ll.parse('|1 +')
+        self.assertEqual(refused.exception.kind, kinds['PARSE'])
+        self.assertTrue(compiler.refuses_the_text(refused.exception))
+        self.assertEqual((refused.exception.where, refused.exception.raise_), (None, None))
+
+    def test_a_model_refusal_follows_the_products_kinds_renamed(self):
+        from unittest import mock
+        from legend_lite import compiler, frames, projects
+        renamed = {'PARSE': 'parse', 'COMPILE': 'compile', 'FAILURE': 'internal'}
+        with mock.patch.object(compiler, '_KINDS', renamed):
+            self.assertTrue(compiler.refuses_the_text(ll.LegendError('no', 'compile')))
+            self.assertFalse(compiler.refuses_the_text(ll.LegendError('no', 'COMPILATION')))
+            self.assertIsInstance(frames._refusal(ll.LegendError('no', 'parse')), frames.ModelRefused)
+            self.assertNotIsInstance(frames._refusal(ll.LegendError('no', 'internal')), frames.ModelRefused)
+            with mock.patch.object(compiler, 'project_data', side_effect=ll.LegendError('no model', 'compile')):
+                with self.assertRaises(projects.NotAModel):
+                    with projects.ProjectDatabases(None).using('m', surface=True):
+                        pass
+
+
 class Compiling(unittest.TestCase):
     def test_types_a_query_compile_only(self):
         cols = ll.relation_type(MODEL, ll.parse(GROUP))

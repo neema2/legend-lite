@@ -74,14 +74,13 @@ class ModelRefused(compiler.LegendError):
     never a refusal of what it plans over the model."""
 
 
-# the kinds the compiler refuses a model by (projects._NOT_A_MODEL's): it does not parse, or does not compile -- any
-# other kind is a failure of the compiler's own, never the model's refusal (the C5 follow-up's staging check, 2026-11-15)
-_MODEL_REFUSALS = frozenset({'PARSER', 'COMPILATION'})
-
-
 def _refusal(refused: compiler.LegendError) -> compiler.LegendError:
-    """``refused`` as the model's refusal (``ModelRefused``) when the compiler refused the model, else as it is."""
-    return ModelRefused(refused.message, refused.kind) if refused.kind in _MODEL_REFUSALS else refused
+    """``refused`` as the model's refusal (``ModelRefused``) when the compiler refused the model -- it does not parse,
+    or does not compile, by the product's own kinds (``compiler.refuses_the_text``; the lite API spec's §3, 2026-11-17:
+    until then a constant of Python's) -- else as it is: any other kind is a failure of the compiler's own."""
+    if compiler.refuses_the_text(refused):
+        return ModelRefused(refused.message, refused.kind, refused.where, refused.raise_)
+    return refused
 
 
 def _arrow(frame: Any) -> pa.Table:

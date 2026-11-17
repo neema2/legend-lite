@@ -22,16 +22,37 @@ Tree = dict[str, Any]
 
 
 class LegendError(Exception):
-    """The compiler refused: what it said, and the kind of refusal, by one rule for every call: LITE'S OWN refusal kind
-    (``LiteV1Api.RefusalKind``, as the native library folds it: the edge program's H4, 2026-11-17 -- until then a parse,
-    print or type read legend-engine's ``errorType`` off its pure/v1 answer) -- ``PARSER`` when the text does not
-    parse, ``COMPILATION`` when it does not compile or uses a construct not implemented, else ``'500'``, the message
-    then led by the failure's class."""
+    """The compiler refused, in lite's one error shape (the lite API spec's §3, 2026-11-17): its ``kind`` -- LITE'S OWN,
+    as the native library folds it (``LiteV1Api.RefusalKind``; never a constant of Python's: ``refusal_kinds``) --
+    its ``message`` in lite's words, and, where there is one, its ``where`` (a position or a site) and, for a run's
+    raise, the raise's own kind (``raise_``)."""
 
-    def __init__(self, message: str, kind: str) -> None:
+    def __init__(self, message: str, kind: str, where: str | None = None, raise_: str | None = None) -> None:
         super().__init__(message)
         self.message = message
         self.kind = kind
+        self.where = where
+        self.raise_ = raise_
+
+
+_KINDS: dict[str, str] | None = None
+
+
+def refusal_kinds() -> dict[str, str]:
+    """LITE'S REFUSAL KINDS, by name, as the product folds them (``lite_refusal_kinds``: ``LiteV1Api.RefusalKind``'s
+    names and texts), read once: a refusal's ``kind`` is compared with these, never with a spelling of Python's own, so
+    a rename in the product needs no edit here (the lite API spec's §3, the orchestrator's approval, 2026-11-17)."""
+    global _KINDS
+    if _KINDS is None:
+        _KINDS = _json.loads(_answer(library().call('lite_refusal_kinds')))
+    return _KINDS
+
+
+def refuses_the_text(refused: LegendError) -> bool:
+    """Whether ``refused`` is the compiler's refusal of the TEXT it was given -- it does not parse, or does not compile
+    -- rather than a failure of its own: the product's PARSE and COMPILE kinds (``refusal_kinds``)."""
+    kinds = refusal_kinds()
+    return refused.kind in (kinds['PARSE'], kinds['COMPILE'])
 
 
 @dataclass(frozen=True)

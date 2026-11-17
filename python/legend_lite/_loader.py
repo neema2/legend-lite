@@ -51,6 +51,8 @@ _ARITY = {
     'lite_execute_arrow_answer': 2,
     # the site's media types, the one table every host serving a site answers with (C4)
     'lite_site_types': 0,
+    # lite's refusal kinds by name (the lite API spec's §3, 2026-11-17)
+    'lite_refusal_kinds': 0,
     # the warehouse's SQL API, as the one binding speaks it (C3)
     'lite_warehouse_call': 2, 'lite_warehouse_read': 3,
     # Python's model home (native/.../ModelHome.java): a repository's folder, then a request's method, target and body
