@@ -140,18 +140,10 @@ class EdgeSeparationTest {
             Map.entry("com.legend.testexecutionplan.TestPlanJson -> JudgingRules.COMPILED_PURE_COMPAT", "C1 2026-11-17"),
             // (AgreementAsserts -> EngineTextAppeals closed: 2026-11-17, (b) of the orchestrator's order: the fused agreement path deleted)
             Map.entry("com.legend.testplan.AssertVerdicts -> JudgingRules.COMPILED_PURE_COMPAT", "C1 2026-11-17"),
-            Map.entry("com.legend.testplan.AssertVerdicts -> com.legend.testplan.EngineTestText", "C4 2026-11-17"),
             Map.entry("com.legend.testplan.BodyDriver -> com.legend.planner.UpstreamPlans", "B2 2026-11-17"),
-            Map.entry("com.legend.testplan.BodyDriver -> com.legend.testplan.EngineTestText", "C4 2026-11-17"),
-            Map.entry("com.legend.testplan.DatabaseAsserts -> com.legend.testplan.EngineTestText", "C4 2026-11-17"),
             Map.entry("com.legend.testplan.DatabaseJudge -> JudgingRules.COMPILED_PURE_COMPAT", "C1 2026-11-17"),
-            Map.entry("com.legend.testplan.EngineTestText -> (stands in a product package)", "C4 2026-11-17"),
-            Map.entry("com.legend.testplan.EngineTextPlanning -> (stands in a product package)", "C4 2026-11-17"),
-            Map.entry("com.legend.testplan.EngineTextPlanning -> com.legend.testplan.EngineTestText", "C4 2026-11-17"),
-            Map.entry("com.legend.testplan.JudgePlans -> com.legend.testplan.EngineTestText", "C4 2026-11-17"),
             Map.entry("com.legend.testplan.PlanStyleFacets -> com.legend.lowering.RelationTexts", "B17 2026-11-17"),
             Map.entry("com.legend.testplan.PlanStyleFacets -> com.legend.planner.UpstreamPlans", "B2 2026-11-17"),
-            Map.entry("com.legend.testplan.PlanStyleFacets -> com.legend.testplan.EngineTestText", "C4 2026-11-17"),
             Map.entry("com.legend.testplan.PlanningOptions -> JudgingRules.COMPILED_PURE_COMPAT", "C1 2026-11-17"),
             Map.entry("com.legend.testplan.Seeds -> com.legend.planner.UpstreamPlans", "B2 2026-11-17"),
             Map.entry("com.legend.testplan.TestPlanner -> JudgingRules.COMPILED_PURE_COMPAT", "C1 2026-11-17"));
@@ -164,8 +156,8 @@ class EdgeSeparationTest {
      *  not counted. The hooks that fail a criterion stay open in the maps above, the criterion named here:
      *  UpstreamPlans (B2) fails (a): its static routines() holds the plan-text natives' table and the unformatted
      *  form's stripping; RelationTexts (B17) fails (a): its static forwarders reach the lowering's text helpers;
-     *  EngineTestText (C4) fails (a): its static gates (armFor, reachesUpstreamText, marking); EngineTextPlanning (C4)
-     *  fails (a): a facade class with logic. PlanStyleFacets meets (a) (the orchestrator's ruling of 2026-11-17: a
+     *  EngineTestText (C4) meets (a) since 2026-11-17 (its gates the edge's, its records top-level) and
+     *  EngineTextPlanning is the listed facade, forwarding alone -- both ruled below. PlanStyleFacets meets (a) (the orchestrator's ruling of 2026-11-17: a
      *  final class holding only the closed list of kind types, the list (d) lives on); its edges to the kinds stay
      *  counted under each kind's own line until that kind is ruled. */
     static final Map<String, String> HOOKS_RULED = Map.ofEntries(
@@ -183,7 +175,15 @@ class EdgeSeparationTest {
             Map.entry("com.legend.lowering.Scalars -> com.legend.lowering.PureOnlyTexts", "B8 HOOK-RULED 2026-11-17"),
             Map.entry("com.legend.planner.PlanEnv -> com.legend.lowering.PureOnlyTexts", "B8 HOOK-RULED 2026-11-17"),
             Map.entry("com.legend.testplan.PlanStyleFacets -> com.legend.lowering.PureOnlyTexts",
-                    "B8 HOOK-RULED 2026-11-17"));
+                    "B8 HOOK-RULED 2026-11-17"),
+            // C4, the engine-text assert's arm (the orchestrator's ruling of 2026-11-17): EngineTestText a bare hook (its
+            // records top-level, its gates the edge's), asked only where the style judges engine text
+            // (PlanStyle.judgesEngineText, EngineTextGates); EngineTextPlanning the listed facade, forwarding alone
+            Map.entry("com.legend.testplan.AssertVerdicts -> com.legend.testplan.EngineTestText", "C4 HOOK-RULED 2026-11-17"),
+            Map.entry("com.legend.testplan.EngineTestText -> (stands in a product package)", "C4 HOOK-RULED 2026-11-17"),
+            Map.entry("com.legend.testplan.EngineTextPlanning -> (stands in a product package)", "C4 HOOK-RULED 2026-11-17"),
+            Map.entry("com.legend.testplan.PlanStyleFacets -> com.legend.testplan.EngineTestText", "C4 HOOK-RULED 2026-11-17"),
+            Map.entry("com.legend.testplan.EngineTextGates -> com.legend.testplan.EngineTestText", "C4 HOOK-RULED 2026-11-17"));
 
     // ---- the guards ---------------------------------------------------------------------------------------------
 
@@ -349,7 +349,7 @@ class EdgeSeparationTest {
      *  B15, B16, C6, C7). Each must hold at least one entry in the count ({@link #everyOpenLineIsCounted}), so an empty
      *  count cannot read DONE with a line left. A line closes by leaving this set with its last entry. */
     static final Set<String> OPEN_LINES = Set.of("A1", "A5", "A6", "B2", "B4", "B5", "B6",
-            "B7", "B8", "B9", "B10", "B11", "B12", "B13", "B17", "C1", "C3", "C4", "C5");
+            "B7", "B8", "B9", "B10", "B11", "B12", "B13", "B17", "C1", "C3", "C5");
 
     private static Set<String> linesOf(Map<String, String> m) {
         Set<String> out = new TreeSet<>();

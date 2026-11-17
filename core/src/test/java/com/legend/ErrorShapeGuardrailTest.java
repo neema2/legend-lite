@@ -90,7 +90,9 @@ class ErrorShapeGuardrailTest {
             // 2026-11-16 (W9's judge half, S2c, E-Java): the engine-text arm's recognition, product-side
             // (EngineTestText.reachesThroughHelpers): an un-inlinable helper is no producer, as the arm itself reads it
             // (the arm's own lookThrough, edge.SqlTextVerdicts, keeps its two)
-            Map.entry("EngineTestText.java", 1),
+            // moved 2026-11-17 with the hook's gates (census C4: reachesThroughHelpers's un-inlinable helper), from
+            // testplan/EngineTestText.java to the edge's implementation
+            Map.entry("EdgeEngineTestText.java", 1),
             Map.entry("SqlTextRuns.java", 1),
             // (AgreementArm.java's 1 went: 2026-11-17, (b) of the orchestrator's order: the fused agreement path deleted; IsolatedRun's one, below, takes its place: net 0)
             // 2026-11-17 (isolated BOTH, the orchestrator's ruling): IsolatedRun.runAlone records how a judge's run

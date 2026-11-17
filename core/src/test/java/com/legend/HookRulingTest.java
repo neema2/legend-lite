@@ -44,7 +44,23 @@ class HookRulingTest {
                     () -> PlanStyle.PRODUCT.engineTestPlanText()),
             // census B8 (i), 2026-11-17: the texts only legend-pure writes, composed at lowering
             com.legend.lowering.PureOnlyTexts.class, List.of(
-                    () -> PlanStyle.PRODUCT.facet(com.legend.lowering.PureOnlyTexts.class)));
+                    () -> PlanStyle.PRODUCT.facet(com.legend.lowering.PureOnlyTexts.class)),
+            // census C4, 2026-11-17: the engine-text assert's arm, and the two hooks only its answers hand out (the
+            // collector and the database judge's batch): each reached through the facet the product refuses
+            com.legend.testplan.EngineTestText.class, List.of(
+                    () -> PlanStyle.PRODUCT.facet(com.legend.testplan.EngineTestText.class)),
+            com.legend.testplan.TextCollector.class, List.of(
+                    () -> PlanStyle.PRODUCT.facet(com.legend.testplan.EngineTestText.class)),
+            com.legend.testplan.BatchTexts.class, List.of(
+                    () -> PlanStyle.PRODUCT.facet(com.legend.testplan.EngineTestText.class)));
+
+    /** C4's CAPABILITY (the orchestrator's ruling of 2026-11-17): the product's style does not judge legend-engine's
+     *  text -- the test planner asks it before any engine-text gate, and takes the ordinary path -- the edge's does. */
+    @Test
+    void onlyTheEdgeJudgesEngineText() {
+        assertFalse(PlanStyle.PRODUCT.judgesEngineText());
+        assertTrue(com.legend.edge.PureText.UPSTREAM.judgesEngineText());
+    }
 
     /** {@code call} on every database type (each refused alike; no database named). */
     private static void each(java.util.function.Consumer<com.legend.model.ConnectionDefinition.DatabaseType> call) {
@@ -116,7 +132,12 @@ class HookRulingTest {
                 "EngineTextDialect <- com.legend.edge.EngineStyleComposite",
                 "EngineTextDialect <- com.legend.edge.EngineStyleDB2",
                 "EngineTextDialect <- com.legend.edge.EngineStyleH2",
-                "PureOnlyTexts <- com.legend.edge.EdgePureOnlyTexts")), implementers);
+                "PureOnlyTexts <- com.legend.edge.EdgePureOnlyTexts",
+                "EngineTestText <- com.legend.edge.EdgeEngineTestText",
+                "TextCollector <- com.legend.edge.SqlTextVerdicts$Deferring",
+                "TextCollector <- com.legend.edge.SqlTextVerdicts$Collecting",
+                "TextCollector <- com.legend.edge.SqlTextVerdicts$BatchTexts",
+                "BatchTexts <- com.legend.edge.SqlTextVerdicts$BatchTexts")), implementers);
         assertFalse(implementers.isEmpty());
     }
 

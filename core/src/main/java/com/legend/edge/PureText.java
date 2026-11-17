@@ -60,6 +60,11 @@ public final class PureText {
         }
 
         @Override
+        public boolean judgesEngineText() {
+            return true;
+        }
+
+        @Override
         public <F> F facet(Class<F> kind) {
             // the closed list first (the P2 checkpoint audit's S2, 2026-11-16): a kind outside it is refused by name
             // before any answer, so an answer added below without its declaration is unreachable

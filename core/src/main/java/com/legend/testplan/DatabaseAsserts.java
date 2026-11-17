@@ -100,7 +100,7 @@ final class DatabaseAsserts implements TestDoor.Asserts {
     private static @Nullable DatabaseAsserts plan(TypedQuery typed, String runtime, BodyDriver.ExecEnv env,
             boolean systemRouted, BodyDriver.@Nullable ExecEnv bodyEnv, List<TypedSpec> lets, String place) {
         SpecCompiler specs = typed.specs();
-        if (!plannable(typed, systemRouted)) {
+        if (!plannable(typed, systemRouted, env)) {
             com.legend.diagnostics.Diagnostics.judgeDecline("unplanned", "", "the body reaches a lineage scan");
             return null;
         }
@@ -602,11 +602,11 @@ final class DatabaseAsserts implements TestDoor.Asserts {
      *  any other side (M10c item 3). The checks after planning (a group's session, a keyed member, an unspelled
      *  segment, an unbound frame stamp) stay as the guard behind this one. The scan reads what the program road would
      *  RUN of each statement ({@link #scanned}). */
-    private static boolean plannable(TypedQuery typed, boolean systemRouted) {
+    private static boolean plannable(TypedQuery typed, boolean systemRouted, BodyDriver.ExecEnv env) {
         Map<com.legend.model.FunctionId, Boolean> memo = new java.util.HashMap<>();
         java.util.function.Predicate<TypedSpec> refused = n -> !systemRouted && lineageScan(n);
         for (TypedSpec statement : typed.body()) {
-            for (TypedSpec part : scanned(statement)) {
+            for (TypedSpec part : scanned(statement, env)) {
                 if (com.legend.compiler.spec.StatementEffects.reaches(part, refused, typed.specs(), memo)) {
                     return false;
                 }
@@ -625,9 +625,9 @@ final class DatabaseAsserts implements TestDoor.Asserts {
      *  test-is-the-product plan's M10c (2026-11-02; 321 DuckDB bodies). The statement itself is matched, never a let's
      *  value: a let-wrapped root is no assert to the class rule, and this planner would plan such a let as a value --
      *  the call spliced whole -- so a let is scanned whole. */
-    private static List<TypedSpec> scanned(TypedSpec statement) {
+    private static List<TypedSpec> scanned(TypedSpec statement, BodyDriver.ExecEnv env) {
         if (statement instanceof com.legend.compiler.spec.typed.TypedUserCall u
-                && EngineTestText.isRoot(u.callee().qualifiedName())) {
+                && EngineTextGates.isRoot(env, u.callee().qualifiedName())) {
             return u.args();
         }
         return List.of(statement);

@@ -120,6 +120,11 @@ class EdgeSpellingHookTest {
         }
 
         @Override
+        public boolean judgesEngineText() {
+            return PlanStyle.PRODUCT.judgesEngineText();
+        }
+
+        @Override
         public <F> F facet(Class<F> kind) {
             return PlanStyle.PRODUCT.facet(kind);
         }
