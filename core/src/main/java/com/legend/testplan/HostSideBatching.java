@@ -17,14 +17,13 @@ import java.util.Map;
 /**
  * THE HOST PLAN'S OWN SIDE BATCHES (the orchestrator's (1), ruled 2026-11-17): isolated BOTH sent each host assert's
  * sides as statements of their own, and the host's round trips were most of its cost (DuckDB channel B essential 2275
- * round trips against the fused agreement's 892). Each run of consecutive plain host asserts -- one verdict, no
- * savepoint, no raise, no error for an answer, nothing planned between them; one assert is a run too -- has its sides
- * read by ONE statement, the {@link HostSideBatch} of them, a step at the run's last statement carrying every assert's
- * verdict, each batched side a fused cell: its rows the batch's rows of its index. No verdict in it: the host judges the
- * cells as it judges a side's own rows. A run whose batch is longer than the database takes is batched in halves. The
- * split rung is at planning: a batch the dialect refuses to write leaves the run as it was (nothing retried at run,
- * G7). A side that raises fails the batch, told to the run's first batched assert, as a fused statement's rejection
- * failed the program.
+ * round trips against the fused agreement's 892). Each plain host assert -- one verdict, no savepoint, no raise, no
+ * error for an answer -- has its sides read by ONE statement, the {@link HostSideBatch} of them, its step carrying the
+ * verdict, each batched side a fused cell: its rows the batch's rows of its index. No verdict in it: the host judges
+ * the cells as it judges a side's own rows. PER ASSERT, never across asserts (the orchestrator's ruling of 2026-11-17):
+ * a raise in the statement is that assert's, and every assert before it was decided by an earlier statement, so a
+ * failure names the assert upstream names. The split rung is at planning: a batch longer than the database takes, or
+ * one the dialect refuses to write, leaves the assert's sides as they were (nothing retried at run, G7).
  */
 final class HostSideBatching {
 
@@ -36,20 +35,11 @@ final class HostSideBatching {
     static Map<Integer, List<TestPlan.TestStep>> steps(Map<Integer, HostAsserts.Planned> byStatement,
             BodyDriver.ExecEnv env) {
         Map<Integer, List<TestPlan.TestStep>> out = new LinkedHashMap<>();
-        List<Integer> run = new ArrayList<>();
-        int previous = Integer.MIN_VALUE;
         for (Map.Entry<Integer, HostAsserts.Planned> e : byStatement.entrySet()) {
-            boolean plain = plain(e.getValue());
-            if (!plain || e.getKey() != previous + 1) {
-                close(run, byStatement, env, out);
-                run.clear();
+            if (plain(e.getValue())) {
+                close(List.of(e.getKey()), byStatement, env, out);
             }
-            if (plain) {
-                run.add(e.getKey());
-            }
-            previous = e.getKey();
         }
-        close(run, byStatement, env, out);
         return out;
     }
 
