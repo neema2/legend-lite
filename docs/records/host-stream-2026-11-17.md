@@ -93,7 +93,8 @@ reader of DataCube's conformance cases.
 | 684ce57010 | The server binding's reader of `lite-api-cases.json` (`//engine-client:lite_api_server_test`). |
 | 6afe479900 | Query's cube planner prints through `query/print`, in the cube's own words (after DataCube's 5d9b9583ee). |
 | b0d46482ba | The guards' findings fixed, listed below, and `query/run` through `LiteServer` in Arrow and in JSON over a real server. Its commit message also says Query's remote cube had printed 'pretty' as standard. That was wrong: that print implements engine-remote's `RemoteExecutor`, whose style is legend-engine's `'PRETTY'`. The next commit restores the mapping. |
-| (next commit) | H6, whole (the orchestrator's ruling of 2026-11-17), plus DataCube's 507a0afe0 merged and the server reader on its `bindings` and `answerShape`. See "H6" below. |
+| f99a5c25de | H6, whole (the orchestrator's ruling of 2026-11-17), plus DataCube's 507a0afe0 merged and the server reader on its `bindings` and `answerShape`. See "H6" below. |
+| 5b462bd207 | H11's in-train de-imports, and Studio's Save Query fixed. See "H11" below. |
 
 ### Guard findings and what was done
 
@@ -134,6 +135,34 @@ reader of DataCube's conformance cases.
   - LITE, which the server and the page both run;
   - ENGINE, legend-engine's path and words, which the server runs.
 - `LiteV1Api.read` words a request that may hold no keys as "(it holds none)".
+
+### H11: the in-train de-imports
+
+- `legend/wasm-grammar.ts` (`WasmGrammar`, lite's planner in the tab) imports none of `legend/engine-api`, `grammar`
+  or `planning-client`. `doors/lite-server.ts` imported none already.
+- legend-engine's shapes over the same planner moved to `legend/wasm-edge.ts` (`WasmEdgeGrammar implements Grammar`):
+  modelText, relationType, returnType, generatePlan, compile, execute's two halves, and the pure/v1 fetch over the
+  planner. The edge's `BrowserEngine` takes a `WasmEdgeGrammar`.
+- `wasm-edge.ts` is in engine-client's `_PLANNER` list until `//engine-client:edge` exists.
+- `PlannedSqlTest`'s `MINTS` and `MINT_REFERENCES` moved with execute's plan half: a file move, dated
+  (wasm-grammar.ts 16 -> 15, wasm-edge.ts 2).
+- One DataCube test (`datacube/test/python-engine/execute.test.ts`) builds the edge's `BrowserEngine` on the edge
+  grammar, a one-line edit. DataCube was told.
+- Studio's Save Query (`studio/src/backend/query-builder.ts`) compared the parse answer, read by the protocol's
+  reader, with the model's raw JSON. That never matched after e86ceb2c40, and `//studio:query_builder_test` was red.
+  Both sides now go through `readLambda`.
+- After the host train, as this stream's own piece: split `legend/wire.ts`, `legend/engine.ts` and `legend/pmcd.ts`.
+
+### Red on revert (each shown, then restored; the tree clean after)
+
+| Mutation | Target | What goes red |
+|---|---|---|
+| `duckdb.ts`: bind `params`, not `jsonBound(params)` | `//engine-client:plan_runner_test` | the 64-bit run case, and TabEngine's query/run |
+| `lite-server.ts`: ask `format: 'json'` always | `//engine-client:lite_api_server_test` | "the same typed rows in each format" |
+| `wasm-server.ts`: a store refusal as the module answered it, not lite's shape | `//query-store:wasm_test` | the page's suite in lite's dialect, and its own cases |
+| the guards (before their fixes) | `//tools/guards:planned_sql_test`, `//core:guardrails`, `//core:census` | FETCHES, UNKNOWN_CASTS, MINTS, bare-name arms, the funnel register, broad catches |
+| Studio's Save Query before its fix | `//studio:query_builder_test` | both of its write-back cases |
+| the edge-separation query | `//core:edge_direct_dependents_planted` | the planted reach still shows; the real query, with the page entry a root, reads empty |
 
 ### Open, for others
 
