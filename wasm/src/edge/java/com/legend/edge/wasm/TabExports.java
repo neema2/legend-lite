@@ -126,6 +126,32 @@ public final class TabExports {
         return Folded.of(() -> Boundary.relationTypeHeld(handle, query));
     }
 
+    // ---- lite's own grammar and typing (D-1: the four routes asked through pure/v1, as lite-owned exports; A1)
+
+    /** A model's text as its protocol JSON ({@link Boundary#modelElements}). */
+    @JSExport
+    public static String modelElementsOrError(String text, boolean sourceInformation) {
+        return Folded.of(() -> Boundary.modelElements(text, sourceInformation));
+    }
+
+    /** A lambda's text as its protocol JSON ({@link Boundary#parseLambda}). */
+    @JSExport
+    public static String parseLambdaOrError(String text, boolean sourceInformation) {
+        return Folded.of(() -> Boundary.parseLambda(text, sourceInformation));
+    }
+
+    /** A lambda's protocol JSON as its Pure text ({@link Boundary#printLambda}). */
+    @JSExport
+    public static String printLambdaOrError(String lambdaJson, String style) {
+        return Folded.of(() -> Boundary.printLambda(lambdaJson, style));
+    }
+
+    /** A lambda's protocol JSON typed over a model's text ({@link Boundary#lambdaRelationType}). */
+    @JSExport
+    public static String lambdaRelationTypeOrError(String model, String lambdaJson) {
+        return Folded.of(() -> Boundary.lambdaRelationType(model, lambdaJson));
+    }
+
     // ---- a model's data and its tables
 
     /** {@link Boundary#fileLoad}: a host's own file read into its database, as a plan (B3). */

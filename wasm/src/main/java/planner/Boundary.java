@@ -165,6 +165,41 @@ public final class Boundary {
                 com.legend.protocol.ProtocolReader.lambda(lambdaJson)).executionPlan(runtime)));
     }
 
+    // ---- lite's own grammar and typing (D-1, docs/COMPATIBILITY_END_TO_END_2026_11_12.md §5.1: the four routes the tab
+    // ---- and Python asked through legend-engine's pure/v1 become lite-owned operations; the census's A1, 2026-11-17).
+    // ---- Each answers what the pure/v1 route answers, from the same product code (BoundaryLiteExportsTest pins it).
+
+    /** A model's text as its protocol JSON ({@code PureModelContextData}), source information or not: what
+     *  {@code grammar/grammarToJson/model} answers. */
+    public static String modelElements(String text, boolean sourceInformation) {
+        return com.legend.door.Parse.documentJson(text, sourceInformation);
+    }
+
+    /** A lambda's text as its protocol JSON (text without a leading {@code |} wrapped in a parameterless lambda), source
+     *  information or not: what {@code grammar/grammarToJson/lambda} answers. */
+    public static String parseLambda(String text, boolean sourceInformation) {
+        return com.legend.door.Parse.lambdaJson(text, sourceInformation);
+    }
+
+    /** A lambda's protocol JSON as its Pure text, {@code PRETTY} or {@code STANDARD}: what
+     *  {@code grammar/jsonToGrammar/lambda} answers. Any other style is refused by name. */
+    public static String printLambda(String lambdaJson, String style) {
+        com.legend.protocol.PureComposer.Style s = switch (style) {
+            case "PRETTY" -> com.legend.protocol.PureComposer.Style.PRETTY;
+            case "STANDARD" -> com.legend.protocol.PureComposer.Style.STANDARD;
+            default -> throw new IllegalArgumentException("a lambda prints PRETTY or STANDARD, not '" + style + "'");
+        };
+        return com.legend.protocol.PureComposer.lambda(lambdaJson, s);
+    }
+
+    /** A lambda's protocol JSON typed, compile-only, over a model given as text (this host's held models, compiled once
+     *  per text): what {@code compilation/lambdaRelationType} answers. */
+    public static String lambdaRelationType(String model, String lambdaJson) {
+        return MODELS.withText(model, ctx -> com.legend.json.Json.toCompact(
+                com.legend.plan.UpstreamRelationType.of(com.legend.Compiler.query(ctx,
+                        com.legend.protocol.ProtocolReader.lambda(lambdaJson)).resultType())));
+    }
+
     /** A lambda's protocol JSON typed, compile-only, over a model held: upstream's {@code lambdaRelationType} answer. */
     public static String relationTypeJsonHeld(int handle, String lambdaJson) {
         return MODELS.with(handle, ctx -> com.legend.json.Json.toCompact(
