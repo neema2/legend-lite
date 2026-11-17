@@ -149,9 +149,10 @@ final class IsolatedRun {
                         + (d == null ? " (database's run " + quote(database.ending()) + ")" : "");
             }
         }
+        @Nullable RuntimeException hf = host.failure;
+        @Nullable RuntimeException df = database.failure;
         boolean endsAlike = messages ? host.ending().equals(database.ending())
-                : (host.failure == null) == (database.failure == null) && (host.failure == null
-                        || host.failure.getClass() == database.failure.getClass());
+                : hf == null ? df == null : df != null && hf.getClass() == df.getClass();
         if (!endsAlike) {
             return "the judges' runs ended differently: host " + quote(host.ending()) + "; database "
                     + quote(database.ending());
