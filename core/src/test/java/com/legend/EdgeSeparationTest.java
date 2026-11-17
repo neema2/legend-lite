@@ -67,6 +67,11 @@ class EdgeSeparationTest {
     /** The SqlFn members only the edge spells (census B8). */
     static final Set<String> EDGE_ONLY_SQLFN = Set.of();   // DATETIME_PRINT gone 2026-11-17 (census B12), the last
 
+    /** The records whose {@code upstream} component holds legend-pure's words of a raise site (K10a, 2026-11-17): every
+     *  product read of it is counted on K10b's line until the words move to the test plan's edge data. */
+    static final Set<String> UPSTREAM_WORDED = Set.of("com.legend.executionplan.ExecutionPlan$Site",
+            "com.legend.sql.dialect.RaiseSite");
+
     /** The referee and the appeals in the product packages they stood in (census C2, closed 2026-11-17: moved to
      *  com.legend.edge, whose classes the CODE guard already keeps out of the product): a tripwire, should one return. */
     static final Set<String> REFEREE = Set.of("com.legend.testexec.SqlReplayReferee", "com.legend.testexec.Appeals",
@@ -243,6 +248,14 @@ class EdgeSeparationTest {
                     // edge.CompatRules.COMPILED_PURE, an edge reach the class rule above finds)
                 });
             }
+            // a raise site's legend-pure words read in the product (K10a of the edge audit, 2026-11-17: exec says the site's
+            // message alone; the words leave the product plan for the test plan's edge data with K10b)
+            c.getMethodCallsFromSelf().forEach(m -> {
+                String owner = m.getTarget().getOwner().getName();
+                if (UPSTREAM_WORDED.contains(owner) && m.getTarget().getName().equals("upstream")) {
+                    out.add(src + " -> " + owner.substring(owner.lastIndexOf('.') + 1).replace('$', '.') + ".upstream");
+                }
+            });
         }
         return out;
     }
