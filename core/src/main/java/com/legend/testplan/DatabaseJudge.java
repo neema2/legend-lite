@@ -377,7 +377,7 @@ public final class DatabaseJudge {
 
     /** How the plan's style compares two numbers of different fine kinds (register S127; census C1, 2026-11-17). */
     private static CrossKindNumbers numbers(BodyDriver.ExecEnv env) {
-        return env.options().style().twoForm(CrossKindNumbers.class, CrossKindNumbers.NEVER);
+        return env.options().style().twoForm(CrossKindNumbers.class, CrossKindNumbers.Product.NEVER);
     }
 
     /** {@code kind}'s fine number kind -- Integer, Float, Decimal (a declared precision one's too) -- or null. */

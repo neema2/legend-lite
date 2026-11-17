@@ -140,7 +140,8 @@ class EdgeSeparationTest {
             // arguments and asks the hook for the statements' text, holding none itself
             Map.entry("com.legend.testplan.SeedSqlForms -> com.legend.planner.UpstreamPlans", "B2 HOOK-RULED 2026-11-17"),
             // TestPlanner: asks the hook for the test-data generator's timestamp text when one is printed (B13)
-            Map.entry("com.legend.testplan.TestPlanner -> com.legend.planner.UpstreamPlans", "B2 HOOK-RULED 2026-11-17"),
+            // TestPlanner -> UpstreamPlans gone (census C1, 2026-11-17: the test-data timestamp text is the two-form
+            // TestDataPlanner.Printing kind, asked of the style)
             // B5, 2026-11-17 (Phase 6): legend-engine's result envelope, a hook from birth -- the interface, and the
             // product's code that only asks the style for it with the call's refusal
             Map.entry("com.legend.lowering.ResultEnvelopes -> (stands in a product package)", "B5 HOOK-RULED 2026-11-17"),

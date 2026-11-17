@@ -193,7 +193,10 @@ class HookRulingTest {
         assertEquals(List.of(com.legend.lowering.DateTimeTexts.class, com.legend.lowering.ListTexts.class,
                 com.legend.testexecutionplan.JsonGrammar.class, com.legend.compiler.spec.RelationCounting.class,
                 // TestDataPlanner.Printing (census C1, 2026-11-17, L9: a test-data timestamp's text)
-                com.legend.testdatagen.TestDataPlanner.Printing.class),
+                com.legend.testdatagen.TestDataPlanner.Printing.class,
+                // CrossKindNumbers (census C1, 2026-11-17, register S127: the product never equals two number kinds,
+                // the edge equals an Integer and a Decimal by their texts, as compiled legend-pure does)
+                com.legend.testplan.CrossKindNumbers.class),
                 com.legend.testplan.PlanStyleFacets.TWO_FORMS,
                 "the two-form kinds, an exact set: a kind is added here with its family and its dated reason");
         assertTrue(PlanStyle.PRODUCT.twoForm(com.legend.lowering.DateTimeTexts.class,
@@ -222,6 +225,12 @@ class HookRulingTest {
         assertTrue(com.legend.edge.PureText.UPSTREAM.twoForm(com.legend.compiler.spec.RelationCounting.class,
                 com.legend.compiler.spec.RelationCountAsserts.REFUSED) == com.legend.edge.UpstreamRelationCounting.INSTANCE,
                 "the edge counts a relation as upstream does");
+        assertTrue(PlanStyle.PRODUCT.twoForm(com.legend.testplan.CrossKindNumbers.class,
+                com.legend.testplan.CrossKindNumbers.Product.NEVER) == com.legend.testplan.CrossKindNumbers.Product.NEVER,
+                "the product never equals two number kinds");
+        assertTrue(com.legend.edge.PureText.UPSTREAM.twoForm(com.legend.testplan.CrossKindNumbers.class,
+                com.legend.testplan.CrossKindNumbers.Product.NEVER) == com.legend.edge.CompiledPureNumbers.INSTANCE,
+                "the edge equals an Integer and a Decimal as compiled legend-pure does");
         Runnable productForm = () -> { };
         assertTrue(PlanStyle.PRODUCT.twoForm(Runnable.class, productForm) == productForm,
                 "the product answers the caller's own form");
