@@ -47,7 +47,7 @@ public final class ArrowWriter implements ResultSink {
     private List<Enc> encoders = List.of();
     /** A date's text in a text column (W4's audit, 2026-11-16): the product's ({@link CellText#PRODUCT}), or the one a
      *  compatibility route hands its writer -- legend-pure's, for the edge's pure/v1 Arrow answer. */
-    private final CellText.DateText dates;
+    private final CellText.Forms dates;
 
     /** Onto {@code out}; {@code schemaMetadata} the stream's custom metadata (key to value), in order, made from the
      *  columns the result announces (an envelope of a dynamic pivot's columns is known only then). An activity in it
@@ -55,7 +55,7 @@ public final class ArrowWriter implements ResultSink {
      *  until then the run told this writer, and a writer made after the run was told nothing). */
     public ArrowWriter(OutputStream out,
             java.util.function.Function<List<ExecutionPlan.Column>, Map<String, String>> schemaMetadata,
-            CellText.DateText dates) {
+            CellText.Forms dates) {
         this.out = out;
         this.metadata = schemaMetadata;
         this.dates = dates;
@@ -403,9 +403,9 @@ public final class ArrowWriter implements ResultSink {
         enum Form { TEXT, DIGITS, PURE, JSON }
 
         private final Form form;
-        private final CellText.DateText dates;
+        private final CellText.Forms dates;
 
-        Text(String name, Map<String, String> metadata, ExecutionPlan.Column c, Form form, CellText.DateText dates) {
+        Text(String name, Map<String, String> metadata, ExecutionPlan.Column c, Form form, CellText.Forms dates) {
             super(new ArrowField(name, new ArrowType.Utf8(), true, List.of(), metadata), c);
             this.form = form;
             this.dates = dates;
