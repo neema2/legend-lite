@@ -821,7 +821,8 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
      * planning, or none), and its words RENDERED AT PLANNING: {@code message}, the product's sentence
      * ({@code error.ErrorKind}'s, then {@code ": "} and the where), and {@code upstream}, legend-pure's sentence in a plan
      * the compatibility edge wrote (its {@code PlanStyle#siteWords}), null in the product's. Run time is a lookup:
-     * nothing is worded there.
+     * nothing is worded there. Exec says {@code message} alone (K10a of the edge audit, 2026-11-17); {@code upstream}
+     * is unread by exec and leaves the product plan for the test plan's edge data with K10b.
      */
     public record Site(int n, com.legend.sql.RaiseKind kind, @com.legend.base.Nullable String where, String message,
             @com.legend.base.Nullable String upstream) {
@@ -831,11 +832,6 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
             }
             Objects.requireNonNull(kind, "a raise site's kind");
             Objects.requireNonNull(message, "a raise site's message");
-        }
-
-        /** The words a raise of this site says: upstream's where the plan carries them, else the product's. */
-        public String words() {
-            return upstream != null ? upstream : message;
         }
 
         /** The product's sentence of a site of {@code kind} placed by {@code where}: the error layer's
