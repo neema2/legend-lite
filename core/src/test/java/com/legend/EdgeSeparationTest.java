@@ -284,7 +284,6 @@ class EdgeSeparationTest {
             // testexec/SideShapes.java | Cannot cast a collection of size: GONE 2026-11-17 (C5's step E, E-P5), worded at
             // planning by the plan's style (SideShape.sizeWords, TestPlan.answerSizeWords)
             // B11 -> C5 2026-11-17 (the orchestrator's ruling): the host judge's +0000, C5's step B (E-P5's)
-            Map.entry("testexecutionplan/Verdicts.java | +0000", "C5 2026-11-17 (E-P5's step B)"),
             // (testplan/AgreementAsserts.java | EngineText closed: 2026-11-17, (b) of the orchestrator's order: the fused agreement path deleted)
             Map.entry("testexecutionplan/TestPlan.java | COMPILED_PURE_COMPAT", "C1 2026-11-17"),
             Map.entry("testexecutionplan/TestPlanJson.java | COMPILED_PURE_COMPAT", "C1 2026-11-17"),

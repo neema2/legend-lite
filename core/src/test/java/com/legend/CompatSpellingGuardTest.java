@@ -294,7 +294,8 @@ class CompatSpellingGuardTest {
             // 2026-11-16 (W8 of docs/records/d-plan-2026-11-16.md): legend-pure's toRepresentation of a date, the judges'
             // own printer (Verdicts.pureText), which PureDateLiteral's toString was until then; with the judges' print
             // forms at W10
-            "testexecutionplan/Verdicts.java | +0000 | 1 | D1.9",
+            // testexecutionplan/Verdicts.java | +0000 gone (2026-11-17, census C5's row, E-Java last: Verdicts.repr and
+            // pureText deleted -- legend-pure's date text the edge's UpstreamDateLiteralTexts)
             // (testplan/AgreementAsserts.java | EngineText went: 2026-11-17, (b) of the orchestrator's order: the fused agreement path deleted)
             // (BodyDriver's EngineText row gone, 2026-11-16, W9's judge half: the style's engineTestText,
             // engineTestPlanText and engineTestConnection name the engine test database, the planner none)
