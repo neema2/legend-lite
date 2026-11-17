@@ -316,7 +316,7 @@ class PlannedSqlTest {
      */
     static final Map<String, Integer> AUTHORED_JAVA = Map.of(
             "wasm/src/main/java/planner/Boundary.java", 1,
-            "wasm/src/main/java/planner/TabExports.java", 2);
+            "wasm/src/edge/java/com/legend/edge/wasm/TabExports.java", 2);
     static final List<String> JAVA_PRODUCT = List.of("core/src/main/java", "wasm/src/main/java/planner", "native/src/main/java");
 
     /** The tests' folders, read beside the product's (host_sql.txt's): where a cast would hide a host's own SQL. */

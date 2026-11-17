@@ -541,7 +541,8 @@ legend_java_library(
     deps = [
         ":pe_corpus",
         "//testing",
-        "//wasm:tab",
+        # the module's entry class, the edge's since the census's A1 (2026-11-17)
+        "//wasm:edge_tab",
         "@maven_upstream//:com_fasterxml_jackson_core_jackson_databind",
     ],
 )

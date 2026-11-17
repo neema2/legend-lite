@@ -1,6 +1,8 @@
-package planner;
+package com.legend.edge.wasm;
 
 import org.teavm.jso.JSExport;
+import planner.Boundary;
+import planner.Folded;
 
 /**
  * THE TAB'S ADAPTER to the {@link Boundary}: TeaVM's entry class (//wasm:planner), whose {@code @JSExport} functions
@@ -9,7 +11,13 @@ import org.teavm.jso.JSExport;
  * {@link #pureV1OrError}, as it would ask a server; no export here is its own version of a {@code pure/v1} endpoint
  * (and {@link #pureV1OrError} routes legend-lite's own {@code /api/lite/v1/compilation/compile} too, as the server
  * does).
- * The JVM differential ({@code JvmMain}) calls these same functions, so it compares the tab's own answers.
+ * The JVM differential ({@code JvmMain}) runs the same compositions over the boundary ({@code Folded.of} of
+ * {@code Boundary.plan} and {@code planJson}), so it compares the tab's own answers.
+ *
+ * <p>AT THE EDGE (F's separation census line A1, 2026-11-17): four of these exports answer legend-engine's routes
+ * through the edge ({@code EdgeBoundary}), so this class -- the module's one entry -- is the edge's
+ * ({@code //wasm:edge_tab}, in the edge's package: until 2026-11-17 {@code planner.TabExports}), and the module is rooted at the edge as the server is (the orchestrator's extension of
+ * ruling A4). Its exports and their names are unchanged.
  */
 public final class TabExports {
 
@@ -18,30 +26,30 @@ public final class TabExports {
 
     // ---- legend-engine's pure/v1
 
-    /** One {@code pure/v1} call, as legend-lite's server answers it ({@link Boundary#pureV1}). */
+    /** One {@code pure/v1} call, as legend-lite's server answers it ({@link EdgeBoundary#pureV1}). */
     @JSExport
     public static String pureV1OrError(String path, String rawQuery, String body) {
-        return Folded.http(() -> Boundary.pureV1(path, rawQuery, body));
+        return Folded.http(() -> EdgeBoundary.pureV1(path, rawQuery, body));
     }
 
-    /** {@link Boundary#executeJsonPlan}: execute's plan half -- the SQL the tab runs, and the answer but its rows (C1). */
+    /** {@link EdgeBoundary#executeJsonPlan}: execute's plan half -- the SQL the tab runs, and the answer but its rows (C1). */
     @JSExport
     public static String executeJsonPlanOrError(String body, String modelsJson) {
-        return Folded.http(() -> Boundary.executeJsonPlan(body, modelsJson));
+        return Folded.http(() -> EdgeBoundary.executeJsonPlan(body, modelsJson));
     }
 
-    /** {@link Boundary#executeJsonAnswer}: the answer, the rows the tab's database answered written as the server's
+    /** {@link EdgeBoundary#executeJsonAnswer}: the answer, the rows the tab's database answered written as the server's
      *  (C1). */
     @JSExport
     public static String executeJsonAnswerOrError(String plan, String rows) {
-        return Folded.http(() -> Boundary.executeJsonAnswer(plan, rows));
+        return Folded.http(() -> EdgeBoundary.executeJsonAnswer(plan, rows));
     }
 
-    /** {@link Boundary#executeArrowAnswer}: the answer in upstream's Arrow format, the rows the tab's database
+    /** {@link EdgeBoundary#executeArrowAnswer}: the answer in upstream's Arrow format, the rows the tab's database
      *  answered written by lite's Arrow writer, folded as base64 (track A, 2026-10-29). */
     @JSExport
     public static String executeArrowAnswerOrError(String plan, String rows) {
-        return Folded.http(() -> Boundary.executeArrowAnswer(plan, rows));
+        return Folded.http(() -> EdgeBoundary.executeArrowAnswer(plan, rows));
     }
 
     // ---- planning and typing

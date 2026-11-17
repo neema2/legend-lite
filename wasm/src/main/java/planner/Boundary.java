@@ -1,7 +1,7 @@
 package planner;
 
 /**
- * legend-lite's BOUNDARY for the hosts that embed it -- the tab (TeaVM, {@link TabExports}) and Python (the C library,
+ * legend-lite's BOUNDARY for the hosts that embed it -- the tab (TeaVM, {@code TabExports}) and Python (the C library,
  * native/'s {@code nativelib.Compiler}): one class, each operation once, plain Java -- strings in, a string or an
  * answer out, or an exception -- with no host's annotations and no text encoding (each host's adapter is one-line
  * delegations through {@link Folded}; docs/PROTOCOL_PROGRAM_2026_10_05.md, invariant 5). legend-engine's operations
@@ -36,92 +36,8 @@ public final class Boundary {
     private Boundary() {
     }
 
-    // ---- legend-engine's pure/v1 API, as legend-lite's server answers it (PureV1Api, the plan side): how the tab's
-    // ---- apps ask what they would ask a server, and how Python's engine answers DataCube
-    // ---- (docs/DATACUBE_PYTHON_SHOW_DESIGN_2026_10_08.md)
-
-    /**
-     * One {@code pure/v1} call by its path and raw query string ({@code ""} for none), routed and answered as
-     * legend-lite's server answers it -- lite's own {@code /api/lite/v1/compilation/compile} included. An execute's
-     * run is the host's (its rows come from {@link #executePlan}), so one asked for here is refused, naming the
-     * format that is served.
-     */
-    public static com.legend.server.PureV1Api.Answer pureV1(String path, String rawQuery, String body) {
-        com.legend.server.PureV1Api.Runner noRun = (query, runtime, output) -> {
-            throw new IllegalArgumentException("this engine runs no execute itself: the host runs the plan"
-                    + " (executePlan) and asks for its answer (executeJsonAnswer, executeArrowAnswer)");
-        };
-        // legend-engine's routes are the edge's, lite's own the product's (phase D's D1.0b, 2026-11-12): routed by the
-        // path's prefix, as the server mounts them
-        return path.startsWith(com.legend.edge.PureV1Routes.PREFIX)
-                ? com.legend.edge.PureV1Routes.route(path, rawQuery.isEmpty() ? null : rawQuery, body, noRun, HELD)
-                : com.legend.server.PureV1Api.route(path, rawQuery.isEmpty() ? null : rawQuery, body, noRun, HELD);
-    }
-
-    /** A request's model given as text: the one this host holds for that text, compiled no more, else compiled for the
-     *  request (HeldModels.withText). */
-    private static final com.legend.server.PureV1Api.Models HELD = new com.legend.server.PureV1Api.Models() {
-        @Override
-        public <T> T with(String text, java.util.function.Function<com.legend.compiler.element.ModelContext, T> use) {
-            return MODELS.withText(text, use);
-        }
-    };
-
-    /**
-     * Execute's plan half in upstream's Arrow format (PureV1Api.arrowPlan): the SQL to run and the Arrow schema
-     * metadata, or the refusal to send. {@code modelsJson}: the only models the host runs, a JSON array of their
-     * texts.
-     */
-    public static com.legend.server.PureV1Api.Answer executePlan(String body, String modelsJson) {
-        // pure/v1's execute plans in the compatibility edge's style (the D part 1 audit's M2, 2026-11-15)
-        return com.legend.edge.HostAnswers.arrowPlan(body, models(modelsJson), com.legend.edge.PureText.UPSTREAM);
-    }
-
-    /**
-     * Execute's plan half in the engine's JSON (PureV1Api.jsonPlan): the statement to run, the answer's shape and its
-     * result columns with their type facts, and everything the answer holds but its rows -- the TDS builder, the
-     * activities, the columns' names, or a graph fetch's JSON builder -- for a host whose database runs the statement
-     * (the tab; docs/ONE_PLATFORM_PROGRAM_2026_10_12.md C1).
-     * {@code modelsJson}: the only models the host runs, a JSON array of their texts.
-     */
-    public static com.legend.server.PureV1Api.Answer executeJsonPlan(String body, String modelsJson) {
-        return com.legend.edge.HostAnswers.jsonPlan(body, models(modelsJson), com.legend.edge.PureText.UPSTREAM);
-    }
-
-    /**
-     * Execute's answer for a host that ran {@link #executeJsonPlan}'s {@code run} statement (PureV1Api.jsonAnswer):
-     * that plan's answer and the host's rows (a JSON array of objects, each a column's name and its cell as the
-     * host's driver read it), decoded by the plan's columns and written by the writer legend-lite's server answers
-     * with.
-     */
-    public static com.legend.server.PureV1Api.Answer executeJsonAnswer(String plan, String rows) {
-        return com.legend.edge.HostAnswers.jsonAnswer(plan, rows);
-    }
-
-    /**
-     * Execute's answer in upstream's Arrow format for a host that ran {@link #executeJsonPlan}'s {@code run}
-     * statement (PureV1Api.arrowAnswer; track A, 2026-10-29): that plan's answer and the host's rows, decoded by the
-     * plan's columns and written by lite's Arrow writer as the one zstd frame upstream sends -- folded as base64
-     * (Folded.http).
-     */
-    public static com.legend.server.PureV1Api.Answer executeArrowAnswer(String plan, String rows) {
-        return com.legend.edge.HostAnswers.arrowAnswer(plan, rows);
-    }
-
-    /** The models a host runs, from their JSON array of texts. */
-    private static java.util.List<String> models(String modelsJson) {
-        java.util.List<String> models = new java.util.ArrayList<>();
-        if (!(com.legend.json.Json.parse(modelsJson) instanceof com.legend.json.Json.Arr arr)) {
-            throw new IllegalArgumentException("the models: not a JSON array");
-        }
-        for (com.legend.json.Json.Node n : arr.items()) {
-            if (!(n instanceof com.legend.json.Json.Str text)) {
-                throw new IllegalArgumentException("the models: an entry that is not a model's text");
-            }
-            models.add(text.value());
-        }
-        return models;
-    }
+    // ---- legend-engine's pure/v1 API and execute's halves are the edge's (com.legend.edge.wasm.EdgeBoundary, //wasm:
+    // ---- edge_boundary: F's separation census line A1, 2026-11-17): they answer through //core:edge
 
     /** A host's refusal of a call it could not finish (its database refusing the SQL), in the engine's shape. */
     public static com.legend.server.PureV1Api.Answer refusal(String message) {
@@ -201,6 +117,13 @@ public final class Boundary {
 
     /** This host's held models: the module's (one per module instance, a worker's own) or Python's library's. */
     private static final com.legend.HeldModels MODELS = new com.legend.HeldModels();
+
+    /** A request's model given as text, the one this host holds for that text, compiled no more, else compiled for the
+     *  request ({@link com.legend.HeldModels#withText}): how the edge's routes (EdgeBoundary) share this host's models. */
+    public static <T> T withModelText(String text,
+            java.util.function.Function<com.legend.compiler.element.ModelContext, T> use) {
+        return MODELS.withText(text, use);
+    }
 
     /** {@link com.legend.HeldModels#hold}: the handle that names {@code model}, compiled the first time it is held. */
     public static int holdModel(String model) {

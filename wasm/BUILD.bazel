@@ -21,7 +21,8 @@ js_library(
 # the conformance harness beside it tests the JDK's classes, not a database)
 filegroup(
     name = "planner_java",
-    srcs = glob(["src/main/java/planner/*.java"]),
+    # the edge's entries too (src/edge: the separation census's A1, 2026-11-17)
+    srcs = glob(["src/main/java/planner/*.java", "src/edge/java/**/*.java"]),
     # and the planned-SQL guard: who reaches the authored door (the C final audit's H1, 2026-11-12)
     visibility = ["//core:__pkg__", "//tools/guards:__pkg__"],
 )
@@ -45,22 +46,36 @@ legend_java_library(
     deps = [
         # the plan side only (C2a): the embedded planner carries no execution library, no database, no driver
         "//core:plan_side",
-        # legend-engine's routes, the edge's (phase D's D1.0b, 2026-11-12): the boundary answers them as the server does
-        "//core:edge",
+        # (no //core:edge: legend-engine's routes and execute's halves are :edge_boundary's, the census's A1, 2026-11-17)
         "//json",
     ],
 )
 
+# THE EDGE'S ENTRIES FOR THE EMBEDDED HOSTS (the separation census's A1, 2026-11-17): legend-engine's pure/v1 route and
+# execute's plan and answer halves (com.legend.edge.wasm.EdgeBoundary), through //core:edge as the server answers
+# them. The tab's module and Python's library carry it, rooted at the edge as the server is (the orchestrator's
+# extension of ruling A4); lite's own operations stay :boundary's.
+legend_java_library(
+    name = "edge_boundary",
+    nullaway = False,
+    srcs = ["src/edge/java/com/legend/edge/wasm/EdgeBoundary.java"],
+    visibility = ["//core:__pkg__", "//native:__pkg__"],
+    deps = [
+        ":boundary",
+        "//core:edge",
+        "//core:plan_side",
+        "//json",
+    ],
+)
+
+# THE TAB'S CLASS LIBRARY RESOURCES (its entry class, com.legend.edge.wasm.TabExports, is :edge_tab's since A1), and once
 # THE TAB'S ADAPTER: TeaVM's entry class (planner.TabExports, its @JSExport functions the module's exports, each a
 # delegation to the boundary) and the resources TeaVM's class library embeds (PreludeResources).
 legend_java_library(
     name = "tab",
     # not yet written to the null discipline (Bazel workplan P1-20: NullAway forced on everywhere, 2026-10-04, found 792 errors in the first wave)
     nullaway = False,
-    srcs = [
-        "src/main/java/planner/PreludeResources.java",
-        "src/main/java/planner/TabExports.java",
-    ],
+    srcs = ["src/main/java/planner/PreludeResources.java"],
     resources = ["src/main/resources/META-INF/services/org.teavm.classlib.ResourceSupplier"],
     resource_strip_prefix = "wasm/src/main/resources",
     # the round trip in the tab: its JVM half asks these same exports (//parser-equivalence:tab_round_trip); //core:
@@ -74,14 +89,31 @@ legend_java_library(
     ],
 )
 
+# THE MODULE'S ENTRY CLASS, AT THE EDGE (the separation census's A1, 2026-11-17): com.legend.edge.wasm.TabExports
+# (planner.TabExports until then), its @JSExport
+# functions the module's exports, unchanged -- four of them legend-engine's routes (:edge_boundary), so the class and
+# the module are rooted at the edge as the server is; the class library's resources stay :tab's.
+legend_java_library(
+    name = "edge_tab",
+    nullaway = False,
+    srcs = ["src/edge/java/com/legend/edge/wasm/TabExports.java"],
+    visibility = ["//core:__pkg__", "//parser-equivalence:__pkg__"],
+    deps = [
+        ":boundary",
+        ":edge_boundary",
+        ":tab",
+        "//tools/teavm:api",
+    ],
+)
+
 # The module: the tab's adapter and all it reaches, with the class library TeaVM
 # substitutes for the JDK's.
 teavm_wasm(
     name = "planner",
-    main_class = "planner.TabExports",
+    main_class = "com.legend.edge.wasm.TabExports",
     visibility = ["//visibility:public"],
     deps = [
-        ":tab",
+        ":edge_tab",
         "@maven_teavm//:org_teavm_teavm_classlib",
         "@maven_teavm//:org_teavm_teavm_jso",
     ],
@@ -105,8 +137,9 @@ legend_java_library(
     nullaway = False,
     srcs = ["src/main/java/planner/JvmMain.java"],
     visibility = ["//visibility:public"],
-    # the tab's own exports, so the differential compares the tab's answers across the two builds
-    deps = [":tab"],
+    # the tab's own exports' compositions over the boundary (Folded.of of Boundary.plan and planJson), so the differential
+    # compares the tab's answers across the two builds
+    deps = [":boundary"],
 )
 
 legend_java_library(
