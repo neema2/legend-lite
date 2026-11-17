@@ -534,15 +534,18 @@ public record TestPlan(List<ExecutionPlan.Parameter> parameters, List<TestStep> 
         }
 
         /**
-         * A side read from its group's FUSED row (E-5c; the host plan's own batch since the orchestrator's (1),
-         * 2026-11-17: consecutive asserts' single-value sides read by one statement, no verdict in it): {@code columns}, the side's
-         * own columns with their type facts, each NAMED as the fused statement's column it is read from, on the row of
-         * the verdict that carries it. Nothing is sent for it; its group's fused statement is read once, and the cells
-         * decode by these columns' facts as the side's own statement's would. Only in a group with a fused statement
-         * whose columns hold every one of these names ({@link Verdicts}' invariant).
+         * A side read from its group's batch (the host plan's own batch, the orchestrator's (1), 2026-11-17:
+         * consecutive asserts' sides read by one statement, no verdict in it): {@code index}, the side's place in the
+         * batch, its rows the batch's rows of that index in their order; {@code columns}, the side's own columns with
+         * their type facts, each NAMED as the batch's column it is read from. Nothing is sent for it; its group's batch
+         * is read once, and the cells decode by these columns' facts as the side's own statement's would. Only in a
+         * group with a batch whose columns hold every one of these names ({@link Verdicts}' invariant).
          */
-        record FusedCell(List<Column> columns) implements Side {
+        record FusedCell(int index, List<Column> columns) implements Side {
             public FusedCell {
+                if (index < 0) {
+                    throw new IllegalArgumentException("a batched side's index is its place in the batch");
+                }
                 columns = List.copyOf(columns);
                 if (columns.isEmpty()) {
                     throw new IllegalArgumentException("a fused-cell side reads at least one column");
