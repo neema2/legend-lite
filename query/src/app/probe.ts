@@ -4,7 +4,7 @@
 // the query's own source.
 
 import {
-  agg, colSpec, colSpecs, derive, desc, element, fn, from, lambda, lit, property, variable, type Lambda, type ValueSpecification,
+  agg, colSpec, derive, desc, element, fn, from, lambda, lit, property, variable, type Lambda, type ValueSpecification,
 } from '../../../pure-protocol/src/index.ts';
 import { isToMany, isNumericFamily, primitiveFamily } from '../model/graph.ts';
 import type { PropertyPath } from '../builder/state.ts';
@@ -72,8 +72,8 @@ export async function preview(app: AppContext, session: Session, path: PropertyP
       ['Count', fn('count', y)], ['Distinct Count', fn('count', fn('distinct', y))], ['Sum', fn('sum', y)],
       ['Min', fn('min', y)], ['Max', fn('max', y)], ['Average', fn('average', y)],
     ] as const;
-    // `aggregate(~[...])`, not `groupBy(~[], ...)`: legend-engine fails on a groupBy with no keys (measured, 4.145.0)
-    const r = await rows(app, session, onSource(session, projected.apply('aggregate', colSpecs(aggs.map(([n, f]) => agg(n, map, lambda(['y'], f))))).node));
+    // the whole relation's aggregate: `groupBy(~[], ...)`, as lite accepts it (2026-11-17, the edge program's N4)
+    const r = await rows(app, session, onSource(session, projected.groupBy([], aggs.map(([n, f]) => agg(n, map, lambda(['y'], f)))).node));
     const one = r.rows[0] ?? [];
     return { columns: ['Aggregation', 'Value'], rows: aggs.map(([n], i) => [n, one[i] ?? null]) };
   }

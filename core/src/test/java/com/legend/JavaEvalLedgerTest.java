@@ -1914,6 +1914,11 @@ class JavaEvalLedgerTest {
                             // computed; the plan's SQL is the database's to run (lite's own API kit since B7,
                             // 2026-11-17: PureV1Api renamed, its engine content the edge's)
                             "LiteV1Api.java",
+                            // 2026-11-17, the edge program's HOST stream (the orchestrator's Q1 ruling): lite's own
+                            // grammar and typing routes -- a model's or a lambda's text read, a lambda printed, its
+                            // relation type compiled -- the product calls the tab's lite exports make; parse, compile
+                            // and print only, no connection, no JDBC, no value computed
+                            "LiteV1Planning.java",
                             // 2026-11-03, the one reader (docs/TS_A3_ONE_READER_PLAN_2026_11_03.md step 2): one #TS
                             // item's parsed tree written as data for the route that answers it -- each node's kind,
                             // place and parts, a number's text as the parser read it; parse only, no connection, no
