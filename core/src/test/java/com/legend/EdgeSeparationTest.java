@@ -162,7 +162,8 @@ class EdgeSeparationTest {
             // B17, the relation-text facet (the orchestrator's ruling of 2026-11-17: its signatures, and forwarders to
             // product helpers the product uses itself; HookRulingTest pins both and its one implementer)
             Map.entry("com.legend.lowering.Lowerer -> com.legend.lowering.RelationTexts", "B17 HOOK-RULED 2026-11-17"),
-            Map.entry("com.legend.lowering.RelationTexts -> com.legend.lowering.PureOnlyTexts", "B17 HOOK-RULED 2026-11-17"),
+            // (lowering.RelationTexts -> PureOnlyTexts: gone 2026-11-17, the edge audit's J26 -- the facet hands the planner's
+            // own Styled through, no substitute built from the edge's texts)
             Map.entry("com.legend.lowering.RelationTexts -> (stands in a product package)", "B17 HOOK-RULED 2026-11-17"),
             Map.entry("com.legend.planner.PlanEnv -> com.legend.lowering.RelationTexts", "B17 HOOK-RULED 2026-11-17"),
             Map.entry("com.legend.testplan.PlanStyleFacets -> com.legend.lowering.RelationTexts", "B17 HOOK-RULED 2026-11-17"),

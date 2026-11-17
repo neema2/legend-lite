@@ -28,7 +28,8 @@ public record Styled(Function<Supplier<? extends RuntimeException>, PureOnlyText
 
     /** The product's form of a DateTime's text: lite's canonical text, {@code DATETIME_TO_TEXT}, the value alone. A
      *  literal's written text is the edge's alone (legend-pure prints a literal at its written precision): the product's
-     *  node carries no operand only the edge reads (the audit's K15, 2026-11-17). */
+     *  node carries no operand only the edge reads (the audit's K15, 2026-11-17). The {@code written} argument is the edge's
+     *  form's alone: the product's ignores it by design (the edge audit's J26, 2026-11-17). */
     public static final DateTimeTexts LITE_DATE_TIMES = (x, written) ->
             com.legend.sql.SqlExpr.Call.of(com.legend.sql.SqlFn.DATETIME_TO_TEXT, x);
 
