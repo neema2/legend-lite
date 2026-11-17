@@ -282,16 +282,21 @@ public final class Lowerer {
      *  checks, every one ({@link Styled#PRODUCT}). */
     private java.util.Set<com.legend.sql.RaiseKind> plainRaises = Styled.PRODUCT.plain();
 
+    /** A DateTime's text in a message, the style's two-form answer ({@link DateTimeTexts}): lite's own unless the
+     *  planner handed another style. */
+    private DateTimeTexts dateTimes = Styled.LITE_DATE_TIMES;
+
     /** The planner's style's text facets and plain raises ({@code PlanEnv.styled}). */
     public Lowerer withStyled(Styled style) {
         this.pureOnlyTexts = style.pureOnly();
         this.plainRaises = style.plain();
+        this.dateTimes = style.dateTimes();
         return this;
     }
 
     /** The style's text facets a native's rule reads ({@link Styled}). */
     private Styled styled() {
-        return new Styled(pureOnlyTexts, plainRaises);
+        return new Styled(pureOnlyTexts, plainRaises, dateTimes);
     }
 
     /** legend-engine's result envelope ({@link ResultEnvelopes}, Phase 6's B5, 2026-11-17): the plan style's facet,

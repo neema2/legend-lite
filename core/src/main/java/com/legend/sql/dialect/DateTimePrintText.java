@@ -9,11 +9,13 @@ import com.legend.sql.SqlFn;
 import java.util.List;
 
 /**
- * {@link SqlFn#DATETIME_PRINT}, legend-pure's print form of a DateTime, spelled over the database's own STRFTIME: the
- * JUDGES' form (their {@code %r} and canon) and the compatibility edge's text of a DateTime. Moved unchanged from the
- * lowering's {@code LiteralSpelling.dateTimeText} (phase D's D1.2, 2026-11-15), so a product dialect holds Pure's
- * {@code +0000} only for the judges, as {@link FloatPrintText} holds Pure's Float text. A pass of the base renderer, run
- * first: every later pass sees the tree the lowering wrote until D1.2, and the SQL is the same.
+ * {@link SqlFn#DATETIME_PRINT}, legend-pure's print form of a DateTime, spelled over the database's own STRFTIME. Since
+ * census B9 (2026-11-17, the orchestrator's ruling (a)) the JUDGES' CANON's alone: a message's DateTime text is the
+ * two-form hook {@code lowering.DateTimeTexts} (lite's DATETIME_TO_TEXT in the product, this node only at the edge),
+ * and the one product emitter left is {@code LiteralSpelling.temporalCanon}, the database judge's canonical text of a
+ * DateTime, which must equal the host judge's (judge parity). It goes with census C5's step C (E-P5's: canons as typed
+ * comparisons), when this composition moves to the edge or is deleted. Moved unchanged from the lowering's
+ * {@code LiteralSpelling.dateTimeText} (phase D's D1.2, 2026-11-15). A pass of the base renderer, run first.
  */
 final class DateTimePrintText {
 

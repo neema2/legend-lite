@@ -260,6 +260,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         // a DateTime's texts (phase D's D1.2, 2026-11-15): the product's, a STRFTIME (the edge's spelling passes wrote
         // legend-pure's node for it first, if any); legend-pure's, the judges' and the edge's, its composition
         ps.add(new DateTimeText.Expansion());
+        // legend-pure's DateTime print form, the judges' canon's alone (census B9 (a), 2026-11-17: C5, E-P5's)
         ps.add(new DateTimePrintText.Expansion());
         // a joined element's text (phase D's D1.3, 2026-11-15): the product's join skips an empty element
         ps.add(new CellTexts.Expansion());

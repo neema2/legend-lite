@@ -176,7 +176,8 @@ public record PlanEnv(ModelContext ctx, @Nullable String runtimeFqn,
      *  Lowerer; the Lowerer's own, {@link #configure}): each asked with its call's refusal (B8, 2026-11-17). */
     public com.legend.lowering.Styled styled() {
         return new com.legend.lowering.Styled(r -> style.facet(com.legend.lowering.PureOnlyTexts.class, r),
-                style.plainRaises());
+                style.plainRaises(),
+                style.twoForm(com.legend.lowering.DateTimeTexts.class, com.legend.lowering.Styled.LITE_DATE_TIMES));
     }
 
     public com.legend.lowering.Lowerer configure(com.legend.lowering.Lowerer lowerer) {

@@ -50,7 +50,7 @@ final class Repr {
             // +0000) -- upstream's toRepresentation writes '%2020-01-01T10:00:00+0000' (the engine runner, 2026-11-04,
             // the assert bar), where the VARCHAR cast wrote '2020-01-01 10:00:00'. A value carried another way (a
             // literal's own text, holding a written precision a timestamp cannot) keeps its text below
-            return Scalars.cat(new SqlExpr.StringLit("%"), LiteralSpelling.dateTimeText(x));
+            return Scalars.cat(new SqlExpr.StringLit("%"), styled.dateTimes().dateTimeText(x, null));
         }
         if (t == Type.Primitive.DATE || t == Type.Primitive.STRICT_DATE || t == Type.Primitive.DATE_TIME) {
             return Scalars.cat(new SqlExpr.StringLit("%"),
@@ -84,7 +84,7 @@ final class Repr {
      * form; strings quote with backslash-escapes. */
     static SqlExpr of(Styled styled, @com.legend.base.Nullable TypedSpec typed, SqlExpr e) {
         if (typed != null) {
-            SqlExpr dp = Scalars.dateReprOf(typed, e);
+            SqlExpr dp = Scalars.dateReprOf(styled, typed, e);
             if (dp != null) {
                 return Scalars.cat(new SqlExpr.StringLit("%"), dp);
             }
