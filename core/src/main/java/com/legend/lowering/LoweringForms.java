@@ -22,6 +22,10 @@ import java.util.function.Supplier;
  * legend-engine's SQL nests it as an aliased derived table ({@code ViewSelectSQLQuery}).</li>
  * <li>{@link #wireCast}: a mapping's wire coercion -- the product writes the SQL cast (DuckDB does not wire-convert,
  * audit 19 F7); legend-engine's SQL leaves it to its reader, which converts on the wire.</li>
+ * <li>{@link #executeValues}: the root of an engine {@code execute(...)}'s values read as a serialize -- the product's
+ * stays the array, lite's own root (the user's ruling of 2026-11-03: "the right clean thing in lite, the
+ * backward-compatible thing in compatibility mode"); legend-engine's JsonBuilder writes exactly one object bare (the
+ * audit's J3, 2026-11-17: until then applied ungated).</li>
  * </ul>
  */
 public interface LoweringForms {
@@ -36,7 +40,12 @@ public interface LoweringForms {
     /** A mapping's wire coercion of {@code value}: the cast written ({@code written}) or the value as read. */
     SqlExpr wireCast(SqlExpr value, Supplier<SqlExpr> written);
 
-    /** The product's forms: every check written, a view flat, a wire coercion's cast written. */
+    /** The root of an engine {@code execute(...)}'s serialized values: lite's array ({@code array}), or one object bare
+     *  and zero or several as the array ({@code oneBare}, legend-engine's JsonBuilder cardinality rule). */
+    SqlSelect executeValues(Supplier<SqlSelect> array, Supplier<SqlSelect> oneBare);
+
+    /** The product's forms: every check written, a view flat, a wire coercion's cast written, an execute's values the
+     *  array. */
     LoweringForms PRODUCT = new LoweringForms() {
         @Override
         public SqlExpr raise(RaiseKind kind, Supplier<SqlExpr> checked, SqlExpr plain) {
@@ -51,6 +60,11 @@ public interface LoweringForms {
         @Override
         public SqlExpr wireCast(SqlExpr value, Supplier<SqlExpr> written) {
             return written.get();
+        }
+
+        @Override
+        public SqlSelect executeValues(Supplier<SqlSelect> array, Supplier<SqlSelect> oneBare) {
+            return array.get();
         }
     };
 }

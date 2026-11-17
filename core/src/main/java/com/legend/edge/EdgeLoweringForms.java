@@ -55,4 +55,15 @@ record EdgeLoweringForms(Set<RaiseKind> plain, boolean engineSqlShape) implement
     public SqlExpr wireCast(SqlExpr value, Supplier<SqlExpr> written) {
         return engineSqlShape ? value : written.get();
     }
+
+    /** legend-engine's JsonBuilder cardinality rule (the engine's {@code execute()} contract; the audit's J3,
+     *  2026-11-17): exactly one object bare, zero or several as the array. */
+    @Override
+    public SqlSelect executeValues(Supplier<SqlSelect> array, Supplier<SqlSelect> oneBare) {
+        if (engineSqlShape) {
+            throw new IllegalStateException("an execute's values asked of legend-engine's statement shape: the root's"
+                    + " form is the plan style's (Styled.forms), the shape's forms its views and wire casts");
+        }
+        return oneBare.get();
+    }
 }
