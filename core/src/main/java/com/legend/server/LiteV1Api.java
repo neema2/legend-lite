@@ -182,12 +182,18 @@ public final class LiteV1Api {
             ModelChanges.only(request, "a jsonToTs/lambda request", "model", "lambda");
             ModelInput model = ModelInput.of(request.getObj("model"));
             LambdaFunction lambda = ProtocolReader.lambda(request.getObj("lambda"));
-            // the island's text read through the parse door, which asks the run's wall (C5-J's last round, 2026-11-15)
-            com.legend.protocol.ts.TsShow.Shown shown = model.with(models, ctx -> com.legend.protocol.ts.TsShow.of(
-                    lambda, tsTypes(ctx), com.legend.door.Parse::tsIsland));
-            return Json.toCompact(shown.statement() != null ? Map.of("statement", shown.statement())
-                    : Map.of("refused", java.util.Objects.requireNonNull(shown.refused())));
+            return model.with(models, ctx -> tsStatement(ctx, lambda));
         });
+    }
+
+    /** {@link #jsonToTsLambda}'s answer over a model compiled ({@code {"statement": text}} or {@code {"refused": why}}):
+     *  the route's own Java, which the tab's export asks too (planner.Boundary.jsonToTs; the edge audit's H2, 2026-11-17). */
+    public static String tsStatement(com.legend.compiler.element.ModelContext ctx, LambdaFunction lambda) {
+        // the island's text read through the parse door, which asks the run's wall (C5-J's last round, 2026-11-15)
+        com.legend.protocol.ts.TsShow.Shown shown = com.legend.protocol.ts.TsShow.of(
+                lambda, tsTypes(ctx), com.legend.door.Parse::tsIsland);
+        return Json.toCompact(shown.statement() != null ? Map.of("statement", shown.statement())
+                : Map.of("refused", java.util.Objects.requireNonNull(shown.refused())));
     }
 
     /**
@@ -202,26 +208,31 @@ public final class LiteV1Api {
             Json.Obj request = request(body);
             // lite's own route (upstream has no #TS): closed (the final audit of 9af16fbe58's J4, 2026-11-14)
             ModelChanges.only(request, "a tsItem request", "text");
-            String text = request.getString("text");
-            Map<String, Object> out = new LinkedHashMap<>();
-            try {
-                // read through the parse door, which asks the run's wall (C5-J's last round, 2026-11-15)
-                com.legend.protocol.ts.TsAst.Line line = com.legend.door.Parse.tsItem(text);
-                // both made before either is answered: an item whose tree is refused (a parameter, $A) is an error alone,
-                // never a text with no tree (item 11b, 2026-11-07: the tile read the text and found no tree)
-                String printed = com.legend.protocol.ts.TsPrinter.print(line);
-                Map<String, Object> tree = TsTree.of(line);
-                out.put("text", printed);
-                out.put("item", tree);
-            } catch (com.legend.protocol.sql.SqlTranslationException e) {
-                Map<String, Object> error = new LinkedHashMap<>();
-                error.put("message", e.getMessage());
-                error.put("line", e.line());
-                error.put("column", e.column());
-                out.put("error", error);
-            }
-            return Json.toCompact(out);
+            return tsItemOf(request.getString("text"));
         });
+    }
+
+    /** {@link #tsItem(String)}'s answer for one item's {@code text}: the route's own Java, which the tab's export asks
+     *  too (planner.Boundary.tsItem; the edge audit's H2, 2026-11-17). */
+    public static String tsItemOf(String text) {
+        Map<String, Object> out = new LinkedHashMap<>();
+        try {
+            // read through the parse door, which asks the run's wall (C5-J's last round, 2026-11-15)
+            com.legend.protocol.ts.TsAst.Line line = com.legend.door.Parse.tsItem(text);
+            // both made before either is answered: an item whose tree is refused (a parameter, $A) is an error alone,
+            // never a text with no tree (item 11b, 2026-11-07: the tile read the text and found no tree)
+            String printed = com.legend.protocol.ts.TsPrinter.print(line);
+            Map<String, Object> tree = TsTree.of(line);
+            out.put("text", printed);
+            out.put("item", tree);
+        } catch (com.legend.protocol.sql.SqlTranslationException e) {
+            Map<String, Object> error = new LinkedHashMap<>();
+            error.put("message", e.getMessage());
+            error.put("line", e.line());
+            error.put("column", e.column());
+            out.put("error", error);
+        }
+        return Json.toCompact(out);
     }
 
     /**
