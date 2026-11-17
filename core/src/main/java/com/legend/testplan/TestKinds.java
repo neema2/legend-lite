@@ -277,7 +277,8 @@ final class TestKinds implements ProgramKinds {
             // upstream's size limit, refused where the file is read for its digest (D-b, 2026-11-09)
             com.legend.base.DataSize.requireSize(path, bytes, EffectPlanner.SIZE_LIMIT_MEGABYTES);
         } catch (com.legend.base.DataSize.TooLarge e) {
-            throw new com.legend.error.DataError(String.valueOf(e.getMessage()), e);
+            // the refusal's kind and where (J25, 2026-11-17): legend-pure's sentence of it is the edge's
+            throw new com.legend.error.DataError(com.legend.error.ErrorKind.FILE_TOO_LARGE, e.path(), e);
         }
         return new Resource(new com.legend.executionplan.DataRef(com.legend.executionplan.DataRef.Namespace.RESOURCE,
                 name, com.legend.executionplan.DataStores.sha256(bytes), bytes.length,

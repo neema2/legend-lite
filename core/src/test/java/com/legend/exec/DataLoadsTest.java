@@ -303,7 +303,7 @@ class DataLoadsTest {
         assertEquals(List.of(), moved, "a reader's pin moved");
     }
 
-    /** A file larger than its load admits is refused at the run, in upstream's words, as at planning (D-b: the user's
+    /** A file larger than its load admits is refused at the run, by its kind, as at planning (D-b: the user's
      *  ruling, 2026-11-09; upstream admits 500 MB, here a limit of one megabyte keeps the test small). */
     @Test
     void aFileLargerThanTheLoadAdmitsIsRefused(@TempDir Path dir) throws Exception {
@@ -316,8 +316,10 @@ class DataLoadsTest {
         for (TestBackend b : loading()) {
             DataError e = assertThrows(DataError.class, () -> loaded(b, DataStores.resources(dir),
                     load(b, file(b.dialect(), "big.csv", bytes, 1))), b.name());
-            assertEquals("Unable to read the CSV file '/big.csv' Execution error at ??, \"File is too large, file was"
-                    + " 1.00 Mb, limit is 1 Mb\"", e.getMessage());
+            // the product's kind and where (J25 of the edge audit, 2026-11-17); legend-pure's sentence is the edge's
+            // (PlanStyleFacetsTest)
+            assertEquals(com.legend.error.ErrorKind.FILE_TOO_LARGE, e.kind(), b.name());
+            assertEquals("the file is larger than the load admits: /big.csv", e.getMessage());
         }
     }
 

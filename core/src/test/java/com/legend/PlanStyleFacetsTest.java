@@ -54,6 +54,23 @@ class PlanStyleFacetsTest {
         assertTrue(edge.contains("Invalid window frame boundary - lower bound of window frame cannot be greater"), edge);
     }
 
+    /** A load's file larger than the load admits (J25 of the edge audit, 2026-11-17): the product's words are its kind and
+     *  where; legend-pure's sentence, the text's megabytes against the limit, is the edge's. */
+    @Test
+    void aFileTooLargeIsTheProductsKindAndTheEdgesSentence() {
+        byte[] big = new byte[1024 * 1024 + 1];
+        java.util.Arrays.fill(big, (byte) 'a');
+        com.legend.base.DataSize.TooLarge tooLarge = org.junit.jupiter.api.Assertions.assertThrows(
+                com.legend.base.DataSize.TooLarge.class, () -> com.legend.base.DataSize.requireSize("/big.csv", big, 1));
+        RuntimeException refused = new com.legend.error.DataError(com.legend.error.ErrorKind.FILE_TOO_LARGE,
+                tooLarge.path(), tooLarge);
+        org.junit.jupiter.api.Assertions.assertEquals("the file is larger than the load admits: /big.csv",
+                PlanStyle.PRODUCT.errorWords(refused));
+        org.junit.jupiter.api.Assertions.assertEquals("Unable to read the CSV file '/big.csv' Execution error at ??,"
+                + " \"File is too large, file was 1.00 Mb, limit is 1 Mb\"",
+                com.legend.edge.PureText.UPSTREAM.errorWords(refused));
+    }
+
     @Test
     void aKindOutsideTheListFailsByNameOnEveryStyle() {
         for (PlanStyle style : STYLES) {
