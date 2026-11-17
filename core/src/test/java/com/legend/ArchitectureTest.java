@@ -1273,7 +1273,7 @@ final class ArchitectureTest {
             "lowering.Lowerer#withFloatLiteralKind(java.util.function.Supplier)",
             "com.legend.Compiler com.legend.edge.EnginePlans",
             "planner.PlanEnv#floatLiteralKind()", "com.legend.edge.EnginePlans",
-            // the audit's K6 (2026-11-17, PENDING the orchestrator's word): a Lowerer's style is chosen, never an implicit
+            // the audit's K6 (2026-11-17, the orchestrator's ruling (a)): a Lowerer's style is chosen, never an implicit
             // product default -- the product's lowerResolved chooses the product's, the edge's engine SQL its plan
             // environment's (it ran with the implicit product default until then)
             "lowering.Lowerer#withStyled(com.legend.lowering.Styled)", "com.legend.Compiler com.legend.edge.EnginePlans",
