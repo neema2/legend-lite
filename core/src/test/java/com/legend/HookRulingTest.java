@@ -181,16 +181,19 @@ class HookRulingTest {
         assertEquals(null, PlanStyle.PRODUCT.traceCell(), "the product writes the id alone");
         assertEquals(new PlanStyle.TraceCell("-- \"executionTraceID\" : \"", "\""),
                 com.legend.edge.PureText.UPSTREAM.traceCell());
-        // the raises a plan writes plain (B7, 2026-11-17): the product's none, PCT's and the corpus's none (legend-pure's
-        // guarded words), the pure/v1 route's legend-engine's census class A
-        assertEquals(java.util.Set.of(), PlanStyle.PRODUCT.plainRaises(), "the product writes every check of its own");
-        assertEquals(java.util.Set.of(), com.legend.edge.PureText.UPSTREAM.plainRaises(), "PCT keeps legend-pure's words");
-        assertEquals(java.util.EnumSet.of(com.legend.sql.RaiseKind.DIVIDE_BY_ZERO, com.legend.sql.RaiseKind.SQRT_OF_NEGATIVE,
-                com.legend.sql.RaiseKind.SHIFT_OUT_OF_RANGE, com.legend.sql.RaiseKind.SIZE_NOT_MULTIPLICITY,
-                com.legend.sql.RaiseKind.SLICE_BOUNDS_INVERTED, com.legend.sql.RaiseKind.RANGE_STEP_ZERO,
-                com.legend.sql.RaiseKind.CAST_IMPOSSIBLE, com.legend.sql.RaiseKind.TEXT_NOT_INTEGER,
-                com.legend.sql.RaiseKind.TEXT_NOT_FLOAT, com.legend.sql.RaiseKind.TEXT_NOT_DATE),
-                com.legend.edge.PureText.PURE_V1.plainRaises(), "pure/v1 writes legend-engine's unchecked raises plain");
+        // the raises a plan writes plain (B7, 2026-11-17; the two-form LoweringForms since the audit's K5): the
+        // product's none, PCT's and the corpus's none (legend-pure's guarded words), the pure/v1 route's legend-engine's
+        // census class A
+        java.util.Set<com.legend.sql.RaiseKind> classA = java.util.EnumSet.of(com.legend.sql.RaiseKind.DIVIDE_BY_ZERO,
+                com.legend.sql.RaiseKind.SQRT_OF_NEGATIVE, com.legend.sql.RaiseKind.SHIFT_OUT_OF_RANGE,
+                com.legend.sql.RaiseKind.SIZE_NOT_MULTIPLICITY, com.legend.sql.RaiseKind.SLICE_BOUNDS_INVERTED,
+                com.legend.sql.RaiseKind.RANGE_STEP_ZERO, com.legend.sql.RaiseKind.CAST_IMPOSSIBLE,
+                com.legend.sql.RaiseKind.TEXT_NOT_INTEGER, com.legend.sql.RaiseKind.TEXT_NOT_FLOAT,
+                com.legend.sql.RaiseKind.TEXT_NOT_DATE);
+        assertEquals(java.util.Set.of(), plainOf(PlanStyle.PRODUCT), "the product writes every check of its own");
+        assertEquals(java.util.Set.of(), plainOf(com.legend.edge.PureText.UPSTREAM), "PCT keeps legend-pure's words");
+        assertEquals(classA, plainOf(com.legend.edge.PureText.PURE_V1),
+                "pure/v1 writes legend-engine's unchecked raises plain");
     }
 
     /** PlanStyle.twoForm (the orchestrator's ruling of 2026-11-17, census B9): its kinds are a CLOSED list, pinned here
@@ -220,7 +223,9 @@ class HookRulingTest {
                 com.legend.compiler.spec.GoldenNullWord.class,
                 // RoutedQueries (J5 of the edge audit, 2026-11-17: an execute's routing activity, none in the product,
                 // legend-engine's AggregationAwareActivity at the edge)
-                com.legend.planner.RoutedQueries.class),
+                com.legend.planner.RoutedQueries.class,
+                // LoweringForms (the audit's K5, 2026-11-17: the lowering's two-form choices, a raise, a view, a wire cast)
+                com.legend.lowering.LoweringForms.class),
                 com.legend.testplan.PlanStyleFacets.TWO_FORMS,
                 "the two-form kinds, an exact set: a kind is added here with its family and its dated reason");
         com.legend.planner.RoutedQueries noRouting = (chain, ctx, specs) -> null;
@@ -290,6 +295,14 @@ class HookRulingTest {
                 "the edge answers its own generator text: " + edgePrinting.getClass());
         assertTrue(com.legend.edge.TestDataRoutes.ROUTE.getClass().getPackageName().equals("com.legend.edge"),
                 "the server routes' form is the edge's");
+        assertTrue(PlanStyle.PRODUCT.twoForm(com.legend.lowering.LoweringForms.class,
+                com.legend.lowering.LoweringForms.PRODUCT) == com.legend.lowering.LoweringForms.PRODUCT,
+                "the product lowers in its own forms");
+        Object edgeForms = com.legend.edge.PureText.UPSTREAM.twoForm(com.legend.lowering.LoweringForms.class,
+                com.legend.lowering.LoweringForms.PRODUCT);
+        assertTrue(edgeForms != com.legend.lowering.LoweringForms.PRODUCT
+                && edgeForms.getClass().getPackageName().equals("com.legend.edge"),
+                "the edge answers its own lowering forms: " + edgeForms.getClass());
         Runnable productForm = () -> { };
         assertTrue(PlanStyle.PRODUCT.twoForm(Runnable.class, productForm) == productForm,
                 "the product answers the caller's own form");
@@ -491,5 +504,20 @@ class HookRulingTest {
             throw new java.io.UncheckedIOException(e);
         }
         return new ClassFileImporter().importJars(jars.toArray(new java.util.jar.JarFile[0]));
+    }
+
+    /** The raises {@code style}'s lowering forms write plain ({@code LoweringForms#raise}), asked kind by kind. */
+    private static java.util.Set<com.legend.sql.RaiseKind> plainOf(PlanStyle style) {
+        com.legend.lowering.LoweringForms forms = style.twoForm(com.legend.lowering.LoweringForms.class,
+                com.legend.lowering.LoweringForms.PRODUCT);
+        com.legend.sql.SqlExpr checked = new com.legend.sql.SqlExpr.StringLit("checked");
+        com.legend.sql.SqlExpr plain = new com.legend.sql.SqlExpr.StringLit("plain");
+        java.util.Set<com.legend.sql.RaiseKind> out = java.util.EnumSet.noneOf(com.legend.sql.RaiseKind.class);
+        for (com.legend.sql.RaiseKind k : com.legend.sql.RaiseKind.values()) {
+            if (forms.raise(k, () -> checked, plain) == plain) {
+                out.add(k);
+            }
+        }
+        return out;
     }
 }

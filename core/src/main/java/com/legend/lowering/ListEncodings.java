@@ -255,20 +255,18 @@ final class ListEncodings {
      * inclusive array_slice; NEGATIVE bounds clamp to the list head
      * (PCT — DuckDB reads a negative bound FROM THE END), and inverted
      * bounds RAISE real pure's message, in the database. */
-    static SqlExpr slice(SqlExpr src, SqlExpr start, SqlExpr stop, java.util.Set<com.legend.sql.RaiseKind> plain) {
+    static SqlExpr slice(SqlExpr src, SqlExpr start, SqlExpr stop, LoweringForms forms) {
         SqlExpr lo = clamp0(start);
         SqlExpr hi = clamp0(stop);
         SqlExpr sliced = SqlExpr.Call.of(SqlFn.LIST_SLICE, src,
                 onePlus(lo), hi);
-        if (plain.contains(com.legend.sql.RaiseKind.SLICE_BOUNDS_INVERTED)) {
-            // the plan style writes the slice plain (B7, 2026-11-17): the database's own slice of inverted bounds
-            return sliced;
-        }
-        return new SqlExpr.Case(List.of(new SqlExpr.Case.When(
-                SqlExpr.Call.of(SqlFn.GREATER, lo, hi),
+        // the style's form (the audit's K5, 2026-11-17): the product's guard, or the database's own slice of inverted
+        // bounds where the style writes it plain (B7)
+        return forms.raise(com.legend.sql.RaiseKind.SLICE_BOUNDS_INVERTED, () -> new SqlExpr.Case(List.of(
+                new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.GREATER, lo, hi),
                 SqlExpr.Call.of(SqlFn.ERROR, new SqlExpr.RaiseText(
                         com.legend.sql.RaiseKind.SLICE_BOUNDS_INVERTED, List.of(lo, hi))))),
-                sliced, SqlExpr.Reason.CARRIER);
+                sliced, SqlExpr.Reason.CARRIER), sliced);
     }
 
     /**

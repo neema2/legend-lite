@@ -55,5 +55,9 @@ public final class PlanStyleFacets {
             com.legend.compiler.spec.GoldenNullWord.class,
             // an execute's routing activity (J5 of the edge audit, 2026-11-17): the product records none, the edge
             // legend-engine's AggregationAwareActivity, the routed query's print
-            com.legend.planner.RoutedQueries.class);
+            com.legend.planner.RoutedQueries.class,
+            // the lowering's two-form choices (the audit's K5, the orchestrator's ruling of 2026-11-17: the product
+            // branched on edge-only flags): a raise (B7's plain set), a view's nesting and a wire cast -- the product
+            // writes every check, lowers a view flat and writes the cast; the edge's forms legend-engine's
+            com.legend.lowering.LoweringForms.class);
 }

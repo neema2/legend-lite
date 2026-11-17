@@ -41,7 +41,7 @@ class CastNoReWrapTest {
         TypedCast c = new TypedCast(new TypedVariable("v", new ExprType(nil, new Multiplicity.Bounded(0, 0))),
                 variant, new ExprType(variant, new Multiplicity.Bounded(0, 0)), false);
         SqlExpr.Cast cast = assertInstanceOf(SqlExpr.Cast.class,
-                CastPolicy.lower(c, new SqlExpr.NullLit(), false, false, java.util.Set.of()));
+                CastPolicy.lower(c, new SqlExpr.NullLit(), false, LoweringForms.PRODUCT, LoweringForms.PRODUCT));
         assertSame(SqlType.Scalar.JSON, cast.target());
         assertInstanceOf(SqlExpr.NullLit.class, cast.value());
     }
@@ -51,8 +51,8 @@ class CastNoReWrapTest {
         // the variant arm's carrier cast over a plain wire value
         SqlExpr plain = new SqlExpr.Column("t", "c");
         assertInstanceOf(SqlExpr.Cast.class, CastPolicy.lower(
-                anyConformance(Multiplicity.Bounded.ONE), plain, false, false, java.util.Set.of()));
+                anyConformance(Multiplicity.Bounded.ONE), plain, false, LoweringForms.PRODUCT, LoweringForms.PRODUCT));
         assertInstanceOf(SqlExpr.Cast.class, CastPolicy.lower(
-                anyConformance(Multiplicity.Bounded.ONE), plain, true, false, java.util.Set.of()));
+                anyConformance(Multiplicity.Bounded.ONE), plain, true, LoweringForms.PRODUCT, LoweringForms.PRODUCT));
     }
 }

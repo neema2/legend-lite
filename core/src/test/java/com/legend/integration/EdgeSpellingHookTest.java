@@ -74,11 +74,6 @@ class EdgeSpellingHookTest {
         }
 
         @Override
-        public java.util.Set<com.legend.sql.RaiseKind> plainRaises() {
-            return PlanStyle.PRODUCT.plainRaises();
-        }
-
-        @Override
         public <F> F twoForm(Class<F> kind, F productForm) {
             return PlanStyle.PRODUCT.twoForm(kind, productForm);
         }
