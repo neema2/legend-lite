@@ -31,9 +31,8 @@ import java.util.Map;
  * {@code toRepresentation}, the message formats.</li>
  * <li><b>ADJUDICATED WIRE POLICIES</b> (moved from the harness's
  * {@code wireEquals} at its deletion — the policies survive, the
- * private copy dies): the {@code TDSNull} sentinel (an expected
- * {@code 'TDSNull'} equals an actual NULL cell — never a genuine
- * payload); the 2-ULP dialect-arithmetic leniency (corpus float
+ * private copy dies): the {@code TDSNull} sentinel (an expected ^TDSNull(), typed by the compiler as a null cell,
+ * equals an actual NULL cell; a written 'TDSNull' is a text since C-2's corpus fix, 2026-11-17); the 2-ULP dialect-arithmetic leniency (corpus float
  * expectations encode H2's libm; DuckDB differs in the last ULP —
  * DOUBLE-vs-DOUBLE only, exact kinds stay strict); the temporal
  * Any-carrier bridge (a mixed-collection literal's date decodes as its
