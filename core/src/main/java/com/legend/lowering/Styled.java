@@ -16,7 +16,7 @@ import java.util.function.Supplier;
  * @param pureOnly  the texts only legend-pure writes ({@link PureOnlyTexts}): the edge's answers, the product's style
  *                  throwing the call's refusal
  * @param forms     the lowering's two-form choices ({@link LoweringForms}, the audit's K5, 2026-11-17; until then the
- *                  set of raises the style wrote plain, B7): the product's {@link LoweringForms#PRODUCT}, every check
+ *                  set of raises the style wrote plain, B7): the product's {@link ProductLoweringForms}, every check
  *                  written; the edge's pure/v1 style legend-engine's census class A plain
  * @param dateTimes a DateTime's text in a message, a two-form hook ({@link DateTimeTexts}, census B9, 2026-11-17): the
  *                  product's lite text, the edge's legend-pure's
@@ -33,8 +33,8 @@ public record Styled(Function<Supplier<? extends RuntimeException>, PureOnlyText
             com.legend.sql.SqlExpr.Call.of(com.legend.sql.SqlFn.DATETIME_TO_TEXT, x);
 
     /** The product's own style: each text only legend-pure writes refused, by its call's own refusal; every check of
-     *  lite's written (no plain raise, {@link LoweringForms#PRODUCT}); lite's text of a DateTime. */
+     *  lite's written (no plain raise, {@link ProductLoweringForms}); lite's text of a DateTime. */
     public static final Styled PRODUCT = new Styled(refusal -> {
         throw refusal.get();
-    }, LoweringForms.PRODUCT, LITE_DATE_TIMES, ProductListTexts.INSTANCE);
+    }, ProductLoweringForms.INSTANCE, LITE_DATE_TIMES, ProductListTexts.INSTANCE);
 }
