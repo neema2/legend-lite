@@ -49,8 +49,10 @@ class PlanRunnerTest {
                 () -> PlanParameters.check(List.of(p), Map.of(p.name(), value))).getMessage();
     }
 
+    /** Lite's sentence of the values their parameters do not take (J8 of the edge audit, 2026-11-17: legend-engine's
+     *  "Invalid provided parameter(s): [...]" is the edge's, PureMessages). */
     private static String invalid(String... problems) {
-        return "Invalid provided parameter(s): [" + String.join("; ", problems) + "]";
+        return com.legend.error.InvalidParameters.sentence(java.util.List.of(problems));
     }
 
     @Test

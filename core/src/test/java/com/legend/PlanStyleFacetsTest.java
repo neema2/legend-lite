@@ -71,6 +71,18 @@ class PlanStyleFacetsTest {
                 com.legend.edge.PureText.UPSTREAM.errorWords(refused));
     }
 
+    /** A parameter value its parameter does not take (J8 of the edge audit, 2026-11-17): the product's words are lite's
+     *  sentence; legend-engine's "Invalid provided parameter(s): [...]" is the edge's. */
+    @Test
+    void anInvalidParameterIsTheProductsKindAndTheEdgesSentence() {
+        RuntimeException invalid = new com.legend.error.InvalidParameters(java.util.List.of(
+                "parameter 'p' (Integer[1]): not an Integer", "parameter 'q' (Date[1]): not a date"));
+        org.junit.jupiter.api.Assertions.assertEquals("invalid value(s) for the parameter(s): parameter 'p' (Integer[1]):"
+                + " not an Integer; parameter 'q' (Date[1]): not a date", PlanStyle.PRODUCT.errorWords(invalid));
+        org.junit.jupiter.api.Assertions.assertEquals("Invalid provided parameter(s): [parameter 'p' (Integer[1]): not an"
+                + " Integer; parameter 'q' (Date[1]): not a date]", com.legend.edge.PureText.UPSTREAM.errorWords(invalid));
+    }
+
     @Test
     void aKindOutsideTheListFailsByNameOnEveryStyle() {
         for (PlanStyle style : STYLES) {
