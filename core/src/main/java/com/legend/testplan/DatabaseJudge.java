@@ -282,8 +282,7 @@ public final class DatabaseJudge {
         // two single numbers of different kinds (register S127, the user's ruling of 2026-11-04): never equal in lite's
         // own runs -- decided false at planning, the rows read for the message; in backwards-compatibility mode compiled
         // legend-pure's rule, an Integer and a Decimal compared by their texts (the canon's) and a Float equal to neither
-        if (!re.many() && !ra.many() && crossNumberKinds(re.kinds().get(ie), ra.kinds().get(ia),
-                env.options().judgingRules().integerDecimalByText())) {
+        if (!re.many() && !ra.many() && crossNumberKinds(re.kinds().get(ie), ra.kinds().get(ia), numbers(env))) {
             vq = com.legend.lowering.VerdictSql.decidedFalse(vq);
         }
         // a single Decimal's text as upstream's %r writes it, its D (the canon the comparison reads drops it)
@@ -370,17 +369,15 @@ public final class DatabaseJudge {
      *  pair in lite's own runs; in backwards-compatibility mode all but an Integer and a Decimal, which compiled
      *  legend-pure compares by text. An unrefined Number is no known kind. */
     private static boolean crossNumberKinds(com.legend.compiler.element.type.Type e,
-            com.legend.compiler.element.type.Type a, boolean integerDecimalByText) {
+            com.legend.compiler.element.type.Type a, CrossKindNumbers numbers) {
         com.legend.compiler.element.type.Type fe = fineNumber(e);
         com.legend.compiler.element.type.Type fa = fineNumber(a);
-        if (fe == null || fa == null || fe == fa) {
-            return false;
-        }
-        boolean integerAndDecimal = fe == com.legend.compiler.element.type.Type.Primitive.INTEGER
-                && fa == com.legend.compiler.element.type.Type.Primitive.DECIMAL
-                || fe == com.legend.compiler.element.type.Type.Primitive.DECIMAL
-                && fa == com.legend.compiler.element.type.Type.Primitive.INTEGER;
-        return !(integerDecimalByText && integerAndDecimal);
+        return fe != null && fa != null && fe != fa && !numbers.byText(fe, fa);
+    }
+
+    /** How the plan's style compares two numbers of different fine kinds (register S127; census C1, 2026-11-17). */
+    private static CrossKindNumbers numbers(BodyDriver.ExecEnv env) {
+        return env.options().style().twoForm(CrossKindNumbers.class, CrossKindNumbers.Product.NEVER);
     }
 
     /** {@code kind}'s fine number kind -- Integer, Float, Decimal (a declared precision one's too) -- or null. */
@@ -952,7 +949,7 @@ public final class DatabaseJudge {
             com.legend.compiler.element.type.Type ak = actual.type();
             com.legend.testexecutionplan.TestPlan.JudgingRules rules = env.options().judgingRules();
             com.legend.sql.SqlQuery row = com.legend.lowering.VerdictSql.perElement(vector.side().plan(), ek, ak,
-                    crossNumberKinds(ek, ak, rules.integerDecimalByText()),
+                    crossNumberKinds(ek, ak, numbers(env)),
                     rules.floatTolerance() && ek == com.legend.compiler.element.type.Type.Primitive.FLOAT
                             && ak == com.legend.compiler.element.type.Type.Primitive.FLOAT,
                     com.legend.lowering.VerdictSql.decimalByValue(rules.decimalScale(), ek), lite(env), env.plan().styled());
