@@ -165,9 +165,6 @@ public final class Equality {
     public static boolean same(Typed et, Typed at, HostRules rules) {
         Object e = et.value();
         Object a = at.value();
-        if (com.legend.sql.SqlExpr.NULL_CELL_WIRE.equals(e) && a == null) {
-            return true;   // an expected present null cell (C5 step C, C-2) beside a NULL cell
-        }
         if (e == null || a == null) {
             return e == a;
         }
@@ -338,9 +335,6 @@ public final class Equality {
     private static int typeRank(@com.legend.base.Nullable Object v) {
         return switch (v) {
             case null -> 0;
-            // a present null cell sorts with the null it equals (C5 step C, C-2's fix, 2026-11-17: the wire token, not a
-            // text; until C-2 the sentinel 'TDSNull' happened to sort first among the texts, beside the nulls)
-            case String s when com.legend.sql.SqlExpr.NULL_CELL_WIRE.equals(s) -> 0;
             case Number n -> 1;
             case String s -> 2;
             case Boolean b -> 3;
