@@ -298,7 +298,8 @@ public final class Lowerer {
 
     /** The plan style's plain raises ({@code style.plainRaises()}). */
     public Lowerer withPlainRaises(java.util.Set<com.legend.sql.RaiseKind> style) {
-        this.plainRaises = java.util.Set.copyOf(style);
+        this.plainRaises = style.isEmpty() ? java.util.Set.of()
+                : java.util.Collections.unmodifiableSet(java.util.EnumSet.copyOf(style));
         return this;
     }
 

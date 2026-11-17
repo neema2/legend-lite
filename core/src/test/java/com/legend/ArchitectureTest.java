@@ -3506,7 +3506,17 @@ final class ArchitectureTest {
     @Test
     void thePureV1StyleIsSelectedByThePureV1RoutesAlone() {
         java.util.Set<String> callers = new java.util.TreeSet<>();
-        for (com.tngtech.archunit.core.domain.JavaClass c : coreAndTheHostsDoors()) {
+        // the shipped server's runner stands in its own target (//core:edge_server), outside the imported jars: read from
+        // the edge's test classpath, which holds it
+        java.util.List<com.tngtech.archunit.core.domain.JavaClass> classes = new java.util.ArrayList<>();
+        coreAndTheHostsDoors().forEach(classes::add);
+        try {
+            new ClassFileImporter().importClasses(Class.forName("com.legend.edge.EdgeServer")).forEach(classes::add);
+        } catch (ClassNotFoundException e) {
+            throw new IllegalStateException("the shipped server's runner (//core:edge_server) is not on this test's"
+                    + " classpath", e);
+        }
+        for (com.tngtech.archunit.core.domain.JavaClass c : classes) {
             for (com.tngtech.archunit.core.domain.JavaFieldAccess a : c.getFieldAccessesFromSelf()) {
                 if (a.getTargetOwner().getName().equals("com.legend.edge.PureText") && a.getName().equals("PURE_V1")
                         && !a.getOriginOwner().getName().startsWith("com.legend.edge.PureText")) {

@@ -344,6 +344,10 @@ class CodeShapeGuardrailTest {
             // lite's own planning options (PlanOption, 2026-11-07: the deterministic as-of join): builder-style, set
             // once before lower() beside the features, same lifecycle
             "Lowerer.deterministicAsOf",
+            // 2026-11-17 (B7, the pure/v1 match-engine build; the orchestrator's go on the plainRaises hook): the plan
+            // style's plain raises, builder-style, set once by PlanEnv.configure before lower() beside dbTimeZone and the
+            // style's facets, same lifecycle
+            "Lowerer.plainRaises",
             // (ExecutionTrace.last, the execution-trace stamp's state since batch 137: DELETED with its class by C1,
             // 2026-11-12 -- no comment is written in front of a sent statement)
             // builder-flag, same lifecycle as engineExistsJoinForm: set
