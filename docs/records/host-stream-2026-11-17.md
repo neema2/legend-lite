@@ -189,6 +189,7 @@ reader of DataCube's conformance cases.
 
 1. **native/ does not build on the train.** `nativelib/Compiler.java` calls the Boundary methods that DataCube's 2c
    removed. It is Python's binding, and Python has been told. `//core:guardrails_edge` cannot build until it moves.
+   *Closed 2026-11-17:* with `EdgeBoundary.refused` on the train, `//core:guardrails_edge` builds and passes.
 2. **`RaiseEnvelopeConformanceTest` is red.** DataCube's H9 put lite's words in the shared fixture, and Java's
    `RaisedErrors` still prefers upstream's (the audit's K10). That is the Java half of H9.
 3. **DuckDB's Integer placeholder is bound bare (D1).** On DuckDB-WASM, every Integer parameter is therefore a DOUBLE.
@@ -196,3 +197,24 @@ reader of DataCube's conformance cases.
    planner ruling, not this stream's.
 4. **`PLAN_VERSION = 57`** comes from DataCube's merge point (the plain-Decimal plan type). K10a and K10b are off
    this train. `RaiseEnvelopeConformanceTest`'s K10b half goes with them.
+
+### DataCube's two findings (2026-11-17)
+
+- **query/parse reads lite's own grammar.** `LiteV1Planning.queryParse` parsed at `GrammarLevel.LEGEND_ENGINE`, so
+  lite's islands (`#Cypher{...}#`) were refused by lite's own route. That was a product bug.
+  - It now parses at `LEGEND_LITE` through a dialect-named overload of the parse door (`Parse.lambdaJson(text, si,
+    dialect)`, over `SpecParser.lambdaJson`/`parseLambda` at a level).
+  - legend-engine's `grammarToJson`, the edge's, keeps `LEGEND_ENGINE`.
+  - `PhaseEntriesRefusedInsideARunTest` pins the new door's refusal inside a run.
+  - Witness: `LiteV1PlanningTest.parseReadsLitesGrammar`. It parses a `#Cypher` island and shows that the engine
+    grammar refuses it. It goes red on revert.
+- **The plan runner decides no binding by a type's name.** `parameterValue`'s `case 'Integer': ...` switch is now a
+  switch on `types.ts`' `parameterKind` (the plain type's kind, read from `TYPE_FACTS`). The unknown arm is
+  `case undefined`, refused by name as before.
+  - Witness: `//datacube:guardrails_test`, "decides nothing by comparing a type name". It goes red on revert.
+- **Green:**
+  - `//core:core_tests_server`, `//core:core_tests_root`, `//core:guardrails`, `//core:guardrails_edge`;
+  - `//core:lite_api_conformance_test`, `//engine-client:lite_api_server_test`, `//engine-client:plan_runner_test`;
+  - `//datacube:guardrails_test`, `//datacube:cypher_spike_test`, `//datacube:typecheck_test`;
+  - `//studio:run_test`, `//query:run_test`, `//tools/guards:planned_sql_test`,
+    `//tools/deps:engine_client_run_alone_test`.
