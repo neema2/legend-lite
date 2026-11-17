@@ -149,21 +149,23 @@ def lite_route(path: str, body: str) -> tuple[int, str]:
     prefix = '/api/lite/v1/'
     op = path[len(prefix):] if path.startswith(prefix) else None
     if op not in OPERATIONS and op != 'user':
-        return _refused_route(LegendError(f'no such legend-lite API: {path}', error_kind('REQUEST')))
+        return refused_route(LegendError(f'no such legend-lite API: {path}', error_kind('REQUEST')))
     try:
         # the user operation's request may be empty, as the server's route reads it
         asked = {} if op == 'user' and not body.strip() else _json.loads(body)
     except ValueError:
         asked = None
     if not isinstance(asked, dict):
-        return _refused_route(LegendError(f'{op}: the request is no JSON object', error_kind('REQUEST')))
+        return refused_route(LegendError(f'{op}: the request is no JSON object', error_kind('REQUEST')))
     try:
         return 200, _json.dumps(operation(op, asked))
     except LegendError as refused:
-        return _refused_route(refused)
+        return refused_route(refused)
 
 
-def _refused_route(refused: LegendError) -> tuple[int, str]:
+def refused_route(refused: LegendError) -> tuple[int, str]:
+    """A refusal as lite's route answers it (the spec's §3): ``{kind, message, where?, raise?}`` and its kind's status
+    -- 422 a run's raise (``data``), 500 ``internal``, 400 every other."""
     said: dict[str, Any] = {'kind': refused.kind, 'message': refused.message}
     if refused.where is not None:
         said['where'] = refused.where
