@@ -258,23 +258,6 @@ public class Postgres extends AnsiSqlRenderer {
         return bindPayload(writer, u).append(" AS JSONB)) WITH ORDINALITY AS legend_payload(value, ordinality)");
     }
 
-    /** The engine's H2 text in the flavor DuckDB shares, its column types Postgres's (2026-10-12,
-     *  docs/CLOUD_BACKENDS_PCT_2026_10_11.md §20: the 8-byte double is DOUBLE PRECISION, and SMALLINT is the smallest
-     *  integer, there is no TINYINT) and a bare column name in lower case, as Postgres folds a bare name and spells a
-     *  store's ({@link #physicalName}, decision D8). */
-    @Override
-    public String fromEngineText(String statement) {
-        return RawSqlBoundary.translated(statement,
-                types -> ENGINE_TINYINT.matcher(ENGINE_DOUBLE.matcher(types).replaceAll("DOUBLE PRECISION"))
-                        .replaceAll("SMALLINT"),
-                bare -> bare.toLowerCase(java.util.Locale.ROOT));
-    }
-
-    private static final java.util.regex.Pattern ENGINE_DOUBLE =
-            java.util.regex.Pattern.compile("(?i)\\bDOUBLE\\b(?!\\s+PRECISION)");
-
-    private static final java.util.regex.Pattern ENGINE_TINYINT = java.util.regex.Pattern.compile("(?i)\\bTINYINT\\b");
-
     /** No native PIVOT: static pivots are emulated by the carrier pass; a dynamic
      * pivot needs a key-discovery round trip the browser planner cannot make. */
     // the probe plan's facts (2026-10-20): Postgres: "target lists can have at most 1664 entries" (MaxTupleAttributeNumber); REPEATABLE READ is its snapshot

@@ -11,7 +11,7 @@ import com.legend.compiler.element.TypedParameter;
 import com.legend.compiler.element.type.Type;
 import com.legend.compiler.spec.typed.TypedNativeCall;
 import com.legend.compiler.spec.typed.TypedSpec;
-import com.legend.plan.UpstreamRelationType;
+import com.legend.plan.PureSpelling;
 import com.legend.protocol.ProtocolReader;
 import com.legend.protocol.spec.AppliedFunction;
 import com.legend.protocol.spec.LambdaFunction;
@@ -79,8 +79,8 @@ public final class OfferFacts {
             switch (kind) {
                 case "column" -> declared.put(probe, name);
                 case "type" -> {
-                    for (Type.Column c : UpstreamRelationType.columns(Compiler.query(ctx, lambda(query)).resultType())) {
-                        compiled.put(c.name(), UpstreamRelationType.typePath(c.type()));
+                    for (Type.Column c : PureSpelling.relationColumns(Compiler.query(ctx, lambda(query)).resultType())) {
+                        compiled.put(c.name(), PureSpelling.typePath(c.type()));
                     }
                 }
                 case "agg" -> facts(byProbe, probe).aggregates().put(name, measureType(ctx, query));
@@ -217,9 +217,9 @@ public final class OfferFacts {
     /** The measure's type in a level query, or null when the compiler refuses the query. */
     private static String measureType(ModelContext ctx, String query) {
         try {
-            for (Type.Column c : UpstreamRelationType.columns(Compiler.query(ctx, lambda(query)).resultType())) {
+            for (Type.Column c : PureSpelling.relationColumns(Compiler.query(ctx, lambda(query)).resultType())) {
                 if (c.name().equals("m")) {
-                    return UpstreamRelationType.typePath(c.type());
+                    return PureSpelling.typePath(c.type());
                 }
             }
             throw new IllegalStateException("the level query answers no measure column: " + query);

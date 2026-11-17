@@ -683,11 +683,6 @@ class CarrierDifferentialTest {
         }
 
         @Override
-        public String fromEngineText(String statement) {
-            return duck.fromEngineText(statement);
-        }
-
-        @Override
         protected String ddlType(com.legend.sql.SqlDdl.ColumnType t) {
             return duck.ddlType(t);
         }

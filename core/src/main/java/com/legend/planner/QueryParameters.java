@@ -35,12 +35,12 @@ public final class QueryParameters {
 
         /** The type's Pure name: a primitive's ({@code String}, {@code StrictDate}, ...) or an enumeration's path. */
         public String pureType() {
-            return com.legend.plan.PlanText.pureTypeName(type);
+            return com.legend.plan.PureSpelling.typeName(type);
         }
 
         /** {@code Type[multiplicity]}, as legend-engine's plans and messages spell a parameter. */
         public String signature() {
-            return pureType() + "[" + com.legend.plan.PurePrint.sizeRange(multiplicity) + "]";
+            return pureType() + "[" + com.legend.plan.PureSpelling.sizeRange(multiplicity) + "]";
         }
 
         /** The legacy plan's template parameter: the placeholder kind its type spells, whether it is optional, and

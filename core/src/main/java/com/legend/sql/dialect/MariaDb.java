@@ -185,13 +185,6 @@ public class MariaDb extends AnsiSqlRenderer {
     // Session and structure
     // ==================================================================
 
-    /** The engine's H2 text is refused here: MariaDB has no translation of it (decision D2: raw text runs on the
-     *  database its connection declares; only the engine's H2 text is translated, for H2, DuckDB and Postgres). */
-    @Override
-    public String fromEngineText(String statement) {
-        throw new DialectCapability("the engine's H2 text reached MariaDB, which has no translation of it");
-    }
-
     /** {@inheritDoc} 6: its {@code DATETIME(6)}, its finest (S181, A7, 2026-11-10). */
     @Override
     protected int literalFractionDigits() {

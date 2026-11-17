@@ -45,13 +45,6 @@ import java.util.Set;
 // @SpellingArm methods alone (EdgeSpellingHookTest; phase D's D1.0, 2026-11-12; noted 2026-11-15, the D part 1 audit)
 public class Databricks extends AnsiSqlRenderer {
 
-    /** The engine's H2 text is refused here: Databricks has no translation of it (decision D2: raw text runs on the
-     *  database its connection declares; only the engine's H2 text is translated, for H2, DuckDB and Postgres). */
-    @Override
-    public String fromEngineText(String statement) {
-        throw new DialectCapability("the engine's H2 text reached Databricks, which has no translation of it");
-    }
-
     /** A Date and a DateTime parameter as upstream's literal processor writes them (databricksExtension.pure): a Date
      *  {@code to_date('%s')}, a {@code DATE} (a date-time value's time dropped, as upstream's), a DateTime
      *  {@code to_timestamp('%s')}, a {@code TIMESTAMP} of microseconds, a value of finer digits refused by the

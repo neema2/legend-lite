@@ -36,23 +36,16 @@ class HookRulingTest {
 
     /** The ruled hooks, each with the PRODUCT style's calls that would hand one out. */
     static final Map<Class<?>, List<Executable>> RULED = Map.of(
-            // census B3 (and B1's PlanStyle signatures naming it): legend-engine's text printers
-            com.legend.sql.dialect.EngineTextDialect.class, List.of(
-                    () -> each(t -> PlanStyle.PRODUCT.engineText(t)),
-                    () -> each(t -> PlanStyle.PRODUCT.enginePlanText(t, true, null)),
-                    () -> PlanStyle.PRODUCT.engineTestText(),
-                    () -> PlanStyle.PRODUCT.engineTestPlanText()),
+            // census B3 and B1 (EngineTextDialect and PlanStyle's signatures naming it): CLOSED 2026-11-17 by Phase 6 --
+            // the interface is com.legend.edge's and the style names no engine text; its entry gone
+            // census B2, 2026-11-17 (Phase 6): upstream's plan text, the planner's facet -- signatures only since its
+            // routine table moved to planner.PlanTextRoutines
+            com.legend.planner.UpstreamPlans.class, List.of(
+                    () -> PlanStyle.PRODUCT.facet(com.legend.planner.UpstreamPlans.class)),
             // census B8 (i), 2026-11-17: the texts only legend-pure writes, composed at lowering
             com.legend.lowering.PureOnlyTexts.class, List.of(
                     () -> PlanStyle.PRODUCT.facet(com.legend.lowering.PureOnlyTexts.class)));
 
-    /** {@code call} on every database type (each refused alike; no database named). */
-    private static void each(java.util.function.Consumer<com.legend.model.ConnectionDefinition.DatabaseType> call) {
-        for (com.legend.model.ConnectionDefinition.DatabaseType t
-                : com.legend.model.ConnectionDefinition.DatabaseType.values()) {
-            call.accept(t);
-        }
-    }
 
     /** (a): an interface declaring signatures only -- no static method, no default method, no field. */
     @Test
@@ -113,10 +106,8 @@ class HookRulingTest {
             }
         }
         assertEquals(new TreeSet<>(List.of(
-                "EngineTextDialect <- com.legend.edge.EngineStyleComposite",
-                "EngineTextDialect <- com.legend.edge.EngineStyleDB2",
-                "EngineTextDialect <- com.legend.edge.EngineStyleH2",
-                "PureOnlyTexts <- com.legend.edge.EdgePureOnlyTexts")), implementers);
+                "PureOnlyTexts <- com.legend.edge.EdgePureOnlyTexts",
+                "UpstreamPlans <- com.legend.edge.EnginePlans$1")), implementers);
         assertFalse(implementers.isEmpty());
     }
 

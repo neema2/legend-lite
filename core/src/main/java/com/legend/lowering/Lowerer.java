@@ -209,12 +209,12 @@ public final class Lowerer {
     /** Pre-bind a free variable to an execution-plan TEMPLATE parameter
      * ({@code ${name}} — the plan printer's vocabulary): the variable
      * resolves through the ordinary let-binding channel. */
-    /** The two lowering MODES (batch 136): VERBATIM equality under the mapping's
-     * own definition (NullSemantics.verbatim); ENGINE-TEXT (CastPolicy). */
+    /** VERBATIM equality under the mapping's own definition (NullSemantics.verbatim). */
     private boolean verbatimEquality;
-    private boolean engineText;
+    /** The statement's shape (LoweringShape, Phase 6's B5, 2026-11-17): the product's lean unless its caller asks. */
+    private LoweringShape shape = LoweringShape.LEAN;
     /** The query's execution feature flags (FeatureRules): builder-style like
-     *  engineText; LEGACY_SQL_NULL_UNSAFE_EQUALS selects the verbatim equality
+     *  the shape; LEGACY_SQL_NULL_UNSAFE_EQUALS selects the verbatim equality
      *  form (plain {@code =}) at the four scalar sites. */
     private java.util.Set<com.legend.platform.Feature> features = java.util.Set.of();
     private boolean legacyNullUnsafeEquals;
@@ -271,15 +271,16 @@ public final class Lowerer {
         return this;
     }
 
-    public Lowerer withEngineText() {
-        this.engineText = true;
+    /** The statement's shape ({@link LoweringShape}); the product's is {@link LoweringShape#LEAN}. */
+    public Lowerer withShape(LoweringShape shape) {
+        this.shape = java.util.Objects.requireNonNull(shape, "a lowering shape");
         return this;
     }
 
     /** A RELATION READ MORE THAN ONCE IS WRITTEN ONCE (2026-11-04, {@link SharedRelations}): a let's value is one node
      *  of the statement's tree wherever its name is read, and it lowers once, a common table expression ({@code
-     *  __let<n>}) at the statement's head that each read names. Off in engine-text mode (legend-engine's own SQL, which
-     *  pastes it) and where the frame extracts the statement's subqueries as its own expressions (the engine's
+     *  __let<n>}) at the statement's head that each read names. Off where the shape asks
+     *  ({@link LoweringShape#shareRelations}) and where the frame extracts the statement's subqueries as its own expressions (the engine's
      *  cteExtractionPostProcessor: {@link #sharingRelations}). */
     private boolean shareRelations = true;
     /** While a statement lowers ({@link #lower(List)}): its shared relations; null between statements. */
@@ -502,7 +503,7 @@ public final class Lowerer {
         }
         TypedSpec root = withQueryLets(body);
         SqlQuery q;
-        if (sharing == null && shareRelations && !engineText) {
+        if (sharing == null && shareRelations && shape.shareRelations()) {
             // a relation read more than once, written once (SharedRelations): the statement's own names are its
             // query lets and plan parameters, which its head reads as every part of it does
             SharedRelations.Frame frame =
@@ -525,7 +526,7 @@ public final class Lowerer {
             q = LetBinding.bindRepeats(q);
         }
         // a count of rows a declared key makes one is 1 (KeyedCounts: the time model's D2), then the unread pruned
-        return SubselectPrune.prune(engineText ? q : KeyedCounts.fold(q, tableKeys), !engineText);
+        return SubselectPrune.prune(shape.foldKeyedCounts() ? KeyedCounts.fold(q, tableKeys) : q, shape.pruneComputed());
     }
 
     /**
@@ -580,7 +581,7 @@ public final class Lowerer {
     /** The rows a write or a merge writes: {@code source} lowered, each of its columns one of {@code t}'s (the checker
      *  types them so, by name: WriteChecker). */
     private SqlQuery writtenRows(TypedSpec source, TypedTableReference t, String op) {
-        SqlQuery rows = namedColumns(SubselectPrune.prune(lower(source), !engineText));
+        SqlQuery rows = namedColumns(SubselectPrune.prune(lower(source), shape.pruneComputed()));
         java.util.Set<String> declared = new java.util.LinkedHashSet<>();
         java.util.Objects.requireNonNull(Type.schemaView(t.info().type()), "a store table's type is a relation")
                 .columns().forEach(c -> declared.add(c.name()));
@@ -1201,11 +1202,9 @@ public final class Lowerer {
             case TypedTableReference t -> tableRead(t);
 
             case TypedTds tds -> tdsLiteral(tds);
-            // a VIEW at relation position: the engine plans it as an inline
-            // derived table aliased by the view (ViewSelectSQLQuery —
-            // personview_0, its root table "root" inside); the product
-            // render is lean — the body lowers flat, a name is not a nesting
-            case TypedViewRelation v -> engineText
+            // a VIEW at relation position: lean, the body lowers flat (a name is not a nesting); a derived table
+            // aliased by the view where the shape asks (LoweringShape#viewsAsDerivedTables)
+            case TypedViewRelation v -> shape.viewsAsDerivedTables()
                     ? SqlSelect.starOf(new SqlSource.Subselect(relation(v.body()), nextAlias(), v.view()))
                     : relation(v.body());
 
@@ -4532,7 +4531,7 @@ public final class Lowerer {
 
     /** The cast policy over an ALREADY-LOWERED source (CastPolicy owns every arm). */
     private SqlExpr cast(TypedCast c, SqlExpr value) {
-        return CastPolicy.lower(c, value, Stamps.isMany(c), engineText);
+        return CastPolicy.lower(c, value, Stamps.isMany(c), shape.elideWireCasts());
     }
 
     /**
