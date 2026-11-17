@@ -35,49 +35,49 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class HookRulingTest {
 
     /** The ruled hooks, each with the PRODUCT style's calls that would hand one out. */
-    static final Map<Class<?>, List<Executable>> RULED = Map.of(
+    static final Map<Class<?>, List<Executable>> RULED = Map.ofEntries(
             // census C2, 2026-11-17 (the orchestrator's ruling that day: NoEdgeRun is the product's refusal, by name):
             // the edge's run hook, and the hearing it opens
-            com.legend.testexec.EdgeRun.class, List.of(
-                    () -> com.legend.testexec.NoEdgeRun.NONE.open(planNaming(), null, java.util.UUID.randomUUID())),
-            com.legend.testexec.EdgeHearing.class, List.of(
+            Map.entry(com.legend.testexec.EdgeRun.class, List.of(
+                    () -> com.legend.testexec.NoEdgeRun.NONE.open(planNaming(), null, java.util.UUID.randomUUID()))),
+            Map.entry(com.legend.testexec.EdgeHearing.class, List.of(
                     () -> productHearing().judged(null, List.of(), null, false),
                     () -> productHearing().rowAppealed(0, List.of(), false),
-                    () -> productHearing().pureWords()),
+                    () -> productHearing().pureWords())),
             // C5's step B, 2026-11-17 (the orchestrator's ruling (1)): legend-pure's words of an assert's failure at run,
             // the hearing's member (NoEdgeRun's hearing refuses it by name)
-            com.legend.testexec.PureWords.class, List.of(
-                    () -> productHearing().pureWords()),
+            Map.entry(com.legend.testexec.PureWords.class, List.of(
+                    () -> productHearing().pureWords())),
             // census C1, 2026-11-17 (the orchestrator's ruling that day: the edge hook typed, the product's refusal
             // where a null selected lite's rules): the ledger's recorder, each ask refused by the product's NoEdge
-            com.legend.testexecutionplan.Edge.class, List.of(
+            Map.entry(com.legend.testexecutionplan.Edge.class, List.of(
                     () -> com.legend.testexecutionplan.NoEdge.NONE.effect(List.of(), List.of()),
                     () -> com.legend.testexecutionplan.NoEdge.NONE.seed(List.of(), Map.of()),
                     () -> com.legend.testexecutionplan.NoEdge.NONE.seeded(List.of(), List.of()),
-                    () -> com.legend.testexecutionplan.NoEdge.NONE.effectRan(List.of())),
+                    () -> com.legend.testexecutionplan.NoEdge.NONE.effectRan(List.of()))),
             // census B3 and B1 (EngineTextDialect and PlanStyle's signatures naming it): CLOSED 2026-11-17 by Phase 6 --
             // the interface is com.legend.edge's and the style names no engine text; its entry gone
             // census B2, 2026-11-17 (Phase 6): upstream's plan text, the planner's facet -- signatures only since its
             // routine table moved to planner.PlanTextRoutines
-            com.legend.planner.UpstreamPlans.class, List.of(
-                    () -> PlanStyle.PRODUCT.facet(com.legend.planner.UpstreamPlans.class)),
+            Map.entry(com.legend.planner.UpstreamPlans.class, List.of(
+                    () -> PlanStyle.PRODUCT.facet(com.legend.planner.UpstreamPlans.class))),
             // census B5, 2026-11-17 (Phase 6): legend-engine's result envelope, composed at lowering
-            com.legend.lowering.ResultEnvelopes.class, List.of(
-                    () -> PlanStyle.PRODUCT.facet(com.legend.lowering.ResultEnvelopes.class)),
+            Map.entry(com.legend.lowering.ResultEnvelopes.class, List.of(
+                    () -> PlanStyle.PRODUCT.facet(com.legend.lowering.ResultEnvelopes.class))),
             // census B8 (i), 2026-11-17: the texts only legend-pure writes, composed at lowering
-            com.legend.lowering.PureOnlyTexts.class, List.of(
-                    () -> PlanStyle.PRODUCT.facet(com.legend.lowering.PureOnlyTexts.class)),
+            Map.entry(com.legend.lowering.PureOnlyTexts.class, List.of(
+                    () -> PlanStyle.PRODUCT.facet(com.legend.lowering.PureOnlyTexts.class))),
             // census B17, 2026-11-17: a relation's legend-pure text, composed at lowering (a facade: FACADES)
-            com.legend.lowering.RelationTexts.class, List.of(
-                    () -> PlanStyle.PRODUCT.facet(com.legend.lowering.RelationTexts.class)),
+            Map.entry(com.legend.lowering.RelationTexts.class, List.of(
+                    () -> PlanStyle.PRODUCT.facet(com.legend.lowering.RelationTexts.class))),
             // census C4, 2026-11-17: the engine-text assert's arm, and the two hooks only its answers hand out (the
             // collector and the database judge's batch): each reached through the facet the product refuses
-            com.legend.testplan.EngineTestText.class, List.of(
-                    () -> PlanStyle.PRODUCT.facet(com.legend.testplan.EngineTestText.class)),
-            com.legend.testplan.TextCollector.class, List.of(
-                    () -> PlanStyle.PRODUCT.facet(com.legend.testplan.EngineTestText.class)),
-            com.legend.testplan.BatchTexts.class, List.of(
-                    () -> PlanStyle.PRODUCT.facet(com.legend.testplan.EngineTestText.class)));
+            Map.entry(com.legend.testplan.EngineTestText.class, List.of(
+                    () -> PlanStyle.PRODUCT.facet(com.legend.testplan.EngineTestText.class))),
+            Map.entry(com.legend.testplan.TextCollector.class, List.of(
+                    () -> PlanStyle.PRODUCT.facet(com.legend.testplan.EngineTestText.class))),
+            Map.entry(com.legend.testplan.BatchTexts.class, List.of(
+                    () -> PlanStyle.PRODUCT.facet(com.legend.testplan.EngineTestText.class))));
 
     /** C4's CAPABILITY (the orchestrator's ruling of 2026-11-17): the product's style does not judge legend-engine's
      *  text -- the test planner asks it before any engine-text gate, and takes the ordinary path -- the edge's does. */
