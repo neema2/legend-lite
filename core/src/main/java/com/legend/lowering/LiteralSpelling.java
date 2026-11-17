@@ -573,17 +573,10 @@ public final class LiteralSpelling {
                 new SqlExpr.FormatLit(com.legend.sql.DateFmt.DATE));
     }
 
-    /**
-     * THE DateTime's text (docs/OUTPUT_LAYER_DESIGN_2026_10_10.md §4, the one owner, 2026-10-18): Pure's print form
-     * of a DateTime read from a database -- {@code T}, the fraction's digits with their trailing zeros trimmed (a
-     * timestamp carries no written precision: {@code .123} prints {@code .123}, {@code .123456789} all nine, a whole
-     * second none), {@code +0000}. Every output of a timestamp slot writes this (the CSV, the JSON wires, Pure's TDS
-     * text, {@code toString}); a literal's own digits are {@link #dateTimePrint}'s, spelled statically where the
-     * typer knows them. The fraction is read at nine digits, which every SQL dialect spells.
-     */
-    public static SqlExpr dateTimeText(SqlExpr x) {
-        // phase D's D1.2 (2026-11-15): legend-pure's form is a node, the judges' and the edge's, its composition the
-        // renderer's (dialect.DateTimePrintText, moved there unchanged); the product's own text is DATETIME_TO_TEXT
+    /** legend-pure's print form of a DateTime as a {@link SqlFn#DATETIME_PRINT} node, for the judges' canon above alone
+     *  (census C5, E-Java's): a message's DateTime text is the style's two-form hook since census B9 (2026-11-17,
+     *  lowering.DateTimeTexts), the node's composition the edge's ({@code edge.DateTimePrintText}). */
+    private static SqlExpr dateTimeText(SqlExpr x) {
         return SqlExpr.Call.of(SqlFn.DATETIME_PRINT, x);
     }
 

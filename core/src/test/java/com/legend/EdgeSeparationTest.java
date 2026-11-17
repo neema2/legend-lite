@@ -53,7 +53,6 @@ class EdgeSeparationTest {
             Map.entry("com.legend.planner.UpstreamPlans", "B2"),
             Map.entry("com.legend.server.PureV1Api", "B7"),
             Map.entry("com.legend.sql.dialect.FloatPrintText", "B9"),
-            Map.entry("com.legend.sql.dialect.DateTimePrintText", "B9"),
             // B17 (2026-11-17): Render's relation text moved to the edge (edge.RelationTextLowering); what stays in
             // Render is the product's row helpers, and the facet the edge answers stands here until hooks are ruled
             Map.entry("com.legend.lowering.RelationTexts", "B17"),
@@ -84,7 +83,6 @@ class EdgeSeparationTest {
             Map.entry("com.legend.lowering.LiteralSpelling -> SqlFn.DATETIME_PRINT", "B8 2026-11-17"),
             Map.entry("com.legend.lowering.Repr -> (stands in a product package)", "B12 2026-11-17"),
             Map.entry("com.legend.lowering.Repr -> SqlFn.FLOAT_PRINT", "C5 2026-11-17"),
-            Map.entry("com.legend.lowering.Scalars -> SqlFn.DATETIME_PRINT", "B8 2026-11-17"),
             Map.entry("com.legend.lowering.Scalars -> SqlFn.TEXT_FORMS", "B8 2026-11-17"),
             Map.entry("com.legend.lowering.Scalars -> com.legend.lowering.Repr", "B12 2026-11-17"),
             Map.entry("com.legend.lowering.TaggedLists -> SqlFn.TEXT_FORMS", "B8 2026-11-17"),
@@ -94,9 +92,7 @@ class EdgeSeparationTest {
             Map.entry("com.legend.server.ModelChanges -> com.legend.server.PureV1Api", "B7 2026-11-17"),
             Map.entry("com.legend.server.ModelInput -> com.legend.server.PureV1Api", "B7 2026-11-17"),
             Map.entry("com.legend.server.PureV1Api -> (stands in a product package)", "B7 2026-11-17"),
-            Map.entry("com.legend.sql.dialect.AnsiSqlRenderer -> com.legend.sql.dialect.DateTimePrintText", "B9 2026-11-17"),
             Map.entry("com.legend.sql.dialect.AnsiSqlRenderer -> com.legend.sql.dialect.FloatPrintText", "B9 2026-11-17"),
-            Map.entry("com.legend.sql.dialect.DateTimePrintText -> (stands in a product package)", "B9 2026-11-17"),
             Map.entry("com.legend.sql.dialect.FloatPrintText -> (stands in a product package)", "B9 2026-11-17"),
             // planner.Boundary -> com.legend.edge.HostAnswers, PureText, PureV1Routes: gone 2026-11-17 (A1, E-P5): the
             // pure/v1 route and execute's halves moved to com.legend.edge.wasm.EdgeBoundary (//wasm:edge_boundary)
@@ -326,7 +322,6 @@ class EdgeSeparationTest {
             Map.entry("sql/dialect/ClickHouse.java | FLOAT_PRINT", "B9 2026-11-17"),
             Map.entry("sql/dialect/Databricks.java | FLOAT_PRINT", "B9 2026-11-17"),
             Map.entry("sql/dialect/DuckDb.java | FLOAT_PRINT", "B9 2026-11-17"),
-            Map.entry("sql/dialect/DateTimePrintText.java | +0000", "B9 2026-11-17"),
             Map.entry("sql/dialect/FloatPrintText.java | FLOAT_PRINT", "B9 2026-11-17"),
             Map.entry("sql/dialect/H2.java | FLOAT_PRINT", "B9 2026-11-17"),
             Map.entry("sql/dialect/MariaDb.java | FLOAT_PRINT", "B9 2026-11-17"),

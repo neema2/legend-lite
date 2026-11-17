@@ -3569,10 +3569,14 @@ final class Scalars {
         return dateText(SqlFn.DATETIME_TO_TEXT, typed, e);
     }
 
-    /** A date's representation ({@code %r}, the judges' message), or null when not a date: a DateTime's legend-pure's
-     *  print form ({@link SqlFn#DATETIME_PRINT}, the judges' since D1.2), any other date literal's as written. */
-    static @com.legend.base.Nullable SqlExpr dateReprOf(TypedSpec typed, SqlExpr e) {
-        return dateText(SqlFn.DATETIME_PRINT, typed, e);
+    /** A date's representation ({@code %r}, the judges' message), or null when not a date: a DateTime's the style's
+     *  two-form text ({@link Styled#dateTimes}: lite's, or legend-pure's print form on the edge's style; census B9,
+     *  2026-11-17), any other date literal's as written. */
+    static @com.legend.base.Nullable SqlExpr dateReprOf(Styled styled, TypedSpec typed, SqlExpr e) {
+        if (typed.info().type() == Type.Primitive.DATE_TIME) {
+            return styled.dateTimes().dateTimeText(e, typed instanceof TypedCDate cd ? cd.value().toEngineString() : null);
+        }
+        return dateLiteralText(typed);
     }
 
     private static @com.legend.base.Nullable SqlExpr dateText(SqlFn dateTime, TypedSpec typed, SqlExpr e) {

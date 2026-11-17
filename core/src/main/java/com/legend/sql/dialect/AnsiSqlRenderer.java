@@ -260,7 +260,6 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         // a DateTime's texts (phase D's D1.2, 2026-11-15): the product's, a STRFTIME (the edge's spelling passes wrote
         // legend-pure's node for it first, if any); legend-pure's, the judges' and the edge's, its composition
         ps.add(new DateTimeText.Expansion());
-        ps.add(new DateTimePrintText.Expansion());
         // a joined element's text (phase D's D1.3, 2026-11-15): the product's join skips an empty element
         ps.add(new CellTexts.Expansion());
         ps.add(new CellTexts.Rest());
@@ -1479,7 +1478,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
     /** A call the base renderer's first passes expand or refuse ({@link com.legend.sql.SqlFn#DATETIME_TO_TEXT},
      *  {@link com.legend.sql.SqlFn#DATETIME_PRINT}, {@link com.legend.sql.SqlFn#CELL_TEXT},
      *  {@link com.legend.sql.SqlFn#INSTANCE_TEXT}: {@link DateTimeText},
-     *  {@link DateTimePrintText}, {@link CellTexts}, {@link PureOnlyText}): one reaching a dialect's arm is a renderer
+     *  {@code edge.DateTimePrintText}, {@link CellTexts}, {@link PureOnlyText}): one reaching a dialect's arm is a renderer
      *  bug, refused by name. */
     protected static IllegalStateException expandedFirst(SqlExpr.Call c) {
         return new IllegalStateException("renderer bug: " + c.fn() + " is expanded before any dialect reads it");

@@ -149,10 +149,12 @@ public enum SqlFn {
      *  product reads the value alone. The compatibility edge writes {@link #DATETIME_PRINT} for it. */
     DATETIME_TO_TEXT,
     /** A DateTime's text as legend-pure prints it: the fraction's digits with their trailing zeros trimmed, then
-     *  {@code +0000}; a literal's (a second operand, its written text) that text and {@code +0000}. The JUDGES' form
-     *  (their {@code %r} and canon, judge parity G2) and the compatibility edge's text of {@link #DATETIME_TO_TEXT};
+     *  {@code +0000}; a literal's (a second operand, its written text) that text and {@code +0000}. The compatibility
+     *  edge's form of a DateTime in a message (census B9, 2026-11-17: the two-form hook lowering.DateTimeTexts) and its
+     *  text of {@link #DATETIME_TO_TEXT};
      *  never the product's (phase D's D1.2, 2026-11-15: until then the lowering composed it in place,
-     *  LiteralSpelling.dateTimeText). Expanded before every other pass ({@code dialect.DateTimePrintText}). */
+     *  LiteralSpelling.dateTimeText). Expanded by the edge's spelling pass ({@code edge.DateTimePrintText}; census B9,
+     *  2026-11-17: the product's renderer refuses it, its message text of a DateTime is DATETIME_TO_TEXT). */
     DATETIME_PRINT,
     /** An element's text in a {@code makeString} ({@code x}, one operand, {@code NULL} where the element is empty): the
      *  product's join skips an empty element (the user's ruling of 2026-11-10, D_BRIEF §1: "makeString skips empty

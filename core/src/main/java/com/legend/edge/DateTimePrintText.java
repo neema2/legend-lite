@@ -1,7 +1,7 @@
 // Copyright 2026 Legend Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-package com.legend.sql.dialect;
+package com.legend.edge;
 
 import com.legend.sql.SqlExpr;
 import com.legend.sql.SqlFn;
@@ -10,10 +10,10 @@ import java.util.List;
 
 /**
  * {@link SqlFn#DATETIME_PRINT}, legend-pure's print form of a DateTime, spelled over the database's own STRFTIME: the
- * JUDGES' form (their {@code %r} and canon) and the compatibility edge's text of a DateTime. Moved unchanged from the
- * lowering's {@code LiteralSpelling.dateTimeText} (phase D's D1.2, 2026-11-15), so a product dialect holds Pure's
- * {@code +0000} only for the judges, as {@link FloatPrintText} holds Pure's Float text. A pass of the base renderer, run
- * first: every later pass sees the tree the lowering wrote until D1.2, and the SQL is the same.
+ * compatibility edge's form of a DateTime's text ({@code lowering.DateTimeTexts}, a two-form hook: the product's is
+ * lite's {@code DATETIME_TO_TEXT}). Moved unchanged from the product's renderer (census B9, 2026-11-17; from the
+ * lowering's {@code LiteralSpelling.dateTimeText} at phase D's D1.2, 2026-11-15): one of the edge's spelling passes
+ * ({@link PurePrintForms#passes}), so no product dialect holds Pure's {@code +0000}, and the SQL is the same.
  */
 final class DateTimePrintText {
 

@@ -276,15 +276,20 @@ public final class Lowerer {
     private java.util.function.Function<java.util.function.Supplier<? extends RuntimeException>, PureOnlyTexts>
             pureOnlyTexts = Styled.PRODUCT.pureOnly();
 
+    /** A DateTime's text in a message, the style's two-form answer ({@link DateTimeTexts}): lite's own unless the
+     *  planner handed another style. */
+    private DateTimeTexts dateTimes = Styled.LITE_DATE_TIMES;
+
     /** The planner's style's text facets ({@code PlanEnv.styled}). */
     public Lowerer withStyled(Styled style) {
         this.pureOnlyTexts = style.pureOnly();
+        this.dateTimes = style.dateTimes();
         return this;
     }
 
     /** The style's text facets a native's rule reads ({@link Styled}). */
     private Styled styled() {
-        return new Styled(pureOnlyTexts);
+        return new Styled(pureOnlyTexts, dateTimes);
     }
 
     /** legend-engine's result envelope ({@link ResultEnvelopes}, Phase 6's B5, 2026-11-17): the plan style's facet,
