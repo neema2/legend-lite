@@ -79,9 +79,8 @@ final class HostSideBatching {
         // the batch's cells decode by their sides' own planned columns (a UNION ALL's column takes the type its
         // branches share -- H2 read a literal grid's Integer as its VARCHAR slot's text, 2026-11-17)
         List<ExecutionPlan.Column> own = new ArrayList<>();
-        cells.stream().flatMap(m -> m.values().stream())
-                .sorted(java.util.Comparator.comparingInt(TestPlan.Side.FusedCell::index))
-                .forEach(c -> own.addAll(c.columns()));
+        // in the batch's order: each cell was made as its side was added, so in order of its index
+        cells.forEach(m -> m.values().forEach(c -> own.addAll(c.columns())));
         if (sides.size() < 2) {
             return;
         }
