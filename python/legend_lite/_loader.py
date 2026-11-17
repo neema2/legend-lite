@@ -53,6 +53,8 @@ _ARITY = {
     'lite_warehouse_call': 2, 'lite_warehouse_read': 3,
     # Python's model home (native/.../ModelHome.java): a repository's folder, then a request's method, target and body
     'lite_sdlc_handle': 4, 'lite_depot_handle': 4, 'lite_saved_queries': 6, 'lite_saved_cubes': 6,
+    # the product's saved queries and pages at lite's mount, in lite's words (the edge program's H6, 2026-11-17)
+    'lite_store_queries': 6, 'lite_store_cubes': 6,
 }
 
 
@@ -64,6 +66,8 @@ _ARITY = {
 NOT_PLANNING = frozenset({
     'lite_site_types', 'lite_warehouse_call', 'lite_warehouse_read', 'lite_sdlc_handle', 'lite_depot_handle',
     'lite_saved_queries', 'lite_saved_cubes', 'lite_release_model',
+    # the product's saved queries and pages, at lite's mount in lite's words (the edge program's H6, 2026-11-17)
+    'lite_store_queries', 'lite_store_cubes',
 })
 
 # THE SERVICE KEY'S NAMES (_services.py): the warehouse's SQL API, as the one binding speaks it -- the run side's, and

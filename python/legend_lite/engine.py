@@ -130,6 +130,12 @@ _QUERIES, _QUERY_USER = '/api/pure/v1/query', THIS_USER
 # DataCube's saved pages, at upstream's routes beside the queries (/api/pure/v1/query/dataCube): the saved pages' rules,
 # the server's and the page's, over this user's folder (B6); their caller the same user
 _CUBES = _QUERIES + '/dataCube'
+# THE PRODUCT'S STORE at lite's own mount (the edge program's H6, 2026-11-17: the server mounts it so too,
+# LegendHttpServer's /api/lite/v1/query): the same rules over the same folders, refused in LITE'S words by the native
+# library's product entries (lite_store_queries, lite_store_cubes). The legend-engine mount above is the edge's
+# (SavedQueriesHome, legend-engine's words), served until the TS hosts move their clients here (the orchestrator's D-b)
+_LITE_QUERIES = '/api/lite/v1/query'
+_LITE_CUBES = _LITE_QUERIES + '/dataCube'
 # PLANANDRUN (docs/DATACUBE_ONE_APP_DESIGN_2026_10_11.md §15): a page's grid planned against the model Python holds and
 # run on its DuckDB, in one call; and its dry run, plan-and-run's planning half (the page's compile check) -- the host's
 # compute (§15.2 as amended 2026-10-15). A question about the Pure query alone is legend-engine's own route (_API), as
@@ -346,10 +352,14 @@ def private(path: str) -> bool:
         _PLAN_AND_RUN, _PLAN, _WAREHOUSE, _SNAP, _OPENED, _JOIN, _SOURCE)
 
 
+def _under(path: str, mount: str) -> bool:
+    return path == mount or path.startswith(mount + '/')
+
+
 def _saved_query(path: str) -> bool:
-    """A call of the query store's (``/api/pure/v1/query``, ``.../{id}``, ``.../search``, ...), DataCube's saved pages'
-    (``.../dataCube...``) among them."""
-    return path == _QUERIES or path.startswith(_QUERIES + '/')
+    """A call of the query store's at either mount (``/api/lite/v1/query`` or ``/api/pure/v1/query``, ``.../{id}``,
+    ``.../search``, ...), DataCube's saved pages' (``.../dataCube...``) among them."""
+    return _under(path, _LITE_QUERIES) or _under(path, _QUERIES)
 
 
 def _stored(entry: str, folder: Path, *asked: str) -> Answer:
@@ -366,8 +376,8 @@ def _stored(entry: str, folder: Path, *asked: str) -> Answer:
 
 
 def _saved_cube(path: str) -> bool:
-    """A call of DataCube's saved pages' (``/api/pure/v1/query/dataCube``, ``.../{id}``, ``.../search``)."""
-    return path == _CUBES or path.startswith(_CUBES + '/')
+    """A call of DataCube's saved pages' at either mount (``.../query/dataCube``, ``.../{id}``, ``.../search``)."""
+    return _under(path, _LITE_CUBES) or _under(path, _CUBES)
 
 
 def _app_of(path: str) -> str | None:
@@ -696,6 +706,9 @@ class Engine:
         is this user: there is no sign-in."""
         if method not in ('GET', 'POST', 'PUT', 'DELETE'):
             return _said(405, 'the query store answers GET, POST, PUT and DELETE')
+        # lite's mount, the product's entry and lite's words; legend-engine's, the edge's (H6)
+        if _under(path, _LITE_QUERIES):
+            return _stored('lite_store_queries', queries_folder(), method, path[len(_LITE_QUERIES):], query, body)
         return _stored('lite_saved_queries', queries_folder(), method, path[len(_QUERIES):], query, body)
 
     def _saved_cubes(self, method: str, path: str, query: str, body: str) -> Answer:
@@ -704,6 +717,9 @@ class Engine:
         one file each, as the page's records were kept), under its lock. Its caller is this user: there is no sign-in."""
         if method not in ('GET', 'POST', 'PUT', 'DELETE'):
             return _said(405, "DataCube's saved pages answer GET, POST, PUT and DELETE")
+        # lite's mount, the product's entry and lite's words; legend-engine's, the edge's (H6)
+        if _under(path, _LITE_CUBES):
+            return _stored('lite_store_cubes', self.pages_folder(), method, path[len(_LITE_CUBES):], query, body)
         return _stored('lite_saved_cubes', self.pages_folder(), method, path[len(_CUBES):], query, body)
 
     def _settings_kept(self, body: str) -> Answer:
