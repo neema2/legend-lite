@@ -5,8 +5,8 @@
  * A PRODUCT RAISE, WORDED (#104's M2(b), 2026-11-15; phase D's Phase 2, raises as SITES, 2026-11-16): a statement lite
  * planned raises a bare token `LG#<n>` inside an envelope (the dialect's raise), and the tab reads it as Java's runner
  * does (exec.RaisedErrors): site `n` of the statement it sent, from the sites the plans it read declared for that text
- * (declared-raises.ts) -- its kind, its where, and lite's words rendered at planning (`message`; an edge plan's
- * `upstream` words are the edge's, never read here: the edge audit's H9, 2026-11-17) -- at its one send's failure (DuckDbEngine's), so every route that sends a plan's statement
+ * (declared-raises.ts) -- its kind, its where, and its words rendered at planning (`upstream` where the plan carries
+ * them, else `message`) -- at its one send's failure (DuckDbEngine's), so every route that sends a plan's statement
  * says the same words, as Python's one send does. The envelope's marks are GENERATED from legend-lite
  * (src/generated/lite-raise.ts); the envelope's cases are one shared fixture (test/fixtures/raise-envelopes.json) Java's,
  * the tab's and Python's readers all read.
@@ -64,5 +64,5 @@ export function failure(message: string, sql: string, options: { cause?: unknown
   // its own
   const site = declaredSites(sql)?.[raise.site - 1];
   if (!site) return new QueryError(`the database raised ${raise.text}, which the statement does not declare`, sql, options);
-  return new PlanRaise(site.kind, site.message, site.where ?? undefined, sql, options);
+  return new PlanRaise(site.kind, site.upstream ?? site.message, site.where ?? undefined, sql, options);
 }

@@ -66,9 +66,9 @@
       "kind": "DIVIDE_BY_ZERO"
     },
     {
-      "name": "a site's message is said, its upstream words the edge's",
+      "name": "a site with upstream's words says them",
       "message": "\u001f\u001cLG#4\u001f",
-      "words": "index out of bounds",
+      "words": "The system is trying to get an element at offset 5 where the collection is of size 3",
       "kind": "INDEX_OUT_OF_BOUNDS"
     },
     {
@@ -90,7 +90,7 @@
     {
       "name": "the first envelope where the statement's text repeats it (H2)",
       "message": "\u001f\u001cLG#4\u001f; SQL statement: SELECT error(chr(31) || '\u001cLG#4' || chr(31)) \u001f\u001cLG#1\u001f",
-      "words": "index out of bounds",
+      "words": "The system is trying to get an element at offset 5 where the collection is of size 3",
       "kind": "INDEX_OUT_OF_BOUNDS"
     },
     {
