@@ -86,6 +86,13 @@ public final class Program {
     /** {@link #run(String, String, String, Connection)} with the caller's execute {@code options} (a judge mode). */
     public static Report run(String model, String body, @com.legend.base.Nullable String runtime, Connection c,
             ExecuteOptions options) {
+        return run(model, body, runtime, c, options, com.legend.testexec.NoEdgeRun.NONE);
+    }
+
+    /** {@link #run(String, String, String, Connection, ExecuteOptions)} heard by {@code edgeRun}: the product's
+     *  {@code NoEdgeRun.NONE}, or the edge's run for a test of the compatibility rules (an edge test, census C1's K14). */
+    public static Report run(String model, String body, @com.legend.base.Nullable String runtime, Connection c,
+            ExecuteOptions options, com.legend.testexec.EdgeRun edgeRun) {
         ModelContext ctx = Compiler.compileModel(LaneFloor.model(model, c));
         List<Verdict> verdicts = new ArrayList<>();
         AssertListener listener = new AssertListener() {
@@ -106,7 +113,7 @@ public final class Program {
         // reader a query's answer is read by (the doors, 2026-10-29; until then the collected side re-read here)
         java.io.StringWriter out = new java.io.StringWriter();
         Lean.Capturing sink = new Lean.Capturing(out);
-        TestExecution.runProgram(Compiler.queryResolved(ctx, resolved), runtime, com.legend.exec.SessionSource.given(com.legend.testbackend.TestSessions.over(c)), listener, com.legend.testexec.NoEdgeRun.NONE,
+        TestExecution.runProgram(Compiler.queryResolved(ctx, resolved), runtime, com.legend.exec.SessionSource.given(com.legend.testbackend.TestSessions.over(c)), listener, edgeRun,
                 options, new com.legend.result.Output.Rows(sink));
         return new Report(List.copyOf(verdicts), sink.answered());
     }

@@ -22,6 +22,11 @@ EDGE_TEST_SRCS = [
     # upstream's JSON grammar, the edge's form of JsonGrammar (census C1, 2026-11-17)
     "src/test/java/com/legend/testplan/JudgeJsonTest.java",
     "src/test/java/com/legend/PlannerSurfaceTest.java",
+    # census C1's K14 (the orchestrator, 2026-11-17): upstream's behaviour tested on the edge's door
+    "src/test/java/com/legend/RelationCountAssertsEdgeTest.java",
+    "src/test/java/com/legend/testplan/CompiledPureNumbersEdgeTest.java",
+    "src/test/java/com/legend/testplan/RenderedTextEdgeTest.java",
+    "src/test/java/com/legend/testexec/EqualityCompatEdgeTest.java",
     "src/test/java/com/legend/ReferenceIntegrityTest.java",
     "src/test/java/com/legend/ResultWritersTest.java",
     "src/test/java/com/legend/compiler/spec/MultiplicityStrictnessTest.java",
