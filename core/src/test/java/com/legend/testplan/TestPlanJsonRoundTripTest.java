@@ -10,7 +10,6 @@ import com.legend.edge.EffectTexts;
 import com.legend.edge.RefereeLoad;
 import com.legend.executionplan.DatabaseType;
 import com.legend.executionplan.ExecutionPlan;
-import com.legend.testexecutionplan.Agreement;
 import com.legend.testexecutionplan.Appeal;
 import com.legend.testexecutionplan.Assertion;
 import com.legend.testexecutionplan.Extension;
@@ -70,17 +69,7 @@ class TestPlanJsonRoundTripTest {
                         new RootLoop.Message(null, FAILURE, false))),
                 Map.of("fragment", "reason"));
         TestPlan.Verdicts group = new TestPlan.Verdicts(verdicts, null, null,
-                TestPlan.JudgingRules.COMPILED_PURE_COMPAT, roots,
-                // E-5c, step 5b (O5, 2026-11-13): a segment's group closing two asserts, one per root of its loop
-                List.of(new Agreement(0, 1, RootLoop.NO_VERDICT), new Agreement(1, 2, RootLoop.NO_VERDICT)));
-        // E-5c (O5, 2026-11-13): a side read from its group's fused row
-        ExecutionPlan.Column cell = new ExecutionPlan.Column("__h0", "Integer", ONE, null, null, null);
-        TestPlan.Verdicts fusedGroup = new TestPlan.Verdicts(List.of(new TestPlan.Verdict(id, "v" + id, "arm",
-                List.of(new TestPlan.Side.FusedCell(List.of(cell))), null, null, false,
-                new TestPlan.Host(ASSERTION, judgments.get(0), List.of(shape())))),
-                new ExecutionPlan.TdsResult(ExecutionPlan.TdsResult.Shape.RELATION, List.of(cell),
-                        ExecutionPlan.Sql.of("SELECT 1 AS __h0", anyTarget())),
-                TestPlan.JudgingRules.LITE);
+                TestPlan.JudgingRules.COMPILED_PURE_COMPAT, roots);
         TestPlan.Branch branch = new TestPlan.Branch(constant(), List.of(), List.of());
         Map<Integer, List<Extension>> byStep = new LinkedHashMap<>();
         byStep.put(0, List.of(new EffectTexts(List.of(new EffectTexts.Statement("insert", false),
@@ -88,30 +77,10 @@ class TestPlanJsonRoundTripTest {
         Map<Integer, List<Extension>> byVerdict = new LinkedHashMap<>();
         byVerdict.put(1, List.of(rowsAppeal(), new Appeal(2, "contract", Appeal.Kind.CONTRACT, "words", null,
                 new Appeal.Batched("golden", null, false), 1)));
-        TestPlan plan = new TestPlan(List.of(), List.of(group, fusedGroup, branch), TestPlan.Judge.AGREEMENT, byStep,
+        TestPlan plan = new TestPlan(List.of(), List.of(group, branch), TestPlan.Judge.DATABASE, byStep,
                 byVerdict, true, anyTarget(), new com.legend.testexecutionplan.BodyFacts(true, false, true, "FLAXEO"));
 
         assertNull(TestPlanJson.roundTripDifference(plan));
-    }
-
-    /** A fused-cell side names a column its group's fused statement answers; else, or with no fused statement, the
-     *  group is refused by name (E-5c's invariant). */
-    @Test
-    void aFusedCellSideReadsAColumnOfItsGroupsFusedStatement() {
-        ExecutionPlan.Column cell = new ExecutionPlan.Column("__h0", "Integer", ONE, null, null, null);
-        TestPlan.Verdict v = new TestPlan.Verdict(1, "v1", "arm", List.of(new TestPlan.Side.FusedCell(List.of(cell))),
-                null, null, false, new TestPlan.Host(ASSERTION, new HostJudgment.Size(true), List.of(shape())));
-        ExecutionPlan.Column other = new ExecutionPlan.Column("__h1", "Integer", ONE, null, null, null);
-        IllegalArgumentException missing = org.junit.jupiter.api.Assertions.assertThrows(
-                IllegalArgumentException.class, () -> new TestPlan.Verdicts(List.of(v),
-                        new ExecutionPlan.TdsResult(ExecutionPlan.TdsResult.Shape.RELATION, List.of(other),
-                                ExecutionPlan.Sql.of("SELECT 1 AS __h1", anyTarget())),
-                        TestPlan.JudgingRules.LITE));
-        org.junit.jupiter.api.Assertions.assertTrue(missing.getMessage().contains("'__h0'"), missing.getMessage());
-        IllegalArgumentException none = org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class,
-                () -> new TestPlan.Verdicts(List.of(v), null, TestPlan.JudgingRules.LITE));
-        org.junit.jupiter.api.Assertions.assertTrue(none.getMessage().contains("no fused statement"),
-                none.getMessage());
     }
 
     private static List<HostJudgment> judgments() {

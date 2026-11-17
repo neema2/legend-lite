@@ -148,11 +148,7 @@ final class TestRun {
                 return;
             }
             TestPlan.Judge judge = plan.judge();
-            if (readsFusedCells(group)) {
-                fusedCellVerdicts(group, open);
-                return;
-            }
-            boolean hostAll = judge == TestPlan.Judge.HOST || judge == TestPlan.Judge.AGREEMENT;
+            boolean hostAll = judge == TestPlan.Judge.HOST;
             // a HOST-JUDGED verdict in a database-judged program: its sides and no statement of the database's (no
             // wrapper, no fused statement) -- an assertError's step (ruling N3: Java compares the error in both judge
             // modes)
@@ -179,88 +175,9 @@ final class TestRun {
                     }
                 }
             }
-            if (judge == TestPlan.Judge.DATABASE || judge == TestPlan.Judge.AGREEMENT) {
+            if (judge == TestPlan.Judge.DATABASE) {
                 databaseVerdicts(group, open);
             }
-        }
-
-        /**
-         * A group whose host sides are read from its FUSED row (E-5c, the user's ruling O5 of 2026-11-13): the fused
-         * statement read ONCE -- a rejection fails the body by name, nothing retried (P1.2) -- then each verdict's sides
-         * handed to the host judge, a fused-cell side its row's cells under its own columns (one row: a single value),
-         * any other side read as today, then each verdict's database row, in the group's order.
-         */
-        private void fusedCellVerdicts(TestPlan.Verdicts group, ProgramRunner.OpenProgram open) throws IOException {
-            ExecutionPlan.TdsResult fused = java.util.Objects.requireNonNull(group.fused(),
-                    "a fused-cell group has a fused statement (TestPlan.Verdicts' invariant)");
-            Map<Integer, List<Object>> full = fusedRows(group, fused, open);
-            Map<String, Integer> at = new HashMap<>();
-            for (int c = 0; c < fused.columns().size(); c++) {
-                at.put(fused.columns().get(c).name(), c);
-            }
-            for (int i = 0; i < group.verdicts().size(); i++) {
-                TestPlan.Verdict each = group.verdicts().get(i);
-                if (each.base().isEmpty() && each.host() == null) {
-                    // a database member with nothing to read for the host
-                    continue;
-                }
-                // a host verdict with no base (DE4 (a): its outcome decided at planning) is still handed its (empty)
-                // sides, so its host half is judged and held (the PR1 re-review's B3: skipped, it was never judged,
-                // and the agreement's decision found no host half)
-                List<Object> row = java.util.Objects.requireNonNull(full.get(i));
-                List<PlanRunner.Rows> sides = open.guarded(null, () -> {
-                    List<PlanRunner.Rows> out = new ArrayList<>(each.base().size());
-                    for (TestPlan.Side side : each.base()) {
-                        if (side instanceof TestPlan.Side.FusedCell cell) {
-                            List<Object> cells = new ArrayList<>(cell.columns().size());
-                            for (ExecutionPlan.Column c : cell.columns()) {
-                                cells.add(row.get(java.util.Objects.requireNonNull(at.get(c.name()))));
-                            }
-                            out.add(new PlanRunner.Rows(cell.columns(), List.of(cells)));
-                        } else {
-                            out.add(sideRows(side, open));
-                        }
-                    }
-                    return out;
-                }, e -> {
-                    judges.sidesFailed(each, e instanceof IOException io ? new UncheckedIOException(io)
-                            : (RuntimeException) e);
-                    return null;
-                });
-                if (sides != null) {
-                    judges.sides(each, sides);
-                }
-            }
-            for (int i = 0; i < group.verdicts().size(); i++) {
-                List<Object> row = java.util.Objects.requireNonNull(full.get(i));
-                judges.verdict(group.verdicts().get(i), row.subList(1, 1 + VERDICT_CELLS));
-            }
-        }
-
-        /** {@code fused}'s rows by their verdict's index, each row whole; a rejection fails the body by name (as
-         *  {@link #databaseVerdicts}). */
-        private Map<Integer, List<Object>> fusedRows(TestPlan.Verdicts group, ExecutionPlan.TdsResult fused,
-                ProgramRunner.OpenProgram open) throws IOException {
-            Map<Integer, List<Object>> rows = new HashMap<>();
-            try {
-                for (List<Object> row : open.read(fused, null, Map.of()).rows()) {
-                    if (row.isEmpty() || !(row.get(0) instanceof Number index)) {
-                        throw new IllegalStateException("a fused verdict row's first cell is the verdict's index: "
-                                + (row.isEmpty() ? "no cell" : row.get(0)));
-                    }
-                    rows.put(index.intValue(), row);
-                }
-                if (rows.size() != group.verdicts().size()) {
-                    throw new IllegalStateException("the fused verdict statement answered " + rows.size()
-                            + " rows for " + group.verdicts().size() + " verdicts");
-                }
-                judges.fused(group, null);
-            } catch (DataError e) {
-                judges.fused(group, e);
-                throw new DataError(e.getMessage() + " (the database rejected the verdict statement of "
-                        + group.verdicts().stream().map(TestPlan.Verdict::name).toList() + ")", e);
-            }
-            return rows;
         }
 
         /**
@@ -290,14 +207,14 @@ final class TestRun {
             });
             RuntimeException raised = caught[0];
             TestPlan.Judge judge = plan.judge();
-            if (judge == TestPlan.Judge.HOST || judge == TestPlan.Judge.AGREEMENT) {
+            if (judge == TestPlan.Judge.HOST) {
                 if (raised != null) {
                     judges.sidesFailed(each, raised);
                 } else {
                     judges.sides(each, java.util.Objects.requireNonNull(sides));
                 }
             }
-            if (judge == TestPlan.Judge.DATABASE || judge == TestPlan.Judge.AGREEMENT) {
+            if (judge == TestPlan.Judge.DATABASE) {
                 Map<String, PlanParameters.Checked> bound = new HashMap<>();
                 PlanParameters.Checked none = new PlanParameters.None();
                 RuntimeException error = raised;
@@ -371,23 +288,6 @@ final class TestRun {
         }
     }
 
-    /** The verdict schema's cells after a fused row's index ({@code VerdictSql.schema}'s seven: the verdict, the
-     *  expected and actual texts, the unjudged reason, the leniency, the polarity's holds, the message); a fused row's
-     *  host columns follow them (E-5c). */
-    private static final int VERDICT_CELLS = 7;
-
-    /** Whether any side of {@code group} is read from its fused row (E-5c). */
-    private static boolean readsFusedCells(TestPlan.Verdicts group) {
-        for (TestPlan.Verdict v : group.verdicts()) {
-            for (TestPlan.Side side : v.base()) {
-                if (side instanceof TestPlan.Side.FusedCell) {
-                    return true;
-                }
-            }
-        }
-        return false;
-    }
-
     /** {@code group}'s savepoint where the program's session is inside a transaction; else none. */
     private static ProgramRunner.@Nullable Savepoint guard(TestPlan.Verdicts group, ProgramRunner.OpenProgram open) {
         TestPlan.Verdicts.Savepoint sp = group.savepoint();
@@ -417,8 +317,6 @@ final class TestRun {
             case TestPlan.Side.Rows r -> r.result();
             case TestPlan.Side.KeyedRows k -> k.keyed();
             case TestPlan.Side.Constant c -> throw new IllegalStateException("a constant side sends no statement");
-            case TestPlan.Side.FusedCell f -> throw new IllegalStateException("a fused-cell side sends no statement:"
-                    + " it is read from its group's fused row");
         };
     }
 

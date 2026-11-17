@@ -104,7 +104,6 @@ public final class TestPlanner {
         boolean systemRouted;
         HostAsserts host = null;
         DatabaseAsserts database = null;
-        TestDoor.Asserts agreement = null;
         // the body's engine-text appeals as its arms planned them, by number: the plan carries those its verdicts name
         // (step 8b, 2026-11-08)
         EngineTextAppeals textAppeals = null;
@@ -113,8 +112,7 @@ public final class TestPlanner {
         // only the asserts' planning was scoped, and the system database's session was opened just before it)
         try (var planning = com.legend.base.RunScope.plans("a test body")) {
             typed = lifted(given, options);
-            // every judge plans its asserts on the program road: the agreement judge too since the walker-deletion
-            // program (2026-11-02; AgreementAsserts), so the classes are one judge's rules whatever the mode
+            // every judge plans its asserts on the program road, so the classes are one judge's rules whatever the mode
             bodyClass = runtimeFqn == null ? null : BodyClass.of(typed, runtimeFqn, true);
             // an assert program's asserts, planned by its judge before the program is (M6 the host's, M7 the
             // database's): a body holding an assert of a shape the judge's planner does not plan yet has none, and is
@@ -155,19 +153,14 @@ public final class TestPlanner {
                 switch (judgesNothing ? PlanningOptions.JudgeMode.HOST : mode) {
                     case HOST -> host = HostAsserts.plan(typed, runtime, on, systemRouted ? bodyEnv : null);
                     case DATABASE -> database = DatabaseAsserts.plan(typed, runtime, on, systemRouted ? bodyEnv : null);
-                    // both judges over the DATABASE judge's real program, ONE road (E-5c, the user's ruling O5 of
-                    // 2026-11-13; DE4, the orchestrator's ruling under the user's delegation of 2026-11-15): its fused
-                    // statements, the host reading each single-value side as a typed column of them, and a root no
-                    // fused row carries (decided at planning, keyed, the split rung) judged by the host on its own
-                    // sides. A body the database judge plans no program for is refused by name below, as under the
-                    // database judge: there is no second road.
-                    case BOTH -> agreement = AgreementAsserts.planFused(typed, runtime, on,
-                            systemRouted ? bodyEnv : null, systemRouted);
+                    // both judges are planned ISOLATED, each alone (planIsolated): the fused agreement is deleted
+                    // (the orchestrator's (b), 2026-11-17)
+                    case BOTH -> throw new IllegalStateException("BOTH is planned isolated, each judge alone");
                 }
             }
         }
         boolean assertsPlanned = bodyClass == BodyClass.ASSERT_PROGRAM || bodyClass == BodyClass.FRAME_PROGRAM;
-        TestDoor.Asserts asserts = host != null ? host : database != null ? database : agreement;
+        TestDoor.Asserts asserts = host != null ? host : database;
         if (runtimeFqn == null || bodyClass == null || assertsPlanned && asserts == null) {
             String queryRule = runtimeFqn == null || bodyClass != null ? null : BodyClass.queryRuleRefusal(typed, runtimeFqn);
             String why = (runtimeFqn == null ? "no runtime" : bodyClass == null ? "no class admits the body"

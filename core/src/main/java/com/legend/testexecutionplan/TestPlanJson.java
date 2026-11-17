@@ -57,7 +57,7 @@ public final class TestPlanJson {
     /** The {@code _type} tags of a test plan's steps and sides, one spelling for the writer and the reader. */
     enum StepTag { run, frameRun, verdicts, branch, isolated }
 
-    enum SideTag { rows, keyedRows, constant, fusedCell }
+    enum SideTag { rows, keyedRows, constant }
 
     private static <E extends Enum<E>> E tag(Class<E> family, Json.Obj o, String what) {
         String name = o.getString("_type");
@@ -186,11 +186,6 @@ public final class TestPlanJson {
                 if (v.roots() != null) {
                     o.put("roots", HostJson.wRootLoop(v.roots()));
                 }
-                if (!v.agreements().isEmpty()) {
-                    List<Object> agreements = new ArrayList<>(v.agreements().size());
-                    v.agreements().forEach(a -> agreements.add(HostJson.wAgreement(a)));
-                    o.put("agreements", agreements);
-                }
             }
             case TestPlan.Branch b -> {
                 o.put("_type", StepTag.branch.name());
@@ -226,10 +221,6 @@ public final class TestPlanJson {
                 so.put("columns", PlanJson.columnsJson(c.columns()));
                 so.put("cells", c.cells());
                 so.put("folded", c.folded());
-            }
-            case TestPlan.Side.FusedCell f -> {
-                so.put("_type", SideTag.fusedCell.name());
-                so.put("columns", PlanJson.columnsJson(f.columns()));
             }
         }
         return so;
@@ -390,13 +381,6 @@ public final class TestPlanJson {
                 Json.Obj f = o.getObjOr("fused", null);
                 Json.Obj sp = o.getObjOr("savepoint", null);
                 Json.Obj roots = o.getObjOr("roots", null);
-                Json.Arr agreementsArr = o.getArrOr("agreements", null);
-                List<com.legend.testexecutionplan.Agreement> agreements = new ArrayList<>();
-                if (agreementsArr != null) {
-                    for (Json.Node an : agreementsArr.items()) {
-                        agreements.add(HostJson.rAgreement((Json.Obj) an));
-                    }
-                }
                 String rules = o.getString("rules");
                 yield new TestPlan.Verdicts(verdicts, f == null ? null : typedResult(f, "a fused verdict statement"),
                         sp == null ? null : new TestPlan.Verdicts.Savepoint(sp.getString("set"),
@@ -406,8 +390,7 @@ public final class TestPlanJson {
                             case "compiledPureCompat" -> TestPlan.JudgingRules.COMPILED_PURE_COMPAT;
                             default -> throw new IllegalArgumentException("a verdict group's rules '" + rules
                                     + "': lite or compiledPureCompat");
-                        }, roots == null ? null : HostJson.rRootLoop(roots),
-                        agreements);
+                        }, roots == null ? null : HostJson.rRootLoop(roots));
             }
             case branch -> new TestPlan.Branch(readSide(o.getObj("condition")), readSteps(o.getArr("then")),
                     readSteps(o.getArr("otherwise")));
@@ -433,7 +416,6 @@ public final class TestPlanJson {
             }
             case constant -> new TestPlan.Side.Constant(PlanJson.columnsOf(so.getArr("columns")),
                     PlanJson.textCells(so.getArr("cells"), "a constant side"), so.getBool("folded"));
-            case fusedCell -> new TestPlan.Side.FusedCell(PlanJson.columnsOf(so.getArr("columns")));
         };
     }
 }

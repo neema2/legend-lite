@@ -162,8 +162,6 @@ public final class TestRunner {
         private final com.legend.testexec.RootLoops.@Nullable Runs databaseRuns;
         /** A database root's failed row's appeal, by its number in the plan (step 8b, 2026-11-08). */
         private final java.util.function.IntFunction<com.legend.testexec.RootLoops.Appeal> rowAppeals;
-        /** The agreement judge's asserts, read from the plan (step 6, 2026-11-08), or null under another judge. */
-        private final @Nullable AgreementRuns agreementRuns;
         /** The verdict steps whose engine-text check reads OUR text as a side the step runs, by the origin the walk's
          *  arm marked for it (M10c item 8). */
         private final java.util.Map<Integer, com.legend.exec.StatementOrigin> deferredTextOrigins;
@@ -226,8 +224,6 @@ public final class TestRunner {
             java.util.Map<Integer, com.legend.testexecutionplan.Appeal> appealsPlanned = com.legend.testexecutionplan.PlannedAppeals.byNumber(planned);
             this.rowAppeals = n -> row -> com.legend.testexec.SqlTextRuns.rowAppealed(
                     com.legend.testexecutionplan.PlannedAppeals.of(appealsPlanned, n), row, run);
-            this.agreementRuns = judge == TestPlan.Judge.AGREEMENT ? new AgreementRuns(planned.steps(), rowAppeals, run)
-                    : null;
             planned.steps().forEach(this::rulesOf);
             java.util.Map<Integer, com.legend.exec.StatementOrigin> textOrigins = new java.util.HashMap<>();
             List<TestPlan.TestStep> steps = planned.steps();
@@ -237,17 +233,10 @@ public final class TestRunner {
                 if (!(steps.get(i) instanceof TestPlan.Verdicts group)) {
                     continue;
                 }
-                // the host's facts the plan carries (step 4, 2026-11-08): under the agreement judge on each assert's
-                // host verdict, several in one group where a segment's group carries several asserts (E-5c, step 5b,
-                // 2026-11-13); a host judge's one assert's on the group's first verdict
+                // the host's facts the plan carries (step 4, 2026-11-08): a host judge's one assert's on the group's
+                // first verdict
                 List<TestPlan.Host> hosts = new java.util.ArrayList<>();
-                if (judge == TestPlan.Judge.AGREEMENT) {
-                    for (TestPlan.Verdict v : group.verdicts()) {
-                        if (v.host() != null) {
-                            hosts.add(v.host());
-                        }
-                    }
-                } else if (judge == TestPlan.Judge.HOST && group.verdicts().size() == 1
+                if (judge == TestPlan.Judge.HOST && group.verdicts().size() == 1
                         && group.verdicts().get(0).host() != null) {
                     hosts.add(group.verdicts().get(0).host());
                 }
@@ -279,16 +268,6 @@ public final class TestRunner {
          *  verdict by the batch's root loop; a body ending on an assert answers the verdict the walk answers. */
         @Override
         public void verdict(TestPlan.Verdict verdict, @Nullable List<Object> row) {
-            if (agreementRuns != null) {
-                // both judges have read once the segment's last row is in: the agreement rule decides each of its
-                // asserts in root order (E-5c, step 5b, 2026-11-13)
-                TypedSide v;
-                v = agreementRuns.of(verdict).received(verdict, row, listener, reader);
-                if (v != null) {
-                    lastVerdict = v;
-                }
-                return;
-            }
             com.legend.testexec.RootLoops.Runs runs = databaseRuns;
             if (runs == null) {
                 throw new IllegalStateException("a database verdict in a body the host judge planned");
@@ -324,11 +303,6 @@ public final class TestRunner {
 
         @Override
         public void fused(TestPlan.Verdicts group, @Nullable DataError rejected) {
-            if (agreementRuns != null) {
-                // the segment the group's verdicts belong to (E-5c, step 5b: one group may carry several asserts)
-                agreementRuns.of(group).fused(rejected);
-                return;
-            }
             com.legend.testexec.RootLoops.Runs runs = databaseRuns;
             if (runs == null) {
                 throw new IllegalStateException("a fused verdict group in a body the host judge planned");
@@ -342,12 +316,6 @@ public final class TestRunner {
          *  comes to {@link #sidesFailed}, judged by the same path. */
         @Override
         public void sides(TestPlan.Verdict verdict, List<PlanRunner.Rows> rows) {
-            if (agreementRuns != null) {
-                // the host's verdict held until the database half's rows are in: the assert whose host verdict this is
-                agreementRuns.of(verdict).hostSides(verdict, () -> rows, messageOf(verdict), listener,
-                        rules(verdict));
-                return;
-            }
             TestPlan.Host p = hostOf(verdict);
             java.util.function.Supplier<PlanRunner.Rows> read = messageOf(verdict);
             judged(p, () -> com.legend.testexec.HostSideShapes.shapedBase(p.assertion().name(), p.shapes(), rows),
@@ -385,12 +353,6 @@ public final class TestRunner {
          *  counted and reported as the walk counts and reports an assert whose side raised). */
         @Override
         public void sidesFailed(TestPlan.Verdict verdict, RuntimeException failure) {
-            if (agreementRuns != null) {
-                agreementRuns.of(verdict).hostSides(verdict, () -> {
-                    throw failure;
-                }, null, listener, rules(verdict));
-                return;
-            }
             judged(hostOf(verdict), () -> {
                 throw failure;
             }, null, rules(verdict));
