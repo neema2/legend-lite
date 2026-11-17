@@ -38,7 +38,7 @@ class TestDataPlannerTest {
     /** Upstream's printing, the compatibility edge's (Phase 6's B13, 2026-11-17: the generator's COMPAT spelling moved to
      *  the plan style's UpstreamPlans facet; J7/K12 of the edge audit, 2026-11-17: the style's two-form answer). */
     private static final TestDataPlanner.Printing UPSTREAM = com.legend.edge.PureText.UPSTREAM.twoForm(
-            TestDataPlanner.Printing.class, TestDataPlanner.Printing.CLEAN);
+            TestDataPlanner.Printing.class, LitePrinting.INSTANCE);
 
     /** The server routes' form, the edge's (J7/K12 of the edge audit, 2026-11-17: until then TestDataPlanner.route). */
     private static final TestDataPlanner.Printing ROUTE = com.legend.edge.TestDataRoutes.ROUTE;
@@ -133,7 +133,7 @@ class TestDataPlannerTest {
                 com.legend.error.AssertFailed.class, () -> TestDataPlanner.plan(ctx,
                         query("|t::Person.all()->project([p|$p.name], ['n'])"), "t::M",
                         List.of(ids("PERSON", "ID", 2L), ids("PERSON", "ID", 3L)), null, false, PlannerViews.of(ctx),
-                        TestDataPlanner.Printing.CLEAN));
+                        LitePrinting.INSTANCE));
         assertEquals("Multiple table row identifiers passed for the table: PERSON", e.getMessage());
     }
 
@@ -185,7 +185,7 @@ class TestDataPlannerTest {
             // the function's text: its header as before (upper-cased plain names, sorted so)
             assertEquals("default\nMIXED\nAGE,FIRSTNAME,ID,last name\n30,ann,1,lee\n40,bob,2,kim\n-----\n",
                     text(c, dialect, TestDataPlanner.plan(ctx, mixed, "t::M", one, null, false, PlannerViews.of(ctx),
-                            TestDataPlanner.Printing.CLEAN)
+                            LitePrinting.INSTANCE)
                             .csv()), type.name());
             // the default seed over an empty table: no key, so every row -- none -- and the block's blank line
             LambdaFunction none = query("|t::None.all()->project([x|$x.n], ['n'])");
@@ -333,7 +333,7 @@ class TestDataPlannerTest {
                 Mapping t::M ( t::X: Relational { ~mainTable [t::DB]T id: [t::DB]T.ID } )
                 """);
         TestDataPlanner.Planned planned = TestDataPlanner.plan(ctx, query("|t::X.all()->project([x|$x.id], ['i'])"),
-                "t::M", List.of(ids("T", "ID", 1L)), null, false, PlannerViews.of(ctx), TestDataPlanner.Printing.CLEAN);
+                "t::M", List.of(ids("T", "ID", 1L)), null, false, PlannerViews.of(ctx), LitePrinting.INSTANCE);
         TestDataPlanner.Comparison c = TestDataPlanner.same(planned, List.of(new TestDataPlanner.Expected("default", "T",
                 List.of("ID"), List.of(List.of("1")))), ctx, "t::One", "");
         assertEquals("Table \"T\" not found in Schema \"default\" in Database(s) t::One", c.fails());
@@ -496,7 +496,7 @@ class TestDataPlannerTest {
         TestDataPlanner.Planned planned = TestDataPlanner.plan(ctx, query("|t::X.all()->project([x|$x.n], ['n'])"),
                 "t::M", List.of(new TestDataGenerator.TableRowIds("S1", "T", List.of(
                         new TestDataGenerator.RowId(List.of("ID"), List.of(1L))))), null, false, PlannerViews.of(ctx),
-                TestDataPlanner.Printing.CLEAN);
+                LitePrinting.INSTANCE);
         // two schemas' T and the default T: each its own table, none refused as declared twice
         assertEquals(java.util.Set.of("T", "S1.T", "S2.T"), TestDataPlanner.slice(planned, ctx, "t::DB").keySet());
         assertEquals(java.util.Set.of("t::DB|T", "t::DB|S1.T", "t::DB|S2.T"), TestDataPlanner.reads(ctx, "t::DB"));
@@ -533,7 +533,7 @@ class TestDataPlannerTest {
                     query("|t::K.all()->project([k|$k.name, k|$k.n], ['a', 'b'])"), "t::M",
                     List.of(new TestDataGenerator.TableRowIds("default", "K", List.of(
                             new TestDataGenerator.RowId(List.of("N"), List.of(1L))))), null, false, PlannerViews.of(ctx),
-                    TestDataPlanner.Printing.CLEAN);
+                    LitePrinting.INSTANCE);
             com.legend.sql.SqlQuery k = TestDataPlanner.slice(planned, ctx, "t::DB").get("K");
             int rows = 0;
             try (Statement s = c.createStatement(); ResultSet r = s.executeQuery(dialect.render(k))) {
@@ -689,7 +689,7 @@ class TestDataPlannerTest {
                     + big + ",4,2020-01-02,2020-01-02T03:04:05.123456Z\n"
                     + "---null---,3,---null---,---null---\n-----\n",
                     text(c, dialect, TestDataPlanner.plan(ctx, q, "t::M", ids, null, false, PlannerViews.of(ctx),
-                            TestDataPlanner.Printing.CLEAN).csv()), type.name());
+                            LitePrinting.INSTANCE).csv()), type.name());
             // backwards compatibility: upstream's SimpleDateTimeFormat, the fraction cut
             assertEquals("default\nEVENT\nAMOUNT,ID,ON_DAY,STAMP\n" + small + ",5,2020-01-02,2020-01-02 03:04:05\n"
                     + "3.14,1,2020-01-02,2020-01-02 03:04:05\n"
@@ -753,7 +753,7 @@ class TestDataPlannerTest {
         TestDataPlanner.NoRowIdentifiers root = org.junit.jupiter.api.Assertions.assertThrows(
                 TestDataPlanner.NoRowIdentifiers.class, () -> TestDataPlanner.plan(ctx,
                         query("|t::Order.all()->project([o|$o.id], ['i'])"), "t::M", List.of(), null, false,
-                        PlannerViews.of(ctx, "t::RT", Databases.dialect(type)), TestDataPlanner.Printing.CLEAN));
+                        PlannerViews.of(ctx, "t::RT", Databases.dialect(type)), LitePrinting.INSTANCE));
         assertEquals("test data generation: no row identifiers for the root table t::DB.ORDERS", root.getMessage());
         assertEquals(List.of("t::DB", "default", "ORDERS"), List.of(root.database(), root.schema(), root.table()));
         assertEquals(null, root.view());
@@ -786,7 +786,7 @@ class TestDataPlannerTest {
         com.legend.error.NotImplementedException e = org.junit.jupiter.api.Assertions.assertThrows(
                 com.legend.error.NotImplementedException.class, () -> TestDataPlanner.plan(ctx,
                         query("|t::Person.all()->project([p|$p.name], ['n'])"), "t::M",
-                        List.of(ids("PERSON", "id", 2L)), null, false, PlannerViews.of(ctx), TestDataPlanner.Printing.CLEAN));
+                        List.of(ids("PERSON", "id", 2L)), null, false, PlannerViews.of(ctx), LitePrinting.INSTANCE));
         assertEquals("testDataGen: column 'id' not on table 'PERSON'", e.getMessage());
     }
 
@@ -823,7 +823,7 @@ class TestDataPlannerTest {
             List<TestDataGenerator.TableRowIds> ids, boolean hash, int fetches, String expected,
             TestDataPlanner.Views views) throws Exception {
         TestDataPlanner.Planned planned = TestDataPlanner.plan(ctx, query(query), "t::M", ids, null, hash, views,
-                TestDataPlanner.Printing.CLEAN);
+                LitePrinting.INSTANCE);
         String sql = dialect.render(planned.csv());
         assertFalse(sql.toUpperCase(java.util.Locale.ROOT).contains("CREATE"), sql);
         String text;

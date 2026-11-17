@@ -305,7 +305,7 @@ class CompatSpellingGuardTest {
             // (2026-11-16, W9's judge half S2c: testplan/SqlTextVerdicts' two rows gone with the arm to the edge;
             // BodyDriver's withEngineText row gone, ExecEnv.withCollector names what it installs, the arm's collector)
             // testplan/TestPlanner.java | COMPAT: GONE 2026-11-17 (Phase 6's B13): upstream's test-data timestamp text is
-            // the UpstreamPlans facet's (the edge's), asked when one is printed; lite's own is TestDataPlanner.Printing.CLEAN
+            // the UpstreamPlans facet's (the edge's), asked when one is printed; lite's own is LitePrinting.INSTANCE
             // REGISTERED 2026-11-17 (the separation census, docs/records/f-separation-census-2026-11-17.md): 'TDSNull'
             // (B10) and COMPILED_PURE_COMPAT (C1) joined the scan; what stood is registered, each with its owner.
             // C5's step C, C-2 (2026-11-17, the orchestrator's ruling (B)): the judges' TDSNull sentinel is gone -- an

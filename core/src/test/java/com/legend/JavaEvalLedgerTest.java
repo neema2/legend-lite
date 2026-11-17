@@ -2034,7 +2034,10 @@ class JavaEvalLedgerTest {
                             // census (getRelationalCSVDataFromQuery) as a planning constant -- a MODEL fact read from
                             // the relation tree (build-time model text -> typed constants, the charter's rule); it
                             // reads no row and evaluates nothing
-                            "TestDataCensus.java"));
+                            "TestDataCensus.java",
+                            // 2026-11-17, GUARD's C.9 on J7/K12: the product's form of the two-form Printing, moved out
+                            // of the kind into a class of its own (hook criterion (a)); builds IR, evaluates nothing
+                            "LitePrinting.java"));
 
     /** THE JUDGMENT-ONLY VOCABULARY PIN (user directive 2026-09-01):
      * verdict-arm files may JUDGE database-produced results — equals,

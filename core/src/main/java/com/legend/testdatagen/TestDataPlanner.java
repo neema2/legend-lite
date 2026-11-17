@@ -110,50 +110,6 @@ public final class TestDataPlanner {
          *  2026-11-17): the product's admits every tree (a view's own fetch is planned); the server's routes refuse a
          *  view by name. */
         void checkTree(ModelContext ctx, List<ScanRelations.Rel> roots);
-
-        /** Lite's own: a timestamp in full, as lite's writers spell a relation's time-bearing cell
-         *  ({@code result.CellText}): the product's text of a DateTime, {@code yyyy-MM-ddTHH:mm:ss.ffffffZ} on every
-         *  database (register S312; W4, 2026-11-16); a NULL stays NULL. Upstream's (the compatibility rules' and the
-         *  server's legend-engine routes', its {@code toCSVString}) is the compatibility edge's, through the plan
-         *  style's {@code UpstreamPlans} facet (Phase 6's B13, 2026-11-17). The rest lite's own too (J7/K12 of the
-         *  edge audit, 2026-11-17): a starting table with no identifiers refused as {@link NoRowIdentifiers}, the
-         *  tables in the walk's order, the columns by their display names, every relation tree admitted. */
-        Printing CLEAN = new Lites();
-    }
-
-    /** {@link Printing#CLEAN}: lite's own form of the generator's text (J7/K12 of the edge audit, 2026-11-17). */
-    private static final class Lites implements Printing {
-        @Override
-        public SqlExpr timestampText(SqlExpr x) {
-            return new SqlExpr.Case(List.of(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.IS_NULL, x),
-                    new SqlExpr.Cast(new SqlExpr.NullLit(), SqlType.Scalar.VARCHAR, SqlExpr.Reason.DECLARED))),
-                    SqlExpr.Call.of(SqlFn.DATETIME_TO_TEXT, x), SqlExpr.Reason.DECLARED);
-        }
-
-        @Override
-        public RuntimeException unidentified(NoRowIdentifiers facts) {
-            return facts;
-        }
-
-        @Override
-        public List<Table> tableOrder(List<Table> tables) {
-            return tables;
-        }
-
-        @Override
-        public List<String> headerOrder(DatabaseDefinition.TableDefinition def, List<String> cols) {
-            return TestDataPlanner.headerOrder(cols);
-        }
-
-        @Override
-        public String headerName(DatabaseDefinition.TableDefinition def, String col) {
-            return headerCase(col);
-        }
-
-        @Override
-        public void checkTree(ModelContext ctx, List<ScanRelations.Rel> roots) {
-            // every relation tree admitted: a view's own fetch is planned (Views)
-        }
     }
 
     /** One table the generator fetched: its schema and name, its definition, its fetched columns in the test-data
@@ -1382,7 +1338,7 @@ public final class TestDataPlanner {
     }
 
     /** A timestamp's spelling in {@code printing}, written by the database (each dialect's strftime of the typed
-     *  format): {@link Printing#CLEAN}'s, the product's ({@code yyyy-MM-ddTHH:mm:ss.ffffffZ}, register S312), or upstream's (the edge's)
+     *  format): {@link LitePrinting}'s, the product's ({@code yyyy-MM-ddTHH:mm:ss.ffffffZ}, register S312), or upstream's (the edge's)
      *  {@code yyyy-MM-dd HH:mm:ss}; a NULL stays NULL. */
     private static SqlExpr timestampText(SqlExpr x, Printing printing) {
         return printing.timestampText(x);
