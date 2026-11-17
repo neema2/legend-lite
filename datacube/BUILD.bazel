@@ -1918,6 +1918,9 @@ node_test(
         # Node's host (node-require.ts), which test/host/node.ts imports: :src reaches the run side through the doors
         # alone (2026-11-15, the C5-T last round's T1; CI's warehouse lanes found it, run 43731081412)
         "//engine-client:node_host",
+        # legend-engine's execute in the tab (BrowserEngine) and its wire shapes: the edge's, a test's alone (H11,
+        # 2026-11-17)
+        "//engine-client:edge",
         "//native:compiler",
     ],
     entry_point = "test/python-engine/execute.test.ts",

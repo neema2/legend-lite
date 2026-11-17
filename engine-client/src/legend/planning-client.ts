@@ -1,7 +1,8 @@
 // THE SERVER'S PLANNING CLIENT (C5-T, 2026-11-15): legend-engine's `/api` paths a query app asks for grammar, typing,
 // compile and plans -- legend-lite's server or legend-engine alike (docs/QUERY_APP_DESIGN_2026_09_30.md D1). It asks
 // legend-engine's routes alone: lite's own API is lite's client's (doors/lite-server.ts; lite's API v1 spec §6,
-// 2026-11-17). Its execute, the server's door, is not here: engine.ts HttpEngine adds it.
+// 2026-11-17). Its execute, the server's door, is not here: engine.ts HttpEngine adds it. The edge's (H11, 2026-11-17:
+// //engine-client:edge, out of the planner): no product module reaches it.
 
 import type { Lambda } from '../../../pure-protocol/src/index.ts';
 import { readLambda, toJson } from '../../../pure-protocol/src/index.ts';
@@ -9,7 +10,8 @@ import type { PureModelContextData } from './pmcd.ts';
 import { planning } from '../plan-guard.ts';
 import { EngineError } from './engine-api.ts';
 import type { Grammar } from './grammar.ts';
-import type { CompileResult, ExecuteInput, PureModelContext, RelationTypeAnswer } from './wire.ts';
+import type { CompileResult, ExecuteInput, RelationTypeAnswer } from './engine-wire.ts';
+import type { PureModelContext } from './wire.ts';
 
 /** legend-engine refuses an ExecuteInput without its execution context (measured, 4.145.0: a 500). */
 export function withContext(input: ExecuteInput): ExecuteInput {
