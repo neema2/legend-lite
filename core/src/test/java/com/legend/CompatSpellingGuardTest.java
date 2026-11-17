@@ -329,7 +329,8 @@ class CompatSpellingGuardTest {
             // TDSNull as the judges' text (E-Java, Phase 4b: census B10/C5)
             // 5 -> 4, D1.9 -> STAYS (2026-11-17, census C5's step C, C-2): an expected ^TDSNull(), a written 'TDSNull'
             // cell and a golden's null cell are a typed TypedNullCell; what stays reads that written text as INPUT
-            "compiler/spec/VerdictQueries.java | TDSNull | 1 | STAYS",   // 4 -> 1 (2026-11-17, census C1: the golden's TDSNull word read by the edge's UpstreamGoldenNullWord, the dead grid branch gone; tdsNullSentinel's stays)
+            // 4 -> 1 (2026-11-17, census C1: the golden's TDSNull word read by the edge's UpstreamGoldenNullWord, the dead
+            // grid branch gone); 1 -> 0 (2026-11-17, C-2's corpus fix: tdsNullSentinel reads no written 'TDSNull')
             // (lowering/Render.java | TDSNull | D1.3: gone 2026-11-17, census B17 -- a relation's text moved to the edge,
             // edge.RelationTextLowering)
             // the judges' compatibility mode's branches (E-Java, census C1)

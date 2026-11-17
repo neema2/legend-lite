@@ -165,9 +165,6 @@ public final class Equality {
     public static boolean same(Typed et, Typed at, HostRules rules) {
         Object e = et.value();
         Object a = at.value();
-        if (com.legend.sql.SqlExpr.NULL_CELL_WIRE.equals(e) && a == null) {
-            return true;   // an expected present null cell (C5 step C, C-2) beside a NULL cell
-        }
         if (e == null || a == null) {
             return e == a;
         }

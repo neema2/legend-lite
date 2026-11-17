@@ -300,3 +300,12 @@ S84 → S103, S85 → S104), and the code and documents that cite them were renu
 (a class collection meeting at an ancestor, a type value's name; 2026-10-20) were retired by its own audit before the
 merge, the difference gone (docs/PLAN_PATH_PROGRAM_2026_10_17.md §9); an older entry of GATES or IN_FLIGHT that names
 them means those rows, not main's S81 and S82.
+
+**A lite harness policy retired, 2026-11-17 (C5 step C, C-2's corpus fix; the orchestrator's ruling (a), read against the
+pinned sources):** "an expected 'TDSNull' text equals an actual NULL cell" (the old harness's `wireEquals`, then
+`testexec.PureAsserts`' adjudicated wire policy) is gone. Upstream has no such leniency: legend-pure 5.99.0's
+`assertEquals` is `assert(equal($expected, $actual), ...)` (platform/pure/essential/tests/assertEquals.pure), and
+legend-engine 4.145.0's `meta::pure::tds::TDSNull` is a class whose instances equal only one another
+(`<<equality.Key>> key:Nil[0]`, core/pure/tds/tds.pure:127-135), so a String never equals one. A golden's null cell is
+written `^TDSNull()`, which the compiler types as a null cell (TypedNullCell); a written 'TDSNull' is a text, as in the
+edge corpus, whose actual cells hold legend-engine's printed 'TDSNull'. Not a divergence: a row would name one.

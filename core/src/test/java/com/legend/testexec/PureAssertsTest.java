@@ -111,11 +111,11 @@ class PureAssertsTest {
     @Test
     @DisplayName("policy: an expected present null cell is expected-direction ONLY; a written 'TDSNull' is input")
     void tdsNullSentinel() {
-        // C5 step C, C-2 (2026-11-17): the expected null cell is the compiler's typed TypedNullCell on the wire token
-        // (SqlExpr.NULL_CELL_WIRE); a written 'TDSNull' String is INPUT, a String like any other
-        assertTrue(same(com.legend.sql.SqlExpr.NULL_CELL_WIRE, null));
-        assertFalse(same(null, com.legend.sql.SqlExpr.NULL_CELL_WIRE),
-                "the null cell's token on OUR wire where a NULL belongs must FAIL (audit 16 F5)");
+        // C5 step C, C-2 (2026-11-17): the expected null cell is the compiler's typed TypedNullCell; its wire token is
+        // decoded to null where a side's cells are read (SideShapes, C-2's corpus fix), so Equality meets a null beside a
+        // null and never the token; a written 'TDSNull' String is INPUT, a String like any other
+        assertTrue(same(null, null), "a present null cell, decoded at read, beside a NULL cell");
+        assertFalse(same(com.legend.sql.SqlExpr.NULL_CELL_WIRE, null), "the token never reaches Equality as a null");
         assertFalse(same("TDSNull", null), "a written 'TDSNull' is a String, never the judges' null cell");
     }
 
