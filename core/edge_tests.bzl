@@ -21,7 +21,9 @@ EDGE_TEST_SRCS = [
     # the judging rules' TYPE flagged, its members sorted (the GUARD stream, C.3, 2026-11-17): it reads the product jars
     "src/test/java/com/legend/JudgingRulesReachTest.java",
     # its planted violator, read as bytecode alone (C.3, 2026-11-17)
+    "src/test/java/com/legend/testexec/PlantedRulesByClass.java",
     "src/test/java/com/legend/testexec/PlantedRulesReach.java",
+    "src/test/java/com/legend/testexec/PlantedRulesSwitch.java",
     # the open compatibility classes pinned by member set (the GUARD stream, C.4, 2026-11-17): it reads the census
     "src/test/java/com/legend/OpenClassMembersTest.java",
     "src/test/java/com/legend/PlanStyleFacetsTest.java",
