@@ -34,5 +34,9 @@ public final class PlanStyleFacets {
             com.legend.lowering.ListTexts.class,
             // a judge's JSON grammar (census C1, the orchestrator's ruling of 2026-11-17, register S144): the product's
             // strict JSON, the edge's upstream json-simple 1.1.1
-            com.legend.testexecutionplan.JsonGrammar.class);
+            com.legend.testexecutionplan.JsonGrammar.class,
+            // the lowering's two-form choices (the audit's K5, the orchestrator's ruling of 2026-11-17: the product
+            // branched on edge-only flags): a raise (B7's plain set), a view's nesting and a wire cast -- the product
+            // writes every check, lowers a view flat and writes the cast; the edge's forms legend-engine's
+            com.legend.lowering.LoweringForms.class);
 }

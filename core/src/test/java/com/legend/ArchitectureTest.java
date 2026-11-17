@@ -1359,7 +1359,9 @@ final class ArchitectureTest {
             // lowering and the plan's environment, so each of those reaches is listed here, by signature and caller
             "lowering.Lowerer#bindPlanParam(com.legend.sql.SqlExpr$PlanParam)", "com.legend.edge.EnginePlans",
             "lowering.Lowerer#withShape(com.legend.lowering.LoweringShape)", "com.legend.edge.EnginePlans",
-            "lowering.LoweringShape#<init>(boolean, boolean, boolean, boolean, boolean, boolean)", "com.legend.edge.EnginePlans",
+            // re-keyed 2026-11-17 (the audit's K5): the shape's two edge-only flags became its two-form choices
+            "lowering.LoweringShape#<init>(boolean, boolean, boolean, com.legend.lowering.LoweringForms, boolean)",
+            "com.legend.edge.EnginePlans",
             "lowering.Lowerer#withFeatures(java.util.Set)", "com.legend.edge.EnginePlans",
             "lowering.Lowerer#withOptions(java.util.Set)", "com.legend.edge.EnginePlans",
             "lowering.PlanParams#kindOf(com.legend.compiler.element.type.Type)", "com.legend.edge.EnginePlans",
