@@ -1175,6 +1175,280 @@
           }
         }
       }
+    },
+    {
+      "name": "a query run over a model's own Data rows: its typed rows, in the caller's format (json)",
+      "op": "query/run",
+      "bindings": [
+        "server",
+        "python"
+      ],
+      "request": {
+        "model": "Class demo::party::Party\n{\n  id: Integer[1];\n  name: String[1];\n}\n\n###Relational\nDatabase demo::party::PartyDB\n(\n  Schema PARTY\n  (\n    Table PARTY (ID INTEGER PRIMARY KEY, NAME VARCHAR(200))\n  )\n)\n\n###Mapping\nMapping demo::party::PartyMapping\n(\n  *demo::party::Party: Relational\n  {\n    ~primaryKey ([demo::party::PartyDB] PARTY.PARTY.ID)\n    ~mainTable [demo::party::PartyDB] PARTY.PARTY\n    id: [demo::party::PartyDB] PARTY.PARTY.ID,\n    name: [demo::party::PartyDB] PARTY.PARTY.NAME\n  }\n)\n\n###Connection\nRelationalDatabaseConnection demo::party::Connection\n{\n  store: demo::party::PartyDB;\n  type: DuckDB;\n  specification: DuckDB { };\n  auth: Test;\n}\n\n###Runtime\nRuntime demo::party::Runtime\n{\n  mappings: [demo::party::PartyMapping];\n  connections: [demo::party::PartyDB: [db: demo::party::Connection]];\n}\n\n###Data\nData demo::party::PartyData\n{\n  Relational\n  #{\n    PARTY.PARTY:\n      'ID,NAME\\n1,Meridian Capital\\n2,Halberd Securities\\n';\n  }#\n}\n",
+        "query": {
+          "_type": "lambda",
+          "body": [
+            {
+              "_type": "func",
+              "function": "from",
+              "parameters": [
+                {
+                  "_type": "func",
+                  "function": "sort",
+                  "parameters": [
+                    {
+                      "_type": "func",
+                      "function": "project",
+                      "parameters": [
+                        {
+                          "_type": "func",
+                          "function": "getAll",
+                          "parameters": [
+                            {
+                              "_type": "packageableElementPtr",
+                              "fullPath": "demo::party::Party"
+                            }
+                          ]
+                        },
+                        {
+                          "_type": "classInstance",
+                          "type": "colSpecArray",
+                          "value": {
+                            "colSpecs": [
+                              {
+                                "function1": {
+                                  "_type": "lambda",
+                                  "body": [
+                                    {
+                                      "_type": "property",
+                                      "parameters": [
+                                        {
+                                          "_type": "var",
+                                          "name": "p"
+                                        }
+                                      ],
+                                      "property": "id"
+                                    }
+                                  ],
+                                  "parameters": [
+                                    {
+                                      "_type": "var",
+                                      "name": "p"
+                                    }
+                                  ]
+                                },
+                                "name": "id"
+                              },
+                              {
+                                "function1": {
+                                  "_type": "lambda",
+                                  "body": [
+                                    {
+                                      "_type": "property",
+                                      "parameters": [
+                                        {
+                                          "_type": "var",
+                                          "name": "p"
+                                        }
+                                      ],
+                                      "property": "name"
+                                    }
+                                  ],
+                                  "parameters": [
+                                    {
+                                      "_type": "var",
+                                      "name": "p"
+                                    }
+                                  ]
+                                },
+                                "name": "name"
+                              }
+                            ]
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "_type": "func",
+                      "function": "ascending",
+                      "parameters": [
+                        {
+                          "_type": "classInstance",
+                          "type": "colSpec",
+                          "value": {
+                            "name": "id"
+                          }
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "_type": "packageableElementPtr",
+                  "fullPath": "demo::party::PartyMapping"
+                },
+                {
+                  "_type": "packageableElementPtr",
+                  "fullPath": "demo::party::Runtime"
+                }
+              ]
+            }
+          ],
+          "parameters": []
+        },
+        "runtime": "demo::party::Runtime",
+        "format": "json"
+      },
+      "answer": {
+        "shape": "RELATION",
+        "columns": [
+          {
+            "name": "id",
+            "type": "Integer"
+          },
+          {
+            "name": "name",
+            "type": "String"
+          }
+        ],
+        "rows": [
+          [
+            1,
+            "Meridian Capital"
+          ],
+          [
+            2,
+            "Halberd Securities"
+          ]
+        ]
+      }
+    },
+    {
+      "name": "a query/run in a format it has not is refused, kind request",
+      "op": "query/run",
+      "bindings": [
+        "server",
+        "python"
+      ],
+      "request": {
+        "model": "Class demo::party::Party\n{\n  id: Integer[1];\n  name: String[1];\n}\n\n###Relational\nDatabase demo::party::PartyDB\n(\n  Schema PARTY\n  (\n    Table PARTY (ID INTEGER PRIMARY KEY, NAME VARCHAR(200))\n  )\n)\n\n###Mapping\nMapping demo::party::PartyMapping\n(\n  *demo::party::Party: Relational\n  {\n    ~primaryKey ([demo::party::PartyDB] PARTY.PARTY.ID)\n    ~mainTable [demo::party::PartyDB] PARTY.PARTY\n    id: [demo::party::PartyDB] PARTY.PARTY.ID,\n    name: [demo::party::PartyDB] PARTY.PARTY.NAME\n  }\n)\n\n###Connection\nRelationalDatabaseConnection demo::party::Connection\n{\n  store: demo::party::PartyDB;\n  type: DuckDB;\n  specification: DuckDB { };\n  auth: Test;\n}\n\n###Runtime\nRuntime demo::party::Runtime\n{\n  mappings: [demo::party::PartyMapping];\n  connections: [demo::party::PartyDB: [db: demo::party::Connection]];\n}\n\n###Data\nData demo::party::PartyData\n{\n  Relational\n  #{\n    PARTY.PARTY:\n      'ID,NAME\\n1,Meridian Capital\\n2,Halberd Securities\\n';\n  }#\n}\n",
+        "query": {
+          "_type": "lambda",
+          "body": [
+            {
+              "_type": "func",
+              "function": "from",
+              "parameters": [
+                {
+                  "_type": "func",
+                  "function": "sort",
+                  "parameters": [
+                    {
+                      "_type": "func",
+                      "function": "project",
+                      "parameters": [
+                        {
+                          "_type": "func",
+                          "function": "getAll",
+                          "parameters": [
+                            {
+                              "_type": "packageableElementPtr",
+                              "fullPath": "demo::party::Party"
+                            }
+                          ]
+                        },
+                        {
+                          "_type": "classInstance",
+                          "type": "colSpecArray",
+                          "value": {
+                            "colSpecs": [
+                              {
+                                "function1": {
+                                  "_type": "lambda",
+                                  "body": [
+                                    {
+                                      "_type": "property",
+                                      "parameters": [
+                                        {
+                                          "_type": "var",
+                                          "name": "p"
+                                        }
+                                      ],
+                                      "property": "id"
+                                    }
+                                  ],
+                                  "parameters": [
+                                    {
+                                      "_type": "var",
+                                      "name": "p"
+                                    }
+                                  ]
+                                },
+                                "name": "id"
+                              },
+                              {
+                                "function1": {
+                                  "_type": "lambda",
+                                  "body": [
+                                    {
+                                      "_type": "property",
+                                      "parameters": [
+                                        {
+                                          "_type": "var",
+                                          "name": "p"
+                                        }
+                                      ],
+                                      "property": "name"
+                                    }
+                                  ],
+                                  "parameters": [
+                                    {
+                                      "_type": "var",
+                                      "name": "p"
+                                    }
+                                  ]
+                                },
+                                "name": "name"
+                              }
+                            ]
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "_type": "func",
+                      "function": "ascending",
+                      "parameters": [
+                        {
+                          "_type": "classInstance",
+                          "type": "colSpec",
+                          "value": {
+                            "name": "id"
+                          }
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "_type": "packageableElementPtr",
+                  "fullPath": "demo::party::PartyMapping"
+                },
+                {
+                  "_type": "packageableElementPtr",
+                  "fullPath": "demo::party::Runtime"
+                }
+              ]
+            }
+          ],
+          "parameters": []
+        },
+        "runtime": "demo::party::Runtime",
+        "format": "csv"
+      },
+      "refusal": {
+        "kind": "request"
+      }
     }
   ]
 }
