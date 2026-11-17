@@ -62,20 +62,27 @@ export interface LocalServer {
 const answer = (status: number, body: string): Response =>
   new Response(status === 204 ? null : body, { status, headers: { 'Content-Type': 'application/json' } });
 
-/** Lite's refusal (spec §3): `{kind, message}`, the store's status kept (LegendHttpServer.storeRoutes', on the server;
- *  a store's not-found stays 404, kind request, pending the user's word on a notFound kind). */
-const refusal = (status: number, message: string): Response =>
-  answer(status, JSON.stringify({ kind: status >= 500 ? 'internal' : 'request', message }));
+/** Lite's refusal (spec §3): `{kind, message}`, the store's status kept (LegendHttpServer.storeRoutes', on the server). */
+const refusal = (status: number, message: string, kind: 'request' | 'notFound' | 'internal' = status >= 500 ? 'internal' : 'request'): Response =>
+  answer(status, JSON.stringify({ kind, message }));
 
-/** The store's own answer: a refusal (400 and up) as lite's, its words the store's message; anything else as it is. */
+/** The store's refusals of a record that does not exist, as the store writes their kind (SavedQueries.refused: the
+ *  constant's name in lower case): lite's notFound (the user, 2026-11-17 ~23:31), as the server's mount reads them
+ *  (LegendHttpServer.storeRoutes' MISSING). A path the store does not serve is 404 too, and no record missing. */
+const MISSING: ReadonlySet<string> = new Set(['query_not_found', 'version_not_found']);
+
+/** The store's own answer: a refusal (400 and up) as lite's, its words the store's message, its kind read from the
+ *  store's own (never from the status); anything else as it is. */
 function stored(status: number, body: string): Response {
   if (status < 400) return answer(status, body);
   let message = body;
+  let kind = '';
   try {
-    const said = JSON.parse(body) as { readonly message?: unknown };
+    const said = JSON.parse(body) as { readonly message?: unknown; readonly kind?: unknown };
     if (typeof said.message === 'string') message = said.message;
+    if (typeof said.kind === 'string') kind = said.kind;
   } catch { /* not JSON: the text is the store's words */ }
-  return refusal(status, message);
+  return refusal(status, message, status >= 500 ? 'internal' : MISSING.has(kind) ? 'notFound' : 'request');
 }
 
 /** Where lite's store answers under the API root (spec §2), and its user. */

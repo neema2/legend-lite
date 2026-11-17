@@ -319,29 +319,34 @@ public final class LiteV1Api {
      */
     public enum Kind {
         /** The text does not parse. */
-        PARSE(400),
+        PARSE(400, "parse"),
         /** The model or the query does not type or compile. */
-        COMPILE(400),
+        COMPILE(400, "compile"),
         /** A construct lite refuses by name (not yet, or by a ruling). */
-        UNSUPPORTED(400),
+        UNSUPPORTED(400, "unsupported"),
         /** A run's raise: division by zero, an index out of bounds, ... (its kind in {@link Refusal#raise}). */
-        DATA(422),
+        DATA(422, "data"),
         /** A run's parameter values: one missing, or one its declared type does not take (the caller's values). */
-        PARAMETERS(400),
+        PARAMETERS(400, "parameters"),
         /** The request itself is malformed: a key it does not read or lacks, a value of the wrong kind. */
-        REQUEST(400),
+        REQUEST(400, "request"),
+        /** A saved query or saved page the request names does not exist (the user, 2026-11-17 ~23:31; spec §3). */
+        NOT_FOUND(404, "notFound"),
         /** Anything else: a defect, said as one. */
-        INTERNAL(500);
+        INTERNAL(500, "internal");
 
         private final int status;
+        private final String wire;
 
-        Kind(int status) {
+        // each kind's word explicit (2026-11-17, notFound: lower camel, which no spelling of the constant's name gives)
+        Kind(int status, String wire) {
             this.status = status;
+            this.wire = wire;
         }
 
-        /** The kind as every binding writes it: {@code parse}, {@code compile}, ... */
+        /** The kind as every binding writes it: {@code parse}, {@code compile}, ..., {@code notFound}. */
         public String wire() {
-            return name().toLowerCase(java.util.Locale.ROOT);
+            return wire;
         }
 
         /** The HTTP status a refusal of this kind is answered with. */

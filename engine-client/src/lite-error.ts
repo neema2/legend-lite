@@ -5,7 +5,8 @@
 // H11). No legend-engine spelling -- no PARSER, COMPILATION, code -1 or errorType -- appears here.
 
 /** The kinds (spec §3), one closed list: a kind no binding writes is refused by name. */
-export const LITE_ERROR_KINDS = ['parse', 'compile', 'unsupported', 'data', 'parameters', 'request', 'internal'] as const;
+// notFound (the user, 2026-11-17 ~23:31): a saved query or saved page the request names does not exist, 404
+export const LITE_ERROR_KINDS = ['parse', 'compile', 'unsupported', 'data', 'parameters', 'request', 'notFound', 'internal'] as const;
 
 export type LiteErrorKind = (typeof LITE_ERROR_KINDS)[number];
 

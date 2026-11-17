@@ -1,6 +1,7 @@
 // LITE API V1'S CONFORMANCE SUITE, THE SERVER BINDING (docs/records/lite-api-v1-2026-11-17.md §5, the user's go of
 // 2026-11-17): each case of test/fixtures/lite-api-cases.json -- DataCube's suite, the one file every binding reads --
-// asked of legend-lite's server (`//core:server`, started for this file) as one POST to `/api/lite/v1/<op>`, and its
+// asked of legend-lite's server (`//core:server`, started for this file) as one POST to `/api/lite/v1/<op>` -- the
+// store's reads as a GET of the record by its id (`queries/get`, `queries/dataCube/get`) -- and its
 // answer held to the case's: an exact answer equal, an included one held, a refusal its kind, in lite's one shape,
 // answered with its kind's status (§3). The browser's operations (core's LiteApiConformanceTest) and Python's native
 // entries are held to the same file by their own readers, so the three bindings cannot drift.
@@ -62,8 +63,35 @@ function shaped(shape: Readonly<Record<string, string>>, answer: unknown): boole
 
 /** The status a refusal of each kind is answered with over HTTP (spec §3). */
 const STATUS: Readonly<Record<LiteErrorKind, number>> = {
-  parse: 400, compile: 400, unsupported: 400, request: 400, parameters: 400, data: 422, internal: 500,
+  parse: 400, compile: 400, unsupported: 400, request: 400, parameters: 400, data: 422, notFound: 404, internal: 500,
 };
+
+/** Lite's operations, each one POST of its request to `/api/lite/v1/<op>` (spec §2). */
+const POSTED: ReadonlySet<string> = new Set(['model/check', 'model/elements', 'model/createClass', 'model/createAssociation',
+  'model/createDataSpace', 'query/parse', 'query/print', 'query/type', 'query/plan', 'query/run', 'ts/item',
+  'ts/statement', 'user']);
+
+/** The store's reads (the user, 2026-11-17 ~23:31: a record that does not exist is notFound): a GET of the record by
+ *  its id, under the store's path. */
+const READS: Readonly<Record<string, string>> = { 'queries/get': 'queries', 'queries/dataCube/get': 'queries/dataCube' };
+
+/** How the server binding asks the case's operation: its URL under `/api/lite/v1` and its request. An operation this
+ *  reader does not know fails by name -- a new one is taught here, never asked as a guess. */
+function asked(c: Case, body: string): { readonly path: string; readonly init: RequestInit } {
+  if (POSTED.has(c.op)) {
+    return { path: c.op, init: { method: 'POST', headers: { 'Content-Type': 'application/json' }, body } };
+  }
+  const under = READS[c.op];
+  if (under !== undefined) {
+    const request = c.request as Record<string, unknown> | null;
+    const keys = request === null || typeof request !== 'object' ? [] : Object.keys(request);
+    if (keys.length !== 1 || typeof request?.['id'] !== 'string') {
+      throw new Error(`the case '${c.name}': a ${c.op} request is {id}, a string: ${JSON.stringify(c.request)}`);
+    }
+    return { path: `${under}/${encodeURIComponent(request['id'] as string)}`, init: { method: 'GET' } };
+  }
+  throw new Error(`the case '${c.name}' asks ${c.op}, an operation this reader does not know: teach it here`);
+}
 
 /** Whether `actual` holds `expected`, as the Java reader asks it: each key it names equal, recursively; each array item
  *  it names held by some item of the actual array; any other value equal. */
@@ -87,6 +115,14 @@ describe("lite API v1's conformance suite over legend-lite's server", () => {
     assert.ok(fixture.cases.length > 0, 'the suite holds cases');
   });
 
+  it('an operation the reader does not know fails by name (a planted one); a store read is a GET by its id', () => {
+    assert.throws(() => asked({ name: 'planted', op: 'query/guess', request: {} }, '{}'),
+      /the case 'planted' asks query\/guess, an operation this reader does not know/);
+    assert.deepEqual(asked({ name: 'read', op: 'queries/dataCube/get', request: { id: 'a b' } }, ''),
+      { path: 'queries/dataCube/a%20b', init: { method: 'GET' } });
+    assert.throws(() => asked({ name: 'read', op: 'queries/get', request: { id: 1 } }, ''), /a queries\/get request is \{id\}/);
+  });
+
   it('a case naming a binding none of the three is refused by name (a planted typo), never skipped', () => {
     const typo: Case = { name: 'planted', op: 'user', request: {}, bindings: ['sever'] };
     assert.throws(() => servedHere(typo), /the case 'planted' names a binding that is none of browser, server, python: sever/);
@@ -100,9 +136,8 @@ describe("lite API v1's conformance suite over legend-lite's server", () => {
       // the request as written in the file, its numbers exact
       const body = JSON.stringify(c.request, (_k, v: unknown) => (typeof v === 'bigint' ? `__big__${v}` : v))
         .replace(/"__big__(-?\d+)"/g, '$1');
-      const res = await fetch(`${server.api()}/lite/v1/${c.op}`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body,
-      });
+      const { path, init } = asked(c, body);
+      const res = await fetch(`${server.api()}/lite/v1/${path}`, init);
       const text = await res.text();
       if (c.refusal !== undefined) {
         // a refusal case names its kind alone (§3: the kind is the contract, the words the product's), answered with
