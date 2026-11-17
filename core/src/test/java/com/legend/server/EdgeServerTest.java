@@ -45,7 +45,7 @@ class EdgeServerTest {
         out.put("query/print", "{\"query\":" + query + "}");
         out.put("query/type", "{\"model\":\"\",\"query\":" + query + "}");
         out.put("query/plan", "{\"model\":\"\",\"query\":" + query + ",\"runtime\":\"a::RT\"}");
-        out.put("query/run", "{\"model\":\"\",\"query\":" + query + ",\"runtime\":\"a::RT\"}");
+        out.put("query/run", "{\"model\":\"\",\"query\":" + query + ",\"runtime\":\"a::RT\",\"format\":\"json\"}");
         out.put("model/createClass", "{}");
         out.put("model/createAssociation", "{}");
         out.put("model/createDataSpace", "{}");

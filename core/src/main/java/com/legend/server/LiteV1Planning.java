@@ -124,24 +124,25 @@ public final class LiteV1Planning {
     }
 
     /**
-     * {@code query/run}: {@code {model, query, runtime, params?, format?}}, the query planned and run by {@code runner},
+     * {@code query/run}: {@code {model, query, runtime, format, params?}}, the query planned and run by {@code runner},
      * its parameters' values read by their declared types ({@link #values}) and bound at run. {@code format} is
-     * {@code json} (the default: {@code {shape, columns, rows}}, {@link Answered}) or {@code arrow} (one Arrow IPC
-     * stream of typed columns, {@code result.ArrowWriter}); the caller chooses, never a guess.
+     * {@code json} ({@code {shape, columns, rows}}, {@link Answered}) or {@code arrow} (one Arrow IPC stream of typed
+     * columns, {@code result.ArrowWriter}): the caller's ask, never a guess -- required, a request without it refused by
+     * name, kind {@code request} (spec §4; the orchestrator's ruling of 2026-11-17: until then it defaulted to json, G7).
      */
     public static Answer queryRun(String body, Runner runner, Models models) {
         java.io.ByteArrayOutputStream arrow = new java.io.ByteArrayOutputStream();
         boolean[] asArrow = {false};
         Answer answered = LiteV1Api.answer(() -> {
-            Json.Obj request = LiteV1Api.read(body, "a query/run request", Set.of("params", "format"),
-                    "model", "query", "runtime");
+            Json.Obj request = LiteV1Api.read(body, "a query/run request", Set.of("params"),
+                    "model", "query", "runtime", "format");
             Json.Obj queryJson = LiteV1Api.object(request, "query");
             com.legend.protocol.spec.LambdaFunction query = ProtocolReader.lambda(queryJson);
             String runtime = LiteV1Api.text(request, "runtime");
             Map<String, Object> values = values(queryJson,
                     request.has("params") ? LiteV1Api.object(request, "params") : new Json.Obj(new java.util.LinkedHashMap<>()));
-            String format = request.has("format") ? LiteV1Api.text(request, "format") : "json";
-            asArrow[0] = spelled(Format.class, format, "a query runs in the format json or arrow") == Format.ARROW;
+            asArrow[0] = spelled(Format.class, LiteV1Api.text(request, "format"), "a query runs in the format json or arrow")
+                    == Format.ARROW;
             return models.with(LiteV1Api.text(request, "model"), ctx -> {
                 com.legend.TypedQuery typed = com.legend.Compiler.query(ctx, query);
                 Answered rows = new Answered();

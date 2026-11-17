@@ -510,8 +510,10 @@ class PlannerSurfaceTest {
             Map.entry("/api/lite/v1/query/print", "CLOSED \"a query/print request\": query; optional style"),
             Map.entry("/api/lite/v1/query/type", "CLOSED \"a query/type request\": model, query"),
             Map.entry("/api/lite/v1/query/plan", "CLOSED \"a query/plan request\": model, query, runtime"),
-            Map.entry("/api/lite/v1/query/run", "CLOSED \"a query/run request\": model, query, runtime; optional params,"
-                    + " format"),
+            // 2026-11-17 (the orchestrator's ruling on lite's API v1 §4: format is the caller's ask, never defaulted): format
+            // required
+            Map.entry("/api/lite/v1/query/run", "CLOSED \"a query/run request\": model, query, runtime, format; optional"
+                    + " params"),
             Map.entry("/api/lite/v1/ts/item", "CLOSED \"a ts/item request\": text"),
             Map.entry("/api/lite/v1/ts/statement", "CLOSED \"a ts/statement request\": model, query"),
             Map.entry("/api/lite/v1/model/createClass", "CLOSED FILE ModelChanges.java"),
