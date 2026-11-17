@@ -65,6 +65,8 @@ from ._library import library
 from ._pool import _on_compiler_threads, _workers
 from .frames import Frames, ModelRefused, Reading, UntypedColumn, redact_held
 # the runs this engine's routes hand the planner's statements to (C5-P, 2026-11-15): each route plans, then runs
+from ._params import ParametersRefused
+from ._plans import PlanParamsRefused
 from ._reads import count_of, read_plane, run_arrow, run_on_plane, run_plan, run_rows_json
 from ._edge_seam import NO_EDGE_ROUTES, EdgeRoutes, edge_routes
 from .keeper import PageKeeper, Refused
@@ -310,11 +312,6 @@ def _connection_settings(settings: Any, url: str, bearer: str | None, answered: 
         out.append((across_the_bridge(setting['sql'], "a remote file's setting of the connection", answered),
                     tuple(params)))
     return tuple(out), tuple(held)
-
-
-# a warehouse runs SQL text alone (the tenets audit's M3): a plan whose statement binds a data: payload is not sent there
-_WAREHOUSE_BINDS_NONE = ("this query's statement binds a data: source's payload, which the warehouse does not take: it runs "
-                         "on this engine's own database or legend-lite's server")
 
 
 def _bearer(url: str) -> list[str]:
@@ -1544,9 +1541,6 @@ class Engine:
             plan = on(self.planner.read, on(self.planner.plan, _count_of(asked['pull']), table.held, table.runtime))
         except (LegendError, ValueError) as refused:
             return _said(422, f'the snap could not be planned: {refused}')
-        if plan.params:
-            # the warehouse runs SQL text alone: a statement binding a data: payload (M3) is refused by name, never sent
-            return _said(422, _WAREHOUSE_BINDS_NONE)
         try:
             # DataCube's own code: what says a count past the limit, and what models the copy
             headless = self._headless()
@@ -1554,7 +1548,8 @@ class Engine:
             return _said(422, f'{type(failure).__name__}: {failure}')
         try:
             # counted where the rows are, before anything is copied (the tab's preflight)
-            counted = read_plane(table.warehouse, plan.sql)
+            # its payloads bound at run, positionally, by the warehouse (the host train, 2026-11-17)
+            counted = read_plane(table.warehouse, plan.sql, plan.params)
             # the count is the warehouse's one value: none is refused by name, never read as no rows (G7; the final
             # audit, 2026-11-12)
             if counted.num_rows != 1 or counted.num_columns != 1 or counted.column(0)[0].as_py() is None:
@@ -1566,7 +1561,7 @@ class Engine:
         except warehouse.SessionExpired:
             # said as one (401: the page offers to sign in again), by the route
             raise
-        except (warehouse.WarehouseError, pa.ArrowInvalid) as refused:
+        except (warehouse.WarehouseError, pa.ArrowInvalid, ParametersRefused, PlanParamsRefused) as refused:
             return _said(422, f'the snap could not be counted: {refused}')
         pulled_by: dict[str, Any] = {'plane': 'warehouse'}
 
@@ -1664,8 +1659,6 @@ class Engine:
             plan = on(self.planner.read, planned)
         except LegendError:
             return _planned({'plan': planned})
-        if plan.params:
-            return _planned({'plan': planned, 'error': _WAREHOUSE_BINDS_NONE}, 422)
         try:
             said: dict[str, Any] = {}
             rows = run_on_plane(table.warehouse, plan, said.update)
@@ -1676,7 +1669,8 @@ class Engine:
         except warehouse.SessionExpired as expired:
             return _planned({'plan': planned, 'error': str(expired),
                              'expired': {'baseUrl': expired.base_url, 'principal': expired.principal}}, 401)
-        except (warehouse.WarehouseError, UntypedColumn, pa.ArrowInvalid, duckdb.Error) as refused:
+        except (warehouse.WarehouseError, UntypedColumn, pa.ArrowInvalid, duckdb.Error,
+                ParametersRefused, PlanParamsRefused) as refused:
             return _planned({'plan': planned, 'error': f'{type(refused).__name__}: {refused}'}, 422)
         return _arrow_rows(rows, planned, receipt)
 

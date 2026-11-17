@@ -77,7 +77,28 @@ public final class SqlApi {
             @Nullable String sessionId,
             boolean describeOnly,
             ResultFormat format,
-            boolean cellText) {
+            boolean cellText,
+            List<@Nullable Object> parameters) {
+
+        /**
+         * {@code parameters}: the values the statement's {@code ?}s bind, in order -- each a String, a Long, a
+         * Double, a Boolean or null (the warehouse binds these and no other: lite's API v1 §4, a value is bound at
+         * run and never pasted into the text; the orchestrator's ruling (a), 2026-11-17). Any other value is refused
+         * by name, never stringified.
+         */
+        public StatementRequest {
+            java.util.List<@Nullable Object> held = new java.util.ArrayList<>(parameters.size());
+            for (int i = 0; i < parameters.size(); i++) {
+                held.add(bindable(parameters.get(i), i + 1));
+            }
+            parameters = java.util.Collections.unmodifiableList(held);
+        }
+
+        /** A statement that binds no values. */
+        public StatementRequest(String sql, String catalog, long timeoutMs, long waitMs, int rowsPerChunk,
+                @Nullable String sessionId, boolean describeOnly, ResultFormat format, boolean cellText) {
+            this(sql, catalog, timeoutMs, waitMs, rowsPerChunk, sessionId, describeOnly, format, cellText, List.of());
+        }
 
         public StatementRequest(String sql, String catalog, long timeoutMs, long waitMs, int rowsPerChunk) {
             this(sql, catalog, timeoutMs, waitMs, rowsPerChunk, null, false, ResultFormat.JSON, false);
@@ -89,15 +110,40 @@ public final class SqlApi {
         }
 
         public StatementRequest inSession(String session) {
-            return new StatementRequest(sql, catalog, timeoutMs, waitMs, rowsPerChunk, session, describeOnly, format, cellText);
+            return new StatementRequest(sql, catalog, timeoutMs, waitMs, rowsPerChunk, session, describeOnly, format,
+                    cellText, parameters);
         }
 
         public StatementRequest describe() {
-            return new StatementRequest(sql, catalog, timeoutMs, waitMs, rowsPerChunk, sessionId, true, format, cellText);
+            return new StatementRequest(sql, catalog, timeoutMs, waitMs, rowsPerChunk, sessionId, true, format, cellText,
+                    parameters);
         }
 
         public StatementRequest as(ResultFormat f) {
-            return new StatementRequest(sql, catalog, timeoutMs, waitMs, rowsPerChunk, sessionId, describeOnly, f, cellText);
+            return new StatementRequest(sql, catalog, timeoutMs, waitMs, rowsPerChunk, sessionId, describeOnly, f,
+                    cellText, parameters);
+        }
+
+        /** The same statement, its {@code ?}s bound to {@code values} in order. */
+        public StatementRequest withParameters(List<@Nullable Object> values) {
+            return new StatementRequest(sql, catalog, timeoutMs, waitMs, rowsPerChunk, sessionId, describeOnly, format,
+                    cellText, values);
+        }
+
+        /** {@code value} as the warehouse binds it, or refused by name: a String, a Long, a Double, a Boolean or null. */
+        private static @Nullable Object bindable(@Nullable Object value, int at) {
+            if (value == null || value instanceof String || value instanceof Long || value instanceof Boolean) {
+                return value;
+            }
+            if (value instanceof Double d) {
+                if (d.isNaN() || d.isInfinite()) {
+                    throw new IllegalArgumentException("parameter " + at + " is " + d + ", which the warehouse binds no"
+                            + " number as");
+                }
+                return d;
+            }
+            throw new IllegalArgumentException("parameter " + at + " is a " + value.getClass().getSimpleName()
+                    + ", which the warehouse does not bind (a string, a whole number, a double, a boolean or null)");
         }
 
         /**
@@ -106,7 +152,8 @@ public final class SqlApi {
          * show a nested value as DuckDB prints it (a JDBC driver's {@code getString}).
          */
         public StatementRequest withCellText() {
-            return new StatementRequest(sql, catalog, timeoutMs, waitMs, rowsPerChunk, sessionId, describeOnly, format, true);
+            return new StatementRequest(sql, catalog, timeoutMs, waitMs, rowsPerChunk, sessionId, describeOnly, format, true,
+                    parameters);
         }
 
         public static final String DEFAULT_CATALOG = "main";

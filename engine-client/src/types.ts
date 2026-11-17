@@ -76,6 +76,23 @@ export function isTimeOfDay(type: string | undefined): boolean {
 }
 
 /**
+ * What a plan's parameter of `type` takes from a run, as the hosts' runner checks a value given for it (plan-runner.ts;
+ * lite's API v1 §4): its plain primitive's kind, read here, the one reader of a type's name. Undefined for a type no
+ * plan binds, which the runner refuses by name -- never a guess.
+ */
+export type ParameterKind = 'integer' | 'float' | 'decimal' | 'number' | 'boolean' | 'string' | 'day' | 'instant' | 'date';
+
+const PARAMETER_KINDS: Readonly<Record<string, ParameterKind>> = {
+  Integer: 'integer', Float: 'float', Decimal: 'decimal', Number: 'number', Boolean: 'boolean', String: 'string',
+  StrictDate: 'day', DateTime: 'instant', Date: 'date',
+};
+
+export function parameterKind(type: string): ParameterKind | undefined {
+  const fact = TYPE_FACTS[type];
+  return fact === undefined ? undefined : PARAMETER_KINDS[fact.plain];
+}
+
+/**
  * The kind a column takes when nobody declared one (decision D3, upstream's rule):
  * every numeric column is a measure -- summed in a grouped cube -- and everything else a
  * dimension. A host or user who knows a numeric column is an identifier (an id, a year)

@@ -5267,7 +5267,7 @@ class OverWarehouse(Paged):
             def objects(self):
                 return objects
 
-            def arrow_chunks(self, sql, on_receipt=None):
+            def arrow_chunks(self, sql, on_receipt=None, params=()):
                 ran.append(sql)
                 rows = held.cursor().execute(sql).to_arrow_table()
                 sink = pa.BufferOutputStream()

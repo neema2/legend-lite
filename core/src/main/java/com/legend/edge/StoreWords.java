@@ -30,6 +30,49 @@ public final class StoreWords {
             case VERSION_NOT_FOUND -> "Can't find version '" + o.get(0) + "' for query with ID '" + o.get(1) + "'";
             // legend-engine's path, the edge's mount's (B7, the orchestrator's ruling (3) of 2026-11-17)
             case NO_SUCH_ROUTE -> "no such legend-engine API in legend-lite: /api/pure/v1/query" + o.get(0);
+            // J9 of the edge audit (2026-11-17): legend-engine's sentences of the store's refusals, moved from the
+            // product's queries.SavedQueries and SavedCubes, byte for byte
+            case FIELD_MISSING -> named(MISSING, "missing field", o.get(1));
+            case UNSERVED_CONTEXT -> "Query execution context of _type '" + o.get(0) + "' is not served by legend-lite ("
+                    + o.get(1) + ")";
+            case INVALID_GROUP_ID -> "Query project group ID is invalid";
+            case INVALID_ARTIFACT_ID -> "Query project artifact ID is invalid";
+            case ID_TAKEN -> "Query with ID '" + o.get(0) + "' already existed";
+            case ID_CHANGED -> "Updating query ID is not supported";
+            case NOT_OWNER -> "Only owner can " + o.get(0) + " the query";
+            case LIMIT_NOT_POSITIVE -> "Limit should be greater than 0";
+            case TOO_MANY -> "Can't fetch more than " + o.get(0) + " queries";
+            case NO_SEARCH_TERM -> "Query search spec expecting a search term";
+            case STORE_NOT_CONFIGURED -> named(STORES, "store", o.get(0))
+                    + " has not been configured properly (legend-lite: start the server with --query-store DIR)";
+            case MALFORMED -> o.get(0) + ": " + o.get(1);
         };
+    }
+
+    /** legend-engine's name of a store not configured, by the store the product names. */
+    private static final java.util.Map<String, String> STORES = java.util.Map.of(
+            "query", "Query store", "page", "DataCube query store");
+
+    /** legend-engine's sentence of a required field missing, by the field (its {@code validateQuery}; a DataCube
+     *  page's content, its own validate). */
+    private static final java.util.Map<String, String> MISSING = java.util.Map.ofEntries(
+            java.util.Map.entry("id", "Query ID is missing or empty"),
+            java.util.Map.entry("name", "Query name is missing or empty"),
+            java.util.Map.entry("groupId", "Query project group ID is missing or empty"),
+            java.util.Map.entry("artifactId", "Query project artifact ID is missing or empty"),
+            java.util.Map.entry("versionId", "Query project version is missing or empty"),
+            java.util.Map.entry("content", "Query content is missing or empty"),
+            java.util.Map.entry("mapping", "Query mapping is missing or empty"),
+            java.util.Map.entry("runtime", "Query runtime is missing or empty"),
+            java.util.Map.entry("dataSpacePath", "Query data Space execution context dataSpace path is missing or empty"),
+            java.util.Map.entry("pageContent", "Query content is missing"));
+
+    /** {@code key}'s entry in {@code table}; a key it lacks is refused by name, never defaulted. */
+    private static String named(java.util.Map<String, String> table, String what, String key) {
+        String words = table.get(key);
+        if (words == null) {
+            throw new IllegalStateException("no legend-engine words for the " + what + " '" + key + "'");
+        }
+        return words;
     }
 }

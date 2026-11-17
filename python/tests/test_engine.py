@@ -395,7 +395,7 @@ class ProjectQueries(Served):
             def __init__(self, chunks, counted=7, cut_after=None, silent=False):
                 self.chunks, self.counted, self.cut_after, self.silent, self.asked = chunks, counted, cut_after, silent, []
 
-            def arrow_chunks(self, sql, on_receipt=None):
+            def arrow_chunks(self, sql, on_receipt=None, params=()):
                 self.asked.append(sql)
                 if on_receipt is not None and not self.silent:
                     on_receipt({'statementId': 's1', 'serverRows': self.counted, 'as': 'rita', 'where': 'a stand-in'})
@@ -1524,7 +1524,7 @@ class WarehouseOnPython(unittest.TestCase):
                     raise warehouse.SessionExpired(outer.URL, self.principal)
                 return outer.OBJECTS
 
-            def arrow_chunks(self, sql, on_receipt=None):
+            def arrow_chunks(self, sql, on_receipt=None, params=()):
                 if outer.expired:
                     raise warehouse.SessionExpired(outer.URL, self.principal)
                 if on_receipt is not None:

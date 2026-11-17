@@ -132,6 +132,9 @@ final class Duck {
         signatures.put("duckdb_bind_varchar", FunctionDescriptor.of(JAVA_INT, ADDRESS, JAVA_LONG, ADDRESS));
         signatures.put("duckdb_bind_int64", FunctionDescriptor.of(JAVA_INT, ADDRESS, JAVA_LONG, JAVA_LONG));
         signatures.put("duckdb_bind_null", FunctionDescriptor.of(JAVA_INT, ADDRESS, JAVA_LONG));
+        // a statement's double and boolean parameters (the warehouse API's parameters, ruling (a), 2026-11-17)
+        signatures.put("duckdb_bind_double", FunctionDescriptor.of(JAVA_INT, ADDRESS, JAVA_LONG, JAVA_DOUBLE));
+        signatures.put("duckdb_bind_boolean", FunctionDescriptor.of(JAVA_INT, ADDRESS, JAVA_LONG, JAVA_BOOLEAN));
         signatures.put("duckdb_connection_get_client_context", FunctionDescriptor.ofVoid(ADDRESS, ADDRESS));
         signatures.put("duckdb_client_context_get_connection_id", FunctionDescriptor.of(JAVA_LONG, ADDRESS));
         signatures.put("duckdb_destroy_client_context", FunctionDescriptor.ofVoid(ADDRESS));
@@ -223,7 +226,7 @@ final class Duck {
     // -- prepared statements and scripts ---------------------------------------------------
     final MethodHandle prepare, prepareError, destroyPrepare, psColumnCount, psColumnName, psColumnLogicalType,
             executePrepared, extract, extractError, prepareExtracted, destroyExtracted, bindVarchar, bindInt64,
-            bindNull;
+            bindNull, bindDouble, bindBoolean;
     // -- client context --------------------------------------------------------------------
     final MethodHandle connectionContext, contextConnectionId, destroyContext;
     // -- logical types ---------------------------------------------------------------------
@@ -288,6 +291,8 @@ final class Duck {
         bindVarchar = fn("duckdb_bind_varchar");
         bindInt64 = fn("duckdb_bind_int64");
         bindNull = fn("duckdb_bind_null");
+        bindDouble = fn("duckdb_bind_double");
+        bindBoolean = fn("duckdb_bind_boolean");
 
         connectionContext = fn("duckdb_connection_get_client_context");
         contextConnectionId = fn("duckdb_client_context_get_connection_id");

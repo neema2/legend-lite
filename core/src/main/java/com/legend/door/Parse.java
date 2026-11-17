@@ -64,6 +64,14 @@ public final class Parse {
         return SpecParser.lambdaJson(source, sourceInformation);
     }
 
+    /** A lambda's text as its protocol JSON at {@code dialect}'s grammar (phase C): lite's API v1 {@code query/parse}
+     *  reads lite's own ({@link GrammarLevel#LEGEND_LITE}, its islands included); legend-engine's grammar route reads
+     *  legend-engine's ({@link #lambdaJson(String, boolean)}). */
+    public static String lambdaJson(String source, boolean sourceInformation, GrammarLevel dialect) {
+        com.legend.base.RunScope.planning("parse a lambda (phase C)");
+        return SpecParser.lambdaJson(source, sourceInformation, dialect);
+    }
+
     /** A model's records as the compiler's parsed model (phase B): the records' door. Its refusal of a shape the model
      *  cannot represent ({@code ModelFromProtocol.Unrepresentable}) is the caller's to word. */
     public static ParsedModel model(Protocol.PureModelContextData records) {

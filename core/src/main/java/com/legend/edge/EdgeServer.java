@@ -29,7 +29,8 @@ public final class EdgeServer {
     /** legend-engine's API, mounted beside lite's own routes. */
     public static final LegendHttpServer.Mount UPSTREAM = context -> List.of(
             pureV1(runner(context.sources())),
-            LegendHttpServer.storeRoutes(QUERY_STORE, context.queryStore(), context.cubeStore(), EdgeServer::storeWords),
+            engineShaped(LegendHttpServer.storeRoutes(QUERY_STORE, context.queryStore(), context.cubeStore(),
+                    EdgeServer::storeWords)),
             currentUser());
 
     /** The run of an upstream execute: the product's door, planned in the edge's dialects, its file: sources fenced
@@ -94,5 +95,28 @@ public final class EdgeServer {
      *  checkpoint audit's M2: the query-store page words upstream's path with it too). */
     public static String storeWords(com.legend.queries.SavedQueries.Refusal r) {
         return StoreWords.of(r);
+    }
+
+    /** The product store's routes at legend-engine's path, each refusal in legend-engine's shape ({@link
+     *  StoreShapes#engineShape}; J9 of the edge audit, 2026-11-17: the envelope moved here from the product's store). */
+    static LegendHttpServer.Routes engineShaped(LegendHttpServer.Routes store) {
+        return new LegendHttpServer.Routes() {
+            @Override
+            public String prefix() {
+                return store.prefix();
+            }
+
+            @Override
+            public boolean rawPath() {
+                return store.rawPath();
+            }
+
+            @Override
+            public com.legend.server.LiteV1Api.Answer answer(String method, String path,
+                    @com.legend.base.Nullable String rawQuery, String body) throws java.io.IOException {
+                com.legend.server.LiteV1Api.Answer a = store.answer(method, path, rawQuery, body);
+                return new com.legend.server.LiteV1Api.Answer(a.status(), StoreShapes.engineShape(a.status(), a.json()));
+            }
+        };
     }
 }

@@ -28,7 +28,7 @@
 // PURE: no DOM, no planner; a host gives its session.
 
 import { boundValues, type Bind, type HostSecrets, type KeptSetting } from './connection-settings.ts';
-import { familyOf, isBoolean } from './types.ts';
+import { familyOf, isBoolean, parameterKind } from './types.ts';
 import { payloadValue } from './plan-params.ts';
 import type { Receipt } from './receipt.ts';
 import { fromPlan, type PlannedSql, type PlanText } from './planned-sql.ts';
@@ -178,17 +178,18 @@ function parameterValue(p: DeclaredParameter, v: string | number | bigint | bool
     // the text its cast reads, every digit to the nanosecond, as Java's runner writes it (PlanRunner.dateTimeText)
     return `${t[1]}-${t[2]}-${t[3]} ${t[4]}:${t[5]}:${t[6] ?? '00'}.${(t[7] ?? '').padEnd(9, '0')}`;
   };
-  switch (p.type) {
-    case 'Integer': return integer();
-    case 'Float': return float();
-    case 'Decimal': return decimal();
-    case 'Number': return typeof v === 'bigint' ? integer() : typeof v === 'number' ? (Number.isSafeInteger(v) ? v : float()) : decimal();
-    case 'Boolean': return typeof v === 'boolean' ? v : notA('a Boolean is a boolean');
-    case 'String': return typeof v === 'string' ? v : notA('a String is a string');
-    case 'StrictDate': return strictDate() ?? notA('a StrictDate is its text YYYY-MM-DD');
-    case 'DateTime': return dateTime() ?? notA('a DateTime is its ISO 8601 text in UTC, YYYY-MM-DDTHH:MM[:SS[.fffffffff]]');
-    case 'Date': return strictDate() ?? dateTime() ?? notA('a Date is a StrictDate\'s or a DateTime\'s text');
-    default: return { refused: `a ${p.type} value is not bound by a plan` };
+  // the declared type's kind, read by the one reader of a type's name (types.ts parameterKind)
+  switch (parameterKind(p.type)) {
+    case 'integer': return integer();
+    case 'float': return float();
+    case 'decimal': return decimal();
+    case 'number': return typeof v === 'bigint' ? integer() : typeof v === 'number' ? (Number.isSafeInteger(v) ? v : float()) : decimal();
+    case 'boolean': return typeof v === 'boolean' ? v : notA('a Boolean is a boolean');
+    case 'string': return typeof v === 'string' ? v : notA('a String is a string');
+    case 'day': return strictDate() ?? notA('a StrictDate is its text YYYY-MM-DD');
+    case 'instant': return dateTime() ?? notA('a DateTime is its ISO 8601 text in UTC, YYYY-MM-DDTHH:MM[:SS[.fffffffff]]');
+    case 'date': return strictDate() ?? dateTime() ?? notA('a Date is a StrictDate\'s or a DateTime\'s text');
+    case undefined: return { refused: `a ${p.type} value is not bound by a plan` };
   }
 }
 
