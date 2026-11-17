@@ -275,8 +275,9 @@ public final class Lowerer {
      *  and {@link ListTexts}; and THE RAISES THE STYLE WRITES
      *  PLAIN ({@code PlanStyle.plainRaises}): a check of a kind there is the operation alone, the database's own error
      *  passing through (the edge's pure/v1 style, legend-engine's census class A). A Lowerer no planner handed a style
-     *  is the product's ({@link Styled#PRODUCT}): it refuses each text, writes its own list text and every check. */
-    private Styled styled = Styled.PRODUCT;
+     *  has none and refuses by name when a rule asks (the audit's K6, 2026-11-17: no implicit "no edge" default, G7);
+     *  the product's is {@link Styled#PRODUCT}, chosen explicitly. */
+    private @com.legend.base.Nullable Styled styled;
 
     /** The planner's style's text facets and plain raises ({@code PlanEnv.styled}). */
     public Lowerer withStyled(Styled style) {
@@ -286,7 +287,12 @@ public final class Lowerer {
 
     /** The style's text facets a native's rule reads ({@link Styled}). */
     private Styled styled() {
-        return styled;
+        Styled s = styled;
+        if (s == null) {
+            throw new IllegalStateException("a native's text facets and plain raises: a Lowerer no planner handed a"
+                    + " plan style (PlanEnv.configure, or withStyled(Styled.PRODUCT) explicitly) has none");
+        }
+        return s;
     }
 
     /** legend-engine's result envelope ({@link ResultEnvelopes}, Phase 6's B5, 2026-11-17): the plan style's facet,
@@ -1837,7 +1843,7 @@ public final class Lowerer {
                     new TypedLambda(a.reduce().parameters(),
                             List.of(rc.source()), a.reduce().info()),
                     a.order()));
-            return CastPolicy.castByPolicy(inner, rc.source().info().type(), rc.target(), rc.wire(), styled.plain());
+            return CastPolicy.castByPolicy(inner, rc.source().info().type(), rc.target(), rc.wire(), styled().plain());
         }
         // A CONDITION OVER REDUCERS (y|if($y->count() < 21, |[], |$y->average()): a figure given once its window holds
         // enough values, the DataCube timeseries library's ramp, 2026-10-26) -- each reducer the aggregate it is
@@ -1988,7 +1994,7 @@ public final class Lowerer {
         SqlExpr value = scalar(mapBody, (v, name) -> resolveOrThrow(base, name));
         if (valueCast != null) {
             value = CastPolicy.castByPolicy(value,
-                    valueCast.source().info().type(), valueCast.target(), valueCast.wire(), styled.plain());
+                    valueCast.source().info().type(), valueCast.target(), valueCast.wire(), styled().plain());
         }
         // isDistinct over a group: COUNT(DISTINCT x) = COUNT(x) (engine testGroupByIsDistinct)
         if (fn == SqlAgg.Fn.IS_DISTINCT_MARK) {
@@ -4189,7 +4195,7 @@ public final class Lowerer {
                             PureSql.asList(scalar(s.source(), columns),
                                     !CollectionLanes.c1Literal(s.source())),
                             scalar(s.start(), columns),
-                            scalar(s.stop(), columns), styled.plain());
+                            scalar(s.stop(), columns), styled().plain());
             // drop(n): the suffix from n+1; negative n drops nothing (PCT).
             case TypedDrop d when !Type.relationValued(d.source().info()) -> {
                 SqlExpr src = PureSql.asList(scalar(d.source(), columns),
@@ -4577,7 +4583,7 @@ public final class Lowerer {
 
     /** The cast policy over an ALREADY-LOWERED source (CastPolicy owns every arm). */
     private SqlExpr cast(TypedCast c, SqlExpr value) {
-        return CastPolicy.lower(c, value, Stamps.isMany(c), shape.elideWireCasts(), styled.plain());
+        return CastPolicy.lower(c, value, Stamps.isMany(c), shape.elideWireCasts(), styled().plain());
     }
 
     /**

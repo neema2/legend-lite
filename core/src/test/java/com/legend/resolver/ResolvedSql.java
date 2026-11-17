@@ -36,7 +36,7 @@ public final class ResolvedSql {
         List<TypedSpec> body = specs.typeQueryBody(NameResolver.resolveQuery(Own.spec(query)));
         List<TypedSpec> resolved = new StoreResolver(ctx, specs).resolve(body, null);
         return TestBackends.platform().dialect().renderStatement(
-                new Lowerer(PlatformRegistrations.catalogTable()).lower(resolved));
+                new Lowerer(PlatformRegistrations.catalogTable()).withStyled(com.legend.lowering.Styled.PRODUCT).lower(resolved));
     }
 
     /** {@code query} over {@code model}, resolved against {@code runtime} (the driver's runtime: a query with no
@@ -47,6 +47,6 @@ public final class ResolvedSql {
         List<TypedSpec> body = specs.typeQueryBody(NameResolver.resolveQuery(Own.spec(query)));
         List<TypedSpec> resolved = new StoreResolver(ctx, specs).resolve(body, runtime);
         return TestBackends.platform().dialect().render(
-                new Lowerer(PlatformRegistrations.catalogTable()).lower(resolved));
+                new Lowerer(PlatformRegistrations.catalogTable()).withStyled(com.legend.lowering.Styled.PRODUCT).lower(resolved));
     }
 }

@@ -89,7 +89,7 @@ class LowererLetScopeTest {
         TypedSpec typed = Compiler.query(Compiler.compileModel(""), "|[1, 2, 3]->map(x | $x + 1)").expression();
         List<TypedSpec> body = typed instanceof TypedLambda lam ? lam.body() : List.of(typed);
         Lowerer lw = new Lowerer(t -> ClassLayouts.layoutOf(ctx, t), f -> ctx.findClass(f).isPresent(),
-                ctx.implementations()).bindPlanParam("x", false);
+                ctx.implementations()).withStyled(com.legend.lowering.Styled.PRODUCT).bindPlanParam("x", false);
         SqlQuery plan = lw.lower(body);
         String sql = TestBackends.platform().dialect().render(plan);
         assertFalse(sql.contains("${x}"), sql);
