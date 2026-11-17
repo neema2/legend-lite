@@ -160,7 +160,7 @@ public final class JudgePlans {
             BodyDriver.ExecEnv env, boolean identity, boolean fold,
             java.util.function.@com.legend.base.Nullable BiFunction<TypedSpec, java.util.Set<String>,
                     TypedSpec> hook) {
-        EngineTestText.Collector collecting = env.engineText();
+        TextCollector collecting = env.engineText();
         if (collecting != null && collecting.planning()) {
             // an engine-text arm PLANNED for the program road (the test-is-the-product plan's M10b,
             // SqlTextVerdicts.plan): a text side is a constant of the plan (the verdict step's base), or our text a
@@ -175,7 +175,7 @@ public final class JudgePlans {
                     return deferred;
                 }
                 // the side's kind and its planned root name what the arm would evaluate (the unplanned-assert census)
-                throw new EngineTestText.NotAConstant(EngineTestText.NotAConstant.LABEL + p.kind()
+                throw new NotAConstant(p.kind()
                         + " " + (p.root() == null ? value.getClass().getSimpleName()
                                 : p.root().getClass().getSimpleName() + (p.root() instanceof com.legend.compiler.spec.typed.TypedNativeCall nc
                                         ? " " + nc.callee().qualifiedName()

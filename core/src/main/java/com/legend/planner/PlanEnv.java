@@ -92,6 +92,11 @@ public record PlanEnv(ModelContext ctx, @Nullable String runtimeFqn,
      *  body's accumulator -- the referee's made-up plan-parameter values, which an appeal's rows are planned under
      *  (G10, 2026-11-16: the body's map took them, and a later read of the body's plan text resolved its parameter by
      *  them, on whichever arm ran after). */
+    /** This environment with a copy of its query lets of its own (a planning that adds lets leaves this one's alone). */
+    public PlanEnv withOwnQueryLets() {
+        return withQueryLets(new LinkedHashMap<>(queryLets));
+    }
+
     public PlanEnv withQueryLets(Map<String, TypedSpec> lets) {
         return new PlanEnv(ctx, runtimeFqn, dialect, style, lets, tableReplace, instanceIds, planRows, protocolBody,
                 frame, features, options, generatorPlanText, stamps);
