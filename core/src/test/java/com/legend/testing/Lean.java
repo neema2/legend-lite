@@ -187,7 +187,7 @@ public final class Lean {
         static Result of(ExecutionPlan.TdsResult.Shape shape, List<ExecutionPlan.Column> planColumns, String json) {
             List<Column> columns = new ArrayList<>(planColumns.size());
             for (ExecutionPlan.Column c : planColumns) {
-                columns.add(new Column(c.name(), c.type(), c.multiplicity()));
+                columns.add(new Column(c.name(), c.type(), c.multiplicity(), c.slot()));
             }
             Json.Node parsed = Json.parse(json);
             if (!(parsed instanceof Json.Arr rowsJson)) {
@@ -291,7 +291,10 @@ public final class Lean {
         }
     }
 
-    /** A column as the plan that ran names and types it. */
-    public record Column(String name, String type, ExecutionPlan.Multiplicity multiplicity) {
+    /** A column as the plan that ran names and types it: its plain type path, and its slot, the SQL type the database
+     *  answers with ({@code DECIMAL(38,18)}: a precise decimal's precision and scale are data, never its type's name;
+     *  2026-11-17). */
+    public record Column(String name, String type, ExecutionPlan.Multiplicity multiplicity,
+            @com.legend.base.Nullable String slot) {
     }
 }
