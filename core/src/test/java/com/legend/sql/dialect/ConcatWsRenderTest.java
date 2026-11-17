@@ -29,11 +29,24 @@ class ConcatWsRenderTest {
 
     /** {@code SELECT CONCAT_WS(', ', s.a, s.b, s.c) AS t FROM t AS s}. */
     private static SqlSelect joined() {
-        SqlExpr join = new SqlExpr.Call(SqlFn.CONCAT_WS, List.of(new SqlExpr.StringLit(", "),
-                SqlExpr.Column.derived("s", "a"), SqlExpr.Column.derived("s", "b"), SqlExpr.Column.derived("s", "c")));
+        // each part a cell's text, as the lowering writes it: a cast of the cell to text
+        SqlExpr join = new SqlExpr.Call(SqlFn.CONCAT_WS, List.of(new SqlExpr.StringLit(", "), text("a"), text("b"),
+                text("c")));
         return SqlSelect.starOf(new SqlSource.Table("t", "s", List.of(), false, Map.of(),
                         com.legend.sql.NameQuoting.BARE))
                 .withProjections(List.of(new SqlSelect.Projection(join, "t", null)));
+    }
+
+    private static SqlExpr text(String column) {
+        return new SqlExpr.Cast(SqlExpr.Column.derived("s", column), com.legend.sql.SqlType.Scalar.VARCHAR,
+                SqlExpr.Reason.PRINT);
+    }
+
+    /** A part already a text is cast no second time (round 75's lean note, 2026-11-17: SQLite, MariaDB, MySQL and
+     *  BigQuery wrote CAST(CAST(x AS TEXT) AS TEXT)). */
+    private static void castOnce(String database, String sql) {
+        assertFalse(sql.toLowerCase(java.util.Locale.ROOT).replace(" ", "").contains("cast(cast("),
+                database + ": a part cast twice: " + sql);
     }
 
     /** The text between the array's brackets in {@code sql}, which opens at {@code opener}. */
@@ -71,10 +84,13 @@ class ConcatWsRenderTest {
     void eachArrayFormTakesThePartsAsTheyAre() {
         String clickHouse = new ClickHouse().render(joined());
         eachPartAsItIs("ClickHouse", arrayOf(clickHouse, "\"__x\" IS NOT NULL, ["));
+        castOnce("ClickHouse", clickHouse);
         String bigQuery = new BigQuery().render(joined());
         eachPartAsItIs("BigQuery", arrayOf(bigQuery, "ARRAY_TO_STRING(["));
+        castOnce("BigQuery", bigQuery);
         String snowflake = new Snowflake().render(joined());
         eachPartAsItIs("Snowflake", arrayOf(snowflake, "ARRAY_CONSTRUCT_COMPACT("));
+        castOnce("Snowflake", snowflake);
     }
 
     @Test
@@ -85,6 +101,7 @@ class ConcatWsRenderTest {
             String lower = sql.toLowerCase(java.util.Locale.ROOT);
             assertTrue(lower.contains("concat_ws(', '"), dialect.getClass().getSimpleName() + ": " + sql);
             eachPartAsItIs(dialect.getClass().getSimpleName(), arrayOf(lower, "concat_ws(', ', "));
+            castOnce(dialect.getClass().getSimpleName(), sql);
         }
     }
 }
