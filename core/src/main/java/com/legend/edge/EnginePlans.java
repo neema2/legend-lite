@@ -212,7 +212,7 @@ public final class EnginePlans {
      *  its own column lists (no computed pruning), a view an aliased derived table ({@code ViewSelectSQLQuery}), a
      *  mapping's wire coercion converted by its runtime on the wire and never spelled in its text. */
     static final com.legend.lowering.LoweringShape UPSTREAM_SHAPE =
-            new com.legend.lowering.LoweringShape(false, false, false, EdgeLoweringForms.ENGINE_SQL_SHAPE, false);
+            new com.legend.lowering.LoweringShape(EdgeLoweringForms.ENGINE_SQL_SHAPE, false);
 
     static final String EXEC_TRACE_COMMENT = "-- \"executionTraceID\" : \"${execID}\"";
 

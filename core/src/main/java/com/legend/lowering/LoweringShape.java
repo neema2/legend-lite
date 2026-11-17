@@ -8,12 +8,9 @@ package com.legend.lowering;
  * SHAPE of a lowered statement without changing its answer. The product lowers {@link #LEAN}; another shape is chosen by
  * whoever asks the lowering for it (the compatibility edge, which writes another engine's text). Each option:
  *
- * @param shareRelations       a relation read more than once is written once, a common table expression its reads name
- *                             (smaller SQL, one evaluation)
- * @param foldKeyedCounts      a count of rows a declared key makes one is the constant 1 ({@link KeyedCounts}: work the
- *                             model's knowledge saves the database)
- * @param pruneComputed        an unread computed projection whose value raises nothing is dropped, beside the unread
- *                             columns always dropped ({@link SubselectPrune}: smaller SQL)
+ * (shareRelations, foldKeyedCounts, pruneComputed: members of {@link LoweringForms} since 2026-11-17, the edge audit's J23
+ * -- the product's form writes lean SQL, legend-engine's shape none of it.)
+ *
  * @param forms                a view at relation position and a mapping's wire coercion, the shape's two-form choices
  *                             ({@link LoweringForms#view}, {@link LoweringForms#wireCast}; the audit's K5, 2026-11-17:
  *                             until then two flags the product branched on, set by the edge alone): the product's
@@ -23,14 +20,13 @@ package com.legend.lowering;
  *                             ({@link ExistsJoinForm}; until 2026-11-17 {@code withEngineExistsJoinForm}): each planner
  *                             chooses it as before, the product's planners too
  */
-public record LoweringShape(boolean shareRelations, boolean foldKeyedCounts, boolean pruneComputed,
-        LoweringForms forms, boolean existsAsJoinDistinct) {
+public record LoweringShape(LoweringForms forms, boolean existsAsJoinDistinct) {
 
     /** The product's shape: lean SQL. */
-    public static final LoweringShape LEAN = new LoweringShape(true, true, true, ProductLoweringForms.INSTANCE, false);
+    public static final LoweringShape LEAN = new LoweringShape(ProductLoweringForms.INSTANCE, false);
 
     /** This shape, an {@code EXISTS} over a to-many join written as a join to the distinct keys. */
     public LoweringShape withExistsAsJoinDistinct() {
-        return new LoweringShape(shareRelations, foldKeyedCounts, pruneComputed, forms, true);
+        return new LoweringShape(forms, true);
     }
 }

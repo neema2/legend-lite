@@ -26,6 +26,10 @@ import java.util.function.Supplier;
  * stays the array, lite's own root (the user's ruling of 2026-11-03: "the right clean thing in lite, the
  * backward-compatible thing in compatibility mode"); legend-engine's JsonBuilder writes exactly one object bare (the
  * audit's J3, 2026-11-17: until then applied ungated).</li>
+ * <li>{@link #relations}, {@link #keyedCounts}, {@link #computedPruning} (the edge audit's J23, 2026-11-17, the
+ * orchestrator's ruling (a): until then three LoweringShape flags only the edge set false): the product writes lean SQL --
+ * a relation read more than once written once, a count a declared key makes one folded to 1, an unread computed
+ * projection dropped; legend-engine's SQL does none of them.</li>
  * </ul>
  */
 public interface LoweringForms {
@@ -47,4 +51,18 @@ public interface LoweringForms {
     /** An object reference's connection segment (the audit's J12, 2026-11-17): the product's names no connection, the
      *  empty text; legend-engine's its H2 test-connection JSON, whatever the database. */
     String objectReferenceConnection();
+
+    /** A statement whose relations read more than once are written once ({@code shared}), or at each read
+     *  ({@code unshared}). */
+    com.legend.sql.SqlQuery relations(Supplier<com.legend.sql.SqlQuery> shared,
+            Supplier<com.legend.sql.SqlQuery> unshared);
+
+    /** {@code q} with the counts a declared key makes one folded to 1 ({@code fold}), or as lowered. */
+    com.legend.sql.SqlQuery keyedCounts(com.legend.sql.SqlQuery q,
+            java.util.function.UnaryOperator<com.legend.sql.SqlQuery> fold);
+
+    /** A statement with its unread computed projections dropped ({@code pruned}), or kept ({@code kept}); unread columns
+     *  are dropped either way. */
+    com.legend.sql.SqlQuery computedPruning(Supplier<com.legend.sql.SqlQuery> pruned,
+            Supplier<com.legend.sql.SqlQuery> kept);
 }
