@@ -67,7 +67,64 @@ final class HostSideBatching {
                 && !(host.judgment() instanceof com.legend.testexecutionplan.HostJudgment.EngineText);
     }
 
+    /**
+     * {@code run} batched in groups that keep upstream's order of failure (the orchestrator's ruling of 2026-11-17: a
+     * failing test names the assert upstream names, the first raise in body order): a group holds at most ONE side
+     * that may raise ({@link HostSideBatch#mayRaise}), batched, its assert the group's first and the side its first
+     * branch -- so a raise is that side's, and every assert before it was decided by an earlier statement. An assert
+     * with a side that may raise starts a group; one with two such sides, or one it cannot batch, is no group's: its
+     * sides read one by one, in order.
+     */
     private static void close(List<Integer> run, Map<Integer, HostAsserts.Planned> byStatement,
+            BodyDriver.ExecEnv env, Map<Integer, List<TestPlan.TestStep>> out) {
+        List<Integer> group = new ArrayList<>();
+        int raising = -1;
+        for (int statement : run) {
+            HostAsserts.Planned p = java.util.Objects.requireNonNull(byStatement.get(statement));
+            List<Integer> mayRaise = raising(p, env);
+            if (mayRaise == null || !mayRaise.isEmpty()) {
+                batch(group, raising, byStatement, env, out);
+                group = new ArrayList<>();
+                raising = -1;
+            }
+            if (mayRaise == null) {
+                continue;
+            }
+            if (!mayRaise.isEmpty()) {
+                raising = mayRaise.get(0);
+            }
+            group.add(statement);
+        }
+        batch(group, raising, byStatement, env, out);
+    }
+
+    /** The places of {@code p}'s base sides that may raise -- at most one, batchable -- or null where it has more, or
+     *  one the batch cannot read. */
+    private static @Nullable List<Integer> raising(HostAsserts.Planned p, BodyDriver.ExecEnv env) {
+        Map<Integer, TestPlan.Side.FusedCell> batchable = columns(p, env, new ArrayList<>(), new ArrayList<>(), -1);
+        List<TestPlan.Side> base = p.verdict().base();
+        List<JudgePlans.PlannedSide> planned = p.sides().sides();
+        List<Integer> out = new ArrayList<>();
+        for (int k = 0; k < base.size(); k++) {
+            if (base.get(k) instanceof TestPlan.Side.Constant) {
+                continue;
+            }
+            BodyDriver.@Nullable WrappedSide w = k < planned.size() && planned.get(k).side() == base.get(k)
+                    ? planned.get(k).wrapped() : null;
+            if (w != null && !HostSideBatch.mayRaise(w.plan())) {
+                continue;
+            }
+            if (!batchable.containsKey(k) || !out.isEmpty()) {
+                return null;
+            }
+            out.add(k);
+        }
+        return out;
+    }
+
+    /** {@code run}, one group, as one batch: {@code raising} the place of its first assert's side that may raise (-1:
+     *  none), written as the batch's first branch. */
+    private static void batch(List<Integer> run, int raising, Map<Integer, HostAsserts.Planned> byStatement,
             BodyDriver.ExecEnv env, Map<Integer, List<TestPlan.TestStep>> out) {
         if (run.isEmpty()) {
             return;
@@ -84,8 +141,8 @@ final class HostSideBatching {
         schema.add(new com.legend.compiler.element.type.Type.RelationType.Column(HostSideBatch.ORDER,
                 com.legend.compiler.element.type.Type.Primitive.INTEGER, one));
         List<Map<Integer, TestPlan.Side.FusedCell>> cells = new ArrayList<>(run.size());
-        for (HostAsserts.Planned p : planned) {
-            cells.add(columns(p, env, sides, schema));
+        for (int i = 0; i < planned.size(); i++) {
+            cells.add(columns(planned.get(i), env, sides, schema, i == 0 ? raising : -1));
         }
         if (sides.size() < 2) {
             return;
@@ -95,10 +152,11 @@ final class HostSideBatching {
             if (run.size() == 1) {
                 return;
             }
-            // longer than the database takes in one statement: the run in two halves, each batched on its own
+            // longer than the database takes in one statement: the group in two halves, each batched on its own (the
+            // second's first assert raises nothing)
             int half = run.size() / 2;
-            close(new ArrayList<>(run.subList(0, half)), byStatement, env, out);
-            close(new ArrayList<>(run.subList(half, run.size())), byStatement, env, out);
+            batch(new ArrayList<>(run.subList(0, half)), raising, byStatement, env, out);
+            batch(new ArrayList<>(run.subList(half, run.size())), -1, byStatement, env, out);
             return;
         }
         ExecutionPlan.TdsResult statement;
@@ -130,14 +188,23 @@ final class HostSideBatching {
 
     /** Assert {@code p}'s sides that can be batched, each added to {@code sides} (its columns named by its place there,
      *  their types to {@code schema}), as its fused cells by the side's place in the base; the rest keep their own
-     *  statements. */
+     *  statements. {@code first}: the side added first (-1: none), the others in the base's order. */
     private static Map<Integer, TestPlan.Side.FusedCell> columns(HostAsserts.Planned p, BodyDriver.ExecEnv env,
             List<HostSideBatch.BatchSide> sides,
-            List<com.legend.compiler.element.type.Type.RelationType.Column> schema) {
+            List<com.legend.compiler.element.type.Type.RelationType.Column> schema, int first) {
         List<TestPlan.Side> base = p.verdict().base();
         List<JudgePlans.PlannedSide> planned = p.sides().sides();
         Map<Integer, TestPlan.Side.FusedCell> own = new LinkedHashMap<>();
+        List<Integer> order = new ArrayList<>();
+        if (first >= 0) {
+            order.add(first);
+        }
         for (int k = 0; k < base.size() && k < planned.size(); k++) {
+            if (k != first) {
+                order.add(k);
+            }
+        }
+        for (int k : order) {
             JudgePlans.PlannedSide side = planned.get(k);
             BodyDriver.@Nullable WrappedSide w = side.wrapped();
             if (side.side() != base.get(k) || w == null || !(side.side() instanceof TestPlan.Side.Rows rows)
