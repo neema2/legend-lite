@@ -20,9 +20,9 @@ import org.junit.jupiter.api.Test;
 /**
  * A RELATION COUNTED AS ONE VALUE (register S137, the user's ruling of 2026-11-05): {@code assertSize},
  * {@code assertEmpty} and {@code assertNotEmpty} take a collection, so upstream counts a relation passed to them as
- * one value. The edge's form does exactly that ({@code RelationCountAssertsEdgeTest}, census C1, 2026-11-17); lite's
- * own runs refuse the three over a relation at planning and name the assert that says what the test means. Under the
- * lane's judge.
+ * one value. Backwards-compatibility mode does exactly that (an edge test, {@code RelationCountAssertsEdgeTest});
+ * lite's own runs refuse the three over a relation at planning and name the assert that says what the test means.
+ * Under the lane's judge.
  */
 class RelationCountAssertsTest {
 
@@ -40,27 +40,27 @@ class RelationCountAssertsTest {
         conn.close();
     }
 
-    private static Program.Report run(String body, boolean compat) {
+    private static Program.Report run(String body) {
         return Program.run(StorelessRuntime.with(MODEL, Databases.PLATFORM), body, StorelessRuntime.RUNTIME, conn,
-                ExecuteOptions.NONE.withJudgeMode(Program.laneJudge()).withEngineCompat(compat));
+                ExecuteOptions.NONE.withJudgeMode(Program.laneJudge()));
     }
 
     @Test
     @DisplayName("lite refuses assertSize, assertEmpty and assertNotEmpty over a relation at planning, naming what to say")
     void refusedInLite() {
-        ModelException empty = assertThrows(ModelException.class, () -> run("|assertEmpty(" + TWO_ROWS + ")", false));
+        ModelException empty = assertThrows(ModelException.class, () -> run("|assertEmpty(" + TWO_ROWS + ")"));
         assertTrue(empty.getMessage().contains("assertEmpty over a relation counts the relation as ONE value")
                 && empty.getMessage().contains("say assertEquals(0, $relation->size())"), empty.getMessage());
-        ModelException size = assertThrows(ModelException.class, () -> run("|assertSize(" + TWO_ROWS + ", 2)", false));
+        ModelException size = assertThrows(ModelException.class, () -> run("|assertSize(" + TWO_ROWS + ", 2)"));
         assertTrue(size.getMessage().contains("say assertEquals(<size>, $relation->size())"), size.getMessage());
         ModelException notEmpty = assertThrows(ModelException.class,
-                () -> run("|assertNotEmpty(" + TWO_ROWS + ")", false));
+                () -> run("|assertNotEmpty(" + TWO_ROWS + ")"));
         assertTrue(notEmpty.getMessage().contains("say assertNotEquals(0, $relation->size())"), notEmpty.getMessage());
     }
 
     @Test
     @DisplayName("what lite asks for instead holds: the relation's size")
     void sizeSaysIt() {
-        assertTrue(run("|assertEquals(2, " + TWO_ROWS + "->size())", false).passed());
+        assertTrue(run("|assertEquals(2, " + TWO_ROWS + "->size())").passed());
     }
 }

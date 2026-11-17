@@ -122,8 +122,8 @@ public final class Verdicts {
      *  under the origin of that name. */
     public static @com.legend.base.Nullable String deferredTextOrigin(HostJudgment judgment) {
         HostJudgment j = HostJudgment.core(judgment);
-        if (j instanceof HostJudgment.EngineText e) {
-            return e.oursOrigin();
+        if (j instanceof HostJudgment.EdgeJudged x) {
+            return x.sideOrigin();
         }
         if (j instanceof HostJudgment.Unrolled u) {
             for (var p : u.parts()) {

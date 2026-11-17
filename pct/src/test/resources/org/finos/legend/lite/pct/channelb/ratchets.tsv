@@ -1,20 +1,20 @@
 # pct's measured ratchet values (PctRatchets) -- regenerate: bazel run //pct:update_ratchets
 channel_b.essential.discovered	345
 channel_b.essential.judge.statements	358
-channel_b.essential.judge.chars	1725178
-channel_b.essential.judge.plan	28816251
+channel_b.essential.judge.chars	1724482
+channel_b.essential.judge.plan	28816388
 channel_b.grammar.discovered	137
 channel_b.grammar.judge.statements	135
 channel_b.grammar.judge.chars	670493
-channel_b.grammar.judge.plan	11590266
+channel_b.grammar.judge.plan	11590283
 channel_b.relation.discovered	469
 channel_b.relation.judge.statements	469
-channel_b.relation.judge.chars	1992206
-channel_b.relation.judge.plan	34503920
+channel_b.relation.judge.chars	1991942
+channel_b.relation.judge.plan	34503941
 channel_b.standard.discovered	205
 channel_b.standard.judge.statements	207
-channel_b.standard.judge.chars	1548234
-channel_b.standard.judge.plan	24449692
+channel_b.standard.judge.chars	1547494
+channel_b.standard.judge.plan	24448890
 channel_b.unclassified.discovered	93
 channel_b.unclassified.judge.statements	93
 channel_b.unclassified.judge.chars	233207

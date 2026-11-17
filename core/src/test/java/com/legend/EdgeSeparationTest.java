@@ -55,7 +55,7 @@ class EdgeSeparationTest {
             // Render is the product's row helpers, and the facet the edge answers stands here until hooks are ruled
             Map.entry("com.legend.lowering.RelationTexts", "B17"),
             // B9 -> C5 (E-P5) 2026-11-17: the judges' canon's alone (LiteralSpelling.temporalCanon)
-            Map.entry("com.legend.sql.dialect.DateTimePrintText", "C5"),
+            Map.entry("com.legend.sql.dialect.DateTimePrintText", "B12"),
             Map.entry("com.legend.lowering.ResultEnvelopes", "B5"),
             Map.entry("com.legend.lowering.PureOnlyTexts", "B8"),
             Map.entry("com.legend.lowering.Repr", "C5"),
@@ -87,10 +87,9 @@ class EdgeSeparationTest {
             // B9 -> C5 (E-P5) 2026-11-17 (the orchestrator's ruling (a)): the composition the judges' canon alone emits
             // (LiteralSpelling.temporalCanon), closed by C5's step C
             Map.entry("com.legend.sql.dialect.AnsiSqlRenderer -> com.legend.sql.dialect.DateTimePrintText",
-                    "C5 2026-11-17 (E-P5: LiteralSpelling.temporalCanon)"),
+                    "B12 2026-11-17 (format %r arm, LiteralSpelling.temporalCanon's gone by C5 step C)"),
             Map.entry("com.legend.sql.dialect.DateTimePrintText -> (stands in a product package)",
-                    "C5 2026-11-17 (E-P5: LiteralSpelling.temporalCanon)"),
-            Map.entry("com.legend.lowering.LiteralSpelling -> SqlFn.DATETIME_PRINT", "B8 2026-11-17"),
+                    "B12 2026-11-17 (format %r arm, LiteralSpelling.temporalCanon's gone by C5 step C)"),
             Map.entry("com.legend.lowering.Repr -> (stands in a product package)", "B12 2026-11-17"),
             Map.entry("com.legend.lowering.Scalars -> com.legend.lowering.Repr", "B12 2026-11-17"),
             // planner.Boundary -> com.legend.edge.HostAnswers, PureText, PureV1Routes: gone 2026-11-17 (A1, E-P5): the
@@ -275,29 +274,22 @@ class EdgeSeparationTest {
      *  ways with the register ({@link #everyOpenCompatRowIsCounted}). */
     static final Map<String, String> CSG_OPEN = Map.ofEntries(
             // B9 -> C5 (E-P5) 2026-11-17: the judges' canon's alone (LiteralSpelling.temporalCanon)
-            Map.entry("sql/dialect/DateTimePrintText.java | +0000", "C5 2026-11-17 (E-P5: LiteralSpelling.temporalCanon)"),
+            Map.entry("sql/dialect/DateTimePrintText.java | +0000", "B12 2026-11-17 (format %r arm, LiteralSpelling.temporalCanon's gone by C5 step C)"),
             Map.entry("compiler/element/type/PlatformTypes.java | TDS_NULL_CELL", "B10 2026-11-17"),
             // B11 -> C5 2026-11-17 (the orchestrator's ruling): the judges' canon (temporalCanon x2, dateTimeLiteralAt via
             // CanonicalRenderSql), closed by C5's step C (E-SQL's)
-            Map.entry("lowering/LiteralSpelling.java | +0000", "C5 2026-11-17 (E-P5's step C, now E-SQL's)"),
             Map.entry("lowering/Repr.java | Repr", "B12 2026-11-17"),
             Map.entry("lowering/Scalars.java | Repr", "B12 2026-11-17"),
             Map.entry("lowering/VerdictSql.java | Repr", "C5 2026-11-17"),
             Map.entry("lowering/VerdictSql.java | TDS_NULL_CELL", "C5 2026-11-17"),
             Map.entry("sql/SqlExpr.java | TDS_NULL_CELL", "B10 2026-11-17"),
-            Map.entry("testexec/AssertRuns.java | EngineText", "C3 2026-11-17"),
             Map.entry("testexec/CanonicalForm.java | +0000", "C5 2026-11-17"),
-            Map.entry("testexec/HostJudgments.java | EngineText", "C3 2026-11-17"),
-            Map.entry("testexec/SideShapes.java | Cannot cast a collection of size", "C5 2026-11-17"),
+            // testexec/SideShapes.java | Cannot cast a collection of size: GONE 2026-11-17 (C5's step E, E-P5), worded at
+            // planning by the plan's style (SideShape.sizeWords, TestPlan.answerSizeWords)
             Map.entry("testexec/SideShapes.java | TDS_NULL_CELL", "C5 2026-11-17"),
-            Map.entry("testexecutionplan/HostJson.java | EngineText", "C3 2026-11-17"),
-            Map.entry("testexecutionplan/HostJudgment.java | EngineText", "C3 2026-11-17"),
-            Map.entry("testexecutionplan/NamedExtensions.java | EngineText", "C3 2026-11-17"),
-            Map.entry("testexecutionplan/Verdicts.java | EngineText", "C3 2026-11-17"),
             // B11 -> C5 2026-11-17 (the orchestrator's ruling): the host judge's +0000, C5's step B (E-P5's)
             Map.entry("testexecutionplan/Verdicts.java | +0000", "C5 2026-11-17 (E-P5's step B)"),
             // (testplan/AgreementAsserts.java | EngineText closed: 2026-11-17, (b) of the orchestrator's order: the fused agreement path deleted)
-            Map.entry("testplan/AssertVerdicts.java | EngineText", "C3 2026-11-17"),
             Map.entry("compiler/spec/VerdictQueries.java | TDSNull", "B10 2026-11-17"),
             Map.entry("lowering/CanonicalRenderSql.java | TDSNull", "C5 2026-11-17"),
             Map.entry("lowering/VerdictSql.java | TDSNull", "B10 2026-11-17"),
@@ -316,11 +308,13 @@ class EdgeSeparationTest {
      *  product's API kit LiteV1Api, legend-engine's ExecuteInput binding the edge's); B11 CLOSED 2026-11-17 (its last rows the judges' canon and the host judge's +0000, relabelled C5);
      *  B9 CLOSED 2026-11-17 (the Float rename its last entries; its hooks ruled terminal, its DateTime family the
      *  two-form hook DateTimeTexts, its canon composition relabelled C5);
+     *  B8 CLOSED 2026-11-17 (its last entry, LiteralSpelling -> DATETIME_PRINT, gone with C5's step C: the judges'
+     *  canon is lite's DATETIME_CANON_TEXT);
      *  records only:
      *  B15, B16, C6, C7). Each must hold at least one entry in the count ({@link #everyOpenLineIsCounted}), so an empty
      *  count cannot read DONE with a line left. A line closes by leaving this set with its last entry. */
     static final Set<String> OPEN_LINES = Set.of(
-            "B8", "B10", "B12", "C1", "C3", "C5");
+            "B10", "B12", "C1", "C5");
 
     private static Set<String> linesOf(Map<String, String> m) {
         Set<String> out = new TreeSet<>();

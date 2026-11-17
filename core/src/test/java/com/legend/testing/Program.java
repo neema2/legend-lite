@@ -90,7 +90,7 @@ public final class Program {
     }
 
     /** {@link #run(String, String, String, Connection, ExecuteOptions)} heard by {@code edgeRun}: the product's
-     *  {@code NoEdgeRun.NONE}, or the edge's run for a test of the compatibility rules (an edge test, census C1). */
+     *  {@code NoEdgeRun.NONE}, or the edge's run for a test of the compatibility rules (an edge test, census C1's K14). */
     public static Report run(String model, String body, @com.legend.base.Nullable String runtime, Connection c,
             ExecuteOptions options, com.legend.testexec.EdgeRun edgeRun) {
         ModelContext ctx = Compiler.compileModel(LaneFloor.model(model, c));

@@ -27,7 +27,7 @@ final class SqlTextRuns {
      *  text, M10c item 8 -- its one string is our text, and the equality is computed here as the arm computes it): the
      *  decline reported, then the text decides -- equal holds; else the appeal, the walk's own rows leg, now, with the
      *  texts in hand. */
-    static TypedSide judge(HostJudgment.EngineText e, List<TypedSide> sides,
+    static TypedSide judge(EngineTextJudgment e, int appeal, List<TypedSide> sides,
             com.legend.testexecutionplan.TestPlan.JudgingRules rules, Appeals run, boolean messaged) {
         // the appeal is heard by its number, the plan's (step 8b): the run records the texts it read, and the edge
         // decides after the run; the step's rules say whether a failed text is appealed
@@ -72,7 +72,7 @@ final class SqlTextRuns {
                 return fail(e.name() + " (sql-text): a golden read at the verdict step whose text chooses a statement"
                         + " route the plan did not plan (a population or in-list temp statement): " + g);
             }
-            return run.hold(e.name(), e.appeal(), g, ours, false, messaged);
+            return run.hold(e.name(), appeal, g, ours, false, messaged);
         }
         boolean textEqual = e.textEqual();
         if (e.ours() == null) {
@@ -85,7 +85,7 @@ final class SqlTextRuns {
         // the equality arm's census route is the caller's to count once this answered (AssertVerdicts.HostAssert); the
         // decline reported above, the text decides -- equal holds, else the appeal heard, or the texts' failure
         String o = java.util.Objects.requireNonNull(ours);
-        return textEqual ? ok() : compat ? run.hold(e.name(), e.appeal(), e.golden(), o, textEqual, messaged)
+        return textEqual ? ok() : compat ? run.hold(e.name(), appeal, e.golden(), o, textEqual, messaged)
                 : textsDiffer(e.name(), e.golden(), o, e.decline());
     }
 

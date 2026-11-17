@@ -23,11 +23,28 @@ public final class EdgeProgram {
         return Program.defaults().withStyle(com.legend.edge.PureText.UPSTREAM);
     }
 
-    /** The compatibility rules' options (census C1, the orchestrator's ruling of 2026-11-17: a test of upstream's
-     *  behaviour is an edge test): upstream's leniencies, the edge's plan style -- whose two-form kinds answer
-     *  upstream's behaviour -- and the lane's judge. */
-    public static ExecuteOptions compat() {
-        return ExecuteOptions.NONE.withJudgeMode(Program.laneJudge()).withEngineCompat(true)
+    /** The compatibility rules' options under {@code mode} (census C1's K14, the orchestrator's ruling of 2026-11-17: a
+     *  test of upstream's behaviour is an edge test, never a compatibility run on the product's door): upstream's
+     *  leniencies and the edge's plan style. */
+    public static ExecuteOptions compat(com.legend.testplan.PlanningOptions.JudgeMode mode) {
+        return ExecuteOptions.NONE.withJudgeMode(mode).withEngineCompat(true)
                 .withStyle(com.legend.edge.PureText.UPSTREAM);
+    }
+
+    /** {@link #compat(com.legend.testplan.PlanningOptions.JudgeMode)} under the lane's judge. */
+    public static ExecuteOptions compat() {
+        return compat(Program.laneJudge());
+    }
+
+    /** {@code body} run on the edge's door: the compatibility rules' {@code options}, heard by the edge's run. */
+    public static Program.Report run(String model, String body, @com.legend.base.Nullable String runtime,
+            java.sql.Connection c, ExecuteOptions options) {
+        return Program.run(model, body, runtime, c, options, com.legend.edge.AppealRun.with(null));
+    }
+
+    /** {@link #run} under {@link #compat()}. */
+    public static Program.Report run(String model, String body, @com.legend.base.Nullable String runtime,
+            java.sql.Connection c) {
+        return run(model, body, runtime, c, compat());
     }
 }

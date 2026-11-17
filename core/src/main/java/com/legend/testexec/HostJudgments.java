@@ -324,7 +324,7 @@ final class HostJudgments {
      * THE ONE DISPATCH: {@code j}, the comparison a planned arm named with the facts it read at planning, judged over
      * {@code sides} (the arm's rows, shaped, in its order). Every arm's function takes the record and the rows and
      * nothing else -- no typed tree, no let prefix, no model, no environment (but for the engine-text asserts' appeal,
-     * {@link HostJudgment.EngineText}, the one named exception: M10b): the sink holds data. Null where the
+     * {@link HostJudgment.EdgeJudged}, the one named exception: M10b): the sink holds data. Null where the
      * judgment declines the sides it read (the walk's generic path continues).
      */
     static @com.legend.base.Nullable TypedSide judge(HostJudgment j, List<TypedSide> sides,
@@ -360,7 +360,7 @@ final class HostJudgments {
             case HostJudgment.Json js -> jsonOf(js, sides, rules, run.hearing().json());
             case HostJudgment.Rendered r -> renderedOf(r, sides, rules);
             case HostJudgment.Raise r -> throw com.legend.testexecutionplan.Failures.raised(r.failure());
-            case HostJudgment.EngineText e -> run.engineText(e, sides, rules);
+            case HostJudgment.EdgeJudged e -> run.judged(e, sides, rules);
             case HostJudgment.AssertError a -> com.legend.testexec.AssertErrorRuns.judge(a, () -> sides, rules, run);
             case HostJudgment.Messaged m -> messagedOf(m, sides, rules, message, run);
             case HostJudgment.Negated n -> negatedOf(n, sides, rules, run);

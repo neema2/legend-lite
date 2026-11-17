@@ -10,6 +10,7 @@ import com.legend.database.Databases;
 import com.legend.error.ModelException;
 import com.legend.testbackend.StorelessRuntime;
 import com.legend.testbackend.TestBackends;
+import com.legend.testing.EdgeProgram;
 import com.legend.testing.Program;
 import java.sql.Connection;
 import org.junit.jupiter.api.AfterAll;
@@ -18,9 +19,10 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 /**
- * A RELATION COUNTED AS ONE VALUE BY THE EDGE (register S137; census C1, the orchestrator's ruling of 2026-11-17): the
- * compatibility rules' run -- the edge's style and its run hook -- counts a relation passed to {@code assertSize} or
- * {@code assertNotEmpty} as ONE value, as upstream does. Under the lane's judge.
+ * A RELATION COUNTED AS ONE VALUE BY THE EDGE (register S137; census C1's K14, the orchestrator's ruling of 2026-11-17:
+ * a test of upstream's behaviour is an edge test -- moved from {@code RelationCountAssertsTest}): the compatibility
+ * rules on the edge's door count a relation passed to {@code assertSize} or {@code assertNotEmpty} as ONE value, as
+ * upstream does. Under the lane's judge.
  */
 class RelationCountAssertsEdgeTest {
 
@@ -38,23 +40,20 @@ class RelationCountAssertsEdgeTest {
         conn.close();
     }
 
-    private static Program.Report run(String body, boolean compat) {
-        return Program.run(StorelessRuntime.with(MODEL, Databases.PLATFORM), body, StorelessRuntime.RUNTIME, conn,
-                ExecuteOptions.NONE.withJudgeMode(Program.laneJudge()).withEngineCompat(compat)
-                        .withStyle(com.legend.edge.PureText.UPSTREAM),
-                com.legend.edge.AppealRun.with(null));
+    private static Program.Report run(String body) {
+        return EdgeProgram.run(StorelessRuntime.with(MODEL, Databases.PLATFORM), body, StorelessRuntime.RUNTIME, conn);
     }
 
     @Test
     @DisplayName("backwards-compatibility mode counts the relation as ONE value, as upstream does")
     void upstreamInCompat() {
-        assertTrue(run("|assertNotEmpty(" + TWO_ROWS + ")", true).passed());
-        assertTrue(run("|assertSize(" + TWO_ROWS + ", 1)", true).passed());
+        assertTrue(run("|assertNotEmpty(" + TWO_ROWS + ")").passed());
+        assertTrue(run("|assertSize(" + TWO_ROWS + ", 1)").passed());
         com.legend.error.AssertFailed size = assertThrows(com.legend.error.AssertFailed.class,
-                () -> run("|assertSize(" + TWO_ROWS + ", 2)", true));
+                () -> run("|assertSize(" + TWO_ROWS + ", 2)"));
         assertTrue(size.getMessage().contains("expected size: 2, actual size: 1"), size.getMessage());
         // upstream fails it with '%s is not empty' printing the relation itself, a text lite does not spell: refused
-        ModelException empty = assertThrows(ModelException.class, () -> run("|assertEmpty(" + TWO_ROWS + ")", true));
+        ModelException empty = assertThrows(ModelException.class, () -> run("|assertEmpty(" + TWO_ROWS + ")"));
         assertTrue(empty.getMessage().contains("which lite does not spell"), empty.getMessage());
     }
 }
