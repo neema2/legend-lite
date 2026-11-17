@@ -3112,6 +3112,7 @@ core_layer_queries(not_layers = {
     "core_next": "core as the generators rewrite it, for the claims generator (spec)",
     "core_next_prelude": "core_next's regenerated prelude resource",
     "core_tests_lib": "the tests' library, not product code",
+    "core_edge_tests_lib": "the edge's tests' library (core/edge_tests.bzl; F's census lines A5/A6, 2026-11-17), not product code",
     "mongodb_planted": "a test class planted for ArchitectureTest's MongoDB choke rule, not product code",
     "drivers": "the JDBC drivers a running core is given (//tools/deps:drivers_closure holds them)",
     "duckdb_cells": "the drivers' DuckDB cell types, beside the layers",
