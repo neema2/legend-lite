@@ -81,6 +81,38 @@ Owner: a new GUARD stream (one worker), mostly in new test files; it lands after
 13. One exact map from SqlFn.values() to PRODUCT or EDGE_ONLY.
 14. The product jars hold no com.legend.edge class; the package prefix check has its dot.
 
-## D. Closures checked against the tenets (auditor 4, the whole program)
+## D. Closures checked against the tenets (auditor 4, the whole program since 2026-11-08)
 
-Pending.
+**Method:**
+- About 300 guard removals were enumerated, and every vocabulary or pattern change was read in full.
+- About 135 entries were code-read.
+- The 168 removed CSG spellings were re-scanned over EVERY main .java file. None survives outside the edge, except the FLOAT_PRINT rename.
+
+**Result:**
+
+| Period | Real | Dodges | Closed by redefinition | Partial |
+|---|---|---|---|---|
+| Before 11-16 | all | 0 | | (the 15 FLOAT_PRINT relabels started B9's chain) |
+| 11-16 | all | 0 | | W9's PlanAllocations |
+| 11-17 | about 140 | 37: B9 rename 36, B5 withEngineText 1 | 7 (A1-A3: the shipped artifacts declared edge) | B7 |
+
+| # | Finding | Where | Owner |
+|---|---|---|---|
+| K1 | B9 was closed by a RENAME. The orchestrator approved it at 12:52 as "lite's canonical Float text", but the node's emitters are compat-only, and the new name is in no vocabulary. **REOPEN** until the product's own Float text provably uses it, or until it moves to the edge | sql/SqlFn.java:133-146; sql/dialect/FloatShortestText.java | E-SQL |
+| K2 | A1-A3 were closed by declaring the shipped artifacts edge (A4 extended by the orchestrator). Goes to the user with the HOST stream | core/BUILD.bazel; query-store, native, wasm BUILD | HOST |
+| K3 | = J4: legend-engine's plan printer and model are in the product com.legend.plan. UpstreamPlans' signature returns com.legend.plan.PlanNode | plan/*; edge hooks | E-P5 |
+| K4 | = J16: the product's by-name refusal is swallowed (G7). HookRulingTest's (b) is tautological for facet hooks | planner/PlanAllocations.java:128-144,349 | E-P5 / GUARD |
+| K5 | Product flags choose upstream branches: LoweringShape's two edge-only flags; Styled.plain's "omit the check" branches | Lowerer.java:1250; CastPolicy.java:51; Scalars.java:433,3027 | E-SQL |
+| K6 | Implicit "no edge" defaults: a Lowerer field defaults to Styled.PRODUCT; TestObserver's default method returns NoEdgeRun.NONE | Lowerer.java:279; test/TestObserver.java:50 | E-SQL / E-Java |
+| K7 | testexecutionplan.Edge is a nullable hook; null selects the judging rules (against the 16:40 ruling) | ExecuteOptions.java:33; PlanningOptions.java:36; TestDoor.java:140; TestRunner.java:200 | E-Java (C1) |
+| K8 | The product's format('%r') bypasses twoForm through a PRODUCT DateTimeTexts that writes DATETIME_PRINT; HookRulingTest pins no implementers | Scalars.java:3569 | F (B12 2b) / GUARD |
+| K9 | BUG: a stale class name in a plan kind turns a planned refusal into a crash (SqlTextVerdicts$NotAConstant moved to EngineTestText) | testexecutionplan/Failure.java:60 | E-Java |
+| K10 | Exec picks upstream or lite words by null: Site.upstream is an edge-only field in the product plan | executionplan/ExecutionPlan.java:826-838; RaisedErrors.java | E-P5 |
+| K11 | = J18: B7 keeps legend-engine's errorType words and status map under lite names | server/LiteV1Api.java:305,373 | E-P5 |
+| K12 | The legend-engine route branch stays in product testdatagen (B13), and so does the S300 sentence | testdatagen/TestDataPlanner.java:148-185,499-515,620-635 | E-P5 |
+| K13 | The product writer prints legend-pure's Map form `{k=v}` (and a list as `[a, b]`), against the user's 2026-11-10 ProductListTexts ruling | result/CellText.java:75-88 | E-SQL |
+| K14 | Product tests carry COMPILED_PURE_COMPAT; no guard scans test sources | EqualityWorldsConformanceTest, PureAssertsTest, JudgeJsonTest | E-Java (C1) |
+| K15 | DATETIME_TO_TEXT carries an edge-only operand in product MIR and plans | Styled.java:33; SqlFn.java:149 | E-SQL |
+| K16 | NITs: sql.* field accesses are skipped; raiseMessage's product default is unpinned; CanonicalDivergence; stale text; PureText's edge-side fallback to the product dialect | | GUARD / various |
+
+**Direction:** clean. No product main source names an edge type. There is no reflection. The one ServiceLoader seam loads EdgeCodec from the edge jar only. Plan tags are enum names, apart from K9's class-name string.
