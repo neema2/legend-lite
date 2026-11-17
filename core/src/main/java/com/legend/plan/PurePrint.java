@@ -69,8 +69,8 @@ public final class PurePrint {
             }
             var p = ft.params().get(i);
             sb.append(l.parameters().get(i)).append(':')
-                    .append(PlanText.pureTypeName(p.type()))
-                    .append('[').append(sizeRange(p.multiplicity()))
+                    .append(PureSpelling.typeName(p.type()))
+                    .append('[').append(PureSpelling.sizeRange(p.multiplicity()))
                     .append(']');
         }
         return sb.append(" | ").append(source(l.body().get(0)))
@@ -80,22 +80,5 @@ public final class PurePrint {
     private static String simpleName(TypedNativeCall nc) {
         String fqn = nc.callee().qualifiedName();
         return fqn.substring(fqn.lastIndexOf(':') + 1);
-    }
-
-    /** The plan's multiplicity spelling: {@code 1}, {@code 0..1},
-     * {@code *}, {@code n..*} (inside the brackets). */
-    public static String sizeRange(
-            com.legend.compiler.element.type.Multiplicity m) {
-        if (m instanceof com.legend.compiler.element.type.Multiplicity
-                .Bounded b) {
-            if (b.upper() != null) {
-                return b.lower() == b.upper() ? String.valueOf(b.lower())
-                        : b.lower() + ".." + b.upper();
-            }
-            // unbounded: [*] (lower 0) or [n..*]
-            return b.lower() == 0 ? "*" : b.lower() + "..*";
-        }
-        throw new NotImplementedException(
-                "plan: multiplicity spelling for " + m + " pending");
     }
 }

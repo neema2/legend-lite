@@ -110,9 +110,9 @@ final class EngineAllocations {
             default -> null;
         };
         if (literal != null) {
-            String typeName = PlanText
-                    .pureTypeName(let.info().type());
-            String size = PurePrint.sizeRange(let.info().multiplicity());
+            String typeName = com.legend.plan.PureSpelling
+                    .typeName(let.info().type());
+            String size = com.legend.plan.PureSpelling.sizeRange(let.info().multiplicity());
             return PlanText.allocation(let.name(),
                     PlanText.scalarTypeBlock(typeName, size),
                     PlanText.constant(typeName, literal));
@@ -122,9 +122,9 @@ final class EngineAllocations {
             // NON-RELATIONAL expression let — the engine's
             // PureExpressionPlatformExecutionNode: the expression rides
             // as PURE SOURCE with its required plan variables
-            String typeName = PlanText
-                    .pureTypeName(let.info().type());
-            String size = PurePrint.sizeRange(let.info().multiplicity());
+            String typeName = com.legend.plan.PureSpelling
+                    .typeName(let.info().type());
+            String size = com.legend.plan.PureSpelling.sizeRange(let.info().multiplicity());
             StringBuilder req = new StringBuilder();
             collectRequires(let.value(), paramSpells, req,
                     new LinkedHashSet<>());
@@ -153,9 +153,9 @@ final class EngineAllocations {
                             impl, es.plan(), List.of(let.value())),
                     inner);
         }
-        String typeName = PlanText
-                .pureTypeName(let.info().type());
-        String size = PurePrint.sizeRange(let.info().multiplicity());
+        String typeName = com.legend.plan.PureSpelling
+                .typeName(let.info().type());
+        String size = com.legend.plan.PureSpelling.sizeRange(let.info().multiplicity());
         if (!(es.plan() instanceof SqlSelect sel)) {
             throw new NotImplementedException(
                     "plan: Allocation value lowers to a non-select");
