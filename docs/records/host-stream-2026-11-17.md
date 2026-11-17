@@ -285,3 +285,16 @@ No layer and no app depends on it, and the `:engine_client` aggregate does not c
 - `//tools/guards:planned_sql_test`.
 - `//core`: `core_tests_server`, `guardrails`, `lite_api_conformance_test`.
 
+**The orchestrator's alignment, the same day.** H11 is approved, and there is one edge target. DataCube moves
+`pure-v1.ts`, `pure-v1-planning.ts` and `engine-remote.ts` into `:edge` after the train. An app's legend-engine mode is
+its compat entry, a target the app loads only when configured `engine: legend-engine` (DataCube's is
+`//datacube:edge_entry`).
+- `TsLayeringTest.EDGE_ENTRIES` names those entries: the only targets beside the edge's own that may depend on it.
+- No product target reaches an entry either.
+- The planted lines cover four cases:
+  - a product src reaching the edge (`//datacube:src_base`, `//studio:src`);
+  - an app reaching an entry (`//query:src`);
+  - an unpinned entry;
+  - the pinned entry, which passes.
+- With the entry exception removed from the rule, `ts_layering_test` goes red on the pinned entry's line.
+
