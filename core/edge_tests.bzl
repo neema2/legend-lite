@@ -33,6 +33,8 @@ EDGE_TEST_SRCS = [
     "src/test/java/com/legend/PlanStyleSurfaceTest.java",
     # the ServiceLoader seams pinned by type, and every service file (the GUARD stream, C.10, 2026-11-17)
     "src/test/java/com/legend/ServiceLoaderSitesTest.java",
+    # every SqlFn sorted PRODUCT or EDGE_ONLY, the other guards' lists held to it (the GUARD stream, C.13, 2026-11-17)
+    "src/test/java/com/legend/SqlFnSortedTest.java",
     "src/test/java/com/legend/PlanStyleFacetsTest.java",
     # the edge's extension records walked as data (census C2, 2026-11-17: the appeals moved to com.legend.edge)
     "src/test/java/com/legend/PlanTypesAreDataTest.java",
