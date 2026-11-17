@@ -1,7 +1,11 @@
 """THE EDGE'S TESTS (Phase 7's build half, 2026-11-17): the core test files that reach an edge class (com.legend.edge),
 compiled in core_edge_tests_lib against the edge; core_tests_lib, the product's tests, compiles without it, so a product
 test cannot reach the edge (Bazel's strict deps; ArchitectureTest.productTestsReachNoEdge reads this list too). A file
-joins only when it tests the edge's own behaviour."""
+joins only when it tests the edge's own behaviour.
+
+Measured at the split (2026-11-17, A5): test cases per family before (f-guards e422d7035) and after, each target
+green -- host 6335 = 5429 product + 906 edge; judges 9788 = 8168 + 1620; the h2 lane 2322 = 1956 + 366; the sqlite
+lane 2322 = 1956 + 366; guardrails 208 = 61 + 147. Nothing runs twice, nothing dropped."""
 
 EDGE_TEST_SRCS = [
     "src/test/java/com/legend/ArchitectureTest.java",
