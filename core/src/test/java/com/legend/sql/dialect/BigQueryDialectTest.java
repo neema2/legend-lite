@@ -31,6 +31,20 @@ class BigQueryDialectTest {
                         com.legend.sql.NameQuoting.BARE), null, List.of(), null, null, List.of(), null, null, List.of()));
     }
 
+    /** The parse guards write no raw '?': BigQuery's JDBC driver (1.6.0) counts a '?' inside a string literal as a
+     *  placeholder and refuses the statement before BigQuery sees it ("No value was set for parameter 1 of 5", round
+     *  73); the grammar's literals go through stringLit, which writes a '?' as \x3f. */
+    @Test
+    void theParseGuardsWriteNoRawQuestionMark() {
+        SqlExpr text = SqlExpr.Column.of("t", "s", SqlType.Scalar.VARCHAR, true, OutputCol.Origin.PHYSICAL);
+        String f = render(new SqlExpr.Cast(text, SqlType.Scalar.DOUBLE, SqlExpr.Reason.USER), null);
+        String i = render(SqlExpr.Call.of(com.legend.sql.SqlFn.PARSE_INT, text), null);
+        for (String sql : List.of(f, i)) {
+            assertTrue(sql.contains("REGEXP_CONTAINS("), sql);
+            assertFalse(sql.contains("?"), sql);
+        }
+    }
+
     /** A Float's text is its shortest digits that read back as the same double, as DuckDB's cast writes it: BigQuery's
      *  own cast writes seventeen (pi() '3.1415926535897931') and FORMAT's %.17g is not correctly rounded. */
     @Test

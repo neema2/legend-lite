@@ -34,9 +34,14 @@ public final class EdgeServer {
 
     /** The run of an upstream execute: the product's door, planned in the edge's dialects, its file: sources fenced
      *  to {@code sources} as the server's own runner fences them. */
-    static PureV1Api.Runner runner(String sources) {
+    public static Shipped runner(@com.legend.base.Nullable String sources) {
         return (query, runtime, output) -> com.legend.Execution.runOnProjectDatabases(query, runtime, sources,
                 PureText.UPSTREAM, output);
+    }
+
+    /** The shipped route's runner, by its type: what an edge golden net that claims to record pure/v1 must run
+     *  ({@code PureV1EdgeGoldenTest}; the orchestrator's condition 2 on F31, 2026-11-17). */
+    public interface Shipped extends PureV1Api.Runner {
     }
 
     /** {@code /api/pure/v1/...}: POST only, as upstream serves it. */
