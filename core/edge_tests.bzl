@@ -31,6 +31,8 @@ EDGE_TEST_SRCS = [
     "src/test/java/com/legend/OpenLineMarkedTest.java",
     # the plan style's surface: KINDS, criterion (a) on TWO_FORMS, its methods and overriders (the GUARD stream, C.9)
     "src/test/java/com/legend/PlanStyleSurfaceTest.java",
+    # the ServiceLoader seams pinned by type, and every service file (the GUARD stream, C.10, 2026-11-17)
+    "src/test/java/com/legend/ServiceLoaderSitesTest.java",
     "src/test/java/com/legend/PlanStyleFacetsTest.java",
     # the edge's extension records walked as data (census C2, 2026-11-17: the appeals moved to com.legend.edge)
     "src/test/java/com/legend/PlanTypesAreDataTest.java",
