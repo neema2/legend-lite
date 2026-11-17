@@ -12,7 +12,7 @@ public record HostRules(com.legend.testexecutionplan.TestPlan.JudgingRules rules
 
     /** Lite's rules and lite's behaviours. */
     public static final HostRules LITE = new HostRules(com.legend.testexecutionplan.TestPlan.JudgingRules.LITE,
-            HostForms.Product.STRICT);
+            LiteHostForms.STRICT);
 
     public HostRules {
         java.util.Objects.requireNonNull(rules, "an equality names the rules it judges by");

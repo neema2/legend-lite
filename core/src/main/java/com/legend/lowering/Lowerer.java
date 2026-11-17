@@ -4326,7 +4326,7 @@ public final class Lowerer {
             // (its rows are the result writers'), written by the edge (phase D's D1.3, 2026-11-15)
             case TypedNativeCall tc when PlatformTypes.TO_CSV
                     .equals(tc.callee().qualifiedName()) ->
-                relationTexts.apply(() -> TextRefusals.relation("toCSV")).toCsv(tc, this::relation, nextAlias(),
+                relationTexts.apply(() -> TextRefusals.relation("toCSV")).toCsv(styled(), tc, this::relation, nextAlias(),
                         deferredTds);
             // the TDS class's csv property (tds.pure:19 `csv: String[1]`)
             // over a relation: the csv TEXT the engine prints for a TDS —
@@ -4335,13 +4335,13 @@ public final class Lowerer {
             case TypedPropertyAccess csvRead
                     when csvRead.property().equals(PlatformTypes.TDS_CSV_PROPERTY)
                     && Render.csvOverRelation(csvRead) ->
-                relationTexts.apply(() -> TextRefusals.relation("a TDS's csv")).csvProperty(csvRead, this::relation,
+                relationTexts.apply(() -> TextRefusals.relation("a TDS's csv")).csvProperty(styled(), csvRead, this::relation,
                         nextAlias());
             // F4.2c (RENDER): relation toString — the '#TDS' text form
             case TypedNativeCall tc when
                     "meta::pure::functions::relation::toString"
                             .equals(tc.callee().qualifiedName()) ->
-                relationTexts.apply(() -> TextRefusals.relation("toString")).relationToString(tc, this::relation,
+                relationTexts.apply(() -> TextRefusals.relation("toString")).relationToString(styled(), tc, this::relation,
                         nextAlias(), deferredTds);
             // F13c — every operation built on equal() over objects (docs/OBJECT_IDENTITY_2026_10_20.md §3.3): ONE
             // owner of the relation — the same canon the verdict layer byte-judges with. eq = identity (__id

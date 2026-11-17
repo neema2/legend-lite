@@ -262,8 +262,8 @@ final class StoreSubstitutionRewrite {
                 // here, before the ordering, so it never masquerades as a cycle
                 if (!listed.add(inc.mappingPath())) {
                     throw new ModelException(LegendCompileException.Phase.MODEL,
-                            "Duplicated mapping include '" + inc.mappingPath() + "' in mapping '"
-                            + md.qualifiedName() + "'", md.qualifiedName());
+                            com.legend.error.CompileKind.DUPLICATE_MAPPING_INCLUDE,
+                            List.of(inc.mappingPath(), md.qualifiedName()), md.qualifiedName());
                 }
                 String fqn = includeFqn(md.qualifiedName(), inc.mappingPath(), byFqn.keySet());
                 if (fqn != null) {

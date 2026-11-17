@@ -29,15 +29,16 @@ import java.util.function.Function;
  */
 public interface RelationTexts {
 
-    /** {@code toCSV} of a relation ({@code tc}), its rows read by {@code relation}. */
-    SqlExpr toCsv(TypedNativeCall tc, Function<TypedSpec, SqlSelect> relation, String alias,
+    /** {@code toCSV} of a relation ({@code tc}), its rows read by {@code relation}, under the planner's {@code styled}
+     *  (each member is handed the style its cells are printed under; the edge audit's J26, 2026-11-17). */
+    SqlExpr toCsv(Styled styled, TypedNativeCall tc, Function<TypedSpec, SqlSelect> relation, String alias,
             Map<Integer, Type.RelationType> deferredTds);
 
     /** A TDS's {@code csv} property over a relation ({@code read}). */
-    SqlExpr csvProperty(TypedPropertyAccess read, Function<TypedSpec, SqlSelect> relation, String alias);
+    SqlExpr csvProperty(Styled styled, TypedPropertyAccess read, Function<TypedSpec, SqlSelect> relation, String alias);
 
     /** A relation's {@code toString} ({@code tc}): its {@code #TDS} text. */
-    SqlExpr relationToString(TypedNativeCall tc, Function<TypedSpec, SqlSelect> relation, String alias,
+    SqlExpr relationToString(Styled styled, TypedNativeCall tc, Function<TypedSpec, SqlSelect> relation, String alias,
             Map<Integer, Type.RelationType> deferredTds);
 
     // (refused(what): moved 2026-11-17 to TextRefusals.relation, the call site words its refusal -- the
@@ -45,10 +46,10 @@ public interface RelationTexts {
 
     // ---- the lowering's helpers the edge's composition reads (each one call) ----------------------------------------
 
-    /** The product's text of a value of type {@code t} ({@code Scalars.pureToString}). */
-    static SqlExpr pureToString(PureOnlyTexts texts, ListTexts lists, Type t, SqlExpr x) {
-        return Scalars.pureToString(new Styled(refusal -> texts, ProductLoweringForms.INSTANCE, Styled.LITE_DATE_TIMES, lists),
-                t, x);
+    /** The text of a value of type {@code t} under the planner's style, as it handed it to the facet
+     *  ({@code Scalars.pureToString}; the edge audit's J26, 2026-11-17: the style itself, no substitute built here). */
+    static SqlExpr pureToString(Styled styled, Type t, SqlExpr x) {
+        return Scalars.pureToString(styled, t, x);
     }
 
 

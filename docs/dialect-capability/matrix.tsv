@@ -183,7 +183,6 @@ H2	H2	call	DECIMAL_TO_TEXT	emulated	REGEXP_REPLACE(TO_CHAR(…), '^(-?)\.', '$10
 H2	H2	call	FLOAT_SHORTEST_TEXT	emulated	floatShortestTextByCast		0
 H2	H2	call	FLOAT_TO_TEXT	emulated	floatToText		0
 H2	H2	call	DATETIME_TO_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
-H2	H2	call	DATETIME_PRINT	not_here	renderer bug: is expanded before any dialect reads it		0
 H2	H2	call	DATETIME_CANON_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 H2	H2	call	CELL_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 H2	H2	call	VARIANT_ELEMENTS	refused	variant navigation reached a dialect without JSON support	via AnsiSqlRenderer.variantElements	2
@@ -412,7 +411,6 @@ Postgres	Postgres	call	DECIMAL_TO_TEXT	emulated	varcharCast		0
 Postgres	Postgres	call	FLOAT_SHORTEST_TEXT	emulated	floatShortestTextByCast		0
 Postgres	Postgres	call	FLOAT_TO_TEXT	emulated	floatToText		0
 Postgres	Postgres	call	DATETIME_TO_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
-Postgres	Postgres	call	DATETIME_PRINT	not_here	renderer bug: is expanded before any dialect reads it		0
 Postgres	Postgres	call	DATETIME_CANON_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 Postgres	Postgres	call	CELL_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 Postgres	Postgres	call	VARIANT_ELEMENTS	emulated	by its operands: composed / composed		2
@@ -641,7 +639,6 @@ Snowflake	Snowflake	call	DECIMAL_TO_TEXT	emulated	varcharCast		0
 Snowflake	Snowflake	call	FLOAT_SHORTEST_TEXT	emulated	by its operands: composed / composed		0
 Snowflake	Snowflake	call	FLOAT_TO_TEXT	emulated	floatToText		0
 Snowflake	Snowflake	call	DATETIME_TO_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
-Snowflake	Snowflake	call	DATETIME_PRINT	not_here	renderer bug: is expanded before any dialect reads it		0
 Snowflake	Snowflake	call	DATETIME_CANON_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 Snowflake	Snowflake	call	CELL_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 Snowflake	Snowflake	call	VARIANT_ELEMENTS	emulated	variantElements		4
@@ -870,7 +867,6 @@ Trino	Trino	call	DECIMAL_TO_TEXT	emulated	varcharCast		0
 Trino	Trino	call	FLOAT_SHORTEST_TEXT	emulated	floatShortestTextByCast		0
 Trino	Trino	call	FLOAT_TO_TEXT	emulated	floatToText		0
 Trino	Trino	call	DATETIME_TO_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
-Trino	Trino	call	DATETIME_PRINT	not_here	renderer bug: is expanded before any dialect reads it		0
 Trino	Trino	call	DATETIME_CANON_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 Trino	Trino	call	CELL_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 Trino	Trino	call	VARIANT_ELEMENTS	emulated	variantElements		4
@@ -1099,7 +1095,6 @@ BigQuery	BigQuery	call	DECIMAL_TO_TEXT	emulated	varcharCast		0
 BigQuery	BigQuery	call	FLOAT_SHORTEST_TEXT	emulated	floatShortestTextByCast		0
 BigQuery	BigQuery	call	FLOAT_TO_TEXT	emulated	floatToText		0
 BigQuery	BigQuery	call	DATETIME_TO_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
-BigQuery	BigQuery	call	DATETIME_PRINT	not_here	renderer bug: is expanded before any dialect reads it		0
 BigQuery	BigQuery	call	DATETIME_CANON_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 BigQuery	BigQuery	call	CELL_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 BigQuery	BigQuery	call	VARIANT_ELEMENTS	emulated	variantElements		2
@@ -1328,7 +1323,6 @@ Databricks	Databricks	call	DECIMAL_TO_TEXT	emulated	varcharCast		0
 Databricks	Databricks	call	FLOAT_SHORTEST_TEXT	emulated	floatShortestTextByCast		0
 Databricks	Databricks	call	FLOAT_TO_TEXT	emulated	floatToText		0
 Databricks	Databricks	call	DATETIME_TO_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
-Databricks	Databricks	call	DATETIME_PRINT	not_here	renderer bug: is expanded before any dialect reads it		0
 Databricks	Databricks	call	DATETIME_CANON_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 Databricks	Databricks	call	CELL_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 Databricks	Databricks	call	VARIANT_ELEMENTS	emulated	variantElements		4
@@ -1557,7 +1551,6 @@ DuckDb	DuckDB	call	DECIMAL_TO_TEXT	emulated	varcharCast		0
 DuckDb	DuckDB	call	FLOAT_SHORTEST_TEXT	emulated	floatShortestTextByCast		0
 DuckDb	DuckDB	call	FLOAT_TO_TEXT	emulated	floatToText		0
 DuckDb	DuckDB	call	DATETIME_TO_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
-DuckDb	DuckDB	call	DATETIME_PRINT	not_here	renderer bug: is expanded before any dialect reads it		0
 DuckDb	DuckDB	call	DATETIME_CANON_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 DuckDb	DuckDB	call	CELL_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 DuckDb	DuckDB	call	VARIANT_ELEMENTS	emulated	variantElements		4
@@ -1786,7 +1779,6 @@ ClickHouse	ClickHouse	call	DECIMAL_TO_TEXT	emulated	varcharCast		0
 ClickHouse	ClickHouse	call	FLOAT_SHORTEST_TEXT	emulated	floatShortestTextByCast		0
 ClickHouse	ClickHouse	call	FLOAT_TO_TEXT	emulated	floatToText		0
 ClickHouse	ClickHouse	call	DATETIME_TO_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
-ClickHouse	ClickHouse	call	DATETIME_PRINT	not_here	renderer bug: is expanded before any dialect reads it		0
 ClickHouse	ClickHouse	call	DATETIME_CANON_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 ClickHouse	ClickHouse	call	CELL_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 ClickHouse	ClickHouse	call	VARIANT_ELEMENTS	emulated	variantElements		4
@@ -2015,7 +2007,6 @@ SQLite	SQLite	call	DECIMAL_TO_TEXT	emulated	varcharCast		0
 SQLite	SQLite	call	FLOAT_SHORTEST_TEXT	emulated	floatShortestTextByCast		0
 SQLite	SQLite	call	FLOAT_TO_TEXT	emulated	floatToText		0
 SQLite	SQLite	call	DATETIME_TO_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
-SQLite	SQLite	call	DATETIME_PRINT	not_here	renderer bug: is expanded before any dialect reads it		0
 SQLite	SQLite	call	DATETIME_CANON_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 SQLite	SQLite	call	CELL_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 SQLite	SQLite	call	VARIANT_ELEMENTS	emulated	variantElements		2
@@ -2244,7 +2235,6 @@ MariaDb	MariaDB	call	DECIMAL_TO_TEXT	emulated	varcharCast		0
 MariaDb	MariaDB	call	FLOAT_SHORTEST_TEXT	emulated	floatShortestTextByCast		0
 MariaDb	MariaDB	call	FLOAT_TO_TEXT	emulated	floatToText		0
 MariaDb	MariaDB	call	DATETIME_TO_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
-MariaDb	MariaDB	call	DATETIME_PRINT	not_here	renderer bug: is expanded before any dialect reads it		0
 MariaDb	MariaDB	call	DATETIME_CANON_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 MariaDb	MariaDB	call	CELL_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 MariaDb	MariaDB	call	VARIANT_ELEMENTS	emulated	variantElements		2
@@ -2473,7 +2463,6 @@ MySql	MySQL	call	DECIMAL_TO_TEXT	emulated	varcharCast	as MariaDb	0
 MySql	MySQL	call	FLOAT_SHORTEST_TEXT	emulated	floatShortestTextByCast	as MariaDb	0
 MySql	MySQL	call	FLOAT_TO_TEXT	emulated	floatToText	as MariaDb	0
 MySql	MySQL	call	DATETIME_TO_TEXT	not_here	renderer bug: is expanded before any dialect reads it	as MariaDb	0
-MySql	MySQL	call	DATETIME_PRINT	not_here	renderer bug: is expanded before any dialect reads it	as MariaDb	0
 MySql	MySQL	call	DATETIME_CANON_TEXT	not_here	renderer bug: is expanded before any dialect reads it	as MariaDb	0
 MySql	MySQL	call	CELL_TEXT	not_here	renderer bug: is expanded before any dialect reads it	as MariaDb	0
 MySql	MySQL	call	VARIANT_ELEMENTS	emulated	variantElements	as MariaDb	2
@@ -2702,7 +2691,6 @@ MongoDb	MongoDB	call	DECIMAL_TO_TEXT	emulated	varcharCast		0
 MongoDb	MongoDB	call	FLOAT_SHORTEST_TEXT	emulated	floatShortestTextByCast		0
 MongoDb	MongoDB	call	FLOAT_TO_TEXT	emulated	floatToText		0
 MongoDb	MongoDB	call	DATETIME_TO_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
-MongoDb	MongoDB	call	DATETIME_PRINT	not_here	renderer bug: is expanded before any dialect reads it		0
 MongoDb	MongoDB	call	DATETIME_CANON_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 MongoDb	MongoDB	call	CELL_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 MongoDb	MongoDB	call	VARIANT_ELEMENTS	emulated	variantElements		0
@@ -2931,7 +2919,6 @@ EngineStyleH2	-	call	DECIMAL_TO_TEXT	emulated	varcharCast		-
 EngineStyleH2	-	call	FLOAT_SHORTEST_TEXT	emulated	floatShortestTextByCast		-
 EngineStyleH2	-	call	FLOAT_TO_TEXT	emulated	floatToText		-
 EngineStyleH2	-	call	DATETIME_TO_TEXT	not_here	renderer bug: is expanded before any dialect reads it		-
-EngineStyleH2	-	call	DATETIME_PRINT	not_here	renderer bug: is expanded before any dialect reads it		-
 EngineStyleH2	-	call	DATETIME_CANON_TEXT	not_here	renderer bug: is expanded before any dialect reads it		-
 EngineStyleH2	-	call	CELL_TEXT	not_here	renderer bug: is expanded before any dialect reads it		-
 EngineStyleH2	-	call	VARIANT_ELEMENTS	refused	variant navigation reached a dialect without JSON support	via AnsiSqlRenderer.variantElements	-
@@ -3160,7 +3147,6 @@ EngineStyleDB2	-	call	DECIMAL_TO_TEXT	emulated	varcharCast	as EngineStyleH2	-
 EngineStyleDB2	-	call	FLOAT_SHORTEST_TEXT	emulated	floatShortestTextByCast	as EngineStyleH2	-
 EngineStyleDB2	-	call	FLOAT_TO_TEXT	emulated	floatToText	as EngineStyleH2	-
 EngineStyleDB2	-	call	DATETIME_TO_TEXT	not_here	renderer bug: is expanded before any dialect reads it	as EngineStyleH2	-
-EngineStyleDB2	-	call	DATETIME_PRINT	not_here	renderer bug: is expanded before any dialect reads it	as EngineStyleH2	-
 EngineStyleDB2	-	call	DATETIME_CANON_TEXT	not_here	renderer bug: is expanded before any dialect reads it	as EngineStyleH2	-
 EngineStyleDB2	-	call	CELL_TEXT	not_here	renderer bug: is expanded before any dialect reads it	as EngineStyleH2	-
 EngineStyleDB2	-	call	VARIANT_ELEMENTS	refused	variant navigation reached a dialect without JSON support	as EngineStyleH2, via AnsiSqlRenderer.variantElements	-
@@ -3389,7 +3375,6 @@ EngineStyleComposite	-	call	DECIMAL_TO_TEXT	emulated	varcharCast	as EngineStyleD
 EngineStyleComposite	-	call	FLOAT_SHORTEST_TEXT	emulated	floatShortestTextByCast	as EngineStyleDB2, as EngineStyleH2	-
 EngineStyleComposite	-	call	FLOAT_TO_TEXT	emulated	floatToText	as EngineStyleDB2, as EngineStyleH2	-
 EngineStyleComposite	-	call	DATETIME_TO_TEXT	not_here	renderer bug: is expanded before any dialect reads it	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	DATETIME_PRINT	not_here	renderer bug: is expanded before any dialect reads it	as EngineStyleDB2, as EngineStyleH2	-
 EngineStyleComposite	-	call	DATETIME_CANON_TEXT	not_here	renderer bug: is expanded before any dialect reads it	as EngineStyleDB2, as EngineStyleH2	-
 EngineStyleComposite	-	call	CELL_TEXT	not_here	renderer bug: is expanded before any dialect reads it	as EngineStyleDB2, as EngineStyleH2	-
 EngineStyleComposite	-	call	VARIANT_ELEMENTS	refused	variant navigation reached a dialect without JSON support	as EngineStyleDB2, as EngineStyleH2, via AnsiSqlRenderer.variantElements	-

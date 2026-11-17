@@ -33,7 +33,7 @@ final class PureListTexts implements com.legend.lowering.ListTexts {
     public SqlExpr mixedList(com.legend.lowering.Styled styled, SqlExpr.TaggedList tl) {
         String p = "_tlp";
         return bracketed(SqlExpr.Call.of(SqlFn.LIST_TRANSFORM, tl.positions(), new SqlExpr.Lambda(List.of(p),
-                com.legend.lowering.RelationTexts.pureToString(EdgePureOnlyTexts.INSTANCE, INSTANCE,
+                com.legend.lowering.RelationTexts.pureToString(styled,
                         new com.legend.compiler.element.type.Type.ClassType(
                                 com.legend.compiler.element.type.PlatformTypes.ANY),
                         tl.element(SqlExpr.Column.derived(null, p))))));
