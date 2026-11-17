@@ -1512,7 +1512,7 @@ final class SqlTextVerdicts {
         Appeal.Read data() {
             JudgePlans.PlannedSide p = side;
             if (p != null) {
-                return new Appeal.Read(EngineTextPlanning.side(p), EngineTextPlanning.shapeOf(p), null);
+                return new Appeal.Read(EngineTextPlanning.side(p), EngineTextPlanning.shapeOf(p, PureText.UPSTREAM), null);
             }
             RuntimeException f = failure;
             if (f == null) {

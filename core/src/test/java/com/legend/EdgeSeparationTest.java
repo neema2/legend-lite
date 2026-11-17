@@ -286,7 +286,8 @@ class EdgeSeparationTest {
             Map.entry("testexec/AssertRuns.java | EngineText", "C3 2026-11-17"),
             Map.entry("testexec/CanonicalForm.java | +0000", "C5 2026-11-17"),
             Map.entry("testexec/HostJudgments.java | EngineText", "C3 2026-11-17"),
-            Map.entry("testexec/SideShapes.java | Cannot cast a collection of size", "C5 2026-11-17"),
+            // testexec/SideShapes.java | Cannot cast a collection of size: GONE 2026-11-17 (C5's step E, E-P5), worded at
+            // planning by the plan's style (SideShape.sizeWords, TestPlan.answerSizeWords)
             Map.entry("testexec/SideShapes.java | TDS_NULL_CELL", "C5 2026-11-17"),
             Map.entry("testexecutionplan/HostJson.java | EngineText", "C3 2026-11-17"),
             Map.entry("testexecutionplan/HostJudgment.java | EngineText", "C3 2026-11-17"),

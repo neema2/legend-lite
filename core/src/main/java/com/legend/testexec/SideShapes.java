@@ -106,8 +106,8 @@ public final class SideShapes {
     /** {@code sink} holding the walk's answer contract ({@link Cardinality}): for the body router, whose moved body's
      *  answer holds the walk's cardinality until the plan carries it (the test-is-the-product plan's §9, D30). */
     static com.legend.result.ResultSink holding(com.legend.result.ResultSink sink, boolean atMostOne, long atLeast,
-            String multiplicity) {
-        return new Cardinality(sink, atMostOne, atLeast, multiplicity);
+            @com.legend.base.Nullable String noRows) {
+        return new Cardinality(sink, atMostOne, atLeast, noRows);
     }
 
     /** A sink that counts the rows on their way to {@code sink} and refuses, by the collected side's own words, a
@@ -117,14 +117,15 @@ public final class SideShapes {
         private final com.legend.result.ResultSink sink;
         private final boolean atMostOne;
         private final long atLeast;
-        private final String multiplicity;
+        private final @com.legend.base.Nullable String noRows;
         private long rows;
 
-        Cardinality(com.legend.result.ResultSink sink, boolean atMostOne, long atLeast, String multiplicity) {
+        Cardinality(com.legend.result.ResultSink sink, boolean atMostOne, long atLeast,
+                @com.legend.base.Nullable String noRows) {
             this.sink = sink;
             this.atMostOne = atMostOne;
             this.atLeast = atLeast;
-            this.multiplicity = multiplicity;
+            this.noRows = noRows;
         }
 
         /** {@inheritDoc} Handed on: the holder decides nothing of the answer's shape. */
@@ -158,7 +159,8 @@ public final class SideShapes {
         @Override
         public void end() throws java.io.IOException {
             if (rows == 0 && atLeast >= 1) {
-                throw new IllegalStateException("Cannot cast a collection of size 0 to multiplicity " + multiplicity);
+                // the words the plan carries, worded at planning (C5's step E, 2026-11-17: TestPlan.answerSizeWords)
+                throw new IllegalStateException(java.util.Objects.requireNonNull(noRows, "the plan's answer size words"));
             }
             sink.end();
         }
@@ -251,8 +253,8 @@ public final class SideShapes {
         long lower = s.lower();
         if (s.scalar()) {
             if (rows.rows().isEmpty() && lower >= 1) {
-                throw new IllegalStateException("Cannot cast a collection of size 0 to multiplicity "
-                        + s.multiplicity());
+                // the words the plan carries, worded at planning (C5's step E, 2026-11-17)
+                throw new IllegalStateException(s.sizeWords());
             }
             if (rows.rows().size() > 1) {
                 throw new IllegalStateException("scalar-shaped result returned more than one row — the to-one"
@@ -282,7 +284,7 @@ public final class SideShapes {
             }
         }
         if (rows.rows().isEmpty() && lower >= 1) {
-            throw new IllegalStateException("Cannot cast a collection of size 0 to multiplicity " + s.multiplicity());
+            throw new IllegalStateException(s.sizeWords());
         }
         if (values.size() < lower) {
             throw new IllegalStateException("collection-shaped result holds " + values.size()

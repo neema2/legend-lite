@@ -513,7 +513,7 @@ final class HostAsserts implements TestDoor.Asserts {
         // judgment and each side's shape, read by the run from the plan alone
         List<com.legend.testexecutionplan.SideShape> shapes = new java.util.ArrayList<>(sides.sides().size());
         for (JudgePlans.PlannedSide p : sides.sides()) {
-            shapes.add(JudgePlans.shapeOf(p));
+            shapes.add(JudgePlans.shapeOf(p, env.options().style()));
         }
         TestPlan.Verdict verdict = new TestPlan.Verdict(env.verdictIds().next(), assertion.listenerName(),
                 assertion.name(), base, null, message).withHost(new TestPlan.Host(AssertVerdicts.assertionOf(assertion),

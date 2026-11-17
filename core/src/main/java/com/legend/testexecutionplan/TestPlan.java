@@ -33,10 +33,14 @@ import java.util.Objects;
  * @param session             the target of the session the body runs on: its runtime's, planned (the plan-as-data
  *                            design's slice 5, 2026-11-09: until then the door planned it from the model beside the
  *                            plan, so a plan read back from its JSON could not open its own session)
+ * @param answerSizeWords     the body's answer's refusal of no rows under a required bound, worded at planning by the
+ *                            plan's style (C5's step E, 2026-11-17: the run spells no text); null where the answer has
+ *                            no required bound, or the plan sends none
  */
 public record TestPlan(List<ExecutionPlan.Parameter> parameters, List<TestStep> steps, Judge judge,
         Map<Integer, List<Extension>> extensionsByStep, Map<Integer, List<Extension>> extensionsByVerdict,
-        boolean answersLastVerdict, ExecutionPlan.Target session, BodyFacts facts) {
+        boolean answersLastVerdict, ExecutionPlan.Target session, BodyFacts facts,
+        @com.legend.base.Nullable String answerSizeWords) {
 
     public TestPlan {
         Objects.requireNonNull(session, "session");
@@ -57,7 +61,14 @@ public record TestPlan(List<ExecutionPlan.Parameter> parameters, List<TestStep> 
 
     /** The same plan carrying {@code byVerdict}, its verdicts' records (the appeals they name). */
     public TestPlan withExtensionsByVerdict(Map<Integer, List<Extension>> byVerdict) {
-        return new TestPlan(parameters, steps, judge, extensionsByStep, byVerdict, answersLastVerdict, session, facts);
+        return new TestPlan(parameters, steps, judge, extensionsByStep, byVerdict, answersLastVerdict, session, facts,
+                answerSizeWords);
+    }
+
+    /** The same plan carrying {@code words}, its answer's size refusal as its style words it. */
+    public TestPlan withAnswerSizeWords(@com.legend.base.Nullable String words) {
+        return new TestPlan(parameters, steps, judge, extensionsByStep, extensionsByVerdict, answersLastVerdict, session,
+                facts, words);
     }
 
     private static Map<Integer, List<Extension>> copied(Map<Integer, List<Extension>> m) {
