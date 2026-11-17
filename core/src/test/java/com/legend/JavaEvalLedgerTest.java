@@ -1475,6 +1475,8 @@ class JavaEvalLedgerTest {
                     // the host judge's behaviours the run hook answers, and the plan's rules carried with them (census
                     // C1's step 2c, 2026-11-17): signatures, lite's form and a record; nothing evaluated
                     "HostForms.java", "HostRules.java",
+                    // the product's forms of the two run-hook kinds, classes of their own (GUARD's C.9, 2026-11-17)
+                    "LiteHostForms.java", "LiteRenderedTexts.java",
                     // legend-pure's words of an assert's failure at run, the edge's answer (C5's step B, 2026-11-17): a ruled
                     // hook, signatures only
                     "PureWords.java",
@@ -1711,6 +1713,8 @@ class JavaEvalLedgerTest {
                     // a date literal's text in the database judge's failure message, a two-form kind (census C1,
                     // 2026-11-17): the signature and lite's form; nothing evaluated
                     "DateLiteralTexts.java",
+                    // the product's forms of the three two-form kinds, classes of their own (GUARD's C.9, 2026-11-17)
+                    "LiteCrossKindNumbers.java", "LiteRenderedTextRule.java", "LiteDateLiteralTexts.java",
                     "AssertVerdicts.java",
                     "HostJudge.java", "DatabaseJudge.java",
                     "VerdictArm.java",

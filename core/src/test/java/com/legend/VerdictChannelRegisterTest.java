@@ -65,7 +65,9 @@ class VerdictChannelRegisterTest {
             // edge's HostForms -- it names the judge's kinds (Equality.Kind), never a second equality
             "core/src/main/java/com/legend/edge/CompiledPureHostForms.java",
             // the hook's signature and lite's form name the judge's kinds (Equality.Kind) -- the same 2026-11-17 move
-            "core/src/main/java/com/legend/testexec/HostForms.java");
+            "core/src/main/java/com/legend/testexec/HostForms.java",
+            // its product form's own class (GUARD's C.9, 2026-11-17)
+            "core/src/main/java/com/legend/testexec/LiteHostForms.java");
 
     private static final java.util.regex.Pattern JUDGE_REF =
             java.util.regex.Pattern.compile("(?<![A-Za-z0-9_])Equality(::|\\.(?!java\\b))");
