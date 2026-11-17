@@ -42,15 +42,9 @@ public class H2 extends AnsiSqlRenderer {
      *  2.5.252: it commits no open transaction). */
     public static final List<String> SESSION_SETUP = List.of("SET NON_KEYWORDS " + NON_KEYWORDS);
 
-    /** The settings an H2 database must have, the engine's own (H2Manager / H2Defaults, 4.145.0): {@code MODE=LEGACY},
-     *  and {@code DEFAULT_NULL_ORDERING=HIGH}, the engine's null placement (null is largest -- ascending nulls last,
-     *  descending first), which its printer leaves bare because the database already orders that way. Both are the
-     *  database's, and their {@code SET} commits an open transaction (measured on 2.5.252), so they are the target's
-     *  data, written on the URL of an in-memory database exec opens and read back from a session it did not
-     *  ({@code INFORMATION_SCHEMA.SETTINGS} reports each as written: {@code LEGACY}, {@code HIGH}; the read-back's rows
-     *  are the settings it has otherwise, the database comparing, {@link #differing}). */
-    public static final DatabaseSettings DATABASE_SETTINGS = differing(List.of(new Setting("MODE", "LEGACY"),
-            new Setting("DEFAULT_NULL_ORDERING", "HIGH")));
+    // (DATABASE_SETTINGS, legend-engine's MODE=LEGACY and DEFAULT_NULL_ORDERING=HIGH: the edge's since 2026-11-17, the
+    // audit's J22, RULED by the user ("Yes to the rule"): the product's H2 sessions use H2's defaults, its null placement
+    // written explicitly on every sort key as on every other database -- edge.EdgeH2 keeps legend-engine's settings)
 
     /** {@code required} with the statement answering each of them the database does NOT have, as one text
      *  ({@code NAME=VALUE}, by name; {@code NAME=(not reported)} for one it does not report at all): none where it has
@@ -58,7 +52,7 @@ public class H2 extends AnsiSqlRenderer {
      *  final audit's J4, 2026-11-12: until then a setting the database did not report answered no row, so it passed).
      *  Measured on 2.5.252: a bare database answers {@code DEFAULT_NULL_ORDERING=LOW} and {@code MODE=REGULAR}, a name
      *  it does not have {@code (not reported)}. */
-    static DatabaseSettings differing(List<Setting> required) {
+    protected static DatabaseSettings differing(List<Setting> required) {
         StringBuilder sql = new StringBuilder("SELECT R.SETTING || '=' || COALESCE(S.SETTING_VALUE, '(not reported)')"
                 + " FROM (VALUES ");
         for (int i = 0; i < required.size(); i++) {
@@ -102,10 +96,11 @@ public class H2 extends AnsiSqlRenderer {
         return SESSION_SETUP;
     }
 
-    /** {@inheritDoc} {@code MODE=LEGACY}, {@code DEFAULT_NULL_ORDERING=HIGH} ({@link #DATABASE_SETTINGS}). */
+    /** {@inheritDoc} None: H2's defaults (the audit's J22, 2026-11-17, RULED by the user); the null placement is
+     *  written on every sort key ({@code AnsiSqlRenderer.sortKey}), as on every other database. */
     @Override
     public @com.legend.base.Nullable DatabaseSettings databaseSettings() {
-        return DATABASE_SETTINGS;
+        return null;
     }
 
     /** This database's name for each scalar type, a refusal where it has none (the dialect program's Phase 1,

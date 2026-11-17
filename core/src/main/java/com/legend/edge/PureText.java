@@ -285,7 +285,7 @@ public final class PureText {
     public static SqlDialect dialect(DatabaseType type) {
         return switch (type) {
             case DuckDB -> new DuckDb();
-            case H2 -> new H2();
+            case H2 -> new EdgeH2();
             case Postgres -> new Postgres();
             case Databricks -> new Databricks();
             case Snowflake -> new Snowflake();
