@@ -539,7 +539,8 @@ public class MinimalCorpusTest {
         // statement per body (2026-09-20) a let's frame rides the fused statement,
         // so a broken frame fails at the assert in database mode and at the let in
         // host mode; named with its reason, never absorbed
-        for (String r : List.of("lost", "gained", "accepted", "differential")) {
+        // (the gained and accepted registers went with the database judge alone, O5, 2026-11-16)
+        for (String r : List.of("lost", "differential")) {
             registered.addAll(registerTests("/rcorpus/" + lane + "-database-" + r + "-register.txt"));
         }
         registered.addAll(registerTests(laneFile(ACCEPTED)));
