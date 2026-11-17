@@ -687,6 +687,29 @@ public final class AssertVerdicts {
                 yield arm.empty(name, args.get(0), fn == NativeFn.Verdict.ASSERT_EMPTY,
                         letPrefix, specs, env, hook);
             }
+            // the default-message asserts (#28): the positive family's row with the polarity flipped, its sentence
+            // negated; a pair of instances is no shape planned yet (the host's planner refuses it too)
+            case ASSERT_NOT_EQ, ASSERT_IS_NOT -> {
+                if (args.size() != 2 || !primitivePair(args.get(0), args.get(1))) {
+                    yield null;
+                }
+                VerdictBatch batch = env.verdictBatch();
+                AutoCloseable scope = fn == NativeFn.Verdict.ASSERT_IS_NOT && batch != null ? batch.asIsNot() : () -> { };
+                try {
+                    yield DatabaseJudge.databaseVerdict(name, false, args.get(0), args.get(1), letPrefix, specs, env,
+                            hook, false, false);
+                } finally {
+                    try {
+                        scope.close();
+                    } catch (Exception e) {
+                        throw new IllegalStateException(e);
+                    }
+                }
+            }
+            case ASSERT_NOT_CONTAINS -> args.size() < 2 ? null
+                    : DatabaseJudge.databaseContains(name, args.get(0), args.get(1), letPrefix, specs, env, hook, true);
+            case ASSERT_NOT_SIZE -> args.size() < 2 ? null
+                    : DatabaseJudge.databaseSize(name, args, letPrefix, specs, env, hook, true);
         };
         if (adjudicated == null) {
             com.legend.diagnostics.VerdictCensus.sqlFellThrough();
@@ -1003,6 +1026,15 @@ public final class AssertVerdicts {
             }
             case ASSERT_EMPTY, ASSERT_NOT_EMPTY -> args.isEmpty() ? null
                     : HostJudge.planEmpty(args.get(0), fn == NativeFn.Verdict.ASSERT_EMPTY, hook);
+            // the default-message asserts (#28): the positive family negated; a pair of instances (identity, or a
+            // keyed class's key equality, which eq is not) is no shape planned yet, refused by name
+            case ASSERT_NOT_EQ, ASSERT_IS_NOT -> args.size() != 2 || !primitivePair(args.get(0), args.get(1)) ? null
+                    : HostJudge.negated(HostJudge.planEq(args, letPrefix, env, hook),
+                            fn == NativeFn.Verdict.ASSERT_NOT_EQ ? "NOT_EQ" : "IS_NOT");
+            case ASSERT_NOT_CONTAINS -> args.size() < 2 || !exactlyOneValue(args.get(1)) ? null
+                    : HostJudge.negated(HostJudge.planContains(args, hook), "NOT_CONTAINS");
+            case ASSERT_NOT_SIZE -> args.size() < 2 ? null
+                    : HostJudge.negated(HostJudge.planSize(args, letPrefix, hook), "NOT_SIZE");
         };
     }
 

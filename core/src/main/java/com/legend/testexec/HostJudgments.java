@@ -363,6 +363,7 @@ final class HostJudgments {
             case HostJudgment.EngineText e -> com.legend.testexec.SqlTextRuns.judge(e, sides, rules, run);
             case HostJudgment.AssertError a -> com.legend.testexec.AssertErrorRuns.judge(a, () -> sides, rules, run);
             case HostJudgment.Messaged m -> messagedOf(m, sides, rules, message, run);
+            case HostJudgment.Negated n -> negatedOf(n, sides, rules, run);
         };
     }
 
@@ -557,6 +558,50 @@ final class HostJudgments {
             Object text = com.legend.testexec.AssertRuns.one(com.legend.testexec.AssertRuns.decodeSide(read), "the message");
             throw new com.legend.error.AssertFailed(String.valueOf(text));
         }
+    }
+
+    /** A default-message assert: its positive judgment over the same sides, negated, worded by the rules (#28). */
+    private static TypedSide negatedOf(HostJudgment.Negated n, List<TypedSide> sides,
+            com.legend.testexecutionplan.TestPlan.JudgingRules rules, BodyRun run) {
+        try {
+            judge(n.inner(), sides, rules, run);
+        } catch (com.legend.error.AssertFailed failed) {
+            if (failed.unjudgedReason() != null) {
+                throw failed;
+            }
+            return com.legend.testexecutionplan.Verdicts.ok();
+        }
+        return com.legend.testexecutionplan.Verdicts.fail(negatedWords(n.kind(), sides, rules));
+    }
+
+    /** A default-message assert's failure: lite's sentence, or legend-pure's words (the prelude's bodies, which these
+     *  natives replace: assertNotEq '%r should not equal %r', assertIsNot 'Should not be identical to: %r',
+     *  assertNotContains '%s should not contain %r', assertNotSize 'size should not equal: %s'). */
+    private static String negatedWords(String kind, List<TypedSide> sides,
+            com.legend.testexecutionplan.TestPlan.JudgingRules rules) {
+        List<Object> first = com.legend.testexec.AssertRuns.decodeSide(sides.get(0));
+        List<Object> second = sides.size() > 1 ? com.legend.testexec.AssertRuns.decodeSide(sides.get(1)) : List.of();
+        boolean lite = lite(rules);
+        return switch (kind) {
+            case "NOT_EQ" -> lite ? sentence(com.legend.error.AssertSentence.NOT_EQUALS, "actual",
+                    LiteWords.side(second, null))
+                    : com.legend.testexec.PureAsserts.notEqualsMessage(first, second);
+            case "IS_NOT" -> lite ? sentence(com.legend.error.AssertSentence.IS_NOT, "actual",
+                    LiteWords.side(second, null))
+                    : "Should not be identical to: " + com.legend.testexecutionplan.Verdicts.repr(
+                            com.legend.testexec.AssertRuns.one(second, "assertIsNot actual"));
+            // the sides are the collection's, then the value's (planContains)
+            case "NOT_CONTAINS" -> lite ? sentence(com.legend.error.AssertSentence.NOT_CONTAINS, "collection",
+                    LiteWords.values(first, null), "value", LiteWords.side(second, null))
+                    : com.legend.testexec.PureAsserts.reprList(first, null) + " should not contain "
+                            + com.legend.testexecutionplan.Verdicts.repr(com.legend.testexec.AssertRuns.one(second,
+                                    "assertNotContains value"));
+            // the sides are the size's, then the collection's (planSize)
+            case "NOT_SIZE" -> lite ? sentence(com.legend.error.AssertSentence.NOT_SIZE, "size",
+                    LiteWords.side(first, null))
+                    : "size should not equal: " + com.legend.testexec.AssertRuns.one(first, "assertNotSize size");
+            default -> throw new IllegalStateException("a negated assert of kind '" + kind + "'");
+        };
     }
 
     private static TypedSide conditionOf(HostJudgment.Condition j, List<TypedSide> one,

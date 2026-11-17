@@ -26,7 +26,8 @@ public sealed interface HostJudgment permits HostJudgment.AllRows, HostJudgment.
         HostJudgment.Contains, HostJudgment.Tolerance, HostJudgment.Condition, HostJudgment.Subset,
         HostJudgment.Empty, HostJudgment.Eq, HostJudgment.InstanceOf, HostJudgment.Is, HostJudgment.Decided,
         HostJudgment.SameElements, HostJudgment.Equals, HostJudgment.Json, HostJudgment.Rendered,
-        HostJudgment.Raise, HostJudgment.EngineText, HostJudgment.AssertError, HostJudgment.Messaged {
+        HostJudgment.Raise, HostJudgment.EngineText, HostJudgment.AssertError, HostJudgment.Messaged,
+        HostJudgment.Negated {
 
     /** The static facts of one side's typed argument the equality arms read: the keyed class it declares (null for a
      *  non-class side), its kind class, whether it is Any-stamped, Nil-typed, a map carrier; its type's name for the
@@ -213,6 +214,14 @@ public sealed interface HostJudgment permits HostJudgment.AllRows, HostJudgment.
         public Messaged(HostJudgment inner, int innerSides) {
             this(inner, innerSides, null);
         }
+    }
+
+    /** A DEFAULT-MESSAGE assert (#28, the orchestrator's go of 2026-11-17: {@code assertNotEq}, {@code assertIsNot},
+     *  {@code assertNotContains}, {@code assertNotSize}): its positive family's judgment over the same sides,
+     *  negated -- it holds where {@code inner} fails, and fails where {@code inner} holds, worded as {@code kind}
+     *  ({@code NOT_EQ}, {@code IS_NOT}, {@code NOT_CONTAINS}, {@code NOT_SIZE}) by the run's rules: lite's sentence,
+     *  or legend-pure's words. */
+    record Negated(HostJudgment inner, String kind) implements HostJudgment {
     }
 
     /** A planned RAISE at the assert's turn (R14): the planning raised {@code failure} inside the arm or before it --

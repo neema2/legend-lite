@@ -1176,6 +1176,13 @@ final class HostJson {
                 o.putAll(wHjMessaged(m));
                 yield o;
             }
+            case HostJudgment.Negated m -> {
+                Map<String, Object> o = new LinkedHashMap<>();
+                o.put(TAG, "Negated");
+                o.put("inner", wHostJudgment(m.inner()));
+                o.put("kind", m.kind());
+                yield o;
+            }
         };
     }
 
@@ -1205,6 +1212,8 @@ final class HostJson {
             case "EngineText" -> rHjEngineText(o);
             case "AssertError" -> rHjAssertError(o);
             case "Messaged" -> rHjMessaged(o);
+            case "Negated" -> new HostJudgment.Negated(rHostJudgment(obj(field(o, "inner", "Negated"))),
+                    str(field(o, "kind", "Negated")));
             default -> throw new IllegalArgumentException("no member '" + tag + "' of HostJudgment");
         };
     }

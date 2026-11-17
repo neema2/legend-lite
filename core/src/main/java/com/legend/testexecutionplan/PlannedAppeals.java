@@ -94,6 +94,7 @@ public final class PlannedAppeals {
                 }
             }
             case HostJudgment.Messaged m -> numbers(m.inner(), out);
+            case HostJudgment.Negated n -> numbers(n.inner(), out);
             case HostJudgment.Unrolled u -> u.parts().forEach(p -> numbers(p.judgment(), out));
             case HostJudgment.AssertError ae -> {
                 if (ae.inner() != null) {

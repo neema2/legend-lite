@@ -66,6 +66,9 @@ public final class VerdictSql {
     /** A planning-time hint the frame reads and drops: the sides were compared as MULTISETS, so lite's sentence is
      *  {@code AssertSentence.SAME_ELEMENTS} ("in any order") whatever the assert's name. */
     private static final String MULTISET_HINT = "__multiset";
+    /** A planning-time hint the frame reads and drops: the negated assert is {@code assertIsNot} (#28), its sentence
+     *  {@code AssertSentence.IS_NOT} (legend-pure's 'Should not be identical to: %r'), not the not-equal one. */
+    private static final String IS_NOT_HINT = "__isnot";
     /** Each side's kind as lite's sentence names it where the two texts tie: the frame's, dropped there. */
     private static final String EXPECTED_KIND = "__ekind";
     private static final String ACTUAL_KIND = "__akind";
@@ -408,6 +411,14 @@ public final class VerdictSql {
 
     /** {@code lite}: lite's own sentence ({@code AssertSentence.SIZE}), else legend-pure's words. */
     public static SqlQuery size(SqlQuery sideRows, SqlQuery nScalar, boolean envelope, boolean lite) {
+        return size(sideRows, nScalar, envelope, lite, false);
+    }
+
+    /** {@code negated}: {@code assertNotSize} (#28): the same verdict row, its failure the negated sentence -- lite's
+     *  {@code NOT_SIZE}, or legend-pure's 'size should not equal: %s' -- the caller planning it with the polarity
+     *  flipped. */
+    public static SqlQuery size(SqlQuery sideRows, SqlQuery nScalar, boolean envelope, boolean lite,
+            boolean negated) {
         OneRow c = envelope ? constantOf("c", new SqlExpr.IntLit(1), "__n", SqlType.Scalar.BIGINT)
                 : countOf("c", "__a");
         OneRow n = rowOf("n", nScalar);
@@ -418,7 +429,10 @@ public final class VerdictSql {
         // upstream's own words (assertSize.pure: 'expected size: %s, actual size: %s'), the host's (PureAsserts)
         return predicateOver(envelope ? List.of() : List.of(new SqlWith.Cte("__a", sideRows)),
                 List.of(c, n), SqlExpr.Call.of(SqlFn.NULL_SAFE_EQUAL, count, want), wantText, countText,
-                new SqlExpr.NullLit(), lite
+                new SqlExpr.NullLit(), negated ? (lite
+                        ? sentence(com.legend.error.AssertSentence.NOT_SIZE, java.util.Map.of("size", wantText))
+                        : SqlExpr.Call.of(SqlFn.CONCAT, new SqlExpr.StringLit("size should not equal: "), wantText))
+                        : lite
                         ? sentence(com.legend.error.AssertSentence.SIZE, java.util.Map.of("expected", wantText,
                                 "actual", countText))
                         : new SqlExpr.Call(SqlFn.CONCAT, List.of(new SqlExpr.StringLit("expected size: "),
@@ -599,6 +613,13 @@ public final class VerdictSql {
      *  rules; else legend-pure's words. */
     public static SqlQuery contains(SqlQuery collRows, SqlQuery valScalar, @com.legend.base.Nullable Type valueWritten,
             boolean lite) {
+        return contains(collRows, valScalar, valueWritten, lite, false);
+    }
+
+    /** {@code negated}: {@code assertNotContains} (#28): the same verdict row over the written collection, its failure
+     *  the negated sentence -- lite's {@code NOT_CONTAINS}, or legend-pure's '%s should not contain %r'. */
+    public static SqlQuery contains(SqlQuery collRows, SqlQuery valScalar, @com.legend.base.Nullable Type valueWritten,
+            boolean lite, boolean negated) {
         OutputCol vc = new OutputCol(C, SqlType.Scalar.VARCHAR, true);
         SqlSource v0 = new SqlSource.Table("__v0", "__v0", valScalar.outputs(), false, java.util.Map.of(), com.legend.sql.NameQuoting.BARE);
         OneRow v = new OneRow("v", new SqlSelect(List.of(new SqlSelect.Projection(
@@ -631,8 +652,13 @@ public final class VerdictSql {
                     false, v0, null, List.of(), null, null, List.of(), null, null, List.of(wo)), List.of(wo));
             ops.add(l);
             ops.add(vw);
-            message = lite ? sentence(com.legend.error.AssertSentence.CONTAINS, java.util.Map.of("collection",
-                            l.col(F_LIST_W), "value", SqlExpr.Call.of(SqlFn.COALESCE, vw.col(W), new SqlExpr.StringLit("[]"))))
+            SqlExpr valueText = SqlExpr.Call.of(SqlFn.COALESCE, vw.col(W), new SqlExpr.StringLit("[]"));
+            message = negated ? (lite ? sentence(com.legend.error.AssertSentence.NOT_CONTAINS, java.util.Map.of(
+                            "collection", l.col(F_LIST_W), "value", valueText))
+                            : SqlExpr.Call.of(SqlFn.CONCAT, l.col(F_LIST_W), new SqlExpr.StringLit(" should not contain "),
+                                    valueText))
+                    : lite ? sentence(com.legend.error.AssertSentence.CONTAINS, java.util.Map.of("collection",
+                            l.col(F_LIST_W), "value", valueText))
                     : SqlExpr.Call.of(SqlFn.CONCAT, l.col(F_LIST_W), new SqlExpr.StringLit(" does not contain "),
                     SqlExpr.Call.of(SqlFn.COALESCE, vw.col(W), new SqlExpr.StringLit("[]")));
         }
@@ -2681,9 +2707,13 @@ public final class VerdictSql {
         }
         SqlSelect.Projection fixed = projectionOf(sel, MESSAGE);
         SqlSelect.Projection multiset = projectionOf(sel, MULTISET_HINT);
+        SqlSelect.Projection isNot = projectionOf(sel, IS_NOT_HINT);
         SqlSelect.Projection ek = projectionOf(sel, EXPECTED_KIND);
         SqlSelect.Projection ak = projectionOf(sel, ACTUAL_KIND);
         SqlExpr message = fixed != null ? fixed.expr()
+                : isNot != null && !wantEqual ? (lite
+                        ? sentence(com.legend.error.AssertSentence.IS_NOT, java.util.Map.of("actual", a))
+                        : SqlExpr.Call.of(SqlFn.CONCAT, new SqlExpr.StringLit("Should not be identical to: "), a))
                 : lite ? liteFrame(multiset != null ? "assertSameElements" : name, wantEqual, cells, e, a,
                         ek == null ? null : ek.expr(), ak == null ? null : ak.expr()) : wantEqual
                 ? SqlExpr.Call.of(SqlFn.CONCAT, new SqlExpr.StringLit("\nexpected: "), e,
@@ -2696,11 +2726,30 @@ public final class VerdictSql {
         ps.remove(multiset);   // the hint is the frame's, no column of the verdict's schema
         ps.remove(ek);
         ps.remove(ak);
+        ps.remove(isNot);
         ps.add(new SqlSelect.Projection(holds, HOLDS, new OutputCol(HOLDS, SqlType.Scalar.BOOLEAN, false)));
         ps.add(new SqlSelect.Projection(message, MESSAGE, new OutputCol(MESSAGE, SqlType.Scalar.VARCHAR, true)));
         // the select's outputs are rebuilt from its projections by its constructor
         return new SqlSelect(ps, sel.distinct(), sel.from(), sel.where(), sel.groupBy(), sel.having(), sel.qualify(),
                 sel.orderBy(), sel.limit(), sel.offset(), sel.outputs());
+    }
+
+    /** {@code row}, a verdict row before it is made self-contained, marked {@code assertIsNot}'s (#28): the frame writes
+     *  that sentence where it fails. */
+    public static SqlQuery withIsNotHint(SqlQuery row) {
+        java.util.function.UnaryOperator<SqlSelect> mark = sel -> {
+            List<SqlSelect.Projection> ps = new ArrayList<>(sel.projections());
+            ps.add(new SqlSelect.Projection(new SqlExpr.BoolLit(true), IS_NOT_HINT,
+                    new OutputCol(IS_NOT_HINT, SqlType.Scalar.BOOLEAN, false)));
+            return sel.withProjections(ps);
+        };
+        if (row instanceof SqlWith w && w.body() instanceof SqlSelect body) {
+            return new SqlWith(w.ctes(), mark.apply(body));
+        }
+        if (row instanceof SqlSelect sel) {
+            return mark.apply(sel);
+        }
+        throw new IllegalStateException("a verdict row is a select, not " + row.getClass().getSimpleName());
     }
 
     /** A kind's name as lite's sentence writes it where two texts tie: a primitive's short name (a Decimal of a declared

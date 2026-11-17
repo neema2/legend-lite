@@ -185,6 +185,15 @@ public final class VerdictBatch {
     private final List<Root> roots = new ArrayList<>();
     /** The zero-based index of the unrolled quantifier's element being planned under lite's own rules, or -1. */
     private int elementIndex = -1;
+    /** Whether the rows deferred now are {@code assertIsNot}'s (#28): the frame's sentence is its. */
+    private boolean isNot;
+
+    /** Rows deferred until the returned scope closes are {@code assertIsNot}'s. */
+    public AutoCloseable asIsNot() {
+        boolean before = isNot;
+        isNot = true;
+        return () -> isNot = before;
+    }
 
     /** Rows deferred until the returned scope closes are an unrolled quantifier's element {@code index}: lite's
      *  sentence names it ({@code AssertSentence.AT_INDEX}). */
@@ -301,7 +310,8 @@ public final class VerdictBatch {
             }
         }
         // the row self-contained (M8b): its polarity and its message in the statement, nothing of the assert kept
-        SqlQuery row = selfContained.wrap(query, name, wantEqual);
+        SqlQuery row = selfContained.wrap(isNot ? com.legend.lowering.VerdictSql.withIsNotHint(query) : query, name,
+                wantEqual);
         if (elementIndex >= 0) {
             // an unrolled quantifier's element: lite's sentence names it by its zero-based index
             row = com.legend.lowering.VerdictSql.atIndex(row, elementIndex);

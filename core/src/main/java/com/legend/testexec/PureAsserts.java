@@ -329,7 +329,7 @@ public final class PureAsserts {
 
     /** The spec's single-value message side ({@code %r}) or the
      * collection form ({@code joinStrings('[', ', ', ']')}). */
-    private static String reprList(List<Object> side,
+    static String reprList(List<Object> side,
             @com.legend.base.Nullable String instanceClass) {
         StringBuilder sb = new StringBuilder("[");
         for (int i = 0; i < side.size(); i++) {

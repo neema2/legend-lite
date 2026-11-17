@@ -114,6 +114,13 @@ final class HostJudge {
         return new HostSides.Check(List.of(identityAsk(cond, hook)), new HostJudgment.Condition(name, wantTrue));
     }
 
+    /** {@code check} NEGATED (a default-message assert, #28): the same sides, judged as {@code check}'s judgment
+     *  negated and worded as {@code kind}; null where {@code check} is. */
+    static HostSides.@com.legend.base.Nullable Check negated(HostSides.@com.legend.base.Nullable Check check,
+            String kind) {
+        return check == null ? null : new HostSides.Check(check.asks(), new HostJudgment.Negated(check.judgment(), kind));
+    }
+
     /** {@code check} with the caller's failure message (the asserts-as-plan-nodes program, step 2): the message one
      *  more side, folded where it is a constant (a literal costs no statement). */
     static HostSides.Check messaged(HostSides.Check check, TypedSpec message,

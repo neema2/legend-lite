@@ -549,6 +549,13 @@ public final class DatabaseJudge {
     static TypedSide databaseSize(String name, List<TypedSpec> args,
             List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
             @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
+        return databaseSize(name, args, letPrefix, specs, env, hook, false);
+    }
+
+    /** {@code negated}: {@code assertNotSize} (#28): the size row with the polarity flipped, its negated sentence. */
+    static TypedSide databaseSize(String name, List<TypedSpec> args,
+            List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
+            @com.legend.base.Nullable AssertVerdicts.SpliceHook hook, boolean negated) {
         SideRows coll = planSide(args.get(0), false, false, letPrefix, specs, env, hook);
         if (coll.why() != null) {
             return unjudged(name, coll.why());
@@ -560,10 +567,14 @@ public final class DatabaseJudge {
         boolean envelope = java.util.Objects.requireNonNull(coll.rider()).tdsWrapped()
                 && AssertVerdicts.envelopeValuesRead(args.get(0), letPrefix);
         var cw = java.util.Objects.requireNonNull(coll.side());
+        if (negated && cw.shape() == com.legend.plan.ResultShape.GRAPH) {
+            return unjudged(name, "assertNotSize over a graph: no negated form planned");
+        }
         com.legend.sql.SqlQuery vq = cw.shape() == com.legend.plan.ResultShape.GRAPH
                 ? com.legend.lowering.VerdictSql.sizeOfGraph(cw.plan(), n.scalarRow(false))
-                : com.legend.lowering.VerdictSql.size(coll.countRows(), n.scalarRow(false), envelope, lite(env));
-        return runVerdict(name, true, vq, coll.on(env));
+                : com.legend.lowering.VerdictSql.size(coll.countRows(), n.scalarRow(false), envelope, lite(env),
+                        negated);
+        return runVerdict(name, !negated, vq, coll.on(env));
     }
 
     static TypedSide databaseEmpty(String name, TypedSpec arg, boolean wantEmpty,
@@ -591,6 +602,14 @@ public final class DatabaseJudge {
     static TypedSide databaseContains(String name, TypedSpec coll, TypedSpec val,
             List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
             @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
+        return databaseContains(name, coll, val, letPrefix, specs, env, hook, false);
+    }
+
+    /** {@code negated}: {@code assertNotContains} (#28): the written membership row with the polarity flipped, its
+     *  negated sentence; a side not written is no negated form planned, refused by name. */
+    static TypedSide databaseContains(String name, TypedSpec coll, TypedSpec val,
+            List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
+            @com.legend.base.Nullable AssertVerdicts.SpliceHook hook, boolean negated) {
         SideRows c = planSide(coll, false, letPrefix, specs, env, hook);
         if (c.why() != null) {
             return unjudged(name, c.why());
@@ -612,9 +631,12 @@ public final class DatabaseJudge {
         com.legend.lowering.VerdictSql.Message vm = literal ? null
                 : written(vr, 0, false, java.util.Objects.requireNonNull(v.side()).plan(), val, lite(env));
         if (cm != null && vm != null && !cr.tdsWrapped()) {
-            return runVerdict(name, true, com.legend.lowering.VerdictSql.contains(
+            return runVerdict(name, !negated, com.legend.lowering.VerdictSql.contains(
                     com.legend.lowering.VerdictSql.writtenRows(java.util.Objects.requireNonNull(c.side()).plan(),
-                            "__canon0", cr.many(), cm), v.scalarRow(false), vm.kind(), lite(env)), c.on(env));
+                            "__canon0", cr.many(), cm), v.scalarRow(false), vm.kind(), lite(env), negated), c.on(env));
+        }
+        if (negated) {
+            return unjudged(name, "assertNotContains over sides not written: no negated form planned");
         }
         return runVerdict(name, true, com.legend.lowering.VerdictSql.contains(c.rows(literal), v.scalarRow(literal)),
                 c.on(env));

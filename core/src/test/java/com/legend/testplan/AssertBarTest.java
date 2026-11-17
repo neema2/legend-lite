@@ -52,9 +52,17 @@ class AssertBarTest {
             new Probe("forAll-zip-assert-message",
                     "{|[1, 2]->zip([2, 1])->forAll(p | assert($p.first < $p.second, 'm'))}", "m"),
             new Probe("assertNotEq-holds", "{|assertNotEq(1, 2)}", null),
-            new Probe("assertNotEq-fails", "{|assertNotEq(1, 1)}", "1 should not equal 1"),
+            // the four default-message asserts (#28): platform natives, each its positive family negated, worded by
+            // lite's own sentence under every judge
+            new Probe("assertNotEq-fails", "{|assertNotEq(1, 1)}", "expected a value other than 1"),
             new Probe("assertNotSize-holds", "{|assertNotSize([1, 2], 3)}", null),
+            new Probe("assertNotSize-fails", "{|assertNotSize([1, 2], 2)}", "expected a size other than 2"),
             new Probe("assertNotContains-holds", "{|assertNotContains([1, 2], 3)}", null),
+            new Probe("assertNotContains-fails", "{|assertNotContains(['a', 'b'], 'b')}",
+                    "expected [\"a\", \"b\"] not to contain \"b\""),
+            new Probe("assertIsNot-holds", "{|assertIsNot(1, 2)}", null),
+            new Probe("assertIsNot-fails", "{|assertIsNot('x', 'x')}", "expected an instance other than \"x\""),
+            new Probe("assertNotEq-with-a-message", "{|assertNotEq(1, 1, 'mine')}", "mine"),
             new Probe("one-statement-helper-holds", "{|t::check(1 + 1)}", null),
             new Probe("one-statement-helper-fails", "{|t::check(3)}", "expected 2, got 3"),
             new Probe("two-statement-helper-fails", "{|t::check2(3)}", "expected 2, got 3"),
@@ -236,6 +244,25 @@ class AssertBarTest {
 
     /** A failing assert's message that raises: its evaluation's error is the test's, as upstream's (the assert bar,
      *  2026-11-04) -- under every judge. */
+    /** No assert body the prelude holds spells legend-pure's representation ({@code %r}, {@code toRepresentation}): the
+     *  default-message asserts are natives whose words are each judge's (#28; F's 2b, the product refusing %r). */
+    @Test
+    void noPreludeAssertBodySpellsARepresentation() throws Exception {
+        String prelude;
+        try (var in = AssertBarTest.class.getClassLoader().getResourceAsStream("com/legend/builtin/prelude.pure")) {
+            prelude = new String(java.util.Objects.requireNonNull(in, "the prelude").readAllBytes(),
+                    java.nio.charset.StandardCharsets.UTF_8);
+        }
+        List<String> offenders = new ArrayList<>();
+        for (String section : prelude.split("\n###Pure\n")) {
+            if (section.contains("function meta::pure::functions::asserts::")
+                    && (section.contains("%r") || section.contains("toRepresentation"))) {
+                offenders.add(section.lines().filter(l -> l.startsWith("function ")).findFirst().orElse(section));
+            }
+        }
+        assertTrue(offenders.isEmpty(), "assert bodies spelling a representation: " + offenders);
+    }
+
     @Test
     void aFailingAssertsMessageThatRaisesRaisesItsOwnError() throws Exception {
         try (Connection c = TestBackends.platform().open()) {
