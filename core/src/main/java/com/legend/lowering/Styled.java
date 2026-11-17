@@ -15,19 +15,16 @@ import java.util.function.Supplier;
  *
  * @param pureOnly  the texts only legend-pure writes ({@link PureOnlyTexts}): the edge's answers, the product's style
  *                  throwing the call's refusal
- * @param plain     the raises the style writes as the plain operation ({@code PlanStyle.plainRaises}, B7, 2026-11-17):
- *                  the product's none; the edge's pure/v1 style legend-engine's census class A
+ * @param forms     the lowering's two-form choices ({@link LoweringForms}, the audit's K5, 2026-11-17; until then the
+ *                  set of raises the style wrote plain, B7): the product's {@link LoweringForms#PRODUCT}, every check
+ *                  written; the edge's pure/v1 style legend-engine's census class A plain
  * @param dateTimes a DateTime's text in a message, a two-form hook ({@link DateTimeTexts}, census B9, 2026-11-17): the
  *                  product's lite text, the edge's legend-pure's
  * @param lists     a list's text, a two-form kind ({@link ListTexts}, census B8, 2026-11-17): the product's JSON array,
  *                  the edge's {@code [a, b]}
  */
 public record Styled(Function<Supplier<? extends RuntimeException>, PureOnlyTexts> pureOnly,
-        java.util.Set<com.legend.sql.RaiseKind> plain, DateTimeTexts dateTimes, ListTexts lists) {
-
-    public Styled {
-        plain = plain.isEmpty() ? java.util.Set.of() : java.util.Collections.unmodifiableSet(java.util.EnumSet.copyOf(plain));
-    }
+        LoweringForms forms, DateTimeTexts dateTimes, ListTexts lists) {
 
     /** The product's form of a DateTime's text: lite's canonical text, {@code DATETIME_TO_TEXT}, the value alone. A
      *  literal's written text is the edge's alone (legend-pure prints a literal at its written precision): the product's
@@ -36,8 +33,8 @@ public record Styled(Function<Supplier<? extends RuntimeException>, PureOnlyText
             com.legend.sql.SqlExpr.Call.of(com.legend.sql.SqlFn.DATETIME_TO_TEXT, x);
 
     /** The product's own style: each text only legend-pure writes refused, by its call's own refusal; every check of
-     *  lite's written (no plain raise, {@code PlanStyle.plainRaises}); lite's text of a DateTime. */
+     *  lite's written (no plain raise, {@link LoweringForms#PRODUCT}); lite's text of a DateTime. */
     public static final Styled PRODUCT = new Styled(refusal -> {
         throw refusal.get();
-    }, java.util.Set.of(), LITE_DATE_TIMES, ProductListTexts.INSTANCE);
+    }, LoweringForms.PRODUCT, LITE_DATE_TIMES, ProductListTexts.INSTANCE);
 }

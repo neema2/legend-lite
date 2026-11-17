@@ -34,7 +34,7 @@ public record PlanningOptions(
         // an enum set: its order the declaration's (NoSaltedIterationOrderTest)
         options = options.isEmpty() ? java.util.Set.of()
                 : java.util.Collections.unmodifiableSet(java.util.EnumSet.copyOf(options));
-        if (edge.records() && !judgingRules.edgeAppeals()) {
+        if (judgingRules != edge.rules() && edge.records()) {
             // the user's ruling of 2026-11-08 (docs/PLAN_AS_DATA_2026_11_07.md 3a.3): the edge, with the referee's
             // ledger, is the compatibility rules' -- lite's own rules plan nothing for it
             throw new IllegalArgumentException("a run handed the compatibility edge judges by the compatibility rules");

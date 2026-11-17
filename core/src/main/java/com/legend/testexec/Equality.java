@@ -45,7 +45,7 @@ public final class Equality {
     /** The kinds a value is compared under: its carrier's at run, or the one its declaration names where that is
      *  numeric (the plan-as-data design's step 1, 2026-11-08: the judge's own kinds, read off the value and the
      *  plan's type name -- until then the compiler's primitive types). */
-    enum Kind { INTEGER, FLOAT, DECIMAL, STRING, BOOLEAN, STRICT_DATE, DATE, DATE_TIME }
+    public enum Kind { INTEGER, FLOAT, DECIMAL, STRING, BOOLEAN, STRICT_DATE, DATE, DATE_TIME }
 
     /** The numeric kind a declared type names, in the plan's spelling ({@code Integer}, {@code Float},
      *  {@code Decimal}, a precise decimal {@code Decimal(p,s)}; a precise primitive spells as its base), or null: every
@@ -162,8 +162,7 @@ public final class Equality {
 
     /** The decision itself (the narrative is the caller's when it has a
      * better one — a row, a path). */
-    public static boolean same(Typed et, Typed at, com.legend.testexecutionplan.TestPlan.JudgingRules rules) {
-        java.util.Objects.requireNonNull(rules, "an equality names the rules it judges by");
+    public static boolean same(Typed et, Typed at, HostRules rules) {
         Object e = et.value();
         Object a = at.value();
         if (com.legend.sql.SqlExpr.NULL_CELL_WIRE.equals(e) && a == null) {
@@ -192,8 +191,7 @@ public final class Equality {
             // value (1D == 1, 1 == 1.0 and 1.5 == 1.5D false, legend-pure's interpreted rule); in backwards-compatibility
             // mode compiled legend-pure's (CompiledSupport.eq(Number, Number), what a test's assert runs upstream): an
             // Integer and a Decimal equal by their texts (1D == 1), a Float equal to neither
-            return rules == com.legend.testexecutionplan.TestPlan.JudgingRules.COMPILED_PURE_COMPAT && integerAndDecimal(ek, ak)
-                    && String.valueOf(e).equals(String.valueOf(a));
+            return rules.forms().equalAcrossNumberKinds(ek, ak, e, a);
         }
         if (ek == Kind.INTEGER) {
             if (!(isIntegral(e) && isIntegral(a))) {
@@ -252,14 +250,7 @@ public final class Equality {
         return e.equals(a);   // dates: the literal's own equality
     }
 
-    /** Whether {@code x} and {@code y} are an Integer and a Decimal, either way round: the pair compiled legend-pure
-     *  equates by text (S127). */
-    private static boolean integerAndDecimal(Kind x, Kind y) {
-        return x == Kind.INTEGER && y == Kind.DECIMAL
-                || x == Kind.DECIMAL && y == Kind.INTEGER;
-    }
-
-    private static boolean structural(Object e, Object a, com.legend.testexecutionplan.TestPlan.JudgingRules rules) {
+    private static boolean structural(Object e, Object a, HostRules rules) {
         return firstDiff(e, a, "$", (x, y) -> same(Typed.of(x), Typed.of(y), rules)) == null;
     }
 
@@ -267,7 +258,7 @@ public final class Equality {
 
     /** Element by element, in order: the decision alone (C5's step C, C-3, 2026-11-17: the first difference's text
      *  went, no caller read it; a message is the run's words, {@code PureWords} or lite's own). */
-    public static boolean ordered(List<Typed> e, List<Typed> a, com.legend.testexecutionplan.TestPlan.JudgingRules rules) {
+    public static boolean ordered(List<Typed> e, List<Typed> a, HostRules rules) {
         if (e.size() != a.size()) {
             return false;
         }
@@ -281,13 +272,13 @@ public final class Equality {
 
     /** The engine's {@code assertSameElements}: sort both sides by the
      * value order, then ordered. */
-    public static boolean sameElements(List<Typed> e, List<Typed> a, com.legend.testexecutionplan.TestPlan.JudgingRules rules) {
+    public static boolean sameElements(List<Typed> e, List<Typed> a, HostRules rules) {
         return ordered(sorted(e), sorted(a), rules);
     }
 
     /** True when every element of {@code needle} has an equal in
      * {@code hay} (membership, the contains / forAll family). */
-    public static boolean contains(List<Typed> hay, Typed needle, com.legend.testexecutionplan.TestPlan.JudgingRules rules) {
+    public static boolean contains(List<Typed> hay, Typed needle, HostRules rules) {
         for (Typed h : hay) {
             if (same(needle, h, rules)) {
                 return true;
@@ -309,7 +300,7 @@ public final class Equality {
 
     /** Rows of width {@code w} as a MULTISET (each expected row consumes one
      * equal actual row); cells through {@link #same}. */
-    public static boolean rowMultiset(List<Typed> e, List<Typed> a, int w, com.legend.testexecutionplan.TestPlan.JudgingRules rules) {
+    public static boolean rowMultiset(List<Typed> e, List<Typed> a, int w, HostRules rules) {
         if (e.size() != a.size()) {
             return false;
         }

@@ -273,7 +273,7 @@ public final class Lowerer {
      *  legend-pure writes ({@link PureOnlyTexts}), asked only when a native's rule meets one, with that call's own
      *  refusal; a DateTime's text in a message and a list's text, the style's forms of the two-form {@link DateTimeTexts}
      *  and {@link ListTexts}; and THE RAISES THE STYLE WRITES
-     *  PLAIN ({@code PlanStyle.plainRaises}): a check of a kind there is the operation alone, the database's own error
+     *  PLAIN ({@link LoweringForms#raise}, the audit's K5): a check of a kind there is the operation alone, the database's own error
      *  passing through (the edge's pure/v1 style, legend-engine's census class A). A Lowerer no planner handed a style
      *  has none and refuses by name when a rule asks (the audit's K6, 2026-11-17: no implicit "no edge" default, G7);
      *  the product's is {@link Styled#PRODUCT}, chosen explicitly. */
@@ -838,16 +838,14 @@ public final class Lowerer {
         // The resolved GRAPH envelope keeps its CLASS-typed info (the
         // result-shape contract) but lowers as a relation.
         if (spec instanceof TypedSerializeGraph g) {
-            // the value of an engine execute(...) (the splice's mark): the
-            // engine JsonBuilder's cardinality rule, exactly one object bare
-            // and zero or several as the array -- the scalar position's fold
-            // (SnapshotEnvelope). COMPATIBILITY ONLY (the user, 2026-11-03:
-            // "the right clean thing in lite, the backward-compatible thing
-            // in compatibility mode"): lite's own root stays the array, and
-            // the streaming root (one object per row) never folds
+            // the value of an engine execute(...) (the splice's mark), the style's form (the audit's J3, 2026-11-17:
+            // LoweringForms#executeValues): the product's lite's own root, the array (the user, 2026-11-03: "the right
+            // clean thing in lite, the backward-compatible thing in compatibility mode"); the edge's the engine
+            // JsonBuilder's cardinality rule, exactly one object bare -- the scalar position's fold (SnapshotEnvelope).
+            // The streaming root (one object per row) never folds
             if (g.engineExecuteCardinality() && !streamingGraphRoot) {
-                return conformJsonEgress(SnapshotEnvelope.fold(
-                        serializeGraph(g.asArrayWrapped(), false)));
+                return conformJsonEgress(styled().forms().executeValues(() -> serializeGraph(g, false),
+                        () -> SnapshotEnvelope.fold(serializeGraph(g.asArrayWrapped(), false))));
             }
             return conformJsonEgress(serializeGraph(g, streamingGraphRoot));
         }
@@ -1251,11 +1249,9 @@ public final class Lowerer {
             case TypedTableReference t -> tableRead(t);
 
             case TypedTds tds -> tdsLiteral(tds);
-            // a VIEW at relation position: lean, the body lowers flat (a name is not a nesting); a derived table
-            // aliased by the view where the shape asks (LoweringShape#viewsAsDerivedTables)
-            case TypedViewRelation v -> shape.viewsAsDerivedTables()
-                    ? SqlSelect.starOf(new SqlSource.Subselect(relation(v.body()), nextAlias(), v.view()))
-                    : relation(v.body());
+            // a VIEW at relation position, the shape's form (the audit's K5, 2026-11-17: LoweringForms#view): the
+            // product's body lowered flat (a name is not a nesting); legend-engine's an aliased derived table
+            case TypedViewRelation v -> shape.forms().view(relation(v.body()), this::nextAlias, v.view());
 
             case com.legend.compiler.spec.typed.TypedRawSqlRelation raw -> rawGrid(unswapped(raw, "a raw SQL relation"));
             case com.legend.compiler.spec.typed.TypedCatalogGrid g -> catalogGrid(unswapped(g, "a catalog grid"));
@@ -1843,7 +1839,7 @@ public final class Lowerer {
                     new TypedLambda(a.reduce().parameters(),
                             List.of(rc.source()), a.reduce().info()),
                     a.order()));
-            return CastPolicy.castByPolicy(inner, rc.source().info().type(), rc.target(), rc.wire(), styled().plain());
+            return CastPolicy.castByPolicy(inner, rc.source().info().type(), rc.target(), rc.wire(), styled().forms());
         }
         // A CONDITION OVER REDUCERS (y|if($y->count() < 21, |[], |$y->average()): a figure given once its window holds
         // enough values, the DataCube timeseries library's ramp, 2026-10-26) -- each reducer the aggregate it is
@@ -1994,7 +1990,7 @@ public final class Lowerer {
         SqlExpr value = scalar(mapBody, (v, name) -> resolveOrThrow(base, name));
         if (valueCast != null) {
             value = CastPolicy.castByPolicy(value,
-                    valueCast.source().info().type(), valueCast.target(), valueCast.wire(), styled().plain());
+                    valueCast.source().info().type(), valueCast.target(), valueCast.wire(), styled().forms());
         }
         // isDistinct over a group: COUNT(DISTINCT x) = COUNT(x) (engine testGroupByIsDistinct)
         if (fn == SqlAgg.Fn.IS_DISTINCT_MARK) {
@@ -4197,7 +4193,7 @@ public final class Lowerer {
                             PureSql.asList(scalar(s.source(), columns),
                                     !CollectionLanes.c1Literal(s.source())),
                             scalar(s.start(), columns),
-                            scalar(s.stop(), columns), styled().plain());
+                            scalar(s.stop(), columns), styled().forms());
             // drop(n): the suffix from n+1; negative n drops nothing (PCT).
             case TypedDrop d when !Type.relationValued(d.source().info()) -> {
                 SqlExpr src = PureSql.asList(scalar(d.source(), columns),
@@ -4585,7 +4581,7 @@ public final class Lowerer {
 
     /** The cast policy over an ALREADY-LOWERED source (CastPolicy owns every arm). */
     private SqlExpr cast(TypedCast c, SqlExpr value) {
-        return CastPolicy.lower(c, value, Stamps.isMany(c), shape.elideWireCasts(), styled().plain());
+        return CastPolicy.lower(c, value, Stamps.isMany(c), shape.forms(), styled().forms());
     }
 
     /**

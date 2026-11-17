@@ -47,7 +47,7 @@ class PureOnlyTextsRefusalTest {
 
     @Test
     void theProductsStyleRefusesEachMemberWithItsCallsRefusal() {
-        Styled configured = new Styled(r -> PlanStyle.PRODUCT.facet(PureOnlyTexts.class, r), Styled.PRODUCT.plain(),
+        Styled configured = new Styled(r -> PlanStyle.PRODUCT.facet(PureOnlyTexts.class, r), Styled.PRODUCT.forms(),
                 Styled.LITE_DATE_TIMES, ProductListTexts.INSTANCE);
         for (Styled styled : List.of(Styled.PRODUCT, configured)) {
             MEMBERS.forEach((name, call) -> {
