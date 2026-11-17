@@ -73,3 +73,35 @@ edge-only SqlFn members, emitted only at their listed sites and refused by the p
 CSG's vocabulary, the rows registered with their owners); C1 (`COMPILED_PURE_COMPAT` into CSG's symbols); C2 (a rule:
 referee and appeal classes reachable only from the edge or the test door). Rulings needed: B14 (EngineQuirks), A4 (the
 shipped binary's root).
+
+## E. The work queue: owner and size per line (S < half a day, M about a day, L more)
+
+| Line | Owner | Size | Note |
+|---|---|---|---|
+| A1 wasm:boundary -> edge | D | M | with D-1 (clients onto lite's own routes) |
+| A2 native:entry -> edge_store_words | D | S | the query store's words: a seam, or the edge's own native target |
+| A3 query-store:page_entry guard | F | S | add QueriesPage to the hosts' rule |
+| A4 the shipped root (EdgeServer) | the user | S | a ruling |
+| A5 core_tests_lib / test_cases off the edge | E-Java | M | in flight (Phase 7 build half) |
+| A6 seam_benchmark, data_delivery_matrix_postgres_test | E-Java | S | with A5 |
+| B1 PlanStyle members review | D | M | Phase 7 guard review: each a ruled seam or behind `facet` |
+| B2-B5 engine plan text (UpstreamPlans, EngineTextDialect, RawSqlBoundary, withEngineText, tdsBuilder, executionTraceID) | E-SQL | L | in flight (Phase 6) |
+| B6 PurePrint (E-SQL, Phase 6), UpstreamRelationType (D) | E-SQL / D | S each | + a guard row each |
+| B7 PureV1Api / :pure_v1 out of the product's plan side | D | L | in flight (pure/v1 build) |
+| B8 the seven edge-only SqlFn nodes: guard now | F | S | a census test (emitting sites, product refusal) |
+| B8 the same: their final home (edge lowering variants vs refused nodes) | D | M | after 4b/5 |
+| B9 renderer hooks and print passes | D | M | FloatPrintText/DateTimePrintText go after 4b/5 |
+| B10 TDSNull literals: guard now | F | S | into CSG with owner rows |
+| B10 the same: moved | E-Java (judges) / D (Render, Scalars) | M | |
+| B11 +0000 (LiteralSpelling x7, TestDataPlanner, Verdicts) | D / E-Java | M | |
+| B12 Repr / format %r (2b) | E-Java then F | S (F's part) | waits on the sentence table |
+| B13 testdatagen COMPAT / EngineTextDialect | D | M | |
+| B14 EngineQuirks | the user | S | a ruling, then S-M |
+| C1 COMPILED_PURE_COMPAT branches: guard now | F | S | into CSG's symbols |
+| C1 the same: moved to the edge | E-Java | L | 10 files |
+| C2 referee and appeals: guard now | F | S | an AT rule: reachable only from the edge or the test door |
+| C2 the same: moved to the edge | E-Java | L | G6 |
+| C3 engine-text verdict records | E-Java | M | in flight (4a follow-on) |
+| C5 judges' canons and messages | E-Java | L | in flight (4b) |
+
+F's own queue from this list (all S, all guards): A3, B8, B10, C1, C2.
