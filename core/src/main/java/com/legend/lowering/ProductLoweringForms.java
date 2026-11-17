@@ -40,4 +40,10 @@ public final class ProductLoweringForms implements LoweringForms {
     public SqlSelect executeValues(Supplier<SqlSelect> array, Supplier<SqlSelect> oneBare) {
         return array.get();
     }
+
+    /** No connection: the reference names none it was not made from. */
+    @Override
+    public String objectReferenceConnection() {
+        return "";
+    }
 }
