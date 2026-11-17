@@ -2476,6 +2476,7 @@ junit_test(
     data = [
         "BUILD.bazel",
         "edge_tests.bzl",
+        "//gates:BUILD.bazel",
         "src/main/java/com/legend/compiler/spec/LiteralUnroll.java",
         "src/main/java/com/legend/edge/PureText.java",
         ":guardrails_sources",
@@ -2485,6 +2486,7 @@ junit_test(
     jvm_flags = [
         "-Dcore.build_file=$(rlocationpath BUILD.bazel)",
         "-Dcore.edge_tests_bzl=$(rlocationpath edge_tests.bzl)",
+        "-Dcore.gates_build_file=$(rlocationpath //gates:BUILD.bazel)",
         "-Dcore.literal_unroll=$(rlocationpath src/main/java/com/legend/compiler/spec/LiteralUnroll.java)",
         "-Dcore.duckdb_dialect=$(rlocationpath src/main/java/com/legend/edge/PureText.java)",
         "-Dlegend.sources=$(rlocationpath :guardrails_sources)",

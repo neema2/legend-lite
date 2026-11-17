@@ -243,10 +243,11 @@ class PlannerSurfaceTest {
             door("hashBootSource"),
             door("resolveBootLayer"),
             door("zoneProbe", p("utcIso", VALUE), p("zone", NAME)),
-            // a host's model text held for the call (the Java hosts' door, d-int6): its compiled model handed back
+            // a model text held for one call, its compiled model handed to the callback (how the edge's boundary shares
+            // the host's models, d-int6)
             door("withModelText", p("text", MODEL_TEXT), new Param("use", java.util.function.Function.class, CALLBACK)),
-            // the Python host's parse, print, relation-type and model-element doors (H4, on d-int6; listed here as
-            // drift, 2026-11-17 -- the Python session's own rows replace these at D's union)
+            // lite's own parse, print, relation-type and model-element operations for the tab and Python (D-1/A1, on
+            // d-int6; listed here as drift, 2026-11-17 -- the host sessions' own rows replace these at D's union)
             door("modelElements", p("text", MODEL_TEXT), flag("sourceInformation")),
             door("parseLambda", p("text", LAMBDA), flag("sourceInformation")),
             door("printLambda", p("lambdaJson", LAMBDA), p("style", OPTION)),
@@ -260,6 +261,57 @@ class PlannerSurfaceTest {
             "executeArrowAnswer");
 
     private static final String EDGE_BOUNDARY_SOURCE = "wasm/src/edge/java/com/legend/edge/wasm/EdgeBoundary.java";
+
+    /** What is wrong with the edge's doors in {@code edgeSource} (the edge's boundary, read as text: no product target
+     *  carries its class): a public static no {@link #EDGE_DOORS} entry names, an entry it does not declare or
+     *  {@code boundary} does not list, and a door whose parameters' types differ from its row (the review of 589168a9b3,
+     *  2026-11-17). */
+    static List<String> edgeDoorViolations(String edgeSource, Map<String, Door> boundary) {
+        List<String> out = new ArrayList<>();
+        Map<String, List<String>> declared = new TreeMap<>();
+        Matcher m = Pattern.compile("public static [\\w.<>\\[\\], ]+? (\\w+)\\(([^)]*)\\)").matcher(edgeSource);
+        while (m.find()) {
+            List<String> types = new ArrayList<>();
+            for (String param : m.group(2).split(",")) {
+                String p = param.strip();
+                if (!p.isEmpty()) {
+                    String type = p.substring(0, p.lastIndexOf(' ')).strip().replaceAll("<.*>", "");
+                    types.add(type.substring(type.lastIndexOf('.') + 1));
+                }
+            }
+            declared.put(m.group(1), types);
+        }
+        declared.keySet().stream().filter(n -> !EDGE_DOORS.contains(n))
+                .forEach(n -> out.add("an edge boundary door no EDGE_DOORS entry names: " + n));
+        for (String name : new TreeSet<>(EDGE_DOORS)) {
+            if (!declared.containsKey(name)) {
+                out.add("an edge door the edge's boundary no longer has: " + name);
+            } else if (!boundary.containsKey(name)) {
+                out.add("an edge door no row lists: " + name);
+            } else if (!declared.get(name).equals(boundary.get(name).params().stream()
+                    .map(p -> p.type().getSimpleName()).toList())) {
+                out.add("an edge door's parameters differ from its row: " + name + " " + declared.get(name));
+            }
+        }
+        return out;
+    }
+
+    /** Planted: an edge door whose parameters changed, a public static no entry names and an entry the source lost are
+     *  each named; the real source is clean. */
+    @Test
+    void theEdgeDoorsAreChecked() {
+        String planted = "class EdgeBoundary {\n"
+                + "    public static Answer pureV1(String path, String rawQuery, String body) {}\n"
+                + "    public static Answer executePlan(String body) {}\n"
+                + "    public static Answer executeJsonPlan(String body, String modelsJson) {}\n"
+                + "    public static Answer executeJsonAnswer(String plan, String rows) {}\n"
+                + "    public static Answer runSqlHere(String sql) {}\n}\n";
+        assertEquals(List.of("an edge boundary door no EDGE_DOORS entry names: runSqlHere",
+                "an edge door the edge's boundary no longer has: executeArrowAnswer",
+                "an edge door's parameters differ from its row: executePlan [String]"),
+                edgeDoorViolations(planted, BOUNDARY));
+        assertEquals(List.of(), edgeDoorViolations(read(EDGE_BOUNDARY_SOURCE), BOUNDARY));
+    }
 
     /** THE HOST OPERATIONS' FIELDS ({@code HostOperationsJson}: every operation closed by its {@code op}). */
     static final Map<String, Kind> HOST_OPERATION_FIELDS = new TreeMap<>(fields("op", OPTION, "kind", OPTION,
@@ -290,8 +342,8 @@ class PlannerSurfaceTest {
             Map.entry("sessionSetupOrError", "sessionSetup"), Map.entry("hostOperationsOrError", "hostOperations"),
             Map.entry("projectDataOrError", "projectData"), Map.entry("warmModel", "warmModel"),
             Map.entry("warmModelOrError", "warmModel"), Map.entry("touchPrelude", "touchPrelude"),
-            // the tab's exports of the Python host's doors (on d-int6, 2026-11-17: drift; the DataCube session's rows
-            // replace these at D's union)
+            // the tab's exports of lite's own parse, print, relation-type and model-element doors (on d-int6,
+            // 2026-11-17: drift; the DataCube session's rows replace these at D's union)
             Map.entry("modelElementsOrError", "modelElements"), Map.entry("parseLambdaOrError", "parseLambda"),
             Map.entry("printLambdaOrError", "printLambda"),
             Map.entry("lambdaRelationTypeOrError", "lambdaRelationType"),
@@ -367,16 +419,16 @@ class PlannerSurfaceTest {
     static final Map<String, Map<String, Kind>> SERVER_FIELDS = new TreeMap<>(Map.of(
             // the pure/v1 routes; planned.* are read of the plan half a host hands back with its rows (jsonAnswer,
             // its variable `planned`): the planner's own, echoed into the answer, never sent
-            // (body, fullPath, genericType, lowerBound, multiplicity, name, parameters, rawType, upperBound, value: no
-            // longer read by LiteV1Api -- upstream's ExecuteInput binding moved to the edge, edge.ExecuteInputs, B7's
-            // split; the drift found on d-int6, 2026-11-17)
-            "LiteV1Api.java", new TreeMap<>(fields("_type", OPTION, "planned.activities", PLAN_DATA,
+            // (body, fullPath, genericType, lowerBound, multiplicity, name, parameters, rawType, upperBound, value: read
+            // by upstream's ExecuteInput binding, which moved to the edge with B7's split -- edge.ExecuteInputs, read as
+            // part of this surface by routeFiles(), 2026-11-17)
+            "LiteV1Api.java", new TreeMap<>(fields("_type", OPTION, "planned.activities", PLAN_DATA, "body", LAMBDA,
                     "planned.builder", PLAN_DATA, "code", MODEL_TEXT, "planned.columns", PLAN_DATA, "connectionValue",
-                    OBJECT, "planned.execution", PLAN_DATA, "function", LAMBDA,
-                    "lambda", LAMBDA, "model", MODEL_TEXT,
-                    "parameterValues", VALUE, "renderStyle", OPTION,
+                    OBJECT, "planned.execution", PLAN_DATA, "fullPath", NAME, "function", LAMBDA, "genericType", OBJECT,
+                    "lambda", LAMBDA, "lowerBound", VALUE, "model", MODEL_TEXT, "multiplicity", OBJECT, "name", NAME,
+                    "parameterValues", VALUE, "parameters", LAMBDA, "rawType", NAME, "renderStyle", OPTION,
                     "planned.resultColumns", PLAN_DATA, "runtime", NAME, "serializationFormat", OPTION,
-                    "planned.shape", PLAN_DATA, "planned.sql", PLAN_DATA,
+                    "planned.shape", PLAN_DATA, "planned.sql", PLAN_DATA, "upperBound", VALUE, "value", VALUE,
                     // merged main 3a217086a (#81), 2026-11-14: tsItem's one #TS item, a query's text core's parser reads
                     "text", LAMBDA)),
             "TestDataRoutes.java", new TreeMap<>(fields("_type", OPTION, "columnValuePairs", OBJECT, "function",
@@ -885,13 +937,7 @@ class PlannerSurfaceTest {
                 out.add("a door no row lists: " + boundary.getSimpleName() + "." + name);
             }
         }
-        String edgeBoundary = read(EDGE_BOUNDARY_SOURCE);
-        for (String name : EDGE_DOORS) {
-            if (!BOUNDARY.containsKey(name) || !edgeBoundary.contains("public static ")
-                    || !Pattern.compile("public static [\\w.<>, ]+ " + name + "\\(").matcher(edgeBoundary).find()) {
-                out.add("an edge door no longer the edge's boundary's, or unlisted: " + name);
-            }
-        }
+        out.addAll(edgeDoorViolations(read(EDGE_BOUNDARY_SOURCE), BOUNDARY));
         for (Door d : BOUNDARY.values()) {
             Method m = found.get(d.name());
             if (m == null) {
@@ -1658,9 +1704,12 @@ class PlannerSurfaceTest {
         }
         // W8 (docs/records/d-plan-2026-11-16.md, 2026-11-16): the host answer halves (arrowPlan, jsonPlan, jsonAnswer)
         // moved to the edge's HostAnswers; read as part of the same surface, so its planned.* reads stay censused
+        // and upstream's ExecuteInput binding, moved to the edge with B7's split (edge.ExecuteInputs, which
+        // PureV1Routes, HostAnswers and TestDataRoutes call): its reads stay censused here (the review of 589168a9b3)
         out.put("LiteV1Api.java", out.get("LiteV1Api.java") + "\n"
                 + read("core/src/main/java/com/legend/edge/PureV1Routes.java") + "\n"
-                + read("core/src/main/java/com/legend/edge/HostAnswers.java"));
+                + read("core/src/main/java/com/legend/edge/HostAnswers.java") + "\n"
+                + read("core/src/main/java/com/legend/edge/ExecuteInputs.java"));
         return out;
     }
 

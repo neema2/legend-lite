@@ -108,11 +108,94 @@ class TaggedClassesHaveATargetTest {
         return out.toString();
     }
 
+    /** JUnitMain's class-name filter when a target names none (the console launcher's standard include pattern). */
+    static final Pattern STANDARD_NAMES = Pattern.compile("^(Test.*|.+[.$]Test.*|.*Tests?)$");
+
+    /** A test target of the build file: its name and its text, comment lines left out. */
+    record Target(String name, String text) {
+        boolean manual() {
+            Matcher m = Pattern.compile("tags\\s*=\\s*\\[([^\\]]*)\\]").matcher(text);
+            return m.find() && m.group(1).contains("\"manual\"");
+        }
+
+        /** Whether the target leaves {@code tag} out: its exclude_tags lists it, or names a list (core's
+         *  _CORE_TEST_EXCLUDED_TAGS) that does. */
+        boolean drops(String tag, String build) {
+            Matcher m = Pattern.compile("exclude_tags\\s*=\\s*(\\[[^\\]]*\\]|\\w+)").matcher(text);
+            if (!m.find()) {
+                return false;
+            }
+            String list = m.group(1);
+            if (!list.startsWith("[")) {
+                Matcher v = Pattern.compile("\\n" + Pattern.quote(list) + "\\s*=\\s*\\[(.*?)\\n\\]", Pattern.DOTALL)
+                        .matcher(build);
+                list = v.find() ? v.group(1) : "";
+            }
+            return list.contains("\"" + tag + "\"");
+        }
+
+        /** Whether the target's tag filter admits {@code tag}: no --include-tag, or one naming it. */
+        boolean admits(String tag) {
+            return !text.contains("--include-tag=") || text.contains("\"--include-tag=" + tag + "\"");
+        }
+
+        /** Whether one of the target's literal --exclude-classname or --exclude-package arguments drops {@code cls}. */
+        boolean excludes(String cls) {
+            Matcher m = Pattern.compile("\"--exclude-classname=([^\"]+)\"").matcher(text);
+            while (m.find()) {
+                if (cls.matches(m.group(1))) {
+                    return true;
+                }
+            }
+            Matcher p = Pattern.compile("\"--exclude-package=([^\"]+)\"").matcher(text);
+            while (p.find()) {
+                if (cls.startsWith(p.group(1) + ".")) {
+                    return true;
+                }
+            }
+            return false;
+        }
+    }
+
+    /** Every simple {@code junit_test} of {@code build}, comment lines left out (a list comprehension's are not
+     *  read: a class only one of those selects is named an orphan, loudly). */
+    static List<Target> targets(String build) {
+        List<Target> out = new ArrayList<>();
+        Matcher m = Pattern.compile("\\njunit_test\\(\\n\\s*name = \"([\\w-]+)\",(.*?)\\n\\)", Pattern.DOTALL)
+                .matcher(build);
+        while (m.find()) {
+            StringBuilder text = new StringBuilder();
+            for (String line : m.group(2).split("\\n")) {
+                if (!line.strip().startsWith("#")) {
+                    text.append(line.replaceFirst("\\s#\\s.*$", "")).append('\n');
+                }
+            }
+            out.add(new Target(m.group(1), text.toString()));
+        }
+        return out;
+    }
+
+    /** Whether {@code t} selects {@code cls}: by name, by the edge's selector (an edge class named *Test), or by the
+     *  com.legend package over the product's test library (a class it carries). */
+    static boolean selects(Target t, String cls, String rel, boolean inEdge, String library) {
+        if (t.text().contains("\"--select-class=" + cls + "\"")) {
+            return true;
+        }
+        if (inEdge) {
+            return t.text().contains("edge_test_classes()") && cls.endsWith("Test");
+        }
+        return t.text().contains("\"--select-package=com.legend\"") && t.text().contains("\":core_tests_lib\"")
+                && cls.startsWith("com.legend.") && !library.isEmpty() && !excluded(rel, library);
+    }
+
     /** Each class of {@code sources} ("core/src/test/java/..." -> text) tagged census or guardrail that no target of
-     *  {@code build} selects, "path [tag]: why". */
-    static List<String> orphans(Map<String, String> sources, Set<String> edge, String build) {
+     *  {@code build} runs in the gate ({@code gates}, gates/BUILD.bazel's text): one that selects it, is not manual, is
+     *  listed in the gate, admits and does not drop the tag, excludes neither the class nor its package, and whose
+     *  runner's name filter admits the class -- "path [tag]: why". */
+    static List<String> orphans(Map<String, String> sources, Set<String> edge, String build, String gates) {
         List<String> out = new ArrayList<>();
         String library = block(build, "core_tests_lib");
+        List<Target> targets = targets(build);
         new TreeMap<>(sources).forEach((path, text) -> {
             if (!path.startsWith(TEST_ROOT) || !path.endsWith(".java")) {
                 return;
@@ -125,26 +208,13 @@ class TaggedClassesHaveATargetTest {
                 tags.add(m.group(1));
             }
             for (String tag : tags) {
-                if (build.contains("\"--select-class=" + cls + "\"")) {
-                    continue;
-                }
                 boolean inEdge = edge.contains(rel);
-                String why;
-                if (inEdge) {
-                    String target = tag.equals("census") ? block(build, "census_edge") : block(build, "guardrails_edge");
-                    boolean byTag = target.contains("edge_test_classes()") && target.contains("\"--include-tag=" + tag
-                            + "\"") && cls.endsWith("Test");
-                    why = byTag ? null : "in the edge's test library, selected by no target (census_edge selects the"
-                            + " edge's *Test classes by tag; guardrails_edge names each class)";
-                } else {
-                    String target = block(build, tag.equals("census") ? "census" : "guardrails");
-                    boolean byTag = target.contains("\"--select-package=com.legend\"") && target.contains(
-                            "\"--include-tag=" + tag + "\"") && target.contains("\":core_tests_lib\"")
-                            && cls.startsWith("com.legend.") && !library.isEmpty() && !excluded(rel, library);
-                    why = byTag ? null : "in no library a target selects by tag, and named by no target";
-                }
-                if (why != null) {
-                    out.add(path + " [" + tag + "]: " + why);
+                boolean runs = STANDARD_NAMES.matcher(cls).matches() && targets.stream().anyMatch(t -> selects(t, cls,
+                        rel, inEdge, library) && !t.manual() && gates.contains("\"//core:" + t.name() + "\"")
+                        && t.admits(tag) && !t.drops(tag, build) && !t.excludes(cls));
+                if (!runs) {
+                    out.add(path + " [" + tag + "]: " + (inEdge ? "in the edge's test library" : "in the product's test"
+                            + " library") + ", run by no gate target");
                 }
             }
         });
@@ -154,7 +224,13 @@ class TaggedClassesHaveATargetTest {
     @Test
     void everyTaggedClassIsSelectedBySomeTarget() {
         String build = read(Runfile.property("core.build_file"));
+        String gates = read(Runfile.property("core.gates_build_file"));
         Set<String> edge = edgeSources(read(Runfile.property("core.edge_tests_bzl")));
+        // the parse reads the real file (a broken exclude-list parse would fail open: the review of e8bd35d19d)
+        assertTrue(excluded("src/test/java/com/legend/server/PostgresArmTest.java", block(build, "core_tests_lib")),
+                "core_tests_lib's exclude list is read");
+        assertTrue(targets(build).stream().anyMatch(t -> t.name().equals("census_edge"))
+                && targets(build).stream().anyMatch(t -> t.name().equals("guardrails_edge")), "the targets are read");
         Map<String, String> sources = new TreeMap<>();
         for (Path p : SourceFiles.under("core/src/test/java")) {
             String path = SourceFiles.path(p);
@@ -165,52 +241,79 @@ class TaggedClassesHaveATargetTest {
         long tagged = sources.values().stream().filter(t -> TAG.matcher(t).find()).count();
         assertTrue(tagged > 50 && edge.size() > 50, "the tagged classes and the edge's sources are read: " + tagged
                 + ", " + edge.size());
-        assertEquals(List.of(), orphans(sources, edge, build), "a census or guardrail class runs in no target: select it"
-                + " (census_edge or guardrails_edge for the edge's library, census or guardrails for the product's)");
+        assertEquals(List.of(), orphans(sources, edge, build, gates), "a census or guardrail class runs in no gate"
+                + " target: select it (census_edge or guardrails_edge for the edge's library, census or guardrails for"
+                + " the product's) in a target the gate lists");
     }
 
-    /** Planted: an edge census class not named *Test, an edge guardrail class no target names, a product census class
-     *  its library leaves out, are each named; the same classes selected are not. */
+    private static String junit(String name, String body) {
+        return "\njunit_test(\n    name = \"" + name + "\",\n" + body + "\n)\n";
+    }
+
+    /** Planted: each way a class can be selected and still not run is named -- an edge census class not named *Test,
+     *  an edge guardrail class no target names, a product class its library excludes, a class named only by a manual
+     *  target, by a target the gate does not list, by a target dropping its tag, by a target excluding its name, by a
+     *  commented-out line, and a class name the runner's filter skips; the same classes properly selected are not. */
     @Test
     void theCheckBites() {
-        String build = "\njunit_test(\n    name = \"census\",\n    select = [\"--select-package=com.legend\","
-                + " \"--include-tag=census\"],\n    runtime_deps = [\":core_tests_lib\"],\n)\n"
-                + "\njunit_test(\n    name = \"guardrails\",\n    select = [\"--select-package=com.legend\","
-                + " \"--include-tag=guardrail\"],\n    runtime_deps = [\":core_tests_lib\"],\n)\n"
-                + "\nlegend_java_library(\n    name = \"core_tests_lib\",\n    srcs = glob(\n        [\"src/test/java/**/*.java\"],"
-                + "\n        exclude = [\n            \"src/test/java/com/legend/slow/*.java\",\n        ] + EDGE_TEST_SRCS,\n    ),\n)\n"
-                + "\njunit_test(\n    name = \"census_edge\",\n    select = edge_test_classes() +"
-                + " [\"--include-tag=census\"],\n)\n"
-                + "\njunit_test(\n    name = \"guardrails_edge\",\n    select = [\n"
-                + "        \"--select-class=com.legend.EdgeGuardTest\",\n    ],\n)\n"
-                + "\njunit_test(\n    name = \"slow_census\",\n    select = [\"--select-class=com.legend.slow.KeptTest\"],\n)\n";
+        String build = "\n_CORE_TEST_EXCLUDED_TAGS = [\n    \"census\",\n    \"guardrail\",\n]\n"
+                + junit("census", "    select = [\"--select-package=com.legend\", \"--include-tag=census\"],\n"
+                        + "    runtime_deps = [\":core_tests_lib\"],")
+                + junit("guardrails", "    select = [\"--select-package=com.legend\", \"--include-tag=guardrail\"],\n"
+                        + "    runtime_deps = [\":core_tests_lib\"],")
+                + "\nlegend_java_library(\n    name = \"core_tests_lib\",\n    srcs = glob(\n"
+                + "        [\"src/test/java/**/*.java\"],\n        exclude = [\n"
+                + "            \"src/test/java/com/legend/slow/*.java\",\n        ] + EDGE_TEST_SRCS,\n    ),\n)\n"
+                + junit("census_edge", "    select = edge_test_classes() + [\"--include-tag=census\"],\n"
+                        + "    tags = [\"edge_test\"],")
+                + junit("guardrails_edge", "    select = [\n        \"--select-class=com.legend.EdgeGuardTest\",\n"
+                        + "        # \"--select-class=com.legend.CommentedGuardTest\",\n    ],")
+                + junit("slow_census", "    select = [\"--select-class=com.legend.slow.KeptTest\"],")
+                + junit("probe", "    select = [\"--select-class=com.legend.slow.ManualOnlyTest\"],\n"
+                        + "    tags = [\"manual\"],")
+                + junit("off_gate", "    select = [\"--select-class=com.legend.slow.OffGateTest\"],")
+                + junit("dropping", "    select = [\"--select-class=com.legend.slow.DroppedTest\"],\n"
+                        + "    exclude_tags = _CORE_TEST_EXCLUDED_TAGS,")
+                + junit("excluding", "    select = [\"--select-class=com.legend.slow.NamedOutTest\","
+                        + " \"--exclude-classname=.*NamedOutTest\"],");
+        String gates = "\"//core:census\", \"//core:guardrails\", \"//core:census_edge\", \"//core:guardrails_edge\","
+                + " \"//core:slow_census\", \"//core:probe\", \"//core:dropping\", \"//core:excluding\"";
         Set<String> edge = Set.of("src/test/java/com/legend/EdgeCensusCheck.java",
                 "src/test/java/com/legend/EdgeCensusTest.java", "src/test/java/com/legend/EdgeGuardTest.java",
-                "src/test/java/com/legend/OrphanGuardTest.java");
+                "src/test/java/com/legend/OrphanGuardTest.java", "src/test/java/com/legend/CommentedGuardTest.java");
         String census = "@Tag(\"census\") class X {}";
         String guard = "@Tag(\"guardrail\") class X {}";
-        Map<String, String> sources = Map.of(
-                TEST_ROOT + "com/legend/EdgeCensusCheck.java", census,
-                TEST_ROOT + "com/legend/EdgeCensusTest.java", census,
-                TEST_ROOT + "com/legend/EdgeGuardTest.java", guard,
-                TEST_ROOT + "com/legend/OrphanGuardTest.java", guard,
-                TEST_ROOT + "com/legend/ProductCensusTest.java", census,
-                TEST_ROOT + "com/legend/slow/LeftOutTest.java", census,
-                TEST_ROOT + "com/legend/slow/KeptTest.java", census,
-                TEST_ROOT + "com/legend/Untagged.java", "class U {}");
-        List<String> found = orphans(sources, edge, build);
+        Map<String, String> sources = new TreeMap<>();
+        for (String c : List.of("EdgeCensusCheck", "EdgeCensusTest", "ProductCensusTest", "slow/LeftOutTest",
+                "slow/KeptTest", "slow/ManualOnlyTest", "slow/OffGateTest", "slow/DroppedTest", "slow/NamedOutTest")) {
+            sources.put(TEST_ROOT + "com/legend/" + c + ".java", census);
+        }
+        for (String c : List.of("EdgeGuardTest", "OrphanGuardTest", "CommentedGuardTest", "ProductGuard",
+                "ProductGuardTest")) {
+            sources.put(TEST_ROOT + "com/legend/" + c + ".java", guard);
+        }
+        sources.put(TEST_ROOT + "com/legend/Untagged.java", "class U {}");
         assertEquals(List.of(
-                TEST_ROOT + "com/legend/EdgeCensusCheck.java [census]: in the edge's test library, selected by no target"
-                        + " (census_edge selects the edge's *Test classes by tag; guardrails_edge names each class)",
-                TEST_ROOT + "com/legend/OrphanGuardTest.java [guardrail]: in the edge's test library, selected by no"
-                        + " target (census_edge selects the edge's *Test classes by tag; guardrails_edge names each"
-                        + " class)",
-                TEST_ROOT + "com/legend/slow/LeftOutTest.java [census]: in no library a target selects by tag, and"
-                        + " named by no target"), found);
-        assertEquals(List.of(TEST_ROOT + "com/legend/EdgeCensusTest.java [census]: in the edge's test library, selected"
-                + " by no target (census_edge selects the edge's *Test classes by tag; guardrails_edge names each"
-                + " class)"), orphans(Map.of(TEST_ROOT + "com/legend/EdgeCensusTest.java", census), edge,
-                build.replace("name = \"census_edge\"", "name = \"census_edge_gone\"")),
-                "with no census_edge target, the edge's census class is an orphan (PlannerSurfaceTest's case)");
+                TEST_ROOT + "com/legend/CommentedGuardTest.java [guardrail]: in the edge's test library, run by no gate"
+                        + " target",
+                TEST_ROOT + "com/legend/EdgeCensusCheck.java [census]: in the edge's test library, run by no gate target",
+                TEST_ROOT + "com/legend/OrphanGuardTest.java [guardrail]: in the edge's test library, run by no gate"
+                        + " target",
+                TEST_ROOT + "com/legend/ProductGuard.java [guardrail]: in the product's test library, run by no gate"
+                        + " target",
+                TEST_ROOT + "com/legend/slow/DroppedTest.java [census]: in the product's test library, run by no gate"
+                        + " target",
+                TEST_ROOT + "com/legend/slow/LeftOutTest.java [census]: in the product's test library, run by no gate"
+                        + " target",
+                TEST_ROOT + "com/legend/slow/ManualOnlyTest.java [census]: in the product's test library, run by no gate"
+                        + " target",
+                TEST_ROOT + "com/legend/slow/NamedOutTest.java [census]: in the product's test library, run by no gate"
+                        + " target",
+                TEST_ROOT + "com/legend/slow/OffGateTest.java [census]: in the product's test library, run by no gate"
+                        + " target"), orphans(sources, edge, build, gates));
+        assertEquals(List.of(TEST_ROOT + "com/legend/EdgeCensusTest.java [census]: in the edge's test library, run by no"
+                + " gate target"), orphans(Map.of(TEST_ROOT + "com/legend/EdgeCensusTest.java", census), edge, build,
+                gates.replace("\"//core:census_edge\"", "")), "with census_edge out of the gate, the edge's census class"
+                + " is an orphan (PlannerSurfaceTest's case)");
     }
 }
