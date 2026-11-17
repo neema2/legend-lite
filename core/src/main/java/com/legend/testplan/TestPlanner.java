@@ -51,13 +51,11 @@ public final class TestPlanner {
         BodyDriver.refusePlanHandlesOffTheEdge(typed, options);
         // a test-data generator the body binds planned first (B2d.2, 2026-11-11): its reads the values they are, so the
         // body is classed and planned as any other
-        // its texts print a timestamp as the body is judged (L9, the user's ruling of 2026-11-12): lite's own rules the
-        // clean form, the compatibility rules upstream's
-        com.legend.testdatagen.TestDataPlanner.Printing printing = options.judgingRules().upstreamTestDataTimestamps()
-                // asked when a timestamp is printed, never before: a body judged by the compatibility rules on a style
-                // whose facet refuses (a product-style test) plans as before unless it prints one
-                ? x -> options.style().facet(com.legend.planner.UpstreamPlans.class).testDataTimestampText().apply(x)
-                : com.legend.testdatagen.TestDataPlanner.Printing.CLEAN;
+        // its texts print a timestamp as the plan's style prints one (L9, the user's ruling of 2026-11-12; census C1,
+        // 2026-11-17: a two-form kind): the product's clean form, upstream's at the edge
+        com.legend.testdatagen.TestDataPlanner.Printing printing = options.style().twoForm(
+                com.legend.testdatagen.TestDataPlanner.Printing.class,
+                com.legend.testdatagen.TestDataPlanner.Printing.CLEAN);
         return plan(withUnreadLets(GeneratedTestData.planned(typed, dialect, runtimeFqn, printing,
                 options.style())), runtimeFqn,
                 dialect, options, facts);

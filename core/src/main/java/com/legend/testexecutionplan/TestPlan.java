@@ -443,12 +443,6 @@ public record TestPlan(List<ExecutionPlan.Parameter> parameters, List<TestStep> 
             return upstream;
         }
 
-        /** Whether a test-data generator's text prints a timestamp as upstream does: compatibility mode's; lite's
-         *  the clean form (L9, the user's ruling of 2026-11-12). */
-        public boolean upstreamTestDataTimestamps() {
-            return upstream;
-        }
-
         /** Whether a run may hear the compatibility edge's appeals: compatibility mode's alone (the user's ruling of
          *  2026-11-08, docs/PLAN_AS_DATA_2026_11_07.md 3a.3). */
         public boolean edgeAppeals() {

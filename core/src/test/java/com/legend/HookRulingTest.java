@@ -191,7 +191,9 @@ class HookRulingTest {
         // RelationCounting (census C1, 2026-11-17, register S137: the product refuses a relation counted as one, the
         // edge counts it as upstream does)
         assertEquals(List.of(com.legend.lowering.DateTimeTexts.class, com.legend.lowering.ListTexts.class,
-                com.legend.testexecutionplan.JsonGrammar.class, com.legend.compiler.spec.RelationCounting.class),
+                com.legend.testexecutionplan.JsonGrammar.class, com.legend.compiler.spec.RelationCounting.class,
+                // TestDataPlanner.Printing (census C1, 2026-11-17, L9: a test-data timestamp's text)
+                com.legend.testdatagen.TestDataPlanner.Printing.class),
                 com.legend.testplan.PlanStyleFacets.TWO_FORMS,
                 "the two-form kinds, an exact set: a kind is added here with its family and its dated reason");
         assertTrue(PlanStyle.PRODUCT.twoForm(com.legend.lowering.DateTimeTexts.class,

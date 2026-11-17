@@ -37,5 +37,8 @@ public final class PlanStyleFacets {
             com.legend.testexecutionplan.JsonGrammar.class,
             // how a test counts a relation passed to assertSize/assertEmpty/assertNotEmpty (census C1, 2026-11-17,
             // register S137): the product refuses it, the edge counts it as one value
-            com.legend.compiler.spec.RelationCounting.class);
+            com.legend.compiler.spec.RelationCounting.class,
+            // a test-data generator's timestamp text (census C1, 2026-11-17, L9): the product's clean form, the
+            // edge's legend-engine test-data CSV
+            com.legend.testdatagen.TestDataPlanner.Printing.class);
 }
