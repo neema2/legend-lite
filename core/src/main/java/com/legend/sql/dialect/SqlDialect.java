@@ -248,6 +248,15 @@ public interface SqlDialect {
         return false;
     }
 
+    /** Whether a relation a query binds by a {@code let} and reads after is KEPT: planned as a statement of its own, its
+     *  table held by the session and read by the statement after (Deephaven's: a grid's base made once on the server,
+     *  every query of the grid reading it -- docs/DEEPHAVEN_RUN_SIDE_2026_11_16.md §5; PlanMaker.keptLet). The planner
+     *  reads it; no lowering does. Default: not -- a database whose statements are SQL has the let spliced where it is
+     *  read, its SQL unchanged. */
+    default boolean keepsRelationLets() {
+        return false;
+    }
+
     /** Whether this database runs IN THIS PROCESS (an embedded engine, a private instance of which the platform opens:
      *  H2, DuckDB, SQLite) or on a SERVER: a plan writes the system metamodel store's tables as its target's setup on
      *  the one and as its sessions' own TEMPORARY tables on the other (the plan path program's step 9, 2026-10-19; until

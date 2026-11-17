@@ -1799,6 +1799,13 @@ public final class Deephaven extends AnsiSqlRenderer {
         return true;
     }
 
+    /** {@inheritDoc} A let's relation is a step of its own, the server's table of it kept by the session: a grid's base
+     *  made once, read by every query of the grid (docs/DEEPHAVEN_RUN_SIDE_2026_11_16.md §5). */
+    @Override
+    public boolean keepsRelationLets() {
+        return true;
+    }
+
     /** The Java type a Deephaven column holds a store's declared column as (DH16's one mapping): what a server's table
      *  is checked against, and what a topic's reader takes a dataset's column as (the desk roadmap's B1). A type no
      *  Deephaven column holds is refused by name. */

@@ -466,7 +466,7 @@ public final class DeephavenWire {
         return ("h/" + name).getBytes(StandardCharsets.UTF_8);
     }
 
-    private static Json.Obj ticket(byte[] bytes) {
+    static Json.Obj ticket(byte[] bytes) {
         LinkedHashMap<String, Json.Node> t = new LinkedHashMap<>();
         t.put("ticket", new Json.Str(Base64.getEncoder().encodeToString(bytes)));
         return new Json.Obj(t);

@@ -542,7 +542,13 @@ public final class PlanMaker {
             case FRAME -> throw new IllegalStateException("a let-bound execute(...) reached the planner: the"
                     + " query door refuses it, the test door's library plans it");
             case STAGED_GRID -> stagedGridLet(state, i, let);
-            case VALUE -> state.let(let);
+            case VALUE -> {
+                if (state.dialect().keepsRelationLets() && Type.isRelation(let.value().info().type())) {
+                    keptLet(state, i, let);
+                } else {
+                    state.let(let);
+                }
+            }
             case STAGED -> {
                 if (state.target().database() instanceof ExecutionPlan.Database.System
                         || kinds.targetOf(state, i, let) != null) {
@@ -558,6 +564,75 @@ public final class PlanMaker {
                 }
             }
         }
+    }
+
+    /**
+     * A KEPT LET (docs/DEEPHAVEN_RUN_SIDE_2026_11_16.md §5, 2026-11-17): on a target that keeps a let's relation as a
+     * table of its own ({@link SqlDialect#keepsRelationLets}: Deephaven), the let's rows are planned as a statement of
+     * their own -- prepared and lowered alone, so its text is the same whatever reads it (its aliases its own: the
+     * statement that reads it cannot number them) -- and the let bound to a table of them, as a staged let is
+     * ({@link StagedRows#boundTo}). Every statement after reads that table as a common table expression the target
+     * keeps ({@link #withKept}: materialized, evaluated once however often it is read), which the target's writer makes
+     * a step of its own. Nothing runs here: the plan says what is kept; a session keeps it.
+     */
+    private static void keptLet(ProgramState state, int i, TypedLet let) {
+        TypedQuery query = state.query();
+        TypedSpec rows = let.value();
+        String table = KEPT_PREFIX + let.name();
+        ProductStatements.Statement st = ProductStatements.prepare(query, with(state.lets(), rows), state.runtime(), i,
+                state.features(), state.frames());
+        state.prepared(st);
+        Prepared.Planned sp = ProductStatements.planned(st);
+        TypedLet bound = StagedRows.boundTo(let.name(), table, rows.info(),
+                StagedRows.storeOf(sp.body(), query.context(), state.runtime()), let.info());
+        if (!state.probing()) {
+            state.keep(table, state.lowered(st, false));
+        }
+        state.let(bound);
+    }
+
+    /** The name a kept let's table is read by in the statements after it: a common table expression's, under a prefix of
+     *  the platform's own, so no table of a store is named. */
+    static final String KEPT_PREFIX = "legend_kept_";
+
+    /** {@code q} reading each kept let's table ({@link ProgramState#kept}) as a common table expression the target keeps
+     *  -- materialized, at the statement's head, in the order the lets were planned, each that {@code q} or a kept one it
+     *  reads names -- where it read the table by name. {@code q} as it is where it reads none. */
+    static SqlQuery withKept(SqlQuery q, Map<String, SqlQuery> kept) {
+        if (kept.isEmpty()) {
+            return q;
+        }
+        Map<String, SqlQuery> reading = new LinkedHashMap<>();
+        kept.forEach((table, rows) -> reading.put(table, readingKept(rows, kept.keySet())));
+        SqlQuery body = readingKept(q, kept.keySet());
+        java.util.Set<String> needed = new java.util.HashSet<>();
+        java.util.Deque<SqlQuery> todo = new java.util.ArrayDeque<>();
+        todo.push(body);
+        while (!todo.isEmpty()) {
+            for (String name : cteReads(todo.pop())) {
+                if (reading.containsKey(name) && needed.add(name)) {
+                    todo.push(reading.get(name));
+                }
+            }
+        }
+        List<SqlWith.Cte> ctes = new ArrayList<>();
+        reading.forEach((table, rows) -> {
+            if (needed.contains(table)) {
+                ctes.add(new SqlWith.Cte(table, rows, true));
+            }
+        });
+        return SqlWith.prepend(ctes, body);
+    }
+
+    /** {@code q} with each read of a table of {@code tables} a read of the common table expression of its name. */
+    private static SqlQuery readingKept(SqlQuery q, java.util.Set<String> tables) {
+        return new SqlRewriter() {
+            @Override
+            protected SqlSource source(SqlSource s) {
+                return s instanceof SqlSource.Table t && tables.contains(t.name())
+                        ? new SqlSource.Cte(t.name(), t.alias(), t.outputs()) : s;
+            }
+        }.rewrite(q);
     }
 
     /** A STAGED RAW GRID (the walk deletion, 2026-11-06; the walk's since the seam program's S3c): a raw read bound by
@@ -695,7 +770,9 @@ public final class PlanMaker {
             unplannedOnTheTestDoor(st);
         }
         Prepared.Planned p = ProductStatements.planned(st);
-        Staged staged = stagedShared(dialect, state.lowered(st, last), target, state.staged().size());
+        // the kept lets it reads, at its head (keptLet)
+        Staged staged = stagedShared(dialect, withKept(state.lowered(st, last), state.kept()), target,
+                state.staged().size());
         for (String table : staged.tables()) {
             state.add(new ExecutionPlan.Effect(dropping(dialect, table, target)));
             state.add(new ExecutionPlan.Effect(staging(dialect, staged, table, target)));

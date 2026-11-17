@@ -16,6 +16,7 @@ import com.legend.sql.dialect.SqlDialect;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -45,6 +46,8 @@ public final class ProgramState {
     private final List<TypedSpec> lets = new ArrayList<>();
     private final List<PlannedStep> steps = new ArrayList<>();
     private final List<String> staged = new ArrayList<>();
+    /** The kept lets' tables, each its rows (PlanMaker.keptLet), in the order they were planned. */
+    private final Map<String, SqlQuery> kept = new java.util.LinkedHashMap<>();
     /** The program's frames (M3f): the execute(...) results its statements read, their plan rows and stamps. */
     private final ProgramFrames frames = new ProgramFrames();
     /** What the program's statements read (A5): the system metamodel store, another source -- the product's door runs a
@@ -265,6 +268,19 @@ public final class ProgramState {
     /** Records {@code table}, a staged let's temporary table, to drop once the program has answered. */
     void stage(String table) {
         staged.add(table);
+    }
+
+    /** Records {@code table}, a KEPT let's table ({@code PlanMaker.keptLet}), made by {@code rows}: the statements after
+     *  read it as a common table expression the target keeps as a table of its own. */
+    void keep(String table, SqlQuery rows) {
+        if (kept.putIfAbsent(table, rows) != null) {
+            throw new IllegalStateException("the kept let's table " + table + " is made twice in one program");
+        }
+    }
+
+    /** The kept lets' tables, each its rows, in the order they were planned (unmodifiable). */
+    Map<String, SqlQuery> kept() {
+        return java.util.Collections.unmodifiableMap(kept);
     }
 
     /** How many steps the program holds so far: the place the next {@link #add} takes in the sequence (the steps

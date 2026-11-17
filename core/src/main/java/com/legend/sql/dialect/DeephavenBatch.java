@@ -55,6 +55,9 @@ final class DeephavenBatch {
     /** Each store table the batch reads, as its store declares it (DH16): written after the operations, for the sender
      *  to check the server's table against ({@code DeephavenWire.made}). */
     private final List<String> declared = new ArrayList<>();
+    /** Each kept expression's operations, {@code [first, last]}: the materialized WITH expressions, each a table the
+     *  session keeps, a step of its own (DeephavenSteps). */
+    private final List<String> kept = new ArrayList<>();
     /** The WITH's expressions in scope, by name: each one's operation, made once, every read of it a view of that
      *  operation under the read's alias (a relation the statement reads more than once: the lowering's SharedRelations,
      *  SqlWith.SHARED_PREFIX). */
@@ -80,6 +83,9 @@ final class DeephavenBatch {
         w.append("]");
         if (!declared.isEmpty()) {
             w.append(", \"declared\": [" + String.join(", ", declared) + "]");
+        }
+        if (!kept.isEmpty()) {
+            w.append(", \"kept\": [" + String.join(", ", kept) + "]");
         }
         return w.append("}");
     }
@@ -280,7 +286,14 @@ final class DeephavenBatch {
         Map<String, Rel> outer = new LinkedHashMap<>(ctes);
         try {
             for (SqlWith.Cte c : with.ctes()) {
-                ctes.put(c.name(), query(c.query()));
+                int first = ops;
+                Rel made = query(c.query());
+                // a materialized expression is a table of its own, which the session keeps (a kept let:
+                // PlanMaker.keptLet): its operations a step of their own, cut out by DeephavenSteps
+                if (c.materialized()) {
+                    kept.add("[" + first + ", " + made.op() + "]");
+                }
+                ctes.put(c.name(), made);
             }
             return query(with.body());
         } finally {
