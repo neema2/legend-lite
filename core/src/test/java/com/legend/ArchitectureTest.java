@@ -1378,7 +1378,9 @@ final class ArchitectureTest {
             "lowering.DateTimeTexts#dateTimeText(com.legend.sql.SqlExpr, java.lang.String)",
             "com.legend.edge.EdgePureOnlyTexts",
             "lowering.Styled#dateTimes()", "com.legend.edge.EdgePureOnlyTexts",
-            // the test door's options, from the root's ExecuteOptions: planning's half, a record of closed words
+            // the test door's options, from the root's ExecuteOptions: planning's half, a record of closed words (its
+            // PlanStyle parameter 2026-11-15, phase D's D1.0, merged with main's #101 in ca5c4338f9; dated 2026-11-17 by
+            // the GUARD stream's C.13-CI, which found the row changed with no note)
             "testplan.PlanningOptions#<init>(com.legend.testexecutionplan.Edge, com.legend.executionplan.DataStores, "
                     + "java.util.Set, com.legend.testplan.PlanningOptions$JudgeMode, "
                     + "com.legend.testexecutionplan.TestPlan$JudgingRules, java.util.Set, com.legend.database.PlanStyle)",
@@ -1397,12 +1399,14 @@ final class ArchitectureTest {
             "com.legend.ExecuteOptions",
             "testplan.PlanningOptions#withOptions(java.util.Set)", "com.legend.ExecuteOptions",
             "testplan.PlanningOptions$JudgeMode#HOST", "com.legend.ExecuteOptions",
-            // the test-data routes (edge.TestDataRoutes since phase D's D1.0b): the raw-SQL refusal of a typed query,
-            // and the seed's one entry, which refuses
+            // the test-data routes (edge.TestDataRoutes since phase D's D1.0b, merged 2026-11-15 in ca5c4338f9: the
+            // callers moved from server.TestDataRoutes; dated 2026-11-17 by C.13-CI): the raw-SQL refusal of a typed
+            // query, and the seed's one entry, which refuses
             "planner.ProductStatements#lowerTestDataSeed(com.legend.TypedQuery, java.lang.String)",
             "com.legend.edge.TestDataRoutes",
             "planner.QueryDoor#refuseRawSql(com.legend.TypedQuery)", "com.legend.edge.TestDataRoutes",
             // the planning observer (E-1's capture hook), from the root's Compiler and TypedQuery: told, never asked
+            // (listed 2026-11-15 with the merge of main's #101, c2d5fa3650; dated 2026-11-17 by C.13-CI)
             "planner.PlanningObserver#installed()", "com.legend.Compiler com.legend.TypedQuery",
             "planner.PlanningObserver#modelCompiled(com.legend.compiler.element.ModelContext, java.lang.String)",
             "com.legend.Compiler",

@@ -10,6 +10,7 @@ load("//tools/java:defs.bzl", "legend_java_library")
 load("//tools/java_run:defs.bzl", "java_run")
 load("//tools/junit:defs.bzl", "junit_test")
 load("//tools/platforms:defs.bzl", "COMPILER_LIBRARY_PLATFORMS", "platform_select")
+load("@rules_python//python:py_test.bzl", "py_test")
 
 # Every package's files (guards_package), from the inventory's package list: a package without guards_package()
 # fails analysis here (G0, Bazel workplan P6-00).
@@ -331,3 +332,36 @@ exports_files(
 )
 
 guards_package()
+
+# SHRINK-ONLY, BY THE MERGE-BASE (the edge audit's C.11, second half; the GUARD stream's C.13-CI, the orchestrator's GO of
+# 2026-11-17): a watched pin of a guard file grows (an entry added, a number raised) only with a dated note. The reader and
+# the rule on planted pins, hermetic, in the checks lane:
+py_test(
+    name = "shrink_only_test",
+    size = "small",
+    srcs = [
+        "shrink_only.py",
+        "shrink_only_test.py",
+    ],
+    main = "shrink_only_test.py",
+    visibility = ["//gates:__pkg__"],
+)
+
+# ... and the check itself, HEAD against its merge-base with origin/main: it reads the repository's history, so it runs
+# outside the sandbox (local) and by name (manual: //gates:local lists it, and so does //gates:heavy for the lane guard);
+# CI runs the same script in gate.yml's shrink-only job, on a full clone
+py_test(
+    name = "shrink_only_check",
+    size = "small",
+    srcs = ["shrink_only.py"],
+    args = [
+        "--base",
+        "origin/main",
+    ],
+    main = "shrink_only.py",
+    tags = [
+        "local",
+        "manual",
+    ],
+    visibility = ["//gates:__pkg__"],
+)

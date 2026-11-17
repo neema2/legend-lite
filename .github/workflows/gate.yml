@@ -115,6 +115,22 @@ jobs:
       platform: linux-arm
       gates: warehouse
 
+  # SHRINK-ONLY, BY THE MERGE-BASE (the edge audit's C.11, second half; the GUARD stream's C.13-CI, the orchestrator's GO
+  # of 2026-11-17): a guard file's pin -- an allowlist entry, a ceiling, a ledger row -- grows only with a dated note, read
+  # against the merge-base with main (tools/guards/shrink_only.py; //gates:local runs the same check by name,
+  # //tools/guards:shrink_only_check). A plain script on a full clone: it reads history, which a lane's checkout does not
+  # hold. On main itself the merge-base is HEAD, so it reads nothing grown.
+  shrink-only:
+    name: guard pins shrink only
+    if: ${{ github.event_name != 'workflow_dispatch' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - run: python3 tools/guards/shrink_only.py --base origin/main
+
   # THE ONE REQUIRED CHECK (Bazel workplan P0-14, D17): main's ruleset requires this job, not the ~50 lane
   # jobs, whose names move with every lane change. It fails unless every job above succeeded. It does not
   # run on workflow_dispatch: a dispatch can choose a subset of lanes or platforms, and its green would
@@ -122,7 +138,7 @@ jobs:
   green:
     name: gates green
     if: ${{ always() && github.event_name != 'workflow_dispatch' }}
-    needs: [linux, macos, windows, linux-arm]
+    needs: [linux, macos, windows, linux-arm, shrink-only]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:

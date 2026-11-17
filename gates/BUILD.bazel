@@ -127,6 +127,8 @@ test_suite(
         "//tools/deps:core_layering_test",
         # the product's tests reach no edge (F's census lines A5 and A6, 2026-11-17)
         "//tools/deps:edge_separation_closure_test",
+        # the shrink-only reader and rule on planted pins (the GUARD stream's C.13-CI, 2026-11-17)
+        "//tools/guards:shrink_only_test",
         # the TypeScript hosts' layers (C5-T, 2026-11-15): records, run, planner, server, doors, pinned as core's are
         "//tools/deps:ts_layering_test",
         # each TypeScript run and planner layer typechecked alone (C5-T, 2026-11-15: the rule that replaces the run wall)
@@ -521,6 +523,9 @@ test_suite(
         # the product's raise text on each external database (PR #104's fix round, 2026-11-15): manual, external and
         # local, one database a run (LEGENDLITE_PROBE_DATABASE)
         "//core:product_raise_probe",
+        # the shrink-only check against the merge-base with origin/main (C.13-CI, 2026-11-17): it reads the repository's
+        # history, so it is //gates:local's and CI's gate.yml job's, by name; listed here for the lane guard
+        "//tools/guards:shrink_only_check",
     ],
 )
 
@@ -552,6 +557,9 @@ test_suite(
         # snapshot's pull -- ran in the warehouse lane alone; it shares the native library and the bundle the lanes
         # above build
         "//python:headless_test",
+        # 2026-11-17 (the GUARD stream's C.13-CI, the orchestrator's GO): a guard file's pin grows only with a dated note,
+        # read against the merge-base with origin/main (tools/guards/shrink_only.py; manual, so listed by name)
+        "//tools/guards:shrink_only_check",
     ],
 )
 
