@@ -7,8 +7,9 @@
 //   planner asks Python for the plan, which Python makes against the model it holds and runs on its DuckDB in the same
 //   call (`plan-and-run.json`), and the page reads the rows typed by that plan, as the tab reads its own; its dry run
 //   (the compile check) is that call's planning half (`plan.json`). A question about the Pure query alone -- a grid's
-//   columns, a parse, a print -- is legend-engine's own route (`/api/pure/v1/...`), which Python answers as every Legend
-//   server does (§15.2, as amended 2026-10-15: no worker messages carried over HTTP).
+//   columns, a parse, a print -- is legend-lite's own route (`/api/lite/v1/...`; the edge audit's H2, 2026-11-17: until
+//   then legend-engine's `/api/pure/v1/...`), which Python answers (§15.2, as amended 2026-10-15: no worker messages
+//   carried over HTTP).
 // - THE DATA IN is Python's frames: each a model Python wrote when the frame was registered (`cube.json?table=`).
 // - PYTHON IS ANOTHER EDITOR of what the page shows (§5): it changes the page (`ll.Page`) and its frames, the page
 //   follows their versions (`version.json`, or the widget's), and it writes the edits it made, each a command, against
@@ -184,8 +185,27 @@ async function asked(link: PythonLink, path: string): Promise<string> {
   return answer.text();
 }
 
+/** A host's HTTP answer folded as the planner module folds its own (planner.Folded.of): a 200's body (`read` from it,
+ *  where the route wraps what the module answers bare), or a refusal's kind and message -- its JSON's errorType (else
+ *  its status) and message (else its body). */
+function folded(id: number, answer: globalThis.Response, text: string, read: (body: string) => string = (b) => b): Response {
+  if (answer.status === 200) return { id, ok: true, answer: `OK\n${read(text)}` };
+  let kind = String(answer.status);
+  let message = text;
+  try {
+    const refusal = JSON.parse(text) as { errorType?: unknown; message?: unknown };
+    if (typeof refusal.errorType === 'string') kind = refusal.errorType;
+    if (typeof refusal.message === 'string') message = refusal.message;
+  } catch { /* not JSON: the body is the message */ }
+  return { id, ok: true, answer: `ERR\n${kind}\n${message}` };
+}
+
+/** A model's text as the routes read a model (a PureModelContext of text). */
+const textModel = (code: string): string => JSON.stringify({ _type: 'text', code });
+
 /** The tab's worker's requests a Python host is not asked, each with why: the tab's own, or no page's. */
-const NOT_ASKED: Readonly<Record<Exclude<RequestKind, 'hold' | 'release' | 'pureV1' | 'planJson'>, string>> = {
+const NOT_ASKED: Readonly<Record<Exclude<RequestKind, 'hold' | 'release' | 'planJson' | 'modelElements' | 'parseLambda'
+  | 'printLambda' | 'lambdaRelationType' | 'modelAction' | 'tsItem' | 'jsonToTs'>, string>> = {
   plan: "a page plans a query's protocol tree (planJson), not its text",
   relationType: "a page types a query on legend-engine's route (lambdaRelationType), not its text",
   planModel: "an unheld plan is Query's, in its tab",
@@ -205,23 +225,14 @@ const NOT_ASKED: Readonly<Record<Exclude<RequestKind, 'hold' | 'release' | 'pure
   projectData: "a project's Data rows are held by Python itself (C5)",
   hostOperations: "a host's operations are the tab's own database's",
   warm: "warming the planner is the tab's",
-  // lite's own grammar, typing, compile and routes (the edge audit's H2 and H3, 2026-11-17): asked of a Python host on
-  // its lite routes once they exist (H2's page half, landing with them); until then this page asks pure/v1's
-  modelElements: "a model's elements are asked of a Python host on its lite route, once it has one (H2)",
-  parseLambda: "a lambda's text is parsed by a Python host on its lite route, once it has one (H2)",
-  printLambda: "a lambda is printed by a Python host on its lite route, once it has one (H2)",
-  lambdaRelationType: "a lambda is typed by a Python host on its lite route, once it has one (H2)",
   compileErrors: "a model's compile is Studio's and Query's, in their tab",
-  modelAction: "a model's action is asked of a Python host on its lite route with H2's page half",
-  tsItem: "a #TS item is read by a Python host on its lite route with H2's page half",
-  jsonToTs: "a #TS statement is shown by a Python host on its lite route with H2's page half",
+  pureV1: "a DataCube planner asks legend-lite's own routes (H2): legend-engine's pure/v1 is the edge's",
 };
 
 /**
  * THE PLANNER'S WORKER ON A PYTHON HOST (§15.2, as amended 2026-10-15): the page's planner asks a Python host as it asks
- * any host -- a question about the Pure query on legend-engine's own route (`pure/v1`: Python answers it as every Legend
- * server does, and the tab's worker in process; a model's writing on legend-lite's, `lite/v1`, through the same kind),
- * and its dry run on the host's compute (`plan.json`, plan-and-run's planning half). Nothing else is sent: the worker's
+ * any host -- a question about the Pure query, and a model's writing, on legend-lite's own routes (`lite/v1`, each kind its
+ * route: the edge audit's H2, 2026-11-17; until then legend-engine's `pure/v1`, through one kind), and its dry run on the host's compute (`plan.json`, plan-and-run's planning half). Nothing else is sent: the worker's
  * other requests are the tab's own, refused here by name. No handle crosses the hosts (§15.3): a `hold` is kept here,
  * its model's text by the handle this gives, and the dry run sends that text, Python planning against the model it
  * holds of that text.
@@ -268,11 +279,34 @@ function pythonWorker(link: PythonLink, project = false): PlannerWorker {
           held.delete(body.handle);
           reply({ id, ok: true, answer: 'OK\n' });
           return;
-        case 'pureV1':
-          // legend-engine's own route, answered as Python answers it: its status, media type and body, as the planner's
-          // route folds them
-          call(`${body.path}${body.query === '' ? '' : `?${body.query}`}`, body.body, (answer, text) =>
-            ({ id, ok: true, answer: `OK\n${answer.status}\n${answer.headers.get('content-type') ?? ''}\n${text}` }));
+        // lite's own grammar, typing and routes (the edge audit's H2, 2026-11-17): each on the host's lite route, its
+        // answer folded as the module folds its own
+        case 'modelElements':
+          call('/api/lite/v1/grammar/modelElements', JSON.stringify({ text: body.text, sourceInformation: body.sourceInformation }),
+            (answer, text) => folded(id, answer, text));
+          return;
+        case 'parseLambda':
+          call('/api/lite/v1/grammar/parseLambda', JSON.stringify({ text: body.text, sourceInformation: body.sourceInformation }),
+            (answer, text) => folded(id, answer, text));
+          return;
+        case 'printLambda':
+          // the route wraps the text the module answers bare
+          call('/api/lite/v1/grammar/printLambda', `{"lambda":${body.lambda},"style":${JSON.stringify(body.style)}}`,
+            (answer, text) => folded(id, answer, text, (b) => (JSON.parse(b) as { text: string }).text));
+          return;
+        case 'lambdaRelationType':
+          call('/api/lite/v1/compilation/lambdaRelationType', `{"model":${textModel(body.model)},"lambda":${body.lambda}}`,
+            (answer, text) => folded(id, answer, text));
+          return;
+        case 'modelAction':
+          call(`/api/lite/v1/model/${body.action}`, body.body, (answer, text) => folded(id, answer, text));
+          return;
+        case 'tsItem':
+          call('/api/lite/v1/grammar/tsItem', JSON.stringify({ text: body.text }), (answer, text) => folded(id, answer, text));
+          return;
+        case 'jsonToTs':
+          call('/api/lite/v1/grammar/jsonToTs/lambda', `{"model":${textModel(body.model)},"lambda":${body.lambda}}`,
+            (answer, text) => folded(id, answer, text));
           return;
         case 'planJson': {
           const kept = held.get(body.handle);

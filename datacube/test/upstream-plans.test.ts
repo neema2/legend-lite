@@ -57,7 +57,7 @@ describe('a server planning for a page: the plans', () => {
   const query = readLambda(CORPUS.requests[0]!.query);
   for (const c of CORPUS.plans) {
     it(`${c.name}: read as its SQL and its columns`, () => {
-      const plan = serverPlan(c.answer, query, new Set(), c.database);
+      const plan = serverPlan(c.answer, query, c.database);
       assert.equal(plan.sql, c.sql);
       // the page reads each type by legend-lite's lattice (relation-type.ts); the fixture carries each column's SQL
       // type too (sqlTypes), which the tab's columns do not yet (G9)

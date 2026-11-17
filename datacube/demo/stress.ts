@@ -162,7 +162,7 @@ export async function runStress(): Promise<Outcome[]> {
         detail: (e as Error).message });
       continue;
     }
-    models.use(opened.model, opened.runtime, { bitColumns: opened.bitColumns });
+    models.use(opened.model, opened.runtime);
     const cols = await sourceColumns(planner, opened.source);
     const snap = (over: Partial<QuerySnapshot>): QuerySnapshot =>
       ({ ...base(opened.source, cols), ...over });

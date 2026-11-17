@@ -28,8 +28,6 @@ export interface UpstreamPlannerOptions extends PureV1Options {
 
 /** How a planner reads a model besides its text and runtime. */
 export interface ModelOptions {
-  /** The columns the model declares BIT (relation-type.ts, ENGINE DEFECT S23). */
-  readonly bitColumns?: readonly string[];
   /** The mapping a class source reads through: the query goes `->from(mapping, runtime)` (pure-v1.ts). */
   readonly mapping?: string;
   /** The model's enumerations: a column typed by one is said so (relation-type.ts `PlanColumn.enumeration`). */
@@ -71,8 +69,9 @@ export class UpstreamPlanner implements Planner {
   readonly #useCache: boolean;
   readonly #cache = new Map<string, Plan>();
   readonly #types = new Map<string, PlanColumn[]>();
-  /** The model's BIT columns: engine types them TinyInt (relation-type.ts, ENGINE DEFECT S23). */
-  #bitColumns: ReadonlySet<string> = new Set();
+  /** The model's BIT columns, read from its Database when an answer first carries legend-engine's TinyInt (S23,
+   *  engineBooleans): undefined until then. */
+  #bitColumns: Promise<ReadonlySet<string>> | undefined;
   /** The model's enumerations (ModelOptions). */
   #enumerations: ReadonlySet<string> = new Set();
 
@@ -117,7 +116,7 @@ export class UpstreamPlanner implements Planner {
     this.#client.useModel(model, runtime, how.mapping);
     this.#now = { model, runtime, how };
     this.#library = undefined;
-    this.#bitColumns = new Set(how.bitColumns ?? []);
+    this.#bitColumns = undefined;
     this.#enumerations = new Set(how.enumerations ?? []);
     this.#cache.clear();
     this.#types.clear();
@@ -150,7 +149,7 @@ export class UpstreamPlanner implements Planner {
     const key = toJson(query);
     const hit = this.#useCache ? this.#cache.get(key) : undefined;
     if (hit !== undefined) return hit;
-    const plan = serverPlan(await this.#client.generatePlan(query, signal), query, this.#bitColumns);
+    const plan = serverPlan(await this.#engineBooleans(await this.#client.generatePlan(query, signal), signal), query);
     if (this.#useCache) this.#cache.set(key, plan);
     return plan;
   }
@@ -163,9 +162,25 @@ export class UpstreamPlanner implements Planner {
     const key = toJson(query);
     const hit = this.#useCache ? this.#types.get(key) : undefined;
     if (hit !== undefined) return hit;
-    const columns = relationColumns(await this.#client.lambdaRelationType(query, signal), this.#bitColumns, this.#enumerations);
+    const columns = relationColumns(await this.#engineBooleans(await this.#client.lambdaRelationType(query, signal), signal),
+      this.#enumerations);
     if (this.#useCache) this.#types.set(key, columns);
     return columns;
+  }
+
+  /** `answer` (a `lambdaRelationType` or a `generatePlan`) with each TinyInt column the model declares BIT typed Boolean
+   *  (S23, engineBooleans): the model's Database read the first time an answer carries a TinyInt, never before. */
+  async #engineBooleans(answer: unknown, signal?: AbortSignal): Promise<unknown> {
+    // a chunk of its own, fetched by the legend-engine plane alone (no grid on legend-lite asks it)
+    const { bitColumnsOf, carriesTinyInt, engineBooleans } = await import('./engine-booleans.ts');
+    if (!carriesTinyInt(answer)) return answer;
+    if (this.#bitColumns === undefined) {
+      const read = this.#client.modelElements(this.#now.model, signal).then(bitColumnsOf);
+      this.#bitColumns = read;
+      // a reading that failed is told to the query that asked, and read again by the next
+      read.catch(() => { if (this.#bitColumns === read) this.#bitColumns = undefined; });
+    }
+    return engineBooleans(answer, await this.#bitColumns);
   }
 
   /** E1: what a person typed, as its lambda. */
@@ -197,9 +212,8 @@ export class UpstreamPlanner implements Planner {
  * yet; when it does (docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §8, phase 2) the tab reads a server's plan through the
  * module and this reader goes, the fixture its cases.
  */
-export function serverPlan(body: unknown, query: Lambda, bitColumns: ReadonlySet<string> = new Set(),
-  database = 'DuckDB'): Plan {
-  return { sql: fromPlan(sqlNode(body, query, database)), columns: tdsColumns(body, bitColumns) };
+export function serverPlan(body: unknown, query: Lambda, database = 'DuckDB'): Plan {
+  return { sql: fromPlan(sqlNode(body, query, database)), columns: tdsColumns(body) };
 }
 
 interface PlanNode {

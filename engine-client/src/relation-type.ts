@@ -45,40 +45,18 @@ export function pureType(name: string): string {
   return plainType(name);
 }
 
-/**
- * ENGINE DEFECT (docs/SEMANTICS_REGISTER.md S23) -- delete when legend-engine types BIT Boolean.
- *
- * legend-engine's compiler types a Database `BIT` column `precisePrimitives::TinyInt` (one case in
- * `RelationalCompilerExtension.convertTypes`, :1085), while legend-pure, the engine's own result
- * typing and its DuckDB DDL read BIT as Boolean -- and the rows ARE booleans (probed 2026-10-01:
- * the plan says TinyInt, DuckDB returns true/false). No grammar declares a BOOLEAN column, so a
- * boolean is always declared BIT. A column is therefore read as Boolean when engine's PRECISE
- * type is TinyInt and the model DataCube itself wrote declares that column BIT (`bitColumns`,
- * infer.ts): a real TINYINT column is declared TINYINT, and an aggregate over the column (count,
- * sum) is typed Integer, not TinyInt, so neither is touched. Every query DataCube builds over a
- * boolean (`== true/false`, `!=`, `in`, `isEmpty`, sort, group, count) compiles on engine over
- * TinyInt. legend-lite types BIT Boolean itself and never answers TinyInt.
- */
-const ENGINE_TINYINT = 'meta::pure::precisePrimitives::TinyInt';
+// legend-engine's TinyInt for a BIT column (ENGINE DEFECT S23) is read by the legend-engine client alone -- the edge
+// audit's H10, 2026-11-17 (datacube/src/planner.ts engineBooleans): legend-lite types BIT Boolean itself.
 
-function typeOf(name: string, path: string, bitColumns: ReadonlySet<string>): string {
-  return path === ENGINE_TINYINT && bitColumns.has(name) ? 'Boolean' : pureType(path);
-}
-
-const NO_BIT: ReadonlySet<string> = new Set();
 const NONE: ReadonlySet<string> = new Set();
 
 /** A column of `path`: an enumeration of the model is said so, any other type read as above. */
-function columnOf(name: string, path: string, bitColumns: ReadonlySet<string>, enumerations: ReadonlySet<string>): PlanColumn {
-  return enumerations.has(path) ? { name, type: 'String', enumeration: path } : { name, type: typeOf(name, path, bitColumns) };
+function columnOf(name: string, path: string, enumerations: ReadonlySet<string>): PlanColumn {
+  return enumerations.has(path) ? { name, type: 'String', enumeration: path } : { name, type: pureType(path) };
 }
 
 /** legend-engine's `RelationType` JSON (`lambdaRelationType`'s answer) as columns. */
-export function relationColumns(
-  relationType: unknown,
-  bitColumns: ReadonlySet<string> = NO_BIT,
-  enumerations: ReadonlySet<string> = NONE,
-): PlanColumn[] {
+export function relationColumns(relationType: unknown, enumerations: ReadonlySet<string> = NONE): PlanColumn[] {
   const columns = (relationType as { columns?: unknown }).columns;
   if (!Array.isArray(columns)) {
     throw new Error('the relation type carries no columns');
@@ -89,12 +67,12 @@ export function relationColumns(
     if (typeof col.name !== 'string' || typeof path !== 'string') {
       throw new Error(`a relation type column without a name and a type: ${JSON.stringify(c)}`);
     }
-    return columnOf(col.name, path, bitColumns, enumerations);
+    return columnOf(col.name, path, enumerations);
   });
 }
 
 /** A plan's `tdsColumns` (generatePlan's `resultType`) as columns. */
-export function tdsColumns(plan: unknown, bitColumns: ReadonlySet<string> = NO_BIT): PlanColumn[] {
+export function tdsColumns(plan: unknown): PlanColumn[] {
   const root = (plan as { rootExecutionNode?: { resultType?: { tdsColumns?: unknown } } })
     .rootExecutionNode;
   const cols = root?.resultType?.tdsColumns;
@@ -106,6 +84,6 @@ export function tdsColumns(plan: unknown, bitColumns: ReadonlySet<string> = NO_B
     if (typeof col.name !== 'string' || typeof col.type !== 'string') {
       throw new Error(`a plan column without a name and a type: ${JSON.stringify(c)}`);
     }
-    return { name: col.name, type: typeOf(col.name, col.type, bitColumns) };
+    return { name: col.name, type: pureType(col.type) };
   });
 }
