@@ -64,14 +64,14 @@ class PlanDeclaresItsRaisesTest {
             "|#>{s::DB.T}#->extend(~r: r|$r.ID->toString()->parseInteger())->select(~r)", java.util.Optional.empty());
 
     /**
-     * EVERY KIND A STATEMENT MARKS IS DECLARED, on every relational database and on MongoDB (the P2 checkpoint audit's
-     * A-S5, 2026-11-16): for each raising query a database plans, its kind is among the plan's raises, and every kind
-     * whose mark its statements' texts carry is too -- a raise written outside {@code raiseMessage} would carry its mark
-     * undeclared. (A dialect that escapes the mark, BigQuery's, is checked by the declared kind alone; a query a
-     * database refuses by name at planning is that database's answer, not this test's.)
+     * EVERY TOKEN A STATEMENT CAN RAISE IS IN ITS SITE TABLE, on every relational database and on MongoDB (the P2
+     * checkpoint audit's A-S5, 2026-11-16; phase D's Phase 2, raises as SITES, the same day): for each raising query a
+     * database plans, its kind is among the plan's raises, every token {@code LG#<n>} a statement's text carries is a
+     * site that statement declares, and no text carries the mark outside a token. (A query a database refuses by name at planning
+     * is that database's answer, not this test's.)
      */
     @Test
-    void everyKindAStatementMarksIsDeclared() {
+    void everyTokenAStatementCanRaiseIsInItsSiteTable() {
         java.util.List<String> wrong = new java.util.ArrayList<>();
         java.util.List<java.util.Map.Entry<String, ExecutionPlan>> plans = new java.util.ArrayList<>();
         for (DatabaseType type : com.legend.database.Databases.relational()) {
@@ -91,21 +91,41 @@ class PlanDeclaresItsRaisesTest {
         plans.add(Map.entry("a document store's division", documentStorePlanned(
                 "#>{s::Store.people}#->extend(~r: x|$x.age / $x.zero)->select(~r)")));
         for (Map.Entry<String, ExecutionPlan> e : plans) {
-            Map<String, String> declared = PlanJson.raises(e.getValue());
-            String texts = statements(e.getValue());
-            for (RaiseKind kind : RaiseKind.values()) {
-                if (texts.contains(RaiseKind.MARK + kind.name()) && !declared.containsKey(kind.name())) {
-                    wrong.add(e.getKey() + ": marks " + kind + ", declares " + declared.keySet());
+            for (ExecutionPlan.Sql sql : statements(e.getValue().root())) {
+                java.util.regex.Matcher m = java.util.regex.Pattern.compile("LG#([0-9]+)").matcher(sql.statement());
+                while (m.find()) {
+                    int n = Integer.parseInt(m.group(1));
+                    if (n < 1 || n > sql.sites().size()) {
+                        wrong.add(e.getKey() + ": raises " + m.group() + ", declares " + sql.sites());
+                    }
+                }
+                if (sql.statement().replace(RaiseKind.TOKEN, "").indexOf(RaiseKind.MARK) >= 0) {
+                    wrong.add(e.getKey() + ": the mark in its text outside a token: " + sql.statement());
                 }
             }
         }
         assertEquals(java.util.List.of(), wrong);
     }
 
-    /** Every statement text of {@code plan}, its JSON's (the statements, wherever the plan holds them). */
-    private static String statements(ExecutionPlan plan) {
-        return PlanJson.write(plan).replace("\\u001c", String.valueOf(RaiseKind.MARK))
-                .replace("\\u001C", String.valueOf(RaiseKind.MARK));
+    /** Every statement of {@code node}, where the plan holds it. */
+    private static java.util.List<ExecutionPlan.Sql> statements(ExecutionPlan.Node node) {
+        java.util.List<ExecutionPlan.Sql> out = new java.util.ArrayList<>();
+        switch (node) {
+            case ExecutionPlan.Sequence s -> s.steps().forEach(step -> out.addAll(statements(step)));
+            case ExecutionPlan.TdsResult t -> out.add(t.sql());
+            case ExecutionPlan.Keyed k -> {
+                out.add(k.keys());
+                out.add(k.body());
+            }
+            case ExecutionPlan.Update u -> out.add(u.sql());
+            case ExecutionPlan.Check c -> out.add(c.sql());
+            case ExecutionPlan.Effect f -> out.add(f.sql());
+            case ExecutionPlan.Load l -> {
+            }
+            case ExecutionPlan.Constant c -> {
+            }
+        }
+        return out;
     }
 
     /** {@code query} over a MongoDB store: planning alone, no server. */

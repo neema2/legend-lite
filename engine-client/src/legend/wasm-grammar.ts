@@ -17,7 +17,7 @@ import type {
   SynthesizeRequest,
 } from '../requests.ts';
 import { allFromPlan, fromPlan, planFromAnswer, plannedProjectData, type PlannedSql, type PlanText } from '../planned-sql.ts';
-import { declareRaises } from '../declared-raises.ts';
+import { declareSites } from '../declared-raises.ts';
 import { planning } from '../plan-guard.ts';
 
 /** Where a request goes: a worker, or (in tests) the module called directly. */
@@ -194,7 +194,7 @@ export class WasmGrammar implements Grammar {
     const text = answered(await this.#port.ask({ kind: 'executePlan', body: toJson(input), models: JSON.stringify(models) }));
     const read = JSON.parse(text) as Omit<ExecutePlan, 'run'> & { readonly run: string; readonly raises?: unknown };
     // the raises `run` can send, worded by the planner (declared-raises.ts; phase D's option (D), 2026-11-15)
-    declareRaises(read.raises, 'an execute plan');
+    declareSites(read, 'an execute plan');
     // the statement the host runs, as the planner's answer carries it (planned-sql.ts)
     return { plan: { ...read, run: fromPlan(read.run) }, text };
   }
@@ -215,7 +215,7 @@ export class WasmGrammar implements Grammar {
     const read = JSON.parse(unfold(await this.#port.ask({ kind: 'planModel', model: model.code, lambda: toJson(lambda), runtime }))) as {
       sql: string; type: unknown; plan?: unknown; raises?: unknown;
     };
-    declareRaises(read.raises, 'a text plan');
+    declareSites(read, 'a text plan');
     return { ...read, sql: fromPlan(read.sql) };
   }
 

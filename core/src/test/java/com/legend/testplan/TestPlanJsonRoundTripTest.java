@@ -194,7 +194,7 @@ class TestPlanJsonRoundTripTest {
                 com.legend.executionplan.DataRef.Namespace.RESOURCE, "people.csv", "0".repeat(64), 3,
                 com.legend.executionplan.DataRef.Csv.DEFAULT), new com.legend.executionplan.ExecutionPlan.LoadStep
                 .Delivery.Reads(List.of("SET @legend_csv = ?", "INSERT INTO T SELECT 1"), List.of(
-                "SET @legend_csv = NULL")), 500));
+                "SET @legend_csv = NULL"), List.of()), 500));
         return new RefereeLoad(steps, rows.content());
     }
 }

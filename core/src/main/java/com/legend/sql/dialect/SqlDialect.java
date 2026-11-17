@@ -215,13 +215,25 @@ public interface SqlDialect {
      *  the runner's copy's path; {@code after}, the statements that undo what they set on the session (H2's path
      *  variable), run on every exit, a failed load's too (the A checkpoint's tenets audit, 14, 2026-11-10: until then
      *  the last of {@code statements}, which a failed insert never reached). */
-    record CsvLoad(java.util.List<String> statements, java.util.List<String> after) {
+    record CsvLoad(java.util.List<String> statements, java.util.List<String> after,
+            java.util.List<com.legend.sql.dialect.RaiseSite> sites) {
         public CsvLoad {
             statements = java.util.List.copyOf(statements);
             after = java.util.List.copyOf(after);
+            sites = java.util.List.copyOf(sites);
             if (statements.isEmpty()) {
                 throw new IllegalArgumentException("a CSV load of no statement");
             }
+        }
+
+        /** A load whose render wrote no raise yet: its sites added by the render that returns it. */
+        public CsvLoad(java.util.List<String> statements, java.util.List<String> after) {
+            this(statements, after, java.util.List.of());
+        }
+
+        /** This load with the raise sites its render wrote (phase D's Phase 2: its statements' one site table). */
+        public CsvLoad withSites(java.util.List<com.legend.sql.dialect.RaiseSite> written) {
+            return new CsvLoad(statements, after, written);
         }
     }
 

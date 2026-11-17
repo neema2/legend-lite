@@ -105,7 +105,7 @@ class ChainTypeDispatchTest {
                 "rt::Vehicle.all()->cast(@rt::Car)->size()")) {
             SQLException ex = assertThrows(SQLException.class, () -> rows(chain), chain);
             // the product's raise of its kind (W5, 2026-11-16); legend-pure's "Cast exception" sentence is the edge's
-            assertTrue(ex.getMessage().contains(com.legend.sql.RaiseKind.MARK + "INSTANCE_NOT_OF"), ex.getMessage());
+            assertTrue(ex.getMessage().contains(com.legend.sql.RaiseKind.TOKEN), ex.getMessage());
         }
     }
 
@@ -137,6 +137,6 @@ class ChainTypeDispatchTest {
                 () -> rows("rt::Owner.all().vehicle->cast(@rt::Car).engineType"),
                 "bob's vehicle is a bicycle");
         // the product's raise of its kind (W5, 2026-11-16); legend-pure's "Cast exception" sentence is the edge's
-        assertTrue(ex.getMessage().contains(com.legend.sql.RaiseKind.MARK + "INSTANCE_NOT_OF"), ex.getMessage());
+        assertTrue(ex.getMessage().contains(com.legend.sql.RaiseKind.TOKEN), ex.getMessage());
     }
 }

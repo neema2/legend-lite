@@ -13,7 +13,7 @@ import { answer, type PlannerModule } from '../src/legend/planner-answer.ts';
 import { ConnectionSettings, establish, expandKeyed, inLoadsTransaction, PlanRefusal, runAuthored, runLoad, runPlan, targetKey, transacted, type PlanSession } from '../src/plan-runner.ts';
 import { currentRun, frameKept, inRun } from '../src/run-frame.ts';
 import { failure, PlanRaise } from '../src/raised.ts';
-import { declareRaises } from '../src/declared-raises.ts';
+import { declareStatementSites, type Site } from '../src/declared-raises.ts';
 import { heldTexts, redactHeld } from '../src/connection-settings.ts';
 import { PlanParamsRefusal, planParams, statementParams } from '../src/plan-params.ts';
 import { relationColumns } from '../src/relation-type.ts';
@@ -297,7 +297,7 @@ describe("a write's plan, run by the host's runner on DuckDB-WASM", () => {
     await assert.rejects(() => runPlan(unplannedPlan(JSON.stringify({ ...plan, parameters: [{ name: 'p' }] })), session), /takes parameters/);
     await assert.rejects(() => runPlan(unplannedPlan('{"format":"other"}'), session), /not a legend-lite execution plan/);
     // a plan of another version, and a statement only a dynamic pivot's probe plan writes (version 19): refused, never run (the version the runner reads, PLAN_VERSION: the A checkpoint's audit made it 42, 2026-11-10)
-    await assert.rejects(() => runPlan(unplannedPlan(JSON.stringify({ ...plan, version: 5 })), session), /not a legend-lite execution plan of version 55/);
+    await assert.rejects(() => runPlan(unplannedPlan(JSON.stringify({ ...plan, version: 5 })), session), /not a legend-lite execution plan of version 56/);
     const root = plan.root as { steps: { sql: Record<string, unknown> }[] };
     const regioned = { ...plan, root: { ...root, steps: root.steps.map((step) => ({ ...step, sql: { ...step.sql, regions: [{ start: 0 }] } })) } };
     const here: PlanSession = { ...session, databaseType: 'DuckDB' };
@@ -950,31 +950,38 @@ describe("a statement's slots and a payload's digest, required", () => {
   });
 });
 
-// a product raise in lite's words (#104's M2(b), 2026-11-15): its kind's sentence, the plan's (PlanJson.raises from
-// error.ErrorKind, declared as the plan is read: phase D's option (D)), then its where, as Java's runner words it -- at the tab's ONE send (DuckDbEngine's failure), so every
-// route says the same words; the envelope's cases one fixture Java's and Python's readers read too
+// a product raise in lite's words (#104's M2(b), 2026-11-15; phase D's Phase 2, raises as SITES, 2026-11-16): the
+// statement raises a bare token LG#<n>, read through the sites its plan declares for its text (declared as the plan
+// is read), its words planned -- at the tab's ONE send (DuckDbEngine's failure), so every route says the same words;
+// the envelope's cases one fixture Java's and Python's readers read too
 describe('a raise, worded', () => {
   it('reads each envelope of the shared fixture as Java and Python read it', () => {
     const fixture = looseJson(readFileSync(runfileFromEnv('RAISE_FIXTURE'), 'utf8')) as {
-      raises: Record<string, string>; cases: { name: string; message: string; words: string; kind?: string; where?: string }[] };
-    // the words are a plan's (PlanJson.raises; phase D's option (D), 2026-11-15): declared first, as a plan read does
-    declareRaises(fixture.raises, 'the fixture');
+      statement: string; sites: Site[];
+      cases: { name: string; message: string; words?: string; kind?: string; where?: string; refused?: boolean }[] };
+    // the sites are the statement's (PlanJson v56): declared first, as a plan read does
+    declareStatementSites(fixture.statement, fixture.sites, 'the fixture');
     const cases = fixture.cases;
     assert.ok(cases.length > 5);
     for (const c of cases) {
-      const e = failure(c.message, 'SELECT 1', {});
-      assert.equal(e.message, c.words, c.name);
+      const e = failure(c.message, fixture.statement, {});
       assert.ok(e instanceof QueryError, c.name);
+      if (c.refused === true) {
+        assert.ok(!(e instanceof PlanRaise), c.name);
+        assert.match(e.message, /which the statement does not declare/, c.name);
+        continue;
+      }
+      assert.equal(e.message, c.words, c.name);
       assert.equal(e instanceof PlanRaise ? e.kind : undefined, c.kind, c.name);
       assert.equal(e instanceof PlanRaise ? e.where : undefined, c.where, c.name);
     }
   });
 
-  it('refuses a kind no plan declared by name, the database error kept as its cause', () => {
-    const db = new Error('Invalid Input Error: \u001f\u001cNO_SUCH_KIND\u001f');
-    const e = failure(db.message, 'SELECT 1', { cause: db });
+  it('refuses a token its statement does not declare by name, the database error kept as its cause', () => {
+    const db = new Error('Invalid Input Error: \u001f\u001cLG#1\u001f');
+    const e = failure(db.message, 'SELECT a statement no plan declared', { cause: db });
     assert.ok(e instanceof QueryError && !(e instanceof PlanRaise));
-    assert.match(e.message, /'NO_SUCH_KIND', which no plan this tab read declares/);
+    assert.match(e.message, /LG#1, which the statement does not declare/);
     assert.equal(e.cause, db);
   });
 
@@ -984,9 +991,11 @@ describe('a raise, worded', () => {
     assert.deepEqual((JSON.parse(plan) as { raises: unknown }).raises, { DIVIDE_BY_ZERO: 'division by zero' });
     await assert.rejects(() => inRun('a test', () => engine.exclusive((held) => runPlan(plan, sessionOn('DuckDB', held)))),
       (e: unknown) => e instanceof PlanRaise && e.message === 'division by zero');
-    // the envelope a product statement raises, sent as the database's own error() writes it: worded from what the
-    // plans the tab read declared
-    await assert.rejects(() => inRun('a test', () => asTest(engine).run(unplanned("SELECT error(chr(31) || chr(28) || 'DIVIDE_BY_ZERO' || chr(31))"), 0)),
+    // the envelope a product statement raises, sent as the database's own error() writes it: read through the sites
+    // the plans the tab read declared for that text
+    const sent = "SELECT error(chr(31) || chr(28) || 'LG#1' || chr(31))";
+    declareStatementSites(sent, [{ n: 1, kind: 'DIVIDE_BY_ZERO', where: null, message: 'division by zero', upstream: null }], 'a test');
+    await assert.rejects(() => inRun('a test', () => asTest(engine).run(unplanned(sent), 0)),
       (e: unknown) => e instanceof PlanRaise && e.message === 'division by zero' && e.kind === 'DIVIDE_BY_ZERO');
   });
 });

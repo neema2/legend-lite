@@ -295,6 +295,11 @@ public class H2 extends AnsiSqlRenderer {
      *  not expressible in CSVREAD's options, refused by name. */
     @Override
     public CsvLoad csvLoad(com.legend.sql.SqlDml.LoadCsv load) {
+        // its record check's raise a site of the load's one table (phase D's Phase 2, 2026-11-16)
+        return collectingSites(() -> csvStatements(load), CsvLoad::withSites);
+    }
+
+    private CsvLoad csvStatements(com.legend.sql.SqlDml.LoadCsv load) {
         for (char c : new char[] {load.delimiter(), load.quote()}) {
             if (Character.isWhitespace(c)) {
                 throw new DialectCapability("a CSV file whose delimiter or quote is white space: H2's CSVREAD takes"
