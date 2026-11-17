@@ -112,6 +112,11 @@ final class PctCaseRecorder {
                 rows.add(write(r));
             }
             text.append(" rows=").append(String.join(String.valueOf(ROW_SEPARATOR), rows));
+            // the plan text the edge prints (its activities: legend-engine's SQL for the execution), so a move of the
+            // edge's plan text is a visible line too (Phase 6's first item, the orchestrator, 2026-11-17)
+            if (json.has("activities")) {
+                text.append(" activities=").append(write(json.get("activities")));
+            }
             edge(expression, answer.shape().name(), text.toString());
             return;
         }
