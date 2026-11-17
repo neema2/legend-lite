@@ -15,11 +15,12 @@ import java.util.function.Supplier;
  *
  * @param pureOnly the texts only legend-pure writes ({@link PureOnlyTexts}): the edge's answers, the product's style
  *                 throwing the call's refusal
+ * @param lists    a list's text, a two-form kind ({@link ListTexts}): the product's JSON array, the edge's {@code [a, b]}
  */
-public record Styled(Function<Supplier<? extends RuntimeException>, PureOnlyTexts> pureOnly) {
+public record Styled(Function<Supplier<? extends RuntimeException>, PureOnlyTexts> pureOnly, ListTexts lists) {
 
     /** The product's own style: each text only legend-pure writes refused, by its call's own refusal. */
     public static final Styled PRODUCT = new Styled(refusal -> {
         throw refusal.get();
-    });
+    }, ProductListTexts.INSTANCE);
 }

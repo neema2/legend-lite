@@ -122,8 +122,15 @@ class HookRulingTest {
      *  caller's own product form, whatever the kind; the edge's refuses a kind outside the list by name. */
     @Test
     void theTwoFormKindsAreAClosedListTheProductAnswersItsOwnForm() {
-        assertEquals(List.of(), com.legend.testplan.PlanStyleFacets.TWO_FORMS,
+        // 2026-11-17, census B8 (TEXT_FORMS): a list's text, the product's JSON form, the edge's legend-pure one
+        assertEquals(List.of(com.legend.lowering.ListTexts.class), com.legend.testplan.PlanStyleFacets.TWO_FORMS,
                 "the two-form kinds, an exact set: a kind is added here with its family and its dated reason");
+        assertTrue(PlanStyle.PRODUCT.twoForm(com.legend.lowering.ListTexts.class,
+                com.legend.lowering.ProductListTexts.INSTANCE) == com.legend.lowering.ProductListTexts.INSTANCE,
+                "the product answers its own list text");
+        assertTrue(com.legend.edge.PureText.UPSTREAM.twoForm(com.legend.lowering.ListTexts.class,
+                com.legend.lowering.ProductListTexts.INSTANCE) != com.legend.lowering.ProductListTexts.INSTANCE,
+                "the edge answers legend-pure's list text");
         Runnable productForm = () -> { };
         assertTrue(PlanStyle.PRODUCT.twoForm(Runnable.class, productForm) == productForm,
                 "the product answers the caller's own form");

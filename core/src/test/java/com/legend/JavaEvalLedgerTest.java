@@ -1853,13 +1853,17 @@ class JavaEvalLedgerTest {
                             "StoreWords.java",
                             // legend-pure's text of a relation (toCSV, a TDS's csv, a relation's toString), moved from
                             // lowering.Render (the separation census's B17, 2026-11-17): the plan style's RelationTexts
-                            // facet, composing a RELATION_TEXT node at lowering -- planning work, no session, no value
+                            // facet, composing the text at lowering (its RELATION_TEXT wrapper gone with B8, 2026-11-17) -- planning work, no session, no value
                             // computed (the database renders the cells)
                             "RelationTextLowering.java",
                             // legend-pure's texts only it writes (format's padding, ...), composed at lowering from the
                             // product's nodes (the separation census's B8 (i), 2026-11-17): the plan style's
                             // PureOnlyTexts facet -- planning work, no session, no value computed
-                            "EdgePureOnlyTexts.java"),
+                            "EdgePureOnlyTexts.java",
+                            // legend-pure's text of a list (a list's toString, a mixed list's elements printed), the
+                            // edge's form of the two-form ListTexts kind (the separation census's B8, TEXT_FORMS gone
+                            // from SqlFn 2026-11-17) -- planning work, no session, no value computed
+                            "PureListTexts.java"),
                     "core/src/main/java/com/legend/planner", PLANNER_CLASSES,
                     "core/src/main/java/com/legend/exec", EXEC_CLASSES,
                     "core/src/main/java/com/legend/testexec", TESTEXEC_CLASSES,

@@ -252,10 +252,9 @@ public final class Lowerer {
      *  asked only when a {@code toCSV}, a TDS's {@code csv} or a relation's {@code toString} is lowered, with that call's
      *  own refusal (the product's style throws it, at lowering, by name). A Lowerer no planner handed a style refuses
      *  each the same way. */
-    private java.util.function.Function<java.util.function.Supplier<? extends RuntimeException>, RelationTexts>
-            relationTexts = refusal -> {
-                throw refusal.get();
-            };
+    private Function<Supplier<? extends RuntimeException>, RelationTexts> relationTexts = refusal -> {
+        throw refusal.get();
+    };
 
     /** An execution's trace text in a TDS cell (the separation census's B8 (ii), 2026-11-17): the plan style's
      *  {@code traceText}, the id in the product's. A Lowerer no planner handed a style refuses one by name. */
@@ -273,18 +272,17 @@ public final class Lowerer {
     /** The plan style's text facets (the separation census's B8, 2026-11-17): the texts only legend-pure writes
      *  ({@link PureOnlyTexts}), asked only when a native's rule meets one, with that call's own refusal. A Lowerer no
      *  planner handed a style refuses each the same way, as the product's style does. */
-    private java.util.function.Function<java.util.function.Supplier<? extends RuntimeException>, PureOnlyTexts>
-            pureOnlyTexts = Styled.PRODUCT.pureOnly();
+    private Styled styled = Styled.PRODUCT;
 
     /** The planner's style's text facets ({@code PlanEnv.styled}). */
     public Lowerer withStyled(Styled style) {
-        this.pureOnlyTexts = style.pureOnly();
+        this.styled = style;
         return this;
     }
 
     /** The style's text facets a native's rule reads ({@link Styled}). */
     private Styled styled() {
-        return new Styled(pureOnlyTexts);
+        return styled;
     }
 
     /** legend-engine's result envelope ({@link ResultEnvelopes}, Phase 6's B5, 2026-11-17): the plan style's facet,

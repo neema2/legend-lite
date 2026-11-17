@@ -344,6 +344,10 @@ class CodeShapeGuardrailTest {
             // lite's own planning options (PlanOption, 2026-11-07: the deterministic as-of join): builder-style, set
             // once before lower() beside the features, same lifecycle
             "Lowerer.deterministicAsOf",
+            // the plan style's text forms the static helpers read (lowering.Styled: legend-pure's only texts and a
+            // list's text, the product's own or the edge's), builder-style, set once by PlanEnv.configure before
+            // lower(), same lifecycle (the separation census's B8, TEXT_FORMS, 2026-11-17)
+            "Lowerer.styled",
             // (ExecutionTrace.last, the execution-trace stamp's state since batch 137: DELETED with its class by C1,
             // 2026-11-12 -- no comment is written in front of a sent statement)
             // builder-flag, same lifecycle as engineExistsJoinForm: set

@@ -28,5 +28,7 @@ public final class PlanStyleFacets {
     /** The TWO-FORM kinds ({@code PlanStyle.twoForm}, the orchestrator's ruling of 2026-11-17, census B9): each a value
      *  the product answers in its own canonical form and the edge in upstream's. A closed list, each kind added with its
      *  family and its dated reason; empty until the first (census B9's DateTime print forms, F's TEXT_FORMS). */
-    public static final List<Class<?>> TWO_FORMS = List.of();
+    public static final List<Class<?>> TWO_FORMS = List.of(
+            // a list's text (F's B8, 2026-11-17: TEXT_FORMS left the MIR): the product's JSON array, the edge's [a, b]
+            com.legend.lowering.ListTexts.class);
 }

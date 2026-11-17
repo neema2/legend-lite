@@ -2825,17 +2825,6 @@ final class Scalars {
                 && read.callee().id().equals(com.legend.model.FunctionId.of(Pure.READ__T_1__COL_SPEC_ARRAY_1));
     }
 
-
-
-
-    /** {@code ', '}-joined string list ('' for empty) — composed in SQL. */
-    private static SqlExpr joinList(SqlExpr strings) {
-        return SqlExpr.Call.of(SqlFn.COALESCE,
-                new SqlExpr.ReduceCollection(SqlAgg.Fn.STRING_AGG, strings,
-                        List.of(new SqlExpr.StringLit(", "))),
-                new SqlExpr.StringLit(""));
-    }
-
     /**
      * The pure PRINT of a value by its STATIC type, composed IN SQL —
      * Pair prints {@code '<first, second>'} (real anonymousCollections
@@ -2867,16 +2856,9 @@ final class Scalars {
                     SqlExpr.Call.of(SqlFn.EQUAL,
                             SqlExpr.Call.of(SqlFn.JSON_TYPE, x),
                             new SqlExpr.JsonKindLit(com.legend.sql.JsonKind.ARRAY)),
-                    // the product's text of a list, a JSON array: the value's canonical JSON (the user's ruling of
-                    // 2026-11-10; D1.3, 2026-11-15); legend-pure's [a, b] the edge's
-                    SqlExpr.Call.of(SqlFn.TEXT_FORMS,
-                            new SqlExpr.Cast(SqlExpr.Call.of(SqlFn.TO_VARIANT,
-                                    new SqlExpr.Cast(x, com.legend.sql.SqlType.Scalar.JSON, SqlExpr.Reason.PRINT)),
-                                    com.legend.sql.SqlType.Scalar.VARCHAR, SqlExpr.Reason.PRINT),
-                            cat(new SqlExpr.StringLit("["),
-                                    joinList(new SqlExpr.Cast(x, new SqlType.Array(
-                                            PureSql.type(Type.Primitive.STRING)), SqlExpr.Reason.CARRIER)),
-                                    new SqlExpr.StringLit("]"))))),
+                    // a list's text, the style's two-form kind (B8, 2026-11-17): the product's JSON array (the user's
+                    // ruling of 2026-11-10), legend-pure's [a, b] the edge's
+                    styled.lists().anyList(x))),
                     new SqlExpr.Cast(
                             SqlExpr.Call.of(SqlFn.VARIANT_GET, x, new SqlExpr.StringLit("$")),
                             PureSql.type(Type.Primitive.STRING), SqlExpr.Reason.CARRIER), SqlExpr.Reason.CARRIER);

@@ -185,8 +185,6 @@ H2	H2	call	FLOAT_TO_TEXT	emulated	floatToText		0
 H2	H2	call	DATETIME_TO_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 H2	H2	call	DATETIME_PRINT	not_here	renderer bug: is expanded before any dialect reads it		0
 H2	H2	call	CELL_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
-H2	H2	call	RELATION_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
-H2	H2	call	TEXT_FORMS	not_here	renderer bug: is expanded before any dialect reads it		0
 H2	H2	call	VARIANT_ELEMENTS	refused	variant navigation reached a dialect without JSON support	via AnsiSqlRenderer.variantElements	2
 H2	H2	call	VARIANT_GET	emulated	variantGet		14
 H2	H2	call	JSON_TYPE	emulated	jsonType		1
@@ -415,8 +413,6 @@ Postgres	Postgres	call	FLOAT_TO_TEXT	emulated	floatToText		0
 Postgres	Postgres	call	DATETIME_TO_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 Postgres	Postgres	call	DATETIME_PRINT	not_here	renderer bug: is expanded before any dialect reads it		0
 Postgres	Postgres	call	CELL_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
-Postgres	Postgres	call	RELATION_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
-Postgres	Postgres	call	TEXT_FORMS	not_here	renderer bug: is expanded before any dialect reads it		0
 Postgres	Postgres	call	VARIANT_ELEMENTS	emulated	by its operands: composed / composed		2
 Postgres	Postgres	call	VARIANT_GET	emulated	variantGet		14
 Postgres	Postgres	call	JSON_TYPE	emulated	jsonType		1
@@ -645,8 +641,6 @@ Snowflake	Snowflake	call	FLOAT_TO_TEXT	emulated	floatToText		0
 Snowflake	Snowflake	call	DATETIME_TO_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 Snowflake	Snowflake	call	DATETIME_PRINT	not_here	renderer bug: is expanded before any dialect reads it		0
 Snowflake	Snowflake	call	CELL_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
-Snowflake	Snowflake	call	RELATION_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
-Snowflake	Snowflake	call	TEXT_FORMS	not_here	renderer bug: is expanded before any dialect reads it		0
 Snowflake	Snowflake	call	VARIANT_ELEMENTS	emulated	variantElements		4
 Snowflake	Snowflake	call	VARIANT_GET	emulated	variantGet		15
 Snowflake	Snowflake	call	JSON_TYPE	emulated	(CASE WHEN … IS NULL THEN NULL ELSE DECODE(TYPEOF(TO_VARIANT(…)), 'NULL_VALUE...		1
@@ -875,8 +869,6 @@ Trino	Trino	call	FLOAT_TO_TEXT	emulated	floatToText		0
 Trino	Trino	call	DATETIME_TO_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 Trino	Trino	call	DATETIME_PRINT	not_here	renderer bug: is expanded before any dialect reads it		0
 Trino	Trino	call	CELL_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
-Trino	Trino	call	RELATION_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
-Trino	Trino	call	TEXT_FORMS	not_here	renderer bug: is expanded before any dialect reads it		0
 Trino	Trino	call	VARIANT_ELEMENTS	emulated	variantElements		4
 Trino	Trino	call	VARIANT_GET	emulated	variantGet		15
 Trino	Trino	call	JSON_TYPE	emulated	jsonType		1
@@ -1105,8 +1097,6 @@ BigQuery	BigQuery	call	FLOAT_TO_TEXT	emulated	floatToText		0
 BigQuery	BigQuery	call	DATETIME_TO_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 BigQuery	BigQuery	call	DATETIME_PRINT	not_here	renderer bug: is expanded before any dialect reads it		0
 BigQuery	BigQuery	call	CELL_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
-BigQuery	BigQuery	call	RELATION_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
-BigQuery	BigQuery	call	TEXT_FORMS	not_here	renderer bug: is expanded before any dialect reads it		0
 BigQuery	BigQuery	call	VARIANT_ELEMENTS	emulated	variantElements		2
 BigQuery	BigQuery	call	VARIANT_GET	emulated	variantGet		14
 BigQuery	BigQuery	call	JSON_TYPE	emulated	jsonType		1
@@ -1335,8 +1325,6 @@ Databricks	Databricks	call	FLOAT_TO_TEXT	emulated	floatToText		0
 Databricks	Databricks	call	DATETIME_TO_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 Databricks	Databricks	call	DATETIME_PRINT	not_here	renderer bug: is expanded before any dialect reads it		0
 Databricks	Databricks	call	CELL_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
-Databricks	Databricks	call	RELATION_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
-Databricks	Databricks	call	TEXT_FORMS	not_here	renderer bug: is expanded before any dialect reads it		0
 Databricks	Databricks	call	VARIANT_ELEMENTS	emulated	variantElements		4
 Databricks	Databricks	call	VARIANT_GET	emulated	variantGet		15
 Databricks	Databricks	call	JSON_TYPE	emulated	jsonType		1
@@ -1565,8 +1553,6 @@ DuckDb	DuckDB	call	FLOAT_TO_TEXT	emulated	floatToText		0
 DuckDb	DuckDB	call	DATETIME_TO_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 DuckDb	DuckDB	call	DATETIME_PRINT	not_here	renderer bug: is expanded before any dialect reads it		0
 DuckDb	DuckDB	call	CELL_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
-DuckDb	DuckDB	call	RELATION_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
-DuckDb	DuckDB	call	TEXT_FORMS	not_here	renderer bug: is expanded before any dialect reads it		0
 DuckDb	DuckDB	call	VARIANT_ELEMENTS	emulated	variantElements		4
 DuckDb	DuckDB	call	VARIANT_GET	emulated	variantGet		15
 DuckDb	DuckDB	call	JSON_TYPE	spelled	json_type		1
@@ -1795,8 +1781,6 @@ ClickHouse	ClickHouse	call	FLOAT_TO_TEXT	emulated	floatToText		0
 ClickHouse	ClickHouse	call	DATETIME_TO_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 ClickHouse	ClickHouse	call	DATETIME_PRINT	not_here	renderer bug: is expanded before any dialect reads it		0
 ClickHouse	ClickHouse	call	CELL_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
-ClickHouse	ClickHouse	call	RELATION_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
-ClickHouse	ClickHouse	call	TEXT_FORMS	not_here	renderer bug: is expanded before any dialect reads it		0
 ClickHouse	ClickHouse	call	VARIANT_ELEMENTS	emulated	variantElements		4
 ClickHouse	ClickHouse	call	VARIANT_GET	emulated	variantGet		15
 ClickHouse	ClickHouse	call	JSON_TYPE	emulated	multiIf(isNull(…), NULL, JSONType(…) = 'Null', 'NULL', JSONType(…) = 'String'...		1
@@ -2025,8 +2009,6 @@ SQLite	SQLite	call	FLOAT_TO_TEXT	emulated	floatToText		0
 SQLite	SQLite	call	DATETIME_TO_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 SQLite	SQLite	call	DATETIME_PRINT	not_here	renderer bug: is expanded before any dialect reads it		0
 SQLite	SQLite	call	CELL_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
-SQLite	SQLite	call	RELATION_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
-SQLite	SQLite	call	TEXT_FORMS	not_here	renderer bug: is expanded before any dialect reads it		0
 SQLite	SQLite	call	VARIANT_ELEMENTS	emulated	variantElements		2
 SQLite	SQLite	call	VARIANT_GET	emulated	variantGet		14
 SQLite	SQLite	call	JSON_TYPE	emulated	(CASE json_type(…) WHEN 'null' THEN 'NULL' WHEN 'text' THEN 'VARCHAR' WHEN 't...		1
@@ -2255,8 +2237,6 @@ MariaDb	MariaDB	call	FLOAT_TO_TEXT	emulated	floatToText		0
 MariaDb	MariaDB	call	DATETIME_TO_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 MariaDb	MariaDB	call	DATETIME_PRINT	not_here	renderer bug: is expanded before any dialect reads it		0
 MariaDb	MariaDB	call	CELL_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
-MariaDb	MariaDB	call	RELATION_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
-MariaDb	MariaDB	call	TEXT_FORMS	not_here	renderer bug: is expanded before any dialect reads it		0
 MariaDb	MariaDB	call	VARIANT_ELEMENTS	emulated	variantElements		2
 MariaDb	MariaDB	call	VARIANT_GET	emulated	variantGet		14
 MariaDb	MariaDB	call	JSON_TYPE	emulated	(CASE JSON_TYPE(…) WHEN 'NULL' THEN 'NULL' WHEN 'STRING' THEN 'VARCHAR' WHEN ...		1
@@ -2485,8 +2465,6 @@ MySql	MySQL	call	FLOAT_TO_TEXT	emulated	floatToText	as MariaDb	0
 MySql	MySQL	call	DATETIME_TO_TEXT	not_here	renderer bug: is expanded before any dialect reads it	as MariaDb	0
 MySql	MySQL	call	DATETIME_PRINT	not_here	renderer bug: is expanded before any dialect reads it	as MariaDb	0
 MySql	MySQL	call	CELL_TEXT	not_here	renderer bug: is expanded before any dialect reads it	as MariaDb	0
-MySql	MySQL	call	RELATION_TEXT	not_here	renderer bug: is expanded before any dialect reads it	as MariaDb	0
-MySql	MySQL	call	TEXT_FORMS	not_here	renderer bug: is expanded before any dialect reads it	as MariaDb	0
 MySql	MySQL	call	VARIANT_ELEMENTS	emulated	variantElements	as MariaDb	2
 MySql	MySQL	call	VARIANT_GET	emulated	variantGet	as MariaDb	14
 MySql	MySQL	call	JSON_TYPE	emulated	(CASE JSON_TYPE(…) WHEN 'NULL' THEN 'NULL' WHEN 'STRING' THEN 'VARCHAR' WHEN ...	as MariaDb	1
@@ -2715,8 +2693,6 @@ MongoDb	MongoDB	call	FLOAT_TO_TEXT	emulated	floatToText		0
 MongoDb	MongoDB	call	DATETIME_TO_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
 MongoDb	MongoDB	call	DATETIME_PRINT	not_here	renderer bug: is expanded before any dialect reads it		0
 MongoDb	MongoDB	call	CELL_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
-MongoDb	MongoDB	call	RELATION_TEXT	not_here	renderer bug: is expanded before any dialect reads it		0
-MongoDb	MongoDB	call	TEXT_FORMS	not_here	renderer bug: is expanded before any dialect reads it		0
 MongoDb	MongoDB	call	VARIANT_ELEMENTS	emulated	variantElements		0
 MongoDb	MongoDB	call	VARIANT_GET	emulated	variantGet		0
 MongoDb	MongoDB	call	JSON_TYPE	emulated	jsonType		0
@@ -2945,8 +2921,6 @@ EngineStyleH2	-	call	FLOAT_TO_TEXT	emulated	floatToText		-
 EngineStyleH2	-	call	DATETIME_TO_TEXT	not_here	renderer bug: is expanded before any dialect reads it		-
 EngineStyleH2	-	call	DATETIME_PRINT	not_here	renderer bug: is expanded before any dialect reads it		-
 EngineStyleH2	-	call	CELL_TEXT	not_here	renderer bug: is expanded before any dialect reads it		-
-EngineStyleH2	-	call	RELATION_TEXT	not_here	renderer bug: is expanded before any dialect reads it		-
-EngineStyleH2	-	call	TEXT_FORMS	not_here	renderer bug: is expanded before any dialect reads it		-
 EngineStyleH2	-	call	VARIANT_ELEMENTS	refused	variant navigation reached a dialect without JSON support	via AnsiSqlRenderer.variantElements	-
 EngineStyleH2	-	call	VARIANT_GET	refused	variant navigation reached a dialect without JSON support	via AnsiSqlRenderer.variantGet	-
 EngineStyleH2	-	call	JSON_TYPE	spelled	json_type		-
@@ -3175,8 +3149,6 @@ EngineStyleDB2	-	call	FLOAT_TO_TEXT	emulated	floatToText	as EngineStyleH2	-
 EngineStyleDB2	-	call	DATETIME_TO_TEXT	not_here	renderer bug: is expanded before any dialect reads it	as EngineStyleH2	-
 EngineStyleDB2	-	call	DATETIME_PRINT	not_here	renderer bug: is expanded before any dialect reads it	as EngineStyleH2	-
 EngineStyleDB2	-	call	CELL_TEXT	not_here	renderer bug: is expanded before any dialect reads it	as EngineStyleH2	-
-EngineStyleDB2	-	call	RELATION_TEXT	not_here	renderer bug: is expanded before any dialect reads it	as EngineStyleH2	-
-EngineStyleDB2	-	call	TEXT_FORMS	not_here	renderer bug: is expanded before any dialect reads it	as EngineStyleH2	-
 EngineStyleDB2	-	call	VARIANT_ELEMENTS	refused	variant navigation reached a dialect without JSON support	as EngineStyleH2, via AnsiSqlRenderer.variantElements	-
 EngineStyleDB2	-	call	VARIANT_GET	refused	variant navigation reached a dialect without JSON support	as EngineStyleH2, via AnsiSqlRenderer.variantGet	-
 EngineStyleDB2	-	call	JSON_TYPE	spelled	json_type	as EngineStyleH2	-
@@ -3405,8 +3377,6 @@ EngineStyleComposite	-	call	FLOAT_TO_TEXT	emulated	floatToText	as EngineStyleDB2
 EngineStyleComposite	-	call	DATETIME_TO_TEXT	not_here	renderer bug: is expanded before any dialect reads it	as EngineStyleDB2, as EngineStyleH2	-
 EngineStyleComposite	-	call	DATETIME_PRINT	not_here	renderer bug: is expanded before any dialect reads it	as EngineStyleDB2, as EngineStyleH2	-
 EngineStyleComposite	-	call	CELL_TEXT	not_here	renderer bug: is expanded before any dialect reads it	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	RELATION_TEXT	not_here	renderer bug: is expanded before any dialect reads it	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	TEXT_FORMS	not_here	renderer bug: is expanded before any dialect reads it	as EngineStyleDB2, as EngineStyleH2	-
 EngineStyleComposite	-	call	VARIANT_ELEMENTS	refused	variant navigation reached a dialect without JSON support	as EngineStyleDB2, as EngineStyleH2, via AnsiSqlRenderer.variantElements	-
 EngineStyleComposite	-	call	VARIANT_GET	refused	variant navigation reached a dialect without JSON support	as EngineStyleDB2, as EngineStyleH2, via AnsiSqlRenderer.variantGet	-
 EngineStyleComposite	-	call	JSON_TYPE	spelled	json_type	as EngineStyleDB2, as EngineStyleH2	-

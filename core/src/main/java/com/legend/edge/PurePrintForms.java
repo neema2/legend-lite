@@ -182,12 +182,6 @@ final class PurePrintForms extends com.legend.sql.SqlRewriter {
             }
             return new SqlExpr.Call(SqlFn.DATETIME_PRINT, args);
         }
-        if (e instanceof SqlExpr.Call c && c.fn() == SqlFn.TEXT_FORMS) {
-            return c.args().get(1);
-        }
-        if (e instanceof SqlExpr.Call c && c.fn() == SqlFn.RELATION_TEXT) {
-            return c.args().get(0);
-        }
         return super.expr(e);
     }
 }
