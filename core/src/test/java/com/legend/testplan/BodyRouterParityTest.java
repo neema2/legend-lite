@@ -17,7 +17,7 @@ import com.legend.exec.StatementOrigin;
 import com.legend.executionplan.ExecutionPlan;
 import com.legend.result.Batch;
 import com.legend.result.ResultSink;
-import com.legend.sql.dialect.RawSqlBoundary;
+import com.legend.edge.RawSqlBoundary;
 import com.legend.testbackend.StorelessRuntime;
 import com.legend.testbackend.TestBackend;
 import com.legend.testbackend.TestBackends;

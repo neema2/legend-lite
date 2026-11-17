@@ -11,7 +11,7 @@ import com.legend.executionplan.DataRef;
 import com.legend.executionplan.DataStores;
 import com.legend.executionplan.ExecutionPlan;
 import com.legend.setup.LoadSteps;
-import com.legend.sql.dialect.RawSqlBoundary;
+import com.legend.edge.RawSqlBoundary;
 import com.legend.testexecutionplan.Extension;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;

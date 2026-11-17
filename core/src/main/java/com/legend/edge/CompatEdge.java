@@ -6,7 +6,7 @@ package com.legend.edge;
 import com.legend.executionplan.DataRef;
 import com.legend.executionplan.DataStores;
 import com.legend.executionplan.ExecutionPlan;
-import com.legend.sql.dialect.RawSqlBoundary;
+import com.legend.edge.RawSqlBoundary;
 import com.legend.testexecutionplan.Edge;
 import com.legend.testexecutionplan.Extension;
 

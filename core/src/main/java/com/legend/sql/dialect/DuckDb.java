@@ -178,13 +178,6 @@ public class DuckDb extends AnsiSqlRenderer {
         return IN_MEMORY;
     }
 
-    /** The engine's H2 text translated for DuckDB (the raw-SQL boundary's own rewrite: keyword column names quoted,
-     *  H2's type kinds mapped, {@code CURRENT_TIMESTAMP()} without parens). */
-    @Override
-    public String fromEngineText(String statement) {
-        return RawSqlBoundary.translated(statement, types -> types, bare -> bare);
-    }
-
     /** DuckDB's aggregates, each by its name in the shared {@code name(args)} form (the dialect program's Phase 1,
      *  2026-10-13: an exhaustive switch, so a new aggregate asks this dialect too). */
     @Override

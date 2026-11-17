@@ -491,12 +491,6 @@ public class H2 extends AnsiSqlRenderer {
         };
     }
 
-    /** The engine's H2 text is H2's own. */
-    @Override
-    public String fromEngineText(String statement) {
-        return statement;
-    }
-
     /** H2 types a parameter when it prepares the statement — by its neighbour (a decimal beside an integer column is
      *  read as an integer: {@code ID * ?} with 1.5 answers {@code [2, 6]}), or not at all when it stands alone
      *  ({@code Unknown data type}) — so every placeholder is written typed, as a literal of the parameter's value is,

@@ -123,9 +123,9 @@ public final class PureText {
      *  product's own source refuses it. */
     public static SqlDialect dialect(DatabaseType type) {
         return switch (type) {
-            case DuckDB -> new DuckDb();
+            case DuckDB -> new EdgeDuckDb();
             case H2 -> new H2();
-            case Postgres -> new Postgres();
+            case Postgres -> new EdgePostgres();
             case Databricks -> new Databricks();
             case Snowflake -> new Snowflake();
             case BigQuery -> new BigQuery();

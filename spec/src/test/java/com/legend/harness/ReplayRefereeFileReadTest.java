@@ -7,7 +7,7 @@ import com.legend.edge.RawLedger;
 
 import com.legend.sql.SqlDdl;
 import com.legend.sql.SqlDml;
-import com.legend.sql.dialect.RawSqlBoundary;
+import com.legend.edge.RawSqlBoundary;
 import com.legend.sql.dialect.SqlDialect;
 import org.junit.jupiter.api.Test;
 

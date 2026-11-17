@@ -51,7 +51,7 @@ import java.util.stream.Stream;
  *     (the engine's grouping), the package's setups run THROUGH THE
  *     PLATFORM once per session, every raw SQL a body executes recorded
  *     for the referee (the platform's {@link
- *     com.legend.sql.dialect.RawSqlBoundary} ledger); a test that carries
+ *     com.legend.edge.RawSqlBoundary} ledger); a test that carries
  *     its own inline data runs on a private workspace;</li>
  * <li><b>run + judge</b> — the PRODUCT's test runner ({@link PureTestRunner},
  *     upstream boundary batch 7a): sessions, setups, the body through the ONE

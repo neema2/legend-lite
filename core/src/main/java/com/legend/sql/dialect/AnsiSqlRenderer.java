@@ -1734,13 +1734,6 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         return writer.append(")");
     }
 
-    /** {@inheritDoc} The engine's H2 text is the one translated language: its connection declares
-     *  {@link RawSqlBoundary#ENGINE_TEXT}. */
-    @Override
-    public final String raw(String statement, @com.legend.base.Nullable String writtenFor) {
-        return RawSqlBoundary.ENGINE_TEXT.equals(writtenFor) ? fromEngineText(statement) : statement;
-    }
-
     /**
      * A raw grid's report ({@link SqlSource.GridReport}, the planner-driver seam program's S3c, 2026-10-30), written
      * with a REGION per column the grid's result reports (its keyed plan reads them first): {@code COLUMNS} one row per

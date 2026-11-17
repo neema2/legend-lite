@@ -126,13 +126,6 @@ public class SQLite extends AnsiSqlRenderer {
         return true;
     }
 
-    /** The engine's H2 text is refused here: SQLite has no translation of it (decision D2: raw text runs on the
-     *  database its connection declares; only the engine's H2 text is translated, for H2, DuckDB and Postgres). */
-    @Override
-    public String fromEngineText(String statement) {
-        throw new DialectCapability("the engine's H2 text reached SQLite, which has no translation of it");
-    }
-
     /** {@inheritDoc} The payload bound as one parameter, split by the database (the JSON pass, 2026-11-11: until then
      *  a session table in its {@code temp} schema its load made and its release dropped). */
     @Override

@@ -2341,12 +2341,12 @@ channel_a	Postgres	meta::pure::functions::math::atan_Number_1__Float_1_	3	79	383
 channel_a	Postgres	meta::pure::functions::math::average_Float_MANY__Float_1_	2	202	3461	2	0	0
 channel_a	Postgres	meta::pure::functions::math::average_Integer_MANY__Float_1_	2	183	3343	2	0	0
 channel_a	Postgres	meta::pure::functions::math::average_Number_MANY__Float_1_	2	237	3452	2	0	0
-channel_a	Postgres	meta::pure::functions::math::bitAnd_Integer_1__Integer_1__Integer_1_	16	1561	24090	0	70	0
-channel_a	Postgres	meta::pure::functions::math::bitNot_Integer_1__Integer_1_	15	913	20003	0	35	0
-channel_a	Postgres	meta::pure::functions::math::bitOr_Integer_1__Integer_1__Integer_1_	16	1561	24074	0	70	0
+channel_a	Postgres	meta::pure::functions::math::bitAnd_Integer_1__Integer_1__Integer_1_	16	1665	24194	0	140	0
+channel_a	Postgres	meta::pure::functions::math::bitNot_Integer_1__Integer_1_	15	965	20055	0	70	0
+channel_a	Postgres	meta::pure::functions::math::bitOr_Integer_1__Integer_1__Integer_1_	16	1665	24178	0	140	0
 channel_a	Postgres	meta::pure::functions::math::bitShiftLeft_Integer_1__Integer_1__Integer_1_	11	862	17717	0	0	0
 channel_a	Postgres	meta::pure::functions::math::bitShiftRight_Integer_1__Integer_1__Integer_1_	11	934	17871	0	0	0
-channel_a	Postgres	meta::pure::functions::math::bitXor_Integer_1__Integer_1__Integer_1_	16	1561	24090	0	70	0
+channel_a	Postgres	meta::pure::functions::math::bitXor_Integer_1__Integer_1__Integer_1_	16	1665	24194	0	140	0
 channel_a	Postgres	meta::pure::functions::math::cbrt_Number_1__Float_1_	3	80	3833	0	0	0
 channel_a	Postgres	meta::pure::functions::math::ceiling_Number_1__Integer_1_	12	532	15706	0	0	0
 channel_a	Postgres	meta::pure::functions::math::corr_Number_MANY__Number_MANY__Number_$0_1$_	4	1094	18649	12	0	0
@@ -2456,8 +2456,8 @@ channel_a	Postgres	meta::pure::functions::string::parseBoolean_String_1__Boolean
 channel_a	Postgres	meta::pure::functions::string::parseDate_String_1__Date_1_	8	778	13058	0	0	0
 channel_a	Postgres	meta::pure::functions::string::parseDecimal_String_1__Decimal_1_	7	500	10057	0	0	0
 channel_a	Postgres	meta::pure::functions::string::parseDecimal_String_1__Integer_1__Integer_1__Decimal_1_	6	432	8619	0	0	0
-channel_a	Postgres	meta::pure::functions::string::parseFloat_String_1__Float_1_	5	1868	8994	0	0	0
-channel_a	Postgres	meta::pure::functions::string::parseInteger_String_1__Integer_1_	4	1006	6572	0	90	0
+channel_a	Postgres	meta::pure::functions::string::parseFloat_String_1__Float_1_	5	2084	9210	0	0	0
+channel_a	Postgres	meta::pure::functions::string::parseInteger_String_1__Integer_1_	4	1164	6730	0	180	0
 channel_a	Postgres	meta::pure::functions::string::plus_String_MANY__String_1_	6	484	11997	0	0	0
 channel_a	Postgres	meta::pure::functions::string::regexpCount_String_1__String_1__Integer_1_	2	524	3954	2	0	0
 channel_a	Postgres	meta::pure::functions::string::regexpCount_String_1__String_1__RegexpParameter_$1_MANY$__Integer_1_	1	182	1860	1	0	0

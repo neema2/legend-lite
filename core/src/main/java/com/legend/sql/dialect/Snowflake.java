@@ -67,13 +67,6 @@ import java.util.Set;
 // @SpellingArm methods alone (EdgeSpellingHookTest; phase D's D1.0, 2026-11-12; noted 2026-11-15, the D part 1 audit)
 public class Snowflake extends AnsiSqlRenderer {
 
-    /** The engine's H2 text is refused here: Snowflake has no translation of it (decision D2: raw text runs on the
-     *  database its connection declares; only the engine's H2 text is translated, for H2, DuckDB and Postgres). */
-    @Override
-    public String fromEngineText(String statement) {
-        throw new DialectCapability("the engine's H2 text reached Snowflake, which has no translation of it");
-    }
-
     /** {@inheritDoc} 9: its {@code TIMESTAMP_NTZ} keeps nanoseconds (S181, A7, 2026-11-10). */
     @Override
     protected int literalFractionDigits() {
