@@ -19,6 +19,7 @@ public sealed interface ConnectionSpecification
                 ConnectionSpecification.LocalH2,
                 ConnectionSpecification.EmbeddedH2,
                 ConnectionSpecification.StaticDatasource,
+                ConnectionSpecification.MongoDbDatasource,
                 ConnectionSpecification.Trino,
                 ConnectionSpecification.Snowflake,
                 ConnectionSpecification.Spanner,
@@ -85,6 +86,24 @@ public sealed interface ConnectionSpecification
      * Pure: {@code specification: Static { host: '...'; port: 5432; database: '...'; };}.
      */
     record StaticDatasource(String host, int port, String database) implements ConnectionSpecification {}
+
+    /**
+     * legend-engine's {@code MongoDBDatasourceSpecification}: the database, and every server its
+     * {@code serverURLs: [host:port, ...]} names. The engine compiles the list (each port above zero,
+     * MongoDBCompilerHelper.compileServerURLs) and its client seeds its cluster with all of them
+     * ({@code applyToClusterSettings(b -> b.hosts(...))}, MongoDBStoreConnectionProvider), so one server or a replica
+     * set's members are one shape here, carried whole (the Studio roundtrip case
+     * CORE-unknown-elements-stores-and-connections, 2026-11-16: two servers were refused at the model).
+     */
+    record MongoDbDatasource(java.util.List<Server> servers, String database) implements ConnectionSpecification {
+        public MongoDbDatasource {
+            servers = java.util.List.copyOf(servers);
+        }
+
+        /** A server the connection names: its host and port. */
+        public record Server(String host, int port) {
+        }
+    }
 
     /**
      * Engine's Trino datasource: a coordinator at host/port, its session's catalog and schema (legend-engine's

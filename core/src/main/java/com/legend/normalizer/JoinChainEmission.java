@@ -917,7 +917,6 @@ final class JoinChainEmission {
                 "join-mediated filter on a set without ~mainTable");
         String mainDb = jmMain.database();
         String mainTable = jmMain.table();
-        Variable r = new Variable("irow");
         // NOTE (leg 4, sweep-bisected): threading the class's backingView
         // here converts the view-to-view (INNER) ~filter pair BUT breaks
         // unionOfViews + a milestoned-view single under FULL-corpus
@@ -926,31 +925,55 @@ final class JoinChainEmission {
         // the main relation: a table, or a VIEW's frame (the engine's
         // ViewSelectSQLQuery — the filter chain departs from the view's row)
         Pipeline p = new Pipeline(relationRef(mainDb, mainTable, model, md), ledger, md.views());
-        JoinChainEmission.emitJoinChain(p, jm.joins(), jm.sourceDb(),
-                /* propName */ null, rcm.className(), mainDb, mainTable,
-                r, model, md, /* classTypedTerminus */ false);
+        String where = "class=" + rcm.className() + ", mapping=" + md.qualifiedName();
+        DatabaseDefinition.FilterDefinition fd = filterOf(jm, model, where);
+        return innerFilteredRelation(p, mainDb, mainTable, jm, fd.name(),
+                ViewRelation.frameRewriteIfView(fd.condition(), mainDb, mainTable, md, model),
+                rcm.className(), where, model, md);
+    }
+
+    /** The definition a join-mediated ~filter names: in its own database, else the joins' ({@code where} names the
+     *  owner a miss reports). */
+    static DatabaseDefinition.FilterDefinition filterOf(FilterMapping.JoinMediated jm, ModelBuilder model,
+            String where) {
         String dbFqn = switch (jm.filter()) {
             case FilterPointer.Cross c -> c.db();
             case FilterPointer.Local l -> jm.sourceDb();
         };
-        DatabaseDefinition.FilterDefinition fd = model.findFilter(
-                dbFqn, jm.filter().name()).orElseThrow(() -> new ModelException(
+        return model.findFilter(dbFqn, jm.filter().name()).orElseThrow(() -> new ModelException(
                 LegendCompileException.Phase.NORMALIZE,
-                "~filter '" + jm.filter().name() + "' not found in db '"
-              + dbFqn + "'; class=" + rcm.className() + ", mapping="
-              + md.qualifiedName()));
+                "~filter '" + jm.filter().name() + "' not found in db '" + dbFqn + "'; " + where));
+    }
+
+    /**
+     * {@link #innerFilteredSource}'s relation over {@code p}'s main relation ({@code mainDb}.{@code mainTable}, a table
+     * or a view's frame): the filter's join chain emitted on {@code p}, the {@code condition} read at the chain's
+     * terminus, and every base column projected under its own name. A class mapping's set and a View share it:
+     * legend-engine 4.145.0 reads both through processRelationalMappingSpecification, an (INNER) first join choosing
+     * getRelationalElementWithInnerJoin for either (pureToSQLQuery.pure; the View's caller is ViewRelation, the Studio
+     * roundtrip case STO_Relational-database-operations-and-join-types, 2026-11-16). {@code md} is null for the view
+     * lift, which emits physical hops only.
+     */
+    static ValueSpecification innerFilteredRelation(Pipeline p, String mainDb, String mainTable,
+            FilterMapping.JoinMediated jm, String filterName, RelationalOperation condition,
+            @com.legend.base.Nullable String ownerClassFqn, String where, ModelBuilder model,
+            @com.legend.base.Nullable ResolvedMapping md) {
+        Variable r = new Variable("irow");
+        JoinChainEmission.emitJoinChain(p, jm.joins(), jm.sourceDb(),
+                /* propName */ null, ownerClassFqn, mainDb, mainTable,
+                r, model, md, /* classTypedTerminus */ false);
         // LEFT JOIN + WHERE ≡ INNER JOIN + WHERE only when the condition is
         // NULL-REJECTING on the joined side — a null-TOLERANT condition
         // (is-null arms) keeps null-extended parents the engine's INNER
         // join drops (audit 19c, probe-verified). Every corpus (INNER)
         // condition today is null-rejecting; the first tolerant one must
-        // be LOUD, never silently wrong. Real INNER emission is follow-up.
-        if (nullTolerant(fd.condition())) {
+        // be LOUD, never silently wrong. Real INNER emission is follow-up
+        // (docs/SEMANTICS_REGISTER.md S415, pending: a View reaches it too).
+        if (nullTolerant(condition)) {
             throw new NotImplementedException("(INNER) mapping ~filter '"
-                    + jm.filter().name() + "' has a NULL-TOLERANT condition —"
+                    + filterName + "' has a NULL-TOLERANT condition —"
                     + " the LEFT+WHERE realization would keep parents the"
-                    + " engine's INNER join drops; class=" + rcm.className()
-                    + ", mapping=" + md.qualifiedName());
+                    + " engine's INNER join drops; " + where);
         }
         String terminalAlias = JoinChainEmission.slotFor(p, jm.joins());
         ValueSpecification terminalRow = new AppliedProperty(r, terminalAlias);
@@ -966,9 +989,7 @@ final class JoinChainEmission {
         }
         scope.putIfAbsent(mainTable, r);
         MappingNormalizer.seedAliasScope(scope, p, r, mainTable);
-        ValueSpecification cond = RelOpTranslator.translate(
-                ViewRelation.frameRewriteIfView(fd.condition(), mainDb, mainTable, md, model),
-                scope, terminalRow, r, p.view());
+        ValueSpecification cond = RelOpTranslator.translate(condition, scope, terminalRow, r, p.view());
         ValueSpecification src = Calls.platform("filter", List.of(p.expr,
                 new LambdaFunction(List.of(r), List.of(cond))));
         // every base column under its original name: a table's columns, or
@@ -984,8 +1005,7 @@ final class JoinChainEmission {
             DatabaseDefinition.TableDefinition td = model.knowledge().table(mainDb, mainTable)
                     .orElseThrow(() -> new ModelException(LegendCompileException.Phase.NORMALIZE,
                             "main table '" + mainTable + "' not found in db '" + mainDb
-                          + "' for the (INNER) mapping ~filter of class '"
-                          + rcm.className() + "', mapping=" + md.qualifiedName()));
+                          + "' for the (INNER) ~filter '" + filterName + "'; " + where));
             for (DatabaseDefinition.ColumnDefinition cd : td.columns()) {
                 baseNames.add(cd.name());
             }

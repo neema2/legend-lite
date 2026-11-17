@@ -214,6 +214,42 @@ final class RelOpTranslator {
               + table + "." + column + ").");
     }
 
+    /**
+     * A value branch of the relational {@code case} or {@code if}. The store's NULL literal there is the absent value of
+     * the other branches' type: legend-engine 4.145.0 types {@code sqlNull} in a relational operation as {@code Other}
+     * (relationalExtension.pure, the 'sqlNull' rule), and {@code getSafeType} over an if's or a case's branches absorbs
+     * {@code Other} into any other type ({@code safeTypeMap}: Other's row admits every type), so
+     * {@code if(c, 'LARGE', sqlNull())} is a VARCHAR. In Pure that is the empty {@code []}: the bottom type at
+     * {@code [0]}, which the if's join absorbs the same way. The native {@code sqlNull():SQLNull[1]} is the TDS
+     * null-cell VALUE, and as a branch it widened the join to {@code Any} (the Studio roundtrip case
+     * STO_Relational-mapping-join-chains-and-distinct: "property 'sizeBucket' of 'model::domain::Trade': expected
+     * String, got Any", 2026-11-16). Only a branch: elsewhere (a comparison's operand) the literal keeps its null-test
+     * meaning (NullSemantics). Both spell SQL's NULL when lowered.
+     */
+    private static ValueSpecification branch(RelationalOperation op,
+            Map<String, ValueSpecification> tableScope,
+            @com.legend.base.Nullable ValueSpecification targetVarOrNull,
+            @com.legend.base.Nullable Variable rowBindOrNull,
+            PipelineView pipeline) {
+        RelationalOperation value = op;
+        while (true) {
+            // a parenthesized branch, (sqlNull()), is the same value
+            if (value instanceof RelationalOperation.Group g) {
+                value = g.inner();
+            } else if (value instanceof RelationalOperation.FunctionCall g && dyna(g) == DynaFn.GROUP
+                    && g.args().size() == 1) {
+                value = g.args().get(0);
+            } else {
+                break;
+            }
+        }
+        if (value instanceof RelationalOperation.FunctionCall call && dyna(call) == DynaFn.SQL_NULL
+                && call.args().isEmpty()) {
+            return new PureCollection(List.of());
+        }
+        return translate(op, tableScope, targetVarOrNull, rowBindOrNull, pipeline);
+    }
+
     static ValueSpecification translate(RelationalOperation op,
                                                     Map<String, ValueSpecification> tableScope,
                                                     @com.legend.base.Nullable ValueSpecification targetVarOrNull,
@@ -374,13 +410,13 @@ final class RelOpTranslator {
                     // the relational 'case' dynafunction:
                     // case(c1, v1 [, c2, v2 ...], default) — pure spells it
                     // as nested if(cond, {|then}, {|else})
-                    ValueSpecification tail = translate(
+                    ValueSpecification tail = branch(
                             call.args().get(call.args().size() - 1),
                             tableScope, targetVarOrNull, rowBindOrNull, pipeline);
                     for (int i = call.args().size() - 3; i >= 0; i -= 2) {
                         ValueSpecification cond = translate(call.args().get(i),
                                 tableScope, targetVarOrNull, rowBindOrNull, pipeline);
-                        ValueSpecification then = translate(call.args().get(i + 1),
+                        ValueSpecification then = branch(call.args().get(i + 1),
                                 tableScope, targetVarOrNull, rowBindOrNull, pipeline);
                         tail = Calls.platform("if", List.of(cond,
                                 new LambdaFunction(List.of(), List.of(then)),
@@ -522,10 +558,10 @@ final class RelOpTranslator {
                             translate(call.args().get(0), tableScope, targetVarOrNull,
                                     rowBindOrNull, pipeline),
                             new LambdaFunction(List.of(), List.of(
-                                    translate(call.args().get(1), tableScope, targetVarOrNull,
+                                    branch(call.args().get(1), tableScope, targetVarOrNull,
                                             rowBindOrNull, pipeline))),
                             new LambdaFunction(List.of(), List.of(
-                                    translate(call.args().get(2), tableScope, targetVarOrNull,
+                                    branch(call.args().get(2), tableScope, targetVarOrNull,
                                             rowBindOrNull, pipeline)))));
             case RelationalOperation.FunctionCall call
                     when (dyna(call) == DynaFn.OR || dyna(call) == DynaFn.AND)

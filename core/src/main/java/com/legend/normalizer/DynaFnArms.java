@@ -31,7 +31,9 @@ public final class DynaFnArms {
     private DynaFnArms() {
     }
 
-    /** Every engine dynafunction with a translator arm. */
+    /** Every engine dynafunction with a translator arm. SQL_NULL since 2026-11-16 (the Studio roundtrip case
+     *  STO_Relational-mapping-join-chains-and-distinct): a case's or an if's branch that is the store's NULL is Pure's
+     *  {@code []} (RelOpTranslator.branch); anywhere else pure's own {@code sqlNull()} passes through (PURE). */
     public static final Set<DynaFn> ARMS = Collections.unmodifiableSet(EnumSet.of(
             DynaFn.ADD, DynaFn.ADJUST, DynaFn.AND, DynaFn.CASE,
             DynaFn.CONCAT, DynaFn.CONVERT_DATE,
@@ -42,7 +44,7 @@ public final class DynaFnArms {
             DynaFn.IS_NOT_NULL, DynaFn.IS_NULL,
             DynaFn.MD5, DynaFn.OR,
             DynaFn.PARSE_DATE, DynaFn.POSITION,
-            DynaFn.SHA1, DynaFn.SHA256, DynaFn.SPLIT_PART, DynaFn.SUB,
+            DynaFn.SHA1, DynaFn.SHA256, DynaFn.SPLIT_PART, DynaFn.SQL_NULL, DynaFn.SUB,
             DynaFn.SUBSTRING, DynaFn.TO_TIMESTAMP));
 
     /** The Lite identities the format arms land on. */

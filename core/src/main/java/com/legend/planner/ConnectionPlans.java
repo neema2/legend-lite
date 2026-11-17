@@ -44,6 +44,9 @@ public final class ConnectionPlans {
                     x.databaseName(), x.directory(), x.autoServerMode());
             case com.legend.model.ConnectionSpecification.StaticDatasource x ->
                     new ConnectionSpecification.StaticDatasource(x.host(), x.port(), x.database());
+            case com.legend.model.ConnectionSpecification.MongoDbDatasource x -> new ConnectionSpecification.MongoDbDatasource(
+                    x.servers().stream().map(v -> new ConnectionSpecification.MongoDbDatasource.Server(v.host(), v.port()))
+                            .toList(), x.database());
             case com.legend.model.ConnectionSpecification.Trino x -> new ConnectionSpecification.Trino(x.host(),
                     x.port(), x.catalog(), x.schema(), x.clientTags(), x.ssl());
             case com.legend.model.ConnectionSpecification.Snowflake x -> new ConnectionSpecification.Snowflake(

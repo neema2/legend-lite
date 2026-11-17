@@ -1243,6 +1243,49 @@ public interface TokenStreamCursor {
         }
     }
 
+    /** A {@code ~filter}'s joins, read from the cursor up to its pipe: {@code joinSequence: (PAREN_OPEN identifier
+     *  PAREN_CLOSE)? joinPointer (GREATER_THAN joinPointerFull)*}, a {@code joinPointerFull} {@code (PAREN_OPEN
+     *  identifier PAREN_CLOSE)? databasePointer? joinPointer} (RelationalParserGrammar.g4:240-244). A class mapping's
+     *  {@code mappingFilter} and a View's {@code viewFilterMappingJoin} spell it alike after their first
+     *  {@code [db]} (g4:141-143, 268), and legend-engine 4.145.0 reads both with one {@code visitJoinSequence}: a
+     *  pointer's db is its own {@code [db]}, else {@code db} -- the FIRST, never an earlier hop's (its parameter is
+     *  not reassigned); its type the one before it, else none (RelationalParseTreeWalker.visitJoinSequence,
+     *  visitViewFilterMappingJoin, visitMappingFilter). One reader, so the View's
+     *  {@code ~filter [db] (INNER) @J | [db] F} cannot fail where the class mapping's reads it (the Studio roundtrip
+     *  case STO_Relational-database-operations-and-join-types, 2026-11-16). A pointer's span includes its '@'. */
+    default List<com.legend.protocol.Protocol.PJoinPtr> parseJoinSequence(String db) {
+        List<com.legend.protocol.Protocol.PJoinPtr> joins = new ArrayList<>();
+        String hopDb = db;
+        String type = parseJoinTypeIfPresent();
+        while (true) {
+            int jS = pos();
+            expect(TokenType.AT);
+            joins.add(new com.legend.protocol.Protocol.PJoinPtr(hopDb, type, parseIdentifier(), spanOf(jS, pos() - 1)));
+            if (!match(TokenType.GREATER_THAN)) {
+                return joins;
+            }
+            type = parseJoinTypeIfPresent();
+            hopDb = db;
+            if (peek() == TokenType.BRACKET_OPEN) {
+                advance();
+                hopDb = com.legend.protocol.Protocol.unquotePath(parseQualifiedName());
+                expect(TokenType.BRACKET_CLOSE);
+            }
+        }
+    }
+
+    /** {@code (INNER)} or {@code (OUTER)} before a join pointer, validated; null when none is spelled. */
+    private @com.legend.base.Nullable String parseJoinTypeIfPresent() {
+        if (peek() != TokenType.PAREN_OPEN) {
+            return null;
+        }
+        advance();
+        String type = parseIdentifier();
+        validateJoinType(type);
+        expect(TokenType.PAREN_CLOSE);
+        return type;
+    }
+
     /** The raw text spanned by tokens {@code [startToken, endToken)} —
      *  island content arrives as COARSE chunks, so reconstructing the
      *  original characters for a re-lex is the engine's own island

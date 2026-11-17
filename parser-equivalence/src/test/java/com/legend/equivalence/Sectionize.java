@@ -92,12 +92,14 @@ final class Sectionize {
         els.sort(Comparator.comparingInt(e -> offs.get(com.legend.model.ParsedModel.keyOf(e))));
         List<Insertion> inserts = new ArrayList<>();
         String current = "Pure";
+        boolean written = false;   // current is a header the snippet writes (not one this plan inserted)
         int nextHeader = 0;
         for (com.legend.model.PackageableElement e : els) {
             int off = offs.get(com.legend.model.ParsedModel.keyOf(e));
             while (nextHeader < headers.size()
                     && headers.get(nextHeader).contentStartOffset() <= off) {
                 current = headers.get(nextHeader).name();   // real header wins
+                written = true;
                 nextHeader++;
             }
             String want = sectionOf(e);
@@ -107,9 +109,18 @@ final class Sectionize {
             if (want.equals("Relational") && current.equals("MongoDB")) {
                 continue;
             }
+            // a function activator parses only inside its own section (###Snowflake, ###Deephaven, ###BigQuery,
+            // ###MemSql, ###HostedService, ...), so the header the snippet writes above it is its section;
+            // sectionOf's "Snowflake" is the default where none is written (2026-11-16: the Studio roundtrip case
+            // CORE-unknown-elements-stores-and-connections, a DeephavenApp under ###Deephaven, in core's
+            // StudioRoundtripCasesTest)
+            if (e instanceof com.legend.model.FunctionActivatorDefinition && written && !current.equals("Pure")) {
+                continue;
+            }
             if (!want.equals(current)) {
                 inserts.add(new Insertion(off, want));
                 current = want;
+                written = false;
             }
         }
         return inserts;

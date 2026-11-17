@@ -17,7 +17,7 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * MongoDB's connector (docs/MONGODB_PLAN_2026_10_16.md §5.2, D12; 2026-10-17): beside the JDBC drivers, found as they
- * are ({@link Connectors}, by {@link java.util.ServiceLoader}), it opens a session on a {@code MongoDBConnection} -- its one server, its database,
+ * are ({@link Connectors}, by {@link java.util.ServiceLoader}), it opens a session on a {@code MongoDBConnection} -- its servers, its database,
  * its user and the password the connection's vault reference names -- whose statements ({@link MongoDbStatements})
  * run the pipelines the MongoDb dialect writes. The driver is the client library alone: the platform's own code
  * decides nothing by it, and core compiles against none of it (this source set rides with {@code //core:drivers}).
@@ -79,11 +79,23 @@ public final class MongoDbConnector implements DatabaseConnector {
 
     @Override
     public Sessions.Session open(com.legend.executionplan.Connection connection) {
-        if (!(connection.specification() instanceof ConnectionSpecification.StaticDatasource(String host, int port,
-                String database))) {
+        MongoClientSettings settings = settings(connection);
+        String database = ((ConnectionSpecification.MongoDbDatasource) connection.specification()).database();
+        MongoClient client = MongoClients.create(settings);
+        return new MongoDbSession(client, new MongoDbStatements(client.getDatabase(database)));
+    }
+
+    /** The client's settings for {@code connection}: its cluster seeded with EVERY server the connection names, as
+     *  legend-engine 4.145.0's MongoDBStoreConnectionProvider seeds it ({@code b.hosts(serverAddresses)}: one server,
+     *  or a replica set's members, which the driver discovers from them; the Studio roundtrip case
+     *  CORE-unknown-elements-stores-and-connections, 2026-11-16), and its credential. Package-private for
+     *  MongoDbPlanTest. */
+    static MongoClientSettings settings(com.legend.executionplan.Connection connection) {
+        if (!(connection.specification() instanceof ConnectionSpecification.MongoDbDatasource(
+                List<ConnectionSpecification.MongoDbDatasource.Server> servers, String database))) {
             throw new com.legend.error.NotImplementedException("connection '" + connection.qualifiedName()
                     + "' names its MongoDB by a " + connection.specification().getClass().getSimpleName()
-                    + ": only a server (host, port, database) is opened");
+                    + ": a MongoDBConnection's servers and database are opened");
         }
         MongoCredential credential = switch (connection.authentication()) {
             case AuthenticationSpec.UsernamePassword up -> MongoCredential.createCredential(up.username(), database,
@@ -92,13 +104,12 @@ public final class MongoDbConnector implements DatabaseConnector {
                     + "' authenticates by " + connection.authentication().getClass().getSimpleName()
                     + ", which the MongoDB connector does not open (a user name and a password are)");
         };
-        MongoClientSettings settings = MongoClientSettings.builder()
-                .applyToClusterSettings(b -> b.hosts(List.of(new ServerAddress(host, port)))
+        List<ServerAddress> hosts = servers.stream().map(s -> new ServerAddress(s.host(), s.port())).toList();
+        return MongoClientSettings.builder()
+                .applyToClusterSettings(b -> b.hosts(hosts)
                         .serverSelectionTimeout(30, TimeUnit.SECONDS))
                 .credential(credential)
                 .build();
-        MongoClient client = MongoClients.create(settings);
-        return new MongoDbSession(client, new MongoDbStatements(client.getDatabase(database)));
     }
 
     /** The password a vault reference names: {@code systemproperties:<name>} reads the JVM's system property, set by

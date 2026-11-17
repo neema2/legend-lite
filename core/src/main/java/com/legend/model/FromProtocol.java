@@ -298,17 +298,20 @@ public final class FromProtocol {
         if (f.joins().isEmpty()) {
             return new FilterMapping.Direct(ptr);
         }
+        // a View's ~filter is a class mapping's (legend-engine 4.145.0: both a RelationalMappingSpecification, read by
+        // one processRelationalMappingSpecification), so it converts by MappingFromProtocol.filterMapping's rule: the
+        // LEADING join type `~filter [DB] (INNER) @J | ...` is the filter's, and only a `> (TYPE) @Next` rides its own
+        // hop (the Studio roundtrip case STO_Relational-database-operations-and-join-types, 2026-11-16)
         List<JoinChainElement> chain = new java.util.ArrayList<>();
-        String sourceDb = null;
-        for (com.legend.protocol.Protocol.PJoinPtr jp : f.joins()) {
-            if (sourceDb == null) {
-                sourceDb = jp.db();
-            }
+        List<com.legend.protocol.Protocol.PJoinPtr> hops = f.joins();
+        for (int i = 0; i < hops.size(); i++) {
+            com.legend.protocol.Protocol.PJoinPtr jp = hops.get(i);
+            String hopType = i == 0 ? null : jp.joinType();
             chain.add(new JoinChainElement(jp.name(),
-                    jp.joinType() == null ? null : JoinType.fromIdentifier(jp.joinType()),
+                    hopType == null ? null : JoinType.fromIdentifier(hopType),
                     jp.db(), false));
         }
-        return new FilterMapping.JoinMediated(sourceDb, chain, ptr, null);
+        return new FilterMapping.JoinMediated(hops.get(0).db(), chain, ptr, hops.get(0).joinType());
     }
 
     /** The wire keeps a quoted identifier's quotes; the model keeps the bare

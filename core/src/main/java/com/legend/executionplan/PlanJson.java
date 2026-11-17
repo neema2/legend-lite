@@ -147,7 +147,12 @@ public final class PlanJson {
      *  with on its database (DuckDB's), written only where the database has them -- a host's runner reads them from the
      *  plan, never asking the planner at run. 51 since 2026-11-12 (the user's ruling: "that is a real off platform
      *  problem"): a stream step's {@code sql} is the planner's own plan of the snapshot's pull (its model, runtime and
-     *  lambda, planned in the call that answers the plan) -- no request carries the statement a plane runs. */
+     *  lambda, planned in the call that answers the plan) -- no request carries the statement a plane runs. Still 51
+     *  (not on main), 2026-11-16 (the Studio roundtrip case CORE-unknown-elements-stores-and-connections, the fork's
+     *  studio-compatibility-dev): a MongoDBConnection's specification is {@code MongoDbDatasource} (its
+     *  {@code servers}, each a {@code host} and {@code port}, and its {@code database}), no longer a
+     *  {@code StaticDatasource} of its one server; only the Java MongoDB connector opens one, and an older plan's
+     *  MongoDB {@code StaticDatasource} is refused there by name. */
     public static final int VERSION = 51;
 
     private PlanJson() {
@@ -1417,6 +1422,15 @@ public final class PlanJson {
             @Override
             public ConnectionWire.Fields object(String key) {
                 return fields(o.getObj(key));
+            }
+
+            @Override
+            public java.util.List<ConnectionWire.Fields> objects(String key) {
+                java.util.List<ConnectionWire.Fields> out = new java.util.ArrayList<>();
+                for (Json.Node n : o.getArr(key).items()) {
+                    out.add(fields((Json.Obj) n));
+                }
+                return out;
             }
         };
     }

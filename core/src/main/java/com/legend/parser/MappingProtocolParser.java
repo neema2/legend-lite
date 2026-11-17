@@ -1688,42 +1688,13 @@ public final class MappingProtocolParser implements TokenStreamCursor {
         expect(TokenType.BRACKET_OPEN);
         String db = Protocol.unquotePath(parseQualifiedName());
         expect(TokenType.BRACKET_CLOSE);
-        List<Protocol.PJoinPtr> joins = new ArrayList<>();
+        List<Protocol.PJoinPtr> joins = List.of();
         String fdb = db;
         String name;
-        String firstType = null;
-        if (peek() == TokenType.PAREN_OPEN) {
-            // ~filter [db] (INNER)@J | ... (probe filter-jointype)
-            advance();
-            firstType = parseIdentifier();
-            validateJoinType(firstType);
-            expect(TokenType.PAREN_CLOSE);
-        }
-        if (peek() == TokenType.AT) {
-            String curDb = db;
-            String pendingType = firstType;
-            while (peek() == TokenType.AT) {
-                int jS = pos;                       // span INCLUDES the '@'
-                advance();
-                joins.add(new Protocol.PJoinPtr(curDb, pendingType,
-                        parseIdentifier(), spanOf(jS, pos - 1)));
-                pendingType = null;
-                if (peek() != TokenType.GREATER_THAN) {
-                    break;
-                }
-                advance();
-                if (peek() == TokenType.PAREN_OPEN) {
-                    advance();
-                    pendingType = parseIdentifier();
-                    validateJoinType(pendingType);
-                    expect(TokenType.PAREN_CLOSE);
-                }
-                if (peek() == TokenType.BRACKET_OPEN) {
-                    advance();
-                    curDb = Protocol.unquotePath(parseQualifiedName());
-                    expect(TokenType.BRACKET_CLOSE);
-                }
-            }
+        if (peek() == TokenType.PAREN_OPEN || peek() == TokenType.AT) {
+            // ~filter [db] (INNER)@J > ... | [db2] F (probe filter-jointype); the View's ~filter reads the same
+            // sequence (TokenStreamCursor.parseJoinSequence)
+            joins = parseJoinSequence(db);
             expect(TokenType.PIPE);
             expect(TokenType.BRACKET_OPEN);
             fdb = Protocol.unquotePath(parseQualifiedName());

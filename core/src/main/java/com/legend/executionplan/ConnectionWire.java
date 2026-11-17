@@ -42,12 +42,15 @@ public final class ConnectionWire {
 
         /** The record at {@code key}, which is present. */
         Fields object(String key);
+
+        /** The records at {@code key}, which is present. */
+        List<Fields> objects(String key);
     }
 
     /** The {@code _type} tags, one spelling for the writer and the reader: an exhaustive switch over each, an unknown
      *  tag refused by name ({@link #named}). */
-    enum SpecificationTag { InMemory, LocalFile, LocalH2, EmbeddedH2, StaticDatasource, Trino, Snowflake, Spanner,
-        Databricks, BigQuery }
+    enum SpecificationTag { InMemory, LocalFile, LocalH2, EmbeddedH2, StaticDatasource, MongoDbDatasource, Trino,
+        Snowflake, Spanner, Databricks, BigQuery }
 
     enum AuthenticationTag { NoAuth, DefaultH2, TestAuth, GCPApplicationDefaultCredentials, UsernamePassword,
         DelegatedKerberos, VaultUserNamePassword, SnowflakePublic, ApiToken, MiddleTierUserNamePassword, OAuth,
@@ -98,6 +101,18 @@ public final class ConnectionWire {
                 o.put("_type", SpecificationTag.StaticDatasource.name());
                 o.put("host", x.host());
                 o.put("port", x.port());
+                o.put("database", x.database());
+            }
+            case ConnectionSpecification.MongoDbDatasource x -> {
+                o.put("_type", SpecificationTag.MongoDbDatasource.name());
+                List<Object> servers = new java.util.ArrayList<>();
+                for (ConnectionSpecification.MongoDbDatasource.Server server : x.servers()) {
+                    Map<String, Object> each = new LinkedHashMap<>();
+                    each.put("host", server.host());
+                    each.put("port", server.port());
+                    servers.add(each);
+                }
+                o.put("servers", servers);
                 o.put("database", x.database());
             }
             case ConnectionSpecification.Trino x -> {
@@ -227,6 +242,9 @@ public final class ConnectionWire {
                     o.string("directory"), o.bool("autoServerMode"));
             case StaticDatasource -> new ConnectionSpecification.StaticDatasource(o.string("host"),
                     o.integer("port"), o.string("database"));
+            case MongoDbDatasource -> new ConnectionSpecification.MongoDbDatasource(o.objects("servers").stream()
+                    .map(v -> new ConnectionSpecification.MongoDbDatasource.Server(v.string("host"), v.integer("port")))
+                    .toList(), o.string("database"));
             case Trino -> new ConnectionSpecification.Trino(o.string("host"), o.integer("port"),
                     o.optionalString("catalog"), o.optionalString("schema"), o.optionalString("clientTags"),
                     o.bool("ssl"));

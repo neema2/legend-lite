@@ -116,6 +116,14 @@ public final class PeRatchets {
             "own_corpus.matched 3323 -> 3334 (2026-11-16, the Studio roundtrip's ~groupBy and ServiceStore-XStore"
                     + " cases): their tests' models (GroupByKeyOutsideScopeTest's grouped Firm and the Studio case's"
                     + " shape; XStoreServiceStoreEndTest's ServiceStore, schema set, binding and mappings), measured by"
+                    + " //parser-equivalence:update_ratchets",
+            "own_corpus.matched 3334 -> 3362 (2026-11-16, three Studio roundtrip cases, the fork's PR #10 into"
+                    + " studio-compatibility-dev; 3323 -> 3351 before it was rebased onto #8, 2026-11-17): every new"
+                    + " element matched, none stopped -- core's StudioRoundtripCasesTest holds the three case files"
+                    + " (1 + 5 + 10 elements), and their tests' models: DynaFunctionIntegrationTest.testSqlNullBranch"
+                    + " (3), RelationalMappingIntegrationTest.testViewFilterThroughJoins (5) and"
+                    + " testViewFilterThroughASelfJoinReadsTheFarRow (3), and"
+                    + " ElementParserTest.viewFilterJoinMediatedCarriesEachJoinsTypeAndDb (1); measured by"
                     + " //parser-equivalence:update_ratchets");
 
     public static void main(String[] args) throws Exception {

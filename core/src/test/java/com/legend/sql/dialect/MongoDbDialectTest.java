@@ -96,6 +96,26 @@ class MongoDbDialectTest {
         assertTrue(!sql.statement().contains("$legendParam"), sql.statement());
     }
 
+    /** A MongoDBConnection naming several servers (a replica set's members) compiles and plans, the plan's connection
+     *  carrying every server in order with the database: legend-engine 4.145.0 compiles the list and seeds its client
+     *  with all of them (MongoDBCompilerHelper.compileServerURLs; MongoDBStoreConnectionProvider). Lite refused it at
+     *  the model, "names 2 servers: one server is supported" (the Studio roundtrip case
+     *  CORE-unknown-elements-stores-and-connections, 2026-11-16). */
+    @Test
+    void aConnectionNamingSeveralServersCarriesThemAll() {
+        String twoServers = MODEL.replace("serverURLs: [localhost:27017];",
+                "serverURLs: [localhost:27071, myhost.example.com:27072];");
+        assertTrue(!twoServers.equals(MODEL), "the model names two servers");
+        ExecutionPlan plan = Compiler.query(Compiler.compileModel(twoServers), "#>{test::Store.people}#->select(~[name])")
+                .executionPlan("test::RT");
+        ExecutionPlan.Database.Declared declared = (ExecutionPlan.Database.Declared) plan.answerSql().target().database();
+        assertEquals(new com.legend.executionplan.ConnectionSpecification.MongoDbDatasource(java.util.List.of(
+                        new com.legend.executionplan.ConnectionSpecification.MongoDbDatasource.Server("localhost", 27071),
+                        new com.legend.executionplan.ConnectionSpecification.MongoDbDatasource.Server(
+                                "myhost.example.com", 27072)), "db"),
+                declared.connection().specification());
+    }
+
     /** A plan parameter's variable ({@code lp1}, {@code lp2}, ...) is the command's let's: a variable the pipeline binds
      *  itself is refused by name where it would take one of those names and hide the parameter's value. */
     @Test

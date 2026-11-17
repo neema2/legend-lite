@@ -23,6 +23,16 @@ last-print-wins proposal's full row is in PR #90, for the owner to rule and land
 prices.csv is in file order on purpose, and the consumer sorts by (symbol, date); the oracle's PR leaves the ratchet
 alone, so this one merges first.
 
+**Studio's grammar roundtrip, three small cases, 2026-11-16** (branch `claude/studio-small-fixes-e5d6c7`, a PR into the
+fork's `studio-compatibility-dev`, neema2/legend-lite#113): `STO_Relational-mapping-join-chains-and-distinct` (a
+relational `case`/`if` branch that is `sqlNull()`: `normalizer/RelOpTranslator`), `STO_Relational-database-operations-
+and-join-types` (a View's `~filter` through typed joins: `parser/TokenStreamCursor`, `DatabaseProtocolParser`,
+`MappingProtocolParser`, `model/FromProtocol`, `normalizer/ViewRelation`, `JoinChainEmission`) and
+`CORE-unknown-elements-stores-and-connections` (a MongoDB connection naming several servers: the model's and the
+plan's connection specifications, `ConnectionPlans`, `ConnectionWire`, `MongoDbConnector`). Also the parser-equivalence
+ratchet (`own_corpus.matched`): the cases' models are test snippets. The M2M and the groupBy/XStore sessions work beside
+it on the same base.
+
 **Active lines and their order (the user, 2026-10-04).** Several sessions push to `main`; each announces a cross-area
 edit here before landing it and lands with the full chain. The priorities are **Bazel, Studio, and the database owner
 with the compiler's plan/execution split**, in this order:

@@ -46,6 +46,10 @@ class ConnectorsTest {
                 new ConnectionSpecification.LocalFile("/tmp/x.db"), new ConnectionSpecification.LocalH2(null),
                 new ConnectionSpecification.EmbeddedH2("shared", "/tmp/dir", false),
                 new ConnectionSpecification.StaticDatasource("db.example", 5432, "app"),
+                // a MongoDBConnection's servers (2026-11-16, the Studio roundtrip case
+                // CORE-unknown-elements-stores-and-connections): no JDBC opening reaches it
+                new ConnectionSpecification.MongoDbDatasource(List.of(
+                        new ConnectionSpecification.MongoDbDatasource.Server("mongo.example", 27017)), "app"),
                 new ConnectionSpecification.Trino("trino.example", 8080, "memory", "default", null, false),
                 new ConnectionSpecification.Snowflake("d", "a", "w", "r", null, null, null, null, null),
                 new ConnectionSpecification.Spanner("p", "i", "d"),

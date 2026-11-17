@@ -15,8 +15,8 @@ import java.util.List;
  * Variant ({@link RelationalDataType.SemiStructured}), an objectId is read as its hex text
  * ({@link RelationalDataType.Other}: a type Pure cannot name, read as text), a required property is NOT NULL, and
  * {@code _id}, where the schema declares it, is the key. Nothing is inferred from documents (invariant 4). A
- * {@code MongoDBConnection} declares {@link ConnectionDefinition.DatabaseType#MongoDB}: its one server as a static
- * datasource, its authentication as the vault reference it names. This is the model language's vocabulary: it
+ * {@code MongoDBConnection} declares {@link ConnectionDefinition.DatabaseType#MongoDB}: its servers and database
+ * ({@link ConnectionSpecification.MongoDbDatasource}), its authentication as the vault reference it names. This is the model language's vocabulary: it
  * carries the store's declarations and decides nothing by the database.
  */
 public final class MongoDeclarations {
@@ -27,15 +27,16 @@ public final class MongoDeclarations {
     /** The text length a string property declares none for: a BSON string is bounded by the document's own size. */
     private static final int UNBOUNDED_TEXT = 16777216;
 
-    /** The one server the connection names, as a static datasource; its authentication as the model's. */
+    /** Every server the connection names, with its database (legend-engine's MongoDBDatasourceSpecification: a
+     *  replica set's members as one server is, the client seeded with all of them); its authentication as the
+     *  model's. Two servers were refused here until 2026-11-16 (the Studio roundtrip case
+     *  CORE-unknown-elements-stores-and-connections). */
     static ConnectionDefinition toConnection(String qualifiedName, Protocol.PMongoDbConnection c) {
-        if (c.serverUrls().size() != 1) {
-            throw new UnsupportedOperationException("MongoDBConnection '" + qualifiedName + "' names "
-                    + c.serverUrls().size() + " servers: one server is supported (a replica set's list is not yet)");
+        List<ConnectionSpecification.MongoDbDatasource.Server> servers = new ArrayList<>();
+        for (Protocol.PMongoServerUrl url : c.serverUrls()) {
+            servers.add(new ConnectionSpecification.MongoDbDatasource.Server(url.baseUrl(), (int) url.port()));
         }
-        Protocol.PMongoServerUrl url = c.serverUrls().get(0);
-        ConnectionSpecification spec = new ConnectionSpecification.StaticDatasource(url.baseUrl(), (int) url.port(),
-                c.databaseName());
+        ConnectionSpecification spec = new ConnectionSpecification.MongoDbDatasource(servers, c.databaseName());
         AuthenticationSpec auth = switch (c.auth()) {
             case Protocol.PMongoAuth up -> new AuthenticationSpec.UsernamePassword(up.username(),
                     vaultReference(qualifiedName, up.password()));
