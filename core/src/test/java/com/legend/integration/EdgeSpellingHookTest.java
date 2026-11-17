@@ -74,6 +74,11 @@ class EdgeSpellingHookTest {
         }
 
         @Override
+        public <F> F twoForm(Class<F> kind, F productForm) {
+            return PlanStyle.PRODUCT.twoForm(kind, productForm);
+        }
+
+        @Override
         public String activitySql(Activity activity) {
             return PlanStyle.PRODUCT.activitySql(activity);
         }

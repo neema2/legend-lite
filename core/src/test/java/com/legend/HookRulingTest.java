@@ -65,19 +65,23 @@ class HookRulingTest {
     }
 
     /** The closed list of the plan style's facet kinds (the orchestrator's ruling of 2026-11-17: a registry meets (a)
-     *  when it holds only the kinds' class literals): a private constructor and one field, KINDS, a list of interfaces;
-     *  no method, no nested type. */
+     *  when it holds only the kinds' class literals): a private constructor and its lists of interfaces, KINDS and (since
+     *  2026-11-17, census B9: PlanStyle.twoForm's closed list, the orchestrator's ruling) TWO_FORMS; no method, no nested
+     *  type. */
     @Test
     void theFacetRegistryHoldsNothingButItsList() {
         Class<?> registry = com.legend.testplan.PlanStyleFacets.class;
         assertEquals(0, registry.getDeclaredMethods().length, "PlanStyleFacets declares a method");
         assertEquals(0, registry.getDeclaredClasses().length, "PlanStyleFacets declares a nested type");
-        assertEquals(List.of("KINDS"), java.util.Arrays.stream(registry.getDeclaredFields())
+        assertEquals(List.of("KINDS", "TWO_FORMS"), java.util.Arrays.stream(registry.getDeclaredFields())
                 .filter(f -> !f.isSynthetic()).map(java.lang.reflect.Field::getName).toList());
         for (java.lang.reflect.Constructor<?> c : registry.getDeclaredConstructors()) {
             assertTrue(Modifier.isPrivate(c.getModifiers()) && c.getParameterCount() == 0, c.toString());
         }
         for (Class<?> kind : com.legend.testplan.PlanStyleFacets.KINDS) {
+            assertTrue(kind.isInterface(), kind + " is no interface");
+        }
+        for (Class<?> kind : com.legend.testplan.PlanStyleFacets.TWO_FORMS) {
             assertTrue(kind.isInterface(), kind + " is no interface");
         }
     }
@@ -90,6 +94,23 @@ class HookRulingTest {
         assertEquals(null, PlanStyle.PRODUCT.traceCell(), "the product writes the id alone");
         assertEquals(new PlanStyle.TraceCell("-- \"executionTraceID\" : \"", "\""),
                 com.legend.edge.PureText.UPSTREAM.traceCell());
+    }
+
+    /** PlanStyle.twoForm (the orchestrator's ruling of 2026-11-17, census B9): its kinds are a CLOSED list, pinned here
+     *  as an exact set (empty until the first family adds its kind, with a dated reason); the product's style answers the
+     *  caller's own product form, whatever the kind; the edge's refuses a kind outside the list by name. */
+    @Test
+    void theTwoFormKindsAreAClosedListTheProductAnswersItsOwnForm() {
+        assertEquals(List.of(), com.legend.testplan.PlanStyleFacets.TWO_FORMS,
+                "the two-form kinds, an exact set: a kind is added here with its family and its dated reason");
+        Runnable productForm = () -> { };
+        assertTrue(PlanStyle.PRODUCT.twoForm(Runnable.class, productForm) == productForm,
+                "the product answers the caller's own form");
+        NotImplementedException refused = assertThrows(NotImplementedException.class,
+                () -> com.legend.edge.PureText.UPSTREAM.twoForm(Runnable.class, productForm));
+        assertTrue(refused.getMessage().contains("none of the declared kinds"), refused.getMessage());
+        assertThrows(NullPointerException.class, () -> PlanStyle.PRODUCT.twoForm(Runnable.class, null),
+                "no default: the caller passes the product form");
     }
 
     /** (b): the product's style refuses each way of reaching the hook, by name, pointing to the edge. */
