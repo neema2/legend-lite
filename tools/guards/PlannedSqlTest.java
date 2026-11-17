@@ -316,8 +316,11 @@ class PlannedSqlTest {
      */
     static final Map<String, Integer> AUTHORED_JAVA = Map.of(
             "wasm/src/main/java/planner/Boundary.java", 1,
-            "wasm/src/main/java/planner/TabExports.java", 2);
-    static final List<String> JAVA_PRODUCT = List.of("core/src/main/java", "wasm/src/main/java/planner", "native/src/main/java");
+            "wasm/src/edge/java/com/legend/edge/wasm/TabExports.java", 2);
+    // the hosts' edge sources too (wasm/src/edge, native/src/edge: the separation census's A1 and A2, 2026-11-17): the
+    // tab's exports and Python's engine entries moved there, and a door reached from them is still a door reached
+    static final List<String> JAVA_PRODUCT = List.of("core/src/main/java", "wasm/src/main/java/planner", "native/src/main/java",
+            "wasm/src/edge/java", "native/src/edge/java");
 
     /** The tests' folders, read beside the product's (host_sql.txt's): where a cast would hide a host's own SQL. */
     static final List<String> TESTS = List.of("engine-client/test", "datacube/test", "query/test", "studio/test");

@@ -58,6 +58,7 @@ EDGE_TEST_SRCS = [
     "src/test/java/com/legend/lowering/OptionalCollectionNullDropTest.java",
     "src/test/java/com/legend/lowering/ToOneLaneTest.java",
     "src/test/java/com/legend/plan/RelationTypeJsonTest.java",
+    "src/test/java/com/legend/planner/BoundaryLiteExportsTest.java",
     "src/test/java/com/legend/planner/BoundaryRequestsAreClosedTest.java",
     "src/test/java/com/legend/planner/DuckDbOutputPlanTest.java",
     "src/test/java/com/legend/planner/DuckDbSnapCopyTest.java",

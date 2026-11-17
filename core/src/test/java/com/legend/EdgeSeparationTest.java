@@ -17,6 +17,7 @@ import java.util.TreeSet;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * THE EDGE IS SEPARATED, PROVABLY (the user, 2026-11-17: "Focus on the total and provable edge separation first";
@@ -106,11 +107,12 @@ class EdgeSeparationTest {
             Map.entry("com.legend.sql.dialect.AnsiSqlRenderer -> com.legend.sql.dialect.FloatPrintText", "B9 2026-11-17"),
             Map.entry("com.legend.sql.dialect.DateTimePrintText -> (stands in a product package)", "B9 2026-11-17"),
             Map.entry("com.legend.sql.dialect.FloatPrintText -> (stands in a product package)", "B9 2026-11-17"),
-            Map.entry("planner.Boundary -> com.legend.edge.HostAnswers", "A1 2026-11-17"),
-            Map.entry("planner.Boundary -> com.legend.edge.PureText", "A1 2026-11-17"),
-            Map.entry("planner.Boundary -> com.legend.edge.PureV1Routes", "A1 2026-11-17"),
-            Map.entry("planner.Boundary -> com.legend.server.PureV1Api", "A1 2026-11-17"),
-            Map.entry("planner.Folded -> com.legend.server.PureV1Api", "A1 2026-11-17"));
+            // planner.Boundary -> com.legend.edge.HostAnswers, PureText, PureV1Routes: gone 2026-11-17 (A1, E-P5): the
+            // pure/v1 route and execute's halves moved to com.legend.edge.wasm.EdgeBoundary (//wasm:edge_boundary)
+            // A1 -> B7 (2026-11-17, the orchestrator's ruling (a)): every export's refusal vocabulary (PureV1Api) is a
+            // product-package class the census's B7 moves; A1 itself closed with //wasm:boundary's edge dependency
+            Map.entry("planner.Boundary -> com.legend.server.PureV1Api", "B7 2026-11-17"),
+            Map.entry("planner.Folded -> com.legend.server.PureV1Api", "B7 2026-11-17"));
 
     /** TEST SIDE: the same. */
     static final Map<String, String> TEST_OPEN = Map.ofEntries(
@@ -334,14 +336,14 @@ class EdgeSeparationTest {
             Map.entry("testplan/TestPlanner.java | COMPILED_PURE_COMPAT", "C1 2026-11-17"));
 
     /** The census's open lines (docs/records/f-separation-census-2026-11-17.md; closed: A4, B14 ruled; A2, A3 moved to
-     *  the edge 2026-11-17 (A4 extended to the native image and the page module); A5, A6 split off the edge 2026-11-17;
+     *  the edge 2026-11-17 (A4 extended to the native image and the page module); A5, A6 split off the edge 2026-11-17; A1 the embedded hosts' engine routes to the edge 2026-11-17;
      *  B1, B3 HOOK-RULED 2026-11-17 (EngineTextDialect, {@link #HOOKS_RULED}), then moved to the edge by Phase 6 (2026-11-17); B4, B6, B13
      *  CLOSED 2026-11-17 by Phase 6 (RawSqlBoundary, PurePrint and UpstreamRelationType, the test-data generator's text
      *  moved to the edge); B2 HOOK-RULED 2026-11-17 (UpstreamPlans, signatures only); B5 CLOSED 2026-11-17
      *  (the lowering's shape options, the trace comment and the result envelope the edge's); records only:
      *  B15, B16, C6, C7). Each must hold at least one entry in the count ({@link #everyOpenLineIsCounted}), so an empty
      *  count cannot read DONE with a line left. A line closes by leaving this set with its last entry. */
-    static final Set<String> OPEN_LINES = Set.of("A1",
+    static final Set<String> OPEN_LINES = Set.of(
             "B7", "B8", "B9", "B10", "B11", "B12", "B17", "C1", "C3", "C4", "C5");
 
     private static Set<String> linesOf(Map<String, String> m) {
@@ -381,12 +383,18 @@ class EdgeSeparationTest {
             // A5, A6 closed 2026-11-17 (E-P5): the product's test library, its cases and its test targets carry no edge
             // library (the edge's tests are core_edge_tests_lib's, run in targets tagged edge_test;
             // //tools/deps:edge_separation_closure_test holds every untagged core test target to it)
-            Map.entry("//wasm:boundary", "A1 2026-11-17"));
+            // //wasm:boundary (A1) gone 2026-11-17 (E-P5): legend-engine's routes are //wasm:edge_boundary's, the
+            // module's entry //wasm:edge_tab's; no product target depends on an edge target now
+            );
 
     static Set<String> buildFound() {
+        return buildFound("legend.edge_dependents");
+    }
+
+    static Set<String> buildFound(String property) {
         try {
             Set<String> out = new TreeSet<>();
-            for (String l : java.nio.file.Files.readAllLines(com.legend.testing.Runfile.property("legend.edge_dependents"))) {
+            for (String l : java.nio.file.Files.readAllLines(com.legend.testing.Runfile.property(property))) {
                 if (!l.isBlank()) {
                     out.add(l.trim());
                 }
@@ -408,10 +416,12 @@ class EdgeSeparationTest {
      *  compatibility mode is found, on each side. */
     @Test
     void eachGuardBites() {
-        Set<String> build = buildFound();
-        Set<String> fewer = new TreeSet<>(BUILD_OPEN.keySet());
-        fewer.remove("//wasm:boundary");
-        assertFalse(fewer.equals(build), "the BUILD guard bites: //wasm:boundary's dependency without its entry");
+        // the same query with a planted product-shaped root that depends on the edge (core/BUILD.bazel
+        // :planted_edge_reach; A1, 2026-11-17: no real product target reaches the edge to bite on any more)
+        Set<String> plantedBuild = buildFound("legend.edge_dependents_planted");
+        assertTrue(plantedBuild.contains("//core:planted_edge_reach")
+                        && !plantedBuild.equals(new TreeSet<>(BUILD_OPEN.keySet())),
+                "the BUILD guard bites: a planted root's edge dependency is found, " + plantedBuild);
         JavaClasses planted = new ClassFileImporter().importClasses(
                 com.legend.planner.PlantedCompatReach.class);
         Set<String> code = found(planted, n -> true);

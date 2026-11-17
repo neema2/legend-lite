@@ -1441,7 +1441,7 @@ class PlannerSurfaceTest {
 
     private static final String BOUNDARY_SOURCE = "wasm/src/main/java/planner/Boundary.java";
     private static final String HOST_OPERATIONS_SOURCE = "wasm/src/main/java/planner/HostOperationsJson.java";
-    private static final String TAB_SOURCE = "wasm/src/main/java/planner/TabExports.java";
+    private static final String TAB_SOURCE = "wasm/src/edge/java/com/legend/edge/wasm/TabExports.java";
 
     // ---- the tests
 

@@ -2043,8 +2043,11 @@ class BodyRouterParityTest {
                             com.legend.executionplan.DataStores.none()), com.legend.executionplan.DataStores.none())
                             .withStyle(com.legend.edge.PureText.UPSTREAM)
                     // a body that binds a plan handle (executionPlan's value, legend-engine's) runs on the edge's
-                    // style: the product refuses it by name (D's hook fold, a4ac096b5, 2026-11-16)
+                    // style: the product refuses it by name (D's hook fold, a4ac096b5, 2026-11-16); so does one whose
+                    // executeLegendQuery answers legend-engine's result envelope (Phase 6's B5, 2026-11-17: the
+                    // product refuses it at LOWER, ResultEnvelopeRefusalTest)
                     : body.contains("meta::pure::executionPlan::executionPlan(")
+                            || body.contains("meta::legend::executeLegendQuery(")
                             ? ExecuteOptions.NONE.withStyle(com.legend.edge.PureText.UPSTREAM)
                             : ExecuteOptions.NONE).withJudgeMode(mode);
             Capture capture = new Capture();
