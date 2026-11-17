@@ -316,7 +316,9 @@ class EdgeSeparationTest {
             // B9 -> C5 (E-P5) 2026-11-17: the judges' canon's alone (LiteralSpelling.temporalCanon)
             Map.entry("sql/dialect/DateTimePrintText.java | +0000", "C5 2026-11-17 (E-P5: LiteralSpelling.temporalCanon)"),
             Map.entry("compiler/element/type/PlatformTypes.java | TDS_NULL_CELL", "B10 2026-11-17"),
-            Map.entry("lowering/LiteralSpelling.java | +0000", "B11 2026-11-17"),
+            // B11 -> C5 2026-11-17 (the orchestrator's ruling): the judges' canon (temporalCanon x2, dateTimeLiteralAt via
+            // CanonicalRenderSql), closed by C5's step C (E-SQL's)
+            Map.entry("lowering/LiteralSpelling.java | +0000", "C5 2026-11-17 (E-P5's step C, now E-SQL's)"),
             Map.entry("lowering/Repr.java | FLOAT_PRINT", "C5 2026-11-17"),
             Map.entry("lowering/Repr.java | Repr", "B12 2026-11-17"),
             Map.entry("lowering/Scalars.java | Repr", "B12 2026-11-17"),
@@ -348,7 +350,8 @@ class EdgeSeparationTest {
             Map.entry("testexecutionplan/HostJudgment.java | EngineText", "C3 2026-11-17"),
             Map.entry("testexecutionplan/PlannedAppeals.java | EngineText", "C3 2026-11-17"),
             Map.entry("testexecutionplan/Verdicts.java | EngineText", "C3 2026-11-17"),
-            Map.entry("testexecutionplan/Verdicts.java | +0000", "B11 2026-11-17"),
+            // B11 -> C5 2026-11-17 (the orchestrator's ruling): the host judge's +0000, C5's step B (E-P5's)
+            Map.entry("testexecutionplan/Verdicts.java | +0000", "C5 2026-11-17 (E-P5's step B)"),
             Map.entry("testplan/AgreementAsserts.java | EngineText", "C3 2026-11-17"),
             Map.entry("testplan/AssertVerdicts.java | EngineText", "C3 2026-11-17"),
             Map.entry("compiler/spec/VerdictQueries.java | TDSNull", "B10 2026-11-17"),
@@ -372,11 +375,12 @@ class EdgeSeparationTest {
      *  CLOSED 2026-11-17 by Phase 6 (RawSqlBoundary, PurePrint and UpstreamRelationType, the test-data generator's text
      *  moved to the edge); B2 HOOK-RULED 2026-11-17 (UpstreamPlans, signatures only); B5 CLOSED 2026-11-17
      *  (the lowering's shape options, the trace comment and the result envelope the edge's); B7 CLOSED 2026-11-17 (the
-     *  product's API kit LiteV1Api, legend-engine's ExecuteInput binding the edge's); records only:
+     *  product's API kit LiteV1Api, legend-engine's ExecuteInput binding the edge's); B11 CLOSED 2026-11-17 (its last rows the judges' canon and the host judge's +0000, relabelled C5);
+     *  records only:
      *  B15, B16, C6, C7). Each must hold at least one entry in the count ({@link #everyOpenLineIsCounted}), so an empty
      *  count cannot read DONE with a line left. A line closes by leaving this set with its last entry. */
     static final Set<String> OPEN_LINES = Set.of(
-            "B8", "B9", "B10", "B11", "B12", "C1", "C2", "C3", "C4", "C5");
+            "B8", "B9", "B10", "B12", "C1", "C2", "C3", "C4", "C5");
 
     private static Set<String> linesOf(Map<String, String> m) {
         Set<String> out = new TreeSet<>();
