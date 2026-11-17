@@ -145,6 +145,11 @@ class PlannerSurfaceTest {
         return new Param(name, String.class, kind);
     }
 
+    /** A flag parameter: a boolean, one of a closed set of words. */
+    private static Param flag(String name) {
+        return new Param(name, boolean.class, OPTION);
+    }
+
     private static Param handle() {
         return new Param("handle", int.class, HANDLE);
     }
@@ -178,6 +183,8 @@ class PlannerSurfaceTest {
 
     /** THE BOUNDARY'S DOORS, each listed with its fields' kinds (2026-11-13). */
     static final Map<String, Door> BOUNDARY = listed(
+            // the edge's doors (EDGE_DOORS: in com.legend.edge.wasm.EdgeBoundary since A1 and E-P5, 2026-11-17), listed so
+            // the hosts' exports that reach them stay checked
             door("pureV1", p("path", ROUTE), p("rawQuery", OPTION), p("body", ROUTE_BODY)),
             door("executePlan", p("body", ROUTE_BODY), p("modelsJson", MODEL_TEXT)),
             door("executeJsonPlan", p("body", ROUTE_BODY), p("modelsJson", MODEL_TEXT)),
@@ -235,7 +242,24 @@ class PlannerSurfaceTest {
             door("touchSystemMetamodel"),
             door("hashBootSource"),
             door("resolveBootLayer"),
-            door("zoneProbe", p("utcIso", VALUE), p("zone", NAME)));
+            door("zoneProbe", p("utcIso", VALUE), p("zone", NAME)),
+            // a host's model text held for the call (the Java hosts' door, d-int6): its compiled model handed back
+            door("withModelText", p("text", MODEL_TEXT), new Param("use", java.util.function.Function.class, CALLBACK)),
+            // the Python host's parse, print, relation-type and model-element doors (H4, on d-int6; listed here as
+            // drift, 2026-11-17 -- the Python session's own rows replace these at D's union)
+            door("modelElements", p("text", MODEL_TEXT), flag("sourceInformation")),
+            door("parseLambda", p("text", LAMBDA), flag("sourceInformation")),
+            door("printLambda", p("lambdaJson", LAMBDA), p("style", OPTION)),
+            door("lambdaRelationType", p("model", MODEL_TEXT), p("lambdaJson", LAMBDA)));
+
+    /** The doors the edge's boundary holds, not the planner's: moved from planner.Boundary to
+     *  com.legend.edge.wasm.EdgeBoundary with A1 and E-P5 (2026-11-17; the drift found when this test first ran in a
+     *  target, //core:census_edge, on d-int6). Their rows stay in {@link #BOUNDARY}, each a public static of the edge's
+     *  boundary source, so the tab's, the native library's and Python's exports that reach them are still checked. */
+    static final Set<String> EDGE_DOORS = Set.of("pureV1", "executePlan", "executeJsonPlan", "executeJsonAnswer",
+            "executeArrowAnswer");
+
+    private static final String EDGE_BOUNDARY_SOURCE = "wasm/src/edge/java/com/legend/edge/wasm/EdgeBoundary.java";
 
     /** THE HOST OPERATIONS' FIELDS ({@code HostOperationsJson}: every operation closed by its {@code op}). */
     static final Map<String, Kind> HOST_OPERATION_FIELDS = new TreeMap<>(fields("op", OPTION, "kind", OPTION,
@@ -266,6 +290,11 @@ class PlannerSurfaceTest {
             Map.entry("sessionSetupOrError", "sessionSetup"), Map.entry("hostOperationsOrError", "hostOperations"),
             Map.entry("projectDataOrError", "projectData"), Map.entry("warmModel", "warmModel"),
             Map.entry("warmModelOrError", "warmModel"), Map.entry("touchPrelude", "touchPrelude"),
+            // the tab's exports of the Python host's doors (on d-int6, 2026-11-17: drift; the DataCube session's rows
+            // replace these at D's union)
+            Map.entry("modelElementsOrError", "modelElements"), Map.entry("parseLambdaOrError", "parseLambda"),
+            Map.entry("printLambdaOrError", "printLambda"),
+            Map.entry("lambdaRelationTypeOrError", "lambdaRelationType"),
             Map.entry("touchSystemMetamodel", "touchSystemMetamodel"), Map.entry("hashBootSource", "hashBootSource"),
             Map.entry("resolveBootLayer", "resolveBootLayer"), Map.entry("zoneProbe", "zoneProbe")));
 
@@ -338,13 +367,16 @@ class PlannerSurfaceTest {
     static final Map<String, Map<String, Kind>> SERVER_FIELDS = new TreeMap<>(Map.of(
             // the pure/v1 routes; planned.* are read of the plan half a host hands back with its rows (jsonAnswer,
             // its variable `planned`): the planner's own, echoed into the answer, never sent
-            "LiteV1Api.java", new TreeMap<>(fields("_type", OPTION, "planned.activities", PLAN_DATA, "body", LAMBDA,
+            // (body, fullPath, genericType, lowerBound, multiplicity, name, parameters, rawType, upperBound, value: no
+            // longer read by LiteV1Api -- upstream's ExecuteInput binding moved to the edge, edge.ExecuteInputs, B7's
+            // split; the drift found on d-int6, 2026-11-17)
+            "LiteV1Api.java", new TreeMap<>(fields("_type", OPTION, "planned.activities", PLAN_DATA,
                     "planned.builder", PLAN_DATA, "code", MODEL_TEXT, "planned.columns", PLAN_DATA, "connectionValue",
-                    OBJECT, "planned.execution", PLAN_DATA, "fullPath", NAME, "function", LAMBDA, "genericType", OBJECT,
-                    "lambda", LAMBDA, "lowerBound", VALUE, "model", MODEL_TEXT, "multiplicity", OBJECT, "name", NAME,
-                    "parameterValues", VALUE, "parameters", LAMBDA, "rawType", NAME, "renderStyle", OPTION,
+                    OBJECT, "planned.execution", PLAN_DATA, "function", LAMBDA,
+                    "lambda", LAMBDA, "model", MODEL_TEXT,
+                    "parameterValues", VALUE, "renderStyle", OPTION,
                     "planned.resultColumns", PLAN_DATA, "runtime", NAME, "serializationFormat", OPTION,
-                    "planned.shape", PLAN_DATA, "planned.sql", PLAN_DATA, "upperBound", VALUE, "value", VALUE,
+                    "planned.shape", PLAN_DATA, "planned.sql", PLAN_DATA,
                     // merged main 3a217086a (#81), 2026-11-14: tsItem's one #TS item, a query's text core's parser reads
                     "text", LAMBDA)),
             "TestDataRoutes.java", new TreeMap<>(fields("_type", OPTION, "columnValuePairs", OBJECT, "function",
@@ -853,10 +885,19 @@ class PlannerSurfaceTest {
                 out.add("a door no row lists: " + boundary.getSimpleName() + "." + name);
             }
         }
+        String edgeBoundary = read(EDGE_BOUNDARY_SOURCE);
+        for (String name : EDGE_DOORS) {
+            if (!BOUNDARY.containsKey(name) || !edgeBoundary.contains("public static ")
+                    || !Pattern.compile("public static [\\w.<>, ]+ " + name + "\\(").matcher(edgeBoundary).find()) {
+                out.add("an edge door no longer the edge's boundary's, or unlisted: " + name);
+            }
+        }
         for (Door d : BOUNDARY.values()) {
             Method m = found.get(d.name());
             if (m == null) {
-                out.add("a listed door the boundary no longer has: " + d.name());
+                if (!EDGE_DOORS.contains(d.name())) {
+                    out.add("a listed door the boundary no longer has: " + d.name());
+                }
                 continue;
             }
             List<Class<?>> types = d.params().stream().<Class<?>>map(Param::type).toList();
