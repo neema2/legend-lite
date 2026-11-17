@@ -276,8 +276,6 @@ class CompatSpellingGuardTest {
             "sql/dialect/SQLite.java | FLOAT_PRINT | 1 | JUDGE",
             "sql/dialect/Snowflake.java | FLOAT_PRINT | 1 | JUDGE",
             "sql/dialect/Trino.java | FLOAT_PRINT | 1 | JUDGE",
-            "testdatagen/TestDataGenerationNatives.java | EngineTextDialect | 2 | D1.7",
-            "testdatagen/TestDataGenerator.java | EngineTextDialect | 3 | D1.7",
             // testdatagen/TestDataPlanner.java | +0000: gone 2026-11-17 (F's separation census line B11): legend-engine's
             // seed route's key (upstreamKeyText: SeedDataGeneration's ValueTransformer, nine digits and +0000) moved to
             // the edge's routes (edge/TestDataRoutes), which hand it to seedJson; the generator writes no zone text
