@@ -161,43 +161,6 @@ public final class HostSideBatch {
         return new BatchSide(null, numbered, defined != null, outs);
     }
 
-    /** The calls that raise nothing whatever their operands: comparison, logic, null tests (the orchestrator's ruling of
-     *  2026-11-17 on (1): a batch holds at most one side that may raise; a side is raise-free only where every node is
-     *  one that cannot -- a native overflow, a narrowing or a parse raises with no marker, so the rest may). */
-    private static final java.util.Set<com.legend.sql.SqlFn> RAISE_FREE_CALLS = java.util.EnumSet.of(
-            com.legend.sql.SqlFn.AND, com.legend.sql.SqlFn.OR, com.legend.sql.SqlFn.NOT, com.legend.sql.SqlFn.EQUAL,
-            com.legend.sql.SqlFn.NOT_EQUAL, com.legend.sql.SqlFn.LESS, com.legend.sql.SqlFn.LESS_EQUAL,
-            com.legend.sql.SqlFn.GREATER, com.legend.sql.SqlFn.GREATER_EQUAL, com.legend.sql.SqlFn.IS_NULL,
-            com.legend.sql.SqlFn.IS_NOT_NULL, com.legend.sql.SqlFn.IN, com.legend.sql.SqlFn.COALESCE,
-            com.legend.sql.SqlFn.IS_DISTINCT_FROM, com.legend.sql.SqlFn.NULL_SAFE_EQUAL,
-            com.legend.sql.SqlFn.NULL_SAFE_NOT_EQUAL);
-
-    /** Whether reading {@code q} may raise: any node but a literal, a column, a star, a grouping, a CASE, a typed NULL,
-     *  a ranking window or a raise-free call ({@link #RAISE_FREE_CALLS}). */
-    public static boolean mayRaise(SqlQuery q) {
-        boolean[] found = new boolean[1];
-        new com.legend.sql.SqlRewriter() {
-            @Override
-            protected SqlExpr expr(SqlExpr e) {
-                found[0] |= !raiseFree(e);
-                return e;
-            }
-        }.rewrite(q);
-        return found[0];
-    }
-
-    private static boolean raiseFree(SqlExpr e) {
-        return e instanceof SqlExpr.Column || e instanceof SqlExpr.Star || e instanceof SqlExpr.StarExcept
-                || e instanceof SqlExpr.StringLit || e instanceof SqlExpr.IntLit || e instanceof SqlExpr.FloatLit
-                || e instanceof SqlExpr.DecimalLit || e instanceof SqlExpr.BoolLit || e instanceof SqlExpr.NullLit
-                || e instanceof SqlExpr.DateLit || e instanceof SqlExpr.TimestampLit || e instanceof SqlExpr.TimeLit
-                || e instanceof SqlExpr.ArrayLit || e instanceof SqlExpr.StructLit || e instanceof SqlExpr.Group
-                || e instanceof SqlExpr.Case
-                || e instanceof SqlExpr.Cast c && c.value() instanceof SqlExpr.NullLit
-                || e instanceof SqlExpr.WindowCall w && w.fn() instanceof SqlAgg.RankingFn
-                || e instanceof SqlExpr.Call c && RAISE_FREE_CALLS.contains(c.fn());
-    }
-
     /** Whether {@code q} sorts its rows: its own ORDER BY, or one under the derived tables it reads through. */
     private static boolean sorted(SqlQuery q) {
         if (q instanceof com.legend.sql.SqlUnion u) {
