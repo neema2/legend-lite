@@ -1692,10 +1692,45 @@ public class Postgres extends AnsiSqlRenderer {
             throw new DialectCapability("REM over a Float of random() or a uuid reached Postgres: its exact remainder"
                     + " writes each operand where it reads it, which would draw it again");
         }
+        if (readsNoRow(a.get(0)) && readsNoRow(a.get(1))) {
+            return boundRemainder(writer, a);
+        }
         SqlWriter.Piece x = w -> w.append("CAST(").expr(a.get(0), 0).append(" AS DOUBLE PRECISION)");
         SqlWriter.Piece y = w -> w.append("CAST(").expr(a.get(1), 0).append(" AS DOUBLE PRECISION)");
-        SqlWriter.Piece kx = exponent(x);
-        SqlWriter.Piece ky = exponent(y);
+        return remainderOf(writer, x, y, exponent(x), exponent(y));
+    }
+
+    /**
+     * {@link #exactRemainder} of two operands that read no row (a literal, a plan parameter, a cast or call of them),
+     * each written ONCE (5b's leftover, the orchestrator's MUST of 2026-11-17: the Float literal a double since S20,
+     * a rem of literals took the operand-repeating form, 14,203 repeated characters in the lean baseline): bound in a
+     * scalar subquery that reads no outer row -- so legal in a grouped select too, where an outer reference is not
+     * ({@link #exactRemainder}) -- the operands, then their powers, each a column of the one row it reads.
+     */
+    private SqlWriter boundRemainder(SqlWriter writer, List<SqlExpr> a) {
+        writer.append("(SELECT ");
+        remainderOf(writer, w -> w.append("rx"), w -> w.append("ry"), w -> w.append("kx"), w -> w.append("ky"));
+        return writer.append(" FROM (SELECT rx, ry, ").piece(exponent(w -> w.append("rx"))).append(" AS kx, ")
+                .piece(exponent(w -> w.append("ry"))).append(" AS ky FROM (SELECT CAST(").expr(a.get(0), 0)
+                .append(" AS DOUBLE PRECISION) AS rx, CAST(").expr(a.get(1), 0)
+                .append(" AS DOUBLE PRECISION) AS ry) AS remo) AS remk)");
+    }
+
+    /** Whether {@code e} reads no row: a literal or a plan parameter, or a cast or call of such. */
+    private static boolean readsNoRow(SqlExpr e) {
+        if (e instanceof SqlExpr.Cast c) {
+            return readsNoRow(c.value());
+        }
+        if (e instanceof SqlExpr.Call c) {
+            return c.args().stream().allMatch(Postgres::readsNoRow);
+        }
+        return e instanceof SqlExpr.IntLit || e instanceof SqlExpr.FloatLit || e instanceof SqlExpr.DecimalLit
+                || e instanceof SqlExpr.NullLit || e instanceof SqlExpr.PlanParam;
+    }
+
+    /** The remainder's text over the operands {@code x}, {@code y} and their powers {@code kx}, {@code ky}. */
+    private static SqlWriter remainderOf(SqlWriter writer, SqlWriter.Piece x, SqlWriter.Piece y, SqlWriter.Piece kx,
+            SqlWriter.Piece ky) {
         // (the common power never below zero: a larger one scales the integers up, exact in NUMERIC, and the result
         // is then one division, written once)
         SqlWriter.Piece k = w -> w.append("greatest(").piece(kx).append(", ").piece(ky).append(", 0)");
