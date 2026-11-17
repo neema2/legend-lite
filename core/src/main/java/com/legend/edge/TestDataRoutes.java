@@ -30,8 +30,9 @@ import java.util.Map;
  * <ul>
  *   <li>{@code generateSeedData}: the seed's chosen keys of the query's starting table, as upstream's JSON
  *       ({@link TestDataPlanner#seedJson}; register S198's order).</li>
- *   <li>{@code generateTestData_WithSeed}: the test data from the given identifiers ({@link TestDataPlanner#route}),
- *       as {@code text/plain}: the routes' table order, the function's cells (R5, register S191).</li>
+ *   <li>{@code generateTestData_WithSeed}: the test data from the given identifiers ({@link TestDataPlanner#plan} in
+ *       the routes' form, {@link #ROUTE}), as {@code text/plain}: the routes' table order, the function's cells (R5,
+ *       register S191).</li>
  *   <li>{@code generateTestData_WithDefaultSeed}: the same from the default seed, its keys the statement's first clause
  *       (one statement, where upstream runs two plans).</li>
  *   <li>{@code DONOTUSE_generateTestData}: the census ({@link TestDataCensus}) as upstream's embedded data.</li>
@@ -43,9 +44,173 @@ import java.util.Map;
  * {@code mainTable()}; the B2d.3 audit's L8, 2026-11-12 -- until then this text said every route refused a view). The
  * query's {@code parameterValues} are bound by name, as {@code execute} binds them.
  */
-final class TestDataRoutes {
+public final class TestDataRoutes {
 
     private TestDataRoutes() {
+    }
+
+    /** {@link EngineTestDataPrinting}'s one instance: the function's form under the compatibility rules. */
+    static final TestDataPlanner.Printing FUNCTION = new EngineTestDataPrinting();
+
+    /** The generator's text under the compatibility rules ({@code generateTestData}, the plan style's two-form answer
+     *  in {@code PureText.UPSTREAM}; J7/K12 of the edge audit, 2026-11-17, kept beside the routes' form, since every
+     *  class nested in {@code PureText} is an edge dialect): a timestamp as
+     *  legend-engine's test-data CSV writes it (L9; census C1); the rest -- the refusal of a starting table no identifier
+     *  names, the tables' and the columns' order, the header's names, the relation tree admitted -- the function's
+     *  rules, lite's own ({@code Printing.CLEAN}): upstream's words of the refusal are {@link PureMessages}'s, through
+     *  {@code errorWords}. */
+    private static final class EngineTestDataPrinting implements com.legend.testdatagen.TestDataPlanner.Printing {
+        private static final com.legend.testdatagen.TestDataPlanner.Printing LITES =
+                com.legend.testdatagen.TestDataPlanner.Printing.CLEAN;
+
+        @Override
+        public com.legend.sql.SqlExpr timestampText(com.legend.sql.SqlExpr x) {
+            return EnginePlans.testDataTimestampText(x);
+        }
+
+        @Override
+        public RuntimeException unidentified(com.legend.testdatagen.TestDataPlanner.NoRowIdentifiers facts) {
+            return LITES.unidentified(facts);
+        }
+
+        @Override
+        public java.util.List<com.legend.testdatagen.TestDataPlanner.Table> tableOrder(
+                java.util.List<com.legend.testdatagen.TestDataPlanner.Table> tables) {
+            return LITES.tableOrder(tables);
+        }
+
+        @Override
+        public java.util.List<String> headerOrder(com.legend.model.DatabaseDefinition.TableDefinition def,
+                java.util.List<String> cols) {
+            return LITES.headerOrder(def, cols);
+        }
+
+        @Override
+        public String headerName(com.legend.model.DatabaseDefinition.TableDefinition def, String col) {
+            return LITES.headerName(def, col);
+        }
+
+        @Override
+        public void checkTree(com.legend.compiler.element.ModelContext ctx,
+                java.util.List<com.legend.lineage.ScanRelations.Rel> roots) {
+            LITES.checkTree(ctx, roots);
+        }
+    }
+
+    /**
+     * THE SERVER ROUTES' FORM OF THE GENERATOR'S TEXT (J7/K12 of the edge audit, 2026-11-17: the routes' rules, which a
+     * boolean chose inside the product's generator until then, are the edge's, handed to {@code TestDataPlanner.plan}).
+     * Upstream's {@code TestDataGenerationAPI} runs the generator's PLAN form
+     * ({@code planTestDataGenerationWithParameterValuePairs}) and writes its rows with
+     * {@code TestDataGeneration.manageTestDataResult}: a timestamp as legend-engine's test-data CSV writes it (L9); a
+     * root no identifier names and no seed starts, upstream's error node ({@link Unseeded}); the tables by schema then
+     * table ({@code manageTestDataResult}, :282); each table's columns by their model names and its header their
+     * declared names (the B2d.3 audit's M1); a view in the query's relation tree refused by name. Public for its tests
+     * (the generator's own, which pin the routes' header beside the function's).
+     */
+    public static final TestDataPlanner.Printing ROUTE = new RouteForm();
+
+    /** {@link #ROUTE}'s rules (J7/K12 of the edge audit, 2026-11-17: moved from testdatagen.TestDataPlanner's route
+     *  branch, unchanged). */
+    private static final class RouteForm implements TestDataPlanner.Printing {
+        @Override
+        public com.legend.sql.SqlExpr timestampText(com.legend.sql.SqlExpr x) {
+            return EnginePlans.testDataTimestampText(x);
+        }
+
+        /** Upstream's plan form's error node (TDG:1244-1252), which the route answers as its 500's text
+         *  ({@link #answer}). */
+        @Override
+        public RuntimeException unidentified(TestDataPlanner.NoRowIdentifiers facts) {
+            return new Unseeded(PureMessages.unidentified(facts), facts.database(), facts.schema(), facts.table());
+        }
+
+        /** The server's routes' order: by schema and table, as upstream's writer sorts its blocks
+         *  ({@code manageTestDataResult}, :282: {@code schemaName + '.' + relationName}) -- the model's names, a
+         *  planning constant. */
+        @Override
+        public List<TestDataPlanner.Table> tableOrder(List<TestDataPlanner.Table> tables) {
+            List<TestDataPlanner.Table> order = new ArrayList<>(tables);
+            order.sort(java.util.Comparator.comparing(t -> t.schema() + "." + t.table()));
+            return order;
+        }
+
+        /** {@code cols} of {@code def} in the server routes' order (the B2d.3 audit's M1): upstream's plan form sorts a
+         *  table's columns by their model names ({@code sortBy(x | $x.name)}, TDG:885, :1043) -- Pure's string order,
+         *  case-sensitive, a quoted name with its quotes -- before it aliases each, and the route writes them in that
+         *  order. A planning constant: the model's names. */
+        @Override
+        public List<String> headerOrder(com.legend.model.DatabaseDefinition.TableDefinition def, List<String> cols) {
+            List<String> cs = new ArrayList<>(cols);
+            cs.sort(java.util.Comparator.comparing(c -> TestDataPlanner.pureName(def, c)));
+            return cs;
+        }
+
+        /** A column's name in the server routes' header (the B2d.3 audit's M1): upstream aliases it
+         *  {@code $y.name->addQuotesIfNoQuotes()} (TDG:885) and its writer prints the label without its quotes, in
+         *  double quotes where it holds a space ({@code SQLResultColumn.getQuotedLabelIfContainSpace},
+         *  TestDataGeneration.java:306): the declared name, its case kept. */
+        @Override
+        public String headerName(com.legend.model.DatabaseDefinition.TableDefinition def, String col) {
+            String name = TestDataPlanner.declaredName(def, col);
+            return name.contains(" ") ? "\"" + name + "\"" : name;
+        }
+
+        /** A view in the query's relation tree, refused by name before anything is fetched: upstream's plan form
+         *  fetches a view's own rows {@code top 20} and a child view's main table through its parent (TDG:1023-1201),
+         *  which lite does not plan (B2d.3e). */
+        @Override
+        public void checkTree(ModelContext ctx, List<com.legend.lineage.ScanRelations.Rel> roots) {
+            for (com.legend.lineage.ScanRelations.Rel r : roots) {
+                noView(ctx, r);
+            }
+        }
+
+        private static void noView(ModelContext ctx, com.legend.lineage.ScanRelations.Rel rel) {
+            if (com.legend.lineage.ScanRelations.isView(ctx, rel.db(), rel.table())) {
+                throw new com.legend.error.NotImplementedException("testDataGen: the view '" + rel.table()
+                        + "' in the query's relation tree on the server's route: not planned (B2d.3e; upstream's plan"
+                        + " form fetches a view's own rows top 20 and a child view's main table through its parent,"
+                        + " TDG:1023-1201)");
+            }
+            for (com.legend.lineage.ScanRelations.Rel c : rel.children()) {
+                noView(ctx, c);
+            }
+        }
+    }
+
+    /**
+     * No identifiers and no seed for a root on the server's route (B2d.3e; moved from testdatagen.TestDataPlanner,
+     * J7/K12 of the edge audit, 2026-11-17): upstream's plan form's error node (TDG:1244-1252), which the route answers
+     * as its 500's text -- the node's message, {@code Example:\n} and the table's identifiers as JSON
+     * ({@code TestDataGeneration.manageTestDataResult}, :230-262). Upstream's example holds the table's first 5 keys,
+     * read for it; planning reads no row, so the route's example holds none (register S300, as the function's). The
+     * message, and the table the example names, are data: the route writes the JSON.
+     */
+    static final class Unseeded extends RuntimeException {
+        private static final long serialVersionUID = 1L;
+        private final String database;
+        private final String schema;
+        private final String table;
+
+        Unseeded(String message, String database, String schema, String table) {
+            super(message);
+            this.database = database;
+            this.schema = schema;
+            this.table = table;
+        }
+
+        String database() {
+            return database;
+        }
+
+        String schema() {
+            return schema;
+        }
+
+        String table() {
+            return table;
+        }
     }
 
     /** {@code pure/v1/execution/testDataGeneration/generateSeedData}: the seed's keys as upstream's JSON. */
@@ -80,11 +245,15 @@ final class TestDataRoutes {
                 // 9af16fbe58's J8, 2026-11-14); the seed's entry refuses raw SQL inside itself too
                 doored(ctx, r);
                 List<TestDataGenerator.TableRowIds> ids = defaultSeed ? List.of() : identifiers(r.json());
-                // a view root's main table admitted, so a view is refused by the route's own rule (TestDataPlanner.route)
+                // a view root's main table admitted, so a view is refused by the route's own rule (ROUTE.checkTree)
                 TestDataPlanner.Seed seed = defaultSeed ? seed(ctx, r, true) : null;
-                // a root no identifier names and no seed starts: upstream's error node, answered by unseeded below
-                TestDataPlanner.Planned planned = TestDataPlanner.route(ctx, r.query(), r.mapping(), ids, seed,
-                        r.json().getBoolOr("hashStrings", false), EnginePlans::testDataTimestampText);
+                // a root no identifier names and no seed starts: upstream's error node, answered by unseeded below; a
+                // view is refused before it is fetched (ROUTE.checkTree), so its own fetch is never planned here
+                TestDataPlanner.Planned planned = TestDataPlanner.plan(ctx, r.query(), r.mapping(), ids, null,
+                        r.json().getBoolOr("hashStrings", false), (db, view, reads, tables) -> {
+                            throw new IllegalStateException("a view on the server's route is refused before it is"
+                                    + " fetched");
+                        }, seed, ROUTE);
                 return run(ctx, planned.csv(), r.runtime(), runner);
             });
         });
@@ -105,10 +274,10 @@ final class TestDataRoutes {
                         new com.legend.sql.SqlExpr.StringLit("+0000")), com.legend.sql.SqlExpr.Reason.DECLARED);
     }
 
-    /** A route's root no identifier names ({@link TestDataPlanner.Unseeded}, raised at planning): upstream's error
+    /** A route's root no identifier names ({@link Unseeded}, raised at planning by {@link #ROUTE}): upstream's error
      *  node's answer, its message, {@code Example:\n} and the table's identifiers -- none -- as the 500's text
      *  ({@code TestDataGeneration.manageTestDataResult}, :230-262). {@link #answer} answers it so. */
-    static LiteV1Api.Answer unseeded(TestDataPlanner.Unseeded e) {
+    static LiteV1Api.Answer unseeded(Unseeded e) {
         return answerOf(e);
     }
 
@@ -117,11 +286,11 @@ final class TestDataRoutes {
      *  node (D1.0b, 2026-11-12; until then {@code LiteV1Api.answer} called this class). */
     static LiteV1Api.Answer answer(int status, @com.legend.base.Nullable String errorType,
             java.util.function.Supplier<String> call) {
-        TestDataPlanner.Unseeded[] unseeded = {null};
+        Unseeded[] unseeded = {null};
         LiteV1Api.Answer a = LiteV1Api.answer(status, errorType, () -> {
             try {
                 return call.get();
-            } catch (TestDataPlanner.Unseeded e) {
+            } catch (Unseeded e) {
                 unseeded[0] = e;
                 return "";
             }
@@ -129,7 +298,7 @@ final class TestDataRoutes {
         return unseeded[0] != null ? unseeded(unseeded[0]) : a;
     }
 
-    private static LiteV1Api.Answer answerOf(TestDataPlanner.Unseeded e) {
+    private static LiteV1Api.Answer answerOf(Unseeded e) {
         return new LiteV1Api.Answer(500, e.getMessage() + "Example:\n" + Json.toCompact(identifiersOf(e)),
                 "text/plain");
     }
@@ -249,8 +418,8 @@ final class TestDataRoutes {
         };
     }
 
-    /** The route's example: the table's identifiers, none ({@link TestDataPlanner.Unseeded}). */
-    private static Map<String, Object> identifiersOf(TestDataPlanner.Unseeded e) {
+    /** The route's example: the table's identifiers, none ({@link Unseeded}). */
+    private static Map<String, Object> identifiersOf(Unseeded e) {
         Map<String, Object> table = new LinkedHashMap<>();
         table.put("_type", "table");
         table.put("table", e.table());

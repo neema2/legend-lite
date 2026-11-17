@@ -117,7 +117,8 @@ public final class PureText {
             }
             if (kind == com.legend.testdatagen.TestDataPlanner.Printing.class) {
                 // a test-data generator's timestamp text as legend-engine's test-data CSV writes it (L9; census C1)
-                return kind.cast((com.legend.testdatagen.TestDataPlanner.Printing) EnginePlans::testDataTimestampText);
+                // (J7/K12 of the edge audit, 2026-11-17: the rest of the form the function's, lite's own)
+                return kind.cast(TestDataRoutes.FUNCTION);
             }
             if (kind == com.legend.compiler.spec.RelationCounting.class) {
                 // upstream counts a relation passed to assertSize/assertNotEmpty as ONE value (S137; census C1)

@@ -269,6 +269,18 @@ class HookRulingTest {
                 com.legend.compiler.spec.GoldenNullWord.Product.NONE).isNullWord("TDSNull"), "the product reads no TDSNull");
         assertTrue(com.legend.edge.PureText.UPSTREAM.twoForm(com.legend.compiler.spec.GoldenNullWord.class,
                 com.legend.compiler.spec.GoldenNullWord.Product.NONE).isNullWord("TDSNull"), "the edge reads upstream's");
+        // Printing's members (J7/K12 of the edge audit, 2026-11-17): the product answers lite's form; the edge its own,
+        // the server routes' rules a third form of the edge's (edge.TestDataRoutes.ROUTE), never a boolean in the product
+        assertTrue(PlanStyle.PRODUCT.twoForm(com.legend.testdatagen.TestDataPlanner.Printing.class,
+                com.legend.testdatagen.TestDataPlanner.Printing.CLEAN)
+                == com.legend.testdatagen.TestDataPlanner.Printing.CLEAN, "the product prints the generator's text its way");
+        Object edgePrinting = com.legend.edge.PureText.UPSTREAM.twoForm(
+                com.legend.testdatagen.TestDataPlanner.Printing.class, com.legend.testdatagen.TestDataPlanner.Printing.CLEAN);
+        assertTrue(edgePrinting != com.legend.testdatagen.TestDataPlanner.Printing.CLEAN
+                && edgePrinting.getClass().getPackageName().equals("com.legend.edge"),
+                "the edge answers its own generator text: " + edgePrinting.getClass());
+        assertTrue(com.legend.edge.TestDataRoutes.ROUTE.getClass().getPackageName().equals("com.legend.edge"),
+                "the server routes' form is the edge's");
         Runnable productForm = () -> { };
         assertTrue(PlanStyle.PRODUCT.twoForm(Runnable.class, productForm) == productForm,
                 "the product answers the caller's own form");
