@@ -631,7 +631,7 @@ export class LitePlanner implements Planner, TableModels, ModelWriter {
     const body = `{"model":${JSON.stringify({ _type: 'text', code: this.#options.model })},"lambda":${json}}`;
     const answer = await this.#pureV1('/api/pure/v1/compilation/lambdaRelationType', '', body, query);
     if (signal?.aborted) throw signal.reason ?? new Error('aborted');
-    const columns = relationColumns(JSON.parse(answer), undefined, new Set(this.#options.enumerations ?? []));
+    const columns = relationColumns(JSON.parse(answer), new Set(this.#options.enumerations ?? []));
     if (useCache) this.#types.set(json, columns);
     return columns;
   }
@@ -945,7 +945,7 @@ function readsOf(o: LitePlannerOptions): LitePlannerOptions {
   return rest;
 }
 
-/** What a model says beside its text, as options (legend-lite types BIT Boolean itself: no bitColumns, S23). */
+/** What a model says beside its text, as options (legend-lite types BIT Boolean itself, S23). */
 function readsHow(how: ModelOptions): Partial<LitePlannerOptions> {
   return {
     ...(how.mapping === undefined ? {} : { mapping: how.mapping }),

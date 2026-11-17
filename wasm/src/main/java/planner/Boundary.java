@@ -682,11 +682,12 @@ public final class Boundary {
      * runtime the planner compiles.
      * {@code {"table", "schema"?, "pkg"? (default "local"), "convertible", "databaseType", "columns": [catalog rows]}}
      * in; {@code {"model", "runtime", "source" (protocol), "accessor" (its Pure text), "conversions":
-     * [{"column","sql"}], "excluded": [name], "bitColumns": [name]}} out. A source rewritten in place
+     * [{"column","sql"}], "excluded": [name]}} out. A source rewritten in place
      * ({@code convertible}) is a host operation's copy that names these catalog columns ({@code "convert"}), its select
      * list written by the platform (the final audit's 1(d), 2026-11-12: until then this answered the select list,
      * {@code copySelectList}, which the host handed back as text).
-     * {@code bitColumns}: the columns declared BIT (DuckDB's BOOLEAN), which legend-engine types TinyInt.
+     * (Until 2026-11-17 also {@code bitColumns}, the columns declared BIT, for legend-engine's TinyInt typing: the edge
+     * audit's H10 moved that reading to the legend-engine client, which reads the model's Database itself.)
      *
      * <p>SEVERAL TABLES of one database (a join's two sides, read in one place:
      * docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §17): {@code {"databaseType", "connection"? (default "host"),
@@ -710,12 +711,6 @@ public final class Boundary {
                 pkg + "::DB", in.getStringOr("schema", null), in.getString("table"), columns, dialect,
                 in.getBool("convertible"));
         String model = db.text() + "\n" + connectionAndRuntime(pkg, "Conn", "RT", databaseType);
-        java.util.List<String> bitColumns = new java.util.ArrayList<>();
-        for (com.legend.sql.dialect.CatalogModel.Column c : columns) {
-            if (!db.excluded().contains(c.name()) && "BIT".equals(dialect.catalogType(c).declared())) {
-                bitColumns.add(c.name());
-            }
-        }
         java.util.Map<String, Object> out = new java.util.LinkedHashMap<>();
         out.put("model", model);
         out.put("runtime", pkg + "::RT");
@@ -723,7 +718,6 @@ public final class Boundary {
         out.put("accessor", db.accessor());
         out.put("conversions", conversionsOf(db));
         out.put("excluded", db.excluded());
-        out.put("bitColumns", bitColumns);
         return com.legend.json.Json.toCompact(out);
     }
 
