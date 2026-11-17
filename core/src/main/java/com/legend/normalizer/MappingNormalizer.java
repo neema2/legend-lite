@@ -919,9 +919,9 @@ public final class MappingNormalizer {
                         false, false));
                 continue;
             }
-            // a ROW-EXPRESSION binding (explicit-src form) rebinds $src to THIS row
+            // a ROW-EXPRESSION binding rebinds its row accessor ($src, or 4.151.0's $row) to THIS row
             ValueSpecification read = c.expr() != null
-                    ? ClassMapping.RelationFunction.Col.bindSrc(c.expr(), row)
+                    ? ClassMapping.RelationFunction.Col.bindRow(c.expr(), row)
                     : new AppliedProperty(row, java.util.Objects.requireNonNull(
                             c.column(), "column read on an embedded ~func col"));
             if (c.binding() != null) {

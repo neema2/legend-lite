@@ -158,6 +158,15 @@ class FixtureAdjudicationTest {
                     // nanosecond key)
                     "Unsupported column data type 'X'");
 
+    /** Fixtures the pinned 4.145.0 reference refuses only for a construct built ahead of the pin, on the user's ruling
+     *  of 2026-11-16 ("Build ahead, ledgered", the Studio roundtrip's post-pin constructs): legend-engine 4.148.0's
+     *  DataQualityRelationComparison {@code additionalColumnsToPersist} (docs/SEMANTICS_REGISTER.md S422;
+     *  DataQualityAdditionalColumnsTest's model). Not a leniency KIND: the reference's bare "Unexpected token" would
+     *  admit every such refusal, so each fixture is proven to be this one alone
+     *  ({@link OwnCorpusConformanceTest#builtAheadDqAdditionalColumns}: the text without its key lines parses on the
+     *  reference). Pinned both ways; retires when the pin reaches 4.148.0. */
+    private static final int BUILT_AHEAD_DQ_ADDITIONAL_COLUMNS = 1;
+
     /** F3.7: over-strictness rows pinned per HOST FILE (fixture ids are
      *  line-positional, so exact ids would tax unrelated edits). */
     private static final java.util.Map<String, Integer> OVER_STRICT_PINS =
@@ -237,6 +246,7 @@ class FixtureAdjudicationTest {
         List<String> liteInternal = new ArrayList<>();
         java.util.Set<String> kinds = new java.util.TreeSet<>();
         int agree = 0;
+        int builtAhead = 0;
         for (Fixture f : fixtures) {
             boolean engineAccepts;
             String why = "";
@@ -269,6 +279,9 @@ class FixtureAdjudicationTest {
             if (engineAccepts && !liteAccepts) {
                 overStrict.add(f.id() + (f.negative() ? " (assertThrows)" : "")
                         + " :: " + oneLine(f.source()));
+            } else if (!engineAccepts && liteAccepts
+                    && OwnCorpusConformanceTest.builtAheadDqAdditionalColumns(f.source())) {
+                builtAhead++;
             } else if (!engineAccepts && liteAccepts) {
                 leniency.add(f.id() + (f.negative() ? " (assertThrows)" : "")
                         + " :: " + oneLine(why) + " :: " + oneLine(f.source()));
@@ -313,6 +326,8 @@ class FixtureAdjudicationTest {
                 System.out.println("[fixture-oracle][lite-internal] " + s));
 
         // F3.7: exact named-set accounting, both directions
+        org.junit.jupiter.api.Assertions.assertEquals(BUILT_AHEAD_DQ_ADDITIONAL_COLUMNS, builtAhead,
+                "the fixtures refused only for 4.148.0's additionalColumnsToPersist (S422) moved");
         org.junit.jupiter.api.Assertions.assertEquals(
                 new java.util.TreeSet<>(LENIENCY_KINDS), kinds,
                 "leniency KINDS drifted — a NEW kind needs adjudication;"

@@ -375,6 +375,7 @@ public final class DataQualityValidationSectionGrammar
         com.legend.protocol.spec.ValueSpecification target = null;
         List<String> keys = new ArrayList<>();
         List<String> columnsToCompare = new ArrayList<>();
+        List<String> additionalColumnsToPersist = new ArrayList<>();
         Double expectedMatch = null;
         Protocol.PReconStrategy strategy = null;
         List<Protocol.PDqTestSuite> testSuites = null;
@@ -407,6 +408,22 @@ public final class DataQualityValidationSectionGrammar
                     }
                     c.expect(TokenType.BRACKET_CLOSE);
                 }
+                // legend-engine 4.148.0's optional list (DataQualityParserGrammar
+                // additionalColumnsToPersist: [identifier, ...];), built ahead of
+                // the 4.145.0 pin on the user's ruling of 2026-11-16 ("Build
+                // ahead, ledgered"; docs/SEMANTICS_REGISTER.md S422), read as
+                // its grammar spells it, (identifier (COMMA identifier)*)?: no
+                // trailing comma
+                case "additionalColumnsToPersist" -> {
+                    c.expect(TokenType.BRACKET_OPEN);
+                    if (c.peek() != TokenType.BRACKET_CLOSE) {
+                        additionalColumnsToPersist.add(c.parseIdentifier());
+                        while (c.match(TokenType.COMMA)) {
+                            additionalColumnsToPersist.add(c.parseIdentifier());
+                        }
+                    }
+                    c.expect(TokenType.BRACKET_CLOSE);
+                }
                 case "expectedMatch" -> {
                     String num = c.text();
                     c.advance();
@@ -430,7 +447,8 @@ public final class DataQualityValidationSectionGrammar
                     + "target and strategy");
         }
         return new Protocol.PDataQualityRelationComparison(h.pkg(), h.name(),
-                source, target, keys, columnsToCompare, expectedMatch,
+                source, target, keys, columnsToCompare,
+                additionalColumnsToPersist, expectedMatch,
                 strategy, testSuites, c.spanOf(h.declStart(), c.pos() - 1));
     }
 

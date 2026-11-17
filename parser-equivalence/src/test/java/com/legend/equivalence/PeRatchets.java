@@ -129,7 +129,12 @@ public final class PeRatchets {
                     + " roundtrip's M2M cases: a primitive ~src, an explode property, a pass-through): their tests'"
                     + " models (M2MPrimitiveSourceTest, M2MExplodeTest and M2MPassThroughTest, each with its roundtrip"
                     + " case's model verbatim, and the review's: a union with a withheld fan-out branch, a fan-out"
-                    + " explode's typed element), measured by //parser-equivalence:update_ratchets");
+                    + " explode's typed element), measured by //parser-equivalence:update_ratchets",
+            "own_corpus.matched 3397 -> 3420 (2026-11-17, rebased onto #8, #10 and #11; built 2026-11-16, the Studio"
+                    + " roundtrip's post-pin constructs, measured 3323 -> 3346 on its first base): their tests' models"
+                    + " (RelationMappingEmbeddedLinesTest, RelationMappingRowAccessorTest, ColSpecAnnotationsPrintTest;"
+                    + " DataQualityAdditionalColumnsTest's is refused by the 4.145.0 referee, S422), measured by"
+                    + " //parser-equivalence:update_ratchets");
 
     public static void main(String[] args) throws Exception {
         if (args.length != 1) {

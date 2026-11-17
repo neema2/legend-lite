@@ -48,9 +48,9 @@ class WithChildrenFieldPreservationTest {
     }
 
     @Test
-    @KnownDefect(owner = "W1.2", reason = "withChildren rebuilds ColSpec through the"
-            + " annotation-free constructor, dropping stereotypes and tagged values")
     void colSpecKeepsAnnotations() {
+        // fixed 2026-11-16 (was a W1.2 known defect; the Studio roundtrip's post-pin constructs, S421): withChildren
+        // rebuilt a ColSpec through the annotation-free constructor, dropping its stereotypes and tagged values
         var st = List.of(new Protocol.PStereotype("doc", "deprecated", A, A));
         var tv = List.of(new Protocol.PTaggedValue(new Protocol.PTag("doc", "doc", A, A),
                 "text", false, A));

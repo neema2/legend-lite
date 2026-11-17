@@ -70,7 +70,8 @@ final class RelationMappingReader {
             throw Wire.refuse("no reader rule for relation property mapping _type '" + type + "'");
         }
         Wire p = w.obj("property");
-        String owner = p.str("class");
+        // an outer line names its class; a line inside an embedded block names none (upstream's walker passes null)
+        String owner = p.optStr("class");
         String property = p.str("property");
         SourceInfo propSpan = p.done(p.span());
         String inline = w.optStr("id");
@@ -79,11 +80,8 @@ final class RelationMappingReader {
             w.emptyArray("propertyMappings");
             nested = null;
         } else {
-            nested = w.list("propertyMappings", n -> {
-                Wire pm = Wire.of(n, "nested relation property mapping");
-                pm.constant("_type", "relationFunctionPropertyMapping");
-                return pm.done(plain(pm));
-            });
+            // an embedded block's lines are any lines (upstream's singlePropertyMapping): plain, local, embedded, inline
+            nested = w.list("propertyMappings", RelationMappingReader::propertyMapping);
         }
         return w.done(new Protocol.PRelationFnPropertyMapping(owner, null, property, propSpan, null, inline, nested,
                 null, w.optStr("source"), null, null, null, w.span()));

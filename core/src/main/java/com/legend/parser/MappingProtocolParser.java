@@ -2079,89 +2079,8 @@ public final class MappingProtocolParser implements TokenStreamCursor {
         }
         List<Protocol.PRelationFnPropertyMapping> props = new ArrayList<>();
         while (!atEnd() && peek() != TokenType.BRACE_CLOSE) {
-            int pS = pos;
-            boolean local = match(TokenType.PLUS);
-            int identTok = pos;
-            String prop = parseIdentifier();
-            SourceInfo propSpan = spanOf(identTok, pos - 1);
-            if (peek() == TokenType.PAREN_OPEN
-                    && peek(1)
-                            != TokenType.PAREN_CLOSE) {
-                // prop ( street: COL, ... ) — embedded with nested
-                // classless pms; span prop..close paren (probe
-                // relation-embedded)
-                advance();
-                List<Protocol.PRelationFnPropertyMapping> nested =
-                        new ArrayList<>();
-                while (!atEnd() && peek() != TokenType.PAREN_CLOSE) {
-                    int nS = pos;
-                    String nProp = parseIdentifier();
-                    SourceInfo nSpan = spanOf(nS, pos - 1);
-                    expect(TokenType.COLON);
-                    // a NESTED binding's RHS is a full row expression too —
-                    // `legalName: $src.firmName->toOne()` in
-                    // tests/mapping/union/relation. Reading only a bare
-                    // identifier here is the same gap the outer arm had.
-                    String nEnum = enumerationMappingId();
-                    String nBinding = bindingTransformerId();
-                    RelationBinding nb = relationBinding(
-                            TokenType.PAREN_CLOSE);
-                    nested.add(new Protocol.PRelationFnPropertyMapping(null,
-                            nBinding,
-                            nProp, nSpan, nb.column(), null, null, null, null,
-                            nEnum, nb.expr(), exprWrapper(nb, braceLine),
-                            spanOf(nS, pos - 1)));
-                    match(TokenType.COMMA);
-                }
-                int pClose = pos;
-                expect(TokenType.PAREN_CLOSE);
-                props.add(new Protocol.PRelationFnPropertyMapping(target,
-                        null,
-                        prop, propSpan, null, null, nested, null, id,
-                        null, null, null, spanOf(pS, pClose)));
-                match(TokenType.COMMA);
-                continue;
-            }
-            if (peek() == TokenType.PAREN_OPEN) {
-                // prop () Inline [set] (probe relation-inline)
-                advance();
-                expect(TokenType.PAREN_CLOSE);
-                if (!(peek() == TokenType.INLINE)) {
-                    throw error("expected Inline after ()");
-                }
-                advance();
-                expect(TokenType.BRACKET_OPEN);
-                String setId = parseSetId();
-                int bClose = pos;
-                expect(TokenType.BRACKET_CLOSE);
-                props.add(new Protocol.PRelationFnPropertyMapping(target,
-                        null,
-                        prop, propSpan, null, setId, null, null, id,
-                        null, null, null, spanOf(pS, bClose)));
-                match(TokenType.COMMA);
-                continue;
-            }
-            expect(TokenType.COLON);
-            Protocol.PLocalProp lp = null;
-            if (local) {
-                // +prop: Type[m]: COL — local SI = the IDENT, pm span
-                // includes the '+', class KEPT (probe relation-extras)
-                String type = Protocol.unquotePath(parseQualifiedName());
-                MultBounds mb = parseLongMultBounds();
-                expect(TokenType.BRACKET_CLOSE);
-                lp = new Protocol.PLocalProp(type, mb.lower(), mb.upper(), propSpan);
-                expect(TokenType.COLON);
-            }
-            // `prop: EnumerationMapping <id>: <rhs>` — the id is required,
-            // exactly as everywhere else (see #enumerationMappingId).
-            String enumId = enumerationMappingId();
-            String bindingId = bindingTransformerId();
-            RelationBinding rb = relationBinding(TokenType.BRACE_CLOSE);
-            props.add(new Protocol.PRelationFnPropertyMapping(target,
-                    bindingId, prop,
-                    propSpan, rb.column(), null, null, lp, id, enumId,
-                    rb.expr(), exprWrapper(rb, braceLine),
-                    spanOf(pS, pos - 1)));
+            props.add(relationPropertyMapping(target, id, braceLine,
+                    TokenType.BRACE_CLOSE));
             match(TokenType.COMMA);
         }
         int close = pos;
@@ -2170,6 +2089,94 @@ public final class MappingProtocolParser implements TokenStreamCursor {
                 pk, props,
                 desc, fnSpan, srcLambda,
                 root, spanOf(memberStart, close));
+    }
+
+    /**
+     * ONE line of a Relation class mapping, upstream's
+     * {@code singlePropertyMapping} (RelationFunctionMappingParserGrammar,
+     * 4.145.0): a local {@code +prop: Type[m]: rhs}, an embedded block
+     * {@code prop ( ... )} of further such lines, an inline-embedded
+     * {@code prop () Inline [set]}, or a plain {@code prop: rhs}. The outer
+     * block and every embedded block read their lines HERE, as upstream's
+     * walker visits both with {@code visitPropertyMapping}: an outer line
+     * carries the class mapping's class and id ({@code owner},
+     * {@code source}); a line inside an embedded block carries neither (the
+     * walker passes null for both). {@code stop} closes the enclosing block
+     * (the outer brace, an embedded block's paren). Until 2026-11-16 an
+     * embedded block read plain lines only, so the Studio roundtrip's
+     * {@code +postalCity: String[0..1]: ...} inside {@code address ( ... )}
+     * (STO_Relational-relation-function-mapping-advanced) did not parse.
+     */
+    private Protocol.PRelationFnPropertyMapping relationPropertyMapping(
+            @com.legend.base.Nullable String owner,
+            @com.legend.base.Nullable String source, int braceLine,
+            TokenType stop) {
+        int pS = pos;
+        boolean local = match(TokenType.PLUS);
+        int identTok = pos;
+        String prop = parseIdentifier();
+        SourceInfo propSpan = spanOf(identTok, pos - 1);
+        // a local line is never embedded (singleLocalPropertyMapping takes a
+        // relationFunctionPropertyMapping alone): it goes to its COLON
+        if (!local && peek() == TokenType.PAREN_OPEN
+                && peek(1) != TokenType.PAREN_CLOSE) {
+            // prop ( street: COL, ... ) — embedded: its lines are classless
+            // and sourceless; span prop..close paren (probe
+            // relation-embedded)
+            advance();
+            List<Protocol.PRelationFnPropertyMapping> nested =
+                    new ArrayList<>();
+            while (!atEnd() && peek() != TokenType.PAREN_CLOSE) {
+                nested.add(relationPropertyMapping(null, null, braceLine,
+                        TokenType.PAREN_CLOSE));
+                match(TokenType.COMMA);
+            }
+            int pClose = pos;
+            expect(TokenType.PAREN_CLOSE);
+            return new Protocol.PRelationFnPropertyMapping(owner, null,
+                    prop, propSpan, null, null, nested, null, source,
+                    null, null, null, spanOf(pS, pClose));
+        }
+        if (!local && peek() == TokenType.PAREN_OPEN) {
+            // prop () Inline [set] (probe relation-inline)
+            advance();
+            expect(TokenType.PAREN_CLOSE);
+            if (!(peek() == TokenType.INLINE)) {
+                throw error("expected Inline after ()");
+            }
+            advance();
+            expect(TokenType.BRACKET_OPEN);
+            String setId = parseSetId();
+            int bClose = pos;
+            expect(TokenType.BRACKET_CLOSE);
+            return new Protocol.PRelationFnPropertyMapping(owner, null,
+                    prop, propSpan, null, setId, null, null, source,
+                    null, null, null, spanOf(pS, bClose));
+        }
+        expect(TokenType.COLON);
+        Protocol.PLocalProp lp = null;
+        if (local) {
+            // +prop: Type[m]: COL — local SI = the IDENT, pm span
+            // includes the '+', class KEPT (probe relation-extras)
+            String type = Protocol.unquotePath(parseQualifiedName());
+            MultBounds mb = parseLongMultBounds();
+            expect(TokenType.BRACKET_CLOSE);
+            lp = new Protocol.PLocalProp(type, mb.lower(), mb.upper(), propSpan);
+            expect(TokenType.COLON);
+        }
+        // `prop: EnumerationMapping <id>: <rhs>` — the id is required,
+        // exactly as everywhere else (see #enumerationMappingId). The RHS is
+        // a full row expression on every line, nested ones too
+        // (`legalName: $src.firmName->toOne()` in
+        // tests/mapping/union/relation).
+        String enumId = enumerationMappingId();
+        String bindingId = bindingTransformerId();
+        RelationBinding rb = relationBinding(stop);
+        return new Protocol.PRelationFnPropertyMapping(owner,
+                bindingId, prop,
+                propSpan, rb.column(), null, null, lp, source, enumId,
+                rb.expr(), exprWrapper(rb, braceLine),
+                spanOf(pS, pos - 1));
     }
 
     /** The valueFn WRAPPER span for an expression binding: the RHS columns

@@ -121,14 +121,15 @@ final class RelationReads {
                     return read;
                 }
             }
-            // an EXPRESSION-bodied binding (prop: $src.COL + 1 / 'lit')
-            // inlines with $src bound to the row — the same Col.bindSrc
+            // an EXPRESSION-bodied binding (prop: $src.COL + 1 / 'lit', or
+            // 4.151.0's $row.COL) inlines with its row accessor bound to
+            // the row — the same Col.bindRow
             // step the normalizer's projection path runs (study #17); the
             // plain-column branch above stays first (a $src.COL spelling
             // carries BOTH fields and the column read is the proven path)
             for (ClassMapping.RelationFunction.Col c : rf.columns()) {
                 if (c.property().equals(ap.property()) && c.expr() != null) {
-                    return ClassMapping.RelationFunction.Col.bindSrc(
+                    return ClassMapping.RelationFunction.Col.bindRow(
                             c.expr(), rowByVar.get(var.name()));
                 }
             }

@@ -2343,8 +2343,20 @@ final class TailEmitter {
 
     static void dataQualityRelationComparison(StringBuilder b,
             Protocol.PDataQualityRelationComparison v) {
-        b.append("{\"_type\":\"dataQualityRelationComparison\","
-                + "\"columnsToCompare\":[");
+        b.append("{\"_type\":\"dataQualityRelationComparison\",");
+        // legend-engine 4.148.0's list, first by name; written only when not empty, so a comparison without one is
+        // the pinned 4.145.0's bytes (4.148.0 writes [] then; docs/SEMANTICS_REGISTER.md S422)
+        if (!v.additionalColumnsToPersist().isEmpty()) {
+            b.append("\"additionalColumnsToPersist\":[");
+            for (int i = 0; i < v.additionalColumnsToPersist().size(); i++) {
+                if (i > 0) {
+                    b.append(',');
+                }
+                ProtocolEmitter.str(b, v.additionalColumnsToPersist().get(i));
+            }
+            b.append("],");
+        }
+        b.append("\"columnsToCompare\":[");
         for (int i = 0; i < v.columnsToCompare().size(); i++) {
             if (i > 0) {
                 b.append(',');

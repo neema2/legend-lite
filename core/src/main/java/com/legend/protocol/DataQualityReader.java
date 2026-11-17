@@ -103,6 +103,8 @@ final class DataQualityReader {
         return new Protocol.PDataQualityRelationComparison(w.str("package"), w.str("name"),
                 ProtocolReader.valueSpec(w.take("source")), ProtocolReader.valueSpec(w.take("target")),
                 w.strings("keys"), w.strings("columnsToCompare"),
+                // 4.148.0's list (S422): absent before it, and written [] by 4.148.0 when empty
+                java.util.Objects.requireNonNullElse(w.optStrings("additionalColumnsToPersist"), List.of()),
                 expected == null ? null : Wire.asDouble(expected, "expectedMatch"), strategy,
                 testSuites(w, "dataQualityRelationComparison"), w.span());
     }

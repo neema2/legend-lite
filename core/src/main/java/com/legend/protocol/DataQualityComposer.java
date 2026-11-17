@@ -159,6 +159,9 @@ final class DataQualityComposer {
                 + "   target: " + valueSpecification(c.target(), style) + ";\n"
                 + (c.keys().isEmpty() ? "" : "   keys: [" + String.join(", ", c.keys()) + "];\n")
                 + (c.columnsToCompare().isEmpty() ? "" : "   columnsToCompare: [" + String.join(", ", c.columnsToCompare()) + "];\n")
+                // 4.148.0's DataQualityGrammarComposerExtension (S422)
+                + (c.additionalColumnsToPersist().isEmpty() ? ""
+                        : "   additionalColumnsToPersist: [" + String.join(", ", c.additionalColumnsToPersist()) + "];\n")
                 + "   strategy: " + strategy(c.strategy()) + ";\n"
                 + (c.expectedMatch() == null ? "" : "   expectedMatch: " + c.expectedMatch() + ";\n")
                 + testSuites(c.testSuites(), style)

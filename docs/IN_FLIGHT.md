@@ -44,6 +44,18 @@ at build by the user's ruling of 2026-11-17 (register S21; Studio's case now dec
 numbers the coordinating session assigned) and S21's ruling. Two sessions work beside it on the same branch (relational
 `groupBy` with the ServiceStore end of a ModelJoin; a View's join filter, `sqlNull()`, a two-server MongoDB connection).
 
+**The Studio roundtrip's post-pin constructs, 2026-11-16** (branch `claude/studio-post-pin-c90406`, one PR into the
+fork's `studio-compatibility-dev`; the user's ruling "Build ahead, ledgered": constructs newer than the 4.145.0 pin,
+read from the release that introduced each, without bumping the pin): a Relation mapping's embedded block reads every
+line kind (4.145.0's grammar, a parity gap), its row accessor `$row` (4.151.0), a column spec's annotations printed
+(4.150.0), a DataQualityRelationComparison's `additionalColumnsToPersist` (4.148.0). Files:
+`parser/{MappingProtocolParser,SpecParser}.java`, `protocol/{MappingEmitter,RelationMappingReader,PureComposer,
+DataQualityComposer,DataQualityReader,TailEmitter,Protocol}.java`, `protocol/spec/ValueSpecification.java`,
+`parser/section/DataQualityValidationSectionGrammar.java`, `model/ClassMapping.java`,
+`normalizer/{MappingNormalizer,RelationReads}.java`; tests `WithChildrenFieldPreservationTest` (a known defect fixed)
+and five new ones; in `parser-equivalence`, `ModelComposerParityTest`, `OwnCorpusConformanceTest`,
+`FixtureAdjudicationTest`, `PeRatchets` and `ratchets.tsv` (own_corpus 3397 -> 3420 on studio-compatibility-dev 298f71ba7); the register rows S420-S422.
+
 **Active lines and their order (the user, 2026-10-04).** Several sessions push to `main`; each announces a cross-area
 edit here before landing it and lands with the full chain. The priorities are **Bazel, Studio, and the database owner
 with the compiler's plan/execution split**, in this order:

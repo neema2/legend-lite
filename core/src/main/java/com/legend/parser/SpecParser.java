@@ -2432,10 +2432,12 @@ public final class SpecParser implements TokenStreamCursor {
         }
         // Engine convention (exact columns, twice mis-eyeballed): a colSpec ALWAYS
         // anchors at its NAME token — bare specs span the name alone, function-bearing
-        // ones span name..body-end. The tilde is never included.
-        com.legend.protocol.SourceInfo span = function1 == null
-                ? colSpecSpan(nameTokIdx, nameTokIdx, startColShift)
-                : colSpecSpan(nameTokIdx, pos - 1, startColShift);
+        // ones span name..body-end. The tilde is never included. Annotations lead the
+        // span (nameTokIdx is then the first annotation token), so a bare spec ends at
+        // its name, the token just read (pos - 1): until 2026-11-16 an annotated bare
+        // spec ended where it started, at its first '<' (the own corpus's
+        // ColSpecAnnotationsPrintTest, against the referee's span).
+        com.legend.protocol.SourceInfo span = colSpecSpan(nameTokIdx, pos - 1, startColShift);
         return new ColSpec(name, function1, function2, null, List.of(), false, span,
                 null, null, csStereotypes, csTaggedValues);
     }
