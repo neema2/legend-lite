@@ -188,7 +188,8 @@ class CompatSpellingGuardTest {
             "lowering/VerdictSql.java | TDS_NULL_CELL | 1 | JUDGE",
             // D1.4 -> D1.7 (2026-11-15): PlanNode is legend-engine's plan JSON (generatePlan's nodes), its comment the
             // engine's post-processor's constant: it moves with EnginePlans' text half
-            "plan/PlanNode.java | executionTraceID | 1 | D1.7",
+            // plan/PlanNode.java | executionTraceID: GONE 2026-11-17 (Phase 6's B5): legend-engine's trace comment is
+            // edge.EnginePlans' constant, its one reader
             // planner/BodyPlanner, EnginePlans, EngineText, PlanAllocations, PlanEnvelope and ProductStatements rows:
             // GONE 2026-11-16 (W9's planner half, docs/records/d-plan-2026-11-16.md): upstream's plan text moved to the
             // edge (edge.EnginePlans, EngineText, PlanEnvelope, EngineAllocations), the planner reaching it as the
@@ -238,6 +239,8 @@ class CompatSpellingGuardTest {
             "sql/dialect/DuckDb.java | FLOAT_PRINT | 1 | JUDGE",
             "sql/dialect/DuckDb.java | RawSqlBoundary | 1 | D1.7",
             "sql/dialect/EngineTextDialect.java | EngineTextDialect | 1 | D1.7",
+            // testdatagen/TestDataGenerationNatives.java (2) and TestDataGenerator.java (3): GONE 2026-11-17 (Phase 6's
+            // B13): the generator's plan is data, legend-engine's text of it the edge's (edge.TestDataPlanText)
             // 2 -> 3 (2026-11-13, the merge of claude/total-wall @ 549c018: C4's bare-H2 lexicon, c42369dec, reads the
             // engine's list once more to derive H2's own keywords; the same D1.5 move takes it)
             // 2026-11-15 (D1.2): legend-pure's DateTime text, moved here from lowering/LiteralSpelling (dateTimeText) as the
@@ -266,8 +269,6 @@ class CompatSpellingGuardTest {
             "sql/dialect/SQLite.java | FLOAT_PRINT | 1 | JUDGE",
             "sql/dialect/Snowflake.java | FLOAT_PRINT | 1 | JUDGE",
             "sql/dialect/Trino.java | FLOAT_PRINT | 1 | JUDGE",
-            "testdatagen/TestDataGenerationNatives.java | EngineTextDialect | 2 | D1.7",
-            "testdatagen/TestDataGenerator.java | EngineTextDialect | 3 | D1.7",
             // D1.4 -> D1.7 (2026-11-16, W4 of docs/records/d-plan-2026-11-16.md): the generator's CLEAN timestamp text is
             // the product's DateTime text (DATETIME_TO_TEXT, S312), as lite's writers print the cell; what remains is
             // legend-engine's seed route's key (upstreamKeyText: SeedDataGeneration's ValueTransformer, nine digits and
