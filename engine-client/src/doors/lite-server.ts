@@ -10,7 +10,7 @@ import type { PureModelContextData } from '../legend/pmcd.ts';
 import type { LiteAnswer, LiteEngine } from '../legend/browser-engine.ts';
 import { liteError, LiteRefusal, type LiteError } from '../lite-error.ts';
 import type { QueryColumn } from '../relation-type.ts';
-import type { ParameterValue } from '../plan-runner.ts';
+import type { ParameterValue } from '../requests.ts';
 import { parseExact } from '../values.ts';
 import { arrowIpcTyped } from '../arrow-ipc.ts';
 import { toRawTable } from '../duckdb.ts';
