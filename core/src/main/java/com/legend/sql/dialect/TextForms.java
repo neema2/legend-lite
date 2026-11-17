@@ -20,9 +20,9 @@ final class TextForms {
     static final class Product extends com.legend.sql.SqlRewriter {
         @Override
         protected SqlExpr expr(SqlExpr e) {
-            // a value's two forms: the product's, the first; an execution's trace text: the id (D1.4, 2026-11-15)
-            return e instanceof SqlExpr.Call c && (c.fn() == SqlFn.TEXT_FORMS || c.fn() == SqlFn.TRACE_TEXT)
-                    ? c.args().get(0) : e;
+            // a value's two forms: the product's, the first (an execution's trace text left for the plan style,
+            // B8 (ii), 2026-11-17)
+            return e instanceof SqlExpr.Call c && c.fn() == SqlFn.TEXT_FORMS ? c.args().get(0) : e;
         }
     }
 }

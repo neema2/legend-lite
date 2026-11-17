@@ -82,6 +82,16 @@ class HookRulingTest {
         }
     }
 
+    /** A TWO-FORM HOOK (the orchestrator's ruling of 2026-11-17, B8 (ii)): the product's style answers its own lite
+     *  form, holding no upstream knowledge; the upstream form is in the edge's override alone. An execution's trace
+     *  text: the product's the id itself, the edge's legend-engine's comment around it. */
+    @Test
+    void theTwoFormHooksAnswerTheProductsOwnFormAndTheEdgesUpstreamOne() {
+        assertEquals(null, PlanStyle.PRODUCT.traceCell(), "the product writes the id alone");
+        assertEquals(new PlanStyle.TraceCell("-- \"executionTraceID\" : \"", "\""),
+                com.legend.edge.PureText.UPSTREAM.traceCell());
+    }
+
     /** (b): the product's style refuses each way of reaching the hook, by name, pointing to the edge. */
     @Test
     void theProductRefusesEachRuledHookByName() {

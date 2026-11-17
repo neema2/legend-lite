@@ -164,10 +164,19 @@ public record PlanEnv(ModelContext ctx, @Nullable String runtimeFqn,
      *  style's facet with the call's own refusal (B17 of the separation census, 2026-11-17: the product's style
      *  refuses a {@code toCSV}, a TDS's {@code csv} and a relation's {@code toString} at lowering, by name; and the
      *  texts only legend-pure writes, B8 (i); legend-engine's result envelope, Phase 6's B5). */
+    /** An execution's trace text in a TDS cell: {@code id} with the style's comment around it, if it writes one. */
+    private com.legend.sql.SqlExpr traceText(com.legend.sql.SqlExpr id) {
+        com.legend.database.PlanStyle.TraceCell comment = style.traceCell();
+        return comment == null ? id : new com.legend.sql.SqlExpr.Call(com.legend.sql.SqlFn.CONCAT, java.util.List.of(
+                new com.legend.sql.SqlExpr.StringLit(comment.before()), id,
+                new com.legend.sql.SqlExpr.StringLit(comment.after())));
+    }
+
     public com.legend.lowering.Lowerer configure(com.legend.lowering.Lowerer lowerer) {
         return lowerer.withDbTimeZone(timeZone())
                 .withRelationTexts(r -> style.facet(com.legend.lowering.RelationTexts.class, r))
                 .withPureOnlyTexts(r -> style.facet(com.legend.lowering.PureOnlyTexts.class, r))
-                .withResultEnvelopes(r -> style.facet(com.legend.lowering.ResultEnvelopes.class, r));
+                .withResultEnvelopes(r -> style.facet(com.legend.lowering.ResultEnvelopes.class, r))
+                .withTraceText(this::traceText);
     }
 }
