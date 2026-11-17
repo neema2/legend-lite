@@ -37,6 +37,8 @@ EDGE_TEST_SRCS = [
     "src/test/java/com/legend/SqlFnSortedTest.java",
     # hooks implemented by lambdas, and twoForm's callers, pinned (the GUARD stream, C.12, 2026-11-17)
     "src/test/java/com/legend/HookLambdasTest.java",
+    # the edge's package a boundary: no dotless prefix check, no edge class in a product jar (the GUARD stream, C.14)
+    "src/test/java/com/legend/EdgePackageBoundaryTest.java",
     "src/test/java/com/legend/PlanStyleFacetsTest.java",
     # the edge's extension records walked as data (census C2, 2026-11-17: the appeals moved to com.legend.edge)
     "src/test/java/com/legend/PlanTypesAreDataTest.java",
