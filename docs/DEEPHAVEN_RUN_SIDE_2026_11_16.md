@@ -274,6 +274,26 @@ runtime and the plan's declared requests. No request gains a field. `ingestPlans
   promised.
 - **M6, size:** the browser runtime's bytes, under the bundle budgets (`bundle-budget.test.ts`).
 
+### 10.1 Measured (2026-11-17, after the merge of `main`, this container)
+
+- **M5, part 1 (the `let` as written today):** five DataCube query shapes (the tree's root, a filtered level, a
+  regroup, the filter's values, a row count) planned whole and with their base as a top-level `let`, by the built
+  planner, on DuckDB and on Deephaven: the same SQL and the same batch in all ten. Today's lowering splices the `let`
+  and optimizes across it -- a filter goes below the calculated column, a calculated column a view does not read is
+  dropped -- so the base's operations agree across the five only on the two table reads and the join (three
+  operations). Keeping the base whole on Deephaven (§5.2) is therefore new planner work, and the identity witness (§9)
+  is needed. Still to measure: legend-engine's `lambdaRelationType` route on a `let`, and lean SQL E's answer.
+- **M1 (reuse):** a temporary change (not committed) reusing only the base and whole results, the cube lane three
+  times each way. Regroup: today 160, 132, 193 ms; base and results only 129, 147, 115 ms. Filter: today 92, 126,
+  106 ms; base and results only 186, 219, 153 ms. Closing a group: today 34, 27, 19 ms; base and results only 52, 26,
+  44 ms, nothing sent. Every gesture within its budget (250, 250, 150 ms); the filter about 70 ms slower, the one to
+  watch -- it sends the two operations below its filter again (8 sent of 8 planned, where today sends 6). The desk
+  lane passed with it (opened in 7.4 s, reopened from Open... in 13.6 s; today 10.3 s and 13.0 s in the run before).
+  The cube lane's check "no table made twice" fails with it, by design: it tests the per-operation reuse this design
+  deletes, and is replaced (§5.3).
+- **M2 (types)** is measured as it is built: the plan carries each column's Deephaven type and the runtime refuses a
+  server that holds otherwise (DH16), so every Deephaven lane run is the measurement, each refusal a dialect fix.
+
 ## 11. The order of work
 
 1. Merge `main` (`4dfbb5b7`: C5-P, C5-J, C5-T; 85 commits, about 18 conflicts), the Deephaven TypeScript placed in
