@@ -49,10 +49,10 @@ final class LiteText {
             return Scalars.pureToString(Styled.PRODUCT, Type.Primitive.DECIMAL, x);
         }
         if (t == Type.Primitive.FLOAT) {
-            // a message's Float at full round-trip precision (the orchestrator's ruling, 2026-11-17): FLOAT_PRINT, the
+            // a message's Float at full round-trip precision (the orchestrator's ruling, 2026-11-17): FLOAT_SHORTEST_TEXT, the
             // host's CellText.carriedFloat; a value the store holds as an integer its digits
             return LiteralSpelling.heldAsInteger(x) ? new SqlExpr.Cast(x, SqlType.Scalar.VARCHAR, SqlExpr.Reason.JUDGE)
-                    : javaExponent(SqlExpr.Call.of(SqlFn.FLOAT_PRINT, x));
+                    : javaExponent(SqlExpr.Call.of(SqlFn.FLOAT_SHORTEST_TEXT, x));
         }
         return Scalars.pureToString(Styled.PRODUCT, t, x);
     }

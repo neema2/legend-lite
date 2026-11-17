@@ -65,7 +65,7 @@ class BigQueryDialectTest {
      *  with the database-written wires, 2026-10-27.) */
     @Test
     void aFloatsPrintFormsReadItsTextOnce() {
-        for (SqlFn fn : List.of(SqlFn.FLOAT_PRINT)) {
+        for (SqlFn fn : List.of(SqlFn.FLOAT_SHORTEST_TEXT)) {
             String sql = render(SqlExpr.Call.of(fn, X), null);
             // the double's text once (its own BIGNUMERIC read; the print form's HUGEINT and DECIMAL casts are BIGNUMERIC
             // here too)
