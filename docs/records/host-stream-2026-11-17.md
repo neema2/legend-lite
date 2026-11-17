@@ -95,6 +95,9 @@ reader of DataCube's conformance cases.
 | b0d46482ba | The guards' findings fixed, listed below, and `query/run` through `LiteServer` in Arrow and in JSON over a real server. Its commit message also says Query's remote cube had printed 'pretty' as standard. That was wrong: that print implements engine-remote's `RemoteExecutor`, whose style is legend-engine's `'PRETTY'`. The next commit restores the mapping. |
 | f99a5c25de | H6, whole (the orchestrator's ruling of 2026-11-17), plus DataCube's 507a0afe0 merged and the server reader on its `bindings` and `answerShape`. See "H6" below. |
 | 5b462bd207 | H11's in-train de-imports, and Studio's Save Query fixed. See "H11" below. |
+| 80c4bc0e99 | `EdgeBoundary.refused`, for Python's native edge half. The user route's blank check is written portably. |
+| d6671ab1ce | On the merge point: the app-runs census shrinks by five sites, and `ParameterValue`/`PlanValue` become records (`requests.ts`). Query's server-mode cube reads an enumeration column as String. The plan-runner test reads `PLAN_VERSION`. |
+| a9a6ac4b53 | The warehouse's statement API takes positional parameters, bound at run (the orchestrator's ruling (a)). See "The warehouse's parameters" below. |
 
 ### Guard findings and what was done
 
@@ -164,15 +167,54 @@ reader of DataCube's conformance cases.
 | Studio's Save Query before its fix | `//studio:query_builder_test` | both of its write-back cases |
 | the edge-separation query | `//core:edge_direct_dependents_planted` | the planted reach still shows; the real query, with the page entry a root, reads empty |
 
+### The warehouse's parameters (the orchestrator's ruling (a), 2026-11-17)
+
+- **Why.** A run's values are bound at RUN (Q2). The warehouse's SQL API took SQL text alone, so Query's three
+  parameterized warehouse steps failed.
+- **Ruled (a).** The API carries the values and the server binds them, so lite's API v1 §4 holds on every plane. (b),
+  planning the values in, and (c), refusing, were rejected.
+- **sqlapi.** `StatementRequest.parameters` holds each value as a String, a Long, a Double, a Boolean or null. Any
+  other value is refused by name, never stringified. A whole number is 64-bit; one past it is refused by name.
+- **Server.**
+  - DuckDB's binder gains double and boolean.
+  - A statement with no parameters runs as before, several statements included.
+  - Passthrough and grant statements refuse parameters by name.
+  - The native image's metadata gains the two downcalls.
+- **TS driver.** `refuseParams` is gone. A bigint goes in the arguments' JSON as its exact digits.
+- **Corpus.** `sqlapi-corpus.json` has a 14th scenario. Python's driver moves in its own piece (told).
+- **Evidence.** `//query:verify_test` is green on every plane. `//warehouse:tests` and the corpus replay go red on
+  revert.
+
 ### Open, for others
 
 1. **native/ does not build on the train.** `nativelib/Compiler.java` calls the Boundary methods that DataCube's 2c
    removed. It is Python's binding, and Python has been told. `//core:guardrails_edge` cannot build until it moves.
+   *Closed 2026-11-17:* with `EdgeBoundary.refused` on the train, `//core:guardrails_edge` builds and passes.
 2. **`RaiseEnvelopeConformanceTest` is red.** DataCube's H9 put lite's words in the shared fixture, and Java's
    `RaisedErrors` still prefers upstream's (the audit's K10). That is the Java half of H9.
 3. **DuckDB's Integer placeholder is bound bare (D1).** On DuckDB-WASM, every Integer parameter is therefore a DOUBLE.
    A typed placeholder (`CAST(? AS BIGINT)`, the value bound as its text) would bind it exactly in the tab. That is a
    planner ruling, not this stream's.
-4. **`PLAN_VERSION = 57` in `plan-runner.ts`** (the orchestrator's ask) pairs with E-P5's K10b, Java's 57, on
-   `claude/total-wall-p5-k10`. It is this stream's last commit. Alone, it makes the tab refuse a 56 plan, so it lands
-   with p5-k10.
+4. **`PLAN_VERSION = 57`** comes from DataCube's merge point (the plain-Decimal plan type). K10a and K10b are off
+   this train. `RaiseEnvelopeConformanceTest`'s K10b half goes with them.
+
+### DataCube's two findings (2026-11-17)
+
+- **query/parse reads lite's own grammar.** `LiteV1Planning.queryParse` parsed at `GrammarLevel.LEGEND_ENGINE`, so
+  lite's islands (`#Cypher{...}#`) were refused by lite's own route. That was a product bug.
+  - It now parses at `LEGEND_LITE` through a dialect-named overload of the parse door (`Parse.lambdaJson(text, si,
+    dialect)`, over `SpecParser.lambdaJson`/`parseLambda` at a level).
+  - legend-engine's `grammarToJson`, the edge's, keeps `LEGEND_ENGINE`.
+  - `PhaseEntriesRefusedInsideARunTest` pins the new door's refusal inside a run.
+  - Witness: `LiteV1PlanningTest.parseReadsLitesGrammar`. It parses a `#Cypher` island and shows that the engine
+    grammar refuses it. It goes red on revert.
+- **The plan runner decides no binding by a type's name.** `parameterValue`'s `case 'Integer': ...` switch is now a
+  switch on `types.ts`' `parameterKind` (the plain type's kind, read from `TYPE_FACTS`). The unknown arm is
+  `case undefined`, refused by name as before.
+  - Witness: `//datacube:guardrails_test`, "decides nothing by comparing a type name". It goes red on revert.
+- **Green:**
+  - `//core:core_tests_server`, `//core:core_tests_root`, `//core:guardrails`, `//core:guardrails_edge`;
+  - `//core:lite_api_conformance_test`, `//engine-client:lite_api_server_test`, `//engine-client:plan_runner_test`;
+  - `//datacube:guardrails_test`, `//datacube:cypher_spike_test`, `//datacube:typecheck_test`;
+  - `//studio:run_test`, `//query:run_test`, `//tools/guards:planned_sql_test`,
+    `//tools/deps:engine_client_run_alone_test`.

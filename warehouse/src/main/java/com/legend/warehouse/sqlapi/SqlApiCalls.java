@@ -7,6 +7,7 @@ import com.legend.warehouse.sqlapi.SqlApi.StatementRequest;
 import com.legend.warehouse.sqlapi.SqlApiBinding.HttpCall;
 import com.legend.warehouse.sqlapi.SqlApiBinding.HttpResult;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -47,8 +48,12 @@ public final class SqlApiCalls {
                 case "login" -> BINDING.login(text(a, "user"), text(a, "password"));
                 case "loginKey" -> BINDING.loginWithKey(text(a, "key"));
                 case "refresh" -> BINDING.refresh(text(a, "token"));
+                // a statement's values, bound at run in order (lite's API v1 §4; the orchestrator's ruling (a),
+                // 2026-11-17): carried to the server, never pasted into the text
                 case "submit" -> BINDING.submit(new StatementRequest(text(a, "sql"), text(a, "catalog"), TIMEOUT_MS,
-                        POLL_WAIT_MS, ROWS_PER_CHUNK).as(SqlApi.ResultFormat.ARROW), text(a, "token"));
+                        POLL_WAIT_MS, ROWS_PER_CHUNK).as(SqlApi.ResultFormat.ARROW)
+                        .withParameters(a.has("parameters") ? ApiJson.parameters(a.get("parameters")) : List.of()),
+                        text(a, "token"));
                 case "poll" -> BINDING.poll(text(a, "statementId"), text(a, "token"));
                 case "fetchChunk" -> BINDING.fetchChunk(text(a, "statementId"), whole(a, "index"), text(a, "token"));
                 case "cancel" -> BINDING.cancel(text(a, "statementId"), text(a, "token"));

@@ -10,7 +10,7 @@ import { startNodeDuckDb } from '../src/node-require.ts';
 import { runfilesFromEnv } from '../../tools/js/runfiles.mts';
 import { DuckDbEngine, type ArrowishConnection } from '../src/duckdb.ts';
 import { answer, type PlannerModule } from '../src/legend/planner-answer.ts';
-import { checkParameters, ConnectionSettings, establish, expandKeyed, inLoadsTransaction, ParameterRefusal, PlanRefusal, runAuthored, runLoad, runPlan, targetKey, transacted, type PlanSession } from '../src/plan-runner.ts';
+import { checkParameters, ConnectionSettings, establish, PLAN_VERSION, expandKeyed, inLoadsTransaction, ParameterRefusal, PlanRefusal, runAuthored, runLoad, runPlan, targetKey, transacted, type PlanSession } from '../src/plan-runner.ts';
 import { currentRun, frameKept, inRun } from '../src/run-frame.ts';
 import { DatabaseError, failure, PlanRaise } from '../src/raised.ts';
 import { declareStatementSites, type Site } from '../src/declared-raises.ts';
@@ -309,7 +309,8 @@ describe("a write's plan, run by the host's runner on DuckDB-WASM", () => {
       (e: unknown) => e instanceof PlanRefusal && e.message === 'a plan parameter declared without its name, type, multiplicity and enumeration\'s values: {"name":"p"}');
     await assert.rejects(() => runPlan(unplannedPlan('{"format":"other"}'), session), /not a legend-lite execution plan/);
     // a plan of another version, and a statement only a dynamic pivot's probe plan writes (version 19): refused, never run (the version the runner reads, PLAN_VERSION: the A checkpoint's audit made it 42, 2026-11-10)
-    await assert.rejects(() => runPlan(unplannedPlan(JSON.stringify({ ...plan, version: 5 })), session), /not a legend-lite execution plan of version 56/);
+    await assert.rejects(() => runPlan(unplannedPlan(JSON.stringify({ ...plan, version: 5 })), session),
+      new RegExp(`not a legend-lite execution plan of version ${PLAN_VERSION}:`));
     const root = plan.root as { steps: { sql: Record<string, unknown> }[] };
     const regioned = { ...plan, root: { ...root, steps: root.steps.map((step) => ({ ...step, sql: { ...step.sql, regions: [{ start: 0 }] } })) } };
     const here: PlanSession = { ...session, databaseType: 'DuckDB' };
@@ -1072,7 +1073,7 @@ describe('a raise, worded', () => {
     // the envelope a product statement raises, sent as the database's own error() writes it: read through the sites
     // the plans the tab read declared for that text
     const sent = "SELECT error(chr(31) || chr(28) || 'LG#1' || chr(31))";
-    declareStatementSites(sent, [{ n: 1, kind: 'DIVIDE_BY_ZERO', where: null, message: 'division by zero' }], 'a test');
+    declareStatementSites(sent, [{ n: 1, kind: 'DIVIDE_BY_ZERO', where: null, message: 'division by zero', upstream: null }], 'a test');
     await assert.rejects(() => inRun('a test', () => asTest(engine).run(unplanned(sent), 0)),
       (e: unknown) => e instanceof PlanRaise && e.message === 'division by zero' && e.kind === 'DIVIDE_BY_ZERO');
   });

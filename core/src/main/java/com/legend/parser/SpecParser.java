@@ -316,8 +316,14 @@ public final class SpecParser implements TokenStreamCursor {
      *  grammar, so its level: text that is not a lambda becomes a parameterless one spanning
      *  all its tokens, as legend-engine wraps it. */
     public static LambdaFunction parseLambda(String source) {
+        return parseLambda(source, GrammarLevel.LEGEND_ENGINE);
+    }
+
+    /** {@link #parseLambda(String)} at {@code level}: lite's API v1 {@code query/parse} reads lite's own grammar
+     *  ({@link GrammarLevel#LEGEND_LITE}: its islands, {@code #Cypher{...}#} and kin), legend-engine's route its own. */
+    public static LambdaFunction parseLambda(String source, GrammarLevel level) {
         SpecParser parser = new SpecParser(Lexer.tokenize(Objects.requireNonNull(source, "source")),
-                "", GrammarLevel.LEGEND_ENGINE);
+                "", Objects.requireNonNull(level, "level"));
         ValueSpecification v = parser.wholeLine();
         return v instanceof LambdaFunction lf ? lf
                 : new LambdaFunction(List.of(), List.of(v), parser.spanOf(0, parser.pos - 1));
@@ -329,7 +335,12 @@ public final class SpecParser implements TokenStreamCursor {
      * information when it is off -- every span, the named ones included, as the engine's parser then records none.
      */
     public static String lambdaJson(String source, boolean sourceInformation) {
-        String json = com.legend.protocol.ProtocolEmitter.emitLambda(parseLambda(source));
+        return lambdaJson(source, sourceInformation, GrammarLevel.LEGEND_ENGINE);
+    }
+
+    /** {@link #lambdaJson(String, boolean)} at {@code level} ({@link #parseLambda(String, GrammarLevel)}). */
+    public static String lambdaJson(String source, boolean sourceInformation, GrammarLevel level) {
+        String json = com.legend.protocol.ProtocolEmitter.emitLambda(parseLambda(source, level));
         return sourceInformation ? json : com.legend.protocol.SourceInformation.withoutSpans(json);
     }
 
