@@ -39,6 +39,8 @@ _ARITY = {
     'lite_project_data': 2,
     # a host's named operations (D5)
     'lite_host_operations': 2,
+    # lite's own grammar and typing (the edge program's H4, 2026-11-17): the product's, never pure/v1's
+    'lite_model_elements': 1, 'lite_parse_lambda': 1, 'lite_print_lambda': 2, 'lite_lambda_relation_type': 2,
     'lite_pure_v1': 3, 'lite_execute_plan': 2, 'lite_pure_v1_refusal': 1,
     # the planner protocol's execute halves for a host's own database, and its warm (C2)
     'lite_execute_json_plan': 2, 'lite_execute_json_answer': 2, 'lite_warm_model': 1,
