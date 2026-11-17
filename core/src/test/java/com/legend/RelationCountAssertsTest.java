@@ -42,7 +42,7 @@ class RelationCountAssertsTest {
 
     private static Program.Report run(String body) {
         return Program.run(StorelessRuntime.with(MODEL, Databases.PLATFORM), body, StorelessRuntime.RUNTIME, conn,
-                ExecuteOptions.NONE.withJudgeMode(Program.laneJudge())));
+                ExecuteOptions.NONE.withJudgeMode(Program.laneJudge()));
     }
 
     @Test

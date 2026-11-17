@@ -7,11 +7,9 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.legend.error.AssertFailed;
-import com.legend.testbackend.TestBackends;
 import com.legend.testing.EdgeProgram;
 
 import java.sql.Connection;
-import java.sql.Statement;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -24,28 +22,11 @@ import org.junit.jupiter.api.Test;
  * strings differ, the compatibility rules compare an unsorted query's tokens as a multiset. Under the lane's judge.
  */
 class RenderedTextEdgeTest {
-    private static final String MODEL = """
-            Class r::P { name: String[1]; }
-            ###Relational
-            Database r::DB ( Table PT (NAME VARCHAR(20)) )
-            ###Mapping
-            Mapping r::M (
-              *r::P: Relational { ~mainTable [r::DB] PT name: PT.NAME }
-            )
-            ###Connection
-            RelationalDatabaseConnection r::C { store: r::DB; type: DuckDB; specification: DuckDB { }; auth: Test; }
-            ###Runtime
-            Runtime r::RT { mappings: [r::M]; connections: [ r::DB: [ c0: r::C ] ]; }
-            """;
     private Connection conn;
 
     @BeforeEach
     void setUp() throws Exception {
-        conn = TestBackends.platform().open();
-        try (Statement st = conn.createStatement()) {
-            st.execute("CREATE TABLE PT (NAME VARCHAR)");
-            st.execute("INSERT INTO PT VALUES ('ann'), ('bob')");
-        }
+        conn = RenderedTextTest.seeded();
     }
 
     @AfterEach
@@ -55,8 +36,8 @@ class RenderedTextEdgeTest {
 
     /** The names in the query's arrival order, joined, judged by the compatibility rules on the edge's door. */
     private Object runCompat(String golden) throws Exception {
-        return EdgeProgram.run(MODEL, "{| assertEquals('" + golden + "', r::P.all()->map(p|$p.name)->joinStrings(','));}",
-                "r::RT", conn).side().value();
+        return EdgeProgram.run(RenderedTextTest.MODEL, "{| assertEquals('" + golden
+                + "', r::P.all()->map(p|$p.name)->joinStrings(','));}", "r::RT", conn).side().value();
     }
 
     @Test

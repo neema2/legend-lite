@@ -24,7 +24,7 @@ import org.junit.jupiter.api.Test;
  * the render and the equality. Backwards-compatibility mode's ruled comparison (S131) is the edge's: {@code RenderedTextEdgeTest}. Run under each judge by the lane ({@code legend.test.judge}).
  */
 class RenderedTextTest {
-    private static final String MODEL = """
+    static final String MODEL = """
             Class r::P { name: String[1]; }
             ###Relational
             Database r::DB ( Table PT (NAME VARCHAR(20)) )
@@ -41,11 +41,17 @@ class RenderedTextTest {
 
     @BeforeEach
     void setUp() throws Exception {
-        conn = TestBackends.platform().open();
-        try (Statement st = conn.createStatement()) {
+        conn = seeded();
+    }
+
+    /** A platform session holding PT's two names: this test's and its edge twin's ({@code RenderedTextEdgeTest}). */
+    static Connection seeded() throws Exception {
+        Connection c = TestBackends.platform().open();
+        try (Statement st = c.createStatement()) {
             st.execute("CREATE TABLE PT (NAME VARCHAR)");
             st.execute("INSERT INTO PT VALUES ('ann'), ('bob')");
         }
+        return c;
     }
 
     @AfterEach
