@@ -81,13 +81,13 @@ public final class ModelChanges {
         // no one here, admitted, closed over its own keys (the C4 audit's M4, 2026-11-13: it was refused by name)
         only(project, "a project's model", "_type", "code", "serializer");
         serializer(project);
-        ModelChanges m = new ModelChanges(PureV1Api.modelText(project));
+        ModelChanges m = new ModelChanges(LiteV1Api.modelText(project));
         List<CreateClass.Made> madeClasses = new ArrayList<>();
         for (Json.Obj c : classes) {
             Json.Obj source = c.getObj("source");
             only(source, "a class's source model", "_type", "code", "serializer");
             serializer(source);
-            madeClasses.add(CreateClass.apply(m, pkg, c, PureV1Api.modelText(source)));
+            madeClasses.add(CreateClass.apply(m, pkg, c, LiteV1Api.modelText(source)));
         }
         List<CreateAssociation.Made> madeAssociations = new ArrayList<>();
         for (Json.Obj a : associations) {

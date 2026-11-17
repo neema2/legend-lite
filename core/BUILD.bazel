@@ -87,7 +87,7 @@ legend_java_library(name = "test_plan", srcs = glob(["src/main/java/com/legend/t
 # a plan's TYPED RESULT as a stream of batches, and the writers at the edge (docs/RESULT_BOUNDARY_PROGRAM_2026_10_26.md
 # R3, R8; 2026-10-27): the plan side, so the browser's and Python's planners write the answers the server writes
 # result reaches //arrow_ipc (track A, 2026-10-29: ArrowWriter frames a result's batches as Arrow IPC); so does
-# pure_v1 below (the ARROW_IPC execute); the layer map tools/deps/core-layers.txt carries the same two rows
+# lite_v1 below (the ARROW_IPC execute); the layer map tools/deps/core-layers.txt carries the same two rows
 legend_java_library(name = "result", srcs = glob(["src/main/java/com/legend/result/**/*.java"]), deps = ["//arrow_ipc", "//base", "//json", ":error", ":execution_plan", ":values"])
 legend_java_library(name = "error", srcs = glob(["src/main/java/com/legend/error/*.java"]), deps = ["//base"])
 # THE COMPATIBILITY FORMS A RUN IS HANDED (phase D's W9/W10, 2026-11-16): the hook the edge implements and the planner
@@ -359,19 +359,19 @@ legend_java_library(
     # appeals name from the plan's data (PlannedAppeals.stores) and seeds them between the body's plan and its run
     deps = ["//base", "//json", ":compiler", ":error", ":exec", ":test_execution", ":execution_plan", ":testexec", ":model", ":planner", ":protocol", ":result", ":sql", ":test_plan", ":values"],
 )
-# legend-engine's pure/v1 API as legend-lite answers it (server/PureV1Api.java): THE PLAN SIDE -- no database and
+# legend-lite's own API (server/LiteV1Api.java; B7, 2026-11-17: its legend-engine content moved to the edge): THE PLAN SIDE -- no database and
 # no driver, so the compiler's boundary (//wasm:boundary, and Python's engine through //native:compiler) answers
 # with the same code as the server. execute's run is its host's: the server hands in its product door under its file
 # fence (ConnectionResolver.runner(sources); ConnectionResolver.RUNNER is the library's, any file).
 legend_java_library(
-    name = "pure_v1",
+    name = "lite_v1",
     srcs = [
         "src/main/java/com/legend/server/CreateAssociation.java",
         "src/main/java/com/legend/server/CreateClass.java",
         "src/main/java/com/legend/server/CreateDataSpace.java",
         "src/main/java/com/legend/server/ModelChanges.java",
         "src/main/java/com/legend/server/ModelInput.java",
-        "src/main/java/com/legend/server/PureV1Api.java",
+        "src/main/java/com/legend/server/LiteV1Api.java",
         "src/main/java/com/legend/server/TsTree.java",
     ],
     # door (C5-J item 1, 2026-11-15): its parses through the parse doors, which ask the run's wall
@@ -387,20 +387,20 @@ legend_java_library(
             "src/main/java/com/legend/server/CreateDataSpace.java",
             "src/main/java/com/legend/server/ModelChanges.java",
             "src/main/java/com/legend/server/ModelInput.java",
-            "src/main/java/com/legend/server/PureV1Api.java",
+            "src/main/java/com/legend/server/LiteV1Api.java",
             "src/main/java/com/legend/server/TsTree.java",
         ],
     ),
     # 2026-11-09 (the full audit): no runtime library -- the server hands pure/v1 the product door and names no exec
     # class; :cache, :lowering and :setup were unused
-    deps = ["//base", "//json", ":compiler", ":compiler_element_type", ":database", ":error", ":execution", ":execution_plan", ":model", ":parser", ":plan", ":planner", ":protocol", ":pure_v1", ":result", ":saved_queries", ":sql_dialect"],
+    deps = ["//base", "//json", ":compiler", ":compiler_element_type", ":database", ":error", ":execution", ":execution_plan", ":model", ":parser", ":plan", ":planner", ":protocol", ":lite_v1", ":result", ":saved_queries", ":sql_dialect"],
 )
 
 _CORE_TARGETS = [
     "//base", "//json", ":spi", ":cache", ":values", ":error", ":diagnostics", ":lexer", ":sql", ":protocol", ":model", ":parser", ":door",
     ":builtin", ":platform", ":compiler_element_type", ":sql_dialect", ":database", ":compiler", ":normalizer",
     ":lineage", ":validation", ":lowering", ":plan", ":resolver", ":setup", ":exec", ":testexec", ":probe", ":testdatagen",
-    ":execution_plan", ":result", ":planner", ":pure_v1", ":saved_queries", ":testplan", ":execution",
+    ":execution_plan", ":result", ":planner", ":lite_v1", ":saved_queries", ":testplan", ":execution",
     ":test_execution", ":ide", ":test",
     ":server_lib", ":test_plan", ":exec_program",
 ]
@@ -411,7 +411,7 @@ _CORE_TARGETS = [
 _PLAN_SIDE_TARGETS = [
     "//base", "//json", ":spi", ":cache", ":values", ":error", ":diagnostics", ":lexer", ":sql", ":protocol", ":model", ":parser", ":door",
     ":builtin", ":platform", ":compiler_element_type", ":sql_dialect", ":database", ":compiler", ":normalizer",
-    ":lineage", ":validation", ":lowering", ":plan", ":resolver", ":setup", ":execution_plan", ":result", ":planner", ":pure_v1",
+    ":lineage", ":validation", ":lowering", ":plan", ":resolver", ":setup", ":execution_plan", ":result", ":planner", ":lite_v1",
 ]
 
 legend_java_library(
@@ -488,12 +488,12 @@ legend_java_library(
     # the plan's records (B2b, 2026-11-11): a seed's referee's copy is a load, its steps written by the plan's codec;
     # the dialect source and the declared database type (D1.0, 2026-11-12): the edge's dialects, PureText
     # pure/v1's upstream routes (D1.0b, 2026-11-12): legend-engine's API, planned through the edge's dialects over the
-    # product's API kit (pure_v1) and its compiler, protocol and test-data generator
+    # product's API kit (lite_v1) and its compiler, protocol and test-data generator
     # the parse door (main's C5-J item 1, merged 2026-11-15): pure/v1's grammar routes, moved here by D1.0b, parse
     # through it as the run's wall asks
     # values (W8, 2026-11-16): legend-engine's and legend-pure's cell text (Presenter) reads a date's own value
     deps = ["//arrow_ipc", "//base", "//json", ":compiler", ":compiler_element_type", ":database", ":door", ":error",
-            ":execution_plan", ":model", ":parser", ":plan", ":planner", ":protocol", ":pure_v1", ":result", ":sql",
+            ":execution_plan", ":model", ":parser", ":plan", ":planner", ":protocol", ":lite_v1", ":result", ":sql",
             ":sql_dialect", ":test_plan", ":testdatagen", ":testplan", ":values", ":setup", ":resolver", ":platform", ":lowering", ":lineage", ":builtin"],
 )
 
@@ -504,7 +504,7 @@ legend_java_library(
     name = "edge_server",
     srcs = ["src/main/java/com/legend/edge/EdgeServer.java"],
     visibility = ["//spec:__pkg__", "//pct:__pkg__"],
-    deps = ["//base", ":edge", ":edge_store_words", ":execution", ":pure_v1", ":saved_queries", ":server_lib"],
+    deps = ["//base", ":edge", ":edge_store_words", ":execution", ":lite_v1", ":saved_queries", ":server_lib"],
 )
 
 # MONGODB'S CONNECTOR (docs/MONGODB_PLAN_2026_10_16.md §5.2, D12; 2026-10-17): a session on a MongoDBConnection, and

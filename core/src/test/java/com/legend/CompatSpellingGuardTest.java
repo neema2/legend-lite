@@ -234,7 +234,7 @@ class CompatSpellingGuardTest {
             // formats. traceComment 1 -> 2 and executionTraceID +1 (2026-11-15): the trace comment's method moved here
             // from ExecutionPlan (its two rows gone above), the engine answer's activity its one Java reader
             // result/Output.java and result/PureV1Writer.java rows: gone 2026-11-16 (W8): legend-engine's writer is the
-            // edge's (edge.PureV1Writer), written through Output.Rows by edge.EngineAnswers; server/PureV1Api.java's
+            // edge's (edge.PureV1Writer), written through Output.Rows by edge.EngineAnswers; server/LiteV1Api.java's
             // PureV1Writer 17 gone with it (its host answer halves are edge.HostAnswers)
             // result/TdsObjectsWriter.java (TdsObjectsWriter 2, presentedName 1) and test/ServiceTestRunner.java
             // (PureV1Writer 1, TdsObjectsWriter 1): gone 2026-11-15 (D1.4: legend-engine's service tests and their

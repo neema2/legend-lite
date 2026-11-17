@@ -51,7 +51,6 @@ class EdgeSeparationTest {
      *  open line until it moves to the edge or is ruled; a product class depending on one is an entry too. */
     static final Map<String, String> COMPAT_CLASSES = Map.ofEntries(
             Map.entry("com.legend.planner.UpstreamPlans", "B2"),
-            Map.entry("com.legend.server.PureV1Api", "B7"),
             Map.entry("com.legend.sql.dialect.FloatPrintText", "B9"),
             Map.entry("com.legend.sql.dialect.DateTimePrintText", "B9"),
             // B17 (2026-11-17): Render's relation text moved to the edge (edge.RelationTextLowering); what stays in
@@ -93,22 +92,16 @@ class EdgeSeparationTest {
             Map.entry("com.legend.lowering.Scalars -> SqlFn.TEXT_FORMS", "B8 2026-11-17"),
             Map.entry("com.legend.lowering.Scalars -> com.legend.lowering.Repr", "B12 2026-11-17"),
             Map.entry("com.legend.lowering.TaggedLists -> SqlFn.TEXT_FORMS", "B8 2026-11-17"),
-            Map.entry("com.legend.lowering.VerdictSql -> com.legend.lowering.Repr", "C5 2026-11-17"),
-            Map.entry("com.legend.server.ConnectionResolver -> com.legend.server.PureV1Api", "B7 2026-11-17"),
-            Map.entry("com.legend.server.LegendHttpServer -> com.legend.server.PureV1Api", "B7 2026-11-17"),
-            Map.entry("com.legend.server.ModelChanges -> com.legend.server.PureV1Api", "B7 2026-11-17"),
-            Map.entry("com.legend.server.ModelInput -> com.legend.server.PureV1Api", "B7 2026-11-17"),
-            Map.entry("com.legend.server.PureV1Api -> (stands in a product package)", "B7 2026-11-17"),
             Map.entry("com.legend.sql.dialect.AnsiSqlRenderer -> com.legend.sql.dialect.DateTimePrintText", "B9 2026-11-17"),
             Map.entry("com.legend.sql.dialect.AnsiSqlRenderer -> com.legend.sql.dialect.FloatPrintText", "B9 2026-11-17"),
             Map.entry("com.legend.sql.dialect.DateTimePrintText -> (stands in a product package)", "B9 2026-11-17"),
             Map.entry("com.legend.sql.dialect.FloatPrintText -> (stands in a product package)", "B9 2026-11-17"),
             // planner.Boundary -> com.legend.edge.HostAnswers, PureText, PureV1Routes: gone 2026-11-17 (A1, E-P5): the
             // pure/v1 route and execute's halves moved to com.legend.edge.wasm.EdgeBoundary (//wasm:edge_boundary)
-            // A1 -> B7 (2026-11-17, the orchestrator's ruling (a)): every export's refusal vocabulary (PureV1Api) is a
-            // product-package class the census's B7 moves; A1 itself closed with //wasm:boundary's edge dependency
-            Map.entry("planner.Boundary -> com.legend.server.PureV1Api", "B7 2026-11-17"),
-            Map.entry("planner.Folded -> com.legend.server.PureV1Api", "B7 2026-11-17"));
+            // B7 CLOSED 2026-11-17 (E-P5, D's split by content): server/PureV1Api is the product's own API kit,
+            // server/LiteV1Api in //core:lite_v1 (lite's routes, answer and refusal kinds, LiteV1Api.RefusalKind);
+            // legend-engine's ExecuteInput binding moved to the edge (edge.ExecuteInputs); its 7 lines left with it
+            Map.entry("com.legend.lowering.VerdictSql -> com.legend.lowering.Repr", "C5 2026-11-17"));
 
     /** TEST SIDE: the same. */
     static final Map<String, String> TEST_OPEN = Map.ofEntries(
@@ -365,11 +358,12 @@ class EdgeSeparationTest {
      *  B1, B3 HOOK-RULED 2026-11-17 (EngineTextDialect, {@link #HOOKS_RULED}), then moved to the edge by Phase 6 (2026-11-17); B4, B6, B13
      *  CLOSED 2026-11-17 by Phase 6 (RawSqlBoundary, PurePrint and UpstreamRelationType, the test-data generator's text
      *  moved to the edge); B2 HOOK-RULED 2026-11-17 (UpstreamPlans, signatures only); B5 CLOSED 2026-11-17
-     *  (the lowering's shape options, the trace comment and the result envelope the edge's); records only:
+     *  (the lowering's shape options, the trace comment and the result envelope the edge's); B7 CLOSED 2026-11-17 (the
+     *  product's API kit LiteV1Api, legend-engine's ExecuteInput binding the edge's); records only:
      *  B15, B16, C6, C7). Each must hold at least one entry in the count ({@link #everyOpenLineIsCounted}), so an empty
      *  count cannot read DONE with a line left. A line closes by leaving this set with its last entry. */
     static final Set<String> OPEN_LINES = Set.of(
-            "B7", "B8", "B9", "B10", "B11", "B12", "B17", "C1", "C2", "C3", "C4", "C5");
+            "B8", "B9", "B10", "B11", "B12", "B17", "C1", "C2", "C3", "C4", "C5");
 
     private static Set<String> linesOf(Map<String, String> m) {
         Set<String> out = new TreeSet<>();

@@ -5,7 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.legend.edge.PureV1Routes;
 import com.legend.json.Json;
-import com.legend.server.PureV1Api;
+import com.legend.server.LiteV1Api;
 import org.junit.jupiter.api.Test;
 import planner.Boundary;
 
@@ -28,7 +28,7 @@ class BoundaryLiteExportsTest {
             """;
     private static final String LAMBDA = "|t::P.all()->project([p|$p.name, p|$p.age], ['name', 'age'])";
 
-    private static String ok(PureV1Api.Answer a) {
+    private static String ok(LiteV1Api.Answer a) {
         assertEquals(200, a.status(), () -> "the route refused: " + a.json());
         return a.json();
     }
@@ -71,5 +71,19 @@ class BoundaryLiteExportsTest {
         assertThrows(RuntimeException.class, () -> Boundary.parseLambda("|$", false));
         String unknown = Boundary.parseLambda("|t::Nope.all()", false);
         assertThrows(RuntimeException.class, () -> Boundary.lambdaRelationType(MODEL, unknown));
+    }
+
+    /** A REFUSAL'S BYTES, FOLDED FOR A HOST (B7, 2026-11-17: the orchestrator's condition on the split -- lite's own
+     *  refusal kinds, {@link LiteV1Api.RefusalKind}, write the bytes the tab and Python have read since leg 6, unmoved):
+     *  a text that does not parse, a model that does not compile, any other failure. */
+    @Test
+    void aFoldedRefusalsBytesAreUnmoved() {
+        RuntimeException parse = assertThrows(RuntimeException.class, () -> com.legend.Compiler.parseQuery("1 +"));
+        assertEquals("ERR\nPARSER\n" + parse.getMessage(), planner.Folded.failure(parse));
+        RuntimeException compile = assertThrows(RuntimeException.class,
+                () -> com.legend.Compiler.compileModel("Class demo::Desk\n{\n  name: Strin[1];\n}\n"));
+        assertEquals("ERR\nCOMPILATION\n" + compile.getMessage(), planner.Folded.failure(compile));
+        assertEquals("ERR\n500\nIllegalArgumentException: no",
+                planner.Folded.failure(new IllegalArgumentException("no")));
     }
 }

@@ -17,7 +17,7 @@ public final class EdgeBoundary {
     private EdgeBoundary() {
     }
 
-    // ---- legend-engine's pure/v1 API, as legend-lite's server answers it (PureV1Api, the plan side): how the tab's
+    // ---- legend-engine's pure/v1 API, as legend-lite's server answers it (LiteV1Api, the plan side): how the tab's
     // ---- apps ask what they would ask a server, and how Python's engine answers DataCube
     // ---- (docs/DATACUBE_PYTHON_SHOW_DESIGN_2026_10_08.md)
 
@@ -27,8 +27,8 @@ public final class EdgeBoundary {
      * run is the host's (its rows come from {@link #executePlan}), so one asked for here is refused, naming the
      * format that is served.
      */
-    public static com.legend.server.PureV1Api.Answer pureV1(String path, String rawQuery, String body) {
-        com.legend.server.PureV1Api.Runner noRun = (query, runtime, output) -> {
+    public static com.legend.server.LiteV1Api.Answer pureV1(String path, String rawQuery, String body) {
+        com.legend.server.LiteV1Api.Runner noRun = (query, runtime, output) -> {
             throw new IllegalArgumentException("this engine runs no execute itself: the host runs the plan"
                     + " (executePlan) and asks for its answer (executeJsonAnswer, executeArrowAnswer)");
         };
@@ -36,12 +36,12 @@ public final class EdgeBoundary {
         // path's prefix, as the server mounts them
         return path.startsWith(com.legend.edge.PureV1Routes.PREFIX)
                 ? com.legend.edge.PureV1Routes.route(path, rawQuery.isEmpty() ? null : rawQuery, body, noRun, HELD)
-                : com.legend.server.PureV1Api.route(path, rawQuery.isEmpty() ? null : rawQuery, body, noRun, HELD);
+                : com.legend.server.LiteV1Api.route(path, rawQuery.isEmpty() ? null : rawQuery, body, noRun, HELD);
     }
 
     /** A request's model given as text: the one this host holds for that text, compiled no more, else compiled for the
      *  request (HeldModels.withText). */
-    private static final com.legend.server.PureV1Api.Models HELD = new com.legend.server.PureV1Api.Models() {
+    private static final com.legend.server.LiteV1Api.Models HELD = new com.legend.server.LiteV1Api.Models() {
         @Override
         public <T> T with(String text, java.util.function.Function<com.legend.compiler.element.ModelContext, T> use) {
             return planner.Boundary.withModelText(text, use);
@@ -49,44 +49,44 @@ public final class EdgeBoundary {
     };
 
     /**
-     * Execute's plan half in upstream's Arrow format (PureV1Api.arrowPlan): the SQL to run and the Arrow schema
+     * Execute's plan half in upstream's Arrow format (LiteV1Api.arrowPlan): the SQL to run and the Arrow schema
      * metadata, or the refusal to send. {@code modelsJson}: the only models the host runs, a JSON array of their
      * texts.
      */
-    public static com.legend.server.PureV1Api.Answer executePlan(String body, String modelsJson) {
+    public static com.legend.server.LiteV1Api.Answer executePlan(String body, String modelsJson) {
         // pure/v1's execute plans in the compatibility edge's pure/v1 style (the D part 1 audit's M2, 2026-11-15; B7,
         // 2026-11-17: legend-engine's unchecked raises plain, PureText.PURE_V1)
         return com.legend.edge.HostAnswers.arrowPlan(body, models(modelsJson), com.legend.edge.PureText.PURE_V1);
     }
 
     /**
-     * Execute's plan half in the engine's JSON (PureV1Api.jsonPlan): the statement to run, the answer's shape and its
+     * Execute's plan half in the engine's JSON (LiteV1Api.jsonPlan): the statement to run, the answer's shape and its
      * result columns with their type facts, and everything the answer holds but its rows -- the TDS builder, the
      * activities, the columns' names, or a graph fetch's JSON builder -- for a host whose database runs the statement
      * (the tab; docs/ONE_PLATFORM_PROGRAM_2026_10_12.md C1).
      * {@code modelsJson}: the only models the host runs, a JSON array of their texts.
      */
-    public static com.legend.server.PureV1Api.Answer executeJsonPlan(String body, String modelsJson) {
+    public static com.legend.server.LiteV1Api.Answer executeJsonPlan(String body, String modelsJson) {
         return com.legend.edge.HostAnswers.jsonPlan(body, models(modelsJson), com.legend.edge.PureText.PURE_V1);
     }
 
     /**
-     * Execute's answer for a host that ran {@link #executeJsonPlan}'s {@code run} statement (PureV1Api.jsonAnswer):
+     * Execute's answer for a host that ran {@link #executeJsonPlan}'s {@code run} statement (LiteV1Api.jsonAnswer):
      * that plan's answer and the host's rows (a JSON array of objects, each a column's name and its cell as the
      * host's driver read it), decoded by the plan's columns and written by the writer legend-lite's server answers
      * with.
      */
-    public static com.legend.server.PureV1Api.Answer executeJsonAnswer(String plan, String rows) {
+    public static com.legend.server.LiteV1Api.Answer executeJsonAnswer(String plan, String rows) {
         return com.legend.edge.HostAnswers.jsonAnswer(plan, rows);
     }
 
     /**
      * Execute's answer in upstream's Arrow format for a host that ran {@link #executeJsonPlan}'s {@code run}
-     * statement (PureV1Api.arrowAnswer; track A, 2026-10-29): that plan's answer and the host's rows, decoded by the
+     * statement (LiteV1Api.arrowAnswer; track A, 2026-10-29): that plan's answer and the host's rows, decoded by the
      * plan's columns and written by lite's Arrow writer as the one zstd frame upstream sends -- folded as base64
      * (Folded.http).
      */
-    public static com.legend.server.PureV1Api.Answer executeArrowAnswer(String plan, String rows) {
+    public static com.legend.server.LiteV1Api.Answer executeArrowAnswer(String plan, String rows) {
         return com.legend.edge.HostAnswers.arrowAnswer(plan, rows);
     }
 

@@ -1876,7 +1876,7 @@ class JavaEvalLedgerTest {
                             // 2026-09-27, legend-engine's pure/v1 calls: parse, emit,
                             // compile and PLAN only -- no connection, no JDBC, no value
                             // computed; the plan's SQL is the database's to run
-                            "PureV1Api.java",
+                            "LiteV1Api.java",
                             // 2026-11-03, the one reader (docs/TS_A3_ONE_READER_PLAN_2026_11_03.md step 2): one #TS
                             // item's parsed tree written as data for the route that answers it -- each node's kind,
                             // place and parts, a number's text as the parser read it; parse only, no connection, no

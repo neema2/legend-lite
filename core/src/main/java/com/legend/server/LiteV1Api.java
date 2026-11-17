@@ -34,9 +34,9 @@ import java.util.function.Supplier;
  * <p>THE PLAN SIDE ({@code //core:pure_v1}): no database and no driver, so the compiler's boundary answers with this
  * same code.
  */
-public final class PureV1Api {
+public final class LiteV1Api {
 
-    private PureV1Api() {
+    private LiteV1Api() {
     }
 
     /** An answer: HTTP status, a body, and its media type ({@code application/json} unless said). */
@@ -115,7 +115,7 @@ public final class PureV1Api {
     /**
      * One call by its path ({@code /api/pure/v1/...}) and raw query string, as both of legend-lite's hosts
      * route it: its server ({@code LegendHttpServer}) and the compiler's boundary. An execute runs through
-     * {@code runner}; a path this API does not serve is answered 404 in the engine's error shape.
+     * {@code runner}; a path this API does not serve is answered 404 in lite's error shape ({@link #error}).
      */
     public static Answer route(String path, @com.legend.base.Nullable String rawQuery, String body, Runner runner) {
         return route(path, rawQuery, body, runner, Models.COMPILED);
@@ -157,7 +157,7 @@ public final class PureV1Api {
      * model's, is answered as {@code com.legend.edge.PureV1Routes#compile} answers it.
      */
     public static Answer compileEveryError(String body) {
-        return answer(400, "COMPILATION", () -> {
+        return answer(400, RefusalKind.COMPILE.text(), () -> {
             List<Map<String, Object>> errors = new ArrayList<>();
             for (String message : ModelInput.of(request(body)).compileErrors()) {
                 errors.add(Map.of("message", message));
@@ -175,7 +175,7 @@ public final class PureV1Api {
      * {@code +} reads (A6, 2026-11-03).
      */
     public static Answer jsonToTsLambda(String body, Models models) {
-        return answer(400, "COMPILATION", () -> {
+        return answer(400, RefusalKind.COMPILE.text(), () -> {
             Json.Obj request = request(body);
             // lite's own route (upstream has no #TS): closed, a key it does not read refused by name (the final audit of
             // 9af16fbe58's J4, 2026-11-14); its model is upstream's PureModelContext, read as upstream reads it
@@ -198,7 +198,7 @@ public final class PureV1Api {
      * {@code {"error": {message, line, column}}} where the text is no item. An error is the box's answer, never a failed request: 200 either way.
      */
     public static Answer tsItem(String body) {
-        return answer(400, "COMPILATION", () -> {
+        return answer(400, RefusalKind.COMPILE.text(), () -> {
             Json.Obj request = request(body);
             // lite's own route (upstream has no #TS): closed (the final audit of 9af16fbe58's J4, 2026-11-14)
             ModelChanges.only(request, "a tsItem request", "text");
@@ -249,75 +249,15 @@ public final class PureV1Api {
      * model that does not compile is, 400 COMPILATION.
      */
     public static Answer modelChanges(String body, java.util.function.Function<Json.Obj, Map<String, Object>> make) {
-        return answer(400, "COMPILATION", () -> Json.toCompact(make.apply(request(body))));
+        return answer(400, RefusalKind.COMPILE.text(), () -> Json.toCompact(make.apply(request(body))));
     }
 
     /**
      * A host's refusal of a call it could not finish -- its database refusing the SQL, say -- answered as
-     * {@link #answer} answers a database's refusal: 500, the engine's error shape, no {@code errorType}.
+     * {@link #answer} answers a database's refusal: 500, lite's error shape ({@link #error}), no {@code errorType}.
      */
     public static Answer refused(String message) {
         return error(500, null, message);
-    }
-
-    /**
-     * {@code ExecuteInput.parameterValues} ({@code [{name, value}]}, each value a protocol value
-     * specification -- a literal, a collection, an enum value, a call such as {@code today()})
-     * bound to the lambda's parameters: each becomes {@code let name = value;} ahead of the
-     * body, in the lambda's declared order, and the lambda takes no parameters. The database
-     * still computes every value; this only rearranges the query's shape. As legend-engine
-     * 4.145.0 answers (measured 2026-09-30): a parameter with no value is refused, named with
-     * its type and multiplicity; a value for no parameter of the lambda is ignored.
-     */
-    public static Json.Obj boundParameters(Json.Obj function, @com.legend.base.Nullable Json.Arr values) {
-        List<Json.Node> declared = function.has("parameters") ? function.getArr("parameters").items() : List.of();
-        Map<String, Json.Node> byName = new LinkedHashMap<>();
-        if (values != null) {
-            for (Json.Node n : values.items()) {
-                Json.Obj pv = (Json.Obj) n;
-                byName.put(pv.getString("name"), pv.get("value"));
-            }
-        }
-        if (declared.isEmpty() && byName.isEmpty()) {
-            return function;
-        }
-        List<Json.Node> body = new ArrayList<>();
-        List<String> missing = new ArrayList<>();
-        for (Json.Node p : declared) {
-            String name = ((Json.Obj) p).getString("name");
-            Json.Node value = byName.remove(name);
-            if (value == null) {
-                missing.add(name + ":" + signature((Json.Obj) p));
-                continue;
-            }
-            LinkedHashMap<String, Json.Node> let = new LinkedHashMap<>();
-            let.put("_type", Json.str("func"));
-            let.put("function", Json.str("letFunction"));
-            LinkedHashMap<String, Json.Node> letName = new LinkedHashMap<>();
-            letName.put("_type", Json.str("string"));
-            letName.put("value", Json.str(name));
-            let.put("parameters", new Json.Arr(List.of(new Json.Obj(letName), value)));
-            body.add(new Json.Obj(let));
-        }
-        if (!missing.isEmpty()) {
-            throw new com.legend.error.MissingParameters(missing, null);
-        }
-        body.addAll(function.getArr("body").items());
-        LinkedHashMap<String, Json.Node> out = new LinkedHashMap<>(function.fields());
-        out.put("parameters", new Json.Arr(List.of()));
-        out.put("body", new Json.Arr(body));
-        return new Json.Obj(out);
-    }
-
-    /** A lambda parameter's {@code Type[m]}, as the engine's refusal spells it. */
-    private static String signature(Json.Obj parameter) {
-        Json.Obj raw = parameter.getObj("genericType").getObj("rawType");
-        Json.Obj m = parameter.getObj("multiplicity");
-        long lower = m.getLong("lowerBound");
-        String mult = !m.has("upperBound") || m.get("upperBound") instanceof Json.Null
-                ? (lower == 0 ? "*" : lower + "..*")
-                : lower == m.getLong("upperBound") ? String.valueOf(lower) : lower + ".." + m.getLong("upperBound");
-        return raw.getString("fullPath") + "[" + mult + "]";
     }
 
     /** The first 200 characters of {@code text}, for a refusal that shows what it read. */
@@ -363,7 +303,7 @@ public final class PureV1Api {
 
 
     /**
-     * A call's JSON, or its failure in the engine's error shape, with the engine's status
+     * A call's JSON, or its failure in lite's error shape (the JSON legend-engine's clients read too), with the status
      * for each kind (measured against 4.145.0, 2026-09-27):
      * <ul>
      *   <li>the text does not parse or compile, or the construct is not implemented:
@@ -416,21 +356,46 @@ public final class PureV1Api {
     /**
      * A failure as the routes name it, for a host that answers one outside a route: the boundary's own operations,
      * which the tab and Python fold ({@code planner.Folded}), so that their callers read one vocabulary for every call
-     * (docs/PROTOCOL_PROGRAM_2026_10_05.md, leg 6, with the DataCube + Python line). {@code kind} is legend-engine's
-     * errorType for a refusal of the text -- {@code PARSER} when it does not parse, {@code COMPILATION} when it does
-     * not compile or uses a construct not implemented -- else the status the server answers, {@code "500"};
-     * {@code message} is as {@link #answer} writes it.
+     * (docs/PROTOCOL_PROGRAM_2026_10_05.md, leg 6, with the DataCube + Python line). {@code kind} is lite's own
+     * ({@link RefusalKind}); {@code message} is as {@link #answer} writes it.
      */
-    public record Refusal(String kind, String message) {
+    public record Refusal(RefusalKind kind, String message) {
+    }
+
+    /**
+     * LITE'S REFUSAL KINDS (B7 of the separation census, 2026-11-17, D's split by content): the product's own names, each
+     * written as its {@link #text} -- the bytes a host's caller has read since the protocol program's leg 6, kept
+     * identical (the orchestrator's condition: {@code Folded.failure}'s bytes do not move; pinned by
+     * {@code BoundaryLiteExportsTest}). legend-engine's errorType words are the edge's own spellings (its routes'),
+     * mapped there, not shared.
+     */
+    public enum RefusalKind {
+        /** The text does not parse. */
+        PARSE("PARSER"),
+        /** The text does not compile, or uses a construct not implemented. */
+        COMPILE("COMPILATION"),
+        /** Any other failure: the status the server answers. */
+        FAILURE("500");
+
+        private final String text;
+
+        RefusalKind(String text) {
+            this.text = text;
+        }
+
+        /** The kind as a host's caller reads it. */
+        public String text() {
+            return text;
+        }
     }
 
     /** {@code e} as a {@link Refusal}. */
     public static Refusal refusal(Throwable e) {
         if (refusesTheText(e)) {
-            return new Refusal(e instanceof com.legend.parser.ParseException ? "PARSER" : "COMPILATION",
+            return new Refusal(e instanceof com.legend.parser.ParseException ? RefusalKind.PARSE : RefusalKind.COMPILE,
                     String.valueOf(e.getMessage()));
         }
-        return new Refusal("500", named(e));
+        return new Refusal(RefusalKind.FAILURE, named(e));
     }
 
     /** The text does not parse or compile, or a construct is not implemented: answered with an errorType. */

@@ -13,21 +13,21 @@ import com.legend.protocol.ProtocolReader;
 import com.legend.protocol.PureComposer;
 import com.legend.protocol.spec.LambdaFunction;
 import com.legend.server.ModelInput;
-import com.legend.server.PureV1Api;
-import com.legend.server.PureV1Api.Answer;
-import com.legend.server.PureV1Api.Models;
-import com.legend.server.PureV1Api.Runner;
+import com.legend.server.LiteV1Api;
+import com.legend.server.LiteV1Api.Answer;
+import com.legend.server.LiteV1Api.Models;
+import com.legend.server.LiteV1Api.Runner;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-import static com.legend.server.PureV1Api.boundParameters;
-import static com.legend.server.PureV1Api.error;
+import static com.legend.edge.ExecuteInputs.boundParameters;
+import static com.legend.server.LiteV1Api.error;
 import static com.legend.edge.HostAnswers.facts;
-import static com.legend.server.PureV1Api.request;
-import static com.legend.server.PureV1Api.runtimeOf;
+import static com.legend.server.LiteV1Api.request;
+import static com.legend.server.LiteV1Api.runtimeOf;
 
 /**
  * legend-engine's {@code pure/v1} API, served EXACTLY, at the edge (phase D's D1.0b, the orchestrator's ruling of
@@ -35,7 +35,7 @@ import static com.legend.server.PureV1Api.runtimeOf;
  * upstream's paths, request and answer shapes, and its texts -- each call planned through the edge's dialects
  * ({@link PureText#UPSTREAM}, so its SQL and its values' texts are upstream's) and run by the {@link Runner} its host
  * hands it ({@link EdgeServer}'s, the edge's dialects too). Until 2026-11-12 these routes were
- * {@code server.PureV1Api}'s, beside lite's own; lite's own routes ({@code /api/lite/v1}, the hosts' plan halves) stay
+ * {@code server.LiteV1Api}'s, beside lite's own; lite's own routes ({@code /api/lite/v1}, the hosts' plan halves) stay
  * the product's there (G5: the edge depends on the product, never the reverse). Each call is a pure function of its
  * request, so it is tested without HTTP.
  *
@@ -60,7 +60,7 @@ public final class PureV1Routes {
 
     /** A route's answer, a refusal of the text in upstream's words ({@link PureMessages#compile}: D1.6, W7). */
     static Answer answer(int status, @com.legend.base.Nullable String errorType, java.util.function.Supplier<String> call) {
-        return com.legend.server.PureV1Api.answer(status, errorType, call, PureMessages::compile,
+        return com.legend.server.LiteV1Api.answer(status, errorType, call, PureMessages::compile,
                 PureMessages::typeName, PureMessages::uncaught);
     }
 
