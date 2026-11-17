@@ -657,9 +657,7 @@ public class H2 extends AnsiSqlRenderer {
             case IS_NOT_NULL -> isNotNullTest(writer, c.args());
             case IN -> inList(writer, c.args(), parentPrec);
             // 64-bit parse (PCT Long.MIN/MAX round-trips)
-            case PARSE_INT -> guardedParseInt(writer, c.args().get(0),
-                    w -> w.append("REGEXP_LIKE(").expr(c.args().get(0), 0).append(", '^[+-]?[0-9]+$')"),
-                    w -> castAs(w, c.args().get(0), "BIGINT"));
+            case PARSE_INT -> parseInteger(writer, c.args().get(0));
             // NULL-skipping flat concat (the database's concat skips NULL arguments)
             case CONCAT -> concatFlat(writer, c.args());
             // joinStrings' interleaved concat, never flattened
@@ -1297,6 +1295,21 @@ public class H2 extends AnsiSqlRenderer {
      * reference text via CASE — detection is by node shape (EXISTS,
      * literals, comparisons, logic, null tests, membership), never by
      * guessing a column's type. */
+    /** parseInteger, guarded ({@link #guardedParseInt}); the cast reads the text the grammar admitted alone. */
+    private SqlWriter parseInteger(SqlWriter writer, SqlExpr x) {
+        SqlWriter.Piece matches = w -> w.append("REGEXP_LIKE(").expr(x, 0).append(", '^[+-]?[0-9]+$')");
+        return guardedParseInt(writer, x, matches,
+                w -> w.append("CAST(").piece(admitted(x, matches)).append(" AS BIGINT)"));
+    }
+
+    /** The text a parse's grammar admitted, else NULL: H2 folds a cast of a constant when it PREPARES the statement,
+     *  in a CASE arm never taken too (the golden net, 2026-11-17: parseInteger('abc') raised H2's "Data conversion
+     *  error" before the guard chose), so the conversion is written over this, which folds to NULL where the grammar
+     *  refuses and leaves the guard's named raise to answer. */
+    private static SqlWriter.Piece admitted(SqlExpr x, SqlWriter.Piece matches) {
+        return w -> w.append("CASE WHEN ").piece(matches).append(" THEN ").expr(x, 0).append(" END");
+    }
+
     @Override
     protected SqlWriter variantAwareCast(SqlWriter writer, SqlExpr.Cast c) {
         // parseFloat: a refusal raised H2's own conversion error, never lite's kind (the user's error design,
@@ -1304,10 +1317,10 @@ public class H2 extends AnsiSqlRenderer {
         // the trailing f stripped before H2's cast, which holds NaN and Infinity itself (Phase 8)
         if (isParseFloat(c)) {
             SqlExpr x = c.value();
-            return guardedParseFloat(writer, x,
-                    w -> w.append("REGEXP_LIKE(").expr(x, 0)
-                            .append(", '" + FLOAT_GRAMMAR.replace("[[:space:]]", "\\p{Space}") + "')"),
-                    w -> w.append("CAST(TRIM(REGEXP_REPLACE(").expr(x, 0)
+            SqlWriter.Piece matches = w -> w.append("REGEXP_LIKE(").expr(x, 0)
+                    .append(", '" + FLOAT_GRAMMAR.replace("[[:space:]]", "\\p{Space}") + "')");
+            return guardedParseFloat(writer, x, matches,
+                    w -> w.append("CAST(TRIM(REGEXP_REPLACE(").piece(admitted(x, matches))
                             .append(", '[fF]\\p{Space}*$', '')) AS DOUBLE PRECISION)"));
         }
         if (c.target() == com.legend.sql.SqlType.Scalar.JSON) {

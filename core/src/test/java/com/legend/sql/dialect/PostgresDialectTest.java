@@ -133,13 +133,13 @@ class PostgresDialectTest {
         // (measured 2026-10-16 on Postgres 16: the Cypher island's toInteger of a text)
         assertEquals("SELECT CASE WHEN ('x' ~ '(?p)^(?:^[0-9]+$)$') THEN (CASE WHEN 'x' IS NULL THEN NULL WHEN"
                 + " CAST('x' AS VARCHAR) ~ '^[+-]?[0-9]+$' THEN CAST(CAST('x' AS VARCHAR) AS BIGINT) ELSE"
-                + " CAST(CAST(CAST(chr(31) || ('\u001cTEXT_NOT_INTEGER') || chr(31) AS TIMESTAMPTZ) AS VARCHAR) AS BIGINT)"
+                + " CAST(CAST(CAST(chr(31) || ('\u001cLG#1') || chr(31) AS TIMESTAMPTZ) AS VARCHAR) AS BIGINT)"
                 + " END) ELSE NULL END AS \"n\"\nFROM trades AS \"t0\"",
                 plan("->project(~[n: r|if('x'->matches('^[0-9]+$'), |parseInteger('x'), |[])])"));
         // parseFloat is guarded by legend-pure's grammar (Phase 8): the literal reaches the cast through the f strip, text
         assertEquals("SELECT (CASE WHEN '1.5' IS NULL THEN NULL WHEN '1.5' ~ '^[[:space:]]*[+-]?(NaN|Infinity|([0-9]+[.]?"
                 + "[0-9]*|[.][0-9]+)([eE][+-]?[0-9]+)?[fF]?)[[:space:]]*$' THEN CAST(regexp_replace('1.5', '[fF][[:space:]]*$',"
-                + " '') AS DOUBLE PRECISION) ELSE CAST(CAST(CAST(chr(31) || ('\u001cTEXT_NOT_FLOAT') || chr(31) AS TIMESTAMPTZ)"
+                + " '') AS DOUBLE PRECISION) ELSE CAST(CAST(CAST(chr(31) || ('\u001cLG#1') || chr(31) AS TIMESTAMPTZ)"
                 + " AS VARCHAR) AS DOUBLE PRECISION) END) AS \"f\"\nFROM trades AS \"t0\"",
                 plan("->project(~[f: r|parseFloat('1.5')])"));
         // to a text it is the literal's own type: the one cast stays
