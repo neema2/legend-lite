@@ -31,7 +31,11 @@ public record TypedJsonResult(TypedSpec chain, Kind kind,
      * document — {@code [{"col":value,...},...]} (toJSON.pure:231
      * tdsRowToJSONKeyValueObject: one object per row keyed by column
      * name; {@code []} when empty). */
-    public enum Kind { TDS, CLASS, TDS_JSON, TDS_JSON_KV }
+    /** VALUES: the executeLegendQuery envelope of a serialized root around its JSON text (legend-engine's
+     *  {@code {"builder":{"_type":"json"},"values":...}}; Phase 6's B5, 2026-11-17: the compiler built it here until
+     *  then). TDS, CLASS and VALUES are legend-engine's envelopes: the product refuses them at lowering, the edge
+     *  writes them ({@code lowering.ResultEnvelopes}). */
+    public enum Kind { TDS, CLASS, TDS_JSON, TDS_JSON_KV, VALUES }
 
     @Override
     public List<TypedSpec> children() {

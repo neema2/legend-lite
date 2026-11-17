@@ -264,6 +264,26 @@ public final class Lowerer {
         return new Scalars.Styled(pureOnlyTexts);
     }
 
+    /** legend-engine's result envelope ({@link ResultEnvelopes}, Phase 6's B5, 2026-11-17): the plan style's facet,
+     *  asked only when an {@code executeLegendQuery} envelope is lowered, with its refusal. A Lowerer no planner handed a
+     *  style refuses it the same way. */
+    private java.util.function.Function<java.util.function.Supplier<? extends RuntimeException>, ResultEnvelopes>
+            resultEnvelopes = refusal -> {
+                throw refusal.get();
+            };
+
+    /** The plan style's result-envelope facet, {@code style} its request ({@code (refusal) -> style.facet(..)}). */
+    public Lowerer withResultEnvelopes(
+            java.util.function.Function<java.util.function.Supplier<? extends RuntimeException>, ResultEnvelopes> style) {
+        this.resultEnvelopes = style;
+        return this;
+    }
+
+    /** The result-envelope facet, the product's refusal {@code refusal}. */
+    ResultEnvelopes resultEnvelopes(java.util.function.Supplier<? extends RuntimeException> refusal) {
+        return resultEnvelopes.apply(refusal);
+    }
+
     /** The plan style's relation-text facet, {@code style} its request ({@code (refusal) -> style.facet(..)}). */
     public Lowerer withRelationTexts(
             java.util.function.Function<java.util.function.Supplier<? extends RuntimeException>, RelationTexts> style) {

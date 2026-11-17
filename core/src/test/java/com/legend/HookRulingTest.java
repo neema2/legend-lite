@@ -42,6 +42,9 @@ class HookRulingTest {
             // routine table moved to planner.PlanTextRoutines
             com.legend.planner.UpstreamPlans.class, List.of(
                     () -> PlanStyle.PRODUCT.facet(com.legend.planner.UpstreamPlans.class)),
+            // census B5, 2026-11-17 (Phase 6): legend-engine's result envelope, composed at lowering
+            com.legend.lowering.ResultEnvelopes.class, List.of(
+                    () -> PlanStyle.PRODUCT.facet(com.legend.lowering.ResultEnvelopes.class)),
             // census B8 (i), 2026-11-17: the texts only legend-pure writes, composed at lowering
             com.legend.lowering.PureOnlyTexts.class, List.of(
                     () -> PlanStyle.PRODUCT.facet(com.legend.lowering.PureOnlyTexts.class)));
@@ -107,6 +110,7 @@ class HookRulingTest {
         }
         assertEquals(new TreeSet<>(List.of(
                 "PureOnlyTexts <- com.legend.edge.EdgePureOnlyTexts",
+                "ResultEnvelopes <- com.legend.edge.EngineResultEnvelopes",
                 "UpstreamPlans <- com.legend.edge.EnginePlans$1")), implementers);
         assertFalse(implementers.isEmpty());
     }

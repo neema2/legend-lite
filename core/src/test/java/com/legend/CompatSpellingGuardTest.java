@@ -159,7 +159,8 @@ class CompatSpellingGuardTest {
             // and the judges' compositions
             // listed 2026-11-16 (the P2 checkpoint audit's S5): an execute's plan JSON written in SQL, legend-engine's
             // builder type; Phase 6 takes the plan text to the edge
-            "lowering/JsonEmission.java | tdsBuilder | 1 | D1.7",
+            // lowering/JsonEmission.java | tdsBuilder: GONE 2026-11-17 (Phase 6's B5): legend-engine's result envelope is
+            // the edge's (edge.EngineResultEnvelopes, the lowering.ResultEnvelopes facet), refused by the product at LOWER
             "lowering/LiteralSpelling.java | +0000 | 7 | D1.9",
             // FLOAT_PRINT, reclassified D1.2 -> JUDGE 2026-11-15 (phase D's D1.2): the product's text of a Float is
             // FLOAT_TO_TEXT, lite's six decimals (register S311); FLOAT_PRINT, legend-pure's print form, stays in each

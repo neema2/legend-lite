@@ -1816,6 +1816,10 @@ class JavaEvalLedgerTest {
                             // the referee's raw-SQL ledger (Raw, FileRead, Recorder), moved from sql.dialect's
                             // RawSqlBoundary (Phase 6's B4 (i), 2026-11-17): records the statements run, decides nothing
                             "RawLedger.java",
+                            // legend-engine's result envelopes (tdsBuilder, classBuilder, the json builder), moved from
+                            // lowering.JsonEmission (Phase 6's B5, 2026-11-17): composes the envelope's SQL from the
+                            // product's parts, decides nothing
+                            "EngineResultEnvelopes.java",
                             // legend-engine's H2 text translated for DuckDB and Postgres, moved from sql.dialect with
                             // its two dialect arms (Phase 6's B4 (ii), 2026-11-17, the orchestrator's ruling (a)): the
                             // product runs a raw statement as written, as legend-engine does; the edge's dialects (PureText's)
