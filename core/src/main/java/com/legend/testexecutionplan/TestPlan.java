@@ -403,40 +403,34 @@ public record TestPlan(List<ExecutionPlan.Parameter> parameters, List<TestStep> 
     }
 
     /**
-     * THE RULES A VERDICT GROUP IS JUDGED BY (the user, 2026-11-04: "explicit rule"): chosen upfront per run
-     * ({@code ExecuteOptions.withEngineCompat}), stamped on every group by its planner, read by both judges -- the
-     * database judge's statement was planned under them, the host judge compares by them. A reader of the plan sees
-     * which rules it judges by.
-     * <ul>
-     *   <li>{@link #LITE}: lite's own -- what a product run and every core test judge by.</li>
-     *   <li>{@link #COMPILED_PURE_COMPAT}: backwards compatibility with legend-pure's compiled runtime and
-     *       legend-engine's goldens (PCT channel B, the corpus), each leniency a register row: S132 (a String's float
-     *       tokens within 2 ULP), S127 (an Integer equal to a Decimal by text), S15/S132 (a Float within 2 ULP), S139 (a Decimal's scale part of its value).</li>
-     * </ul>
+     * THE RULES A VERDICT GROUP IS JUDGED BY (the user, 2026-11-04: "explicit rule"), DATA alone (census C1, the
+     * orchestrator's ruling of 2026-11-17: a behaviour is the style's or the run hook's, never the rules'): named by the
+     * run's edge hook ({@code Edge.rules()}), stamped on every group by its planner, read by both judges -- the database
+     * judge's statement was planned under them, the host judge compares by them.
+     *
+     * @param floatUlps    the units in the last place two Floats may differ by and be equal: 0, exact (lite's: S15/S132,
+     *                     the user's ruling of 2026-11-05), or 2 (the compatibility edge's: S132's tokens, S15) -- the
+     *                     judges implement no other
+     * @param decimalScale whether two Decimals of one value and different scales differ ({@code 0.3D} and
+     *                     {@code 0.30D}): compiled Pure's assert, the compatibility edge's; lite compares a Decimal by
+     *                     value (S139, the user's ruling of 2026-11-05)
      */
-    public enum JudgingRules {
-        LITE(false), COMPILED_PURE_COMPAT(true);
+    public record JudgingRules(int floatUlps, boolean decimalScale) {
 
-        /** Whether these are upstream's leniencies: every fact below asks it, so no product site names the value. */
-        private final boolean upstream;
+        /** Lite's own rules: what a product run and every core test judge by. */
+        public static final JudgingRules LITE = new JudgingRules(0, false);
 
-        JudgingRules(boolean upstream) {
-            this.upstream = upstream;
+        public JudgingRules {
+            if (floatUlps != 0 && floatUlps != 2) {
+                throw new IllegalArgumentException("a Float tolerance of " + floatUlps + " ULP: the judges compare a"
+                        + " Float exactly (0) or within 2 ULP");
+            }
         }
 
-        /** Whether two Floats within 2 ULP are equal: compatibility mode's tolerance alone; lite compares a Float
-         *  exactly (S15/S132, the user's ruling of 2026-11-05, built that day). */
+        /** Whether two Floats within {@link #floatUlps} are equal: a tolerance at all. */
         public boolean floatTolerance() {
-            return upstream;
+            return floatUlps != 0;
         }
-
-        /** Whether two Decimals of one value and different scales differ ({@code 0.3D} and {@code 0.30D}): compiled
-         *  Pure's assert, compatibility mode's alone; lite compares a Decimal by value (S139, the user's ruling of
-         *  2026-11-05). */
-        public boolean decimalScale() {
-            return upstream;
-        }
-
     }
 
     /**

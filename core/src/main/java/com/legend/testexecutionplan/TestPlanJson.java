@@ -52,8 +52,9 @@ public final class TestPlanJson {
      *  a side's shape and the plan's answer carry their size refusal's words, planned ({@code SideShape.sizeWords},
      *  {@code TestPlan.answerSizeWords}); 28 (2026-11-17, census C1): the judging rules' one spelling,
      *  an isolated step's as a verdict group's ({@code lite}, {@code compiledPureCompat}); 29 (2026-11-17, census
-     *  C1): the plan states whose words its failures are in ({@code upstreamWords}). */
-    public static final int VERSION = 29;
+     *  C1): the plan states whose words its failures are in ({@code upstreamWords}); 30 (2026-11-17, census C1): the judging
+     *  rules as their data ({@code floatUlps}, {@code decimalScale}). */
+    public static final int VERSION = 30;
 
     private TestPlanJson() {
     }
@@ -185,7 +186,7 @@ public final class TestPlanJson {
                     sp.put("release", v.savepoint().release());
                     o.put("savepoint", sp);
                 }
-                o.put("rules", rulesText(v.rules()));
+                o.put("rules", rulesJson(v.rules()));
                 if (v.roots() != null) {
                     o.put("roots", HostJson.wRootLoop(v.roots()));
                 }
@@ -201,7 +202,7 @@ public final class TestPlanJson {
                 o.put("_type", StepTag.isolated.name());
                 o.put("host", write(a.host()));
                 o.put("database", write(a.database()));
-                o.put("rules", rulesText(a.rules()));
+                o.put("rules", rulesJson(a.rules()));
             }
         }
         return o;
@@ -355,28 +356,23 @@ public final class TestPlanJson {
     }
 
     /** The judging rules' ONE spelling in a plan file (the orchestrator's ruling of 2026-11-17: a verdict group's and an
-     *  isolated step's alike; version 28). */
-    private static String rulesText(TestPlan.JudgingRules rules) {
-        return switch (rules) {
-            case LITE -> "lite";
-            case COMPILED_PURE_COMPAT -> "compiledPureCompat";
-        };
+     *  isolated step's alike; version 30: their data, {@code floatUlps} and {@code decimalScale}). */
+    private static Map<String, Object> rulesJson(TestPlan.JudgingRules rules) {
+        Map<String, Object> o = new LinkedHashMap<>();
+        o.put("floatUlps", rules.floatUlps());
+        o.put("decimalScale", rules.decimalScale());
+        return o;
     }
 
-    private static TestPlan.JudgingRules rules(String text) {
-        return switch (text) {
-            case "lite" -> TestPlan.JudgingRules.LITE;
-            case "compiledPureCompat" -> TestPlan.JudgingRules.COMPILED_PURE_COMPAT;
-            default -> throw new IllegalArgumentException("a plan's judging rules '" + text
-                    + "': lite or compiledPureCompat");
-        };
+    private static TestPlan.JudgingRules rules(Json.Obj o) {
+        return new TestPlan.JudgingRules(o.getInt("floatUlps"), o.getBool("decimalScale"));
     }
 
     private static TestPlan.TestStep readStep(Json.Obj o) {
         return switch (tag(StepTag.class, o, "test plan step")) {
             case run -> new TestPlan.Run(PlanJson.nodeOf(o.getObj("node")));
             case isolated -> new TestPlan.Isolated(read(o.getString("host")), read(o.getString("database")),
-                    rules(o.getString("rules")));
+                    rules(o.getObj("rules")));
             case frameRun -> {
                 if (!(PlanJson.nodeOf(o.getObj("check")) instanceof ExecutionPlan.Check c)) {
                     throw new IllegalArgumentException("a frame run's step is a check");
@@ -405,7 +401,7 @@ public final class TestPlanJson {
                 yield new TestPlan.Verdicts(verdicts, f == null ? null : typedResult(f, "a fused verdict statement"),
                         sp == null ? null : new TestPlan.Verdicts.Savepoint(sp.getString("set"),
                                 sp.getString("rollbackTo"), sp.getString("release")),
-                        rules(o.getString("rules")), roots == null ? null : HostJson.rRootLoop(roots));
+                        rules(o.getObj("rules")), roots == null ? null : HostJson.rRootLoop(roots));
             }
             case branch -> new TestPlan.Branch(readSide(o.getObj("condition")), readSteps(o.getArr("then")),
                     readSteps(o.getArr("otherwise")));

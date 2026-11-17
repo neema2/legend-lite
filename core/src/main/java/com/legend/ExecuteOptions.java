@@ -75,16 +75,6 @@ public record ExecuteOptions(PlanningOptions planning, com.legend.executionplan.
         return new ExecuteOptions(planning.withOptions(o), stores);
     }
 
-    /** BACKWARDS-COMPATIBILITY MODE (the user, 2026-11-04: "I want ours to be super clean, but be able to pass
-     *  PCT/rcorpus in backwards compat mode"): the judges' leniencies that exist only to meet legend-engine's goldens --
-     *  computed in Java doubles where lite computes in the database's -- apply in a run that asks for them (the PCT and
-     *  corpus harnesses); lite's own runs judge exactly, as upstream's language does. The choice is made upfront and
-     *  stated in the plan: every verdict step names its rules, which both judges read. Today: S132's float tokens within
-     *  2 ULP inside a String, S127's Integer equal to a Decimal by text (testexec.Equality, testplan.DatabaseJudge). */
-    public ExecuteOptions withEngineCompat(boolean on) {
-        return new ExecuteOptions(planning.withEngineCompat(on), stores);
-    }
-
     /** THE SPELLING HOOK (phase D's D1.0): the body's statements written in {@code spelling}'s dialects -- the
      *  compatibility edge's ({@code com.legend.edge.PureText}) for a harness that compares against upstream's texts;
      *  the product's own ({@code com.legend.database.PlanStyle.PRODUCT}) otherwise, which these options carry from their making. */
