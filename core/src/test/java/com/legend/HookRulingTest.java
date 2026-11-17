@@ -125,6 +125,82 @@ class HookRulingTest {
         assertFalse(implementers.isEmpty());
     }
 
+    /** THE RENDERER'S SPELLING HOOKS (census B9, ruling (d) of 2026-11-17): a product dialect's protected method the
+     *  compatibility edge's dialects override to spell upstream's text, each declared once in the product
+     *  ({@code com.legend.sql.dialect}) with lite's own default. A spelling hook is terminal when its product default is
+     *  pinned ({@link #eachSpellingHooksProductDefault}) and every override outside its declaring class is an edge
+     *  class ({@link #onlyTheEdgeOverridesASpellingHook}). Named by method; each one's product declarer is found. */
+    static final List<String> SPELLING_HOOKS = List.of("raw", "spellingPasses", "raiseMessage", "scanOrderPasses",
+            "dateTimeFormat");
+
+    /** (c) for the spelling hooks: every class of the product's and the edge's jars that overrides one, other than its
+     *  one product declarer, is an edge class. */
+    @Test
+    void onlyTheEdgeOverridesASpellingHook() {
+        JavaClasses all = classes("legend.product.jars", "legend.edge.jars");
+        TreeSet<String> overriders = new TreeSet<>();
+        for (String name : SPELLING_HOOKS) {
+            List<JavaClass> declarers = new java.util.ArrayList<>();
+            for (JavaClass c : all) {
+                boolean declares = c.getMethods().stream().anyMatch(m -> m.getOwner().equals(c)
+                        && m.getName().equals(name) && m.isAnnotatedWith(com.legend.sql.dialect.SpellingArm.class));
+                if (declares && c.getPackageName().equals("com.legend.sql.dialect")) {
+                    declarers.add(c);
+                }
+            }
+            assertEquals(1, declarers.size(), name + " is declared once in the product: " + declarers);
+            JavaClass declarer = declarers.get(0);
+            for (JavaClass c : all) {
+                if (c.equals(declarer) || !c.isAssignableTo(declarer.getName())) {
+                    continue;
+                }
+                if (c.getMethods().stream().anyMatch(m -> m.getOwner().equals(c) && m.getName().equals(name))) {
+                    assertTrue(c.getPackageName().startsWith("com.legend.edge"),
+                            c.getName() + " overrides the spelling hook " + name + " outside the edge");
+                    overriders.add(name + " <- " + c.getName());
+                }
+            }
+        }
+        assertFalse(overriders.isEmpty());
+    }
+
+    /** The product's default of each spelling hook, pinned on every product dialect that has it: a raw statement as
+     *  written, no spelling pass, no scan order, and a DateTime format of lite's own (six digits and Z). */
+    @Test
+    void eachSpellingHooksProductDefault() throws Exception {
+        for (com.legend.model.ConnectionDefinition.DatabaseType t : com.legend.database.Databases.implemented()) {
+            com.legend.sql.dialect.SqlDialect d = com.legend.database.Databases.dialect(t);
+            assertEquals("Create Table f(x FLOAT)", d.raw("Create Table f(x FLOAT)", "ENGINE_TEXT"),
+                    t + ": the product runs a raw statement as written");
+            for (String name : List.of("spellingPasses", "scanOrderPasses")) {
+                Object passes = invoke(d, name);
+                if (passes != NONE) {
+                    assertEquals(List.of(), passes, t + ": the product's " + name + " adds none");
+                }
+            }
+            Object format = invoke(d, "dateTimeFormat");
+            if (format != NONE) {
+                assertTrue(String.valueOf(format).endsWith("Z") && !String.valueOf(format).contains("+0000"),
+                        t + ": the product's DateTime format is lite's, " + format);
+            }
+        }
+    }
+
+    private static final Object NONE = new Object();
+
+    /** {@code name()} of {@code target}, declared on its class or a superclass; {@link #NONE} where it has none. */
+    private static Object invoke(Object target, String name) throws Exception {
+        for (Class<?> k = target.getClass(); k != null; k = k.getSuperclass()) {
+            for (Method m : k.getDeclaredMethods()) {
+                if (m.getName().equals(name) && m.getParameterCount() == 0) {
+                    m.setAccessible(true);
+                    return m.invoke(target);
+                }
+            }
+        }
+        return NONE;
+    }
+
     private static JavaClasses classes(String... properties) {
         List<java.util.jar.JarFile> jars = new java.util.ArrayList<>();
         try {
