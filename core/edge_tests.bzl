@@ -78,6 +78,7 @@ EDGE_TEST_SRCS = [
     "src/test/java/com/legend/sql/dialect/CapabilityMatrix.java",
     "src/test/java/com/legend/sql/dialect/CapabilityReach.java",
     "src/test/java/com/legend/sql/dialect/CatalogGridTest.java",
+    "src/test/java/com/legend/sql/dialect/DialectVocabularyTest.java",
     "src/test/java/com/legend/sql/dialect/EngineSeedRowTest.java",
     "src/test/java/com/legend/sql/dialect/IdentifierEscapingTest.java",
     "src/test/java/com/legend/sql/dialect/LegacyTextTest.java",
@@ -93,6 +94,7 @@ EDGE_TEST_SRCS = [
     "src/test/java/com/legend/testdatagen/GeneratedTestDataPrintingTest.java",
     "src/test/java/com/legend/testdatagen/GeneratedTestDataProgramTest.java",
     "src/test/java/com/legend/testdatagen/GeneratorSpliceTest.java",
+    "src/test/java/com/legend/testing/LaneFloorTest.java",
     "src/test/java/com/legend/testplan/BodyRouterParityTest.java",
     "src/test/java/com/legend/testplan/DatabaseHalfDe5Test.java",
     "src/test/java/com/legend/testplan/ExecEnvCatalogTest.java",
@@ -104,18 +106,6 @@ _CLASS_OF = {
     "src/test/java/com/legend/integration/JoinedTextTest.java": "com.legend.integration.CellTextsTest",
 }
 
-# THE PRODUCT'S TEST CLASSES THAT JUDGE THE EDGE AT RUN TIME (A5, 2026-11-17): compiled without the edge, they read it
-# by name -- the lanes' floors name the edge's tests (LaneFloorTest), the dialect vocabulary loads the edge's dialects
-# (DialectVocabularyTest) -- so they run on the edge's side, and every product target excludes them by name.
-EDGE_AT_RUN = [
-    "com.legend.sql.dialect.DialectVocabularyTest",
-    "com.legend.testing.LaneFloorTest",
-]
-
-def product_exclusions():
-    """--exclude-classname arguments for the product's targets: the EDGE_AT_RUN classes."""
-    return ["--exclude-classname=" + c.replace(".", "\\.") for c in EDGE_AT_RUN]
-
 def edge_test_classes(packages = None, root_besides = None):
     """The edge's test classes (each EDGE_TEST_SRCS file named *Test), as --select-class arguments: those in
     `packages` (com.legend.<p>, its subpackages included) and, with `root_besides`, the root target's (com.legend less
@@ -124,7 +114,7 @@ def edge_test_classes(packages = None, root_besides = None):
     the product's test targets, which carry no edge library, never see one (F's census line A5, 2026-11-17)."""
     out = []
     names = [_CLASS_OF.get(src, src[len("src/test/java/"):-len(".java")].replace("/", ".")) for src in EDGE_TEST_SRCS]
-    for name in names + EDGE_AT_RUN:
+    for name in names:
         if not name.endswith("Test"):
             continue
         parts = name[len("com.legend."):].split(".")
