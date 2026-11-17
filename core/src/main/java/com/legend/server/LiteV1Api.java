@@ -462,8 +462,8 @@ public final class LiteV1Api {
     public static Json.Obj read(String body, String what, java.util.Set<String> optional, String... keys) {
         Json.Obj request = requestObject(body, what);
         java.util.Set<String> wanted = java.util.Set.of(keys);
-        String holds = String.join(", ", keys) + (optional.isEmpty() ? ""
-                : "; optional " + String.join(", ", new java.util.TreeSet<>(optional)));
+        String holds = keys.length == 0 && optional.isEmpty() ? "none" : String.join(", ", keys) + (optional.isEmpty()
+                ? "" : "; optional " + String.join(", ", new java.util.TreeSet<>(optional)));
         for (String key : request.fields().keySet()) {
             if (!wanted.contains(key) && !optional.contains(key)) {
                 throw new MalformedRequest(what + " has no key " + key + " (it holds " + holds + ")");

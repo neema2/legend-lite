@@ -12,7 +12,8 @@ import { describe, it } from 'node:test';
 import { runfileFromEnv } from '../../tools/js/runfiles.mts';
 import { liteServer } from '../../query-store/test/lite-server.ts';
 import { parseExact } from '../src/values.ts';
-import { liteError, type LiteErrorKind } from '../src/lite-error.ts';
+import { liteError, LiteRefusal, type LiteErrorKind } from '../src/lite-error.ts';
+import { LiteServer } from '../src/doors/lite-server.ts';
 
 const server = liteServer();
 
@@ -20,9 +21,43 @@ interface Case {
   readonly name: string;
   readonly op: string;
   readonly request: unknown;
+  /** The bindings the case is asked of (browser, server, python); none named, every one. */
+  readonly bindings?: readonly string[];
   readonly answer?: unknown;
   readonly answerIncludes?: unknown;
+  /** Each key the answer holds and its JSON type (string, number, boolean, object, array): a value the host's own. */
+  readonly answerShape?: Readonly<Record<string, string>>;
   readonly refusal?: { readonly kind: LiteErrorKind };
+}
+
+const BINDINGS = new Set(['browser', 'server', 'python']);
+
+/** Whether the case is the server binding's: it names no bindings, or names `server`. A binding that is none of the
+ *  three fails by name: a typo would skip the case silently everywhere. A case naming the server is asked of it, and an
+ *  operation the server does not answer fails by name (its refusal is no answer). */
+function servedHere(c: Case): boolean {
+  if (c.bindings === undefined) return true;
+  for (const b of c.bindings) {
+    if (!BINDINGS.has(b)) throw new Error(`the case '${c.name}' names a binding that is none of browser, server, python: ${b}`);
+  }
+  return c.bindings.includes('server');
+}
+
+/** Whether `answer` holds each key `shape` names, of the JSON type it names (the Java reader's `shaped`). */
+function shaped(shape: Readonly<Record<string, string>>, answer: unknown): boolean {
+  if (answer === null || typeof answer !== 'object' || Array.isArray(answer)) return false;
+  const a = answer as Record<string, unknown>;
+  return Object.entries(shape).every(([key, type]) => {
+    const v = a[key];
+    switch (type) {
+      case 'string': return typeof v === 'string';
+      case 'number': return typeof v === 'number' || typeof v === 'bigint';
+      case 'boolean': return typeof v === 'boolean';
+      case 'object': return v !== null && typeof v === 'object' && !Array.isArray(v);
+      case 'array': return Array.isArray(v);
+      default: throw new Error(`a shape's type this reader does not know: ${type}`);
+    }
+  });
 }
 
 /** The status a refusal of each kind is answered with over HTTP (spec §3). */
@@ -52,7 +87,15 @@ describe("lite API v1's conformance suite over legend-lite's server", () => {
     assert.ok(fixture.cases.length > 0, 'the suite holds cases');
   });
 
-  for (const c of fixture.cases) {
+  it('a case naming a binding none of the three is refused by name (a planted typo), never skipped', () => {
+    const typo: Case = { name: 'planted', op: 'user', request: {}, bindings: ['sever'] };
+    assert.throws(() => servedHere(typo), /the case 'planted' names a binding that is none of browser, server, python: sever/);
+    assert.equal(servedHere({ ...typo, bindings: ['browser', 'python'] }), false);
+    assert.equal(servedHere({ ...typo, bindings: ['server'] }), true);
+  });
+
+  // each case's bindings read before any is asked: a name none of the three fails the suite by name
+  for (const c of fixture.cases.filter(servedHere)) {
     it(c.name, async () => {
       // the request as written in the file, its numbers exact
       const body = JSON.stringify(c.request, (_k, v: unknown) => (typeof v === 'bigint' ? `__big__${v}` : v))
@@ -72,8 +115,84 @@ describe("lite API v1's conformance suite over legend-lite's server", () => {
       }
       assert.equal(res.status, 200, text);
       const answer = parseExact(text);
-      if (c.answer !== undefined) assert.deepEqual(answer, c.answer, text);
+      if (c.answerShape !== undefined) assert.ok(shaped(c.answerShape, answer), text);
+      else if (c.answer !== undefined) assert.deepEqual(answer, c.answer, text);
       else assert.ok(includes(c.answerIncludes, answer), text);
     });
   }
+});
+
+// THE SERVER BINDING'S OWN: query/run (the browser binding plans and never runs, so the shared file holds no run). The
+// TS client (LiteServer) asks the one server for the same rows in each format: Arrow, as the apps ask (spec §4), and
+// JSON. Both answers must be the same typed rows: an Integer's 2^63-1 is exact (a bigint) in each, a StrictDate its
+// text, the shape and each column's Pure type read from the Arrow stream's metadata as the JSON answer states them.
+
+/** A project with its own Data rows, which the server loads into the in-memory DuckDB it makes (LiteV1PlanningTest's). */
+const PARTY = `Class proj::Party { id: Integer[1]; name: String[1]; joined: StrictDate[1]; }
+###Relational
+Database proj::PartyDB ( Schema PARTY ( Table PARTY (ID BIGINT PRIMARY KEY, NAME VARCHAR(200), JOINED DATE) ) )
+###Mapping
+Mapping proj::PartyMapping
+(
+  *proj::Party: Relational
+  {
+    ~primaryKey ([proj::PartyDB] PARTY.PARTY.ID)
+    ~mainTable [proj::PartyDB] PARTY.PARTY
+    id: [proj::PartyDB] PARTY.PARTY.ID,
+    name: [proj::PartyDB] PARTY.PARTY.NAME,
+    joined: [proj::PartyDB] PARTY.PARTY.JOINED
+  }
+)
+###Connection
+RelationalDatabaseConnection proj::Conn { store: proj::PartyDB; type: DuckDB; specification: DuckDB { }; auth: Test; }
+###Runtime
+Runtime proj::RT { mappings: [ proj::PartyMapping ]; connections: [ proj::PartyDB: [ db: proj::Conn ] ]; }
+###Data
+Data proj::PartyData
+{
+  Relational
+  #{
+    PARTY.PARTY:
+      'ID,NAME,JOINED\n1,Meridian Capital,2021-03-04\n9223372036854775807,Halberd Securities,2022-05-06\n';
+  }#
+}
+`;
+
+const RUNTIME = 'proj::RT';
+const SINCE = '{since: StrictDate[1]|proj::Party.all()->filter(p|$p.joined >= $since)'
+  + '->project(~[id: p|$p.id, name: p|$p.name, joined: p|$p.joined])->sort(~id->ascending())'
+  + '->from(proj::PartyMapping, proj::RT)}';
+const UP_TO = '{n: Integer[1]|proj::Party.all()->filter(p|$p.id <= $n)'
+  + '->project(~[id: p|$p.id])->sort(~id->ascending())->from(proj::PartyMapping, proj::RT)}';
+
+describe("query/run on legend-lite's server through the TS client, in Arrow and in JSON", () => {
+  const arrow = (): LiteServer => new LiteServer(server.api());
+  const json = (): LiteServer => new LiteServer(server.api(), globalThis.fetch.bind(globalThis), 'json');
+
+  it('the same typed rows in each format: the shape, each column its Pure type, the cells exact', async () => {
+    const query = await arrow().queryParse(SINCE);
+    const expected = {
+      shape: 'RELATION',
+      columns: [{ name: 'id', type: 'Integer' }, { name: 'name', type: 'String' }, { name: 'joined', type: 'StrictDate' }],
+      rows: [[1, 'Meridian Capital', '2021-03-04'], [9223372036854775807n, 'Halberd Securities', '2022-05-06']],
+    };
+    assert.deepEqual(await json().queryRun(PARTY, query, RUNTIME, { since: '2020-01-01' }), expected);
+    assert.deepEqual(await arrow().queryRun(PARTY, query, RUNTIME, { since: '2020-01-01' }), expected);
+  });
+
+  it('an Integer parameter in the 64-bit range is bound exact, 2^63-1 given as a bigint', async () => {
+    const query = await arrow().queryParse(UP_TO);
+    for (const server of [arrow(), json()]) {
+      const answer = await server.queryRun(PARTY, query, RUNTIME, { n: 9223372036854775807n });
+      assert.deepEqual(answer.rows, [[1], [9223372036854775807n]]);
+    }
+  });
+
+  it("a refusal is lite's, thrown as a LiteRefusal with its kind's status: a parameter missing is kind parameters", async () => {
+    const query = await arrow().queryParse(SINCE);
+    for (const server of [arrow(), json()]) {
+      await assert.rejects(server.queryRun(PARTY, query, RUNTIME, {}),
+        (e: unknown) => e instanceof LiteRefusal && e.kind === 'parameters' && e.status === 400 && /since/.test(e.message));
+    }
+  });
 });

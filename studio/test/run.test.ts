@@ -42,11 +42,12 @@ describe("Run's parameter values, read from the literal the person wrote", () =>
     assert.throws(() => read('p::Shade', red), /"the text" names a value of p::Colour, not of p::Shade/);
   });
 
-  it('refuses by name what is not a literal, and an Integer a JavaScript number does not hold exactly', () => {
+  it('refuses by name what is not a literal; an Integer past 2^53 is read exactly, as a bigint (spec §4)', () => {
     assert.throws(() => read('StrictDate', fn('today')), /a value for p is a literal .*: "the text" is a call of today/);
     assert.throws(() => read('Integer', { _type: 'var', name: 'x' } as ValueSpecification), /"the text" is a var/);
     assert.throws(() => read('Integer', fn('minus', fn('today'))), /is a call of minus/);
-    assert.throws(() => read('Integer', { _type: 'integer', value: ExactNumber.of('9007199254740993') }),
-      /the Integer 9007199254740993 is beyond 2\^53/);
+    // lite's API v1 (2026-11-17): an Integer parameter is a safe number or a bigint, never refused for its size
+    assert.equal(read('Integer', { _type: 'integer', value: ExactNumber.of('9007199254740993') }), 9007199254740993n);
+    assert.equal(read('Integer', { _type: 'integer', value: ExactNumber.of('9007199254740991') }), 9007199254740991);
   });
 });

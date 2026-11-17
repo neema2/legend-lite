@@ -654,11 +654,18 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
      *  matched the slot's spelling for it) -- null when no temporal stands in the column itself. */
     public record Column(String name, String type, Multiplicity multiplicity, @com.legend.base.Nullable String slot,
             com.legend.sql.SqlDdl.@com.legend.base.Nullable ColumnType store,
-            @com.legend.base.Nullable Precision precision) {
+            @com.legend.base.Nullable Precision precision, @com.legend.base.Nullable DecimalDigits decimal) {
         public Column {
             Objects.requireNonNull(name, "name");
             Objects.requireNonNull(type, "type");
             Objects.requireNonNull(multiplicity, "multiplicity");
+        }
+
+        /** A column whose type is no precise decimal: no {@link #decimal}. */
+        public Column(String name, String type, Multiplicity multiplicity, @com.legend.base.Nullable String slot,
+                com.legend.sql.SqlDdl.@com.legend.base.Nullable ColumnType store,
+                @com.legend.base.Nullable Precision precision) {
+            this(name, type, multiplicity, slot, store, precision, null);
         }
 
         /** The physical column holding slot {@code i} of a tagged column ({@code TAGGED<kind slot, ...>},
@@ -668,6 +675,14 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
         public static String taggedSlotColumn(String column, int i) {
             return com.legend.sql.SqlType.Tagged.slotColumn(column, i);
         }
+    }
+
+    /** A precise decimal column's digits, the compiler's {@code Decimal(precision, scale)} written as data beside the
+     *  column's plain {@code type} ("Decimal"): v57, 2026-11-17 (the orchestrator's ruling: the type as data, never a
+     *  spelling a reader parses; until then the type's name carried them). Null on a column whose type is no precise
+     *  decimal -- a plain {@code Decimal} carries none. Its {@code slot} is the database's own type, which may differ
+     *  (a computed {@code toDecimal()}'s {@code DECIMAL(38,0)}); this is the compiler's. */
+    public record DecimalDigits(int precision, int scale) {
     }
 
     /**

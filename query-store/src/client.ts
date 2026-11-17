@@ -1,7 +1,7 @@
-// THE ONE CLIENT of a query store: upstream's `/api/pure/v1/query`, typed (its user lite's own `user` operation; the
-// records move to lite's `/api/lite/v1/queries` with the page's store, H6). Every app here talks to saved queries
-// through this and nothing else; WHERE the store is -- legend-engine, legend-lite (`--query-store`), or this page
-// (wasm-server.ts) -- is only the `fetch` it is handed, never a branch in an app.
+// THE ONE CLIENT of a query store: lite's `/api/lite/v1/queries` and its `user` (upstream's saved query records, typed;
+// lite's API v1 spec §2 and §7, H6, 2026-11-17). Every app here talks to saved queries through this and nothing else;
+// WHERE the store is -- legend-lite's server (`--query-store`), or this page (wasm-server.ts) -- is only the `fetch` it
+// is handed, never a branch in an app. legend-engine's `/api/pure/v1/query` is the edge's, never asked here.
 
 import type { Query, QuerySearchSpecification } from './wire.ts';
 
@@ -98,10 +98,10 @@ export class QueryStoreClient implements QueryStore {
     return user;
   }
 
-  // the store's calls stay at `/api/pure/v1/query` until H6 moves them, with the page's store, to lite's own
-  // `/api/lite/v1/queries` (the page's module answers legend-engine's words until its product entry exists)
+  /** One of the store's calls at lite's own route, `/api/lite/v1/queries` (spec §2 and §7, H6: the same store and
+   *  records; until 2026-11-17 legend-engine's `/api/pure/v1/query`, which is the edge's). */
   #call(method: string, path: string, body?: unknown): Promise<Response> {
-    return this.#send(method, `${this.#api}/pure/v1/query${path}`, body);
+    return this.#send(method, `${this.#api}/lite/v1/queries${path}`, body);
   }
 
   /** The store's one send: `method` to `url`, a refusal its message as a QueryStoreError. */

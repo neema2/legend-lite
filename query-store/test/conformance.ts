@@ -1,13 +1,50 @@
-// ONE SUITE, every store: upstream's `/api/pure/v1/query` asked over raw HTTP -- the paths, the
-// JSON and its field order, the statuses, the refusals word for word -- and through the client.
-// It runs against legend-lite's server (lite.test.ts) and against the page's own store
-// (local.test.ts), so the two cannot answer differently without one of them failing here.
+// ONE SUITE, every store: the saved queries asked over raw HTTP -- the paths, the JSON and its field order, the
+// statuses, the refusals word for word -- and through the client. Two dialects of the one store (H6, lite's API v1,
+// 2026-11-17): LITE, lite's own `/api/lite/v1/queries` in lite's words and refusal shape (`{kind, message}`), which the
+// client asks; and ENGINE, upstream's `/api/pure/v1/query` in legend-engine's words, which the server's edge alone
+// answers, byte-exact. It runs against legend-lite's server in both (lite.test.ts) and against the page's own store in
+// lite's (wasm.test.ts), so no two of them can answer differently without one failing here.
 
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import { QueryStoreClient, QueryStoreError } from '../src/client.ts';
 import type { Query } from '../src/wire.ts';
+
+/** A dialect of the store: where it answers under the API root, and its words for each refusal of a kind. */
+export interface Dialect {
+  readonly name: string;
+  readonly path: string;
+  queryNotFound(id: string): string;
+  queriesNotFound(ids: string): string;
+  versionNotFound(version: string, id: string): string;
+  noRoute(rest: string): string;
+  /** A refusal's body beyond its message: lite's kind, by its status; legend-engine's envelope at 500. */
+  refusal(status: number, message: string): unknown;
+}
+
+/** Lite's own (spec §2, §3): `/api/lite/v1/queries`, SavedQueries' words, `{kind, message}` (a store's not-found 404,
+ *  kind request, pending the user's word on a notFound kind). */
+export const LITE: Dialect = {
+  name: "lite's /api/lite/v1/queries",
+  path: '/lite/v1/queries',
+  queryNotFound: (id) => `no saved query has the ID '${id}'`,
+  queriesNotFound: (ids) => `no saved query has the ID(s):\n${ids}`,
+  versionNotFound: (version, id) => `the saved query '${id}' has no version '${version}'`,
+  noRoute: (rest) => `no such legend-lite API: /api/lite/v1/queries${rest}`,
+  refusal: (status, message) => ({ kind: status >= 500 ? 'internal' : 'request', message }),
+};
+
+/** legend-engine's (the edge's mount, EdgeServer: StoreWords), upstream's path and words, byte-exact. */
+export const ENGINE: Dialect = {
+  name: "legend-engine's /api/pure/v1/query (the edge's)",
+  path: '/pure/v1/query',
+  queryNotFound: (id) => `Can't find query with ID '${id}'`,
+  queriesNotFound: (ids) => `Can't find queries for the following ID(s):\n${ids}`,
+  versionNotFound: (version, id) => `Can't find version '${version}' for query with ID '${id}'`,
+  noRoute: (rest) => `no such legend-engine API in legend-lite: /api/pure/v1/query${rest}`,
+  refusal: (status, message) => (status >= 500 ? { code: -1, message, status: 'error' } : { message }),
+};
 
 export interface Target {
   /** The API root, `http://host:port/api`. */
@@ -41,14 +78,14 @@ const query = (id: string, over: Partial<Query> = {}): Query => ({
  *  directory, so ids need only differ within a process). */
 let suites = 0;
 
-export function conformance(name: string, target: () => Target): void {
-  describe(`the query store: ${name}`, () => {
+export function conformance(name: string, target: () => Target, d: Dialect = LITE): void {
+  describe(`the query store: ${name}, ${d.name}`, () => {
     suites += 1;
     const run = `c${suites}`;
     const id = (n: string): string => `${run}-${n}`;
     const raw = async (method: string, path: string, body?: unknown): Promise<{ status: number; json: unknown; text: string }> => {
       const t = target();
-      const r = await t.fetch(`${t.api}/pure/v1/query${path}`, {
+      const r = await t.fetch(`${t.api}${d.path}${path}`, {
         method,
         ...(body === undefined ? {} : { headers: { 'Content-Type': 'application/json' }, body: typeof body === 'string' ? body : JSON.stringify(body) }),
       });
@@ -65,6 +102,7 @@ export function conformance(name: string, target: () => Target): void {
       const r = await raw(method, path, body);
       assert.equal(r.status, status, r.text);
       assert.equal((r.json as { message?: string }).message, message);
+      if (d === LITE) assert.equal((r.json as { kind?: string }).kind, status >= 500 ? 'internal' : 'request', r.text);
     };
     const client = (): QueryStoreClient => new QueryStoreClient(target().api, target().fetch);
 
@@ -104,7 +142,7 @@ export function conformance(name: string, target: () => Target): void {
       const q = r.json as Record<string, unknown>;
       assert.deepEqual(Object.keys(q), FIELDS);
       assert.ok((q['lastOpenAt'] as number) >= (q['createdAt'] as number));
-      await refused('GET', `/${id('missing')}`, undefined, 404, `Can't find query with ID '${id('missing')}'`);
+      await refused('GET', `/${id('missing')}`, undefined, 404, d.queryNotFound(id('missing')));
     });
 
     it('searches by name, without the heavy fields, and refuses a bad search', async () => {
@@ -133,7 +171,7 @@ export function conformance(name: string, target: () => Target): void {
       assert.deepEqual(h.map((v) => [v['version'], v['name']]), [[1, `Query ${id('a')}`]]);
       assert.notEqual(h[0]!['validUntil'], null);
       await refused('PUT', `/${id('a')}`, query(id('other')), 400, 'Updating query ID is not supported');
-      await refused('PUT', `/${id('missing')}`, query(id('missing')), 404, `Can't find query with ID '${id('missing')}'`);
+      await refused('PUT', `/${id('missing')}`, query(id('missing')), 404, d.queryNotFound(id('missing')));
     });
 
     it('patches only the fields it sets', async () => {
@@ -148,8 +186,8 @@ export function conformance(name: string, target: () => Target): void {
     it('answers one version of the history, or says it has none', async () => {
       const one = (await raw('GET', `/${id('a')}/history?version=1`)).json as Record<string, unknown>[];
       assert.deepEqual(one.map((v) => v['version']), [1]);
-      await refused('GET', `/${id('a')}/history?version=9`, undefined, 404, `Can't find version '9' for query with ID '${id('a')}'`);
-      await refused('GET', `/${id('missing')}/history`, undefined, 404, `Can't find query with ID '${id('missing')}'`);
+      await refused('GET', `/${id('a')}/history?version=9`, undefined, 404, d.versionNotFound('9', id('a')));
+      await refused('GET', `/${id('missing')}/history`, undefined, 404, d.queryNotFound(id('missing')));
     });
 
     it('answers a batch, and names what it cannot find', async () => {
@@ -157,20 +195,20 @@ export function conformance(name: string, target: () => Target): void {
       assert.equal(r.status, 200, r.text);
       assert.deepEqual((r.json as Record<string, unknown>[]).map((q) => q['id']), [id('a'), id('c')]);
       await refused('GET', `/batch?queryIds=${id('a')}&queryIds=${id('zz')}&queryIds=${id('yy')}`, undefined, 500,
-        `Can't find queries for the following ID(s):\n${id('yy')}\n${id('zz')}`);
+        d.queriesNotFound(`${id('yy')}\n${id('zz')}`));
     });
 
     it('deletes: gone from get and search, its versions kept as history', async () => {
       const r = await raw('DELETE', `/${id('c')}`);
       assert.equal(r.status, 204, r.text);
       assert.equal(r.text, '');
-      await refused('GET', `/${id('c')}`, undefined, 404, `Can't find query with ID '${id('c')}'`);
+      await refused('GET', `/${id('c')}`, undefined, 404, d.queryNotFound(id('c')));
       const found = (await raw('POST', '/search', { searchTermSpecification: { searchTerm: `zebra ${run}` } })).json as unknown[];
       assert.deepEqual(found, []);
       const h = (await raw('GET', `/${id('c')}/history`)).json as Record<string, unknown>[];
       assert.equal(h.length, 1);
       assert.notEqual(h[0]!['deletedAt'], null);
-      await refused('DELETE', `/${id('c')}`, undefined, 404, `Can't find query with ID '${id('c')}'`);
+      await refused('DELETE', `/${id('c')}`, undefined, 404, d.queryNotFound(id('c')));
     });
 
     it('sorts by last update, newest first', async () => {
@@ -194,7 +232,7 @@ export function conformance(name: string, target: () => Target): void {
       const wrong = async (method: string, path: string, body: unknown, message: string): Promise<void> => {
         const r = await raw(method, path, body);
         assert.equal(r.status, 500, r.text);
-        assert.deepEqual(r.json, { code: -1, message: `IllegalArgumentException: ${message}`, status: 'error' });
+        assert.deepEqual(r.json, d.refusal(500, `IllegalArgumentException: ${message}`));
       };
       await wrong('POST', '/search', { limit: 'ten' }, 'QuerySearchSpecification.limit is not a number');
       await wrong('POST', '/search', { searchTermSpecification: { searchTerm: 'x', includeOwner: 'yes' } },
@@ -207,7 +245,7 @@ export function conformance(name: string, target: () => Target): void {
         'TagPtr.value is missing');
       await wrong('PUT', `/${id('a')}/patchQuery`, { stereotypes: 'x' }, 'Query.stereotypes is not a list');
       // and nothing was written
-      await refused('GET', `/${id('w')}`, undefined, 404, `Can't find query with ID '${id('w')}'`);
+      await refused('GET', `/${id('w')}`, undefined, 404, d.queryNotFound(id('w')));
     });
 
     it('keeps a number as it was written: 1.0, and a long beyond 2^53', async () => {
@@ -222,7 +260,7 @@ export function conformance(name: string, target: () => Target): void {
     it('says an unknown path is not there', async () => {
       const r = await raw('GET', `/${id('a')}/nothing`);
       assert.equal(r.status, 404);
-      assert.equal((r.json as { message?: string }).message, `no such legend-engine API in legend-lite: /api/pure/v1/query/${id('a')}/nothing`);
+      assert.equal((r.json as { message?: string }).message, d.noRoute(`/${id('a')}/nothing`));
     });
 
     it('the client: the same answers, typed, and a refusal as a QueryStoreError', async () => {
@@ -237,7 +275,7 @@ export function conformance(name: string, target: () => Target): void {
       assert.ok((await c.search({ searchTermSpecification: { searchTerm: id('k') } })).some((q) => q.id === id('k')));
       await c.delete(id('k'));
       await assert.rejects(c.get(id('k')), (e: unknown) => e instanceof QueryStoreError && e.status === 404
-        && e.message === `Can't find query with ID '${id('k')}'`);
+        && e.message === LITE.queryNotFound(id('k')));
     });
   });
 }

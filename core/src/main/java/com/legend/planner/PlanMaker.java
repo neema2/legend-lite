@@ -976,7 +976,8 @@ public final class PlanMaker {
                                 PlanColumns.multiplicity(root.multiplicity()),
                                 ColumnFacts.slot(outs.get(0).type()), null,
                                 ColumnFacts.precision(PureSpelling.typePath(root.type()),
-                                        outs.get(0).type(), ExecutionPlan.TdsResult.Shape.OBJECTS))),
+                                        outs.get(0).type(), ExecutionPlan.TdsResult.Shape.OBJECTS),
+                                PlanColumns.decimal(root.type()))),
                         sql(lowered, dialect, target));
             }
             case TABULAR -> {
@@ -1084,7 +1085,8 @@ public final class PlanMaker {
                                 PlanColumns.multiplicity(k.template().multiplicity()),
                                 ColumnFacts.slot(k.slot()), null,
                                 ColumnFacts.precision(PureSpelling.typePath(k.template().type()),
-                                        k.slot(), ExecutionPlan.TdsResult.Shape.RELATION)),
+                                        k.slot(), ExecutionPlan.TdsResult.Shape.RELATION),
+                                PlanColumns.decimal(k.template().type())),
                         k.nameCell(), field);
             });
         }

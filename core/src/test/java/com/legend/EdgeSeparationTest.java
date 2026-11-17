@@ -300,7 +300,8 @@ class EdgeSeparationTest {
             Map.entry("testplan/PlanningOptions.java | COMPILED_PURE_COMPAT", "C1 2026-11-17"));
 
     /** The census's open lines (docs/records/f-separation-census-2026-11-17.md; closed: A4, B14 ruled; A2, A3 moved to
-     *  the edge 2026-11-17 (A4 extended to the native image and the page module); A5, A6 split off the edge 2026-11-17; A1 the embedded hosts' engine routes to the edge 
+     *  the edge 2026-11-17 (A4 extended to the native image and the page module), A3's page module then the product's
+     *  again, at lite's own route in lite's words (lite's API v1, H6, 2026-11-17: a root the build's query holds); A5, A6 split off the edge 2026-11-17; A1 the embedded hosts' engine routes to the edge 
      *  B1, B3, B17 HOOK-RULED 2026-11-17 (EngineTextDialect, {@link #HOOKS_RULED}), then moved to the edge by Phase 6 (2026-11-17); B4, B6, B13
      *  CLOSED 2026-11-17 by Phase 6 (RawSqlBoundary, PurePrint and UpstreamRelationType, the test-data generator's text
      *  moved to the edge); B2 HOOK-RULED 2026-11-17 (UpstreamPlans, signatures only); B5 CLOSED 2026-11-17

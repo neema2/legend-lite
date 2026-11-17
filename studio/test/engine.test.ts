@@ -14,7 +14,7 @@ import { LiteServer } from '../../engine-client/src/doors/lite-server.ts';
 import { LiteRefusal } from '../../engine-client/src/lite-error.ts';
 import { WasmGrammar } from '../../engine-client/src/legend/wasm-grammar.ts';
 import { Compiler } from '../src/backend/planner.ts';
-import { compiler as inTab, grammar } from './modules.ts';
+import { compiler as inTab, edge, grammar } from './modules.ts';
 
 const GOOD = 'Class demo::Desk\n{\n  name: String[1];\n}\n';
 const BAD = 'Class demo::Desk\n{\n  name: Strin[1];\n}\n';
@@ -115,7 +115,7 @@ describe("Studio's compiler over the session's engine", () => {
 
   it("the in-tab engine's compilation/compile answers as the server's: OK, or the first failure, 400 COMPILATION", async () => {
     const noSql = {} as QueryEngine;     // compiling runs no SQL
-    const engine = new BrowserEngine(grammar, noSql, 'local');
+    const engine = new BrowserEngine(edge, noSql, 'local');
     assert.deepEqual(await engine.compile({ _type: 'text', code: GOOD }), { message: 'OK', defects: [] });
     await assert.rejects(engine.compile({ _type: 'text', code: BAD }),
       (e: unknown) => e instanceof EngineError && e.status === 400 && e.errorType === 'COMPILATION' && /Strin/.test(e.message));
@@ -126,7 +126,7 @@ describe("Studio's compiler over the session's engine", () => {
   it('in the tab, a model read (model/elements) and printed back by pure/v1, in either style', async () => {
     const model = await grammar.modelElements(GOOD);
     for (const style of ['STANDARD', 'PRETTY'] as const) {
-      const text = await grammar.modelText(model, style);
+      const text = await edge.modelText(model, style);
       assert.deepEqual(await grammar.modelElements(text), model, style);
     }
   });
