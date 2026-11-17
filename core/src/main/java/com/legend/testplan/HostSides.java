@@ -134,6 +134,28 @@ public final class HostSides {
                 }
             }
         }
+        String census = System.getProperty("legend.measure.shapes");
+        if (census != null) {
+            StringBuilder sb = new StringBuilder(name);
+            for (JudgePlans.PlannedSide p : planned) {
+                String shape;
+                try {
+                    var sh = JudgePlans.shapeOf(p);
+                    shape = sh.kind() + (sh.scalar() ? "/one" : "/many") + ":" + sh.typeName();
+                } catch (RuntimeException e) {
+                    shape = "?";
+                }
+                sb.append('\t').append(p.kind()).append('|').append(shape);
+            }
+            synchronized (HostSides.class) {
+                try {
+                    java.nio.file.Files.writeString(java.nio.file.Path.of(census), sb + "\n",
+                            java.nio.file.StandardOpenOption.CREATE, java.nio.file.StandardOpenOption.APPEND);
+                } catch (java.io.IOException e) {
+                    throw new java.io.UncheckedIOException(e);
+                }
+            }
+        }
         return new Planned(planned, base, on != null ? on : any);
     }
 

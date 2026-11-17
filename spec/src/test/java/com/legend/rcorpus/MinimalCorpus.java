@@ -603,7 +603,7 @@ public final class MinimalCorpus {
             return com.legend.ExecuteOptions.recording(new com.legend.edge.CompatEdge(recorder, stores), stores)
                     // backwards-compatibility mode: the judges' leniencies that meet legend-engine's goldens (the user,
                     // 2026-11-04: lite's own runs exact, PCT and the corpus in compat mode)
-                    .withEngineCompat(true)
+                    .withEngineCompat(!"lite".equals(System.getProperty("legend.measure.rules")))
                     // legend-engine's texts, spelled by the edge (phase D's D1.0)
                     .withStyle(com.legend.edge.PureText.UPSTREAM);
         }
