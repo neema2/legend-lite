@@ -54,7 +54,10 @@ class VerdictChannelRegisterTest {
             // array a multiset again, its test back beside the strict object-vs-array one
             "core/src/test/java/com/legend/testexec/EqualityJsonUnorderedRootTest.java",
             "core/src/test/java/com/legend/testexec/EqualityWorldsConformanceTest.java",
-            "core/src/test/java/com/legend/testexec/PureAssertsTest.java");
+            "core/src/test/java/com/legend/testexec/PureAssertsTest.java",
+            // 2026-11-17 (census C1's K14, the orchestrator's ruling): the compatibility rules' asserts moved here, an
+            // edge test, from EqualityWorldsConformanceTest and PureAssertsTest -- the same calls, not a new caller
+            "core/src/test/java/com/legend/testexec/EqualityCompatEdgeTest.java");
 
     private static final java.util.regex.Pattern JUDGE_REF =
             java.util.regex.Pattern.compile("(?<![A-Za-z0-9_])Equality(::|\\.(?!java\\b))");
