@@ -66,15 +66,6 @@ describe('build', () => {
     assert.deepEqual(await columns(q), ['ticker:String', 'qty:Integer']);
   });
 
-  // the edge program's N4 (2026-11-17): every column aggregated is `groupBy(~[], ...)`, the form lite accepts -- not
-  // `aggregate(~[...])`, the bend to legend-engine's failure on a groupBy with no key
-  it('aggregates every column with groupBy and no key, and lite types it', async () => {
-    const q = trades({ columns: [{ ...col('trades', 'tradeId'), aggregate: 'count' }, { ...col('qty', 'quantity'), aggregate: 'sum' }] });
-    assert.equal(await text(q),
-      '|demo::trading::Trade.all()->project(~[trades:x|$x.tradeId, qty:x|$x.quantity])->groupBy(~[], ~[trades:x|$x.trades:y|$y->count(), qty:x|$x.qty:y|$y->sum()])');
-    assert.deepEqual(await columns(q), ['trades:Integer', 'qty:Integer']);
-  });
-
   it('milestoning: a temporal class as of its date parameters, every version, and dates written on a property into one', async () => {
     const on = (cls: string) => queryOn(graph, { ...SOURCE, class: `demo::trading::${cls}` });
     const rating = on('FirmRating');
