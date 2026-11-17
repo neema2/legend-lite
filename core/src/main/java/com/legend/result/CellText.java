@@ -249,6 +249,30 @@ public final class CellText {
 
     // ---- Float ----------------------------------------------------------------------------------------------------
 
+    /** The PRODUCT's text of a Float (register S311, the same rule each dialect writes for {@code FLOAT_TO_TEXT} in
+     *  SQL): six decimals of the exact value, rounded half-even as a correctly rounded {@code %.6f} is, then the
+     *  trailing zeros and a trailing point trimmed ({@code 1.5}, {@code 2}, {@code 0.333333}); NaN and the
+     *  infinities by name. The judges' failure sentences print a Float by it in Java, the database judge by the same
+     *  rule in SQL (the user's judge model, 2026-11-17: the two agree on the message). */
+    public static String productFloat(double d) {
+        if (Double.isNaN(d)) {
+            return "NaN";
+        }
+        if (Double.isInfinite(d)) {
+            return d > 0 ? "Infinity" : "-Infinity";
+        }
+        String six = new BigDecimal(d).setScale(6, java.math.RoundingMode.HALF_EVEN).toPlainString();
+        int end = six.length();
+        while (six.charAt(end - 1) == '0') {
+            end--;
+        }
+        if (six.charAt(end - 1) == '.') {
+            end--;
+        }
+        String out = six.substring(0, end);
+        return out.equals("-0") ? "0" : out;
+    }
+
     /** A CARRIED Float's text (named for carriage, Phase 3 of docs/records/total-wall-edge-program-2026-11-16.md,
      *  2026-11-16: the value a CSV or JSON cell carries, read back as the same double -- §10 item 3 -- and the one rule
      *  the compatibility edge's presenter prints a Float by; the product's {@code toString} of a Float is S311's six
