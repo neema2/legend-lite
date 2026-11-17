@@ -270,6 +270,44 @@ class HookRulingTest {
                 "the product's options carry the product's edge hook, never a null");
     }
 
+    /**
+     * NO PRODUCT DOOR IS PLANNED IN THE EDGE'S STYLE (census C1's 2c handover, the orchestrator's ruling of 2026-11-17).
+     * Where each door's style is chosen:
+     * <ul>
+     * <li>{@code Execution.run}/{@code runOnProjectDatabases} and {@code TypedQuery.executionPlan}/{@code projectPlan}:
+     * the overloads without a style plan with {@code PlanStyle.PRODUCT}; those taking one are called from the edge alone
+     * ({@code ArchitectureTest.onlyTheEdgeCallsTheSpellingDoors}, bitten by a planted caller);</li>
+     * <li>{@code TestExecution}'s doors: the style the caller's {@code ExecuteOptions} carry -- {@code NONE}'s is the
+     * product's, every derivation but {@code withStyle} keeps it (pinned here), and {@code withStyle} is a spelling door
+     * the edge alone calls (the same rule);</li>
+     * <li>the hosts (the server's runner, {@code ConnectionResolver}; the test runner {@code PureTestRunner}, whose
+     * options the caller hands it): no product class can name an edge style at all
+     * ({@code ArchitectureTest.noProductClassReachesTheEdge}, G5, and {@code theHostsDoorsReachNoEdge...}); the
+     * product's one style is {@code PlanStyle.PRODUCT}, every other implementer the edge's (pinned here).</li>
+     * </ul>
+     */
+    @Test
+    void noProductDoorIsPlannedInTheEdgesStyle() {
+        JavaClasses all = classes("legend.product.jars", "legend.edge.jars");
+        TreeSet<String> outsideTheEdge = new TreeSet<>();
+        for (JavaClass c : all) {
+            if (!c.isInterface() && c.isAssignableTo(PlanStyle.class.getName())
+                    && !c.getPackageName().startsWith("com.legend.edge")) {
+                outsideTheEdge.add(c.getName());
+            }
+        }
+        // the product's one style, PlanStyle.PRODUCT (an anonymous class of the interface)
+        assertEquals(new TreeSet<>(List.of(PlanStyle.PRODUCT.getClass().getName())), outsideTheEdge,
+                "a style outside the edge other than the product's own");
+        com.legend.ExecuteOptions none = com.legend.ExecuteOptions.NONE;
+        for (com.legend.ExecuteOptions derived : List.of(none,
+                none.withJudgeMode(com.legend.testplan.PlanningOptions.JudgeMode.DATABASE),
+                none.withFeatures(java.util.Set.of()), none.withOptions(java.util.Set.of()),
+                none.withEngineCompat(true), none.judgedAs(none))) {
+            assertTrue(derived.planning().style() == PlanStyle.PRODUCT, "a derivation left the product's style");
+        }
+    }
+
     @Test
     void theProductRefusesEachRuledHookByName() {
         RULED.forEach((hook, calls) -> calls.forEach(call -> {
