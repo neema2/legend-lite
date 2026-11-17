@@ -1514,6 +1514,12 @@ public class SQLite extends AnsiSqlRenderer {
     private static final Set<SqlFn> DECIMAL_ARITHMETIC = Set.of(SqlFn.PLUS, SqlFn.MINUS, SqlFn.TIMES, SqlFn.DIVIDE,
             SqlFn.MOD, SqlFn.REM);
 
+    /** Whether a Decimal's arithmetic is refused here: the product's, by the no-silent-approximation rule (D2a). The
+     *  compatibility edge writes it as REAL arithmetic, as legend-engine would here (the edge program's §6 row 22). */
+    protected boolean refusesDecimalArithmetic() {
+        return true;
+    }
+
     /** Whether {@code e} is a Decimal value: of a Decimal fact, and holding a Decimal of the user's -- a Decimal
      *  literal, a cast to a Decimal, or a column read as one -- not the lowering's own Float literal (an average's
      *  {@code 1.0 *}, a DECIMAL fact by its digits, a REAL here like every Float). */
@@ -1532,7 +1538,8 @@ public class SQLite extends AnsiSqlRenderer {
 
     @Override
     protected SqlWriter call(SqlWriter writer, SqlExpr.Call c, int parentPrec) {
-        if (DECIMAL_ARITHMETIC.contains(c.fn()) && c.args().stream().anyMatch(SQLite::holdsADecimal)) {
+        if (refusesDecimalArithmetic() && DECIMAL_ARITHMETIC.contains(c.fn())
+                && c.args().stream().anyMatch(SQLite::holdsADecimal)) {
             throw new DialectCapability("a Decimal's arithmetic (" + c.fn() + ") reached SQLite, which holds no exact"
                     + " decimal (a decimal is a REAL there): refused, never approximated");
         }

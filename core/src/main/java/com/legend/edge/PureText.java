@@ -351,6 +351,14 @@ public final class PureText {
 
     /** SQLite, spelled as upstream spells it. */
     public static final class SQLite extends com.legend.sql.dialect.SQLite {
+        /** A Decimal's arithmetic as REAL arithmetic, as legend-engine would write it here, where the product refuses it by
+         *  name (no exact decimal: the edge program's §6 row 22, the orchestrator's ruling (c) of 2026-11-17, under the
+         *  user's 5b approval and the standing no-silent-approximation rule). */
+        @Override
+        protected boolean refusesDecimalArithmetic() {
+            return false;
+        }
+
         /** legend-pure's print forms (a Float's, a DateTime's) for the product's text of each ({@link PurePrintForms}; D1.2). */
         @Override
         protected java.util.List<com.legend.sql.SqlRewriter> spellingPasses() {
