@@ -47,7 +47,7 @@ public interface RelationTexts {
 
     /** The product's text of a value of type {@code t} ({@code Scalars.pureToString}). */
     static SqlExpr pureToString(PureOnlyTexts texts, ListTexts lists, Type t, SqlExpr x) {
-        return Scalars.pureToString(new Styled(refusal -> texts, Styled.PRODUCT.plain(), Styled.LITE_DATE_TIMES, lists),
+        return Scalars.pureToString(new Styled(refusal -> texts, LoweringForms.PRODUCT, Styled.LITE_DATE_TIMES, lists),
                 t, x);
     }
 

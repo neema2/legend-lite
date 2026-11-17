@@ -1,7 +1,8 @@
 // Copyright 2026 Legend Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-package com.legend.planner;
+package com.legend.edge;
+
 
 import com.legend.compiler.element.ModelContext;
 import com.legend.compiler.element.type.Type;
@@ -37,6 +38,10 @@ import java.util.List;
  * <p>{@link #rewrittenQuery} returns null when the frame is not
  * aggregation-aware-routed or the chain has a shape this printer does
  * not know — the caller keeps its honest fallback.
+ *
+ * <p>legend-engine's routed-query text, the edge's (moved from the planner, J5 of the edge audit, 2026-11-17): the
+ * compatibility edge's form of the planner's two-form {@code RoutedQueries}; the product's form records no routing
+ * activity.
  */
 final class AggAwareActivities {
 

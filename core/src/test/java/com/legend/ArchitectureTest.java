@@ -1374,7 +1374,9 @@ final class ArchitectureTest {
             // lowering and the plan's environment, so each of those reaches is listed here, by signature and caller
             "lowering.Lowerer#bindPlanParam(com.legend.sql.SqlExpr$PlanParam)", "com.legend.edge.EnginePlans",
             "lowering.Lowerer#withShape(com.legend.lowering.LoweringShape)", "com.legend.edge.EnginePlans",
-            "lowering.LoweringShape#<init>(boolean, boolean, boolean, boolean, boolean, boolean)", "com.legend.edge.EnginePlans",
+            // re-keyed 2026-11-17 (the audit's K5): the shape's two edge-only flags became its two-form choices
+            "lowering.LoweringShape#<init>(boolean, boolean, boolean, com.legend.lowering.LoweringForms, boolean)",
+            "com.legend.edge.EnginePlans",
             "lowering.Lowerer#withFeatures(java.util.Set)", "com.legend.edge.EnginePlans",
             "lowering.Lowerer#withOptions(java.util.Set)", "com.legend.edge.EnginePlans",
             "lowering.PlanParams#kindOf(com.legend.compiler.element.type.Type)", "com.legend.edge.EnginePlans",
@@ -1879,6 +1881,10 @@ final class ArchitectureTest {
      * ratified adjudication's mechanical guard: a database VALUE can
      * never be produced inside the channel, because the channel cannot
      * reach a connection.
+     *
+     * <p>The channel left the product for the compatibility edge (2026-11-17: PlanText with J4/K3 of the edge audit,
+     * AggAwareActivities with J5), so the rule checks the product's and the edge's classes together: it would fail on an
+     * empty set if it read the product's alone, and the channel still must not reach a connection.
      */
     @Test
     void theInterpreterPerformsNoJdbc() {
@@ -1889,7 +1895,7 @@ final class ArchitectureTest {
             .as("E4: the metamodel channel evaluates model constants"
                     + " only — grid chains compile to SQL at the"
                     + " GridReads.tryLower exec seam")
-            .check(CORE_PROD_CLASSES);
+            .check(CORE_AND_EDGE_CLASSES);
     }
 
     /**

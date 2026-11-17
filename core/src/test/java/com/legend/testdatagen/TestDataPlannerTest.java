@@ -36,9 +36,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class TestDataPlannerTest {
 
     /** Upstream's printing, the compatibility edge's (Phase 6's B13, 2026-11-17: the generator's COMPAT spelling moved to
-     *  the plan style's UpstreamPlans facet). */
-    private static final TestDataPlanner.Printing UPSTREAM =
-            com.legend.edge.PureText.UPSTREAM.facet(com.legend.planner.UpstreamPlans.class).testDataTimestampText()::apply;
+     *  the plan style's UpstreamPlans facet; J7/K12 of the edge audit, 2026-11-17: the style's two-form answer). */
+    private static final TestDataPlanner.Printing UPSTREAM = com.legend.edge.PureText.UPSTREAM.twoForm(
+            TestDataPlanner.Printing.class, TestDataPlanner.Printing.CLEAN);
+
+    /** The server routes' form, the edge's (J7/K12 of the edge audit, 2026-11-17: until then TestDataPlanner.route). */
+    private static final TestDataPlanner.Printing ROUTE = com.legend.edge.TestDataRoutes.ROUTE;
 
 
     private static final String MODEL = """
@@ -178,7 +181,7 @@ class TestDataPlannerTest {
                     + " ['f', 'a', 'l'])");
             List<TestDataGenerator.TableRowIds> one = List.of(ids("MIXED", "ID", 1L, 2L));
             assertEquals("default\nMIXED\n\"last name\",AGE,ID,firstName\nkim,40,2,bob\nlee,30,1,ann\n-----\n",
-                    text(c, dialect, TestDataPlanner.route(ctx, mixed, "t::M", one, null, false, UPSTREAM).csv()), type.name());
+                    text(c, dialect, TestDataPlanner.plan(ctx, mixed, "t::M", one, null, false, PlannerViews.of(ctx), null, ROUTE).csv()), type.name());
             // the function's text: its header as before (upper-cased plain names, sorted so)
             assertEquals("default\nMIXED\nAGE,FIRSTNAME,ID,last name\n30,ann,1,lee\n40,bob,2,kim\n-----\n",
                     text(c, dialect, TestDataPlanner.plan(ctx, mixed, "t::M", one, null, false, PlannerViews.of(ctx),
@@ -189,7 +192,7 @@ class TestDataPlannerTest {
             TestDataPlanner.Seed seed = TestDataPlanner.seed(ctx, none, "t::M", true,
                     PlannerViews.queries(ctx, "t::M", "t::RT"));
             assertEquals("default\nNONE\nID,N\n\n-----\n", text(c, dialect,
-                    TestDataPlanner.route(ctx, none, "t::M", List.of(), seed, false, UPSTREAM).csv()), type.name());
+                    TestDataPlanner.plan(ctx, none, "t::M", List.of(), null, false, PlannerViews.of(ctx), seed, ROUTE).csv()), type.name());
         }
     }
 
@@ -740,28 +743,38 @@ class TestDataPlannerTest {
         }
     }
 
-    /** No identifiers for a starting table -- the root, a view's main table: upstream's error, its example's keys not
-     *  read (the user's ruling R3, 2026-11-11; register S300). */
+    /** No identifiers for a starting table -- the root, a view's main table: the generator's refusal, a kind with its
+     *  facts and lite's own words; upstream's sentence the edge's, worded from the facts, its example's keys not read
+     *  (the user's ruling R3, 2026-11-11; register S300; J7/K12 of the edge audit, 2026-11-17). */
     @ParameterizedTest
     @MethodSource("inMemory")
     void noStartingRowsIsUpstreamsError(DatabaseType type) {
         ModelContext ctx = Compiler.compileModel(viewModel(type));
-        com.legend.error.AssertFailed root = org.junit.jupiter.api.Assertions.assertThrows(
-                com.legend.error.AssertFailed.class, () -> TestDataPlanner.plan(ctx,
+        TestDataPlanner.NoRowIdentifiers root = org.junit.jupiter.api.Assertions.assertThrows(
+                TestDataPlanner.NoRowIdentifiers.class, () -> TestDataPlanner.plan(ctx,
                         query("|t::Order.all()->project([o|$o.id], ['i'])"), "t::M", List.of(), null, false,
                         PlannerViews.of(ctx, "t::RT", Databases.dialect(type)), TestDataPlanner.Printing.CLEAN));
+        assertEquals("test data generation: no row identifiers for the root table t::DB.ORDERS", root.getMessage());
+        assertEquals(List.of("t::DB", "default", "ORDERS"), List.of(root.database(), root.schema(), root.table()));
+        assertEquals(null, root.view());
+        assertEquals(List.of("ID"), root.keys().stream().map(com.legend.model.DatabaseDefinition.ColumnDefinition::name)
+                .toList());
+        assertEquals(com.legend.testexecutionplan.Failure.Kind.ASSERT_FAILED, root.failureKind());
         assertEquals("Row Identifers should be provided for the root table: t::DB.ORDERS [ID:INT]\nExample:\n"
                 + "  meta::relational::testDataGeneration::createTableRowIdentifiers(t::DB, 'default', 'ORDERS', [\n\n"
-                + "  ])\n", root.getMessage());
-        com.legend.error.AssertFailed view = org.junit.jupiter.api.Assertions.assertThrows(
-                com.legend.error.AssertFailed.class, () -> TestDataPlanner.plan(ctx,
+                + "  ])\n", com.legend.edge.PureText.UPSTREAM.errorWords(root));
+        assertEquals(root.getMessage(), com.legend.database.PlanStyle.PRODUCT.errorWords(root));
+        TestDataPlanner.NoRowIdentifiers view = org.junit.jupiter.api.Assertions.assertThrows(
+                TestDataPlanner.NoRowIdentifiers.class, () -> TestDataPlanner.plan(ctx,
                         query("|t::Order.all()->project([o|$o.pnl.pnl], ['p'])"), "t::M",
                         List.of(ids("ORDERS", "ID", 1L)), null, false, PlannerViews.of(ctx, "t::RT", Databases.dialect(type)),
-                        TestDataPlanner.Printing.CLEAN));
+                        UPSTREAM));
+        assertEquals("test data generation: no row identifiers for the root table t::DB.PNL of the view PNLVIEW",
+                view.getMessage());
         assertEquals("Row Identifers should be provided for the root table of the view (PNLVIEW): t::DB.PNL"
                 + " [ORDER_ID:INT]\nExample:\n"
                 + "  meta::relational::testDataGeneration::createTableRowIdentifiers(t::DB, 'default', 'PNL', [\n\n"
-                + "  ])\n", view.getMessage());
+                + "  ])\n", com.legend.edge.PureText.UPSTREAM.errorWords(view));
     }
 
     /** A column resolved by its exact name, as upstream resolves one (the orchestrator's go, 2026-11-12: no case
