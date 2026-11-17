@@ -33,6 +33,10 @@ public interface EdgeHearing {
     /** The database judge's failed {@code row}, whose appeal is numbered {@code number}, heard. */
     TypedSide rowAppealed(int number, List<Object> row, boolean messaged);
 
+    /** legend-pure's words of an assert's failure at run ({@link PureWords}; C5's step B, 2026-11-17): asked only under
+     *  the compatibility rules. */
+    PureWords pureWords();
+
     /** A step of the body that writes is about to run. */
     void writing();
 

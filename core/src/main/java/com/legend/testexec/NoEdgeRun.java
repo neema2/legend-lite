@@ -55,6 +55,11 @@ public final class NoEdgeRun implements EdgeRun {
         }
 
         @Override
+        public PureWords pureWords() {
+            throw new NotImplementedException("legend-pure's words of an assert's failure " + WHY);
+        }
+
+        @Override
         public void writing() {
             // no appeal is held: nothing a write could stale
         }

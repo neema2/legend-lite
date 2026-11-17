@@ -139,6 +139,12 @@ final class Appeals implements com.legend.testexec.EdgeHearing {
 
     /** A step of the body that writes is about to run ({@code PlanRunner.ProgramSink#writing}), told to the body's open
      *  appeals (each body's run holds its own record of them, slice 5). */
+    /** legend-pure's words of an assert's failure at run (C5's step B, 2026-11-17). */
+    @Override
+    public com.legend.testexec.PureWords pureWords() {
+        return EdgePureWords.INSTANCE;
+    }
+
     @Override
     public void writing() {
         wrote = true;
