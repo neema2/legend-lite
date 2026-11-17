@@ -67,7 +67,7 @@ public final class PureAsserts {
     public static @com.legend.base.Nullable String assertEqualsTyped(
             List<Equality.Typed> expected, List<Equality.Typed> actual, com.legend.testexecutionplan.TestPlan.JudgingRules rules,
             PureWords words) {
-        if (Equality.ordered(expected, actual, rules) == null) {
+        if (Equality.ordered(expected, actual, rules)) {
             return null;
         }
         List<Object> e = new ArrayList<>();
@@ -291,7 +291,7 @@ public final class PureAsserts {
 
     private static boolean equal(List<Object> left, List<Object> right, com.legend.testexecutionplan.TestPlan.JudgingRules rules) {
         return Equality.ordered(Equality.Typed.all(left, null),
-                Equality.Typed.all(right, null), rules) == null;
+                Equality.Typed.all(right, null), rules);
     }
 
     private static boolean isIntegral(Object v) {
