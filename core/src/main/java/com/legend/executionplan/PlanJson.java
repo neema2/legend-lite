@@ -164,7 +164,7 @@ public final class PlanJson {
      *  {@code sites} too; the plan's {@code raises} is derived from them -- a v55 plan, whose statements raise a kind's
      *  name, is refused by its version. 57 since 2026-11-17 (the host train, the orchestrator's ruling; Python's
      *  finding): a column's {@code type} is its plain path ({@code Decimal}, never {@code Decimal(10,2)}), a precise
-     *  decimal's precision and scale data (its slot, its store) -- a v56 plan, whose types may carry arguments, is
+     *  decimal's digits data, its {@code decimal: {precision, scale}} (null for any other type) -- a v56 plan, whose types may carry arguments, is
      *  refused by its version. */
     public static final int VERSION = 57;
 
@@ -705,6 +705,14 @@ public final class PlanJson {
             co.put("slot", c.slot());
             co.put("store", store(c.store()));   // null: computed, no declared type
             co.put("precision", c.precision() == null ? null : c.precision().name());   // null: no temporal of its own
+            // null: no precise decimal (v57: a Decimal(p,s)'s digits as data, its type the plain path)
+            Map<String, Object> digits = null;
+            if (c.decimal() != null) {
+                digits = new LinkedHashMap<>();
+                digits.put("precision", c.decimal().precision());
+                digits.put("scale", c.decimal().scale());
+            }
+            co.put("decimal", digits);
             cols.add(co);
         }
         return cols;
@@ -1287,9 +1295,14 @@ public final class PlanJson {
             cols.add(new ExecutionPlan.Column(c.getString("name"), c.getString("type"),
                     readMultiplicity(c.getObj("multiplicity")), c.getStringOr("slot", null),
                     readStore(c.getObjOr("store", null)),
-                    precision == null ? null : ExecutionPlan.Precision.valueOf(precision)));
+                    precision == null ? null : ExecutionPlan.Precision.valueOf(precision),
+                    readDecimal(c.getObjOr("decimal", null))));
         }
         return cols;
+    }
+
+    private static ExecutionPlan.@com.legend.base.Nullable DecimalDigits readDecimal(@com.legend.base.Nullable Json.Obj o) {
+        return o == null ? null : new ExecutionPlan.DecimalDigits(o.getInt("precision"), o.getInt("scale"));
     }
 
     private static ExecutionPlan.Binding readBinding(Json.Obj o) {

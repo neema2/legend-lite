@@ -264,7 +264,7 @@ public final class ProductStatements {
         }
         ExecutionPlan.Column c = constant.columns().get(0);
         return new ExecutionPlan.Constant(List.of(new ExecutionPlan.Column(c.name(), c.type(),
-                new ExecutionPlan.Multiplicity(0, 1), c.slot(), c.store(), c.precision())), List.of());
+                new ExecutionPlan.Multiplicity(0, 1), c.slot(), c.store(), c.precision(), c.decimal())), List.of());
     }
 
     /** Whether {@code root} is a TO-ONE READER: {@code toOne()} over a relation, its exactly-one contract checked by
