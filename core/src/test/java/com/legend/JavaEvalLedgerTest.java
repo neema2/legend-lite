@@ -182,7 +182,10 @@ class JavaEvalLedgerTest {
             // 860 -> 862 (2026-10-18, the Cypher line's W5 legs 1 and 2a, found by the merge of main for its PR): the
             // plan printer's exhaustive store-type spelling gains the relational grammar's TIME and TIMESTAMP_NS column
             // types (one arm each); a type's name, nothing evaluated
-            Map.entry("core/src/main/java/com/legend/plan/PlanText.java", 862),
+            // 862 -> 789 (2026-11-17, Phase 6's C, the orchestrator's approved method list): the enum-mapping lookup
+            // and Pure's type spelling moved off the engine printer to plan/EnumMappings and plan/PureSpelling (model
+            // lookups and names, nothing evaluated); PlanText itself goes to the edge later in Phase 6
+            Map.entry("core/src/main/java/com/legend/plan/PlanText.java", 789),
             // 225 -> 227 (lambda-classifier slice: the lambda spelling
             // reader unwraps the m3 carrier stamp — LambdaFunction<ft> —
             // via PlatformTypes.functionTypeOf; a TYPE read, no evaluation)

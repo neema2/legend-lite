@@ -125,11 +125,12 @@ class ParkedWorkLedgerTest {
             // picks an enumeration mapping without the place it is used — the first
             // over the enum for a parameter, the first declared for a result column
             // whose mapping names none; legend-engine chooses per place, from the
-            // property mapping. The three choices with no place are the anchors.
+            // property mapping. The three choices with no place are the anchors. (Re-anchored 2026-11-17, Phase 6's
+            // C: the lookup moved, unchanged, to plan/EnumMappings.of; the choice it parks did not move.)
             Map.entry("PARK-15 the legacy plan's enum parameter map (PlanText)",
-                    new Anchor("var em = enumMappingOf\\(ctx, mappingFqn, enumFqn\\);", List.of("PlanText.java"))),
+                    new Anchor("var em = EnumMappings\\.of\\(ctx, mappingFqn, enumFqn\\);", List.of("PlanText.java"))),
             Map.entry("PARK-15 the legacy plan's enum parameter map (PlanAllocations)",
-                    new Anchor("PlanText\\.enumMappingOf\\(\\s*env\\.ctx\\(\\), pmr\\.fullPath\\(\\), et\\.fqn\\(\\)\\)",
+                    new Anchor("EnumMappings\\.of\\(\\s*env\\.ctx\\(\\), pmr\\.fullPath\\(\\), et\\.fqn\\(\\)\\)",
                             List.of("PlanAllocations.java"))),
             Map.entry("PARK-15 the legacy plan's enum result-column fallback",
                     new Anchor("candidates\\.isEmpty\\(\\) \\? null\\s*\\n\\s*: candidates\\.get\\(0\\)\\.mappingId\\(\\)",
