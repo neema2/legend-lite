@@ -3192,7 +3192,8 @@ java_run(
         "src/main/java/com/legend/edge/EngineStyleH2.java": "{EDGE_DIALECTS}",
     },
     visibility = ["//docs:__pkg__"],
-    deps = [":core_tests_lib"],
+    # the edge's test library (p7's split, 2026-11-17): the matrix reads the edge's EngineStyle dialects too
+    deps = [":core_edge_tests_lib"],
 )
 
 # The matrix's reach, measured over the PCT lanes' recorded cases (a measurement, not a build step; the recipe is in
