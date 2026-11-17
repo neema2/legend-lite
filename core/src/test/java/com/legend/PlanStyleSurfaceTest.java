@@ -50,6 +50,12 @@ class PlanStyleSurfaceTest {
     private static final String PRODUCT_ENUM = "the product's NEVER form (census C1 2c, S127, 2026-11-17), found"
             + " 2026-11-17";
 
+    private static final String DATE_LITERAL_ENUM = "the product's LITE form (census C1, 4bc94e2d8f, D's train 4), found 2026-11-17";
+
+    private static final String GOLDEN_NULL_ENUM = "the product's NONE form (census C1, c013b2565c, D's train 4), found 2026-11-17";
+
+    private static final String RENDERED_RULE_ENUM = "the product's STRINGS form (census C1, a9c14bb4ca, D's train 4), found 2026-11-17";
+
     /** Members of a TWO_FORMS kind that break criterion (a), each with its reason: found 2026-11-17. */
     static final Map<String, String> TWO_FORM_EXCEPTIONS = Map.ofEntries(
             // the product's own form held in the kind type itself: found by this guard 2026-11-17, reported to the
@@ -63,7 +69,30 @@ class PlanStyleSurfaceTest {
             Map.entry("CrossKindNumbers#Product#public static com.legend.testplan.CrossKindNumbers$Product valueOf(java.lang.String) (in a nested type)", PRODUCT_ENUM),
             Map.entry("CrossKindNumbers#Product#public static com.legend.testplan.CrossKindNumbers$Product[] values() (in a nested type)", PRODUCT_ENUM),
             Map.entry("CrossKindNumbers#Product#public static final com.legend.testplan.CrossKindNumbers$Product NEVER (in a nested type)", PRODUCT_ENUM),
-            Map.entry("CrossKindNumbers#Product#static {} (in a nested type)", PRODUCT_ENUM));
+            Map.entry("CrossKindNumbers#Product#static {} (in a nested type)", PRODUCT_ENUM),
+            // three more kinds from D's train 4 with the same shape (the product's form a nested enum of the kind),
+            // found by this guard on d-int5 2026-11-17 and reported to the orchestrator with CrossKindNumbers'
+            Map.entry("DateLiteralTexts#Product (nested type)", DATE_LITERAL_ENUM),
+            Map.entry("DateLiteralTexts#Product#private <init>() (in a nested type)", DATE_LITERAL_ENUM),
+            Map.entry("DateLiteralTexts#Product#public java.lang.String text(com.legend.values.PureDateLiteral) (in a nested type)", DATE_LITERAL_ENUM),
+            Map.entry("DateLiteralTexts#Product#public static com.legend.testplan.DateLiteralTexts$Product valueOf(java.lang.String) (in a nested type)", DATE_LITERAL_ENUM),
+            Map.entry("DateLiteralTexts#Product#public static com.legend.testplan.DateLiteralTexts$Product[] values() (in a nested type)", DATE_LITERAL_ENUM),
+            Map.entry("DateLiteralTexts#Product#public static final com.legend.testplan.DateLiteralTexts$Product LITE (in a nested type)", DATE_LITERAL_ENUM),
+            Map.entry("DateLiteralTexts#Product#static {} (in a nested type)", DATE_LITERAL_ENUM),
+            Map.entry("GoldenNullWord#Product (nested type)", GOLDEN_NULL_ENUM),
+            Map.entry("GoldenNullWord#Product#private <init>() (in a nested type)", GOLDEN_NULL_ENUM),
+            Map.entry("GoldenNullWord#Product#public boolean isNullWord(java.lang.String) (in a nested type)", GOLDEN_NULL_ENUM),
+            Map.entry("GoldenNullWord#Product#public static com.legend.compiler.spec.GoldenNullWord$Product valueOf(java.lang.String) (in a nested type)", GOLDEN_NULL_ENUM),
+            Map.entry("GoldenNullWord#Product#public static com.legend.compiler.spec.GoldenNullWord$Product[] values() (in a nested type)", GOLDEN_NULL_ENUM),
+            Map.entry("GoldenNullWord#Product#public static final com.legend.compiler.spec.GoldenNullWord$Product NONE (in a nested type)", GOLDEN_NULL_ENUM),
+            Map.entry("GoldenNullWord#Product#static {} (in a nested type)", GOLDEN_NULL_ENUM),
+            Map.entry("RenderedTextRule#Product (nested type)", RENDERED_RULE_ENUM),
+            Map.entry("RenderedTextRule#Product#private <init>() (in a nested type)", RENDERED_RULE_ENUM),
+            Map.entry("RenderedTextRule#Product#public boolean ruledWhereTheyDiffer() (in a nested type)", RENDERED_RULE_ENUM),
+            Map.entry("RenderedTextRule#Product#public static com.legend.testplan.RenderedTextRule$Product valueOf(java.lang.String) (in a nested type)", RENDERED_RULE_ENUM),
+            Map.entry("RenderedTextRule#Product#public static com.legend.testplan.RenderedTextRule$Product[] values() (in a nested type)", RENDERED_RULE_ENUM),
+            Map.entry("RenderedTextRule#Product#public static final com.legend.testplan.RenderedTextRule$Product STRINGS (in a nested type)", RENDERED_RULE_ENUM),
+            Map.entry("RenderedTextRule#Product#static {} (in a nested type)", RENDERED_RULE_ENUM));
 
     /** PlanStyle's declared methods. */
     static final Set<String> STYLE_METHODS = Set.of(
