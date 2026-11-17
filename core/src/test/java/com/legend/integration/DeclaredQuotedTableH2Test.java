@@ -95,7 +95,7 @@ class DeclaredQuotedTableH2Test {
         try (Connection c = TestBackends.platform().open()) {
             // legend-engine's text natives answer in the edge's plan style (phase D's O3, 2026-11-13)
             var r = Program.last(TestBackends.platform().withStorelessRuntime(MODEL), body,
-                    com.legend.testbackend.StorelessRuntime.RUNTIME, c, Program.upstream());
+                    com.legend.testbackend.StorelessRuntime.RUNTIME, c, com.legend.testing.EdgeProgram.upstream());
             return String.valueOf(r.one());
         }
     }

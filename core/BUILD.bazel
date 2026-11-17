@@ -19,6 +19,7 @@ load("//tools/runfiles:defs.bzl", "executable_of")
 load("//tools/platforms:defs.bzl", "compatible_with")
 load(":layers.bzl", "core_layer_queries")
 load(":stress.bzl", "LINKED_PROJECTS", "STRESS_GENERATED", "stress_index", "stress_layout")
+load(":edge_tests.bzl", "EDGE_TEST_SRCS")
 
 # PRIVATE BY DEFAULT (Bazel workplan P1-20): a target is visible outside core only where it says to whom.
 package(default_visibility = ["//visibility:private"])
@@ -687,7 +688,9 @@ legend_java_library(
             # the toy section grammar and its test are :toy_grammar's and :section_grammar_registry_test's (P3-04)
             "src/test/java/com/legend/parser/SectionGrammarRegistryTest.java",
             "src/test/java/com/legend/parser/ToySectionGrammar.java",
-        ],
+            # the edge's tests are core_edge_tests_lib's (Phase 7's build half, 2026-11-17)
+            "src/test/java/com/legend/testing/EdgeProgram.java",
+        ] + EDGE_TEST_SRCS,
     ),
     # the stress corpus is read ONE way, as classpath resources (Bazel workplan P3-05, A11): its files (under
     # src/test/resources), their table of contents, and the linked projects' files (resource paths projects/<p>/...)
@@ -722,11 +725,8 @@ legend_java_library(
         ":shadow_binding",
     ],
     deps = [
-        ":edge",
-        # the shipped server's root (D1.0b, 2026-11-12): the HTTP tests start the server legend-engine's clients call
-        ":edge_server",
-        # legend-engine's service tests (D1.4, 2026-11-15: ServiceTestRunner moved to the edge)
-        ":edge_service_tests",
+        # (no edge: a product test reaches no edge class -- the edge's tests are core_edge_tests_lib's, Phase 7's build
+        # half, 2026-11-17)
         ":core",
         ":test_backends",
         ":test_cases",
@@ -739,6 +739,38 @@ legend_java_library(
         "@maven_test//:com_tngtech_archunit_archunit",
         # the H2 test backend's own classes (testbackend/H2Backend); H2VersionPinTest, which read the jar's version,
         # moved to spec as EngineH2VersionPinTest (2026-11-05: the pin is legend-engine's H2, not lite's jar)
+        "@h2//jar",
+        "@maven_test//:com_tngtech_archunit_archunit_junit5",
+        "@maven_test//:org_junit_jupiter_junit_jupiter",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_params",
+    ],
+)
+
+# THE EDGE'S TESTS (Phase 7's build half, 2026-11-17; the separation census's A5): the core test files that reach an edge
+# class, by the explicit list EDGE_TEST_SRCS (core/edge_tests.bzl), and the edge's test harness (testing/EdgeProgram),
+# compiled against the edge. core_tests_lib, the product's tests, compiles without it: a product test cannot reach the
+# edge (Bazel's strict deps, and ArchitectureTest.productTestsReachNoEdge). They run in the package targets beside the
+# product's (core_tests_<package> and the lanes), so no test stops running.
+legend_java_library(
+    name = "core_edge_tests_lib",
+    nullaway = False,
+    testonly = True,
+    srcs = EDGE_TEST_SRCS + ["src/test/java/com/legend/testing/EdgeProgram.java"],
+    deps = [
+        ":core_tests_lib",
+        ":edge",
+        # the shipped server's root (D1.0b, 2026-11-12): the HTTP tests start the server legend-engine's clients call
+        ":edge_server",
+        # legend-engine's service tests (D1.4, 2026-11-15: ServiceTestRunner moved to the edge)
+        ":edge_service_tests",
+        ":core",
+        ":test_backends",
+        ":test_cases",
+        "//arrow_ipc",
+        "//testing",
+        "//wasm:boundary",
+        "@maven_test//:com_tngtech_archunit_archunit",
         "@h2//jar",
         "@maven_test//:com_tngtech_archunit_archunit_junit5",
         "@maven_test//:org_junit_jupiter_junit_jupiter",
@@ -2355,9 +2387,7 @@ legend_java_library(
     ],
     deps = [
         ":core",
-        # the edge's plan style, which Program.upstream() runs a body in (phase D's O3, 2026-11-13: legend-engine's
-        # text natives answer in the edge's style alone)
-        ":edge",
+        # (the edge's plan style went to testing/EdgeProgram, the edge's test harness: Phase 7's build half, 2026-11-17)
         # the cases' tables are created on a test backend's database, by its dialect
         ":test_backends",
         "@maven_test//:org_junit_jupiter_junit_jupiter_api",
