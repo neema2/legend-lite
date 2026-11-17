@@ -23,7 +23,7 @@ H2	H2	call	IS_NULL	spelled	an operator (isNullTest)		522
 H2	H2	call	IS_NOT_NULL	spelled	an operator (isNotNullTest)		89
 H2	H2	call	IN	emulated	inList		6
 H2	H2	call	COALESCE	spelled	coalesce		552
-H2	H2	call	PARSE_INT	emulated	castAs: BIGINT		11
+H2	H2	call	PARSE_INT	emulated	parseInteger		11
 H2	H2	call	CONCAT	emulated	concatFlat		756
 H2	H2	call	LENGTH	spelled	length		73
 H2	H2	call	UPPER	spelled	upper		2
@@ -256,7 +256,7 @@ Postgres	Postgres	call	IS_NULL	spelled	an operator (isNullTest)		522
 Postgres	Postgres	call	IS_NOT_NULL	spelled	an operator (isNotNullTest)		89
 Postgres	Postgres	call	IN	emulated	inList		6
 Postgres	Postgres	call	COALESCE	emulated	coalesceArm		552
-Postgres	Postgres	call	PARSE_INT	emulated	castAs: BIGINT		11
+Postgres	Postgres	call	PARSE_INT	emulated	guardedParseInt:  ~ '^[+-]?[0-9]+$', BIGINT		11
 Postgres	Postgres	call	CONCAT	emulated	concatFlat		756
 Postgres	Postgres	call	LENGTH	emulated	by its operands: length(…) / length(CAST(… AS VARCHAR))		73
 Postgres	Postgres	call	UPPER	spelled	upper		2
@@ -489,7 +489,7 @@ Snowflake	Snowflake	call	IS_NULL	spelled	an operator (isNullTest)		519
 Snowflake	Snowflake	call	IS_NOT_NULL	spelled	an operator (isNotNullTest)		89
 Snowflake	Snowflake	call	IN	emulated	inArm		6
 Snowflake	Snowflake	call	COALESCE	emulated	by its operands: coalesce(, PARSE_JSON(…)TO_VARIANT(…)…) / …coalesce		552
-Snowflake	Snowflake	call	PARSE_INT	emulated	stringLit: CAST(CASE WHEN REGEXP_LIKE(…, \s*[-+]?[0-9]+\s*) THEN … ELSE … || ' is not an...		11
+Snowflake	Snowflake	call	PARSE_INT	emulated	guardedParseInt: REGEXP_LIKE(, , , ^[+-]?[0-9]+$, ), CAST(,  AS BIGINT)		11
 Snowflake	Snowflake	call	CONCAT	emulated	concat, flattenConcat		755
 Snowflake	Snowflake	call	LENGTH	spelled	length		73
 Snowflake	Snowflake	call	UPPER	spelled	upper		2
@@ -722,7 +722,7 @@ Trino	Trino	call	IS_NULL	spelled	an operator (isNullTest)		519
 Trino	Trino	call	IS_NOT_NULL	spelled	an operator (isNotNullTest)		89
 Trino	Trino	call	IN	emulated	inList		6
 Trino	Trino	call	COALESCE	emulated	by its operands: coalesce(, json_parse(…)…) / …coalesce		552
-Trino	Trino	call	PARSE_INT	emulated	castAs: BIGINT		11
+Trino	Trino	call	PARSE_INT	emulated	guardedParseInt: regexp_like(, , '^[+-]?[0-9]+$'), BIGINT		11
 Trino	Trino	call	CONCAT	emulated	flattenConcat: concat_ws('', , )		755
 Trino	Trino	call	LENGTH	spelled	length		73
 Trino	Trino	call	UPPER	spelled	upper		2
@@ -955,7 +955,7 @@ BigQuery	BigQuery	call	IS_NULL	spelled	an operator (isNullTest)		522
 BigQuery	BigQuery	call	IS_NOT_NULL	spelled	an operator (isNotNullTest)		89
 BigQuery	BigQuery	call	IN	emulated	in		6
 BigQuery	BigQuery	call	COALESCE	emulated	coalesceArm		552
-BigQuery	BigQuery	call	PARSE_INT	emulated	CAST(… AS INT64)		11
+BigQuery	BigQuery	call	PARSE_INT	emulated	guardedParseInt: REGEXP_CONTAINS(, , , ^[+-]?[0-9]+$, ), CAST(,  AS INT64)		11
 BigQuery	BigQuery	call	CONCAT	emulated	flattenConcat, asText: CONCAT(, IFNULL(…, ''))		756
 BigQuery	BigQuery	call	LENGTH	emulated	asText: LENGTH(…)		73
 BigQuery	BigQuery	call	UPPER	spelled	UPPER		2
@@ -1188,7 +1188,7 @@ Databricks	Databricks	call	IS_NULL	spelled	an operator (isNullTest)		519
 Databricks	Databricks	call	IS_NOT_NULL	spelled	an operator (isNotNullTest)		89
 Databricks	Databricks	call	IN	emulated	inList		6
 Databricks	Databricks	call	COALESCE	spelled	coalesce		552
-Databricks	Databricks	call	PARSE_INT	emulated	castAs: BIGINT		11
+Databricks	Databricks	call	PARSE_INT	emulated	guardedParseInt:  RLIKE '^[+-]?[0-9]+$', BIGINT		11
 Databricks	Databricks	call	CONCAT	emulated	flattenConcat: concat_ws('', , )		755
 Databricks	Databricks	call	LENGTH	spelled	length		73
 Databricks	Databricks	call	UPPER	spelled	upper		2
@@ -1421,7 +1421,7 @@ DuckDb	DuckDB	call	IS_NULL	spelled	an operator (isNullTest)		519
 DuckDb	DuckDB	call	IS_NOT_NULL	spelled	an operator (isNotNullTest)		89
 DuckDb	DuckDB	call	IN	emulated	inList		6
 DuckDb	DuckDB	call	COALESCE	spelled	coalesce		561
-DuckDb	DuckDB	call	PARSE_INT	emulated	castAs: BIGINT		11
+DuckDb	DuckDB	call	PARSE_INT	emulated	guardedParseInt: regexp_full_match(, , '[+-]?[0-9]+'), BIGINT		11
 DuckDb	DuckDB	call	CONCAT	emulated	concatFlat		755
 DuckDb	DuckDB	call	LENGTH	emulated	lengthArm		73
 DuckDb	DuckDB	call	UPPER	spelled	upper		2
@@ -1654,7 +1654,7 @@ ClickHouse	ClickHouse	call	IS_NULL	spelled	an operator (isNullTest)		519
 ClickHouse	ClickHouse	call	IS_NOT_NULL	spelled	an operator (isNotNullTest)		89
 ClickHouse	ClickHouse	call	IN	emulated	inList		6
 ClickHouse	ClickHouse	call	COALESCE	spelled	coalesce		552
-ClickHouse	ClickHouse	call	PARSE_INT	emulated	castAs: BIGINT		11
+ClickHouse	ClickHouse	call	PARSE_INT	emulated	parseInteger		11
 ClickHouse	ClickHouse	call	CONCAT	emulated	flattenConcat: concat(, )		755
 ClickHouse	ClickHouse	call	LENGTH	emulated	toInt64(lengthUTF8(…))		73
 ClickHouse	ClickHouse	call	UPPER	spelled	upperUTF8		2
@@ -2586,7 +2586,7 @@ MongoDb	MongoDB	call	IS_NULL	emulated	nullTest		0
 MongoDb	MongoDB	call	IS_NOT_NULL	emulated	nullTest		0
 MongoDb	MongoDB	call	IN	emulated	inList		0
 MongoDb	MongoDB	call	COALESCE	emulated	coalesce		0
-MongoDb	MongoDB	call	PARSE_INT	emulated	op1: $toLong		0
+MongoDb	MongoDB	call	PARSE_INT	emulated	guardedParse: ^[+-]?[0-9]+$, {"$toLong": , }		0
 MongoDb	MongoDB	call	CONCAT	emulated	concatSkippingNull		0
 MongoDb	MongoDB	call	LENGTH	emulated	length		0
 MongoDb	MongoDB	call	UPPER	emulated	guardedOp: $toUpper		0
