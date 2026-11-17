@@ -2469,12 +2469,12 @@ public class EngineStyleH2 extends AnsiSqlRenderer implements EngineTextDialect 
      *  2026-11-15). */
     @Override
     protected java.util.List<com.legend.sql.SqlRewriter> spellingPasses() {
-        return PurePrintForms.passes();
+        return PurePrintForms.passes(PurePrintForms.FloatLiteral.AS_SPELLED);
     }
 
     /** legend-pure's print form of a Float ({@link PurePrintForms}; D1.2): a node no pass reached. */
     @Override
     protected SqlWriter floatToText(SqlWriter writer, SqlExpr x) {
-        return writer.expr(PurePrintForms.floatOf(x), 0);
+        return writer.expr(PurePrintForms.floatOf(x, PurePrintForms.FloatLiteral.AS_SPELLED), 0);
     }
 }

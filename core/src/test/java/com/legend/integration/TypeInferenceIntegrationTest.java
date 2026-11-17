@@ -155,10 +155,13 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
         @Test
         void testFloatToStringWithNegativeExponent() throws SQLException {
                 // PCT: 0.000000013421->toString() → '0.000000013421' (fixed-point, not
-                // scientific notation): legend-pure's print form, the compatibility edge's since D1.2 (2026-11-15)
+                // scientific notation) at the compatibility edge, legend-engine's SQL (Phase 5, 2026-11-16): the literal
+                // bare, an exact numeric -- except where legend-engine writes it CAST(%s AS FLOAT), a double, whose text
+                // its own H2 manifest expects ('1.3421E-8'; edge/PurePrintForms, FloatTextTest)
                 var result = Lean.runInStyle(getCompletePureModelWithRuntime(), "|0.000000013421->toString()",
                         "test::TestRuntime", connection, com.legend.edge.PureText.UPSTREAM);
-                assertEquals("0.000000013421", result.rows().get(0).get(0).toString());
+                boolean floatLiteralCast = com.legend.testing.LaneFloor.backend().name().equals("h2");
+                assertEquals(floatLiteralCast ? "1.3421E-8" : "0.000000013421", result.rows().get(0).get(0).toString());
                 // the product's text (register S311): six decimals, trimmed -- below 0.0000005, 0
                 assertEquals("0", Lean.run(getCompletePureModelWithRuntime(), "|0.000000013421->toString()",
                         "test::TestRuntime", connection).rows().get(0).get(0).toString());
