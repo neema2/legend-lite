@@ -36,16 +36,7 @@ public final class PureText {
             return PureText.dialect(type);
         }
 
-        @Override
-        public com.legend.sql.dialect.EngineTextDialect engineText(DatabaseType type) {
-            return PureText.engineText(type);
-        }
 
-        @Override
-        public com.legend.sql.dialect.EngineTextDialect enginePlanText(DatabaseType type, boolean quoteIdentifiers,
-                @com.legend.base.Nullable String timeZone) {
-            return PureText.enginePlanText(type, quoteIdentifiers, timeZone);
-        }
 
         /** The closed list's kinds ({@code testplan.PlanStyleFacets.KINDS}), each the edge's own; any other by name. */
         @Override

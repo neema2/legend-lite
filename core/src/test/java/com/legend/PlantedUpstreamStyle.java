@@ -21,16 +21,6 @@ final class PlantedUpstreamStyle implements PlanStyle {
     }
 
     @Override
-    public EngineTextDialect engineText(DatabaseType type) {
-        throw new UnsupportedOperationException("planted");
-    }
-
-    @Override
-    public EngineTextDialect enginePlanText(DatabaseType type, boolean quoteIdentifiers, String timeZone) {
-        throw new UnsupportedOperationException("planted");
-    }
-
-    @Override
     public String activitySql(Activity activity) {
         throw new UnsupportedOperationException("planted");
     }

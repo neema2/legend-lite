@@ -69,17 +69,6 @@ class EdgeSpellingHookTest {
         }
 
         @Override
-        public com.legend.sql.dialect.EngineTextDialect engineText(DatabaseType type) {
-            return PlanStyle.PRODUCT.engineText(type);
-        }
-
-        @Override
-        public com.legend.sql.dialect.EngineTextDialect enginePlanText(DatabaseType type, boolean quoteIdentifiers,
-                @com.legend.base.Nullable String timeZone) {
-            return PlanStyle.PRODUCT.enginePlanText(type, quoteIdentifiers, timeZone);
-        }
-
-        @Override
         public String activitySql(Activity activity) {
             return PlanStyle.PRODUCT.activitySql(activity);
         }
@@ -147,22 +136,18 @@ class EdgeSpellingHookTest {
         assertEquals(project, PlanJson.write(typed.projectPlan("s::RT")));
     }
 
-    /** S309 (RULED by the user 2026-11-14, DE1 (a)): the product's style writes none of legend-engine's text -- each
-     *  engine-text native refused by name on every database; the edge's answers it (O3). */
+    /** S309 (RULED by the user 2026-11-14, DE1 (a)): the product's style writes none of legend-engine's text -- its
+     *  upstream plan facet refused by name; the edge's answers it (O3). Since Phase 6's A (2026-11-17) the style names
+     *  no engine-text dialect at all: the printers are the edge's ({@code PureText}), reached through the facet. */
     @Test
     void theProductRefusesEngineTextByNameAndTheEdgeAnswersIt() {
-        for (DatabaseType type : Databases.implemented()) {
-            var text = org.junit.jupiter.api.Assertions.assertThrows(com.legend.error.NotImplementedException.class,
-                    () -> PlanStyle.PRODUCT.engineText(type));
-            assertTrue(text.getMessage().contains("toSQLString") && text.getMessage().contains("compatibility edge's"),
-                    text.getMessage());
-            var plan = org.junit.jupiter.api.Assertions.assertThrows(com.legend.error.NotImplementedException.class,
-                    () -> PlanStyle.PRODUCT.enginePlanText(type, true, null));
-            assertTrue(plan.getMessage().contains("planToString") && plan.getMessage().contains("compatibility edge's"),
-                    plan.getMessage());
-        }
-        org.junit.jupiter.api.Assertions.assertNotNull(PureText.UPSTREAM.engineText(DatabaseType.H2));
-        org.junit.jupiter.api.Assertions.assertNotNull(PureText.UPSTREAM.enginePlanText(DatabaseType.H2, true, null));
+        var refused = org.junit.jupiter.api.Assertions.assertThrows(com.legend.error.NotImplementedException.class,
+                () -> PlanStyle.PRODUCT.facet(com.legend.planner.UpstreamPlans.class));
+        assertTrue(refused.getMessage().contains("UpstreamPlans") && refused.getMessage().contains("compatibility edge's"),
+                refused.getMessage());
+        org.junit.jupiter.api.Assertions.assertNotNull(PureText.UPSTREAM.facet(com.legend.planner.UpstreamPlans.class));
+        org.junit.jupiter.api.Assertions.assertNotNull(PureText.engineText(DatabaseType.H2));
+        org.junit.jupiter.api.Assertions.assertNotNull(PureText.enginePlanText(DatabaseType.H2, true, null));
     }
 
     @Test
