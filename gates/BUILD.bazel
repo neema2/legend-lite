@@ -264,6 +264,7 @@ test_suite(
         "//python:engine_test",
         # the markets example over the trading model's classes on Python: its saved queries, tiles and marks (Phase 6, D6)
         "//python:markets_test",
+        "//python:pricing_test",
         # #TS's Python builders: gs-quant's names over core's catalog, every Show Python fixture read back (item 13;
         # found in no lane by CI's lane guard on #81, 2026-11-09)
         "//python:ts_builder_test",

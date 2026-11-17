@@ -1,0 +1,216 @@
+###Pure
+
+// pricing -- domain-level rates pricing over two independent inputs:
+//   1. PrCurveKnot: one row per curve knot (scenario, curve, knot index, t, zero rate, interp method).
+//   2. PrCashflow: one row per future swap/FRA cashflow, already schedule- and holiday-adjusted.
+//
+// The swap pricer (cashflowPvs) delegates all curve evaluation to pricing::curveDiscountFactors,
+// remaining completely independent of interpolation choice.
+
+Enum pricing::PrInterpMethod
+{
+   LOG_LINEAR_DF,
+   LINEAR_ZERO,
+   LINEAR_DF
+}
+
+Class pricing::PrCurveKnot
+{
+   scenarioId: String[1];
+   curveId: String[1];
+   knotIdx: Integer[1];
+   knotT: Float[1];
+   zeroRate: Float[1];
+   interpMethod: pricing::PrInterpMethod[1];
+}
+
+Class pricing::PrCashflow
+{
+   tradeId: String[1];
+   legId: String[1];
+   cfIdx: Integer[1];
+   instrumentType: String[1];
+   currency: String[1];
+   csa: String[1];
+   discountCurveId: String[1];
+   projCurveId: String[0..1];
+   accrualStartT: Float[1];
+   accrualEndT: Float[1];
+   payT: Float[1];
+   dcf: Float[1];
+   notional: Float[1];
+   fixedRate: Float[1];
+   spread: Float[1];
+   isFloat: Boolean[1];
+   payReceive: Float[1];
+}
+
+// Interpolate a discount factor P(0, t) from bracketing knots (t0, r0) and (t1, r1).
+// Supports LOG_LINEAR_DF, LINEAR_ZERO, and LINEAR_DF, clamping flat zero rate outside [t0, t1].
+function pricing::evalSegmentDf(
+   t: Float[1],
+   t0: Float[1],
+   r0: Float[1],
+   t1: Float[1],
+   r1: Float[1],
+   method: pricing::PrInterpMethod[1]
+): Float[1]
+{
+   let span = $t1 - $t0;
+   let w = if($span > 0.0, |($t - $t0) / $span, |0.0);
+   let zeroAtT = (1.0 - $w) * $r0 + $w * $r1;
+   let rtLogLin = (1.0 - $w) * ($r0 * $t0) + $w * ($r1 * $t1);
+   let dfInterp = if($method == pricing::PrInterpMethod.LOG_LINEAR_DF,
+      |(-$rtLogLin)->exp(),
+      |if($method == pricing::PrInterpMethod.LINEAR_DF,
+         |(1.0 - $w) * (-$r0 * $t0)->exp() + $w * (-$r1 * $t1)->exp(),
+         |(-$zeroAtT * $t)->exp()
+      )
+   );
+   let dfClamped = if(($span <= 0.0) || ($t <= $t0),
+      |(-$r0 * $t)->exp(),
+      |if($t >= $t1,
+         |(-$r1 * $t)->exp(),
+         |$dfInterp
+      )
+   );
+   let validMethod = ($method == pricing::PrInterpMethod.LOG_LINEAR_DF)
+      || ($method == pricing::PrInterpMethod.LINEAR_ZERO)
+      || ($method == pricing::PrInterpMethod.LINEAR_DF);
+   let dfOut = if($t <= 0.0, |1.0, |$dfClamped);
+   if($validMethod, |$dfOut, |[]->cast(@Float)->toOne());
+}
+
+// Interpolate discount factors for any relation of (scenarioId, curveId, t) points from PrCurveKnot
+// using a single-pass LAG/LEAD segment window and range join. Refuses duplicate knotT or mixed interpMethod per curve.
+function pricing::curveDiscountFactors(
+   targets: meta::pure::metamodel::relation::Relation<(scenarioId:String[1], curveId:String[1], t:Float[1])>[1]
+): meta::pure::metamodel::relation::Relation<(scenarioId:String[1], curveId:String[1], t:Float[1], df:Float[1])>[1]
+{
+   let segments = pricing::PrCurveKnot.all()
+      ->project(~[
+         kScenarioId: k | $k.scenarioId,
+         kCurveId: k | $k.curveId,
+         knotIdx: k | $k.knotIdx,
+         knotT: k | $k.knotT,
+         zeroRate: k | $k.zeroRate,
+         interpMethod: k | $k.interpMethod
+      ])
+      ->extend(
+         over(~[kScenarioId, kCurveId], [~knotT->ascending(), ~knotIdx->ascending()]),
+         ~[
+            prevT: {p, f, r | $p->lag($r, 1).knotT},
+            nextT: {p, f, r | $p->lead($r, 1).knotT},
+            nextR: {p, f, r | $p->lead($r, 1).zeroRate},
+            nextMethod: {p, f, r | $p->lead($r, 1).interpMethod}
+         ]
+      );
+   $targets
+      ->join(
+         $segments,
+         meta::pure::functions::relation::JoinKind.INNER,
+         {l, r |
+            ($l.scenarioId == $r.kScenarioId) &&
+            ($l.curveId == $r.kCurveId) &&
+            ($r.prevT->isEmpty() || ($l.t >= $r.knotT)) &&
+            ($r.nextT->isEmpty() || ($l.t < $r.nextT->toOne()))
+         }
+      )
+      ->project(~[
+         scenarioId: x | $x.scenarioId,
+         curveId: x | $x.curveId,
+         t: x | $x.t,
+         df: x | if(
+            ($x.knotT <= 0.0)
+            || ($x.prevT->isNotEmpty() && ($x.knotT <= $x.prevT->toOne()))
+            || ($x.nextT->isNotEmpty() && ($x.nextT->toOne() <= $x.knotT))
+            || ($x.nextMethod->isNotEmpty() && ($x.interpMethod != $x.nextMethod->toOne())),
+            |[]->cast(@Float)->toOne(),
+            |pricing::evalSegmentDf(
+               $x.t,
+               $x.knotT,
+               $x.zeroRate,
+               if($x.nextT->isEmpty(), |$x.knotT, |$x.nextT->toOne()),
+               if($x.nextR->isEmpty(), |$x.zeroRate, |$x.nextR->toOne()),
+               $x.interpMethod
+            )
+         )
+      ]);
+}
+
+// Price every future cashflow (payT > 0) across all scenarios in PrCurveKnot.
+// Evaluates discount factors per target relation (4 PR_CASHFLOW scans, 7 PR_CURVE_KNOT scans) and fails
+// loudly on missing scenario curves, invalid curve segments, or non-positive cashflow day-count fractions.
+function pricing::cashflowPvs(): meta::pure::metamodel::relation::Relation<(scenarioId:String[1], tradeId:String[1], legId:String[1], cfIdx:Integer[1], instrumentType:String[1], currency:String[1], csa:String[1], pv:Float[1])>[1]
+{
+   let cfs = pricing::PrCashflow.all()
+      ->filter(cf | $cf.payT > 0.0)
+      ->project(~[
+         tradeId: cf | $cf.tradeId,
+         legId: cf | $cf.legId,
+         cfIdx: cf | $cf.cfIdx,
+         instrumentType: cf | $cf.instrumentType,
+         currency: cf | $cf.currency,
+         csa: cf | $cf.csa,
+         discountCurveId: cf | $cf.discountCurveId,
+         projCurveId: cf | if($cf.projCurveId->isEmpty(), |$cf.discountCurveId, |$cf.projCurveId->toOne()),
+         accrualStartT: cf | if($cf.accrualStartT < 0.0, |0.0, |$cf.accrualStartT),
+         accrualEndT: cf | $cf.accrualEndT,
+         payT: cf | $cf.payT,
+         dcf: cf | $cf.dcf,
+         notional: cf | $cf.notional,
+         fixedRate: cf | $cf.fixedRate,
+         spread: cf | $cf.spread,
+         isFloat: cf | $cf.isFloat,
+         payReceive: cf | $cf.payReceive
+      ]);
+   let scenarios = pricing::PrCurveKnot.all()
+      ->project(~[scenarioId: k | $k.scenarioId])
+      ->distinct();
+   let cfScen = $cfs->join($scenarios, meta::pure::functions::relation::JoinKind.INNER, {l, r | true});
+   let discDfs = pricing::curveDiscountFactors(
+      $cfScen->project(~[scenarioId: x | $x.scenarioId, curveId: x | $x.discountCurveId, t: x | $x.payT])->distinct()
+   );
+   let startDfs = pricing::curveDiscountFactors(
+      $cfScen->filter(x | $x.isFloat)->project(~[scenarioId: x | $x.scenarioId, curveId: x | $x.projCurveId, t: x | $x.accrualStartT])->distinct()
+   );
+   let endDfs = pricing::curveDiscountFactors(
+      $cfScen->filter(x | $x.isFloat)->project(~[scenarioId: x | $x.scenarioId, curveId: x | $x.projCurveId, t: x | $x.accrualEndT])->distinct()
+   );
+   let withDfPay = $cfScen->join(
+      $discDfs->project(~[dScen: x | $x.scenarioId, dCurve: x | $x.curveId, dT: x | $x.t, dfPay: x | $x.df]),
+      meta::pure::functions::relation::JoinKind.LEFT,
+      {l, r | ($l.scenarioId == $r.dScen) && ($l.discountCurveId == $r.dCurve) && ($l.payT == $r.dT)}
+   );
+   let withDfStart = $withDfPay->join(
+      $startDfs->project(~[sScen: x | $x.scenarioId, sCurve: x | $x.curveId, sT: x | $x.t, dfStart: x | $x.df]),
+      meta::pure::functions::relation::JoinKind.LEFT,
+      {l, r | ($l.scenarioId == $r.sScen) && ($l.projCurveId == $r.sCurve) && ($l.accrualStartT == $r.sT)}
+   );
+   let withDfEnd = $withDfStart->join(
+      $endDfs->project(~[eScen: x | $x.scenarioId, eCurve: x | $x.curveId, eT: x | $x.t, dfEnd: x | $x.df]),
+      meta::pure::functions::relation::JoinKind.LEFT,
+      {l, r | ($l.scenarioId == $r.eScen) && ($l.projCurveId == $r.eCurve) && ($l.accrualEndT == $r.eT)}
+   );
+   $withDfEnd->project(~[
+      scenarioId: x | $x.scenarioId,
+      tradeId: x | $x.tradeId,
+      legId: x | $x.legId,
+      cfIdx: x | $x.cfIdx,
+      instrumentType: x | $x.instrumentType,
+      currency: x | $x.currency,
+      csa: x | $x.csa,
+      pv: x | if(
+         ($x.dcf <= 0.0)
+         || ($x.isFloat && ($x.accrualEndT <= $x.accrualStartT))
+         || $x.dfPay->isEmpty()
+         || ($x.isFloat && ($x.dfStart->isEmpty() || $x.dfEnd->isEmpty())),
+         |[]->cast(@Float)->toOne(),
+         |$x.payReceive * $x.notional * $x.dcf *
+          if($x.isFloat,
+             |((($x.dfStart->toOne() / $x.dfEnd->toOne()) - 1.0) / $x.dcf) + $x.spread,
+             |$x.fixedRate
+          ) * $x.dfPay->toOne()
+      )
+   ]);
+}
