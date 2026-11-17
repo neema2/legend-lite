@@ -164,7 +164,7 @@ class RaiseTextTest {
         moved.put(new SqlExpr.RaiseText(RaiseKind.INSERT_OUT_OF_BOUNDS, List.of()),
                 lit("add(set, index, value): index out of bounds"));
         moved.put(new SqlExpr.RaiseText(RaiseKind.SQRT_OF_NEGATIVE, List.of(a)),
-                cat(lit("Unable to compute sqrt of "), SqlExpr.Call.of(SqlFn.FLOAT_PRINT, a)));
+                cat(lit("Unable to compute sqrt of "), SqlExpr.Call.of(SqlFn.FLOAT_SHORTEST_TEXT, a)));
         moved.put(new SqlExpr.RaiseText(RaiseKind.SIZE_NOT_MULTIPLICITY, List.of(lit("[1..*]"))),
                 lit("Cannot cast a collection of size 0 to multiplicity [1..*]"));
         moved.put(new SqlExpr.RaiseText(RaiseKind.SIZE_NOT_MULTIPLICITY, List.of(lit("[1]"), b)),

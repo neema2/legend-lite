@@ -560,13 +560,14 @@ final class TaggedLists {
 
     /** The list's print, Pure's: {@code [e1, e2, ...]}, each element printed as its kind. */
     static SqlExpr print(Styled styled, SqlExpr.TaggedList tl) {
-        // the product's text, a JSON array (the user's ruling of 2026-11-10; D1.3, 2026-11-15), beside legend-pure's
-        return SqlExpr.Call.of(SqlFn.TEXT_FORMS, json(styled, tl), pure(styled, tl));
+        // the style's two-form kind (B8, 2026-11-17): the product's JSON array (the user's ruling of 2026-11-10), the
+        // edge's legend-pure [e1, e2]
+        return styled.lists().mixedList(styled, tl);
     }
 
     /** A mixed list as a JSON array: each element as its kind writes a JSON value -- a number and a Boolean as their
      *  text, anything else a JSON string of its text. */
-    private static SqlExpr json(Styled styled, SqlExpr.TaggedList tl) {
+    static SqlExpr json(Styled styled, SqlExpr.TaggedList tl) {
         String p = "_tlj";
         // through map's one carrier emission (the carrier purity ratchet: no new direct LIST_ site)
         SqlExpr texts = map(tl, new SqlExpr.Lambda(List.of(p),
@@ -589,20 +590,6 @@ final class TaggedLists {
                 new SqlExpr.StringLit("\\"), new SqlExpr.StringLit("\\\\")),
                 new SqlExpr.StringLit("\""), new SqlExpr.StringLit("\\\""));
         return Scalars.cat(new SqlExpr.StringLit("\""), escaped, new SqlExpr.StringLit("\""));
-    }
-
-    /** A mixed list as legend-pure prints it, {@code [e1, e2]}: the compatibility edge's. */
-    private static SqlExpr pure(Styled styled, SqlExpr.TaggedList tl) {
-        String p = "_tlp";
-        SqlExpr texts = SqlExpr.Call.of(SqlFn.LIST_TRANSFORM, tl.positions(), new SqlExpr.Lambda(List.of(p),
-                Scalars.pureToString(styled, new Type.ClassType(com.legend.compiler.element.type.PlatformTypes.ANY),
-                        tl.element(SqlExpr.Column.derived(null, p)))));
-        return Scalars.cat(new SqlExpr.StringLit("["),
-                SqlExpr.Call.of(SqlFn.COALESCE,
-                        new SqlExpr.ReduceCollection(SqlAgg.Fn.STRING_AGG, texts,
-                                List.of(new SqlExpr.StringLit(", "))),
-                        new SqlExpr.StringLit("")),
-                new SqlExpr.StringLit("]"));
     }
 
     /** The elements kept whose key's first position is their own ({@code removeDuplicatesBy}): {@code key} a lambda
