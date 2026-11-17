@@ -22,7 +22,8 @@
 //engine-client:doors	//engine-client:engine_api //engine-client:node_modules/apache-arrow //engine-client:planner //engine-client:records //engine-client:run //engine-client:server //pure-protocol:pure_protocol
 # 2026-11-17 (H11, the orchestrator's go; lite's API v1 spec §6): legend-engine's API in TypeScript, the edge -- its wire
 # shapes, refusal, Grammar, engines and tab bindings, out of the records, the planner, the server and the doors -- over
-# the layers it binds, under none (TsLayeringTest: no layer and no app reaches the edge; app_edge_reach empty)
+# the layers it binds, under every product target (TsLayeringTest: no product target reaches the edge, an app's compat
+# entry alone -- EDGE_ENTRIES, the orchestrator's alignment of the same day; app_edge_reach empty)
 //engine-client:edge	//engine-client:engine_api //engine-client:planner //engine-client:records //engine-client:run //pure-protocol:pure_protocol
 # 2026-11-15 (the C5-T audit's item 8): Node's host for tests and harnesses, out of the run layer (no layer of its own)
 //engine-client:node_host	//engine-client:node_modules/@duckdb/duckdb-wasm

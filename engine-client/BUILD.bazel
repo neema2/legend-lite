@@ -114,9 +114,10 @@ _DOORS = glob(["src/doors/**/*.ts"]) + [
 # refusal (engine-api.ts, out of the records), its Grammar and HTTP planning client (grammar.ts, planning-client.ts, out
 # of the planner), its engines (engine.ts, out of the server layer), and its tab bindings over the product's planner and
 # runner (wasm-edge.ts, out of the planner; edge-engine.ts's BrowserEngine, out of browser-engine.ts). Over the layers
-# above, never under them: no layer and no app depends on it (tools/deps/ts-layers.txt; TsLayeringTest
-# noAppReachesTheEdge), no product module imports one of its files (//tools/deps:app_runs_test), and the aggregate
-# below does not carry it -- a test that builds legend-engine's engines names it.
+# above, never under them: no product target depends on it -- an app's compat entry alone, loaded when configured
+# `engine: legend-engine` (the orchestrator's alignment, the same day; tools/deps/ts-layers.txt, TsLayeringTest
+# EDGE_ENTRIES and noAppReachesTheEdge) -- no product module imports one of its files (//tools/deps:app_runs_test), and
+# the aggregate below does not carry it: a test that builds legend-engine's engines names it.
 _EDGE = [
     "src/legend/edge-engine.ts",
     "src/legend/engine-api.ts",
