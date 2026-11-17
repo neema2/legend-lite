@@ -160,6 +160,14 @@ public record PlanEnv(ModelContext ctx, @Nullable String runtimeFqn,
         return frame == null ? null : frame.timeZone();
     }
 
+    /** An execution's trace text in a TDS cell: {@code id} with the style's comment around it, if it writes one. */
+    private com.legend.sql.SqlExpr traceText(com.legend.sql.SqlExpr id) {
+        com.legend.database.PlanStyle.TraceCell comment = style.traceCell();
+        return comment == null ? id : new com.legend.sql.SqlExpr.Call(com.legend.sql.SqlFn.CONCAT, java.util.List.of(
+                new com.legend.sql.SqlExpr.StringLit(comment.before()), id,
+                new com.legend.sql.SqlExpr.StringLit(comment.after())));
+    }
+
     /** A Lowerer configured by this environment: its frame's time zone, and a relation's text asked of its plan
      *  style's facet with the call's own refusal (B17 of the separation census, 2026-11-17: the product's style
      *  refuses a {@code toCSV}, a TDS's {@code csv} and a relation's {@code toString} at lowering, by name; and the
@@ -168,6 +176,7 @@ public record PlanEnv(ModelContext ctx, @Nullable String runtimeFqn,
         return lowerer.withDbTimeZone(timeZone())
                 .withRelationTexts(r -> style.facet(com.legend.lowering.RelationTexts.class, r))
                 .withPureOnlyTexts(r -> style.facet(com.legend.lowering.PureOnlyTexts.class, r))
-                .withResultEnvelopes(r -> style.facet(com.legend.lowering.ResultEnvelopes.class, r));
+                .withResultEnvelopes(r -> style.facet(com.legend.lowering.ResultEnvelopes.class, r))
+                .withTraceText(this::traceText);
     }
 }
