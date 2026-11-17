@@ -30,7 +30,7 @@ import type { CatalogColumn, InferOptions, InferredModel, ModelTable, OutputRequ
 import { PlanError, type ModelOptions } from './planner.ts';
 import { writerBodies } from '../../model-changes/src/wire.ts';
 import type { AssociationAction, ClassAction, DataSpaceAction, GridSource, ModelAnswer, ModelWriter } from './model-writer.ts';
-import type { PrintStyle } from '../../engine-client/src/pure-v1-planning.ts';
+import type { PrintStyle } from './planner-types.ts';
 import { pureType, type Plan, type PlanColumn } from '../../engine-client/src/relation-type.ts';
 import { planParams } from '../../engine-client/src/plan-params.ts';
 import { declareSites } from '../../engine-client/src/declared-raises.ts';
@@ -648,8 +648,8 @@ export class LitePlanner implements Planner, TableModels, ModelWriter {
   }
 
   /** A query as Pure text (the boundary's printLambda: lite's own printer; H2). */
-  async compose(query: Lambda, style: PrintStyle = 'PRETTY'): Promise<string> {
-    const printed = decode(await this.#call({ kind: 'queryPrint', request: `{"query":${toJson(query)},"style":"${style === 'PRETTY' ? 'pretty' : 'standard'}"}` }), query);
+  async compose(query: Lambda, style: PrintStyle = 'pretty'): Promise<string> {
+    const printed = decode(await this.#call({ kind: 'queryPrint', request: `{"query":${toJson(query)},"style":"${style}"}` }), query);
     return (JSON.parse(printed) as { text: string }).text;
   }
 
@@ -671,7 +671,7 @@ export class LitePlanner implements Planner, TableModels, ModelWriter {
   }
 
   /** A query printed for a person to read (the Planner's `print`): PRETTY unless asked. */
-  print(query: Lambda, style: PrintStyle = 'PRETTY'): Promise<string> {
+  print(query: Lambda, style: PrintStyle = 'pretty'): Promise<string> {
     return this.compose(query, style);
   }
 

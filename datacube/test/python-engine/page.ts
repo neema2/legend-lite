@@ -407,7 +407,7 @@ async function run(): Promise<void> {
     const text = '|#>{trades::DB.trades}#->filter(x|$x.qty > 5)->groupBy(~[desk], ~[q: x|$x.qty : y|$y->sum()])';
     const parsed = await remote.parse(text);
     deepEqual(parsed, await tab.parse(text), 'the parse:');
-    equal(await remote.print(parsed, 'STANDARD'), await tab.print(parsed, 'STANDARD'), 'the print:');
+    equal(await remote.print(parsed, 'standard'), await tab.print(parsed, 'standard'), 'the print:');
   });
 
   await check('upstream\'s own Arrow answer reads the same way (legend-engine 4.145.0, recorded)', async () => {

@@ -50,7 +50,7 @@ export async function source(text: string): Promise<ValueSpecification> {
 
 /** A query as one line of Pure, as lite prints it. */
 export function print(query: Lambda): Promise<string> {
-  return grammar.compose(query, 'STANDARD');
+  return grammar.compose(query, 'standard');
 }
 
 /** A level's query, printed. */

@@ -1401,7 +1401,7 @@ export async function gridView(spec: GridSpec): Promise<string> {
     const controller = controllerOf(o);
     const view = await controller.run({ snapshot: state.snapshot, tree: state.tree });
     if (view === STALE) throw new Error('the grid was asked again before its view was ready');
-    return viewJson(view, state.configuration, await planner.compose(view.query, 'STANDARD'));
+    return viewJson(view, state.configuration, await planner.compose(view.query, 'standard'));
   });
 }
 
@@ -1553,7 +1553,7 @@ export async function gridRelation(spec: GridSpec): Promise<string> {
   // plans it as it is
   return using(spec, async ({ planner, lens, state }) => {
     const rows = classLambda(state.snapshot);
-    return planner.compose(planner.sent(lens ? lens(rows) : rows), 'STANDARD');
+    return planner.compose(planner.sent(lens ? lens(rows) : rows), 'standard');
   });
 }
 

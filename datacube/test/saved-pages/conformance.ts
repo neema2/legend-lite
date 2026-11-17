@@ -1,5 +1,6 @@
 // ONE SUITE, every store of DataCube's saved pages (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md B6): upstream's
-// `/api/pure/v1/query/dataCube` asked over raw HTTP -- the statuses and the refusals word for word, the record's fields
+// lite's `/api/lite/v1/queries/dataCube` (lite API v1 §2, H6 2026-11-17: until then legend-engine's
+// `/api/pure/v1/query/dataCube`) asked over raw HTTP -- the statuses and the refusals word for word, the record's fields
 // -- and through the one client (src/cube-store.ts `CubeStoreClient`). It runs on the page's own store (page.test.ts:
 // legend-lite's rules compiled to WebAssembly), on legend-lite's server (server.test.ts) and on Python's
 // (../python-engine/saved-pages.test.ts: the native library's), so no two can answer differently without one failing.
@@ -32,7 +33,7 @@ export function conformance(name: string, target: () => Target): void {
     const store = (): CubeStoreClient => new CubeStoreClient(target().api, target().fetch, target().user);
     const raw = async (method: string, path: string, body?: string): Promise<{ status: number; json: unknown; text: string }> => {
       const t = target();
-      const r = await t.fetch(`${t.api}/pure/v1/query/dataCube${path}`, {
+      const r = await t.fetch(`${t.api}/lite/v1/queries/dataCube${path}`, {
         method, ...(body === undefined ? {} : { headers: { 'Content-Type': 'application/json' }, body }),
       });
       const text = await r.text();
@@ -64,21 +65,21 @@ export function conformance(name: string, target: () => Target): void {
       assert.ok((opened.lastOpenAt ?? 0) > (made.lastOpenAt ?? 0));
       assert.deepEqual(opened.content, fromJson('{"kind":"datacube.page","n":1}'), 'its content read exactly');
       assert.equal(typeof opened.lastOpenAt, 'number', 'its times plain numbers');
-      await assert.rejects(store().get(id('nope')), refused(404, `Can't find query with ID '${id('nope')}'`));
+      await assert.rejects(store().get(id('nope')), refused(404, `no saved query has the ID '${id('nope')}'`));
     });
 
     it('updates and deletes the owner\'s page, and never changes an id', async () => {
       const made = await store().create(page('u', 'Alpha'));
       await assert.rejects(store().update(id('u'), page('v', 'Moved')), refused(400, 'Updating query ID is not supported'));
-      await assert.rejects(store().update(id('none'), page('none', 'N')), refused(404, `Can't find query with ID '${id('none')}'`));
+      await assert.rejects(store().update(id('none'), page('none', 'N')), refused(404, `no saved query has the ID '${id('none')}'`));
       await new Promise((r) => setTimeout(r, 5));
       const updated = await store().update(id('u'), page('u', 'Alpha 2'));
       assert.equal(updated.name, 'Alpha 2');
       assert.equal(updated.createdAt, made.createdAt, 'its creation kept');
       assert.ok((updated.lastUpdatedAt ?? 0) > (made.lastUpdatedAt ?? 0));
       await store().delete(id('u'));
-      await assert.rejects(store().get(id('u')), refused(404, /Can't find/));
-      await assert.rejects(store().delete(id('u')), refused(404, /Can't find/));
+      await assert.rejects(store().get(id('u')), refused(404, /no saved query has the ID/));
+      await assert.rejects(store().delete(id('u')), refused(404, /no saved query has the ID/));
     });
 
     it("searches upstream's way: light records, the chosen sort (newest first), the limit, a term", async () => {
@@ -116,22 +117,23 @@ export function conformance(name: string, target: () => Target): void {
       assert.equal(r.status, 400, r.text);
     });
 
-    it('answers a body of the wrong shape with the engine 500, naming it, and an unknown path 404', async () => {
+    it('answers a body of the wrong shape with lite\'s internal refusal, naming it, and an unknown path 404', async () => {
       const wrong = async (body: string, message: string): Promise<void> => {
         const r = await raw('POST', '/search', body);
         assert.equal(r.status, 500, r.text);
-        assert.deepEqual(r.json, { code: -1, message, status: 'error' });
+        assert.deepEqual(r.json, { kind: 'internal', message });
       };
       await wrong('{"limit":"ten"}', 'IllegalArgumentException: QuerySearchSpecification.limit is not a number');
       await wrong('{"searchTermSpecification":{"searchTerm":"x","includeOwner":"yes"}}',
         'IllegalArgumentException: QuerySearchTermSpecification.includeOwner is not a boolean');
       const noTerm = await raw('POST', '/search', '{"searchTermSpecification":{}}');
       assert.equal(noTerm.status, 500);
-      assert.equal((noTerm.json as { message?: string }).message, 'Query search spec expecting a search term');
+      assert.deepEqual(noTerm.json, { kind: 'internal', message: 'Query search spec expecting a search term' });
       const unknown = await raw('GET', `/${id('a')}/nothing`);
       assert.equal(unknown.status, 404);
+      assert.equal((unknown.json as { kind?: string }).kind, 'request');
       assert.equal((unknown.json as { message?: string }).message,
-        `no such legend-engine API in legend-lite: /api/pure/v1/query/dataCube/${id('a')}/nothing`);
+        `no such legend-lite API: /api/lite/v1/queries/dataCube/${id('a')}/nothing`);
     });
   });
 }

@@ -8,8 +8,8 @@
 // nothing of its own (the made-up `/engine/plan` this replaced was deleted,
 // 2026-09-27).
 
-import type { Planner } from './planner-types.ts';
-import { PureV1Planning, type PrintStyle, type PureV1Options } from '../../engine-client/src/pure-v1-planning.ts';
+import type { Planner, PrintStyle } from './planner-types.ts';
+import { PureV1Planning, type PureV1Options } from '../../engine-client/src/pure-v1-planning.ts';
 import { relationColumns, tdsColumns, type Plan, type PlanColumn } from '../../engine-client/src/relation-type.ts';
 import { toJson, type Lambda } from '../../pure-protocol/src/index.ts';
 import type { GridSource } from './model-writer.ts';
@@ -194,8 +194,9 @@ export class UpstreamPlanner implements Planner {
   }
 
   /** E4: a query as Pure text, for a person to read. */
-  print(query: Lambda, style: PrintStyle = 'PRETTY', signal?: AbortSignal): Promise<string> {
-    return this.#client.print(query, style, signal);
+  print(query: Lambda, style: PrintStyle = 'pretty', signal?: AbortSignal): Promise<string> {
+    // legend-engine's renderStyle spells lite's styles in its own case (its client's PrintStyle)
+    return this.#client.print(query, style === 'pretty' ? 'PRETTY' : 'STANDARD', signal);
   }
 
   /** Cached plan count, for tests and diagnostics. */
