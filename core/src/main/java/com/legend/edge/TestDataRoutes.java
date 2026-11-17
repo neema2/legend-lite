@@ -8,7 +8,7 @@ import com.legend.json.Json;
 import com.legend.protocol.ProtocolReader;
 import com.legend.protocol.spec.LambdaFunction;
 import com.legend.server.ModelInput;
-import com.legend.server.PureV1Api;
+import com.legend.server.LiteV1Api;
 import com.legend.sql.SqlQuery;
 import com.legend.testdatagen.TestDataCensus;
 import com.legend.testdatagen.TestDataGenerator;
@@ -25,7 +25,7 @@ import java.util.Map;
  * ({@code TestDataGenerationAPI} under {@code pure/v1/execution}, and the census's {@code TestDataGeneration} under
  * {@code pure/v1/testData/generation}), each read only. A route that reads the database composes ONE planning call --
  * the generator's statement ({@link TestDataPlanner}), the database building the answer's text in its one cell -- and
- * ONE run, the host's door ({@link PureV1Api.Runner}: the server's {@code Execution.runOnProjectDatabases}); the census
+ * ONE run, the host's door ({@link LiteV1Api.Runner}: the server's {@code Execution.runOnProjectDatabases}); the census
  * is a model fact, answered at planning with no run.
  * <ul>
  *   <li>{@code generateSeedData}: the seed's chosen keys of the query's starting table, as upstream's JSON
@@ -49,9 +49,9 @@ final class TestDataRoutes {
     }
 
     /** {@code pure/v1/execution/testDataGeneration/generateSeedData}: the seed's keys as upstream's JSON. */
-    static PureV1Api.Answer seedData(String body, PureV1Api.Runner runner, PureV1Api.Models models) {
+    static LiteV1Api.Answer seedData(String body, LiteV1Api.Runner runner, LiteV1Api.Models models) {
         return answer(500, "COMPILATION", () -> {
-            Request r = Request.of(PureV1Api.request(body));
+            Request r = Request.of(LiteV1Api.request(body));
             // doored first, before the seed scans the query's relations (the final audit of 9af16fbe58's J8)
             return ModelInput.of(r.json().getObj("model")).with(models, ctx -> run(doored(ctx, r),
                     TestDataPlanner.seedJson(ctx, seed(ctx, r, true), TestDataRoutes::upstreamKeyText), r.runtime(), runner));
@@ -60,20 +60,20 @@ final class TestDataRoutes {
 
     /** {@code pure/v1/execution/testDataGeneration/generateTestData_WithSeed}: the test data from the given
      *  identifiers. */
-    static PureV1Api.Answer withSeed(String body, PureV1Api.Runner runner, PureV1Api.Models models) {
+    static LiteV1Api.Answer withSeed(String body, LiteV1Api.Runner runner, LiteV1Api.Models models) {
         return testData(body, runner, models, false);
     }
 
     /** {@code pure/v1/execution/testDataGeneration/generateTestData_WithDefaultSeed}: the test data from the default
      *  seed. */
-    static PureV1Api.Answer withDefaultSeed(String body, PureV1Api.Runner runner, PureV1Api.Models models) {
+    static LiteV1Api.Answer withDefaultSeed(String body, LiteV1Api.Runner runner, LiteV1Api.Models models) {
         return testData(body, runner, models, true);
     }
 
-    private static PureV1Api.Answer testData(String body, PureV1Api.Runner runner, PureV1Api.Models models,
+    private static LiteV1Api.Answer testData(String body, LiteV1Api.Runner runner, LiteV1Api.Models models,
             boolean defaultSeed) {
-        PureV1Api.Answer a = answer(500, "COMPILATION", () -> {
-            Request r = Request.of(PureV1Api.request(body));
+        LiteV1Api.Answer a = answer(500, "COMPILATION", () -> {
+            Request r = Request.of(LiteV1Api.request(body));
             return ModelInput.of(r.json().getObj("model")).with(models, ctx -> {
                 // every route doored first, before its query's relations are scanned (ScanRelations.relTree: a raw
                 // read's query with no root, or several, was answered by the scan's words until the final audit of
@@ -88,7 +88,7 @@ final class TestDataRoutes {
                 return run(ctx, planned.csv(), r.runtime(), runner);
             });
         });
-        return a.status() == 200 ? new PureV1Api.Answer(200, a.json(), "text/plain") : a;
+        return a.status() == 200 ? new LiteV1Api.Answer(200, a.json(), "text/plain") : a;
     }
 
     /** A timestamp key as upstream's seed route writes it ({@code ValueTransformer}, SeedDataGeneration.java:192:
@@ -108,17 +108,17 @@ final class TestDataRoutes {
     /** A route's root no identifier names ({@link TestDataPlanner.Unseeded}, raised at planning): upstream's error
      *  node's answer, its message, {@code Example:\n} and the table's identifiers -- none -- as the 500's text
      *  ({@code TestDataGeneration.manageTestDataResult}, :230-262). {@link #answer} answers it so. */
-    static PureV1Api.Answer unseeded(TestDataPlanner.Unseeded e) {
+    static LiteV1Api.Answer unseeded(TestDataPlanner.Unseeded e) {
         return answerOf(e);
     }
 
-    /** The product's answer of {@code call} ({@link PureV1Api#answer}), a root no identifier names answered as upstream
+    /** The product's answer of {@code call} ({@link LiteV1Api#answer}), a root no identifier names answered as upstream
      *  answers it ({@link #unseeded}): the edge's wrapping, so the product's answer knows nothing of upstream's error
-     *  node (D1.0b, 2026-11-12; until then {@code PureV1Api.answer} called this class). */
-    static PureV1Api.Answer answer(int status, @com.legend.base.Nullable String errorType,
+     *  node (D1.0b, 2026-11-12; until then {@code LiteV1Api.answer} called this class). */
+    static LiteV1Api.Answer answer(int status, @com.legend.base.Nullable String errorType,
             java.util.function.Supplier<String> call) {
         TestDataPlanner.Unseeded[] unseeded = {null};
-        PureV1Api.Answer a = PureV1Api.answer(status, errorType, () -> {
+        LiteV1Api.Answer a = LiteV1Api.answer(status, errorType, () -> {
             try {
                 return call.get();
             } catch (TestDataPlanner.Unseeded e) {
@@ -129,17 +129,17 @@ final class TestDataRoutes {
         return unseeded[0] != null ? unseeded(unseeded[0]) : a;
     }
 
-    private static PureV1Api.Answer answerOf(TestDataPlanner.Unseeded e) {
-        return new PureV1Api.Answer(500, e.getMessage() + "Example:\n" + Json.toCompact(identifiersOf(e)),
+    private static LiteV1Api.Answer answerOf(TestDataPlanner.Unseeded e) {
+        return new LiteV1Api.Answer(500, e.getMessage() + "Example:\n" + Json.toCompact(identifiersOf(e)),
                 "text/plain");
     }
 
     /** {@code pure/v1/testData/generation/DONOTUSE_generateTestData}: the census, upstream's embedded data
      *  ({@code TestDataGenerationService.generateEmbeddedData}) -- {@code {"data":[{"_type":"relationalCSVData",
      *  "tables":[{"schema":..,"table":..,"values":..},...]}]}}, a model fact: nothing runs. */
-    static PureV1Api.Answer census(String body, PureV1Api.Models models) {
+    static LiteV1Api.Answer census(String body, LiteV1Api.Models models) {
         return answer(400, "COMPILATION", () -> {
-            Json.Obj request = PureV1Api.request(body);
+            Json.Obj request = LiteV1Api.request(body);
             LambdaFunction query = resolved(request.getObj("query"));
             String mapping = request.getString("mapping");
             return ModelInput.of(request.getObj("model")).with(models, ctx -> {
@@ -164,12 +164,12 @@ final class TestDataRoutes {
 
     /** A route's {@code ExecuteInput}: its query, its {@code parameterValues} bound by name as upstream binds them
      *  (TestDataGenerationAPI.java:84-90, :121-128, :161-168) -- as {@code execute} binds them
-     *  ({@link PureV1Api#boundParameters}: a parameter with no value refused with upstream's words, a value for no
+     *  ({@link ExecuteInputs#boundParameters}: a parameter with no value refused with upstream's words, a value for no
      *  parameter ignored; the seed route's own {@code parameters} field read by nothing, as upstream's), its mapping and
      *  its runtime (a runtime named; one given inline refused by name). */
     record Request(Json.Obj json, LambdaFunction query, String mapping, String runtime) {
         static Request of(Json.Obj json) {
-            LambdaFunction query = resolved(PureV1Api.boundParameters(json.getObj("function"),
+            LambdaFunction query = resolved(ExecuteInputs.boundParameters(json.getObj("function"),
                     json.getArrOr("parameterValues", null)));
             Json.Obj rt = json.getObj("runtime");
             if (!rt.has("runtime")) {
@@ -264,7 +264,7 @@ final class TestDataRoutes {
 
     /** {@code statement}'s one cell, the database's text: the statement a value the query answers, planned and run by
      *  the host's door, its one cell written as it is. */
-    private static String run(ModelContext ctx, SqlQuery statement, String runtime, PureV1Api.Runner runner) {
+    private static String run(ModelContext ctx, SqlQuery statement, String runtime, LiteV1Api.Runner runner) {
         com.legend.TypedQuery shape = com.legend.Compiler.query(ctx, "|''");
         com.legend.TypedQuery query = shape.withBody(List.of(com.legend.compiler.spec.GeneratorSplice.plannedValue(
                 statement, shape.body().get(0).info())));

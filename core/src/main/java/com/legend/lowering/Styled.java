@@ -15,10 +15,17 @@ import java.util.function.Supplier;
  *
  * @param pureOnly  the texts only legend-pure writes ({@link PureOnlyTexts}): the edge's answers, the product's style
  *                  throwing the call's refusal
+ * @param plain     the raises the style writes as the plain operation ({@code PlanStyle.plainRaises}, B7, 2026-11-17):
+ *                  the product's none; the edge's pure/v1 style legend-engine's census class A
  * @param dateTimes a DateTime's text in a message, a two-form hook ({@link DateTimeTexts}, census B9, 2026-11-17): the
  *                  product's lite text, the edge's legend-pure's
  */
-public record Styled(Function<Supplier<? extends RuntimeException>, PureOnlyTexts> pureOnly, DateTimeTexts dateTimes) {
+public record Styled(Function<Supplier<? extends RuntimeException>, PureOnlyTexts> pureOnly,
+        java.util.Set<com.legend.sql.RaiseKind> plain, DateTimeTexts dateTimes) {
+
+    public Styled {
+        plain = plain.isEmpty() ? java.util.Set.of() : java.util.Collections.unmodifiableSet(java.util.EnumSet.copyOf(plain));
+    }
 
     /** The product's form of a DateTime's text: lite's canonical text, {@code DATETIME_TO_TEXT}, the value alone (a
      *  literal's written text is carried as the node's second operand, which the product never reads). */
@@ -27,9 +34,9 @@ public record Styled(Function<Supplier<? extends RuntimeException>, PureOnlyText
             : com.legend.sql.SqlExpr.Call.of(com.legend.sql.SqlFn.DATETIME_TO_TEXT, x,
                     new com.legend.sql.SqlExpr.StringLit(written));
 
-    /** The product's own style: each text only legend-pure writes refused, by its call's own refusal; lite's text of a
-     *  DateTime. */
+    /** The product's own style: each text only legend-pure writes refused, by its call's own refusal; every check of
+     *  lite's written (no plain raise, {@code PlanStyle.plainRaises}); lite's text of a DateTime. */
     public static final Styled PRODUCT = new Styled(refusal -> {
         throw refusal.get();
-    }, LITE_DATE_TIMES);
+    }, java.util.Set.of(), LITE_DATE_TIMES);
 }

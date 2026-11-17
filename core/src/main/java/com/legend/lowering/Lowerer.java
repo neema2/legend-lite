@@ -276,20 +276,27 @@ public final class Lowerer {
     private java.util.function.Function<java.util.function.Supplier<? extends RuntimeException>, PureOnlyTexts>
             pureOnlyTexts = Styled.PRODUCT.pureOnly();
 
+    /** THE RAISES THE PLAN STYLE WRITES PLAIN ({@code PlanStyle.plainRaises}, B7, 2026-11-17): a check of a kind here
+     *  is the operation alone, the database's own error passing through (the edge's pure/v1 style, legend-engine's
+     *  census class A). The product's style answers none, and a Lowerer no planner handed a style writes the product's
+     *  checks, every one ({@link Styled#PRODUCT}). */
+    private java.util.Set<com.legend.sql.RaiseKind> plainRaises = Styled.PRODUCT.plain();
+
     /** A DateTime's text in a message, the style's two-form answer ({@link DateTimeTexts}): lite's own unless the
      *  planner handed another style. */
     private DateTimeTexts dateTimes = Styled.LITE_DATE_TIMES;
 
-    /** The planner's style's text facets ({@code PlanEnv.styled}). */
+    /** The planner's style's text facets and plain raises ({@code PlanEnv.styled}). */
     public Lowerer withStyled(Styled style) {
         this.pureOnlyTexts = style.pureOnly();
+        this.plainRaises = style.plain();
         this.dateTimes = style.dateTimes();
         return this;
     }
 
     /** The style's text facets a native's rule reads ({@link Styled}). */
     private Styled styled() {
-        return new Styled(pureOnlyTexts, dateTimes);
+        return new Styled(pureOnlyTexts, plainRaises, dateTimes);
     }
 
     /** legend-engine's result envelope ({@link ResultEnvelopes}, Phase 6's B5, 2026-11-17): the plan style's facet,
@@ -1840,7 +1847,7 @@ public final class Lowerer {
                     new TypedLambda(a.reduce().parameters(),
                             List.of(rc.source()), a.reduce().info()),
                     a.order()));
-            return CastPolicy.castByPolicy(inner, rc.source().info().type(), rc.target(), rc.wire());
+            return CastPolicy.castByPolicy(inner, rc.source().info().type(), rc.target(), rc.wire(), plainRaises);
         }
         // A CONDITION OVER REDUCERS (y|if($y->count() < 21, |[], |$y->average()): a figure given once its window holds
         // enough values, the DataCube timeseries library's ramp, 2026-10-26) -- each reducer the aggregate it is
@@ -1991,7 +1998,7 @@ public final class Lowerer {
         SqlExpr value = scalar(mapBody, (v, name) -> resolveOrThrow(base, name));
         if (valueCast != null) {
             value = CastPolicy.castByPolicy(value,
-                    valueCast.source().info().type(), valueCast.target(), valueCast.wire());
+                    valueCast.source().info().type(), valueCast.target(), valueCast.wire(), plainRaises);
         }
         // isDistinct over a group: COUNT(DISTINCT x) = COUNT(x) (engine testGroupByIsDistinct)
         if (fn == SqlAgg.Fn.IS_DISTINCT_MARK) {
@@ -4192,7 +4199,7 @@ public final class Lowerer {
                             PureSql.asList(scalar(s.source(), columns),
                                     !CollectionLanes.c1Literal(s.source())),
                             scalar(s.start(), columns),
-                            scalar(s.stop(), columns));
+                            scalar(s.stop(), columns), plainRaises);
             // drop(n): the suffix from n+1; negative n drops nothing (PCT).
             case TypedDrop d when !Type.relationValued(d.source().info()) -> {
                 SqlExpr src = PureSql.asList(scalar(d.source(), columns),
@@ -4580,7 +4587,7 @@ public final class Lowerer {
 
     /** The cast policy over an ALREADY-LOWERED source (CastPolicy owns every arm). */
     private SqlExpr cast(TypedCast c, SqlExpr value) {
-        return CastPolicy.lower(c, value, Stamps.isMany(c), shape.elideWireCasts());
+        return CastPolicy.lower(c, value, Stamps.isMany(c), shape.elideWireCasts(), plainRaises);
     }
 
     /**

@@ -23,21 +23,21 @@ public final class ConnectionResolver {
     // session that closes its connection (before leases nobody closed them: 25 calls, 25 file descriptors, measured
     // by ConnectionLeaseTest). The contract is the same -- callers always close -- and the seam's session carries it.
 
-    /** Upstream {@code pure/v1/execution/execute} (E8), the {@link PureV1Api.Runner} the server hands the API (D67,
+    /** Upstream {@code pure/v1/execution/execute} (E8), the {@link LiteV1Api.Runner} the server hands the API (D67,
      *  2026-10-30; {@code QueryService.executeUpstream} until then, that class's one production caller): the product
      *  door, planning the query and running it as the server runs one -- a read on its project's database, leased and
      *  established first as legend-engine establishes it on every acquisition; a program that writes on the plan's own
      *  sessions (docs/WRITES_DESIGN_2026_10_18.md §8, leg 7). A database failure is a {@link com.legend.error.DataError}.
      *  (Slice 5, 2026-11-09: the server's session source is exec's, {@code PlanSessions.PROJECT_DATABASES}; the tests'
      *  session for a runtime of a compiled model is the tests' {@code ServerSessions}.) */
-    public static final PureV1Api.Runner RUNNER = com.legend.Execution::runOnProjectDatabases;
+    public static final LiteV1Api.Runner RUNNER = com.legend.Execution::runOnProjectDatabases;
 
     /** The product door, its live sources read under the fence {@code admittedSources} names
      *  ({@code SourceAdmission.configured}'s text: {@code any}; {@code none}; or the directories it lists, separated by
      *  the platform's path separator). The server builds its own from its startup settings, which fence it to no
      *  folder when they name none ({@code LegendHttpServer.sources}; the user's ruling of 2026-11-10); {@link #RUNNER},
      *  the library's door, reads any file (the default, as ruled). */
-    public static PureV1Api.Runner runner(@com.legend.base.Nullable String admittedSources) {
+    public static LiteV1Api.Runner runner(@com.legend.base.Nullable String admittedSources) {
         return (query, runtime, output) -> com.legend.Execution.runOnProjectDatabases(query, runtime, admittedSources,
                 output);
     }

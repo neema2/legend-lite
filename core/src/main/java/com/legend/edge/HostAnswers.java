@@ -7,23 +7,23 @@ import com.legend.json.Json;
 import com.legend.plan.QueryPlan;
 import com.legend.protocol.ProtocolReader;
 import com.legend.protocol.spec.LambdaFunction;
-import com.legend.server.PureV1Api.Answer;
+import com.legend.server.LiteV1Api.Answer;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-import static com.legend.server.PureV1Api.boundParameters;
-import static com.legend.server.PureV1Api.error;
-import static com.legend.server.PureV1Api.head;
-import static com.legend.server.PureV1Api.modelText;
-import static com.legend.server.PureV1Api.request;
-import static com.legend.server.PureV1Api.runtimeOf;
+import static com.legend.edge.ExecuteInputs.boundParameters;
+import static com.legend.server.LiteV1Api.error;
+import static com.legend.server.LiteV1Api.head;
+import static com.legend.server.LiteV1Api.modelText;
+import static com.legend.server.LiteV1Api.request;
+import static com.legend.server.LiteV1Api.runtimeOf;
 
 /**
  * LEGEND-ENGINE'S EXECUTE, ITS PLAN AND ANSWER HALVES FOR A HOST (W8 of docs/records/d-plan-2026-11-16.md, D1.8,
- * 2026-11-16; D-1's host halves, moved from {@code server.PureV1Api}): the plan half a host's runner runs
+ * 2026-11-16; D-1's host halves, moved from {@code server.LiteV1Api}): the plan half a host's runner runs
  * ({@link #arrowPlan}, {@link #jsonPlan}) and the answer it writes from the host's rows ({@link #arrowAnswer},
  * {@link #jsonAnswer}), in legend-engine's forms -- the compatibility edge's, as {@link PureV1Writer} is. The tab and
  * Python reach them through the boundary ({@code wasm/planner/Boundary}).
@@ -31,10 +31,10 @@ import static com.legend.server.PureV1Api.runtimeOf;
 public final class HostAnswers {
 
     /** pure/v1's answer of a host half, its errors in upstream's words and type names (the P2 checkpoint audit's M3 and
-     *  A-M2, 2026-11-16: until then lite's, PureV1Api.answer's default). */
-    private static com.legend.server.PureV1Api.Answer answer(int status, @com.legend.base.Nullable String errorType,
+     *  A-M2, 2026-11-16: until then lite's, LiteV1Api.answer's default). */
+    private static com.legend.server.LiteV1Api.Answer answer(int status, @com.legend.base.Nullable String errorType,
             java.util.function.Supplier<String> call) {
-        return com.legend.server.PureV1Api.answer(status, errorType, call, PureMessages::compile, PureMessages::typeName,
+        return com.legend.server.LiteV1Api.answer(status, errorType, call, PureMessages::compile, PureMessages::typeName,
                 PureMessages::uncaught);
     }
 
@@ -372,7 +372,7 @@ public final class HostAnswers {
         return new Hosted(query, runtimeOf(request, query));
     }
 
-    /** The TDS builder (moved from server.PureV1Api, the P2 checkpoint audit's S5, 2026-11-16: legend-engine's
+    /** The TDS builder (moved from server.LiteV1Api, the P2 checkpoint audit's S5, 2026-11-16: legend-engine's
      *  {@code tdsBuilder}, the edge's alone): each column's name, Pure type and relational spelling. */
     private static Map<String, Object> tdsBuilder(QueryPlan plan) {
         List<Map<String, Object>> columns = new ArrayList<>();

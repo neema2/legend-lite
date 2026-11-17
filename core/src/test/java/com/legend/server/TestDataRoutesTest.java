@@ -15,7 +15,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * The test-data generator's product doors (B2d.3e, 2026-11-12; {@link TestDataRoutes}): legend-engine's four routes on
- * a DuckDB file, each through {@link PureV1Api#route} as the server routes it, its run the server's door
+ * a DuckDB file, each through {@link LiteV1Api#route} as the server routes it, its run the server's door
  * ({@link ConnectionResolver#RUNNER}).
  */
 class TestDataRoutesTest {
@@ -95,7 +95,7 @@ class TestDataRoutesTest {
                 + "\"context\":{\"_type\":\"BaseExecutionContext\"}" + more + "}";
     }
 
-    private static PureV1Api.Answer route(String path, String body) {
+    private static LiteV1Api.Answer route(String path, String body) {
         return com.legend.edge.PureV1Routes.route("/api/pure/v1/" + path, null, body, ConnectionResolver.RUNNER);
     }
 
@@ -114,7 +114,7 @@ class TestDataRoutesTest {
                 + "\"value\":1}]}]}]";
         for (String[] r : new String[][] {{"generateTestData_WithSeed", ids}, {"generateTestData_WithDefaultSeed", ""},
                 {"generateSeedData", ""}}) {
-            PureV1Api.Answer a = route("execution/testDataGeneration/" + r[0], input(raw, r[1]));
+            LiteV1Api.Answer a = route("execution/testDataGeneration/" + r[0], input(raw, r[1]));
             assertTrue(a.status() != 200, r[0] + ": " + a.json());
             assertTrue(a.json().contains("an executeInDb\\u0027s SQL in a query: a statement\\u0027s own SQL text is the"
                     + " test road\\u0027s") || a.json().contains("an executeInDb's SQL in a query: a statement's own SQL"
@@ -134,7 +134,7 @@ class TestDataRoutesTest {
                 + "model::Firm.all()->project([f|$f.legalName], ['name']));}";
         for (String q : java.util.List.of(noRoot, twoRoots)) {
             for (String r : java.util.List.of("generateTestData_WithDefaultSeed", "generateSeedData")) {
-                PureV1Api.Answer a = route("execution/testDataGeneration/" + r, input(q, ""));
+                LiteV1Api.Answer a = route("execution/testDataGeneration/" + r, input(q, ""));
                 assertTrue(a.status() != 200, r + ": " + a.json());
                 assertTrue(a.json().contains("an executeInDb\\u0027s SQL in a query") || a.json().contains(
                         "an executeInDb's SQL in a query"), r + ": " + a.json());
@@ -146,7 +146,7 @@ class TestDataRoutesTest {
      *  PERSON), as text. */
     @Test
     void withSeedAnswersTheTestDataInTheRoutesOrder() {
-        PureV1Api.Answer a = route("execution/testDataGeneration/generateTestData_WithSeed", input(QUERY,
+        LiteV1Api.Answer a = route("execution/testDataGeneration/generateTestData_WithSeed", input(QUERY,
                 ",\"tableRowIdentifiers\":[{\"table\":{\"_type\":\"table\",\"table\":\"PERSON\",\"schema\":\"default\","
                         + "\"database\":\"store::DB\"},\"rowIdentifiers\":[{\"columnValuePairs\":[{\"name\":\"ID\","
                         + "\"value\":1}]},{\"columnValuePairs\":[{\"name\":\"ID\",\"value\":2}]}]}]"));
@@ -160,13 +160,13 @@ class TestDataRoutesTest {
      *  starts it from every row, as upstream's empty filter does. */
     @Test
     void withDefaultSeedStartsFromTheQuerysKeys() {
-        PureV1Api.Answer a = route("execution/testDataGeneration/generateTestData_WithDefaultSeed",
+        LiteV1Api.Answer a = route("execution/testDataGeneration/generateTestData_WithDefaultSeed",
                 input("|model::Person.all()->filter(p|$p.name != 'Bob')->project([p|$p.name, p|$p.firm.legalName],"
                         + " ['name', 'firm'])", ""));
         assertEquals(200, a.status(), a.json());
         assertEquals("default\nFIRM\nID,LEGAL_NAME\n10,Acme\n-----\n"
                 + "default\nPERSON\nFIRM_ID,ID,NAME\n10,1,Ann\n10,3,Cy\n---null---,4,Di\n-----\n", a.json());
-        PureV1Api.Answer none = route("execution/testDataGeneration/generateTestData_WithDefaultSeed",
+        LiteV1Api.Answer none = route("execution/testDataGeneration/generateTestData_WithDefaultSeed",
                 input("|model::Person.all()->filter(p|$p.name == 'Zed')->project([p|$p.name, p|$p.firm.legalName],"
                         + " ['name', 'firm'])", ""));
         assertEquals(200, none.status(), none.json());
@@ -178,7 +178,7 @@ class TestDataRoutesTest {
     /** No identifiers for the root: upstream's error node's answer, its message and its example (no keys: S300). */
     @Test
     void withSeedAndNoIdentifiersIsUpstreamsErrorNode() {
-        PureV1Api.Answer a = route("execution/testDataGeneration/generateTestData_WithSeed", input(QUERY, ""));
+        LiteV1Api.Answer a = route("execution/testDataGeneration/generateTestData_WithSeed", input(QUERY, ""));
         assertEquals(500, a.status(), a.json());
         assertEquals("text/plain", a.contentType());
         assertEquals("Row Identifers should be provided for the root table: store::DB.PERSON [ID:INT]\nExample:\n"
@@ -189,7 +189,7 @@ class TestDataRoutesTest {
     /** The seed's keys as upstream's JSON, built by the database, by key (S198). */
     @Test
     void seedDataIsTheSeedsKeysAsJson() {
-        PureV1Api.Answer a = route("execution/testDataGeneration/generateSeedData",
+        LiteV1Api.Answer a = route("execution/testDataGeneration/generateSeedData",
                 input("|model::Person.all()->filter(p|$p.name != 'Bob')->project([p|$p.name], ['name'])", ""));
         assertEquals(200, a.status(), a.json());
         assertEquals("{\"table\":{\"_type\":\"table\",\"table\":\"PERSON\",\"schema\":\"default\",\"database\":"
@@ -236,10 +236,10 @@ class TestDataRoutesTest {
                 + ",\"model\":" + com.legend.json.Json.toCompact(Map.of("_type", "text", "code", stamps))
                 + ",\"mapping\":\"model::EM\",\"runtime\":{\"_type\":\"runtimePointer\",\"runtime\":\"model::ERT\"},"
                 + "\"context\":{\"_type\":\"BaseExecutionContext\"}}";
-        PureV1Api.Answer data = route("execution/testDataGeneration/generateTestData_WithDefaultSeed", in);
+        LiteV1Api.Answer data = route("execution/testDataGeneration/generateTestData_WithDefaultSeed", in);
         assertEquals(200, data.status(), data.json());
         assertEquals("default\nEVENT\nN,STAMP\n1,2020-01-02 03:04:05\n2,2020-01-03 00:00:00\n-----\n", data.json());
-        PureV1Api.Answer seed = route("execution/testDataGeneration/generateSeedData", in);
+        LiteV1Api.Answer seed = route("execution/testDataGeneration/generateSeedData", in);
         assertEquals(200, seed.status(), seed.json());
         assertEquals("{\"table\":{\"_type\":\"table\",\"table\":\"EVENT\",\"schema\":\"default\",\"database\":"
                 + "\"store::TS\"},\"rowIdentifiers\":[{\"columnValuePairs\":[{\"name\":\"STAMP\",\"value\":"
@@ -287,7 +287,7 @@ class TestDataRoutesTest {
         Seed.sql(days, "CREATE TABLE STAMP (S TIMESTAMP PRIMARY KEY, N INTEGER)", "model::DRT");
         Seed.sql(days, "INSERT INTO STAMP VALUES (TIMESTAMP '2020-01-02 03:04:05.123', 1),"
                 + " (TIMESTAMP '2020-01-03 00:00:00', 2)", "model::DRT");
-        java.util.function.BiFunction<String, String, PureV1Api.Answer> withKey = (table, value) -> route(
+        java.util.function.BiFunction<String, String, LiteV1Api.Answer> withKey = (table, value) -> route(
                 "execution/testDataGeneration/generateTestData_WithSeed", "{\"clientVersion\":\"vX_X_X\",\"function\":"
                 + com.legend.edge.PureV1Routes.grammarToJsonLambda("|model::" + table.charAt(0) + ".all()->project([d|$d.n], ['n'])",
                         false).json()
@@ -297,17 +297,17 @@ class TestDataRoutesTest {
                 + "\"table\",\"table\":\"" + table + "\",\"schema\":\"default\",\"database\":\"store::DAYS\"},"
                 + "\"rowIdentifiers\":[{\"columnValuePairs\":[{\"name\":\"" + (table.equals("DAY") ? "D" : "S")
                 + "\",\"value\":" + com.legend.json.Json.toCompact(value) + "}]}]}]}");
-        PureV1Api.Answer one = withKey.apply("DAY", "2024-01-02");
+        LiteV1Api.Answer one = withKey.apply("DAY", "2024-01-02");
         assertEquals(200, one.status(), one.json());
         assertEquals("default\nDAY\nD,N\n2024-01-02,2\n-----\n", one.json(), "the valid date's row alone");
         for (String value : java.util.List.of("2024-01-01' OR '1'='1", "01/02/2024")) {
-            PureV1Api.Answer refused = withKey.apply("DAY", value);
+            LiteV1Api.Answer refused = withKey.apply("DAY", value);
             assertTrue(refused.status() != 200, value + ": " + refused.json());
             assertTrue(refused.json().contains("testDataGen: the value '" + value.replace("'", "\\u0027")
                     + "' for the column D is no ISO date") || refused.json().contains("testDataGen: the value '"
                     + value + "' for the column D is no ISO date"), value + ": " + refused.json());
         }
-        PureV1Api.Answer stamp = withKey.apply("STAMP", "2020-01-02T03:04:05.123000000+0000");
+        LiteV1Api.Answer stamp = withKey.apply("STAMP", "2020-01-02T03:04:05.123000000+0000");
         assertEquals(200, stamp.status(), stamp.json());
         assertEquals("default\nSTAMP\nN,S\n1,2020-01-02 03:04:05\n-----\n", stamp.json(), "the seed's printed key");
     }
@@ -348,7 +348,7 @@ class TestDataRoutesTest {
         Seed.sql(nanos, "CREATE TABLE STAMP (S TIMESTAMP_NS PRIMARY KEY, N INTEGER)", "model::NRT");
         Seed.sql(nanos, "INSERT INTO STAMP VALUES (TIMESTAMP_NS '2020-01-02 03:04:05.123456789', 1),"
                 + " (TIMESTAMP_NS '2020-01-02 03:04:05.123456', 2)", "model::NRT");
-        PureV1Api.Answer one = route("execution/testDataGeneration/generateTestData_WithSeed",
+        LiteV1Api.Answer one = route("execution/testDataGeneration/generateTestData_WithSeed",
                 "{\"clientVersion\":\"vX_X_X\",\"function\":"
                 + com.legend.edge.PureV1Routes.grammarToJsonLambda("|model::S.all()->project([d|$d.n], ['n'])", false).json()
                 + ",\"model\":" + com.legend.json.Json.toCompact(Map.of("_type", "text", "code", nanos))
@@ -372,7 +372,7 @@ class TestDataRoutesTest {
         String body = "{\"query\":" + com.legend.edge.PureV1Routes.grammarToJsonLambda(q, false).json() + ",\"model\":"
                 + com.legend.json.Json.toCompact(Map.of("_type", "text", "code", model))
                 + ",\"mapping\":\"model::M\",\"runtime\":\"model::RT\"}";
-        PureV1Api.Answer a = com.legend.edge.PureV1Routes.route("/api/pure/v1/testData/generation/DONOTUSE_generateTestData", null, body,
+        LiteV1Api.Answer a = com.legend.edge.PureV1Routes.route("/api/pure/v1/testData/generation/DONOTUSE_generateTestData", null, body,
                 (query, runtime, output) -> {
                     throw new AssertionError("the census runs nothing");
                 });
@@ -387,7 +387,7 @@ class TestDataRoutesTest {
         String body = "{\"query\":" + com.legend.edge.PureV1Routes.grammarToJsonLambda(QUERY, false).json() + ",\"model\":"
                 + com.legend.json.Json.toCompact(Map.of("_type", "text", "code", model))
                 + ",\"mapping\":\"model::M\",\"runtime\":\"model::RT\"}";
-        PureV1Api.Answer a = com.legend.edge.PureV1Routes.route("/api/pure/v1/testData/generation/DONOTUSE_generateTestData", null, body,
+        LiteV1Api.Answer a = com.legend.edge.PureV1Routes.route("/api/pure/v1/testData/generation/DONOTUSE_generateTestData", null, body,
                 (query, runtime, output) -> {
                     throw new AssertionError("the census runs nothing");
                 });
@@ -406,18 +406,18 @@ class TestDataRoutesTest {
         String query = "{name: String[1]|model::Person.all()->filter(p|$p.name != $name)->project([p|$p.name],"
                 + " ['name'])}";
         String bob = ",\"parameterValues\":[{\"name\":\"name\",\"value\":{\"_type\":\"string\",\"value\":\"Bob\"}}]";
-        PureV1Api.Answer seed = route("execution/testDataGeneration/generateSeedData",
+        LiteV1Api.Answer seed = route("execution/testDataGeneration/generateSeedData",
                 input(query, bob + ",\"parameters\":[\"ignored\"]"));
         assertEquals(200, seed.status(), seed.json());
         assertEquals("{\"table\":{\"_type\":\"table\",\"table\":\"PERSON\",\"schema\":\"default\",\"database\":"
                 + "\"store::DB\"},\"rowIdentifiers\":[{\"columnValuePairs\":[{\"name\":\"ID\",\"value\":1}]},"
                 + "{\"columnValuePairs\":[{\"name\":\"ID\",\"value\":3}]},"
                 + "{\"columnValuePairs\":[{\"name\":\"ID\",\"value\":4}]}]}", seed.json());
-        PureV1Api.Answer data = route("execution/testDataGeneration/generateTestData_WithDefaultSeed",
+        LiteV1Api.Answer data = route("execution/testDataGeneration/generateTestData_WithDefaultSeed",
                 input(query, bob));
         assertEquals(200, data.status(), data.json());
         assertEquals("default\nPERSON\nID,NAME\n1,Ann\n3,Cy\n4,Di\n-----\n", data.json());
-        PureV1Api.Answer missing = route("execution/testDataGeneration/generateSeedData", input(query, ""));
+        LiteV1Api.Answer missing = route("execution/testDataGeneration/generateSeedData", input(query, ""));
         assertEquals(500, missing.status(), missing.json());
         assertTrue(missing.json().contains("Missing external parameter(s): name:String[1]"), missing.json());
     }
@@ -428,7 +428,7 @@ class TestDataRoutesTest {
      *  did so; pinned here. */
     @Test
     void aTableEntryWithNoIdentifiersFieldIsNoFilter() {
-        PureV1Api.Answer a = route("execution/testDataGeneration/generateTestData_WithSeed", input(QUERY,
+        LiteV1Api.Answer a = route("execution/testDataGeneration/generateTestData_WithSeed", input(QUERY,
                 ",\"tableRowIdentifiers\":[{\"table\":{\"_type\":\"table\",\"table\":\"PERSON\",\"schema\":\"default\","
                         + "\"database\":\"store::DB\"}}]"));
         assertEquals(200, a.status(), a.json());
@@ -443,13 +443,13 @@ class TestDataRoutesTest {
     @Test
     void theSeedRouteAdmitsAViewRoot() {
         String view = "|model::PersonView.all()->project([p|$p.name], ['name'])";
-        PureV1Api.Answer seed = route("execution/testDataGeneration/generateSeedData", input(view, ""));
+        LiteV1Api.Answer seed = route("execution/testDataGeneration/generateSeedData", input(view, ""));
         assertEquals(200, seed.status(), seed.json());
         assertEquals("{\"table\":{\"_type\":\"table\",\"table\":\"PERSON\",\"schema\":\"default\",\"database\":"
                 + "\"store::DB\"},\"rowIdentifiers\":[{\"columnValuePairs\":[{\"name\":\"ID\",\"value\":1}]},"
                 + "{\"columnValuePairs\":[{\"name\":\"ID\",\"value\":2}]},"
                 + "{\"columnValuePairs\":[{\"name\":\"ID\",\"value\":3}]}]}", seed.json());
-        PureV1Api.Answer data = route("execution/testDataGeneration/generateTestData_WithDefaultSeed", input(view, ""));
+        LiteV1Api.Answer data = route("execution/testDataGeneration/generateTestData_WithDefaultSeed", input(view, ""));
         assertEquals(500, data.status(), data.json());
         assertTrue(data.json().contains("the view 'PERSON_VIEW' in the query's relation tree on the server's route"),
                 data.json());
@@ -461,7 +461,7 @@ class TestDataRoutesTest {
     @Test
     void theSeedReadsThroughTheGivenMapping() {
         String query = "|model::Person.all()->filter(p|$p.name != 'Bob')->project([p|$p.name], ['name'])";
-        PureV1Api.Answer a = route("execution/testDataGeneration/generateSeedData", input(query, "")
+        LiteV1Api.Answer a = route("execution/testDataGeneration/generateSeedData", input(query, "")
                 .replace("\"runtime\":\"model::RT\"", "\"runtime\":\"model::Unmapped\""));
         assertEquals(200, a.status(), a.json());
         assertEquals("{\"table\":{\"_type\":\"table\",\"table\":\"PERSON\",\"schema\":\"default\",\"database\":"
@@ -475,7 +475,7 @@ class TestDataRoutesTest {
     void anInlineRuntimeIsRefusedByName() {
         String body = input(QUERY, "").replace("{\"_type\":\"runtimePointer\",\"runtime\":\"model::RT\"}",
                 "{\"_type\":\"engineRuntime\",\"mappings\":[]}");
-        PureV1Api.Answer a = route("execution/testDataGeneration/generateTestData_WithDefaultSeed", body);
+        LiteV1Api.Answer a = route("execution/testDataGeneration/generateTestData_WithDefaultSeed", body);
         assertEquals(500, a.status(), a.json());
         assertTrue(a.json().contains("a runtime given inline (engineRuntime)"), a.json());
     }

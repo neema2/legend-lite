@@ -22,7 +22,7 @@ import java.util.Map;
  * {@code span} with its count and unit, as the parser marks them; a subscript ({@code close['AAA']}) {@code pick}; an
  * option by name ({@code type => logarithmic}) {@code option}. What an item never is -- a parameter, a subquery, a
  * window clause -- is refused by name, as {@link TsPrinter} refuses it. The server's answer, so written here, beside the
- * route that sends it ({@link PureV1Api#tsItem}), not in the translator's package: a JSON key is no word's parameter.
+ * route that sends it ({@link LiteV1Api#tsItem}), not in the translator's package: a JSON key is no word's parameter.
  */
 public final class TsTree {
 
