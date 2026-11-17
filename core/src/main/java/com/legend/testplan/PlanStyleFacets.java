@@ -43,5 +43,8 @@ public final class PlanStyleFacets {
             com.legend.testdatagen.TestDataPlanner.Printing.class,
             // two numbers of different kinds at planning (census C1, 2026-11-17, register S127): never equal in the
             // product, compiled legend-pure's Integer/Decimal-by-text at the edge
-            CrossKindNumbers.class);
+            CrossKindNumbers.class,
+            // an execute's routing activity (J5 of the edge audit, 2026-11-17): the product records none, the edge
+            // legend-engine's AggregationAwareActivity, the routed query's print
+            com.legend.planner.RoutedQueries.class);
 }

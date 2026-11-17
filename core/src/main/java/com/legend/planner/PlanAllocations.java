@@ -274,8 +274,14 @@ public final class PlanAllocations {
         // program reads the result's activities (no SQL = no rows, as ever)
         env.planRows().put(scope, new LazyRows(
                 () -> activityRows(scope, activitySql(ec, chain, letPrefix, specs, env),
-                        AggAwareActivities.rewrittenQuery(chain, env.ctx(), specs), comment, commentParameter)));
+                        env.style().twoForm(RoutedQueries.class, NO_ROUTING_ACTIVITY).rewrittenQuery(chain, env.ctx(), specs),
+                        comment, commentParameter)));
     }
+
+    /** The product's form of an execute's routing activity (J5 of the edge audit, 2026-11-17): none -- lite's activity
+     *  rows are the statements it runs; legend-engine's AggregationAwareActivity, the routed query's print, is the
+     *  compatibility edge's form ({@link RoutedQueries}). */
+    static final RoutedQueries NO_ROUTING_ACTIVITY = (chain, ctx, specs) -> null;
 
     /** The activity row's comment column (results scope, activity id, scope, index, kind, sql, comment, rewritten). */
     private static final int COMMENT = 5;
