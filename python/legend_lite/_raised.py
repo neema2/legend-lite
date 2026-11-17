@@ -96,6 +96,26 @@ def raised_words(message: str, statement: str) -> str | None:
     return upstream if isinstance(upstream, str) else site['message']
 
 
+def raised_kind(message: str, statement: str) -> str | None:
+    """The kind of the failure ``message`` tells, as Java's runner tells it (exec.RaisedErrors, error.DataError): a
+    site's token its site's kind; lite's envelope with no site (a user's ``fail``) none; no envelope at all, the
+    database's own failure, ``DATABASE_ERROR`` (phase D's Phase 2, item 4, 2026-11-16: its words the database's,
+    verbatim, which :func:`worded` leaves as they are). A token the statement does not declare is refused by name."""
+    first = message.find(RAISE_SENTINEL)
+    last = -1 if first < 0 else message.find(RAISE_SENTINEL, first + 1)
+    if first < 0 or last <= first:
+        return 'DATABASE_ERROR'
+    inner = message[first + 1:last].replace(RAISE_QUOTE_MARK, "'")
+    sep = inner.find(RAISE_POSITION_SEP)
+    if sep >= 0:
+        inner = inner[sep + 1:]
+    token = _TOKEN.fullmatch(inner)
+    if token is None or int(token.group(1)) < 1:
+        return None
+    raised_words(message, statement)   # an undeclared token refused by name, as the words are
+    return _DECLARED[statement][int(token.group(1)) - 1]['kind']
+
+
 def worded(failure: BaseException, statement: str) -> BaseException | None:
     """``failure`` of ``statement`` again, of its type, its words the raise's (``raised_words``) -- or None where it holds
     no raise. The caller raises it outside its ``except``, as ``_reads.redacted``'s copy is, so the envelope's text is not

@@ -1,4 +1,4 @@
-package com.legend.queries.page;
+package com.legend.edge.queries;
 
 import com.legend.json.Json;
 import com.legend.queries.MemoryCubeRecords;
@@ -10,7 +10,9 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * THE SAVED QUERIES IN THE PAGE (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md B5): {@link SavedQueries}' rules compiled to
+ * THE SAVED QUERIES IN THE PAGE (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md B5), AT THE EDGE (the separation census's
+ * A3, 2026-11-17: the page answers upstream's /api/pure/v1/query, so legend-engine's words; the page module is rooted
+ * at the edge, as the server is, the orchestrator's extension of ruling A4): {@link SavedQueries}' rules compiled to
  * WebAssembly, the same rules legend-lite's server and Python's native library answer with. Each call is handed the
  * records the page keeps (its IndexedDB's) and answers what the rules answered with every query it wrote, which the
  * page's adapter ({@code query-store/src/wasm-server.ts}) writes back: the module keeps nothing between calls, so two

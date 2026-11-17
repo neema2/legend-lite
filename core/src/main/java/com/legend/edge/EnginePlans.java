@@ -200,7 +200,7 @@ public final class EnginePlans {
      * ext)}: the SINGLE-RELATIONAL literal plan text (#47 pilot —
      * com.legend.plan.PlanText owns the format). */
     /** The planner's facet of upstream's plan text ({@link UpstreamPlans}), answered by the edge's style
-     *  ({@code PureText.UPSTREAM}): its routines are the planner's ({@link UpstreamPlans#routines}), each asking here when
+     *  ({@code PureText.UPSTREAM}): its routines are the planner's ({@code planner.PlanTextRoutines}), each asking here when
      *  it is called (W9's planner half, 2026-11-16: until then this class was the planner's own). */
     /** The engine's default post-processor stamps EVERY SelectSQLQuery with this comment and generateSQLExecutionNode
      *  copies it (defaultPostProcessor.pure:71) -- a constant, never gated (Phase 6's B5, 2026-11-17: moved from

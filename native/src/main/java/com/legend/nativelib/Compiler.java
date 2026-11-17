@@ -39,8 +39,9 @@ public final class Compiler {
     }
 
     /** A new C string holding {@code s} (UTF-8), the caller's to free with {@code lite_free}. Python's model home's
-     *  answers too ({@link ModelHome}). */
-    static CCharPointer answer(String s) {
+     *  answers too ({@link ModelHome}), and the edge's saved queries' (edge.nativelib.SavedQueriesHome: public since
+     *  2026-11-17, the separation census's A2, its upstream path the edge's). */
+    public static CCharPointer answer(String s) {
         byte[] b = s.getBytes(StandardCharsets.UTF_8);
         CCharPointer p = UnmanagedMemory.malloc(WordFactory.unsigned(b.length + 1));
         for (int i = 0; i < b.length; i++) p.write(i, b[i]);
@@ -50,7 +51,7 @@ public final class Compiler {
     }
 
     /** A C string as UTF-8 -- named, never the platform's default charset. */
-    static String text(CCharPointer p) {
+    public static String text(CCharPointer p) {
         int n = 0;
         while (p.read(n) != 0) n++;
         return CTypeConversion.toJavaString(p, WordFactory.unsigned(n), StandardCharsets.UTF_8);

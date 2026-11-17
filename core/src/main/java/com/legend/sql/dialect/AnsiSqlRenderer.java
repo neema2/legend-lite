@@ -1455,7 +1455,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
 
     /** A call the base renderer's first passes expand or refuse ({@link com.legend.sql.SqlFn#DATETIME_TO_TEXT},
      *  {@link com.legend.sql.SqlFn#DATETIME_PRINT}, {@link com.legend.sql.SqlFn#CELL_TEXT},
-     *  {@link com.legend.sql.SqlFn#FORMAT_PADDED}, {@link com.legend.sql.SqlFn#INSTANCE_TEXT}: {@link DateTimeText},
+     *  {@link com.legend.sql.SqlFn#INSTANCE_TEXT}: {@link DateTimeText},
      *  {@link DateTimePrintText}, {@link CellTexts}, {@link PureOnlyText}): one reaching a dialect's arm is a renderer
      *  bug, refused by name. */
     protected static IllegalStateException expandedFirst(SqlExpr.Call c) {

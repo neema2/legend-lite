@@ -1820,7 +1820,7 @@ public class ClickHouse extends AnsiSqlRenderer {
             case XOR -> xorAsAndOr(writer, c.args(), parentPrec);
             case FLOAT_PRINT -> floatPrintByText(writer, c, parentPrec);
             case FLOAT_TO_TEXT -> floatToText(writer, c.args().get(0));
-            case DATETIME_TO_TEXT, DATETIME_PRINT, CELL_TEXT, FORMAT_PADDED, INSTANCE_TEXT, RELATION_TEXT, REPRESENTATION_TEXT, TEXT_FORMS, TRACE_TEXT ->
+            case DATETIME_TO_TEXT, DATETIME_PRINT, CELL_TEXT, INSTANCE_TEXT, RELATION_TEXT, REPRESENTATION_TEXT, TEXT_FORMS, TRACE_TEXT ->
                     throw expandedFirst(c);
             // the hooks: this dialect's own (or the base's refusal)
             case ROUND -> roundHalfEven(writer, c.args());
@@ -1885,6 +1885,11 @@ public class ClickHouse extends AnsiSqlRenderer {
             // NULL-ignoring, as DuckDB's concat
             case CONCAT -> writer.append("concat(").join(flattenConcat(a), ", ", this::asText).append(")");
             case CONCAT_JOIN -> writer.append("concat(").join(a, ", ", this::asText).append(")");
+            // the product's join of a row's cells: the parts with their NULLs filtered out, joined (Phase 3). Each part
+            // goes into the array as it is (already a text) -- asText's coalesce would turn the NULL the filter drops
+            // into '' (lane round 75, 2026-11-17: 'a, , c')
+            case CONCAT_WS -> writer.append("arrayStringConcat(arrayFilter(\"__x\" -> \"__x\" IS NOT NULL, [")
+                    .list(a.subList(1, a.size())).append("]), ").expr(a.get(0), 0).append(")");
             // the platform guards a zero divisor with its own raise; ClickHouse folds a constant operation in a branch
             // not taken and raises its own (measured), so each is its non-raising form, the guard's message the one
             // a zero divisor raises; unguarded, a zero divisor is NULL, as DuckDB's (the OrZero forms answer 0). Pure's

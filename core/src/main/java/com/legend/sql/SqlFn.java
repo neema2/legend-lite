@@ -29,6 +29,12 @@ public enum SqlFn {
     // joinStrings unit nested inside a '+' chain; DB2 spells it as a
     // parenthesized infix chain).
     CONCAT_JOIN,
+    /** Texts joined by a separator ({@code sep}, then two or more parts), an empty ({@code NULL}) part skipped with its
+     *  separator: the product's join of a row's cells, where an empty cell is skipped (the user's ruling of 2026-11-10,
+     *  "makeString skips empty elements"; D1.3's join form as one call, Phase 3 of
+     *  docs/records/total-wall-edge-program-2026-11-16.md, 2026-11-16). {@code CONCAT_WS} where the database's skips a
+     *  {@code NULL} (measured per database); another correct form where it does not ({@code dialect.CellTexts}). */
+    CONCAT_WS,
     // Lists — SEMANTIC operations (encodings are the dialect's: DuckDB uses
     // list lambdas; Postgres would use unnest subqueries; SQLite json_each).
     // LIST_EXISTS/LIST_FOR_ALL carry (collection, predicate-lambda) and
@@ -154,11 +160,8 @@ public enum SqlFn {
      *  the join's {@code STRING_AGG} drops a {@code NULL}. legend-engine prints an empty TDS cell as {@code TDSNull}: the
      *  compatibility edge writes that (edge/PurePrintForms). */
     CELL_TEXT,
-    /** {@code format}'s {@code %0<w>d} ({@code x}, then the width): legend-pure pads the digits and then signs
-     *  ({@code -3} at width 5 is {@code -00003}). Only legend-pure's {@code format} writes it: the product's renderer
-     *  refuses it by name ({@code dialect.PureOnlyText}), the compatibility edge composes it (edge/PurePrintForms;
-     *  phase D's D1.3, 2026-11-15: until then the lowering composed it, Scalars.signedZeroPad). */
-    FORMAT_PADDED,
+    // (FORMAT_PADDED, format's %0<w>d: gone 2026-11-17, the separation census's B8 (i) -- the edge composes it at
+    // lowering through the plan style's PureOnlyTexts facet, edge.EdgePureOnlyTexts; the product refuses at lowering)
     /** An instance's {@code toString} ({@code id}, the instance's identity): legend-pure prints an instance without a
      *  {@code toString} of its own by its repository id, {@code @_} and the id. The product writes an object by graph
      *  fetch: its renderer refuses this by name ({@code dialect.PureOnlyText}); the compatibility edge composes it
@@ -228,7 +231,10 @@ public enum SqlFn {
                     VARIANT_GET,
                     // a Float's and a DateTime's text, branching on the value's magnitude and kind (D's W3, its
                     // instrument, and S312's form, 2026-11-16; found by MaySkipCensusTest at the merge of PR1's head)
-                    FLOAT_TO_TEXT, DATETIME_PRINT, DATETIME_TO_TEXT));
+                    FLOAT_TO_TEXT, DATETIME_PRINT, DATETIME_TO_TEXT,
+                    // the product's join of a row's cells skips a NULL part by design (Phase 3, 2026-11-17; found by
+                    // MaySkipCensusTest: MariaDB, MySQL, SQLite, BigQuery and MongoDB branch or skip)
+                    CONCAT_WS));
 
     /** Whether this function draws afresh at every place it is written -- the database's random float ({@link #RANDOM})
      *  or uuid ({@link #GUID}) -- so two places of it are two values: a value holding one is computed once, in its own

@@ -1407,7 +1407,7 @@ public class Snowflake extends AnsiSqlRenderer {
             // it, which is exact, as the portable spelling read it
             case FLOAT_PRINT -> isDouble(a.get(0)) ? floatPrint(writer, a.get(0)) : floatPrintByText(writer, c, parentPrec);
             case FLOAT_TO_TEXT -> floatToText(writer, a.get(0));
-            case DATETIME_TO_TEXT, DATETIME_PRINT, CELL_TEXT, FORMAT_PADDED, INSTANCE_TEXT, RELATION_TEXT, REPRESENTATION_TEXT, TEXT_FORMS, TRACE_TEXT ->
+            case DATETIME_TO_TEXT, DATETIME_PRINT, CELL_TEXT, INSTANCE_TEXT, RELATION_TEXT, REPRESENTATION_TEXT, TEXT_FORMS, TRACE_TEXT ->
                     throw expandedFirst(c);
             // the hooks: this dialect's own (or the base's refusal)
             case ROUND -> roundHalfEven(writer, c.args());
@@ -1491,6 +1491,10 @@ public class Snowflake extends AnsiSqlRenderer {
             // NULL-ignoring, as DuckDB's concat (|| and CONCAT are NULL if any argument is, measured)
             case CONCAT -> writer.piece(concat(flattenConcat(a)));
             case CONCAT_JOIN -> writer.piece(concat(a));
+            // the product's join of a row's cells: Snowflake's CONCAT_WS is NULL for any NULL part, so the parts are an
+            // array compacted of its NULLs and joined (Phase 3)
+            case CONCAT_WS -> writer.append("ARRAY_TO_STRING(ARRAY_CONSTRUCT_COMPACT(").list(a.subList(1, a.size()))
+                    .append("), ").expr(a.get(0), 0).append(")");
             // the engine's out-of-domain answer is NaN; Snowflake raises (measured: acos(2))
             case ACOS, ASIN -> acosArm(writer, c);
             case LOG10 -> writer.append("LOG(10, ").expr(a.get(0), 0).append(")");

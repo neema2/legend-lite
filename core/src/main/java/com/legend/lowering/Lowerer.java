@@ -235,6 +235,42 @@ public final class Lowerer {
         return this;
     }
 
+    /** A RELATION'S TEXT ({@link RelationTexts}, the separation census's B17, 2026-11-17): the plan style's facet,
+     *  asked only when a {@code toCSV}, a TDS's {@code csv} or a relation's {@code toString} is lowered, with that call's
+     *  own refusal (the product's style throws it, at lowering, by name). A Lowerer no planner handed a style refuses
+     *  each the same way. */
+    private java.util.function.Function<java.util.function.Supplier<? extends RuntimeException>, RelationTexts>
+            relationTexts = refusal -> {
+                throw refusal.get();
+            };
+
+    /** The texts only legend-pure writes ({@link PureOnlyTexts}, the separation census's B8 (i), 2026-11-17): the plan
+     *  style's facet, asked only when a native's rule meets one, with that call's own refusal. A Lowerer no planner
+     *  handed a style refuses each the same way. */
+    private java.util.function.Function<java.util.function.Supplier<? extends RuntimeException>, PureOnlyTexts>
+            pureOnlyTexts = refusal -> {
+                throw refusal.get();
+            };
+
+    /** The plan style's pure-only-text facet, {@code style} its request ({@code (refusal) -> style.facet(..)}). */
+    public Lowerer withPureOnlyTexts(
+            java.util.function.Function<java.util.function.Supplier<? extends RuntimeException>, PureOnlyTexts> style) {
+        this.pureOnlyTexts = style;
+        return this;
+    }
+
+    /** The style's text facets a native's rule reads ({@link Scalars.Styled}). */
+    private Scalars.Styled styled() {
+        return new Scalars.Styled(pureOnlyTexts);
+    }
+
+    /** The plan style's relation-text facet, {@code style} its request ({@code (refusal) -> style.facet(..)}). */
+    public Lowerer withRelationTexts(
+            java.util.function.Function<java.util.function.Supplier<? extends RuntimeException>, RelationTexts> style) {
+        this.relationTexts = style;
+        return this;
+    }
+
     /** The statement's shape ({@link LoweringShape}); the product's is {@link LoweringShape#LEAN}. */
     public Lowerer withShape(LoweringShape shape) {
         this.shape = java.util.Objects.requireNonNull(shape, "a lowering shape");
@@ -2226,7 +2262,7 @@ public final class Lowerer {
         for (TypedSpec arg : call.args()) {
             wrapped.add(arg instanceof TypedCollection run ? listLiteral(run, operand) : operand.apply(arg));
         }
-        return NullSemantics.verbatim(verbatimEquality || legacyNullUnsafeEquals, Scalars.lower(call, wrapped, features, implementations));
+        return NullSemantics.verbatim(verbatimEquality || legacyNullUnsafeEquals, Scalars.lower(call, wrapped, features, implementations, styled()));
     }
 
     /** A reduce body of SEVERAL REDUCERS under a condition: each reducer of the reduce's collection lowers as the
@@ -2250,7 +2286,7 @@ public final class Lowerer {
                     args.add(arg instanceof TypedCollection run && !run.elements().isEmpty()
                             ? listLiteral(run, x -> overReducers(base, a, x)) : overReducers(base, a, arg));
                 }
-                yield NullSemantics.verbatim(verbatimEquality || legacyNullUnsafeEquals, Scalars.lower(c, args, features, implementations));
+                yield NullSemantics.verbatim(verbatimEquality || legacyNullUnsafeEquals, Scalars.lower(c, args, features, implementations, styled()));
             }
             default -> scalar(e, noScope());
         };
@@ -3454,7 +3490,7 @@ public final class Lowerer {
             case TypedNativeCall call -> {
                 List<SqlExpr> args = call.args().stream()
                         .map(a -> windowScalar(a, base, over)).toList();
-                return NullSemantics.verbatim(verbatimEquality || legacyNullUnsafeEquals, Scalars.lower(call, args, features, implementations));
+                return NullSemantics.verbatim(verbatimEquality || legacyNullUnsafeEquals, Scalars.lower(call, args, features, implementations, styled()));
             }
             // The EMPTY collection is no run: none, the scalar rule's NULL (2026-10-26: an if's |[] arm in a window
             // column, the DataCube library's returns, had been an empty array, which a CASE beside a number refuses)
@@ -4187,12 +4223,6 @@ public final class Lowerer {
                 : collected;
     }
 
-    /** A relation's {@code text} ({@code what} it is): legend-pure's and legend-engine's, the edge's -- the product's
-     *  renderer refuses it by name (phase D's D1.3, 2026-11-15). */
-    private static SqlExpr relationText(SqlExpr text, String what) {
-        return SqlExpr.Call.of(SqlFn.RELATION_TEXT, text, new SqlExpr.StringLit(what));
-    }
-
     private SqlExpr scalarValueTailArms(TypedSpec spec, ColumnResolver columns) {
         return switch (spec) {
             // makeString/joinStrings over the $r.values TDSRow-cells
@@ -4237,7 +4267,8 @@ public final class Lowerer {
             // (its rows are the result writers'), written by the edge (phase D's D1.3, 2026-11-15)
             case TypedNativeCall tc when PlatformTypes.TO_CSV
                     .equals(tc.callee().qualifiedName()) ->
-                relationText(Render.lowerToCsv(tc, this::relation, nextAlias(), deferredTds), "toCSV");
+                relationTexts.apply(() -> RelationTexts.refused("toCSV")).toCsv(tc, this::relation, nextAlias(),
+                        deferredTds);
             // the TDS class's csv property (tds.pure:19 `csv: String[1]`)
             // over a relation: the csv TEXT the engine prints for a TDS —
             // header names joined ', ', ','-joined cells with TDSNull, no
@@ -4245,13 +4276,14 @@ public final class Lowerer {
             case TypedPropertyAccess csvRead
                     when csvRead.property().equals(PlatformTypes.TDS_CSV_PROPERTY)
                     && Render.csvOverRelation(csvRead) ->
-                relationText(Render.lowerTdsCsvProperty(csvRead, this::relation, nextAlias()), "a TDS's csv");
+                relationTexts.apply(() -> RelationTexts.refused("a TDS's csv")).csvProperty(csvRead, this::relation,
+                        nextAlias());
             // F4.2c (RENDER): relation toString — the '#TDS' text form
             case TypedNativeCall tc when
                     "meta::pure::functions::relation::toString"
                             .equals(tc.callee().qualifiedName()) ->
-                relationText(Render.lowerToString(tc, this::relation, nextAlias(),
-                        deferredTds), "toString");
+                relationTexts.apply(() -> RelationTexts.refused("toString")).relationToString(tc, this::relation,
+                        nextAlias(), deferredTds);
             // F13c — every operation built on equal() over objects (docs/OBJECT_IDENTITY_2026_10_20.md §3.3): ONE
             // owner of the relation — the same canon the verdict layer byte-judges with. eq = identity (__id
             // compare); equal = key-tree canon (keyed) or identity (keyless). A claimed shape it cannot lower is
@@ -4274,14 +4306,14 @@ public final class Lowerer {
             // read as the row's column is, and tests them -- no list is made (Scalars.overCells)
             case TypedNativeCall n when Scalars.overCells(n) -> NullSemantics.verbatim(
                     verbatimEquality || legacyNullUnsafeEquals, Scalars.lower(n, n.args().get(0).children().stream()
-                            .map(c -> scalar(c, columns)).toList(), features, implementations));
+                            .map(c -> scalar(c, columns)).toList(), features, implementations, styled()));
             // arg lowering rides the unary-lambda binding convention
             // (LambdaBinding — M4's replacement for the parked branch's
             // LambdaWire ThreadLocal): a unary lambda param carries the
             // preceding list's element wire, so dispatch inside bodies
             // sees the carrier at construction
             case TypedNativeCall n -> NullSemantics.verbatim(verbatimEquality || legacyNullUnsafeEquals, Scalars.lower(n,
-                    LambdaBinding.lowerNativeArgs(n, columns, this::scalar), features, implementations));
+                    LambdaBinding.lowerNativeArgs(n, columns, this::scalar), features, implementations, styled()));
             // write(rel, accessor) returns the COUNT of rows written (the
             // PCT contract) — Render.writeCount; a REAL store destination
             // stays loud until the insert path exists.
@@ -4427,7 +4459,7 @@ public final class Lowerer {
         TypedCollection slots = (TypedCollection) n.args().get(1);
         return NullSemantics.verbatim(verbatimEquality || legacyNullUnsafeEquals, Scalars.lower(n,
                 List.of(scalar(n.args().get(0), columns), listLiteral(slots, e -> scalar(e, columns))),
-                features, implementations));
+                features, implementations, styled()));
     }
 
     /** A resolver for positions where no row scope exists (literal evaluation). */

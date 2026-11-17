@@ -1555,6 +1555,9 @@ class JavaEvalLedgerTest {
                     // names upstream's plan text as the style's facet, UpstreamPlans: an interface and its lazy routine
                     // table, no text of upstream's)
                     "BodyPlanner.java", "UpstreamPlans.java",
+                    // the lazy routine table, moved off UpstreamPlans 2026-11-17 (the terminal-hook criteria: a hook is
+                    // signatures only): the same table, asking the facet when called; planning, nothing evaluated
+                    "PlanTextRoutines.java",
                     // a frame's chain (S2g's third step, 2026-10-31): the execute call to the chain its readers splice
                     "FramePlanner.java",
                     // a let's kind and its read analyses (S2b, 2026-10-31): where a let's rows live, decided with no
@@ -1843,7 +1846,16 @@ class JavaEvalLedgerTest {
                             "EnginePlans.java", "EngineText.java", "PlanEnvelope.java", "EngineAllocations.java",
                             // legend-engine's sentence of a query store's refusal (the P2 checkpoint audit's M2,
                             // 2026-11-16): a kind to its words, no state, no evaluation; its own target for the page
-                            "StoreWords.java"),
+                            "StoreWords.java",
+                            // legend-pure's text of a relation (toCSV, a TDS's csv, a relation's toString), moved from
+                            // lowering.Render (the separation census's B17, 2026-11-17): the plan style's RelationTexts
+                            // facet, composing a RELATION_TEXT node at lowering -- planning work, no session, no value
+                            // computed (the database renders the cells)
+                            "RelationTextLowering.java",
+                            // legend-pure's texts only it writes (format's padding, ...), composed at lowering from the
+                            // product's nodes (the separation census's B8 (i), 2026-11-17): the plan style's
+                            // PureOnlyTexts facet -- planning work, no session, no value computed
+                            "EdgePureOnlyTexts.java"),
                     "core/src/main/java/com/legend/planner", PLANNER_CLASSES,
                     "core/src/main/java/com/legend/exec", EXEC_CLASSES,
                     "core/src/main/java/com/legend/testexec", TESTEXEC_CLASSES,

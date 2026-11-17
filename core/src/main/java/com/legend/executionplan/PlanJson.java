@@ -1337,14 +1337,18 @@ public final class PlanJson {
     }
 
     /** THE SITES OF {@code statement}, one of {@code plan}'s statements, as JSON (v56): what a host that runs that text
-     *  alone (a text plan's {@code sql}) reads a token it raises through. None where no statement of the plan is that
-     *  text or it declares none; two statements of the text declaring different sites refused by name. */
+     *  alone (a text plan's {@code sql}) reads a token it raises through. None where the statement declares none; a text
+     *  that raises a token and is none of the plan's statements refused by name; two statements of the text declaring different sites refused by name. */
     public static List<Map<String, Object>> sitesOf(ExecutionPlan plan, String statement) {
         List<List<ExecutionPlan.Site>> found = new ArrayList<>();
         statementsOf(plan.root(), statement, found);
         java.util.Set<List<ExecutionPlan.Site>> distinct = new java.util.LinkedHashSet<>(found);
         if (distinct.size() > 1) {
             throw new IllegalStateException("two statements of one text declare different raise sites: " + distinct);
+        }
+        if (distinct.isEmpty() && statement.contains(com.legend.sql.RaiseKind.TOKEN)) {
+            throw new IllegalStateException("a text that raises a site's token is none of its plan's statements, so no"
+                    + " site table declares its tokens: " + statement);
         }
         return distinct.isEmpty() ? List.of() : sitesJson(distinct.iterator().next());
     }

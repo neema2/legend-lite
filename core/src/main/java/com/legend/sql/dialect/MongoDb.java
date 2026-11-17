@@ -1100,6 +1100,8 @@ public class MongoDb extends AnsiSqlRenderer {
             // ---- strings (a string operator over null errors or answers "", so each is null-guarded)
             case CONCAT -> concatSkippingNull(writer, a);
             case CONCAT_JOIN -> MongoJson.op(writer, "$concat", a);
+            // the product's join of a row's cells: no separator-join operator, so D1.3's form (Phase 3)
+            case CONCAT_WS -> writer.expr(CellTexts.eachAfterSeparator(a.get(0), a.subList(1, a.size())), parentPrec);
             case LENGTH -> length(writer, a);
             case UPPER -> MongoJson.guardedOp(writer, "$toUpper", a);
             case LOWER -> MongoJson.guardedOp(writer, "$toLower", a);
@@ -1247,7 +1249,7 @@ public class MongoDb extends AnsiSqlRenderer {
             case BOOL_TO_TEXT -> MongoJson.op1(writer, "$toString", a.get(0));
             case FLOAT_PRINT -> floatPrintByText(writer, c, parentPrec);
             case FLOAT_TO_TEXT -> floatToText(writer, a.get(0));
-            case DATETIME_TO_TEXT, DATETIME_PRINT, CELL_TEXT, FORMAT_PADDED, INSTANCE_TEXT, RELATION_TEXT, REPRESENTATION_TEXT, TEXT_FORMS, TRACE_TEXT ->
+            case DATETIME_TO_TEXT, DATETIME_PRINT, CELL_TEXT, INSTANCE_TEXT, RELATION_TEXT, REPRESENTATION_TEXT, TEXT_FORMS, TRACE_TEXT ->
                     throw expandedFirst(c);
             // ---- raising
             case ERROR -> raise(writer, a);

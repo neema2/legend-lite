@@ -64,10 +64,21 @@ public final class PureText {
             if (kind == com.legend.planner.UpstreamPlans.class) {
                 return kind.cast(EnginePlans.FACET);
             }
+            if (kind == com.legend.lowering.RelationTexts.class) {
+                return kind.cast(new RelationTextLowering());
+            }
+            if (kind == com.legend.lowering.PureOnlyTexts.class) {
+                return kind.cast(EdgePureOnlyTexts.INSTANCE);
+            }
             throw new com.legend.error.NotImplementedException("the test-planning facet " + kind.getName()
                     + " is none of the declared kinds (com.legend.testplan.PlanStyleFacets.KINDS)");
         }
 
+        @Override
+        public <F> F facet(Class<F> kind, java.util.function.Supplier<? extends RuntimeException> refusal) {
+            // the edge answers every declared kind: the call's refusal is the product's
+            return facet(kind);
+        }
 
 
 
