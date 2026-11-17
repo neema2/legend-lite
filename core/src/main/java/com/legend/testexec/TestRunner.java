@@ -54,7 +54,8 @@ public final class TestRunner {
         lites(answer);
         // both judges isolated: each plan its own run, then compared (IsolatedRun)
         if (plan.steps().size() == 1 && plan.steps().get(0) instanceof com.legend.testexecutionplan.TestPlan.Isolated pair) {
-            IsolatedRun.run(pair, sessions, stores, edge, callers, referee, answer, execution);
+            IsolatedRun.run(pair, sessions, (p, s, l, a) -> run(p, s, stores, edge, l, referee, a,
+                    com.legend.exec.StatementOrigin.OTHER, execution), callers, answer);
             return;
         }
         // the caller's session source is called back before the plan's run opens: it plans nothing
@@ -83,8 +84,8 @@ public final class TestRunner {
         if (plan.steps().size() == 1 && plan.steps().get(0) instanceof TestPlan.Isolated pair) {
             // both judges isolated on the caller's own session: read-only plans alone (IsolatedRun's refusal)
             lites(answer);
-            IsolatedRun.run(pair, com.legend.exec.SessionSource.given(session), stores, edge, callers, referee, answer,
-                    execution);
+            IsolatedRun.run(pair, com.legend.exec.SessionSource.given(session), (p, s, l, a) -> run(p, s, stores, edge,
+                    l, referee, a, origin, execution), callers, answer);
             return;
         }
         com.legend.testexecutionplan.PlannedAppeals.requireCarried(plan);

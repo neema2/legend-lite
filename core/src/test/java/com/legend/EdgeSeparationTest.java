@@ -89,6 +89,9 @@ class EdgeSeparationTest {
             Map.entry("com.legend.lowering.Render -> (stands in a product package)", "B17 2026-11-17"),
             Map.entry("com.legend.lowering.Repr -> (stands in a product package)", "B12 2026-11-17"),
             Map.entry("com.legend.lowering.Repr -> SqlFn.FLOAT_PRINT", "C5 2026-11-17"),
+            // (the orchestrator's ruling, 2026-11-17: lite's message Float reads FLOAT_PRINT's shortest digits until B9
+            // splits it into a product node and the edge's spelling)
+            Map.entry("com.legend.lowering.LiteText -> SqlFn.FLOAT_PRINT", "B9 2026-11-17"),
             Map.entry("com.legend.lowering.Repr -> SqlFn.REPRESENTATION_TEXT", "B12 2026-11-17"),
             Map.entry("com.legend.lowering.Scalars -> SqlFn.DATETIME_PRINT", "B8 2026-11-17"),
             Map.entry("com.legend.lowering.Scalars -> SqlFn.FORMAT_PADDED", "B8 2026-11-17"),
@@ -271,6 +274,7 @@ class EdgeSeparationTest {
             Map.entry("compiler/element/type/PlatformTypes.java | TDS_NULL_CELL", "B10 2026-11-17"),
             Map.entry("database/PlanStyle.java | EngineTextDialect", "B1 2026-11-17"),
             Map.entry("lowering/JsonEmission.java | tdsBuilder", "B5 2026-11-17"),
+            Map.entry("lowering/LiteText.java | FLOAT_PRINT", "B9 2026-11-17"),
             Map.entry("lowering/LiteralSpelling.java | +0000", "B11 2026-11-17"),
             Map.entry("lowering/Lowerer.java | withEngineText", "B5 2026-11-17"),
             Map.entry("lowering/Repr.java | FLOAT_PRINT", "C5 2026-11-17"),

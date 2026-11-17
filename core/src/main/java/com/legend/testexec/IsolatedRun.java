@@ -6,10 +6,8 @@ package com.legend.testexec;
 import com.legend.base.Nullable;
 import com.legend.exec.SessionSource;
 import com.legend.exec.Sessions;
-import com.legend.exec.StatementOrigin;
 import com.legend.result.Output;
 import com.legend.testexecutionplan.AssertListener;
-import com.legend.testexecutionplan.Edge;
 import com.legend.testexecutionplan.TestPlan;
 
 import java.util.ArrayList;
@@ -69,16 +67,22 @@ final class IsolatedRun {
         }
     }
 
-    /** {@code pair} run on {@code sessions}: each plan alone, then compared. */
-    static void run(TestPlan.Isolated pair, SessionSource sessions, com.legend.executionplan.DataStores stores,
-            @Nullable Edge edge, @Nullable AssertListener callers, @Nullable SqlReplayReferee referee,
-            @Nullable Output answer, java.util.UUID execution) {
+    /** One judge's plan run on its own session, {@code answer} its answer's sink (null: answering nobody): the runner's
+     *  own run, handed in so this class names nothing of the run's but the plan. */
+    @FunctionalInterface
+    interface Runner {
+        void run(TestPlan plan, Sessions.Session session, AssertListener listener, @Nullable Output answer);
+    }
+
+    /** {@code pair} run on {@code sessions} by {@code runner}: each plan alone, then compared. */
+    static void run(TestPlan.Isolated pair, SessionSource sessions, Runner runner, @Nullable AssertListener callers,
+            @Nullable Output answer) {
         if (sessions instanceof SessionSource.Given && (pair.host().writes() || pair.database().writes())) {
             throw new IllegalArgumentException(NEEDS_A_SESSION_PER_JUDGE);
         }
-        Recording host = runAlone(pair.host(), sessions, stores, edge, referee, answer, execution);
+        Recording host = runAlone(pair.host(), sessions, runner, answer);
         // the database judge's run answers nobody: the host's answer is the body's
-        Recording database = runAlone(pair.database(), sessions, stores, edge, referee, null, execution);
+        Recording database = runAlone(pair.database(), sessions, runner, null);
         conclude(host, database, callers);
     }
 
@@ -99,13 +103,11 @@ final class IsolatedRun {
         }
     }
 
-    private static Recording runAlone(TestPlan plan, SessionSource sessions,
-            com.legend.executionplan.DataStores stores, @Nullable Edge edge, @Nullable SqlReplayReferee referee,
-            @Nullable Output answer, java.util.UUID execution) {
+    private static Recording runAlone(TestPlan plan, SessionSource sessions, Runner runner, @Nullable Output answer) {
         Recording recording = new Recording();
         try (var callbacks = com.legend.base.RunScope.callingBack();
                 Sessions.Session session = sessions.open(plan.session())) {
-            TestRunner.run(plan, session, stores, edge, recording, referee, answer, StatementOrigin.OTHER, execution);
+            runner.run(plan, session, recording, answer);
         } catch (RuntimeException failed) {
             recording.failure = failed;
         }
