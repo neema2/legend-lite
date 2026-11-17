@@ -156,7 +156,8 @@ public final class TestDoor {
         // the body's facts, stated over the body as its caller gave it, before any rewrite (C5-J item 2, 2026-11-15;
         // the C5-J audit's SHOULD 1: the record the test door's facts state, TestPlanner.plan)
         TestPlan plan = new TestPlan(program.parameters(), steps, asserts.judge(), byStep, Map.of(), answersLastVerdict,
-                PlanMaker.testSessionTarget(body.context(), runtime, style), facts, null);
+                PlanMaker.testSessionTarget(body.context(), runtime, style), facts, null,
+                style.twoForm(FailureWords.class, LiteFailureWords.LITE).upstreamWords());
         return plan.withAnswerSizeWords(answerSizeWords(plan, style));
     }
 

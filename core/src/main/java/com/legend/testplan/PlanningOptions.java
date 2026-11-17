@@ -34,10 +34,12 @@ public record PlanningOptions(
         // an enum set: its order the declaration's (NoSaltedIterationOrderTest)
         options = options.isEmpty() ? java.util.Set.of()
                 : java.util.Collections.unmodifiableSet(java.util.EnumSet.copyOf(options));
-        if (judgingRules != edge.rules() && edge.records()) {
+        if (judgingRules != edge.rules()) {
             // the user's ruling of 2026-11-08 (docs/PLAN_AS_DATA_2026_11_07.md 3a.3): the edge, with the referee's
-            // ledger, is the compatibility rules' -- lite's own rules plan nothing for it
-            throw new IllegalArgumentException("a run handed the compatibility edge judges by the compatibility rules");
+            // ledger, is the compatibility rules'; and a compatibility-judged run carries it (census C1, the
+            // orchestrator's ruling of 2026-11-17: its rules are the edge hook's, never a flag beside NoEdge)
+            throw new IllegalArgumentException("a run judges by the rules its edge hook names (" + edge.rules()
+                    + "), not " + judgingRules + ": the compatibility rules' runs carry the compatibility edge");
         }
     }
 

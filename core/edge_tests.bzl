@@ -28,6 +28,8 @@ EDGE_TEST_SRCS = [
     "src/test/java/com/legend/testplan/RenderedTextEdgeTest.java",
     # G10 (2026-11-17): an assert whose sides both raise, under the compatibility rules on the edge's door too
     "src/test/java/com/legend/testplan/HostSideOrderTest.java",
+    # census C1 (2026-11-17): a run whose style and hook disagree, refused by name
+    "src/test/java/com/legend/testexec/MixedRunRefusalTest.java",
     "src/test/java/com/legend/testexec/EqualityCompatEdgeTest.java",
     "src/test/java/com/legend/ReferenceIntegrityTest.java",
     "src/test/java/com/legend/ResultWritersTest.java",

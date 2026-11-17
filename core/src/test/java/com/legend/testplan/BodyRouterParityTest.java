@@ -1832,8 +1832,10 @@ class BodyRouterParityTest {
             List<String> setup) throws Exception {
         Run run = run(backend, ctx, runtime, "{| " + lets + " assertEquals('no such text', " + expr + ");}",
                 "select count(*) from FIRM", setup, com.legend.testplan.PlanningOptions.JudgeMode.HOST);
-        // lite's own sentence (the user's judge model, 2026-11-17): the actual after its last ", got ", JSON-quoted
-        String marker = ", got ";
+        // lite's own sentence (the user's judge model, 2026-11-17): the actual after its last ", got ", JSON-quoted; on
+        // the edge's run (a body binding legend-engine's plan handle) legend-pure's, after "\nactual:   ", %r-quoted
+        // (census C1, 2026-11-17: the edge's style and its hook write legend-pure's words together)
+        String marker = run.outcome.contains("\nactual:   ") ? "\nactual:   " : ", got ";
         int from = run.outcome.lastIndexOf(marker);
         assertTrue(run.outcome.startsWith("AssertFailed") && from >= 0, "an assert's failure naming its actual: "
                 + run.outcome);
@@ -1841,7 +1843,9 @@ class BodyRouterParityTest {
         if (shown.startsWith("[") && shown.endsWith("]")) {
             shown = shown.substring(1, shown.length() - 1);   // a collection of the one text
         }
-        assertTrue(shown.length() >= 2 && shown.startsWith("\"") && shown.endsWith("\""), "one text: " + shown);
+        char quote = marker.equals(", got ") ? '"' : '\'';
+        assertTrue(shown.length() >= 2 && shown.charAt(0) == quote && shown.charAt(shown.length() - 1) == quote,
+                "one text: " + shown);
         StringBuilder text = new StringBuilder();
         for (int i = 1; i < shown.length() - 1; i++) {
             char ch = shown.charAt(i);
@@ -2085,7 +2089,10 @@ class BodyRouterParityTest {
             java.util.SortedMap<String, Long> censusBefore = new java.util.TreeMap<>(
                     com.legend.diagnostics.VerdictCensus.sqlCensus());
             try {
-                TestExecution.runProgram(q, runtime, com.legend.exec.SessionSource.given(session), listener, com.legend.edge.AppealRun.with(referee), options,
+                // the run's hook goes with its style (census C1, the orchestrator's ruling of 2026-11-17)
+                TestExecution.runProgram(q, runtime, com.legend.exec.SessionSource.given(session), listener,
+                        options.planning().style() == com.legend.database.PlanStyle.PRODUCT
+                                ? com.legend.testexec.NoEdgeRun.NONE : com.legend.edge.AppealRun.with(referee), options,
                         new com.legend.result.Output.Rows(capture));
             } catch (RuntimeException e) {
                 outcome = e.getClass().getSimpleName() + ": " + e.getMessage();

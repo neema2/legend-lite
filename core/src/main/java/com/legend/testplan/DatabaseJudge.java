@@ -335,7 +335,7 @@ public final class DatabaseJudge {
     /** Whether the database judge words a failure by lite's own sentences: lite's own rules; the compatibility rules
      *  keep legend-pure's words. */
     static boolean lite(BodyDriver.ExecEnv env) {
-        return !env.options().judgingRules().legendPureWords();
+        return !env.options().style().twoForm(FailureWords.class, LiteFailureWords.LITE).upstreamWords();
     }
 
     private static com.legend.lowering.VerdictSql.@com.legend.base.Nullable Message written(

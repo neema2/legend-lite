@@ -96,6 +96,14 @@ public final class TestRunner {
             // judges tell the caller's listener through it, its reports kept back while an appeal is held
             // (the edge's hearing, opened for this run: census C2, 2026-11-17; the product's refuses an appeal by name)
             EdgeHearing appeals = edgeRun.open(plan, callers, execution);
+            if (plan.upstreamWords() != appeals.hostForms().upstreamWords()) {
+                // one choice per run (census C1, the orchestrator's ruling of 2026-11-17): the plan's style and the run's
+                // hook word its failures alike -- a mixed run is refused by name, never judged half one way
+                throw new IllegalArgumentException("a test plan planned in " + (plan.upstreamWords() ? "the compatibility"
+                        + " edge's style" : "the product's style") + " is run with " + (plan.upstreamWords()
+                        ? "the product's run hook (NoEdgeRun)" : "the compatibility edge's run hook")
+                        + ": the style and the hook go together (the edge's style with the edge's hook)");
+            }
             // the run record (hole 6, 2026-11-09): what the judges share while the plan runs, handed to each explicitly
             BodyRun run = new BodyRun(appeals);
             AssertListener listener = appeals.listener();

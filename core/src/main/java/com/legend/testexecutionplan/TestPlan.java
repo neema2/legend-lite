@@ -36,11 +36,14 @@ import java.util.Objects;
  * @param answerSizeWords     the body's answer's refusal of no rows under a required bound, worded at planning by the
  *                            plan's style (C5's step E, 2026-11-17: the run spells no text); null where the answer has
  *                            no required bound, or the plan sends none
+ * @param upstreamWords       whether the plan's failures are worded in legend-pure's words, as its style planned them
+ *                            (census C1, the orchestrator's ruling of 2026-11-17: one choice per run, the style's at
+ *                            planning and the run hook's at run -- the runner refuses a hook that words them otherwise)
  */
 public record TestPlan(List<ExecutionPlan.Parameter> parameters, List<TestStep> steps, Judge judge,
         Map<Integer, List<Extension>> extensionsByStep, Map<Integer, List<Extension>> extensionsByVerdict,
         boolean answersLastVerdict, ExecutionPlan.Target session, BodyFacts facts,
-        @com.legend.base.Nullable String answerSizeWords) {
+        @com.legend.base.Nullable String answerSizeWords, boolean upstreamWords) {
 
     public TestPlan {
         Objects.requireNonNull(session, "session");
@@ -62,13 +65,13 @@ public record TestPlan(List<ExecutionPlan.Parameter> parameters, List<TestStep> 
     /** The same plan carrying {@code byVerdict}, its verdicts' records (the appeals they name). */
     public TestPlan withExtensionsByVerdict(Map<Integer, List<Extension>> byVerdict) {
         return new TestPlan(parameters, steps, judge, extensionsByStep, byVerdict, answersLastVerdict, session, facts,
-                answerSizeWords);
+                answerSizeWords, upstreamWords);
     }
 
     /** The same plan carrying {@code words}, its answer's size refusal as its style words it. */
     public TestPlan withAnswerSizeWords(@com.legend.base.Nullable String words) {
         return new TestPlan(parameters, steps, judge, extensionsByStep, extensionsByVerdict, answersLastVerdict, session,
-                facts, words);
+                facts, words, upstreamWords);
     }
 
     private static Map<Integer, List<Extension>> copied(Map<Integer, List<Extension>> m) {
@@ -434,11 +437,6 @@ public record TestPlan(List<ExecutionPlan.Parameter> parameters, List<TestStep> 
             return upstream;
         }
 
-        /** Whether a failure is worded in legend-pure's words: compatibility mode's; lite words it by its own
-         *  sentences (isolated BOTH, the orchestrator's ruling of 2026-11-17). */
-        public boolean legendPureWords() {
-            return upstream;
-        }
     }
 
     /**
