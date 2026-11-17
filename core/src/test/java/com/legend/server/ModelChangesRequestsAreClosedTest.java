@@ -107,9 +107,9 @@ class ModelChangesRequestsAreClosedTest {
     }
 
     private static LiteV1Api.Answer route(String route, Object request) {
-        return LiteV1Api.route("/api/lite/v1/model/" + route, null, Json.toCompact(request), (q, r, o) -> {
+        return LiteV1Api.route(LiteV1Planning.API + "model/" + route, Json.toCompact(request), (q, r, v, o) -> {
             throw new AssertionError("a model change runs nothing");
-        });
+        }, LiteV1Api.Models.COMPILED);
     }
 
     /** Every JSON object of {@code node} whose keys are a reader's (not a map by name: columns' choices, samples), by

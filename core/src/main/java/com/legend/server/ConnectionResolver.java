@@ -41,4 +41,12 @@ public final class ConnectionResolver {
         return (query, runtime, output) -> com.legend.Execution.runOnProjectDatabases(query, runtime, admittedSources,
                 output);
     }
+
+    /** {@link #runner(String)} with the run's parameter values, bound at run: lite's own execute route's runner
+     *  ({@link LiteV1Planning.Runner}; the edge program's H7, 2026-11-17), its live sources fenced as the server's
+     *  other runner's are. */
+    public static LiteV1Planning.Runner liteRunner(@com.legend.base.Nullable String admittedSources) {
+        return (query, runtime, values, output) -> com.legend.Execution.runOnProjectDatabases(query, runtime,
+                admittedSources, values, output);
+    }
 }

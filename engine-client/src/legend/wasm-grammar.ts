@@ -5,7 +5,7 @@
 // planner's own calls (docs/QUERY_APP_DESIGN_2026_09_30.md D3).
 
 import type { Lambda } from '../../../pure-protocol/src/index.ts';
-import { toJson } from '../../../pure-protocol/src/index.ts';
+import { readLambda, toJson } from '../../../pure-protocol/src/index.ts';
 import type { PureModelContextData } from './pmcd.ts';
 import { EngineError } from './engine-api.ts';
 import type { Grammar } from './grammar.ts';
@@ -136,6 +136,15 @@ export interface ExecutePlan {
   readonly plan?: unknown;
 }
 
+/** `model`'s text, the one form the tab's lite kinds read a model in; any other refused by name. */
+function modelTextOf(model: PureModelContext, what: string): string {
+  const m = model as { readonly _type?: string; readonly code?: unknown };
+  if (m._type !== 'text' || typeof m.code !== 'string') {
+    throw new EngineError(`a query is ${what} in the tab over a model given as its text, not a ${String(m._type)}`, 400);
+  }
+  return m.code;
+}
+
 export class WasmGrammar implements Grammar {
   readonly #port: PlannerPort;
   /** pure/v1 in the tab: the server's client over the planner. */
@@ -146,29 +155,41 @@ export class WasmGrammar implements Grammar {
     this.#pureV1 = new HttpPlanning('/api', plannerFetch(port));
   }
 
-  modelJson(text: string): Promise<PureModelContextData> {
-    return this.#pureV1.modelJson(text);
+  // ---- lite's own grammar and typing (2026-11-17, the edge program's H3: each the planner's lite kind, the product
+  // ---- call its export makes -- never legend-engine's pure/v1 router, which the edge keeps)
+
+  /** A model's text as its protocol JSON (the `modelElements` kind; Boundary.modelElements). */
+  async modelJson(text: string): Promise<PureModelContextData> {
+    return JSON.parse(unfold(await this.#port.ask({ kind: 'modelElements', text, sourceInformation: false }))) as PureModelContextData;
   }
 
-  lambdaJson(text: string): Promise<Lambda> {
-    return this.#pureV1.lambdaJson(text);
+  /** A lambda's text as its protocol JSON (the `parseLambda` kind; Boundary.parseLambda). */
+  async lambdaJson(text: string): Promise<Lambda> {
+    return JSON.parse(await this.#lambdaJsonText(text)) as Lambda;
   }
 
   /** As `lambdaJson`, read by the protocol library: numbers exact (DataCube's `Planner.parse`). */
-  lambda(text: string): Promise<Lambda> {
-    return this.#pureV1.lambda(text);
+  async lambda(text: string): Promise<Lambda> {
+    return readLambda(await this.#lambdaJsonText(text));
   }
 
-  lambdaText(lambda: Lambda, style: 'PRETTY' | 'STANDARD'): Promise<string> {
-    return this.#pureV1.lambdaText(lambda, style);
+  async #lambdaJsonText(text: string): Promise<string> {
+    return unfold(await this.#port.ask({ kind: 'parseLambda', text, sourceInformation: false }));
+  }
+
+  /** A lambda's protocol JSON as its Pure text (the `printLambda` kind; Boundary.printLambda). */
+  async lambdaText(lambda: Lambda, style: 'PRETTY' | 'STANDARD'): Promise<string> {
+    return unfold(await this.#port.ask({ kind: 'printLambda', lambda: toJson(lambda), style }));
   }
 
   modelText(model: PureModelContextData, style: 'PRETTY' | 'STANDARD'): Promise<string> {
     return this.#pureV1.modelText(model, style);
   }
 
-  relationType(model: PureModelContext, lambda: Lambda): Promise<RelationTypeAnswer> {
-    return this.#pureV1.relationType(model, lambda);
+  /** A lambda's relation type over a model given as its text (the `lambdaRelationType` kind; Boundary.lambdaRelationType);
+   *  a model given otherwise is refused by name. */
+  async relationType(model: PureModelContext, lambda: Lambda): Promise<RelationTypeAnswer> {
+    return JSON.parse(unfold(await this.#port.ask({ kind: 'lambdaRelationType', model: modelTextOf(model, 'typed'), lambda: toJson(lambda) }))) as RelationTypeAnswer;
   }
 
   /** `compilation/lambdaReturnType`, answered in the tab as the server answers it (PureV1Api.route). */
@@ -259,10 +280,60 @@ export class WasmGrammar implements Grammar {
     return this.#pureV1.compile(model);
   }
 
-  /** A whole model's every error (Studio's live problems), [] when it compiles: the planning client's, asked of the
-   *  planner. */
-  compileErrors(code: string): Promise<string[]> {
-    return this.#pureV1.compileErrors(code);
+  /** A whole model's every error (Studio's live problems), [] when it compiles: the `compileErrors` kind
+   *  (Boundary.compileErrors, the product's Compiler.compileErrors), its errors' messages. */
+  async compileErrors(code: string): Promise<string[]> {
+    const answer = JSON.parse(unfold(await this.#port.ask({ kind: 'compileErrors', model: code }))) as { readonly errors: readonly { readonly message: string }[] };
+    return answer.errors.map((e) => e.message);
+  }
+
+  /**
+   * A lambda planned over `model` as an EXECUTION PLAN (the `executionPlan` kind; Boundary.executionPlanJsonHeld): its
+   * steps, its declared parameters and its answer's typed columns, which the hosts' runner runs (plan-runner.ts
+   * runPlanRows; 2026-11-17, the edge program's H3: Studio's and Query's in-tab execute, as DataCube's tab plans). The
+   * model is held by the planner once per text and released when no plan of it is asked (#held).
+   */
+  async executionPlan(model: PureModelContext, lambda: Lambda, runtime: string): Promise<PlanText> {
+    const text = modelTextOf(model, 'planned');
+    return this.#withHeld(text, async (handle) => planFromAnswer(unfold(await this.#port.ask({
+      kind: 'executionPlan', handle, lambda: toJson(lambda), runtime }))));
+  }
+
+  /** The models this planner holds, by text: each held once, its users counted, the older ones let go when unused. */
+  readonly #held = new Map<string, { readonly handle: Promise<number>; users: number }>();
+
+  async #withHeld<T>(text: string, use: (handle: number) => Promise<T>): Promise<T> {
+    let held = this.#held.get(text);
+    if (held === undefined) {
+      const handle = this.#port.ask({ kind: 'hold', model: text }).then((a) => Number(unfold(a)));
+      held = { handle, users: 0 };
+      this.#held.set(text, held);
+      // a model that does not compile is not kept: asked again, it is compiled again
+      handle.catch(() => { if (this.#held.get(text)?.handle === handle) this.#held.delete(text); });
+    } else {
+      // the most recent last
+      this.#held.delete(text);
+      this.#held.set(text, held);
+    }
+    held.users++;
+    try {
+      return await use(await held.handle);
+    } finally {
+      held.users--;
+      await this.#letGo();
+    }
+  }
+
+  /** The models beyond the two most recent, unused, released (the planner's `release` kind). */
+  async #letGo(): Promise<void> {
+    const texts = [...this.#held.keys()];
+    for (const text of texts.slice(0, Math.max(0, texts.length - 2))) {
+      const held = this.#held.get(text)!;
+      if (held.users > 0) continue;
+      this.#held.delete(text);
+      const handle = await held.handle.catch(() => undefined);
+      if (handle !== undefined) unfold(await this.#port.ask({ kind: 'release', handle }));
+    }
   }
 
   /**

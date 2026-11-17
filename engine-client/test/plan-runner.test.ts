@@ -10,14 +10,14 @@ import { startNodeDuckDb } from '../src/node-require.ts';
 import { runfilesFromEnv } from '../../tools/js/runfiles.mts';
 import { DuckDbEngine, type ArrowishConnection } from '../src/duckdb.ts';
 import { answer, type PlannerModule } from '../src/legend/planner-answer.ts';
-import { ConnectionSettings, establish, expandKeyed, inLoadsTransaction, PlanRefusal, runAuthored, runLoad, runPlan, targetKey, transacted, type PlanSession } from '../src/plan-runner.ts';
+import { checkParameters, ConnectionSettings, establish, expandKeyed, inLoadsTransaction, ParameterRefusal, PlanRefusal, runAuthored, runLoad, runPlan, targetKey, transacted, type PlanSession } from '../src/plan-runner.ts';
 import { currentRun, frameKept, inRun } from '../src/run-frame.ts';
 import { DatabaseError, failure, PlanRaise } from '../src/raised.ts';
 import { declareStatementSites, type Site } from '../src/declared-raises.ts';
 import { heldTexts, redactHeld } from '../src/connection-settings.ts';
 import { PlanParamsRefusal, planParams, statementParams } from '../src/plan-params.ts';
 import type { PlanColumn } from '../src/relation-type.ts';
-import { BrowserEngine } from '../src/legend/browser-engine.ts';
+import { BrowserEngine, TabEngine } from '../src/legend/browser-engine.ts';
 import { QueryError } from '../src/engine.ts';
 import { SecretStore } from '../src/host-operations.ts';
 import { readFileSync } from 'node:fs';
@@ -302,7 +302,10 @@ describe("a write's plan, run by the host's runner on DuckDB-WASM", () => {
     const plan = looseJson(planned(fn('write', src(), target()))) as Record<string, unknown>;
     const session: PlanSession = { databaseType: 'Postgres', run: async () => { throw new Error('ran'); } };
     await assert.rejects(() => runPlan(unplannedPlan(JSON.stringify(plan)), session), (e: unknown) => e instanceof PlanRefusal && /not run on this Postgres one/.test(e.message));
-    await assert.rejects(() => runPlan(unplannedPlan(JSON.stringify({ ...plan, parameters: [{ name: 'p' }] })), session), /takes parameters/);
+    // a parameter's declaration without its type and multiplicity (2026-11-17, the edge program's H3: a plan's parameters
+    // are bound at run, so their declarations are read -- until then any plan that took parameters was refused whole)
+    await assert.rejects(() => runPlan(unplannedPlan(JSON.stringify({ ...plan, parameters: [{ name: 'p' }] })), session),
+      (e: unknown) => e instanceof PlanRefusal && e.message === 'a plan parameter declared without its name, type, multiplicity and enumeration\'s values: {"name":"p"}');
     await assert.rejects(() => runPlan(unplannedPlan('{"format":"other"}'), session), /not a legend-lite execution plan/);
     // a plan of another version, and a statement only a dynamic pivot's probe plan writes (version 19): refused, never run (the version the runner reads, PLAN_VERSION: the A checkpoint's audit made it 42, 2026-11-10)
     await assert.rejects(() => runPlan(unplannedPlan(JSON.stringify({ ...plan, version: 5 })), session), /not a legend-lite execution plan of version 56/);
@@ -342,6 +345,64 @@ RelationalDatabaseConnection x::Bare { store: x::DB; type: DuckDB; specification
 Runtime x::RT { mappings: []; connections: [ x::DB: [ c: x::Conn ] ]; }
 Runtime x::BareRT { mappings: []; connections: [ x::DB: [ c: x::Bare ] ]; }
 `;
+
+describe("a query run in the tab on lite's own plan, its parameters bound at run (the edge program's H3, 2026-11-17)", () => {
+  // a query of the tab's DuckDB: SRC's rows past an id, the id a parameter the plan declares and the run binds
+  // (its id and name: an earlier test's write changes SRC's amounts)
+  const PAST = '{n: Integer[1]|#>{w::DB.SRC}#->filter(r|$r.id > $n)->select(~[id, name])->sort(~id->ascending())->from(w::RT)}';
+  const model = { _type: 'text', code: MODEL } as const;
+
+  it("answers the database's rows typed by the plan's columns, the same plan bound to each run's value", async () => {
+    const tab = new TabEngine(grammar, asTest(engine), engine.databaseType);
+    const lambda = await grammar.lambda(PAST);
+    const one = await tab.run(model, lambda, { n: 1 });
+    assert.equal(one.shape, 'RELATION');
+    assert.deepEqual(one.columns, [{ name: 'id', type: 'Integer' }, { name: 'name', type: 'String' }]);
+    assert.deepEqual(one.rows, [[2, 'b']]);
+    assert.deepEqual((await tab.run(model, lambda, { n: 0 })).rows, [[1, 'a'], [2, 'b']]);
+    // the value is bound, never written: the statement carries its placeholder, the same for every run
+    assert.match(one.sql, /\?/);
+    assert.equal((await tab.run(model, lambda, { n: 0 })).sql, one.sql);
+    assert.equal(await tab.statement(model, lambda), one.sql);
+  });
+
+  it('refuses by name, before anything is sent, a parameter with no value and a value its type does not take', async () => {
+    const seen = witnessed(database.connect() as ArrowishConnection);
+    const tab = new TabEngine(grammar, asTest(seen.engine), seen.engine.databaseType);
+    const lambda = await grammar.lambda(PAST);
+    await assert.rejects(tab.run(model, lambda), (e: unknown) => e instanceof ParameterRefusal
+      && e.message === 'no value for the parameter(s) n:Integer[1]');
+    await assert.rejects(tab.run(model, lambda, { n: 'one' }), (e: unknown) => e instanceof ParameterRefusal
+      && e.message === 'values their parameters do not take: [parameter \'n\' (Integer[1]): given "one" (string): an Integer is a whole number within 2^53]');
+    assert.deepEqual(seen.received, [], 'nothing sent for a refused run');
+  });
+});
+
+describe("a run's parameter values checked against the plan's declarations, as Java's PlanParameters checks them", () => {
+  const declared = (name: string, type: string, lower: number, upper?: number, enumValues: readonly string[] = []) =>
+    ({ name, type, multiplicity: upper === undefined ? { lower } : { lower, upper }, enumValues });
+
+  it('converts each value for binding: a date-time to its text at the nanosecond, a list, an optional absence', () => {
+    const checked = checkParameters([
+      declared('at', 'DateTime', 1, 1), declared('day', 'StrictDate', 1, 1), declared('d', 'Decimal', 1, 1),
+      declared('ids', 'Integer', 0), declared('maybe', 'String', 0, 1), declared('c', 'p::Colour', 1, 1, ['RED', 'GREEN']),
+    ], { at: '2024-06-01T09:30:00', day: '2024-06-01', d: '1.25', ids: [1, 2], c: 'RED' });
+    assert.deepEqual(Object.fromEntries(checked), {
+      at: { _type: 'one', value: '2024-06-01 09:30:00.000000000' }, day: { _type: 'one', value: '2024-06-01' },
+      d: { _type: 'one', value: '1.25' }, ids: { _type: 'many', values: [1, 2] }, maybe: { _type: 'none' },
+      c: { _type: 'one', value: 'RED' },
+    });
+  });
+
+  it('names every problem at once: the missing first, then each value its parameter does not take', () => {
+    assert.throws(() => checkParameters([declared('a', 'Integer', 1, 1), declared('b', 'p::Colour', 1, 1, ['RED']),
+      declared('c', 'StrictDate', 1, 1), declared('d', 'Integer', 1, 1)], { b: 'BLUE', c: '2024-13', d: [1, 2] }),
+    (e: unknown) => e instanceof ParameterRefusal && e.message === 'no value for the parameter(s) a:Integer[1]; values their'
+      + ' parameters do not take: [parameter \'b\' (p::Colour[1]): "BLUE" is not a value of p::Colour [RED];'
+      + ' parameter \'c\' (StrictDate[1]): given "2024-13" (string): a StrictDate is its text YYYY-MM-DD;'
+      + ' parameter \'d\' (Integer[1]): takes one value, given a list of 2]');
+  });
+});
 
 describe("a plan's loads, established on a database the host made for its target", () => {
   let loaded: number;

@@ -277,9 +277,9 @@ class ModelTextInjectionFuzzTest {
     // ---- the fuzz
 
     private static LiteV1Api.Answer route(String route, Object request) {
-        return LiteV1Api.route("/api/lite/v1/model/" + route, null, Json.toCompact(request), (q, r, o) -> {
+        return LiteV1Api.route(LiteV1Planning.API + "model/" + route, Json.toCompact(request), (q, r, v, o) -> {
             throw new AssertionError("a model change runs nothing");
-        });
+        }, LiteV1Api.Models.COMPILED);
     }
 
     /** Every place where a payload changed the model's text, by route; the counts in {@code counts}. */
@@ -296,7 +296,7 @@ class ModelTextInjectionFuzzTest {
                     LiteV1Api.Answer a = route(r.route(), place.request().apply(payload));
                     if (a.status() != 200) {
                         // refused BY NAME (the C4 audit's M3, 2026-11-13: until then any answer but 200 counted as
-                        // refused, a 500 that is a bug among them): lite's refusal of the text, 400 with its errorType
+                        // refused, a 500 that is a bug among them): lite's refusal of the text, 400 with its kind
                         if (!refusedByName(a)
                                 && found.computeIfAbsent(r.route(), k -> new TreeSet<>()).add(place.name() + " (refused, but not by name)")) {
                             examples.add(r.route() + ", " + place.name() + ", " + payload.replace("\n", "\\n")
@@ -360,15 +360,15 @@ class ModelTextInjectionFuzzTest {
         assertEquals(WRITTEN_BY_PLACE, written, "the payloads written, by route and place");
     }
 
-    /** Whether a route's answer is lite's NAMED refusal of the text: 400 with its errorType (PARSER or COMPILATION), as
-     *  {@code LiteV1Api.answer} writes a LegendCompileException, a NotImplementedException or a DialectCapability; a 500
-     *  is a malformed request or a bug, and either here is a finding (the C4 audit's M3, 2026-11-13). */
+    /** Whether a route's answer is lite's NAMED refusal of the text: 400 with its kind {@code parse} or {@code compile}
+     *  (lite's API v1 spec §3, 2026-11-17; until then the errorType PARSER or COMPILATION), as {@code LiteV1Api.answer}
+     *  writes a LegendCompileException; a 500 is a bug, and here a finding (the C4 audit's M3, 2026-11-13). */
     static boolean refusedByName(LiteV1Api.Answer a) {
         if (a.status() != 400) {
             return false;
         }
-        String type = com.legend.json.Json.parseObject(a.json()).getStringOr("errorType", "");
-        return type.equals("COMPILATION") || type.equals("PARSER");
+        String kind = com.legend.json.Json.parseObject(a.json()).getStringOr("kind", "");
+        return kind.equals("compile") || kind.equals("parse");
     }
 
     /** The payloads each route's place writes (measured 2026-11-13, the C4 audit's M3; a move is dated and names its

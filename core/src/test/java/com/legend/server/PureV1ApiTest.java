@@ -37,6 +37,14 @@ class PureV1ApiTest {
         throw new AssertionError("nothing is run here");
     };
 
+    /** Lite's own route, run nothing: {@code /api/lite/v1/<operation>} (lite's API v1 spec §2). */
+    private static LiteV1Api.Answer lite(String operation, String body) {
+        return LiteV1Api.route(operation.startsWith("/") ? operation : LiteV1Planning.API + operation, body,
+                (query, runtime, values, output) -> {
+                    throw new AssertionError("nothing is run here");
+                }, LiteV1Api.Models.COMPILED);
+    }
+
     /** E8 through the server's driver, as {@code LegendHttpServer} runs it. */
     private static LiteV1Api.Answer execute(String body) {
         return com.legend.edge.PureV1Routes.execute(body, ConnectionResolver.RUNNER);
@@ -290,8 +298,9 @@ class PureV1ApiTest {
         assertTrue(data.startsWith("{\"_type\":\"data\""), data.substring(0, Math.min(80, data.length())));
         for (String context : List.of(textModel(), data)) {
             assertEquals("{\"message\":\"OK\",\"defects\":[]}", com.legend.edge.PureV1Routes.compile(context).json());
-            assertEquals("{\"errors\":[]}", LiteV1Api.compileEveryError(context).json());
         }
+        // lite's own model/check takes the model as its text (lite's API v1 spec §1-§2, 2026-11-17)
+        assertEquals("{\"errors\":[]}", LiteV1Planning.modelCheck(model));
         String execute = "{\"clientVersion\":\"vX_X_X\",\"function\":%s,\"model\":%s,"
                 + "\"context\":{\"_type\":\"BaseExecutionContext\"}}";
         String typeOf = "{\"model\":%s,\"lambda\":%s}";
@@ -435,11 +444,13 @@ class PureV1ApiTest {
             throw new com.legend.error.TypeInferenceException(com.legend.error.CompileKind.ELEMENT_AT_OFFSET,
                     List.of("3", "2"));
         };
-        LiteV1Api.Answer product = LiteV1Api.answer(400, "COMPILATION", offset);
+        LiteV1Api.Answer product = LiteV1Api.answer(offset);
         assertEquals(400, product.status(), product.json());
+        assertEquals("compile", Json.parseObject(product.json()).getString("kind"), product.json());
         assertTrue(Json.parseObject(product.json()).getString("message").contains("offset 3 is outside a row of 2 cells"),
                 product.json());
-        LiteV1Api.Answer edge = LiteV1Api.answer(400, "COMPILATION", offset, com.legend.edge.PureMessages::compile,
+        LiteV1Api.Answer edge = com.legend.edge.EngineEnvelope.answer(400, "COMPILATION", offset,
+                com.legend.edge.PureMessages::compile,
                 com.legend.edge.PureMessages::typeName, com.legend.edge.PureMessages::uncaught);
         assertEquals(500, edge.status(), edge.json());
         assertTrue(Json.parseObject(edge.json()).getString("message").startsWith("IllegalStateException: ")
@@ -715,12 +726,15 @@ class PureV1ApiTest {
         assertEquals(404, missing.status());
         assertEquals("{\"code\":-1,\"message\":\"no such legend-engine API in legend-lite: /api/pure/v1/nope\",\"status\":\"error\"}",
                 missing.json());
-        assertEquals("{\"code\":-1,\"message\":\"no such legend-lite API: /api/lite/v1/nope\",\"status\":\"error\"}",
-                LiteV1Api.route("/api/lite/v1/nope", null, "", NO_RUN).json());
+        // lite's own routes refuse a path that names no operation in lite's one shape, kind request (lite's API v1 spec
+        // §3, 2026-11-17; until then the engine's envelope)
+        LiteV1Api.Answer nope = lite("/api/lite/v1/nope", "");
+        assertEquals(400, nope.status(), nope.json());
+        assertEquals("{\"kind\":\"request\",\"message\":\"no such legend-lite API: /api/lite/v1/nope\"}", nope.json());
         // the product names no legend-engine path: one of its, unknown to lite's own routes, is answered in lite's words
         // (B7, the orchestrator's ruling (3) of 2026-11-17; until then "no such legend-engine API in legend-lite")
-        assertEquals("{\"code\":-1,\"message\":\"no such legend-lite API: /api/pure/v1/nope\",\"status\":\"error\"}",
-                LiteV1Api.route("/api/pure/v1/nope", null, "", NO_RUN).json());
+        assertEquals("{\"kind\":\"request\",\"message\":\"no such legend-lite API: /api/pure/v1/nope\"}",
+                lite("/api/pure/v1/nope", "").json());
 
         String[] ran = new String[1];
         LiteV1Api.Answer refused = com.legend.edge.PureV1Routes.route("/api/pure/v1/execution/execute", null,
@@ -737,7 +751,7 @@ class PureV1ApiTest {
     /** A host's own refusal (its database refusing, say) is a database's refusal in the engine's shape. */
     @Test
     void refused_isTheEnginesErrorShape() {
-        LiteV1Api.Answer a = LiteV1Api.refused("ConversionException: no");
+        LiteV1Api.Answer a = com.legend.edge.EngineEnvelope.refused("ConversionException: no");
         assertEquals(500, a.status());
         assertEquals("{\"code\":-1,\"message\":\"ConversionException: no\",\"status\":\"error\"}", a.json());
     }
@@ -828,86 +842,84 @@ class PureV1ApiTest {
         assertTrue(o.getString("message").contains("trades::h2::broken"), refused.json());
     }
 
-    /** Lite's own #TS routes are closed: a key neither reads is refused by name, before anything is read (the final
-     *  audit of 9af16fbe58's J4, 2026-11-14: they sat under the census's upstream-protocol row, open); the keys each
-     *  reads are answered as before. */
+    /** Lite's own #TS operations are closed: a key neither reads is refused by name, kind request, before anything is
+     *  read (the final audit of 9af16fbe58's J4, 2026-11-14; lite's API v1 spec §2-§3, 2026-11-17: ts/item and
+     *  ts/statement); the keys each reads are answered as before. */
     @Test
     void liteTsRoutes_refuseAKeyTheyDoNotRead() {
-        LiteV1Api.Answer item = LiteV1Api.route("/api/lite/v1/grammar/tsItem", null,
-                "{\"text\":\"a = b\",\"sql\":\"select 1\"}", NO_RUN);
+        LiteV1Api.Answer item = lite("ts/item", "{\"text\":\"a = b\",\"sql\":\"select 1\"}");
         // refused as the model routes' closed requests are (ModelChangesRequestsAreClosedTest): by name, never answered
-        assertTrue(item.status() != 200, item.json());
-        assertTrue(item.json().contains("a tsItem request has no key sql"), item.json());
-        LiteV1Api.Answer read = LiteV1Api.route("/api/lite/v1/grammar/tsItem", null, "{\"text\":\"a = b\"}", NO_RUN);
+        assertEquals(400, item.status(), item.json());
+        assertEquals("request", Json.parseObject(item.json()).getString("kind"), item.json());
+        assertTrue(item.json().contains("a ts/item request has no key sql"), item.json());
+        LiteV1Api.Answer read = lite("ts/item", "{\"text\":\"a = b\"}");
         assertEquals(200, read.status(), read.json());
-        LiteV1Api.Answer shown = LiteV1Api.route("/api/lite/v1/grammar/jsonToTs/lambda", null,
-                "{\"model\":{},\"lambda\":{},\"sql\":\"select 1\"}", NO_RUN);
-        assertTrue(shown.status() != 200, shown.json());
-        assertTrue(shown.json().contains("a jsonToTs/lambda request has no key sql"), shown.json());
+        LiteV1Api.Answer shown = lite("ts/statement", "{\"model\":\"\",\"query\":{},\"sql\":\"select 1\"}");
+        assertEquals(400, shown.status(), shown.json());
+        assertTrue(shown.json().contains("a ts/statement request has no key sql"), shown.json());
     }
 
     /**
-     * legend-lite's own {@code /api/lite/v1/compilation/compile} (leg 6): the same whole-model compile, EVERY error
-     * answered, 200 -- both of two bodies that do not type, where legend-engine's route answers the first; an element
-     * error alone, since it stops the compile; none when the model compiles. A request it cannot read is refused as
-     * legend-engine's route refuses it.
+     * legend-lite's own {@code model/check} (leg 6; lite's API v1 spec §2, 2026-11-17): the same whole-model compile,
+     * EVERY error answered, 200, each in lite's one shape ({@code {kind, message, where}}) -- both of two bodies that
+     * do not type, where legend-engine's route answers the first; an element error alone, since it stops the compile;
+     * none when the model compiles. The model travels as its text; anything else is refused by name, kind request.
      */
     @Test
     void liteCompile_answersEveryError_whereTheEnginesRouteAnswersTheFirst() {
-        String lite = "/api/lite/v1/compilation/compile";
-        LiteV1Api.Answer ok = LiteV1Api.route(lite, null, textModel(), NO_RUN);
+        LiteV1Api.Answer ok = lite("model/check", Json.toCompact(Map.of("model", model)));
         assertEquals(200, ok.status(), ok.json());
         assertEquals("{\"errors\":[]}", ok.json());
 
-        String two = Json.toCompact(Map.of("_type", "text", "code", model + "\n###Pure\n"
+        String twoText = model + "\n###Pure\n"
                 + "function trades::h2::broken(): Any[*] { #>{trades::h2::DB.TRADES_SCHEMA.TRADES}#->select(~[nope]) }\n"
-                + "function trades::h2::alsoBroken(): Any[*] { #>{trades::h2::DB.TRADES_SCHEMA.TRADES}#->select(~[nada]) }\n"));
-        LiteV1Api.Answer every = LiteV1Api.route(lite, null, two, NO_RUN);
+                + "function trades::h2::alsoBroken(): Any[*] { #>{trades::h2::DB.TRADES_SCHEMA.TRADES}#->select(~[nada]) }\n";
+        LiteV1Api.Answer every = lite("model/check", Json.toCompact(Map.of("model", twoText)));
         assertEquals(200, every.status(), every.json());
         List<String> messages = new ArrayList<>();
         for (Json.Node e : Json.parseObject(every.json()).getArr("errors").items()) {
+            assertEquals("compile", ((Json.Obj) e).getString("kind"), every.json());
             messages.add(((Json.Obj) e).getString("message"));
         }
         assertEquals(2, messages.size(), every.json());
         assertTrue(messages.get(0).contains("trades::h2::alsoBroken"), every.json());
         assertTrue(messages.get(1).contains("trades::h2::broken"), every.json());
+        String two = Json.toCompact(Map.of("_type", "text", "code", twoText));
         LiteV1Api.Answer first = com.legend.edge.PureV1Routes.route("/api/pure/v1/compilation/compile", null, two, NO_RUN);
         assertEquals(400, first.status(), first.json());
         assertEquals(messages.get(0), Json.parseObject(first.json()).getString("message"));
 
-        String element = Json.toCompact(Map.of("_type", "text", "code",
-                model + "\n###Pure\nClass trades::h2::Desk\n{\n  name: Strin[1];\n}\n"));
-        LiteV1Api.Answer one = LiteV1Api.route(lite, null, element, NO_RUN);
+        String elementText = model + "\n###Pure\nClass trades::h2::Desk\n{\n  name: Strin[1];\n}\n";
+        LiteV1Api.Answer one = lite("model/check", Json.toCompact(Map.of("model", elementText)));
         assertEquals(200, one.status(), one.json());
         List<Json.Node> errors = Json.parseObject(one.json()).getArr("errors").items();
         assertEquals(1, errors.size(), one.json());
-        assertEquals(Json.parseObject(com.legend.edge.PureV1Routes.compile(element).json()).getString("message"),
-                ((Json.Obj) errors.get(0)).getString("message"));
+        assertEquals(Json.parseObject(com.legend.edge.PureV1Routes.compile(Json.toCompact(Map.of("_type", "text",
+                "code", elementText))).json()).getString("message"), ((Json.Obj) errors.get(0)).getString("message"));
 
-        // a model context of another kind (a pointer the engine loads from an SDLC); a PureModelContextData is read
-        // (leg 8 step 3)
-        String pointer = "{\"_type\":\"pointer\",\"sdlcInfo\":{}}";
-        LiteV1Api.Answer unread = LiteV1Api.route(lite, null, pointer, NO_RUN);
-        assertEquals(com.legend.edge.PureV1Routes.compile(pointer), unread);
-        assertEquals(500, unread.status(), unread.json());
+        // a model given as anything but its text (a model context, the engine's form) is refused by name
+        LiteV1Api.Answer unread = lite("model/check", "{\"model\":{\"_type\":\"pointer\",\"sdlcInfo\":{}}}");
+        assertEquals(400, unread.status(), unread.json());
+        assertEquals("{\"kind\":\"request\",\"message\":\"the request's model is not a string\"}", unread.json());
     }
 
     /**
      * A failure outside a route (the boundary's own operations, which the tab and Python fold) is named as the routes
-     * name it: legend-engine's errorType when the text is refused, else the server's status with the failure's class.
+     * name it, in lite's kinds (lite's API v1 spec §3, 2026-11-17): {@code parse} and {@code compile} when the text is
+     * refused, else {@code internal} with the failure's class.
      */
     @Test
     void aFailureOutsideARoute_isNamedAsTheRoutesNameIt() {
         RuntimeException parse = org.junit.jupiter.api.Assertions.assertThrows(RuntimeException.class,
                 () -> com.legend.Compiler.parseQuery("1 +"));
-        assertEquals("PARSER", LiteV1Api.refusal(parse).kind().text());
+        assertEquals(LiteV1Api.Kind.PARSE, LiteV1Api.refusal(parse).kind());
         assertEquals(parse.getMessage(), LiteV1Api.refusal(parse).message());
         RuntimeException compile = org.junit.jupiter.api.Assertions.assertThrows(RuntimeException.class,
                 () -> com.legend.Compiler.compileModel("Class demo::Desk\n{\n  name: Strin[1];\n}\n"));
-        assertEquals("COMPILATION", LiteV1Api.refusal(compile).kind().text());
-        assertEquals(new LiteV1Api.Refusal(LiteV1Api.RefusalKind.FAILURE, "IllegalArgumentException: no"),
+        assertEquals(LiteV1Api.Kind.COMPILE, LiteV1Api.refusal(compile).kind());
+        assertEquals(new LiteV1Api.Refusal(LiteV1Api.Kind.INTERNAL, "IllegalArgumentException: no", null, null),
                 LiteV1Api.refusal(new IllegalArgumentException("no")));
-        assertEquals(new LiteV1Api.Refusal(LiteV1Api.RefusalKind.FAILURE, "NullPointerException: broke"),
+        assertEquals(new LiteV1Api.Refusal(LiteV1Api.Kind.INTERNAL, "NullPointerException: broke", null, null),
                 LiteV1Api.refusal(new NullPointerException("broke")));
     }
 

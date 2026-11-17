@@ -38,6 +38,155 @@ import { inRun } from './run-frame.ts';
 /** A value bound into a statement's `?`. */
 export type PlanValue = string | number | boolean | null;
 
+/**
+ * A RUN'S PARAMETER VALUE, as its caller hands it (2026-11-17, the edge program's HOST stream; the orchestrator's Q2
+ * ruling, "bind at RUN, not at planning": a plan declares its parameters and their typed placeholders, its values come
+ * when it runs -- the TS twin of Java's exec/PlanParameters). By the parameter's declared Pure type: an Integer a whole
+ * number (a safe integer), a Float a finite number, a Decimal its plain digits as text, a Number either, a Boolean a
+ * boolean, a String a string, a StrictDate its text `YYYY-MM-DD`, a DateTime its ISO 8601 text in UTC
+ * (`YYYY-MM-DDTHH:MM[:SS[.fffffffff]]`, a trailing `Z` allowed), a Date either of those two, an enumeration's value its
+ * name; a collection an array; none (null, or an empty array) for no value.
+ */
+export type ParameterValue = string | number | boolean | null | readonly (string | number | boolean)[];
+
+/** A parameter as the plan declares it (PlanJson parameterJson). */
+interface DeclaredParameter {
+  readonly name: string;
+  readonly type: string;
+  readonly multiplicity: { readonly lower: number; readonly upper?: number };
+  readonly enumValues: readonly string[];
+}
+
+/** A plan's parameter declaration as its version writes it (PlanJson.parameterJson: a name, a Pure type, a multiplicity
+ *  whose upper bound is absent for none, an enumeration's names) -- any other refused by name, never read loosely. */
+function declaredParameter(d: unknown): DeclaredParameter {
+  const p = d !== null && typeof d === 'object' ? d as Readonly<Record<string, unknown>> : {};
+  const m = p['multiplicity'] !== null && typeof p['multiplicity'] === 'object' ? p['multiplicity'] as Readonly<Record<string, unknown>> : undefined;
+  const enumValues = p['enumValues'];
+  if (typeof p['name'] !== 'string' || typeof p['type'] !== 'string' || m === undefined || typeof m['lower'] !== 'number'
+    || !(m['upper'] === undefined || typeof m['upper'] === 'number')
+    || !Array.isArray(enumValues) || !enumValues.every((v) => typeof v === 'string')) {
+    throw new PlanRefusal(`a plan parameter declared without its name, type, multiplicity and enumeration's values: ${JSON.stringify(d)}`);
+  }
+  const upper = m['upper'];
+  return {
+    name: p['name'], type: p['type'], enumValues: enumValues as readonly string[],
+    multiplicity: typeof upper === 'number' ? { lower: m['lower'], upper } : { lower: m['lower'] },
+  };
+}
+
+/** One parameter's checked value: one value as its slot binds it, a list's values, or none. */
+type CheckedParameter =
+  | { readonly _type: 'one'; readonly value: PlanValue }
+  | { readonly _type: 'many'; readonly values: readonly PlanValue[] }
+  | { readonly _type: 'none' };
+
+/** A refusal of a run's parameter values: every problem named at once, nothing run. */
+export class ParameterRefusal extends Error {
+  override readonly name = 'ParameterRefusal';
+}
+
+/** `m` as written beside a type: `1`, `0..1`, `*`, `1..*`. */
+function multiplicityText(m: DeclaredParameter['multiplicity']): string {
+  if (m.upper === undefined) return m.lower === 0 ? '*' : `${m.lower}..*`;
+  return m.lower === m.upper ? String(m.lower) : `${m.lower}..${m.upper}`;
+}
+
+/**
+ * `values` checked against `declared` and converted for binding, by name -- Java's PlanParameters.check, its rules
+ * mirrored: a required parameter given no value, and a value its parameter does not take, are each named, all at once
+ * (lite's words: "no value for the parameter(s) ..."); a value for no declared parameter is ignored.
+ */
+export function checkParameters(declared: readonly DeclaredParameter[], values: Readonly<Record<string, ParameterValue>>):
+  ReadonlyMap<string, CheckedParameter> {
+  const missing: string[] = [];
+  const invalid: string[] = [];
+  const out = new Map<string, CheckedParameter>();
+  for (const p of declared) {
+    const value = Object.hasOwn(values, p.name) ? values[p.name] : undefined;
+    const typed = `${p.type}[${multiplicityText(p.multiplicity)}]`;
+    if (value === undefined || value === null || (Array.isArray(value) && value.length === 0)) {
+      if (p.multiplicity.lower > 0) missing.push(`${p.name}:${typed}`);
+      else out.set(p.name, { _type: 'none' });
+      continue;
+    }
+    const problem = checkedParameter(p, value, out);
+    if (problem !== undefined) invalid.push(`parameter '${p.name}' (${typed}): ${problem}`);
+  }
+  const wrong = invalid.length === 0 ? undefined : `values their parameters do not take: [${invalid.join('; ')}]`;
+  if (missing.length > 0) throw new ParameterRefusal(`no value for the parameter(s) ${missing.join(', ')}${wrong === undefined ? '' : `; ${wrong}`}`);
+  if (wrong !== undefined) throw new ParameterRefusal(wrong);
+  return out;
+}
+
+/** `value` (one value or a non-empty list) of `p` checked: its checked form put in `out`, or what is wrong with it. */
+function checkedParameter(p: DeclaredParameter, value: ParameterValue, out: Map<string, CheckedParameter>): string | undefined {
+  const m = p.multiplicity;
+  if (m.upper === 1) {
+    if (Array.isArray(value)) return `takes one value, given a list of ${value.length}`;
+    const c = parameterValue(p, value as string | number | boolean);
+    if (c !== null && typeof c === 'object') return c.refused;
+    out.set(p.name, { _type: 'one', value: c });
+    return undefined;
+  }
+  if (!Array.isArray(value)) return 'takes a list, given one value';
+  const list = value as readonly (string | number | boolean | null)[];
+  if (list.length < m.lower || (m.upper !== undefined && list.length > m.upper)) return `takes ${multiplicityText(m)} values, given ${list.length}`;
+  const converted: PlanValue[] = [];
+  for (const v of list) {
+    if (v === null) return 'a list holds no null';
+    const c = parameterValue(p, v);
+    if (c !== null && typeof c === 'object') return c.refused;
+    converted.push(c);
+  }
+  out.set(p.name, { _type: 'many', values: converted });
+  return undefined;
+}
+
+const STRICT_DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
+const DATE_TIME = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2})(?:\.(\d{1,9}))?)?Z?$/;
+
+/** `v` (one value, not null) of `p` as its slot binds it, or why it is not one `p` takes. */
+function parameterValue(p: DeclaredParameter, v: string | number | boolean): PlanValue | { readonly refused: string } {
+  const shown = typeof v === 'string' ? JSON.stringify(v) : String(v);
+  const notA = (expected: string) => ({ refused: `given ${shown} (${typeof v}): ${expected}` });
+  if (p.enumValues.length > 0) {
+    return typeof v === 'string' && p.enumValues.includes(v) ? v : { refused: `${shown} is not a value of ${p.type} [${p.enumValues.join(', ')}]` };
+  }
+  const integer = (): PlanValue | { readonly refused: string } => (typeof v === 'number' && Number.isSafeInteger(v) ? v
+    : notA('an Integer is a whole number within 2^53'));
+  const float = (): PlanValue | { readonly refused: string } => (typeof v !== 'number' ? notA('a Float is a number')
+    : Number.isFinite(v) ? v : { refused: `${shown} is not finite: no SQL literal stands for it` });
+  const decimal = (): PlanValue | { readonly refused: string } => (typeof v === 'string' && /^-?\d+(\.\d+)?$/.test(v) ? v
+    : notA('a Decimal is its plain digits as text'));
+  const strictDate = (): PlanValue | { readonly refused: string } | undefined => {
+    const d = typeof v === 'string' ? STRICT_DATE.exec(v) : null;
+    if (d === null) return undefined;
+    const year = Number(d[1]);
+    return year >= 1 && year <= 9999 ? v : { refused: `${v} is outside the years 1 to 9999: no date text a database reads stands for it` };
+  };
+  const dateTime = (): PlanValue | { readonly refused: string } | undefined => {
+    const t = typeof v === 'string' ? DATE_TIME.exec(v) : null;
+    if (t === null) return undefined;
+    const year = Number(t[1]);
+    if (year < 1 || year > 9999) return { refused: `${v} is outside the years 1 to 9999: no date-time text a database reads stands for it` };
+    // the text its cast reads, every digit to the nanosecond, as Java's runner writes it (PlanRunner.dateTimeText)
+    return `${t[1]}-${t[2]}-${t[3]} ${t[4]}:${t[5]}:${t[6] ?? '00'}.${(t[7] ?? '').padEnd(9, '0')}`;
+  };
+  switch (p.type) {
+    case 'Integer': return integer();
+    case 'Float': return float();
+    case 'Decimal': return decimal();
+    case 'Number': return typeof v === 'number' ? (Number.isSafeInteger(v) ? v : float()) : decimal();
+    case 'Boolean': return typeof v === 'boolean' ? v : notA('a Boolean is a boolean');
+    case 'String': return typeof v === 'string' ? v : notA('a String is a string');
+    case 'StrictDate': return strictDate() ?? notA('a StrictDate is its text YYYY-MM-DD');
+    case 'DateTime': return dateTime() ?? notA('a DateTime is its ISO 8601 text in UTC, YYYY-MM-DDTHH:MM[:SS[.fffffffff]]');
+    case 'Date': return strictDate() ?? dateTime() ?? notA('a Date is a StrictDate\'s or a DateTime\'s text');
+    default: return { refused: `a ${p.type} value is not bound by a plan` };
+  }
+}
+
 // a host's held values and the settings a load makes on a connection: a module of their own, so a page that keeps them
 // (the tab's duckdb-tab.ts) carries this runner only once it runs a plan (B3's Q3)
 export { ConnectionSettings, replaySettings, type Bind, type HostSecrets, type KeptSetting } from './connection-settings.ts';
@@ -537,23 +686,64 @@ export class PlanRefusal extends Error {
  * is open already (a table made before it is written, one change: an Output's create), so the plan runs inside it and
  * neither begins nor ends it -- as Java's runner joins a caller's.
  */
-export async function runPlan(plan: PlanText, session: PlanSession,
-  o: { readonly joined?: boolean; readonly established?: boolean } = {}): Promise<string> {
+export async function runPlan(plan: PlanText, session: PlanSession, o: RunOptions = {}): Promise<string> {
+  let text: string | undefined;
+  await runAnswer(plan, session, o, (columns, rows) => { text = rowsOf(columns, rows); });
+  // a plan of writes alone answers no row
+  return text ?? '[]';
+}
+
+/** How a plan runs: inside its caller's transaction (`joined`), on a session established for its target
+ *  (`established`), and its run's parameter values (`parameters`, checked against the plan's declarations and bound at
+ *  run: checkParameters). */
+export interface RunOptions {
+  readonly joined?: boolean;
+  readonly established?: boolean;
+  readonly parameters?: Readonly<Record<string, ParameterValue>>;
+}
+
+/** A plan's answer as typed rows (runPlanRows): the plan's columns and each row's cells as the database's decoder read
+ *  them, by the columns' order. */
+export interface PlanRows {
+  readonly columns: readonly Column[];
+  readonly rows: readonly (readonly unknown[])[];
+}
+
+/**
+ * A plan run on `session` as runPlan runs it, its answer handed back as TYPED ROWS -- the plan's columns and the
+ * database's values -- never written as text (2026-11-17, the edge program's HOST stream: the TS twin of Java's
+ * Output.Rows, output only; an app's grid reads the values by the plan's types, and a writer at the edge spells them).
+ * A plan of writes alone answers none (undefined).
+ */
+export async function runPlanRows(plan: PlanText, session: PlanSession, o: RunOptions = {}): Promise<PlanRows | undefined> {
+  let answered: PlanRows | undefined;
+  await runAnswer(plan, session, o, (columns, rows) => { answered = { columns, rows }; });
+  return answered;
+}
+
+/** The run both share: the plan's steps run on `session`, its one answer handed to `answer`, which decides nothing. */
+async function runAnswer(plan: PlanText, session: PlanSession, o: RunOptions,
+  answer: (columns: readonly Column[], rows: readonly (readonly unknown[])[]) => void): Promise<void> {
   return inRun('a plan', async () => {
     const read = JSON.parse(plan) as ReadPlan;
     if (read.format !== 'legend-lite-plan' || read.version !== PLAN_VERSION) {
       throw new PlanRefusal(`not a legend-lite execution plan of version ${PLAN_VERSION}: ${JSON.stringify({ format: read.format, version: read.version })}`);
     }
     declareSites(read, 'a plan');
-    if (!Array.isArray(read.parameters) || read.parameters.length > 0) throw new PlanRefusal('a plan that takes parameters is not run here: its program binds none');
+    if (!Array.isArray(read.parameters)) throw new PlanRefusal('a plan whose parameters are not a list is not of this version');
+    // its parameters' values, checked and converted before any statement is sent (the orchestrator's Q2: bound at run)
+    const parameters = checkParameters(read.parameters.map(declaredParameter), o.parameters ?? {});
     const root = read.root;
     if (root === undefined) throw new PlanRefusal('a plan with no root');
     if (root._type === 'keyed') {
       // a pivot whose columns the data names: its keys read first, then its body per key (B3: the hosts run it)
       const keyed = root as Keyed;
       checkTarget(keyed.keys, session, o);
+      if (parameters.size > 0) throw new PlanRefusal("a dynamic pivot that takes parameters is not run here: its keys and body bind none");
       if (o.established !== true) for (const statement of required((keyed.keys.target as Target).session, "its target's session")) await session.run(fromPlan(statement), []);
-      return keyedRows(keyed, session);
+      const keyedAnswer = await keyedRows(keyed, session);
+      answer(keyedAnswer.columns, keyedAnswer.rows);
+      return;
     }
     const steps = root._type === 'sequence' ? (root as { readonly steps: readonly Step[] }).steps
       : root._type === 'tdsResult' || root._type === 'constant' ? [root] : undefined;
@@ -564,7 +754,11 @@ export async function runPlan(plan: PlanText, session: PlanSession,
     if (results.length !== 1 && !(results.length === 0 && writes)) throw new PlanRefusal(`a plan answers with one typed result, not ${results.length}`);
     // a constant answer is the plan's own value: nothing to send for it (the test-is-the-product plan's M2)
     const sent = steps.filter((s) => s._type !== 'constant');
-    if (sent.length === 0) return constantRows(results[0] as Extract<Step, { _type: 'constant' }>);
+    if (sent.length === 0) {
+      const c = results[0] as Extract<Step, { _type: 'constant' }>;
+      answer(c.columns, constantCells(c));
+      return;
+    }
     const sqls = sent.map((s) => stepSql(s));
     // one database, as it is: every step's target the same, of this session's type, set up by nothing first
     const [first] = sqls;
@@ -590,8 +784,11 @@ export async function runPlan(plan: PlanText, session: PlanSession,
         if (slot.binding._type !== 'one') {
           throw new PlanRefusal(`'${slot.parameter}' binds ${slot.binding._type === 'key' ? "a key's cell" : slot.binding._type === 'source' ? 'a file source' : slot.binding._type === 'payload' ? "a data: payload" : 'a list'}, which is not run here`);
         }
-        // a date or date-time bound as its text into its declared type's cast (P4): a host binds none
-        if (slot.binding.asText !== undefined && slot.binding.asText !== null) throw new PlanRefusal(`'${slot.parameter}' is a date bound as its text, which is not run here`);
+        // a date or date-time bound as its text into its declared type's cast (P4): a run's parameter alone, its text
+        // checkParameters' (Java's PlanRunner.dateTimeText)
+        if (slot.binding.asText !== undefined && slot.binding.asText !== null && !parameters.has(slot.parameter)) {
+          throw new PlanRefusal(`'${slot.parameter}' is a date bound as its text and no parameter of the plan`);
+        }
       }
     }
     const changes = steps.some((s) => s._type === 'update' || s._type === 'effect') && o.joined !== true;
@@ -601,14 +798,20 @@ export async function runPlan(plan: PlanText, session: PlanSession,
     const bound = (s: Sql): PlanValue[] => s.slots.map((slot) => {
       // its payload's text from the statement's content, checked against its digest
       if (slot.binding._type === 'payload') return payloadValue(required(s.content, "a payload slot's statement content"), required(slot.binding.digest, "a payload slot's digest"));
+      // a run's parameter, its value checked and converted (checkParameters): one value, or a typed null for none
+      const parameter = parameters.get(slot.parameter);
+      if (parameter !== undefined) {
+        if (parameter._type === 'many') throw new PlanRefusal(`'${slot.parameter}' binds one value, given a list`);
+        return parameter._type === 'one' ? parameter.value : null;
+      }
       if (!values.has(slot.parameter)) throw new PlanRefusal(`'${slot.parameter}' is bound before any step gives it`);
       return values.get(slot.parameter)!;
     });
-    let text: string | undefined;
     const all = async (): Promise<void> => {
       for (const step of steps) {
         if (step._type === 'constant') {
-          text = constantRows(step as Extract<Step, { _type: 'constant' }>);
+          const c = step as Extract<Step, { _type: 'constant' }>;
+          answer(c.columns, constantCells(c));
           continue;
         }
         const sql = stepSql(step);
@@ -618,7 +821,7 @@ export async function runPlan(plan: PlanText, session: PlanSession,
           const count = (step as { readonly count?: string | null }).count;
           if (count !== undefined && count !== null) values.set(count, countOf(rows));
         } else if (step._type === 'tdsResult') {
-          text = rowsOf((step as { readonly columns: readonly Column[] }).columns, rows);
+          answer((step as { readonly columns: readonly Column[] }).columns, rows);
         }
       }
     };
@@ -626,8 +829,6 @@ export async function runPlan(plan: PlanText, session: PlanSession,
     // caller's
     if (changes) await inTransaction(t, session.run, all);
     else await all();
-    // a plan of writes alone answers no row
-    return text ?? '[]';
   });
 }
 
@@ -723,11 +924,11 @@ export function expandKeyed(body: Sql & { readonly regions?: readonly Region[] }
  * rest of the fixed ones -- as lite's JSON rows. A raw grid's keys (the columns its result reports) are a test body's,
  * refused by name.
  */
-async function keyedRows(keyed: Keyed, session: PlanSession): Promise<string> {
+async function keyedRows(keyed: Keyed, session: PlanSession): Promise<PlanRows> {
   if (keyed.keysOf !== 'ROWS') throw new PlanRefusal("a raw grid's keyed result (its keys the columns its result reports) is not run here: the planner runs it");
   const perKey = keyed.outputs.filter((o) => o._type === 'perKey').length;
   const snapshot = keyed.snapshot !== 'NONE';
-  const read = async (): Promise<string> => {
+  const read = async (): Promise<PlanRows> => {
     if (keyed.keys.slots.length > 0) throw new PlanRefusal("a keys statement binding a value is not run here: a host's plan binds none");
     const keys = (await session.run(fromPlan(keyed.keys.statement), [])).map((row) => row.slice(0, perKey + 1).map((cell) => {
       if (typeof cell !== 'string') throw new PlanRefusal(`a keys row holds ${String(cell)}: the probe writes each key's text and names`);
@@ -757,7 +958,7 @@ async function keyedRows(keyed: Keyed, session: PlanSession): Promise<string> {
       row.forEach((cell, i) => { placed[place[i]!] = cell; });
       return placed;
     });
-    return rowsOf(inOrder, rows);
+    return { columns: inOrder, rows };
   };
   // the keys and the body read in one snapshot where the plan asks one: the target's transaction (version 50)
   return snapshot ? inTransaction(keyed.keys.target as Target, session.run, read) : read();
@@ -788,7 +989,7 @@ function stepSql(s: Step): Sql {
 
 /** A constant answer's rows (PlanRunner.constantRows' rule): a String's cell its text, a Boolean's `true` or `false`,
  *  an absent value null; any other column the planner never writes, refused by name. */
-function constantRows(c: Extract<Step, { _type: 'constant' }>): string {
+function constantCells(c: Extract<Step, { _type: 'constant' }>): (string | boolean | null)[][] {
   const [column] = c.columns;
   if (c.columns.length !== 1 || column === undefined) throw new PlanRefusal(`a constant answer is one column, not ${c.columns.length}`);
   const typed = c.cells.map((row) => row.map((text) => {
@@ -798,7 +999,7 @@ function constantRows(c: Extract<Step, { _type: 'constant' }>): string {
     if (isBoolean(column.type) && (text === 'true' || text === 'false')) return text === 'true';
     throw new PlanRefusal(`a constant answer of ${column.type} ('${text}'): the planner writes a String or a Boolean`);
   }));
-  return rowsOf(c.columns, typed);
+  return typed;
 }
 
 /** The count a statement that changes the database answers: its one row's first value. */

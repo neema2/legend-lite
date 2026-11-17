@@ -56,9 +56,11 @@ export interface QueryEngine {
   /**
    * Run raw SQL no planner wrote -- or a plan's statement as its text (a host's pure/v1 execute) -- answering names and
    * values, no types. Same `signal` rules. `params`: the values its `?`s bind, in order (a plan's data: payloads,
-   * plan-params.ts, the tenets audit's M3); an engine that binds none refuses them by name, never runs the text alone.
+   * plan-params.ts, the tenets audit's M3; a run's parameters, typed by their declarations, plan-runner.ts
+   * checkParameters: 2026-11-17, the edge program's HOST stream); an engine that binds none refuses them by name, never
+   * runs the text alone.
    */
-  run(sql: PlannedSql, epoch: number, signal?: AbortSignal, params?: readonly string[]): Promise<RawTable>;
+  run(sql: PlannedSql, epoch: number, signal?: AbortSignal, params?: readonly (string | number | boolean | null)[]): Promise<RawTable>;
   close(): Promise<void>;
 }
 

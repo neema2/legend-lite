@@ -4,11 +4,10 @@
 // the query's own source.
 
 import {
-  agg, colSpec, colSpecs, derive, desc, element, fn, from, lambda, lit, property, variable, type Lambda, type ValueSpecification,
+  agg, colSpec, derive, desc, element, fn, from, lambda, lit, property, variable, type Lambda, type ValueSpecification,
 } from '../../../pure-protocol/src/index.ts';
 import { isToMany, isNumericFamily, primitiveFamily } from '../model/graph.ts';
 import type { PropertyPath } from '../builder/state.ts';
-import { isTds } from '../backend/wire.ts';
 import { propertyAt } from './actions.ts';
 import type { AppContext } from './context.ts';
 import type { Session } from './session.ts';
@@ -38,9 +37,9 @@ export function probeable(session: Session, path: PropertyPath): boolean {
 }
 
 async function rows(app: AppContext, session: Session, l: Lambda, signal?: AbortSignal): Promise<{ columns: readonly string[]; rows: unknown[][] }> {
-  const r = await app.engine.execute({ function: l, model: session.project.context }, signal);
-  if (!isTds(r)) throw new Error('the probe did not answer a table');
-  return { columns: r.result.columns, rows: r.result.rows.map((x) => [...x.values]) };
+  const r = await app.engine.run(session.project.context, l, {}, signal);
+  if (r.shape !== 'RELATION') throw new Error('the probe did not answer a table');
+  return { columns: r.columns.map((c) => c.name), rows: r.rows.map((x) => [...x]) };
 }
 
 /** Up to 10 distinct values of a string property starting with `prefix` (upstream's typeahead). */
@@ -72,8 +71,8 @@ export async function preview(app: AppContext, session: Session, path: PropertyP
       ['Count', fn('count', y)], ['Distinct Count', fn('count', fn('distinct', y))], ['Sum', fn('sum', y)],
       ['Min', fn('min', y)], ['Max', fn('max', y)], ['Average', fn('average', y)],
     ] as const;
-    // `aggregate(~[...])`, not `groupBy(~[], ...)`: legend-engine fails on a groupBy with no keys (measured, 4.145.0)
-    const r = await rows(app, session, onSource(session, projected.apply('aggregate', colSpecs(aggs.map(([n, f]) => agg(n, map, lambda(['y'], f))))).node));
+    // the whole relation's aggregate: `groupBy(~[], ...)`, as lite accepts it (2026-11-17, the edge program's N4)
+    const r = await rows(app, session, onSource(session, projected.groupBy([], aggs.map(([n, f]) => agg(n, map, lambda(['y'], f)))).node));
     const one = r.rows[0] ?? [];
     return { columns: ['Aggregation', 'Value'], rows: aggs.map(([n], i) => [n, one[i] ?? null]) };
   }

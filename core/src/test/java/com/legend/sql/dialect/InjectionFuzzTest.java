@@ -108,8 +108,9 @@ class InjectionFuzzTest {
     /**
      * Whether {@code e} is LITE'S NAMED REFUSAL (the C4 audit's M3, 2026-11-13: until then every fuzz counted any
      * RuntimeException "refused", so a NullPointerException a payload provoked passed as a refusal): a refusal of the
-     * text in lite's own vocabulary -- what the server answers with an errorType ({@code LiteV1Api.refusal}: a
-     * LegendCompileException, a NotImplementedException, a DialectCapability) -- or a malformed request said as one, an
+     * text in lite's own vocabulary -- what the server answers with a kind other than {@code internal}
+     * ({@code LiteV1Api.refusal}: a LegendCompileException, a NotImplementedException, a DialectCapability, a run's
+     * raise; lite's API v1 spec §3, 2026-11-17) -- or a malformed request said as one, an
      * IllegalArgumentException of exactly that class thrown by lite's own code (a class of {@code com.legend} or the
      * boundary's {@code planner}; the server answers it 500 as a malformed request, never logged as a bug). Anything
      * else -- an IllegalStateException, an index out of bounds, a JDK's own IllegalArgumentException (a
@@ -117,7 +118,7 @@ class InjectionFuzzTest {
      * place and its database.
      */
     static boolean namedRefusal(RuntimeException e) {
-        if (!com.legend.server.LiteV1Api.refusal(e).kind().text().equals("500")) {
+        if (com.legend.server.LiteV1Api.refusal(e).kind() != com.legend.server.LiteV1Api.Kind.INTERNAL) {
             return true;
         }
         if (e.getClass() != IllegalArgumentException.class || e.getStackTrace().length == 0) {

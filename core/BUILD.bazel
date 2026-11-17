@@ -372,6 +372,8 @@ legend_java_library(
         "src/main/java/com/legend/server/ModelChanges.java",
         "src/main/java/com/legend/server/ModelInput.java",
         "src/main/java/com/legend/server/LiteV1Api.java",
+        # lite's own grammar and typing routes (the HOST stream, 2026-11-17)
+        "src/main/java/com/legend/server/LiteV1Planning.java",
         "src/main/java/com/legend/server/TsTree.java",
     ],
     # door (C5-J item 1, 2026-11-15): its parses through the parse doors, which ask the run's wall
@@ -388,6 +390,7 @@ legend_java_library(
             "src/main/java/com/legend/server/ModelChanges.java",
             "src/main/java/com/legend/server/ModelInput.java",
             "src/main/java/com/legend/server/LiteV1Api.java",
+            "src/main/java/com/legend/server/LiteV1Planning.java",
             "src/main/java/com/legend/server/TsTree.java",
         ],
     ),
