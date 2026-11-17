@@ -546,15 +546,6 @@ public final class LiteralSpelling {
                 new SqlExpr.StringLit("%"), datePrint(x));
     }
 
-    /** DateTime LITERAL at the element's STATIC subsecond precision
-     * (the caller resolves the format): % + T-separated print + +0000.
-     * Precision-faithful by construction — pairs with the A1 fix
-     * (temporalCanon no longer strips written subseconds). */
-    public static SqlExpr dateTimeLiteral(SqlExpr x, SqlExpr.FormatLit fmt) {
-        return SqlExpr.Call.of(SqlFn.CONCAT,
-                new SqlExpr.StringLit("%"), dateTimePrint(x, fmt));
-    }
-
     /** A DateTime's literal spelling at exactly {@code digits} subsecond digits (a tagged slot's kind
      *  {@code DateTime(n)}, track L): the nine-digit text cut to the written digits, Pure's {@code +0000}; a whole
      *  second's at none; NULL stays NULL. */
@@ -580,15 +571,6 @@ public final class LiteralSpelling {
     public static SqlExpr datePrint(SqlExpr x) {
         return SqlExpr.Call.of(SqlFn.STRFTIME, x,
                 new SqlExpr.FormatLit(com.legend.sql.DateFmt.DATE));
-    }
-
-    /** DateTime PRINT form: strftime at the literal's own subsecond
-     * precision (a STATIC attribute the caller resolves) with pure's
-     * {@code +0000} suffix. */
-    public static SqlExpr dateTimePrint(SqlExpr x, SqlExpr.FormatLit fmt) {
-        return SqlExpr.Call.of(SqlFn.CONCAT,
-                SqlExpr.Call.of(SqlFn.STRFTIME, x, fmt),
-                new SqlExpr.StringLit("+0000"));
     }
 
     /**

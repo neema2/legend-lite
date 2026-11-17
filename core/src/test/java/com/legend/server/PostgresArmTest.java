@@ -320,7 +320,9 @@ class PostgresArmTest {
                     + " 'default', 'SEED_CODES', [\n" + String.join(",\n", line.formatted("B"), line.formatted("Z"),
                             line.formatted("a"), line.formatted("b")) + "\n  ])\n"), column(c, POSTGRES.dialect().render(
                                     com.legend.testdatagen.TestDataPlanner.seedString(ctx, seed))));
-            String json = column(c, POSTGRES.dialect().render(com.legend.testdatagen.TestDataPlanner.seedJson(ctx, seed)))
+            String json = column(c, POSTGRES.dialect().render(com.legend.testdatagen.TestDataPlanner.seedJson(ctx, seed, x -> {
+                throw new AssertionError("this seed holds no timestamp key");
+            })))
                     .get(0);
             assertTrue(json.replace(" ", "").endsWith("\"rowIdentifiers\":["
                     + "{\"columnValuePairs\":[{\"name\":\"CODE\",\"value\":\"B\"}]},"

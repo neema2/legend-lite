@@ -122,7 +122,7 @@ class AssertVerdictSpliceTest {
     /** {@code query} in the compatibility edge's plan style: these read an activity's SQL, which is legend-engine's
      *  text (the edge's: phase D's O3, 2026-11-13). */
     private static Lean.Result run(String query) throws SQLException {
-        return Program.last(MODEL, query, "e::RT", conn, Program.upstream());
+        return Program.last(MODEL, query, "e::RT", conn, com.legend.testing.EdgeProgram.upstream());
     }
 
     /** {@code query} under backwards-compatibility mode's rules (upstream's), the lane's judge. */
