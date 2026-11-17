@@ -87,6 +87,13 @@ describe("lite API v1's conformance suite over legend-lite's server", () => {
     assert.ok(fixture.cases.length > 0, 'the suite holds cases');
   });
 
+  it('a case naming a binding none of the three is refused by name (a planted typo), never skipped', () => {
+    const typo: Case = { name: 'planted', op: 'user', request: {}, bindings: ['sever'] };
+    assert.throws(() => servedHere(typo), /the case 'planted' names a binding that is none of browser, server, python: sever/);
+    assert.equal(servedHere({ ...typo, bindings: ['browser', 'python'] }), false);
+    assert.equal(servedHere({ ...typo, bindings: ['server'] }), true);
+  });
+
   // each case's bindings read before any is asked: a name none of the three fails the suite by name
   for (const c of fixture.cases.filter(servedHere)) {
     it(c.name, async () => {

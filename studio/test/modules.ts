@@ -9,6 +9,7 @@ import { MemoryRecords } from '../../sdlc-client/src/records.ts';
 import { SdlcClient } from '../../sdlc-client/src/client.ts';
 import { WASM_API, WASM_DEPOT_API, wasmSdlcServer, type SdlcModule } from '../../sdlc-client/src/wasm-server.ts';
 import { WasmGrammar } from '../../engine-client/src/legend/wasm-grammar.ts';
+import { WasmEdgeGrammar } from '../../engine-client/src/legend/wasm-edge.ts';
 import { Compiler, type PlannerPort } from '../src/backend/planner.ts';
 import { answer, type PlannerModule } from '../../engine-client/src/legend/planner-answer.ts';
 import type { RequestBody } from '../../engine-client/src/legend/planner-protocol.ts';
@@ -38,6 +39,8 @@ class DirectPort implements PlannerPort {
 
 /** legend-lite's planner, in this process: the grammar Studio reads elements and queries with. */
 export const grammar = new WasmGrammar(new DirectPort());
+/** legend-engine's shapes over the same planner, the edge's (wasm-edge.ts): what the edge's BrowserEngine asks. */
+export const edge = new WasmEdgeGrammar(new DirectPort());
 export const compiler = new Compiler(grammar);
 
 /** A fresh in-page SDLC (its own module, its own records) and a client over it. */

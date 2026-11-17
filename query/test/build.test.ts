@@ -26,8 +26,9 @@ async function text(q: QueryState, withFrom = false): Promise<string> {
 }
 
 async function columns(q: QueryState): Promise<string[]> {
-  const t = await grammar.relationType(context, buildLambda(graph, q, { withFrom: true }));
-  return t.columns.map((c) => `${c.name}:${c.genericType.rawType._type === 'packageableType' ? c.genericType.rawType.fullPath : '?'}`);
+  // lite's query/type: each column its name and its Pure type's path
+  const t = await grammar.queryType(context.code, buildLambda(graph, q, { withFrom: true }));
+  return t.map((c) => `${c.name}:${c.type}`);
 }
 
 describe('build', () => {

@@ -24,7 +24,8 @@ import { BrowserEngine } from '../../../engine-client/src/legend/browser-engine.
 import { EngineError } from '../../../engine-client/src/legend/engine.ts';
 import { answer, type PlannerModule } from '../../../engine-client/src/legend/planner-answer.ts';
 import type { RequestBody } from '../../../engine-client/src/legend/planner-protocol.ts';
-import { WasmGrammar } from '../../../engine-client/src/legend/wasm-grammar.ts';
+import { WasmGrammar, type PlannerPort } from '../../../engine-client/src/legend/wasm-grammar.ts';
+import { WasmEdgeGrammar } from '../../../engine-client/src/legend/wasm-edge.ts';
 import type { ExecuteInput, TdsResult } from '../../../engine-client/src/legend/wire.ts';
 import { toJson, type Lambda } from '../../../pure-protocol/src/index.ts';
 import { arrowIpcStream } from '../../../engine-client/src/pure-v1.ts';
@@ -54,9 +55,10 @@ interface Served {
 let served: Served;
 let tab: BrowserEngine;
 let grammar: WasmGrammar;
+let edge: WasmEdgeGrammar;
 
 /** legend-lite's planner, in this process, answering as the tab's worker does. */
-async function loadPlanner(): Promise<WasmGrammar> {
+async function loadPlanner(): Promise<PlannerPort> {
   const dir = new URL(runfileDirUrl('WASM_PLANNER'));
   const runtime = await import(new URL('wasm-gc-module-runtime.js', dir).href) as {
     load(src: string, options: unknown): Promise<PlannerModule>;
@@ -67,7 +69,7 @@ async function loadPlanner(): Promise<WasmGrammar> {
       i.teavmConsole = { putcharStdout() {}, putcharStderr() {} };
     },
   });
-  return new WasmGrammar({ async ask(r: RequestBody): Promise<string> { return answer(m, r); } });
+  return { async ask(r: RequestBody): Promise<string> { return answer(m, r); } };
 }
 
 /** The frame's table as the model declares it: its name (schema-qualified as declared) and its columns' SQL types. */
@@ -107,7 +109,11 @@ before(async () => {
     engine.once('exit', (code) => fail(new Error(`the engine exited (${String(code)})`)));
     lines.on('line', (line) => { if (line.startsWith('{')) done(JSON.parse(line) as Served); });
   });
-  grammar = await loadPlanner();
+  // one planner, two clients over it: lite's (WasmGrammar) and legend-engine's shapes, the edge's BrowserEngine's
+  // (wasm-edge.ts; the TS host's H11 split, 2026-11-17)
+  const port = await loadPlanner();
+  grammar = new WasmGrammar(port);
+  edge = new WasmEdgeGrammar(port);
   const database = await openDatabase();
   const duck = new DuckDbEngine(database.connection);
   // the same frame in the tab's DuckDB: its table as the model declares it, the same rows
@@ -119,7 +125,7 @@ before(async () => {
   // (engine-client's setUpSession, which openDuckDbInTab's start runs): UTC, the server's
   await asTest(duck).run(unplanned("SET TimeZone = 'Asia/Kathmandu'"), 0);
   await setUpSession(asTest(duck), await grammar.sessionSetup(duck.databaseType));
-  tab = new BrowserEngine(grammar, duck, 'this browser');
+  tab = new BrowserEngine(edge, duck, 'this browser');
 });
 
 after(() => { engine.stdin?.end(); });

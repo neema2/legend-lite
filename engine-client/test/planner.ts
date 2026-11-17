@@ -3,19 +3,24 @@
 
 import { fileURLToPath } from 'node:url';
 
-import { WasmGrammar } from '../src/legend/wasm-grammar.ts';
+import { WasmGrammar, type PlannerPort } from '../src/legend/wasm-grammar.ts';
 import { answer, type PlannerModule } from '../src/legend/planner-answer.ts';
 import type { RequestBody } from '../src/legend/planner-protocol.ts';
 import { runfileDirUrl } from '../../tools/js/runfiles.mts';
 
 /** The module from WASM_PLANNER (node_test's `wasm`), in-thread. */
 export async function loadPlanner(): Promise<WasmGrammar> {
+  return new WasmGrammar(await loadPlannerPort());
+}
+
+/** The same planner as a port: what the edge's grammar over it is made from (wasm-edge.ts WasmEdgeGrammar). */
+export async function loadPlannerPort(): Promise<PlannerPort> {
   const m = await loadPlannerModule();
-  return new WasmGrammar({
+  return {
     async ask(r: RequestBody): Promise<string> {
       return answer(m, r);
     },
-  });
+  };
 }
 
 /** The module itself: a test that asks the planner protocol's kinds by hand (a model held, then planned). */

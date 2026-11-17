@@ -92,6 +92,9 @@ _PLANNER = [
     "src/legend/planner-protocol.ts",
     "src/legend/planner-worker.ts",
     "src/legend/planning-client.ts",
+    # legend-engine's shapes over the tab's planner, split from wasm-grammar.ts (H11, 2026-11-17): the planner's layer
+    # until the edge's target exists (//engine-client:edge, after the host train)
+    "src/legend/wasm-edge.ts",
     "src/legend/wasm-grammar.ts",
     "src/planner-sources.ts",
     "src/pure-v1-planning.ts",

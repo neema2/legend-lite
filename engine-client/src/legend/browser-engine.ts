@@ -17,6 +17,7 @@ import { planParams } from '../plan-params.ts';
 import type { PureModelContextData } from './pmcd.ts';
 import { type Engine } from './engine.ts';
 import type { WasmGrammar } from './wasm-grammar.ts';
+import type { WasmEdgeGrammar } from './wasm-edge.ts';
 import type { CompileResult, ExecuteInput, ExecutionResult, PureModelContext, RelationTypeAnswer } from './wire.ts';
 import type { RawTable } from '../engine.ts';
 import type { Scalar } from '../result.ts';
@@ -148,7 +149,7 @@ function rowsOf(raw: RawTable): unknown[][] {
 }
 
 export class BrowserEngine implements Engine {
-  readonly #planner: WasmGrammar;
+  readonly #planner: WasmEdgeGrammar;
   readonly #engine: QueryEngine;
   readonly #user: string;
 
@@ -157,7 +158,7 @@ export class BrowserEngine implements Engine {
    * a server's (the warehouse), on that server's sessions. `user`: who saved queries belong to (the warehouse's
    * signed-in principal, or the name this browser was configured with).
    */
-  constructor(planner: WasmGrammar, engine: QueryEngine, user: string) {
+  constructor(planner: WasmEdgeGrammar, engine: QueryEngine, user: string) {
     this.#planner = planner;
     this.#engine = engine;
     this.#user = user;
