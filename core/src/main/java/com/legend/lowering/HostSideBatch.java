@@ -10,18 +10,16 @@ import com.legend.sql.SqlQuery;
 import com.legend.sql.SqlSelect;
 import com.legend.sql.SqlSource;
 import com.legend.sql.SqlType;
-import com.legend.sql.SqlUnion;
 
 import java.util.ArrayList;
 import java.util.List;
 
 /**
  * THE HOST JUDGE'S SIDES, BATCHED (the orchestrator's (1) of 2026-11-17: isolated BOTH's cost was the host's own side
- * reads, one statement each): consecutive asserts' sides read by ONE statement of the host plan alone -- a
- * {@code UNION ALL} of one branch per side, its index and its rows' order first, then every batched side's columns,
- * each branch projecting its own and a typed slot ({@link SqlExpr.Reason#SLOT}) for the others'. No verdict in it: the
- * host judges the cells as it judges a side's own rows. A side that can be neither written inline nor read as a derived
- * table keeps its own statement.
+ * reads, one statement each): consecutive asserts' sides read by ONE statement of the host plan alone -- each side
+ * its own derived table, LEFT JOINed to the sides' indexes ({@link #batch}), so no column's type is unified with
+ * another's. No verdict in it: the host judges the cells as it judges a side's own rows. A side that can be neither
+ * written inline nor read as a derived table keeps its own statement.
  */
 public final class HostSideBatch {
 
@@ -66,8 +64,8 @@ public final class HostSideBatch {
         for (int p = 0; p < names.size(); p++) {
             SqlExpr value = prefixed.projections().get(p).expr();
             // inline only a value that is its operands' alone and keeps its select's one row: no UNNEST (a row per
-            // element: removeDuplicates' list read as rows all numbered 1, 2026-11-17), no subquery (what it
-            // aggregates arrives in an order a UNION ALL's branches need not keep), no raise
+            // element: removeDuplicates' list read as rows all numbered 1, 2026-11-17), no subquery, no raise -- the
+            // rest are read as derived tables
             if (!SqlExpr.raisesNothing(value) || RowBound.of(value)) {
                 return null;
             }
@@ -108,9 +106,11 @@ public final class HostSideBatch {
     /** The batch statement's row-order column: a side's row's place among its side's rows. */
     public static final String ORDER = "__rn";
 
-    /** The batch's alias for a numbered side's derived table, and for the union under its ordering select. */
+    /** The batch's aliases: its indexes' literal table, each side's derived table (by its index), and a numbered
+     *  side's own statement inside it. */
+    private static final String INDEXES = "__i";
     private static final String SIDE = "__b";
-    private static final String UNION = "__u";
+    private static final String ROWS = "__r";
 
     /**
      * One side of a batch: {@code inline}, its single value's columns, written in its branch with no FROM; or
@@ -130,16 +130,11 @@ public final class HostSideBatch {
 
     /**
      * {@code side}, a host side's planned statement, as a side of a batch whose columns are {@code names} (one per
-     * output), each typed as the side's own output is -- a UNION ALL's column takes the type its branches share, so
-     * the other branches' typed slots carry the type the side's statement answers, never a slot the plan reads it by
-     * (H2's ID column is VARCHAR under a BIGINT slot: a BIGINT slot made the union answer 7 where the side answers
-     * '7', 2026-11-17). Inline where it is a single value of no FROM ({@link #singleValueColumns}); else numbered,
-     * where its statement may be a derived table (no WITH: a CTE inside a derived table is not every database's) and
-     * {@code typedByItsTree}: the side reads no stored table, so the types its tree says are the types its cells
-     * have (a stored table's column is the database's DDL, which the model's type need not be); null otherwise.
+     * output): inline where it is a single value of no FROM ({@link #singleValueColumns}); else numbered, where its
+     * statement may be a derived table (no WITH: a CTE inside a derived table is not every database's); null
+     * otherwise.
      */
-    public static @com.legend.base.Nullable BatchSide side(SqlQuery side, String aliasPrefix, List<String> names,
-            boolean typedByItsTree) {
+    public static @com.legend.base.Nullable BatchSide side(SqlQuery side, String aliasPrefix, List<String> names) {
         if (side.outputs().size() != names.size()) {
             return null;
         }
@@ -151,14 +146,15 @@ public final class HostSideBatch {
             }
             return new BatchSide(inline, null, false, outs);
         }
-        if (!typedByItsTree || side instanceof com.legend.sql.SqlWith
-                || sorted(side) && SideOrdinal.defined(side) == null) {
+        if (side instanceof com.legend.sql.SqlWith || sorted(side) && SideOrdinal.defined(side) == null) {
             // a WITH is no derived table every database reads; a sort whose ordinal the plan cannot define would be
             // read by its arrival through the batch's selects, which a database need not keep (SideOrdinal)
             return null;
         }
         SqlQuery defined = SideOrdinal.defined(side);
-        SqlQuery numbered = defined != null ? defined : side;
+        // every alias inside it prefixed, unique in the batch (a renderer's pass may lift a derived table's sources
+        // into the select that reads it: H2's self-join sides each read "t3", 2026-11-17)
+        SqlQuery numbered = com.legend.sql.AliasPrefix.apply(aliasPrefix, defined != null ? defined : side);
         List<OutputCol> sideOuts = numbered.outputs();
         if (defined != null ? sideOuts.size() != names.size() + 1
                 || !SideOrdinal.ORD.equals(sideOuts.get(names.size()).name()) : sideOuts.size() != names.size()) {
@@ -183,56 +179,70 @@ public final class HostSideBatch {
     }
 
     /**
-     * The batch statement over {@code sides} (at least one): one branch per side, its index ({@link #INDEX}) its place
-     * in {@code sides}, its rows' order ({@link #ORDER}: 1 for an inline side, its statement's ordinal for a numbered
-     * one), its own columns' values and a typed slot ({@link SqlExpr.Reason#SLOT}) for every other side's -- the
-     * branches a UNION ALL, read in order of index and row order.
+     * The batch statement over {@code sides} (at least two), with NO type its database must unify (H2 refused a UNION
+     * ALL's typed slots where the model's type was not the column's: VARCHAR under DECFLOAT, an ID's text read as a
+     * number, 2026-11-17): the sides' indexes as a literal table, each side its own derived table LEFT JOINed on its
+     * index ({@code __i.__ix = k}), so every column is its own side's, typed by its own statement, and NULL on the
+     * other indexes' rows. Its columns: the index ({@link #INDEX}), the row's order among its side's rows
+     * ({@link #ORDER}: 1 for an inline side, its plan's ordinal, else its arrival from the derived table, as the
+     * database judge numbers a side; NULL where the side has no row), then each side's columns; read in order of index
+     * and row order.
      */
     public static SqlQuery batch(List<BatchSide> sides) {
-        List<OutputCol> outs = new ArrayList<>();
-        outs.add(new OutputCol(INDEX, SqlType.Scalar.BIGINT, false));
-        outs.add(new OutputCol(ORDER, SqlType.Scalar.BIGINT, false));
-        for (BatchSide side : sides) {
-            outs.addAll(side.outs());
+        OutputCol ixOut = new OutputCol(INDEX, SqlType.Scalar.BIGINT, false);
+        OutputCol rnOut = new OutputCol(ORDER, SqlType.Scalar.BIGINT, true);
+        List<List<SqlExpr>> indexes = new ArrayList<>(sides.size());
+        for (int i = 0; i < sides.size(); i++) {
+            indexes.add(List.of(new SqlExpr.IntLit(i)));
         }
-        List<SqlQuery> branches = new ArrayList<>(sides.size());
-        int at = 2;
+        SqlSource from = new SqlSource.Values(indexes, List.of(INDEX), INDEXES, List.of(ixOut));
+        SqlExpr ix = SqlExpr.Column.of(INDEXES, ixOut);
+        List<SqlExpr> orders = new ArrayList<>(sides.size());
+        List<SqlSelect.Projection> columns = new ArrayList<>();
+        List<OutputCol> outs = new ArrayList<>(List.of(ixOut, rnOut));
         for (int i = 0; i < sides.size(); i++) {
             BatchSide side = sides.get(i);
+            String alias = SIDE + i;
             SqlQuery numbered = side.numbered();
-            List<SqlSelect.Projection> ps = new ArrayList<>(outs.size());
-            ps.add(new SqlSelect.Projection(new SqlExpr.IntLit(i), INDEX, outs.get(0)));
-            SqlExpr order = numbered == null ? new SqlExpr.IntLit(1)
-                    : side.ordinal() ? SqlExpr.Column.of(SIDE, numbered.outputs().get(numbered.outputs().size() - 1))
-                    : new SqlExpr.WindowCall(new SqlAgg.RankingFn(SqlAgg.Fn.ROW_NUMBER, List.of()), List.of(),
-                            List.of(), null);
-            ps.add(new SqlSelect.Projection(order, ORDER, outs.get(1)));
-            for (int c = 2; c < outs.size(); c++) {
-                OutputCol o = outs.get(c);
-                int k = c - at;
-                SqlExpr v;
-                if (k < 0 || k >= side.outs().size()) {
-                    v = new SqlExpr.Cast(new SqlExpr.NullLit(), o.type(), SqlExpr.Reason.SLOT);
-                } else if (numbered == null) {
-                    v = java.util.Objects.requireNonNull(side.inline()).get(k).value();
-                } else {
-                    v = SqlExpr.Column.of(SIDE, numbered.outputs().get(k));
+            List<SqlSelect.Projection> ps = new ArrayList<>();
+            SqlSource own;
+            if (numbered == null) {
+                ps.add(new SqlSelect.Projection(new SqlExpr.IntLit(1), ORDER, rnOut));
+                List<HostColumn> inline = java.util.Objects.requireNonNull(side.inline());
+                for (int c = 0; c < inline.size(); c++) {
+                    ps.add(new SqlSelect.Projection(inline.get(c).value(), side.outs().get(c).name(), side.outs().get(c)));
                 }
-                ps.add(new SqlSelect.Projection(v, o.name(), o));
+                own = new SqlSource.Dual();
+            } else {
+                List<OutputCol> sideOuts = numbered.outputs();
+                SqlExpr order = side.ordinal() ? SqlExpr.Column.of(ROWS, sideOuts.get(sideOuts.size() - 1))
+                        : new SqlExpr.WindowCall(new SqlAgg.RankingFn(SqlAgg.Fn.ROW_NUMBER, List.of()), List.of(),
+                                List.of(), null);
+                ps.add(new SqlSelect.Projection(order, ORDER, rnOut));
+                for (int c = 0; c < side.outs().size(); c++) {
+                    ps.add(new SqlSelect.Projection(SqlExpr.Column.of(ROWS, sideOuts.get(c)), side.outs().get(c).name(),
+                            side.outs().get(c)));
+                }
+                own = new SqlSource.Subselect(numbered, ROWS, null);
             }
-            at += side.outs().size();
-            SqlSource from = numbered == null ? new SqlSource.Dual() : new SqlSource.Subselect(numbered, SIDE, null);
-            branches.add(new SqlSelect(ps, false, from, null, List.of(), null, null, List.of(), null, null, outs));
+            List<OutputCol> ownOuts = ps.stream().map(SqlSelect.Projection::out).toList();
+            SqlSelect read = new SqlSelect(ps, false, own, null, List.of(), null, null, List.of(), null, null,
+                    ownOuts);
+            from = new SqlSource.Join(from, new SqlSource.Subselect(read, alias, null), SqlSource.Join.Kind.LEFT,
+                    SqlExpr.Call.of(com.legend.sql.SqlFn.EQUAL, ix, new SqlExpr.IntLit(i)));
+            orders.add(SqlExpr.Column.of(alias, rnOut));
+            for (OutputCol o : side.outs()) {
+                columns.add(new SqlSelect.Projection(SqlExpr.Column.of(alias, o), o.name(), o));
+                outs.add(o);
+            }
         }
-        SqlQuery union = branches.size() == 1 ? branches.get(0) : new SqlUnion(branches, true, outs);
+        SqlExpr order = new SqlExpr.Call(com.legend.sql.SqlFn.COALESCE, orders);
         List<SqlSelect.Projection> read = new ArrayList<>(outs.size());
-        for (OutputCol o : outs) {
-            read.add(new SqlSelect.Projection(SqlExpr.Column.of(UNION, o), o.name(), o));
-        }
-        List<SqlSelect.SortKey> order = List.of(
-                new SqlSelect.SortKey(SqlExpr.Column.of(UNION, outs.get(0)), true, null, null),
-                new SqlSelect.SortKey(SqlExpr.Column.of(UNION, outs.get(1)), true, null, null));
-        return new SqlSelect(read, false, new SqlSource.Subselect(union, UNION, null), null, List.of(), null, null,
-                order, null, null, outs);
+        read.add(new SqlSelect.Projection(ix, INDEX, ixOut));
+        read.add(new SqlSelect.Projection(order, ORDER, rnOut));
+        read.addAll(columns);
+        List<SqlSelect.SortKey> by = List.of(new SqlSelect.SortKey(ix, true, null, null),
+                new SqlSelect.SortKey(order, true, null, null));
+        return new SqlSelect(read, false, from, null, List.of(), null, null, by, null, null, outs);
     }
 }
