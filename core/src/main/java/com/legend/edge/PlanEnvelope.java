@@ -24,7 +24,7 @@ public final class PlanEnvelope {
             String rootClass, String[] impl, String mappingFqn,
             TypedSpec term, @com.legend.base.Nullable String connName,
             com.legend.model.ConnectionDefinition.DatabaseType dbType,
-            com.legend.sql.dialect.EngineTextDialect pd, boolean hasParams) {
+            EngineTextDialect pd, boolean hasParams) {
         EngineText.InListTempTables inList = EngineText.inListTempTables(dbType);
         var inp = InProtocol.apply(es.plan(),
                 InProtocol.thresholdFor(connName, inList.threshold()),

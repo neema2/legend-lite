@@ -12,7 +12,7 @@ import com.legend.compiler.spec.typed.TypedSpec;
 /**
  * legend-engine's PLAN TEXT, written at planning (the planner-driver seam program's S2g, 2026-10-31; the body driver's
  * until then): a query's SQL in the engine's own spelling ({@link #engineSql}: lowered with the engine-text options
- * and rendered by an {@link com.legend.sql.dialect.EngineTextDialect}), the plan a {@code planToString} or
+ * and rendered by an {@link EngineTextDialect}), the plan a {@code planToString} or
  * {@code toSQLString} call prints (D30: plan-time values, the routines {@link #nativeRoutines} hands the native
  * stager), and a plan's node model for the {@code $plan} handle's rows ({@link #planModel}). Every one is a function
  * of the model and the query over a {@link PlanEnv}: no session, nothing run.
@@ -80,7 +80,7 @@ public final class EnginePlans {
             // reader's gap, read as the engine test connection's database until the rebuild reads it
             db = dbBound == null ? EngineText.ENGINE_TEST_DATABASE.name() : dbBound;
         }
-        com.legend.sql.dialect.EngineTextDialect renderer = PureText.engineText(com.legend.database.Databases.named(db));
+        EngineTextDialect renderer = PureText.engineText(com.legend.database.Databases.named(db));
         if (!(in.query()
                 instanceof com.legend.compiler.spec.typed.TypedLambda lam)) {
             throw new com.legend.error.NotImplementedException(
@@ -116,7 +116,7 @@ public final class EnginePlans {
             com.legend.compiler.spec.typed.TypedLambda lam,
             @com.legend.base.Nullable String mappingFqn, com.legend.compiler.spec.SpecCompiler specs,
             PlanEnv env,
-            com.legend.sql.dialect.EngineTextDialect renderer) {
+            EngineTextDialect renderer) {
         return engineSql(lam.body(), mappingFqn, specs, env, renderer,
                 java.util.Map.of(),
                 java.util.function.UnaryOperator.identity());
@@ -128,7 +128,7 @@ public final class EnginePlans {
     static EngineSql engineSql(java.util.List<TypedSpec> raw,
             @com.legend.base.Nullable String mappingFqn, com.legend.compiler.spec.SpecCompiler specs,
             PlanEnv env,
-            com.legend.sql.dialect.EngineTextDialect renderer,
+            EngineTextDialect renderer,
             java.util.Map<String, com.legend.sql.SqlExpr.PlanParam>
                     planParams,
             java.util.function.UnaryOperator<String> tableRenames) {
@@ -142,7 +142,7 @@ public final class EnginePlans {
     static EngineSql engineSql(java.util.List<TypedSpec> raw,
             @com.legend.base.Nullable String mappingFqn, com.legend.compiler.spec.SpecCompiler specs,
             PlanEnv env,
-            com.legend.sql.dialect.EngineTextDialect renderer,
+            EngineTextDialect renderer,
             java.util.Map<String, com.legend.sql.SqlExpr.PlanParam>
                     planParams,
             java.util.function.UnaryOperator<String> tableRenames,
@@ -257,7 +257,7 @@ public final class EnginePlans {
         @Override
         public String activitySql(java.util.List<TypedSpec> chain, @com.legend.base.Nullable String mappingFqn,
                 com.legend.compiler.spec.SpecCompiler specs, PlanEnv env, boolean recorded) {
-            com.legend.sql.dialect.EngineTextDialect renderer = PureText.engineText(EngineText.ENGINE_TEST_DATABASE);
+            EngineTextDialect renderer = PureText.engineText(EngineText.ENGINE_TEST_DATABASE);
             EngineSql es = engineSql(chain, mappingFqn, specs, env, renderer, java.util.Map.of(),
                     java.util.function.UnaryOperator.identity());
             if (!recorded) {

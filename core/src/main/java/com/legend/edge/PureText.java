@@ -93,7 +93,7 @@ public final class PureText {
     /** legend-engine's exact SQL text for {@code type}, as {@code toSQLString} prints it: Composite takes the engine's
      *  DEFAULT spellings (native trim/pad/cbrt, plain char_length). A fresh printer per use: a dialect keeps state while
      *  it writes a statement (moved here from the planner's {@code EngineText}, phase D, 2026-11-12). */
-    public static com.legend.sql.dialect.EngineTextDialect engineText(DatabaseType type) {
+    public static EngineTextDialect engineText(DatabaseType type) {
         return switch (type) {
             case H2 -> new EngineStyleH2();
             case DB2 -> new EngineStyleDB2();
@@ -107,7 +107,7 @@ public final class PureText {
 
     /** legend-engine's exact PLAN text for {@code type}: the plan goldens pin Composite to the DB2-family spelling
      *  (paren-wrapped conjunctions, quoted boolean placeholders) — unlike {@link #engineText}. */
-    public static com.legend.sql.dialect.EngineTextDialect enginePlanText(DatabaseType type, boolean quoteIdentifiers,
+    public static EngineTextDialect enginePlanText(DatabaseType type, boolean quoteIdentifiers,
             @com.legend.base.Nullable String timeZone) {
         return switch (type) {
             case H2 -> new EngineStyleH2(quoteIdentifiers, timeZone);

@@ -238,7 +238,8 @@ class CompatSpellingGuardTest {
             "sql/dialect/Databricks.java | FLOAT_PRINT | 1 | JUDGE",
             "sql/dialect/DuckDb.java | FLOAT_PRINT | 1 | JUDGE",
             "sql/dialect/DuckDb.java | RawSqlBoundary | 1 | D1.7",
-            "sql/dialect/EngineTextDialect.java | EngineTextDialect | 1 | D1.7",
+            // sql/dialect/EngineTextDialect.java: GONE 2026-11-17 (Phase 6's B3, the orchestrator's GO): the interface is
+            // com.legend.edge's, no product class names it
             // testdatagen/TestDataGenerationNatives.java (2) and TestDataGenerator.java (3): GONE 2026-11-17 (Phase 6's
             // B13): the generator's plan is data, legend-engine's text of it the edge's (edge.TestDataPlanText)
             // 2 -> 3 (2026-11-13, the merge of claude/total-wall @ 549c018: C4's bare-H2 lexicon, c42369dec, reads the
