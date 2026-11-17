@@ -17,7 +17,7 @@ import type { Records } from './records.ts';
 export const LOCAL_API = 'http://this-browser.invalid/api';
 
 /**
- * What the module exports (`com.legend.queries.page.QueriesPage`): the saved queries' calls, and DataCube's saved
+ * What the module exports (`com.legend.edge.queries.QueriesPage`, the edge's since 2026-11-17): the saved queries' calls, and DataCube's saved
  * pages' (`cubes`, the same module: datacube/src/cube-store.ts `wasmCubeServer`; the program's B6).
  */
 export interface QueriesModule {

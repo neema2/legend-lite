@@ -19,7 +19,8 @@ legend_java_library(
 # the main sources, as files: core's database-name guards read them (the dialect program's Phase 7, 2026-10-18)
 filegroup(
     name = "main_java",
-    srcs = glob(["src/main/java/**/*.java"]),
+    # the edge's entries too (src/edge: the separation census's A2, 2026-11-17)
+    srcs = glob(["src/main/java/**/*.java", "src/edge/java/**/*.java"]),
     # and the planned-SQL guard: who reaches the authored door (the C final audit's H1, 2026-11-12)
     visibility = ["//core:__pkg__", "//tools/guards:__pkg__"],
 )
@@ -34,8 +35,7 @@ legend_java_library(
     resource_strip_prefix = "native/src/main/resources",
     deps = [
         ":graal_api",
-        # the saved queries' rules over a folder (SavedQueriesHome: the program's B5)
-        "//core:edge_store_words",
+        # the saved queries' rules over a folder (ModelHome's and the edge's SavedQueriesHome: the program's B5)
         "//core:saved_queries",
         "//depot-server:rules",
         "//sdlc-server:git_storage",
@@ -48,6 +48,21 @@ legend_java_library(
     ],
     # //core: the guard of who reaches the authored door, by class (the third re-audit's SHOULD-FIX 5, 2026-11-12)
     visibility = ["//core:__pkg__"],
+)
+
+# THE EDGE'S ENTRY POINTS in the same library (the separation census's A2, 2026-11-17): the saved queries answer
+# upstream's /api/pure/v1/query (SavedQueriesHome), so legend-engine's words (//core:edge_store_words); the library is
+# rooted at the edge as the server is (the orchestrator's extension of ruling A4). Lite's own entry points stay :entry's.
+legend_java_library(
+    name = "edge_entry",
+    srcs = glob(["src/edge/java/**/*.java"]),
+    deps = [
+        ":entry",
+        ":graal_api",
+        "//core:edge_store_words",
+        "//core:saved_queries",
+        "//wasm:boundary",
+    ],
 )
 
 # libcompiler.dylib (macOS) / libcompiler.so (Linux) / libcompiler.dll (Windows). Everything links when the image is
@@ -92,7 +107,10 @@ native_image(
         "//python:__pkg__",
         "//tools/guards:__pkg__",
     ],
-    deps = [":entry"],
+    deps = [
+        ":edge_entry",
+        ":entry",
+    ],
 )
 
 guards_package()

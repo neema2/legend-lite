@@ -2474,6 +2474,7 @@ junit_test(
         ":authored_door_jars",
         ":build_time_jars",
         ":core_test_jar",
+        ":edge_direct_dependents",
         ":edge_jars",
         ":guardrails_sources",
         ":product_jars",
@@ -2488,6 +2489,7 @@ junit_test(
         "-Dlegend.test.jars=$(rlocationpath :core_test_jar)",
         "-Dlegend.authored.jars=$(rlocationpath :authored_door_jars)",
         "-Dlegend.edge.jars=$(rlocationpath :edge_jars)",
+        "-Dlegend.edge_dependents=$(rlocationpath :edge_direct_dependents)",
         "-Dlegend.build_time.jars=$(rlocationpath :build_time_jars)",
     ],
     select = [
@@ -2553,6 +2555,40 @@ java_jars(
 # re-audit's SHOULD-FIX 5, 2026-11-12: until then a source regex alone, PlannedSqlTest.AUTHORED_JAVA_REFERENCE, which a
 # method reference or a static import passed), and whose reach of ProductStatements.prepare
 # ArchitectureTest.theHostsDoorsPrepareNoProductStatement pins (the follow-up audit's G1, 2026-11-14)
+# THE BUILD'S EDGE SEPARATION (the user, 2026-11-17: "total and provable edge separation"; the separation census,
+# docs/records/f-separation-census-2026-11-17.md, lines A): the targets that depend DIRECTLY on an edge target, within
+# the product's roots' closure -- a root reaching the edge transitively reaches it through one of them.
+# EdgeSeparationTest holds the set to the census's open A lines. The roots: the product's JVM libraries and the hosts'
+# doors (the JS apps reach the JVM through //wasm and //native alone), and core's test libraries (A5, A6). The shipped
+# //core:server is rooted AT the edge (EdgeServer, ruled A4) and is no root here.
+# the native library's and the query-store page's upstream entries are the edge's too (A2, A3, 2026-11-17)
+_EDGE_TARGETS = ("//core:edge + //core:edge_server + //core:edge_service_tests + //core:edge_store_words + " +
+                 "//native:edge_entry + //query-store:edge_page_entry")
+
+_EDGE_SEPARATION_ROOTS = [
+    "//core:core",
+    "//core:plan_side",
+    "//core:core_tests_lib",
+    "//core:test_cases",
+    "//core:seam_benchmark",
+    "//core:data_delivery_matrix_postgres_test",
+    "//native:entry",
+    "//sdlc-server/grammar",
+    "//wasm:boundary",
+    "//wasm:jvm_main",
+    "//wasm:tab",
+]
+
+genquery(
+    name = "edge_direct_dependents",
+    testonly = True,
+    expression = "rdeps(deps(set(" + " ".join(_EDGE_SEPARATION_ROOTS) + ")), " + _EDGE_TARGETS + ", 1) except (" +
+                 _EDGE_TARGETS + ")",
+    opts = ["--noimplicit_deps"],
+    # the edge's own entries outside core named in the expression (A2, A3): in scope, never roots
+    scope = _EDGE_SEPARATION_ROOTS + ["//native:edge_entry", "//query-store:edge_page_entry"],
+)
+
 java_jars(
     name = "authored_door_jars",
     testonly = True,

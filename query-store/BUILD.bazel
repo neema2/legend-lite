@@ -13,9 +13,12 @@ load("@bazel_lib//lib:copy_to_bin.bzl", "copy_to_bin")
 # THE SAVED QUERIES IN THE PAGE (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md B5): core's rules (//core:saved_queries,
 # the ones legend-lite's server and Python's native library answer with) compiled to WebAssembly, the page's records
 # handed in with each call (java/.../QueriesPage.java), which src/wasm-server.ts writes back to IndexedDB.
+# THE PAGE'S ENTRY, AT THE EDGE (the separation census's A3, 2026-11-17): it answers upstream's /api/pure/v1/query in
+# legend-engine's words, so the page module is rooted at the edge, as the server is (the orchestrator's extension of
+# ruling A4).
 legend_java_library(
-    name = "page_entry",
-    srcs = ["java/com/legend/queries/page/QueriesPage.java"],
+    name = "edge_page_entry",
+    srcs = ["java/com/legend/edge/queries/QueriesPage.java"],
     deps = [
         # legend-engine's words for upstream's /api/pure/v1/query (the P2 checkpoint audit's M2, 2026-11-16)
         "//core:edge_store_words",
@@ -28,13 +31,13 @@ legend_java_library(
 
 teavm_wasm(
     name = "page",
-    main_class = "com.legend.queries.page.QueriesPage",
+    main_class = "com.legend.edge.queries.QueriesPage",
     visibility = [
         "//datacube:__pkg__",
         "//query:__pkg__",
     ],
     deps = [
-        ":page_entry",
+        ":edge_page_entry",
         "@maven_teavm//:org_teavm_teavm_classlib",
         "@maven_teavm//:org_teavm_teavm_jso",
     ],
