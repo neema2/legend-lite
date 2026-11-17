@@ -157,13 +157,36 @@ class ProductRaiseProbeTest {
                 wrong.add("NaN's text: " + describe(nan));
             }
         }
+        // 5c. a user's text holding '?' (round 73: BigQuery's driver counts a '?' inside a literal as a placeholder,
+        // so a dialect writes none raw): the text itself
+        Object q = run(backend, "a text holding ?", "|#TDS\n  k:Integer\n  1\n#->extend(~t: r|'what?')->select(~t)"
+                + "->from(" + StorelessRuntime.RUNTIME + ")");
+        if (!(q instanceof String q5 && q5.replace(" ", "").equals("[{\"t\":\"what?\"}]"))) {
+            wrong.add("a text holding ?: " + describe(q));
+        }
+        System.out.println("[product raise probe] " + backend.name() + " a text holding ?, answered: " + describe(q));
+        // 5d. a parsed Integer's text (round 73: on Snowflake a raise typed VARCHAR beside the BIGINT conversion made
+        // the guard a scaled NUMBER, whose text is 17.00000): the Integer's own digits
+        Object pi = run(backend, "a parsed Integer's text", "|#TDS\n  x:String\n  17\n#->extend(~t: r|"
+                + "$r.x->toOne()->parseInteger()->toString())->select(~t)->from(" + StorelessRuntime.RUNTIME + ")");
+        if (!(pi instanceof String p5 && p5.replace(" ", "").equals("[{\"t\":\"17\"}]"))) {
+            wrong.add("a parsed Integer's text: " + describe(pi));
+        }
+        System.out.println("[product raise probe] " + backend.name() + " a parsed Integer's text, answered: "
+                + describe(pi));
         // 6. a DateTime's text (D1.2, register S312): ISO 8601 in UTC, six fraction digits and Z
         Object dt = run(backend, "a DateTime's text", "|#TDS\n  x:DateTime\n  2014-01-01T10:20:30.5\n#->extend(~t: r|"
                 + "$r.x->toOne()->toString())->select(~t)->from(" + StorelessRuntime.RUNTIME + ")");
         if (!(dt instanceof String t6) || !t6.replace(" ", "").equals("[{\"t\":\"2014-01-01T10:20:30.500000Z\"}]")) {
             wrong.add("a DateTime's text: " + describe(dt));
         }
-        // 7. a row's cells joined (Phase 3 step 3, CONCAT_WS where the database skips a NULL part, its own form where it
+        // 7. the parse family (Phase 8, 2026-11-16; round 71's gap: the external lanes run this probe alone): each
+        // input's parseFloat and parseInteger, legend-pure's value or a refusal by name, never a silent wrong value
+        parses(backend, wrong);
+        // 8. the Float carrier (Phase 8, 2026-11-16): a computed Float carried in a list and read back bit-exact, or
+        // the list refused by name where the database has no list encoding (round 73 measures every database's)
+        carriers(backend, wrong);
+        // 9. a row's cells joined (Phase 3 step 3, CONCAT_WS where the database skips a NULL part, its own form where it
         // does not; the user's ruling of 2026-11-10, "makeString skips empty elements"): an empty cell skipped with its
         // separator, an all-empty row and an empty single cell the empty text (never a NULL), and a cell's own text
         // never escaped (a separator inside a cell stays, as legend-pure's makeString)
@@ -207,6 +230,85 @@ class ProductRaiseProbeTest {
         }
         System.out.println("[product raise probe] " + backend.name() + ": " + wrong.size() + " wrong " + wrong);
         assertEquals(List.of(), wrong, backend.name());
+    }
+
+    /** A parse's expected answer: a number (legend-pure's), a raise, NaN or Infinity (the value, or VALUE_NOT_HELD
+     *  where the database holds none), or either (a follow-up's open case, printed). */
+    private record Parse(String fn, String text, String expect) {
+    }
+
+    private static final List<Parse> PARSES = List.of(
+            new Parse("parseFloat", "abc", "raise"), new Parse("parseFloat", "", "raise"),
+            new Parse("parseFloat", "+-1", "raise"), new Parse("parseFloat", "0x10", "raise"),
+            new Parse("parseFloat", " 1 ", "1.0"), new Parse("parseFloat", "1f", "1.0"),
+            new Parse("parseFloat", "1e5", "100000.0"), new Parse("parseFloat", "NaN", "NaN"),
+            new Parse("parseFloat", "Infinity", "Infinity"), new Parse("parseFloat", "12", "12.0"),
+            // the grammar's optional parts, which a database's own conversion may not read (round 73: MongoDB's)
+            new Parse("parseFloat", "+1", "1.0"), new Parse("parseFloat", ".5", "0.5"),
+            new Parse("parseFloat", "5.", "5.0"),
+            new Parse("parseInteger", "abc", "raise"), new Parse("parseInteger", "", "raise"),
+            new Parse("parseInteger", "+-1", "raise"), new Parse("parseInteger", "0x10", "raise"),
+            new Parse("parseInteger", "1f", "raise"), new Parse("parseInteger", "1e5", "raise"),
+            new Parse("parseInteger", "NaN", "raise"), new Parse("parseInteger", "Infinity", "raise"),
+            new Parse("parseInteger", "12", "12"),
+            // legend-pure raises on whitespace in both modes (Long.valueOf, Long.parseLong; the orchestrator's
+            // decision, 2026-11-16: exact)
+            new Parse("parseInteger", " 1 ", "raise"));
+
+    private static void carriers(com.legend.testbackend.TestBackend backend, List<String> wrong) {
+        Map<String, Double> cases = new java.util.LinkedHashMap<>();
+        cases.put("0.1 + 0.2", 0.1 + 0.2);
+        cases.put("1.0E-150 * 1.0E-150", 1.0E-150 * 1.0E-150);
+        cases.put("123456789.123456789 * 3.0", 123456789.123456789 * 3.0);
+        for (Map.Entry<String, Double> c : cases.entrySet()) {
+            String label = "the carrier of " + c.getKey();
+            // the double itself, a Float column's cell: a literal's arithmetic is the decimal of its digits on a
+            // database that types the literal (the numeric charter), which is not the carrier under test
+            Object got = run(backend, label, "|#TDS\n  x:Float\n  " + c.getValue()
+                    + "\n#->extend(~t: r|[$r.x, -1.0]->max())->select(~t)->from(" + StorelessRuntime.RUNTIME + ")");
+            System.out.println("[product raise probe] " + backend.name() + " " + label + ", answered: " + describe(got));
+            if (got instanceof com.legend.sql.DialectCapability dc
+                    && String.valueOf(dc.getMessage()).contains("list encoding")) {
+                continue;
+            }
+            String cell = got instanceof String rows && rows.contains("\"t\":")
+                    ? rows.substring(rows.indexOf("\"t\":") + 4).replaceAll("[}\\]\\s\"]", "") : null;
+            if (cell == null || !cell.matches("-?[0-9.eE+-]+") || Double.parseDouble(cell) != c.getValue()) {
+                wrong.add(label + ": expected " + c.getValue() + " exactly, answered " + describe(got));
+            }
+        }
+    }
+
+    private static void parses(com.legend.testbackend.TestBackend backend, List<String> wrong) {
+        for (Parse p : PARSES) {
+            String label = p.fn() + "('" + p.text() + "')";
+            Object got = run(backend, label, "|#TDS\n  k:Integer\n  1\n#->extend(~t: r|'" + p.text() + "'->" + p.fn()
+                    + "())->select(~t)->from(" + StorelessRuntime.RUNTIME + ")");
+            System.out.println("[product raise probe] " + backend.name() + " " + label + ", answered: " + describe(got));
+            String cell = got instanceof String rows && rows.contains("\"t\":")
+                    ? rows.substring(rows.indexOf("\"t\":") + 4).replaceAll("[}\\]\\s\"]", "") : null;
+            switch (p.expect()) {
+                case "either" -> { }
+                // lite's own kind by name on every database, never the database's own error (the user's error design,
+                // 2026-11-16 21:20: lite's guard runs on every database for every Pure-defined runtime error)
+                case "raise" -> expectKind(wrong, label, got, p.fn().equals("parseFloat")
+                        ? com.legend.error.ErrorKind.TEXT_NOT_FLOAT : com.legend.error.ErrorKind.TEXT_NOT_INTEGER, null);
+                case "NaN", "Infinity" -> {
+                    if (got instanceof Throwable) {
+                        expectKind(wrong, label, got, com.legend.error.ErrorKind.VALUE_NOT_HELD, null);
+                    } else if (cell == null || !cell.contains(p.expect())) {
+                        wrong.add(label + ": expected " + p.expect() + " or VALUE_NOT_HELD, answered " + describe(got));
+                    }
+                }
+                default -> {
+                    // a NULL cell is an answer too: a wrong one (ClickHouse's CAST reads bad text as NULL, measured)
+                    if (cell == null || !cell.matches("-?[0-9.eE+]+")
+                            || Double.parseDouble(cell) != Double.parseDouble(p.expect())) {
+                        wrong.add(label + ": expected " + p.expect() + ", answered " + describe(got));
+                    }
+                }
+            }
+        }
     }
 
     /** The product's text of {@code x} (register S311): its shortest round-trip digits, rounded half up to six places,

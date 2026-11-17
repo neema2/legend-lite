@@ -1723,6 +1723,22 @@ public class MariaDb extends AnsiSqlRenderer {
         if (target == SqlType.Scalar.VARCHAR) {
             return writer.piece(asText(v));
         }
+        // a Float parsed from text (parseFloat), legend-pure's grammar with one rule on every database (the
+        // orchestrator, 2026-11-16): surrounding whitespace and one trailing f accepted (legend-pure's compiled mode;
+        // this CAST reads ' 1 ' and '1f' as 1, measured), any other text raising TEXT_NOT_FLOAT where this CAST read it as
+        // 0 with only a warning (round 70: 'NaN' answered 0); NaN and the infinities, which a DOUBLE here cannot hold,
+        // raise VALUE_NOT_HELD by name (S138) (Phase 8)
+        if (target == SqlType.Scalar.DOUBLE && c.reason() == SqlExpr.Reason.USER && typeOf(v) == SqlType.Scalar.VARCHAR) {
+            return writer.append("(CASE WHEN ").expr(v, 4).append(" REGEXP '^[[:space:]]*[+-]?([0-9]+[.]?[0-9]*|[.][0-9]+)"
+                            + "([eE][+-]?[0-9]+)?[fF]?[[:space:]]*$' THEN CAST(").expr(v, 0).append(" AS DOUBLE) WHEN ")
+                    .expr(v, 4).append(" REGEXP '^[[:space:]]*[+-]?(NaN|Infinity)[[:space:]]*$' THEN ")
+                    .piece(raise(raiseArgs(SqlExpr.RaiseText.placed(com.legend.sql.RaiseKind.VALUE_NOT_HELD,
+                            "NaN or an infinity")), SqlType.Scalar.DOUBLE))
+                    .append(" WHEN ").expr(v, 4).append(" IS NOT NULL THEN ")
+                    .piece(raise(raiseArgs(new SqlExpr.RaiseText(com.legend.sql.RaiseKind.TEXT_NOT_FLOAT, List.of(v))),
+                            SqlType.Scalar.DOUBLE))
+                    .append(" END)");
+        }
         return writer.piece(castTo(w -> w.expr(v, 0), typeOf(v), target));
     }
 
@@ -2266,8 +2282,9 @@ public class MariaDb extends AnsiSqlRenderer {
 
     /** DuckDB's 64-bit parse: an optional sign and digits, else an error (a CAST reads 'abc' as 0 here). */
     private SqlWriter.Piece parseInt(SqlExpr s) {
-        return w -> w.append("(CASE WHEN ").expr(s, 4).append(" IS NULL THEN NULL WHEN TRIM(").expr(s, 0)
-                .append(") REGEXP '^[+-]?[0-9]+$' THEN CAST(TRIM(").expr(s, 0).append(") AS SIGNED) ELSE ")
+        // no TRIM: legend-pure's parseInteger raises on surrounding whitespace in both modes (Phase 8, 2026-11-16)
+        return w -> w.append("(CASE WHEN ").expr(s, 4).append(" IS NULL THEN NULL WHEN ").expr(s, 4)
+                .append(" REGEXP '^[+-]?[0-9]+$' THEN CAST(").expr(s, 0).append(" AS SIGNED) ELSE ")
                 .piece(raise(raiseArgs(new SqlExpr.RaiseText(com.legend.sql.RaiseKind.TEXT_NOT_INTEGER, List.of(s))),
                         SqlType.Scalar.BIGINT)).append(" END)");
     }

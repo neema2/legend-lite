@@ -995,6 +995,15 @@ public class Databricks extends AnsiSqlRenderer {
 
     @Override
     protected SqlWriter variantAwareCast(SqlWriter writer, SqlExpr.Cast c) {
+        // parseFloat: legend-pure's grammar, lite's TEXT_NOT_FLOAT by name, never CAST_INVALID_INPUT (Phase 8); Spark's
+        // regex is Java's, without POSIX bracket classes: \p{Space}, its backslash escaped for the string literal
+        if (isParseFloat(c)) {
+            SqlExpr x = c.value();
+            String grammar = FLOAT_GRAMMAR.replace("[[:space:]]", "\\\\p{Space}");
+            return guardedParseFloat(writer, x, w -> w.expr(x, 6).append(" RLIKE '" + grammar + "'"),
+                    w -> w.append("CAST(trim(regexp_replace(").expr(x, 0)
+                            .append(", '[fF]\\\\p{Space}*$', '')) AS DOUBLE)"));
+        }
         if (c.target() == SqlType.Scalar.TEMPORAL_TEXT || c.target() == SqlType.Scalar.DECIMAL_TEXT) {
             return super.variantAwareCast(writer, c);
         }
@@ -1070,7 +1079,10 @@ public class Databricks extends AnsiSqlRenderer {
             case NULL_SAFE_EQUAL -> notDistinctFrom(writer, c.args());
             case XOR -> xorAsAndOr(writer, c.args(), parentPrec);
             // 64-bit parse (PCT Long.MIN/MAX round-trips)
-            case PARSE_INT -> castAs(writer, c.args().get(0), "BIGINT");
+            // legend-pure's parseInteger, lite's TEXT_NOT_INTEGER by name, never CAST_INVALID_INPUT (Phase 8)
+            case PARSE_INT -> guardedParseInt(writer, c.args().get(0),
+                    w -> w.expr(c.args().get(0), 6).append(" RLIKE '^[+-]?[0-9]+$'"),
+                    w -> castAs(w, c.args().get(0), "BIGINT"));
             // parseDate(text): the ISO text as a timestamp
             case PARSE_DATE -> castAs(writer, c.args().get(0), "TIMESTAMP");
             case PI -> writer.append("pi()");

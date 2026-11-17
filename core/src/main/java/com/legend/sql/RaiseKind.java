@@ -35,6 +35,8 @@ public enum RaiseKind {
     MAP_KEY_NULL,
     MAP_KEYS_NOT_UNIQUE,
     TEXT_NOT_INTEGER,
+    /** Text that is not a Float, read as one (parseFloat; Phase 8, 2026-11-16). */
+    TEXT_NOT_FLOAT,
     TEXT_NOT_DATE,
     VALUE_NOT_HELD,
     FRACTION_NOT_KEPT,

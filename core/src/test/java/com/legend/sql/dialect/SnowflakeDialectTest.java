@@ -37,6 +37,22 @@ class SnowflakeDialectTest {
      * digits, a tie to the even digit, each read back; the value is written once, carried by one-element TRANSFORMs
      * (Snowflake refuses a correlated subquery). Measured against Java's text on the lane.
      */
+    /** A guarded parse's raise takes the conversion's type (round 73: a VARCHAR raise beside CAST(x AS BIGINT) unified
+     *  to a scaled NUMBER, parseInteger('17') read back as 17.00000 in the database judge's statement). */
+    @Test
+    void aParseGuardsRaiseIsTypedAsItsConversion() {
+        SqlExpr s = SqlExpr.Column.of("t", "s", SqlType.Scalar.VARCHAR, true, OutputCol.Origin.PHYSICAL);
+        SqlSource t = new SqlSource.Table("t", "t", List.of(new OutputCol("s", SqlType.Scalar.VARCHAR, true)), false,
+                Map.of(), com.legend.sql.NameQuoting.BARE);
+        String i = rendered(t, SqlExpr.Call.of(SqlFn.PARSE_INT, s), List.of());
+        assertTrue(i.contains("ELSE CAST(CHR(31) || "), i);
+        assertTrue(i.contains("|| CHR(31) AS BIGINT) END"), i);
+        assertFalse(i.contains("AS INTEGER) AS VARCHAR)"), i);
+        String f = rendered(t, new SqlExpr.Cast(s, SqlType.Scalar.DOUBLE, SqlExpr.Reason.USER), List.of());
+        assertTrue(f.contains("|| CHR(31) AS DOUBLE) END"), f);
+        assertFalse(f.contains("AS INTEGER) AS VARCHAR)"), f);
+    }
+
     @Test
     void aFloatsTextIsItsShortestDigitsThatReadBack() {
         SqlExpr x = SqlExpr.Column.of("t", "x", SqlType.Scalar.DOUBLE, true, OutputCol.Origin.PHYSICAL);

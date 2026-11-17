@@ -48,7 +48,7 @@ Database types planned with it: H2.
 | `IS_NOT_NULL` | spelled | `an operator (isNotNullTest)` |  | 89 |
 | `IN` | emulated | `inList` |  | 6 |
 | `COALESCE` | spelled | `coalesce` |  | 552 |
-| `PARSE_INT` | emulated | `castAs: BIGINT` |  | 11 |
+| `PARSE_INT` | emulated | `parseInteger` |  | 11 |
 | `CONCAT` | emulated | `concatFlat` |  | 756 |
 | `LENGTH` | spelled | `length` |  | 73 |
 | `UPPER` | spelled | `upper` |  | 2 |
@@ -212,6 +212,7 @@ Database types planned with it: H2.
 | `FORMAT_PADDED` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `INSTANCE_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `RELATION_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
+| `REPRESENTATION_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `TEXT_FORMS` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `TRACE_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `VARIANT_ELEMENTS` | refused | `variant navigation reached a dialect without JSON support` | `via AnsiSqlRenderer.variantElements` | 2 |
@@ -247,7 +248,7 @@ Database types planned with it: Postgres.
 | `IS_NOT_NULL` | spelled | `an operator (isNotNullTest)` |  | 89 |
 | `IN` | emulated | `inList` |  | 6 |
 | `COALESCE` | emulated | `coalesceArm` |  | 552 |
-| `PARSE_INT` | emulated | `castAs: BIGINT` |  | 11 |
+| `PARSE_INT` | emulated | `guardedParseInt:  ~ '^[+-]?[0-9]+$', BIGINT` |  | 11 |
 | `CONCAT` | emulated | `concatFlat` |  | 756 |
 | `LENGTH` | emulated | `by its operands: length(…) / length(CAST(… AS VARCHAR))` |  | 73 |
 | `UPPER` | spelled | `upper` |  | 2 |
@@ -411,6 +412,7 @@ Database types planned with it: Postgres.
 | `FORMAT_PADDED` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `INSTANCE_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `RELATION_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
+| `REPRESENTATION_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `TEXT_FORMS` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `TRACE_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `VARIANT_ELEMENTS` | emulated | `by its operands: composed / composed` |  | 2 |
@@ -446,7 +448,7 @@ Database types planned with it: Snowflake.
 | `IS_NOT_NULL` | spelled | `an operator (isNotNullTest)` |  | 89 |
 | `IN` | emulated | `inArm` |  | 6 |
 | `COALESCE` | emulated | `by its operands: coalesce(, PARSE_JSON(…)TO_VARIANT(…)…) / …coalesce` |  | 552 |
-| `PARSE_INT` | emulated | `stringLit: CAST(CASE WHEN REGEXP_LIKE(…, \s*[-+]?[0-9]+\s*) THEN … ELSE … \|\| ' is not an...` |  | 11 |
+| `PARSE_INT` | emulated | `guardedParseInt: REGEXP_LIKE(, , , ^[+-]?[0-9]+$, ), CAST(,  AS BIGINT)` |  | 11 |
 | `CONCAT` | emulated | `concat, flattenConcat` |  | 755 |
 | `LENGTH` | spelled | `length` |  | 73 |
 | `UPPER` | spelled | `upper` |  | 2 |
@@ -610,6 +612,7 @@ Database types planned with it: Snowflake.
 | `FORMAT_PADDED` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `INSTANCE_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `RELATION_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
+| `REPRESENTATION_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `TEXT_FORMS` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `TRACE_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `VARIANT_ELEMENTS` | emulated | `variantElements` |  | 4 |
@@ -645,7 +648,7 @@ Database types planned with it: Trino.
 | `IS_NOT_NULL` | spelled | `an operator (isNotNullTest)` |  | 89 |
 | `IN` | emulated | `inList` |  | 6 |
 | `COALESCE` | emulated | `by its operands: coalesce(, json_parse(…)…) / …coalesce` |  | 552 |
-| `PARSE_INT` | emulated | `castAs: BIGINT` |  | 11 |
+| `PARSE_INT` | emulated | `guardedParseInt: regexp_like(, , '^[+-]?[0-9]+$'), BIGINT` |  | 11 |
 | `CONCAT` | emulated | `flattenConcat: concat_ws('', , )` |  | 755 |
 | `LENGTH` | spelled | `length` |  | 73 |
 | `UPPER` | spelled | `upper` |  | 2 |
@@ -809,6 +812,7 @@ Database types planned with it: Trino.
 | `FORMAT_PADDED` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `INSTANCE_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `RELATION_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
+| `REPRESENTATION_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `TEXT_FORMS` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `TRACE_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `VARIANT_ELEMENTS` | emulated | `variantElements` |  | 4 |
@@ -844,7 +848,7 @@ Database types planned with it: BigQuery.
 | `IS_NOT_NULL` | spelled | `an operator (isNotNullTest)` |  | 89 |
 | `IN` | emulated | `in` |  | 6 |
 | `COALESCE` | emulated | `coalesceArm` |  | 552 |
-| `PARSE_INT` | emulated | `CAST(… AS INT64)` |  | 11 |
+| `PARSE_INT` | emulated | `guardedParseInt: REGEXP_CONTAINS(, , , ^[+-]?[0-9]+$, ), CAST(,  AS INT64)` |  | 11 |
 | `CONCAT` | emulated | `flattenConcat, asText: CONCAT(, IFNULL(…, ''))` |  | 756 |
 | `LENGTH` | emulated | `asText: LENGTH(…)` |  | 73 |
 | `UPPER` | spelled | `UPPER` |  | 2 |
@@ -1008,6 +1012,7 @@ Database types planned with it: BigQuery.
 | `FORMAT_PADDED` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `INSTANCE_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `RELATION_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
+| `REPRESENTATION_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `TEXT_FORMS` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `TRACE_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `VARIANT_ELEMENTS` | emulated | `variantElements` |  | 2 |
@@ -1043,7 +1048,7 @@ Database types planned with it: Databricks.
 | `IS_NOT_NULL` | spelled | `an operator (isNotNullTest)` |  | 89 |
 | `IN` | emulated | `inList` |  | 6 |
 | `COALESCE` | spelled | `coalesce` |  | 552 |
-| `PARSE_INT` | emulated | `castAs: BIGINT` |  | 11 |
+| `PARSE_INT` | emulated | `guardedParseInt:  RLIKE '^[+-]?[0-9]+$', BIGINT` |  | 11 |
 | `CONCAT` | emulated | `flattenConcat: concat_ws('', , )` |  | 755 |
 | `LENGTH` | spelled | `length` |  | 73 |
 | `UPPER` | spelled | `upper` |  | 2 |
@@ -1207,6 +1212,7 @@ Database types planned with it: Databricks.
 | `FORMAT_PADDED` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `INSTANCE_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `RELATION_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
+| `REPRESENTATION_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `TEXT_FORMS` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `TRACE_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `VARIANT_ELEMENTS` | emulated | `variantElements` |  | 4 |
@@ -1242,7 +1248,7 @@ Database types planned with it: DuckDB.
 | `IS_NOT_NULL` | spelled | `an operator (isNotNullTest)` |  | 89 |
 | `IN` | emulated | `inList` |  | 6 |
 | `COALESCE` | spelled | `coalesce` |  | 561 |
-| `PARSE_INT` | emulated | `castAs: BIGINT` |  | 11 |
+| `PARSE_INT` | emulated | `guardedParseInt: regexp_full_match(, , '[+-]?[0-9]+'), BIGINT` |  | 11 |
 | `CONCAT` | emulated | `concatFlat` |  | 755 |
 | `LENGTH` | emulated | `lengthArm` |  | 73 |
 | `UPPER` | spelled | `upper` |  | 2 |
@@ -1406,6 +1412,7 @@ Database types planned with it: DuckDB.
 | `FORMAT_PADDED` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `INSTANCE_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `RELATION_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
+| `REPRESENTATION_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `TEXT_FORMS` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `TRACE_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `VARIANT_ELEMENTS` | emulated | `variantElements` |  | 4 |
@@ -1441,7 +1448,7 @@ Database types planned with it: ClickHouse.
 | `IS_NOT_NULL` | spelled | `an operator (isNotNullTest)` |  | 89 |
 | `IN` | emulated | `inList` |  | 6 |
 | `COALESCE` | spelled | `coalesce` |  | 552 |
-| `PARSE_INT` | emulated | `castAs: BIGINT` |  | 11 |
+| `PARSE_INT` | emulated | `parseInteger` |  | 11 |
 | `CONCAT` | emulated | `flattenConcat: concat(, )` |  | 755 |
 | `LENGTH` | emulated | `toInt64(lengthUTF8(…))` |  | 73 |
 | `UPPER` | spelled | `upperUTF8` |  | 2 |
@@ -1605,6 +1612,7 @@ Database types planned with it: ClickHouse.
 | `FORMAT_PADDED` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `INSTANCE_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `RELATION_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
+| `REPRESENTATION_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `TEXT_FORMS` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `TRACE_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `VARIANT_ELEMENTS` | emulated | `variantElements` |  | 4 |
@@ -1804,6 +1812,7 @@ Database types planned with it: SQLite.
 | `FORMAT_PADDED` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `INSTANCE_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `RELATION_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
+| `REPRESENTATION_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `TEXT_FORMS` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `TRACE_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `VARIANT_ELEMENTS` | emulated | `variantElements` |  | 2 |
@@ -2003,6 +2012,7 @@ Database types planned with it: MariaDB.
 | `FORMAT_PADDED` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `INSTANCE_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `RELATION_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
+| `REPRESENTATION_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `TEXT_FORMS` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `TRACE_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `VARIANT_ELEMENTS` | emulated | `variantElements` |  | 2 |
@@ -2202,6 +2212,7 @@ Database types planned with it: MySQL.
 | `FORMAT_PADDED` | not_here | `renderer bug: is expanded before any dialect reads it` | `as MariaDb` | 0 |
 | `INSTANCE_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` | `as MariaDb` | 0 |
 | `RELATION_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` | `as MariaDb` | 0 |
+| `REPRESENTATION_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` | `as MariaDb` | 0 |
 | `TEXT_FORMS` | not_here | `renderer bug: is expanded before any dialect reads it` | `as MariaDb` | 0 |
 | `TRACE_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` | `as MariaDb` | 0 |
 | `VARIANT_ELEMENTS` | emulated | `variantElements` | `as MariaDb` | 2 |
@@ -2237,7 +2248,7 @@ Database types planned with it: MongoDB.
 | `IS_NOT_NULL` | emulated | `nullTest` |  | 0 |
 | `IN` | emulated | `inList` |  | 0 |
 | `COALESCE` | emulated | `coalesce` |  | 0 |
-| `PARSE_INT` | emulated | `op1: $toLong` |  | 0 |
+| `PARSE_INT` | emulated | `guardedParse: ^[+-]?[0-9]+$, {"$toLong": , }` |  | 0 |
 | `CONCAT` | emulated | `concatSkippingNull` |  | 0 |
 | `LENGTH` | emulated | `length` |  | 0 |
 | `UPPER` | emulated | `guardedOp: $toUpper` |  | 0 |
@@ -2401,6 +2412,7 @@ Database types planned with it: MongoDB.
 | `FORMAT_PADDED` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `INSTANCE_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `RELATION_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
+| `REPRESENTATION_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `TEXT_FORMS` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `TRACE_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `VARIANT_ELEMENTS` | emulated | `variantElements` |  | 0 |
@@ -2600,6 +2612,7 @@ Database types planned with it: no database type's own (it extends `AnsiSqlRende
 | `FORMAT_PADDED` | not_here | `renderer bug: is expanded before any dialect reads it` |  | — |
 | `INSTANCE_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | — |
 | `RELATION_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | — |
+| `REPRESENTATION_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | — |
 | `TEXT_FORMS` | not_here | `renderer bug: is expanded before any dialect reads it` |  | — |
 | `TRACE_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | — |
 | `VARIANT_ELEMENTS` | refused | `variant navigation reached a dialect without JSON support` | `via AnsiSqlRenderer.variantElements` | — |
@@ -2799,6 +2812,7 @@ Database types planned with it: no database type's own (it extends `EngineStyleH
 | `FORMAT_PADDED` | not_here | `renderer bug: is expanded before any dialect reads it` | `as EngineStyleH2` | — |
 | `INSTANCE_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` | `as EngineStyleH2` | — |
 | `RELATION_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` | `as EngineStyleH2` | — |
+| `REPRESENTATION_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` | `as EngineStyleH2` | — |
 | `TEXT_FORMS` | not_here | `renderer bug: is expanded before any dialect reads it` | `as EngineStyleH2` | — |
 | `TRACE_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` | `as EngineStyleH2` | — |
 | `VARIANT_ELEMENTS` | refused | `variant navigation reached a dialect without JSON support` | `as EngineStyleH2, via AnsiSqlRenderer.variantElements` | — |
@@ -2998,6 +3012,7 @@ Database types planned with it: no database type's own (it extends `EngineStyleD
 | `FORMAT_PADDED` | not_here | `renderer bug: is expanded before any dialect reads it` | `as EngineStyleDB2, as EngineStyleH2` | — |
 | `INSTANCE_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` | `as EngineStyleDB2, as EngineStyleH2` | — |
 | `RELATION_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` | `as EngineStyleDB2, as EngineStyleH2` | — |
+| `REPRESENTATION_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` | `as EngineStyleDB2, as EngineStyleH2` | — |
 | `TEXT_FORMS` | not_here | `renderer bug: is expanded before any dialect reads it` | `as EngineStyleDB2, as EngineStyleH2` | — |
 | `TRACE_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` | `as EngineStyleDB2, as EngineStyleH2` | — |
 | `VARIANT_ELEMENTS` | refused | `variant navigation reached a dialect without JSON support` | `as EngineStyleDB2, as EngineStyleH2, via AnsiSqlRenderer.variantElements` | — |

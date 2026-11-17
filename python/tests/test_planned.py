@@ -1125,7 +1125,7 @@ class ARaiseIsWorded(unittest.TestCase):
     def test_each_envelope_reads_as_javas_runner_and_the_tabs_read_it(self):
         import os
 
-        from legend_lite._raised import declare_statement_sites, raised_words
+        from legend_lite._raised import declare_statement_sites, raised_kind, raised_words
         fixture = json.loads(open(os.environ['LEGEND_LITE_RAISE_FIXTURE'], encoding='utf-8').read())
         # the sites are the statement's (PlanJson v56; phase D's Phase 2): declared first, as a plan read does
         declare_statement_sites(fixture['statement'], fixture['sites'], 'the fixture')
@@ -1139,6 +1139,7 @@ class ARaiseIsWorded(unittest.TestCase):
                     continue
                 said = raised_words(case['message'], fixture['statement'])
                 self.assertEqual(case['message'] if said is None else said, case['words'])
+                self.assertEqual(raised_kind(case['message'], fixture['statement']), case.get('kind'))
 
     def test_a_token_its_statement_does_not_declare_is_refused_by_name(self):
         from legend_lite._raised import raised_words

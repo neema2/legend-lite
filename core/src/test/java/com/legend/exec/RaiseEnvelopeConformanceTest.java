@@ -52,7 +52,8 @@ class RaiseEnvelopeConformanceTest {
             assertEquals(c.getString("words"), RaisedErrors.dataErrorOf(RaisedErrors.unwrapped(failed, sites))
                     .getMessage(), name);
             java.sql.SQLException read = RaisedErrors.unwrapped(failed, sites);
-            String kind = read instanceof RaisedErrors.Raised r && r.kind() != null ? r.kind().name() : null;
+            com.legend.error.ErrorKind told = RaisedErrors.dataErrorOf(read).kind();
+            String kind = told == null ? null : told.name();
             String where = read instanceof RaisedErrors.Raised r ? r.where() : null;
             assertEquals(c.getStringOr("kind", null), kind, name + ": its kind");
             assertEquals(c.getStringOr("where", null), where, name + ": its where");
