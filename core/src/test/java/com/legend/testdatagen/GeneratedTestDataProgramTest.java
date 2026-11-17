@@ -592,33 +592,36 @@ class GeneratedTestDataProgramTest {
             String body, List<String> sent, com.legend.database.PlanStyle style) throws Exception {
         List<String> verdicts = new ArrayList<>();
         boolean[] failed = new boolean[1];
-        try (Connection c = backend.open()) {
+        // a fresh, seeded session per judge (isolated BOTH runs each judge's plan alone; the orchestrator's (b'), 2026-11-17)
+        // the seed's text rendered before the run (the runtime wall: a run renders nothing)
+        List<String> seed = CsvSeed.sqls(CSV, "t::DB", ctx, backend.dialect());
+        com.legend.exec.Sessions.Opener seeded = () -> {
+            Connection c = backend.open();
             try (Statement s = c.createStatement()) {
-                for (String sql : CsvSeed.sqls(CSV, "t::DB", ctx, backend.dialect())) {
+                for (String sql : seed) {
                     s.execute(sql);
                 }
                 s.execute("INSERT INTO PERSON (ID, NAME, MANAGERID) VALUES (6, '', 1)");
             }
-            com.legend.testexecutionplan.AssertListener listener = new com.legend.testexecutionplan.AssertListener() {
-                @Override
-                public void verdict(String assertName, boolean pass, @com.legend.base.Nullable String detail) {
-                    verdicts.add(assertName.substring(assertName.lastIndexOf(':') + 1) + " " + pass
-                            + (pass ? "" : " " + detail));
-                    failed[0] = !pass;
-                }
-            };
-            try {
-                TestExecution.runProgram(typed(ctx, body), "t::RT",
-                        com.legend.exec.SessionSource.given(com.legend.testbackend.TestSessions.over(
-                                com.legend.testbackend.RecordingConnection.wrap(c, sent))), listener, null,
-                        ExecuteOptions.NONE.withJudgeMode(judge).withStyle(style));
-            } catch (com.legend.error.NotImplementedException e) {
-                verdicts.add("NotImplementedException: " + e.getMessage());
-            } catch (AssertionError | RuntimeException e) {
-                // a failed verdict ends the body (the listener told it); anything else is the test's failure
-                if (!failed[0]) {
-                    throw e;
-                }
+            return com.legend.testbackend.RecordingConnection.wrap(c, sent);
+        };
+        com.legend.testexecutionplan.AssertListener listener = new com.legend.testexecutionplan.AssertListener() {
+            @Override
+            public void verdict(String assertName, boolean pass, @com.legend.base.Nullable String detail) {
+                verdicts.add(assertName.substring(assertName.lastIndexOf(':') + 1) + " " + pass
+                        + (pass ? "" : " " + detail));
+                failed[0] = !pass;
+            }
+        };
+        try {
+            TestExecution.runProgram(typed(ctx, body), "t::RT", new com.legend.exec.SessionSource.Fresh(seeded),
+                    listener, null, ExecuteOptions.NONE.withJudgeMode(judge).withStyle(style));
+        } catch (com.legend.error.NotImplementedException e) {
+            verdicts.add("NotImplementedException: " + e.getMessage());
+        } catch (AssertionError | RuntimeException e) {
+            // a failed verdict ends the body (the listener told it); anything else is the test's failure
+            if (!failed[0]) {
+                throw e;
             }
         }
         return verdicts;

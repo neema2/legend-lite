@@ -8,8 +8,6 @@ WITH __se_0 AS (SELECT coalesce(__once.__oc, '[]') AS __text, CASE WHEN __once._
       SELECT 3 AS value
     ) AS side ON TRUE
   ) AS __once)
-SELECT 0 AS __ix, (e.__text IS NOT DISTINCT FROM a.__text) AS __verdict, e.__text AS __expected, a.__text AS __actual, CASE WHEN e.__nulls > 0 OR a.__nulls > 0 THEN 'null-canon-cell' WHEN e.__trees > 0 OR a.__trees > 0 THEN 'unclaimable tree cell' END AS __unjudged, FALSE AS __lenient, (e.__text IS NOT DISTINCT FROM a.__text) AS __holds, concat('
-expected: ', CASE WHEN e.__n = 1 AND a.__n = 1 THEN e.__onew ELSE e.__listw END, '
-actual:   ', CASE WHEN e.__n = 1 AND a.__n = 1 THEN a.__onew ELSE a.__listw END) AS __message
+SELECT 0 AS __ix, (e.__text IS NOT DISTINCT FROM a.__text) AS __verdict, e.__text AS __expected, a.__text AS __actual, CASE WHEN e.__nulls > 0 OR a.__nulls > 0 THEN 'null-canon-cell' WHEN e.__trees > 0 OR a.__trees > 0 THEN 'unclaimable tree cell' END AS __unjudged, FALSE AS __lenient, (e.__text IS NOT DISTINCT FROM a.__text) AS __holds, CASE WHEN CASE WHEN e.__n = 1 AND a.__n = 1 THEN e.__onew ELSE e.__listw END = CASE WHEN e.__n = 1 AND a.__n = 1 THEN a.__onew ELSE a.__listw END THEN concat('expected ', CASE WHEN e.__n = 1 AND a.__n = 1 THEN e.__onew ELSE e.__listw END, ' (', 'Integer', '), got ', CASE WHEN e.__n = 1 AND a.__n = 1 THEN a.__onew ELSE a.__listw END, ' (', 'Integer', ')') ELSE concat('expected ', CASE WHEN e.__n = 1 AND a.__n = 1 THEN e.__onew ELSE e.__listw END, ', got ', CASE WHEN e.__n = 1 AND a.__n = 1 THEN a.__onew ELSE a.__listw END) END AS __message
 FROM __se_0 AS e
 CROSS JOIN __se_0 AS a

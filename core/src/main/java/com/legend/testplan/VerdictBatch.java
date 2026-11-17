@@ -183,24 +183,26 @@ public final class VerdictBatch {
     private final SelfContained selfContained;
     private final Runner runner;
     private final List<Root> roots = new ArrayList<>();
-    /** The zero-based index of the unrolled quantifier's element being planned under lite's own rules, or -1. */
-    private int elementIndex = -1;
-    /** Whether the rows deferred now are {@code assertIsNot}'s (#28): the frame's sentence is its. */
-    private boolean isNot;
+    /** The sentence frame the rows deferred now are planned under (lite's own rules): an unrolled quantifier's element
+     *  index (-1 for none) and whether they are {@code assertIsNot}'s (#28). One field, set and restored by scope. */
+    private record Scope(int elementIndex, boolean isNot) {
+    }
+
+    private Scope scope = new Scope(-1, false);
 
     /** Rows deferred until the returned restore runs are {@code assertIsNot}'s. */
     public Runnable asIsNot() {
-        boolean before = isNot;
-        isNot = true;
-        return () -> isNot = before;
+        Scope before = scope;
+        scope = new Scope(before.elementIndex(), true);
+        return () -> scope = before;
     }
 
     /** Rows deferred until the returned scope closes are an unrolled quantifier's element {@code index}: lite's
      *  sentence names it ({@code AssertSentence.AT_INDEX}). */
     public Runnable atElement(int index) {
-        int before = elementIndex;
-        elementIndex = index;
-        return () -> elementIndex = before;
+        Scope before = scope;
+        scope = new Scope(index, before.isNot());
+        return () -> scope = before;
     }
     private @com.legend.base.Nullable Root current;
     /** The frames the body's asserts read by reference: name → the frame's
@@ -310,11 +312,11 @@ public final class VerdictBatch {
             }
         }
         // the row self-contained (M8b): its polarity and its message in the statement, nothing of the assert kept
-        SqlQuery row = selfContained.wrap(isNot ? com.legend.lowering.VerdictSql.withIsNotHint(query) : query, name,
+        SqlQuery row = selfContained.wrap(scope.isNot() ? com.legend.lowering.VerdictSql.withIsNotHint(query) : query, name,
                 wantEqual);
-        if (elementIndex >= 0) {
+        if (scope.elementIndex() >= 0) {
             // an unrolled quantifier's element: lite's sentence names it by its zero-based index
-            row = com.legend.lowering.VerdictSql.atIndex(row, elementIndex);
+            row = com.legend.lowering.VerdictSql.atIndex(row, scope.elementIndex());
         }
         Pending of = orElseOf.peek();
         if (of != null) {

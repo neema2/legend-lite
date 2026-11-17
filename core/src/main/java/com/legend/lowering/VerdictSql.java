@@ -186,7 +186,7 @@ public final class VerdictSql {
             this(kind, sorted, listed, null);
         }
 
-        /** This message written by lite's own rules ({@link Repr#lite}: a String quoted JSON-style, every value its
+        /** This message written by lite's own rules ({@link LiteText#of}: a String quoted JSON-style, every value its
          *  product text), or legend-pure's ({@code lite} false). */
         public Message withLite(boolean lite) {
             return new Message(kind, sorted, listed, literal, lite, canon, kindText, canonClass);
@@ -713,7 +713,7 @@ public final class VerdictSql {
         OneRow a = rowOf("a", valueScalar);
         SqlExpr text = asText(a.col(C));
         if (lite) {
-            SqlExpr value = SqlExpr.Call.of(SqlFn.COALESCE, quote ? Repr.lite(Type.Primitive.STRING, text) : text,
+            SqlExpr value = SqlExpr.Call.of(SqlFn.COALESCE, quote ? LiteText.of(Type.Primitive.STRING, text) : text,
                     new SqlExpr.StringLit("[]"));
             return predicateOver(List.of(), List.of(a), new SqlExpr.BoolLit(holds), new SqlExpr.StringLit("true"),
                     new SqlExpr.StringLit(holds ? "true" : "false"), new SqlExpr.NullLit(), sentence(
@@ -800,9 +800,9 @@ public final class VerdictSql {
         OutputCol rnOut = new OutputCol(RN, SqlType.Scalar.BIGINT, false);
         SqlQuery rows = new SqlSelect(List.of(
                 new SqlSelect.Projection(SqlExpr.Call.of(SqlFn.COALESCE, ok, new SqlExpr.BoolLit(false)), "__ok", okOut),
-                new SqlSelect.Projection(lite ? Repr.lite(expectedKind, first) : Repr.of(expectedKind, first), "__re",
+                new SqlSelect.Projection(lite ? LiteText.of(expectedKind, first) : Repr.of(expectedKind, first), "__re",
                         reOut),
-                new SqlSelect.Projection(lite ? Repr.lite(actualKind, second) : Repr.of(actualKind, second), "__ra",
+                new SqlSelect.Projection(lite ? LiteText.of(actualKind, second) : Repr.of(actualKind, second), "__ra",
                         raOut),
                 new SqlSelect.Projection(SqlExpr.Column.of("__s", numbered.outputs(), SideOrdinal.ORD), RN, rnOut)),
                 false, new SqlSource.Subselect(numbered, "__s", null), null, List.of(), null, null, List.of(), null,
@@ -898,7 +898,7 @@ public final class VerdictSql {
     private static SqlExpr numberText(SqlType arithmetic, SqlExpr x) {
         Type kind = arithmetic == SqlType.Scalar.DOUBLE ? Type.Primitive.FLOAT
                 : arithmetic instanceof SqlType.Decimal ? Type.Primitive.DECIMAL : Type.Primitive.INTEGER;
-        return Repr.lite(kind, x);
+        return LiteText.of(kind, x);
     }
 
     /** The {@code $need->forAll(n | $have->contains($n))} subset idiom:
@@ -1044,7 +1044,7 @@ public final class VerdictSql {
                             side + "_text", SqlType.Scalar.VARCHAR, null), new SqlExpr.StringLit("")),
                     new SqlExpr.StringLit("]"));
             message = sentence(com.legend.error.AssertSentence.TDS_EQUIVALENT, java.util.Map.of(
-                    "expected", written.apply("__rwe"), "delta", Repr.lite(Type.Primitive.FLOAT, delta),
+                    "expected", written.apply("__rwe"), "delta", LiteText.of(Type.Primitive.FLOAT, delta),
                     "actual", written.apply("__rwa")));
         }
         return predicate(ctes,
@@ -2295,12 +2295,12 @@ public final class VerdictSql {
         SqlExpr exp = new SqlExpr.StringLit(expected);
         List<SqlExpr.Case.When> failures = new ArrayList<>();
         if (lite) {
-            SqlExpr quotedExpected = Repr.lite(Type.Primitive.STRING, exp);
+            SqlExpr quotedExpected = LiteText.of(Type.Primitive.STRING, exp);
             failures.add(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.IS_NULL, m), sentence(
                     com.legend.error.AssertSentence.NO_ERROR, java.util.Map.of("expected", quotedExpected))));
             failures.add(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.NOT_EQUAL, m, exp), sentence(
                     com.legend.error.AssertSentence.ERROR, java.util.Map.of("expected", quotedExpected, "actual",
-                            Repr.lite(Type.Primitive.STRING, m)))));
+                            LiteText.of(Type.Primitive.STRING, m)))));
         } else {
         failures.add(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.IS_NULL, m), new SqlExpr.StringLit("No error was thrown")));
         failures.add(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.NOT_EQUAL, m, exp), SqlExpr.Call.of(SqlFn.CONCAT,
@@ -2455,7 +2455,7 @@ public final class VerdictSql {
     }
 
     /** {@code value}, a struct of primitive fields, written by lite's own rules (the orchestrator's ruling, 2026-11-17):
-     *  its class, then its properties as the product's compact JSON object, each value its lite text ({@link Repr#lite};
+     *  its class, then its properties as the product's compact JSON object, each value its lite text ({@link LiteText#of};
      *  an empty one {@code null}) -- {@code meta::pure::functions::collection::Pair {"first":1,"second":"a"}}. */
     private static SqlExpr instanceLite(SqlExpr value, String typeFqn) {
         SqlType.Struct st = (SqlType.Struct) ((com.legend.sql.TypeFact.Typed) value.type()).type();
@@ -2466,7 +2466,7 @@ public final class VerdictSql {
             parts.add(new SqlExpr.StringLit((first ? "" : ",") + "\"" + f.name() + "\":"));
             first = false;
             SqlExpr v = new SqlExpr.StructGet(value, f.name());
-            parts.add(SqlExpr.Call.of(SqlFn.COALESCE, Repr.lite(pureKind(f.type()), v), new SqlExpr.StringLit("null")));
+            parts.add(SqlExpr.Call.of(SqlFn.COALESCE, LiteText.of(pureKind(f.type()), v), new SqlExpr.StringLit("null")));
         }
         parts.add(new SqlExpr.StringLit("}"));
         return new SqlExpr.Call(SqlFn.CONCAT, parts);
@@ -3122,7 +3122,7 @@ public final class VerdictSql {
             return m.lite() ? instanceLite(value, g.rawFqn()) : instanceWritten(value, g.rawFqn());
         }
         return PlatformTypes.isNil(m.kind()) ? new SqlExpr.Cast(new SqlExpr.NullLit(), SqlType.Scalar.VARCHAR, SqlExpr.Reason.JUDGE)
-                : m.lite() ? Repr.lite(m.kind(), value)
+                : m.lite() ? LiteText.of(m.kind(), value)
                 : m.listed() && m.kind() == Type.Primitive.STRING ? new SqlExpr.Cast(value, SqlType.Scalar.VARCHAR, SqlExpr.Reason.JUDGE)
                 : Repr.of(m.kind(), value);
     }
