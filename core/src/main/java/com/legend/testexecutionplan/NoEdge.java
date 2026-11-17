@@ -26,6 +26,11 @@ public enum NoEdge implements Edge {
     }
 
     @Override
+    public TestPlan.JudgingRules rules() {
+        return TestPlan.JudgingRules.LITE;
+    }
+
+    @Override
     public List<Extension> effect(List<String> texts, List<Boolean> queries) {
         throw new NotImplementedException("an effect's ledger texts" + WHY);
     }

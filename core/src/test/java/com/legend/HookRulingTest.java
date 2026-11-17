@@ -286,6 +286,8 @@ class HookRulingTest {
     @Test
     void theHooksCapabilitiesAreTheProductsAndTheEdges() {
         assertFalse(com.legend.testexecutionplan.NoEdge.NONE.records(), "the product records no ledger");
+        assertTrue(com.legend.testexecutionplan.NoEdge.NONE.rules()
+                == com.legend.testexecutionplan.TestPlan.JudgingRules.LITE, "the product's runs judge by lite's rules");
         assertTrue(new com.legend.edge.CompatEdge(new com.legend.edge.RawLedger.Recorder(),
                 com.legend.executionplan.DataStores.none()).records(), "the edge's recorder records the ledger");
         assertTrue(com.legend.testexec.NoEdgeRun.NONE.wordsAlike(), "lite's judges write alike");

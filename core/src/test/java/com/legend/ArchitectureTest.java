@@ -1261,7 +1261,8 @@ final class ArchitectureTest {
             "testplan.PlanningOptions#edge()", "com.legend.ExecuteOptions",
             "testplan.PlanningOptions#judgeMode()", "com.legend.ExecuteOptions",
             "testplan.PlanningOptions#judgingRules()", "com.legend.ExecuteOptions",
-            "testplan.PlanningOptions#rules(boolean)", "com.legend.ExecuteOptions",
+            // testplan.PlanningOptions#rules(boolean) from ExecuteOptions gone (2026-11-17, census C1: the edge hook names
+            // its run's rules, Edge.rules())
             "testplan.PlanningOptions#withEngineCompat(boolean)", "com.legend.ExecuteOptions",
             "testplan.PlanningOptions#withFeatures(java.util.Set)", "com.legend.ExecuteOptions",
             "testplan.PlanningOptions#withJudgeMode(com.legend.testplan.PlanningOptions$JudgeMode)",
