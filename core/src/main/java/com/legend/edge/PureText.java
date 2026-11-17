@@ -99,6 +99,10 @@ public final class PureText {
             if (kind == com.legend.lowering.DateTimeTexts.class) {
                 return kind.cast(EdgeDateTimeTexts.INSTANCE);
             }
+            if (kind == com.legend.compiler.spec.GoldenNullWord.class) {
+                // legend-engine's TDSNull read as a golden's null cell (census C1)
+                return kind.cast(UpstreamGoldenNullWord.INSTANCE);
+            }
             if (kind == com.legend.testplan.DateLiteralTexts.class) {
                 // a date literal's message text as legend-pure writes it (census C1)
                 return kind.cast(UpstreamDateLiteralTexts.INSTANCE);

@@ -49,5 +49,8 @@ public final class PlanStyleFacets {
             RenderedTextRule.class,
             // a date literal's text in the database judge's failure message (census C1, 2026-11-17): lite's own, the
             // edge's legend-pure toRepresentation
-            DateLiteralTexts.class);
+            DateLiteralTexts.class,
+            // the word a rendered golden writes for a null cell (census C1, 2026-11-17): none in the product (lite
+            // writes it empty), legend-engine's TDSNull at the edge
+            com.legend.compiler.spec.GoldenNullWord.class);
 }

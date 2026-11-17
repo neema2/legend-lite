@@ -979,7 +979,8 @@ public final class VerdictQueries {
      * relation's schema for the grid grammars ({@code elementKind} unused);
      * {@code elementKind} the collection's element kind for a flat join. */
     public static ParsedGolden parseRendered(String text, RenderGrammar grammar,
-            @com.legend.base.Nullable Type.RelationType schema, @com.legend.base.Nullable Type elementKind) {
+            @com.legend.base.Nullable Type.RelationType schema, @com.legend.base.Nullable Type elementKind,
+            GoldenNullWord nullWord) {
         if (grammar instanceof RenderGrammar.Flat f) {
             Type kind = elementKind;
             if (!(kind instanceof Type.Primitive) && !(kind instanceof Type.EnumType)) {
@@ -990,12 +991,12 @@ public final class VerdictQueries {
                     : List.of(text.split(java.util.regex.Pattern.quote(f.sep()), -1));
             List<TypedSpec> out = new ArrayList<>(parts.size());
             for (String part : parts) {
-                if (part.equals("TDSNull")) {
+                if (nullWord.isNullWord(part)) {
                     // a null element: the collection statement reads the
                     // non-null elements, so the null's count is not judged
                     return ParsedGolden.declined("rendered-text: a null element in a flat join");
                 }
-                TypedSpec e = cellLiteral(part, kind, false);
+                TypedSpec e = cellLiteral(part, kind);
                 if (e == null) {
                     return ParsedGolden.declined("rendered-text: element '" + part + "' is not a " + kind);
                 }
@@ -1100,7 +1101,7 @@ public final class VerdictQueries {
             }
             List<String> out = new ArrayList<>(row.size());
             for (int c = 0; c < row.size(); c++) {
-                String cell = tdsCellText(row.get(c), kinds.get(c));
+                String cell = tdsCellText(row.get(c), kinds.get(c), nullWord);
                 if (cell == null) {
                     return ParsedGolden.declined("rendered-text: cell '" + row.get(c) + "' is not a "
                             + kinds.get(c) + " (column " + names.get(c) + ")");
@@ -1168,26 +1169,18 @@ public final class VerdictQueries {
         return cols.isEmpty() ? null : new Type.RelationType(cols);
     }
 
-    /** A grid cell's text for the TDS literal: an empty / {@code TDSNull} /
-     * {@code null} cell is the null cell (empty text); a cell that is not of
-     * its column's kind is {@code null}. The literal's lowering types the
-     * text by the column ({@code Scalars.tdsCell}). */
-    private static @com.legend.base.Nullable String tdsCellText(String cell, Type kind) {
-        if (cell.isEmpty() || cell.equals("TDSNull") || cell.equals("null")) {
+    /** A grid cell's text for the TDS literal: an empty / {@code null} cell, or the style's null word (upstream's
+     * {@code TDSNull} at the edge: {@link GoldenNullWord}), is the null cell (empty text); a cell that is not of its
+     * column's kind is {@code null}. The literal's lowering types the text by the column ({@code Scalars.tdsCell}). */
+    private static @com.legend.base.Nullable String tdsCellText(String cell, Type kind, GoldenNullWord nullWord) {
+        if (cell.isEmpty() || nullWord.isNullWord(cell) || cell.equals("null")) {
             return "";
         }
-        return cellLiteral(cell, kind, false) == null ? null : cell;
+        return cellLiteral(cell, kind) == null ? null : cell;
     }
 
-    /** One cell as the typed literal of its declared kind; {@code null} when
-     * the text is not of that kind. A grid's empty / {@code TDSNull} /
-     * {@code null} cell is the TDSNull sentinel string (the peer rule spells
-     * it bare on the expected side). */
-    private static @com.legend.base.Nullable TypedSpec cellLiteral(String cell, Type kind, boolean gridCell) {
-        if (gridCell && (cell.isEmpty() || cell.equals("TDSNull") || cell.equals("null"))) {
-            // the golden's null cell (its written text read as INPUT): a present null cell, typed (C5 step C, C-2)
-            return new com.legend.compiler.spec.typed.TypedNullCell(scalar(Type.Primitive.STRING));
-        }
+    /** One cell as the typed literal of its declared kind; {@code null} when the text is not of that kind. */
+    private static @com.legend.base.Nullable TypedSpec cellLiteral(String cell, Type kind) {
         if (kind instanceof Type.EnumType et) {
             return new com.legend.compiler.spec.typed.TypedEnumValue(et.fqn(), cell, scalar(kind));
         }

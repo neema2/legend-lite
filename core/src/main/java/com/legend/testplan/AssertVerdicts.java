@@ -3,6 +3,7 @@
 
 package com.legend.testplan;
 
+import com.legend.compiler.spec.GoldenNullWord;
 import com.legend.testexecutionplan.Failure;
 
 import static com.legend.testexecutionplan.Verdicts.ok;
@@ -1957,8 +1958,8 @@ public final class AssertVerdicts {
                 schema = com.legend.compiler.spec.VerdictQueries.wireDecidedKinds(schema, data);
             }
         }
-        var parsed = com.legend.compiler.spec.VerdictQueries.parseRendered(text, r.grammar(),
-                schema, r.grid() ? null : r.value().info().type());
+        var parsed = com.legend.compiler.spec.VerdictQueries.parseRendered(text, r.grammar(), schema, r.grid() ? null
+                : r.value().info().type(), env.options().style().twoForm(GoldenNullWord.class, GoldenNullWord.Product.NONE));
         if (parsed.headerMismatch()) {
             com.legend.diagnostics.VerdictCensus.sqlJudgedInDatabase(name);
             return fail(name + ": " + parsed.reason());   // a static verdict
@@ -1985,10 +1986,9 @@ public final class AssertVerdicts {
         if (!env.options().style().twoForm(RenderedTextRule.class, RenderedTextRule.Product.STRINGS).ruledWhereTheyDiffer()) {
             // clean mode (the user, 2026-11-05: after a verdict the harness may only explain): the two strings are the
             // verdict; the ruled row comparison is the edge's alone
-            if (textRow == null) {
-                return DatabaseJudge.unjudged(name, "rendered-text: a side the database judge cannot read as a String");
-            }
-            return DatabaseJudge.runVerdict(name, wantEqual, textRow, env);
+            return textRow == null
+                    ? DatabaseJudge.unjudged(name, "rendered-text: a side the database judge cannot read as a String")
+                    : DatabaseJudge.runVerdict(name, wantEqual, textRow, env);
         }
         if (!wantEqual || textRow == null) {
             return rows.get();

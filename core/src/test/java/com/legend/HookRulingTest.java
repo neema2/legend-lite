@@ -215,7 +215,9 @@ class HookRulingTest {
                 // ruled comparison where they differ)
                 com.legend.testplan.RenderedTextRule.class,
                 // DateLiteralTexts (census C1, 2026-11-17: a date literal's message text, lite's or legend-pure's)
-                com.legend.testplan.DateLiteralTexts.class),
+                com.legend.testplan.DateLiteralTexts.class,
+                // GoldenNullWord (census C1, 2026-11-17: legend-engine's TDSNull read as a golden's null cell, the edge's)
+                com.legend.compiler.spec.GoldenNullWord.class),
                 com.legend.testplan.PlanStyleFacets.TWO_FORMS,
                 "the two-form kinds, an exact set: a kind is added here with its family and its dated reason");
         assertTrue(PlanStyle.PRODUCT.twoForm(com.legend.lowering.DateTimeTexts.class,
@@ -263,6 +265,10 @@ class HookRulingTest {
         assertEquals("%2020-01-02", com.legend.edge.PureText.UPSTREAM.twoForm(com.legend.testplan.DateLiteralTexts.class,
                 com.legend.testplan.DateLiteralTexts.Product.LITE).text(com.legend.values.PureDateLiteral.parse("2020-01-02")),
                 "the edge writes legend-pure's");
+        assertFalse(PlanStyle.PRODUCT.twoForm(com.legend.compiler.spec.GoldenNullWord.class,
+                com.legend.compiler.spec.GoldenNullWord.Product.NONE).isNullWord("TDSNull"), "the product reads no TDSNull");
+        assertTrue(com.legend.edge.PureText.UPSTREAM.twoForm(com.legend.compiler.spec.GoldenNullWord.class,
+                com.legend.compiler.spec.GoldenNullWord.Product.NONE).isNullWord("TDSNull"), "the edge reads upstream's");
         Runnable productForm = () -> { };
         assertTrue(PlanStyle.PRODUCT.twoForm(Runnable.class, productForm) == productForm,
                 "the product answers the caller's own form");
