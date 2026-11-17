@@ -200,6 +200,139 @@ public final class Boundary {
                         com.legend.protocol.ProtocolReader.lambda(lambdaJson)).resultType())));
     }
 
+    // ---- LITE API V1: the browser binding's operations (docs/records/lite-api-v1-2026-11-17.md §2, the user's go of
+    // ---- 2026-11-17): each takes its operation's request JSON and answers its JSON, the same JSON the server's routes
+    // ---- take and answer, so the three bindings are one contract (the conformance suite, lite-api-cases.json, holds them
+    // ---- to it). A refusal is thrown; the binding's fold writes it as §3's {kind, message, where?, raise?}.
+
+    /** {@code model/check {model}}: {@code {errors: [{kind, message}]}}, every error, empty when it compiles. */
+    public static String modelCheck(String request) {
+        com.legend.json.Json.Obj in = apiRequest(request, "model/check", "model");
+        java.util.List<java.util.Map<String, Object>> errors = new java.util.ArrayList<>();
+        for (String message : com.legend.Compiler.compileErrors(in.getString("model"))) {
+            java.util.Map<String, Object> e = new java.util.LinkedHashMap<>();
+            e.put("kind", "compile");
+            e.put("message", message);
+            errors.add(e);
+        }
+        return com.legend.json.Json.toCompact(java.util.Map.of("errors", errors));
+    }
+
+    /** {@code model/elements {model}}: {@code {elements}}, the model's protocol elements. */
+    public static String modelElements(String request) {
+        com.legend.json.Json.Obj in = apiRequest(request, "model/elements", "model");
+        com.legend.json.Json.Obj document = com.legend.json.Json.parseObject(
+                com.legend.door.Parse.documentJson(in.getString("model"), false));
+        return "{\"elements\":" + com.legend.json.Json.toCompact(document.get("elements")) + "}";
+    }
+
+    /** {@code query/parse {text}}: {@code {query}}, the lambda's tree (a text without a leading {@code |} read as a
+     *  parameterless lambda). */
+    public static String queryParse(String request) {
+        com.legend.json.Json.Obj in = apiRequest(request, "query/parse", "text");
+        return "{\"query\":" + com.legend.door.Parse.lambdaJson(in.getString("text"), false) + "}";
+    }
+
+    /** {@code query/print {query, style?}}: {@code {text}}; {@code style} {@code pretty} (the default, the spec's) or
+     *  {@code standard}. */
+    public static String queryPrint(String request) {
+        com.legend.json.Json.Obj in = apiRequest(request, "query/print", "query", "style?");
+        String style = in.getStringOr("style", "pretty");
+        com.legend.protocol.PureComposer.Style s = switch (style) {
+            case "pretty" -> com.legend.protocol.PureComposer.Style.PRETTY;
+            case "standard" -> com.legend.protocol.PureComposer.Style.STANDARD;
+            default -> throw requestRefused("query/print", "a query prints pretty or standard, not '" + style + "'");
+        };
+        return com.legend.json.Json.toCompact(java.util.Map.of("text",
+                com.legend.protocol.PureComposer.lambda(com.legend.json.Json.toCompact(in.get("query")), s)));
+    }
+
+    /** {@code query/type {model, query}}: {@code {columns: [{name, type, enumeration?}]}}, each column's Pure type
+     *  name (an enumeration's column names it). */
+    public static String queryType(String request) {
+        com.legend.json.Json.Obj in = apiRequest(request, "query/type", "model", "query");
+        String query = com.legend.json.Json.toCompact(in.get("query"));
+        return MODELS.withText(in.getString("model"), ctx -> {
+            java.util.List<java.util.Map<String, Object>> columns = new java.util.ArrayList<>();
+            for (com.legend.compiler.element.type.Type.Column c : com.legend.plan.PureSpelling.relationColumns(
+                    com.legend.Compiler.query(ctx, com.legend.protocol.ProtocolReader.lambda(query)).resultType())) {
+                java.util.Map<String, Object> column = new java.util.LinkedHashMap<>();
+                column.put("name", c.name());
+                column.put("type", com.legend.plan.PureSpelling.typePath(c.type()));
+                if (c.type() instanceof com.legend.compiler.element.type.Type.EnumType e) {
+                    column.put("enumeration", e.fqn());
+                }
+                columns.add(column);
+            }
+            return com.legend.json.Json.toCompact(java.util.Map.of("columns", columns));
+        });
+    }
+
+    /** {@code query/plan {model, query, runtime}}: {@code {plan}}, lite's execution plan (PlanJson), which is data; the
+     *  runtime always named (the spec's ruling 2). */
+    public static String queryPlan(String request) {
+        com.legend.json.Json.Obj in = apiRequest(request, "query/plan", "model", "query", "runtime");
+        String query = com.legend.json.Json.toCompact(in.get("query"));
+        return MODELS.withText(in.getString("model"), ctx -> "{\"plan\":" + com.legend.executionplan.PlanJson.write(
+                com.legend.Compiler.query(ctx, com.legend.protocol.ProtocolReader.lambda(query))
+                        .executionPlan(in.getString("runtime"))) + "}");
+    }
+
+    /** {@code model/createClass}, {@code model/createAssociation}, {@code model/createDataSpace}: the action's request,
+     *  its answer the model's writer's ({@code {changes}}). */
+    public static String modelCreateClass(String request) {
+        return com.legend.json.Json.toCompact(com.legend.server.ModelChanges.createClass(com.legend.json.Json.parseObject(request)));
+    }
+
+    /** {@link #modelCreateClass}'s association. */
+    public static String modelCreateAssociation(String request) {
+        return com.legend.json.Json.toCompact(com.legend.server.ModelChanges.createAssociation(com.legend.json.Json.parseObject(request)));
+    }
+
+    /** {@link #modelCreateClass}'s data space. */
+    public static String modelCreateDataSpace(String request) {
+        return com.legend.json.Json.toCompact(com.legend.server.ModelChanges.createDataSpace(com.legend.json.Json.parseObject(request)));
+    }
+
+    /** {@code ts/statement {model, query}}: the #TS query as its one statement, or why it has none. */
+    public static String tsStatement(String request) {
+        com.legend.json.Json.Obj in = apiRequest(request, "ts/statement", "model", "query");
+        String query = com.legend.json.Json.toCompact(in.get("query"));
+        return MODELS.withText(in.getString("model"), ctx -> com.legend.server.LiteV1Api.tsStatement(ctx,
+                com.legend.protocol.ProtocolReader.lambda(query)));
+    }
+
+    /** An operation's request: a JSON object holding exactly its keys (a key ending in {@code ?} optional); any other
+     *  key, or a required one missing, refused by name (the spec's {@code request} kind). */
+    private static com.legend.json.Json.Obj apiRequest(String request, String op, String... keys) {
+        com.legend.json.Json.Obj in;
+        try {
+            in = com.legend.json.Json.parseObject(request);
+        } catch (RuntimeException e) {
+            throw requestRefused(op, "the request is no JSON object: " + e.getMessage());
+        }
+        java.util.Set<String> allowed = new java.util.LinkedHashSet<>();
+        for (String k : keys) {
+            String key = k.endsWith("?") ? k.substring(0, k.length() - 1) : k;
+            allowed.add(key);
+            if (!k.endsWith("?") && !in.has(key)) {
+                throw requestRefused(op, "the request has no '" + key + "'");
+            }
+        }
+        for (String key : in.fields().keySet()) {
+            if (!allowed.contains(key)) {
+                throw requestRefused(op, "the request holds '" + key + "', which " + op + " does not read (it reads "
+                        + allowed + ")");
+            }
+        }
+        return in;
+    }
+
+    /** A malformed request to {@code op}, refused by name. */
+    private static IllegalArgumentException requestRefused(String op, String why) {
+        return new IllegalArgumentException(op + ": " + why);
+    }
+
     // ---- lite's own routes the tab asked through pure/v1's router (the edge audit's H2, 2026-11-17; the orchestrator's
     // ---- Q2: three typed exports, each the product route's own Java; BoundaryLiteExportsTest pins each to its route)
 

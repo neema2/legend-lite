@@ -296,6 +296,13 @@ exports_files(
     visibility = ["//core:__pkg__", "//python:__pkg__"],
 )
 
+# lite API v1's conformance suite (docs/records/lite-api-v1-2026-11-17.md §5, the user's go of 2026-11-17): one set of
+# cases the three bindings answer alike -- the browser's (//core:lite_api_conformance_test), the server's and Python's
+exports_files(
+    ["test/fixtures/lite-api-cases.json"],
+    visibility = ["//core:__pkg__", "//python:__pkg__"],
+)
+
 # The host's plan runner as a source the census reads (P7 of docs/DATA_IN_THE_PLAN_2026_11_09.md, 2026-11-09: its plan
 # version equals the Java planner's, PlanVersionsAgreeTest)
 filegroup(

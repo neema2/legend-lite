@@ -608,6 +608,9 @@ legend_java_library(
     srcs = glob(
         ["src/test/java/**/*.java"],
         exclude = [
+            # LiteApiConformanceTest is :lite_api_conformance_test's alone: the suite's fixture in its runfiles (lite API v1,
+            # docs/records/lite-api-v1-2026-11-17.md §5, the user's go of 2026-11-17)
+            "src/test/java/com/legend/planner/LiteApiConformanceTest.java",
             "src/test/java/com/legend/server/PostgresArmTest.java",
             "src/test/java/com/legend/server/SqlIslandPostgresTest.java",
             "src/test/java/com/legend/server/SqlParityPostgresTest.java",
@@ -1348,6 +1351,25 @@ junit_test(
         ":core",
         "//json",
         "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+)
+
+# LITE API V1'S CONFORMANCE SUITE, THE BROWSER BINDING (docs/records/lite-api-v1-2026-11-17.md §5, the user's go of
+# 2026-11-17): engine-client/test/fixtures/lite-api-cases.json asked of the planner Boundary's operations, as the server's
+# routes and Python's native entries are by their own readers of the same file
+junit_test(
+    name = "lite_api_conformance_test",
+    memory_mb = 512,
+    size = "small",
+    srcs = ["src/test/java/com/legend/planner/LiteApiConformanceTest.java"],
+    data = ["//engine-client:test/fixtures/lite-api-cases.json"],
+    jvm_flags = ["-Dlite.api.cases=$(rlocationpath //engine-client:test/fixtures/lite-api-cases.json)"],
+    select = ["--select-class=com.legend.planner.LiteApiConformanceTest"],
+    deps = [
+        "//json",
+        "//testing",
+        "//wasm:boundary",
         "@maven_test//:org_junit_jupiter_junit_jupiter_api",
     ],
 )
