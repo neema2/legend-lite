@@ -34,9 +34,10 @@ class CompatResourceTest {
             // four are Pure's class itself (LANGUAGE, C5 step C, C-2): its declaration, isNull's ^TDSNull(), a comment
             // and a cross-reference comment; the fifth is its toString(){'TDSNull'} body -- legend-engine's text of an
             // empty TDS cell (census B10's spelling) in the platform's prelude, a Pure body the platform ships: found by
-            // this scan 2026-11-17, reported to the orchestrator for its census line, OPEN until moved or ruled
-            Map.entry("libbuiltin.jar!/com/legend/builtin/prelude.pure | TDSNull", "4 LANGUAGE + 1 OPEN (toString body,"
-                    + " legend-engine's empty-cell text), found and reported 2026-11-17"));
+            // this scan 2026-11-17, its census line the audit's J27 (EdgeAuditOpenTest; the orchestrator's ruling of
+            // 2026-11-17 19:38, owner F, S314), open until moved or ruled
+            Map.entry("libbuiltin.jar!/com/legend/builtin/prelude.pure | TDSNull", "4 LANGUAGE + 1 J27 (toString body,"
+                    + " legend-engine's empty-cell text; the census's AUDIT line), 2026-11-17"));
 
     /** The hits of {@code resources} (key -> text), "key | spelling" -> count. */
     static Map<String, Integer> hits(Map<String, String> resources) {
