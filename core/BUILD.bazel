@@ -2486,6 +2486,9 @@ java_jars(
     deps = [
         ":edge",
         "//native:entry",
+        # the query-store page (TeaVM), which reaches the edge's store words (the separation census's A3, 2026-11-17:
+        # until then no class-level rule read it, so its edge dependency was pinned by its BUILD file alone)
+        "//query-store:page_entry",
         # the SDLC's door to the compiler (2026-11-15, the C5-J audit's nit): it parses a model's text, so the parse
         # rule reads it as it reads the hosts' doors
         "//sdlc-server/grammar",

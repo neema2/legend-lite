@@ -15,6 +15,8 @@ load("@bazel_lib//lib:copy_to_bin.bzl", "copy_to_bin")
 # handed in with each call (java/.../QueriesPage.java), which src/wasm-server.ts writes back to IndexedDB.
 legend_java_library(
     name = "page_entry",
+    # //core: the hosts' doors rule reads its classes (the separation census's A3, 2026-11-17)
+    visibility = ["//core:__pkg__"],
     srcs = ["java/com/legend/queries/page/QueriesPage.java"],
     deps = [
         # legend-engine's words for upstream's /api/pure/v1/query (the P2 checkpoint audit's M2, 2026-11-16)

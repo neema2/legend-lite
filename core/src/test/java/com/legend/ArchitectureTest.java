@@ -2408,11 +2408,16 @@ final class ArchitectureTest {
     void theHostsDoorsReachNoEdgeButTheBoundarysD1Exception() {
         noClasses()
             .that().resideOutsideOfPackage("com.legend.edge..")
-            .and(com.tngtech.archunit.base.DescribedPredicate.describe("are not the boundary (D-1's exception) or the"
+            .and(com.tngtech.archunit.base.DescribedPredicate.describe("are not the boundary (D-1's exception), the query-store page or the"
                     + " native query store (upstream's query API)",
                     (com.tngtech.archunit.core.domain.JavaClass c) -> !c.getName().equals("planner.Boundary")
                             && !c.getName().startsWith("planner.Boundary$")
-                            && !c.getName().equals("com.legend.nativelib.SavedQueriesHome")))
+                            && !c.getName().equals("com.legend.nativelib.SavedQueriesHome")
+                            // the query-store page (TeaVM) serves upstream's /api/pure/v1/query too, and so words its
+                            // refusals in legend-engine's sentences (edge.StoreWords), as the native query store does:
+                            // a named, dated entry (the separation census's A3, 2026-11-17; its line in
+                            // docs/records/f-separation-census-2026-11-17.md is where it burns down)
+                            && !c.getName().equals("com.legend.queries.page.QueriesPage")))
             .should().dependOnClassesThat().resideInAPackage("com.legend.edge..")
             .as("G5 at the hosts' doors: the edge's to call, the boundary's pure/v1 halves alone until D-1")
             .check(coreAndTheHostsDoors());
