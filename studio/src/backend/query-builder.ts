@@ -4,7 +4,7 @@
 // "Query…"), and for a mapping, a query on its first class (upstream's mapping execution) -- which run but are kept
 // nowhere.
 
-import type { Lambda, ValueSpecification } from '../../../pure-protocol/src/index.ts';
+import { readLambda, type Lambda, type ValueSpecification } from '../../../pure-protocol/src/index.ts';
 import type { PClass, PFunction, PMapping, PService, PureModelContextData } from '../../../engine-client/src/legend/pmcd.ts';
 import type { EditorHandle, EmbedHost, EmbedOptions, EmbedStart } from '../../../query/src/embed.ts';
 import { withFunctionBody } from '../model/function-body.ts';
@@ -55,7 +55,8 @@ export function queryBuilder(session: BuilderSession): QueryBuilder {
       const next = withServiceQuery(serviceText, content);
       const [want, model] = await Promise.all([session.lambdaJson(content), session.modelJson(next)]);
       const got = model.elements.find((e): e is PService => e._type === 'service')?.execution.func;
-      if (!got || JSON.stringify(strip(got)) !== JSON.stringify(strip(want))) {
+      // the model's copy read by the protocol's one reader, as query/parse's answer is: the two compared alike
+      if (!got || JSON.stringify(strip(readLambda(got))) !== JSON.stringify(strip(want))) {
         throw new Error('the query could not be written into the service text as it is laid out: edit it in the text');
       }
       return next;
@@ -73,7 +74,8 @@ export function queryBuilder(session: BuilderSession): QueryBuilder {
       const statements = await Promise.all(want.body.map(async (s) => (await session.lambdaText({ _type: 'lambda', parameters: [], body: [s] } as Lambda, 'PRETTY')).replace(/^\s*\|/, '')));
       const next = withFunctionBody(functionText, statements);
       const got = (await session.modelJson(next)).elements.find((e): e is PFunction => e._type === 'function');
-      if (!got || JSON.stringify(strip(got.body as never)) !== JSON.stringify(strip(want.body as never))) {
+      const read = got ? readLambda({ _type: 'lambda', parameters: [], body: got.body }).body : undefined;
+      if (!read || JSON.stringify(strip(read as never)) !== JSON.stringify(strip(want.body as never))) {
         throw new Error('the query could not be written into the function text as it is laid out: edit it in the text');
       }
       return next;

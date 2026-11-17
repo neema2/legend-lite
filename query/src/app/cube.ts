@@ -119,6 +119,7 @@ function liteRows(engine: LiteEngine, model: PureModelContext): ConstructorParam
       return queryColumns(await engine.queryType(model.code, query));
     },
     parse: (text) => engine.queryParse(text),
+    // engine-remote's RemoteExecutor speaks legend-engine's styles ('PRETTY' | 'STANDARD'): each read as lite's word
     print: (query, style = 'PRETTY') => engine.queryPrint(query, style === 'PRETTY' ? 'pretty' : 'standard'),
   };
 }

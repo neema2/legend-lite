@@ -22,7 +22,8 @@ import { QueryError } from '../src/engine.ts';
 import { SecretStore } from '../src/host-operations.ts';
 import { readFileSync } from 'node:fs';
 import { runfileFromEnv } from '../../tools/js/runfiles.mts';
-import { loadPlanner, loadPlannerModule } from './planner.ts';
+import { loadPlanner, loadPlannerModule, loadPlannerPort } from './planner.ts';
+import { WasmEdgeGrammar } from '../src/legend/wasm-edge.ts';
 import { accessor, eq, fn, lambda, lit, property, toJson, variable, type ValueSpecification } from '../../pure-protocol/src/index.ts';
 import type { WasmGrammar } from '../src/legend/wasm-grammar.ts';
 import { arrowIpcStream } from '../src/arrow-ipc.ts';
@@ -359,8 +360,11 @@ describe("lite's query/run in the tab on lite's own plan, its parameters bound a
     assert.deepEqual(one.columns, [{ name: 'id', type: 'Integer' }, { name: 'name', type: 'String' }]);
     assert.deepEqual(one.rows, [[2, 'b']]);
     assert.deepEqual((await tab.queryRun(MODEL, query, 'w::RT', { n: 0 })).rows, [[1, 'a'], [2, 'b']]);
-    // an Integer parameter in the 64-bit range, a bigint past 2^53 (spec §4): bound exactly
-    assert.deepEqual((await tab.queryRun(MODEL, query, 'w::RT', { n: 9223372036854775806n })).rows, []);
+    // an Integer parameter given as a bigint (spec §4): within 2^53 bound exactly; past it the tab's DuckDB, which binds
+    // through JSON, refuses it by name before anything is sent (a server binds it exactly: lite-api-server.test.ts)
+    assert.deepEqual((await tab.queryRun(MODEL, query, 'w::RT', { n: 1n })).rows, [[2, 'b']]);
+    await assert.rejects(tab.queryRun(MODEL, query, 'w::RT', { n: 9223372036854775806n }), (e: unknown) =>
+      e instanceof RangeError && e.message.includes('9223372036854775806 is not bound (a legend-lite server binds it exactly)'));
     // the value is bound, never written: query/plan's statement carries its placeholder
     const sql = statementOf(await tab.queryPlan(MODEL, query, 'w::RT'));
     assert.match(sql, /\?/);
@@ -627,7 +631,7 @@ Runtime m::RT { mappings: [m::MM]; connections: [ ModelStore: [ json: #{ JsonMod
   });
 
   it("the tab's pure/v1 execute (BrowserEngine) binds it too: the answer's rows are the records", async () => {
-    const browser = new BrowserEngine(grammar, engine, 'tester');
+    const browser = new BrowserEngine(new WasmEdgeGrammar(await loadPlannerPort()), engine, 'tester');
     const text = await browser.executeText({
       clientVersion: 'vX_X_X', function: await grammar.lambda(QUERY),
       model: { _type: 'text', code: jsonModel(RECORDS) } as never, runtime: { runtime: 'm::RT' },

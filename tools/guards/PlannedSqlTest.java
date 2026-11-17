@@ -42,6 +42,10 @@ class PlannedSqlTest {
     static final Set<String> MINTS = Set.of(
             "engine-client/src/plan-runner.ts",
             "engine-client/src/legend/wasm-grammar.ts",
+            // 2026-11-17 (H11, the TS host's split of wasm-grammar.ts, a file move): execute's plan half -- the edge's
+            // BrowserEngine's, its statement read from the planner's answer -- moved with legend-engine's shapes to
+            // legend/wasm-edge.ts, the same planner's client
+            "engine-client/src/legend/wasm-edge.ts",
             "datacube/src/lite-planner.ts",
             "datacube/src/planner.ts");
 
@@ -82,7 +86,10 @@ class PlannedSqlTest {
             // 2026-11-12): a snapshot's copy's plan (snapCopy) typed as read; 15 -> 16 (2026-11-17, the edge program's
             // H3: Studio's and Query's in-tab run on lite's own plan): a query's execution plan (the executionPlan kind
             // over a held model) typed as read
-            "engine-client/src/legend/wasm-grammar.ts", 16,
+            "engine-client/src/legend/wasm-grammar.ts", 15,
+            // 2026-11-17 (H11, a file move): 16 -> 15 above, execute's plan half (its statement typed as read) moved to
+            // legend/wasm-edge.ts with its import
+            "engine-client/src/legend/wasm-edge.ts", 2,
             // 2026-11-12, 8 -> 9 (the C final audit's H2): DataCube's table model's copy select list, typed as its answer
             // is read, since a host operation's selectList takes a PlannedSql alone
             // 2026-11-12, 9 -> 15 (M1): its five plan answers (executionPlan, fileLoad, remoteMount, snapStream, synthesize)

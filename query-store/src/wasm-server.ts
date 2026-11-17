@@ -1,4 +1,5 @@
-// THE STORE IN THIS PAGE: upstream's `/api/pure/v1/query` answered without a server, by legend-lite's own rules
+// THE STORE IN THIS PAGE: lite's `/api/lite/v1/queries` (and `user`; lite's API v1 spec §2 and §7, H6, 2026-11-17: until
+// then upstream's `/api/pure/v1/query`, which is the edge's) answered without a server, by legend-lite's own rules
 // (core's `com.legend.queries.SavedQueries`, the ones its server and Python's native library answer with) compiled to
 // WebAssembly (//query-store:page), over the page's own records (records.ts: IndexedDB, so every app on this origin
 // shares them) -- one implementation, only the storage the page's (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md B5). Each
@@ -17,8 +18,9 @@ import type { Records } from './records.ts';
 export const LOCAL_API = 'http://this-browser.invalid/api';
 
 /**
- * What the module exports (`com.legend.edge.queries.QueriesPage`, the edge's since 2026-11-17): the saved queries' calls, and DataCube's saved
- * pages' (`cubes`, the same module: datacube/src/cube-store.ts `wasmCubeServer`; the program's B6).
+ * What the module exports (`com.legend.queries.page.QueriesPage`, the product's: lite's words, H6, 2026-11-17): the saved
+ * queries' calls, and DataCube's saved pages' (`cubes`, the same module: datacube/src/cube-store.ts `wasmCubeServer`;
+ * the program's B6).
  */
 export interface QueriesModule {
   readonly exports: {
@@ -51,7 +53,7 @@ export interface WasmServerOptions {
 }
 
 export interface LocalServer {
-  /** One request to `LOCAL_API/pure/v1/query...`, answered as the server answers it. */
+  /** One request to `LOCAL_API/lite/v1/queries...` or `LOCAL_API/lite/v1/user`, answered as the server answers it. */
   handle(request: Request): Promise<Response>;
   /** The same, shaped as `fetch`: what the client is handed. */
   readonly fetch: typeof fetch;
@@ -59,6 +61,26 @@ export interface LocalServer {
 
 const answer = (status: number, body: string): Response =>
   new Response(status === 204 ? null : body, { status, headers: { 'Content-Type': 'application/json' } });
+
+/** Lite's refusal (spec §3): `{kind, message}`, the store's status kept (LegendHttpServer.storeRoutes', on the server;
+ *  a store's not-found stays 404, kind request, pending the user's word on a notFound kind). */
+const refusal = (status: number, message: string): Response =>
+  answer(status, JSON.stringify({ kind: status >= 500 ? 'internal' : 'request', message }));
+
+/** The store's own answer: a refusal (400 and up) as lite's, its words the store's message; anything else as it is. */
+function stored(status: number, body: string): Response {
+  if (status < 400) return answer(status, body);
+  let message = body;
+  try {
+    const said = JSON.parse(body) as { readonly message?: unknown };
+    if (typeof said.message === 'string') message = said.message;
+  } catch { /* not JSON: the text is the store's words */ }
+  return refusal(status, message);
+}
+
+/** Where lite's store answers under the API root (spec §2), and its user. */
+const QUERIES = '/lite/v1/queries';
+const USER = '/lite/v1/user';
 
 /** The records as the module reads them, `{"id": [versions...]}`, from each query's text as kept. */
 const recordsJson = (held: ReadonlyMap<string, string>): string =>
@@ -77,11 +99,25 @@ export function wasmQueryServer(options: WasmServerOptions): LocalServer {
   // which no other call, in this tab or another, interleaves with
   const handle = async (request: Request): Promise<Response> => {
     const url = new URL(request.url);
-    const at = url.pathname.indexOf('/pure/v1/query');
-    if (at < 0) {
-      return answer(404, JSON.stringify({ code: -1, message: `no such API in this page's query store: ${url.pathname}`, status: 'error' }));
+    // lite's user operation (spec §2): the page's configured user, the store's; a request holding a key refused, as
+    // the server's
+    if (url.pathname.endsWith(USER)) {
+      if (request.method !== 'POST') return refusal(400, `lite's user operation is POST /api${USER}, not ${request.method} ${url.pathname}`);
+      const asked = await request.text();
+      let keys: string[];
+      try {
+        const o: unknown = JSON.parse(asked === '' ? '{}' : asked);
+        if (o === null || typeof o !== 'object' || Array.isArray(o)) return refusal(400, `a user request is a JSON object: ${asked}`);
+        keys = Object.keys(o);
+      } catch (e) {
+        return refusal(400, `a user request is a JSON object: ${(e as Error).message}`);
+      }
+      if (keys.length > 0) return refusal(400, `a user request has no key ${keys[0]} (it holds none)`);
+      return answer(200, JSON.stringify({ user }));
     }
-    const rest = url.pathname.slice(at + '/pure/v1/query'.length);
+    const at = url.pathname.indexOf(QUERIES);
+    if (at < 0) return refusal(404, `no such legend-lite API: ${url.pathname}`);
+    const rest = url.pathname.slice(at + QUERIES.length);
     const body = request.method === 'GET' || request.method === 'DELETE' ? '' : await request.text();
     const queries = await module();
     return records.call((held) => {
@@ -93,9 +129,9 @@ export function wasmQueryServer(options: WasmServerOptions): LocalServer {
         // what the rules answer of a body or records they cannot read is an exception out of the module (and a bug
         // in them a trap): the engine's 500, naming it, as the server answers its own -- and nothing written
         const error = e instanceof Error ? e : new Error(String(e));
-        return { changed: new Map(), answer: answer(500, JSON.stringify({ code: -1, message: `${error.name}: ${error.message}`, status: 'error' })) };
+        return { changed: new Map(), answer: refusal(500, `${error.name}: ${error.message}`) };
       }
-      return { changed: new Map(Object.entries(said.changed)), answer: answer(said.status, said.body) };
+      return { changed: new Map(Object.entries(said.changed)), answer: stored(said.status, said.body) };
     });
   };
 

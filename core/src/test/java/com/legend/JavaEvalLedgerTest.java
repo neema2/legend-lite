@@ -1816,6 +1816,11 @@ class JavaEvalLedgerTest {
                             "PurePrintForms.java",
                             // pure/v1's routes and the test-data routes (D1.0b): read, compile and plan only
                             "PureV1Routes.java", "TestDataRoutes.java",
+                            // legend-engine's error envelope ({code: -1, status, message, errorType}) and its pure/v1
+                            // call boundary, moved byte for byte from server.LiteV1Api (2026-11-17, lite's API v1 J18:
+                            // lite answers its own shape, {kind, message, where?, raise?}): spells a failure, decides
+                            // nothing
+                            "EngineEnvelope.java",
                             // legend-engine's RelationType JSON and a column's engine type and relational spelling,
                             // moved from com.legend.plan (Phase 6's C, 2026-11-17, the orchestrator's approved method
                             // list): spells a compiled type, decides nothing
