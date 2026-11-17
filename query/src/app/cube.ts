@@ -10,9 +10,9 @@
 
 import { findAll, functionsCalled, isFunction, isLambda, transform, type Lambda, type ValueSpecification } from '../../../pure-protocol/src/index.ts';
 import { CubeApp, RemoteRun, sourceColumns, type CubeAppOptions, type CubeSnapshot, type CubeView } from '../../../datacube/src/embed.ts';
-import { runtimeOf, type LiteEngine } from '../../../engine-client/src/legend/browser-engine.ts';
+import { runtimeOf, statementOf, type LiteEngine } from '../../../engine-client/src/legend/browser-engine.ts';
 import type { PureModelContext } from '../../../engine-client/src/legend/wire.ts';
-import { pureType, relationColumns } from '../../../engine-client/src/relation-type.ts';
+import { pureType, queryColumns } from '../../../engine-client/src/relation-type.ts';
 import type { ResultColumn, Scalar } from '../../../engine-client/src/result.ts';
 import { CubePlanner } from '../backend/cube-planner.ts';
 import type { AppContext } from './context.ts';
@@ -99,7 +99,10 @@ function liteRows(engine: LiteEngine, model: PureModelContext): ConstructorParam
   return {
     async execute(query, epoch, signal) {
       const started = Date.now();
-      const answer = await engine.run(model, query, {}, signal);
+      // lite's query/run, and its statement for the receipt from query/plan (spec §2: query/run answers rows alone)
+      const [answer, plan] = await Promise.all([engine.queryRun(model.code, query, runtimeOf(query), {}, signal),
+        engine.queryPlan(model.code, query, runtimeOf(query))]);
+      const sql = statementOf(plan);
       if (answer.shape !== 'RELATION') throw new Error(`the cube's query answered ${answer.shape.toLowerCase()}s, not a relation's rows`);
       const columns: ResultColumn[] = answer.columns.map((c, i) => ({
         name: c.name, type: pureType(c.type), values: answer.rows.map((r) => scalar(r[i], c.name)),
@@ -107,16 +110,16 @@ function liteRows(engine: LiteEngine, model: PureModelContext): ConstructorParam
       return {
         rows: {
           columns, rowCount: answer.rows.length, epoch, elapsedMs: Date.now() - started,
-          receipt: { plane: 'engine', where: `the server at ${engine.name}`, ...(answer.sql ? { serverSql: answer.sql } : {}) },
+          receipt: { plane: 'engine', where: `the server at ${engine.name}`, ...(sql ? { serverSql: sql } : {}) },
         },
-        sql: answer.sql,
+        sql,
       };
     },
     async relationType(query) {
-      return relationColumns(await engine.relationType(model, query));
+      return queryColumns(await engine.queryType(model.code, query));
     },
-    parse: (text) => engine.lambda(text),
-    print: (query, style = 'PRETTY') => engine.lambdaText(query, style),
+    parse: (text) => engine.queryParse(text),
+    print: (query, style = 'PRETTY') => engine.queryPrint(query, style === 'PRETTY' ? 'pretty' : 'standard'),
   };
 }
 

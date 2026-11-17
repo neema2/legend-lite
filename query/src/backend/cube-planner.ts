@@ -8,11 +8,13 @@
 
 import { toJson, type Lambda } from '../../../pure-protocol/src/index.ts';
 import type { Planner } from '../../../datacube/src/embed.ts';
-import type { PrintStyle } from '../../../engine-client/src/pure-v1.ts';
 import { relationColumns, type Plan, type PlanColumn } from '../../../engine-client/src/relation-type.ts';
 import { planParams } from '../../../engine-client/src/plan-params.ts';
 import type { WasmGrammar } from '../../../engine-client/src/legend/wasm-grammar.ts';
 import type { PureModelContext } from './wire.ts';
+
+/** The cube's print styles, as its seam declares them (lite's words). */
+type PrintStyle = NonNullable<Parameters<Planner['print']>[1]>;
 
 interface RelationTypeJson {
   readonly columns?: readonly { readonly name?: unknown; readonly genericType?: { readonly rawType?: { readonly fullPath?: unknown } } }[];
@@ -57,8 +59,9 @@ export class CubePlanner implements Planner {
     return this.#grammar.lambda(text);
   }
 
-  print(query: Lambda, style: PrintStyle = 'PRETTY'): Promise<string> {
-    return this.#grammar.lambdaText(query, style);
+  /** `query/print` (lite's API v1 spec §2), in the cube's own styles, lite's words ('pretty' | 'standard'). */
+  print(query: Lambda, style: PrintStyle = 'pretty'): Promise<string> {
+    return this.#grammar.queryPrint(query, style);
   }
 
   /** The compiler's relation type as DataCube's columns, an enumeration's column as String. */

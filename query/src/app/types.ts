@@ -28,11 +28,9 @@ export function resultColumns(app: AppContext, session: Session, q: QueryState =
   if (!hit) {
     hit = (async () => {
       const lambda = buildLambda(session.project.graph, typed, { withFrom: true });
-      const t = await app.engine.relationType(session.project.context, lambda);
-      return t.columns.map((c) => ({
-        name: c.name,
-        type: c.genericType.rawType._type === 'packageableType' ? c.genericType.rawType.fullPath : 'Relation',
-      }));
+      // lite's query/type: each column's name and Pure type's name (lite's API v1 spec §2)
+      const columns = await app.engine.queryType(session.project.context.code, lambda);
+      return columns.map((c) => ({ name: c.name, type: c.type }));
     })();
     hit.catch(() => cache.delete(key));
     cache.set(key, hit);

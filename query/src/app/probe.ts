@@ -9,6 +9,7 @@ import {
 import { isToMany, isNumericFamily, primitiveFamily } from '../model/graph.ts';
 import type { PropertyPath } from '../builder/state.ts';
 import { propertyAt } from './actions.ts';
+import { runtimeOf } from '../../../engine-client/src/legend/browser-engine.ts';
 import type { AppContext } from './context.ts';
 import type { Session } from './session.ts';
 
@@ -37,7 +38,7 @@ export function probeable(session: Session, path: PropertyPath): boolean {
 }
 
 async function rows(app: AppContext, session: Session, l: Lambda, signal?: AbortSignal): Promise<{ columns: readonly string[]; rows: unknown[][] }> {
-  const r = await app.engine.run(session.project.context, l, {}, signal);
+  const r = await app.engine.queryRun(session.project.context.code, l, runtimeOf(l), {}, signal);
   if (r.shape !== 'RELATION') throw new Error('the probe did not answer a table');
   return { columns: r.columns.map((c) => c.name), rows: r.rows.map((x) => [...x]) };
 }

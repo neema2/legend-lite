@@ -46,7 +46,7 @@ function quickStart(app: AppContext, project: LoadedProject, ds: PDataSpace): Ch
 function executableCard(app: AppContext, project: LoadedProject, ds: PDataSpace, e: PDataSpaceExecutable, i: number): HTMLElement {
   const code = h('pre', { class: 'q-json', style: 'padding:6px 0; white-space:pre-wrap; max-height:120px; overflow:auto' }, '');
   if (e._type === 'dataSpaceTemplateExecutable') {
-    app.engine.lambdaText(e.query, 'PRETTY').then((t) => { code.textContent = t; }, (err: Error) => { code.textContent = err.message; });
+    app.engine.queryPrint(e.query, 'pretty').then((t) => { code.textContent = t; }, (err: Error) => { code.textContent = err.message; });
   } else {
     code.textContent = e.executable.path;
   }

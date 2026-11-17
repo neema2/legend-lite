@@ -13,7 +13,7 @@ import type { QueryBuilder } from '../backend/query-builder.ts';
 import type { EditorHandle } from '../../../query/src/embed.ts';
 import type { Playground, Runner, TableState } from '../backend/run.ts';
 import type { RawTable } from '../../../engine-client/src/query-engine.ts';
-import type { LiteAnswer } from '../../../engine-client/src/legend/browser-engine.ts';
+import type { RunAnswer } from '../backend/run.ts';
 import { renamePath } from '../model/rename.ts';
 import { joinFiles, splitElements } from '../model/split.ts';
 import { ELEMENT_KINDS, splitPath } from '../model/templates.ts';
@@ -1068,7 +1068,7 @@ function kindOf(text: string): string | undefined {
 
 /** A run's answer (lite's: its shape, its typed rows, its statement): a relation as a table -- how many rows, how long,
  *  the SQL it ran -- else its values as JSON. */
-function resultView(r: LiteAnswer, ms: number): HTMLElement {
+function resultView(r: RunAnswer, ms: number): HTMLElement {
   if (r.shape !== 'RELATION') {
     const values = r.rows.map((row) => (row.length === 1 ? row[0] : row));
     return h('pre', { class: 'run-result__json' }, JSON.stringify(values, (_, v: unknown) => (typeof v === 'bigint' ? v.toString() : v), 2));

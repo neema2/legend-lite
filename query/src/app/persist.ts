@@ -16,7 +16,7 @@ import { literalFromText } from '../ui/values.ts';
 
 /** A value as Pure text (`'EMEA'`, `%2024-01-02`, `today()`), printed by the grammar. */
 async function valueText(app: AppContext, v: Value): Promise<string> {
-  const text = await app.engine.lambdaText(makeLambda([], valueSpec(v)), 'STANDARD');
+  const text = await app.engine.queryPrint(makeLambda([], valueSpec(v)), 'standard');
   return text.replace(/^\|/, '');
 }
 
@@ -26,7 +26,7 @@ async function valueText(app: AppContext, v: Value): Promise<string> {
  */
 export async function contentOf(app: AppContext, session: Session, withFrom = false): Promise<string> {
   const l: Lambda = withFrom ? executionLambda(session, undefined) : session.text?.lambda ?? buildLambda(session.project.graph, session.query, { withFrom: false });
-  return app.engine.lambdaText(l, 'PRETTY');
+  return app.engine.queryPrint(l, 'pretty');
 }
 
 export async function toQuery(app: AppContext, session: Session, identity: { id: string; name: string; description?: string }): Promise<Query> {
@@ -76,7 +76,7 @@ export async function openQuery(app: AppContext, q: Query, urlParams: ReadonlyMa
   const project = await app.load(gav).catch(() => undefined);
   if (!project) throw new Error(`the query belongs to ${gav}, which is not configured here and not in Depot`);
   const ctx = contextOf(project, q);
-  const lambda = await app.engine.lambdaJson(q.content);
+  const lambda = await app.engine.queryParse(q.content);
   const loaded = loadLambda(project.graph, lambda, ctx);
   let session: Session;
   if (loaded.ok) {
@@ -90,7 +90,7 @@ export async function openQuery(app: AppContext, q: Query, urlParams: ReadonlyMa
   if (!asSaved) session.sharedAs = q.name;
   for (const pv of q.defaultParameterValues ?? []) {
     try {
-      const parsed = await app.engine.lambdaJson(`|${pv.content}`);
+      const parsed = await app.engine.queryParse(`|${pv.content}`);
       session.paramValues.set(pv.name, valueOf(parsed.body[0] as never));
     } catch { /* a value the form cannot read is left for the person to set */ }
   }

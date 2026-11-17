@@ -7,6 +7,6 @@ export type { LiteAnswer, LiteEngine } from '../../../engine-client/src/legend/b
 export { TabEngine } from '../../../engine-client/src/legend/browser-engine.ts';
 export { LiteServer } from '../../../engine-client/src/doors/lite-server.ts';
 /** What reads a model's text as its protocol JSON: the engine, or the tab's planner before an engine is made. */
-export type Grammar = Pick<import('../../../engine-client/src/legend/browser-engine.ts').LiteEngine, 'modelJson'>;
+export type Grammar = Pick<import('../../../engine-client/src/legend/browser-engine.ts').LiteEngine, 'modelElements'>;
 /** The query store: the one client (query-store/src/client.ts), wherever the store is. */
 export type { QueryStore } from '../../../query-store/src/client.ts';

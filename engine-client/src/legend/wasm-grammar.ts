@@ -5,12 +5,14 @@
 // planner's own calls (docs/QUERY_APP_DESIGN_2026_09_30.md D3).
 
 import type { Lambda } from '../../../pure-protocol/src/index.ts';
-import { readLambda, toJson } from '../../../pure-protocol/src/index.ts';
+import { fromJson, readLambda, toJson } from '../../../pure-protocol/src/index.ts';
 import type { PureModelContextData } from './pmcd.ts';
 import { EngineError } from './engine-api.ts';
 import type { Grammar } from './grammar.ts';
 import { HttpPlanning } from './planning-client.ts';
-import type { RequestBody, Response as PlannerResponse } from './planner-protocol.ts';
+import type { LiteOperation, RequestBody, Response as PlannerResponse } from './planner-protocol.ts';
+import { liteError, LiteRefusal, type LiteError } from '../lite-error.ts';
+import type { QueryColumn } from '../relation-type.ts';
 import type { CompileResult, ExecuteInput, PureModelContext, RelationTypeAnswer } from './wire.ts';
 import type {
   FileLoadRequest, HostOperation, ProjectDataStatements, RemoteMountRequest, SnapCopyRequest, SnapStreamRequest,
@@ -57,17 +59,22 @@ export class WorkerPort implements PlannerPort {
 }
 
 /**
- * An export's folded answer (`OK\n<json>` / `ERR\n<kind>\n<message>`) as its value or a refusal. The kind is the one
- * legend-lite's server gives the refusal (planner.Folded): legend-engine's errorType when the text is refused
- * (`PARSER`, `COMPILATION`, answered 400 as the server's grammar routes answer them), else the server's status.
+ * An export's folded answer as its value or a refusal (planner.Folded): `OK\n<answer>`, or `ERR\n` and lite's refusal as
+ * its JSON (`{kind, message, where?, raise?}`, lite's API v1 spec §3; core's LiteV1Api.refusal, the one classifier),
+ * thrown as a LiteRefusal. An answer in neither form is a defect, said as one.
  */
 export function unfold(answer: string): string {
   if (answer.startsWith('OK\n')) return answer.slice(3);
-  const [tag, kind = '', ...rest] = answer.split('\n');
-  const message = rest.join('\n');
-  if (tag === 'ERR' && (kind === 'PARSER' || kind === 'COMPILATION')) throw new EngineError(message, 400, kind);
-  if (tag === 'ERR' && /^5\d\d$/.test(kind)) throw new EngineError(message, Number(kind));
-  throw new EngineError(`the planner answered in no form it has: ${JSON.stringify(answer.slice(0, 120))}`, 500);
+  if (answer.startsWith('ERR\n')) {
+    let refusal: LiteError;
+    try {
+      refusal = liteError(JSON.parse(answer.slice(4)));
+    } catch (e) {
+      throw new LiteRefusal({ kind: 'internal', message: `the planner answered a refusal in no form it has (${(e as Error).message})` });
+    }
+    throw new LiteRefusal(refusal);
+  }
+  throw new LiteRefusal({ kind: 'internal', message: `the planner answered in no form it has: ${JSON.stringify(answer.slice(0, 120))}` });
 }
 
 /**
@@ -155,41 +162,85 @@ export class WasmGrammar implements Grammar {
     this.#pureV1 = new HttpPlanning('/api', plannerFetch(port));
   }
 
-  // ---- lite's own grammar and typing (2026-11-17, the edge program's H3: each the planner's lite kind, the product
-  // ---- call its export makes -- never legend-engine's pure/v1 router, which the edge keeps)
+  // ---- LITE'S API V1 IN THE TAB (docs/records/lite-api-v1-2026-11-17.md §2, the user's go of 2026-11-17): one call per
+  // ---- operation, the planner's kind of the operation's name, its request the server route's body, its answer the
+  // ---- route's JSON (planner.Boundary over core's LiteV1Api.operate: one road, spec §5)
 
-  /** A model's text as its protocol JSON (the `modelElements` kind; Boundary.modelElements). */
-  async modelJson(text: string): Promise<PureModelContextData> {
-    return JSON.parse(unfold(await this.#port.ask({ kind: 'modelElements', text, sourceInformation: false }))) as PureModelContextData;
+  /** One operation of lite's API asked of the planner: its request's JSON in, its answer's JSON text out; a refusal
+   *  thrown as lite's (LiteRefusal). */
+  async operate(operation: LiteOperation, request: unknown): Promise<string> {
+    return unfold(await this.#port.ask({ kind: operation, request: toJson(request) }));
   }
 
-  /** A lambda's text as its protocol JSON (the `parseLambda` kind; Boundary.parseLambda). */
-  async lambdaJson(text: string): Promise<Lambda> {
-    return JSON.parse(await this.#lambdaJsonText(text)) as Lambda;
+  /** `model/check`: every error of the model, none when it compiles. */
+  async modelCheck(model: string): Promise<readonly LiteError[]> {
+    const { errors } = JSON.parse(await this.operate('modelCheck', { model })) as { readonly errors: readonly unknown[] };
+    return errors.map(liteError);
   }
 
-  /** As `lambdaJson`, read by the protocol library: numbers exact (DataCube's `Planner.parse`). */
-  async lambda(text: string): Promise<Lambda> {
-    return readLambda(await this.#lambdaJsonText(text));
+  /** `model/elements`: the model's protocol elements (lite's protocol, PureModelContextData). */
+  async modelElements(model: string): Promise<PureModelContextData> {
+    const { elements } = JSON.parse(await this.operate('modelElements', { model })) as Pick<PureModelContextData, 'elements'>;
+    return { _type: 'data', elements };
   }
 
-  async #lambdaJsonText(text: string): Promise<string> {
-    return unfold(await this.#port.ask({ kind: 'parseLambda', text, sourceInformation: false }));
+  /** `query/parse`: the query's tree, its numbers exact. */
+  async queryParse(text: string): Promise<Lambda> {
+    return readLambda((fromJson(await this.operate('queryParse', { text })) as { readonly query: unknown }).query);
   }
 
-  /** A lambda's protocol JSON as its Pure text (the `printLambda` kind; Boundary.printLambda). */
-  async lambdaText(lambda: Lambda, style: 'PRETTY' | 'STANDARD'): Promise<string> {
-    return unfold(await this.#port.ask({ kind: 'printLambda', lambda: toJson(lambda), style }));
+  /** `query/print`: the query's text, pretty unless standard is asked. */
+  async queryPrint(query: Lambda, style: 'pretty' | 'standard' = 'pretty'): Promise<string> {
+    return (JSON.parse(await this.operate('queryPrint', { query, style })) as { readonly text: string }).text;
+  }
+
+  /** `query/type`: each column's name and Pure type, an enumeration's flagged. */
+  async queryType(model: string, query: Lambda): Promise<readonly QueryColumn[]> {
+    return (JSON.parse(await this.operate('queryType', { model, query })) as { readonly columns: readonly QueryColumn[] }).columns;
+  }
+
+  /** `query/plan`: lite's plan of the query on `runtime`, its JSON text -- which is data (planned-sql.ts reads it). The
+   *  model is held by the planner once per text (`queryPlanHeld`, the binding's cache: §7a) and released when no plan
+   *  of it is asked (#held). */
+  async queryPlan(model: string, query: Lambda, runtime: string): Promise<PlanText> {
+    return this.#withHeld(model, async (handle) => {
+      const answer = unfold(await this.#port.ask({ kind: 'queryPlanHeld', handle, request: toJson({ query, runtime }) }));
+      const { plan } = JSON.parse(answer) as { readonly plan: unknown };
+      return planFromAnswer(JSON.stringify(plan));
+    });
+  }
+
+  // ---- legend-engine's grammar interface (Grammar), answered over lite's operations: the same calls, its shapes
+
+  /** A model's text as its protocol JSON: `model/elements`. */
+  modelJson(text: string): Promise<PureModelContextData> {
+    return this.modelElements(text);
+  }
+
+  /** A lambda's text as its protocol JSON: `query/parse`. */
+  lambdaJson(text: string): Promise<Lambda> {
+    return this.queryParse(text);
+  }
+
+  /** As `lambdaJson` (DataCube's `Planner.parse`): `query/parse`, its numbers exact. */
+  lambda(text: string): Promise<Lambda> {
+    return this.queryParse(text);
+  }
+
+  /** A lambda's protocol JSON as its Pure text: `query/print`. */
+  lambdaText(lambda: Lambda, style: 'PRETTY' | 'STANDARD'): Promise<string> {
+    return this.queryPrint(lambda, style === 'PRETTY' ? 'pretty' : 'standard');
   }
 
   modelText(model: PureModelContextData, style: 'PRETTY' | 'STANDARD'): Promise<string> {
     return this.#pureV1.modelText(model, style);
   }
 
-  /** A lambda's relation type over a model given as its text (the `lambdaRelationType` kind; Boundary.lambdaRelationType);
-   *  a model given otherwise is refused by name. */
+  /** A lambda's relation type over a model given as its text, in Grammar's shape: `query/type`, each column's Pure type
+   *  its genericType's path (relation-type.ts reads it back); a model given otherwise is refused by name. */
   async relationType(model: PureModelContext, lambda: Lambda): Promise<RelationTypeAnswer> {
-    return JSON.parse(unfold(await this.#port.ask({ kind: 'lambdaRelationType', model: modelTextOf(model, 'typed'), lambda: toJson(lambda) }))) as RelationTypeAnswer;
+    const columns = await this.queryType(modelTextOf(model, 'typed'), lambda);
+    return { columns: columns.map((c) => ({ name: c.name, genericType: { rawType: { fullPath: c.type } } })) } as unknown as RelationTypeAnswer;
   }
 
   /** `compilation/lambdaReturnType`, answered in the tab as the server answers it (PureV1Api.route). */
@@ -278,25 +329,6 @@ export class WasmGrammar implements Grammar {
   /** `compilation/compile` in the tab, as the server answers it: OK, or the first failure, 400 COMPILATION. */
   compile(model: PureModelContext): Promise<CompileResult> {
     return this.#pureV1.compile(model);
-  }
-
-  /** A whole model's every error (Studio's live problems), [] when it compiles: the `compileErrors` kind
-   *  (Boundary.compileErrors, the product's Compiler.compileErrors), its errors' messages. */
-  async compileErrors(code: string): Promise<string[]> {
-    const answer = JSON.parse(unfold(await this.#port.ask({ kind: 'compileErrors', model: code }))) as { readonly errors: readonly { readonly message: string }[] };
-    return answer.errors.map((e) => e.message);
-  }
-
-  /**
-   * A lambda planned over `model` as an EXECUTION PLAN (the `executionPlan` kind; Boundary.executionPlanJsonHeld): its
-   * steps, its declared parameters and its answer's typed columns, which the hosts' runner runs (plan-runner.ts
-   * runPlanRows; 2026-11-17, the edge program's H3: Studio's and Query's in-tab execute, as DataCube's tab plans). The
-   * model is held by the planner once per text and released when no plan of it is asked (#held).
-   */
-  async executionPlan(model: PureModelContext, lambda: Lambda, runtime: string): Promise<PlanText> {
-    const text = modelTextOf(model, 'planned');
-    return this.#withHeld(text, async (handle) => planFromAnswer(unfold(await this.#port.ask({
-      kind: 'executionPlan', handle, lambda: toJson(lambda), runtime }))));
   }
 
   /** The models this planner holds, by text: each held once, its users counted, the older ones let go when unused. */

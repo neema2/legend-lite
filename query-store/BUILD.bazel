@@ -126,7 +126,8 @@ js_library(
         ":legend_server",
         "//core:server",
     ],
-    visibility = ["//datacube:__pkg__"],
+    # engine-client: lite API v1's server conformance reader (2026-11-17, the HOST stream)
+    visibility = ["//datacube:__pkg__", "//engine-client:__pkg__"],
 )
 
 # Every TypeScript file here, for the apps' typechecks (strict tsc: no npm dependency of its own).
@@ -144,7 +145,7 @@ executable_of(
     name = "legend_server",
     testonly = True,
     binary = "//core:server",
-    visibility = ["//datacube:__pkg__"],
+    visibility = ["//datacube:__pkg__", "//engine-client:__pkg__"],
 )
 
 # the page's query store's conformance run, which //datacube:one_api_ledger_test (L12) names as half of the proof that the two

@@ -100,9 +100,9 @@ export async function start(root: HTMLElement, config: StudioConfig, workerUrl: 
 function serverSession(api: string, user: string): RunSession & BuilderSession {
   const lite = new LiteServer(api);
   return {
-    modelJson: (text) => lite.modelJson(text),
-    lambdaJson: (text) => lite.lambdaJson(text),
-    lambdaText: (lambda, style) => lite.lambdaText(lambda, style),
+    modelJson: (text) => lite.modelElements(text),
+    lambdaJson: (text) => lite.queryParse(text),
+    lambdaText: (lambda, style) => lite.queryPrint(lambda, style === 'PRETTY' ? 'pretty' : 'standard'),
     engine: () => Promise.resolve(lite),
     plane: () => Promise.resolve({
       execution: { kind: 'server', engine: api }, engine: lite, planner: undefined, user,
@@ -133,9 +133,9 @@ function inTabSession(grammar: WasmGrammar, duckdbVendor: string, user: string):
       };
     }));
   return {
-    modelJson: (text) => grammar.modelJson(text),
-    lambdaJson: (text) => grammar.lambdaJson(text),
-    lambdaText: (lambda, style) => grammar.lambdaText(lambda, style),
+    modelJson: (text) => grammar.modelElements(text),
+    lambdaJson: (text) => grammar.queryParse(text),
+    lambdaText: (lambda, style) => grammar.queryPrint(lambda, style === 'PRETTY' ? 'pretty' : 'standard'),
     engine: async () => (await start()).engine,
     sqlEngine: async () => {
       const tab = await start();

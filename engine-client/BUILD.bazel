@@ -40,6 +40,8 @@ _RECORDS = [
     "src/generated/lite-raise.ts",
     "src/json-unknown.ts",
     "src/legend/engine-api.ts",
+    # lite's one error shape (lite's API v1 spec §3, 2026-11-17): a record both bindings read
+    "src/lite-error.ts",
     "src/legend/pmcd.ts",
     "src/legend/wire.ts",
     "src/locale.ts",
@@ -516,6 +518,26 @@ node_test(
         "RAISE_FIXTURE": "$(rlocationpath test/fixtures/raise-envelopes.json)",
     },
     wasm = True,
+)
+
+# LITE API V1'S CONFORMANCE SUITE, THE SERVER BINDING (docs/records/lite-api-v1-2026-11-17.md §5, the user's go of
+# 2026-11-17): each case of the one cases file asked of legend-lite's server (//core:server, started for the file by
+# query-store's booter) over /api/lite/v1/<op>, its answer held to the case's
+node_test(
+    name = "lite_api_server_test",
+    # starts a JVM server: past `small`'s 60 s on a loaded runner (as //query-store:lite_test)
+    size = "medium",
+    data = [
+        ":engine_client",
+        "test/fixtures/lite-api-cases.json",
+        "//query-store:lite_server",
+        "//query-store:legend_server",
+    ],
+    entry_point = "test/lite-api-server.test.ts",
+    env = {
+        "LITE_API_CASES": "$(rlocationpath test/fixtures/lite-api-cases.json)",
+        "LEGEND_SERVER": "$(rlocationpath //query-store:legend_server)",
+    },
 )
 
 # The tab's warehouse driver held to the one corpus (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md C3): each recorded scenario

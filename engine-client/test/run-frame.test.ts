@@ -105,7 +105,6 @@ describe('the run frame', () => {
         ['compile', () => engine.compile(model)],
         ['returnType', () => engine.returnType(model, lambda)],
       ];
-      if (engine === http) asks.push(['compileErrors', () => http.compileErrors('')]);
       for (const [kind, ask] of asks) {
         await assert.rejects(inRun("a test's run", async () => ask()),
           new RegExp(`the planner was asked '${kind}' inside a run \\(a test's run\\)`), kind);
