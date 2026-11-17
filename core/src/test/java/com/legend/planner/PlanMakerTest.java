@@ -160,7 +160,8 @@ class PlanMakerTest {
     private static String lowered(TypedQuery query, String zone) {
         List<com.legend.sql.SqlExpr.PlanParam> slots = query.parameters().stream()
                 .map(QueryParameters.Declared::slot).toList();
-        com.legend.sql.SqlQuery q = Lowered.lowerInZone(query, zone, slots);
+        com.legend.sql.SqlQuery q = Lowered.lowerInZone(query, zone, slots,
+                Databases.dialect(Databases.PLATFORM).floatLiteralKind());
         return Databases.dialect(Databases.PLATFORM).renderStatement(q).sql();
     }
 

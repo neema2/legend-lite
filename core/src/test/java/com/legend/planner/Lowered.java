@@ -51,12 +51,10 @@ public final class Lowered {
      *  {@code slots} -- the raw-SQL refusal first, as {@link #lower} refuses it (the final audit of 9af16fbe58's J6,
      *  2026-11-14: until then this helper handed the tests a bare Lowerer, which lowered any body). */
     public static com.legend.sql.SqlQuery lowerInZone(TypedQuery query, @com.legend.base.Nullable String zone,
-            List<SqlExpr.PlanParam> slots) {
+            List<SqlExpr.PlanParam> slots, SqlExpr.FloatLit.Kind floatLiteralKind) {
         QueryDoor.refuseRawSql(query);
-        // a Float literal as the query's runtime's database computes it in the product (register S20, Phase 5b)
+        // a Float literal as the caller's target database computes it (register S20, Phase 5b)
         return ProductStatements.configured(query, false, false, slots, Set.of(), new ObjectSites())
-                .withDbTimeZone(zone).withFloatLiteralKind(() -> com.legend.database.PlanStyle.PRODUCT.dialect(
-                        com.legend.Compiler.executesOn(query.context(), query.runtime(null)).type()).floatLiteralKind())
-                .lower(query.body());
+                .withDbTimeZone(zone).withFloatLiteralKind(() -> floatLiteralKind).lower(query.body());
     }
 }
