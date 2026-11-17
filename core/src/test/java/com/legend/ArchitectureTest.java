@@ -3497,6 +3497,28 @@ final class ArchitectureTest {
 
     /** The classes of core and of the hosts' doors ({@code //core:product_jars} and {@code //core:authored_door_jars}:
      *  the boundary, the tab's adapter and the native entry), the import checked to hold each door. */
+    /**
+     * THE PURE/V1 STYLE'S CALLERS (B7, the orchestrator's condition (2) on the {@code plainRaises} hook, 2026-11-17):
+     * {@code edge.PureText.PURE_V1} -- legend-engine's unchecked raises written plain, the user's ruling "pure/v1
+     * matches engine" -- is selected by the pure/v1 routes alone: the route module, the shipped server's runner and the
+     * embedded hosts' execute halves. PCT and the corpus keep {@code UPSTREAM}; a new caller is a ruling, not an edit.
+     */
+    @Test
+    void thePureV1StyleIsSelectedByThePureV1RoutesAlone() {
+        java.util.Set<String> callers = new java.util.TreeSet<>();
+        for (com.tngtech.archunit.core.domain.JavaClass c : coreAndTheHostsDoors()) {
+            for (com.tngtech.archunit.core.domain.JavaFieldAccess a : c.getFieldAccessesFromSelf()) {
+                if (a.getTargetOwner().getName().equals("com.legend.edge.PureText") && a.getName().equals("PURE_V1")
+                        && !a.getOriginOwner().getName().startsWith("com.legend.edge.PureText")) {
+                    callers.add(a.getOriginOwner().getName().replaceAll("\\$.*$", ""));
+                }
+            }
+        }
+        org.junit.jupiter.api.Assertions.assertEquals(new java.util.TreeSet<>(java.util.Set.of(
+                "com.legend.edge.EdgeServer", "com.legend.edge.PureV1Routes", "com.legend.edge.wasm.EdgeBoundary")),
+                callers, "PureText.PURE_V1 is selected by the pure/v1 routes alone (B7, 2026-11-17)");
+    }
+
     private static JavaClasses coreAndTheHostsDoors() {
         java.util.List<java.util.jar.JarFile> jars = new java.util.ArrayList<>();
         try {
