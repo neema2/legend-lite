@@ -303,7 +303,6 @@ class EdgeSeparationTest {
             Map.entry("sql/dialect/Trino.java | FLOAT_PRINT", "B9 2026-11-17"),
             Map.entry("testdatagen/TestDataGenerationNatives.java | EngineTextDialect", "B13 2026-11-17"),
             Map.entry("testdatagen/TestDataGenerator.java | EngineTextDialect", "B13 2026-11-17"),
-            Map.entry("testdatagen/TestDataPlanner.java | +0000", "B11 2026-11-17"),
             Map.entry("testdatagen/TestDataPlanner.java | COMPAT", "B13 2026-11-17"),
             Map.entry("testexec/AssertRuns.java | EngineText", "C3 2026-11-17"),
             Map.entry("testexec/CanonicalForm.java | +0000", "C5 2026-11-17"),
@@ -336,10 +335,10 @@ class EdgeSeparationTest {
             Map.entry("testplan/TestPlanner.java | COMPILED_PURE_COMPAT", "C1 2026-11-17"));
 
     /** The census's open lines (docs/records/f-separation-census-2026-11-17.md; closed: A4, B14 ruled; A2, A3 moved to
-     *  the edge 2026-11-17 (A4 extended to the native image and the page module); records only:
+     *  the edge 2026-11-17; A5, A6 split off the edge 2026-11-17 (A4 extended to the native image and the page module); records only:
      *  B15, B16, C6, C7). Each must hold at least one entry in the count ({@link #everyOpenLineIsCounted}), so an empty
      *  count cannot read DONE with a line left. A line closes by leaving this set with its last entry. */
-    static final Set<String> OPEN_LINES = Set.of("A1", "A5", "A6", "B1", "B2", "B3", "B4", "B5", "B6",
+    static final Set<String> OPEN_LINES = Set.of("A1", "B1", "B2", "B3", "B4", "B5", "B6",
             "B7", "B8", "B9", "B10", "B11", "B12", "B13", "B17", "C1", "C2", "C3", "C4", "C5");
 
     private static Set<String> linesOf(Map<String, String> m) {
@@ -376,11 +375,10 @@ class EdgeSeparationTest {
     /** BUILD: the direct dependents of an edge target, within the product's roots' closure (core/BUILD.bazel's
      *  {@code edge_direct_dependents} genquery), each with its census line. */
     static final Map<String, String> BUILD_OPEN = Map.ofEntries(
-            Map.entry("//wasm:boundary", "A1 2026-11-17"),
-            Map.entry("//core:core_tests_lib", "A5 2026-11-17"),
-            Map.entry("//core:test_cases", "A5 2026-11-17"),
-            Map.entry("//core:seam_benchmark", "A6 2026-11-17"),
-            Map.entry("//core:data_delivery_matrix_postgres_test", "A6 2026-11-17"));
+            // A5, A6 closed 2026-11-17 (E-P5): the product's test library, its cases and its test targets carry no edge
+            // library (the edge's tests are core_edge_tests_lib's, run in targets tagged edge_test;
+            // //tools/deps:edge_separation_closure_test holds every untagged core test target to it)
+            Map.entry("//wasm:boundary", "A1 2026-11-17"));
 
     static Set<String> buildFound() {
         try {
