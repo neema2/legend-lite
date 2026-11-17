@@ -441,11 +441,11 @@ class ModelFor(unittest.TestCase):
         # told the page this engine serves none of its tables)
         with self.assertRaisesRegex(ll.LegendError, 'proj0::Nope') as refused:
             self.frames.model_for(broken)
-        self.assertEqual(refused.exception.kind, 'COMPILATION')
+        self.assertEqual(refused.exception.kind, ll.compiler.error_kind('COMPILE'))
         # and one that does not parse (the C5 follow-up's check, 2026-11-15: until then None, as "no model")
         with self.assertRaises(ll.LegendError) as refused:
             self.frames.model_for(self.project() + '\n###Pure\nClass proj0::A {')
-        self.assertEqual(refused.exception.kind, 'PARSER')
+        self.assertEqual(refused.exception.kind, ll.compiler.error_kind('PARSE'))
 
     def test_only_the_most_recent_are_held_each_let_go_of_as_it_is_evicted(self):
         first = self.frames.model_for(self.project(0))
@@ -577,13 +577,13 @@ class TheProductsKinds(unittest.TestCase):
     def test_a_model_refusal_follows_the_products_kinds_renamed(self):
         from unittest import mock
         from legend_lite import compiler, frames, projects
-        renamed = {'PARSE': 'parse', 'COMPILE': 'compile', 'FAILURE': 'internal'}
+        renamed = {'PARSE': 'unparsed', 'COMPILE': 'untyped', 'INTERNAL': 'failed'}
         with mock.patch.object(compiler, '_KINDS', renamed):
-            self.assertTrue(compiler.refuses_the_text(ll.LegendError('no', 'compile')))
-            self.assertFalse(compiler.refuses_the_text(ll.LegendError('no', 'COMPILATION')))
-            self.assertIsInstance(frames._refusal(ll.LegendError('no', 'parse')), frames.ModelRefused)
-            self.assertNotIsInstance(frames._refusal(ll.LegendError('no', 'internal')), frames.ModelRefused)
-            with mock.patch.object(compiler, 'project_data', side_effect=ll.LegendError('no model', 'compile')):
+            self.assertTrue(compiler.refuses_the_text(ll.LegendError('no', 'untyped')))
+            self.assertFalse(compiler.refuses_the_text(ll.LegendError('no', 'compile')))
+            self.assertIsInstance(frames._refusal(ll.LegendError('no', 'unparsed')), frames.ModelRefused)
+            self.assertNotIsInstance(frames._refusal(ll.LegendError('no', 'failed')), frames.ModelRefused)
+            with mock.patch.object(compiler, 'project_data', side_effect=ll.LegendError('no model', 'untyped')):
                 with self.assertRaises(projects.NotAModel):
                     with projects.ProjectDatabases(None).using('m', surface=True):
                         pass

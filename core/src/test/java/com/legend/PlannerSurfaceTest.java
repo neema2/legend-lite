@@ -257,7 +257,10 @@ class PlannerSurfaceTest {
             door("executePlan", p("body", ROUTE_BODY), p("modelsJson", MODEL_TEXT)),
             door("executeJsonPlan", p("body", ROUTE_BODY), p("modelsJson", MODEL_TEXT)),
             door("executeJsonAnswer", p("plan", PLAN_DATA), p("rows", RUN_ROWS)),
-            door("executeArrowAnswer", p("plan", PLAN_DATA), p("rows", RUN_ROWS)));
+            door("executeArrowAnswer", p("plan", PLAN_DATA), p("rows", RUN_ROWS)),
+            // a host's refusal in legend-engine's envelope (EngineEnvelope.refused): planner.Boundary's refusal went
+            // to the edge with 2c, its native entry with it (the edge program's H5, 2026-11-17)
+            door("refused", p("message", MESSAGE)));
 
     /** THE TAB'S EDGE EXPORTS: each the one edge door it delegates to ({@link #EDGE_BOUNDARY}; step 2c, 2026-11-17). */
     static final Map<String, String> TAB_EDGE_EXPORTS = new TreeMap<>(Map.of(
@@ -302,7 +305,9 @@ class PlannerSurfaceTest {
      *  HOST/DataCube stream, 2026-11-17, as the tab's: {@link #TAB_EDGE_EXPORTS}). */
     static final Map<String, String> NATIVE_EDGE_EXPORTS = new TreeMap<>(Map.of(
             "lite_pure_v1", "pureV1", "lite_execute_plan", "executePlan", "lite_execute_json_plan", "executeJsonPlan",
-            "lite_execute_json_answer", "executeJsonAnswer", "lite_execute_arrow_answer", "executeArrowAnswer"));
+            "lite_execute_json_answer", "executeJsonAnswer", "lite_execute_arrow_answer", "executeArrowAnswer",
+            // with Boundary.refusal's deletion (2c), the edge's envelope (the edge program's H5, 2026-11-17)
+            "lite_pure_v1_refusal", "refused"));
 
     /** THE NATIVE LIBRARY'S EXPORTS: each the one boundary door it delegates to. */
     static final Map<String, String> NATIVE_EXPORTS = new TreeMap<>(Map.ofEntries(
@@ -316,7 +321,6 @@ class PlannerSurfaceTest {
             Map.entry("lite_table_model", "tableModel"), Map.entry("lite_catalog_columns_sql", "catalogColumnsSql"),
             Map.entry("lite_session_setup", "sessionSetup"), Map.entry("lite_host_operations", "hostOperations"),
             Map.entry("lite_project_data", "projectData"),                                     Map.entry("lite_warm_model", "warmModel"),
-            Map.entry("lite_pure_v1_refusal", "refusal"),
             // LITE'S OWN API, v1 (docs/records/lite-api-v1-2026-11-17.md §5, §7; the host train, 2026-11-17): one entry
             // per operation by the spec's one rule (a/b -> lite_a_b), its request JSON in, the Boundary member of the
             // same operation; no lite_query_run (Python runs a plan itself); and the held model's two (§7a)
