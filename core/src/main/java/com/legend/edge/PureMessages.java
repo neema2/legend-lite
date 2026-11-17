@@ -333,6 +333,11 @@ public final class PureMessages {
             // sentence alone (error.MissingParameters; the orchestrator, 2026-11-17)
             return "Missing external parameter(s): " + String.join(",", m.missing());
         }
+        if (e instanceof com.legend.error.InvalidParameters v) {
+            // legend-engine's text of a parameter value its parameter does not take (moved from the product's
+            // exec.PlanParameters, J8 of the edge audit, 2026-11-17): the problems in brackets, joined by "; "
+            return "Invalid provided parameter(s): [" + String.join("; ", v.problems()) + "]";
+        }
         for (Throwable t = e; t != null; t = t.getCause()) {
             if (t instanceof com.legend.base.DataSize.TooLarge big) {
                 return tooLarge(big);
@@ -361,7 +366,7 @@ public final class PureMessages {
      *  {@code MissingParameters}, is the product's; the P2 checkpoint audit's M3/A-M4, 2026-11-16); any other error its
      *  own class's name. */
     public static String typeName(Throwable e) {
-        if (e instanceof com.legend.error.MissingParameters) {
+        if (e instanceof com.legend.error.MissingParameters || e instanceof com.legend.error.InvalidParameters) {
             return "IllegalArgumentException";
         }
         return uncaught(e) ? "IllegalStateException" : e.getClass().getSimpleName();
