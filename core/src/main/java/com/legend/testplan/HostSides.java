@@ -147,7 +147,9 @@ public final class HostSides {
                 }
                 sb.append('\t').append(p.kind()).append('|').append(shape);
             }
-            synchronized (HostSides.class) {
+            if ("stdout".equals(census)) {
+                System.out.println("[shape]\t" + sb);
+            } else synchronized (HostSides.class) {
                 try {
                     java.nio.file.Files.writeString(java.nio.file.Path.of(census), sb + "\n",
                             java.nio.file.StandardOpenOption.CREATE, java.nio.file.StandardOpenOption.APPEND);
