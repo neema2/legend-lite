@@ -90,6 +90,35 @@ class FraSpec:
     csa: str = ""
 
 
+@dataclass(frozen=True)
+class XccyBasisSwapSpec:
+    """Float-for-float cross-currency basis swap with initial and final notional exchanges.
+
+    Leg 1 (foreign, e.g. EUR) pays/receives float(leg1_proj) + leg1_spread, discounted on
+    leg1_discount_curve_id (or ``discount_curve_for_csa(ccy1, csa)`` when empty).
+    Leg 2 (reporting currency, e.g. USD) pays/receives flat float(leg2_proj), discounted on
+    leg2_discount_curve_id (or ``discount_curve_for_csa(ccy2, csa)`` when empty).
+    """
+
+    trade_id: str
+    ccy1: str
+    ccy2: str
+    leg1_discount_curve_id: str
+    leg1_proj_curve_id: str
+    leg2_discount_curve_id: str
+    leg2_proj_curve_id: str
+    start_date: dt.date
+    maturity_months: int
+    freq_months: int
+    notional_ccy1: float
+    fx_spot_ccy2_per_ccy1: float
+    leg1_spread: float
+    pay_leg1: bool = True
+    day_count1: str = "ACT/360"
+    day_count2: str = "ACT/360"
+    csa: str = ""
+
+
 def _add_months(d: dt.date, months: int) -> dt.date:
     month0 = d.month - 1 + months
     year = d.year + month0 // 12
@@ -130,6 +159,32 @@ def adjust_date(
             cur -= dt.timedelta(days=1)
         return cur
     raise ValueError(f"Unsupported convention: {convention}")
+
+
+def imm_date(year: int, month: int) -> dt.date:
+    """Return the 3rd Wednesday (IMM date) of the given year and month."""
+    first = dt.date(year, month, 1)
+    offset = (2 - first.weekday()) % 7  # Wednesday == 2
+    return first + dt.timedelta(days=offset + 14)
+
+
+def next_imm_dates(valuation_date: dt.date, count: int) -> list[dt.date]:
+    """Return the next ``count`` quarterly IMM dates (Mar/Jun/Sep/Dec) strictly after ``valuation_date``."""
+    if count <= 0:
+        raise ValueError(f"count ({count}) must be positive")
+    out: list[dt.date] = []
+    y = valuation_date.year
+    q_months = (3, 6, 9, 12)
+    while len(out) < count:
+        for qm in q_months:
+            if (y, qm) >= (valuation_date.year, valuation_date.month):
+                d = imm_date(y, qm)
+                if d > valuation_date:
+                    out.append(d)
+                    if len(out) == count:
+                        break
+        y += 1
+    return out
 
 
 def year_fraction(d1: dt.date, d2: dt.date, basis: str = "ACT/365F") -> float:
@@ -290,6 +345,106 @@ def expand_fra_to_cashflows(
     ]
 
 
+def expand_xccy_basis_swap_to_cashflows(
+    spec: XccyBasisSwapSpec,
+    valuation_date: dt.date,
+    holidays: set[dt.date],
+    in_reporting_ccy: bool = True,
+) -> list[CashflowRow]:
+    """Expand a cross-currency basis swap (coupons + initial/final notional exchanges) into PR_CASHFLOW.
+
+    When ``in_reporting_ccy=True`` (default), Leg 1 amounts are converted into ``spec.ccy2`` at
+    ``fx_spot_ccy2_per_ccy1`` and every row carries ``ccy=spec.ccy2`` so the ``currency`` column
+    honestly matches the cashflow units. When ``in_reporting_ccy=False``, each leg keeps its
+    native notional and native ``ccy`` (``spec.ccy1`` vs ``spec.ccy2``) for per-``(ccy, csa)`` PV reporting.
+    """
+    if spec.fx_spot_ccy2_per_ccy1 <= 0.0:
+        raise ValueError(f"fx_spot_ccy2_per_ccy1 must be positive, got {spec.fx_spot_ccy2_per_ccy1}")
+    resolved_csa = spec.csa or spec.ccy2
+    leg1_disc = spec.leg1_discount_curve_id or discount_curve_for_csa(spec.ccy1, resolved_csa)
+    leg2_disc = spec.leg2_discount_curve_id or discount_curve_for_csa(spec.ccy2, resolved_csa)
+    leg1_proj = spec.leg1_proj_curve_id or f"{spec.ccy1}_OIS"
+    leg2_proj = spec.leg2_proj_curve_id or f"{spec.ccy2}_OIS"
+
+    month_offsets = _build_month_schedule(spec.maturity_months, spec.freq_months)
+    unadj_dates = [_add_months(spec.start_date, m) for m in month_offsets]
+    adj_dates = [adjust_date(d, holidays, "MOD_FOLLOWING") for d in unadj_dates]
+
+    notional_ccy2 = spec.notional_ccy1 * spec.fx_spot_ccy2_per_ccy1
+    leg1_notional = notional_ccy2 if in_reporting_ccy else spec.notional_ccy1
+    leg1_ccy = spec.ccy2 if in_reporting_ccy else spec.ccy1
+    leg2_notional = notional_ccy2
+    leg2_ccy = spec.ccy2
+
+    leg1_sign = -1.0 if spec.pay_leg1 else 1.0
+    leg2_sign = -leg1_sign
+    rows: list[CashflowRow] = []
+
+    t0 = year_fraction(valuation_date, adj_dates[0], "ACT/365F")
+    if t0 > 0.0:
+        rows.append(CashflowRow(
+            trade_id=spec.trade_id, leg_id=f"{spec.ccy1}_NX", cf_idx=0,
+            instrument_type="XCCY", ccy=leg1_ccy, csa=resolved_csa,
+            discount_curve_id=leg1_disc, proj_curve_id=leg1_proj,
+            accrual_start_t=t0, accrual_end_t=t0, pay_t=t0, dcf=1.0,
+            notional=leg1_notional, fixed_rate=1.0, spread=0.0, is_float=False,
+            pay_receive=-leg1_sign,
+        ))
+        rows.append(CashflowRow(
+            trade_id=spec.trade_id, leg_id=f"{spec.ccy2}_NX", cf_idx=0,
+            instrument_type="XCCY", ccy=leg2_ccy, csa=resolved_csa,
+            discount_curve_id=leg2_disc, proj_curve_id=leg2_proj,
+            accrual_start_t=t0, accrual_end_t=t0, pay_t=t0, dcf=1.0,
+            notional=leg2_notional, fixed_rate=1.0, spread=0.0, is_float=False,
+            pay_receive=-leg2_sign,
+        ))
+
+    for i in range(len(adj_dates) - 1):
+        s_d, e_d = adj_dates[i], adj_dates[i + 1]
+        if e_d <= valuation_date:
+            continue
+        t_start = max(0.0, year_fraction(valuation_date, s_d, "ACT/365F"))
+        t_end = year_fraction(valuation_date, e_d, "ACT/365F")
+        dcf1 = year_fraction(s_d, e_d, spec.day_count1)
+        dcf2 = year_fraction(s_d, e_d, spec.day_count2)
+        rows.append(CashflowRow(
+            trade_id=spec.trade_id, leg_id=f"{spec.ccy1}_FLOAT", cf_idx=i,
+            instrument_type="XCCY", ccy=leg1_ccy, csa=resolved_csa,
+            discount_curve_id=leg1_disc, proj_curve_id=leg1_proj,
+            accrual_start_t=t_start, accrual_end_t=t_end, pay_t=t_end, dcf=dcf1,
+            notional=leg1_notional, fixed_rate=0.0, spread=spec.leg1_spread, is_float=True,
+            pay_receive=leg1_sign,
+        ))
+        rows.append(CashflowRow(
+            trade_id=spec.trade_id, leg_id=f"{spec.ccy2}_FLOAT", cf_idx=i,
+            instrument_type="XCCY", ccy=leg2_ccy, csa=resolved_csa,
+            discount_curve_id=leg2_disc, proj_curve_id=leg2_proj,
+            accrual_start_t=t_start, accrual_end_t=t_end, pay_t=t_end, dcf=dcf2,
+            notional=leg2_notional, fixed_rate=0.0, spread=0.0, is_float=True,
+            pay_receive=leg2_sign,
+        ))
+
+    t_mat = year_fraction(valuation_date, adj_dates[-1], "ACT/365F")
+    if t_mat > 0.0:
+        rows.append(CashflowRow(
+            trade_id=spec.trade_id, leg_id=f"{spec.ccy1}_NX", cf_idx=1,
+            instrument_type="XCCY", ccy=leg1_ccy, csa=resolved_csa,
+            discount_curve_id=leg1_disc, proj_curve_id=leg1_proj,
+            accrual_start_t=t_mat, accrual_end_t=t_mat, pay_t=t_mat, dcf=1.0,
+            notional=leg1_notional, fixed_rate=1.0, spread=0.0, is_float=False,
+            pay_receive=leg1_sign,
+        ))
+        rows.append(CashflowRow(
+            trade_id=spec.trade_id, leg_id=f"{spec.ccy2}_NX", cf_idx=1,
+            instrument_type="XCCY", ccy=leg2_ccy, csa=resolved_csa,
+            discount_curve_id=leg2_disc, proj_curve_id=leg2_proj,
+            accrual_start_t=t_mat, accrual_end_t=t_mat, pay_t=t_mat, dcf=1.0,
+            notional=leg2_notional, fixed_rate=1.0, spread=0.0, is_float=False,
+            pay_receive=leg2_sign,
+        ))
+    return rows
+
+
 def _ref_df(knots: Sequence[tuple[float, float]], method: str, t: float) -> float:
     if method not in VALID_INTERP_METHODS:
         raise ValueError(f"Unsupported interp_method: {method!r}")
@@ -442,6 +597,97 @@ def fit_zero_curve(
         if final_err >= tol:
             raise RuntimeError(
                 f"fit_zero_curve({curve_id!r}) did not converge within {max_iter} iterations (max residual={final_err:.3e} >= {tol:.1e})"
+            )
+
+    return [
+        CurveKnot("BASE", curve_id, idx, knot_ts[idx], rates[idx], interp_method)
+        for idx in range(n)
+    ]
+
+
+def fit_curve_from_cashflows(
+    benchmark_cashflows: Sequence[Sequence[CashflowRow]],
+    curve_id: str,
+    interp_method: str = "LOG_LINEAR_DF",
+    fixed_knots: Sequence[CurveKnot] = (),
+    initial_rate: float = 0.03,
+    max_iter: int = 25,
+    tol: float = 1e-12,
+) -> list[CurveKnot]:
+    """Fit ``curve_id`` from pre-expanded benchmark instruments (IMM FRAs, OIS swaps, or XCCY basis swaps),
+    holding any upstream ``fixed_knots`` constant.
+    """
+    if interp_method not in VALID_INTERP_METHODS:
+        raise ValueError(f"Unsupported interp_method: {interp_method!r}")
+    if not benchmark_cashflows:
+        raise ValueError("benchmark_cashflows must be non-empty")
+    if any(not [cf for cf in cfs if cf.pay_t > 0.0] for cfs in benchmark_cashflows):
+        raise ValueError("Each benchmark instrument in benchmark_cashflows must have at least one future cashflow")
+    knot_ts = [max(cf.pay_t for cf in cfs if cf.pay_t > 0.0) for cfs in benchmark_cashflows]
+    if len(set(knot_ts)) != len(knot_ts) or knot_ts != sorted(knot_ts):
+        raise ValueError(f"Benchmark pillar maturities must be strictly increasing, got {knot_ts}")
+    n = len(benchmark_cashflows)
+    rates = [initial_rate] * n
+    fixed_list = list(fixed_knots)
+    bm_keys: list[tuple[str, str, str]] = []
+    for cfs in benchmark_cashflows:
+        active = [cf for cf in cfs if cf.pay_t > 0.0]
+        buckets = {(cf.trade_id, cf.ccy, cf.csa) for cf in active}
+        if len(buckets) != 1:
+            raise ValueError(f"Benchmark cashflows must share a single (trade_id, ccy, csa) bucket, got {sorted(buckets)}")
+        bm_keys.append(next(iter(buckets)))
+    scales = [max(cf.notional for cf in cfs) for cfs in benchmark_cashflows]
+
+    def residuals(r_vec: list[float]) -> list[float]:
+        knots = fixed_list + [
+            CurveKnot("BASE", curve_id, idx, knot_ts[idx], r_vec[idx], interp_method)
+            for idx in range(n)
+        ]
+        res = []
+        for idx, cfs in enumerate(benchmark_cashflows):
+            npv = price_cashflows_python(cfs, knots)[("BASE", *bm_keys[idx])]
+            res.append(npv / scales[idx])
+        return res
+
+    eps = 6e-6
+    converged = False
+    for _ in range(max_iter):
+        f0 = residuals(rates)
+        if max(abs(v) for v in f0) < tol:
+            converged = True
+            break
+        jac = [[0.0] * n for _ in range(n)]
+        for j in range(n):
+            rp = list(rates)
+            rm = list(rates)
+            rp[j] += eps
+            rm[j] -= eps
+            fp = residuals(rp)
+            fm = residuals(rm)
+            for i in range(n):
+                jac[i][j] = (fp[i] - fm[i]) / (2.0 * eps)
+        aug = [jac[i][:] + [-f0[i]] for i in range(n)]
+        for col in range(n):
+            piv = max(range(col, n), key=lambda r: abs(aug[r][col]))
+            aug[col], aug[piv] = aug[piv], aug[col]
+            pv = aug[col][col]
+            if abs(pv) < 1e-15:
+                raise RuntimeError(f"Singular Jacobian while fitting curve {curve_id!r} at column {col}")
+            for r in range(col + 1, n):
+                factor = aug[r][col] / pv
+                for c in range(col, n + 1):
+                    aug[r][c] -= factor * aug[col][c]
+        delta = [0.0] * n
+        for i in range(n - 1, -1, -1):
+            s = aug[i][n] - sum(aug[i][c] * delta[c] for c in range(i + 1, n))
+            delta[i] = s / aug[i][i]
+        rates = [rates[i] + delta[i] for i in range(n)]
+
+    if not converged:
+        final_err = max(abs(v) for v in residuals(rates))
+        if final_err >= tol:
+            raise RuntimeError(
+                f"fit_curve_from_cashflows({curve_id!r}) did not converge within {max_iter} iterations (max residual={final_err:.3e} >= {tol:.1e})"
             )
 
     return [

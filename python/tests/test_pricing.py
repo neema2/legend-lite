@@ -12,12 +12,17 @@ from pricing.rack import (
     CurveKnot,
     FraSpec,
     SwapSpec,
+    XccyBasisSwapSpec,
     build_curve_scenarios,
     compute_bump_dv01_python,
     discount_curve_for_csa,
     expand_fra_to_cashflows,
     expand_swap_to_cashflows,
+    expand_xccy_basis_swap_to_cashflows,
+    fit_curve_from_cashflows,
     fit_zero_curve,
+    imm_date,
+    next_imm_dates,
     price_cashflows_python,
     run_pure_discount_factors_duckdb,
     run_pure_pricing_duckdb,
@@ -240,6 +245,119 @@ class PricingRackTests(unittest.TestCase):
                 f"rows={len(sql_npvs)} duckdb_ms={elapsed_ms:.1f} "
                 f"max_npv_diff={max_npv_diff:.2e} max_dv01_diff={max_dv01_diff:.2e}"
             )
+
+    def test_imm_calendar_and_hybrid_imm_swap_curve_fit_in_pure(self) -> None:
+        pricing_dir = _find_pricing_dir()
+        # Exact 2026 quarterly IMM dates (3rd Wednesday of Mar, Jun, Sep, Dec)
+        self.assertEqual(
+            next_imm_dates(self.val_date, 4),
+            [dt.date(2026, 3, 18), dt.date(2026, 6, 17), dt.date(2026, 9, 16), dt.date(2026, 12, 16)],
+        )
+        # Strictly after valuation_date when standing on an IMM date
+        self.assertEqual(imm_date(2026, 3), dt.date(2026, 3, 18))
+        self.assertEqual(next_imm_dates(dt.date(2026, 3, 18), 1), [dt.date(2026, 6, 17)])
+
+        ois_knots = fit_zero_curve(self.benchmarks, self.val_date, self.base_holidays, "USD_OIS", "LOG_LINEAR_DF")
+        imms = next_imm_dates(self.val_date, 4)
+        hybrid_bms = [
+            expand_fra_to_cashflows(FraSpec("IMM_FRA_1", "USD", "USD_OIS", "USD_3M", imms[0], imms[1], 5_000_000.0, 0.0435), self.val_date, self.base_holidays),
+            expand_fra_to_cashflows(FraSpec("IMM_FRA_2", "USD", "USD_OIS", "USD_3M", imms[1], imms[2], 5_000_000.0, 0.0445), self.val_date, self.base_holidays),
+            expand_fra_to_cashflows(FraSpec("IMM_FRA_3", "USD", "USD_OIS", "USD_3M", imms[2], imms[3], 5_000_000.0, 0.0455), self.val_date, self.base_holidays),
+            expand_swap_to_cashflows(SwapSpec("IRS_3M_2Y", "IRS", "USD", "USD_OIS", "USD_3M", self.val_date, 24, 6, 5_000_000.0, 0.0475), self.val_date, self.base_holidays),
+            expand_swap_to_cashflows(SwapSpec("IRS_3M_5Y", "IRS", "USD", "USD_OIS", "USD_3M", self.val_date, 60, 6, 5_000_000.0, 0.0505), self.val_date, self.base_holidays),
+        ]
+        usd_3m_knots = fit_curve_from_cashflows(hybrid_bms, "USD_3M", "LOG_LINEAR_DF", fixed_knots=ois_knots, initial_rate=0.045)
+        all_cfs = [cf for bm in hybrid_bms for cf in bm]
+        pure_npvs = run_pure_pricing_duckdb(ois_knots + usd_3m_knots, all_cfs, projects_dir=pricing_dir)
+        for bm in hybrid_bms:
+            self.assertAlmostEqual(pure_npvs[("BASE", bm[0].trade_id, "USD", "USD")], 0.0, delta=1e-5)
+
+    def test_xccy_basis_swap_negative_rates_notional_exchanges_and_csa_labels(self) -> None:
+        pricing_dir = _find_pricing_dir()
+        usd_ois = fit_zero_curve(self.benchmarks, self.val_date, self.base_holidays, "USD_OIS", "LOG_LINEAR_DF")
+        eur_bms = [
+            SwapSpec("EUR_6M", "OIS", "EUR", "EUR_OIS", "EUR_OIS", self.val_date, 6, 6, 1_000_000.0, -0.015),
+            SwapSpec("EUR_2Y", "OIS", "EUR", "EUR_OIS", "EUR_OIS", self.val_date, 24, 6, 1_000_000.0, -0.008),
+            SwapSpec("EUR_5Y", "OIS", "EUR", "EUR_OIS", "EUR_OIS", self.val_date, 60, 12, 1_000_000.0, 0.002),
+        ]
+        eur_ois = fit_zero_curve(eur_bms, self.val_date, self.base_holidays, "EUR_OIS", "LOG_LINEAR_DF")
+
+        spot = 1.10
+        # Blank leg discount curves auto-resolve from CSA ('USD' -> EUR_DISC_USD / USD_OIS)
+        xccy_bms = [
+            expand_xccy_basis_swap_to_cashflows(
+                XccyBasisSwapSpec(f"XCCY_{m}M", "EUR", "USD", "", "EUR_OIS", "", "USD_OIS", self.val_date, m, 6, 1_000_000.0, spot, sp, csa="USD"),
+                self.val_date, self.base_holidays,
+            )
+            for m, sp in [(12, -0.0012), (24, -0.0015), (60, -0.0018)]
+        ]
+        eur_disc_usd = fit_curve_from_cashflows(
+            xccy_bms, "EUR_DISC_USD", "LOG_LINEAR_DF", fixed_knots=usd_ois + eur_ois, initial_rate=-0.01
+        )
+        all_knots = usd_ois + eur_ois + eur_disc_usd
+
+        # 1) All XCCY basis benchmarks reprice to par (0.0) through Pure
+        bm_flat = [cf for bm in xccy_bms for cf in bm]
+        pure_bm = run_pure_pricing_duckdb(all_knots, bm_flat, projects_dir=pricing_dir)
+        for bm in xccy_bms:
+            self.assertAlmostEqual(pure_bm[("BASE", bm[0].trade_id, "USD", "USD")], 0.0, delta=1e-5)
+
+        # 2) Forward-starting XCCY swap includes initial (t0 > 0) & final (t_mat > 0) notional exchanges,
+        #    and reporting-currency vs native-currency modes agree under standard (scen, trade, ccy, csa) grain
+        fwd_spec = XccyBasisSwapSpec(
+            "XCCY_FWD", "EUR", "USD", "", "EUR_OIS", "", "USD_OIS",
+            dt.date(2026, 4, 2), 24, 6, 2_000_000.0, spot, -0.0010, csa="USD",
+        )
+        rep_cfs = expand_xccy_basis_swap_to_cashflows(fwd_spec, self.val_date, self.base_holidays, in_reporting_ccy=True)
+        nat_cfs = expand_xccy_basis_swap_to_cashflows(fwd_spec, self.val_date, self.base_holidays, in_reporting_ccy=False)
+        self.assertEqual({(cf.ccy, cf.csa) for cf in rep_cfs}, {("USD", "USD")})
+        self.assertEqual({(cf.ccy, cf.csa) for cf in nat_cfs}, {("EUR", "USD"), ("USD", "USD")})
+        self.assertEqual(len(rep_cfs), 12)
+
+        rep_npvs = run_pure_pricing_duckdb(all_knots, rep_cfs, projects_dir=pricing_dir)
+        nat_npvs = run_pure_pricing_duckdb(all_knots, nat_cfs, projects_dir=pricing_dir)
+        nat_py = price_cashflows_python(nat_cfs, all_knots)
+        self.assertEqual(set(rep_npvs.keys()), {("BASE", "XCCY_FWD", "USD", "USD")})
+        self.assertEqual(set(nat_npvs.keys()), {("BASE", "XCCY_FWD", "EUR", "USD"), ("BASE", "XCCY_FWD", "USD", "USD")})
+        for k in nat_npvs:
+            self.assertAlmostEqual(nat_npvs[k], nat_py[k], delta=1e-8)
+        combined_usd = spot * nat_npvs[("BASE", "XCCY_FWD", "EUR", "USD")] + nat_npvs[("BASE", "XCCY_FWD", "USD", "USD")]
+        self.assertAlmostEqual(rep_npvs[("BASE", "XCCY_FWD", "USD", "USD")], combined_usd, delta=1e-8)
+
+        # Verify EUR-CSA XCCY basis swap auto-resolves leg1 -> EUR_OIS and leg2 -> USD_DISC_EUR
+        eur_csa_x = expand_xccy_basis_swap_to_cashflows(
+            XccyBasisSwapSpec("XCCY_EUR_CSA", "EUR", "USD", "", "EUR_OIS", "", "USD_OIS", self.val_date, 24, 6, 1_000_000.0, spot, -0.0015, csa="EUR"),
+            self.val_date, self.base_holidays,
+        )
+        self.assertEqual({cf.discount_curve_id for cf in eur_csa_x if cf.leg_id.startswith("EUR")}, {"EUR_OIS"})
+        self.assertEqual({cf.discount_curve_id for cf in eur_csa_x if cf.leg_id.startswith("USD")}, {"USD_DISC_EUR"})
+
+        # 3) Seasoned XCCY swap started 12M ago drops past initial notional exchange (t0 < 0) and paid coupons
+        seasoned_xccy = XccyBasisSwapSpec(
+            "XCCY_SEAS", "EUR", "USD", "EUR_DISC_USD", "EUR_OIS", "USD_OIS", "USD_OIS",
+            dt.date(2025, 1, 2), 24, 6, 1_000_000.0, spot, -0.0015,
+        )
+        seas_cfs = expand_xccy_basis_swap_to_cashflows(seasoned_xccy, self.val_date, self.base_holidays)
+        self.assertTrue(all(cf.pay_t > 0.0 for cf in seas_cfs))
+        nx_rows = [cf for cf in seas_cfs if cf.leg_id.endswith("_NX")]
+        self.assertEqual(len(nx_rows), 2)
+
+        # 4) Independent closed-form telescoping identity (no calibration): when each leg discounts on its own
+        #    projection curve and spread == 0, -N*P(0,t0) + sum N*(P(0,t_{i-1}) - P(0,t_i)) + N*P(0,t_n) == 0 on BOTH legs!
+        tele_spec = XccyBasisSwapSpec(
+            "XCCY_TELE", "EUR", "USD", "EUR_OIS", "EUR_OIS", "USD_OIS", "USD_OIS",
+            dt.date(2026, 4, 2), 18, 12, 3_000_000.0, spot, 0.0,
+        )
+        tele_nat_cfs = expand_xccy_basis_swap_to_cashflows(tele_spec, self.val_date, self.base_holidays, in_reporting_ccy=False)
+        tele_npvs = run_pure_pricing_duckdb(usd_ois + eur_ois, tele_nat_cfs, projects_dir=pricing_dir)
+        self.assertAlmostEqual(tele_npvs[("BASE", "XCCY_TELE", "EUR", "USD")], 0.0, delta=1e-9)
+        self.assertAlmostEqual(tele_npvs[("BASE", "XCCY_TELE", "USD", "USD")], 0.0, delta=1e-9)
+
+        # 5) Curve fitter refuses multi-(ccy, csa) native benchmark rows and max_iter=0
+        with self.assertRaises(ValueError):
+            fit_curve_from_cashflows([nat_cfs], "EUR_DISC_USD", fixed_knots=usd_ois + eur_ois)
+        with self.assertRaises(RuntimeError):
+            fit_curve_from_cashflows(xccy_bms, "EUR_DISC_USD", fixed_knots=usd_ois + eur_ois, initial_rate=0.02, max_iter=0)
 
 
 if __name__ == "__main__":
