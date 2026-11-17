@@ -587,55 +587,6 @@ public final class LiteralSpelling {
         return SqlExpr.Call.of(SqlFn.DATETIME_PRINT, x);
     }
 
-    /**
-     * A DateTime cell's text in Pure's TDS text (a relation's {@code toString}): as
-     * {@link #dateTimeText}, with AT LEAST THREE fraction digits -- {@code 2024-01-02T10:30:00.000+0000} for a whole
-     * second, {@code .123} for a millisecond, {@code .123456789} for a nanosecond, finer trailing zeros trimmed. The
-     * reference is legend-engine's own test (core_functions_standard/date/extract/dayOfWeek.pure,
-     * {@code testDayOfWeek_Relation}): a TDS literal's {@code 1985-01-12T06:30:00Z} prints
-     * {@code 1985-01-12T06:30:00.000+0000} in the relation's text, where the value's own text (interpreted Pure's
-     * {@code toString} of {@code %1985-01-12T06:30:00}) has no fraction. Measured 2026-10-18 (the plan path
-     * program's step 6, channel B's relation and standard suites: 35 goldens spell the three digits), correcting
-     * step 2's one trimmed text for every cell.
-     */
-    public static SqlExpr dateTimeTextTds(SqlExpr x) {
-        SqlExpr nine = SqlExpr.Call.of(SqlFn.STRFTIME, x,
-                new SqlExpr.FormatLit(List.of(com.legend.sql.DateFmt.Part.SUBSEC_NANO)));
-        SqlExpr three = SqlExpr.Call.of(SqlFn.SUBSTRING, nine, new SqlExpr.IntLit(1), new SqlExpr.IntLit(3));
-        SqlExpr finer = SqlExpr.Call.of(SqlFn.RTRIM,
-                SqlExpr.Call.of(SqlFn.SUBSTRING, nine, new SqlExpr.IntLit(4), new SqlExpr.IntLit(6)),
-                new SqlExpr.StringLit("0"));
-        return SqlExpr.Call.of(SqlFn.CONCAT,
-                SqlExpr.Call.of(SqlFn.CONCAT,
-                        SqlExpr.Call.of(SqlFn.STRFTIME, x,
-                                new SqlExpr.FormatLit(com.legend.sql.DateFmt.ISO_LOCAL)),
-                        SqlExpr.Call.of(SqlFn.CONCAT, SqlExpr.Call.of(SqlFn.CONCAT, new SqlExpr.StringLit("."), three),
-                                finer)),
-                new SqlExpr.StringLit("+0000"));
-    }
 
-    /** A date value carried as its own text (a value root spelled at the precision it has: a year, a month, a day,
-     *  an hour, a minute, a second or finer; with or without Pure's {@code %}; a literal's print form with its
-     *  {@code +0000} already): one with seconds and no zone takes Pure's {@code +0000}, as Pure prints a DateTime;
-     *  every other precision is its text, Pure's DateTime literal taking a zone only after seconds (the MongoDB
-     *  lane, 2026-10-18: {@code %1973-11-13T23} and {@code %2025-02-10T20:10:20+0000} are read as written). */
-    // the zone a written date-time text gets in SQL (register S121, pending: legend-pure writes +0000 from the minute)
-    public static SqlExpr dateTimeTextOfText(SqlExpr text) {
-        SqlExpr colons = SqlExpr.Call.of(SqlFn.MINUS, SqlExpr.Call.of(SqlFn.LENGTH, text),
-                SqlExpr.Call.of(SqlFn.LENGTH, SqlExpr.Call.of(SqlFn.REPLACE, text, new SqlExpr.StringLit(":"),
-                        new SqlExpr.StringLit(""))));
-        SqlExpr secondsNoZone = SqlExpr.Call.of(SqlFn.AND,
-                SqlExpr.Call.of(SqlFn.GREATER_EQUAL, colons, new SqlExpr.IntLit(2)),
-                SqlExpr.Call.of(SqlFn.NOT, SqlExpr.Call.of(SqlFn.ENDS_WITH, text, new SqlExpr.StringLit("+0000"))));
-        return new SqlExpr.Case(List.of(new SqlExpr.Case.When(secondsNoZone,
-                SqlExpr.Call.of(SqlFn.CONCAT, text, new SqlExpr.StringLit("+0000")))), text, SqlExpr.Reason.PRINT);
-    }
 
-    /** Whether a timestamp's time of day is not midnight: the engine's {@code formatDateTime} rule for an ABSTRACT
-     *  Date, defined over the value (hasHour) -- a timed value is a DateTime, a date-only one its day. */
-    public static SqlExpr timed(SqlExpr c) {
-        return SqlExpr.Call.of(SqlFn.NOT_EQUAL,
-                SqlExpr.Call.of(SqlFn.STRFTIME, c, new SqlExpr.FormatLit(com.legend.sql.DateFmt.TIME_ONLY)),
-                new SqlExpr.StringLit("00:00:00"));
-    }
 }

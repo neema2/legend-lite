@@ -37,7 +37,7 @@ final class DecimalKindRules {
                 new SqlExpr.Call(SqlFn.ROUND, args));
     }
 
-    static SqlExpr divide(TypedNativeCall n, List<SqlExpr> args, Scalars.Styled styled) {
+    static SqlExpr divide(TypedNativeCall n, List<SqlExpr> args, Styled styled) {
         if (args.size() != 3) {
             // Part-1 fix (2026-08-26): INTEGER / INTEGER by zero RAISES
             // in real pure — the interpreted accumulator divides
