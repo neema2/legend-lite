@@ -243,8 +243,14 @@ class JudgingRulesReachTest {
                 return;
             }
             boolean type = utf8.stream().anyMatch(u -> u.contains(OWNER_INTERNAL) || u.contains(OWNER));
-            Set<String> tokens = new TreeSet<>(utf8);
-            tokens.retainAll(TOKENS);
+            // a token as a whole word inside any entry: a string that embeds it ("{\"rules\":\"compiledPureCompat\"..."),
+            // a concatenation's recipe, a descriptor (the review of 08adb5c923, 2026-11-17)
+            Set<String> tokens = new TreeSet<>();
+            for (String t : TOKENS) {
+                if (utf8.stream().anyMatch(u -> ConstantPools.hasWord(u, t))) {
+                    tokens.add(t);
+                }
+            }
             if (type || tokens.contains("COMPILED_PURE_COMPAT") || tokens.contains("compiledPureCompat")) {
                 Set<String> held = out.computeIfAbsent(top(name), k -> new TreeSet<>());
                 held.addAll(tokens);
@@ -321,7 +327,8 @@ class JudgingRulesReachTest {
      * {@code PlantedRulesReach} asks a behaviour twice, takes one by method reference, reads {@code != LITE},
      * {@code ordinal()} and a classic switch (its {@code $SwitchMap} in a nested class, merged into its top class), a data
      * parameter and the constant; {@code PlantedRulesSwitch} holds a pattern switch alone, which no reach shows and its
-     * pool does; {@code PlantedRulesByClass} names the type by class literal alone.
+     * pool does; {@code PlantedRulesByClass} names the type by class literal alone; {@code PlantedRulesText} holds the
+     * rules' wire spelling inside a longer string and never names the type.
      */
     @Test
     void theGuardBites() {
@@ -358,6 +365,8 @@ class JudgingRulesReachTest {
                 "a pattern switch's labels are in its pool");
         assertEquals(Set.of(TYPE, "COMPILED_PURE_COMPAT"), names.get(prefix + "ByClass"),
                 "a class literal and a constant's name as a string are in its pool");
+        assertEquals(Set.of("compiledPureCompat"), names.get(prefix + "Text"),
+                "a token inside a longer string, in a class that never names the type, is found as a word");
         assertTrue(names.get(prefix + "Reach").containsAll(Set.of(TYPE, "integerDecimalByText", "legendPureWords",
                 "LITE", "floatTolerance", "COMPILED_PURE_COMPAT")), "the reaching class's pool: " + names);
         assertEquals(null, kindOf("floatTolerance(int)"), "an overload is no sorted member");

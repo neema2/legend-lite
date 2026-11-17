@@ -24,6 +24,7 @@ EDGE_TEST_SRCS = [
     "src/test/java/com/legend/testexec/PlantedRulesByClass.java",
     "src/test/java/com/legend/testexec/PlantedRulesReach.java",
     "src/test/java/com/legend/testexec/PlantedRulesSwitch.java",
+    "src/test/java/com/legend/testexec/PlantedRulesText.java",
     # the open compatibility classes pinned by member set (the GUARD stream, C.4, 2026-11-17): it reads the census
     "src/test/java/com/legend/OpenClassMembersTest.java",
     "src/test/java/com/legend/PlanStyleFacetsTest.java",

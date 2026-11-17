@@ -12,7 +12,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
-import java.util.regex.Pattern;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -47,24 +46,14 @@ class CompatConstantPoolTest {
             Map.entry("com.legend.lowering.Lowerer | TDSNull", BORROWED_TDS_NULL_FQN),
             Map.entry("com.legend.testplan.JudgePlans | TDSNull", BORROWED_TDS_NULL_FQN));
 
-    private static final Pattern WORD_CHAR = Pattern.compile("[A-Za-z0-9_]");
-
     private static String top(String n) {
         int dollar = n.indexOf('$');
         return dollar < 0 ? n : n.substring(0, dollar);
     }
 
-    /** Whether {@code word} stands in {@code text} as a whole word (no word character either side). */
+    /** Whether {@code word} stands in {@code text} as a whole word ({@link ConstantPools#hasWord}). */
     static boolean hasWord(String text, String word) {
-        for (int i = text.indexOf(word); i >= 0; i = text.indexOf(word, i + 1)) {
-            boolean before = i > 0 && WORD_CHAR.matcher(String.valueOf(text.charAt(i - 1))).matches();
-            int end = i + word.length();
-            boolean after = end < text.length() && WORD_CHAR.matcher(String.valueOf(text.charAt(end))).matches();
-            if (!before && !after) {
-                return true;
-            }
-        }
-        return false;
+        return ConstantPools.hasWord(text, word);
     }
 
     /** The spellings an entry holds: a literal inside it ({@code ^...$}: the whole entry), a symbol as a whole word. */
