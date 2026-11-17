@@ -141,4 +141,12 @@ public record PlanEnv(ModelContext ctx, @Nullable String runtimeFqn,
     public @Nullable String timeZone() {
         return frame == null ? null : frame.timeZone();
     }
+
+    /** A Lowerer configured by this environment: its frame's time zone, and a relation's text asked of its plan
+     *  style's facet with the call's own refusal (B17 of the separation census, 2026-11-17: the product's style
+     *  refuses a {@code toCSV}, a TDS's {@code csv} and a relation's {@code toString} at lowering, by name). */
+    public com.legend.lowering.Lowerer configure(com.legend.lowering.Lowerer lowerer) {
+        return lowerer.withDbTimeZone(timeZone())
+                .withRelationTexts(r -> style.facet(com.legend.lowering.RelationTexts.class, r));
+    }
 }

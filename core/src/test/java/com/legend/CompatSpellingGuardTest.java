@@ -318,8 +318,8 @@ class CompatSpellingGuardTest {
             "lowering/CanonicalRenderSql.java | TDSNull | 5 | D1.9",
             "lowering/VerdictSql.java | TDSNull | 2 | D1.9",
             "testexec/Equality.java | TDSNull | 1 | D1.9",
-            // TDSNull as legend-engine's relation text in the product's lowering (D, census B10's move)
-            "lowering/Render.java | TDSNull | 1 | D1.3",
+            // (lowering/Render.java | TDSNull | D1.3: gone 2026-11-17, census B17 -- a relation's text moved to the edge,
+            // edge.RelationTextLowering)
             // the judges' compatibility mode's branches (E-Java, census C1)
             "testexec/Equality.java | COMPILED_PURE_COMPAT | 1 | D1.9",
             "testexec/HostJudgments.java | COMPILED_PURE_COMPAT | 1 | D1.9",

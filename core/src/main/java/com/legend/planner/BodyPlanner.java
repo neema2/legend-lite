@@ -188,13 +188,12 @@ public final class BodyPlanner {
         // the value lane's are the object layout (docs/OBJECT_IDENTITY_2026_10_20.md
         // §3.1): every object its __id and __type, so equal() compares a
         // keyless class's objects by identity, never as structs.
-        Lowerer lowerer = new Lowerer(
+        // the environment's time zone and relation-text facet (PlanEnv.configure, B17 2026-11-17)
+        Lowerer lowerer = env.configure(new Lowerer(
                 t -> identity ? ClassLayouts.layoutOf(ctx, t, true)
                         : ClassLayouts.objectLayoutOf(ctx, t),
                 f -> ctx.findClass(f).isPresent(), ctx.implementations()).withEngineExistsJoinForm()
-                .withDbTimeZone(env.timeZone()).sharingRelations(!env.postProcessors().extractCtes())
-                // a relation's text: the style's facet, asked with the call's refusal (B17, 2026-11-17)
-                .withRelationTexts(r -> env.style().facet(com.legend.lowering.RelationTexts.class, r));
+                .sharingRelations(!env.postProcessors().extractCtes()));
         // D91: the <<equality.Key>> resolver rides EVERY lane — equal()
         // over keyed instances is the key relation on the execute path
         // too (the structural fallback erased class identity and read
