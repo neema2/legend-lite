@@ -34,7 +34,36 @@ final class PurePrintForms extends com.legend.sql.SqlRewriter {
     /** The edge's first pass, as a list a dialect returns, a Float literal under {@code toString} written by
      *  {@code floatLiteral}. */
     static java.util.List<com.legend.sql.SqlRewriter> passes(FloatLiteral floatLiteral) {
+        return java.util.List.of(new PurePrintForms(floatLiteral), new TdsNullCells(), new UnguardedParses());
+    }
+
+    /** {@link #passes(FloatLiteral)} for legend-engine's TEXT printers ({@code EngineStyleH2} and its family), which
+     *  spell a parse as the engine prints it themselves ({@code cast(x as integer)}): no {@link UnguardedParses}. */
+    static java.util.List<com.legend.sql.SqlRewriter> enginePasses(FloatLiteral floatLiteral) {
         return java.util.List.of(new PurePrintForms(floatLiteral), new TdsNullCells());
+    }
+
+    /**
+     * F31 (approved by the orchestrator, 2026-11-17): in an edge plan a parse is upstream's -- the plain CAST, its
+     * refusal the database's own conversion error (DATABASE_ERROR, the database's text), as legend-engine's SQL casts:
+     * {@code parseInteger} a cast to BIGINT, {@code parseFloat} a cast to DOUBLE, never the product's grammar guard and
+     * its TEXT_NOT_INTEGER or TEXT_NOT_FLOAT (which the product keeps). A cast of the dialect's own reason, which no
+     * parse guard reads. (F38, not here: upstream's H2 casts parseInteger AS INTEGER, lite's edge BIGINT.)
+     */
+    private static final class UnguardedParses extends com.legend.sql.SqlRewriter {
+        @Override
+        protected SqlExpr expr(SqlExpr e) {
+            if (e instanceof SqlExpr.Call c && c.fn() == SqlFn.PARSE_INT) {
+                return new SqlExpr.Cast(c.args().get(0), com.legend.sql.SqlType.Scalar.BIGINT, SqlExpr.Reason.DIALECT);
+            }
+            if (e instanceof SqlExpr.Cast c && c.reason() == SqlExpr.Reason.USER
+                    && c.target() == com.legend.sql.SqlType.Scalar.DOUBLE
+                    && c.value().type() instanceof com.legend.sql.TypeFact.Typed t
+                    && t.type() == com.legend.sql.SqlType.Scalar.VARCHAR) {
+                return new SqlExpr.Cast(c.value(), com.legend.sql.SqlType.Scalar.DOUBLE, SqlExpr.Reason.DIALECT);
+            }
+            return e;
+        }
     }
 
     /** The edge's pass after {@link PurePrintForms}: a {@link SqlFn#CELL_TEXT} no join read (a TDS cell's
