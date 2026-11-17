@@ -1263,7 +1263,8 @@ final class ArchitectureTest {
             "testplan.PlanningOptions#judgingRules()", "com.legend.ExecuteOptions",
             // testplan.PlanningOptions#rules(boolean) from ExecuteOptions gone (2026-11-17, census C1: the edge hook names
             // its run's rules, Edge.rules())
-            "testplan.PlanningOptions#withEngineCompat(boolean)", "com.legend.ExecuteOptions",
+            // (testplan.PlanningOptions#withEngineCompat(boolean) gone 2026-11-17, census C1: the rules are the edge
+            // hook's, Edge.rules())
             "testplan.PlanningOptions#withFeatures(java.util.Set)", "com.legend.ExecuteOptions",
             "testplan.PlanningOptions#withJudgeMode(com.legend.testplan.PlanningOptions$JudgeMode)",
             "com.legend.ExecuteOptions",

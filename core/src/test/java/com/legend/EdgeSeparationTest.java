@@ -100,10 +100,10 @@ class EdgeSeparationTest {
 
     /** TEST SIDE: the same. */
     static final Map<String, String> TEST_OPEN = Map.ofEntries(
-            Map.entry("com.legend.testexecutionplan.TestPlan -> JudgingRules.COMPILED_PURE_COMPAT", "C1 2026-11-17"),
-            Map.entry("com.legend.testexecutionplan.TestPlanJson -> JudgingRules.COMPILED_PURE_COMPAT", "C1 2026-11-17"),
             // (AgreementAsserts -> EngineTextAppeals closed: 2026-11-17, (b) of the orchestrator's order: the fused agreement path deleted)
-            Map.entry("com.legend.testplan.PlanningOptions -> JudgingRules.COMPILED_PURE_COMPAT", "C1 2026-11-17"));
+            // (TestPlan, TestPlanJson, PlanningOptions -> JudgingRules.COMPILED_PURE_COMPAT closed: 2026-11-17, census C1
+            // -- the judging rules are data, the compatibility preset the edge's CompatRules)
+            );
             // (census C2 CLOSED 2026-11-17: the referee and the appeals moved to com.legend.edge -- the run hook EdgeRun
             // in the referee's slot, the planner holding the edge's records by number -- its 30 entries deleted)
 
@@ -238,9 +238,9 @@ class EdgeSeparationTest {
                     String field = a.getTarget().getName();
                     if (owner.equals("com.legend.sql.SqlFn") && EDGE_ONLY_SQLFN.contains(field)) {
                         out.add(src + " -> SqlFn." + field);
-                    } else if (owner.endsWith("TestPlan$JudgingRules") && field.equals("COMPILED_PURE_COMPAT")) {
-                        out.add(src + " -> JudgingRules.COMPILED_PURE_COMPAT");
                     }
+                    // (the judges' compatibility rules: a field of the edge's since 2026-11-17, census C1 --
+                    // edge.CompatRules.COMPILED_PURE, an edge reach the class rule above finds)
                 });
             }
         }
@@ -280,14 +280,13 @@ class EdgeSeparationTest {
             // B11 -> C5 2026-11-17 (the orchestrator's ruling): the judges' canon (temporalCanon x2, dateTimeLiteralAt via
             // CanonicalRenderSql), closed by C5's step C (E-SQL's)
             // lowering/Repr.java | Repr, lowering/Scalars.java | Repr: gone 2026-11-17, census B12's 2b (Repr deleted)
-            Map.entry("testexec/CanonicalForm.java | +0000", "C5 2026-11-17"),
+            Map.entry("testexec/CanonicalForm.java | +0000", "C5 2026-11-17"));
             // testexec/SideShapes.java | Cannot cast a collection of size: GONE 2026-11-17 (C5's step E, E-P5), worded at
             // planning by the plan's style (SideShape.sizeWords, TestPlan.answerSizeWords)
             // B11 -> C5 2026-11-17 (the orchestrator's ruling): the host judge's +0000, C5's step B (E-P5's)
             // (testplan/AgreementAsserts.java | EngineText closed: 2026-11-17, (b) of the orchestrator's order: the fused agreement path deleted)
-            Map.entry("testexecutionplan/TestPlan.java | COMPILED_PURE_COMPAT", "C1 2026-11-17"),
-            Map.entry("testexecutionplan/TestPlanJson.java | COMPILED_PURE_COMPAT", "C1 2026-11-17"),
-            Map.entry("testplan/PlanningOptions.java | COMPILED_PURE_COMPAT", "C1 2026-11-17"));
+            // (TestPlan, TestPlanJson, PlanningOptions | COMPILED_PURE_COMPAT closed: 2026-11-17, census C1 -- the
+            // judging rules are data, the compatibility preset the edge's CompatRules)
 
     /** The census's open lines (docs/records/f-separation-census-2026-11-17.md; closed: A4, B14 ruled; A2, A3 moved to
      *  the edge 2026-11-17 (A4 extended to the native image and the page module); A5, A6 split off the edge 2026-11-17; A1 the embedded hosts' engine routes to the edge 
@@ -306,7 +305,9 @@ class EdgeSeparationTest {
      *  B15, B16, C6, C7). Each must hold at least one entry in the count ({@link #everyOpenLineIsCounted}), so an empty
      *  count cannot read DONE with a line left. A line closes by leaving this set with its last entry. */
     static final Set<String> OPEN_LINES = Set.of(
-            "B12", "C1", "C5");
+            // C1 closed 2026-11-17 (E-Java): the judges' behaviours the style's and the run hook's, the judging rules
+            // data, the compatibility preset the edge's CompatRules
+            "B12", "C5");
 
     private static Set<String> linesOf(Map<String, String> m) {
         Set<String> out = new TreeSet<>();
@@ -389,7 +390,7 @@ class EdgeSeparationTest {
         Set<String> code = found(planted, n -> true);
         for (String want : List.of("com.legend.planner.PlantedCompatReach -> com.legend.edge.Presenter",
                 "com.legend.planner.PlantedCompatReach -> SqlFn.DATETIME_PRINT",
-                "com.legend.planner.PlantedCompatReach -> JudgingRules.COMPILED_PURE_COMPAT")) {
+                "com.legend.planner.PlantedCompatReach -> com.legend.edge.CompatRules")) {
             assertFalse(!code.contains(want), "the CODE and TEST SIDE guards bite: " + want + " in " + code);
         }
     }

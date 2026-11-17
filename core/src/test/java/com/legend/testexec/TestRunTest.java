@@ -434,7 +434,7 @@ final class TestRunTest {
         assertEquals(plan, TestPlanJson.read(json), "the plan read back differs");
         assertTrue(json.contains("\"_type\":\"branch\""), json);
         // the rules each verdict group is judged by are the plan's own (the explicit rule, 2026-11-04)
-        assertTrue(json.contains("\"rules\":\"lite\""), json);
+        assertTrue(json.contains("\"rules\":{\"floatUlps\":0,\"decimalScale\":false}"), json);
         assertTrue(!plan.answers(), "a plan that only branches answers no rows");
         assertThrows(IllegalStateException.class, plan::answerShape, "a plan that only branches answers no rows");
         assertThrows(IllegalArgumentException.class, () -> new TestPlan.Branch(condition,

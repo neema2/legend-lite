@@ -325,14 +325,13 @@ class CompatSpellingGuardTest {
             // TDSNull as the judges' text (E-Java, Phase 4b: census B10/C5)
             // 5 -> 4, D1.9 -> STAYS (2026-11-17, census C5's step C, C-2): an expected ^TDSNull(), a written 'TDSNull'
             // cell and a golden's null cell are a typed TypedNullCell; what stays reads that written text as INPUT
-            "compiler/spec/VerdictQueries.java | TDSNull | 1 | STAYS",   // 4 -> 1 (2026-11-17, census C1: the golden's TDSNull word read by the edge's UpstreamGoldenNullWord, the dead grid branch gone; tdsNullSentinel's stays)
+            "compiler/spec/VerdictQueries.java | TDSNull | 1 | STAYS"   // 4 -> 1 (2026-11-17, census C1: the golden's TDSNull word read by the edge's UpstreamGoldenNullWord, the dead grid branch gone; tdsNullSentinel's stays)
             // (lowering/Render.java | TDSNull | D1.3: gone 2026-11-17, census B17 -- a relation's text moved to the edge,
             // edge.RelationTextLowering)
             // the judges' compatibility mode's branches (E-Java, census C1)
+            // (testexecutionplan/TestPlan.java, TestPlanJson.java, testplan/PlanningOptions.java | COMPILED_PURE_COMPAT gone
+            // 2026-11-17, census C1: the judging rules are data, the compatibility preset the edge's CompatRules)
             // testexec/Equality.java | COMPILED_PURE_COMPAT gone (2026-11-17, census C1 2c: the cross-kind rule asked of the run hook, HostForms)
-            "testexecutionplan/TestPlan.java | COMPILED_PURE_COMPAT | 1 | D1.9",   // 3 -> 1 (2026-11-17, C1 step 1: each judging fact a named accessor over one field)
-            "testexecutionplan/TestPlanJson.java | COMPILED_PURE_COMPAT | 2 | D1.9",
-            "testplan/PlanningOptions.java | COMPILED_PURE_COMPAT | 1 | D1.9"   // 2 -> 1 (2026-11-17, C1 step 1: the edge check asks edgeAppeals())
             // retagged 2026-11-15 (D1.2's end): Java's spelling of a date value. D1.4 -> D1.8 (2026-11-16, W4): lite's
             // writers no longer read it (CellText's product half prints S312's text); what remains is legend-engine's
             // JSON of a date (toEngineJson, read by CellText's engine half, which moves with PureV1Writer at W8) and
