@@ -674,8 +674,10 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
      * How a temporal cell's WRITTEN precision is known (docs/RESULT_BOUNDARY_PROGRAM_2026_10_26.md R2: a fact that only
      * Pure knows travels in the plan or in the data, never in a text; the start page's S1.4 item 1, 2026-10-28). A
      * column's fact, set by {@link ColumnFacts#precision} from its Pure type, its slot and its result's shape, read
-     * by the writers ({@code result/CellText}) in place of the slot's spelling they matched until then. The spellings
-     * are upstream's, read from the pinned sources 2026-10-29 (the upstream-fidelity tenet, AGENTS.md).
+     * by the writers ({@code result/CellText}) in place of the slot's spelling they matched until then. Each constant
+     * says what a cell IS, in the product's vocabulary; how it is spelled is its writer's (the product's
+     * {@code result.CellText}; legend-engine's and legend-pure's spellings of it are the compatibility edge's,
+     * {@code edge.Presenter}: J14 of the edge audit, 2026-11-17).
      */
     public enum Precision {
         /** The cell carries its own precision, as the value was written (a literal's spelling, a temporal-text
@@ -686,11 +688,10 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
          *  {@code ValueTransformer} for a {@code java.sql.Date}, legend-pure's StrictDate). */
         DAY,
         /** A relation's time-bearing cell, whatever carried it (a TIMESTAMP's nine digits as the driver hands them,
-         *  a literal's text): spelled as legend-engine's TDS spells it, nine fraction digits and {@code +0000}
-         *  ({@code ValueTransformer}: its JSON and its transformed CSV, {@code yyyy-MM-dd'T'HH:mm:ss.nnnnnnnnnZ};
-         *  legend-pure reads a SQL timestamp the same way, {@code DateFunctions.fromSQLTimestamp}), never as a day.
-         *  The product's spelling of a relation; the PCT's in-memory relation ({@code TestTDS}, millisecond dates,
-         *  three digits) is its harness's. */
+         *  a literal's text): an instant held at the database's full precision, never a day (the product writes it
+         *  as its time text, {@code result.CellText}; an Arrow column carries it as timestamp[ns, UTC]). legend-engine's
+         *  TDS spelling of such a cell (nine fraction digits and {@code +0000}, its {@code ValueTransformer}) is the
+         *  compatibility edge's ({@code edge.Presenter}; J14 of the edge audit, 2026-11-17). */
         INSTANT,
         /** A value root's cell the database computed (the plan's VALUE shape: a scalar, a collection's element): an
          *  instant whose written precision the database lost, spelled at the precision its digits show (the

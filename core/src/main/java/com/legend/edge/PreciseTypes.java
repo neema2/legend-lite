@@ -1,7 +1,7 @@
 // Copyright 2026 Legend Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-package com.legend.plan;
+package com.legend.edge;
 
 import com.legend.model.RelationalDataType;
 

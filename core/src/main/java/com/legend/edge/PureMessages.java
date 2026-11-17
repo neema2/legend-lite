@@ -333,6 +333,11 @@ public final class PureMessages {
             // sentence alone (error.MissingParameters; the orchestrator, 2026-11-17)
             return "Missing external parameter(s): " + String.join(",", m.missing());
         }
+        for (Throwable t = e; t != null; t = t.getCause()) {
+            if (t instanceof com.legend.base.DataSize.TooLarge big) {
+                return tooLarge(big);
+            }
+        }
         // the kinded error itself, or the one a wrapper's message holds ("in function 'f': " + its message, and after
         // it the inliner's " [inlined via ...]": the P2 checkpoint audit's A-S1, 2026-11-16 -- spliced where it stands)
         for (Throwable t = e; t != null; t = t.getCause()) {
@@ -401,5 +406,16 @@ public final class PureMessages {
                     + " (docs/SEMANTICS_REGISTER.md S170)";
         };
         return c.position() == null ? upstream : c.position() + " " + upstream;
+    }
+
+    /** legend-pure's sentence of a load's file larger than the load admits (J25 of the edge audit, 2026-11-17: moved
+     *  from base.DataSize, whose refusal is the product's kind and facts): {@code CsvReader.readCsv}'s inner message, the
+     *  text's length in megabytes against the limit, wrapped by its outer "Unable to read the CSV file" (read 2026-11-09
+     *  at 5.99.0; the inner exception carries no source information, so "Execution error at ??, " and the info quoted:
+     *  legend-pure's PureException.printMessage; the M1 correctness audit's C4, 2026-11-09). */
+    static String tooLarge(com.legend.base.DataSize.TooLarge big) {
+        return "Unable to read the CSV file '" + big.path() + "' Execution error at ??, \"File is too large, file was "
+                + String.format(java.util.Locale.ROOT, "%.2f", big.characters() * 1.0 / (1024 * 1024L)) + " Mb, limit is "
+                + big.limitMegabytes() + " Mb\"";
     }
 }

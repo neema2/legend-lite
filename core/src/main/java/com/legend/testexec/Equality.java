@@ -160,13 +160,6 @@ public final class Equality {
                 || k == Kind.INTEGER;
     }
 
-    /** Equal, or the first difference. */
-    public static @com.legend.base.Nullable String scalar(Typed e, Typed a, HostRules rules) {
-        return same(e, a, rules) ? null
-                : "\nexpected: " + com.legend.testexecutionplan.Verdicts.repr(e.value())
-                        + "\nactual:   " + com.legend.testexecutionplan.Verdicts.repr(a.value());
-    }
-
     /** The decision itself (the narrative is the caller's when it has a
      * better one — a row, a path). */
     public static boolean same(Typed et, Typed at, HostRules rules) {
@@ -263,22 +256,23 @@ public final class Equality {
 
     // ---- COLLECTIONS ------------------------------------------------------
 
-    /** Element by element, in order. */
-    public static @com.legend.base.Nullable String ordered(List<Typed> e, List<Typed> a, HostRules rules) {
+    /** Element by element, in order: the decision alone (C5's step C, C-3, 2026-11-17: the first difference's text
+     *  went, no caller read it; a message is the run's words, {@code PureWords} or lite's own). */
+    public static boolean ordered(List<Typed> e, List<Typed> a, HostRules rules) {
         if (e.size() != a.size()) {
-            return "\nexpected " + e.size() + " element(s), actual " + a.size();
+            return false;
         }
         for (int i = 0; i < e.size(); i++) {
             if (!same(e.get(i), a.get(i), rules)) {
-                return "\nelement " + i + scalar(e.get(i), a.get(i), rules);
+                return false;
             }
         }
-        return null;
+        return true;
     }
 
     /** The engine's {@code assertSameElements}: sort both sides by the
      * value order, then ordered. */
-    public static @com.legend.base.Nullable String sameElements(List<Typed> e, List<Typed> a, HostRules rules) {
+    public static boolean sameElements(List<Typed> e, List<Typed> a, HostRules rules) {
         return ordered(sorted(e), sorted(a), rules);
     }
 
@@ -314,7 +308,7 @@ public final class Equality {
         for (List<Typed> row : chunk(e, w)) {
             int hit = -1;
             for (int i = 0; i < pool.size() && hit < 0; i++) {
-                if (ordered(row, pool.get(i), rules) == null) {
+                if (ordered(row, pool.get(i), rules)) {
                     hit = i;
                 }
             }

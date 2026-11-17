@@ -355,7 +355,7 @@ legend-engine-shaped plan (`executionPlan(...)`'s text and node model) then pick
 knowing where it is used:
 - an enum PARAMETER's translation is one template function per parameter: `PlanText.enumMapFnOf` asks
   `enumMappingOf(ctx, mappingFqn, enumFqn)`, the first enumeration mapping over that enum (the mapping's own, then its
-  includes', an exact path before a simple name), and `PlanAllocations.planTemplateFunctions` emits that one
+  includes', an exact path before a simple name), and `EnginePlanRows.templateFunctions` (the edge's; `PlanAllocations.planTemplateFunctions` until 2026-11-17, J4) emits that one
   `enumMap_` function the same way;
 - a RESULT column's enumeration-mapping id (`PlanText.enumMappingIdFor`) is chosen by the physical column when the
   property mapping names it, and otherwise falls back to the first one declared.
@@ -373,8 +373,8 @@ property mapping â€” parameter template functions and result-column ids alike â€
 in one mapping shows each place naming its own, as legend-engine's plan does.
 
 **Anchor.** The three choices with no place of use: `enumMapFnOf`'s call `enumMappingOf(ctx, mappingFqn, enumFqn)` in
-`PlanText.java`; `planTemplateFunctions`' call `PlanText.enumMappingOf(env.ctx(), pmr.fullPath(), et.fqn())` in
-`PlanAllocations.java`; and `enumMappingIdFor`'s `candidates.get(0)` fallback in `PlanText.java`. Choosing per place
+`PlanText.java`; `templateFunctions`' call `com.legend.plan.EnumMappings.of(ctx, mappingFqn, enumFqn)` in
+`EnginePlanRows.java` (re-pointed 2026-11-17, J4: moved from `PlanAllocations.java`, unchanged); and `enumMappingIdFor`'s `candidates.get(0)` fallback in `PlanText.java`. Choosing per place
 changes all three.
 
 ---

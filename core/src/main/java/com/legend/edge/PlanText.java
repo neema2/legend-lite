@@ -1,7 +1,10 @@
 // Copyright 2026 Legend Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-package com.legend.plan;
+package com.legend.edge;
+
+import com.legend.plan.PureSpelling;
+import com.legend.plan.EnumMappings;
 
 
 import com.legend.compiler.element.ModelContext;
@@ -987,44 +990,13 @@ public final class PlanText {
                 + " (" + src.getClass().getSimpleName() + ")");
     }
 
-    /** The engine's resultColumns type spelling (dataTypeToSqlText):
-     * INT (not INTEGER), sized VARCHAR/CHAR, etc. */
+    /** The engine's resultColumns type spelling (dataTypeToSqlText): the type's name as the Relational grammar writes
+     *  it ({@link RelationalDataType#sqlText}, the product's). */
     public static String spell(RelationalDataType t) {
-        return switch (t) {
-            case RelationalDataType.Integer_ ignored -> "INT";
-            case RelationalDataType.BigInt ignored -> "BIGINT";
-            case RelationalDataType.SmallInt ignored -> "SMALLINT";
-            case RelationalDataType.TinyInt ignored -> "TINYINT";
-            case RelationalDataType.Varchar v -> "VARCHAR(" + v.size() + ")";
-            case RelationalDataType.Char_ c -> "CHAR(" + c.size() + ")";
-            case RelationalDataType.Double_ ignored -> "DOUBLE";
-            case RelationalDataType.Float_ ignored -> "FLOAT";
-            case RelationalDataType.Real ignored -> "REAL";
-            case RelationalDataType.Decimal d ->
-                    "DECIMAL(" + d.precision() + "," + d.scale() + ")";
-            case RelationalDataType.Numeric n ->
-                    "NUMERIC(" + n.precision() + "," + n.scale() + ")";
-            case RelationalDataType.Timestamp ignored -> "TIMESTAMP";
-            case RelationalDataType.Date_ ignored -> "DATE";
-            case RelationalDataType.Time ignored -> "TIME";
-            case RelationalDataType.TimestampNs ignored -> "TIMESTAMP_NS";
-            case RelationalDataType.Bit ignored -> "BIT";
-            // Pending spellings — EXPLICIT so a new variant is a compile
-            // error here, not a runtime surprise (T3.1).
-            case RelationalDataType.Binary ignored -> throw new NotImplementedException(
-                    "plan: type spelling for " + t + " pending");
-            case RelationalDataType.Varbinary ignored -> throw new NotImplementedException(
-                    "plan: type spelling for " + t + " pending");
-            case RelationalDataType.Distinct ignored -> throw new NotImplementedException(
-                    "plan: type spelling for " + t + " pending");
-            case RelationalDataType.Other ignored -> throw new NotImplementedException(
-                    "plan: type spelling for " + t + " pending");
-            case RelationalDataType.SemiStructured ignored -> throw new NotImplementedException(
-                    "plan: type spelling for " + t + " pending");
-            case RelationalDataType.Array ignored -> throw new NotImplementedException(
-                    "plan: type spelling for " + t + " pending");
-            case RelationalDataType.Object_ ignored -> throw new NotImplementedException(
-                    "plan: type spelling for " + t + " pending");
-        };
+        try {
+            return RelationalDataType.sqlText(t);
+        } catch (IllegalArgumentException pending) {
+            throw new NotImplementedException("plan: type spelling for " + t + " pending");
+        }
     }
 }
