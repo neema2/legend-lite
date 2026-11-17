@@ -1,7 +1,7 @@
-// THE ONE CLIENT of a query store: upstream's `/api/pure/v1/query`, typed. Every app here talks to
-// saved queries through this and nothing else; WHERE the store is -- legend-engine, legend-lite
-// (`--query-store`), or this page (local-server.ts) -- is only the `fetch` it is handed, never a
-// branch in an app.
+// THE ONE CLIENT of a query store: upstream's `/api/pure/v1/query`, typed (its user lite's own `user` operation; the
+// records move to lite's `/api/lite/v1/queries` with the page's store, H6). Every app here talks to saved queries
+// through this and nothing else; WHERE the store is -- legend-engine, legend-lite (`--query-store`), or this page
+// (wasm-server.ts) -- is only the `fetch` it is handed, never a branch in an app.
 
 import type { Query, QuerySearchSpecification } from './wire.ts';
 
@@ -87,17 +87,19 @@ export class QueryStoreClient implements QueryStore {
   }
 
   /**
-   * Who the store keeps saved queries for: its user, the owner of what is saved -- asked of legend-lite's own store
-   * mount, `GET /api/lite/v1/query/currentUser` (the edge program's H7, the orchestrator's Q-b ruling of 2026-11-17;
+   * Who the store keeps saved queries for: its user, the owner of what is saved -- lite's `user` operation,
+   * `POST /api/lite/v1/user` (lite's API v1 spec §2, 2026-11-17; the orchestrator's Q-b ruling: the store's own user;
    * legend-engine's `/api/server/v1/currentUser` is the edge's, never asked here).
    */
   async currentUser(): Promise<string> {
-    const text = await (await this.#send('GET', `${this.#api}/lite/v1/query/currentUser`)).text();
-    const user: unknown = JSON.parse(text);
+    const text = await (await this.#send('POST', `${this.#api}/lite/v1/user`, {})).text();
+    const { user } = JSON.parse(text) as { readonly user?: unknown };
     if (typeof user !== 'string') throw new QueryStoreError(`the store named no user: ${text.slice(0, 120)}`, 500);
     return user;
   }
 
+  // the store's calls stay at `/api/pure/v1/query` until H6 moves them, with the page's store, to lite's own
+  // `/api/lite/v1/queries` (the page's module answers legend-engine's words until its product entry exists)
   #call(method: string, path: string, body?: unknown): Promise<Response> {
     return this.#send(method, `${this.#api}/pure/v1/query${path}`, body);
   }

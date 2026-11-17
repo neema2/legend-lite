@@ -9,7 +9,7 @@ import { element, fn, type ExactNumber, type Lambda, type ValueSpecification, ty
 import type { QueryEngine, RawTable } from '../../../engine-client/src/query-engine.ts';
 import type { LiteAnswer, LiteEngine } from '../../../engine-client/src/legend/browser-engine.ts';
 import type { PFunction, PService, PureModelContextData } from '../../../engine-client/src/legend/pmcd.ts';
-import type { ParameterValue } from '../../../engine-client/src/legend/browser-engine.ts';
+import { runtimeOf, statementOf, type ParameterValue } from '../../../engine-client/src/legend/browser-engine.ts';
 import type { TableState, TabTables } from '../../../engine-client/src/tab-data.ts';
 import { runAuthoredStatement } from '../../../engine-client/src/doors/authored.ts';
 import type { PlanText } from '../../../engine-client/src/planned-sql.ts';
@@ -23,6 +23,10 @@ export interface RunParameter {
   readonly multiplicity: string;
 }
 
+/** A run's answer as Studio shows it: lite's typed rows (query/run) and the statement its plan answers with
+ *  (query/plan), for the SQL badge. */
+export type RunAnswer = LiteAnswer & { readonly sql: string };
+
 export interface Runner {
   /** What Run must ask for first: the parameters of the function `fileText` declares ([] for a service, or none). */
   parameters(fileText: string): Promise<RunParameter[]>;
@@ -30,7 +34,7 @@ export interface Runner {
    * The function or service `fileText` declares, run over `modelText` (the workspace's model, dependencies included);
    * `values`: each parameter's value as Pure text (`'GB'`, `42`, `%2024-06-01`), parsed by the compiler.
    */
-  run(fileText: string, modelText: string, values?: ReadonlyMap<string, string>): Promise<LiteAnswer>;
+  run(fileText: string, modelText: string, values?: ReadonlyMap<string, string>): Promise<RunAnswer>;
   /** Every table the model's Databases declare: where its rows in the tab are from, and how many (plan A2). */
   tables(modelText: string): Promise<TableState[]>;
   /** A table filled from a person's file (.csv or .parquet), kept over the model's test data until reset. */
@@ -128,7 +132,7 @@ export function literalValue(p: Variable, text: string, node: ValueSpecification
     throw new Error(`a value for ${p.name} is a literal (a string, a number, a boolean, a date, a value of its enumeration, or a list of them): "${text}" ${why}`);
   };
   const enumPath = p.genericType?.rawType._type === 'packageableType' ? p.genericType.rawType.fullPath : undefined;
-  const scalar = (n: ValueSpecification): string | number | boolean => {
+  const scalar = (n: ValueSpecification): string | number | bigint | boolean => {
     switch (n._type) {
       case 'string': case 'boolean': return n.value;
       case 'strictDate': case 'dateTime': return n.value;
@@ -141,7 +145,7 @@ export function literalValue(p: Variable, text: string, node: ValueSpecification
         if (n.function === 'minus' && n.parameters.length === 1 && only !== undefined
           && (only._type === 'integer' || only._type === 'float' || only._type === 'decimal')) {
           const v = scalar(only);
-          return typeof v === 'number' ? -v : `-${String(v)}`;
+          return typeof v === 'number' ? -v : typeof v === 'bigint' ? -v : `-${String(v)}`;
         }
         return refused(`is a call of ${n.function}`);
       }
@@ -165,13 +169,15 @@ export function literalValue(p: Variable, text: string, node: ValueSpecification
   return scalar(node);
 }
 
-/** An Integer literal's number: exact within 2^53, refused beyond it (a run's values are JavaScript numbers). */
-function wholeNumber(v: number | ExactNumber): number {
-  const n = typeof v === 'number' ? v : Number(v.text);
-  if (!Number.isSafeInteger(n) || (typeof v !== 'number' && String(n) !== v.text.replace(/^\+/, ''))) {
-    throw new Error(`the Integer ${typeof v === 'number' ? String(v) : v.text} is beyond 2^53: a run's value is a JavaScript number, exact only within it`);
+/** An Integer literal's value, exact: a number while safe, a bigint beyond 2^53 (lite's API v1 spec §4: an Integer
+ *  parameter takes the 64-bit range; the run refuses one beyond it by name). */
+function wholeNumber(v: number | ExactNumber): number | bigint {
+  if (typeof v === 'number') {
+    if (!Number.isSafeInteger(v)) throw new Error(`the Integer ${String(v)} is past 2^53 as a number: its digits are already lost`);
+    return v;
   }
-  return n;
+  const exact = BigInt(v.text.replace(/^\+/, ''));
+  return Number.isSafeInteger(Number(exact)) ? Number(exact) : exact;
 }
 
 export function runner(session: RunSession): Runner {
@@ -192,12 +198,16 @@ export function runner(session: RunSession): Runner {
       for (const p of lambda.parameters) {
         const text = values.get(p.name);
         if (text === undefined || text.trim() === '') throw new Error(`a value for ${p.name} is needed`);
-        const parsed = await engine.lambda(`|${text}`);
+        const parsed = await engine.queryParse(`|${text}`);
         if (parsed.body.length !== 1) throw new Error(`a value for ${p.name} is one expression; "${text}" is ${parsed.body.length}`);
         parameters[p.name] = literalValue(p, text, parsed.body[0]!);
       }
       if (session.loadData) await session.loadData(await session.modelJson(modelText), modelText);
-      return engine.run({ _type: 'text', code: modelText }, lambda, parameters);
+      // lite's query/run, and the statement it runs from query/plan (spec §2: query/run answers rows alone)
+      const runtime = runtimeOf(lambda);
+      const [answer, plan] = await Promise.all([engine.queryRun(modelText, lambda, runtime, parameters),
+        engine.queryPlan(modelText, lambda, runtime)]);
+      return { ...answer, sql: statementOf(plan) };
     },
     async tables(modelText) {
       const { tabs, model } = await tablesOf(modelText);

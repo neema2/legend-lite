@@ -17,7 +17,7 @@ import { declareStatementSites, type Site } from '../src/declared-raises.ts';
 import { heldTexts, redactHeld } from '../src/connection-settings.ts';
 import { PlanParamsRefusal, planParams, statementParams } from '../src/plan-params.ts';
 import type { PlanColumn } from '../src/relation-type.ts';
-import { BrowserEngine, TabEngine } from '../src/legend/browser-engine.ts';
+import { BrowserEngine, statementOf, TabEngine } from '../src/legend/browser-engine.ts';
 import { QueryError } from '../src/engine.ts';
 import { SecretStore } from '../src/host-operations.ts';
 import { readFileSync } from 'node:fs';
@@ -346,34 +346,40 @@ Runtime x::RT { mappings: []; connections: [ x::DB: [ c: x::Conn ] ]; }
 Runtime x::BareRT { mappings: []; connections: [ x::DB: [ c: x::Bare ] ]; }
 `;
 
-describe("a query run in the tab on lite's own plan, its parameters bound at run (the edge program's H3, 2026-11-17)", () => {
+describe("lite's query/run in the tab on lite's own plan, its parameters bound at run (lite's API v1 spec §2, §4)", () => {
   // a query of the tab's DuckDB: SRC's rows past an id, the id a parameter the plan declares and the run binds
   // (its id and name: an earlier test's write changes SRC's amounts)
   const PAST = '{n: Integer[1]|#>{w::DB.SRC}#->filter(r|$r.id > $n)->select(~[id, name])->sort(~id->ascending())->from(w::RT)}';
-  const model = { _type: 'text', code: MODEL } as const;
 
   it("answers the database's rows typed by the plan's columns, the same plan bound to each run's value", async () => {
     const tab = new TabEngine(grammar, asTest(engine), engine.databaseType);
-    const lambda = await grammar.lambda(PAST);
-    const one = await tab.run(model, lambda, { n: 1 });
+    const query = await grammar.queryParse(PAST);
+    const one = await tab.queryRun(MODEL, query, 'w::RT', { n: 1 });
     assert.equal(one.shape, 'RELATION');
     assert.deepEqual(one.columns, [{ name: 'id', type: 'Integer' }, { name: 'name', type: 'String' }]);
     assert.deepEqual(one.rows, [[2, 'b']]);
-    assert.deepEqual((await tab.run(model, lambda, { n: 0 })).rows, [[1, 'a'], [2, 'b']]);
-    // the value is bound, never written: the statement carries its placeholder, the same for every run
-    assert.match(one.sql, /\?/);
-    assert.equal((await tab.run(model, lambda, { n: 0 })).sql, one.sql);
-    assert.equal(await tab.statement(model, lambda), one.sql);
+    assert.deepEqual((await tab.queryRun(MODEL, query, 'w::RT', { n: 0 })).rows, [[1, 'a'], [2, 'b']]);
+    // an Integer parameter in the 64-bit range, a bigint past 2^53 (spec §4): bound exactly
+    assert.deepEqual((await tab.queryRun(MODEL, query, 'w::RT', { n: 9223372036854775806n })).rows, []);
+    // the value is bound, never written: query/plan's statement carries its placeholder
+    const sql = statementOf(await tab.queryPlan(MODEL, query, 'w::RT'));
+    assert.match(sql, /\?/);
+    assert.ok(!sql.includes('9223372036854775806'), sql);
   });
 
   it('refuses by name, before anything is sent, a parameter with no value and a value its type does not take', async () => {
     const seen = witnessed(database.connect() as ArrowishConnection);
     const tab = new TabEngine(grammar, asTest(seen.engine), seen.engine.databaseType);
-    const lambda = await grammar.lambda(PAST);
-    await assert.rejects(tab.run(model, lambda), (e: unknown) => e instanceof ParameterRefusal
+    const query = await grammar.queryParse(PAST);
+    await assert.rejects(tab.queryRun(MODEL, query, 'w::RT'), (e: unknown) => e instanceof ParameterRefusal
       && e.message === 'no value for the parameter(s) n:Integer[1]');
-    await assert.rejects(tab.run(model, lambda, { n: 'one' }), (e: unknown) => e instanceof ParameterRefusal
-      && e.message === 'values their parameters do not take: [parameter \'n\' (Integer[1]): given "one" (string): an Integer is a whole number within 2^53]');
+    await assert.rejects(tab.queryRun(MODEL, query, 'w::RT', { n: 'one' }), (e: unknown) => e instanceof ParameterRefusal
+      && e.message === 'values their parameters do not take: [parameter \'n\' (Integer[1]): given "one" (string): an Integer is a whole number: a safe integer, or a bigint]');
+    // a whole number past 2^53 as a number has lost its digits: refused by name, never bound as the nearest double
+    await assert.rejects(tab.queryRun(MODEL, query, 'w::RT', { n: 2 ** 60 }), (e: unknown) => e instanceof ParameterRefusal
+      && e.message.includes('is a whole number past 2^53, which a number cannot hold exactly: give it as a bigint'));
+    await assert.rejects(tab.queryRun(MODEL, query, 'w::RT', { n: 2n ** 63n }), (e: unknown) => e instanceof ParameterRefusal
+      && e.message.includes('9223372036854775808n is beyond the 64-bit range an Integer holds'));
     assert.deepEqual(seen.received, [], 'nothing sent for a refused run');
   });
 });
@@ -508,7 +514,7 @@ describe("a remote file's mount, a planned load whose bearer URL the host binds 
     // the host's store: the URL it holds (a registered file here: a Node test makes no HTTP request)
     const store = new SecretStore();
     store.hold('datacube_url_t', new Map([['URL', 'held.csv']]));
-    const route = (e: DuckDbEngine) => (sql: string, params: readonly (string | number | boolean | null)[]): Promise<unknown> =>
+    const route = (e: DuckDbEngine) => (sql: string, params: readonly (string | number | bigint | boolean | null)[]): Promise<unknown> =>
       (params.length === 0 ? e.run(unplanned(sql), 0) : e.exclusive((held) => held.rows(unplanned(sql), params)));
     const { settings } = await runLoad(unplannedPlan(plan), route(first), { secrets: store });
     const count = (e: DuckDbEngine): Promise<string> => asTest(e).exclusive(async (held) => String((await held.rows(unplanned('SELECT count(*) FROM remote_t'), []))[0]![0]));

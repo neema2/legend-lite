@@ -27,6 +27,14 @@ export interface PlanColumn {
   readonly enumeration?: string;
 }
 
+/** A column of lite's `query/type` answer (lite's API v1 spec §2, 2026-11-17): its name and its Pure type's name -- an
+ *  enumeration's path, flagged `enumeration: true`. */
+export interface QueryColumn {
+  readonly name: string;
+  readonly type: string;
+  readonly enumeration?: true;
+}
+
 /** A planned query: the SQL to run, and the type of what it returns. */
 export interface Plan {
   /** The statement, as the planner wrote it (planned-sql.ts: the only SQL a host's engine sends). */
@@ -69,6 +77,13 @@ export function relationColumns(relationType: unknown, enumerations: ReadonlySet
     }
     return columnOf(col.name, path, enumerations);
   });
+}
+
+/** Lite's `query/type` answer (lite's API v1 spec §2) as columns: an enumeration's column said so (its type String, its
+ *  enumeration the path), any other type read as above. */
+export function queryColumns(columns: readonly QueryColumn[]): PlanColumn[] {
+  return columns.map((c) => (c.enumeration === true ? { name: c.name, type: 'String', enumeration: c.type }
+    : { name: c.name, type: pureType(c.type) }));
 }
 
 /** A plan's `tdsColumns` (generatePlan's `resultType`) as columns. */

@@ -90,7 +90,7 @@ async function boot(): Promise<void> {
   starting('Loading the models');
   const projects: LoadedProject[] = await Promise.all(config.projects.map(async (p) => {
     const code = (await Promise.all(p.models.map(text))).join('\n');
-    return { config: p, gav: gavOf(p), context: { _type: 'text', code }, graph: new ModelGraph(await grammar.modelJson(code)) };
+    return { config: p, gav: gavOf(p), context: { _type: 'text', code }, graph: new ModelGraph(await grammar.modelElements(code)) };
   }));
   // projects by name (design Phase 3): what this origin's Depot has -- what Studio publishes -- listed, each loaded when opened
   let byName: { load: NonNullable<AppContext["byName"]>; versions: NonNullable<AppContext["versions"]> } | undefined;

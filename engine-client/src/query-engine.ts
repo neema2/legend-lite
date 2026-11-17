@@ -60,7 +60,7 @@ export interface QueryEngine {
    * checkParameters: 2026-11-17, the edge program's HOST stream); an engine that binds none refuses them by name, never
    * runs the text alone.
    */
-  run(sql: PlannedSql, epoch: number, signal?: AbortSignal, params?: readonly (string | number | boolean | null)[]): Promise<RawTable>;
+  run(sql: PlannedSql, epoch: number, signal?: AbortSignal, params?: readonly (string | number | bigint | boolean | null)[]): Promise<RawTable>;
   close(): Promise<void>;
 }
 
@@ -75,7 +75,7 @@ export interface PointedEngine extends QueryEngine {
 export interface HeldConnection {
   /** A statement's rows, each its values by column; one with values to bind, prepared and run with them (refused by
    *  name where the connection prepares none). */
-  rows(sql: PlannedSql, params: readonly (string | number | boolean | null)[]): Promise<unknown[][]>;
+  rows(sql: PlannedSql, params: readonly (string | number | bigint | boolean | null)[]): Promise<unknown[][]>;
   /** A statement's answer decoded as the engine's queries are (a catalog read inside the hold). */
   table(sql: PlannedSql): Promise<RawTable>;
   /**

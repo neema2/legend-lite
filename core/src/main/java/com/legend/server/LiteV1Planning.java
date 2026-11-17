@@ -135,8 +135,7 @@ public final class LiteV1Planning {
             return models.with(LiteV1Api.text(request, "model"), ctx -> {
                 com.legend.TypedQuery typed = com.legend.Compiler.query(ctx, query);
                 Answered rows = new Answered();
-                com.legend.result.ResultSink sink = asArrow[0]
-                        ? new com.legend.result.ArrowWriter(arrow, Map.of()) : rows;
+                com.legend.result.ResultSink sink = asArrow[0] ? new ShapedArrow(arrow) : rows;
                 try {
                     runner.run(typed, runtime, values, new com.legend.result.Output.Rows(sink));
                 } catch (java.io.IOException e) {
@@ -257,6 +256,46 @@ public final class LiteV1Planning {
         } catch (java.time.DateTimeException e) {
             throw new com.legend.error.InvalidParameters("parameter '" + name + "': given \"" + text + "\", which is no"
                     + " DateTime: " + e.getMessage());
+        }
+    }
+
+    /**
+     * {@code query/run}'s ARROW ANSWER (spec §4): one IPC stream of typed columns ({@code result.ArrowWriter}, the plan's
+     * facts as each field's metadata), the answer's shape in the stream's metadata ({@code legend.shape}) -- what the JSON
+     * answer says as {@code shape}. A receiver of the run's; it decides nothing.
+     */
+    static final class ShapedArrow implements com.legend.result.ResultSink {
+        /** The stream's metadata, its shape once the run tells it. */
+        private final Map<String, String> told = new java.util.LinkedHashMap<>();
+        private final com.legend.result.ArrowWriter writer;
+
+        ShapedArrow(java.io.OutputStream out) {
+            this.writer = new com.legend.result.ArrowWriter(out, columns -> {
+                if (!told.containsKey("legend.shape")) {
+                    throw new IllegalStateException("the run told its columns before its answer's shape");
+                }
+                return told;
+            }, com.legend.result.CellText.PRODUCT);
+        }
+
+        @Override
+        public void answers(com.legend.executionplan.ExecutionPlan.TdsResult.Shape shape) {
+            told.put("legend.shape", shape.name());
+        }
+
+        @Override
+        public void columns(List<com.legend.executionplan.ExecutionPlan.Column> columns) throws java.io.IOException {
+            writer.columns(columns);
+        }
+
+        @Override
+        public void batch(com.legend.result.Batch batch) throws java.io.IOException {
+            writer.batch(batch);
+        }
+
+        @Override
+        public void end() throws java.io.IOException {
+            writer.end();
         }
     }
 

@@ -40,11 +40,14 @@ public final class PlanColumns {
     }
 
     /** {@code schema}'s columns (the answer's typed relation, {@code TypedRows.schema}) over {@code lowered}, in a
-     *  result of {@code shape}. */
+     *  result of {@code shape}. Each column's type is its plain path ({@link PureSpelling#typePath}: {@code Decimal},
+     *  never {@code Decimal(10,2)}): a precise decimal's precision and scale are data -- its {@code store} where it is
+     *  a store column, its {@code slot} always -- never spelled into the name a reader would parse (the orchestrator's
+     *  ruling of 2026-11-17, Python's finding; until then {@code Type.typeName()}). */
     public static List<ExecutionPlan.Column> of(Type.RelationType schema, SqlQuery lowered,
             ExecutionPlan.TdsResult.Shape shape) {
         return ColumnFacts.columns(schema.columns().stream()
-                .map(c -> new ColumnFacts.Pure(c.name(), c.type().typeName(), multiplicity(c.multiplicity())))
+                .map(c -> new ColumnFacts.Pure(c.name(), PureSpelling.typePath(c.type()), multiplicity(c.multiplicity())))
                 .toList(), lowered, shape);
     }
 }
