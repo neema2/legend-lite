@@ -43,4 +43,8 @@ public interface LoweringForms {
     /** The root of an engine {@code execute(...)}'s serialized values: lite's array ({@code array}), or one object bare
      *  and zero or several as the array ({@code oneBare}, legend-engine's JsonBuilder cardinality rule). */
     SqlSelect executeValues(Supplier<SqlSelect> array, Supplier<SqlSelect> oneBare);
+
+    /** An object reference's connection segment (the audit's J12, 2026-11-17): the product's names no connection, the
+     *  empty text; legend-engine's its H2 test-connection JSON, whatever the database. */
+    String objectReferenceConnection();
 }

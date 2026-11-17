@@ -3210,7 +3210,7 @@ final class GraphEmission {
         // model-derived inputs (defining mapping, set id)
         String defining = definingMapping(mc, cs.mappingFqn(), cs.classFqn());
         String setId = com.legend.model.SetId.defaultFor(cs.classFqn());
-        return AsorRef.prefix(defining, setId, setId);
+        return AsorRef.head(defining, setId, setId);
     }
 
     /** The include-closure mapping that DEFINES the class binding (the
