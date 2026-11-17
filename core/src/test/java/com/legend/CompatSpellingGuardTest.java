@@ -160,7 +160,9 @@ class CompatSpellingGuardTest {
             // listed 2026-11-16 (the P2 checkpoint audit's S5): an execute's plan JSON written in SQL, legend-engine's
             // builder type; Phase 6 takes the plan text to the edge
             "lowering/JsonEmission.java | tdsBuilder | 1 | D1.7",
-            "lowering/LiteralSpelling.java | +0000 | 7 | D1.9",
+            // 7 -> 4 (2026-11-17, B17's forwarders: dateTimeTextTds and dateTimeTextOfText, which only a relation's
+            // text wrote, moved to edge.RelationTextLowering)
+            "lowering/LiteralSpelling.java | +0000 | 4 | D1.9",
             // FLOAT_PRINT, reclassified D1.2 -> JUDGE 2026-11-15 (phase D's D1.2): the product's text of a Float is
             // FLOAT_TO_TEXT, lite's six decimals (register S311); FLOAT_PRINT, legend-pure's print form, stays in each
             // product dialect as the JUDGES' %r of a Float in an assert's message (lowering/Repr: the database judge

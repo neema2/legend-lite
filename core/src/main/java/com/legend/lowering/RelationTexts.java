@@ -25,7 +25,9 @@ import java.util.function.Function;
  *
  * <p>Its static members are the lowering's helpers the edge's composition reads (each forwards one call; one
  * {@code ArchitectureTest.PLANNER_ENTRIES} row admits them, as {@code testplan.EngineTextPlanning}'s): the product's
- * text of a value, the date texts and a mixed column's kind.
+ * text of a value, a DateTime's text and a mixed column's kind -- each a product helper the product itself uses (the
+ * orchestrator's ruling of 2026-11-17 on facades; the date texts only a relation's text wrote moved to the edge with
+ * it, edge.RelationTextLowering).
  */
 public interface RelationTexts {
 
@@ -60,20 +62,8 @@ public interface RelationTexts {
         return LiteralSpelling.dateTimeText(x);
     }
 
-    /** {@code LiteralSpelling.dateTimeTextTds}. */
-    static SqlExpr dateTimeTextTds(SqlExpr x) {
-        return LiteralSpelling.dateTimeTextTds(x);
-    }
 
-    /** {@code LiteralSpelling.dateTimeTextOfText}. */
-    static SqlExpr dateTimeTextOfText(SqlExpr text) {
-        return LiteralSpelling.dateTimeTextOfText(text);
-    }
 
-    /** {@code LiteralSpelling.timed}. */
-    static SqlExpr timed(SqlExpr c) {
-        return LiteralSpelling.timed(c);
-    }
 
     /** A mixed column's kind's type ({@code MixedEncoding.kindType}). */
     static Type kindType(String kind) {

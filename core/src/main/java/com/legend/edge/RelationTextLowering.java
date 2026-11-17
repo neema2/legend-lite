@@ -456,14 +456,6 @@ final class RelationTextLowering implements RelationTexts {
         return RelationTexts.dateTimeText(c);
     }
 
-    /** Whether a timestamp's time of day is not midnight: the engine's {@code formatDateTime} rule for an ABSTRACT
-     *  Date, defined over the value (hasHour) -- a timed value is a DateTime, a date-only one (a parameter bound to a
-     *  day; a DATE read into a timestamp) its day. The one residue, a true midnight DateTime under an abstract Date
-     *  printing date-only, is F5.4's slot erasure, identical on the engine's own relational read-back. */
-    private static SqlExpr timed(SqlExpr c) {
-        return RelationTexts.timed(c);
-    }
-
     private static SqlExpr strictDateText(SqlExpr c) {
         return SqlExpr.Call.of(SqlFn.STRFTIME, c,
                 new SqlExpr.FormatLit(com.legend.sql.DateFmt.DATE));
@@ -548,7 +540,7 @@ final class RelationTextLowering implements RelationTexts {
             // MinDate: raw '2026-01-07 00:00:00' where pure prints the
             // ISO+ms+0000 form): a TDS cell's DateTime text has at least
             // three fraction digits (LiteralSpelling.dateTimeTextTds)
-            rendered = RelationTexts.dateTimeTextTds(c);
+            rendered = dateTimeTextTds(c);
         } else if ((t == Type.Primitive.NUMBER
                         && (slot == null
                                 || slot instanceof SqlType.Decimal
@@ -676,7 +668,7 @@ final class RelationTextLowering implements RelationTexts {
         if (dateKind(t) && textSlot(slot)) {
             // a date carried as its own text (a value root spelled at the precision it has): the text is the cell,
             // a timed one with Pure's '+0000' (the one owner's rule, 2026-10-18)
-            rendered = RelationTexts.dateTimeTextOfText(c);
+            rendered = dateTimeTextOfText(c);
         } else if (t == Type.Primitive.STRICT_DATE
                 || (t == Type.Primitive.DATE
                         && slot == SqlType.Scalar.DATE)) {
@@ -732,4 +724,57 @@ final class RelationTextLowering implements RelationTexts {
         return SqlExpr.Call.of(SqlFn.OR, a, b);
     }
 
+    // legend-pure's date-time texts only a relation's text writes (moved from lowering.LiteralSpelling with B17's
+    // forwarders, 2026-11-17: the edge alone called them)
+    /**
+     * A DateTime cell's text in Pure's TDS text (a relation's {@code toString}): as
+     * {@code LiteralSpelling.dateTimeText}, with AT LEAST THREE fraction digits -- {@code 2024-01-02T10:30:00.000+0000} for a whole
+     * second, {@code .123} for a millisecond, {@code .123456789} for a nanosecond, finer trailing zeros trimmed. The
+     * reference is legend-engine's own test (core_functions_standard/date/extract/dayOfWeek.pure,
+     * {@code testDayOfWeek_Relation}): a TDS literal's {@code 1985-01-12T06:30:00Z} prints
+     * {@code 1985-01-12T06:30:00.000+0000} in the relation's text, where the value's own text (interpreted Pure's
+     * {@code toString} of {@code %1985-01-12T06:30:00}) has no fraction. Measured 2026-10-18 (the plan path
+     * program's step 6, channel B's relation and standard suites: 35 goldens spell the three digits), correcting
+     * step 2's one trimmed text for every cell.
+     */
+    private static SqlExpr dateTimeTextTds(SqlExpr x) {
+        SqlExpr nine = SqlExpr.Call.of(SqlFn.STRFTIME, x,
+                new SqlExpr.FormatLit(java.util.List.of(DateFmt.Part.SUBSEC_NANO)));
+        SqlExpr three = SqlExpr.Call.of(SqlFn.SUBSTRING, nine, new SqlExpr.IntLit(1), new SqlExpr.IntLit(3));
+        SqlExpr finer = SqlExpr.Call.of(SqlFn.RTRIM,
+                SqlExpr.Call.of(SqlFn.SUBSTRING, nine, new SqlExpr.IntLit(4), new SqlExpr.IntLit(6)),
+                new SqlExpr.StringLit("0"));
+        return SqlExpr.Call.of(SqlFn.CONCAT,
+                SqlExpr.Call.of(SqlFn.CONCAT,
+                        SqlExpr.Call.of(SqlFn.STRFTIME, x,
+                                new SqlExpr.FormatLit(DateFmt.ISO_LOCAL)),
+                        SqlExpr.Call.of(SqlFn.CONCAT, SqlExpr.Call.of(SqlFn.CONCAT, new SqlExpr.StringLit("."), three),
+                                finer)),
+                new SqlExpr.StringLit("+0000"));
+    }
+
+    /** A date value carried as its own text (a value root spelled at the precision it has: a year, a month, a day,
+     *  an hour, a minute, a second or finer; with or without Pure's {@code %}; a literal's print form with its
+     *  {@code +0000} already): one with seconds and no zone takes Pure's {@code +0000}, as Pure prints a DateTime;
+     *  every other precision is its text, Pure's DateTime literal taking a zone only after seconds (the MongoDB
+     *  lane, 2026-10-18: {@code %1973-11-13T23} and {@code %2025-02-10T20:10:20+0000} are read as written). */
+    // the zone a written date-time text gets in SQL (register S121, pending: legend-pure writes +0000 from the minute)
+    private static SqlExpr dateTimeTextOfText(SqlExpr text) {
+        SqlExpr colons = SqlExpr.Call.of(SqlFn.MINUS, SqlExpr.Call.of(SqlFn.LENGTH, text),
+                SqlExpr.Call.of(SqlFn.LENGTH, SqlExpr.Call.of(SqlFn.REPLACE, text, new SqlExpr.StringLit(":"),
+                        new SqlExpr.StringLit(""))));
+        SqlExpr secondsNoZone = SqlExpr.Call.of(SqlFn.AND,
+                SqlExpr.Call.of(SqlFn.GREATER_EQUAL, colons, new SqlExpr.IntLit(2)),
+                SqlExpr.Call.of(SqlFn.NOT, SqlExpr.Call.of(SqlFn.ENDS_WITH, text, new SqlExpr.StringLit("+0000"))));
+        return new SqlExpr.Case(java.util.List.of(new SqlExpr.Case.When(secondsNoZone,
+                SqlExpr.Call.of(SqlFn.CONCAT, text, new SqlExpr.StringLit("+0000")))), text, SqlExpr.Reason.PRINT);
+    }
+
+    /** Whether a timestamp's time of day is not midnight: the engine's {@code formatDateTime} rule for an ABSTRACT
+     *  Date, defined over the value (hasHour) -- a timed value is a DateTime, a date-only one its day. */
+    private static SqlExpr timed(SqlExpr c) {
+        return SqlExpr.Call.of(SqlFn.NOT_EQUAL,
+                SqlExpr.Call.of(SqlFn.STRFTIME, c, new SqlExpr.FormatLit(DateFmt.TIME_ONLY)),
+                new SqlExpr.StringLit("00:00:00"));
+    }
 }
