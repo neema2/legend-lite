@@ -1721,7 +1721,7 @@ final class Scalars {
         // best-effort text (message-position cosmetics only — pass/fail
         // never rides this).
         for (com.legend.model.FunctionId f : Pure.AT_STRING_TO_REPRESENTATION) {
-            RULES.put(f, (n, args) -> Repr.of(
+            RULES.put(f, (n, args) -> Repr.userCall(
                     n.args().get(0).info().type(), args.get(0)));
         }
         // chunk(s, n): fixed-size chunking IS the regex '.{1,n}' swept
