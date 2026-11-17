@@ -58,7 +58,7 @@ final class SqlTextVerdicts {
 
     /** A collector that DEFERS a text side while an arm is planned: which text the arm is reading now -- OUR text
      *  ({@link #oursText}) or the GOLDEN ({@link #readText}). */
-    private abstract static class Deferring implements EngineTestText.Collector {
+    private abstract static class Deferring implements com.legend.testplan.TextCollector {
         boolean readingOurs;
         boolean readingGolden;
         /** The statement origin the arm reading now marks its texts with, by name (null: none) -- held on the collector
@@ -176,7 +176,7 @@ final class SqlTextVerdicts {
      *  core program): OUR text, a side the plan reads, is planned as a side of the verdict row -- the database computes
      *  it and the equality, the row's ACTUAL column carries it back to the appeal ({@link #decide}); the golden is a
      *  constant of the plan ({@code AssertVerdicts.gateOf} admits no other). Nothing read at planning. */
-    static final class BatchTexts extends Deferring implements EngineTestText.BatchTexts {
+    static final class BatchTexts extends Deferring implements com.legend.testplan.BatchTexts {
         /** The environment the arm is planned under (as {@link Collecting#env}): set once, when that environment is
          *  made from this collector ({@link #under}). */
         BodyDriver.@com.legend.base.Nullable ExecEnv env;
@@ -212,7 +212,8 @@ final class SqlTextVerdicts {
             if (!readingOurs || oursRow != null || !deferrable(side, planned, at, env)) {
                 return null;
             }
-            com.legend.sql.SqlQuery row = EngineTextPlanning.scalarRow(side, letPrefix, specs, at, hook);
+            com.legend.testplan.DatabaseJudge.SideRows rows = EngineTextPlanning.planSide(side, letPrefix, specs, at, hook);
+            com.legend.sql.SqlQuery row = EngineTextPlanning.why(rows) != null ? null : EngineTextPlanning.scalarRow(rows);
             if (row == null) {
                 return null;
             }
@@ -247,7 +248,7 @@ final class SqlTextVerdicts {
      */
     /** The facet's entry: {@code ask}'s assert planned ({@link #plan(TypedSpec, List, SpecCompiler, BodyDriver.ExecEnv,
      *  AssertVerdicts.SpliceHook)}). */
-    static EngineTestText.@com.legend.base.Nullable Planned plan(EngineTestText.Ask ask) {
+    static com.legend.testplan.@com.legend.base.Nullable TextPlanned plan(com.legend.testplan.TextAsk ask) {
         HostSides.Check c = plan(EngineTextPlanning.bare(ask), EngineTextPlanning.letPrefix(ask),
                 EngineTextPlanning.specs(ask), EngineTextPlanning.env(ask), EngineTextPlanning.hook(ask));
         return c == null ? null : EngineTextPlanning.planned(c);
@@ -264,10 +265,10 @@ final class SqlTextVerdicts {
         BodyDriver.ExecEnv planning = EngineTextPlanning.withCollector(env, collecting);
         collecting.env = planning;
         TypedSide answered = null;
-        EngineTestText.NotAConstant notAConstant = null;
+        com.legend.testplan.NotAConstant notAConstant = null;
         try {
             answered = armOf(bare, letPrefix, specs, planning, hook);
-        } catch (EngineTestText.NotAConstant e) {
+        } catch (com.legend.testplan.NotAConstant e) {
             notAConstant = e;
         } finally {
             collecting.planning = false;
@@ -349,7 +350,7 @@ final class SqlTextVerdicts {
      *  run hears an appeal at planning). An appeal heard is decided after the body's run (Appeals, step 8b). */
     private static TypedSide decide(BodyDriver.ExecEnv env, String name, String golden, String ours,
             boolean textEqual, @com.legend.base.Nullable String decline, Appeal appeal) {
-        EngineTestText.Collector collector = EngineTextPlanning.collector(env);
+        com.legend.testplan.TextCollector collector = EngineTextPlanning.collector(env);
         if (collector instanceof Collecting collecting && collecting.planning()) {
             // the arm is being PLANNED for the program road: the comparison is handed over, judged at the step --
             // where this is reached again through the collected environment with the planning over (judge), the

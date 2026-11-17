@@ -57,7 +57,23 @@ class HookRulingTest {
                     () -> PlanStyle.PRODUCT.facet(com.legend.lowering.PureOnlyTexts.class)),
             // census B17, 2026-11-17: a relation's legend-pure text, composed at lowering (a facade: FACADES)
             com.legend.lowering.RelationTexts.class, List.of(
-                    () -> PlanStyle.PRODUCT.facet(com.legend.lowering.RelationTexts.class)));
+                    () -> PlanStyle.PRODUCT.facet(com.legend.lowering.RelationTexts.class)),
+            // census C4, 2026-11-17: the engine-text assert's arm, and the two hooks only its answers hand out (the
+            // collector and the database judge's batch): each reached through the facet the product refuses
+            com.legend.testplan.EngineTestText.class, List.of(
+                    () -> PlanStyle.PRODUCT.facet(com.legend.testplan.EngineTestText.class)),
+            com.legend.testplan.TextCollector.class, List.of(
+                    () -> PlanStyle.PRODUCT.facet(com.legend.testplan.EngineTestText.class)),
+            com.legend.testplan.BatchTexts.class, List.of(
+                    () -> PlanStyle.PRODUCT.facet(com.legend.testplan.EngineTestText.class)));
+
+    /** C4's CAPABILITY (the orchestrator's ruling of 2026-11-17): the product's style does not judge legend-engine's
+     *  text -- the test planner asks it before any engine-text gate, and takes the ordinary path -- the edge's does. */
+    @Test
+    void onlyTheEdgeJudgesEngineText() {
+        assertFalse(PlanStyle.PRODUCT.judgesEngineText());
+        assertTrue(com.legend.edge.PureText.UPSTREAM.judgesEngineText());
+    }
 
     /** A ruled hook's static FORWARDERS (the orchestrator's facade rule, 2026-11-17): each forwards one call to a
      *  helper the product itself uses, and the set is pinned exactly -- shrink-only, a new one is seen. Every other
@@ -231,7 +247,12 @@ class HookRulingTest {
                 "PureOnlyTexts <- com.legend.edge.EdgePureOnlyTexts",
                 "RelationTexts <- com.legend.edge.RelationTextLowering",
                 "ResultEnvelopes <- com.legend.edge.EngineResultEnvelopes",
-                "UpstreamPlans <- com.legend.edge.EnginePlans$1")), implementers);
+                "UpstreamPlans <- com.legend.edge.EnginePlans$1",
+                "EngineTestText <- com.legend.edge.EdgeEngineTestText",
+                "TextCollector <- com.legend.edge.SqlTextVerdicts$Deferring",
+                "TextCollector <- com.legend.edge.SqlTextVerdicts$Collecting",
+                "TextCollector <- com.legend.edge.SqlTextVerdicts$BatchTexts",
+                "BatchTexts <- com.legend.edge.SqlTextVerdicts$BatchTexts")), implementers);
         assertFalse(implementers.isEmpty());
         // the product's refusals are the ones named, and each implements a ruled hook
         for (String refusal : PRODUCT_REFUSALS) {

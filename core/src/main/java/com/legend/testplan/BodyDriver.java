@@ -60,7 +60,7 @@ public final class BodyDriver {
             com.legend.executionplan.ExecutionPlan.Target target,
             PlanningOptions options,
             com.legend.testplan.@com.legend.base.Nullable VerdictBatch verdictBatch,
-            EngineTestText.@com.legend.base.Nullable Collector engineText,
+            @com.legend.base.Nullable TextCollector engineText,
             com.legend.lowering.VerdictSql.@com.legend.base.Nullable FailureMessage failureMessage,
             BodyDriver.@com.legend.base.Nullable ExecEnv appealOn,
             // the body's verdict ids, one counter shared by every copy of the environment and every planner of the body
@@ -151,7 +151,7 @@ public final class BodyDriver {
         }
         /** The same environment with the engine-text arms' collector (an assert PLANNED for the program road, the
          *  test-is-the-product plan's M10b: {@link SqlTextVerdicts#plan}), or without one. */
-        ExecEnv withCollector(EngineTestText.@com.legend.base.Nullable Collector c) {
+        ExecEnv withCollector(@com.legend.base.Nullable TextCollector c) {
             return new ExecEnv(plan, target, options, verdictBatch, c,
                     failureMessage, appealOn, verdictIds, appeals);
         }
@@ -749,11 +749,11 @@ public final class BodyDriver {
         }
         BarePlan b;
         // a side the judge evaluates outside the body's statement: SIDE, where no arm has marked the texts it reads
-        String priorOrigin = EngineTestText.marking(env, "SIDE", true);
+        String priorOrigin = EngineTextGates.marking(env, "SIDE", true);
         try {
             b = planStaged(com.legend.planner.BodyPlanner.stagedSide(inlined, specs, env.plan()), value, env, null, identity, true);
         } finally {
-            EngineTestText.restoreMarking(env, priorOrigin);
+            EngineTextGates.restoreMarking(env, priorOrigin);
         }
         if (fold && b.answered() == null) {
             // the planned root's own fold (executeTyped's second fold: a literal the staging exposed)
