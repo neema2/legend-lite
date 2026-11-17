@@ -69,8 +69,10 @@ class RawSqlLedgerTest {
             // the boundary named DuckDB and Postgres to branch on them (h2ToDuckDb, h2ToPostgres). It is one
             // translation now, RawSqlBoundary.translated, and each dialect passes what is its own (its column types,
             // its folding of a bare name): DuckDB's call and Postgres's, the same two translations as before
-            "DuckDb.java", 1,
-            "Postgres.java", 1);
+            // 2026-11-17 (Phase 6's B4 (ii), the orchestrator's ruling (a)): the product runs a raw statement as written,
+            // as legend-engine does; the translation is the edge's, its DuckDB and Postgres dialects' raw arms
+            // (edge.PureText.DuckDb, PureText.Postgres) -- the same two translations, one file
+            "PureText.java", 2);
 
     private static final Pattern SITE =
             Pattern.compile("RawSqlBoundary(\\.|::)translated");

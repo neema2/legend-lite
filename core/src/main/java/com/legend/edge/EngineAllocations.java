@@ -38,7 +38,6 @@ import com.legend.plan.PlanNode;
 import com.legend.plan.PlanRows;
 import com.legend.plan.PlanSupportFunctions;
 import com.legend.plan.PlanText;
-import com.legend.plan.PurePrint;
 import com.legend.protocol.spec.AppliedFunction;
 import com.legend.protocol.spec.AppliedProperty;
 import com.legend.protocol.spec.CString;
@@ -110,9 +109,9 @@ final class EngineAllocations {
             default -> null;
         };
         if (literal != null) {
-            String typeName = PlanText
-                    .pureTypeName(let.info().type());
-            String size = PurePrint.sizeRange(let.info().multiplicity());
+            String typeName = com.legend.plan.PureSpelling
+                    .typeName(let.info().type());
+            String size = com.legend.plan.PureSpelling.sizeRange(let.info().multiplicity());
             return PlanText.allocation(let.name(),
                     PlanText.scalarTypeBlock(typeName, size),
                     PlanText.constant(typeName, literal));
@@ -122,9 +121,9 @@ final class EngineAllocations {
             // NON-RELATIONAL expression let — the engine's
             // PureExpressionPlatformExecutionNode: the expression rides
             // as PURE SOURCE with its required plan variables
-            String typeName = PlanText
-                    .pureTypeName(let.info().type());
-            String size = PurePrint.sizeRange(let.info().multiplicity());
+            String typeName = com.legend.plan.PureSpelling
+                    .typeName(let.info().type());
+            String size = com.legend.plan.PureSpelling.sizeRange(let.info().multiplicity());
             StringBuilder req = new StringBuilder();
             collectRequires(let.value(), paramSpells, req,
                     new LinkedHashSet<>());
@@ -134,7 +133,7 @@ final class EngineAllocations {
                             req.toString(),
                             PurePrint.source(let.value())));
         }
-        var renderer = env.style().enginePlanText(dbType, quote, timeZone);
+        var renderer = PureText.enginePlanText(dbType, quote, timeZone);
         EnginePlans.EngineSql es = EnginePlans.engineSql(List.of(let.value()),
                 mappingFqn, specs, env, renderer, params,
                 UnaryOperator.identity());
@@ -153,9 +152,9 @@ final class EngineAllocations {
                             impl, es.plan(), List.of(let.value())),
                     inner);
         }
-        String typeName = PlanText
-                .pureTypeName(let.info().type());
-        String size = PurePrint.sizeRange(let.info().multiplicity());
+        String typeName = com.legend.plan.PureSpelling
+                .typeName(let.info().type());
+        String size = com.legend.plan.PureSpelling.sizeRange(let.info().multiplicity());
         if (!(es.plan() instanceof SqlSelect sel)) {
             throw new NotImplementedException(
                     "plan: Allocation value lowers to a non-select");

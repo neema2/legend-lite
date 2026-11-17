@@ -5,7 +5,6 @@ package com.legend.edge;
 
 import com.legend.json.Json;
 import com.legend.plan.QueryPlan;
-import com.legend.plan.UpstreamRelationType;
 import com.legend.protocol.ProtocolReader;
 import com.legend.protocol.spec.LambdaFunction;
 import com.legend.server.PureV1Api.Answer;
@@ -115,7 +114,7 @@ public final class HostAnswers {
      */
     public static PureV1Writer.Facts facts(com.legend.TypedQuery query) {
         Map<String, PureV1Writer.ColumnType> declared = new LinkedHashMap<>();
-        for (var c : UpstreamRelationType.columns(query.resultType())) {
+        for (var c : com.legend.plan.PureSpelling.relationColumns(query.resultType())) {
             declared.put(c.name(), columnType(c.type()));
         }
         return new PureV1Writer.Facts(declared, PRIMITIVES,
@@ -377,7 +376,7 @@ public final class HostAnswers {
      *  {@code tdsBuilder}, the edge's alone): each column's name, Pure type and relational spelling. */
     private static Map<String, Object> tdsBuilder(QueryPlan plan) {
         List<Map<String, Object>> columns = new ArrayList<>();
-        for (var c : UpstreamRelationType.columns(plan.rootType())) {
+        for (var c : com.legend.plan.PureSpelling.relationColumns(plan.rootType())) {
             columns.add(builderColumn(c.name(), c.type()));
         }
         Map<String, Object> builder = new LinkedHashMap<>();
@@ -398,7 +397,7 @@ public final class HostAnswers {
     /** The answer's column names, in order. */
     private static List<String> columnNames(QueryPlan plan) {
         List<String> names = new ArrayList<>();
-        for (var c : UpstreamRelationType.columns(plan.rootType())) {
+        for (var c : com.legend.plan.PureSpelling.relationColumns(plan.rootType())) {
             names.add(c.name());
         }
         return names;

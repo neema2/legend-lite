@@ -140,8 +140,8 @@ class CompatSpellingGuardTest {
             // 5 -> 9 (2026-11-16, W9's judge half, E-Java: the judges' engine-text methods on the one hook, declared and refused by the product --
             // engineTestText and engineTestPlanText -- so the test planner names no engine text of its own)
             // 9 -> 8 (2026-11-16, W9's planner half: the activity's engines() takes no printer, the edge's facet picks it)
-            // HOOK -> HOOK-RULED 2026-11-17 (the orchestrator's "hooks are terminal"; HookRulingTest pins (a)-(d))
-            "database/PlanStyle.java | EngineTextDialect | 8 | HOOK-RULED",
+            // GONE 2026-11-17 (Phase 6's A, the orchestrator's approved method list): PlanStyle names no engine text;
+            // upstream's forms are its UpstreamPlans facet's, the edge's (8 -> 0, the row deleted)
             // (Missing external parameter(s): gone 2026-11-16, W7: error.MissingParameters, worded by the edge)
             // moved from testplan/ActivityComments.java (2026-11-12, C's J10 merged at 4ef947a: the execution id one per
             // execute(), minted by the door; the activity's comment now the program runner's): a move, the count the same
@@ -168,7 +168,8 @@ class CompatSpellingGuardTest {
             // (edge/PurePrintForms). LiteralSpelling's row went (it writes FLOAT_TO_TEXT); Repr's added (the judges' arm)
             // lowering/Lowerer.java | TDS_NULL_CELL: gone 2026-11-15 (D1.3: a row's cells joined skip an empty one, the
             // CELL_TEXT node; legend-engine's TDSNull is the edge's, edge/PurePrintForms)
-            "lowering/Lowerer.java | withEngineText | 1 | D1.7",
+            // lowering/Lowerer.java | withEngineText: gone 2026-11-17 (Phase 6's B5: the lowering takes a LoweringShape, the
+            // product's LEAN; legend-engine's shape is the edge's choice, EnginePlans.UPSTREAM_SHAPE)
             "lowering/Repr.java | FLOAT_PRINT | 1 | JUDGE",
             // D1.3 -> D1.9 (2026-11-15): Repr is the judges' %r (and format's %r, which the assert bodies write): it
             // moves with the judges
@@ -196,7 +197,8 @@ class CompatSpellingGuardTest {
             "lowering/VerdictSql.java | TDS_NULL_CELL | 1 | JUDGE",
             // D1.4 -> D1.7 (2026-11-15): PlanNode is legend-engine's plan JSON (generatePlan's nodes), its comment the
             // engine's post-processor's constant: it moves with EnginePlans' text half
-            "plan/PlanNode.java | executionTraceID | 1 | D1.7",
+            // plan/PlanNode.java | executionTraceID: GONE 2026-11-17 (Phase 6's B5): legend-engine's trace comment is
+            // edge.EnginePlans' constant, its one reader
             // planner/BodyPlanner, EnginePlans, EngineText, PlanAllocations, PlanEnvelope and ProductStatements rows:
             // GONE 2026-11-16 (W9's planner half, docs/records/d-plan-2026-11-16.md): upstream's plan text moved to the
             // edge (edge.EnginePlans, EngineText, PlanEnvelope, EngineAllocations), the planner reaching it as the
@@ -239,14 +241,16 @@ class CompatSpellingGuardTest {
             // functions, not a spelling
             "sql/SqlFn.java | FLOAT_PRINT | 2 | JUDGE",
             "sql/SqlTyping.java | FLOAT_PRINT | 1 | JUDGE",
-            "sql/dialect/AnsiSqlRenderer.java | RawSqlBoundary | 1 | D1.7",
             "sql/dialect/BigQuery.java | FLOAT_PRINT | 1 | JUDGE",
             "sql/dialect/ClickHouse.java | FLOAT_PRINT | 1 | JUDGE",
             "sql/dialect/Databricks.java | FLOAT_PRINT | 1 | JUDGE",
             "sql/dialect/DuckDb.java | FLOAT_PRINT | 1 | JUDGE",
-            "sql/dialect/DuckDb.java | RawSqlBoundary | 1 | D1.7",
-            // D1.7 -> HOOK-RULED 2026-11-17 (the orchestrator's "hooks are terminal"; HookRulingTest pins (a)-(d))
-            "sql/dialect/EngineTextDialect.java | EngineTextDialect | 1 | HOOK-RULED",
+            // sql/dialect/{AnsiSqlRenderer,DuckDb,Postgres,RawSqlBoundary}.java's RawSqlBoundary rows: GONE 2026-11-17 (Phase
+            // 6's B4 (ii)): the product runs a raw statement as written; the translation is the edge's
+            // sql/dialect/EngineTextDialect.java: GONE 2026-11-17 (Phase 6's B3, the orchestrator's GO): the interface is
+            // com.legend.edge's, no product class names it
+            // testdatagen/TestDataGenerationNatives.java (2) and TestDataGenerator.java (3): GONE 2026-11-17 (Phase 6's
+            // B13): the generator's plan is data, legend-engine's text of it the edge's (edge.TestDataPlanText)
             // 2 -> 3 (2026-11-13, the merge of claude/total-wall @ 549c018: C4's bare-H2 lexicon, c42369dec, reads the
             // engine's list once more to derive H2's own keywords; the same D1.5 move takes it)
             // 2026-11-15 (D1.2): legend-pure's DateTime text, moved here from lowering/LiteralSpelling (dateTimeText) as the
@@ -270,19 +274,16 @@ class CompatSpellingGuardTest {
             "sql/dialect/MongoDb.java | FLOAT_PRINT | 1 | JUDGE",
             "sql/dialect/MySql.java | FLOAT_PRINT | 1 | JUDGE",
             "sql/dialect/Postgres.java | FLOAT_PRINT | 1 | JUDGE",
-            "sql/dialect/Postgres.java | RawSqlBoundary | 1 | D1.7",
-            "sql/dialect/RawSqlBoundary.java | RawSqlBoundary | 2 | D1.7",
             "sql/dialect/SQLite.java | FLOAT_PRINT | 1 | JUDGE",
             "sql/dialect/Snowflake.java | FLOAT_PRINT | 1 | JUDGE",
             "sql/dialect/Trino.java | FLOAT_PRINT | 1 | JUDGE",
-            "testdatagen/TestDataGenerationNatives.java | EngineTextDialect | 2 | D1.7",
-            "testdatagen/TestDataGenerator.java | EngineTextDialect | 3 | D1.7",
             // D1.4 -> D1.7 (2026-11-16, W4 of docs/records/d-plan-2026-11-16.md): the generator's CLEAN timestamp text is
             // the product's DateTime text (DATETIME_TO_TEXT, S312), as lite's writers print the cell; what remains is
             // legend-engine's seed route's key (upstreamKeyText: SeedDataGeneration's ValueTransformer, nine digits and
             // +0000), the edge's routes' (TestDataRoutes), moving with the generator's engine text at W9
             "testdatagen/TestDataPlanner.java | +0000 | 1 | D1.7",
-            "testdatagen/TestDataPlanner.java | COMPAT | 3 | D1.9",
+            // testdatagen/TestDataPlanner.java | COMPAT: GONE 2026-11-17 (Phase 6's B13): the printing is the timestamp text
+            // itself; upstream's is the UpstreamPlans facet's
             "testexec/AssertRuns.java | EngineText | 1 | D1.7",
             "testexec/CanonicalForm.java | +0000 | 1 | JUDGE",
             "testexec/HostJudgments.java | EngineText | 1 | D1.7",
@@ -307,7 +308,8 @@ class CompatSpellingGuardTest {
             // retagged 2026-11-15 (D1.2's end): the judging rules' choice of the generator's printing, D1.9's
             // (2026-11-16, W9's judge half S2c: testplan/SqlTextVerdicts' two rows gone with the arm to the edge;
             // BodyDriver's withEngineText row gone, ExecEnv.withCollector names what it installs, the arm's collector)
-            "testplan/TestPlanner.java | COMPAT | 1 | D1.9",
+            // testplan/TestPlanner.java | COMPAT: GONE 2026-11-17 (Phase 6's B13): upstream's test-data timestamp text is
+            // the UpstreamPlans facet's (the edge's), asked when one is printed; lite's own is TestDataPlanner.Printing.CLEAN
             // REGISTERED 2026-11-17 (the separation census, docs/records/f-separation-census-2026-11-17.md): 'TDSNull'
             // (B10) and COMPILED_PURE_COMPAT (C1) joined the scan; what stood is registered, each with its owner.
             // TDSNull as INPUT and LANGUAGE (STAYS): the #TDS literal's cell token, Pure's meta::pure::tds::TDSNull
