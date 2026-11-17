@@ -57,6 +57,24 @@ interface DeclaredParameter {
   readonly enumValues: readonly string[];
 }
 
+/** A plan's parameter declaration as its version writes it (PlanJson.parameterJson: a name, a Pure type, a multiplicity
+ *  whose upper bound is absent for none, an enumeration's names) -- any other refused by name, never read loosely. */
+function declaredParameter(d: unknown): DeclaredParameter {
+  const p = d !== null && typeof d === 'object' ? d as Readonly<Record<string, unknown>> : {};
+  const m = p['multiplicity'] !== null && typeof p['multiplicity'] === 'object' ? p['multiplicity'] as Readonly<Record<string, unknown>> : undefined;
+  const enumValues = p['enumValues'];
+  if (typeof p['name'] !== 'string' || typeof p['type'] !== 'string' || m === undefined || typeof m['lower'] !== 'number'
+    || !(m['upper'] === undefined || typeof m['upper'] === 'number')
+    || !Array.isArray(enumValues) || !enumValues.every((v) => typeof v === 'string')) {
+    throw new PlanRefusal(`a plan parameter declared without its name, type, multiplicity and enumeration's values: ${JSON.stringify(d)}`);
+  }
+  const upper = m['upper'];
+  return {
+    name: p['name'], type: p['type'], enumValues: enumValues as readonly string[],
+    multiplicity: typeof upper === 'number' ? { lower: m['lower'], upper } : { lower: m['lower'] },
+  };
+}
+
 /** One parameter's checked value: one value as its slot binds it, a list's values, or none. */
 type CheckedParameter =
   | { readonly _type: 'one'; readonly value: PlanValue }
@@ -714,7 +732,7 @@ async function runAnswer(plan: PlanText, session: PlanSession, o: RunOptions,
     declareSites(read, 'a plan');
     if (!Array.isArray(read.parameters)) throw new PlanRefusal('a plan whose parameters are not a list is not of this version');
     // its parameters' values, checked and converted before any statement is sent (the orchestrator's Q2: bound at run)
-    const parameters = checkParameters(read.parameters as readonly DeclaredParameter[], o.parameters ?? {});
+    const parameters = checkParameters(read.parameters.map(declaredParameter), o.parameters ?? {});
     const root = read.root;
     if (root === undefined) throw new PlanRefusal('a plan with no root');
     if (root._type === 'keyed') {

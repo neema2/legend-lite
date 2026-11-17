@@ -79,8 +79,10 @@ class PlannedSqlTest {
             // the planner clients: Query's and Studio's, DataCube's, and the reader of a server's generatePlan
             // 2026-11-12, 8 -> 14 (the re-audit's M1): its five plan answers (fileLoad, remoteMount, snapStream,
             // synthesize, authored) typed as read, and the mint's import; 14 -> 15 (the final audit's item 1(b),
-            // 2026-11-12): a snapshot's copy's plan (snapCopy) typed as read
-            "engine-client/src/legend/wasm-grammar.ts", 15,
+            // 2026-11-12): a snapshot's copy's plan (snapCopy) typed as read; 15 -> 16 (2026-11-17, the edge program's
+            // H3: Studio's and Query's in-tab run on lite's own plan): a query's execution plan (the executionPlan kind
+            // over a held model) typed as read
+            "engine-client/src/legend/wasm-grammar.ts", 16,
             // 2026-11-12, 8 -> 9 (the C final audit's H2): DataCube's table model's copy select list, typed as its answer
             // is read, since a host operation's selectList takes a PlannedSql alone
             // 2026-11-12, 9 -> 15 (M1): its five plan answers (executionPlan, fileLoad, remoteMount, snapStream, synthesize)
@@ -267,8 +269,13 @@ class PlannedSqlTest {
             // 2026-11-15 (C5-T step 4): the same one fetch, moved with pure/v1's planning half (pure-v1-planning.ts, whose
             // client the execute client extends)
             Map.entry("engine-client/src/pure-v1-planning.ts", List.of("fetch(url")),
+            // 2026-11-17 (the edge program's H7): legend-lite's own API for Studio's and Query's server paths
+            // (/api/lite/v1: grammar, typing, a query's plan and its run answered as typed rows), its one send
+            Map.entry("engine-client/src/doors/lite-server.ts", List.of("fetch(`${this.#base}/lite/v1/${route}`")),
             Map.entry("engine-client/src/warehouse.ts", List.of("fetch(baseUrl.replace(/\\/+$/, '') + call.path")),
-            Map.entry("query-store/src/client.ts", List.of("fetch(`${this.#api}/pure/v1/query${path}`")),
+            // 2026-11-17 (the edge program's H7, the orchestrator's Q-b ruling): the store's one send, its url now the
+            // caller's -- the store's routes and its user, asked of lite's store mount (GET /api/lite/v1/query/currentUser)
+            Map.entry("query-store/src/client.ts", List.of("fetch(url")),
             Map.entry("query/demo/main.ts", List.of("fetch(url")),
             Map.entry("query/demo/verify.mjs", List.of("fetch(`http://127.0.0.1:${port}/health`")),
             Map.entry("sdlc-client/src/client.ts", List.of("fetch(`${this.#api}${path}`")),

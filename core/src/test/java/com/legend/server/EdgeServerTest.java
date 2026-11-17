@@ -55,6 +55,11 @@ class EdgeServerTest {
             assertEquals(404, send(server, "POST", LAMBDA, "|1").statusCode());
             assertEquals(404, send(server, "GET", "/api/pure/v1/query/q1", null).statusCode());
             assertEquals(404, send(server, "GET", "/api/server/v1/currentUser", null).statusCode());
+            // who saved queries belong to: the store's own user, asked of lite's store mount (the edge program's H7,
+            // the orchestrator's Q-b ruling of 2026-11-17)
+            HttpResponse<String> user = send(server, "GET", "/api/lite/v1/query/currentUser", null);
+            assertEquals(200, user.statusCode(), user.body());
+            assertEquals("\"" + com.legend.queries.SavedQueries.ANONYMOUS + "\"", user.body());
         } finally {
             server.stop();
         }
@@ -104,6 +109,12 @@ class EdgeServerTest {
             // the same record (an open stamps its view time, so the two bodies differ there alone)
             assertEquals(createdAt(upstream.body()), createdAt(lite.body()));
             assertTrue(lite.body().contains("\"name\":\"one\""), lite.body());
+            // the store's user is lite's mount's alone: legend-engine's store path reads `currentUser` as a query's id,
+            // as upstream's does, and has none by it
+            HttpResponse<String> user = send(server, "GET", "/api/lite/v1/query/currentUser", null);
+            assertEquals("\"" + com.legend.queries.SavedQueries.ANONYMOUS + "\"", user.body());
+            HttpResponse<String> edge = send(server, "GET", "/api/pure/v1/query/currentUser", null);
+            assertEquals(404, edge.statusCode(), edge.body());
         } finally {
             server.stop();
         }

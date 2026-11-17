@@ -50,6 +50,9 @@ public class LegendHttpServer {
     /** The product door, its file: sources fenced to the folders the server's startup settings name, none when they
      *  name none ({@link #sources}; the user's ruling of 2026-11-10). */
     private final LiteV1Api.Runner runner;
+    /** The product door with its run's parameter values, fenced as {@link #runner} is: lite's execute route's
+     *  ({@link LiteV1Planning#execution}; the edge program's H7, 2026-11-17). */
+    private final LiteV1Planning.Runner liteRunner;
 
     /**
      * A module of routes the server mounts beside lite's own (phase D's D1.0b, 2026-11-12): everything under its
@@ -114,6 +117,7 @@ public class LegendHttpServer {
         // query after it (the A delta audit's 5, 2026-11-11)
         validateSources(sources);
         this.runner = ConnectionResolver.runner(sources);
+        this.liteRunner = ConnectionResolver.liteRunner(sources);
         this.server = HttpServer.create(new InetSocketAddress(bind, port), 0);
         this.lspServer = new PureLspServer();
         this.origins = origins;
@@ -183,6 +187,19 @@ public class LegendHttpServer {
         // lite's own API (LiteV1Api; legend-engine's pure/v1 routes are the edge's, mounted by the shipped binary's
         // root: phase D's D1.0b, 2026-11-12)
         route("/api/lite/v1/", new PureV1Handler(runner));
+        // a query's plan and its run, its parameters bound at run (the edge program's H7, 2026-11-17)
+        route(LiteV1Planning.EXECUTION, new ModuleHandler(new Routes() {
+            @Override
+            public String prefix() {
+                return LiteV1Planning.EXECUTION;
+            }
+
+            @Override
+            public LiteV1Api.Answer answer(String method, String path, @com.legend.base.Nullable String rawQuery,
+                    String body) {
+                return LiteV1Planning.execution(method, path, body, liteRunner);
+            }
+        }));
         // the saved queries and DataCube's saved pages, lite's own route (the orchestrator's ruling of 2026-11-12: the
         // store is the product's; legend-engine's /api/pure/v1/query is the edge's adapter over the same store)
         route("/api/lite/v1/query", new ModuleHandler(storeRoutes("/api/lite/v1/query", queryStore, cubeStore)));
@@ -254,7 +271,31 @@ public class LegendHttpServer {
      */
     public static Routes storeRoutes(String prefix, @com.legend.base.Nullable SavedQueries queryStore,
             @com.legend.base.Nullable SavedCubes cubeStore) {
-        return storeRoutes(prefix, queryStore, cubeStore, SavedQueries.LITES_WORDS);
+        Routes store = storeRoutes(prefix, queryStore, cubeStore, SavedQueries.LITES_WORDS);
+        return new Routes() {
+            @Override
+            public String prefix() {
+                return prefix;
+            }
+
+            @Override
+            public boolean rawPath() {
+                return true;
+            }
+
+            /** {@code GET <prefix>/currentUser}: who the store keeps saved queries for -- its user, the owner of what
+             *  is saved (the orchestrator's Q-b ruling of 2026-11-17, the edge program's H7: the store's concept,
+             *  asked of lite's own mount; legend-engine's {@code /api/server/v1/currentUser} is the edge's). The
+             *  store's other answers are the store's, below. */
+            @Override
+            public LiteV1Api.Answer answer(String method, String path, @com.legend.base.Nullable String rawQuery,
+                    String body) throws IOException {
+                if ("GET".equals(method) && path.equals(prefix + "/currentUser")) {
+                    return new LiteV1Api.Answer(200, com.legend.json.Json.toCompact(SavedQueries.ANONYMOUS));
+                }
+                return store.answer(method, path, rawQuery, body);
+            }
+        };
     }
 
     /** {@link #storeRoutes(String, SavedQueries, SavedCubes)}, a refusal worded by {@code words}: the edge's mount at

@@ -22,7 +22,8 @@ import type { RawTable } from '../engine.ts';
 import type { Scalar } from '../result.ts';
 import { inRun } from '../run-frame.ts';
 import { runPlanRows, type ParameterValue } from '../plan-runner.ts';
-import type { PlanText } from '../planned-sql.ts';
+// a run's parameter value, as an app hands it to lite's engine (the apps reach the run side through the doors alone)
+export type { ParameterValue } from '../plan-runner.ts';
 
 /** The runtime a query runs on: the last argument of its `->from(...)`. */
 export function runtimeOf(lambda: Lambda): string {
@@ -55,6 +56,8 @@ export interface LiteEngine {
   readonly name: string;
   modelJson(text: string): Promise<PureModelContextData>;
   lambdaJson(text: string): Promise<Lambda>;
+  /** As `lambdaJson`, read by the protocol library: its numbers exact (a run's parameter values). */
+  lambda(text: string): Promise<Lambda>;
   lambdaText(lambda: Lambda, style: 'PRETTY' | 'STANDARD'): Promise<string>;
   relationType(model: PureModelContext, lambda: Lambda): Promise<RelationTypeAnswer>;
   compileErrors(code: string): Promise<string[]>;
@@ -63,11 +66,11 @@ export interface LiteEngine {
   /** `lambda` run over `model`, its run's `parameters` bound at run (plan-runner.ts checkParameters). */
   run(model: PureModelContext, lambda: Lambda, parameters?: Readonly<Record<string, ParameterValue>>,
     signal?: AbortSignal): Promise<LiteAnswer>;
-  currentUser(): Promise<string>;
 }
 
-/** The answer `plan` states: its shape and the statement that answers it (a dynamic pivot's: its body). */
-function stated(plan: PlanText): { readonly shape: LiteAnswer['shape']; readonly sql: string } {
+/** The answer `plan` (lite's execution plan, its JSON) states: its shape and the statement that answers it (a dynamic
+ *  pivot's: its body). Read, never sent. */
+export function stated(plan: string): { readonly shape: LiteAnswer['shape']; readonly sql: string } {
   type Node = { readonly _type?: string; readonly shape?: LiteAnswer['shape']; readonly sql?: { readonly statement?: string };
     readonly steps?: readonly Node[]; readonly body?: { readonly statement?: string } };
   const root = (JSON.parse(plan) as { readonly root?: Node }).root;
@@ -91,15 +94,13 @@ export class TabEngine implements LiteEngine {
   readonly #planner: WasmGrammar;
   readonly #engine: QueryEngine;
   readonly #databaseType: string;
-  readonly #user: string;
 
   /** `engine`: where the plan's statements run (the tab's DuckDB, pointed at a project's database, or the warehouse);
    *  `databaseType`: its type, which the plan's target must name. */
-  constructor(planner: WasmGrammar, engine: QueryEngine, databaseType: string, user: string) {
+  constructor(planner: WasmGrammar, engine: QueryEngine, databaseType: string) {
     this.#planner = planner;
     this.#engine = engine;
     this.#databaseType = databaseType;
-    this.#user = user;
   }
 
   get name(): string {
@@ -108,6 +109,7 @@ export class TabEngine implements LiteEngine {
 
   modelJson(text: string): Promise<PureModelContextData> { return this.#planner.modelJson(text); }
   lambdaJson(text: string): Promise<Lambda> { return this.#planner.lambdaJson(text); }
+  lambda(text: string): Promise<Lambda> { return this.#planner.lambda(text); }
   lambdaText(lambda: Lambda, style: 'PRETTY' | 'STANDARD'): Promise<string> { return this.#planner.lambdaText(lambda, style); }
   relationType(model: PureModelContext, lambda: Lambda): Promise<RelationTypeAnswer> { return this.#planner.relationType(model, lambda); }
   compileErrors(code: string): Promise<string[]> { return this.#planner.compileErrors(code); }
@@ -127,11 +129,8 @@ export class TabEngine implements LiteEngine {
       // each statement on the engine, its values bound in order, its rows as its decoder read them
       run: async (statement, params) => rowsOf(await engine.run(statement, 0, signal, params)),
     }, { parameters }));
-    return { sql, shape, columns: answered?.columns ?? [], rows: answered?.rows ?? [] };
-  }
-
-  currentUser(): Promise<string> {
-    return Promise.resolve(this.#user);
+    // each column its name and its Pure type, as the server's answer states it (LiteV1Planning.Answered)
+    return { sql, shape, columns: (answered?.columns ?? []).map((c) => ({ name: c.name, type: c.type })), rows: answered?.rows ?? [] };
   }
 }
 

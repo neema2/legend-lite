@@ -1,14 +1,15 @@
 // The compiler Studio asks two questions (plan A1): what element a file's text is (its grammarToJson), and whether a
 // whole model compiles (compilation/compile). Whatever answers is the session's engine: the in-tab one --
-// legend-lite's planner in a worker (engine-client's WasmGrammar), the default -- or a legend server over pure/v1
-// (lite's, or legend-engine: engine-client's HttpEngine). One interface, so Studio is the same over each.
+// legend-lite's planner in a worker (engine-client's WasmGrammar), the default -- or a legend-lite server over its
+// /api/lite/v1 (engine-client's LiteServer; the edge program's H7, 2026-11-17). One interface, so Studio is the same
+// over each.
 
 import type { PureModelContextData } from '../../../engine-client/src/legend/pmcd.ts';
 
 // the port and its worker are the in-tab engine's, shared with Query (engine-client/src/legend/)
 export { WorkerPort, type PlannerPort } from '../../../engine-client/src/legend/wasm-grammar.ts';
 
-/** What Studio needs of an engine: the in-tab WasmGrammar and a server's HttpEngine both answer it. */
+/** What Studio needs of an engine: the in-tab WasmGrammar and a server's LiteServer both answer it. */
 export interface ModelCompiler {
   /** `grammarToJson/model`: the elements a text declares, or the parser's refusal (thrown). */
   modelJson(text: string): Promise<PureModelContextData>;

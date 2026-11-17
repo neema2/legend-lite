@@ -41,10 +41,20 @@ public final class ProductRun {
      *  makes no value of its own; 2026-11-12). */
     public static ExecutionPlan run(ExecutionPlan plan, SessionSource sessions, PlanSessions.Source planSessions,
             Establish establish, Output output, int batchRows, java.util.UUID execution) throws IOException {
+        return run(plan, sessions, planSessions, establish, Map.of(), output, batchRows, execution);
+    }
+
+    /** {@link #run(ExecutionPlan, SessionSource, PlanSessions.Source, Establish, Output, int, java.util.UUID)} with the
+     *  run's parameter {@code values}, bound to the plan's declared parameters when it runs ({@link PlanParameters#check}:
+     *  each value its Pure type's Java value; the orchestrator's Q2 ruling of 2026-11-17, "bind at RUN": lite's own
+     *  execute route, the edge program's H7). */
+    public static ExecutionPlan run(ExecutionPlan plan, SessionSource sessions, PlanSessions.Source planSessions,
+            Establish establish, Map<String, ?> values, Output output, int batchRows, java.util.UUID execution)
+            throws IOException {
         // a receiver of the caller's is told the answer here, before the plan's run opens: it plans nothing
         try (var callbacks = com.legend.base.RunScope.callingBack()) {
             ResultSink sink = output.writerFor(plan, execution);
-            runCalledBack(plan, sessions, planSessions, establish, sink, batchRows, execution);
+            runCalledBack(plan, sessions, planSessions, establish, values, sink, batchRows, execution);
         }
         return plan;
     }
@@ -64,27 +74,36 @@ public final class ProductRun {
      *  a refusal under it in the server's words ({@link SourceAdmission#onTheServer}). */
     public static ExecutionPlan onProjectDatabases(ExecutionPlan plan, @com.legend.base.Nullable String admittedSources,
             Output output, java.util.UUID execution) throws IOException {
+        return onProjectDatabases(plan, admittedSources, Map.of(), output, execution);
+    }
+
+    /** {@link #onProjectDatabases(ExecutionPlan, String, Output, java.util.UUID)} with the run's parameter
+     *  {@code values}, bound at run ({@link #run(ExecutionPlan, SessionSource, PlanSessions.Source, Establish, Map,
+     *  Output, int, java.util.UUID)}): lite's own execute route (the edge program's H7, 2026-11-17). */
+    public static ExecutionPlan onProjectDatabases(ExecutionPlan plan, @com.legend.base.Nullable String admittedSources,
+            Map<String, ?> values, Output output, java.util.UUID execution) throws IOException {
         return run(plan, PlanSessions.PROJECT_DATABASES, PlanSessions.admitting(PlanSessions.shared(),
-                SourceAdmission.configured(admittedSources).onTheServer()), Establish.DECLARED_SETUP, output,
+                SourceAdmission.configured(admittedSources).onTheServer()), Establish.DECLARED_SETUP, values, output,
                 com.legend.result.Batcher.DEFAULT_CAPACITY, execution);
     }
 
     /** {@link #run} inside the scope that refuses planning while the caller's sessions are opened. */
     private static void runCalledBack(ExecutionPlan plan, SessionSource sessions, PlanSessions.Source planSessions,
-            Establish establish, ResultSink sink, int batchRows, java.util.UUID execution) throws IOException {
+            Establish establish, Map<String, ?> values, ResultSink sink, int batchRows, java.util.UUID execution)
+            throws IOException {
         // a write on the caller's session, its declared setup established, is established as a read is: the program's
         // target's acquisition loads run on the session first (A5, 2026-11-10: until then the caller's session refused
         // them, so a write never read its declared test data)
         boolean establishedOnTheCallers = establish == Establish.DECLARED_SETUP
                 && sessions instanceof SessionSource.Given;
         if (!plan.writes() && !plan.sendsTheAnswer()) {
-            PlanRunner.stream(plan, Map.of(), NOTHING_SENT, sink, batchRows, execution);
+            PlanRunner.stream(plan, values, NOTHING_SENT, sink, batchRows, execution);
             return;
         }
         ExecutionPlan.Target target = plan.writes() ? home(plan) : plan.answerSql().target();
         if (plan.writes() && !establishedOnTheCallers
                 && !(target.database() instanceof ExecutionPlan.Database.System)) {
-            PlanRunner.stream(plan, Map.of(), planSessions, sink, batchRows, execution);
+            PlanRunner.stream(plan, values, planSessions, sink, batchRows, execution);
             return;
         }
         if (target.database() instanceof ExecutionPlan.Database.System) {
@@ -92,7 +111,7 @@ public final class ProductRun {
             // the run's turn on it, the model's registration inside it, rolled back when the run ends -- never the
             // caller's session, which holds no catalog
             try (SystemDatabase.Leases leases = SystemDatabase.leases()) {
-                PlanRunner.stream(plan, Map.of(), PlanSessions.admitting(PlanSessions.system(leases),
+                PlanRunner.stream(plan, values, PlanSessions.admitting(PlanSessions.system(leases),
                         planSessions.admitted()), sink, batchRows, execution);
             }
             return;
@@ -115,7 +134,7 @@ public final class ProductRun {
                 }
             };
             // the caller's admission of live sources holds on the answer's session too (L6, 2026-11-10)
-            PlanRunner.stream(plan, Map.of(), PlanSessions.admitting(on, planSessions.admitted()), sink, batchRows, execution);
+            PlanRunner.stream(plan, values, PlanSessions.admitting(on, planSessions.admitted()), sink, batchRows, execution);
         }
     }
 

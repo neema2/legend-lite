@@ -86,8 +86,25 @@ export class QueryStoreClient implements QueryStore {
     await this.#call('DELETE', `/${encodeURIComponent(id)}`);
   }
 
-  async #call(method: string, path: string, body?: unknown): Promise<Response> {
-    const res = await this.#fetch(`${this.#api}/pure/v1/query${path}`, {
+  /**
+   * Who the store keeps saved queries for: its user, the owner of what is saved -- asked of legend-lite's own store
+   * mount, `GET /api/lite/v1/query/currentUser` (the edge program's H7, the orchestrator's Q-b ruling of 2026-11-17;
+   * legend-engine's `/api/server/v1/currentUser` is the edge's, never asked here).
+   */
+  async currentUser(): Promise<string> {
+    const text = await (await this.#send('GET', `${this.#api}/lite/v1/query/currentUser`)).text();
+    const user: unknown = JSON.parse(text);
+    if (typeof user !== 'string') throw new QueryStoreError(`the store named no user: ${text.slice(0, 120)}`, 500);
+    return user;
+  }
+
+  #call(method: string, path: string, body?: unknown): Promise<Response> {
+    return this.#send(method, `${this.#api}/pure/v1/query${path}`, body);
+  }
+
+  /** The store's one send: `method` to `url`, a refusal its message as a QueryStoreError. */
+  async #send(method: string, url: string, body?: unknown): Promise<Response> {
+    const res = await this.#fetch(url, {
       method,
       ...(body === undefined ? {} : { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }),
     });
