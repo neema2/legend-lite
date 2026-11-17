@@ -179,8 +179,7 @@ public final class EngineTextPlanning {
         return p.kind() == JudgePlans.Kind.VALUES;
     }
 
-    public static com.legend.testexecutionplan.SideShape shapeOf(JudgePlans.PlannedSide p,
-            com.legend.database.PlanStyle style) {
+    public static com.legend.testexecutionplan.SideShape shapeOf(JudgePlans.PlannedSide p, com.legend.database.PlanStyle style) {
         return JudgePlans.shapeOf(p, style);
     }
 

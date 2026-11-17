@@ -194,7 +194,9 @@ class CompatSpellingGuardTest {
             // 2026-11-15, on D2's list for the user) and format's %r, which the assert bodies' messages write (the
             // judges' Repr, measured 2026-11-15: AssertBarTest's assertNotEq message): it moves with them, D1.9, and
             // the row falls to 1 STAYS
-            "lowering/Scalars.java | Repr | 2 | D1.9",
+            // 2 -> 1 (2026-11-17, C5 step A: toRepresentation's representation is the edge's, EdgePureOnlyTexts through
+            // the PureOnlyTexts facet; format's %r remains, B12's 2b)
+            "lowering/Scalars.java | Repr | 1 | D1.9",
             // 2 -> 1 (2026-11-15, D1.3: makeString's empty element skipped, the CELL_TEXT node, legend-engine's
             // TDSNull the edge's), reclassified STAYS: what stays reads a #TDS literal's TDSNull cell as NULL -- INPUT,
             // the text legend-pure's TDS literal writes for an empty cell, read, never written: D2 reviews it
@@ -203,7 +205,8 @@ class CompatSpellingGuardTest {
             // DateTime; a DateTime literal's text the DATETIME_TO_TEXT node, its written text the edge's)
             // lowering/Scalars.java | signedZeroPad: gone 2026-11-15 (D1.3: format's %0<w>d is the FORMAT_PADDED node,
             // refused by the product's renderer, legend-pure's padding composed by the edge, edge/PurePrintForms)
-            "lowering/VerdictSql.java | Repr | 3 | JUDGE",
+            // lowering/VerdictSql.java | Repr: gone 2026-11-17 (C5 step A: an assert's message elements are legend-pure's
+            // representation, asked of the PureOnlyTexts facet, the edge's EdgePureOnlyTexts)
             "lowering/VerdictSql.java | TDS_NULL_CELL | 1 | JUDGE",
             // D1.4 -> D1.7 (2026-11-15): PlanNode is legend-engine's plan JSON (generatePlan's nodes), its comment the
             // engine's post-processor's constant: it moves with EnginePlans' text half

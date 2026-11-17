@@ -1231,6 +1231,20 @@ final class ArchitectureTest {
             // (and the edge's list text, PureListTexts, a mixed list's elements printed by the same facade: B8's TEXT_FORMS,
             // 2026-11-17)
             "lowering.RelationTexts#*", "com.legend.edge.RelationTextLowering com.legend.edge.PureListTexts",
+            // C5 step A (2026-11-17, the orchestrator's ruling: one facade, each member listed, no #*): legend-pure's
+            // representation (toRepresentation, an assert's message) is the edge's (edge.EdgePureOnlyTexts), and the
+            // product parts it is built from -- a concatenation, a Pure toString, an integer's held kind, a date
+            // literal's text -- are the facade's (lowering.ReprParts); a date-time's text and the style's date-time
+            // facet are the lowering's own readers, the same as RelationTextLowering's
+            "lowering.ReprParts#cat([Lcom.legend.sql.SqlExpr;)", "com.legend.edge.EdgePureOnlyTexts",
+            "lowering.ReprParts#pureToString(com.legend.lowering.Styled, com.legend.compiler.element.type.Type, "
+                    + "com.legend.sql.SqlExpr)", "com.legend.edge.EdgePureOnlyTexts",
+            "lowering.ReprParts#heldAsInteger(com.legend.sql.SqlExpr)", "com.legend.edge.EdgePureOnlyTexts",
+            "lowering.ReprParts#dateLiteralText(com.legend.compiler.spec.typed.TypedSpec)",
+            "com.legend.edge.EdgePureOnlyTexts",
+            "lowering.DateTimeTexts#dateTimeText(com.legend.sql.SqlExpr, java.lang.String)",
+            "com.legend.edge.EdgePureOnlyTexts",
+            "lowering.Styled#dateTimes()", "com.legend.edge.EdgePureOnlyTexts",
             // the test door's options, from the root's ExecuteOptions: planning's half, a record of closed words
             "testplan.PlanningOptions#<init>(com.legend.testexecutionplan.Edge, com.legend.executionplan.DataStores, "
                     + "java.util.Set, com.legend.testplan.PlanningOptions$JudgeMode, "
