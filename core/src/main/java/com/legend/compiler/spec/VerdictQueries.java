@@ -560,9 +560,9 @@ public final class VerdictQueries {
         return reduced;
     }
 
-    /** An expected literal collection's {@code ^TDSNull()} elements as the
-     * string {@code 'TDSNull'} (the golden convention's null-cell value;
-     * the peer rule spells it bare on the expected side). All-string
+    /** An expected literal collection's {@code ^TDSNull()} elements as
+     * present null cells ({@code TypedNullCell}, C5 step C, C-2: the String
+     * {@code 'TDSNull'} until then; the canon writes lite's bare null). All-string
      * afterwards → a String collection; otherwise the collection keeps
      * its mixed stamp (the literal channel). Minted HERE (Invariant 7: the
      * compiler layers own typed nodes), for the database-mode verdict. */
@@ -760,7 +760,8 @@ public final class VerdictQueries {
                     && com.legend.compiler.element.type.PlatformTypes.TDS_NULL_FQN
                             .equals(ni.classFqn())) {
                 any = true;
-                out.add(new com.legend.compiler.spec.typed.TypedCString("TDSNull",
+                // a present null cell, typed (C5 step C, C-2: never the String 'TDSNull' it was spelled as)
+                out.add(new com.legend.compiler.spec.typed.TypedNullCell(
                         new com.legend.compiler.element.type.ExprType(
                                 com.legend.compiler.element.type.Type.Primitive.STRING,
                                 new com.legend.compiler.element.type.Multiplicity.Bounded(1, 1))));
@@ -1181,7 +1182,8 @@ public final class VerdictQueries {
      * it bare on the expected side). */
     private static @com.legend.base.Nullable TypedSpec cellLiteral(String cell, Type kind, boolean gridCell) {
         if (gridCell && (cell.isEmpty() || cell.equals("TDSNull") || cell.equals("null"))) {
-            return new com.legend.compiler.spec.typed.TypedCString("TDSNull", scalar(Type.Primitive.STRING));
+            // the golden's null cell (its written text read as INPUT): a present null cell, typed (C5 step C, C-2)
+            return new com.legend.compiler.spec.typed.TypedNullCell(scalar(Type.Primitive.STRING));
         }
         if (kind instanceof Type.EnumType et) {
             return new com.legend.compiler.spec.typed.TypedEnumValue(et.fqn(), cell, scalar(kind));

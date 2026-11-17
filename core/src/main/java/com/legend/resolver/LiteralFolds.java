@@ -68,6 +68,7 @@ final class LiteralFolds {
             // vs ...2 stay distinct — a rounded double compare would lie)
             case TypedCFloat f -> f.exact() != null ? f.exact() : f.value();
             case TypedCString st -> st.value();
+            case com.legend.compiler.spec.typed.TypedNullCell ignoredCell -> null;   // a present null cell folds to no constant
             default -> null;
         };
     }

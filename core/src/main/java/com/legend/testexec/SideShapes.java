@@ -269,7 +269,7 @@ public final class SideShapes {
             Object v = r.get(0);
             if (v == null) {
                 if (s.tdsNullRoot()) {
-                    values.add(com.legend.sql.SqlExpr.TDS_NULL_CELL);
+                    values.add(com.legend.sql.SqlExpr.NULL_CELL_WIRE);   // a present null cell (C5 step C)
                 } else if (s.nullableRoot()) {
                     values.add(null);
                 } else {
