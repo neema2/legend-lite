@@ -733,9 +733,8 @@ legend_java_library(
         # the Arrow writer's gate frames the stream it checks (ZstdFrame; track A, 2026-10-29)
         "//arrow_ipc",
         "//testing",
-        # the hosts' boundary, its plans and refusals held by the tests that call it as a host does (the final audit,
-        # 2026-11-12: a host operation takes no SQL; a snapshot's copy and a table output as one plan each)
-        "//wasm:boundary",
+        # (no //wasm:boundary: the boundary answers legend-engine's routes, so it reaches the edge; the tests that call it
+        # as a host does are core_edge_tests_lib's, Phase 7's build half, 2026-11-17)
         "@maven_test//:com_tngtech_archunit_archunit",
         # the H2 test backend's own classes (testbackend/H2Backend); H2VersionPinTest, which read the jar's version,
         # moved to spec as EngineH2VersionPinTest (2026-11-05: the pin is legend-engine's H2, not lite's jar)
@@ -813,6 +812,7 @@ junit_test(
     deps = [
         ":core",
         ":core_tests_lib",
+        ":core_edge_tests_lib",
         ":toy_grammar",
         "@maven_test//:org_junit_jupiter_junit_jupiter_api",
     ],
@@ -896,6 +896,7 @@ _CORE_MANUAL_PROBES = {
     exclude_tags = _CORE_TEST_EXCLUDED_TAGS,
     runtime_deps = [
         ":core_tests_lib",
+        ":core_edge_tests_lib",
         ":drivers",
     ],
 ) for p in _CORE_TEST_PACKAGES]
@@ -929,7 +930,7 @@ junit_test(
     jvm_flags = ["-Dcore.arrow.comparator=$(rlocationpath :arrow_matches_rows_executable)"],
     select = ["--select-class=com.legend.result.ArrowWriterTest"],
     target_compatible_with = compatible_with(["linux_aarch64", "linux_x86_64", "macos_arm64", "macos_x86_64", "windows_x86_64"]),
-    runtime_deps = [":core_tests_lib"],
+    runtime_deps = [":core_tests_lib", ":core_edge_tests_lib"],
 )
 
 # the root package's own classes: com.legend, less every package above
@@ -941,6 +942,7 @@ junit_test(
     exclude_tags = _CORE_TEST_EXCLUDED_TAGS,
     runtime_deps = [
         ":core_tests_lib",
+        ":core_edge_tests_lib",
         ":drivers",
     ],
 )
@@ -976,6 +978,7 @@ _CORE_LANES = {
     target_compatible_with = compatible,
     runtime_deps = [
         ":core_tests_lib",
+        ":core_edge_tests_lib",
         ":drivers",
     ],
     visibility = ["//gates:__pkg__"],
@@ -1008,6 +1011,7 @@ _JUDGED_PACKAGES = ["compiler", "exec", "integration", "lowering", "normalizer",
     tags = ["ci-linux-only"],
     runtime_deps = [
         ":core_tests_lib",
+        ":core_edge_tests_lib",
         ":drivers",
     ],
 ) for p in _JUDGED_PACKAGES for judge in ["DATABASE", "BOTH"]]
@@ -1022,6 +1026,7 @@ _JUDGED_PACKAGES = ["compiler", "exec", "integration", "lowering", "normalizer",
     tags = ["ci-linux-only"],
     runtime_deps = [
         ":core_tests_lib",
+        ":core_edge_tests_lib",
         ":drivers",
     ],
 ) for judge in ["DATABASE", "BOTH"]]
@@ -1047,6 +1052,7 @@ junit_test(
     select = ["--select-class=com.legend.integration.CorpusDifferentialTest"],
     runtime_deps = [
         ":core_tests_lib",
+        ":core_edge_tests_lib",
         ":drivers",
     ],
     visibility = ["//gates:__pkg__"],
@@ -1062,7 +1068,7 @@ java_test(
     jvm_flags = ["--limit-modules=java.base"],
     main_class = "com.legend.PlanOnJavaBase",
     use_testrunner = False,
-    runtime_deps = [":core_tests_lib"],
+    runtime_deps = [":core_tests_lib", ":core_edge_tests_lib"],
 )
 
 # THE SERVER'S POSTGRES ARM (Bazel workplan P0-08): a type: Postgres connection resolves through
@@ -1118,6 +1124,7 @@ junit_test(
     ],
     runtime_deps = [
         ":core_tests_lib",
+        ":core_edge_tests_lib",
         ":drivers",
         "@databricks_jdbc//jar",
         "@snowflake_jdbc//jar",
@@ -1170,6 +1177,7 @@ junit_test(
     target_compatible_with = EMBEDDED_MONGODB_COMPATIBLE,
     runtime_deps = [
         ":core_tests_lib",
+        ":core_edge_tests_lib",
         ":drivers",
         "@bigquery_jdbc//jar",
         "@clickhouse_jdbc//jar",
@@ -1184,25 +1192,17 @@ junit_test(
     name = "seam_benchmark",
     memory_mb = 2048,
     size = "enormous",
-    srcs = [
-        "src/test/java/com/legend/exec/SeamBenchmark.java",
-        "src/test/java/com/legend/exec/SeamBenchmarkDuckDbTest.java",
-        "src/test/java/com/legend/exec/SeamBenchmarkH2Test.java",
-    ],
     jvm_flags = ["-Duser.timezone=GMT"],
     select = [
         "--select-class=com.legend.exec.SeamBenchmarkDuckDbTest",
         "--select-class=com.legend.exec.SeamBenchmarkH2Test",
     ],
     tags = ["manual"],
-    runtime_deps = [":drivers"],
-    deps = [
-        ":core",
-        # 2026-11-16 (W8): legend-engine's writer is the edge's; the test sessions are test_backends' (missing since
-        # the test backends split, so this manual target did not build)
-        ":edge",
-        ":test_backends",
-        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    # the benchmark's classes are the edge's tests (it drains legend-engine's writer, edge.PureV1Writer):
+    # core_edge_tests_lib's, so this target names no edge library itself (F's census line A6, 2026-11-17)
+    runtime_deps = [
+        ":core_edge_tests_lib",
+        ":drivers",
     ],
 )
 
@@ -1210,11 +1210,6 @@ junit_test(
     name = "seam_benchmark_small_heap",
     memory_mb = 256,
     size = "enormous",
-    srcs = [
-        "src/test/java/com/legend/exec/SeamBenchmark.java",
-        "src/test/java/com/legend/exec/SeamBenchmarkDuckDbTest.java",
-        "src/test/java/com/legend/exec/SeamBenchmarkH2Test.java",
-    ],
     jvm_flags = [
         "-Duser.timezone=GMT",
         "-Dseam.heap=small",
@@ -1224,10 +1219,12 @@ junit_test(
         "--select-class=com.legend.exec.SeamBenchmarkH2Test",
     ],
     tags = ["manual"],
-    runtime_deps = [":drivers"],
-    deps = [
-        ":core",
-        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    # the benchmark's classes are the edge's tests (it drains legend-engine's writer, edge.PureV1Writer):
+    # core_edge_tests_lib's, so this target names no edge library itself (F's census line A6, 2026-11-17; it
+    # had built against :core alone since the test backends split)
+    runtime_deps = [
+        ":core_edge_tests_lib",
+        ":drivers",
     ],
 )
 
@@ -1392,9 +1389,7 @@ junit_test(
     memory_mb = 1536,
     size = "medium",
     srcs = [
-        "src/test/java/com/legend/integration/CsvJsonColumnTest.java",
         "src/test/java/com/legend/integration/DataDeliveryMatrixPostgresTest.java",
-        "src/test/java/com/legend/integration/DataDeliveryMatrixTest.java",
         # each payload form read back on Postgres (the JSON pass, 2026-11-11)
         "src/test/java/com/legend/integration/JsonPayloadFormsTest.java",
     ],
@@ -1410,8 +1405,10 @@ junit_test(
         "//json",
         ":core",
         ":core_tests_lib",
-        # the service tests' runner, at the edge since D1.4 (2026-11-15)
-        ":edge_service_tests",
+        # the matrix (DataDeliveryMatrixTest, CsvJsonColumnTest) is the edge's test -- it runs the service tests'
+        # runner, at the edge since D1.4 -- so it is core_edge_tests_lib's; this target names no edge library itself
+        # (F's census line A6, 2026-11-17)
+        ":core_edge_tests_lib",
         ":test_backends",
         "@maven_test//:org_junit_jupiter_junit_jupiter_api",
         "@maven_test//:org_junit_jupiter_junit_jupiter_params",
@@ -2326,7 +2323,6 @@ junit_test(
     size = "medium",
     srcs = [
         "src/test/java/com/legend/integration/RelationToOneGuardPostgresTest.java",
-        "src/test/java/com/legend/integration/RelationToOneGuardTest.java",
     ],
     data = [
         "@embedded_postgres//:pg/PG_ROOT",
@@ -2338,6 +2334,9 @@ junit_test(
     target_compatible_with = EMBEDDED_POSTGRES_COMPATIBLE,
     deps = [
         ":core",
+        # RelationToOneGuardTest, the lanes' checks this extends: the edge's test (it runs under EdgeProgram.upstream()),
+        # core_edge_tests_lib's (Phase 7's build half, 2026-11-17)
+        ":core_edge_tests_lib",
         ":test_cases",
         ":test_backends",
         "@maven_test//:org_junit_jupiter_junit_jupiter_api",
@@ -2455,6 +2454,7 @@ junit_test(
     # :postgres_cells since 2026-10-30 (D69: a registered JDBC class the guards had never judged)
     runtime_deps = [
         ":core_tests_lib",
+        ":core_edge_tests_lib",
         ":duckdb_cells",
         ":mongodb_connector",
         # the MongoDB choke rule's planted violator, compiled against the driver (the C final audit's J3, 2026-11-12)
@@ -2548,7 +2548,7 @@ java_jars(
     testonly = True,
     rlocation_paths = True,
     transitive = False,
-    deps = [":core_tests_lib"],
+    deps = [":core_tests_lib", ":core_edge_tests_lib"],
 )
 
 # what the source guards and censuses read, declared (SourceFiles; Bazel workplan P3-27)
@@ -2575,7 +2575,7 @@ junit_test(
         "--select-package=com.legend",
         "--include-tag=census",
     ],
-    runtime_deps = [":core_tests_lib"],
+    runtime_deps = [":core_tests_lib", ":core_edge_tests_lib"],
     visibility = ["//gates:__pkg__"],
 )
 
@@ -2605,6 +2605,7 @@ legend_java_binary(
     tags = ["manual"],
     runtime_deps = [
         ":core_tests_lib",
+        ":core_edge_tests_lib",
         ":drivers",
         ":scale_lib",
         "@maven_test//:org_junit_jupiter_junit_jupiter_engine",
@@ -2621,6 +2622,7 @@ junit_test(
     select = ["--select-class=com.legend.integration.StressServiceSuitesTest"],
     runtime_deps = [
         ":core_tests_lib",
+        ":core_edge_tests_lib",
         ":drivers",
     ],
 )
@@ -2635,6 +2637,7 @@ junit_test(
     select = ["--select-class=com.legend.integration.StressServiceSuitesH2Test"],
     runtime_deps = [
         ":core_tests_lib",
+        ":core_edge_tests_lib",
         ":drivers",
     ],
 )
@@ -2651,6 +2654,7 @@ legend_java_binary(
     tags = ["manual"],
     runtime_deps = [
         ":core_tests_lib",
+        ":core_edge_tests_lib",
         ":drivers",
     ],
 )
@@ -2668,7 +2672,7 @@ legend_java_binary(
     tags = ["manual"],
     visibility = ["//tools/metrics:__pkg__"],
     # it only plans: no database driver (the comment at :drivers)
-    runtime_deps = [":core_tests_lib"],
+    runtime_deps = [":core_tests_lib", ":core_edge_tests_lib"],
 )
 
 # PRODUCT SQL, MEASURED (E3 of the total-wall program, 2026-11-12, docs/LEAN_PRODUCT_SQL_DESIGN_2026_11_12.md): the
@@ -2685,6 +2689,7 @@ legend_java_binary(
     tags = ["manual"],
     runtime_deps = [
         ":core_tests_lib",
+        ":core_edge_tests_lib",
         ":drivers",
     ],
 )
@@ -2988,6 +2993,7 @@ java_run(
     mnemonic = "Generate",
     deps = [
         ":core_tests_lib",
+        ":core_edge_tests_lib",
         ":drivers",
     ],
 )
@@ -3033,7 +3039,7 @@ java_run(
         "src/main/java/com/legend/edge/EngineStyleH2.java": "{EDGE_DIALECTS}",
     },
     visibility = ["//docs:__pkg__"],
-    deps = [":core_tests_lib"],
+    deps = [":core_tests_lib", ":core_edge_tests_lib"],
 )
 
 # The matrix's reach, measured over the PCT lanes' recorded cases (a measurement, not a build step; the recipe is in
@@ -3046,7 +3052,7 @@ legend_java_binary(
     main_class = "com.legend.sql.dialect.CapabilityReach",
     tags = ["manual"],
     # it only lowers and rewrites: no database driver (the comment at :drivers)
-    runtime_deps = [":core_tests_lib"],
+    runtime_deps = [":core_tests_lib", ":core_edge_tests_lib"],
 )
 
 # NOT a generated file: native-membership.tsv is hand-owned (membership is OURS). This writes a DRAFT from
@@ -3199,6 +3205,7 @@ java_run(
     mnemonic = "EdgeContractPureV1",
     deps = [
         ":core_tests_lib",
+        ":core_edge_tests_lib",
         ":drivers",
         "//tools/junit",
     ],

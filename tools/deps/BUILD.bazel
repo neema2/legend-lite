@@ -457,3 +457,31 @@ junit_test(
 )
 
 guards_package()
+
+# THE PRODUCT'S TESTS REACH NO EDGE (Phase 7's build half, F's separation census lines A5/A6, 2026-11-17): the product
+# test library and its test cases, with all they reach, met with the edge's targets -- empty. The edge's own tests are
+# //core:core_edge_tests_lib's (core/edge_tests.bzl); EdgeSeparationClosureTest.productTestsReachNoEdge.
+genquery(
+    name = "product_tests_closure",
+    testonly = True,
+    expression = "deps(//core:core_tests_lib) + deps(//core:test_cases)",
+    opts = ["--noimplicit_deps"],
+    scope = [
+        "//core:core_tests_lib",
+        "//core:test_cases",
+    ],
+)
+
+junit_test(
+    name = "edge_separation_closure_test",
+    memory_mb = 768,
+    size = "small",
+    srcs = ["EdgeSeparationClosureTest.java"],
+    data = [":product_tests_closure"],
+    jvm_flags = ["-Dclosure.product_tests_closure=$(rlocationpath :product_tests_closure)"],
+    select = ["--select-class=com.legend.tools.deps.EdgeSeparationClosureTest"],
+    deps = [
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+)
