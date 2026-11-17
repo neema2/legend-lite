@@ -66,4 +66,21 @@ public final class PureSpelling {
         throw new com.legend.error.NotImplementedException(
                 "plan: multiplicity spelling for " + m + " pending");
     }
+
+    /** The root's columns: a relation's schema, or the one-column {@code value}
+     *  relation of a scalar or collection root (the wire's scalarRoot contract). */
+    public static java.util.List<com.legend.compiler.element.type.Type.Column> relationColumns(
+            com.legend.compiler.element.type.ExprType root) {
+        com.legend.compiler.element.type.Type.RelationType schema =
+                com.legend.compiler.element.type.Type.schemaView(root.type());
+        return schema != null
+                ? schema.columns()
+                : java.util.List.of(new com.legend.compiler.element.type.Type.Column("value", root.type(),
+                        root.multiplicity()));
+    }
+
+    /** A column type's name as a client reads it: its path, a decimal as {@code Decimal}. */
+    public static String typePath(com.legend.compiler.element.type.Type t) {
+        return t instanceof com.legend.compiler.element.type.Type.PrecisionDecimal ? "Decimal" : t.typeName();
+    }
 }
