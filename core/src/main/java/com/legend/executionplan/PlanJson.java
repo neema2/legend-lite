@@ -162,8 +162,11 @@ public final class PlanJson {
      *  {@code kind}, its {@code where}, its {@code message} (the product's sentence) and, in a plan the compatibility edge
      *  wrote, its {@code upstream} (legend-pure's sentence), worded at planning; a CSV file's reading carries its
      *  {@code sites} too; the plan's {@code raises} is derived from them -- a v55 plan, whose statements raise a kind's
-     *  name, is refused by its version. */
-    public static final int VERSION = 56;
+     *  name, is refused by its version. 57 since 2026-11-17 (the host train, the orchestrator's ruling; Python's
+     *  finding): a column's {@code type} is its plain path ({@code Decimal}, never {@code Decimal(10,2)}), a precise
+     *  decimal's precision and scale data (its slot, its store) -- a v56 plan, whose types may carry arguments, is
+     *  refused by its version. */
+    public static final int VERSION = 57;
 
     private PlanJson() {
     }

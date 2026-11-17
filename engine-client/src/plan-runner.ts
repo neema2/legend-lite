@@ -293,7 +293,9 @@ interface Sql {
 // 56 since 2026-11-16 (phase D's Phase 2, raises as SITES): a statement raises a bare token LG#<n> and carries its
 // `sites` (each n, kind, where, message, upstream), declared by the statement's text as the plan is read
 // (declared-raises.ts), what a failure is read through
-const PLAN_VERSION = 56;
+// 57 since 2026-11-17 (the host train): a column's type is its plain path (Decimal, never Decimal(10,2)); a precise
+// decimal's precision and scale are data (its slot, its store)
+const PLAN_VERSION = 57;
 // the version a test's stand-in plan is written at (the doors' witnesses, engine-client/test/run-frame.test.ts); the
 // declaration above stays one line, as PlanVersionsAgreeTest reads it
 export { PLAN_VERSION };
