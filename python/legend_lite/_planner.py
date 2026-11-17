@@ -14,26 +14,28 @@ from typing import Any
 
 from ._library import Library
 
-def _flag(value: Any) -> str:
-    """A boolean the protocol carries, as the native entry reads it (its JSON spelling); anything else refused by name."""
-    if value is True:
-        return 'true'
-    if value is False:
-        return 'false'
-    raise ValueError(f'sourceInformation is a boolean, not {value!r}')
-
-
 KINDS: dict[str, tuple[str, Callable[[dict[str, Any]], tuple[str, ...]]]] = {
     'hold': ('lite_hold_model', lambda m: (m['model'],)),
     'release': ('lite_release_model', lambda m: (str(m['handle']),)),
-    'plan': ('lite_plan_text_held', lambda m: (str(m['handle']), m['query'], m['runtime'])),
-    'relationType': ('lite_relation_type_text_held', lambda m: (str(m['handle']), m['query'])),
+    # query/plan and query/type over a held model, the binding's cache (the lite API spec's §7a, 2026-11-17)
+    'queryPlanHeld': ('lite_query_plan_held', lambda m: (str(m['handle']), m['request'])),
+    'queryTypeHeld': ('lite_query_type_held', lambda m: (str(m['handle']), m['request'])),
     'tableModel': ('lite_table_model', lambda m: (m['table'],)),
     'catalogColumnsSql': ('lite_catalog_columns_sql', lambda m: (m['schema'], m['table'])),
-    'planJson': ('lite_plan_json_held', lambda m: (str(m['handle']), m['lambda'], m['runtime'])),
-    'executionPlan': ('lite_execution_plan_json_held', lambda m: (str(m['handle']), m['lambda'], m['runtime'])),
-    'planModel': ('lite_plan_json', lambda m: (m['model'], m['lambda'], m['runtime'])),
     'pureV1': ('lite_pure_v1', lambda m: (m['path'], m['query'], m['body'])),
+    # LITE'S OWN API, v1: each operation its kind (a/b -> aB) and its native entry (a/b -> lite_a_b), the operation's
+    # request JSON text carried whole (the spec's §5, §7; the DataCube session's protocol, 2026-11-17)
+    'modelCheck': ('lite_model_check', lambda m: (m['request'],)),
+    'modelElements': ('lite_model_elements', lambda m: (m['request'],)),
+    'queryParse': ('lite_query_parse', lambda m: (m['request'],)),
+    'queryPrint': ('lite_query_print', lambda m: (m['request'],)),
+    'queryType': ('lite_query_type', lambda m: (m['request'],)),
+    'queryPlan': ('lite_query_plan', lambda m: (m['request'],)),
+    'modelCreateClass': ('lite_model_create_class', lambda m: (m['request'],)),
+    'modelCreateAssociation': ('lite_model_create_association', lambda m: (m['request'],)),
+    'modelCreateDataSpace': ('lite_model_create_data_space', lambda m: (m['request'],)),
+    'tsItem': ('lite_ts_item', lambda m: (m['request'],)),
+    'tsStatement': ('lite_ts_statement', lambda m: (m['request'],)),
     'executePlan': ('lite_execute_json_plan', lambda m: (m['body'], m['models'])),
     'executeAnswer': ('lite_execute_json_answer', lambda m: (m['plan'], m['rows'])),
     'fileLoad': ('lite_file_load', lambda m: (m['request'],)),
@@ -46,16 +48,6 @@ KINDS: dict[str, tuple[str, Callable[[dict[str, Any]], tuple[str, ...]]]] = {
     'projectData': ('lite_project_data', lambda m: (m['model'], m['databaseType'])),
     'hostOperations': ('lite_host_operations', lambda m: (m['databaseType'], m['operations'])),
     'warm': ('lite_warm_model', lambda m: (m['model'],)),
-    # lite's own grammar and typing, and the routes the tab asked through pure/v1's router, each its product boundary's
-    # answer (the edge program's H2 and H4, 2026-11-17: the DataCube session's Boundary members, Python's native entries)
-    'modelElements': ('lite_model_elements', lambda m: (m['text'], _flag(m['sourceInformation']))),
-    'parseLambda': ('lite_parse_lambda', lambda m: (m['text'], _flag(m['sourceInformation']))),
-    'printLambda': ('lite_print_lambda', lambda m: (m['lambda'], m['style'])),
-    'lambdaRelationType': ('lite_lambda_relation_type', lambda m: (m['model'], m['lambda'])),
-    'compileErrors': ('lite_compile_errors', lambda m: (m['model'],)),
-    'modelAction': ('lite_model_action', lambda m: (m['action'], m['body'])),
-    'tsItem': ('lite_ts_item', lambda m: (m['text'],)),
-    'jsonToTs': ('lite_json_to_ts', lambda m: (m['lambda'], m['model'])),
 }
 
 # a kind's form when its request names a library the model is compiled over (the protocol's ``hold``'s ``library``,

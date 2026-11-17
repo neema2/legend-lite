@@ -85,15 +85,16 @@ Runtime s::RT { mappings: []; connections: [ s::DB: [ c: s::Conn ] ]; }
             # refused with lite's own kinds
             with self.assertRaises(ll.LegendError) as unparsed:
                 compiler.parse('|1 +')
-            self.assertEqual(unparsed.exception.kind, 'PARSER')
+            self.assertEqual(unparsed.exception.kind, compiler.error_kind('PARSE'))
             with self.assertRaises(ll.LegendError) as untyped:
                 compiler.relation_type(self.MODEL, compiler.parse('|#>{s::DB.t}#->select(~[nope])'))
-            self.assertEqual(untyped.exception.kind, 'COMPILATION')
+            self.assertEqual(untyped.exception.kind, compiler.error_kind('COMPILE'))
 
 
 class ThePlannerKinds(unittest.TestCase):
-    """The planner protocol's lite kinds, answered by Python's native entries (the edge program's H2/H4 pairing,
-    2026-11-17): each kind's row in _planner.KINDS, its entry's answer folded with lite's kinds."""
+    """The planner protocol's lite kinds, answered by Python's native entries (lite API v1, the host train, 2026-11-17):
+    each operation's kind (a/b -> aB) its native entry (a/b -> lite_a_b), the operation's request JSON carried whole;
+    the held model's two over the binding's cache."""
 
     MODEL = LitesOwnEntries.MODEL
 
@@ -105,26 +106,22 @@ class ThePlannerKinds(unittest.TestCase):
 
     def test_each_kind_is_answered(self):
         tree = ll.parse('|#>{s::DB.t}#->select(~[desk])')
-        self.assertTrue(self.ask({'kind': 'compileErrors', 'model': self.MODEL}).startswith('OK\n{"errors":[]}'))
-        self.assertTrue(self.ask({'kind': 'printLambda', 'lambda': json.dumps(tree), 'style': 'STANDARD'})
-                        .startswith('OK\n|#>{s::DB.t}#'))
-        self.assertIn('"desk"', self.ask({'kind': 'lambdaRelationType', 'model': self.MODEL, 'lambda': json.dumps(tree)}))
-        with_source = self.ask({'kind': 'parseLambda', 'text': '|1', 'sourceInformation': True})
-        without = self.ask({'kind': 'parseLambda', 'text': '|1', 'sourceInformation': False})
-        self.assertIn('sourceInformation', with_source)
-        self.assertNotIn('sourceInformation', without)
-        self.assertTrue(self.ask({'kind': 'modelElements', 'text': self.MODEL, 'sourceInformation': False})
-                        .startswith('OK\n'))
-        # a model action, a #TS item: answered by their boundary members, refused in lite's kinds where wrong
-        self.assertTrue(self.ask({'kind': 'modelAction', 'action': 'createDataSpace', 'body': '{}'}).startswith('ERR\n'))
-        self.assertTrue(self.ask({'kind': 'tsItem', 'text': 'not a ts item'}).startswith(('OK\n', 'ERR\n')))
-
-    def test_a_source_information_that_is_no_boolean_is_refused_by_name(self):
-        from legend_lite import _planner
-        said = _planner.answer(library(), {'kind': 'parseLambda', 'text': '|1', 'sourceInformation': 'yes'})
-        self.assertEqual((said['ok'], said['error']), (False, "ValueError: sourceInformation is a boolean, not 'yes'"))
-        self.assertTrue(library().call('lite_parse_lambda', '|1', 'True').startswith('ERR\n'),
-                        'the entry reads JSON\'s spelling alone')
+        ask = lambda kind, request: self.ask({'kind': kind, 'request': _json.dumps(request)})
+        self.assertEqual(ask('modelCheck', {'model': self.MODEL}), 'OK\n{"errors":[]}')
+        self.assertTrue(ask('queryPrint', {'query': tree, 'style': 'standard'}).startswith('OK\n{"text":"|#>{s::DB.t}#'))
+        self.assertIn('"desk"', ask('queryType', {'model': self.MODEL, 'query': tree}))
+        self.assertTrue(ask('queryParse', {'text': '|1'}).startswith('OK\n{"query":'))
+        self.assertTrue(ask('modelElements', {'model': self.MODEL}).startswith('OK\n{"elements":'))
+        self.assertTrue(ask('queryPlan', {'model': self.MODEL, 'query': tree, 'runtime': 's::RT'}).startswith('OK\n{"plan":'))
+        # a model's change and a #TS item: answered by their Boundary members, refused in lite's error shape where wrong
+        self.assertTrue(ask('modelCreateDataSpace', {}).startswith('ERR\n{"kind":'))
+        handle = _answer(self.ask({'kind': 'hold', 'model': self.MODEL}))
+        try:
+            held = lambda kind, request: self.ask({'kind': kind, 'handle': int(handle), 'request': _json.dumps(request)})
+            self.assertIn('"desk"', held('queryTypeHeld', {'query': tree}))
+            self.assertTrue(held('queryPlanHeld', {'query': tree, 'runtime': 's::RT'}).startswith('OK\n{"plan":'))
+        finally:
+            self.ask({'kind': 'release', 'handle': int(handle)})
 
 
 class TheProductsKinds(unittest.TestCase):
@@ -303,8 +300,8 @@ class Compiling(unittest.TestCase):
         self.assertTrue(held['ok'], held)
         handle = _answer(held['answer'])
         try:
-            query = '|#>{trades::DB.TRADES}#->extend(~twice: x|lib::twice($x.id))->select(~[desk, twice])'
-            typed = lib.call('lite_relation_type_text_held', handle, query)
+            query = ll.parse('|#>{trades::DB.TRADES}#->extend(~twice: x|lib::twice($x.id))->select(~[desk, twice])')
+            typed = lib.call('lite_query_type_held', handle, _json.dumps({'query': query}))
             self.assertFalse(typed.startswith('ERR\n'), typed)
             self.assertIn('twice', typed)
         finally:
@@ -312,8 +309,8 @@ class Compiling(unittest.TestCase):
         alone = answer(lib, {'id': 2, 'kind': 'hold', 'model': MODEL})
         handle = _answer(alone['answer'])
         try:
-            refused = lib.call('lite_relation_type_text_held', handle,
-                               '|#>{trades::DB.TRADES}#->extend(~twice: x|lib::twice($x.id))')
+            refused = lib.call('lite_query_type_held', handle, _json.dumps(
+                {'query': ll.parse('|#>{trades::DB.TRADES}#->extend(~twice: x|lib::twice($x.id))')}))
             self.assertTrue(refused.startswith('ERR\n'), 'the model alone has no lib::twice')
         finally:
             lib.call('lite_release_model', handle)
@@ -324,15 +321,15 @@ class Compiling(unittest.TestCase):
         lib = library()
         handle = _answer(lib.call('lite_hold_model', MODEL))
         try:
-            query = '|#>{trades::DB.TRADES}#->select(~[desk, year])'
-            self.assertEqual(lib.call('lite_relation_type_text_held', handle, query),
-                             lib.call('lite_relation_type_held', handle, _json.dumps(ll.parse(query))),
-                             'typed from the text as from its tree')
-            refused = lib.call('lite_relation_type_text_held', handle, '|#>{trades::DB.NOPE}#')
+            query = ll.parse('|#>{trades::DB.TRADES}#->select(~[desk, year])')
+            self.assertEqual(lib.call('lite_query_type_held', handle, _json.dumps({'query': query})),
+                             lib.call('lite_query_type', _json.dumps({'model': MODEL, 'query': query})),
+                             'typed over the model held as over the model given')
+            refused = lib.call('lite_query_type_held', handle, _json.dumps({'query': ll.parse('|#>{trades::DB.NOPE}#')}))
             self.assertTrue(refused.startswith('ERR\n'), refused)
         finally:
             lib.call('lite_release_model', handle)
-        refused = lib.call('lite_plan_text_held', handle, GROUP, 'trades::RT')
+        refused = lib.call('lite_query_plan_held', handle, _json.dumps({'query': ll.parse(GROUP), 'runtime': 'trades::RT'}))
         self.assertTrue(refused.startswith('ERR\n'), f'a handle let go is refused: {refused[:120]}')
 
     def test_a_hosts_file_comes_back_as_a_planned_load(self):

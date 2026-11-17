@@ -2204,7 +2204,9 @@ class Timeseries(Tile):
         session = self._page._session
         with session.frames.reading():
             tree, base, _said = self._query(asked)
-            answer = session.engine().answer('POST', '/plan.json', '', json.dumps(_plan_request(tree, base)))
+            # the dry run takes the query's tree (lite's query/plan, the host train, 2026-11-17)
+            asked = {**{k: v for k, v in _plan_request(tree, base).items() if k != 'lambda'}, 'query': tree}
+            answer = session.engine().answer('POST', '/plan.json', '', _json.dumps(asked))
         said = json.loads(answer.body)
         if not (isinstance(said, dict) and isinstance(said.get('plan'), str)):
             raise ValueError(answer.body.decode('utf-8', errors='replace'))

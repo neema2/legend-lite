@@ -998,11 +998,12 @@ class TheBridgeTest(unittest.TestCase):
         """The C checkpoint's code audit, SHOULD-FIX 6 (2026-11-12): an answer's statements alone are kept, read by its
         kind -- a column's label, a constant in the typed tree, a value a slot binds and an HTTP body are not."""
         answered = Answered()
-        answered.record('plan', 'OK\n' + json.dumps({'sql': 'SELECT a AS "DROP TABLE t" FROM x', 'raises': {}, 'type': {
-            'columns': [{'name': 'DROP TABLE t', 'type': 'String'}]}}))
-        answered.record('executionPlan', 'OK\n' + json.dumps({'format': 'legend-lite-plan', 'raises': {}, 'root': {
+        answered.record('queryPlan', 'OK\n' + json.dumps({'plan': {'format': 'legend-lite-plan', 'raises': {}, 'root': {
+            '_type': 'tdsResult', 'columns': [{'name': 'DROP TABLE t', 'type': 'String'}],
+            'sql': {'statement': 'SELECT a AS "DROP TABLE t" FROM x', 'slots': []}}}}))
+        answered.record('queryPlanHeld', 'OK\n' + json.dumps({'plan': {'format': 'legend-lite-plan', 'raises': {}, 'root': {
             '_type': 'tds', 'sql': {'statement': 'SELECT ? AS v', 'slots': [], 'tree': {'value': 'DELETE FROM t'},
-                                    'content': {'abc': 'TRUNCATE t'}, 'target': {'session': ['SET threads = 1']}}}}))
+                                    'content': {'abc': 'TRUNCATE t'}, 'target': {'session': ['SET threads = 1']}}}}}))
         answered.record('pureV1', 'OK\n500\napplication/json\n{"sql": "DROP TABLE u"}')
         for text in ('SELECT a AS "DROP TABLE t" FROM x', 'SELECT ? AS v', 'SET threads = 1'):
             self.assertIn(text, answered)
@@ -1022,8 +1023,8 @@ class TheBridgeTest(unittest.TestCase):
         self.assertNotIn(str(sent), answered, "the remote plane's statement is never this database's")
         for local in [*stream['prepare'], stream['count'], *stream['transaction']['begin']]:
             self.assertIn(local, answered, local)
-        answered.record('executionPlan', 'OK\n' + json.dumps({'raises': {}, 'root': {'_type': 'sequence', 'steps': [
-            {'_type': 'update', 'count': 'written', 'sql': {'statement': 'INSERT INTO t SELECT 1', 'slots': []}}]}}))
+        answered.record('queryPlanHeld', 'OK\n' + json.dumps({'plan': {'raises': {}, 'root': {'_type': 'sequence', 'steps': [
+            {'_type': 'update', 'count': 'written', 'sql': {'statement': 'INSERT INTO t SELECT 1', 'slots': []}}]}}}))
         self.assertIn('INSERT INTO t SELECT 1', answered)
         self.assertNotIn('written', answered, "an update's count names a value, never a statement")
 
@@ -1055,7 +1056,8 @@ class TheBridgeTest(unittest.TestCase):
         answered): a host operation takes no SQL -- a source query, a select list, a replacement -- whatever it is."""
         answered = Answered()
         ops = lambda op: {'kind': 'hostOperations', 'databaseType': 'DuckDB', 'operations': json.dumps([op])}
-        answered.record('plan', 'OK\n' + json.dumps({'sql': 'SELECT * FROM t', 'raises': {}}))
+        answered.record('queryPlan', 'OK\n' + json.dumps({'plan': {'raises': {}, 'root': {
+            '_type': 'tdsResult', 'columns': [], 'sql': {'statement': 'SELECT * FROM t', 'slots': []}}}}))
         for op, key in (({'op': 'count', 'from': {'query': 'SELECT * FROM t'}}, 'query'),
                         ({'op': 'relation', 'kind': 'table', 'target': {'name': 't'}, 'selectList': '*',
                           'from': {'relation': {'name': 't'}}}, 'selectList'),
@@ -1063,7 +1065,7 @@ class TheBridgeTest(unittest.TestCase):
                           'replacing': [{'column': 'a', 'sql': 'DROP TABLE t'}]}, 'replacing')):
             self.assertIn(f'takes no SQL, and its {key} is SQL', answered.refusal(ops(op)))
         self.assertIsNone(answered.refusal(ops({'op': 'count', 'from': {'relation': {'name': 't'}}})))
-        self.assertIsNone(answered.refusal({'kind': 'plan', 'query': 'anything'}), 'another kind carries no host text')
+        self.assertIsNone(answered.refusal({'kind': 'queryPlan', 'request': 'anything'}), 'another kind carries no host text')
 
     def test_the_set_is_bounded(self):
         answered = Answered()
@@ -1086,9 +1088,10 @@ class TheBridgeTest(unittest.TestCase):
         self.assertTrue(held['ok'], held)
         handle = int(held['answer'].partition('\n')[2])
         lam = json.dumps(compiler.parse('|#>{test::DB.T_TREES}#->pivot(~CITY, ~total : x|$x.TREES : y|$y->sum())'))
-        request = {'kind': 'executionPlan', 'handle': handle, 'lambda': lam, 'runtime': 'test::RT'}
+        request = {'kind': 'queryPlanHeld', 'handle': handle,
+                   'request': '{"query":' + lam + ',"runtime":"test::RT"}'}
         answered = self.answered(request)
-        plan = json.loads(answer(library(), request)['answer'].partition('\n')[2])
+        plan = json.loads(answer(library(), request)['answer'].partition('\n')[2])['plan']
         keyed = plan['root']
         self.assertEqual(keyed['_type'], 'keyed', keyed['_type'])
         body = keyed['body']

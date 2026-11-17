@@ -30,8 +30,10 @@ _NAMES = {'darwin': 'libcompiler.dylib', 'linux': 'libcompiler.so', 'win32': 'li
 
 # each entry point and how many C strings it takes after its isolate thread
 _ARITY = {
-    'lite_plan_json': 3, 'lite_plan_text': 3, 'lite_hold_model': 1, 'lite_hold_model_over': 2, 'lite_release_model': 1, 'lite_plan_json_held': 3,
-    'lite_relation_type_held': 2, 'lite_execution_plan_json_held': 3, 'lite_plan_text_held': 3, 'lite_relation_type_text_held': 2, 'lite_file_load': 1, 'lite_remote_mount': 1,
+    'lite_hold_model': 1, 'lite_hold_model_over': 2, 'lite_release_model': 1,
+    # query/plan and query/type over a held model: the binding's cache (the lite API spec's §7a, 2026-11-17)
+    'lite_query_plan_held': 2, 'lite_query_type_held': 2,
+    'lite_file_load': 1, 'lite_remote_mount': 1,
     # a snapshot's stream and a frame's attach, as plans (the user's ruling of 2026-11-11)
     'lite_snap_stream': 1, 'lite_snap_copy': 1, 'lite_output_plan': 1, 'lite_synthesize': 1, 'lite_frame_load': 1,
     'lite_database_from_catalog': 1, 'lite_table_model': 1, 'lite_catalog_columns_sql': 2, 'lite_session_setup': 1,
@@ -39,14 +41,10 @@ _ARITY = {
     'lite_project_data': 2,
     # a host's named operations (D5)
     'lite_host_operations': 2,
-    # lite's own grammar and typing (the edge program's H4, 2026-11-17): the product's, never pure/v1's
-    'lite_parse_lambda': 2, 'lite_print_lambda': 2, 'lite_lambda_relation_type': 2,
     # LITE'S OWN API, v1: one entry per operation, its request JSON in (the lite API spec's §5, §7, 2026-11-17)
     'lite_model_check': 1, 'lite_model_elements': 1, 'lite_query_parse': 1, 'lite_query_print': 1, 'lite_query_type': 1,
     'lite_query_plan': 1, 'lite_model_create_class': 1, 'lite_model_create_association': 1,
-    'lite_model_create_data_space': 1, 'lite_ts_statement': 1,
-    # the planner protocol's other lite kinds (the edge program's H2/H4 pairing, 2026-11-17)
-    'lite_model_action': 2, 'lite_ts_item': 1, 'lite_json_to_ts': 2, 'lite_compile_errors': 1,
+    'lite_model_create_data_space': 1, 'lite_ts_item': 1, 'lite_ts_statement': 1,
     'lite_pure_v1': 3, 'lite_execute_plan': 2, 'lite_pure_v1_refusal': 1,
     # the planner protocol's execute halves for a host's own database, and its warm (C2)
     'lite_execute_json_plan': 2, 'lite_execute_json_answer': 2, 'lite_warm_model': 1,

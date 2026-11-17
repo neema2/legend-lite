@@ -63,31 +63,7 @@ public final class Compiler {
     // process. (One helper cannot do this for all: native-image cannot capture a C pointer in a lambda, so each reads
     // its arguments first.)
 
-    /** A lambda's protocol JSON planned -- {@code {"sql","type"}} ({@code Boundary.planJson}). */
-    @CEntryPoint(name = "lite_plan_json")
-    static CCharPointer planJson(IsolateThread thread, CCharPointer model, CCharPointer lambdaJson, CCharPointer runtime) {
-        String a;
-        try {
-            String m = text(model), l = text(lambdaJson), r = text(runtime);
-            a = Folded.of(() -> Boundary.planJson(m, l, r));
-        } catch (Throwable failure) {
-            a = Folded.failure(failure);
-        }
-        return answer(a);
-    }
 
-    /** Pure TEXT planned (the differential corpus's entry): {@code {"sql","type"}} ({@code Boundary.plan}). */
-    @CEntryPoint(name = "lite_plan_text")
-    static CCharPointer planText(IsolateThread thread, CCharPointer model, CCharPointer query, CCharPointer runtime) {
-        String a;
-        try {
-            String m = text(model), q = text(query), r = text(runtime);
-            a = Folded.of(() -> Boundary.plan(m, q, r));
-        } catch (Throwable failure) {
-            a = Folded.failure(failure);
-        }
-        return answer(a);
-    }
 
     // ---- models held: compiled once, planned against many times (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §9). A
     // handle travels as its digits, as every argument here is a C string.
@@ -136,74 +112,10 @@ public final class Compiler {
         return answer(a);
     }
 
-    /** A lambda's protocol JSON planned over a model held ({@code Boundary.planJsonHeld}). */
-    @CEntryPoint(name = "lite_plan_json_held")
-    static CCharPointer planJsonHeld(IsolateThread thread, CCharPointer handle, CCharPointer lambdaJson,
-            CCharPointer runtime) {
-        String a;
-        try {
-            String h = text(handle), l = text(lambdaJson), r = text(runtime);
-            a = Folded.of(() -> Boundary.planJsonHeld(Integer.parseInt(h), l, r));
-        } catch (Throwable failure) {
-            a = Folded.failure(failure);
-        }
-        return answer(a);
-    }
 
-    /** A lambda's protocol JSON planned over a model held as an execution plan ({@code Boundary.executionPlanJsonHeld}). */
-    @CEntryPoint(name = "lite_execution_plan_json_held")
-    static CCharPointer executionPlanJsonHeld(IsolateThread thread, CCharPointer handle, CCharPointer lambdaJson,
-            CCharPointer runtime) {
-        String a;
-        try {
-            String h = text(handle), l = text(lambdaJson), r = text(runtime);
-            a = Folded.of(() -> Boundary.executionPlanJsonHeld(Integer.parseInt(h), l, r));
-        } catch (Throwable failure) {
-            a = Folded.failure(failure);
-        }
-        return answer(a);
-    }
 
-    /** A lambda's protocol JSON typed, compile-only, over a model held ({@code Boundary.relationTypeJsonHeld}). */
-    @CEntryPoint(name = "lite_relation_type_held")
-    static CCharPointer relationTypeHeld(IsolateThread thread, CCharPointer handle, CCharPointer lambdaJson) {
-        String a;
-        try {
-            String h = text(handle), l = text(lambdaJson);
-            a = Folded.of(() -> Boundary.relationTypeJsonHeld(Integer.parseInt(h), l));
-        } catch (Throwable failure) {
-            a = Folded.failure(failure);
-        }
-        return answer(a);
-    }
 
-    /** Pure TEXT planned over a model held ({@code Boundary.planHeld}): the tab's {@code planHeldOrError}, which a
-     *  DataCube planner asks as its worker's {@code plan} (datacube/src/planner-protocol.ts). */
-    @CEntryPoint(name = "lite_plan_text_held")
-    static CCharPointer planTextHeld(IsolateThread thread, CCharPointer handle, CCharPointer query, CCharPointer runtime) {
-        String a;
-        try {
-            String h = text(handle), q = text(query), r = text(runtime);
-            a = Folded.of(() -> Boundary.planHeld(Integer.parseInt(h), q, r));
-        } catch (Throwable failure) {
-            a = Folded.failure(failure);
-        }
-        return answer(a);
-    }
 
-    /** Pure TEXT typed, compile-only, over a model held ({@code Boundary.relationTypeHeld}): the tab's
-     *  {@code relationTypeHeldOrError}, a DataCube planner's worker's {@code relationType}. */
-    @CEntryPoint(name = "lite_relation_type_text_held")
-    static CCharPointer relationTypeTextHeld(IsolateThread thread, CCharPointer handle, CCharPointer query) {
-        String a;
-        try {
-            String h = text(handle), q = text(query);
-            a = Folded.of(() -> Boundary.relationTypeHeld(Integer.parseInt(h), q));
-        } catch (Throwable failure) {
-            a = Folded.failure(failure);
-        }
-        return answer(a);
-    }
 
     /** A host's own file read into its database, as a plan ({@code Boundary.fileLoad}, B3): the tab's
      *  {@code fileLoadOrError}, a DataCube planner's worker's {@code fileLoad}. */
@@ -423,107 +335,13 @@ public final class Compiler {
     // ---- operations the tab exports (its A1), asked here instead of legend-engine's pure/v1 routes, each answer
     // ---- folded with lite's own refusal kinds (Folded.of), never legend-engine's errorType.
 
-    /** A lambda's text as its protocol JSON, source information as asked ({@code Boundary.parseLambda}). */
-    @CEntryPoint(name = "lite_parse_lambda")
-    static CCharPointer parseLambda(IsolateThread thread, CCharPointer text, CCharPointer sourceInformation) {
-        String a;
-        try {
-            String t = text(text), i = text(sourceInformation);
-            a = Folded.of(() -> Boundary.parseLambda(t, flag(i, "sourceInformation")));
-        } catch (Throwable failure) {
-            a = Folded.failure(failure);
-        }
-        return answer(a);
-    }
 
-    /** A boolean the protocol states, carried as its JSON spelling: {@code true} or {@code false}, anything else refused
-     *  by name (never a default: the request carries it). */
-    private static boolean flag(String text, String what) {
-        return switch (text) {
-            case "true" -> true;
-            case "false" -> false;
-            default -> throw new IllegalArgumentException(what + " is true or false, not '" + text + "'");
-        };
-    }
 
-    /** A lambda's protocol JSON as Pure text, {@code PRETTY} or {@code STANDARD} ({@code Boundary.printLambda}). */
-    @CEntryPoint(name = "lite_print_lambda")
-    static CCharPointer printLambda(IsolateThread thread, CCharPointer lambdaJson, CCharPointer style) {
-        String a;
-        try {
-            String l = text(lambdaJson), s = text(style);
-            a = Folded.of(() -> Boundary.printLambda(l, s));
-        } catch (Throwable failure) {
-            a = Folded.failure(failure);
-        }
-        return answer(a);
-    }
 
-    /** A lambda's protocol JSON typed, compile-only, over a model's text ({@code Boundary.lambdaRelationType}). */
-    @CEntryPoint(name = "lite_lambda_relation_type")
-    static CCharPointer lambdaRelationType(IsolateThread thread, CCharPointer model, CCharPointer lambdaJson) {
-        String a;
-        try {
-            String m = text(model), l = text(lambdaJson);
-            a = Folded.of(() -> Boundary.lambdaRelationType(m, l));
-        } catch (Throwable failure) {
-            a = Folded.failure(failure);
-        }
-        return answer(a);
-    }
 
-    /** A model action ({@code createClass}, {@code createAssociation}, {@code createDataSpace}) over its JSON request
-     *  ({@code Boundary.modelAction}). */
-    @CEntryPoint(name = "lite_model_action")
-    static CCharPointer modelAction(IsolateThread thread, CCharPointer action, CCharPointer body) {
-        String a;
-        try {
-            String ac = text(action), b = text(body);
-            a = Folded.of(() -> Boundary.modelAction(ac, b));
-        } catch (Throwable failure) {
-            a = Folded.failure(failure);
-        }
-        return answer(a);
-    }
 
-    /** A #TS item's text, read ({@code Boundary.tsItem}). */
-    @CEntryPoint(name = "lite_ts_item")
-    static CCharPointer tsItem(IsolateThread thread, CCharPointer text) {
-        String a;
-        try {
-            String t = text(text);
-            a = Folded.of(() -> Boundary.tsItem(t));
-        } catch (Throwable failure) {
-            a = Folded.failure(failure);
-        }
-        return answer(a);
-    }
 
-    /** A #TS query's lambda JSON as its one statement, over a model's text ({@code Boundary.jsonToTs}). */
-    @CEntryPoint(name = "lite_json_to_ts")
-    static CCharPointer jsonToTs(IsolateThread thread, CCharPointer lambdaJson, CCharPointer model) {
-        String a;
-        try {
-            String l = text(lambdaJson), m = text(model);
-            a = Folded.of(() -> Boundary.jsonToTs(l, m));
-        } catch (Throwable failure) {
-            a = Folded.failure(failure);
-        }
-        return answer(a);
-    }
 
-    /** A model's every compile error, its text given ({@code Boundary.compileErrors}). */
-    @CEntryPoint(name = "lite_compile_errors")
-    static CCharPointer compileErrors(IsolateThread thread, CCharPointer model) {
-        String a;
-        try {
-            String m = text(model);
-            a = Folded.of(() -> Boundary.compileErrors(m));
-        } catch (Throwable failure) {
-            a = Folded.failure(failure);
-        }
-        return answer(a);
-    }
 
     /** LITE'S REFUSAL KINDS by name ({@code Boundary.refusalKinds}: {@code LiteV1Api.RefusalKind}'s names and the
      *  texts a refusal of each is folded with) -- so a host reads the kinds from the product, never from a constant of
@@ -667,6 +485,49 @@ public final class Compiler {
         try {
             String r = text(request);
             a = Folded.of(() -> Boundary.tsStatement(r));
+        } catch (Throwable failure) {
+            a = Folded.failure(failure);
+        }
+        return answer(a);
+    }
+
+    /** {@code ts/item}: the operation's request JSON in, its answer out ({@code Boundary.tsItem}). */
+    @CEntryPoint(name = "lite_ts_item")
+    static CCharPointer tsItem(IsolateThread thread, CCharPointer request) {
+        String a;
+        try {
+            String r = text(request);
+            a = Folded.of(() -> Boundary.tsItem(r));
+        } catch (Throwable failure) {
+            a = Folded.failure(failure);
+        }
+        return answer(a);
+    }
+
+    // ---- a held model (the binding's cache, the spec's §7a): query/plan and query/type over the model a handle holds
+
+    /** {@code query/plan} over a held model: {@code {query, runtime}} in, {@code {plan}} out ({@code Boundary.queryPlanHeld}). */
+    @CEntryPoint(name = "lite_query_plan_held")
+    static CCharPointer queryPlanHeld(IsolateThread thread, CCharPointer handle, CCharPointer request) {
+        String a;
+        try {
+            int h = Integer.parseInt(text(handle));
+            String r = text(request);
+            a = Folded.of(() -> Boundary.queryPlanHeld(h, r));
+        } catch (Throwable failure) {
+            a = Folded.failure(failure);
+        }
+        return answer(a);
+    }
+
+    /** {@code query/type} over a held model: {@code {query}} in, {@code {columns}} out ({@code Boundary.queryTypeHeld}). */
+    @CEntryPoint(name = "lite_query_type_held")
+    static CCharPointer queryTypeHeld(IsolateThread thread, CCharPointer handle, CCharPointer request) {
+        String a;
+        try {
+            int h = Integer.parseInt(text(handle));
+            String r = text(request);
+            a = Folded.of(() -> Boundary.queryTypeHeld(h, r));
         } catch (Throwable failure) {
             a = Folded.failure(failure);
         }

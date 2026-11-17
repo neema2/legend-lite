@@ -271,13 +271,9 @@ class PlannerSurfaceTest {
 
     /** THE NATIVE LIBRARY'S EXPORTS: each the one boundary door it delegates to. */
     static final Map<String, String> NATIVE_EXPORTS = new TreeMap<>(Map.ofEntries(
-            Map.entry("lite_plan_json", "planJson"), Map.entry("lite_plan_text", "plan"),
             Map.entry("lite_hold_model", "holdModel"), Map.entry("lite_release_model", "releaseModel"),
             Map.entry("lite_hold_model_over", "holdModelOver"), // merged main 3a217086a (#81), 2026-11-14: the held model over a library
-            Map.entry("lite_plan_json_held", "planJsonHeld"),
-            Map.entry("lite_execution_plan_json_held", "executionPlanJsonHeld"),
-            Map.entry("lite_relation_type_held", "relationTypeJsonHeld"), Map.entry("lite_plan_text_held", "planHeld"),
-            Map.entry("lite_relation_type_text_held", "relationTypeHeld"), Map.entry("lite_file_load", "fileLoad"),
+            Map.entry("lite_file_load", "fileLoad"),
             Map.entry("lite_remote_mount", "remoteMount"), Map.entry("lite_snap_stream", "snapStream"),
             Map.entry("lite_snap_copy", "snapCopy"), Map.entry("lite_output_plan", "outputPlan"),
             Map.entry("lite_synthesize", "synthesize"), Map.entry("lite_frame_load", "frameLoad"),
@@ -289,17 +285,20 @@ class PlannerSurfaceTest {
             Map.entry("lite_execute_json_answer", "executeJsonAnswer"),
             Map.entry("lite_execute_arrow_answer", "executeArrowAnswer"), Map.entry("lite_warm_model", "warmModel"),
             Map.entry("lite_pure_v1_refusal", "refusal"),
-            // lite's own grammar and typing for Python's product (the edge program's H4, 2026-11-17): the four doors the
-            // tab exports (its A1), asked by the native library instead of legend-engine's pure/v1 routes
-            Map.entry("lite_model_elements", "modelElements"), Map.entry("lite_parse_lambda", "parseLambda"),
-            Map.entry("lite_print_lambda", "printLambda"),
-            Map.entry("lite_lambda_relation_type", "lambdaRelationType"),
-            // the planner protocol's other lite kinds, for Python's headless DataCube and its own calls (the edge
-            // program's H2/H4 pairing, 2026-11-17): the DataCube session's Boundary members of these names
-            Map.entry("lite_model_action", "modelAction"), Map.entry("lite_ts_item", "tsItem"),
-            Map.entry("lite_json_to_ts", "jsonToTs"), Map.entry("lite_compile_errors", "compileErrors"),
-            // the lite API spec's §3 (2026-11-17): lite's refusal kinds by name, read by a host, never its own constant
+            // LITE'S OWN API, v1 (docs/records/lite-api-v1-2026-11-17.md §5, §7; the host train, 2026-11-17): one entry
+            // per operation by the spec's one rule (a/b -> lite_a_b), its request JSON in, the Boundary member of the
+            // same operation; no lite_query_run (Python runs a plan itself); and the held model's two (§7a)
+            Map.entry("lite_model_check", "modelCheck"), Map.entry("lite_model_elements", "modelElements"),
+            Map.entry("lite_query_parse", "queryParse"), Map.entry("lite_query_print", "queryPrint"),
+            Map.entry("lite_query_type", "queryType"), Map.entry("lite_query_plan", "queryPlan"),
+            Map.entry("lite_model_create_class", "modelCreateClass"),
+            Map.entry("lite_model_create_association", "modelCreateAssociation"),
+            Map.entry("lite_model_create_data_space", "modelCreateDataSpace"),
+            Map.entry("lite_ts_item", "tsItem"), Map.entry("lite_ts_statement", "tsStatement"),
+            Map.entry("lite_query_plan_held", "queryPlanHeld"), Map.entry("lite_query_type_held", "queryTypeHeld"),
+            // the lite API spec's §3 (2026-11-17): lite's error kinds by name, read by a host, never its own constant
             Map.entry("lite_refusal_kinds", "refusalKinds")));
+
 
     /** The native library's exports that are no planner door, each with what it is instead. */
     static final Map<String, String> NATIVE_SERVICES = new TreeMap<>(Map.ofEntries(
@@ -781,13 +780,8 @@ class PlannerSurfaceTest {
             // merged main 3a217086a (#81), 2026-11-14: Python holds a model over its library
             Map.entry("hold", List.of("lite_hold_model_over", "model", "library")),
             Map.entry("release", List.of("lite_release_model", "handle")),
-            Map.entry("plan", List.of("lite_plan_text_held", "handle", "query", "runtime")),
-            Map.entry("relationType", List.of("lite_relation_type_text_held", "handle", "query")),
             Map.entry("tableModel", List.of("lite_table_model", "table")),
             Map.entry("catalogColumnsSql", List.of("lite_catalog_columns_sql", "schema", "table")),
-            Map.entry("planJson", List.of("lite_plan_json_held", "handle", "lambda", "runtime")),
-            Map.entry("executionPlan", List.of("lite_execution_plan_json_held", "handle", "lambda", "runtime")),
-            Map.entry("planModel", List.of("lite_plan_json", "model", "lambda", "runtime")),
             Map.entry("pureV1", List.of("lite_pure_v1", "path", "query", "body")),
             Map.entry("executePlan", List.of("lite_execute_json_plan", "body", "models")),
             Map.entry("executeAnswer", List.of("lite_execute_json_answer", "plan", "rows")),
@@ -801,15 +795,22 @@ class PlannerSurfaceTest {
             Map.entry("projectData", List.of("lite_project_data", "model", "databaseType")),
             Map.entry("hostOperations", List.of("lite_host_operations", "databaseType", "operations")),
             Map.entry("warm", List.of("lite_warm_model", "model")),
-            // lite's own grammar and typing and its routes' kinds (the edge program's H2/H4 pairing, 2026-11-17)
-            Map.entry("modelElements", List.of("lite_model_elements", "text", "sourceInformation")),
-            Map.entry("parseLambda", List.of("lite_parse_lambda", "text", "sourceInformation")),
-            Map.entry("printLambda", List.of("lite_print_lambda", "lambda", "style")),
-            Map.entry("lambdaRelationType", List.of("lite_lambda_relation_type", "model", "lambda")),
-            Map.entry("compileErrors", List.of("lite_compile_errors", "model")),
-            Map.entry("modelAction", List.of("lite_model_action", "action", "body")),
-            Map.entry("tsItem", List.of("lite_ts_item", "text")),
-            Map.entry("jsonToTs", List.of("lite_json_to_ts", "lambda", "model"))));
+            // LITE'S OWN API, v1 (the spec's §5, §7; the host train, 2026-11-17): each operation's kind (a/b -> aB), its
+            // native entry, the request carried whole; and the held model's two (§7a)
+            Map.entry("modelCheck", List.of("lite_model_check", "request")),
+            Map.entry("modelElements", List.of("lite_model_elements", "request")),
+            Map.entry("queryParse", List.of("lite_query_parse", "request")),
+            Map.entry("queryPrint", List.of("lite_query_print", "request")),
+            Map.entry("queryType", List.of("lite_query_type", "request")),
+            Map.entry("queryPlan", List.of("lite_query_plan", "request")),
+            Map.entry("modelCreateClass", List.of("lite_model_create_class", "request")),
+            Map.entry("modelCreateAssociation", List.of("lite_model_create_association", "request")),
+            Map.entry("modelCreateDataSpace", List.of("lite_model_create_data_space", "request")),
+            Map.entry("tsItem", List.of("lite_ts_item", "request")),
+            Map.entry("tsStatement", List.of("lite_ts_statement", "request")),
+            Map.entry("queryPlanHeld", List.of("lite_query_plan_held", "handle", "request")),
+            Map.entry("queryTypeHeld", List.of("lite_query_type_held", "handle", "request"))));
+
 
     /** The kinds Python's planner refuses by name ({@code _planner.REFUSED}). */
     static final Set<String> PY_REFUSED = Set.of("authored");

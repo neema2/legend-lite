@@ -60,6 +60,25 @@ def _snap_pull() -> dict:
             'lambda': json.dumps(ll.compiler.parse('|#>{s::DB.t}#->select(~[id, desk, qty])'))}
 
 
+def refusal(plan):
+    """A plan's tagged refusal (``ERR`` and lite's error, §3's ``{kind, message, ...}``) as its kind's name in the
+    product (``PARSE``, ``COMPILE``, ``REQUEST``, ...: compiler.refusal_kinds) and its message -- None when it is no
+    refusal."""
+    if not plan.startswith('ERR\n'):
+        return None
+    said = json.loads(plan[4:])
+    names = {text: name for name, text in ll.compiler.refusal_kinds().items()}
+    return names.get(said['kind'], said['kind']), said['message']
+
+
+def sent(path, asked):
+    """A plan-and-run's request as ``path`` takes it: plan-and-run its query's tree as text (``lambda``), the dry run
+    (plan.json) the tree itself (``query``: lite's query/plan, the host train, 2026-11-17)."""
+    if path == '/plan.json' and 'lambda' in asked:
+        asked = {**{k: v for k, v in asked.items() if k != 'lambda'}, 'query': json.loads(asked['lambda'])}
+    return json.dumps(asked)
+
+
 class Served(unittest.TestCase):
     """An engine over one Live frame, and requests as DataCube's client sends them."""
 
@@ -462,14 +481,14 @@ class ProjectQueries(Served):
         self.assertEqual((status, headers['Content-Type']), (200, 'application/vnd.apache.arrow.stream'), body[:300])
         rows = pyarrow.ipc.open_stream(pa.py_buffer(body)).read_all()
         self.assertEqual(rows.column('name').to_pylist(), ['Halberd Securities', 'Meridian Capital'])
-        status, _, body = self.post('/plan.json', json.dumps({**asked, 'project': True}))
+        status, _, body = self.post('/plan.json', sent('/plan.json', {**asked, 'project': True}))
         self.assertEqual(status, 200, body)
         self.assertTrue(json.loads(body)['plan'].startswith('OK\n'), body)
         self.assertEqual(len(self.server.engine.projects.names), 1)
         # not said: the same model reads only the tables this engine serves -- refused naming the one it does not, never
         # read from the project's own rows in their place (F28), by the run and the dry run alike
         for path in ('/plan-and-run.json', '/plan.json'):
-            status, _, body = self.post(path, json.dumps(asked))
+            status, _, body = self.post(path, sent(path, asked))
             self.assertEqual(status, 200, body)
             self.assertRegex(json.loads(body)['plan'], r'reads only the tables it serves.*it reads PARTY\.PARTY, which it '
                                                        r'does not serve now', path)
@@ -482,10 +501,10 @@ class ProjectQueries(Served):
         asked = {'lambda': json.dumps(ll.parse(PARTY_QUERY)), 'model': broken, 'runtime': 'demo::party::Runtime',
                  'project': True}
         for path in ('/plan-and-run.json', '/plan.json'):
-            status, _, body = self.post(path, json.dumps(asked))
+            status, _, body = self.post(path, sent(path, asked))
             self.assertEqual(status, 200, body)
             plan = json.loads(body)['plan']
-            self.assertTrue(plan.startswith('ERR\nPARSER\n'), plan)
+            self.assertEqual((refusal(plan) or ('',))[0], 'PARSE', plan)
             self.assertNotIn('this model has none', plan)
 
     def test_a_page_model_that_does_not_compile_is_refused_by_the_compiler(self):
@@ -494,10 +513,10 @@ class ProjectQueries(Served):
         broken = self.table.model + '\n###Pure\nClass trades::A\n{\n  x: trades::Nope[1];\n}\n'
         asked = {'lambda': json.dumps(self.query('->select(~[desk])')), 'model': broken, 'runtime': self.table.runtime}
         for path in ('/plan-and-run.json', '/plan.json'):
-            status, _, body = self.post(path, json.dumps(asked))
+            status, _, body = self.post(path, sent(path, asked))
             self.assertEqual(status, 200, body)
             plan = json.loads(body)['plan']
-            self.assertTrue(plan.startswith('ERR\nCOMPILATION\n'), plan)
+            self.assertEqual((refusal(plan) or ('',))[0], 'COMPILE', plan)
             self.assertIn('trades::Nope', plan)
             self.assertNotIn('reads only the tables it serves', plan)
 
@@ -508,10 +527,10 @@ class ProjectQueries(Served):
         broken = self.table.model + '\n###Pure\nClass trades::A {'
         asked = {'lambda': json.dumps(self.query('->select(~[desk])')), 'model': broken, 'runtime': self.table.runtime}
         for path in ('/plan-and-run.json', '/plan.json'):
-            status, _, body = self.post(path, json.dumps(asked))
+            status, _, body = self.post(path, sent(path, asked))
             self.assertEqual(status, 200, body)
             plan = json.loads(body)['plan']
-            self.assertTrue(plan.startswith('ERR\nPARSER\n'), plan)
+            self.assertEqual((refusal(plan) or ('',))[0], 'PARSE', plan)
             self.assertNotIn('reads only the tables it serves', plan)
 
     def test_a_compilers_own_failure_reading_a_model_is_no_refusal_of_it(self):
@@ -528,7 +547,7 @@ class ProjectQueries(Served):
                  'runtime': self.table.runtime}
         with mock.patch.object(ll.compiler, 'model_elements', failing):
             for path in ('/plan-and-run.json', '/plan.json'):
-                status, _, body = self.post(path, json.dumps(asked))
+                status, _, body = self.post(path, sent(path, asked))
                 self.assertEqual(status, 500, body)
                 self.assertIn('IllegalArgumentException: the parser failed', body.decode())
 
@@ -545,7 +564,7 @@ class ProjectQueries(Served):
                  'runtime': self.table.runtime}
         with mock.patch.object(self.server.engine, '_plan_with', failing):
             for path in ('/plan-and-run.json', '/plan.json'):
-                status, _, body = self.post(path, json.dumps(asked))
+                status, _, body = self.post(path, sent(path, asked))
                 self.assertEqual(status, 500, body)
                 self.assertIn('LegendError: the library could not be held over the model', body.decode())
 
@@ -660,7 +679,7 @@ class PlanAndRunRoutes(Served):
         rows = pyarrow.ipc.open_stream(pa.py_buffer(body)).read_all()
         plan = rows.schema.metadata[b'legend.plan'].decode()
         self.assertTrue(plan.startswith('OK\n'), plan[:200])
-        self.assertEqual(json.loads(plan[3:])['sql'], self.table.plan(GROUP).sql)
+        self.assertEqual(json.loads(plan[3:])['plan']['root']['sql']['statement'], self.table.plan(GROUP).sql)
         self.assertEqual({f.name: f.metadata[b'legend.type'] for f in rows.schema}, {'desk': b'String', 'q': b'Float'})
         kept = self.df[self.df.qty > 5]
         self.assertEqual(rows.to_pylist(), [{'desk': d, 'q': q} for d, q in kept.groupby('desk')['qty'].sum().sort_index().items()])
@@ -678,7 +697,7 @@ class PlanAndRunRoutes(Served):
         # the frame let go of: its table no longer served, the project no longer read
         self.frames.unregister('trades')
         status, _, body = self.plan_and_run_over(project, '|#>{proj::store::DB.trades}#->select(~[desk])')
-        self.assertTrue(json.loads(body)['plan'].startswith('ERR\nMODEL\n'), body)
+        self.assertEqual((refusal(json.loads(body)['plan']) or ('',))[0], 'REQUEST', body)
 
     def test_a_model_that_declares_a_table_it_does_not_serve_is_refused_and_nothing_runs(self):
         # a table of this database Python never showed the page (a person's own): never read, whatever the model says
@@ -689,11 +708,11 @@ class PlanAndRunRoutes(Served):
         self.assertIn('Table salaries', model)
         status, headers, body = self.plan_and_run_over(model, '|#>{trades::DB.salaries}#->select(~[name])')
         self.assertEqual((status, headers['Content-Type']), (200, 'application/json'))
-        self.assertTrue(json.loads(body)['plan'].startswith('ERR\nMODEL\n'), body)
+        self.assertEqual((refusal(json.loads(body)['plan']) or ('',))[0], 'REQUEST', body)
         # nor one that does not read as a model at all -- refused in the compiler's words, its kind PARSER (2026-11-15,
         # the C5 follow-up's check: until then ERR MODEL, "reads only the tables it serves", naming none)
         status, _, body = self.plan_and_run_over('not a model', '|1')
-        self.assertTrue(json.loads(body)['plan'].startswith('ERR\nPARSER\n'), body)
+        self.assertEqual((refusal(json.loads(body)['plan']) or ('',))[0], 'PARSE', body)
 
     def test_a_plan_and_run_over_a_read_its_failure_ended_is_answered_422_with_its_plan(self):
         # the C4 audit's M4, 2026-11-13: a read a failing query ended refuses its later queries in the database's own
@@ -726,18 +745,18 @@ class PlanAndRunRoutes(Served):
         # one planner function for both (the page's check compiles what its run sends): the same query's plan, the same
         # text -- a later edit that splits them fails here, not in review
         lam = json.dumps(ll.parse('|' + self.table.accessor + GROUP))
-        asked = json.dumps({'lambda': lam, 'model': self.table.model, 'runtime': self.table.runtime})
-        status, headers, body = self.post('/plan.json', asked)
+        asked = {'lambda': lam, 'model': self.table.model, 'runtime': self.table.runtime}
+        status, headers, body = self.post('/plan.json', sent('/plan.json', asked))
         self.assertEqual((status, headers['Content-Type']), (200, 'application/json'), body)
         dry = json.loads(body)['plan']
         self.assertTrue(dry.startswith('OK\n'), dry)
-        _, _, rows = self.post('/plan-and-run.json', asked)
+        _, _, rows = self.post('/plan-and-run.json', json.dumps(asked))
         self.assertEqual(dry, pyarrow.ipc.open_stream(pa.py_buffer(rows)).read_all().schema.metadata[b'legend.plan'].decode())
         # never run, and only over the models this engine serves (R4): another is the planner's refusal, in its words
-        refused = json.loads(self.post('/plan.json', json.dumps({
+        refused = json.loads(self.post('/plan.json', sent('/plan.json', {
             'lambda': lam, 'model': 'unserved', 'runtime': self.table.runtime}))[2])
         # a text that is no model: the compiler's own refusal (2026-11-15, the C5 follow-up's check: until then ERR MODEL)
-        self.assertTrue(refused['plan'].startswith('ERR\nPARSER\n'), refused)
+        self.assertEqual((refusal(refused['plan']) or ('',))[0], 'PARSE', refused)
 
     def test_the_planner_worker_tunnel_is_gone(self):
         # a page asks Python as it asks any host: legend-engine's own routes, and the host's compute -- never the tab's
@@ -1019,7 +1038,7 @@ class NoFiles(Served):
         answer = self.server.engine.answer('GET', '/services.json', '', None)
         self.assertFalse(json.loads(answer.body)['files'])
         for path, asked in (('/file-part.json', {'at': 0, 'bytes': 'YQoxCg=='}), ('/file.json', {'upload': 'u', 'name': 'a.csv', 'table': 'a'})):
-            status, _, body = self.post(path, json.dumps(asked))
+            status, _, body = self.post(path, sent(path, asked))
             self.assertEqual(status, 404, path)
             self.assertIn(b'which this engine was not given', body)
 
@@ -1281,14 +1300,21 @@ class AppsServed(unittest.TestCase):
         self.assertEqual(said.count(b'HTTP/1.'), 1, said)
 
     def test_lites_own_routes_answered_as_its_server_answers_them(self):
-        model = json.dumps({'_type': 'text', 'code': 'Class demo::A { x: Integer[1]; y: Nope[1]; }'})
-        status, headers, body = self.call('POST', '/api/lite/v1/compilation/compile',
+        # lite's own API, v1 (the spec's §2, §3, §5; the host train, 2026-11-17): one route per operation
+        model = json.dumps({'model': 'Class demo::A { x: Integer[1]; y: Nope[1]; }'})
+        status, headers, body = self.call('POST', '/api/lite/v1/model/check',
                                           {**self.cookie(), 'Content-Type': 'application/json'}, model)
         self.assertEqual(status, 200, body)
-        self.assertEqual(len(json.loads(body)['errors']), 1)
-        self.assertEqual(self.call('POST', '/api/lite/v1/compilation/compile', {'Content-Type': 'application/json'},
+        self.assertEqual([e['kind'] for e in json.loads(body)['errors']], [ll.compiler.error_kind('COMPILE')])
+        self.assertEqual(self.call('POST', '/api/lite/v1/model/check', {'Content-Type': 'application/json'},
                                    model)[0], 401)
-        self.assertEqual(self.call('POST', '/api/lite/v1/nope', self.cookie(), '{}')[0], 404)
+        # a refusal is lite's one error shape, its status its kind's
+        status, _, body = self.call('POST', '/api/lite/v1/query/parse', self.cookie(), json.dumps({'text': '|1 +'}))
+        self.assertEqual((status, json.loads(body)['kind']), (400, ll.compiler.error_kind('PARSE')))
+        # the old route names are gone in one step (ruled 5), refused as a malformed request
+        for gone in ('/api/lite/v1/compilation/compile', '/api/lite/v1/nope'):
+            status, _, body = self.call('POST', gone, self.cookie(), '{}')
+            self.assertEqual((status, json.loads(body)['kind']), (400, ll.compiler.error_kind('REQUEST')), gone)
 
     def test_ll_query_and_ll_studio_give_the_apps_links(self):
         from legend_lite import datacube
@@ -1770,7 +1796,7 @@ class WarehouseOnPython(unittest.TestCase):
         m = self.opened()
 
         def dry(runtime):
-            a = self.engine.answer('POST', '/plan.json', '', json.dumps(
+            a = self.engine.answer('POST', '/plan.json', '', sent('/plan.json',
                 {'lambda': self.query(m), 'model': m['model'], 'runtime': runtime}))
             self.assertEqual(a.status, 200, a.body)
             return json.loads(a.body)['plan']

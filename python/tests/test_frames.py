@@ -494,8 +494,7 @@ class JsonConnection(unittest.TestCase):
     def test_a_payload_that_is_not_its_digest_or_another_slot_is_refused_by_name(self):
         from legend_lite import compiler
         model = self.model(self.RECORDS)
-        planned = json.loads(compiler._answer(compiler.library().call('lite_plan_json', model, compiler._json.dumps(ll.parse(self.QUERY)),
-                                                                      'm::RT')))
+        planned = compiler.operation('query/plan', {'model': model, 'query': ll.parse(self.QUERY), 'runtime': 'm::RT'})
         statement = planned['plan']['root']['sql']
         digest = next(iter(statement['content']))
         statement['content'][digest] = statement['content'][digest].replace('back', 'BACK')

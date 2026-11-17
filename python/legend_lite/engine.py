@@ -444,18 +444,26 @@ class NativePlanner:
         return compiler.refusal(message)
 
     def plan(self, query: str, held: compiler.HeldModel, runtime: str) -> str:
-        # the planner function the tab's worker calls (planJson), over the model this process holds
-        return library().call('lite_plan_json_held', held.handle, query, runtime)
+        """``query`` (a query's tree as JSON text, its numbers exact) planned over the model this process holds: lite's
+        ``query/plan`` over a held model (``lite_query_plan_held``), its tagged answer as DataCube's planner reads it
+        (``OK`` and ``{"plan": <lite's plan>}``, or ``ERR`` and §3's error) -- the lite API spec's §2, §7a, 2026-11-17."""
+        request = '{"query":' + query + ',"runtime":' + _json.dumps(runtime) + '}'
+        return library().call('lite_query_plan_held', held.handle, request)
 
     def read(self, answer: str) -> compiler.Plan:
         return compiler.read_planned(answer)
 
     def refused_plan(self, message: str) -> str:
-        return f'ERR\nMODEL\n{message}'
+        """A request this engine cannot plan for (its model not served, its library not DataCube's, a project with no
+        rows), refused as the planner refuses one: ``ERR`` and §3's error, the product's ``request`` kind."""
+        return 'ERR\n' + _json.dumps({'kind': compiler.error_kind('REQUEST'), 'message': message})
 
     def refused_by(self, refused: LegendError) -> str:
-        """The compiler's own refusal, as the planner answers one: its kind and its words."""
-        return f'ERR\n{refused.kind}\n{refused.message}'
+        """The compiler's own refusal, as the planner answers one: ``ERR`` and §3's error, its kind and its words."""
+        said = {'kind': refused.kind, 'message': refused.message}
+        if refused.where is not None:
+            said['where'] = refused.where
+        return 'ERR\n' + _json.dumps(said)
 
 
 class _WarehouseTable:
@@ -573,8 +581,8 @@ class Engine:
             return Answer(200, 'application/json', json.dumps(_QUERY_USER).encode('utf-8'))
         if method == 'POST':
             if path.startswith(_LITE_API):
-                # legend-lite's own routes (its whole-model compile), answered as its server answers them
-                return _workers().submit(self._api, path, query, body or '').result()
+                # LITE'S OWN API, v1 (the spec's §2, §5): one route per operation, its native entry's answer
+                return self._lite_operation(path, body or '')
             if path == '/page.json':
                 return self._page_said(query, body or '')
             if path == _FILE_PART:
@@ -630,6 +638,12 @@ class Engine:
                 return _said(500, f'the settings could not be read: {type(failure).__name__}: {failure}')
             return Answer(200, 'application/json', json.dumps(kept).encode('utf-8'))
         return self._file(path)
+
+    def _lite_operation(self, path: str, body: str) -> Answer:
+        """LITE'S OWN API, v1, ON PYTHON'S SERVER (the spec's §2, §3, §5; the host train, 2026-11-17): the route's answer
+        by the product's one rule (``compiler.lite_route``), its planning on the compiler's threads."""
+        status, said = _on_compiler_threads(lambda: compiler.lite_route(path, body))
+        return Answer(status, 'application/json', said.encode('utf-8'))
 
     def _answered(self, work: Callable[[str], Answer], body: str) -> Answer:
         """A page's planner call answered, never a dropped call: what the call itself does not answer is a bug,
@@ -1780,12 +1794,16 @@ class Engine:
         against the model Python holds of that text -- a page's frame or file, a warehouse table; ``project``, a saved
         query's project's own (C5) -- by plan-and-run's one rule of where a model's rows are (F28), and never run. JSON:
         ``{"plan"}``, the planner's answer, a refusal too, as plan-and-run carries it (``legend.plan``)."""
+        # its query a tree (the lite API's query/plan, as DataCube's page sends it since the host train, 2026-11-17),
+        # read with its numbers exact and handed to the planner as its JSON text
         try:
-            asked = json.loads(body)
+            asked = _json.loads(body)
         except ValueError:
-            return _said(400, 'a plan is {"lambda", "model", "runtime"}, as JSON')
-        if not (isinstance(asked, dict) and all(isinstance(asked.get(k), str) for k in ('lambda', 'model', 'runtime'))):
-            return _said(400, 'a plan is {"lambda", "model", "runtime"}, each a string')
+            return _said(400, 'a plan is {"query", "model", "runtime"}, as JSON')
+        if not (isinstance(asked, dict) and isinstance(asked.get('query'), dict)
+                and all(isinstance(asked.get(k), str) for k in ('model', 'runtime'))):
+            return _said(400, 'a plan is {"query", "model", "runtime"}: a query\'s tree, a model\'s text, a runtime')
+        asked = {**asked, 'lambda': _json.dumps(asked['query'])}
         refused = self._library_refused(asked)
         if refused is not None:
             return _planned({'plan': self.planner.refused_plan(refused)})
