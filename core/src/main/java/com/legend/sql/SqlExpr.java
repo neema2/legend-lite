@@ -28,12 +28,14 @@ public sealed interface SqlExpr
                 SqlAgg.Reducer {
 
     /**
-     * The TDS null-cell sentinel text, {@code "TDSNull"}: real pure's {@code ^TDSNull()} instance prints as this
-     * string (tds.pure), and lowering emits it as a string literal where TDS-row semantics apply. It lives here, in
-     * the leaf {@code sql} package, so a dialect can recognise it without depending on the compiler;
-     * {@code PlatformTypes.TDS_NULL_CELL} is this same constant.
+     * A PRESENT NULL CELL's value on the wire (census C5's step C, C-2, 2026-11-17, the orchestrator's ruling (B);
+     * legend-pure's {@code "TDSNull"} sentinel until then): an expected side's {@code TypedNullCell} lowers to it, a
+     * marker no expected String is written as (U+2400, the symbol for null), which the judges' canon reads as its bare
+     * {@code null} token ({@code lowering.CanonicalRenderSql.NULL_CELL}) and the host judge as the null cell it stands
+     * for. An ABSENT element is SQL NULL, a different thing. Here, in the leaf {@code sql} package, so the host judge
+     * reads it without reaching the lowering.
      */
-    public static final String TDS_NULL_CELL = "TDSNull";
+    public static final String NULL_CELL_WIRE = "\u2400";
 
     /** An identity layout's synthetic fields, as a class instance's JSON object carries them: its identity
      *  ({@code __id}) and its class ({@code __type}). The compiler's {@code ClassLayouts.SYNTHETIC_ID} and

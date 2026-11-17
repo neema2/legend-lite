@@ -110,12 +110,14 @@ class PureAssertsTest {
     // ---- the adjudicated wire policies (documented divergences) -------
 
     @Test
-    @DisplayName("policy: TDSNull sentinel is expected-direction ONLY")
+    @DisplayName("policy: an expected present null cell is expected-direction ONLY; a written 'TDSNull' is input")
     void tdsNullSentinel() {
-        assertTrue(same("TDSNull", null));
-        assertFalse(same(null, "TDSNull"),
-                "a literal 'TDSNull' on OUR wire where a NULL belongs"
-                        + " must FAIL (audit 16 F5)");
+        // C5 step C, C-2 (2026-11-17): the expected null cell is the compiler's typed TypedNullCell on the wire token
+        // (SqlExpr.NULL_CELL_WIRE); a written 'TDSNull' String is INPUT, a String like any other
+        assertTrue(same(com.legend.sql.SqlExpr.NULL_CELL_WIRE, null));
+        assertFalse(same(null, com.legend.sql.SqlExpr.NULL_CELL_WIRE),
+                "the null cell's token on OUR wire where a NULL belongs must FAIL (audit 16 F5)");
+        assertFalse(same("TDSNull", null), "a written 'TDSNull' is a String, never the judges' null cell");
     }
 
     @Test

@@ -370,7 +370,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer implements EngineTextDialect 
                 && c.fn() == com.legend.sql.SqlFn.COALESCE
                 && c.args().size() == 2
                 && c.args().get(1) instanceof SqlExpr.StringLit s
-                && SqlExpr.TDS_NULL_CELL.equals(s.value())) {
+                && "TDSNull".equals(s.value())) {
             inner = c.args().get(0);
         }
         return inner instanceof SqlExpr.Cast cast ? cast.value() : inner;

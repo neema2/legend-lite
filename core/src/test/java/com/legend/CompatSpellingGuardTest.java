@@ -129,7 +129,6 @@ class CompatSpellingGuardTest {
             // product (CompileKind.sentence) and, for upstream's clients, by the edge (PureMessages.compile)
             // D1.3 -> D1.9 (2026-11-15): the constant's users are the judges' (VerdictSql, SideShapes), the #TDS
             // literal's input read (Scalars, STAYS) and the edge (EngineStyleH2); no product text writes it any more
-            "compiler/element/type/PlatformTypes.java | TDS_NULL_CELL | 2 | D1.9",
             // compiler/spec/TdsDesugars.java | TDS_NULL_CELL: gone 2026-11-15 (D1.3: a TDS cell's toString is cellText,
             // empty where the cell is in the product, legend-engine's TDSNull at the edge)
             // 2026-11-13 (phase D's O3): the plan style names the type it hands the planner -- the edge's printers
@@ -198,13 +197,11 @@ class CompatSpellingGuardTest {
             // 2 -> 1 (2026-11-15, D1.3: makeString's empty element skipped, the CELL_TEXT node, legend-engine's
             // TDSNull the edge's), reclassified STAYS: what stays reads a #TDS literal's TDSNull cell as NULL -- INPUT,
             // the text legend-pure's TDS literal writes for an empty cell, read, never written: D2 reviews it
-            "lowering/Scalars.java | TDS_NULL_CELL | 1 | STAYS",
             // lowering/Scalars.java | dateLiteralPrint: gone 2026-11-15 (D1.2: dateLiteralText, a literal that is no
             // DateTime; a DateTime literal's text the DATETIME_TO_TEXT node, its written text the edge's)
             // lowering/Scalars.java | signedZeroPad: gone 2026-11-15 (D1.3: format's %0<w>d is the FORMAT_PADDED node,
             // refused by the product's renderer, legend-pure's padding composed by the edge, edge/PurePrintForms)
             "lowering/VerdictSql.java | Repr | 3 | JUDGE",
-            "lowering/VerdictSql.java | TDS_NULL_CELL | 1 | JUDGE",
             // D1.4 -> D1.7 (2026-11-15): PlanNode is legend-engine's plan JSON (generatePlan's nodes), its comment the
             // engine's post-processor's constant: it moves with EnginePlans' text half
             // plan/PlanNode.java | executionTraceID: GONE 2026-11-17 (Phase 6's B5): legend-engine's trace comment is
@@ -246,7 +243,6 @@ class CompatSpellingGuardTest {
             // (PureV1Writer 1, TdsObjectsWriter 1): gone 2026-11-15 (D1.4: legend-engine's service tests and their
             // PURE_TDSOBJECT writer moved to the edge, //core:edge_service_tests)
             // D1.3 -> D1.9 (2026-11-15): the constant PlatformTypes names, the judges' and the edge's (above)
-            "sql/SqlExpr.java | TDS_NULL_CELL | 1 | D1.9",
             // 1 -> 2 each (2026-11-16, the PR1 re-review's A6): both named again in SqlFn.MAY_SKIP_AN_ARGUMENT, a set of
             // functions, not a spelling
             // sql/dialect/{AnsiSqlRenderer,DuckDb,Postgres,RawSqlBoundary}.java's RawSqlBoundary rows: GONE 2026-11-17 (Phase
@@ -288,7 +284,6 @@ class CompatSpellingGuardTest {
             "testexec/CanonicalForm.java | +0000 | 1 | JUDGE",
             // testexec/SideShapes.java | Cannot cast a collection of size | GONE 2026-11-17 (C5's step E, E-P5): a side's
             // and the body's answer's size refusal worded at planning (SideShape.sizeWords, TestPlan.answerSizeWords)
-            "testexec/SideShapes.java | TDS_NULL_CELL | 1 | JUDGE",
             // (testexec/SqlTextRuns.java's rows went with it to the edge: 2026-11-17, census C2: the referee and the appeals moved to the edge (the orchestrator's P1+P2))
             // (PlannedAppeals' generic half renamed NamedExtensions, the same pattern case: 2026-11-17, census C2: the referee and the appeals moved to the edge (the orchestrator's P1+P2))
             // 2026-11-16 (W8 of docs/records/d-plan-2026-11-16.md): legend-pure's toRepresentation of a date, the judges'
@@ -308,19 +303,23 @@ class CompatSpellingGuardTest {
             // the UpstreamPlans facet's (the edge's), asked when one is printed; lite's own is TestDataPlanner.Printing.CLEAN
             // REGISTERED 2026-11-17 (the separation census, docs/records/f-separation-census-2026-11-17.md): 'TDSNull'
             // (B10) and COMPILED_PURE_COMPAT (C1) joined the scan; what stood is registered, each with its owner.
+            // C5's step C, C-2 (2026-11-17, the orchestrator's ruling (B)): the judges' TDSNull sentinel is gone -- an
+            // expected present null cell is typed (TypedNullCell), its wire value lite's SqlExpr.NULL_CELL_WIRE, its canon
+            // lite's bare null (CanonicalRenderSql.NULL_CELL); the rows of PlatformTypes, SqlExpr, CanonicalRenderSql,
+            // VerdictSql, Equality and SideShapes deleted, Scalars' TDS_NULL_CELL read as its literal
             // TDSNull as INPUT and LANGUAGE (STAYS): the #TDS literal's cell token, Pure's meta::pure::tds::TDSNull
             // class, and the sentinel ^TDSNull() lowers to
             "compiler/element/type/PlatformTypes.java | TDSNull | 1 | STAYS",
             "compiler/spec/TdsChecker.java | TDSNull | 1 | STAYS",
             "compiler/spec/TdsNullForms.java | TDSNull | 3 | STAYS",
             "compiler/spec/Typer.java | TDSNull | 4 | STAYS",
-            "lowering/Scalars.java | TDSNull | 1 | STAYS",
-            "sql/SqlExpr.java | TDSNull | 1 | STAYS",
+            // 1 -> 2 (2026-11-17, census C5's step C, C-2): the #TDS literal's null-cell token, read as INPUT, names its
+            // literal where it read TDS_NULL_CELL (the constant gone)
+            "lowering/Scalars.java | TDSNull | 2 | STAYS",
             // TDSNull as the judges' text (E-Java, Phase 4b: census B10/C5)
-            "compiler/spec/VerdictQueries.java | TDSNull | 5 | D1.9",
-            "lowering/CanonicalRenderSql.java | TDSNull | 5 | D1.9",
-            "lowering/VerdictSql.java | TDSNull | 2 | D1.9",
-            "testexec/Equality.java | TDSNull | 1 | D1.9",
+            // 5 -> 4, D1.9 -> STAYS (2026-11-17, census C5's step C, C-2): an expected ^TDSNull(), a written 'TDSNull'
+            // cell and a golden's null cell are a typed TypedNullCell; what stays reads that written text as INPUT
+            "compiler/spec/VerdictQueries.java | TDSNull | 4 | STAYS",
             // (lowering/Render.java | TDSNull | D1.3: gone 2026-11-17, census B17 -- a relation's text moved to the edge,
             // edge.RelationTextLowering)
             // the judges' compatibility mode's branches (E-Java, census C1)

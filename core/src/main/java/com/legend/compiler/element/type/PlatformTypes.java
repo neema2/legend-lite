@@ -38,16 +38,8 @@ public final class PlatformTypes {
     }
 
 
-    /**
-     * The TDS null-cell SENTINEL spelling — real pure's {@code ^TDSNull()}
-     * instance prints as this string (tds.pure). ONE constant for every
-     * producer (Typer toString-get desugar, makeString/joinStrings NULL
-     * coalesce) and parser (TDS-literal cells, harness wire compares) —
-     * audit 23 C-d. Divergence note: pure DROPS empty elements from
-     * ordinary collections; we print the sentinel only where TDS-row
-     * semantics apply (ledgered in AUDIT_23_SPECIAL_CASING.md).
-     */
-    public static final String TDS_NULL_CELL = com.legend.sql.SqlExpr.TDS_NULL_CELL;
+    // (TDS_NULL_CELL, legend-pure's "TDSNull" sentinel: gone 2026-11-17, census C5's step C, C-2 -- an expected
+    // present null cell is typed, TypedNullCell, its wire value lite's SqlExpr.NULL_CELL_WIRE)
 
     /** The TDS null-cell CLASS (engine tds.pure:127) — {@code ^TDSNull()}
      * types as an instance of it, stamped [1] (a VALUE, never an empty). */

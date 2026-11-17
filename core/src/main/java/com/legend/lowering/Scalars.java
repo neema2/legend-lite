@@ -3119,7 +3119,7 @@ final class Scalars {
 
     static SqlExpr tdsCell(String cell, Type type) {
         if (cell == null || cell.isEmpty()
-                || cell.equals(PlatformTypes.TDS_NULL_CELL)
+                || cell.equals("TDSNull")   // a #TDS literal's null cell, Pure's own literal token: INPUT
                 || (cell.equals("null") && !PlatformTypes.isVariant(type))) {
             // A bare 'null' cell is SQL NULL for EVERY non-variant type —
             // String included (a 'null' name must vanish from joinStrings
