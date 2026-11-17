@@ -1933,6 +1933,9 @@ class JavaEvalLedgerTest {
                             // a date literal's text as legend-pure writes it, the edge's form of the two-form
                             // DateLiteralTexts kind (census C1, 2026-11-17): spelled at planning, nothing evaluated
                             "UpstreamDateLiteralTexts.java",
+                            // legend-engine's TDSNull read as a golden's null cell, the edge's form of the two-form
+                            // GoldenNullWord kind (census C1, 2026-11-17): one word compared, nothing evaluated
+                            "UpstreamGoldenNullWord.java",
                             // upstream counts a relation passed to assertSize/assertNotEmpty as ONE value (register
                             // S137), the edge's form of the two-form RelationCounting kind (census C1, 2026-11-17:
                             // moved from compiler.spec.RelationCountAsserts) -- a typed tree rewritten at planning
