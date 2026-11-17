@@ -24,8 +24,20 @@ final class CellTexts {
     /** The base renderer's pass, at the join (the walk is bottom-up: a hook sees its operands rewritten, so the join
      *  reads its elements' {@link SqlFn#CELL_TEXT}s, which no other node holds; one reaching a dialect is refused). */
     static final class Expansion extends com.legend.sql.SqlRewriter {
+        /** The row joins this pass wrote, by identity: the only operands whose wrapping COALESCE it drops. */
+        private final java.util.Set<SqlExpr> joinedRow = java.util.Collections.newSetFromMap(
+                new java.util.IdentityHashMap<>());
+
         @Override
         protected SqlExpr expr(SqlExpr e) {
+            // the join's COALESCE(.., '') (the lowering's, for a STRING_AGG over no rows) around a row's join already
+            // written below: the join is never NULL (CONCAT_WS's separator is a String[1]; one cell's COALESCE), so
+            // the wrapper goes (Phase 3, 2026-11-17: the probe's SQL showed it)
+            if (e instanceof SqlExpr.Call c && c.fn() == SqlFn.COALESCE && c.args().size() == 2
+                    && c.args().get(1) instanceof SqlExpr.StringLit empty && empty.value().isEmpty()
+                    && c.args().get(0) instanceof SqlExpr.Call j && joinedRow.contains(j)) {
+                return j;
+            }
             if (!(e instanceof SqlExpr.ReduceCollection rc && rc.reducer() == com.legend.sql.SqlAgg.Fn.STRING_AGG
                     && rc.extras().size() == 1)) {
                 return e;
@@ -50,8 +62,11 @@ final class CellTexts {
                 for (SqlExpr cell : cells.elements()) {
                     parts.add(operand(cell));
                 }
-                return parts.size() == 2 ? SqlExpr.Call.of(SqlFn.COALESCE, parts.get(1), new SqlExpr.StringLit(""))
+                SqlExpr.Call join = parts.size() == 2
+                        ? SqlExpr.Call.of(SqlFn.COALESCE, parts.get(1), new SqlExpr.StringLit(""))
                         : new SqlExpr.Call(SqlFn.CONCAT_WS, parts);
+                joinedRow.add(join);
+                return join;
             }
             return e;
         }
