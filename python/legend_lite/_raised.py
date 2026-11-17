@@ -3,8 +3,9 @@
 """A PRODUCT RAISE, WORDED (#104's M2(b), 2026-11-15; phase D's Phase 2, raises as SITES, 2026-11-16): a statement lite
 planned raises a bare token ``LG#<n>`` inside an envelope (the dialect's raise), and Python reads it as Java's runner does
 (exec.RaisedErrors): site ``n`` of the statement it sent, from the sites the plans read here declared for that text
-(``sites`` of each statement, PlanJson v56) -- its kind, its where, and its words rendered at planning (``upstream`` where
-the plan carries them, else ``message``). The envelope's marks are GENERATED from legend-lite (``_type_facts.py``), the
+(``sites`` of each statement, PlanJson v56) -- its kind, its where, and its words rendered at planning: LITE'S own
+``message`` alone (the edge program's H9, 2026-11-17: until then a site's ``upstream`` words, legend-engine's, were
+preferred where the plan carried them; those are the edge's to say). The envelope's marks are GENERATED from legend-lite (``_type_facts.py``), the
 same as the tab's (engine-client/src/raised.ts); each answer's sites are declared here as it is read
 (:func:`declare_sites`) -- one source, never copied; a token no answer declared for the statement is refused by name."""
 
@@ -91,9 +92,7 @@ def raised_words(message: str, statement: str) -> str | None:
     if n > len(sites):
         declared = ', '.join(f"{RAISE_TOKEN}{s['n']} {s['kind']}" for s in sites) or 'none'
         raise ValueError(f'the database raised {inner}, which the statement does not declare (it declares {declared})')
-    site = sites[n - 1]
-    upstream = site.get('upstream')
-    return upstream if isinstance(upstream, str) else site['message']
+    return sites[n - 1]['message']
 
 
 def raised_kind(message: str, statement: str) -> str | None:
