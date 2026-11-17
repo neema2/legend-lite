@@ -220,8 +220,8 @@ public final class ModelBuilder implements com.legend.compiler.StoreLookups {
      * discipline applies uniformly (D6b frontend-leniency batch).
      * Insertion-ordered for deterministic first-error reporting.
      */
-    private final java.util.LinkedHashMap<String, String> duplicateElements =
-            new java.util.LinkedHashMap<>();
+    private final java.util.LinkedHashSet<String> duplicateElements =
+            new java.util.LinkedHashSet<>();
 
     private final ImportScope imports;
     private final java.util.Map<String, ImportScope> elementImports;
@@ -418,15 +418,15 @@ public final class ModelBuilder implements com.legend.compiler.StoreLookups {
     private int internElement(String fqn) {
         int id = intern(fqn);
         if (!registeredElements.add(id)) {
-            duplicateElements.putIfAbsent(fqn,
-                    "Duplicated element '" + fqn + "'");
+            duplicateElements.add(fqn);
         }
         return id;
     }
 
-    /** Element FQNs registered more than once (see field doc). */
-    public java.util.Map<String, String> duplicateElements() {
-        return java.util.Collections.unmodifiableMap(duplicateElements);
+    /** Element FQNs registered more than once (see field doc; the refusal's kind,
+     * {@code CompileKind.DUPLICATE_ELEMENT}, is ModelIntegrity's: J10, 2026-11-17). */
+    public java.util.Set<String> duplicateElements() {
+        return java.util.Collections.unmodifiableSet(duplicateElements);
     }
 
     private void ingestDatabase(DatabaseDefinition db) {

@@ -66,6 +66,10 @@ class CompatSpellingGuardTest {
             // K8: legend-engine's compile and server sentences (D1.6; the query store's at pure/v1, D1.8)
             "Can't find ", "Invalid supertype", "arguments count (", "variables count (",
             "Missing external parameter(s)",
+            // 2026-11-17, J10 of the edge audit: legend-engine's and legend-pure's model sentences, raised as compile
+            // kinds (CompileKind.DUPLICATE_ELEMENT ... MISSING_STORE_TABLE) and worded at the edge; listed with no row
+            "Duplicated class mappings", "Duplicated mapping include", "Duplicated element", "Found duplicated ",
+            "can't be found", "Default values are supported only",
             // legend-pure's match failure (W7 of docs/records/d-plan-2026-11-16.md, 2026-11-16: raised as a kind,
             // MATCH_FAILURE, its sentence the edge's); its collection offset sentence is listed with K1 above (the P2
             // checkpoint audit's S6, 2026-11-16: it was listed twice)

@@ -413,6 +413,27 @@ public final class PureMessages {
                     + " from how it is written (-(n) is n before the current row, any other n after it), and this frame"
                     + " then starts after where it ends: write the bound before the current row as -(n)"
                     + " (docs/SEMANTICS_REGISTER.md S170)";
+            // J10 of the edge audit, 2026-11-17: each the product's sentence until then, byte for byte
+            // MappingCompilerExtension (legend-engine)
+            case DUPLICATE_CLASS_MAPPING_IDS -> "Duplicated class mappings found with ID " + o.get(0) + " in mapping '"
+                    + o.get(1) + "'";
+            case DUPLICATE_MAPPING_INCLUDE -> "Duplicated mapping include '" + o.get(0) + "' in mapping '" + o.get(1)
+                    + "'";
+            // CompileContext.resolveStore (legend-engine)
+            case MISSING_STORE -> "The store '" + o.get(0) + "' can't be found.";
+            // PureModelBuilder (legend-engine)
+            case DUPLICATE_ELEMENT -> "Duplicated element '" + o.get(0) + "'";
+            // legend-engine's class and enumeration compilation
+            case DUPLICATE_PROPERTY -> "Found duplicated property '" + o.get(0) + "' in class '" + o.get(1) + "'";
+            case DUPLICATE_ENUM_VALUE -> "Found duplicated value '" + o.get(0) + "' in enumeration '" + o.get(1) + "'";
+            // legend-pure's PropertyValidator
+            case DEFAULT_ON_OPTIONAL -> "Default values are supported only for mandatory fields, and property '"
+                    + o.get(0) + "' is optional.";
+            // legend-engine's "can't be found" form of a store reference, lite's condition named after it
+            case MISSING_STORE_COLUMN -> "The column '" + o.get(0) + "' can't be found in the " + o.get(1) + " '"
+                    + o.get(2) + "' (" + o.get(3) + " of database '" + o.get(4) + "')";
+            case MISSING_STORE_TABLE -> "The table '" + o.get(0) + "' can't be found in the database '" + o.get(1)
+                    + "' (" + o.get(2) + ")";
         };
         return c.position() == null ? upstream : c.position() + " " + upstream;
     }
