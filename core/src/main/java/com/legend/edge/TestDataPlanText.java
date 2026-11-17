@@ -42,13 +42,13 @@ final class TestDataPlanText {
         for (int i = 4; i < ps.size(); i++) {
             TestDataGenerationNatives.classifyArg(ps.get(i), rowIds, dates, hash);
         }
-        return planText(TestDataGenerator.planFetches(ctx, query, mappingFqn, rowIds, dates[0]), text, connection);
+        return planText(TestDataFetches.planFetches(ctx, query, mappingFqn, rowIds, dates[0]), text, connection);
     }
 
     /** The plan text of the generator's {@code roots}. */
-    static String planText(List<TestDataGenerator.FetchNode> roots, EngineTextDialect text, String connection) {
+    static String planText(List<TestDataFetches.FetchNode> roots, EngineTextDialect text, String connection) {
         StringBuilder kids = new StringBuilder();
-        for (TestDataGenerator.FetchNode r : roots) {
+        for (TestDataFetches.FetchNode r : roots) {
             node(r, kids, text, connection);
         }
         return "MultiResultSequence\n(\n"
@@ -58,23 +58,23 @@ final class TestDataPlanText {
                 + "  )\n)\n";
     }
 
-    private static void node(TestDataGenerator.FetchNode n, StringBuilder out, EngineTextDialect text,
+    private static void node(TestDataFetches.FetchNode n, StringBuilder out, EngineTextDialect text,
             String connection) {
         switch (n) {
-            case TestDataGenerator.Unidentified u -> out.append(unidentified(u, text, connection));
-            case TestDataGenerator.Fetch f -> {
+            case TestDataFetches.Unidentified u -> out.append(unidentified(u, text, connection));
+            case TestDataFetches.Fetch f -> {
                 String relType = relationType(f.db(), f.schema(), f.table(), f.columns());
                 // the fetch as the engine prints the query it built (its own aliases), from IR
                 String inner = relational(relType, f.columns(), text.renderAsAliased(f.query()), connection);
                 out.append(PlanText.allocation(f.res(), "  type = " + relType + "\n  resultSizeRange = *\n", inner));
-                for (TestDataGenerator.FetchNode child : f.children()) {
+                for (TestDataFetches.FetchNode child : f.children()) {
                     node(child, out, text, connection);
                 }
             }
         }
     }
 
-    private static String relational(String relType, List<TestDataGenerator.FetchColumn> cols, String sql,
+    private static String relational(String relType, List<TestDataFetches.FetchColumn> cols, String sql,
             String connection) {
         return "Relational\n(\n"
                 + "  type = " + relType + "\n"
@@ -88,7 +88,7 @@ final class TestDataPlanText {
     }
 
     private static String relationType(String db, String schema, String table,
-            List<TestDataGenerator.FetchColumn> cols) {
+            List<TestDataFetches.FetchColumn> cols) {
         return "Relation[name=" + table + ", type=TABLE, schema="
                 + schema + ", database=" + db + ", columns=["
                 + cols.stream().map(c -> "(\"" + c.name() + "\"," + PlanText.spell(c.type()) + ")")
@@ -98,7 +98,7 @@ final class TestDataPlanText {
 
     /** The engine's Error node for a root without row identifiers: the assert message (primary key columns as
      *  name:TYPE) over the sampled {@code select top 5} of the root table. */
-    private static String unidentified(TestDataGenerator.Unidentified u, EngineTextDialect text, String connection) {
+    private static String unidentified(TestDataFetches.Unidentified u, EngineTextDialect text, String connection) {
         String relType = relationType(u.db(), u.schema(), u.table(), u.keys());
         String pk = u.keys().stream()
                 .map(c -> c.name() + ":" + PlanText.spell(c.type()))
