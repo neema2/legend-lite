@@ -37,7 +37,7 @@ final class DecimalKindRules {
                 new SqlExpr.Call(SqlFn.ROUND, args));
     }
 
-    static SqlExpr divide(TypedNativeCall n, List<SqlExpr> args) {
+    static SqlExpr divide(TypedNativeCall n, List<SqlExpr> args, Styled styled) {
         if (args.size() != 3) {
             // Part-1 fix (2026-08-26): INTEGER / INTEGER by zero RAISES
             // in real pure — the interpreted accumulator divides
@@ -59,7 +59,7 @@ final class DecimalKindRules {
                                 new SqlExpr.IntLit(0)),
                         // DIVIDE_BY_ZERO, no operand (the interpreter's 'Division by zero', the edge's: D1.1)
                         new SqlExpr.RaiseText(com.legend.sql.RaiseKind.DIVIDE_BY_ZERO, List.of()),
-                        new SqlExpr.Call(SqlFn.DIVIDE, args));
+                        new SqlExpr.Call(SqlFn.DIVIDE, args), styled);
             }
             return new SqlExpr.Call(SqlFn.DIVIDE, args);
         }

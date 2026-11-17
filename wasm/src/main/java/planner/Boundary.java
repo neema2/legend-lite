@@ -40,8 +40,8 @@ public final class Boundary {
     // ---- edge_boundary: F's separation census line A1, 2026-11-17): they answer through //core:edge
 
     /** A host's refusal of a call it could not finish (its database refusing the SQL), in the engine's shape. */
-    public static com.legend.server.PureV1Api.Answer refusal(String message) {
-        return com.legend.server.PureV1Api.refused(message);
+    public static com.legend.server.LiteV1Api.Answer refusal(String message) {
+        return com.legend.server.LiteV1Api.refused(message);
     }
 
     // ---- planning and typing

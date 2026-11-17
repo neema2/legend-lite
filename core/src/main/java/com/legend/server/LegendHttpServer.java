@@ -25,7 +25,7 @@ import java.util.regex.Pattern;
  * Endpoints (lite's own; phase D's D1.0b, 2026-11-12: legend-engine's routes are the edge's, mounted by the
  * shipped binary's root, {@code com.legend.edge.EdgeServer}, as a {@link Mount}):
  * - POST /lsp - Handle LSP JSON-RPC messages (diagnostics, completions, etc.)
- * - POST /api/lite/v1/... - lite's own API ({@link PureV1Api}: every compile error, the model routes)
+ * - POST /api/lite/v1/... - lite's own API ({@link LiteV1Api}: every compile error, the model routes)
  * - /api/lite/v1/query - the saved queries and DataCube's saved pages ({@link SavedQueries}, {@link SavedCubes})
  * - POST /engine/diagram - a class diagram from a Pure model
  * - GET /health - Health check
@@ -49,7 +49,7 @@ public class LegendHttpServer {
     private final @com.legend.base.Nullable SavedCubes cubeStore;
     /** The product door, its file: sources fenced to the folders the server's startup settings name, none when they
      *  name none ({@link #sources}; the user's ruling of 2026-11-10). */
-    private final PureV1Api.Runner runner;
+    private final LiteV1Api.Runner runner;
 
     /**
      * A module of routes the server mounts beside lite's own (phase D's D1.0b, 2026-11-12): everything under its
@@ -68,7 +68,7 @@ public class LegendHttpServer {
         }
 
         /** The answer of one request: its method, path, raw query string (or null) and body. */
-        PureV1Api.Answer answer(String method, String path, @com.legend.base.Nullable String rawQuery, String body)
+        LiteV1Api.Answer answer(String method, String path, @com.legend.base.Nullable String rawQuery, String body)
                 throws IOException;
     }
 
@@ -180,7 +180,7 @@ public class LegendHttpServer {
         // LSP Protocol - diagnostics, completions, etc.
         route("/lsp", new LspHandler());
 
-        // lite's own API (PureV1Api; legend-engine's pure/v1 routes are the edge's, mounted by the shipped binary's
+        // lite's own API (LiteV1Api; legend-engine's pure/v1 routes are the edge's, mounted by the shipped binary's
         // root: phase D's D1.0b, 2026-11-12)
         route("/api/lite/v1/", new PureV1Handler(runner));
         // the saved queries and DataCube's saved pages, lite's own route (the orchestrator's ruling of 2026-11-12: the
@@ -244,7 +244,7 @@ public class LegendHttpServer {
      * and executes.
      */
     /**
-     * {@code /api/lite/v1/...}: lite's own API, answered by {@link PureV1Api}. The body
+     * {@code /api/lite/v1/...}: lite's own API, answered by {@link LiteV1Api}. The body
      * is read RAW -- a grammar text's line endings are part of its source positions.
      */
     /**
@@ -274,14 +274,14 @@ public class LegendHttpServer {
             }
 
             @Override
-            public PureV1Api.Answer answer(String method, String path, @com.legend.base.Nullable String rawQuery,
+            public LiteV1Api.Answer answer(String method, String path, @com.legend.base.Nullable String rawQuery,
                     String body) {
                 String rest = path.substring(prefix.length());
                 SavedQueries.Answer a = rest.equals("/dataCube") || rest.startsWith("/dataCube/")
                         ? SavedCubes.answer(cubeStore, method, rest.substring("/dataCube".length()), rawQuery, body,
                                 SavedQueries.ANONYMOUS, words)
                         : SavedQueries.answer(queryStore, method, rest, rawQuery, body, SavedQueries.ANONYMOUS, words);
-                return new PureV1Api.Answer(a.status(), a.json());
+                return new LiteV1Api.Answer(a.status(), a.json());
             }
         };
     }
@@ -311,7 +311,7 @@ public class LegendHttpServer {
             // decodes its own segments (SavedQueries' and SavedCubes' ids), so an encoded "../" stays one segment, a
             // refused id (#81's saved-pages test); the DECODED path for every other module, as pure/v1's handler read it
             // (the D part 1 audit's nit, 2026-11-15: a percent-encoded pure/v1 path 404ed)
-            PureV1Api.Answer answer = module.answer(exchange.getRequestMethod(), module.rawPath()
+            LiteV1Api.Answer answer = module.answer(exchange.getRequestMethod(), module.rawPath()
                     ? exchange.getRequestURI().getRawPath() : exchange.getRequestURI().getPath(),
                     exchange.getRequestURI().getRawQuery(), body);
             answer.headers().forEach((k, v) -> exchange.getResponseHeaders().add(k, v));
@@ -325,9 +325,9 @@ public class LegendHttpServer {
     }
 
     private static final class PureV1Handler implements HttpHandler {
-        private final PureV1Api.Runner runner;
+        private final LiteV1Api.Runner runner;
 
-        PureV1Handler(PureV1Api.Runner runner) {
+        PureV1Handler(LiteV1Api.Runner runner) {
             this.runner = runner;
         }
 
@@ -347,8 +347,8 @@ public class LegendHttpServer {
             try (InputStream in = exchange.getRequestBody()) {
                 body = new String(in.readAllBytes(), StandardCharsets.UTF_8);
             }
-            // the routes are the API's own (PureV1Api.route, the plan side); execute runs through the driver
-            PureV1Api.Answer answer = PureV1Api.route(exchange.getRequestURI().getPath(),
+            // the routes are the API's own (LiteV1Api.route, the plan side); execute runs through the driver
+            LiteV1Api.Answer answer = LiteV1Api.route(exchange.getRequestURI().getPath(),
                     exchange.getRequestURI().getRawQuery(), body, runner);
             // a binary answer (the ARROW_IPC execute, track A, 2026-10-29): its bytes under upstream's headers
             answer.headers().forEach((k, v) -> exchange.getResponseHeaders().add(k, v));

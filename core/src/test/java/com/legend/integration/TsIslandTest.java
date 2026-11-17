@@ -2668,7 +2668,7 @@ class TsIslandTest {
                 + " scaled: x|$x.px->toOne() * (3 / 2), sign: x|if($x.px > 100.5, |1.0, |-1.0)])->extend(~[twice: x|"
                 + "$x.scaled->toOne() * 2, gap: x|if($x.px < 99.0, |[], |$x.px->toOne() - 99.0)])->filter(x|$x.scaled"
                 + " > 150); #TS{SELECT avg(twice, 3) AS m, sign AS s, gap AS g FROM $q ON day BY line}#;");
-        com.legend.protocol.ts.TsShow.Types types = com.legend.server.PureV1Api.tsTypes(model);
+        com.legend.protocol.ts.TsShow.Types types = com.legend.server.LiteV1Api.tsTypes(model);
         Map<String, String> statements = new LinkedHashMap<>();
         for (Map.Entry<String, String> q : queries.entrySet()) {
             com.legend.protocol.ts.TsShow.Shown shown = com.legend.protocol.ts.TsShow.of(lambdaOf(q.getValue()), types,

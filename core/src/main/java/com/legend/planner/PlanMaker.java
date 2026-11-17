@@ -1188,7 +1188,7 @@ public final class PlanMaker {
     /**
      * The runtime {@code query} runs on: {@code given}, or -- none given -- the one runtime its {@code from()}s name
      * (A5, 2026-11-10: as legend-engine runs a lambda's {@code ->from(mapping, runtime)} on that runtime when the
-     * request names none, and as lite's server already chose it, {@code PureV1Api.runtimeOf}; until then every door but
+     * request names none, and as lite's server already chose it, {@code LiteV1Api.runtimeOf}; until then every door but
      * the server's refused such a query, and a from()'s runtime's test data was refused as a test's seed on the
      * product's doors). A query naming several runtimes and given none is refused by name; one naming none stays
      * unplaced ({@code Compiler.executesOn} refuses it, {@code Compiler.NO_RUNTIME}).

@@ -46,7 +46,7 @@ final class Coercions {
         // SYNTHESIZED conformance population spells trustOne (below)
         // and stays unguarded BY NAME — the C2 provenance split.
         for (com.legend.model.FunctionId f : Pure.AT_MULTIPLICITY_TO_ONE) {
-            rules.put(f, (n, args) -> {
+            rules.put(f, (Scalars.StyledRule) (n, args, styled) -> {
                 // AGG-STRIP (stamp C2): a LIST-collecting subquery
                 // operand becomes the NATIVE scalar subquery — SQL's
                 // own checked toOne (row-lane flow convention,
@@ -101,7 +101,7 @@ final class Coercions {
                             new SqlExpr.Call(SqlFn.IS_NULL,
                                     List.of(args.get(0))),
                             SqlExpr.RaiseText.placed(com.legend.sql.RaiseKind.SIZE_NOT_MULTIPLICITY, "[1]"),
-                            args.get(0));
+                            args.get(0), styled);
                 }
                 // Everything else — ROW-LANE [0..1] scalar reads AND
                 // many-stamped ROW-LANE collections (correlated

@@ -46,7 +46,8 @@ final class CastPolicy {
     // are the correct plumbing for that seam.
 
     /** The cast policy over an ALREADY-LOWERED source (scalar or window channel). */
-    static SqlExpr lower(TypedCast c, SqlExpr value, boolean isMany, boolean elideWireCasts) {
+    static SqlExpr lower(TypedCast c, SqlExpr value, boolean isMany, boolean elideWireCasts,
+            java.util.Set<com.legend.sql.RaiseKind> plain) {
         if (c.wire() && elideWireCasts) {
             // the mapping's WIRE coercion, elided where the shape asks (LoweringShape#elideWireCasts): its reader
             // converts on the wire; the lean shape keeps the SQL cast (DuckDB does not wire-convert — audit 19 F7)
@@ -61,7 +62,7 @@ final class CastPolicy {
             if (!c.wire() && crossKindRaise(
                     c.source().info().type(), c.target())
                     instanceof SqlExpr raise) {
-                return raise;
+                return impossible(raise, value, plain);
             }
             // A CONVERTING primitive cast (String->@Integer) must reach
             // SQL (bare return left VARCHAR arithmetic); a WIDENING cast
@@ -166,16 +167,23 @@ final class CastPolicy {
     }
 
     static SqlExpr castByPolicy(SqlExpr e, Type src, Type target) {
-        return castByPolicy(e, src, target, false);
+        return castByPolicy(e, src, target, false, java.util.Set.of());
+    }
+
+    /** A cast that can never succeed under the plan style ({@code PlanStyle.plainRaises}, B7, 2026-11-17): the
+     *  product's raise, or, where the style writes CAST_IMPOSSIBLE plain, legend-engine's: its {@code processCast} of a
+     *  scalar is a no-op, the value itself (pureToSQLQuery.pure:3160-3183 at legend-engine 230c1591). */
+    private static SqlExpr impossible(SqlExpr raise, SqlExpr value, java.util.Set<com.legend.sql.RaiseKind> plain) {
+        return plain.contains(com.legend.sql.RaiseKind.CAST_IMPOSSIBLE) ? value : raise;
     }
 
     /** {@code wire}: a mapping WIRE coercion — the engine converts on
      * the wire (string columns feeding Integer properties), so the
      * cross-kind raise never applies to it. */
     static SqlExpr castByPolicy(SqlExpr e, Type src, Type target,
-            boolean wire) {
+            boolean wire, java.util.Set<com.legend.sql.RaiseKind> plain) {
         if (!wire && crossKindRaise(src, target) instanceof SqlExpr raise) {
-            return raise;
+            return impossible(raise, e, plain);
         }
         if (isSqlPrimitive(target) && isSqlPrimitive(src)
                 && !isWidening(src, target)

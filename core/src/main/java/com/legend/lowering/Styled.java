@@ -15,11 +15,19 @@ import java.util.function.Supplier;
  *
  * @param pureOnly the texts only legend-pure writes ({@link PureOnlyTexts}): the edge's answers, the product's style
  *                 throwing the call's refusal
+ * @param plain    the raises the style writes as the plain operation ({@code PlanStyle.plainRaises}, B7, 2026-11-17):
+ *                 the product's none; the edge's pure/v1 style legend-engine's census class A
  */
-public record Styled(Function<Supplier<? extends RuntimeException>, PureOnlyTexts> pureOnly) {
+public record Styled(Function<Supplier<? extends RuntimeException>, PureOnlyTexts> pureOnly,
+        java.util.Set<com.legend.sql.RaiseKind> plain) {
 
-    /** The product's own style: each text only legend-pure writes refused, by its call's own refusal. */
+    public Styled {
+        plain = plain.isEmpty() ? java.util.Set.of() : java.util.Collections.unmodifiableSet(java.util.EnumSet.copyOf(plain));
+    }
+
+    /** The product's own style: each text only legend-pure writes refused, by its call's own refusal; every check of
+     *  lite's written (no plain raise, {@code PlanStyle.plainRaises}). */
     public static final Styled PRODUCT = new Styled(refusal -> {
         throw refusal.get();
-    });
+    }, java.util.Set.of());
 }

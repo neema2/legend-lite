@@ -51,7 +51,10 @@ public final class SavedQueries {
             /** Some of several IDs name no saved query: those IDs, one per line. */
             QUERIES_NOT_FOUND("no saved query has the ID(s):\n%1$s"),
             /** A saved query has no such version: the version, the ID. */
-            VERSION_NOT_FOUND("the saved query '%2$s' has no version '%1$s'");
+            VERSION_NOT_FOUND("the saved query '%2$s' has no version '%1$s'"),
+            /** A path the store does not serve: the path under the store, its mount's (B7, the orchestrator's ruling (3)
+             *  of 2026-11-17: lite's words for lite's mount; legend-engine's path and words the edge's, StoreWords). */
+            NO_SUCH_ROUTE("no such legend-lite API: /api/lite/v1/query%1$s");
 
             private final String sentence;
 
@@ -165,12 +168,11 @@ public final class SavedQueries {
             String[] parts = rest.isEmpty() ? new String[0] : rest.substring(1).split("/", -1);
             String id = parts.length > 0 ? java.net.URLDecoder.decode(parts[0], StandardCharsets.UTF_8) : "";
             if (parts.length > 0 && "dataCube".equals(parts[0])) {
-                return new Answer(404, "{\"code\":-1,\"message\":\"no such legend-engine API in legend-lite: "
-                        + "/api/pure/v1/query" + rest + "\",\"status\":\"error\"}");
+                return notFound(rest, words);
             }
             return switch (method + " " + parts.length + " " + (parts.length > 1 ? parts[1] : "")) {
                 case "POST 0 " -> ok(store.create(body, user));
-                case "POST 1 " -> "search".equals(id) ? ok(store.search(body, user)) : notFound(rest);
+                case "POST 1 " -> "search".equals(id) ? ok(store.search(body, user)) : notFound(rest, words);
                 case "GET 1 " -> "batch".equals(id) ? ok(store.batch(queryParams(rawQuery, "queryIds"))) : ok(store.get(id));
                 case "PUT 1 " -> ok(store.update(id, body, user));
                 case "DELETE 1 " -> {
@@ -182,7 +184,7 @@ public final class SavedQueries {
                     yield ok(store.history(id, v.isEmpty() ? null : Integer.valueOf(v.get(0))));
                 }
                 case "PUT 2 patchQuery" -> ok(store.patch(id, body, user));
-                default -> notFound(rest);
+                default -> notFound(rest, words);
             };
         } catch (Refusal r) {
             return new Answer(r.status, Json.toCompact(Map.of("message", words.apply(r))));
@@ -206,9 +208,14 @@ public final class SavedQueries {
         return new Answer(200, json);
     }
 
-    private static Answer notFound(String rest) {
-        return new Answer(404, "{\"code\":-1,\"message\":\"no such legend-engine API in legend-lite: "
-                + "/api/pure/v1/query" + rest + "\",\"status\":\"error\"}");
+    /** A path the store does not serve ({@code rest}, under the store), worded by its mount's {@code words}, in the
+     *  error shape: {@code {"code", "message", "status"}}. */
+    static Answer notFound(String rest, java.util.function.Function<Refusal, String> words) {
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("code", -1);
+        out.put("message", words.apply(new Refusal(Refusal.Kind.NO_SUCH_ROUTE, List.of(rest), 404)));
+        out.put("status", "error");
+        return new Answer(404, Json.toCompact(out));
     }
 
     private static List<String> queryParams(@com.legend.base.Nullable String rawQuery, String name) {
