@@ -329,10 +329,13 @@ public final class JudgePlans {
 
     /** A required side's refusal of no rows, as {@code style} words it at planning (C5's step E, 2026-11-17): the
      *  compatibility edge's legend-pure sentence ({@code PlanStyle.siteWords} of a SIZE_NOT_MULTIPLICITY site, the
-     *  bound its operand); null for the product's style, whose run writes lite's own sentence. */
-    static @com.legend.base.Nullable String sizeWords(com.legend.database.PlanStyle style, String multiplicity) {
-        return style.siteWords(new com.legend.sql.dialect.RaiseSite(1, com.legend.sql.RaiseKind.SIZE_NOT_MULTIPLICITY,
-                multiplicity, List.of(new com.legend.sql.SqlExpr.StringLit(multiplicity)), null));
+     *  bound its operand), else the product's own, the kind's sentence and the bound. The run spells none. */
+    static String sizeWords(com.legend.database.PlanStyle style, String multiplicity) {
+        String upstream = style.siteWords(new com.legend.sql.dialect.RaiseSite(1,
+                com.legend.sql.RaiseKind.SIZE_NOT_MULTIPLICITY, multiplicity,
+                List.of(new com.legend.sql.SqlExpr.StringLit(multiplicity)), null));
+        return upstream != null ? upstream
+                : com.legend.error.ErrorKind.SIZE_NOT_MULTIPLICITY.sentence() + ": " + multiplicity;
     }
 
     private static com.legend.testexecutionplan.SideShape.Column shapeColumn(Type.Column c) {
