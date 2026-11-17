@@ -1,0 +1,51 @@
+# The unstructured study's model. Its own package, outside //projects' PROJECT_DEPS graph: it is a study, not one of the
+# firm-model projects CONTRACT.md governs, and it links nothing from them.
+load("//tools/guards:defs.bzl", "guards_package")
+load("//tools/junit:defs.bzl", "junit_test")
+load("//tools/legend:defs.bzl", "legend_library")
+load("@rules_python//python:py_test.bzl", "py_test")
+
+legend_library(
+    name = "unstructured",
+    srcs = ["model.pure"],
+)
+
+# The model over the loaded corpus. Manual, outside //gates:local: the filings are never committed, so a checkout has none
+# until someone rebuilds them, and this FAILS without them, naming the rebuild. "local" because the test finds the corpus
+# through its source file's real path.
+junit_test(
+    name = "corpus_test",
+    size = "medium",
+    data = ["model.pure"],
+    env = {"UNSTRUCTURED_MODEL": "$(rlocationpaths :model.pure)"},
+    memory_mb = 1024,
+    select = ["--select-class=com.legend.tools.legend.UnstructuredCorpusTest"],
+    tags = [
+        "local",
+        "manual",
+    ],
+    runtime_deps = [
+        "//core:drivers",
+        "//tools/legend:unstructured_corpus_test_lib",
+    ],
+)
+
+# THE FREEZE, mechanically, in the `checks` lane and needing no corpus (2026-11-09, the branch's independent review): the key
+# is the file its sha256 says. The record is a data file because a test may not read Markdown (G17, prose must not change
+# a verdict); DECISIONS.md carries the same hash, and judge.py refuses a run unless the three agree.
+py_test(
+    name = "freeze_test",
+    size = "small",
+    srcs = ["evals/freeze_test.py"],
+    args = [
+        "$(rootpath evals/answer_key.yaml)",
+        "$(rootpath evals/answer_key.sha256)",
+    ],
+    data = [
+        "evals/answer_key.sha256",
+        "evals/answer_key.yaml",
+    ],
+    main = "evals/freeze_test.py",
+)
+
+guards_package()

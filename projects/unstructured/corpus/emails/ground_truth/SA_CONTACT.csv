@@ -1,0 +1,13 @@
+CONTACT_ID,CLIENT_ID,CONTACT_NAME,CONTACT_ROLE,EMAIL_ADDRESS
+P-01,C-01,Leena Marchetti,PortfolioManager,leena.marchetti@quillon-am.example
+P-02,C-01,Owen Trask,Trader,owen.trask@quillon-am.example
+P-03,C-02,Ilse Vandermeer,PortfolioManager,ilse.vandermeer@brantoak.example
+P-04,C-03,Callum Oyelaran,PortfolioManager,callum.oyelaran@sorrelmead-tpf.example
+P-05,C-03,Bronwyn Hale,Analyst,bronwyn.hale@sorrelmead-tpf.example
+P-06,C-04,Fergus Dunmore,PortfolioManager,fergus.dunmore@velmara-life.example
+P-07,C-05,Wen Tanaputra,PortfolioManager,wen.tanaputra@ysolde-sra.example
+P-08,C-05,Hadi Rahmanov,Operations,hadi.rahmanov@ysolde-sra.example
+P-09,C-06,Greta Zollinger,Trader,greta.zollinger@hallerbrunn.example
+P-10,C-07,Marcus Adeyemi-Holt,Analyst,marcus.adeyemi.holt@corvane.example
+P-11,C-08,Soren Lindqvist-Ames,PortfolioManager,soren.lindqvist.ames@ostermark.example
+P-12,C-08,Pia Korhonen,Trader,pia.korhonen@ostermark.example

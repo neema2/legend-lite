@@ -1,0 +1,15 @@
+# The unstructured study's requirements, each at its pin (pins.env), but chardet, at a floor (below).
+sentence-transformers==${SENTENCE_TRANSFORMERS_VERSION}
+torch==${TORCH_VERSION}
+transformers==${TRANSFORMERS_VERSION}
+tokenizers==${TOKENIZERS_VERSION}
+huggingface-hub==${HUGGINGFACE_HUB_VERSION}
+safetensors==${SAFETENSORS_VERSION}
+numpy==${NUMPY_VERSION}
+duckdb==${DUCKDB_VERSION}
+pg8000==${PG8000_VERSION}
+pyyaml==${PYYAML_VERSION}
+requests==${REQUESTS_VERSION}
+# A floor, not a pin: reportlab (tools/synth-corpus/gen_loan_docs.py) requires chardet with no version, and every chardet
+# before 7.0.0 is LGPL (tools/unstructured-oracle/README.md, "Licences"). chardet 7 needs Python 3.10 or later.
+chardet>=7.0.0

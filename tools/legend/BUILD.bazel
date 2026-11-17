@@ -15,4 +15,18 @@ legend_java_library(
     ],
 )
 
+# The class behind //projects/unstructured:corpus_test, kept here as CompilesTest is: a project's package may not use the
+# test jars' pool.
+legend_java_library(
+    name = "unstructured_corpus_test_lib",
+    testonly = True,
+    srcs = ["src/test/java/com/legend/tools/legend/UnstructuredCorpusTest.java"],
+    visibility = ["//projects/unstructured:__pkg__"],
+    deps = [
+        "//core",
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+)
+
 guards_package()
