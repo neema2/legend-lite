@@ -77,14 +77,28 @@ class RenderCsvIntegrationTest extends AbstractDatabaseTest {
 
     @Test
     void theProductRefusesARelationsTextByName() {
-        for (String query : java.util.List.of(
-                "|test::Person.all()->project([p | $p.name], ['name'])->meta::relational::tests::csv::toCSV()",
-                "|test::Person.all()->project([p | $p.name], ['name'])->meta::pure::functions::relation::toString()")) {
+        // each call's own sentence, at lowering (B17 of the separation census, 2026-11-17: the text is the edge's
+        // edge.RelationTextLowering, asked through the plan style's RelationTexts facet; the product's style refuses)
+        java.util.Map<String, String> refusals = new java.util.LinkedHashMap<>();
+        refusals.put("|test::Person.all()->project([p | $p.name], ['name'])->meta::relational::tests::csv::toCSV()",
+                "toCSV");
+        refusals.put("|test::Person.all()->project([p | $p.name], ['name'])->meta::pure::functions::relation::toString()",
+                "toString");
+        refusals.put("|test::Person.all()->project([p | $p.name], ['name'])"
+                + "->cast(@meta::pure::metamodel::relation::TDS<Any>).csv", "a TDS's csv");
+        refusals.forEach((query, what) -> {
             Exception refused = org.junit.jupiter.api.Assertions.assertThrows(Exception.class,
                     () -> Lean.run(MODEL, query, "test::RT", connection));
-            org.junit.jupiter.api.Assertions.assertTrue(String.valueOf(refused.getMessage()).contains("of a relation")
-                    && refused.getMessage().contains("result writers"), refused.toString());
-        }
+            Throwable cause = refused;
+            while (!(cause instanceof com.legend.error.LegendCompileException) && cause.getCause() != null) {
+                cause = cause.getCause();
+            }
+            com.legend.error.LegendCompileException compile = assertInstanceOf(
+                    com.legend.error.LegendCompileException.class, cause, refused.toString());
+            assertEquals(com.legend.error.LegendCompileException.Phase.LOWER, compile.phase(), query);
+            assertEquals(what + " of a relation is legend-pure's text, the compatibility edge's: the product writes a"
+                    + " relation's rows by its result writers (JSON, CSV, Arrow)", compile.getMessage(), query);
+        });
     }
 
     @Test

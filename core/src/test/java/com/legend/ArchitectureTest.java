@@ -1223,6 +1223,10 @@ final class ArchitectureTest {
             // the closed facet list, read by the edge's style before it answers a kind (the P2 checkpoint audit's S2,
             // 2026-11-16): data, a list of classes
             "testplan.PlanStyleFacets#KINDS", "com.legend.edge.PureText",
+            // B17 of the separation census (2026-11-17, the precedent above's one facade, one row): a relation's
+            // legend-pure text is the edge's (edge.RelationTextLowering), and each lowering read it makes -- a cell's
+            // print, a date-time's text -- is the facade's (lowering.RelationTexts), each member admitted by this row
+            "lowering.RelationTexts#*", "com.legend.edge.RelationTextLowering",
             // the test door's options, from the root's ExecuteOptions: planning's half, a record of closed words
             "testplan.PlanningOptions#<init>(com.legend.testexecutionplan.Edge, com.legend.executionplan.DataStores, "
                     + "java.util.Set, com.legend.testplan.PlanningOptions$JudgeMode, "
@@ -1434,9 +1438,15 @@ final class ArchitectureTest {
      *  alone and the facade grows without a row per member. */
     static final String FACADE = "testplan.EngineTextPlanning#*";
 
+    /** The facades whose every member is one entry, {@code owner#*}: the engine-text arm's ({@link #FACADE}) and the
+     *  relation text's (B17 of the separation census, 2026-11-17: {@code lowering.RelationTexts}, read by the edge's
+     *  {@code RelationTextLowering}). */
+    static final java.util.Set<String> FACADES = java.util.Set.of(
+            "com.legend.testplan.EngineTextPlanning", "com.legend.lowering.RelationTexts");
+
     static String entryKey(com.tngtech.archunit.core.domain.JavaAccess<?> a) {
-        if (a.getTargetOwner().getName().equals("com.legend.testplan.EngineTextPlanning")) {
-            return FACADE;
+        if (FACADES.contains(a.getTargetOwner().getName())) {
+            return a.getTargetOwner().getName().substring("com.legend.".length()) + "#*";
         }
         String entry = a.getTargetOwner().getName().substring("com.legend.".length()) + "#" + a.getName();
         if (a.getTarget() instanceof com.tngtech.archunit.core.domain.AccessTarget.CodeUnitAccessTarget unit) {
