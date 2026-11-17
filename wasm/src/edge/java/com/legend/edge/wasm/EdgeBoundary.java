@@ -93,6 +93,14 @@ public final class EdgeBoundary {
         return com.legend.edge.HostAnswers.arrowAnswer(plan, rows);
     }
 
+    /** A host's refusal of a call it could not finish -- its database refusing the SQL, say -- in legend-engine's
+     *  error shape ({@link com.legend.edge.EngineEnvelope#refused}): 500, no {@code errorType}. Python's native
+     *  {@code lite_pure_v1_refusal} (its edge half, EngineEntries) since planner.Boundary's refusal went with lite API
+     *  v1's step 2c (2026-11-17, the Python host's ask). */
+    public static com.legend.server.LiteV1Api.Answer refused(String message) {
+        return com.legend.edge.EngineEnvelope.refused(message);
+    }
+
     /** The models a host runs, from their JSON array of texts. */
     private static java.util.List<String> models(String modelsJson) {
         java.util.List<String> models = new java.util.ArrayList<>();

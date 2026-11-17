@@ -399,7 +399,8 @@ public class LegendHttpServer {
                         + method + " " + path);
             }
             return LiteV1Api.answer(() -> {
-                if (!body.isBlank()) {
+                // strip().isEmpty(), not isBlank(): text the tab writes alike (ArchitectureTest's portable-text rule)
+                if (!body.strip().isEmpty()) {
                     LiteV1Api.read(body, "a user request", java.util.Set.of());
                 }
                 return Json.toCompact(java.util.Map.of("user", SavedQueries.ANONYMOUS));
