@@ -21,9 +21,10 @@ import java.util.function.Function;
  * relation's rows by its result writers and refuses each by name AT LOWERING ({@code TextRefusals.relation}, the call site's words). The Lowerer asks the
  * planner's style for this facet only when it meets one of the three calls, carrying the call's own refusal.
  *
- * <p>Its static members are the lowering's helpers the edge's composition reads (each forwards one call; one
- * {@code ArchitectureTest.PLANNER_ENTRIES} row admits them, as {@code testplan.EngineTextPlanning}'s): the product's
- * text of a value, a DateTime's text and a mixed column's kind -- each a product helper the product itself uses (the
+ * <p>Its static members are the lowering's helpers the edge's composition reads (each forwards one call;
+ * {@code ArchitectureTest.PLANNER_ENTRIES} lists each one the edge reaches, by its full signature, as
+ * {@code testplan.EngineTextPlanning}'s: the GUARD stream's C.4, 2026-11-17): the product's text of a value and a
+ * mixed column's kind -- each a product helper the product itself uses (the
  * orchestrator's ruling of 2026-11-17 on facades; the date texts only a relation's text wrote moved to the edge with
  * it, edge.RelationTextLowering).
  */

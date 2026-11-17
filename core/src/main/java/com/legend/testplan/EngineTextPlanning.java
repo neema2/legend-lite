@@ -16,7 +16,9 @@ import java.util.List;
  * ({@code edge.SqlTextVerdicts}), and every read it makes of the test planner, the planner or the lowering goes
  * through here -- the environment's parts, a side planned for either judge, the replay facts, the verdict batch, the
  * plan's appeals. Each method forwards one call; nothing here decides or evaluates.
- * {@code ArchitectureTest.PLANNER_ENTRIES} lists this class once, for the edge's arm alone.
+ * {@code ArchitectureTest.PLANNER_ENTRIES} lists each member the edge's arm reaches, by its full signature and for its
+ * callers alone (one "#*" row until 2026-11-17, the GUARD stream's C.4); {@code OpenClassMembersTest} pins the whole
+ * member set.
  */
 public final class EngineTextPlanning {
 

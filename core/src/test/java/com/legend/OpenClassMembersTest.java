@@ -10,6 +10,7 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.Executable;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -34,124 +35,126 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @Tag("guardrail")
 class OpenClassMembersTest {
 
-    /** Each open class's declared members, exact: a field by its name, a method or constructor by its name and its
-     *  parameters' type names, a nested class's members behind its simple name and {@code #}. Measured 2026-11-17. */
+    /** Each open class's declared members, exact, as {@link #collect} reads them (modifiers and generic types; nested,
+     *  anonymous and local classes; a static initializer; the number of lambda bodies). Measured 2026-11-17. */
     static final Map<String, Set<String>> MEMBERS = Map.ofEntries(
             // B8 (a ruled hook)
             Map.entry("com.legend.lowering.PureOnlyTexts", Set.of(
-                    "formatPadded(com.legend.sql.SqlExpr, com.legend.sql.SqlExpr$IntLit)",
-                    "instanceText(com.legend.sql.SqlExpr)",
-                    "representation(com.legend.sql.SqlExpr)")),
+                    "public abstract com.legend.sql.SqlExpr formatPadded(com.legend.sql.SqlExpr, com.legend.sql.SqlExpr$IntLit)",
+                    "public abstract com.legend.sql.SqlExpr instanceText(com.legend.sql.SqlExpr)",
+                    "public abstract com.legend.sql.SqlExpr representation(com.legend.sql.SqlExpr)")),
             // B17 (the listed facade of the relation text: ArchitectureTest.PLANNER_ENTRIES)
             Map.entry("com.legend.lowering.RelationTexts", Set.of(
-                    "csvProperty(com.legend.compiler.spec.typed.TypedPropertyAccess, java.util.function.Function, java.lang.String)",
-                    "kindType(java.lang.String)",
-                    "pureToString(com.legend.lowering.PureOnlyTexts, com.legend.lowering.ListTexts, com.legend.compiler.element.type.Type, com.legend.sql.SqlExpr)",
-                    "relationToString(com.legend.compiler.spec.typed.TypedNativeCall, java.util.function.Function, java.lang.String, java.util.Map)",
-                    "toCsv(com.legend.compiler.spec.typed.TypedNativeCall, java.util.function.Function, java.lang.String, java.util.Map)")),
+                    "(lambda bodies) 1",
+                    "public abstract com.legend.sql.SqlExpr csvProperty(com.legend.compiler.spec.typed.TypedPropertyAccess, java.util.function.Function<com.legend.compiler.spec.typed.TypedSpec, com.legend.sql.SqlSelect>, java.lang.String)",
+                    "public abstract com.legend.sql.SqlExpr relationToString(com.legend.compiler.spec.typed.TypedNativeCall, java.util.function.Function<com.legend.compiler.spec.typed.TypedSpec, com.legend.sql.SqlSelect>, java.lang.String, java.util.Map<java.lang.Integer, com.legend.compiler.element.type.Type$RelationType>)",
+                    "public abstract com.legend.sql.SqlExpr toCsv(com.legend.compiler.spec.typed.TypedNativeCall, java.util.function.Function<com.legend.compiler.spec.typed.TypedSpec, com.legend.sql.SqlSelect>, java.lang.String, java.util.Map<java.lang.Integer, com.legend.compiler.element.type.Type$RelationType>)",
+                    "public static com.legend.compiler.element.type.Type kindType(java.lang.String)",
+                    "public static com.legend.sql.SqlExpr pureToString(com.legend.lowering.PureOnlyTexts, com.legend.lowering.ListTexts, com.legend.compiler.element.type.Type, com.legend.sql.SqlExpr)")),
             // C5
             Map.entry("com.legend.lowering.Repr", Set.of(
-                    "<init>()",
-                    "of(com.legend.lowering.Styled, com.legend.compiler.element.type.Type, com.legend.sql.SqlExpr)",
-                    "of(com.legend.lowering.Styled, com.legend.compiler.spec.typed.TypedSpec, com.legend.sql.SqlExpr)")),
+                    "private <init>()",
+                    "static com.legend.sql.SqlExpr of(com.legend.lowering.Styled, com.legend.compiler.element.type.Type, com.legend.sql.SqlExpr)",
+                    "static com.legend.sql.SqlExpr of(com.legend.lowering.Styled, com.legend.compiler.spec.typed.TypedSpec, com.legend.sql.SqlExpr)")),
             // B5 (a ruled hook)
             Map.entry("com.legend.lowering.ResultEnvelopes", Set.of(
-                    "classes(com.legend.sql.SqlExpr, java.lang.String)",
-                    "tds(java.util.List, java.util.List, java.util.List, java.lang.String)",
-                    "values(com.legend.sql.SqlExpr)")),
+                    "public abstract com.legend.sql.SqlExpr classes(com.legend.sql.SqlExpr, java.lang.String)",
+                    "public abstract com.legend.sql.SqlExpr tds(java.util.List<java.lang.String>, java.util.List<java.lang.String>, java.util.List<com.legend.sql.SqlExpr>, java.lang.String)",
+                    "public abstract com.legend.sql.SqlExpr values(com.legend.sql.SqlExpr)")),
             // B2
             Map.entry("com.legend.planner.UpstreamPlans", Set.of(
-                    "activitySql(java.util.List, java.lang.String, com.legend.compiler.spec.SpecCompiler, com.legend.planner.PlanEnv, boolean)",
-                    "ddlText(com.legend.compiler.spec.typed.TypedNativeCall, com.legend.planner.PlanEnv)",
-                    "engineSeedSql(java.lang.String, com.legend.model.DatabaseDefinition, java.util.function.Function)",
-                    "engineSeedSqlFromRecords(java.util.List, com.legend.model.DatabaseDefinition, java.util.function.Function)",
-                    "generatedTestDataPlan(com.legend.compiler.spec.typed.TypedTestDataGen, com.legend.compiler.element.ModelContext)",
-                    "planModel(com.legend.compiler.spec.typed.TypedNativeCall, com.legend.compiler.spec.SpecCompiler, com.legend.planner.PlanEnv)",
-                    "routineText(com.legend.builtin.NativeFn$JavaRoutine, com.legend.compiler.spec.NativeDispatch$RoutineCall, java.util.List, com.legend.compiler.spec.SpecCompiler, com.legend.planner.PlanEnv)",
-                    "testDataTimestampText()")),
+                    "public abstract com.legend.plan.PlanNode planModel(com.legend.compiler.spec.typed.TypedNativeCall, com.legend.compiler.spec.SpecCompiler, com.legend.planner.PlanEnv)",
+                    "public abstract java.lang.String activitySql(java.util.List<com.legend.compiler.spec.typed.TypedSpec>, java.lang.String, com.legend.compiler.spec.SpecCompiler, com.legend.planner.PlanEnv, boolean)",
+                    "public abstract java.lang.String ddlText(com.legend.compiler.spec.typed.TypedNativeCall, com.legend.planner.PlanEnv)",
+                    "public abstract java.lang.String generatedTestDataPlan(com.legend.compiler.spec.typed.TypedTestDataGen, com.legend.compiler.element.ModelContext)",
+                    "public abstract java.lang.String routineText(com.legend.builtin.NativeFn$JavaRoutine, com.legend.compiler.spec.NativeDispatch$RoutineCall, java.util.List<com.legend.compiler.spec.typed.TypedSpec>, com.legend.compiler.spec.SpecCompiler, com.legend.planner.PlanEnv)",
+                    "public abstract java.util.List<java.lang.String> engineSeedSql(java.lang.String, com.legend.model.DatabaseDefinition, java.util.function.Function<java.lang.String, java.util.Optional<com.legend.model.DatabaseDefinition>>)",
+                    "public abstract java.util.List<java.lang.String> engineSeedSqlFromRecords(java.util.List<java.util.List<java.lang.String>>, com.legend.model.DatabaseDefinition, java.util.function.Function<java.lang.String, java.util.Optional<com.legend.model.DatabaseDefinition>>)",
+                    "public abstract java.util.function.UnaryOperator<com.legend.sql.SqlExpr> testDataTimestampText()")),
             // B12
             Map.entry("com.legend.sql.dialect.DateTimePrintText", Set.of(
-                    "<init>()",
-                    "Expansion (class)",
                     "Expansion#<init>()",
-                    "Expansion#expr(com.legend.sql.SqlExpr)",
-                    "of(com.legend.sql.SqlExpr)")),
+                    "Expansion#protected com.legend.sql.SqlExpr expr(com.legend.sql.SqlExpr)",
+                    "private <init>()",
+                    "static com.legend.sql.SqlExpr of(com.legend.sql.SqlExpr)",
+                    "static final Expansion (class)")),
             // C4 (a ruled hook)
             Map.entry("com.legend.testplan.EngineTestText", Set.of(
-                    "batchTexts()",
-                    "isRoot(java.lang.String)",
-                    "notAConstant(com.legend.testplan.HostSides$Check)",
-                    "plan(com.legend.testplan.TextAsk)",
-                    "reachesUpstreamText(java.lang.String, boolean, java.util.List, java.util.List, com.legend.compiler.spec.SpecCompiler)",
-                    "textsHeld(com.legend.testexecutionplan.Extension)",
-                    "tryArm(java.lang.String, boolean, java.util.List, java.util.List, com.legend.compiler.spec.SpecCompiler, com.legend.testplan.BodyDriver$ExecEnv, com.legend.testplan.AssertVerdicts$SpliceHook)",
-                    "tryArmDualGolden(com.legend.compiler.spec.typed.TypedUserCall, java.util.List, com.legend.compiler.spec.SpecCompiler, com.legend.testplan.BodyDriver$ExecEnv, com.legend.testplan.AssertVerdicts$SpliceHook)",
-                    "tryArmSameSql(com.legend.compiler.spec.typed.TypedUserCall, java.util.List, com.legend.compiler.spec.SpecCompiler, com.legend.testplan.BodyDriver$ExecEnv, com.legend.testplan.AssertVerdicts$SpliceHook)",
-                    "why(com.legend.testplan.HostSides$Check)")),
+                    "public abstract boolean isRoot(java.lang.String)",
+                    "public abstract boolean notAConstant(com.legend.testplan.HostSides$Check)",
+                    "public abstract boolean reachesUpstreamText(java.lang.String, boolean, java.util.List<com.legend.compiler.spec.typed.TypedSpec>, java.util.List<com.legend.compiler.spec.typed.TypedSpec>, com.legend.compiler.spec.SpecCompiler)",
+                    "public abstract com.legend.testexecutionplan.TypedSide tryArm(java.lang.String, boolean, java.util.List<com.legend.compiler.spec.typed.TypedSpec>, java.util.List<com.legend.compiler.spec.typed.TypedSpec>, com.legend.compiler.spec.SpecCompiler, com.legend.testplan.BodyDriver$ExecEnv, com.legend.testplan.AssertVerdicts$SpliceHook)",
+                    "public abstract com.legend.testexecutionplan.TypedSide tryArmDualGolden(com.legend.compiler.spec.typed.TypedUserCall, java.util.List<com.legend.compiler.spec.typed.TypedSpec>, com.legend.compiler.spec.SpecCompiler, com.legend.testplan.BodyDriver$ExecEnv, com.legend.testplan.AssertVerdicts$SpliceHook)",
+                    "public abstract com.legend.testexecutionplan.TypedSide tryArmSameSql(com.legend.compiler.spec.typed.TypedUserCall, java.util.List<com.legend.compiler.spec.typed.TypedSpec>, com.legend.compiler.spec.SpecCompiler, com.legend.testplan.BodyDriver$ExecEnv, com.legend.testplan.AssertVerdicts$SpliceHook)",
+                    "public abstract com.legend.testplan.BatchTexts batchTexts()",
+                    "public abstract com.legend.testplan.TextPlanned plan(com.legend.testplan.TextAsk)",
+                    "public abstract com.legend.testplan.TextsHeld textsHeld(com.legend.testexecutionplan.Extension)",
+                    "public abstract java.lang.String why(com.legend.testplan.HostSides$Check)")),
             // C4 (the listed facade of the engine-text arm: ArchitectureTest.PLANNER_ENTRIES)
             Map.entry("com.legend.testplan.EngineTextPlanning", Set.of(
-                    "<init>()",
-                    "active(com.legend.testplan.VerdictBatch)",
-                    "appeal(com.legend.testplan.BodyDriver$ExecEnv, java.util.function.IntFunction)",
-                    "appealOn(com.legend.testplan.BodyDriver$ExecEnv)",
-                    "ask(com.legend.compiler.spec.typed.TypedSpec, boolean, boolean, com.legend.testplan.AssertVerdicts$SpliceHook)",
-                    "ask(com.legend.compiler.spec.typed.TypedSpec, boolean, boolean, com.legend.testplan.AssertVerdicts$SpliceHook, com.legend.testplan.BodyDriver$ExecEnv)",
-                    "bare(com.legend.testplan.TextAsk)",
-                    "boundContext(com.legend.compiler.spec.typed.TypedSpec, java.util.List, com.legend.compiler.spec.SpecCompiler)",
-                    "calleeFqn(com.legend.compiler.spec.typed.TypedSpec)",
-                    "check(java.util.List, com.legend.testexecutionplan.HostJudgment)",
-                    "collector(com.legend.testplan.BodyDriver$ExecEnv)",
-                    "ctx(com.legend.testplan.BodyDriver$ExecEnv)",
-                    "defer(com.legend.testplan.VerdictBatch, java.lang.String, boolean, com.legend.sql.SqlQuery, com.legend.executionplan.ExecutionPlan$Target)",
-                    "defer(com.legend.testplan.VerdictBatch, java.lang.String, boolean, com.legend.sql.SqlQuery, com.legend.executionplan.ExecutionPlan$Target, int, java.lang.String)",
-                    "dialect(com.legend.planner.SqlTextInputs)",
-                    "enumsOf(com.legend.compiler.element.ModelContext, java.lang.String, java.lang.String, com.legend.testexecutionplan.SideShape)",
-                    "env(com.legend.testplan.TextAsk)",
-                    "evalSide(com.legend.compiler.spec.typed.TypedSpec, java.util.List, com.legend.compiler.spec.SpecCompiler, com.legend.testplan.BodyDriver$ExecEnv, boolean, boolean, com.legend.testplan.AssertVerdicts$SpliceHook)",
-                    "extentSubset(com.legend.testplan.AssertVerdicts$ReplayGates)",
-                    "frame(com.legend.testplan.BodyDriver$ExecEnv)",
-                    "hook(com.legend.testplan.TextAsk)",
-                    "inZone(java.lang.String, java.lang.String)",
-                    "isoTimestamp(com.legend.values.PureDateLiteral)",
-                    "judgingRules(com.legend.testplan.BodyDriver$ExecEnv)",
-                    "judgment(com.legend.testplan.HostSides$Check)",
-                    "letPrefix(com.legend.testplan.TextAsk)",
-                    "mapping(com.legend.planner.SqlTextInputs)",
-                    "marking(com.legend.testplan.BodyDriver$ExecEnv, java.lang.String, boolean)",
-                    "noReplayGates()",
-                    "notAConstantError(java.lang.String)",
-                    "ordered(com.legend.testplan.AssertVerdicts$ReplayGates)",
-                    "planSide(com.legend.compiler.spec.typed.TypedSpec, java.util.List, com.legend.compiler.spec.SpecCompiler, com.legend.testplan.BodyDriver$ExecEnv, com.legend.testplan.AssertVerdicts$SpliceHook)",
-                    "planned(com.legend.testplan.HostSides$Check)",
-                    "plannedSide(com.legend.compiler.spec.typed.TypedSpec, java.util.List, com.legend.compiler.spec.SpecCompiler, com.legend.testplan.BodyDriver$ExecEnv, boolean, boolean, com.legend.testplan.AssertVerdicts$SpliceHook)",
-                    "query(com.legend.planner.SqlTextInputs)",
-                    "replayFacts(com.legend.compiler.spec.typed.TypedSpec, java.util.List)",
-                    "restoreMarking(com.legend.testplan.BodyDriver$ExecEnv, java.lang.String)",
-                    "runtime(com.legend.planner.SqlTextInputs)",
-                    "scalarRow(com.legend.testplan.DatabaseJudge$SideRows)",
-                    "shapeOf(com.legend.testplan.JudgePlans$PlannedSide, com.legend.database.PlanStyle)",
-                    "side(com.legend.testplan.JudgePlans$PlannedSide)",
-                    "sortKeys(com.legend.testplan.AssertVerdicts$ReplayGates)",
-                    "specs(com.legend.testplan.TextAsk)",
-                    "splice(com.legend.testplan.AssertVerdicts$SpliceHook, com.legend.compiler.spec.typed.TypedSpec, java.util.Set)",
-                    "sqlTextInputs(com.legend.compiler.spec.NativeDispatch$RoutineCall, java.util.List)",
-                    "tableReplace(com.legend.testplan.BodyDriver$ExecEnv)",
-                    "target(com.legend.testplan.BodyDriver$ExecEnv)",
-                    "textEquals(java.lang.String, com.legend.sql.SqlQuery)",
-                    "textEquals(java.lang.String, java.lang.String)",
-                    "unpagedRead(com.legend.compiler.spec.typed.TypedSpec)",
-                    "values(com.legend.testplan.JudgePlans$PlannedSide)",
-                    "verdictBatch(com.legend.testplan.BodyDriver$ExecEnv)",
-                    "why(com.legend.testplan.DatabaseJudge$SideRows)",
-                    "withCollector(com.legend.testplan.BodyDriver$ExecEnv, com.legend.testplan.TextCollector)",
-                    "withFrame(com.legend.testplan.BodyDriver$ExecEnv, com.legend.compiler.spec.typed.ExecutionContext)",
-                    "withOwnLets(com.legend.testplan.BodyDriver$ExecEnv)",
-                    "withTableReplace(com.legend.testplan.BodyDriver$ExecEnv, java.util.Map)")),
+                    "private <init>()",
+                    "public static boolean active(com.legend.testplan.VerdictBatch)",
+                    "public static boolean extentSubset(com.legend.testplan.AssertVerdicts$ReplayGates)",
+                    "public static boolean ordered(com.legend.testplan.AssertVerdicts$ReplayGates)",
+                    "public static boolean values(com.legend.testplan.JudgePlans$PlannedSide)",
+                    "public static com.legend.compiler.element.ModelContext ctx(com.legend.testplan.BodyDriver$ExecEnv)",
+                    "public static com.legend.compiler.spec.SpecCompiler specs(com.legend.testplan.TextAsk)",
+                    "public static com.legend.compiler.spec.typed.ExecutionContext boundContext(com.legend.compiler.spec.typed.TypedSpec, java.util.List<com.legend.compiler.spec.typed.TypedSpec>, com.legend.compiler.spec.SpecCompiler)",
+                    "public static com.legend.compiler.spec.typed.ExecutionContext frame(com.legend.testplan.BodyDriver$ExecEnv)",
+                    "public static com.legend.compiler.spec.typed.TypedSpec bare(com.legend.testplan.TextAsk)",
+                    "public static com.legend.compiler.spec.typed.TypedSpec dialect(com.legend.planner.SqlTextInputs)",
+                    "public static com.legend.compiler.spec.typed.TypedSpec mapping(com.legend.planner.SqlTextInputs)",
+                    "public static com.legend.compiler.spec.typed.TypedSpec query(com.legend.planner.SqlTextInputs)",
+                    "public static com.legend.compiler.spec.typed.TypedSpec runtime(com.legend.planner.SqlTextInputs)",
+                    "public static com.legend.compiler.spec.typed.TypedSpec splice(com.legend.testplan.AssertVerdicts$SpliceHook, com.legend.compiler.spec.typed.TypedSpec, java.util.Set<java.lang.String>)",
+                    "public static com.legend.compiler.spec.typed.TypedSpec unpagedRead(com.legend.compiler.spec.typed.TypedSpec)",
+                    "public static com.legend.executionplan.ExecutionPlan$Target target(com.legend.testplan.BodyDriver$ExecEnv)",
+                    "public static com.legend.planner.SqlTextInputs sqlTextInputs(com.legend.compiler.spec.NativeDispatch$RoutineCall, java.util.List<com.legend.compiler.spec.typed.TypedSpec>)",
+                    "public static com.legend.sql.SqlQuery scalarRow(com.legend.testplan.DatabaseJudge$SideRows)",
+                    "public static com.legend.sql.SqlQuery textEquals(java.lang.String, com.legend.sql.SqlQuery)",
+                    "public static com.legend.sql.SqlQuery textEquals(java.lang.String, java.lang.String)",
+                    "public static com.legend.testexecutionplan.EnumFacts enumsOf(com.legend.compiler.element.ModelContext, java.lang.String, java.lang.String, com.legend.testexecutionplan.SideShape)",
+                    "public static com.legend.testexecutionplan.HostJudgment judgment(com.legend.testplan.HostSides$Check)",
+                    "public static com.legend.testexecutionplan.SideShape shapeOf(com.legend.testplan.JudgePlans$PlannedSide, com.legend.database.PlanStyle)",
+                    "public static com.legend.testexecutionplan.TestPlan$JudgingRules judgingRules(com.legend.testplan.BodyDriver$ExecEnv)",
+                    "public static com.legend.testexecutionplan.TestPlan$Side side(com.legend.testplan.JudgePlans$PlannedSide)",
+                    "public static com.legend.testexecutionplan.TypedSide evalSide(com.legend.compiler.spec.typed.TypedSpec, java.util.List<com.legend.compiler.spec.typed.TypedSpec>, com.legend.compiler.spec.SpecCompiler, com.legend.testplan.BodyDriver$ExecEnv, boolean, boolean, com.legend.testplan.AssertVerdicts$SpliceHook)",
+                    "public static com.legend.testplan.AssertVerdicts$ReplayGates noReplayGates()",
+                    "public static com.legend.testplan.AssertVerdicts$ReplayGates replayFacts(com.legend.compiler.spec.typed.TypedSpec, java.util.List<com.legend.compiler.spec.typed.TypedSpec>)",
+                    "public static com.legend.testplan.AssertVerdicts$SpliceHook hook(com.legend.testplan.TextAsk)",
+                    "public static com.legend.testplan.BodyDriver$ExecEnv appealOn(com.legend.testplan.BodyDriver$ExecEnv)",
+                    "public static com.legend.testplan.BodyDriver$ExecEnv env(com.legend.testplan.TextAsk)",
+                    "public static com.legend.testplan.BodyDriver$ExecEnv withCollector(com.legend.testplan.BodyDriver$ExecEnv, com.legend.testplan.TextCollector)",
+                    "public static com.legend.testplan.BodyDriver$ExecEnv withFrame(com.legend.testplan.BodyDriver$ExecEnv, com.legend.compiler.spec.typed.ExecutionContext)",
+                    "public static com.legend.testplan.BodyDriver$ExecEnv withOwnLets(com.legend.testplan.BodyDriver$ExecEnv)",
+                    "public static com.legend.testplan.BodyDriver$ExecEnv withTableReplace(com.legend.testplan.BodyDriver$ExecEnv, java.util.Map<java.lang.String, java.lang.String>)",
+                    "public static com.legend.testplan.DatabaseJudge$SideRows planSide(com.legend.compiler.spec.typed.TypedSpec, java.util.List<com.legend.compiler.spec.typed.TypedSpec>, com.legend.compiler.spec.SpecCompiler, com.legend.testplan.BodyDriver$ExecEnv, com.legend.testplan.AssertVerdicts$SpliceHook)",
+                    "public static com.legend.testplan.HostSides$Ask ask(com.legend.compiler.spec.typed.TypedSpec, boolean, boolean, com.legend.testplan.AssertVerdicts$SpliceHook)",
+                    "public static com.legend.testplan.HostSides$Ask ask(com.legend.compiler.spec.typed.TypedSpec, boolean, boolean, com.legend.testplan.AssertVerdicts$SpliceHook, com.legend.testplan.BodyDriver$ExecEnv)",
+                    "public static com.legend.testplan.HostSides$Check check(java.util.List<com.legend.testplan.HostSides$Ask>, com.legend.testexecutionplan.HostJudgment)",
+                    "public static com.legend.testplan.JudgePlans$PlannedSide plannedSide(com.legend.compiler.spec.typed.TypedSpec, java.util.List<com.legend.compiler.spec.typed.TypedSpec>, com.legend.compiler.spec.SpecCompiler, com.legend.testplan.BodyDriver$ExecEnv, boolean, boolean, com.legend.testplan.AssertVerdicts$SpliceHook)",
+                    "public static com.legend.testplan.NotAConstant notAConstantError(java.lang.String)",
+                    "public static com.legend.testplan.TextCollector collector(com.legend.testplan.BodyDriver$ExecEnv)",
+                    "public static com.legend.testplan.TextPlanned planned(com.legend.testplan.HostSides$Check)",
+                    "public static com.legend.testplan.VerdictBatch verdictBatch(com.legend.testplan.BodyDriver$ExecEnv)",
+                    "public static int appeal(com.legend.testplan.BodyDriver$ExecEnv, java.util.function.IntFunction<com.legend.testexecutionplan.Extension>)",
+                    "public static java.lang.String calleeFqn(com.legend.compiler.spec.typed.TypedSpec)",
+                    "public static java.lang.String inZone(java.lang.String, java.lang.String)",
+                    "public static java.lang.String isoTimestamp(com.legend.values.PureDateLiteral)",
+                    "public static java.lang.String marking(com.legend.testplan.BodyDriver$ExecEnv, java.lang.String, boolean)",
+                    "public static java.lang.String why(com.legend.testplan.DatabaseJudge$SideRows)",
+                    "public static java.util.List<com.legend.compiler.spec.typed.TypedSpec> letPrefix(com.legend.testplan.TextAsk)",
+                    "public static java.util.List<java.lang.String> sortKeys(com.legend.testplan.AssertVerdicts$ReplayGates)",
+                    "public static java.util.Map<java.lang.String, java.lang.String> tableReplace(com.legend.testplan.BodyDriver$ExecEnv)",
+                    "public static void defer(com.legend.testplan.VerdictBatch, java.lang.String, boolean, com.legend.sql.SqlQuery, com.legend.executionplan.ExecutionPlan$Target)",
+                    "public static void defer(com.legend.testplan.VerdictBatch, java.lang.String, boolean, com.legend.sql.SqlQuery, com.legend.executionplan.ExecutionPlan$Target, int, java.lang.String)",
+                    "public static void restoreMarking(com.legend.testplan.BodyDriver$ExecEnv, java.lang.String)")),
             // C4 (the closed list of kinds)
             Map.entry("com.legend.testplan.PlanStyleFacets", Set.of(
-                    "<init>()",
-                    "KINDS",
-                    "TWO_FORMS")));
+                    "private <init>()",
+                    "public static final java.util.List<java.lang.Class<?>> KINDS",
+                    "public static final java.util.List<java.lang.Class<?>> TWO_FORMS",
+                    "static {}")));
 
     /** The declared members of {@code c} as {@link #MEMBERS} spells them. */
     static Set<String> membersOf(Class<?> c) {
@@ -160,32 +163,70 @@ class OpenClassMembersTest {
         return out;
     }
 
+    /**
+     * What a class declares, each with its modifiers and generic types (a widened visibility, a changed field or return
+     * type, changed type arguments each change its entry): its fields, its methods and constructors, its member classes
+     * (recursively, behind their simple names and {@code #}), its anonymous and local classes (named by its own constant
+     * pool's InnerClasses entries, which reflection does not list: {@code $1}, {@code $1Local}, recursively), its static
+     * initializer ({@code static {}}, when its pool names {@code <clinit>}) and the number of its lambda bodies. What is
+     * not read: the code inside an existing member or initializer -- the census's dependency and spelling scans read that.
+     */
     private static void collect(Class<?> c, String prefix, Set<String> out) {
         for (Field f : c.getDeclaredFields()) {
             if (!f.isSynthetic()) {
-                out.add(prefix + f.getName());
+                out.add(prefix + modifiers(f.getModifiers() & Modifier.fieldModifiers()) + f.getGenericType().getTypeName()
+                        + " " + f.getName());
             }
         }
+        int lambdas = 0;
         for (Method m : c.getDeclaredMethods()) {
-            if (!m.isSynthetic() && !m.isBridge()) {
-                out.add(prefix + signature(m.getName(), m));
+            if (m.isSynthetic() && m.getName().startsWith("lambda$")) {
+                lambdas++;
+            } else if (!m.isSynthetic() && !m.isBridge()) {
+                out.add(prefix + modifiers(m.getModifiers() & Modifier.methodModifiers())
+                        + m.getGenericReturnType().getTypeName() + " " + signature(m.getName(), m));
             }
+        }
+        if (lambdas > 0) {
+            out.add(prefix + "(lambda bodies) " + lambdas);
         }
         for (Constructor<?> k : c.getDeclaredConstructors()) {
             if (!k.isSynthetic()) {
-                out.add(prefix + signature("<init>", k));
+                out.add(prefix + modifiers(k.getModifiers() & Modifier.constructorModifiers()) + signature("<init>", k));
             }
+        }
+        Set<String> pool = ConstantPools.utf8(ConstantPools.bytesOf(c));
+        if (pool.contains("<clinit>")) {
+            out.add(prefix + "static {}");
         }
         for (Class<?> n : c.getDeclaredClasses()) {
             if (!n.isSynthetic()) {
-                out.add(prefix + n.getSimpleName() + " (class)");
+                out.add(prefix + modifiers(n.getModifiers() & Modifier.classModifiers()) + n.getSimpleName() + " (class)");
                 collect(n, prefix + n.getSimpleName() + "#", out);
+            }
+        }
+        String own = c.getName().replace('.', '/') + "$";
+        for (String entry : pool) {
+            if (entry.startsWith(own) && entry.substring(own.length()).matches("\\d+[A-Za-z0-9_]*")) {
+                String local = entry.substring(own.length());
+                out.add(prefix + "$" + local + " (anonymous or local class)");
+                try {
+                    collect(Class.forName(entry.replace('/', '.'), false, c.getClassLoader()), prefix + "$" + local + "#",
+                            out);
+                } catch (ClassNotFoundException e) {
+                    throw new AssertionError(entry + ": named by " + c.getName() + "'s pool, not loadable", e);
+                }
             }
         }
     }
 
+    private static String modifiers(int m) {
+        String s = Modifier.toString(m);
+        return s.isEmpty() ? "" : s + " ";
+    }
+
     private static String signature(String name, Executable e) {
-        return name + Arrays.stream(e.getParameterTypes()).map(Class::getTypeName)
+        return name + Arrays.stream(e.getGenericParameterTypes()).map(java.lang.reflect.Type::getTypeName)
                 .collect(Collectors.joining(", ", "(", ")"));
     }
 
@@ -238,56 +279,125 @@ class OpenClassMembersTest {
     }
 
     /** THE FACADES LIST THEIR MEMBERS (C.4's second half, 2026-11-17: the orchestrator's step-A ruling, "one named
-     *  facade, members listed, no #*"): no row of {@code ArchitectureTest.PLANNER_ENTRIES} admits a whole class, and
-     *  each read the edge's real classes make of the two facades keys by its full signature, listed for its caller --
-     *  so a member the edge newly reaches is a row before it passes. Red if a "#*" key comes back. */
+     *  facade, members listed, no #*"): every row of {@code ArchitectureTest.PLANNER_ENTRIES} for a facade names one
+     *  member by its full signature (no whole-class key, however spelt), and every read any class of the edge's jar makes
+     *  of a facade -- nested classes included -- keys, through {@code ArchitectureTest.entryKey}, exactly as this test
+     *  spells the member itself, and is listed for its caller. Red if a whole-class keying comes back. */
     @Test
     void theFacadesAreListedByMember() {
-        assertEquals(List.of(), ArchitectureTest.PLANNER_ENTRIES.keySet().stream().filter(k -> k.endsWith("#*"))
-                .toList(), "a planner entry admits a whole class");
         Set<String> facades = Set.of("com.legend.testplan.EngineTextPlanning", "com.legend.lowering.RelationTexts");
-        List<String> unlisted = new ArrayList<>();
-        int reads = 0;
-        List<Class<?>> edgeReaders = new ArrayList<>();
-        for (String n : List.of("SqlTextVerdicts", "EdgeEngineTestText", "RelationTextLowering", "PureListTexts")) {
-            try {
-                edgeReaders.add(Class.forName("com.legend.edge." + n, false, OpenClassMembersTest.class.getClassLoader()));
-            } catch (ClassNotFoundException e) {
-                throw new AssertionError("the edge's facade reader " + n + " is gone: update this check", e);
+        List<String> wide = new ArrayList<>();
+        for (String key : ArchitectureTest.PLANNER_ENTRIES.keySet()) {
+            String owner = "com.legend." + key.substring(0, key.indexOf('#'));
+            if (facades.contains(owner) && !key.matches("[\\w.$]+#[\\w<>$]+\\(.*\\)")) {
+                wide.add(key);
             }
         }
-        for (com.tngtech.archunit.core.domain.JavaClass c : new com.tngtech.archunit.core.importer.ClassFileImporter()
-                .importClasses(edgeReaders)) {
+        assertEquals(List.of(), wide, "a planner entry for a facade that names no one member by its signature");
+        List<String> unlisted = new ArrayList<>();
+        int reads = 0;
+        for (com.tngtech.archunit.core.domain.JavaClass c : importJars("legend.edge.jars")) {
             for (com.tngtech.archunit.core.domain.JavaAccess<?> a : c.getAccessesFromSelf()) {
-                if (facades.contains(a.getTargetOwner().getName())) {
-                    reads++;
-                    String key = ArchitectureTest.entryKey(a);
-                    if (key.endsWith("#*") || !ArchitectureTest.PLANNER_ENTRIES.getOrDefault(key, Set.of())
-                            .contains(ArchitectureTest.callerOf(a))) {
-                        unlisted.add(c.getName() + " -> " + key);
-                    }
+                if (!facades.contains(a.getTargetOwner().getName())) {
+                    continue;
+                }
+                reads++;
+                String own = a.getTargetOwner().getName().substring("com.legend.".length()) + "#" + a.getName();
+                if (a.getTarget() instanceof com.tngtech.archunit.core.domain.AccessTarget.CodeUnitAccessTarget unit) {
+                    own += unit.getRawParameterTypes().stream().map(com.tngtech.archunit.core.domain.JavaClass::getName)
+                            .collect(Collectors.joining(", ", "(", ")"));
+                }
+                String key = ArchitectureTest.entryKey(a);
+                if (!key.equals(own) || !ArchitectureTest.PLANNER_ENTRIES.getOrDefault(own, Set.of())
+                        .contains(ArchitectureTest.callerOf(a))) {
+                    unlisted.add(c.getName() + " -> " + own + " (keyed " + key + ")");
                 }
             }
         }
-        assertTrue(reads > 50, "the edge's facade reads are read: " + reads);
-        assertEquals(List.of(), unlisted, "an edge read of a facade keyed as a whole class, or unlisted");
+        assertTrue(reads > 100, "the edge's facade reads are read, its nested classes' too: " + reads);
+        assertEquals(List.of(), unlisted, "an edge read of a facade keyed other than by its member, or unlisted");
+    }
+
+    private static com.tngtech.archunit.core.domain.JavaClasses importJars(String property) {
+        List<java.util.jar.JarFile> jars = new ArrayList<>();
+        try {
+            for (java.nio.file.Path jar : com.legend.testing.Runfile.listed(property)) {
+                jars.add(new java.util.jar.JarFile(jar.toFile()));
+            }
+        } catch (java.io.IOException e) {
+            throw new java.io.UncheckedIOException(e);
+        }
+        return new com.tngtech.archunit.core.importer.ClassFileImporter().importJars(jars);
     }
 
     /** A member added to a pinned class, a member gone, an open class with no set, and a set with no open class are each
-     *  found. */
+     *  found; and the walk sees what a member set alone missed (the review of 6afb9a2d2d, 2026-11-17): a widened
+     *  visibility, a static initializer, a field's generic type, a lambda body, an anonymous class and its method. */
     @Test
     void theGuardBites() {
         Set<String> real = membersOf(Planted.class);
-        assertEquals(Set.of("held", "text(java.lang.String, int)", "<init>()", "Inner (class)", "Inner#value()",
-                "Inner#<init>(int)", "Inner#value"), real, "the members are read, nested ones included");
+        assertTrue(real.containsAll(Set.of("private final int held", "java.lang.String text(java.lang.String, int)",
+                "static final Inner (class)", "Inner#final int value", "Inner#int value()", "Inner#<init>(int)")),
+                "the members are read, nested ones included: " + real);
+        Set<String> grown = membersOf(PlantedGrown.class);
+        Set<String> added = new TreeSet<>(grown);
+        added.removeAll(real);
+        assertTrue(added.containsAll(Set.of("public java.lang.String text(java.lang.String, int)", "static {}",
+                "static final java.util.List<java.lang.String> NAMES", "(lambda bodies) 1", "java.lang.Runnable later()",
+                "$1 (anonymous or local class)", "$1#public java.lang.String toString()")), "what grew is read: " + added);
+        Set<String> gone = new TreeSet<>(real);
+        gone.removeAll(grown);
+        assertEquals(Set.of("java.lang.String text(java.lang.String, int)"), gone, "the narrower text() is gone");
         Set<String> less = new TreeSet<>(real);
-        less.remove("text(java.lang.String, int)");
+        less.remove("java.lang.String text(java.lang.String, int)");
         less.add("gone()");
         List<String> found = differences(Map.of("Planted", less, "Pinned.Only", Set.of()),
                 Map.of("Planted", real, "Open.Only", Set.of()));
         assertEquals(List.of("Open.Only: an open class with no pinned member set []",
                 "Pinned.Only: pinned, but no longer an open class (delete its set)",
-                "Planted: + text(java.lang.String, int)", "Planted: - gone()"), found, "the pin bites");
+                "Planted: + java.lang.String text(java.lang.String, int)", "Planted: - gone()"), found, "the pin bites");
+    }
+
+    /** {@link Planted} grown: text() widened to public, a static field and its initializer, a lambda, an anonymous
+     *  class with a method of its own. */
+    @SuppressWarnings("unused")
+    private static final class PlantedGrown {
+        static final java.util.List<String> NAMES = new java.util.ArrayList<>();
+
+        static {
+            NAMES.add("planted");
+        }
+
+        private final int held = 1;
+
+        public String text(String s, int n) {
+            return s.repeat(n);
+        }
+
+        Runnable later() {
+            return () -> NAMES.clear();
+        }
+
+        Object anonymous() {
+            return new Object() {
+                @Override
+                public String toString() {
+                    return "planted";
+                }
+            };
+        }
+
+        static final class Inner {
+            final int value;
+
+            Inner(int value) {
+                this.value = value;
+            }
+
+            int value() {
+                return value;
+            }
+        }
     }
 
     /** A planted open class: a field, a method, its constructor and a nested class (synthetic members aside). */
