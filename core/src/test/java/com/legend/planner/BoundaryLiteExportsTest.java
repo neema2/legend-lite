@@ -73,6 +73,70 @@ class BoundaryLiteExportsTest {
         assertThrows(RuntimeException.class, () -> Boundary.lambdaRelationType(MODEL, unknown));
     }
 
+    // ---- lite's own routes the tab asked through pure/v1's router (the edge audit's H2, 2026-11-17: three typed
+    // ---- exports, the orchestrator's Q2), each answer byte-identical to the route's 200
+
+    private static final LiteV1Api.Runner NO_RUN = (query, runtime, output) -> {
+        throw new AssertionError("nothing is run here");
+    };
+
+    private static final String SOURCE = """
+            ###Relational
+            Database local::DB ( Table trades ( trade_id INTEGER NOT NULL, notional DOUBLE ) )
+            ###Connection
+            RelationalDatabaseConnection local::Conn { type: DuckDB; specification: DuckDB { }; auth: Test; }
+            ###Runtime
+            Runtime local::RT { mappings: []; connections: [ local::DB: [ c1: local::Conn ] ]; }
+            """;
+
+    @Test
+    void modelActionIsTheRoutesAnswer() {
+        String body = """
+                {"project": {"_type": "text", "code": ""}, "package": "trades", "class": {"source": {"_type": "text",                 "code": %s}, "lambda": %s, "name": "Trade", "columns": {}, "where": {"from": "local::DB", "runtime":                 "local::RT", "as": "Browser"}}}""".formatted(Json.toCompact(SOURCE), Boundary.parseLambda(
+                "|#>{local::DB.trades}#", false));
+        assertEquals(ok(LiteV1Api.route("/api/lite/v1/model/createClass", null, body, NO_RUN)),
+                Boundary.modelAction("createClass", body));
+        assertThrows(IllegalArgumentException.class, () -> Boundary.modelAction("dropClass", body));
+    }
+
+    @Test
+    void tsItemIsTheRoutesAnswer() {
+        for (String text : new String[] {"m = avg(CLOSE, 3)", "a = b", "= nothing"}) {
+            assertEquals(ok(LiteV1Api.route("/api/lite/v1/grammar/tsItem", null,
+                    "{\"text\":" + Json.toCompact(text) + "}", NO_RUN)), Boundary.tsItem(text), text);
+        }
+    }
+
+    @Test
+    void jsonToTsIsTheRoutesAnswer() {
+        String model = """
+                ###Relational
+                Database ts::DB ( Table PRICES ( SYMBOL VARCHAR(10), DAY DATE, CLOSE DOUBLE ) )
+                """;
+        for (String text : new String[] {
+                "|let px = #>{ts::DB.PRICES}#; #TS{SELECT avg(CLOSE, 3) AS m FROM $px ON DAY BY SYMBOL}#;",
+                "|let px = #>{ts::DB.PRICES}#->extend(~a: r|$r.CLOSE->toOne()->abs()); #TS{SELECT avg(CLOSE, 3) AS m"
+                        + " FROM $px ON DAY BY SYMBOL}#;"}) {
+            // the tile's query read as lite reads it (its #TS island lite's own; upstream's grammar has none), then sent
+            // as JSON, as the tile sends it (TsIslandTest.lambdaOf)
+            String lambda = com.legend.protocol.ProtocolEmitter.emitLambda(
+                    (com.legend.protocol.spec.LambdaFunction) com.legend.Compiler.parseQuery(text));
+            String body = "{\"model\":{\"_type\":\"text\",\"code\":" + Json.toCompact(model) + "},\"lambda\":" + lambda + "}";
+            assertEquals(ok(LiteV1Api.route("/api/lite/v1/grammar/jsonToTs/lambda", null, body, NO_RUN)),
+                    Boundary.jsonToTs(lambda, model), text);
+        }
+    }
+
+    @Test
+    void compileErrorsIsTheRoutesAnswer() {
+        for (String model : new String[] {MODEL, "Class demo::Desk\n{\n  name: Strin[1];\n}\n",
+                "function demo::f(): String[1] { 1 }\nfunction demo::g(): String[1] { 2 }\n"}) {
+            String body = "{\"_type\":\"text\",\"code\":" + Json.toCompact(model) + "}";
+            assertEquals(ok(LiteV1Api.route("/api/lite/v1/compilation/compile", null, body, NO_RUN)),
+                    Boundary.compileErrors(model), model);
+        }
+    }
+
     /** A REFUSAL'S BYTES, FOLDED FOR A HOST (B7, 2026-11-17: the orchestrator's condition on the split -- lite's own
      *  refusal kinds, {@link LiteV1Api.RefusalKind}, write the bytes the tab and Python have read since leg 6, unmoved):
      *  a text that does not parse, a model that does not compile, any other failure. */

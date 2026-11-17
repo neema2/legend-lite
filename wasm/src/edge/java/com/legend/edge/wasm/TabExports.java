@@ -152,6 +152,30 @@ public final class TabExports {
         return Folded.of(() -> Boundary.lambdaRelationType(model, lambdaJson));
     }
 
+    /** One of the model's actions over its request ({@link Boundary#modelAction}). */
+    @JSExport
+    public static String modelActionOrError(String action, String body) {
+        return Folded.of(() -> Boundary.modelAction(action, body));
+    }
+
+    /** One #TS item's text read ({@link Boundary#tsItem}). */
+    @JSExport
+    public static String tsItemOrError(String text) {
+        return Folded.of(() -> Boundary.tsItem(text));
+    }
+
+    /** A #TS query as its one statement ({@link Boundary#jsonToTs}). */
+    @JSExport
+    public static String jsonToTsOrError(String lambdaJson, String model) {
+        return Folded.of(() -> Boundary.jsonToTs(lambdaJson, model));
+    }
+
+    /** A model's every compile error ({@link Boundary#compileErrors}). */
+    @JSExport
+    public static String compileErrorsOrError(String model) {
+        return Folded.of(() -> Boundary.compileErrors(model));
+    }
+
     // ---- a model's data and its tables
 
     /** {@link Boundary#fileLoad}: a host's own file read into its database, as a plan (B3). */

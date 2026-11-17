@@ -23,6 +23,15 @@ export interface PlannerModule {
     // routes them (PureV1Api), and execute's two halves for a host that runs the SQL (PureV1Api.jsonPlan, jsonAnswer):
     // `OK\n<status>\n<type>\n<body>`
     pureV1OrError(path: string, rawQuery: string, body: string): string;
+    // lite's own grammar, typing and routes, each its product boundary's answer (A1; H2, 2026-11-17): `OK\n<answer>`
+    modelElementsOrError(text: string, sourceInformation: boolean): string;
+    parseLambdaOrError(text: string, sourceInformation: boolean): string;
+    printLambdaOrError(lambdaJson: string, style: string): string;
+    lambdaRelationTypeOrError(model: string, lambdaJson: string): string;
+    compileErrorsOrError(model: string): string;
+    modelActionOrError(action: string, body: string): string;
+    tsItemOrError(text: string): string;
+    jsonToTsOrError(lambdaJson: string, model: string): string;
     executeJsonPlanOrError(body: string, modelsJson: string): string;
     executeJsonAnswerOrError(plan: string, rows: string): string;
     fileLoadOrError(request: string): string;
@@ -55,6 +64,14 @@ export function answer(m: PlannerModule, r: RequestBody): string {
     case 'executionPlan': return m.exports.executionPlanJsonHeldOrError(r.handle, r.lambda, r.runtime);
     case 'planModel': return m.exports.planJsonOrError(r.model, r.lambda, r.runtime);
     case 'pureV1': return m.exports.pureV1OrError(r.path, r.query, r.body);
+    case 'modelElements': return m.exports.modelElementsOrError(r.text, r.sourceInformation);
+    case 'parseLambda': return m.exports.parseLambdaOrError(r.text, r.sourceInformation);
+    case 'printLambda': return m.exports.printLambdaOrError(r.lambda, r.style);
+    case 'lambdaRelationType': return m.exports.lambdaRelationTypeOrError(r.model, r.lambda);
+    case 'compileErrors': return m.exports.compileErrorsOrError(r.model);
+    case 'modelAction': return m.exports.modelActionOrError(r.action, r.body);
+    case 'tsItem': return m.exports.tsItemOrError(r.text);
+    case 'jsonToTs': return m.exports.jsonToTsOrError(r.lambda, r.model);
     case 'executePlan': return m.exports.executeJsonPlanOrError(r.body, r.models);
     case 'executeAnswer': return m.exports.executeJsonAnswerOrError(r.plan, r.rows);
     case 'fileLoad': return m.exports.fileLoadOrError(r.request);

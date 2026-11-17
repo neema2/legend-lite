@@ -200,6 +200,48 @@ public final class Boundary {
                         com.legend.protocol.ProtocolReader.lambda(lambdaJson)).resultType())));
     }
 
+    // ---- lite's own routes the tab asked through pure/v1's router (the edge audit's H2, 2026-11-17; the orchestrator's
+    // ---- Q2: three typed exports, each the product route's own Java; BoundaryLiteExportsTest pins each to its route)
+
+    /** One of the model's actions -- {@code createClass}, {@code createAssociation} or {@code createDataSpace} -- over its
+     *  request ({@code body}, the route's JSON): what {@code /api/lite/v1/model/<action>} answers on 200 (LiteV1Api's
+     *  {@code ModelChanges}). Any other action is refused by name. */
+    public static String modelAction(String action, String body) {
+        java.util.function.Function<com.legend.json.Json.Obj, java.util.Map<String, Object>> make = switch (action) {
+            case "createClass" -> com.legend.server.ModelChanges::createClass;
+            case "createAssociation" -> com.legend.server.ModelChanges::createAssociation;
+            case "createDataSpace" -> com.legend.server.ModelChanges::createDataSpace;
+            default -> throw new IllegalArgumentException(
+                    "a model action is createClass, createAssociation or createDataSpace, not '" + action + "'");
+        };
+        return com.legend.json.Json.toCompact(make.apply(com.legend.server.LiteV1Api.request(body)));
+    }
+
+    /** One #TS item's text read by core's parser: what {@code /api/lite/v1/grammar/tsItem} answers on 200 (its text and
+     *  tree, or why it is no item). */
+    public static String tsItem(String text) {
+        return com.legend.server.LiteV1Api.tsItemOf(text);
+    }
+
+    /** A #TS query over grids (its lambda's protocol JSON) as the one statement a person would write, over a model given
+     *  as text (this host's held models, compiled once per text): what {@code /api/lite/v1/grammar/jsonToTs/lambda}
+     *  answers on 200. */
+    public static String jsonToTs(String lambdaJson, String model) {
+        return MODELS.withText(model, ctx -> com.legend.server.LiteV1Api.tsStatement(ctx,
+                com.legend.protocol.ProtocolReader.lambda(lambdaJson)));
+    }
+
+    /** A model's every compile error, its text given ({@code com.legend.Compiler.compileErrors}: the first element error
+     *  alone, else every body's), as {@code {"errors":[{"message": ...}, ...]}}, the list empty when it compiles: what
+     *  {@code /api/lite/v1/compilation/compile} answers on 200 (Studio's and Query's in-tab compile; H3, 2026-11-17). */
+    public static String compileErrors(String model) {
+        java.util.List<java.util.Map<String, Object>> errors = new java.util.ArrayList<>();
+        for (String message : com.legend.Compiler.compileErrors(model)) {
+            errors.add(java.util.Map.of("message", message));
+        }
+        return com.legend.json.Json.toCompact(java.util.Map.of("errors", errors));
+    }
+
     /** A lambda's protocol JSON typed, compile-only, over a model held: upstream's {@code lambdaRelationType} answer. */
     public static String relationTypeJsonHeld(int handle, String lambdaJson) {
         return MODELS.with(handle, ctx -> com.legend.json.Json.toCompact(
