@@ -40,6 +40,12 @@ public final class NoEdgeRun implements EdgeRun {
         return new Hearing(callers);
     }
 
+    @Override
+    public boolean wordsAlike() {
+        // lite's own rules: both judges write lite's sentences
+        return true;
+    }
+
     /** A run that hears no appeal: the caller's listener as it is. */
     private record Hearing(@Nullable AssertListener listener) implements EdgeHearing {
 
@@ -52,6 +58,11 @@ public final class NoEdgeRun implements EdgeRun {
         @Override
         public TypedSide rowAppealed(int number, List<Object> row, boolean messaged) {
             throw new NotImplementedException("appeal " + number + " " + WHY);
+        }
+
+        @Override
+        public PureWords pureWords() {
+            throw new NotImplementedException("legend-pure's words of an assert's failure " + WHY);
         }
 
         @Override

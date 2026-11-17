@@ -52,6 +52,44 @@ class Trees(unittest.TestCase):
         self.assertIn('[1:5]', e.exception.message)
 
 
+class LitesOwnEntries(unittest.TestCase):
+    """The edge program's H4 (2026-11-17): parse, print, a query's types and a model's elements are the PRODUCT's --
+    four native entries over Boundary's own operations, refused with lite's own kinds -- never legend-engine's pure/v1
+    routes (the edge's lite_pure_v1 entry): with that entry refused, each still answers."""
+
+    MODEL = """###Relational
+Database s::DB ( Table t ( id INTEGER, desk VARCHAR(10) ) )
+###Connection
+RelationalDatabaseConnection s::Conn { type: DuckDB; specification: DuckDB { }; auth: Test; }
+###Runtime
+Runtime s::RT { mappings: []; connections: [ s::DB: [ c: s::Conn ] ]; }
+"""
+
+    def test_each_answers_with_the_edges_entry_refused(self):
+        from unittest import mock
+        from legend_lite import compiler
+        real = library().call
+
+        def no_edge(name, *args):
+            if name == 'lite_pure_v1':
+                raise AssertionError("legend-engine's pure/v1 entry asked for a product operation")
+            return real(name, *args)
+
+        with mock.patch.object(type(library()), 'call', lambda self, name, *args: no_edge(name, *args)):
+            tree = compiler.parse('|#>{s::DB.t}#->select(~[desk])')
+            self.assertEqual(compiler.parse(compiler.print_tree(tree, 'STANDARD')), tree)
+            self.assertEqual([c.name for c in compiler.relation_type(self.MODEL, tree)], ['desk'])
+            named = {f"{e['package']}::{e['name']}" for e in compiler.model_elements(self.MODEL)}
+            self.assertLessEqual({'s::DB', 's::Conn', 's::RT'}, named)
+            # refused with lite's own kinds
+            with self.assertRaises(ll.LegendError) as unparsed:
+                compiler.parse('|1 +')
+            self.assertEqual(unparsed.exception.kind, 'PARSER')
+            with self.assertRaises(ll.LegendError) as untyped:
+                compiler.relation_type(self.MODEL, compiler.parse('|#>{s::DB.t}#->select(~[nope])'))
+            self.assertEqual(untyped.exception.kind, 'COMPILATION')
+
+
 class Compiling(unittest.TestCase):
     def test_types_a_query_compile_only(self):
         cols = ll.relation_type(MODEL, ll.parse(GROUP))

@@ -93,7 +93,8 @@ class JudgingRulesReachTest {
             // the host judge's words and its rendered-text rule (2026-11-17: found by this guard, counted nowhere before)
             Map.entry("com.legend.testexec.HostJudgments -> JudgingRules.legendPureWords()", "C1 2026-11-17"),
             Map.entry("com.legend.testexec.HostJudgments -> JudgingRules.renderedTextRuled()", "C1 2026-11-17"),
-            Map.entry("com.legend.testexec.IsolatedRun -> JudgingRules.legendPureWords()", "C1 2026-11-17"),
+            // (IsolatedRun -> legendPureWords() CLOSED 2026-11-17 by C5 step B: legend-pure's words at run are the
+            // hearing's PureWords hook, NoEdgeRun refusing them by name; its reach and its pool's mention gone)
             Map.entry("com.legend.testplan.AssertVerdicts -> JudgingRules.renderedTextRuled()", "C1 2026-11-17"),
             Map.entry("com.legend.testplan.DatabaseJudge -> JudgingRules.legendPureWords()", "C1 2026-11-17"),
             Map.entry("com.legend.testplan.PlanningOptions -> JudgingRules.edgeAppeals()", "C1 2026-11-17"));
@@ -107,7 +108,6 @@ class JudgingRulesReachTest {
             // maps -- an isolated step's by name/valueOf) and the one selector, engineCompat ? COMPILED_PURE_COMPAT : LITE
             Map.entry("com.legend.testexec.HostJudgments -> JudgingRules.legendPureWords()", 1),
             Map.entry("com.legend.testexec.HostJudgments -> JudgingRules.renderedTextRuled()", 1),
-            Map.entry("com.legend.testexec.IsolatedRun -> JudgingRules.legendPureWords()", 1),
             Map.entry("com.legend.testexecutionplan.TestPlanJson -> JudgingRules.LITE", 2),
             Map.entry("com.legend.testexecutionplan.TestPlanJson -> JudgingRules.name()", 1),
             Map.entry("com.legend.testexecutionplan.TestPlanJson -> JudgingRules.ordinal()", 3),
@@ -137,7 +137,6 @@ class JudgingRulesReachTest {
             Map.entry("com.legend.testexec.Equality",
                     Set.of(TYPE, "COMPILED_PURE_COMPAT", "decimalScale", "floatTolerance")),
             Map.entry("com.legend.testexec.HostJudgments", Set.of(TYPE, "legendPureWords", "renderedTextRuled")),
-            Map.entry("com.legend.testexec.IsolatedRun", Set.of(TYPE, "legendPureWords")),
             Map.entry("com.legend.testexec.NoEdgeRun", Set.of(TYPE)),
             Map.entry("com.legend.testexec.PureAsserts", Set.of(TYPE)),
             Map.entry("com.legend.testexec.TdsCompare", Set.of(TYPE)),

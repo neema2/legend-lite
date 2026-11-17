@@ -1,7 +1,7 @@
 // THE SERVER'S PLANNING CLIENT (C5-T, 2026-11-15): legend-engine's `/api` paths a query app asks for grammar, typing,
 // compile and plans -- legend-lite's server or legend-engine alike (docs/QUERY_APP_DESIGN_2026_09_30.md D1). One is
-// legend-lite's own (a model's every compile error, `compileErrors`), asked first and answered by legend-engine's route
-// where the server has no such route. Its execute, the server's door, is not here: engine.ts HttpEngine adds it.
+// legend-lite's own (a model's every compile error, `compileErrors`), asked of legend-lite's route alone (H8, 2026-11-17:
+// no fallback to legend-engine's). Its execute, the server's door, is not here: engine.ts HttpEngine adds it.
 
 import type { Lambda } from '../../../pure-protocol/src/index.ts';
 import { readLambda, toJson } from '../../../pure-protocol/src/index.ts';
@@ -26,8 +26,6 @@ export function withContext(input: ExecuteInput): ExecuteInput {
 export class HttpPlanning implements Grammar {
   readonly #base: string;
   readonly #fetch: typeof fetch;
-  /** Whether the server serves legend-lite's own compile route: unknown until it is first asked. */
-  #liteCompile: boolean | undefined;
 
   constructor(baseUrl: string, fetcher: typeof fetch = globalThis.fetch.bind(globalThis)) {
     this.#base = baseUrl.replace(/\/+$/, '');
@@ -103,31 +101,15 @@ export class HttpPlanning implements Grammar {
   }
 
   /**
-   * A whole model's compile errors, [] when it compiles. legend-lite's own route answers every one
-   * (`/lite/v1/compilation/compile`: the first element error alone, else every body's); legend-engine has no such
-   * route, and once it has answered 404 its `compilation/compile` is asked instead, which answers the first.
+   * A whole model's compile errors, [] when it compiles: legend-lite's own route (`/lite/v1/compilation/compile`: the
+   * first element error alone, else every body's). A server with no such route refuses by its own answer (a 404), never
+   * answered by another route (G7; the edge audit's H8, 2026-11-17: legend-engine's compile is the edge's client's).
    */
   async compileErrors(code: string): Promise<string[]> {
     planning('compileErrors');
     const model: PureModelContext = { _type: 'text', code };
-    if (this.#liteCompile !== false) {
-      try {
-        const answer = await this.json<{ errors: { message: string }[] }>('POST', '/lite/v1/compilation/compile', model);
-        this.#liteCompile = true;
-        return answer.errors.map((e) => e.message);
-      } catch (e) {
-        // two compiles in flight before the first answer both see the route unknown: either's 404 answers both
-        if (!(this.#liteCompile !== true && e instanceof EngineError && e.status === 404)) throw e;
-        this.#liteCompile = false;
-      }
-    }
-    try {
-      await this.compile(model);
-      return [];
-    } catch (e) {
-      if (e instanceof EngineError && e.status < 500) return [e.message];
-      throw e;
-    }
+    const answer = await this.json<{ errors: { message: string }[] }>('POST', '/lite/v1/compilation/compile', model);
+    return answer.errors.map((e) => e.message);
   }
 
   async returnType(model: PureModelContext, lambda: Lambda): Promise<string> {

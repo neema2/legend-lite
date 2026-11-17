@@ -27,7 +27,7 @@ public final class PlantedLowering {
         }
 
         public static Lowerer lowerer() {
-            return new Lowerer(PlatformRegistrations.catalogTable());
+            return new Lowerer(PlatformRegistrations.catalogTable()).withStyled(com.legend.lowering.Styled.PRODUCT);
         }
     }
 

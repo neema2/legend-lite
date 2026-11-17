@@ -40,6 +40,10 @@ class OpenClassMembersTest {
     static final Map<String, Set<String>> MEMBERS = Map.ofEntries(
             // B8 (a ruled hook)
             Map.entry("com.legend.lowering.PureOnlyTexts", Set.of(
+                    // + formatR, representationOf (2026-11-17, C5 step A merged from D's d-int3: Repr's two forms asked
+                    // of the ruled hook, the edge answering -- edge.EdgePureOnlyTexts)
+                    "public abstract com.legend.sql.SqlExpr formatR(com.legend.lowering.Styled, com.legend.compiler.spec.typed.TypedSpec, com.legend.sql.SqlExpr)",
+                    "public abstract com.legend.sql.SqlExpr representationOf(com.legend.lowering.Styled, com.legend.compiler.element.type.Type, com.legend.sql.SqlExpr)",
                     "public abstract com.legend.sql.SqlExpr formatPadded(com.legend.sql.SqlExpr, com.legend.sql.SqlExpr$IntLit)",
                     "public abstract com.legend.sql.SqlExpr instanceText(com.legend.sql.SqlExpr)",
                     "public abstract com.legend.sql.SqlExpr representation(com.legend.sql.SqlExpr)")),
@@ -51,11 +55,8 @@ class OpenClassMembersTest {
                     "public abstract com.legend.sql.SqlExpr toCsv(com.legend.compiler.spec.typed.TypedNativeCall, java.util.function.Function<com.legend.compiler.spec.typed.TypedSpec, com.legend.sql.SqlSelect>, java.lang.String, java.util.Map<java.lang.Integer, com.legend.compiler.element.type.Type$RelationType>)",
                     "public static com.legend.compiler.element.type.Type kindType(java.lang.String)",
                     "public static com.legend.sql.SqlExpr pureToString(com.legend.lowering.PureOnlyTexts, com.legend.lowering.ListTexts, com.legend.compiler.element.type.Type, com.legend.sql.SqlExpr)")),
-            // C5
-            Map.entry("com.legend.lowering.Repr", Set.of(
-                    "private <init>()",
-                    "static com.legend.sql.SqlExpr of(com.legend.lowering.Styled, com.legend.compiler.element.type.Type, com.legend.sql.SqlExpr)",
-                    "static com.legend.sql.SqlExpr of(com.legend.lowering.Styled, com.legend.compiler.spec.typed.TypedSpec, com.legend.sql.SqlExpr)")),
+            // (com.legend.lowering.Repr: gone 2026-11-17, C5 step A -- legend-pure's representation moved to the
+            // edge, edge.EdgePureOnlyTexts; its product parts the listed facade lowering.ReprParts)
             // B5 (a ruled hook)
             Map.entry("com.legend.lowering.ResultEnvelopes", Set.of(
                     "public abstract com.legend.sql.SqlExpr classes(com.legend.sql.SqlExpr, java.lang.String)",
@@ -285,20 +286,20 @@ class OpenClassMembersTest {
      *  spells the member itself, and is listed for its caller. Red if a whole-class keying comes back. */
     @Test
     void theFacadesAreListedByMember() {
-        Set<String> facades = Set.of("com.legend.testplan.EngineTextPlanning", "com.legend.lowering.RelationTexts");
+        // every row names one member: a method or constructor by its signature, a field by its name (2026-11-17, after
+        // the merge of C5 step A: lowering.ReprParts is listed by member too, so the rule is every owner's, not two)
         List<String> wide = new ArrayList<>();
         for (String key : ArchitectureTest.PLANNER_ENTRIES.keySet()) {
-            String owner = "com.legend." + key.substring(0, key.indexOf('#'));
-            if (facades.contains(owner) && !key.matches("[\\w.$]+#[\\w<>$]+\\(.*\\)")) {
+            if (!key.matches("[\\w.$]+#(?:[\\w<>$]+\\(.*\\)|[A-Za-z_$][\\w$]*)") || key.endsWith("#*")) {
                 wide.add(key);
             }
         }
-        assertEquals(List.of(), wide, "a planner entry for a facade that names no one member by its signature");
+        assertEquals(List.of(), wide, "a planner entry that names no one member by its signature or field name");
         List<String> unlisted = new ArrayList<>();
         int reads = 0;
         for (com.tngtech.archunit.core.domain.JavaClass c : importJars("legend.edge.jars")) {
             for (com.tngtech.archunit.core.domain.JavaAccess<?> a : c.getAccessesFromSelf()) {
-                if (!facades.contains(a.getTargetOwner().getName())) {
+                if (!ArchitectureTest.plannersPackage(a.getTargetOwner().getPackageName())) {
                     continue;
                 }
                 reads++;
@@ -314,8 +315,8 @@ class OpenClassMembersTest {
                 }
             }
         }
-        assertTrue(reads > 100, "the edge's facade reads are read, its nested classes' too: " + reads);
-        assertEquals(List.of(), unlisted, "an edge read of a facade keyed other than by its member, or unlisted");
+        assertTrue(reads > 100, "the edge's reads of the planners are read, its nested classes' too: " + reads);
+        assertEquals(List.of(), unlisted, "an edge read of the planners keyed other than by its member, or unlisted");
     }
 
     private static com.tngtech.archunit.core.domain.JavaClasses importJars(String property) {

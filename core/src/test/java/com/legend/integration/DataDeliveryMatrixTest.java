@@ -607,7 +607,7 @@ class DataDeliveryMatrixTest {
                         ? lf.body() : List.of(parsed);
         com.legend.protocol.spec.ValueSpecification resolved = Compiler.resolveQuery(statements,
                 new com.legend.model.ImportScope(List.of()), ctx);
-        ExecuteOptions options = new ExecuteOptions(null, DataStores.resources(dir), Set.of());
+        ExecuteOptions options = new ExecuteOptions(com.legend.testexecutionplan.NoEdge.NONE, DataStores.resources(dir), Set.of());
         Collector collector = new Collector();
         List<String> failed = new ArrayList<>();
         int[] verdicts = {0};
@@ -697,7 +697,7 @@ class DataDeliveryMatrixTest {
                 var parsed = Compiler.parseQuery(LOAD_PEOPLE);
                 var statements = ((com.legend.protocol.spec.LambdaFunction) parsed).body();
                 var resolved = Compiler.resolveQuery(statements, new com.legend.model.ImportScope(List.of()), ctx);
-                ExecuteOptions options = new ExecuteOptions(null, DataStores.resources(changing), Set.of());
+                ExecuteOptions options = new ExecuteOptions(com.legend.testexecutionplan.NoEdge.NONE, DataStores.resources(changing), Set.of());
                 var plan = TestExecution.planBody(Compiler.queryResolved(ctx, resolved), "x::RT", options);
                 Files.writeString(changing.resolve("people.csv"), "ID,NAME\n1,z\n", StandardCharsets.UTF_8);
                 try (Connection c = session(db)) {

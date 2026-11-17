@@ -188,7 +188,8 @@ class CompatSpellingGuardTest {
             // product's LEAN; legend-engine's shape is the edge's choice, EnginePlans.UPSTREAM_SHAPE)
             // D1.3 -> D1.9 (2026-11-15): Repr is the judges' %r (and format's %r, which the assert bodies write): it
             // moves with the judges
-            "lowering/Repr.java | Repr | 2 | D1.9",
+            // (lowering/Repr.java | Repr: gone 2026-11-17 with the class, census B12's 2b -- legend-pure's representation
+            // the edge's EdgePureOnlyTexts, format's %r refused in the product by name)
             // 2 -> 1 (2026-11-15, D1.2: a DateTime literal's text is a node carrying its written text, the edge's +0000).
             // What stays reads a TDS cell's zone suffix as INPUT (a PCT fixture's +0000 or Z dropped), no spelling
             // written: D2 reviews it
@@ -199,7 +200,9 @@ class CompatSpellingGuardTest {
             // 2026-11-15, on D2's list for the user) and format's %r, which the assert bodies' messages write (the
             // judges' Repr, measured 2026-11-15: AssertBarTest's assertNotEq message): it moves with them, D1.9, and
             // the row falls to 1 STAYS
-            "lowering/Scalars.java | Repr | 2 | D1.9",
+            // 2 -> 1 (2026-11-17, C5 step A: toRepresentation's representation is the edge's, EdgePureOnlyTexts through
+            // the PureOnlyTexts facet; format's %r remains, B12's 2b)
+            // 1 -> gone (2026-11-17, census B12's 2b: format's %r asks the facet, the edge's formatR)
             // 2 -> 1 (2026-11-15, D1.3: makeString's empty element skipped, the CELL_TEXT node, legend-engine's
             // TDSNull the edge's), reclassified STAYS: what stays reads a #TDS literal's TDSNull cell as NULL -- INPUT,
             // the text legend-pure's TDS literal writes for an empty cell, read, never written: D2 reviews it
@@ -207,7 +210,8 @@ class CompatSpellingGuardTest {
             // DateTime; a DateTime literal's text the DATETIME_TO_TEXT node, its written text the edge's)
             // lowering/Scalars.java | signedZeroPad: gone 2026-11-15 (D1.3: format's %0<w>d is the FORMAT_PADDED node,
             // refused by the product's renderer, legend-pure's padding composed by the edge, edge/PurePrintForms)
-            "lowering/VerdictSql.java | Repr | 3 | JUDGE",
+            // lowering/VerdictSql.java | Repr: gone 2026-11-17 (C5 step A: an assert's message elements are legend-pure's
+            // representation, asked of the PureOnlyTexts facet, the edge's EdgePureOnlyTexts)
             // D1.4 -> D1.7 (2026-11-15): PlanNode is legend-engine's plan JSON (generatePlan's nodes), its comment the
             // engine's post-processor's constant: it moves with EnginePlans' text half
             // plan/PlanNode.java | executionTraceID: GONE 2026-11-17 (Phase 6's B5): legend-engine's trace comment is
@@ -264,8 +268,9 @@ class CompatSpellingGuardTest {
             // B9 -> C5 (E-P5) 2026-11-17 (census B9, the orchestrator's ruling (a)): a message's DateTime text is the
             // two-form hook lowering.DateTimeTexts (lite's DATETIME_TO_TEXT in the product); the composition stays for
             // the judges' canon alone, its one emitter LiteralSpelling.temporalCanon, closed by C5's step C
-            // JUDGE, now B12's (2026-11-17, census C5's step C): the judges' canon no longer emits the node; its one
-            // product emitter left is format's %r (Scalars), refused in the product by B12's 2b (F's)
+            // JUDGE, now B12's (2026-11-17, census C5's step C): the judges' canon no longer emits the node; its last
+            // product emitter, format's %r (Scalars), refused in the product by B12's 2b (F's, 2026-11-17): the edge's
+            // DateTime texts write it now
             "sql/dialect/DateTimePrintText.java | +0000 | 2 | JUDGE",
             // RULED by the user, 2026-11-16, the edge program §10 item 9 ("I agree with all"): it stays in the product
             // (the P2 checkpoint audit's A-M1; W6's change, 4fc24e0a3, reverted the same day). The product's H2 quotes legend-engine's word list as written, upper-casing the words its session

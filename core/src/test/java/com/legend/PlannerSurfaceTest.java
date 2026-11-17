@@ -288,19 +288,28 @@ class PlannerSurfaceTest {
             Map.entry("lite_execute_plan", "executePlan"), Map.entry("lite_execute_json_plan", "executeJsonPlan"),
             Map.entry("lite_execute_json_answer", "executeJsonAnswer"),
             Map.entry("lite_execute_arrow_answer", "executeArrowAnswer"), Map.entry("lite_warm_model", "warmModel"),
-            Map.entry("lite_pure_v1_refusal", "refusal")));
+            Map.entry("lite_pure_v1_refusal", "refusal"),
+            // lite's own grammar and typing for Python's product (the edge program's H4, 2026-11-17): the four doors the
+            // tab exports (its A1), asked by the native library instead of legend-engine's pure/v1 routes
+            Map.entry("lite_model_elements", "modelElements"), Map.entry("lite_parse_lambda", "parseLambda"),
+            Map.entry("lite_print_lambda", "printLambda"),
+            Map.entry("lite_lambda_relation_type", "lambdaRelationType")));
 
     /** The native library's exports that are no planner door, each with what it is instead. */
-    static final Map<String, String> NATIVE_SERVICES = new TreeMap<>(Map.of(
-            "lite_site_types", "the site's types, a constant of the build (Folded's answer of them)",
-            "lite_free", "the answer's memory freed",
-            "lite_unfreed", "the count of answers not yet freed (a leak's witness)",
-            "lite_sdlc_handle", "the model home's SDLC store, opened on a folder (its rules, sdlc-server's)",
-            "lite_depot_handle", "the model home's depot, opened on a folder",
-            "lite_saved_queries", "the saved queries' rules over a folder",
-            "lite_saved_cubes", "the saved cubes' rules over a folder",
-            "lite_warehouse_call", "the warehouse's SQL API, a database server of its own, as its binding speaks it",
-            "lite_warehouse_read", "the warehouse's SQL API's read"));
+    static final Map<String, String> NATIVE_SERVICES = new TreeMap<>(Map.ofEntries(
+            Map.entry("lite_site_types", "the site's types, a constant of the build (Folded's answer of them)"),
+            Map.entry("lite_free", "the answer's memory freed"),
+            Map.entry("lite_unfreed", "the count of answers not yet freed (a leak's witness)"),
+            Map.entry("lite_sdlc_handle", "the model home's SDLC store, opened on a folder (its rules, sdlc-server's)"),
+            Map.entry("lite_depot_handle", "the model home's depot, opened on a folder"),
+            Map.entry("lite_saved_queries", "the saved queries' rules over a folder"),
+            Map.entry("lite_saved_cubes", "the saved cubes' rules over a folder"),
+            // the product's twins at lite's mount, in lite's words (the edge program's H6, 2026-11-17)
+            Map.entry("lite_store_queries", "the saved queries' rules over a folder, at lite's mount"),
+            Map.entry("lite_store_cubes", "the saved cubes' rules over a folder, at lite's mount"),
+            Map.entry("lite_warehouse_call",
+                    "the warehouse's SQL API, a database server of its own, as its binding speaks it"),
+            Map.entry("lite_warehouse_read", "the warehouse's SQL API's read")));
 
     /** THE SERVER'S ROUTES ({@code LiteV1Api.route}'s dispatch), each with what its body is: upstream's protocol shapes,
      *  whose fields are {@link #SERVER_FIELDS}'s. */

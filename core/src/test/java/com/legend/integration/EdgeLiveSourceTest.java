@@ -60,7 +60,7 @@ class EdgeLiveSourceTest {
             Collector collector = new Collector();
             TestExecution.runProgram(Compiler.queryResolved(ctx, resolved), "x::RT",
                     SessionSource.given(TestSessions.over(c)), (name, pass, detail) -> { }, com.legend.edge.AppealRun.with(null),
-                    new ExecuteOptions(null, DataStores.none(), java.util.Set.of()), new Output.Rows(collector));
+                    new ExecuteOptions(com.legend.testexecutionplan.NoEdge.NONE, DataStores.none(), java.util.Set.of()), new Output.Rows(collector));
             assertEquals(DataDeliveryMatrixTest.ROWS, DataDeliveryMatrixTest.strings(collector));
         }
     }

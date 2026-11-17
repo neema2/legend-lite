@@ -70,21 +70,13 @@ describe("Studio's compiler over the session's engine", () => {
     ]);
   });
 
-  it("on legend-engine: its compilation/compile, the first error, once it has answered that it has no lite route", async () => {
+  // the edge audit's H8 (2026-11-17, G7): a lite client asks legend-lite's route alone -- a server without it refuses
+  // with its own 404, and nothing else is asked (legend-engine's compile is the edge's client's)
+  it('on a server with no lite route, compileErrors is refused by its 404, asked once, no other route asked', async () => {
     const engine = server(false);
-    const compiler = new Compiler(new HttpEngine('http://engine.example/api', engine.fetch));
-    assert.deepEqual(await compiler.compile(GOOD), []);
-    assert.deepEqual(await compiler.compile(BAD), ["Can't find type 'Strin'"]);
-    assert.deepEqual(engine.asked, [
-      'POST /api/lite/v1/compilation/compile',
-      'POST /api/pure/v1/compilation/compile',
-      'POST /api/pure/v1/compilation/compile',
-    ]);
-  });
-
-  it('on legend-engine, two compiles asked at once both get its answer, whichever 404 comes back first', async () => {
-    const http = new HttpEngine('http://engine.example/api', server(false).fetch);
-    assert.deepEqual(await Promise.all([http.compileErrors(GOOD), http.compileErrors(BAD)]), [[], ["Can't find type 'Strin'"]]);
+    const http = new HttpEngine('http://engine.example/api', engine.fetch);
+    await assert.rejects(http.compileErrors(GOOD), (e: unknown) => e instanceof EngineError && e.status === 404);
+    assert.deepEqual(engine.asked, ['POST /api/lite/v1/compilation/compile']);
   });
 
   it("the in-tab engine's compilation/compile answers as the server's: OK, or the first failure, 400 COMPILATION", async () => {

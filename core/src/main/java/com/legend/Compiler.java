@@ -960,6 +960,8 @@ public final class Compiler {
                 f -> ctx.findClass(f).isPresent(), ctx.implementations())
                 .withInstanceKeys(t -> com.legend.compiler.element.EqualityKeys.resolve(ctx, t))
                 .withObjectIdentity(new com.legend.lowering.ObjectSites()::idOf)
+                // the product's text facets and raises, chosen explicitly (the audit's K6, 2026-11-17)
+                .withStyled(com.legend.lowering.Styled.PRODUCT)
                 // a Float literal as the runtime's database computes it in the product (register S20, Phase 5b)
                 .withFloatLiteralKind(() -> runtimeFqn == null ? null : com.legend.database.PlanStyle.PRODUCT
                         .dialect(executesOn(ctx, runtimeFqn).type()).floatLiteralKind());

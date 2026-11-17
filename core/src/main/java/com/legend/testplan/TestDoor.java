@@ -105,7 +105,8 @@ public final class TestDoor {
      *  M10a), which the caller's sessions source opens. */
     public static TestPlan planned(TypedQuery body, String runtime, Set<Feature> features, Asserts asserts,
             boolean systemRouted) {
-        return planned(body, runtime, features, asserts, systemRouted, com.legend.executionplan.DataStores.none(), null,
+        return planned(body, runtime, features, asserts, systemRouted, com.legend.executionplan.DataStores.none(),
+                com.legend.testexecutionplan.NoEdge.NONE,
                 com.legend.database.PlanStyle.PRODUCT, TestPlanner.facts(body));
     }
 
@@ -115,7 +116,7 @@ public final class TestDoor {
     public static TestPlan planned(TypedQuery body, String runtime, Set<Feature> features, Asserts asserts,
             boolean systemRouted,
             com.legend.executionplan.DataStores stores,
-            com.legend.testexecutionplan.@Nullable Edge edge,
+            com.legend.testexecutionplan.Edge edge,
             com.legend.database.PlanStyle style,
             com.legend.testexecutionplan.BodyFacts facts) {
         TestKinds kinds = new TestKinds(body, runtime, asserts, stores);
@@ -135,9 +136,10 @@ public final class TestDoor {
         Map<Integer, Effect> effects = byStep(planned, kinds.effects());
         Map<Integer, java.util.function.Supplier<com.legend.setup.LoadSteps>> seeds = byStep(planned, kinds.seeds());
         // the ledger texts are the compatibility edge's to plan, by the step's index (the plan-as-data design's step 8,
-        // 2.7: a recorder implies the compatibility rules); a run that hands no edge plans none
+        // 2.7: a recorder implies the compatibility rules); a run whose hook records no ledger (the product's NoEdge)
+        // plans none
         Map<Integer, List<com.legend.testexecutionplan.Extension>> byStep = new LinkedHashMap<>();
-        if (edge != null) {
+        if (edge.records()) {
             unseededLoads(planned, seeds);
             effects.forEach((i, e) -> byStep.put(i, edge.effect(e.statements().stream().map(Recorded::text).toList(),
                     e.statements().stream().map(Recorded::query).toList())));

@@ -35,37 +35,49 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class HookRulingTest {
 
     /** The ruled hooks, each with the PRODUCT style's calls that would hand one out. */
-    static final Map<Class<?>, List<Executable>> RULED = Map.of(
+    static final Map<Class<?>, List<Executable>> RULED = Map.ofEntries(
             // census C2, 2026-11-17 (the orchestrator's ruling that day: NoEdgeRun is the product's refusal, by name):
             // the edge's run hook, and the hearing it opens
-            com.legend.testexec.EdgeRun.class, List.of(
-                    () -> com.legend.testexec.NoEdgeRun.NONE.open(planNaming(), null, java.util.UUID.randomUUID())),
-            com.legend.testexec.EdgeHearing.class, List.of(
+            Map.entry(com.legend.testexec.EdgeRun.class, List.of(
+                    () -> com.legend.testexec.NoEdgeRun.NONE.open(planNaming(), null, java.util.UUID.randomUUID()))),
+            Map.entry(com.legend.testexec.EdgeHearing.class, List.of(
                     () -> productHearing().judged(null, List.of(), null, false),
-                    () -> productHearing().rowAppealed(0, List.of(), false)),
+                    () -> productHearing().rowAppealed(0, List.of(), false),
+                    () -> productHearing().pureWords())),
+            // C5's step B, 2026-11-17 (the orchestrator's ruling (1)): legend-pure's words of an assert's failure at run,
+            // the hearing's member (NoEdgeRun's hearing refuses it by name)
+            Map.entry(com.legend.testexec.PureWords.class, List.of(
+                    () -> productHearing().pureWords())),
+            // census C1, 2026-11-17 (the orchestrator's ruling that day: the edge hook typed, the product's refusal
+            // where a null selected lite's rules): the ledger's recorder, each ask refused by the product's NoEdge
+            Map.entry(com.legend.testexecutionplan.Edge.class, List.of(
+                    () -> com.legend.testexecutionplan.NoEdge.NONE.effect(List.of(), List.of()),
+                    () -> com.legend.testexecutionplan.NoEdge.NONE.seed(List.of(), Map.of()),
+                    () -> com.legend.testexecutionplan.NoEdge.NONE.seeded(List.of(), List.of()),
+                    () -> com.legend.testexecutionplan.NoEdge.NONE.effectRan(List.of()))),
             // census B3 and B1 (EngineTextDialect and PlanStyle's signatures naming it): CLOSED 2026-11-17 by Phase 6 --
             // the interface is com.legend.edge's and the style names no engine text; its entry gone
             // census B2, 2026-11-17 (Phase 6): upstream's plan text, the planner's facet -- signatures only since its
             // routine table moved to planner.PlanTextRoutines
-            com.legend.planner.UpstreamPlans.class, List.of(
-                    () -> PlanStyle.PRODUCT.facet(com.legend.planner.UpstreamPlans.class)),
+            Map.entry(com.legend.planner.UpstreamPlans.class, List.of(
+                    () -> PlanStyle.PRODUCT.facet(com.legend.planner.UpstreamPlans.class))),
             // census B5, 2026-11-17 (Phase 6): legend-engine's result envelope, composed at lowering
-            com.legend.lowering.ResultEnvelopes.class, List.of(
-                    () -> PlanStyle.PRODUCT.facet(com.legend.lowering.ResultEnvelopes.class)),
+            Map.entry(com.legend.lowering.ResultEnvelopes.class, List.of(
+                    () -> PlanStyle.PRODUCT.facet(com.legend.lowering.ResultEnvelopes.class))),
             // census B8 (i), 2026-11-17: the texts only legend-pure writes, composed at lowering
-            com.legend.lowering.PureOnlyTexts.class, List.of(
-                    () -> PlanStyle.PRODUCT.facet(com.legend.lowering.PureOnlyTexts.class)),
+            Map.entry(com.legend.lowering.PureOnlyTexts.class, List.of(
+                    () -> PlanStyle.PRODUCT.facet(com.legend.lowering.PureOnlyTexts.class))),
             // census B17, 2026-11-17: a relation's legend-pure text, composed at lowering (a facade: FACADES)
-            com.legend.lowering.RelationTexts.class, List.of(
-                    () -> PlanStyle.PRODUCT.facet(com.legend.lowering.RelationTexts.class)),
+            Map.entry(com.legend.lowering.RelationTexts.class, List.of(
+                    () -> PlanStyle.PRODUCT.facet(com.legend.lowering.RelationTexts.class))),
             // census C4, 2026-11-17: the engine-text assert's arm, and the two hooks only its answers hand out (the
             // collector and the database judge's batch): each reached through the facet the product refuses
-            com.legend.testplan.EngineTestText.class, List.of(
-                    () -> PlanStyle.PRODUCT.facet(com.legend.testplan.EngineTestText.class)),
-            com.legend.testplan.TextCollector.class, List.of(
-                    () -> PlanStyle.PRODUCT.facet(com.legend.testplan.EngineTestText.class)),
-            com.legend.testplan.BatchTexts.class, List.of(
-                    () -> PlanStyle.PRODUCT.facet(com.legend.testplan.EngineTestText.class)));
+            Map.entry(com.legend.testplan.EngineTestText.class, List.of(
+                    () -> PlanStyle.PRODUCT.facet(com.legend.testplan.EngineTestText.class))),
+            Map.entry(com.legend.testplan.TextCollector.class, List.of(
+                    () -> PlanStyle.PRODUCT.facet(com.legend.testplan.EngineTestText.class))),
+            Map.entry(com.legend.testplan.BatchTexts.class, List.of(
+                    () -> PlanStyle.PRODUCT.facet(com.legend.testplan.EngineTestText.class))));
 
     /** C4's CAPABILITY (the orchestrator's ruling of 2026-11-17): the product's style does not judge legend-engine's
      *  text -- the test planner asks it before any engine-text gate, and takes the ordinary path -- the edge's does. */
@@ -85,7 +97,9 @@ class HookRulingTest {
 
     /** The product's refusals of a ruled hook (criterion (b)): its own implementations, which refuse by name, pinned. */
     static final java.util.Set<String> PRODUCT_REFUSALS = java.util.Set.of(
-            "com.legend.testexec.NoEdgeRun", "com.legend.testexec.NoEdgeRun$Hearing");
+            "com.legend.testexec.NoEdgeRun", "com.legend.testexec.NoEdgeRun$Hearing",
+            // census C1, 2026-11-17: the product's edge hook, which records no ledger
+            "com.legend.testexecutionplan.NoEdge");
 
     /** A test plan naming one appeal, by its verdict's number: what the product's run refuses to open. */
     private static com.legend.testexecutionplan.TestPlan planNaming() {
@@ -242,6 +256,58 @@ class HookRulingTest {
     }
 
     /** (b): the product's style refuses each way of reaching the hook, by name, pointing to the edge. */
+    /** The hooks' capabilities decide, never a null or the rules (census C1, the orchestrator's ruling of 2026-11-17):
+     *  the product's edge hook records no ledger and the edge's does; the product's run hook compares both isolated
+     *  judges' words (lite's sentences), the edge's the verdicts alone (the words upstream's, the host's). */
+    @Test
+    void theHooksCapabilitiesAreTheProductsAndTheEdges() {
+        assertFalse(com.legend.testexecutionplan.NoEdge.NONE.records(), "the product records no ledger");
+        assertTrue(new com.legend.edge.CompatEdge(new com.legend.edge.RawLedger.Recorder(),
+                com.legend.executionplan.DataStores.none()).records(), "the edge's recorder records the ledger");
+        assertTrue(com.legend.testexec.NoEdgeRun.NONE.wordsAlike(), "lite's judges write alike");
+        assertFalse(com.legend.edge.AppealRun.with(null).wordsAlike(), "the edge's words are the host's alone");
+        assertTrue(com.legend.ExecuteOptions.NONE.edge() == com.legend.testexecutionplan.NoEdge.NONE,
+                "the product's options carry the product's edge hook, never a null");
+    }
+
+    /**
+     * NO PRODUCT DOOR IS PLANNED IN THE EDGE'S STYLE (census C1's 2c handover, the orchestrator's ruling of 2026-11-17).
+     * Where each door's style is chosen:
+     * <ul>
+     * <li>{@code Execution.run}/{@code runOnProjectDatabases} and {@code TypedQuery.executionPlan}/{@code projectPlan}:
+     * the overloads without a style plan with {@code PlanStyle.PRODUCT}; those taking one are called from the edge alone
+     * ({@code ArchitectureTest.onlyTheEdgeCallsTheSpellingDoors}, bitten by a planted caller);</li>
+     * <li>{@code TestExecution}'s doors: the style the caller's {@code ExecuteOptions} carry -- {@code NONE}'s is the
+     * product's, every derivation but {@code withStyle} keeps it (pinned here), and {@code withStyle} is a spelling door
+     * the edge alone calls (the same rule);</li>
+     * <li>the hosts (the server's runner, {@code ConnectionResolver}; the test runner {@code PureTestRunner}, whose
+     * options the caller hands it): no product class can name an edge style at all
+     * ({@code ArchitectureTest.noProductClassReachesTheEdge}, G5, and {@code theHostsDoorsReachNoEdge...}); the
+     * product's one style is {@code PlanStyle.PRODUCT}, every other implementer the edge's (pinned here).</li>
+     * </ul>
+     */
+    @Test
+    void noProductDoorIsPlannedInTheEdgesStyle() {
+        JavaClasses all = classes("legend.product.jars", "legend.edge.jars");
+        TreeSet<String> outsideTheEdge = new TreeSet<>();
+        for (JavaClass c : all) {
+            if (!c.isInterface() && c.isAssignableTo(PlanStyle.class.getName())
+                    && !c.getPackageName().startsWith("com.legend.edge")) {
+                outsideTheEdge.add(c.getName());
+            }
+        }
+        // the product's one style, PlanStyle.PRODUCT (an anonymous class of the interface)
+        assertEquals(new TreeSet<>(List.of(PlanStyle.PRODUCT.getClass().getName())), outsideTheEdge,
+                "a style outside the edge other than the product's own");
+        com.legend.ExecuteOptions none = com.legend.ExecuteOptions.NONE;
+        for (com.legend.ExecuteOptions derived : List.of(none,
+                none.withJudgeMode(com.legend.testplan.PlanningOptions.JudgeMode.DATABASE),
+                none.withFeatures(java.util.Set.of()), none.withOptions(java.util.Set.of()),
+                none.withEngineCompat(true), none.judgedAs(none))) {
+            assertTrue(derived.planning().style() == PlanStyle.PRODUCT, "a derivation left the product's style");
+        }
+    }
+
     @Test
     void theProductRefusesEachRuledHookByName() {
         RULED.forEach((hook, calls) -> calls.forEach(call -> {
@@ -271,7 +337,9 @@ class HookRulingTest {
         assertEquals(new TreeSet<>(List.of(
                 "EdgeHearing <- com.legend.edge.Appeals",
                 "EdgeRun <- com.legend.edge.AppealRun",
+                "Edge <- com.legend.edge.CompatEdge",
                 "PureOnlyTexts <- com.legend.edge.EdgePureOnlyTexts",
+                "PureWords <- com.legend.edge.EdgePureWords",
                 "RelationTexts <- com.legend.edge.RelationTextLowering",
                 "ResultEnvelopes <- com.legend.edge.EngineResultEnvelopes",
                 "UpstreamPlans <- com.legend.edge.EnginePlans$1",

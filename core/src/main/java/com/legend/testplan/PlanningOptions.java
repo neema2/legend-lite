@@ -18,7 +18,7 @@ package com.legend.testplan;
  *                     compatibility edge's)
  */
 public record PlanningOptions(
-        com.legend.testexecutionplan.@com.legend.base.Nullable Edge edge,
+        com.legend.testexecutionplan.Edge edge,
         com.legend.executionplan.DataStores stores,
         java.util.Set<com.legend.platform.Feature> features,
         JudgeMode judgeMode,
@@ -27,13 +27,14 @@ public record PlanningOptions(
         com.legend.database.PlanStyle style) {
 
     public PlanningOptions {
+        java.util.Objects.requireNonNull(edge, "edge");
         java.util.Objects.requireNonNull(stores, "stores");
         java.util.Objects.requireNonNull(style, "style");
         features = java.util.Collections.unmodifiableSet(new java.util.LinkedHashSet<>(features));
         // an enum set: its order the declaration's (NoSaltedIterationOrderTest)
         options = options.isEmpty() ? java.util.Set.of()
                 : java.util.Collections.unmodifiableSet(java.util.EnumSet.copyOf(options));
-        if (edge != null && !judgingRules.edgeAppeals()) {
+        if (edge.records() && !judgingRules.edgeAppeals()) {
             // the user's ruling of 2026-11-08 (docs/PLAN_AS_DATA_2026_11_07.md 3a.3): the edge, with the referee's
             // ledger, is the compatibility rules' -- lite's own rules plan nothing for it
             throw new IllegalArgumentException("a run handed the compatibility edge judges by the compatibility rules");
