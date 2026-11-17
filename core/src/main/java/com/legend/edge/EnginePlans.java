@@ -163,15 +163,15 @@ public final class EnginePlans {
         com.legend.lowering.Lowerer lw = new com.legend.lowering.Lowerer(
                 t -> com.legend.compiler.element.ClassLayouts.layoutOf(env.ctx(), t),
                 f -> env.ctx().findClass(f).isPresent(), env.ctx().implementations())
-                .withFeatures(BodyPlanner.featuresOf(env, body)).withOptions(env.options())
+                .withFeatures(BodyPlanner.featuresOf(env, body)).withOptions(env.options()).withShape(UPSTREAM_SHAPE)
                 .withFloatLiteralKind(env::floatLiteralKind);
         if (!temporalRoot) {
-            lw = lw.withEngineExistsJoinForm();
+            lw = lw.withExistsAsJoinDistinct();
         }
         planParams.values().forEach(lw::bindPlanParam);
         // ENGINE-TEXT lowering: wire coercions read bare (a Lowerer option
         // since batch 136; a thread-local scope before)
-        com.legend.sql.SqlQuery plan = lw.withShape(UPSTREAM_SHAPE).lower(body);
+        com.legend.sql.SqlQuery plan = lw.lower(body);
         // engine plans keep enum columns RAW (host-side decode) — the
         // plan-text form of enum-mapped columns/parameters — UNLESS the
         // context carries PUSH_DOWN_ENUM_TRANSFORM (pureToSQLQuery
@@ -210,7 +210,7 @@ public final class EnginePlans {
      *  its own column lists (no computed pruning), a view an aliased derived table ({@code ViewSelectSQLQuery}), a
      *  mapping's wire coercion converted by its runtime on the wire and never spelled in its text. */
     static final com.legend.lowering.LoweringShape UPSTREAM_SHAPE =
-            new com.legend.lowering.LoweringShape(false, false, false, true, true);
+            new com.legend.lowering.LoweringShape(false, false, false, true, true, false);
 
     static final String EXEC_TRACE_COMMENT = "-- \"executionTraceID\" : \"${execID}\"";
 
@@ -228,16 +228,21 @@ public final class EnginePlans {
     }
 
     static final UpstreamPlans FACET = new UpstreamPlans() {
+        /** The plan-text natives' text (the routine table's dispatch and the unformatted form's strip, moved here
+         *  from the planner 2026-11-17: compatibility logic, the edge's). */
         @Override
-        public String planToString(com.legend.compiler.spec.NativeDispatch.RoutineCall call,
-                java.util.List<TypedSpec> letPrefix, com.legend.compiler.spec.SpecCompiler specs, PlanEnv env) {
-            return java.util.Objects.requireNonNull(EnginePlans.planToString(call, letPrefix, specs, env), "plan text");
-        }
-
-        @Override
-        public String toSqlString(com.legend.compiler.spec.NativeDispatch.RoutineCall call,
-                java.util.List<TypedSpec> letPrefix, com.legend.compiler.spec.SpecCompiler specs, PlanEnv env) {
-            return java.util.Objects.requireNonNull(EnginePlans.toSqlString(call, letPrefix, specs, env), "sql text");
+        public String routineText(com.legend.builtin.NativeFn.JavaRoutine routine,
+                com.legend.compiler.spec.NativeDispatch.RoutineCall call, java.util.List<TypedSpec> letPrefix,
+                com.legend.compiler.spec.SpecCompiler specs, PlanEnv env) {
+            return switch (routine) {
+                case PLAN_TO_STRING -> java.util.Objects.requireNonNull(
+                        EnginePlans.planToString(call, letPrefix, specs, env), "plan text");
+                case PLAN_TO_STRING_WITHOUT_FORMATTING -> java.util.Objects.requireNonNull(
+                        EnginePlans.planToString(call, letPrefix, specs, env), "plan text")
+                        .replace("\n", "").replace(" ", "");
+                case TO_SQL_STRING, TO_SQL_STRING_PRETTY, TO_NON_EXECUTABLE_SQL_STRING -> java.util.Objects.requireNonNull(
+                        EnginePlans.toSqlString(call, letPrefix, specs, env), "sql text");
+            };
         }
 
         @Override

@@ -399,7 +399,7 @@ public final class ProductStatements {
                 .withInstanceKeys(t -> com.legend.compiler.element.EqualityKeys.resolve(ctx, t))
                 .withObjectIdentity(sites::idOf);
         if (!temporal) {
-            planLw = planLw.withEngineExistsJoinForm();
+            planLw = planLw.withExistsAsJoinDistinct();
         }
         if (streaming) {
             planLw = planLw.withStreamingGraphRoot();

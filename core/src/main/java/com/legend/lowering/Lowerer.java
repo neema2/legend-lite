@@ -290,6 +290,26 @@ public final class Lowerer {
         return new Scalars.Styled(pureOnlyTexts);
     }
 
+    /** legend-engine's result envelope ({@link ResultEnvelopes}, Phase 6's B5, 2026-11-17): the plan style's facet,
+     *  asked only when an {@code executeLegendQuery} envelope is lowered, with its refusal. A Lowerer no planner handed a
+     *  style refuses it the same way. */
+    private java.util.function.Function<java.util.function.Supplier<? extends RuntimeException>, ResultEnvelopes>
+            resultEnvelopes = refusal -> {
+                throw refusal.get();
+            };
+
+    /** The plan style's result-envelope facet, {@code style} its request ({@code (refusal) -> style.facet(..)}). */
+    public Lowerer withResultEnvelopes(
+            java.util.function.Function<java.util.function.Supplier<? extends RuntimeException>, ResultEnvelopes> style) {
+        this.resultEnvelopes = style;
+        return this;
+    }
+
+    /** The result-envelope facet, the product's refusal {@code refusal}. */
+    ResultEnvelopes resultEnvelopes(java.util.function.Supplier<? extends RuntimeException> refusal) {
+        return resultEnvelopes.apply(refusal);
+    }
+
     /** The plan style's relation-text facet, {@code style} its request ({@code (refusal) -> style.facet(..)}). */
     public Lowerer withRelationTexts(
             java.util.function.Function<java.util.function.Supplier<? extends RuntimeException>, RelationTexts> style) {
@@ -348,12 +368,10 @@ public final class Lowerer {
         return SqlSelect.starOf(new SqlSource.Cte(cte.name(), nextAlias(), cte.outputs()));
     }
 
-    /** Engine-parity join-distinct exists (ExistsJoinForm) — DRIVER
-     * opt-in; the standalone-SQL surface keeps lean correlated EXISTS. */
-    private boolean engineExistsJoinForm;
-
-    public Lowerer withEngineExistsJoinForm() {
-        this.engineExistsJoinForm = true;
+    /** A filter's correlated EXISTS over a to-many join as a join to the distinct keys (ExistsJoinForm), the shape's
+     *  {@link LoweringShape#existsAsJoinDistinct}; the standalone-SQL surface keeps the correlated EXISTS. */
+    public Lowerer withExistsAsJoinDistinct() {
+        this.shape = shape.withExistsAsJoinDistinct();
         return this;
     }
 
@@ -2244,7 +2262,7 @@ public final class Lowerer {
             case WHERE -> {
                 SqlSelect m = src.withWhere(
                         mergeWhere(src.where(), predicate, f.stamp()));
-                yield engineExistsJoinForm
+                yield shape.existsAsJoinDistinct()
                         ? ExistsJoinForm.rewrite(m, this::nextAlias,
                                 whereZones::get)
                         : m;
