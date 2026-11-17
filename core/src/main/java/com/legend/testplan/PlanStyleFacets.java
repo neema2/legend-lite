@@ -31,5 +31,8 @@ public final class PlanStyleFacets {
      *  lite's DATETIME_TO_TEXT in the product, legend-pure's print form at the edge). */
     public static final List<Class<?>> TWO_FORMS = List.of(com.legend.lowering.DateTimeTexts.class,
             // a list's text (F's B8, 2026-11-17: TEXT_FORMS left the MIR): the product's JSON array, the edge's [a, b]
-            com.legend.lowering.ListTexts.class);
+            com.legend.lowering.ListTexts.class,
+            // a judge's JSON grammar (census C1, the orchestrator's ruling of 2026-11-17, register S144): the product's
+            // strict JSON, the edge's upstream json-simple 1.1.1
+            com.legend.testexecutionplan.JsonGrammar.class);
 }

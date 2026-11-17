@@ -412,7 +412,7 @@ public final class TestRunner {
                     ExecutionPlan.Multiplicity m = columns.get(0).multiplicity();
                     Integer upper = m.upper();
                     yield com.legend.testexec.SideShapes.holding(sink, upper != null && upper <= 1, m.lower(),
-                            m.text());
+                            planned.answerSizeWords());
                 }
                 // a relation's toOne() is the database's to check (D2, 2026-11-07: ToOneGuard in the plan's SQL)
                 case RELATION -> sink;

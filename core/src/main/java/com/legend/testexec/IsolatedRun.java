@@ -101,7 +101,7 @@ final class IsolatedRun {
         Recording host = runAlone(pair.host(), sessions, runner, answer);
         // the database judge's run answers nobody: the host's answer is the body's
         Recording database = runAlone(pair.database(), sessions, runner, null);
-        conclude(host, database, pair.rules() == TestPlan.JudgingRules.LITE, callers);
+        conclude(host, database, !pair.rules().legendPureWords(), callers);
     }
 
     /** The two recorded runs concluded ({@code messages}: whether the messages are compared too -- lite's own rules,

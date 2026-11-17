@@ -33,10 +33,14 @@ import java.util.Objects;
  * @param session             the target of the session the body runs on: its runtime's, planned (the plan-as-data
  *                            design's slice 5, 2026-11-09: until then the door planned it from the model beside the
  *                            plan, so a plan read back from its JSON could not open its own session)
+ * @param answerSizeWords     the body's answer's refusal of no rows under a required bound, worded at planning by the
+ *                            plan's style (C5's step E, 2026-11-17: the run spells no text); null where the answer has
+ *                            no required bound, or the plan sends none
  */
 public record TestPlan(List<ExecutionPlan.Parameter> parameters, List<TestStep> steps, Judge judge,
         Map<Integer, List<Extension>> extensionsByStep, Map<Integer, List<Extension>> extensionsByVerdict,
-        boolean answersLastVerdict, ExecutionPlan.Target session, BodyFacts facts) {
+        boolean answersLastVerdict, ExecutionPlan.Target session, BodyFacts facts,
+        @com.legend.base.Nullable String answerSizeWords) {
 
     public TestPlan {
         Objects.requireNonNull(session, "session");
@@ -57,7 +61,14 @@ public record TestPlan(List<ExecutionPlan.Parameter> parameters, List<TestStep> 
 
     /** The same plan carrying {@code byVerdict}, its verdicts' records (the appeals they name). */
     public TestPlan withExtensionsByVerdict(Map<Integer, List<Extension>> byVerdict) {
-        return new TestPlan(parameters, steps, judge, extensionsByStep, byVerdict, answersLastVerdict, session, facts);
+        return new TestPlan(parameters, steps, judge, extensionsByStep, byVerdict, answersLastVerdict, session, facts,
+                answerSizeWords);
+    }
+
+    /** The same plan carrying {@code words}, its answer's size refusal as its style words it. */
+    public TestPlan withAnswerSizeWords(@com.legend.base.Nullable String words) {
+        return new TestPlan(parameters, steps, judge, extensionsByStep, extensionsByVerdict, answersLastVerdict, session,
+                facts, words);
     }
 
     private static Map<Integer, List<Extension>> copied(Map<Integer, List<Extension>> m) {
@@ -401,19 +412,64 @@ public record TestPlan(List<ExecutionPlan.Parameter> parameters, List<TestStep> 
      * </ul>
      */
     public enum JudgingRules {
-        LITE, COMPILED_PURE_COMPAT;
+        LITE(false), COMPILED_PURE_COMPAT(true);
+
+        /** Whether these are upstream's leniencies: every fact below asks it, so no product site names the value. */
+        private final boolean upstream;
+
+        JudgingRules(boolean upstream) {
+            this.upstream = upstream;
+        }
 
         /** Whether two Floats within 2 ULP are equal: compatibility mode's tolerance alone; lite compares a Float
          *  exactly (S15/S132, the user's ruling of 2026-11-05, built that day). */
         public boolean floatTolerance() {
-            return this == COMPILED_PURE_COMPAT;
+            return upstream;
         }
 
         /** Whether two Decimals of one value and different scales differ ({@code 0.3D} and {@code 0.30D}): compiled
          *  Pure's assert, compatibility mode's alone; lite compares a Decimal by value (S139, the user's ruling of
          *  2026-11-05). */
         public boolean decimalScale() {
-            return this == COMPILED_PURE_COMPAT;
+            return upstream;
+        }
+
+        /** Whether an Integer and a Decimal are equal by their texts ({@code 1D == 1}): compiled legend-pure's
+         *  {@code CompiledSupport.eq(Number, Number)}, compatibility mode's alone; lite's kinds never equal across
+         *  (S127, the user's ruling of 2026-11-04). */
+        public boolean integerDecimalByText() {
+            return upstream;
+        }
+
+        /** Whether two rendered texts that differ are compared once more by the ruled line and row policy (an
+         *  unsorted query's lines as a multiset S131, float tokens within 2 ULP S132): compatibility mode's alone;
+         *  lite's verdict is the two strings (the user, 2026-11-05). */
+        public boolean renderedTextRuled() {
+            return upstream;
+        }
+
+        /** Whether a failure is worded in legend-pure's words: compatibility mode's; lite words it by its own
+         *  sentences (isolated BOTH, the orchestrator's ruling of 2026-11-17). */
+        public boolean legendPureWords() {
+            return upstream;
+        }
+
+        /** Whether a test-data generator's text prints a timestamp as upstream does: compatibility mode's; lite's
+         *  the clean form (L9, the user's ruling of 2026-11-12). */
+        public boolean upstreamTestDataTimestamps() {
+            return upstream;
+        }
+
+        /** Whether a relation passed to assertSize, assertEmpty or assertNotEmpty is ONE value, as upstream counts
+         *  it: compatibility mode's; lite refuses it (S137, the user's ruling of 2026-11-05). */
+        public boolean relationCountedAsOne() {
+            return upstream;
+        }
+
+        /** Whether a run may hear the compatibility edge's appeals: compatibility mode's alone (the user's ruling of
+         *  2026-11-08, docs/PLAN_AS_DATA_2026_11_07.md 3a.3). */
+        public boolean edgeAppeals() {
+            return upstream;
         }
     }
 

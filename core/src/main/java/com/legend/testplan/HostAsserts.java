@@ -222,7 +222,7 @@ final class HostAsserts implements TestDoor.Asserts {
                 raisedByAnAssert = true;
             } else {
                 p = planAssert(statement, bare, letPrefix, frames, specs, env, env);
-                if (p != null && bodyEnv != null && AssertVerdicts.holdsEngineText(p.assertion().check().judgment())) {
+                if (p != null && bodyEnv != null && AssertVerdicts.holdsEdgeJudged(p.assertion().check().judgment())) {
                     // an engine-text assert of a system-routed body: its arm planned on the program's environment, its
                     // compatibility APPEAL on the body's -- the user's tables, the referee, the store provision
                     // (ExecEnv.appealOn: the database judge's split, the host's since 2026-11-06; until then the whole
@@ -513,7 +513,7 @@ final class HostAsserts implements TestDoor.Asserts {
         // judgment and each side's shape, read by the run from the plan alone
         List<com.legend.testexecutionplan.SideShape> shapes = new java.util.ArrayList<>(sides.sides().size());
         for (JudgePlans.PlannedSide p : sides.sides()) {
-            shapes.add(JudgePlans.shapeOf(p));
+            shapes.add(JudgePlans.shapeOf(p, env.options().style()));
         }
         TestPlan.Verdict verdict = new TestPlan.Verdict(env.verdictIds().next(), assertion.listenerName(),
                 assertion.name(), base, null, message).withHost(new TestPlan.Host(AssertVerdicts.assertionOf(assertion),

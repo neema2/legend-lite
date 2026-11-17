@@ -51,6 +51,11 @@ public final class PureText {
         }
 
         @Override
+        public boolean judgesEngineText() {
+            return true;
+        }
+
+        @Override
         public <F> F facet(Class<F> kind) {
             // the closed list first (the P2 checkpoint audit's S2, 2026-11-16): a kind outside it is refused by name
             // before any answer, so an answer added below without its declaration is unreachable
@@ -93,6 +98,10 @@ public final class PureText {
             }
             if (kind == com.legend.lowering.DateTimeTexts.class) {
                 return kind.cast(EdgeDateTimeTexts.INSTANCE);
+            }
+            if (kind == com.legend.testexecutionplan.JsonGrammar.class) {
+                // upstream's JSON grammar (register S144; census C1, 2026-11-17)
+                return kind.cast(JsonSimpleGrammar.INSTANCE);
             }
             throw new com.legend.error.NotImplementedException("the two-form kind " + kind.getName()
                     + " is none of the declared kinds (com.legend.testplan.PlanStyleFacets.TWO_FORMS)");
@@ -151,6 +160,15 @@ public final class PureText {
         @Override
         public SqlDialect dialect(DatabaseType type) {
             return UPSTREAM.dialect(type);
+        }
+
+        /** Refused by name (census C4, 2026-11-17, the orchestrator's ruling): the pure/v1 routes plan a query, never a
+         *  test body, so no judge asks this style whether it judges legend-engine's text; a judge that did is a bug. */
+        @Override
+        public boolean judgesEngineText() {
+            throw new com.legend.error.NotImplementedException("judging legend-engine's text under the pure/v1 route's"
+                    + " style: the pure/v1 routes plan queries, never a test body's asserts (PCT and the corpus plan"
+                    + " under UPSTREAM)");
         }
 
         @Override

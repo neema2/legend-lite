@@ -17,7 +17,7 @@ import java.util.List;
 final class PlantedEngineTestText implements EngineTestText {
 
     @Override
-    public EngineTestText.@com.legend.base.Nullable Planned plan(EngineTestText.Ask ask) {
+    public com.legend.testplan.@com.legend.base.Nullable TextPlanned plan(com.legend.testplan.TextAsk ask) {
         throw new UnsupportedOperationException("planted");
     }
 
@@ -43,7 +43,33 @@ final class PlantedEngineTestText implements EngineTestText {
     }
 
     @Override
-    public EngineTestText.BatchTexts batchTexts() {
+    public com.legend.testplan.BatchTexts batchTexts() {
+        throw new UnsupportedOperationException("planted");
+    }
+
+    @Override
+    public boolean isRoot(String fqn) {
+        throw new UnsupportedOperationException("planted");
+    }
+
+    @Override
+    public boolean reachesUpstreamText(String name, boolean wantEqual, List<TypedSpec> args, List<TypedSpec> letPrefix,
+            SpecCompiler specs) {
+        throw new UnsupportedOperationException("planted");
+    }
+
+    @Override
+    public boolean notAConstant(com.legend.testplan.HostSides.@com.legend.base.Nullable Check check) {
+        throw new UnsupportedOperationException("planted");
+    }
+
+    @Override
+    public String why(com.legend.testplan.HostSides.@com.legend.base.Nullable Check check) {
+        throw new UnsupportedOperationException("planted");
+    }
+
+    @Override
+    public com.legend.testplan.TextsHeld textsHeld(com.legend.testexecutionplan.Extension judgment) {
         throw new UnsupportedOperationException("planted");
     }
 }

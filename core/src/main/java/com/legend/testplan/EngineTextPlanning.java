@@ -41,7 +41,7 @@ public final class EngineTextPlanning {
         return env.appealOn();
     }
 
-    public static EngineTestText.@com.legend.base.Nullable Collector collector(BodyDriver.ExecEnv env) {
+    public static @com.legend.base.Nullable TextCollector collector(BodyDriver.ExecEnv env) {
         return env.engineText();
     }
 
@@ -58,7 +58,7 @@ public final class EngineTextPlanning {
     }
 
     public static BodyDriver.ExecEnv withCollector(BodyDriver.ExecEnv env,
-            EngineTestText.@com.legend.base.Nullable Collector c) {
+            @com.legend.base.Nullable TextCollector c) {
         return env.withCollector(c);
     }
 
@@ -68,7 +68,7 @@ public final class EngineTextPlanning {
 
     /** {@code env} with its own copy of the body's consumed lets: what it plans reads them and leaves none behind. */
     public static BodyDriver.ExecEnv withOwnLets(BodyDriver.ExecEnv env) {
-        return env.withPlan(env.plan().withQueryLets(new java.util.LinkedHashMap<>(env.plan().queryLets())));
+        return env.withPlan(env.plan().withOwnQueryLets());
     }
 
     public static BodyDriver.ExecEnv withTableReplace(BodyDriver.ExecEnv env, java.util.Map<String, String> tr) {
@@ -83,11 +83,11 @@ public final class EngineTextPlanning {
     }
 
     public static @com.legend.base.Nullable String marking(BodyDriver.ExecEnv env, String origin, boolean ifUnmarked) {
-        return EngineTestText.marking(env, origin, ifUnmarked);
+        return EngineTextGates.marking(env, origin, ifUnmarked);
     }
 
     public static void restoreMarking(BodyDriver.ExecEnv env, @com.legend.base.Nullable String prior) {
-        EngineTestText.restoreMarking(env, prior);
+        EngineTextGates.restoreMarking(env, prior);
     }
 
     // ---- the verdict batch --------------------------------------------------------------------------------------
@@ -108,41 +108,37 @@ public final class EngineTextPlanning {
 
     // ---- an assert's ask and check --------------------------------------------------------------------------------
 
-    public static TypedSpec bare(EngineTestText.Ask ask) {
+    public static TypedSpec bare(TextAsk ask) {
         return ask.bare;
     }
 
-    public static List<TypedSpec> letPrefix(EngineTestText.Ask ask) {
+    public static List<TypedSpec> letPrefix(TextAsk ask) {
         return ask.letPrefix;
     }
 
-    public static SpecCompiler specs(EngineTestText.Ask ask) {
+    public static SpecCompiler specs(TextAsk ask) {
         return ask.specs;
     }
 
-    public static BodyDriver.ExecEnv env(EngineTestText.Ask ask) {
+    public static BodyDriver.ExecEnv env(TextAsk ask) {
         return ask.env;
     }
 
-    public static AssertVerdicts.@com.legend.base.Nullable SpliceHook hook(EngineTestText.Ask ask) {
+    public static AssertVerdicts.@com.legend.base.Nullable SpliceHook hook(TextAsk ask) {
         return ask.hook;
     }
 
-    public static boolean notAConstant(HostSides.@com.legend.base.Nullable Check check) {
-        return EngineTestText.notAConstant(check);
-    }
-
-    public static String why(HostSides.@com.legend.base.Nullable Check check) {
-        return EngineTestText.why(check);
-    }
-
     /** The arm's refusal of a text side that is not a constant of the plan, {@code what} after its label. */
-    public static EngineTestText.NotAConstant notAConstantError(String what) {
-        return new EngineTestText.NotAConstant(EngineTestText.NotAConstant.LABEL + what);
+    public static NotAConstant notAConstantError(String what) {
+        return new NotAConstant(what);
     }
 
-    public static EngineTestText.Planned planned(HostSides.Check check) {
-        return new EngineTestText.Planned(check);
+    public static com.legend.testexecutionplan.HostJudgment judgment(HostSides.Check check) {
+        return check.judgment();
+    }
+
+    public static TextPlanned planned(HostSides.Check check) {
+        return new TextPlanned(check);
     }
 
     public static HostSides.Ask ask(TypedSpec arg, boolean identity, boolean fold,
@@ -183,16 +179,22 @@ public final class EngineTextPlanning {
         return p.kind() == JudgePlans.Kind.VALUES;
     }
 
-    public static com.legend.testexecutionplan.SideShape shapeOf(JudgePlans.PlannedSide p) {
-        return JudgePlans.shapeOf(p);
+    public static com.legend.testexecutionplan.SideShape shapeOf(JudgePlans.PlannedSide p, com.legend.database.PlanStyle style) {
+        return JudgePlans.shapeOf(p, style);
     }
 
-    /** {@code side} planned as the database judge's rows: its one-row relation of its value, or null where the side
-     *  has none ({@code DatabaseJudge.SideRows#why}). */
-    public static com.legend.sql.@com.legend.base.Nullable SqlQuery scalarRow(TypedSpec side, List<TypedSpec> letPrefix,
-            SpecCompiler specs, BodyDriver.ExecEnv at, AssertVerdicts.@com.legend.base.Nullable SpliceHook hook) {
-        DatabaseJudge.SideRows rows = DatabaseJudge.planSide(side, false, letPrefix, specs, at, hook);
-        return rows.why() != null ? null : rows.scalarRow(false);
+    /** {@code side} planned as the database judge's rows (C4, 2026-11-17: forwarding alone; the edge reads them). */
+    public static DatabaseJudge.SideRows planSide(TypedSpec side, List<TypedSpec> letPrefix, SpecCompiler specs,
+            BodyDriver.ExecEnv at, AssertVerdicts.@com.legend.base.Nullable SpliceHook hook) {
+        return DatabaseJudge.planSide(side, false, letPrefix, specs, at, hook);
+    }
+
+    public static @com.legend.base.Nullable String why(DatabaseJudge.SideRows rows) {
+        return rows.why();
+    }
+
+    public static com.legend.sql.@com.legend.base.Nullable SqlQuery scalarRow(DatabaseJudge.SideRows rows) {
+        return rows.scalarRow(false);
     }
 
     // ---- the replay facts ------------------------------------------------------------------------------------------

@@ -3,6 +3,7 @@
 package com.legend.testplan;
 
 import com.legend.testexecutionplan.Verdicts;
+import com.legend.testexecutionplan.JsonGrammar;
 import com.legend.testexecutionplan.JudgeJson;
 import com.legend.testexecutionplan.KindClass;
 import com.legend.builtin.NativeFn;
@@ -282,7 +283,7 @@ public final class DatabaseJudge {
         // own runs -- decided false at planning, the rows read for the message; in backwards-compatibility mode compiled
         // legend-pure's rule, an Integer and a Decimal compared by their texts (the canon's) and a Float equal to neither
         if (!re.many() && !ra.many() && crossNumberKinds(re.kinds().get(ie), ra.kinds().get(ia),
-                env.options().judgingRules() == com.legend.testexecutionplan.TestPlan.JudgingRules.COMPILED_PURE_COMPAT)) {
+                env.options().judgingRules().integerDecimalByText())) {
             vq = com.legend.lowering.VerdictSql.decidedFalse(vq);
         }
         // a single Decimal's text as upstream's %r writes it, its D (the canon the comparison reads drops it)
@@ -341,7 +342,7 @@ public final class DatabaseJudge {
     /** Whether the database judge words a failure by lite's own sentences: lite's own rules; the compatibility rules
      *  keep legend-pure's words. */
     static boolean lite(BodyDriver.ExecEnv env) {
-        return env.options().judgingRules() == com.legend.testexecutionplan.TestPlan.JudgingRules.LITE;
+        return !env.options().judgingRules().legendPureWords();
     }
 
     private static com.legend.lowering.VerdictSql.@com.legend.base.Nullable Message written(
@@ -369,7 +370,7 @@ public final class DatabaseJudge {
      *  pair in lite's own runs; in backwards-compatibility mode all but an Integer and a Decimal, which compiled
      *  legend-pure compares by text. An unrefined Number is no known kind. */
     private static boolean crossNumberKinds(com.legend.compiler.element.type.Type e,
-            com.legend.compiler.element.type.Type a, boolean compat) {
+            com.legend.compiler.element.type.Type a, boolean integerDecimalByText) {
         com.legend.compiler.element.type.Type fe = fineNumber(e);
         com.legend.compiler.element.type.Type fa = fineNumber(a);
         if (fe == null || fa == null || fe == fa) {
@@ -379,7 +380,7 @@ public final class DatabaseJudge {
                 && fa == com.legend.compiler.element.type.Type.Primitive.DECIMAL
                 || fe == com.legend.compiler.element.type.Type.Primitive.DECIMAL
                 && fa == com.legend.compiler.element.type.Type.Primitive.INTEGER;
-        return !(compat && integerAndDecimal);
+        return !(integerDecimalByText && integerAndDecimal);
     }
 
     /** {@code kind}'s fine number kind -- Integer, Float, Decimal (a declared precision one's too) -- or null. */
@@ -949,13 +950,12 @@ public final class DatabaseJudge {
             }
             com.legend.compiler.element.type.Type ek = expected.type();
             com.legend.compiler.element.type.Type ak = actual.type();
-            boolean compat = env.options().judgingRules()
-                    == com.legend.testexecutionplan.TestPlan.JudgingRules.COMPILED_PURE_COMPAT;
+            com.legend.testexecutionplan.TestPlan.JudgingRules rules = env.options().judgingRules();
             com.legend.sql.SqlQuery row = com.legend.lowering.VerdictSql.perElement(vector.side().plan(), ek, ak,
-                    crossNumberKinds(ek, ak, compat),
-                    compat && ek == com.legend.compiler.element.type.Type.Primitive.FLOAT
+                    crossNumberKinds(ek, ak, rules.integerDecimalByText()),
+                    rules.floatTolerance() && ek == com.legend.compiler.element.type.Type.Primitive.FLOAT
                             && ak == com.legend.compiler.element.type.Type.Primitive.FLOAT,
-                    com.legend.lowering.VerdictSql.decimalByValue(compat, ek), lite(env), env.plan().styled());
+                    com.legend.lowering.VerdictSql.decimalByValue(rules.decimalScale(), ek), lite(env), env.plan().styled());
             if (row == null) {
                 return unjudged(name, "per-element: a kind with no spelling (" + ek.typeName() + " vs "
                         + ak.typeName() + ")");
@@ -1078,11 +1078,11 @@ public final class DatabaseJudge {
         if (goldenText == null) {
             return unjudged(name, "json golden is not a literal");
         }
-        // the golden read as the rules read JSON (JudgeJson, register S144): strict in lite's own runs, upstream's
-        // json-simple grammar under the compatibility rules
+        // the golden read as the plan's style reads JSON (register S144; census C1, 2026-11-17): the product's strict
+        // form, upstream's json-simple grammar the edge's (JsonGrammar, a two-form kind)
         Object goldenRead;
         try {
-            goldenRead = JudgeJson.read(goldenText, env.options().judgingRules());
+            goldenRead = env.options().style().twoForm(JsonGrammar.class, JudgeJson.STRICT).read(goldenText);
         } catch (IllegalStateException malformed) {
             // the host judge's words for the same golden (com.legend.testexec.HostJudgments.jsonOf): a golden the rules refuse fails the test
             throw new IllegalStateException("golden JSON does not parse: " + malformed.getMessage(), malformed);

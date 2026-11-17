@@ -94,10 +94,9 @@ final class Appeals implements com.legend.testexec.EdgeHearing {
     }
 
     @Override
-    public TypedSide engineText(com.legend.testexecutionplan.HostJudgment j, List<TypedSide> sides,
+    public TypedSide judged(com.legend.testexecutionplan.HostJudgment.EdgeJudged j, List<TypedSide> sides,
             TestPlan.JudgingRules rules, boolean messaged) {
-        return SqlTextRuns.judge((com.legend.testexecutionplan.HostJudgment.EngineText) j, sides, rules, this,
-                messaged);
+        return SqlTextRuns.judge((EngineTextJudgment) j.judgment(), j.appeal(), sides, rules, this, messaged);
     }
 
     @Override
@@ -139,6 +138,12 @@ final class Appeals implements com.legend.testexec.EdgeHearing {
 
     /** A step of the body that writes is about to run ({@code PlanRunner.ProgramSink#writing}), told to the body's open
      *  appeals (each body's run holds its own record of them, slice 5). */
+    /** The compatibility rules' JSON grammar: upstream's json-simple 1.1.1 (register S144; census C1, 2026-11-17). */
+    @Override
+    public com.legend.testexecutionplan.JsonGrammar json() {
+        return JsonSimpleGrammar.INSTANCE;
+    }
+
     @Override
     public void writing() {
         wrote = true;

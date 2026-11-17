@@ -21,7 +21,7 @@ final class HostJudgments {
     /** Whether the host judge words a failure by lite's own sentences ({@link LiteWords}): lite's own rules; the
      *  compatibility rules keep legend-pure's words. */
     static boolean lite(com.legend.testexecutionplan.TestPlan.JudgingRules rules) {
-        return rules == com.legend.testexecutionplan.TestPlan.JudgingRules.LITE;
+        return !rules.legendPureWords();
     }
 
     /** The platform's primitive types, named by their short names. */
@@ -324,7 +324,7 @@ final class HostJudgments {
      * THE ONE DISPATCH: {@code j}, the comparison a planned arm named with the facts it read at planning, judged over
      * {@code sides} (the arm's rows, shaped, in its order). Every arm's function takes the record and the rows and
      * nothing else -- no typed tree, no let prefix, no model, no environment (but for the engine-text asserts' appeal,
-     * {@link HostJudgment.EngineText}, the one named exception: M10b): the sink holds data. Null where the
+     * {@link HostJudgment.EdgeJudged}, the one named exception: M10b): the sink holds data. Null where the
      * judgment declines the sides it read (the walk's generic path continues).
      */
     static @com.legend.base.Nullable TypedSide judge(HostJudgment j, List<TypedSide> sides,
@@ -357,10 +357,10 @@ final class HostJudgments {
             case HostJudgment.Decided d -> decided(d);
             case HostJudgment.SameElements s -> sameElementsOf(s, sides, rules);
             case HostJudgment.Equals e -> equalsOf(e, sides, rules);
-            case HostJudgment.Json js -> jsonOf(js, sides, rules);
+            case HostJudgment.Json js -> jsonOf(js, sides, rules, run.hearing().json());
             case HostJudgment.Rendered r -> renderedOf(r, sides, rules);
             case HostJudgment.Raise r -> throw com.legend.testexecutionplan.Failures.raised(r.failure());
-            case HostJudgment.EngineText e -> run.engineText(e, sides, rules);
+            case HostJudgment.EdgeJudged e -> run.judged(e, sides, rules);
             case HostJudgment.AssertError a -> com.legend.testexec.AssertErrorRuns.judge(a, () -> sides, rules, run);
             case HostJudgment.Messaged m -> messagedOf(m, sides, rules, message, run);
             case HostJudgment.Negated n -> negatedOf(n, sides, rules, run);
@@ -955,23 +955,23 @@ final class HostJudgments {
     }
 
     private static @com.legend.base.Nullable TypedSide jsonOf(HostJudgment.Json j, List<TypedSide> pair,
-            com.legend.testexecutionplan.TestPlan.JudgingRules rules) {
+            com.legend.testexecutionplan.TestPlan.JudgingRules rules, com.legend.testexecutionplan.JsonGrammar grammar) {
         String ejson = com.legend.testexec.AssertRuns.jsonSideTextOf(pair.get(0));
         String ajson = com.legend.testexec.AssertRuns.jsonSideTextOf(pair.get(1));
         if (ejson == null || ajson == null) {
             return null;   // non-[1]-string shape: generic path
         }
-        // the GOLDEN side parses first and names itself when it does not: both texts read as the rules read JSON
-        // (JudgeJson, register S144: strict in lite's own runs, upstream's json-simple grammar under the compatibility
-        // rules -- the milestoned graph-fetch goldens end in a stray `"` json-simple reads past)
+        // the GOLDEN side parses first and names itself when it does not: both texts read by the run's JSON grammar
+        // (register S144; census C1, 2026-11-17: the product's strict form, upstream's json-simple the edge's, through
+        // the run's hearing -- the milestoned graph-fetch goldens end in a stray `"` json-simple reads past)
         Object expected;
         try {
-            expected = JudgeJson.read(ejson, rules);
+            expected = grammar.read(ejson);
         } catch (IllegalStateException e) {
             throw new IllegalStateException(
                     "golden JSON does not parse: " + e.getMessage(), e);
         }
-        Object actual = JudgeJson.read(ajson, rules);
+        Object actual = grammar.read(ajson);
         // no [x] for x (the user's ruling, 2026-11-03): a result serialized otherwise than the engine serializes it
         // is the serializer's to fix.
         // D3 for graph results: an INCIDENTAL-order chain (a root
@@ -1007,7 +1007,7 @@ final class HostJudgments {
             // clean mode (the user, 2026-11-05: after a verdict the harness may only explain): the two strings ARE the
             // verdict; the ruled row comparison after a failed text is compatibility mode's alone
             boolean held = et.equals(at)
-                    || rules == com.legend.testexecutionplan.TestPlan.JudgingRules.COMPILED_PURE_COMPAT
+                    || rules.renderedTextRuled()
                             && com.legend.testexec.TdsCompare.renderedText(
                                     j.aForm() != null ? et : at, j.aForm() != null ? at : et,
                                     form, j.sortedOrder());

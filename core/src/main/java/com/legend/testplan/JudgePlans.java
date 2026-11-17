@@ -160,7 +160,7 @@ public final class JudgePlans {
             BodyDriver.ExecEnv env, boolean identity, boolean fold,
             java.util.function.@com.legend.base.Nullable BiFunction<TypedSpec, java.util.Set<String>,
                     TypedSpec> hook) {
-        EngineTestText.Collector collecting = env.engineText();
+        TextCollector collecting = env.engineText();
         if (collecting != null && collecting.planning()) {
             // an engine-text arm PLANNED for the program road (the test-is-the-product plan's M10b,
             // SqlTextVerdicts.plan): a text side is a constant of the plan (the verdict step's base), or our text a
@@ -175,7 +175,7 @@ public final class JudgePlans {
                     return deferred;
                 }
                 // the side's kind and its planned root name what the arm would evaluate (the unplanned-assert census)
-                throw new EngineTestText.NotAConstant(EngineTestText.NotAConstant.LABEL + p.kind()
+                throw new NotAConstant(p.kind()
                         + " " + (p.root() == null ? value.getClass().getSimpleName()
                                 : p.root().getClass().getSimpleName() + (p.root() instanceof com.legend.compiler.spec.typed.TypedNativeCall nc
                                         ? " " + nc.callee().qualifiedName()
@@ -273,17 +273,17 @@ public final class JudgePlans {
      *  shaping reads, decided here from the side's declared type, so the run shapes the rows from the plan alone. A
      *  constant side's text is read back here, at planning, and checked against the compiler's value (a difference is
      *  the plan's text being wrong, raised by name). */
-    static com.legend.testexecutionplan.SideShape shapeOf(PlannedSide p) {
+    static com.legend.testexecutionplan.SideShape shapeOf(PlannedSide p, com.legend.database.PlanStyle style) {
         return switch (p.kind()) {
             case CONSTANT -> {
                 TypedSide answered = java.util.Objects.requireNonNull(p.answered(), "a constant side's value");
                 decodeConstant((TestPlan.Side.Constant) p.side(), answered, constantRows(p));
                 yield sideShape(com.legend.testexecutionplan.SideShape.Kind.CONSTANT, answered.returnType(), List.of(),
-                        List.of(), false, answered instanceof TypedSide.Scalar, 0, "", false, false, false);
+                        List.of(), false, answered instanceof TypedSide.Scalar, 0, "", false, false, false, null);
             }
             case GRAPH -> sideShape(com.legend.testexecutionplan.SideShape.Kind.GRAPH,
                     p.wrappedSide().shapeInfo().type().typeName(), List.of(), List.of(), false, false, 0, "", false,
-                    false, false);
+                    false, false, null);
             case TABULAR, KEYED -> {
                 Type.RelationType schema = java.util.Objects.requireNonNull(p.schema(), "a grid's schema");
                 Type t = p.wrappedSide().shapeInfo().type();
@@ -299,7 +299,7 @@ public final class JudgePlans {
                 }
                 yield sideShape(p.kind() == Kind.KEYED ? com.legend.testexecutionplan.SideShape.Kind.KEYED
                         : com.legend.testexecutionplan.SideShape.Kind.TABULAR, t.typeName(), columns, templates,
-                        oneCarrier(t), false, 0, "", false, false, false);
+                        oneCarrier(t), false, 0, "", false, false, false, null);
             }
             case VALUES -> {
                 BodyDriver.WrappedSide w = p.wrappedSide();
@@ -308,10 +308,12 @@ public final class JudgePlans {
                 boolean tdsNullRoot = type.equals(new Type.ClassType(PlatformTypes.TDS_NULL_FQN));
                 boolean nullable = PlatformTypes.isAny(type) || tdsNullRoot
                         || type instanceof Type.ClassType ct && PlatformTypes.isVariant(ct);
+                long lower = info.multiplicity().requireBounded("result shape").lower();
+                String multiplicity = info.multiplicity().text();
                 yield sideShape(com.legend.testexecutionplan.SideShape.Kind.VALUES, type.typeName(), List.of(),
-                        List.of(), false, w.shape() == com.legend.plan.ResultShape.SCALAR,
-                        info.multiplicity().requireBounded("result shape").lower(), info.multiplicity().text(),
-                        tdsNullRoot, nullable, PlatformTypes.isListCarrier(type));
+                        List.of(), false, w.shape() == com.legend.plan.ResultShape.SCALAR, lower, multiplicity,
+                        tdsNullRoot, nullable, PlatformTypes.isListCarrier(type),
+                        lower >= 1 ? sizeWords(style, multiplicity) : null);
             }
         };
     }
@@ -319,9 +321,21 @@ public final class JudgePlans {
     private static com.legend.testexecutionplan.SideShape sideShape(com.legend.testexecutionplan.SideShape.Kind kind,
             String typeName, List<com.legend.testexecutionplan.SideShape.Column> columns,
             List<com.legend.testexecutionplan.SideShape.Column> templates, boolean oneCarrier, boolean scalar,
-            long lower, String multiplicity, boolean tdsNullRoot, boolean nullableRoot, boolean listCarrier) {
+            long lower, String multiplicity, boolean tdsNullRoot, boolean nullableRoot, boolean listCarrier,
+            @com.legend.base.Nullable String sizeWords) {
         return new com.legend.testexecutionplan.SideShape(kind, typeName, columns, templates, oneCarrier, scalar, lower,
-                multiplicity, tdsNullRoot, nullableRoot, listCarrier);
+                multiplicity, tdsNullRoot, nullableRoot, listCarrier, sizeWords);
+    }
+
+    /** A required side's refusal of no rows, as {@code style} words it at planning (C5's step E, 2026-11-17): the
+     *  compatibility edge's legend-pure sentence ({@code PlanStyle.siteWords} of a SIZE_NOT_MULTIPLICITY site, the
+     *  bound its operand), else the product's own, the kind's sentence and the bound. The run spells none. */
+    static String sizeWords(com.legend.database.PlanStyle style, String multiplicity) {
+        String upstream = style.siteWords(new com.legend.sql.dialect.RaiseSite(1,
+                com.legend.sql.RaiseKind.SIZE_NOT_MULTIPLICITY, multiplicity,
+                List.of(new com.legend.sql.SqlExpr.StringLit(multiplicity)), null));
+        return upstream != null ? upstream
+                : com.legend.error.ErrorKind.SIZE_NOT_MULTIPLICITY.sentence() + ": " + multiplicity;
     }
 
     private static com.legend.testexecutionplan.SideShape.Column shapeColumn(Type.Column c) {

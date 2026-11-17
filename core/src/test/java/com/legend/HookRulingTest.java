@@ -41,7 +41,7 @@ class HookRulingTest {
             com.legend.testexec.EdgeRun.class, List.of(
                     () -> com.legend.testexec.NoEdgeRun.NONE.open(planNaming(), null, java.util.UUID.randomUUID())),
             com.legend.testexec.EdgeHearing.class, List.of(
-                    () -> productHearing().engineText(null, List.of(), null, false),
+                    () -> productHearing().judged(null, List.of(), null, false),
                     () -> productHearing().rowAppealed(0, List.of(), false)),
             // census B3 and B1 (EngineTextDialect and PlanStyle's signatures naming it): CLOSED 2026-11-17 by Phase 6 --
             // the interface is com.legend.edge's and the style names no engine text; its entry gone
@@ -57,7 +57,23 @@ class HookRulingTest {
                     () -> PlanStyle.PRODUCT.facet(com.legend.lowering.PureOnlyTexts.class)),
             // census B17, 2026-11-17: a relation's legend-pure text, composed at lowering (a facade: FACADES)
             com.legend.lowering.RelationTexts.class, List.of(
-                    () -> PlanStyle.PRODUCT.facet(com.legend.lowering.RelationTexts.class)));
+                    () -> PlanStyle.PRODUCT.facet(com.legend.lowering.RelationTexts.class)),
+            // census C4, 2026-11-17: the engine-text assert's arm, and the two hooks only its answers hand out (the
+            // collector and the database judge's batch): each reached through the facet the product refuses
+            com.legend.testplan.EngineTestText.class, List.of(
+                    () -> PlanStyle.PRODUCT.facet(com.legend.testplan.EngineTestText.class)),
+            com.legend.testplan.TextCollector.class, List.of(
+                    () -> PlanStyle.PRODUCT.facet(com.legend.testplan.EngineTestText.class)),
+            com.legend.testplan.BatchTexts.class, List.of(
+                    () -> PlanStyle.PRODUCT.facet(com.legend.testplan.EngineTestText.class)));
+
+    /** C4's CAPABILITY (the orchestrator's ruling of 2026-11-17): the product's style does not judge legend-engine's
+     *  text -- the test planner asks it before any engine-text gate, and takes the ordinary path -- the edge's does. */
+    @Test
+    void onlyTheEdgeJudgesEngineText() {
+        assertFalse(PlanStyle.PRODUCT.judgesEngineText());
+        assertTrue(com.legend.edge.PureText.UPSTREAM.judgesEngineText());
+    }
 
     /** A ruled hook's static FORWARDERS (the orchestrator's facade rule, 2026-11-17): each forwards one call to a
      *  helper the product itself uses, and the set is pinned exactly -- shrink-only, a new one is seen. Every other
@@ -93,7 +109,7 @@ class HookRulingTest {
                 com.legend.testexecutionplan.TestPlan.JudgingRules.LITE);
         return new com.legend.testexecutionplan.TestPlan(List.of(), List.of(step),
                 com.legend.testexecutionplan.TestPlan.Judge.HOST, Map.of(), byVerdict, false, target,
-                new com.legend.testexecutionplan.BodyFacts(false, false, true, "A"));
+                new com.legend.testexecutionplan.BodyFacts(false, false, true, "A"), null);
     }
 
 
@@ -170,8 +186,10 @@ class HookRulingTest {
     void theTwoFormKindsAreAClosedListTheProductAnswersItsOwnForm() {
         // the two-form kinds, an exact set; each added with its family and its dated reason:
         // DateTimeTexts (census B9, 2026-11-17: a DateTime's text in a message); ListTexts (census B8, 2026-11-17,
-        // TEXT_FORMS: a list's text, the product's JSON form, the edge's legend-pure one)
-        assertEquals(List.of(com.legend.lowering.DateTimeTexts.class, com.legend.lowering.ListTexts.class),
+        // TEXT_FORMS: a list's text, the product's JSON form, the edge's legend-pure one); JsonGrammar (census C1,
+        // 2026-11-17, register S144: a judge's JSON grammar, the product's strict JSON, the edge's json-simple)
+        assertEquals(List.of(com.legend.lowering.DateTimeTexts.class, com.legend.lowering.ListTexts.class,
+                com.legend.testexecutionplan.JsonGrammar.class),
                 com.legend.testplan.PlanStyleFacets.TWO_FORMS,
                 "the two-form kinds, an exact set: a kind is added here with its family and its dated reason");
         assertTrue(PlanStyle.PRODUCT.twoForm(com.legend.lowering.DateTimeTexts.class,
@@ -188,6 +206,12 @@ class HookRulingTest {
         assertTrue(com.legend.edge.PureText.UPSTREAM.twoForm(com.legend.lowering.ListTexts.class,
                 com.legend.lowering.ProductListTexts.INSTANCE) != com.legend.lowering.ProductListTexts.INSTANCE,
                 "the edge answers legend-pure's list text");
+        assertTrue(PlanStyle.PRODUCT.twoForm(com.legend.testexecutionplan.JsonGrammar.class,
+                com.legend.testexecutionplan.JudgeJson.STRICT) == com.legend.testexecutionplan.JudgeJson.STRICT,
+                "the product reads strict JSON");
+        assertTrue(com.legend.edge.PureText.UPSTREAM.twoForm(com.legend.testexecutionplan.JsonGrammar.class,
+                com.legend.testexecutionplan.JudgeJson.STRICT) == com.legend.edge.JsonSimpleGrammar.INSTANCE,
+                "the edge reads upstream's json-simple grammar");
         Runnable productForm = () -> { };
         assertTrue(PlanStyle.PRODUCT.twoForm(Runnable.class, productForm) == productForm,
                 "the product answers the caller's own form");
@@ -231,7 +255,12 @@ class HookRulingTest {
                 "PureOnlyTexts <- com.legend.edge.EdgePureOnlyTexts",
                 "RelationTexts <- com.legend.edge.RelationTextLowering",
                 "ResultEnvelopes <- com.legend.edge.EngineResultEnvelopes",
-                "UpstreamPlans <- com.legend.edge.EnginePlans$1")), implementers);
+                "UpstreamPlans <- com.legend.edge.EnginePlans$1",
+                "EngineTestText <- com.legend.edge.EdgeEngineTestText",
+                "TextCollector <- com.legend.edge.SqlTextVerdicts$Deferring",
+                "TextCollector <- com.legend.edge.SqlTextVerdicts$Collecting",
+                "TextCollector <- com.legend.edge.SqlTextVerdicts$BatchTexts",
+                "BatchTexts <- com.legend.edge.SqlTextVerdicts$BatchTexts")), implementers);
         assertFalse(implementers.isEmpty());
         // the product's refusals are the ones named, and each implements a ruled hook
         for (String refusal : PRODUCT_REFUSALS) {
