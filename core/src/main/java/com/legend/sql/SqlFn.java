@@ -167,13 +167,9 @@ public enum SqlFn {
      *  ({@code dialect.PureOnlyText}); the compatibility edge writes {@code x}, today's SQL (edge/PurePrintForms; the
      *  user's ruling of 2026-11-10, "objects and relations are refused", relayed 2026-11-15; phase D's D1.3). */
     RELATION_TEXT,
-    /** A value's representation ({@code x}, legend-pure's {@code toRepresentation} of it, then what it is as a string
-     *  literal; {@code format}'s {@code %r} joins once the judges' messages are Java, Phase 4b): legend-pure's text. The product refuses it by name (the user's
-     *  ruling of 2026-11-16, docs/records/total-wall-edge-program-2026-11-16.md §10 item 8: "refuse in product but not
-     *  in compatibility"; register S314's extension) -- its renderer's {@code dialect.PureOnlyText}; the compatibility
-     *  edge writes {@code x}, the SQL the lowering wrote until then (edge/PurePrintForms; Phase 3). The judges' own
-     *  messages write the representation unwrapped (lowering.VerdictSql). */
-    REPRESENTATION_TEXT,
+    // (a user's toRepresentation: gone 2026-11-17, the separation census's B8 (i) -- the edge
+    // writes legend-pure's representation at lowering through the plan style's PureOnlyTexts facet; the product
+    // refuses at lowering)
     /** A value's text in two forms ({@code product}, then {@code pure}): the product's (a list's JSON array; the user's
      *  ruling of 2026-11-10, start-here §5.4, relayed 2026-11-15) and legend-pure's ({@code [a, 1]}), where the two
      *  differ in their composition, not one spelling. The base renderer keeps the product's
