@@ -614,8 +614,9 @@ final class HostJudgments {
         // eq's non-primitive identity rule throws LOUD here (P2-5)
         String pure = com.legend.testexec.PureAsserts.assertEq(ee, aa, rules);
         String d = pure == null || !lite(rules) ? pure
-                : sentence(com.legend.error.AssertSentence.EQUALS, "expected", LiteWords.identity(ee, j.e().classFqn()),
-                        "actual", LiteWords.identity(aa, j.a().classFqn()));
+                : LiteWords.equalsSentence(LiteWords.identity(ee, j.e().classFqn()),
+                        LiteWords.identity(aa, j.a().classFqn()), () -> LiteWords.kind(ee, j.e().classFqn()),
+                        () -> LiteWords.kind(aa, j.a().classFqn()), ee, aa);
         com.legend.testexec.CanonicalDivergence.probeEqual("assertEq",
                 java.util.Collections.singletonList(ee),
                 java.util.Collections.singletonList(aa), d == null);
@@ -778,8 +779,8 @@ final class HostJudgments {
                             java.util.Collections.singletonList(e), java.util.Collections.singletonList(a),
                             j.expectedClass(), j.actualClass(), rules);
             if (d != null && lite(rules) && !j.tolerance()) {
-                d = sentence(com.legend.error.AssertSentence.EQUALS, "expected", LiteWords.value(e, j.expectedClass()), "actual",
-                        LiteWords.value(a, j.actualClass()));
+                d = LiteWords.equalsSentence(LiteWords.value(e, j.expectedClass()), LiteWords.value(a, j.actualClass()),
+                        () -> LiteWords.kind(e, j.expectedClass()), () -> LiteWords.kind(a, j.actualClass()), e, a);
             }
             if (d != null) {
                 return com.legend.testexecutionplan.Verdicts.fail(lite(rules)
@@ -882,8 +883,15 @@ final class HostJudgments {
         return finish(name, wantEqual, equal,
                 () -> incidental
                         ? sameElementsWords(e, a, j.e().classFqn(), j.a().classFqn(), rules)
-                        : lite(rules) ? sentence(com.legend.error.AssertSentence.EQUALS, "expected", LiteWords.pairSide(e, a, j.e().classFqn()),
-                                "actual", LiteWords.pairSide(a, e, j.a().classFqn()))
+                        // a class side carried as JSON text is written as that JSON (the shared canon's, ruling 5)
+                        : lite(rules) && (LiteWords.jsonCarried(ef.values()) || LiteWords.jsonCarried(af.values()))
+                                ? LiteWords.equalsSentence(LiteWords.carriedSide(ef.values(), af.values(), j.e().classFqn()),
+                                        LiteWords.carriedSide(af.values(), ef.values(), j.a().classFqn()),
+                                        () -> "", () -> "", null, null)
+                        : lite(rules) ? LiteWords.equalsSentence(LiteWords.pairSide(e, a, j.e().classFqn()),
+                                LiteWords.pairSide(a, e, j.a().classFqn()), () -> LiteWords.sideKind(e, j.e().classFqn()),
+                                () -> LiteWords.sideKind(a, j.a().classFqn()), e.size() == 1 ? e.get(0) : null,
+                                a.size() == 1 ? a.get(0) : null)
                         : com.legend.testexec.PureAsserts.equalsMessage(e, a, j.e().classFqn(), j.a().classFqn()),
                 () -> lite(rules) ? sentence(com.legend.error.AssertSentence.NOT_EQUALS, "actual", LiteWords.pairSide(a, e, j.a().classFqn()))
                         : com.legend.testexec.PureAsserts.notEqualsMessage(e, a));

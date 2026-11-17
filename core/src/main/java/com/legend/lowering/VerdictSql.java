@@ -66,6 +66,9 @@ public final class VerdictSql {
     /** A planning-time hint the frame reads and drops: the sides were compared as MULTISETS, so lite's sentence is
      *  {@code AssertSentence.SAME_ELEMENTS} ("in any order") whatever the assert's name. */
     private static final String MULTISET_HINT = "__multiset";
+    /** Each side's kind as lite's sentence names it where the two texts tie: the frame's, dropped there. */
+    private static final String EXPECTED_KIND = "__ekind";
+    private static final String ACTUAL_KIND = "__akind";
 
     /** {@code row}'s sentence as SQL: its text pieces as literals and each slot the expression {@code slots} names, one
      *  concatenation -- the database judge's twin of the host's {@code AssertSentence.fill} (the user's judge model,
@@ -133,10 +136,21 @@ public final class VerdictSql {
      * each side's elements in brackets, in their order).
      */
     public record Message(Type kind, boolean sorted, boolean listed, @com.legend.base.Nullable String literal,
-            boolean lite, boolean canon) {
+            boolean lite, boolean canon, @com.legend.base.Nullable String kindText) {
+        public Message(Type kind, boolean sorted, boolean listed, @com.legend.base.Nullable String literal,
+                boolean lite, boolean canon) {
+            this(kind, sorted, listed, literal, lite, canon, null);
+        }
+
         public Message(Type kind, boolean sorted, boolean listed, @com.legend.base.Nullable String literal,
                 boolean lite) {
             this(kind, sorted, listed, literal, lite, false);
+        }
+
+        /** This message with the side's KIND as lite's sentence names it where two texts tie
+         *  ({@code AssertSentence.EQUALS_KINDS}). */
+        public Message withKindText(String kindText) {
+            return new Message(kind, sorted, listed, literal, lite, canon, kindText);
         }
 
         public Message(Type kind, boolean sorted, boolean listed, @com.legend.base.Nullable String literal) {
@@ -157,7 +171,7 @@ public final class VerdictSql {
         /** This message written by lite's own rules ({@link Repr#lite}: a String quoted JSON-style, every value its
          *  product text), or legend-pure's ({@code lite} false). */
         public Message withLite(boolean lite) {
-            return new Message(kind, sorted, listed, literal, lite, canon);
+            return new Message(kind, sorted, listed, literal, lite, canon, kindText);
         }
 
         /** A LITERAL side (one value the planner holds): {@code text}, its representation spelled at planning. */
@@ -224,8 +238,24 @@ public final class VerdictSql {
         Folded af = fold("__a", a, lenientPossible);
         SqlQuery row = statementOf(ef, af, List.of(), List.of(),
                 lenientPossible ? ef.rows() : null, lenientPossible ? af.rows() : null);
-        return e.message() != null && a.message() != null
-                ? withWrittenSides(row, e.message().sorted(), e.message().lite() && e.byCanonText()) : row;
+        if (e.message() == null || a.message() == null) {
+            return row;
+        }
+        SqlQuery written = withWrittenSides(row, e.message().sorted(), e.message().lite() && e.byCanonText());
+        return e.message().kindText() != null && a.message().kindText() != null
+                ? withKinds(written, e.message().kindText(), a.message().kindText()) : written;
+    }
+
+    /** {@code row} carrying each side's kind for the frame (lite's sentence where the two texts tie). */
+    private static SqlQuery withKinds(SqlQuery row, String expectedKind, String actualKind) {
+        SqlWith w = (SqlWith) row;
+        SqlSelect body = (SqlSelect) w.body();
+        List<SqlSelect.Projection> ps = new ArrayList<>(body.projections());
+        ps.add(new SqlSelect.Projection(new SqlExpr.StringLit(expectedKind), EXPECTED_KIND,
+                new OutputCol(EXPECTED_KIND, SqlType.Scalar.VARCHAR, false)));
+        ps.add(new SqlSelect.Projection(new SqlExpr.StringLit(actualKind), ACTUAL_KIND,
+                new OutputCol(ACTUAL_KIND, SqlType.Scalar.VARCHAR, false)));
+        return new SqlWith(w.ctes(), body.withProjections(ps));
     }
 
     /** {@code row} with the two sides as the failure message writes them ({@link Message}), read off the facts rows'
@@ -760,10 +790,12 @@ public final class VerdictSql {
         // the first failing element's zero-based index: its 1-based ordinal less one
         SqlExpr index = new SqlExpr.Cast(SqlExpr.Call.of(SqlFn.MINUS, b.col("__fi"), new SqlExpr.IntLit(1)),
                 SqlType.Scalar.VARCHAR, SqlExpr.Reason.JUDGE);
+        SqlExpr feText = SqlExpr.Call.of(SqlFn.COALESCE, b.col("__fe"), new SqlExpr.StringLit("[]"));
+        SqlExpr faText = SqlExpr.Call.of(SqlFn.COALESCE, b.col("__fa"), new SqlExpr.StringLit("[]"));
         SqlExpr message = lite ? sentence(com.legend.error.AssertSentence.AT_INDEX, java.util.Map.of("sentence",
-                sentence(com.legend.error.AssertSentence.EQUALS, java.util.Map.of(
-                        "expected", SqlExpr.Call.of(SqlFn.COALESCE, b.col("__fe"), new SqlExpr.StringLit("[]")),
-                        "actual", SqlExpr.Call.of(SqlFn.COALESCE, b.col("__fa"), new SqlExpr.StringLit("[]")))),
+                equalsOrKinds(feText, faText, new SqlExpr.StringLit(kindText(expectedKind)),
+                        new SqlExpr.StringLit(kindText(actualKind)),
+                        sentence(com.legend.error.AssertSentence.EQUALS, java.util.Map.of("expected", feText, "actual", faText))),
                 "index", index)) : null;
         return predicateOver(List.of(new SqlWith.Cte("__pe", rows)), List.of(b),
                 SqlExpr.Call.of(SqlFn.EQUAL, b.col("__n"), new SqlExpr.IntLit(0)), b.col("__fe"), b.col("__fa"),
@@ -2649,8 +2681,11 @@ public final class VerdictSql {
         }
         SqlSelect.Projection fixed = projectionOf(sel, MESSAGE);
         SqlSelect.Projection multiset = projectionOf(sel, MULTISET_HINT);
+        SqlSelect.Projection ek = projectionOf(sel, EXPECTED_KIND);
+        SqlSelect.Projection ak = projectionOf(sel, ACTUAL_KIND);
         SqlExpr message = fixed != null ? fixed.expr()
-                : lite ? liteFrame(multiset != null ? "assertSameElements" : name, wantEqual, cells, e, a) : wantEqual
+                : lite ? liteFrame(multiset != null ? "assertSameElements" : name, wantEqual, cells, e, a,
+                        ek == null ? null : ek.expr(), ak == null ? null : ak.expr()) : wantEqual
                 ? SqlExpr.Call.of(SqlFn.CONCAT, new SqlExpr.StringLit("\nexpected: "), e,
                         new SqlExpr.StringLit("\nactual:   "), a)
                 : SqlExpr.Call.of(SqlFn.CONCAT, e, new SqlExpr.StringLit(" should not equal "), a);
@@ -2659,11 +2694,19 @@ public final class VerdictSql {
         ps.remove(ew);      // the written sides are the message's, no column of the verdict's schema
         ps.remove(aw);
         ps.remove(multiset);   // the hint is the frame's, no column of the verdict's schema
+        ps.remove(ek);
+        ps.remove(ak);
         ps.add(new SqlSelect.Projection(holds, HOLDS, new OutputCol(HOLDS, SqlType.Scalar.BOOLEAN, false)));
         ps.add(new SqlSelect.Projection(message, MESSAGE, new OutputCol(MESSAGE, SqlType.Scalar.VARCHAR, true)));
         // the select's outputs are rebuilt from its projections by its constructor
         return new SqlSelect(ps, sel.distinct(), sel.from(), sel.where(), sel.groupBy(), sel.having(), sel.qualify(),
                 sel.orderBy(), sel.limit(), sel.offset(), sel.outputs());
+    }
+
+    /** A kind's name as lite's sentence writes it where two texts tie: a primitive's short name (a Decimal of a declared
+     *  precision a Decimal), any other type its own name. */
+    public static String kindText(Type t) {
+        return t instanceof Type.PrecisionDecimal ? "Decimal" : t.typeName();
     }
 
     /** {@code row}, a self-contained verdict row, its message lite's sentence for an unrolled quantifier's element
@@ -2689,7 +2732,8 @@ public final class VerdictSql {
 
     /** The frame's sentence under lite's own rules, by the assert's family: two grids' rows, the elements in any order,
      *  two JSON texts, or two values; a negated family names the actual alone. */
-    private static SqlExpr liteFrame(String name, boolean wantEqual, boolean cells, SqlExpr e, SqlExpr a) {
+    private static SqlExpr liteFrame(String name, boolean wantEqual, boolean cells, SqlExpr e, SqlExpr a,
+            @com.legend.base.Nullable SqlExpr expectedKind, @com.legend.base.Nullable SqlExpr actualKind) {
         if (!wantEqual) {
             return sentence(com.legend.error.AssertSentence.NOT_EQUALS, java.util.Map.of("actual", a));
         }
@@ -2697,7 +2741,21 @@ public final class VerdictSql {
                 ? com.legend.error.AssertSentence.SAME_ELEMENTS
                 : name.endsWith("assertJsonStringsEqual") ? com.legend.error.AssertSentence.JSON_EQUALS
                 : com.legend.error.AssertSentence.EQUALS;
-        return sentence(row, java.util.Map.of("expected", e, "actual", a));
+        SqlExpr plain = sentence(row, java.util.Map.of("expected", e, "actual", a));
+        if (row != com.legend.error.AssertSentence.EQUALS || expectedKind == null || actualKind == null) {
+            return plain;
+        }
+        // two texts that tie: each side's kind after it (the orchestrator's ruling, 2026-11-17)
+        return equalsOrKinds(e, a, expectedKind, actualKind, plain);
+    }
+
+    /** {@code plain} where the two written texts differ, else {@code EQUALS_KINDS}. */
+    private static SqlExpr equalsOrKinds(SqlExpr e, SqlExpr a, SqlExpr expectedKind, SqlExpr actualKind,
+            SqlExpr plain) {
+        return new SqlExpr.Case(List.of(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.EQUAL, e, a),
+                sentence(com.legend.error.AssertSentence.EQUALS_KINDS, java.util.Map.of("expected", e,
+                        "expectedKind", expectedKind, "actual", a, "actualKind", actualKind)))),
+                plain, SqlExpr.Reason.JUDGE);
     }
 
     /** The relation a fused batch statement returns: the index, then

@@ -233,6 +233,19 @@ public final class DatabaseJudge {
                 java.util.Objects.requireNonNull(we).plan(), eSpec, lite);
         com.legend.lowering.VerdictSql.Message ma = written(ra, ia, cellPool,
                 java.util.Objects.requireNonNull(wa).plan(), aSpec, lite);
+        if (lite && me != null && ma != null && !me.canon() && !ma.canon()) {
+            // each side's kind, for lite's sentence where the two texts tie; two DateTime literals each with its
+            // written precision (the orchestrator's ruling, 2026-11-17)
+            String ek = com.legend.lowering.VerdictSql.kindText(re.kinds().get(ie));
+            String ak = com.legend.lowering.VerdictSql.kindText(ra.kinds().get(ia));
+            if (ek.equals("DateTime") && ak.equals("DateTime") && eSpec instanceof com.legend.compiler.spec.typed.TypedCDate ed
+                    && aSpec instanceof com.legend.compiler.spec.typed.TypedCDate ad) {
+                ek = ek + ", " + ed.value().precision().name().toLowerCase(java.util.Locale.ROOT);
+                ak = ak + ", " + ad.value().precision().name().toLowerCase(java.util.Locale.ROOT);
+            }
+            me = me.withKindText(ek);
+            ma = ma.withKindText(ak);
+        }
         com.legend.sql.SqlQuery vq = com.legend.lowering.VerdictSql.equality(
                 new com.legend.lowering.VerdictSql.Side(
                         java.util.Objects.requireNonNull(we).plan(), "__canon" + ie,

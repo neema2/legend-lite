@@ -90,7 +90,7 @@ class AssertBarTest {
             new Probe("forAll-decimal-value", "{|range(1, 3)->forAll(i | assertEquals(3.0D, 3.10D))}",
                     "expected 3.0, got 3.10 at index 0"),
             new Probe("forAll-decimal-vs-integer", "{|range(1, 3)->forAll(i | assertEquals(1D, $i))}",
-                    "expected 1, got 1 at index 0"),
+                    "expected 1 (Decimal), got 1 (Integer) at index 0"),
             new Probe("forAll-over-nothing", "{|[1, 2]->filter(x | $x > 5)->forAll(i | assertEquals($i, 99))}", null),
             new Probe("forAll-zip-computed-arguments",
                     "{|[1, 2]->zip([1, 2])->forAll(p | assertEquals($p.first + 1, $p.second + 1))}", null),
@@ -109,22 +109,36 @@ class AssertBarTest {
                     "expected [3, 1, 2], got [1, 2, 3]"),
             // exact, as upstream (S132's float tokens are backwards-compatibility mode's alone: ExecuteOptions
             // .withEngineCompat, the PCT and corpus harnesses; the user, 2026-11-04)
+            // a Float in a failure message at full round-trip precision, the same text under every judge on every
+            // database (the orchestrator's ruling, 2026-11-17: a message is a diagnostic; S311's six decimals are a
+            // Float's toString in a query)
+            // the operands parsed so each is the double (a Float literal's arithmetic is the database's DECIMAL until
+            // E-P5's S20 lands)
+            new Probe("float-message-sum", "{|assertEquals(0.3, parseFloat('0.1') + parseFloat('0.2'))}",
+                    "expected 0.3, got 0.30000000000000004"),
+            // past DECIMAL(38,18): Java's exponent form, every database's text normalized to it
+            new Probe("float-message-tiny", "{|assertEquals(1.0, parseFloat('1.0E-300'))}",
+                    "expected 1.0, got 1.0E-300"),
+            new Probe("float-message-negative-zero", "{|assertEquals(1.0, parseFloat('-0.0'))}",
+                    "expected 1.0, got -0.0"),
+            new Probe("float-message-product", "{|assertEquals(1.0, parseFloat('123456789.123456789') * 3.0)}",
+                    "expected 1.0, got 370370367.3703704"),
             new Probe("float-looking-strings", "{|assertEquals('x=1.0000000000000002', 'x=1.0')}",
                     "expected \"x=1.0000000000000002\", got \"x=1.0\""),
             new Probe("decimal-scale", "{|assertEquals(3.0D, 3.00D)}", null),
             new Probe("decimal-value", "{|assertEquals(3.0D, 3.10D)}", "expected 3.0, got 3.10"),
-            new Probe("integer-vs-float", "{|assertEquals(1, 1.0)}", "expected 1, got 1"),
+            new Probe("integer-vs-float", "{|assertEquals(1, 1.0)}", "expected 1, got 1.0"),
             // the ledger audit's D4 (2026-11-16): a list of Integers against the same numbers as Floats fails, as the
             // one-value probe above does; the message is the failed typed comparison's, never an untyped re-compare
             // that held (which passed the assertSameElements and raised "verdict/message divergence" on assertEquals)
             new Probe("integer-vs-float-lists", "{|assertEquals([1, 2], [1.0, 2.0])}",
-                    "expected [1, 2], got [1, 2]"),
+                    "expected [1, 2], got [1.0, 2.0]"),
             new Probe("integer-vs-float-same-elements", "{|assertSameElements([2, 1], [2.0, 1.0])}",
-                    "expected the elements [2, 1] in any order, got [2, 1]"),
+                    "expected the elements [2, 1] in any order, got [2.0, 1.0]"),
             // the type is part of the value in lite's own runs (register S127, the user's ruling of 2026-11-04;
             // backwards-compatibility mode compares an Integer and a Decimal by text: below)
-            new Probe("decimal-vs-integer", "{|assertEquals(1D, 1)}", "expected 1, got 1"),
-            new Probe("float-vs-decimal", "{|assertEquals(1.5, 1.5D)}", "expected 1.5, got 1.5"),
+            new Probe("decimal-vs-integer", "{|assertEquals(1D, 1)}", "expected 1 (Decimal), got 1 (Integer)"),
+            new Probe("float-vs-decimal", "{|assertEquals(1.5, 1.5D)}", "expected 1.5 (Float), got 1.5 (Decimal)"),
             new Probe("assertNotEquals-across-kinds", "{|assertNotEquals(3, 3D)}", null),
             new Probe("mixed-list", "{|assertEquals([1, 'a', 2.5], [1, 'a', 2.5])}", null),
             new Probe("empty-vs-filtered", "{|assertEquals([], [1, 2]->filter(x | $x > 5))}", null),
@@ -159,29 +173,23 @@ class AssertBarTest {
                     "expected 2020-01-01T10:00:00.000000Z, got 2020-01-01T10:00:01.000000Z"),
             new Probe("assertEquals-datetime-precision-message",
                     "{|assertEquals(%2020-01-01T10:00:00.000+0000, %2020-01-01T10:00:00+0000)}",
-                    "expected 2020-01-01T10:00:00.000000Z, got 2020-01-01T10:00:00.000000Z"),
+                    "expected 2020-01-01T10:00:00.000000Z (DateTime, subsecond), got 2020-01-01T10:00:00.000000Z (DateTime, second)"),
             new Probe("assertEquals-datetime-hour-message", "{|assertEquals(%2020-01-01T10, %2020-01-01T11)}",
                     "expected 2020-01-01T10:00:00.000000Z, got 2020-01-01T11:00:00.000000Z"),
             // an instance of a generic class (a Pair) written as upstream's toRepresentation writes any instance,
             // '<id instanceOf path>', its path the raw class's
             new Probe("assertEquals-pairs-message", "{|assertEquals(pair(1, 'a'), pair(1, 'b'))}",
-                    "\nexpected: <1|a instanceOf meta::pure::functions::collection::Pair>\nactual:   <1|b instanceOf"
-                            + " meta::pure::functions::collection::Pair>"),
+                    "expected meta::pure::functions::collection::Pair {\"first\": 1, \"second\": \"a\"}, got meta::pure::functions::collection::Pair {\"first\": 1, \"second\": \"b\"}"),
             new Probe("assertEquals-pair-collections-message",
                     "{|assertEquals([pair(1, 'a'), pair(2, 'b')], [pair(1, 'b'), pair(2, 'b')])}",
-                    "\nexpected: [<1|a instanceOf meta::pure::functions::collection::Pair>, <2|b instanceOf"
-                            + " meta::pure::functions::collection::Pair>]\nactual:   [<1|b instanceOf"
-                            + " meta::pure::functions::collection::Pair>, <2|b instanceOf"
-                            + " meta::pure::functions::collection::Pair>]"),
+                    "expected [meta::pure::functions::collection::Pair {\"first\": 1, \"second\": \"a\"}, meta::pure::functions::collection::Pair {\"first\": 2, \"second\": \"b\"}], got [meta::pure::functions::collection::Pair {\"first\": 1, \"second\": \"b\"}, "
+                            + "meta::pure::functions::collection::Pair {\"first\": 2, \"second\": \"b\"}]"),
             new Probe("assertSameElements-pairs-message",
                     "{|assertSameElements([pair(2, 'b'), pair(1, 'a')], [pair(1, 'a'), pair(3, 'c')])}",
-                    "\nexpected: [<1|a instanceOf meta::pure::functions::collection::Pair>, <2|b instanceOf"
-                            + " meta::pure::functions::collection::Pair>]\nactual:   [<1|a instanceOf"
-                            + " meta::pure::functions::collection::Pair>, <3|c instanceOf"
-                            + " meta::pure::functions::collection::Pair>]"),
+                    "expected the elements [meta::pure::functions::collection::Pair {\"first\": 2, \"second\": \"b\"}, meta::pure::functions::collection::Pair {\"first\": 1, \"second\": \"a\"}] in any order, "
+                            + "got [meta::pure::functions::collection::Pair {\"first\": 1, \"second\": \"a\"}, meta::pure::functions::collection::Pair {\"first\": 3, \"second\": \"c\"}]"),
             new Probe("assertContains-pairs-message", "{|assertContains([pair(1, 'a')], pair(2, 'b'))}",
-                    "[<1|a instanceOf meta::pure::functions::collection::Pair>] does not contain <2|b instanceOf"
-                            + " meta::pure::functions::collection::Pair>"),
+                    "expected [meta::pure::functions::collection::Pair {\"first\": 1, \"second\": \"a\"}] to contain meta::pure::functions::collection::Pair {\"first\": 2, \"second\": \"b\"}"),
             new Probe("message-not-read-where-assertEmpty-holds",
                     "{|let x = [1, 2]; assertEmpty([], | $x->at(5)->toString());}", null),
             new Probe("format-message-reads-a-let",
@@ -189,13 +197,13 @@ class AssertBarTest {
                     "size 2 of 7"),
             // the failure messages upstream writes (essential/tests/*.pure), the same under every judge
             new Probe("assertSameElements-sorted-message", "{|assertSameElements([2, 11, 2], [11, 3])}",
-                    "expected the elements [2, 2, 11] in any order, got [3, 11]"),
+                    "expected the elements [2, 11, 2] in any order, got [11, 3]"),
             new Probe("assertSameElements-strings-message", "{|assertSameElements(['b', 'a'], ['a', 'c'])}",
-                    "expected the elements [\"a\", \"b\"] in any order, got [\"a\", \"c\"]"),
+                    "expected the elements [\"b\", \"a\"] in any order, got [\"a\", \"c\"]"),
             new Probe("assertSameElements-one-element-bracketed", "{|assertSameElements([true, false], [true])}",
-                    "expected the elements [false, true] in any order, got [true]"),
+                    "expected the elements [true, false] in any order, got [true]"),
             new Probe("assertSameElements-dates-message", "{|assertSameElements([%2020-01-02, %2019-05-01], [%2019-05-01])}",
-                    "expected the elements [2019-05-01, 2020-01-02] in any order, got [2019-05-01]"),
+                    "expected the elements [2020-01-02, 2019-05-01] in any order, got [2019-05-01]"),
             new Probe("assertEquals-strings-message", "{|assertEquals(['a', 'b'], ['b', 'c'])}",
                     "expected [\"a\", \"b\"], got [\"b\", \"c\"]"),
             new Probe("assertEquals-one-against-many", "{|assertEquals(1, [1, 2])}", "expected [1], got [1, 2]"),

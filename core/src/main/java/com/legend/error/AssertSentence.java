@@ -23,6 +23,8 @@ import java.util.Map;
  */
 public enum AssertSentence {
     EQUALS("expected {expected}, got {actual}"),
+    /** Two values whose texts tie (the orchestrator's ruling, 2026-11-17): each side's kind after it. */
+    EQUALS_KINDS("expected {expected} ({expectedKind}), got {actual} ({actualKind})"),
     NOT_EQUALS("expected a value other than {actual}"),
     SAME_ELEMENTS("expected the elements {expected} in any order, got {actual}"),
     SIZE("expected size {expected}, got {actual}"),

@@ -39,8 +39,8 @@ public final class LiteWords {
         return switch (v) {
             case null -> "[]";
             case String s -> quoted(s);
-            case Double d -> productFloat(d);
-            case Float f -> productFloat(f.doubleValue());
+            case Double d -> messageFloat(d);
+            case Float f -> messageFloat(f.doubleValue());
             case BigDecimal d -> d.toPlainString();
             case Long l -> Long.toString(l);
             case Integer i -> Integer.toString(i);
@@ -104,25 +104,77 @@ public final class LiteWords {
         return sb.append('"').toString();
     }
 
-    /** A Float's product text (S311, each dialect's {@code FLOAT_TO_TEXT}): six decimals of the exact value, rounded
-     *  half-even, then the trailing zeros and a trailing point trimmed; NaN and the infinities by name. */
-    public static String productFloat(double d) {
-        if (Double.isNaN(d)) {
-            return "NaN";
+    /** A Float's text in a MESSAGE (the orchestrator's ruling, 2026-11-17: a failure message is a diagnostic, so a
+     *  Float is written at full round-trip precision, not S311's six decimals), the same text the database judge's
+     *  {@code FLOAT_PRINT} writes, normalized: Java's shortest round-trip digits; where Java writes an exponent, the
+     *  value laid out positionally when it fits a DECIMAL(38,18) exactly (at most 18 fraction and 20 integer digits),
+     *  else Java's exponent form ({@code 1.0E-300}); a negative zero keeps its sign ({@code -0.0}); NaN and the
+     *  infinities as Java names them. */
+    public static String messageFloat(double d) {
+        String shortest = Double.toString(d);
+        if (shortest.indexOf('E') < 0) {
+            return shortest;
         }
-        if (Double.isInfinite(d)) {
-            return d > 0 ? "Infinity" : "-Infinity";
+        BigDecimal exact = new BigDecimal(shortest).stripTrailingZeros();
+        int fraction = Math.max(exact.scale(), 0);
+        int integer = exact.precision() - exact.scale();
+        if (fraction > 18 || integer > 20) {
+            return shortest;
         }
-        String six = new BigDecimal(d).setScale(6, RoundingMode.HALF_EVEN).toPlainString();
-        int end = six.length();
-        while (six.charAt(end - 1) == '0') {
-            end--;
+        String plain = exact.toPlainString();
+        return plain.contains(".") ? plain : plain + ".0";
+    }
+
+    /** A value's KIND as lite's sentence names it where two values' texts tie
+     *  ({@link com.legend.error.AssertSentence#EQUALS_KINDS}): Integer, Float, Decimal, String, Boolean, StrictDate,
+     *  DateTime, an instance's class; a collection its elements' one kind, else Any. */
+    public static String kind(@Nullable Object v, @Nullable String instanceClass) {
+        return switch (v) {
+            case null -> "Nil";
+            case Long l -> "Integer";
+            case Integer i -> "Integer";
+            case BigInteger b -> "Integer";
+            case Double d -> "Float";
+            case Float f -> "Float";
+            case BigDecimal d -> "Decimal";
+            case String s -> "String";
+            case Boolean b -> "Boolean";
+            case PureDateLiteral d -> d.precision().atLeast(PureDateLiteral.Precision.HOUR) ? "DateTime"
+                    : d.precision().atLeast(PureDateLiteral.Precision.DAY) ? "StrictDate" : "Date";
+            case Map<?, ?> m -> m.get(com.legend.sql.SqlExpr.SYNTHETIC_TYPE) instanceof String t ? t
+                    : instanceClass == null ? "Any" : instanceClass;
+            case List<?> l -> {
+                java.util.Set<String> kinds = new java.util.LinkedHashSet<>();
+                for (Object e : l) {
+                    kinds.add(kind(e, instanceClass));
+                }
+                yield kinds.size() == 1 ? kinds.iterator().next() : kinds.isEmpty() ? "Nil" : "Any";
+            }
+            default -> "Any";
+        };
+    }
+
+    /** A side's kind: its one value's, else its values'. */
+    public static String sideKind(List<?> values, @Nullable String instanceClass) {
+        return values.size() == 1 ? kind(values.get(0), instanceClass) : kind(values, instanceClass);
+    }
+
+    /** {@code EQUALS} over two written sides, or {@code EQUALS_KINDS} where their texts tie (the orchestrator's ruling,
+     *  2026-11-17): each side's kind after it, and where both are DateTimes, each one's precision too. */
+    public static String equalsSentence(String e, String a, java.util.function.Supplier<String> eKind,
+            java.util.function.Supplier<String> aKind, @Nullable Object eValue, @Nullable Object aValue) {
+        if (!e.equals(a)) {
+            return com.legend.error.AssertSentence.EQUALS.fill(Map.of("expected", e, "actual", a));
         }
-        if (six.charAt(end - 1) == '.') {
-            end--;
+        String ek = eKind.get();
+        String ak = aKind.get();
+        if (ek.equals(ak) && ek.equals("DateTime") && eValue instanceof PureDateLiteral ed
+                && aValue instanceof PureDateLiteral ad) {
+            ek = ek + ", " + ed.precision().name().toLowerCase(java.util.Locale.ROOT);
+            ak = ak + ", " + ad.precision().name().toLowerCase(java.util.Locale.ROOT);
         }
-        String out = six.substring(0, end);
-        return out.equals("-0") ? "0" : out;
+        return com.legend.error.AssertSentence.EQUALS_KINDS.fill(Map.of("expected", e, "expectedKind", ek,
+                "actual", a, "actualKind", ak));
     }
 
     /** A date's product text: its day where it has no time of day ({@code yyyy-MM-dd}, or its own text where coarser
@@ -225,5 +277,25 @@ public final class LiteWords {
             return cls + " (instance " + id + ")";
         }
         return value(v, instanceClass);
+    }
+
+    /** Whether a side's values arrived as JSON TEXT (a class value carried as its JSON document). */
+    public static boolean jsonCarried(List<Object> raw) {
+        return !raw.isEmpty() && raw.stream().allMatch(v -> v instanceof String t
+                && (t.startsWith("{") || t.startsWith("[")));
+    }
+
+    /** A side carried as JSON text, written as that JSON minified (the shared canon's, the orchestrator's ruling 5 of
+     *  2026-11-17), each side bare where both hold one value, else bracketed; a side not so carried as
+     *  {@link #pairSide} writes it. */
+    public static String carriedSide(List<Object> raw, List<Object> other, @Nullable String instanceClass) {
+        if (!jsonCarried(raw)) {
+            return pairSide(raw, other, instanceClass);
+        }
+        List<String> texts = new java.util.ArrayList<>();
+        for (Object v : raw) {
+            texts.add(canonJson((String) v, false));
+        }
+        return raw.size() == 1 && other.size() == 1 ? texts.get(0) : "[" + String.join(", ", texts) + "]";
     }
 }
