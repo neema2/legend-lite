@@ -36,18 +36,19 @@ import { declareSites, declareStatementSites, type Site } from './declared-raise
 import { inRun } from './run-frame.ts';
 
 /** A value bound into a statement's `?`. */
-export type PlanValue = string | number | boolean | null;
+export type PlanValue = string | number | bigint | boolean | null;
 
 /**
  * A RUN'S PARAMETER VALUE, as its caller hands it (2026-11-17, the edge program's HOST stream; the orchestrator's Q2
  * ruling, "bind at RUN, not at planning": a plan declares its parameters and their typed placeholders, its values come
  * when it runs -- the TS twin of Java's exec/PlanParameters). By the parameter's declared Pure type: an Integer a whole
- * number (a safe integer), a Float a finite number, a Decimal its plain digits as text, a Number either, a Boolean a
+ * number in the 64-bit range -- a safe integer, or a bigint (lite's API v1 spec §4, 2026-11-17: an unsafe number is
+ * refused by name, its digits already lost) -- a Float a finite number, a Decimal its plain digits as text, a Number either, a Boolean a
  * boolean, a String a string, a StrictDate its text `YYYY-MM-DD`, a DateTime its ISO 8601 text in UTC
  * (`YYYY-MM-DDTHH:MM[:SS[.fffffffff]]`, a trailing `Z` allowed), a Date either of those two, an enumeration's value its
  * name; a collection an array; none (null, or an empty array) for no value.
  */
-export type ParameterValue = string | number | boolean | null | readonly (string | number | boolean)[];
+export type ParameterValue = string | number | bigint | boolean | null | readonly (string | number | bigint | boolean)[];
 
 /** A parameter as the plan declares it (PlanJson parameterJson). */
 interface DeclaredParameter {
@@ -124,13 +125,13 @@ function checkedParameter(p: DeclaredParameter, value: ParameterValue, out: Map<
   const m = p.multiplicity;
   if (m.upper === 1) {
     if (Array.isArray(value)) return `takes one value, given a list of ${value.length}`;
-    const c = parameterValue(p, value as string | number | boolean);
+    const c = parameterValue(p, value as string | number | bigint | boolean);
     if (c !== null && typeof c === 'object') return c.refused;
     out.set(p.name, { _type: 'one', value: c });
     return undefined;
   }
   if (!Array.isArray(value)) return 'takes a list, given one value';
-  const list = value as readonly (string | number | boolean | null)[];
+  const list = value as readonly (string | number | bigint | boolean | null)[];
   if (list.length < m.lower || (m.upper !== undefined && list.length > m.upper)) return `takes ${multiplicityText(m)} values, given ${list.length}`;
   const converted: PlanValue[] = [];
   for (const v of list) {
@@ -147,14 +148,18 @@ const STRICT_DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
 const DATE_TIME = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2})(?:\.(\d{1,9}))?)?Z?$/;
 
 /** `v` (one value, not null) of `p` as its slot binds it, or why it is not one `p` takes. */
-function parameterValue(p: DeclaredParameter, v: string | number | boolean): PlanValue | { readonly refused: string } {
-  const shown = typeof v === 'string' ? JSON.stringify(v) : String(v);
+function parameterValue(p: DeclaredParameter, v: string | number | bigint | boolean): PlanValue | { readonly refused: string } {
+  const shown = typeof v === 'string' ? JSON.stringify(v) : typeof v === 'bigint' ? `${v}n` : String(v);
   const notA = (expected: string) => ({ refused: `given ${shown} (${typeof v}): ${expected}` });
   if (p.enumValues.length > 0) {
     return typeof v === 'string' && p.enumValues.includes(v) ? v : { refused: `${shown} is not a value of ${p.type} [${p.enumValues.join(', ')}]` };
   }
+  // an Integer in the 64-bit range: a safe number, or a bigint (spec §4); a whole number past 2^53 given as a number has
+  // already lost its digits, so it is refused by name, never bound as the nearest double
   const integer = (): PlanValue | { readonly refused: string } => (typeof v === 'number' && Number.isSafeInteger(v) ? v
-    : notA('an Integer is a whole number within 2^53'));
+    : typeof v === 'bigint' ? (v >= -(2n ** 63n) && v < 2n ** 63n ? v : { refused: `${shown} is beyond the 64-bit range an Integer holds` })
+      : typeof v === 'number' && Number.isInteger(v) ? { refused: `${shown} is a whole number past 2^53, which a number cannot hold exactly: give it as a bigint` }
+        : notA('an Integer is a whole number: a safe integer, or a bigint'));
   const float = (): PlanValue | { readonly refused: string } => (typeof v !== 'number' ? notA('a Float is a number')
     : Number.isFinite(v) ? v : { refused: `${shown} is not finite: no SQL literal stands for it` });
   const decimal = (): PlanValue | { readonly refused: string } => (typeof v === 'string' && /^-?\d+(\.\d+)?$/.test(v) ? v
@@ -177,7 +182,7 @@ function parameterValue(p: DeclaredParameter, v: string | number | boolean): Pla
     case 'Integer': return integer();
     case 'Float': return float();
     case 'Decimal': return decimal();
-    case 'Number': return typeof v === 'number' ? (Number.isSafeInteger(v) ? v : float()) : decimal();
+    case 'Number': return typeof v === 'bigint' ? integer() : typeof v === 'number' ? (Number.isSafeInteger(v) ? v : float()) : decimal();
     case 'Boolean': return typeof v === 'boolean' ? v : notA('a Boolean is a boolean');
     case 'String': return typeof v === 'string' ? v : notA('a String is a string');
     case 'StrictDate': return strictDate() ?? notA('a StrictDate is its text YYYY-MM-DD');

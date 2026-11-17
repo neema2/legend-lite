@@ -23,7 +23,7 @@ export async function calculatedDialog(app: AppContext, session: Session, existi
   const name = h('input', { class: 'q-input', value: existing?.name ?? 'Calculated', style: 'width:100%' });
   const body = h('textarea', { class: 'q-textarea', rows: 5, spellcheck: false, placeholder: "x|$x.quantity->toFloat() * $x.price" });
   const error = h('div');
-  body.value = existing?.derivation ? await app.engine.lambdaText(existing.derivation, 'STANDARD') : 'x|';
+  body.value = existing?.derivation ? await app.engine.queryPrint(existing.derivation, 'standard') : 'x|';
   dialog(existing ? `Edit ${existing.name}` : 'New calculated column', (d) => ({
     body: [
       h('label', null, 'Name', name),
@@ -41,7 +41,7 @@ export async function calculatedDialog(app: AppContext, session: Session, existi
           if (!n || taken) { error.replaceChildren(h('div', { class: 'q-error' }, n ? 'Another column has this name.' : 'A column needs a name.')); return; }
           try {
             const text = body.value.trim().startsWith('x|') || /^\{?\s*\w+\s*\|/.test(body.value.trim()) ? body.value.trim() : `x|${body.value.trim()}`;
-            const derivation = await app.engine.lambdaJson(text);
+            const derivation = await app.engine.queryParse(text);
             if (derivation.parameters.length !== 1) throw new Error('the value is a lambda of one row, x|...');
             const column: ProjectionColumn = { id: existing?.id ?? freshId('col'), name: n, path: [], derivation };
             const next = (q: QueryState): QueryState => ({

@@ -1,7 +1,7 @@
 // THE SERVER'S PLANNING CLIENT (C5-T, 2026-11-15): legend-engine's `/api` paths a query app asks for grammar, typing,
-// compile and plans -- legend-lite's server or legend-engine alike (docs/QUERY_APP_DESIGN_2026_09_30.md D1). One is
-// legend-lite's own (a model's every compile error, `compileErrors`), asked of legend-lite's route alone (H8, 2026-11-17:
-// no fallback to legend-engine's). Its execute, the server's door, is not here: engine.ts HttpEngine adds it.
+// compile and plans -- legend-lite's server or legend-engine alike (docs/QUERY_APP_DESIGN_2026_09_30.md D1). It asks
+// legend-engine's routes alone: lite's own API is lite's client's (doors/lite-server.ts; lite's API v1 spec §6,
+// 2026-11-17). Its execute, the server's door, is not here: engine.ts HttpEngine adds it.
 
 import type { Lambda } from '../../../pure-protocol/src/index.ts';
 import { readLambda, toJson } from '../../../pure-protocol/src/index.ts';
@@ -100,17 +100,9 @@ export class HttpPlanning implements Grammar {
     return this.json('POST', '/pure/v1/compilation/compile', model);
   }
 
-  /**
-   * A whole model's compile errors, [] when it compiles: legend-lite's own route (`/lite/v1/compilation/compile`: the
-   * first element error alone, else every body's). A server with no such route refuses by its own answer (a 404), never
-   * answered by another route (G7; the edge audit's H8, 2026-11-17: legend-engine's compile is the edge's client's).
-   */
-  async compileErrors(code: string): Promise<string[]> {
-    planning('compileErrors');
-    const model: PureModelContext = { _type: 'text', code };
-    const answer = await this.json<{ errors: { message: string }[] }>('POST', '/lite/v1/compilation/compile', model);
-    return answer.errors.map((e) => e.message);
-  }
+  // (a whole model's every compile error is lite's `model/check`, asked by lite's own client, doors/lite-server.ts:
+  // legend-engine's client asks legend-engine alone -- lite's API v1 spec §6, 2026-11-17; until then compileErrors here
+  // asked lite's /lite/v1/compilation/compile)
 
   async returnType(model: PureModelContext, lambda: Lambda): Promise<string> {
     planning('returnType');

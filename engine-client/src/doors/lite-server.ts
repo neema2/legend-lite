@@ -1,87 +1,100 @@
-// LITE'S ENGINE OVER A SERVER (2026-11-17, the edge program's H7): Studio's and Query's server paths on legend-lite's own
-// API, /api/lite/v1 -- the grammar and typing routes (LiteV1Planning), a model's every compile error, and a query's
-// plan and its run answered as typed rows (LiteAnswer) -- the same forms the tab answers (browser-engine.ts TabEngine).
-// legend-engine's /api/pure/v1 client is the edge's (planning-client.ts and engine.ts HttpEngine), never asked here.
+// LITE'S API V1 OVER A SERVER (lite's API v1 spec §2, §5 and §7, the user's go of 2026-11-17): the server binding of the
+// one TypeScript client (browser-engine.ts LiteEngine; its tab binding is TabEngine) -- one POST per operation to
+// `/api/lite/v1/<operation>`, the request a closed JSON object, the answer the operation's JSON, a refusal lite's one
+// shape (`{kind, message, where?, raise?}`, its status by its kind) thrown as a LiteRefusal. `query/run` asks the
+// answer as Arrow IPC (typed columns; spec §4: our apps ask arrow, JSON is for small answers and third parties) or as
+// JSON, by the caller's ask. legend-engine's /api/pure/v1 client is the edge's, never asked here.
 
-import { readLambda, toJson, type Lambda } from '../../../pure-protocol/src/index.ts';
-import { EngineError } from '../legend/engine-api.ts';
+import { fromJson, readLambda, toJson, type Lambda } from '../../../pure-protocol/src/index.ts';
 import type { PureModelContextData } from '../legend/pmcd.ts';
-import type { PureModelContext, RelationTypeAnswer } from '../legend/wire.ts';
-import { stated, type LiteAnswer, type LiteEngine } from '../legend/browser-engine.ts';
+import type { LiteAnswer, LiteEngine } from '../legend/browser-engine.ts';
+import { liteError, LiteRefusal, type LiteError } from '../lite-error.ts';
+import type { QueryColumn } from '../relation-type.ts';
 import type { ParameterValue } from '../plan-runner.ts';
+import { parseExact } from '../values.ts';
+import { arrowIpcTyped } from '../arrow-ipc.ts';
+import { toRawTable } from '../duckdb.ts';
 
-/** A route's answer, or its refusal in lite's error shape (`{code, errorType?, message, status}`) as an EngineError. */
-async function answered(res: Response): Promise<string> {
-  const text = await res.text();
-  if (res.ok) return text;
-  let message = text || `${res.status} ${res.statusText}`;
-  let errorType: string | undefined;
-  try {
-    const e = JSON.parse(text) as { readonly message?: unknown; readonly errorType?: unknown };
-    if (typeof e.message === 'string') message = e.message;
-    if (typeof e.errorType === 'string') errorType = e.errorType;
-  } catch {
-    // not JSON: the text is the message
-  }
-  throw new EngineError(message, res.status, errorType);
-}
+/** How `query/run` answers: Arrow IPC (the apps' ask) or JSON rows. */
+export type RunFormat = 'arrow' | 'json';
 
 /**
- * Legend-lite's server, asked at `baseUrl` (its `/api`): each call one of lite's own routes, its request a closed JSON
- * object, its answer lite's JSON.
+ * Legend-lite's server, asked at `baseUrl` (its `/api`): each method one of lite's operations (the spec's rule: `a/b` is
+ * `aB`). `format`: how `query/run` answers, Arrow unless JSON is asked.
  */
 export class LiteServer implements LiteEngine {
   readonly name: string;
   readonly #base: string;
   readonly #fetch: typeof fetch;
+  readonly #format: RunFormat;
 
-  constructor(baseUrl: string, fetcher: typeof fetch = globalThis.fetch.bind(globalThis)) {
+  constructor(baseUrl: string, fetcher: typeof fetch = globalThis.fetch.bind(globalThis), format: RunFormat = 'arrow') {
     this.#base = baseUrl.replace(/\/+$/, '');
     this.name = this.#base;
     this.#fetch = fetcher;
+    this.#format = format;
   }
 
-  async #post(route: string, body: unknown, signal?: AbortSignal): Promise<string> {
-    return answered(await this.#fetch(`${this.#base}/lite/v1/${route}`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: toJson(body), ...(signal ? { signal } : {}),
-    }));
+  /** One operation asked: its answer, or its refusal thrown as lite's (a body in no refusal's shape refused by name). */
+  async #ask(operation: string, request: unknown, signal?: AbortSignal): Promise<Response> {
+    const res = await this.#fetch(`${this.#base}/lite/v1/${operation}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: toJson(request), ...(signal ? { signal } : {}),
+    });
+    if (res.ok) return res;
+    const text = await res.text();
+    let refusal: LiteError;
+    try {
+      refusal = liteError(JSON.parse(text));
+    } catch (e) {
+      throw new LiteRefusal({ kind: 'internal', message: `the server answered ${operation} ${res.status} in no refusal's shape (${(e as Error).message})` }, res.status);
+    }
+    throw new LiteRefusal(refusal, res.status);
   }
 
-  async modelJson(text: string): Promise<PureModelContextData> {
-    return JSON.parse(await this.#post('grammar/modelElements', { text, sourceInformation: false })) as PureModelContextData;
+  async #text(operation: string, request: unknown, signal?: AbortSignal): Promise<string> {
+    return (await this.#ask(operation, request, signal)).text();
   }
 
-  async lambdaJson(text: string): Promise<Lambda> {
-    return JSON.parse(await this.#post('grammar/parseLambda', { text, sourceInformation: false })) as Lambda;
+  async modelCheck(model: string): Promise<readonly LiteError[]> {
+    const { errors } = JSON.parse(await this.#text('model/check', { model })) as { readonly errors: readonly unknown[] };
+    return errors.map(liteError);
   }
 
-  /** As `lambdaJson`, read by the protocol library: numbers exact. */
-  async lambda(text: string): Promise<Lambda> {
-    return readLambda(await this.#post('grammar/parseLambda', { text, sourceInformation: false }));
+  async modelElements(model: string): Promise<PureModelContextData> {
+    const { elements } = JSON.parse(await this.#text('model/elements', { model })) as Pick<PureModelContextData, 'elements'>;
+    return { _type: 'data', elements };
   }
 
-  async lambdaText(lambda: Lambda, style: 'PRETTY' | 'STANDARD'): Promise<string> {
-    const answer = JSON.parse(await this.#post('grammar/printLambda', { lambda, style })) as { readonly text: string };
-    return answer.text;
+  async queryParse(text: string): Promise<Lambda> {
+    // read by the protocol library: its numbers exact
+    return readLambda((fromJson(await this.#text('query/parse', { text })) as { readonly query: unknown }).query);
   }
 
-  async relationType(model: PureModelContext, lambda: Lambda): Promise<RelationTypeAnswer> {
-    return JSON.parse(await this.#post('compilation/lambdaRelationType', { model, lambda })) as RelationTypeAnswer;
+  async queryPrint(query: Lambda, style: 'pretty' | 'standard' = 'pretty'): Promise<string> {
+    return (JSON.parse(await this.#text('query/print', { query, style })) as { readonly text: string }).text;
   }
 
-  async compileErrors(code: string): Promise<string[]> {
-    const answer = JSON.parse(await this.#post('compilation/compile', { _type: 'text', code })) as {
-      readonly errors: readonly { readonly message: string }[];
-    };
-    return answer.errors.map((e) => e.message);
+  async queryType(model: string, query: Lambda): Promise<readonly QueryColumn[]> {
+    return (JSON.parse(await this.#text('query/type', { model, query })) as { readonly columns: readonly QueryColumn[] }).columns;
   }
 
-  async statement(model: PureModelContext, lambda: Lambda): Promise<string> {
-    return stated(await this.#post('execution/plan', { model, lambda })).sql;
+  async queryPlan(model: string, query: Lambda, runtime: string): Promise<string> {
+    // the plan's JSON, its numbers exact (a constant's 2^63-1 stays its digits)
+    return toJson((fromJson(await this.#text('query/plan', { model, query, runtime })) as { readonly plan: unknown }).plan);
   }
 
-  async run(model: PureModelContext, lambda: Lambda, parameters: Readonly<Record<string, ParameterValue>> = {},
+  async queryRun(model: string, query: Lambda, runtime: string, params: Readonly<Record<string, ParameterValue>> = {},
     signal?: AbortSignal): Promise<LiteAnswer> {
-    return JSON.parse(await this.#post('execution/execute', { model, lambda, parameters }, signal)) as LiteAnswer;
+    const res = await this.#ask('query/run', { model, query, runtime, params, format: this.#format }, signal);
+    if (this.#format === 'json') {
+      // its cells exact: an Integer past 2^53 a bigint, a Decimal its text
+      return parseExact(await res.text()) as LiteAnswer;
+    }
+    // Arrow: each column its Pure type from the plan's facts the field carries, each cell read as the tab's DuckDB
+    // answer is (duckdb.ts toRawTable: the one narrowing), the answer's shape from the stream's metadata
+    const { shape, columns, table } = arrowIpcTyped(new Uint8Array(await res.arrayBuffer()));
+    const raw = toRawTable(table, 0, 0);
+    const rows = Array.from({ length: raw.rowCount }, (_, r) => raw.columns.map((c) => c.values[r]));
+    return { shape: shape as LiteAnswer['shape'], columns, rows };
   }
 }

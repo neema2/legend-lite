@@ -7,6 +7,7 @@
 import type { CubeApp } from '../../../datacube/src/embed.ts';
 import { openCube } from '../app/cube.ts';
 import { DEFAULT_PREVIEW, executionLambda, run, runInput, sqlOf } from '../app/run.ts';
+import { runtimeOf } from '../../../engine-client/src/legend/browser-engine.ts';
 import type { AppContext } from '../app/context.ts';
 import type { Session } from '../app/session.ts';
 import { mapGroup } from '../app/actions.ts';
@@ -286,7 +287,8 @@ export class Results {
     toast('Exporting…');
     try {
       const input = runInput(this.#session, executionLambda(this.#session, undefined));
-      const result = await this.#app.engine.run(this.#session.project.context, input.lambda, input.parameters);
+      const result = await this.#app.engine.queryRun(this.#session.project.context.code, input.lambda,
+        runtimeOf(input.lambda), input.parameters);
       if (result.shape !== 'RELATION') { toast('Only tabular results export as CSV.'); return; }
       const esc = (v: unknown): string => {
         const t = v === null || v === undefined ? '' : typeof v === 'object' ? JSON.stringify(v) : String(v);

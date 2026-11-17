@@ -2,7 +2,7 @@
 // shown so an overflow is visible), its parameter values bound at run, run on lite's engine, abortable.
 
 import { element, fn, lambda as makeLambda, lit, type Lambda, type ValueSpecification, type Variable } from '../../../pure-protocol/src/index.ts';
-import type { ParameterValue } from '../../../engine-client/src/legend/browser-engine.ts';
+import { runtimeOf, statementOf, type ParameterValue } from '../../../engine-client/src/legend/browser-engine.ts';
 import { buildLambda, valueSpec } from '../builder/build.ts';
 import type { Value } from '../builder/state.ts';
 import type { AppContext } from './context.ts';
@@ -123,7 +123,8 @@ export async function run(app: AppContext, session: Session, limit: number): Pro
   const hash = session.hash();
   try {
     const input = runInput(session, l);
-    const result = await app.engine.run(session.project.context, input.lambda, input.parameters, abort.signal);
+    const result = await app.engine.queryRun(session.project.context.code, input.lambda, runtimeOf(input.lambda),
+      input.parameters, abort.signal);
     session.setRun({ status: 'done', result, ms: Math.round(performance.now() - started), limit, queryHash: hash });
   } catch (e) {
     if ((e as Error).name === 'AbortError') session.setRun({ status: 'error', message: 'Stopped.' });
@@ -131,7 +132,9 @@ export async function run(app: AppContext, session: Session, limit: number): Pro
   }
 }
 
-/** The SQL the query runs: its plan's statement, planned and not run (a parameter's `?` where its value binds). */
-export function sqlOf(app: AppContext, session: Session): Promise<string> {
-  return app.engine.statement(session.project.context, runInput(session, executionLambda(session, undefined)).lambda);
+/** The SQL the query runs: its plan's statement, planned and not run (a parameter's `?` where its value binds) --
+ *  lite's query/plan. */
+export async function sqlOf(app: AppContext, session: Session): Promise<string> {
+  const { lambda: l } = runInput(session, executionLambda(session, undefined));
+  return statementOf(await app.engine.queryPlan(session.project.context.code, l, runtimeOf(l)));
 }

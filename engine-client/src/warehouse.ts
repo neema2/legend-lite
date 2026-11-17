@@ -206,7 +206,7 @@ export const SYSTEM_CLOCK: Clock = {
 
 /** A statement that binds values (a plan's data: payloads, M3) is not sent to the warehouse, which runs SQL text alone:
  *  refused by name, never sent without them. */
-function refuseParams(sql: string, params: readonly (string | number | boolean | null)[] | undefined): void {
+function refuseParams(sql: string, params: readonly (string | number | bigint | boolean | null)[] | undefined): void {
   if (params !== undefined && params.length > 0) {
     throw new QueryError(`this statement binds ${params.length} value(s) (a data: source's payload, or a run's parameter), which the warehouse does not take: `
       + 'it runs on the tab\'s own database or legend-lite\'s server', sql);
@@ -330,7 +330,7 @@ export class WarehouseEngine implements LiveWarehouse {
     }
   }
 
-  async run(sql: PlannedSql, epoch: number, signal?: AbortSignal, params?: readonly (string | number | boolean | null)[]): Promise<RawTable> {
+  async run(sql: PlannedSql, epoch: number, signal?: AbortSignal, params?: readonly (string | number | bigint | boolean | null)[]): Promise<RawTable> {
     refuseParams(sql, params);
     const started = performance.now();
     const batches: RecordBatch[] = [];

@@ -40,6 +40,8 @@ _RECORDS = [
     "src/generated/lite-raise.ts",
     "src/json-unknown.ts",
     "src/legend/engine-api.ts",
+    # lite's one error shape (lite's API v1 spec §3, 2026-11-17): a record both bindings read
+    "src/lite-error.ts",
     "src/legend/pmcd.ts",
     "src/legend/wire.ts",
     "src/locale.ts",

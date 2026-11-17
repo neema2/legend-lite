@@ -304,6 +304,9 @@ class LiteV1PlanningTest {
         String latin1 = new String(bytes, StandardCharsets.ISO_8859_1);
         assertTrue(latin1.contains("Halberd Securities") && latin1.contains("Meridian Capital"), "both rows' text");
         assertTrue(latin1.contains("joined"), "the columns by name");
+        // the answer's shape and each column's Pure type ride as metadata (what the JSON answer says as shape, columns)
+        assertTrue(latin1.contains("legend.shape") && latin1.contains("RELATION"), "the shape");
+        assertTrue(latin1.contains("legend.type") && latin1.contains("StrictDate"), "the columns' types");
         refused(run("query/run", request("model", PARTY, "query", lambdaOf(SINCE), "runtime", RUNTIME,
                 "params", request("since", "2020-01-01"), "format", "csv")), "request", 400,
                 "a query runs in the format json or arrow, not 'csv'");
