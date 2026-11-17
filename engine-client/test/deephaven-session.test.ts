@@ -56,6 +56,12 @@ function schema(columns: readonly { readonly name: string; readonly type: string
   return stream.subarray(0, stream.length - 8);
 }
 
+/** One `ExportedTableCreationResponse` for an operation the batch does not export: made, naming its place. */
+function madeAt(op: number): Uint8Array {
+  const reference = Uint8Array.from([0x10, op * 2]);
+  return Uint8Array.from([...lengthDelimited(1, reference), 0x10, 0x01]);
+}
+
 /** One `ExportedTableCreationResponse`: the export `id` made, with `columns`. */
 function made(id: number, columns: readonly { readonly name: string; readonly type: string }[]): Uint8Array {
   const ticket = new Uint8Array(5);
@@ -86,8 +92,9 @@ function unframed(body: Uint8Array): Uint8Array {
   return body.subarray(5);
 }
 
-/** A stand-in server: each request kept by its method; a batch answered for each export the step lists, as `held`
- *  says the server holds each store's column (its declaration, unless told otherwise). */
+/** A stand-in server: each request kept by its method; a batch answered as the server answers one, once for every
+ *  operation -- an exported one naming its export, as `held` says the server holds each store's column (its
+ *  declaration, unless told otherwise), any other naming its place. */
 function server(step: () => Step, held: (name: string, type: string) => string = (_n, t) => t) {
   const sent: { readonly method: string; readonly message: Uint8Array }[] = [];
   const fetcher = (async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
@@ -98,8 +105,12 @@ function server(step: () => Step, held: (name: string, type: string) => string =
     if (method !== BATCH) return answer([]);
     const s = step();
     const ids = s.exports.map((e) => new DataView(message.buffer, message.byteOffset + e.at, 4).getInt32(0, true));
-    return answer(s.exports.map((e, i) => made(ids[i]!, e.declared?.columns.map((c) => ({ name: c.name,
-      type: held(c.column, c.type) })) ?? [])));
+    const byOp = new Map(s.exports.map((e, i) => [e.op, { e, id: ids[i]! }]));
+    return answer(Array.from({ length: s.operations }, (_x, op) => {
+      const x = byOp.get(op);
+      return x === undefined ? madeAt(op) : made(x.id, x.e.declared?.columns.map((c) => ({ name: c.name,
+        type: held(c.column, c.type) })) ?? []);
+    }));
   }) as typeof fetch;
   return { sent, fetcher };
 }

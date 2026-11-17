@@ -129,14 +129,16 @@ export function created(message: Uint8Array): Created {
 }
 
 /** A batch's whole answer read against its step (DH16): why it failed (null when every table was made as declared),
- *  and each export's columns by its id. */
+ *  and each export's columns by its id. The server answers once for EVERY operation of the batch, an operation it
+ *  exported naming its export and one it did not naming none (measured on 42.7, 2026-11-17): every answer is read for
+ *  its success, the exported ones matched to the step's exports by their ids. */
 export function made(answers: readonly Uint8Array[], step: Step, ids: readonly number[]): {
   readonly refused: string | null;
   readonly mismatch: string | null;
   readonly columns: ReadonlyMap<number, readonly MadeColumn[]>;
 } {
-  let refused: string | null = answers.length === step.exports.length ? null
-    : `the server answered ${answers.length} of the step's ${step.exports.length} exports`;
+  let refused: string | null = answers.length === step.operations ? null
+    : `the server answered ${answers.length} of the step's ${step.operations} operations`;
   let mismatch: string | null = null;
   const byId = new Map(ids.map((id, i) => [id, step.exports[i]!]));
   const columns = new Map<number, readonly MadeColumn[]>();
@@ -146,6 +148,8 @@ export function made(answers: readonly Uint8Array[], step: Step, ids: readonly n
       refused ??= c.errorInfo;
       continue;
     }
+    // an operation the step does not export: made, and read for nothing more
+    if (c.exportId === 0) continue;
     columns.set(c.exportId, c.columns);
     const e = byId.get(c.exportId);
     if (e === undefined) {
