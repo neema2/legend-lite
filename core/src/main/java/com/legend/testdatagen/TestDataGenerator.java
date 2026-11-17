@@ -405,29 +405,6 @@ public final class TestDataGenerator {
                 + "' not on table '" + def.name() + "'");
     }
 
-    /** The engine's {@code toRepresentation()} (platform
-     * toRepresentation.pure): row-identifier cells are PURE SOURCE, so
-     * strings take BACKSLASH escapes, dates the {@code %} form,
-     * decimals the {@code D} suffix. (Audit 2026-08-18 finding E: the
-     * old inline speller had NO escaping and JDBC-default spellings;
-     * the fix is this spec port, not the SQL {@code lit()} speller —
-     * SQL doubles quotes, Pure backslash-escapes them.)
-     * Package-private for the Tier-1 regression pin (PureReprTest). */
-    static String pureRepr(@com.legend.base.Nullable Object v) {
-        // Phase 2a: toRepresentation has ONE owner (PureAsserts.repr —
-        // this port generalized there); only the row-identifier NULL
-        // contract stays local (a pk cell must have produced a value)
-        if (v == null) {
-            throw new NotImplementedException(
-                    "testDataGen: NULL row-identifier cell — a primary"
-                    + " key produced no value");
-        }
-        // the cells arrive as the typed method's carriers (a temporal as PureDateLiteral, the one wire temporal:
-        // the doors, 2026-10-29; until then this generator read its own result set and converted the driver's
-        // temporals here), so the one repr owner spells them as it spells every judged value
-        return com.legend.testexecutionplan.Verdicts.repr(v);
-    }
-
     // ===== the tdg PLAN's FETCHES (planTestDataGeneration), as data =====
 
     /** A column of a generator plan's fetch: its name as demanded and its declared relational type. */
