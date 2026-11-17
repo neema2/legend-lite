@@ -64,6 +64,13 @@ final class EngineTextGates {
                 .why(check);
     }
 
+    /** How the plan holds the two texts of an edge-judged comparison (asked only of a judgment the edge planned:
+     *  the style judges it). */
+    static TextsHeld textsHeld(BodyDriver.ExecEnv env, com.legend.testexecutionplan.HostJudgment.EdgeJudged j) {
+        return java.util.Objects.requireNonNull(facet(env), "an edge-judged comparison with no engine-text facet")
+                .textsHeld(j.judgment());
+    }
+
     /** The statement origin put in force on {@code env}'s text collector: what was in force before, to restore; none
      *  where the environment carries no collector (no engine-text arm is planning). */
     static @com.legend.base.Nullable String marking(BodyDriver.ExecEnv env, String origin, boolean ifUnmarked) {

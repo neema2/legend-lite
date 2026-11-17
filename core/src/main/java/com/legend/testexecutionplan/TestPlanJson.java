@@ -299,48 +299,47 @@ public final class TestPlanJson {
     }
 
     private static Map<String, Object> extensions(Map<Integer, List<Extension>> byKey) {
-        List<ExtensionCodec> codecs = codecs();
         Map<String, Object> out = new LinkedHashMap<>();
         byKey.forEach((key, records) -> {
             List<Object> written = new ArrayList<>(records.size());
             for (Extension e : records) {
-                Map<String, Object> o = null;
-                for (ExtensionCodec c : codecs) {
-                    o = c.write(e);
-                    if (o != null) {
-                        break;
-                    }
-                }
-                if (o == null) {
-                    throw new IllegalStateException("a test plan's extension no codec writes: "
-                            + e.getClass().getSimpleName());
-                }
-                written.add(o);
+                written.add(extension(e));
             }
             out.put(Integer.toString(key), written);
         });
         return out;
     }
 
+    /** One extension record as its codec writes it, tagged; refused by name where no codec writes it (census C3,
+     *  2026-11-17: an edge-judged comparison's record, held by its verdict's judgment, written so too). */
+    static Map<String, Object> extension(Extension e) {
+        for (ExtensionCodec c : codecs()) {
+            Map<String, Object> o = c.write(e);
+            if (o != null) {
+                return o;
+            }
+        }
+        throw new IllegalStateException("a test plan's extension no codec writes: " + e.getClass().getSimpleName());
+    }
+
+    /** One extension record read by the codec that knows its tag; refused by name where none does. */
+    static Extension readExtension(Json.Obj o) {
+        String tag = o.getString("_type");
+        for (ExtensionCodec c : codecs()) {
+            Extension read = c.read(tag, o);
+            if (read != null) {
+                return read;
+            }
+        }
+        throw new IllegalArgumentException("a test plan's extension tagged '" + tag + "' no codec reads");
+    }
+
     private static Map<Integer, List<Extension>> readExtensions(Json.Obj byKey) {
-        List<ExtensionCodec> codecs = codecs();
         Map<Integer, List<Extension>> out = new LinkedHashMap<>();
         for (Map.Entry<String, Json.Node> e : byKey.fields().entrySet()) {
             List<Extension> records = new ArrayList<>();
             for (Json.Node n : ((Json.Arr) e.getValue()).items()) {
-                Json.Obj o = (Json.Obj) n;
-                String tag = o.getString("_type");
-                Extension read = null;
-                for (ExtensionCodec c : codecs) {
-                    read = c.read(tag, o);
-                    if (read != null) {
-                        break;
-                    }
-                }
-                if (read == null) {
-                    throw new IllegalArgumentException("a test plan's extension tagged '" + tag + "' no codec reads");
-                }
-                records.add(read);
+                records.add(readExtension((Json.Obj) n));
             }
             out.put(Integer.parseInt(e.getKey()), records);
         }

@@ -101,6 +101,25 @@ final class AppealJson {
         return field(o, key, record) instanceof Json.Null;
     }
 
+    static Map<String, Object> wEngineTextJudgment(EngineTextJudgment x) {
+        Map<String, Object> o = new LinkedHashMap<>();
+        o.put("name", x.name());
+        o.put("golden", x.golden() == null ? null : x.golden());
+        o.put("ours", x.ours() == null ? null : x.ours());
+        o.put("textEqual", x.textEqual());
+        o.put("decline", x.decline() == null ? null : x.decline());
+        return o;
+    }
+
+    static EngineTextJudgment rEngineTextJudgment(Json.Obj o) {
+        String v_name = str(field(o, "name", "EngineTextJudgment"));
+        @Nullable String v_golden = absent(o, "golden", "EngineTextJudgment") ? null : str(o.get("golden"));
+        @Nullable String v_ours = absent(o, "ours", "EngineTextJudgment") ? null : str(o.get("ours"));
+        boolean v_textEqual = bool(field(o, "textEqual", "EngineTextJudgment"));
+        @Nullable String v_decline = absent(o, "decline", "EngineTextJudgment") ? null : str(o.get("decline"));
+        return new EngineTextJudgment(v_name, v_golden, v_ours, v_textEqual, v_decline);
+    }
+
     static Map<String, Object> wAppeal(Appeal x) {
         Map<String, Object> o = new LinkedHashMap<>();
         o.put("number", x.number());
