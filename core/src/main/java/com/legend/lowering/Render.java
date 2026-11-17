@@ -615,10 +615,9 @@ public final class Render {
                 || t == Type.Primitive.DATE) {
             // the missing arm the drift hid (witness testExtendMax/
             // MinDate: raw '2026-01-07 00:00:00' where pure prints the
-            // ISO+ms+zone form): a TDS cell's DateTime text has at least
-            // three fraction digits, legend-pure's text, composed by the
-            // compatibility edge (DATETIME_TDS_TEXT; B11, 2026-11-17)
-            rendered = SqlExpr.Call.of(SqlFn.DATETIME_TDS_TEXT, c);
+            // ISO+ms+0000 form): a TDS cell's DateTime text has at least
+            // three fraction digits (LiteralSpelling.dateTimeTextTds)
+            rendered = LiteralSpelling.dateTimeTextTds(c);
         } else if ((t == Type.Primitive.NUMBER
                         && (slot == null
                                 || slot instanceof SqlType.Decimal
@@ -759,9 +758,8 @@ public final class Render {
         }
         if (dateKind(t) && textSlot(slot)) {
             // a date carried as its own text (a value root spelled at the precision it has): the text is the cell,
-            // a timed one with Pure's zone (the one owner's rule, 2026-10-18), composed by the compatibility edge
-            // (DATETIME_TEXT_OF_TEXT; B11, 2026-11-17)
-            rendered = SqlExpr.Call.of(SqlFn.DATETIME_TEXT_OF_TEXT, c);
+            // a timed one with Pure's '+0000' (the one owner's rule, 2026-10-18)
+            rendered = LiteralSpelling.dateTimeTextOfText(c);
         } else if (t == Type.Primitive.STRICT_DATE
                 || (t == Type.Primitive.DATE
                         && slot == SqlType.Scalar.DATE)) {
