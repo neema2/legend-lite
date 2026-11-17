@@ -1960,7 +1960,9 @@ class BodyRouterParityTest {
         assertNotNull(BodyClass.of(unreadAsStatements(typed(ctx, body)), runtime, true),
                 "the body is a moved class's under one judge: " + body);
         Run moved = run(backend, ctx, runtime, body, check, setup, mode);
-        assertEquals(1, moved.moved, "the router moved the body: " + body);
+        // BOTH plans the body once per judge, each alone (isolated BOTH, 2026-11-17)
+        assertEquals(mode == com.legend.testplan.PlanningOptions.JudgeMode.BOTH ? 2 : 1, moved.moved,
+                "the router moved the body: " + body);
         return moved;
     }
 

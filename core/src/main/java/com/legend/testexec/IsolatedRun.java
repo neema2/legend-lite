@@ -37,7 +37,7 @@ final class IsolatedRun {
     }
 
     /** What a judge reported of one assert: a verdict, or that it declined the assert or left it unjudged. */
-    enum Report { VERDICT, DECLINED, UNJUDGED }
+    enum Report { VERDICT, DECLINED, UNJUDGED, REFEREED }
 
     /** One assert's report, as the listener heard it, in order ({@code detail} a verdict's message, or a decline's or
      *  an unjudged assert's reason). */
@@ -66,6 +66,17 @@ final class IsolatedRun {
         @Override
         public void unjudged(String assertName, String reason) {
             verdicts.add(new Heard(Report.UNJUDGED, assertName, false, reason));
+        }
+
+        @Override
+        public void refereed(String assertName, String outcome) {
+            verdicts.add(new Heard(Report.REFEREED, assertName, true, outcome));
+        }
+
+        /** The reports two judges' runs are compared by: every one but the referee's (a compatibility appeal's
+         *  decision, the host's report to its caller; its verdict is the assert's). */
+        List<Heard> compared() {
+            return verdicts.stream().filter(h -> h.report() != Report.REFEREED).toList();
         }
 
         /** The run's end, as text: its failure's class and message, or none. */
@@ -105,6 +116,7 @@ final class IsolatedRun {
                     case VERDICT -> callers.verdict(h.name(), h.pass(), h.detail());
                     case DECLINED -> callers.declined(h.name(), Objects.requireNonNull(h.detail()));
                     case UNJUDGED -> callers.unjudged(h.name(), Objects.requireNonNull(h.detail()));
+                    case REFEREED -> callers.refereed(h.name(), Objects.requireNonNull(h.detail()));
                 }
             }
         }
@@ -132,10 +144,12 @@ final class IsolatedRun {
      *  assert one judge declined or left unjudged is not compared under the compatibility rules (the host's verdict
      *  stands, as it did in the fused agreement); under lite's own rules both judge every assert. */
     static @Nullable String difference(Recording host, Recording database, boolean messages) {
-        int n = Math.max(host.verdicts.size(), database.verdicts.size());
+        List<Heard> hs = host.compared();
+        List<Heard> ds = database.compared();
+        int n = Math.max(hs.size(), ds.size());
         for (int i = 0; i < n; i++) {
-            Heard h = i < host.verdicts.size() ? host.verdicts.get(i) : null;
-            Heard d = i < database.verdicts.size() ? database.verdicts.get(i) : null;
+            Heard h = i < hs.size() ? hs.get(i) : null;
+            Heard d = i < ds.size() ? ds.get(i) : null;
             if (!messages && h != null && d != null
                     && (h.report() != Report.VERDICT || d.report() != Report.VERDICT)) {
                 continue;
@@ -179,6 +193,7 @@ final class IsolatedRun {
             case VERDICT -> h.pass() ? "held" : "failed";
             case DECLINED -> "declined";
             case UNJUDGED -> "unjudged";
+            case REFEREED -> "refereed";
         };
         return h.name() + " " + what + (h.detail() == null ? "" : " " + quote(h.detail()));
     }
