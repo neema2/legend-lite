@@ -423,30 +423,40 @@ public final class Compiler {
     // ---- operations the tab exports (its A1), asked here instead of legend-engine's pure/v1 routes, each answer
     // ---- folded with lite's own refusal kinds (Folded.of), never legend-engine's errorType.
 
-    /** A model's text as its protocol JSON, no source information ({@code Boundary.modelElements}). */
+    /** A model's text as its protocol JSON, source information as asked ({@code Boundary.modelElements}). */
     @CEntryPoint(name = "lite_model_elements")
-    static CCharPointer modelElements(IsolateThread thread, CCharPointer text) {
+    static CCharPointer modelElements(IsolateThread thread, CCharPointer text, CCharPointer sourceInformation) {
         String a;
         try {
-            String t = text(text);
-            a = Folded.of(() -> Boundary.modelElements(t, false));
+            String t = text(text), i = text(sourceInformation);
+            a = Folded.of(() -> Boundary.modelElements(t, flag(i, "sourceInformation")));
         } catch (Throwable failure) {
             a = Folded.failure(failure);
         }
         return answer(a);
     }
 
-    /** A lambda's text as its protocol JSON, no source information ({@code Boundary.parseLambda}). */
+    /** A lambda's text as its protocol JSON, source information as asked ({@code Boundary.parseLambda}). */
     @CEntryPoint(name = "lite_parse_lambda")
-    static CCharPointer parseLambda(IsolateThread thread, CCharPointer text) {
+    static CCharPointer parseLambda(IsolateThread thread, CCharPointer text, CCharPointer sourceInformation) {
         String a;
         try {
-            String t = text(text);
-            a = Folded.of(() -> Boundary.parseLambda(t, false));
+            String t = text(text), i = text(sourceInformation);
+            a = Folded.of(() -> Boundary.parseLambda(t, flag(i, "sourceInformation")));
         } catch (Throwable failure) {
             a = Folded.failure(failure);
         }
         return answer(a);
+    }
+
+    /** A boolean the protocol states, carried as its JSON spelling: {@code true} or {@code false}, anything else refused
+     *  by name (never a default: the request carries it). */
+    private static boolean flag(String text, String what) {
+        return switch (text) {
+            case "true" -> true;
+            case "false" -> false;
+            default -> throw new IllegalArgumentException(what + " is true or false, not '" + text + "'");
+        };
     }
 
     /** A lambda's protocol JSON as Pure text, {@code PRETTY} or {@code STANDARD} ({@code Boundary.printLambda}). */
@@ -469,6 +479,59 @@ public final class Compiler {
         try {
             String m = text(model), l = text(lambdaJson);
             a = Folded.of(() -> Boundary.lambdaRelationType(m, l));
+        } catch (Throwable failure) {
+            a = Folded.failure(failure);
+        }
+        return answer(a);
+    }
+
+    /** A model action ({@code createClass}, {@code createAssociation}, {@code createDataSpace}) over its JSON request
+     *  ({@code Boundary.modelAction}). */
+    @CEntryPoint(name = "lite_model_action")
+    static CCharPointer modelAction(IsolateThread thread, CCharPointer action, CCharPointer body) {
+        String a;
+        try {
+            String ac = text(action), b = text(body);
+            a = Folded.of(() -> Boundary.modelAction(ac, b));
+        } catch (Throwable failure) {
+            a = Folded.failure(failure);
+        }
+        return answer(a);
+    }
+
+    /** A #TS item's text, read ({@code Boundary.tsItem}). */
+    @CEntryPoint(name = "lite_ts_item")
+    static CCharPointer tsItem(IsolateThread thread, CCharPointer text) {
+        String a;
+        try {
+            String t = text(text);
+            a = Folded.of(() -> Boundary.tsItem(t));
+        } catch (Throwable failure) {
+            a = Folded.failure(failure);
+        }
+        return answer(a);
+    }
+
+    /** A #TS query's lambda JSON as its one statement, over a model's text ({@code Boundary.jsonToTs}). */
+    @CEntryPoint(name = "lite_json_to_ts")
+    static CCharPointer jsonToTs(IsolateThread thread, CCharPointer lambdaJson, CCharPointer model) {
+        String a;
+        try {
+            String l = text(lambdaJson), m = text(model);
+            a = Folded.of(() -> Boundary.jsonToTs(l, m));
+        } catch (Throwable failure) {
+            a = Folded.failure(failure);
+        }
+        return answer(a);
+    }
+
+    /** A model's every compile error, its text given ({@code Boundary.compileErrors}). */
+    @CEntryPoint(name = "lite_compile_errors")
+    static CCharPointer compileErrors(IsolateThread thread, CCharPointer model) {
+        String a;
+        try {
+            String m = text(model);
+            a = Folded.of(() -> Boundary.compileErrors(m));
         } catch (Throwable failure) {
             a = Folded.failure(failure);
         }

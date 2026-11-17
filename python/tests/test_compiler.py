@@ -90,6 +90,42 @@ Runtime s::RT { mappings: []; connections: [ s::DB: [ c: s::Conn ] ]; }
             self.assertEqual(untyped.exception.kind, 'COMPILATION')
 
 
+class ThePlannerKinds(unittest.TestCase):
+    """The planner protocol's lite kinds, answered by Python's native entries (the edge program's H2/H4 pairing,
+    2026-11-17): each kind's row in _planner.KINDS, its entry's answer folded with lite's kinds."""
+
+    MODEL = LitesOwnEntries.MODEL
+
+    def ask(self, request):
+        from legend_lite import _planner
+        said = _planner.answer(library(), request)
+        self.assertTrue(said['ok'], said)
+        return said['answer']
+
+    def test_each_kind_is_answered(self):
+        tree = ll.parse('|#>{s::DB.t}#->select(~[desk])')
+        self.assertTrue(self.ask({'kind': 'compileErrors', 'model': self.MODEL}).startswith('OK\n{"errors":[]}'))
+        self.assertTrue(self.ask({'kind': 'printLambda', 'lambda': json.dumps(tree), 'style': 'STANDARD'})
+                        .startswith('OK\n|#>{s::DB.t}#'))
+        self.assertIn('"desk"', self.ask({'kind': 'lambdaRelationType', 'model': self.MODEL, 'lambda': json.dumps(tree)}))
+        with_source = self.ask({'kind': 'parseLambda', 'text': '|1', 'sourceInformation': True})
+        without = self.ask({'kind': 'parseLambda', 'text': '|1', 'sourceInformation': False})
+        self.assertIn('sourceInformation', with_source)
+        self.assertNotIn('sourceInformation', without)
+        self.assertTrue(self.ask({'kind': 'modelElements', 'text': self.MODEL, 'sourceInformation': False})
+                        .startswith('OK\n'))
+        # a model action, a #TS item: answered by their boundary members, refused in lite's kinds where wrong
+        self.assertTrue(self.ask({'kind': 'modelAction', 'action': 'createDataSpace', 'body': '{}'}).startswith('ERR\n'))
+        self.assertTrue(self.ask({'kind': 'tsItem', 'text': 'not a ts item'}).startswith(('OK\n', 'ERR\n')))
+
+    def test_a_source_information_that_is_no_boolean_is_refused_by_name(self):
+        from legend_lite import _planner
+        said = _planner.answer(library(), {'kind': 'parseLambda', 'text': '|1', 'sourceInformation': 'yes'})
+        self.assertEqual((said['ok'], said['error']), (False, "ValueError: sourceInformation is a boolean, not 'yes'"))
+        self.assertTrue(library().call('lite_parse_lambda', '|1', 'True').startswith('ERR\n'),
+                        'the entry reads JSON\'s spelling alone')
+
+
 class Compiling(unittest.TestCase):
     def test_types_a_query_compile_only(self):
         cols = ll.relation_type(MODEL, ll.parse(GROUP))

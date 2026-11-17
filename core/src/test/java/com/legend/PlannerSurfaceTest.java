@@ -293,7 +293,11 @@ class PlannerSurfaceTest {
             // tab exports (its A1), asked by the native library instead of legend-engine's pure/v1 routes
             Map.entry("lite_model_elements", "modelElements"), Map.entry("lite_parse_lambda", "parseLambda"),
             Map.entry("lite_print_lambda", "printLambda"),
-            Map.entry("lite_lambda_relation_type", "lambdaRelationType")));
+            Map.entry("lite_lambda_relation_type", "lambdaRelationType"),
+            // the planner protocol's other lite kinds, for Python's headless DataCube and its own calls (the edge
+            // program's H2/H4 pairing, 2026-11-17): the DataCube session's Boundary members of these names
+            Map.entry("lite_model_action", "modelAction"), Map.entry("lite_ts_item", "tsItem"),
+            Map.entry("lite_json_to_ts", "jsonToTs"), Map.entry("lite_compile_errors", "compileErrors")));
 
     /** The native library's exports that are no planner door, each with what it is instead. */
     static final Map<String, String> NATIVE_SERVICES = new TreeMap<>(Map.ofEntries(
@@ -794,7 +798,16 @@ class PlannerSurfaceTest {
             Map.entry("sessionSetup", List.of("lite_session_setup", "databaseType")),
             Map.entry("projectData", List.of("lite_project_data", "model", "databaseType")),
             Map.entry("hostOperations", List.of("lite_host_operations", "databaseType", "operations")),
-            Map.entry("warm", List.of("lite_warm_model", "model"))));
+            Map.entry("warm", List.of("lite_warm_model", "model")),
+            // lite's own grammar and typing and its routes' kinds (the edge program's H2/H4 pairing, 2026-11-17)
+            Map.entry("modelElements", List.of("lite_model_elements", "text", "sourceInformation")),
+            Map.entry("parseLambda", List.of("lite_parse_lambda", "text", "sourceInformation")),
+            Map.entry("printLambda", List.of("lite_print_lambda", "lambda", "style")),
+            Map.entry("lambdaRelationType", List.of("lite_lambda_relation_type", "model", "lambda")),
+            Map.entry("compileErrors", List.of("lite_compile_errors", "model")),
+            Map.entry("modelAction", List.of("lite_model_action", "action", "body")),
+            Map.entry("tsItem", List.of("lite_ts_item", "text")),
+            Map.entry("jsonToTs", List.of("lite_json_to_ts", "lambda", "model"))));
 
     /** The kinds Python's planner refuses by name ({@code _planner.REFUSED}). */
     static final Set<String> PY_REFUSED = Set.of("authored");

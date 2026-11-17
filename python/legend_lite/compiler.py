@@ -67,7 +67,7 @@ def _columns(relation_type: dict[str, Any]) -> tuple[Column, ...]:
 def parse(text: str) -> Tree:
     """Pure text as its lambda's protocol tree, e.g. ``parse("|1 + 1")``: lite's own grammar (``lite_parse_lambda``,
     ``Boundary.parseLambda``), refused with lite's kind."""
-    return _json.loads(_answer(library().call('lite_parse_lambda', text)))
+    return _json.loads(_answer(library().call('lite_parse_lambda', text, 'false')))
 
 
 def print_tree(tree: Tree, style: str = 'PRETTY') -> str:
@@ -158,7 +158,7 @@ class HeldModel:
 def model_elements(text: str) -> list[dict[str, Any]]:
     """A model's text as its elements (PureModelContextData), as the compiler reads them (``lite_model_elements``,
     ``Boundary.modelElements``)."""
-    return _json.loads(_answer(library().call('lite_model_elements', text)))['elements']
+    return _json.loads(_answer(library().call('lite_model_elements', text, 'false')))['elements']
 
 
 def database_from_catalog(catalog: dict[str, Any]) -> dict[str, Any]:

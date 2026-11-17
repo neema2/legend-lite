@@ -40,7 +40,9 @@ _ARITY = {
     # a host's named operations (D5)
     'lite_host_operations': 2,
     # lite's own grammar and typing (the edge program's H4, 2026-11-17): the product's, never pure/v1's
-    'lite_model_elements': 1, 'lite_parse_lambda': 1, 'lite_print_lambda': 2, 'lite_lambda_relation_type': 2,
+    'lite_model_elements': 2, 'lite_parse_lambda': 2, 'lite_print_lambda': 2, 'lite_lambda_relation_type': 2,
+    # the planner protocol's other lite kinds (the edge program's H2/H4 pairing, 2026-11-17)
+    'lite_model_action': 2, 'lite_ts_item': 1, 'lite_json_to_ts': 2, 'lite_compile_errors': 1,
     'lite_pure_v1': 3, 'lite_execute_plan': 2, 'lite_pure_v1_refusal': 1,
     # the planner protocol's execute halves for a host's own database, and its warm (C2)
     'lite_execute_json_plan': 2, 'lite_execute_json_answer': 2, 'lite_warm_model': 1,
@@ -63,11 +65,11 @@ _ARITY = {
 # planner's, refused inside a run of its flow (_runframe.py, the witness, 2026-11-13), by Loaded.call itself (C5-P's
 # audit M1, 2026-11-15). _library.py writes the same set (_NOT_PLANNING, which PlannerSurfaceTest reads), held equal
 # to this one when it loads.
+# (lite_store_queries, lite_store_cubes: the product's saved queries and pages, at lite's mount in lite's words --
+# the edge program's H6, 2026-11-17)
 NOT_PLANNING = frozenset({
     'lite_site_types', 'lite_warehouse_call', 'lite_warehouse_read', 'lite_sdlc_handle', 'lite_depot_handle',
-    'lite_saved_queries', 'lite_saved_cubes', 'lite_release_model',
-    # the product's saved queries and pages, at lite's mount in lite's words (the edge program's H6, 2026-11-17)
-    'lite_store_queries', 'lite_store_cubes',
+    'lite_saved_queries', 'lite_saved_cubes', 'lite_release_model', 'lite_store_queries', 'lite_store_cubes',
 })
 
 # THE SERVICE KEY'S NAMES (_services.py): the warehouse's SQL API, as the one binding speaks it -- the run side's, and

@@ -14,6 +14,15 @@ from typing import Any
 
 from ._library import Library
 
+def _flag(value: Any) -> str:
+    """A boolean the protocol carries, as the native entry reads it (its JSON spelling); anything else refused by name."""
+    if value is True:
+        return 'true'
+    if value is False:
+        return 'false'
+    raise ValueError(f'sourceInformation is a boolean, not {value!r}')
+
+
 KINDS: dict[str, tuple[str, Callable[[dict[str, Any]], tuple[str, ...]]]] = {
     'hold': ('lite_hold_model', lambda m: (m['model'],)),
     'release': ('lite_release_model', lambda m: (str(m['handle']),)),
@@ -37,6 +46,16 @@ KINDS: dict[str, tuple[str, Callable[[dict[str, Any]], tuple[str, ...]]]] = {
     'projectData': ('lite_project_data', lambda m: (m['model'], m['databaseType'])),
     'hostOperations': ('lite_host_operations', lambda m: (m['databaseType'], m['operations'])),
     'warm': ('lite_warm_model', lambda m: (m['model'],)),
+    # lite's own grammar and typing, and the routes the tab asked through pure/v1's router, each its product boundary's
+    # answer (the edge program's H2 and H4, 2026-11-17: the DataCube session's Boundary members, Python's native entries)
+    'modelElements': ('lite_model_elements', lambda m: (m['text'], _flag(m['sourceInformation']))),
+    'parseLambda': ('lite_parse_lambda', lambda m: (m['text'], _flag(m['sourceInformation']))),
+    'printLambda': ('lite_print_lambda', lambda m: (m['lambda'], m['style'])),
+    'lambdaRelationType': ('lite_lambda_relation_type', lambda m: (m['model'], m['lambda'])),
+    'compileErrors': ('lite_compile_errors', lambda m: (m['model'],)),
+    'modelAction': ('lite_model_action', lambda m: (m['action'], m['body'])),
+    'tsItem': ('lite_ts_item', lambda m: (m['text'],)),
+    'jsonToTs': ('lite_json_to_ts', lambda m: (m['lambda'], m['model'])),
 }
 
 # a kind's form when its request names a library the model is compiled over (the protocol's ``hold``'s ``library``,
