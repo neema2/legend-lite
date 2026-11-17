@@ -99,6 +99,10 @@ public final class PureText {
             if (kind == com.legend.lowering.DateTimeTexts.class) {
                 return kind.cast(EdgeDateTimeTexts.INSTANCE);
             }
+            if (kind == com.legend.testplan.DateLiteralTexts.class) {
+                // a date literal's message text as legend-pure writes it (census C1)
+                return kind.cast(UpstreamDateLiteralTexts.INSTANCE);
+            }
             if (kind == com.legend.testplan.RenderedTextRule.class) {
                 // upstream's ruled rendered-text comparison where the strings differ (S131, S132; census C1)
                 return kind.cast(UpstreamRenderedTextRule.INSTANCE);

@@ -208,7 +208,9 @@ class HookRulingTest {
                 com.legend.testplan.CrossKindNumbers.class,
                 // RenderedTextRule (census C1, 2026-11-17, registers S131, S132: the product's two strings, the edge's
                 // ruled comparison where they differ)
-                com.legend.testplan.RenderedTextRule.class),
+                com.legend.testplan.RenderedTextRule.class,
+                // DateLiteralTexts (census C1, 2026-11-17: a date literal's message text, lite's or legend-pure's)
+                com.legend.testplan.DateLiteralTexts.class),
                 com.legend.testplan.PlanStyleFacets.TWO_FORMS,
                 "the two-form kinds, an exact set: a kind is added here with its family and its dated reason");
         assertTrue(PlanStyle.PRODUCT.twoForm(com.legend.lowering.DateTimeTexts.class,
@@ -250,6 +252,12 @@ class HookRulingTest {
                 com.legend.testplan.RenderedTextRule.Product.STRINGS)
                 == com.legend.edge.UpstreamRenderedTextRule.INSTANCE,
                 "the edge plans upstream's ruled comparison where the strings differ");
+        assertEquals("2020-01-02", PlanStyle.PRODUCT.twoForm(com.legend.testplan.DateLiteralTexts.class,
+                com.legend.testplan.DateLiteralTexts.Product.LITE).text(com.legend.values.PureDateLiteral.parse("2020-01-02")),
+                "the product writes lite's date text");
+        assertEquals("%2020-01-02", com.legend.edge.PureText.UPSTREAM.twoForm(com.legend.testplan.DateLiteralTexts.class,
+                com.legend.testplan.DateLiteralTexts.Product.LITE).text(com.legend.values.PureDateLiteral.parse("2020-01-02")),
+                "the edge writes legend-pure's");
         Runnable productForm = () -> { };
         assertTrue(PlanStyle.PRODUCT.twoForm(Runnable.class, productForm) == productForm,
                 "the product answers the caller's own form");
