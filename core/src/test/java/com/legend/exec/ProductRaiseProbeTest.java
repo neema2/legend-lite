@@ -186,6 +186,35 @@ class ProductRaiseProbeTest {
         // 8. the Float carrier (Phase 8, 2026-11-16): a computed Float carried in a list and read back bit-exact, or
         // the list refused by name where the database has no list encoding (round 73 measures every database's)
         carriers(backend, wrong);
+        // 9. a row's cells joined (Phase 3 step 3, CONCAT_WS where the database skips a NULL part, its own form where it
+        // does not; the user's ruling of 2026-11-10, "makeString skips empty elements"): an empty cell skipped with its
+        // separator, an all-empty row and an empty single cell the empty text (never a NULL), and a cell's own text
+        // never escaped (a separator inside a cell stays, as legend-pure's makeString)
+        String[][] joins = {
+                {"three cells, the middle empty; then all empty", "#TDS\n  a:String, b:String, c:String\n"
+                        + "  a, null, c\n  null, null, null\n#", "a, c", ""},
+                {"one cell, empty; then 'x'", "#TDS\n  a:String\n  null\n  x\n#", "", "x"},
+                {"a cell holding the separator", "#TDS\n  c:String\n  c\n#->extend(~s: r|'a, b')->select(~[s, c])",
+                        "a, b, c"}};
+        List<Object> joined = new ArrayList<>();
+        for (String[] j : joins) {
+            Object answered = run(backend, "a row's cells joined: " + j[0], "|" + j[1] + "->extend(~t: r|$r.values"
+                    + "->makeString(', '))->select(~t)->from(" + StorelessRuntime.RUNTIME + ")");
+            joined.add(answered);
+            List<String> want = List.of(j).subList(2, j.length);
+            if (!(answered instanceof String a7)) {
+                wrong.add("a row's cells joined, " + j[0] + ": " + describe(answered));
+                continue;
+            }
+            java.util.regex.Matcher m = java.util.regex.Pattern.compile("\"t\":(\"([^\"]*)\"|null)").matcher(a7);
+            List<String> got = new ArrayList<>();
+            while (m.find()) {
+                got.add(m.group(2) == null ? "<NULL>" : m.group(2));
+            }
+            if (!got.equals(want)) {
+                wrong.add("a row's cells joined, " + j[0] + ": " + got + " (want " + want + ")");
+            }
+        }
         // what came back, each case's (the orchestrator, 2026-11-15: every lane's log shows it, not only the count)
         System.out.println("[product raise probe] " + backend.name() + " guarded, no raise, answered: " + describe(rows));
         System.out.println("[product raise probe] " + backend.name() + " divide by zero, raised: " + describe(zero));
@@ -195,6 +224,10 @@ class ProductRaiseProbeTest {
                 + List.of(values) + ", answered: " + describe(edges));
         System.out.println("[product raise probe] " + backend.name() + " NaN's text, answered: " + describe(nan));
         System.out.println("[product raise probe] " + backend.name() + " a DateTime's text, answered: " + describe(dt));
+        for (int i = 0; i < joins.length; i++) {
+            System.out.println("[product raise probe] " + backend.name() + " a row's cells joined, " + joins[i][0]
+                    + ", answered: " + describe(joined.get(i)));
+        }
         System.out.println("[product raise probe] " + backend.name() + ": " + wrong.size() + " wrong " + wrong);
         assertEquals(List.of(), wrong, backend.name());
     }

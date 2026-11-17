@@ -1676,6 +1676,10 @@ public class SQLite extends AnsiSqlRenderer {
             case CONCAT -> writer.append("concat(").join(flattenConcat(a), ", ", (w, x) -> w.piece(asText(x)))
                     .append(")");
             case CONCAT_JOIN -> writer.append("concat(").join(a, ", ", (w, x) -> w.piece(asText(x))).append(")");
+            // the product's join of a row's cells: concat_ws skips a NULL part with its separator (SQLite 3.44 on;
+            // measured on 3.47, Phase 3)
+            // each part is already a text: written as it is (asText would cast it again, round 75's lean note)
+            case CONCAT_WS -> writer.append("concat_ws(").list(a).append(")");
             case LENGTH -> writer.append("length(").piece(asText(a.get(0))).append(")");
             case LEFT, RIGHT -> writer.piece(leftRight(c.fn(), a));
             case LPAD, RPAD -> writer.piece(pad(c.fn(), a));

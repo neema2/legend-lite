@@ -1,6 +1,0 @@
-meta::relational::testDataGeneration::tests::testQualifier ||| by-design:test-data-generator-fetch-text(S193) ||| expected: 'select top 20
-meta::relational::tests::mapping::relation::testDateTimeInclusiveRangeQuery ||| engine-golden-defect:h2-literal-coercion ||| (2 rows) | is not equivalent to: | [settlementDateTime] (1 rows)
-meta::relational::testDataGeneration::tests::testConstant ||| by-design:test-data-generator-fetch-text(S193) ||| expected: 'select top 20
-meta::relational::testDataGeneration::tests::testSimpleSingleTable ||| by-design:test-data-generator-fetch-text(S193) ||| expected: 'select top 20
-meta::relational::testDataGeneration::tests::testSimpleSingleTableWithNoDataToInsert ||| by-design:test-data-generator-fetch-text(S193) ||| expected: 'select top 20
-meta::relational::testDataGeneration::tests::testSimpleTwoTable ||| by-design:test-data-generator-fetch-text(S193) ||| expected: 'select top 20

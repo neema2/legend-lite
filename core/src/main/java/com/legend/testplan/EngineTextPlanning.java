@@ -66,6 +66,11 @@ public final class EngineTextPlanning {
         return env.withFrame(f);
     }
 
+    /** {@code env} with its own copy of the body's consumed lets: what it plans reads them and leaves none behind. */
+    public static BodyDriver.ExecEnv withOwnLets(BodyDriver.ExecEnv env) {
+        return env.withPlan(env.plan().withQueryLets(new java.util.LinkedHashMap<>(env.plan().queryLets())));
+    }
+
     public static BodyDriver.ExecEnv withTableReplace(BodyDriver.ExecEnv env, java.util.Map<String, String> tr) {
         return env.withTableReplace(tr);
     }

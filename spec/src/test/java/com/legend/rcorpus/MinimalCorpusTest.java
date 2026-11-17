@@ -53,8 +53,8 @@ public class MinimalCorpusTest {
      * an action never reads what it writes: these files are no classpath resources. The other rcorpus files are
      * POLICY (allowances, reasons, ceilings, shrink-only work lists) and stay hand-owned with dated rows. */
     private static final Set<String> MEASURED = Stream.of(TestBackends.platform(), TestBackends.referee())
-            .flatMap(lane -> Stream.of("fail-roster", "skipped-roster", "unordered-register", "engine-order-register",
-                    "database-engine-order-register").map(kind -> "/rcorpus/" + lane.name() + "-" + kind + ".txt"))
+            .flatMap(lane -> Stream.of("fail-roster", "skipped-roster", "unordered-register", "engine-order-register")
+                    .map(kind -> "/rcorpus/" + lane.name() + "-" + kind + ".txt"))
             .collect(java.util.stream.Collectors.toUnmodifiableSet());
 
     /**
@@ -159,12 +159,6 @@ public class MinimalCorpusTest {
         org.junit.jupiter.api.Assertions.assertTrue(Corpus.available(), "legend-engine checkout not present");
         // the engine's scan order for the corpus goldens is the lane's -Dlegend.exec.engineScanOrder (spec/corpus.bzl),
         // set for the whole JVM by the build, never flipped here (Bazel workplan P3-01)
-        // a scoped run (-Drcorpus.test) runs the database judge on its tests alone; the host pass, an action, is the
-        // whole corpus's, so only a full run waits on it (pinJudgeDifferential skips a scoped run likewise)
-        if ("database".equalsIgnoreCase(System.getProperty("legend.judge.mode", "host"))
-                && System.getProperty("rcorpus.test", "").trim().isEmpty()) {
-            JudgeLedger.requireHostPassed();
-        }
         run();
     }
 
@@ -195,12 +189,6 @@ public class MinimalCorpusTest {
                 : readAccepted(laneFile(ACCEPTED));
         // -Drcorpus.tests=<file>: the tests named there, one fully qualified name a line (a covering subset)
         java.util.Set<String> listed = testList();
-        if (LaneHolder.LANE.reference() && "database".equalsIgnoreCase(System.getProperty("legend.judge.mode", "host"))) {
-            // a divergence the DATABASE verdict names and the host's kept
-            // tolerance hides (homework §4j: the calendar goldens computed
-            // in H2's decimal arithmetic) is accepted in database mode only
-            acceptedRegister.putAll(readAccepted(laneFile("database-accepted-register")));
-        }
         /** the strength census of the passes (Phase 0.7) */
         java.util.Map<String, Integer> strength = new java.util.LinkedHashMap<>();
         /** every test that RAN, in discovery order, pass or fail */
@@ -210,8 +198,6 @@ public class MinimalCorpusTest {
         List<String> engineOrder = new ArrayList<>();
         List<String> originRows = new ArrayList<>();
         List<String> shapeRows = new ArrayList<>();
-        List<String> artifactRows = new ArrayList<>();
-        List<String> hostComparedRows = new ArrayList<>();
         List<String> fallbackRows = new ArrayList<>();
         // each assert the host planner declined, by its shape, per test (the test-is-the-product plan's M10c)
         List<String> unplannedRows = new ArrayList<>();
@@ -231,8 +217,6 @@ public class MinimalCorpusTest {
                 long[] originsBefore = com.legend.exec.StatementOrigin.snapshot();
                 int fallbacksBefore = com.legend.diagnostics.Census.fallbackReasons().size();
                 int unplannedBefore = com.legend.diagnostics.Census.unplannedAsserts().size();
-                long flushesBefore = com.legend.diagnostics.Census.count(com.legend.diagnostics.Census.Key.VERDICT_FLUSHES);
-                long hostDecidedBefore = com.legend.diagnostics.Census.count(com.legend.diagnostics.Census.Key.VERDICT_HOST_DECIDED);
                 long movedBefore = com.legend.diagnostics.Census.count(com.legend.diagnostics.Census.Key.BODIES_MOVED);
                 if (TRACE) {
                     // -Dlegend.diagnostics=corpus-trace: name each test BEFORE it runs, so a
@@ -293,15 +277,6 @@ public class MinimalCorpusTest {
                 }
                 originRows.add(originRow.toString());
                 String shape = corpus.bodyShape(r.fqn());
-                String outside = outsideBody(originsBefore, originsAfter, shape,
-                        com.legend.diagnostics.Census.count(com.legend.diagnostics.Census.Key.VERDICT_FLUSHES) - flushesBefore);
-                if (outside != null) {
-                    artifactRows.add(r.fqn() + " ||| " + outside);
-                }
-                long hostDecided = com.legend.diagnostics.Census.count(com.legend.diagnostics.Census.Key.VERDICT_HOST_DECIDED) - hostDecidedBefore;
-                if (hostDecided > 0) {
-                    hostComparedRows.add(r.fqn() + " ||| host-decided=" + hostDecided);
-                }
                 shapeRows.add(r.fqn() + "\t" + (shape == null ? "" : shape));
                 List<String> reasons = com.legend.diagnostics.Census.fallbackReasons();
                 for (int fi = fallbacksBefore; fi < reasons.size(); fi++) {
@@ -498,8 +473,6 @@ public class MinimalCorpusTest {
         for (String t : ran) {
             ranTaggedEngineOrder.add(ENGINE_ORDER + " " + t);
         }
-        boolean databaseMode = "database".equalsIgnoreCase(
-                System.getProperty("legend.judge.mode", "host"));
         boolean bothMode = "both".equalsIgnoreCase(System.getProperty("legend.judge.mode", "host"));
         if (bothMode) {
             // THE AGREEMENT GATE (the plan path program's step 6, 2026-10-18) judges verdicts: both arms over every
@@ -512,99 +485,10 @@ public class MinimalCorpusTest {
                     + " is per CI pass: host, database); measured " + engineOrder.size());
         } else {
             pinRoster(only, ranTaggedEngineOrder, engineOrder, ENGINE_ORDER,
-                    laneFile(databaseMode ? "database-engine-order-register" : "engine-order-register"), false);
-        }
-        if (databaseMode) {
-            Files.write(com.legend.testing.TestOutputs.file("corpus2-outside-body.txt"), artifactRows);
-            pinArtifactRegister(only, ran, artifactRows,
-                    laneFile("database-outside-body-register"));
-            // THE HOST-COMPARED REGISTER (2026-09-21): under the database judge, every test
-            // with an assert decided WITHOUT a verdict row (a comparison in Java over two
-            // database-computed sides — the lineage, TDG, identity and metadata arms) is a
-            // named row; exact, shrink-only — the number that must reach zero
-            Files.write(com.legend.testing.TestOutputs.file("corpus2-host-compared.txt"), hostComparedRows);
-
-            pinArtifactRegister(only, ran, hostComparedRows,
-                    laneFile("database-host-compared-register"), "host-compared",
-                    "an assert was decided outside a verdict row and its test is not registered");
+                    laneFile("engine-order-register"), false);
         }
         pinChannels(only, corpus);
         pinStrength(only, strength);
-        pinJudgeDifferential(only);
-    }
-
-    /** LEG 3.3 — THE DIFFERENTIAL GATE (docs/JUDGING_TWO_MODES_2026_09_17.md §4): a
-     * DATABASE-mode lane that wrote its per-assert ledger ({@link JudgeLedger#path})
-     * and was handed the HOST pass's ({@code legend.judge.ledger.host}) joins the two
-     * per assert: the same verdict everywhere the registers do not name — unregistered
-     * disagreements and one-sided adjudications pinned at ZERO; the database judge's
-     * declines pinned by {@code rcorpus/<lane>-judge-unjudged-ceiling.txt}. */
-    private static void pinJudgeDifferential(String only) throws java.io.IOException {
-        if (!only.isEmpty() || !"database".equalsIgnoreCase(System.getProperty("legend.judge.mode", "host"))) {
-            return;
-        }
-        String lane = LaneHolder.LANE.rosters();
-        JudgeLedger.Differential x = JudgeLedger.diff(
-                JudgeLedger.read(JudgeLedger.input("legend.judge.ledger.host")),
-                JudgeLedger.read(JudgeLedger.path()));
-        java.util.Set<String> registered = new java.util.HashSet<>();
-        // "differential": a test that FAILS in both modes for the same reason but
-        // whose per-assert ledgers differ in WHERE the failure lands — since one
-        // statement per body (2026-09-20) a let's frame rides the fused statement,
-        // so a broken frame fails at the assert in database mode and at the let in
-        // host mode; named with its reason, never absorbed
-        for (String r : List.of("lost", "gained", "accepted", "differential")) {
-            registered.addAll(registerTests("/rcorpus/" + lane + "-database-" + r + "-register.txt"));
-        }
-        registered.addAll(registerTests(laneFile(ACCEPTED)));
-        // UNTRIAGED: disagreements recorded as found but not yet explained — a
-        // work list, not a reason. Shrink-only: an entry whose test no longer
-        // disagrees must be deleted (below), so the list cannot outlive its cause.
-        java.util.Set<String> untriaged = registerTests("/rcorpus/" + lane + "-database-untriaged-register.txt");
-        registered.addAll(untriaged);
-        List<String> unregistered = x.unregistered(registered);
-        System.out.println("[judge-differential] " + lane + ": asserts agree=" + x.agree()
-                + " disagree=" + x.disagree().size() + " unjudged-in-database=" + x.unjudged().size()
-                + " host-only=" + x.hostOnly().size() + " database-only=" + x.databaseOnly().size()
-                + " | unregistered=" + unregistered.size() + " | unjudged by family "
-                + x.unjudgedByFamily());
-        for (String u : unregistered) {
-            System.out.println("[judge-differential] UNREGISTERED " + u);
-        }
-        java.util.Set<String> disagreeing = x.tests();
-        List<String> staleUntriaged = untriaged.stream()
-                .filter(t -> !disagreeing.contains(t)).toList();
-        org.junit.jupiter.api.Assertions.assertEquals(List.of(), staleUntriaged,
-                "untriaged entries whose test no longer disagrees — delete them from "
-                + lane + "-database-untriaged-register.txt (the work is done, or moved)");
-        org.junit.jupiter.api.Assertions.assertEquals(List.of(), unregistered,
-                "the host and database judges DISAGREE on an assert of a test no register names"
-                + " (a verdict pair, or one judge adjudicating what the other never reached) — a bug"
-                + " in one mode (host is the reference): fix it, or name the test on the lane's"
-                + " register with its reason");
-        // From the classpath, like the registers, and REQUIRED: this read was a
-        // path relative to the working directory, which under Bazel is the
-        // runfiles root — the file was never found, and a missing ceiling read as
-        // "no ceiling" (found 2026-09-23; the DuckDB pin is 0 and so was the count,
-        // so nothing slipped through).
-        String ceilingResource = "/rcorpus/" + lane + "-judge-unjudged-ceiling.txt";
-        int ceiling;
-        try (var in = MinimalCorpusTest.class.getResourceAsStream(ceilingResource)) {
-            if (in == null) {
-                throw new IllegalStateException("no unjudged ceiling for the " + lane + " lane: "
-                        + ceilingResource + " pins how many asserts the database judge may decline");
-            }
-            ceiling = Integer.parseInt(new String(in.readAllBytes(),
-                    java.nio.charset.StandardCharsets.UTF_8).trim());
-        }
-        org.junit.jupiter.api.Assertions.assertTrue(x.unjudged().size() <= ceiling,
-                "asserts the database judge declines grew: " + x.unjudged().size() + " > " + ceiling
-                + " — a shape the host judges and the database does not is a work item, never a"
-                + " fallback (" + x.unjudgedByFamily() + ")");
-        if (x.unjudged().size() < ceiling) {
-            System.out.println("[judge-differential] unjudged ceiling " + ceiling + " -> "
-                    + x.unjudged().size() + " (re-pin: headroom is not a pin)");
-        }
     }
 
     /** Phase 0.7 — the STRENGTH census of the passes (audit §3's ladder),
@@ -622,7 +506,7 @@ public class MinimalCorpusTest {
         int weak = strength.getOrDefault("CARDINALITY", 0);
         int[] floor = ceilings().strength();
         String mode = System.getProperty("legend.judge.mode", "host");
-        if ("database".equalsIgnoreCase(mode) || "both".equalsIgnoreCase(mode)) {
+        if ("both".equalsIgnoreCase(mode)) {
             // leg 3.1: database mode reports its strength against host mode's
             // floors; the differential gate (leg 3.3) pins it. BOTH judges
             // likewise (2026-11-02, the walker-deletion program): its verdict of
@@ -1032,9 +916,7 @@ public class MinimalCorpusTest {
         }
         // A MEASURED roster this pass generates (P2-15): written, and its exact check is the diff test's
         String measuredOut = System.getProperty("rcorpus.measured.out", "").trim();
-        boolean databasePass = "database".equalsIgnoreCase(System.getProperty("legend.judge.mode", "host"));
-        if (MEASURED.contains(resource) && !measuredOut.isEmpty() && only.isEmpty()
-                && databasePass == resource.contains("-database-")) {
+        if (MEASURED.contains(resource) && !measuredOut.isEmpty() && only.isEmpty()) {
             return;   // written by writeMeasured, held to the committed copy by the lane's diff test
         }
         List<String> roster = readRoster(resource);
@@ -1052,31 +934,6 @@ public class MinimalCorpusTest {
             if (ranNames.contains(r) && !failNames.contains(r)) {
                 gained.add(r);
             }
-        }
-        if ("database".equalsIgnoreCase(System.getProperty("legend.judge.mode", "host"))) {
-            // leg 3.1: DATABASE mode is judged AGAINST host mode's roster —
-            // the differential is printed (LOST = fails in database mode
-            // only; GAINED = passes in database mode only). The FAIL
-            // differential is PINNED per lane (P0, homework §4h): every
-            // lost and every gained test is a NAMED register row with its
-            // reason; a new lost row is red, a register row no longer lost
-            // is red (shrink the register, with the reason in GATES.md).
-            // The differential gate (leg 3.3) refines this to per-assert.
-            System.out.println("[corpus2] database-mode " + kind + " diff vs host roster:"
-                    + " lost=" + lost.size() + " gained=" + gained.size());
-            for (String l : lost) {
-                System.out.println("[corpus2] database-mode LOST " + l);
-            }
-            for (String g : gained) {
-                System.out.println("[corpus2] database-mode GAINED " + g);
-            }
-            if (kind.equals("fail")) {
-                pinDifferential(lane, "lost", lost, ranNames,
-                        "/rcorpus/" + lane + "-database-lost-register.txt");
-                pinDifferential(lane, "gained", gained, ranNames,
-                        "/rcorpus/" + lane + "-database-gained-register.txt");
-            }
-            return;
         }
         if (!lost.isEmpty() || !gained.isEmpty()) {
             StringBuilder sb = new StringBuilder("[" + lane + "] " + kind + " roster != "
@@ -1102,107 +959,7 @@ public class MinimalCorpusTest {
                 + (MinimalCorpus.refereeLane() ? " oracle=same-session" : " oracle=h2-mirror"));
     }
 
-    /** THE ARTIFACT RULE (block-compiler program, 2026-09-21): a test body is ONE
-     * artifact — one fused statement for a pure body, one script for an effect
-     * body. This names what is not there yet: a body that sends a PRODUCT-OWNED
-     * statement outside its artifact (raw, side, statement, probe, fallback,
-     * let, value, other — never the referee's, the seeding's or the session's), or
-     * a PURE body cut into several sends (flushes). Null when the body is one
-     * artifact. */
-    private static @com.legend.base.Nullable String outsideBody(long[] before, long[] after,
-            @com.legend.base.Nullable String shape, long flushes) {
-        StringBuilder sb = new StringBuilder();
-        for (var o : com.legend.exec.StatementOrigin.values()) {
-            long d = after[o.ordinal()] - before[o.ordinal()];
-            if (d > 0 && PRODUCT_OWNED.contains(o)) {
-                sb.append(sb.length() == 0 ? "" : " ").append(o.name().toLowerCase(java.util.Locale.ROOT))
-                        .append('=').append(d);
-            }
-        }
-        // a PURE body cut into several sends (a send over several connections is
-        // one send: a body that asserts over the metamodel AND the session
-        // cannot be one statement, and is not split)
-        boolean pure = shape != null && shape.indexOf('E') < 0 && shape.indexOf('X') < 0;
-        if (pure && flushes > 1) {
-            sb.append(sb.length() == 0 ? "" : " ").append("flushes=").append(flushes);
-        }
-        return sb.length() == 0 ? null : sb.toString();
-    }
-
-    private static final java.util.Set<com.legend.exec.StatementOrigin> PRODUCT_OWNED = java.util.EnumSet.of(
-            com.legend.exec.StatementOrigin.RAW, com.legend.exec.StatementOrigin.SIDE,
-            com.legend.exec.StatementOrigin.STATEMENT,
-            com.legend.exec.StatementOrigin.PROBE,
-            com.legend.exec.StatementOrigin.LET, com.legend.exec.StatementOrigin.VALUE,
-            com.legend.exec.StatementOrigin.OTHER);
-
-    /** The OUTSIDE-BODY register, exact per lane in database judge mode: every
-     * test not yet one artifact is a named row; a NEW name is red (a body
-     * regressed), a STALE name is red (a leg made it one artifact — shrink the
-     * register with the reason in docs/GATES.md). The register can only shrink. */
-    private static void pinArtifactRegister(String only, List<String> ran, List<String> rows,
-            String resource) throws IOException {
-        pinArtifactRegister(only, ran, rows, resource, "outside-body",
-                "a body sends a product-owned statement outside its artifact and is not registered");
-    }
-
-    private static void pinArtifactRegister(String only, List<String> ran, List<String> rows,
-            String resource, String kind, String newMeans) throws IOException {
-        String lane = LaneHolder.LANE.rosters();
-        Set<String> registered = registerTests(resource);
-        Set<String> ranNames = new HashSet<>(ran);
-        Set<String> now = new LinkedHashSet<>();
-        for (String row : rows) {
-            now.add(row.substring(0, row.indexOf(" |||")));
-        }
-        List<String> fresh = new ArrayList<>();
-        for (String n : now) {
-            if (!registered.contains(n)) {
-                fresh.add(n);
-            }
-        }
-        List<String> stale = new ArrayList<>();
-        for (String n : registered) {
-            if (ranNames.contains(n) && !now.contains(n)) {
-                stale.add(n);
-            }
-        }
-        System.out.println("[corpus2] " + kind + " " + lane + ": " + now.size()
-                + " tests (register " + registered.size() + ")");
-        if (!fresh.isEmpty() || !stale.isEmpty()) {
-            StringBuilder sb = new StringBuilder("[" + lane + "] " + kind + " register != committed"
-                    + " (" + (only.isEmpty() ? "full run" : "scoped to '" + only + "'") + "): NEW "
-                    + fresh.size() + " (" + newMeans + "), STALE " + stale.size()
-                    + " (registered, no longer so — shrink the register). Reasons in docs/GATES.md.");
-            for (String f : fresh) {
-                sb.append("\n  NEW    ").append(f);
-            }
-            for (String s : stale) {
-                sb.append("\n  STALE  ").append(s);
-            }
-            org.junit.jupiter.api.Assertions.fail(sb.toString());
-        }
-    }
-
     /** The accepted-divergence register: {@code fqn -> {bucket, witness}}. */
-    /** The test names a register file names (its first {@code |||} column). */
-    static java.util.Set<String> registerTests(String resource) throws java.io.IOException {
-        java.util.Set<String> out = new java.util.HashSet<>();
-        try (var in = MinimalCorpusTest.class.getResourceAsStream(resource)) {
-            if (in == null) {
-                // a register is a committed file, empty when it holds nothing; a missing one is a misnamed or
-                // undeclared resource, never "no entries" (Bazel workplan P3-14)
-                throw new IllegalStateException("register missing on the classpath: " + resource);
-            }
-            for (String line : new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8)
-                    .split("\n")) {
-                if (!line.isBlank()) {
-                    out.add(line.split("\\|\\|\\|")[0].trim());
-                }
-            }
-        }
-        return out;
-    }
 
     private static java.util.Map<String, String[]> readAccepted(String resource) throws IOException {
         java.util.Map<String, String[]> out = new java.util.LinkedHashMap<>();
@@ -1226,42 +983,6 @@ public class MinimalCorpusTest {
         return out;
     }
 
-    /** P0 (homework §4h): the database-mode FAIL differential is a NAMED
-     * register per lane and direction. {@code rows} = the tests lost (or
-     * gained) now; the register must hold exactly those that RAN — a new
-     * row is a regression named here, a register row that no longer
-     * differs is a moved pin (delete it, reason in GATES.md). */
-    private static void pinDifferential(String lane, String direction, List<String> rows,
-            Set<String> ranNames, String resource) throws IOException {
-        Set<String> register = new HashSet<>(readRoster(resource));
-        List<String> unregistered = new ArrayList<>();
-        for (String r : rows) {
-            if (!register.contains(r)) {
-                unregistered.add(r);
-            }
-        }
-        Set<String> now = new HashSet<>(rows);
-        List<String> stale = new ArrayList<>();
-        for (String r : readRoster(resource)) {
-            if (ranNames.contains(r) && !now.contains(r)) {
-                stale.add(r);
-            }
-        }
-        if (!unregistered.isEmpty() || !stale.isEmpty()) {
-            StringBuilder sb = new StringBuilder("[" + lane + "] database-mode " + direction
-                    + " differential != " + resource + ": " + unregistered.size()
-                    + " new (not in the register), " + stale.size()
-                    + " stale (in the register, not " + direction + " now)."
-                    + " Every register change carries a written reason in docs/GATES.md.");
-            for (String u : unregistered) {
-                sb.append("\n  NEW    ").append(u);
-            }
-            for (String s : stale) {
-                sb.append("\n  STALE  ").append(s);
-            }
-            org.junit.jupiter.api.Assertions.fail(sb.toString());
-        }
-    }
 
     /** {@code -Drcorpus.tests}: the listed tests (a covering subset, tools/census/primitive_cover.py's output: the
      *  first tab-separated field of each line, '#' lines skipped), or null when no list is named. */
@@ -1317,10 +1038,6 @@ public class MinimalCorpusTest {
             return;
         }
         String lane = LaneHolder.LANE.rosters();
-        if ("database".equalsIgnoreCase(System.getProperty("legend.judge.mode", "host"))) {
-            writeRoster(out, lane + "-database-engine-order-register.txt", engineOrder);
-            return;
-        }
         List<String> unordered = new ArrayList<>();
         for (String key : com.legend.harness.RefereeVerify.ORD_CENSUS.keySet()) {
             if (key.startsWith(ORD_UNORDERED + " ")) {
@@ -1344,17 +1061,13 @@ public class MinimalCorpusTest {
         System.out.println("[corpus2] measured " + name + ": " + names.size());
     }
 
-    /** A roster's rows: a POLICY file from the classpath; a MEASURED one from the host pass's outputs when this is the
-     *  database pass ({@code -Drcorpus.host.measured}), else the committed copy beside the one the BUILD file names in
-     *  {@code rcorpus.committed} (ProgramPaths: a lane without its own rosters, a scoped or debug run). */
+    /** A roster's rows: a POLICY file from the classpath; a MEASURED one the committed copy beside the one the BUILD
+     *  file names in {@code rcorpus.committed} (ProgramPaths: a lane without its own rosters, a scoped or debug run). */
     private static List<String> readRoster(String resource) throws IOException {
         String text;
         if (MEASURED.contains(resource)) {
             String name = resource.substring(resource.lastIndexOf('/') + 1);
-            String host = System.getProperty("rcorpus.host.measured", "").trim();
-            java.nio.file.Path file = !host.isEmpty() && !name.contains("-database-")
-                    ? java.nio.file.Path.of(host, name)
-                    : com.legend.testing.ProgramPaths.rootOf("rcorpus.committed").resolve(name);
+            java.nio.file.Path file = com.legend.testing.ProgramPaths.rootOf("rcorpus.committed").resolve(name);
             text = Files.readString(file, StandardCharsets.UTF_8);
         } else {
             try (InputStream in = MinimalCorpusTest.class.getResourceAsStream(resource)) {
