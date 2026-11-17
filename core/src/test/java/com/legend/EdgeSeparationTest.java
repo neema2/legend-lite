@@ -321,7 +321,8 @@ class EdgeSeparationTest {
         for (String row : CompatSpellingGuardTest.REGISTER) {
             String[] p = row.split("\\|");
             String step = p[3].trim();
-            if (!step.equals("STAYS") && !step.equals("RULED") && !step.equals("HOOK-RULED")) {
+            // the register's one terminal predicate (2026-11-17, the GUARD stream: no second copy to widen)
+            if (!CompatSpellingGuardTest.TERMINAL_STEPS.contains(step)) {
                 open.add(p[0].trim() + " | " + p[1].trim());
             }
         }

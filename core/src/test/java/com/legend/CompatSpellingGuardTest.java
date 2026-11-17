@@ -118,6 +118,12 @@ class CompatSpellingGuardTest {
                       // shows who calls it and what breaks without it; added 2026-11-16 with the P2 checkpoint audit's A-M1)
             "STAYS"); // a product semantic sharing the spelling: lowering/DateFormats.java's pattern letter Z is +0000
 
+    /** The steps that keep a row out of the edge census's count: ONE predicate, read by
+     *  {@code EdgeSeparationTest.everyOpenCompatRowIsCounted} and pinned, with each terminal row beside its ruling, by
+     *  {@code TerminalRowsFrozenTest} (the GUARD stream, 2026-11-17, the edge audit's C.2: a second copy of this set
+     *  could be widened to close rows by redefinition). */
+    static final Set<String> TERMINAL_STEPS = Set.of("STAYS", "RULED", "HOOK-RULED");
+
     /**
      * Every hit standing today, "file | spelling | count | step"; the file is under {@code core/src/main/java/com/legend/}
      * (else under {@code core/src/main/}). Registered 2026-11-12 (phase D, step 1, at 3a20560f9's descendant): 178 rows.
