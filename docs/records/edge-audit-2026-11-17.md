@@ -61,6 +61,7 @@ Owners are proposed. Rulings needed are marked RULE.
 | J24 | A rules check without the constant | testexec/IsolatedRun.java:104 | E-Java (C1) |
 | J25 | A legend-pure sentence in //base, raised by product exec | base/src/main/java/com/legend/base/DataSize.java:36 | E-P5 |
 | J26 | NITs: LiteV1Api's unused import, PureV1Handler's name, Styled's dead written text, RelationTexts' style substitution | | E-P5 |
+| J27 | legend-engine's empty-cell text as a Pure body the platform ships: meta::pure::tds::TDSNull's toString(){'TDSNull'} is copied verbatim from upstream's TDS. It is B10's spelling, and it breaks the world-map rule that the platform ships declarations and no other Pure bodies. GUARD's C.6 found it (2026-11-17 19:37); no guard saw it before. Design first: the product's text for an empty cell is lite's form or a refusal by name; legend-engine's 'TDSNull' is the edge's; upstream's definition is read from the pinned sources | core/src/main/resources/com/legend/builtin/prelude.pure:5029-5036 | F |
 
 ## C. Guard holes (auditor 3): what it takes for zero to be provable
 
