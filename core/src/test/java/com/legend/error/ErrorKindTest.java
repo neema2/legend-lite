@@ -15,11 +15,11 @@ class ErrorKindTest {
     @Test
     void theErrorKindsAreThePlansRaiseKinds() {
         // (the database's own failures, DATABASE_ERROR and CONNECTION_ERROR, are no raise a statement writes: phase D's
-        // Phase 2, item 4, 2026-11-16)
+        // Phase 2, item 4, 2026-11-16; nor a load's refused file, FILE_TOO_LARGE: J25 of the edge audit, 2026-11-17)
         assertEquals(Arrays.stream(com.legend.sql.RaiseKind.values()).map(Enum::name).toList(),
-                Arrays.stream(ErrorKind.values()).filter(k -> !k.isDatabases()).map(Enum::name).toList());
+                Arrays.stream(ErrorKind.values()).filter(ErrorKind::isRaise).map(Enum::name).toList());
         for (ErrorKind k : ErrorKind.values()) {
-            if (k.isDatabases()) {
+            if (!k.isRaise()) {
                 assertEquals(java.util.List.of(), Arrays.stream(com.legend.sql.RaiseKind.values())
                         .filter(r -> r.name().equals(k.name())).toList(), k.name());
             }

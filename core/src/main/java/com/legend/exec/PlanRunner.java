@@ -99,8 +99,8 @@ public final class PlanRunner {
      *  plan did not plan. Asked only on a failure. */
     static com.legend.error.DataError declared(ExecutionPlan plan, com.legend.error.DataError e) {
         com.legend.error.ErrorKind kind = e.kind();
-        if (kind == null || kind.isDatabases()) {
-            // a user's fail, or the database's own failure: no raise of the plan's
+        if (kind == null || !kind.isRaise()) {
+            // a user's fail, the database's own failure, or a load's refused file (J25): no raise of the plan's
             return e;
         }
         String sentence = com.legend.executionplan.PlanJson.raises(plan).get(kind.name());
