@@ -37,21 +37,21 @@ input).
 
 | dialect | database types | spelled | emulated | refused | not here | written, not reached by PCT |
 |---|---|---:|---:|---:|---:|---:|
-| H2 ([functions](functions.md#h2), [aggregates](aggregates.md#h2)) | H2 | 81 | 79 | 50 | 22 | 28 |
-| Postgres ([functions](functions.md#postgres), [aggregates](aggregates.md#postgres)) | Postgres | 75 | 127 | 8 | 22 | 35 |
-| Snowflake ([functions](functions.md#snowflake), [aggregates](aggregates.md#snowflake)) | Snowflake | 94 | 110 | 6 | 22 | 38 |
-| Trino ([functions](functions.md#trino), [aggregates](aggregates.md#trino)) | Trino | 83 | 122 | 5 | 22 | 38 |
-| BigQuery ([functions](functions.md#bigquery), [aggregates](aggregates.md#bigquery)) | BigQuery | 70 | 128 | 12 | 22 | 35 |
-| Databricks ([functions](functions.md#databricks), [aggregates](aggregates.md#databricks)) | Databricks | 96 | 107 | 7 | 22 | 36 |
-| DuckDb ([functions](functions.md#duckdb), [aggregates](aggregates.md#duckdb)) | DuckDB | 146 | 64 | 0 | 22 | 44 |
-| ClickHouse ([functions](functions.md#clickhouse), [aggregates](aggregates.md#clickhouse)) | ClickHouse | 64 | 139 | 7 | 22 | 36 |
-| SQLite ([functions](functions.md#sqlite), [aggregates](aggregates.md#sqlite)) | SQLite | 57 | 146 | 7 | 22 | 38 |
-| MariaDb ([functions](functions.md#mariadb), [aggregates](aggregates.md#mariadb)) | MariaDB | 53 | 149 | 8 | 22 | 37 |
-| MySql ([functions](functions.md#mysql), [aggregates](aggregates.md#mysql)) | MySQL | 53 | 149 | 8 | 22 | 37 |
-| MongoDb ([functions](functions.md#mongodb), [aggregates](aggregates.md#mongodb)) | MongoDB | 0 | 199 | 11 | 22 | 199 |
-| EngineStyleH2 ([functions](functions.md#enginestyleh2), [aggregates](aggregates.md#enginestyleh2)) | no database type's own (it extends `AnsiSqlRenderer`) | 106 | 86 | 18 | 22 | — |
-| EngineStyleDB2 ([functions](functions.md#enginestyledb2), [aggregates](aggregates.md#enginestyledb2)) | no database type's own (it extends `EngineStyleH2`) | 108 | 83 | 19 | 22 | — |
-| EngineStyleComposite ([functions](functions.md#enginestylecomposite), [aggregates](aggregates.md#enginestylecomposite)) | no database type's own (it extends `EngineStyleDB2`) | 109 | 82 | 19 | 22 | — |
+| H2 ([functions](functions.md#h2), [aggregates](aggregates.md#h2)) | H2 | 81 | 79 | 50 | 21 | 28 |
+| Postgres ([functions](functions.md#postgres), [aggregates](aggregates.md#postgres)) | Postgres | 75 | 127 | 8 | 21 | 35 |
+| Snowflake ([functions](functions.md#snowflake), [aggregates](aggregates.md#snowflake)) | Snowflake | 94 | 110 | 6 | 21 | 38 |
+| Trino ([functions](functions.md#trino), [aggregates](aggregates.md#trino)) | Trino | 83 | 122 | 5 | 21 | 38 |
+| BigQuery ([functions](functions.md#bigquery), [aggregates](aggregates.md#bigquery)) | BigQuery | 70 | 128 | 12 | 21 | 35 |
+| Databricks ([functions](functions.md#databricks), [aggregates](aggregates.md#databricks)) | Databricks | 96 | 107 | 7 | 21 | 36 |
+| DuckDb ([functions](functions.md#duckdb), [aggregates](aggregates.md#duckdb)) | DuckDB | 146 | 64 | 0 | 21 | 44 |
+| ClickHouse ([functions](functions.md#clickhouse), [aggregates](aggregates.md#clickhouse)) | ClickHouse | 64 | 139 | 7 | 21 | 36 |
+| SQLite ([functions](functions.md#sqlite), [aggregates](aggregates.md#sqlite)) | SQLite | 57 | 146 | 7 | 21 | 38 |
+| MariaDb ([functions](functions.md#mariadb), [aggregates](aggregates.md#mariadb)) | MariaDB | 53 | 149 | 8 | 21 | 37 |
+| MySql ([functions](functions.md#mysql), [aggregates](aggregates.md#mysql)) | MySQL | 53 | 149 | 8 | 21 | 37 |
+| MongoDb ([functions](functions.md#mongodb), [aggregates](aggregates.md#mongodb)) | MongoDB | 0 | 199 | 11 | 21 | 199 |
+| EngineStyleH2 ([functions](functions.md#enginestyleh2), [aggregates](aggregates.md#enginestyleh2)) | no database type's own (it extends `AnsiSqlRenderer`) | 106 | 86 | 18 | 21 | — |
+| EngineStyleDB2 ([functions](functions.md#enginestyledb2), [aggregates](aggregates.md#enginestyledb2)) | no database type's own (it extends `EngineStyleH2`) | 108 | 83 | 19 | 21 | — |
+| EngineStyleComposite ([functions](functions.md#enginestylecomposite), [aggregates](aggregates.md#enginestylecomposite)) | no database type's own (it extends `EngineStyleDB2`) | 109 | 82 | 19 | 21 | — |
 
 ## Functions
 
@@ -243,7 +243,6 @@ input).
 | `INSTANCE_TEXT` | – | – | – | – | – | – | – | – | – | – | – | – | – | – | – |
 | `RELATION_TEXT` | – | – | – | – | – | – | – | – | – | – | – | – | – | – | – |
 | `TEXT_FORMS` | – | – | – | – | – | – | – | – | – | – | – | – | – | – | – |
-| `TRACE_TEXT` | – | – | – | – | – | – | – | – | – | – | – | – | – | – | – |
 | `VARIANT_ELEMENTS` | R | E | E | E | E | E | E | E | E | E | E | E· | R | R | R |
 | `VARIANT_GET` | E | E | E | E | E | E | E | E | E | E | E | E· | R | R | R |
 | `JSON_TYPE` | E | E | E | E | E | E | S | E | E | E | E | E· | S | S | S |
