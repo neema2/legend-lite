@@ -94,6 +94,9 @@ public final class PureMessages {
             case TEXT_NOT_INTEGER -> SqlExpr.Call.of(com.legend.sql.SqlFn.CONCAT,
                     new SqlExpr.StringLit("Could not convert string '"), r.operands().get(0),
                     new SqlExpr.StringLit("' to INT64"));
+            case TEXT_NOT_FLOAT -> SqlExpr.Call.of(com.legend.sql.SqlFn.CONCAT,
+                    new SqlExpr.StringLit("Could not convert string '"), r.operands().get(0),
+                    new SqlExpr.StringLit("' to DOUBLE"));
             case TEXT_NOT_DATE -> SqlExpr.Call.of(com.legend.sql.SqlFn.CONCAT, new SqlExpr.StringLit("Could not parse '"),
                     r.operands().get(0), new SqlExpr.StringLit("' as a date"));
         };
@@ -178,6 +181,7 @@ public final class PureMessages {
             case MAP_KEY_NULL -> "Map keys can not be NULL.";
             case MAP_KEYS_NOT_UNIQUE -> "Map keys must be unique.";
             case TEXT_NOT_INTEGER -> join("Could not convert string '", text(o, 0), "' to INT64");
+            case TEXT_NOT_FLOAT -> join("Could not convert string '", text(o, 0), "' to DOUBLE");
             case TEXT_NOT_DATE -> join("Could not parse '", text(o, 0), "' as a date");
         };
     }
