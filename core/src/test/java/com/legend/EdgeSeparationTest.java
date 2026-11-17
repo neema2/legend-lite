@@ -63,7 +63,7 @@ class EdgeSeparationTest {
             Map.entry("com.legend.testplan.PlanStyleFacets", "C4"));
 
     /** The SqlFn members only the edge spells (census B8). */
-    static final Set<String> EDGE_ONLY_SQLFN = Set.of("FLOAT_PRINT", "DATETIME_PRINT", "INSTANCE_TEXT",
+    static final Set<String> EDGE_ONLY_SQLFN = Set.of("FLOAT_PRINT", "DATETIME_PRINT",
             "RELATION_TEXT", "TEXT_FORMS");
 
     /** The referee and the appeals (census C2; G6: the edge's alone). */
@@ -82,12 +82,13 @@ class EdgeSeparationTest {
             Map.entry("com.legend.lowering.LiteralSpelling -> SqlFn.DATETIME_PRINT", "B8 2026-11-17"),
             // B17 (2026-11-17): the relation-text facet the edge answers, asked by the lowering, wired by the planner
             Map.entry("com.legend.lowering.Lowerer -> com.legend.lowering.RelationTexts", "B17 2026-11-17"),
+            // a cell's text read under the edge's answers (B8's Styled seam, 2026-11-17): the forwarder builds the style
+            Map.entry("com.legend.lowering.RelationTexts -> com.legend.lowering.PureOnlyTexts", "B17 2026-11-17"),
             Map.entry("com.legend.lowering.RelationTexts -> (stands in a product package)", "B17 2026-11-17"),
             Map.entry("com.legend.planner.PlanEnv -> com.legend.lowering.RelationTexts", "B17 2026-11-17"),
             Map.entry("com.legend.lowering.Repr -> (stands in a product package)", "B12 2026-11-17"),
             Map.entry("com.legend.lowering.Repr -> SqlFn.FLOAT_PRINT", "C5 2026-11-17"),
             Map.entry("com.legend.lowering.Scalars -> SqlFn.DATETIME_PRINT", "B8 2026-11-17"),
-            Map.entry("com.legend.lowering.Scalars -> SqlFn.INSTANCE_TEXT", "B8 2026-11-17"),
             Map.entry("com.legend.lowering.Scalars -> SqlFn.TEXT_FORMS", "B8 2026-11-17"),
             Map.entry("com.legend.lowering.Scalars -> com.legend.lowering.Repr", "B12 2026-11-17"),
             Map.entry("com.legend.lowering.TaggedLists -> SqlFn.TEXT_FORMS", "B8 2026-11-17"),
@@ -197,6 +198,8 @@ class EdgeSeparationTest {
             Map.entry("com.legend.lowering.PureOnlyTexts -> (stands in a product package)", "B8 HOOK-RULED 2026-11-17"),
             Map.entry("com.legend.lowering.Lowerer -> com.legend.lowering.PureOnlyTexts", "B8 HOOK-RULED 2026-11-17"),
             Map.entry("com.legend.lowering.Scalars -> com.legend.lowering.PureOnlyTexts", "B8 HOOK-RULED 2026-11-17"),
+            // the style's text facets as the lowering's static helpers read them (B8, the Styled seam, 2026-11-17)
+            Map.entry("com.legend.lowering.Styled -> com.legend.lowering.PureOnlyTexts", "B8 HOOK-RULED 2026-11-17"),
             Map.entry("com.legend.planner.PlanEnv -> com.legend.lowering.PureOnlyTexts", "B8 HOOK-RULED 2026-11-17"),
             Map.entry("com.legend.testplan.PlanStyleFacets -> com.legend.lowering.PureOnlyTexts",
                     "B8 HOOK-RULED 2026-11-17"));
@@ -433,7 +436,7 @@ class EdgeSeparationTest {
                 com.legend.planner.PlantedCompatReach.class);
         Set<String> code = found(planted, n -> true);
         for (String want : List.of("com.legend.planner.PlantedCompatReach -> com.legend.edge.Presenter",
-                "com.legend.planner.PlantedCompatReach -> SqlFn.INSTANCE_TEXT",
+                "com.legend.planner.PlantedCompatReach -> SqlFn.TEXT_FORMS",
                 "com.legend.planner.PlantedCompatReach -> JudgingRules.COMPILED_PURE_COMPAT")) {
             assertFalse(!code.contains(want), "the CODE and TEST SIDE guards bite: " + want + " in " + code);
         }

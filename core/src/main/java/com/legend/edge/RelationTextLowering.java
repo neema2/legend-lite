@@ -521,7 +521,7 @@ final class RelationTextLowering implements RelationTexts {
             rendered = cat(new SqlExpr.StringLit("'"),
                     SqlExpr.Call.of(SqlFn.REPLACE,
                             SqlExpr.Call.of(SqlFn.REPLACE,
-                                    RelationTexts.pureToString(t, c),
+                                    RelationTexts.pureToString(EdgePureOnlyTexts.INSTANCE, t, c),
                                     new SqlExpr.StringLit("\\"),
                                     new SqlExpr.StringLit("\\\\")),
                             new SqlExpr.StringLit("'"),
@@ -570,10 +570,10 @@ final class RelationTextLowering implements RelationTexts {
             // witness testMax_Floats/Numbers_Relation_Aggregate).
             // INTEGER slots (an all-int Number column) and the VARCHAR
             // mixed-identity carrier keep their own spellings.
-            rendered = RelationTexts.pureToString(Type.Primitive.FLOAT,
+            rendered = RelationTexts.pureToString(EdgePureOnlyTexts.INSTANCE, Type.Primitive.FLOAT,
                     new SqlExpr.Cast(c, SqlType.Scalar.DOUBLE, SqlExpr.Reason.PRINT));
         } else {
-            rendered = RelationTexts.pureToString(t, c);
+            rendered = RelationTexts.pureToString(EdgePureOnlyTexts.INSTANCE, t, c);
         }
         return new SqlExpr.Case(List.of(new SqlExpr.Case.When(
                 SqlExpr.Call.of(SqlFn.IS_NULL, c),
@@ -698,7 +698,7 @@ final class RelationTextLowering implements RelationTexts {
             // 'yyyy-MM-dd HH:mm:ss', the fraction dropped: docs/OUTPUT_LAYER_DESIGN_2026_10_10.md §3, gap 4)
             rendered = dateTimeText(c);
         } else {
-            rendered = escapeCsv(RelationTexts.pureToString(t, c));
+            rendered = escapeCsv(RelationTexts.pureToString(EdgePureOnlyTexts.INSTANCE, t, c));
         }
         return new SqlExpr.Case(List.of(new SqlExpr.Case.When(
                 SqlExpr.Call.of(SqlFn.IS_NULL, c),

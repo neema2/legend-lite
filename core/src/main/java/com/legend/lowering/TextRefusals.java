@@ -21,6 +21,11 @@ final class TextRefusals {
         return refused("format's %0" + width + "d", "the product's format writes %s, %d, %f and %t{}");
     }
 
+    /** An instance's {@code toString} (the user's ruling of 2026-11-10: objects are refused, pointing to graph fetch). */
+    static ModelException instanceText() {
+        return refused("toString of an instance", "the product writes an object by graph fetch");
+    }
+
     /** A user's {@code toRepresentation}. */
     static ModelException representation() {
         return refused("toRepresentation", "the product writes a value's text by toString and format's %s, %d, %f and"

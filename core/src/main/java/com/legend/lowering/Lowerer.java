@@ -257,24 +257,21 @@ public final class Lowerer {
         return this;
     }
 
-    /** The texts only legend-pure writes ({@link PureOnlyTexts}, the separation census's B8 (i), 2026-11-17): the plan
-     *  style's facet, asked only when a native's rule meets one, with that call's own refusal. A Lowerer no planner
-     *  handed a style refuses each the same way. */
+    /** The plan style's text facets (the separation census's B8, 2026-11-17): the texts only legend-pure writes
+     *  ({@link PureOnlyTexts}), asked only when a native's rule meets one, with that call's own refusal. A Lowerer no
+     *  planner handed a style refuses each the same way, as the product's style does. */
     private java.util.function.Function<java.util.function.Supplier<? extends RuntimeException>, PureOnlyTexts>
-            pureOnlyTexts = refusal -> {
-                throw refusal.get();
-            };
+            pureOnlyTexts = Styled.PRODUCT.pureOnly();
 
-    /** The plan style's pure-only-text facet, {@code style} its request ({@code (refusal) -> style.facet(..)}). */
-    public Lowerer withPureOnlyTexts(
-            java.util.function.Function<java.util.function.Supplier<? extends RuntimeException>, PureOnlyTexts> style) {
-        this.pureOnlyTexts = style;
+    /** The planner's style's text facets ({@code PlanEnv.styled}). */
+    public Lowerer withStyled(Styled style) {
+        this.pureOnlyTexts = style.pureOnly();
         return this;
     }
 
-    /** The style's text facets a native's rule reads ({@link Scalars.Styled}). */
-    private Scalars.Styled styled() {
-        return new Scalars.Styled(pureOnlyTexts);
+    /** The style's text facets a native's rule reads ({@link Styled}). */
+    private Styled styled() {
+        return new Styled(pureOnlyTexts);
     }
 
     /** The plan style's relation-text facet, {@code style} its request ({@code (refusal) -> style.facet(..)}). */

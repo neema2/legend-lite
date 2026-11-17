@@ -51,8 +51,8 @@ public interface RelationTexts {
     // ---- the lowering's helpers the edge's composition reads (each one call) ----------------------------------------
 
     /** The product's text of a value of type {@code t} ({@code Scalars.pureToString}). */
-    static SqlExpr pureToString(Type t, SqlExpr x) {
-        return Scalars.pureToString(t, x);
+    static SqlExpr pureToString(PureOnlyTexts texts, Type t, SqlExpr x) {
+        return Scalars.pureToString(new Styled(refusal -> texts), t, x);
     }
 
     /** {@code LiteralSpelling.dateTimeText}. */

@@ -188,9 +188,6 @@ final class PurePrintForms extends com.legend.sql.SqlRewriter {
         if (e instanceof SqlExpr.Call c && c.fn() == SqlFn.RELATION_TEXT) {
             return c.args().get(0);
         }
-        if (e instanceof SqlExpr.Call c && c.fn() == SqlFn.INSTANCE_TEXT) {
-            return SqlExpr.Call.of(SqlFn.CONCAT, new SqlExpr.StringLit("@_"), expr(c.args().get(0)));
-        }
         return super.expr(e);
     }
 }
