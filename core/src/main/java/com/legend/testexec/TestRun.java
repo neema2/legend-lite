@@ -201,10 +201,7 @@ final class TestRun {
                         throw new IllegalStateException("a host batch row's first cell is its side's index: "
                                 + (row.isEmpty() ? "no cell" : row.get(0)));
                     }
-                    if (row.size() > 1 && row.get(1) != null) {
-                        // a row of its side's (a side with no row answers its index once, its order NULL)
-                        rows.computeIfAbsent(index.intValue(), i -> new ArrayList<>()).add(row);
-                    }
+                    rows.computeIfAbsent(index.intValue(), i -> new ArrayList<>()).add(row);
                 }
             } catch (DataError e) {
                 for (TestPlan.Verdict v : group.verdicts()) {
