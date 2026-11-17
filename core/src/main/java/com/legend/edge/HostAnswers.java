@@ -15,7 +15,7 @@ import java.util.List;
 import java.util.Map;
 
 import static com.legend.edge.ExecuteInputs.boundParameters;
-import static com.legend.server.LiteV1Api.error;
+import static com.legend.edge.EngineEnvelope.error;
 import static com.legend.server.LiteV1Api.head;
 import static com.legend.server.LiteV1Api.modelText;
 import static com.legend.server.LiteV1Api.request;
@@ -34,7 +34,7 @@ public final class HostAnswers {
      *  A-M2, 2026-11-16: until then lite's, LiteV1Api.answer's default). */
     private static com.legend.server.LiteV1Api.Answer answer(int status, @com.legend.base.Nullable String errorType,
             java.util.function.Supplier<String> call) {
-        return com.legend.server.LiteV1Api.answer(status, errorType, call, PureMessages::compile, PureMessages::typeName,
+        return EngineEnvelope.answer(status, errorType, call, PureMessages::compile, PureMessages::typeName,
                 PureMessages::uncaught);
     }
 

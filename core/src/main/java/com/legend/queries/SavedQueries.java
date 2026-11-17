@@ -54,7 +54,7 @@ public final class SavedQueries {
             VERSION_NOT_FOUND("the saved query '%2$s' has no version '%1$s'"),
             /** A path the store does not serve: the path under the store, its mount's (B7, the orchestrator's ruling (3)
              *  of 2026-11-17: lite's words for lite's mount; legend-engine's path and words the edge's, StoreWords). */
-            NO_SUCH_ROUTE("no such legend-lite API: /api/lite/v1/query%1$s");
+            NO_SUCH_ROUTE("no such legend-lite API: /api/lite/v1/queries%1$s");
 
             private final String sentence;
 

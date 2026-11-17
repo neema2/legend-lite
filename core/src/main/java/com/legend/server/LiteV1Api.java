@@ -21,18 +21,18 @@ import java.util.Map;
 import java.util.function.Supplier;
 
 /**
- * legend-lite's OWN API (phase D's D1.0b, the orchestrator's ruling of 2026-11-12: lite's own routes stay the
- * product's, legend-engine's {@code pure/v1} routes are the edge's, {@code com.legend.edge.PureV1Routes}): the
- * {@code /api/lite/v1} routes -- every compile error ({@link #compileEveryError}; the user's decision of 2026-10-10) and
- * the model routes ({@link #modelChanges}: DataCube's Create a Class…, an Association…, a Data Space…) -- and the hosts'
- * plan halves, which the tab and Python call through the compiler's boundary ({@link #jsonPlan}, {@link #arrowPlan},
- * {@link #jsonAnswer}, {@link #arrowAnswer}). Its answer, request and error shapes ({@link Answer}, {@link #answer},
- * {@link #error}: the same JSON as upstream's, owned by lite) and the host's runner ({@link Runner}) are the kit both
- * route modules use; the edge's depends on this one, never the reverse (G5). Each call is a pure function of its
- * request -- text in, a status and JSON out -- so it is tested without HTTP.
+ * legend-lite's OWN API, v1 (lite's API v1 spec, docs/records/lite-api-v1-2026-11-17.md; the user's go of 2026-11-17):
+ * the server binding's router, one POST per operation at {@code /api/lite/v1/<operation>} ({@link #route}) -- the
+ * model's and the query's operations ({@link LiteV1Planning}), the model actions ({@link ModelChanges}: DataCube's
+ * Create a Class…, an Association…, a Data Space…) and {@code #TS}'s two ({@link #tsItemOf}, {@link #tsStatement}),
+ * every binding's one road ({@link #operate}) --
+ * and lite's ONE error shape, {@code {kind, message, where?, raise?}} ({@link Kind}, {@link Refusal}, {@link #refusal}:
+ * the classifier every binding reads). legend-engine's {@code pure/v1} routes and their envelope are the edge's
+ * ({@code com.legend.edge.PureV1Routes}, {@code com.legend.edge.EngineEnvelope}), which depends on this kit -- its
+ * {@link Answer}, {@link #request}, {@link Runner} and {@link Models} -- never the reverse (G5). Each call is a pure
+ * function of its request -- text in, a status and JSON out -- so it is tested without HTTP.
  *
- * <p>THE PLAN SIDE ({@code //core:pure_v1}): no database and no driver, so the compiler's boundary answers with this
- * same code.
+ * <p>THE PLAN SIDE ({@code //core:lite_v1}): no database and no driver; a query's run is the host's, handed in.
  */
 public final class LiteV1Api {
 
@@ -112,33 +112,88 @@ public final class LiteV1Api {
         };
     }
 
-    /**
-     * One call by its path ({@code /api/pure/v1/...}) and raw query string, as both of legend-lite's hosts
-     * route it: its server ({@code LegendHttpServer}) and the compiler's boundary. An execute runs through
-     * {@code runner}; a path this API does not serve is answered 404 in lite's error shape ({@link #error}).
-     */
-    public static Answer route(String path, @com.legend.base.Nullable String rawQuery, String body, Runner runner) {
-        return route(path, rawQuery, body, runner, Models.COMPILED);
+    /** How a binding plans a query on a runtime: the plan its own run runs -- the server's
+     *  {@code TypedQuery::projectPlan} (its project databases), the tab's {@code TypedQuery::executionPlan}. */
+    @FunctionalInterface
+    public interface Plans {
+        com.legend.executionplan.ExecutionPlan plan(com.legend.TypedQuery query, String runtime);
     }
 
-    /** {@link #route(String, String, String, Runner)}, a model given as text compiled by {@code models}. */
-    public static Answer route(String path, @com.legend.base.Nullable String rawQuery, String body, Runner runner,
-            Models models) {
+    /**
+     * ONE OPERATION OF LITE'S API BY ITS PATH ({@code /api/lite/v1/<operation>}, lite's API v1 spec §2; the user's go of
+     * 2026-11-17), as the server routes it: {@code query/run} through {@code runner} ({@link LiteV1Planning#queryRun}),
+     * every other operation through {@link #operate}, its failure answered as lite's refusal ({@link #answer}). The
+     * server compiles a model by {@code models} and plans on its project databases ({@code TypedQuery::projectPlan}).
+     */
+    public static Answer route(String path, String body, LiteV1Planning.Runner runner, Models models) {
         return switch (path) {
-            case "/api/lite/v1/compilation/compile" -> compileEveryError(body);
-            case "/api/lite/v1/grammar/jsonToTs/lambda" -> jsonToTsLambda(body, models);
-            case "/api/lite/v1/grammar/tsItem" -> tsItem(body);
-            case "/api/lite/v1/model/createClass" -> modelChanges(body, ModelChanges::createClass);
-            case "/api/lite/v1/model/createAssociation" -> modelChanges(body, ModelChanges::createAssociation);
-            case "/api/lite/v1/model/createDataSpace" -> modelChanges(body, ModelChanges::createDataSpace);
-            case LiteV1Planning.MODEL_ELEMENTS, LiteV1Planning.PARSE_LAMBDA, LiteV1Planning.PRINT_LAMBDA, LiteV1Planning.LAMBDA_RELATION_TYPE -> LiteV1Planning.route(path, body, models);
-            // every other path, in lite's own words (B7, the orchestrator's ruling (3) of 2026-11-17: the product names
-            // nothing engine-shaped, not even its paths' prefix; with the edge mounted, the edge serves legend-engine's)
-            default -> error(404, null, "no such legend-lite API: " + path);
+            case "/api/lite/v1/query/run" -> LiteV1Planning.queryRun(body, runner, models);
+            default -> answer(() -> operate(path, body, models, com.legend.TypedQuery::projectPlan));
         };
     }
 
+    /**
+     * THE ONE ROAD OF EVERY BINDING (spec §5: each binding a thin layer over the same product operation): an operation
+     * by its path, its request's JSON in, its answer's JSON out, or the failure {@link #refusal} classifies -- the
+     * server's route ({@link #route}) and the browser's exports (planner.Boundary, with its held models and
+     * {@code TypedQuery::executionPlan}) call this one method. Each request is closed ({@link #read}); a model given as
+     * text is compiled by {@code models}; a query is planned by {@code plans}. A path that names no operation is refused
+     * by name, kind {@code request}; {@code query/run} is a host's (it runs), never this. The paths are written out, one
+     * case each, as the server's surface census reads them ({@code PlannerSurfaceTest}).
+     */
+    public static String operate(String path, String request, Models models, Plans plans) {
+        String body = request;
+        return switch (path) {
+            case "/api/lite/v1/model/check" -> {
+                Json.Obj in = read(body, "a model/check request", java.util.Set.of(), "model");
+                yield LiteV1Planning.modelCheck(text(in, "model"));
+            }
+            case "/api/lite/v1/model/elements" -> {
+                Json.Obj in = read(body, "a model/elements request", java.util.Set.of(), "model");
+                yield LiteV1Planning.modelElements(text(in, "model"));
+            }
+            case "/api/lite/v1/query/parse" -> {
+                Json.Obj in = read(body, "a query/parse request", java.util.Set.of(), "text");
+                yield LiteV1Planning.queryParse(text(in, "text"));
+            }
+            case "/api/lite/v1/query/print" -> {
+                Json.Obj in = read(body, "a query/print request", java.util.Set.of("style"), "query");
+                yield LiteV1Planning.queryPrint(object(in, "query"), in.has("style") ? text(in, "style") : "pretty");
+            }
+            case "/api/lite/v1/query/type" -> {
+                Json.Obj in = read(body, "a query/type request", java.util.Set.of(), "model", "query");
+                LambdaFunction query = ProtocolReader.lambda(object(in, "query"));
+                yield models.with(text(in, "model"), ctx -> LiteV1Planning.queryType(ctx, query));
+            }
+            case "/api/lite/v1/query/plan" -> {
+                Json.Obj in = read(body, "a query/plan request", java.util.Set.of(), "model", "query", "runtime");
+                LambdaFunction query = ProtocolReader.lambda(object(in, "query"));
+                String runtime = text(in, "runtime");
+                yield models.with(text(in, "model"), ctx -> LiteV1Planning.queryPlan(ctx, query, runtime, plans));
+            }
+            case "/api/lite/v1/model/createClass" ->
+                    Json.toCompact(ModelChanges.createClass(requestObject(body, "a model action's request")));
+            case "/api/lite/v1/model/createAssociation" ->
+                    Json.toCompact(ModelChanges.createAssociation(requestObject(body, "a model action's request")));
+            case "/api/lite/v1/model/createDataSpace" ->
+                    Json.toCompact(ModelChanges.createDataSpace(requestObject(body, "a model action's request")));
+            case "/api/lite/v1/ts/item" -> {
+                Json.Obj in = read(body, "a ts/item request", java.util.Set.of(), "text");
+                yield tsItemOf(text(in, "text"));
+            }
+            case "/api/lite/v1/ts/statement" -> {
+                Json.Obj in = read(body, "a ts/statement request", java.util.Set.of(), "model", "query");
+                LambdaFunction query = ProtocolReader.lambda(object(in, "query"));
+                yield models.with(text(in, "model"), ctx -> tsStatement(ctx, query));
+            }
+            // every other path, in lite's own words (B7, the orchestrator's ruling (3) of 2026-11-17: the product names
+            // nothing engine-shaped, not even its paths' prefix; with the edge mounted, the edge serves legend-engine's)
+            default -> throw new MalformedRequest("no such legend-lite API: " + path);
+        };
+    }
 
+    /** A request body's JSON object, else an {@code IllegalArgumentException}: the edge's reading of legend-engine's
+     *  requests (its envelope names the exception, byte for byte); lite's own read through {@link #read}. */
     public static Json.Obj request(String body) {
         Json.Node n = Json.parse(body, REQUEST);
         if (n instanceof Json.Obj o) {
@@ -147,47 +202,21 @@ public final class LiteV1Api {
         throw new IllegalArgumentException("the request body is not a JSON object");
     }
 
-    /**
-     * legend-lite's own {@code /api/lite/v1/compilation/compile} (the user's decision, 2026-10-10; legend-engine has
-     * no such route, so a client that may be talking to it asks this first and, answered 404, asks
-     * {@code com.legend.edge.PureV1Routes#compile}): the model compiled as {@code com.legend.edge.PureV1Routes#compile} compiles it, answered with EVERY error, 200 --
-     * {@code {"errors":[{"message":...}, ...]}}, the list empty when it compiles ({@code Compiler.compileErrors}: the
-     * first element error alone, else every body's). Each error is an object, so where it is can be added beside its
-     * message later (leg 6b) without changing the shape. A request that cannot be read, or a failure that is not the
-     * model's, is answered as {@code com.legend.edge.PureV1Routes#compile} answers it.
-     */
-    public static Answer compileEveryError(String body) {
-        return answer(400, RefusalKind.COMPILE.text(), () -> {
-            List<Map<String, Object>> errors = new ArrayList<>();
-            for (String message : ModelInput.of(request(body)).compileErrors()) {
-                errors.add(Map.of("message", message));
-            }
-            return Json.toCompact(Map.of("errors", errors));
-        });
+    /** {@code body} as lite's request, a JSON object, else refused by name, kind {@code request}. */
+    static Json.Obj requestObject(String body, String what) {
+        try {
+            return request(body);
+        } catch (IllegalArgumentException e) {
+            throw new MalformedRequest(what + " is not a JSON object: " + e.getMessage(), e);
+        }
     }
 
-    /**
-     * {@code /api/lite/v1/grammar/jsonToTs/lambda} (D12, Show #TS; upstream has no #TS): {@code {model, lambda}}, a
-     * query of {@code #TS} over grids -- the lambda's protocol JSON, each grid bound by {@code let} and the island
-     * reading it -- as the one statement a person would write, each grid a flat source named by WITH ({@link TsShow}):
-     * {@code {"statement": text}}, or {@code {"refused": why}} where a grid's relation has no flat form yet. The model
-     * is the query's, as {@link #lambdaRelationType} reads one: its compiler answers the type a calculated column's
-     * {@code +} reads (A6, 2026-11-03).
-     */
-    public static Answer jsonToTsLambda(String body, Models models) {
-        return answer(400, RefusalKind.COMPILE.text(), () -> {
-            Json.Obj request = request(body);
-            // lite's own route (upstream has no #TS): closed, a key it does not read refused by name (the final audit of
-            // 9af16fbe58's J4, 2026-11-14); its model is upstream's PureModelContext, read as upstream reads it
-            ModelChanges.only(request, "a jsonToTs/lambda request", "model", "lambda");
-            ModelInput model = ModelInput.of(request.getObj("model"));
-            LambdaFunction lambda = ProtocolReader.lambda(request.getObj("lambda"));
-            return model.with(models, ctx -> tsStatement(ctx, lambda));
-        });
-    }
-
-    /** {@link #jsonToTsLambda}'s answer over a model compiled ({@code {"statement": text}} or {@code {"refused": why}}):
-     *  the route's own Java, which the tab's export asks too (planner.Boundary.jsonToTs; the edge audit's H2, 2026-11-17). */
+    /** {@code ts/statement}'s answer over a model compiled ({@code {"statement": text}} or {@code {"refused": why}}; D12,
+     *  Show #TS; upstream has no #TS): a query of {@code #TS} over grids -- the lambda's protocol JSON, each grid bound
+     *  by {@code let} and the island reading it -- as the one statement a person would write, each grid a flat source
+     *  named by WITH ({@link com.legend.protocol.ts.TsShow}), refused where a grid's relation has no flat form yet. The
+     *  model's compiler answers the type a calculated column's {@code +} reads (A6, 2026-11-03). The route's own Java,
+     *  which the tab's export asks too (planner.Boundary.jsonToTs; the edge audit's H2, 2026-11-17). */
     public static String tsStatement(com.legend.compiler.element.ModelContext ctx, LambdaFunction lambda) {
         // the island's text read through the parse door, which asks the run's wall (C5-J's last round, 2026-11-15)
         com.legend.protocol.ts.TsShow.Shown shown = com.legend.protocol.ts.TsShow.of(
@@ -196,24 +225,12 @@ public final class LiteV1Api {
                 : Map.of("refused", java.util.Objects.requireNonNull(shown.refused())));
     }
 
-    /**
-     * {@code /api/lite/v1/grammar/tsItem} (A3 step 2, docs/TS_A3_ONE_READER_PLAN_2026_11_03.md; upstream has no #TS):
-     * {@code {text}}, one #TS item as a formula box holds a series, read by core's parser -- the one reader
-     * ({@link com.legend.protocol.ts.TsParser#item}, through the parse door {@code door.Parse.tsItem}):
-     * {@code {"text": canonical, "item": {alias, expr}}}, the item's tree as data ({@link TsTree}), or
-     * {@code {"error": {message, line, column}}} where the text is no item. An error is the box's answer, never a failed request: 200 either way.
-     */
-    public static Answer tsItem(String body) {
-        return answer(400, RefusalKind.COMPILE.text(), () -> {
-            Json.Obj request = request(body);
-            // lite's own route (upstream has no #TS): closed (the final audit of 9af16fbe58's J4, 2026-11-14)
-            ModelChanges.only(request, "a tsItem request", "text");
-            return tsItemOf(request.getString("text"));
-        });
-    }
-
-    /** {@link #tsItem(String)}'s answer for one item's {@code text}: the route's own Java, which the tab's export asks
-     *  too (planner.Boundary.tsItem; the edge audit's H2, 2026-11-17). */
+    /** {@code ts/item}'s answer for one item's {@code text} (A3 step 2, docs/TS_A3_ONE_READER_PLAN_2026_11_03.md;
+     *  upstream has no #TS): one #TS item as a formula box holds a series, read by core's parser -- the one reader
+     *  ({@link com.legend.protocol.ts.TsParser#item}, through the parse door {@code door.Parse.tsItem}):
+     *  {@code {"text": canonical, "item": {alias, expr}}}, the item's tree as data ({@link TsTree}), or
+     *  {@code {"error": {message, line, column}}} where the text is no item -- the box's answer, never a failed
+     *  request. The route's own Java, which the tab's export asks too (planner.Boundary.tsItem; the edge audit's H2). */
     public static String tsItemOf(String text) {
         Map<String, Object> out = new LinkedHashMap<>();
         try {
@@ -249,26 +266,6 @@ public final class LiteV1Api {
             }
             throw new IllegalStateException("the relation has no column " + column);
         };
-    }
-
-    /**
-     * legend-lite's own model routes, {@code /api/lite/v1/model/createClass}, {@code createAssociation} and
-     * {@code createDataSpace} (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §15.6a, the user's ruling of 2026-10-11: named
-     * after Legend's actions; upstream has no HTTP route that does this): each one call to the model's writer
-     * ({@link ModelChanges}), atomic, answered as the files to write in the SDLC's own change shape. The project and
-     * each class's source are model contexts, read as {@code com.legend.edge.PureV1Routes#compile} reads one; what cannot be made is answered as a
-     * model that does not compile is, 400 COMPILATION.
-     */
-    public static Answer modelChanges(String body, java.util.function.Function<Json.Obj, Map<String, Object>> make) {
-        return answer(400, RefusalKind.COMPILE.text(), () -> Json.toCompact(make.apply(request(body))));
-    }
-
-    /**
-     * A host's refusal of a call it could not finish -- its database refusing the SQL, say -- answered as
-     * {@link #answer} answers a database's refusal: 500, lite's error shape ({@link #error}), no {@code errorType}.
-     */
-    public static Answer refused(String message) {
-        return error(500, null, message);
     }
 
     /** The first 200 characters of {@code text}, for a refusal that shows what it read. */
@@ -314,122 +311,185 @@ public final class LiteV1Api {
 
 
     /**
-     * A call's JSON, or its failure in lite's error shape (the JSON legend-engine's clients read too), with the status
-     * for each kind (measured against 4.145.0, 2026-09-27):
-     * <ul>
-     *   <li>the text does not parse or compile, or the construct is not implemented:
-     *       {@code status} with {@code errorType} (grammar and lambdaRelationType answer
-     *       400, generatePlan and execute 500);</li>
-     *   <li>a malformed request, or the database refusing: 500, no {@code errorType}, the
-     *       message naming the exception;</li>
-     *   <li>anything else is a BUG: logged whole, answered 500 the same way -- never a
-     *       dropped connection.</li>
-     * </ul>
+     * LITE'S ERROR KINDS (lite's API v1 spec §3, the audit's J18, 2026-11-17): every refusal, on every binding, is one of
+     * these, written {@code {kind, message, where?, raise?}} ({@link Refusal}). Over HTTP the status follows the kind:
+     * 400 for parse, compile, unsupported, request and parameters; 422 for data; 500 for internal. There is no
+     * {@code PARSER}/{@code COMPILATION}, no {@code code: -1}, no {@code status: "error"} and no {@code errorType} in the
+     * product: legend-engine's envelope is the edge's ({@code com.legend.edge.EngineEnvelope}).
      */
-    public static Answer answer(int status, @com.legend.base.Nullable String errorType, Supplier<String> call) {
-        return answer(status, errorType, call, e -> String.valueOf(e.getMessage()));
+    public enum Kind {
+        /** The text does not parse. */
+        PARSE(400),
+        /** The model or the query does not type or compile. */
+        COMPILE(400),
+        /** A construct lite refuses by name (not yet, or by a ruling). */
+        UNSUPPORTED(400),
+        /** A run's raise: division by zero, an index out of bounds, ... (its kind in {@link Refusal#raise}). */
+        DATA(422),
+        /** A run's parameter values: one missing, or one its declared type does not take (the caller's values). */
+        PARAMETERS(400),
+        /** The request itself is malformed: a key it does not read or lacks, a value of the wrong kind. */
+        REQUEST(400),
+        /** Anything else: a defect, said as one. */
+        INTERNAL(500);
+
+        private final int status;
+
+        Kind(int status) {
+            this.status = status;
+        }
+
+        /** The kind as every binding writes it: {@code parse}, {@code compile}, ... */
+        public String wire() {
+            return name().toLowerCase(java.util.Locale.ROOT);
+        }
+
+        /** The HTTP status a refusal of this kind is answered with. */
+        public int status() {
+            return status;
+        }
     }
 
-    /** {@link #answer(int, String, Supplier)} with a refusal of the text worded by {@code words}: the product's own
-     *  message, or the compatibility edge's upstream sentence of a compile error's kind (D1.6, W7 of
-     *  docs/records/d-plan-2026-11-16.md: {@code edge.PureMessages.compile}). */
-    public static Answer answer(int status, @com.legend.base.Nullable String errorType, Supplier<String> call,
-            java.util.function.Function<Throwable, String> words) {
-        return answer(status, errorType, call, words, t -> t.getClass().getSimpleName());
+    /**
+     * A refusal in lite's one error shape: its {@link Kind}, lite's own words, where it happened (a position, or a site)
+     * where there is one, and for a {@code data} refusal alone the raise's kind, in lower camel as every wire name is
+     * ({@code divideByZero}, {@code indexOutOfBounds}, ...).
+     */
+    public record Refusal(Kind kind, String message, @com.legend.base.Nullable String where,
+            @com.legend.base.Nullable String raise) {
+
+        /** {@code {kind, message, where?, raise?}}. */
+        public String json() {
+            Map<String, Object> out = new LinkedHashMap<>();
+            out.put("kind", kind.wire());
+            out.put("message", message);
+            if (where != null) {
+                out.put("where", where);
+            }
+            if (raise != null) {
+                out.put("raise", raise);
+            }
+            return Json.toCompact(out);
+        }
+
+        /** The refusal answered over HTTP: the kind's status, its JSON. */
+        public Answer answer() {
+            return new Answer(kind.status(), json());
+        }
     }
 
-    /** {@link #answer}, an uncaught error's type named by {@code typeName} (the compatibility edge's: upstream's name of
-     *  it; the P2 checkpoint audit's M3/A-M4, 2026-11-16). */
-    public static Answer answer(int status, @com.legend.base.Nullable String errorType, Supplier<String> call,
-            java.util.function.Function<Throwable, String> words, java.util.function.Function<Throwable, String> typeName) {
-        return answer(status, errorType, call, words, typeName, e -> false);
+    /** A request lite cannot read: not a JSON object, a key it does not read or one it lacks, a value of the wrong kind
+     *  (kind {@code request}). */
+    public static final class MalformedRequest extends IllegalArgumentException {
+        public MalformedRequest(String message) {
+            super(message);
+        }
+
+        public MalformedRequest(String message, Throwable cause) {
+            super(message, cause);
+        }
     }
 
-    /** {@link #answer}, the refusals {@code uncaught} names answered as an uncaught error instead (the compatibility
-     *  edge's: a kind upstream raises at run, not at compile; the P2 checkpoint audit's A-S2, 2026-11-16). */
-    public static Answer answer(int status, @com.legend.base.Nullable String errorType, Supplier<String> call,
-            java.util.function.Function<Throwable, String> words, java.util.function.Function<Throwable, String> typeName,
-            java.util.function.Predicate<Throwable> uncaught) {
+    /** A call's JSON, 200, or its failure as lite's refusal ({@link #refusal}); a defect is logged whole and answered as
+     *  one, never a dropped connection. */
+    public static Answer answer(Supplier<String> call) {
         try {
             return new Answer(200, call.get());
         } catch (RuntimeException | StackOverflowError e) {
-            if (refusesTheText(e) && !uncaught.test(e)) {
-                return error(status, errorType, words.apply(e));
-            }
-            if (!(e instanceof IllegalArgumentException || e instanceof com.legend.error.DataError)) {
+            Refusal r = refusal(e);
+            if (r.kind() == Kind.INTERNAL) {
                 e.printStackTrace();
             }
-            Throwable n = e instanceof com.legend.error.DataError && e.getCause() != null ? e.getCause() : e;
-            return error(500, null, typeName.apply(n) + ": " + words.apply(n));
+            return r.answer();
         }
+    }
+
+    /** A refusal of {@code kind} in {@code message}'s words, answered. */
+    public static Answer refuse(Kind kind, String message) {
+        return new Refusal(kind, message, null, null).answer();
     }
 
     /**
-     * A failure as the routes name it, for a host that answers one outside a route: the boundary's own operations,
-     * which the tab and Python fold ({@code planner.Folded}), so that their callers read one vocabulary for every call
-     * (docs/PROTOCOL_PROGRAM_2026_10_05.md, leg 6, with the DataCube + Python line). {@code kind} is lite's own
-     * ({@link RefusalKind}); {@code message} is as {@link #answer} writes it.
+     * {@code e} as lite's refusal -- THE one classifier, which every binding reads (the server's routes, and the browser
+     * and Python bindings' folds): the text does not parse ({@code parse}); the model or the query does not compile
+     * ({@code compile}, where its position is known); a construct refused by name ({@code unsupported}); a run's raise
+     * ({@code data}, its kind in {@code raise}); a run's parameter values ({@code parameters}); a malformed request
+     * ({@code request}); anything else a defect ({@code internal}, its class named).
      */
-    public record Refusal(RefusalKind kind, String message) {
-    }
-
-    /**
-     * LITE'S REFUSAL KINDS (B7 of the separation census, 2026-11-17, D's split by content): the product's own names, each
-     * written as its {@link #text} -- the bytes a host's caller has read since the protocol program's leg 6, kept
-     * identical (the orchestrator's condition: {@code Folded.failure}'s bytes do not move; pinned by
-     * {@code BoundaryLiteExportsTest}). legend-engine's errorType words are the edge's own spellings (its routes'),
-     * mapped there, not shared.
-     */
-    public enum RefusalKind {
-        /** The text does not parse. */
-        PARSE("PARSER"),
-        /** The text does not compile, or uses a construct not implemented. */
-        COMPILE("COMPILATION"),
-        /** Any other failure: the status the server answers. */
-        FAILURE("500");
-
-        private final String text;
-
-        RefusalKind(String text) {
-            this.text = text;
-        }
-
-        /** The kind as a host's caller reads it. */
-        public String text() {
-            return text;
-        }
-    }
-
-    /** {@code e} as a {@link Refusal}. */
     public static Refusal refusal(Throwable e) {
-        if (refusesTheText(e)) {
-            return new Refusal(e instanceof com.legend.parser.ParseException ? RefusalKind.PARSE : RefusalKind.COMPILE,
-                    String.valueOf(e.getMessage()));
+        if (e instanceof com.legend.parser.ParseException p) {
+            return new Refusal(Kind.PARSE, String.valueOf(p.getMessage()), p.position(), null);
         }
-        return new Refusal(RefusalKind.FAILURE, named(e));
-    }
-
-    /** The text does not parse or compile, or a construct is not implemented: answered with an errorType. */
-    private static boolean refusesTheText(Throwable e) {
-        return e instanceof com.legend.error.LegendCompileException
-                || e instanceof com.legend.error.NotImplementedException
-                || e instanceof com.legend.sql.DialectCapability;
-    }
-
-    /** Any other failure, as the server writes it: its class's simple name and its message (a database's refusal, its cause's). */
-    private static String named(Throwable e) {
-        Throwable n = e instanceof com.legend.error.DataError && e.getCause() != null ? e.getCause() : e;
-        return n.getClass().getSimpleName() + ": " + n.getMessage();
-    }
-
-    public static Answer error(int status, @com.legend.base.Nullable String errorType, String message) {
-        Map<String, Object> out = new LinkedHashMap<>();
-        out.put("code", -1);
-        if (errorType != null) {
-            out.put("errorType", errorType);
+        if (e instanceof com.legend.error.LegendCompileException c) {
+            return new Refusal(c.phase() == com.legend.error.LegendCompileException.Phase.PARSE ? Kind.PARSE
+                    : Kind.COMPILE, String.valueOf(c.getMessage()), c.position(), null);
         }
-        out.put("message", message);
-        out.put("status", "error");
-        return new Answer(status, Json.toCompact(out));
+        if (e instanceof com.legend.error.NotImplementedException || e instanceof com.legend.sql.DialectCapability) {
+            return new Refusal(Kind.UNSUPPORTED, String.valueOf(e.getMessage()), null, null);
+        }
+        if (e instanceof com.legend.error.DataError d) {
+            return new Refusal(Kind.DATA, String.valueOf(d.getMessage()), null,
+                    d.kind() == null ? null : lowerCamel(d.kind().name()));
+        }
+        if (e instanceof com.legend.error.MissingParameters || e instanceof com.legend.error.InvalidParameters) {
+            return new Refusal(Kind.PARAMETERS, String.valueOf(e.getMessage()), null, null);
+        }
+        if (e instanceof MalformedRequest) {
+            return new Refusal(Kind.REQUEST, String.valueOf(e.getMessage()), null, null);
+        }
+        return new Refusal(Kind.INTERNAL, e.getClass().getSimpleName() + ": " + e.getMessage(), null, null);
+    }
+
+    /** {@code DIVIDE_BY_ZERO} as {@code divideByZero}: a wire name. */
+    private static String lowerCamel(String constant) {
+        StringBuilder out = new StringBuilder();
+        boolean up = false;
+        for (char c : constant.toCharArray()) {
+            if (c == '_') {
+                up = true;
+            } else {
+                out.append(up ? c : Character.toLowerCase(c));
+                up = false;
+            }
+        }
+        return out.toString();
+    }
+
+    /**
+     * {@code body} as lite's CLOSED request: a JSON object holding every one of {@code keys} and, where given,
+     * {@code optional}'s, and no other key -- anything else refused by name ({@link MalformedRequest}).
+     */
+    public static Json.Obj read(String body, String what, java.util.Set<String> optional, String... keys) {
+        Json.Obj request = requestObject(body, what);
+        java.util.Set<String> wanted = java.util.Set.of(keys);
+        String holds = String.join(", ", keys) + (optional.isEmpty() ? ""
+                : "; optional " + String.join(", ", new java.util.TreeSet<>(optional)));
+        for (String key : request.fields().keySet()) {
+            if (!wanted.contains(key) && !optional.contains(key)) {
+                throw new MalformedRequest(what + " has no key " + key + " (it holds " + holds + ")");
+            }
+        }
+        for (String key : keys) {
+            if (!request.fields().containsKey(key)) {
+                throw new MalformedRequest(what + " names no " + key + " (it holds " + holds + ")");
+            }
+        }
+        return request;
+    }
+
+    /** {@code request}'s {@code key}, a string, else refused by name. */
+    public static String text(Json.Obj request, String key) {
+        if (request.fields().get(key) instanceof Json.Str s) {
+            return s.value();
+        }
+        throw new MalformedRequest("the request's " + key + " is not a string");
+    }
+
+    /** {@code request}'s {@code key}, a JSON object, else refused by name. */
+    public static Json.Obj object(Json.Obj request, String key) {
+        if (request.fields().get(key) instanceof Json.Obj o) {
+            return o;
+        }
+        throw new MalformedRequest("the request's " + key + " is not a JSON object");
     }
 }

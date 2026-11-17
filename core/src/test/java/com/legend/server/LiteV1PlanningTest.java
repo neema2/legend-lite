@@ -4,6 +4,7 @@
 package com.legend.server;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.legend.json.Json;
@@ -11,43 +12,56 @@ import com.legend.protocol.PureComposer;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
- * LITE'S OWN GRAMMAR AND TYPING ROUTES ({@link LiteV1Planning}; the edge program's HOST stream, 2026-11-17), reached as a
- * host reaches them: {@code /api/lite/v1/...} through {@link LiteV1Api#route}. Each answers what the product's own call
- * answers -- the call the tab's lite export makes -- and each request is closed: a key it lacks or does not read is
- * refused by name.
+ * LITE'S OWN API, v1, THE SERVER BINDING (lite's API v1 spec, docs/records/lite-api-v1-2026-11-17.md, §2-§5; the user's
+ * go of 2026-11-17): each operation reached as a host reaches it, {@code /api/lite/v1/<operation>} through
+ * {@link LiteV1Api#route} -- the model's ({@code model/check}, {@code model/elements}) and the query's
+ * ({@code query/parse}, {@code query/print}, {@code query/type}, {@code query/plan}, {@code query/run}) -- each answering
+ * what the product's own call answers, each request closed, and every refusal lite's one shape, {@code {kind, message,
+ * where?, raise?}}, its status by its kind.
  */
 class LiteV1PlanningTest {
 
     private static final String MODEL = """
+            Enum demo::Tier { GOLD, SILVER }
             Class demo::Person
             {
               name: String[1];
               age: Integer[1];
+              tier: demo::Tier[1];
             }
             ###Relational
-            Database demo::DB ( Table PERSON ( NAME VARCHAR(100), AGE INTEGER ) )
+            Database demo::DB ( Table PERSON ( NAME VARCHAR(100), AGE INTEGER, TIER VARCHAR(10) ) )
             ###Mapping
             Mapping demo::M
             (
+              demo::Tier: EnumerationMapping TierMap
+              {
+                GOLD: 'G',
+                SILVER: 'S'
+              }
               *demo::Person: Relational
               {
                 ~mainTable [demo::DB]PERSON
                 name: [demo::DB]PERSON.NAME,
-                age: [demo::DB]PERSON.AGE
+                age: [demo::DB]PERSON.AGE,
+                tier: EnumerationMapping TierMap: [demo::DB]PERSON.TIER
               }
             )
             """;
 
     private static final String QUERY = "|demo::Person.all()->project(~[name: p|$p.name, age: p|$p.age])";
 
-    private static LiteV1Api.Answer call(String path, Map<String, Object> request) {
-        return LiteV1Api.route(path, null, Json.toCompact(request), (q, r, output) -> {
+    /** The operation's answer, run nothing. */
+    private static LiteV1Api.Answer call(String operation, Map<String, Object> request) {
+        return LiteV1Api.route(LiteV1Planning.API + operation, Json.toCompact(request), (q, r, values, output) -> {
             throw new AssertionError("nothing is run here");
-        });
+        }, LiteV1Api.Models.COMPILED);
     }
 
     private static Map<String, Object> request(Object... pairs) {
@@ -58,92 +72,128 @@ class LiteV1PlanningTest {
         return out;
     }
 
-    private static Map<String, Object> textModel() {
-        return request("_type", "text", "code", MODEL);
-    }
-
     private static Object lambdaOf(String text) {
         return Json.parse(com.legend.door.Parse.lambdaJson(text, false));
     }
 
+    /** A refusal's kind, its status the kind's, and its message holding {@code words}. */
+    private static Json.Obj refused(LiteV1Api.Answer a, String kind, int status, String words) {
+        assertEquals(status, a.status(), a.json());
+        Json.Obj error = Json.parseObject(a.json());
+        assertEquals(kind, error.getString("kind"), a.json());
+        assertTrue(error.getString("message").contains(words), a.json());
+        // lite's shape alone: none of legend-engine's envelope (spec §3)
+        assertFalse(error.has("code") || error.has("status") || error.has("errorType"), a.json());
+        return error;
+    }
+
     @Test
-    @DisplayName("a model's text as its protocol JSON, the parse door's answer")
+    @DisplayName("model/elements: the model's protocol elements, the parse door's")
     void modelElements() {
-        for (boolean sourceInformation : new boolean[] {false, true}) {
-            LiteV1Api.Answer a = call(LiteV1Planning.MODEL_ELEMENTS, request("text", MODEL, "sourceInformation", sourceInformation));
-            assertEquals(200, a.status(), a.json());
-            assertEquals(com.legend.door.Parse.documentJson(MODEL, sourceInformation), a.json());
-        }
-    }
-
-    @Test
-    @DisplayName("a lambda's text as its protocol JSON, and its JSON as its text, as the product reads and prints them")
-    void parseAndPrintLambda() {
-        LiteV1Api.Answer parsed = call(LiteV1Planning.PARSE_LAMBDA, request("text", QUERY, "sourceInformation", false));
-        assertEquals(200, parsed.status(), parsed.json());
-        assertEquals(com.legend.door.Parse.lambdaJson(QUERY, false), parsed.json());
-        for (String style : new String[] {"PRETTY", "STANDARD"}) {
-            LiteV1Api.Answer printed = call(LiteV1Planning.PRINT_LAMBDA, request("lambda", Json.parse(parsed.json()), "style", style));
-            assertEquals(200, printed.status(), printed.json());
-            assertEquals(PureComposer.lambda(parsed.json(), PureComposer.Style.valueOf(style)),
-                    Json.parseObject(printed.json()).getString("text"));
-        }
-    }
-
-    @Test
-    @DisplayName("a lambda's relation type over a model given as text, the compiler's type of its result")
-    void lambdaRelationType() {
-        LiteV1Api.Answer a = call(LiteV1Planning.LAMBDA_RELATION_TYPE, request("model", textModel(), "lambda", lambdaOf(QUERY)));
+        LiteV1Api.Answer a = call("model/elements", request("model", MODEL));
         assertEquals(200, a.status(), a.json());
-        assertEquals(Json.toCompact(com.legend.plan.RelationTypeJson.of(com.legend.Compiler.query(
-                com.legend.Compiler.compileModel(MODEL), com.legend.protocol.ProtocolReader.lambda(
-                        com.legend.door.Parse.lambdaJson(QUERY, false))).resultType())), a.json());
-        assertTrue(a.json().contains("\"name\"") && a.json().contains("age"), a.json());
+        assertEquals(Json.toCompact(Json.parseObject(com.legend.door.Parse.documentJson(MODEL, false)).get("elements")),
+                Json.toCompact(Json.parseObject(a.json()).get("elements")));
     }
 
     @Test
-    @DisplayName("text that does not parse or compile is refused with its kind: PARSER, COMPILATION")
+    @DisplayName("model/check: every error in lite's shape, none when it compiles")
+    void modelCheck() {
+        assertEquals("{\"errors\":[]}", call("model/check", request("model", MODEL)).json());
+        LiteV1Api.Answer a = call("model/check", request("model", "Class demo::Desk\n{\n  name: Strin[1];\n}\n"));
+        assertEquals(200, a.status(), a.json());
+        List<Json.Node> errors = Json.parseObject(a.json()).getArr("errors").items();
+        assertEquals(1, errors.size(), a.json());
+        Json.Obj e = (Json.Obj) errors.get(0);
+        assertEquals("compile", e.getString("kind"), a.json());
+        assertTrue(e.getString("message").contains("Strin"), a.json());
+        assertTrue(e.has("where"), a.json());
+    }
+
+    @Test
+    @DisplayName("query/parse and query/print: a query's text as its tree and back, pretty unless standard is asked")
+    void parseAndPrint() {
+        LiteV1Api.Answer parsed = call("query/parse", request("text", QUERY));
+        assertEquals(200, parsed.status(), parsed.json());
+        Json.Node query = Json.parseObject(parsed.json()).get("query");
+        assertEquals(com.legend.door.Parse.lambdaJson(QUERY, false), Json.toCompact(query));
+        String tree = Json.toCompact(query);
+        assertEquals(PureComposer.lambda(tree, PureComposer.Style.PRETTY),
+                Json.parseObject(call("query/print", request("query", query)).json()).getString("text"));
+        assertEquals(PureComposer.lambda(tree, PureComposer.Style.PRETTY),
+                Json.parseObject(call("query/print", request("query", query, "style", "pretty")).json()).getString("text"));
+        assertEquals(PureComposer.lambda(tree, PureComposer.Style.STANDARD), Json.parseObject(call("query/print",
+                request("query", query, "style", "standard")).json()).getString("text"));
+    }
+
+    @Test
+    @DisplayName("query/parse keeps a number exact: an Integer past a double's 2^53, a Decimal's digits")
+    void parseKeepsNumbersExact() {
+        String text = "|9223372036854775807 + 0.1000000000000000000001D->toOne()->floor()";
+        LiteV1Api.Answer parsed = call("query/parse", request("text", text));
+        assertEquals(200, parsed.status(), parsed.json());
+        assertTrue(parsed.json().contains("9223372036854775807"), parsed.json());
+        assertTrue(parsed.json().contains("0.1000000000000000000001"), parsed.json());
+    }
+
+    @Test
+    @DisplayName("query/type: each column's name and Pure type; an enumeration's says so")
+    void queryType() {
+        LiteV1Api.Answer a = call("query/type", request("model", MODEL, "query",
+                lambdaOf("|demo::Person.all()->project(~[name: p|$p.name, age: p|$p.age, tier: p|$p.tier])")));
+        assertEquals(200, a.status(), a.json());
+        assertEquals("{\"columns\":[{\"name\":\"name\",\"type\":\"String\"},{\"name\":\"age\",\"type\":\"Integer\"},"
+                + "{\"name\":\"tier\",\"type\":\"demo::Tier\",\"enumeration\":true}]}", a.json());
+    }
+
+    @Test
+    @DisplayName("refusals carry their kind and the kind's status: parse, compile, request")
     void refusalsWithTheirKind() {
-        LiteV1Api.Answer badModel = call(LiteV1Planning.MODEL_ELEMENTS, request("text", "Class demo::{", "sourceInformation", false));
-        assertEquals(400, badModel.status(), badModel.json());
-        assertEquals("PARSER", Json.parseObject(badModel.json()).getString("errorType"));
-        LiteV1Api.Answer badLambda = call(LiteV1Planning.PARSE_LAMBDA, request("text", "|demo::Person.all()->", "sourceInformation", false));
-        assertEquals(400, badLambda.status(), badLambda.json());
-        assertEquals("PARSER", Json.parseObject(badLambda.json()).getString("errorType"));
-        LiteV1Api.Answer badType = call(LiteV1Planning.LAMBDA_RELATION_TYPE,
-                request("model", textModel(), "lambda", lambdaOf("|demo::Person.all()->project(~[x: p|$p.nope])")));
-        assertEquals(400, badType.status(), badType.json());
-        assertEquals("COMPILATION", Json.parseObject(badType.json()).getString("errorType"));
+        Json.Obj parse = refused(call("query/parse", request("text", "|demo::Person.all()->")), "parse", 400, "");
+        assertTrue(parse.has("where"), Json.toCompact(parse));
+        refused(call("model/elements", request("model", "Class demo::{")), "parse", 400, "");
+        refused(call("query/type", request("model", MODEL, "query",
+                lambdaOf("|demo::Person.all()->project(~[x: p|$p.nope])"))), "compile", 400, "nope");
+        refused(call("query/print", request("query", lambdaOf(QUERY), "style", "COMPACT")), "request", 400,
+                "a query prints in the style pretty or standard, not 'COMPACT'");
     }
 
     @Test
-    @DisplayName("each request is closed: a key it lacks, a key it does not read, and a style it does not print, refused by name")
+    @DisplayName("each request is closed: a key it lacks or does not read, a value of the wrong JSON kind, refused by name")
     void closedRequests() {
-        LiteV1Api.Answer extra = call(LiteV1Planning.PARSE_LAMBDA, request("text", QUERY, "sourceInformation", false, "returnSourceInformation", false));
-        assertEquals(500, extra.status(), extra.json());
-        assertTrue(Json.parseObject(extra.json()).getString("message").contains("a parseLambda request has no key returnSourceInformation"), extra.json());
-        LiteV1Api.Answer missing = call(LiteV1Planning.MODEL_ELEMENTS, request("text", MODEL));
-        assertEquals(500, missing.status(), missing.json());
-        assertTrue(Json.parseObject(missing.json()).getString("message").contains("a modelElements request names no sourceInformation"), missing.json());
-        LiteV1Api.Answer style = call(LiteV1Planning.PRINT_LAMBDA, request("lambda", lambdaOf(QUERY), "style", "COMPACT"));
-        assertEquals(500, style.status(), style.json());
-        assertTrue(Json.parseObject(style.json()).getString("message").contains("a lambda prints PRETTY or STANDARD, not 'COMPACT'"), style.json());
+        refused(call("query/parse", request("text", QUERY, "sourceInformation", false)), "request", 400,
+                "a query/parse request has no key sourceInformation (it holds text)");
+        refused(call("query/type", request("model", MODEL)), "request", 400,
+                "a query/type request names no query (it holds model, query)");
+        refused(call("model/elements", request("model", request("_type", "text", "code", MODEL))), "request", 400,
+                "the request's model is not a string");
+        refused(LiteV1Api.route(LiteV1Planning.API + "query/parse", "[1]", (q, r, v, o) -> {
+            throw new AssertionError();
+        }, LiteV1Api.Models.COMPILED), "request", 400, "a query/parse request is not a JSON object");
+        // a model action's request lacking a key it needs (until 2026-11-17 the JSON reader's "Missing required field",
+        // a defect's 500)
+        refused(call("model/createClass", request()), "request", 400, "a createClass request names no project");
+        refused(call("model/createDataSpace", request("project", request(), "package", "p")), "request", 400,
+                "a createDataSpace request names no dataSpace");
     }
 
     @Test
-    @DisplayName("a path under lite's API that is none of its routes is still LiteV1Api's 404")
+    @DisplayName("a path that names no operation is refused by name, kind request; the old names answer no more")
     void anyOtherPath() {
-        LiteV1Api.Answer a = call("/api/lite/v1/grammar/lambdaText", request());
-        assertEquals(404, a.status(), a.json());
+        for (String old : List.of("grammar/parseLambda", "grammar/printLambda", "grammar/modelElements",
+                "compilation/lambdaRelationType", "compilation/compile", "execution/plan", "execution/execute",
+                "grammar/tsItem", "grammar/jsonToTs/lambda")) {
+            refused(call(old, request()), "request", 400, "no such legend-lite API: /api/lite/v1/" + old);
+        }
     }
 
-    // ---- a query's plan and its run (the edge program's H7, 2026-11-17) ----------------------------------------------
+    // ---- a query's plan and its run ------------------------------------------------------------------------------------
 
     /** A project with its own Data rows, on an in-memory DuckDB the server makes holding them (ProjectRowsTest's). */
     private static final String PARTY = """
             Class proj::Party { id: Integer[1]; name: String[1]; joined: StrictDate[1]; }
             ###Relational
-            Database proj::PartyDB ( Schema PARTY ( Table PARTY (ID INTEGER PRIMARY KEY, NAME VARCHAR(200), JOINED DATE) ) )
+            Database proj::PartyDB ( Schema PARTY ( Table PARTY (ID BIGINT PRIMARY KEY, NAME VARCHAR(200), JOINED DATE) ) )
             ###Mapping
             Mapping proj::PartyMapping
             (
@@ -166,114 +216,152 @@ class LiteV1PlanningTest {
               Relational
               #{
                 PARTY.PARTY:
-                  'ID,NAME,JOINED\\n1,Meridian Capital,2021-03-04\\n2,Halberd Securities,2022-05-06\\n';
+                  'ID,NAME,JOINED\\n1,Meridian Capital,2021-03-04\\n9223372036854775807,Halberd Securities,2022-05-06\\n';
               }#
             }
             """;
+
+    private static final String RUNTIME = "proj::RT";
 
     /** Parties from a date on, each its id, name and join date. */
     private static final String SINCE = "{since: StrictDate[1]|proj::Party.all()->filter(p|$p.joined >= $since)"
             + "->project(~[id: p|$p.id, name: p|$p.name, joined: p|$p.joined])->sort(~id->ascending())"
             + "->from(proj::PartyMapping, proj::RT)}";
 
-    private static LiteV1Api.Answer run(String path, Map<String, Object> request) {
-        return LiteV1Planning.execution("POST", path, Json.toCompact(request), ConnectionResolver.liteRunner(null));
-    }
+    /** Parties up to an id. */
+    private static final String UP_TO = "{n: Integer[1]|proj::Party.all()->filter(p|$p.id <= $n)"
+            + "->project(~[id: p|$p.id])->sort(~id->ascending())->from(proj::PartyMapping, proj::RT)}";
 
-    private static Map<String, Object> party() {
-        return request("_type", "text", "code", PARTY);
+    /** The operation's answer, its run the server's product door over its project databases. */
+    private static LiteV1Api.Answer run(String operation, Map<String, Object> request) {
+        return LiteV1Api.route(LiteV1Planning.API + operation, Json.toCompact(request),
+                ConnectionResolver.liteRunner(null), LiteV1Api.Models.COMPILED);
     }
 
     @Test
-    @DisplayName("execution/plan: the lambda's plan, planned and not run -- the plan the execute route runs")
-    void executionPlan() {
-        LiteV1Api.Answer a = run(LiteV1Planning.EXECUTION_PLAN, request("model", party(), "lambda", lambdaOf(SINCE)));
+    @DisplayName("query/plan: lite's plan, data, planned and not run -- the plan query/run runs; the runtime required")
+    void queryPlan() {
+        LiteV1Api.Answer a = run("query/plan", request("model", PARTY, "query", lambdaOf(SINCE), "runtime", RUNTIME));
         assertEquals(200, a.status(), a.json());
         assertEquals(com.legend.executionplan.PlanJson.write(com.legend.Compiler.query(com.legend.Compiler.compileModel(
                 PARTY), com.legend.protocol.ProtocolReader.lambda(com.legend.door.Parse.lambdaJson(SINCE, false)))
-                .projectPlan(null)), a.json());
+                .projectPlan(RUNTIME)), Json.toCompact(Json.parseObject(a.json()).get("plan")));
         // the parameter is the plan's, bound when it runs: declared, never written into the statement
         assertTrue(a.json().contains("\"since\""), a.json());
-        assertTrue(!a.json().contains("2022-01-01"), a.json());
+        assertFalse(a.json().contains("2022-01-01"), a.json());
+        refused(run("query/plan", request("model", PARTY, "query", lambdaOf(SINCE))), "request", 400,
+                "a query/plan request names no runtime");
     }
 
     @Test
-    @DisplayName("execution/execute: the plan run with its parameter bound at run, answered as lite's typed rows")
-    void execute() {
-        LiteV1Api.Answer a = run(LiteV1Planning.EXECUTION_EXECUTE, request("model", party(), "lambda", lambdaOf(SINCE),
-                "parameters", request("since", "2022-01-01")));
+    @DisplayName("query/run: the plan run with its parameter bound at run, answered as lite's typed rows")
+    void queryRun() {
+        LiteV1Api.Answer a = run("query/run", request("model", PARTY, "query", lambdaOf(SINCE), "runtime", RUNTIME,
+                "params", request("since", "2022-01-01")));
         assertEquals(200, a.status(), a.json());
         Json.Obj answer = Json.parseObject(a.json());
         assertEquals("RELATION", answer.getString("shape"));
         assertEquals("[{\"name\":\"id\",\"type\":\"Integer\"},{\"name\":\"name\",\"type\":\"String\"},"
                 + "{\"name\":\"joined\",\"type\":\"StrictDate\"}]", Json.toCompact(answer.get("columns")));
-        // one party from 2022 on: an integer's digits, a text, a date's text
-        assertEquals("[[2,\"Halberd Securities\",\"2022-05-06\"]]", Json.toCompact(answer.get("rows")));
-        assertTrue(answer.getString("sql").contains("?"), answer.getString("sql"));
+        // one party from 2022 on: an Integer an exact JSON number (2^63-1, spec §4), a text, a date's text
+        assertEquals("[[9223372036854775807,\"Halberd Securities\",\"2022-05-06\"]]", Json.toCompact(answer.get("rows")));
+        assertFalse(answer.has("sql"), a.json());
         // another value, the same plan: both parties
-        LiteV1Api.Answer both = run(LiteV1Planning.EXECUTION_EXECUTE, request("model", party(), "lambda",
-                lambdaOf(SINCE), "parameters", request("since", "2020-01-01")));
+        LiteV1Api.Answer both = run("query/run", request("model", PARTY, "query", lambdaOf(SINCE), "runtime", RUNTIME,
+                "params", request("since", "2020-01-01"), "format", "json"));
         assertEquals(200, both.status(), both.json());
         assertEquals(2, Json.parseObject(both.json()).getArr("rows").items().size(), both.json());
     }
 
     @Test
-    @DisplayName("execution/execute refuses by name: a parameter with no value, a value of the wrong JSON kind")
-    void executeRefusals() {
-        LiteV1Api.Answer missing = run(LiteV1Planning.EXECUTION_EXECUTE, request("model", party(), "lambda",
-                lambdaOf(SINCE), "parameters", request()));
-        assertEquals(500, missing.status(), missing.json());
-        assertTrue(Json.parseObject(missing.json()).getString("message")
-                .contains("no value for the parameter(s) since:StrictDate[1]"), missing.json());
-        LiteV1Api.Answer wrong = run(LiteV1Planning.EXECUTION_EXECUTE, request("model", party(), "lambda",
-                lambdaOf(SINCE), "parameters", request("since", 20220101)));
-        assertEquals(500, wrong.status(), wrong.json());
-        assertTrue(Json.parseObject(wrong.json()).getString("message")
-                .contains("parameter 'since' (StrictDate): given 20220101, which is no StrictDate's JSON value"), wrong.json());
-        LiteV1Api.Answer notADate = run(LiteV1Planning.EXECUTION_EXECUTE, request("model", party(), "lambda",
-                lambdaOf(SINCE), "parameters", request("since", "2022-13-01")));
-        assertEquals(500, notADate.status(), notADate.json());
-        assertTrue(Json.parseObject(notADate.json()).getString("message")
-                .contains("parameter 'since': given \"2022-13-01\", which is no StrictDate's text"), notADate.json());
+    @DisplayName("query/run binds an Integer parameter in the 64-bit range, exact: 2^63-1 itself")
+    void anIntegerParameterTakesThe64BitRange() {
+        LiteV1Api.Answer max = run("query/run", request("model", PARTY, "query", lambdaOf(UP_TO), "runtime", RUNTIME,
+                "params", Json.parseObject("{\"n\":9223372036854775807}")));
+        assertEquals(200, max.status(), max.json());
+        assertEquals("[[1],[9223372036854775807]]", Json.toCompact(Json.parseObject(max.json()).get("rows")));
+        LiteV1Api.Answer below = run("query/run", request("model", PARTY, "query", lambdaOf(UP_TO), "runtime", RUNTIME,
+                "params", Json.parseObject("{\"n\":9223372036854775806}")));
+        assertEquals("[[1]]", Json.toCompact(Json.parseObject(below.json()).get("rows")), below.json());
+        refused(run("query/run", request("model", PARTY, "query", lambdaOf(UP_TO), "runtime", RUNTIME,
+                "params", Json.parseObject("{\"n\":9223372036854775808}"))), "parameters", 400,
+                "parameter 'n' (Integer): given 9223372036854775808, which is beyond the 64-bit range an Integer holds");
+        refused(run("query/run", request("model", PARTY, "query", lambdaOf(UP_TO), "runtime", RUNTIME,
+                "params", Json.parseObject("{\"n\":1.5}"))), "parameters", 400,
+                "parameter 'n' (Integer): given 1.5, which is no Integer's JSON value");
     }
 
     @Test
-    @DisplayName("the execution routes are closed and POST only: an unread key, a missing one, a GET, another path")
-    void executionRequestsClosed() {
-        LiteV1Api.Answer extra = run(LiteV1Planning.EXECUTION_EXECUTE, request("model", party(), "lambda",
-                lambdaOf(SINCE), "parameters", request(), "parameterValues", java.util.List.of()));
-        assertEquals(500, extra.status(), extra.json());
-        assertTrue(Json.parseObject(extra.json()).getString("message").contains(
-                "an execute request has no key parameterValues (it holds model, lambda, parameters; optional runtime)"),
-                extra.json());
-        LiteV1Api.Answer noParameters = run(LiteV1Planning.EXECUTION_EXECUTE, request("model", party(), "lambda",
-                lambdaOf(SINCE)));
-        assertEquals(500, noParameters.status(), noParameters.json());
-        assertTrue(Json.parseObject(noParameters.json()).getString("message").contains(
-                "an execute request names no parameters"), noParameters.json());
-        assertEquals(405, LiteV1Planning.execution("GET", LiteV1Planning.EXECUTION_PLAN, "",
-                ConnectionResolver.liteRunner(null)).status());
-        assertEquals(404, LiteV1Planning.execution("POST", LiteV1Planning.EXECUTION + "/run", "{}",
-                ConnectionResolver.liteRunner(null)).status());
+    @DisplayName("query/run in Arrow: the same rows as one Arrow IPC stream of typed columns, by the caller's ask")
+    void queryRunInArrow() {
+        LiteV1Api.Answer a = run("query/run", request("model", PARTY, "query", lambdaOf(SINCE), "runtime", RUNTIME,
+                "params", request("since", "2020-01-01"), "format", "arrow"));
+        assertEquals(200, a.status(), a.json());
+        assertEquals(LiteV1Planning.ARROW, a.contentType());
+        byte[] bytes = a.body();
+        // an IPC stream: each message after the continuation marker 0xFFFFFFFF
+        assertEquals(-1, java.nio.ByteBuffer.wrap(bytes, 0, 4).getInt(), "the continuation marker");
+        String latin1 = new String(bytes, StandardCharsets.ISO_8859_1);
+        assertTrue(latin1.contains("Halberd Securities") && latin1.contains("Meridian Capital"), "both rows' text");
+        assertTrue(latin1.contains("joined"), "the columns by name");
+        refused(run("query/run", request("model", PARTY, "query", lambdaOf(SINCE), "runtime", RUNTIME,
+                "params", request("since", "2020-01-01"), "format", "csv")), "request", 400,
+                "a query runs in the format json or arrow, not 'csv'");
     }
 
     @Test
-    @DisplayName("lite's server mounts the execution routes: execution/execute over HTTP answers the same rows")
+    @DisplayName("query/run refuses the caller's values by name, kind parameters: one missing, one of the wrong kind")
+    void queryRunRefusesParameters() {
+        refused(run("query/run", request("model", PARTY, "query", lambdaOf(SINCE), "runtime", RUNTIME)),
+                "parameters", 400, "no value for the parameter(s) since:StrictDate[1]");
+        refused(run("query/run", request("model", PARTY, "query", lambdaOf(SINCE), "runtime", RUNTIME,
+                "params", request("since", 20220101))), "parameters", 400,
+                "parameter 'since' (StrictDate): given 20220101, which is no StrictDate's JSON value");
+        refused(run("query/run", request("model", PARTY, "query", lambdaOf(SINCE), "runtime", RUNTIME,
+                "params", request("since", "2022-13-01"))), "parameters", 400,
+                "parameter 'since': given \"2022-13-01\", which is no StrictDate's text");
+        refused(run("query/run", request("model", PARTY, "query", lambdaOf(SINCE), "runtime", RUNTIME,
+                "params", request(), "parameterValues", List.of())), "request", 400,
+                "a query/run request has no key parameterValues (it holds model, query, runtime; optional format, params)");
+    }
+
+    @Test
+    @DisplayName("query/run's raise is the data's: kind data, 422, its kind named in raise")
+    void aRaiseIsTheDatas() {
+        Json.Obj error = refused(run("query/run", request("model", PARTY, "query",
+                lambdaOf("|proj::Party.all()->project(~[x: p|$p.id->rem(0)])->from(proj::PartyMapping, proj::RT)"),
+                "runtime", RUNTIME)), "data", 422, "");
+        assertTrue(error.has("raise"), Json.toCompact(error));
+    }
+
+    @Test
+    @DisplayName("lite's server mounts its operations: query/run over HTTP; a GET refused; user from the store")
     void theServerMountsThem() throws Exception {
         LegendHttpServer server = new LegendHttpServer(0);
         server.start();
         try {
-            java.net.http.HttpResponse<String> r = java.net.http.HttpClient.newHttpClient().send(
-                    java.net.http.HttpRequest.newBuilder()
-                            .uri(java.net.URI.create("http://localhost:" + server.getPort()
-                                    + LiteV1Planning.EXECUTION_EXECUTE))
-                            .POST(java.net.http.HttpRequest.BodyPublishers.ofString(Json.toCompact(request("model",
-                                    party(), "lambda", lambdaOf(SINCE), "parameters", request("since", "2022-01-01")))))
-                            .build(),
-                    java.net.http.HttpResponse.BodyHandlers.ofString());
+            java.net.http.HttpClient client = java.net.http.HttpClient.newHttpClient();
+            String base = "http://localhost:" + server.getPort() + LiteV1Planning.API;
+            java.net.http.HttpResponse<String> r = client.send(java.net.http.HttpRequest.newBuilder()
+                    .uri(java.net.URI.create(base + "query/run"))
+                    .POST(java.net.http.HttpRequest.BodyPublishers.ofString(Json.toCompact(request("model", PARTY,
+                            "query", lambdaOf(SINCE), "runtime", RUNTIME, "params", request("since", "2022-01-01")))))
+                    .build(), java.net.http.HttpResponse.BodyHandlers.ofString());
             assertEquals(200, r.statusCode(), r.body());
-            assertEquals("[[2,\"Halberd Securities\",\"2022-05-06\"]]",
+            assertEquals("[[9223372036854775807,\"Halberd Securities\",\"2022-05-06\"]]",
                     Json.toCompact(Json.parseObject(r.body()).get("rows")));
+            java.net.http.HttpResponse<String> get = client.send(java.net.http.HttpRequest.newBuilder()
+                    .uri(java.net.URI.create(base + "query/run")).GET().build(),
+                    java.net.http.HttpResponse.BodyHandlers.ofString());
+            assertEquals(400, get.statusCode(), get.body());
+            assertEquals("{\"kind\":\"request\",\"message\":\"lite's operations take POST, not GET: "
+                    + LiteV1Planning.API + "query/run\"}", get.body());
+            java.net.http.HttpResponse<String> user = client.send(java.net.http.HttpRequest.newBuilder()
+                    .uri(java.net.URI.create(base + "user"))
+                    .POST(java.net.http.HttpRequest.BodyPublishers.noBody()).build(),
+                    java.net.http.HttpResponse.BodyHandlers.ofString());
+            assertEquals(200, user.statusCode(), user.body());
+            assertEquals("{\"user\":\"anonymous\"}", user.body());
         } finally {
             server.stop();
         }

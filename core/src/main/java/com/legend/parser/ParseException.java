@@ -23,7 +23,8 @@ public final class ParseException extends com.legend.error.LegendCompileExceptio
     }
 
     public ParseException(String message, int line, int column) {
-        super(Phase.PARSE, formatMessage(message, line, column));
+        // the position placed before the message and kept as data (lite's API v1 spec §3's where, 2026-11-17)
+        super(Phase.PARSE, message, null, line <= 0 ? null : "[" + line + ":" + column + "]");
         this.line = line;
         this.column = column;
     }
@@ -34,10 +35,5 @@ public final class ParseException extends com.legend.error.LegendCompileExceptio
 
     public int column() {
         return column;
-    }
-
-    private static String formatMessage(String message, int line, int column) {
-        if (line <= 0) return message;
-        return "[" + line + ":" + column + "] " + message;
     }
 }

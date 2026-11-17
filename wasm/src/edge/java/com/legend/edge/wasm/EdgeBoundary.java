@@ -23,7 +23,7 @@ public final class EdgeBoundary {
 
     /**
      * One {@code pure/v1} call by its path and raw query string ({@code ""} for none), routed and answered as
-     * legend-lite's server answers it -- lite's own {@code /api/lite/v1/compilation/compile} included. An execute's
+     * legend-lite's server answers it -- lite's own {@code /api/lite/v1/<operation>} routes included. An execute's
      * run is the host's (its rows come from {@link #executePlan}), so one asked for here is refused, naming the
      * format that is served.
      */
@@ -36,7 +36,10 @@ public final class EdgeBoundary {
         // path's prefix, as the server mounts them
         return path.startsWith(com.legend.edge.PureV1Routes.PREFIX)
                 ? com.legend.edge.PureV1Routes.route(path, rawQuery.isEmpty() ? null : rawQuery, body, noRun, HELD)
-                : com.legend.server.LiteV1Api.route(path, rawQuery.isEmpty() ? null : rawQuery, body, noRun, HELD);
+                : com.legend.server.LiteV1Api.route(path, body, (query, runtime, values, output) -> {
+                    throw new IllegalArgumentException("this engine runs no query itself: the host runs the plan"
+                            + " (query/plan) with its own runner");
+                }, HELD);
     }
 
     /** A request's model given as text: the one this host holds for that text, compiled no more, else compiled for the

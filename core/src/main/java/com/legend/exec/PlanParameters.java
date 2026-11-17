@@ -92,7 +92,8 @@ public final class PlanParameters {
             throw new com.legend.error.MissingParameters(missing, wrong);
         }
         if (wrong != null) {
-            throw new IllegalArgumentException(wrong);
+            // a typed failure, so every binding reads it as the caller's values (kind parameters; J18, 2026-11-17)
+            throw new com.legend.error.InvalidParameters(wrong);
         }
         return out;
     }

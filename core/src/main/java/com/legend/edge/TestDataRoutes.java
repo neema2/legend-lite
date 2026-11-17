@@ -118,7 +118,7 @@ final class TestDataRoutes {
     static LiteV1Api.Answer answer(int status, @com.legend.base.Nullable String errorType,
             java.util.function.Supplier<String> call) {
         TestDataPlanner.Unseeded[] unseeded = {null};
-        LiteV1Api.Answer a = LiteV1Api.answer(status, errorType, () -> {
+        LiteV1Api.Answer a = EngineEnvelope.answer(status, errorType, () -> {
             try {
                 return call.get();
             } catch (TestDataPlanner.Unseeded e) {

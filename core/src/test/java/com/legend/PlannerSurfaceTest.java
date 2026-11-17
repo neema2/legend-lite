@@ -321,10 +321,20 @@ class PlannerSurfaceTest {
             Map.entry("/api/pure/v1/execution/testDataGeneration/generateTestData_WithDefaultSeed",
                     "a test-data request"),
             Map.entry("/api/pure/v1/testData/generation/DONOTUSE_generateTestData", "a model and a query"),
-            Map.entry("/api/lite/v1/compilation/compile", "a model"),
-            // merged main 3a217086a (#81), 2026-11-14: #TS's two lite routes (upstream has no #TS)
-            Map.entry("/api/lite/v1/grammar/jsonToTs/lambda", "a model and a lambda's protocol JSON, shown as #TS"),
-            Map.entry("/api/lite/v1/grammar/tsItem", "one #TS item's text, read by core's parser"),
+            // lite's API v1 (docs/records/lite-api-v1-2026-11-17.md §2, the user's go of 2026-11-17; the HOST stream):
+            // its operations by their names, one step (§8) -- until then compilation/compile, grammar/jsonToTs/lambda
+            // and grammar/tsItem, and grammar/*, compilation/lambdaRelationType and execution/* unread by this census
+            Map.entry("/api/lite/v1/model/check", "a model's text: every error"),
+            Map.entry("/api/lite/v1/model/elements", "a model's text: its protocol elements"),
+            Map.entry("/api/lite/v1/query/parse", "a query's text"),
+            Map.entry("/api/lite/v1/query/print", "a query's protocol JSON and a style"),
+            Map.entry("/api/lite/v1/query/type", "a model's text and a query's protocol JSON"),
+            Map.entry("/api/lite/v1/query/plan", "a model's text, a query's protocol JSON and a runtime"),
+            Map.entry("/api/lite/v1/query/run", "a model's text, a query's protocol JSON, a runtime, its parameters'"
+                    + " values and a format"),
+            // #TS's two lite operations (upstream has no #TS; merged main 3a217086a (#81), 2026-11-14)
+            Map.entry("/api/lite/v1/ts/item", "one #TS item's text, read by core's parser"),
+            Map.entry("/api/lite/v1/ts/statement", "a model's text and a query's protocol JSON, shown as #TS"),
             Map.entry("/api/lite/v1/model/createClass", "a project's model and the classes to make"),
             Map.entry("/api/lite/v1/model/createAssociation", "a project's model and the associations to make"),
             Map.entry("/api/lite/v1/model/createDataSpace", "a project's model and the data space to make")));
@@ -346,7 +356,11 @@ class PlannerSurfaceTest {
                     "planned.resultColumns", PLAN_DATA, "runtime", NAME, "serializationFormat", OPTION,
                     "planned.shape", PLAN_DATA, "planned.sql", PLAN_DATA, "upperBound", VALUE, "value", VALUE,
                     // merged main 3a217086a (#81), 2026-11-14: tsItem's one #TS item, a query's text core's parser reads
-                    "text", LAMBDA)),
+                    "text", LAMBDA,
+                    // lite's API v1 (2026-11-17, the HOST stream): a query's tree, query/print's style, query/run's
+                    // parameters' values and its format; elements the parse door's document, read back, never the
+                    // request's
+                    "query", LAMBDA, "style", OPTION, "params", VALUE, "format", OPTION, "elements", INTERNAL)),
             "TestDataRoutes.java", new TreeMap<>(fields("_type", OPTION, "columnValuePairs", OBJECT, "function",
                     LAMBDA, "hashStrings", OPTION, "mapping", NAME, "model", MODEL_TEXT, "name", NAME,
                     "parameterValues", VALUE, "query", LAMBDA, "rowIdentifiers", OBJECT, "runtime", NAME, "schema",
@@ -387,9 +401,12 @@ class PlannerSurfaceTest {
      *  service that plans nothing, with what it is instead. */
     static final Map<String, String> HTTP_ROUTES = new TreeMap<>(Map.of(
             "/api/pure/v1/", "the pure/v1 dispatcher (ROUTES)",
-            "/api/lite/v1/", "the pure/v1 dispatcher (ROUTES)",
+            "/api/lite/v1/", "lite's operations, one POST each (ROUTES)",
             "/api/pure/v1/query", "the saved queries' and saved cubes' store: no planner",
-            "/api/lite/v1/query", "lite's own path to the same store: no planner",
+            // lite's API v1 (2026-11-17): the store at queries/, and the user its own operation (until then the store
+            // at /api/lite/v1/query, its user GET query/currentUser)
+            "/api/lite/v1/queries", "lite's own path to the same store: no planner",
+            "/api/lite/v1/user", "the current user's name, the store's: no planner",
             "/api/server/v1/currentUser", "the current user's name: no planner",
             "/engine/diagram", "a model's diagrams laid out: no planner",
             "/health", "the server's health: no planner",
@@ -430,21 +447,30 @@ class PlannerSurfaceTest {
 
     /** LITE'S OWN ROUTES, EACH BY ITS REASON (the final audit of 9af16fbe58's J4, 2026-11-14: #TS's two sat under the
      *  {@code LiteV1Api.java} row of {@link #UPSTREAM_PROTOCOL}, open, though upstream has no #TS): every
-     *  {@code /api/lite/} route, CLOSED -- by its method's {@code only(...)} over exactly the keys listed, or by its
-     *  route file ({@link #CLOSED_ROUTE_FILES}) -- or OPEN because its body is upstream's own shape, said why.
-     *  {@link #liteRouteViolations} holds each row to the route switch and each closed method to its {@code only}. */
-    static final Map<String, String> LITE_ROUTES = new TreeMap<>(Map.of(
-            "/api/lite/v1/compilation/compile", "OPEN: its body is a model, upstream's PureModelContext, read as"
-                    + " upstream's compile reads one (ModelInput)",
-            "/api/lite/v1/grammar/jsonToTs/lambda", "CLOSED jsonToTsLambda: model, lambda",
-            "/api/lite/v1/grammar/tsItem", "CLOSED tsItem: text",
-            "/api/lite/v1/model/createClass", "CLOSED FILE ModelChanges.java",
-            "/api/lite/v1/model/createAssociation", "CLOSED FILE ModelChanges.java",
-            "/api/lite/v1/model/createDataSpace", "CLOSED FILE ModelChanges.java"));
+     *  {@code /api/lite/} route CLOSED -- by its request's {@code read(body, "<what>", Set.of(<optional>), <keys>)} over
+     *  exactly the keys listed ({@code CLOSED "<what>": keys[; optional keys]}), or by its route file
+     *  ({@link #CLOSED_ROUTE_FILES}). Lite's API v1 (2026-11-17, the user's go; spec §2): every operation's request is
+     *  lite's own shape -- a model as its text, a query as its tree -- so none is open (until then compilation/compile
+     *  read upstream's PureModelContext, open). {@link #liteRouteViolations} holds each row to the route switch and each
+     *  closed route to its {@code read}. */
+    static final Map<String, String> LITE_ROUTES = new TreeMap<>(Map.ofEntries(
+            Map.entry("/api/lite/v1/model/check", "CLOSED \"a model/check request\": model"),
+            Map.entry("/api/lite/v1/model/elements", "CLOSED \"a model/elements request\": model"),
+            Map.entry("/api/lite/v1/query/parse", "CLOSED \"a query/parse request\": text"),
+            Map.entry("/api/lite/v1/query/print", "CLOSED \"a query/print request\": query; optional style"),
+            Map.entry("/api/lite/v1/query/type", "CLOSED \"a query/type request\": model, query"),
+            Map.entry("/api/lite/v1/query/plan", "CLOSED \"a query/plan request\": model, query, runtime"),
+            Map.entry("/api/lite/v1/query/run", "CLOSED \"a query/run request\": model, query, runtime; optional params,"
+                    + " format"),
+            Map.entry("/api/lite/v1/ts/item", "CLOSED \"a ts/item request\": text"),
+            Map.entry("/api/lite/v1/ts/statement", "CLOSED \"a ts/statement request\": model, query"),
+            Map.entry("/api/lite/v1/model/createClass", "CLOSED FILE ModelChanges.java"),
+            Map.entry("/api/lite/v1/model/createAssociation", "CLOSED FILE ModelChanges.java"),
+            Map.entry("/api/lite/v1/model/createDataSpace", "CLOSED FILE ModelChanges.java")));
 
     /** Every violation of {@link #LITE_ROUTES} in {@code pureV1Source}: a lite route its switch dispatches that no row
-     *  names, a row for no such route, and a closed method whose {@code ModelChanges.only(...)} is not over exactly its
-     *  row's keys. */
+     *  names, a row for no such route, and a closed route whose {@code read(body, "<what>", ...)} is not over exactly its
+     *  row's keys and optional keys. */
     static List<String> liteRouteViolations(String pureV1Source, Map<String, String> rows) {
         List<String> out = new ArrayList<>();
         Set<String> routes = new TreeSet<>();
@@ -461,23 +487,29 @@ class PlannerSurfaceTest {
             if (!routes.contains(route)) {
                 out.add("a row for no lite route: " + route);
             }
-            Matcher c = Pattern.compile("CLOSED (\\w+): (.*)").matcher(reason);
+            Matcher c = Pattern.compile("CLOSED \"([^\"]+)\": ([\\w, ]+?)(?:; optional ([\\w, ]+))?").matcher(reason);
             if (c.matches()) {
-                String method = c.group(1);
-                int at = pureV1Source.indexOf("public static Answer " + method + "(");
-                int end = at < 0 ? -1 : pureV1Source.indexOf("\n    }\n", at);
-                Matcher only = Pattern.compile("ModelChanges\\.only\\(request, \"[^\"]*\"((?:, \"\\w+\")*)\\);")
-                        .matcher(at < 0 ? "" : pureV1Source.substring(at, end));
+                String what = c.group(1);
+                Matcher read = Pattern.compile("read\\(body, \"" + Pattern.quote(what)
+                        + "\", (?:java\\.util\\.)?Set\\.of\\(([^)]*)\\)((?:,\\s*\"\\w+\")*)\\)").matcher(pureV1Source);
                 List<String> keys = new ArrayList<>();
-                if (only.find()) {
-                    Matcher k = Pattern.compile("\"(\\w+)\"").matcher(only.group(1));
+                Set<String> optional = new TreeSet<>();
+                boolean found = read.find();
+                if (found) {
+                    Matcher k = Pattern.compile("\"(\\w+)\"").matcher(read.group(2));
                     while (k.find()) {
                         keys.add(k.group(1));
                     }
+                    Matcher o = Pattern.compile("\"(\\w+)\"").matcher(read.group(1));
+                    while (o.find()) {
+                        optional.add(o.group(1));
+                    }
                 }
-                if (!keys.equals(List.of(c.group(2).split(", ")))) {
-                    out.add("a closed lite route whose method is not closed over its keys: " + route + " (" + method
-                            + " closes " + keys + ")");
+                Set<String> rowOptional = c.group(3) == null ? Set.of() : new TreeSet<>(List.of(c.group(3).split(", ")));
+                if (!found || !keys.equals(List.of(c.group(2).split(", "))) || !optional.equals(rowOptional)) {
+                    out.add("a closed lite route whose request is not closed over its keys: " + route + " (" + what
+                            + (found ? " closes " + keys + ", optional " + optional : " is read by no read(body, ...)")
+                            + ")");
                 }
             }
         });
@@ -614,6 +646,10 @@ class PlannerSurfaceTest {
             // the sources a server admits: its configuration's text
             Map.entry("Execution#runOnProjectDatabases(TypedQuery, String, String, Output)",
                     List.of(LAMBDA, NAME, OPTION, OUTPUT)),
+            // the run's parameter values, bound at run (the edge program's H7, 24ac6394a8, 2026-11-17: lite's query/run;
+            // this row added 2026-11-17 by the HOST stream, the overload having landed without it)
+            Map.entry("Execution#runOnProjectDatabases(TypedQuery, String, String, Map<String, ?>, Output)",
+                    List.of(LAMBDA, NAME, OPTION, VALUE, OUTPUT)),
             // TestExecution: a test body planned, then run, its verdicts to the caller's listener and the referee
             Map.entry("TestExecution#planBody(TypedQuery, String, ExecuteOptions)", List.of(LAMBDA, NAME, OPTION)),
             // a test body's facts, data, before it is planned (C5-J item 2, 2026-11-15): the record its plan carries
@@ -720,6 +756,9 @@ class PlannerSurfaceTest {
                     QueryRoad.REFUSES_RAW_SQL),
             Map.entry("Execution#runOnProjectDatabases(TypedQuery, String, Output)", QueryRoad.REFUSES_RAW_SQL),
             Map.entry("Execution#runOnProjectDatabases(TypedQuery, String, String, Output)",
+                    QueryRoad.REFUSES_RAW_SQL),
+            // H7's values-taking overload (24ac6394a8; its row 2026-11-17, the HOST stream)
+            Map.entry("Execution#runOnProjectDatabases(TypedQuery, String, String, Map<String, ?>, Output)",
                     QueryRoad.REFUSES_RAW_SQL),
             Map.entry("TestExecution#planBody(TypedQuery, String, ExecuteOptions)", QueryRoad.TEST_ROAD),
             // it reads facts of the body and plans nothing (C5-J item 2, 2026-11-15)
@@ -1617,8 +1656,15 @@ class PlannerSurfaceTest {
         }
         // W8 (docs/records/d-plan-2026-11-16.md, 2026-11-16): the host answer halves (arrowPlan, jsonPlan, jsonAnswer)
         // moved to the edge's HostAnswers; read as part of the same surface, so its planned.* reads stay censused
+        // lite's API v1 (the HOST stream, 2026-11-17, the user's go): the operations LiteV1Api.route calls,
+        // LiteV1Planning's, read as part of the same surface -- unread by this census until then
+        // and pure/v1's ExecuteInput reader, edge/ExecuteInputs (moved there by B7, 1898bc0ddb, 2026-11-17: its reads --
+        // body, multiplicity, lowerBound, upperBound, value -- left this census's surface and their rows stood unread;
+        // read again here, 2026-11-17, the HOST stream)
         out.put("LiteV1Api.java", out.get("LiteV1Api.java") + "\n"
+                + read("core/src/main/java/com/legend/server/LiteV1Planning.java") + "\n"
                 + read("core/src/main/java/com/legend/edge/PureV1Routes.java") + "\n"
+                + read("core/src/main/java/com/legend/edge/ExecuteInputs.java") + "\n"
                 + read("core/src/main/java/com/legend/edge/HostAnswers.java"));
         return out;
     }
@@ -1650,22 +1696,26 @@ class PlannerSurfaceTest {
                 "the server's surface is not closed");
     }
 
-    /** Lite's own routes, each closed over exactly its keys or open by its reason; a route whose closure is removed,
-     *  widened, or a new lite route, is named. */
+    /** Lite's own routes, each closed over exactly its keys; a route whose closure is removed, widened, given an
+     *  optional key, or a new lite route, is named (lite's API v1, 2026-11-17: the closures are its read(body, ...)). */
     @Test
     void liteRoutesAreEachClosedOrOpenByTheirReason() {
         String source = routeFiles().get("LiteV1Api.java");
         assertEquals(List.of(), liteRouteViolations(source, LITE_ROUTES));
-        String unclosed = source.replace("ModelChanges.only(request, \"a tsItem request\", \"text\");", "");
-        String widened = source.replace("\"a jsonToTs/lambda request\", \"model\", \"lambda\");",
-                "\"a jsonToTs/lambda request\", \"model\", \"lambda\", \"sql\");");
-        String added = source.replace("case \"/api/lite/v1/grammar/tsItem\" ->",
-                "case \"/api/lite/v1/grammar/planted\" -> tsItem(body);\n            case \"/api/lite/v1/grammar/tsItem\" ->");
-        assertEquals(List.of("a closed lite route whose method is not closed over its keys: /api/lite/v1/grammar/tsItem"
-                + " (tsItem closes [])"), liteRouteViolations(unclosed, LITE_ROUTES));
-        assertEquals(List.of("a closed lite route whose method is not closed over its keys: /api/lite/v1/grammar/jsonToTs"
-                + "/lambda (jsonToTsLambda closes [model, lambda, sql])"), liteRouteViolations(widened, LITE_ROUTES));
-        assertEquals(List.of("a lite route no row names: /api/lite/v1/grammar/planted"),
+        String closure = "read(body, \"a ts/item request\", java.util.Set.of(), \"text\");";
+        assertTrue(source.contains(closure), "the splices' anchor");
+        String unclosed = source.replace(closure, "request(body);");
+        String widened = source.replace(closure, "read(body, \"a ts/item request\", java.util.Set.of(), \"text\", \"sql\");");
+        String optional = source.replace(closure, "read(body, \"a ts/item request\", java.util.Set.of(\"sql\"), \"text\");");
+        String added = source.replace("case \"/api/lite/v1/ts/item\" ->",
+                "case \"/api/lite/v1/ts/planted\" -> tsItem(body);\n            case \"/api/lite/v1/ts/item\" ->");
+        assertEquals(List.of("a closed lite route whose request is not closed over its keys: /api/lite/v1/ts/item"
+                + " (a ts/item request is read by no read(body, ...))"), liteRouteViolations(unclosed, LITE_ROUTES));
+        assertEquals(List.of("a closed lite route whose request is not closed over its keys: /api/lite/v1/ts/item"
+                + " (a ts/item request closes [text, sql], optional [])"), liteRouteViolations(widened, LITE_ROUTES));
+        assertEquals(List.of("a closed lite route whose request is not closed over its keys: /api/lite/v1/ts/item"
+                + " (a ts/item request closes [text], optional [sql])"), liteRouteViolations(optional, LITE_ROUTES));
+        assertEquals(List.of("a lite route no row names: /api/lite/v1/ts/planted"),
                 liteRouteViolations(added, LITE_ROUTES));
     }
 
@@ -1674,9 +1724,9 @@ class PlannerSurfaceTest {
     void theServersSurfaceRefusesAPlantedRoute() {
         Map<String, String> files = routeFiles();
         String pureV1 = files.get("LiteV1Api.java").replace(
-                "            case \"/api/lite/v1/compilation/compile\" ->",
+                "            case \"/api/lite/v1/model/check\" ->",
                 "            case \"/api/lite/v1/runSql\" -> runSql(LiteV1Api.request(body).getString(\"sql\"));\n"
-                        + "            case \"/api/lite/v1/compilation/compile\" ->");
+                        + "            case \"/api/lite/v1/model/check\" ->");
         files.put("LiteV1Api.java", pureV1);
         String http = httpSource().replace("        route(\"/health\",",
                 "        route(\"/api/lite/v1/sql\", exchange -> { });\n        route(\"/health\",");
@@ -1795,7 +1845,9 @@ class PlannerSurfaceTest {
                 Map.entry("Execution#runOnProjectDatabases(TypedQuery, String, Output)",
                         () -> Execution.runOnProjectDatabases(typed.get(), runtime, null)),
                 Map.entry("Execution#runOnProjectDatabases(TypedQuery, String, String, Output)",
-                        () -> Execution.runOnProjectDatabases(typed.get(), runtime, null, null))));
+                        () -> Execution.runOnProjectDatabases(typed.get(), runtime, null, null)),
+                Map.entry("Execution#runOnProjectDatabases(TypedQuery, String, String, Map<String, ?>, Output)",
+                        () -> Execution.runOnProjectDatabases(typed.get(), runtime, null, Map.of(), null))));
         Set<String> refusing = new TreeSet<>();
         QUERY_ROADS.forEach((sig, road) -> {
             if (road == QueryRoad.REFUSES_RAW_SQL) {
