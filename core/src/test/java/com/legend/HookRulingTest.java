@@ -58,7 +58,7 @@ class HookRulingTest {
     static final Map<Class<?>, java.util.Set<String>> FACADES = Map.of(
             // pureToString (Scalars', every value's text), dateTimeText (LiteralSpelling's, the product's cells),
             // kindType (MixedEncoding's, the lowering's mixed lists)
-            com.legend.lowering.RelationTexts.class, java.util.Set.of("pureToString", "dateTimeText", "kindType"));
+            com.legend.lowering.RelationTexts.class, java.util.Set.of("pureToString", "kindType"));   // dateTimeText gone 2026-11-17 (census B9: the edge's own, edge.EdgeDateTimeTexts)
 
 
     /** (a): an interface declaring signatures only -- no static method, no default method, no field. */
@@ -132,9 +132,20 @@ class HookRulingTest {
      *  caller's own product form, whatever the kind; the edge's refuses a kind outside the list by name. */
     @Test
     void theTwoFormKindsAreAClosedListTheProductAnswersItsOwnForm() {
-        // 2026-11-17, census B8 (TEXT_FORMS): a list's text, the product's JSON form, the edge's legend-pure one
-        assertEquals(List.of(com.legend.lowering.ListTexts.class), com.legend.testplan.PlanStyleFacets.TWO_FORMS,
+        // the two-form kinds, an exact set; each added with its family and its dated reason:
+        // DateTimeTexts (census B9, 2026-11-17: a DateTime's text in a message); ListTexts (census B8, 2026-11-17,
+        // TEXT_FORMS: a list's text, the product's JSON form, the edge's legend-pure one)
+        assertEquals(List.of(com.legend.lowering.DateTimeTexts.class, com.legend.lowering.ListTexts.class),
+                com.legend.testplan.PlanStyleFacets.TWO_FORMS,
                 "the two-form kinds, an exact set: a kind is added here with its family and its dated reason");
+        assertTrue(PlanStyle.PRODUCT.twoForm(com.legend.lowering.DateTimeTexts.class,
+                com.legend.lowering.Styled.LITE_DATE_TIMES) == com.legend.lowering.Styled.LITE_DATE_TIMES,
+                "the product's DateTime text is lite's");
+        Object edgeDateTimes = com.legend.edge.PureText.UPSTREAM.twoForm(com.legend.lowering.DateTimeTexts.class,
+                com.legend.lowering.Styled.LITE_DATE_TIMES);
+        assertTrue(edgeDateTimes != com.legend.lowering.Styled.LITE_DATE_TIMES
+                && edgeDateTimes.getClass().getPackageName().equals("com.legend.edge"),
+                "the edge answers its own DateTime text: " + edgeDateTimes.getClass());
         assertTrue(PlanStyle.PRODUCT.twoForm(com.legend.lowering.ListTexts.class,
                 com.legend.lowering.ProductListTexts.INSTANCE) == com.legend.lowering.ProductListTexts.INSTANCE,
                 "the product answers its own list text");

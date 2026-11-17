@@ -453,7 +453,7 @@ final class RelationTextLowering implements RelationTexts {
         // from a database -- 'T', the fraction's digits with trailing zeros trimmed, '+0000' -- on every output
         // (the fixed three millisecond digits, "the engine's own wire spelling", and the value root's own
         // whole-second case are both gone into it)
-        return RelationTexts.dateTimeText(c);
+        return EdgeDateTimeTexts.INSTANCE.dateTimeText(c, null);
     }
 
     private static SqlExpr strictDateText(SqlExpr c) {

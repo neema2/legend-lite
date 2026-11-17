@@ -271,7 +271,8 @@ public final class Lowerer {
 
     /** The plan style's text facets and plain raises (the separation census's B8 and B7, 2026-11-17): the texts only
      *  legend-pure writes ({@link PureOnlyTexts}), asked only when a native's rule meets one, with that call's own
-     *  refusal; a list's text, the style's form of the two-form {@link ListTexts}; and THE RAISES THE STYLE WRITES
+     *  refusal; a DateTime's text in a message and a list's text, the style's forms of the two-form {@link DateTimeTexts}
+     *  and {@link ListTexts}; and THE RAISES THE STYLE WRITES
      *  PLAIN ({@code PlanStyle.plainRaises}): a check of a kind there is the operation alone, the database's own error
      *  passing through (the edge's pure/v1 style, legend-engine's census class A). A Lowerer no planner handed a style
      *  is the product's ({@link Styled#PRODUCT}): it refuses each text, writes its own list text and every check. */

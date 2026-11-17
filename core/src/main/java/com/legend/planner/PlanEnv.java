@@ -177,6 +177,7 @@ public record PlanEnv(ModelContext ctx, @Nullable String runtimeFqn,
     public com.legend.lowering.Styled styled() {
         return new com.legend.lowering.Styled(r -> style.facet(com.legend.lowering.PureOnlyTexts.class, r),
                 style.plainRaises(),
+                style.twoForm(com.legend.lowering.DateTimeTexts.class, com.legend.lowering.Styled.LITE_DATE_TIMES),
                 style.twoForm(com.legend.lowering.ListTexts.class, com.legend.lowering.ProductListTexts.INSTANCE));
     }
 
