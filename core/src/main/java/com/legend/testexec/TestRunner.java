@@ -48,14 +48,14 @@ public final class TestRunner {
      * {@code runProgram}: no fixture is provided between the body's plan and its run.
      */
     public static void runOpening(TestPlan plan, com.legend.exec.SessionSource sessions,
-            com.legend.executionplan.DataStores stores, @Nullable Edge edge,
+            com.legend.executionplan.DataStores stores, Edge edge,
             @Nullable AssertListener callers, EdgeRun edgeRun, @Nullable Output answer,
             java.util.UUID execution) {
         lites(answer);
         // both judges isolated: each plan its own run, then compared (IsolatedRun)
         if (plan.steps().size() == 1 && plan.steps().get(0) instanceof com.legend.testexecutionplan.TestPlan.Isolated pair) {
             IsolatedRun.run(pair, sessions, (p, s, l, a) -> run(p, s, stores, edge, l, edgeRun, a,
-                    com.legend.exec.StatementOrigin.OTHER, execution), callers, answer);
+                    com.legend.exec.StatementOrigin.OTHER, execution), callers, answer, edgeRun.wordsAlike());
             return;
         }
         // the caller's session source is called back before the plan's run opens: it plans nothing
@@ -78,14 +78,14 @@ public final class TestRunner {
      * the run and the appeals decided after it name.
      */
     public static void run(TestPlan plan, Sessions.Session session,
-            com.legend.executionplan.DataStores stores, com.legend.testexecutionplan.@Nullable Edge edge,
+            com.legend.executionplan.DataStores stores, com.legend.testexecutionplan.Edge edge,
             @Nullable AssertListener callers, EdgeRun edgeRun,
             @Nullable Output answer, com.legend.exec.StatementOrigin origin, java.util.UUID execution) {
         if (plan.steps().size() == 1 && plan.steps().get(0) instanceof TestPlan.Isolated pair) {
             // both judges isolated on the caller's own session: read-only plans alone (IsolatedRun's refusal)
             lites(answer);
             IsolatedRun.run(pair, com.legend.exec.SessionSource.given(session), (p, s, l, a) -> run(p, s, stores, edge,
-                    l, edgeRun, a, origin, execution), callers, answer);
+                    l, edgeRun, a, origin, execution), callers, answer, edgeRun.wordsAlike());
             return;
         }
         lites(answer);
@@ -148,8 +148,9 @@ public final class TestRunner {
      *  to the listener. */
     private static final class Moved implements com.legend.exec.ProgramRunner.ProgramSink, TestRun.Judges {
         private final TestPlan planned;
-        /** The compatibility edge the run was handed, which records the referee's ledger, or null (lite's rules). */
-        private final com.legend.testexecutionplan.@Nullable Edge edge;
+        /** The edge hook the run was handed: the compatibility edge's recorder of the referee's ledger, or the product's
+         *  {@code NoEdge.NONE} (lite's rules), which records none. */
+        private final com.legend.testexecutionplan.Edge edge;
         private final @Nullable Output answer;
         /** The caller's sink, asked for before the program ran (a sent answer), or null (none, or a constant's). */
         private final @Nullable ResultSink early;
@@ -194,10 +195,10 @@ public final class TestRunner {
          *  plan is the one carrier; the host judge is handed them at the verdict's step. */
         private final java.util.Map<Integer, com.legend.testexecutionplan.TestPlan.JudgingRules> rulesOf = new java.util.HashMap<>();
 
-        Moved(TestPlan planned, com.legend.testexecutionplan.@Nullable Edge edge,
+        Moved(TestPlan planned, com.legend.testexecutionplan.Edge edge,
                 @Nullable Output answer, @Nullable ResultSink early, @Nullable AssertListener listener,
                 BodyRun run) {
-            if (edge == null && !planned.extensionsByStep().isEmpty()) {
+            if (!edge.records() && !planned.extensionsByStep().isEmpty()) {
                 // records planned for the edge (the compatibility rules' ledger texts) with no edge to hand them: the
                 // plan was made for another run, refused by name, never run with its records dropped (the slice 3
                 // invariant audit, 2026-11-08)
@@ -439,7 +440,7 @@ public final class TestRunner {
         @Override
         public void seeded(int step, List<Boolean> answeredRows) {
             com.legend.testexecutionplan.Edge e = edge;
-            if (e == null) {
+            if (!e.records()) {
                 return;   // lite's own rules: nothing planned for the edge, no ledger
             }
             List<com.legend.testexecutionplan.Extension> texts = planned.extensionsByStep().get(step);
@@ -471,7 +472,7 @@ public final class TestRunner {
                 Census.inc(Census.Key.EFFECTS_IN_SCRIPT);
             }
             com.legend.testexecutionplan.Edge e = edge;
-            if (e != null) {
+            if (e.records()) {
                 List<com.legend.testexecutionplan.Extension> texts = planned.extensionsByStep().get(step);
                 if (texts == null) {
                     throw new IllegalStateException("effect step " + step + " of a moved body ran with no ledger texts"

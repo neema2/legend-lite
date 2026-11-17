@@ -31,4 +31,10 @@ public final class AppealRun implements EdgeRun {
     public EdgeHearing open(TestPlan plan, @Nullable AssertListener callers, java.util.UUID execution) {
         return new Appeals(plan, callers, execution, referee);
     }
+
+    @Override
+    public boolean wordsAlike() {
+        // the compatibility rules: the words are the host's alone (upstream's), the verdicts compared
+        return false;
+    }
 }

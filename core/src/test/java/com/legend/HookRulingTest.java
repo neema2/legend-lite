@@ -48,6 +48,13 @@ class HookRulingTest {
             // the hearing's member (NoEdgeRun's hearing refuses it by name)
             com.legend.testexec.PureWords.class, List.of(
                     () -> productHearing().pureWords()),
+            // census C1, 2026-11-17 (the orchestrator's ruling that day: the edge hook typed, the product's refusal
+            // where a null selected lite's rules): the ledger's recorder, each ask refused by the product's NoEdge
+            com.legend.testexecutionplan.Edge.class, List.of(
+                    () -> com.legend.testexecutionplan.NoEdge.NONE.effect(List.of(), List.of()),
+                    () -> com.legend.testexecutionplan.NoEdge.NONE.seed(List.of(), Map.of()),
+                    () -> com.legend.testexecutionplan.NoEdge.NONE.seeded(List.of(), List.of()),
+                    () -> com.legend.testexecutionplan.NoEdge.NONE.effectRan(List.of())),
             // census B3 and B1 (EngineTextDialect and PlanStyle's signatures naming it): CLOSED 2026-11-17 by Phase 6 --
             // the interface is com.legend.edge's and the style names no engine text; its entry gone
             // census B2, 2026-11-17 (Phase 6): upstream's plan text, the planner's facet -- signatures only since its
@@ -90,7 +97,9 @@ class HookRulingTest {
 
     /** The product's refusals of a ruled hook (criterion (b)): its own implementations, which refuse by name, pinned. */
     static final java.util.Set<String> PRODUCT_REFUSALS = java.util.Set.of(
-            "com.legend.testexec.NoEdgeRun", "com.legend.testexec.NoEdgeRun$Hearing");
+            "com.legend.testexec.NoEdgeRun", "com.legend.testexec.NoEdgeRun$Hearing",
+            // census C1, 2026-11-17: the product's edge hook, which records no ledger
+            "com.legend.testexecutionplan.NoEdge");
 
     /** A test plan naming one appeal, by its verdict's number: what the product's run refuses to open. */
     private static com.legend.testexecutionplan.TestPlan planNaming() {
@@ -247,6 +256,20 @@ class HookRulingTest {
     }
 
     /** (b): the product's style refuses each way of reaching the hook, by name, pointing to the edge. */
+    /** The hooks' capabilities decide, never a null or the rules (census C1, the orchestrator's ruling of 2026-11-17):
+     *  the product's edge hook records no ledger and the edge's does; the product's run hook compares both isolated
+     *  judges' words (lite's sentences), the edge's the verdicts alone (the words upstream's, the host's). */
+    @Test
+    void theHooksCapabilitiesAreTheProductsAndTheEdges() {
+        assertFalse(com.legend.testexecutionplan.NoEdge.NONE.records(), "the product records no ledger");
+        assertTrue(new com.legend.edge.CompatEdge(new com.legend.edge.RawLedger.Recorder(),
+                com.legend.executionplan.DataStores.none()).records(), "the edge's recorder records the ledger");
+        assertTrue(com.legend.testexec.NoEdgeRun.NONE.wordsAlike(), "lite's judges write alike");
+        assertFalse(com.legend.edge.AppealRun.with(null).wordsAlike(), "the edge's words are the host's alone");
+        assertTrue(com.legend.ExecuteOptions.NONE.edge() == com.legend.testexecutionplan.NoEdge.NONE,
+                "the product's options carry the product's edge hook, never a null");
+    }
+
     @Test
     void theProductRefusesEachRuledHookByName() {
         RULED.forEach((hook, calls) -> calls.forEach(call -> {
@@ -276,6 +299,7 @@ class HookRulingTest {
         assertEquals(new TreeSet<>(List.of(
                 "EdgeHearing <- com.legend.edge.Appeals",
                 "EdgeRun <- com.legend.edge.AppealRun",
+                "Edge <- com.legend.edge.CompatEdge",
                 "PureOnlyTexts <- com.legend.edge.EdgePureOnlyTexts",
                 "PureWords <- com.legend.edge.EdgePureWords",
                 "RelationTexts <- com.legend.edge.RelationTextLowering",
