@@ -73,17 +73,23 @@ class LiteApiConformanceTest {
         assertEquals(List.of(), failures);
     }
 
-    /** Whether the case is the browser binding's: it names no bindings, or names {@code browser}. */
+    /** Whether the case is the browser binding's: it names no bindings, or names {@code browser}; a binding that is
+     *  none of the three is refused by name. */
     private static boolean servedHere(Json.Obj c) {
         if (!c.has("bindings")) {
             return true;
         }
+        boolean here = false;
         for (Json.Node b : c.getArr("bindings").items()) {
-            if (b instanceof Json.Str s && s.value().equals("browser")) {
-                return true;
+            String binding = ((Json.Str) b).value();
+            if (!java.util.Set.of("browser", "server", "python").contains(binding)) {
+                // a binding no reader is: a typo would skip the case silently everywhere
+                throw new AssertionError("a case names a binding that is none of browser, server, python: " + binding);
             }
+            here |= binding.equals("browser");
         }
-        return false;
+        // a case naming the browser is asked of it, and an operation it has not fails by name (asked's default)
+        return here;
     }
 
     /** Whether {@code answer} holds each key {@code shape} names, of the JSON type it names. */
