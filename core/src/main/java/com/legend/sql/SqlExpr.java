@@ -657,16 +657,44 @@ public sealed interface SqlExpr
 
     record FloatLit(double value, TypeFact type)
             implements SqlExpr {
+        /** How a target's database computes with a Float literal (register S20, built 2026-11-17, Phase 5b): the
+         *  target's dialect says ({@code SqlDialect.floatLiteralKind}), the lowering builds the literal with it, and
+         *  the dialect writes the literal by it ({@link #isDouble}) -- one source for the fact and the text. */
+        public enum Kind {
+            /** The double: the product's literal (S20, "IEEE everywhere"). */
+            DOUBLE,
+            /** The DECIMAL of its digits (the numeric charter's Rule 1): legend-engine's bare literal at the edge, and
+             *  the databases whose DOUBLE literal their lanes have not measured yet. */
+            DECIMAL
+        }
+
         public FloatLit {
-            // NUMERIC CHARTER Rule 1: a float literal renders BARE and the
-            // database types it — a DECIMAL of the digits' own precision
-            // (DuckDB `19.75` is DECIMAL(4,2); H2 NUMERIC). The fact says
-            // what the wire IS, so the declared-kind envelope converts it.
-            type = SqlTyping.decimalLitType(BigDecimal.valueOf(value));
+            // a DOUBLE fact is the target's kind (Kind.DOUBLE); any other is the DECIMAL of the digits' own precision
+            // (DuckDB `19.75` is DECIMAL(4,2); H2 NUMERIC), the numeric charter's Rule 1, which a literal the lowering
+            // writes for itself (an average's 1.0, a judge's zero) keeps
+            type = SqlTyping.T_DOUBLE.equals(type) ? SqlTyping.T_DOUBLE : SqlTyping.decimalLitType(BigDecimal.valueOf(value));
         }
 
         public FloatLit(double value) {
             this(value, SqlTyping.UNKNOWN);
+        }
+
+        /** A user's Float literal on a target that computes with {@code kind}. */
+        public static FloatLit of(double value, Kind kind) {
+            return new FloatLit(value, switch (kind) {
+                case DOUBLE -> SqlTyping.T_DOUBLE;
+                case DECIMAL -> SqlTyping.UNKNOWN;
+            });
+        }
+
+        /** Whether the database computes with this literal as a double: the dialect writes it so. */
+        public boolean isDouble() {
+            return SqlTyping.T_DOUBLE.equals(type);
+        }
+
+        /** The literal negated, of its kind. */
+        public FloatLit negated() {
+            return new FloatLit(-value, type);
         }
     }
 

@@ -332,7 +332,14 @@ public class Snowflake extends AnsiSqlRenderer {
 
     /** A Float literal's plain spelling; NaN and the infinities as FLOAT text (a bare {@code NaN} is no literal). */
     @Override
-    protected String floatLiteral(double v) {
+    public com.legend.sql.SqlExpr.FloatLit.Kind floatLiteralKind() {
+        // S20's DOUBLE literal waits on this lane's measurement (an F-row of the edge program, 2026-11-17): the DECIMAL
+        // of its digits, written below
+        return com.legend.sql.SqlExpr.FloatLit.Kind.DECIMAL;
+    }
+
+    @Override
+    protected String decimalFloatLiteral(double v) {
         // a negative zero keeps its sign, cast from its text (the orchestrator's round 56, 2026-11-15: the digits'
         // BigDecimal has no -0, so -0.0 was written 0.0)
         if (v == 0.0 && Double.doubleToRawLongBits(v) != 0L) {
@@ -346,7 +353,9 @@ public class Snowflake extends AnsiSqlRenderer {
         }
         // the literal is the DECIMAL of its digits (SqlTyping.decimalLitType, DuckDB's reading): Snowflake drops a
         // trailing zero's scale (17.0 is a NUMBER(2,0), its text '17', measured), so such a literal spells its type
-        String plain = super.floatLiteral(v);
+        // S20's DOUBLE literal is not built here yet (Phase 5b, 2026-11-17: the Snowflake lane measures its form
+        // first); the literal stays the DECIMAL of its digits
+        String plain = plainFloat(v);
         java.math.BigDecimal digits = com.legend.sql.SqlTyping.floatDecimal(v);
         if (digits != null && digits.scale() > 0 && digits.stripTrailingZeros().scale() < digits.scale()) {
             return "CAST(" + plain + " AS NUMBER(" + Math.max(digits.precision(), digits.scale()) + "," + digits.scale()

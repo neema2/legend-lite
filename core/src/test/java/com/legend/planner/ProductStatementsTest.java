@@ -196,7 +196,8 @@ class ProductStatementsTest {
         // the zoned helper too (the final audit of 9af16fbe58's J6: it handed out a bare Lowerer), and it hands out
         // no Lowerer at all
         assertTrue(QueryDoor.isRawSqlRefusal(assertThrows(com.legend.error.NotImplementedException.class,
-                () -> Lowered.lowerInZone(raw, "EST", List.of()))));
+                () -> Lowered.lowerInZone(raw, "EST", List.of(),
+                        com.legend.sql.SqlExpr.FloatLit.Kind.DOUBLE))));
         for (java.lang.reflect.Method m : Lowered.class.getDeclaredMethods()) {
             assertTrue(m.getReturnType() != com.legend.lowering.Lowerer.class, m.toString());
         }

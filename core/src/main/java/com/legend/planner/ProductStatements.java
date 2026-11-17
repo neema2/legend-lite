@@ -379,7 +379,7 @@ public final class ProductStatements {
             ObjectSites sites) {
         // the environment's time zone and relation-text facet (PlanEnv.configure, B17 2026-11-17)
         return env.configure(configured(query, temporal, streaming, slots, BodyPlanner.featuresOf(env, body), sites))
-                .withOptions(env.options());
+                .withOptions(env.options()).withFloatLiteralKind(env::floatLiteralKind);
     }
 
     /**

@@ -418,7 +418,7 @@ final class Scalars {
                     case SqlExpr.IntLit i when i.value() == Long.MIN_VALUE ->
                             new SqlExpr.DecimalLit(java.math.BigDecimal.valueOf(i.value()).negate());
                     case SqlExpr.IntLit i -> new SqlExpr.IntLit(-i.value());
-                    case SqlExpr.FloatLit fl -> new SqlExpr.FloatLit(-fl.value());
+                    case SqlExpr.FloatLit fl -> fl.negated();
                     case SqlExpr.DecimalLit d -> new SqlExpr.DecimalLit(d.value().negate());
                     case SqlExpr e -> new SqlExpr.Call(SqlFn.MINUS,
                             List.of(new SqlExpr.IntLit(0), e));

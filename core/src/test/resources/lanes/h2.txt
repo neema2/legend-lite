@@ -118,7 +118,7 @@ ScalarFunctionIntegrationTest#testBitOr	measured 2026-10-29: BIT_OR reached a di
 ScalarFunctionIntegrationTest#testBitShiftLeft	measured 2026-10-29: BIT_SHIFT_LEFT reached a dialect without bit-op support
 ScalarFunctionIntegrationTest#testBitShiftRight	measured 2026-10-29: BIT_SHIFT_RIGHT reached a dialect without bit-op support
 ScalarFunctionIntegrationTest#testBitXor	measured 2026-10-29: BIT_XOR reached a dialect without bit-op support
-ScalarFunctionIntegrationTest#testCbrtSimple	measured 2026-10-29: Function "CBRT" not found; SQL statement:  SELECT cbrt(27.0) AS "value" [90022-214]
+ScalarFunctionIntegrationTest#testCbrtSimple	measured 2026-11-17 (register S20 built in Phase 5b, the literal is the double): Function "CBRT" not found; SQL statement:  SELECT cbrt(CAST(27.0 AS DOUBLE PRECISION)) AS "value" [90022-214]
 ScalarFunctionIntegrationTest#testHash	measured 2026-10-29: signed 64-bit hashCode reached a dialect without a spelling
 ScalarFunctionIntegrationTest#testLevenshteinDistance	measured 2026-10-29: Function "LEVENSHTEIN" not found; SQL statement:  SELECT levenshtein('hello', 'hallo') AS "value" [90022-214]
 ScalarFunctionIntegrationTest#testPctCbrt0	measured 2026-10-29: Function "CBRT" not found; SQL statement:  SELECT cbrt(0) AS "value" [90022-214]

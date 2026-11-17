@@ -198,6 +198,19 @@ public final class Lowerer {
      * convertDateToSqlString: the dbTimeZone, default GMT) — batch 86. */
     private @com.legend.base.Nullable String dbTimeZone;
 
+    /** How the target's database computes with a Float literal (register S20, built 2026-11-17, Phase 5b): the
+     *  target dialect's, passed by the planner as data (the lowering imports no dialect); a user's Float literal is
+     *  built with it, asked only where one is lowered (naming the target can need the runtime's database); none (no
+     *  target named) refuses one by name. */
+    private java.util.function.Supplier<com.legend.sql.SqlExpr.FloatLit.@com.legend.base.Nullable Kind> floatLiteralKind =
+            () -> null;
+
+    public Lowerer withFloatLiteralKind(
+            java.util.function.Supplier<com.legend.sql.SqlExpr.FloatLit.@com.legend.base.Nullable Kind> kind) {
+        this.floatLiteralKind = kind;
+        return this;
+    }
+
     public Lowerer withDbTimeZone(@com.legend.base.Nullable String zone) {
         this.dbTimeZone = zone;
         return this;
@@ -3645,7 +3658,9 @@ public final class Lowerer {
             // B8: exact digits emit as DecimalLit under the Float label (see CFloat)
             case TypedCFloat c -> c.exact() != null
                     ? new SqlExpr.DecimalLit(c.exact())
-                    : new SqlExpr.FloatLit(c.value());
+                    : SqlExpr.FloatLit.of(c.value(), java.util.Objects.requireNonNull(floatLiteralKind.get(),
+                            "a Float literal lowered with no target named: how its database computes it is the"
+                            + " target's (SqlDialect.floatLiteralKind)"));
             case TypedCDecimal c ->
                     new SqlExpr.DecimalLit(c.value());
             // Date literals: full dates/timestamps render typed; PARTIAL
