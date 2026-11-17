@@ -79,6 +79,15 @@ public record PlanEnv(ModelContext ctx, @Nullable String runtimeFqn,
 
     /** This environment writing its statements in {@code d}: a test's program on the product's road, its runtime
      *  decided (the test door's effects, the test-is-the-product plan's M3d). */
+    /** How the target's database computes with a Float literal (register S20, built 2026-11-17, Phase 5b): the
+     *  planning's dialect where it chose one, else the style's for the runtime's database; null where neither is
+     *  named. Data for the lowering, which imports no dialect. */
+    public com.legend.sql.SqlExpr.FloatLit.@Nullable Kind floatLiteralKind() {
+        SqlDialect d = dialect != null ? dialect : runtimeFqn == null ? null
+                : style.dialect(com.legend.Compiler.executesOn(ctx, runtimeFqn).type());
+        return d == null ? null : d.floatLiteralKind();
+    }
+
     /** This environment recording its consumed lets in {@code lets}, its own: a planning that must leave none in the
      *  body's accumulator -- the referee's made-up plan-parameter values, which an appeal's rows are planned under
      *  (G10, 2026-11-16: the body's map took them, and a later read of the body's plan text resolved its parameter by
@@ -149,5 +158,15 @@ public record PlanEnv(ModelContext ctx, @Nullable String runtimeFqn,
     /** The frame connection's time zone (every DateTime literal spells in it). */
     public @Nullable String timeZone() {
         return frame == null ? null : frame.timeZone();
+    }
+
+    /** A Lowerer configured by this environment: its frame's time zone, and a relation's text asked of its plan
+     *  style's facet with the call's own refusal (B17 of the separation census, 2026-11-17: the product's style
+     *  refuses a {@code toCSV}, a TDS's {@code csv} and a relation's {@code toString} at lowering, by name; and the
+     *  texts only legend-pure writes, B8 (i)). */
+    public com.legend.lowering.Lowerer configure(com.legend.lowering.Lowerer lowerer) {
+        return lowerer.withDbTimeZone(timeZone())
+                .withRelationTexts(r -> style.facet(com.legend.lowering.RelationTexts.class, r))
+                .withPureOnlyTexts(r -> style.facet(com.legend.lowering.PureOnlyTexts.class, r));
     }
 }

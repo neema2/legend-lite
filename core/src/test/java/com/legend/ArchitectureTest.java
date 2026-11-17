@@ -1223,6 +1223,10 @@ final class ArchitectureTest {
             // the closed facet list, read by the edge's style before it answers a kind (the P2 checkpoint audit's S2,
             // 2026-11-16): data, a list of classes
             "testplan.PlanStyleFacets#KINDS", "com.legend.edge.PureText",
+            // B17 of the separation census (2026-11-17, the precedent above's one facade, one row): a relation's
+            // legend-pure text is the edge's (edge.RelationTextLowering), and each lowering read it makes -- a cell's
+            // print, a date-time's text -- is the facade's (lowering.RelationTexts), each member admitted by this row
+            "lowering.RelationTexts#*", "com.legend.edge.RelationTextLowering",
             // the test door's options, from the root's ExecuteOptions: planning's half, a record of closed words
             "testplan.PlanningOptions#<init>(com.legend.testexecutionplan.Edge, com.legend.executionplan.DataStores, "
                     + "java.util.Set, com.legend.testplan.PlanningOptions$JudgeMode, "
@@ -1259,6 +1263,12 @@ final class ArchitectureTest {
                     + "com.legend.platform.ImplementationTable)", "com.legend.Compiler com.legend.edge.EnginePlans",
             "lowering.Lowerer#lower(java.util.List)", "com.legend.Compiler com.legend.edge.EnginePlans",
             "lowering.Lowerer#withEngineExistsJoinForm()", "com.legend.Compiler com.legend.edge.EnginePlans",
+            // Phase 5b (register S20, 2026-11-17, the orchestrator's GO on design (d)): a Float literal is the target's
+            // kind, passed to the lowering as data -- the product's for lowerResolved's runtime, the plan environment's
+            // for the edge's engine SQL (row 21: legend-engine's DECIMAL); the user, 2026-11-17, approved 5b's landing ('Okay')
+            "lowering.Lowerer#withFloatLiteralKind(java.util.function.Supplier)",
+            "com.legend.Compiler com.legend.edge.EnginePlans",
+            "planner.PlanEnv#floatLiteralKind()", "com.legend.edge.EnginePlans",
             "lowering.Lowerer#withInstanceKeys(java.util.function.Function)", "com.legend.Compiler",
             "lowering.Lowerer#withObjectIdentity(java.util.function.Function)", "com.legend.Compiler",
             "lowering.ObjectSites#<init>()", "com.legend.Compiler",
@@ -1332,7 +1342,8 @@ final class ArchitectureTest {
             // facet planner.UpstreamPlans; it lowers and renders a query in legend-engine's text through the product's
             // lowering and the plan's environment, so each of those reaches is listed here, by signature and caller
             "lowering.Lowerer#bindPlanParam(com.legend.sql.SqlExpr$PlanParam)", "com.legend.edge.EnginePlans",
-            "lowering.Lowerer#withEngineText()", "com.legend.edge.EnginePlans",
+            "lowering.Lowerer#withShape(com.legend.lowering.LoweringShape)", "com.legend.edge.EnginePlans",
+            "lowering.LoweringShape#<init>(boolean, boolean, boolean, boolean, boolean)", "com.legend.edge.EnginePlans",
             "lowering.Lowerer#withFeatures(java.util.Set)", "com.legend.edge.EnginePlans",
             "lowering.Lowerer#withOptions(java.util.Set)", "com.legend.edge.EnginePlans",
             "lowering.PlanParams#kindOf(com.legend.compiler.element.type.Type)", "com.legend.edge.EnginePlans",
@@ -1435,9 +1446,15 @@ final class ArchitectureTest {
      *  alone and the facade grows without a row per member. */
     static final String FACADE = "testplan.EngineTextPlanning#*";
 
+    /** The facades whose every member is one entry, {@code owner#*}: the engine-text arm's ({@link #FACADE}) and the
+     *  relation text's (B17 of the separation census, 2026-11-17: {@code lowering.RelationTexts}, read by the edge's
+     *  {@code RelationTextLowering}). */
+    static final java.util.Set<String> FACADES = java.util.Set.of(
+            "com.legend.testplan.EngineTextPlanning", "com.legend.lowering.RelationTexts");
+
     static String entryKey(com.tngtech.archunit.core.domain.JavaAccess<?> a) {
-        if (a.getTargetOwner().getName().equals("com.legend.testplan.EngineTextPlanning")) {
-            return FACADE;
+        if (FACADES.contains(a.getTargetOwner().getName())) {
+            return a.getTargetOwner().getName().substring("com.legend.".length()) + "#*";
         }
         String entry = a.getTargetOwner().getName().substring("com.legend.".length()) + "#" + a.getName();
         if (a.getTarget() instanceof com.tngtech.archunit.core.domain.AccessTarget.CodeUnitAccessTarget unit) {
@@ -2447,6 +2464,35 @@ final class ArchitectureTest {
     void theDialectRuleBitesAPlantedDialect() {
         org.junit.jupiter.api.Assertions.assertThrows(AssertionError.class, () -> DIALECTS_ARE_THE_PRODUCTS_OR_THE_EDGES
                 .check(new ClassFileImporter().importClasses(com.legend.planner.PlantedDialect.class)));
+    }
+
+    /**
+     * ONLY THE EDGE IMPLEMENTS A STYLE'S FACET (the terminal-hook criteria, the orchestrator's ruling relayed to E-SQL,
+     * 2026-11-17): every kind of the closed list ({@code testplan.PlanStyleFacets.KINDS}: {@code planner.UpstreamPlans},
+     * {@code testplan.EngineTestText}) is a product hook whose types are the product's, which the product's style refuses
+     * by name ({@code PlanStyle.PRODUCT.facet}, pinned by {@code EdgeSpellingHookTest}), and which only
+     * {@code com.legend.edge} implements -- this rule. {@link #theFacetRuleBitesAPlantedImplementer} shows it bites.
+     */
+    @Test
+    void onlyTheEdgeImplementsAStylesFacet() {
+        for (Class<?> kind : com.legend.testplan.PlanStyleFacets.KINDS) {
+            facetImplementersAreTheEdges(kind).check(CORE_AND_EDGE_CLASSES);
+        }
+    }
+
+    static com.tngtech.archunit.lang.ArchRule facetImplementersAreTheEdges(Class<?> kind) {
+        return classes().that().areAssignableTo(kind).and().areNotInterfaces()
+                .should().resideInAnyPackage("com.legend.edge..")
+                .as("a plan style's facet " + kind.getSimpleName() + " is implemented by the compatibility edge alone");
+    }
+
+    /** {@link #onlyTheEdgeImplementsAStylesFacet} fails on an implementer outside the edge
+     *  ({@code planner.PlantedDialect.Facet}, a test class planted for this alone). */
+    @Test
+    void theFacetRuleBitesAPlantedImplementer() {
+        org.junit.jupiter.api.Assertions.assertThrows(AssertionError.class,
+                () -> facetImplementersAreTheEdges(com.legend.planner.UpstreamPlans.class).check(
+                        new ClassFileImporter().importClasses(com.legend.planner.PlantedDialect.Facet.class)));
     }
 
     /**

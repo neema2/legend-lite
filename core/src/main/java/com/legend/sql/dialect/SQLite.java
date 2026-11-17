@@ -1349,7 +1349,10 @@ public class SQLite extends AnsiSqlRenderer {
                             + " ELSE __pf_s END AS __pf_t FROM (SELECT trim(")
                     .expr(v, 0).append(", char(9, 10, 11, 12, 13, 32)) AS __pf_s)))))))");
         }
-        return writer.piece(castTo(w -> w.expr(v, 0), typeOf(v), target));
+        // a whole number already (a rounding to no places, a floor, a ceiling): cast as it is, never rounded again
+        boolean whole = alreadyWhole(v) && (target == SqlType.Scalar.INTEGER || target == SqlType.Scalar.BIGINT
+                || target == SqlType.Scalar.HUGEINT);
+        return writer.piece(castTo(w -> w.expr(v, 0), whole ? null : typeOf(v), target));
     }
 
     /** A Variant's value as {@code to}: a scalar by its SQL value ({@code ->> '$'}: a string unquoted, a boolean 1 or
@@ -1559,8 +1562,43 @@ public class SQLite extends AnsiSqlRenderer {
         return false;
     }
 
+    /** The arithmetic a Decimal operand is refused in here (D2a, the orchestrator's decision of 2026-11-17, found by
+     *  FloatAndDecimalTest): SQLite holds no exact decimal -- a decimal is a REAL, and the driver shipped (sqlite-jdbc
+     *  3.47.1.0) carries no decimal extension ({@code decimal_add}: "no such function", measured) -- so a Decimal's sum,
+     *  difference, product, quotient or remainder would be the double's, silently approximate ({@code 0.1D + 0.2D},
+     *  {@code rem(0.3D, 0.1D)}). Refused by name, never approximated (G7). */
+    private static final Set<SqlFn> DECIMAL_ARITHMETIC = Set.of(SqlFn.PLUS, SqlFn.MINUS, SqlFn.TIMES, SqlFn.DIVIDE,
+            SqlFn.MOD, SqlFn.REM);
+
+    /** Whether a Decimal's arithmetic is refused here: the product's, by the no-silent-approximation rule (D2a). The
+     *  compatibility edge writes it as REAL arithmetic, as legend-engine would here (the edge program's §6 row 22). */
+    protected boolean refusesDecimalArithmetic() {
+        return true;
+    }
+
+    /** Whether {@code e} is a Decimal value: of a Decimal fact, and holding a Decimal of the user's -- a Decimal
+     *  literal, a cast to a Decimal, or a column read as one -- not the lowering's own Float literal (an average's
+     *  {@code 1.0 *}, a DECIMAL fact by its digits, a REAL here like every Float). */
+    private static boolean holdsADecimal(SqlExpr e) {
+        if (!(e.type() instanceof com.legend.sql.TypeFact.Typed t && t.type() instanceof SqlType.Decimal)) {
+            return false;
+        }
+        return switch (e) {
+            case SqlExpr.DecimalLit d -> true;
+            case SqlExpr.Column col -> true;
+            case SqlExpr.Cast cast -> cast.target() instanceof SqlType.Decimal || holdsADecimal(cast.value());
+            case SqlExpr.FloatLit f -> false;
+            default -> e.children().stream().anyMatch(SQLite::holdsADecimal);
+        };
+    }
+
     @Override
     protected SqlWriter call(SqlWriter writer, SqlExpr.Call c, int parentPrec) {
+        if (refusesDecimalArithmetic() && DECIMAL_ARITHMETIC.contains(c.fn())
+                && c.args().stream().anyMatch(SQLite::holdsADecimal)) {
+            throw new DialectCapability("a Decimal's arithmetic (" + c.fn() + ") reached SQLite, which holds no exact"
+                    + " decimal (a decimal is a REAL there): refused, never approximated");
+        }
         if (REPEATING.contains(c.fn()) && c.args().stream().anyMatch(SQLite::bindable)) {
             return writer.piece(over(c.args(), refs -> w -> calls(w, (SqlExpr.Call) c.withChildren(refs), 0)));
         }
@@ -1592,7 +1630,7 @@ public class SQLite extends AnsiSqlRenderer {
             case PI -> writer.append("pi()");
             case FLOAT_PRINT -> floatPrintByText(writer, c, parentPrec);
             case FLOAT_TO_TEXT -> floatToText(writer, c.args().get(0));
-            case DATETIME_TO_TEXT, DATETIME_PRINT, CELL_TEXT, FORMAT_PADDED, INSTANCE_TEXT, RELATION_TEXT, REPRESENTATION_TEXT, TEXT_FORMS, TRACE_TEXT ->
+            case DATETIME_TO_TEXT, DATETIME_PRINT, CELL_TEXT, INSTANCE_TEXT, RELATION_TEXT, TEXT_FORMS, TRACE_TEXT ->
                     throw expandedFirst(c);
             // the hooks: this dialect's own (or the base's refusal)
             case HASH -> hashSigned(writer, c.args());
@@ -1674,6 +1712,10 @@ public class SQLite extends AnsiSqlRenderer {
             case CONCAT -> writer.append("concat(").join(flattenConcat(a), ", ", (w, x) -> w.piece(asText(x)))
                     .append(")");
             case CONCAT_JOIN -> writer.append("concat(").join(a, ", ", (w, x) -> w.piece(asText(x))).append(")");
+            // the product's join of a row's cells: concat_ws skips a NULL part with its separator (SQLite 3.44 on;
+            // measured on 3.47, Phase 3)
+            // each part is already a text: written as it is (asText would cast it again, round 75's lean note)
+            case CONCAT_WS -> writer.append("concat_ws(").list(a).append(")");
             case LENGTH -> writer.append("length(").piece(asText(a.get(0))).append(")");
             case LEFT, RIGHT -> writer.piece(leftRight(c.fn(), a));
             case LPAD, RPAD -> writer.piece(pad(c.fn(), a));

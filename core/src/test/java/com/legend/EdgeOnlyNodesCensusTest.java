@@ -45,23 +45,21 @@ class EdgeOnlyNodesCensusTest {
     private static final Path MAIN = Path.of("core/src/main/java/com/legend");
 
     /** The edge-only members (FLOAT_PRINT is CompatSpellingGuardTest's, its JUDGE rows). */
-    static final List<SqlFn> EDGE_ONLY = List.of(SqlFn.DATETIME_PRINT, SqlFn.FORMAT_PADDED, SqlFn.INSTANCE_TEXT,
-            SqlFn.RELATION_TEXT, SqlFn.REPRESENTATION_TEXT, SqlFn.TEXT_FORMS, SqlFn.TRACE_TEXT);
+    static final List<SqlFn> EDGE_ONLY = List.of(SqlFn.DATETIME_PRINT, SqlFn.INSTANCE_TEXT,
+            SqlFn.RELATION_TEXT, SqlFn.TEXT_FORMS, SqlFn.TRACE_TEXT);
 
     /** Each member's emitting sites, "file (under core/src/main/java/com/legend)" -> occurrences in code, measured on
-     *  d-stage 885328d0 (2026-11-17, the census's B8). */
+     *  d-stage 885328d0 (2026-11-17, the census's B8); a member with no product site has no entry. */
     static final Map<SqlFn, Map<String, Integer>> EMITTERS = Map.of(
             // legend-pure's DateTime print: the judges' (a literal's written text kept), its product rendering the
             // judges' too (CompatSpellingGuardTest's DateTimePrintText JUDGE row) until Phases 4b and 5
             SqlFn.DATETIME_PRINT, Map.of("lowering/LiteralSpelling.java", 1, "lowering/Scalars.java", 1),
-            // format's %0<w>d, refused by the product
-            SqlFn.FORMAT_PADDED, Map.of("lowering/Scalars.java", 1),
+            // (FORMAT_PADDED: gone from SqlFn 2026-11-17, B8 (i) -- the edge composes it at lowering)
             // an instance's toString, refused by the product (graph fetch)
             SqlFn.INSTANCE_TEXT, Map.of("lowering/Scalars.java", 1),
-            // a relation's text (toString, toCSV), refused by the product (the result writers)
-            SqlFn.RELATION_TEXT, Map.of("lowering/Lowerer.java", 1),
-            // toRepresentation, refused by the product (§10 item 8; format's %r joins with step 2b)
-            SqlFn.REPRESENTATION_TEXT, Map.of("lowering/Repr.java", 1),
+            // (RELATION_TEXT, a relation's text: no product site since B17, 2026-11-17 -- the edge's
+            // RelationTextLowering writes it, asked through the plan style's RelationTexts facet; the product refuses)
+            // (REPRESENTATION_TEXT: gone from SqlFn 2026-11-17, B8 (i) -- the edge writes it at lowering)
             // a value's text in two forms, the product's kept
             SqlFn.TEXT_FORMS, Map.of("lowering/Scalars.java", 1, "lowering/TaggedLists.java", 1),
             // an execution's trace text, the id alone in the product
@@ -152,12 +150,9 @@ class EdgeOnlyNodesCensusTest {
     @Test
     void theProductRefusesLegendPuresTextsByName() {
         Map<String, SqlExpr> refused = Map.of(
-                "FORMAT_PADDED", SqlExpr.Call.of(SqlFn.FORMAT_PADDED, new SqlExpr.IntLit(3), new SqlExpr.IntLit(5)),
                 "INSTANCE_TEXT", SqlExpr.Call.of(SqlFn.INSTANCE_TEXT, new SqlExpr.StringLit("1")),
                 "RELATION_TEXT", SqlExpr.Call.of(SqlFn.RELATION_TEXT, new SqlExpr.StringLit("t"),
-                        new SqlExpr.StringLit("toCSV")),
-                "REPRESENTATION_TEXT", SqlExpr.Call.of(SqlFn.REPRESENTATION_TEXT, new SqlExpr.StringLit("t"),
-                        new SqlExpr.StringLit("toRepresentation")));
+                        new SqlExpr.StringLit("toCSV")));
         for (DatabaseType type : PRODUCT) {
             SqlDialect dialect = com.legend.database.Databases.dialect(type);
             refused.forEach((name, node) -> {

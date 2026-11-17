@@ -110,6 +110,9 @@ class CompatSpellingGuardTest {
                       // branches, Pure's sentences the asserts expect, the canons that reproduce legend-pure's equality)
             "HOOK",   // the edge's hook: a type the product's plan style names so the edge hands its printers in, the
                       // product's style refusing it by name (O3; the D part 1 audit's nit, 2026-11-15)
+            "HOOK-RULED", // a HOOK the orchestrator's ruling of 2026-11-17 closes ("hooks are terminal": an interface of
+                      // signatures only, refused by the product by name, implemented in the edge alone, its implementers
+                      // pinned -- HookRulingTest): the separation itself, not a leak
             "JUDGE",  // the judges' own canon on the test road (D0 §10): not compatibility, never moved
             "RULED",  // a row the USER RULED stays, its ruling and evidence beside it (U5, 2026-11-15/16: a surviving row
                       // shows who calls it and what breaks without it; added 2026-11-16 with the P2 checkpoint audit's A-M1)
@@ -168,7 +171,8 @@ class CompatSpellingGuardTest {
             // (edge/PurePrintForms). LiteralSpelling's row went (it writes FLOAT_TO_TEXT); Repr's added (the judges' arm)
             // lowering/Lowerer.java | TDS_NULL_CELL: gone 2026-11-15 (D1.3: a row's cells joined skip an empty one, the
             // CELL_TEXT node; legend-engine's TDSNull is the edge's, edge/PurePrintForms)
-            "lowering/Lowerer.java | withEngineText | 1 | D1.7",
+            // lowering/Lowerer.java | withEngineText: gone 2026-11-17 (Phase 6's B5: the lowering takes a LoweringShape, the
+            // product's LEAN; legend-engine's shape is the edge's choice, EnginePlans.UPSTREAM_SHAPE)
             "lowering/Repr.java | FLOAT_PRINT | 1 | JUDGE",
             // D1.3 -> D1.9 (2026-11-15): Repr is the judges' %r (and format's %r, which the assert bodies write): it
             // moves with the judges
@@ -322,8 +326,8 @@ class CompatSpellingGuardTest {
             "lowering/CanonicalRenderSql.java | TDSNull | 5 | D1.9",
             "lowering/VerdictSql.java | TDSNull | 2 | D1.9",
             "testexec/Equality.java | TDSNull | 1 | D1.9",
-            // TDSNull as legend-engine's relation text in the product's lowering (D, census B10's move)
-            "lowering/Render.java | TDSNull | 1 | D1.3",
+            // (lowering/Render.java | TDSNull | D1.3: gone 2026-11-17, census B17 -- a relation's text moved to the edge,
+            // edge.RelationTextLowering)
             // the judges' compatibility mode's branches (E-Java, census C1)
             "testexec/Equality.java | COMPILED_PURE_COMPAT | 1 | D1.9",
             "testexec/HostJudgments.java | COMPILED_PURE_COMPAT | 1 | D1.9",

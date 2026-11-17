@@ -48,4 +48,9 @@ final class PlantedUpstreamStyle implements PlanStyle {
     public <F> F facet(Class<F> kind) {
         throw new UnsupportedOperationException("planted");
     }
+
+    @Override
+    public <F> F facet(Class<F> kind, java.util.function.Supplier<? extends RuntimeException> refusal) {
+        return facet(kind);
+    }
 }

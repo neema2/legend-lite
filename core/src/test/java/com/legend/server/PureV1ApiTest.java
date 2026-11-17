@@ -233,7 +233,7 @@ class PureV1ApiTest {
      * ({@code docs/execution-plan-boundary-2026-10-05/probes/engine-reference/results.txt} §2, the {@code lit-*}
      * cases) and, for the Float's layout beyond them, Java's own {@code Double.toString}. The VALUES stay Pure's: a
      * Decimal keeps its scale where the engine answers {@code 2.5} and {@code 5.0000000000000000} (register S104), and
-     * {@code 3 * 1.1} is {@code 3.3} where the engine computes {@code 3.3000000000000003} (S105).
+     * {@code 3 * 1.1} is the double {@code 3.3000000000000003}, the engine's (S20 retired S105, 2026-11-17).
      */
     @Test
     void e8_execute_writesTheEnginesText_overPuresValues() {
@@ -250,7 +250,9 @@ class PureV1ApiTest {
         cases.put("100.0", Double.toString(100.0));
         cases.put("-2.5e-7", Double.toString(-2.5e-7));
         cases.put("0.0", "0.0");
-        cases.put("3 * 1.1", "3.3");                                  // S105: the engine's 3.3000000000000003
+        // legend-engine's pure/v1 and compiled legend-pure answer the double (register S20, built 2026-11-17,
+        // retires S105)
+        cases.put("3 * 1.1", "3.3000000000000003");
         cases.put("%2024-01-02T10:30:00", "\"2024-01-02T10:30:00.000000000+0000\"");
         cases.put("%2024-01-02T10:30:00.123456789", "\"2024-01-02T10:30:00.123456789+0000\"");
         cases.put("%2024-01-02", "\"2024-01-02\"");

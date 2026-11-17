@@ -186,6 +186,97 @@ class ProductRaiseProbeTest {
         // 8. the Float carrier (Phase 8, 2026-11-16): a computed Float carried in a list and read back bit-exact, or
         // the list refused by name where the database has no list encoding (round 73 measures every database's)
         carriers(backend, wrong);
+        // 9. a row's cells joined (Phase 3 step 3, CONCAT_WS where the database skips a NULL part, its own form where it
+        // does not; the user's ruling of 2026-11-10, "makeString skips empty elements"): an empty cell skipped with its
+        // separator, an all-empty row and an empty single cell the empty text (never a NULL), and a cell's own text
+        // never escaped (a separator inside a cell stays, as legend-pure's makeString)
+        String[][] joins = {
+                {"three cells, the middle empty; then all empty", "#TDS\n  a:String, b:String, c:String\n"
+                        + "  a, null, c\n  null, null, null\n#", "a, c", ""},
+                {"one cell, empty; then 'x'", "#TDS\n  a:String\n  null\n  x\n#", "", "x"},
+                {"a cell holding the separator", "#TDS\n  c:String\n  c\n#->extend(~s: r|'a, b')->select(~[s, c])",
+                        "a, b, c"}};
+        List<Object> joined = new ArrayList<>();
+        for (String[] j : joins) {
+            Object answered = run(backend, "a row's cells joined: " + j[0], "|" + j[1] + "->extend(~t: r|$r.values"
+                    + "->makeString(', '))->select(~t)->from(" + StorelessRuntime.RUNTIME + ")");
+            joined.add(answered);
+            List<String> want = List.of(j).subList(2, j.length);
+            if (!(answered instanceof String a7)) {
+                wrong.add("a row's cells joined, " + j[0] + ": " + describe(answered));
+                continue;
+            }
+            java.util.regex.Matcher m = java.util.regex.Pattern.compile("\"t\":(\"([^\"]*)\"|null)").matcher(a7);
+            List<String> got = new ArrayList<>();
+            while (m.find()) {
+                got.add(m.group(2) == null ? "<NULL>" : m.group(2));
+            }
+            if (!got.equals(want)) {
+                wrong.add("a row's cells joined, " + j[0] + ": " + got + " (want " + want + ")");
+            }
+        }
+        // 10. a Float literal is the double (register S20, built 2026-11-17, Phase 5b): IEEE arithmetic on every
+        // database -- 0.1 + 0.2 is the double 0.30000000000000004, and eighteen written digits are the double's
+        // (DuckDB's DECIMAL(18) raised "Overflow in multiplication" on 123456789.123456789 * 3.0 until then); each
+        // case's SQL is printed above, so a lane shows which DOUBLE form ran
+        Object sum = run(backend, "0.1 + 0.2", "|0.1 + 0.2");
+        Object product = run(backend, "123456789.123456789 * 3.0", "|123456789.123456789 * 3.0");
+        expectDouble(wrong, "0.1 + 0.2", sum, 0.1 + 0.2);
+        expectDouble(wrong, "123456789.123456789 * 3.0", product, 123456789.123456789 * 3.0);
+        // 11. the four ways (the user's request, 2026-11-17; FloatAndDecimalTest): a Float literal and a Float column
+        // answer the double's, a Decimal literal and a Decimal column the exact value -- or, on a database that holds no
+        // exact decimal, its named refusal (D2a). Every row judged but round's (F47, parked: legend-pure rounds half-up
+        // over the shortest decimal, lite half-even until it lands), and each case's SQL printed above
+        String row = "|#TDS\n  a:%1$s, b:%1$s\n  %2$s, %3$s\n#->extend(~v: r|%4$s)->select(~v)->from("
+                + StorelessRuntime.RUNTIME + ")";
+        String[][] fourWays = {{"0.1", "0.2", "$a + $b"}, {"0.1", "0.2", "($a + $b) == 0.3"},
+                {"0.3", "0.1", "rem($a, $b)"}, {"123456789.123456789", "3.0", "$a * $b"}, {"0.25", "0", "round($a, 1)"}};
+        for (String[] w : fourWays) {
+            String lit = w[2].replace("$a", w[0]).replace("$b", w[1]);
+            String col = w[2].replace("$a", "$r.a->toOne()").replace("$b", "$r.b->toOne()");
+            String decLit = "|" + w[2].replace("$a", w[0] + "D").replace("$b", w[1] + "D").replace("== 0.3", "== 0.3D");
+            Object fl = run(backend, "four ways: Float literal " + lit, "|" + lit);
+            Object fc = run(backend, "four ways: Float column " + col, String.format(row, "Float", w[0], w[1], col));
+            Object dl = run(backend, "four ways: Decimal literal " + lit, decLit);
+            Object dc = run(backend, "four ways: Decimal column " + col, String.format(row, "Decimal", w[0], w[1],
+                    col.replace("== 0.3", "== 0.3D")));
+            System.out.println("[product raise probe] " + backend.name() + " four ways " + lit + ": Float literal "
+                    + describe(fl) + ", Float column " + describe(fc) + ", Decimal literal " + describe(dl)
+                    + ", Decimal column " + describe(dc));
+            double a = Double.parseDouble(w[0]);
+            double b = Double.parseDouble(w[1]);
+            java.math.BigDecimal x = new java.math.BigDecimal(w[0]);
+            java.math.BigDecimal y = new java.math.BigDecimal(w[1]);
+            switch (w[2]) {
+                case "$a + $b" -> {
+                    expectDouble(wrong, "four ways: Float literal " + lit, fl, a + b);
+                    expectDouble(wrong, "four ways: Float column " + col, fc, a + b);
+                    expectExact(wrong, "four ways: Decimal literal " + lit, dl, x.add(y));
+                    expectExact(wrong, "four ways: Decimal column " + col, dc, x.add(y));
+                }
+                case "($a + $b) == 0.3" -> {
+                    expectText(wrong, "four ways: Float literal " + lit, fl, "false");
+                    expectText(wrong, "four ways: Float column " + col, fc, "false");
+                    expectDecimalText(wrong, "four ways: Decimal literal " + lit, dl, "true");
+                    expectDecimalText(wrong, "four ways: Decimal column " + col, dc, "true");
+                }
+                case "rem($a, $b)" -> {
+                    expectDouble(wrong, "four ways: Float literal " + lit, fl, a % b);
+                    expectDouble(wrong, "four ways: Float column " + col, fc, a % b);
+                    expectExact(wrong, "four ways: Decimal literal " + lit, dl, x.remainder(y));
+                    expectExact(wrong, "four ways: Decimal column " + col, dc, x.remainder(y));
+                }
+                case "$a * $b" -> {
+                    expectDouble(wrong, "four ways: Float literal " + lit, fl, a * b);
+                    expectDouble(wrong, "four ways: Float column " + col, fc, a * b);
+                    expectExact(wrong, "four ways: Decimal literal " + lit, dl, x.multiply(y));
+                    expectExact(wrong, "four ways: Decimal column " + col, dc, x.multiply(y));
+                }
+                default -> {
+                    // round: printed only (F47, parked)
+                }
+            }
+        }
         // what came back, each case's (the orchestrator, 2026-11-15: every lane's log shows it, not only the count)
         System.out.println("[product raise probe] " + backend.name() + " guarded, no raise, answered: " + describe(rows));
         System.out.println("[product raise probe] " + backend.name() + " divide by zero, raised: " + describe(zero));
@@ -195,6 +286,13 @@ class ProductRaiseProbeTest {
                 + List.of(values) + ", answered: " + describe(edges));
         System.out.println("[product raise probe] " + backend.name() + " NaN's text, answered: " + describe(nan));
         System.out.println("[product raise probe] " + backend.name() + " a DateTime's text, answered: " + describe(dt));
+        for (int i = 0; i < joins.length; i++) {
+            System.out.println("[product raise probe] " + backend.name() + " a row's cells joined, " + joins[i][0]
+                    + ", answered: " + describe(joined.get(i)));
+        }
+        System.out.println("[product raise probe] " + backend.name() + " 0.1 + 0.2, answered: " + describe(sum));
+        System.out.println("[product raise probe] " + backend.name() + " 123456789.123456789 * 3.0, answered: "
+                + describe(product));
         System.out.println("[product raise probe] " + backend.name() + ": " + wrong.size() + " wrong " + wrong);
         assertEquals(List.of(), wrong, backend.name());
     }
@@ -284,6 +382,49 @@ class ProductRaiseProbeTest {
         String t = new java.math.BigDecimal(Double.toString(x)).setScale(6, java.math.RoundingMode.HALF_UP)
                 .stripTrailingZeros().toPlainString();
         return t.equals("-0") || new java.math.BigDecimal(t).signum() == 0 ? "0" : t;
+    }
+
+    /** A Decimal row: its one value is {@code want} exactly (by {@code compareTo}), or the database's named refusal of a
+     *  Decimal's arithmetic where it holds no exact decimal (D2a) -- never another value. */
+    private static void expectExact(List<String> wrong, String label, Object answered, java.math.BigDecimal want) {
+        if (answered instanceof Throwable t) {
+            for (Throwable c = t; c != null; c = c.getCause()) {
+                if (String.valueOf(c.getMessage()).contains("holds no exact decimal")) {
+                    return;
+                }
+            }
+        }
+        java.util.regex.Matcher m = answered instanceof String s
+                ? java.util.regex.Pattern.compile(":\\s*(-?[0-9][0-9.eE+-]*)").matcher(s) : null;
+        if (m == null || !m.find() || new java.math.BigDecimal(m.group(1)).compareTo(want) != 0) {
+            wrong.add(label + ": expected exactly " + want.toPlainString() + ", got " + describe(answered));
+        }
+    }
+
+    /** A Decimal row's token: {@code want}, or the database's named refusal of a Decimal's arithmetic (D2a). */
+    private static void expectDecimalText(List<String> wrong, String label, Object answered, String want) {
+        for (Throwable c = answered instanceof Throwable t ? t : null; c != null; c = c.getCause()) {
+            if (String.valueOf(c.getMessage()).contains("holds no exact decimal")) {
+                return;
+            }
+        }
+        expectText(wrong, label, answered, want);
+    }
+
+    /** {@code answered}'s one value is the token {@code want} ({@code true}, {@code false}). */
+    private static void expectText(List<String> wrong, String label, Object answered, String want) {
+        if (!(answered instanceof String s && s.matches("(?s).*:\\s*" + want + "\\s*}.*"))) {
+            wrong.add(label + ": expected " + want + ", got " + describe(answered));
+        }
+    }
+
+    /** {@code answered}'s one value (a JSON row's number) is the double {@code want}, exactly. */
+    private static void expectDouble(List<String> wrong, String label, Object answered, double want) {
+        java.util.regex.Matcher m = answered instanceof String s
+                ? java.util.regex.Pattern.compile("-?[0-9][0-9.eE+-]*").matcher(s) : null;
+        if (m == null || !m.find() || Double.parseDouble(m.group()) != want) {
+            wrong.add(label + ": expected the double " + want + ", got " + describe(answered));
+        }
     }
 
     private static void expectKind(List<String> wrong, String label, Object answered,

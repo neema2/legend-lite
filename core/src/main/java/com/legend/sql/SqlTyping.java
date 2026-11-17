@@ -352,7 +352,7 @@ public final class SqlTyping {
             case IS_NULL, IS_NOT_NULL -> false;
             // probed: concat()/concat_ws SKIP NULL args (engine
             // parity is the emission's own reason); all-NULL -> ''
-            case CONCAT, CONCAT_JOIN -> false;
+            case CONCAT, CONCAT_JOIN, CONCAT_WS -> false;
             // probed: hash(NULL) yields a value, and our signed
             // reinterpretation preserves it; typeof(NULL) -> 'NULL'
             case HASH, TYPEOF -> false;
@@ -397,12 +397,12 @@ public final class SqlTyping {
                     LIST_FOR_ALL, IS_DISTINCT_FROM, ALL_DISTINCT, NULL_SAFE_EQUAL,
                     NULL_SAFE_NOT_EQUAL, LIST_BOOL_AND, LIST_BOOL_OR,
                     XOR -> T_BOOLEAN;
-            case CONCAT, CONCAT_JOIN, UPPER, LOWER, TRIM, LTRIM, RTRIM,
+            case CONCAT, CONCAT_JOIN, CONCAT_WS, UPPER, LOWER, TRIM, LTRIM, RTRIM,
                     REPLACE, TRANSLATE, SUBSTRING, LEFT, RIGHT, LPAD, RPAD,
                     REVERSE_STRING, UC_FIRST, LC_FIRST, SPLIT_PART, PURE_SPLIT_PART,
                     REGEXP_EXTRACT, REGEXP_REPLACE, CHR, ENCODE_BASE64,
                     DECODE_BASE64, MD5, SHA1, SHA256, GUID, DAYNAME,
-                    MONTHNAME, STRFTIME, TYPEOF, BOOL_TO_TEXT, DECIMAL_TO_TEXT, FLOAT_PRINT, FLOAT_TO_TEXT, DATETIME_TO_TEXT, DATETIME_PRINT, CELL_TEXT, FORMAT_PADDED, INSTANCE_TEXT, RELATION_TEXT, REPRESENTATION_TEXT, TEXT_FORMS, TRACE_TEXT, FORMAT,
+                    MONTHNAME, STRFTIME, TYPEOF, BOOL_TO_TEXT, DECIMAL_TO_TEXT, FLOAT_PRINT, FLOAT_TO_TEXT, DATETIME_TO_TEXT, DATETIME_PRINT, CELL_TEXT, INSTANCE_TEXT, RELATION_TEXT, TEXT_FORMS, TRACE_TEXT, FORMAT,
                     JSON_TYPE, JSON_PRETTY, CURRENT_USER_FN, REPEAT_STR, BINARY_COLLATE -> T_VARCHAR;
             case LENGTH, STRPOS, ASCII_CODE, LEVENSHTEIN, LIST_LENGTH,
                     LIST_POSITION, EXTRACT, DATE_DIFF, EPOCH_SECONDS,

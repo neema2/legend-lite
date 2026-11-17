@@ -86,9 +86,10 @@ class GeneratedTestDataPrintingTest {
         // the compatibility rules: upstream's text, the fraction cut
         assertEquals(List.of("assertEquals true"), run(backend, ctx, body("default\nEVENT\nID,STAMP\n"
                 + "1,2020-01-02 03:04:05\n2,---null---\n-----\n"),
-                // upstream's text is the edge's planning facet's (Phase 6's B13): the edge's style hands it in
-                ExecuteOptions.NONE.withJudgeMode(judge).withEngineCompat(true).withStyle(com.legend.edge.PureText.UPSTREAM)),
-                what + " compat");
+                ExecuteOptions.NONE.withJudgeMode(judge).withEngineCompat(true)
+                        // upstream's timestamp text is the edge's style's (the UpstreamPlans facet; Phase 6's B13,
+                        // 2026-11-17): the compatibility rules run on the edge's style, as PCT runs them
+                        .withStyle(com.legend.edge.PureText.UPSTREAM)), what + " compat");
     }
 
     /** {@code body} run through the program entry on a fresh {@code backend} session holding {@link #CSV}: each verdict

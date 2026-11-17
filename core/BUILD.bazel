@@ -2532,6 +2532,8 @@ junit_test(
     select = [
         "--select-class=com.legend.ArchitectureTest",
         "--select-class=com.legend.EdgeSeparationTest",
+        # the ruled hooks' implementers, read from the edge's jars (Phase 6's HookRulingTest)
+        "--select-class=com.legend.HookRulingTest",
         # the dialect vocabulary: it loads the edge's dialects by name, so it is the edge's test (core/edge_tests.bzl)
         "--select-class=com.legend.sql.dialect.DialectVocabularyTest",
     ],

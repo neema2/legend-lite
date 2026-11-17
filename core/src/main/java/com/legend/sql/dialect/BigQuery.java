@@ -766,7 +766,14 @@ public class BigQuery extends AnsiSqlRenderer {
      *  FLOAT64 here, so it is spelled {@code BIGNUMERIC '1.5'} ({@code 0.1 + 0.2} is 0.3, measured); a magnitude
      *  BIGNUMERIC cannot hold, and NaN and the infinities, are FLOAT64. */
     @Override
-    protected String floatLiteral(double v) {
+    public com.legend.sql.SqlExpr.FloatLit.Kind floatLiteralKind() {
+        // S20's DOUBLE literal waits on this lane's measurement (an F-row of the edge program, 2026-11-17): the DECIMAL
+        // of its digits, written below
+        return com.legend.sql.SqlExpr.FloatLit.Kind.DECIMAL;
+    }
+
+    @Override
+    protected String decimalFloatLiteral(double v) {
         // a negative zero keeps its sign, cast from its text (the orchestrator's round 56, 2026-11-15: the digits'
         // BigDecimal has no -0, so -0.0 was written 0.0)
         if (v == 0.0 && Double.doubleToRawLongBits(v) != 0L) {
@@ -1532,6 +1539,23 @@ public class BigQuery extends AnsiSqlRenderer {
     // Scalar functions -- every SqlFn decided here
     // ==================================================================
 
+    /** {@code PARSE_INT}: legend-pure's parseInteger, lite's TEXT_NOT_INTEGER by name, never the cast's own error
+     *  (Phase 8). Out of {@link #call} 2026-11-17 for its line limit (CodeShapeGuardrailTest), the SQL unchanged. */
+    private SqlWriter parseInt(SqlWriter writer, SqlExpr x) {
+        return guardedParseInt(writer, x,
+                w -> w.append("REGEXP_CONTAINS(").expr(x, 0).append(", " + stringLit("^[+-]?[0-9]+$") + ")"),
+                w -> w.append("CAST(").expr(x, 0).append(" AS INT64)"));
+    }
+
+    /** {@code TIMEZONE} (zone, t): an instant to the zone's time, a naive t read in the zone. Out of {@link #call}
+     *  2026-11-17 for its line limit, the SQL unchanged. */
+    private SqlWriter timezone(SqlWriter writer, List<SqlExpr> a) {
+        return isInstant(a.get(1))
+                ? writer.append("DATETIME(").expr(a.get(1), 0).append(", ").expr(a.get(0), 0).append(")")
+                : writer.append("TIMESTAMP(CAST(").expr(a.get(1), 0).append(" AS DATETIME), ").expr(a.get(0), 0)
+                        .append(")");
+    }
+
     @Override
     protected SqlWriter call(SqlWriter writer, SqlExpr.Call c, int parentPrec) {
         List<SqlExpr> a = c.args();
@@ -1559,7 +1583,7 @@ public class BigQuery extends AnsiSqlRenderer {
             case ERROR -> raiseEnvelope(writer, c.args(), "ERROR");
             case FLOAT_PRINT -> floatPrintByText(writer, c, parentPrec);
             case FLOAT_TO_TEXT -> floatToText(writer, c.args().get(0));
-            case DATETIME_TO_TEXT, DATETIME_PRINT, CELL_TEXT, FORMAT_PADDED, INSTANCE_TEXT, RELATION_TEXT, REPRESENTATION_TEXT, TEXT_FORMS, TRACE_TEXT ->
+            case DATETIME_TO_TEXT, DATETIME_PRINT, CELL_TEXT, INSTANCE_TEXT, RELATION_TEXT, TEXT_FORMS, TRACE_TEXT ->
                     throw expandedFirst(c);
             // the hooks: this dialect's own (or the base's refusal)
             case HASH -> hashSigned(writer, c.args());
@@ -1642,9 +1666,7 @@ public class BigQuery extends AnsiSqlRenderer {
             case RADIANS -> writer.append("(CAST(").expr(a.get(0), 0).append(" AS FLOAT64) * (ACOS(-1) / 180))");
             case BIT_NOT -> writer.append("(~ CAST(").expr(a.get(0), 0).append(" AS INT64))");
             // legend-pure's parseInteger, lite's TEXT_NOT_INTEGER by name, never the cast's own error (Phase 8)
-            case PARSE_INT -> guardedParseInt(writer, a.get(0),
-                    w -> w.append("REGEXP_CONTAINS(").expr(a.get(0), 0).append(", " + stringLit("^[+-]?[0-9]+$") + ")"),
-                    w -> w.append("CAST(").expr(a.get(0), 0).append(" AS INT64)"));
+            case PARSE_INT -> parseInt(writer, a.get(0));
             case DECIMAL_TO_TEXT -> writer.expr(varcharCast(c.args().get(0)), parentPrec);
             case BOOL_TO_TEXT -> writer.append("CAST(").expr(a.get(0), 0).append(" AS STRING)");
             // NULL-skipping, as DuckDB's (BigQuery's are NULL for any NULL argument, measured): each argument stands
@@ -1658,6 +1680,9 @@ public class BigQuery extends AnsiSqlRenderer {
                     (w, x) -> w.append("IFNULL(").piece(asText(x)).append(", '')")).append(")");
             case CONCAT_JOIN -> writer.append("CONCAT(").join(a, ", ",
                     (w, x) -> w.append("IFNULL(").piece(asText(x)).append(", '')")).append(")");
+            // a row's cells joined (Phase 3): no CONCAT_WS here; ARRAY_TO_STRING omits a NULL element
+            case CONCAT_WS -> writer.append("ARRAY_TO_STRING([").list(a.subList(1, a.size())).append("], ")
+                    .expr(a.get(0), 0).append(")");
             case LENGTH -> writer.append("LENGTH(").piece(asText(a.get(0))).append(")");
             // a negative count is all but that many (DuckDB's, measured); BigQuery's LEFT/RIGHT raise on it
             case LEFT, RIGHT -> writer.piece(leftRight(c.fn(), a));
@@ -1705,10 +1730,7 @@ public class BigQuery extends AnsiSqlRenderer {
             // DuckDB's timezone(zone, t): a naive t read in the zone (its instant); an instant to the zone's time
             // (an operand is an instant by its type, or as a timezone() of a naive one: format's zone shift is
             // timezone(zone, timezone('UTC', t)), whose inner call is typed naive but renders a TIMESTAMP)
-            case TIMEZONE -> isInstant(a.get(1))
-                    ? writer.append("DATETIME(").expr(a.get(1), 0).append(", ").expr(a.get(0), 0).append(")")
-                    : writer.append("TIMESTAMP(CAST(").expr(a.get(1), 0).append(" AS DATETIME), ").expr(a.get(0), 0)
-                            .append(")");
+            case TIMEZONE -> timezone(writer, a);
             // DuckDB's epoch(ts) is DOUBLE seconds; epoch_ms truncates toward zero (measured), as DIV does
             case EPOCH_SECONDS -> writer.append("(CAST(UNIX_MICROS(").piece(instant(a.get(0)))
                     .append(") AS FLOAT64) / 1000000)");

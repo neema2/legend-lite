@@ -157,9 +157,12 @@ class EngineDropsTest {
         // the same records (2026-10-21, the independent audit)
         assertTrue(engineJson(data("^a::P(s = 'x', n = +1)")).contains("\"value\":1"));
         hopped(data("^a::P(s = 'x', n = -9223372036854775808)"), GrammarLevel.LEGEND_LITE);
-        // a float's exact digits stay on the record, negated as written (its JSON, a double as the engine's, has none)
-        assertTrue(PmcdParser.parse(data("^a::P(s = 'x', n = -1.0000000000000000001)"), GrammarLevel.LEGEND_LITE).model()
-                .toString().contains("exact=-1.0000000000000000001"));
+        // a Float is the double on every grammar (register S20, built 2026-11-17, Phase 5b): the record holds the
+        // double, negated, as the engine's JSON does -- no written digits beside it (until then the platform's grammar
+        // kept them, legend-pure's interpreted BigDecimal)
+        String record = PmcdParser.parse(data("^a::P(s = 'x', n = -1.0000000000000000001)"), GrammarLevel.LEGEND_LITE)
+                .model().toString();
+        assertTrue(record.contains("value=-1.0") && record.contains("exact=null"), record);
     }
 
     @Test

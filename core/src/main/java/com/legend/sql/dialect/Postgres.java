@@ -745,6 +745,21 @@ public class Postgres extends AnsiSqlRenderer {
     // the empty collection as a list: a reduction, an element or a rearrangement of it is the empty collection
     // itself, NULL, as DuckDB answers over NULL (Postgres types every array: a reduction over an untyped NULL is
     // refused, "could not determine polymorphic type", measured); a concatenation is its other lists (listConcat)
+    /** {@code PARSE_INT} (64-bit, PCT Long.MIN/MAX round-trips): the text's grammar guarded, then a BIGINT cast. Out of
+     *  {@link #call} 2026-11-17 for its line limit (CodeShapeGuardrailTest), the SQL unchanged. */
+    private SqlWriter parseInt(SqlWriter writer, SqlExpr x) {
+        return guardedParseInt(writer, x, w -> w.expr(typedText(x), 6).append(" ~ '^[+-]?[0-9]+$'"),
+                w -> castAs(w, typedText(x), "BIGINT"));
+    }
+
+    /** {@code ADD_INTERVAL} (unitFn, amount, date): amount times a one-unit interval -- exact for every unit and any
+     *  BIGINT amount (make_interval takes INTEGER). Out of {@link #call} 2026-11-17 for its line limit, the SQL
+     *  unchanged. */
+    private SqlWriter addInterval(SqlWriter writer, List<SqlExpr> a, int parentPrec) {
+        return op(writer, parentPrec, () -> writer.expr(a.get(2), 5).append(" + ").expr(a.get(1), 6)
+                .append(" * INTERVAL '1 ").append(intervalUnit(part(a.get(0)))).append("'"));
+    }
+
     @Override
     protected SqlWriter call(SqlWriter writer, SqlExpr.Call c, int parentPrec) {
         if (emptyCollection(c)) {
@@ -770,10 +785,10 @@ public class Postgres extends AnsiSqlRenderer {
             case CONCAT -> concatFlat(writer, c.args());
             // joinStrings' interleaved concat, never flattened
             case CONCAT_JOIN -> writer.function("concat", c.args());
+            // the product's join of a row's cells: CONCAT_WS skips a NULL part with its separator (measured, Phase 3)
+            case CONCAT_WS -> writer.function("concat_ws", c.args());
             // 64-bit parse (PCT Long.MIN/MAX round-trips)
-            case PARSE_INT -> guardedParseInt(writer, c.args().get(0),
-                    w -> w.expr(typedText(c.args().get(0)), 6).append(" ~ '^[+-]?[0-9]+$'"),
-                    w -> castAs(w, typedText(c.args().get(0)), "BIGINT"));
+            case PARSE_INT -> parseInt(writer, c.args().get(0));
             // parseDate(text): the ISO text as a timestamp
             case PARSE_DATE -> castAs(writer, typedText(c.args().get(0)), "TIMESTAMP");
             case PI -> writer.append("pi()");
@@ -791,7 +806,7 @@ public class Postgres extends AnsiSqlRenderer {
             case BOOL_TO_TEXT -> castAs(writer, c.args().get(0), "VARCHAR");
             case FLOAT_PRINT -> floatPrintByText(writer, c, parentPrec);
             case FLOAT_TO_TEXT -> floatToText(writer, c.args().get(0));
-            case DATETIME_TO_TEXT, DATETIME_PRINT, CELL_TEXT, FORMAT_PADDED, INSTANCE_TEXT, RELATION_TEXT, REPRESENTATION_TEXT, TEXT_FORMS, TRACE_TEXT ->
+            case DATETIME_TO_TEXT, DATETIME_PRINT, CELL_TEXT, INSTANCE_TEXT, RELATION_TEXT, TEXT_FORMS, TRACE_TEXT ->
                     throw expandedFirst(c);
             case CURRENT_USER_FN -> writer.append("current_user");
             // the hooks: this dialect's own (or the base's refusal)
@@ -912,9 +927,7 @@ public class Postgres extends AnsiSqlRenderer {
             case MAKE_TIMESTAMP -> makeTimestamp(writer, c);
             // (unitFn, amount, date): amount × a one-unit interval — exact for every
             // unit and any BIGINT amount (make_interval takes INTEGER)
-            case ADD_INTERVAL, ADD_INTERVAL_TEMPORAL -> op(writer, parentPrec, () -> writer.expr(a.get(2), 5)
-                    .append(" + ").expr(a.get(1), 6).append(" * INTERVAL '1 ")
-                    .append(intervalUnit(part(a.get(0)))).append("'"));
+            case ADD_INTERVAL, ADD_INTERVAL_TEMPORAL -> addInterval(writer, a, parentPrec);
             case DATE_DIFF -> writer.piece(dateDiff(a));
             // the origins are the base's (weeks align to the Monday 1969-12-29, everything else to
             // 1970); date_bin bins fixed-length intervals, so months and years count whole calendar
@@ -2648,6 +2661,8 @@ public class Postgres extends AnsiSqlRenderer {
         if (v == 0.0 && Double.doubleToRawLongBits(v) != 0L) {
             return "CAST('-0' AS DOUBLE PRECISION)";
         }
-        return super.floatLiteral(v);
+        // a Float literal is the double (S20, Phase 5b, 2026-11-17): an exponent literal is a NUMERIC here, so the
+        // double's digits cast (unmeasured locally: the Postgres lane measures it)
+        return Double.isFinite(v) ? Double.toString(v) + "::float8" : super.floatLiteral(v);
     }
 }

@@ -146,7 +146,7 @@ public final class ProductStatements {
         boolean temporal = Temporal.anyTemporalGetAll(body, ctx);
         final List<TypedSpec> stageEnv = body;
         body.replaceAll(b -> NativeDispatch.stage(b, stageEnv,
-                UpstreamPlans.routines(specs, env)));
+                PlanTextRoutines.of(specs, env)));
         body = BodyPlanner.resolver(specs, env).resolve(body, runtime);   // Phase H
         // the SQL is for this runtime's session: the runtime decided first (no runtime is refused there, by name),
         // then every store the statement touches must be bound to it (C3b)
@@ -377,8 +377,9 @@ public final class ProductStatements {
     static Lowerer lowerer(TypedQuery query, List<TypedSpec> body, PlanEnv env,
             boolean temporal, boolean streaming, List<SqlExpr.PlanParam> slots,
             ObjectSites sites) {
-        return configured(query, temporal, streaming, slots, BodyPlanner.featuresOf(env, body), sites)
-                .withDbTimeZone(env.timeZone()).withOptions(env.options());
+        // the environment's time zone and relation-text facet (PlanEnv.configure, B17 2026-11-17)
+        return env.configure(configured(query, temporal, streaming, slots, BodyPlanner.featuresOf(env, body), sites))
+                .withOptions(env.options()).withFloatLiteralKind(env::floatLiteralKind);
     }
 
     /**

@@ -305,7 +305,7 @@ public final class BodyDriver {
         env.queryLets().putAll(inliner.queryLets());
         final java.util.List<TypedSpec> stageEnv = body;
         body.replaceAll(b -> com.legend.compiler.spec.NativeDispatch
-                .stage(b, stageEnv, com.legend.planner.UpstreamPlans.routines(specs, env.plan())));
+                .stage(b, stageEnv, com.legend.planner.PlanTextRoutines.of(specs, env.plan())));
         TypedSpec preRoot = com.legend.compiler.spec.typed.Lets.bare(body.get(body.size() - 1));
         while (preRoot instanceof com.legend.compiler.spec.typed.TypedFrom pf) {
             preRoot = pf.source();

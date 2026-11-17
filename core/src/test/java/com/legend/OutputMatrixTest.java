@@ -63,7 +63,10 @@ class OutputMatrixTest {
     private static final List<Kind> KINDS = List.of(
             new Kind("float_whole", "|2 * 1.5", "|" + T + "$r.ID * 1.5)->select(~[v])", "3.0"),
             new Kind("float_fraction", "|1.1", "|" + T + "$r.ID * 0.55)->select(~[v])", "1.1"),
-            new Kind("float_arithmetic", "|3 * 1.1", "|" + T + "$r.ID * 1.65)->select(~[v])", "3.3"),
+            // the value is the double's (register S20, built 2026-11-17, retires S105: legend-engine's pure/v1 and
+            // compiled legend-pure answer 3 * 1.1 as the double 3.3000000000000003); the column's 2 * 1.65 is 3.3
+            new Kind("float_arithmetic", "|3 * 1.1", "|" + T + "$r.ID * 1.65)->select(~[v])", "3.3000000000000003",
+                    "3.3"),
             new Kind("float_big", "|1.5e15", "|" + T + "$r.ID * 7.5e14)->select(~[v])", "1500000000000000.0"),
             new Kind("float_small", "|2.5e-7", "|" + T + "$r.ID * 1.25e-7)->select(~[v])", "0.00000025"),
             new Kind("decimal_literal", "|2.50D", "|" + T + "$r.ID * 1.25D)->select(~[v])", "2.50"),

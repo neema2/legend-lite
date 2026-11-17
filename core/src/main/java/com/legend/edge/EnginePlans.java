@@ -163,14 +163,15 @@ public final class EnginePlans {
         com.legend.lowering.Lowerer lw = new com.legend.lowering.Lowerer(
                 t -> com.legend.compiler.element.ClassLayouts.layoutOf(env.ctx(), t),
                 f -> env.ctx().findClass(f).isPresent(), env.ctx().implementations())
-                .withFeatures(BodyPlanner.featuresOf(env, body)).withOptions(env.options());
+                .withFeatures(BodyPlanner.featuresOf(env, body)).withOptions(env.options())
+                .withFloatLiteralKind(env::floatLiteralKind);
         if (!temporalRoot) {
             lw = lw.withEngineExistsJoinForm();
         }
         planParams.values().forEach(lw::bindPlanParam);
         // ENGINE-TEXT lowering: wire coercions read bare (a Lowerer option
         // since batch 136; a thread-local scope before)
-        com.legend.sql.SqlQuery plan = lw.withEngineText().lower(body);
+        com.legend.sql.SqlQuery plan = lw.withShape(UPSTREAM_SHAPE).lower(body);
         // engine plans keep enum columns RAW (host-side decode) — the
         // plan-text form of enum-mapped columns/parameters — UNLESS the
         // context carries PUSH_DOWN_ENUM_TRANSFORM (pureToSQLQuery
@@ -200,11 +201,17 @@ public final class EnginePlans {
      * ext)}: the SINGLE-RELATIONAL literal plan text (#47 pilot —
      * com.legend.plan.PlanText owns the format). */
     /** The planner's facet of upstream's plan text ({@link UpstreamPlans}), answered by the edge's style
-     *  ({@code PureText.UPSTREAM}): its routines are the planner's ({@link UpstreamPlans#routines}), each asking here when
+     *  ({@code PureText.UPSTREAM}): its routines are the planner's ({@code planner.PlanTextRoutines}), each asking here when
      *  it is called (W9's planner half, 2026-11-16: until then this class was the planner's own). */
     /** The engine's default post-processor stamps EVERY SelectSQLQuery with this comment and generateSQLExecutionNode
      *  copies it (defaultPostProcessor.pure:71) -- a constant, never gated (Phase 6's B5, 2026-11-17: moved from
      *  plan.PlanNode, the plan's record; the comment is legend-engine's content, not the plan's schema). */
+    /** legend-engine's statement shape (Phase 6's B5, 2026-11-17): a relation pasted at each read, no keyed-count fold,
+     *  its own column lists (no computed pruning), a view an aliased derived table ({@code ViewSelectSQLQuery}), a
+     *  mapping's wire coercion converted by its runtime on the wire and never spelled in its text. */
+    static final com.legend.lowering.LoweringShape UPSTREAM_SHAPE =
+            new com.legend.lowering.LoweringShape(false, false, false, true, true);
+
     static final String EXEC_TRACE_COMMENT = "-- \"executionTraceID\" : \"${execID}\"";
 
     /** Upstream's {@code SimpleDateTimeFormat}: {@code yyyy-MM-dd HH:mm:ss} (moved from testdatagen's printing, Phase 6's

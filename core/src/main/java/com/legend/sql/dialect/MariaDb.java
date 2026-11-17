@@ -1732,7 +1732,9 @@ public class MariaDb extends AnsiSqlRenderer {
                             SqlType.Scalar.DOUBLE))
                     .append(" END)");
         }
-        return writer.piece(castTo(w -> w.expr(v, 0), typeOf(v), target));
+        // a whole number already (a rounding to no places, a floor, a ceiling): cast as it is, never rounded again
+        boolean whole = alreadyWhole(v) && (target == SqlType.Scalar.INTEGER || target == SqlType.Scalar.BIGINT);
+        return writer.piece(castTo(w -> w.expr(v, 0), whole ? null : typeOf(v), target));
     }
 
     /** A Variant's value as {@code to}: a scalar by its SQL value ({@code JSON_VALUE}: a string unquoted), as text a
@@ -1985,7 +1987,7 @@ public class MariaDb extends AnsiSqlRenderer {
             // mixed list, measured 2026-10-11)
             case FLOAT_PRINT -> floatPrintByText(writer, c, parentPrec);
             case FLOAT_TO_TEXT -> floatToText(writer, c.args().get(0));
-            case DATETIME_TO_TEXT, DATETIME_PRINT, CELL_TEXT, FORMAT_PADDED, INSTANCE_TEXT, RELATION_TEXT, REPRESENTATION_TEXT, TEXT_FORMS, TRACE_TEXT ->
+            case DATETIME_TO_TEXT, DATETIME_PRINT, CELL_TEXT, INSTANCE_TEXT, RELATION_TEXT, TEXT_FORMS, TRACE_TEXT ->
                     throw expandedFirst(c);
             // NULL-skipping, as DuckDB's (MariaDB's GREATEST/LEAST are NULL for any NULL argument)
             case GREATEST -> writer.piece(nullSkipping("GREATEST", a));
@@ -1996,6 +1998,9 @@ public class MariaDb extends AnsiSqlRenderer {
             case CONCAT -> writer.append("CONCAT_WS('', ").join(flattenConcat(a), ", ", (w, x) -> w.piece(asText(x)))
                     .append(")");
             case CONCAT_JOIN -> writer.append("CONCAT_WS('', ").join(a, ", ", (w, x) -> w.piece(asText(x))).append(")");
+            // the product's join of a row's cells: CONCAT_WS skips a NULL part with its separator (as CONCAT above)
+            // each part is already a text: written as it is (asText would cast it again, round 75's lean note)
+            case CONCAT_WS -> writer.append("CONCAT_WS(").list(a).append(")");
             case LENGTH -> writer.append("CHAR_LENGTH(").piece(asText(a.get(0))).append(")");
             case LEFT, RIGHT -> writer.piece(leftRight(c.fn(), a));
             case LPAD -> pad(writer, "LPAD", a);
