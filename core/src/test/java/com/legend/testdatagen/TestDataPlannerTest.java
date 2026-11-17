@@ -35,6 +35,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class TestDataPlannerTest {
 
+    /** Upstream's printing, the compatibility edge's (Phase 6's B13, 2026-11-17: the generator's COMPAT spelling moved to
+     *  the plan style's UpstreamPlans facet). */
+    private static final TestDataPlanner.Printing UPSTREAM =
+            com.legend.edge.PureText.UPSTREAM.facet(com.legend.planner.UpstreamPlans.class).testDataTimestampText()::apply;
+
+
     private static final String MODEL = """
             ###Relational
             Database t::DB
@@ -172,7 +178,7 @@ class TestDataPlannerTest {
                     + " ['f', 'a', 'l'])");
             List<TestDataGenerator.TableRowIds> one = List.of(ids("MIXED", "ID", 1L, 2L));
             assertEquals("default\nMIXED\n\"last name\",AGE,ID,firstName\nkim,40,2,bob\nlee,30,1,ann\n-----\n",
-                    text(c, dialect, TestDataPlanner.route(ctx, mixed, "t::M", one, null, false).csv()), type.name());
+                    text(c, dialect, TestDataPlanner.route(ctx, mixed, "t::M", one, null, false, UPSTREAM).csv()), type.name());
             // the function's text: its header as before (upper-cased plain names, sorted so)
             assertEquals("default\nMIXED\nAGE,FIRSTNAME,ID,last name\n30,ann,1,lee\n40,bob,2,kim\n-----\n",
                     text(c, dialect, TestDataPlanner.plan(ctx, mixed, "t::M", one, null, false, PlannerViews.of(ctx),
@@ -183,7 +189,7 @@ class TestDataPlannerTest {
             TestDataPlanner.Seed seed = TestDataPlanner.seed(ctx, none, "t::M", true,
                     PlannerViews.queries(ctx, "t::M", "t::RT"));
             assertEquals("default\nNONE\nID,N\n\n-----\n", text(c, dialect,
-                    TestDataPlanner.route(ctx, none, "t::M", List.of(), seed, false).csv()), type.name());
+                    TestDataPlanner.route(ctx, none, "t::M", List.of(), seed, false, UPSTREAM).csv()), type.name());
         }
     }
 
@@ -687,7 +693,7 @@ class TestDataPlannerTest {
                     + "17.0,2,2021-02-03,2020-01-02 03:04:05\n" + big + ",4,2020-01-02,2020-01-02 03:04:05\n"
                     + "---null---,3,---null---,---null---\n-----\n",
                     text(c, dialect, TestDataPlanner.plan(ctx, q, "t::M", ids, null, false, PlannerViews.of(ctx),
-                            TestDataPlanner.Printing.COMPAT).csv()), type.name());
+                            UPSTREAM).csv()), type.name());
             // the seed's JSON: a timestamp key as the caller writes it (here the product's DateTime text; the seed
             // route's, upstream's ValueTransformer text, is the edge's: TestDataRoutesTest, B11, 2026-11-17)
             TestDataPlanner.Seed stamps = TestDataPlanner.seed(ctx, query("|t::S.all()->project([x|$x.n], ['n'])"),

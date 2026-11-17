@@ -1140,7 +1140,7 @@ public final class RefereeVerify {
     static java.util.@com.legend.base.Nullable Map<String, String> decodeOf(
             com.legend.compiler.element.ModelContext ctx, String mappingFqn,
             String enumFqn) {
-        var em = com.legend.plan.PlanText.enumMappingOf(ctx, mappingFqn,
+        var em = com.legend.plan.EnumMappings.of(ctx, mappingFqn,
                 enumFqn);
         if (em == null) {
             // NO enumeration mapping anywhere in the mapping (nor its

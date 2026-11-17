@@ -111,7 +111,8 @@ final class DatabaseOwners {
     /** The dialect package's shared files that own a database their name does not say: the engine text's reader owns
      *  the language it reads, legend-engine's H2 (D2). */
     private static final Map<String, Set<String>> NAMED_BY_ROLE = Map.of(
-            MAIN + "sql/dialect/RawSqlBoundary.java", Set.of("H2"));
+            // moved to the edge with the translation (Phase 6's B4 (ii), 2026-11-17)
+            MAIN + "edge/RawSqlBoundary.java", Set.of("H2"));
 
     /** The input languages (D11): each file and the database whose SQL it reads. 2026-10-18, the dialect program's
      *  D11: Postgres's rules that were the translator's (SqlToPure's) are its own files' (operators, casts, functions,
@@ -253,7 +254,9 @@ final class DatabaseOwners {
         // from sql/dialect to the edge, each owning its database as it did there
         if (rel.startsWith(MAIN + "sql/dialect/") || rel.startsWith("core/src/main/duckdb/")
                 || rel.startsWith("core/src/main/mongodb/") || rel.startsWith("core/src/main/postgres/")
-                || rel.matches(MAIN + "edge/EngineStyle\\w+\\.java")) {
+                // 2026-11-17 (Phase 6's B4 (ii)): legend-engine's H2 text translation, moved from sql/dialect to the edge,
+                // owning the language it reads as it did there
+                || rel.matches(MAIN + "edge/(EngineStyle\\w+|RawSqlBoundary)\\.java")) {
             Set<String> own = ownAndParent(rel, source);
             own.addAll(NAMED_BY_ROLE.getOrDefault(rel, Set.of()));
             return new Owner(Kind.DIALECT, own);

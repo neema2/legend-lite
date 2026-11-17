@@ -182,7 +182,10 @@ class JavaEvalLedgerTest {
             // 860 -> 862 (2026-10-18, the Cypher line's W5 legs 1 and 2a, found by the merge of main for its PR): the
             // plan printer's exhaustive store-type spelling gains the relational grammar's TIME and TIMESTAMP_NS column
             // types (one arm each); a type's name, nothing evaluated
-            Map.entry("core/src/main/java/com/legend/plan/PlanText.java", 862),
+            // 862 -> 789 (2026-11-17, Phase 6's C, the orchestrator's approved method list): the enum-mapping lookup
+            // and Pure's type spelling moved off the engine printer to plan/EnumMappings and plan/PureSpelling (model
+            // lookups and names, nothing evaluated); PlanText itself goes to the edge later in Phase 6
+            Map.entry("core/src/main/java/com/legend/plan/PlanText.java", 789),
             // 225 -> 227 (lambda-classifier slice: the lambda spelling
             // reader unwraps the m3 carrier stamp — LambdaFunction<ft> —
             // via PlatformTypes.functionTypeOf; a TYPE read, no evaluation)
@@ -808,7 +811,7 @@ class JavaEvalLedgerTest {
             // values: planToString, toSQLString, the plan model) and the body planner (the resolver, the Lowerer, the
             // plan-preparation ladder, a value's road to its body); 2,281 = 1,498 + 658 + 127 - 2 (the generator's plan
             // text handed in by the driver, two lines more there)
-            Map.entry("core/src/main/java/com/legend/edge/EnginePlans.java", 724),   // 712 -> 724 (2026-11-16, W9's planner half: the style's UpstreamPlans facet, five delegating methods replacing the routine table, which the planner keeps as UpstreamPlans.routines; nothing evaluated) // the path planner/ -> edge/ (2026-11-16, W9's planner half: upstream's plan text moved to the edge, nothing evaluated differently; the row follows the file)   // 717 -> 712 (2026-11-14, S310 RULED by the user, DE2 (a): engineTestSql deleted, an execute's activity SQL the style's pick in PlanAllocations; nothing evaluated)   // 707 -> 717 (2026-10-31, the test-is-the-product plan's M2, its census re-run): toSQLString applies its own runtime argument's table renames (the connection's post-processors, read from the model) wherever it is planned -- the product stages it with no frame, and printed the text without them; nothing evaluated   // 663 -> 707 (2026-10-31, the shared preparation): the DDL text generators' text (ddlText, D30's plan-time values) from the body driver's prelude   // 658 -> 663 (2026-10-31, S2g's third step): engineTestSql, the frame planner's road to an activity's engine SQL (only the plan-text classes hold the engine-text dialect)
+            Map.entry("core/src/main/java/com/legend/edge/EnginePlans.java", 757),   // 745 -> 757 (2026-11-17, Phase 6's B13 COMPAT half: upstream's test-data timestamp text (the SECONDS format and its STRFTIME) moved here from testdatagen, answered as the UpstreamPlans facet's testDataTimestampText; nothing evaluated) // 744 -> 745 (2026-11-17, Phase 6's B5: legend-engine's execution-trace comment moved here from plan.PlanNode, a constant; nothing evaluated) // 724 -> 744 (2026-11-17, Phase 6's A, the orchestrator's ruling: upstream's test forms moved off PlanStyle onto the UpstreamPlans facet the edge answers -- engineSeedSql, engineSeedSqlFromRecords, generatedTestDataPlan, each a delegation to a printer the edge already held; nothing evaluated) // 712 -> 724 (2026-11-16, W9's planner half: the style's UpstreamPlans facet, five delegating methods replacing the routine table, which the planner keeps as UpstreamPlans.routines; nothing evaluated) // the path planner/ -> edge/ (2026-11-16, W9's planner half: upstream's plan text moved to the edge, nothing evaluated differently; the row follows the file)   // 717 -> 712 (2026-11-14, S310 RULED by the user, DE2 (a): engineTestSql deleted, an execute's activity SQL the style's pick in PlanAllocations; nothing evaluated)   // 707 -> 717 (2026-10-31, the test-is-the-product plan's M2, its census re-run): toSQLString applies its own runtime argument's table renames (the connection's post-processors, read from the model) wherever it is planned -- the product stages it with no frame, and printed the text without them; nothing evaluated   // 663 -> 707 (2026-10-31, the shared preparation): the DDL text generators' text (ddlText, D30's plan-time values) from the body driver's prelude   // 658 -> 663 (2026-10-31, S2g's third step): engineTestSql, the frame planner's road to an activity's engine SQL (only the plan-text classes hold the engine-text dialect)
             // 127 -> 268 (2026-10-31, the shared preparation): the body driver's prelude's framing and its classification of a
             // statement's answer with no plan (prepare), the orchestration handle's type, the effect scan, and the bare plan with
             // no session (bare) -- from the body driver; the answers that run stay there
@@ -1792,6 +1795,29 @@ class JavaEvalLedgerTest {
                             "PurePrintForms.java",
                             // pure/v1's routes and the test-data routes (D1.0b): read, compile and plan only
                             "PureV1Routes.java", "TestDataRoutes.java",
+                            // legend-engine's RelationType JSON and a column's engine type and relational spelling,
+                            // moved from com.legend.plan (Phase 6's C, 2026-11-17, the orchestrator's approved method
+                            // list): spells a compiled type, decides nothing
+                            "UpstreamRelationType.java",
+                            // legend-engine's in-collection temp-table protocol text and legend-pure's source printer
+                            // for a plan's PureExp lines, moved from com.legend.plan (Phase 6's C, 2026-11-17): spell
+                            // the plan's text, decide nothing
+                            "InProtocol.java", "PurePrint.java",
+                            // legend-engine's planTestDataGeneration plan text over the generator's fetches (Phase 6's
+                            // B13, 2026-11-17, moved from testdatagen's printer): spells the generator's data, decides
+                            // nothing
+                            "TestDataPlanText.java",
+                            // legend-engine's text dialect type, moved from com.legend.sql.dialect (Phase 6's B3,
+                            // 2026-11-17): an interface its printers implement, decides nothing
+                            "EngineTextDialect.java",
+                            // the referee's raw-SQL ledger (Raw, FileRead, Recorder), moved from sql.dialect's
+                            // RawSqlBoundary (Phase 6's B4 (i), 2026-11-17): records the statements run, decides nothing
+                            "RawLedger.java",
+                            // legend-engine's H2 text translated for DuckDB and Postgres, moved from sql.dialect with
+                            // its two dialect arms (Phase 6's B4 (ii), 2026-11-17, the orchestrator's ruling (a)): the
+                            // product runs a raw statement as written, as legend-engine does; the edge's dialects (PureText's)
+                            // translate -- a text rewrite at the edge, decides nothing
+                            "RawSqlBoundary.java",
                             // the referee's load of a fixture's rows, planned (the edge's appeals, G6)
                             "RefereeLoad.java",
                             // legend-engine's service tests (D1.4, 2026-11-15, moved from com.legend.test and

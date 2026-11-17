@@ -293,7 +293,7 @@ final class ArchitectureTest {
             // hands the planner (the product's refuses it by name), and the edge supplies its printers
             .and().doNotBelongToAnyOf(com.legend.database.PlanStyle.class)
             .and().resideOutsideOfPackage("com.legend.edge..")
-            .should().dependOnClassesThat().belongToAnyOf(com.legend.sql.dialect.EngineTextDialect.class)
+            .should().dependOnClassesThat().belongToAnyOf(com.legend.edge.EngineTextDialect.class)
             .as("Invariant 4d: the engine-text dialect is the root layer's, and the generator's plan printer's")
             .check(CORE_PROD_CLASSES);
     }
@@ -1357,7 +1357,8 @@ final class ArchitectureTest {
             "planner.PlanEnv#postProcessors()", "com.legend.edge.EnginePlans",
             "planner.PlanEnv#queryLets()", "com.legend.edge.EnginePlans",
             "planner.PlanEnv#runtimeFqn()", "com.legend.edge.EnginePlans",
-            "planner.PlanEnv#style()", "com.legend.edge.EngineAllocations com.legend.edge.EnginePlans",
+            // planner.PlanEnv#style() GONE 2026-11-17 (Phase 6's A, the orchestrator's approved method list): the edge
+            // reaches its own engine-text printers (edge.PureText), no longer the plan style's engine methods
             "planner.PlanEnv#tableReplace()", "com.legend.edge.EnginePlans",
             "planner.PlanEnv#withFeatures(java.util.Set)", "com.legend.edge.EnginePlans",
             "planner.QueryParameters#of(com.legend.compiler.spec.typed.TypedLambda)", "com.legend.edge.EnginePlans",
@@ -4690,7 +4691,7 @@ final class ArchitectureTest {
     /**
      * ONE HOOK, ITS UPSTREAM SIDE THE EDGE'S (D's hook fold, 2026-11-16, agreed by D and E-Java: CompatForms, a second
      * road with a default, deleted; {@link com.legend.database.PlanStyle} the one hook): a class that implements the
-     * plan style, or prints legend-engine's text ({@link com.legend.sql.dialect.EngineTextDialect}), is the
+     * plan style, or prints legend-engine's text ({@link com.legend.edge.EngineTextDialect}), is the
      * compatibility edge's ({@code com.legend.edge}) -- the product's own style, {@code PlanStyle.PRODUCT}, is the one
      * other, and it refuses every upstream form by name. A product class that spelled upstream's forms would be a mode.
      */
@@ -4700,7 +4701,7 @@ final class ArchitectureTest {
             // and each test-planning facet's implementer (W9's judge half, 2026-11-16: the facets are the edge's)
             boolean facet = com.legend.testplan.PlanStyleFacets.KINDS.stream().anyMatch(c::isAssignableTo);
             if (c.isInterface() || !(c.isAssignableTo(com.legend.database.PlanStyle.class)
-                    || c.isAssignableTo(com.legend.sql.dialect.EngineTextDialect.class) || facet)) {
+                    || c.isAssignableTo(com.legend.edge.EngineTextDialect.class) || facet)) {
                 continue;
             }
             // the product's own style, exactly its class (the P2 checkpoint audit's S2, 2026-11-16: until then any

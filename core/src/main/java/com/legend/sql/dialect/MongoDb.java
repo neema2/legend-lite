@@ -249,12 +249,6 @@ public class MongoDb extends AnsiSqlRenderer {
         return writer.append("{\"$toString\": ").expr(r.column(), 0).append("}");
     }
 
-    /** {@inheritDoc} The engine's H2 text has no translation into a pipeline. */
-    @Override
-    public String fromEngineText(String statement) {
-        throw new DialectCapability("the engine's H2 text reached MongoDb, which runs no SQL text");
-    }
-
     // ==================================================================
     // Expressions
     // ==================================================================

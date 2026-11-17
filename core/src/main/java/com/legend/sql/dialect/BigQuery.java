@@ -107,13 +107,6 @@ public class BigQuery extends AnsiSqlRenderer {
     // Session and structure
     // ==================================================================
 
-    /** The engine's H2 text is refused here: BigQuery has no translation of it (decision D2: raw text runs on the
-     *  database its connection declares; only the engine's H2 text is translated, for H2, DuckDB and Postgres). */
-    @Override
-    public String fromEngineText(String statement) {
-        throw new DialectCapability("the engine's H2 text reached BigQuery, which has no translation of it");
-    }
-
     /** {@inheritDoc} 6: its {@code DATETIME} keeps microseconds (a literal of nine digits is refused, measured) (S181, A7, 2026-11-10). */
     @Override
     protected int literalFractionDigits() {

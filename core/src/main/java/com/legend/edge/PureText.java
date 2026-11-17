@@ -36,16 +36,7 @@ public final class PureText {
             return PureText.dialect(type);
         }
 
-        @Override
-        public com.legend.sql.dialect.EngineTextDialect engineText(DatabaseType type) {
-            return PureText.engineText(type);
-        }
 
-        @Override
-        public com.legend.sql.dialect.EngineTextDialect enginePlanText(DatabaseType type, boolean quoteIdentifiers,
-                @com.legend.base.Nullable String timeZone) {
-            return PureText.enginePlanText(type, quoteIdentifiers, timeZone);
-        }
 
         /** The closed list's kinds ({@code testplan.PlanStyleFacets.KINDS}), each the edge's own; any other by name. */
         @Override
@@ -77,22 +68,8 @@ public final class PureText {
                     + " is none of the declared kinds (com.legend.testplan.PlanStyleFacets.KINDS)");
         }
 
-        @Override
-        public com.legend.sql.dialect.EngineTextDialect engineTestText() {
-            return PureText.engineText(ENGINE_TEST_DATABASE);
-        }
 
-        @Override
-        public com.legend.sql.dialect.EngineTextDialect engineTestPlanText() {
-            return PureText.enginePlanText(ENGINE_TEST_DATABASE, false, null);
-        }
 
-        /** The connection legend-engine's test plans name: its test database's. */
-        @Override
-        public String engineTestConnection() {
-            return "TestDatabaseConnection(type = \"" + ENGINE_TEST_DATABASE.name()
-                    + "\")";
-        }
 
         /** legend-engine's key argument: the date's written text, {@code +0000} after a time (D1.2). */
         @Override
@@ -116,7 +93,7 @@ public final class PureText {
     /** legend-engine's exact SQL text for {@code type}, as {@code toSQLString} prints it: Composite takes the engine's
      *  DEFAULT spellings (native trim/pad/cbrt, plain char_length). A fresh printer per use: a dialect keeps state while
      *  it writes a statement (moved here from the planner's {@code EngineText}, phase D, 2026-11-12). */
-    public static com.legend.sql.dialect.EngineTextDialect engineText(DatabaseType type) {
+    public static EngineTextDialect engineText(DatabaseType type) {
         return switch (type) {
             case H2 -> new EngineStyleH2();
             case DB2 -> new EngineStyleDB2();
@@ -130,7 +107,7 @@ public final class PureText {
 
     /** legend-engine's exact PLAN text for {@code type}: the plan goldens pin Composite to the DB2-family spelling
      *  (paren-wrapped conjunctions, quoted boolean placeholders) — unlike {@link #engineText}. */
-    public static com.legend.sql.dialect.EngineTextDialect enginePlanText(DatabaseType type, boolean quoteIdentifiers,
+    public static EngineTextDialect enginePlanText(DatabaseType type, boolean quoteIdentifiers,
             @com.legend.base.Nullable String timeZone) {
         return switch (type) {
             case H2 -> new EngineStyleH2(quoteIdentifiers, timeZone);
@@ -165,6 +142,17 @@ public final class PureText {
 
     /** DuckDB, spelled as upstream spells it. */
     public static final class DuckDb extends com.legend.sql.dialect.DuckDb {
+
+        /** legend-engine's H2 text (its connection declares {@link RawSqlBoundary#ENGINE_TEXT}, as legend-engine's test
+         *  corpus's executeInDb calls do) translated for DuckDB ({@link RawSqlBoundary#translated}: keyword column names
+         *  quoted, H2's type kinds mapped, {@code CURRENT_TIMESTAMP()} without parens); the product runs a raw statement
+         *  as written (Phase 6's B4 (ii), 2026-11-17). */
+        @Override
+        public String raw(String statement, @com.legend.base.Nullable String writtenFor) {
+            return RawSqlBoundary.ENGINE_TEXT.equals(writtenFor)
+                    ? RawSqlBoundary.translated(statement, types -> types, bare -> bare) : statement;
+        }
+
         /** legend-engine's scan order made explicit for its corpus's replay (StableScanOrder, behind the corpus lanes'
          *  {@code legend.exec.engineScanOrder}; moved here from the product's dialect, W6, 2026-11-16). */
         @Override
@@ -223,6 +211,21 @@ public final class PureText {
 
     /** Postgres, spelled as upstream spells it. */
     public static final class Postgres extends com.legend.sql.dialect.Postgres {
+
+        /** legend-engine's H2 text translated in the flavor DuckDB shares, its column types Postgres's (2026-10-12,
+         *  docs/CLOUD_BACKENDS_PCT_2026_10_11.md §20: the 8-byte double is DOUBLE PRECISION, and SMALLINT is the
+         *  smallest integer, there is no TINYINT) and a bare column name in lower case, as Postgres folds a bare name
+         *  and spells a store's (decision D8); the product runs a raw statement as written (Phase 6's B4 (ii)). */
+        @Override
+        public String raw(String statement, @com.legend.base.Nullable String writtenFor) {
+            return RawSqlBoundary.ENGINE_TEXT.equals(writtenFor)
+                    ? RawSqlBoundary.translated(statement,
+                            types -> types.replaceAll("(?i)\\bDOUBLE\\b(?!\\s+PRECISION)", "DOUBLE PRECISION")
+                                    .replaceAll("(?i)\\bTINYINT\\b", "SMALLINT"),
+                            bare -> bare.toLowerCase(java.util.Locale.ROOT))
+                    : statement;
+        }
+
         /** legend-pure's print forms (a Float's, a DateTime's) for the product's text of each ({@link PurePrintForms}; D1.2). */
         @Override
         protected java.util.List<com.legend.sql.SqlRewriter> spellingPasses() {

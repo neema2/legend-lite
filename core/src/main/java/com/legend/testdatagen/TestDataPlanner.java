@@ -85,16 +85,19 @@ public final class TestDataPlanner {
      * known divergence"), each spelled by the database ({@link #timestampText}). A date is {@code yyyy-MM-dd} and a float
      * the database's own text in both (register S306).
      */
-    public enum Printing {
+    @FunctionalInterface
+    public interface Printing {
+        /** The text of a timestamp cell {@code x}. */
+        SqlExpr timestampText(SqlExpr x);
+
         /** Lite's own: a timestamp in full, as lite's writers spell a relation's time-bearing cell
          *  ({@code result.CellText}): the product's text of a DateTime, {@code yyyy-MM-ddTHH:mm:ss.ffffffZ} on every
-         *  database (register S312; W4, 2026-11-16). */
-        CLEAN,
-        /** Backwards compatibility's (a test body judged by the compatibility rules; the server's legend-engine routes): a
-         *  timestamp as upstream's text writes it -- {@code toCSVString}'s {@code SimpleDateTimeFormat},
-         *  {@code yyyy-MM-dd HH:mm:ss}, its fraction cut (legend-engine {@code helperFunctions.pure:214-243}, the
-         *  generator's {@code getResultCSV}). */
-        COMPAT
+         *  database (register S312; W4, 2026-11-16); a NULL stays NULL. Upstream's (the compatibility rules' and the
+         *  server's legend-engine routes', its {@code toCSVString}) is the compatibility edge's, through the plan
+         *  style's {@code UpstreamPlans} facet (Phase 6's B13, 2026-11-17). */
+        Printing CLEAN = x -> new SqlExpr.Case(List.of(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.IS_NULL, x),
+                new SqlExpr.Cast(new SqlExpr.NullLit(), SqlType.Scalar.VARCHAR, SqlExpr.Reason.DECLARED))),
+                SqlExpr.Call.of(SqlFn.DATETIME_TO_TEXT, x), SqlExpr.Reason.DECLARED);
     }
 
     /** One table the generator fetched: its schema and name, its definition, its fetched columns in the test-data
@@ -139,14 +142,15 @@ public final class TestDataPlanner {
      * relation tree is refused by name: upstream's plan form fetches a view's own rows {@code top 20} and a child view's
      * main table through its parent (TDG:1023-1201), which lite does not plan. A root no identifier names and no seed
      * starts is upstream's error node ({@link Unseeded}). A timestamp prints as backwards compatibility's
-     * ({@link Printing#COMPAT}): the routes are legend-engine's API, whose every {@code pure/v1} route writes
-     * legend-engine's spellings (L9, 2026-11-12).
+     * as {@code printing} spells it, the route's: the routes are legend-engine's API, whose every {@code pure/v1} route
+     * writes legend-engine's spellings (L9, 2026-11-12), so the edge hands upstream's (Phase 6's B13, 2026-11-17).
      */
     public static Planned route(ModelContext ctx, LambdaFunction query, String mappingFqn,
-            List<TestDataGenerator.TableRowIds> rowIds, @com.legend.base.Nullable Seed seed, boolean hashStrings) {
+            List<TestDataGenerator.TableRowIds> rowIds, @com.legend.base.Nullable Seed seed, boolean hashStrings,
+            Printing printing) {
         return planned(ctx, query, mappingFqn, rowIds, null, hashStrings, (db, view, reads, tables) -> {
             throw new IllegalStateException("a view on the server's route is refused before it is fetched");
-        }, seed, true, Printing.COMPAT);
+        }, seed, true, printing);
     }
 
     private static Planned planned(ModelContext ctx, LambdaFunction query, String mappingFqn,
@@ -1357,25 +1361,12 @@ public final class TestDataPlanner {
     }
 
     /** A timestamp's spelling in {@code printing}, written by the database (each dialect's strftime of the typed
-     *  format): {@link Printing#CLEAN}'s, the product's ({@code yyyy-MM-ddTHH:mm:ss.ffffffZ}, register S312), or {@link Printing#COMPAT}'s
+     *  format): {@link Printing#CLEAN}'s, the product's ({@code yyyy-MM-ddTHH:mm:ss.ffffffZ}, register S312), or upstream's (the edge's)
      *  {@code yyyy-MM-dd HH:mm:ss}; a NULL stays NULL. */
     private static SqlExpr timestampText(SqlExpr x, Printing printing) {
-        return switch (printing) {
-            case CLEAN -> new SqlExpr.Case(List.of(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.IS_NULL, x),
-                    new SqlExpr.Cast(new SqlExpr.NullLit(), SqlType.Scalar.VARCHAR, SqlExpr.Reason.DECLARED))),
-                    // the product's text of a DateTime (register S312; W4 of docs/records/d-plan-2026-11-16.md: lite's
-                    // writers spell a time-bearing cell so, ISO 8601 in UTC, six fraction digits and Z)
-                    SqlExpr.Call.of(SqlFn.DATETIME_TO_TEXT, x), SqlExpr.Reason.DECLARED);
-            case COMPAT -> SqlExpr.Call.of(SqlFn.STRFTIME, x, new SqlExpr.FormatLit(SECONDS));
-        };
+        return printing.timestampText(x);
     }
 
-    /** Upstream's {@code SimpleDateTimeFormat}: {@code yyyy-MM-dd HH:mm:ss}. */
-    private static final List<com.legend.sql.DateFmt> SECONDS = List.of(com.legend.sql.DateFmt.Part.YEAR4,
-            new com.legend.sql.DateFmt.Text("-"), com.legend.sql.DateFmt.Part.MONTH2, new com.legend.sql.DateFmt.Text("-"),
-            com.legend.sql.DateFmt.Part.DAY2, new com.legend.sql.DateFmt.Text(" "), com.legend.sql.DateFmt.Part.HOUR2,
-            new com.legend.sql.DateFmt.Text(":"), com.legend.sql.DateFmt.Part.MIN2, new com.legend.sql.DateFmt.Text(":"),
-            com.legend.sql.DateFmt.Part.SEC2);
 
     /** Whether {@code x} is one of {@code texts}. */
     private static SqlExpr oneOf(SqlExpr x, String... texts) {
