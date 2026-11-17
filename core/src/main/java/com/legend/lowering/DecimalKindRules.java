@@ -33,8 +33,36 @@ final class DecimalKindRules {
             return new SqlExpr.Cast(new SqlExpr.Call(SqlFn.ROUND, args),
                     SqlType.Scalar.BIGINT, SqlExpr.Reason.OPERATOR);
         }
+        // F47 (2026-11-17): legend-pure's round to a scale is HALF_UP -- a Decimal's exactly (CoreHelper.round(BigDecimal,
+        // long): setScale(n, HALF_UP)), a Float's over the double's SHORTEST decimal (round(Double, long):
+        // BigDecimal.valueOf(d).setScale(n, HALF_UP), so round(1.015, 2) is 1.02 and round(0.25, 1) is 0.3); until then
+        // lite rounded either half-even
+        Type of = n.args().get(0).info().type();
+        if (isDecimalStamp(of)) {
+            return decimalScaleCast(n, 1, new SqlExpr.Call(SqlFn.ROUND_HALF_UP, args));
+        }
+        if (of == Type.Primitive.FLOAT) {
+            return floatRound(args.get(0), args.get(1));
+        }
         return decimalScaleCast(n, 1,
                 new SqlExpr.Call(SqlFn.ROUND, args));
+    }
+
+    /** The least magnitude at which every double is an integer (2^52): a Float there rounds to itself. */
+    private static final long INTEGRAL_FROM = 1L << 52;
+
+    /** A Float's round to {@code scale} as legend-pure's: its shortest decimal, half-up -- below 2^52, where a double
+     *  may hold a fraction (a DECIMAL(38, 22) holds its shortest decimal there); from 2^52 the double itself, an integer.
+     *  A scale past 21 is refused by name: the decimal holds 22 places. */
+    private static SqlExpr floatRound(SqlExpr x, SqlExpr scale) {
+        if (scale instanceof SqlExpr.IntLit k && k.value() > 21) {
+            throw new com.legend.error.NotImplementedException("round(Float, " + k.value() + "): a Float's shortest"
+                    + " decimal is rounded in a DECIMAL(38, 22), which holds 22 places: a scale above 21 is refused");
+        }
+        SqlExpr rounded = SqlExpr.Call.of(SqlFn.ROUND_HALF_UP,
+                SqlExpr.Call.of(SqlFn.FLOAT_TO_DECIMAL_SHORTEST, x), scale);
+        return new SqlExpr.Case(List.of(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.GREATER_EQUAL,
+                SqlExpr.Call.of(SqlFn.ABS, x), new SqlExpr.IntLit(INTEGRAL_FROM)), x)), rounded, SqlExpr.Reason.OPERATOR);
     }
 
     static SqlExpr divide(TypedNativeCall n, List<SqlExpr> args) {

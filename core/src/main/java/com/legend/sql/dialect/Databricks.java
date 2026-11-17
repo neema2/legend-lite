@@ -1092,6 +1092,8 @@ public class Databricks extends AnsiSqlRenderer {
             case REM -> modTruncated(writer, c.args());
             // Pure's divide-with-scale is HALF_UP: plain ROUND (half away from zero)
             case ROUND_HALF_UP -> writer.function("ROUND", c.args());
+            // a Float's shortest decimal (F47, 2026-11-17): its text (unmeasured here: round 77 measures it)
+            case FLOAT_TO_DECIMAL_SHORTEST -> writer.append("CAST(CAST(").expr(c.args().get(0), 0).append(" AS STRING) AS DECIMAL(38, 22))");
             case ERROR -> raiseEnvelope(writer, c.args(), "raise_error");
             case DATE_TRUNC -> dateTruncDateGrained(writer, c.args(), stringLit(truncUnit(part(c.args().get(0)))));
             case FLOAT_PRINT -> floatPrintByText(writer, c, parentPrec);

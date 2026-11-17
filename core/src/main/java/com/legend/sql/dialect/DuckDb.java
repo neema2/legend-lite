@@ -599,6 +599,8 @@ public class DuckDb extends AnsiSqlRenderer {
             case PARSE_DATE -> castAs(writer, c.args().get(0), "TIMESTAMP");
             // Pure's divide-with-scale is HALF_UP: plain ROUND (half away from zero)
             case ROUND_HALF_UP -> writer.function("ROUND", c.args());
+            // a Float's shortest decimal (F47, 2026-11-17): its text is the shortest decimal, its DOUBLE-to-DECIMAL cast the binary expansion (measured, 1.5.6)
+            case FLOAT_TO_DECIMAL_SHORTEST -> writer.append("CAST(CAST(").expr(c.args().get(0), 0).append(" AS VARCHAR) AS DECIMAL(38, 22))");
             case ERROR -> raiseEnvelope(writer, c.args(), "error");
             case DECIMAL_TO_TEXT -> writer.expr(varcharCast(c.args().get(0)), parentPrec);
             case BOOL_TO_TEXT -> castAs(writer, c.args().get(0), "VARCHAR");

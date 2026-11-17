@@ -882,6 +882,8 @@ public class Postgres extends AnsiSqlRenderer {
             // half-EVEN and numeric half away from zero (POSTGRES_BACKEND.md §4.3),
             // and has no round(double, int) at all
             case ROUND_HALF_UP -> roundHalfUp(writer, c);
+            // a Float's shortest decimal (F47, 2026-11-17): its float8-to-numeric cast is the shortest decimal (since 12) (unmeasured here: round 77 measures it)
+            case FLOAT_TO_DECIMAL_SHORTEST -> writer.append("CAST(").expr(c.args().get(0), 0).append(" AS NUMERIC(38, 22))");
             // the engine's out-of-domain answer is NaN; Postgres raises
             case ACOS, ASIN -> acos(writer, c);
 

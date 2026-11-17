@@ -1641,6 +1641,8 @@ public class SQLite extends AnsiSqlRenderer {
             // DuckDB's // truncates toward zero, NULL for a zero divisor: SQLite's integer division
             case INT_DIVIDE -> intDivide(writer, c);
             case ROUND_HALF_UP -> roundHalfUp(writer, a, c);
+            // a Float's shortest decimal (F47, 2026-11-17): SQLite holds no exact decimal and its text is 15 digits, not the shortest (measured): the double itself, its round the binary value's (F47's SQLite question, with the orchestrator)
+            case FLOAT_TO_DECIMAL_SHORTEST -> writer.expr(c.args().get(0), parentPrec);
             case CBRT -> writer.append("(CASE WHEN ").expr(a.get(0), 4).append(" < 0 THEN -pow(-(").expr(a.get(0), 0)
                     .append("), 1.0 / 3) ELSE pow(").expr(a.get(0), 0).append(", 1.0 / 3) END)");
             case BIT_NOT -> writer.append("(~ ").expr(a.get(0), 7).append(")");

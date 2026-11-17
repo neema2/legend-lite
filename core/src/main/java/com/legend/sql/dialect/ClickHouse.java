@@ -1898,6 +1898,8 @@ public class ClickHouse extends AnsiSqlRenderer {
             case FLOOR_RAW -> writer.append("floor(").expr(a.get(0), 0).append(")");
             case COT -> writer.append("(1 / tan(").expr(a.get(0), 0).append("))");
             case ROUND_HALF_UP -> roundHalfUp(writer, c);
+            // a Float's shortest decimal (F47, 2026-11-17): its text (unmeasured here: round 77 measures it)
+            case FLOAT_TO_DECIMAL_SHORTEST -> writer.append("toDecimal128(toString(").expr(c.args().get(0), 0).append("), 22)");
 
             // exp and log are approximations here (exp(1) is 2.718281828460626, log(e()) 0.9999999987491066, measured);
             // pow and log2 are exact, DuckDB's bits

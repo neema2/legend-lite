@@ -1965,6 +1965,8 @@ public class MariaDb extends AnsiSqlRenderer {
             // DuckDB's // truncates toward zero, NULL for a zero divisor: DIV
             case INT_DIVIDE -> intDivide(writer, c);
             case ROUND_HALF_UP -> roundHalfUp(writer, a);
+            // a Float's shortest decimal (F47, 2026-11-17): (unmeasured here: round 77 measures it)
+            case FLOAT_TO_DECIMAL_SHORTEST -> writer.append("CAST(").expr(c.args().get(0), 0).append(" AS DECIMAL(38, 22))");
             case CBRT -> writer.append("(CASE WHEN ").expr(a.get(0), 4).append(" < 0 THEN -POW(-(").expr(a.get(0), 0)
                     .append("), 1.0E0 / 3) ELSE POW(").expr(a.get(0), 0).append(", 1.0E0 / 3) END)");
             case BIT_NOT -> writer.append("CAST(~ ").expr(a.get(0), 7).append(" AS SIGNED)");

@@ -116,7 +116,14 @@ public enum SqlFn {
     LIST_BOOL_AND, LIST_BOOL_OR, IS_DISTINCT_FROM, ALL_DISTINCT,
     NULL_SAFE_EQUAL, NULL_SAFE_NOT_EQUAL,
     STRFTIME, STRPTIME, PARSE_DATE, LIST_REVERSE, TYPEOF,
-    ROUND_HALF_UP, ERROR, FLOOR_RAW,
+    ROUND_HALF_UP,
+    /** {@code (x)}: a Float's SHORTEST decimal, as legend-pure's {@code BigDecimal.valueOf(double)} reads it ({@code 1.015}
+     *  for the double nearest 1.015, never its binary expansion {@code 1.01499999999999983616}): the step before
+     *  legend-pure's {@code round(Float, n)}, half-up (F47, 2026-11-17; {@code CoreHelper.round(Double, long)}). Each
+     *  dialect writes it with its database's own cast where that cast is the shortest decimal (measured), a
+     *  DECIMAL(38, 22): the lowering guards it to magnitudes below 2^52, where a double may hold a fraction. */
+    FLOAT_TO_DECIMAL_SHORTEST,
+    ERROR, FLOOR_RAW,
     // Variant construction
     TO_VARIANT, BOOL_TO_TEXT,
     /** {@code (x)}: a Decimal's or a Number's text, its plain digits (the tenets audit's M-6, A6, 2026-11-10): a semantic

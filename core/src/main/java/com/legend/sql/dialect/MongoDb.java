@@ -1088,6 +1088,8 @@ public class MongoDb extends AnsiSqlRenderer {
             case FLOOR_RAW -> MongoJson.op1(writer, "$floor", a.get(0));
             case ROUND -> roundHalfEven(writer, a);
             case ROUND_HALF_UP -> roundHalfUp(writer, a);
+            // a Float's shortest decimal (F47, 2026-11-17): the double itself (unmeasured here: round 77 measures it)
+            case FLOAT_TO_DECIMAL_SHORTEST -> writer.expr(c.args().get(0), parentPrec);
             case SIGN -> sign(writer, a);
             case GREATEST -> MongoJson.op(writer, "$max", a);
             case LEAST -> MongoJson.op(writer, "$min", a);

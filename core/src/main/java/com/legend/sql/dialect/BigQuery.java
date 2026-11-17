@@ -1635,6 +1635,8 @@ public class BigQuery extends AnsiSqlRenderer {
             // Pure's divide-with-scale is HALF_UP: ROUND rounds half away from zero, a Float through BIGNUMERIC (its
             // shortest decimal, as DuckDB rounds 2.675 to 2.68, measured)
             case ROUND_HALF_UP -> roundHalfUp(writer, a);
+            // a Float's shortest decimal (F47, 2026-11-17): its text (unmeasured here: round 77 measures it)
+            case FLOAT_TO_DECIMAL_SHORTEST -> writer.append("CAST(CAST(").expr(c.args().get(0), 0).append(" AS STRING) AS BIGNUMERIC)");
             // a Float, as DuckDB's answers: each has a NUMERIC overload here that a BIGNUMERIC literal would pick
             case SQRT -> writer.append("SQRT(CAST(").expr(a.get(0), 0).append(" AS FLOAT64))");
             case EXP -> writer.append("EXP(CAST(").expr(a.get(0), 0).append(" AS FLOAT64))");

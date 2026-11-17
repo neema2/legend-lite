@@ -1052,6 +1052,8 @@ public class Trino extends AnsiSqlRenderer {
             // DuckDB's split_part: the empty string past the end (Trino's is NULL)
             case SPLIT_PART -> writer.append("coalesce(split_part(").list(a).append("), '')");
             case ROUND_HALF_UP -> roundHalfUp(writer, c);
+            // a Float's shortest decimal (F47, 2026-11-17): its text (unmeasured here: round 77 measures it)
+            case FLOAT_TO_DECIMAL_SHORTEST -> writer.append("CAST(CAST(").expr(c.args().get(0), 0).append(" AS VARCHAR) AS DECIMAL(38, 22))");
 
             // ---- strings
             case MATCHES -> writer.append("regexp_like(").expr(a.get(0), 0).append(", ").expr(a.get(1), 0).append(")");
