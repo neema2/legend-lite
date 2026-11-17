@@ -186,8 +186,10 @@ class HookRulingTest {
     void theTwoFormKindsAreAClosedListTheProductAnswersItsOwnForm() {
         // the two-form kinds, an exact set; each added with its family and its dated reason:
         // DateTimeTexts (census B9, 2026-11-17: a DateTime's text in a message); ListTexts (census B8, 2026-11-17,
-        // TEXT_FORMS: a list's text, the product's JSON form, the edge's legend-pure one)
-        assertEquals(List.of(com.legend.lowering.DateTimeTexts.class, com.legend.lowering.ListTexts.class),
+        // TEXT_FORMS: a list's text, the product's JSON form, the edge's legend-pure one); JsonGrammar (census C1,
+        // 2026-11-17, register S144: a judge's JSON grammar, the product's strict JSON, the edge's json-simple)
+        assertEquals(List.of(com.legend.lowering.DateTimeTexts.class, com.legend.lowering.ListTexts.class,
+                com.legend.testexecutionplan.JsonGrammar.class),
                 com.legend.testplan.PlanStyleFacets.TWO_FORMS,
                 "the two-form kinds, an exact set: a kind is added here with its family and its dated reason");
         assertTrue(PlanStyle.PRODUCT.twoForm(com.legend.lowering.DateTimeTexts.class,
@@ -204,6 +206,12 @@ class HookRulingTest {
         assertTrue(com.legend.edge.PureText.UPSTREAM.twoForm(com.legend.lowering.ListTexts.class,
                 com.legend.lowering.ProductListTexts.INSTANCE) != com.legend.lowering.ProductListTexts.INSTANCE,
                 "the edge answers legend-pure's list text");
+        assertTrue(PlanStyle.PRODUCT.twoForm(com.legend.testexecutionplan.JsonGrammar.class,
+                com.legend.testexecutionplan.JudgeJson.STRICT) == com.legend.testexecutionplan.JudgeJson.STRICT,
+                "the product reads strict JSON");
+        assertTrue(com.legend.edge.PureText.UPSTREAM.twoForm(com.legend.testexecutionplan.JsonGrammar.class,
+                com.legend.testexecutionplan.JudgeJson.STRICT) == com.legend.edge.JsonSimpleGrammar.INSTANCE,
+                "the edge reads upstream's json-simple grammar");
         Runnable productForm = () -> { };
         assertTrue(PlanStyle.PRODUCT.twoForm(Runnable.class, productForm) == productForm,
                 "the product answers the caller's own form");

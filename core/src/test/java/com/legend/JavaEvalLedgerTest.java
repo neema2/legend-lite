@@ -1882,6 +1882,10 @@ class JavaEvalLedgerTest {
                             // edge's form of the two-form ListTexts kind (the separation census's B8, TEXT_FORMS gone
                             // from SqlFn 2026-11-17) -- planning work, no session, no value computed
                             "PureListTexts.java",
+                            // upstream's JSON grammar, json-simple 1.1.1 (register S144), the edge's form of the two-form
+                            // JsonGrammar kind (census C1, 2026-11-17: moved from testexecutionplan.JudgeJson): reads
+                            // a test's JSON text into values for the judges' own comparison -- no session, no statement
+                            "JsonSimpleGrammar.java",
                             // legend-engine's ExecuteInput read at the edge (B7 of the separation census, 2026-11-17,
                             // moved unchanged from server.PureV1Api): its parameterValues bound to the lambda as lets --
                             // a protocol rearrangement, no session, no value computed (the database computes each)

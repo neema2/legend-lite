@@ -139,6 +139,12 @@ final class Appeals implements com.legend.testexec.EdgeHearing {
 
     /** A step of the body that writes is about to run ({@code PlanRunner.ProgramSink#writing}), told to the body's open
      *  appeals (each body's run holds its own record of them, slice 5). */
+    /** The compatibility rules' JSON grammar: upstream's json-simple 1.1.1 (register S144; census C1, 2026-11-17). */
+    @Override
+    public com.legend.testexecutionplan.JsonGrammar json() {
+        return JsonSimpleGrammar.INSTANCE;
+    }
+
     @Override
     public void writing() {
         wrote = true;

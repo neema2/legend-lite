@@ -99,6 +99,10 @@ public final class PureText {
             if (kind == com.legend.lowering.DateTimeTexts.class) {
                 return kind.cast(EdgeDateTimeTexts.INSTANCE);
             }
+            if (kind == com.legend.testexecutionplan.JsonGrammar.class) {
+                // upstream's JSON grammar (register S144; census C1, 2026-11-17)
+                return kind.cast(JsonSimpleGrammar.INSTANCE);
+            }
             throw new com.legend.error.NotImplementedException("the two-form kind " + kind.getName()
                     + " is none of the declared kinds (com.legend.testplan.PlanStyleFacets.TWO_FORMS)");
         }
