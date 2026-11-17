@@ -168,7 +168,9 @@ class ResultWritersTest {
 
     @Test
     void structuresPrintAsThePreludeSays() {
-        assertEquals("[2, 3]", CellText.pure(List.of(2L, 3L), col("v", "List<Integer>", "ARRAY<BIGINT>")));
+        // a List's and a Map's text is their JSON (the user's ruling of 2026-11-10 for a List; 2026-11-17 for a Map,
+        // S363, the audit's K13): the one text the JSON output writes; legend-pure's [a, b] / {k=v} are the edge's
+        assertEquals("[2,3]", CellText.pure(List.of(2L, 3L), col("v", "List<Integer>", "ARRAY<BIGINT>")));
         Map<String, Object> pair = new LinkedHashMap<>();
         pair.put("first", 1L);
         pair.put("second", "a");
@@ -181,7 +183,7 @@ class ResultWritersTest {
         Map<String, Object> map = new LinkedHashMap<>();
         map.put("key1", 0L);
         map.put("key2", 1L);
-        assertEquals("{key1=0, key2=1}", CellText.pure(map, col("v", "Map<String, Integer>", "MAP<VARCHAR,BIGINT>")));
+        assertEquals("{\"key1\":0,\"key2\":1}", CellText.pure(map, col("v", "Map<String, Integer>", "MAP<VARCHAR,BIGINT>")));
         Map<String, Object> person = new LinkedHashMap<>();
         person.put("name", "Ann");
         person.put("__id", "o1");
@@ -310,7 +312,7 @@ class ResultWritersTest {
         com.legend.result.HostRows.stream("[{\"ID\":18446744073709551614,\"NAME\":\"[a]\",\"PRICE\":\"1.50\","
                 + "\"TAGS\":\"[\\\"x\\\",\\\"y\\\"]\"},{\"ID\":2,\"NAME\":null,\"PRICE\":null,\"TAGS\":[]}]",
                 columns, new CsvWriter(out, Shape.RELATION));
-        assertEquals("ID,NAME,PRICE,TAGS\r\n18446744073709551614,[a],1.50,\"[x, y]\"\r\n2,,,[]\r\n", out.toString());
+        assertEquals("ID,NAME,PRICE,TAGS\r\n18446744073709551614,[a],1.50,\"[\"\"x\"\",\"\"y\"\"]\"\r\n2,,,[]\r\n", out.toString());
         var refused = assertThrows(IllegalArgumentException.class, () -> com.legend.result.HostRows.stream("{}",
                 columns, new CsvWriter(new StringWriter(), Shape.RELATION)));
         assertTrue(refused.getMessage().contains("not a JSON array of rows"), refused.getMessage());
