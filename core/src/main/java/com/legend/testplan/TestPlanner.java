@@ -49,7 +49,7 @@ public final class TestPlanner {
         // clean form, the compatibility rules upstream's
         com.legend.testdatagen.TestDataPlanner.Printing printing = options.judgingRules()
                 == com.legend.testexecutionplan.TestPlan.JudgingRules.COMPILED_PURE_COMPAT
-                ? com.legend.testdatagen.TestDataPlanner.Printing.COMPAT
+                ? options.style().facet(com.legend.planner.UpstreamPlans.class).testDataTimestampText()::apply
                 : com.legend.testdatagen.TestDataPlanner.Printing.CLEAN;
         return plan(withUnreadLets(GeneratedTestData.planned(typed, dialect, runtimeFqn, printing,
                 options.style())), runtimeFqn,

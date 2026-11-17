@@ -207,6 +207,19 @@ public final class EnginePlans {
      *  plan.PlanNode, the plan's record; the comment is legend-engine's content, not the plan's schema). */
     static final String EXEC_TRACE_COMMENT = "-- \"executionTraceID\" : \"${execID}\"";
 
+    /** Upstream's {@code SimpleDateTimeFormat}: {@code yyyy-MM-dd HH:mm:ss} (moved from testdatagen's printing, Phase 6's
+     *  B13, 2026-11-17). */
+    private static final java.util.List<com.legend.sql.DateFmt> SECONDS = java.util.List.of(
+            com.legend.sql.DateFmt.Part.YEAR4, new com.legend.sql.DateFmt.Text("-"), com.legend.sql.DateFmt.Part.MONTH2,
+            new com.legend.sql.DateFmt.Text("-"), com.legend.sql.DateFmt.Part.DAY2, new com.legend.sql.DateFmt.Text(" "),
+            com.legend.sql.DateFmt.Part.HOUR2, new com.legend.sql.DateFmt.Text(":"), com.legend.sql.DateFmt.Part.MIN2,
+            new com.legend.sql.DateFmt.Text(":"), com.legend.sql.DateFmt.Part.SEC2);
+
+    /** A timestamp cell's text as legend-engine's test-data CSV writes it ({@link UpstreamPlans#testDataTimestampText}). */
+    static com.legend.sql.SqlExpr testDataTimestampText(com.legend.sql.SqlExpr x) {
+        return com.legend.sql.SqlExpr.Call.of(com.legend.sql.SqlFn.STRFTIME, x, new com.legend.sql.SqlExpr.FormatLit(SECONDS));
+    }
+
     static final UpstreamPlans FACET = new UpstreamPlans() {
         @Override
         public String planToString(com.legend.compiler.spec.NativeDispatch.RoutineCall call,
@@ -252,6 +265,11 @@ public final class EnginePlans {
             return TestDataPlanText.planTextResult(tg, ctx,
                     PureText.engineText(EngineText.ENGINE_TEST_DATABASE),
                     "TestDatabaseConnection(type = \"" + EngineText.ENGINE_TEST_DATABASE.name() + "\")");
+        }
+
+        @Override
+        public java.util.function.UnaryOperator<com.legend.sql.SqlExpr> testDataTimestampText() {
+            return EnginePlans::testDataTimestampText;
         }
 
         @Override

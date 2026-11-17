@@ -47,6 +47,11 @@ public interface UpstreamPlans {
     /** The test-data generator's plan text, naming legend-engine's test connection, as every engine test of it does. */
     String generatedTestDataPlan(com.legend.compiler.spec.typed.TypedTestDataGen tg,
             com.legend.compiler.element.ModelContext ctx);
+    /** A timestamp cell's text as legend-engine's test-data CSV writes it ({@code toCSVString}'s
+     *  {@code SimpleDateTimeFormat}, {@code yyyy-MM-dd HH:mm:ss}, its fraction cut; legend-engine helperFunctions.pure:214-243),
+     *  for the test-data generator's printing under the compatibility rules and the server's routes (Phase 6's B13,
+     *  2026-11-17); lite's own spelling is the generator's {@code Printing.CLEAN}. */
+    java.util.function.UnaryOperator<com.legend.sql.SqlExpr> testDataTimestampText();
     /** The routine table of the plan-text natives (the catalog's JAVA_ROUTINE rows), each asking the style's facet
      *  when it is CALLED: a body that names none plans on any style, and one that does is refused by name by the
      *  product's at that call, as before. */
