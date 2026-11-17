@@ -1175,6 +1175,444 @@
           }
         }
       }
+    },
+    {
+      "name": "a run's format is the caller's ask: a query/run naming none is refused, kind request",
+      "op": "query/run",
+      "bindings": [
+        "server",
+        "python"
+      ],
+      "request": {
+        "model": "Class proj::Party { id: Integer[1]; name: String[1]; joined: StrictDate[1]; }\n###Relational\nDatabase proj::PartyDB ( Schema PARTY ( Table PARTY (ID BIGINT PRIMARY KEY, NAME VARCHAR(200), JOINED DATE) ) )\n###Mapping\nMapping proj::PartyMapping\n(\n  *proj::Party: Relational\n  {\n    ~primaryKey ([proj::PartyDB] PARTY.PARTY.ID)\n    ~mainTable [proj::PartyDB] PARTY.PARTY\n    id: [proj::PartyDB] PARTY.PARTY.ID,\n    name: [proj::PartyDB] PARTY.PARTY.NAME,\n    joined: [proj::PartyDB] PARTY.PARTY.JOINED\n  }\n)\n###Connection\nRelationalDatabaseConnection proj::Conn { store: proj::PartyDB; type: DuckDB; specification: DuckDB { }; auth: Test; }\n###Runtime\nRuntime proj::RT { mappings: [ proj::PartyMapping ]; connections: [ proj::PartyDB: [ db: proj::Conn ] ]; }\n###Data\nData proj::PartyData\n{\n  Relational\n  #{\n    PARTY.PARTY:\n      'ID,NAME,JOINED\\n1,Meridian Capital,2021-03-04\\n9223372036854775807,Halberd Securities,2022-05-06\\n';\n  }#\n}\n",
+        "query": {
+          "_type": "lambda",
+          "body": [
+            {
+              "_type": "func",
+              "function": "from",
+              "parameters": [
+                {
+                  "_type": "func",
+                  "function": "sort",
+                  "parameters": [
+                    {
+                      "_type": "func",
+                      "function": "project",
+                      "parameters": [
+                        {
+                          "_type": "func",
+                          "function": "filter",
+                          "parameters": [
+                            {
+                              "_type": "func",
+                              "function": "getAll",
+                              "parameters": [
+                                {
+                                  "_type": "packageableElementPtr",
+                                  "fullPath": "proj::Party"
+                                }
+                              ]
+                            },
+                            {
+                              "_type": "lambda",
+                              "body": [
+                                {
+                                  "_type": "func",
+                                  "function": "greaterThanEqual",
+                                  "parameters": [
+                                    {
+                                      "_type": "property",
+                                      "parameters": [
+                                        {
+                                          "_type": "var",
+                                          "name": "p"
+                                        }
+                                      ],
+                                      "property": "joined"
+                                    },
+                                    {
+                                      "_type": "var",
+                                      "name": "since"
+                                    }
+                                  ]
+                                }
+                              ],
+                              "parameters": [
+                                {
+                                  "_type": "var",
+                                  "name": "p"
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "_type": "classInstance",
+                          "type": "colSpecArray",
+                          "value": {
+                            "colSpecs": [
+                              {
+                                "function1": {
+                                  "_type": "lambda",
+                                  "body": [
+                                    {
+                                      "_type": "property",
+                                      "parameters": [
+                                        {
+                                          "_type": "var",
+                                          "name": "p"
+                                        }
+                                      ],
+                                      "property": "id"
+                                    }
+                                  ],
+                                  "parameters": [
+                                    {
+                                      "_type": "var",
+                                      "name": "p"
+                                    }
+                                  ]
+                                },
+                                "name": "id"
+                              },
+                              {
+                                "function1": {
+                                  "_type": "lambda",
+                                  "body": [
+                                    {
+                                      "_type": "property",
+                                      "parameters": [
+                                        {
+                                          "_type": "var",
+                                          "name": "p"
+                                        }
+                                      ],
+                                      "property": "name"
+                                    }
+                                  ],
+                                  "parameters": [
+                                    {
+                                      "_type": "var",
+                                      "name": "p"
+                                    }
+                                  ]
+                                },
+                                "name": "name"
+                              },
+                              {
+                                "function1": {
+                                  "_type": "lambda",
+                                  "body": [
+                                    {
+                                      "_type": "property",
+                                      "parameters": [
+                                        {
+                                          "_type": "var",
+                                          "name": "p"
+                                        }
+                                      ],
+                                      "property": "joined"
+                                    }
+                                  ],
+                                  "parameters": [
+                                    {
+                                      "_type": "var",
+                                      "name": "p"
+                                    }
+                                  ]
+                                },
+                                "name": "joined"
+                              }
+                            ]
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "_type": "func",
+                      "function": "ascending",
+                      "parameters": [
+                        {
+                          "_type": "classInstance",
+                          "type": "colSpec",
+                          "value": {
+                            "name": "id"
+                          }
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "_type": "packageableElementPtr",
+                  "fullPath": "proj::PartyMapping"
+                },
+                {
+                  "_type": "packageableElementPtr",
+                  "fullPath": "proj::RT"
+                }
+              ]
+            }
+          ],
+          "parameters": [
+            {
+              "_type": "var",
+              "genericType": {
+                "multiplicityArguments": [],
+                "rawType": {
+                  "_type": "packageableType",
+                  "fullPath": "StrictDate"
+                },
+                "typeArguments": [],
+                "typeVariableValues": []
+              },
+              "multiplicity": {
+                "lowerBound": 1,
+                "upperBound": 1
+              },
+              "name": "since"
+            }
+          ]
+        },
+        "runtime": "proj::RT",
+        "params": {
+          "since": "2022-01-01"
+        }
+      },
+      "refusal": {
+        "kind": "request"
+      }
+    },
+    {
+      "name": "a query run in JSON: its shape, each column's Pure type, the cells exact (an Integer past 2^53 kept)",
+      "op": "query/run",
+      "bindings": [
+        "server",
+        "python"
+      ],
+      "request": {
+        "model": "Class proj::Party { id: Integer[1]; name: String[1]; joined: StrictDate[1]; }\n###Relational\nDatabase proj::PartyDB ( Schema PARTY ( Table PARTY (ID BIGINT PRIMARY KEY, NAME VARCHAR(200), JOINED DATE) ) )\n###Mapping\nMapping proj::PartyMapping\n(\n  *proj::Party: Relational\n  {\n    ~primaryKey ([proj::PartyDB] PARTY.PARTY.ID)\n    ~mainTable [proj::PartyDB] PARTY.PARTY\n    id: [proj::PartyDB] PARTY.PARTY.ID,\n    name: [proj::PartyDB] PARTY.PARTY.NAME,\n    joined: [proj::PartyDB] PARTY.PARTY.JOINED\n  }\n)\n###Connection\nRelationalDatabaseConnection proj::Conn { store: proj::PartyDB; type: DuckDB; specification: DuckDB { }; auth: Test; }\n###Runtime\nRuntime proj::RT { mappings: [ proj::PartyMapping ]; connections: [ proj::PartyDB: [ db: proj::Conn ] ]; }\n###Data\nData proj::PartyData\n{\n  Relational\n  #{\n    PARTY.PARTY:\n      'ID,NAME,JOINED\\n1,Meridian Capital,2021-03-04\\n9223372036854775807,Halberd Securities,2022-05-06\\n';\n  }#\n}\n",
+        "query": {
+          "_type": "lambda",
+          "body": [
+            {
+              "_type": "func",
+              "function": "from",
+              "parameters": [
+                {
+                  "_type": "func",
+                  "function": "sort",
+                  "parameters": [
+                    {
+                      "_type": "func",
+                      "function": "project",
+                      "parameters": [
+                        {
+                          "_type": "func",
+                          "function": "filter",
+                          "parameters": [
+                            {
+                              "_type": "func",
+                              "function": "getAll",
+                              "parameters": [
+                                {
+                                  "_type": "packageableElementPtr",
+                                  "fullPath": "proj::Party"
+                                }
+                              ]
+                            },
+                            {
+                              "_type": "lambda",
+                              "body": [
+                                {
+                                  "_type": "func",
+                                  "function": "greaterThanEqual",
+                                  "parameters": [
+                                    {
+                                      "_type": "property",
+                                      "parameters": [
+                                        {
+                                          "_type": "var",
+                                          "name": "p"
+                                        }
+                                      ],
+                                      "property": "joined"
+                                    },
+                                    {
+                                      "_type": "var",
+                                      "name": "since"
+                                    }
+                                  ]
+                                }
+                              ],
+                              "parameters": [
+                                {
+                                  "_type": "var",
+                                  "name": "p"
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "_type": "classInstance",
+                          "type": "colSpecArray",
+                          "value": {
+                            "colSpecs": [
+                              {
+                                "function1": {
+                                  "_type": "lambda",
+                                  "body": [
+                                    {
+                                      "_type": "property",
+                                      "parameters": [
+                                        {
+                                          "_type": "var",
+                                          "name": "p"
+                                        }
+                                      ],
+                                      "property": "id"
+                                    }
+                                  ],
+                                  "parameters": [
+                                    {
+                                      "_type": "var",
+                                      "name": "p"
+                                    }
+                                  ]
+                                },
+                                "name": "id"
+                              },
+                              {
+                                "function1": {
+                                  "_type": "lambda",
+                                  "body": [
+                                    {
+                                      "_type": "property",
+                                      "parameters": [
+                                        {
+                                          "_type": "var",
+                                          "name": "p"
+                                        }
+                                      ],
+                                      "property": "name"
+                                    }
+                                  ],
+                                  "parameters": [
+                                    {
+                                      "_type": "var",
+                                      "name": "p"
+                                    }
+                                  ]
+                                },
+                                "name": "name"
+                              },
+                              {
+                                "function1": {
+                                  "_type": "lambda",
+                                  "body": [
+                                    {
+                                      "_type": "property",
+                                      "parameters": [
+                                        {
+                                          "_type": "var",
+                                          "name": "p"
+                                        }
+                                      ],
+                                      "property": "joined"
+                                    }
+                                  ],
+                                  "parameters": [
+                                    {
+                                      "_type": "var",
+                                      "name": "p"
+                                    }
+                                  ]
+                                },
+                                "name": "joined"
+                              }
+                            ]
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "_type": "func",
+                      "function": "ascending",
+                      "parameters": [
+                        {
+                          "_type": "classInstance",
+                          "type": "colSpec",
+                          "value": {
+                            "name": "id"
+                          }
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "_type": "packageableElementPtr",
+                  "fullPath": "proj::PartyMapping"
+                },
+                {
+                  "_type": "packageableElementPtr",
+                  "fullPath": "proj::RT"
+                }
+              ]
+            }
+          ],
+          "parameters": [
+            {
+              "_type": "var",
+              "genericType": {
+                "multiplicityArguments": [],
+                "rawType": {
+                  "_type": "packageableType",
+                  "fullPath": "StrictDate"
+                },
+                "typeArguments": [],
+                "typeVariableValues": []
+              },
+              "multiplicity": {
+                "lowerBound": 1,
+                "upperBound": 1
+              },
+              "name": "since"
+            }
+          ]
+        },
+        "runtime": "proj::RT",
+        "params": {
+          "since": "2022-01-01"
+        },
+        "format": "json"
+      },
+      "answer": {
+        "shape": "RELATION",
+        "columns": [
+          {
+            "name": "id",
+            "type": "Integer"
+          },
+          {
+            "name": "name",
+            "type": "String"
+          },
+          {
+            "name": "joined",
+            "type": "StrictDate"
+          }
+        ],
+        "rows": [
+          [
+            9223372036854775807,
+            "Halberd Securities",
+            "2022-05-06"
+          ]
+        ]
+      }
     }
   ]
 }
