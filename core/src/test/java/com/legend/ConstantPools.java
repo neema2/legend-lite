@@ -35,7 +35,10 @@ final class ConstantPools {
     /** A class's pool as text: every UTF-8 entry (names, descriptors and string constants alike), and the string
      *  constants alone (the UTF-8 entries a {@code CONSTANT_String} names: a literal, a folded or borrowed constant, a
      *  switch label, a concatenation's recipe). */
-    record Pool(Set<String> utf8, Set<String> strings) {
+    record Pool(Set<String> utf8, Set<String> strings, Set<String> indyTypes) {
+        Pool(Set<String> utf8, Set<String> strings) {
+            this(utf8, strings, Set.of());
+        }
     }
 
     /** The UTF-8 entries of the class file {@code bytes}' constant pool, in pool order. */
@@ -54,6 +57,8 @@ final class ConstantPools {
             int count = in.readUnsignedShort();
             String[] texts = new String[count];
             List<Integer> stringRefs = new ArrayList<>();
+            int[] natDescriptor = new int[count];
+            List<Integer> indyNats = new ArrayList<>();
             for (int i = 1; i < count; i++) {
                 int tag = in.readUnsignedByte();
                 switch (tag) {
@@ -61,7 +66,15 @@ final class ConstantPools {
                     case 8 -> stringRefs.add(in.readUnsignedShort());
                     case 7, 16, 19, 20 -> in.skipNBytes(2);
                     case 15 -> in.skipNBytes(3);
-                    case 3, 4, 9, 10, 11, 12, 17, 18 -> in.skipNBytes(4);
+                    case 12 -> {
+                        in.readUnsignedShort();
+                        natDescriptor[i] = in.readUnsignedShort();
+                    }
+                    case 18 -> {
+                        in.readUnsignedShort();
+                        indyNats.add(in.readUnsignedShort());
+                    }
+                    case 3, 4, 9, 10, 11, 17 -> in.skipNBytes(4);
                     case 5, 6 -> {
                         in.skipNBytes(8);
                         i++;
@@ -79,7 +92,17 @@ final class ConstantPools {
             for (int ref : stringRefs) {
                 strings.add(texts[ref]);
             }
-            return new Pool(utf8, strings);
+            // each invokedynamic's call-site type's return: for a lambda or a method reference (LambdaMetafactory),
+            // the functional interface it implements; for a concatenation, String; for a pattern switch, int
+            Set<String> indyTypes = new LinkedHashSet<>();
+            for (int nat : indyNats) {
+                String descriptor = texts[natDescriptor[nat]];
+                String ret = descriptor.substring(descriptor.indexOf(')') + 1);
+                if (ret.startsWith("L") && ret.endsWith(";")) {
+                    indyTypes.add(ret.substring(1, ret.length() - 1).replace('/', '.'));
+                }
+            }
+            return new Pool(utf8, strings, indyTypes);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -116,7 +139,9 @@ final class ConstantPools {
                             u.addAll(b.utf8());
                             Set<String> st = new LinkedHashSet<>(a.strings());
                             st.addAll(b.strings());
-                            return new Pool(u, st);
+                            Set<String> it = new LinkedHashSet<>(a.indyTypes());
+                            it.addAll(b.indyTypes());
+                            return new Pool(u, st, it);
                         });
                     }
                 }

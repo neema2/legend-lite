@@ -35,6 +35,8 @@ EDGE_TEST_SRCS = [
     "src/test/java/com/legend/ServiceLoaderSitesTest.java",
     # every SqlFn sorted PRODUCT or EDGE_ONLY, the other guards' lists held to it (the GUARD stream, C.13, 2026-11-17)
     "src/test/java/com/legend/SqlFnSortedTest.java",
+    # hooks implemented by lambdas, and twoForm's callers, pinned (the GUARD stream, C.12, 2026-11-17)
+    "src/test/java/com/legend/HookLambdasTest.java",
     "src/test/java/com/legend/PlanStyleFacetsTest.java",
     # the edge's extension records walked as data (census C2, 2026-11-17: the appeals moved to com.legend.edge)
     "src/test/java/com/legend/PlanTypesAreDataTest.java",
