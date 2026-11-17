@@ -29,12 +29,11 @@ public record Styled(Function<Supplier<? extends RuntimeException>, PureOnlyText
         plain = plain.isEmpty() ? java.util.Set.of() : java.util.Collections.unmodifiableSet(java.util.EnumSet.copyOf(plain));
     }
 
-    /** The product's form of a DateTime's text: lite's canonical text, {@code DATETIME_TO_TEXT}, the value alone (a
-     *  literal's written text is carried as the node's second operand, which the product never reads). */
-    public static final DateTimeTexts LITE_DATE_TIMES = (x, written) -> written == null
-            ? com.legend.sql.SqlExpr.Call.of(com.legend.sql.SqlFn.DATETIME_TO_TEXT, x)
-            : com.legend.sql.SqlExpr.Call.of(com.legend.sql.SqlFn.DATETIME_TO_TEXT, x,
-                    new com.legend.sql.SqlExpr.StringLit(written));
+    /** The product's form of a DateTime's text: lite's canonical text, {@code DATETIME_TO_TEXT}, the value alone. A
+     *  literal's written text is the edge's alone (legend-pure prints a literal at its written precision): the product's
+     *  node carries no operand only the edge reads (the audit's K15, 2026-11-17). */
+    public static final DateTimeTexts LITE_DATE_TIMES = (x, written) ->
+            com.legend.sql.SqlExpr.Call.of(com.legend.sql.SqlFn.DATETIME_TO_TEXT, x);
 
     /** The product's own style: each text only legend-pure writes refused, by its call's own refusal; every check of
      *  lite's written (no plain raise, {@code PlanStyle.plainRaises}); lite's text of a DateTime. */

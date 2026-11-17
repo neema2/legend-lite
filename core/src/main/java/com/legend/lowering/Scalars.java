@@ -2361,11 +2361,11 @@ final class Scalars {
                             Type.RelationType.trustedColumn(
                                     com.legend.sql.SqlSelect.SYNTH_MAP_COL)));
                 }
-                // a DateTime's text, the product's (D1.2, 2026-11-15: ISO 8601 with Z); a literal's call carries its
-                // written text, legend-pure's precision, for the compatibility edge (%2014-01-01T00:00:00.00 prints
-                // '.00' there, which no timestamp carrier can retain)
+                // a DateTime's text, the style's two-form text (the audit's K15, 2026-11-17): the product's lite's
+                // (D1.2, 2026-11-15: ISO 8601 with Z), the value alone; the edge's legend-pure's print form, a literal at
+                // its written precision (%2014-01-01T00:00:00.00 prints '.00' there, which no timestamp carrier retains)
                 if (t == Type.Primitive.DATE_TIME) {
-                    return dateTimeText(SqlFn.DATETIME_TO_TEXT, n.args().get(0), args.get(0));
+                    return dateTimeOf(styled, n.args().get(0), args.get(0));
                 }
                 // any other date literal's text is fully static: as written
                 SqlExpr lit = dateLiteralText(n.args().get(0));
@@ -3481,7 +3481,7 @@ final class Scalars {
             // %s / bare %t over a DATE argument: pure's default date print
             // (the ISO T-form with +0000), not SQL's space-separated cast.
             if ((d == 's' || d == 't') && typed != null) {
-                SqlExpr dp = datePrintOf(typed, spread.get(argIdx));
+                SqlExpr dp = datePrintOf(styled, typed, spread.get(argIdx));
                 if (dp != null) {
                     spread.set(argIdx, dp);
                     out.append("%s");
@@ -3560,8 +3560,17 @@ final class Scalars {
 
     /** A date's text in a format slot ({@code %s}), or null when not a date: a DateTime's the product's
      *  ({@link SqlFn#DATETIME_TO_TEXT}, D1.2), any other date literal's as written. */
-    static @com.legend.base.Nullable SqlExpr datePrintOf(TypedSpec typed, SqlExpr e) {
-        return dateText(SqlFn.DATETIME_TO_TEXT, typed, e);
+    static @com.legend.base.Nullable SqlExpr datePrintOf(Styled styled, TypedSpec typed, SqlExpr e) {
+        if (typed.info().type() == Type.Primitive.DATE_TIME) {
+            return dateTimeOf(styled, typed, e);
+        }
+        return dateLiteralText(typed);
+    }
+
+    /** A DateTime's text under the style ({@link Styled#dateTimes}, the audit's K15, 2026-11-17): a literal's written
+     *  text handed to the style's form, which the product's ignores and the edge's prints. */
+    private static SqlExpr dateTimeOf(Styled styled, TypedSpec spec, SqlExpr e) {
+        return styled.dateTimes().dateTimeText(e, spec instanceof TypedCDate cd ? cd.value().toEngineString() : null);
     }
 
     /** format's %r of a DateTime: legend-pure's print form ({@link SqlFn#DATETIME_PRINT}) on every style, until census
@@ -3577,21 +3586,6 @@ final class Scalars {
             return styled.dateTimes().dateTimeText(e, typed instanceof TypedCDate cd ? cd.value().toEngineString() : null);
         }
         return dateLiteralText(typed);
-    }
-
-    private static @com.legend.base.Nullable SqlExpr dateText(SqlFn dateTime, TypedSpec typed, SqlExpr e) {
-        if (typed.info().type() == Type.Primitive.DATE_TIME) {
-            return dateTimeText(dateTime, typed, e);
-        }
-        return dateLiteralText(typed);
-    }
-
-    /** {@code fn} of the DateTime {@code e}; a literal's ({@code spec}) its written text second (the parser already
-     *  shifted a zone-carrying literal to GMT), which the edge and the judges print, the product never reads. */
-    private static SqlExpr dateTimeText(SqlFn fn, TypedSpec spec, SqlExpr e) {
-        return spec instanceof TypedCDate cd
-                ? SqlExpr.Call.of(fn, e, new SqlExpr.StringLit(cd.value().toEngineString()))
-                : SqlExpr.Call.of(fn, e);
     }
 
     static boolean isClassish(Type t) {
