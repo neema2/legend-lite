@@ -28,7 +28,7 @@ import java.util.function.Function;
  * orchestrator's ruling of 2026-11-17 on facades; the date texts only a relation's text wrote moved to the edge with
  * it, edge.RelationTextLowering).
  */
-public interface RelationTexts {
+@com.legend.base.OpenLine("B17") public interface RelationTexts {
 
     /** {@code toCSV} of a relation ({@code tc}), its rows read by {@code relation}. */
     SqlExpr toCsv(TypedNativeCall tc, Function<TypedSpec, SqlSelect> relation, String alias,
