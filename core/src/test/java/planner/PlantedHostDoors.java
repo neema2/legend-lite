@@ -5,17 +5,17 @@ package planner;
 
 /**
  * Classes PLANTED in a host's package (the boundary's, {@code planner}) for tests alone (the GUARD stream's C.5,
- * 2026-11-17): each a defect one of the five rules widened to the hosts' doors refuses
- * ({@code ArchitectureTest.theWidenedRulesBiteAPlantedHostDoor}). Test classes: the rules' real checks read the
- * product's and the hosts' jars, never these.
+ * 2026-11-17): each a defect one rule of {@code ArchitectureTest.hostDoorRules} refuses
+ * ({@code ArchitectureTest.theWidenedRulesBiteAPlantedHostDoor}; the edge reach's is {@code PlantedHostEdgeReach}, in
+ * the edge's test library). Test classes: the rules' real checks read the product's and the hosts' jars, never these.
  */
 public final class PlantedHostDoors {
 
     private PlantedHostDoors() {
     }
 
-    /** A host writing SQL as a dialect of its own. */
-    public abstract static class Dialect extends com.legend.sql.dialect.DuckDb {
+    /** A host writing SQL as a dialect of its own (the interface, so no database is named). */
+    public abstract static class Dialect implements com.legend.sql.dialect.SqlDialect {
     }
 
     /** A host picking a plan style through a door that takes one. */
@@ -42,6 +42,22 @@ public final class PlantedHostDoors {
 
     /** A host implementing a style's facet. */
     public abstract static class Facet implements com.legend.planner.UpstreamPlans {
+    }
+
+    /** A host implementing the test planner's engine-text facet. */
+    public abstract static class TestText implements com.legend.testplan.EngineTestText {
+    }
+
+    /** A host implementing the lowering's relation-text facet. */
+    public abstract static class RelationText implements com.legend.lowering.RelationTexts {
+    }
+
+    /** A host implementing the lowering's Pure-only-text facet. */
+    public abstract static class PureOnlyText implements com.legend.lowering.PureOnlyTexts {
+    }
+
+    /** A host implementing the lowering's result-envelope facet. */
+    public abstract static class ResultEnvelope implements com.legend.lowering.ResultEnvelopes {
     }
 
     /** A host implementing a plan style. */

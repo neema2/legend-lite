@@ -164,6 +164,8 @@ EDGE_TEST_SRCS = [
     "src/test/java/com/legend/testplan/DatabaseHalfDe5Test.java",
     "src/test/java/com/legend/testplan/ExecEnvCatalogTest.java",
     "src/test/java/com/legend/testplan/TestPlanJsonRoundTripTest.java",
+    # a host's planted edge reach (the GUARD stream's C.5 review, 2026-11-17): it names an edge type
+    "src/test/java/planner/PlantedHostEdgeReach.java",
 ]
 
 # a file whose class is not its name

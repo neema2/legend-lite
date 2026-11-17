@@ -2578,19 +2578,6 @@ final class ArchitectureTest {
         PRODUCT_REACHES_NO_EDGE.check(CORE_PROD_CLASSES);
     }
 
-    /** The hosts' doors (the boundary, the tab's adapter, the native entry, the JVM and zone mains, the SDLC's
-     *  grammar) reach no edge class either. (The boundary's D-1 exception went 2026-11-17, the GUARD stream's C.5: its
-     *  pure/v1 halves moved to the edge's EdgeBoundary with the census's A1; the native query store and the query-store
-     *  page went to the edge with A2 and A3.) */
-    @Test
-    void theHostsDoorsReachNoEdge() {
-        noClasses()
-            .that().resideOutsideOfPackage("com.legend.edge..")
-            .should().dependOnClassesThat().resideInAPackage("com.legend.edge..")
-            .as("G5 at the hosts' doors: the edge is the edge's to call")
-            .check(coreAndTheHostsDoors());
-    }
-
     /** G5 (rule E2 of docs/GOALS_OF_RECORD_2026_11_07.md §2): the edge depends on the product, never the reverse. */
     private static final com.tngtech.archunit.lang.ArchRule PRODUCT_REACHES_NO_EDGE = noClasses()
             .that().resideOutsideOfPackage("com.legend.edge..")
@@ -2600,26 +2587,20 @@ final class ArchitectureTest {
     /**
      * THE SPELLING HOOK'S DIALECTS (phase D's D1.0, guard (a), 2026-11-12): a dialect is a class of the product's dialect
      * package or of the edge (its {@code PureText}, the product's dialects subclassed to spell upstream's text) -- no
-     * other product class writes SQL as a dialect, so no compatibility spelling hides in one.
-     * {@link #theDialectRuleBitesAPlantedDialect} shows it bites.
+     * other product class writes SQL as a dialect, so no compatibility spelling hides in one. Held over the hosts' doors
+     * as {@link #hostDoorRules}' row {@code dialectsAreTheProductsOrTheEdges}; {@link #theDialectRuleBitesAPlantedDialect}
+     * shows it bites.
      */
-    @Test
-    void dialectsAreTheProductsOrTheEdges() {
-        // over the hosts' doors too (the GUARD stream's C.5, 2026-11-17): a host writing SQL as a dialect is caught
-        DIALECTS_ARE_THE_PRODUCTS_OR_THE_EDGES.check(coreAndTheHostsDoors());
-    }
-
     static final com.tngtech.archunit.lang.ArchRule DIALECTS_ARE_THE_PRODUCTS_OR_THE_EDGES = classes()
             .that().areAssignableTo(com.legend.sql.dialect.SqlDialect.class)
             .should().resideInAnyPackage("com.legend.sql.dialect..", "com.legend.edge..")
             .as("a dialect is the product's (sql.dialect) or the edge's (PureText)");
 
-    /** {@link #dialectsAreTheProductsOrTheEdges} fails on a dialect outside both ({@code planner.PlantedDialect}, a test
-     *  class planted for this alone). */
+    /** The dialect rule fails on a dialect outside both ({@code planner.PlantedDialect}, a test class planted for this
+     *  alone): a violation, never the empty selection's failure (the C.5 review's NOTE, 2026-11-17). */
     @Test
     void theDialectRuleBitesAPlantedDialect() {
-        org.junit.jupiter.api.Assertions.assertThrows(AssertionError.class, () -> DIALECTS_ARE_THE_PRODUCTS_OR_THE_EDGES
-                .check(new ClassFileImporter().importClasses(com.legend.planner.PlantedDialect.class)));
+        bites(DIALECTS_ARE_THE_PRODUCTS_OR_THE_EDGES, com.legend.planner.PlantedDialect.class);
     }
 
     /**
@@ -2627,30 +2608,21 @@ final class ArchitectureTest {
      * 2026-11-17): every kind of the closed list ({@code testplan.PlanStyleFacets.KINDS}: {@code planner.UpstreamPlans},
      * {@code testplan.EngineTestText}) is a product hook whose types are the product's, which the product's style refuses
      * by name ({@code PlanStyle.PRODUCT.facet}, pinned by {@code EdgeSpellingHookTest}), and which only
-     * {@code com.legend.edge} implements -- this rule. {@link #theFacetRuleBitesAPlantedImplementer} shows it bites.
+     * {@code com.legend.edge} implements -- this rule, held over the hosts' doors as {@link #hostDoorRules}' rows
+     * {@code onlyTheEdgeImplementsAStylesFacet <kind>}. {@link #theFacetRuleBitesAPlantedImplementer} shows it bites.
      */
-    @Test
-    void onlyTheEdgeImplementsAStylesFacet() {
-        // over the hosts' doors too (C.5, 2026-11-17)
-        JavaClasses classes = coreAndTheHostsDoors();
-        for (Class<?> kind : com.legend.testplan.PlanStyleFacets.KINDS) {
-            facetImplementersAreTheEdges(kind).check(classes);
-        }
-    }
-
     static com.tngtech.archunit.lang.ArchRule facetImplementersAreTheEdges(Class<?> kind) {
         return classes().that().areAssignableTo(kind).and().areNotInterfaces()
                 .should().resideInAnyPackage("com.legend.edge..")
                 .as("a plan style's facet " + kind.getSimpleName() + " is implemented by the compatibility edge alone");
     }
 
-    /** {@link #onlyTheEdgeImplementsAStylesFacet} fails on an implementer outside the edge
-     *  ({@code planner.PlantedDialect.Facet}, a test class planted for this alone). */
+    /** The facet rule fails on an implementer outside the edge ({@code planner.PlantedDialect.Facet}, a test class
+     *  planted for this alone). */
     @Test
     void theFacetRuleBitesAPlantedImplementer() {
-        org.junit.jupiter.api.Assertions.assertThrows(AssertionError.class,
-                () -> facetImplementersAreTheEdges(com.legend.planner.UpstreamPlans.class).check(
-                        new ClassFileImporter().importClasses(com.legend.planner.PlantedDialect.Facet.class)));
+        bites(facetImplementersAreTheEdges(com.legend.planner.UpstreamPlans.class),
+                com.legend.planner.PlantedDialect.Facet.class);
     }
 
     /**
@@ -2660,15 +2632,10 @@ final class ArchitectureTest {
      * -- are called from the edge alone (the harnesses outside core call them too; they are not product). The product's
      * doors plan with the product's dialects ({@code com.legend.database.PlanStyle.PRODUCT}) and nothing in the product picks another
      * source; {@code ExecuteOptions.withDialects} hands its argument to the planning half's. A lambda passed as a source
-     * is a call's argument, never a call of these: the rule pins the callers.
+     * is a call's argument, never a call of these: the rule pins the callers. Held over the hosts' doors as
+     * {@link #hostDoorRules}' row {@code onlyTheEdgeCallsTheSpellingDoors};
      * {@link #theSpellingDoorRuleBitesAPlantedCaller} shows it bites.
      */
-    @Test
-    void onlyTheEdgeCallsTheSpellingDoors() {
-        // over the hosts' doors too (C.5, 2026-11-17): a host picking a plan style is caught
-        ONLY_THE_EDGE_CALLS_THE_SPELLING_DOORS.check(coreAndTheHostsDoors());
-    }
-
     private static final java.util.Set<String> SPELLING_DOOR_OWNERS = java.util.Set.of("com.legend.TypedQuery",
             "com.legend.Execution", "com.legend.ExecuteOptions", "com.legend.testplan.PlanningOptions");
 
@@ -2691,20 +2658,18 @@ final class ArchitectureTest {
             })
             .as("only the edge spells a plan upstream's way: the doors taking a PlanStyle are the edge's to call");
 
-    /** {@link #onlyTheEdgeCallsTheSpellingDoors} fails on a product class calling such a door
-     *  ({@code planner.PlantedDialect.Spells}, a test class planted for this alone). */
+    /** The spelling-door rule fails on a product class calling such a door ({@code planner.PlantedDialect.Spells}, a
+     *  test class planted for this alone). */
     @Test
     void theSpellingDoorRuleBitesAPlantedCaller() {
-        org.junit.jupiter.api.Assertions.assertThrows(AssertionError.class, () -> ONLY_THE_EDGE_CALLS_THE_SPELLING_DOORS
-                .check(new ClassFileImporter().importClasses(com.legend.planner.PlantedDialect.Spells.class)));
+        bites(ONLY_THE_EDGE_CALLS_THE_SPELLING_DOORS, com.legend.planner.PlantedDialect.Spells.class);
     }
 
     /** {@link #noProductClassReachesTheEdge} fails on a product class that names an edge type
      *  ({@code planner.PlantedEdgeReach}, a test class planted for this alone; phase D step 1, 2026-11-12). */
     @Test
     void theEdgeRuleBitesAPlantedProductClass() {
-        org.junit.jupiter.api.Assertions.assertThrows(AssertionError.class, () -> PRODUCT_REACHES_NO_EDGE.check(
-                new ClassFileImporter().importClasses(com.legend.planner.PlantedEdgeReach.class)));
+        bites(PRODUCT_REACHES_NO_EDGE, com.legend.planner.PlantedEdgeReach.class);
     }
 
     /** No thread-scoped state (the user's ruling of 2026-11-09, "remove all thread local"): every value a step needs is
@@ -3169,14 +3134,8 @@ final class ArchitectureTest {
                     + " TypedRawSqlRelation case) — it carries authored text, never"
                     + " platform-composed SQL");
 
-    @Test
-    void reflectionIsBannedInProduction() {
-        // over the hosts' doors too (C.5, 2026-11-17): every class of the product's and the hosts' jars outside the edge
-        REFLECTION_BANNED.check(coreAndTheHostsDoors());
-    }
-
-    /** F1.11 (the rule of {@link #reflectionIsBannedInProduction}): a Class method's call or reference
-     *  ({@link #invokesWhere}). */
+    /** F1.11: a Class method's call or reference ({@link #invokesWhere}); held over core, the hosts' doors and the edge
+     *  as {@link #hostDoorRules}' row {@code reflectionIsBannedInProduction}. */
     static final com.tngtech.archunit.lang.ArchRule REFLECTION_BANNED = noClasses()
             // every class outside the edge, not com.legend's alone: the hosts' doors live in planner and nativelib
             // packages (C.5, 2026-11-17)
@@ -3685,8 +3644,6 @@ final class ArchitectureTest {
         AUTHORED_DOOR.check(coreAndTheHostsDoors());
     }
 
-    /** The classes of core and of the hosts' doors ({@code //core:product_jars} and {@code //core:authored_door_jars}:
-     *  the boundary, the tab's adapter and the native entry), the import checked to hold each door. */
     /**
      * THE PURE/V1 STYLE'S CALLERS (B7, the orchestrator's condition (2) on the {@code plainRaises} hook, 2026-11-17):
      * {@code edge.PureText.PURE_V1} -- legend-engine's unchecked raises written plain, the user's ruling "pure/v1
@@ -3768,6 +3725,10 @@ final class ArchitectureTest {
                 "legend-engine's grammar is the edge's alone: the product has one grammar (J21, 2026-11-17)");
     }
 
+    /** The classes of core, of the hosts' doors and of the edge ({@code //core:product_jars},
+     *  {@code //core:authored_door_jars} -- the boundary, the tab's adapter, the native entry, the JVM's and the zone
+     *  probe's mains, the SDLC's grammar, the edge's boundary and tab -- and {@code //core:edge_jars}), the import
+     *  checked to hold each door. */
     private static JavaClasses coreAndTheHostsDoors() {
         java.util.List<java.util.jar.JarFile> jars = new java.util.ArrayList<>();
         try {
@@ -3781,7 +3742,11 @@ final class ArchitectureTest {
             throw new java.io.UncheckedIOException(e);
         }
         JavaClasses classes = new ClassFileImporter().importJars(jars);
-        for (String door : java.util.List.of("planner.Boundary", "com.legend.edge.wasm.TabExports", "com.legend.nativelib.Compiler")) {
+        // each door of //core:authored_door_jars (the JVM's and the zone probe's mains and the SDLC's grammar since the C.5
+        // review, 2026-11-17: a jar dropped from the list turned nothing red)
+        for (String door : java.util.List.of("planner.Boundary", "com.legend.edge.wasm.TabExports",
+                "com.legend.nativelib.Compiler", "planner.JvmMain", "planner.ZoneMain",
+                "com.legend.sdlc.grammar.CoreGrammar", "com.legend.edge.wasm.EdgeBoundary")) {
             org.junit.jupiter.api.Assertions.assertTrue(classes.contain(door), "the import holds " + door);
         }
         return classes;
@@ -5082,14 +5047,6 @@ final class ArchitectureTest {
                 "a plan style the facet tests do not hold: add it to PlanStyleFacetsTest.STYLES");
     }
 
-    @Test
-    void onlyTheEdgeImplementsTheHooksUpstreamSide() {
-        // over the hosts' doors too (C.5, 2026-11-17)
-        org.junit.jupiter.api.Assertions.assertEquals(java.util.List.of(),
-                upstreamSidesOutsideTheEdge(coreAndTheHostsDoors()),
-                "a plan style or an engine-text printer outside com.legend.edge: upstream's forms are the edge's");
-    }
-
     /** The rule bites a planted plan style outside the edge ({@link PlantedUpstreamStyle}, a test class planted for
      *  this alone). */
     /** The rule bites a planted test-planning facet outside the edge ({@link PlantedEngineTestText}). */
@@ -5099,19 +5056,97 @@ final class ArchitectureTest {
                 upstreamSidesOutsideTheEdge(new ClassFileImporter().importClasses(PlantedEngineTestText.class)));
     }
 
-    /** Each rule C.5 widened bites a planted class in a host's package ({@code planner.PlantedHostDoors}, test classes
-     *  planted for this alone): a dialect, a style-door caller, a reflective call, a facet and a plan style, each outside
-     *  com.legend (the reflection rule read com.legend.. alone before, 2026-11-17). */
+    /** A rule held over core, the hosts' doors and the edge: its name (the test it was, which the docs cite), its check
+     *  over an import, and the class planted in a host's package that it bites. */
+    record HostDoorRule(String name, java.util.function.Consumer<JavaClasses> check, Class<?> planted) {
+    }
+
+    /** The test-planning facets' planted host implementers, one per kind of {@code PlanStyleFacets.KINDS}. */
+    private static final java.util.Map<Class<?>, Class<?>> FACET_PLANTS = java.util.Map.of(
+            com.legend.planner.UpstreamPlans.class, planner.PlantedHostDoors.Facet.class,
+            com.legend.testplan.EngineTestText.class, planner.PlantedHostDoors.TestText.class,
+            com.legend.lowering.RelationTexts.class, planner.PlantedHostDoors.RelationText.class,
+            com.legend.lowering.PureOnlyTexts.class, planner.PlantedHostDoors.PureOnlyText.class,
+            com.legend.lowering.ResultEnvelopes.class, planner.PlantedHostDoors.ResultEnvelope.class);
+
+    /**
+     * THE RULES OVER THE HOSTS' DOORS (the GUARD stream's C.5, 2026-11-17; one table since the C.5 review's MUST-FIX
+     * the same day: five tests each held its rule over its own import, and reverting one import turned nothing red):
+     * each row holds over core, the hosts' authored doors and the edge ({@link #theHostDoorRulesHold}, one import) and
+     * bites its planted host-package class ({@link #theWidenedRulesBiteAPlantedHostDoor}, which pins the rows' names).
+     * A row out of the import is out of the bite.
+     */
+    static java.util.List<HostDoorRule> hostDoorRules() {
+        java.util.List<HostDoorRule> out = new java.util.ArrayList<>();
+        // G5 at the hosts' doors: the edge is the edge's to call (the boundary's D-1 exception went 2026-11-17, the
+        // GUARD stream's C.5: its pure/v1 halves moved to the edge's EdgeBoundary with the census's A1; the native query
+        // store and the query-store page went to the edge with A2 and A3)
+        out.add(new HostDoorRule("theHostsDoorsReachNoEdge", PRODUCT_REACHES_NO_EDGE::check,
+                planner.PlantedHostEdgeReach.class));
+        out.add(new HostDoorRule("dialectsAreTheProductsOrTheEdges", DIALECTS_ARE_THE_PRODUCTS_OR_THE_EDGES::check,
+                planner.PlantedHostDoors.Dialect.class));
+        for (Class<?> kind : com.legend.testplan.PlanStyleFacets.KINDS) {
+            Class<?> planted = FACET_PLANTS.get(kind);
+            if (planted == null) {
+                throw new IllegalStateException("a facet kind with no planted host implementer: " + kind.getName());
+            }
+            out.add(new HostDoorRule("onlyTheEdgeImplementsAStylesFacet " + kind.getSimpleName(),
+                    facetImplementersAreTheEdges(kind)::check, planted));
+        }
+        out.add(new HostDoorRule("onlyTheEdgeCallsTheSpellingDoors", ONLY_THE_EDGE_CALLS_THE_SPELLING_DOORS::check,
+                planner.PlantedHostDoors.Spells.class));
+        out.add(new HostDoorRule("reflectionIsBannedInProduction", REFLECTION_BANNED::check,
+                planner.PlantedHostDoors.Reflects.class));
+        out.add(new HostDoorRule("onlyTheEdgeImplementsTheHooksUpstreamSide", classes -> org.junit.jupiter.api.Assertions
+                .assertEquals(java.util.List.of(), upstreamSidesOutsideTheEdge(classes), "a plan style or an engine-text"
+                        + " printer outside com.legend.edge: upstream's forms are the edge's"),
+                planner.PlantedHostDoors.Style.class));
+        return out;
+    }
+
+    /** Every rule of {@link #hostDoorRules} holds over core, the hosts' doors and the edge, read once. */
+    @Test
+    void theHostDoorRulesHold() {
+        JavaClasses classes = coreAndTheHostsDoors();
+        // the rules read the hosts' doors, not core alone (where every row would pass unseen)
+        for (String door : java.util.List.of("planner.Boundary", "planner.JvmMain", "planner.ZoneMain",
+                "com.legend.nativelib.Compiler")) {
+            org.junit.jupiter.api.Assertions.assertTrue(classes.contain(door), "the rules read " + door);
+        }
+        java.util.List<String> failed = new java.util.ArrayList<>();
+        for (HostDoorRule rule : hostDoorRules()) {
+            try {
+                rule.check().accept(classes);
+            } catch (AssertionError e) {
+                failed.add(rule.name() + ": " + e.getMessage());
+            }
+        }
+        org.junit.jupiter.api.Assertions.assertEquals(java.util.List.of(), failed);
+    }
+
+    /** Each rule of {@link #hostDoorRules} bites its planted class, which is in a host's package ({@code planner}): a
+     *  failure naming the class, never the empty selection's (ArchUnit fails a rule that checks no class, so a selector
+     *  that missed the host's package would pass a bare assertThrows -- found by C.5's own mutation run). The rows are
+     *  pinned by name: one dropped is a rule out of the import. */
     @Test
     void theWidenedRulesBiteAPlantedHostDoor() {
-        // a violation, never the empty selection's failure (ArchUnit fails a rule that checks no class: a rule whose
-        // selector missed the host's package would pass a bare assertThrows -- found by this bite's own mutation run)
-        bites(DIALECTS_ARE_THE_PRODUCTS_OR_THE_EDGES, planner.PlantedHostDoors.Dialect.class);
-        bites(ONLY_THE_EDGE_CALLS_THE_SPELLING_DOORS, planner.PlantedHostDoors.Spells.class);
-        bites(REFLECTION_BANNED, planner.PlantedHostDoors.Reflects.class);
-        bites(facetImplementersAreTheEdges(com.legend.planner.UpstreamPlans.class), planner.PlantedHostDoors.Facet.class);
-        org.junit.jupiter.api.Assertions.assertEquals(java.util.List.of(planner.PlantedHostDoors.Style.class.getName()),
-                upstreamSidesOutsideTheEdge(new ClassFileImporter().importClasses(planner.PlantedHostDoors.Style.class)));
+        java.util.Set<String> names = new java.util.TreeSet<>();
+        for (HostDoorRule rule : hostDoorRules()) {
+            names.add(rule.name());
+            org.junit.jupiter.api.Assertions.assertTrue(rule.planted().getName().startsWith("planner."),
+                    rule.name() + "'s planted class is in a host's package: " + rule.planted().getName());
+            AssertionError failed = org.junit.jupiter.api.Assertions.assertThrows(AssertionError.class,
+                    () -> rule.check().accept(new ClassFileImporter().importClasses(rule.planted())), rule.name());
+            org.junit.jupiter.api.Assertions.assertTrue(failed.getMessage().contains(rule.planted().getName()),
+                    rule.name() + " does not name its planted " + rule.planted().getName() + ": " + failed.getMessage());
+        }
+        org.junit.jupiter.api.Assertions.assertEquals(new java.util.TreeSet<>(java.util.Set.of(
+                "theHostsDoorsReachNoEdge", "dialectsAreTheProductsOrTheEdges",
+                "onlyTheEdgeImplementsAStylesFacet UpstreamPlans", "onlyTheEdgeImplementsAStylesFacet EngineTestText",
+                "onlyTheEdgeImplementsAStylesFacet RelationTexts", "onlyTheEdgeImplementsAStylesFacet PureOnlyTexts",
+                "onlyTheEdgeImplementsAStylesFacet ResultEnvelopes",
+                "onlyTheEdgeCallsTheSpellingDoors", "reflectionIsBannedInProduction",
+                "onlyTheEdgeImplementsTheHooksUpstreamSide")), names, "the rules over the hosts' doors");
     }
 
     @Test

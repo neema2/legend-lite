@@ -2706,8 +2706,8 @@ java_jars(
         # the embedded hosts' engine routes and the module's entry class, the edge's since the census's A1 (2026-11-17)
         "//wasm:edge_boundary",
         "//wasm:edge_tab",
-        # the JVM's and the zone probe's mains (separation roots, the GUARD stream's C.5, 2026-11-17: the hosts' doors
-        # the rules read)
+        # the JVM's main (a separation root) and the zone probe's (the timezone differential's JVM half): hosts' doors
+        # the rules read (the GUARD stream's C.5, 2026-11-17)
         "//wasm:jvm_main",
         "//wasm:tab",
         "//wasm:zone_main",
