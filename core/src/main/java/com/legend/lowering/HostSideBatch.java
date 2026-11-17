@@ -11,6 +11,7 @@ import com.legend.sql.SqlSelect;
 import com.legend.sql.SqlSource;
 import com.legend.sql.SqlType;
 import com.legend.sql.SqlUnion;
+import com.legend.sql.SqlWith;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -222,7 +223,29 @@ public final class HostSideBatch {
             }
             at += side.outs().size();
             SqlSource from = numbered == null ? new SqlSource.Dual() : new SqlSource.Subselect(numbered, SIDE, null);
+            if (i > 0) {
+                // read after the earlier side (G10): a one-row count of it joined as the build side, which the database
+                // finishes before it reads this side's rows
+                from = numbered == null ? after(i - 1) : new SqlSource.Join(from, after(i - 1), SqlSource.Join.Kind.CROSS,
+                        null);
+            }
             branches.add(new SqlSelect(ps, false, from, null, List.of(), null, null, List.of(), null, null, outs));
+        }
+        // THE SIDES IN ORDER (G10, the orchestrator's MUST of 2026-11-17: a plan's answer never depends on timing): every
+        // branch but the last is a MATERIALIZED expression, in the sides' order, so the database finishes each side
+        // before it reads the next -- where two sides raise, the first side's error is the statement's, as upstream
+        // evaluates an assert's arguments left to right (a UNION ALL's branches run in parallel on DuckDB: either
+        // error, by timing)
+        List<SqlWith.Cte> earlier = new ArrayList<>();
+        for (int i = 0; i + 1 < branches.size(); i++) {
+            String name = ORDERED + i;
+            earlier.add(new SqlWith.Cte(name, branches.get(i), true));
+            List<SqlSelect.Projection> all = new ArrayList<>(outs.size());
+            for (OutputCol o : outs) {
+                all.add(new SqlSelect.Projection(SqlExpr.Column.of(name, o), o.name(), o));
+            }
+            branches.set(i, new SqlSelect(all, false, new SqlSource.Cte(name, name, outs), null, List.of(), null, null,
+                    List.of(), null, null, outs));
         }
         SqlQuery union = branches.size() == 1 ? branches.get(0) : new SqlUnion(branches, true, outs);
         List<SqlSelect.Projection> read = new ArrayList<>(outs.size());
@@ -232,7 +255,20 @@ public final class HostSideBatch {
         List<SqlSelect.SortKey> order = List.of(
                 new SqlSelect.SortKey(SqlExpr.Column.of(UNION, outs.get(0)), true, null, null),
                 new SqlSelect.SortKey(SqlExpr.Column.of(UNION, outs.get(1)), true, null, null));
-        return new SqlSelect(read, false, new SqlSource.Subselect(union, UNION, null), null, List.of(), null, null,
-                order, null, null, outs);
+        return SqlWith.prepend(earlier, new SqlSelect(read, false, new SqlSource.Subselect(union, UNION, null), null,
+                List.of(), null, null, order, null, null, outs));
+    }
+
+    /** The batch's name for an earlier side's branch, evaluated before the next (G10). */
+    private static final String ORDERED = "__bs";
+
+    /** The count of the earlier side {@code i}'s branch, one row: what the next side is read after (G10). */
+    private static SqlSource after(int i) {
+        OutputCol n = new OutputCol("__n", SqlType.Scalar.BIGINT, false);
+        String name = ORDERED + i;
+        SqlSelect count = new SqlSelect(List.of(new SqlSelect.Projection(new SqlAgg.Reducer(SqlAgg.Fn.COUNT,
+                List.of(new SqlExpr.IntLit(1)), false, List.of()), n.name(), n)), false,
+                new SqlSource.Cte(name, name, List.of()), null, List.of(), null, null, List.of(), null, null, List.of(n));
+        return new SqlSource.Subselect(count, "__g" + i, null);
     }
 }

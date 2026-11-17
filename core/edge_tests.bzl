@@ -26,6 +26,8 @@ EDGE_TEST_SRCS = [
     "src/test/java/com/legend/RelationCountAssertsEdgeTest.java",
     "src/test/java/com/legend/testplan/CompiledPureNumbersEdgeTest.java",
     "src/test/java/com/legend/testplan/RenderedTextEdgeTest.java",
+    # G10 (2026-11-17): an assert whose sides both raise, under the compatibility rules on the edge's door too
+    "src/test/java/com/legend/testplan/HostSideOrderTest.java",
     "src/test/java/com/legend/testexec/EqualityCompatEdgeTest.java",
     "src/test/java/com/legend/ReferenceIntegrityTest.java",
     "src/test/java/com/legend/ResultWritersTest.java",
