@@ -38,11 +38,21 @@ class HookRulingTest {
     static final Map<Class<?>, List<Executable>> RULED = Map.of(
             // census B3 (and B1's PlanStyle signatures naming it): legend-engine's text printers
             com.legend.sql.dialect.EngineTextDialect.class, List.of(
-                    () -> PlanStyle.PRODUCT.engineText(com.legend.model.ConnectionDefinition.DatabaseType.DuckDB),
-                    () -> PlanStyle.PRODUCT.enginePlanText(com.legend.model.ConnectionDefinition.DatabaseType.H2,
-                            true, null),
+                    () -> each(t -> PlanStyle.PRODUCT.engineText(t)),
+                    () -> each(t -> PlanStyle.PRODUCT.enginePlanText(t, true, null)),
                     () -> PlanStyle.PRODUCT.engineTestText(),
-                    () -> PlanStyle.PRODUCT.engineTestPlanText()));
+                    () -> PlanStyle.PRODUCT.engineTestPlanText()),
+            // census B8 (i), 2026-11-17: the texts only legend-pure writes, composed at lowering
+            com.legend.lowering.PureOnlyTexts.class, List.of(
+                    () -> PlanStyle.PRODUCT.facet(com.legend.lowering.PureOnlyTexts.class)));
+
+    /** {@code call} on every database type (each refused alike; no database named). */
+    private static void each(java.util.function.Consumer<com.legend.model.ConnectionDefinition.DatabaseType> call) {
+        for (com.legend.model.ConnectionDefinition.DatabaseType t
+                : com.legend.model.ConnectionDefinition.DatabaseType.values()) {
+            call.accept(t);
+        }
+    }
 
     /** (a): an interface declaring signatures only -- no static method, no default method, no field. */
     @Test
@@ -105,7 +115,8 @@ class HookRulingTest {
         assertEquals(new TreeSet<>(List.of(
                 "EngineTextDialect <- com.legend.edge.EngineStyleComposite",
                 "EngineTextDialect <- com.legend.edge.EngineStyleDB2",
-                "EngineTextDialect <- com.legend.edge.EngineStyleH2")), implementers);
+                "EngineTextDialect <- com.legend.edge.EngineStyleH2",
+                "PureOnlyTexts <- com.legend.edge.EdgePureOnlyTexts")), implementers);
         assertFalse(implementers.isEmpty());
     }
 

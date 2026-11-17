@@ -76,6 +76,9 @@ public final class PureText {
             if (kind == com.legend.lowering.RelationTexts.class) {
                 return kind.cast(new RelationTextLowering());
             }
+            if (kind == com.legend.lowering.PureOnlyTexts.class) {
+                return kind.cast(EdgePureOnlyTexts.INSTANCE);
+            }
             throw new com.legend.error.NotImplementedException("the test-planning facet " + kind.getName()
                     + " is none of the declared kinds (com.legend.testplan.PlanStyleFacets.KINDS)");
         }

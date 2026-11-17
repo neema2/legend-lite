@@ -244,6 +244,26 @@ public final class Lowerer {
                 throw refusal.get();
             };
 
+    /** The texts only legend-pure writes ({@link PureOnlyTexts}, the separation census's B8 (i), 2026-11-17): the plan
+     *  style's facet, asked only when a native's rule meets one, with that call's own refusal. A Lowerer no planner
+     *  handed a style refuses each the same way. */
+    private java.util.function.Function<java.util.function.Supplier<? extends RuntimeException>, PureOnlyTexts>
+            pureOnlyTexts = refusal -> {
+                throw refusal.get();
+            };
+
+    /** The plan style's pure-only-text facet, {@code style} its request ({@code (refusal) -> style.facet(..)}). */
+    public Lowerer withPureOnlyTexts(
+            java.util.function.Function<java.util.function.Supplier<? extends RuntimeException>, PureOnlyTexts> style) {
+        this.pureOnlyTexts = style;
+        return this;
+    }
+
+    /** The style's text facets a native's rule reads ({@link Scalars.Styled}). */
+    private Scalars.Styled styled() {
+        return new Scalars.Styled(pureOnlyTexts);
+    }
+
     /** The plan style's relation-text facet, {@code style} its request ({@code (refusal) -> style.facet(..)}). */
     public Lowerer withRelationTexts(
             java.util.function.Function<java.util.function.Supplier<? extends RuntimeException>, RelationTexts> style) {
@@ -2243,7 +2263,7 @@ public final class Lowerer {
         for (TypedSpec arg : call.args()) {
             wrapped.add(arg instanceof TypedCollection run ? listLiteral(run, operand) : operand.apply(arg));
         }
-        return NullSemantics.verbatim(verbatimEquality || legacyNullUnsafeEquals, Scalars.lower(call, wrapped, features, implementations));
+        return NullSemantics.verbatim(verbatimEquality || legacyNullUnsafeEquals, Scalars.lower(call, wrapped, features, implementations, styled()));
     }
 
     /** A reduce body of SEVERAL REDUCERS under a condition: each reducer of the reduce's collection lowers as the
@@ -2267,7 +2287,7 @@ public final class Lowerer {
                     args.add(arg instanceof TypedCollection run && !run.elements().isEmpty()
                             ? listLiteral(run, x -> overReducers(base, a, x)) : overReducers(base, a, arg));
                 }
-                yield NullSemantics.verbatim(verbatimEquality || legacyNullUnsafeEquals, Scalars.lower(c, args, features, implementations));
+                yield NullSemantics.verbatim(verbatimEquality || legacyNullUnsafeEquals, Scalars.lower(c, args, features, implementations, styled()));
             }
             default -> scalar(e, noScope());
         };
@@ -3471,7 +3491,7 @@ public final class Lowerer {
             case TypedNativeCall call -> {
                 List<SqlExpr> args = call.args().stream()
                         .map(a -> windowScalar(a, base, over)).toList();
-                return NullSemantics.verbatim(verbatimEquality || legacyNullUnsafeEquals, Scalars.lower(call, args, features, implementations));
+                return NullSemantics.verbatim(verbatimEquality || legacyNullUnsafeEquals, Scalars.lower(call, args, features, implementations, styled()));
             }
             // The EMPTY collection is no run: none, the scalar rule's NULL (2026-10-26: an if's |[] arm in a window
             // column, the DataCube library's returns, had been an empty array, which a CASE beside a number refuses)
@@ -4287,14 +4307,14 @@ public final class Lowerer {
             // read as the row's column is, and tests them -- no list is made (Scalars.overCells)
             case TypedNativeCall n when Scalars.overCells(n) -> NullSemantics.verbatim(
                     verbatimEquality || legacyNullUnsafeEquals, Scalars.lower(n, n.args().get(0).children().stream()
-                            .map(c -> scalar(c, columns)).toList(), features, implementations));
+                            .map(c -> scalar(c, columns)).toList(), features, implementations, styled()));
             // arg lowering rides the unary-lambda binding convention
             // (LambdaBinding — M4's replacement for the parked branch's
             // LambdaWire ThreadLocal): a unary lambda param carries the
             // preceding list's element wire, so dispatch inside bodies
             // sees the carrier at construction
             case TypedNativeCall n -> NullSemantics.verbatim(verbatimEquality || legacyNullUnsafeEquals, Scalars.lower(n,
-                    LambdaBinding.lowerNativeArgs(n, columns, this::scalar), features, implementations));
+                    LambdaBinding.lowerNativeArgs(n, columns, this::scalar), features, implementations, styled()));
             // write(rel, accessor) returns the COUNT of rows written (the
             // PCT contract) — Render.writeCount; a REAL store destination
             // stays loud until the insert path exists.
@@ -4440,7 +4460,7 @@ public final class Lowerer {
         TypedCollection slots = (TypedCollection) n.args().get(1);
         return NullSemantics.verbatim(verbatimEquality || legacyNullUnsafeEquals, Scalars.lower(n,
                 List.of(scalar(n.args().get(0), columns), listLiteral(slots, e -> scalar(e, columns))),
-                features, implementations));
+                features, implementations, styled()));
     }
 
     /** A resolver for positions where no row scope exists (literal evaluation). */

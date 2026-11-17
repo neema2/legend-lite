@@ -60,13 +60,14 @@ class EdgeSeparationTest {
             // B17 (2026-11-17): Render's relation text moved to the edge (edge.RelationTextLowering); what stays in
             // Render is the product's row helpers, and the facet the edge answers stands here until hooks are ruled
             Map.entry("com.legend.lowering.RelationTexts", "B17"),
+            Map.entry("com.legend.lowering.PureOnlyTexts", "B8"),
             Map.entry("com.legend.lowering.Repr", "C5"),
             Map.entry("com.legend.testplan.EngineTestText", "C4"),
             Map.entry("com.legend.testplan.EngineTextPlanning", "C4"),
             Map.entry("com.legend.testplan.PlanStyleFacets", "C4"));
 
     /** The SqlFn members only the edge spells (census B8). */
-    static final Set<String> EDGE_ONLY_SQLFN = Set.of("FLOAT_PRINT", "DATETIME_PRINT", "FORMAT_PADDED", "INSTANCE_TEXT",
+    static final Set<String> EDGE_ONLY_SQLFN = Set.of("FLOAT_PRINT", "DATETIME_PRINT", "INSTANCE_TEXT",
             "RELATION_TEXT", "REPRESENTATION_TEXT", "TEXT_FORMS", "TRACE_TEXT");
 
     /** The referee and the appeals (census C2; G6: the edge's alone). */
@@ -92,7 +93,6 @@ class EdgeSeparationTest {
             Map.entry("com.legend.lowering.Repr -> SqlFn.FLOAT_PRINT", "C5 2026-11-17"),
             Map.entry("com.legend.lowering.Repr -> SqlFn.REPRESENTATION_TEXT", "B12 2026-11-17"),
             Map.entry("com.legend.lowering.Scalars -> SqlFn.DATETIME_PRINT", "B8 2026-11-17"),
-            Map.entry("com.legend.lowering.Scalars -> SqlFn.FORMAT_PADDED", "B8 2026-11-17"),
             Map.entry("com.legend.lowering.Scalars -> SqlFn.INSTANCE_TEXT", "B8 2026-11-17"),
             Map.entry("com.legend.lowering.Scalars -> SqlFn.TEXT_FORMS", "B8 2026-11-17"),
             Map.entry("com.legend.lowering.Scalars -> com.legend.lowering.Repr", "B12 2026-11-17"),
@@ -198,7 +198,16 @@ class EdgeSeparationTest {
             Map.entry("com.legend.sql.dialect.EngineTextDialect -> (stands in a product package)",
                     "B3 HOOK-RULED 2026-11-17"),
             Map.entry("com.legend.testplan.PlanStyleFacets -> (stands in a product package)",
-                    "C4 HOOK-RULED 2026-11-17"));
+                    "C4 HOOK-RULED 2026-11-17"),
+            // B8 (i), 2026-11-17: the texts only legend-pure writes, a hook from birth -- the interface, and the
+            // product's code that only asks the style for it with the call's refusal (the lowering, its rules, the
+            // planner's configuration, the facet list)
+            Map.entry("com.legend.lowering.PureOnlyTexts -> (stands in a product package)", "B8 HOOK-RULED 2026-11-17"),
+            Map.entry("com.legend.lowering.Lowerer -> com.legend.lowering.PureOnlyTexts", "B8 HOOK-RULED 2026-11-17"),
+            Map.entry("com.legend.lowering.Scalars -> com.legend.lowering.PureOnlyTexts", "B8 HOOK-RULED 2026-11-17"),
+            Map.entry("com.legend.planner.PlanEnv -> com.legend.lowering.PureOnlyTexts", "B8 HOOK-RULED 2026-11-17"),
+            Map.entry("com.legend.testplan.PlanStyleFacets -> com.legend.lowering.PureOnlyTexts",
+                    "B8 HOOK-RULED 2026-11-17"));
 
     // ---- the guards ---------------------------------------------------------------------------------------------
 
@@ -440,7 +449,7 @@ class EdgeSeparationTest {
                 com.legend.planner.PlantedCompatReach.class);
         Set<String> code = found(planted, n -> true);
         for (String want : List.of("com.legend.planner.PlantedCompatReach -> com.legend.edge.Presenter",
-                "com.legend.planner.PlantedCompatReach -> SqlFn.FORMAT_PADDED",
+                "com.legend.planner.PlantedCompatReach -> SqlFn.INSTANCE_TEXT",
                 "com.legend.planner.PlantedCompatReach -> JudgingRules.COMPILED_PURE_COMPAT")) {
             assertFalse(!code.contains(want), "the CODE and TEST SIDE guards bite: " + want + " in " + code);
         }

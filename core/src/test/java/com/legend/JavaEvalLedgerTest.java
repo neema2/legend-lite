@@ -1822,7 +1822,11 @@ class JavaEvalLedgerTest {
                             // lowering.Render (the separation census's B17, 2026-11-17): the plan style's RelationTexts
                             // facet, composing a RELATION_TEXT node at lowering -- planning work, no session, no value
                             // computed (the database renders the cells)
-                            "RelationTextLowering.java"),
+                            "RelationTextLowering.java",
+                            // legend-pure's texts only it writes (format's padding, ...), composed at lowering from the
+                            // product's nodes (the separation census's B8 (i), 2026-11-17): the plan style's
+                            // PureOnlyTexts facet -- planning work, no session, no value computed
+                            "EdgePureOnlyTexts.java"),
                     "core/src/main/java/com/legend/planner", PLANNER_CLASSES,
                     "core/src/main/java/com/legend/exec", EXEC_CLASSES,
                     "core/src/main/java/com/legend/testexec", TESTEXEC_CLASSES,

@@ -45,7 +45,7 @@ class EdgeOnlyNodesCensusTest {
     private static final Path MAIN = Path.of("core/src/main/java/com/legend");
 
     /** The edge-only members (FLOAT_PRINT is CompatSpellingGuardTest's, its JUDGE rows). */
-    static final List<SqlFn> EDGE_ONLY = List.of(SqlFn.DATETIME_PRINT, SqlFn.FORMAT_PADDED, SqlFn.INSTANCE_TEXT,
+    static final List<SqlFn> EDGE_ONLY = List.of(SqlFn.DATETIME_PRINT, SqlFn.INSTANCE_TEXT,
             SqlFn.RELATION_TEXT, SqlFn.REPRESENTATION_TEXT, SqlFn.TEXT_FORMS, SqlFn.TRACE_TEXT);
 
     /** Each member's emitting sites, "file (under core/src/main/java/com/legend)" -> occurrences in code, measured on
@@ -54,8 +54,7 @@ class EdgeOnlyNodesCensusTest {
             // legend-pure's DateTime print: the judges' (a literal's written text kept), its product rendering the
             // judges' too (CompatSpellingGuardTest's DateTimePrintText JUDGE row) until Phases 4b and 5
             SqlFn.DATETIME_PRINT, Map.of("lowering/LiteralSpelling.java", 1, "lowering/Scalars.java", 1),
-            // format's %0<w>d, refused by the product
-            SqlFn.FORMAT_PADDED, Map.of("lowering/Scalars.java", 1),
+            // (FORMAT_PADDED: gone from SqlFn 2026-11-17, B8 (i) -- the edge composes it at lowering)
             // an instance's toString, refused by the product (graph fetch)
             SqlFn.INSTANCE_TEXT, Map.of("lowering/Scalars.java", 1),
             // (RELATION_TEXT, a relation's text: no product site since B17, 2026-11-17 -- the edge's
@@ -152,7 +151,6 @@ class EdgeOnlyNodesCensusTest {
     @Test
     void theProductRefusesLegendPuresTextsByName() {
         Map<String, SqlExpr> refused = Map.of(
-                "FORMAT_PADDED", SqlExpr.Call.of(SqlFn.FORMAT_PADDED, new SqlExpr.IntLit(3), new SqlExpr.IntLit(5)),
                 "INSTANCE_TEXT", SqlExpr.Call.of(SqlFn.INSTANCE_TEXT, new SqlExpr.StringLit("1")),
                 "RELATION_TEXT", SqlExpr.Call.of(SqlFn.RELATION_TEXT, new SqlExpr.StringLit("t"),
                         new SqlExpr.StringLit("toCSV")),

@@ -14,7 +14,7 @@ import com.legend.sql.SqlFn;
  * {@link SqlFn#DATETIME_PRINT} (a literal's written text kept, its second operand), a joined element's
  * ({@link SqlFn#CELL_TEXT}, D1.3: the product skips an empty one) as its text or {@code TDSNull}, and the texts only
  * legend-pure writes (D1.3: the product refuses them by name), {@code format}'s padded {@code %0<w>d}
- * ({@link SqlFn#FORMAT_PADDED}) and an instance's {@code @_} id ({@link SqlFn#INSTANCE_TEXT}), as it writes them. The
+ * (at lowering since B8 (i), 2026-11-17: {@code EdgePureOnlyTexts}) and an instance's {@code @_} id ({@link SqlFn#INSTANCE_TEXT}), as it writes them. The
  * edge's first pass, so every
  * later pass sees the tree the lowering wrote until D1.2: the edge's SQL is byte-identical to before.
  */
@@ -127,19 +127,6 @@ final class PurePrintForms extends com.legend.sql.SqlRewriter {
         return floatOf(x, FloatLiteral.PRINT_BARE);
     }
 
-    /** {@code format}'s {@code %0<w>d} as legend-pure writes it ({@code -3} at width 5 is {@code -00003}): the digits
-     *  padded, then signed -- printf's width would count the sign (moved here from the lowering, Scalars, 2026-11-15:
-     *  phase D's D1.3). */
-    private static SqlExpr signedZeroPad(SqlExpr x, SqlExpr width) {
-        SqlExpr padded = SqlExpr.Call.of(SqlFn.LPAD,
-                new SqlExpr.Cast(SqlExpr.Call.of(SqlFn.ABS, x), com.legend.sql.SqlType.Scalar.VARCHAR, SqlExpr.Reason.PRINT),
-                width, new SqlExpr.StringLit("0"));
-        return new SqlExpr.Case(java.util.List.of(new SqlExpr.Case.When(
-                SqlExpr.Call.of(SqlFn.LESS, x, new SqlExpr.IntLit(0)),
-                SqlExpr.Call.of(SqlFn.CONCAT, new SqlExpr.StringLit("-"), padded))),
-                padded, SqlExpr.Reason.PRINT);
-    }
-
     /** A join's element texts as legend-engine writes them (phase D's D1.3: the product skips an empty one), at the
      *  join -- the walk is bottom-up, so the join reads its elements' {@link SqlFn#CELL_TEXT}s: a list's elements,
      *  each {@code COALESCE(x, 'TDSNull')}; a row's cells ({@code COALESCE(STRING_AGG(<the cells>, sep), '')}),
@@ -194,9 +181,6 @@ final class PurePrintForms extends com.legend.sql.SqlRewriter {
                 args.add(expr(a));
             }
             return new SqlExpr.Call(SqlFn.DATETIME_PRINT, args);
-        }
-        if (e instanceof SqlExpr.Call c && c.fn() == SqlFn.FORMAT_PADDED) {
-            return signedZeroPad(expr(c.args().get(0)), c.args().get(1));
         }
         if (e instanceof SqlExpr.Call c && c.fn() == SqlFn.TRACE_TEXT) {
             // legend-engine's trace comment around the execution's id (its executor's, RelationalExecutor.java:332;
