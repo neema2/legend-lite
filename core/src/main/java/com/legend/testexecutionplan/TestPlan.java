@@ -79,10 +79,11 @@ public record TestPlan(List<ExecutionPlan.Parameter> parameters, List<TestStep> 
      *  judge plans by itself (TestPlannerIsolationTest) -- run each in its own run, and the two runs' assert outcomes
      *  compared by the runner, verdict and message, at this step. The one step of a plan whose judge is
      *  {@link Judge#AGREEMENT}. */
-    public record Isolated(TestPlan host, TestPlan database) implements TestStep {
+    public record Isolated(TestPlan host, TestPlan database, JudgingRules rules) implements TestStep {
         public Isolated {
             Objects.requireNonNull(host, "host");
             Objects.requireNonNull(database, "database");
+            Objects.requireNonNull(rules, "rules");
             if (host.judge() != Judge.HOST || database.judge() != Judge.DATABASE) {
                 throw new IllegalArgumentException("an agreement holds a HOST plan and a DATABASE plan, not "
                         + host.judge() + " and " + database.judge());

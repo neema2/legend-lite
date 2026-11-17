@@ -36,14 +36,21 @@ final class IsolatedRun {
     private IsolatedRun() {
     }
 
-    /** One assert's report, as the listener heard it. */
-    record Heard(String name, boolean pass, @Nullable String detail) {
+    /** What a judge reported of one assert: a verdict, or that it declined the assert or left it unjudged. */
+    enum Report { VERDICT, DECLINED, UNJUDGED }
+
+    /** One assert's report, as the listener heard it, in order ({@code detail} a verdict's message, or a decline's or
+     *  an unjudged assert's reason). */
+    record Heard(Report report, String name, boolean pass, @Nullable String detail) {
+        Heard(String name, boolean pass, @Nullable String detail) {
+            this(Report.VERDICT, name, pass, detail);
+        }
     }
 
-    /** One judge's run, recorded: its verdicts in order, the asserts it declined or left unjudged, and how it ended. */
+    /** One judge's run, recorded: its reports in order (each assert's verdict, or its decline or unjudged reason) and
+     *  how it ended. */
     static final class Recording implements AssertListener {
         final List<Heard> verdicts = new ArrayList<>();
-        final List<String> notes = new ArrayList<>();
         @Nullable RuntimeException failure;
 
         @Override
@@ -53,12 +60,12 @@ final class IsolatedRun {
 
         @Override
         public void declined(String assertName, String reason) {
-            notes.add("declined " + assertName + ": " + reason);
+            verdicts.add(new Heard(Report.DECLINED, assertName, false, reason));
         }
 
         @Override
         public void unjudged(String assertName, String reason) {
-            notes.add("unjudged " + assertName + ": " + reason);
+            verdicts.add(new Heard(Report.UNJUDGED, assertName, false, reason));
         }
 
         /** The run's end, as text: its failure's class and message, or none. */
@@ -83,16 +90,22 @@ final class IsolatedRun {
         Recording host = runAlone(pair.host(), sessions, runner, answer);
         // the database judge's run answers nobody: the host's answer is the body's
         Recording database = runAlone(pair.database(), sessions, runner, null);
-        conclude(host, database, callers);
+        conclude(host, database, pair.rules() == TestPlan.JudgingRules.LITE, callers);
     }
 
-    /** The two recorded runs concluded: the caller hears the host's verdicts; then {@link JudgesDisagree} where the runs
-     *  differ, else the host's failure rethrown, else the body passed. A recorded failure is never swallowed. */
-    static void conclude(Recording host, Recording database, @Nullable AssertListener callers) {
-        @Nullable String difference = difference(host, database);
+    /** The two recorded runs concluded ({@code messages}: whether the messages are compared too -- lite's own rules,
+     *  where both judges write lite's sentences; under the compatibility rules the words are the host's alone and the
+     *  VERDICTS are compared): the caller hears the host's reports; then {@link JudgesDisagree} where the runs differ,
+     *  else the host's failure rethrown, else the body passed. A recorded failure is never swallowed. */
+    static void conclude(Recording host, Recording database, boolean messages, @Nullable AssertListener callers) {
+        @Nullable String difference = difference(host, database, messages);
         if (callers != null) {
             for (Heard h : host.verdicts) {
-                callers.verdict(h.name(), h.pass(), h.detail());
+                switch (h.report()) {
+                    case VERDICT -> callers.verdict(h.name(), h.pass(), h.detail());
+                    case DECLINED -> callers.declined(h.name(), Objects.requireNonNull(h.detail()));
+                    case UNJUDGED -> callers.unjudged(h.name(), Objects.requireNonNull(h.detail()));
+                }
             }
         }
         if (difference != null) {
@@ -114,24 +127,34 @@ final class IsolatedRun {
         return recording;
     }
 
-    /** The first difference between the two runs, both texts quoted, or null where they agree on every verdict, every
-     *  message and the run's end. */
-    static @Nullable String difference(Recording host, Recording database) {
+    /** The first difference between the two runs, both texts quoted, or null where they agree: on every verdict and
+     *  how the run ended, and under lite's own rules ({@code messages}) on every message and the ending's text too. An
+     *  assert one judge declined or left unjudged is not compared under the compatibility rules (the host's verdict
+     *  stands, as it did in the fused agreement); under lite's own rules both judge every assert. */
+    static @Nullable String difference(Recording host, Recording database, boolean messages) {
         int n = Math.max(host.verdicts.size(), database.verdicts.size());
         for (int i = 0; i < n; i++) {
             Heard h = i < host.verdicts.size() ? host.verdicts.get(i) : null;
             Heard d = i < database.verdicts.size() ? database.verdicts.get(i) : null;
-            // the verdict and its message: the name each planner gives an assert (a helper's, or the assert inside it)
-            // is how it is reported, not what it decides
-            if (h == null || d == null || h.pass() != d.pass() || !Objects.equals(h.detail(), d.detail())) {
+            if (!messages && h != null && d != null
+                    && (h.report() != Report.VERDICT || d.report() != Report.VERDICT)) {
+                continue;
+            }
+            // the verdict (and its message): the name each planner gives an assert (a helper's, or the assert inside
+            // it) is how it is reported, not what it decides
+            if (h == null || d == null || h.report() != d.report() || h.pass() != d.pass()
+                    || messages && !Objects.equals(h.detail(), d.detail())) {
                 return "the judges disagree at assert " + i + ": host " + describe(h) + "; database " + describe(d)
                         + (h == null ? " (host's run " + quote(host.ending()) + ")" : "")
-                        + (d == null ? " (database's run " + quote(database.ending()) + ")" : "") + notes(database);
+                        + (d == null ? " (database's run " + quote(database.ending()) + ")" : "");
             }
         }
-        if (!host.ending().equals(database.ending())) {
+        boolean endsAlike = messages ? host.ending().equals(database.ending())
+                : (host.failure == null) == (database.failure == null) && (host.failure == null
+                        || host.failure.getClass() == database.failure.getClass());
+        if (!endsAlike) {
             return "the judges' runs ended differently: host " + quote(host.ending()) + "; database "
-                    + quote(database.ending()) + notes(database);
+                    + quote(database.ending());
         }
         return null;
     }
@@ -140,12 +163,14 @@ final class IsolatedRun {
         if (h == null) {
             return "(none)";
         }
-        return h.name() + " " + (h.pass() ? "held" : "failed") + (h.detail() == null ? "" : " " + quote(h.detail()));
+        String what = switch (h.report()) {
+            case VERDICT -> h.pass() ? "held" : "failed";
+            case DECLINED -> "declined";
+            case UNJUDGED -> "unjudged";
+        };
+        return h.name() + " " + what + (h.detail() == null ? "" : " " + quote(h.detail()));
     }
 
-    private static String notes(Recording database) {
-        return database.notes.isEmpty() ? "" : " (database: " + String.join("; ", database.notes) + ")";
-    }
 
     private static String quote(String text) {
         return "\"" + text + "\"";

@@ -33,10 +33,10 @@ public final class TestPlanner {
      *  runtime's dialect chosen, an unread let made the statement it binds (the user's ruling, 2026-11-02), then
      *  {@link #plan(TypedQuery, String, SqlDialect, PlanningOptions)}. */
     public static TestPlan plan(TypedQuery typed, @Nullable String given, PlanningOptions options) {
-        if (options.judgeMode() == PlanningOptions.JudgeMode.BOTH
-                && options.judgingRules() == com.legend.testexecutionplan.TestPlan.JudgingRules.LITE) {
-            // both judges ISOLATED under lite's own rules (the user's judge model, 2026-11-17): each plans the body
-            // alone; the compatibility rules keep the fused agreement until PCT runs the host alone (step 4)
+        if (options.judgeMode() == PlanningOptions.JudgeMode.BOTH) {
+            // both judges ISOLATED (the user's judge model, 2026-11-17): each plans the body alone; under lite's own
+            // rules their verdicts and messages agree, under the compatibility rules their verdicts (the words are the
+            // host's alone; the orchestrator's (a), 2026-11-17)
             return planIsolated(typed, given, options);
         }
         // the body's facts over the body as given, BEFORE any rewrite below (the generator's planning, the unread lets
@@ -83,7 +83,7 @@ public final class TestPlanner {
             return host;
         }
         TestPlan database = plan(typed, given, options.withJudgeMode(PlanningOptions.JudgeMode.DATABASE));
-        TestPlan both = new TestPlan(List.of(), List.of(new TestPlan.Isolated(host, database)),
+        TestPlan both = new TestPlan(List.of(), List.of(new TestPlan.Isolated(host, database, options.judgingRules())),
                 TestPlan.Judge.AGREEMENT, java.util.Map.of(), java.util.Map.of(), host.answersLastVerdict(),
                 host.session(), host.facts());
         com.legend.testexecutionplan.TestPlanJson.requireRoundTrip(both);

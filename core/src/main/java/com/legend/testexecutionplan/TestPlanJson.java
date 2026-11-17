@@ -203,6 +203,7 @@ public final class TestPlanJson {
                 o.put("_type", StepTag.isolated.name());
                 o.put("host", write(a.host()));
                 o.put("database", write(a.database()));
+                o.put("rules", a.rules().name());
             }
         }
         return o;
@@ -362,7 +363,8 @@ public final class TestPlanJson {
     private static TestPlan.TestStep readStep(Json.Obj o) {
         return switch (tag(StepTag.class, o, "test plan step")) {
             case run -> new TestPlan.Run(PlanJson.nodeOf(o.getObj("node")));
-            case isolated -> new TestPlan.Isolated(read(o.getString("host")), read(o.getString("database")));
+            case isolated -> new TestPlan.Isolated(read(o.getString("host")), read(o.getString("database")),
+                    TestPlan.JudgingRules.valueOf(o.getString("rules")));
             case frameRun -> {
                 if (!(PlanJson.nodeOf(o.getObj("check")) instanceof ExecutionPlan.Check c)) {
                     throw new IllegalArgumentException("a frame run's step is a check");
