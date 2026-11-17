@@ -461,7 +461,7 @@ export class DuckDbEngine implements QueryEngine {
     sql: PlannedSql,
     epoch: number,
     signal?: AbortSignal,
-    params: readonly string[] = [],
+    params: readonly (string | number | boolean | null)[] = [],
   ): Promise<RawTable> {
     // a run's, on Node: refused at the send primitives (#whole, #batches, #bound: run-frame.ts sending), DuckDB's one
     // choke point (PlannedSqlTest's DATABASE_SENDS)
@@ -487,7 +487,7 @@ export class DuckDbEngine implements QueryEngine {
    * the prepared statement streams (DuckDB-WASM's), else whole as one batch -- the prepared statement closed once read.
    * A connection that prepares none refuses it by name.
    */
-  async *#bound(sql: PlannedSql, params: readonly string[]): AsyncIterable<ArrowishTable> {
+  async *#bound(sql: PlannedSql, params: readonly (string | number | boolean | null)[]): AsyncIterable<ArrowishTable> {
     sending("DuckDB's connection");
     if (this.#conn.prepare === undefined) throw new Error("this database binds no statement's values: a plan's payload is not run here");
     const prepared = await this.#conn.prepare(sql);
@@ -575,7 +575,7 @@ export class DuckDbEngine implements QueryEngine {
     epoch: number,
     signal: AbortSignal | undefined,
     started: number,
-    params: readonly string[] = [],
+    params: readonly (string | number | boolean | null)[] = [],
   ): Promise<RawTable> {
     // THE SEND PRIMITIVES each refuse a statement sent outside a run, on Node (run-frame.ts sending; the C5-T audit's
     // item 7, 2026-11-15): this one, #batches and #bound -- so no public method that reaches one skips it
@@ -610,7 +610,7 @@ export class DuckDbEngine implements QueryEngine {
     sql: PlannedSql,
     signal: AbortSignal | undefined,
     onBatch: (batch: ArrowishTable) => void,
-    params: readonly string[] = [],
+    params: readonly (string | number | boolean | null)[] = [],
   ): Promise<void> {
     sending("DuckDB's connection");
     const send = this.#conn.send;
