@@ -241,7 +241,7 @@ corpus_lane(
 # THE CORPUS'S PRODUCT-SQL SIZE BASELINE (G3's guard, the corpus set; E3 of the total-wall program, ruled by the
 # orchestrator 2026-11-12): every corpus body planned whole on the lane's backend (planning only), its product
 # statements pinned per database and package (rcorpus/lean-sql-baseline.tsv, LeanSqlBaseline's rule); the judge's
-# statements held to their own pins by the same rule since E-5d (rcorpus/lean-sql-judge-baseline.tsv). In //gates:local; re-pin with
+# statements are the judge's (their pins went with the corpus's database pass, step 1, 2026-11-17). In //gates:local; re-pin with
 # bazel run //spec:update_lean_sql_corpus_<lane>.
 [junit_test(
     name = "lean_sql_corpus_" + lane,

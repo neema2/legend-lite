@@ -27,8 +27,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * ({@code TestExecution.planBody}, planning only, no database) on the lane's backend, and its PRODUCT statements -- the
  * body's own statement nodes: its results, lets' frame runs, writes -- held to {@code rcorpus/lean-sql-baseline.tsv}
  * per database and test package by {@link LeanSqlBaseline}'s rule (growth fails, a shrink past 1% re-pins). Excluded,
- * as ruled: the verdict and canon steps (the judge's: held to their own pins, {@code
- * rcorpus/lean-sql-judge-baseline.tsv}, by the same rule since E-5d) and a fixture's setup, seeds and loads (data delivery). Its own targets,
+ * as ruled: the verdict and canon steps (the judge's; its pins went with the corpus's database pass, step 1
+ * b523c767d, the orchestrator's ruling of 2026-11-17: no corpus lane sends that SQL, and the judge's SQL is guarded
+ * where it runs, core's lean baselines and the ladder) and a fixture's setup, seeds and loads (data delivery). Its own targets,
  * {@code //spec:lean_sql_corpus_duckdb} and {@code _h2}; re-pin with {@code bazel run
  * //spec:update_lean_sql_corpus_<lane>}.
  */
@@ -38,18 +39,11 @@ class LeanSqlCorpusTest {
     /** The pins' file in the source tree. */
     static final String PINS = "spec/src/test/resources/rcorpus/lean-sql-baseline.tsv";
 
-    /** The JUDGE's pins (E-5d, the design doc's §5.9; ruled with E-5, 2026-11-13): the verdict statements of every
-     *  corpus body planned under the DATABASE judge -- since E-5c BOTH plans the same program -- held by the same rule
-     *  per database and package. Until E-5d they were written unguarded ({@code judge-sql.tsv}). */
-    static final String JUDGE_PINS = "spec/src/test/resources/rcorpus/lean-sql-judge-baseline.tsv";
-
-    /** The corpus's bodies planned on this JVM's backend: [0] the product's measures, [1] the judge's. */
-    @SuppressWarnings("unchecked")
-    static Map<LeanSqlBaseline.Key, LeanSqlBaseline.Measure>[] measure() throws IOException {
+    /** The corpus's bodies planned on this JVM's backend: the product's measures. */
+    static Map<LeanSqlBaseline.Key, LeanSqlBaseline.Measure> measure() throws IOException {
         MinimalCorpus corpus = new MinimalCorpus();
         String database = MinimalCorpus.BACKEND.type().name();
         Map<LeanSqlBaseline.Key, LeanSqlBaseline.Measure> product = new java.util.HashMap<>();
-        Map<LeanSqlBaseline.Key, LeanSqlBaseline.Measure> judge = new java.util.HashMap<>();
         // the corpus's resource store, as its run has (MinimalCorpus's options): a body that loads a CSV plans its
         // load against the file's digest. Only the store: the measure keeps lite's own rules and spelling (round 55f,
         // 2026-11-15: a DataError, "this run was given no store for it", had been counted as a refusal)
@@ -58,13 +52,11 @@ class LeanSqlCorpusTest {
             String family = t.pkg();
             List<String> productSql = new ArrayList<>();
             List<ExecutionPlan.Node> productNodes = new ArrayList<>();
-            List<String> judgeSql = new ArrayList<>();
-            long[] judgePlan = {0};
             try {
                 var resolved = Compiler.resolveQuery(List.copyOf(t.fn().body()), t.imports(), corpus.context());
                 TestPlan plan = com.legend.TestExecution.planBody(Compiler.queryResolved(corpus.context(), resolved),
                         MinimalCorpus.RUNTIME, options);
-                steps(plan.steps(), productSql, productNodes, judgeSql, judgePlan);
+                steps(plan.steps(), productSql, productNodes);
             } catch (RuntimeException e) {
                 if (!com.legend.leansql.LeanSqlBaseline.isRefusal(e)) {
                     throw e;
@@ -72,9 +64,7 @@ class LeanSqlCorpusTest {
                 // refused at planning: counted as such under its own family, never as a body of no SQL (2026-11-15,
                 // PR1's review: a refused body pinned 0 0 0 and could not be told from a smaller one)
                 LeanSqlBaseline.Key pk = new LeanSqlBaseline.Key("corpus", database, family);
-                LeanSqlBaseline.Key jk = new LeanSqlBaseline.Key("corpus-judge", database, family);
                 product.put(pk, product.getOrDefault(pk, new LeanSqlBaseline.Measure(0, 0, 0, "")).refusedOne(t.fqn()));
-                judge.put(jk, judge.getOrDefault(jk, new LeanSqlBaseline.Measure(0, 0, 0, "")).refusedOne(t.fqn()));
                 continue;
             }
             long planChars = 0;
@@ -82,9 +72,8 @@ class LeanSqlCorpusTest {
                 planChars += PlanJson.write(ExecutionPlan.reading(List.of(), n)).length();
             }
             add(product, new LeanSqlBaseline.Key("corpus", database, family), productSql, planChars, t.fqn());
-            add(judge, new LeanSqlBaseline.Key("corpus-judge", database, family), judgeSql, judgePlan[0], t.fqn());
         }
-        return new Map[] {product, judge};
+        return product;
     }
 
     private static void add(Map<LeanSqlBaseline.Key, LeanSqlBaseline.Measure> into, LeanSqlBaseline.Key k,
@@ -93,9 +82,9 @@ class LeanSqlCorpusTest {
         into.put(k, was.plus(statements, p, test));
     }
 
-    /** The body's own statement nodes to the product's; the verdict steps' statements to the judge's. */
+    /** The body's own statement nodes to the product's; the verdict steps' are the judge's, not measured here. */
     private static void steps(List<TestPlan.TestStep> steps, List<String> productSql,
-            List<ExecutionPlan.Node> productNodes, List<String> judgeSql, long[] judgePlan) {
+            List<ExecutionPlan.Node> productNodes) {
         for (TestPlan.TestStep step : steps) {
             switch (step) {
                 case TestPlan.Run r -> {
@@ -110,23 +99,18 @@ class LeanSqlCorpusTest {
                     productSql.add(f.check().sql().statement());
                     productNodes.add(f.check());
                 }
-                // the judge's statements as the runner sends them (TestPlan.sent: a fused statement or each wrapper, every
-                // raising verdict's wrapper, the sides, a branch's condition and both its sides' steps) and each step's
-                // plan JSON (2026-11-15, PR1's review: the fused statement and base sides alone, and no plan JSON)
-                case TestPlan.Verdicts v -> judged(v, judgeSql, judgePlan);
+                case TestPlan.Verdicts v -> {
+                    // the judge's
+                }
                 case TestPlan.Branch b -> {
-                    judged(b, judgeSql, judgePlan);
-                    // a side's product steps are the product's (TestPlan.sent leaves them out); its judge steps were
-                    // counted above, so they go to a list not kept here (round 55f, 2026-11-15)
-                    List<String> counted = new ArrayList<>();
-                    long[] countedPlan = {0};
-                    steps(b.then(), productSql, productNodes, counted, countedPlan);
-                    steps(b.otherwise(), productSql, productNodes, counted, countedPlan);
+                    // a side's product steps are the product's; its judge steps are the judge's
+                    steps(b.then(), productSql, productNodes);
+                    steps(b.otherwise(), productSql, productNodes);
                 }
                 // each judge's plan alone, the host's first (the isolated pair, 2026-11-17)
                 case TestPlan.Isolated p -> {
-                    steps(p.host().steps(), productSql, productNodes, judgeSql, judgePlan);
-                    steps(p.database().steps(), productSql, productNodes, judgeSql, judgePlan);
+                    steps(p.host().steps(), productSql, productNodes);
+                    steps(p.database().steps(), productSql, productNodes);
                 }
             }
         }
@@ -144,26 +128,13 @@ class LeanSqlCorpusTest {
                 java.util.Set.of()).withJudgeMode(mode).withStyle(com.legend.edge.PureText.UPSTREAM);
     }
 
-    /** {@code step}'s judge statements and plan JSON, added. */
-    private static void judged(TestPlan.TestStep step, List<String> judgeSql, long[] judgePlan) {
-        for (ExecutionPlan.Node n : TestPlan.sent(step)) {
-            LeanSqlBaseline.statements(n, judgeSql);
-        }
-        judgePlan[0] += com.legend.testexecutionplan.TestPlanJson.writeStep(step).length();
-    }
-
     @Test
     void theCorpusProductSqlIsHeldToItsBaseline() throws Exception {
-        Map<LeanSqlBaseline.Key, LeanSqlBaseline.Measure>[] measured = measure();
+        Map<LeanSqlBaseline.Key, LeanSqlBaseline.Measure> measured = measure();
         Map<LeanSqlBaseline.Key, LeanSqlBaseline.Measure> pinned = pinned("/rcorpus/lean-sql-baseline.tsv");
-        Map<LeanSqlBaseline.Key, LeanSqlBaseline.Measure> judgePinned = pinned("/rcorpus/lean-sql-judge-baseline.tsv");
-        List<String> drift = LeanSqlBaseline.drift(pinned, measured[0]);
-        List<String> judgeDrift = LeanSqlBaseline.drift(judgePinned, measured[1]);
-        assertTrue(drift.isEmpty() && judgeDrift.isEmpty(), (drift.isEmpty() ? ""
-                : "the corpus's product SQL left its baseline (" + PINS + "):\n  " + String.join("\n  ", drift)
-                        + "\n") + (judgeDrift.isEmpty() ? ""
-                : "the corpus's judge SQL left its baseline (" + JUDGE_PINS + "):\n  "
-                        + String.join("\n  ", judgeDrift)));
+        List<String> drift = LeanSqlBaseline.drift(pinned, measured);
+        assertTrue(drift.isEmpty(), "the corpus's product SQL left its baseline (" + PINS + "):\n  "
+                + String.join("\n  ", drift));
     }
 
     /** {@code resource}'s pins for this JVM's database. */
@@ -397,21 +368,14 @@ class LeanSqlCorpusTest {
             throw new IllegalStateException("run it with bazel run //spec:update_lean_sql_corpus_<lane>");
         }
         String database = MinimalCorpus.BACKEND.type().name();
-        Map<LeanSqlBaseline.Key, LeanSqlBaseline.Measure>[] measured = measure();
-        repin(Path.of(workspace, PINS), database, measured[0]);
-        repin(Path.of(workspace, JUDGE_PINS), database, measured[1]);
+        Map<LeanSqlBaseline.Key, LeanSqlBaseline.Measure> measured = measure();
+        repin(Path.of(workspace, PINS), database, measured);
         long[] p = {0, 0};
-        long[] j = {0, 0};
-        measured[0].values().forEach(m -> {
+        measured.values().forEach(m -> {
             p[0] += m.statements();
             p[1] += m.chars();
         });
-        measured[1].values().forEach(m -> {
-            j[0] += m.statements();
-            j[1] += m.chars();
-        });
-        System.out.println("corpus " + database + ": product statements " + p[0] + ", chars " + p[1]
-                + "; judge statements " + j[0] + ", chars " + j[1]);
+        System.out.println("corpus " + database + ": product statements " + p[0] + ", chars " + p[1]);
     }
 
     /** {@code file}'s pins with this database's replaced by {@code measured}, the other databases' kept. */
