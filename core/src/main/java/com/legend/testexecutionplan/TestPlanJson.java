@@ -49,7 +49,8 @@ public final class TestPlanJson {
      *  (2026-11-16, phase D's option (D), merged after E): the product's version 54 (a plan's raises); 25 (2026-11-16, the P2 checkpoint audit's S1):
      *  the product's version 55 (each statement's raises); 26 (2026-11-16, phase D's Phase 2, raises as SITES): the
      *  product's version 56 (each statement's raise sites, its token's words planned); 27 (2026-11-17, C5's step E):
-     *  a side's shape carries its size refusal's words, planned ({@code SideShape.sizeWords}). */
+     *  a side's shape and the plan's answer carry their size refusal's words, planned ({@code SideShape.sizeWords},
+     *  {@code TestPlan.answerSizeWords}). */
     public static final int VERSION = 27;
 
     private TestPlanJson() {
@@ -100,6 +101,7 @@ public final class TestPlanJson {
         out.put("productVersion", PlanJson.VERSION);
         out.put("judge", plan.judge().name());
         out.put("answersLastVerdict", plan.answersLastVerdict());
+        out.put("answerSizeWords", plan.answerSizeWords());
         out.put("session", PlanJson.targetJson(plan.session()));
         Map<String, Object> facts = new LinkedHashMap<>();
         facts.put("effects", plan.facts().effects());
@@ -265,7 +267,8 @@ public final class TestPlanJson {
         return new TestPlan(parameters, readSteps(o.getArr("steps")), j,
                 ext == null ? Map.of() : readExtensions(ext.getObj("byStep")),
                 ext == null ? Map.of() : readExtensions(ext.getObj("byVerdict")), o.getBool("answersLastVerdict"),
-                PlanJson.targetOf(o.getObj("session")), factsOf(o.getObj("facts")));
+                PlanJson.targetOf(o.getObj("session")), factsOf(o.getObj("facts")),
+                o.get("answerSizeWords") instanceof Json.Str w ? w.value() : null);
     }
 
     private static BodyFacts factsOf(Json.Obj f) {

@@ -93,7 +93,7 @@ class HookRulingTest {
                 com.legend.testexecutionplan.TestPlan.JudgingRules.LITE);
         return new com.legend.testexecutionplan.TestPlan(List.of(), List.of(step),
                 com.legend.testexecutionplan.TestPlan.Judge.HOST, Map.of(), byVerdict, false, target,
-                new com.legend.testexecutionplan.BodyFacts(false, false, true, "A"));
+                new com.legend.testexecutionplan.BodyFacts(false, false, true, "A"), null);
     }
 
 

@@ -280,9 +280,8 @@ class CompatSpellingGuardTest {
             "testexec/AssertRuns.java | EngineText | 1 | D1.7",
             "testexec/CanonicalForm.java | +0000 | 1 | JUDGE",
             "testexec/HostJudgments.java | EngineText | 1 | D1.7",
-            // 3 -> 1 (2026-11-17, C5's step E, E-P5): a side's size refusal worded at planning (SideShape.sizeWords); the
-            // body's last answer's (SideShapes.Cardinality) follows
-            "testexec/SideShapes.java | Cannot cast a collection of size | 1 | JUDGE",
+            // testexec/SideShapes.java | Cannot cast a collection of size | GONE 2026-11-17 (C5's step E, E-P5): a side's
+            // and the body's answer's size refusal worded at planning (SideShape.sizeWords, TestPlan.answerSizeWords)
             "testexec/SideShapes.java | TDS_NULL_CELL | 1 | JUDGE",
             // (testexec/SqlTextRuns.java's rows went with it to the edge: 2026-11-17, census C2: the referee and the appeals moved to the edge (the orchestrator's P1+P2))
             "testexecutionplan/HostJson.java | EngineText | 4 | D1.7",

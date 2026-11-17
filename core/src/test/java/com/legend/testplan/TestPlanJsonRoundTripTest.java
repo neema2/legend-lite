@@ -78,7 +78,8 @@ class TestPlanJsonRoundTripTest {
         byVerdict.put(1, List.of(rowsAppeal(), new Appeal(2, "contract", Appeal.Kind.CONTRACT, "words", null,
                 new Appeal.Batched("golden", null, false), 1)));
         TestPlan plan = new TestPlan(List.of(), List.of(group, branch), TestPlan.Judge.DATABASE, byStep,
-                byVerdict, true, anyTarget(), new com.legend.testexecutionplan.BodyFacts(true, false, true, "FLAXEO"));
+                byVerdict, true, anyTarget(), new com.legend.testexecutionplan.BodyFacts(true, false, true, "FLAXEO"),
+                "the answer's planned size words");
 
         assertNull(TestPlanJson.roundTripDifference(plan));
     }
