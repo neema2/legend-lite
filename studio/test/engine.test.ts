@@ -8,7 +8,8 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import type { QueryEngine } from '../../engine-client/src/engine.ts';
-import { BrowserEngine, statementOf } from '../../engine-client/src/legend/browser-engine.ts';
+import { statementOf } from '../../engine-client/src/legend/browser-engine.ts';
+import { BrowserEngine } from '../../engine-client/src/legend/edge-engine.ts';
 import { EngineError } from '../../engine-client/src/legend/engine.ts';
 import { LiteServer } from '../../engine-client/src/doors/lite-server.ts';
 import { LiteRefusal } from '../../engine-client/src/lite-error.ts';

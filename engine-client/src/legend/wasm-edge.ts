@@ -12,7 +12,8 @@ import { EngineError } from './engine-api.ts';
 import type { Grammar } from './grammar.ts';
 import { HttpPlanning } from './planning-client.ts';
 import { unfold, WasmGrammar, type PlannerPort } from './wasm-grammar.ts';
-import type { CompileResult, ExecuteInput, PureModelContext, RelationTypeAnswer } from './wire.ts';
+import type { CompileResult, ExecuteInput, RelationTypeAnswer } from './engine-wire.ts';
+import type { PureModelContext } from './wire.ts';
 import { fromPlan, type PlannedSql } from '../planned-sql.ts';
 import { declareSites } from '../declared-raises.ts';
 
@@ -151,7 +152,7 @@ export class WasmEdgeGrammar implements Grammar {
 
   /**
    * Execute's answer (PureV1Api.jsonAnswer): `plan` (executePlan's text) and the rows the tab's database answered its
-   * `run` statement with (browser-engine's hostRows), decoded by the plan's columns and written by the writer
+   * `run` statement with (edge-engine's hostRows), decoded by the plan's columns and written by the writer
    * legend-lite's server answers with -- its text, the server's.
    */
   async executeAnswer(plan: string, rows: string): Promise<string> {
