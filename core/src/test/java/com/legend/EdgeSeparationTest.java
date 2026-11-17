@@ -56,6 +56,7 @@ class EdgeSeparationTest {
             // B17 (2026-11-17): Render's relation text moved to the edge (edge.RelationTextLowering); what stays in
             // Render is the product's row helpers, and the facet the edge answers stands here until hooks are ruled
             Map.entry("com.legend.lowering.RelationTexts", "B17"),
+            Map.entry("com.legend.lowering.ResultEnvelopes", "B5"),
             Map.entry("com.legend.lowering.PureOnlyTexts", "B8"),
             Map.entry("com.legend.lowering.Repr", "C5"),
             Map.entry("com.legend.testplan.EngineTestText", "C4"),
@@ -189,6 +190,15 @@ class EdgeSeparationTest {
             Map.entry("com.legend.testplan.SeedSqlForms -> com.legend.planner.UpstreamPlans", "B2 HOOK-RULED 2026-11-17"),
             // TestPlanner: asks the hook for the test-data generator's timestamp text when one is printed (B13)
             Map.entry("com.legend.testplan.TestPlanner -> com.legend.planner.UpstreamPlans", "B2 HOOK-RULED 2026-11-17"),
+            // B5, 2026-11-17 (Phase 6): legend-engine's result envelope, a hook from birth -- the interface, and the
+            // product's code that only asks the style for it with the call's refusal
+            Map.entry("com.legend.lowering.ResultEnvelopes -> (stands in a product package)", "B5 HOOK-RULED 2026-11-17"),
+            Map.entry("com.legend.lowering.Lowerer -> com.legend.lowering.ResultEnvelopes", "B5 HOOK-RULED 2026-11-17"),
+            Map.entry("com.legend.lowering.JsonEmission -> com.legend.lowering.ResultEnvelopes",
+                    "B5 HOOK-RULED 2026-11-17"),
+            Map.entry("com.legend.planner.PlanEnv -> com.legend.lowering.ResultEnvelopes", "B5 HOOK-RULED 2026-11-17"),
+            Map.entry("com.legend.testplan.PlanStyleFacets -> com.legend.lowering.ResultEnvelopes",
+                    "B5 HOOK-RULED 2026-11-17"),
             Map.entry("com.legend.testplan.PlanStyleFacets -> (stands in a product package)",
                     "C4 HOOK-RULED 2026-11-17"),
             // B8 (i), 2026-11-17: the texts only legend-pure writes, a hook from birth -- the interface, and the
@@ -297,7 +307,6 @@ class EdgeSeparationTest {
      *  ways with the register ({@link #everyOpenCompatRowIsCounted}). */
     static final Map<String, String> CSG_OPEN = Map.ofEntries(
             Map.entry("compiler/element/type/PlatformTypes.java | TDS_NULL_CELL", "B10 2026-11-17"),
-            Map.entry("lowering/JsonEmission.java | tdsBuilder", "B5 2026-11-17"),
             Map.entry("lowering/LiteralSpelling.java | +0000", "B11 2026-11-17"),
             Map.entry("lowering/Repr.java | FLOAT_PRINT", "C5 2026-11-17"),
             Map.entry("lowering/Repr.java | Repr", "B12 2026-11-17"),
@@ -353,10 +362,11 @@ class EdgeSeparationTest {
      *  the edge 2026-11-17 (A4 extended to the native image and the page module); A5, A6 split off the edge 2026-11-17;
      *  B1, B3 HOOK-RULED 2026-11-17 (EngineTextDialect, {@link #HOOKS_RULED}), then moved to the edge by Phase 6 (2026-11-17); B4, B6, B13
      *  CLOSED 2026-11-17 by Phase 6 (RawSqlBoundary, PurePrint and UpstreamRelationType, the test-data generator's text
-     *  moved to the edge); B2 HOOK-RULED 2026-11-17 (UpstreamPlans, signatures only); records only:
+     *  moved to the edge); B2 HOOK-RULED 2026-11-17 (UpstreamPlans, signatures only); B5 CLOSED 2026-11-17
+     *  (the lowering's shape options, the trace comment and the result envelope the edge's); records only:
      *  B15, B16, C6, C7). Each must hold at least one entry in the count ({@link #everyOpenLineIsCounted}), so an empty
      *  count cannot read DONE with a line left. A line closes by leaving this set with its last entry. */
-    static final Set<String> OPEN_LINES = Set.of("A1", "B5",
+    static final Set<String> OPEN_LINES = Set.of("A1",
             "B7", "B8", "B9", "B10", "B11", "B12", "B17", "C1", "C2", "C3", "C4", "C5");
 
     private static Set<String> linesOf(Map<String, String> m) {

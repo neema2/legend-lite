@@ -964,7 +964,7 @@ public final class Compiler {
                 .withFloatLiteralKind(() -> runtimeFqn == null ? null : com.legend.database.PlanStyle.PRODUCT
                         .dialect(executesOn(ctx, runtimeFqn).type()).floatLiteralKind());
         if (!temporalRoot) {
-            lw = lw.withEngineExistsJoinForm();
+            lw = lw.withExistsAsJoinDistinct();
         }
         return lw.lower(body);
     }

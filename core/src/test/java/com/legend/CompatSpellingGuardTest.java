@@ -159,7 +159,8 @@ class CompatSpellingGuardTest {
             // and the judges' compositions
             // listed 2026-11-16 (the P2 checkpoint audit's S5): an execute's plan JSON written in SQL, legend-engine's
             // builder type; Phase 6 takes the plan text to the edge
-            "lowering/JsonEmission.java | tdsBuilder | 1 | D1.7",
+            // lowering/JsonEmission.java | tdsBuilder: GONE 2026-11-17 (Phase 6's B5): legend-engine's result envelope is
+            // the edge's (edge.EngineResultEnvelopes, the lowering.ResultEnvelopes facet), refused by the product at LOWER
             // 7 -> 6 (2026-11-17, F's separation census line B11): the dead pair dateTimeLiteral / dateTimePrint (no
             // caller) deleted. What stays: the TDS text's (dateTimeTextTds, dateTimeTextOfText x2: F's B17, moved with
             // Render's relation text) and the judges' canon (temporalCanon x2, dateTimeLiteralAt: census line C5, E-Java's)
