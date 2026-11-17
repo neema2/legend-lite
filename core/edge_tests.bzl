@@ -22,6 +22,8 @@ EDGE_TEST_SRCS = [
     "src/test/java/com/legend/JudgingRulesReachTest.java",
     # its planted violator, read as bytecode alone (C.3, 2026-11-17)
     "src/test/java/com/legend/testexec/PlantedRulesReach.java",
+    # the open compatibility classes pinned by member set (the GUARD stream, C.4, 2026-11-17): it reads the census
+    "src/test/java/com/legend/OpenClassMembersTest.java",
     "src/test/java/com/legend/PlanStyleFacetsTest.java",
     # the edge's extension records walked as data (census C2, 2026-11-17: the appeals moved to com.legend.edge)
     "src/test/java/com/legend/PlanTypesAreDataTest.java",
