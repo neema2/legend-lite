@@ -952,6 +952,7 @@ _HEADLESS_LEFT_OUT = {
     "cancel-http": "the planner client's HTTP",
     "engine-remote-http": "the engine executor's HTTP",
     "planner-http": "the remote planner's HTTP",
+    "lite-server": "legend-lite's server's worker, over HTTP",
     "warehouse-session-http": "the warehouse sign-in's HTTP",
     # the chart renderer (ECharts) draws on a DOM canvas: a screen test, though it imports no jsdom itself
     "chart-echarts": "ECharts draws on a DOM canvas",

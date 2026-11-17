@@ -532,7 +532,7 @@ export function pageSources(d: SourcesOf): PageSources {
       store,
       snap: async (pull) => {
         const made = await snap(m.model, m.runtime, pull);
-        const runner = services.engine.rows(made.model, made.runtime, { bitColumns: made.bitColumns }).runner;
+        const runner = services.engine.rows(made.model, made.runtime).runner;
         if (!runner) {
           await release(made.table);
           throw new Error(`${store} made a copy whose rows it does not run`);
@@ -544,7 +544,7 @@ export function pageSources(d: SourcesOf): PageSources {
       ...(held ? {
         held: async (table: string) => {
           const made = await held(table);
-          const runner = services.engine.rows(made.model, made.runtime, { bitColumns: made.bitColumns }).runner;
+          const runner = services.engine.rows(made.model, made.runtime).runner;
           if (!runner) throw new Error(`${store} holds a copy whose rows it does not run`);
           return { ...made, runner };
         },
@@ -578,7 +578,7 @@ export function pageSources(d: SourcesOf): PageSources {
         table,
         landed: async () => {
           const m = await modelLanded(l.engine, l.tables, table);
-          planner = l.another(m.model, m.runtime, { bitColumns: m.bitColumns });
+          planner = l.another(m.model, m.runtime);
           return { source: m.source, planner };
         },
         dispose: () => {
@@ -598,7 +598,7 @@ export function pageSources(d: SourcesOf): PageSources {
     // A warehouse table is read-only: a column the compiler says must be converted to be declared cannot be, so it is
     // left out, and named.
     const m = await warehouseModel(local, chosen);
-    const own = local.another(m.model, m.runtime, { bitColumns: m.bitColumns });
+    const own = local.another(m.model, m.runtime);
     const columns = await sourceColumns(own, m.source);
     const live = track(on.live(session, chosen.catalog, chosen.databaseType));
     const name = `${chosen.schema}.${chosen.name}`;
@@ -627,7 +627,7 @@ export function pageSources(d: SourcesOf): PageSources {
   async function openedHostTable(on: WarehouseService, session: WarehouseSession, chosen: CatalogObject,
     saved?: CubeDocument, capped = false): Promise<Opened> {
     const m = await on.table!(session, chosen);
-    const rows = services.engine.rows(m.model, m.runtime, { bitColumns: m.bitColumns });
+    const rows = services.engine.rows(m.model, m.runtime);
     const hostSnap = hostSnapOf(m);
     const columns = await sourceColumns(typer(rows), m.source);
     const name = `${chosen.schema}.${chosen.name}`;
@@ -759,7 +759,7 @@ export function pageSources(d: SourcesOf): PageSources {
       }
       const loadedAt = new Date();
       readAt.set(table, loadedAt);
-      const rows = services.engine.rows(opened.model, opened.runtime, { bitColumns: opened.bitColumns });
+      const rows = services.engine.rows(opened.model, opened.runtime);
       const columns = await sourceColumns(typer(rows), opened.source);
       const source = await fileSource(file, formatOf(file.name), columns, how.sample);
       readForGrids.set(source.sha256, { table, file, ...(how.handle ? { handle: how.handle } : {}) });
@@ -896,7 +896,7 @@ export function pageSources(d: SourcesOf): PageSources {
     if (!database.mountRemote) throw new Error('this page reads no remote file');
     const view = freshTable('remote');
     const m = await database.mountRemote(url, s3, view);
-    const rows = services.engine.rows(m.model, m.runtime, { bitColumns: m.bitColumns });
+    const rows = services.engine.rows(m.model, m.runtime);
     const columns = await sourceColumns(typer(rows), m.source);
     const cubeSource = remoteSourceOf(url, columns);
     const { name } = cubeSource;

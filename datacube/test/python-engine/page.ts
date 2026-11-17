@@ -371,7 +371,7 @@ async function run(): Promise<void> {
     deepEqual([session.principal, session.token], ['rita', ''], 'the session, without its token:');
     deepEqual(objects.map((o) => o.name), ['POSITIONS'], 'what rita may read, and only that:');
     const m = await warehouse.table!(session, objects[0]!);
-    const rows = services.engine.rows(m.model, m.runtime, { bitColumns: m.bitColumns });
+    const rows = services.engine.rows(m.model, m.runtime);
     const columns = await sourceColumns(rows.runner!, m.source);
     deepEqual(columns.map((c) => `${c.name}:${c.type}`), ['desk:String', 'qty:Integer', 'px:Decimal'], 'its columns, as Python\'s model types them:');
     const read = await rows.runner!.run(from(m.source).select(['desk', 'qty']).lambda(), { epoch: 0 } as CubeSnapshot);
@@ -383,7 +383,7 @@ async function run(): Promise<void> {
     // Python's DuckDB; released, the copy is gone, and reading it is refused
     const frozen = await services.engine.database.snap!(m.model, m.runtime, from(m.source).select(['desk', 'qty', 'px']).lambda());
     deepEqual([frozen.rowCount, frozen.pulledBy?.as, frozen.pulledBy?.serverRows], [3, 'rita', 3], 'what Python froze:');
-    const copy = services.engine.rows(frozen.model, frozen.runtime, { bitColumns: frozen.bitColumns }).runner!;
+    const copy = services.engine.rows(frozen.model, frozen.runtime).runner!;
     const two = from(frozen.source).select(['desk', 'qty']).lambda();
     equal(shape((await copy.run(two, { epoch: 0 } as CubeSnapshot)).rows, false), 'desk:String,qty:Integer\n["EQ",5]\n["FX",10]\n["FX",3]',
       'the copy\'s rows, read in Python\'s DuckDB:');

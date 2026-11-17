@@ -2,8 +2,8 @@
 // -- the cube page, the page of several cubes, the stress page -- so none of them is hard-wired to
 // one planner. `chosenPlane` (boot.ts) says which; this builds it.
 //
-// The in-tab planner (legend-lite's compiler as WebAssembly), legend-lite on a server and
-// legend-engine are three addresses of the same service -- pure/v1's generatePlan. A server
+// The in-tab planner (legend-lite's compiler as WebAssembly) and legend-lite on a server answer lite API v1
+// (docs/records/lite-api-v1-2026-11-17.md); legend-engine answers its own pure/v1, through the legend-engine client. A server
 // planner is asked whether it is there first; not there, the page says so and stops
 // (`refusePlanner`): there is no fallback.
 //
@@ -22,6 +22,7 @@ import { refusePlanner, RUNTIME, SOURCE, type Engine, type PlaneWord } from './b
 import { pageConfig } from './page-config.ts';
 import { UpstreamPlanner } from '../src/planner.ts';
 import { LitePlanner } from '../src/lite-planner.ts';
+import { liteServerWorker } from '../src/services/lite-server.ts';
 
 const WORKER = (): string => new URL('./planner-worker.js', import.meta.url).href;
 
@@ -60,7 +61,8 @@ async function inTab(model: string): Promise<Engine> {
   };
 }
 
-/** A planner on a server -- legend-lite or legend-engine, the same API at another address. */
+/** A planner on a server: legend-lite's, over lite API v1's own routes (lite-server.ts: the edge audit's H7, 2026-11-17),
+ *  or legend-engine's, over its pure/v1 (UpstreamPlanner: the legend-engine client, the edge's). */
 async function onServer(model: string, which: 'remote' | 'engine'): Promise<Engine> {
   const config = await pageConfig();
   const url = which === 'remote' ? config.legendLite : config.legendEngine;
@@ -72,7 +74,9 @@ async function onServer(model: string, which: 'remote' | 'engine'): Promise<Engi
   const health = which === 'remote' ? `${url}/health` : `${url}/api/server/v1/info`;
   const answered = await fetch(health, { signal: AbortSignal.timeout(2500) }).then((r) => r.ok, () => false);
   if (!answered) refusePlanner(name, url, start);
-  const planner = new UpstreamPlanner({ baseUrl: url, model, runtime: RUNTIME });
+  const planner = which === 'remote'
+    ? new LitePlanner({ model, runtime: RUNTIME, worker: () => liteServerWorker(url) })
+    : new UpstreamPlanner({ baseUrl: url, model, runtime: RUNTIME });
   // legend-lite's module beside the server's planner, nothing loaded until first asked: it writes a table's model, and a
   // saved query's project's test data as the server's statements
   const writer = new LitePlanner({ model: '', runtime: RUNTIME, workerUrl: WORKER(), assetBaseUrl: config.vendor });

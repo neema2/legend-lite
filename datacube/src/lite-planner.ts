@@ -31,7 +31,7 @@ import { PlanError, type ModelOptions } from './planner.ts';
 import { writerBodies } from '../../model-changes/src/wire.ts';
 import type { AssociationAction, ClassAction, DataSpaceAction, GridSource, ModelAnswer, ModelWriter } from './model-writer.ts';
 import type { PrintStyle } from '../../engine-client/src/pure-v1-planning.ts';
-import { relationColumns, type Plan, type PlanColumn } from '../../engine-client/src/relation-type.ts';
+import { pureType, type Plan, type PlanColumn } from '../../engine-client/src/relation-type.ts';
 import { planParams } from '../../engine-client/src/plan-params.ts';
 import { declareSites } from '../../engine-client/src/declared-raises.ts';
 import type {
@@ -146,17 +146,42 @@ export interface TsNode {
 }
 
 /**
- * A text plan as the planner answers it (Boundary.planned: `{"sql", "type", "plan"?}`): its SQL, the compiler's type of
- * its result in upstream's RelationType shape, and -- where the text does not run alone -- the values its statement binds,
- * read ONCE here from the plan it carries (plan-params.ts: each data: payload from the statement's content by its
- * digest, verified by SHA-256; any other slot refused by name: the tenets audit's M3).
+ * A query's plan as a grid runs it (lite API v1's `query/plan` answer, `{plan}`: lite's execution plan, PlanJson): the
+ * statement that answers, its columns, and the values it binds -- read ONCE here from the plan (plan-params.ts: each
+ * data: payload from the statement's content by its digest, verified; any other slot refused by name: the tenets
+ * audit's M3), its raise sites declared (declared-raises.ts). A plan a grid cannot run as its one statement is refused
+ * by name, as the planner's text plan refused it (QueryPlan, beyondItsText): a program of steps, a value the program
+ * wrote, a pivot whose keys are read first, a statement on the system catalog, a file: source's path.
  */
-function textPlan(text: string): Plan {
-  const body = JSON.parse(text) as { sql: string; type: unknown; plan?: unknown; raises?: unknown };
+export function gridPlan(answer: string, subject: Lambda | string): Plan {
+  const plan = (JSON.parse(answer) as { plan?: unknown }).plan as {
+    readonly root?: { readonly _type?: string; readonly columns?: readonly { readonly name: string; readonly type: string }[];
+      readonly sql?: { readonly statement: string; readonly target?: { readonly database?: { readonly _type?: string } };
+        readonly slots?: readonly { readonly binding: { readonly _type: string } }[] } };
+  } | undefined;
+  const root = plan?.root;
+  if (plan === undefined || root === undefined) throw new PlanError('the planner answered no plan', subject);
+  const refused = (why: string): never => { throw new PlanError(`a grid runs a plan's one statement, and this query's plan ${why}`, subject); };
+  if (root._type === 'sequence') refused('is a program of steps (a write, or a statement\'s shared relations made as tables ahead of it)');
+  if (root._type === 'constant') refused('answers a value the program wrote, sending no statement');
+  if (root._type === 'keyed') refused('is a pivot whose columns the data names: it reads its keys first, then its body per key');
+  if (root._type !== 'tdsResult' || root.sql === undefined || root.columns === undefined) refused(`is a ${String(root._type)}`);
+  const sql = root.sql!;
+  if (sql.target?.database?._type === 'system') refused('reads the system metamodel store, on the process\'s catalog, not the runtime\'s connection');
+  if ((sql.slots ?? []).some((slot) => slot.binding._type === 'source')) refused('binds a file: source\'s path');
   // the raises its statement can send, worded by the planner (declared-raises.ts; phase D's option (D), 2026-11-15)
-  declareSites(body, 'a text plan');
-  const params = planParams(body.plan);
-  return { sql: fromPlan(body.sql), columns: relationColumns(body.type), ...(params.length > 0 ? { params } : {}) };
+  declareSites(plan, 'a plan');
+  const params = planParams(plan);
+  return { sql: fromPlan(sql.statement), columns: root.columns!.map((c) => ({ name: c.name, type: pureType(c.type) })),
+    ...(params.length > 0 ? { params } : {}) };
+}
+
+/** `query/plan`'s answer (`{"plan":<PlanJson>}`, as the boundary writes it) as its plan's own text, its numbers' digits
+ *  whole (no JSON round trip). */
+function planTextOf(answer: string, subject: Lambda | string): PlanText {
+  const head = '{"plan":';
+  if (!answer.startsWith(head) || !answer.endsWith('}')) throw new PlanError('the planner answered no plan', subject);
+  return planFromAnswer(answer.slice(head.length, -1));
 }
 
 /**
@@ -466,49 +491,6 @@ export class LitePlanner implements Planner, TableModels, ModelWriter {
     });
   }
 
-  /**
-   * Pure TEXT planned: the text entry (planHeldOrError), kept for callers that send grammar -- a
-   * harness, another tool (the user, 2026-09-27: upstream accepts grammar). The cube sends trees
-   * (`plan`).
-   */
-  async planText(pureGrammar: string, signal?: AbortSignal): Promise<Plan> {
-    const useCache = this.#options.cache !== false;
-    const key = `text:${pureGrammar}`;
-    const hit = useCache ? this.#cache.get(key) : undefined;
-    if (hit !== undefined) return hit;
-    // Planning inside the module is synchronous and uninterruptible,
-    // so an abort cannot stop it -- but it can stop a stale answer
-    // reaching the grid. Check on both sides of the call.
-    if (signal?.aborted) throw signal.reason ?? new Error('aborted');
-    // the model and its runtime as they are now, together: a useModel while this waits changes neither
-    const { model, runtime } = this.#options;
-    const handle = await this.#handle();
-    const answer = await this.#call({ kind: 'plan', handle, query: pureGrammar, runtime });
-    if (signal?.aborted) throw signal.reason ?? new Error('aborted');
-    // `{"sql", "type"}`: the SQL and the compiler's type of its result, in upstream's
-    // RelationType shape -- the same renderer legend-lite's pure/v1 answers use.
-    const plan = textPlan(decode(answer, pureGrammar));
-    // kept only while it is the planner's model still: an answer for a model since replaced is not this one's
-    if (useCache && this.#options.model === model) this.#cache.set(key, plan);
-    return plan;
-  }
-
-  /** Pure TEXT typed, compile-only: the text entry (relationTypeHeldOrError). */
-  async relationTypeText(pureGrammar: string, signal?: AbortSignal): Promise<PlanColumn[]> {
-    const useCache = this.#options.cache !== false;
-    const key = `text:${pureGrammar}`;
-    const hit = useCache ? this.#types.get(key) : undefined;
-    if (hit !== undefined) return hit;
-    if (signal?.aborted) throw signal.reason ?? new Error('aborted');
-    const { model } = this.#options;
-    const handle = await this.#handle();
-    const answer = await this.#call({ kind: 'relationType', handle, query: pureGrammar });
-    if (signal?.aborted) throw signal.reason ?? new Error('aborted');
-    const columns = relationColumns(JSON.parse(decode(answer, pureGrammar)));
-    if (useCache && this.#options.model === model) this.#types.set(key, columns);
-    return columns;
-  }
-
   // ---- protocol trees: each the in-tab twin of a pure/v1 endpoint (T4a) ----
 
   /** The planner of `query`: this one, or -- a query calling DataCube's Pure library -- the one over this one's model
@@ -540,7 +522,7 @@ export class LitePlanner implements Planner, TableModels, ModelWriter {
     return library === undefined ? Promise.resolve() : library.then((over) => over.#letGoAll(), () => undefined);
   }
 
-  /** E9's twin: a query (a protocol tree) planned -- its SQL and the compiler's result type. */
+  /** `query/plan` (lite API v1) over the held model: a query (a protocol tree) planned -- its SQL and its columns. */
   async plan(query: Lambda, signal?: AbortSignal): Promise<Plan> {
     const over = await this.#over(query);
     if (over !== this) return over.plan(query, signal);
@@ -550,7 +532,7 @@ export class LitePlanner implements Planner, TableModels, ModelWriter {
     if (hit !== undefined) return hit;
     if (signal?.aborted) throw signal.reason ?? new Error('aborted');
     const handle = await this.#handle();
-    const answer = await this.#call({ kind: 'planJson', handle, lambda: json, runtime });
+    const answer = await this.#call({ kind: 'queryPlanHeld', handle, request: `{"query":${json},"runtime":${JSON.stringify(runtime)}}` });
     if (signal?.aborted) throw signal.reason ?? new Error('aborted');
     const plan = this.readPlan(answer, query);
     if (useCache && this.#options.model === model) this.#cache.set(json, plan);
@@ -571,7 +553,7 @@ export class LitePlanner implements Planner, TableModels, ModelWriter {
     const { lambda: json, runtime } = await this.planRequest(program);
     if (signal?.aborted) throw signal.reason ?? new Error('aborted');
     const handle = await this.#handle();
-    return planFromAnswer(decode(await this.#call({ kind: 'executionPlan', handle, lambda: json, runtime }), program));
+    return planTextOf(decode(await this.#call({ kind: 'queryPlanHeld', handle, request: `{"query":${json},"runtime":${JSON.stringify(runtime)}}` }), program), program);
   }
 
   /**
@@ -604,13 +586,13 @@ export class LitePlanner implements Planner, TableModels, ModelWriter {
     return { lambda, model, runtime };
   }
 
-  /** A plan's answer (planJson's, tagged) read as this planner reads its own: its SQL and the compiler's columns. */
+  /** A plan's answer (`query/plan`'s, tagged) read as this planner reads its own: its SQL and the compiler's columns. */
   readPlan(answer: string, query: Lambda): Plan {
-    return textPlan(decode(answer, query));
+    return gridPlan(decode(answer, query), query);
   }
 
   /**
-   * E5 (`compilation/lambdaRelationType`): a query typed, compile-only. How the cube types its source and calculated
+   * `query/type` (lite API v1): a query typed, compile-only. How the cube types its source and calculated
    * columns before any level query runs. Cached by the query's JSON, like plans.
    */
   async relationType(query: Lambda, signal?: AbortSignal): Promise<PlanColumn[]> {
@@ -621,34 +603,23 @@ export class LitePlanner implements Planner, TableModels, ModelWriter {
     const hit = useCache ? this.#types.get(json) : undefined;
     if (hit !== undefined) return hit;
     if (signal?.aborted) throw signal.reason ?? new Error('aborted');
-    // the model held first, its compile kept for every question and plan after: the boundary answers a pure/v1 request
-    // whose model text it holds over the held model, compiled no more (HeldModels.withText; a saved query of the 4 MB
-    // trading model was typed by two requests of 5-6 s each, docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §11). A
-    // model that does not compile is held by no one, and the request below says why in its own words.
-    await this.#handle().catch(() => undefined);
+    // the model held first, its compile kept for every question and plan after (a saved query of the 4 MB trading
+    // model was typed by two requests of 5-6 s each, docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §11): typed over the
+    // held model, compiled no more; a model that does not compile is refused by the hold, in its own words
+    const handle = await this.#handle();
     if (signal?.aborted) throw signal.reason ?? new Error('aborted');
-    // the lambda's JSON spliced in as toJson wrote it, so its numbers keep their digits
-    const body = `{"model":${JSON.stringify({ _type: 'text', code: this.#options.model })},"lambda":${json}}`;
-    const answer = await this.#pureV1('/api/pure/v1/compilation/lambdaRelationType', '', body, query);
+    // lite's own typing (query/type over the held model: lite API v1), the lambda's JSON as toJson wrote it, so its
+    // numbers keep their digits
+    const answer = decode(await this.#call({ kind: 'queryTypeHeld', handle, request: `{"query":${json}}` }), query);
     if (signal?.aborted) throw signal.reason ?? new Error('aborted');
-    const columns = relationColumns(JSON.parse(answer), undefined, new Set(this.#options.enumerations ?? []));
+    const columns = typedColumns(JSON.parse(answer));
     if (useCache) this.#types.set(json, columns);
     return columns;
   }
 
   /**
-   * One legend-engine pure/v1 call, answered by the planner as legend-lite's server answers it (its pure/v1 route):
-   * the body of a 200, or the refusal's message as a PlanError. The grammar is asked so, not through private twins of
-   * its endpoints (docs/PROTOCOL_PROGRAM_2026_10_05.md, invariant 5).
-   */
-  async #pureV1(path: string, query: string, body: string, subject: Lambda | string): Promise<string> {
-    const answer = await this.#call({ kind: 'pureV1', path, query, body });
-    return pureV1Body(decode(answer, subject), subject);
-  }
-
-  /**
    * THE MODEL'S WRITER (model-writer.ts; docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §15.6a): legend-lite's createClass,
-   * createAssociation and createDataSpace, asked through pure/v1's routing as every compiler question is -- each one
+   * createAssociation and createDataSpace, each the boundary's modelAction (the route's own Java; H2) -- each one
    * call, atomic, over the project's files (`project`), each class over its grid's own source. Nothing is held: a model
    * is written once, against the project as it is then. This module writes on every plane: beside a server's planner,
    * too (demo/planners.ts).
@@ -667,8 +638,8 @@ export class LitePlanner implements Planner, TableModels, ModelWriter {
     return this.#writeModel('createDataSpace', writerBodies.createDataSpace(project, pkg, dataSpace, classes, associations));
   }
 
-  async #writeModel(route: string, body: string): Promise<ModelAnswer> {
-    return JSON.parse(await this.#pureV1(`/api/lite/v1/model/${route}`, '', body, body)) as ModelAnswer;
+  async #writeModel(action: 'createClass' | 'createAssociation' | 'createDataSpace', body: string): Promise<ModelAnswer> {
+    return JSON.parse(decode(await this.#call({ kind: ACTIONS[action], request: body }), body)) as ModelAnswer;
   }
 
   /** Where this planner's queries are planned from: its model, and the runtime they run on. */
@@ -676,16 +647,17 @@ export class LitePlanner implements Planner, TableModels, ModelWriter {
     return { model: this.#options.model, runtime: this.#options.runtime };
   }
 
-  /** E4 (`grammar/jsonToGrammar/lambda`): a query as Pure text, as upstream prints it. */
+  /** A query as Pure text (the boundary's printLambda: lite's own printer; H2). */
   async compose(query: Lambda, style: PrintStyle = 'PRETTY'): Promise<string> {
-    return this.#pureV1('/api/pure/v1/grammar/jsonToGrammar/lambda', `renderStyle=${style}`, toJson(query), query);
+    const printed = decode(await this.#call({ kind: 'queryPrint', request: `{"query":${toJson(query)},"style":"${style === 'PRETTY' ? 'pretty' : 'standard'}"}` }), query);
+    return (JSON.parse(printed) as { text: string }).text;
   }
 
   /** ONE #TS ITEM, read by core (A3 step 2, docs/TS_A3_ONE_READER_PLAN_2026_11_03.md: the one reader): a series'
    *  text as a formula box holds it, answered as its canonical text and its tree (core's, as data), or why it is no
    *  item, placed in the text. */
   async tsItem(text: string): Promise<TsItemAnswer> {
-    return JSON.parse(await this.#pureV1('/api/lite/v1/grammar/tsItem', '', JSON.stringify({ text }), text)) as TsItemAnswer;
+    return JSON.parse(decode(await this.#call({ kind: 'tsItem', request: JSON.stringify({ text }) }), text)) as TsItemAnswer;
   }
 
   /** SHOW #TS (D12): a #TS query over grids as the one statement a person would write -- core's printer
@@ -695,8 +667,7 @@ export class LitePlanner implements Planner, TableModels, ModelWriter {
     const over = await this.#over(query);
     if (over !== this) return over.tsStatement(query);
     await this.#handle().catch(() => undefined);
-    const body = `{"model":${JSON.stringify({ _type: 'text', code: this.#options.model })},"lambda":${toJson(query)}}`;
-    return JSON.parse(await this.#pureV1('/api/lite/v1/grammar/jsonToTs/lambda', '', body, query)) as TsShown;
+    return JSON.parse(decode(await this.#call({ kind: 'tsStatement', request: `{"model":${JSON.stringify(this.#options.model)},"query":${toJson(query)}}` }), query)) as TsShown;
   }
 
   /** A query printed for a person to read (the Planner's `print`): PRETTY unless asked. */
@@ -723,17 +694,18 @@ export class LitePlanner implements Planner, TableModels, ModelWriter {
     return lambda(query.parameters, fn('from', body, element(mapping), element(this.#options.runtime)));
   }
 
-  /** A model's elements, as the compiler reads its text (E2, `grammar/grammarToJson/model`): data spaces, enumerations. */
+  /** A model's elements, as the compiler reads its text (the boundary's modelElements; H2): data spaces, enumerations. */
   async modelElements(text: string): Promise<unknown[]> {
-    const json = await this.#pureV1('/api/pure/v1/grammar/grammarToJson/model', 'returnSourceInformation=false', text, text);
+    const json = decode(await this.#call({ kind: 'modelElements', request: JSON.stringify({ model: text }) }), text);
     const elements = (JSON.parse(json) as { elements?: unknown }).elements;
     if (!Array.isArray(elements)) throw new PlanError('the model came back without elements', text);
     return elements;
   }
 
-  /** E1 (`grammar/grammarToJson/lambda`): what a person typed, as its lambda, numbers exact. */
+  /** What a person typed, as its lambda, numbers exact (the boundary's parseLambda; H2). */
   async parse(text: string): Promise<Lambda> {
-    return readLambda(await this.#pureV1('/api/pure/v1/grammar/grammarToJson/lambda', 'returnSourceInformation=false', text, text));
+    // the answer read with its numbers exact (fromJson): the query's tree, as a person typed it
+    return readLambda((fromJson(decode(await this.#call({ kind: 'queryParse', request: JSON.stringify({ text }) }), text)) as { query: unknown }).query);
   }
 
   /**
@@ -932,20 +904,13 @@ function onWindows(): boolean {
   return proc?.platform === 'win32';
 }
 
-/**
- * A module answer: "OK\n<json>" or "ERR\n<kind>\n<message>" (the kind as the server names a refusal). Failure
- * travels in the return value rather than as a thrown Java exception so that the
- * answer does not depend on how TeaVM bridges throwables into JS -- see
- * wasm/README.md. A refusal keeps the compiler's own message: the same text the
- * HTTP planner surfaces, so the two transports are indistinguishable.
- */
 /** A planner's options without what its model said: another model brings its own. */
 function readsOf(o: LitePlannerOptions): LitePlannerOptions {
   const { mapping: _mapping, enumerations: _enumerations, ...rest } = o;
   return rest;
 }
 
-/** What a model says beside its text, as options (legend-lite types BIT Boolean itself: no bitColumns, S23). */
+/** What a model says beside its text, as options (legend-lite types BIT Boolean itself, S23). */
 function readsHow(how: ModelOptions): Partial<LitePlannerOptions> {
   return {
     ...(how.mapping === undefined ? {} : { mapping: how.mapping }),
@@ -953,37 +918,43 @@ function readsHow(how: ModelOptions): Partial<LitePlannerOptions> {
   };
 }
 
-/**
- * A pure/v1 answer (`<status>\n<media type>\n<body>`, as the planner's route folds it): the body of a 200; any other
- * status is the engine's refusal, `{message, ...}`, thrown as the planner refusing.
- */
-function pureV1Body(answer: string, subject: Lambda | string): string {
-  const first = answer.indexOf('\n');
-  const second = answer.indexOf('\n', first + 1);
-  if (first < 0 || second < 0) {
-    throw new PlannerUnavailableError(
-      `the planner module returned an unrecognised pure/v1 answer: ${JSON.stringify(answer.slice(0, 120))}`,
-    );
-  }
-  const body = answer.slice(second + 1);
-  if (answer.slice(0, first) === '200') return body;
-  let message = body;
-  try {
-    const refusal = JSON.parse(body) as { message?: unknown };
-    if (typeof refusal.message === 'string') message = refusal.message;
-  } catch { /* not JSON: the body is the message */ }
-  throw new PlanError(message || 'the planner refused the request', subject);
+/** The model's actions, each its lite API v1 operation (docs/records/lite-api-v1-2026-11-17.md §2). */
+const ACTIONS = {
+  createClass: 'modelCreateClass',
+  createAssociation: 'modelCreateAssociation',
+  createDataSpace: 'modelCreateDataSpace',
+} as const;
+
+/** `query/type`'s answer (`{columns: [{name, type, enumeration?}]}`) as the columns DataCube reads: an enumeration's
+ *  column is read as its value's name, a String (relation-type.ts `PlanColumn.enumeration`). */
+function typedColumns(answer: unknown): PlanColumn[] {
+  const columns = (answer as { columns?: unknown }).columns;
+  if (!Array.isArray(columns)) throw new Error('the query type carries no columns');
+  return (columns as readonly { name?: unknown; type?: unknown; enumeration?: unknown }[]).map((c) => {
+    if (typeof c.name !== 'string' || typeof c.type !== 'string') throw new Error(`a typed column without a name and a type: ${JSON.stringify(c)}`);
+    return typeof c.enumeration === 'string' ? { name: c.name, type: 'String', enumeration: c.enumeration } : { name: c.name, type: pureType(c.type) };
+  });
 }
 
+/**
+ * A module answer: "OK\n<json>", or "ERR\n<refusal>", lite API v1's one error shape {kind, message, where?, raise?}
+ * (planner.Folded; docs/records/lite-api-v1-2026-11-17.md §3). Failure travels in the return value rather than as a
+ * thrown Java exception so that the answer does not depend on how TeaVM bridges throwables into JS -- see
+ * wasm/README.md. A refusal keeps the compiler's own message: the same words every binding says.
+ */
 function decode(answer: string, subject: Lambda | string): string {
   const nl = answer.indexOf('\n');
   const tag = nl < 0 ? answer : answer.slice(0, nl);
   const rest = nl < 0 ? '' : answer.slice(nl + 1);
   if (tag === 'OK') return rest;
   if (tag === 'ERR') {
-    const split = rest.indexOf('\n');
-    const message = split < 0 ? rest : rest.slice(split + 1);
-    throw new PlanError(message || 'the planner refused the query', subject);
+    let refusal: { message?: unknown };
+    try {
+      refusal = JSON.parse(rest) as { message?: unknown };
+    } catch {
+      throw new PlannerUnavailableError(`the planner module returned an unreadable refusal: ${JSON.stringify(rest.slice(0, 120))}`);
+    }
+    throw new PlanError(typeof refusal.message === 'string' && refusal.message !== '' ? refusal.message : 'the planner refused the query', subject);
   }
   throw new PlannerUnavailableError(
     `the planner module returned an unrecognised answer: ${JSON.stringify(answer.slice(0, 120))}`,
