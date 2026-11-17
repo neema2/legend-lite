@@ -2401,7 +2401,7 @@ channel_a	Postgres	meta::pure::functions::math::plus_Float_MANY__Float_1_	2	130	
 channel_a	Postgres	meta::pure::functions::math::plus_Integer_MANY__Integer_1_	14	727	25245	0	36	0
 channel_a	Postgres	meta::pure::functions::math::plus_Number_MANY__Number_1_	5	235	8439	0	0	0
 channel_a	Postgres	meta::pure::functions::math::pow_Number_1__Number_1__Number_1_	7	861	11630	0	161	0
-channel_a	Postgres	meta::pure::functions::math::rem_Number_1__Number_1__Number_1_	13	29539	55148	0	14203	0
+channel_a	Postgres	meta::pure::functions::math::rem_Number_1__Number_1__Number_1_	13	9734	35343	21	483	0
 channel_a	Postgres	meta::pure::functions::math::round_Decimal_1__Integer_1__Decimal_1_	4	2640	8830	0	1240	0
 channel_a	Postgres	meta::pure::functions::math::round_Float_1__Integer_1__Float_1_	2	364	3104	0	100	0
 channel_a	Postgres	meta::pure::functions::math::round_Number_1__Integer_1_	14	1083	21016	0	0	0
@@ -3471,7 +3471,7 @@ core	DuckDB	TypedNewInstance	5	1086	25117	0	0	0
 core	DuckDB	TypedPackageableRef	1	23	52113	0	0	0
 core	DuckDB	TypedPivot	53	25064	392388	46	2814	0
 core	DuckDB	TypedProject	641	92686	6643839	138	2674	0
-core	DuckDB	TypedPropertyAccess	7	5893	80241	6	174	0
+core	DuckDB	TypedPropertyAccess	7	5893	79977	6	174	0
 core	DuckDB	TypedRename	4	473	15468	0	0	0
 core	DuckDB	TypedSelect	143	24475	621855	22	1710	0
 core	DuckDB	TypedSerialize	68	29401	457080	70	1515	0

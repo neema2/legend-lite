@@ -130,17 +130,20 @@ public enum SqlFn {
      *  as the VARCHAR cast they wrote until then; H2 with its number printer for every such operand (its DECFLOAT's
      *  cast writes {@code 1E+2}), where its dialect walked the expression's shape and missed some. */
     DECIMAL_TO_TEXT,
-    /** A Float's text as Pure's {@code toString} prints it (2026-10-22): the shortest digits, plain within the
-     *  database's plain range and fixed point past it where exact, at least one fraction digit (lowering/LiteralSpelling).
-     *  One call per value, which each dialect spells (dialect/FloatPrintText the portable decomposition). Since phase
-     *  D's D1.2 (2026-11-15) the JUDGES' form: their {@code %r} of a Float in an assert's message, as the host judge
-     *  prints it (judge parity, G2), and what the compatibility edge writes for {@link #FLOAT_TO_TEXT}; never the
-     *  product's text of a Float. */
-    FLOAT_PRINT,
+    /** LITE'S CANONICAL TEXT OF A FLOAT, its shortest round-trip digits (renamed from FLOAT_PRINT 2026-11-17, census B9,
+     *  the orchestrator's ruling: measured equal to lite's writers' text, result.CellText.carriedFloat, inside its
+     *  windows): plain within the database's plain range and fixed point past it where exact (whole values below 1e38,
+     *  fractional ones from 1e-17 below 2^53), at least one fraction digit, NaN and the infinities by name. One call per
+     *  value, which each dialect spells (dialect/FloatShortestText the portable decomposition; a dialect whose text of a
+     *  double is long reads it once). A message's text of a Float (the judges', both judges alike, G2); legend-pure's
+     *  print form is the same text, so the compatibility edge writes this node for {@link #FLOAT_TO_TEXT}. Outside the
+     *  windows the database's own exponent notation stays, which differs per database: logged for after separation
+     *  ("one canonical Float text outside the windows"). */
+    FLOAT_SHORTEST_TEXT,
     /** A Float's text ({@code toString}, {@code format}'s {@code %f}): the product's is six decimals, the trailing
      *  zeros and a trailing point trimmed, NaN and the infinities by name (the user's ruling of 2026-11-10, D_BRIEF
      *  §1; phase D's D1.2, 2026-11-15) -- each dialect writes it ({@code AnsiSqlRenderer.floatToText}); the
-     *  compatibility edge writes {@link #FLOAT_PRINT} for it, legend-pure's print form (edge/PurePrintForms). */
+     *  compatibility edge writes {@link #FLOAT_SHORTEST_TEXT} for it, legend-pure's print form (edge/PurePrintForms). */
     FLOAT_TO_TEXT,
     /** A DateTime's text ({@code toString}, {@code format}'s {@code %s}): the product's is ISO 8601 in UTC, six fraction
      *  digits and {@code Z} (the user's ruling of 2026-11-10, D_BRIEF §1; phase D's D1.2, 2026-11-15), a STRFTIME the
@@ -167,21 +170,13 @@ public enum SqlFn {
     // (an instance's toString: gone 2026-11-17, the separation census's B8 -- the edge writes '@_' and
     // the id at lowering through the plan style's PureOnlyTexts facet, read by Scalars.pureToString under the caller's
     // explicit Styled; the product refuses at lowering)
-    /** A relation's text ({@code x}, then what the text is as a string literal: {@code toString}'s {@code #TDS} text,
-     *  {@code toCSV}, a TDS's {@code csv}): legend-pure's and legend-engine's texts of rows. The product writes a
-     *  relation's rows by its result writers (JSON, CSV, Arrow): its renderer refuses this by name
-     *  ({@code dialect.PureOnlyText}); the compatibility edge writes {@code x}, today's SQL (edge/PurePrintForms; the
-     *  user's ruling of 2026-11-10, "objects and relations are refused", relayed 2026-11-15; phase D's D1.3). */
-    RELATION_TEXT,
+    // (a relation's text: gone 2026-11-17, the separation census's B8 -- the edge's
+    // RelationTextLowering writes the text itself at lowering (B17's facet); the product refuses at lowering)
     // (a user's toRepresentation: gone 2026-11-17, the separation census's B8 (i) -- the edge
     // writes legend-pure's representation at lowering through the plan style's PureOnlyTexts facet; the product
     // refuses at lowering)
-    /** A value's text in two forms ({@code product}, then {@code pure}): the product's (a list's JSON array; the user's
-     *  ruling of 2026-11-10, start-here §5.4, relayed 2026-11-15) and legend-pure's ({@code [a, 1]}), where the two
-     *  differ in their composition, not one spelling. The base renderer keeps the product's
-     *  ({@code dialect.TextForms}); the compatibility edge keeps legend-pure's (edge/PurePrintForms). Phase D's D1.3,
-     *  2026-11-15: until the hook has a lowering half, legend-pure's form is composed beside the product's. */
-    TEXT_FORMS,
+    // (a value's text in two forms: gone 2026-11-17, the separation census's B8 -- a list's text is the
+    // plan style's two-form kind lowering.ListTexts: the product's JSON array, the edge's legend-pure [a, b])
     // (an execution's trace text: gone 2026-11-17, the separation census's B8 (ii) -- the plan style's
     // traceText, the product's the id, the edge's legend-engine's comment, written at lowering)
     // Variant navigation: logical JSON access; text-extraction idioms are rendering
@@ -216,7 +211,7 @@ public enum SqlFn {
                     // A6, 2026-11-16, made conservative: a strict function read as may-skip costs a missed binding, the
                     // reverse a wrong raise; E-SQL may take one out with a per-dialect proof that it never skips)
                     ACOS, ASIN, CONCAT, CONCAT_JOIN, DAYNAME, DECIMAL_TO_TEXT, DECODE_BASE64, ENCODE_BASE64,
-                    EPOCH_MS, EPOCH_SECONDS, FLOAT_PRINT, HASH, JARO_WINKLER, LEFT, LENGTH, LEVENSHTEIN,
+                    EPOCH_MS, EPOCH_SECONDS, FLOAT_SHORTEST_TEXT, HASH, JARO_WINKLER, LEFT, LENGTH, LEVENSHTEIN,
                     LIST_APPEND, LIST_AVG, LIST_FLATTEN, LIST_INIT, LIST_MEDIAN, LIST_MODE, LIST_REVERSE, LIST_SLICE,
                     LIST_SORT, LIST_SORT_DESC, LIST_TAIL, MD5, MONTHNAME, PARSE_DATE, PURE_SPLIT_PART, RANGE_FN,
                     REGEXP_EXTRACT_ALL, ROUND, ROUND_HALF_UP, SHA1, SHA256, TO_VARIANT, UNNEST, VARIANT_ELEMENTS,

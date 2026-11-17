@@ -1226,7 +1226,9 @@ final class ArchitectureTest {
             // B17 of the separation census (2026-11-17, the precedent above's one facade, one row): a relation's
             // legend-pure text is the edge's (edge.RelationTextLowering), and each lowering read it makes -- a cell's
             // print, a date-time's text -- is the facade's (lowering.RelationTexts), each member admitted by this row
-            "lowering.RelationTexts#*", "com.legend.edge.RelationTextLowering",
+            // (and the edge's list text, PureListTexts, a mixed list's elements printed by the same facade: B8's TEXT_FORMS,
+            // 2026-11-17)
+            "lowering.RelationTexts#*", "com.legend.edge.RelationTextLowering com.legend.edge.PureListTexts",
             // the test door's options, from the root's ExecuteOptions: planning's half, a record of closed words
             "testplan.PlanningOptions#<init>(com.legend.testexecutionplan.Edge, com.legend.executionplan.DataStores, "
                     + "java.util.Set, com.legend.testplan.PlanningOptions$JudgeMode, "
