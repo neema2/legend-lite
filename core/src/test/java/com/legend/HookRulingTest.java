@@ -42,7 +42,12 @@ class HookRulingTest {
                     () -> com.legend.testexec.NoEdgeRun.NONE.open(planNaming(), null, java.util.UUID.randomUUID())),
             com.legend.testexec.EdgeHearing.class, List.of(
                     () -> productHearing().judged(null, List.of(), null, false),
-                    () -> productHearing().rowAppealed(0, List.of(), false)),
+                    () -> productHearing().rowAppealed(0, List.of(), false),
+                    () -> productHearing().pureWords()),
+            // C5's step B, 2026-11-17 (the orchestrator's ruling (1)): legend-pure's words of an assert's failure at run,
+            // the hearing's member (NoEdgeRun's hearing refuses it by name)
+            com.legend.testexec.PureWords.class, List.of(
+                    () -> productHearing().pureWords()),
             // census B3 and B1 (EngineTextDialect and PlanStyle's signatures naming it): CLOSED 2026-11-17 by Phase 6 --
             // the interface is com.legend.edge's and the style names no engine text; its entry gone
             // census B2, 2026-11-17 (Phase 6): upstream's plan text, the planner's facet -- signatures only since its
@@ -253,6 +258,7 @@ class HookRulingTest {
                 "EdgeHearing <- com.legend.edge.Appeals",
                 "EdgeRun <- com.legend.edge.AppealRun",
                 "PureOnlyTexts <- com.legend.edge.EdgePureOnlyTexts",
+                "PureWords <- com.legend.edge.EdgePureWords",
                 "RelationTexts <- com.legend.edge.RelationTextLowering",
                 "ResultEnvelopes <- com.legend.edge.EngineResultEnvelopes",
                 "UpstreamPlans <- com.legend.edge.EnginePlans$1",

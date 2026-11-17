@@ -236,6 +236,7 @@ public final class AggregationAwareRouting {
                     + "(" + args(uc.args(), env) + ")";
             case TypedLambda l -> path(l.body().get(l.body().size() - 1), env);
             case TypedCString s -> "InstanceValue->String->" + s.value();
+            case com.legend.compiler.spec.typed.TypedNullCell ignoredCell -> throw nullCellOutsideAVerdict();
             case TypedCInteger i -> "InstanceValue->Integer->" + i.value();
             case TypedCFloat f -> "InstanceValue->Float->" + f.value();
             case TypedCBoolean b -> "InstanceValue->Boolean->" + b.value();
@@ -315,6 +316,7 @@ public final class AggregationAwareRouting {
             }
             case TypedLambda l -> canRewrite(l.body().get(l.body().size() - 1), env, groupByPaths);
             case TypedCString ignored -> true;
+            case com.legend.compiler.spec.typed.TypedNullCell ignored -> true;
             case TypedCInteger ignored -> true;
             case TypedCFloat ignored -> true;
             case TypedCBoolean ignored -> true;
@@ -329,5 +331,10 @@ public final class AggregationAwareRouting {
                     "aggregation-aware canRewrite over "
                     + n.getClass().getSimpleName() + " pending");
         };
+    }
+
+    /** A present null cell is minted for a verdict's expected side alone (C5 step C): reaching routing is a compiler bug. */
+    private static IllegalStateException nullCellOutsideAVerdict() {
+        return new IllegalStateException("an expected null cell (TypedNullCell) stands only in a verdict's expected side");
     }
 }

@@ -3683,6 +3683,8 @@ public final class Lowerer {
                     ? new SqlExpr.DecimalLit(new java.math.BigDecimal(big))
                     : new SqlExpr.IntLit(c.value().longValue());
             case TypedCString c -> new SqlExpr.StringLit(c.value());
+            // an expected present null cell (C5 step C): lite's null-cell marker, which the judges' canon reads as null
+            case com.legend.compiler.spec.typed.TypedNullCell ignoredCell -> new SqlExpr.StringLit(CanonicalRenderSql.NULL_CELL_WIRE);
             case TypedCBoolean c -> new SqlExpr.BoolLit(c.value());
             // a value a planned statement answers (B2d.2, 2026-11-11): its statement, read where the value stands
             case com.legend.compiler.spec.typed.TypedPlannedValue v -> new SqlExpr.ScalarSubquery(v.statement());

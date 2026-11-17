@@ -2967,7 +2967,7 @@ public final class VerdictSql {
         }
         return new SqlExpr.Case(List.of(new SqlExpr.Case.When(
                 SqlExpr.Call.of(SqlFn.EQUAL, cell, new SqlExpr.StringLit("''")),
-                new SqlExpr.StringLit(PlatformTypes.TDS_NULL_CELL))), cell, SqlExpr.Reason.JUDGE);
+                new SqlExpr.StringLit(CanonicalRenderSql.NULL_CELL))), cell, SqlExpr.Reason.JUDGE);
     }
 
     /** A grid side's loose CELL pool: one row per cell of every row, the
@@ -3017,8 +3017,9 @@ public final class VerdictSql {
                 SqlType.Scalar.VARCHAR, SqlExpr.Reason.JUDGE);
         if (peer.expected()) {
             c = new SqlExpr.Case(List.of(new SqlExpr.Case.When(
-                    SqlExpr.Call.of(SqlFn.EQUAL, c, new SqlExpr.StringLit("'TDSNull'")),
-                    new SqlExpr.StringLit("TDSNull"))), c, SqlExpr.Reason.JUDGE);
+                    SqlExpr.Call.of(SqlFn.EQUAL, c,
+                            new SqlExpr.StringLit("'" + CanonicalRenderSql.NULL_CELL_WIRE + "'")),
+                    new SqlExpr.StringLit(CanonicalRenderSql.NULL_CELL))), c, SqlExpr.Reason.JUDGE);
         }
         SqlExpr value = peer.wrapped() instanceof SqlSelect ps && !ps.projections().isEmpty()
                 ? doubleValue(ps.projections().get(0), "w", peer.isFloat()) : new SqlExpr.NullLit();

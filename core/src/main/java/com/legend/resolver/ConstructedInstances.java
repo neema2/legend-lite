@@ -201,6 +201,7 @@ final class ConstructedInstances {
                 Object lit = switch (v) {
                     case null -> null;
                     case TypedCString c -> c.value();
+                    case com.legend.compiler.spec.typed.TypedNullCell ignoredCell -> throw new IllegalStateException("an expected null cell (TypedNullCell) stands only in a verdict's expected side, never in a constructed instance");
                     case TypedCInteger i -> i.value();
                     case TypedCFloat f -> f.value();
                     case TypedCBoolean b -> b.value();
