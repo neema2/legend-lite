@@ -316,7 +316,7 @@ bigquery	Essential	meta::pure::functions::date::tests::testAdjustByDaysBigNumber
 bigquery	Essential	meta::pure::functions::date::tests::testAdjustByHoursBigNumber	is outside BigQuery's range: it holds dates from 0001-01-01 to 9999-12-31 (S340)
 bigquery	Essential	meta::pure::functions::date::tests::testAdjustByMinutesBigNumber	is outside BigQuery's range: it holds dates from 0001-01-01 to 9999-12-31 (S340)
 # a decimal literal past BigQuery's BIGNUMERIC (38 digits each side of the point)
-bigquery	Essential	meta::pure::functions::math::tests::pow::testComplexPow	DialectCapability: a decimal literal 182.88729271224377725957310758531093597412109375 reached BigQuery, whose BIGNUMERIC holds 38 digits each side of the point
+# 2026-11-17 (Phase 5b, register S20 built; round 76): bigquery testComplexPow PASSES and leaves -- its literal is the double, so the judge no longer writes a 47-digit decimal
 # acos/asin out of domain: the database answers NaN (lite's IEEE Float, S119) or its own error text, where legend-pure raises 'Unable to compute acos of 2.0'
 bigquery	Essential	meta::pure::functions::math::tests::trigonometry::testArcCosineError	AssertFailed: Execution error message mismatch. ⏎ The actual message was "BigQueryException during runQuery ⏎ Floating point error in function: ACOS(2)" ⏎ where
 bigquery	Essential	meta::pure::functions::math::tests::trigonometry::testArcSineError	AssertFailed: Execution error message mismatch. ⏎ The actual message was "BigQueryException during runQuery ⏎ Floating point error in function: ASIN(2)" ⏎ where
@@ -353,7 +353,7 @@ databricks	Essential	meta::pure::functions::date::tests::testAdjustByWeeksBigNum
 databricks	Essential	meta::pure::functions::date::tests::testAdjustByDaysBigNumber	[INVALID_TYPED_LITERAL] The value of the typed literal "DATE" is invalid: '33803336-12-17'. SQLSTATE: 42604
 databricks	Essential	meta::pure::functions::date::tests::testAdjustByHoursBigNumber	[INVALID_TYPED_LITERAL] The value of the typed literal "TIMESTAMP" is invalid: '1410404-07-12T00:00:00'. SQLSTATE: 42604
 # a decimal literal past Databricks' DECIMAL (38 digits of precision)
-databricks	Essential	meta::pure::functions::math::tests::pow::testComplexPow	[DECIMAL_PRECISION_EXCEEDS_MAX_PRECISION] Decimal precision 47 exceeds max precision 38. SQLSTATE: 22003
+# 2026-11-17 (Phase 5b, register S20 built; round 76): databricks testComplexPow PASSES and leaves -- its literal is the double, so the judge no longer writes a 47-digit decimal
 # acos/asin out of domain: the database answers NaN (lite's IEEE Float, S119) or its own error text, where legend-pure raises 'Unable to compute acos of 2.0'
 databricks	Essential	meta::pure::functions::math::tests::trigonometry::testArcCosineError	AssertFailed: No error was thrown
 databricks	Essential	meta::pure::functions::math::tests::trigonometry::testArcSineError	AssertFailed: No error was thrown

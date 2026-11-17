@@ -959,7 +959,10 @@ public final class Compiler {
                 t -> com.legend.compiler.element.ClassLayouts.objectLayoutOf(ctx, t),
                 f -> ctx.findClass(f).isPresent(), ctx.implementations())
                 .withInstanceKeys(t -> com.legend.compiler.element.EqualityKeys.resolve(ctx, t))
-                .withObjectIdentity(new com.legend.lowering.ObjectSites()::idOf);
+                .withObjectIdentity(new com.legend.lowering.ObjectSites()::idOf)
+                // a Float literal as the runtime's database computes it in the product (register S20, Phase 5b)
+                .withFloatLiteralKind(() -> runtimeFqn == null ? null : com.legend.database.PlanStyle.PRODUCT
+                        .dialect(executesOn(ctx, runtimeFqn).type()).floatLiteralKind());
         if (!temporalRoot) {
             lw = lw.withExistsAsJoinDistinct();
         }

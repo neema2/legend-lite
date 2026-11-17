@@ -79,6 +79,15 @@ public record PlanEnv(ModelContext ctx, @Nullable String runtimeFqn,
 
     /** This environment writing its statements in {@code d}: a test's program on the product's road, its runtime
      *  decided (the test door's effects, the test-is-the-product plan's M3d). */
+    /** How the target's database computes with a Float literal (register S20, built 2026-11-17, Phase 5b): the
+     *  planning's dialect where it chose one, else the style's for the runtime's database; null where neither is
+     *  named. Data for the lowering, which imports no dialect. */
+    public com.legend.sql.SqlExpr.FloatLit.@Nullable Kind floatLiteralKind() {
+        SqlDialect d = dialect != null ? dialect : runtimeFqn == null ? null
+                : style.dialect(com.legend.Compiler.executesOn(ctx, runtimeFqn).type());
+        return d == null ? null : d.floatLiteralKind();
+    }
+
     /** This environment recording its consumed lets in {@code lets}, its own: a planning that must leave none in the
      *  body's accumulator -- the referee's made-up plan-parameter values, which an appeal's rows are planned under
      *  (G10, 2026-11-16: the body's map took them, and a later read of the body's plan text resolved its parameter by
