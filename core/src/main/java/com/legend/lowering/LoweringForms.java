@@ -30,6 +30,10 @@ import java.util.function.Supplier;
  * orchestrator's ruling (a): until then three LoweringShape flags only the edge set false): the product writes lean SQL --
  * a relation read more than once written once, a count a declared key makes one folded to 1, an unread computed
  * projection dropped; legend-engine's SQL does none of them.</li>
+ * <li>{@link #existsJoin} (the edge audit's J19, the user's ruling of 2026-11-17, "Yes to the rule"; register S362): a
+ * filter's correlated {@code EXISTS} over a to-many join -- the product writes it as lowered, the leanest SQL with the
+ * same answer; legend-engine's SQL writes its "second exists emission", a join to the distinct keys
+ * ({@code ExistsJoinForm}).</li>
  * </ul>
  */
 public interface LoweringForms {
@@ -61,4 +65,8 @@ public interface LoweringForms {
      *  are dropped either way. */
     com.legend.sql.SqlQuery computedPruning(Supplier<com.legend.sql.SqlQuery> pruned,
             Supplier<com.legend.sql.SqlQuery> kept);
+
+    /** A filtered select ({@code filtered}) whose {@code EXISTS} conjuncts are kept as lowered, or written as joins to the
+     *  distinct keys ({@code joinForm}). */
+    SqlSelect existsJoin(SqlSelect filtered, java.util.function.UnaryOperator<SqlSelect> joinForm);
 }

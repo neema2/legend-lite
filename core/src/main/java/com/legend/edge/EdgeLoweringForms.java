@@ -22,18 +22,24 @@ import java.util.function.Supplier;
  *                      aliased derived table ({@code ViewSelectSQLQuery}), a wire coercion left to the reader, and none
  *                      of the product's lean SQL (a relation at each read, keyed counts as written, unread computed
  *                      projections kept: J23)
+ * @param existsAsJoin  a filter's EXISTS written as legend-engine's join to the distinct keys (J19, register S362):
+ *                      the engine statement shape's, but over a temporal root
  */
-record EdgeLoweringForms(Set<RaiseKind> plain, boolean engineSqlShape) implements com.legend.lowering.LoweringForms {
+record EdgeLoweringForms(Set<RaiseKind> plain, boolean engineSqlShape, boolean existsAsJoin) implements com.legend.lowering.LoweringForms {
 
     /** PCT's and the corpus's style ({@link PureText#UPSTREAM}): every check written, views flat, wire casts written. */
-    static final EdgeLoweringForms PCT = new EdgeLoweringForms(Set.of(), false);
+    static final EdgeLoweringForms PCT = new EdgeLoweringForms(Set.of(), false, false);
 
     /** The pure/v1 route's style ({@link PureText#PURE_V1}): legend-engine's unchecked raises plain. */
-    static final EdgeLoweringForms PURE_V1 = new EdgeLoweringForms(PureText.ENGINE_UNCHECKED, false);
+    static final EdgeLoweringForms PURE_V1 = new EdgeLoweringForms(PureText.ENGINE_UNCHECKED, false, false);
 
     /** legend-engine's statement shape, the engine SQL's ({@code EnginePlans.UPSTREAM_SHAPE}): asked for its views and
      *  wire casts; its raises are the plan style's, never this shape's. */
-    static final EdgeLoweringForms ENGINE_SQL_SHAPE = new EdgeLoweringForms(Set.of(), true);
+    static final EdgeLoweringForms ENGINE_SQL_SHAPE = new EdgeLoweringForms(Set.of(), true, true);
+
+    /** legend-engine's statement shape over a temporal root: its EXISTS kept correlated, as the engine's chooser keeps it
+     *  there (J19: until then the planner's !temporalRoot condition on withExistsAsJoinDistinct). */
+    static final EdgeLoweringForms ENGINE_SQL_SHAPE_TEMPORAL = new EdgeLoweringForms(Set.of(), true, false);
 
     EdgeLoweringForms {
         plain = plain.isEmpty() ? Set.of() : java.util.Collections.unmodifiableSet(java.util.EnumSet.copyOf(plain));
@@ -89,5 +95,11 @@ record EdgeLoweringForms(Set<RaiseKind> plain, boolean engineSqlShape) implement
     public com.legend.sql.SqlQuery computedPruning(Supplier<com.legend.sql.SqlQuery> pruned,
             Supplier<com.legend.sql.SqlQuery> kept) {
         return engineSqlShape ? kept.get() : pruned.get();
+    }
+
+    /** legend-engine's "second exists emission" where its statement shape writes one (J19, register S362). */
+    @Override
+    public SqlSelect existsJoin(SqlSelect filtered, java.util.function.UnaryOperator<SqlSelect> joinForm) {
+        return existsAsJoin ? joinForm.apply(filtered) : filtered;
     }
 }

@@ -59,4 +59,10 @@ public final class ProductLoweringForms implements LoweringForms {
             Supplier<com.legend.sql.SqlQuery> kept) {
         return pruned.get();
     }
+
+    /** The correlated EXISTS as lowered: the leanest SQL with the same answer (J19, register S362). */
+    @Override
+    public SqlSelect existsJoin(SqlSelect filtered, java.util.function.UnaryOperator<SqlSelect> joinForm) {
+        return filtered;
+    }
 }
