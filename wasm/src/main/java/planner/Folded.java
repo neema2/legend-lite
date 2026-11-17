@@ -3,14 +3,13 @@ package planner;
 /**
  * The text encoding both strings-only hosts use for the boundary's answers -- the tab through TeaVM
  * ({@code TabExports}) and Python through the C library (native/'s {@code nativelib.Compiler}) -- written once
- * (docs/PROTOCOL_PROGRAM_2026_10_05.md, invariant 5): {@code "OK\n<answer>"}, a refusal as
- * {@code "ERR\n<kind>\n<message>"}, and a {@code pure/v1} answer as {@code "OK\n<status>\n<media type>\n<body>"}.
+ * (docs/PROTOCOL_PROGRAM_2026_10_05.md, invariant 5): {@code "OK\n<answer>"}, a refusal as {@code "ERR\n<refusal>"},
+ * and a {@code pure/v1} answer as {@code "OK\n<status>\n<media type>\n<body>"}.
  *
- * <p>A refusal's kind is the one the server's routes give it ({@code LiteV1Api.refusal}, lite's own
- * {@code LiteV1Api.RefusalKind}): {@code PARSER} or {@code COMPILATION} when the text is refused, else the status the
- * server answers ({@code 500}),
- * the message then led by the failure's class -- so a host's caller reads one vocabulary for every call, a
- * {@code pure/v1} one or the boundary's own (docs/PROTOCOL_PROGRAM_2026_10_05.md, leg 6).
+ * <p>A refusal is lite API v1's one error shape (docs/records/lite-api-v1-2026-11-17.md §3, the user's go of
+ * 2026-11-17): its JSON {@code {kind, message, where?, raise?}}, classified by the one classifier the server's routes
+ * use ({@code LiteV1Api.refusal}), so every binding -- the tab's exports, Python's native entries, the server's routes --
+ * says the same refusal. Until 2026-11-17 it was {@code "ERR\n<kind>\n<message>"}.
  *
  * <p>A refusal is an answer the planner is expected to give, so it travels in the return value: the differential
  * compares refusals too, without depending on how a host bridges a Java throwable.
@@ -48,9 +47,12 @@ public final class Folded {
         }
     }
 
-    /** A failure as a refusal: its kind and its message, as the server's routes name them. */
+    /** A failure as a refusal: lite API v1's error shape, as the server's routes classify it. */
     public static String failure(Throwable e) {
         com.legend.server.LiteV1Api.Refusal r = com.legend.server.LiteV1Api.refusal(e);
-        return "ERR\n" + r.kind().text() + "\n" + r.message();
+        java.util.Map<String, Object> out = new java.util.LinkedHashMap<>();
+        out.put("kind", r.kind().text());
+        out.put("message", r.message());
+        return "ERR\n" + com.legend.json.Json.toCompact(out);
     }
 }

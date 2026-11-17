@@ -43,11 +43,11 @@ function fakeExports(
   const models = new Map<number, string>();
   let next = 1;
   const over = (h: number, q: string, r: string): string =>
-    (models.has(h) ? answer(models.get(h)!, q, r) : `ERR\n500\nno model is held under handle ${h}`);
+    (models.has(h) ? answer(models.get(h)!, q, r) : `ERR\n{"kind":"internal","message":"no model is held under handle ${h}"}`);
   const hold = (m: string): string => {
     onWarm?.(m);
     log.holds.push(m);
-    if (m === 'does not compile') return 'ERR\nCOMPILATION\nthe model does not compile';
+    if (m === 'does not compile') return 'ERR\n{"kind":"compile","message":"the model does not compile"}';
     const handle = next++;
     models.set(handle, m);
     return `OK\n${handle}`;
@@ -59,32 +59,35 @@ function fakeExports(
     releaseModelOrError: (h: number) => { log.releases.push(h); models.delete(h); return 'OK\n'; },
     planHeldOrError: over,
     planJsonHeldOrError: over,
-    executionPlanJsonHeldOrError: () => 'ERR\nfake\nnot in this fake',
+    executionPlanJsonHeldOrError: () => 'ERR\n{"kind":"internal","message":"not in this fake"}',
     relationTypeHeldOrError: () => 'OK\n{"_type":"relationType","columns":[]}',
-    tableModelOrError: () => 'ERR\nfake\nnot in this fake',
-    catalogColumnsSqlOrError: () => 'ERR\nfake\nnot in this fake',
-    pureV1OrError: () => 'ERR\nfake\nnot in this fake',
-    modelElementsOrError: () => 'ERR\nfake\nnot in this fake',
-    parseLambdaOrError: () => 'ERR\nfake\nnot in this fake',
-    printLambdaOrError: () => 'ERR\nfake\nnot in this fake',
-    lambdaRelationTypeOrError: () => 'OK\n{"_type":"relationType","columns":[]}',
-    compileErrorsOrError: () => 'ERR\nfake\nnot in this fake',
-    modelActionOrError: () => 'ERR\nfake\nnot in this fake',
-    tsItemOrError: () => 'ERR\nfake\nnot in this fake',
-    jsonToTsOrError: () => 'ERR\nfake\nnot in this fake',
-    fileLoadOrError: () => 'ERR\nfake\nnot in this fake',
-    remoteMountOrError: () => 'ERR\nfake\nnot in this fake',
-    snapStreamOrError: () => 'ERR\nfake\nnot in this fake',
-    snapCopyOrError: () => 'ERR\nfake\nnot in this fake',
-    outputPlanOrError: () => 'ERR\nfake\nnot in this fake',
-    synthesizeOrError: () => 'ERR\nfake\nnot in this fake',
-    authoredOrError: () => 'ERR\nfake\nnot in this fake',
-    sessionSetupOrError: () => 'ERR\nfake\nnot in this fake',
-    projectDataOrError: () => 'ERR\nfake\nnot in this fake',
-    hostOperationsOrError: () => 'ERR\nfake\nnot in this fake',
-    planJsonOrError: () => 'ERR\nfake\nnot in this fake',
-    executeJsonPlanOrError: () => 'ERR\nfake\nnot in this fake',
-    executeJsonAnswerOrError: () => 'ERR\nfake\nnot in this fake',
+    tableModelOrError: () => 'ERR\n{"kind":"internal","message":"not in this fake"}',
+    catalogColumnsSqlOrError: () => 'ERR\n{"kind":"internal","message":"not in this fake"}',
+    pureV1OrError: () => 'ERR\n{"kind":"internal","message":"not in this fake"}',
+    modelCheckOrError: () => 'ERR\n{"kind":"internal","message":"not in this fake"}',
+    modelElementsOrError: () => 'ERR\n{"kind":"internal","message":"not in this fake"}',
+    queryParseOrError: () => 'ERR\n{"kind":"internal","message":"not in this fake"}',
+    queryPrintOrError: () => 'ERR\n{"kind":"internal","message":"not in this fake"}',
+    queryTypeOrError: () => 'OK\n{"columns":[]}',
+    queryPlanOrError: () => 'ERR\n{"kind":"internal","message":"not in this fake"}',
+    modelCreateClassOrError: () => 'ERR\n{"kind":"internal","message":"not in this fake"}',
+    modelCreateAssociationOrError: () => 'ERR\n{"kind":"internal","message":"not in this fake"}',
+    modelCreateDataSpaceOrError: () => 'ERR\n{"kind":"internal","message":"not in this fake"}',
+    tsItemOrError: () => 'ERR\n{"kind":"internal","message":"not in this fake"}',
+    tsStatementOrError: () => 'ERR\n{"kind":"internal","message":"not in this fake"}',
+    fileLoadOrError: () => 'ERR\n{"kind":"internal","message":"not in this fake"}',
+    remoteMountOrError: () => 'ERR\n{"kind":"internal","message":"not in this fake"}',
+    snapStreamOrError: () => 'ERR\n{"kind":"internal","message":"not in this fake"}',
+    snapCopyOrError: () => 'ERR\n{"kind":"internal","message":"not in this fake"}',
+    outputPlanOrError: () => 'ERR\n{"kind":"internal","message":"not in this fake"}',
+    synthesizeOrError: () => 'ERR\n{"kind":"internal","message":"not in this fake"}',
+    authoredOrError: () => 'ERR\n{"kind":"internal","message":"not in this fake"}',
+    sessionSetupOrError: () => 'ERR\n{"kind":"internal","message":"not in this fake"}',
+    projectDataOrError: () => 'ERR\n{"kind":"internal","message":"not in this fake"}',
+    hostOperationsOrError: () => 'ERR\n{"kind":"internal","message":"not in this fake"}',
+    planJsonOrError: () => 'ERR\n{"kind":"internal","message":"not in this fake"}',
+    executeJsonPlanOrError: () => 'ERR\n{"kind":"internal","message":"not in this fake"}',
+    executeJsonAnswerOrError: () => 'ERR\n{"kind":"internal","message":"not in this fake"}',
     warmModelOrError: () => 'OK\n',
   };
 }
@@ -193,8 +196,7 @@ describe('LitePlanner', () => {
 
   it('raises a PlanError carrying the compiler message on ERR', async () => {
     const p = planner(() =>
-      'ERR\nCOMPILATION\n'
-      + "unknown column 'nope'");
+      'ERR\n{"kind":"compile","message":"unknown column \'nope\'"}');
     await assert.rejects(() => p.planText('g2'), (e: unknown) => {
       assert.ok(e instanceof PlanError);
       // The refusal's KIND is dropped; the message is what a user
@@ -207,8 +209,7 @@ describe('LitePlanner', () => {
 
   it('keeps a multi-line compiler message whole', async () => {
     const p = planner(() =>
-      'ERR\nPARSER\n[1:40] expected expression,'
-      + '\n  got end of input');
+      'ERR\n{"kind":"parse","message":"[1:40] expected expression,\\n  got end of input"}');
     await assert.rejects(() => p.planText('g'), (e: unknown) => {
       assert.ok(e instanceof PlanError);
       assert.equal(
@@ -226,7 +227,7 @@ describe('LitePlanner', () => {
     let calls = 0;
     const p = planner(() => {
       calls++;
-      return 'ERR\nX\nnope';
+      return 'ERR\n{"kind":"internal","message":"nope"}';
     });
     await assert.rejects(() => p.planText('g'));
     await assert.rejects(() => p.planText('g'));
@@ -458,7 +459,7 @@ describe('LitePlanner off the main thread: the models its worker holds', () => {
         : msg['kind'] === 'hold' ? (this.holds.push(msg['model'] as string), x.holdModelOrError(msg['model'] as string))
         : msg['kind'] === 'release' ? (this.releases.push(msg['handle'] as number), this.told.push('release'), x.releaseModelOrError(msg['handle'] as number))
         : msg['kind'] === 'plan' ? x.planHeldOrError(msg['handle'] as number, msg['query'] as string, msg['runtime'] as string)
-        : 'ERR\nfake\nnot in this fake';
+        : 'ERR\n{"kind":"internal","message":"not in this fake"}';
       queueMicrotask(() => this.onmessage?.({ data: { id: msg['id'], ok: true, answer } }));
     }
     terminate(): void {
@@ -533,14 +534,14 @@ describe('LitePlanner off the main thread: the models its worker holds', () => {
   // the C4 second small round's item 4, 2026-11-14: #handle is not async, so the hold's refusal must be the promise it
   // returns (#call async), never a throw -- relationType (and tsStatement) catch a failed hold (`.catch(() =>
   // undefined)`: a model that does not hold says why in the request after it), so inside a run the refusal that reaches
-  // the caller is that request's, 'lambdaRelationType' (H2, 2026-11-17: 'pureV1' until then). Were #call's planning() a throw, it would escape #handle past the catch,
+  // the caller is that request's, 'queryType' (lite API v1, 2026-11-17: 'pureV1', then 'lambdaRelationType', until then). Were #call's planning() a throw, it would escape #handle past the catch,
   // named 'hold'
   it('a hold refused inside a run is its promise\'s, caught where a failed hold is: relationType is refused at its own request', async () => {
     if (!frameKept) return;
     const p = planner(() => ok('SELECT 1'), { cache: false });
     const query = fromElement('trades::T').select(['a']).lambda();
     await assert.rejects(inRun('a test\'s run', async () => p.relationType(query)),
-      /the planner was asked 'lambdaRelationType' inside a run \(a test's run\)/);
+      /the planner was asked 'queryType' inside a run \(a test's run\)/);
     p.dispose();
   });
 

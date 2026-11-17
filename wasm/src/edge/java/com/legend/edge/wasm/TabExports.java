@@ -126,54 +126,73 @@ public final class TabExports {
         return Folded.of(() -> Boundary.relationTypeHeld(handle, query));
     }
 
-    // ---- lite's own grammar and typing (D-1: the four routes asked through pure/v1, as lite-owned exports; A1)
+    // ---- lite API v1's operations (docs/records/lite-api-v1-2026-11-17.md §2, the user's go of 2026-11-17): each the
+    // ---- operation's request JSON in, its answer JSON out ({@link Boundary}'s member of the same name)
 
-    /** A model's text as its protocol JSON ({@link Boundary#modelElements}). */
+    /** {@code model/check} ({@link Boundary#modelCheck}). */
     @JSExport
-    public static String modelElementsOrError(String text, boolean sourceInformation) {
-        return Folded.of(() -> Boundary.modelElements(text, sourceInformation));
+    public static String modelCheckOrError(String request) {
+        return Folded.of(() -> Boundary.modelCheck(request));
     }
 
-    /** A lambda's text as its protocol JSON ({@link Boundary#parseLambda}). */
+    /** {@code model/elements} ({@link Boundary#modelElements}). */
     @JSExport
-    public static String parseLambdaOrError(String text, boolean sourceInformation) {
-        return Folded.of(() -> Boundary.parseLambda(text, sourceInformation));
+    public static String modelElementsOrError(String request) {
+        return Folded.of(() -> Boundary.modelElements(request));
     }
 
-    /** A lambda's protocol JSON as its Pure text ({@link Boundary#printLambda}). */
+    /** {@code query/parse} ({@link Boundary#queryParse}). */
     @JSExport
-    public static String printLambdaOrError(String lambdaJson, String style) {
-        return Folded.of(() -> Boundary.printLambda(lambdaJson, style));
+    public static String queryParseOrError(String request) {
+        return Folded.of(() -> Boundary.queryParse(request));
     }
 
-    /** A lambda's protocol JSON typed over a model's text ({@link Boundary#lambdaRelationType}). */
+    /** {@code query/print} ({@link Boundary#queryPrint}). */
     @JSExport
-    public static String lambdaRelationTypeOrError(String model, String lambdaJson) {
-        return Folded.of(() -> Boundary.lambdaRelationType(model, lambdaJson));
+    public static String queryPrintOrError(String request) {
+        return Folded.of(() -> Boundary.queryPrint(request));
     }
 
-    /** One of the model's actions over its request ({@link Boundary#modelAction}). */
+    /** {@code query/type} ({@link Boundary#queryType}). */
     @JSExport
-    public static String modelActionOrError(String action, String body) {
-        return Folded.of(() -> Boundary.modelAction(action, body));
+    public static String queryTypeOrError(String request) {
+        return Folded.of(() -> Boundary.queryType(request));
     }
 
-    /** One #TS item's text read ({@link Boundary#tsItem}). */
+    /** {@code query/plan} ({@link Boundary#queryPlan}). */
     @JSExport
-    public static String tsItemOrError(String text) {
-        return Folded.of(() -> Boundary.tsItem(text));
+    public static String queryPlanOrError(String request) {
+        return Folded.of(() -> Boundary.queryPlan(request));
     }
 
-    /** A #TS query as its one statement ({@link Boundary#jsonToTs}). */
+    /** {@code model/createClass} ({@link Boundary#modelCreateClass}). */
     @JSExport
-    public static String jsonToTsOrError(String lambdaJson, String model) {
-        return Folded.of(() -> Boundary.jsonToTs(lambdaJson, model));
+    public static String modelCreateClassOrError(String request) {
+        return Folded.of(() -> Boundary.modelCreateClass(request));
     }
 
-    /** A model's every compile error ({@link Boundary#compileErrors}). */
+    /** {@code model/createAssociation} ({@link Boundary#modelCreateAssociation}). */
     @JSExport
-    public static String compileErrorsOrError(String model) {
-        return Folded.of(() -> Boundary.compileErrors(model));
+    public static String modelCreateAssociationOrError(String request) {
+        return Folded.of(() -> Boundary.modelCreateAssociation(request));
+    }
+
+    /** {@code model/createDataSpace} ({@link Boundary#modelCreateDataSpace}). */
+    @JSExport
+    public static String modelCreateDataSpaceOrError(String request) {
+        return Folded.of(() -> Boundary.modelCreateDataSpace(request));
+    }
+
+    /** {@code ts/item} ({@link Boundary#tsItem}). */
+    @JSExport
+    public static String tsItemOrError(String request) {
+        return Folded.of(() -> Boundary.tsItem(request));
+    }
+
+    /** {@code ts/statement} ({@link Boundary#tsStatement}). */
+    @JSExport
+    public static String tsStatementOrError(String request) {
+        return Folded.of(() -> Boundary.tsStatement(request));
     }
 
     // ---- a model's data and its tables

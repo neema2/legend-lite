@@ -18,14 +18,17 @@ export const REQUEST_KINDS = [
   'executionPlan',
   'planModel',
   'pureV1',
+  'modelCheck',
   'modelElements',
-  'parseLambda',
-  'printLambda',
-  'lambdaRelationType',
-  'compileErrors',
-  'modelAction',
+  'queryParse',
+  'queryPrint',
+  'queryType',
+  'queryPlan',
+  'modelCreateClass',
+  'modelCreateAssociation',
+  'modelCreateDataSpace',
   'tsItem',
-  'jsonToTs',
+  'tsStatement',
   'executePlan',
   'executeAnswer',
   'fileLoad',
@@ -42,6 +45,11 @@ export const REQUEST_KINDS = [
 ] as const;
 
 export type RequestKind = (typeof REQUEST_KINDS)[number];
+
+/** Lite API v1's operations, as planner kinds (operation `a/b` is kind `aB`: the spec's naming rule). */
+export const LITE_OPERATIONS = ['modelCheck', 'modelElements', 'queryParse', 'queryPrint', 'queryType', 'queryPlan', 'modelCreateClass', 'modelCreateAssociation', 'modelCreateDataSpace', 'tsItem', 'tsStatement'] as const;
+
+export type LiteOperation = (typeof LITE_OPERATIONS)[number];
 
 /** A request, as the planner writes it. */
 export type RequestBody =
@@ -63,21 +71,10 @@ export type RequestBody =
   | { readonly kind: 'planModel'; readonly model: string; readonly lambda: string; readonly runtime: string }
   // one pure/v1 call: its path (`/api/pure/v1/...`), its raw query string ('' for none) and its body
   | { readonly kind: 'pureV1'; readonly path: string; readonly query: string; readonly body: string }
-  // lite's own grammar and typing, each its product boundary's answer (A1's four; the edge audit's H2, 2026-11-17):
-  // a model's text as its protocol JSON, a lambda's text as its JSON, a lambda's JSON as its text (PRETTY or STANDARD),
-  // a lambda's JSON typed over a model's text
-  | { readonly kind: 'modelElements'; readonly text: string; readonly sourceInformation: boolean }
-  | { readonly kind: 'parseLambda'; readonly text: string; readonly sourceInformation: boolean }
-  | { readonly kind: 'printLambda'; readonly lambda: string; readonly style: 'PRETTY' | 'STANDARD' }
-  | { readonly kind: 'lambdaRelationType'; readonly model: string; readonly lambda: string }
-  // a model's every compile error, its text given (Studio's and Query's in-tab compile; H3)
-  | { readonly kind: 'compileErrors'; readonly model: string }
-  // lite's own routes the tab asked through pure/v1's router, each the route's own Java (H2; the orchestrator's Q2): one
-  // of the model's actions over its request's JSON; one #TS item's text; a #TS query's JSON as its one statement over a
-  // model's text
-  | { readonly kind: 'modelAction'; readonly action: 'createClass' | 'createAssociation' | 'createDataSpace'; readonly body: string }
-  | { readonly kind: 'tsItem'; readonly text: string }
-  | { readonly kind: 'jsonToTs'; readonly lambda: string; readonly model: string }
+  // lite API v1's operations (docs/records/lite-api-v1-2026-11-17.md §2, the user's go of 2026-11-17): each its
+  // operation's request JSON, answered by the boundary's member of the same name with its answer JSON -- the same JSON the
+  // server's /api/lite/v1 routes take and answer
+  | { readonly kind: LiteOperation; readonly request: string }
   // an ExecuteInput's plan half (its body) over the only models the host runs (a JSON array of their texts); then that
   // plan's answer from the rows the host's database answered running it, a JSON array of objects (HostRows)
   | { readonly kind: 'executePlan'; readonly body: string; readonly models: string }

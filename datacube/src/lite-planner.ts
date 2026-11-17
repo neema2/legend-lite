@@ -31,7 +31,7 @@ import { PlanError, type ModelOptions } from './planner.ts';
 import { writerBodies } from '../../model-changes/src/wire.ts';
 import type { AssociationAction, ClassAction, DataSpaceAction, GridSource, ModelAnswer, ModelWriter } from './model-writer.ts';
 import type { PrintStyle } from '../../engine-client/src/pure-v1-planning.ts';
-import { relationColumns, type Plan, type PlanColumn } from '../../engine-client/src/relation-type.ts';
+import { pureType, relationColumns, type Plan, type PlanColumn } from '../../engine-client/src/relation-type.ts';
 import { planParams } from '../../engine-client/src/plan-params.ts';
 import { declareSites } from '../../engine-client/src/declared-raises.ts';
 import type {
@@ -629,9 +629,9 @@ export class LitePlanner implements Planner, TableModels, ModelWriter {
     if (signal?.aborted) throw signal.reason ?? new Error('aborted');
     // lite's own typing (the boundary's lambdaRelationType; the edge audit's H2, 2026-11-17), the lambda's JSON as
     // toJson wrote it, so its numbers keep their digits
-    const answer = decode(await this.#call({ kind: 'lambdaRelationType', model: this.#options.model, lambda: json }), query);
+    const answer = decode(await this.#call({ kind: 'queryType', request: `{"model":${JSON.stringify(this.#options.model)},"query":${json}}` }), query);
     if (signal?.aborted) throw signal.reason ?? new Error('aborted');
-    const columns = relationColumns(JSON.parse(answer), new Set(this.#options.enumerations ?? []));
+    const columns = typedColumns(JSON.parse(answer));
     if (useCache) this.#types.set(json, columns);
     return columns;
   }
@@ -658,7 +658,7 @@ export class LitePlanner implements Planner, TableModels, ModelWriter {
   }
 
   async #writeModel(action: 'createClass' | 'createAssociation' | 'createDataSpace', body: string): Promise<ModelAnswer> {
-    return JSON.parse(decode(await this.#call({ kind: 'modelAction', action, body }), body)) as ModelAnswer;
+    return JSON.parse(decode(await this.#call({ kind: ACTIONS[action], request: body }), body)) as ModelAnswer;
   }
 
   /** Where this planner's queries are planned from: its model, and the runtime they run on. */
@@ -668,14 +668,15 @@ export class LitePlanner implements Planner, TableModels, ModelWriter {
 
   /** A query as Pure text (the boundary's printLambda: lite's own printer; H2). */
   async compose(query: Lambda, style: PrintStyle = 'PRETTY'): Promise<string> {
-    return decode(await this.#call({ kind: 'printLambda', lambda: toJson(query), style }), query);
+    const printed = decode(await this.#call({ kind: 'queryPrint', request: `{"query":${toJson(query)},"style":"${style === 'PRETTY' ? 'pretty' : 'standard'}"}` }), query);
+    return (JSON.parse(printed) as { text: string }).text;
   }
 
   /** ONE #TS ITEM, read by core (A3 step 2, docs/TS_A3_ONE_READER_PLAN_2026_11_03.md: the one reader): a series'
    *  text as a formula box holds it, answered as its canonical text and its tree (core's, as data), or why it is no
    *  item, placed in the text. */
   async tsItem(text: string): Promise<TsItemAnswer> {
-    return JSON.parse(decode(await this.#call({ kind: 'tsItem', text }), text)) as TsItemAnswer;
+    return JSON.parse(decode(await this.#call({ kind: 'tsItem', request: JSON.stringify({ text }) }), text)) as TsItemAnswer;
   }
 
   /** SHOW #TS (D12): a #TS query over grids as the one statement a person would write -- core's printer
@@ -685,7 +686,7 @@ export class LitePlanner implements Planner, TableModels, ModelWriter {
     const over = await this.#over(query);
     if (over !== this) return over.tsStatement(query);
     await this.#handle().catch(() => undefined);
-    return JSON.parse(decode(await this.#call({ kind: 'jsonToTs', lambda: toJson(query), model: this.#options.model }), query)) as TsShown;
+    return JSON.parse(decode(await this.#call({ kind: 'tsStatement', request: `{"model":${JSON.stringify(this.#options.model)},"query":${toJson(query)}}` }), query)) as TsShown;
   }
 
   /** A query printed for a person to read (the Planner's `print`): PRETTY unless asked. */
@@ -714,7 +715,7 @@ export class LitePlanner implements Planner, TableModels, ModelWriter {
 
   /** A model's elements, as the compiler reads its text (the boundary's modelElements; H2): data spaces, enumerations. */
   async modelElements(text: string): Promise<unknown[]> {
-    const json = decode(await this.#call({ kind: 'modelElements', text, sourceInformation: false }), text);
+    const json = decode(await this.#call({ kind: 'modelElements', request: JSON.stringify({ model: text }) }), text);
     const elements = (JSON.parse(json) as { elements?: unknown }).elements;
     if (!Array.isArray(elements)) throw new PlanError('the model came back without elements', text);
     return elements;
@@ -722,7 +723,8 @@ export class LitePlanner implements Planner, TableModels, ModelWriter {
 
   /** What a person typed, as its lambda, numbers exact (the boundary's parseLambda; H2). */
   async parse(text: string): Promise<Lambda> {
-    return readLambda(decode(await this.#call({ kind: 'parseLambda', text, sourceInformation: false }), text));
+    // the answer read with its numbers exact (fromJson): the query's tree, as a person typed it
+    return readLambda((fromJson(decode(await this.#call({ kind: 'queryParse', request: JSON.stringify({ text }) }), text)) as { query: unknown }).query);
   }
 
   /**
@@ -921,13 +923,6 @@ function onWindows(): boolean {
   return proc?.platform === 'win32';
 }
 
-/**
- * A module answer: "OK\n<json>" or "ERR\n<kind>\n<message>" (the kind as the server names a refusal). Failure
- * travels in the return value rather than as a thrown Java exception so that the
- * answer does not depend on how TeaVM bridges throwables into JS -- see
- * wasm/README.md. A refusal keeps the compiler's own message: the same text the
- * HTTP planner surfaces, so the two transports are indistinguishable.
- */
 /** A planner's options without what its model said: another model brings its own. */
 function readsOf(o: LitePlannerOptions): LitePlannerOptions {
   const { mapping: _mapping, enumerations: _enumerations, ...rest } = o;
@@ -942,15 +937,43 @@ function readsHow(how: ModelOptions): Partial<LitePlannerOptions> {
   };
 }
 
+/** The model's actions, each its lite API v1 operation (docs/records/lite-api-v1-2026-11-17.md §2). */
+const ACTIONS = {
+  createClass: 'modelCreateClass',
+  createAssociation: 'modelCreateAssociation',
+  createDataSpace: 'modelCreateDataSpace',
+} as const;
+
+/** `query/type`'s answer (`{columns: [{name, type, enumeration?}]}`) as the columns DataCube reads: an enumeration's
+ *  column is read as its value's name, a String (relation-type.ts `PlanColumn.enumeration`). */
+function typedColumns(answer: unknown): PlanColumn[] {
+  const columns = (answer as { columns?: unknown }).columns;
+  if (!Array.isArray(columns)) throw new Error('the query type carries no columns');
+  return (columns as readonly { name?: unknown; type?: unknown; enumeration?: unknown }[]).map((c) => {
+    if (typeof c.name !== 'string' || typeof c.type !== 'string') throw new Error(`a typed column without a name and a type: ${JSON.stringify(c)}`);
+    return typeof c.enumeration === 'string' ? { name: c.name, type: 'String', enumeration: c.enumeration } : { name: c.name, type: pureType(c.type) };
+  });
+}
+
+/**
+ * A module answer: "OK\n<json>", or "ERR\n<refusal>", lite API v1's one error shape {kind, message, where?, raise?}
+ * (planner.Folded; docs/records/lite-api-v1-2026-11-17.md §3). Failure travels in the return value rather than as a
+ * thrown Java exception so that the answer does not depend on how TeaVM bridges throwables into JS -- see
+ * wasm/README.md. A refusal keeps the compiler's own message: the same words every binding says.
+ */
 function decode(answer: string, subject: Lambda | string): string {
   const nl = answer.indexOf('\n');
   const tag = nl < 0 ? answer : answer.slice(0, nl);
   const rest = nl < 0 ? '' : answer.slice(nl + 1);
   if (tag === 'OK') return rest;
   if (tag === 'ERR') {
-    const split = rest.indexOf('\n');
-    const message = split < 0 ? rest : rest.slice(split + 1);
-    throw new PlanError(message || 'the planner refused the query', subject);
+    let refusal: { message?: unknown };
+    try {
+      refusal = JSON.parse(rest) as { message?: unknown };
+    } catch {
+      throw new PlannerUnavailableError(`the planner module returned an unreadable refusal: ${JSON.stringify(rest.slice(0, 120))}`);
+    }
+    throw new PlanError(typeof refusal.message === 'string' && refusal.message !== '' ? refusal.message : 'the planner refused the query', subject);
   }
   throw new PlannerUnavailableError(
     `the planner module returned an unrecognised answer: ${JSON.stringify(answer.slice(0, 120))}`,

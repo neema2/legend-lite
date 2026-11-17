@@ -165,41 +165,6 @@ public final class Boundary {
                 com.legend.protocol.ProtocolReader.lambda(lambdaJson)).executionPlan(runtime)));
     }
 
-    // ---- lite's own grammar and typing (D-1, docs/COMPATIBILITY_END_TO_END_2026_11_12.md §5.1: the four routes the tab
-    // ---- and Python asked through legend-engine's pure/v1 become lite-owned operations; the census's A1, 2026-11-17).
-    // ---- Each answers what the pure/v1 route answers, from the same product code (BoundaryLiteExportsTest pins it).
-
-    /** A model's text as its protocol JSON ({@code PureModelContextData}), source information or not: what
-     *  {@code grammar/grammarToJson/model} answers. */
-    public static String modelElements(String text, boolean sourceInformation) {
-        return com.legend.door.Parse.documentJson(text, sourceInformation);
-    }
-
-    /** A lambda's text as its protocol JSON (text without a leading {@code |} wrapped in a parameterless lambda), source
-     *  information or not: what {@code grammar/grammarToJson/lambda} answers. */
-    public static String parseLambda(String text, boolean sourceInformation) {
-        return com.legend.door.Parse.lambdaJson(text, sourceInformation);
-    }
-
-    /** A lambda's protocol JSON as its Pure text, {@code PRETTY} or {@code STANDARD}: what
-     *  {@code grammar/jsonToGrammar/lambda} answers. Any other style is refused by name. */
-    public static String printLambda(String lambdaJson, String style) {
-        com.legend.protocol.PureComposer.Style s = switch (style) {
-            case "PRETTY" -> com.legend.protocol.PureComposer.Style.PRETTY;
-            case "STANDARD" -> com.legend.protocol.PureComposer.Style.STANDARD;
-            default -> throw new IllegalArgumentException("a lambda prints PRETTY or STANDARD, not '" + style + "'");
-        };
-        return com.legend.protocol.PureComposer.lambda(lambdaJson, s);
-    }
-
-    /** A lambda's protocol JSON typed, compile-only, over a model given as text (this host's held models, compiled once
-     *  per text): what {@code compilation/lambdaRelationType} answers. */
-    public static String lambdaRelationType(String model, String lambdaJson) {
-        return MODELS.withText(model, ctx -> com.legend.json.Json.toCompact(
-                com.legend.plan.RelationTypeJson.of(com.legend.Compiler.query(ctx,
-                        com.legend.protocol.ProtocolReader.lambda(lambdaJson)).resultType())));
-    }
-
     // ---- LITE API V1: the browser binding's operations (docs/records/lite-api-v1-2026-11-17.md §2, the user's go of
     // ---- 2026-11-17): each takes its operation's request JSON and answers its JSON, the same JSON the server's routes
     // ---- take and answer, so the three bindings are one contract (the conformance suite, lite-api-cases.json, holds them
@@ -294,6 +259,11 @@ public final class Boundary {
         return com.legend.json.Json.toCompact(com.legend.server.ModelChanges.createDataSpace(com.legend.json.Json.parseObject(request)));
     }
 
+    /** {@code ts/item {text}}: the #TS item's text and tree, or why it is no item. */
+    public static String tsItem(String request) {
+        return com.legend.server.LiteV1Api.tsItemOf(apiRequest(request, "ts/item", "text").getString("text"));
+    }
+
     /** {@code ts/statement {model, query}}: the #TS query as its one statement, or why it has none. */
     public static String tsStatement(String request) {
         com.legend.json.Json.Obj in = apiRequest(request, "ts/statement", "model", "query");
@@ -331,48 +301,6 @@ public final class Boundary {
     /** A malformed request to {@code op}, refused by name. */
     private static IllegalArgumentException requestRefused(String op, String why) {
         return new IllegalArgumentException(op + ": " + why);
-    }
-
-    // ---- lite's own routes the tab asked through pure/v1's router (the edge audit's H2, 2026-11-17; the orchestrator's
-    // ---- Q2: three typed exports, each the product route's own Java; BoundaryLiteExportsTest pins each to its route)
-
-    /** One of the model's actions -- {@code createClass}, {@code createAssociation} or {@code createDataSpace} -- over its
-     *  request ({@code body}, the route's JSON): what {@code /api/lite/v1/model/<action>} answers on 200 (LiteV1Api's
-     *  {@code ModelChanges}). Any other action is refused by name. */
-    public static String modelAction(String action, String body) {
-        java.util.function.Function<com.legend.json.Json.Obj, java.util.Map<String, Object>> make = switch (action) {
-            case "createClass" -> com.legend.server.ModelChanges::createClass;
-            case "createAssociation" -> com.legend.server.ModelChanges::createAssociation;
-            case "createDataSpace" -> com.legend.server.ModelChanges::createDataSpace;
-            default -> throw new IllegalArgumentException(
-                    "a model action is createClass, createAssociation or createDataSpace, not '" + action + "'");
-        };
-        return com.legend.json.Json.toCompact(make.apply(com.legend.server.LiteV1Api.request(body)));
-    }
-
-    /** One #TS item's text read by core's parser: what {@code /api/lite/v1/grammar/tsItem} answers on 200 (its text and
-     *  tree, or why it is no item). */
-    public static String tsItem(String text) {
-        return com.legend.server.LiteV1Api.tsItemOf(text);
-    }
-
-    /** A #TS query over grids (its lambda's protocol JSON) as the one statement a person would write, over a model given
-     *  as text (this host's held models, compiled once per text): what {@code /api/lite/v1/grammar/jsonToTs/lambda}
-     *  answers on 200. */
-    public static String jsonToTs(String lambdaJson, String model) {
-        return MODELS.withText(model, ctx -> com.legend.server.LiteV1Api.tsStatement(ctx,
-                com.legend.protocol.ProtocolReader.lambda(lambdaJson)));
-    }
-
-    /** A model's every compile error, its text given ({@code com.legend.Compiler.compileErrors}: the first element error
-     *  alone, else every body's), as {@code {"errors":[{"message": ...}, ...]}}, the list empty when it compiles: what
-     *  {@code /api/lite/v1/compilation/compile} answers on 200 (Studio's and Query's in-tab compile; H3, 2026-11-17). */
-    public static String compileErrors(String model) {
-        java.util.List<java.util.Map<String, Object>> errors = new java.util.ArrayList<>();
-        for (String message : com.legend.Compiler.compileErrors(model)) {
-            errors.add(java.util.Map.of("message", message));
-        }
-        return com.legend.json.Json.toCompact(java.util.Map.of("errors", errors));
     }
 
     /** A lambda's protocol JSON typed, compile-only, over a model held: upstream's {@code lambdaRelationType} answer. */
