@@ -397,9 +397,17 @@ class TaggedListTest {
                     + "'select 9 as Z', $c);\n"
                     + "$rs.rows->filter(r | [1, 'x'] == $r.values)->size()"
                     + " + $rs2.rows->map(x | $x.Z)->toOne()->cast(@Integer);"));
-            // a raw grid's text is refused by name: its header is written from columns that exist only when it runs
+            // a relation's text is the compatibility edge's: the product refuses any relation's toString at lowering,
+            // naming the call and its result writers (B17, 2026-11-17, the orchestrator's ruling of the moved test)
             Exception text = assertThrows(Exception.class, () -> program(c, "$rs->toString();"));
-            assertTrue(String.valueOf(text.getMessage()).contains("toString over a raw grid"), text.toString());
+            assertTrue(String.valueOf(text.getMessage()).contains("toString of a relation is legend-pure's text")
+                    && text.getMessage().contains("result writers"), text.toString());
+            // and on the edge a raw grid's text is refused by name: its header is written from columns that exist
+            // only when it runs
+            Exception grid = assertThrows(Exception.class, () -> Program.last(StorelessRuntime.with(MODEL,
+                    Databases.PLATFORM), CONN_LET + "$rs->toString();}", StorelessRuntime.RUNTIME, c,
+                    Program.upstream()));
+            assertTrue(String.valueOf(grid.getMessage()).contains("toString over a raw grid"), grid.toString());
         }
     }
 }
