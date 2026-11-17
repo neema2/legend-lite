@@ -209,6 +209,7 @@ Database types planned with it: H2.
 | `FLOAT_TO_TEXT` | emulated | `floatToText` |  | 0 |
 | `DATETIME_TO_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `DATETIME_PRINT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
+| `DATETIME_CANON_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `CELL_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `VARIANT_ELEMENTS` | refused | `variant navigation reached a dialect without JSON support` | `via AnsiSqlRenderer.variantElements` | 2 |
 | `VARIANT_GET` | emulated | `variantGet` |  | 14 |
@@ -404,6 +405,7 @@ Database types planned with it: Postgres.
 | `FLOAT_TO_TEXT` | emulated | `floatToText` |  | 0 |
 | `DATETIME_TO_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `DATETIME_PRINT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
+| `DATETIME_CANON_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `CELL_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `VARIANT_ELEMENTS` | emulated | `by its operands: composed / composed` |  | 2 |
 | `VARIANT_GET` | emulated | `variantGet` |  | 14 |
@@ -599,6 +601,7 @@ Database types planned with it: Snowflake.
 | `FLOAT_TO_TEXT` | emulated | `floatToText` |  | 0 |
 | `DATETIME_TO_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `DATETIME_PRINT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
+| `DATETIME_CANON_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `CELL_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `VARIANT_ELEMENTS` | emulated | `variantElements` |  | 4 |
 | `VARIANT_GET` | emulated | `variantGet` |  | 15 |
@@ -794,6 +797,7 @@ Database types planned with it: Trino.
 | `FLOAT_TO_TEXT` | emulated | `floatToText` |  | 0 |
 | `DATETIME_TO_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `DATETIME_PRINT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
+| `DATETIME_CANON_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `CELL_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `VARIANT_ELEMENTS` | emulated | `variantElements` |  | 4 |
 | `VARIANT_GET` | emulated | `variantGet` |  | 15 |
@@ -989,6 +993,7 @@ Database types planned with it: BigQuery.
 | `FLOAT_TO_TEXT` | emulated | `floatToText` |  | 0 |
 | `DATETIME_TO_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `DATETIME_PRINT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
+| `DATETIME_CANON_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `CELL_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `VARIANT_ELEMENTS` | emulated | `variantElements` |  | 2 |
 | `VARIANT_GET` | emulated | `variantGet` |  | 14 |
@@ -1184,6 +1189,7 @@ Database types planned with it: Databricks.
 | `FLOAT_TO_TEXT` | emulated | `floatToText` |  | 0 |
 | `DATETIME_TO_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `DATETIME_PRINT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
+| `DATETIME_CANON_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `CELL_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `VARIANT_ELEMENTS` | emulated | `variantElements` |  | 4 |
 | `VARIANT_GET` | emulated | `variantGet` |  | 15 |
@@ -1379,6 +1385,7 @@ Database types planned with it: DuckDB.
 | `FLOAT_TO_TEXT` | emulated | `floatToText` |  | 0 |
 | `DATETIME_TO_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `DATETIME_PRINT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
+| `DATETIME_CANON_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `CELL_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `VARIANT_ELEMENTS` | emulated | `variantElements` |  | 4 |
 | `VARIANT_GET` | emulated | `variantGet` |  | 15 |
@@ -1574,6 +1581,7 @@ Database types planned with it: ClickHouse.
 | `FLOAT_TO_TEXT` | emulated | `floatToText` |  | 0 |
 | `DATETIME_TO_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `DATETIME_PRINT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
+| `DATETIME_CANON_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `CELL_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `VARIANT_ELEMENTS` | emulated | `variantElements` |  | 4 |
 | `VARIANT_GET` | emulated | `variantGet` |  | 15 |
@@ -1769,6 +1777,7 @@ Database types planned with it: SQLite.
 | `FLOAT_TO_TEXT` | emulated | `floatToText` |  | 0 |
 | `DATETIME_TO_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `DATETIME_PRINT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
+| `DATETIME_CANON_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `CELL_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `VARIANT_ELEMENTS` | emulated | `variantElements` |  | 2 |
 | `VARIANT_GET` | emulated | `variantGet` |  | 14 |
@@ -1964,6 +1973,7 @@ Database types planned with it: MariaDB.
 | `FLOAT_TO_TEXT` | emulated | `floatToText` |  | 0 |
 | `DATETIME_TO_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `DATETIME_PRINT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
+| `DATETIME_CANON_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `CELL_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `VARIANT_ELEMENTS` | emulated | `variantElements` |  | 2 |
 | `VARIANT_GET` | emulated | `variantGet` |  | 14 |
@@ -2159,6 +2169,7 @@ Database types planned with it: MySQL.
 | `FLOAT_TO_TEXT` | emulated | `floatToText` | `as MariaDb` | 0 |
 | `DATETIME_TO_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` | `as MariaDb` | 0 |
 | `DATETIME_PRINT` | not_here | `renderer bug: is expanded before any dialect reads it` | `as MariaDb` | 0 |
+| `DATETIME_CANON_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` | `as MariaDb` | 0 |
 | `CELL_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` | `as MariaDb` | 0 |
 | `VARIANT_ELEMENTS` | emulated | `variantElements` | `as MariaDb` | 2 |
 | `VARIANT_GET` | emulated | `variantGet` | `as MariaDb` | 14 |
@@ -2354,6 +2365,7 @@ Database types planned with it: MongoDB.
 | `FLOAT_TO_TEXT` | emulated | `floatToText` |  | 0 |
 | `DATETIME_TO_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `DATETIME_PRINT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
+| `DATETIME_CANON_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `CELL_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | 0 |
 | `VARIANT_ELEMENTS` | emulated | `variantElements` |  | 0 |
 | `VARIANT_GET` | emulated | `variantGet` |  | 0 |
@@ -2549,6 +2561,7 @@ Database types planned with it: no database type's own (it extends `AnsiSqlRende
 | `FLOAT_TO_TEXT` | emulated | `floatToText` |  | — |
 | `DATETIME_TO_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | — |
 | `DATETIME_PRINT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | — |
+| `DATETIME_CANON_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | — |
 | `CELL_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` |  | — |
 | `VARIANT_ELEMENTS` | refused | `variant navigation reached a dialect without JSON support` | `via AnsiSqlRenderer.variantElements` | — |
 | `VARIANT_GET` | refused | `variant navigation reached a dialect without JSON support` | `via AnsiSqlRenderer.variantGet` | — |
@@ -2744,6 +2757,7 @@ Database types planned with it: no database type's own (it extends `EngineStyleH
 | `FLOAT_TO_TEXT` | emulated | `floatToText` | `as EngineStyleH2` | — |
 | `DATETIME_TO_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` | `as EngineStyleH2` | — |
 | `DATETIME_PRINT` | not_here | `renderer bug: is expanded before any dialect reads it` | `as EngineStyleH2` | — |
+| `DATETIME_CANON_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` | `as EngineStyleH2` | — |
 | `CELL_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` | `as EngineStyleH2` | — |
 | `VARIANT_ELEMENTS` | refused | `variant navigation reached a dialect without JSON support` | `as EngineStyleH2, via AnsiSqlRenderer.variantElements` | — |
 | `VARIANT_GET` | refused | `variant navigation reached a dialect without JSON support` | `as EngineStyleH2, via AnsiSqlRenderer.variantGet` | — |
@@ -2939,6 +2953,7 @@ Database types planned with it: no database type's own (it extends `EngineStyleD
 | `FLOAT_TO_TEXT` | emulated | `floatToText` | `as EngineStyleDB2, as EngineStyleH2` | — |
 | `DATETIME_TO_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` | `as EngineStyleDB2, as EngineStyleH2` | — |
 | `DATETIME_PRINT` | not_here | `renderer bug: is expanded before any dialect reads it` | `as EngineStyleDB2, as EngineStyleH2` | — |
+| `DATETIME_CANON_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` | `as EngineStyleDB2, as EngineStyleH2` | — |
 | `CELL_TEXT` | not_here | `renderer bug: is expanded before any dialect reads it` | `as EngineStyleDB2, as EngineStyleH2` | — |
 | `VARIANT_ELEMENTS` | refused | `variant navigation reached a dialect without JSON support` | `as EngineStyleDB2, as EngineStyleH2, via AnsiSqlRenderer.variantElements` | — |
 | `VARIANT_GET` | refused | `variant navigation reached a dialect without JSON support` | `as EngineStyleDB2, as EngineStyleH2, via AnsiSqlRenderer.variantGet` | — |

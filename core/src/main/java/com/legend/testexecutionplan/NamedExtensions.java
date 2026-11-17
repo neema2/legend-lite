@@ -85,8 +85,8 @@ public final class NamedExtensions {
     /** The appeal numbers a judgment names: an engine text's, through the wrappers and parts that hold one. */
     private static List<Integer> numbers(HostJudgment j, List<Integer> out) {
         switch (j) {
-            case HostJudgment.EngineText e -> {
-                // an engine text compared under lite's own rules names no appeal (nothing hears one)
+            case HostJudgment.EdgeJudged e -> {
+                // an edge-judged comparison under lite's own rules names no appeal (nothing hears one)
                 if (e.appeal() != RootLoop.NO_APPEAL) {
                     out.add(e.appeal());
                 }

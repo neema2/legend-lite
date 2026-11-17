@@ -165,7 +165,10 @@ class CompatSpellingGuardTest {
             // caller) deleted. 6 -> 3 (2026-11-17, B17's forwarders: dateTimeTextTds and dateTimeTextOfText, which only a
             // relation's text wrote, moved to edge.RelationTextLowering). What stays: the judges' canon (temporalCanon x2,
             // dateTimeLiteralAt: census line C5, E-Java's)
-            "lowering/LiteralSpelling.java | +0000 | 3 | D1.9",
+            // 3 -> 1, D1.9 -> STAYS (2026-11-17, census C5's step C, E-SQL's): the judges' canon is lite's spelling
+            // (temporalCanon, dateTimeLiteralAt: Z, built from product nodes); what stays reads legend-pure's +0000 as
+            // INPUT (a wire text already suffixed is normalized before the canon), no spelling written
+            "lowering/LiteralSpelling.java | +0000 | 1 | STAYS",
             // FLOAT_PRINT's rows: GONE 2026-11-17 (census B9, the orchestrator's ruling): measured equal to lite's writers'
             // text inside its windows, the node is lite's canonical Float text, FLOAT_SHORTEST_TEXT, a product node in
             // every dialect and the judges' message text alike; the symbol stays scanned so the old name cannot return
@@ -259,6 +262,8 @@ class CompatSpellingGuardTest {
             // B9 -> C5 (E-P5) 2026-11-17 (census B9, the orchestrator's ruling (a)): a message's DateTime text is the
             // two-form hook lowering.DateTimeTexts (lite's DATETIME_TO_TEXT in the product); the composition stays for
             // the judges' canon alone, its one emitter LiteralSpelling.temporalCanon, closed by C5's step C
+            // JUDGE, now B12's (2026-11-17, census C5's step C): the judges' canon no longer emits the node; its one
+            // product emitter left is format's %r (Scalars), refused in the product by B12's 2b (F's)
             "sql/dialect/DateTimePrintText.java | +0000 | 2 | JUDGE",
             // RULED by the user, 2026-11-16, the edge program §10 item 9 ("I agree with all"): it stays in the product
             // (the P2 checkpoint audit's A-M1; W6's change, 4fc24e0a3, reverted the same day). The product's H2 quotes legend-engine's word list as written, upper-casing the words its session
@@ -277,24 +282,20 @@ class CompatSpellingGuardTest {
             // the edge's routes (edge/TestDataRoutes), which hand it to seedJson; the generator writes no zone text
             // testdatagen/TestDataPlanner.java | COMPAT: GONE 2026-11-17 (Phase 6's B13): the printing is the timestamp text
             // itself; upstream's is the UpstreamPlans facet's
-            "testexec/AssertRuns.java | EngineText | 1 | D1.7",
+            // (the EngineText rows of AssertRuns, HostJudgments, HostJson, HostJudgment, NamedExtensions, Verdicts and
+            // AssertVerdicts: gone 2026-11-17, census C3 -- the engine-text comparison the edge's own record
+            // (edge/EngineTextJudgment), held by the product's neutral HostJudgment.EdgeJudged)
             "testexec/CanonicalForm.java | +0000 | 1 | JUDGE",
-            "testexec/HostJudgments.java | EngineText | 1 | D1.7",
             // testexec/SideShapes.java | Cannot cast a collection of size | GONE 2026-11-17 (C5's step E, E-P5): a side's
             // and the body's answer's size refusal worded at planning (SideShape.sizeWords, TestPlan.answerSizeWords)
             "testexec/SideShapes.java | TDS_NULL_CELL | 1 | JUDGE",
             // (testexec/SqlTextRuns.java's rows went with it to the edge: 2026-11-17, census C2: the referee and the appeals moved to the edge (the orchestrator's P1+P2))
-            "testexecutionplan/HostJson.java | EngineText | 4 | D1.7",
-            "testexecutionplan/HostJudgment.java | EngineText | 2 | D1.7",
             // (PlannedAppeals' generic half renamed NamedExtensions, the same pattern case: 2026-11-17, census C2: the referee and the appeals moved to the edge (the orchestrator's P1+P2))
-            "testexecutionplan/NamedExtensions.java | EngineText | 1 | D1.7",
-            "testexecutionplan/Verdicts.java | EngineText | 1 | D1.7",
             // 2026-11-16 (W8 of docs/records/d-plan-2026-11-16.md): legend-pure's toRepresentation of a date, the judges'
             // own printer (Verdicts.pureText), which PureDateLiteral's toString was until then; with the judges' print
             // forms at W10
             "testexecutionplan/Verdicts.java | +0000 | 1 | D1.9",
             // (testplan/AgreementAsserts.java | EngineText went: 2026-11-17, (b) of the orchestrator's order: the fused agreement path deleted)
-            "testplan/AssertVerdicts.java | EngineText | 3 | D1.7",
             // (BodyDriver's EngineText row gone, 2026-11-16, W9's judge half: the style's engineTestText,
             // engineTestPlanText and engineTestConnection name the engine test database, the planner none)
             // (SeedSqlForms' EngineText row gone, 2026-11-16, W9's judge half: the style's engineTestText)
@@ -324,14 +325,9 @@ class CompatSpellingGuardTest {
             // edge.RelationTextLowering)
             // the judges' compatibility mode's branches (E-Java, census C1)
             "testexec/Equality.java | COMPILED_PURE_COMPAT | 1 | D1.9",
-            "testexec/HostJudgments.java | COMPILED_PURE_COMPAT | 1 | D1.9",
-            "testexecutionplan/JudgeJson.java | COMPILED_PURE_COMPAT | 1 | D1.9",
-            "testexecutionplan/TestPlan.java | COMPILED_PURE_COMPAT | 3 | D1.9",
+            "testexecutionplan/TestPlan.java | COMPILED_PURE_COMPAT | 1 | D1.9",   // 3 -> 1 (2026-11-17, C1 step 1: each judging fact a named accessor over one field)
             "testexecutionplan/TestPlanJson.java | COMPILED_PURE_COMPAT | 2 | D1.9",
-            "testplan/AssertVerdicts.java | COMPILED_PURE_COMPAT | 1 | D1.9",
-            "testplan/DatabaseJudge.java | COMPILED_PURE_COMPAT | 2 | D1.9",
-            "testplan/PlanningOptions.java | COMPILED_PURE_COMPAT | 2 | D1.9",
-            "testplan/TestPlanner.java | COMPILED_PURE_COMPAT | 1 | D1.9"
+            "testplan/PlanningOptions.java | COMPILED_PURE_COMPAT | 1 | D1.9"   // 2 -> 1 (2026-11-17, C1 step 1: the edge check asks edgeAppeals())
             // retagged 2026-11-15 (D1.2's end): Java's spelling of a date value. D1.4 -> D1.8 (2026-11-16, W4): lite's
             // writers no longer read it (CellText's product half prints S312's text); what remains is legend-engine's
             // JSON of a date (toEngineJson, read by CellText's engine half, which moves with PureV1Writer at W8) and

@@ -1219,7 +1219,15 @@ final class ArchitectureTest {
             // is the edge's (edge.SqlTextVerdicts), and every read it makes of the test planner, the planner or the
             // lowering is the facade's (testplan.EngineTextPlanning), each of its members admitted by this one row --
             // S2b's EngineTestText#arm allowance gone with the arm's move (docs/records/e-java-w9-judge-half-2026-11-16.md)
-            "testplan.EngineTextPlanning#*", "com.legend.edge.SqlTextVerdicts",
+            // C4 (2026-11-17, the orchestrator's ruling (b)): the hook's routing gates moved to the edge's
+            // implementation, EdgeEngineTestText, which reads the test planner through the same facade
+            "testplan.EngineTextPlanning#*", "com.legend.edge.SqlTextVerdicts com.legend.edge.EdgeEngineTestText",
+            // census C3 (2026-11-17, the orchestrator's ruling): how the plan holds an edge-judged comparison's two
+            // texts, the engine-text hook's answer (EngineTestText.textsHeld) -- an enum of four words, data
+            "testplan.TextsHeld#GOLDEN_READ", "com.legend.edge.EdgeEngineTestText",
+            "testplan.TextsHeld#OURS_READ", "com.legend.edge.EdgeEngineTestText",
+            "testplan.TextsHeld#CONSTANTS_EQUAL", "com.legend.edge.EdgeEngineTestText",
+            "testplan.TextsHeld#CONSTANTS_DIFFER", "com.legend.edge.EdgeEngineTestText",
             // the closed facet list, read by the edge's style before it answers a kind (the P2 checkpoint audit's S2,
             // 2026-11-16): data, a list of classes
             "testplan.PlanStyleFacets#KINDS", "com.legend.edge.PureText",

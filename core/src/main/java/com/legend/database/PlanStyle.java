@@ -86,6 +86,12 @@ public interface PlanStyle {
      *  never a default. The product answers none: each is the compatibility edge's, refused by name. */
     <F> F facet(Class<F> kind);
 
+    /** Whether this style judges an assert over legend-engine's text (census C4, the orchestrator's ruling of
+     *  2026-11-17: a capability, types only): the edge's does, through its {@code EngineTestText} facet; the
+     *  product's does not, so such an assert takes the ordinary path and its upstream text native is refused by name
+     *  at lowering. */
+    boolean judgesEngineText();
+
     /** {@link #facet(Class)}, asked where the call that needs it is known (the separation census's B17, 2026-11-17: a
      *  lowering facet, {@code lowering.RelationTexts}): the product's style throws {@code refusal}'s exception -- the
      *  call's own sentence, a user can act on, and its phase -- the edge's answers as {@link #facet(Class)} does. */
@@ -119,6 +125,11 @@ public interface PlanStyle {
         @Override
         public @com.legend.base.Nullable String siteWords(com.legend.sql.dialect.RaiseSite site) {
             return null;
+        }
+
+        @Override
+        public boolean judgesEngineText() {
+            return false;
         }
 
         @Override

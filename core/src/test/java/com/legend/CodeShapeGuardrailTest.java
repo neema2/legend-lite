@@ -320,9 +320,10 @@ class CodeShapeGuardrailTest {
             // the shared minimal JSON reader's walk position — a parser
             // cursor, same family as Lexer.pos
             "Json.i",
-            // 2026-11-07, register S144: json-simple 1.1.1's grammar (JudgeJson, the compatibility rules' JSON) -- a
-            // parser cursor and the token it last read (its kind and value), one instance per text, never shared
-            "JudgeJson.at", "JudgeJson.kind", "JudgeJson.value",
+            // 2026-11-07, register S144: json-simple 1.1.1's grammar (the compatibility rules' JSON; moved to the edge
+            // as JsonSimpleGrammar's parser, census C1, 2026-11-17) -- a parser cursor and the token it last read (its
+            // kind and value), one instance per text, never shared
+            "JsonSimpleGrammar.at", "JsonSimpleGrammar.kind", "JsonSimpleGrammar.value",
             // ';'-ownership context for unbraced lambda code blocks: where the
             // enclosing sequence's statement that owes the next ';' began (or
             // -1) -- a cursor-adjacent mark, saved and restored around each
