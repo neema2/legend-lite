@@ -615,7 +615,7 @@ class GeneratedTestDataProgramTest {
         };
         try {
             TestExecution.runProgram(typed(ctx, body), "t::RT", new com.legend.exec.SessionSource.Fresh(seeded),
-                    listener, null, ExecuteOptions.NONE.withJudgeMode(judge).withStyle(style));
+                    listener, com.legend.testexec.NoEdgeRun.NONE, ExecuteOptions.NONE.withJudgeMode(judge).withStyle(style));
         } catch (com.legend.error.NotImplementedException e) {
             verdicts.add("NotImplementedException: " + e.getMessage());
         } catch (AssertionError | RuntimeException e) {

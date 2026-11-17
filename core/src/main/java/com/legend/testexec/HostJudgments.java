@@ -360,7 +360,7 @@ final class HostJudgments {
             case HostJudgment.Json js -> jsonOf(js, sides, rules);
             case HostJudgment.Rendered r -> renderedOf(r, sides, rules);
             case HostJudgment.Raise r -> throw com.legend.testexecutionplan.Failures.raised(r.failure());
-            case HostJudgment.EngineText e -> com.legend.testexec.SqlTextRuns.judge(e, sides, rules, run);
+            case HostJudgment.EngineText e -> run.engineText(e, sides, rules);
             case HostJudgment.AssertError a -> com.legend.testexec.AssertErrorRuns.judge(a, () -> sides, rules, run);
             case HostJudgment.Messaged m -> messagedOf(m, sides, rules, message, run);
             case HostJudgment.Negated n -> negatedOf(n, sides, rules, run);

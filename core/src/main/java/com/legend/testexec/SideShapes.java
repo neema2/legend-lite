@@ -13,7 +13,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-final class SideShapes {
+public final class SideShapes {
 
     private SideShapes() {
     }
@@ -167,7 +167,7 @@ final class SideShapes {
     /** {@code rows}, read for a side the plan shapes as {@code s}: the legacy executor's shaping rules, read from the
      *  plan's facts alone (the plan-as-data design's step 4, 2026-11-08; the second copy over the planner's side,
      *  shape(PlannedSide), deleted by the slice 2 audit, 2026-11-08 -- a planned constant decodes as it did). */
-    static TypedSide shape(com.legend.testexecutionplan.SideShape s, PlanRunner.Rows rows) {
+    public static TypedSide shape(com.legend.testexecutionplan.SideShape s, PlanRunner.Rows rows) {
         return switch (s.kind()) {
             case CONSTANT -> {
                 List<Object> values = new ArrayList<>(rows.rows().size());

@@ -9,7 +9,6 @@ import com.legend.TestExecution;
 import com.legend.ExecuteOptions;
 import com.legend.compiler.element.ModelContext;
 import com.legend.testexecutionplan.AssertListener;
-import com.legend.testexec.SqlReplayReferee;
 import com.legend.model.ImportScope;
 import com.legend.protocol.spec.AppliedFunction;
 import com.legend.protocol.spec.CBoolean;
@@ -298,7 +297,7 @@ public final class PureTestRunner implements AutoCloseable {
         observer.privateWorkspace(!shared);
         com.legend.exec.Sessions.Session conn = shared ? java.util.Objects.requireNonNull(sessionConn, "session") : sessions.open();
         ExecuteOptions options = observer.options(t, shared).judgedAs(judging);
-        SqlReplayReferee referee = observer.referee(t);
+        com.legend.testexec.EdgeRun referee = observer.edgeRun(t);
         try {
             // a setup that fails FAILS every test depending on it: the engine's
             // suite scores each BeforePackage function as a test case of its own,
@@ -325,7 +324,7 @@ public final class PureTestRunner implements AutoCloseable {
 
     private Result judge(PureTests.TestCase t, ValueSpecification resolved,
             com.legend.testexecutionplan.BodyFacts facts,
-            com.legend.exec.Sessions.Session conn, ExecuteOptions options, @com.legend.base.Nullable SqlReplayReferee referee) {
+            com.legend.exec.Sessions.Session conn, ExecuteOptions options, com.legend.testexec.EdgeRun referee) {
         boolean effectful = facts.effects();
         List<Verdict> verdicts = new ArrayList<>();
         List<String> failedAsserts = new ArrayList<>();

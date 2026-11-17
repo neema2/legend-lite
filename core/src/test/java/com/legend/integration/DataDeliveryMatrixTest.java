@@ -621,7 +621,7 @@ class DataDeliveryMatrixTest {
             }
         };
         TestExecution.runProgram(Compiler.queryResolved(ctx, resolved), data.runtime(),
-                SessionSource.given(TestSessions.over(c)), listener, null, options, new Output.Rows(collector));
+                SessionSource.given(TestSessions.over(c)), listener, com.legend.testexec.NoEdgeRun.NONE, options, new Output.Rows(collector));
         if (verdicts[0] > 0) {
             // a body that asserts is judged by its verdicts: its rows are the data's where every assert passes
             if (!failed.isEmpty()) {
@@ -702,7 +702,7 @@ class DataDeliveryMatrixTest {
                 Files.writeString(changing.resolve("people.csv"), "ID,NAME\n1,z\n", StandardCharsets.UTF_8);
                 try (Connection c = session(db)) {
                     Collector collector = new Collector();
-                    TestExecution.runBody(plan, TestSessions.over(c), null, null, options, new Output.Rows(collector));
+                    TestExecution.runBody(plan, TestSessions.over(c), null, com.legend.testexec.NoEdgeRun.NONE, options, new Output.Rows(collector));
                     return strings(collector);
                 }
             });

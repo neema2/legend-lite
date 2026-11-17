@@ -1,7 +1,7 @@
 // Copyright 2026 Legend Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-package com.legend.testexec;
+package com.legend.edge;
 
 
 import com.legend.base.Nullable;
@@ -32,7 +32,7 @@ import java.util.function.Function;
  * outcome stands. A body measured on 2026-11-07 (both DuckDB corpus judges): 1,010 bodies appeal, 48 of them after a
  * write of their own and none before a later write, so the rows read after the run are the rows at the assert.
  */
-final class Appeals {
+final class Appeals implements com.legend.testexec.EdgeHearing {
 
     /** An appeal heard at its assert, as the run records it (the plan-as-data design's step 8b, 2026-11-08: data, the
      *  run's output): the appeal's number in the plan, the two texts as read and their equality; {@code at} the kept
@@ -71,15 +71,45 @@ final class Appeals {
      *  2026-11-12). */
     private final java.util.UUID execution;
 
-    Appeals(@Nullable AssertListener listener, java.util.UUID execution) {
+    /** The plan's appeals by number (its own data, step 8b) and the referee that replays a golden, or none. */
+    private final Map<Integer, com.legend.testexecutionplan.Appeal> planned;
+    private final @Nullable SqlReplayReferee referee;
+
+    /** {@code plan}'s appeals heard for one run, its reports to {@code listener}, decided by {@code referee}. A plan
+     *  naming an appeal it does not carry is refused before anything runs (PlannedAppeals.requireCarried). */
+    Appeals(TestPlan plan, @Nullable AssertListener listener, java.util.UUID execution,
+            @Nullable SqlReplayReferee referee) {
+        com.legend.testexecutionplan.PlannedAppeals.requireCarried(plan);
+        this.planned = com.legend.testexecutionplan.PlannedAppeals.byNumber(plan);
+        this.referee = referee;
         this.execution = java.util.Objects.requireNonNull(execution, "execution");
         this.listener = listener;
         this.keeping = listener == null ? null : new Keeping(listener);
     }
 
     /** The listener the body's judges tell: the caller's, its reports kept back from the first held appeal on. */
-    @Nullable AssertListener listener() {
+    @Override
+    public @Nullable AssertListener listener() {
         return keeping;
+    }
+
+    @Override
+    public TypedSide engineText(com.legend.testexecutionplan.HostJudgment.EngineText e, List<TypedSide> sides,
+            TestPlan.JudgingRules rules, boolean messaged) {
+        return SqlTextRuns.judge(e, sides, rules, this, messaged);
+    }
+
+    @Override
+    public TypedSide rowAppealed(int number, List<Object> row, boolean messaged) {
+        return SqlTextRuns.rowAppealed(com.legend.testexecutionplan.PlannedAppeals.of(planned, number), row, this,
+                messaged);
+    }
+
+    /** How each held appeal is decided after the run: from the plan's data by its number, by the referee. */
+    private Decider decider() {
+        return (n, golden, ours, textEqual, l, reader, sessions) -> SqlTextRuns.decideAppeal(
+                com.legend.testexecutionplan.PlannedAppeals.of(planned, n), golden, ours, textEqual, referee, l,
+                reader, sessions);
     }
 
     /** The appeal numbered {@code number} heard over the failed text of {@code name}: recorded for after the run; the
@@ -108,7 +138,8 @@ final class Appeals {
 
     /** A step of the body that writes is about to run ({@code PlanRunner.ProgramSink#writing}), told to the body's open
      *  appeals (each body's run holds its own record of them, slice 5). */
-    void writing() {
+    @Override
+    public void writing() {
         wrote = true;
         if (!held.isEmpty()) {
             wroteAfterHold = true;
@@ -119,9 +150,10 @@ final class Appeals {
      *  the body raises -- the first held appeal's failure, which precedes the run's (raised here, the run's failure
      *  suppressed in it), else the run's own, returned for the caller to raise. Where the failed run wrote, its rollback has undone what the appeals would read: they
      *  are refused by name (the milestone audit's 2, 2026-11-07). */
-    RuntimeException afterFailure(RuntimeException runFailed, Sessions.Session session,
+    @Override
+    public RuntimeException afterFailure(RuntimeException runFailed, Sessions.Session session,
             com.legend.exec.SystemDatabase.Leases systemSessions,
-            Function<ExecutionPlan.Target, Sessions.Session> sessions, Decider decider) {
+            Function<ExecutionPlan.Target, Sessions.Session> sessions) {
         if (held.isEmpty()) {
             deciding = true;
             return runFailed;
@@ -135,7 +167,7 @@ final class Appeals {
             return refused;
         }
         try {
-            decide(session, systemSessions, sessions, decider);
+            decide(session, systemSessions, sessions);
         } catch (com.legend.error.AssertFailed | com.legend.error.DataError appealFailed) {
             // the first held appeal's failure precedes the run's: raised here, the run's suppressed in it
             appealFailed.addSuppressed(runFailed);
@@ -158,9 +190,11 @@ final class Appeals {
      *  fails raises its failure; else the kept reports are told and the run's own outcome stands. An appeal held
      *  before a later write of the body's is refused by name: the rows after the run are not the rows at its assert
      *  (the milestone audit's 2, 2026-11-07; the corpus measured none). */
-    void decide(Sessions.Session session,
+    @Override
+    public void decide(Sessions.Session session,
             com.legend.exec.SystemDatabase.Leases systemSessions,
-            Function<ExecutionPlan.Target, Sessions.Session> sessions, Decider decider) {
+            Function<ExecutionPlan.Target, Sessions.Session> sessions) {
+        Decider decider = decider();
         deciding = true;
         if (held.isEmpty()) {
             return;
@@ -232,7 +266,7 @@ final class Appeals {
     @FunctionalInterface
     interface Decider {
         TypedSide decide(int number, String golden, String ours, boolean textEqual,
-                @Nullable AssertListener listener, SideReader reader,
+                @Nullable AssertListener listener, com.legend.testexec.SideReader reader,
                 Function<ExecutionPlan.Target, Sessions.Session> sessions);
     }
 

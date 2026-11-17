@@ -2050,7 +2050,7 @@ class BodyRouterParityTest {
             // process-wide observer is gone)
             List<String> statements = new ArrayList<>();
             Sessions.Session session = Sessions.borrowed(com.legend.testbackend.RecordingConnection.wrap(c, statements));
-            com.legend.testexec.SqlReplayReferee referee = new StubReferee(c);
+            com.legend.edge.SqlReplayReferee referee = new StubReferee(c);
             long[] before = StatementOrigin.snapshot();
             long effectsBefore = Census.count(Census.Key.EFFECTS_IN_SCRIPT);
             long movedBefore = Census.count(Census.Key.BODIES_MOVED);
@@ -2080,7 +2080,7 @@ class BodyRouterParityTest {
             java.util.SortedMap<String, Long> censusBefore = new java.util.TreeMap<>(
                     com.legend.diagnostics.VerdictCensus.sqlCensus());
             try {
-                TestExecution.runProgram(q, runtime, com.legend.exec.SessionSource.given(session), listener, referee, options,
+                TestExecution.runProgram(q, runtime, com.legend.exec.SessionSource.given(session), listener, com.legend.edge.AppealRun.with(referee), options,
                         new com.legend.result.Output.Rows(capture));
             } catch (RuntimeException e) {
                 outcome = e.getClass().getSimpleName() + ": " + e.getMessage();
@@ -2123,7 +2123,7 @@ class BodyRouterParityTest {
      *  witnesses use run on every in-process backend), its rows against ours as sorted text multisets -- a test
      *  double of the SPI, not the harness's comparison policy (spec's {@code ReplayReferee}); a golden the connection
      *  refuses is a decline. The generator's fetch entries are not exercised by any witness here. */
-    private static final class StubReferee implements com.legend.testexec.SqlReplayReferee {
+    private static final class StubReferee implements com.legend.edge.SqlReplayReferee {
         private final Connection c;
 
         StubReferee(Connection c) {

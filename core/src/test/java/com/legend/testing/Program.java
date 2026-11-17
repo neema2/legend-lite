@@ -107,7 +107,7 @@ public final class Program {
         // reader a query's answer is read by (the doors, 2026-10-29; until then the collected side re-read here)
         java.io.StringWriter out = new java.io.StringWriter();
         Lean.Capturing sink = new Lean.Capturing(out);
-        TestExecution.runProgram(Compiler.queryResolved(ctx, resolved), runtime, com.legend.exec.SessionSource.given(com.legend.testbackend.TestSessions.over(c)), listener, null,
+        TestExecution.runProgram(Compiler.queryResolved(ctx, resolved), runtime, com.legend.exec.SessionSource.given(com.legend.testbackend.TestSessions.over(c)), listener, com.legend.testexec.NoEdgeRun.NONE,
                 options, new com.legend.result.Output.Rows(sink));
         return new Report(List.copyOf(verdicts), sink.answered());
     }

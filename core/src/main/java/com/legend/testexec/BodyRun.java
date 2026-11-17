@@ -17,21 +17,22 @@ import com.legend.testexecutionplan.TypedSide;
  */
 final class BodyRun {
 
-    private final Appeals appeals;
+    /** The run's hearing of the compatibility appeals (the edge's, or the product's refusal: {@link EdgeRun}). */
+    private final EdgeHearing hearing;
     /** How many messaged asserts are being judged (nested: an assert inside a messaged one's helper). */
     private int messaged;
 
-    BodyRun(Appeals appeals) {
-        this.appeals = appeals;
+    BodyRun(EdgeHearing hearing) {
+        this.hearing = hearing;
     }
 
-    Appeals appeals() {
-        return appeals;
+    EdgeHearing hearing() {
+        return hearing;
     }
 
-    /** The listener the run's judges tell: the caller's, its reports kept back from the first held appeal on. */
+    /** The listener the run's judges tell: the caller's, its reports kept back while an appeal is held. */
     @Nullable AssertListener listener() {
-        return appeals.listener();
+        return hearing.listener();
     }
 
     /** A messaged assert is being judged until the scope closes. */
@@ -40,20 +41,20 @@ final class BodyRun {
         return () -> messaged--;
     }
 
-    /** The appeal numbered {@code number} heard over the failed text of {@code name}: held for after the run, the
-     *  assert holding until then ({@link Appeals#hold}). */
-    TypedSide hold(String name, int number, String golden, String ours, boolean textEqual) {
-        return appeals.hold(name, number, golden, ours, textEqual, messaged > 0);
+    /** Whether a messaged assert is being judged. */
+    boolean judgingMessaged() {
+        return messaged > 0;
     }
 
-    /** A second hearing of an appeal another half holds ({@link Appeals#join}). */
-    TypedSide join(String name, int number, String golden, String ours) {
-        return appeals.join(name, number, golden, ours);
+    /** An engine-text judgment at its verdict step ({@link EdgeHearing#engineText}). */
+    TypedSide engineText(com.legend.testexecutionplan.HostJudgment.EngineText e, java.util.List<TypedSide> sides,
+            com.legend.testexecutionplan.TestPlan.JudgingRules rules) {
+        return hearing.engineText(e, sides, rules, messaged > 0);
     }
 
-    /** A step of the body that writes is about to run ({@link Appeals#writing}). */
+    /** A step of the body that writes is about to run ({@link EdgeHearing#writing}). */
     void writing() {
-        appeals.writing();
+        hearing.writing();
     }
 
     /** A judgment's scope, closed when it ends. */

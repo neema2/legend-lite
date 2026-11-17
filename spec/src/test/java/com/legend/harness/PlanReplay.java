@@ -3,7 +3,7 @@
 
 package com.legend.harness;
 
-import com.legend.testexec.SqlReplayReferee;
+import com.legend.edge.SqlReplayReferee;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;

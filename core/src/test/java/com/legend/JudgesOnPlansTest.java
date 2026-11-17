@@ -142,7 +142,8 @@ class JudgesOnPlansTest {
                                 public void unjudged(String assertName, String reason) {
                                     told.add("unjudged: " + reason);
                                 }
-                            }, null, ExecuteOptions.NONE.withJudgeMode(com.legend.testplan.PlanningOptions.JudgeMode.BOTH));
+                            }, com.legend.testexec.NoEdgeRun.NONE,
+                            ExecuteOptions.NONE.withJudgeMode(com.legend.testplan.PlanningOptions.JudgeMode.BOTH));
                     boolean passed = told.stream().anyMatch(l -> l.startsWith("pass "));
                     boolean onceOnly = told.stream().anyMatch(l -> l.startsWith("unjudged") || l.startsWith("declined"));
                     outcome = !passed ? "NO VERDICT " + told : onceOnly ? "host decided " + told : "both agree";
@@ -175,7 +176,7 @@ class JudgesOnPlansTest {
                             ((com.legend.protocol.spec.LambdaFunction) parsed).body(),
                             new com.legend.model.ImportScope(List.of()), ctx)), "s::RT",
                             new com.legend.exec.SessionSource.Fresh(com.legend.testbackend.TestBackends.platform()::open),
-                            null, null,
+                            null, com.legend.testexec.NoEdgeRun.NONE,
                             ExecuteOptions.NONE.withJudgeMode(com.legend.testplan.PlanningOptions.JudgeMode.BOTH)));
             // lite's own sentence, both judges' (the user's judge model, 2026-11-17)
             assertEquals("expected 1, got 2", failed.getMessage());

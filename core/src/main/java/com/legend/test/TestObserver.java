@@ -5,7 +5,6 @@ package com.legend.test;
 
 import com.legend.ExecuteOptions;
 import com.legend.testexecutionplan.AssertListener;
-import com.legend.testexec.SqlReplayReferee;
 
 /**
  * The seam a caller instruments a {@link PureTestRunner} through. Every
@@ -46,9 +45,10 @@ public interface TestObserver extends AssertListener {
         return ExecuteOptions.NONE;
     }
 
-    /** The referee for this test's asserts, or null for none. */
-    default @com.legend.base.Nullable SqlReplayReferee referee(PureTests.TestCase test) {
-        return null;
+    /** The run that hears this test's compatibility appeals (census C2, 2026-11-17): the edge's, or the product's,
+     *  which hears none ({@link com.legend.testexec.NoEdgeRun#NONE}). */
+    default com.legend.testexec.EdgeRun edgeRun(PureTests.TestCase test) {
+        return com.legend.testexec.NoEdgeRun.NONE;
     }
 
     /** The body is about to execute; {@code effectful} says the platform

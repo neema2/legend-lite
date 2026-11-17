@@ -185,7 +185,7 @@ class SentStatementsAreThePlansTest {
                 List<String> verdicts = new ArrayList<>();
                 try (Connection c = RecordingConnection.wrap(b.open(), sent)) {
                     com.legend.TestExecution.runBody(plan, com.legend.testbackend.TestSessions.over(c),
-                            (name, pass, detail) -> verdicts.add(pass + " " + detail), null, options, null);
+                            (name, pass, detail) -> verdicts.add(pass + " " + detail), com.legend.testexec.NoEdgeRun.NONE, options, null);
                 }
                 assertEquals(List.of("true null"), verdicts, b.name() + " " + judge);
                 assertFalse(sent.isEmpty(), b.name() + " " + judge);

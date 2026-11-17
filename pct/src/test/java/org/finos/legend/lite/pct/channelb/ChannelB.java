@@ -279,7 +279,7 @@ public final class ChannelB {
                 judgeSql(ctx, resolved);
             }
             TestExecution.runProgram(com.legend.Compiler.queryResolved(ctx, resolved),
-                    com.legend.testbackend.StorelessRuntime.RUNTIME, com.legend.exec.SessionSource.given(com.legend.testbackend.TestSessions.over(conn)), null, null,
+                    com.legend.testbackend.StorelessRuntime.RUNTIME, com.legend.exec.SessionSource.given(com.legend.testbackend.TestSessions.over(conn)), null, com.legend.edge.AppealRun.with(null),
                     OPTIONS);
             return new Outcome(fqn, Status.PASS, "");
         } catch (java.sql.SQLException e) {
@@ -441,7 +441,7 @@ public final class ChannelB {
         try (Connection conn = org.finos.legend.lite.pct.extension.PctBackend.connect()) {
             TestExecution.runProgram(com.legend.Compiler.queryResolved(ctx, resolved),
                     com.legend.testbackend.StorelessRuntime.RUNTIME,
-                    com.legend.exec.SessionSource.given(com.legend.testbackend.TestSessions.over(conn)), listener, null,
+                    com.legend.exec.SessionSource.given(com.legend.testbackend.TestSessions.over(conn)), listener, com.legend.edge.AppealRun.with(null),
                     OPTIONS);
             told.add("ended: pass");
         } catch (java.sql.SQLException | RuntimeException e) {

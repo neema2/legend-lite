@@ -39,10 +39,10 @@ class ReplayRefereeFileReadTest {
         recorder.recordExecuted("CREATE TABLE PEOPLE (ID INTEGER, NAME VARCHAR(40))", false);
         recorder.recordRead(new RawSqlBoundary.FileRead(csv, load.statements(), load.after()));
         ReplayReferee r = new ReplayReferee(recorder);
-        com.legend.testexec.SqlReplayReferee.RefereeRows rows = r.rows("SELECT ID, NAME FROM PEOPLE ORDER BY ID");
+        com.legend.edge.SqlReplayReferee.RefereeRows rows = r.rows("SELECT ID, NAME FROM PEOPLE ORDER BY ID");
         assertEquals(List.of(List.of(1, "Smith, \"Jo\""), java.util.Arrays.asList(2, null)), rows.rows());
         // the undo ran: the session holds no path of the copy
-        com.legend.testexec.SqlReplayReferee.RefereeRows path = r.rows("SELECT @legend_csv");
+        com.legend.edge.SqlReplayReferee.RefereeRows path = r.rows("SELECT @legend_csv");
         assertTrue(path.rows().size() == 1 && path.rows().get(0).get(0) == null, String.valueOf(path.rows()));
     }
 

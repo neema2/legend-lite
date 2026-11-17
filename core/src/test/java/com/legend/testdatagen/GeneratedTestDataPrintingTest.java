@@ -110,7 +110,7 @@ class GeneratedTestDataPrintingTest {
             try {
                 TestExecution.runProgram(GeneratedTestDataProgramTest.typed(ctx, body), "t::RT",
                         com.legend.exec.SessionSource.given(com.legend.testbackend.TestSessions.over(c)), listener,
-                        null, options);
+                        com.legend.testexec.NoEdgeRun.NONE, options);
             } catch (AssertionError | RuntimeException e) {
                 // a failed verdict ends the body; the listener told it
                 if (verdicts.isEmpty()) {

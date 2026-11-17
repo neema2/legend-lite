@@ -71,7 +71,7 @@ class EdgeSeparationTest {
             "RELATION_TEXT", "REPRESENTATION_TEXT", "TEXT_FORMS", "TRACE_TEXT");
 
     /** The referee and the appeals (census C2; G6: the edge's alone). */
-    static final Set<String> REFEREE = Set.of("com.legend.testexec.SqlReplayReferee", "com.legend.testexec.Appeals",
+    static final Set<String> REFEREE = Set.of("com.legend.edge.SqlReplayReferee", "com.legend.testexec.Appeals",
             "com.legend.testexecutionplan.Appeal", "com.legend.testexecutionplan.PlannedAppeals",
             "com.legend.testplan.AppealsByVerdict", "com.legend.testplan.EngineTextAppeals");
 
@@ -132,20 +132,20 @@ class EdgeSeparationTest {
 
     /** TEST SIDE: the same. */
     static final Map<String, String> TEST_OPEN = Map.ofEntries(
-            Map.entry("com.legend.TestExecution -> com.legend.testexec.SqlReplayReferee", "C2 2026-11-17"),
-            Map.entry("com.legend.test.PureTestRunner -> com.legend.testexec.SqlReplayReferee", "C2 2026-11-17"),
-            Map.entry("com.legend.test.TestObserver -> com.legend.testexec.SqlReplayReferee", "C2 2026-11-17"),
+            Map.entry("com.legend.TestExecution -> com.legend.edge.SqlReplayReferee", "C2 2026-11-17"),
+            Map.entry("com.legend.test.PureTestRunner -> com.legend.edge.SqlReplayReferee", "C2 2026-11-17"),
+            Map.entry("com.legend.test.TestObserver -> com.legend.edge.SqlReplayReferee", "C2 2026-11-17"),
             Map.entry("com.legend.testexec.Appeals -> (stands in a product package)", "C2 2026-11-17"),
             Map.entry("com.legend.testexec.BodyRun -> com.legend.testexec.Appeals", "C2 2026-11-17"),
             Map.entry("com.legend.testexec.Equality -> JudgingRules.COMPILED_PURE_COMPAT", "C1 2026-11-17"),
             Map.entry("com.legend.testexec.HostJudgments -> JudgingRules.COMPILED_PURE_COMPAT", "C1 2026-11-17"),
-            Map.entry("com.legend.testexec.SqlReplayReferee -> (stands in a product package)", "C2 2026-11-17"),
-            Map.entry("com.legend.testexec.SqlReplayReferee -> com.legend.testexecutionplan.Appeal", "C2 2026-11-17"),
+            Map.entry("com.legend.edge.SqlReplayReferee -> (stands in a product package)", "C2 2026-11-17"),
+            Map.entry("com.legend.edge.SqlReplayReferee -> com.legend.testexecutionplan.Appeal", "C2 2026-11-17"),
             Map.entry("com.legend.testexec.SqlTextRuns -> JudgingRules.COMPILED_PURE_COMPAT", "C1 2026-11-17"),
-            Map.entry("com.legend.testexec.SqlTextRuns -> com.legend.testexec.SqlReplayReferee", "C2 2026-11-17"),
+            Map.entry("com.legend.testexec.SqlTextRuns -> com.legend.edge.SqlReplayReferee", "C2 2026-11-17"),
             Map.entry("com.legend.testexec.SqlTextRuns -> com.legend.testexecutionplan.Appeal", "C2 2026-11-17"),
             Map.entry("com.legend.testexec.TestRunner -> com.legend.testexec.Appeals", "C2 2026-11-17"),
-            Map.entry("com.legend.testexec.TestRunner -> com.legend.testexec.SqlReplayReferee", "C2 2026-11-17"),
+            Map.entry("com.legend.testexec.TestRunner -> com.legend.edge.SqlReplayReferee", "C2 2026-11-17"),
             Map.entry("com.legend.testexec.TestRunner -> com.legend.testexecutionplan.PlannedAppeals", "C2 2026-11-17"),
             Map.entry("com.legend.testexecutionplan.Appeal -> (stands in a product package)", "C2 2026-11-17"),
             Map.entry("com.legend.testexecutionplan.HostJson -> com.legend.testexecutionplan.Appeal", "C2 2026-11-17"),

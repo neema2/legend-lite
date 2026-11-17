@@ -2143,7 +2143,7 @@ final class ArchitectureTest {
      *  caller owns and hands a door), and the types a door's run takes from it (the referee; the answer's output is the
      *  result library's, a record type: 2026-11-09). */
     private static final java.util.Set<String> RUN_API = java.util.Set.of("com.legend.exec.Sessions",
-            "com.legend.exec.SessionSource", "com.legend.testexec.SqlReplayReferee");
+            "com.legend.exec.SessionSource", "com.legend.edge.SqlReplayReferee");
 
     /**
      * WHAT A RUN TAKES FROM ITS CALLER IS DATA (2026-11-09, the user's question "why do we have any callbacks, esp
@@ -2189,7 +2189,7 @@ final class ArchitectureTest {
     private static final java.util.Set<Class<?>> CALLER_INTERFACES = java.util.Set.of(
             com.legend.result.ResultSink.class, com.legend.testexecutionplan.AssertListener.class,
             java.io.Writer.class, java.io.OutputStream.class,
-            com.legend.testexecutionplan.Edge.class, com.legend.testexec.SqlReplayReferee.class,
+            com.legend.testexecutionplan.Edge.class, com.legend.edge.SqlReplayReferee.class,
             com.legend.testexecutionplan.Extension.class, com.legend.exec.Sessions.Opener.class,
             com.legend.exec.Sessions.Session.class);
 
@@ -2721,7 +2721,7 @@ final class ArchitectureTest {
                 "verdict(java.lang.String,boolean,java.lang.String)", "declined(java.lang.String,java.lang.String)",
                 "unjudged(java.lang.String,java.lang.String)", "refereed(java.lang.String,java.lang.String)");
         java.util.Set<String> handed = java.util.Set.of("com.legend.testexecutionplan.AssertListener",
-                "com.legend.testexec.SqlReplayReferee");
+                "com.legend.edge.SqlReplayReferee");
         java.util.Set<String> planningEnvironments = java.util.Set.of("com.legend.testplan.BodyDriver$ExecEnv",
                 "com.legend.planner.PlanEnv");
         for (com.tngtech.archunit.core.domain.JavaClass c : CORE_PROD_CLASSES) {
@@ -2747,7 +2747,7 @@ final class ArchitectureTest {
             }
         }
         java.util.Set<String> told = java.util.Set.of("com.legend.testexecutionplan.AssertListener",
-                "com.legend.testexec.SqlReplayReferee", "com.legend.testexec.Appeals#listenerNow", "com.legend.testexec.Appeals#hold",
+                "com.legend.edge.SqlReplayReferee", "com.legend.testexec.Appeals#listenerNow", "com.legend.testexec.Appeals#hold",
                 "com.legend.testplan.SqlTextVerdicts#declinedNow", "com.legend.testplan.SqlTextVerdicts#declinedTo",
                 "com.legend.testexecutionplan.Edge#seeded", "com.legend.testexecutionplan.Edge#effectRan",
                 "com.legend.testexec.CanonicalDivergence#sqlUnjudged", "com.legend.testexec.CanonicalDivergence#sqlRaised",

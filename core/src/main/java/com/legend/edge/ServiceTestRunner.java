@@ -285,7 +285,7 @@ public final class ServiceTestRunner implements AutoCloseable {
                 // (the doors, 2026-10-29) -- what the service would serve, read back below as the tree the
                 // assertions compare
                 TestExecution.runProgram(Compiler.queryResolved(rt.ctx(), resolved), rt.runtimeFqn(),
-                        com.legend.exec.SessionSource.given(conn), null, null, com.legend.ExecuteOptions.NONE,
+                        com.legend.exec.SessionSource.given(conn), null, AppealRun.with(null), com.legend.ExecuteOptions.NONE,
                         new com.legend.result.Output.Rows(new ServiceAnswer(out, test.serializationFormat())));
             } catch (Skip s) {
                 throw s;

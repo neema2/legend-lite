@@ -49,19 +49,19 @@ public final class TestRunner {
      */
     public static void runOpening(TestPlan plan, com.legend.exec.SessionSource sessions,
             com.legend.executionplan.DataStores stores, @Nullable Edge edge,
-            @Nullable AssertListener callers, @Nullable SqlReplayReferee referee, @Nullable Output answer,
+            @Nullable AssertListener callers, EdgeRun edgeRun, @Nullable Output answer,
             java.util.UUID execution) {
         lites(answer);
         // both judges isolated: each plan its own run, then compared (IsolatedRun)
         if (plan.steps().size() == 1 && plan.steps().get(0) instanceof com.legend.testexecutionplan.TestPlan.Isolated pair) {
-            IsolatedRun.run(pair, sessions, (p, s, l, a) -> run(p, s, stores, edge, l, referee, a,
+            IsolatedRun.run(pair, sessions, (p, s, l, a) -> run(p, s, stores, edge, l, edgeRun, a,
                     com.legend.exec.StatementOrigin.OTHER, execution), callers, answer);
             return;
         }
         // the caller's session source is called back before the plan's run opens: it plans nothing
         try (var callbacks = com.legend.base.RunScope.callingBack();
                 Sessions.Session session = sessions.open(plan.session())) {
-            run(plan, session, stores, edge, callers, referee, answer, StatementOrigin.OTHER, execution);
+            run(plan, session, stores, edge, callers, edgeRun, answer, StatementOrigin.OTHER, execution);
         }
     }
 
@@ -79,23 +79,23 @@ public final class TestRunner {
      */
     public static void run(TestPlan plan, Sessions.Session session,
             com.legend.executionplan.DataStores stores, com.legend.testexecutionplan.@Nullable Edge edge,
-            @Nullable AssertListener callers, @Nullable SqlReplayReferee referee,
+            @Nullable AssertListener callers, EdgeRun edgeRun,
             @Nullable Output answer, com.legend.exec.StatementOrigin origin, java.util.UUID execution) {
         if (plan.steps().size() == 1 && plan.steps().get(0) instanceof TestPlan.Isolated pair) {
             // both judges isolated on the caller's own session: read-only plans alone (IsolatedRun's refusal)
             lites(answer);
             IsolatedRun.run(pair, com.legend.exec.SessionSource.given(session), (p, s, l, a) -> run(p, s, stores, edge,
-                    l, referee, a, origin, execution), callers, answer);
+                    l, edgeRun, a, origin, execution), callers, answer);
             return;
         }
-        com.legend.testexecutionplan.PlannedAppeals.requireCarried(plan);
         lites(answer);
         // the caller's answer sink and listener are called back during the run, and before its plan's run scope opens
         // (the answer's sink is made first): they plan nothing (the full audit's must-fix, 2026-11-09)
         try (var callbacks = com.legend.base.RunScope.callingBack()) {
             // the body's compatibility appeals, held at their asserts and decided after its run (P1.2, 2026-11-07); the
             // judges tell the caller's listener through it, its reports kept back while an appeal is held
-            Appeals appeals = new Appeals(callers, execution);
+            // (the edge's hearing, opened for this run: census C2, 2026-11-17; the product's refuses an appeal by name)
+            EdgeHearing appeals = edgeRun.open(plan, callers, execution);
             // the run record (hole 6, 2026-11-09): what the judges share while the plan runs, handed to each explicitly
             BodyRun run = new BodyRun(appeals);
             AssertListener listener = appeals.listener();
@@ -108,11 +108,6 @@ public final class TestRunner {
             try (SystemDatabase.Leases leases = SystemDatabase.leases()) {
                 SystemDatabase.Leases systemSessions = leases;
                 Moved moved = new Moved(plan, edge, answer, early, listener, run);
-                // the appeals the run hears, read from the plan's own data (step 8b), and how each is decided after the run
-                java.util.Map<Integer, com.legend.testexecutionplan.Appeal> planned = com.legend.testexecutionplan.PlannedAppeals.byNumber(plan);
-                Appeals.Decider decider = (n, golden, ours, textEqual, l, reader, sessions) ->
-                        com.legend.testexec.SqlTextRuns.decideAppeal(com.legend.testexecutionplan.PlannedAppeals.of(planned, n),
-                                golden, ours, textEqual, referee, l, reader, sessions);
                 PlanSessions.Source sessions = PlanSessions.marked(PlanSessions.of(session, systemSessions), origin);
                 try {
                     TestRun.run(plan, Map.of(), sessions, stores, moved::textOrigin, moved, moved, execution);
@@ -121,12 +116,12 @@ public final class TestRunner {
                     // the body's failure (the run's suppressed in it); else the run's failure stands (an Error -- a
                     // wall's refusal, the JVM's -- passes untouched: nothing is decided after it)
                     throw appeals.afterFailure(runFailed, session, systemSessions,
-                            sessionsByTarget(session, systemSessions), decider);
+                            sessionsByTarget(session, systemSessions));
                 }
                 // the run is over: its held appeals decided, each its own plans at the edge -- the first that fails is
                 // the body's failure (an answer the run streamed as it ran -- a sent one -- has already gone to the
                 // caller)
-                appeals.decide(session, systemSessions, sessionsByTarget(session, systemSessions), decider);
+                appeals.decide(session, systemSessions, sessionsByTarget(session, systemSessions));
                 if (answer != null && plan.answersLastVerdict()) {
                     // a body whose last statement is an assert answers its verdict as host rows, as the walk does
                     com.legend.testexec.SideShapes.host(moved.lastVerdict(), answer);
@@ -221,9 +216,7 @@ public final class TestRunner {
             this.databaseRuns = judge == TestPlan.Judge.DATABASE
                     ? new com.legend.testexec.RootLoops.Runs(planned.steps()) : null;
             // a database row's appeal heard by its number, the plan's data (step 8b): the texts its row compared recorded
-            java.util.Map<Integer, com.legend.testexecutionplan.Appeal> appealsPlanned = com.legend.testexecutionplan.PlannedAppeals.byNumber(planned);
-            this.rowAppeals = n -> row -> com.legend.testexec.SqlTextRuns.rowAppealed(
-                    com.legend.testexecutionplan.PlannedAppeals.of(appealsPlanned, n), row, run);
+            this.rowAppeals = n -> row -> run.hearing().rowAppealed(n, row, run.judgingMessaged());
             planned.steps().forEach(this::rulesOf);
             java.util.Map<Integer, com.legend.exec.StatementOrigin> textOrigins = new java.util.HashMap<>();
             List<TestPlan.TestStep> steps = planned.steps();

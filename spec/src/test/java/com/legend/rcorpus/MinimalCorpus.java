@@ -608,8 +608,9 @@ public final class MinimalCorpus {
         }
 
         @Override
-        public com.legend.testexec.@com.legend.base.Nullable SqlReplayReferee referee(PureTests.TestCase t) {
-            return referee;
+        public com.legend.testexec.EdgeRun edgeRun(PureTests.TestCase t) {
+            // the corpus's appeals heard at the edge, decided by its referee (census C2, 2026-11-17)
+            return com.legend.edge.AppealRun.with(referee);
         }
 
         @Override

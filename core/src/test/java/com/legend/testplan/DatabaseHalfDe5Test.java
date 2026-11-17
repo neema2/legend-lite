@@ -66,7 +66,7 @@ class DatabaseHalfDe5Test {
         try (Connection conn = TestBackends.platform().open()) {
             var ctx = Compiler.compileModel(StorelessRuntime.with(model, TestBackends.platform().type()));
             com.legend.TestExecution.runProgram(Compiler.query(ctx, body), StorelessRuntime.RUNTIME,
-                    com.legend.exec.SessionSource.given(com.legend.testbackend.TestSessions.over(conn)), null, null,
+                    com.legend.exec.SessionSource.given(com.legend.testbackend.TestSessions.over(conn)), null, com.legend.testexec.NoEdgeRun.NONE,
                     options.withJudgeMode(mode));
             return "PASS";
         } catch (Exception | AssertionError e) {
