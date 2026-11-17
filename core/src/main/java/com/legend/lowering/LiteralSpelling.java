@@ -32,7 +32,7 @@ import java.util.List;
  *       {@link #decimalPrintD}, {@link #datePrint},
  *       {@link #dateTimePrint}) — pure's toString output as the
  *       execution wire spells it today (dates WITHOUT the % prefix,
- *       DateTime with the +0000 suffix, Decimal with the D the canon
+ *       DateTime with lite's Z suffix, Decimal with the D the canon
  *       strips back off).</li>
  * </ul>
  *
@@ -405,11 +405,12 @@ public final class LiteralSpelling {
     }
 
     /**
-     * Temporal (DateTime/Date stamps): the scalar-channel form —
-     * {@code T}-separated, trailing subsecond zeros stripped,
-     * {@code +0000} on time-bearing values only. Handles BOTH wire
-     * spellings (a TIMESTAMP cell's cast and the precision-faithful
-     * VARCHAR convention) through one text pipeline.
+     * Temporal (DateTime/Date stamps): the judges' canon, LITE'S spelling (census C5's step C, 2026-11-17, the
+     * orchestrator's ruling: no legend-pure spelling in the product judge, lite's date equality A1 kept exactly) --
+     * {@code T}-separated, the subsecond digits as written (a timestamp's trailing zeros stripped), {@code Z} on
+     * time-bearing values only. Handles BOTH wire spellings (a TIMESTAMP cell's cast and the precision-faithful
+     * VARCHAR convention, either carrying legend-pure's {@code +0000} or lite's {@code Z}) through one text pipeline.
+     * Every side of a comparison goes through it, so the spelling is the canon's alone, never a message's.
      */
     static SqlExpr temporalCanon(SqlExpr v) {
         // an ALREADY-SUFFIXED wire text (the variant-identity channel
@@ -439,12 +440,20 @@ public final class LiteralSpelling {
             // and rowValueDifferenceTest, measured the same day). NULL stays NULL.
             return new SqlExpr.Case(List.of(
                     new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.IS_NULL, v), new SqlExpr.NullLit()),
-                    new SqlExpr.Case.When(timeBearing, dateTimeText(v))), t, SqlExpr.Reason.PRINT);
+                    new SqlExpr.Case.When(timeBearing, instantAtItsDigits(v))), t, SqlExpr.Reason.PRINT);
         }
         return new SqlExpr.Case(List.of(new SqlExpr.Case.When(timeBearing,
-                SqlExpr.Call.of(SqlFn.CONCAT, t,
-                        new SqlExpr.StringLit("+0000")))),
+                SqlExpr.Call.of(SqlFn.CONCAT, t, new SqlExpr.StringLit(INSTANT_SUFFIX)))),
                 t, SqlExpr.Reason.PRINT);
+    }
+
+    /** The canon's suffix of a time-bearing value: lite's UTC designator (census C5's step C, 2026-11-17). */
+    private static final String INSTANT_SUFFIX = "Z";
+
+    /** A timestamp's canon text: lite's {@link SqlFn#DATETIME_CANON_TEXT} node, which the base renderer composes
+     *  ({@code dialect.DateTimeCanonText}): one node in the plan's tree. */
+    private static SqlExpr instantAtItsDigits(SqlExpr x) {
+        return SqlExpr.Call.of(SqlFn.DATETIME_CANON_TEXT, x);
     }
 
 
@@ -546,9 +555,9 @@ public final class LiteralSpelling {
                 new SqlExpr.StringLit("%"), datePrint(x));
     }
 
-    /** A DateTime's literal spelling at exactly {@code digits} subsecond digits (a tagged slot's kind
-     *  {@code DateTime(n)}, track L): the nine-digit text cut to the written digits, Pure's {@code +0000}; a whole
-     *  second's at none; NULL stays NULL. */
+    /** A DateTime's canon at exactly {@code digits} subsecond digits (a tagged slot's kind {@code DateTime(n)}, track
+     *  L): the nine-digit text cut to the written digits, lite's {@link #INSTANT_SUFFIX} (census C5's step C,
+     *  2026-11-17: legend-pure's {@code +0000} until then); a whole second's at none; NULL stays NULL. */
     public static SqlExpr dateTimeLiteralAt(SqlExpr x, int digits) {
         SqlExpr body = digits == 0
                 ? SqlExpr.Call.of(SqlFn.STRFTIME, x, new SqlExpr.FormatLit(com.legend.sql.DateFmt.ISO_LOCAL))
@@ -557,7 +566,7 @@ public final class LiteralSpelling {
                         new SqlExpr.IntLit(20 + digits));
         return new SqlExpr.Case(List.of(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.IS_NULL, x),
                 new SqlExpr.NullLit())),
-                SqlExpr.Call.of(SqlFn.CONCAT, new SqlExpr.StringLit("%"), body, new SqlExpr.StringLit("+0000")), SqlExpr.Reason.PRINT);
+                SqlExpr.Call.of(SqlFn.CONCAT, new SqlExpr.StringLit("%"), body, new SqlExpr.StringLit(INSTANT_SUFFIX)), SqlExpr.Reason.PRINT);
     }
 
     /** PARTIAL-date LITERAL: the string cell IS the body (master's
@@ -573,13 +582,8 @@ public final class LiteralSpelling {
                 new SqlExpr.FormatLit(com.legend.sql.DateFmt.DATE));
     }
 
-    /** legend-pure's print form of a DateTime as a {@link SqlFn#DATETIME_PRINT} node, for the judges' canon above alone
-     *  (census C5, E-Java's): a message's DateTime text is the style's two-form hook since census B9 (2026-11-17,
-     *  lowering.DateTimeTexts); the node's composition stays the product renderer's for this canon alone
-     *  ({@code dialect.DateTimePrintText}, C5, E-P5's step C). */
-    private static SqlExpr dateTimeText(SqlExpr x) {
-        return SqlExpr.Call.of(SqlFn.DATETIME_PRINT, x);
-    }
+    // (dateTimeText, legend-pure's DATETIME_PRINT node for this canon: gone 2026-11-17, census C5's step C -- the
+    // canon is lite's own spelling, instantAtItsDigits)
 
 
 

@@ -78,7 +78,8 @@ class TestPlanJsonRoundTripTest {
         byVerdict.put(1, List.of(rowsAppeal(), new Appeal(2, "contract", Appeal.Kind.CONTRACT, "words", null,
                 new Appeal.Batched("golden", null, false), 1)));
         TestPlan plan = new TestPlan(List.of(), List.of(group, branch), TestPlan.Judge.DATABASE, byStep,
-                byVerdict, true, anyTarget(), new com.legend.testexecutionplan.BodyFacts(true, false, true, "FLAXEO"));
+                byVerdict, true, anyTarget(), new com.legend.testexecutionplan.BodyFacts(true, false, true, "FLAXEO"),
+                "the answer's planned size words");
 
         assertNull(TestPlanJson.roundTripDifference(plan));
     }
@@ -119,7 +120,8 @@ class TestPlanJsonRoundTripTest {
                 new HostJudgment.Json(true),
                 new HostJudgment.Rendered("rendered", false, "form", null, "aForm", true, true),
                 new HostJudgment.Raise(FAILURE),
-                new HostJudgment.EngineText("text", "golden", "ours", false, "decline", "origin", 1, true),
+                new HostJudgment.EdgeJudged(new com.legend.edge.EngineTextJudgment("text", "golden", "ours", false, "decline"), 1,
+                        "origin", true),
                 new HostJudgment.AssertError("expected", 3L, null, FAILURE, part),
                 new HostJudgment.Messaged(new HostJudgment.Size(true), 1, "unplanned"),
                 new HostJudgment.Negated(new HostJudgment.Size(false), "NOT_SIZE"));
@@ -149,7 +151,8 @@ class TestPlanJsonRoundTripTest {
 
     private static SideShape shape() {
         return new SideShape(SideShape.Kind.TABULAR, "Relation", List.of(new SideShape.Column("v", "String", ONE)),
-                List.of(new SideShape.Column("sum", "Integer", null)), true, false, 1, "[1]", false, true, false);
+                List.of(new SideShape.Column("sum", "Integer", null)), true, false, 1, "[1]", false, true, false,
+                "a planned size refusal's words");
     }
 
     /** A seed's referee's copy (B2b): a statement, the rows as a content blob, a file by its reference read by the

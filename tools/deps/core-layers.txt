@@ -132,7 +132,10 @@ exec_program	base error exec execution_plan result
 # 2026-11-16 (W9's planner half, docs/records/d-plan-2026-11-16.md): builtin lineage lowering platform resolver setup --
 # legend-engine's plan text (edge.EnginePlans, EngineAllocations) moved from the planner lowers and renders a query in
 # the engine's text through the product's lowering, its natives' catalog, its scan relations and its DDL generator
-edge	arrow_ipc base builtin compiler compiler_element_type database door error execution_plan json lineage lite_v1 lowering model parser plan planner platform protocol resolver result setup sql sql_dialect test_plan testdatagen testplan values
+# 2026-11-17 (E-Java's isolated-BOTH stack, census C2: the referee and the appeals moved to com.legend.edge, run
+# through the product's run hook testexec.EdgeRun/EdgeHearing): `edge` reaches diagnostics, exec and testexec -- the
+# edge depending on the product, the allowed direction (G5); no product target reaches the edge.
+edge	arrow_ipc base builtin compiler compiler_element_type database diagnostics door error exec execution_plan json lineage lite_v1 lowering model parser plan planner platform protocol resolver result setup sql sql_dialect test_plan testdatagen testexec testplan values
 # 2026-11-16 (the P2 checkpoint audit's M2): edge_store_words -- legend-engine's query-store sentences, their own target
 edge_server	base edge edge_store_words execution lite_v1 saved_queries server_lib
 edge_store_words	saved_queries

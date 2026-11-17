@@ -166,8 +166,9 @@ class MultiplicityStrictnessTest {
                             + "->toOneMany() }", StorelessRuntime.RUNTIME, c));
             assertTrue(String.valueOf(e.getMessage())
                             // the host judge's own shaping of an empty [1..*] result (testexec.SideShapes, the test road's
-                            // registered JUDGE raise, D2), not a product raise
-                            .contains("Cannot cast a collection of size 0"),
+                            // registered JUDGE raise, D2), not a product raise: worded at planning by the product's style,
+                            // lite's own sentence (C5's step E, 2026-11-17; legend-pure's is the edge style's)
+                            .contains(com.legend.error.ErrorKind.SIZE_NOT_MULTIPLICITY.sentence() + ": [1..*]"),
                     e.getMessage());
             // control: satisfied [1..*] still yields the collection
             var ok = Lean.run(StorelessRuntime.with("", Databases.PLATFORM),

@@ -48,8 +48,10 @@ public final class TestPlanJson {
      *  facts, {@code facts} (its effects, inline CSV seeds, verdicts and shape: what a runner reads of the body); 24
      *  (2026-11-16, phase D's option (D), merged after E): the product's version 54 (a plan's raises); 25 (2026-11-16, the P2 checkpoint audit's S1):
      *  the product's version 55 (each statement's raises); 26 (2026-11-16, phase D's Phase 2, raises as SITES): the
-     *  product's version 56 (each statement's raise sites, its token's words planned). */
-    public static final int VERSION = 26;
+     *  product's version 56 (each statement's raise sites, its token's words planned); 27 (2026-11-17, C5's step E):
+     *  a side's shape and the plan's answer carry their size refusal's words, planned ({@code SideShape.sizeWords},
+     *  {@code TestPlan.answerSizeWords}). */
+    public static final int VERSION = 27;
 
     private TestPlanJson() {
     }
@@ -99,6 +101,7 @@ public final class TestPlanJson {
         out.put("productVersion", PlanJson.VERSION);
         out.put("judge", plan.judge().name());
         out.put("answersLastVerdict", plan.answersLastVerdict());
+        out.put("answerSizeWords", plan.answerSizeWords());
         out.put("session", PlanJson.targetJson(plan.session()));
         Map<String, Object> facts = new LinkedHashMap<>();
         facts.put("effects", plan.facts().effects());
@@ -264,7 +267,8 @@ public final class TestPlanJson {
         return new TestPlan(parameters, readSteps(o.getArr("steps")), j,
                 ext == null ? Map.of() : readExtensions(ext.getObj("byStep")),
                 ext == null ? Map.of() : readExtensions(ext.getObj("byVerdict")), o.getBool("answersLastVerdict"),
-                PlanJson.targetOf(o.getObj("session")), factsOf(o.getObj("facts")));
+                PlanJson.targetOf(o.getObj("session")), factsOf(o.getObj("facts")),
+                o.get("answerSizeWords") instanceof Json.Str w ? w.value() : null);
     }
 
     private static BodyFacts factsOf(Json.Obj f) {
@@ -295,48 +299,47 @@ public final class TestPlanJson {
     }
 
     private static Map<String, Object> extensions(Map<Integer, List<Extension>> byKey) {
-        List<ExtensionCodec> codecs = codecs();
         Map<String, Object> out = new LinkedHashMap<>();
         byKey.forEach((key, records) -> {
             List<Object> written = new ArrayList<>(records.size());
             for (Extension e : records) {
-                Map<String, Object> o = null;
-                for (ExtensionCodec c : codecs) {
-                    o = c.write(e);
-                    if (o != null) {
-                        break;
-                    }
-                }
-                if (o == null) {
-                    throw new IllegalStateException("a test plan's extension no codec writes: "
-                            + e.getClass().getSimpleName());
-                }
-                written.add(o);
+                written.add(extension(e));
             }
             out.put(Integer.toString(key), written);
         });
         return out;
     }
 
+    /** One extension record as its codec writes it, tagged; refused by name where no codec writes it (census C3,
+     *  2026-11-17: an edge-judged comparison's record, held by its verdict's judgment, written so too). */
+    static Map<String, Object> extension(Extension e) {
+        for (ExtensionCodec c : codecs()) {
+            Map<String, Object> o = c.write(e);
+            if (o != null) {
+                return o;
+            }
+        }
+        throw new IllegalStateException("a test plan's extension no codec writes: " + e.getClass().getSimpleName());
+    }
+
+    /** One extension record read by the codec that knows its tag; refused by name where none does. */
+    static Extension readExtension(Json.Obj o) {
+        String tag = o.getString("_type");
+        for (ExtensionCodec c : codecs()) {
+            Extension read = c.read(tag, o);
+            if (read != null) {
+                return read;
+            }
+        }
+        throw new IllegalArgumentException("a test plan's extension tagged '" + tag + "' no codec reads");
+    }
+
     private static Map<Integer, List<Extension>> readExtensions(Json.Obj byKey) {
-        List<ExtensionCodec> codecs = codecs();
         Map<Integer, List<Extension>> out = new LinkedHashMap<>();
         for (Map.Entry<String, Json.Node> e : byKey.fields().entrySet()) {
             List<Extension> records = new ArrayList<>();
             for (Json.Node n : ((Json.Arr) e.getValue()).items()) {
-                Json.Obj o = (Json.Obj) n;
-                String tag = o.getString("_type");
-                Extension read = null;
-                for (ExtensionCodec c : codecs) {
-                    read = c.read(tag, o);
-                    if (read != null) {
-                        break;
-                    }
-                }
-                if (read == null) {
-                    throw new IllegalArgumentException("a test plan's extension tagged '" + tag + "' no codec reads");
-                }
-                records.add(read);
+                records.add(readExtension((Json.Obj) n));
             }
             out.put(Integer.parseInt(e.getKey()), records);
         }
