@@ -383,74 +383,9 @@ public final class Compiler {
         return answer(a);
     }
 
-    /** One legend-engine pure/v1 call by its path and raw query, as legend-lite's server answers it ({@code Boundary.pureV1}). */
-    @CEntryPoint(name = "lite_pure_v1")
-    static CCharPointer pureV1(IsolateThread thread, CCharPointer path, CCharPointer rawQuery, CCharPointer body) {
-        String a;
-        try {
-            String p = text(path), q = text(rawQuery), b = text(body);
-            a = Folded.http(() -> Boundary.pureV1(p, q, b));
-        } catch (Throwable failure) {
-            a = Folded.failure(failure);
-        }
-        return answer(a);
-    }
-
-    /** Execute's plan half in upstream's Arrow format: the SQL and the schema metadata ({@code Boundary.executePlan}). */
-    @CEntryPoint(name = "lite_execute_plan")
-    static CCharPointer executePlan(IsolateThread thread, CCharPointer body, CCharPointer models) {
-        String a;
-        try {
-            String b = text(body), m = text(models);
-            a = Folded.http(() -> Boundary.executePlan(b, m));
-        } catch (Throwable failure) {
-            a = Folded.failure(failure);
-        }
-        return answer(a);
-    }
-
-    /**
-     * Execute's plan half in the engine's JSON, for a host that runs the SQL on its own database
-     * ({@code Boundary.executeJsonPlan}; the planner protocol's {@code executePlan}, docs/ONE_PLATFORM_PROGRAM_2026_10_12.md C2).
-     */
-    @CEntryPoint(name = "lite_execute_json_plan")
-    static CCharPointer executeJsonPlan(IsolateThread thread, CCharPointer body, CCharPointer models) {
-        String a;
-        try {
-            String b = text(body), m = text(models);
-            a = Folded.http(() -> Boundary.executeJsonPlan(b, m));
-        } catch (Throwable failure) {
-            a = Folded.failure(failure);
-        }
-        return answer(a);
-    }
-
-    /** That plan's answer from the rows the host's database answered ({@code Boundary.executeJsonAnswer}; C2). */
-    @CEntryPoint(name = "lite_execute_json_answer")
-    static CCharPointer executeJsonAnswer(IsolateThread thread, CCharPointer plan, CCharPointer rows) {
-        String a;
-        try {
-            String p = text(plan), r = text(rows);
-            a = Folded.http(() -> Boundary.executeJsonAnswer(p, r));
-        } catch (Throwable failure) {
-            a = Folded.failure(failure);
-        }
-        return answer(a);
-    }
-
-    /** That plan's answer in upstream's Arrow format from the rows the host's database answered
-     *  ({@code Boundary.executeArrowAnswer}; track A, 2026-10-29): the zstd frame folded as base64. */
-    @CEntryPoint(name = "lite_execute_arrow_answer")
-    static CCharPointer executeArrowAnswer(IsolateThread thread, CCharPointer plan, CCharPointer rows) {
-        String a;
-        try {
-            String p = text(plan), r = text(rows);
-            a = Folded.http(() -> Boundary.executeArrowAnswer(p, r));
-        } catch (Throwable failure) {
-            a = Folded.failure(failure);
-        }
-        return answer(a);
-    }
+    // legend-engine's pure/v1 call and execute's halves (lite_pure_v1, lite_execute_plan, lite_execute_json_plan,
+    // lite_execute_json_answer, lite_execute_arrow_answer) are the edge's entry points: com.legend.edge.nativelib.
+    // EngineEntries, native:edge_entry (F's separation census line A1, 2026-11-17)
 
     /** The planner's boot layer built for a model now ({@code Boundary.warmModel}; the protocol's {@code warm}, C2). */
     @CEntryPoint(name = "lite_warm_model")

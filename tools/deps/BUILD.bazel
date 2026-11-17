@@ -92,7 +92,8 @@ junit_test(
     scope = [target],
 ) for name, target in [
     ("plan_side", "//core:plan_side"),
-    ("wasm", "//wasm:tab"),
+    # the module: its entry class is :edge_tab's since the census's A1 (2026-11-17), so its closure is the module's
+    ("wasm", "//wasm:edge_tab"),
     ("native", "//native:entry"),
     ("native_image", "//warehouse:server_lib"),
     ("arrow_ipc", "//arrow_ipc"),

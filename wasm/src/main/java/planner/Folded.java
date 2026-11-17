@@ -2,7 +2,7 @@ package planner;
 
 /**
  * The text encoding both strings-only hosts use for the boundary's answers -- the tab through TeaVM
- * ({@link TabExports}) and Python through the C library (native/'s {@code nativelib.Compiler}) -- written once
+ * ({@code TabExports}) and Python through the C library (native/'s {@code nativelib.Compiler}) -- written once
  * (docs/PROTOCOL_PROGRAM_2026_10_05.md, invariant 5): {@code "OK\n<answer>"}, a refusal as
  * {@code "ERR\n<kind>\n<message>"}, and a {@code pure/v1} answer as {@code "OK\n<status>\n<media type>\n<body>"}.
  *

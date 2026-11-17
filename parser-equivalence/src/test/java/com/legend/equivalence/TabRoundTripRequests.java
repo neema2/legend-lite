@@ -5,7 +5,7 @@ package com.legend.equivalence;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.legend.testing.ProgramPaths;
-import planner.TabExports;
+import com.legend.edge.wasm.TabExports;
 
 import java.io.IOException;
 import java.io.Writer;

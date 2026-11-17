@@ -6,7 +6,7 @@
 import type { RequestBody } from './planner-protocol.ts';
 import { planning } from '../plan-guard.ts';
 
-/** The module's exports the protocol's kinds name (planner.TabExports). */
+/** The module's exports the protocol's kinds name (com.legend.edge.wasm.TabExports; planner.TabExports until 2026-11-17). */
 export interface PlannerModule {
   readonly exports: {
     holdModelOrError(model: string): string;

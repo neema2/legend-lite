@@ -2508,6 +2508,7 @@ junit_test(
         ":build_time_jars",
         ":core_test_jar",
         ":edge_direct_dependents",
+        ":edge_direct_dependents_planted",
         ":edge_jars",
         ":guardrails_sources",
         ":product_jars",
@@ -2523,6 +2524,7 @@ junit_test(
         "-Dlegend.authored.jars=$(rlocationpath :authored_door_jars)",
         "-Dlegend.edge.jars=$(rlocationpath :edge_jars)",
         "-Dlegend.edge_dependents=$(rlocationpath :edge_direct_dependents)",
+        "-Dlegend.edge_dependents_planted=$(rlocationpath :edge_direct_dependents_planted)",
         "-Dlegend.build_time.jars=$(rlocationpath :build_time_jars)",
     ],
     # the guards that judge the boundary itself: they read the edge's jars and its dependents (F's census line A5,
@@ -2601,8 +2603,9 @@ java_jars(
 # doors (the JS apps reach the JVM through //wasm and //native alone), and core's test libraries (A5, A6). The shipped
 # //core:server is rooted AT the edge (EdgeServer, ruled A4) and is no root here.
 # the native library's and the query-store page's upstream entries are the edge's too (A2, A3, 2026-11-17)
+# the embedded hosts' engine routes and the tab's module entry are the edge's too (A1, 2026-11-17)
 _EDGE_TARGETS = ("//core:edge + //core:edge_server + //core:edge_service_tests + //core:edge_store_words + " +
-                 "//native:edge_entry + //query-store:edge_page_entry")
+                 "//native:edge_entry + //query-store:edge_page_entry + //wasm:edge_boundary + //wasm:edge_tab")
 
 _EDGE_SEPARATION_ROOTS = [
     "//core:core",
@@ -2627,7 +2630,31 @@ genquery(
     # the edge's targets in scope too: a root reaching one through no other root still finds it (2026-11-17, A6's
     # roots left: they had brought //core:edge_server into the scope)
     scope = _EDGE_SEPARATION_ROOTS + ["//native:edge_entry", "//query-store:edge_page_entry", "//core:edge",
-                                      "//core:edge_server", "//core:edge_service_tests", "//core:edge_store_words"],
+                                      "//core:edge_server", "//core:edge_service_tests", "//core:edge_store_words",
+                                      "//wasm:edge_boundary", "//wasm:edge_tab"],
+)
+
+# THE BUILD GUARD'S BITE (A1, 2026-11-17: the last product target reaching the edge left, so the guard is proven on a
+# planted one): a product-shaped library that depends on the edge, a root of this second query alone;
+# EdgeSeparationTest.eachGuardBites finds it here, and the real query (above) must not.
+filegroup(
+    name = "planted_edge_reach",
+    testonly = True,
+    srcs = [":edge"],
+)
+
+genquery(
+    name = "edge_direct_dependents_planted",
+    testonly = True,
+    expression = "rdeps(deps(set(" + " ".join(_EDGE_SEPARATION_ROOTS + ["//core:planted_edge_reach"]) + ")), " + _EDGE_TARGETS + ", 1) except (" +
+                 _EDGE_TARGETS + ")",
+    opts = ["--noimplicit_deps"],
+    # the edge's own entries outside core named in the expression (A2, A3): in scope, never roots
+    # the edge's targets in scope too: a root reaching one through no other root still finds it (2026-11-17, A6's
+    # roots left: they had brought //core:edge_server into the scope)
+    scope = _EDGE_SEPARATION_ROOTS + [":planted_edge_reach", "//native:edge_entry", "//query-store:edge_page_entry", "//core:edge",
+                                      "//core:edge_server", "//core:edge_service_tests", "//core:edge_store_words",
+                                      "//wasm:edge_boundary", "//wasm:edge_tab"],
 )
 
 java_jars(
@@ -2644,6 +2671,9 @@ java_jars(
         # rule reads it as it reads the hosts' doors
         "//sdlc-server/grammar",
         "//wasm:boundary",
+        # the embedded hosts' engine routes and the module's entry class, the edge's since the census's A1 (2026-11-17)
+        "//wasm:edge_boundary",
+        "//wasm:edge_tab",
         "//wasm:tab",
     ],
 )
