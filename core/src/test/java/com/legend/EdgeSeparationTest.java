@@ -64,8 +64,7 @@ class EdgeSeparationTest {
             Map.entry("com.legend.testplan.PlanStyleFacets", "C4"));
 
     /** The SqlFn members only the edge spells (census B8). */
-    static final Set<String> EDGE_ONLY_SQLFN = Set.of("DATETIME_PRINT",
-            "RELATION_TEXT", "TEXT_FORMS");
+    static final Set<String> EDGE_ONLY_SQLFN = Set.of("DATETIME_PRINT");
 
     /** The referee and the appeals (census C2; G6: the edge's alone). */
     static final Set<String> REFEREE = Set.of("com.legend.testexec.SqlReplayReferee", "com.legend.testexec.Appeals",
@@ -92,9 +91,7 @@ class EdgeSeparationTest {
                     "C5 2026-11-17 (E-P5: LiteralSpelling.temporalCanon)"),
             Map.entry("com.legend.lowering.LiteralSpelling -> SqlFn.DATETIME_PRINT", "B8 2026-11-17"),
             Map.entry("com.legend.lowering.Repr -> (stands in a product package)", "B12 2026-11-17"),
-            Map.entry("com.legend.lowering.Scalars -> SqlFn.TEXT_FORMS", "B8 2026-11-17"),
             Map.entry("com.legend.lowering.Scalars -> com.legend.lowering.Repr", "B12 2026-11-17"),
-            Map.entry("com.legend.lowering.TaggedLists -> SqlFn.TEXT_FORMS", "B8 2026-11-17"),
             // planner.Boundary -> com.legend.edge.HostAnswers, PureText, PureV1Routes: gone 2026-11-17 (A1, E-P5): the
             // pure/v1 route and execute's halves moved to com.legend.edge.wasm.EdgeBoundary (//wasm:edge_boundary)
             // B7 CLOSED 2026-11-17 (E-P5, D's split by content): server/PureV1Api is the product's own API kit,
@@ -199,7 +196,6 @@ class EdgeSeparationTest {
             // product's code that only asks the style for it with the call's refusal (the lowering, its rules, the
             // planner's configuration, the facet list)
             Map.entry("com.legend.lowering.PureOnlyTexts -> (stands in a product package)", "B8 HOOK-RULED 2026-11-17"),
-            Map.entry("com.legend.lowering.Lowerer -> com.legend.lowering.PureOnlyTexts", "B8 HOOK-RULED 2026-11-17"),
             Map.entry("com.legend.lowering.Scalars -> com.legend.lowering.PureOnlyTexts", "B8 HOOK-RULED 2026-11-17"),
             // B17, the relation-text facet (the orchestrator's ruling of 2026-11-17: its signatures, and forwarders to
             // product helpers the product uses itself; HookRulingTest pins both and its one implementer)
@@ -444,7 +440,7 @@ class EdgeSeparationTest {
                 com.legend.planner.PlantedCompatReach.class);
         Set<String> code = found(planted, n -> true);
         for (String want : List.of("com.legend.planner.PlantedCompatReach -> com.legend.edge.Presenter",
-                "com.legend.planner.PlantedCompatReach -> SqlFn.TEXT_FORMS",
+                "com.legend.planner.PlantedCompatReach -> SqlFn.DATETIME_PRINT",
                 "com.legend.planner.PlantedCompatReach -> JudgingRules.COMPILED_PURE_COMPAT")) {
             assertFalse(!code.contains(want), "the CODE and TEST SIDE guards bite: " + want + " in " + code);
         }

@@ -265,10 +265,8 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         // a joined element's text (phase D's D1.3, 2026-11-15): the product's join skips an empty element
         ps.add(new CellTexts.Expansion());
         ps.add(new CellTexts.Rest());
-        // a value's text in two forms (a list's; D1.3): the product's
-        ps.add(new TextForms.Product());
-        // a text only legend-pure writes (format's %0<w>d, an instance's @_ id; D1.3): the product refuses it by name
-        ps.add(new PureOnlyText.Refusal());
+        // (TextForms.Product and PureOnlyText.Refusal: gone 2026-11-17 with B8 -- a list's text is the style's two-form
+        // kind, and every text only legend-pure writes is refused at lowering)
         // lite's canonical text of a Float (a message's; the edge's text of a Float too), expanded before every other
         // pass unless this dialect spells it itself
         if (!spellsFloatShortestText()) {
@@ -1480,8 +1478,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
 
     /** A call the base renderer's first passes expand or refuse ({@link com.legend.sql.SqlFn#DATETIME_TO_TEXT},
      *  {@link com.legend.sql.SqlFn#DATETIME_PRINT}, {@link com.legend.sql.SqlFn#CELL_TEXT},
-     *  {@link com.legend.sql.SqlFn#INSTANCE_TEXT}: {@link DateTimeText},
-     *  {@link DateTimePrintText}, {@link CellTexts}, {@link PureOnlyText}): one reaching a dialect's arm is a renderer
+     *  {@link DateTimeText}, {@link DateTimePrintText}, {@link CellTexts}): one reaching a dialect's arm is a renderer
      *  bug, refused by name. */
     protected static IllegalStateException expandedFirst(SqlExpr.Call c) {
         return new IllegalStateException("renderer bug: " + c.fn() + " is expanded before any dialect reads it");

@@ -170,21 +170,13 @@ public enum SqlFn {
     // (an instance's toString: gone 2026-11-17, the separation census's B8 -- the edge writes '@_' and
     // the id at lowering through the plan style's PureOnlyTexts facet, read by Scalars.pureToString under the caller's
     // explicit Styled; the product refuses at lowering)
-    /** A relation's text ({@code x}, then what the text is as a string literal: {@code toString}'s {@code #TDS} text,
-     *  {@code toCSV}, a TDS's {@code csv}): legend-pure's and legend-engine's texts of rows. The product writes a
-     *  relation's rows by its result writers (JSON, CSV, Arrow): its renderer refuses this by name
-     *  ({@code dialect.PureOnlyText}); the compatibility edge writes {@code x}, today's SQL (edge/PurePrintForms; the
-     *  user's ruling of 2026-11-10, "objects and relations are refused", relayed 2026-11-15; phase D's D1.3). */
-    RELATION_TEXT,
+    // (a relation's text: gone 2026-11-17, the separation census's B8 -- the edge's
+    // RelationTextLowering writes the text itself at lowering (B17's facet); the product refuses at lowering)
     // (a user's toRepresentation: gone 2026-11-17, the separation census's B8 (i) -- the edge
     // writes legend-pure's representation at lowering through the plan style's PureOnlyTexts facet; the product
     // refuses at lowering)
-    /** A value's text in two forms ({@code product}, then {@code pure}): the product's (a list's JSON array; the user's
-     *  ruling of 2026-11-10, start-here §5.4, relayed 2026-11-15) and legend-pure's ({@code [a, 1]}), where the two
-     *  differ in their composition, not one spelling. The base renderer keeps the product's
-     *  ({@code dialect.TextForms}); the compatibility edge keeps legend-pure's (edge/PurePrintForms). Phase D's D1.3,
-     *  2026-11-15: until the hook has a lowering half, legend-pure's form is composed beside the product's. */
-    TEXT_FORMS,
+    // (a value's text in two forms: gone 2026-11-17, the separation census's B8 -- a list's text is the
+    // plan style's two-form kind lowering.ListTexts: the product's JSON array, the edge's legend-pure [a, b])
     // (an execution's trace text: gone 2026-11-17, the separation census's B8 (ii) -- the plan style's
     // traceText, the product's the id, the edge's legend-engine's comment, written at lowering)
     // Variant navigation: logical JSON access; text-extraction idioms are rendering

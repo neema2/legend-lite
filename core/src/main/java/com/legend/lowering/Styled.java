@@ -19,9 +19,11 @@ import java.util.function.Supplier;
  *                  the product's none; the edge's pure/v1 style legend-engine's census class A
  * @param dateTimes a DateTime's text in a message, a two-form hook ({@link DateTimeTexts}, census B9, 2026-11-17): the
  *                  product's lite text, the edge's legend-pure's
+ * @param lists     a list's text, a two-form kind ({@link ListTexts}, census B8, 2026-11-17): the product's JSON array,
+ *                  the edge's {@code [a, b]}
  */
 public record Styled(Function<Supplier<? extends RuntimeException>, PureOnlyTexts> pureOnly,
-        java.util.Set<com.legend.sql.RaiseKind> plain, DateTimeTexts dateTimes) {
+        java.util.Set<com.legend.sql.RaiseKind> plain, DateTimeTexts dateTimes, ListTexts lists) {
 
     public Styled {
         plain = plain.isEmpty() ? java.util.Set.of() : java.util.Collections.unmodifiableSet(java.util.EnumSet.copyOf(plain));
@@ -38,5 +40,5 @@ public record Styled(Function<Supplier<? extends RuntimeException>, PureOnlyText
      *  lite's written (no plain raise, {@code PlanStyle.plainRaises}); lite's text of a DateTime. */
     public static final Styled PRODUCT = new Styled(refusal -> {
         throw refusal.get();
-    }, java.util.Set.of(), LITE_DATE_TIMES);
+    }, java.util.Set.of(), LITE_DATE_TIMES, ProductListTexts.INSTANCE);
 }
