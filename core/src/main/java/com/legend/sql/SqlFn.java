@@ -148,17 +148,12 @@ public enum SqlFn {
     /** A DateTime's text ({@code toString}, {@code format}'s {@code %s}): the product's is ISO 8601 in UTC, six fraction
      *  digits and {@code Z} (the user's ruling of 2026-11-10, D_BRIEF §1; phase D's D1.2, 2026-11-15), a STRFTIME the
      *  base renderer expands it to ({@code dialect.DateTimeText}). One operand, the value (the audit's K15, 2026-11-17:
-     *  a literal's written text, which legend-pure prints at its written precision, is the edge's alone, carried by the
-     *  edge's form {@link #DATETIME_PRINT}). The compatibility edge writes {@link #DATETIME_PRINT} for it. */
+     *  a literal's written text, which legend-pure prints at its written precision, is the edge's alone, through the
+     *  style's two-form DateTimeTexts). The compatibility edge's dialects print it legend-pure's way
+     *  (edge.PureDateTimePrint; census B12, 2026-11-17). */
     DATETIME_TO_TEXT,
-    /** A DateTime's text as legend-pure prints it: the fraction's digits with their trailing zeros trimmed, then
-     *  {@code +0000}; a literal's (a second operand, its written text) that text and {@code +0000}. The compatibility
-     *  edge's form of a DateTime in a message (census B9, 2026-11-17: the two-form hook lowering.DateTimeTexts) and its
-     *  text of {@link #DATETIME_TO_TEXT};
-     *  never the product's (phase D's D1.2, 2026-11-15: until then the lowering composed it in place,
-     *  LiteralSpelling.dateTimeText). Expanded before every other pass ({@code dialect.DateTimePrintText}), for the
-     *  judges' canon alone since census B9 (2026-11-17: C5, E-P5's, LiteralSpelling.temporalCanon). */
-    DATETIME_PRINT,
+    // (DATETIME_PRINT, legend-pure's print form of a DateTime: gone 2026-11-17, census B12 -- the edge composes it from
+    // the product's nodes, edge.PureDateTimePrint, at lowering and in its print pass)
     /** THE JUDGES' CANON OF A TIMESTAMP (census C5's step C, 2026-11-17): {@code T}-separated, the fraction's digits
      *  with their trailing zeros trimmed (a timestamp carries no written precision), {@code Z} -- lite's spelling, which
      *  every side of a comparison is written in, so lite's date equality (A1) is kept and no message reads it.
@@ -224,7 +219,7 @@ public enum SqlFn {
                     VARIANT_GET,
                     // a Float's and a DateTime's text, branching on the value's magnitude and kind (D's W3, its
                     // instrument, and S312's form, 2026-11-16; found by MaySkipCensusTest at the merge of PR1's head)
-                    FLOAT_TO_TEXT, DATETIME_PRINT, DATETIME_CANON_TEXT, DATETIME_TO_TEXT,
+                    FLOAT_TO_TEXT, DATETIME_CANON_TEXT, DATETIME_TO_TEXT,
                     // the product's join of a row's cells skips a NULL part by design (Phase 3, 2026-11-17; found by
                     // MaySkipCensusTest: MariaDB, MySQL, SQLite, BigQuery and MongoDB branch or skip)
                     CONCAT_WS));
