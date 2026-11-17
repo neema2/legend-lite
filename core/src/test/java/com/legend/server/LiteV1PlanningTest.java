@@ -269,7 +269,7 @@ class LiteV1PlanningTest {
     @DisplayName("query/run: the plan run with its parameter bound at run, answered as lite's typed rows")
     void queryRun() {
         LiteV1Api.Answer a = run("query/run", request("model", PARTY, "query", lambdaOf(SINCE), "runtime", RUNTIME,
-                "params", request("since", "2022-01-01")));
+                "format", "json", "params", request("since", "2022-01-01")));
         assertEquals(200, a.status(), a.json());
         Json.Obj answer = Json.parseObject(a.json());
         assertEquals("RELATION", answer.getString("shape"));
@@ -289,17 +289,17 @@ class LiteV1PlanningTest {
     @DisplayName("query/run binds an Integer parameter in the 64-bit range, exact: 2^63-1 itself")
     void anIntegerParameterTakesThe64BitRange() {
         LiteV1Api.Answer max = run("query/run", request("model", PARTY, "query", lambdaOf(UP_TO), "runtime", RUNTIME,
-                "params", Json.parseObject("{\"n\":9223372036854775807}")));
+                "format", "json", "params", Json.parseObject("{\"n\":9223372036854775807}")));
         assertEquals(200, max.status(), max.json());
         assertEquals("[[1],[9223372036854775807]]", Json.toCompact(Json.parseObject(max.json()).get("rows")));
         LiteV1Api.Answer below = run("query/run", request("model", PARTY, "query", lambdaOf(UP_TO), "runtime", RUNTIME,
-                "params", Json.parseObject("{\"n\":9223372036854775806}")));
+                "format", "json", "params", Json.parseObject("{\"n\":9223372036854775806}")));
         assertEquals("[[1]]", Json.toCompact(Json.parseObject(below.json()).get("rows")), below.json());
         refused(run("query/run", request("model", PARTY, "query", lambdaOf(UP_TO), "runtime", RUNTIME,
-                "params", Json.parseObject("{\"n\":9223372036854775808}"))), "parameters", 400,
+                "format", "json", "params", Json.parseObject("{\"n\":9223372036854775808}"))), "parameters", 400,
                 "parameter 'n' (Integer): given 9223372036854775808, which is beyond the 64-bit range an Integer holds");
         refused(run("query/run", request("model", PARTY, "query", lambdaOf(UP_TO), "runtime", RUNTIME,
-                "params", Json.parseObject("{\"n\":1.5}"))), "parameters", 400,
+                "format", "json", "params", Json.parseObject("{\"n\":1.5}"))), "parameters", 400,
                 "parameter 'n' (Integer): given 1.5, which is no Integer's JSON value");
     }
 
@@ -327,17 +327,26 @@ class LiteV1PlanningTest {
     @Test
     @DisplayName("query/run refuses the caller's values by name, kind parameters: one missing, one of the wrong kind")
     void queryRunRefusesParameters() {
-        refused(run("query/run", request("model", PARTY, "query", lambdaOf(SINCE), "runtime", RUNTIME)),
-                "parameters", 400, "no value for the parameter(s) since:StrictDate[1]");
         refused(run("query/run", request("model", PARTY, "query", lambdaOf(SINCE), "runtime", RUNTIME,
-                "params", request("since", 20220101))), "parameters", 400,
+                "format", "json")), "parameters", 400, "no value for the parameter(s) since:StrictDate[1]");
+        refused(run("query/run", request("model", PARTY, "query", lambdaOf(SINCE), "runtime", RUNTIME,
+                "format", "json", "params", request("since", 20220101))), "parameters", 400,
                 "parameter 'since' (StrictDate): given 20220101, which is no StrictDate's JSON value");
         refused(run("query/run", request("model", PARTY, "query", lambdaOf(SINCE), "runtime", RUNTIME,
-                "params", request("since", "2022-13-01"))), "parameters", 400,
+                "format", "json", "params", request("since", "2022-13-01"))), "parameters", 400,
                 "parameter 'since': given \"2022-13-01\", which is no StrictDate's text");
         refused(run("query/run", request("model", PARTY, "query", lambdaOf(SINCE), "runtime", RUNTIME,
-                "params", request(), "parameterValues", List.of())), "request", 400,
-                "a query/run request has no key parameterValues (it holds model, query, runtime; optional format, params)");
+                "format", "json", "params", request(), "parameterValues", List.of())), "request", 400,
+                "a query/run request has no key parameterValues (it holds model, query, runtime, format; optional params)");
+    }
+
+    @Test
+    @DisplayName("query/run's format is the caller's ask, never a guess: a request without it refused by name, kind request")
+    void queryRunRequiresItsFormat() {
+        // spec §4 (the orchestrator's ruling of 2026-11-17, G7): until then a missing format answered json
+        refused(run("query/run", request("model", PARTY, "query", lambdaOf(SINCE), "runtime", RUNTIME,
+                "params", request("since", "2022-01-01"))), "request", 400,
+                "a query/run request names no format (it holds model, query, runtime, format; optional params)");
     }
 
     @Test
@@ -345,7 +354,7 @@ class LiteV1PlanningTest {
     void aRaiseIsTheDatas() {
         Json.Obj error = refused(run("query/run", request("model", PARTY, "query",
                 lambdaOf("|proj::Party.all()->project(~[x: p|$p.id->rem(0)])->from(proj::PartyMapping, proj::RT)"),
-                "runtime", RUNTIME)), "data", 422, "");
+                "runtime", RUNTIME, "format", "json")), "data", 422, "");
         assertTrue(error.has("raise"), Json.toCompact(error));
     }
 
@@ -360,7 +369,8 @@ class LiteV1PlanningTest {
             java.net.http.HttpResponse<String> r = client.send(java.net.http.HttpRequest.newBuilder()
                     .uri(java.net.URI.create(base + "query/run"))
                     .POST(java.net.http.HttpRequest.BodyPublishers.ofString(Json.toCompact(request("model", PARTY,
-                            "query", lambdaOf(SINCE), "runtime", RUNTIME, "params", request("since", "2022-01-01")))))
+                            "query", lambdaOf(SINCE), "runtime", RUNTIME, "format", "json",
+                            "params", request("since", "2022-01-01")))))
                     .build(), java.net.http.HttpResponse.BodyHandlers.ofString());
             assertEquals(200, r.statusCode(), r.body());
             assertEquals("[[9223372036854775807,\"Halberd Securities\",\"2022-05-06\"]]",
