@@ -60,8 +60,11 @@ class PlanStyleSurfaceTest {
     static final Map<String, String> TWO_FORM_EXCEPTIONS = Map.ofEntries(
             // the product's own form held in the kind type itself: found by this guard 2026-11-17, reported to the
             // orchestrator (move the product's form out of the kind, or rule it), pinned so the kind grows no further
-            Map.entry("TestDataPlanner$Printing#CLEAN (field)", "the product's clean timestamp form (L9, census C1"
-                    + " 2026-11-17), found 2026-11-17"),
+            // (TestDataPlanner$Printing#CLEAN: CLOSED 2026-11-17 by E-P5's K12, a095d0b56 -- the product's form its own
+            // class, testdatagen.LitePrinting)
+            // LoweringForms (E-SQL's K5, fd1df9928, train 5): the product's forms an anonymous class held in the kind's
+            // field -- the same break, found on d-int6 2026-11-17 and reported with the other four
+            Map.entry("LoweringForms#PRODUCT (field)", "the product's lowering forms (K5, fd1df9928), found 2026-11-17"),
             Map.entry("CrossKindNumbers#Product (nested type)", PRODUCT_ENUM),
             // and every member of it, so the excepted nested type grows no further (the review of 7c37c88d7d)
             Map.entry("CrossKindNumbers#Product#private <init>() (in a nested type)", PRODUCT_ENUM),
@@ -107,12 +110,12 @@ class PlanStyleSurfaceTest {
             "public abstract java.lang.String errorWords(java.lang.RuntimeException)",
             "public abstract java.lang.String graphKeyDate(java.lang.String)",
             "public abstract java.lang.String graphKeyString(java.lang.String)",
-            "public abstract java.lang.String siteWords(com.legend.sql.dialect.RaiseSite)",
-            "public abstract java.util.Set<com.legend.sql.RaiseKind> plainRaises()");
+            "public abstract java.lang.String siteWords(com.legend.sql.dialect.RaiseSite)");
+            // (plainRaises(): gone from the style 2026-11-17, d-int6)
 
     /** Every style method by name: each style implements them all today. */
     private static final Set<String> ALL = Set.of("activitySql", "dialect", "errorWords", "facet", "graphKeyDate",
-            "graphKeyString", "judgesEngineText", "plainRaises", "siteWords", "traceCell", "twoForm");
+            "graphKeyString", "judgesEngineText", "siteWords", "traceCell", "twoForm");
 
     /** Each implementer of PlanStyle -> the style methods it declares. */
     static final Map<String, Set<String>> OVERRIDERS = Map.ofEntries(
@@ -255,7 +258,6 @@ class PlanStyleSurfaceTest {
             "$1#public java.lang.String graphKeyDate(java.lang.String)",
             "$1#public java.lang.String graphKeyString(java.lang.String)",
             "$1#public java.lang.String siteWords(com.legend.sql.dialect.RaiseSite)",
-            "$1#public java.util.Set<com.legend.sql.RaiseKind> plainRaises()",
             "Activity#public abstract java.lang.String engines()",
             "Activity#public abstract java.lang.String lites()",
             "TraceCell#private final java.lang.String after",
@@ -278,7 +280,6 @@ class PlanStyleSurfaceTest {
             "public abstract java.lang.String graphKeyDate(java.lang.String)",
             "public abstract java.lang.String graphKeyString(java.lang.String)",
             "public abstract java.lang.String siteWords(com.legend.sql.dialect.RaiseSite)",
-            "public abstract java.util.Set<com.legend.sql.RaiseKind> plainRaises()",
             "public abstract static Activity (class)",
             "public static final TraceCell (class)",
             "public static final com.legend.database.PlanStyle PRODUCT",

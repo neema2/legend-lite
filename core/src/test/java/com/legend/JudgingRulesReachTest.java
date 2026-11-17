@@ -80,8 +80,8 @@ class JudgingRulesReachTest {
             // ruled (b), 2026-11-17 16:40 and 17:24: behaviours that move behind an edge hook
             // (integerDecimalByText() and renderedTextRuled(): gone from the type 2026-11-17 with D's train 4 -- C1 2c's
             // CrossKindNumbers and the rendered-text rule's two-form kind; their reaches closed with them)
-            Map.entry("legendPureWords()", Kind.BEHAVIOUR),
-            Map.entry("edgeAppeals()", Kind.BEHAVIOUR));
+            Map.entry("legendPureWords()", Kind.BEHAVIOUR));
+            // (edgeAppeals(): gone from the type 2026-11-17 with E-Java's C1, 278188ddcb, D's train 6)
 
     /** The methods every enum inherits, by signature: reached on the type, they carry or enumerate it. */
     static final Set<String> ENUM_METHODS = Set.of("name()", "ordinal()", "compareTo(java.lang.Enum)",
@@ -92,10 +92,13 @@ class JudgingRulesReachTest {
     static final Map<String, String> BEHAVIOUR_OPEN = Map.ofEntries(
             // the host judge's words and its rendered-text rule (2026-11-17: found by this guard, counted nowhere before)
             Map.entry("com.legend.testexec.HostJudgments -> JudgingRules.legendPureWords()", "C1 2026-11-17"),
+            // found on d-int6 (2026-11-17, E-Java's C1 2c): the assert-error runs ask the rules for lite's sentences, as
+            // HostJudgments does -- counted on C1, reported to the orchestrator
+            Map.entry("com.legend.testexec.AssertErrorRuns -> JudgingRules.legendPureWords()", "C1 2026-11-17"),
             // (IsolatedRun -> legendPureWords() CLOSED 2026-11-17 by C5 step B: legend-pure's words at run are the
             // hearing's PureWords hook, NoEdgeRun refusing them by name; its reach and its pool's mention gone)
-            Map.entry("com.legend.testplan.DatabaseJudge -> JudgingRules.legendPureWords()", "C1 2026-11-17"),
-            Map.entry("com.legend.testplan.PlanningOptions -> JudgingRules.edgeAppeals()", "C1 2026-11-17"));
+            Map.entry("com.legend.testplan.DatabaseJudge -> JudgingRules.legendPureWords()", "C1 2026-11-17"));
+            // (PlanningOptions -> edgeAppeals() CLOSED 2026-11-17 by E-Java's C1, 278188ddcb, D's train 6: the member gone)
 
     /** BEHAVIOUR and CARRIER: "source class -> JudgingRules.member" with the number of its reaches, exact (a reach
      *  added -- a second legendPureWords() in a class already counted -- fails until it is ruled; a reach gone lowers
@@ -104,15 +107,20 @@ class JudgingRulesReachTest {
             // the behaviours (BEHAVIOUR_OPEN's entries), one reach each; the carriers: the test plan's JSON (a verdict
             // group's rules spelled by a switch -- LITE twice, ordinal three times and values once through its switch
             // maps -- an isolated step's by name/valueOf) and the one selector, engineCompat ? COMPILED_PURE_COMPAT : LITE
+            Map.entry("com.legend.testexec.AssertErrorRuns -> JudgingRules.legendPureWords()", 1),
             Map.entry("com.legend.testexec.HostJudgments -> JudgingRules.legendPureWords()", 1),
+            // carriers found on d-int6 (2026-11-17, E-Java's C1): the host judge's rules, lite's by default (HostRules);
+            // the product's edge hook records under lite's rules (NoEdge)
+            Map.entry("com.legend.testexec.HostRules -> JudgingRules.LITE", 1),
+            Map.entry("com.legend.testexecutionplan.NoEdge -> JudgingRules.LITE", 1),
             Map.entry("com.legend.testexecutionplan.TestPlanJson -> JudgingRules.LITE", 2),
             Map.entry("com.legend.testexecutionplan.TestPlanJson -> JudgingRules.name()", 1),
             Map.entry("com.legend.testexecutionplan.TestPlanJson -> JudgingRules.ordinal()", 3),
             Map.entry("com.legend.testexecutionplan.TestPlanJson -> JudgingRules.valueOf(java.lang.String)", 1),
             Map.entry("com.legend.testexecutionplan.TestPlanJson -> JudgingRules.values()", 1),
             Map.entry("com.legend.testplan.DatabaseJudge -> JudgingRules.legendPureWords()", 1),
-            Map.entry("com.legend.testplan.PlanningOptions -> JudgingRules.LITE", 1),
-            Map.entry("com.legend.testplan.PlanningOptions -> JudgingRules.edgeAppeals()", 1));
+            Map.entry("com.legend.testplan.PlanningOptions -> JudgingRules.LITE", 1));
+            // (PlanningOptions -> edgeAppeals(): gone with the member, 278188ddcb)
 
     /** The distinctive tokens a pool may hold: the constants' and the facts' names, and the plan JSON's spelling of the
      *  compatibility rules. */
@@ -126,19 +134,23 @@ class JudgingRulesReachTest {
      *  constant's spelling, with the tokens it holds: exact. Measured 2026-11-17. */
     static final Map<String, Set<String>> NAMES_PINNED = Map.ofEntries(
             Map.entry("com.legend.ExecuteOptions", Set.of(TYPE)),
-            Map.entry("com.legend.testexec.AssertErrorRuns", Set.of(TYPE)),
+            // + legendPureWords (2026-11-17, found on d-int6, E-Java's C1: lite's sentences asked of the rules)
+            Map.entry("com.legend.testexec.AssertErrorRuns", Set.of(TYPE, "legendPureWords")),
             Map.entry("com.legend.testexec.AssertRuns", Set.of(TYPE)),
             Map.entry("com.legend.testexec.BodyRun", Set.of(TYPE)),
             Map.entry("com.legend.testexec.EdgeHearing", Set.of(TYPE)),
-            Map.entry("com.legend.testexec.Equality",
-                    Set.of(TYPE, "COMPILED_PURE_COMPAT", "decimalScale", "floatTolerance")),
+            // (testexec.Equality, PureAsserts, TdsCompare: no longer name the type 2026-11-17, E-Java's C1 2c on d-int6 --
+            // the host judge carries the plan's rules with the run's forms, HostRules)
+            Map.entry("com.legend.testexec.HostRules", Set.of(TYPE, "LITE", "decimalScale", "floatTolerance")),
             // (renderedTextRuled gone 2026-11-17 with D's train 4, its member deleted from the type)
             Map.entry("com.legend.testexec.HostJudgments", Set.of(TYPE, "legendPureWords")),
             Map.entry("com.legend.testexec.NoEdgeRun", Set.of(TYPE)),
-            Map.entry("com.legend.testexec.PureAsserts", Set.of(TYPE)),
-            Map.entry("com.legend.testexec.TdsCompare", Set.of(TYPE)),
             Map.entry("com.legend.testexec.TestRunner", Set.of(TYPE)),
             Map.entry("com.legend.testexecutionplan.TestPlan", Set.of(TYPE)),
+            // the typed edge hook and the product's answer (census C1): the ledger's recorder names the rules it records
+            // under; NoEdge answers lite's
+            Map.entry("com.legend.testexecutionplan.Edge", Set.of(TYPE)),
+            Map.entry("com.legend.testexecutionplan.NoEdge", Set.of(TYPE, "LITE")),
             Map.entry("com.legend.testexecutionplan.TestPlanJson",
                     Set.of(TYPE, "COMPILED_PURE_COMPAT", "LITE", "compiledPureCompat")),
             // (testplan.AssertVerdicts: gone 2026-11-17 with renderedTextRuled, D's train 4)
@@ -151,8 +163,8 @@ class JudgingRulesReachTest {
             Map.entry("com.legend.testplan.HostAsserts", Set.of(TYPE)),
             Map.entry("com.legend.testplan.HostSideBatching", Set.of(TYPE)),
             Map.entry("com.legend.testplan.JudgePlans", Set.of(TYPE)),
-            Map.entry("com.legend.testplan.PlanningOptions",
-                    Set.of(TYPE, "COMPILED_PURE_COMPAT", "LITE", "edgeAppeals")),
+            // (- edgeAppeals: gone with the member, 278188ddcb)
+            Map.entry("com.legend.testplan.PlanningOptions", Set.of(TYPE, "COMPILED_PURE_COMPAT", "LITE")),
             Map.entry("com.legend.testplan.TestPlanner", Set.of(TYPE)),
             Map.entry("com.legend.testplan.VerdictBatch", Set.of(TYPE)));
 
@@ -340,10 +352,10 @@ class JudgingRulesReachTest {
         Sorted s = sort(reaches(planted));
         String r = prefix + "Reach -> JudgingRules.";
         assertEquals(List.of(), s.unsorted());
-        assertEquals(Map.of(r + "edgeAppeals()", 2, r + "legendPureWords()", 1, r + "LITE", 2,
+        assertEquals(Map.of(r + "legendPureWords()", 3, r + "LITE", 2,
                 r + "ordinal()", 3, r + "values()", 1), s.pinned(), "behaviour and carrier reaches counted, the switch"
                 + " map's merged into its top class; the data parameter and the constant dropped");
-        assertEquals(Set.of(r + "edgeAppeals()", r + "legendPureWords()"), s.behaviour());
+        assertEquals(Set.of(r + "legendPureWords()"), s.behaviour());
         assertTrue(reaches(planted).containsKey(r + "floatTolerance()") && reaches(planted).containsKey(
                 r + "COMPILED_PURE_COMPAT"), "the data parameter and the constant are reached, then dropped by kind");
         assertEquals(Map.of(), reaches(planted.stream().filter(c -> c.getName().startsWith(prefix + "Switch")).toList()),
@@ -365,7 +377,7 @@ class JudgingRulesReachTest {
                 "a class literal and a constant's name as a string are in its pool");
         assertEquals(Set.of("compiledPureCompat"), names.get(prefix + "Text"),
                 "a token inside a longer string, in a class that never names the type, is found as a word");
-        assertTrue(names.get(prefix + "Reach").containsAll(Set.of(TYPE, "edgeAppeals", "legendPureWords",
+        assertTrue(names.get(prefix + "Reach").containsAll(Set.of(TYPE, "legendPureWords",
                 "LITE", "floatTolerance", "COMPILED_PURE_COMPAT")), "the reaching class's pool: " + names);
         assertEquals(null, kindOf("floatTolerance(int)"), "an overload is no sorted member");
     }
