@@ -105,3 +105,35 @@ shipped binary's root).
 | C5 judges' canons and messages | E-Java | L | in flight (4b) |
 
 F's own queue from this list (all S, all guards): A3, B8, B10, C1, C2.
+
+## F. Log
+
+- 2026-11-17, the orchestrator's rulings: **A4** the shipped `//core:server` stays rooted at `EdgeServer` (the edge
+  depends on the product, never the reverse: G5) -- recorded, closed. **B14** `parser/EngineQuirks` STAYS as product
+  semantics (legend-pure 5.99.0 and legend-engine 4.145.0 parse `1 < 2 + 3 * 4` alike: how Pure parses, not an engine
+  quirk; F35 corrects the class's comment) -- recorded, closed.
+- 2026-11-17, F's five guards, `claude/total-wall-f-guards` @ dc903476 (each its own commit; guardrails and census
+  green, `--nobuild //...` green):
+  - **A3** `//query-store:page_entry` joins `authored_door_jars`; the hosts' doors rule reads `QueriesPage`, whose
+    `edge.StoreWords` reach is a named, dated entry. Proven to bite.
+  - **B8** `EdgeOnlyNodesCensusTest`: the seven edge-only SqlFn members pinned to their emitting sites (LiteralSpelling,
+    Scalars, Lowerer, Repr, TaggedLists), and on every relational product dialect the product refuses legend-pure's
+    four texts by name and writes its own form for TEXT_FORMS and TRACE_TEXT.
+  - **B10** `'TDSNull'` in CompatSpellingGuardTest's vocabulary: 11 rows (6 STAYS: input and language; 4 D1.9: the
+    judges'; 1 D1.3: Render's relation text). Wider than the census's first list: the compiler's #TDS token sites
+    (TdsChecker, TdsNullForms, Typer, PlatformTypes) and VerdictQueries, found by the scan.
+  - **C1** `COMPILED_PURE_COMPAT` in its symbols: 10 files registered, D1.9.
+  - **C2** `RefereeAppealsCensusTest`: the six referee/appeal classes, each pinned to its exact product reachers (the
+    named entries, 26 in all), shrink-only until the move.
+
+## G. Recount after the guards (2026-11-17)
+
+| | lines | guarded | partly | unguarded | closed |
+|---|---|---|---|---|---|
+| A build | 6 | 3 (A1, A2, A3) | - | 2 (A5, A6: E-Java's Phase 7 rule) | 1 (A4 ruled) |
+| B code | 16 | 12 (B1-B5, B8, B9, B10, B11-B13, B15/B16 records) | 1 (B7: layers only) | 1 (B6: PurePrint, UpstreamRelationType) | 1 (B14 ruled) |
+| C test side | 7 | 5 (C1, C2, C4, C5, C3) | - | 0 | 2 records (C6, C7) |
+
+Unguarded now: A5/A6 (the product tests' edge dependency: E-Java's `productTestsReachNoEdge`), B6 (two `plan` classes:
+an S guard row each, owner E-SQL/D), and B7 partly (`:pure_v1` in the plan side: D's pure/v1 build).
+Next for F: the MOVES C2 (the referee and appeals into the edge package) and B10 (TDSNull out of product lowering).
