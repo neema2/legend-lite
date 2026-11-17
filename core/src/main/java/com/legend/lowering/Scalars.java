@@ -430,22 +430,22 @@ final class Scalars {
                     SqlExpr shifted = SqlExpr.Call.of(fn,
                             new SqlExpr.Cast(args.get(0), SqlType.Scalar.BIGINT, SqlExpr.Reason.OPERATOR),
                             args.get(1));
-                    if (styled.plain().contains(com.legend.sql.RaiseKind.SHIFT_OUT_OF_RANGE)) {
-                        // the plan style writes the shift plain (B7): the database's own shift, no bound
-                        return shifted;
-                    }
-                    SqlExpr boundError = SqlExpr.Call.of(SqlFn.ERROR,
-                            new SqlExpr.RaiseText(com.legend.sql.RaiseKind.SHIFT_OUT_OF_RANGE, List.of()));
-                    if (args.get(1) instanceof SqlExpr.IntLit sh) {
-                        return sh.value() < 0 || sh.value() > 62 ? boundError : shifted;
-                    }
-                    // non-literal shift: bound guards AT RUNTIME in SQL
-                    // (deep-audit H4 — the laundering pct remap is deleted)
-                    return new SqlExpr.Case(List.of(new SqlExpr.Case.When(
-                            SqlExpr.Call.of(SqlFn.AND,
-                                    SqlExpr.Call.of(SqlFn.GREATER_EQUAL, args.get(1), new SqlExpr.IntLit(0)),
-                                    SqlExpr.Call.of(SqlFn.LESS_EQUAL, args.get(1), new SqlExpr.IntLit(62))),
-                            shifted)), boundError, SqlExpr.Reason.OPERATOR);
+                    // the style's form (the audit's K5, 2026-11-17): the product's bound, or the database's own shift
+                    // where the style writes it plain (B7)
+                    return styled.forms().raise(com.legend.sql.RaiseKind.SHIFT_OUT_OF_RANGE, () -> {
+                        SqlExpr boundError = SqlExpr.Call.of(SqlFn.ERROR,
+                                new SqlExpr.RaiseText(com.legend.sql.RaiseKind.SHIFT_OUT_OF_RANGE, List.of()));
+                        if (args.get(1) instanceof SqlExpr.IntLit sh) {
+                            return sh.value() < 0 || sh.value() > 62 ? boundError : shifted;
+                        }
+                        // non-literal shift: bound guards AT RUNTIME in SQL
+                        // (deep-audit H4 — the laundering pct remap is deleted)
+                        return new SqlExpr.Case(List.of(new SqlExpr.Case.When(
+                                SqlExpr.Call.of(SqlFn.AND,
+                                        SqlExpr.Call.of(SqlFn.GREATER_EQUAL, args.get(1), new SqlExpr.IntLit(0)),
+                                        SqlExpr.Call.of(SqlFn.LESS_EQUAL, args.get(1), new SqlExpr.IntLit(62))),
+                                shifted)), boundError, SqlExpr.Reason.OPERATOR);
+                    }, shifted);
                 });
             }
         }
@@ -3024,10 +3024,10 @@ final class Scalars {
     }
 
     /** {@code CASE WHEN cond THEN error(msg) ELSE value END} — a DATABASE-raised guard. */
-    /** {@link #guarded(SqlExpr, SqlExpr.RaiseText, SqlExpr)} under the plan style ({@code PlanStyle.plainRaises}, B7,
+    /** {@link #guarded(SqlExpr, SqlExpr.RaiseText, SqlExpr)} under the plan style ({@link LoweringForms#raise}, the audit's K5; B7,
      *  2026-11-17): a kind the style writes plain is the operation alone, the database's own error passing through. */
     static SqlExpr guarded(SqlExpr cond, SqlExpr.RaiseText msg, SqlExpr value, Styled styled) {
-        return styled.plain().contains(msg.kind()) ? value : guarded(cond, msg, value);
+        return styled.forms().raise(msg.kind(), () -> guarded(cond, msg, value), value);
     }
 
     static SqlExpr guarded(SqlExpr cond, SqlExpr.RaiseText msg, SqlExpr value) {
