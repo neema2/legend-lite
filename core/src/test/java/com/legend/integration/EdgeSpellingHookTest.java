@@ -84,21 +84,6 @@ class EdgeSpellingHookTest {
         }
 
         @Override
-        public com.legend.sql.dialect.EngineTextDialect engineTestText() {
-            return PlanStyle.PRODUCT.engineTestText();
-        }
-
-        @Override
-        public com.legend.sql.dialect.EngineTextDialect engineTestPlanText() {
-            return PlanStyle.PRODUCT.engineTestPlanText();
-        }
-
-        @Override
-        public String engineTestConnection() {
-            return PlanStyle.PRODUCT.engineTestConnection();
-        }
-
-        @Override
         public String errorWords(RuntimeException e) {
             return e.getMessage();
         }

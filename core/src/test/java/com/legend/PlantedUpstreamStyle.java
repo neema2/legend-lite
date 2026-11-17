@@ -5,7 +5,6 @@ package com.legend;
 
 import com.legend.database.PlanStyle;
 import com.legend.model.ConnectionDefinition.DatabaseType;
-import com.legend.sql.dialect.EngineTextDialect;
 import com.legend.sql.dialect.SqlDialect;
 
 /**
@@ -32,21 +31,6 @@ final class PlantedUpstreamStyle implements PlanStyle {
 
     @Override
     public String graphKeyString(String value) {
-        throw new UnsupportedOperationException("planted");
-    }
-
-    @Override
-    public com.legend.sql.dialect.EngineTextDialect engineTestText() {
-        throw new UnsupportedOperationException("planted");
-    }
-
-    @Override
-    public com.legend.sql.dialect.EngineTextDialect engineTestPlanText() {
-        throw new UnsupportedOperationException("planted");
-    }
-
-    @Override
-    public String engineTestConnection() {
         throw new UnsupportedOperationException("planted");
     }
 

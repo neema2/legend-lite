@@ -37,6 +37,16 @@ public interface UpstreamPlans {
     String activitySql(List<TypedSpec> chain, @com.legend.base.Nullable String mappingFqn, SpecCompiler specs,
             PlanEnv env, boolean recorded);
 
+    /** legend-engine's setup SQL for a seed's CSV on its test database ({@code setUpDataSqls}): the DDL and the
+     *  inserts as its text prints them (Phase 6's A, 2026-11-17: moved off PlanStyle, which names no engine text). */
+    List<String> engineSeedSql(String csv, com.legend.model.DatabaseDefinition db,
+            java.util.function.Function<String, java.util.Optional<com.legend.model.DatabaseDefinition>> lookup);
+    /** {@link #engineSeedSql} for a seed written as records. */
+    List<String> engineSeedSqlFromRecords(List<List<String>> records, com.legend.model.DatabaseDefinition db,
+            java.util.function.Function<String, java.util.Optional<com.legend.model.DatabaseDefinition>> lookup);
+    /** The test-data generator's plan text, naming legend-engine's test connection, as every engine test of it does. */
+    String generatedTestDataPlan(com.legend.compiler.spec.typed.TypedTestDataGen tg,
+            com.legend.compiler.element.ModelContext ctx);
     /** The routine table of the plan-text natives (the catalog's JAVA_ROUTINE rows), each asking the style's facet
      *  when it is CALLED: a body that names none plans on any style, and one that does is refused by name by the
      *  product's at that call, as before. */

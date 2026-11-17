@@ -68,22 +68,8 @@ public final class PureText {
                     + " is none of the declared kinds (com.legend.testplan.PlanStyleFacets.KINDS)");
         }
 
-        @Override
-        public com.legend.sql.dialect.EngineTextDialect engineTestText() {
-            return PureText.engineText(ENGINE_TEST_DATABASE);
-        }
 
-        @Override
-        public com.legend.sql.dialect.EngineTextDialect engineTestPlanText() {
-            return PureText.enginePlanText(ENGINE_TEST_DATABASE, false, null);
-        }
 
-        /** The connection legend-engine's test plans name: its test database's. */
-        @Override
-        public String engineTestConnection() {
-            return "TestDatabaseConnection(type = \"" + ENGINE_TEST_DATABASE.name()
-                    + "\")";
-        }
 
         /** legend-engine's key argument: the date's written text, {@code +0000} after a time (D1.2). */
         @Override

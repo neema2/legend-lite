@@ -227,6 +227,29 @@ public final class EnginePlans {
         }
 
         @Override
+        public java.util.List<String> engineSeedSql(String csv, com.legend.model.DatabaseDefinition db,
+                java.util.function.Function<String, java.util.Optional<com.legend.model.DatabaseDefinition>> lookup) {
+            return com.legend.setup.Ddl.setUpDataSqlsText(csv, db, lookup,
+                    PureText.engineText(EngineText.ENGINE_TEST_DATABASE));
+        }
+
+        @Override
+        public java.util.List<String> engineSeedSqlFromRecords(java.util.List<java.util.List<String>> records,
+                com.legend.model.DatabaseDefinition db,
+                java.util.function.Function<String, java.util.Optional<com.legend.model.DatabaseDefinition>> lookup) {
+            return com.legend.setup.Ddl.setUpDataSqlsTextFromRecords(records, db, lookup,
+                    PureText.engineText(EngineText.ENGINE_TEST_DATABASE));
+        }
+
+        @Override
+        public String generatedTestDataPlan(com.legend.compiler.spec.typed.TypedTestDataGen tg,
+                com.legend.compiler.element.ModelContext ctx) {
+            return com.legend.testdatagen.TestDataGenerationNatives.planTextResult(tg, ctx,
+                    PureText.engineText(EngineText.ENGINE_TEST_DATABASE),
+                    "TestDatabaseConnection(type = \"" + EngineText.ENGINE_TEST_DATABASE.name() + "\")");
+        }
+
+        @Override
         public String activitySql(java.util.List<TypedSpec> chain, @com.legend.base.Nullable String mappingFqn,
                 com.legend.compiler.spec.SpecCompiler specs, PlanEnv env, boolean recorded) {
             com.legend.sql.dialect.EngineTextDialect renderer = PureText.engineText(EngineText.ENGINE_TEST_DATABASE);

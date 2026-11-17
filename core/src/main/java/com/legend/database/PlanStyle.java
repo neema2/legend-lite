@@ -23,18 +23,6 @@ public interface PlanStyle {
      *  {@link Databases#dialect} refuses it. */
     SqlDialect dialect(DatabaseType type);
 
-    /** legend-engine's SQL text for the database its test connections declare: the judges' text for an engine test's
-     *  goldens (W9's judge half, E-Java, 2026-11-16: the test planner names no engine text of its own). The edge's
-     *  alone (the product refuses it by name). */
-    com.legend.sql.dialect.EngineTextDialect engineTestText();
-
-    /** legend-engine's PLAN text for its test database, unquoted and with no zone: the edge's alone. */
-    com.legend.sql.dialect.EngineTextDialect engineTestPlanText();
-
-    /** The connection an engine test's generated plan text names ({@code TestDatabaseConnection(type = ...)}): the
-     *  edge's alone. */
-    String engineTestConnection();
-
     /** THE SQL AN EXECUTE'S ACTIVITY RECORD REPORTS ({@code RelationalActivity.sql}; S310, RULED by the user
      *  2026-11-14, DE2 (a)): the product's is lite's own SQL for the chain, what actually runs; the compatibility edge's
      *  is legend-engine's text, for engine clients. */
@@ -107,20 +95,8 @@ public interface PlanStyle {
                     + ": upstream's forms are the compatibility edge's (com.legend.edge), never the product's");
         }
 
-        @Override
-        public com.legend.sql.dialect.EngineTextDialect engineTestText() {
-            throw engineTextRefused("an engine test's golden text", "legend-engine's test database");
-        }
 
-        @Override
-        public com.legend.sql.dialect.EngineTextDialect engineTestPlanText() {
-            throw engineTextRefused("an engine test's plan text", "legend-engine's test database");
-        }
 
-        @Override
-        public String engineTestConnection() {
-            throw engineTextRefused("an engine test's connection", "legend-engine's test database");
-        }
 
         @Override
         public String activitySql(Activity activity) {
@@ -156,10 +132,4 @@ public interface PlanStyle {
                 + fraction + "Z";
     }
 
-    /** The product writes none of legend-engine's text: the natives whose upstream value IS that text are the
-     *  compatibility edge's (phase D, 2026-11-12; the product's own answer for them is the orchestrator's ruling). */
-    private static com.legend.error.NotImplementedException engineTextRefused(String what, String on) {
-        return new com.legend.error.NotImplementedException(what + " on " + on + ": legend-engine's text is the"
-                + " compatibility edge's (com.legend.edge), never the product's");
-    }
 }
