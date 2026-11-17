@@ -1,6 +1,9 @@
 # Deephaven on the run side: the design (2026-11-16)
 
-**Status: RULED by the user on 2026-11-16 ("Let's go"); being built on `claude/deephaven-3-browser`.** Written once,
+**Status: RULED by the user on 2026-11-16 ("Let's go"); being built on `claude/deephaven-3-browser`. Corrected
+2026-11-17 (§4.1, §5.2, §7.1, §10.2-§10.3, §11): the build drifted from §2, and this design had not been reconciled
+with DataCube's engine contract (docs/DATACUBE_ENGINE_CONTRACT_2026_11_12.md, ratified 2026-11-13, on
+`claude/datacube-engine`); the homework in §10.3 comes before more code.** Written once,
 whole, then reviewed independently (the reviewer saw only this document, the rules and the code) and revised once with
 its findings and the user's rulings (§13). It changes the run side of docs/DEEPHAVEN_PLAN_2026_10_22.md (DH11, DH22,
 DH23, B1) so the Deephaven road meets the plan/exec split C5 enforces on `main` (G4), in its spirit as well as its
@@ -70,7 +73,10 @@ to `docs/TENET_CHARTER.md` A3 and AGENTS.md invariant 3, with the code that reli
 The rest follows from it:
 
 - **One plan format, a runner per environment** -- as DuckDB runs today: Java's `PlanRunner` over DuckDB's JDBC
-  driver, TypeScript's `plan-runner.ts` over DuckDB-WASM, Python's `_runs.py` (on `main`) over `duckdb`.
+  driver, TypeScript's `plan-runner.ts` over DuckDB-WASM, Python's `_runs.py` (on `main`) over `duckdb`. A Deephaven
+  plan is that one execution plan (`PlanJson`): its steps are the plan's own steps, never steps packed inside one
+  statement's text, and they are run by the environment's one runner, Deephaven supplying only a session that sends one
+  step and reads its answer (as DuckDB-WASM does for DuckDB). (2026-11-17: the build drifted from this -- §10.2.)
 - **The planner writes the exact bytes a server reads**, as a SQL dialect writes the exact text a database reads.
 - **Types are the planner's;** a server's answer is checked against them (DH16), never read to plan.
 - **Session state never enters a model;** a way of running a query is the planner's and lives in the plan.
@@ -96,9 +102,10 @@ v0).
 
 ### 4.1 Steps and their verbs
 
-A Deephaven plan is a chain of one or more steps, each one table the server makes, sent one request per step and
-pipelined (each step's request goes as soon as the one before it is written: a read of a table the server is still
-making waits for it there, as DoGet-on-sent does today). A step carries:
+A Deephaven plan is a chain of one or more steps OF THE ONE EXECUTION PLAN (§2: the plan's own steps, run by the
+environment's runner; never a document of steps inside one statement's text), each one table the server makes, sent one
+request per step and pipelined (each step's request goes as soon as the one before it is written: a read of a table the
+server is still making waits for it there, as DoGet-on-sent does today). A step carries:
 
 - **`request`**: its `BatchTableRequest` as the bytes the server reads. The dialect writes the operations (as
   `DeephavenBatch` does); the planner's encoder (`ProtoWire` over the message table) writes them in the protocol's
@@ -111,11 +118,18 @@ making waits for it there, as DoGet-on-sent does today). A step carries:
   SQL plan's `?` is bound. A run-time parameter (none is sent yet: DH5) is uploaded as a one-row table and read by a
   five-byte ticket: one more slot.
 - **`identity`**: SHA-256 of the step's bytes with its slots zeroed, each step it reads named by that step's identity;
-  made by the planner. It is the session table's name.
-- **Its verbs:** create if it does not exist (the step's request, sent unless the session holds the identity), and drop
-  (a release of its export). A kept step is dropped when its lifetime ends; a step that is not kept is dropped once
-  the plan's result no longer needs it.
-- **`kept`**: whether its table outlives the plan (§6).
+  made by the planner. It is the session table's name: the argument of "create if it does not exist".
+- **Its verbs, the planner's, chosen by ONE fact the database type declares -- does a table it makes from a query keep
+  itself current as its sources change?** Deephaven's does (the server updates it incrementally); a SQL database's does
+  not (`CREATE TABLE AS` is a frozen copy; "live DuckDB" in the tab stays current only by re-running whole queries,
+  so its tables do not either). Where the answer is yes: **create if it does not exist** (the step's request, sent
+  unless the session holds the identity) and **drop** (a release of its export), declared, its timing the runtime's
+  (§2). Where it is no, a table-making step is today's staged `let`: made fresh, dropped when the plan answers. The
+  runner performs the verbs it reads; it never asks which database it is on.
+- (2026-11-17: the `kept` field this list had is gone -- whether a table outlives the plan is what its verbs say.)
+- **A step reading an earlier step's table** does so by a place of its own where the runtime writes the number the
+  session gave that table: a binding of the plan, as a `?` is (SQL reads a staged table by a name written into its text;
+  Deephaven names a table by a number its session picks).
 - **`columns`**: the plan's columns as every plan has them -- the Pure type and multiplicity, the store type, the
   database type (`slot`) -- with one fact added for Deephaven: the type as Deephaven spells it (`long`,
   `java.lang.String`), written by the dialect (`DeephavenBatch.javaTypeOf`), which the runtime's check reads. No runtime
@@ -158,12 +172,14 @@ substitution `runner.ts rebase` already does, onto a variable instead of a decla
 - **On a SQL database** a `let` read once is spliced, as every query `let` is (`Lowerer.lower`: "the lean output has
   no trace of the lets"), so DataCube's SQL on DuckDB does not change; a query that reads its base twice
   (`joinedGrain`) writes it once, as a WITH (`SharedRelations`): leaner, and a change the SQL lanes will show.
-- **On Deephaven** a query's top-level `let` of a relation is kept whole: lowered as a WITH expression that is never
-  spliced, pruned or folded into the body, which `DeephavenBatch` (already writing a WITH expression's operation once,
-  `DeephavenBatch.with`) writes as a step of its own: stored (`select`, `update` where it ends in `view`,
-  `updateView`; a base ending in `updateBy`, a window column, is stored already), kept, read through a slot. The
-  target's capability, as the dialects' others are; a `let` a person writes in their own Deephaven query is kept the
-  same way (bounded by the keep).
+- **On Deephaven** a query's relation `let` is planned as a statement of its own -- the staged `let`'s machinery
+  (`PlanMaker.stagedLet`, `StagedRows.boundTo`), lowered alone so its bytes do not depend on what reads it -- and made a
+  step with the verbs of §4.1 (create if it does not exist, under its identity; drop, the runtime's timing), the query
+  a step reading it through its place. The planner decides it from the database's fact (§4.1), never from the `let`:
+  the same DataCube query is spliced on DuckDB and stepped on Deephaven. A `let` a person writes in their own
+  Deephaven query is planned the same way (bounded by the keep). (2026-11-17: this replaces "a WITH expression never
+  spliced", which the resolver cannot keep: a `let`'s node is not one object after store resolution for a class's
+  source.)
 
 ### 5.3 What the runtime and DataCube do
 
@@ -206,6 +222,13 @@ but then should be part of the plan".
 
 ### 7.1 The browser, TypeScript (v0)
 
+- **Which runner, and who asks it (2026-11-17, OPEN: §10.3 H1-H3):** DataCube's engine contract, ratified 2026-11-13,
+  puts the planner, the runner and the database together in one engine and has DataCube send only Pure (its R1:
+  "everything multi-step happens inside the engine"). Under it, the Deephaven engine in the tab is the WebAssembly
+  planner, the tab's one runner and the Deephaven session; DataCube sends a grid's query, its base a `let`, and never
+  sees the plan. Today no grid engine runs a full plan: every one, DuckDB's too, runs the text plan's one statement
+  (`DuckDbEngine.execute` runs `plan.sql`), and `runPlan` runs full plans for writes and snaps only, answering JSON
+  rows. The contract has no call for following a result live.
 - **Where:** a run layer of `tools/deps/ts-layers.txt` (C5-T), reaching the records and npm packages only
   (`TsLayeringTest`). Constructed with no planner, so it has none to ask: proven by its type, as Java's session
   statements take a `PlannedSql` and no `String`.
@@ -294,10 +317,15 @@ runtime and the plan's declared requests. No request gains a field. `ingestPlans
 - **M2 (types)** is measured as it is built: the plan carries each column's Deephaven type and the runtime refuses a
   server that holds otherwise (DH16), so every Deephaven lane run is the measurement, each refusal a dialect fix.
 
-### 10.2 As built (2026-11-17, step 4 in progress)
+### 10.2 As built (2026-11-17, step 4 in progress; the drift named)
 
 What the code does where it differs from the text above, each for a reason, and what is interim:
 
+- **DRIFT, being corrected:** the build reads the text plan's one statement (the shortcut every grid engine uses) and
+  packed the plan's steps inside it -- a steps document in the statement's text, run by a loop of the Deephaven session's
+  own (`deephaven.ts keepAlive`). That is a second plan format inside the first and a second runner, against §2. The
+  work that deepened it (a kept `let` as steps inside the document) is parked, uncompiled, on
+  `claude/deephaven-kept-let-wip`, and is not built on until §10.3 is answered.
 - **The plan's statement** on a Deephaven target is the steps document (`com.legend.deephaven.DeephavenSteps`,
   format `legend-deephaven-steps`): v0 writes one kept step a plan, the query's whole batch, and the session's three
   requests. A step exports each operation that reads a store's table (checked against its declaration, DH16, then let
@@ -324,7 +352,34 @@ What the code does where it differs from the text above, each for a reason, and 
   run beside another lane, the board's six seconds of ticks fetched two results (and, after the restart, sent 18
   operations) -- a following not yet live when the ticks began; run alone it sent and fetched nothing, both times.
 
+### 10.3 Homework before more code (2026-11-17)
+
+What is settled, each with a precedent in the code: the base as a `let`; the planner choosing splice or step from the
+database's one fact; the verbs (create if it does not exist, under the identity; drop, the runtime's timing); a step
+reading an earlier one by a binding; the planner writing the bytes; the session's requests declared by the target (as
+MariaDB's raised-error read-back and H2's settings are, the charter's A3(c)). What is not, each answered before the
+build resumes:
+
+- **H1, the engine contract.** Read DataCube's engine contract whole and place Deephaven in it: the Deephaven engine
+  as planner, runner and session behind `Engine`; DataCube sending only Pure. Ask its owner (the `claude/datacube-engine`
+  session) and the total-wall orchestrator, and read the landing order from the plans themselves, not from a message (the
+  orchestrator's "item F26" names an unrelated item on every branch read).
+- **H2, following live.** The contract has no call for a result followed live; Deephaven's grids and the tab's live
+  DuckDB both need one. Propose it to the contract's owner, one call for both.
+- **H3, the runner.** Whether the tab's one runner (`plan-runner.ts`, today JSON rows for writes and snaps) grows the
+  engine's query answer (typed rows, a window, the verbs, pipelined steps), or the engine's runner is another shape.
+  Read, then measure on the parked work: two steps sent back to back cost no round trip.
+- **H4, the base's identity.** On the parked work, plan the cube lane's query shapes (the tree's levels, a pivot's two
+  queries, the filter's values, the row count, a window, a chart, a page filter) with the base as a `let` on
+  Deephaven, and assert the base step's bytes the same in every one: the guard test, run before anything is built on it.
+- **H5, the cost of a base of its own.** M1 again with the base a step: the filter measured 70 ms slower (within its
+  250 ms budget) when the base was its own table; confirmed or found to be worse, on the same gestures.
+
 ## 11. The order of work
+
+(2026-11-17: steps 1-3 done, and step 4's runtime, doors and witnesses built; the rest waits on §10.3, then a one-page
+correction for the user to rule, then the build.)
+
 
 1. Merge `main` (`4dfbb5b7`: C5-P, C5-J, C5-T; 85 commits, about 18 conflicts), the Deephaven TypeScript placed in
    C5-T's layers. Checkpoint with the user.
