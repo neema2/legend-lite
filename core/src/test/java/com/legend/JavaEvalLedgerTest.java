@@ -1720,6 +1720,9 @@ class JavaEvalLedgerTest {
                     "DateLiteralTexts.java",
                     // the product's forms of the three two-form kinds, classes of their own (GUARD's C.9, 2026-11-17)
                     "LiteCrossKindNumbers.java", "LiteRenderedTextRule.java", "LiteDateLiteralTexts.java",
+                    // whose words the database judge plans a failure in, a two-form kind and its product form (census
+                    // C1, 2026-11-17: where JudgingRules.legendPureWords stood); nothing evaluated
+                    "FailureWords.java", "LiteFailureWords.java",
                     "AssertVerdicts.java",
                     "HostJudge.java", "DatabaseJudge.java",
                     "VerdictArm.java",
@@ -1964,6 +1967,9 @@ class JavaEvalLedgerTest {
                             // C1's step 2c, 2026-11-17, S127: moved from testexec.Equality) -- two values the judge
                             // holds compared by their texts, no session, no statement
                             "CompiledPureHostForms.java",
+                            // legend-pure's words for a failure, the edge's form of the two-form FailureWords kind
+                            // (census C1, 2026-11-17): one answer, nothing evaluated
+                            "UpstreamFailureWords.java",
                             // upstream counts a relation passed to assertSize/assertNotEmpty as ONE value (register
                             // S137), the edge's form of the two-form RelationCounting kind (census C1, 2026-11-17:
                             // moved from compiler.spec.RelationCountAsserts) -- a typed tree rewritten at planning

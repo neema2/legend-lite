@@ -384,7 +384,12 @@ public final class ChannelB {
 
     /** Channel B's options: the corpus's runtime features, the judge {@code -Dpct.channelb.judge} names, compatibility
      *  mode and upstream's spellings. */
-    private static final com.legend.ExecuteOptions OPTIONS = com.legend.ExecuteOptions.NONE.withFeatures(java.util.Set.of(
+    private static final com.legend.ExecuteOptions OPTIONS = com.legend.ExecuteOptions.recording(
+                    // the compatibility rules' runs carry the compatibility edge, which names its rules (census C1,
+                    // the orchestrator's ruling of 2026-11-17), never the product's NoEdge with a style
+                    new com.legend.edge.CompatEdge(new com.legend.edge.RawLedger.Recorder(),
+                            com.legend.executionplan.DataStores.none()), com.legend.executionplan.DataStores.none())
+            .withFeatures(java.util.Set.of(
                     com.legend.platform.Feature.CORRECT_SQL_SUBSTRING_INDEXING))
             // the tests' planning options: as-of joins the same row on every database (PlanOption)
             .withOptions(java.util.Set.of(com.legend.platform.PlanOption.DETERMINISTIC_AS_OF))
@@ -392,9 +397,6 @@ public final class ChannelB {
             // bodies under one judge, to read which shapes the program road plans for it
             .withJudgeMode(com.legend.testplan.PlanningOptions.JudgeMode.valueOf(
                     System.getProperty("pct.channelb.judge", "BOTH")))
-            // backwards-compatibility mode: the judges' leniencies that meet legend-engine's goldens
-            // (the user, 2026-11-04: lite's own runs exact, PCT and the corpus in compat mode)
-            .withEngineCompat(true)
             // legend-pure's texts, spelled by the edge (phase D's D1.0)
             .withStyle(com.legend.edge.PureText.UPSTREAM);
 

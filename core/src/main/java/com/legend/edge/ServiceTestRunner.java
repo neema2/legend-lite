@@ -285,7 +285,10 @@ public final class ServiceTestRunner implements AutoCloseable {
                 // (the doors, 2026-10-29) -- what the service would serve, read back below as the tree the
                 // assertions compare
                 TestExecution.runProgram(Compiler.queryResolved(rt.ctx(), resolved), rt.runtimeFqn(),
-                        com.legend.exec.SessionSource.given(conn), null, AppealRun.with(null), com.legend.ExecuteOptions.NONE,
+                        // the product's style, heard by the product's hook (census C1, 2026-11-17: one choice per run --
+                        // the edge's hook here judged a lite run by compiled legend-pure's equality, a defect)
+                        com.legend.exec.SessionSource.given(conn), null, com.legend.testexec.NoEdgeRun.NONE,
+                        com.legend.ExecuteOptions.NONE,
                         new com.legend.result.Output.Rows(new ServiceAnswer(out, test.serializationFormat())));
             } catch (Skip s) {
                 throw s;

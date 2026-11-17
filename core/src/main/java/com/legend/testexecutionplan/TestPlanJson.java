@@ -51,8 +51,9 @@ public final class TestPlanJson {
      *  product's version 56 (each statement's raise sites, its token's words planned); 27 (2026-11-17, C5's step E):
      *  a side's shape and the plan's answer carry their size refusal's words, planned ({@code SideShape.sizeWords},
      *  {@code TestPlan.answerSizeWords}); 28 (2026-11-17, census C1): the judging rules' one spelling,
-     *  an isolated step's as a verdict group's ({@code lite}, {@code compiledPureCompat}). */
-    public static final int VERSION = 28;
+     *  an isolated step's as a verdict group's ({@code lite}, {@code compiledPureCompat}); 29 (2026-11-17, census
+     *  C1): the plan states whose words its failures are in ({@code upstreamWords}). */
+    public static final int VERSION = 29;
 
     private TestPlanJson() {
     }
@@ -103,6 +104,7 @@ public final class TestPlanJson {
         out.put("judge", plan.judge().name());
         out.put("answersLastVerdict", plan.answersLastVerdict());
         out.put("answerSizeWords", plan.answerSizeWords());
+        out.put("upstreamWords", plan.upstreamWords());
         out.put("session", PlanJson.targetJson(plan.session()));
         Map<String, Object> facts = new LinkedHashMap<>();
         facts.put("effects", plan.facts().effects());
@@ -266,7 +268,7 @@ public final class TestPlanJson {
                 ext == null ? Map.of() : readExtensions(ext.getObj("byStep")),
                 ext == null ? Map.of() : readExtensions(ext.getObj("byVerdict")), o.getBool("answersLastVerdict"),
                 PlanJson.targetOf(o.getObj("session")), factsOf(o.getObj("facts")),
-                o.get("answerSizeWords") instanceof Json.Str w ? w.value() : null);
+                o.get("answerSizeWords") instanceof Json.Str w ? w.value() : null, o.getBool("upstreamWords"));
     }
 
     private static BodyFacts factsOf(Json.Obj f) {

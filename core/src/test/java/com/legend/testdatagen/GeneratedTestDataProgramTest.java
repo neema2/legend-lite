@@ -615,7 +615,9 @@ class GeneratedTestDataProgramTest {
         };
         try {
             TestExecution.runProgram(typed(ctx, body), "t::RT", new com.legend.exec.SessionSource.Fresh(seeded),
-                    listener, com.legend.testexec.NoEdgeRun.NONE, ExecuteOptions.NONE.withJudgeMode(judge).withStyle(style));
+                    // the run's hook goes with its style (census C1, the orchestrator's ruling of 2026-11-17)
+                    listener, style == com.legend.database.PlanStyle.PRODUCT ? com.legend.testexec.NoEdgeRun.NONE
+                            : com.legend.edge.AppealRun.with(null), ExecuteOptions.NONE.withJudgeMode(judge).withStyle(style));
         } catch (com.legend.error.NotImplementedException e) {
             verdicts.add("NotImplementedException: " + e.getMessage());
         } catch (AssertionError | RuntimeException e) {

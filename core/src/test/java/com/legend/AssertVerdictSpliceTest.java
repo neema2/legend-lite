@@ -122,7 +122,7 @@ class AssertVerdictSpliceTest {
     /** {@code query} in the compatibility edge's plan style: these read an activity's SQL, which is legend-engine's
      *  text (the edge's: phase D's O3, 2026-11-13). */
     private static Lean.Result run(String query) throws SQLException {
-        return Program.last(MODEL, query, "e::RT", conn, com.legend.testing.EdgeProgram.upstream());
+        return com.legend.testing.EdgeProgram.last(MODEL, query, "e::RT", conn, com.legend.testing.EdgeProgram.upstream());
     }
 
     /** {@code query} in the product's own plan style, the lane's judge: where the product's form decides (a relation
@@ -133,7 +133,9 @@ class AssertVerdictSpliceTest {
 
     /** {@code query} under backwards-compatibility mode's rules (upstream's), the lane's judge. */
     private static Lean.Result runCompat(String query) throws SQLException {
-        return Program.last(MODEL, query, "e::RT", conn, com.legend.testing.EdgeProgram.compat());
+        // on the edge's door: its style and its run hook together (census C1, 2026-11-17: whose words a run writes is
+        // the style's at planning and the hook's at run, one choice)
+        return com.legend.testing.EdgeProgram.run(MODEL, query, "e::RT", conn).side();
     }
 
     @Test
@@ -229,13 +231,13 @@ class AssertVerdictSpliceTest {
     @DisplayName("D3 grid pair: two relation-stamped sides adjudicate via the"
             + " grid owner (columns + rows), not a byte decline")
     void gridPairVerdict() throws Exception {
-        Object v = run(
+        Object v = runProduct(
                 "{|assertEquals(#TDS\n  age\n  30\n  40\n#,"
                 + " e::Person.all()->project([p|$p.age], ['age'])"
                 + "->sort('age')->from(e::M, e::RT));}").one();
         assertEquals(Boolean.TRUE, v);
         com.legend.error.AssertFailed e = assertThrows(
-                com.legend.error.AssertFailed.class, () -> run(
+                com.legend.error.AssertFailed.class, () -> runProduct(
                 "{|assertEquals(#TDS\n  age\n  30\n  41\n#,"
                 + " e::Person.all()->project([p|$p.age], ['age'])"
                 + "->sort('age')->from(e::M, e::RT));}"));
@@ -285,19 +287,19 @@ class AssertVerdictSpliceTest {
         String prefix = "{|let result = execute(|e::Person.all()"
                 + "->project([p|$p.name, p|$p.age], ['name','age']),"
                 + " e::M, e::RT.runtimeValue, []);";
-        Object ordered = run(prefix
+        Object ordered = runProduct(prefix
                 + " assertEquals(['p1', 30, 'p2', 40],"
                 + " $result.values.rows.values);}").one();
         assertEquals(Boolean.TRUE, ordered);
         // whole-row swap: DB arrival order is incidental — holds
-        Object swapped = run(prefix
+        Object swapped = runProduct(prefix
                 + " assertEquals(['p2', 40, 'p1', 30],"
                 + " $result.values.rows.values);}").one();
         assertEquals(Boolean.TRUE, swapped);
         // cross-row CELL shuffle: same loose cells, broken row
         // cohesion — must FAIL (audit 9)
         com.legend.error.AssertFailed e = assertThrows(
-                com.legend.error.AssertFailed.class, () -> run(prefix
+                com.legend.error.AssertFailed.class, () -> runProduct(prefix
                 + " assertEquals(['p1', 40, 'p2', 30],"
                 + " $result.values.rows.values);}"));
         // upstream's words under either judge (2026-11-03, the core parity program: the host's "(TDSRow.values)"

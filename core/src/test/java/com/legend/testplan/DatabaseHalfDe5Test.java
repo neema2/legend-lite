@@ -66,7 +66,9 @@ class DatabaseHalfDe5Test {
         try (Connection conn = TestBackends.platform().open()) {
             var ctx = Compiler.compileModel(StorelessRuntime.with(model, TestBackends.platform().type()));
             com.legend.TestExecution.runProgram(Compiler.query(ctx, body), StorelessRuntime.RUNTIME,
-                    com.legend.exec.SessionSource.given(com.legend.testbackend.TestSessions.over(conn)), null, com.legend.testexec.NoEdgeRun.NONE,
+                    com.legend.exec.SessionSource.given(com.legend.testbackend.TestSessions.over(conn)), null,
+                    // the edge's style is heard by the edge's run hook (census C1, 2026-11-17: one choice of words)
+                    options == EDGE ? com.legend.edge.AppealRun.with(null) : com.legend.testexec.NoEdgeRun.NONE,
                     options.withJudgeMode(mode));
             return "PASS";
         } catch (Exception | AssertionError e) {

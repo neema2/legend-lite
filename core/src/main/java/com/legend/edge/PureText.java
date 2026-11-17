@@ -103,6 +103,10 @@ public final class PureText {
             if (kind == com.legend.lowering.DateTimeTexts.class) {
                 return kind.cast(EdgeDateTimeTexts.INSTANCE);
             }
+            if (kind == com.legend.testplan.FailureWords.class) {
+                // legend-pure's words for a failure (census C1)
+                return kind.cast(UpstreamFailureWords.INSTANCE);
+            }
             if (kind == com.legend.compiler.spec.GoldenNullWord.class) {
                 // legend-engine's TDSNull read as a golden's null cell (census C1)
                 return kind.cast(UpstreamGoldenNullWord.INSTANCE);

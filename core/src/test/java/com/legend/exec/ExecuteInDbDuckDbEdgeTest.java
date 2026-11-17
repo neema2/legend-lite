@@ -44,7 +44,7 @@ class ExecuteInDbDuckDbEdgeTest {
         String blob = ExecuteInDbDuckDbTest.CONN_LET + "meta::relational::metamodel::execute::executeInDb("
                 + "'Create Table kTest(id INT, default VARCHAR(20));"
                 + " Insert into kTest (id, default) values (7, \\'x\\');', $c, 0, 1000);}";
-        Lean.Result r = Program.last(StorelessRuntime.with("", ExecuteInDbDuckDbTest.SESSION), blob,
+        Lean.Result r = com.legend.testing.EdgeProgram.last(StorelessRuntime.with("", ExecuteInDbDuckDbTest.SESSION), blob,
                 StorelessRuntime.RUNTIME, conn, EDGE);
         assertNull(r.value(), "opaque ResultSet handle");
         try (Statement st = conn.createStatement();
@@ -58,10 +58,10 @@ class ExecuteInDbDuckDbEdgeTest {
     @Test
     @DisplayName("executeInDb: on the edge, the engine's H2 FLOAT translated, DuckDB's own text as written")
     void ownDatabaseTextRunsAsWritten() throws Exception {
-        Program.last(StorelessRuntime.with("", ExecuteInDbDuckDbTest.SESSION), ExecuteInDbDuckDbTest.OWN_CONN_LET
+        com.legend.testing.EdgeProgram.last(StorelessRuntime.with("", ExecuteInDbDuckDbTest.SESSION), ExecuteInDbDuckDbTest.OWN_CONN_LET
                 + "meta::relational::metamodel::execute::executeInDb('Create Table fOwn(f FLOAT);', $c, 0, 1000);}",
                 StorelessRuntime.RUNTIME, conn, EDGE);
-        Program.last(StorelessRuntime.with("", ExecuteInDbDuckDbTest.SESSION), ExecuteInDbDuckDbTest.CONN_LET
+        com.legend.testing.EdgeProgram.last(StorelessRuntime.with("", ExecuteInDbDuckDbTest.SESSION), ExecuteInDbDuckDbTest.CONN_LET
                 + "meta::relational::metamodel::execute::executeInDb('Create Table fH2(f FLOAT);', $c, 0, 1000);}",
                 StorelessRuntime.RUNTIME, conn, EDGE);
         try (Statement st = conn.createStatement();

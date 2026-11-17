@@ -23,9 +23,9 @@ class TaggedListEdgeTest {
     @Test
     void aRawGridsTextIsRefusedByNameOnTheEdge() throws Exception {
         try (Connection c = TestBackends.platform().open()) {
-            Exception grid = assertThrows(Exception.class, () -> Program.last(StorelessRuntime.with(
+            Exception grid = assertThrows(Exception.class, () -> com.legend.testing.EdgeProgram.last(StorelessRuntime.with(
                     TaggedListTest.MODEL, Databases.PLATFORM), TaggedListTest.CONN_LET + "$rs->toString();}",
-                    StorelessRuntime.RUNTIME, c, EdgeProgram.upstream()));
+                    StorelessRuntime.RUNTIME, c, com.legend.testing.EdgeProgram.upstream()));
             assertTrue(String.valueOf(grid.getMessage()).contains("toString over a raw grid"), grid.toString());
         }
     }
