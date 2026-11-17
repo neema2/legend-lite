@@ -212,12 +212,6 @@ public final class PureText {
     /** Postgres, spelled as upstream spells it. */
     public static final class Postgres extends com.legend.sql.dialect.Postgres {
 
-        private static final java.util.regex.Pattern ENGINE_DOUBLE =
-                java.util.regex.Pattern.compile("(?i)\\bDOUBLE\\b(?!\\s+PRECISION)");
-
-        private static final java.util.regex.Pattern ENGINE_TINYINT =
-                java.util.regex.Pattern.compile("(?i)\\bTINYINT\\b");
-
         /** legend-engine's H2 text translated in the flavor DuckDB shares, its column types Postgres's (2026-10-12,
          *  docs/CLOUD_BACKENDS_PCT_2026_10_11.md §20: the 8-byte double is DOUBLE PRECISION, and SMALLINT is the
          *  smallest integer, there is no TINYINT) and a bare column name in lower case, as Postgres folds a bare name
@@ -226,8 +220,8 @@ public final class PureText {
         public String raw(String statement, @com.legend.base.Nullable String writtenFor) {
             return RawSqlBoundary.ENGINE_TEXT.equals(writtenFor)
                     ? RawSqlBoundary.translated(statement,
-                            types -> ENGINE_TINYINT.matcher(ENGINE_DOUBLE.matcher(types).replaceAll("DOUBLE PRECISION"))
-                                    .replaceAll("SMALLINT"),
+                            types -> types.replaceAll("(?i)\\bDOUBLE\\b(?!\\s+PRECISION)", "DOUBLE PRECISION")
+                                    .replaceAll("(?i)\\bTINYINT\\b", "SMALLINT"),
                             bare -> bare.toLowerCase(java.util.Locale.ROOT))
                     : statement;
         }

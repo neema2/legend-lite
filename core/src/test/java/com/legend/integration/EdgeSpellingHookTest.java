@@ -164,10 +164,16 @@ class EdgeSpellingHookTest {
     private static final Set<String> D1_2_SCAN_ORDER = Set.of("raiseMessage", "spellingPasses", "floatToText",
             "scanOrderPasses");
 
+    /** DuckDB's and Postgres's raw arm too (Phase 6's B4 (ii), 2026-11-17): legend-engine's H2 text translated, where the
+     *  product runs a raw statement as written. */
+    private static final Set<String> D1_2_SCAN_ORDER_RAW = Set.of("raiseMessage", "spellingPasses", "floatToText",
+            "scanOrderPasses", "raw");
+    private static final Set<String> D1_2_RAW = Set.of("raiseMessage", "spellingPasses", "floatToText", "raw");
+
     private static final Map<String, Set<String>> OVERRIDES = new TreeMap<>(Map.ofEntries(
             Map.entry("BigQuery", D1_2), Map.entry("ClickHouse", D1_2), Map.entry("Databricks", D1_2),
-            Map.entry("DuckDb", D1_2_SCAN_ORDER), Map.entry("H2", D1_2), Map.entry("MariaDb", D1_2),
-            Map.entry("MongoDb", D1_2_MONGO), Map.entry("MySql", D1_2), Map.entry("Postgres", D1_2),
+            Map.entry("DuckDb", D1_2_SCAN_ORDER_RAW), Map.entry("H2", D1_2), Map.entry("MariaDb", D1_2),
+            Map.entry("MongoDb", D1_2_MONGO), Map.entry("MySql", D1_2), Map.entry("Postgres", D1_2_RAW),
             Map.entry("SQLite", D1_2), Map.entry("Snowflake", D1_2), Map.entry("Trino", D1_2)));
 
     /** The methods {@code c} declares that override a product dialect's method which is not a

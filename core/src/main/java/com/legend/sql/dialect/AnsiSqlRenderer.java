@@ -298,6 +298,14 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
     /** The passes the compatibility edge runs before every other ({@code com.legend.edge}: legend-pure's print form
      *  of a Float, {@code FLOAT_PRINT}, written for the product's {@code FLOAT_TO_TEXT}: phase D's D1.2, 2026-11-15).
      *  The product's dialects run none: they write each node lite's own way. */
+    /** {@inheritDoc} A raw statement AS WRITTEN (Phase 6's B4 (ii), 2026-11-17): a SPELLING arm -- the statement's
+     *  text, no decision -- so the compatibility edge's DuckDB and Postgres translate legend-engine's H2 text here. */
+    @SpellingArm
+    @Override
+    public String raw(String statement, @com.legend.base.Nullable String writtenFor) {
+        return statement;
+    }
+
     @SpellingArm
     protected java.util.List<com.legend.sql.SqlRewriter> spellingPasses() {
         return java.util.List.of();

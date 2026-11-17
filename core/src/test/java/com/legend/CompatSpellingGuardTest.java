@@ -232,12 +232,12 @@ class CompatSpellingGuardTest {
             // functions, not a spelling
             "sql/SqlFn.java | FLOAT_PRINT | 2 | JUDGE",
             "sql/SqlTyping.java | FLOAT_PRINT | 1 | JUDGE",
-            "sql/dialect/AnsiSqlRenderer.java | RawSqlBoundary | 1 | D1.7",
             "sql/dialect/BigQuery.java | FLOAT_PRINT | 1 | JUDGE",
             "sql/dialect/ClickHouse.java | FLOAT_PRINT | 1 | JUDGE",
             "sql/dialect/Databricks.java | FLOAT_PRINT | 1 | JUDGE",
             "sql/dialect/DuckDb.java | FLOAT_PRINT | 1 | JUDGE",
-            "sql/dialect/DuckDb.java | RawSqlBoundary | 1 | D1.7",
+            // sql/dialect/{AnsiSqlRenderer,DuckDb,Postgres,RawSqlBoundary}.java's RawSqlBoundary rows: GONE 2026-11-17 (Phase
+            // 6's B4 (ii)): the product runs a raw statement as written; the translation is the edge's
             // sql/dialect/EngineTextDialect.java: GONE 2026-11-17 (Phase 6's B3, the orchestrator's GO): the interface is
             // com.legend.edge's, no product class names it
             // testdatagen/TestDataGenerationNatives.java (2) and TestDataGenerator.java (3): GONE 2026-11-17 (Phase 6's
@@ -265,8 +265,6 @@ class CompatSpellingGuardTest {
             "sql/dialect/MongoDb.java | FLOAT_PRINT | 1 | JUDGE",
             "sql/dialect/MySql.java | FLOAT_PRINT | 1 | JUDGE",
             "sql/dialect/Postgres.java | FLOAT_PRINT | 1 | JUDGE",
-            "sql/dialect/Postgres.java | RawSqlBoundary | 1 | D1.7",
-            "sql/dialect/RawSqlBoundary.java | RawSqlBoundary | 2 | D1.7",
             "sql/dialect/SQLite.java | FLOAT_PRINT | 1 | JUDGE",
             "sql/dialect/Snowflake.java | FLOAT_PRINT | 1 | JUDGE",
             "sql/dialect/Trino.java | FLOAT_PRINT | 1 | JUDGE",
