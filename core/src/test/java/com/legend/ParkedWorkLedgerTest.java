@@ -129,9 +129,12 @@ class ParkedWorkLedgerTest {
             // C: the lookup moved, unchanged, to plan/EnumMappings.of; the choice it parks did not move.)
             Map.entry("PARK-15 the legacy plan's enum parameter map (PlanText)",
                     new Anchor("var em = EnumMappings\\.of\\(ctx, mappingFqn, enumFqn\\);", List.of("PlanText.java"))),
-            Map.entry("PARK-15 the legacy plan's enum parameter map (PlanAllocations)",
-                    new Anchor("EnumMappings\\.of\\(\\s*env\\.ctx\\(\\), pmr\\.fullPath\\(\\), et\\.fqn\\(\\)\\)",
-                            List.of("PlanAllocations.java"))),
+            // (Re-pointed 2026-11-17, J4 of the edge audit: the parameter's enum-map function moved, unchanged, from
+            // the planner's PlanAllocations to the edge's EnginePlanRows.templateFunctions; the planner hands it the
+            // parameter's enumeration and the query's mapping as data.)
+            Map.entry("PARK-15 the legacy plan's enum parameter map (EnginePlanRows)",
+                    new Anchor("var enumMapping = com\\.legend\\.plan\\.EnumMappings\\.of\\(ctx, mappingFqn, enumFqn\\)",
+                            List.of("EnginePlanRows.java"))),
             Map.entry("PARK-15 the legacy plan's enum result-column fallback",
                     new Anchor("candidates\\.isEmpty\\(\\) \\? null\\s*\\n\\s*: candidates\\.get\\(0\\)\\.mappingId\\(\\)",
                             List.of("PlanText.java"))),

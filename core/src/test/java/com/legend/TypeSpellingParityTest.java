@@ -14,7 +14,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  * DRIFT GUARD (Pile-1 audit, 2026-08-18): the engine has TWO type-text
  * conventions and we spell each ONCE — {@code Ddl.dataTypeToSqlText}
  * (dataTypeToSqlText proper: {@code DECIMAL(p, s)} with a space) and
- * {@code PlanText.spell} (the plan resultColumns tuple:
+ * {@code RelationalDataType.sqlText} (the grammar's text, the plan resultColumns tuple's:
  * {@code DECIMAL(p,s)} unspaced). Both are golden-pinned by different
  * passing corpus families. This test pins that the two tables agree on
  * EVERY shared arm modulo exactly that documented spacing delta — an
@@ -47,7 +47,7 @@ class TypeSpellingParityTest {
             assertEquals(
                     com.legend.setup.Ddl.dataTypeToSqlText(t)
                             .replace(", ", ","),
-                    com.legend.plan.PlanText.spell(t),
+                    RelationalDataType.sqlText(t),
                     "type-text conventions drifted beyond the documented"
                     + " decimal-spacing delta for " + t);
         }

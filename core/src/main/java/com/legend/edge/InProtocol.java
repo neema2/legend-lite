@@ -3,7 +3,6 @@
 
 package com.legend.edge;
 
-import com.legend.plan.PlanText;
 import com.legend.sql.SqlExpr;
 import com.legend.sql.SqlFn;
 import com.legend.sql.SqlQuery;

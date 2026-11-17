@@ -6,7 +6,6 @@ package com.legend.edge;
 import com.legend.json.Json;
 import com.legend.parser.PmcdParser;
 import com.legend.parser.SpecParser;
-import com.legend.plan.PlanSupportFunctions;
 import com.legend.plan.QueryPlan;
 import com.legend.protocol.ModelComposer;
 import com.legend.protocol.ProtocolReader;

@@ -185,7 +185,12 @@ class JavaEvalLedgerTest {
             // 862 -> 789 (2026-11-17, Phase 6's C, the orchestrator's approved method list): the enum-mapping lookup
             // and Pure's type spelling moved off the engine printer to plan/EnumMappings and plan/PureSpelling (model
             // lookups and names, nothing evaluated); PlanText itself goes to the edge later in Phase 6
-            Map.entry("core/src/main/java/com/legend/plan/PlanText.java", 789),
+            // the path plan/ -> edge/ (2026-11-17, J4 of the edge audit: legend-engine's plan printer moved to the edge,
+            // nothing evaluated differently; the row follows the file) -- its type spelling the model's
+            // RelationalDataType.sqlText, PlanText.spell a delegation
+            // 789 -> 762 (2026-11-17, J4: the type spelling's switch moved to the model, RelationalDataType.sqlText,
+            // PlanText.spell a delegation; nothing evaluated)
+            Map.entry("core/src/main/java/com/legend/edge/PlanText.java", 762),
             // 225 -> 227 (lambda-classifier slice: the lambda spelling
             // reader unwraps the m3 carrier stamp — LambdaFunction<ft> —
             // via PlatformTypes.functionTypeOf; a TYPE read, no evaluation)
@@ -1106,7 +1111,9 @@ class JavaEvalLedgerTest {
                 new Object[]{"(planWalk|walkProp|walkFilter|walkResult|planModel|planConnOf|constructNode|constructOp|nodeValue|typeRefSimple|activityEnvelopeRead|connectionStoreElementOf)\\(",
                         // 3 -> 5 (2026-11-16, W9's planner half): the UpstreamPlans facet's planModel, declared and
                         // delegating to the same walk -- a name, no new site
-                        5});
+                        // 5 -> 4 (2026-11-17, J4 of the edge audit: the facet answers the handle's rows, planRows, its
+                        // planModel declaration gone; the walk's call stays)
+                        4});
         // E4.d batch 1 LANDED (2026-08-17, user-ratified "engine-exact
         // text is a lower TARGET"): the second DDL speller is DEAD —
         // dropTableStatementText/createTableStatementText/engineSpell
@@ -1875,6 +1882,13 @@ class JavaEvalLedgerTest {
                             // planToString/toSQLString, a toDDL statement, a $plan handle's node model, an execute's
                             // activity SQL -- planning work, no session; the style's UpstreamPlans facet
                             "EnginePlans.java", "EngineText.java", "PlanEnvelope.java", "EngineAllocations.java",
+                            // legend-engine's plan printer and model, moved from com.legend.plan (J4/K3 of the edge
+                            // audit, 2026-11-17): its plan text, support functions, enum forms, precise types, the
+                            // relational mapper's renames, its node and connection records, and a $plan handle's rows
+                            // from them (EnginePlanRows, moved from plan.PlanRows) -- planning work, no session; spells,
+                            // decides nothing
+                            "PlanText.java", "PlanSupportFunctions.java", "PlanEnumForm.java", "PreciseTypes.java",
+                            "RelationalMapperRenames.java", "PlanNode.java", "PlanConn.java", "EnginePlanRows.java",
                             // legend-engine's sentence of a query store's refusal (the P2 checkpoint audit's M2,
                             // 2026-11-16): a kind to its words, no state, no evaluation; its own target for the page
                             "StoreWords.java",
