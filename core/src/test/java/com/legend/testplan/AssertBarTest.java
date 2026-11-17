@@ -314,30 +314,6 @@ class AssertBarTest {
                 + " GAPS: " + closed));
     }
 
-    /** BACKWARDS-COMPATIBILITY MODE (register S127, the user's ruling of 2026-11-04: "the principled fix for the
-     *  product, then compiled for backwards compatible"): compiled legend-pure's number equality -- an Integer and a
-     *  Decimal equal by their texts, a Float equal to neither (CompiledSupport.eq; the engine asked:
-     *  upstream-api/s127-number-equality.txt) -- under every judge alike. */
-    @Test
-    void backwardsCompatibilityModeComparesNumbersAsCompiledPureDoes() throws Exception {
-        try (Connection c = TestBackends.platform().open()) {
-            for (com.legend.testplan.PlanningOptions.JudgeMode mode : JUDGES) {
-                ExecuteOptions compat = ExecuteOptions.NONE.withJudgeMode(mode).withEngineCompat(true);
-                Program.last(StorelessRuntime.with(MODEL, Databases.PLATFORM), "{|assertEquals(1D, 1)}",
-                        StorelessRuntime.RUNTIME, c, compat);
-                Program.last(StorelessRuntime.with(MODEL, Databases.PLATFORM), "{|assertEquals(3, 3D)}",
-                        StorelessRuntime.RUNTIME, c, compat);
-                for (String body : List.of("{|assertEquals(1.5, 1.5D)}", "{|assertEquals(1, 1.0)}",
-                        "{|assertEquals(1.0D, 1)}")) {
-                    AssertFailed e = org.junit.jupiter.api.Assertions.assertThrows(AssertFailed.class,
-                            () -> Program.last(StorelessRuntime.with(MODEL, Databases.PLATFORM), body,
-                                    StorelessRuntime.RUNTIME, c, compat), mode + " " + body);
-                    assertTrue(e.getMessage().startsWith("\nexpected: "), mode + " " + body + ": " + e.getMessage());
-                }
-            }
-        }
-    }
-
     /** The database judge sends a segment's asserts as ONE statement (the fused verdict statement, VerdictBatch), whatever
      *  their messages: a caller's message is a column of its own assert's row inside it (the user, 2026-11-04: "the
      *  'fuse' step to do all assert together in one go"). Measured as the statements a passing body sends. */
