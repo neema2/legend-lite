@@ -56,6 +56,25 @@ record EdgeLoweringForms(Set<RaiseKind> plain, boolean engineSqlShape) implement
         return engineSqlShape ? value : written.get();
     }
 
+    /** legend-engine's protocol connection segment for its test database (H2's, as the goldens pin it), which its
+     *  object references carry whatever the database (moved from model.AsorRef, the audit's J12, 2026-11-17). */
+    static final String ENGINE_TEST_CONNECTION =
+            "{\"_type\":\"RelationalDatabaseConnection\","
+            + "\"authenticationStrategy\":{\"_type\":\"h2Default\"},"
+            + "\"datasourceSpecification\":{\"_type\":\"h2Local\"},"
+            + "\"element\":\"\",\"postProcessorWithParameter\":[],"
+            + "\"postProcessors\":[],\"timeZone\":\"GMT\","
+            + "\"type\":\"H2\"}";
+
+    @Override
+    public String objectReferenceConnection() {
+        if (engineSqlShape) {
+            throw new IllegalStateException("an object reference's connection asked of legend-engine's statement"
+                    + " shape: it is the plan style's (Styled.forms)");
+        }
+        return ENGINE_TEST_CONNECTION;
+    }
+
     /** legend-engine's JsonBuilder cardinality rule (the engine's {@code execute()} contract; the audit's J3,
      *  2026-11-17): exactly one object bare, zero or several as the array. */
     @Override

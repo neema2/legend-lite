@@ -101,7 +101,7 @@ class AsorRefRoundTripTest {
                 String reference = references.get(i);
                 // byte for byte the Java side's reference: the static prefix's segments (the store kind, the mapping,
                 // the root set id, the set id, the connection) and the key's, each framed by its length
-                assertEquals(AsorRef.ref("test::M", setId, setId, KEYS.get(i)), reference,
+                assertEquals(AsorRef.ref("test::M", setId, setId, "", KEYS.get(i)), reference,
                         backend.name() + ": row " + i);
                 AsorRef.Ref decoded = AsorRef.decode(reference);
                 assertNotNull(decoded, backend.name() + ": " + reference + " does not decode");

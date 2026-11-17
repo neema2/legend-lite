@@ -1637,7 +1637,7 @@ public final class Lowerer {
                     cc -> envelopeScalar(cc, fr[0], "checked constraint"), hoists);
         }
         if (g.objectRefPrefix() != null) {   // ASOR {objectReference, value}
-            obj = SnapshotEnvelope.asorWrap(g, obj,
+            obj = SnapshotEnvelope.asorWrap(g, styled().forms().objectReferenceConnection(), obj,
                     k -> envelopeScalar(k, fr[0], "objectReference pk"));
         }
         SqlSelect envelope = fr[0];
