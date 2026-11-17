@@ -55,7 +55,7 @@ final class HostSideBatching {
 
     /** A plain host assert: one verdict, judged by the host, no savepoint, no raise -- and no judgment whose answer is
      *  an error (an assertError's side's raise is its answer, on a database with no savepoint as on one with, so it is
-     *  read alone; a planned raise or an engine text's appeal is no side read). */
+     *  read alone; a planned raise reads no side). */
     private static boolean plain(HostAsserts.Planned p) {
         TestPlan.Verdicts step = p.step();
         TestPlan.@Nullable Host host = p.verdict().host();
@@ -63,8 +63,7 @@ final class HostSideBatching {
                 && !p.verdict().raises() && host != null && p.verdict().wrapper() == null
                 && p.assertion().beforeTheArm() == null
                 && !(host.judgment() instanceof com.legend.testexecutionplan.HostJudgment.AssertError)
-                && !(host.judgment() instanceof com.legend.testexecutionplan.HostJudgment.Raise)
-                && !(host.judgment() instanceof com.legend.testexecutionplan.HostJudgment.EngineText);
+                && !(host.judgment() instanceof com.legend.testexecutionplan.HostJudgment.Raise);
     }
 
     private static void close(List<Integer> run, Map<Integer, HostAsserts.Planned> byStatement,

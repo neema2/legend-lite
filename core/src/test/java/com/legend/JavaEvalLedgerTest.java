@@ -1652,6 +1652,11 @@ class JavaEvalLedgerTest {
                     // planned raise at that turn (R14). Plans only; sends nothing, counts nothing, judges nothing (the
                     // router's sink judges at the step through AssertVerdicts' seam)
                     "HostAsserts.java",
+                    // 2026-11-17, the orchestrator's (1) (host side batching, the isolated pair's speed): consecutive
+                    // host asserts' sides planned as ONE statement of the host plan -- a UNION ALL of one branch per
+                    // side, the lowering's HostSideBatch -- each side a batched cell of it. Plans only; sends nothing,
+                    // judges nothing (the host judge reads the cells as it reads a side's own rows)
+                    "HostSideBatching.java",
                     // the host judgment as DATA (the test-is-the-product plan's M8a, 2026-11-01): one sealed record per
                     // host comparison, carrying the facts the comparison needs beyond the rows -- a side's static type
                     // and kind class, the key trees and the subtype relation, the byte gates, the flat and order

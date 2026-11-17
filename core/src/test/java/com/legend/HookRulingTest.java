@@ -62,7 +62,7 @@ class HookRulingTest {
 
     /** A test plan naming one appeal, by its verdict's number: what the product's run refuses to open. */
     private static com.legend.testexecutionplan.TestPlan planNaming() {
-        return plan(Map.of(0, List.of(new com.legend.testexecutionplan.Extension() { })));
+        return plan(Map.of(1, List.of(new com.legend.edge.EffectTexts(List.of()))));
     }
 
     /** The product's hearing, opened on a plan naming no appeal. */
@@ -76,7 +76,11 @@ class HookRulingTest {
                 new com.legend.executionplan.ExecutionPlan.Database.Platform(
                         com.legend.planner.ConnectionPlans.type(com.legend.database.Databases.PLATFORM), null),
                 List.of(), List.of(), null, null, null);
-        return new com.legend.testexecutionplan.TestPlan(List.of(), List.of(),
+        var verdict = new com.legend.testexecutionplan.TestPlan.Verdict(1, "assert", "assert", List.of(), null, null,
+                false);
+        var step = new com.legend.testexecutionplan.TestPlan.Verdicts(List.of(verdict), null, null,
+                com.legend.testexecutionplan.TestPlan.JudgingRules.LITE);
+        return new com.legend.testexecutionplan.TestPlan(List.of(), List.of(step),
                 com.legend.testexecutionplan.TestPlan.Judge.HOST, Map.of(), byVerdict, false, target,
                 new com.legend.testexecutionplan.BodyFacts(false, false, true, "A"));
     }

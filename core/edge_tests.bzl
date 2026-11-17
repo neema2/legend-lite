@@ -17,6 +17,8 @@ EDGE_TEST_SRCS = [
     "src/test/java/com/legend/EdgeSeparationTest.java",
     "src/test/java/com/legend/HookRulingTest.java",
     "src/test/java/com/legend/PlanStyleFacetsTest.java",
+    # the edge's extension records walked as data (census C2, 2026-11-17: the appeals moved to com.legend.edge)
+    "src/test/java/com/legend/PlanTypesAreDataTest.java",
     "src/test/java/com/legend/PlannerSurfaceTest.java",
     "src/test/java/com/legend/ReferenceIntegrityTest.java",
     "src/test/java/com/legend/ResultWritersTest.java",
