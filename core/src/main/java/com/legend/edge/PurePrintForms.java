@@ -37,6 +37,12 @@ final class PurePrintForms extends com.legend.sql.SqlRewriter {
         return java.util.List.of(new PurePrintForms(floatLiteral), new TdsNullCells(), new UnguardedParses());
     }
 
+    /** {@link #passes(FloatLiteral)} for legend-engine's TEXT printers ({@code EngineStyleH2} and its family), which
+     *  spell a parse as the engine prints it themselves ({@code cast(x as integer)}): no {@link UnguardedParses}. */
+    static java.util.List<com.legend.sql.SqlRewriter> enginePasses(FloatLiteral floatLiteral) {
+        return java.util.List.of(new PurePrintForms(floatLiteral), new TdsNullCells());
+    }
+
     /**
      * F31 (approved by the orchestrator, 2026-11-17): in an edge plan a parse is upstream's -- the plain CAST, its
      * refusal the database's own conversion error (DATABASE_ERROR, the database's text), as legend-engine's SQL casts:
