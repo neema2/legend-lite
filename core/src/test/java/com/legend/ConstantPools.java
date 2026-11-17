@@ -32,8 +32,19 @@ final class ConstantPools {
     private ConstantPools() {
     }
 
+    /** A class's pool as text: every UTF-8 entry (names, descriptors and string constants alike), and the string
+     *  constants alone (the UTF-8 entries a {@code CONSTANT_String} names: a literal, a folded or borrowed constant, a
+     *  switch label, a concatenation's recipe). */
+    record Pool(Set<String> utf8, Set<String> strings) {
+    }
+
     /** The UTF-8 entries of the class file {@code bytes}' constant pool, in pool order. */
     static Set<String> utf8(byte[] bytes) {
+        return pool(bytes).utf8();
+    }
+
+    /** The class file {@code bytes}' pool, read as text ({@link Pool}). */
+    static Pool pool(byte[] bytes) {
         try (DataInputStream in = new DataInputStream(new ByteArrayInputStream(bytes))) {
             if (in.readInt() != 0xCAFEBABE) {
                 throw new IllegalArgumentException("not a class file");
@@ -41,12 +52,14 @@ final class ConstantPools {
             in.readUnsignedShort();
             in.readUnsignedShort();
             int count = in.readUnsignedShort();
-            Set<String> out = new LinkedHashSet<>();
+            String[] texts = new String[count];
+            List<Integer> stringRefs = new ArrayList<>();
             for (int i = 1; i < count; i++) {
                 int tag = in.readUnsignedByte();
                 switch (tag) {
-                    case 1 -> out.add(in.readUTF());
-                    case 7, 8, 16, 19, 20 -> in.skipNBytes(2);
+                    case 1 -> texts[i] = in.readUTF();
+                    case 8 -> stringRefs.add(in.readUnsignedShort());
+                    case 7, 16, 19, 20 -> in.skipNBytes(2);
                     case 15 -> in.skipNBytes(3);
                     case 3, 4, 9, 10, 11, 12, 17, 18 -> in.skipNBytes(4);
                     case 5, 6 -> {
@@ -56,7 +69,17 @@ final class ConstantPools {
                     default -> throw new IllegalArgumentException("constant pool tag " + tag + " at " + i);
                 }
             }
-            return out;
+            Set<String> utf8 = new LinkedHashSet<>();
+            for (String t : texts) {
+                if (t != null) {
+                    utf8.add(t);
+                }
+            }
+            Set<String> strings = new LinkedHashSet<>();
+            for (int ref : stringRefs) {
+                strings.add(texts[ref]);
+            }
+            return new Pool(utf8, strings);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -65,6 +88,13 @@ final class ConstantPools {
     /** Every class of {@code jars} (its binary name, {@code a.b.C$D}) with its constant pool's UTF-8 entries. */
     static Map<String, Set<String>> ofJars(List<Path> jars) {
         Map<String, Set<String>> out = new TreeMap<>();
+        poolsOfJars(jars).forEach((name, pool) -> out.put(name, pool.utf8()));
+        return out;
+    }
+
+    /** Every class of {@code jars} (its binary name) with its pool ({@link Pool}). */
+    static Map<String, Pool> poolsOfJars(List<Path> jars) {
+        Map<String, Pool> out = new TreeMap<>();
         for (Path jar : jars) {
             try (JarFile f = new JarFile(jar.toFile())) {
                 Enumeration<JarEntry> entries = f.entries();
@@ -80,8 +110,14 @@ final class ConstantPools {
                         continue;
                     }
                     try (var in = f.getInputStream(e)) {
-                        out.computeIfAbsent(n.substring(0, n.length() - ".class".length()).replace('/', '.'),
-                                k -> new LinkedHashSet<>()).addAll(utf8(in.readAllBytes()));
+                        Pool read = pool(in.readAllBytes());
+                        out.merge(n.substring(0, n.length() - ".class".length()).replace('/', '.'), read, (a, b) -> {
+                            Set<String> u = new LinkedHashSet<>(a.utf8());
+                            u.addAll(b.utf8());
+                            Set<String> st = new LinkedHashSet<>(a.strings());
+                            st.addAll(b.strings());
+                            return new Pool(u, st);
+                        });
                     }
                 }
             } catch (IOException e) {
