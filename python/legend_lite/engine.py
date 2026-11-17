@@ -29,6 +29,7 @@ from __future__ import annotations
 import base64
 import binascii
 import contextlib
+import datetime
 import functools
 import hashlib
 import hmac
@@ -42,6 +43,7 @@ import socketserver
 import sys
 import threading
 import traceback
+from decimal import Decimal
 from collections.abc import Callable, Container, Iterable, Iterator, Mapping
 from types import MappingProxyType
 from typing import Any, NamedTuple
@@ -66,6 +68,7 @@ from ._pool import _on_compiler_threads, _workers
 from .frames import Frames, ModelRefused, Reading, UntypedColumn, redact_held
 # the runs this engine's routes hand the planner's statements to (C5-P, 2026-11-15): each route plans, then runs
 from ._params import ParametersRefused
+from ._types import is_float, is_model_type, is_strict_date
 from ._plans import PlanParamsRefused
 from ._reads import count_of, read_plane, run_arrow, run_on_plane, run_plan, run_rows_json
 from ._edge_seam import NO_EDGE_ROUTES, EdgeRoutes, edge_routes
@@ -244,6 +247,60 @@ def _arrow_rows(rows: pa.Table, planned: str, receipt: dict[str, Any] | None = N
     with pyarrow.ipc.new_stream(sink, rows.schema) as writer:
         writer.write_table(rows)
     return Answer(200, 'application/vnd.apache.arrow.stream', sink.getvalue().to_pybytes())
+
+
+def _carried_float(value: Any) -> Decimal:
+    """A Float cell's token as the server writes it (CellText.carriedFloat): the shortest digits that read back as the
+    double, plain -- never an exponent -- with a point always."""
+    shortest = repr(float(value)) if isinstance(value, float) else str(value)
+    if isinstance(value, float) and 'e' not in shortest and 'E' not in shortest:
+        return Decimal(shortest)
+    plain = format(Decimal(shortest).normalize(), 'f')
+    return Decimal(plain if '.' in plain else plain + '.0')
+
+
+def _lite_cell(cell: Any, column: compiler.Column) -> Any:
+    """ONE CELL OF lite's query/run JSON ANSWER, as the server writes it (LiteV1Planning.Answered, CellText.pureJson,
+    the PRODUCT's dates, register S312): an Integer an exact number; a Float its carried token (a non-finite one its
+    name, a string); a Decimal its plain text, a string; a boolean, a text (a Variant's JSON text among them); a
+    StrictDate, or a date-time of a column that holds days, its day; any other date-time UTC, six fraction digits and
+    Z. A list or a structure is refused by name: the server writes its own JSON form, which Python does not yet."""
+    float_column = not is_model_type(column.type) and is_float(column.type)
+    if cell is None or isinstance(cell, (bool, str)):
+        return cell
+    if isinstance(cell, int):
+        return cell
+    if isinstance(cell, float):
+        if cell != cell:
+            return 'NaN'
+        if cell in (float('inf'), float('-inf')):
+            return 'Infinity' if cell > 0 else '-Infinity'
+        return _carried_float(cell)
+    if isinstance(cell, Decimal):
+        return _carried_float(cell) if float_column else format(cell, 'f')
+    if isinstance(cell, datetime.datetime):
+        if cell.tzinfo is not None:
+            cell = cell.astimezone(datetime.timezone.utc).replace(tzinfo=None)
+        days = (not is_model_type(column.type) and is_strict_date(column.type)) or column.raw.get('precision') == 'DAY'
+        if days:
+            return f'{cell.year}-{cell.month:02d}-{cell.day:02d}'
+        return (f'{cell.year}-{cell.month:02d}-{cell.day:02d}T{cell.hour:02d}:{cell.minute:02d}:{cell.second:02d}.'
+                f'{cell.microsecond:06d}Z')
+    if isinstance(cell, datetime.date):
+        return f'{cell.year}-{cell.month:02d}-{cell.day:02d}'
+    raise LegendError(f"a query/run answer in JSON writes no {type(cell).__name__} cell (column '{column.name}'): "
+                      'ask format arrow', compiler.error_kind('UNSUPPORTED'))
+
+
+def _lite_rows_json(rows: pa.Table, plan: compiler.Plan, shape: str) -> bytes:
+    """lite's query/run answer as JSON (the spec's §4): ``{shape, columns: [{name, type}], rows: [[cell]]}``, each
+    cell as the server writes it (``_lite_cell``), its numbers exact (_json)."""
+    columns = {c.name: c for c in plan.columns}
+    order = [columns[name] for name in rows.column_names]
+    cells = [[_lite_cell(cell, column) for cell, column in zip(row, order)]
+             for row in zip(*(rows.column(i).to_pylist() for i in range(rows.num_columns)))]
+    return _json.dumps({'shape': shape, 'columns': [{'name': c.name, 'type': c.type} for c in order],
+                        'rows': cells}).encode('utf-8')
 
 
 def _planned(said: dict[str, str], status: int = 200) -> Answer:
@@ -670,10 +727,10 @@ class Engine:
         text, its run's values bound at run (``_params.bind``: checked against the plan's declarations, every problem
         named at once), and run where the model's rows are: the tables this engine serves (a page's frames and files, a
         snap's copies), else a project's own Data rows in a database of the project's own (C5) -- never one read in the
-        other's place (F28). The answer is ARROW (results stay Arrow on Python: the user's go of 2026-11-17): each
-        column's Pure type its field's ``legend.type``, the answer's shape the stream's ``legend.shape``, as the
-        server's Arrow answer carries them (LiteV1Planning.ShapedArrow); ``format`` ``json`` is refused by name, kind
-        ``unsupported``. A refusal is lite's one error shape, its status by its kind (``compiler.refused_route``)."""
+        other's place (F28). The answer is in the caller's ``format`` (the spec's §4; ONE contract on every binding, the
+        orchestrator's ruling of 2026-11-17): ``arrow``, each column's Pure type its field's ``legend.type`` and the
+        answer's shape the stream's ``legend.shape`` (LiteV1Planning.ShapedArrow); ``json`` (the default),
+        ``{shape, columns, rows}`` as the server writes it (``_lite_rows_json``). A refusal is lite's one error shape, its status by its kind (``compiler.refused_route``)."""
         def refused(error: LegendError) -> Answer:
             status, said = compiler.refused_route(error)
             return Answer(status, 'application/json', said.encode('utf-8'))
@@ -701,9 +758,6 @@ class Engine:
         form = asked.get('format', 'json')
         if form not in ('json', 'arrow'):
             return request(f"runs in the format json or arrow, not {form!r}")
-        if form == 'json':
-            return refused(LegendError("Python answers query/run in Arrow (format arrow): its rows stay Arrow",
-                                       compiler.error_kind('UNSUPPORTED')))
         plan_asked = {'lambda': _json.dumps(asked['query']), 'runtime': asked['runtime']}
 
         def run(planned: str, rows_of: Callable[[compiler.Plan], pa.Table]) -> Answer:
@@ -719,6 +773,11 @@ class Engine:
                 message = redact_held(f'{type(failure).__name__}: {failure}', self.frames.held_values())
                 return refused(LegendError(message, compiler.error_kind('INTERNAL')))
             shape = _json.loads(planned[len('OK\n'):])['plan']['root']['shape']
+            if form == 'json':
+                try:
+                    return Answer(200, 'application/json', _lite_rows_json(rows, plan, shape))
+                except LegendError as error:
+                    return refused(error)
             rows = rows.replace_schema_metadata({**(rows.schema.metadata or {}), b'legend.shape': shape.encode('utf-8')})
             sink = pa.BufferOutputStream()
             with pyarrow.ipc.new_stream(sink, rows.schema) as writer:

@@ -173,6 +173,10 @@ class LiteApiConformance(unittest.TestCase):
                 self.assertFalse(unknown, f"{case['name']}: a binding the suite does not know: {sorted(unknown)}")
                 if 'python' not in bindings:
                     continue
+            if case['op'] == 'query/run':
+                # a host's run: Python's server answers it over its own DuckDB, read by test_engine's
+                # QueryRunConformance (this lane holds no database), never skipped there
+                continue
             asked += 1
             with self.subTest(case['name']):
                 if 'refusal' in case:
