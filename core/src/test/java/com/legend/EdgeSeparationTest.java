@@ -124,9 +124,13 @@ class EdgeSeparationTest {
             Map.entry("com.legend.testdatagen.TestDataGenerator -> com.legend.sql.dialect.EngineTextDialect", "B13 2026-11-17"),
             // planner.Boundary -> com.legend.edge.HostAnswers, PureText, PureV1Routes: gone 2026-11-17 (A1, E-P5): the
             // pure/v1 route and execute's halves moved to com.legend.edge.wasm.EdgeBoundary (//wasm:edge_boundary)
-            Map.entry("planner.Boundary -> com.legend.plan.UpstreamRelationType", "A1 2026-11-17"),
-            Map.entry("planner.Boundary -> com.legend.server.PureV1Api", "A1 2026-11-17"),
-            Map.entry("planner.Folded -> com.legend.server.PureV1Api", "A1 2026-11-17"));
+            // A1 -> B6, B7 (2026-11-17, the orchestrator's ruling (a)): every lite plan export's "type" field
+            // (Boundary.planned) and every export's refusal vocabulary (Folded.failure) are product-package classes
+            // the census's B6 and B7 give the product its own forms for; A1 itself closed with //wasm:boundary's edge
+            // dependency
+            Map.entry("planner.Boundary -> com.legend.plan.UpstreamRelationType", "B6 2026-11-17"),
+            Map.entry("planner.Boundary -> com.legend.server.PureV1Api", "B7 2026-11-17"),
+            Map.entry("planner.Folded -> com.legend.server.PureV1Api", "B7 2026-11-17"));
 
     /** TEST SIDE: the same. */
     static final Map<String, String> TEST_OPEN = Map.ofEntries(
@@ -335,10 +339,10 @@ class EdgeSeparationTest {
             Map.entry("testplan/TestPlanner.java | COMPILED_PURE_COMPAT", "C1 2026-11-17"));
 
     /** The census's open lines (docs/records/f-separation-census-2026-11-17.md; closed: A4, B14 ruled; A2, A3 moved to
-     *  the edge 2026-11-17; A5, A6 split off the edge 2026-11-17 (A4 extended to the native image and the page module); records only:
+     *  the edge 2026-11-17; A5, A6 split off the edge 2026-11-17; A1 the embedded hosts' engine routes to the edge 2026-11-17 (A4 extended to the native image and the page module); records only:
      *  B15, B16, C6, C7). Each must hold at least one entry in the count ({@link #everyOpenLineIsCounted}), so an empty
      *  count cannot read DONE with a line left. A line closes by leaving this set with its last entry. */
-    static final Set<String> OPEN_LINES = Set.of("A1", "B1", "B2", "B3", "B4", "B5", "B6",
+    static final Set<String> OPEN_LINES = Set.of("B1", "B2", "B3", "B4", "B5", "B6",
             "B7", "B8", "B9", "B10", "B11", "B12", "B13", "B17", "C1", "C2", "C3", "C4", "C5");
 
     private static Set<String> linesOf(Map<String, String> m) {
