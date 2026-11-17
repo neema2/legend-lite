@@ -1367,6 +1367,14 @@ public class BigQuery extends AnsiSqlRenderer {
 
     @Override
     protected SqlWriter variantAwareCast(SqlWriter writer, SqlExpr.Cast c) {
+        // parseFloat: legend-pure's grammar, lite's TEXT_NOT_FLOAT by name, never the cast's own error (Phase 8)
+        if (isParseFloat(c)) {
+            SqlExpr x = c.value();
+            return guardedParseFloat(writer, x, w -> w.append("REGEXP_CONTAINS(").expr(x, 0)
+                            .append(", " + stringLit(FLOAT_GRAMMAR) + ")"),
+                    w -> w.append("CAST(TRIM(REGEXP_REPLACE(").expr(x, 0)
+                            .append(", " + stringLit("[fF][[:space:]]*$") + ", '')) AS FLOAT64)"));
+        }
         SqlType target = c.target();
         SqlExpr v = c.value();
         if (target == SqlType.Scalar.TEMPORAL_TEXT || target == SqlType.Scalar.DECIMAL_TEXT) {
@@ -1640,7 +1648,10 @@ public class BigQuery extends AnsiSqlRenderer {
             case DEGREES -> writer.append("(CAST(").expr(a.get(0), 0).append(" AS FLOAT64) * (180 / ACOS(-1)))");
             case RADIANS -> writer.append("(CAST(").expr(a.get(0), 0).append(" AS FLOAT64) * (ACOS(-1) / 180))");
             case BIT_NOT -> writer.append("(~ CAST(").expr(a.get(0), 0).append(" AS INT64))");
-            case PARSE_INT -> writer.append("CAST(").expr(a.get(0), 0).append(" AS INT64)");
+            // legend-pure's parseInteger, lite's TEXT_NOT_INTEGER by name, never the cast's own error (Phase 8)
+            case PARSE_INT -> guardedParseInt(writer, a.get(0),
+                    w -> w.append("REGEXP_CONTAINS(").expr(a.get(0), 0).append(", " + stringLit("^[+-]?[0-9]+$") + ")"),
+                    w -> w.append("CAST(").expr(a.get(0), 0).append(" AS INT64)"));
             case DECIMAL_TO_TEXT -> writer.expr(varcharCast(c.args().get(0)), parentPrec);
             case BOOL_TO_TEXT -> writer.append("CAST(").expr(a.get(0), 0).append(" AS STRING)");
             // NULL-skipping, as DuckDB's (BigQuery's are NULL for any NULL argument, measured): each argument stands

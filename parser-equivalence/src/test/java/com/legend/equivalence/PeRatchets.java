@@ -113,7 +113,9 @@ public final class PeRatchets {
                     + " lane): eight more of lite's own models match, a ratchet UP",
             "own_corpus.matched 3281 -> 3284 (2026-11-16, D's stage: PlanDeclaresItsRaisesTest's MongoDB model written"
                     + " as the reference grammar reads it -- serverURLs [localhost:27017], where an IP address was refused"
-                    + " (GRAMMAR-REFUSAL-nullmsg, stage-linux 43917161620) -- and the stage's new test models; UP)");
+                    + " (GRAMMAR-REFUSAL-nullmsg, stage-linux 43917161620) -- and the stage's new test models; UP)",
+            "own_corpus.matched 3284 -> 3287 (2026-11-17, phase D's Phase 2, 8d38788b0: InterimEdgeSitesTest's model --"
+                    + " its s::DB, s::Conn and s::RT -- matches the reference grammar; UP)");
 
     public static void main(String[] args) throws Exception {
         if (args.length != 1) {

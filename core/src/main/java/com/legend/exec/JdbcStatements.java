@@ -107,8 +107,13 @@ final class JdbcStatements implements Statements {
         }
         for (ExecutionPlan.Slot slot : slots) {
             if (slot.binding() instanceof ExecutionPlan.Binding.Payload payload) {
-                com.legend.error.DataError named = new com.legend.error.DataError(payload.label() + " was refused: "
-                        + failure.getMessage(), failure.getCause() != null ? failure.getCause() : e);
+                Throwable cause = failure.getCause() != null ? failure.getCause() : e;
+                String message = payload.label() + " was refused: " + failure.getMessage();
+                // the database's own failure keeps its kind, SQLSTATE and words, named by the payload it refused
+                com.legend.error.DataError named = failure.kind() != null && failure.kind().isDatabases()
+                        ? com.legend.error.DataError.database(failure.kind(), failure.sqlState(),
+                                java.util.Objects.requireNonNull(failure.databaseMessage()), message, cause)
+                        : new com.legend.error.DataError(message, cause);
                 for (Throwable suppressed : failure.getSuppressed()) {
                     named.addSuppressed(suppressed);
                 }

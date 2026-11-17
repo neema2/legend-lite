@@ -121,8 +121,12 @@ JARS = {
         users = ["core", "pct"],
     ),
     "sqlite_jdbc": struct(
-        coordinate = "org.xerial:sqlite-jdbc:3.47.1.0",
-        sha256 = "4164d95347aeab42b754cabb7945b93e54f29ddb2eded967dbe979b4045cb685",
+        # 3.53.1.0 (SQLite 3.53.1), 2026-11-16: 3.47.1.0's SQLite read '1.0e-300' one ulp off (9.999999999999999e-301), so
+        # a Float carried as its 17-digit text did not come back exact (the product raise probe's carrier case); SQLite
+        # 3.53.1 reads it exactly (measured). The natives are 3.47's but the four Linux-Android ones. The orchestrator's
+        # decision (a), Phase 8. Checked against Maven Central's download on 2026-11-16.
+        coordinate = "org.xerial:sqlite-jdbc:3.53.1.0",
+        sha256 = "28aceecfcc9535645bd19fa988385703c7b89982c1506a6855f5942b4032eca6",
         users = ["core"],
     ),
     # MongoDB's Java driver (2026-10-17, docs/MONGODB_PLAN_2026_10_16.md D12): the MongoDB connector's client

@@ -545,7 +545,9 @@ public class DuckDb extends AnsiSqlRenderer {
             case IS_NOT_NULL -> isNotNullTest(writer, c.args());
             case IN -> inList(writer, c.args(), parentPrec);
             // 64-bit parse (PCT Long.MIN/MAX round-trips)
-            case PARSE_INT -> castAs(writer, c.args().get(0), "BIGINT");
+            case PARSE_INT -> guardedParseInt(writer, c.args().get(0),
+                    w -> w.append("regexp_full_match(").expr(c.args().get(0), 0).append(", '[+-]?[0-9]+')"),
+                    w -> castAs(w, c.args().get(0), "BIGINT"));
             // NULL-skipping flat concat (the database's concat skips NULL arguments)
             case CONCAT -> concatFlat(writer, c.args());
             // joinStrings' interleaved concat, never flattened
@@ -1237,6 +1239,23 @@ public class DuckDb extends AnsiSqlRenderer {
                 && c.target() != com.legend.sql.SqlType.Scalar.DECIMAL_TEXT) {
             writer.append("CAST(");
             return navigated(writer, c.value()).append(" AS ").append(castTypeName(c.target())).append(")");
+        }
+        // a Float parsed from text (parseFloat): DuckDB's CAST accepts forms legend-pure raises on ('+-1' read -1,
+        // '1_000' 1000, 'nan' and 'inf' in any case; measured, 87 shapes); the text is held to legend-pure's grammar
+        // as its compiled mode reads it (Double.valueOf: trimmed, NaN and Infinity as spelled, one trailing f accepted
+        // and stripped, one rule on every database), any other raising
+        // TEXT_NOT_FLOAT (the orchestrator's ruling, 2026-11-16: the guard applies wherever a database accepts an
+        // invalid form; Phase 8)
+        if (c.target() == com.legend.sql.SqlType.Scalar.DOUBLE && c.reason() == SqlExpr.Reason.USER
+                && c.value().type() instanceof com.legend.sql.TypeFact.Typed t
+                && t.type() == com.legend.sql.SqlType.Scalar.VARCHAR) {
+            SqlExpr v = c.value();
+            return writer.append("(CASE WHEN ").expr(v, 4).append(" IS NULL THEN NULL WHEN regexp_full_match(")
+                    .expr(v, 0).append(", '\\s*[+-]?(NaN|Infinity|(\\d+\\.?\\d*|\\.\\d+)([eE][+-]?\\d+)?[fF]?)\\s*')")
+                    .append(" THEN CAST(regexp_replace(").expr(v, 0).append(", '[fF]\\s*$', '') AS DOUBLE) ELSE ")
+                    .expr(SqlExpr.Call.of(SqlFn.ERROR, new SqlExpr.RaiseText(com.legend.sql.RaiseKind.TEXT_NOT_FLOAT,
+                            List.of(v))), 0)
+                    .append(" END)");
         }
         return super.variantAwareCast(writer, c);
     }

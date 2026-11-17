@@ -189,6 +189,8 @@ public final class Boundary {
         // the raises its statement can send, by kind, to their sentences (PlanJson.raises; phase D's option (D),
         // 2026-11-15): what a host words a failure with, read from the answer, never from a table of its own
         out.put("raises", com.legend.executionplan.PlanJson.raises(p.plan()));
+        // the raise sites its statement declares (v56, phase D's Phase 2): a token it raises read through them
+        out.put("sites", com.legend.executionplan.PlanJson.sitesOf(p.plan(), p.sql()));
         if (!p.textAlone()) {
             out.put("plan", com.legend.json.Json.parse(com.legend.executionplan.PlanJson.write(p.plan())));
         }
