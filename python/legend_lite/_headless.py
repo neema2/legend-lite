@@ -133,9 +133,10 @@ def answer_fetch(method: str, url: str, body: str | None) -> tuple[int, str]:
             except OSError as refused:
                 return 500, json.dumps({'message': str(refused)})
     if parts.path.startswith(_LITE_API):
+        # lite's own API, v1: the route's answer by the product's one rule (the host train, 2026-11-17: until then
+        # through legend-engine's pure/v1 router, an edge entry)
         from . import compiler
-        answered = compiler.pure_v1(parts.path, parts.query, body or '')
-        return answered.status, answered.body
+        return compiler.lite_route(parts.path, body or '')
     return 404, json.dumps({'message': f"this host answers its model home ({', '.join(r for r, _ in _HOME_APIS)}) and "
                                        f'legend-lite\'s API ({_LITE_API}) at a path: not {url}'})
 

@@ -25,10 +25,6 @@ from ._planned import PlanText  # noqa: F401
 from ._runs import (HostLoad, Landed, LoadRefused, PLAN_VERSION, open_project, run_host_load,  # noqa: F401
                     run_load, run_write)
 
-# the kinds the compiler names a model's failure to read as a model by (planner.Folded, PureV1Api.refusal): such a
-# model is no project's, and is refused where a model is; any other refusal of a project's database (a Data element
-# filling a table no Database declares) is said as it is
-_NOT_A_MODEL = frozenset({'PARSER', 'COMPILATION'})
 
 
 class NotAModel(compiler.LegendError):
@@ -82,10 +78,13 @@ class ProjectDatabases:
         try:
             statements = compiler.project_data(model, self._type)
         except compiler.LegendError as refused:
-            if refused.kind not in _NOT_A_MODEL:
+            # a model that does not read as a model (it does not parse or compile, by the product's own kinds:
+            # compiler.refuses_the_text) is no project's; any other refusal (a Data element filling a table no Database
+            # declares) is said as it is
+            if not compiler.refuses_the_text(refused):
                 raise
             if surface:
-                raise NotAModel(refused.message, refused.kind) from refused
+                raise NotAModel(refused.message, refused.kind, refused.where, refused.raise_) from refused
             statements = None
         if statements is None or statements.get('load') is None:
             yield None

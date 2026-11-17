@@ -66,6 +66,7 @@ from ._pool import _on_compiler_threads, _workers
 from .frames import Frames, ModelRefused, Reading, UntypedColumn, redact_held
 # the runs this engine's routes hand the planner's statements to (C5-P, 2026-11-15): each route plans, then runs
 from ._reads import count_of, read_plane, run_arrow, run_on_plane, run_plan, run_rows_json
+from ._edge_seam import NO_EDGE_ROUTES, EdgeRoutes, edge_routes
 from .keeper import PageKeeper, Refused
 from .projects import NotAModel, ProjectDatabases, run_host_load, run_write
 from ._home import THIS_USER, Settings, home, model_home_folder, pages_folder, queries_folder, store_call
@@ -130,6 +131,12 @@ _QUERIES, _QUERY_USER = '/api/pure/v1/query', THIS_USER
 # DataCube's saved pages, at upstream's routes beside the queries (/api/pure/v1/query/dataCube): the saved pages' rules,
 # the server's and the page's, over this user's folder (B6); their caller the same user
 _CUBES = _QUERIES + '/dataCube'
+# THE PRODUCT'S STORE at lite's own mount (the edge program's H6, 2026-11-17: the server mounts it so too,
+# LegendHttpServer's /api/lite/v1/query): the same rules over the same folders, refused in LITE'S words by the native
+# library's product entries (lite_store_queries, lite_store_cubes). The legend-engine mount above is the edge's
+# (SavedQueriesHome, legend-engine's words), served until the TS hosts move their clients here (the orchestrator's D-b)
+_LITE_QUERIES = '/api/lite/v1/query'
+_LITE_CUBES = _LITE_QUERIES + '/dataCube'
 # PLANANDRUN (docs/DATACUBE_ONE_APP_DESIGN_2026_10_11.md §15): a page's grid planned against the model Python holds and
 # run on its DuckDB, in one call; and its dry run, plan-and-run's planning half (the page's compile check) -- the host's
 # compute (§15.2 as amended 2026-10-15). A question about the Pure query alone is legend-engine's own route (_API), as
@@ -346,10 +353,14 @@ def private(path: str) -> bool:
         _PLAN_AND_RUN, _PLAN, _WAREHOUSE, _SNAP, _OPENED, _JOIN, _SOURCE)
 
 
+def _under(path: str, mount: str) -> bool:
+    return path == mount or path.startswith(mount + '/')
+
+
 def _saved_query(path: str) -> bool:
-    """A call of the query store's (``/api/pure/v1/query``, ``.../{id}``, ``.../search``, ...), DataCube's saved pages'
-    (``.../dataCube...``) among them."""
-    return path == _QUERIES or path.startswith(_QUERIES + '/')
+    """A call of the query store's at either mount (``/api/lite/v1/query`` or ``/api/pure/v1/query``, ``.../{id}``,
+    ``.../search``, ...), DataCube's saved pages' (``.../dataCube...``) among them."""
+    return _under(path, _LITE_QUERIES) or _under(path, _QUERIES)
 
 
 def _stored(entry: str, folder: Path, *asked: str) -> Answer:
@@ -366,8 +377,8 @@ def _stored(entry: str, folder: Path, *asked: str) -> Answer:
 
 
 def _saved_cube(path: str) -> bool:
-    """A call of DataCube's saved pages' (``/api/pure/v1/query/dataCube``, ``.../{id}``, ``.../search``)."""
-    return path == _CUBES or path.startswith(_CUBES + '/')
+    """A call of DataCube's saved pages' at either mount (``.../query/dataCube``, ``.../{id}``, ``.../search``)."""
+    return _under(path, _LITE_CUBES) or _under(path, _CUBES)
 
 
 def _app_of(path: str) -> str | None:
@@ -433,18 +444,26 @@ class NativePlanner:
         return compiler.refusal(message)
 
     def plan(self, query: str, held: compiler.HeldModel, runtime: str) -> str:
-        # the planner function the tab's worker calls (planJson), over the model this process holds
-        return library().call('lite_plan_json_held', held.handle, query, runtime)
+        """``query`` (a query's tree as JSON text, its numbers exact) planned over the model this process holds: lite's
+        ``query/plan`` over a held model (``lite_query_plan_held``), its tagged answer as DataCube's planner reads it
+        (``OK`` and ``{"plan": <lite's plan>}``, or ``ERR`` and §3's error) -- the lite API spec's §2, §7a, 2026-11-17."""
+        request = '{"query":' + query + ',"runtime":' + _json.dumps(runtime) + '}'
+        return library().call('lite_query_plan_held', held.handle, request)
 
     def read(self, answer: str) -> compiler.Plan:
         return compiler.read_planned(answer)
 
     def refused_plan(self, message: str) -> str:
-        return f'ERR\nMODEL\n{message}'
+        """A request this engine cannot plan for (its model not served, its library not DataCube's, a project with no
+        rows), refused as the planner refuses one: ``ERR`` and §3's error, the product's ``request`` kind."""
+        return 'ERR\n' + _json.dumps({'kind': compiler.error_kind('REQUEST'), 'message': message})
 
     def refused_by(self, refused: LegendError) -> str:
-        """The compiler's own refusal, as the planner answers one: its kind and its words."""
-        return f'ERR\n{refused.kind}\n{refused.message}'
+        """The compiler's own refusal, as the planner answers one: ``ERR`` and §3's error, its kind and its words."""
+        said = {'kind': refused.kind, 'message': refused.message}
+        if refused.where is not None:
+            said['where'] = refused.where
+        return 'ERR\n' + _json.dumps(said)
 
 
 class _WarehouseTable:
@@ -487,13 +506,16 @@ class Engine:
 
     def __init__(self, frames: Frames, site: str | Path | None = None,
                  headless: Callable[[], Any] | None = None, pages: str | Path | None = None,
-                 keeper: PageKeeper | None = None) -> None:
+                 keeper: PageKeeper | None = None, edge: EdgeRoutes = NO_EDGE_ROUTES) -> None:
         """``headless``: DataCube's own non-screen code over the frames' database (legend_lite._headless), made when
         first asked for -- what reads a page's file into it (file.json). Absent, the engine takes no file, and says so
         (services.json). ``pages``: the folder the page's Save and Open… keep pages in (step 2d, B6): this user's
         (``home()/pages``) when not given. ``keeper``: the one copy of each page it serves (keeper.py), its session's,
         which Python's pages write too; one of its own when not given."""
         self.frames = frames
+        # the routes it answers besides its own (_edge_seam): the product's own refusal unless the edge's door
+        # (legend_lite.edge.engine) gives it legend-engine's -- never None (the edge program's H5 groundwork)
+        self.edge = edge_routes(edge)
         self.keeper = keeper if keeper is not None else PageKeeper()
         self._headless = headless
         # where the frames' DuckDB was pointed for its extensions (a remote file's httpfs), once it was
@@ -559,8 +581,8 @@ class Engine:
             return Answer(200, 'application/json', json.dumps(_QUERY_USER).encode('utf-8'))
         if method == 'POST':
             if path.startswith(_LITE_API):
-                # legend-lite's own routes (its whole-model compile), answered as its server answers them
-                return _workers().submit(self._api, path, query, body or '').result()
+                # LITE'S OWN API, v1 (the spec's §2, §5): one route per operation, its native entry's answer
+                return self._lite_operation(path, body or '')
             if path == '/page.json':
                 return self._page_said(query, body or '')
             if path == _FILE_PART:
@@ -594,7 +616,9 @@ class Engine:
             if path == _SOURCE:
                 return _workers().submit(self._source_said, body or '').result()
             if not path.startswith(_API):
-                return _said(404, f'no such path: {path}')
+                # none of its own: the edge's routes, the product's own refusal unless the edge's door composed this
+                # engine (_edge_seam)
+                return self.edge.answer(self, method, path, query, body)
             return _workers().submit(self._api, path, query, body or '').result()
         if method != 'GET':
             return _said(405, 'this engine answers GET and POST')
@@ -614,6 +638,12 @@ class Engine:
                 return _said(500, f'the settings could not be read: {type(failure).__name__}: {failure}')
             return Answer(200, 'application/json', json.dumps(kept).encode('utf-8'))
         return self._file(path)
+
+    def _lite_operation(self, path: str, body: str) -> Answer:
+        """LITE'S OWN API, v1, ON PYTHON'S SERVER (the spec's §2, §3, §5; the host train, 2026-11-17): the route's answer
+        by the product's one rule (``compiler.lite_route``), its planning on the compiler's threads."""
+        status, said = _on_compiler_threads(lambda: compiler.lite_route(path, body))
+        return Answer(status, 'application/json', said.encode('utf-8'))
 
     def _answered(self, work: Callable[[str], Answer], body: str) -> Answer:
         """A page's planner call answered, never a dropped call: what the call itself does not answer is a bug,
@@ -696,6 +726,9 @@ class Engine:
         is this user: there is no sign-in."""
         if method not in ('GET', 'POST', 'PUT', 'DELETE'):
             return _said(405, 'the query store answers GET, POST, PUT and DELETE')
+        # lite's mount, the product's entry and lite's words; legend-engine's, the edge's (H6)
+        if _under(path, _LITE_QUERIES):
+            return _stored('lite_store_queries', queries_folder(), method, path[len(_LITE_QUERIES):], query, body)
         return _stored('lite_saved_queries', queries_folder(), method, path[len(_QUERIES):], query, body)
 
     def _saved_cubes(self, method: str, path: str, query: str, body: str) -> Answer:
@@ -704,6 +737,9 @@ class Engine:
         one file each, as the page's records were kept), under its lock. Its caller is this user: there is no sign-in."""
         if method not in ('GET', 'POST', 'PUT', 'DELETE'):
             return _said(405, "DataCube's saved pages answer GET, POST, PUT and DELETE")
+        # lite's mount, the product's entry and lite's words; legend-engine's, the edge's (H6)
+        if _under(path, _LITE_CUBES):
+            return _stored('lite_store_cubes', self.pages_folder(), method, path[len(_LITE_CUBES):], query, body)
         return _stored('lite_saved_cubes', self.pages_folder(), method, path[len(_CUBES):], query, body)
 
     def _settings_kept(self, body: str) -> Answer:
@@ -1758,12 +1794,16 @@ class Engine:
         against the model Python holds of that text -- a page's frame or file, a warehouse table; ``project``, a saved
         query's project's own (C5) -- by plan-and-run's one rule of where a model's rows are (F28), and never run. JSON:
         ``{"plan"}``, the planner's answer, a refusal too, as plan-and-run carries it (``legend.plan``)."""
+        # its query a tree (the lite API's query/plan, as DataCube's page sends it since the host train, 2026-11-17),
+        # read with its numbers exact and handed to the planner as its JSON text
         try:
-            asked = json.loads(body)
+            asked = _json.loads(body)
         except ValueError:
-            return _said(400, 'a plan is {"lambda", "model", "runtime"}, as JSON')
-        if not (isinstance(asked, dict) and all(isinstance(asked.get(k), str) for k in ('lambda', 'model', 'runtime'))):
-            return _said(400, 'a plan is {"lambda", "model", "runtime"}, each a string')
+            return _said(400, 'a plan is {"query", "model", "runtime"}, as JSON')
+        if not (isinstance(asked, dict) and isinstance(asked.get('query'), dict)
+                and all(isinstance(asked.get(k), str) for k in ('model', 'runtime'))):
+            return _said(400, 'a plan is {"query", "model", "runtime"}: a query\'s tree, a model\'s text, a runtime')
+        asked = {**asked, 'lambda': _json.dumps(asked['query'])}
         refused = self._library_refused(asked)
         if refused is not None:
             return _planned({'plan': self.planner.refused_plan(refused)})

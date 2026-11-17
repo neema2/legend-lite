@@ -494,8 +494,7 @@ class JsonConnection(unittest.TestCase):
     def test_a_payload_that_is_not_its_digest_or_another_slot_is_refused_by_name(self):
         from legend_lite import compiler
         model = self.model(self.RECORDS)
-        planned = json.loads(compiler._answer(compiler.library().call('lite_plan_json', model, compiler._json.dumps(ll.parse(self.QUERY)),
-                                                                      'm::RT')))
+        planned = compiler.operation('query/plan', {'model': model, 'query': ll.parse(self.QUERY), 'runtime': 'm::RT'})
         statement = planned['plan']['root']['sql']
         digest = next(iter(statement['content']))
         statement['content'][digest] = statement['content'][digest].replace('back', 'BACK')
@@ -533,3 +532,58 @@ class ARaiseIsWorded(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class ParametersBoundAtRun(unittest.TestCase):
+    """A query's parameters, declared in its plan and bound when it runs, never pasted into its text (the lite API
+    spec's §4, 2026-11-17): the planner declares them, Python's runner checks and binds them on its own DuckDB."""
+
+    def setUp(self):
+        self.frames = ll.Frames()
+        self.table = self.frames.register('trades', pd.DataFrame({'desk': ['FX', 'EQ', 'FX'], 'qty': [1, 2, 3]}))
+
+    def query(self, params, body):
+        return f'{{{params}|{self.table.accessor}{body}->select(~[desk, qty])->from({self.table.runtime})}}'
+
+    def test_a_parameter_is_bound_at_run_and_never_in_the_text(self):
+        plan = self.table.plan(self.query('d:String[1]', '->filter(r|$r.desk == $d)'))
+        self.assertNotIn('FX', plan.sql)
+        self.assertEqual([p.name for p in plan.parameters], ['d'])
+        self.assertEqual(self.frames.run(plan, {'d': 'FX'}).column('qty').to_pylist(), [1, 3])
+        self.assertEqual(self.frames.run(plan, {'d': 'EQ'}).column('qty').to_pylist(), [2], 'the same plan, another value')
+        self.assertEqual(self.table.execute(self.query('n:Integer[1]', '->filter(r|$r.qty > $n)'), {'n': 1})
+                         .column('qty').to_pylist(), [2, 3])
+
+    def test_a_refused_value_is_lites_parameters_refusal_and_nothing_runs(self):
+        from unittest import mock
+        from legend_lite import compiler
+        plan = self.table.plan(self.query('d:String[1]', '->filter(r|$r.desk == $d)'))
+        # the product's parameters kind (F's rename, §3): read from the product, here as it will read
+        with mock.patch.object(compiler, '_KINDS', {'PARSE': 'parse', 'COMPILE': 'compile', 'PARAMETERS': 'parameters'}):
+            with self.assertRaises(ll.LegendError) as refused:
+                self.frames.run(plan, {})
+            self.assertEqual((refused.exception.kind, refused.exception.message),
+                             ('parameters', 'no value for the parameter(s) d:String[1]'))
+            with self.assertRaises(ll.LegendError) as refused:
+                self.frames.run(plan, {'d': True})
+            self.assertIn('given true (boolean): a String is a string', refused.exception.message)
+
+
+class TheProductsKinds(unittest.TestCase):
+    """The lite API spec's §3 (2026-11-17): the frames and a project's databases tell a model's refusal by the product's
+    kinds (compiler.refuses_the_text, read from the native library), never by a constant of Python's own -- so a
+    rename in the product needs no edit here."""
+
+    def test_a_model_refusal_follows_the_products_kinds_renamed(self):
+        from unittest import mock
+        from legend_lite import compiler, frames, projects
+        renamed = {'PARSE': 'parse', 'COMPILE': 'compile', 'FAILURE': 'internal'}
+        with mock.patch.object(compiler, '_KINDS', renamed):
+            self.assertTrue(compiler.refuses_the_text(ll.LegendError('no', 'compile')))
+            self.assertFalse(compiler.refuses_the_text(ll.LegendError('no', 'COMPILATION')))
+            self.assertIsInstance(frames._refusal(ll.LegendError('no', 'parse')), frames.ModelRefused)
+            self.assertNotIsInstance(frames._refusal(ll.LegendError('no', 'internal')), frames.ModelRefused)
+            with mock.patch.object(compiler, 'project_data', side_effect=ll.LegendError('no model', 'compile')):
+                with self.assertRaises(projects.NotAModel):
+                    with projects.ProjectDatabases(None).using('m', surface=True):
+                        pass

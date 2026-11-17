@@ -50,3 +50,23 @@ def is_number(name: str) -> bool:
 def is_boolean(name: str) -> bool:
     """A Boolean."""
     return plain_type(name) == 'Boolean'
+
+
+def is_string(name: str) -> bool:
+    """A String (a precise ``Varchar`` too)."""
+    return plain_type(name) == 'String'
+
+
+def is_strict_date(name: str) -> bool:
+    """A StrictDate."""
+    return plain_type(name) == 'StrictDate'
+
+
+def is_date_time(name: str) -> bool:
+    """A DateTime (a precise ``Timestamp`` too)."""
+    return plain_type(name) == 'DateTime'
+
+
+def is_date(name: str) -> bool:
+    """A Date: a StrictDate or a DateTime."""
+    return plain_type(name) == 'Date'
