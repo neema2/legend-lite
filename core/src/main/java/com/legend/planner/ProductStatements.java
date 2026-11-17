@@ -377,8 +377,9 @@ public final class ProductStatements {
     static Lowerer lowerer(TypedQuery query, List<TypedSpec> body, PlanEnv env,
             boolean temporal, boolean streaming, List<SqlExpr.PlanParam> slots,
             ObjectSites sites) {
-        return configured(query, temporal, streaming, slots, BodyPlanner.featuresOf(env, body), sites)
-                .withDbTimeZone(env.timeZone()).withOptions(env.options()).withFloatLiteralKind(env::floatLiteralKind);
+        // the environment's time zone and relation-text facet (PlanEnv.configure, B17 2026-11-17)
+        return env.configure(configured(query, temporal, streaming, slots, BodyPlanner.featuresOf(env, body), sites))
+                .withOptions(env.options()).withFloatLiteralKind(env::floatLiteralKind);
     }
 
     /**

@@ -1317,6 +1317,14 @@ public class Snowflake extends AnsiSqlRenderer {
 
     @Override
     protected SqlWriter variantAwareCast(SqlWriter writer, SqlExpr.Cast c) {
+        // parseFloat: legend-pure's grammar, lite's TEXT_NOT_FLOAT by name, never the cast's own error (Phase 8)
+        if (isParseFloat(c)) {
+            SqlExpr x = c.value();
+            return guardedParseFloat(writer, x, w -> w.append("REGEXP_LIKE(").expr(x, 0).append(", ")
+                            .append(stringLit(FLOAT_GRAMMAR)).append(")"),
+                    w -> w.append("CAST(TRIM(REGEXP_REPLACE(").expr(x, 0).append(", ")
+                            .append(stringLit("[fF][[:space:]]*$")).append(", '')) AS DOUBLE)"));
+        }
         SqlType target = c.target();
         SqlExpr v = c.value();
         if (target == SqlType.Scalar.TEMPORAL_TEXT || target == SqlType.Scalar.DECIMAL_TEXT) {
@@ -1415,7 +1423,7 @@ public class Snowflake extends AnsiSqlRenderer {
             // it, which is exact, as the portable spelling read it
             case FLOAT_PRINT -> isDouble(a.get(0)) ? floatPrint(writer, a.get(0)) : floatPrintByText(writer, c, parentPrec);
             case FLOAT_TO_TEXT -> floatToText(writer, a.get(0));
-            case DATETIME_TO_TEXT, DATETIME_PRINT, CELL_TEXT, FORMAT_PADDED, INSTANCE_TEXT, RELATION_TEXT, REPRESENTATION_TEXT, TEXT_FORMS, TRACE_TEXT ->
+            case DATETIME_TO_TEXT, DATETIME_PRINT, CELL_TEXT, INSTANCE_TEXT, RELATION_TEXT, REPRESENTATION_TEXT, TEXT_FORMS, TRACE_TEXT ->
                     throw expandedFirst(c);
             // the hooks: this dialect's own (or the base's refusal)
             case ROUND -> roundHalfEven(writer, c.args());
@@ -1499,6 +1507,10 @@ public class Snowflake extends AnsiSqlRenderer {
             // NULL-ignoring, as DuckDB's concat (|| and CONCAT are NULL if any argument is, measured)
             case CONCAT -> writer.piece(concat(flattenConcat(a)));
             case CONCAT_JOIN -> writer.piece(concat(a));
+            // the product's join of a row's cells: Snowflake's CONCAT_WS is NULL for any NULL part, so the parts are an
+            // array compacted of its NULLs and joined (Phase 3)
+            case CONCAT_WS -> writer.append("ARRAY_TO_STRING(ARRAY_CONSTRUCT_COMPACT(").list(a.subList(1, a.size()))
+                    .append("), ").expr(a.get(0), 0).append(")");
             // the engine's out-of-domain answer is NaN; Snowflake raises (measured: acos(2))
             case ACOS, ASIN -> acosArm(writer, c);
             case LOG10 -> writer.append("LOG(10, ").expr(a.get(0), 0).append(")");
@@ -1509,9 +1521,11 @@ public class Snowflake extends AnsiSqlRenderer {
             case INT_DIVIDE -> intDivide(writer, c);
             case BIT_NOT -> writer.append("BITNOT(").expr(a.get(0), 0).append(")");
             // a 64-bit integer text: CAST rounds a decimal text ('1.5' is 2, measured), so the text is checked first
-            case PARSE_INT -> writer.append("CAST(CASE WHEN REGEXP_LIKE(").expr(a.get(0), 0).append(", ")
-                    .append(stringLit("\\s*[-+]?[0-9]+\\s*")).append(") THEN ").expr(a.get(0), 0).append(" ELSE ")
-                    .expr(a.get(0), 0).append(" || ' is not an integer' END AS BIGINT)");
+            // legend-pure's parseInteger, lite's TEXT_NOT_INTEGER by name, never the cast's own error (Phase 8)
+            case PARSE_INT -> guardedParseInt(writer, a.get(0),
+                    w -> w.append("REGEXP_LIKE(").expr(a.get(0), 0).append(", ").append(stringLit("^[+-]?[0-9]+$"))
+                            .append(")"),
+                    w -> w.append("CAST(").expr(a.get(0), 0).append(" AS BIGINT)"));
             // an ISO text with an offset is its UTC instant (a TIMESTAMP_NTZ cast drops the offset, measured)
             case PARSE_DATE -> writer.append("CAST(CONVERT_TIMEZONE('UTC', TO_TIMESTAMP_TZ(").expr(a.get(0), 0)
                     .append(")) AS TIMESTAMP_NTZ)");
@@ -1803,6 +1817,15 @@ public class Snowflake extends AnsiSqlRenderer {
     }
 
     // ---- error(): no raise function
+
+    /** A guarded parse's raise, typed as the slot (the bare raise is VARCHAR here, {@link #raise}): round 73 measured
+     *  CASE ... THEN CAST(x AS BIGINT) ELSE <VARCHAR raise> END unify to a scaled NUMBER, parseInteger('17') read
+     *  back as 17.00000 in the database judge's statement. */
+    @Override
+    protected SqlWriter raiseAs(SqlWriter writer, SqlExpr raise, SqlType slot) {
+        return raise instanceof SqlExpr.Call call && call.fn() == SqlFn.ERROR
+                ? writer.piece(raise(raised(call).args(), slot)) : super.raiseAs(writer, raise, slot);
+    }
 
     /**
      * error(msg[, 'line:col']): the sentinel-wrapped message cast to a type it cannot parse -- the driver's error

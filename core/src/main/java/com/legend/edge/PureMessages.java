@@ -94,6 +94,9 @@ public final class PureMessages {
             case TEXT_NOT_INTEGER -> SqlExpr.Call.of(com.legend.sql.SqlFn.CONCAT,
                     new SqlExpr.StringLit("Could not convert string '"), r.operands().get(0),
                     new SqlExpr.StringLit("' to INT64"));
+            case TEXT_NOT_FLOAT -> SqlExpr.Call.of(com.legend.sql.SqlFn.CONCAT,
+                    new SqlExpr.StringLit("Could not convert string '"), r.operands().get(0),
+                    new SqlExpr.StringLit("' to DOUBLE"));
             case TEXT_NOT_DATE -> SqlExpr.Call.of(com.legend.sql.SqlFn.CONCAT, new SqlExpr.StringLit("Could not parse '"),
                     r.operands().get(0), new SqlExpr.StringLit("' as a date"));
         };
@@ -144,7 +147,7 @@ public final class PureMessages {
                     " where the collection is of size ", str(o, 1));
             case INSERT_OUT_OF_BOUNDS -> "add(set, index, value): index out of bounds";
             case SQRT_OF_NEGATIVE -> o.get(0) instanceof SqlExpr.FloatLit f
-                    ? "Unable to compute sqrt of " + pureFloat(f.value()) : null;
+                    ? "Unable to compute sqrt of " + Presenter.legendPure(f.value(), "Float") : null;
             case SIZE_NOT_MULTIPLICITY -> o.size() == 1
                     ? join("Cannot cast a collection of size 0 to multiplicity ", text(o, 0))
                     : join("Cannot cast a collection of size ", str(o, 1), " to multiplicity ", text(o, 0));
@@ -178,6 +181,7 @@ public final class PureMessages {
             case MAP_KEY_NULL -> "Map keys can not be NULL.";
             case MAP_KEYS_NOT_UNIQUE -> "Map keys must be unique.";
             case TEXT_NOT_INTEGER -> join("Could not convert string '", text(o, 0), "' to INT64");
+            case TEXT_NOT_FLOAT -> join("Could not convert string '", text(o, 0), "' to DOUBLE");
             case TEXT_NOT_DATE -> join("Could not parse '", text(o, 0), "' as a date");
         };
     }
@@ -251,17 +255,6 @@ public final class PureMessages {
             case SqlExpr.DateLit d -> d.iso();
             default -> null;
         };
-    }
-
-    /** legend-pure's print of a Float (as the edge's {@code FLOAT_PRINT} writes it, and the result's {@code CellText}
-     *  lays out a double): Java's shortest digits, an exponent laid out positionally with a point always. */
-    static String pureFloat(double d) {
-        String shortest = Double.toString(d);
-        if (shortest.indexOf('E') < 0) {
-            return shortest;
-        }
-        String plain = new java.math.BigDecimal(shortest).stripTrailingZeros().toPlainString();
-        return plain.contains(".") ? plain : plain + ".0";
     }
 
     /** date(...)'s component out of range: [the component, its literal] spelled at planning as legend-pure writes it

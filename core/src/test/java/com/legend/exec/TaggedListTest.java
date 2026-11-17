@@ -328,6 +328,26 @@ class TaggedListTest {
         }
     }
 
+    /** A raw grid's cell (an {@code executeInDb} grid's, its kind the wire's: no slot) as an assert's side beside a
+     *  fused assert, under BOTH (G10, 2026-11-16, the corpus's {@code ddl::dropAndCreateTable}): the side keeps its own
+     *  statement, decided by its shape at planning (DatabaseAsserts.attachHost). Fused, its column in the verdict
+     *  statement took the other member's NULL pad of no type (DuckDB's JSON), which no Pure type names. */
+    @Test
+    void aRawGridCellBesideAFusedAssertHoldsUnderBoth() throws Exception {
+        String body = "{| let c = ^meta::external::store::relational::runtime::TestDatabaseConnection("
+                + "type=meta::relational::runtime::DatabaseType.DuckDB);\n"
+                + "let rs = meta::relational::metamodel::execute::executeInDb("
+                + "'select count(*) as N from (select 1 union all select 2) t', $c);\n"
+                + "assertSize([1, 2], 2);\n"
+                + "assertEquals(2, $rs.rows->at(0).getInteger('N'));}";
+        try (Connection c = TestBackends.platform().open()) {
+            for (com.legend.testplan.PlanningOptions.JudgeMode mode : java.util.List.of(com.legend.testplan.PlanningOptions.JudgeMode.HOST, com.legend.testplan.PlanningOptions.JudgeMode.BOTH)) {
+                Program.last(StorelessRuntime.with(MODEL, Databases.PLATFORM), body, StorelessRuntime.RUNTIME, c,
+                        com.legend.ExecuteOptions.NONE.withJudgeMode(mode));
+            }
+        }
+    }
+
     @Test
     void anUntypedGridsCellsAreReadOnTheVariantLane() throws Exception {
         // the corpus's whole-TDS idiom (testUsingSameAggFunctionTwice: a literal list against $result.values.rows
@@ -377,9 +397,17 @@ class TaggedListTest {
                     + "'select 9 as Z', $c);\n"
                     + "$rs.rows->filter(r | [1, 'x'] == $r.values)->size()"
                     + " + $rs2.rows->map(x | $x.Z)->toOne()->cast(@Integer);"));
-            // a raw grid's text is refused by name: its header is written from columns that exist only when it runs
+            // a relation's text is the compatibility edge's: the product refuses any relation's toString at lowering,
+            // naming the call and its result writers (B17, 2026-11-17, the orchestrator's ruling of the moved test)
             Exception text = assertThrows(Exception.class, () -> program(c, "$rs->toString();"));
-            assertTrue(String.valueOf(text.getMessage()).contains("toString over a raw grid"), text.toString());
+            assertTrue(String.valueOf(text.getMessage()).contains("toString of a relation is legend-pure's text")
+                    && text.getMessage().contains("result writers"), text.toString());
+            // and on the edge a raw grid's text is refused by name: its header is written from columns that exist
+            // only when it runs
+            Exception grid = assertThrows(Exception.class, () -> Program.last(StorelessRuntime.with(MODEL,
+                    Databases.PLATFORM), CONN_LET + "$rs->toString();}", StorelessRuntime.RUNTIME, c,
+                    Program.upstream()));
+            assertTrue(String.valueOf(grid.getMessage()).contains("toString over a raw grid"), grid.toString());
         }
     }
 }

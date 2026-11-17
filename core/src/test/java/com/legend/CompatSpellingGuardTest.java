@@ -80,7 +80,9 @@ class CompatSpellingGuardTest {
             // legend-engine's TDS builder's type, and the session statement freeing the engine's words on H2 (the P2
             // checkpoint audit's S5, 2026-11-16: until then caught by no list). "TDSNull" is not listed yet: as a
             // literal it is also the Pure type's own name (16 product literals), so its sites are sorted in Phase 7
-            "tdsBuilder", "SET NON_KEYWORDS");
+            "tdsBuilder", "SET NON_KEYWORDS",
+            // legend-engine's text of an empty TDS cell (the separation census's B10, 2026-11-17: until then not listed)
+            "TDSNull");
 
     /** The compatibility machinery, matched as whole words in code. */
     static final List<String> SYMBOLS = List.of(
@@ -89,7 +91,10 @@ class CompatSpellingGuardTest {
             "StableScanOrder", "ENGINE_LEXICON",
             "withEngineText", "EngineText", "EnginePlans", "EngineTextDialect", "EngineStyleH2", "EngineStyleDB2",
             "EngineStyleComposite", "RawSqlBoundary",
-            "COMPAT");
+            "COMPAT",
+            // the judges' compatibility mode (the separation census's C1, 2026-11-17: its branches outside TestPlanner
+            // stood unlisted)
+            "COMPILED_PURE_COMPAT");
 
     /** The steps a row may name: a D slice that removes it, or a terminal class that keeps it, with its reason. */
     static final Set<String> STEPS = Set.of(
@@ -105,6 +110,9 @@ class CompatSpellingGuardTest {
                       // branches, Pure's sentences the asserts expect, the canons that reproduce legend-pure's equality)
             "HOOK",   // the edge's hook: a type the product's plan style names so the edge hands its printers in, the
                       // product's style refusing it by name (O3; the D part 1 audit's nit, 2026-11-15)
+            "HOOK-RULED", // a HOOK the orchestrator's ruling of 2026-11-17 closes ("hooks are terminal": an interface of
+                      // signatures only, refused by the product by name, implemented in the edge alone, its implementers
+                      // pinned -- HookRulingTest): the separation itself, not a leak
             "JUDGE",  // the judges' own canon on the test road (D0 §10): not compatibility, never moved
             "RULED",  // a row the USER RULED stays, its ruling and evidence beside it (U5, 2026-11-15/16: a surviving row
                       // shows who calls it and what breaks without it; added 2026-11-16 with the P2 checkpoint audit's A-M1)
@@ -132,7 +140,8 @@ class CompatSpellingGuardTest {
             // 5 -> 9 (2026-11-16, W9's judge half, E-Java: the judges' engine-text methods on the one hook, declared and refused by the product --
             // engineTestText and engineTestPlanText -- so the test planner names no engine text of its own)
             // 9 -> 8 (2026-11-16, W9's planner half: the activity's engines() takes no printer, the edge's facet picks it)
-            "database/PlanStyle.java | EngineTextDialect | 8 | HOOK",
+            // HOOK -> HOOK-RULED 2026-11-17 (the orchestrator's "hooks are terminal"; HookRulingTest pins (a)-(d))
+            "database/PlanStyle.java | EngineTextDialect | 8 | HOOK-RULED",
             // (Missing external parameter(s): gone 2026-11-16, W7: error.MissingParameters, worded by the edge)
             // moved from testplan/ActivityComments.java (2026-11-12, C's J10 merged at 4ef947a: the execution id one per
             // execute(), minted by the door; the activity's comment now the program runner's): a move, the count the same
@@ -236,7 +245,8 @@ class CompatSpellingGuardTest {
             "sql/dialect/Databricks.java | FLOAT_PRINT | 1 | JUDGE",
             "sql/dialect/DuckDb.java | FLOAT_PRINT | 1 | JUDGE",
             "sql/dialect/DuckDb.java | RawSqlBoundary | 1 | D1.7",
-            "sql/dialect/EngineTextDialect.java | EngineTextDialect | 1 | D1.7",
+            // D1.7 -> HOOK-RULED 2026-11-17 (the orchestrator's "hooks are terminal"; HookRulingTest pins (a)-(d))
+            "sql/dialect/EngineTextDialect.java | EngineTextDialect | 1 | HOOK-RULED",
             // 2 -> 3 (2026-11-13, the merge of claude/total-wall @ 549c018: C4's bare-H2 lexicon, c42369dec, reads the
             // engine's list once more to derive H2's own keywords; the same D1.5 move takes it)
             // 2026-11-15 (D1.2): legend-pure's DateTime text, moved here from lowering/LiteralSpelling (dateTimeText) as the
@@ -297,7 +307,35 @@ class CompatSpellingGuardTest {
             // retagged 2026-11-15 (D1.2's end): the judging rules' choice of the generator's printing, D1.9's
             // (2026-11-16, W9's judge half S2c: testplan/SqlTextVerdicts' two rows gone with the arm to the edge;
             // BodyDriver's withEngineText row gone, ExecEnv.withCollector names what it installs, the arm's collector)
-            "testplan/TestPlanner.java | COMPAT | 1 | D1.9"
+            "testplan/TestPlanner.java | COMPAT | 1 | D1.9",
+            // REGISTERED 2026-11-17 (the separation census, docs/records/f-separation-census-2026-11-17.md): 'TDSNull'
+            // (B10) and COMPILED_PURE_COMPAT (C1) joined the scan; what stood is registered, each with its owner.
+            // TDSNull as INPUT and LANGUAGE (STAYS): the #TDS literal's cell token, Pure's meta::pure::tds::TDSNull
+            // class, and the sentinel ^TDSNull() lowers to
+            "compiler/element/type/PlatformTypes.java | TDSNull | 1 | STAYS",
+            "compiler/spec/TdsChecker.java | TDSNull | 1 | STAYS",
+            "compiler/spec/TdsNullForms.java | TDSNull | 3 | STAYS",
+            "compiler/spec/Typer.java | TDSNull | 4 | STAYS",
+            "lowering/Scalars.java | TDSNull | 1 | STAYS",
+            "sql/SqlExpr.java | TDSNull | 1 | STAYS",
+            // TDSNull as the judges' text (E-Java, Phase 4b: census B10/C5)
+            "compiler/spec/VerdictQueries.java | TDSNull | 5 | D1.9",
+            "lowering/CanonicalRenderSql.java | TDSNull | 5 | D1.9",
+            "lowering/VerdictSql.java | TDSNull | 2 | D1.9",
+            "testexec/Equality.java | TDSNull | 1 | D1.9",
+            // (lowering/Render.java | TDSNull | D1.3: gone 2026-11-17, census B17 -- a relation's text moved to the edge,
+            // edge.RelationTextLowering)
+            // the judges' compatibility mode's branches (E-Java, census C1)
+            "testexec/Equality.java | COMPILED_PURE_COMPAT | 1 | D1.9",
+            "testexec/HostJudgments.java | COMPILED_PURE_COMPAT | 1 | D1.9",
+            "testexec/SqlTextRuns.java | COMPILED_PURE_COMPAT | 1 | D1.9",
+            "testexecutionplan/JudgeJson.java | COMPILED_PURE_COMPAT | 1 | D1.9",
+            "testexecutionplan/TestPlan.java | COMPILED_PURE_COMPAT | 3 | D1.9",
+            "testexecutionplan/TestPlanJson.java | COMPILED_PURE_COMPAT | 2 | D1.9",
+            "testplan/AssertVerdicts.java | COMPILED_PURE_COMPAT | 1 | D1.9",
+            "testplan/DatabaseJudge.java | COMPILED_PURE_COMPAT | 2 | D1.9",
+            "testplan/PlanningOptions.java | COMPILED_PURE_COMPAT | 2 | D1.9",
+            "testplan/TestPlanner.java | COMPILED_PURE_COMPAT | 1 | D1.9"
             // retagged 2026-11-15 (D1.2's end): Java's spelling of a date value. D1.4 -> D1.8 (2026-11-16, W4): lite's
             // writers no longer read it (CellText's product half prints S312's text); what remains is legend-engine's
             // JSON of a date (toEngineJson, read by CellText's engine half, which moves with PureV1Writer at W8) and

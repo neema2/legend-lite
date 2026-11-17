@@ -862,6 +862,68 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
                 parentPrec);
     }
 
+    /** Whether {@code c} carries a Float as text to be read back (a carrier's cast, never a print): its text must
+     *  read back as the same double ({@link #exactFloatText}). */
+    private static boolean carriesFloatAsText(SqlExpr.Cast c) {
+        return c.reason() == SqlExpr.Reason.CARRIER && c.target() == com.legend.sql.SqlType.Scalar.VARCHAR
+                && c.value().type() instanceof com.legend.sql.TypeFact.Typed t
+                && t.type() == com.legend.sql.SqlType.Scalar.DOUBLE;
+    }
+
+    /**
+     * THE FLOAT CARRIER (Phase 8, 2026-11-16, the edge program's §7): a Float carried as text that must read back as
+     * the same double -- a carrier's cast, never a print (a print is the edge's, in Java). A database whose own cast of
+     * a double to text reads back writes that cast (the default: DuckDB's and Postgres's, measured); a database whose
+     * cast does not (SQLite 3.47's fifteen digits, Snowflake's ten) overrides with an exact form, one per database,
+     * measured on its lane (FloatCarrierExactTest). NULL stays NULL.
+     */
+    protected SqlWriter exactFloatText(SqlWriter writer, SqlExpr.Cast c) {
+        return variantAwareCast(writer, c);
+    }
+
+    /** legend-pure's parseFloat as one rule on every database (Phase 8, 2026-11-16): an optional sign, digits with an
+     *  optional point, an optional exponent, one trailing f, surrounding whitespace, NaN and Infinity as spelled -- in
+     *  the POSIX pattern {@link #FLOAT_GRAMMAR} each dialect matches in its own spelling, {@code matches} -- else
+     *  TEXT_NOT_FLOAT by name. NULL stays NULL. */
+    protected SqlWriter guardedParseFloat(SqlWriter writer, SqlExpr s, SqlWriter.Piece matches, SqlWriter.Piece cast) {
+        return writer.append("(CASE WHEN ").expr(s, 4).append(" IS NULL THEN NULL WHEN ").piece(matches)
+                .append(" THEN ").piece(cast).append(" ELSE ")
+                .piece(w -> raiseAs(w, SqlExpr.Call.of(com.legend.sql.SqlFn.ERROR,
+                        new SqlExpr.RaiseText(com.legend.sql.RaiseKind.TEXT_NOT_FLOAT, java.util.List.of(s))),
+                        com.legend.sql.SqlType.Scalar.DOUBLE))
+                .append(" END)");
+    }
+
+    /** A raise written as a CASE's branch whose other branches are {@code slot}: the raise itself here; a database
+     *  whose raise has a type of its own (Postgres: text) types it as the slot, so the branches unify. */
+    protected SqlWriter raiseAs(SqlWriter writer, SqlExpr raise, com.legend.sql.SqlType slot) {
+        return writer.expr(raise, 0);
+    }
+
+    /** The parseFloat grammar ({@link #guardedParseFloat}) as a POSIX pattern, anchored. */
+    protected static final String FLOAT_GRAMMAR = "^[[:space:]]*[+-]?(NaN|Infinity|([0-9]+[.]?[0-9]*|[.][0-9]+)"
+            + "([eE][+-]?[0-9]+)?[fF]?)[[:space:]]*$";
+
+    /** Whether {@code c} is a parseFloat: a user's cast of text to a Float. */
+    protected static boolean isParseFloat(SqlExpr.Cast c) {
+        return c.target() == com.legend.sql.SqlType.Scalar.DOUBLE && c.reason() == SqlExpr.Reason.USER
+                && c.value().type() instanceof com.legend.sql.TypeFact.Typed t
+                && t.type() == com.legend.sql.SqlType.Scalar.VARCHAR;
+    }
+
+    /** legend-pure's parseInteger (Long.valueOf / Long.parseLong in its two modes): an optional sign and digits, no
+     *  whitespace -- in each dialect's own pattern spelling, {@code matches} -- else TEXT_NOT_INTEGER by name, where a
+     *  database's CAST read hex, an exponent, surrounding whitespace or anything else as a number or NULL (Phase 8,
+     *  2026-11-16, the probe's parse cases). NULL stays NULL. */
+    protected SqlWriter guardedParseInt(SqlWriter writer, SqlExpr s, SqlWriter.Piece matches, SqlWriter.Piece cast) {
+        return writer.append("(CASE WHEN ").expr(s, 4).append(" IS NULL THEN NULL WHEN ").piece(matches)
+                .append(" THEN ").piece(cast).append(" ELSE ")
+                .piece(w -> raiseAs(w, SqlExpr.Call.of(com.legend.sql.SqlFn.ERROR,
+                        new SqlExpr.RaiseText(com.legend.sql.RaiseKind.TEXT_NOT_INTEGER, java.util.List.of(s))),
+                        com.legend.sql.SqlType.Scalar.BIGINT))
+                .append(" END)");
+    }
+
     /** An expression, written: a leaf is spelled as text; a sub-expression is written into the same writer, so a
      *  parameter anywhere below is bound where its placeholder is written. */
     protected SqlWriter expr(SqlWriter writer, SqlExpr e, int parentPrec) {
@@ -992,7 +1054,8 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             // a cast to the tagged carrier is the identity: the column holds the tag, an index, and the label says
             // what it indexes (docs/RESULTS_AND_RENDERERS_2026_10_22.md §5a), as a LITERAL label rides on text
             case SqlExpr.Cast c -> c.target() instanceof com.legend.sql.SqlType.Tagged
-                    ? writer.expr(c.value(), parentPrec) : variantAwareCast(writer, c);
+                    ? writer.expr(c.value(), parentPrec)
+                    : carriesFloatAsText(c) ? exactFloatText(writer, c) : variantAwareCast(writer, c);
             case SqlExpr.FoldCall f -> foldCall(writer, f);
             case SqlExpr.JsonObject j -> jsonObject(writer, j);
             case SqlExpr.JsonArray j -> jsonArray(writer, j);
@@ -1384,7 +1447,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
 
     /** A call the base renderer's first passes expand or refuse ({@link com.legend.sql.SqlFn#DATETIME_TO_TEXT},
      *  {@link com.legend.sql.SqlFn#DATETIME_PRINT}, {@link com.legend.sql.SqlFn#CELL_TEXT},
-     *  {@link com.legend.sql.SqlFn#FORMAT_PADDED}, {@link com.legend.sql.SqlFn#INSTANCE_TEXT}: {@link DateTimeText},
+     *  {@link com.legend.sql.SqlFn#INSTANCE_TEXT}: {@link DateTimeText},
      *  {@link DateTimePrintText}, {@link CellTexts}, {@link PureOnlyText}): one reaching a dialect's arm is a renderer
      *  bug, refused by name. */
     protected static IllegalStateException expandedFirst(SqlExpr.Call c) {

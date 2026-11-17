@@ -762,6 +762,55 @@ public class Postgres extends AnsiSqlRenderer {
     // the empty collection as a list: a reduction, an element or a rearrangement of it is the empty collection
     // itself, NULL, as DuckDB answers over NULL (Postgres types every array: a reduction over an untyped NULL is
     // refused, "could not determine polymorphic type", measured); a concatenation is its other lists (listConcat)
+    /** This database's plain spellings, {@code name(args)}: each function {@link #call} writes as a bare call of its
+     *  name (folded from one arm each, 2026-11-17: the method's line limit, CodeShapeGuardrailTest). */
+    private static final java.util.Map<SqlFn, String> PLAIN_NAMES = java.util.Map.ofEntries(
+            java.util.Map.entry(SqlFn.CONCAT_JOIN, "concat"),
+            java.util.Map.entry(SqlFn.CONCAT_WS, "concat_ws"),
+            java.util.Map.entry(SqlFn.ABS, "abs"),
+            java.util.Map.entry(SqlFn.ASCII_CODE, "ascii"),
+            java.util.Map.entry(SqlFn.ATAN, "atan"),
+            java.util.Map.entry(SqlFn.ATAN2, "atan2"),
+            java.util.Map.entry(SqlFn.CBRT, "cbrt"),
+            java.util.Map.entry(SqlFn.COS, "cos"),
+            java.util.Map.entry(SqlFn.COSH, "cosh"),
+            java.util.Map.entry(SqlFn.COT, "cot"),
+            java.util.Map.entry(SqlFn.DEGREES, "degrees"),
+            java.util.Map.entry(SqlFn.FLOOR_RAW, "floor"),
+            java.util.Map.entry(SqlFn.GREATEST, "greatest"),
+            java.util.Map.entry(SqlFn.LEAST, "least"),
+            java.util.Map.entry(SqlFn.LEFT, "left"),
+            java.util.Map.entry(SqlFn.LOWER, "lower"),
+            java.util.Map.entry(SqlFn.LTRIM, "ltrim"),
+            java.util.Map.entry(SqlFn.MD5, "md5"),
+            java.util.Map.entry(SqlFn.RADIANS, "radians"),
+            java.util.Map.entry(SqlFn.REPEAT_STR, "repeat"),
+            java.util.Map.entry(SqlFn.REPLACE, "replace"),
+            java.util.Map.entry(SqlFn.TRANSLATE, "translate"),
+            java.util.Map.entry(SqlFn.REVERSE_STRING, "reverse"),
+            java.util.Map.entry(SqlFn.RIGHT, "right"),
+            java.util.Map.entry(SqlFn.RTRIM, "rtrim"),
+            java.util.Map.entry(SqlFn.SIN, "sin"),
+            java.util.Map.entry(SqlFn.SINH, "sinh"),
+            java.util.Map.entry(SqlFn.SPLIT_PART, "split_part"),
+            java.util.Map.entry(SqlFn.STARTS_WITH, "starts_with"),
+            java.util.Map.entry(SqlFn.STRPOS, "strpos"),
+            java.util.Map.entry(SqlFn.SUBSTRING, "substr"),
+            java.util.Map.entry(SqlFn.TAN, "tan"),
+            java.util.Map.entry(SqlFn.TANH, "tanh"),
+            java.util.Map.entry(SqlFn.TIMEZONE, "timezone"),
+            java.util.Map.entry(SqlFn.TRIM, "trim"),
+            java.util.Map.entry(SqlFn.UPPER, "upper"));
+
+    /** A plain spelling's name; a function the grouped arm names but the table lacks is refused by name. */
+    private static String plainName(SqlFn fn) {
+        String name = PLAIN_NAMES.get(fn);
+        if (name == null) {
+            throw new IllegalStateException(fn + " is in the plain spellings' arm but not in PLAIN_NAMES");
+        }
+        return name;
+    }
+
     @Override
     protected SqlWriter call(SqlWriter writer, SqlExpr.Call c, int parentPrec) {
         if (emptyCollection(c)) {
@@ -785,10 +834,18 @@ public class Postgres extends AnsiSqlRenderer {
             case XOR -> xorAsAndOr(writer, c.args(), parentPrec);
             // NULL-skipping flat concat (the database's concat skips NULL arguments)
             case CONCAT -> concatFlat(writer, c.args());
-            // joinStrings' interleaved concat, never flattened
-            case CONCAT_JOIN -> writer.function("concat", c.args());
+            // this database's plain spellings, name(args): PLAIN_NAMES (folded 2026-11-17, the method's line limit);
+            // among them joinStrings' interleaved concat (CONCAT_JOIN, never flattened) and the product's join of a
+            // row's cells (CONCAT_WS skips a NULL part with its separator, measured, Phase 3)
+            case CONCAT_JOIN, CONCAT_WS, ABS, ASCII_CODE, ATAN, ATAN2, CBRT, COS, COSH, COT, DEGREES, FLOOR_RAW,
+                 GREATEST, LEAST, LEFT, LOWER, LTRIM, MD5, RADIANS, REPEAT_STR, REPLACE, TRANSLATE, REVERSE_STRING,
+                 RIGHT, RTRIM, SIN, SINH, SPLIT_PART, STARTS_WITH, STRPOS, SUBSTRING, TAN, TANH, TIMEZONE, TRIM,
+                 UPPER ->
+                    writer.function(plainName(c.fn()), c.args());
             // 64-bit parse (PCT Long.MIN/MAX round-trips)
-            case PARSE_INT -> castAs(writer, typedText(c.args().get(0)), "BIGINT");
+            case PARSE_INT -> guardedParseInt(writer, c.args().get(0),
+                    w -> w.expr(typedText(c.args().get(0)), 6).append(" ~ '^[+-]?[0-9]+$'"),
+                    w -> castAs(w, typedText(c.args().get(0)), "BIGINT"));
             // parseDate(text): the ISO text as a timestamp
             case PARSE_DATE -> castAs(writer, typedText(c.args().get(0)), "TIMESTAMP");
             case PI -> writer.append("pi()");
@@ -806,54 +863,19 @@ public class Postgres extends AnsiSqlRenderer {
             case BOOL_TO_TEXT -> castAs(writer, c.args().get(0), "VARCHAR");
             case FLOAT_PRINT -> floatPrintByText(writer, c, parentPrec);
             case FLOAT_TO_TEXT -> floatToText(writer, c.args().get(0));
-            case DATETIME_TO_TEXT, DATETIME_PRINT, CELL_TEXT, FORMAT_PADDED, INSTANCE_TEXT, RELATION_TEXT, REPRESENTATION_TEXT, TEXT_FORMS, TRACE_TEXT ->
+            case DATETIME_TO_TEXT, DATETIME_PRINT, CELL_TEXT, INSTANCE_TEXT, RELATION_TEXT, REPRESENTATION_TEXT, TEXT_FORMS, TRACE_TEXT ->
                     throw expandedFirst(c);
             case CURRENT_USER_FN -> writer.append("current_user");
             // the hooks: this dialect's own (or the base's refusal)
             case BIT_AND, BIT_OR, BIT_XOR, BIT_SHIFT_LEFT, BIT_SHIFT_RIGHT -> bitOp(writer, c.fn(), c.args());
             case ROUND -> roundHalfEven(writer, c.args());
             case HASH -> hashSigned(writer, c.args());
-            // this database's plain spellings: name(args)
-            case ABS -> writer.function("abs", c.args());
-            case ASCII_CODE -> writer.function("ascii", c.args());
-            case ATAN -> writer.function("atan", c.args());
-            case ATAN2 -> writer.function("atan2", c.args());
-            case CBRT -> writer.function("cbrt", c.args());
             // chr takes a 32-bit code; a computed Integer is a BIGINT here (IQ island, 2026-10-17: CHAR(65 + MOD(id, 26)))
             case CHR -> writer.append("chr(CAST(").expr(c.args().get(0), 0).append(" AS INTEGER))");
             case COALESCE -> coalesceArm(writer, c);
-            case COS -> writer.function("cos", c.args());
-            case COSH -> writer.function("cosh", c.args());
-            case COT -> writer.function("cot", c.args());
-            case DEGREES -> writer.function("degrees", c.args());
-            case FLOOR_RAW -> writer.function("floor", c.args());
-            case GREATEST -> writer.function("greatest", c.args());
-            case LEAST -> writer.function("least", c.args());
-            case LEFT -> writer.function("left", c.args());
-            case LOWER -> writer.function("lower", c.args());
-            case LTRIM -> writer.function("ltrim", c.args());
-            case MD5 -> writer.function("md5", c.args());
-            case RADIANS -> writer.function("radians", c.args());
-            case REPEAT_STR -> writer.function("repeat", c.args());
-            case REPLACE -> writer.function("replace", c.args());
-            case TRANSLATE -> writer.function("translate", c.args());
-            case REVERSE_STRING -> writer.function("reverse", c.args());
-            case RIGHT -> writer.function("right", c.args());
-            case RTRIM -> writer.function("rtrim", c.args());
-            case SIN -> writer.function("sin", c.args());
-            case SINH -> writer.function("sinh", c.args());
-            case SPLIT_PART -> writer.function("split_part", c.args());
-            case STARTS_WITH -> writer.function("starts_with", c.args());
-            case STRPOS -> writer.function("strpos", c.args());
-            case SUBSTRING -> writer.function("substr", c.args());
-            case TAN -> writer.function("tan", c.args());
-            case TANH -> writer.function("tanh", c.args());
-            case TIMEZONE -> writer.function("timezone", c.args());
             // a date plus a time of day is the timestamp at it
             case DATE_AT_TIME -> op(writer, parentPrec, () -> writer.expr(a.get(0), 5).append(" + ")
                     .expr(a.get(1), 6));
-            case TRIM -> writer.function("trim", c.args());
-            case UPPER -> writer.function("upper", c.args());
             // a Float, as DuckDB's answers; each of these has a numeric overload on Postgres, which a
             // numeric argument would pick (sqrt(9.0) is 3.000000000000000)
             case SQRT -> writer.append("sqrt(CAST(").expr(a.get(0), 0).append(" AS DOUBLE PRECISION))");
@@ -1474,6 +1496,13 @@ public class Postgres extends AnsiSqlRenderer {
     /** Composite casts other than DECIMAL are the collection carrier's (leg P4). */
     @Override
     protected SqlWriter variantAwareCast(SqlWriter writer, SqlExpr.Cast c) {
+        // parseFloat: '0x10' read 16 and '1f' raised Postgres's own error (the probe, measured): legend-pure's grammar,
+        // the f stripped before Postgres's cast, which reads NaN, Infinity and whitespace itself (Phase 8)
+        if (isParseFloat(c)) {
+            SqlExpr x = c.value();
+            return guardedParseFloat(writer, x, w -> w.expr(x, 6).append(" ~ '" + FLOAT_GRAMMAR + "'"),
+                    w -> w.append("CAST(regexp_replace(").expr(x, 0).append(", '[fF][[:space:]]*$', '') AS DOUBLE PRECISION)"));
+        }
         if (c.target() instanceof SqlType.Array arr) {
             return listCast(writer, c, arr);
         }
@@ -1838,13 +1867,23 @@ public class Postgres extends AnsiSqlRenderer {
     }
 
     private SqlWriter.Piece raise(List<SqlExpr> a, @com.legend.base.Nullable SqlType slot, boolean unnestable) {
+        return raise(a, slot, unnestable, null);
+    }
+
+    /** {@link #raise} whose message also joins {@code rowTerm} cut to nothing, so it depends on the row
+     *  ({@link #raiseAs}). */
+    private SqlWriter.Piece raise(List<SqlExpr> a, @com.legend.base.Nullable SqlType slot, boolean unnestable,
+            @com.legend.base.Nullable SqlExpr rowTerm) {
         SqlWriter.Piece text = w -> {
             w.append("CAST(CAST(chr(31) || ");
             if (a.size() > 1) {
                 w.expr(a.get(1), 0).append(" || chr(30) || ");
             }
-            w.append("(").expr(a.get(0), 0).append(") || chr(31)")
-                    .append(unnestable || w.inPlanned() ? " || left(CAST(random() AS VARCHAR), 0)" : "")
+            w.append("(").expr(a.get(0), 0).append(") || chr(31)");
+            if (rowTerm != null) {
+                w.append(" || left(CAST(").expr(rowTerm, 0).append(" AS VARCHAR), 0)");
+            }
+            w.append(unnestable || w.inPlanned() ? " || left(CAST(random() AS VARCHAR), 0)" : "")
                     .append(" AS TIMESTAMPTZ) AS VARCHAR)");
         };
         // typed as its slot (never evaluated: the TIMESTAMPTZ cast raises first) -- a list of scalars too
@@ -1853,6 +1892,24 @@ public class Postgres extends AnsiSqlRenderer {
                         || arr.element() instanceof SqlType.Decimal);
         return typed && slot != null
                 ? w -> w.append("CAST(").piece(text).append(" AS ").append(castTypeName(slot)).append(")") : text;
+    }
+
+    /** A guarded parse's raise, typed as the slot (the raise is text here, {@link #raise}): "CASE types character
+     *  varying and double precision cannot be matched" otherwise (the local probe, 2026-11-16). */
+    @Override
+    protected SqlWriter raiseAs(SqlWriter writer, SqlExpr raise, SqlType slot) {
+        if (!(raise instanceof SqlExpr.Call call && call.fn() == SqlFn.ERROR)) {
+            return super.raiseAs(writer, raise, slot);
+        }
+        // the raise depends on its row: a site's message is a constant token (D's Phase 2), and a STABLE cast of a
+        // constant is pre-evaluated wherever the planner estimates (a write's join and filter conditions: the Cypher
+        // island's storeId parse fired at planning, 124 cypher_parity_postgres regressions, 2026-11-17) -- the parsed
+        // text, cut to nothing, joins it: immutable, never NULL in this arm (the guard's IS NULL arm is first), no
+        // planner cost (unlike the volatile term a list's raise carries)
+        SqlExpr rowTerm = call.args().get(0) instanceof SqlExpr.RaiseText r && !r.operands().isEmpty()
+                ? r.operands().get(0) : null;
+        return writer.piece(raise(raised(call).args(), slot,
+                slot instanceof SqlType.Array || slot instanceof SqlType.Map, rowTerm));
     }
 
     /** A condition, or an operand of AND or OR, that IS error() (a filter of fail(...): the timeseries library's

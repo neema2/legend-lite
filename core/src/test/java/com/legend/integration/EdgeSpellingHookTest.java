@@ -123,6 +123,11 @@ class EdgeSpellingHookTest {
         public <F> F facet(Class<F> kind) {
             return PlanStyle.PRODUCT.facet(kind);
         }
+
+        @Override
+        public <F> F facet(Class<F> kind, java.util.function.Supplier<? extends RuntimeException> refusal) {
+            return PlanStyle.PRODUCT.facet(kind, refusal);
+        }
     };
 
     private static String sql(ExecutionPlan plan) {

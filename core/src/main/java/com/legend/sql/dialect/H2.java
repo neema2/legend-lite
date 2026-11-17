@@ -657,11 +657,13 @@ public class H2 extends AnsiSqlRenderer {
             case IS_NOT_NULL -> isNotNullTest(writer, c.args());
             case IN -> inList(writer, c.args(), parentPrec);
             // 64-bit parse (PCT Long.MIN/MAX round-trips)
-            case PARSE_INT -> castAs(writer, c.args().get(0), "BIGINT");
+            case PARSE_INT -> parseInteger(writer, c.args().get(0));
             // NULL-skipping flat concat (the database's concat skips NULL arguments)
             case CONCAT -> concatFlat(writer, c.args());
             // joinStrings' interleaved concat, never flattened
             case CONCAT_JOIN -> writer.function("concat", c.args());
+            // the product's join of a row's cells: CONCAT_WS skips a NULL part with its separator (measured, Phase 3)
+            case CONCAT_WS -> writer.function("concat_ws", c.args());
             case PI -> writer.append("pi()");
             case CEILING -> bigintOf(writer, "ceil", c.args());
             case FLOOR -> bigintOf(writer, "floor", c.args());
@@ -691,7 +693,7 @@ public class H2 extends AnsiSqlRenderer {
             case ROUND_HALF_UP -> writer.function("ROUND", c.args());
             case FLOAT_PRINT -> floatPrintByText(writer, c, parentPrec);
             case FLOAT_TO_TEXT -> floatToText(writer, c.args().get(0));
-            case DATETIME_TO_TEXT, DATETIME_PRINT, CELL_TEXT, FORMAT_PADDED, INSTANCE_TEXT, RELATION_TEXT, REPRESENTATION_TEXT, TEXT_FORMS, TRACE_TEXT ->
+            case DATETIME_TO_TEXT, DATETIME_PRINT, CELL_TEXT, INSTANCE_TEXT, RELATION_TEXT, REPRESENTATION_TEXT, TEXT_FORMS, TRACE_TEXT ->
                     throw expandedFirst(c);
             // the hooks: this dialect's own (or the base's refusal)
             case LIST_FILTER, LIST_TRANSFORM, LIST_CONCAT, LIST_GET, LIST_AT, LIST_POSITION, LIST_ZIP, LIST_DISTINCT,
@@ -1295,8 +1297,34 @@ public class H2 extends AnsiSqlRenderer {
      * reference text via CASE — detection is by node shape (EXISTS,
      * literals, comparisons, logic, null tests, membership), never by
      * guessing a column's type. */
+    /** parseInteger, guarded ({@link #guardedParseInt}); the cast reads the text the grammar admitted alone. */
+    private SqlWriter parseInteger(SqlWriter writer, SqlExpr x) {
+        SqlWriter.Piece matches = w -> w.append("REGEXP_LIKE(").expr(x, 0).append(", '^[+-]?[0-9]+$')");
+        return guardedParseInt(writer, x, matches,
+                w -> w.append("CAST(").piece(admitted(x, matches)).append(" AS BIGINT)"));
+    }
+
+    /** The text a parse's grammar admitted, else NULL: H2 folds a cast of a constant when it PREPARES the statement,
+     *  in a CASE arm never taken too (the golden net, 2026-11-17: parseInteger('abc') raised H2's "Data conversion
+     *  error" before the guard chose), so the conversion is written over this, which folds to NULL where the grammar
+     *  refuses and leaves the guard's named raise to answer. */
+    private static SqlWriter.Piece admitted(SqlExpr x, SqlWriter.Piece matches) {
+        return w -> w.append("CASE WHEN ").piece(matches).append(" THEN ").expr(x, 0).append(" END");
+    }
+
     @Override
     protected SqlWriter variantAwareCast(SqlWriter writer, SqlExpr.Cast c) {
+        // parseFloat: a refusal raised H2's own conversion error, never lite's kind (the user's error design,
+        // 2026-11-16): legend-pure's grammar, Java regex (\p{Space} for the POSIX class REGEXP_LIKE does not read),
+        // the trailing f stripped before H2's cast, which holds NaN and Infinity itself (Phase 8)
+        if (isParseFloat(c)) {
+            SqlExpr x = c.value();
+            SqlWriter.Piece matches = w -> w.append("REGEXP_LIKE(").expr(x, 0)
+                    .append(", '" + FLOAT_GRAMMAR.replace("[[:space:]]", "\\p{Space}") + "')");
+            return guardedParseFloat(writer, x, matches,
+                    w -> w.append("CAST(TRIM(REGEXP_REPLACE(").piece(admitted(x, matches))
+                            .append(", '[fF]\\p{Space}*$', '')) AS DOUBLE PRECISION)"));
+        }
         if (c.target() == com.legend.sql.SqlType.Scalar.JSON) {
             return jsonParseCast(writer, c);
         }

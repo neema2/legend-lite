@@ -54,6 +54,32 @@ final class Scalars {
 
     /** A rule receives the ALREADY-LOWERED argument expressions. */
     interface Rule extends BiFunction<TypedNativeCall, List<SqlExpr>, SqlExpr> {
+        /** The rule under the plan style's text facets (a plain rule reads none). */
+        default SqlExpr apply(TypedNativeCall call, List<SqlExpr> args, Styled styled) {
+            return apply(call, args);
+        }
+    }
+
+    /** The plan style's text facets a STYLED rule reads (the separation census's B8 (i), 2026-11-17): each asked
+     *  with the call's own refusal, the product's style throwing it. Handed in by the Lowerer, never held. */
+    record Styled(java.util.function.Function<java.util.function.Supplier<? extends RuntimeException>, PureOnlyTexts>
+            pureOnly) {
+    }
+
+    /** A rule that reads the plan style's text facets ({@link Styled}): reached only through {@link #lower}. */
+    interface StyledRule extends Rule {
+        SqlExpr styled(TypedNativeCall call, List<SqlExpr> args, Styled styled);
+
+        @Override
+        default SqlExpr apply(TypedNativeCall call, List<SqlExpr> args, Styled styled) {
+            return styled(call, args, styled);
+        }
+
+        @Override
+        default SqlExpr apply(TypedNativeCall call, List<SqlExpr> args) {
+            throw new IllegalStateException(call.callee().qualifiedName()
+                    + "'s rule reads the plan style's text facets: it is lowered through Scalars.lower alone");
+        }
     }
 
     private static final com.legend.base.Sealed.SealedMap<com.legend.model.FunctionId, Rule> RULES =
@@ -2265,7 +2291,7 @@ final class Scalars {
         // (strftime, pattern converted), and bare %f is pure's MINIMAL float
         // repr, not printf's fixed six decimals.
         for (com.legend.model.FunctionId f : Pure.AT_STRING_FORMAT) {
-            RULES.put(f, (n, args) -> {
+            RULES.put(f, (StyledRule) (n, args, styled) -> {
                 List<SqlExpr> spread = new ArrayList<>();
                 spread.add(args.get(0));
                 // typed elements ride along so %s can print CLASS-typed
@@ -2295,7 +2321,7 @@ final class Scalars {
                     spread.add(argColl);
                 }
                 if (spread.get(0) instanceof SqlExpr.StringLit fmt) {
-                    rewriteFormatDirectives(fmt.value(), spread, typedElems);
+                    rewriteFormatDirectives(fmt.value(), spread, typedElems, styled);
                 }
                 return new SqlExpr.Call(SqlFn.FORMAT, spread);
             });
@@ -2719,7 +2745,7 @@ final class Scalars {
      *  feature flags (a flagged rule, {@link FeatureRules}, wins over the
      *  plain one for its key); loud error when unregistered. */
     static SqlExpr lower(TypedNativeCall call, List<SqlExpr> loweredArgs, Set<Feature> features,
-            com.legend.platform.ImplementationTable implementations) {
+            com.legend.platform.ImplementationTable implementations, Styled styled) {
         com.legend.model.FunctionId key = call.callee().id();
         Rule rule = FeatureRules.select(key, features);
         if (rule != null) {
@@ -2755,7 +2781,7 @@ final class Scalars {
         if (ORDERINGS.contains(key) && loweredArgs.stream().anyMatch(a -> a instanceof SqlExpr.Tagged)) {
             loweredArgs = MixedEncoding.comparables(loweredArgs);
         }
-        return rule.apply(call, loweredArgs);
+        return rule.apply(call, loweredArgs, styled);
     }
 
     /** The natives that compare or order their arguments: over a tagged value they read its comparable. Equality
@@ -3395,7 +3421,7 @@ final class Scalars {
      * (spread = [fmt, arg1, ...]; directive order maps to argument order).
      */
     private static void rewriteFormatDirectives(String fmt, List<SqlExpr> spread,
-            List<TypedSpec> typedElems) {
+            List<TypedSpec> typedElems, Styled styled) {
         StringBuilder out = new StringBuilder();
         int argIdx = 1;
         int i = 0;
@@ -3451,9 +3477,10 @@ final class Scalars {
                 }
                 if (j > i + 2 && j < fmt.length() && fmt.charAt(j) == 'd') {
                     long width = Long.parseLong(fmt.substring(i + 2, j));
-                    // legend-pure's padding (the digits, then the sign): the edge's alone (D1.3, 2026-11-15)
-                    spread.set(argIdx, SqlExpr.Call.of(SqlFn.FORMAT_PADDED, spread.get(argIdx),
-                            new SqlExpr.IntLit(width)));
+                    // legend-pure's padding (the digits, then the sign): the edge's alone (D1.3, 2026-11-15), its
+                    // style's facet asked with the product's refusal (B8 (i), 2026-11-17)
+                    spread.set(argIdx, styled.pureOnly().apply(() -> TextRefusals.formatPadded(width))
+                            .formatPadded(spread.get(argIdx), new SqlExpr.IntLit(width)));
                     out.append("%s");
                     argIdx++;
                     i = j + 1;

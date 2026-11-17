@@ -16,8 +16,6 @@ _SCAN_ORDER = "-Dlegend.exec.engineScanOrder=true"
 # spec/src/test/resources/rcorpus/ copies by the lane's diff tests; never edited by hand
 _HOST_MEASURED = ["fail-roster", "skipped-roster", "unordered-register", "engine-order-register"]
 
-_DATABASE_MEASURED = ["database-engine-order-register"]
-
 def _pass_flags(golden):
     return program_jvm_flags("spec") + [
         # the replay referee's H2, legend-engine's own (2.1.214), by path and never on the classpath (the user,
@@ -39,7 +37,8 @@ def corpus_lane(
         host_srcs = [],
         golden = True,
         tags = []):
-    """`judge_host_<lane>` and `judge_database_<lane>`, the two passes, and `name`, the lane.
+    """`judge_host_<lane>`, the lane's one pass (HOST only: the database judge left the corpus 2026-11-17 -- it agreed
+    with the host on 61% of the corpus's tests, about 95% of the rest compatibility-rule noise), and `name`, the lane.
 
     The host pass depends on the lane's backend and flags (its registers are per lane and per judge mode), so each
     lane has its own. Each pass's verdict and log are outputs, and a pass succeeds as an action whatever its tests
@@ -61,15 +60,11 @@ def corpus_lane(
     """
     lane = name.removeprefix("corpus_")
     host = "judge_host_" + lane
-    database = "judge_database_" + lane
     host_measured = ["%s/%s-%s.txt" % (host, rosters, m) for m in _HOST_MEASURED] if golden else []
     committed = [] if golden else [
         "src/test/resources/rcorpus/%s-%s.txt" % (rosters, m)
-        for m in _HOST_MEASURED + _DATABASE_MEASURED
+        for m in _HOST_MEASURED
     ]
-    database_roots = dict(UPSTREAM_ROOTS)
-    database_roots[":%s/verdict.txt" % host] = "{HOST_DIR}"
-    database_measured = ["%s/%s-%s.txt" % (database, rosters, m) for m in _DATABASE_MEASURED] if golden else []
     # a lane without its own rosters reads the committed ones, named by one of them (MinimalCorpusTest.readRoster)
     committed_flag = [] if golden else ["-Drcorpus.committed=$(execpath %s)" % committed[0]]
     java_run(
@@ -93,38 +88,9 @@ def corpus_lane(
         deps = runtime_deps + ["//tools/junit"],
         tags = tags,
     )
-    java_run(
-        name = database,
-        testonly = True,
-        srcs = data + UPSTREAM_TREES + host_srcs + committed + ["@h2_engine//jar:file", ":" + host],
-        roots = database_roots,
-        outs = [database + "/judge-database.tsv", database + "/verdict.txt", database + "/database.log",
-                database + "/outcomes.tsv"] + database_measured,
-        arguments = ["{OUT_DIR}/verdict.txt", "{OUT_DIR}/database.log", "{OUT_DIR}/judge-database.tsv",
-                     "{OUT_DIR}/outcomes.tsv"] +
-                    ["{OUT_DIR}/" + f.split("/")[-1] for f in database_measured] + ["--"] +
-                    _SELECT + ["--fail-if-no-tests"],
-        jvm_flags = _pass_flags(golden) + [
-            "-Dlegend.judge.mode=database",
-            "-Dlegend.judge.ledger={OUT_DIR}/judge-database.tsv",
-            "-Dlegend.junit.outcomes={OUT_DIR}/outcomes.tsv",
-            # the host pass's outputs: its verdict (the database pass means nothing without it), its ledger (the
-            # per-assert join) and its measured rosters (the database pass's LOST/GAINED are against them)
-            "-Dlegend.judge.host.verdict={HOST_DIR}/verdict.txt",
-            "-Dlegend.judge.host.log={HOST_DIR}/host.log",
-            "-Dlegend.judge.ledger.host={HOST_DIR}/judge-host.tsv",
-        ] + (["-Drcorpus.host.measured={HOST_DIR}"] if golden else []) + committed_flag + jvm_flags + host_jvm_flags,
-        main_class = "com.legend.tools.junit.JUnitAction",
-        memory_mb = memory_mb,
-        mnemonic = "CorpusDatabasePass",
-        deps = runtime_deps + ["//tools/junit"],
-        tags = tags,
-    )
     verdicts = [
         ":%s/verdict.txt" % host,
         ":%s/host.log" % host,
-        ":%s/verdict.txt" % database,
-        ":%s/database.log" % database,
     ]
     junit_test(
         name = name + "_verdict",
@@ -134,8 +100,6 @@ def corpus_lane(
         jvm_flags = [
             "-Dlegend.judge.host.verdict=$(rlocationpath :%s/verdict.txt)" % host,
             "-Dlegend.judge.host.log=$(rlocationpath :%s/host.log)" % host,
-            "-Dlegend.judge.database.verdict=$(rlocationpath :%s/verdict.txt)" % database,
-            "-Dlegend.judge.database.log=$(rlocationpath :%s/database.log)" % database,
         ],
         runtime_deps = runtime_deps,
         select = ["--select-class=com.legend.rcorpus.CorpusVerdictTest"],
@@ -149,7 +113,7 @@ def corpus_lane(
             diff_test_failure_message = "{{DEFAULT_MESSAGE}}\nA measured corpus roster moved -- bazel run //spec:update_rcorpus_" + lane + ", and give the reason in the commit (a test that newly fails is a regression to fix or a policy row to add, never a roster line to accept silently)",
             files = {
                 "src/test/resources/rcorpus/" + f.split("/")[-1]: ":" + f
-                for f in host_measured + database_measured
+                for f in host_measured
             },
             tags = tags,
             # //:update_generated runs it with every other generated file
