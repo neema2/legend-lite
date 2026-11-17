@@ -2537,6 +2537,7 @@ junit_test(
         "--select-class=com.legend.EdgeSeparationTest",
         # the ruled hooks' implementers, read from the edge's jars (Phase 6's HookRulingTest)
         "--select-class=com.legend.HookRulingTest",
+        "--select-class=com.legend.HookRulingsAgreeTest",
         # every implementation of the test plan's Extension is the edge's (census C2, 2026-11-17), so the guard that
         # walks them as data reads them here
         "--select-class=com.legend.PlanTypesAreDataTest",
