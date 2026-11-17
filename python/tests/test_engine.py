@@ -839,6 +839,38 @@ class ModelHomeServed(Served):
         self.assertEqual(self.call('DELETE', '/settings.json')[0], 405)
 
 
+class TheProductsStore(unittest.TestCase):
+    """The edge program's H6 (2026-11-17): the saved queries and pages at lite's own mount (/api/lite/v1/query, as the
+    server mounts them), answered by the native library's PRODUCT entries in lite's words -- the same rules, the same
+    folders, the same records; legend-engine's mount (/api/pure/v1/query) is the edge's, in legend-engine's words, kept
+    until the TS hosts move their clients."""
+
+    def setUp(self):
+        self.place = tempfile.TemporaryDirectory()
+        self.addCleanup(self.place.cleanup)
+        self.engine = Engine(ll.Frames(), pages=Path(self.place.name) / 'pages')
+        home = mock.patch.dict(os.environ, {'LEGEND_LITE_HOME': self.place.name})
+        home.start()
+        self.addCleanup(home.stop)
+
+    def test_a_missing_query_is_refused_in_each_mounts_own_words(self):
+        lite = self.engine.answer('GET', '/api/lite/v1/query/nope', '', None)
+        self.assertEqual((lite.status, json.loads(lite.body)), (404, {'message': "no saved query has the ID 'nope'"}))
+        engine = self.engine.answer('GET', '/api/pure/v1/query/nope', '', None)
+        self.assertEqual((engine.status, json.loads(engine.body)), (404, {'message': "Can't find query with ID 'nope'"}))
+
+    def test_a_page_saved_at_lites_mount_is_the_one_record_both_mounts_read(self):
+        made = self.engine.answer('POST', '/api/lite/v1/query/dataCube', '',
+                                  json.dumps({'id': 'p-9', 'name': 'Both', 'content': {'kind': 'datacube.page'}}))
+        self.assertEqual(made.status, 200, made.body)
+        for mount in ('/api/lite/v1/query/dataCube', '/api/pure/v1/query/dataCube'):
+            read = self.engine.answer('GET', mount + '/p-9', '', None)
+            self.assertEqual((read.status, json.loads(read.body)['name']), (200, 'Both'), mount)
+        missing = self.engine.answer('GET', '/api/lite/v1/query/dataCube/nope', '', None)
+        self.assertEqual(missing.status, 404)
+        self.assertNotIn("Can't find", json.loads(missing.body)['message'], "lite's mount speaks lite's words")
+
+
 class SavedPagesKept(unittest.TestCase):
     """The page's saved pages (step 2d, B6): upstream's /api/pure/v1/query/dataCube, answered by legend-lite's own rules
     in the native library over this user's folder, one file each -- the folder's layout the one its pages were kept in

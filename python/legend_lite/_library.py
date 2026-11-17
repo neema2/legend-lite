@@ -19,6 +19,8 @@ from ._loader import NOT_PLANNING, SERVICE_KEY_NAMES, loaded
 _NOT_PLANNING = frozenset({
     'lite_site_types', 'lite_warehouse_call', 'lite_warehouse_read', 'lite_sdlc_handle', 'lite_depot_handle',
     'lite_saved_queries', 'lite_saved_cubes', 'lite_release_model',
+    # the product's saved queries and pages, at lite's mount in lite's words (the edge program's H6, 2026-11-17)
+    'lite_store_queries', 'lite_store_cubes',
 })
 if _NOT_PLANNING != NOT_PLANNING:
     raise ImportError(f'the planning key\'s services ({sorted(_NOT_PLANNING)}) are not the loader\'s'
