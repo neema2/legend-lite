@@ -172,31 +172,58 @@ class ProductRaiseProbeTest {
         expectDouble(wrong, "0.1 + 0.2", sum, 0.1 + 0.2);
         expectDouble(wrong, "123456789.123456789 * 3.0", product, 123456789.123456789 * 3.0);
         // 8. the four ways (the user's request, 2026-11-17; FloatAndDecimalTest): a Float literal and a Float column
-        // answer the double's, a Decimal literal and a Decimal column the exact; each case's SQL printed above. The Float
-        // rows are judged (S20); the Decimal rows are printed for the lanes (D1: DuckDB's DECIMAL(18) product overflow;
-        // D2: SQLite's Decimal is no exact decimal -- both open, 2026-11-17)
+        // answer the double's, a Decimal literal and a Decimal column the exact value -- or, on a database that holds no
+        // exact decimal, its named refusal (D2a). Every row judged but round's (F47, parked: legend-pure rounds half-up
+        // over the shortest decimal, lite half-even until it lands), and each case's SQL printed above
         String row = "|#TDS\n  a:%1$s, b:%1$s\n  %2$s, %3$s\n#->extend(~v: r|%4$s)->select(~v)->from("
                 + StorelessRuntime.RUNTIME + ")";
-        String[][] fourWays = {{"0.1", "0.2", "$a + $b"}, {"0.3", "0.1", "rem($a, $b)"},
-                {"123456789.123456789", "3.0", "$a * $b"}};
+        String[][] fourWays = {{"0.1", "0.2", "$a + $b"}, {"0.1", "0.2", "($a + $b) == 0.3"},
+                {"0.3", "0.1", "rem($a, $b)"}, {"123456789.123456789", "3.0", "$a * $b"}, {"0.25", "0", "round($a, 1)"}};
         for (String[] w : fourWays) {
             String lit = w[2].replace("$a", w[0]).replace("$b", w[1]);
             String col = w[2].replace("$a", "$r.a->toOne()").replace("$b", "$r.b->toOne()");
+            String decLit = "|" + w[2].replace("$a", w[0] + "D").replace("$b", w[1] + "D").replace("== 0.3", "== 0.3D");
             Object fl = run(backend, "four ways: Float literal " + lit, "|" + lit);
             Object fc = run(backend, "four ways: Float column " + col, String.format(row, "Float", w[0], w[1], col));
-            Object dl = run(backend, "four ways: Decimal literal " + lit,
-                    "|" + w[2].replace("$a", w[0] + "D").replace("$b", w[1] + "D"));
-            Object dc = run(backend, "four ways: Decimal column " + col, String.format(row, "Decimal", w[0], w[1], col));
-            double want = switch (w[2]) {
-                case "$a + $b" -> Double.parseDouble(w[0]) + Double.parseDouble(w[1]);
-                case "rem($a, $b)" -> Double.parseDouble(w[0]) % Double.parseDouble(w[1]);
-                default -> Double.parseDouble(w[0]) * Double.parseDouble(w[1]);
-            };
-            expectDouble(wrong, "four ways: Float literal " + lit, fl, want);
-            expectDouble(wrong, "four ways: Float column " + col, fc, want);
+            Object dl = run(backend, "four ways: Decimal literal " + lit, decLit);
+            Object dc = run(backend, "four ways: Decimal column " + col, String.format(row, "Decimal", w[0], w[1],
+                    col.replace("== 0.3", "== 0.3D")));
             System.out.println("[product raise probe] " + backend.name() + " four ways " + lit + ": Float literal "
                     + describe(fl) + ", Float column " + describe(fc) + ", Decimal literal " + describe(dl)
                     + ", Decimal column " + describe(dc));
+            double a = Double.parseDouble(w[0]);
+            double b = Double.parseDouble(w[1]);
+            java.math.BigDecimal x = new java.math.BigDecimal(w[0]);
+            java.math.BigDecimal y = new java.math.BigDecimal(w[1]);
+            switch (w[2]) {
+                case "$a + $b" -> {
+                    expectDouble(wrong, "four ways: Float literal " + lit, fl, a + b);
+                    expectDouble(wrong, "four ways: Float column " + col, fc, a + b);
+                    expectExact(wrong, "four ways: Decimal literal " + lit, dl, x.add(y));
+                    expectExact(wrong, "four ways: Decimal column " + col, dc, x.add(y));
+                }
+                case "($a + $b) == 0.3" -> {
+                    expectText(wrong, "four ways: Float literal " + lit, fl, "false");
+                    expectText(wrong, "four ways: Float column " + col, fc, "false");
+                    expectDecimalText(wrong, "four ways: Decimal literal " + lit, dl, "true");
+                    expectDecimalText(wrong, "four ways: Decimal column " + col, dc, "true");
+                }
+                case "rem($a, $b)" -> {
+                    expectDouble(wrong, "four ways: Float literal " + lit, fl, a % b);
+                    expectDouble(wrong, "four ways: Float column " + col, fc, a % b);
+                    expectExact(wrong, "four ways: Decimal literal " + lit, dl, x.remainder(y));
+                    expectExact(wrong, "four ways: Decimal column " + col, dc, x.remainder(y));
+                }
+                case "$a * $b" -> {
+                    expectDouble(wrong, "four ways: Float literal " + lit, fl, a * b);
+                    expectDouble(wrong, "four ways: Float column " + col, fc, a * b);
+                    expectExact(wrong, "four ways: Decimal literal " + lit, dl, x.multiply(y));
+                    expectExact(wrong, "four ways: Decimal column " + col, dc, x.multiply(y));
+                }
+                default -> {
+                    // round: printed only (F47, parked)
+                }
+            }
         }
         // what came back, each case's (the orchestrator, 2026-11-15: every lane's log shows it, not only the count)
         System.out.println("[product raise probe] " + backend.name() + " guarded, no raise, answered: " + describe(rows));
@@ -220,6 +247,40 @@ class ProductRaiseProbeTest {
         String t = new java.math.BigDecimal(Double.toString(x)).setScale(6, java.math.RoundingMode.HALF_UP)
                 .stripTrailingZeros().toPlainString();
         return t.equals("-0") || new java.math.BigDecimal(t).signum() == 0 ? "0" : t;
+    }
+
+    /** A Decimal row: its one value is {@code want} exactly (by {@code compareTo}), or the database's named refusal of a
+     *  Decimal's arithmetic where it holds no exact decimal (D2a) -- never another value. */
+    private static void expectExact(List<String> wrong, String label, Object answered, java.math.BigDecimal want) {
+        if (answered instanceof Throwable t) {
+            for (Throwable c = t; c != null; c = c.getCause()) {
+                if (String.valueOf(c.getMessage()).contains("holds no exact decimal")) {
+                    return;
+                }
+            }
+        }
+        java.util.regex.Matcher m = answered instanceof String s
+                ? java.util.regex.Pattern.compile(":\\s*(-?[0-9][0-9.eE+-]*)").matcher(s) : null;
+        if (m == null || !m.find() || new java.math.BigDecimal(m.group(1)).compareTo(want) != 0) {
+            wrong.add(label + ": expected exactly " + want.toPlainString() + ", got " + describe(answered));
+        }
+    }
+
+    /** A Decimal row's token: {@code want}, or the database's named refusal of a Decimal's arithmetic (D2a). */
+    private static void expectDecimalText(List<String> wrong, String label, Object answered, String want) {
+        for (Throwable c = answered instanceof Throwable t ? t : null; c != null; c = c.getCause()) {
+            if (String.valueOf(c.getMessage()).contains("holds no exact decimal")) {
+                return;
+            }
+        }
+        expectText(wrong, label, answered, want);
+    }
+
+    /** {@code answered}'s one value is the token {@code want} ({@code true}, {@code false}). */
+    private static void expectText(List<String> wrong, String label, Object answered, String want) {
+        if (!(answered instanceof String s && s.matches("(?s).*:\\s*" + want + "\\s*}.*"))) {
+            wrong.add(label + ": expected " + want + ", got " + describe(answered));
+        }
     }
 
     /** {@code answered}'s one value (a JSON row's number) is the double {@code want}, exactly. */

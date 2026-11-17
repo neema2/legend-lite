@@ -64,8 +64,12 @@ public class Test_LegendLite_ClickHouse_EssentialFunctions_PCT extends PCTReport
             // on the database, which holds no 20 digits; the batch-1 rule that kept a Float computed from literals
             // alone as a DECIMAL (LiteralSpelling.exactFloatConstant) was a special case -- the same expression over a
             // column was a double -- and is removed
-            // a Float literal's twenty digits: the interpreter holds a BigDecimal, lite a double (register S120, outcome)
-            one("meta::pure::functions::math::tests::abs::testBigFloatAbs_Function_1__Boolean_1_", "\"\nexpected: 123456789123456789.99\nactual:   123456789123456800.0\""),
+            // a Float literal's twenty digits: the interpreter holds a BigDecimal, lite a double (register S120, outcome);
+            // 2026-11-17 (Phase 5b, register S20 built, round 76's ClickHouse lane): the parser keeps no digits a double
+            // cannot hold, so the literal is the double and its text the double's shortest, 123456789123456780.0, as on
+            // Postgres and Databricks (until then the twenty digits went out as a decimal, which ClickHouse's Float64
+            // printed 123456789123456800.0); the outcome unchanged
+            one("meta::pure::functions::math::tests::abs::testBigFloatAbs_Function_1__Boolean_1_", "\"\nexpected: 123456789123456789.99\nactual:   123456789123456780.0\""),
             // step 9, 2026-10-19, the plan route (as DuckDB's, 2026-10-18): the text carrier spells the NaN cell NaN, and
             // Pure's parseFloat refuses the character (the legacy route's Java BigDecimal said "Infinite or NaN")
             // 2026-10-27, the result boundary program (the PCT reads typed rows, measured on this lane by its own
