@@ -67,4 +67,9 @@ final class PlantedEngineTestText implements EngineTestText {
     public String why(com.legend.testplan.HostSides.@com.legend.base.Nullable Check check) {
         throw new UnsupportedOperationException("planted");
     }
+
+    @Override
+    public com.legend.testplan.TextsHeld textsHeld(com.legend.testexecutionplan.Extension judgment) {
+        throw new UnsupportedOperationException("planted");
+    }
 }

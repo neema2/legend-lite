@@ -145,6 +145,19 @@ final class EdgeEngineTestText implements EngineTestText {
         return what.startsWith(com.legend.testplan.NotAConstant.LABEL) ? what.substring(com.legend.testplan.NotAConstant.LABEL.length()) : what;
     }
 
+    /** How the plan holds the two texts of the comparison {@code judgment}, the edge's own record (census C3). */
+    @Override
+    public com.legend.testplan.TextsHeld textsHeld(com.legend.testexecutionplan.Extension judgment) {
+        EngineTextJudgment e = (EngineTextJudgment) judgment;
+        if (e.golden() == null) {
+            return com.legend.testplan.TextsHeld.GOLDEN_READ;
+        }
+        if (e.ours() == null) {
+            return com.legend.testplan.TextsHeld.OURS_READ;
+        }
+        return e.textEqual() ? com.legend.testplan.TextsHeld.CONSTANTS_EQUAL : com.legend.testplan.TextsHeld.CONSTANTS_DIFFER;
+    }
+
     /** Whether the arm claims {@code bare}: a root arm's helper ({@code assertSameSQL}, the dual golden) or an
      *  equality whose sides a producer of upstream's text feeds -- the shape's own facts, read from the typed tree;
      *  nothing of upstream's text is computed. */

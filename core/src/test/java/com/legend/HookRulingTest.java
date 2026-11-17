@@ -41,7 +41,7 @@ class HookRulingTest {
             com.legend.testexec.EdgeRun.class, List.of(
                     () -> com.legend.testexec.NoEdgeRun.NONE.open(planNaming(), null, java.util.UUID.randomUUID())),
             com.legend.testexec.EdgeHearing.class, List.of(
-                    () -> productHearing().engineText(null, List.of(), null, false),
+                    () -> productHearing().judged(null, List.of(), null, false),
                     () -> productHearing().rowAppealed(0, List.of(), false)),
             // census B3 and B1 (EngineTextDialect and PlanStyle's signatures naming it): CLOSED 2026-11-17 by Phase 6 --
             // the interface is com.legend.edge's and the style names no engine text; its entry gone
