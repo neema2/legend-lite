@@ -23,7 +23,7 @@ EDGE_TEST_SRCS = [
     "src/test/java/com/legend/compiler/spec/MultiplicityStrictnessTest.java",
     "src/test/java/com/legend/edge/PresenterTest.java",
     "src/test/java/com/legend/edge/PureDatesArrowTest.java",
-    "src/test/java/com/legend/exec/ExecuteInDbDuckDbTest.java",
+    "src/test/java/com/legend/exec/ExecuteInDbDuckDbEdgeTest.java",
     "src/test/java/com/legend/exec/ExecutionTraceTest.java",
     "src/test/java/com/legend/exec/InterimEdgeSitesTest.java",
     "src/test/java/com/legend/exec/SeamBenchmark.java",
