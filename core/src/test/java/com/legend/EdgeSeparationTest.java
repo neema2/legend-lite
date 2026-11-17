@@ -80,7 +80,7 @@ class EdgeSeparationTest {
 
     /** CODE: "source class -> target", each entry its census line and date. */
     static final Map<String, String> CODE_OPEN = Map.ofEntries(
-            Map.entry("com.legend.database.PlanStyle -> com.legend.sql.dialect.EngineTextDialect", "B3 2026-11-17"),
+            Map.entry("com.legend.database.PlanStyle -> com.legend.sql.dialect.EngineTextDialect", "B1 2026-11-17"),
             Map.entry("com.legend.lowering.KeyedPivot -> com.legend.lowering.Render", "B17 2026-11-17"),
             Map.entry("com.legend.lowering.LiteralSpelling -> SqlFn.DATETIME_PRINT", "B8 2026-11-17"),
             Map.entry("com.legend.lowering.Lowerer -> SqlFn.RELATION_TEXT", "B8 2026-11-17"),
@@ -121,8 +121,8 @@ class EdgeSeparationTest {
             Map.entry("com.legend.sql.dialect.FloatPrintText -> (stands in a product package)", "B9 2026-11-17"),
             Map.entry("com.legend.sql.dialect.Postgres -> com.legend.sql.dialect.RawSqlBoundary", "B4 2026-11-17"),
             Map.entry("com.legend.sql.dialect.RawSqlBoundary -> (stands in a product package)", "B4 2026-11-17"),
-            Map.entry("com.legend.testdatagen.TestDataGenerationNatives -> com.legend.sql.dialect.EngineTextDialect", "B3 2026-11-17"),
-            Map.entry("com.legend.testdatagen.TestDataGenerator -> com.legend.sql.dialect.EngineTextDialect", "B3 2026-11-17"),
+            Map.entry("com.legend.testdatagen.TestDataGenerationNatives -> com.legend.sql.dialect.EngineTextDialect", "B13 2026-11-17"),
+            Map.entry("com.legend.testdatagen.TestDataGenerator -> com.legend.sql.dialect.EngineTextDialect", "B13 2026-11-17"),
             Map.entry("planner.Boundary -> com.legend.edge.HostAnswers", "A1 2026-11-17"),
             Map.entry("planner.Boundary -> com.legend.edge.PureText", "A1 2026-11-17"),
             Map.entry("planner.Boundary -> com.legend.edge.PureV1Routes", "A1 2026-11-17"),
@@ -266,6 +266,114 @@ class EdgeSeparationTest {
                 + " vocabulary outside its census line");
     }
 
+    /** TEXT (limit (a)): CompatSpellingGuardTest's open rows -- every row not STAYS or RULED -- each with its census line,
+     *  so the spellings a dependency graph cannot see count too ("file | spelling" as the register writes it). Exact both
+     *  ways with the register ({@link #everyOpenCompatRowIsCounted}). */
+    static final Map<String, String> CSG_OPEN = Map.ofEntries(
+            Map.entry("compiler/element/type/PlatformTypes.java | TDS_NULL_CELL", "B10 2026-11-17"),
+            Map.entry("database/PlanStyle.java | EngineTextDialect", "B1 2026-11-17"),
+            Map.entry("lowering/JsonEmission.java | tdsBuilder", "B5 2026-11-17"),
+            Map.entry("lowering/LiteralSpelling.java | +0000", "B11 2026-11-17"),
+            Map.entry("lowering/Lowerer.java | withEngineText", "B5 2026-11-17"),
+            Map.entry("lowering/Repr.java | FLOAT_PRINT", "C5 2026-11-17"),
+            Map.entry("lowering/Repr.java | Repr", "B12 2026-11-17"),
+            Map.entry("lowering/Scalars.java | Repr", "B12 2026-11-17"),
+            Map.entry("lowering/VerdictSql.java | Repr", "C5 2026-11-17"),
+            Map.entry("lowering/VerdictSql.java | TDS_NULL_CELL", "C5 2026-11-17"),
+            Map.entry("plan/PlanNode.java | executionTraceID", "B5 2026-11-17"),
+            Map.entry("sql/SqlExpr.java | TDS_NULL_CELL", "B10 2026-11-17"),
+            Map.entry("sql/SqlFn.java | FLOAT_PRINT", "B9 2026-11-17"),
+            Map.entry("sql/SqlTyping.java | FLOAT_PRINT", "B9 2026-11-17"),
+            Map.entry("sql/dialect/AnsiSqlRenderer.java | RawSqlBoundary", "B4 2026-11-17"),
+            Map.entry("sql/dialect/BigQuery.java | FLOAT_PRINT", "B9 2026-11-17"),
+            Map.entry("sql/dialect/ClickHouse.java | FLOAT_PRINT", "B9 2026-11-17"),
+            Map.entry("sql/dialect/Databricks.java | FLOAT_PRINT", "B9 2026-11-17"),
+            Map.entry("sql/dialect/DuckDb.java | FLOAT_PRINT", "B9 2026-11-17"),
+            Map.entry("sql/dialect/DuckDb.java | RawSqlBoundary", "B4 2026-11-17"),
+            Map.entry("sql/dialect/EngineTextDialect.java | EngineTextDialect", "B3 2026-11-17"),
+            Map.entry("sql/dialect/DateTimePrintText.java | +0000", "B9 2026-11-17"),
+            Map.entry("sql/dialect/FloatPrintText.java | FLOAT_PRINT", "B9 2026-11-17"),
+            Map.entry("sql/dialect/H2.java | FLOAT_PRINT", "B9 2026-11-17"),
+            Map.entry("sql/dialect/MariaDb.java | FLOAT_PRINT", "B9 2026-11-17"),
+            Map.entry("sql/dialect/MongoDb.java | FLOAT_PRINT", "B9 2026-11-17"),
+            Map.entry("sql/dialect/MySql.java | FLOAT_PRINT", "B9 2026-11-17"),
+            Map.entry("sql/dialect/Postgres.java | FLOAT_PRINT", "B9 2026-11-17"),
+            Map.entry("sql/dialect/Postgres.java | RawSqlBoundary", "B4 2026-11-17"),
+            Map.entry("sql/dialect/RawSqlBoundary.java | RawSqlBoundary", "B4 2026-11-17"),
+            Map.entry("sql/dialect/SQLite.java | FLOAT_PRINT", "B9 2026-11-17"),
+            Map.entry("sql/dialect/Snowflake.java | FLOAT_PRINT", "B9 2026-11-17"),
+            Map.entry("sql/dialect/Trino.java | FLOAT_PRINT", "B9 2026-11-17"),
+            Map.entry("testdatagen/TestDataGenerationNatives.java | EngineTextDialect", "B13 2026-11-17"),
+            Map.entry("testdatagen/TestDataGenerator.java | EngineTextDialect", "B13 2026-11-17"),
+            Map.entry("testdatagen/TestDataPlanner.java | +0000", "B11 2026-11-17"),
+            Map.entry("testdatagen/TestDataPlanner.java | COMPAT", "B13 2026-11-17"),
+            Map.entry("testexec/AssertRuns.java | EngineText", "C3 2026-11-17"),
+            Map.entry("testexec/CanonicalForm.java | +0000", "C5 2026-11-17"),
+            Map.entry("testexec/HostJudgments.java | EngineText", "C3 2026-11-17"),
+            Map.entry("testexec/SideShapes.java | Cannot cast a collection of size", "C5 2026-11-17"),
+            Map.entry("testexec/SideShapes.java | TDS_NULL_CELL", "C5 2026-11-17"),
+            Map.entry("testexec/SqlTextRuns.java | EngineText", "C3 2026-11-17"),
+            Map.entry("testexecutionplan/HostJson.java | EngineText", "C3 2026-11-17"),
+            Map.entry("testexecutionplan/HostJudgment.java | EngineText", "C3 2026-11-17"),
+            Map.entry("testexecutionplan/PlannedAppeals.java | EngineText", "C3 2026-11-17"),
+            Map.entry("testexecutionplan/Verdicts.java | EngineText", "C3 2026-11-17"),
+            Map.entry("testexecutionplan/Verdicts.java | +0000", "B11 2026-11-17"),
+            Map.entry("testplan/AgreementAsserts.java | EngineText", "C3 2026-11-17"),
+            Map.entry("testplan/AssertVerdicts.java | EngineText", "C3 2026-11-17"),
+            Map.entry("testplan/TestPlanner.java | COMPAT", "C1 2026-11-17"),
+            Map.entry("compiler/spec/VerdictQueries.java | TDSNull", "B10 2026-11-17"),
+            Map.entry("lowering/CanonicalRenderSql.java | TDSNull", "B17 2026-11-17"),
+            Map.entry("lowering/VerdictSql.java | TDSNull", "B10 2026-11-17"),
+            Map.entry("testexec/Equality.java | TDSNull", "B10 2026-11-17"),
+            Map.entry("lowering/Render.java | TDSNull", "B17 2026-11-17"),
+            Map.entry("testexec/Equality.java | COMPILED_PURE_COMPAT", "C1 2026-11-17"),
+            Map.entry("testexec/HostJudgments.java | COMPILED_PURE_COMPAT", "C1 2026-11-17"),
+            Map.entry("testexec/SqlTextRuns.java | COMPILED_PURE_COMPAT", "C1 2026-11-17"),
+            Map.entry("testexecutionplan/JudgeJson.java | COMPILED_PURE_COMPAT", "C1 2026-11-17"),
+            Map.entry("testexecutionplan/TestPlan.java | COMPILED_PURE_COMPAT", "C1 2026-11-17"),
+            Map.entry("testexecutionplan/TestPlanJson.java | COMPILED_PURE_COMPAT", "C1 2026-11-17"),
+            Map.entry("testplan/AssertVerdicts.java | COMPILED_PURE_COMPAT", "C1 2026-11-17"),
+            Map.entry("testplan/DatabaseJudge.java | COMPILED_PURE_COMPAT", "C1 2026-11-17"),
+            Map.entry("testplan/PlanningOptions.java | COMPILED_PURE_COMPAT", "C1 2026-11-17"),
+            Map.entry("testplan/TestPlanner.java | COMPILED_PURE_COMPAT", "C1 2026-11-17"));
+
+    /** The census's open lines (docs/records/f-separation-census-2026-11-17.md; closed: A4, B14 ruled; records only:
+     *  B15, B16, C6, C7). Each must hold at least one entry in the count ({@link #everyOpenLineIsCounted}), so an empty
+     *  count cannot read DONE with a line left. A line closes by leaving this set with its last entry. */
+    static final Set<String> OPEN_LINES = Set.of("A1", "A2", "A3", "A5", "A6", "B1", "B2", "B3", "B4", "B5", "B6",
+            "B7", "B8", "B9", "B10", "B11", "B12", "B13", "B17", "C1", "C2", "C3", "C4", "C5");
+
+    private static Set<String> linesOf(Map<String, String> m) {
+        Set<String> out = new TreeSet<>();
+        m.values().forEach(v -> out.add(v.split(" ")[0]));
+        return out;
+    }
+
+    @Test
+    void everyOpenCompatRowIsCounted() {
+        Set<String> open = new TreeSet<>();
+        for (String row : CompatSpellingGuardTest.REGISTER) {
+            String[] p = row.split("\\|");
+            String step = p[3].trim();
+            if (!step.equals("STAYS") && !step.equals("RULED")) {
+                open.add(p[0].trim() + " | " + p[1].trim());
+            }
+        }
+        assertEquals(open, new TreeSet<>(CSG_OPEN.keySet()), "TEXT: CompatSpellingGuardTest's open rows and this"
+                + " count's text entries differ (a row gone: delete its entry; a row added: give it its census line)");
+    }
+
+    @Test
+    void everyOpenLineIsCounted() {
+        Set<String> counted = new TreeSet<>();
+        for (Map<String, String> m : List.of(BUILD_OPEN, CODE_OPEN, TEST_OPEN, CSG_OPEN)) {
+            counted.addAll(linesOf(m));
+        }
+        assertEquals(new TreeSet<>(OPEN_LINES), counted, "the census's open lines and the lines this count holds"
+                + " differ: an open line with no entry would read DONE with work left; an entry of a closed or"
+                + " unknown line is a stale entry");
+    }
+
     /** BUILD: the direct dependents of an edge target, within the product's roots' closure (core/BUILD.bazel's
      *  {@code edge_direct_dependents} genquery), each with its census line. */
     static final Map<String, String> BUILD_OPEN = Map.ofEntries(
@@ -320,11 +428,11 @@ class EdgeSeparationTest {
     @Test
     void linesLeft() {
         Map<String, Integer> byLine = new TreeMap<>();
-        for (Map<String, String> m : List.of(BUILD_OPEN, CODE_OPEN, TEST_OPEN)) {
+        for (Map<String, String> m : List.of(BUILD_OPEN, CODE_OPEN, TEST_OPEN, CSG_OPEN)) {
             m.values().forEach(v -> byLine.merge(v.split(" ")[0], 1, Integer::sum));
         }
-        System.out.println("[edge separation] lines left: " + (BUILD_OPEN.size() + CODE_OPEN.size() + TEST_OPEN.size())
-                + " (BUILD " + BUILD_OPEN.size() + ", CODE " + CODE_OPEN.size() + ", TEST SIDE " + TEST_OPEN.size()
-                + "); by census line " + byLine);
+        System.out.println("[edge separation] lines left: " + (BUILD_OPEN.size() + CODE_OPEN.size() + TEST_OPEN.size()
+                + CSG_OPEN.size()) + " (BUILD " + BUILD_OPEN.size() + ", CODE " + CODE_OPEN.size() + ", TEST SIDE "
+                + TEST_OPEN.size() + ", TEXT " + CSG_OPEN.size() + "); by census line " + byLine);
     }
 }
