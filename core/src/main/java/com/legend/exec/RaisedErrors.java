@@ -96,16 +96,15 @@ public final class RaisedErrors {
     /** A failure that IS a raise (pure's own error, its text the platform's: the sentinel envelope unwrapped), told by
      *  its type wherever a caller asks whether a failure was raised (the B checkpoint's tenets audit, LOW 4,
      *  2026-11-11: until then the seam compared a failure's message with its database's to tell). A raise of a site
-     *  carries the site's kind, where and words; its message upstream's words where the plan carries them, else the
-     *  kind behind its mark and the where behind a second (the text an upstream reader has read since PR1:
+     *  carries the site's kind, where and words; its message the kind behind its mark and the where behind a second
+     *  (K10a of the edge audit, 2026-11-17: never the plan's upstream words, which are the edge's) (the text an upstream reader has read since PR1:
      *  {@code edge.PureMessages.compile}). */
     public static class Raised extends java.sql.SQLException {
         private final ExecutionPlan.@com.legend.base.Nullable Site site;
 
         Raised(String text, ExecutionPlan.@com.legend.base.Nullable Site site, @com.legend.base.Nullable String sqlState,
                 java.sql.SQLException cause) {
-            super(site == null ? text : site.upstream() != null ? site.upstream()
-                    : com.legend.sql.RaiseKind.MARK + site.kind().name()
+            super(site == null ? text : com.legend.sql.RaiseKind.MARK + site.kind().name()
                             + (site.where() == null ? "" : com.legend.sql.RaiseKind.MARK + site.where()), sqlState, cause);
             this.site = site;
         }
@@ -212,7 +211,7 @@ public final class RaisedErrors {
         ExecutionPlan.Site site = text == null ? null : siteOf(text, sites);
         if (site != null) {
             return new com.legend.error.DataError(com.legend.error.ErrorKind.valueOf(site.kind().name()), site.where(),
-                    site.words(), cause);
+                    site.message(), cause);
         }
         if (text != null && !text.equals(message)) {
             // lite's envelope, no site: a user's fail, or the edge's sentence written in SQL (the interim)
@@ -223,13 +222,13 @@ public final class RaisedErrors {
         return com.legend.error.DataError.database(com.legend.error.ErrorKind.DATABASE_ERROR, null, own, own, cause);
     }
 
-    /** {@code un} as the platform's typed error: a site's raise by its kind and its planned words (phase D's Phase 2:
-     *  upstream's where the plan carries them, else the product's sentence), any other failure by its text. */
+    /** {@code un} as the platform's typed error: a site's raise by its kind and its planned words (phase D's Phase 2;
+     *  K10a, 2026-11-17: the product's sentence alone, the site's message -- never the plan's upstream words), any other failure by its text. */
     static com.legend.error.DataError dataErrorOf(java.sql.SQLException un) {
         if (un instanceof Raised r && r.site() != null) {
             ExecutionPlan.Site site = r.site();
             return new com.legend.error.DataError(com.legend.error.ErrorKind.valueOf(site.kind().name()), site.where(),
-                    site.words(), un);
+                    site.message(), un);
         }
         if (un instanceof Raised) {
             // lite's envelope, no site: a user's fail (its own text), or the edge's sentence in SQL (the interim) --
