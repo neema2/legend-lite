@@ -34,9 +34,10 @@ import type { Receipt } from './receipt.ts';
 import { fromPlan, type PlannedSql, type PlanText } from './planned-sql.ts';
 import { declareSites, declareStatementSites, type Site } from './declared-raises.ts';
 import { inRun } from './run-frame.ts';
+import type { ParameterValue, PlanValue } from './requests.ts';
+export type { ParameterValue, PlanValue } from './requests.ts';
 
 /** A value bound into a statement's `?`. */
-export type PlanValue = string | number | bigint | boolean | null;
 
 /**
  * A RUN'S PARAMETER VALUE, as its caller hands it (2026-11-17, the edge program's HOST stream; the orchestrator's Q2
@@ -48,7 +49,6 @@ export type PlanValue = string | number | bigint | boolean | null;
  * (`YYYY-MM-DDTHH:MM[:SS[.fffffffff]]`, a trailing `Z` allowed), a Date either of those two, an enumeration's value its
  * name; a collection an array; none (null, or an empty array) for no value.
  */
-export type ParameterValue = string | number | bigint | boolean | null | readonly (string | number | bigint | boolean)[];
 
 /** A parameter as the plan declares it (PlanJson parameterJson). */
 interface DeclaredParameter {

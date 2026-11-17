@@ -12,7 +12,7 @@ import { findAll, functionsCalled, isFunction, isLambda, transform, type Lambda,
 import { CubeApp, RemoteRun, sourceColumns, type CubeAppOptions, type CubeSnapshot, type CubeView } from '../../../datacube/src/embed.ts';
 import { runtimeOf, statementOf, type LiteEngine } from '../../../engine-client/src/legend/browser-engine.ts';
 import type { PureModelContext } from '../../../engine-client/src/legend/wire.ts';
-import { pureType, queryColumns } from '../../../engine-client/src/relation-type.ts';
+import { pureType } from '../../../engine-client/src/relation-type.ts';
 import type { ResultColumn, Scalar } from '../../../engine-client/src/result.ts';
 import { CubePlanner } from '../backend/cube-planner.ts';
 import type { AppContext } from './context.ts';
@@ -66,7 +66,7 @@ export async function openCube(app: AppContext, session: Session, host: HTMLElem
     if (!app.planner) throw new Error('queries run in the browser, which needs the planner (config.planner)');
     rows = { engine: app.cubeRows.engine, planner: new CubePlanner(app.planner, model, runtime, (t) => graph.enumerations.has(t)) };
   } else {
-    rows = { runner: new RemoteRun(liteRows(app.engine, model)) };
+    rows = { runner: new RemoteRun(liteRows(app.engine, model, (t) => graph.enumerations.has(t))) };
   }
   const columns = await sourceColumns((rows.planner ?? rows.runner)!, source);
   const snapshot: CubeSnapshot = {
@@ -95,7 +95,10 @@ export async function openCube(app: AppContext, session: Session, host: HTMLElem
  * /api/lite/v1), each answer lite's typed rows read as the cube's columns -- typing, parsing and printing the same
  * engine's (the orchestrator's Q-c ruling of 2026-11-17: no product app reads rows through legend-engine's pure/v1).
  */
-function liteRows(engine: LiteEngine, model: PureModelContext): ConstructorParameters<typeof RemoteRun>[0] {
+function liteRows(engine: LiteEngine, model: PureModelContext, isEnumeration: (type: string) => boolean):
+  ConstructorParameters<typeof RemoteRun>[0] {
+  // a column of an enumeration reads as String, its values' names, as the tab's cube reads it (cube-planner.ts)
+  const typeOf = (type: string): string => (isEnumeration(type) ? 'String' : pureType(type));
   return {
     async execute(query, epoch, signal) {
       const started = Date.now();
@@ -105,7 +108,7 @@ function liteRows(engine: LiteEngine, model: PureModelContext): ConstructorParam
       const sql = statementOf(plan);
       if (answer.shape !== 'RELATION') throw new Error(`the cube's query answered ${answer.shape.toLowerCase()}s, not a relation's rows`);
       const columns: ResultColumn[] = answer.columns.map((c, i) => ({
-        name: c.name, type: pureType(c.type), values: answer.rows.map((r) => scalar(r[i], c.name)),
+        name: c.name, type: typeOf(c.type), values: answer.rows.map((r) => scalar(r[i], c.name)),
       }));
       return {
         rows: {
@@ -116,7 +119,7 @@ function liteRows(engine: LiteEngine, model: PureModelContext): ConstructorParam
       };
     },
     async relationType(query) {
-      return queryColumns(await engine.queryType(model.code, query));
+      return (await engine.queryType(model.code, query)).map((c) => ({ name: c.name, type: typeOf(c.type) }));
     },
     parse: (text) => engine.queryParse(text),
     // engine-remote's RemoteExecutor speaks legend-engine's styles ('PRETTY' | 'STANDARD'): each read as lite's word

@@ -187,11 +187,6 @@ const CENSUS = new Map<string, { readonly calls: Readonly<Record<string, number>
   ['datacube/src/cube.ts', { calls: { 'runner.run(': 5, 'runner.stream(': 2 }, why: `DataCube's cube: ${DATACUBE_RUNNER}` }],
   ['datacube/src/plan.ts', { calls: { 'runner.run(': 1 }, why: `a page's plan: ${DATACUBE_RUNNER}` }],
   ['datacube/src/treeview.ts', { calls: { 'runner.run(': 2 }, why: `the tree view's rows: ${DATACUBE_RUNNER}` }],
-  ['query/src/app/cube.ts', { calls: { 'server.execute(': 1 }, why: `Query's cube, its rows: ${ENGINE_EXECUTE}` }],
-  ['query/src/app/probe.ts', { calls: { 'engine.execute(': 1 }, why: `Query's probe, a query's first rows: ${ENGINE_EXECUTE}` }],
-  ['query/src/app/run.ts', { calls: { 'engine.execute(': 1 }, why: `Query's run, the query's rows: ${ENGINE_EXECUTE}` }],
-  ['query/src/ui/results.ts', { calls: { 'engine.execute(': 1 }, why: `Query's results panel, a page of rows: ${ENGINE_EXECUTE}` }],
-  ['studio/src/backend/run.ts', { calls: { 'engine.execute(': 1 }, why: `Studio's Run, a function's or a service's rows: ${ENGINE_EXECUTE}` }],
   // 2026-11-15 (the C5-T final audit's MUST 1 and item 8: the held connection's calls, and engine-client's own modules)
   ['datacube/src/app/datacube-app.ts', { calls: { 'engine.rows(': 1 }, why: SERVICES_ROWS }],
   ['datacube/src/app/join-flow.ts', { calls: { 'engine.rows(': 1 }, why: SERVICES_ROWS }],

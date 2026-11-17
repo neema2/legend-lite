@@ -22,11 +22,12 @@ import type { CompileResult, ExecuteInput, ExecutionResult, PureModelContext, Re
 import type { RawTable } from '../engine.ts';
 import type { Scalar } from '../result.ts';
 import { inRun } from '../run-frame.ts';
-import { runPlanRows, type ParameterValue } from '../plan-runner.ts';
+import { runPlanRows } from '../plan-runner.ts';
+import type { ParameterValue } from '../requests.ts';
 import { LiteRefusal, type LiteError } from '../lite-error.ts';
 import type { QueryColumn } from '../relation-type.ts';
 // a run's parameter value, as an app hands it to lite's engine (the apps reach the run side through the doors alone)
-export type { ParameterValue } from '../plan-runner.ts';
+export type { ParameterValue } from '../requests.ts';
 
 /** The runtime a query runs on: the last argument of its `->from(...)`. */
 export function runtimeOf(lambda: Lambda): string {
