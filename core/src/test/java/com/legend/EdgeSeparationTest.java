@@ -82,7 +82,6 @@ class EdgeSeparationTest {
 
     /** CODE: "source class -> target", each entry its census line and date. */
     static final Map<String, String> CODE_OPEN = Map.ofEntries(
-            Map.entry("com.legend.database.PlanStyle -> com.legend.sql.dialect.EngineTextDialect", "B1 2026-11-17"),
             Map.entry("com.legend.lowering.LiteralSpelling -> SqlFn.DATETIME_PRINT", "B8 2026-11-17"),
             // B17 (2026-11-17): the relation-text facet the edge answers, asked by the lowering, wired by the planner
             Map.entry("com.legend.lowering.Lowerer -> com.legend.lowering.RelationTexts", "B17 2026-11-17"),
@@ -116,7 +115,6 @@ class EdgeSeparationTest {
             Map.entry("com.legend.sql.dialect.AnsiSqlRenderer -> com.legend.sql.dialect.FloatPrintText", "B9 2026-11-17"),
             Map.entry("com.legend.sql.dialect.DateTimePrintText -> (stands in a product package)", "B9 2026-11-17"),
             Map.entry("com.legend.sql.dialect.DuckDb -> com.legend.sql.dialect.RawSqlBoundary", "B4 2026-11-17"),
-            Map.entry("com.legend.sql.dialect.EngineTextDialect -> (stands in a product package)", "B3 2026-11-17"),
             Map.entry("com.legend.sql.dialect.FloatPrintText -> (stands in a product package)", "B9 2026-11-17"),
             Map.entry("com.legend.sql.dialect.Postgres -> com.legend.sql.dialect.RawSqlBoundary", "B4 2026-11-17"),
             Map.entry("com.legend.sql.dialect.RawSqlBoundary -> (stands in a product package)", "B4 2026-11-17"),
@@ -184,6 +182,21 @@ class EdgeSeparationTest {
             Map.entry("com.legend.testplan.Seeds -> com.legend.planner.UpstreamPlans", "B2 2026-11-17"),
             Map.entry("com.legend.testplan.TestPlanner -> JudgingRules.COMPILED_PURE_COMPAT", "C1 2026-11-17"),
             Map.entry("com.legend.testplan.TestPlanner -> com.legend.testplan.AppealsByVerdict", "C2 2026-11-17"));
+
+    /** HOOKS ARE TERMINAL (the orchestrator's ruling of 2026-11-17, on the user's "the edge's typed extension point"):
+     *  a product hook that is (a) an interface of signatures only, (b) refused by the product's style by name, (c)
+     *  implemented in the edge alone and (d) pinned (HookRulingTest) is the separation, not a leak -- allowed, and
+     *  not counted. The hooks that fail a criterion stay open in the maps above, the criterion named here:
+     *  UpstreamPlans (B2) fails (a): its static routines() holds the plan-text natives' table and the unformatted
+     *  form's stripping; RelationTexts (B17) fails (a): its static forwarders reach the lowering's text helpers;
+     *  EngineTestText (C4) fails (a): its static gates (armFor, reachesUpstreamText, marking); EngineTextPlanning (C4)
+     *  fails (a): a facade class with logic; PlanStyleFacets (C4) fails (a) as worded: a final class holding the
+     *  kinds' closed list (types only), not an interface. */
+    static final Map<String, String> HOOKS_RULED = Map.ofEntries(
+            Map.entry("com.legend.database.PlanStyle -> com.legend.sql.dialect.EngineTextDialect",
+                    "B1 HOOK-RULED 2026-11-17"),
+            Map.entry("com.legend.sql.dialect.EngineTextDialect -> (stands in a product package)",
+                    "B3 HOOK-RULED 2026-11-17"));
 
     // ---- the guards ---------------------------------------------------------------------------------------------
 
@@ -255,7 +268,9 @@ class EdgeSeparationTest {
     @Test
     void theProductsCodeNamesNoCompatibilityButItsOpenLines() {
         Set<String> f = found(classes("legend.product.jars", "legend.authored.jars"), n -> !testSide(n));
-        assertEquals(new TreeSet<>(CODE_OPEN.keySet()), f, "CODE: a product class names the compatibility vocabulary"
+        Set<String> allowed = new TreeSet<>(CODE_OPEN.keySet());
+        allowed.addAll(HOOKS_RULED.keySet());
+        assertEquals(allowed, f, "CODE: a product class names the compatibility vocabulary"
                 + " outside its census line (a new entry is a regression; a gone one closes, delete its entry)");
     }
 
@@ -271,7 +286,6 @@ class EdgeSeparationTest {
      *  ways with the register ({@link #everyOpenCompatRowIsCounted}). */
     static final Map<String, String> CSG_OPEN = Map.ofEntries(
             Map.entry("compiler/element/type/PlatformTypes.java | TDS_NULL_CELL", "B10 2026-11-17"),
-            Map.entry("database/PlanStyle.java | EngineTextDialect", "B1 2026-11-17"),
             Map.entry("lowering/JsonEmission.java | tdsBuilder", "B5 2026-11-17"),
             Map.entry("lowering/LiteralSpelling.java | +0000", "B11 2026-11-17"),
             Map.entry("lowering/Lowerer.java | withEngineText", "B5 2026-11-17"),
@@ -290,7 +304,6 @@ class EdgeSeparationTest {
             Map.entry("sql/dialect/Databricks.java | FLOAT_PRINT", "B9 2026-11-17"),
             Map.entry("sql/dialect/DuckDb.java | FLOAT_PRINT", "B9 2026-11-17"),
             Map.entry("sql/dialect/DuckDb.java | RawSqlBoundary", "B4 2026-11-17"),
-            Map.entry("sql/dialect/EngineTextDialect.java | EngineTextDialect", "B3 2026-11-17"),
             Map.entry("sql/dialect/DateTimePrintText.java | +0000", "B9 2026-11-17"),
             Map.entry("sql/dialect/FloatPrintText.java | FLOAT_PRINT", "B9 2026-11-17"),
             Map.entry("sql/dialect/H2.java | FLOAT_PRINT", "B9 2026-11-17"),
@@ -337,10 +350,11 @@ class EdgeSeparationTest {
             Map.entry("testplan/TestPlanner.java | COMPILED_PURE_COMPAT", "C1 2026-11-17"));
 
     /** The census's open lines (docs/records/f-separation-census-2026-11-17.md; closed: A4, B14 ruled; A2, A3 moved to
-     *  the edge 2026-11-17 (A4 extended to the native image and the page module); records only:
+     *  the edge 2026-11-17 (A4 extended to the native image and the page module); B1, B3 HOOK-RULED 2026-11-17
+     *  (EngineTextDialect, {@link #HOOKS_RULED}); records only:
      *  B15, B16, C6, C7). Each must hold at least one entry in the count ({@link #everyOpenLineIsCounted}), so an empty
      *  count cannot read DONE with a line left. A line closes by leaving this set with its last entry. */
-    static final Set<String> OPEN_LINES = Set.of("A1", "A5", "A6", "B1", "B2", "B3", "B4", "B5", "B6",
+    static final Set<String> OPEN_LINES = Set.of("A1", "A5", "A6", "B2", "B4", "B5", "B6",
             "B7", "B8", "B9", "B10", "B11", "B12", "B13", "B17", "C1", "C2", "C3", "C4", "C5");
 
     private static Set<String> linesOf(Map<String, String> m) {
@@ -355,7 +369,7 @@ class EdgeSeparationTest {
         for (String row : CompatSpellingGuardTest.REGISTER) {
             String[] p = row.split("\\|");
             String step = p[3].trim();
-            if (!step.equals("STAYS") && !step.equals("RULED")) {
+            if (!step.equals("STAYS") && !step.equals("RULED") && !step.equals("HOOK-RULED")) {
                 open.add(p[0].trim() + " | " + p[1].trim());
             }
         }
