@@ -20,6 +20,7 @@ binary rules. `//core:core` and `//core:plan_side` hold none of the four (LAY pi
 | A4 | `//core:server` (the shipped binary), `main_class = com.legend.edge.EdgeServer` (core/BUILD.bazel:~575) | the user's D1.0b ruling | none (a binary) | ruled? to confirm it stays the shipped root |
 | A5 | `//core:core_tests_lib`, `//core:test_cases` -> `:edge`, `:edge_server` (product TESTS run with the edge) | E-Java (Phase 7 build half) | none yet (`productTestsReachNoEdge` planned) | IN-FLIGHT |
 | A6 | `//core:seam_benchmark`, `//core:data_delivery_matrix_postgres_test` -> edge | E-Java with A5 | none | open |
+| A7 | Record only, not separation (E-P5's A1 follow-up, docs/records/e-p5-a1-2026-11-17.md): O7's lazily loaded TypeScript compatibility module (the tab's engine clients off the module's `pure/v1` and execute exports, legend-engine's answers from the TS module; then `//wasm:edge_tab` returns to a product entry and `//wasm:edge_boundary` leaves the bundle), and Python onto lite's own plan exports (off `lite_pure_v1`, `lite_execute_plan`, `lite_execute_json_plan`, `lite_execute_json_answer`; then `EngineEntries` goes) | D (a later product step) | - | recorded only |
 
 Transitively through A1/A2: `//datacube:*`, `//site:*`, `//studio:serve`, `//query:serve`, `//python:*`,
 `//native:compiler`, `//wasm:planner`/`tab` (each clears when A1/A2 do).
@@ -125,6 +126,18 @@ F's own queue from this list (all S, all guards): A3, B8, B10, C1, C2.
   - **C1** `COMPILED_PURE_COMPAT` in its symbols: 10 files registered, D1.9.
   - **C2** `RefereeAppealsCensusTest`: the six referee/appeal classes, each pinned to its exact product reachers (the
     named entries, 26 in all), shrink-only until the move.
+
+- 2026-11-17, later (each on its branch, the count of record `EdgeSeparationTest.linesLeft`):
+  - **A1** done by E-P5 (`claude/total-wall-p7-a1` @ 1c18e97f4): BUILD empty; A1's last code entries relabelled B6
+    and B7. Its follow-up recorded as **A7** (record only).
+  - **A2, A3** moved to the edge (F, `claude/total-wall-f-guards` @ 885e2c36): `SavedQueriesHome` to
+    `//native:edge_entry`, `QueriesPage` to `//query-store:edge_page_entry` (A4 extended).
+  - **B17** opened and moved (F, `claude/total-wall-f-b17` @ 6b605d1e): a relation's legend-pure text
+    (`toCSV`, a TDS's `csv`, `toString`) to `edge.RelationTextLowering` through the lowering facet `RelationTexts`;
+    the product refuses at LOWER. Open at 4: the hook, until its static forwarders meet ruling (a).
+  - **Hooks are terminal** (the orchestrator's ruling): **B1, B3** closed HOOK-RULED (`EngineTextDialect`),
+    PlanStyleFacets HOOK-RULED; `HookRulingTest` pins (a)-(d).
+  - **B8 (i)** began: `FORMAT_PADDED` left SqlFn (`PureOnlyTexts` facet, HOOK-RULED) @ 95442a1f.
 
 ## G. Recount after the guards (2026-11-17)
 
