@@ -88,6 +88,9 @@ public final class PureText {
         @Override
         public <F> F twoForm(Class<F> kind, F productForm) {
             java.util.Objects.requireNonNull(productForm, "a two-form hook's product form");
+            if (kind == com.legend.lowering.DateTimeTexts.class) {
+                return kind.cast(EdgeDateTimeTexts.INSTANCE);
+            }
             throw new com.legend.error.NotImplementedException("the two-form kind " + kind.getName()
                     + " is none of the declared kinds (com.legend.testplan.PlanStyleFacets.TWO_FORMS)");
         }
