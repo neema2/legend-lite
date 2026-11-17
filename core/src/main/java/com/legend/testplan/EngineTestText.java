@@ -17,7 +17,7 @@ import java.util.List;
  * where it does, asks this facet ({@code edge.EdgeEngineTestText}). A bare hook (C4, 2026-11-17, the orchestrator's
  * ruling): signatures only; its routing gates are the edge's, its records top-level product types.
  */
-@com.legend.base.OpenLine("C4") public interface EngineTestText {
+public interface EngineTestText {
 
     /** The arm planned for {@code ask}: null where the arm does not claim the assert's shape, or declines it (the
      *  test planner's generic path continues). */

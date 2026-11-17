@@ -63,7 +63,7 @@ public final class PlanParameters {
      * value. A value for no declared parameter is ignored.
      *
      * @throws IllegalArgumentException naming every problem at once: {@link com.legend.error.MissingParameters} for each
-     *                                  required parameter given no value, {@code Invalid provided parameter(s): [...]}
+     *                                  required parameter given no value, {@link com.legend.error.InvalidParameters}
      *                                  for each value that is not one its parameter takes
      */
     public static Map<String, Checked> check(List<ExecutionPlan.Parameter> declared, Map<String, ?> values) {
@@ -86,13 +86,15 @@ public final class PlanParameters {
                         + problem);
             }
         }
-        String wrong = invalid.isEmpty() ? null : "Invalid provided parameter(s): [" + String.join("; ", invalid) + "]";
+        String wrong = invalid.isEmpty() ? null : com.legend.error.InvalidParameters.sentence(invalid);
         if (!missing.isEmpty()) {
             // the missing ones a kind, worded by the product and, for upstream's clients, by the edge (D1.6, W7)
             throw new com.legend.error.MissingParameters(missing, wrong);
         }
         if (wrong != null) {
-            throw new IllegalArgumentException(wrong);
+            // the invalid ones a kind, worded likewise (J8 of the edge audit, 2026-11-17: legend-engine's
+            // "Invalid provided parameter(s)" is the edge's)
+            throw new com.legend.error.InvalidParameters(invalid);
         }
         return out;
     }

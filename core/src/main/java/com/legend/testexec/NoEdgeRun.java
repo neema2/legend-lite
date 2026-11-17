@@ -74,13 +74,13 @@ public final class NoEdgeRun implements EdgeRun {
         @Override
         public RenderedTexts renderedTexts() {
             // lite's own runs: the two strings are the verdict
-            return RenderedTexts.Product.STRINGS;
+            return LiteRenderedTexts.STRINGS;
         }
 
         @Override
         public HostForms hostForms() {
             // lite's own runs: two number kinds never equal (S127)
-            return HostForms.Product.STRICT;
+            return LiteHostForms.STRICT;
         }
 
         @Override

@@ -104,6 +104,8 @@ class JudgingRulesReachTest {
      *  added -- a second legendPureWords() in a class already counted -- fails until it is ruled; a reach gone lowers
      *  its pin). Measured 2026-11-17. */
     static final Map<String, Integer> REACHES_PINNED = Map.ofEntries(
+            // (TestPlanJson -> JudgingRules.name() and valueOf(String) gone 2026-11-17 on d-stage c37207858, trains 6-7:
+            // the rules' wire read another way)
             // the behaviours (BEHAVIOUR_OPEN's entries), one reach each; the carriers: the test plan's JSON (a verdict
             // group's rules spelled by a switch -- LITE twice, ordinal three times and values once through its switch
             // maps -- an isolated step's by name/valueOf) and the one selector, engineCompat ? COMPILED_PURE_COMPAT : LITE
@@ -114,9 +116,7 @@ class JudgingRulesReachTest {
             Map.entry("com.legend.testexec.HostRules -> JudgingRules.LITE", 1),
             Map.entry("com.legend.testexecutionplan.NoEdge -> JudgingRules.LITE", 1),
             Map.entry("com.legend.testexecutionplan.TestPlanJson -> JudgingRules.LITE", 2),
-            Map.entry("com.legend.testexecutionplan.TestPlanJson -> JudgingRules.name()", 1),
             Map.entry("com.legend.testexecutionplan.TestPlanJson -> JudgingRules.ordinal()", 3),
-            Map.entry("com.legend.testexecutionplan.TestPlanJson -> JudgingRules.valueOf(java.lang.String)", 1),
             Map.entry("com.legend.testexecutionplan.TestPlanJson -> JudgingRules.values()", 1),
             Map.entry("com.legend.testplan.DatabaseJudge -> JudgingRules.legendPureWords()", 1),
             Map.entry("com.legend.testplan.PlanningOptions -> JudgingRules.LITE", 1));

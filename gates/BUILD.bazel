@@ -16,7 +16,7 @@ load("//tools/guards:defs.bzl", "guards_package")
 # engine-runner binaries through their launchers (P3-26), the server's Postgres arm (one query against the embedded
 # Postgres 16), the #SQL{}# island's cases on the same Postgres
 # the gate's own list, read by core's TaggedClassesHaveATargetTest: every census and guardrail class runs in a target
-# this file lists (2026-11-17)
+# the local and lanes suites reach (2026-11-17)
 exports_files(
     ["BUILD.bazel"],
     visibility = ["//core:__pkg__"],

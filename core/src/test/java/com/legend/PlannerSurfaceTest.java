@@ -262,54 +262,202 @@ class PlannerSurfaceTest {
 
     private static final String EDGE_BOUNDARY_SOURCE = "wasm/src/edge/java/com/legend/edge/wasm/EdgeBoundary.java";
 
-    /** What is wrong with the edge's doors in {@code edgeSource} (the edge's boundary, read as text: no product target
-     *  carries its class): a public static no {@link #EDGE_DOORS} entry names, an entry it does not declare or
-     *  {@code boundary} does not list, and a door whose parameters' types differ from its row (the review of 589168a9b3,
-     *  2026-11-17). */
-    static List<String> edgeDoorViolations(String edgeSource, Map<String, Door> boundary) {
+    /** {@code text} with its balanced {@code open}...{@code close} groups left out (generics' arguments,
+     *  annotations' values), string literals read as text. */
+    private static String withoutGroups(String text, char open, char close) {
+        StringBuilder out = new StringBuilder();
+        int depth = 0;
+        boolean string = false;
+        for (int i = 0; i < text.length(); i++) {
+            char c = text.charAt(i);
+            if (string) {
+                if (c == '\\') {
+                    i++;
+                } else if (c == '"') {
+                    string = false;
+                }
+            } else if (c == '"') {
+                string = true;
+            } else if (c == open) {
+                depth++;
+            } else if (c == close) {
+                depth--;
+            } else if (depth == 0) {
+                out.append(c);
+            }
+        }
+        return out.toString();
+    }
+
+    /** {@code params} split at its top-level commas (none inside a generic's {@code <...>} or an annotation's
+     *  {@code (...)}). */
+    private static List<String> topLevel(String params) {
         List<String> out = new ArrayList<>();
-        Map<String, List<String>> declared = new TreeMap<>();
-        Matcher m = Pattern.compile("public static [\\w.<>\\[\\], ]+? (\\w+)\\(([^)]*)\\)").matcher(edgeSource);
+        int depth = 0;
+        int from = 0;
+        for (int i = 0; i < params.length(); i++) {
+            char c = params.charAt(i);
+            if (c == '<' || c == '(') {
+                depth++;
+            } else if (c == '>' || c == ')') {
+                depth--;
+            } else if (c == ',' && depth == 0) {
+                out.add(params.substring(from, i));
+                from = i + 1;
+            }
+        }
+        out.add(params.substring(from));
+        return out;
+    }
+
+    private static final Pattern PUBLIC_STATIC = Pattern.compile("\\bpublic\\s+static\\b");
+
+    private static final Pattern NESTED_TYPE = Pattern.compile(
+            "\\s*((final|abstract|sealed|non-sealed|strictfp)\\s+)*(class|record|interface|enum)\\s+\\w+[\\s\\S]*");
+
+    private static final Pattern FIELD = Pattern.compile("\\s*(final\\s+)?[\\w.\\[\\]]+\\s+\\w+\\s*");
+
+    private static final Pattern PARAM = Pattern.compile("(\\w+(?:\\.\\w+)*(?:\\[\\])*)(\\.\\.\\.)?\\s+\\w+");
+
+    /** The edge boundary's public static methods in {@code edgeSource} (comments left out), each its parameters'
+     *  simple types (a generic's arguments dropped, varargs as an array, annotations and {@code final} left out); a
+     *  public static the check cannot read as a method, a field or a nested type is put to {@code unread}. */
+    static Map<String, List<List<String>>> edgeDoorMethods(String edgeSource, List<String> unread) {
+        String source = edgeSource.replaceAll("(?s)/\\*.*?\\*/", " ").replaceAll("//[^\\n]*", " ");
+        Map<String, List<List<String>>> out = new TreeMap<>();
+        Matcher m = PUBLIC_STATIC.matcher(source);
         while (m.find()) {
-            List<String> types = new ArrayList<>();
-            for (String param : m.group(2).split(",")) {
-                String p = param.strip();
-                if (!p.isEmpty()) {
-                    String type = p.substring(0, p.lastIndexOf(' ')).strip().replaceAll("<.*>", "");
-                    types.add(type.substring(type.lastIndexOf('.') + 1));
+            String rest = source.substring(m.end());
+            int head = rest.length();
+            int nesting = 0;
+            boolean string = false;
+            for (int i = 0; i < rest.length() && head == rest.length(); i++) {
+                char c = rest.charAt(i);
+                if (string) {
+                    if (c == '\\') {
+                        i++;
+                    } else if (c == '"') {
+                        string = false;
+                    }
+                } else if (c == '"') {
+                    string = true;
+                } else if (c == '(') {
+                    nesting++;
+                } else if (c == ')') {
+                    nesting--;
+                } else if (nesting == 0 && (c == '{' || c == ';' || c == '=')) {
+                    head = i;
                 }
             }
-            declared.put(m.group(1), types);
+            String declaration = rest.substring(0, head);
+            int open = declaration.indexOf('(');
+            String snippet = declaration.strip().replaceAll("\\s+", " ");
+            if (open < 0) {
+                String bare = withoutGroups(declaration, '<', '>');
+                if (!NESTED_TYPE.matcher(bare).matches() && !FIELD.matcher(bare).matches()) {
+                    unread.add(snippet);
+                }
+                continue;
+            }
+            int close = -1;
+            int depth = 0;
+            for (int i = open; i < declaration.length() && close < 0; i++) {
+                if (declaration.charAt(i) == '(') {
+                    depth++;
+                } else if (declaration.charAt(i) == ')' && --depth == 0) {
+                    close = i;
+                }
+            }
+            Matcher name = Pattern.compile("(\\w+)\\s*$").matcher(declaration.substring(0, open));
+            if (close < 0 || !name.find()) {
+                unread.add(snippet);
+                continue;
+            }
+            List<String> types = new ArrayList<>();
+            boolean read = true;
+            for (String param : topLevel(declaration.substring(open + 1, close))) {
+                String p = withoutGroups(withoutGroups(param, '<', '>'), '(', ')')
+                        .replaceAll("@[\\w.]+", " ").replaceAll("\\bfinal\\b", " ").strip().replaceAll("\\s+", " ");
+                if (p.isEmpty() && types.isEmpty() && param.isBlank()) {
+                    continue;
+                }
+                Matcher t = PARAM.matcher(p);
+                if (!t.matches()) {
+                    read = false;
+                    break;
+                }
+                String type = t.group(1).substring(t.group(1).lastIndexOf('.') + 1);
+                types.add(t.group(2) != null ? type + "[]" : type);
+            }
+            if (!read) {
+                unread.add(snippet);
+                continue;
+            }
+            out.computeIfAbsent(name.group(1), k -> new ArrayList<>()).add(types);
         }
+        return out;
+    }
+
+    /** What is wrong with the edge's doors in {@code edgeSource} (the edge's boundary, read as text: no product target
+     *  carries its class): a public static no {@link #EDGE_DOORS} entry names, an entry it does not declare or
+     *  {@code boundary} does not list, a door declared twice, a door whose parameters' types differ from its row (the
+     *  review of 589168a9b3, 2026-11-17), and a public static the check cannot read (the re-review of 60aa31029b:
+     *  read, never skipped). */
+    static List<String> edgeDoorViolations(String edgeSource, Map<String, Door> boundary) {
+        List<String> out = new ArrayList<>();
+        List<String> unread = new ArrayList<>();
+        Map<String, List<List<String>>> declared = edgeDoorMethods(edgeSource, unread);
+        unread.forEach(u -> out.add("an edge boundary public static the check does not read: " + u));
         declared.keySet().stream().filter(n -> !EDGE_DOORS.contains(n))
                 .forEach(n -> out.add("an edge boundary door no EDGE_DOORS entry names: " + n));
         for (String name : new TreeSet<>(EDGE_DOORS)) {
             if (!declared.containsKey(name)) {
                 out.add("an edge door the edge's boundary no longer has: " + name);
+            } else if (declared.get(name).size() != 1) {
+                out.add("an edge door declared more than once (its row names one): " + name);
             } else if (!boundary.containsKey(name)) {
                 out.add("an edge door no row lists: " + name);
-            } else if (!declared.get(name).equals(boundary.get(name).params().stream()
+            } else if (!declared.get(name).get(0).equals(boundary.get(name).params().stream()
                     .map(p -> p.type().getSimpleName()).toList())) {
-                out.add("an edge door's parameters differ from its row: " + name + " " + declared.get(name));
+                out.add("an edge door's parameters differ from its row: " + name + " " + declared.get(name).get(0));
             }
         }
         return out;
     }
 
-    /** Planted: an edge door whose parameters changed, a public static no entry names and an entry the source lost are
-     *  each named; the real source is clean. */
+    /** Planted: an edge door whose parameters changed, a public static no entry names, an entry the source lost, an
+     *  overloaded door and a public static the check cannot read are each named; a generic's comma, an annotation, a
+     *  {@code final}, a multi-line parameter list, a field, a nested type and a commented-out door are read as what
+     *  they are; varargs read as an array; the real source is clean. */
     @Test
     void theEdgeDoorsAreChecked() {
         String planted = "class EdgeBoundary {\n"
+                + "    public static final String ROUTE = \"/api/pure/v1\";\n"
+                + "    public static final class Holder { }\n"
+                + "    // public static Answer commentedOut(String x) {}\n"
+                + "    /** public static Answer inJavadoc(String x) */\n"
                 + "    public static Answer pureV1(String path, String rawQuery, String body) {}\n"
                 + "    public static Answer executePlan(String body) {}\n"
                 + "    public static Answer executeJsonPlan(String body, String modelsJson) {}\n"
-                + "    public static Answer executeJsonAnswer(String plan, String rows) {}\n"
-                + "    public static Answer runSqlHere(String sql) {}\n}\n";
-        assertEquals(List.of("an edge boundary door no EDGE_DOORS entry names: runSqlHere",
+                + "    public static Answer executeJsonPlan(String body) {}\n"
+                + "    public static Answer runSqlHere(String sql) {}\n"
+                + "    public static Answer runHeaders(java.util.Map<String, String> headers, String... parts) {}\n"
+                + "    public static Answer broken(String a\n}\n";
+        assertEquals(List.of("an edge boundary public static the check does not read: Answer broken(String a }",
+                "an edge boundary door no EDGE_DOORS entry names: runHeaders",
+                "an edge boundary door no EDGE_DOORS entry names: runSqlHere",
                 "an edge door the edge's boundary no longer has: executeArrowAnswer",
+                "an edge door the edge's boundary no longer has: executeJsonAnswer",
+                "an edge door declared more than once (its row names one): executeJsonPlan",
                 "an edge door's parameters differ from its row: executePlan [String]"),
                 edgeDoorViolations(planted, BOUNDARY));
+        List<String> unread = new ArrayList<>();
+        assertEquals(Map.of("runHeaders", List.of(List.of("Map", "String[]")), "executeJsonAnswer",
+                List.of(List.of("String", "String"))), edgeDoorMethods("class E {\n"
+                + "    public static Answer runHeaders(java.util.Map<String, String> headers, String... parts) {}\n"
+                + "    public static Answer executeJsonAnswer(\n            @Deprecated(since = \"1, 2\") final String plan,\n"
+                + "            final String rows) {}\n}\n", unread));
+        assertEquals(List.of(), unread);
         assertEquals(List.of(), edgeDoorViolations(read(EDGE_BOUNDARY_SOURCE), BOUNDARY));
     }
 

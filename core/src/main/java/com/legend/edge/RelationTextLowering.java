@@ -31,23 +31,23 @@ import java.util.List;
 final class RelationTextLowering implements RelationTexts {
 
     @Override
-    public SqlExpr toCsv(com.legend.compiler.spec.typed.TypedNativeCall tc,
+    public SqlExpr toCsv(com.legend.lowering.Styled styled, com.legend.compiler.spec.typed.TypedNativeCall tc,
             java.util.function.Function<com.legend.compiler.spec.typed.TypedSpec, SqlSelect> relation, String alias,
             java.util.Map<Integer, Type.RelationType> deferredTds) {
-        return relationText(lowerToCsv(tc, relation, alias, deferredTds), "toCSV");
+        return relationText(lowerToCsv(styled, tc, relation, alias, deferredTds), "toCSV");
     }
 
     @Override
-    public SqlExpr csvProperty(com.legend.compiler.spec.typed.TypedPropertyAccess read,
+    public SqlExpr csvProperty(com.legend.lowering.Styled styled, com.legend.compiler.spec.typed.TypedPropertyAccess read,
             java.util.function.Function<com.legend.compiler.spec.typed.TypedSpec, SqlSelect> relation, String alias) {
-        return relationText(lowerTdsCsvProperty(read, relation, alias), "a TDS's csv");
+        return relationText(lowerTdsCsvProperty(styled, read, relation, alias), "a TDS's csv");
     }
 
     @Override
-    public SqlExpr relationToString(com.legend.compiler.spec.typed.TypedNativeCall tc,
+    public SqlExpr relationToString(com.legend.lowering.Styled styled, com.legend.compiler.spec.typed.TypedNativeCall tc,
             java.util.function.Function<com.legend.compiler.spec.typed.TypedSpec, SqlSelect> relation, String alias,
             java.util.Map<Integer, Type.RelationType> deferredTds) {
-        return relationText(lowerToString(tc, relation, alias, deferredTds), "toString");
+        return relationText(lowerToString(styled, tc, relation, alias, deferredTds), "toString");
     }
 
     /** A relation's {@code text} ({@code what} it is): the text itself (B8, 2026-11-17: the RELATION_TEXT marker the
@@ -69,7 +69,7 @@ final class RelationTextLowering implements RelationTexts {
      *  accepts only the DEFAULT format pair (SimpleDateTimeFormat /
      *  ISO8601DateFormat, as the zero-arg calls or their folded
      *  '%t{...}' literals); anything else stays loud. */
-    static SqlExpr lowerToCsv(
+    static SqlExpr lowerToCsv(com.legend.lowering.Styled styled,
             com.legend.compiler.spec.typed.TypedNativeCall tc,
             java.util.function.Function<
                     com.legend.compiler.spec.typed.TypedSpec, SqlSelect> relation,
@@ -103,7 +103,7 @@ final class RelationTextLowering implements RelationTexts {
                 && grt.isLateBound() && inner.outputs().isEmpty()) {
             // a RAW GRID (executeInDbToTDS): its header and cells from the grid's report, a region per column its
             // result reports (the planner-driver seam program's S3c, 2026-10-30); nothing read at planning
-            return new SqlExpr.ScalarSubquery(gridCsv(inner, renderTdsNull, alias));
+            return new SqlExpr.ScalarSubquery(gridCsv(styled, inner, renderTdsNull, alias));
         }
         // a PIVOT inner whose columns nothing names (or an inner of no columns): its column list exists only once the
         // database is asked -- DEFERRED, and refused by name where it reaches a statement (BodyDriver) until the
@@ -132,7 +132,7 @@ final class RelationTextLowering implements RelationTexts {
                     return t;
                 }).toList();
         return new SqlExpr.ScalarSubquery(
-                csv(inner, relCols, renderTdsNull, alias));
+                csv(styled, inner, relCols, renderTdsNull, alias));
     }
 
     /** The toCSV default-format pair — the zero-arg format fns or their
@@ -160,7 +160,7 @@ final class RelationTextLowering implements RelationTexts {
      * rows joined '\n', '\n' after the header and after the last row. The planner-driver seam program's S3c,
      * 2026-10-30.
      */
-    private static SqlSelect gridCsv(SqlSelect grid, boolean renderTdsNull, String alias) {
+    private static SqlSelect gridCsv(com.legend.lowering.Styled styled, SqlSelect grid, boolean renderTdsNull, String alias) {
         String n = alias + "_n";
         String c = alias + "_c";
         String l = alias + "_l";
@@ -173,7 +173,7 @@ final class RelationTextLowering implements RelationTexts {
                                 SqlExpr.Column.of(n, names.outputs(), SqlSource.GridReport.ORD), true, null, null))),
                         new SqlExpr.StringLit("")), "header",
                         new OutputCol("header", SqlType.Scalar.VARCHAR, false)))));
-        SqlExpr text = cell(SqlExpr.Column.of(c, texts.outputs(), SqlSource.GridReport.VALUE),
+        SqlExpr text = cell(styled, SqlExpr.Column.of(c, texts.outputs(), SqlSource.GridReport.VALUE),
                 new Type.Column(SqlSource.GridReport.VALUE, Type.Primitive.STRING,
                         com.legend.compiler.element.type.Multiplicity.Bounded.ZERO_ONE),
                 SqlType.Scalar.VARCHAR, renderTdsNull);
@@ -202,9 +202,9 @@ final class RelationTextLowering implements RelationTexts {
      *  relation plan. {@code colTypes} are the relation's PURE column
      *  types in output order (dates dispatch by KIND — F5.4: the kind
      *  is a typed fact, never a value sniff). */
-    private static SqlSelect csv(SqlSelect inner, List<Type.Column> relCols,
+    private static SqlSelect csv(com.legend.lowering.Styled styled, SqlSelect inner, List<Type.Column> relCols,
             boolean renderTdsNull, String rowAlias) {
-        return csv(inner, relCols, renderTdsNull, rowAlias, ",", true);
+        return csv(styled, inner, relCols, renderTdsNull, rowAlias, ",", true);
     }
 
     /** The TDS class's {@code csv} property (tds.pure:19) over a relation:
@@ -213,13 +213,13 @@ final class RelationTextLowering implements RelationTexts {
      *  '\n' and NO trailing newline (enumeration golden
      *  testEnumInRelation: {@code 'name, dateOfHire, type, active, firm,
      *  role\nAlice,1983-03-15,CONTRACT,YES,FIRM_A,JUNIOR\n...'}). */
-    static SqlExpr lowerTdsCsvProperty(
+    static SqlExpr lowerTdsCsvProperty(com.legend.lowering.Styled styled,
             com.legend.compiler.spec.typed.TypedPropertyAccess read,
             java.util.function.Function<
                     com.legend.compiler.spec.typed.TypedSpec, SqlSelect> relation,
             String alias) {
         SqlSelect inner = relation.apply(read.source());
-        return new SqlExpr.ScalarSubquery(csv(inner,
+        return new SqlExpr.ScalarSubquery(csv(styled, inner,
                 typedColumns(inner, read.source()), true, alias, ", ", false));
     }
 
@@ -246,7 +246,7 @@ final class RelationTextLowering implements RelationTexts {
     /** {@code headerSep}: the header's name separator (',' for toCSV,
      *  ', ' for the TDS csv property); {@code trailingNewline}: toCSV
      *  ends every row with '\n', the csv property does not. */
-    private static SqlSelect csv(SqlSelect inner, List<Type.Column> relCols,
+    private static SqlSelect csv(com.legend.lowering.Styled styled, SqlSelect inner, List<Type.Column> relCols,
             boolean renderTdsNull, String rowAlias, String headerSep,
             boolean trailingNewline) {
         List<OutputCol> cols = inner.outputs();
@@ -265,11 +265,11 @@ final class RelationTextLowering implements RelationTexts {
             throw new IllegalStateException("toCSV over a zero-column relation");
         }
         // the per-row line: cells joined ','
-        SqlExpr line = cell(SqlExpr.Column.of(rowAlias, cols.get(0)),
+        SqlExpr line = cell(styled, SqlExpr.Column.of(rowAlias, cols.get(0)),
                 relCols.get(0), cols.get(0).type(), renderTdsNull);
         for (int i = 1; i < cols.size(); i++) {
             line = cat(line, new SqlExpr.StringLit(","),
-                    cell(SqlExpr.Column.of(rowAlias, cols.get(i)),
+                    cell(styled, SqlExpr.Column.of(rowAlias, cols.get(i)),
                             relCols.get(i), cols.get(i).type(),
                             renderTdsNull));
         }
@@ -306,7 +306,7 @@ final class RelationTextLowering implements RelationTexts {
     /** The Lowerer's relation-toString dispatch target (engine
      *  toString.pure:19-35): the '#TDS' text form, built by the DB.
      *  typesAndMuls=true stays loud until a demand names it. */
-    static SqlExpr lowerToString(
+    static SqlExpr lowerToString(com.legend.lowering.Styled styled,
             com.legend.compiler.spec.typed.TypedNativeCall tc,
             java.util.function.Function<
                     com.legend.compiler.spec.typed.TypedSpec, SqlSelect> relation,
@@ -360,7 +360,7 @@ final class RelationTextLowering implements RelationTexts {
                     return t;
                 }).toList();
         return new SqlExpr.ScalarSubquery(
-                tdsString(inner, relCols, alias));
+                tdsString(styled, inner, relCols, alias));
     }
 
     /** Whether the select tree contains a PIVOT — static or dynamic:
@@ -394,7 +394,7 @@ final class RelationTextLowering implements RelationTexts {
      *  NULL prints {@code null}, a String containing '{'/'[' quotes
      *  with backslash/quote escaping, everything else is the pure print
      *  form. Header names are typed plan facts (charter clause 1). */
-    private static SqlSelect tdsString(SqlSelect inner, List<Type.Column> relCols,
+    private static SqlSelect tdsString(com.legend.lowering.Styled styled, SqlSelect inner, List<Type.Column> relCols,
             String rowAlias) {
         List<OutputCol> cols = inner.outputs();
         inner = withSortOutputs(inner);
@@ -415,7 +415,7 @@ final class RelationTextLowering implements RelationTexts {
         }
         SqlExpr line = new SqlExpr.StringLit("   ");
         for (int i = 0; i < cols.size(); i++) {
-            SqlExpr c = tdsCell(
+            SqlExpr c = tdsCell(styled,
                     SqlExpr.Column.of(rowAlias, cols.get(i)),
                     relCols.get(i).type(), cols.get(i).type());
             line = i == 0 ? cat(line, c)
@@ -504,7 +504,7 @@ final class RelationTextLowering implements RelationTexts {
                         && slot == SqlType.Scalar.DATE);
     }
 
-    private static SqlExpr tdsCell(SqlExpr c, Type t, SqlType slot) {
+    private static SqlExpr tdsCell(com.legend.lowering.Styled styled, SqlExpr c, Type t, SqlType slot) {
         boolean variant = t instanceof Type.ClassType vc
                 && com.legend.compiler.element.type.PlatformTypes
                         .isVariant(vc);
@@ -513,7 +513,7 @@ final class RelationTextLowering implements RelationTexts {
             rendered = cat(new SqlExpr.StringLit("'"),
                     SqlExpr.Call.of(SqlFn.REPLACE,
                             SqlExpr.Call.of(SqlFn.REPLACE,
-                                    RelationTexts.pureToString(EdgePureOnlyTexts.INSTANCE, PureListTexts.INSTANCE, t, c),
+                                    RelationTexts.pureToString(styled, t, c),
                                     new SqlExpr.StringLit("\\"),
                                     new SqlExpr.StringLit("\\\\")),
                             new SqlExpr.StringLit("'"),
@@ -562,10 +562,10 @@ final class RelationTextLowering implements RelationTexts {
             // witness testMax_Floats/Numbers_Relation_Aggregate).
             // INTEGER slots (an all-int Number column) and the VARCHAR
             // mixed-identity carrier keep their own spellings.
-            rendered = RelationTexts.pureToString(EdgePureOnlyTexts.INSTANCE, PureListTexts.INSTANCE, Type.Primitive.FLOAT,
+            rendered = RelationTexts.pureToString(styled, Type.Primitive.FLOAT,
                     new SqlExpr.Cast(c, SqlType.Scalar.DOUBLE, SqlExpr.Reason.PRINT));
         } else {
-            rendered = RelationTexts.pureToString(EdgePureOnlyTexts.INSTANCE, PureListTexts.INSTANCE, t, c);
+            rendered = RelationTexts.pureToString(styled, t, c);
         }
         return new SqlExpr.Case(List.of(new SqlExpr.Case.When(
                 SqlExpr.Call.of(SqlFn.IS_NULL, c),
@@ -656,13 +656,13 @@ final class RelationTextLowering implements RelationTexts {
      *  appears it gets a SEMANTIC node with dialect strategies, per
      *  CARRIER_REDESIGN.md tenet #1. The named residue is
      *  docs/CSV_DIFFERENTIAL.md mechanism 3.) */
-    private static SqlExpr cell(SqlExpr c, Type.Column col,
+    private static SqlExpr cell(com.legend.lowering.Styled styled, SqlExpr c, Type.Column col,
             SqlType slot, boolean renderTdsNull) {
         Type t = col.type();
         SqlExpr rendered;
         if (slot instanceof SqlType.Tagged tg) {
             // a mixed selection's winner: the slot the tag names, its cell by its own kind
-            return perSlot(c, tg, (ref, kind, st) -> cell(ref,
+            return perSlot(c, tg, (ref, kind, st) -> cell(styled, ref,
                     new Type.Column(col.name(), kind, col.multiplicity()), st, renderTdsNull));
         }
         if (dateKind(t) && textSlot(slot)) {
@@ -690,7 +690,7 @@ final class RelationTextLowering implements RelationTexts {
             // 'yyyy-MM-dd HH:mm:ss', the fraction dropped: docs/OUTPUT_LAYER_DESIGN_2026_10_10.md §3, gap 4)
             rendered = dateTimeText(c);
         } else {
-            rendered = escapeCsv(RelationTexts.pureToString(EdgePureOnlyTexts.INSTANCE, PureListTexts.INSTANCE, t, c));
+            rendered = escapeCsv(RelationTexts.pureToString(styled, t, c));
         }
         return new SqlExpr.Case(List.of(new SqlExpr.Case.When(
                 SqlExpr.Call.of(SqlFn.IS_NULL, c),

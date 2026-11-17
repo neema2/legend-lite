@@ -66,6 +66,10 @@ class CompatSpellingGuardTest {
             // K8: legend-engine's compile and server sentences (D1.6; the query store's at pure/v1, D1.8)
             "Can't find ", "Invalid supertype", "arguments count (", "variables count (",
             "Missing external parameter(s)",
+            // 2026-11-17, J10 of the edge audit: legend-engine's and legend-pure's model sentences, raised as compile
+            // kinds (CompileKind.DUPLICATE_ELEMENT ... MISSING_STORE_TABLE) and worded at the edge; listed with no row
+            "Duplicated class mappings", "Duplicated mapping include", "Duplicated element", "Found duplicated ",
+            "can't be found", "Default values are supported only",
             // legend-pure's match failure (W7 of docs/records/d-plan-2026-11-16.md, 2026-11-16: raised as a kind,
             // MATCH_FAILURE, its sentence the edge's); its collection offset sentence is listed with K1 above (the P2
             // checkpoint audit's S6, 2026-11-16: it was listed twice)
@@ -117,12 +121,6 @@ class CompatSpellingGuardTest {
             "RULED",  // a row the USER RULED stays, its ruling and evidence beside it (U5, 2026-11-15/16: a surviving row
                       // shows who calls it and what breaks without it; added 2026-11-16 with the P2 checkpoint audit's A-M1)
             "STAYS"); // a product semantic sharing the spelling: lowering/DateFormats.java's pattern letter Z is +0000
-
-    /** The steps that keep a row out of the edge census's count: ONE predicate, read by
-     *  {@code EdgeSeparationTest.everyOpenCompatRowIsCounted} and pinned, with each terminal row beside its ruling, by
-     *  {@code TerminalRowsFrozenTest} (the GUARD stream, 2026-11-17, the edge audit's C.2: a second copy of this set
-     *  could be widened to close rows by redefinition). */
-    static final Set<String> TERMINAL_STEPS = Set.of("STAYS", "RULED", "HOOK-RULED");
 
     /**
      * Every hit standing today, "file | spelling | count | step"; the file is under {@code core/src/main/java/com/legend/}
@@ -271,7 +269,8 @@ class CompatSpellingGuardTest {
             // JUDGE, now B12's (2026-11-17, census C5's step C): the judges' canon no longer emits the node; its last
             // product emitter, format's %r (Scalars), refused in the product by B12's 2b (F's, 2026-11-17): the edge's
             // DateTime texts write it now
-            "sql/dialect/DateTimePrintText.java | +0000 | 2 | JUDGE",
+            // (sql/dialect/DateTimePrintText.java | +0000: gone 2026-11-17 with the class, census B12 -- legend-pure's
+            // DateTime print the edge's composition, edge.PureDateTimePrint)
             // RULED by the user, 2026-11-16, the edge program §10 item 9 ("I agree with all"): it stays in the product
             // (the P2 checkpoint audit's A-M1; W6's change, 4fc24e0a3, reverted the same day). The product's H2 quotes legend-engine's word list as written, upper-casing the words its session
             // frees (NON_KEYWORDS), and that decides WHICH COLUMN a declared name reads in H2 data made legend-engine's
@@ -300,7 +299,8 @@ class CompatSpellingGuardTest {
             // 2026-11-16 (W8 of docs/records/d-plan-2026-11-16.md): legend-pure's toRepresentation of a date, the judges'
             // own printer (Verdicts.pureText), which PureDateLiteral's toString was until then; with the judges' print
             // forms at W10
-            "testexecutionplan/Verdicts.java | +0000 | 1 | D1.9",
+            // testexecutionplan/Verdicts.java | +0000 gone (2026-11-17, census C5's row, E-Java last: Verdicts.repr and
+            // pureText deleted -- legend-pure's date text the edge's UpstreamDateLiteralTexts)
             // (testplan/AgreementAsserts.java | EngineText went: 2026-11-17, (b) of the orchestrator's order: the fused agreement path deleted)
             // (BodyDriver's EngineText row gone, 2026-11-16, W9's judge half: the style's engineTestText,
             // engineTestPlanText and engineTestConnection name the engine test database, the planner none)
@@ -330,7 +330,8 @@ class CompatSpellingGuardTest {
             // TDSNull as the judges' text (E-Java, Phase 4b: census B10/C5)
             // 5 -> 4, D1.9 -> STAYS (2026-11-17, census C5's step C, C-2): an expected ^TDSNull(), a written 'TDSNull'
             // cell and a golden's null cell are a typed TypedNullCell; what stays reads that written text as INPUT
-            "compiler/spec/VerdictQueries.java | TDSNull | 1 | STAYS",   // 4 -> 1 (2026-11-17, census C1: the golden's TDSNull word read by the edge's UpstreamGoldenNullWord, the dead grid branch gone; tdsNullSentinel's stays)
+            // 4 -> 1 (2026-11-17, census C1: the golden's TDSNull word read by the edge's UpstreamGoldenNullWord, the dead
+            // grid branch gone); 1 -> 0 (2026-11-17, C-2's corpus fix: tdsNullSentinel reads no written 'TDSNull')
             // (lowering/Render.java | TDSNull | D1.3: gone 2026-11-17, census B17 -- a relation's text moved to the edge,
             // edge.RelationTextLowering)
             // the judges' compatibility mode's branches (E-Java, census C1)

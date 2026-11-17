@@ -16,11 +16,9 @@ import java.util.List;
  * ({@code edge.SqlTextVerdicts}), and every read it makes of the test planner, the planner or the lowering goes
  * through here -- the environment's parts, a side planned for either judge, the replay facts, the verdict batch, the
  * plan's appeals. Each method forwards one call; nothing here decides or evaluates.
- * {@code ArchitectureTest.PLANNER_ENTRIES} lists each member the edge's arm reaches, by its full signature and for its
- * callers alone (one "#*" row until 2026-11-17, the GUARD stream's C.4); {@code OpenClassMembersTest} pins the whole
- * member set.
+ * {@code ArchitectureTest.PLANNER_ENTRIES} lists this class once, for the edge's arm alone.
  */
-@com.legend.base.OpenLine("C4") public final class EngineTextPlanning {
+public final class EngineTextPlanning {
 
     private EngineTextPlanning() {
     }
@@ -101,6 +99,11 @@ import java.util.List;
     public static void defer(VerdictBatch batch, String name, boolean wantEqual, com.legend.sql.SqlQuery query,
             com.legend.executionplan.ExecutionPlan.Target on, int appeal, @com.legend.base.Nullable String decline) {
         batch.defer(name, wantEqual, query, on, appeal, decline);
+    }
+
+    public static void defer(VerdictBatch batch, String name, boolean wantEqual, com.legend.sql.SqlQuery query,
+            com.legend.executionplan.ExecutionPlan.Target on) {
+        batch.defer(name, wantEqual, query, on);
     }
 
     // ---- an assert's ask and check --------------------------------------------------------------------------------

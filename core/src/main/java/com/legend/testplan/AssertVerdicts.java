@@ -3,7 +3,6 @@
 
 package com.legend.testplan;
 
-import com.legend.compiler.spec.GoldenNullWord;
 import com.legend.testexecutionplan.Failure;
 
 import static com.legend.testexecutionplan.Verdicts.ok;
@@ -1959,7 +1958,8 @@ public final class AssertVerdicts {
             }
         }
         var parsed = com.legend.compiler.spec.VerdictQueries.parseRendered(text, r.grammar(), schema, r.grid() ? null
-                : r.value().info().type(), env.options().style().twoForm(GoldenNullWord.class, GoldenNullWord.Product.NONE));
+                : r.value().info().type(), env.options().style().twoForm(com.legend.compiler.spec.GoldenNullWord.class,
+                        com.legend.compiler.spec.LiteGoldenNullWord.NONE));
         if (parsed.headerMismatch()) {
             com.legend.diagnostics.VerdictCensus.sqlJudgedInDatabase(name);
             return fail(name + ": " + parsed.reason());   // a static verdict
@@ -1983,7 +1983,7 @@ public final class AssertVerdicts {
     private static TypedSide textFirst(String name, boolean wantEqual, com.legend.sql.@com.legend.base.Nullable SqlQuery textRow,
             BodyDriver.ExecEnv env, java.util.function.Supplier<TypedSide> rows) {
         // the style decides (census C1, the orchestrator's ruling of 2026-11-17), never the rules
-        if (!env.options().style().twoForm(RenderedTextRule.class, RenderedTextRule.Product.STRINGS).ruledWhereTheyDiffer()) {
+        if (!env.options().style().twoForm(RenderedTextRule.class, LiteRenderedTextRule.STRINGS).ruledWhereTheyDiffer()) {
             // clean mode (the user, 2026-11-05: after a verdict the harness may only explain): the two strings are the
             // verdict; the ruled row comparison is the edge's alone
             return textRow == null

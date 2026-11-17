@@ -300,7 +300,7 @@ public final class DatabaseJudge {
         com.legend.lowering.Styled styled = env.plan().styled();
         // a date literal's text the style's (census C1, 2026-11-17): lite's own, or legend-pure's at the edge
         com.legend.lowering.VerdictSql.Message m = written(r, i, sorted, plan, side, styled,
-                env.options().style().twoForm(DateLiteralTexts.class, DateLiteralTexts.Product.LITE));
+                env.options().style().twoForm(DateLiteralTexts.class, LiteDateLiteralTexts.LITE));
         if (!lite(env)) {
             return m;
         }
@@ -370,7 +370,7 @@ public final class DatabaseJudge {
 
     /** How the plan's style compares two numbers of different fine kinds (register S127; census C1, 2026-11-17). */
     private static CrossKindNumbers numbers(BodyDriver.ExecEnv env) {
-        return env.options().style().twoForm(CrossKindNumbers.class, CrossKindNumbers.Product.NEVER);
+        return env.options().style().twoForm(CrossKindNumbers.class, LiteCrossKindNumbers.NEVER);
     }
 
     /** {@code kind}'s fine number kind -- Integer, Float, Decimal (a declared precision one's too) -- or null. */

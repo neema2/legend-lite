@@ -261,28 +261,28 @@ class HookRulingTest {
                 com.legend.compiler.spec.RelationCountAsserts.REFUSED) == com.legend.edge.UpstreamRelationCounting.INSTANCE,
                 "the edge counts a relation as upstream does");
         assertTrue(PlanStyle.PRODUCT.twoForm(com.legend.testplan.CrossKindNumbers.class,
-                com.legend.testplan.CrossKindNumbers.Product.NEVER) == com.legend.testplan.CrossKindNumbers.Product.NEVER,
+                com.legend.testplan.LiteCrossKindNumbers.NEVER) == com.legend.testplan.LiteCrossKindNumbers.NEVER,
                 "the product never equals two number kinds");
         assertTrue(com.legend.edge.PureText.UPSTREAM.twoForm(com.legend.testplan.CrossKindNumbers.class,
-                com.legend.testplan.CrossKindNumbers.Product.NEVER) == com.legend.edge.CompiledPureNumbers.INSTANCE,
+                com.legend.testplan.LiteCrossKindNumbers.NEVER) == com.legend.edge.CompiledPureNumbers.INSTANCE,
                 "the edge equals an Integer and a Decimal as compiled legend-pure does");
         assertTrue(PlanStyle.PRODUCT.twoForm(com.legend.testplan.RenderedTextRule.class,
-                com.legend.testplan.RenderedTextRule.Product.STRINGS)
-                == com.legend.testplan.RenderedTextRule.Product.STRINGS, "the product's two strings are the verdict");
+                com.legend.testplan.LiteRenderedTextRule.STRINGS)
+                == com.legend.testplan.LiteRenderedTextRule.STRINGS, "the product's two strings are the verdict");
         assertTrue(com.legend.edge.PureText.UPSTREAM.twoForm(com.legend.testplan.RenderedTextRule.class,
-                com.legend.testplan.RenderedTextRule.Product.STRINGS)
+                com.legend.testplan.LiteRenderedTextRule.STRINGS)
                 == com.legend.edge.UpstreamRenderedTextRule.INSTANCE,
                 "the edge plans upstream's ruled comparison where the strings differ");
         assertEquals("2020-01-02", PlanStyle.PRODUCT.twoForm(com.legend.testplan.DateLiteralTexts.class,
-                com.legend.testplan.DateLiteralTexts.Product.LITE).text(com.legend.values.PureDateLiteral.parse("2020-01-02")),
+                com.legend.testplan.LiteDateLiteralTexts.LITE).text(com.legend.values.PureDateLiteral.parse("2020-01-02")),
                 "the product writes lite's date text");
         assertEquals("%2020-01-02", com.legend.edge.PureText.UPSTREAM.twoForm(com.legend.testplan.DateLiteralTexts.class,
-                com.legend.testplan.DateLiteralTexts.Product.LITE).text(com.legend.values.PureDateLiteral.parse("2020-01-02")),
+                com.legend.testplan.LiteDateLiteralTexts.LITE).text(com.legend.values.PureDateLiteral.parse("2020-01-02")),
                 "the edge writes legend-pure's");
         assertFalse(PlanStyle.PRODUCT.twoForm(com.legend.compiler.spec.GoldenNullWord.class,
-                com.legend.compiler.spec.GoldenNullWord.Product.NONE).isNullWord("TDSNull"), "the product reads no TDSNull");
+                com.legend.compiler.spec.LiteGoldenNullWord.NONE).isNullWord("TDSNull"), "the product reads no TDSNull");
         assertTrue(com.legend.edge.PureText.UPSTREAM.twoForm(com.legend.compiler.spec.GoldenNullWord.class,
-                com.legend.compiler.spec.GoldenNullWord.Product.NONE).isNullWord("TDSNull"), "the edge reads upstream's");
+                com.legend.compiler.spec.LiteGoldenNullWord.NONE).isNullWord("TDSNull"), "the edge reads upstream's");
         // Printing's members (J7/K12 of the edge audit, 2026-11-17): the product answers lite's form; the edge its own,
         // the server routes' rules a third form of the edge's (edge.TestDataRoutes.ROUTE), never a boolean in the product
         assertTrue(PlanStyle.PRODUCT.twoForm(com.legend.testdatagen.TestDataPlanner.Printing.class,
@@ -296,11 +296,11 @@ class HookRulingTest {
         assertTrue(com.legend.edge.TestDataRoutes.ROUTE.getClass().getPackageName().equals("com.legend.edge"),
                 "the server routes' form is the edge's");
         assertTrue(PlanStyle.PRODUCT.twoForm(com.legend.lowering.LoweringForms.class,
-                com.legend.lowering.LoweringForms.PRODUCT) == com.legend.lowering.LoweringForms.PRODUCT,
+                com.legend.lowering.ProductLoweringForms.INSTANCE) == com.legend.lowering.ProductLoweringForms.INSTANCE,
                 "the product lowers in its own forms");
         Object edgeForms = com.legend.edge.PureText.UPSTREAM.twoForm(com.legend.lowering.LoweringForms.class,
-                com.legend.lowering.LoweringForms.PRODUCT);
-        assertTrue(edgeForms != com.legend.lowering.LoweringForms.PRODUCT
+                com.legend.lowering.ProductLoweringForms.INSTANCE);
+        assertTrue(edgeForms != com.legend.lowering.ProductLoweringForms.INSTANCE
                 && edgeForms.getClass().getPackageName().equals("com.legend.edge"),
                 "the edge answers its own lowering forms: " + edgeForms.getClass());
         Runnable productForm = () -> { };
@@ -325,9 +325,9 @@ class HookRulingTest {
         assertTrue(new com.legend.edge.CompatEdge(new com.legend.edge.RawLedger.Recorder(),
                 com.legend.executionplan.DataStores.none()).records(), "the edge's recorder records the ledger");
         assertTrue(com.legend.testexec.NoEdgeRun.NONE.wordsAlike(), "lite's judges write alike");
-        assertTrue(productHearing().renderedTexts() == com.legend.testexec.RenderedTexts.Product.STRINGS,
+        assertTrue(productHearing().renderedTexts() == com.legend.testexec.LiteRenderedTexts.STRINGS,
                 "lite's runs hold two differing strings as differing");
-        assertTrue(productHearing().hostForms() == com.legend.testexec.HostForms.Product.STRICT,
+        assertTrue(productHearing().hostForms() == com.legend.testexec.LiteHostForms.STRICT,
                 "lite's runs never equal two number kinds");
         assertFalse(com.legend.edge.AppealRun.with(null).wordsAlike(), "the edge's words are the host's alone");
         assertTrue(com.legend.ExecuteOptions.NONE.edge() == com.legend.testexecutionplan.NoEdge.NONE,
@@ -356,7 +356,7 @@ class HookRulingTest {
         TreeSet<String> outsideTheEdge = new TreeSet<>();
         for (JavaClass c : all) {
             if (!c.isInterface() && c.isAssignableTo(PlanStyle.class.getName())
-                    && !inEdge(c.getPackageName())) {
+                    && !c.getPackageName().startsWith("com.legend.edge")) {
                 outsideTheEdge.add(c.getName());
             }
         }
@@ -392,7 +392,7 @@ class HookRulingTest {
             for (JavaClass c : all) {
                 if (!c.getName().equals(hook.getName()) && c.isAssignableTo(hook.getName())
                         && !PRODUCT_REFUSALS.contains(c.getName())) {
-                    assertTrue(inEdge(c.getPackageName()),
+                    assertTrue(c.getPackageName().startsWith("com.legend.edge"),
                             c.getName() + " implements " + hook.getName() + " outside the edge");
                     implementers.add(hook.getSimpleName() + " <- " + c.getName());
                 }
@@ -450,7 +450,7 @@ class HookRulingTest {
                     continue;
                 }
                 if (c.getMethods().stream().anyMatch(m -> m.getOwner().equals(c) && m.getName().equals(name))) {
-                    assertTrue(inEdge(c.getPackageName()),
+                    assertTrue(c.getPackageName().startsWith("com.legend.edge"),
                             c.getName() + " overrides the spelling hook " + name + " outside the edge");
                     overriders.add(name + " <- " + c.getName());
                 }
@@ -496,12 +496,6 @@ class HookRulingTest {
         return NONE;
     }
 
-    /** Whether {@code pkg} is the edge's package or one under it -- its prefix with its dot (the GUARD stream's C.14,
-     *  2026-11-17: "com.legend.edgecase" is no edge). */
-    private static boolean inEdge(String pkg) {
-        return pkg.equals("com.legend.edge") || pkg.startsWith("com.legend.edge.");
-    }
-
     private static JavaClasses classes(String... properties) {
         List<java.util.jar.JarFile> jars = new java.util.ArrayList<>();
         try {
@@ -519,7 +513,7 @@ class HookRulingTest {
     /** The raises {@code style}'s lowering forms write plain ({@code LoweringForms#raise}), asked kind by kind. */
     private static java.util.Set<com.legend.sql.RaiseKind> plainOf(PlanStyle style) {
         com.legend.lowering.LoweringForms forms = style.twoForm(com.legend.lowering.LoweringForms.class,
-                com.legend.lowering.LoweringForms.PRODUCT);
+                com.legend.lowering.ProductLoweringForms.INSTANCE);
         com.legend.sql.SqlExpr checked = new com.legend.sql.SqlExpr.StringLit("checked");
         com.legend.sql.SqlExpr plain = new com.legend.sql.SqlExpr.StringLit("plain");
         java.util.Set<com.legend.sql.RaiseKind> out = java.util.EnumSet.noneOf(com.legend.sql.RaiseKind.class);

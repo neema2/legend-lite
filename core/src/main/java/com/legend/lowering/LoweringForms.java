@@ -43,28 +43,4 @@ public interface LoweringForms {
     /** The root of an engine {@code execute(...)}'s serialized values: lite's array ({@code array}), or one object bare
      *  and zero or several as the array ({@code oneBare}, legend-engine's JsonBuilder cardinality rule). */
     SqlSelect executeValues(Supplier<SqlSelect> array, Supplier<SqlSelect> oneBare);
-
-    /** The product's forms: every check written, a view flat, a wire coercion's cast written, an execute's values the
-     *  array. */
-    LoweringForms PRODUCT = new LoweringForms() {
-        @Override
-        public SqlExpr raise(RaiseKind kind, Supplier<SqlExpr> checked, SqlExpr plain) {
-            return checked.get();
-        }
-
-        @Override
-        public SqlSelect view(SqlSelect body, Supplier<String> alias, String view) {
-            return body;
-        }
-
-        @Override
-        public SqlExpr wireCast(SqlExpr value, Supplier<SqlExpr> written) {
-            return written.get();
-        }
-
-        @Override
-        public SqlSelect executeValues(Supplier<SqlSelect> array, Supplier<SqlSelect> oneBare) {
-            return array.get();
-        }
-    };
 }

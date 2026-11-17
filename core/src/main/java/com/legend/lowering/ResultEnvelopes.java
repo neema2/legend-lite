@@ -16,7 +16,7 @@ import java.util.List;
  * for this facet only when it meets one, carrying the call's own refusal. A hook of signatures only: its parts are the
  * product's (names, types' simple names, cells, the activity's SQL), its envelope the edge's.
  */
-@com.legend.base.OpenLine("B5") public interface ResultEnvelopes {
+public interface ResultEnvelopes {
 
     /** A relation root's envelope: its columns' {@code names} and their types' simple {@code typeNames}, each row's
      *  {@code cells} (in column order, read over the rows' alias), the activity's SQL or null. */

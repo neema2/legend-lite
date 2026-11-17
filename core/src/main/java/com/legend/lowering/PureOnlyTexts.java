@@ -12,7 +12,7 @@ import com.legend.sql.SqlExpr;
  * refuses each by name at lowering, with the call's own refusal ({@link TextRefusals}). A hook (HookRulingTest):
  * signatures only.
  */
-@com.legend.base.OpenLine("B8") public interface PureOnlyTexts {
+public interface PureOnlyTexts {
 
     /** {@code format}'s {@code %0<width>d} of {@code value}: legend-pure pads the digits, then signs. */
     SqlExpr formatPadded(SqlExpr value, SqlExpr.IntLit width);
