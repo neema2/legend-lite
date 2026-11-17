@@ -13,7 +13,7 @@
  */
 
 import { QueryError } from './engine.ts';
-import { declaredSites, type Site } from './declared-raises.ts';
+import { declaredSites } from './declared-raises.ts';
 import { RAISE } from './generated/lite-raise.ts';
 
 /** A product raise a plan's statement made: its kind, its where (a fixed text known at planning, or none), and its
@@ -36,12 +36,10 @@ export class PlanRaise extends QueryError {
  *  (exec.RaisedErrors, error.DataError). A QueryError, as every failure of a send is. */
 export class DatabaseError extends QueryError {
   readonly kind = 'DATABASE_ERROR';
-  readonly databaseMessage: string;
 
-  constructor(message: string, sql: string, options?: { cause?: unknown }) {
-    super(message, sql, options);
-    this.name = 'DatabaseError';
-    this.databaseMessage = message;
+  /** The database's own words, verbatim: the message itself. */
+  get databaseMessage(): string {
+    return this.message;
   }
 }
 
@@ -60,11 +58,6 @@ export function raiseIn(message: string): { readonly site?: number; readonly tex
   return { site: Number(digits), text: inner };
 }
 
-/** The site `n` of `sites`, or undefined. */
-function siteNumbered(sites: readonly Site[] | undefined, n: number): Site | undefined {
-  return sites === undefined ? undefined : sites[n - 1];
-}
-
 /**
  * A send's failure (`message`, the database's words, already redacted) as the error the tab throws: a site's token
  * its planned words (a PlanRaise), any other raised text (a user's `fail` message) that text, a database's own error
@@ -78,10 +71,7 @@ export function failure(message: string, sql: string, options: { cause?: unknown
   if (raise.site === undefined) return new QueryError(raise.text, sql, options);
   // read through the sites the plans the tab read declare for this statement (declared-raises.ts), never a table of
   // its own
-  const sites = declaredSites(sql);
-  const site = siteNumbered(sites, raise.site);
-  if (site === undefined) {
-    return new QueryError(`the database raised ${raise.text}, which the statement does not declare (it declares ${(sites ?? []).map((s) => `${RAISE.TOKEN}${s.n} ${s.kind}`).join(', ') || 'none'})`, sql, options);
-  }
+  const site = declaredSites(sql)?.[raise.site - 1];
+  if (!site) return new QueryError(`the database raised ${raise.text}, which the statement does not declare`, sql, options);
   return new PlanRaise(site.kind, site.upstream ?? site.message, site.where ?? undefined, sql, options);
 }

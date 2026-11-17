@@ -933,7 +933,7 @@ channel_a	Databricks	meta::pure::functions::string::toUpperFirstCharacter_String
 channel_a	Databricks	meta::pure::functions::string::toUpper_String_1__String_1_	2	62	2716	0	0	0
 channel_a	Databricks	meta::pure::functions::string::trim_String_1__String_1_	2	100	2792	0	0	0
 channel_a	Databricks	user	16	2684	56509	0	655	0
-channel_a	DuckDB	TypedAggregate	4	526	12523	0	0	0
+channel_a	DuckDB	TypedAggregate	4	526	12351	0	0	0
 channel_a	DuckDB	TypedAsOfJoin	4	3438	40462	0	0	0
 channel_a	DuckDB	TypedCast	2	896	16296	2	26	0
 channel_a	DuckDB	TypedCollectionRelation	4	6098	15631	0	3264	0
