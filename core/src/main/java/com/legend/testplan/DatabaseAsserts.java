@@ -477,7 +477,7 @@ final class DatabaseAsserts implements TestDoor.Asserts {
             raises = true;
         }
         ExecutionPlan.Node wrapper = JudgePlans.rowsPlan(com.legend.lowering.VerdictSql.assertError(ae.expected(),
-                ae.line(), ae.column(), raised), com.legend.lowering.VerdictSql.schema(), env);
+                ae.line(), ae.column(), raised, DatabaseJudge.lite(env)), com.legend.lowering.VerdictSql.schema(), env);
         // the host's verdict rebuilt as the raising one: the same verdict, so the same id
         TestPlan.Verdict v = new TestPlan.Verdict(step.verdict().id(), step.verdict().name(),
                 step.verdict().arm(), base, wrapper,

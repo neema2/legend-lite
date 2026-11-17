@@ -114,7 +114,8 @@ final class IsolatedRun {
             Heard d = i < database.verdicts.size() ? database.verdicts.get(i) : null;
             if (!Objects.equals(h, d)) {
                 return "the judges disagree at assert " + i + ": host " + describe(h) + "; database " + describe(d)
-                        + notes(database);
+                        + (h == null ? " (host's run " + quote(host.ending()) + ")" : "")
+                        + (d == null ? " (database's run " + quote(database.ending()) + ")" : "") + notes(database);
             }
         }
         if (!host.ending().equals(database.ending())) {

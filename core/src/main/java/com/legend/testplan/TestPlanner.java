@@ -33,6 +33,12 @@ public final class TestPlanner {
      *  runtime's dialect chosen, an unread let made the statement it binds (the user's ruling, 2026-11-02), then
      *  {@link #plan(TypedQuery, String, SqlDialect, PlanningOptions)}. */
     public static TestPlan plan(TypedQuery typed, @Nullable String given, PlanningOptions options) {
+        if (options.judgeMode() == PlanningOptions.JudgeMode.BOTH
+                && options.judgingRules() == com.legend.testexecutionplan.TestPlan.JudgingRules.LITE) {
+            // both judges ISOLATED under lite's own rules (the user's judge model, 2026-11-17): each plans the body
+            // alone; the compatibility rules keep the fused agreement until PCT runs the host alone (step 4)
+            return planIsolated(typed, given, options);
+        }
         // the body's facts over the body as given, BEFORE any rewrite below (the generator's planning, the unread lets
         // made statements, the lift): the record the test door's facts state, carried by the plan (the C5-J audit's
         // SHOULD 1, 2026-11-15: until then stated over the rewritten body, so an unread let or a generator's effect
@@ -67,8 +73,8 @@ public final class TestPlanner {
     /**
      * BOTH JUDGES, ISOLATED (the user's judge model, 2026-11-17; (b')): the body planned by each judge alone, exactly as
      * that judge plans it by itself, the two plans held by one step at which the runner compares their verdicts and
-     * messages. Neither plan sees the other: no host column in a database statement, no fused agreement. Not yet the
-     * planner's answer under BOTH: the runner's half lands first.
+     * messages. Neither plan sees the other: no host column in a database statement, no fused agreement. The planner's
+     * answer under BOTH with lite's own rules.
      */
     static TestPlan planIsolated(TypedQuery typed, @Nullable String given, PlanningOptions options) {
         TestPlan host = plan(typed, given, options.withJudgeMode(PlanningOptions.JudgeMode.HOST));

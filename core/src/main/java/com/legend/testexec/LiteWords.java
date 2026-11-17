@@ -34,8 +34,19 @@ public final class LiteWords {
     /** One value's text in a message. */
     public static String value(@Nullable Object v, @Nullable String instanceClass) {
         if (v instanceof Map<?, ?> m) {
+            // its id, or (an instance with none) its values in order, '|'-joined, each written as a value is
             String id = com.legend.testexecutionplan.Verdicts.wireId(v);
-            return "<" + (instanceClass == null ? "?" : instanceClass) + (id == null ? "" : " " + id) + ">";
+            if (id == null) {
+                StringBuilder sb = new StringBuilder();
+                for (Object field : m.values()) {
+                    if (sb.length() > 0) {
+                        sb.append('|');
+                    }
+                    sb.append(value(field));
+                }
+                id = sb.toString();
+            }
+            return "<" + (instanceClass == null ? "?" : instanceClass) + " " + id + ">";
         }
         return switch (v) {
             case null -> "[]";

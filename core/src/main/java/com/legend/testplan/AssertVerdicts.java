@@ -1442,6 +1442,13 @@ public final class AssertVerdicts {
         return marks.size() <= 1;
     }
 
+    /** A condition's failure text with no message of the caller's: lite's sentence ("expected true, got false") under
+     *  lite's own rules, legend-pure's "Assert failed" under the compatibility rules -- both judges read it. */
+    static String defaultConditionMessage(boolean wantTrue, BodyDriver.ExecEnv env) {
+        return DatabaseJudge.lite(env) ? com.legend.lowering.VerdictSql.sentence(wantTrue
+                ? com.legend.error.AssertSentence.TRUE : com.legend.error.AssertSentence.FALSE) : "Assert failed";
+    }
+
     /** The unroll's elements as ONE host assert under the statement's name and no family: every element's asks in
      *  order, judged by {@link HostJudgment.Unrolled} element by element (each entered and counted there). */
     static HostAssert composite(TypedSpec bare, UnrollPlan unroll) {
@@ -1496,7 +1503,7 @@ public final class AssertVerdicts {
         if (sh.simplePredicate()) {
             List<TypedSpec> aargs = com.legend.compiler.spec.typed.Calls.argsOf(sh.root());
             String msg = aargs.size() >= 2 && aargs.get(1) instanceof com.legend.compiler.spec.typed.TypedCString cs
-                    ? cs.value() : "Assert failed";
+                    ? cs.value() : defaultConditionMessage(family == NativeFn.Verdict.ASSERT, env);
             TypedSpec predMap = com.legend.compiler.spec.VerdictQueries.predicateVector(qm, sh.lam(), aargs.get(0));
             boolean truth = family == NativeFn.Verdict.ASSERT;
             // the family the walk's arm fetched under was the root's FQN, and it counted no family at all (its census
@@ -1558,7 +1565,7 @@ public final class AssertVerdicts {
         String msg = aargs.size() >= 2
                 && aargs.get(1) instanceof
                         com.legend.compiler.spec.typed.TypedCString cs
-                ? cs.value() : "Assert failed";
+                ? cs.value() : defaultConditionMessage(fqn.endsWith("::assert"), env);
         if (aargs.size() >= 2 && !(aargs.get(1) instanceof
                 com.legend.compiler.spec.typed.TypedCString)) {
             throw new com.legend.error.NotImplementedException(

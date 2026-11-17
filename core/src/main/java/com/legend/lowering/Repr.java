@@ -113,4 +113,35 @@ final class Repr {
         return Scalars.cat(new SqlExpr.StringLit("'"), escaped,
                 new SqlExpr.StringLit("'"));
     }
+
+    /** A value's text in an assert's message under LITE'S OWN RULES (the user's judge model, 2026-11-17: the host
+     *  judge's {@code testexec.LiteWords.value} in SQL, the two judges one text): a String quoted JSON-style (a
+     *  backslash, a quote, a newline, a tab and a carriage return escaped); a Float its product text (S311,
+     *  {@code FLOAT_TO_TEXT}); a DateTime ISO 8601 in UTC, six fraction digits and Z (S312, {@code DATETIME_TO_TEXT});
+     *  a date its day; a Decimal its plain digits ({@code DECIMAL_TO_TEXT}); every other primitive its toString. */
+    static SqlExpr lite(Type t, SqlExpr x) {
+        if (t == Type.Primitive.STRING) {
+            SqlExpr esc = new SqlExpr.Cast(x, SqlType.Scalar.VARCHAR, SqlExpr.Reason.JUDGE);
+            String[][] pairs = {{"\\", "\\\\"}, {"\"", "\\\""}, {"\n", "\\n"}, {"\t", "\\t"},
+                    {"\r", "\\r"}};
+            for (String[] p : pairs) {
+                esc = SqlExpr.Call.of(SqlFn.REPLACE, esc, new SqlExpr.StringLit(p[0]), new SqlExpr.StringLit(p[1]));
+            }
+            return Scalars.cat(new SqlExpr.StringLit("\""), Scalars.cat(esc, new SqlExpr.StringLit("\"")));
+        }
+        if (t == Type.Primitive.DATE_TIME) {
+            // a value carried as its text (a literal's channel) read as the timestamp it names first
+            boolean timestamp = x.type() instanceof com.legend.sql.TypeFact.Typed ty
+                    && (ty.type() == SqlType.Scalar.TIMESTAMP || ty.type() == SqlType.Scalar.TIMESTAMPTZ);
+            return SqlExpr.Call.of(SqlFn.DATETIME_TO_TEXT, timestamp ? x
+                    : new SqlExpr.Cast(x, SqlType.Scalar.TIMESTAMP, SqlExpr.Reason.JUDGE));
+        }
+        if (t == Type.Primitive.STRICT_DATE || t == Type.Primitive.DATE) {
+            return new SqlExpr.Cast(x, SqlType.Scalar.VARCHAR, SqlExpr.Reason.JUDGE);
+        }
+        if (t instanceof Type.PrecisionDecimal) {
+            return Scalars.pureToString(Type.Primitive.DECIMAL, x);
+        }
+        return Scalars.pureToString(t, x);
+    }
 }
