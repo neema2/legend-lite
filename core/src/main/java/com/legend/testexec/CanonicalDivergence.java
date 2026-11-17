@@ -79,7 +79,7 @@ public final class CanonicalDivergence {
     /** R1b — the GRID channel (toCSV text verdicts): the actual side is
      * ALREADY the platform's SQL-side render (Render = engine toCSV,
      * H3 headline), so the byte answer is plain string equality; the
-     * census measures how often TdsCompare.renderedText's KEPT
+     * census measures how often edge.UpstreamRenderedTexts's KEPT
      * leniencies (row multiset, bounded float tolerance) do work the
      * byte channel would refuse. */
     public static void probeGridText(String expected, String actual,

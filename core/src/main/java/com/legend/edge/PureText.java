@@ -99,6 +99,10 @@ public final class PureText {
             if (kind == com.legend.lowering.DateTimeTexts.class) {
                 return kind.cast(EdgeDateTimeTexts.INSTANCE);
             }
+            if (kind == com.legend.testplan.RenderedTextRule.class) {
+                // upstream's ruled rendered-text comparison where the strings differ (S131, S132; census C1)
+                return kind.cast(UpstreamRenderedTextRule.INSTANCE);
+            }
             if (kind == com.legend.testplan.CrossKindNumbers.class) {
                 // compiled legend-pure's number equality across kinds (S127; census C1)
                 return kind.cast(CompiledPureNumbers.INSTANCE);

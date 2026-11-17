@@ -434,20 +434,6 @@ public record TestPlan(List<ExecutionPlan.Parameter> parameters, List<TestStep> 
             return upstream;
         }
 
-        /** Whether an Integer and a Decimal are equal by their texts ({@code 1D == 1}): compiled legend-pure's
-         *  {@code CompiledSupport.eq(Number, Number)}, compatibility mode's alone; lite's kinds never equal across
-         *  (S127, the user's ruling of 2026-11-04). */
-        public boolean integerDecimalByText() {
-            return upstream;
-        }
-
-        /** Whether two rendered texts that differ are compared once more by the ruled line and row policy (an
-         *  unsorted query's lines as a multiset S131, float tokens within 2 ULP S132): compatibility mode's alone;
-         *  lite's verdict is the two strings (the user, 2026-11-05). */
-        public boolean renderedTextRuled() {
-            return upstream;
-        }
-
         /** Whether a failure is worded in legend-pure's words: compatibility mode's; lite words it by its own
          *  sentences (isolated BOTH, the orchestrator's ruling of 2026-11-17). */
         public boolean legendPureWords() {

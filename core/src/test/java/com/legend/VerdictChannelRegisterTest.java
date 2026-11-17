@@ -57,7 +57,10 @@ class VerdictChannelRegisterTest {
             "core/src/test/java/com/legend/testexec/PureAssertsTest.java",
             // 2026-11-17 (census C1's K14, the orchestrator's ruling): the compatibility rules' asserts moved here, an
             // edge test, from EqualityWorldsConformanceTest and PureAssertsTest -- the same calls, not a new caller
-            "core/src/test/java/com/legend/testexec/EqualityCompatEdgeTest.java");
+            "core/src/test/java/com/legend/testexec/EqualityCompatEdgeTest.java",
+            // 2026-11-17 (census C1): the compatibility rules' rendered-text comparison moved from TdsCompare to the
+            // edge -- the same 2-ULP cell rule (Equality.withinTwoUlp), not a new caller
+            "core/src/main/java/com/legend/edge/UpstreamRenderedTexts.java");
 
     private static final java.util.regex.Pattern JUDGE_REF =
             java.util.regex.Pattern.compile("(?<![A-Za-z0-9_])Equality(::|\\.(?!java\\b))");

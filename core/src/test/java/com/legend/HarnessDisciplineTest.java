@@ -216,7 +216,8 @@ class HarnessDisciplineTest {
             // order, the rendered text exactly -- the multiset and token-pool paths deleted); 0 -> 2 (2026-11-03, the
             // user's ruling "no sort can be multiset compare" restored: an unsorted render's lines and tokens compare
             // as a multiset again, a sorted one in order)
-            Map.entry("TdsCompare.java", 2),
+            // 2 -> gone (2026-11-17, census C1: the rendered text's line and token multisets moved with the compatibility
+            // rules' comparison to the edge's UpstreamRenderedTexts)
             // ---- src/main/com/legend/driver (step C, D73, 2026-10-30; the D73 audit): the judges' arms sat at
             // the root, which this guard never walked; the root dissolved into a package the walk now covers. ----
             // HostJudge: the host arm's compare sorts both sides' element lists (two sites, twice) before an

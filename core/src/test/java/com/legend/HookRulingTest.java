@@ -205,7 +205,10 @@ class HookRulingTest {
                 com.legend.testdatagen.TestDataPlanner.Printing.class,
                 // CrossKindNumbers (census C1, 2026-11-17, register S127: the product never equals two number kinds,
                 // the edge equals an Integer and a Decimal by their texts, as compiled legend-pure does)
-                com.legend.testplan.CrossKindNumbers.class),
+                com.legend.testplan.CrossKindNumbers.class,
+                // RenderedTextRule (census C1, 2026-11-17, registers S131, S132: the product's two strings, the edge's
+                // ruled comparison where they differ)
+                com.legend.testplan.RenderedTextRule.class),
                 com.legend.testplan.PlanStyleFacets.TWO_FORMS,
                 "the two-form kinds, an exact set: a kind is added here with its family and its dated reason");
         assertTrue(PlanStyle.PRODUCT.twoForm(com.legend.lowering.DateTimeTexts.class,
@@ -240,6 +243,13 @@ class HookRulingTest {
         assertTrue(com.legend.edge.PureText.UPSTREAM.twoForm(com.legend.testplan.CrossKindNumbers.class,
                 com.legend.testplan.CrossKindNumbers.Product.NEVER) == com.legend.edge.CompiledPureNumbers.INSTANCE,
                 "the edge equals an Integer and a Decimal as compiled legend-pure does");
+        assertTrue(PlanStyle.PRODUCT.twoForm(com.legend.testplan.RenderedTextRule.class,
+                com.legend.testplan.RenderedTextRule.Product.STRINGS)
+                == com.legend.testplan.RenderedTextRule.Product.STRINGS, "the product's two strings are the verdict");
+        assertTrue(com.legend.edge.PureText.UPSTREAM.twoForm(com.legend.testplan.RenderedTextRule.class,
+                com.legend.testplan.RenderedTextRule.Product.STRINGS)
+                == com.legend.edge.UpstreamRenderedTextRule.INSTANCE,
+                "the edge plans upstream's ruled comparison where the strings differ");
         Runnable productForm = () -> { };
         assertTrue(PlanStyle.PRODUCT.twoForm(Runnable.class, productForm) == productForm,
                 "the product answers the caller's own form");
@@ -260,6 +270,8 @@ class HookRulingTest {
         assertTrue(new com.legend.edge.CompatEdge(new com.legend.edge.RawLedger.Recorder(),
                 com.legend.executionplan.DataStores.none()).records(), "the edge's recorder records the ledger");
         assertTrue(com.legend.testexec.NoEdgeRun.NONE.wordsAlike(), "lite's judges write alike");
+        assertTrue(productHearing().renderedTexts() == com.legend.testexec.RenderedTexts.Product.STRINGS,
+                "lite's runs hold two differing strings as differing");
         assertFalse(com.legend.edge.AppealRun.with(null).wordsAlike(), "the edge's words are the host's alone");
         assertTrue(com.legend.ExecuteOptions.NONE.edge() == com.legend.testexecutionplan.NoEdge.NONE,
                 "the product's options carry the product's edge hook, never a null");

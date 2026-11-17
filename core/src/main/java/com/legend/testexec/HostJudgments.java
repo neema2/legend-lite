@@ -358,7 +358,7 @@ final class HostJudgments {
             case HostJudgment.SameElements s -> sameElementsOf(s, sides, rules);
             case HostJudgment.Equals e -> equalsOf(e, sides, rules);
             case HostJudgment.Json js -> jsonOf(js, sides, rules, run.hearing().json());
-            case HostJudgment.Rendered r -> renderedOf(r, sides, rules);
+            case HostJudgment.Rendered r -> renderedOf(r, sides, run.hearing().renderedTexts());
             case HostJudgment.Raise r -> throw com.legend.testexecutionplan.Failures.raised(r.failure());
             case HostJudgment.EdgeJudged e -> run.judged(e, sides, rules);
             case HostJudgment.AssertError a -> com.legend.testexec.AssertErrorRuns.judge(a, () -> sides, rules, run);
@@ -993,8 +993,7 @@ final class HostJudgments {
     
     }
 
-    private static TypedSide renderedOf(HostJudgment.Rendered j, List<TypedSide> pair,
-            com.legend.testexecutionplan.TestPlan.JudgingRules rules) {
+    private static TypedSide renderedOf(HostJudgment.Rendered j, List<TypedSide> pair, RenderedTexts texts) {
         String name = j.name();
         String form = j.form();
         List<Object> ev = com.legend.testexec.AssertRuns.decodeSide(pair.get(0));
@@ -1007,10 +1006,7 @@ final class HostJudgments {
             // clean mode (the user, 2026-11-05: after a verdict the harness may only explain): the two strings ARE the
             // verdict; the ruled row comparison after a failed text is compatibility mode's alone
             boolean held = et.equals(at)
-                    || rules.renderedTextRuled()
-                            && com.legend.testexec.TdsCompare.renderedText(
-                                    j.aForm() != null ? et : at, j.aForm() != null ? at : et,
-                                    form, j.sortedOrder());
+                    || texts.held(j.aForm() != null ? et : at, j.aForm() != null ? at : et, form, j.sortedOrder());
             if (held != j.wantEqual()) {
                 return com.legend.testexecutionplan.Verdicts.fail(name + " (rendered " + form + "): "
                         + com.legend.testexecutionplan.Verdicts.firstTextDiff(et, at));
