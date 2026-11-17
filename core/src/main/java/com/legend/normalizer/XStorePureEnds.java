@@ -69,6 +69,93 @@ final class XStorePureEnds {
         }
     }
 
+    /** The set ids an XStore association's ends name, {@code a} property1's
+     *  target class's, {@code b} property2's; null where the lines name none. */
+    record EndSets(@com.legend.base.Nullable String a, @com.legend.base.Nullable String b) {
+    }
+
+    /** The line's {@code [srcSet, tgtSet]} ids select the sets: srcSet = the
+     *  OWNING end's, tgtSet = the line's target end's (engine
+     *  {@code PropertyMappingBuilder} uses them the same way). The first line
+     *  speaks for the association. */
+    static EndSets endSets(AssociationMapping.Cross xs, AssociationDefinition ad) {
+        if (xs.propertyMappings2().isEmpty()) {
+            return new EndSets(null, null);
+        }
+        var l0 = xs.propertyMappings2().get(0);
+        boolean p1 = l0.propertyName().equals(ad.property1().propertyName());
+        return new EndSets(p1 ? l0.targetSetId() : l0.sourceSetId(),
+                p1 ? l0.sourceSetId() : l0.targetSetId());
+    }
+
+    /**
+     * Why an XStore association is withheld, when an end is a set in a store
+     * lite does not execute (a ServiceStore class mapping: no set lite builds
+     * matches the end, a foreign one does); null otherwise. legend-engine
+     * 4.145.0 compiles such a line ({@code PropertyMappingBuilder.visit(
+     * XStorePropertyMapping)} finds the set by id; {@code $that} types as the
+     * ServiceStore set's mapping class, {@code +props} included) and runs it,
+     * calling the services; lite compiles the model, emits no predicate, and a
+     * query navigating the association is refused with this reason (2026-11-16,
+     * the Studio roundtrip's STO_ServiceStore-path-offset; register row S413,
+     * pending). A set id the mapping does not have at all is not this: it stays
+     * {@link #xstoreEndOf}'s compile error, as the engine's is.
+     */
+    static @com.legend.base.Nullable String foreignEndReason(ResolvedMapping md,
+            AssociationMapping.Cross xs, AssociationDefinition ad) {
+        EndSets sets = endSets(xs, ad);
+        String[][] ends = {
+            {ad.property1().targetClassFqn(), sets.a()},
+            {ad.property2().targetClassFqn(), sets.b()},
+        };
+        LegacyMappingDefinition.ForeignSet foreign = null;
+        for (String[] end : ends) {
+            if (hasSet(md, end[0], end[1])) {
+                continue;
+            }
+            LegacyMappingDefinition.ForeignSet f = foreignSetOf(md, end[0], end[1]);
+            if (f == null) {
+                // an end naming no set at all: synthesis raises the compile
+                // error, as before
+                return null;
+            }
+            if (foreign == null) {
+                foreign = f;
+            }
+        }
+        return foreign == null ? null
+                : "XStore association '" + ad.qualifiedName() + "' joins set '" + foreign.effectiveId()
+                        + "' of '" + foreign.className() + "', a " + foreign.store() + " class mapping: lite"
+                        + " does not execute " + foreign.store() + " (register row S413)";
+    }
+
+    /** Whether a class mapping of the closure, of any kind, is the end. */
+    private static boolean hasSet(ResolvedMapping md, String classFqn, @com.legend.base.Nullable String setId) {
+        for (LegacyMappingDefinition m : md.closure()) {
+            for (ClassMapping cm : m.classMappings()) {
+                if (cm.className().equals(classFqn)
+                        && (setId == null || setId.equals(ResolvedMapping.idOf(cm)))) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /** The foreign set of the closure that is the end. */
+    private static LegacyMappingDefinition.@com.legend.base.Nullable ForeignSet foreignSetOf(
+            ResolvedMapping md, String classFqn, @com.legend.base.Nullable String setId) {
+        for (LegacyMappingDefinition m : md.closure()) {
+            for (LegacyMappingDefinition.ForeignSet f : m.foreignSets()) {
+                if (f.className().equals(classFqn)
+                        && (setId == null || setId.equals(f.effectiveId()))) {
+                    return f;
+                }
+            }
+        }
+        return null;
+    }
+
     static XEnd xstoreEndOf(ResolvedMapping md,
             String classFqn, @com.legend.base.Nullable String setId, ModelBuilder model) {
         // the end sets may live in INCLUDED mappings (modelJoins:

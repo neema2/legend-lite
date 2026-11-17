@@ -972,19 +972,9 @@ public final class MappingNormalizer {
             AssociationMapping.Cross xs, ModelBuilder model,
             String classA, String classB) {
         AssociationDefinition ad = model.findAssociation(xs.associationName()).orElseThrow();
-        // the line's [srcSet, tgtSet] ids select the sets: srcSet = the
-        // OWNING end's, tgtSet = the line's target end's (engine
-        // PropertyMappingBuilder uses them the same way)
-        String setA = null;
-        String setB = null;
-        if (!xs.propertyMappings2().isEmpty()) {
-            var l0 = xs.propertyMappings2().get(0);
-            boolean p1 = l0.propertyName().equals(ad.property1().propertyName());
-            setA = p1 ? l0.targetSetId() : l0.sourceSetId();
-            setB = p1 ? l0.sourceSetId() : l0.targetSetId();
-        }
-        XStorePureEnds.XEnd endA = XStorePureEnds.xstoreEndOf(md, classA, setA, model);
-        XStorePureEnds.XEnd endB = XStorePureEnds.xstoreEndOf(md, classB, setB, model);
+        XStorePureEnds.EndSets sets = XStorePureEnds.endSets(xs, ad);
+        XStorePureEnds.XEnd endA = XStorePureEnds.xstoreEndOf(md, classA, sets.a(), model);
+        XStorePureEnds.XEnd endB = XStorePureEnds.xstoreEndOf(md, classB, sets.b(), model);
         if (endA.pure() || endB.pure() || endA.lossyView() || endB.lossyView()) {
             // route A (docs/XSTORE_LEG.md): a Pure-set end has no relation
             // at normalize time — property-space emission, sets pinned by id.
@@ -1891,7 +1881,7 @@ public final class MappingNormalizer {
 
         // Apply ~groupBy (with aggregate decomposition).
         if (!rcm.groupBy().isEmpty()) {
-            p.expr = GroupBySynthesis.applyGroupBy(p.expr, rcm, rowBind, mainTable, p, md);
+            p.expr = GroupBySynthesis.applyGroupBy(p.expr, rcm, rowBind, mainDb, mainTable, p, md, model);
             // stage 2: the deferred class-typed Join PMs navigate the
             // GROUPED relation — the join condition's source-side reads
             // redirect to the grouped OUTPUT columns (a condition column

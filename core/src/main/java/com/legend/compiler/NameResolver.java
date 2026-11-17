@@ -1007,13 +1007,20 @@ public final class NameResolver {
                 md.associationMappings(), scope);
         List<EnumerationMapping> enumMappings = resolveEnumerationMappings(
                 md.enumerationMappings(), scope);
+        List<LegacyMappingDefinition.ForeignSet> foreignSets = resolveList(md.foreignSets(),
+                (f, sc) -> {
+                    String className = resolveName(f.className(), sc);
+                    return className.equals(f.className()) ? f
+                            : new LegacyMappingDefinition.ForeignSet(className, f.setId(), f.store());
+                }, scope);
         if (includes == md.includes() && classMappings == md.classMappings()
                 && assocMappings == md.associationMappings()
-                && enumMappings == md.enumerationMappings()) {
+                && enumMappings == md.enumerationMappings()
+                && foreignSets == md.foreignSets()) {
             return md;
         }
         return new LegacyMappingDefinition(md.qualifiedName(), includes, classMappings,
-                assocMappings, enumMappings);
+                assocMappings, enumMappings, foreignSets);
     }
 
     /**
@@ -1178,7 +1185,7 @@ public final class NameResolver {
             }
             PackageableElement r = el instanceof LegacyMappingDefinition md
                     ? new LegacyMappingDefinition(md.qualifiedName(), rewritten, md.classMappings(),
-                            md.associationMappings(), md.enumerationMappings())
+                            md.associationMappings(), md.enumerationMappings(), md.foreignSets())
                     : new com.legend.model.CleanSheetMappingDefinition(el.qualifiedName(), rewritten,
                             ((com.legend.model.CleanSheetMappingDefinition) el).classBindings(),
                             ((com.legend.model.CleanSheetMappingDefinition) el).associationBindings(),

@@ -191,10 +191,15 @@ public final class MappingFromProtocol {
         }
 
         List<ClassMapping> classMappings = new ArrayList<>();
+        List<LegacyMappingDefinition.ForeignSet> foreignSets = new ArrayList<>();
         for (Protocol.PClassMapping cm : m.classMappings()) {
             ClassMapping built = classMapping(cm);
             if (built != null) {
                 classMappings.add(built);
+            } else if (cm instanceof Protocol.PServiceStoreClassMapping ss) {
+                // not mapped, but kept by its set's identity: a cross-store
+                // line may name it (2026-11-16, register row S413)
+                foreignSets.add(new LegacyMappingDefinition.ForeignSet(ss.className(), ss.id(), "ServiceStore"));
             }
         }
 
@@ -211,7 +216,7 @@ public final class MappingFromProtocol {
         // in the compiler reads them). `tests` (the LEGACY test block) has no
         // model field at all and never had one; the legacy parser drops it too.
         return new LegacyMappingDefinition(m.qualifiedName(), includes,
-                classMappings, associations, enums);
+                classMappings, associations, enums, foreignSets);
     }
 
     // The WIRE discriminators, not the router FQNs: MappingProtocolParser

@@ -3520,3 +3520,12 @@ oracle for #TS").
   `docs/GATES.md`; this file. No main source, no word of the library and no register row is touched (a contributor
   never edits `docs/SEMANTICS_REGISTER.md`, the user's standing rule, 2026-11-08): each DIFF is posted with the PR and
   its proposed register row written there in full, for the user to rule.
+
+## The Studio roundtrip's groupBy and ServiceStore-XStore cases, 2026-11-16
+
+Branch `claude/studio-xstore-groupby-f61d8b` (the user's fork), from `studio-compatibility-dev` at `a812e317e`; one PR
+into that branch. Two of the 133 grammar roundtrip cases: `STO_Relational-relational-mapping-groupby` (a `~groupBy` key
+naming a table the class does not reach) and `STO_ServiceStore-path-offset` (a ServiceStore set as an XStore end).
+Files: `normalizer/GroupBySynthesis.java`, `normalizer/AssociationSynthesis.java`, `normalizer/XStorePureEnds.java`,
+`model/LegacyMappingDefinition.java` and its rebuild sites (`model/MappingFromProtocol.java`,
+`compiler/NameResolver.java`, `normalizer/StoreSubstitutionRewrite.java`), two core tests, two pending register rows.
