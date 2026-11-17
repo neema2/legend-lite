@@ -875,19 +875,21 @@ public final class TestDataPlanner {
      * "schema":S,"database":D},"rowIdentifiers":[{"columnValuePairs":[{"name":k,"value":v},...]},...]}}, built by the
      * database -- each value its JSON for the key's cell, the identifiers in the keys' order (R2, register S198) --
      * one statement, its one cell the text. A key's name is its column's, in double quotes where it holds a space
-     * (upstream's {@code getQuotedLabelIfContainSpace}).
+     * (upstream's {@code getQuotedLabelIfContainSpace}); a timestamp key's value is {@code timestampKey}'s text of its
+     * cell, the caller's (the seed route is legend-engine's API: the edge hands in upstream's text, F's separation
+     * census line B11, 2026-11-17).
      */
-    public static SqlQuery seedJson(ModelContext ctx, Seed seed) {
+    public static SqlQuery seedJson(ModelContext ctx, Seed seed, java.util.function.UnaryOperator<SqlExpr> timestampKey) {
         DatabaseDefinition.TableDefinition def = seed.loc().def();
         List<SqlExpr> pairs = new ArrayList<>(seed.keys().size());
         List<SqlExpr.JsonArrayAgg.Key> order = new ArrayList<>(seed.keys().size());
         for (String k : seed.keys()) {
             String name = bareName(k);
             SqlExpr cell = SqlExpr.Column.derived("_k", tempColumn(def, k));
-            // a timestamp key as upstream's ValueTransformer writes it (SeedDataGeneration.java:192): the seed route is
-            // legend-engine's API (the edge's routes, TestDataRoutes), so its key is upstream's text whatever lite's own
-            // printing is (W4, 2026-11-16: the product's text is S312's; the generator's engine text moves at W9)
-            SqlExpr value = timestamp(column(def, k).dataType()) ? upstreamKeyText(cell) : cell;
+            // a timestamp key as the caller writes it: the seed route is legend-engine's API (the edge's routes,
+            // TestDataRoutes), whose key is upstream's text whatever lite's own printing is (W4, 2026-11-16; the text
+            // itself the edge's since B11, 2026-11-17)
+            SqlExpr value = timestamp(column(def, k).dataType()) ? timestampKey.apply(cell) : cell;
             pairs.add(new SqlExpr.JsonObject(List.of(new SqlExpr.StringLit("name"), new SqlExpr.StringLit(
                     name.contains(" ") ? "\"" + name + "\"" : name), new SqlExpr.StringLit("value"), value)));
             order.add(new SqlExpr.JsonArrayAgg.Key(byCodePoint(cell, column(def, k)), false));
@@ -1366,16 +1368,6 @@ public final class TestDataPlanner {
                     SqlExpr.Call.of(SqlFn.DATETIME_TO_TEXT, x), SqlExpr.Reason.DECLARED);
             case COMPAT -> SqlExpr.Call.of(SqlFn.STRFTIME, x, new SqlExpr.FormatLit(SECONDS));
         };
-    }
-
-    /** A timestamp key as upstream's seed route writes it ({@code ValueTransformer}: nine fraction digits and the GMT
-     *  zone); a NULL stays NULL. */
-    private static SqlExpr upstreamKeyText(SqlExpr x) {
-        return new SqlExpr.Case(List.of(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.IS_NULL, x),
-                new SqlExpr.Cast(new SqlExpr.NullLit(), SqlType.Scalar.VARCHAR, SqlExpr.Reason.DECLARED))),
-                SqlExpr.Call.of(SqlFn.CONCAT,
-                        SqlExpr.Call.of(SqlFn.STRFTIME, x, new SqlExpr.FormatLit(com.legend.sql.DateFmt.ISO_NANO)),
-                        new SqlExpr.StringLit("+0000")), SqlExpr.Reason.DECLARED);
     }
 
     /** Upstream's {@code SimpleDateTimeFormat}: {@code yyyy-MM-dd HH:mm:ss}. */

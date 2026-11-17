@@ -170,6 +170,18 @@ public enum SqlFn {
      *  ({@code dialect.PureOnlyText}); the compatibility edge writes {@code x}, today's SQL (edge/PurePrintForms; the
      *  user's ruling of 2026-11-10, "objects and relations are refused", relayed 2026-11-15; phase D's D1.3). */
     RELATION_TEXT,
+    /** A DateTime cell's text inside a relation's text ({@code x}, a timestamp; only under {@link #RELATION_TEXT}):
+     *  legend-pure's TDS text of it, at least three fraction digits and its zone. The product writes a relation's rows
+     *  by its result writers: its renderer refuses the relation's text this sits under by name
+     *  ({@code dialect.PureOnlyText}), each dialect's arm this node; the compatibility edge composes it (edge/PurePrintForms; F's separation census line B11, 2026-11-17: until then the lowering composed
+     *  it, LiteralSpelling.dateTimeTextTds). */
+    DATETIME_TDS_TEXT,
+    /** A date carried as its own text, inside a relation's text ({@code text}, the value root spelled at the precision
+     *  it has; only under {@link #RELATION_TEXT}): legend-pure's text of it, a zone after seconds. The product's
+     *  renderer refuses the relation's text this sits under ({@code dialect.PureOnlyText}); the compatibility edge
+     *  composes it
+     *  (edge/PurePrintForms; B11, 2026-11-17: until then LiteralSpelling.dateTimeTextOfText). */
+    DATETIME_TEXT_OF_TEXT,
     /** A value's representation ({@code x}, legend-pure's {@code toRepresentation} of it, then what it is as a string
      *  literal; {@code format}'s {@code %r} joins once the judges' messages are Java, Phase 4b): legend-pure's text. The product refuses it by name (the user's
      *  ruling of 2026-11-16, docs/records/total-wall-edge-program-2026-11-16.md §10 item 8: "refuse in product but not
