@@ -1217,11 +1217,132 @@ final class ArchitectureTest {
             "testplan.TestPlanner#facts(com.legend.TypedQuery)", "com.legend.TestExecution",
             // W9's judge half, S2c (2026-11-16; the orchestrator's ruling (b), one facade, one row): the engine-text arm
             // is the edge's (edge.SqlTextVerdicts), and every read it makes of the test planner, the planner or the
-            // lowering is the facade's (testplan.EngineTextPlanning), each of its members admitted by this one row --
+            // lowering is the facade's (testplan.EngineTextPlanning), each of its members admitted (until 2026-11-17) by one row --
             // S2b's EngineTestText#arm allowance gone with the arm's move (docs/records/e-java-w9-judge-half-2026-11-16.md)
             // C4 (2026-11-17, the orchestrator's ruling (b)): the hook's routing gates moved to the edge's
-            // implementation, EdgeEngineTestText, which reads the test planner through the same facade
-            "testplan.EngineTextPlanning#*", "com.legend.edge.SqlTextVerdicts com.legend.edge.EdgeEngineTestText",
+            // implementation, EdgeEngineTestText, which reads the test planner through the same facade.
+            // Its members LISTED, no "#*" (2026-11-17, the GUARD stream's C.4; the edge audit's C.4 and the
+            // orchestrator's step-A ruling, "one named facade, members listed, no #*"): a member the edge newly reaches
+            // is a row here, by its full signature and callers; OpenClassMembersTest pins the facade's whole member set
+            "testplan.EngineTextPlanning#active(com.legend.testplan.VerdictBatch)", "com.legend.edge.SqlTextVerdicts",
+            "testplan.EngineTextPlanning#appeal(com.legend.testplan.BodyDriver$ExecEnv, "
+                    + "java.util.function.IntFunction)",
+            "com.legend.edge.SqlTextVerdicts",
+            "testplan.EngineTextPlanning#appealOn(com.legend.testplan.BodyDriver$ExecEnv)",
+            "com.legend.edge.SqlTextVerdicts",
+            "testplan.EngineTextPlanning#ask(com.legend.compiler.spec.typed.TypedSpec, boolean, boolean, "
+                    + "com.legend.testplan.AssertVerdicts$SpliceHook)",
+            "com.legend.edge.SqlTextVerdicts",
+            "testplan.EngineTextPlanning#ask(com.legend.compiler.spec.typed.TypedSpec, boolean, boolean, "
+                    + "com.legend.testplan.AssertVerdicts$SpliceHook, com.legend.testplan.BodyDriver$ExecEnv)",
+            "com.legend.edge.SqlTextVerdicts",
+            "testplan.EngineTextPlanning#bare(com.legend.testplan.TextAsk)",
+            "com.legend.edge.EdgeEngineTestText com.legend.edge.SqlTextVerdicts",
+            "testplan.EngineTextPlanning#boundContext(com.legend.compiler.spec.typed.TypedSpec, java.util.List, "
+                    + "com.legend.compiler.spec.SpecCompiler)",
+            "com.legend.edge.SqlTextVerdicts",
+            "testplan.EngineTextPlanning#calleeFqn(com.legend.compiler.spec.typed.TypedSpec)",
+            "com.legend.edge.EdgeEngineTestText com.legend.edge.SqlTextVerdicts",
+            "testplan.EngineTextPlanning#check(java.util.List, com.legend.testexecutionplan.HostJudgment)",
+            "com.legend.edge.SqlTextVerdicts",
+            "testplan.EngineTextPlanning#collector(com.legend.testplan.BodyDriver$ExecEnv)",
+            "com.legend.edge.SqlTextVerdicts",
+            "testplan.EngineTextPlanning#ctx(com.legend.testplan.BodyDriver$ExecEnv)",
+            "com.legend.edge.SqlTextVerdicts",
+            "testplan.EngineTextPlanning#defer(com.legend.testplan.VerdictBatch, java.lang.String, boolean, "
+                    + "com.legend.sql.SqlQuery, com.legend.executionplan.ExecutionPlan$Target, int, "
+                    + "java.lang.String)",
+            "com.legend.edge.SqlTextVerdicts",
+            "testplan.EngineTextPlanning#dialect(com.legend.planner.SqlTextInputs)", "com.legend.edge.SqlTextVerdicts",
+            "testplan.EngineTextPlanning#enumsOf(com.legend.compiler.element.ModelContext, java.lang.String, "
+                    + "java.lang.String, com.legend.testexecutionplan.SideShape)",
+            "com.legend.edge.SqlTextVerdicts",
+            "testplan.EngineTextPlanning#env(com.legend.testplan.TextAsk)", "com.legend.edge.SqlTextVerdicts",
+            "testplan.EngineTextPlanning#evalSide(com.legend.compiler.spec.typed.TypedSpec, java.util.List, "
+                    + "com.legend.compiler.spec.SpecCompiler, com.legend.testplan.BodyDriver$ExecEnv, boolean, "
+                    + "boolean, com.legend.testplan.AssertVerdicts$SpliceHook)",
+            "com.legend.edge.SqlTextVerdicts",
+            "testplan.EngineTextPlanning#extentSubset(com.legend.testplan.AssertVerdicts$ReplayGates)",
+            "com.legend.edge.SqlTextVerdicts",
+            "testplan.EngineTextPlanning#frame(com.legend.testplan.BodyDriver$ExecEnv)",
+            "com.legend.edge.SqlTextVerdicts",
+            "testplan.EngineTextPlanning#hook(com.legend.testplan.TextAsk)", "com.legend.edge.SqlTextVerdicts",
+            "testplan.EngineTextPlanning#inZone(java.lang.String, java.lang.String)", "com.legend.edge.SqlTextVerdicts",
+            "testplan.EngineTextPlanning#isoTimestamp(com.legend.values.PureDateLiteral)",
+            "com.legend.edge.SqlTextVerdicts",
+            "testplan.EngineTextPlanning#judgingRules(com.legend.testplan.BodyDriver$ExecEnv)",
+            "com.legend.edge.SqlTextVerdicts",
+            "testplan.EngineTextPlanning#judgment(com.legend.testplan.HostSides$Check)",
+            "com.legend.edge.EdgeEngineTestText",
+            "testplan.EngineTextPlanning#letPrefix(com.legend.testplan.TextAsk)",
+            "com.legend.edge.EdgeEngineTestText com.legend.edge.SqlTextVerdicts",
+            "testplan.EngineTextPlanning#mapping(com.legend.planner.SqlTextInputs)", "com.legend.edge.SqlTextVerdicts",
+            "testplan.EngineTextPlanning#marking(com.legend.testplan.BodyDriver$ExecEnv, java.lang.String, "
+                    + "boolean)",
+            "com.legend.edge.SqlTextVerdicts",
+            "testplan.EngineTextPlanning#noReplayGates()", "com.legend.edge.SqlTextVerdicts",
+            "testplan.EngineTextPlanning#notAConstantError(java.lang.String)", "com.legend.edge.SqlTextVerdicts",
+            "testplan.EngineTextPlanning#ordered(com.legend.testplan.AssertVerdicts$ReplayGates)",
+            "com.legend.edge.SqlTextVerdicts",
+            "testplan.EngineTextPlanning#planSide(com.legend.compiler.spec.typed.TypedSpec, java.util.List, "
+                    + "com.legend.compiler.spec.SpecCompiler, com.legend.testplan.BodyDriver$ExecEnv, "
+                    + "com.legend.testplan.AssertVerdicts$SpliceHook)",
+            "com.legend.edge.SqlTextVerdicts",
+            "testplan.EngineTextPlanning#planned(com.legend.testplan.HostSides$Check)",
+            "com.legend.edge.SqlTextVerdicts",
+            "testplan.EngineTextPlanning#plannedSide(com.legend.compiler.spec.typed.TypedSpec, java.util.List, "
+                    + "com.legend.compiler.spec.SpecCompiler, com.legend.testplan.BodyDriver$ExecEnv, boolean, "
+                    + "boolean, com.legend.testplan.AssertVerdicts$SpliceHook)",
+            "com.legend.edge.SqlTextVerdicts",
+            "testplan.EngineTextPlanning#query(com.legend.planner.SqlTextInputs)", "com.legend.edge.SqlTextVerdicts",
+            "testplan.EngineTextPlanning#replayFacts(com.legend.compiler.spec.typed.TypedSpec, java.util.List)",
+            "com.legend.edge.SqlTextVerdicts",
+            "testplan.EngineTextPlanning#restoreMarking(com.legend.testplan.BodyDriver$ExecEnv, java.lang.String)",
+            "com.legend.edge.SqlTextVerdicts",
+            "testplan.EngineTextPlanning#runtime(com.legend.planner.SqlTextInputs)", "com.legend.edge.SqlTextVerdicts",
+            "testplan.EngineTextPlanning#scalarRow(com.legend.testplan.DatabaseJudge$SideRows)",
+            "com.legend.edge.SqlTextVerdicts",
+            "testplan.EngineTextPlanning#shapeOf(com.legend.testplan.JudgePlans$PlannedSide, "
+                    + "com.legend.database.PlanStyle)",
+            "com.legend.edge.SqlTextVerdicts",
+            "testplan.EngineTextPlanning#side(com.legend.testplan.JudgePlans$PlannedSide)",
+            "com.legend.edge.SqlTextVerdicts",
+            "testplan.EngineTextPlanning#sortKeys(com.legend.testplan.AssertVerdicts$ReplayGates)",
+            "com.legend.edge.SqlTextVerdicts",
+            "testplan.EngineTextPlanning#specs(com.legend.testplan.TextAsk)",
+            "com.legend.edge.EdgeEngineTestText com.legend.edge.SqlTextVerdicts",
+            "testplan.EngineTextPlanning#splice(com.legend.testplan.AssertVerdicts$SpliceHook, "
+                    + "com.legend.compiler.spec.typed.TypedSpec, java.util.Set)",
+            "com.legend.edge.SqlTextVerdicts",
+            "testplan.EngineTextPlanning#sqlTextInputs(com.legend.compiler.spec.NativeDispatch$RoutineCall, "
+                    + "java.util.List)",
+            "com.legend.edge.SqlTextVerdicts",
+            "testplan.EngineTextPlanning#tableReplace(com.legend.testplan.BodyDriver$ExecEnv)",
+            "com.legend.edge.SqlTextVerdicts",
+            "testplan.EngineTextPlanning#target(com.legend.testplan.BodyDriver$ExecEnv)",
+            "com.legend.edge.SqlTextVerdicts",
+            "testplan.EngineTextPlanning#textEquals(java.lang.String, com.legend.sql.SqlQuery)",
+            "com.legend.edge.SqlTextVerdicts",
+            "testplan.EngineTextPlanning#textEquals(java.lang.String, java.lang.String)",
+            "com.legend.edge.SqlTextVerdicts",
+            "testplan.EngineTextPlanning#unpagedRead(com.legend.compiler.spec.typed.TypedSpec)",
+            "com.legend.edge.SqlTextVerdicts",
+            "testplan.EngineTextPlanning#values(com.legend.testplan.JudgePlans$PlannedSide)",
+            "com.legend.edge.SqlTextVerdicts",
+            "testplan.EngineTextPlanning#verdictBatch(com.legend.testplan.BodyDriver$ExecEnv)",
+            "com.legend.edge.SqlTextVerdicts",
+            "testplan.EngineTextPlanning#why(com.legend.testplan.DatabaseJudge$SideRows)",
+            "com.legend.edge.SqlTextVerdicts",
+            "testplan.EngineTextPlanning#withCollector(com.legend.testplan.BodyDriver$ExecEnv, "
+                    + "com.legend.testplan.TextCollector)",
+            "com.legend.edge.SqlTextVerdicts",
+            "testplan.EngineTextPlanning#withFrame(com.legend.testplan.BodyDriver$ExecEnv, "
+                    + "com.legend.compiler.spec.typed.ExecutionContext)",
+            "com.legend.edge.SqlTextVerdicts",
+            "testplan.EngineTextPlanning#withOwnLets(com.legend.testplan.BodyDriver$ExecEnv)",
+            "com.legend.edge.SqlTextVerdicts",
+            "testplan.EngineTextPlanning#withTableReplace(com.legend.testplan.BodyDriver$ExecEnv, java.util.Map)",
+            "com.legend.edge.SqlTextVerdicts",
             // census C3 (2026-11-17, the orchestrator's ruling): how the plan holds an edge-judged comparison's two
             // texts, the engine-text hook's answer (EngineTestText.textsHeld) -- an enum of four words, data
             "testplan.TextsHeld#GOLDEN_READ", "com.legend.edge.EdgeEngineTestText",
@@ -1236,7 +1357,13 @@ final class ArchitectureTest {
             // print, a date-time's text -- is the facade's (lowering.RelationTexts), each member admitted by this row
             // (and the edge's list text, PureListTexts, a mixed list's elements printed by the same facade: B8's TEXT_FORMS,
             // 2026-11-17)
-            "lowering.RelationTexts#*", "com.legend.edge.RelationTextLowering com.legend.edge.PureListTexts",
+            // (listed by member, no "#*", 2026-11-17, the GUARD stream's C.4, as the engine-text facade above)
+            "lowering.RelationTexts#kindType(java.lang.String)", "com.legend.edge.RelationTextLowering",
+            // its signature takes the planner's Styled in place of the two facets (2026-11-17, train 7's J26 and pforms,
+            // 449c51793a; re-cut on d-stage c37207858)
+            "lowering.RelationTexts#pureToString(com.legend.lowering.Styled, com.legend.compiler.element.type.Type, "
+                    + "com.legend.sql.SqlExpr)",
+            "com.legend.edge.PureListTexts com.legend.edge.RelationTextLowering",
             // C5 step A (2026-11-17, the orchestrator's ruling: one facade, each member listed, no #*): legend-pure's
             // representation (toRepresentation, an assert's message) is the edge's (edge.EdgePureOnlyTexts), and the
             // product parts it is built from -- a concatenation, a Pure toString, an integer's held kind, a date
@@ -1475,25 +1602,14 @@ final class ArchitectureTest {
         return packageName.matches("com\\.legend\\.(planner|testplan|lowering)(\\..*)?");
     }
 
+    // The facades' one-row keys ("owner#*": testplan.EngineTextPlanning, W9's judge half, S2c, 2026-11-16; and
+    // lowering.RelationTexts, B17, 2026-11-17) were deleted 2026-11-17 (the GUARD stream's C.4, the edge audit's C.4):
+    // a "#*" row admitted any member the facade grew, so each facade's members are rows of PLANNER_ENTRIES now.
     /** An access's entry, as {@link #PLANNER_ENTRIES} lists it: its owner's binary name past {@code com.legend.}, then
      *  {@code #} and the member's name, and for a method or a constructor its parameters' binary names in parentheses --
      *  the full signature, so a new overload of a listed name is no entry until it is listed (the C4 final fix round's
      *  T3, 2026-11-14: until then the key was the owner and the name, admitting every overload). */
-    /** The one row of the engine-text arm's facade (W9's judge half, S2c, 2026-11-16): every member of
-     *  {@code testplan.EngineTextPlanning} is this entry, so the edge's arm reaches the test planner through the facade
-     *  alone and the facade grows without a row per member. */
-    static final String FACADE = "testplan.EngineTextPlanning#*";
-
-    /** The facades whose every member is one entry, {@code owner#*}: the engine-text arm's ({@link #FACADE}) and the
-     *  relation text's (B17 of the separation census, 2026-11-17: {@code lowering.RelationTexts}, read by the edge's
-     *  {@code RelationTextLowering}). */
-    static final java.util.Set<String> FACADES = java.util.Set.of(
-            "com.legend.testplan.EngineTextPlanning", "com.legend.lowering.RelationTexts");
-
     static String entryKey(com.tngtech.archunit.core.domain.JavaAccess<?> a) {
-        if (FACADES.contains(a.getTargetOwner().getName())) {
-            return a.getTargetOwner().getName().substring("com.legend.".length()) + "#*";
-        }
         String entry = a.getTargetOwner().getName().substring("com.legend.".length()) + "#" + a.getName();
         if (a.getTarget() instanceof com.tngtech.archunit.core.domain.AccessTarget.CodeUnitAccessTarget unit) {
             entry += unit.getRawParameterTypes().stream().map(com.tngtech.archunit.core.domain.JavaClass::getName)
@@ -2793,7 +2909,12 @@ final class ArchitectureTest {
      * {@link #PLANNING_ENTRIES}) calls the listener, the held appeals' thread-local listener or hold, the engine-text
      * arms' decline reporters, the edge's run half (a ledger written), the referee, or the verdict census's outcome
      * counters (a verdict's outcome is counted at its turn in the run); no planning entry takes a listener or a
-     * referee, and no planning environment holds one.
+     * referee, and no planning environment holds one. FIVE TELLS STAND (measured 2026-11-18, pinned exactly as
+     * {@code toldStanding}, counted as the audit's line J39, EdgeAuditOpenTest): planning counts a verdict it decides
+     * statically -- {@code VerdictCensus.sqlJudgedInDatabase} from {@code AssertVerdicts#renderedRows} and
+     * {@code DatabaseJudge#databaseVerdict}, {@code #databaseTdsEquivalent} and {@code #staticallyDecided} -- and an
+     * assert no arm planned, {@code VerdictCensus.sqlFellThrough} from {@code AssertVerdicts#adjudicate}; ruled (b), 2026-11-18:
+     * the counts move to the run, at the static verdict's turn (J39, F's); the pin shrinks as each lands.
      */
     @Test
     void theListenerIsOutputOnly() {
@@ -2827,12 +2948,30 @@ final class ArchitectureTest {
                 }
             }
         }
+        // the run's census calls are VerdictCensus's since 2026-11-09 (moved from CanonicalDivergence, slice 5): named
+        // there 2026-11-17 (the edge audit's K16 -- the four rows named members CanonicalDivergence no longer had, so
+        // the rule read nothing for them); Appeals#listenerNow, Appeals#hold, SqlTextVerdicts#declinedNow and
+        // #declinedTo gone from the product with the referee's move to the edge (census C2, 2026-11-17), their rows with
+        // them
         java.util.Set<String> told = java.util.Set.of("com.legend.testexecutionplan.AssertListener",
-                "com.legend.testexec.EdgeRun", "com.legend.testexec.EdgeHearing", "com.legend.testexec.Appeals#listenerNow", "com.legend.testexec.Appeals#hold",
-                "com.legend.testplan.SqlTextVerdicts#declinedNow", "com.legend.testplan.SqlTextVerdicts#declinedTo",
+                "com.legend.testexec.EdgeRun", "com.legend.testexec.EdgeHearing",
                 "com.legend.testexecutionplan.Edge#seeded", "com.legend.testexecutionplan.Edge#effectRan",
-                "com.legend.testexec.CanonicalDivergence#sqlUnjudged", "com.legend.testexec.CanonicalDivergence#sqlRaised",
-                "com.legend.testexec.CanonicalDivergence#sqlRaisedAt", "com.legend.testexec.CanonicalDivergence#sqlEnter");
+                "com.legend.diagnostics.VerdictCensus#sqlUnjudged", "com.legend.diagnostics.VerdictCensus#sqlRaised",
+                "com.legend.diagnostics.VerdictCensus#sqlRaisedAt", "com.legend.diagnostics.VerdictCensus#sqlEnter",
+                // the census's other run-time counters (the review of 11de9ae229, 2026-11-18: the K16 repoint renamed
+                // the list without re-measuring it -- planning calls these two, which VerdictCensus's own javadoc puts
+                // at the run)
+                "com.legend.diagnostics.VerdictCensus#sqlJudgedInDatabase",
+                "com.legend.diagnostics.VerdictCensus#sqlFellThrough");
+        // THE PLANNING TELLS STANDING (measured 2026-11-18, when the two counters joined the list): each exact, reported
+        // to the orchestrator, who ruled (b): the counts move to the run (J39, F's); a new one fails here; counted as the
+        // audit's line J39 (EdgeAuditOpenTest)
+        java.util.Set<String> toldStanding = java.util.Set.of(
+                "planning tells: com.legend.testplan.AssertVerdicts#renderedRows -> com.legend.diagnostics.VerdictCensus#sqlJudgedInDatabase",
+                "planning tells: com.legend.testplan.DatabaseJudge#databaseTdsEquivalent -> com.legend.diagnostics.VerdictCensus#sqlJudgedInDatabase",
+                "planning tells: com.legend.testplan.DatabaseJudge#databaseVerdict -> com.legend.diagnostics.VerdictCensus#sqlJudgedInDatabase",
+                "planning tells: com.legend.testplan.DatabaseJudge#staticallyDecided -> com.legend.diagnostics.VerdictCensus#sqlJudgedInDatabase",
+                "planning tells: com.legend.testplan.AssertVerdicts#adjudicate -> com.legend.diagnostics.VerdictCensus#sqlFellThrough");
         for (com.tngtech.archunit.core.domain.JavaCodeUnit u : reachable(PLANNING_ENTRIES)) {
             String at = u.getOwner().getName() + "#" + u.getName();
             if (PLANNING_ENTRIES.contains(at)) {
@@ -2849,8 +2988,9 @@ final class ArchitectureTest {
                 }
             }
         }
-        org.junit.jupiter.api.Assertions.assertTrue(found.isEmpty(), "the listener answers, or planning tells someone"
-                + " (the run tells, at each verdict's turn; planning tells no one): " + found);
+        org.junit.jupiter.api.Assertions.assertEquals(new java.util.TreeSet<>(toldStanding), new java.util.TreeSet<>(found),
+                "the listener answers, or planning tells someone (the run tells, at each verdict's turn; planning tells no"
+                + " one but the standing pins, each awaiting its ruling)");
     }
 
     @Test
@@ -3100,8 +3240,12 @@ final class ArchitectureTest {
             // DynamicPivot 2026-10-31, the seam program's S3: no probe is left)
             // the whole driver package since 2026-10-30 (D73, step C: the execution side's machinery -- the body driver
             // and compiler, the judges' arms, the seeds, the probes, the system database -- is com.legend.driver)
-            .that().haveNameMatching("com\\.legend\\.(driver\\.[A-Za-z0-9_]+"
-                    + "|judge\\.[A-Za-z0-9_]+"
+            // repointed 2026-11-18 (the review of 11de9ae229, MUST-FIX 2: the driver and judge packages were deleted by
+            // slice 5, 2026-11-09, so the rule had read the test-data generator's two classes alone): the body's planner
+            // and the judges' planning halves are com.legend.testplan, the runner and the judges' run halves
+            // com.legend.testexec
+            .that().haveNameMatching("com\\.legend\\.(testplan\\.[A-Za-z0-9_]+"
+                    + "|testexec\\.[A-Za-z0-9_]+"
                     + "|testdatagen\\.TestDataGenerationNatives|testdatagen\\.TestDataGenerator)"
                     + "(\\$.*)?")
             .should().dependOnClassesThat()
@@ -3810,8 +3954,9 @@ final class ArchitectureTest {
                     // sanctioned here; each parses through a door now
                     "com.legend.door")
             .should().dependOnClassesThat().haveNameMatching(
+                    // (MappingGrammarParser and RelationalGrammarParser: deleted 2026-08-08, b23f687579 -- their
+                    // alternatives named nothing; gone 2026-11-18, the review of 11de9ae229)
                     "com\\.legend\\.parser\\.(ElementParser|SpecParser"
-                    + "|MappingGrammarParser|RelationalGrammarParser"
                     + "|TokenStreamCursor)(\\$.*)?")
             .as("Invariant 6i: grammar parsers/cursors live and die at parse"
               + " time (the parse doors and the IDE are the sanctioned users)")
@@ -3862,23 +4007,46 @@ final class ArchitectureTest {
     // slot, and no cell is parsed by its text's shape.)
 
     /** Register S144's reader of upstream's JSON grammar is the two judges' alone (the user, 2026-11-07: "keep it
-     *  isolated"): no product class, and no other judging class, reads JSON through it. It moves to the edge (P2). */
+     *  isolated"): no product class reads JSON through it. It moved to the edge (census C1, 2026-11-17:
+     *  {@code com.legend.edge.JsonSimpleGrammar}; the product's form, {@code testexecutionplan.JudgeJson}, reads strict
+     *  JSON), so no product class may name it -- the judges included. Until 2026-11-17 the rule named the deleted driver
+     *  package's JudgeJson and so read nothing (the edge audit's K16); repointed then at the grammar where it lives.
+     *  Redundant by design (the review of 11de9ae229, 2026-11-18): the BUILD wall and EdgeSeparationTest's CODE guard
+     *  already refuse any product dependency on an edge class; this keeps S144's own name on it. Which EDGE classes may
+     *  read the lenient grammar (PureText, Appeals today) is not scoped here. */
     @Test
     void theCompatibilityJsonReaderIsTheJudgesAlone() {
-        noClasses()
-            .that().doNotHaveFullyQualifiedName("com.legend.testplan.HostJudge")
-            .and().doNotHaveFullyQualifiedName("com.legend.testplan.DatabaseJudge")
-            .and().doNotHaveFullyQualifiedName("com.legend.testexecutionplan.JudgeJson")
-            .and().doNotHaveFullyQualifiedName("com.legend.testexecutionplan.JudgeJson$JsonSimple")
-            .and().doNotHaveFullyQualifiedName("com.legend.testexecutionplan.JudgeJson$JsonSimple$Kind")
-            .should().dependOnClassesThat().haveNameMatching("com\\.legend\\.driver\\.JudgeJson(\\$.*)?")
-            .as("S144: json-simple's grammar is read by the two judges alone")
-            .check(CORE_PROD_CLASSES);
+        compatibilityJsonRule().check(CORE_PROD_CLASSES);
+    }
+
+    static com.tngtech.archunit.lang.ArchRule compatibilityJsonRule() {
+        return noClasses()
+            .should().dependOnClassesThat().haveNameMatching("com\\.legend\\.edge\\.JsonSimpleGrammar(\\$.*)?")
+            .as("S144: json-simple's grammar is the edge's, read by no product class");
+    }
+
+    /** The two rules repointed by the edge audit's K16 (2026-11-17) each bite a planted product class: one that reads a
+     *  canonical instrument outside the verdict seam, one that reads the edge's json-simple grammar
+     *  ({@code planner.PlantedVerdictReach}). Each failure names the planted class. */
+    @Test
+    void theRepointedJudgeRulesBite() {
+        JavaClasses planted = new ClassFileImporter().importClasses(com.legend.planner.PlantedVerdictReach.class);
+        org.junit.jupiter.api.Assertions.assertEquals(1, planted.size(), "the planted class is imported");
+        for (com.tngtech.archunit.lang.ArchRule rule : java.util.List.of(compatibilityJsonRule(), hostVerdictRule())) {
+            AssertionError e = org.junit.jupiter.api.Assertions.assertThrows(AssertionError.class,
+                    () -> rule.check(planted), rule.getDescription());
+            org.junit.jupiter.api.Assertions.assertTrue(e.getMessage().contains("com.legend.planner.PlantedVerdictReach"),
+                    rule.getDescription() + ": " + e.getMessage());
+        }
     }
 
     @Test
     void hostVerdictIsReachableOnlyFromTheVerdictSeam() {
-        noClasses()
+        hostVerdictRule().check(CORE_PROD_CLASSES);
+    }
+
+    static com.tngtech.archunit.lang.ArchRule hostVerdictRule() {
+        return noClasses()
             .that().doNotHaveFullyQualifiedName("com.legend.testplan.AssertVerdicts")
             // task #27 (2026-09-21): the verdict seam's two arms — the host judge
             // (Java compare over database rows) and the database judge (the verdict
@@ -3890,6 +4058,17 @@ final class ArchitectureTest {
             .and().doNotHaveFullyQualifiedName("com.legend.testexec.TdsCompare")
             .and().doNotHaveFullyQualifiedName("com.legend.testexec.CanonicalForm")
             .and().doNotHaveFullyQualifiedName("com.legend.testexec.CanonicalDivergence")
+            // the four's own nested classes (CanonicalForm$Result's variants implement it; PureAsserts has none)
+            .and().haveNameNotMatching("com\\.legend\\.testexec\\.(CanonicalForm|CanonicalDivergence|Equality)\\$.*")
+            // THE SEAM'S RUN HALF (measured 2026-11-17, when the rule was repointed from the deleted judge package -- the
+            // edge audit's K16): since slice 5 (2026-11-09) the judges are planned in testplan and run in testexec, and
+            // these are the run's judges -- the host judge's judgments, an assert's run, the database judge's verdicts --
+            // and the host forms that say how the host judge compares numbers across kinds (a hook, HOOK-RULED)
+            .and().doNotHaveFullyQualifiedName("com.legend.testexec.HostJudgments")
+            .and().doNotHaveFullyQualifiedName("com.legend.testexec.AssertRuns")
+            .and().doNotHaveFullyQualifiedName("com.legend.testexec.DatabaseVerdicts")
+            .and().doNotHaveFullyQualifiedName("com.legend.testexec.HostForms")
+            .and().doNotHaveFullyQualifiedName("com.legend.testexec.LiteHostForms")
             // testdatagen composes seed SOURCE TEXT via the ONE repr
             // owner — spelling, never an equality decision
             .and().doNotHaveFullyQualifiedName("com.legend.testdatagen.TestDataGenerator")
@@ -3913,18 +4092,16 @@ final class ArchitectureTest {
             // (com.legend.testexec.DatabaseVerdicts.verdictOf), its appeal heard by number
             .and().doNotHaveFullyQualifiedName("com.legend.testexec.RootLoops")
             .and().doNotHaveFullyQualifiedName("com.legend.testexec.RootLoops$Run")
-            // 2026-11-07, P1.2 (the goals of record: a compatibility appeal is the edge's, decided after the body's
-            // run): a body's held appeals, the verdict seam's after the run -- a failed appeal counted as raised, as a
-            // failure at its step is (the census call); the appeal's own judgment is SqlTextVerdicts', nothing here
-            .and().doNotHaveFullyQualifiedName("com.legend.testexec.Appeals")
-            // the four live in com.legend.judge since 2026-10-30 (D71, the seam-and-wall program's B1: the judge
-            // layer out of exec); the rule's exemptions name them there too
+            // (com.legend.testexec.Appeals, a body's held appeals: moved to the edge with the referee, census C2,
+            // 2026-11-17 -- its exemption named nothing here, deleted with the K16 repoint)
+            // the four live in com.legend.testexec since the judge package's deletion (slice 5, 2026-11-09); the rule
+            // read com.legend.judge until 2026-11-17, a package no class is in -- it named nothing (the edge audit's
+            // K16, CanonicalDivergence among the four); its exemptions already named them in testexec
             .should().dependOnClassesThat().haveNameMatching(
-                "com\\.legend\\.judge\\.(PureAsserts|CanonicalForm|CanonicalDivergence|Equality)")
+                "com\\.legend\\.testexec\\.(PureAsserts|CanonicalForm|CanonicalDivergence|Equality)(\\$.*)?")
             .as("V3: host-verdict classes are reachable only from the"
                     + " verdict/referee seam — register a new dependent"
-                    + " consciously or route through the DB byte verdict")
-            .check(CORE_PROD_CLASSES);
+                    + " consciously or route through the DB byte verdict");
     }
 
     /**

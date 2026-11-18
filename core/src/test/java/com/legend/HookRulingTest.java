@@ -362,7 +362,7 @@ class HookRulingTest {
         TreeSet<String> outsideTheEdge = new TreeSet<>();
         for (JavaClass c : all) {
             if (!c.isInterface() && c.isAssignableTo(PlanStyle.class.getName())
-                    && !c.getPackageName().startsWith("com.legend.edge")) {
+                    && !inEdge(c.getPackageName())) {
                 outsideTheEdge.add(c.getName());
             }
         }
@@ -398,7 +398,7 @@ class HookRulingTest {
             for (JavaClass c : all) {
                 if (!c.getName().equals(hook.getName()) && c.isAssignableTo(hook.getName())
                         && !PRODUCT_REFUSALS.contains(c.getName())) {
-                    assertTrue(c.getPackageName().startsWith("com.legend.edge"),
+                    assertTrue(inEdge(c.getPackageName()),
                             c.getName() + " implements " + hook.getName() + " outside the edge");
                     implementers.add(hook.getSimpleName() + " <- " + c.getName());
                 }
@@ -456,7 +456,7 @@ class HookRulingTest {
                     continue;
                 }
                 if (c.getMethods().stream().anyMatch(m -> m.getOwner().equals(c) && m.getName().equals(name))) {
-                    assertTrue(c.getPackageName().startsWith("com.legend.edge"),
+                    assertTrue(inEdge(c.getPackageName()),
                             c.getName() + " overrides the spelling hook " + name + " outside the edge");
                     overriders.add(name + " <- " + c.getName());
                 }
@@ -465,12 +465,85 @@ class HookRulingTest {
         assertFalse(overriders.isEmpty());
     }
 
+    /** A statement raising {@code kind}, the raise's message {@code ERROR}'s first argument, as the lowering writes one. */
+    private static com.legend.sql.SqlSelect raising(com.legend.sql.RaiseKind kind) {
+        return raisingWith(new com.legend.sql.SqlExpr.RaiseText(kind, List.of()));
+    }
+
+    /** The same statement with {@code message} as the raise's first argument: with the site's bare token as a string
+     *  literal it is the reference the product's raise must equal, character for character. */
+    private static com.legend.sql.SqlSelect raisingWith(com.legend.sql.SqlExpr message) {
+        com.legend.sql.OutputCol v = new com.legend.sql.OutputCol("v", com.legend.sql.SqlType.Scalar.VARCHAR, true,
+                com.legend.sql.OutputCol.Origin.DERIVED);
+        com.legend.sql.SqlExpr raise = com.legend.sql.SqlExpr.Call.of(com.legend.sql.SqlFn.ERROR, message,
+                new com.legend.sql.SqlExpr.StringLit("3:7"));
+        return new com.legend.sql.SqlSelect(List.of(new com.legend.sql.SqlSelect.Projection(raise, "v", v)), false,
+                new com.legend.sql.SqlSource.Dual(), null, List.of(), null, null, List.of(), null, null, List.of(v));
+    }
+
+    /** The token alone, quoted as a literal (a string's quotes, any of the dialects'): nothing else in the message. */
+    private static final java.util.regex.Pattern QUOTED_TOKEN = java.util.regex.Pattern.compile("(['\"`])"
+            // the token's mark as each dialect spells it inside a literal (raw, or its escape: BigQuery's \x1c)
+            + "(?:" + java.util.regex.Pattern.quote(String.valueOf(com.legend.sql.RaiseKind.MARK))
+            + "|\\\\x1[cC]|\\\\u001[cC]|\\\\034)" + java.util.regex.Pattern.quote("LG#1") + "\\1");
+
+    /** What differs from the product's raise in {@code d}'s statement raising each kind but a user's fail (the edge
+     *  audit's K16, 2026-11-17: raiseMessage was the one spelling hook whose product default no test pinned; the review of
+     *  11de9ae229, 2026-11-18: every kind, the message exactly the token): the product writes its site's bare token
+     *  ({@code LG#1}) as the whole literal, and words nothing upstream's way in its site ({@code upstream} null). A
+     *  refusal is put to {@code refused} ("dialect kind"), never dropped. */
+    static List<String> productRaiseDiffers(java.util.function.Supplier<com.legend.sql.dialect.SqlDialect> dialect,
+            java.util.Set<String> refused) {
+        java.util.Set<com.legend.sql.RaiseKind> kinds = java.util.EnumSet.allOf(com.legend.sql.RaiseKind.class);
+        kinds.remove(com.legend.sql.RaiseKind.USER_FAIL);
+        return productRaiseDiffers(dialect, refused, kinds);
+    }
+
+    /** {@link #productRaiseDiffers(java.util.function.Supplier, java.util.Set)} over {@code kinds}. Each statement is
+     *  rendered on a fresh dialect: a dialect may number what it writes per instance (ClickHouse's {@code rand(n)}), so
+     *  two renders on one instance differ by that number alone. */
+    static List<String> productRaiseDiffers(java.util.function.Supplier<com.legend.sql.dialect.SqlDialect> dialect,
+            java.util.Set<String> refused, java.util.Set<com.legend.sql.RaiseKind> kinds) {
+        List<String> out = new java.util.ArrayList<>();
+        for (com.legend.sql.RaiseKind kind : kinds) {
+            com.legend.sql.dialect.SqlDialect d = dialect.get();
+            com.legend.sql.dialect.RenderedStatement s;
+            try {
+                s = d.renderStatement(raising(kind));
+            } catch (com.legend.sql.DialectCapability | NotImplementedException | UnsupportedOperationException e) {
+                refused.add(d.getClass().getName() + " " + kind);
+                continue;
+            }
+            // the statement exactly as with the site's bare token as a string literal (the review of 091b9bde36,
+            // 2026-11-18, SHOULD-FIX 5: the token found somewhere passed concat(token, ' words') and a comment holding
+            // it); the reference itself holds the quoted token, so it is no empty comparison
+            String reference = dialect.get().renderStatement(raisingWith(new com.legend.sql.SqlExpr.StringLit(
+                    com.legend.sql.RaiseKind.token(1)))).sql();
+            if (!QUOTED_TOKEN.matcher(reference).find()) {
+                throw new IllegalStateException(d.getClass().getName() + " writes the reference without its token: "
+                        + reference);
+            }
+            if (!s.sql().equals(reference)) {
+                out.add(d.getClass().getName() + " " + kind + " writes " + s.sql());
+            } else if (s.sites().size() != 1 || s.sites().get(0).upstream() != null) {
+                out.add(d.getClass().getName() + " " + kind + " words its site " + s.sites());
+            }
+        }
+        return out;
+    }
+
     /** The product's default of each spelling hook, pinned on every product dialect that has it: a raw statement as
-     *  written, no spelling pass, no scan order, and a DateTime format of lite's own (six digits and Z). */
+     *  written, no spelling pass, no scan order, a DateTime format of lite's own (six digits and Z), and a raise its
+     *  site's bare token, worded nowhere upstream's way (raiseMessage: the edge audit's K16, 2026-11-17). */
     @Test
     void eachSpellingHooksProductDefault() throws Exception {
         for (com.legend.model.ConnectionDefinition.DatabaseType t : com.legend.database.Databases.implemented()) {
             com.legend.sql.dialect.SqlDialect d = com.legend.database.Databases.dialect(t);
+            java.util.Set<String> refused = new java.util.TreeSet<>();
+            assertEquals(List.of(), productRaiseDiffers(() -> com.legend.database.Databases.dialect(t), refused),
+                    t + ": the product raises its site's token");
+            // no product dialect refuses a raise today (measured 2026-11-18): one that does is pinned here, by kind
+            assertEquals(java.util.Set.of(), refused, t + ": a product dialect refuses a raise");
             assertEquals("Create Table f(x FLOAT)", d.raw("Create Table f(x FLOAT)", "ENGINE_TEXT"),
                     t + ": the product runs a raw statement as written");
             for (String name : List.of("spellingPasses", "scanOrderPasses")) {
@@ -487,6 +560,71 @@ class HookRulingTest {
         }
     }
 
+    /** The raise pin bites a product dialect writing words beside its token ({@code CONCAT(token, ' Division by
+     *  zero')}, the review of 091b9bde36, 2026-11-18): the token is there, quoted, and the statement is not the bare
+     *  token's. */
+    @Test
+    void theRaisePinBitesWordsBesideTheToken() {
+        java.util.function.Supplier<com.legend.sql.dialect.SqlDialect> worded =
+                com.legend.sql.dialect.PlantedWordedRaise::new;
+        List<String> found = productRaiseDiffers(worded, new java.util.TreeSet<>(),
+                java.util.Set.of(com.legend.sql.RaiseKind.DIVIDE_BY_ZERO));
+        assertEquals(1, found.size(), found.toString());
+        assertTrue(found.get(0).contains("Division by zero"), found.get(0));
+        assertEquals(List.of(), productRaiseDiffers(com.legend.sql.dialect.PlantedWordedRaise::plain,
+                new java.util.TreeSet<>(),
+                java.util.Set.of(com.legend.sql.RaiseKind.DIVIDE_BY_ZERO)), "the product's own raise is the token's");
+    }
+
+    /** The raise pin bites: every edge dialect words a raise upstream's way -- its sentence in SQL, or its words in the
+     *  site -- and each is named, by its class. */
+    @Test
+    void theRaisePinBitesAnEdgeDialect() {
+        java.util.Set<String> named = new java.util.TreeSet<>();
+        for (com.legend.model.ConnectionDefinition.DatabaseType t : com.legend.database.Databases.implemented()) {
+            com.legend.sql.dialect.SqlDialect edge = com.legend.edge.PureText.dialect(t);
+            // a division by zero, which the edge words without operands (its other kinds' sentences read theirs)
+            for (String found : productRaiseDiffers(() -> com.legend.edge.PureText.dialect(t), new java.util.TreeSet<>(),
+                    java.util.Set.of(com.legend.sql.RaiseKind.DIVIDE_BY_ZERO))) {
+                assertTrue(found.startsWith(edge.getClass().getName()), found);
+                named.add(edge.getClass().getName());
+            }
+        }
+        assertTrue(named.size() >= 3, "the edge's dialects are named: " + named);
+    }
+
+    /** What {@code dialects} gives a database type that is not the edge's own dialect (the edge audit's K16, 2026-11-17:
+     *  PureText.dialect hands a database it has no dialect for to the product's Databases.dialect, which refuses it by
+     *  name today -- a product dialect for one of them would then reach the edge's planning silently, a fallback):
+     *  "type -> class" for each type answered by a class outside {@code com.legend.edge}; a refusal by name holds. */
+    static List<String> notTheEdges(java.util.function.Function<com.legend.model.ConnectionDefinition.DatabaseType,
+            com.legend.sql.dialect.SqlDialect> dialects) {
+        List<String> out = new java.util.ArrayList<>();
+        for (com.legend.model.ConnectionDefinition.DatabaseType t
+                : com.legend.model.ConnectionDefinition.DatabaseType.values()) {
+            com.legend.sql.dialect.SqlDialect d;
+            try {
+                d = dialects.apply(t);
+            } catch (NotImplementedException refused) {
+                continue;
+            }
+            if (!inEdge(d.getClass().getPackageName())) {
+                out.add(t + " -> " + d.getClass().getName());
+            }
+        }
+        return out;
+    }
+
+    /** Every database the edge plans for has the edge's own dialect, or is refused by name -- never the product's. */
+    @Test
+    void theEdgesDialectIsNeverTheProducts() {
+        assertEquals(List.of(), notTheEdges(com.legend.edge.PureText::dialect), "a database the edge plans with the"
+                + " product's dialect: write the edge's (PureText), or refuse it by name");
+        List<String> product = notTheEdges(com.legend.database.Databases::dialect);
+        assertTrue(product.size() >= 3 && product.stream().allMatch(p -> p.contains(" -> com.legend.sql.dialect.")),
+                "the check bites: the product's dialects are named, " + product);
+    }
+
     private static final Object NONE = new Object();
 
     /** {@code name()} of {@code target}, declared on its class or a superclass; {@link #NONE} where it has none. */
@@ -500,6 +638,12 @@ class HookRulingTest {
             }
         }
         return NONE;
+    }
+
+    /** Whether {@code pkg} is the edge's package or one under it -- its prefix with its dot (the GUARD stream's C.14,
+     *  2026-11-17: "com.legend.edgecase" is no edge). */
+    private static boolean inEdge(String pkg) {
+        return pkg.equals("com.legend.edge") || pkg.startsWith("com.legend.edge.");
     }
 
     private static JavaClasses classes(String... properties) {

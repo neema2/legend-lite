@@ -164,8 +164,8 @@ class SpecChildrenContractsTest {
                 // KeyExpression, Using...): recurse one level through
                 // THEIR components
                 if (value.getClass().isRecord()
-                        && value.getClass().getPackageName()
-                                .startsWith("com.legend")) {
+                        && (value.getClass().getPackageName() + ".")
+                                .startsWith("com.legend.")) {
                     for (RecordComponent rc
                             : value.getClass().getRecordComponents()) {
                         collect(iface, rc.getAccessor().invoke(value), out);

@@ -11,7 +11,7 @@ import java.util.List;
  * the product refusing each by name, the edge answering each -- and refuses any other kind by name
  * ({@code PlanStyleFacetsTest} holds every implementer to this list). A new kind is added here, with its reason.
  */
-public final class PlanStyleFacets {
+@com.legend.base.OpenLine("C4") public final class PlanStyleFacets {
 
     private PlanStyleFacets() {
     }
