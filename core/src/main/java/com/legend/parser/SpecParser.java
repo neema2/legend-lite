@@ -605,7 +605,7 @@ public final class SpecParser implements TokenStreamCursor {
                 arth.add(parseArithmeticPartContext());
             } else if (t == TokenType.AND || t == TokenType.OR) {
                 if (!arth.isEmpty()) {
-                    arithResult = OperatorParts.arithmeticPart(arth, boolResult, dialect());
+                    arithResult = OperatorParts.arithmeticPart(arth, boolResult);
                     arth.clear();
                 }
                 bool.add(parseBooleanPartContext());
@@ -614,7 +614,7 @@ public final class SpecParser implements TokenStreamCursor {
             }
         }
         if (!arth.isEmpty()) {
-            return OperatorParts.arithmeticPart(arth, boolResult, dialect());
+            return OperatorParts.arithmeticPart(arth, boolResult);
         }
         if (!bool.isEmpty()) {
             return OperatorParts.booleanPart(bool, arithResult);
@@ -781,7 +781,7 @@ public final class SpecParser implements TokenStreamCursor {
         while (!atEnd() && isArithmeticOp(peek())) {
             parts.add(parseArithmeticPartContext());
         }
-        return parts.isEmpty() ? expr : OperatorParts.arithmeticPart(parts, expr, dialect());
+        return parts.isEmpty() ? expr : OperatorParts.arithmeticPart(parts, expr);
     }
 
     private static boolean isArithmeticOp(TokenType t) {
