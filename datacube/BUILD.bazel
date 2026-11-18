@@ -1845,6 +1845,7 @@ browser_test(
         ":headless_bundle",
         ":upstream_arrow_answer",
         "//native:compiler",
+        "//native:engine",
         "//python:wheel_duckdb",
         "//python:wheel_query_site",
         "//python:wheel_studio_site",
@@ -1861,6 +1862,7 @@ browser_test(
         # DuckDB's extensions as the wheel carries them: a page's remote file is read through httpfs
         "LEGEND_LITE_DUCKDB_EXTENSIONS": "$(rlocationpath //python:wheel_duckdb)",
         "LEGEND_LITE_LIBRARY": "$(rlocationpath //native:compiler)",
+        "LEGEND_LITE_ENGINE_LIBRARY": "$(rlocationpath //native:engine)",
         "PYTHON_ENGINE_PAGE": "$(rlocationpath :python_engine_page)",
         "UPSTREAM_ARROW_ANSWER": "$(rlocationpath :upstream_arrow_answer)",
         # Query and Studio as the wheel ships them, served by Python's engine (E): a class made on Python's page opens
@@ -1891,6 +1893,7 @@ node_test(
         ":engine_fixture",
         ":headless_bundle",
         "//native:compiler",
+        "//native:engine",
         "//sdlc-client:conformance",
     ],
     entry_point = "test/python-engine/model-home.test.ts",
@@ -1899,6 +1902,7 @@ node_test(
         "ENGINE_FIXTURE": "$(rlocationpath :engine_fixture)",
         "LEGEND_LITE_DATACUBE": "$(rlocationpath :headless_bundle)",
         "LEGEND_LITE_LIBRARY": "$(rlocationpath //native:compiler)",
+        "LEGEND_LITE_ENGINE_LIBRARY": "$(rlocationpath //native:engine)",
     },
     platform_env = select({
         "//tools/platforms:windows_x86_64": {"PROCESSOR_ARCHITECTURE": "AMD64"},
@@ -1959,6 +1963,7 @@ node_test(
         # 2026-11-17)
         "//engine-client:edge",
         "//native:compiler",
+        "//native:engine",
     ],
     entry_point = "test/python-engine/execute.test.ts",
     env = {
@@ -1966,6 +1971,7 @@ node_test(
         "ENGINE_FIXTURE": "$(rlocationpath :engine_fixture)",
         "LEGEND_LITE_DATACUBE": "$(rlocationpath :headless_bundle)",
         "LEGEND_LITE_LIBRARY": "$(rlocationpath //native:compiler)",
+        "LEGEND_LITE_ENGINE_LIBRARY": "$(rlocationpath //native:engine)",
     },
     platform_env = select({
         "//tools/platforms:windows_x86_64": {"PROCESSOR_ARCHITECTURE": "AMD64"},
@@ -1988,6 +1994,7 @@ node_test(
         ":headless_bundle",
         ":src",
         "//native:compiler",
+        "//native:engine",
     ],
     entry_point = "test/python-engine/saved-pages.test.ts",
     env = {
@@ -1995,6 +2002,7 @@ node_test(
         "ENGINE_FIXTURE": "$(rlocationpath :engine_fixture)",
         "LEGEND_LITE_DATACUBE": "$(rlocationpath :headless_bundle)",
         "LEGEND_LITE_LIBRARY": "$(rlocationpath //native:compiler)",
+        "LEGEND_LITE_ENGINE_LIBRARY": "$(rlocationpath //native:engine)",
     },
     platform_env = select({
         "//tools/platforms:windows_x86_64": {"PROCESSOR_ARCHITECTURE": "AMD64"},
@@ -2013,6 +2021,7 @@ node_test(
         ":engine_fixture",
         ":headless_bundle",
         "//native:compiler",
+        "//native:engine",
         "//query-store:conformance",
     ],
     entry_point = "test/python-engine/saved-queries.test.ts",
@@ -2021,6 +2030,7 @@ node_test(
         "ENGINE_FIXTURE": "$(rlocationpath :engine_fixture)",
         "LEGEND_LITE_DATACUBE": "$(rlocationpath :headless_bundle)",
         "LEGEND_LITE_LIBRARY": "$(rlocationpath //native:compiler)",
+        "LEGEND_LITE_ENGINE_LIBRARY": "$(rlocationpath //native:engine)",
     },
     platform_env = select({
         "//tools/platforms:windows_x86_64": {"PROCESSOR_ARCHITECTURE": "AMD64"},

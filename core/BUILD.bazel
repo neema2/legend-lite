@@ -2793,13 +2793,19 @@ _SHIPPED_ARTIFACTS = [
 # keeps :edge_server in its one artifact, looked up by ServiceLoader when the engine is asked for); the tab's engine
 # module's entry (2026-11-18, the orchestrator's ruling on K2's wasm half: //wasm:engine_planner ships in //:wasm as the
 # declared opt-in, its entry library :edge_tab, loaded beside the planner only for engine: 'legend-engine' -- engine-
-# client's engine-module.ts); the Python host's //native:engine joins with the next host train.
-_EDGE_OPT_IN = ["//core:edge_server", "//wasm:edge_tab"]
+# client's engine-module.ts); the Python host's engine library (2026-11-18, K2's native half for train 20: //native:engine,
+# libcompiler_engine, rooted at :edge_entry, loaded by legend_lite.edge alone and shipped by the legend-lite-engine wheel,
+# the [engine] extra; //native:compiler the product library, rooted at :entry).
+_EDGE_OPT_IN = ["//core:edge_server", "//native:engine", "//wasm:edge_tab"]
 
 # (//query-store:edge_page_entry: gone with H6, 2026-11-17 -- the queries page answers lite's own route from
 # :page_entry; dropped here 2026-11-18 at the host train's merge of train 18, as _EDGE_TARGETS above)
 _EDGE_TARGET_LIST = ["//core:edge", "//core:edge_server", "//core:edge_service_tests", "//core:edge_store_words",
                      "//native:edge_entry", "//wasm:edge_boundary", "//wasm:edge_tab"]
+
+# the declared opt-in modules the edge's list does not name, in every query's scope: //native:engine, a shipped opt-in
+# artifact of its own (K2's native half, 2026-11-18)
+_OPT_IN_SCOPE = [t for t in _EDGE_OPT_IN if t not in _EDGE_TARGET_LIST]
 
 # a shipped artifact's direct reach of an edge target that is no opt-in module
 genquery(
@@ -2808,7 +2814,7 @@ genquery(
     expression = "rdeps(deps(set(" + " ".join(_SHIPPED_ARTIFACTS) + ")), (" + _EDGE_TARGETS + ") except set(" +
                  " ".join(_EDGE_OPT_IN) + "), 1) except (" + _EDGE_TARGETS + ")",
     opts = ["--noimplicit_deps"],
-    scope = _SHIPPED_ARTIFACTS + _EDGE_TARGET_LIST,
+    scope = _SHIPPED_ARTIFACTS + _EDGE_TARGET_LIST + _OPT_IN_SCOPE,
 )
 
 # a target in a shipped artifact's closure whose main class is the edge's -- but a declared opt-in module (2026-11-18,
@@ -2824,7 +2830,7 @@ genquery(
     testonly = True,
     expression = (_EDGE_ROOTED + " except " + _OPT_IN_MODULES) % (" ".join(_SHIPPED_ARTIFACTS), " ".join(_SHIPPED_ARTIFACTS)),
     opts = ["--noimplicit_deps"],
-    scope = _SHIPPED_ARTIFACTS + _EDGE_TARGET_LIST,
+    scope = _SHIPPED_ARTIFACTS + _EDGE_TARGET_LIST + _OPT_IN_SCOPE,
 )
 
 # THE ROOT CHECK'S BITE: a planted shipped artifact rooted at the edge, its main class EdgeServer and its runtime the
@@ -2844,7 +2850,7 @@ genquery(
     expression = "rdeps(deps(set(" + " ".join(_SHIPPED_ARTIFACTS + ["//core:planted_edge_rooted_artifact"]) + ")), (" +
                  _EDGE_TARGETS + ") except set(" + " ".join(_EDGE_OPT_IN) + "), 1) except (" + _EDGE_TARGETS + ")",
     opts = ["--noimplicit_deps"],
-    scope = _SHIPPED_ARTIFACTS + _EDGE_TARGET_LIST + ["//core:planted_edge_rooted_artifact"],
+    scope = _SHIPPED_ARTIFACTS + _EDGE_TARGET_LIST + _OPT_IN_SCOPE + ["//core:planted_edge_rooted_artifact"],
 )
 
 genquery(
@@ -2857,7 +2863,7 @@ genquery(
         " ".join(_SHIPPED_ARTIFACTS + ["//core:planted_edge_rooted_artifact"]),
     ),
     opts = ["--noimplicit_deps"],
-    scope = _SHIPPED_ARTIFACTS + _EDGE_TARGET_LIST + ["//core:planted_edge_rooted_artifact"],
+    scope = _SHIPPED_ARTIFACTS + _EDGE_TARGET_LIST + _OPT_IN_SCOPE + ["//core:planted_edge_rooted_artifact"],
 )
 
 java_jars(

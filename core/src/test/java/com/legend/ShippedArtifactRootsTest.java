@@ -37,8 +37,9 @@ class ShippedArtifactRootsTest {
 
     /** The shipped targets reaching the edge outside an opt-in module, each with its K2 owner. Measured 2026-11-18. */
     static final Map<String, String> REACH_OPEN = Map.of(
-            "//native:compiler", "K2 HOST (Python, via DataCube) (2026-11-18): the native library rooted at"
-                    + " :edge_entry; the product library at :entry alone, //native:engine the opt-in (the next host train)"
+            // (//native:compiler closed 2026-11-18, K2's native half for train 20 (the Python host): the product
+            // library rooted at :entry alone, its closure edge-free -- //python:engine_test's EdgeOff; legend-engine's
+            // entries the engine library's, //native:engine, rooted at :edge_entry, the declared opt-in in _EDGE_OPT_IN)
             // (//query-store:page closed 2026-11-18, the host train's merge of train 18: product-rooted at :page_entry
             // by H6, 2026-11-17, its closure edge-free -- //tools/deps:query_store_page_closure_test)
             // (//wasm:planner closed 2026-11-18, K2's wasm half for train 20: rooted at :tab, lite's planner.TabExports,
