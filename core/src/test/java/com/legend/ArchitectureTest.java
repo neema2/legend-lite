@@ -1401,8 +1401,7 @@ final class ArchitectureTest {
             "lowering.SqlPostProcessors#applyRecorded(com.legend.sql.SqlQuery, java.util.Map, boolean, boolean)",
             "com.legend.edge.EnginePlans",
             "lowering.SqlPostProcessors#nonExecutable(com.legend.sql.SqlQuery)", "com.legend.edge.EnginePlans",
-            "planner.BodyPlanner#boundContext(com.legend.compiler.spec.typed.TypedSpec, com.legend.compiler.spec.SpecCompiler)",
-            "com.legend.edge.EnginePlans",
+            // (planner.BodyPlanner#boundContext left 2026-11-18, J40's only-edge-callers census: edge.RuntimeContexts)
             "planner.BodyPlanner#featuresOf(com.legend.planner.PlanEnv, java.util.List)", "com.legend.edge.EnginePlans",
             // (planner.BodyPlanner#pushDownEnums left 2026-11-18, J40: the edge's, EnginePlans.pushDownEnums, over featuresOf)
             "planner.BodyPlanner#resolver(com.legend.compiler.spec.SpecCompiler, com.legend.planner.PlanEnv)",

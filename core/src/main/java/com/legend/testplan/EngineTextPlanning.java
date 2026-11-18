@@ -256,11 +256,6 @@ public final class EngineTextPlanning {
         return com.legend.lowering.LiteralSpelling.inZone(iso, zone);
     }
 
-    public static com.legend.compiler.spec.typed.ExecutionContext boundContext(TypedSpec context,
-            List<TypedSpec> letPrefix, SpecCompiler specs) {
-        return com.legend.planner.BodyPlanner.boundContext(context, letPrefix, specs);
-    }
-
     /** {@code producer}'s structured inputs ({@code planner.SqlTextInputs}), or null where its shape has none. */
     public static com.legend.planner.@com.legend.base.Nullable SqlTextInputs sqlTextInputs(
             com.legend.compiler.spec.NativeDispatch.RoutineCall producer, List<TypedSpec> letPrefix) {

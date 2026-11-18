@@ -1854,6 +1854,9 @@ class JavaEvalLedgerTest {
                             "EdgeServer.java",
                             // the texts of upstream's effects and refusals, and legend-pure's raise sentences, as SQL
                             "EffectTexts.java", "PureMessages.java",
+                            // 2026-11-18, J40's only-edge-callers census: the bound context of legend-engine's test natives'
+                            // runtime argument, moved from planner.BodyPlanner; a typed read, nothing evaluated
+                            "RuntimeContexts.java",
                             // legend-engine's text printers (O3) and the dialects spelled upstream's way (D1.0)
                             "EngineStyleH2.java", "EngineStyleDB2.java", "EngineStyleComposite.java", "PureText.java",
                             // legend-pure's print forms written for the product's text nodes, one rewrite (D1.2,
