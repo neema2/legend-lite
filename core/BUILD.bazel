@@ -2544,6 +2544,11 @@ junit_test(
         ":edge_direct_dependents",
         ":edge_direct_dependents_planted",
         ":edge_jars",
+        # K2's shipped-artifact roots, and their planted bite (2026-11-18)
+        ":shipped_edge_reach",
+        ":shipped_edge_reach_planted",
+        ":shipped_edge_roots",
+        ":shipped_edge_roots_planted",
         ":guardrails_sources",
         ":product_jars",
     ],
@@ -2559,6 +2564,10 @@ junit_test(
         "-Dlegend.edge.jars=$(rlocationpath :edge_jars)",
         "-Dlegend.edge_dependents=$(rlocationpath :edge_direct_dependents)",
         "-Dlegend.edge_dependents_planted=$(rlocationpath :edge_direct_dependents_planted)",
+        "-Dlegend.shipped_edge_reach=$(rlocationpath :shipped_edge_reach)",
+        "-Dlegend.shipped_edge_reach_planted=$(rlocationpath :shipped_edge_reach_planted)",
+        "-Dlegend.shipped_edge_roots=$(rlocationpath :shipped_edge_roots)",
+        "-Dlegend.shipped_edge_roots_planted=$(rlocationpath :shipped_edge_roots_planted)",
         "-Dlegend.build_time.jars=$(rlocationpath :build_time_jars)",
     ],
     # the guards that judge the boundary itself: they read the edge's jars and its dependents (F's census line A5,
@@ -2585,6 +2594,8 @@ junit_test(
         "--select-class=com.legend.EdgeOnlyMembersTest",
         # L-B (2026-11-18): the plans' and the MIR's data, each piece with a real product use
         "--select-class=com.legend.EdgeOnlyDataTest",
+        # K2 (the user's ruling of 2026-11-18, product root, edge opt-in): every shipped artifact starts at the product
+        "--select-class=com.legend.ShippedArtifactRootsTest",
         # every implementation of the test plan's Extension is the edge's (census C2, 2026-11-17), so the guard that
         # walks them as data reads them here
         "--select-class=com.legend.PlanTypesAreDataTest",
@@ -2717,6 +2728,78 @@ genquery(
     scope = _EDGE_SEPARATION_ROOTS + [":planted_edge_reach", "//native:edge_entry", "//query-store:edge_page_entry", "//core:edge",
                                       "//core:edge_server", "//core:edge_service_tests", "//core:edge_store_words",
                                       "//wasm:edge_boundary", "//wasm:edge_tab"],
+)
+
+# K2, THE SHIPPED ARTIFACTS' ROOTS (the user's ruling of 2026-11-18, ~06:00, cited by the orchestrator: "Product root,
+# edge opt-in" -- each shipped artifact starts at lite's own entry, legend-engine's module loads only when configured,
+# one artifact per surface). What ships: the product build CI runs (gates-run.yml: //:java //:web //:wasm //:native
+# //:sites, and //native:compiler), the apps (//datacube:app) and the Python package (//python:wheel). A shipped
+# artifact reaches an edge target only through a declared opt-in module, and none is rooted at a com.legend.edge main
+# class. ShippedArtifactRootsTest reads both answers; each artifact still the edge's is pinned there as K2's, by its
+# owner, and goes as it re-roots (the GUARD stream, 2026-11-18).
+_SHIPPED_ARTIFACTS = [
+    "//:java",
+    "//:native",
+    "//:sites",
+    "//:wasm",
+    "//:web",
+    "//datacube:app",
+    "//native:compiler",
+    "//python:wheel",
+]
+
+# The declared opt-in modules: legend-engine's, loaded only when configured. The server's (E-P5's K2 half: //core:server
+# keeps :edge_server in its one artifact, looked up by ServiceLoader when the engine is asked for); the Python host's
+# //native:engine joins with the next host train.
+_EDGE_OPT_IN = ["//core:edge_server"]
+
+_EDGE_TARGET_LIST = ["//core:edge", "//core:edge_server", "//core:edge_service_tests", "//core:edge_store_words",
+                     "//native:edge_entry", "//query-store:edge_page_entry", "//wasm:edge_boundary", "//wasm:edge_tab"]
+
+# a shipped artifact's direct reach of an edge target that is no opt-in module
+genquery(
+    name = "shipped_edge_reach",
+    testonly = True,
+    expression = "rdeps(deps(set(" + " ".join(_SHIPPED_ARTIFACTS) + ")), (" + _EDGE_TARGETS + ") except set(" +
+                 " ".join(_EDGE_OPT_IN) + "), 1) except (" + _EDGE_TARGETS + ")",
+    opts = ["--noimplicit_deps"],
+    scope = _SHIPPED_ARTIFACTS + _EDGE_TARGET_LIST,
+)
+
+# a target in a shipped artifact's closure whose main class is the edge's
+genquery(
+    name = "shipped_edge_roots",
+    testonly = True,
+    expression = "attr(main_class, '^com\\.legend\\.edge\\.', deps(set(" + " ".join(_SHIPPED_ARTIFACTS) + ")))",
+    opts = ["--noimplicit_deps"],
+    scope = _SHIPPED_ARTIFACTS,
+)
+
+# THE ROOT CHECK'S BITE: a planted shipped artifact rooted at the edge, its main class EdgeServer and its runtime the
+# edge's library -- found by the planted queries alone (ShippedArtifactRootsTest.theRootCheckBites)
+legend_java_binary(
+    name = "planted_edge_rooted_artifact",
+    testonly = True,
+    main_class = "com.legend.edge.EdgeServer",
+    runtime_deps = [":edge"],
+)
+
+genquery(
+    name = "shipped_edge_reach_planted",
+    testonly = True,
+    expression = "rdeps(deps(set(" + " ".join(_SHIPPED_ARTIFACTS + ["//core:planted_edge_rooted_artifact"]) + ")), (" +
+                 _EDGE_TARGETS + ") except set(" + " ".join(_EDGE_OPT_IN) + "), 1) except (" + _EDGE_TARGETS + ")",
+    opts = ["--noimplicit_deps"],
+    scope = _SHIPPED_ARTIFACTS + _EDGE_TARGET_LIST + ["//core:planted_edge_rooted_artifact"],
+)
+
+genquery(
+    name = "shipped_edge_roots_planted",
+    testonly = True,
+    expression = "attr(main_class, '^com\\.legend\\.edge\\.', deps(set(" +
+                 " ".join(_SHIPPED_ARTIFACTS + ["//core:planted_edge_rooted_artifact"]) + ")))",
+    opts = ["--noimplicit_deps"],
+    scope = _SHIPPED_ARTIFACTS + ["//core:planted_edge_rooted_artifact"],
 )
 
 java_jars(
