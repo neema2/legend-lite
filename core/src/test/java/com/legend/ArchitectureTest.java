@@ -1446,6 +1446,8 @@ final class ArchitectureTest {
             // never upstream's composition; legend-engine's one-object-bare fold is the edge's own code): the subselect
             // pruning (lean, or legend-engine's computed projections kept) and the statement's EXISTS sites
             "lowering.ExistsSites#alias()", "com.legend.edge.EdgeLoweringForms",
+            // ExistsSites#zones() -> #keysWhere() (2026-11-18, F's L10 61e5205d1: the WHERE merges' key-subselect writer in
+            // place of the resolver zones, legend-engine's zone order the edge's EngineWhereZones; the same entry, renamed)
             "lowering.ExistsSites#keysWhere()", "com.legend.edge.EdgeLoweringForms",
             "lowering.SubselectPrune#prune(com.legend.sql.SqlQuery, boolean)", "com.legend.edge.EdgeLoweringForms",
             // L10 (2026-11-18, the orchestrator's GO on the shape): the engine shape's pruning keeps its union frame -- the
