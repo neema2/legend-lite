@@ -1,7 +1,7 @@
 // Copyright 2026 Legend Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-package com.legend.planner;
+package com.legend.edge;
 
 import com.legend.compiler.spec.typed.TypedNativeCall;
 import com.legend.compiler.spec.typed.TypedSpec;
@@ -20,7 +20,8 @@ import java.util.List;
  * dialect as its own first argument (the engine reads
  * {@code $connection.type} off that same runtime). Consumers (the
  * K-routine's render, the sql-text verdict arm) read the inputs here,
- * never the argument positions.
+ * never the argument positions. (Moved from planner, J40's only-edge-callers census, 2026-11-18: legend-engine's
+ * toSQLString surface, its readers the edge's alone.)
  *
  * @param query the query argument (let-bound forms are the caller's to
  *     chase — the plan-text arm's rule)

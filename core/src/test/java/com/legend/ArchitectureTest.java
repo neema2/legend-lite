@@ -1421,14 +1421,9 @@ final class ArchitectureTest {
             "planner.QueryParameters$Declared#name()", "com.legend.edge.EnginePlans",
             "planner.QueryParameters$Declared#planParam(java.lang.String)", "com.legend.edge.EnginePlans",
             "planner.QueryParameters$Declared#signature()", "com.legend.edge.EnginePlans",
-            "planner.QueryParameters$Declared#type()", "com.legend.edge.EnginePlans",
-            "planner.SqlTextInputs#dialect()", "com.legend.edge.EnginePlans",
-            "planner.SqlTextInputs#mapping()", "com.legend.edge.EnginePlans",
-            "planner.SqlTextInputs#of(com.legend.compiler.spec.NativeDispatch$RoutineCall, java.util.List)",
-            "com.legend.edge.EnginePlans",
-            "planner.SqlTextInputs#query()", "com.legend.edge.EnginePlans",
-            "planner.SqlTextInputs#receiverForm()", "com.legend.edge.EnginePlans",
-            "planner.SqlTextInputs#runtime()", "com.legend.edge.EnginePlans"
+            "planner.QueryParameters$Declared#type()", "com.legend.edge.EnginePlans"
+            // (planner.SqlTextInputs's six rows left 2026-11-18, J40's only-edge-callers census: the record moved to
+            // the edge, edge.SqlTextInputs)
             // 2026-11-15 (C5-J item 3): the resolver's seven reads of the lowering's helpers left this list -- the
             // reducer table moved to compiler.element.Reducers and the object reference's protocol to model.AsorRef, below
             // both; the resolver reaches the lowering no more (tools/deps/core-layers.txt)

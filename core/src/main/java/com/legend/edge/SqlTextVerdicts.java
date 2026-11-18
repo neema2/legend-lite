@@ -507,14 +507,14 @@ final class SqlTextVerdicts {
         // the query lambda may be LET-BOUND (`let func = {|...};
         // toSQLString($func, mapping, DatabaseType.H2, ...)`) — chased
         // like the plan-text arm chases its lambda
-        com.legend.planner.SqlTextInputs in = EngineTextPlanning.sqlTextInputs(producer, letPrefix);
+        SqlTextInputs in = SqlTextInputs.of(producer, letPrefix);
         TypedSpec lamArg = in == null ? null
                 : com.legend.compiler.spec.typed.Lets.bound(
-                        EngineTextPlanning.query(in), letPrefix);
+                        in.query(), letPrefix);
         if (in == null
                 || !(lamArg instanceof TypedLambda lam)
                 || lam.body().isEmpty()
-                || !(EngineTextPlanning.mapping(in) instanceof TypedPackageableRef mapping)) {
+                || !(in.mapping() instanceof TypedPackageableRef mapping)) {
             return null;
         }
         // the dialect: the DatabaseType overload names it; the RUNTIME
@@ -523,10 +523,10 @@ final class SqlTextVerdicts {
         // carry it on the connection, read through the let chase and a
         // helper inline
         String dbType;
-        if (EngineTextPlanning.dialect(in) instanceof TypedEnumValue db) {
+        if (in.dialect() instanceof TypedEnumValue db) {
             dbType = db.value();
         } else {
-            TypedSpec rt = com.legend.compiler.spec.typed.Lets.bound(EngineTextPlanning.runtime(in), letPrefix);
+            TypedSpec rt = com.legend.compiler.spec.typed.Lets.bound(in.runtime(), letPrefix);
             rt = new com.legend.compiler.spec.UserCallInliner(specs)
                     .inlineBody(List.of(rt)).get(0);
             com.legend.compiler.spec.typed.ExecutionContext frameCtx =
