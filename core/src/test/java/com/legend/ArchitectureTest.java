@@ -1402,8 +1402,7 @@ final class ArchitectureTest {
             "planner.BodyPlanner#boundContext(com.legend.compiler.spec.typed.TypedSpec, com.legend.compiler.spec.SpecCompiler)",
             "com.legend.edge.EnginePlans",
             "planner.BodyPlanner#featuresOf(com.legend.planner.PlanEnv, java.util.List)", "com.legend.edge.EnginePlans",
-            "planner.BodyPlanner#pushDownEnums(com.legend.planner.PlanEnv, java.util.List)",
-            "com.legend.edge.EnginePlans com.legend.edge.PlanEnvelope",
+            // (planner.BodyPlanner#pushDownEnums left 2026-11-18, J40: the edge's, EnginePlans.pushDownEnums, over featuresOf)
             "planner.BodyPlanner#resolver(com.legend.compiler.spec.SpecCompiler, com.legend.planner.PlanEnv)",
             "com.legend.edge.EnginePlans",
             "planner.PlanEnv#ctx()",
