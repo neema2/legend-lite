@@ -12,9 +12,6 @@
 # (docs/build-inventory/program/START_HERE.md §4).
 load("//tools/guards:defs.bzl", "guards_package")
 
-# the engine: the compiler's unit tests (gate 1), spec parity (gate 3), the JSON and protocol libraries, the
-# engine-runner binaries through their launchers (P3-26), the server's Postgres arm (one query against the embedded
-# Postgres 16), the #SQL{}# island's cases on the same Postgres
 # the gate's own list, read by core's TaggedClassesHaveATargetTest: every census and guardrail class runs in a target
 # the local and lanes suites reach (2026-11-17)
 exports_files(
@@ -22,6 +19,9 @@ exports_files(
     visibility = ["//core:__pkg__"],
 )
 
+# the engine: the compiler's unit tests (gate 1), spec parity (gate 3), the JSON and protocol libraries, the
+# engine-runner binaries through their launchers (P3-26), the server's Postgres arm (one query against the embedded
+# Postgres 16), the #SQL{}# island's cases on the same Postgres
 test_suite(
     name = "core",
     tests = [

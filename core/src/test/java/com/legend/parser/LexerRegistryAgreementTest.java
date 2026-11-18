@@ -33,10 +33,11 @@ class LexerRegistryAgreementTest {
         // overlay grammars registered via ServiceLoader on the TEST
         // classpath are not core built-ins — they re-lex through the SPI
         // and never ride the shared stream, so they are exempt
-        fromRegistry.removeIf(name ->
-                !SectionGrammarRegistry.lookup(name).orElseThrow()
-                        .getClass().getPackageName()
-                        .startsWith("com.legend.parser"));
+        // the parser's package or one under it, its prefix with its dot (the GUARD stream's C.14, 2026-11-17)
+        fromRegistry.removeIf(name -> {
+            String pkg = SectionGrammarRegistry.lookup(name).orElseThrow().getClass().getPackageName();
+            return !pkg.equals("com.legend.parser") && !pkg.startsWith("com.legend.parser.");
+        });
         assertEquals(fromRegistry, new TreeSet<>(Lexer.lexableSections()),
                 "Lexer.LEXABLE_SECTIONS and the registry's lexable built-in"
                         + " grammars have drifted — a claimed section whose"

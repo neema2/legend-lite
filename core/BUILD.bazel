@@ -2544,8 +2544,15 @@ junit_test(
         "--select-class=com.legend.EdgeSeparationTest",
         # the ruled hooks' implementers, read from the edge's jars (Phase 6's HookRulingTest)
         "--select-class=com.legend.HookRulingTest",
-        # the judging rules' reach (the GUARD stream's C.3, 2026-11-17): the RULES bucket of the count
+        "--select-class=com.legend.HookRulingsAgreeTest",
         "--select-class=com.legend.JudgingRulesReachTest",
+        "--select-class=com.legend.OpenClassMembersTest",
+        "--select-class=com.legend.OpenLineMarkedTest",
+        "--select-class=com.legend.PlanStyleSurfaceTest",
+        "--select-class=com.legend.ServiceLoaderSitesTest",
+        "--select-class=com.legend.SqlFnSortedTest",
+        "--select-class=com.legend.HookLambdasTest",
+        "--select-class=com.legend.EdgePackageBoundaryTest",
         # every implementation of the test plan's Extension is the edge's (census C2, 2026-11-17), so the guard that
         # walks them as data reads them here
         "--select-class=com.legend.PlanTypesAreDataTest",
@@ -2748,9 +2755,11 @@ junit_test(
     visibility = ["//gates:__pkg__"],
 )
 
-# the edge's census classes (2026-11-17, the orchestrator's priority: PlannerSurfaceTest ran in no target after the edge
-# split -- tagged census, it compiled into the edge's test library, which //core:census does not carry): every edge test
-# class tagged census, over the edge's test library; TaggedClassesHaveATargetTest holds every tagged class to a target
+# THE EDGE'S CENSUS (the orchestrator's priority, 2026-11-17 20:55): the census-tagged classes of the edge's test
+# library (core/edge_tests.bzl) -- PlannerSurfaceTest -- which :census, carrying the product's test library alone,
+# cannot run and :core_edge_tests leaves out by tag. Every edge class selected by name and the census tag filtering
+# them, so a census class added to the edge's library runs here; TaggedClassesHaveATargetTest holds that every census
+# and guardrail class has its target. Tagged edge_test (the product's closure proof reads the tag).
 junit_test(
     name = "census_edge",
     memory_mb = 1024,

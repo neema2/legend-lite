@@ -362,7 +362,7 @@ class HookRulingTest {
         TreeSet<String> outsideTheEdge = new TreeSet<>();
         for (JavaClass c : all) {
             if (!c.isInterface() && c.isAssignableTo(PlanStyle.class.getName())
-                    && !c.getPackageName().startsWith("com.legend.edge")) {
+                    && !inEdge(c.getPackageName())) {
                 outsideTheEdge.add(c.getName());
             }
         }
@@ -398,7 +398,7 @@ class HookRulingTest {
             for (JavaClass c : all) {
                 if (!c.getName().equals(hook.getName()) && c.isAssignableTo(hook.getName())
                         && !PRODUCT_REFUSALS.contains(c.getName())) {
-                    assertTrue(c.getPackageName().startsWith("com.legend.edge"),
+                    assertTrue(inEdge(c.getPackageName()),
                             c.getName() + " implements " + hook.getName() + " outside the edge");
                     implementers.add(hook.getSimpleName() + " <- " + c.getName());
                 }
@@ -456,7 +456,7 @@ class HookRulingTest {
                     continue;
                 }
                 if (c.getMethods().stream().anyMatch(m -> m.getOwner().equals(c) && m.getName().equals(name))) {
-                    assertTrue(c.getPackageName().startsWith("com.legend.edge"),
+                    assertTrue(inEdge(c.getPackageName()),
                             c.getName() + " overrides the spelling hook " + name + " outside the edge");
                     overriders.add(name + " <- " + c.getName());
                 }
@@ -500,6 +500,12 @@ class HookRulingTest {
             }
         }
         return NONE;
+    }
+
+    /** Whether {@code pkg} is the edge's package or one under it -- its prefix with its dot (the GUARD stream's C.14,
+     *  2026-11-17: "com.legend.edgecase" is no edge). */
+    private static boolean inEdge(String pkg) {
+        return pkg.equals("com.legend.edge") || pkg.startsWith("com.legend.edge.");
     }
 
     private static JavaClasses classes(String... properties) {

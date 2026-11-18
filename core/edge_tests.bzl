@@ -16,6 +16,29 @@ EDGE_TEST_SRCS = [
     "src/test/java/com/legend/DecimalKindsTest.java",
     "src/test/java/com/legend/EdgeSeparationTest.java",
     "src/test/java/com/legend/HookRulingTest.java",
+    # the two hook registries agree (the GUARD stream, 2026-11-17): it reads HookRulingTest and EdgeSeparationTest
+    "src/test/java/com/legend/HookRulingsAgreeTest.java",
+    # the judging rules' TYPE flagged, its members sorted (the GUARD stream, C.3, 2026-11-17): it reads the product jars
+    "src/test/java/com/legend/JudgingRulesReachTest.java",
+    # its planted violator, read as bytecode alone (C.3, 2026-11-17)
+    "src/test/java/com/legend/testexec/PlantedRulesByClass.java",
+    "src/test/java/com/legend/testexec/PlantedRulesReach.java",
+    "src/test/java/com/legend/testexec/PlantedRulesSwitch.java",
+    "src/test/java/com/legend/testexec/PlantedRulesText.java",
+    # the open compatibility classes pinned by member set (the GUARD stream, C.4, 2026-11-17): it reads the census
+    "src/test/java/com/legend/OpenClassMembersTest.java",
+    # the open classes marked @OpenLine, held equal to the census's list (the GUARD stream, C.7, 2026-11-17)
+    "src/test/java/com/legend/OpenLineMarkedTest.java",
+    # the plan style's surface: KINDS, criterion (a) on TWO_FORMS, its methods and overriders (the GUARD stream, C.9)
+    "src/test/java/com/legend/PlanStyleSurfaceTest.java",
+    # the ServiceLoader seams pinned by type, and every service file (the GUARD stream, C.10, 2026-11-17)
+    "src/test/java/com/legend/ServiceLoaderSitesTest.java",
+    # every SqlFn sorted PRODUCT or EDGE_ONLY, the other guards' lists held to it (the GUARD stream, C.13, 2026-11-17)
+    "src/test/java/com/legend/SqlFnSortedTest.java",
+    # hooks implemented by lambdas, and twoForm's callers, pinned (the GUARD stream, C.12, 2026-11-17)
+    "src/test/java/com/legend/HookLambdasTest.java",
+    # the edge's package a boundary: no dotless prefix check, no edge class in a product jar (the GUARD stream, C.14)
+    "src/test/java/com/legend/EdgePackageBoundaryTest.java",
     "src/test/java/com/legend/PlanStyleFacetsTest.java",
     # the edge's extension records walked as data (census C2, 2026-11-17: the appeals moved to com.legend.edge)
     "src/test/java/com/legend/PlanTypesAreDataTest.java",
@@ -123,13 +146,6 @@ EDGE_TEST_SRCS = [
     "src/test/java/com/legend/testplan/DatabaseHalfDe5Test.java",
     "src/test/java/com/legend/testplan/ExecEnvCatalogTest.java",
     "src/test/java/com/legend/testplan/TestPlanJsonRoundTripTest.java",
-    # the judging rules' TYPE flagged, its members sorted (the GUARD stream, C.3, 2026-11-17): it reads the product jars
-    "src/test/java/com/legend/JudgingRulesReachTest.java",
-    # its planted violator, read as bytecode alone (C.3, 2026-11-17)
-    "src/test/java/com/legend/testexec/PlantedRulesByClass.java",
-    "src/test/java/com/legend/testexec/PlantedRulesReach.java",
-    "src/test/java/com/legend/testexec/PlantedRulesSwitch.java",
-    "src/test/java/com/legend/testexec/PlantedRulesText.java",
 ]
 
 # a file whose class is not its name
