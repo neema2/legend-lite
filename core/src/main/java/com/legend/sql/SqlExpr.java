@@ -775,47 +775,25 @@ public sealed interface SqlExpr
         }
     }
 
-    /** A query's parameter, where it is used: in a statement that executes, a value the statement binds (a dialect
-     * writes it as a placeholder, typed by {@code type}: what a literal of the parameter's declared type carries,
-     * docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9, step 2's landing 2); in the legacy engine-text printer, the
-     * engine's template placeholder ({@code ${name}} — its freemarker placeholder for a function parameter or an
-     * Allocation-bound variable), its {@code type} unknown. */
+    /** A query's parameter, where it is used: a value the statement binds (a dialect writes it as a placeholder,
+     * typed by {@code type}: what a literal of the parameter's declared type carries,
+     * docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9, step 2's landing 2). The product's bound slot alone (the audit's
+     * J31, 2026-11-18): legend-engine's plan-template placeholder ({@code ${name}}, its enumeration-mapping function,
+     * the temp-table protocol's bare splice) is the compatibility edge's, held in its own table
+     * ({@code edge/EngineParams}), never here; a template parameter's {@code type} is {@code UNKNOWN}. */
     record PlanParam(String name, Kind kind, boolean optional,
-            @com.legend.base.Nullable String enumMapFn,
             TypeFact type, @com.legend.base.Nullable DeclaredKind declared) implements SqlExpr {
-        /** {@code RAW} splices {@code ${name}} bare — the temp-table IN
-         * protocol's {@code inFilterClause_X} wrapper variable
-         * (processInOperation.pure); plan-text vocabulary only. */
         /** {@code DATE} is pure Date (the h2New surface spells it with the
          * TIMESTAMP keyword, like DATETIME); {@code STRICT_DATE} is pure
          * StrictDate, spelled with the DATE keyword ({@code
          * DATE'${startDate}'} — testGroupByWithTwoOpenVariablesInAggAndFilter). */
-        public enum Kind { STRING, DATE, STRICT_DATE, DATETIME, FLOAT, BOOLEAN, ENUM,
-            OTHER, RAW }
+        public enum Kind { STRING, DATE, STRICT_DATE, DATETIME, FLOAT, BOOLEAN, ENUM, OTHER }
 
         /** {@code declared}: set when each database types the parameter's placeholder by its declared Pure type (a
          *  Float's, a Decimal's, a Number's and a Date's fact is {@code UNKNOWN}; a DateTime's is {@code TIMESTAMP}:
-         *  {@link DeclaredKind}, D1); null when its type is the fact's alone, or when it is a legacy plan's template
-         *  parameter (the four-argument and shorter forms). */
+         *  {@link DeclaredKind}, D1); null when its type is the fact's alone. */
         public PlanParam {
             java.util.Objects.requireNonNull(type, "type");
-        }
-
-        public PlanParam(String name, Kind kind, boolean optional,
-                @com.legend.base.Nullable String enumMapFn) {
-            this(name, kind, optional, enumMapFn, SqlTyping.UNKNOWN, null);
-        }
-
-        public PlanParam(String name, Kind kind, boolean optional) {
-            this(name, kind, optional, null);
-        }
-
-        public PlanParam(String name, Kind kind) {
-            this(name, kind, false);
-        }
-
-        public PlanParam(String name, boolean stringTyped) {
-            this(name, stringTyped ? Kind.STRING : Kind.OTHER, false);
         }
     }
 

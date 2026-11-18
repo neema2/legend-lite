@@ -91,7 +91,13 @@ class CompatSpellingGuardTest {
             // function's value is its semantics
             "createTableRowIdentifiers(", "createRowIdentifier([",
             // legend-engine's text of an empty TDS cell (the separation census's B10, 2026-11-17: until then not listed)
-            "TDSNull");
+            "TDSNull",
+            // legend-pure's assert sentences (census J29, 2026-11-18: the host judge's are the edge's EdgeHostWords; a
+            // planted one in a product source turns this guard red)
+            "No error was thrown", "Expected non-empty collection", "Execution error message mismatch",
+            "Execution error line mismatch", "Execution error column mismatch", "^Assert failed$",
+            "should not equal", " does not contain ", "is not equivalent to", "the element references differ",
+            "assertJsonStringsEqual: FIRST DIFF", "Should not be identical to", "\\nexpected: ", "\\nactual:   ");
 
     /** The compatibility machinery, matched as whole words in code. */
     static final List<String> SYMBOLS = List.of(
@@ -139,6 +145,12 @@ class CompatSpellingGuardTest {
      * SHRINK-ONLY: a row falls or goes as its step lands; a row rises or is added only with a dated justification.
      */
     static final List<String> REGISTER = List.of(
+            // census J29 (2026-11-18): "Assert failed" is the platform's own assert native's default message
+            // (assert.pure: assert(condition) is assert(condition, | 'Assert failed'); the platform stdlib is lite's,
+            // AGENTS.md's reference-checkout tenet), as two compiler classes plan its body -- STAYS until the
+            // orchestrator rules whether lite's native words it as lite's TRUE sentence instead
+            "compiler/spec/LambdaBodies.java | Assert failed | 1 | STAYS",
+            "compiler/spec/VerdictQueries.java | Assert failed | 1 | STAYS",
             // D1.6's compile messages, gone 2026-11-16 (W7 of docs/records/d-plan-2026-11-16.md): ModelIntegrity,
             // TypeClassifier, TableReferenceChecker and the normalizer's "Can't find" raise a CompileKind, worded by the
             // product (CompileKind.sentence) and, for upstream's clients, by the edge (PureMessages.compile)

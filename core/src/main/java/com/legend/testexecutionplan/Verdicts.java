@@ -79,11 +79,6 @@ public final class Verdicts {
     }
 
 
-    public static @com.legend.base.Nullable String scalarString(
-            @com.legend.base.Nullable TypedSide r) {
-        return r instanceof TypedSide.Scalar s
-                && s.value() instanceof String str ? str : null;
-    }
 
 
 

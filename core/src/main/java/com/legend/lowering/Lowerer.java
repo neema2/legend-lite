@@ -505,11 +505,6 @@ public final class Lowerer {
         return this;
     }
 
-    public Lowerer bindPlanParam(String name, boolean stringTyped) {
-        letBindings.put(name, new SqlExpr.PlanParam(name, stringTyped));
-        return this;
-    }
-
     public Lowerer bindPlanParam(SqlExpr.PlanParam proto) {
         letBindings.put(proto.name(), proto);
         return this;
@@ -3847,12 +3842,7 @@ public final class Lowerer {
                     && letBindings.containsKey(v.name()) -> {
                 SqlExpr bound = Objects.requireNonNull(
                         letBindings.get(v.name()));
-                // a field read through a plan parameter IS a dotted
-                // placeholder — its KIND follows the FIELD type
-                yield bound instanceof SqlExpr.PlanParam pp
-                        ? new SqlExpr.PlanParam(pp.name() + "." + p.property(),
-                                Fold.planKindOf(p.info().type()))
-                        : new SqlExpr.StructGet(bound, p.property());
+                yield new SqlExpr.StructGet(bound, p.property());
             }
             case TypedPropertyAccess p when p.source() instanceof TypedVariable v
                     -> Objects.requireNonNull(
@@ -3921,12 +3911,7 @@ public final class Lowerer {
                     manyPropertyMap(p, columns);
             case TypedPropertyAccess p when classLayout.apply(p.source().info().type()).isPresent()
                     -> {
-                SqlExpr base = scalar(p.source(), columns);
-                // a read THROUGH a plan parameter = the dotted placeholder
-                String dotted = PlanParams.dottedPlanParam(base, p.property());
-                yield dotted != null && !(p.info().type() instanceof Type.ClassType)
-                        ? new SqlExpr.PlanParam(dotted, Fold.planKindOf(p.info().type()))
-                        : new SqlExpr.StructGet(base, p.property());
+                yield new SqlExpr.StructGet(scalar(p.source(), columns), p.property());
             }
             // ^Class(prop=value, …) as a VALUE: a struct with the MODEL's
             // canonical layout (declared stored properties, declaration

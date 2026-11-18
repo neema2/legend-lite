@@ -69,7 +69,8 @@ final class PlantedEngineTestText implements EngineTestText {
     }
 
     @Override
-    public com.legend.testplan.TextsHeld textsHeld(com.legend.testexecutionplan.Extension judgment) {
+    public com.legend.testplan.DatabaseGate gate(com.legend.testexecutionplan.Extension judgment,
+            java.util.function.Supplier<String> shape) {
         throw new UnsupportedOperationException("planted");
     }
 }
