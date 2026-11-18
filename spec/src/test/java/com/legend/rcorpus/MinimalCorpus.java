@@ -520,7 +520,8 @@ public final class MinimalCorpus {
      *  closes the workspace, as the backend's connection did. */
     private static com.legend.exec.Sessions.Session openWorkspace() {
         try {
-            return com.legend.testbackend.TestSessions.owning(BACKEND.openWorkspace());
+            // the corpus runs on the edge's database (the audit's J22, 2026-11-17)
+            return com.legend.testbackend.TestSessions.owning(BACKEND.openWorkspace(com.legend.edge.PureText.UPSTREAM));
         } catch (SQLException e) {
             throw new com.legend.error.DataError(String.valueOf(e.getMessage()), e);
         }

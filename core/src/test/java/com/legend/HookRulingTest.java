@@ -225,7 +225,9 @@ class HookRulingTest {
                 // LoweringForms (the audit's K5, 2026-11-17: the lowering's two-form choices, a raise, a view, a wire cast)
                 com.legend.lowering.LoweringForms.class,
                 // FailureWords (census C1, 2026-11-17: whose words the database judge plans a failure in)
-                com.legend.testplan.FailureWords.class),
+                com.legend.testplan.FailureWords.class,
+                // DatabaseSettingsForm (the audit's J22, RULED by the user 2026-11-17: a database's settings)
+                com.legend.sql.dialect.DatabaseSettingsForm.class),
                 com.legend.testplan.PlanStyleFacets.TWO_FORMS,
                 "the two-form kinds, an exact set: a kind is added here with its family and its dated reason");
         com.legend.planner.RoutedQueries noRouting = (chain, ctx, specs) -> null;
@@ -298,6 +300,13 @@ class HookRulingTest {
         assertTrue(PlanStyle.PRODUCT.twoForm(com.legend.lowering.LoweringForms.class,
                 com.legend.lowering.ProductLoweringForms.INSTANCE) == com.legend.lowering.ProductLoweringForms.INSTANCE,
                 "the product lowers in its own forms");
+        assertTrue(PlanStyle.PRODUCT.twoForm(com.legend.sql.dialect.DatabaseSettingsForm.class,
+                com.legend.sql.dialect.ProductDatabaseSettings.INSTANCE) == com.legend.sql.dialect.ProductDatabaseSettings.INSTANCE,
+                "the product's database has its own settings");
+        Object edgeSettings = com.legend.edge.PureText.UPSTREAM.twoForm(com.legend.sql.dialect.DatabaseSettingsForm.class,
+                com.legend.sql.dialect.ProductDatabaseSettings.INSTANCE);
+        assertTrue(edgeSettings != com.legend.sql.dialect.ProductDatabaseSettings.INSTANCE
+                && edgeSettings.getClass().getPackageName().equals("com.legend.edge"), "the edge's database has legend-engine's");
         Object edgeForms = com.legend.edge.PureText.UPSTREAM.twoForm(com.legend.lowering.LoweringForms.class,
                 com.legend.lowering.ProductLoweringForms.INSTANCE);
         assertTrue(edgeForms != com.legend.lowering.ProductLoweringForms.INSTANCE

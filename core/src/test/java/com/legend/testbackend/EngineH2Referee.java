@@ -64,7 +64,10 @@ final class EngineH2Referee implements RefereeBackend {
         Properties credentials = new Properties();
         credentials.setProperty("user", "sa");
         credentials.setProperty("password", "");
-        Connection referee = driver().connect("jdbc:h2:mem:" + name + TestBackends.h2UrlSettings(), credentials);
+        // legend-engine's own H2 database: its settings, MODE=LEGACY and DEFAULT_NULL_ORDERING=HIGH (H2Manager /
+        // H2Defaults, 4.145.0; the product's H2 has H2's own since the audit's J22, 2026-11-17)
+        Connection referee = driver().connect("jdbc:h2:mem:" + name + ";NON_KEYWORDS="
+                + com.legend.sql.dialect.H2.NON_KEYWORDS + ";MODE=LEGACY;DEFAULT_NULL_ORDERING=HIGH", credentials);
         if (referee == null) {
             throw new SQLException("the engine's H2 driver refused its own in-memory URL");
         }
