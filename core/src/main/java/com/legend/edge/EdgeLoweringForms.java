@@ -18,23 +18,18 @@ import java.util.function.Supplier;
  * @param plain         the raises written as the plain operation, the database's own error passing through: none for
  *                      PCT and the corpus (legend-pure's guarded words), legend-engine's census class A for the pure/v1
  *                      route (B7, the user's ruling of 2026-11-17: "pure/v1 matches legend-engine")
- * @param engineSqlShape legend-engine's statement shape (the engine SQL's lowering, {@code EnginePlans}): a view an
- *                      aliased derived table ({@code ViewSelectSQLQuery}), a wire coercion left to the reader, and none
- *                      of the product's lean SQL (a relation at each read, keyed counts as written, unread computed
- *                      projections kept: J23)
+ *
+ * <p>legend-engine's statement shape (the engine SQL's lowering, {@code EnginePlans}) is {@link EngineShape}: the plan
+ * style's forms with its own four (J40, 2026-11-18, the orchestrator's ruling (7): until then a LoweringShape the
+ * Lowerer held beside the plan style's forms, a second source).
  */
-record EdgeLoweringForms(Set<RaiseKind> plain, boolean engineSqlShape) implements com.legend.lowering.LoweringForms {
+record EdgeLoweringForms(Set<RaiseKind> plain) implements com.legend.lowering.LoweringForms {
 
     /** PCT's and the corpus's style ({@link PureText#UPSTREAM}): every check written, views flat, wire casts written. */
-    static final EdgeLoweringForms PCT = new EdgeLoweringForms(Set.of(), false);
+    static final EdgeLoweringForms PCT = new EdgeLoweringForms(Set.of());
 
     /** The pure/v1 route's style ({@link PureText#PURE_V1}): legend-engine's unchecked raises plain. */
-    static final EdgeLoweringForms PURE_V1 = new EdgeLoweringForms(PureText.ENGINE_UNCHECKED, false);
-
-    /** legend-engine's statement shape, the engine SQL's ({@code EnginePlans.UPSTREAM_SHAPE}): asked for its views and
-     *  wire casts; its raises are the plan style's, never this shape's. */
-    static final EdgeLoweringForms ENGINE_SQL_SHAPE = new EdgeLoweringForms(Set.of(), true);
-
+    static final EdgeLoweringForms PURE_V1 = new EdgeLoweringForms(PureText.ENGINE_UNCHECKED);
 
     EdgeLoweringForms {
         plain = plain.isEmpty() ? Set.of() : java.util.Collections.unmodifiableSet(java.util.EnumSet.copyOf(plain));
@@ -42,21 +37,17 @@ record EdgeLoweringForms(Set<RaiseKind> plain, boolean engineSqlShape) implement
 
     @Override
     public SqlExpr raise(RaiseKind kind, Supplier<SqlExpr> checked, SqlExpr plainOperation) {
-        if (engineSqlShape) {
-            throw new IllegalStateException("a raise asked of legend-engine's statement shape: the raises are the plan"
-                    + " style's (Styled.forms), the shape's forms its views and wire casts");
-        }
         return plain.contains(kind) ? plainOperation : checked.get();
     }
 
     @Override
     public SqlSelect view(SqlSelect body, Supplier<String> alias, String view) {
-        return engineSqlShape ? SqlSelect.starOf(new SqlSource.Subselect(body, alias.get(), view)) : body;
+        return body;
     }
 
     @Override
     public SqlExpr wireCast(SqlExpr value, Supplier<SqlExpr> written) {
-        return engineSqlShape ? value : written.get();
+        return written.get();
     }
 
     /** legend-engine's protocol connection segment for its test database (H2's, as the goldens pin it), which its
@@ -71,10 +62,6 @@ record EdgeLoweringForms(Set<RaiseKind> plain, boolean engineSqlShape) implement
 
     @Override
     public String objectReferenceConnection() {
-        if (engineSqlShape) {
-            throw new IllegalStateException("an object reference's connection asked of legend-engine's statement"
-                    + " shape: it is the plan style's (Styled.forms)");
-        }
         return ENGINE_TEST_CONNECTION;
     }
 
@@ -82,10 +69,6 @@ record EdgeLoweringForms(Set<RaiseKind> plain, boolean engineSqlShape) implement
      *  2026-11-17): exactly one object bare, zero or several as the array. */
     @Override
     public SqlSelect executeValues(Supplier<SqlSelect> array, Supplier<SqlSelect> oneBare) {
-        if (engineSqlShape) {
-            throw new IllegalStateException("an execute's values asked of legend-engine's statement shape: the root's"
-                    + " form is the plan style's (Styled.forms), the shape's forms its views and wire casts");
-        }
         return oneBare.get();
     }
 
@@ -94,21 +77,21 @@ record EdgeLoweringForms(Set<RaiseKind> plain, boolean engineSqlShape) implement
     @Override
     public com.legend.sql.SqlQuery relations(Supplier<com.legend.sql.SqlQuery> shared,
             Supplier<com.legend.sql.SqlQuery> unshared) {
-        return engineSqlShape ? unshared.get() : shared.get();
+        return shared.get();
     }
 
     /** legend-engine's statement shape counts a keyed relation's rows as written (J23). */
     @Override
     public com.legend.sql.SqlQuery keyedCounts(com.legend.sql.SqlQuery q,
             java.util.function.UnaryOperator<com.legend.sql.SqlQuery> fold) {
-        return engineSqlShape ? q : fold.apply(q);
+        return fold.apply(q);
     }
 
     /** legend-engine's statement shape keeps an unread computed projection (J23). */
     @Override
     public com.legend.sql.SqlQuery computedPruning(Supplier<com.legend.sql.SqlQuery> pruned,
             Supplier<com.legend.sql.SqlQuery> kept) {
-        return engineSqlShape ? kept.get() : pruned.get();
+        return pruned.get();
     }
 
     /** legend-engine's one-argument parseDecimal on H2: its hardcoded {@code decimal(5, 2)}
@@ -142,5 +125,87 @@ record EdgeLoweringForms(Set<RaiseKind> plain, boolean engineSqlShape) implement
     public SqlExpr isNumeric(SqlExpr s) {
         return SqlExpr.Call.of(com.legend.sql.SqlFn.EQUAL, SqlExpr.Call.of(com.legend.sql.SqlFn.LOWER, s),
                 SqlExpr.Call.of(com.legend.sql.SqlFn.UPPER, s));
+    }
+
+    /** {@code style} with legend-engine's statement shape: its forms {@link EngineShape} over the style's own. */
+    static com.legend.lowering.Styled engineSql(com.legend.lowering.Styled style) {
+        if (!(style.forms() instanceof EdgeLoweringForms base)) {
+            throw new IllegalStateException("legend-engine's statement shape asked over a style that is not the edge's"
+                    + ": only the edge plans engine SQL");
+        }
+        return new com.legend.lowering.Styled(style.pureOnly(), new EngineShape(base), style.dateTimes(),
+                style.lists());
+    }
+
+    /**
+     * legend-engine's STATEMENT SHAPE (the engine SQL's lowering, {@code EnginePlans}; J40, 2026-11-18, the orchestrator's
+     * ruling (7)): a relation pasted at each read, keyed counts as written, unread computed projections kept (J23), a
+     * view an aliased derived table ({@code ViewSelectSQLQuery}); every other form the plan style's own ({@code base}),
+     * as the Lowerer asked them of the style before -- its raises, wire casts, EXISTS joins and the rest.
+     */
+    record EngineShape(EdgeLoweringForms base) implements com.legend.lowering.LoweringForms {
+
+        @Override
+        public com.legend.sql.SqlQuery relations(Supplier<com.legend.sql.SqlQuery> shared,
+                Supplier<com.legend.sql.SqlQuery> unshared) {
+            return unshared.get();
+        }
+
+        @Override
+        public com.legend.sql.SqlQuery keyedCounts(com.legend.sql.SqlQuery q,
+                java.util.function.UnaryOperator<com.legend.sql.SqlQuery> fold) {
+            return q;
+        }
+
+        @Override
+        public com.legend.sql.SqlQuery computedPruning(Supplier<com.legend.sql.SqlQuery> pruned,
+                Supplier<com.legend.sql.SqlQuery> kept) {
+            return kept.get();
+        }
+
+        @Override
+        public SqlSelect view(SqlSelect body, Supplier<String> alias, String view) {
+            return SqlSelect.starOf(new SqlSource.Subselect(body, alias.get(), view));
+        }
+
+        @Override
+        public SqlExpr raise(RaiseKind kind, Supplier<SqlExpr> checked, SqlExpr plain) {
+            return base.raise(kind, checked, plain);
+        }
+
+        @Override
+        public SqlExpr wireCast(SqlExpr value, Supplier<SqlExpr> written) {
+            return base.wireCast(value, written);
+        }
+
+        @Override
+        public SqlSelect executeValues(Supplier<SqlSelect> array, Supplier<SqlSelect> oneBare) {
+            return base.executeValues(array, oneBare);
+        }
+
+        @Override
+        public SqlExpr isNumeric(SqlExpr s) {
+            return base.isNumeric(s);
+        }
+
+        @Override
+        public String objectReferenceConnection() {
+            return base.objectReferenceConnection();
+        }
+
+        @Override
+        public SqlExpr parsedDecimal(SqlExpr text) {
+            return base.parsedDecimal(text);
+        }
+
+        @Override
+        public SqlExpr parsedJson(SqlExpr text) {
+            return base.parsedJson(text);
+        }
+
+        @Override
+        public SqlSelect existsJoin(SqlSelect filtered, java.util.function.UnaryOperator<SqlSelect> joinForm) {
+            return base.existsJoin(filtered, joinForm);
+        }
     }
 }

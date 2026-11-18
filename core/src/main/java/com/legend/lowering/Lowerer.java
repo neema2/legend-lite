@@ -209,10 +209,12 @@ public final class Lowerer {
      * resolves through the ordinary let-binding channel. */
     /** VERBATIM equality under the mapping's own definition (NullSemantics.verbatim). */
     private boolean verbatimEquality;
-    /** The statement's shape (LoweringShape, Phase 6's B5, 2026-11-17): the product's lean unless its caller asks. */
-    private LoweringShape shape = LoweringShape.LEAN;
+    /** A filter's correlated EXISTS over a to-many join may be written as a join to the distinct keys, where the plan
+     *  style's forms choose ({@link LoweringForms#existsJoin}): the planner's own fact of the statement (the edge audit's
+     *  J19; a LoweringShape's field until J40, 2026-11-18, when the shape's forms became the plan style's alone). */
+    private boolean existsJoinable;
     /** The query's execution feature flags (FeatureRules): builder-style like
-     *  the shape; LEGACY_SQL_NULL_UNSAFE_EQUALS selects the verbatim equality
+     *  the style; LEGACY_SQL_NULL_UNSAFE_EQUALS selects the verbatim equality
      *  form (plain {@code =}) at the four scalar sites. */
     private java.util.Set<com.legend.platform.Feature> features = java.util.Set.of();
     private boolean legacyNullUnsafeEquals;
@@ -307,12 +309,6 @@ public final class Lowerer {
         return this;
     }
 
-    /** The statement's shape ({@link LoweringShape}); the product's is {@link LoweringShape#LEAN}. */
-    public Lowerer withShape(LoweringShape shape) {
-        this.shape = java.util.Objects.requireNonNull(shape, "a lowering shape");
-        return this;
-    }
-
     /** A RELATION READ MORE THAN ONCE IS WRITTEN ONCE (2026-11-04, {@link SharedRelations}): a let's value is one node
      *  of the statement's tree wherever its name is read, and it lowers once, a common table expression ({@code
      *  __let<n>}) at the statement's head that each read names. Off where the shape asks
@@ -359,9 +355,9 @@ public final class Lowerer {
     }
 
     /** A filter's correlated EXISTS over a to-many join is one the plan style's forms may write as a join to the distinct
-     *  keys ({@link LoweringShape#existsJoinable}; the edge audit's J19: the product's form keeps the EXISTS). */
+     *  keys ({@link LoweringForms#existsJoin}; the edge audit's J19: the product's form keeps the EXISTS). */
     public Lowerer withExistsJoinable() {
-        this.shape = shape.withExistsJoinable();
+        this.existsJoinable = true;
         return this;
     }
 
@@ -534,7 +530,7 @@ public final class Lowerer {
         SqlQuery q;
         if (sharing == null && shareRelations) {
             // a relation read more than once, written once (SharedRelations), as the shape's form chooses (J23)
-            q = shape.forms().relations(() -> sharedLower(root), () -> lower(root));
+            q = styled().forms().relations(() -> sharedLower(root), () -> lower(root));
         } else {
             q = lower(root);
         }
@@ -546,8 +542,8 @@ public final class Lowerer {
             q = LetBinding.bindRepeats(q);
         }
         // a count of rows a declared key makes one is 1 (KeyedCounts: the time model's D2), then the unread pruned
-        SqlQuery counted = shape.forms().keyedCounts(q, x -> KeyedCounts.fold(x, tableKeys));
-        return shape.forms().computedPruning(() -> SubselectPrune.prune(counted, true),
+        SqlQuery counted = styled().forms().keyedCounts(q, x -> KeyedCounts.fold(x, tableKeys));
+        return styled().forms().computedPruning(() -> SubselectPrune.prune(counted, true),
                 () -> SubselectPrune.prune(counted, false));
     }
 
@@ -618,7 +614,7 @@ public final class Lowerer {
      *  types them so, by name: WriteChecker). */
     private SqlQuery writtenRows(TypedSpec source, TypedTableReference t, String op) {
         SqlQuery lowered = lower(source);
-        SqlQuery rows = namedColumns(shape.forms().computedPruning(() -> SubselectPrune.prune(lowered, true),
+        SqlQuery rows = namedColumns(styled().forms().computedPruning(() -> SubselectPrune.prune(lowered, true),
                 () -> SubselectPrune.prune(lowered, false)));
         java.util.Set<String> declared = new java.util.LinkedHashSet<>();
         java.util.Objects.requireNonNull(Type.schemaView(t.info().type()), "a store table's type is a relation")
@@ -1240,7 +1236,7 @@ public final class Lowerer {
             case TypedTds tds -> tdsLiteral(tds);
             // a VIEW at relation position, the shape's form (the audit's K5, 2026-11-17: LoweringForms#view): the
             // product's body lowered flat (a name is not a nesting); legend-engine's an aliased derived table
-            case TypedViewRelation v -> shape.forms().view(relation(v.body()), this::nextAlias, v.view());
+            case TypedViewRelation v -> styled().forms().view(relation(v.body()), this::nextAlias, v.view());
 
             case com.legend.compiler.spec.typed.TypedRawSqlRelation raw -> rawGrid(unswapped(raw, "a raw SQL relation"));
             case com.legend.compiler.spec.typed.TypedCatalogGrid g -> catalogGrid(unswapped(g, "a catalog grid"));
@@ -2253,7 +2249,7 @@ public final class Lowerer {
                 SqlSelect m = src.withWhere(
                         mergeWhere(src.where(), predicate, f.stamp()));
                 // the product's EXISTS as lowered, legend-engine's shape a join to the distinct keys (J19, S367)
-                yield shape.existsJoinable() ? styled().forms().existsJoin(m, x -> ExistsJoinForm.rewrite(x,
+                yield existsJoinable ? styled().forms().existsJoin(m, x -> ExistsJoinForm.rewrite(x,
                         this::nextAlias, whereZones::get)) : m;
             }
             case HAVING -> src.withHaving(src.having() == null ? predicate
@@ -4558,7 +4554,7 @@ public final class Lowerer {
 
     /** The cast policy over an ALREADY-LOWERED source (CastPolicy owns every arm). */
     private SqlExpr cast(TypedCast c, SqlExpr value) {
-        return CastPolicy.lower(c, value, Stamps.isMany(c), shape.forms(), styled().forms());
+        return CastPolicy.lower(c, value, Stamps.isMany(c), styled().forms(), styled().forms());
     }
 
     /**
