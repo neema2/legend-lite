@@ -33,7 +33,7 @@ class H2SettingsReadBackTest {
 
     @Test
     void aSettingTheDatabaseDoesNotReportIsAnswered_asOneWithAnotherValueIs() throws Exception {
-        SqlDialect.DatabaseSettings settings = H2.differing(List.of(new SqlDialect.Setting("MODE", "LEGACY"),
+        SqlDialect.DatabaseSettings settings = H2.settings(List.of(new SqlDialect.Setting("MODE", "LEGACY"),
                 new SqlDialect.Setting("DEFAULT_NULL_ORDERING", "HIGH"), new SqlDialect.Setting("NO_SUCH", "X")));
         try (Connection made = DriverManager.getConnection("jdbc:h2:mem:readback_made;MODE=LEGACY;"
                 + "DEFAULT_NULL_ORDERING=HIGH", "sa", "");
@@ -42,9 +42,9 @@ class H2SettingsReadBackTest {
             assertEquals(List.of("DEFAULT_NULL_ORDERING=LOW", "MODE=REGULAR", "NO_SUCH=(not reported)"),
                     answers(bare, settings.readBack()));
         }
-        // the dialect's own: none where the database has both
-        try (Connection made = DriverManager.getConnection("jdbc:h2:mem:readback_dialect;MODE=LEGACY;"
-                + "DEFAULT_NULL_ORDERING=HIGH", "sa", "")) {
+        // the product dialect's own, H2's defaults (the audit's J22, 2026-11-17): none where the database has both
+        try (Connection made = DriverManager.getConnection("jdbc:h2:mem:readback_dialect;MODE=REGULAR;"
+                + "DEFAULT_NULL_ORDERING=LOW", "sa", "")) {
             assertEquals(List.of(), answers(made, new H2().databaseSettings().readBack()));
         }
     }

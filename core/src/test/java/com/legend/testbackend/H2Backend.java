@@ -36,8 +36,9 @@ final class H2Backend extends InProcessBackend {
     }
 
     /** A session of lite's H2 named {@code name}, with the engine's extension functions. */
-    private static Connection withExtensions(String name) throws SQLException {
-        Connection referee = DriverManager.getConnection("jdbc:h2:mem:" + name + TestBackends.h2UrlSettings(), "sa", "");
+    private static Connection withExtensions(String name, com.legend.database.PlanStyle style) throws SQLException {
+        Connection referee = DriverManager.getConnection("jdbc:h2:mem:" + name + TestBackends.h2UrlSettings(style),
+                "sa", "");
         // the engine's H2 test database carries its extension functions, and the corpus's raw text may call them
         // (legend_h2_extension_*)
         try (Statement st = referee.createStatement()) {
@@ -56,6 +57,13 @@ final class H2Backend extends InProcessBackend {
      *  on it, the same-session referee; Phase 0.6: a golden calling {@code legend_h2_extension_lpad} was a FAULT). */
     @Override
     public Connection openWorkspace() throws SQLException {
-        return withExtensions("c2s" + workspaces.getAndIncrement());
+        // the product's database, named (the audit's J22, 2026-11-17)
+        return openWorkspace(com.legend.database.PlanStyle.PRODUCT);
+    }
+
+    /** A corpus workspace on {@code style}'s H2 database (the corpus's, the edge's: the audit's J22). */
+    @Override
+    public Connection openWorkspace(com.legend.database.PlanStyle style) throws SQLException {
+        return withExtensions("c2s" + workspaces.getAndIncrement(), style);
     }
 }

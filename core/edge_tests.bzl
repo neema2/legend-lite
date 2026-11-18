@@ -35,6 +35,8 @@ EDGE_TEST_SRCS = [
     "src/test/java/com/legend/ResultWritersTest.java",
     "src/test/java/com/legend/compiler/spec/MultiplicityStrictnessTest.java",
     "src/test/java/com/legend/edge/EngineSpansTest.java",
+    # the net under the harness's H2 sessions (the audit's J22, 2026-11-17)
+    "src/test/java/com/legend/edge/EdgeH2SessionTest.java",
     "src/test/java/com/legend/edge/PresenterTest.java",
     "src/test/java/com/legend/edge/PureDatesArrowTest.java",
     "src/test/java/com/legend/exec/ExecuteInDbDuckDbEdgeTest.java",

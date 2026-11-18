@@ -62,9 +62,10 @@ class SharedRelationsInPlaceTest {
         assertEquals(1, h2.split("\\?", -1).length - 1, h2);
         var plan = Compiler.query(Compiler.compileModel(model("H2")), WITH_PARAMETER).executionPlan("s::RT");
         // the database as the plan's target declares it (main's #95: a session the platform did not open carries the
-        // target's settings, MODE=LEGACY and DEFAULT_NULL_ORDERING=HIGH, or the run refuses it)
-        try (Connection c = DriverManager.getConnection("jdbc:h2:mem:shared_relations_in_place;MODE=LEGACY;"
-                + "DEFAULT_NULL_ORDERING=HIGH")) {
+        // target's settings, the product's H2 defaults since the audit's J22, MODE=REGULAR and DEFAULT_NULL_ORDERING=LOW,
+        // or the run refuses it)
+        try (Connection c = DriverManager.getConnection("jdbc:h2:mem:shared_relations_in_place;MODE=REGULAR;"
+                + "DEFAULT_NULL_ORDERING=LOW")) {
             try (var st = c.createStatement()) {
                 st.execute("CREATE TABLE T (ID INTEGER PRIMARY KEY, AGE INTEGER)");
                 st.execute("INSERT INTO T VALUES (1, 10), (2, 20), (3, 30)");

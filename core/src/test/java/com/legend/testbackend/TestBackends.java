@@ -27,8 +27,15 @@ public final class TestBackends {
      *  ({@code SqlDialect.databaseSettings}, which a plan's target carries and exec writes where it opens an in-memory
      *  H2; the C checkpoint's SHOULD-FIX 3, 2026-11-12: until then {@code H2Connector.SETTINGS}). */
     public static String h2UrlSettings() {
+        // the product's database, named (the audit's J22, 2026-11-17)
+        return h2UrlSettings(com.legend.database.PlanStyle.PRODUCT);
+    }
+
+    /** {@link #h2UrlSettings()} for {@code style}'s H2 database (its two-form {@code DatabaseSettingsForm}; the audit's J22). */
+    public static String h2UrlSettings(com.legend.database.PlanStyle style) {
         StringBuilder url = new StringBuilder(";NON_KEYWORDS=" + com.legend.sql.dialect.H2.NON_KEYWORDS);
-        for (com.legend.sql.dialect.SqlDialect.Setting s : new com.legend.sql.dialect.H2().databaseSettings().required()) {
+        for (com.legend.sql.dialect.SqlDialect.Setting s : style.dialect(DatabaseType.H2).databaseSettings()
+                .required()) {
             url.append(';').append(s.name()).append('=').append(s.value());
         }
         return url.toString();
