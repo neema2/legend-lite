@@ -129,6 +129,8 @@ test_suite(
         "//tools/deps:edge_separation_closure_test",
         # the query-store page is a product root: its module's closure holds no edge (the user's K2 ruling, 2026-11-18)
         "//tools/deps:query_store_page_closure_test",
+        # the tab's planner module is a product root: its closure holds no edge (the user's K2 ruling, 2026-11-18)
+        "//tools/deps:wasm_planner_closure_test",
         # the TypeScript hosts' layers (C5-T, 2026-11-15): records, run, planner, server, doors, pinned as core's are
         "//tools/deps:ts_layering_test",
         # each TypeScript run and planner layer typechecked alone (C5-T, 2026-11-15: the rule that replaces the run wall)

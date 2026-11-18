@@ -23,6 +23,8 @@ import { arrowResultTable } from '../../../engine-client/src/engine-remote.ts';
 import { BrowserEngine } from '../../../engine-client/src/legend/edge-engine.ts';
 import { EngineError } from '../../../engine-client/src/legend/engine.ts';
 import { answer, type PlannerModule } from '../../../engine-client/src/legend/planner-answer.ts';
+import { ENGINE, enginePort, loadEngineModule, type EngineModule, type EnginePort }
+  from '../../../engine-client/src/legend/engine-module.ts';
 import type { RequestBody } from '../../../engine-client/src/legend/planner-protocol.ts';
 import { WasmGrammar, type PlannerPort } from '../../../engine-client/src/legend/wasm-grammar.ts';
 import { WasmEdgeGrammar } from '../../../engine-client/src/legend/wasm-edge.ts';
@@ -72,6 +74,22 @@ async function loadPlanner(): Promise<PlannerPort> {
   return { async ask(r: RequestBody): Promise<string> { return answer(m, r); } };
 }
 
+/** The engine module, in this process: legend-engine's routes, loaded as an app configured engine: 'legend-engine' loads
+ *  it (engine-module.ts; the user's K2 ruling, 2026-11-18). */
+async function loadEngine(): Promise<EnginePort> {
+  return enginePort(await loadEngineModule(ENGINE, runfileDirUrl('WASM_ENGINE_PLANNER'), async (dir) => {
+    const runtime = await import(new URL('wasm-gc-module-runtime.js', dir).href) as {
+      load(src: string, options: unknown): Promise<EngineModule>;
+    };
+    return runtime.load(fileURLToPath(new URL('classes.wasm', dir)), {
+      stackDeobfuscator: { enabled: false },
+      installImports(i: Record<string, unknown>) {
+        i.teavmConsole = { putcharStdout() {}, putcharStderr() {} };
+      },
+    });
+  }));
+}
+
 /** The frame's table as the model declares it: its name (schema-qualified as declared) and its columns' SQL types. */
 function declaredTable(model: string): { readonly name: string; readonly columns: readonly [string, string][] } {
   const schema = /Schema\s+(\w+)/.exec(model)?.[1];
@@ -110,10 +128,10 @@ before(async () => {
     lines.on('line', (line) => { if (line.startsWith('{')) done(JSON.parse(line) as Served); });
   });
   // one planner, two clients over it: lite's (WasmGrammar) and legend-engine's shapes, the edge's BrowserEngine's
-  // (wasm-edge.ts; the TS host's H11 split, 2026-11-17)
+  // (wasm-edge.ts; the TS host's H11 split, 2026-11-17), whose legend-engine routes are the engine module's (K2)
   const port = await loadPlanner();
   grammar = new WasmGrammar(port);
-  edge = new WasmEdgeGrammar(port);
+  edge = new WasmEdgeGrammar(port, await loadEngine());
   const database = await openDatabase();
   const duck = new DuckDbEngine(database.connection);
   // the same frame in the tab's DuckDB: its table as the model declares it, the same rows

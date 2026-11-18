@@ -485,8 +485,11 @@ class PlannerSurfaceTest {
             // to the edge with 2c, its native entry with it (the edge program's H5, 2026-11-17)
             door("refused", p("message", MESSAGE)));
 
-    /** THE TAB'S EDGE EXPORTS: each the one edge door it delegates to ({@link #EDGE_BOUNDARY}; step 2c, 2026-11-17). */
-    static final Map<String, String> TAB_EDGE_EXPORTS = new TreeMap<>(Map.of(
+    /** THE ENGINE MODULE'S EXPORTS: each the one edge door it delegates to ({@link #EDGE_BOUNDARY}; step 2c,
+     *  2026-11-17). The tab's edge exports until the user's K2 ruling (2026-11-18, "Product root, edge opt-in": the
+     *  orchestrator's option A), when they left the product module ({@code planner.TabExports}, which may hold none of
+     *  them) for the engine module's entry ({@code com.legend.edge.wasm.EngineExports}, which may hold nothing else). */
+    static final Map<String, String> ENGINE_EXPORTS = new TreeMap<>(Map.of(
             "pureV1OrError", "pureV1", "executeJsonPlanOrError", "executeJsonPlan",
             "executeJsonAnswerOrError", "executeJsonAnswer", "executeArrowAnswerOrError", "executeArrowAnswer"));
 
@@ -525,7 +528,7 @@ class PlannerSurfaceTest {
             Map.entry("resolveBootLayer", "resolveBootLayer"), Map.entry("zoneProbe", "zoneProbe")));
 
     /** THE NATIVE LIBRARY'S EDGE EXPORTS: each the one edge door it delegates to ({@link #EDGE_BOUNDARY}; the
-     *  HOST/DataCube stream, 2026-11-17, as the tab's: {@link #TAB_EDGE_EXPORTS}). */
+     *  HOST/DataCube stream, 2026-11-17, as the tab's were: {@link #ENGINE_EXPORTS}). */
     static final Map<String, String> NATIVE_EDGE_EXPORTS = new TreeMap<>(Map.of(
             "lite_pure_v1", "pureV1", "lite_execute_plan", "executePlan", "lite_execute_json_plan", "executeJsonPlan",
             "lite_execute_json_answer", "executeJsonAnswer", "lite_execute_arrow_answer", "executeArrowAnswer",
@@ -1159,7 +1162,7 @@ class PlannerSurfaceTest {
      *  from {@code boundarySource}), the host operations' source, the tab's adapter's source and the native library's
      *  sources -- each named. */
     static List<String> violations(Class<?> boundary, String boundarySource, String hostOperationsSource,
-            String tabSource, List<String> nativeSources) {
+            String tabSource, String engineSource, List<String> nativeSources) {
         List<String> out = new ArrayList<>();
         // the registry's own rule: SQL at the playground alone, and a name that names a statement nowhere else
         BOUNDARY.forEach((name, d) -> {
@@ -1236,8 +1239,11 @@ class PlannerSurfaceTest {
         closed(out, "the host operations", opRead, opAdmitted, HOST_OPERATION_FIELDS);
 
         // the exports: each delegates to the one listed door its row names
-        exports(out, "the tab's export", Pattern.compile("@JSExport\\s+public static \\S+ (\\w+)\\("),
-                List.of(tabSource), TAB_EXPORTS, Map.of(), TAB_EDGE_EXPORTS);
+        // the product module's entry holds lite's own exports and no edge export, the engine module's legend-engine's
+        // routes and nothing else (the user's K2 ruling, 2026-11-18: "Product root, edge opt-in")
+        Pattern jsExport = Pattern.compile("@JSExport\\s+public static \\S+ (\\w+)\\(");
+        exports(out, "the tab's export", jsExport, List.of(tabSource), TAB_EXPORTS, Map.of(), Map.of());
+        exports(out, "the engine module's export", jsExport, List.of(engineSource), Map.of(), Map.of(), ENGINE_EXPORTS);
         exports(out, "the native export", Pattern.compile("@CEntryPoint\\(name = \"(\\w+)\"\\)"), nativeSources,
                 NATIVE_EXPORTS, NATIVE_SERVICES, NATIVE_EDGE_EXPORTS);
         return out;
@@ -1810,7 +1816,10 @@ class PlannerSurfaceTest {
 
     private static final String BOUNDARY_SOURCE = "wasm/src/main/java/planner/Boundary.java";
     private static final String HOST_OPERATIONS_SOURCE = "wasm/src/main/java/planner/HostOperationsJson.java";
-    private static final String TAB_SOURCE = "wasm/src/edge/java/com/legend/edge/wasm/TabExports.java";
+    // the product module's entry, and the engine module's (the user's K2 ruling, 2026-11-18: the tab's entry was
+    // com.legend.edge.wasm.TabExports from F's census line A1, 2026-11-17, until its four legend-engine routes left it)
+    private static final String TAB_SOURCE = "wasm/src/main/java/planner/TabExports.java";
+    private static final String ENGINE_SOURCE = "wasm/src/edge/java/com/legend/edge/wasm/EngineExports.java";
 
     // ---- the tests
 
@@ -1819,7 +1828,7 @@ class PlannerSurfaceTest {
     @Test
     void thePlannerSurfaceIsClosed() {
         assertEquals(List.of(), violations(planner.Boundary.class, read(BOUNDARY_SOURCE), read(HOST_OPERATIONS_SOURCE),
-                read(TAB_SOURCE), nativeSources()), "the planner surface is not closed");
+                read(TAB_SOURCE), read(ENGINE_SOURCE), nativeSources()), "the planner surface is not closed");
     }
 
     /** The check names a listed door whose request reads a statement, and a door no row lists
@@ -1828,7 +1837,7 @@ class PlannerSurfaceTest {
     void theSurfaceRefusesAPlantedDoor() {
         List<String> found = violations(com.legend.planner.PlantedBoundary.class,
                 read("core/src/test/java/com/legend/planner/PlantedBoundary.java"), read(HOST_OPERATIONS_SOURCE),
-                read(TAB_SOURCE), nativeSources());
+                read(TAB_SOURCE), read(ENGINE_SOURCE), nativeSources());
         assertTrue(found.contains("snapCopy reads the field sql, which no row declares (a field that can carry SQL)"),
                 String.join("\n", found));
         assertTrue(found.contains("a door no row lists: PlantedBoundary.runSql"), String.join("\n", found));
@@ -1848,7 +1857,7 @@ class PlannerSurfaceTest {
         assertTrue(ops.contains(relation), "the splice's anchor");
         List<String> found = violations(planner.Boundary.class, boundary.replace(open, ""),
                 ops.replace(relation, "List.of(\"op\", \"kind\", \"target\", \"replace\", \"from\")"),
-                read(TAB_SOURCE), nativeSources());
+                read(TAB_SOURCE), read(ENGINE_SOURCE), nativeSources());
         assertEquals(List.of("fileLoad reads the field digest, which none of its only(...) lists admits",
                 "fileLoad reads the field format, which none of its only(...) lists admits",
                 "fileLoad reads the field name, which none of its only(...) lists admits",
@@ -1965,9 +1974,41 @@ class PlannerSurfaceTest {
                 }
                 """);
         List<String> found = violations(planner.Boundary.class, read(BOUNDARY_SOURCE), read(HOST_OPERATIONS_SOURCE),
-                tab, natives);
+                tab, read(ENGINE_SOURCE), natives);
         assertEquals(List.of("the tab's export no row lists: runSqlOrError (reaches [authored])",
                 "the native export no row lists: lite_run_sql (reaches [authored])"), found);
+    }
+
+    /** The product module's entry holds no legend-engine route, and the engine module's no product export (the user's
+     *  K2 ruling, 2026-11-18): an edge route planted back in the tab's adapter, and a lite operation planted in the
+     *  engine module's entry, are each named. */
+    @Test
+    void eachModuleHoldsItsOwnExportsAlone() {
+        String anchor = "    @JSExport\n    public static String zoneProbe(";
+        String tab = read(TAB_SOURCE);
+        assertTrue(tab.contains(anchor), "the splice's anchor");
+        String plantedTab = tab.replace(anchor, """
+                    @JSExport
+                    public static String pureV1OrError(String path, String rawQuery, String body) {
+                        return Folded.http(() -> EdgeBoundary.pureV1(path, rawQuery, body));
+                    }
+
+                    @JSExport
+                    public static String zoneProbe(""");
+        String engine = read(ENGINE_SOURCE);
+        String engineAnchor = "    /** TeaVM's entry point";
+        assertTrue(engine.contains(engineAnchor), "the splice's anchor");
+        String plantedEngine = engine.replace(engineAnchor, """
+                    @JSExport
+                    public static String queryPlanOrError(String request) {
+                        return Folded.of(() -> Boundary.queryPlan(request));
+                    }
+
+                    /** TeaVM's entry point""");
+        List<String> found = violations(planner.Boundary.class, read(BOUNDARY_SOURCE), read(HOST_OPERATIONS_SOURCE),
+                plantedTab, plantedEngine, nativeSources());
+        assertEquals(List.of("the tab's export no row lists: pureV1OrError (reaches [pureV1])",
+                "the engine module's export no row lists: queryPlanOrError (reaches [queryPlan])"), found);
     }
 
     private static final List<String> SERVER_FILES = List.of("LiteV1Api.java", "TestDataRoutes.java",

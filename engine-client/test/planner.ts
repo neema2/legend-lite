@@ -25,15 +25,18 @@ export async function loadPlannerPort(): Promise<PlannerPort> {
 
 /** The module itself: a test that asks the planner protocol's kinds by hand (a model held, then planned). */
 export async function loadPlannerModule(): Promise<PlannerModule> {
-  const dir = new URL(runfileDirUrl('WASM_PLANNER'));
+  return openInNode<PlannerModule>(runfileDirUrl('WASM_PLANNER'));
+}
+
+/** A TeaVM module's files in `dir` (a file: URL), opened in Node: its loader wants a filesystem path. */
+export async function openInNode<T>(dir: string): Promise<T> {
   const runtime = await import(new URL('wasm-gc-module-runtime.js', dir).href) as {
-    load(src: string, options: unknown): Promise<PlannerModule>;
+    load(src: string, options: unknown): Promise<T>;
   };
-  const m = await runtime.load(fileURLToPath(new URL('classes.wasm', dir)), {
+  return runtime.load(fileURLToPath(new URL('classes.wasm', dir)), {
     stackDeobfuscator: { enabled: false },
     installImports(i: Record<string, unknown>) {
       i.teavmConsole = { putcharStdout() {}, putcharStderr() {} };
     },
   });
-  return m;
 }

@@ -92,8 +92,12 @@ junit_test(
     scope = [target],
 ) for name, target in [
     ("plan_side", "//core:plan_side"),
-    # the module: its entry class is :edge_tab's since the census's A1 (2026-11-17), so its closure is the module's
-    ("wasm", "//wasm:edge_tab"),
+    # the module: its entry class is :tab's (lite's own, planner.TabExports: the user's K2 ruling, 2026-11-18; :edge_tab's
+    # from the census's A1, 2026-11-17, until then), so its closure is the module's
+    ("wasm", "//wasm:tab"),
+    # the engine module (K2, 2026-11-18): legend-engine's routes in the tab, its entry :edge_tab's -- the Arrow answer
+    # written by lite's own framer there too
+    ("wasm_engine", "//wasm:edge_tab"),
     ("native", "//native:entry"),
     ("native_image", "//warehouse:server_lib"),
     ("arrow_ipc", "//arrow_ipc"),
@@ -104,8 +108,8 @@ junit_test(
     memory_mb = 768,
     size = "small",
     srcs = ["ArrowClosureTest.java"],
-    data = [":%s_closure" % c for c in ["plan_side", "wasm", "native", "native_image", "arrow_ipc"]],
-    jvm_flags = ["-Dclosure.%s_closure=$(rlocationpath :%s_closure)" % (c, c) for c in ["plan_side", "wasm", "native", "native_image", "arrow_ipc"]],
+    data = [":%s_closure" % c for c in ["plan_side", "wasm", "wasm_engine", "native", "native_image", "arrow_ipc"]],
+    jvm_flags = ["-Dclosure.%s_closure=$(rlocationpath :%s_closure)" % (c, c) for c in ["plan_side", "wasm", "wasm_engine", "native", "native_image", "arrow_ipc"]],
     select = ["--select-class=com.legend.tools.deps.ArrowClosureTest"],
     deps = [
         "//testing",
@@ -523,6 +527,31 @@ junit_test(
     data = [":query_store_page_closure"],
     jvm_flags = ["-Dclosure.query_store_page=$(rlocationpath :query_store_page_closure)"],
     select = ["--select-class=com.legend.tools.deps.QueryStorePageClosureTest"],
+    deps = [
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+)
+
+# THE TAB'S PLANNER MODULE IS A PRODUCT ROOT (the user's K2 ruling, ~06:00 2026-11-18: "Product root, edge opt-in"; the
+# orchestrator's option A): every target and source the module's build reaches, Bazel's own answer, for
+# WasmPlannerClosureTest to hold no edge library and no com.legend.edge class. legend-engine's routes in the tab are
+# //wasm:engine_planner's, loaded beside it only where an app is configured `engine: 'legend-engine'`.
+genquery(
+    name = "wasm_planner_closure",
+    expression = "deps(//wasm:planner)",
+    opts = ["--noimplicit_deps"],
+    scope = ["//wasm:planner"],
+)
+
+junit_test(
+    name = "wasm_planner_closure_test",
+    memory_mb = 768,
+    size = "small",
+    srcs = ["WasmPlannerClosureTest.java"],
+    data = [":wasm_planner_closure"],
+    jvm_flags = ["-Dclosure.wasm_planner=$(rlocationpath :wasm_planner_closure)"],
+    select = ["--select-class=com.legend.tools.deps.WasmPlannerClosureTest"],
     deps = [
         "//testing",
         "@maven_test//:org_junit_jupiter_junit_jupiter_api",

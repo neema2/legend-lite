@@ -5,7 +5,7 @@ package com.legend.equivalence;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.legend.testing.ProgramPaths;
-import com.legend.edge.wasm.TabExports;
+import com.legend.edge.wasm.EngineExports;
 
 import java.io.IOException;
 import java.io.Writer;
@@ -23,8 +23,9 @@ import java.util.Map;
 /**
  * The round trip in the tab, its JVM half (docs/PROTOCOL_PROGRAM_2026_10_05.md §4, leg 5; {@code wasm/round_trip.mjs}
  * the other half): every input {@link RoundTripProofTest} reads -- legend-engine's test collection, lite's projects
- * and the upstream showcase projects, file by file -- asked of the tab's own adapter as the tab asks it
- * ({@link TabExports#pureV1OrError}, legend-engine's {@code pure/v1}): {@code grammarToJson/model} without source
+ * and the upstream showcase projects, file by file -- asked of the tab's engine module as the tab asks it
+ * ({@link EngineExports#pureV1OrError}, legend-engine's {@code pure/v1}; the planner module's entry until the user's
+ * K2 ruling, 2026-11-18): {@code grammarToJson/model} without source
  * information, then {@code jsonToGrammar/model} of the JSON it answered, in each style. Refusals are answers too, so
  * every input is asked, the ones the engine refuses included.
  *
@@ -68,13 +69,13 @@ public final class TabRoundTripRequests {
 
     /** One input's line; whether its text converted (its JSON then printed in each style). */
     private static boolean write(Writer out, String from, String id, String text) throws IOException {
-        String toJson = TabExports.pureV1OrError(GRAMMAR_TO_JSON, "returnSourceInformation=false", text);
+        String toJson = EngineExports.pureV1OrError(GRAMMAR_TO_JSON, "returnSourceInformation=false", text);
         List<String> answers = new ArrayList<>();
         answers.add(sha256(toJson));
         String json = okBody(toJson);
         if (json != null) {
             for (String style : STYLES) {
-                answers.add(sha256(TabExports.pureV1OrError(JSON_TO_GRAMMAR, "renderStyle=" + style, json)));
+                answers.add(sha256(EngineExports.pureV1OrError(JSON_TO_GRAMMAR, "renderStyle=" + style, json)));
             }
         }
         Map<String, Object> line = new LinkedHashMap<>();
