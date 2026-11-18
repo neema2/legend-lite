@@ -1,7 +1,7 @@
-"""The engine (legend_lite.engine): legend-engine's pure/v1 API over frames, as DataCube's remote client calls it --
-parse, print and a query's types answered by legend-lite's server code, execute in upstream's Arrow format with
-the rows DuckDB computes over the frame as it is then; the refusals in the engine's error shape; and only the
-engine's own page answered (its token, a local Host, no cross-origin answer)."""
+"""The engine (legend_lite.engine): lite's own API and the page's routes over frames -- lite's operations and
+query/run, plan-and-run and its dry run, the saved pages and queries at lite's mount -- over the frame as it is
+then; the refusals in lite's error shape; and only the engine's own page answered (its token, a local Host, no
+cross-origin answer). legend-engine's pure/v1 is the edge's, tested by test_edge (the edge program's H5)."""
 
 import http.client
 import json
