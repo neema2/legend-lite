@@ -703,7 +703,7 @@ class QueryRunRoute(Served):
         self.assertEqual(rows.column('name').to_pylist(), ['Halberd Securities', 'Meridian Capital'])
 
     def test_json_is_the_servers_typed_rows_its_cells_as_the_server_writes_them(self):
-        # ONE contract (the orchestrator's ruling of 2026-11-17): json, the default, in the server's shape and cells
+        # ONE contract (the orchestrator's ruling of 2026-11-17): json in the server's shape and cells
         frame = pa.table({
             'i': pa.array([9007199254740993, None], pa.int64()),
             'f': pa.array([1e16, 0.1]),
@@ -714,7 +714,7 @@ class QueryRunRoute(Served):
             'at': pa.array([datetime.datetime(2024, 1, 2, 3, 4, 5, 120000), None], pa.timestamp('us')),
         })
         table = self.frames.register('typed', frame)
-        for asked in ({}, {'format': 'json'}):
+        for asked in ({'format': 'json'},):
             status, headers, body = self.ask(model=table.model, query=ll.parse('|' + table.accessor + '->select()'),
                                              runtime=table.runtime, **asked)
             self.assertEqual((status, headers['Content-Type']), (200, 'application/json'), body[:300])
@@ -730,6 +730,8 @@ class QueryRunRoute(Served):
         good = self.frame_query()
         for asked, status, kind in (
                 ({**good, 'format': 'csv'}, 400, 'request'),
+                # no default format (the orchestrator's ruling of 2026-11-17, 23:08)
+                ({k: v for k, v in good.items() if k != 'format'}, 400, 'request'),
                 ({**good, 'extra': 1}, 400, 'request'),
                 ({k: v for k, v in good.items() if k != 'runtime'}, 400, 'request'),
                 ({**good, 'query': ll.parse('|' + self.table.accessor + '->select(~[nope])')}, 400, 'compile'),
@@ -743,27 +745,40 @@ class QueryRunRoute(Served):
                                  body[:300])
 
 
-class QueryRunConformance(unittest.TestCase):
-    """LITE API V1'S CONFORMANCE SUITE, query/run ON PYTHON'S SERVER (the spec's §5; the orchestrator's word of
-    2026-11-17: so the route cannot go missing again): each case of engine-client/test/fixtures/lite-api-cases.json
-    whose operation is query/run and whose bindings name python, asked of Python's engine at /api/lite/v1/query/run --
-    its answer exact (``answer``), its refusal's kind (``refusal``) -- as the server's reader asks its route. The
-    other operations are the bindings lane's (test_compiler.LiteApiConformance)."""
+class HostRoutesConformance(unittest.TestCase):
+    """LITE API V1'S CONFORMANCE SUITE, PYTHON'S SERVER'S OWN ROUTES (the spec's §5; the orchestrator's word of
+    2026-11-17: so a route cannot go missing again): each case of engine-client/test/fixtures/lite-api-cases.json whose
+    operation is a host's own -- query/run (POST /api/lite/v1/query/run), the saved queries' and pages' get (GET
+    /api/lite/v1/queries[/dataCube]/<id>) -- and whose bindings name python, asked of Python's engine over a home of
+    its own: its answer exact (``answer``), its refusal's kind (``refusal``), as the server's reader asks its routes.
+    The other operations are the bindings lane's (test_compiler.LiteApiConformance)."""
 
-    def test_pythons_server_answers_each_query_run_case(self):
+    ROUTES = {'query/run': ('POST', '/api/lite/v1/query/run'), 'queries/get': ('GET', '/api/lite/v1/queries/'),
+              'queries/dataCube/get': ('GET', '/api/lite/v1/queries/dataCube/')}
+
+    def test_pythons_server_answers_each_of_its_routes_cases(self):
         fixture = json.loads(Path(os.environ['LEGEND_LITE_API_CASES']).read_text(encoding='utf-8'))
-        cases = [c for c in fixture['cases'] if c['op'] == 'query/run'
-                 and 'python' in c.get('bindings', ['browser', 'server', 'python'])]
+        cases = [c for c in fixture['cases'] if 'python' in c.get('bindings', ['browser', 'server', 'python'])
+                 and c['op'] in self.ROUTES]
+        place = tempfile.TemporaryDirectory()
+        self.addCleanup(place.cleanup)
+        home = mock.patch.dict(os.environ, {'LEGEND_LITE_HOME': place.name})
+        home.start()
+        self.addCleanup(home.stop)
         for case in cases:
             with self.subTest(case['name']):
-                engine = Engine(ll.Frames())
-                said = engine.answer('POST', '/api/lite/v1/query/run', '', json.dumps(case['request']))
+                engine = Engine(ll.Frames(), pages=Path(place.name) / 'pages')
+                method, path = self.ROUTES[case['op']]
+                if method == 'GET':
+                    said = engine.answer('GET', path + case['request']['id'], '', None)
+                else:
+                    said = engine.answer('POST', path, '', json.dumps(case['request']))
                 if 'refusal' in case:
                     self.assertGreaterEqual(said.status, 400, said.body[:300])
                     self.assertEqual(json.loads(said.body)['kind'], case['refusal']['kind'])
                 else:
                     self.assertEqual(said.status, 200, said.body[:300])
-                    self.assertEqual(_json.loads(said.body), case["answer"])
+                    self.assertEqual(_json.loads(said.body), case['answer'])
 
 
 class PlanAndRunRoutes(Served):
@@ -1018,7 +1033,7 @@ class TheProductsStore(unittest.TestCase):
     def test_a_missing_query_is_refused_in_each_mounts_own_words(self):
         lite = self.engine.answer('GET', '/api/lite/v1/queries/nope', '', None)
         self.assertEqual((lite.status, json.loads(lite.body)),
-                         (404, {'kind': 'request', 'message': "no saved query has the ID 'nope'"}))
+                         (404, {'kind': 'notFound', 'message': "no saved query has the ID 'nope'"}))
         engine = self.engine.answer('GET', '/api/pure/v1/query/nope', '', None)
         self.assertEqual((engine.status, json.loads(engine.body)), (404, {'message': "Can't find query with ID 'nope'"}))
 
@@ -1036,7 +1051,7 @@ class TheProductsStore(unittest.TestCase):
             self.assertEqual((read.status, json.loads(read.body)['name']), (200, 'Both'), mount)
         missing = self.engine.answer('GET', '/api/lite/v1/queries/dataCube/nope', '', None)
         self.assertEqual((missing.status, json.loads(missing.body)),
-                         (404, {'kind': 'request', 'message': "no saved query has the ID 'nope'"}))
+                         (404, {'kind': 'notFound', 'message': "no saved query has the ID 'nope'"}))
 
     def test_lites_operations_are_not_its_stores(self):
         # /api/lite/v1/query/<op> is lite's API, never the store's: the store's route is /queries

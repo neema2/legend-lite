@@ -142,6 +142,10 @@ class TheProductsKinds(unittest.TestCase):
         self.assertEqual((refused.exception.where, refused.exception.raise_), ('[1:5]', None))
 
 
+# the suite's operations a host serves on its own routes, which test_engine's HostRoutesConformance reads
+HOST_ROUTES = frozenset({'query/run', 'queries/get', 'queries/dataCube/get'})
+
+
 class LiteApiConformance(unittest.TestCase):
     """LITE API V1'S CONFORMANCE SUITE, THE PYTHON BINDING (docs/records/lite-api-v1-2026-11-17.md §5, 2026-11-17): each
     case of engine-client/test/fixtures/lite-api-cases.json asked of Python's native entries (``compiler.operation``,
@@ -173,9 +177,10 @@ class LiteApiConformance(unittest.TestCase):
                 self.assertFalse(unknown, f"{case['name']}: a binding the suite does not know: {sorted(unknown)}")
                 if 'python' not in bindings:
                     continue
-            if case['op'] == 'query/run':
-                # a host's run: Python's server answers it over its own DuckDB, read by test_engine's
-                # QueryRunConformance (this lane holds no database), never skipped there
+            if case['op'] in HOST_ROUTES:
+                # a host's own route -- query/run over its own DuckDB, the saved queries' store over its folders: Python's
+                # server answers it, read by test_engine's HostRoutesConformance (this lane holds neither), never
+                # skipped there
                 continue
             asked += 1
             with self.subTest(case['name']):
