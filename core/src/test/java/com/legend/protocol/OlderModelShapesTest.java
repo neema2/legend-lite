@@ -500,13 +500,13 @@ class OlderModelShapesTest {
      * {@code _type} keys (as the engine's does), which a parsed object keeps once, so both sides are compared parsed.
      */
     private static String writtenBack(String json) {
-        return Json.toCompact(Json.parse(ProtocolEmitter.emit(ModelReader.read(json)), DEEP));
+        return Json.toCompact(Json.parse(ProtocolEmitter.emit(ModelReader.read(com.legend.json.Json.parse(json, new com.legend.json.Json.Config(4096)))), DEEP));
     }
 
     /** The model printed; and written back by lite, it reads and prints the same. */
     private static String printedAndStable(Json.Obj model) {
         String printed = ModelComposer.model(model);
-        String written = ProtocolEmitter.emit(ModelReader.read(Json.toCompact(model)));
+        String written = ProtocolEmitter.emit(ModelReader.read(com.legend.json.Json.parse(Json.toCompact(model), new com.legend.json.Json.Config(4096))));
         assertEquals(printed, ModelComposer.model((Json.Obj) Json.parse(written, DEEP)), "written back, it prints the same");
         return printed;
     }
