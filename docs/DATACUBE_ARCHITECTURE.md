@@ -30,8 +30,8 @@ DataCube never computes a value itself. Each interaction (group, filter, pivot, 
 
 | Job | What it does | Interface |
 |---|---|---|
-| **Plan** | Compile the Pure query to SQL, and say the type of every result column | `Planner` (`datacube/src/cube.ts`) |
-| **Run** | Execute that SQL where the rows are, and hand back columns | `QueryEngine` (`engine-client/src/engine.ts`) |
+| **Plan** | Compile the Pure query to SQL, and say the type of every result column | `Planner` (`datacube/src/planner-types.ts`) |
+| **Run** | Execute that SQL where the rows are, and hand back columns | `QueryEngine` (`engine-client/src/query-engine.ts`) |
 
 Both are the same wherever they happen:
 
@@ -86,6 +86,14 @@ Step by step:
 The runner is chosen once, where the app is constructed, so the hot path holds no branch on mode
 (`datacube/src/runner.ts`, header).
 
+**Planning and running are kept apart in the TypeScript too.** `engine-client/` is five Bazel targets
+(`:records`, `:run`, `:planner`, `:server`, `:doors`; `engine-client/README.md`): a run module that
+imports a planner module fails the build by name, and so does the reverse (`//tools/deps:layers_alone`,
+`tools/deps/ts-layers.txt`). A *door* (`engine-client/src/doors/`) asks the planner first and then runs
+the answer inside a run frame (`inRun`, `engine-client/src/run-frame.ts`); a planner entry asked inside a
+run of its own flow is refused by name (`planning`, `plan-guard.ts`). The grid's own step 4 is such a
+run: `inRun('a grid query', ...)` in `runner.ts`.
+
 ## 3. Execution modes
 
 ### 3.1 Summary
@@ -120,8 +128,8 @@ uploaded.
 
 - **Planner:** `LitePlanner` (`datacube/src/lite-planner.ts`) over the module from `//wasm:planner`, on
   its own worker.
-- **Engine:** `DuckDbEngine` over DuckDB-WASM, started by `startDuckDbInTab`
-  (`engine-client/src/duckdb-tab.ts`).
+- **Engine:** `DuckDbEngine` over DuckDB-WASM, opened by `openDuckDbInTab`
+  (`engine-client/src/doors/tab-duckdb.ts`).
 - **Runner:** `PlanThenRun` (`localHost(planner, engine)` in `runner.ts`).
 - **Startup:** the page preloads `vendor/classes.wasm` with the HTML parse (`datacube/demo/index.html`),
   then starts the planner's warm-up and DuckDB at the same time. They run on separate workers because
@@ -134,7 +142,9 @@ Use it for files, samples, static hosting, and anywhere a server is not wanted.
 
 The planning call moves to a server; the data stays in the tab.
 
-- **Planner:** `UpstreamPlanner` (`datacube/src/planner.ts`) over `PureV1Client`. It sends the query as
+- **Planner:** `UpstreamPlanner` (`datacube/src/planner.ts`) over `PureV1Planning`
+  (`engine-client/src/pure-v1-planning.ts`), the planning half of the `pure/v1` client, which has no
+  execute. It sends the query as
   the protocol tree the cube built and calls `pure/v1/execution/generatePlan` for the SQL and
   `pure/v1/compilation/lambdaRelationType` for a query's columns. The *same requests* go to legend-lite
   and to legend-engine: legend-lite serves those paths exactly
@@ -397,8 +407,11 @@ build time through TeaVM's `ResourceSupplier` (`PreludeResources`). It costs abo
 
 ### 4.3 DuckDB in the tab
 
-`startDuckDbInTab(vendor, planner)` is the one start of a tab's DuckDB for every app
-(`engine-client/src/duckdb-tab.ts`):
+`openDuckDbInTab(vendor, planner)` is the one start of a tab's DuckDB for every app
+(`engine-client/src/doors/tab-duckdb.ts`, over `duckdb-tab.ts`). DuckDB's download and instantiate begin
+at once, alongside the planner's answers for the setup every connection runs; once both are in, DuckDB is
+connected with that setup inside a run frame. The page's floor is the slower of the two starts, never
+their sum.
 
 - **One build.** DuckDB's WebAssembly-exception-handling build (`eh`). A browser without that feature is
   refused by name, never handed a build it cannot run.
@@ -554,6 +567,7 @@ cube's source, and the rows come from the tab's engine with the tab's planner, o
 | Guard | Holds |
 |---|---|
 | `datacube/test/guardrails.test.ts` | Shipped code cannot pick or switch a planner at run time |
+| `//tools/deps:layers_alone` | The TypeScript's run side imports no planner, and its planner no run side |
 | `datacube/test/bundle-budget.test.ts` | What each page downloads: one copy of Arrow; no DuckDB-WASM or compiler module on the Python page; charts and the query store loaded only when used |
 | `//wasm:differential_test`, `//datacube:wasm_differential_test`, `//python:bindings_test` | The three builds of the planner give the same answers |
 | `//datacube:live_snap_test` | Live and Snap are one cube on two engines |
@@ -576,10 +590,13 @@ anything is green.
 | `datacube/src/headless/` | The headless bundle Python's V8 loads |
 | `datacube/src/embed.ts` | The one public entry for an embedding app |
 | `datacube/demo/boot.ts`, `planners.ts`, `page-config.ts` | The page's start: plane, planner, configuration |
-| `engine-client/src/engine.ts` | `QueryEngine`, `typedByPlan`, `setUpSession` |
+| `datacube/src/planner-types.ts` | `Planner`: what every planner answers |
+| `engine-client/src/query-engine.ts`, `engine.ts` | `QueryEngine`, `typedByPlan`; `setUpSession` |
+| `engine-client/src/doors/` | The doors: each asks the planner, then runs the answer (the tab's DuckDB, a file's load, a project's data, the warehouse) |
+| `engine-client/src/run-frame.ts`, `plan-guard.ts` | The run frame and the planner's guard: no planning inside a run |
 | `engine-client/src/duckdb.ts`, `duckdb-tab.ts` | DuckDB in the tab |
 | `engine-client/src/warehouse.ts`, `snap.ts` | The warehouse engine; snaps |
-| `engine-client/src/engine-remote.ts`, `pure-v1.ts` | Executing on an engine; the `pure/v1` client |
+| `engine-client/src/engine-remote.ts`, `pure-v1.ts`, `pure-v1-planning.ts` | Executing on an engine; the `pure/v1` client, and its planning half |
 | `engine-client/src/legend/` | The planner worker, its protocol, `BrowserEngine`, `WasmGrammar` |
 | `wasm/` | The planner as WebAssembly, and its differentials |
 | `native/` | The planner as a native library |
