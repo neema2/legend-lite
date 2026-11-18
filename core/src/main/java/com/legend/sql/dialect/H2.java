@@ -98,7 +98,7 @@ public class H2 extends AnsiSqlRenderer {
     /** {@inheritDoc} This dialect's {@link DatabaseSettingsForm}. */
     @Override
     public DatabaseSettings databaseSettings() {
-        return settings.settings();
+        return settings;
     }
 
     /** This database's name for each scalar type, a refusal where it has none (the dialect program's Phase 1,
@@ -223,7 +223,7 @@ public class H2 extends AnsiSqlRenderer {
      * backend without it), JSON constructors only. */
     public static final CarrierStrategies.Caps CAPS = new CarrierStrategies.Caps(false, false, false, false);
 
-    private final DatabaseSettingsForm settings;
+    private final DatabaseSettings settings;
 
     /** The product's H2 ({@link ProductDatabaseSettings}). */
     public H2() {
@@ -233,7 +233,7 @@ public class H2 extends AnsiSqlRenderer {
     /** H2 on a database with {@code settings}, the plan style's two-form {@link DatabaseSettingsForm} (data, not an override). */
     protected H2(DatabaseSettingsForm settings) {
         super(LEXICON);
-        this.settings = settings;
+        this.settings = settings(settings.required());
     }
 
     @Override

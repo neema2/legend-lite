@@ -10,7 +10,6 @@ package com.legend.sql.dialect;
  */
 public interface DatabaseSettingsForm {
 
-    /** The settings, as the plan's target carries them (exec writes them on the URL of an in-memory database it opens
-     *  and reads them back from a session it did not). */
-    SqlDialect.DatabaseSettings settings();
+    /** The settings the database has, by name and value; its dialect writes the statement that reads them back. */
+    java.util.List<SqlDialect.Setting> required();
 }

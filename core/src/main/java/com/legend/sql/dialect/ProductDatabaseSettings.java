@@ -14,14 +14,14 @@ public final class ProductDatabaseSettings implements DatabaseSettingsForm {
 
     public static final ProductDatabaseSettings INSTANCE = new ProductDatabaseSettings();
 
-    private static final SqlDialect.DatabaseSettings SETTINGS = H2.settings(List.of(
-            new SqlDialect.Setting("MODE", "REGULAR"), new SqlDialect.Setting("DEFAULT_NULL_ORDERING", "LOW")));
+    private static final List<SqlDialect.Setting> REQUIRED = List.of(new SqlDialect.Setting("MODE", "REGULAR"),
+            new SqlDialect.Setting("DEFAULT_NULL_ORDERING", "LOW"));
 
     private ProductDatabaseSettings() {
     }
 
     @Override
-    public SqlDialect.DatabaseSettings settings() {
-        return SETTINGS;
+    public List<SqlDialect.Setting> required() {
+        return REQUIRED;
     }
 }

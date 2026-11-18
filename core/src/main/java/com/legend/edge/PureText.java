@@ -284,27 +284,6 @@ public final class PureText {
         };
     }
 
-    /** legend-engine's H2 database settings, the edge's form of {@link com.legend.sql.dialect.DatabaseSettingsForm}
-     *  (the audit's J22, 2026-11-17, RULED by the user: the product's H2 has H2's own): {@code MODE=LEGACY}, and
-     *  {@code DEFAULT_NULL_ORDERING=HIGH}, its null placement (null is largest), which its printer leaves bare because the
-     *  database already orders that way (H2Manager / H2Defaults, 4.145.0). */
-    static final class EngineDatabaseSettings implements com.legend.sql.dialect.DatabaseSettingsForm {
-        static final EngineDatabaseSettings INSTANCE = new EngineDatabaseSettings();
-
-        private static final com.legend.sql.dialect.SqlDialect.DatabaseSettings SETTINGS =
-                com.legend.sql.dialect.H2.settings(java.util.List.of(
-                        new com.legend.sql.dialect.SqlDialect.Setting("MODE", "LEGACY"),
-                        new com.legend.sql.dialect.SqlDialect.Setting("DEFAULT_NULL_ORDERING", "HIGH")));
-
-        private EngineDatabaseSettings() {
-        }
-
-        @Override
-        public com.legend.sql.dialect.SqlDialect.DatabaseSettings settings() {
-            return SETTINGS;
-        }
-    }
-
     /** The edge's dialect of {@code type}; a database the product has no dialect for refused by name, as the
      *  product's own source refuses it. */
     public static SqlDialect dialect(DatabaseType type) {
