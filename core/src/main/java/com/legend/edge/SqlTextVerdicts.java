@@ -12,9 +12,9 @@ import com.legend.testplan.EngineTextPlanning;
 import com.legend.testplan.JudgePlans;
 
 import static com.legend.testexecutionplan.Verdicts.ok;
-import static com.legend.testexecutionplan.Verdicts.textsDiffer;
-import static com.legend.testexecutionplan.Verdicts.isPopulationGolden;
-import static com.legend.testexecutionplan.Verdicts.stripChainedPlanWarning;
+import static com.legend.edge.SqlTextReferee.textsDiffer;
+import static com.legend.edge.SqlTextReferee.isPopulationGolden;
+import static com.legend.edge.SqlTextReferee.stripChainedPlanWarning;
 import static com.legend.testexecutionplan.Verdicts.scalarString;
 
 
@@ -407,8 +407,7 @@ final class SqlTextVerdicts {
     /** Whether a failed text may be appealed (the rows leg, a re-run of the arm): compatibility mode alone -- in lite's
      *  own runs the two texts are the verdict, and after a verdict the harness may only explain (the user, 2026-11-05). */
     private static boolean appeals(BodyDriver.ExecEnv env) {
-        return EngineTextPlanning.judgingRules(env)
-                == com.legend.testexecutionplan.TestPlan.JudgingRules.COMPILED_PURE_COMPAT;
+        return EngineTextPlanning.judgingRules(env).equals(CompatRules.COMPILED_PURE);
     }
 
     /**
@@ -684,7 +683,7 @@ final class SqlTextVerdicts {
             return tryArm("assertSameSQL", true, root.args(), letPrefix,
                     specs, env, hook);
         }
-        TypedSpec strip = com.legend.compiler.spec.VerdictQueries
+        TypedSpec strip = SqlTextReferee
                 .sqlStripRead(resultArg, EngineTextPlanning.ctx(env));
         // §8.3e hardening: from here the SQL shape is RECOGNIZED (a
         // Result-typed actual on the sql-assert form) — an underivable
@@ -748,7 +747,7 @@ final class SqlTextVerdicts {
                 // the engine's n-th statement against our ONE statement
                 // (statement-per-let plan, batch 69a): our text is our
                 // index-0 read; golden(n) routes below by statementRoute
-                oursExpr = com.legend.compiler.spec.VerdictQueries
+                oursExpr = SqlTextReferee
                         .firstStatementRead(read);
                 resultArg = read.args().get(0);
                 String goldenN = readText(goldenSide, letPrefix, specs, env, hook, true);
@@ -771,7 +770,7 @@ final class SqlTextVerdicts {
             oursExpr = actualSide;
             resultArg = read.args().get(0);
         } else {
-            TypedSpec strip = com.legend.compiler.spec.VerdictQueries
+            TypedSpec strip = SqlTextReferee
                     .sqlStripRead(actualSide, EngineTextPlanning.ctx(env));
             // §8.3e hardening: Result-typed actual = the SQL shape is
             // recognized — underivable legs WALL counted (a null
@@ -906,7 +905,7 @@ final class SqlTextVerdicts {
             return null;
         }
         if (k > 0) {
-            producerSide = com.legend.compiler.spec.VerdictQueries
+            producerSide = SqlTextReferee
                     .firstStatementRead(read);
         }
         com.legend.compiler.spec.typed.TypedLet letStatement = route.let();
@@ -1109,7 +1108,7 @@ final class SqlTextVerdicts {
      * spelling: {@code $plan.rootExecutionNode...sqlQuery}). The plan
      * itself is PLATFORM text (the K-native channel renders it — the
      * eval-ledger's engine-parity class); this arm judges it on ROWS:
-     * REFEREE BINDINGS (VerdictQueries.refereeBindings — fixed scalar
+     * REFEREE BINDINGS (SqlTextReferee.refereeBindings — fixed scalar
      * values per parameter type, the charter's referee-chosen policy)
      * bind the plan lambda's parameters as minted lets; OUR ROWS =
      * the lambda body wrapped in from(mapping), evaluated with those
@@ -1177,8 +1176,8 @@ final class SqlTextVerdicts {
             return null;
         }
         boolean textEqual = golden.equals(ours);
-        com.legend.compiler.spec.VerdictQueries.PlanBindings bindings =
-                com.legend.compiler.spec.VerdictQueries
+        SqlTextReferee.PlanBindings bindings =
+                SqlTextReferee
                         .refereeBindings(lam);
         if (bindings == null) {
             final String g = golden;
@@ -1485,7 +1484,7 @@ final class SqlTextVerdicts {
         // the rows planned where the appeal reads them: the body's own environment for a system-routed body's assert
         // under the database judge (ExecEnv.appealOn), this one otherwise
         BodyDriver.ExecEnv appealOn = EngineTextPlanning.appealOn(env);
-        // the rows leg plans under the referee's bindings (VerdictQueries.refereeBindings' lets, made-up values): its
+        // the rows leg plans under the referee's bindings (SqlTextReferee.refereeBindings' lets, made-up values): its
         // consumed lets stay its own, never the body's accumulator, by which a later read of the body's plan text
         // would resolve a plan parameter (G10, 2026-11-16: the two judges' halves read one plan's text differently)
         BodyDriver.ExecEnv on = EngineTextPlanning.withOwnLets(appealOn != null ? appealOn : env);
@@ -1620,7 +1619,7 @@ final class SqlTextVerdicts {
             // execute() call (the activities read is the frame's
             // sourceExec — ResultEnvelopeSplice)
             TypedSpec spliced = EngineTextPlanning.splice(hook, 
-                    com.legend.compiler.spec.VerdictQueries
+                    SqlTextReferee
                             .activitiesRead(resultArg),
                     java.util.Set.of());
             if (spliced instanceof com.legend.compiler.spec.typed

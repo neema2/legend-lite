@@ -515,6 +515,8 @@ public class DuckDb extends AnsiSqlRenderer {
         // every function, each by name (the dialect program's Phase 1, 2026-10-13: an exhaustive switch, so a new
         // function asks this dialect too)
         return switch (c.fn()) {
+            // census J20 (2026-11-18): the one numeric rule, this dialect's full match (AnsiSqlRenderer.isNumeric)
+            case IS_NUMERIC -> isNumeric(writer, c.args().get(0), parentPrec);
             // ---- DuckDB's own spellings (the base renderer's until the dialect program's Phase 1, D1, 2026-10-13)
             // ENGINE DOMAIN SEMANTICS (goal #18 dialect gaps, E2E §4.1):
             // the engine's H2 returns NaN for out-of-domain acos/asin;
@@ -601,7 +603,7 @@ public class DuckDb extends AnsiSqlRenderer {
             case BOOL_TO_TEXT -> castAs(writer, c.args().get(0), "VARCHAR");
             case FLOAT_SHORTEST_TEXT -> floatShortestTextByCast(writer, c, parentPrec);
             case FLOAT_TO_TEXT -> floatToText(writer, c.args().get(0));
-            case DATETIME_TO_TEXT, DATETIME_PRINT, DATETIME_CANON_TEXT, CELL_TEXT ->
+            case DATETIME_TO_TEXT, DATETIME_CANON_TEXT, CELL_TEXT ->
                     throw expandedFirst(c);
             // the hooks: this dialect's own (or the base's refusal)
             case LIST_FILTER, LIST_TRANSFORM, LIST_CONCAT, LIST_GET, LIST_AT, LIST_POSITION, LIST_ZIP, LIST_DISTINCT,

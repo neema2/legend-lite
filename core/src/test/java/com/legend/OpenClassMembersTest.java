@@ -49,12 +49,14 @@ class OpenClassMembersTest {
                     "public abstract com.legend.sql.SqlExpr representation(com.legend.sql.SqlExpr)")),
             // B17 (the listed facade of the relation text: ArchitectureTest.PLANNER_ENTRIES)
             Map.entry("com.legend.lowering.RelationTexts", Set.of(
-                    "(lambda bodies) 1",
-                    "public abstract com.legend.sql.SqlExpr csvProperty(com.legend.compiler.spec.typed.TypedPropertyAccess, java.util.function.Function<com.legend.compiler.spec.typed.TypedSpec, com.legend.sql.SqlSelect>, java.lang.String)",
-                    "public abstract com.legend.sql.SqlExpr relationToString(com.legend.compiler.spec.typed.TypedNativeCall, java.util.function.Function<com.legend.compiler.spec.typed.TypedSpec, com.legend.sql.SqlSelect>, java.lang.String, java.util.Map<java.lang.Integer, com.legend.compiler.element.type.Type$RelationType>)",
-                    "public abstract com.legend.sql.SqlExpr toCsv(com.legend.compiler.spec.typed.TypedNativeCall, java.util.function.Function<com.legend.compiler.spec.typed.TypedSpec, com.legend.sql.SqlSelect>, java.lang.String, java.util.Map<java.lang.Integer, com.legend.compiler.element.type.Type$RelationType>)",
+                    // re-cut 2026-11-17 on d-stage c37207858: train 7's J26 (af4c03ba5c) and E-SQL's pforms (449c51793a)
+                    // -- each facet method takes the planner's own Styled, pureToString takes it in place of the two
+                    // facets, and the substitute's lambda went with J26
+                    "public abstract com.legend.sql.SqlExpr csvProperty(com.legend.lowering.Styled, com.legend.compiler.spec.typed.TypedPropertyAccess, java.util.function.Function<com.legend.compiler.spec.typed.TypedSpec, com.legend.sql.SqlSelect>, java.lang.String)",
+                    "public abstract com.legend.sql.SqlExpr relationToString(com.legend.lowering.Styled, com.legend.compiler.spec.typed.TypedNativeCall, java.util.function.Function<com.legend.compiler.spec.typed.TypedSpec, com.legend.sql.SqlSelect>, java.lang.String, java.util.Map<java.lang.Integer, com.legend.compiler.element.type.Type$RelationType>)",
+                    "public abstract com.legend.sql.SqlExpr toCsv(com.legend.lowering.Styled, com.legend.compiler.spec.typed.TypedNativeCall, java.util.function.Function<com.legend.compiler.spec.typed.TypedSpec, com.legend.sql.SqlSelect>, java.lang.String, java.util.Map<java.lang.Integer, com.legend.compiler.element.type.Type$RelationType>)",
                     "public static com.legend.compiler.element.type.Type kindType(java.lang.String)",
-                    "public static com.legend.sql.SqlExpr pureToString(com.legend.lowering.PureOnlyTexts, com.legend.lowering.ListTexts, com.legend.compiler.element.type.Type, com.legend.sql.SqlExpr)")),
+                    "public static com.legend.sql.SqlExpr pureToString(com.legend.lowering.Styled, com.legend.compiler.element.type.Type, com.legend.sql.SqlExpr)")),
             // (com.legend.lowering.Repr: gone 2026-11-17, C5 step A -- legend-pure's representation moved to the
             // edge, edge.EdgePureOnlyTexts; its product parts the listed facade lowering.ReprParts)
             // B5 (a ruled hook)
@@ -64,7 +66,9 @@ class OpenClassMembersTest {
                     "public abstract com.legend.sql.SqlExpr values(com.legend.sql.SqlExpr)")),
             // B2
             Map.entry("com.legend.planner.UpstreamPlans", Set.of(
-                    "public abstract com.legend.plan.PlanNode planModel(com.legend.compiler.spec.typed.TypedNativeCall, com.legend.compiler.spec.SpecCompiler, com.legend.planner.PlanEnv)",
+                    // planModel -> planRows (2026-11-17, J4/K3 by 0001a56387, D's train 4: the facet answers the
+                    // handle's rows; its signature names no com.legend.plan type)
+                    "public abstract java.util.Map<java.lang.String, java.util.List<java.util.List<java.lang.String>>> planRows(java.lang.String, com.legend.compiler.spec.typed.TypedNativeCall, java.lang.String, java.lang.String, java.util.List<java.lang.String>, com.legend.compiler.spec.SpecCompiler, com.legend.planner.PlanEnv)",
                     "public abstract java.lang.String activitySql(java.util.List<com.legend.compiler.spec.typed.TypedSpec>, java.lang.String, com.legend.compiler.spec.SpecCompiler, com.legend.planner.PlanEnv, boolean)",
                     "public abstract java.lang.String ddlText(com.legend.compiler.spec.typed.TypedNativeCall, com.legend.planner.PlanEnv)",
                     "public abstract java.lang.String generatedTestDataPlan(com.legend.compiler.spec.typed.TypedTestDataGen, com.legend.compiler.element.ModelContext)",
@@ -72,13 +76,8 @@ class OpenClassMembersTest {
                     "public abstract java.util.List<java.lang.String> engineSeedSql(java.lang.String, com.legend.model.DatabaseDefinition, java.util.function.Function<java.lang.String, java.util.Optional<com.legend.model.DatabaseDefinition>>)",
                     "public abstract java.util.List<java.lang.String> engineSeedSqlFromRecords(java.util.List<java.util.List<java.lang.String>>, com.legend.model.DatabaseDefinition, java.util.function.Function<java.lang.String, java.util.Optional<com.legend.model.DatabaseDefinition>>)",
                     "public abstract java.util.function.UnaryOperator<com.legend.sql.SqlExpr> testDataTimestampText()")),
-            // B12
-            Map.entry("com.legend.sql.dialect.DateTimePrintText", Set.of(
-                    "Expansion#<init>()",
-                    "Expansion#protected com.legend.sql.SqlExpr expr(com.legend.sql.SqlExpr)",
-                    "private <init>()",
-                    "static com.legend.sql.SqlExpr of(com.legend.sql.SqlExpr)",
-                    "static final Expansion (class)")),
+            // (B12, sql.dialect.DateTimePrintText: deleted 2026-11-17 with train 7's B12 close, a8b7e2e32e -- the edge's
+            // PureDateTimePrint composes legend-pure's DateTime print)
             // C4 (a ruled hook)
             Map.entry("com.legend.testplan.EngineTestText", Set.of(
                     "public abstract boolean isRoot(java.lang.String)",
@@ -147,7 +146,6 @@ class OpenClassMembersTest {
                     "public static java.util.List<com.legend.compiler.spec.typed.TypedSpec> letPrefix(com.legend.testplan.TextAsk)",
                     "public static java.util.List<java.lang.String> sortKeys(com.legend.testplan.AssertVerdicts$ReplayGates)",
                     "public static java.util.Map<java.lang.String, java.lang.String> tableReplace(com.legend.testplan.BodyDriver$ExecEnv)",
-                    "public static void defer(com.legend.testplan.VerdictBatch, java.lang.String, boolean, com.legend.sql.SqlQuery, com.legend.executionplan.ExecutionPlan$Target)",
                     "public static void defer(com.legend.testplan.VerdictBatch, java.lang.String, boolean, com.legend.sql.SqlQuery, com.legend.executionplan.ExecutionPlan$Target, int, java.lang.String)",
                     "public static void restoreMarking(com.legend.testplan.BodyDriver$ExecEnv, java.lang.String)")),
             // C4 (the closed list of kinds)

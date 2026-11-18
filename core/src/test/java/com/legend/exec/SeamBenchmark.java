@@ -137,10 +137,8 @@ final class SeamBenchmark {
                     new com.legend.edge.PureV1Writer.Envelope("{\"_type\":\"tdsBuilder\"}", "SELECT",
                             columns.stream().map(ExecutionPlan.Column::name).toList()), java.util.UUID.randomUUID()), w::count);
         });
-        measure(db, "9 product runner + ArrowWriter (bytes)", rows, mustDrain, () -> {
-            CountingStream o = new CountingStream();
-            return productDrain(c, plan, new com.legend.result.ArrowWriter(o, Map.of()), o::count);
-        });
+        // (path 9, the product runner and ArrowWriter, left 2026-11-18 with the writer: J36 of the edge audit made it
+        // the edge's, which this product test library cannot reach -- edge.ArrowWriterTest is its test)
         if (!SMALL_HEAP && mustDrain) {
             // THE DATABASE WRITING THE PRODUCT'S OWN BYTES (2026-11-01): each row's CSV line and JSON object spelled
             // in SQL exactly as CsvWriter and JsonRowsWriter spell them (the checksums prove it; the statements the
@@ -223,10 +221,7 @@ final class SeamBenchmark {
                         new com.legend.edge.PureV1Writer.Envelope("{\"_type\":\"tdsBuilder\"}", "SELECT",
                                 columns.stream().map(ExecutionPlan.Column::name).toList()), java.util.UUID.randomUUID()), crc ? w::count : null);
             });
-            paths.put("9 + ArrowWriter", crc -> () -> {
-                CountingStream o = new CountingStream();
-                return productDrain(c, plan, new com.legend.result.ArrowWriter(o, Map.of()), crc ? o::count : null);
-            });
+            // (path 9, ArrowWriter's, left 2026-11-18: J36, as above)
             for (java.util.Map.Entry<String, java.util.function.Function<Boolean, Path>> e : paths.entrySet()) {
                 small(db, n, e.getKey(), e.getValue().apply(false), warmNs, measureNs);
                 if (CRC && !e.getKey().startsWith("1'") && !e.getKey().startsWith("6")) {
@@ -390,34 +385,6 @@ final class SeamBenchmark {
 
         @Override
         public void close() {
-        }
-    }
-
-    private static final class CountingStream extends java.io.OutputStream {
-        private long n;
-        final java.util.zip.CRC32 crc = new java.util.zip.CRC32();
-
-        long count() {
-            if (CRC) {
-                System.out.println("[seam-crc] bytes=" + n + " crc=" + Long.toHexString(crc.getValue()));
-            }
-            return n;
-        }
-
-        @Override
-        public void write(int b) {
-            n++;
-            if (CRC) {
-                crc.update(b);
-            }
-        }
-
-        @Override
-        public void write(byte[] b, int off, int len) {
-            n += len;
-            if (CRC) {
-                crc.update(b, off, len);
-            }
         }
     }
 

@@ -553,7 +553,6 @@ final class LetBinding {
             case SqlSource.Table t -> t;
             case SqlSource.Cte c -> c;
             case SqlSource.SourceUrl u -> u;
-            case SqlSource.VarSetPlaceholder v -> v;
             case SqlSource.RawSql r -> r;
             case SqlSource.Catalog c -> c;
             case SqlSource.GridReport g -> new SqlSource.GridReport(map(g.grid(), f), g.part(), g.alias(), g.outputs());

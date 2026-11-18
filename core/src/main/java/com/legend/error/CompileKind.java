@@ -34,7 +34,35 @@ public enum CompileKind {
     /** A window frame whose computed bounds, read by how they are written (-(n) before the current row, any other n
      *  after it), start after they end (register S170). */
     WINDOW_FRAME_COMPUTED_INVERTED("window frame starts after it ends, its computed bounds read by how they are written:"
-            + " write a bound before the current row as -(n)");
+            + " write a bound before the current row as -(n)"),
+    /** Class mapping ids two sets of a mapping's include closure share: the ids (a list, each with its mappings), the
+     *  mapping (J10 of the edge audit, 2026-11-17; legend-engine's MappingCompilerExtension). */
+    DUPLICATE_CLASS_MAPPING_IDS("mapping '%2$s' has more than one class mapping with the ids %1$s"),
+    /** A mapping that lists one include twice: the include as written, the mapping (J10 of the edge audit, 2026-11-17;
+     *  legend-engine's MappingCompilerExtension). */
+    DUPLICATE_MAPPING_INCLUDE("mapping '%2$s' includes '%1$s' more than once"),
+    /** A store the text names that the model does not have (J10 of the edge audit, 2026-11-17; legend-engine's
+     *  CompileContext.resolveStore). */
+    MISSING_STORE("store '%1$s' is not defined"),
+    /** An element name the model defines more than once (J10 of the edge audit, 2026-11-17; legend-engine's
+     *  PureModelBuilder, "Duplicated element"). */
+    DUPLICATE_ELEMENT("'%1$s' is defined more than once"),
+    /** A class declaring one stored property twice: the property, the class (J10 of the edge audit, 2026-11-17;
+     *  legend-engine's compiler, "Found duplicated property"). */
+    DUPLICATE_PROPERTY("class '%2$s' declares property '%1$s' more than once"),
+    /** A default value on an optional property: the property (J10 of the edge audit, 2026-11-17; legend-pure's
+     *  PropertyValidator). */
+    DEFAULT_ON_OPTIONAL("property '%1$s' is optional and cannot have a default value"),
+    /** An enumeration declaring one value twice: the value, the enumeration (J10 of the edge audit, 2026-11-17;
+     *  legend-engine's compiler, "Found duplicated value"). */
+    DUPLICATE_ENUM_VALUE("enumeration '%2$s' declares value '%1$s' more than once"),
+    /** A database condition's column its table or view does not have: the column, the relation's noun (table, view),
+     *  its name, the condition (join, filter), the database (J10 of the edge audit, 2026-11-17; legend-engine's
+     *  "can't be found" form of a store reference). */
+    MISSING_STORE_COLUMN("%2$s '%3$s' of database '%5$s' has no column '%1$s' (%4$s)"),
+    /** A database condition's table the database does not have: the table, the database, the condition (J10 of the
+     *  edge audit, 2026-11-17; legend-engine's "can't be found" form of a store reference). */
+    MISSING_STORE_TABLE("database '%2$s' has no table '%1$s' (%3$s)");
 
     private final String sentence;
 

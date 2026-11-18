@@ -7,9 +7,9 @@ import com.legend.testexecutionplan.AssertListener;
 
 import static com.legend.testexecutionplan.Verdicts.ok;
 import static com.legend.testexecutionplan.Verdicts.fail;
-import static com.legend.testexecutionplan.Verdicts.textsDiffer;
-import static com.legend.testexecutionplan.Verdicts.isPopulationGolden;
-import static com.legend.testexecutionplan.Verdicts.stripChainedPlanWarning;
+import static com.legend.edge.SqlTextReferee.textsDiffer;
+import static com.legend.edge.SqlTextReferee.isPopulationGolden;
+import static com.legend.edge.SqlTextReferee.stripChainedPlanWarning;
 import static com.legend.testexecutionplan.Verdicts.scalarString;
 import com.legend.exec.StatementOrigin;
 import com.legend.testexecutionplan.HostJudgment;
@@ -31,7 +31,7 @@ final class SqlTextRuns {
             com.legend.testexecutionplan.TestPlan.JudgingRules rules, Appeals run, boolean messaged) {
         // the appeal is heard by its number, the plan's (step 8b): the run records the texts it read, and the edge
         // decides after the run; the step's rules say whether a failed text is appealed
-        boolean compat = rules == com.legend.testexecutionplan.TestPlan.JudgingRules.COMPILED_PURE_COMPAT;
+        boolean compat = rules.equals(CompatRules.COMPILED_PURE);
         if (sides.size() != 2) {
             throw new IllegalStateException(e.name() + ": the engine-text step handed " + sides.size()
                     + " sides, two texts expected");
@@ -68,7 +68,7 @@ final class SqlTextRuns {
             if (g.equals(ours)) {
                 return ok();
             }
-            if (com.legend.testexecutionplan.Verdicts.isPopulationGolden(g) || NAMED_IN_TEMP.matcher(g).find()) {
+            if (isPopulationGolden(g) || NAMED_IN_TEMP.matcher(g).find()) {
                 return fail(e.name() + " (sql-text): a golden read at the verdict step whose text chooses a statement"
                         + " route the plan did not plan (a population or in-list temp statement): " + g);
             }

@@ -54,8 +54,8 @@ class EdgeSeparationTest {
             // B17 (2026-11-17): Render's relation text moved to the edge (edge.RelationTextLowering); what stays in
             // Render is the product's row helpers, and the facet the edge answers stands here until hooks are ruled
             Map.entry("com.legend.lowering.RelationTexts", "B17"),
-            // B9 -> C5 (E-P5) 2026-11-17: the judges' canon's alone (LiteralSpelling.temporalCanon)
-            Map.entry("com.legend.sql.dialect.DateTimePrintText", "B12"),
+            // (sql.dialect.DateTimePrintText: deleted 2026-11-17, census B12 -- the edge composes legend-pure's DateTime
+            // print, edge.PureDateTimePrint)
             Map.entry("com.legend.lowering.ResultEnvelopes", "B5"),
             Map.entry("com.legend.lowering.PureOnlyTexts", "B8"),
             // (com.legend.lowering.Repr: deleted 2026-11-17, census B12's 2b -- legend-pure's representation the edge's
@@ -63,9 +63,12 @@ class EdgeSeparationTest {
             Map.entry("com.legend.testplan.EngineTestText", "C4"),
             Map.entry("com.legend.testplan.EngineTextPlanning", "C4"),
             Map.entry("com.legend.testplan.PlanStyleFacets", "C4"));
+    // (com.legend.testexec.PureAsserts, legend-pure's assert family: decisions only since C5's step B, its every word
+    // the PureWords hook's -- mapped 2026-11-18, census J17, as CompatSpellingGuardTest.WORDED_BY_HOOK, whose check
+    // reads its source; a dependency graph cannot see a string)
 
     /** The SqlFn members only the edge spells (census B8). */
-    static final Set<String> EDGE_ONLY_SQLFN = Set.of("DATETIME_PRINT");
+    static final Set<String> EDGE_ONLY_SQLFN = Set.of();   // DATETIME_PRINT gone 2026-11-17 (census B12), the last
 
     /** The referee and the appeals in the product packages they stood in (census C2, closed 2026-11-17: moved to
      *  com.legend.edge, whose classes the CODE guard already keeps out of the product): a tripwire, should one return. */
@@ -85,8 +88,8 @@ class EdgeSeparationTest {
             // format's %r refused in the product by name, the edge's EdgePureOnlyTexts.formatR its text
             // B9 -> C5 (E-P5) 2026-11-17 (the orchestrator's ruling (a)): the composition the judges' canon alone emits
             // (LiteralSpelling.temporalCanon), closed by C5's step C
-            Map.entry("com.legend.sql.dialect.AnsiSqlRenderer -> com.legend.sql.dialect.DateTimePrintText",
-                    "B12 2026-11-17 (format %r arm, LiteralSpelling.temporalCanon's gone by C5 step C)"),
+            // sql.dialect.AnsiSqlRenderer -> DateTimePrintText, DateTimePrintText -> (stands in a product package): gone
+            // 2026-11-17, census B12 (the composition the edge's, edge.PureDateTimePrint; DATETIME_PRINT left the MIR)
             // planner.Boundary -> com.legend.edge.HostAnswers, PureText, PureV1Routes: gone 2026-11-17 (A1, E-P5): the
             // pure/v1 route and execute's halves moved to com.legend.edge.wasm.EdgeBoundary (//wasm:edge_boundary)
             // B7 CLOSED 2026-11-17 (E-P5, D's split by content): server/PureV1Api is the product's own API kit,
@@ -95,16 +98,14 @@ class EdgeSeparationTest {
             // lowering.VerdictSql -> lowering.Repr: gone 2026-11-17 (C5 step A, the PureOnlyTexts facet's representation)
             // lowering.Repr -> (stands in a product package), lowering.Scalars -> lowering.Repr: gone 2026-11-17 with
             // Repr, census B12's 2b
-            Map.entry("com.legend.sql.dialect.DateTimePrintText -> (stands in a product package)",
-                    "B12 2026-11-17 (the edge's DATETIME_PRINT composition; no product emitter since B12 2b)"));
+            );
 
     /** TEST SIDE: the same. */
     static final Map<String, String> TEST_OPEN = Map.ofEntries(
-            Map.entry("com.legend.testexec.Equality -> JudgingRules.COMPILED_PURE_COMPAT", "C1 2026-11-17"),
-            Map.entry("com.legend.testexecutionplan.TestPlan -> JudgingRules.COMPILED_PURE_COMPAT", "C1 2026-11-17"),
-            Map.entry("com.legend.testexecutionplan.TestPlanJson -> JudgingRules.COMPILED_PURE_COMPAT", "C1 2026-11-17"),
             // (AgreementAsserts -> EngineTextAppeals closed: 2026-11-17, (b) of the orchestrator's order: the fused agreement path deleted)
-            Map.entry("com.legend.testplan.PlanningOptions -> JudgingRules.COMPILED_PURE_COMPAT", "C1 2026-11-17"));
+            // (TestPlan, TestPlanJson, PlanningOptions -> JudgingRules.COMPILED_PURE_COMPAT closed: 2026-11-17, census C1
+            // -- the judging rules are data, the compatibility preset the edge's CompatRules)
+            );
             // (census C2 CLOSED 2026-11-17: the referee and the appeals moved to com.legend.edge -- the run hook EdgeRun
             // in the referee's slot, the planner holding the edge's records by number -- its 30 entries deleted)
 
@@ -163,7 +164,8 @@ class EdgeSeparationTest {
             // B17, the relation-text facet (the orchestrator's ruling of 2026-11-17: its signatures, and forwarders to
             // product helpers the product uses itself; HookRulingTest pins both and its one implementer)
             Map.entry("com.legend.lowering.Lowerer -> com.legend.lowering.RelationTexts", "B17 HOOK-RULED 2026-11-17"),
-            Map.entry("com.legend.lowering.RelationTexts -> com.legend.lowering.PureOnlyTexts", "B17 HOOK-RULED 2026-11-17"),
+            // (lowering.RelationTexts -> PureOnlyTexts: gone 2026-11-17, the edge audit's J26 -- the facet hands the planner's
+            // own Styled through, no substitute built from the edge's texts)
             Map.entry("com.legend.lowering.RelationTexts -> (stands in a product package)", "B17 HOOK-RULED 2026-11-17"),
             Map.entry("com.legend.planner.PlanEnv -> com.legend.lowering.RelationTexts", "B17 HOOK-RULED 2026-11-17"),
             Map.entry("com.legend.testplan.PlanStyleFacets -> com.legend.lowering.RelationTexts", "B17 HOOK-RULED 2026-11-17"),
@@ -213,6 +215,14 @@ class EdgeSeparationTest {
 
     /** Every "source -> target" naming the vocabulary, over {@code classes}, for the sources {@code side} admits. */
     static Set<String> found(JavaClasses classes, java.util.function.Predicate<String> side) {
+        return found(classes, side, EDGE_ONLY_SQLFN);
+    }
+
+    /** {@link #found(JavaClasses, java.util.function.Predicate)} with {@code edgeOnlyFns} the SqlFn constants the
+     *  edge alone may write. A read of one is no write where it is a renderer's arm, javac's switch map or SqlFn's own
+     *  initializer ({@code SqlFnSortedTest}'s rule) -- the one exemption: until 2026-11-17 every {@code com.legend.sql}
+     *  class's field reads were skipped, its MIR helpers' and its codec's with its renderers' (the edge audit's K16). */
+    static Set<String> found(JavaClasses classes, java.util.function.Predicate<String> side, Set<String> edgeOnlyFns) {
         Set<String> out = new TreeSet<>();
         for (JavaClass c : classes) {
             String src = top(c);
@@ -233,17 +243,33 @@ class EdgeSeparationTest {
                     out.add(src + " -> " + target);
                 }
             });
-            if (!src.startsWith("com.legend.sql.")) {
-                c.getFieldAccessesFromSelf().forEach(a -> {
-                    String owner = a.getTarget().getOwner().getName();
-                    String field = a.getTarget().getName();
-                    if (owner.equals("com.legend.sql.SqlFn") && EDGE_ONLY_SQLFN.contains(field)) {
-                        out.add(src + " -> SqlFn." + field);
-                    } else if (owner.endsWith("TestPlan$JudgingRules") && field.equals("COMPILED_PURE_COMPAT")) {
-                        out.add(src + " -> JudgingRules.COMPILED_PURE_COMPAT");
-                    }
-                });
-            }
+            // a dialect's renderer (the class or one enclosing it a subclass of AnsiSqlRenderer, in
+            // com.legend.sql.dialect), in a code unit that carries no value out (SqlFnSortedTest.carriesOut: it
+            // returns what a render returns, builds no node, sets no field that can hold one); javac's switch map (a
+            // synthetic $SwitchMap$ field) in the sql package alone; SqlFn's own code -- its initializer, its synthetic
+            // $values, and a member carrying nothing out -- nothing else. The review of 11de9ae229, 2026-11-18,
+            // MUST-FIX 1: a renderer in any package, an ordinary field named $SwitchMap$ and every member of SqlFn were
+            // exempt; the review of 091b9bde36, the same day, MUST-FIX 3 and SHOULD-FIX 4: a helper nesting a class
+            // implementing SqlDialect, a renderer's method or lambda handing the function back, and a renderer's own
+            // node were exempt, and SqlFn's $values and its predicates were not.
+            boolean rendererClass = SqlFnSortedTest.renderer(c) && c.getName().startsWith("com.legend.sql.dialect.");
+            boolean switchMap = src.startsWith("com.legend.sql.") && SqlFnSortedTest.switchMap(c);
+            boolean sqlFn = c.getName().equals("com.legend.sql.SqlFn");
+            c.getFieldAccessesFromSelf().forEach(a -> {
+                String owner = a.getTarget().getOwner().getName();
+                String field = a.getTarget().getName();
+                com.tngtech.archunit.core.domain.JavaCodeUnit u = a.getOrigin();
+                boolean own = sqlFn && (u instanceof com.tngtech.archunit.core.domain.JavaStaticInitializer
+                        || (u.getName().equals("$values") && u.getModifiers().contains(
+                                com.tngtech.archunit.core.domain.JavaModifier.SYNTHETIC))
+                        || !SqlFnSortedTest.carriesOut(u));
+                boolean reads = switchMap || own || (rendererClass && !SqlFnSortedTest.carriesOut(u));
+                if (owner.equals("com.legend.sql.SqlFn") && edgeOnlyFns.contains(field) && !reads) {
+                    out.add(src + " -> SqlFn." + field);
+                }
+                // (the judges' compatibility rules: a field of the edge's since 2026-11-17, census C1 --
+                // edge.CompatRules.COMPILED_PURE, an edge reach the class rule above finds)
+            });
         }
         return out;
     }
@@ -277,20 +303,18 @@ class EdgeSeparationTest {
      *  ways with the register ({@link #everyOpenCompatRowIsCounted}). */
     static final Map<String, String> CSG_OPEN = Map.ofEntries(
             // B9 -> C5 (E-P5) 2026-11-17: the judges' canon's alone (LiteralSpelling.temporalCanon)
-            Map.entry("sql/dialect/DateTimePrintText.java | +0000", "B12 2026-11-17 (format %r arm, LiteralSpelling.temporalCanon's gone by C5 step C)"),
+            // sql/dialect/DateTimePrintText.java | +0000: gone 2026-11-17 with the class, census B12
             // B11 -> C5 2026-11-17 (the orchestrator's ruling): the judges' canon (temporalCanon x2, dateTimeLiteralAt via
             // CanonicalRenderSql), closed by C5's step C (E-SQL's)
             // lowering/Repr.java | Repr, lowering/Scalars.java | Repr: gone 2026-11-17, census B12's 2b (Repr deleted)
-            Map.entry("testexec/CanonicalForm.java | +0000", "C5 2026-11-17"),
+            // (testexec/CanonicalForm.java | +0000 closed: 2026-11-17, census C5, E-Java -- the instrument's own date text)
+            );
             // testexec/SideShapes.java | Cannot cast a collection of size: GONE 2026-11-17 (C5's step E, E-P5), worded at
             // planning by the plan's style (SideShape.sizeWords, TestPlan.answerSizeWords)
             // B11 -> C5 2026-11-17 (the orchestrator's ruling): the host judge's +0000, C5's step B (E-P5's)
-            Map.entry("testexecutionplan/Verdicts.java | +0000", "C5 2026-11-17 (E-P5's step B)"),
             // (testplan/AgreementAsserts.java | EngineText closed: 2026-11-17, (b) of the orchestrator's order: the fused agreement path deleted)
-            Map.entry("testexec/Equality.java | COMPILED_PURE_COMPAT", "C1 2026-11-17"),
-            Map.entry("testexecutionplan/TestPlan.java | COMPILED_PURE_COMPAT", "C1 2026-11-17"),
-            Map.entry("testexecutionplan/TestPlanJson.java | COMPILED_PURE_COMPAT", "C1 2026-11-17"),
-            Map.entry("testplan/PlanningOptions.java | COMPILED_PURE_COMPAT", "C1 2026-11-17"));
+            // (TestPlan, TestPlanJson, PlanningOptions | COMPILED_PURE_COMPAT closed: 2026-11-17, census C1 -- the
+            // judging rules are data, the compatibility preset the edge's CompatRules)
 
     /** The census's open lines (docs/records/f-separation-census-2026-11-17.md; closed: A4, B14 ruled; A2, A3 moved to
      *  the edge 2026-11-17 (A4 extended to the native image and the page module); A5, A6 split off the edge 2026-11-17; A1 the embedded hosts' engine routes to the edge 
@@ -305,11 +329,17 @@ class EdgeSeparationTest {
      *  canon is lite's DATETIME_CANON_TEXT);
      *  B10 CLOSED 2026-11-17 (the judges' TDSNull sentinel gone with C5's step C, C-2: an expected null cell is a
      *  typed TypedNullCell, its canon lite's bare null, its wire SqlExpr.NULL_CELL_WIRE);
+     *  B12 CLOSED 2026-11-17 (F's 2b: format's %r refused in the product, lowering.Repr deleted; legend-pure's DateTime
+     *  print the edge's: the product's DATETIME_TO_TEXT printed by the edge's dialects, a literal its written text,
+     *  edge.PureDateTimePrint, sql.dialect.DateTimePrintText deleted);
      *  records only:
      *  B15, B16, C6, C7). Each must hold at least one entry in the count ({@link #everyOpenLineIsCounted}), so an empty
      *  count cannot read DONE with a line left. A line closes by leaving this set with its last entry. */
     static final Set<String> OPEN_LINES = Set.of(
-            "B12", "C1", "C5");
+            // C1 closed 2026-11-17 (E-Java): the judges' behaviours the style's and the run hook's, the judging rules
+            // data, the compatibility preset the edge's CompatRules
+            // C5 closed 2026-11-17 (its last line, CanonicalForm's +0000, E-Java's); B12 closed by train 7
+            );
 
     private static Set<String> linesOf(Map<String, String> m) {
         Set<String> out = new TreeSet<>();
@@ -347,6 +377,13 @@ class EdgeSeparationTest {
         counted.addAll(audit);
         Set<String> open = new TreeSet<>(OPEN_LINES);
         open.addAll(audit);
+        // J40 (2026-11-18, EdgeOnlyMembersTest): a public product member the edge alone uses, counted under its audit
+        // id, none a census line
+        Set<String> edgeOnly = linesOf(EdgeOnlyMembersTest.OPEN);
+        assertTrue(java.util.Collections.disjoint(edgeOnly, OPEN_LINES), "an edge-only member's id is a census line: "
+                + edgeOnly);
+        counted.addAll(edgeOnly);
+        open.addAll(edgeOnly);
         assertEquals(open, counted, "the census's open lines and the lines this count holds"
                 + " differ: an open line with no entry would read DONE with work left; an entry of a closed or"
                 + " unknown line is a stale entry");
@@ -401,10 +438,57 @@ class EdgeSeparationTest {
                 com.legend.planner.PlantedCompatReach.class);
         Set<String> code = found(planted, n -> true);
         for (String want : List.of("com.legend.planner.PlantedCompatReach -> com.legend.edge.Presenter",
-                "com.legend.planner.PlantedCompatReach -> SqlFn.DATETIME_PRINT",
-                "com.legend.planner.PlantedCompatReach -> JudgingRules.COMPILED_PURE_COMPAT")) {
+                "com.legend.planner.PlantedCompatReach -> com.legend.edge.CompatRules")) {
             assertFalse(!code.contains(want), "the CODE and TEST SIDE guards bite: " + want + " in " + code);
         }
+        // the edge audit's K16 (2026-11-17): a com.legend.sql class's reads are read too -- an edge-only function (ABS
+        // planted as one) -- and a renderer's arm and a switch's map are not
+        JavaClasses sqlPlanted = new ClassFileImporter().withImportOption(l -> l.contains("/PlantedSql")
+                && !l.contains("SwitchNamed")).importPackages("com.legend.sql");
+        assertTrue(sqlPlanted.size() >= 4, "the planted classes are imported: " + sqlPlanted.size());
+        Set<String> sql = found(sqlPlanted, n -> true, Set.of("ABS"));
+        assertEquals(Set.of("com.legend.sql.PlantedSqlReach -> SqlFn.ABS"), sql, "the CODE guard reads the sql package");
+        // the review of 11de9ae229 (2026-11-18): a renderer nested in a product class outside the dialects, and a field
+        // merely named $SwitchMap$, exempt nothing
+        JavaClasses hiding = new ClassFileImporter().importClasses(com.legend.planner.PlantedRendererHide.class,
+                com.legend.planner.PlantedRendererHide.R.class, com.legend.sql.PlantedSqlSwitchNamed.class);
+        assertTrue(hiding.size() == 3, "the planted classes are imported: " + hiding.size());
+        assertEquals(Set.of("com.legend.planner.PlantedRendererHide -> SqlFn.ABS",
+                "com.legend.sql.PlantedSqlSwitchNamed -> SqlFn.ABS"), found(hiding, n -> true, Set.of("ABS")),
+                "a renderer outside the dialects and a field named $SwitchMap$ exempt nothing");
+        // the review of 091b9bde36 (2026-11-18, MUST-FIX 3): a helper nesting a SqlDialect two levels down, and a dialect
+        // handing the function back -- returned, by a lambda in a field, as a node it builds, kept in a field -- are
+        // named; a dialect's arm writing text is not
+        JavaClasses laundering = new ClassFileImporter().importClasses(
+                com.legend.sql.dialect.PlantedSqlRendererArm.class, com.legend.sql.dialect.PlantedRendererNest.class,
+                com.legend.sql.dialect.PlantedRendererNest.A.class, com.legend.sql.dialect.PlantedRendererNest.A.R.class,
+                com.legend.sql.dialect.PlantedLaunderReturn.class, com.legend.sql.dialect.PlantedLaunderLambda.class,
+                com.legend.sql.dialect.PlantedLaunderBuild.class, com.legend.sql.dialect.PlantedLaunderField.class,
+                com.legend.sql.dialect.PlantedRendererByInterface.class,
+                // the review of dd5deb781f (MUST-FIX 2): an array store, a collection's add, a throw, a setter
+                com.legend.sql.dialect.PlantedLaunderArray.class, com.legend.sql.dialect.PlantedLaunderAdd.class,
+                com.legend.sql.dialect.PlantedLaunderThrow.class, com.legend.sql.dialect.PlantedLaunderSetter.class);
+        assertEquals(13, laundering.size(), "the planted classes are imported");
+        assertEquals(Set.of("com.legend.sql.dialect.PlantedRendererNest -> SqlFn.ABS",
+                "com.legend.sql.dialect.PlantedRendererByInterface -> SqlFn.ABS",
+                "com.legend.sql.dialect.PlantedLaunderReturn -> SqlFn.ABS",
+                "com.legend.sql.dialect.PlantedLaunderLambda -> SqlFn.ABS",
+                "com.legend.sql.dialect.PlantedLaunderBuild -> SqlFn.ABS",
+                "com.legend.sql.dialect.PlantedLaunderField -> SqlFn.ABS",
+                "com.legend.sql.dialect.PlantedLaunderArray -> SqlFn.ABS",
+                "com.legend.sql.dialect.PlantedLaunderAdd -> SqlFn.ABS",
+                "com.legend.sql.dialect.PlantedLaunderThrow -> SqlFn.ABS",
+                "com.legend.sql.dialect.PlantedLaunderSetter -> SqlFn.ABS"), found(laundering, n -> true, Set.of("ABS")),
+                "a dialect's read carrying the function out is named, its arm is not");
+        // the review of 091b9bde36 (SHOULD-FIX 4): SqlFn's own code -- its initializer, $values, its predicates --
+        // reads every constant and is never named, so an edge-only function does not turn the guard on the enum itself
+        JavaClasses sqlFn = new ClassFileImporter().importClasses(com.legend.sql.SqlFn.class);
+        assertEquals(1, sqlFn.size(), "SqlFn is imported");
+        Set<String> every = new TreeSet<>();
+        for (com.legend.sql.SqlFn f : com.legend.sql.SqlFn.values()) {
+            every.add(f.name());
+        }
+        assertEquals(Set.of(), found(sqlFn, n -> true, every), "SqlFn's own code reads its constants");
     }
 
     /** "Lines left": the allowlists' entries, counted by the code, and by census line. */
@@ -412,16 +496,18 @@ class EdgeSeparationTest {
     void linesLeft() {
         Map<String, Integer> byLine = new TreeMap<>();
         for (Map<String, String> m : List.of(BUILD_OPEN, CODE_OPEN, TEST_OPEN, CSG_OPEN,
-                JudgingRulesReachTest.BEHAVIOUR_OPEN)) {
+                JudgingRulesReachTest.BEHAVIOUR_OPEN, EdgeOnlyMembersTest.OPEN)) {
             m.values().forEach(v -> byLine.merge(v.split(" ")[0], 1, Integer::sum));
         }
         // the edge audit's open items (2026-11-17): what no guard sees yet, counted all the same
         EdgeAuditOpenTest.AUDIT_OPEN.forEach(i -> byLine.merge(i.id(), 1, Integer::sum));
         int audit = EdgeAuditOpenTest.AUDIT_OPEN.size();
         int rules = JudgingRulesReachTest.BEHAVIOUR_OPEN.size();
+        // a public product member the edge alone uses (J40 of the edge audit, 2026-11-18: EdgeOnlyMembersTest)
+        int edgeOnly = EdgeOnlyMembersTest.OPEN.size();
         System.out.println("[edge separation] lines left: " + (BUILD_OPEN.size() + CODE_OPEN.size() + TEST_OPEN.size()
-                + CSG_OPEN.size() + rules + audit) + " (BUILD " + BUILD_OPEN.size() + ", CODE " + CODE_OPEN.size()
-                + ", TEST SIDE " + TEST_OPEN.size() + ", TEXT " + CSG_OPEN.size() + ", RULES " + rules + ", AUDIT "
-                + audit + "); by census line " + byLine);
+                + CSG_OPEN.size() + rules + audit + edgeOnly) + " (BUILD " + BUILD_OPEN.size() + ", CODE "
+                + CODE_OPEN.size() + ", TEST SIDE " + TEST_OPEN.size() + ", TEXT " + CSG_OPEN.size() + ", RULES " + rules
+                + ", AUDIT " + audit + ", EDGE-ONLY MEMBERS " + edgeOnly + "); by census line " + byLine);
     }
 }

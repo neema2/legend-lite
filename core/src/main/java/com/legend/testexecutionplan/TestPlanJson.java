@@ -50,8 +50,11 @@ public final class TestPlanJson {
      *  the product's version 55 (each statement's raises); 26 (2026-11-16, phase D's Phase 2, raises as SITES): the
      *  product's version 56 (each statement's raise sites, its token's words planned); 27 (2026-11-17, C5's step E):
      *  a side's shape and the plan's answer carry their size refusal's words, planned ({@code SideShape.sizeWords},
-     *  {@code TestPlan.answerSizeWords}). */
-    public static final int VERSION = 27;
+     *  {@code TestPlan.answerSizeWords}); 28 (2026-11-17, census C1): the judging rules' one spelling,
+     *  an isolated step's as a verdict group's ({@code lite}, {@code compiledPureCompat}); 29 (2026-11-17, census
+     *  C1): the plan states whose words its failures are in ({@code upstreamWords}); 30 (2026-11-17, census C1): the judging
+     *  rules as their data ({@code floatUlps}, {@code decimalScale}). */
+    public static final int VERSION = 30;
 
     private TestPlanJson() {
     }
@@ -102,6 +105,7 @@ public final class TestPlanJson {
         out.put("judge", plan.judge().name());
         out.put("answersLastVerdict", plan.answersLastVerdict());
         out.put("answerSizeWords", plan.answerSizeWords());
+        out.put("upstreamWords", plan.upstreamWords());
         out.put("session", PlanJson.targetJson(plan.session()));
         Map<String, Object> facts = new LinkedHashMap<>();
         facts.put("effects", plan.facts().effects());
@@ -182,10 +186,7 @@ public final class TestPlanJson {
                     sp.put("release", v.savepoint().release());
                     o.put("savepoint", sp);
                 }
-                o.put("rules", switch (v.rules()) {
-                    case LITE -> "lite";
-                    case COMPILED_PURE_COMPAT -> "compiledPureCompat";
-                });
+                o.put("rules", rulesJson(v.rules()));
                 if (v.roots() != null) {
                     o.put("roots", HostJson.wRootLoop(v.roots()));
                 }
@@ -201,7 +202,7 @@ public final class TestPlanJson {
                 o.put("_type", StepTag.isolated.name());
                 o.put("host", write(a.host()));
                 o.put("database", write(a.database()));
-                o.put("rules", a.rules().name());
+                o.put("rules", rulesJson(a.rules()));
             }
         }
         return o;
@@ -268,7 +269,7 @@ public final class TestPlanJson {
                 ext == null ? Map.of() : readExtensions(ext.getObj("byStep")),
                 ext == null ? Map.of() : readExtensions(ext.getObj("byVerdict")), o.getBool("answersLastVerdict"),
                 PlanJson.targetOf(o.getObj("session")), factsOf(o.getObj("facts")),
-                o.get("answerSizeWords") instanceof Json.Str w ? w.value() : null);
+                o.get("answerSizeWords") instanceof Json.Str w ? w.value() : null, o.getBool("upstreamWords"));
     }
 
     private static BodyFacts factsOf(Json.Obj f) {
@@ -354,11 +355,24 @@ public final class TestPlanJson {
         return out;
     }
 
+    /** The judging rules' ONE spelling in a plan file (the orchestrator's ruling of 2026-11-17: a verdict group's and an
+     *  isolated step's alike; version 30: their data, {@code floatUlps} and {@code decimalScale}). */
+    private static Map<String, Object> rulesJson(TestPlan.JudgingRules rules) {
+        Map<String, Object> o = new LinkedHashMap<>();
+        o.put("floatUlps", rules.floatUlps());
+        o.put("decimalScale", rules.decimalScale());
+        return o;
+    }
+
+    private static TestPlan.JudgingRules rules(Json.Obj o) {
+        return new TestPlan.JudgingRules(o.getInt("floatUlps"), o.getBool("decimalScale"));
+    }
+
     private static TestPlan.TestStep readStep(Json.Obj o) {
         return switch (tag(StepTag.class, o, "test plan step")) {
             case run -> new TestPlan.Run(PlanJson.nodeOf(o.getObj("node")));
             case isolated -> new TestPlan.Isolated(read(o.getString("host")), read(o.getString("database")),
-                    TestPlan.JudgingRules.valueOf(o.getString("rules")));
+                    rules(o.getObj("rules")));
             case frameRun -> {
                 if (!(PlanJson.nodeOf(o.getObj("check")) instanceof ExecutionPlan.Check c)) {
                     throw new IllegalArgumentException("a frame run's step is a check");
@@ -384,16 +398,10 @@ public final class TestPlanJson {
                 Json.Obj f = o.getObjOr("fused", null);
                 Json.Obj sp = o.getObjOr("savepoint", null);
                 Json.Obj roots = o.getObjOr("roots", null);
-                String rules = o.getString("rules");
                 yield new TestPlan.Verdicts(verdicts, f == null ? null : typedResult(f, "a fused verdict statement"),
                         sp == null ? null : new TestPlan.Verdicts.Savepoint(sp.getString("set"),
                                 sp.getString("rollbackTo"), sp.getString("release")),
-                        switch (rules) {
-                            case "lite" -> TestPlan.JudgingRules.LITE;
-                            case "compiledPureCompat" -> TestPlan.JudgingRules.COMPILED_PURE_COMPAT;
-                            default -> throw new IllegalArgumentException("a verdict group's rules '" + rules
-                                    + "': lite or compiledPureCompat");
-                        }, roots == null ? null : HostJson.rRootLoop(roots));
+                        rules(o.getObj("rules")), roots == null ? null : HostJson.rRootLoop(roots));
             }
             case branch -> new TestPlan.Branch(readSide(o.getObj("condition")), readSteps(o.getArr("then")),
                     readSteps(o.getArr("otherwise")));

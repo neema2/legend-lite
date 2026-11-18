@@ -96,8 +96,32 @@ public final class PureText {
             if (kind == com.legend.lowering.ListTexts.class) {
                 return kind.cast(PureListTexts.INSTANCE);
             }
+            if (kind == com.legend.sql.dialect.DatabaseSettingsForm.class) {
+                // legend-engine's H2 database settings (the audit's J22, 2026-11-17)
+                return kind.cast(EngineDatabaseSettings.INSTANCE);
+            }
+            if (kind == com.legend.lowering.LoweringForms.class) {
+                // the lowering's two-form choices (the audit's K5, 2026-11-17): legend-pure's guarded words
+                return kind.cast(EdgeLoweringForms.PCT);
+            }
             if (kind == com.legend.lowering.DateTimeTexts.class) {
                 return kind.cast(EdgeDateTimeTexts.INSTANCE);
+            }
+            if (kind == com.legend.testplan.FailureWords.class) {
+                // legend-pure's words for a failure (census C1)
+                return kind.cast(UpstreamFailureWords.INSTANCE);
+            }
+            if (kind == com.legend.compiler.spec.GoldenNullWord.class) {
+                // legend-engine's TDSNull read as a golden's null cell (census C1)
+                return kind.cast(UpstreamGoldenNullWord.INSTANCE);
+            }
+            if (kind == com.legend.testplan.DateLiteralTexts.class) {
+                // a date literal's message text as legend-pure writes it (census C1)
+                return kind.cast(UpstreamDateLiteralTexts.INSTANCE);
+            }
+            if (kind == com.legend.testplan.RenderedTextRule.class) {
+                // upstream's ruled rendered-text comparison where the strings differ (S131, S132; census C1)
+                return kind.cast(UpstreamRenderedTextRule.INSTANCE);
             }
             if (kind == com.legend.testplan.CrossKindNumbers.class) {
                 // compiled legend-pure's number equality across kinds (S127; census C1)
@@ -105,7 +129,8 @@ public final class PureText {
             }
             if (kind == com.legend.testdatagen.TestDataPlanner.Printing.class) {
                 // a test-data generator's timestamp text as legend-engine's test-data CSV writes it (L9; census C1)
-                return kind.cast((com.legend.testdatagen.TestDataPlanner.Printing) EnginePlans::testDataTimestampText);
+                // (J7/K12 of the edge audit, 2026-11-17: the rest of the form the function's, lite's own)
+                return kind.cast(TestDataRoutes.FUNCTION);
             }
             if (kind == com.legend.compiler.spec.RelationCounting.class) {
                 // upstream counts a relation passed to assertSize/assertNotEmpty as ONE value (S137; census C1)
@@ -114,6 +139,10 @@ public final class PureText {
             if (kind == com.legend.testexecutionplan.JsonGrammar.class) {
                 // upstream's JSON grammar (register S144; census C1, 2026-11-17)
                 return kind.cast(JsonSimpleGrammar.INSTANCE);
+            }
+            if (kind == com.legend.planner.RoutedQueries.class) {
+                // legend-engine's AggregationAwareActivity, the routed query's print (J5 of the edge audit, 2026-11-17)
+                return kind.cast((com.legend.planner.RoutedQueries) AggAwareActivities::routingActivity);
             }
             throw new com.legend.error.NotImplementedException("the two-form kind " + kind.getName()
                     + " is none of the declared kinds (com.legend.testplan.PlanStyleFacets.TWO_FORMS)");
@@ -146,11 +175,6 @@ public final class PureText {
             return new TraceCell("-- \"executionTraceID\" : \"", "\"");
         }
 
-        /** PCT and the corpus keep legend-pure's guarded words: no raise written plain (B7, 2026-11-17). */
-        @Override
-        public java.util.Set<com.legend.sql.RaiseKind> plainRaises() {
-            return java.util.Set.of();
-        }
     };
 
     /** CENSUS CLASS A (docs/records/pure-v1-engine-census-2026-11-17.md): the kinds legend-engine 4.145.0's pure/v1
@@ -223,15 +247,15 @@ public final class PureText {
             return UPSTREAM.facet(kind, refusal);
         }
 
-        /** UPSTREAM's form of each two-form hook: pure/v1 differs from it in its plain raises alone. */
+        /** UPSTREAM's form of each two-form hook: pure/v1 differs from it in its plain raises alone (B7; the lowering's
+         *  two-form choices since the audit's K5, 2026-11-17). */
         @Override
         public <F> F twoForm(Class<F> kind, F productForm) {
+            if (kind == com.legend.lowering.LoweringForms.class) {
+                java.util.Objects.requireNonNull(productForm, "a two-form hook's product form");
+                return kind.cast(EdgeLoweringForms.PURE_V1);
+            }
             return UPSTREAM.twoForm(kind, productForm);
-        }
-
-        @Override
-        public java.util.Set<com.legend.sql.RaiseKind> plainRaises() {
-            return ENGINE_UNCHECKED;
         }
     };
 
@@ -337,6 +361,12 @@ public final class PureText {
 
     /** H2, spelled as upstream spells it. */
     public static final class H2 extends com.legend.sql.dialect.H2 {
+        /** On legend-engine's H2 database: the style's two-form {@code DatabaseSettingsForm} (the audit's J22, 2026-11-17). */
+        public H2() {
+            super(UPSTREAM.twoForm(com.legend.sql.dialect.DatabaseSettingsForm.class,
+                    com.legend.sql.dialect.ProductDatabaseSettings.INSTANCE));
+        }
+
         /** A Float literal computes as legend-engine's: its bare print, a DECIMAL (the edge program's §6 row 21, the
          *  orchestrator's ruling R2 of 2026-11-17; the product's is the double, register S20). */
         @Override

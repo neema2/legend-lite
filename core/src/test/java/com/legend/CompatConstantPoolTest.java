@@ -39,7 +39,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * other hit is pinned here by class, exact ({@link #POOL_ONLY}), with its dated reason: a new one fails.
  *
  * <p>Not read here (named): a resource's text (prelude.pure, the .tsv tables, service files: C.8's scan), and the hosts'
- * JVM libraries (//wasm, //native, //sdlc-server/grammar: C.5's).
+ * JVM libraries (//wasm, //native, //sdlc-server/grammar) -- no constant-pool scan reads them until C.5's read of the
+ * hosts' doors lands (the review of 5911e970e1, 2026-11-17: C.5 ships after this piece).
  */
 @Tag("guardrail")
 class CompatConstantPoolTest {

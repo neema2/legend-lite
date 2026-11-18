@@ -114,6 +114,12 @@ public final class PreludeGenerator {
             "meta::pure::metamodel::path::");
     /** Individual declarations left out, each with its reason. */
     private static final Map<String, String> EXCLUDED_CLASSES = Map.of();
+    /** Upstream bodies a declaration ships WITHOUT, each its verbatim text (the platform ships declarations, never
+     *  Pure bodies: docs/WORLD_MAP.md). The text must be found as written, or the generator fails: upstream moved.
+     *  meta::pure::tds::TDSNull's toString (core/pure/tds/tds.pure at the pinned engine): J27, 2026-11-17 -- its text
+     *  is the edge's (edge.Presenter.TDS_NULL), and an instance's toString in the product is refused under S314. */
+    private static final Map<String, String> WITHHELD_BODIES = Map.of(
+            "meta::pure::tds::TDSNull", "\n   toString(){\n      'TDSNull'\n   }:String[1];");
     /** ENGINE-declared bodied functions the platform carries as library
      *  (the natives' contract, native-membership.tsv: membership is OURS, the
      *  spelling and the body are UPSTREAM's). The engine's bodies are otherwise
@@ -726,7 +732,7 @@ public final class PreludeGenerator {
                 } else {
                     enums++;
                 }
-                sb.append(declText.get(fqn)).append("\n\n");
+                sb.append(withheld(fqn, declText.get(fqn))).append("\n\n");
             }
         }
         sb.append("// ").append(classes).append(" classes, ").append(enums).append(" enums, ")
@@ -1619,6 +1625,20 @@ public final class PreludeGenerator {
             default -> p.parseClassDefinition(false);
         }
         return source.substring(tokens.start(i), tokens.end(p.pos() - 1));
+    }
+
+    /** {@code text} without the body {@link #WITHHELD_BODIES} names for {@code fqn}; a named body not found fails. */
+    static String withheld(String fqn, String text) {
+        String body = WITHHELD_BODIES.get(fqn);
+        if (body == null) {
+            return text;
+        }
+        int at = text.indexOf(body);
+        if (at < 0 || text.indexOf(body, at + 1) >= 0) {
+            throw new IllegalStateException("prelude generator: the withheld body of " + fqn
+                    + " is not in its declaration exactly once: upstream moved -- re-read it and re-decide");
+        }
+        return text.substring(0, at) + text.substring(at + body.length());
     }
 
     /** The spec file's path relative to its checkout root — the module is a

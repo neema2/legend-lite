@@ -41,9 +41,10 @@ class HookRulingsAgreeTest {
             // the closed list of kind types (a final class of one field): HookRulingTest.theFacetRegistryHoldsNothingButItsList
             "com.legend.testplan.PlanStyleFacets -> (stands in a product package)", "C4 HOOK-RULED 2026-11-17, the"
                     + " registry: HookRulingTest.theFacetRegistryHoldsNothingButItsList",
-            // the listed facade, forwarding alone: JavaEvalLedgerTest's pin of 193, shrink-only
+            // the listed facade, forwarding alone: JavaEvalLedgerTest's pin of 189 (193 until the dead defer overload
+            // went, 2026-11-17), shrink-only
             "com.legend.testplan.EngineTextPlanning -> (stands in a product package)", "C4 HOOK-RULED 2026-11-17, the"
-                    + " listed facade: JavaEvalLedgerTest (EngineTextPlanning, 193)");
+                    + " listed facade: JavaEvalLedgerTest (EngineTextPlanning, 189)");
 
     /** Hooks RULED proves that no map ever counted (no product class names them as compatibility): each by name, with
      *  its ruling. */

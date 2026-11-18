@@ -28,18 +28,10 @@ final class JsonLane {
             rules.put(f, (n, args) -> new SqlExpr.Cast(args.get(0),
                     SqlType.Scalar.JSON, SqlExpr.Reason.CARRIER));
         }
-        // parseJSON carries the engine parser's ONE tolerance the assert
-        // channel already mirrors (Json.parseOne lenient: corpus goldens
-        // with a MISSING COMMA between array object elements —
-        // testSubTypeAtRootLevelWithInheritanceMapping's expected text):
-        // '}{' reads as '},{' before the strict JSON cast.
+        // parseJSON, the style's form (the audit's J2, RULED by the user 2026-11-17): the product's the text as written;
+        // legend-engine's parser's one tolerance, '}{' read as '},{', the edge's
         for (com.legend.model.FunctionId f : Pure.AT_JSON_PARSE_JSON) {
-            rules.put(f, (n, args) -> new SqlExpr.Cast(
-                    SqlExpr.Call.of(SqlFn.REGEXP_REPLACE, args.get(0),
-                            new SqlExpr.StringLit("\\}\\s*\\{"),
-                            new SqlExpr.StringLit("},{"),
-                            new SqlExpr.StringLit("g")),
-                    SqlType.Scalar.JSON, SqlExpr.Reason.CARRIER));
+            rules.put(f, (Scalars.StyledRule) (n, args, styled) -> styled.forms().parsedJson(args.get(0)));
         }
         for (com.legend.model.FunctionId f : Pure.AT_JSON_GET_VALUE) {
             rules.put(f, (n, args) -> SqlExpr.Call.of(SqlFn.VARIANT_GET,

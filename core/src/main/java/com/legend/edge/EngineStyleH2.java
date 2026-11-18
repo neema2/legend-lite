@@ -52,10 +52,13 @@ public class EngineStyleH2 extends AnsiSqlRenderer implements EngineTextDialect 
         return H2.SESSION_SETUP;
     }
 
-    /** {@inheritDoc} H2's ({@code H2.DATABASE_SETTINGS}): the engine's H2 session, the same database. */
+    /** {@inheritDoc} legend-engine's H2 session ({@link EngineDatabaseSettings}), the same database. */
+    /** legend-engine's H2 session's settings ({@link EngineDatabaseSettings}), read back as H2 reads them. */
+    private static final DatabaseSettings LEGACY_SETTINGS = H2.settings(EngineDatabaseSettings.INSTANCE.required());
+
     @Override
     public @com.legend.base.Nullable DatabaseSettings databaseSettings() {
-        return H2.DATABASE_SETTINGS;
+        return LEGACY_SETTINGS;
     }
 
     /** None: this text is the engine's goldens', which no database executes, so no {@code data:} payload is delivered
@@ -602,6 +605,8 @@ public class EngineStyleH2 extends AnsiSqlRenderer implements EngineTextDialect 
     /** The query as this text writes it: every render pass applied, a TDS join's top wrapped, and its alias plan
      *  made ({@code realias}: the engine's reAliasQuery) or none (it keeps the aliases it carries). */
     private SqlQuery planned(SqlQuery query, boolean realias) {
+        planVariables.clear();
+        planVariables.addAll(PlanVariables.of(query));
         for (com.legend.sql.SqlRewriter pass : renderPasses()) {
             query = pass.rewriteRoot(query);
         }
@@ -665,11 +670,12 @@ public class EngineStyleH2 extends AnsiSqlRenderer implements EngineTextDialect 
             // defined with a quoted alias in any in-SQL projection —
             // tdsvar_0.firstName vs "tdsvar_0"."fID" in the goldens)
             java.util.Set<String> phCols = new java.util.HashSet<>();
+            java.util.Set<String> vars = PlanVariables.of(query);
             java.util.ArrayDeque<SqlSource> srcs = new java.util.ArrayDeque<>();
             srcs.add(s.from());
             while (!srcs.isEmpty()) {
                 SqlSource x = srcs.poll();
-                if (x instanceof SqlSource.VarSetPlaceholder vp) {
+                if (x instanceof SqlSource.Cte vp && vars.contains(vp.name())) {
                     vp.outputs().forEach(o -> phCols.add(o.name()));
                 }
                 if (x instanceof SqlSource.Join jj) {
@@ -749,6 +755,12 @@ public class EngineStyleH2 extends AnsiSqlRenderer implements EngineTextDialect 
             Map<String, Integer> groups) {
         switch (src) {
             case SqlSource.Cte c -> {
+                // a cross-store plan variable (PlanVariables, J28): groups by its VAR NAME (engine reAliasQuery
+                // VarSetPlaceHolder arm -- tdsvar_0/tdsvar_1); a CTE the statement defines plans nothing
+                if (planVariables.contains(c.name())) {
+                    renames.put(c.alias(), nextInGroup(c.name().toLowerCase(Locale.ROOT), groups));
+                    placeholders.add(c.alias());
+                }
             }
             case SqlSource.Table t -> {
                 if (t.alias() != null) {
@@ -803,14 +815,6 @@ public class EngineStyleH2 extends AnsiSqlRenderer implements EngineTextDialect 
                 planSource(j.left(), leftmost, groups);
                 planSource(j.right(), false, groups);
             }
-            // cross-store plan variable: groups by its VAR NAME (engine
-            // reAliasQuery VarSetPlaceHolder arm — tdsvar_0/tdsvar_1)
-            case SqlSource.VarSetPlaceholder vp -> {
-                renames.put(vp.alias(),
-                        nextInGroup(vp.varName().toLowerCase(Locale.ROOT),
-                                groups));
-                placeholders.add(vp.alias());
-            }
             default -> { }
         }
     }
@@ -824,10 +828,14 @@ public class EngineStyleH2 extends AnsiSqlRenderer implements EngineTextDialect 
      * dedupes ('group','root') pairs before numbering). */
     private final Set<String> rootConsumed = new HashSet<>();
 
-    /** VarSetPlaceholder aliases — their column reads spell UNQUOTED
+    /** Plan-variable aliases — their column reads spell UNQUOTED
      * (the placeholder's columns were never defined with quoted aliases
      * in any in-SQL projection; engine tdsvar goldens). */
     private final Set<String> placeholders = new HashSet<>();
+
+    /** The statement's plan variables (PlanVariables, J28): the relations it reads and does not define, written as
+     *  legend-engine's VarSetPlaceHolder; set by {@link #planned} for the statement it plans. */
+    private final Set<String> planVariables = new HashSet<>();
 
     private void consumeRootSlot(String group, Map<String, Integer> groups) {
         if (rootConsumed.add(group)) {
@@ -852,8 +860,6 @@ public class EngineStyleH2 extends AnsiSqlRenderer implements EngineTextDialect 
                     .substring(t.name().lastIndexOf('.') + 1)
                     .toLowerCase(Locale.ROOT);
             case SqlSource.Subselect sub -> firstInnerTable(sub.inner());
-            case SqlSource.VarSetPlaceholder vp ->
-                    vp.varName().toLowerCase(Locale.ROOT);
             case null, default -> "subselect";
         };
     }
@@ -1288,6 +1294,10 @@ public class EngineStyleH2 extends AnsiSqlRenderer implements EngineTextDialect 
     @Override
     protected SqlWriter source(SqlWriter writer, SqlSource src, int depth) {
         return switch (src) {
+            // a plan variable (PlanVariables, J28): legend-engine's VarSetPlaceHolder, spliced when its plan runs
+            case SqlSource.Cte c when planVariables.contains(c.name()) -> writer.append("(${")
+                    .append(c.name()).append("}) as \"")
+                    .append(rename(c.alias())).append('"');
             case SqlSource.Cte c -> writer.append(c.name()).append(" as ").append(aliasIdent(c.alias()));
             case SqlSource.Table t -> {
                 writer.append(quoteIdentifiers
@@ -1332,9 +1342,6 @@ public class EngineStyleH2 extends AnsiSqlRenderer implements EngineTextDialect 
                 }
                 yield writer.append(") as \"").append(rename(sub.alias())).append('"');
             }
-            case SqlSource.VarSetPlaceholder vp -> writer.append("(${")
-                    .append(vp.varName()).append("}) as \"")
-                    .append(rename(vp.alias())).append('"');
             case SqlSource.Join j -> {
                 source(writer, j.left(), depth);
                 writer.append(' ').append(joinKeyword(j.kind())).append(' ');
@@ -2027,6 +2034,10 @@ public class EngineStyleH2 extends AnsiSqlRenderer implements EngineTextDialect 
     protected SqlWriter call(SqlWriter writer, SqlExpr.Call c, int parentPrec) {
         java.util.List<SqlExpr> a = c.args();
         return switch (c.fn()) {
+            // census J20 (2026-11-18): legend-engine's isNumeric is the edge's lower = upper (EdgeLoweringForms); the
+            // product's numeric check never reaches the engine's printer
+            case IS_NUMERIC -> throw new UnsupportedOperationException(
+                    "the product's isNumeric in legend-engine's H2 text: the edge writes lower = upper");
             // H2 digest spelling: rawtohex(hash('SHA-256', x)) — the engine's
             // relational H2 codegen for every HashType
             case MD5 -> digest(writer, "MD5", a);
@@ -2141,7 +2152,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer implements EngineTextDialect 
             case ROUND_HALF_UP -> writer.function("ROUND", c.args());
             case FLOAT_SHORTEST_TEXT -> floatShortestTextByCast(writer, c, parentPrec);
             case FLOAT_TO_TEXT -> floatToText(writer, c.args().get(0));
-            case DATETIME_TO_TEXT, DATETIME_PRINT, DATETIME_CANON_TEXT, CELL_TEXT ->
+            case DATETIME_TO_TEXT, DATETIME_CANON_TEXT, CELL_TEXT ->
                     throw expandedFirst(c);
             // the hooks: this dialect's own (or the base's refusal)
             case LIST_FILTER, LIST_TRANSFORM, LIST_CONCAT, LIST_GET, LIST_AT, LIST_POSITION, LIST_ZIP, LIST_DISTINCT,

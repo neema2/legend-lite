@@ -31,15 +31,27 @@ class PureAssertsTest {
     private static final PureWords W = com.legend.edge.EdgePureWords.INSTANCE;
 
     /** Lite's own rules: what these comparisons are judged by (the explicit rule, 2026-11-04). */
-    private static final com.legend.testexecutionplan.TestPlan.JudgingRules LITE =
-            com.legend.testexecutionplan.TestPlan.JudgingRules.LITE;
+    private static final HostRules LITE = HostRules.LITE;
+
+    /** assertEquals' message: the product's decision, the edge's words (the wrappers left the product, J17). */
+    private static String eqMsg(List<Object> e, List<Object> a, HostRules rules, PureWords w) {
+        return PureAsserts.holds(e, a, rules) ? null : w.equals(e, a, null, null);
+    }
+
+    private static String sizeMsg(List<Object> c, long size, PureWords w) {
+        return c.size() == size ? null : w.size(size, c.size());
+    }
+
+    private static String tolMsg(Number e, Number a, Number delta, PureWords w) {
+        return PureAsserts.withinTolerance(e, a, delta) ? null : w.pair(e, null, a, null);
+    }
 
     private static boolean same(@com.legend.base.Nullable Object e, @com.legend.base.Nullable Object a) {
         return Equality.same(Equality.Typed.of(e), Equality.Typed.of(a), LITE);
     }
 
     private static boolean ordered(List<Object> e, List<Object> a) {
-        return Equality.ordered(Equality.Typed.all(e, null), Equality.Typed.all(a, null), LITE) == null;
+        return Equality.ordered(Equality.Typed.all(e, null), Equality.Typed.all(a, null), LITE);
     }
 
 
@@ -48,10 +60,10 @@ class PureAssertsTest {
     @Test
     @DisplayName("spec: testSuccessAssertEquals + WithCollections")
     void specSuccess() {
-        assertNull(PureAsserts.assertEquals(List.of(1L), List.of(1L), LITE, W));
-        assertNull(PureAsserts.assertEquals(List.of("aaa"), List.of("aaa"), LITE, W));
-        assertNull(PureAsserts.assertEquals(List.of(1L, 2L), List.of(1L, 2L), LITE, W));
-        assertNull(PureAsserts.assertEquals(
+        assertNull(eqMsg(List.of(1L), List.of(1L), LITE, W));
+        assertNull(eqMsg(List.of("aaa"), List.of("aaa"), LITE, W));
+        assertNull(eqMsg(List.of(1L, 2L), List.of(1L, 2L), LITE, W));
+        assertNull(eqMsg(
                 List.of("aaa", 2L), List.of("aaa", 2L), LITE, W));
     }
 
@@ -59,19 +71,19 @@ class PureAssertsTest {
     @DisplayName("spec: testFailureAssertEquals — the exact message")
     void specFailureMessage() {
         assertEquals("\nexpected: 1\nactual:   2",
-                PureAsserts.assertEquals(List.of(1L), List.of(2L), LITE, W));
+                eqMsg(List.of(1L), List.of(2L), LITE, W));
     }
 
     @Test
     @DisplayName("spec: testFailureAssertEqualsWithCollections — exact messages")
     void specFailureCollections() {
         assertEquals("\nexpected: [1, 3, 2]\nactual:   [2, 4, 1, 5]",
-                PureAsserts.assertEquals(List.of(1L, 3L, 2L),
+                eqMsg(List.of(1L, 3L, 2L),
                         List.of(2L, 4L, 1L, 5L), LITE, W));
         assertEquals("\nexpected: [1, 2]\nactual:   [2, 1]",
-                PureAsserts.assertEquals(List.of(1L, 2L), List.of(2L, 1L), LITE, W));
+                eqMsg(List.of(1L, 2L), List.of(2L, 1L), LITE, W));
         assertEquals("\nexpected: ['aaa', 2]\nactual:   [2, 'aaa']",
-                PureAsserts.assertEquals(List.of("aaa", 2L),
+                eqMsg(List.of("aaa", 2L),
                         List.of(2L, "aaa"), LITE, W));
     }
 
@@ -102,9 +114,9 @@ class PureAssertsTest {
     @Test
     @DisplayName("spec: assertSize message form")
     void sizeMessage() {
-        assertNull(PureAsserts.assertSize(List.of(1L, 2L), 2, W));
+        assertNull(sizeMsg(List.of(1L, 2L), 2, W));
         assertEquals("expected size: 3, actual size: 2",
-                PureAsserts.assertSize(List.of(1L, 2L), 3, W));
+                sizeMsg(List.of(1L, 2L), 3, W));
     }
 
     // ---- the adjudicated wire policies (documented divergences) -------
@@ -112,11 +124,11 @@ class PureAssertsTest {
     @Test
     @DisplayName("policy: an expected present null cell is expected-direction ONLY; a written 'TDSNull' is input")
     void tdsNullSentinel() {
-        // C5 step C, C-2 (2026-11-17): the expected null cell is the compiler's typed TypedNullCell on the wire token
-        // (SqlExpr.NULL_CELL_WIRE); a written 'TDSNull' String is INPUT, a String like any other
-        assertTrue(same(com.legend.sql.SqlExpr.NULL_CELL_WIRE, null));
-        assertFalse(same(null, com.legend.sql.SqlExpr.NULL_CELL_WIRE),
-                "the null cell's token on OUR wire where a NULL belongs must FAIL (audit 16 F5)");
+        // C5 step C, C-2 (2026-11-17): the expected null cell is the compiler's typed TypedNullCell; its wire token is
+        // decoded to null where a side's cells are read (SideShapes, C-2's corpus fix), so Equality meets a null beside a
+        // null and never the token; a written 'TDSNull' String is INPUT, a String like any other
+        assertTrue(same(null, null), "a present null cell, decoded at read, beside a NULL cell");
+        assertFalse(same(com.legend.sql.SqlExpr.NULL_CELL_WIRE, null), "the token never reaches Equality as a null");
         assertFalse(same("TDSNull", null), "a written 'TDSNull' is a String, never the judges' null cell");
     }
 
@@ -197,12 +209,12 @@ class PureAssertsTest {
         // same double and silently passed
         BigDecimal e = new BigDecimal("1.00000000000000000000000000000000000000000001");
         BigDecimal a = new BigDecimal("1.00000000000000000000000000000000000000000003");
-        assertNotNull(PureAsserts.assertEqWithinTolerance(e, a,
+        assertNotNull(tolMsg(e, a,
                 new BigDecimal("1E-50"), W), "exact kinds must compare exactly");
-        assertNull(PureAsserts.assertEqWithinTolerance(e, a,
+        assertNull(tolMsg(e, a,
                 new BigDecimal("1E-40"), W));
         // floating sides keep double arithmetic
-        assertNull(PureAsserts.assertEqWithinTolerance(1.0d, 1.0d + 1e-16, 1e-13, W));
+        assertNull(tolMsg(1.0d, 1.0d + 1e-16, 1e-13, W));
     }
 
     @Test

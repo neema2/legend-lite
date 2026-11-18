@@ -419,62 +419,6 @@ public final class Compiler {
         return answer(a);
     }
 
-    // ---- lite's own grammar and typing, for Python's product (the edge program's H4, 2026-11-17): the four Boundary
-    // ---- operations the tab exports (its A1), asked here instead of legend-engine's pure/v1 routes, each answer
-    // ---- folded with lite's own refusal kinds (Folded.of), never legend-engine's errorType.
-
-    /** A model's text as its protocol JSON, no source information ({@code Boundary.modelElements}). */
-    @CEntryPoint(name = "lite_model_elements")
-    static CCharPointer modelElements(IsolateThread thread, CCharPointer text) {
-        String a;
-        try {
-            String t = text(text);
-            a = Folded.of(() -> Boundary.modelElements(t, false));
-        } catch (Throwable failure) {
-            a = Folded.failure(failure);
-        }
-        return answer(a);
-    }
-
-    /** A lambda's text as its protocol JSON, no source information ({@code Boundary.parseLambda}). */
-    @CEntryPoint(name = "lite_parse_lambda")
-    static CCharPointer parseLambda(IsolateThread thread, CCharPointer text) {
-        String a;
-        try {
-            String t = text(text);
-            a = Folded.of(() -> Boundary.parseLambda(t, false));
-        } catch (Throwable failure) {
-            a = Folded.failure(failure);
-        }
-        return answer(a);
-    }
-
-    /** A lambda's protocol JSON as Pure text, {@code PRETTY} or {@code STANDARD} ({@code Boundary.printLambda}). */
-    @CEntryPoint(name = "lite_print_lambda")
-    static CCharPointer printLambda(IsolateThread thread, CCharPointer lambdaJson, CCharPointer style) {
-        String a;
-        try {
-            String l = text(lambdaJson), s = text(style);
-            a = Folded.of(() -> Boundary.printLambda(l, s));
-        } catch (Throwable failure) {
-            a = Folded.failure(failure);
-        }
-        return answer(a);
-    }
-
-    /** A lambda's protocol JSON typed, compile-only, over a model's text ({@code Boundary.lambdaRelationType}). */
-    @CEntryPoint(name = "lite_lambda_relation_type")
-    static CCharPointer lambdaRelationType(IsolateThread thread, CCharPointer model, CCharPointer lambdaJson) {
-        String a;
-        try {
-            String m = text(model), l = text(lambdaJson);
-            a = Folded.of(() -> Boundary.lambdaRelationType(m, l));
-        } catch (Throwable failure) {
-            a = Folded.failure(failure);
-        }
-        return answer(a);
-    }
-
     /** A host's refusal of a call it could not finish, in the engine's error shape ({@code Boundary.refusal}). */
     @CEntryPoint(name = "lite_pure_v1_refusal")
     static CCharPointer refusal(IsolateThread thread, CCharPointer message) {

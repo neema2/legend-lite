@@ -27,16 +27,16 @@ class CompatResourceTest {
 
     /** Every hit, "jar!/resource | spelling" -> its count, with its reason beside it. Measured 2026-11-17. */
     static final Map<String, Integer> RESOURCE_HITS = Map.ofEntries(
-            Map.entry("libbuiltin.jar!/com/legend/builtin/prelude.pure | TDSNull", 5));
+            // 5 -> 4 2026-11-17 (J27 closed by c495e11623, train 6: the prelude ships TDSNull's declaration alone)
+            Map.entry("libbuiltin.jar!/com/legend/builtin/prelude.pure | TDSNull", 4));
 
     /** Each pin's reason, by the same key. */
     static final Map<String, String> REASONS = Map.ofEntries(
             // four are Pure's class itself (LANGUAGE, C5 step C, C-2): its declaration, isNull's ^TDSNull(), a comment
-            // and a cross-reference comment; the fifth is its toString(){'TDSNull'} body -- legend-engine's text of an
-            // empty TDS cell (census B10's spelling) in the platform's prelude, a Pure body the platform ships: found by
-            // this scan 2026-11-17, reported to the orchestrator for its census line, OPEN until moved or ruled
-            Map.entry("libbuiltin.jar!/com/legend/builtin/prelude.pure | TDSNull", "4 LANGUAGE + 1 OPEN (toString body,"
-                    + " legend-engine's empty-cell text), found and reported 2026-11-17"));
+            // and a cross-reference comment (the fifth, its toString(){'TDSNull'} body, the audit's J27, gone 2026-11-17
+            // with train 6's c495e11623)
+            Map.entry("libbuiltin.jar!/com/legend/builtin/prelude.pure | TDSNull", "4 LANGUAGE (Pure's class itself),"
+                    + " 2026-11-17"));
 
     /** The hits of {@code resources} (key -> text), "key | spelling" -> count. */
     static Map<String, Integer> hits(Map<String, String> resources) {

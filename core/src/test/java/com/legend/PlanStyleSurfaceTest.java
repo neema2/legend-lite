@@ -47,23 +47,12 @@ class PlanStyleSurfaceTest {
     static final List<String> KINDS = List.of("com.legend.testplan.EngineTestText", "com.legend.planner.UpstreamPlans",
             "com.legend.lowering.RelationTexts", "com.legend.lowering.PureOnlyTexts", "com.legend.lowering.ResultEnvelopes");
 
-    private static final String PRODUCT_ENUM = "the product's NEVER form (census C1 2c, S127, 2026-11-17), found"
-            + " 2026-11-17";
-
     /** Members of a TWO_FORMS kind that break criterion (a), each with its reason: found 2026-11-17. */
-    static final Map<String, String> TWO_FORM_EXCEPTIONS = Map.ofEntries(
-            // the product's own form held in the kind type itself: found by this guard 2026-11-17, reported to the
-            // orchestrator (move the product's form out of the kind, or rule it), pinned so the kind grows no further
-            Map.entry("TestDataPlanner$Printing#CLEAN (field)", "the product's clean timestamp form (L9, census C1"
-                    + " 2026-11-17), found 2026-11-17"),
-            Map.entry("CrossKindNumbers#Product (nested type)", PRODUCT_ENUM),
-            // and every member of it, so the excepted nested type grows no further (the review of 7c37c88d7d)
-            Map.entry("CrossKindNumbers#Product#private <init>() (in a nested type)", PRODUCT_ENUM),
-            Map.entry("CrossKindNumbers#Product#public boolean byText(com.legend.compiler.element.type.Type, com.legend.compiler.element.type.Type) (in a nested type)", PRODUCT_ENUM),
-            Map.entry("CrossKindNumbers#Product#public static com.legend.testplan.CrossKindNumbers$Product valueOf(java.lang.String) (in a nested type)", PRODUCT_ENUM),
-            Map.entry("CrossKindNumbers#Product#public static com.legend.testplan.CrossKindNumbers$Product[] values() (in a nested type)", PRODUCT_ENUM),
-            Map.entry("CrossKindNumbers#Product#public static final com.legend.testplan.CrossKindNumbers$Product NEVER (in a nested type)", PRODUCT_ENUM),
-            Map.entry("CrossKindNumbers#Product#static {} (in a nested type)", PRODUCT_ENUM));
+    static final Map<String, String> TWO_FORM_EXCEPTIONS = Map.of();
+    // every exception closed 2026-11-17 by train 6 (E-Java's C.9, 6086df9819's train; d-stage 6240a5147): each product form
+    // moved out of its kind into its own class -- LiteCrossKindNumbers, LiteDateLiteralTexts, LiteGoldenNullWord,
+    // LiteRenderedTextRule, and LoweringForms' PRODUCT field into ProductLoweringForms (TestDataPlanner$Printing#CLEAN
+    // closed earlier by K12, testdatagen.LitePrinting): re-cut on d-stage c37207858 by the GUARD stream
 
     /** PlanStyle's declared methods. */
     static final Set<String> STYLE_METHODS = Set.of(
@@ -78,12 +67,12 @@ class PlanStyleSurfaceTest {
             "public abstract java.lang.String errorWords(java.lang.RuntimeException)",
             "public abstract java.lang.String graphKeyDate(java.lang.String)",
             "public abstract java.lang.String graphKeyString(java.lang.String)",
-            "public abstract java.lang.String siteWords(com.legend.sql.dialect.RaiseSite)",
-            "public abstract java.util.Set<com.legend.sql.RaiseKind> plainRaises()");
+            "public abstract java.lang.String siteWords(com.legend.sql.dialect.RaiseSite)");
+            // (plainRaises(): gone from the style 2026-11-17, d-int6)
 
     /** Every style method by name: each style implements them all today. */
     private static final Set<String> ALL = Set.of("activitySql", "dialect", "errorWords", "facet", "graphKeyDate",
-            "graphKeyString", "judgesEngineText", "plainRaises", "siteWords", "traceCell", "twoForm");
+            "graphKeyString", "judgesEngineText", "siteWords", "traceCell", "twoForm");
 
     /** Each implementer of PlanStyle -> the style methods it declares. */
     static final Map<String, Set<String>> OVERRIDERS = Map.ofEntries(
@@ -226,7 +215,6 @@ class PlanStyleSurfaceTest {
             "$1#public java.lang.String graphKeyDate(java.lang.String)",
             "$1#public java.lang.String graphKeyString(java.lang.String)",
             "$1#public java.lang.String siteWords(com.legend.sql.dialect.RaiseSite)",
-            "$1#public java.util.Set<com.legend.sql.RaiseKind> plainRaises()",
             "Activity#public abstract java.lang.String engines()",
             "Activity#public abstract java.lang.String lites()",
             "TraceCell#private final java.lang.String after",
@@ -249,7 +237,6 @@ class PlanStyleSurfaceTest {
             "public abstract java.lang.String graphKeyDate(java.lang.String)",
             "public abstract java.lang.String graphKeyString(java.lang.String)",
             "public abstract java.lang.String siteWords(com.legend.sql.dialect.RaiseSite)",
-            "public abstract java.util.Set<com.legend.sql.RaiseKind> plainRaises()",
             "public abstract static Activity (class)",
             "public static final TraceCell (class)",
             "public static final com.legend.database.PlanStyle PRODUCT",

@@ -9,7 +9,7 @@ import com.legend.testexecutionplan.TypedSide;
 /**
  * The TWO faces of {@code setUpDataSQLs} (engine toDDL.pure): the
  * ASSERT surface carries the engine's H2 statement TEXT verbatim
- * ({@link com.legend.setup.Ddl#setUpDataSqlsText}); the EXECUTION surface
+ * ({@code edge.EngineSeedText.setUpDataSqlsText}, the edge's since J32, 2026-11-18); the EXECUTION surface
  * keeps the DuckDB-safe {@link com.legend.setup.CsvSeed} forms — the
  * engine runs its text on EPHEMERAL per-connection H2 dbs, while our
  * DuckDB catalog is SHARED across a family's seeds, where the text's

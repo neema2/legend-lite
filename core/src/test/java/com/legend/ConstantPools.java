@@ -34,11 +34,11 @@ final class ConstantPools {
 
     /** A class's pool as text: every UTF-8 entry (names, descriptors and string constants alike), and the string
      *  constants alone (the UTF-8 entries a {@code CONSTANT_String} names: a literal, a folded or borrowed constant, a
-     *  switch label, a concatenation's recipe). */
-    record Pool(Set<String> utf8, Set<String> strings, Set<String> indyTypes) {
-        Pool(Set<String> utf8, Set<String> strings) {
-            this(utf8, strings, Set.of());
-        }
+     *  switch label, a concatenation's recipe); and each invokedynamic call site's type (a lambda's or a method
+     *  reference's functional interface), with its number of sites (one pool entry per site; javac shares an entry
+     *  between identical method references, and between identical lambda bodies when a class is compiled without line
+     *  numbers, -g:none -- Bazel compiles with them). */
+    record Pool(Set<String> utf8, Set<String> strings, Set<String> indyTypes, Map<String, Integer> indySites) {
     }
 
     /** The UTF-8 entries of the class file {@code bytes}' constant pool, in pool order. */
@@ -94,15 +94,21 @@ final class ConstantPools {
             }
             // each invokedynamic's call-site type's return: for a lambda or a method reference (LambdaMetafactory),
             // the functional interface it implements; for a concatenation, String; for a pattern switch, int
+            // and their number per type: one pool entry per call site (each lambda its own bootstrap, so its own
+            // entry; javac shares an entry only between identical method references) -- a second lambda of a pinned
+            // type is a second site (the review of C.12, 2026-11-17)
             Set<String> indyTypes = new LinkedHashSet<>();
+            Map<String, Integer> indySites = new TreeMap<>();
             for (int nat : indyNats) {
                 String descriptor = texts[natDescriptor[nat]];
                 String ret = descriptor.substring(descriptor.indexOf(')') + 1);
                 if (ret.startsWith("L") && ret.endsWith(";")) {
-                    indyTypes.add(ret.substring(1, ret.length() - 1).replace('/', '.'));
+                    String type = ret.substring(1, ret.length() - 1).replace('/', '.');
+                    indyTypes.add(type);
+                    indySites.merge(type, 1, Integer::sum);
                 }
             }
-            return new Pool(utf8, strings, indyTypes);
+            return new Pool(utf8, strings, indyTypes, indySites);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -141,7 +147,10 @@ final class ConstantPools {
                             st.addAll(b.strings());
                             Set<String> it = new LinkedHashSet<>(a.indyTypes());
                             it.addAll(b.indyTypes());
-                            return new Pool(u, st, it);
+                            // a versioned class is the same class: its sites are the larger of the two, not their sum
+                            Map<String, Integer> sites = new TreeMap<>(a.indySites());
+                            b.indySites().forEach((t, k) -> sites.merge(t, k, Math::max));
+                            return new Pool(u, st, it, sites);
                         });
                     }
                 }

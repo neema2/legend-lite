@@ -312,12 +312,17 @@ public final class SpecParser implements TokenStreamCursor {
         return new SpecParser(tokens, "", dialect).wholeLine();
     }
 
-    /** A lambda's text as upstream {@code grammarToJson/lambda} reads it -- legend-engine's
-     *  grammar, so its level: text that is not a lambda becomes a parameterless one spanning
-     *  all its tokens, as legend-engine wraps it. */
+    /** A lambda's text as upstream {@code grammarToJson/lambda} reads it, at the caller's level (the product's
+     *  grammar, or legend-engine's where the edge parses its protocol: J21, 2026-11-17): text that is not a lambda
+     *  becomes a parameterless one spanning all its tokens, as legend-engine wraps it. */
     public static LambdaFunction parseLambda(String source) {
+        return parseLambda(source, GrammarLevel.LEGEND_ENGINE);
+    }
+
+    /** {@link #parseLambda(String)} at {@code dialect}. */
+    public static LambdaFunction parseLambda(String source, GrammarLevel dialect) {
         SpecParser parser = new SpecParser(Lexer.tokenize(Objects.requireNonNull(source, "source")),
-                "", GrammarLevel.LEGEND_ENGINE);
+                "", dialect);
         ValueSpecification v = parser.wholeLine();
         return v instanceof LambdaFunction lf ? lf
                 : new LambdaFunction(List.of(), List.of(v), parser.spanOf(0, parser.pos - 1));
@@ -326,11 +331,18 @@ public final class SpecParser implements TokenStreamCursor {
     /**
      * Text to JSON for a lambda (the conversion legend-engine's {@code grammarToJson/lambda} makes, its
      * {@code returnSourceInformation} the second argument): {@link #parseLambda}, emitted, without any source
-     * information when it is off -- every span, the named ones included, as the engine's parser then records none.
+     * information when it is off -- every span, the named ones included ({@code SourceInformation.stripAll}; legend-engine's
+     * kept spans are the edge's, {@code edge.EngineSpans}, J35's residue, 2026-11-18).
      */
     public static String lambdaJson(String source, boolean sourceInformation) {
-        String json = com.legend.protocol.ProtocolEmitter.emitLambda(parseLambda(source));
-        return sourceInformation ? json : com.legend.protocol.SourceInformation.withoutSpans(json);
+        return lambdaJson(source, sourceInformation, GrammarLevel.LEGEND_ENGINE);
+    }
+
+    /** {@link #lambdaJson(String, boolean)} at {@code dialect}: the product's door parses at legend-lite's one grammar
+     *  (J21 of the edge audit, 2026-11-17); the level-less entry is legend-engine's, the edge's door's alone. */
+    public static String lambdaJson(String source, boolean sourceInformation, GrammarLevel dialect) {
+        String json = com.legend.protocol.ProtocolEmitter.emitLambda(parseLambda(source, dialect));
+        return sourceInformation ? json : com.legend.protocol.SourceInformation.stripAll(json);
     }
 
     private ValueSpecification wholeLine() {
@@ -1021,7 +1033,7 @@ public final class SpecParser implements TokenStreamCursor {
             // LEGEND_PLATFORM and LEGEND_LITE validate at parse — the
             // product surface must not ship a date the database later
             // refuses with an unattributed conversion error.
-            return new CDate(PureDateLiteral.parse(value, dialect != GrammarLevel.LEGEND_ENGINE),
+            return new CDate(PureDateLiteral.parse(value, !dialect.refusesLiteExtensions()),
                     value, spanOf(datePos, datePos));
         } catch (IllegalArgumentException e) {
             throw TokenStreamCursor.throwAt(tokens, datePos,
@@ -1311,7 +1323,7 @@ public final class SpecParser implements TokenStreamCursor {
             if (folded == null) {
                 // the GRAMMAR quote/eval fold (compileLegendGrammar over a
                 // functions-only payload) — same place, same rule
-                folded = QuotedSpecParser.foldGrammar(call, this::constString);
+                folded = QuotedSpecParser.foldGrammar(call, dialect(), this::constString);
             }
             return folded != null ? folded : call;
         }

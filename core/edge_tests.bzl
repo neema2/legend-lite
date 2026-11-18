@@ -15,6 +15,8 @@ EDGE_TEST_SRCS = [
     "src/test/java/com/legend/CellTextDirectTest.java",
     "src/test/java/com/legend/DecimalKindsTest.java",
     "src/test/java/com/legend/EdgeSeparationTest.java",
+    # no guard names what is not there (the edge audit's K16, 2026-11-17): it reads every jar the boundary guards read
+    "src/test/java/com/legend/GuardNamesExistTest.java",
     "src/test/java/com/legend/HookRulingTest.java",
     # the two hook registries agree (the GUARD stream, 2026-11-17): it reads HookRulingTest and EdgeSeparationTest
     "src/test/java/com/legend/HookRulingsAgreeTest.java",
@@ -37,6 +39,13 @@ EDGE_TEST_SRCS = [
     "src/test/java/com/legend/SqlFnSortedTest.java",
     # hooks implemented by lambdas, and twoForm's callers, pinned (the GUARD stream, C.12, 2026-11-17)
     "src/test/java/com/legend/HookLambdasTest.java",
+    # the edge's package a boundary: no dotless prefix check, no edge class in a product jar (the GUARD stream, C.14)
+    "src/test/java/com/legend/EdgePackageBoundaryTest.java",
+    # a public product member the edge alone uses is counted (J40 of the edge audit, 2026-11-18), and its planted
+    # product class and edge caller
+    "src/test/java/com/legend/EdgeOnlyMembersTest.java",
+    "src/test/java/com/legend/PlantedEdgeOnlyApi.java",
+    "src/test/java/com/legend/edge/PlantedEdgeOnlyCaller.java",
     "src/test/java/com/legend/PlanStyleFacetsTest.java",
     # the edge's extension records walked as data (census C2, 2026-11-17: the appeals moved to com.legend.edge)
     "src/test/java/com/legend/PlanTypesAreDataTest.java",
@@ -47,10 +56,20 @@ EDGE_TEST_SRCS = [
     "src/test/java/com/legend/RelationCountAssertsEdgeTest.java",
     "src/test/java/com/legend/testplan/CompiledPureNumbersEdgeTest.java",
     "src/test/java/com/legend/testplan/RenderedTextEdgeTest.java",
+    # G10 (2026-11-17): an assert whose sides both raise, under the compatibility rules on the edge's door too
+    "src/test/java/com/legend/testplan/HostSideOrderTest.java",
+    # census C1 (2026-11-17): a run whose style and hook disagree, refused by name
+    "src/test/java/com/legend/testexec/MixedRunRefusalTest.java",
     "src/test/java/com/legend/testexec/EqualityCompatEdgeTest.java",
     "src/test/java/com/legend/ReferenceIntegrityTest.java",
     "src/test/java/com/legend/ResultWritersTest.java",
     "src/test/java/com/legend/compiler/spec/MultiplicityStrictnessTest.java",
+    # the Arrow writer's round trip (J36 of the edge audit, 2026-11-18: the writer moved from result/ to the edge;
+    # tagged "arrow", run by //core:arrow_writer_test alone)
+    "src/test/java/com/legend/edge/ArrowWriterTest.java",
+    "src/test/java/com/legend/edge/EngineSpansTest.java",
+    # the net under the harness's H2 sessions (the audit's J22, 2026-11-17)
+    "src/test/java/com/legend/edge/EdgeH2SessionTest.java",
     "src/test/java/com/legend/edge/PresenterTest.java",
     "src/test/java/com/legend/edge/PureDatesArrowTest.java",
     "src/test/java/com/legend/exec/ExecuteInDbDuckDbEdgeTest.java",
@@ -84,6 +103,8 @@ EDGE_TEST_SRCS = [
     "src/test/java/com/legend/integration/TextPlanSourceTest.java",
     "src/test/java/com/legend/integration/TypeInferenceIntegrationTest.java",
     "src/test/java/com/legend/integration/WritePlansH2Test.java",
+    # the engine execute()'s values root, the edge's fold beside the product's array (the audit's J3, 2026-11-17)
+    "src/test/java/com/legend/lowering/EngineExecuteCardinalityTest.java",
     "src/test/java/com/legend/lowering/AggOrderNullPlacementTest.java",
     "src/test/java/com/legend/lowering/OptionalCollectionNullDropTest.java",
     "src/test/java/com/legend/lowering/ToOneLaneTest.java",
@@ -95,6 +116,27 @@ EDGE_TEST_SRCS = [
     "src/test/java/com/legend/planner/HostOperationsTakeNoSqlTest.java",
     "src/test/java/com/legend/planner/PlantedBoundary.java",
     "src/test/java/com/legend/planner/PlantedCompatReach.java",
+    # the repointed V3 and S144 rules' planted violator (the edge audit's K16, 2026-11-17)
+    "src/test/java/com/legend/planner/PlantedVerdictReach.java",
+    # the CODE guard reads the sql package (the edge audit's K16, 2026-11-17): its planted reads, arm and dispatch
+    "src/test/java/com/legend/sql/PlantedSqlReach.java",
+    "src/test/java/com/legend/sql/dialect/PlantedSqlRendererArm.java",
+    "src/test/java/com/legend/sql/dialect/PlantedRendererNest.java",
+    "src/test/java/com/legend/sql/dialect/PlantedRendererByInterface.java",
+    "src/test/java/com/legend/sql/dialect/PlantedWordedRaise.java",
+    "src/test/java/com/legend/sql/dialect/PlantedBoundRaise.java",
+    "src/test/java/com/legend/sql/dialect/PlantedDialectBase.java",
+    "src/test/java/com/legend/sql/dialect/PlantedLaunderReturn.java",
+    "src/test/java/com/legend/sql/dialect/PlantedLaunderLambda.java",
+    "src/test/java/com/legend/sql/dialect/PlantedLaunderBuild.java",
+    "src/test/java/com/legend/sql/dialect/PlantedLaunderField.java",
+    "src/test/java/com/legend/sql/dialect/PlantedLaunderArray.java",
+    "src/test/java/com/legend/sql/dialect/PlantedLaunderAdd.java",
+    "src/test/java/com/legend/sql/dialect/PlantedLaunderThrow.java",
+    "src/test/java/com/legend/sql/dialect/PlantedLaunderSetter.java",
+    "src/test/java/com/legend/sql/PlantedSqlSwitch.java",
+    "src/test/java/com/legend/sql/PlantedSqlSwitchNamed.java",
+    "src/test/java/com/legend/planner/PlantedRendererHide.java",
     "src/test/java/com/legend/planner/PlantedEdgeReach.java",
     "src/test/java/com/legend/planner/ProductStatementsTest.java",
     "src/test/java/com/legend/planner/QueryDoorTest.java",
@@ -138,6 +180,8 @@ EDGE_TEST_SRCS = [
     "src/test/java/com/legend/testplan/DatabaseHalfDe5Test.java",
     "src/test/java/com/legend/testplan/ExecEnvCatalogTest.java",
     "src/test/java/com/legend/testplan/TestPlanJsonRoundTripTest.java",
+    # a host's planted edge reach (the GUARD stream's C.5 review, 2026-11-17): it names an edge type
+    "src/test/java/planner/PlantedHostEdgeReach.java",
 ]
 
 # a file whose class is not its name

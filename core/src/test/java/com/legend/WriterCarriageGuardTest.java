@@ -288,6 +288,9 @@ class WriterCarriageGuardTest {
         files.add(SourceFiles.file("core/src/main/java/com/legend/edge/PureV1Writer.java"));
         files.add(SourceFiles.file("core/src/main/java/com/legend/edge/EngineAnswers.java"));
         files.add(SourceFiles.file("core/src/main/java/com/legend/edge/Presenter.java"));
+        // lite's Arrow writer, moved from result/ to the edge (J36 of the edge audit, 2026-11-18): scanned where it lives,
+        // its ArrowWriter.java rows unchanged
+        files.add(SourceFiles.file("core/src/main/java/com/legend/edge/ArrowWriter.java"));
         // 10 -> 50 (E2, 2026-11-12): exec's sources joined the scan
         GuardCoverage.assertFloor("WriterCarriageGuardTest", files.size(), 50);
         StringBuilder drift = new StringBuilder();

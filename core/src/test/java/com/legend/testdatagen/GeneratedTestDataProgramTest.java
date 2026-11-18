@@ -146,7 +146,7 @@ class GeneratedTestDataProgramTest {
                 new TestDataGenerator.TableRowIds("default", "PERSON", List.of(
                         new TestDataGenerator.RowId(List.of("ID"), List.of(2L)),
                         new TestDataGenerator.RowId(List.of("ID"), List.of(3L))))), null, false,
-                PlannerViews.of(ctx), TestDataPlanner.Printing.CLEAN).fetches()) {
+                PlannerViews.of(ctx), LitePrinting.INSTANCE).fetches()) {
             texts.add(backend.dialect().render(f));
         }
         assertEquals(2, texts.size(), "one text per fetch");
@@ -596,7 +596,7 @@ class GeneratedTestDataProgramTest {
         // the seed's text rendered before the run (the runtime wall: a run renders nothing)
         List<String> seed = CsvSeed.sqls(CSV, "t::DB", ctx, backend.dialect());
         com.legend.exec.Sessions.Opener seeded = () -> {
-            Connection c = backend.open();
+            Connection c = backend.open(style);   // the style's database (the audit's J22, 2026-11-17)
             try (Statement s = c.createStatement()) {
                 for (String sql : seed) {
                     s.execute(sql);
@@ -615,7 +615,9 @@ class GeneratedTestDataProgramTest {
         };
         try {
             TestExecution.runProgram(typed(ctx, body), "t::RT", new com.legend.exec.SessionSource.Fresh(seeded),
-                    listener, com.legend.testexec.NoEdgeRun.NONE, ExecuteOptions.NONE.withJudgeMode(judge).withStyle(style));
+                    // the run's hook goes with its style (census C1, the orchestrator's ruling of 2026-11-17)
+                    listener, style == com.legend.database.PlanStyle.PRODUCT ? com.legend.testexec.NoEdgeRun.NONE
+                            : com.legend.edge.AppealRun.with(null), ExecuteOptions.NONE.withJudgeMode(judge).withStyle(style));
         } catch (com.legend.error.NotImplementedException e) {
             verdicts.add("NotImplementedException: " + e.getMessage());
         } catch (AssertionError | RuntimeException e) {

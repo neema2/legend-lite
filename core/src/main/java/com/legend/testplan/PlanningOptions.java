@@ -34,23 +34,13 @@ public record PlanningOptions(
         // an enum set: its order the declaration's (NoSaltedIterationOrderTest)
         options = options.isEmpty() ? java.util.Set.of()
                 : java.util.Collections.unmodifiableSet(java.util.EnumSet.copyOf(options));
-        if (edge.records() && !judgingRules.edgeAppeals()) {
+        if (!judgingRules.equals(edge.rules())) {
             // the user's ruling of 2026-11-08 (docs/PLAN_AS_DATA_2026_11_07.md 3a.3): the edge, with the referee's
-            // ledger, is the compatibility rules' -- lite's own rules plan nothing for it
-            throw new IllegalArgumentException("a run handed the compatibility edge judges by the compatibility rules");
+            // ledger, is the compatibility rules'; and a compatibility-judged run carries it (census C1, the
+            // orchestrator's ruling of 2026-11-17: its rules are the edge hook's, never a flag beside NoEdge)
+            throw new IllegalArgumentException("a run judges by the rules its edge hook names (" + edge.rules()
+                    + "), not " + judgingRules + ": the compatibility rules' runs carry the compatibility edge");
         }
-    }
-
-    /** Lite's own rules, or backwards compatibility's where {@code engineCompat} ({@code ExecuteOptions.withEngineCompat}:
-     *  the judges' leniencies that meet legend-engine's goldens; off, lite judges exactly). */
-    public static com.legend.testexecutionplan.TestPlan.JudgingRules rules(boolean engineCompat) {
-        return engineCompat ? com.legend.testexecutionplan.TestPlan.JudgingRules.COMPILED_PURE_COMPAT
-                : com.legend.testexecutionplan.TestPlan.JudgingRules.LITE;
-    }
-
-    /** These options under lite's own rules or backwards compatibility's ({@link #rules}). */
-    public PlanningOptions withEngineCompat(boolean on) {
-        return new PlanningOptions(edge, stores, features, judgeMode, rules(on), options, style);
     }
 
     /** The assert judge of a RUN (docs/JUDGING_TWO_MODES): HOST -- the verdict of record, judged in Java over each

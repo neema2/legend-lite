@@ -6,7 +6,7 @@ package com.legend.integration;
 import com.legend.testing.Program;
 import com.legend.Compiler;
 import com.legend.compiler.element.ModelContext;
-import com.legend.setup.Ddl;
+import com.legend.edge.EngineSeedText;
 import com.legend.model.ConnectionDefinition.DatabaseType;
 import com.legend.edge.EngineStyleH2;
 import com.legend.testbackend.TestBackends;
@@ -72,7 +72,7 @@ class DeclaredQuotedTableH2Test {
         ModelContext ctx = Compiler.compileModel(MODEL);
         var db = ctx.findDatabase("q::DB").orElseThrow();
         String csv = String.join("\n", "Sales", "Orders", "id,Amt,name", "1,10,a", "2,20,b");
-        List<String> setup = Ddl.setUpDataSqlsText(csv, db, ctx::findDatabase, new EngineStyleH2());
+        List<String> setup = EngineSeedText.setUpDataSqlsText(csv, db, ctx::findDatabase, new EngineStyleH2());
         String query = engineText(new EngineStyleH2(), "#>{q::DB.Sales.Orders}#->select(~[id, Amt])");
         try (Connection c = TestBackends.of(DatabaseType.H2).open();
              Statement s = c.createStatement()) {
@@ -94,7 +94,7 @@ class DeclaredQuotedTableH2Test {
     private static String execute(String body) throws Exception {
         try (Connection c = TestBackends.platform().open()) {
             // legend-engine's text natives answer in the edge's plan style (phase D's O3, 2026-11-13)
-            var r = Program.last(TestBackends.platform().withStorelessRuntime(MODEL), body,
+            var r = com.legend.testing.EdgeProgram.last(TestBackends.platform().withStorelessRuntime(MODEL), body,
                     com.legend.testbackend.StorelessRuntime.RUNTIME, c, com.legend.testing.EdgeProgram.upstream());
             return String.valueOf(r.one());
         }

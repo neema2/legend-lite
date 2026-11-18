@@ -539,7 +539,7 @@ public final class AssertVerdicts {
                 // D3 — the RENDERED-TEXT arm: exactly one side is a
                 // DB-rendered grid text (toCSV/toString/replace/join
                 // spellings), the peer a string value. The DATABASE
-                // computed the render; TdsCompare.renderedText (the
+                // computed the render; edge.UpstreamRenderedTexts (the
                 // one policy owner, R1b-probed) judges the texts.
                 TypedSide ra = renderedArm(name, wantEqual, args,
                         letPrefix, specs, env, hook, true);
@@ -1957,8 +1957,9 @@ public final class AssertVerdicts {
                 schema = com.legend.compiler.spec.VerdictQueries.wireDecidedKinds(schema, data);
             }
         }
-        var parsed = com.legend.compiler.spec.VerdictQueries.parseRendered(text, r.grammar(),
-                schema, r.grid() ? null : r.value().info().type());
+        var parsed = com.legend.compiler.spec.VerdictQueries.parseRendered(text, r.grammar(), schema, r.grid() ? null
+                : r.value().info().type(), env.options().style().twoForm(com.legend.compiler.spec.GoldenNullWord.class,
+                        com.legend.compiler.spec.LiteGoldenNullWord.NONE));
         if (parsed.headerMismatch()) {
             com.legend.diagnostics.VerdictCensus.sqlJudgedInDatabase(name);
             return fail(name + ": " + parsed.reason());   // a static verdict
@@ -1977,21 +1978,17 @@ public final class AssertVerdicts {
     }
 
     /** GENERIC FIRST (2026-11-04, the core program: every assert on its own merit generically): a rendered text's
-     *  equality is its two strings' ({@code textRow}, the database computing the render), and in compatibility mode
-     *  {@code rows} -- the ruled line and row comparison (S131, S132) -- decides where they differ, planned with the
-     *  text as ONE verdict row ({@code VerdictBatch.orElse}, made one row by {@code VerdictBatch.plan}; 2026-11-06, the
-     *  user: "Remove fallback"). Outside a verdict batch the two cannot be one statement: refused by name, never a text
-     *  sent and then its rows. {@code textRow} null (a side the database judge cannot read as a String) or the negated
-     *  family: {@code rows} alone. */
+     *  equality is its two strings' ({@code textRow}, the database computing the render); the edge's style plans
+     *  {@code rows} -- the ruled line and row comparison (S131, S132) -- where they differ ({@link RenderedTextRule}). */
     private static TypedSide textFirst(String name, boolean wantEqual, com.legend.sql.@com.legend.base.Nullable SqlQuery textRow,
             BodyDriver.ExecEnv env, java.util.function.Supplier<TypedSide> rows) {
-        if (!env.options().judgingRules().renderedTextRuled()) {
+        // the style decides (census C1, the orchestrator's ruling of 2026-11-17), never the rules
+        if (!env.options().style().twoForm(RenderedTextRule.class, LiteRenderedTextRule.STRINGS).ruledWhereTheyDiffer()) {
             // clean mode (the user, 2026-11-05: after a verdict the harness may only explain): the two strings are the
-            // verdict; the ruled row comparison is compatibility mode's alone
-            if (textRow == null) {
-                return DatabaseJudge.unjudged(name, "rendered-text: a side the database judge cannot read as a String");
-            }
-            return DatabaseJudge.runVerdict(name, wantEqual, textRow, env);
+            // verdict; the ruled row comparison is the edge's alone
+            return textRow == null
+                    ? DatabaseJudge.unjudged(name, "rendered-text: a side the database judge cannot read as a String")
+                    : DatabaseJudge.runVerdict(name, wantEqual, textRow, env);
         }
         if (!wantEqual || textRow == null) {
             return rows.get();

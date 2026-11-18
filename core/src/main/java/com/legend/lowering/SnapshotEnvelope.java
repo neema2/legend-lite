@@ -102,6 +102,7 @@ final class SnapshotEnvelope {
      * never a silent partial reference). */
     static SqlExpr asorWrap(
             com.legend.compiler.spec.typed.TypedSerializeGraph g,
+            String connection,
             SqlExpr obj,
             java.util.function.Function<com.legend.compiler.spec.typed
                     .TypedFuncCol, SqlExpr> scalar) {
@@ -138,8 +139,11 @@ final class SnapshotEnvelope {
         SqlExpr pkJson = new SqlExpr.Call(com.legend.sql.SqlFn.CONCAT, parts);
         SqlExpr full = new SqlExpr.Call(com.legend.sql.SqlFn.CONCAT,
                 java.util.List.of(
+                        // the head, then the connection segment the plan style writes (the audit's J12)
                         new SqlExpr.StringLit(java.util.Objects
-                                .requireNonNull(g.objectRefPrefix())),
+                                .requireNonNull(g.objectRefPrefix()) + String.format(java.util.Locale.ROOT,
+                                "%0" + com.legend.model.AsorRef.SEG_LEN_WIDTH + "d:%s:", connection.length(),
+                                connection)),
                         SqlExpr.Call.of(com.legend.sql.SqlFn.LPAD,
                                 new SqlExpr.Cast(
                                         SqlExpr.Call.of(com.legend.sql

@@ -110,12 +110,15 @@ class PhaseEntriesRefusedInsideARunTest {
                 com.legend.parser.GrammarLevel.LEGEND_LITE));
         out.put("parse a model's import (phase B)", () -> com.legend.ide.DocumentParse.importOf(imported,
                 com.legend.parser.GrammarLevel.LEGEND_LITE));
-        out.put("parse a model (phases A and B) <- Parse.records", () -> com.legend.door.Parse.records(MODEL));
+        out.put("parse a model (phases A and B) <- Parse.engineRecords", () -> com.legend.door.Parse.engineRecords(MODEL));
+        out.put("parse a model (phases A and B) <- Parse.engineDocumentJson",
+                () -> com.legend.door.Parse.engineDocumentJson(MODEL));
         out.put("parse a model (phases A and B) <- Parse.documentJson, its source information named",
                 () -> com.legend.door.Parse.documentJson(MODEL, true));
         out.put("parse a query (phase C) <- Parse.query", () -> com.legend.door.Parse.query(QUERY,
                 com.legend.parser.GrammarLevel.LEGEND_LITE));
         out.put("parse a lambda (phase C)", () -> com.legend.door.Parse.lambdaJson(QUERY, false));
+        out.put("parse a lambda (phase C) <- Parse.engineLambdaJson", () -> com.legend.door.Parse.engineLambdaJson(QUERY));
         out.put("read a model's records (phase B) <- Parse.model", () -> com.legend.door.Parse.model(records));
         // C5-J's last round (A1, 2026-11-15): the embedded languages' readers, each through its door -- an island's
         // SQL by each dialect (Postgres's for #SQL, SAP IQ's for #IQ), a #TS query and item, a #Cypher statement

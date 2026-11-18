@@ -38,7 +38,7 @@ class FloatLiteralKindTest {
             boolean edgeDecimal = com.legend.edge.PureText.UPSTREAM.dialect(backend.type()).floatLiteralKind()
                     == com.legend.sql.SqlExpr.FloatLit.Kind.DECIMAL;
             assertEquals(String.valueOf(edgeDecimal), String.valueOf(Lean.runInStyle(model, query,
-                    StorelessRuntime.RUNTIME, c, com.legend.edge.PureText.UPSTREAM).rows().get(0).get(0)),
+                    StorelessRuntime.RUNTIME, backend, com.legend.edge.PureText.UPSTREAM).rows().get(0).get(0)),
                     backend.name() + " edge");
         }
     }

@@ -52,8 +52,8 @@ final class MappingValidation {
         List<String> dupIds = closure.duplicateIds();
         if (!dupIds.isEmpty()) {
             throw new ModelException(LegendCompileException.Phase.MODEL,
-                    "Duplicated class mappings found with ID " + dupIds
-                    + " in mapping '" + md.qualifiedName() + "'", md.qualifiedName());
+                    com.legend.error.CompileKind.DUPLICATE_CLASS_MAPPING_IDS,
+                    List.of(dupIds.toString(), md.qualifiedName()), md.qualifiedName());
         }
         Map<String, ModelException> invalid = new LinkedHashMap<>();
         for (ClassMapping cm : md.classMappings()) {

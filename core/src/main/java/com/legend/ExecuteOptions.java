@@ -30,7 +30,7 @@ public record ExecuteOptions(PlanningOptions planning, com.legend.executionplan.
             com.legend.executionplan.DataStores stores,
             java.util.Set<com.legend.platform.Feature> features) {
         this(new PlanningOptions(edge, stores, features, PlanningOptions.JudgeMode.HOST,
-                PlanningOptions.rules(edge.records()), java.util.Set.of(), com.legend.database.PlanStyle.PRODUCT),
+                edge.rules(), java.util.Set.of(), com.legend.database.PlanStyle.PRODUCT),
                 stores);
     }
 
@@ -73,16 +73,6 @@ public record ExecuteOptions(PlanningOptions planning, com.legend.executionplan.
      *  on {@code DETERMINISTIC_AS_OF}. Planning's, as the features are. */
     public ExecuteOptions withOptions(java.util.Set<com.legend.platform.PlanOption> o) {
         return new ExecuteOptions(planning.withOptions(o), stores);
-    }
-
-    /** BACKWARDS-COMPATIBILITY MODE (the user, 2026-11-04: "I want ours to be super clean, but be able to pass
-     *  PCT/rcorpus in backwards compat mode"): the judges' leniencies that exist only to meet legend-engine's goldens --
-     *  computed in Java doubles where lite computes in the database's -- apply in a run that asks for them (the PCT and
-     *  corpus harnesses); lite's own runs judge exactly, as upstream's language does. The choice is made upfront and
-     *  stated in the plan: every verdict step names its rules, which both judges read. Today: S132's float tokens within
-     *  2 ULP inside a String, S127's Integer equal to a Decimal by text (testexec.Equality, testplan.DatabaseJudge). */
-    public ExecuteOptions withEngineCompat(boolean on) {
-        return new ExecuteOptions(planning.withEngineCompat(on), stores);
     }
 
     /** THE SPELLING HOOK (phase D's D1.0): the body's statements written in {@code spelling}'s dialects -- the

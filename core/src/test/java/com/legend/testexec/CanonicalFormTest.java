@@ -77,7 +77,8 @@ class CanonicalFormTest {
     }
 
     /** H1 temporals over THE wire carrier (PureDateLiteral, D-arc):
-     * date-only precisions print bare; time-bearing take +0000;
+     * every precision prints its written text, GMT-normalized (census C5:
+     * legend-pure's +0000 suffix is the edge's spelling);
      * WRITTEN precision survives (.000 ≠ none — the wire limit the
      * java.time carrier had is GONE). A java temporal is residue. */
     @Test
@@ -85,14 +86,14 @@ class CanonicalFormTest {
         assertEquals("2014", text(PureDateLiteral.parse("2014")));
         assertEquals("2014-01", text(PureDateLiteral.parse("2014-01")));
         assertEquals("2014-01-01", text(PureDateLiteral.parse("2014-01-01")));
-        assertEquals("2014-01-01T00:00+0000",
+        assertEquals("2014-01-01T00:00",
                 text(PureDateLiteral.parse("2014-01-01T00:00")));
-        assertEquals("2014-01-01T10:01:35.231+0000",
+        assertEquals("2014-01-01T10:01:35.231",
                 text(PureDateLiteral.parse("2014-01-01T10:01:35.231")));
-        assertEquals("2014-01-01T10:01:35.000+0000",
+        assertEquals("2014-01-01T10:01:35.000",
                 text(PureDateLiteral.parse("2014-01-01T10:01:35.000")));
-        // GMT normalization: -0500 input prints shifted +0000 (H1)
-        assertEquals("2014-01-01T15:01+0000",
+        // GMT normalization: -0500 input prints shifted to GMT (H1)
+        assertEquals("2014-01-01T15:01",
                 text(PureDateLiteral.parse("2014-01-01T10:01-0500")));
         // fetch-seam leak detector: a java.time temporal is RESIDUE
         assertEquals("unmodeled-kind:LocalDate",

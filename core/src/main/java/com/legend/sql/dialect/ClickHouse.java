@@ -222,7 +222,8 @@ public class ClickHouse extends AnsiSqlRenderer {
      *  exclusion and the as-of join are native. */
     @Override
     protected List<com.legend.sql.SqlRewriter> passes() {
-        return List.of(new CarrierStrategies(CAPS), new PivotAsGroupBy(), new OuterJoinResidualsAsMatches(),
+        return List.of(new UncorrelatableExistsAsJoins(), new CarrierStrategies(CAPS), new PivotAsGroupBy(),
+                new OuterJoinResidualsAsMatches(),
                 new ExplosionMarkers.LateralUnnestAsMarker(), new ExplosionMarkers.StarOverExplosionUnwrapped(),
                 new ArrayJoinColumnsNamed(), new CheckedDefectsToLists(), new SubstringClamp(),
                 new AggregatesDeliverDouble(java.util.Set.of(SqlAgg.Fn.AVG)),
@@ -613,6 +614,20 @@ public class ClickHouse extends AnsiSqlRenderer {
         java.util.Set<String> own = new java.util.HashSet<>();
         aliasesOf(s.from(), own);
         return s.where() != null && conjuncts(s.where()).stream().allMatch(x -> nullRejecting(x, own));
+    }
+
+    /** A correlated EXISTS ClickHouse would answer wrong (its filter reads the outer row other than as a comparison's
+     *  operand: {@link #CORRELATED}) written as a join to the distinct keys, before every other pass (the edge audit's
+     *  J19, 2026-11-18, register S367: the product writes the EXISTS, the leanest SQL with the same answer, and this
+     *  dialect decomposes the one it cannot correlate -- AGENTS.md invariant 3). Every other EXISTS is kept. */
+    private static final class UncorrelatableExistsAsJoins extends com.legend.sql.SqlRewriter {
+        private final java.util.concurrent.atomic.AtomicInteger keys = new java.util.concurrent.atomic.AtomicInteger();
+
+        @Override
+        protected com.legend.sql.SqlQuery select(SqlSelect s) {
+            return com.legend.sql.ExistsJoins.rewrite(s, () -> "__ej" + keys.incrementAndGet(), w -> null,
+                    ex -> ex.subquery() instanceof SqlSelect q && correlated(q) && !correlatedRight(q));
+        }
     }
 
     /** EXISTS a row of {@code s} under its filter {@code w} and {@code cond} (none: {@code w} alone). */
@@ -1803,6 +1818,8 @@ public class ClickHouse extends AnsiSqlRenderer {
     protected SqlWriter call(SqlWriter writer, SqlExpr.Call c, int parentPrec) {
         List<SqlExpr> a = c.args();
         return switch (c.fn()) {
+            // census J20 (2026-11-18): the one numeric rule, this dialect's full match (AnsiSqlRenderer.isNumeric)
+            case IS_NUMERIC -> isNumeric(writer, c.args().get(0), parentPrec);
             // ---- each function as this dialect spells it, by name (the dialect program's Phase 1, D1, 2026-10-13:
             // an exhaustive switch; a spelling several databases share is a named helper of the base)
             // the ANSI operators
@@ -1827,7 +1844,7 @@ public class ClickHouse extends AnsiSqlRenderer {
             case XOR -> xorAsAndOr(writer, c.args(), parentPrec);
             case FLOAT_SHORTEST_TEXT -> floatShortestTextByCast(writer, c, parentPrec);
             case FLOAT_TO_TEXT -> floatToText(writer, c.args().get(0));
-            case DATETIME_TO_TEXT, DATETIME_PRINT, DATETIME_CANON_TEXT, CELL_TEXT ->
+            case DATETIME_TO_TEXT, DATETIME_CANON_TEXT, CELL_TEXT ->
                     throw expandedFirst(c);
             // the hooks: this dialect's own (or the base's refusal)
             case ROUND -> roundHalfEven(writer, c.args());

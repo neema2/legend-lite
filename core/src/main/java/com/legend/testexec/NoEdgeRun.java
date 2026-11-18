@@ -72,6 +72,18 @@ public final class NoEdgeRun implements EdgeRun {
         }
 
         @Override
+        public RenderedTexts renderedTexts() {
+            // lite's own runs: the two strings are the verdict
+            return LiteRenderedTexts.STRINGS;
+        }
+
+        @Override
+        public HostForms hostForms() {
+            // lite's own runs: two number kinds never equal (S127)
+            return LiteHostForms.STRICT;
+        }
+
+        @Override
         public void writing() {
             // no appeal is held: nothing a write could stale
         }

@@ -158,4 +158,46 @@ public sealed interface RelationalDataType permits
                     "unknown SQL data type: '" + name + "'");
         };
     }
+
+    /** The type's name as the Relational grammar writes it ({@code INT}, a sized {@code VARCHAR(n)},
+     *  {@code DECIMAL(p,s)}): {@link #fromName}'s inverse, the canonical spelling of each variant. A variant the grammar
+     *  has no spelling for yet is refused by name (each EXPLICIT, so a new variant is a compile error here). */
+    static String sqlText(RelationalDataType t) {
+        return switch (t) {
+            case RelationalDataType.Integer_ ignored -> "INT";
+            case RelationalDataType.BigInt ignored -> "BIGINT";
+            case RelationalDataType.SmallInt ignored -> "SMALLINT";
+            case RelationalDataType.TinyInt ignored -> "TINYINT";
+            case RelationalDataType.Varchar v -> "VARCHAR(" + v.size() + ")";
+            case RelationalDataType.Char_ c -> "CHAR(" + c.size() + ")";
+            case RelationalDataType.Double_ ignored -> "DOUBLE";
+            case RelationalDataType.Float_ ignored -> "FLOAT";
+            case RelationalDataType.Real ignored -> "REAL";
+            case RelationalDataType.Decimal d ->
+                    "DECIMAL(" + d.precision() + "," + d.scale() + ")";
+            case RelationalDataType.Numeric n ->
+                    "NUMERIC(" + n.precision() + "," + n.scale() + ")";
+            case RelationalDataType.Timestamp ignored -> "TIMESTAMP";
+            case RelationalDataType.Date_ ignored -> "DATE";
+            case RelationalDataType.Time ignored -> "TIME";
+            case RelationalDataType.TimestampNs ignored -> "TIMESTAMP_NS";
+            case RelationalDataType.Bit ignored -> "BIT";
+            // Pending spellings — EXPLICIT so a new variant is a compile
+            // error here, not a runtime surprise (T3.1).
+            case RelationalDataType.Binary ignored -> throw new IllegalArgumentException(
+                    "the Relational grammar's text for " + t + " pending");
+            case RelationalDataType.Varbinary ignored -> throw new IllegalArgumentException(
+                    "the Relational grammar's text for " + t + " pending");
+            case RelationalDataType.Distinct ignored -> throw new IllegalArgumentException(
+                    "the Relational grammar's text for " + t + " pending");
+            case RelationalDataType.Other ignored -> throw new IllegalArgumentException(
+                    "the Relational grammar's text for " + t + " pending");
+            case RelationalDataType.SemiStructured ignored -> throw new IllegalArgumentException(
+                    "the Relational grammar's text for " + t + " pending");
+            case RelationalDataType.Array ignored -> throw new IllegalArgumentException(
+                    "the Relational grammar's text for " + t + " pending");
+            case RelationalDataType.Object_ ignored -> throw new IllegalArgumentException(
+                    "the Relational grammar's text for " + t + " pending");
+        };
+    }
 }

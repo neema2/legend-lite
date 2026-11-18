@@ -6,7 +6,6 @@ package com.legend.edge;
 import com.legend.json.Json;
 import com.legend.parser.PmcdParser;
 import com.legend.parser.SpecParser;
-import com.legend.plan.PlanSupportFunctions;
 import com.legend.plan.QueryPlan;
 import com.legend.protocol.ModelComposer;
 import com.legend.protocol.ProtocolReader;
@@ -126,13 +125,13 @@ public final class PureV1Routes {
     public static Answer grammarToJsonLambda(String text, boolean returnSourceInformation) {
         // through the parse door, which asks the run's wall (C5-J item 1, 2026-11-15; main's change, carried to the edge
         // where phase D moved the route)
-        return answer(400, "PARSER", () -> com.legend.door.Parse.lambdaJson(text, returnSourceInformation));
+        return answer(400, "PARSER", () -> EngineGrammar.lambdaJson(text, returnSourceInformation));
     }
 
     /** E2: a model's text to its PMCD JSON. */
     public static Answer grammarToJsonModel(String text, boolean returnSourceInformation) {
         // through the parse door (C5-J item 1, 2026-11-15)
-        return answer(400, "PARSER", () -> com.legend.door.Parse.documentJson(text, returnSourceInformation));
+        return answer(400, "PARSER", () -> EngineGrammar.documentJson(text, returnSourceInformation));
     }
 
     /**
@@ -282,7 +281,7 @@ public final class PureV1Routes {
                 // lite's own plan -- what runs a data: payload, a file: path, a pivot's keys -- reaches a lite host by
                 // lite's own routes (the planner's text plan's `plan`, arrowPlan's and jsonPlan's `plan`, the planner
                 // protocol's executionPlan)
-                return Json.toCompact(executionPlan(plan, connectionOf(model.records(), runtime, target.store())));
+                return Json.toCompact(executionPlan(plan, connectionOf(EngineGrammar.records(model), runtime, target.store())));
             });
         });
     }
@@ -322,7 +321,7 @@ public final class PureV1Routes {
     /**
      * E8 in upstream's Arrow format ({@code ?serializationFormat=ARROW_IPC}; the result boundary program's track A,
      * 2026-10-29): the relation's rows as ONE Arrow IPC stream written by lite's own writer
-     * ({@code result/ArrowWriter}: the schema from the plan's columns, each batch a record batch, the plan's facts as
+     * ({@link ArrowWriter}: the schema from the plan's columns, each batch a record batch, the plan's facts as
      * each field's metadata), its schema carrying the metadata upstream's answer carries ({@code legend.builder},
      * {@code legend.activities}, {@code legend.columns}: {@link #arrowPlan}'s), the stream wrapped as one zstd frame
      * (raw blocks, our own: {@code arrowipc/ZstdFrame}) under upstream's headers (Content-Type application/json,

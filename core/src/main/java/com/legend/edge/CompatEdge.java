@@ -150,6 +150,12 @@ public final class CompatEdge implements Edge {
     }
 
     @Override
+    public com.legend.testexecutionplan.TestPlan.JudgingRules rules() {
+        // a recorder's run judges by the compatibility rules (the user's ruling of 2026-11-08)
+        return CompatRules.COMPILED_PURE;
+    }
+
+    @Override
     public boolean records() {
         // the edge's recorder: the referee's ledger, planned at each effect and seed step
         return true;

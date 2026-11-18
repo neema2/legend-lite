@@ -145,6 +145,11 @@ class PlannerSurfaceTest {
         return new Param(name, String.class, kind);
     }
 
+    /** A flag parameter: a boolean, one of a closed set of words. */
+    private static Param flag(String name) {
+        return new Param(name, boolean.class, OPTION);
+    }
+
     private static Param handle() {
         return new Param("handle", int.class, HANDLE);
     }
@@ -178,6 +183,8 @@ class PlannerSurfaceTest {
 
     /** THE BOUNDARY'S DOORS, each listed with its fields' kinds (2026-11-13). */
     static final Map<String, Door> BOUNDARY = listed(
+            // the edge's doors (EDGE_DOORS: in com.legend.edge.wasm.EdgeBoundary since A1 and E-P5, 2026-11-17), listed so
+            // the hosts' exports that reach them stay checked
             door("pureV1", p("path", ROUTE), p("rawQuery", OPTION), p("body", ROUTE_BODY)),
             door("executePlan", p("body", ROUTE_BODY), p("modelsJson", MODEL_TEXT)),
             door("executeJsonPlan", p("body", ROUTE_BODY), p("modelsJson", MODEL_TEXT)),
@@ -235,7 +242,410 @@ class PlannerSurfaceTest {
             door("touchSystemMetamodel"),
             door("hashBootSource"),
             door("resolveBootLayer"),
-            door("zoneProbe", p("utcIso", VALUE), p("zone", NAME)));
+            door("zoneProbe", p("utcIso", VALUE), p("zone", NAME)),
+            // a model text held for one call, its compiled model handed to the callback (how the edge's boundary shares
+            // the host's models, d-int6)
+            door("withModelText", p("text", MODEL_TEXT), new Param("use", java.util.function.Function.class, CALLBACK)),
+            // lite's own parse, print, relation-type and model-element operations for the tab and Python (D-1/A1, on
+            // d-int6; listed here as drift, 2026-11-17 -- the host sessions' own rows replace these at D's union)
+            door("modelElements", p("text", MODEL_TEXT), flag("sourceInformation")),
+            door("parseLambda", p("text", LAMBDA), flag("sourceInformation")),
+            door("printLambda", p("lambdaJson", LAMBDA), p("style", OPTION)),
+            door("lambdaRelationType", p("model", MODEL_TEXT), p("lambdaJson", LAMBDA)));
+
+    /** The doors the edge's boundary holds, not the planner's: moved from planner.Boundary to
+     *  com.legend.edge.wasm.EdgeBoundary with A1 and E-P5 (2026-11-17; the drift found when this test first ran in a
+     *  target, //core:census_edge, on d-int6). Their rows stay in {@link #BOUNDARY}, each a public static of the edge's
+     *  boundary source, so the tab's, the native library's and Python's exports that reach them are still checked. */
+    static final Set<String> EDGE_DOORS = Set.of("pureV1", "executePlan", "executeJsonPlan", "executeJsonAnswer",
+            "executeArrowAnswer");
+
+    private static final String EDGE_BOUNDARY_SOURCE = "wasm/src/edge/java/com/legend/edge/wasm/EdgeBoundary.java";
+
+    /** {@code text} with its balanced {@code open}...{@code close} groups left out (generics' arguments,
+     *  annotations' values), string literals read as text. */
+    private static String withoutGroups(String text, char open, char close) {
+        StringBuilder out = new StringBuilder();
+        int depth = 0;
+        boolean string = false;
+        for (int i = 0; i < text.length(); i++) {
+            char c = text.charAt(i);
+            if (string) {
+                if (c == '\\') {
+                    i++;
+                } else if (c == '"') {
+                    string = false;
+                }
+            } else if (c == '"') {
+                string = true;
+            } else if (c == open) {
+                depth++;
+            } else if (c == close) {
+                depth--;
+            } else if (depth == 0) {
+                out.append(c);
+            }
+        }
+        return out.toString();
+    }
+
+    /** {@code params} split at its top-level commas (none inside a generic's {@code <...>} or an annotation's
+     *  {@code (...)}). */
+    private static List<String> topLevel(String params) {
+        List<String> out = new ArrayList<>();
+        int depth = 0;
+        int from = 0;
+        for (int i = 0; i < params.length(); i++) {
+            char c = params.charAt(i);
+            if (c == '<' || c == '(') {
+                depth++;
+            } else if (c == '>' || c == ')') {
+                depth--;
+            } else if (c == ',' && depth == 0) {
+                out.add(params.substring(from, i));
+                from = i + 1;
+            }
+        }
+        out.add(params.substring(from));
+        return out;
+    }
+
+    /** A run of modifiers and annotations, in any order (a door is a run holding both public and static). */
+    private static final Pattern MODIFIERS = Pattern.compile("(?:\\b(?:public|protected|private|static|final|synchronized"
+            + "|native|strictfp|abstract|default|sealed|non-sealed)\\b\\s*|@[\\w.]+(?:\\s*\\([^()]*\\))?\\s*)+");
+
+    /** {@code source} read lexically once: its comments, and the contents of its strings, text blocks and characters,
+     *  blanked (each kept character a space, each line break kept), so neither a comment nor a string can hide or fake a
+     *  declaration (the review of 260fdb147f, 2026-11-17: a "/*" inside a string swallowed code to the next comment). */
+    static String blanked(String source) {
+        StringBuilder out = new StringBuilder(source.length());
+        int i = 0;
+        while (i < source.length()) {
+            char c = source.charAt(i);
+            if (source.startsWith("//", i)) {
+                while (i < source.length() && source.charAt(i) != '\n') {
+                    out.append(' ');
+                    i++;
+                }
+            } else if (source.startsWith("/*", i)) {
+                int end = source.indexOf("*/", i + 2);
+                end = end < 0 ? source.length() : end + 2;
+                for (; i < end; i++) {
+                    out.append(source.charAt(i) == '\n' ? '\n' : ' ');
+                }
+            } else if (source.startsWith("\"\"\"", i)) {
+                // the block ends at the first """ no backslash escapes (the third review, 2026-11-17, S8: a \""" inside
+                // the block ended it early, and the next """ swallowed code to the one after)
+                int end = source.length();
+                for (int j = i + 3; j < source.length(); j++) {
+                    if (source.charAt(j) == '\\') {
+                        j++;
+                    } else if (source.startsWith("\"\"\"", j)) {
+                        end = j + 3;
+                        break;
+                    }
+                }
+                out.append("\"\"\"");
+                for (i += 3; i < end - 3; i++) {
+                    out.append(source.charAt(i) == '\n' ? '\n' : ' ');
+                }
+                out.append("\"\"\"");
+                i = end;
+            } else if (c == '"' || c == '\'') {
+                out.append(c);
+                i++;
+                while (i < source.length() && source.charAt(i) != c && source.charAt(i) != '\n') {
+                    if (source.charAt(i) == '\\' && i + 1 < source.length()) {
+                        out.append(' ');
+                        i++;
+                    }
+                    out.append(' ');
+                    i++;
+                }
+                if (i < source.length() && source.charAt(i) == c) {
+                    out.append(c);
+                    i++;
+                }
+            } else {
+                out.append(c);
+                i++;
+            }
+        }
+        return out.toString();
+    }
+
+    /** {@code source} (already {@link #blanked}) with each annotation's arguments blanked, its balanced parentheses
+     *  kept as {@code ()} and every character between them a space (each line break kept), however deep they nest (the
+     *  third review, 2026-11-17, S9: {@code @Ann(x = @B(1))} split the modifier run, and a door went unread). */
+    static String annotationArgumentsBlanked(String source) {
+        StringBuilder out = new StringBuilder(source);
+        Matcher at = Pattern.compile("@\\s*[\\w.]+\\s*\\(").matcher(source);
+        int from = 0;
+        while (at.find(from)) {
+            int open = at.end() - 1;
+            int depth = 0;
+            int close = source.length() - 1;
+            for (int i = open; i < source.length(); i++) {
+                char c = source.charAt(i);
+                if (c == '(') {
+                    depth++;
+                } else if (c == ')' && --depth == 0) {
+                    close = i;
+                    break;
+                }
+            }
+            for (int i = open + 1; i < close; i++) {
+                if (out.charAt(i) != '\n') {
+                    out.setCharAt(i, ' ');
+                }
+            }
+            from = close + 1;
+            if (from >= source.length()) {
+                break;
+            }
+        }
+        return out.toString();
+    }
+
+    private static final Pattern NESTED_TYPE = Pattern.compile(
+            "\\s*((final|abstract|sealed|non-sealed|strictfp)\\s+)*(class|record|interface|enum)\\s+\\w+[\\s\\S]*");
+
+    private static final Pattern FIELD = Pattern.compile("\\s*(final\\s+)?[\\w.\\[\\]]+\\s+\\w+\\s*");
+
+    private static final Pattern PARAM = Pattern.compile("(\\w+(?:\\.\\w+)*(?:\\[\\])*)(\\.\\.\\.)?\\s+\\w+");
+
+    /** The edge boundary's public static methods in {@code edgeSource} (comments left out), each its parameters'
+     *  simple types (a generic's arguments dropped, varargs as an array, annotations and {@code final} left out); a
+     *  public static the check cannot read as a method, a field or a nested type is put to {@code unread}. */
+    static Map<String, List<List<String>>> edgeDoorMethods(String edgeSource, List<String> unread) {
+        // a unicode escape is read by javac before anything else (a line break, a quote): the check does not read one,
+        // so it fails by name (the review of 5911e970e1, 2026-11-17)
+        if (edgeSource.contains("\\u")) {
+            unread.add("a unicode escape (\\u), which javac reads first and this check does not");
+        }
+        // an annotation's name spelled with blanks or a comment around "@" or its dots ("@ Deprecated",
+        // "@/*c*/Deprecated", "@java.lang .Deprecated"), read as written tight (the same review: the run of modifiers
+        // read only "@name")
+        String tight = blanked(edgeSource).replaceAll("@\\s+", "@");
+        // every spaced dot of an annotation's name, one per pass (the review of 11de9ae229, 2026-11-18: a single pass
+        // tightened only the first, "@java .lang .Deprecated")
+        for (String prev = null; !tight.equals(prev); ) {
+            prev = tight;
+            tight = tight.replaceAll("(@[\\w.]*\\w)\\s*\\.\\s*(?=\\w)", "$1.");
+        }
+        String source = annotationArgumentsBlanked(tight);
+        Map<String, List<List<String>>> out = new TreeMap<>();
+        Matcher m = MODIFIERS.matcher(source);
+        while (m.find()) {
+            List<String> words = List.of(m.group().replaceAll("@[\\w.]+(\\s*\\([^()]*\\))?", " ").trim().split("\\s+"));
+            if (!words.contains("public") || !words.contains("static")) {
+                continue;
+            }
+            String rest = source.substring(m.end());
+            int head = rest.length();
+            int nesting = 0;
+            boolean string = false;
+            for (int i = 0; i < rest.length() && head == rest.length(); i++) {
+                char c = rest.charAt(i);
+                if (string) {
+                    if (c == '\\') {
+                        i++;
+                    } else if (c == '"') {
+                        string = false;
+                    }
+                } else if (c == '"') {
+                    string = true;
+                } else if (c == '(') {
+                    nesting++;
+                } else if (c == ')') {
+                    nesting--;
+                } else if (nesting == 0 && (c == '{' || c == ';' || c == '=')) {
+                    head = i;
+                }
+            }
+            String declaration = rest.substring(0, head);
+            int open = declaration.indexOf('(');
+            String snippet = declaration.strip().replaceAll("\\s+", " ");
+            if (open < 0) {
+                String bare = withoutGroups(declaration, '<', '>');
+                if (!NESTED_TYPE.matcher(bare).matches() && !FIELD.matcher(bare).matches()) {
+                    unread.add(snippet);
+                }
+                continue;
+            }
+            int close = -1;
+            int depth = 0;
+            for (int i = open; i < declaration.length() && close < 0; i++) {
+                if (declaration.charAt(i) == '(') {
+                    depth++;
+                } else if (declaration.charAt(i) == ')' && --depth == 0) {
+                    close = i;
+                }
+            }
+            Matcher name = Pattern.compile("(\\w+)\\s*$").matcher(declaration.substring(0, open));
+            if (close < 0 || !name.find()) {
+                unread.add(snippet);
+                continue;
+            }
+            List<String> types = new ArrayList<>();
+            boolean read = true;
+            for (String param : topLevel(declaration.substring(open + 1, close))) {
+                String p = withoutGroups(withoutGroups(param, '<', '>'), '(', ')')
+                        .replaceAll("@[\\w.]+", " ").replaceAll("\\bfinal\\b", " ").strip().replaceAll("\\s+", " ");
+                if (p.isEmpty() && types.isEmpty() && param.isBlank()) {
+                    continue;
+                }
+                Matcher t = PARAM.matcher(p);
+                if (!t.matches()) {
+                    read = false;
+                    break;
+                }
+                String type = t.group(1).substring(t.group(1).lastIndexOf('.') + 1);
+                types.add(t.group(2) != null ? type + "[]" : type);
+            }
+            if (!read) {
+                unread.add(snippet);
+                continue;
+            }
+            out.computeIfAbsent(name.group(1), k -> new ArrayList<>()).add(types);
+        }
+        return out;
+    }
+
+    /** What is wrong with the edge's doors in {@code edgeSource} (the edge's boundary, read as text: no product target
+     *  carries its class): a public static no {@link #EDGE_DOORS} entry names, an entry it does not declare or
+     *  {@code boundary} does not list, a door declared twice, a door whose parameters' types differ from its row (the
+     *  review of 589168a9b3, 2026-11-17), and a public static the check cannot read (the re-review of 60aa31029b:
+     *  read, never skipped). */
+    static List<String> edgeDoorViolations(String edgeSource, Map<String, Door> boundary) {
+        List<String> out = new ArrayList<>();
+        List<String> unread = new ArrayList<>();
+        Map<String, List<List<String>>> declared = edgeDoorMethods(edgeSource, unread);
+        unread.forEach(u -> out.add("an edge boundary public static the check does not read: " + u));
+        declared.keySet().stream().filter(n -> !EDGE_DOORS.contains(n))
+                .forEach(n -> out.add("an edge boundary door no EDGE_DOORS entry names: " + n));
+        for (String name : new TreeSet<>(EDGE_DOORS)) {
+            if (!declared.containsKey(name)) {
+                out.add("an edge door the edge's boundary no longer has: " + name);
+            } else if (declared.get(name).size() != 1) {
+                out.add("an edge door declared more than once (its row names one): " + name);
+            } else if (!boundary.containsKey(name)) {
+                out.add("an edge door no row lists: " + name);
+            } else if (!declared.get(name).get(0).equals(boundary.get(name).params().stream()
+                    .map(p -> p.type().getSimpleName()).toList())) {
+                out.add("an edge door's parameters differ from its row: " + name + " " + declared.get(name).get(0));
+            }
+        }
+        return out;
+    }
+
+    /** Planted: an edge door whose parameters changed, a public static no entry names, an entry the source lost, an
+     *  overloaded door and a public static the check cannot read are each named; a generic's comma, an annotation, a
+     *  {@code final}, a multi-line parameter list, a field, a nested type and a commented-out door are read as what
+     *  they are; varargs read as an array; the real source is clean. */
+    @Test
+    void theEdgeDoorsAreChecked() {
+        String planted = "class EdgeBoundary {\n"
+                + "    public static final String ROUTE = \"/api/pure/v1\";\n"
+                + "    public static final class Holder { }\n"
+                + "    // public static Answer commentedOut(String x) {}\n"
+                + "    /** public static Answer inJavadoc(String x) */\n"
+                + "    public static Answer pureV1(String path, String rawQuery, String body) {}\n"
+                + "    public static Answer executePlan(String body) {}\n"
+                + "    public static Answer executeJsonPlan(String body, String modelsJson) {}\n"
+                + "    public static Answer executeJsonPlan(String body) {}\n"
+                + "    public static Answer runSqlHere(String sql) {}\n"
+                + "    public static Answer runHeaders(java.util.Map<String, String> headers, String... parts) {}\n"
+                // the review of 260fdb147f: modifiers in another order, and a "/*" or "//" inside a string, hide no door
+                + "    static public Answer orderSwapped(String s) {}\n"
+                + "    public final @Deprecated static Answer finalStatic(String s) {}\n"
+                + "    public static final String GLOB = \"/api/*\", URL = \"http://x\";\n"
+                + "    public static Answer afterGlob(String s) {}\n"
+                // the third review (2026-11-17): a text block holding an escaped \""" (S8) and an annotation whose
+                // arguments nest parentheses (S9) hide no door
+                + "    static final String T = \"\"\"\n        a \\\"\"\" b\n        \"\"\";\n"
+                + "    public static Answer afterBlock(String s) {}\n"
+                + "    static final String U = \"\"\"\n        x\n        \"\"\";\n"
+                + "    public @Ann(x = @B(1), y = {@C(\"(\")}) static Answer nestedAnnotation(String s) {}\n"
+                // the review of 5911e970e1 (2026-11-17): an annotation's name spelled with blanks or a comment
+                + "    public @ Deprecated static Answer spacedAt(String s) {}\n"
+                + "    public @/*c*/Deprecated static Answer commentedAt(String s) {}\n"
+                + "    public @java.lang .Deprecated static Answer spacedDot(String s) {}\n"
+                + "    public @ java . lang . Deprecated static Answer twoDots(String s) {}\n"
+                + "    /** a doc */\n"
+                + "    public static Answer broken(String a\n}\n";
+        assertEquals(List.of("an edge boundary public static the check does not read: Answer broken(String a }",
+                "an edge boundary door no EDGE_DOORS entry names: afterBlock",
+                "an edge boundary door no EDGE_DOORS entry names: afterGlob",
+                "an edge boundary door no EDGE_DOORS entry names: commentedAt",
+                "an edge boundary door no EDGE_DOORS entry names: finalStatic",
+                "an edge boundary door no EDGE_DOORS entry names: nestedAnnotation",
+                "an edge boundary door no EDGE_DOORS entry names: orderSwapped",
+                "an edge boundary door no EDGE_DOORS entry names: runHeaders",
+                "an edge boundary door no EDGE_DOORS entry names: runSqlHere",
+                "an edge boundary door no EDGE_DOORS entry names: spacedAt",
+                "an edge boundary door no EDGE_DOORS entry names: spacedDot",
+                "an edge boundary door no EDGE_DOORS entry names: twoDots",
+                "an edge door the edge's boundary no longer has: executeArrowAnswer",
+                "an edge door the edge's boundary no longer has: executeJsonAnswer",
+                "an edge door declared more than once (its row names one): executeJsonPlan",
+                "an edge door's parameters differ from its row: executePlan [String]"),
+                edgeDoorViolations(planted, BOUNDARY));
+        List<String> unread = new ArrayList<>();
+        assertEquals(Map.of("runHeaders", List.of(List.of("Map", "String[]")), "executeJsonAnswer",
+                List.of(List.of("String", "String"))), edgeDoorMethods("class E {\n"
+                + "    public static Answer runHeaders(java.util.Map<String, String> headers, String... parts) {}\n"
+                + "    public static Answer executeJsonAnswer(\n            @Deprecated(since = \"1, 2\") final String plan,\n"
+                + "            final String rows) {}\n}\n", unread));
+        assertEquals(List.of(), unread);
+        List<String> escaped = new ArrayList<>();
+        edgeDoorMethods("class E {\n    // x \\u000a public static Answer hidden(String s) {}\n}\n", escaped);
+        assertEquals(List.of("a unicode escape (\\u), which javac reads first and this check does not"), escaped,
+                "a unicode escape fails the read by name");
+        assertEquals(List.of(), edgeDoorViolations(read(EDGE_BOUNDARY_SOURCE), BOUNDARY));
+    }
+
+    /** The edge boundary's public statics, as its bytecode holds them (javac's own reading of the source): each name to
+     *  its overloads' parameters' simple types, an array as {@code X[]}. */
+    static Map<String, List<List<String>>> edgeDoorBytecode() {
+        List<java.util.jar.JarFile> jars = new ArrayList<>();
+        try {
+            for (java.nio.file.Path jar : com.legend.testing.Runfile.listed("legend.authored.jars")) {
+                jars.add(new java.util.jar.JarFile(jar.toFile()));
+            }
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+        com.tngtech.archunit.core.domain.JavaClass boundary = new com.tngtech.archunit.core.importer.ClassFileImporter()
+                .importJars(jars).get("com.legend.edge.wasm.EdgeBoundary");
+        Map<String, List<List<String>>> out = new TreeMap<>();
+        for (com.tngtech.archunit.core.domain.JavaMethod m : boundary.getMethods()) {
+            if (m.getModifiers().containsAll(Set.of(com.tngtech.archunit.core.domain.JavaModifier.PUBLIC,
+                    com.tngtech.archunit.core.domain.JavaModifier.STATIC))) {
+                out.computeIfAbsent(m.getName(), k -> new ArrayList<>()).add(m.getRawParameterTypes().stream()
+                        .map(t -> t.isArray() ? t.getComponentType().getSimpleName() + "[]" : t.getSimpleName())
+                        .toList());
+            }
+        }
+        return out;
+    }
+
+    /** The source reader agrees with javac: the edge boundary's public static methods read from its source are exactly
+     *  its bytecode's (the review of 5911e970e1, 2026-11-17, MUST-FIX 2: a door the lexer misses, however it is spelled,
+     *  is a difference here). */
+    @Test
+    void theEdgeDoorsReadEqualTheBytecode() {
+        List<String> unread = new ArrayList<>();
+        Map<String, List<List<String>>> source = edgeDoorMethods(read(EDGE_BOUNDARY_SOURCE), unread);
+        assertEquals(List.of(), unread);
+        Map<String, List<List<String>>> bytecode = edgeDoorBytecode();
+        Map<String, Set<List<String>>> s = new TreeMap<>();
+        Map<String, Set<List<String>>> b = new TreeMap<>();
+        source.forEach((k, v) -> s.put(k, new java.util.HashSet<>(v)));
+        bytecode.forEach((k, v) -> b.put(k, new java.util.HashSet<>(v)));
+        assertTrue(b.keySet().containsAll(EDGE_DOORS), "the boundary's bytecode is read: " + b.keySet());
+        assertEquals(b, s, "the edge boundary's public statics, read from its source, differ from its bytecode's");
+    }
 
     /** THE HOST OPERATIONS' FIELDS ({@code HostOperationsJson}: every operation closed by its {@code op}). */
     static final Map<String, Kind> HOST_OPERATION_FIELDS = new TreeMap<>(fields("op", OPTION, "kind", OPTION,
@@ -266,6 +676,11 @@ class PlannerSurfaceTest {
             Map.entry("sessionSetupOrError", "sessionSetup"), Map.entry("hostOperationsOrError", "hostOperations"),
             Map.entry("projectDataOrError", "projectData"), Map.entry("warmModel", "warmModel"),
             Map.entry("warmModelOrError", "warmModel"), Map.entry("touchPrelude", "touchPrelude"),
+            // the tab's exports of lite's own parse, print, relation-type and model-element doors (on d-int6,
+            // 2026-11-17: drift; the DataCube session's rows replace these at D's union)
+            Map.entry("modelElementsOrError", "modelElements"), Map.entry("parseLambdaOrError", "parseLambda"),
+            Map.entry("printLambdaOrError", "printLambda"),
+            Map.entry("lambdaRelationTypeOrError", "lambdaRelationType"),
             Map.entry("touchSystemMetamodel", "touchSystemMetamodel"), Map.entry("hashBootSource", "hashBootSource"),
             Map.entry("resolveBootLayer", "resolveBootLayer"), Map.entry("zoneProbe", "zoneProbe")));
 
@@ -288,28 +703,19 @@ class PlannerSurfaceTest {
             Map.entry("lite_execute_plan", "executePlan"), Map.entry("lite_execute_json_plan", "executeJsonPlan"),
             Map.entry("lite_execute_json_answer", "executeJsonAnswer"),
             Map.entry("lite_execute_arrow_answer", "executeArrowAnswer"), Map.entry("lite_warm_model", "warmModel"),
-            Map.entry("lite_pure_v1_refusal", "refusal"),
-            // lite's own grammar and typing for Python's product (the edge program's H4, 2026-11-17): the four doors the
-            // tab exports (its A1), asked by the native library instead of legend-engine's pure/v1 routes
-            Map.entry("lite_model_elements", "modelElements"), Map.entry("lite_parse_lambda", "parseLambda"),
-            Map.entry("lite_print_lambda", "printLambda"),
-            Map.entry("lite_lambda_relation_type", "lambdaRelationType")));
+            Map.entry("lite_pure_v1_refusal", "refusal")));
 
     /** The native library's exports that are no planner door, each with what it is instead. */
-    static final Map<String, String> NATIVE_SERVICES = new TreeMap<>(Map.ofEntries(
-            Map.entry("lite_site_types", "the site's types, a constant of the build (Folded's answer of them)"),
-            Map.entry("lite_free", "the answer's memory freed"),
-            Map.entry("lite_unfreed", "the count of answers not yet freed (a leak's witness)"),
-            Map.entry("lite_sdlc_handle", "the model home's SDLC store, opened on a folder (its rules, sdlc-server's)"),
-            Map.entry("lite_depot_handle", "the model home's depot, opened on a folder"),
-            Map.entry("lite_saved_queries", "the saved queries' rules over a folder"),
-            Map.entry("lite_saved_cubes", "the saved cubes' rules over a folder"),
-            // the product's twins at lite's mount, in lite's words (the edge program's H6, 2026-11-17)
-            Map.entry("lite_store_queries", "the saved queries' rules over a folder, at lite's mount"),
-            Map.entry("lite_store_cubes", "the saved cubes' rules over a folder, at lite's mount"),
-            Map.entry("lite_warehouse_call",
-                    "the warehouse's SQL API, a database server of its own, as its binding speaks it"),
-            Map.entry("lite_warehouse_read", "the warehouse's SQL API's read")));
+    static final Map<String, String> NATIVE_SERVICES = new TreeMap<>(Map.of(
+            "lite_site_types", "the site's types, a constant of the build (Folded's answer of them)",
+            "lite_free", "the answer's memory freed",
+            "lite_unfreed", "the count of answers not yet freed (a leak's witness)",
+            "lite_sdlc_handle", "the model home's SDLC store, opened on a folder (its rules, sdlc-server's)",
+            "lite_depot_handle", "the model home's depot, opened on a folder",
+            "lite_saved_queries", "the saved queries' rules over a folder",
+            "lite_saved_cubes", "the saved cubes' rules over a folder",
+            "lite_warehouse_call", "the warehouse's SQL API, a database server of its own, as its binding speaks it",
+            "lite_warehouse_read", "the warehouse's SQL API's read"));
 
     /** THE SERVER'S ROUTES ({@code LiteV1Api.route}'s dispatch), each with what its body is: upstream's protocol shapes,
      *  whose fields are {@link #SERVER_FIELDS}'s. */
@@ -347,6 +753,9 @@ class PlannerSurfaceTest {
     static final Map<String, Map<String, Kind>> SERVER_FIELDS = new TreeMap<>(Map.of(
             // the pure/v1 routes; planned.* are read of the plan half a host hands back with its rows (jsonAnswer,
             // its variable `planned`): the planner's own, echoed into the answer, never sent
+            // (body, fullPath, genericType, lowerBound, multiplicity, name, parameters, rawType, upperBound, value: read
+            // by upstream's ExecuteInput binding, which moved to the edge with B7's split -- edge.ExecuteInputs, read as
+            // part of this surface by routeFiles(), 2026-11-17)
             "LiteV1Api.java", new TreeMap<>(fields("_type", OPTION, "planned.activities", PLAN_DATA, "body", LAMBDA,
                     "planned.builder", PLAN_DATA, "code", MODEL_TEXT, "planned.columns", PLAN_DATA, "connectionValue",
                     OBJECT, "planned.execution", PLAN_DATA, "fullPath", NAME, "function", LAMBDA, "genericType", OBJECT,
@@ -650,7 +1059,7 @@ class PlannerSurfaceTest {
             Map.entry("ExecuteOptions#withFeatures(Set<Feature>)", List.of(OPTION)),
             Map.entry("ExecuteOptions#withStyle(PlanStyle)", List.of(OPTION)),
             Map.entry("ExecuteOptions#withOptions(Set<PlanOption>)", List.of(OPTION)),
-            Map.entry("ExecuteOptions#withEngineCompat(boolean)", List.of(OPTION)),
+            // (ExecuteOptions#withEngineCompat(boolean) gone 2026-11-17, census C1: the rules are the edge hook's)
             Map.entry("ExecuteOptions#recording(Edge, DataStores)", List.of(CALLBACK, DATA_REFERENCE))));
 
     /** The root doors' classes. */
@@ -862,10 +1271,13 @@ class PlannerSurfaceTest {
                 out.add("a door no row lists: " + boundary.getSimpleName() + "." + name);
             }
         }
+        out.addAll(edgeDoorViolations(read(EDGE_BOUNDARY_SOURCE), BOUNDARY));
         for (Door d : BOUNDARY.values()) {
             Method m = found.get(d.name());
             if (m == null) {
-                out.add("a listed door the boundary no longer has: " + d.name());
+                if (!EDGE_DOORS.contains(d.name())) {
+                    out.add("a listed door the boundary no longer has: " + d.name());
+                }
                 continue;
             }
             List<Class<?>> types = d.params().stream().<Class<?>>map(Param::type).toList();
@@ -1626,9 +2038,12 @@ class PlannerSurfaceTest {
         }
         // W8 (docs/records/d-plan-2026-11-16.md, 2026-11-16): the host answer halves (arrowPlan, jsonPlan, jsonAnswer)
         // moved to the edge's HostAnswers; read as part of the same surface, so its planned.* reads stay censused
+        // and upstream's ExecuteInput binding, moved to the edge with B7's split (edge.ExecuteInputs, which
+        // PureV1Routes, HostAnswers and TestDataRoutes call): its reads stay censused here (the review of 589168a9b3)
         out.put("LiteV1Api.java", out.get("LiteV1Api.java") + "\n"
                 + read("core/src/main/java/com/legend/edge/PureV1Routes.java") + "\n"
-                + read("core/src/main/java/com/legend/edge/HostAnswers.java"));
+                + read("core/src/main/java/com/legend/edge/HostAnswers.java") + "\n"
+                + read("core/src/main/java/com/legend/edge/ExecuteInputs.java"));
         return out;
     }
 

@@ -30,8 +30,13 @@ import java.util.List;
     /** A deprecated {@code toDDL} statement's text ({@code createTableStatement} and its family). */
     String ddlText(TypedNativeCall ds, PlanEnv env);
 
-    /** The node model of an {@code executionPlan} call, for its handle's rows. */
-    com.legend.plan.PlanNode planModel(TypedNativeCall executionPlan, SpecCompiler specs, PlanEnv env);
+    /** The rows of an {@code executionPlan} call's handle under {@code scope} (table to rows: the plan, its nodes, its
+     *  template functions, ...; J4 of the edge audit, 2026-11-17: legend-engine's node model and template functions are
+     *  the edge's). The planner hands over the plan's facts as data: the execution context's {@code timeZone}, the
+     *  query's {@code mappingFqn} and its enum-typed parameters' enumerations, {@code enumParameterFqns}. */
+    java.util.Map<String, List<List<String>>> planRows(String scope, TypedNativeCall executionPlan,
+            @com.legend.base.Nullable String timeZone, @com.legend.base.Nullable String mappingFqn,
+            List<String> enumParameterFqns, SpecCompiler specs, PlanEnv env);
 
     /** An execute's activity SQL in legend-engine's text, {@code recorded} its runtime's post-processors applied. */
     String activitySql(List<TypedSpec> chain, @com.legend.base.Nullable String mappingFqn, SpecCompiler specs,
@@ -50,6 +55,6 @@ import java.util.List;
     /** A timestamp cell's text as legend-engine's test-data CSV writes it ({@code toCSVString}'s
      *  {@code SimpleDateTimeFormat}, {@code yyyy-MM-dd HH:mm:ss}, its fraction cut; legend-engine helperFunctions.pure:214-243),
      *  for the test-data generator's printing under the compatibility rules and the server's routes (Phase 6's B13,
-     *  2026-11-17); lite's own spelling is the generator's {@code Printing.CLEAN}. */
+     *  2026-11-17); lite's own spelling is the generator's {@code LitePrinting}. */
     java.util.function.UnaryOperator<com.legend.sql.SqlExpr> testDataTimestampText();
 }

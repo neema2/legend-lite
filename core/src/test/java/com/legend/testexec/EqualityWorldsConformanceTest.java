@@ -30,8 +30,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  */
 class EqualityWorldsConformanceTest {
     /** Lite's own rules: what these comparisons are judged by (the explicit rule, 2026-11-04). */
-    private static final com.legend.testexecutionplan.TestPlan.JudgingRules LITE =
-            com.legend.testexecutionplan.TestPlan.JudgingRules.LITE;
+    private static final HostRules LITE = HostRules.LITE;
 
 
     private static Connection conn;

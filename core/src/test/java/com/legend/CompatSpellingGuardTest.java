@@ -66,6 +66,10 @@ class CompatSpellingGuardTest {
             // K8: legend-engine's compile and server sentences (D1.6; the query store's at pure/v1, D1.8)
             "Can't find ", "Invalid supertype", "arguments count (", "variables count (",
             "Missing external parameter(s)",
+            // 2026-11-17, J10 of the edge audit: legend-engine's and legend-pure's model sentences, raised as compile
+            // kinds (CompileKind.DUPLICATE_ELEMENT ... MISSING_STORE_TABLE) and worded at the edge; listed with no row
+            "Duplicated class mappings", "Duplicated mapping include", "Duplicated element", "Found duplicated ",
+            "can't be found", "Default values are supported only",
             // legend-pure's match failure (W7 of docs/records/d-plan-2026-11-16.md, 2026-11-16: raised as a kind,
             // MATCH_FAILURE, its sentence the edge's); its collection offset sentence is listed with K1 above (the P2
             // checkpoint audit's S6, 2026-11-16: it was listed twice)
@@ -81,6 +85,11 @@ class CompatSpellingGuardTest {
             // checkpoint audit's S5, 2026-11-16: until then caught by no list). "TDSNull" is not listed yet: as a
             // literal it is also the Pure type's own name (16 product literals), so its sites are sorted in Phase 7
             "tdsBuilder", "SET NON_KEYWORDS",
+            // generateSeedDataString's value: legend-engine's createTableRowIdentifiers(...) code, assembled by the
+            // database from planned literals (TestDataPlanner.seedString) -- STAYS, the orchestrator's ruling of
+            // 2026-11-17 (not the user's; put to the user), on the toRepresentation precedent of 2026-11-15: the
+            // function's value is its semantics
+            "createTableRowIdentifiers(", "createRowIdentifier([",
             // legend-engine's text of an empty TDS cell (the separation census's B10, 2026-11-17: until then not listed)
             "TDSNull");
 
@@ -271,7 +280,8 @@ class CompatSpellingGuardTest {
             // JUDGE, now B12's (2026-11-17, census C5's step C): the judges' canon no longer emits the node; its last
             // product emitter, format's %r (Scalars), refused in the product by B12's 2b (F's, 2026-11-17): the edge's
             // DateTime texts write it now
-            "sql/dialect/DateTimePrintText.java | +0000 | 2 | JUDGE",
+            // (sql/dialect/DateTimePrintText.java | +0000: gone 2026-11-17 with the class, census B12 -- legend-pure's
+            // DateTime print the edge's composition, edge.PureDateTimePrint)
             // RULED by the user, 2026-11-16, the edge program §10 item 9 ("I agree with all"): it stays in the product
             // (the P2 checkpoint audit's A-M1; W6's change, 4fc24e0a3, reverted the same day). The product's H2 quotes legend-engine's word list as written, upper-casing the words its session
             // frees (NON_KEYWORDS), and that decides WHICH COLUMN a declared name reads in H2 data made legend-engine's
@@ -282,6 +292,11 @@ class CompatSpellingGuardTest {
             // LoadPlanner), H2 file and tcp databases (H2Connector), and H2 files an earlier lite made.
             "sql/dialect/H2.java | ENGINE_LEXICON | 3 | RULED",
             "sql/dialect/H2.java | SET NON_KEYWORDS | 1 | RULED", // listed 2026-11-16 (S5): the same ruling's session half
+            // listed 2026-11-17 (STAYS, the orchestrator's ruling of 2026-11-17, not the user's -- the orchestrator puts it
+            // to the user; 23:27): generateSeedDataString's value, the database's assembly of planned literals --
+            // upstream's own result, as toRepresentation's (2026-11-15)
+            "testdatagen/TestDataPlanner.java | createRowIdentifier([ | 1 | STAYS",
+            "testdatagen/TestDataPlanner.java | createTableRowIdentifiers( | 1 | STAYS",
             // sql/dialect/MongoDb.java | +0000: gone 2026-11-15 (D1.2: its date-time format a @SpellingArm hook,
             // dateTimeFormat, the product's ISO with Z; legend-pure's +0000 the edge's MongoDb's)
             // testdatagen/TestDataPlanner.java | +0000: gone 2026-11-17 (F's separation census line B11): legend-engine's
@@ -292,7 +307,8 @@ class CompatSpellingGuardTest {
             // (the EngineText rows of AssertRuns, HostJudgments, HostJson, HostJudgment, NamedExtensions, Verdicts and
             // AssertVerdicts: gone 2026-11-17, census C3 -- the engine-text comparison the edge's own record
             // (edge/EngineTextJudgment), held by the product's neutral HostJudgment.EdgeJudged)
-            "testexec/CanonicalForm.java | +0000 | 1 | JUDGE",
+            // (testexec/CanonicalForm.java | +0000 gone 2026-11-17, census C5, E-Java: the instrument renders a date's own
+            // GMT-normalized text; legend-pure's suffix is the edge's)
             // testexec/SideShapes.java | Cannot cast a collection of size | GONE 2026-11-17 (C5's step E, E-P5): a side's
             // and the body's answer's size refusal worded at planning (SideShape.sizeWords, TestPlan.answerSizeWords)
             // (testexec/SqlTextRuns.java's rows went with it to the edge: 2026-11-17, census C2: the referee and the appeals moved to the edge (the orchestrator's P1+P2))
@@ -300,7 +316,8 @@ class CompatSpellingGuardTest {
             // 2026-11-16 (W8 of docs/records/d-plan-2026-11-16.md): legend-pure's toRepresentation of a date, the judges'
             // own printer (Verdicts.pureText), which PureDateLiteral's toString was until then; with the judges' print
             // forms at W10
-            "testexecutionplan/Verdicts.java | +0000 | 1 | D1.9",
+            // testexecutionplan/Verdicts.java | +0000 gone (2026-11-17, census C5's row, E-Java last: Verdicts.repr and
+            // pureText deleted -- legend-pure's date text the edge's UpstreamDateLiteralTexts)
             // (testplan/AgreementAsserts.java | EngineText went: 2026-11-17, (b) of the orchestrator's order: the fused agreement path deleted)
             // (BodyDriver's EngineText row gone, 2026-11-16, W9's judge half: the style's engineTestText,
             // engineTestPlanText and engineTestConnection name the engine test database, the planner none)
@@ -311,7 +328,7 @@ class CompatSpellingGuardTest {
             // (2026-11-16, W9's judge half S2c: testplan/SqlTextVerdicts' two rows gone with the arm to the edge;
             // BodyDriver's withEngineText row gone, ExecEnv.withCollector names what it installs, the arm's collector)
             // testplan/TestPlanner.java | COMPAT: GONE 2026-11-17 (Phase 6's B13): upstream's test-data timestamp text is
-            // the UpstreamPlans facet's (the edge's), asked when one is printed; lite's own is TestDataPlanner.Printing.CLEAN
+            // the UpstreamPlans facet's (the edge's), asked when one is printed; lite's own is LitePrinting.INSTANCE
             // REGISTERED 2026-11-17 (the separation census, docs/records/f-separation-census-2026-11-17.md): 'TDSNull'
             // (B10) and COMPILED_PURE_COMPAT (C1) joined the scan; what stood is registered, each with its owner.
             // C5's step C, C-2 (2026-11-17, the orchestrator's ruling (B)): the judges' TDSNull sentinel is gone -- an
@@ -326,18 +343,18 @@ class CompatSpellingGuardTest {
             "compiler/spec/Typer.java | TDSNull | 4 | STAYS",
             // 1 -> 2 (2026-11-17, census C5's step C, C-2): the #TDS literal's null-cell token, read as INPUT, names its
             // literal where it read TDS_NULL_CELL (the constant gone)
-            "lowering/Scalars.java | TDSNull | 2 | STAYS",
+            "lowering/Scalars.java | TDSNull | 2 | STAYS"
             // TDSNull as the judges' text (E-Java, Phase 4b: census B10/C5)
             // 5 -> 4, D1.9 -> STAYS (2026-11-17, census C5's step C, C-2): an expected ^TDSNull(), a written 'TDSNull'
             // cell and a golden's null cell are a typed TypedNullCell; what stays reads that written text as INPUT
-            "compiler/spec/VerdictQueries.java | TDSNull | 4 | STAYS",
+            // 4 -> 1 (2026-11-17, census C1: the golden's TDSNull word read by the edge's UpstreamGoldenNullWord, the dead
+            // grid branch gone); 1 -> 0 (2026-11-17, C-2's corpus fix: tdsNullSentinel reads no written 'TDSNull')
             // (lowering/Render.java | TDSNull | D1.3: gone 2026-11-17, census B17 -- a relation's text moved to the edge,
             // edge.RelationTextLowering)
             // the judges' compatibility mode's branches (E-Java, census C1)
-            "testexec/Equality.java | COMPILED_PURE_COMPAT | 1 | D1.9",
-            "testexecutionplan/TestPlan.java | COMPILED_PURE_COMPAT | 1 | D1.9",   // 3 -> 1 (2026-11-17, C1 step 1: each judging fact a named accessor over one field)
-            "testexecutionplan/TestPlanJson.java | COMPILED_PURE_COMPAT | 2 | D1.9",
-            "testplan/PlanningOptions.java | COMPILED_PURE_COMPAT | 1 | D1.9"   // 2 -> 1 (2026-11-17, C1 step 1: the edge check asks edgeAppeals())
+            // (testexecutionplan/TestPlan.java, TestPlanJson.java, testplan/PlanningOptions.java | COMPILED_PURE_COMPAT gone
+            // 2026-11-17, census C1: the judging rules are data, the compatibility preset the edge's CompatRules)
+            // testexec/Equality.java | COMPILED_PURE_COMPAT gone (2026-11-17, census C1 2c: the cross-kind rule asked of the run hook, HostForms)
             // retagged 2026-11-15 (D1.2's end): Java's spelling of a date value. D1.4 -> D1.8 (2026-11-16, W4): lite's
             // writers no longer read it (CellText's product half prints S312's text); what remains is legend-engine's
             // JSON of a date (toEngineJson, read by CellText's engine half, which moves with PureV1Writer at W8) and
@@ -387,6 +404,52 @@ class CompatSpellingGuardTest {
         }
         assertTrue(drift.length() == 0, "no compatibility spelling in the product (D2) -- drift:" + drift
                 + "\n\ntoday's hits, as register rows (each row's step is yours to name):\n" + rows(found));
+    }
+
+    /** WORDED BY A HOOK (census J17, 2026-11-18, the orchestrator's queue: "PureAsserts, legend-pure's assert format,
+     *  is named by no map: move it to the edge, or map it"): product classes that DECIDE and write no word -- every
+     *  failure text of theirs is asked of a ruled hook the edge alone implements (PureAsserts: {@code PureWords}, C5's
+     *  step B). A literal outside a refusal ({@code throw new ...;}) is a bare name (a Pure type's, which the platform
+     *  owns) and nothing else: a sentence, a separator or a print form here would be upstream's format back in the
+     *  product, which the LITERALS list above cannot see unless it is listed. File, then its census line. */
+    static final Map<String, String> WORDED_BY_HOOK = Map.of(
+            "testexec/PureAsserts.java", "J17 2026-11-18 (its words EdgePureWords', through PureWords)");
+
+    @Test
+    void theHookWordedClassesWriteNoWord() throws IOException {
+        Map<String, String> sources = new TreeMap<>();
+        for (Path f : SourceFiles.under(MAIN)) {
+            String path = SourceFiles.path(f);
+            if (path.startsWith(JAVA_ROOT) && WORDED_BY_HOOK.containsKey(path.substring(JAVA_ROOT.length()))) {
+                sources.put(path.substring(JAVA_ROOT.length()), Files.readString(f));
+            }
+        }
+        assertEquals(WORDED_BY_HOOK.keySet(), sources.keySet(), "every mapped class is a main source");
+        sources.forEach((file, source) -> assertEquals(List.of(), words(source),
+                file + " writes words of its own (" + WORDED_BY_HOOK.get(file) + "): ask the hook"));
+    }
+
+    /** The hook-worded check bites: a sentence, a separator and a print form are found; a refusal's text and a
+     *  type's bare name are not. */
+    @Test
+    void theHookWordedCheckBites() {
+        String planted = """
+                final class Planted {
+                    static String a(Object e) { return "\\nexpected: " + e; }
+                    static String b() { return ", "; }
+                    static String c() { return "%r"; }
+                    static String d() { return "Integer"; }
+                    static void e() { throw new IllegalStateException("not; observable " + "here"); }
+                }
+                """;
+        assertEquals(List.of("\\nexpected: ", ", ", "%r"), words(planted));
+    }
+
+    /** A source's literals that are words: outside a refusal, anything but a bare name. */
+    static List<String> words(String source) {
+        List<String> literals = new ArrayList<>();
+        lex(source.replaceAll("(?s)throw\\s+new\\s.*?\\);", "throw;"), literals);
+        return literals.stream().filter(l -> !l.matches("[A-Za-z_]*")).toList();
     }
 
     /** The scan bites: a product source holding an engine sentence, a Pure print form and the engine printer is

@@ -40,27 +40,39 @@ public final class CellText {
 
     /** {@link #pure} with a date's text written by {@code dates}: the product's ({@link #PRODUCT}), or the one a
      *  compatibility route hands its writer (legend-pure's, the edge's; W4's audit, 2026-11-16). */
-    public static String pure(Object cell, ExecutionPlan.Column c, DateText dates) {
+    public static String pure(Object cell, ExecutionPlan.Column c, Forms dates) {
         return pure(cell, c.type(), c, dates);
     }
 
-    /** A DATE'S TEXT IN A CELL: the product's ({@link #PRODUCT}, register S312: six fraction digits and Z), or
-     *  legend-pure's ({@code edge.Presenter.LEGEND_PURE}), which the edge's pure/v1 Arrow receiver hands the writer
-     *  it makes (DoD-2: an edge answer does not move with the product's). A closed enum the writers interpreted until
-     *  W8 (2026-11-16); since the engine answers are the edge's receivers ({@code edge.EngineAnswers}), the run is
-     *  handed a receiver and never this text, and legend-pure's arm is the edge's code. */
-    @FunctionalInterface
-    public interface DateText {
+    /** A CELL'S FORMS (the audit's K13, 2026-11-17; a date's text alone until then, {@code DateText}, W4's audit,
+     *  2026-11-16): the product's ({@link #PRODUCT}: register S312's dates, a List's and a Map's text their JSON, the
+     *  one text the JSON output writes, the user's ruling of 2026-11-10), or legend-pure's ({@code
+     *  edge.Presenter.LEGEND_PURE}), which the edge's receivers hand the writer they make (DoD-2: an edge answer does
+     *  not move with the product's). No default: each form answers both. */
+    public interface Forms {
         /** {@code d}'s text: {@code type} the Pure type it is read under, {@code c} its column, {@code nested} whether
          *  it is a structure's element (which has no column of its own). */
-        String text(PureDateLiteral d, String type, ExecutionPlan.Column c, boolean nested);
+        String date(PureDateLiteral d, String type, ExecutionPlan.Column c, boolean nested);
+
+        /** A List's or a Map's text, {@code value} of Pure type {@code type} in column {@code c}. */
+        String structure(Object value, String type, ExecutionPlan.Column c);
     }
 
-    /** The product's date text (register S312). */
-    public static final DateText PRODUCT = (d, type, c, nested) -> nested ? productNested(d) : productDate(d, type, c);
+    /** The product's forms: S312's dates; a List's and a Map's text the JSON its JSON output writes. */
+    public static final Forms PRODUCT = new Forms() {
+        @Override
+        public String date(PureDateLiteral d, String type, ExecutionPlan.Column c, boolean nested) {
+            return nested ? productNested(d) : productDate(d, type, c);
+        }
+
+        @Override
+        public String structure(Object value, String type, ExecutionPlan.Column c) {
+            return Json.toCompact(CellText.structure(declared(value), c, this));
+        }
+    };
 
     /** {@link #pure} of a cell, or a structure's element, of Pure type {@code type} ({@code c} the column it is in). */
-    private static String pure(Object cell, String type, ExecutionPlan.Column c, DateText dates) {
+    private static String pure(Object cell, String type, ExecutionPlan.Column c, Forms dates) {
         String collection = collectionClass(type);
         return switch (cell) {
             case Long l -> Long.toString(l);
@@ -69,30 +81,20 @@ public final class CellText {
             case BigDecimal d -> type.equals("Float") ? carriedFloat(d) : d.toPlainString();
             case Boolean b -> b.toString();
             case String s -> s;
-            case PureDateLiteral d -> dates.text(d, type, c, false);
+            case PureDateLiteral d -> dates.date(d, type, c, false);
             case PureTimeLiteral t -> t.toEngineString();
-            // a List prints its values' texts joined (the prelude's List.toString(): joinStrings('[', ', ', ']'))
-            case List<?> l when collection.equals("List") -> joined(l, typeArguments(type).get(0), c, "[", "]", dates);
+            // a List's text, the forms' (the audit's K13, 2026-11-17): the product's its JSON array, legend-pure's the
+            // prelude's List.toString() (joinStrings('[', ', ', ']'), the edge's)
+            case List<?> l when collection.equals("List") -> dates.structure(l, type, c);
             // a Pair prints '<first, second>' (the prelude's Pair.toString())
             case Map<?, ?> m when collection.equals("Pair") -> {
                 List<String> args = typeArguments(type);
                 yield "<" + element(m.get("first"), args.get(0), c, dates) + ", "
                         + element(m.get("second"), args.get(1), c, dates) + ">";
             }
-            // a Map prints its entries as 'key=value' in braces, comma-joined: legend-pure's map's own text (its Java
-            // map's), the form every output wrote it in until now
-            case Map<?, ?> m when collection.equals("Map") -> {
-                List<String> args = typeArguments(type);
-                StringBuilder out = new StringBuilder("{");
-                for (Map.Entry<?, ?> e : m.entrySet()) {
-                    if (out.length() > 1) {
-                        out.append(", ");
-                    }
-                    out.append(element(e.getKey(), args.get(0), c, dates)).append('=')
-                            .append(element(e.getValue(), args.get(1), c, dates));
-                }
-                yield out.append('}').toString();
-            }
+            // a Map's text, the forms' (the audit's K13, 2026-11-17): the product's its JSON object, legend-pure's its
+            // entries as 'key=value' in braces (the edge's)
+            case Map<?, ?> m when collection.equals("Map") -> dates.structure(m, type, c);
             // a user class's instance prints its repository id, interpreted Pure's anonymous instance name (the
             // lowering's own rule, Scalars.pureToString: "@_" and the instance's identity)
             // an instance's text is refused in the product (register S314: objects are refused, pointing to graph
@@ -105,25 +107,15 @@ public final class CellText {
 
     /** A structure's element as Pure prints it inside its parent's text. A Pure collection holds no null, so a null
      *  element is a decode fault, refused by name rather than printed as some text. */
-    private static String element(@com.legend.base.Nullable Object v, String type, ExecutionPlan.Column c,
-            DateText dates) {
+    /** An element's text in a structure of column {@code c} (a null has none), under {@code dates}: the edge's
+     *  legend-pure form reads it. */
+    public static String element(@com.legend.base.Nullable Object v, String type, ExecutionPlan.Column c,
+            Forms dates) {
         if (v == null) {
             throw new IllegalArgumentException("column '" + c.name() + "' (" + c.type() + "): a null " + type
                     + " inside a structure has no Pure text");
         }
         return pure(v, type, c, dates);
-    }
-
-    private static String joined(List<?> l, String elementType, ExecutionPlan.Column c, String open, String close,
-            DateText dates) {
-        StringBuilder out = new StringBuilder(open);
-        for (int i = 0; i < l.size(); i++) {
-            if (i > 0) {
-                out.append(", ");
-            }
-            out.append(element(l.get(i), elementType, c, dates));
-        }
-        return out.append(close).toString();
     }
 
     /** The platform collection class a Pure type names ({@code List}, {@code Pair}, {@code Map}), else the empty
@@ -144,7 +136,7 @@ public final class CellText {
 
     /** The type arguments of a generic type's text, split at its top-level commas ({@code Pair<Pair<Integer, String>,
      *  Integer>} is {@code Pair<Integer, String>} and {@code Integer}). */
-    static List<String> typeArguments(String type) {
+    public static List<String> typeArguments(String type) {
         int lt = type.indexOf('<');
         if (lt < 0 || !type.endsWith(">")) {
             throw new IllegalArgumentException("'" + type + "' has no type arguments");
@@ -171,7 +163,7 @@ public final class CellText {
      *  by the rules of a cell of its own kind -- a float, a date, a time spelled as one is, never as the JSON library
      *  would spell a Java value: Pure's tokens (legend-engine's are the edge's, {@code edge.Presenter}). A nested
      *  value has no column of its own, so a date is its day where it has no time of day, else a timestamp's text. */
-    private static Json.Node structure(@com.legend.base.Nullable Object v, ExecutionPlan.Column c, DateText dates) {
+    private static Json.Node structure(@com.legend.base.Nullable Object v, ExecutionPlan.Column c, Forms dates) {
         return switch (v) {
             case null -> Json.nil();
             case Map<?, ?> m -> {
@@ -188,7 +180,7 @@ public final class CellText {
             case BigDecimal d -> token(d.toPlainString(), d);
             case Boolean b -> Json.bool(b);
             case String s -> Json.str(s);
-            case PureDateLiteral d -> Json.str(dates.text(d, "Date", c, true));
+            case PureDateLiteral d -> Json.str(dates.date(d, "Date", c, true));
             case PureTimeLiteral t -> Json.str(t.toEngineString());
             default -> throw refused(v, c, "Pure's JSON token");
         };
@@ -202,7 +194,7 @@ public final class CellText {
     }
 
     /** {@link #pureJson} with a date's text written by {@code dates} ({@link #pure}'s note). */
-    public static Json.Node pureJson(@com.legend.base.Nullable Object cell, ExecutionPlan.Column c, DateText dates) {
+    public static Json.Node pureJson(@com.legend.base.Nullable Object cell, ExecutionPlan.Column c, Forms dates) {
         if (cell == null) {
             return Json.nil();
         }
@@ -214,7 +206,7 @@ public final class CellText {
             case BigInteger b -> token(b.toString(), new BigDecimal(b));
             case Boolean b -> Json.bool(b);
             case String s -> Json.str(s);
-            case PureDateLiteral d -> Json.str(dates.text(d, c.type(), c, false));
+            case PureDateLiteral d -> Json.str(dates.date(d, c.type(), c, false));
             case PureTimeLiteral t -> Json.str(t.toEngineString());
             case Map<?, ?> m -> structure(declared(m), c, dates);
             case List<?> l -> structure(declared(l), c, dates);
@@ -365,17 +357,10 @@ public final class CellText {
 
     // ---- the rest -------------------------------------------------------------------------------------------------
 
-    /** A number written as {@code token}, its exact value {@code value} beside it. The JSON writer writes an integer
-     *  number's {@code long} and any other number's token, so a whole number past a {@code long} (a HUGEINT's
-     *  {@code 18446744073709551614}) is marked a non-integer and written by its token, never wrapped. */
-    public static Json.Num number(String token, BigDecimal value) {
-        return token(token, value);
-    }
-
+    /** A number written as {@code token}, its exact value beside it ({@link Json.Num#ofToken}: the JSON library's since
+     *  J36, 2026-11-18, where {@code number} stood public for the edge's Presenter alone). */
     private static Json.Num token(String token, BigDecimal value) {
-        boolean integral = token.chars().allMatch(ch -> ch == '-' || Character.isDigit(ch))
-                && value.toBigInteger().bitLength() < 64;
-        return new Json.Num(value.longValue(), value.doubleValue(), integral, value, token);
+        return Json.Num.ofToken(token, value);
     }
 
     private static IllegalArgumentException refused(Object cell, ExecutionPlan.Column c, String what) {

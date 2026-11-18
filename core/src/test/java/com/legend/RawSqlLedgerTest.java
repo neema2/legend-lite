@@ -36,7 +36,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  *       another dialect; adaptation is the boundary's charter).</li>
  *   <li>{@code rcorpus/Runner} seed replay — MIXED: corpus-authored
  *       setup statements AND Java-generated DDL
- *       ({@code Ddl.setUpDataSqlsText} output, which S4's loop spells
+ *       ({@code Ddl.setUpDataSqlsText} output -- {@code edge.EngineSeedText}'s since 2026-11-18, which S4's loop spells
  *       H2-style ON PURPOSE so the boundary can rewrite it). The
  *       Java-generated share is the F7.4 work item; when it lands this
  *       entry becomes corpus-only and the ledger does NOT shrink —

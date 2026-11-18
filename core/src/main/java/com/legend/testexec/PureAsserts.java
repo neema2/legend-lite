@@ -13,34 +13,13 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * THE PLATFORM ASSERT FAMILY (One-Platform Plan Phase 2a, Clause 2b —
- * legend-pure's assert files are the SPEC, this Java is the platform's
- * definition): {@code assertEquals} = {@code assert(equal(e, a), msg)};
- * {@code assertSameElements(e, a)} = {@code assertEquals(sort(e),
- * sort(a))}; {@code assertSize(c, n)} = {@code assertEq(n,
- * c->size())} — read from
- * {@code platform/pure/essential/tests/*.pure} verbatim. Failure
- * messages use the spec's own {@code toRepresentation} +
- * {@code joinStrings} forms.
- *
- * <p>TWO layers, deliberately separated in this one owner:
- * <ol>
- * <li><b>SPEC CORE</b> — pure {@code equal()} over wire values
- * (ordered collection equality; integral kinds normalize, Decimal by
- * {@code compareTo}: pure numeric equality is by VALUE within kind),
- * {@code toRepresentation}, the message formats.</li>
- * <li><b>ADJUDICATED WIRE POLICIES</b> (moved from the harness's
- * {@code wireEquals} at its deletion — the policies survive, the
- * private copy dies): the {@code TDSNull} sentinel (an expected
- * {@code 'TDSNull'} equals an actual NULL cell — never a genuine
- * payload); the 2-ULP dialect-arithmetic leniency (corpus float
- * expectations encode H2's libm; DuckDB differs in the last ULP —
- * DOUBLE-vs-DOUBLE only, exact kinds stay strict); the temporal
- * Any-carrier bridge (a mixed-collection literal's date decodes as its
- * JSON string — parse-and-compare, EXPECTED-string direction only: an
- * actual-side string where the engine returns a Date is a typing bug
- * this compare must catch, never bridge).</li>
- * </ol>
+ * THE PLATFORM ASSERT FAMILY'S DECISIONS (the platform's natives: assertEquals, assertSameElements, assertEq,
+ * assertInstanceOf, assertEqWithinTolerance -- lite's own, their semantics verified against legend-pure's assert
+ * files, never loaded from them): each decision is {@link Equality}'s under the run's {@link HostRules} (the plan's
+ * data), and this class writes no word. A failure's text is asked of the {@link PureWords} hook, which the
+ * compatibility edge alone implements (C5's step B, 2026-11-17); lite's own rules word through {@code LiteWords} and
+ * never reach the message methods here. Mapped: census J17 (2026-11-18), CompatSpellingGuardTest.WORDED_BY_HOOK --
+ * its only string literal is its refusal's.
  */
 public final class PureAsserts {
 
@@ -52,22 +31,12 @@ public final class PureAsserts {
     // failure message)
     // ================================================================
 
-    /** {@code assertEquals(expected:Any[*], actual:Any[*])}
-     * (assertEquals.pure:17): {@code assert(equal(e, a), msg)} with the
-     * spec's own message — {@code %r} single values, represented-and-
-     * joined collections. */
-    public static @com.legend.base.Nullable String assertEquals(
-            List<Object> expected, List<Object> actual, com.legend.testexecutionplan.TestPlan.JudgingRules rules,
-            PureWords words) {
-        return assertEquals(expected, actual, null, null, rules, words);
-    }
-
     /** The message for typed sides — the verdict's own cells, so the
      * narrative can never disagree with the decision. */
     public static @com.legend.base.Nullable String assertEqualsTyped(
-            List<Equality.Typed> expected, List<Equality.Typed> actual, com.legend.testexecutionplan.TestPlan.JudgingRules rules,
+            List<Equality.Typed> expected, List<Equality.Typed> actual, HostRules rules,
             PureWords words) {
-        if (Equality.ordered(expected, actual, rules) == null) {
+        if (Equality.ordered(expected, actual, rules)) {
             return null;
         }
         List<Object> e = new ArrayList<>();
@@ -77,26 +46,11 @@ public final class PureAsserts {
         return words.equals(e, a, null, null);
     }
 
-    /** With each side's STATIC class (the {@code instanceOf Type} half of an instance's representation -- the wire
-     *  map carries no type): a class's FQN, or a generic class's raw FQN (a {@code Pair<Integer, String>} is of its
-     *  raw class, as upstream's toRepresentation writes its {@code type()->elementToPath()}), read at planning; null
-     *  for any other type. */
-    public static @com.legend.base.Nullable String assertEquals(
-            List<Object> expected, List<Object> actual,
-            @com.legend.base.Nullable String expectedClass,
-            @com.legend.base.Nullable String actualClass, com.legend.testexecutionplan.TestPlan.JudgingRules rules,
-            PureWords words) {
-        if (equal(expected, actual, rules)) {
-            return null;
-        }
-        return words.equals(expected, actual, expectedClass, actualClass);
-    }
-
     /** {@code assertSameElements(expected, actual)}
      * (assertSameElements.pure:17): {@code assertEquals(e->sort(),
      * a->sort())} — the multiset rule IS sort-then-ordered-equal. */
     public static @com.legend.base.Nullable String assertSameElements(
-            List<Object> expected, List<Object> actual, com.legend.testexecutionplan.TestPlan.JudgingRules rules,
+            List<Object> expected, List<Object> actual, HostRules rules,
             PureWords words) {
         return assertSameElements(expected, actual, null, null, rules, words);
     }
@@ -106,7 +60,7 @@ public final class PureAsserts {
     public static @com.legend.base.Nullable String assertSameElements(List<Object> expected, List<Object> actual,
             @com.legend.base.Nullable String expectedClass,
             @com.legend.base.Nullable String actualClass,
-            com.legend.testexecutionplan.TestPlan.JudgingRules rules, PureWords words) {
+            HostRules rules, PureWords words) {
         if (equal(sorted(expected), sorted(actual), rules)) {
             return null;
         }
@@ -122,29 +76,9 @@ public final class PureAsserts {
         return words.sameElements(sorted(expected), sorted(actual), expectedClass, actualClass);
     }
 
-    /** {@code assertSize(collection, size)} (assertSize.pure:17). */
-    public static @com.legend.base.Nullable String assertSize(
-            List<Object> collection, long size, PureWords words) {
-        if (collection.size() == size) {
-            return null;
-        }
-        return words.size(size, collection.size());
-    }
-
-    /** {@code assertEqWithinTolerance(expected, actual, delta)}
-     * (assertEqWithinTolerance.pure): {@code abs(e - a) <= abs(delta)},
-     * message in the spec's {@code %r} form. EXACT kinds (Integer,
-     * Decimal) compare in EXACT arithmetic — the spec's subtraction is
-     * pure number math (P2-1, 2026-08-19 deep audit: the double
-     * round-trip silently widened the tolerance for high-precision
-     * Decimals); a floating side keeps double arithmetic, its values
-     * carry no more precision than that. */
-    public static @com.legend.base.Nullable String assertEqWithinTolerance(
-            Number expected, Number actual, Number delta, PureWords words) {
-        return withinTolerance(expected, actual, delta) ? null : words.pair(expected, null, actual, null);
-    }
-
-    /** {@code abs(e - a) <= abs(delta)}: the decision alone. */
+    /** assertEqWithinTolerance's {@code abs(e - a) <= abs(delta)}, the decision alone: EXACT kinds (Integer, Decimal)
+     *  in exact arithmetic (P2-1, 2026-08-19: the double round-trip widened the tolerance for high-precision
+     *  Decimals); a floating side in double arithmetic, its values carrying no more precision than that. */
     public static boolean withinTolerance(Number expected, Number actual, Number delta) {
         boolean held;
         if (isExact(expected) && isExact(actual) && isExact(delta)) {
@@ -176,7 +110,7 @@ public final class PureAsserts {
      * true where pure answers false). */
     public static @com.legend.base.Nullable String assertEq(
             @com.legend.base.Nullable Object expected,
-            @com.legend.base.Nullable Object actual, com.legend.testexecutionplan.TestPlan.JudgingRules rules,
+            @com.legend.base.Nullable Object actual, HostRules rules,
             PureWords words) {
         return eqHolds(expected, actual, rules) ? null
                 : words.pair(expected, wireType(expected), actual, wireType(actual));
@@ -184,7 +118,7 @@ public final class PureAsserts {
 
     /** {@code eq(e, a)}: the decision alone (identity for instances that carry one, loud for those that do not). */
     public static boolean eqHolds(@com.legend.base.Nullable Object expected, @com.legend.base.Nullable Object actual,
-            com.legend.testexecutionplan.TestPlan.JudgingRules rules) {
+            HostRules rules) {
         if (isNonPrimitive(expected) || isNonPrimitive(actual)) {
             // F13 — identity IS observable when both wires carry the
             // synthetic __id (keyless-class instance maps, minted per
@@ -285,13 +219,13 @@ public final class PureAsserts {
 
     /** {@code equal(e, a)}: the decision alone. */
     public static boolean holds(List<Object> left, List<Object> right,
-            com.legend.testexecutionplan.TestPlan.JudgingRules rules) {
+            HostRules rules) {
         return equal(left, right, rules);
     }
 
-    private static boolean equal(List<Object> left, List<Object> right, com.legend.testexecutionplan.TestPlan.JudgingRules rules) {
+    private static boolean equal(List<Object> left, List<Object> right, HostRules rules) {
         return Equality.ordered(Equality.Typed.all(left, null),
-                Equality.Typed.all(right, null), rules) == null;
+                Equality.Typed.all(right, null), rules);
     }
 
     private static boolean isIntegral(Object v) {

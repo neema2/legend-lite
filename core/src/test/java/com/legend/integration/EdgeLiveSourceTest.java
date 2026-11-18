@@ -46,8 +46,9 @@ class EdgeLiveSourceTest {
                         ? lf.body() : List.of(parsed);
         var resolved = Compiler.resolveQuery(statements, new com.legend.model.ImportScope(List.of()), ctx);
         com.legend.edge.RawLedger.Recorder recorder = new com.legend.edge.RawLedger.Recorder();
+        // the compatibility edge's run: its style and its hook together (census C1, 2026-11-17)
         ExecuteOptions options = ExecuteOptions.recording(new com.legend.edge.CompatEdge(recorder, DataStores.none()),
-                DataStores.none());
+                DataStores.none()).withStyle(com.legend.edge.PureText.UPSTREAM);
         try (Connection c = DataDeliveryMatrixTest.session(PLATFORM)) {
             Collector edged = new Collector();
             TestExecution.runProgram(Compiler.queryResolved(ctx, resolved), "x::RT",
@@ -59,7 +60,7 @@ class EdgeLiveSourceTest {
             // lite's own test door, on the same session, answers it
             Collector collector = new Collector();
             TestExecution.runProgram(Compiler.queryResolved(ctx, resolved), "x::RT",
-                    SessionSource.given(TestSessions.over(c)), (name, pass, detail) -> { }, com.legend.edge.AppealRun.with(null),
+                    SessionSource.given(TestSessions.over(c)), (name, pass, detail) -> { }, com.legend.testexec.NoEdgeRun.NONE,
                     new ExecuteOptions(com.legend.testexecutionplan.NoEdge.NONE, DataStores.none(), java.util.Set.of()), new Output.Rows(collector));
             assertEquals(DataDeliveryMatrixTest.ROWS, DataDeliveryMatrixTest.strings(collector));
         }

@@ -231,9 +231,7 @@ class Document(Paged):
         # deleted meanwhile (in DataCube's Open…): refused, as DataCube's Save is refused, never made again under its id
         # (the S7 audit's Y-8: Python made it again)
         self.assertEqual(engine.answer('DELETE', f'/api/pure/v1/query/dataCube/{first}', '', None).status, 204)
-        # lite's words, the product store's (the edge program's H6, 2026-11-17: a Python page saves through the native
-        # library's product entry; until then through the edge's, in legend-engine's "Can't find query with ID")
-        with self.assertRaisesRegex(ValueError, f"the page was not saved: no saved query has the ID '{first}'"):
+        with self.assertRaisesRegex(ValueError, f"the page was not saved: Can't find query with ID '{first}'"):
             page.save()
         # another page is another saved page; one with nothing on it is not saved, as DataCube's Save refuses it (B14)
         other = ll.Page('Other')

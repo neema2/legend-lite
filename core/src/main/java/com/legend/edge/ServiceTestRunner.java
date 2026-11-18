@@ -21,7 +21,6 @@ import com.legend.protocol.spec.CString;
 import com.legend.protocol.spec.LambdaFunction;
 import com.legend.protocol.spec.ValueSpecification;
 import com.legend.test.PureTestRunner;
-import com.legend.test.TestAssertions;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -70,7 +69,7 @@ import java.util.Map;
  *       ({@code {"builder":{"_type":"json"},"values":[...]}}, the engine's
  *       DEFAULT for a serialize root); a scalar or collection renders as
  *       its value(s); DEFAULT on a tabular result is SKIPPED, loudly;</li>
- *   <li><b>judgment</b>: {@code EqualToJson} through {@link TestAssertions}
+ *   <li><b>judgment</b>: {@code EqualToJson} through {@link EqualToJson}
  *       (null ≡ missing, unordered arrays, exact decimals). Other assertion
  *       kinds are SKIPPED, loudly — never a silent pass.</li>
  * </ul>
@@ -285,7 +284,10 @@ public final class ServiceTestRunner implements AutoCloseable {
                 // (the doors, 2026-10-29) -- what the service would serve, read back below as the tree the
                 // assertions compare
                 TestExecution.runProgram(Compiler.queryResolved(rt.ctx(), resolved), rt.runtimeFqn(),
-                        com.legend.exec.SessionSource.given(conn), null, AppealRun.with(null), com.legend.ExecuteOptions.NONE,
+                        // the product's style, heard by the product's hook (census C1, 2026-11-17: one choice per run --
+                        // the edge's hook here judged a lite run by compiled legend-pure's equality, a defect)
+                        com.legend.exec.SessionSource.given(conn), null, com.legend.testexec.NoEdgeRun.NONE,
+                        com.legend.ExecuteOptions.NONE,
                         new com.legend.result.Output.Rows(new ServiceAnswer(out, test.serializationFormat())));
             } catch (Skip s) {
                 throw s;
@@ -579,7 +581,7 @@ public final class ServiceTestRunner implements AutoCloseable {
                 } catch (RuntimeException e) {
                     yield "expected JSON does not parse: " + e.getMessage();
                 }
-                yield TestAssertions.equalToJson(expected, actual);
+                yield EqualToJson.diff(expected, actual);
             }
             case Protocol.PEqualToValue eq -> throw new Skip("assertion '" + a.id()
                     + "': EqualTo (a spec value) is not judged by this runner");

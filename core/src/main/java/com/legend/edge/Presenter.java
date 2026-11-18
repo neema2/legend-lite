@@ -84,9 +84,9 @@ public final class Presenter {
         }
         return switch (cell) {
             case Long l -> Json.num(l);
-            case BigInteger b -> CellText.number(b.toString(), new BigDecimal(b));
+            case BigInteger b -> Json.Num.ofToken(b.toString(), new BigDecimal(b));
             case Double d -> engineCell(d);
-            case BigDecimal d -> isFloat(c) ? engineCell(d.doubleValue()) : CellText.number(d.toPlainString(), d);
+            case BigDecimal d -> isFloat(c) ? engineCell(d.doubleValue()) : Json.Num.ofToken(d.toPlainString(), d);
             case Boolean b -> Json.bool(b);
             case String s -> Json.str(s);
             case PureDateLiteral d -> Json.str(engineDay(d, c) ? CellText.dayText(d) : engineJson(d));
@@ -133,10 +133,10 @@ public final class Presenter {
             case List<?> l -> new Json.Arr(l.stream().map(x -> structure(x, c)).toList());
             case Long n -> Json.num(n);
             case Integer n -> Json.num(n);
-            case BigInteger b -> CellText.number(b.toString(), new BigDecimal(b));
+            case BigInteger b -> Json.Num.ofToken(b.toString(), new BigDecimal(b));
             // a NaN or an infinite Float as its name, a string (register S119, pending the user's ruling)
             case Double d -> engineFloat(d);
-            case BigDecimal d -> CellText.number(d.toPlainString(), d);
+            case BigDecimal d -> Json.Num.ofToken(d.toPlainString(), d);
             case Boolean b -> Json.bool(b);
             case String s -> Json.str(s);
             case PureDateLiteral d -> Json.str(!d.precision().atLeast(PureDateLiteral.Precision.HOUR)
@@ -157,7 +157,7 @@ public final class Presenter {
      *  for, as its name in a string -- the form its JSON library gives a NESTED value (Jackson's
      *  {@code QUOTE_NON_NUMERIC_NUMBERS}; not measured). A relation's cell is {@link #engineCell}'s. */
     private static Json.Node engineFloat(double d) {
-        return Double.isFinite(d) ? CellText.number(Double.toString(d), BigDecimal.valueOf(d))
+        return Double.isFinite(d) ? Json.Num.ofToken(Double.toString(d), BigDecimal.valueOf(d))
                 : Json.str(Double.toString(d));
     }
 
@@ -200,7 +200,35 @@ public final class Presenter {
      *  column's winner at the precision its digits show, with {@code +0000} from a minute on; a relation's timestamp
      *  cell at nine fraction digits and {@code +0000}. Handed to a writer the edge's receiver makes (W8: a run is
      *  handed the receiver, never this text). */
-    public static final CellText.DateText LEGEND_PURE = Presenter::legendPure;
+    public static final CellText.Forms LEGEND_PURE = new CellText.Forms() {
+        @Override
+        public String date(PureDateLiteral d, String type, ExecutionPlan.Column c, boolean nested) {
+            return legendPure(d, type, c, nested);
+        }
+
+        /** legend-pure's text of a List (the prelude's List.toString(): its values' texts joined, joinStrings('[',
+         *  ', ', ']')) and of a Map (its entries as 'key=value' in braces, comma-joined: its Java map's text), moved here
+         *  from result.CellText (the audit's K13, 2026-11-17: the product writes each as its JSON). */
+        @Override
+        public String structure(Object value, String type, ExecutionPlan.Column c) {
+            java.util.List<String> args = CellText.typeArguments(type);
+            StringBuilder out = new StringBuilder();
+            if (value instanceof java.util.List<?> l) {
+                out.append('[');
+                for (int i = 0; i < l.size(); i++) {
+                    out.append(i == 0 ? "" : ", ").append(CellText.element(l.get(i), args.get(0), c, this));
+                }
+                return out.append(']').toString();
+            }
+            java.util.Map<?, ?> m = (java.util.Map<?, ?>) value;
+            out.append('{');
+            for (java.util.Map.Entry<?, ?> e : m.entrySet()) {
+                out.append(out.length() > 1 ? ", " : "").append(CellText.element(e.getKey(), args.get(0), c, this))
+                        .append('=').append(CellText.element(e.getValue(), args.get(1), c, this));
+            }
+            return out.append('}').toString();
+        }
+    };
 
     private static String legendPure(PureDateLiteral d, String type, ExecutionPlan.Column c, boolean nested) {
         if (nested) {

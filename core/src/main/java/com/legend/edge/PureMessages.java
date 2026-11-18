@@ -333,6 +333,26 @@ public final class PureMessages {
             // sentence alone (error.MissingParameters; the orchestrator, 2026-11-17)
             return "Missing external parameter(s): " + String.join(",", m.missing());
         }
+        if (e instanceof com.legend.error.InvalidParameters v) {
+            // legend-engine's text of a parameter value its parameter does not take (moved from the product's
+            // exec.PlanParameters, J8 of the edge audit, 2026-11-17): the problems in brackets, joined by "; "
+            return "Invalid provided parameter(s): [" + String.join("; ", v.problems()) + "]";
+        }
+        for (Throwable t = e; t != null; t = t.getCause()) {
+            if (t instanceof com.legend.base.DataSize.TooLarge big) {
+                return tooLarge(big);
+            }
+            if (t instanceof com.legend.testdatagen.TestDataPlanner.NoRowIdentifiers n) {
+                // legend-pure's assert, worded from the generator's facts (J7/K12 of the edge audit, 2026-11-17)
+                return noRowIdentifiers(n);
+            }
+            if (t instanceof com.legend.testdatagen.TestDataPlanner.RowIdentifiersRepeated r) {
+                // legend-pure's assert, worded from the generator's facts (J7 of the edge audit, 2026-11-18):
+                // getRowIdentifiersForTable, TDG:487 (getQualifiedTableName)
+                return "Multiple table row identifiers passed for the table: "
+                        + com.legend.testdatagen.TestDataPlanner.physical(r.schema(), r.table());
+            }
+        }
         // the kinded error itself, or the one a wrapper's message holds ("in function 'f': " + its message, and after
         // it the inliner's " [inlined via ...]": the P2 checkpoint audit's A-S1, 2026-11-16 -- spliced where it stands)
         for (Throwable t = e; t != null; t = t.getCause()) {
@@ -352,7 +372,7 @@ public final class PureMessages {
      *  {@code MissingParameters}, is the product's; the P2 checkpoint audit's M3/A-M4, 2026-11-16); any other error its
      *  own class's name. */
     public static String typeName(Throwable e) {
-        if (e instanceof com.legend.error.MissingParameters) {
+        if (e instanceof com.legend.error.MissingParameters || e instanceof com.legend.error.InvalidParameters) {
             return "IllegalArgumentException";
         }
         return uncaught(e) ? "IllegalStateException" : e.getClass().getSimpleName();
@@ -399,7 +419,61 @@ public final class PureMessages {
                     + " from how it is written (-(n) is n before the current row, any other n after it), and this frame"
                     + " then starts after where it ends: write the bound before the current row as -(n)"
                     + " (docs/SEMANTICS_REGISTER.md S170)";
+            // J10 of the edge audit, 2026-11-17: each the product's sentence until then, byte for byte
+            // MappingCompilerExtension (legend-engine)
+            case DUPLICATE_CLASS_MAPPING_IDS -> "Duplicated class mappings found with ID " + o.get(0) + " in mapping '"
+                    + o.get(1) + "'";
+            case DUPLICATE_MAPPING_INCLUDE -> "Duplicated mapping include '" + o.get(0) + "' in mapping '" + o.get(1)
+                    + "'";
+            // CompileContext.resolveStore (legend-engine)
+            case MISSING_STORE -> "The store '" + o.get(0) + "' can't be found.";
+            // PureModelBuilder (legend-engine)
+            case DUPLICATE_ELEMENT -> "Duplicated element '" + o.get(0) + "'";
+            // legend-engine's class and enumeration compilation
+            case DUPLICATE_PROPERTY -> "Found duplicated property '" + o.get(0) + "' in class '" + o.get(1) + "'";
+            case DUPLICATE_ENUM_VALUE -> "Found duplicated value '" + o.get(0) + "' in enumeration '" + o.get(1) + "'";
+            // legend-pure's PropertyValidator
+            case DEFAULT_ON_OPTIONAL -> "Default values are supported only for mandatory fields, and property '"
+                    + o.get(0) + "' is optional.";
+            // legend-engine's "can't be found" form of a store reference, lite's condition named after it
+            case MISSING_STORE_COLUMN -> "The column '" + o.get(0) + "' can't be found in the " + o.get(1) + " '"
+                    + o.get(2) + "' (" + o.get(3) + " of database '" + o.get(4) + "')";
+            case MISSING_STORE_TABLE -> "The table '" + o.get(0) + "' can't be found in the database '" + o.get(1)
+                    + "' (" + o.get(2) + ")";
         };
         return c.position() == null ? upstream : c.position() + " " + upstream;
+    }
+
+    /** legend-pure's sentence of a load's file larger than the load admits (J25 of the edge audit, 2026-11-17: moved
+     *  from base.DataSize, whose refusal is the product's kind and facts): {@code CsvReader.readCsv}'s inner message, the
+     *  text's length in megabytes against the limit, wrapped by its outer "Unable to read the CSV file" (read 2026-11-09
+     *  at 5.99.0; the inner exception carries no source information, so "Execution error at ??, " and the info quoted:
+     *  legend-pure's PureException.printMessage; the M1 correctness audit's C4, 2026-11-09). */
+    static String tooLarge(com.legend.base.DataSize.TooLarge big) {
+        return "Unable to read the CSV file '" + big.path() + "' Execution error at ??, \"File is too large, file was "
+                + String.format(java.util.Locale.ROOT, "%.2f", big.characters() * 1.0 / (1024 * 1024L)) + " Mb, limit is "
+                + big.limitMegabytes() + " Mb\"";
+    }
+
+    /** legend-pure's sentence of a test-data generation's starting table no identifier names (J7/K12 of the edge audit,
+     *  2026-11-17: moved from testdatagen.TestDataPlanner, whose refusal is the product's kind and facts): its
+     *  {@code getRowIdentifiersForTable} assert (TDG:482-518; a view's, TDG:510, :558) -- {@link #unidentified}, then
+     *  {@code Example:\n} and the table's first 5 keys written as {@code createTableRowIdentifiers(...)} code. Planning
+     *  reads no row, so the example's list is empty (the user's ruling R3, 2026-11-11; register S300). */
+    static String noRowIdentifiers(com.legend.testdatagen.TestDataPlanner.NoRowIdentifiers n) {
+        return unidentified(n) + "Example:\n"
+                + "  meta::relational::testDataGeneration::createTableRowIdentifiers(" + n.database() + ", '"
+                + n.schema() + "', '" + n.table() + "', [\n\n  ])\n";
+    }
+
+    /** Upstream's no-identifiers text up to its example, the function's and the server routes' error node's
+     *  (J7/K12 of the edge audit, 2026-11-17): {@code Row Identifers should be provided for the root table[ of the view
+     *  (V)]: <db>.<[schema.]table> [<key>:<type>,...]\n}. */
+    static String unidentified(com.legend.testdatagen.TestDataPlanner.NoRowIdentifiers n) {
+        String keys = n.keys().stream().map(c -> c.name() + ":" + PlanText.spell(c.dataType()))
+                .collect(java.util.stream.Collectors.joining(","));
+        return "Row Identifers should be provided for the root table" + (n.view() == null ? "" : " of the view ("
+                + n.view() + ")") + ": " + n.database() + "."
+                + com.legend.testdatagen.TestDataPlanner.physical(n.schema(), n.table()) + " [" + keys + "]\n";
     }
 }

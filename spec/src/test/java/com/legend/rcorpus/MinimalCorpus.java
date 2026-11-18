@@ -520,7 +520,8 @@ public final class MinimalCorpus {
      *  closes the workspace, as the backend's connection did. */
     private static com.legend.exec.Sessions.Session openWorkspace() {
         try {
-            return com.legend.testbackend.TestSessions.owning(BACKEND.openWorkspace());
+            // the corpus runs on the edge's database (the audit's J22, 2026-11-17)
+            return com.legend.testbackend.TestSessions.owning(BACKEND.openWorkspace(com.legend.edge.PureText.UPSTREAM));
         } catch (SQLException e) {
             throw new com.legend.error.DataError(String.valueOf(e.getMessage()), e);
         }
@@ -600,9 +601,8 @@ public final class MinimalCorpus {
             com.legend.executionplan.DataStores stores = com.legend.executionplan.DataStores.resources(
                     Corpus.RELATIONAL.getParent().getParent());
             return com.legend.ExecuteOptions.recording(new com.legend.edge.CompatEdge(recorder, stores), stores)
-                    // backwards-compatibility mode: the judges' leniencies that meet legend-engine's goldens (the user,
-                    // 2026-11-04: lite's own runs exact, PCT and the corpus in compat mode)
-                    .withEngineCompat(true)
+                    // backwards-compatibility mode, the judges' leniencies that meet legend-engine's goldens: the
+                    // rules the CompatEdge names (census C1, 2026-11-17: Edge.rules(), the edge's CompatRules)
                     // legend-engine's texts, spelled by the edge (phase D's D1.0)
                     .withStyle(com.legend.edge.PureText.UPSTREAM);
         }
