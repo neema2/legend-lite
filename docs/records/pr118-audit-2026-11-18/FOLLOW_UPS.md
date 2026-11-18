@@ -82,3 +82,53 @@ if engine is right default or pure is".
 
 Still pending the user: (e') ENGINE's scope (recommended E-R1), (d') per-push CI additions (recommended yes), and
 (N3 was ruled by the user at ~21:40 UTC: "N3 okay".)
+
+## 7. The fix batch's own audit, and the user's rulings on it (2026-11-18, ~22:10-22:45 UTC)
+
+Three independent xhigh reviewers audited the whole fix batch (68f20eb4d..eec3c95c7, 26 commits, 71 files); their
+reports are in `fix-batch/`. Verdicts: JUDGES-WORDS SOUND-WITH-DEBT, PRODUCT-HOSTS SOUND-WITH-DEBT, BUILD-GUARDS one
+blocker (BUILD-GUARDS-1, the new `//datacube:dist_imports_test` assumes `/` separators and would turn the Windows
+DataCube lane red), fixed in the batch's last correction round.
+
+The user's rulings:
+
+| Ruling | What | Where it lands |
+|---|---|---|
+| R9 | N2 held two `JavaEvalLedgerTest` pins by joining lines; wrap them honestly and raise DatabaseJudge 851 -> 852 and AssertVerdicts 1464 -> 1465, dated ("Yes, raise both"; "Raise cap honestly") | PR #118, the last correction round |
+| R10 | The six other in-body guards' LITE default words (assertTrue, assertFalse, assertEquals, assertNotEquals, assertEmpty, assertNotEmpty still answer legend-pure's "Assert failed"): after the merge ("After the merge"), as part of the presentation follow-up | presentation program |
+| R11 | The two items where PR #118's own claims are not quite true go after the merge, "if [they] can be part of our presentation followup": (a) PH-2 / PRODUCT-1 / HOSTS-9, the product store's legend-engine statuses and its `"IllegalArgumentException"` text (0 -> 2 in the fix batch), with four host copies of the rule; (b) HOSTS-7, two undeclared doors to legend-engine's routes (`EdgeServer.main` in the server jar; Python's direct `EngineRoutes()` composition) | (a) presentation program (error presentation toward legend-engine); (b) the first small follow-up PR (Q8/Q9), being about 10 lines and not presentation |
+
+The fix batch's other findings (all FIX-AFTER or NOTE): PH-1 (a malformed percent-escape is 500 on every host's lite
+store route); PH-6 (`trustOne` and 35 other internal natives still resolve by full name); the Float print outside
+FloatShortestText's windows (2^60, Infinity, -0.0; beside Q4); a Decimal-declared NaN or Infinity throwing
+NumberFormatException in Equality's DECIMAL branch (suspected); F4's test covering one numeric pairing; the census
+no longer seeing LiteText's REGEXP_REPLACE after the strip moved to LiteralSpelling.
+
+## 8. The P0 list after the merge (the orchestrator's estimate, 2026-11-18 ~22:30 UTC, given to the user)
+
+What makes an item P0: a wrong answer a user can get today; a goal of record broken; a cost that grows every day it
+waits; or a gap in the safety net that lets a regression land unseen.
+
+| P0 | Item | Why |
+|---|---|---|
+| A1 | Q8, Integer over `DECIMAL(10,0)` refused at decode | a common schema shape fails |
+| A2 | Q9, Python's lite API answers every run failure 500 | Python's errors differ from Java's |
+| A3 | Q1, Float literals as exact decimals; Decimal scale lost or overflowing (BigQuery, Snowflake, Databricks, Trino, ClickHouse) | wrong values on five databases |
+| A4 | Q2, the warehouse JDBC client refuses every bound parameter | any parameterized warehouse query fails; its lane is manual |
+| A5 | judge parity: Q3b (MySQL Decimal scale), Q3 (MariaDB list order, also G10), J1-J4 | a verdict depends on the judge (G2) |
+| A6 | J7 / JUDGES-4 (about 14 broad catches turn a bug into a "planned raise"); JUDGES-8 (`negatedOf` reads a declined judgment as held) | bugs reported as user errors (invariant 4) |
+| A7 | HOSTS-2, TypeScript `transacted` commits outside its `try` | a failed COMMIT leaves the session aborted |
+| A8 | Q4, SQLite's Float past 2^63 | a wrong value, narrow |
+| B1 | the presentation untangle, the plan format first (PRODUCT-4's sentences in the plan; PRODUCT-13's four silent codec changes: v59), then D1/EDGE-4, ARCH-2/-3, J5, PRODUCT-10, R10, R11(a), Q5-Q7, R5 | must precede plan export |
+| B2 | a census that can see: GUARDS-1, -3, -4, COMPLETENESS-10, HOSTS-8 | until then any change can add hidden upstream meaning; the only way to the real count |
+| B3 | the separation close-out: of the 16 known open items, those B1 and R11(b) do not take (C1, C2, C3's TypeScript and Python halves, HOSTS-4, LOWERSQL-7, COMPLETENESS-7, -8, PRODUCT-7, -11, JUDGES-3, -6), plus whatever B2 finds | the program's goal |
+| B4 | the user's ruling R4 (LITE's substring and indexOf) | B1 and the three modes build on it |
+| C1 | the edge golden net in CI; its 16-digit mask; row order (G4, GUARDS-5, -6, -7) | the edge's bytes unguarded per push |
+| C2 | manual lanes in no per-push run (the warehouse lane hid Q2); the per-push CI additions (d') | red stays hidden |
+| C3 | the goals document's claim that "BOTH on every lane" guards G2 (G6) | a guard claimed that does not exist |
+
+Not P0: cosmetics, duplication and dead code (EDGE-7, -9, -11, GUARDS-13, LOWERSQL-8, JUDGES-10, the copied judging
+code, PureText's 263 duplicated lines), PH-1, PH-6, ARCH-9 (corpus only).
+
+The order: A1 + A2 + R11(b) as one small PR (days 0-1) beside C1-C3; then three tracks in parallel: B1, B2 -> B3, and
+A3-A8; R4 early in B1.
