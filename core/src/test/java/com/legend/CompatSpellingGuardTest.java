@@ -132,27 +132,13 @@ class CompatSpellingGuardTest {
      * SHRINK-ONLY: a row falls or goes as its step lands; a row rises or is added only with a dated justification.
      */
     static final List<String> REGISTER = List.of(
-            // census J29 (2026-11-18): legend-pure's assert sentences the database judge's planning still writes, and
-            // the condition assert's ("Assert failed") planned beside it -- each row goes with J29's planning half
+            // census J29 (2026-11-18): the legend-pure assert texts left in the product -- the condition assert's
+            // "Assert failed" as two compiler classes plan it (J33's, F), and an UNJUDGED row's evidence, which frames
+            // its two canons '\nexpected: ... \nactual:   ...' for a diagnosis (no assert's failure words)
             "compiler/spec/LambdaBodies.java | Assert failed | 1 | J29",
             "compiler/spec/VerdictQueries.java | Assert failed | 1 | J29",
-            "lowering/VerdictSql.java |  does not contain  | 2 | J29",
-            "lowering/VerdictSql.java | Execution error column mismatch | 1 | J29",
-            "lowering/VerdictSql.java | Execution error line mismatch | 1 | J29",
-            "lowering/VerdictSql.java | Execution error message mismatch | 1 | J29",
-            "lowering/VerdictSql.java | Expected non-empty collection | 1 | J29",
-            "lowering/VerdictSql.java | No error was thrown | 1 | J29",
-            "lowering/VerdictSql.java | Should not be identical to | 1 | J29",
-            "lowering/VerdictSql.java | \\nactual:    | 2 | J29",
-            "lowering/VerdictSql.java | \\nexpected:  | 2 | J29",
-            "lowering/VerdictSql.java | is not equivalent to | 1 | J29",
-            "lowering/VerdictSql.java | should not equal | 2 | J29",
             "testexec/DatabaseVerdicts.java | \\nactual:    | 1 | J29",
             "testexec/DatabaseVerdicts.java | \\nexpected:  | 1 | J29",
-            "testplan/AssertVerdicts.java | Assert failed | 1 | J29",
-            "testplan/AssertVerdicts.java | \\nactual:    | 1 | J29",
-            "testplan/AssertVerdicts.java | \\nexpected:  | 1 | J29",
-            "testplan/DatabaseJudge.java | Assert failed | 1 | J29",
             // D1.6's compile messages, gone 2026-11-16 (W7 of docs/records/d-plan-2026-11-16.md): ModelIntegrity,
             // TypeClassifier, TableReferenceChecker and the normalizer's "Can't find" raise a CompileKind, worded by the
             // product (CompileKind.sentence) and, for upstream's clients, by the edge (PureMessages.compile)

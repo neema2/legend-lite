@@ -495,7 +495,7 @@ public final class AssertVerdicts {
             if (read != null && batch != null && batch.active()) {
                 // a message that READS: the batch sends its row at the assert's place only where the assert fails
                 // (upstream evaluates it only there), the verdict row failing with the family's own text until then
-                batch.message(com.legend.lowering.VerdictSql.messageRow(read, fn.bareName()), message.on());
+                batch.message(com.legend.lowering.VerdictSql.messageRow(read, fn.bareName(), DatabaseJudge.words(env)), message.on());
             } else {
                 env = env.withFailureMessage(message.message());
             }
@@ -666,7 +666,7 @@ public final class AssertVerdicts {
                 if (args.size() != 2) {
                     yield null;
                 }
-                TypedSide isv = isVerdict(args.get(0), args.get(1));
+                TypedSide isv = isVerdict(args.get(0), args.get(1), DatabaseJudge.words(env));
                 if (isv != null) {
                     arm.staticallyDecided(name);
                     yield isv;
@@ -1015,7 +1015,7 @@ public final class AssertVerdicts {
                 // statically identified operands: decided with no side (the verdict, or its failure, at the
                 // assert's turn)
                 yield staticallyIdentified(left, right) ? new HostSides.Check(List.of(),
-                        java.util.Objects.requireNonNull(isDecided(left, right), "statically identified operands"))
+                        java.util.Objects.requireNonNull(isDecided(left, right, DatabaseJudge.words(env)), "statically identified"))
                         // two primitive values: is() is compiled pure's `left == right`, their values (as assertEq)
                         : primitivePair(left, right) ? HostJudge.planEq(args, letPrefix, env, hook)
                         : HostJudge.planIs(name, args, specs, hook);
@@ -1101,19 +1101,19 @@ public final class AssertVerdicts {
      * {@code is}'s missing SQL rule — a wire carries values, never
      * reference identity (the eq/equalNonPrimitive irreducible ruling). */
     static @com.legend.base.Nullable TypedSide isVerdict(
-            TypedSpec left, TypedSpec right) {
-        HostJudgment.Decided d = isDecided(left, right);
+            TypedSpec left, TypedSpec right, com.legend.lowering.VerdictWords words) {
+        HostJudgment.Decided d = isDecided(left, right, words);
         return d == null ? null : com.legend.testexecutionplan.Verdicts.decided(d);
     }
 
     /** {@link #isVerdict} as data (M8a): the verdict decided at planning with no side -- held, or its failure's
      *  message -- or null where the operands are not statically identified. */
-    static HostJudgment.@com.legend.base.Nullable Decided isDecided(TypedSpec left, TypedSpec right) {
+    static HostJudgment.@com.legend.base.Nullable Decided isDecided(TypedSpec left, TypedSpec right, com.legend.lowering.VerdictWords words) {
         String lt = typeIdentityOf(left);
         String rt = typeIdentityOf(right);
         if (lt != null && rt != null) {
             return lt.equals(rt) ? new HostJudgment.Decided(true, null)
-                    : new HostJudgment.Decided(false, "\nexpected: " + lt + "\nactual:   " + rt);
+                    : new HostJudgment.Decided(false, words.valuesDiffer(lt, rt));
         }
         TypedSpec l = instanceOrigin(left);
         TypedSpec r = instanceOrigin(right);
@@ -1482,8 +1482,7 @@ public final class AssertVerdicts {
     /** A condition's failure text with no message of the caller's: lite's sentence ("expected true, got false") under
      *  lite's own rules, legend-pure's "Assert failed" under the compatibility rules -- both judges read it. */
     static String defaultConditionMessage(boolean wantTrue, BodyDriver.ExecEnv env) {
-        return DatabaseJudge.lite(env) ? com.legend.lowering.VerdictSql.sentence(wantTrue
-                ? com.legend.error.AssertSentence.TRUE : com.legend.error.AssertSentence.FALSE) : "Assert failed";
+        return DatabaseJudge.words(env).conditionFailed(wantTrue);
     }
 
     /** The unroll's elements as ONE host assert under the statement's name and no family: every element's asks in

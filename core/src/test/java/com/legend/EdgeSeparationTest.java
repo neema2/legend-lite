@@ -279,7 +279,14 @@ class EdgeSeparationTest {
      *  ways with the register ({@link #everyOpenCompatRowIsCounted}). */
     static final Map<String, String> CSG_OPEN = Map.ofEntries(
             // B9 -> C5 (E-P5) 2026-11-17: the judges' canon's alone (LiteralSpelling.temporalCanon)
-            Map.entry("sql/dialect/DateTimePrintText.java | +0000", "B12 2026-11-17 (format %r arm, LiteralSpelling.temporalCanon's gone by C5 step C)")
+            Map.entry("sql/dialect/DateTimePrintText.java | +0000", "B12 2026-11-17 (format %r arm, LiteralSpelling.temporalCanon's gone by C5 step C)"),
+            // census J29 (2026-11-18, E-Java): the legend-pure assert texts the spelling guard lists since J29 and the
+            // product still holds -- the condition assert's default "Assert failed" planned by two compiler classes
+            // (VerdictQueries is J33's, F), and an UNJUDGED row's evidence frame (a diagnosis, no assert's words)
+            Map.entry("compiler/spec/LambdaBodies.java | Assert failed", "J29 2026-11-18 (assert's default message)"),
+            Map.entry("compiler/spec/VerdictQueries.java | Assert failed", "J29 2026-11-18 (J33's, F)"),
+            Map.entry("testexec/DatabaseVerdicts.java | \\nactual:", "J29 2026-11-18 (an unjudged row's evidence)"),
+            Map.entry("testexec/DatabaseVerdicts.java | \\nexpected:", "J29 2026-11-18 (an unjudged row's evidence)")
             // B11 -> C5 2026-11-17 (the orchestrator's ruling): the judges' canon (temporalCanon x2, dateTimeLiteralAt via
             // CanonicalRenderSql), closed by C5's step C (E-SQL's)
             // lowering/Repr.java | Repr, lowering/Scalars.java | Repr: gone 2026-11-17, census B12's 2b (Repr deleted)
@@ -312,7 +319,9 @@ class EdgeSeparationTest {
             // C1 closed 2026-11-17 (E-Java): the judges' behaviours the style's and the run hook's, the judging rules
             // data, the compatibility preset the edge's CompatRules
             // C5 closed 2026-11-17 (its last line, CanonicalForm's +0000, E-Java's)
-            "B12");
+            // J29 opened 2026-11-18 (E-Java): legend-pure's assert sentences, listed by the spelling guard that day; the
+            // judges' words moved to the edge's EdgeHostWords and UpstreamVerdictWords, the rows above left
+            "B12", "J29");
 
     private static Set<String> linesOf(Map<String, String> m) {
         Set<String> out = new TreeSet<>();

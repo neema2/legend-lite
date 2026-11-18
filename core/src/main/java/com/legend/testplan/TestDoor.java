@@ -157,7 +157,8 @@ public final class TestDoor {
         // the C5-J audit's SHOULD 1: the record the test door's facts state, TestPlanner.plan)
         TestPlan plan = new TestPlan(program.parameters(), steps, asserts.judge(), byStep, Map.of(), answersLastVerdict,
                 PlanMaker.testSessionTarget(body.context(), runtime, style), facts, null,
-                style.twoForm(FailureWords.class, LiteFailureWords.LITE).words());
+                style.twoForm(com.legend.lowering.VerdictWords.class,
+                        com.legend.lowering.LiteVerdictWords.INSTANCE).name());
         return plan.withAnswerSizeWords(answerSizeWords(plan, style));
     }
 

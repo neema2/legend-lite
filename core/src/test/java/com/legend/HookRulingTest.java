@@ -224,8 +224,9 @@ class HookRulingTest {
                 com.legend.planner.RoutedQueries.class,
                 // LoweringForms (the audit's K5, 2026-11-17: the lowering's two-form choices, a raise, a view, a wire cast)
                 com.legend.lowering.LoweringForms.class,
-                // FailureWords (census C1, 2026-11-17: whose words the database judge plans a failure in)
-                com.legend.testplan.FailureWords.class),
+                // VerdictWords (census J29, 2026-11-18: the database judge's words of a failure; census C1's
+                // FailureWords, which named whose words they were by a flag, went with it)
+                com.legend.lowering.VerdictWords.class),
                 com.legend.testplan.PlanStyleFacets.TWO_FORMS,
                 "the two-form kinds, an exact set: a kind is added here with its family and its dated reason");
         com.legend.planner.RoutedQueries noRouting = (chain, ctx, specs) -> null;
@@ -303,12 +304,18 @@ class HookRulingTest {
         assertTrue(edgeForms != com.legend.lowering.LoweringForms.PRODUCT
                 && edgeForms.getClass().getPackageName().equals("com.legend.edge"),
                 "the edge answers its own lowering forms: " + edgeForms.getClass());
-        assertEquals(com.legend.testexecutionplan.TestPlan.LITE_WORDS, PlanStyle.PRODUCT.twoForm(
-                com.legend.testplan.FailureWords.class, com.legend.testplan.LiteFailureWords.LITE).words(),
+        assertTrue(PlanStyle.PRODUCT.twoForm(com.legend.lowering.VerdictWords.class,
+                com.legend.lowering.LiteVerdictWords.INSTANCE) == com.legend.lowering.LiteVerdictWords.INSTANCE,
                 "the product plans lite's words");
-        assertEquals(com.legend.edge.EdgeHostWords.NAME, com.legend.edge.PureText.UPSTREAM.twoForm(
-                com.legend.testplan.FailureWords.class, com.legend.testplan.LiteFailureWords.LITE).words(),
-                "the edge plans legend-pure's");
+        assertEquals(com.legend.testexecutionplan.TestPlan.LITE_WORDS, com.legend.lowering.LiteVerdictWords.NAME,
+                "lite's words carry one name in the plan");
+        Object edgeWords = com.legend.edge.PureText.UPSTREAM.twoForm(com.legend.lowering.VerdictWords.class,
+                com.legend.lowering.LiteVerdictWords.INSTANCE);
+        assertTrue(edgeWords != com.legend.lowering.LiteVerdictWords.INSTANCE
+                && edgeWords.getClass().getPackageName().equals("com.legend.edge"),
+                "the edge plans legend-pure's words: " + edgeWords.getClass());
+        assertEquals(com.legend.edge.EdgeHostWords.NAME, ((com.legend.lowering.VerdictWords) edgeWords).name(),
+                "the planning and run words of the edge carry one name");
         Runnable productForm = () -> { };
         assertTrue(PlanStyle.PRODUCT.twoForm(Runnable.class, productForm) == productForm,
                 "the product answers the caller's own form");
