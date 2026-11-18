@@ -17,6 +17,8 @@ public final class PlantedEdgeOnlyCaller {
         PlantedEdgeOnlyApi a = new PlantedEdgeOnlyApi("x");
         return java.util.List.of(PlantedEdgeOnlyApi.edgeOnly(), PlantedEdgeOnlyApi.shared(), a.edgeField, a.toString(),
                 PlantedEdgeOnlyApi.EDGE_CONSTANT, new PlantedEdgeOnlyApi.Hooked().hooked(),
-                PlantedEdgeOnlyApi.Hooked.also());
+                PlantedEdgeOnlyApi.Hooked.also(), PlantedEdgeOnlyApi.countdown(3), PlantedEdgeOnlyApi.Kind.values(),
+                PlantedEdgeOnlyApi.viaDead(), PlantedEdgeOnlyApi.viaMain(),
+                PlantedEdgeOnlyApi.viaPublicDead());
     }
 }
