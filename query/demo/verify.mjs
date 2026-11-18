@@ -40,7 +40,7 @@ const SHOTS = process.env.TEST_UNDECLARED_OUTPUTS_DIR ?? store;
 
 // ---- legend-lite's server, for the server mode
 // port 0: the server picks a free port and prints it, so no two runs (or shards) collide
-const engine = spawn(SERVER, ['0', '--query-store', store], {
+const engine = spawn(SERVER, ['0', '--query-store', store, '--engine', 'legend-engine'], {
   env: { ...process.env, RUNFILES_DIR: RUNFILES, JAVA_RUNFILES: RUNFILES },
   stdio: ['ignore', 'pipe', 'pipe'],
 });

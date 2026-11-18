@@ -27,7 +27,7 @@ const root = process.env.JS_BINARY__EXECROOT ?? process.cwd();
 const at = (p) => resolve(root, p);
 
 // the server on a port the system picks; it says which
-const server = spawn(at(opts.java), ['-jar', at(opts.serverJar), '0', '--query-store', at(opts.store)],
+const server = spawn(at(opts.java), ['-jar', at(opts.serverJar), '0', '--query-store', at(opts.store), '--engine', 'legend-engine'],
   { stdio: ['ignore', 'pipe', 'inherit'] });
 const port = await new Promise((done, fail) => {
   let seen = '';

@@ -22,8 +22,9 @@ import java.util.regex.Pattern;
  * 
  * Uses Java's built-in com.sun.net.httpserver - no external dependencies.
  * 
- * Endpoints (lite's own; phase D's D1.0b, 2026-11-12: legend-engine's routes are the edge's, mounted by the
- * shipped binary's root, {@code com.legend.edge.EdgeServer}, as a {@link Mount}):
+ * Endpoints (lite's own; phase D's D1.0b, 2026-11-12: legend-engine's routes are the edge's, a {@link Mount} the
+ * shipped server mounts only when configured -- {@code --engine legend-engine}, a {@link MountProvider} found by
+ * ServiceLoader; K2's server half, the user's ruling of 2026-11-18: "Product root, edge opt-in"):
  * - POST /lsp - Handle LSP JSON-RPC messages (diagnostics, completions, etc.)
  * - POST /api/lite/v1/... - lite's own API ({@link LiteV1Api}: every compile error, the model routes)
  * - /api/lite/v1/query - the saved queries and DataCube's saved pages ({@link SavedQueries}, {@link SavedCubes})
@@ -449,14 +450,17 @@ public class LegendHttpServer {
 
     /** The server's command line, its {@code --help}. */
     static final String USAGE = """
-            legend-lite server: [PORT] [--query-store DIR] [--sources DIR]... [--help]
+            legend-lite server: [PORT] [--query-store DIR] [--sources DIR]... [--engine NAME] [--help]
               PORT                the port to listen on (or $PORT; 8080 by default)
               --query-store DIR   the saved queries' directory (DataCube's saved pages in DIR/dataCube)
               --sources DIR       a folder a model's file: sources may read, repeatable (or $LEGEND_LITE_SOURCE_DIRS,
                                   folders separated by the path separator); 'any' reads every file. With none given the
                                   server reads no file: source: each is refused by name
+              --engine NAME       mount the module NAME beside lite's own API (or $LEGEND_LITE_ENGINE): legend-engine
+                                  serves legend-engine's /api/pure/v1; none by default, an unknown name refused
             Environment: LEGEND_LITE_BIND (the listen address, loopback by default), LEGEND_LITE_ALLOWED_ORIGINS (the
-            pages beside loopback that may call it), LEGEND_LITE_SOURCE_DIRS (as --sources).""";
+            pages beside loopback that may call it), LEGEND_LITE_SOURCE_DIRS (as --sources), LEGEND_LITE_ENGINE (as
+            --engine).""";
 
     /**
      * The folders a model's {@code file:} sources may read, from the server's startup settings (the user's ruling of
@@ -505,9 +509,52 @@ public class LegendHttpServer {
         return server.getAddress().getPort();
     }
 
-    /** Lite's own server, started as {@link #serve} starts one with no module mounted ({@link #LITE}). */
+    /** THE SHIPPED SERVER'S ROOT (K2's server half, the user's ruling of 2026-11-18: "Product root, edge opt-in"): lite's
+     *  own server, started as {@link #serve} starts one, mounting beside lite's routes only the module its configuration
+     *  names ({@link #configured}): none by default. */
     public static void main(String[] args) throws IOException {
-        serve(args, LITE);
+        Mount mount;
+        try {
+            mount = configured(engineOf(args, System.getenv("LEGEND_LITE_ENGINE")));
+        } catch (IllegalArgumentException refused) {
+            // an engine no module answers: refused by name, the server not started
+            System.err.println("ERROR: " + refused.getMessage());
+            System.exit(2);
+            return;
+        }
+        serve(args, mount);
+    }
+
+    /** The engine the startup settings name: {@code --engine NAME} of {@code args}, else {@code env}
+     *  ({@code LEGEND_LITE_ENGINE}), else none. */
+    static @com.legend.base.Nullable String engineOf(String[] args, @com.legend.base.Nullable String env) {
+        for (int i = 0; i < args.length; i++) {
+            if ("--engine".equals(args[i])) {
+                if (i + 1 >= args.length) {
+                    throw new IllegalArgumentException("--engine names no engine");
+                }
+                return args[i + 1];
+            }
+        }
+        return env == null || env.strip().isEmpty() ? null : env.strip();
+    }
+
+    /** The module {@code engine} names: none ({@link #LITE}) where it names none; else the {@link MountProvider} on the
+     *  class path whose {@link MountProvider#engine} it is, found by {@link java.util.ServiceLoader} -- the product
+     *  names no module of its own -- an engine none answers refused by name, never served without it. */
+    public static Mount configured(@com.legend.base.Nullable String engine) {
+        if (engine == null) {
+            return LITE;
+        }
+        List<String> known = new java.util.ArrayList<>();
+        for (MountProvider p : java.util.ServiceLoader.load(MountProvider.class)) {
+            if (p.engine().equals(engine)) {
+                return p.mount();
+            }
+            known.add(p.engine());
+        }
+        throw new IllegalArgumentException("no module answers the engine '" + engine + "' (--engine, LEGEND_LITE_ENGINE);"
+                + " this server carries " + (known.isEmpty() ? "none" : String.join(", ", known)));
     }
 
     /** A server started from the command line's {@code args} and the environment (the port, {@code --query-store DIR},
@@ -534,6 +581,8 @@ public class LegendHttpServer {
             }
             if ("--query-store".equals(args[i]) && i + 1 < args.length) {
                 queryStore = java.nio.file.Path.of(args[++i]);
+            } else if ("--engine".equals(args[i]) && i + 1 < args.length) {
+                i++;   // read by main (engineOf), which chose the module to mount
             } else if ("--sources".equals(args[i]) && i + 1 < args.length) {
                 i++;   // read by sources(args, ...) below
             } else {

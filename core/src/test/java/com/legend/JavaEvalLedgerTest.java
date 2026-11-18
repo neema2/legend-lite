@@ -1852,6 +1852,9 @@ class JavaEvalLedgerTest {
                             "SqlTextReferee.java",
                             // the server's composition root with legend-engine's API mounted: routes, no planning of its own
                             "EdgeServer.java",
+                            // legend-engine's module as the shipped server's opt-in (K2's server half, 2026-11-18, the
+                            // user's ruling "Product root, edge opt-in"): a MountProvider naming EdgeServer's mount
+                            "EngineMount.java",
                             // the texts of upstream's effects and refusals, and legend-pure's raise sentences, as SQL
                             "EffectTexts.java", "PureMessages.java",
                             // legend-engine's text printers (O3) and the dialects spelled upstream's way (D1.0)
