@@ -58,8 +58,10 @@ public interface EngineTestText {
     /** The side a {@link #notAConstant} check names: its kind and planned root. */
     String why(HostSides.@com.legend.base.Nullable Check check);
 
-    /** How the plan holds the two texts of the edge's comparison {@code judgment} (census C3, 2026-11-17). */
-    TextsHeld textsHeld(com.legend.testexecutionplan.Extension judgment);
+    /** The database judge's gate for the edge's comparison {@code judgment} (J41, 2026-11-18; census C3 until then
+     *  answered how the plan holds its two texts, and the product mapped that to two constants of its own):
+     *  {@code shape} names the assert where the gate declines it. */
+    DatabaseGate gate(com.legend.testexecutionplan.Extension judgment, java.util.function.Supplier<String> shape);
 
     /** A FRESH RECORDER of one test body's planning call over {@code template} (K10b of the edge audit, the
      *  orchestrator's ruling (A) of 2026-11-17): the style that body is planned in, recording legend-pure's words of

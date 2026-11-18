@@ -1222,12 +1222,11 @@ final class ArchitectureTest {
             // C4 (2026-11-17, the orchestrator's ruling (b)): the hook's routing gates moved to the edge's
             // implementation, EdgeEngineTestText, which reads the test planner through the same facade
             "testplan.EngineTextPlanning#*", "com.legend.edge.SqlTextVerdicts com.legend.edge.EdgeEngineTestText",
-            // census C3 (2026-11-17, the orchestrator's ruling): how the plan holds an edge-judged comparison's two
-            // texts, the engine-text hook's answer (EngineTestText.textsHeld) -- an enum of four words, data
-            "testplan.TextsHeld#GOLDEN_READ", "com.legend.edge.EdgeEngineTestText",
-            "testplan.TextsHeld#OURS_READ", "com.legend.edge.EdgeEngineTestText",
-            "testplan.TextsHeld#CONSTANTS_EQUAL", "com.legend.edge.EdgeEngineTestText",
-            "testplan.TextsHeld#CONSTANTS_DIFFER", "com.legend.edge.EdgeEngineTestText",
+            // J41 (2026-11-18, the orchestrator's): the database judge's gate, the engine-text hook's answer
+            // (EngineTestText.gate) -- census C3's TextsHeld and the product's two engine-text gate constants gone; data
+            "testplan.DatabaseGate#PLANS", "com.legend.edge.EdgeEngineTestText",
+            "testplan.DatabaseGate#UNPLANNED", "com.legend.edge.EdgeEngineTestText",
+            "testplan.DatabaseGate#appealed(boolean)", "com.legend.edge.EdgeEngineTestText",
             // the closed facet list, read by the edge's style before it answers a kind (the P2 checkpoint audit's S2,
             // 2026-11-16): data, a list of classes
             "testplan.PlanStyleFacets#KINDS", "com.legend.edge.PureText",
@@ -1251,6 +1250,15 @@ final class ArchitectureTest {
             "lowering.DateTimeTexts#dateTimeText(com.legend.sql.SqlExpr, java.lang.String)",
             "com.legend.edge.EdgePureOnlyTexts",
             "lowering.Styled#dateTimes()", "com.legend.edge.EdgePureOnlyTexts",
+            // census J29 (2026-11-18): legend-pure's words of the database judge's failures are the edge's
+            // (edge.UpstreamVerdictWords, the two-form VerdictWords kind's), built from the product's representation
+            // parts -- a value as the representation facet writes it, a newline as %r writes it, a String's %r -- and
+            // the frame's shape it reads, the canons
+            "lowering.VerdictSql#represented(com.legend.lowering.Styled, com.legend.compiler.element.type.Type, "
+                    + "com.legend.sql.SqlExpr)", "com.legend.edge.UpstreamVerdictWords",
+            "lowering.VerdictSql#reprNewlines(com.legend.sql.SqlExpr)", "com.legend.edge.UpstreamVerdictWords",
+            "lowering.VerdictSql#quoted(com.legend.sql.SqlExpr)", "com.legend.edge.UpstreamVerdictWords",
+            "lowering.VerdictWords$Reads#CANONS", "com.legend.edge.UpstreamVerdictWords",
             // the test door's options, from the root's ExecuteOptions: planning's half, a record of closed words
             "testplan.PlanningOptions#<init>(com.legend.testexecutionplan.Edge, com.legend.executionplan.DataStores, "
                     + "java.util.Set, com.legend.testplan.PlanningOptions$JudgeMode, "
@@ -1384,7 +1392,9 @@ final class ArchitectureTest {
             "com.legend.edge.EnginePlans",
             "lowering.Lowerer#withFeatures(java.util.Set)", "com.legend.edge.EnginePlans",
             "lowering.Lowerer#withOptions(java.util.Set)", "com.legend.edge.EnginePlans",
-            "lowering.PlanParams#kindOf(com.legend.compiler.element.type.Type)", "com.legend.edge.EnginePlans",
+            // its caller edge.EnginePlans -> edge.EngineParams (2026-11-18, the audit's J31: legend-engine's template
+            // parameters are the edge's own table, which kinds each slot; one entry, moved)
+            "lowering.PlanParams#kindOf(com.legend.compiler.element.type.Type)", "com.legend.edge.EngineParams",
             "lowering.SqlPostProcessors#apply(com.legend.sql.SqlQuery, java.util.Map)", "com.legend.edge.EnginePlans",
             "lowering.SqlPostProcessors#apply(com.legend.sql.SqlQuery, java.util.function.UnaryOperator)",
             "com.legend.edge.EnginePlans",
@@ -1394,8 +1404,7 @@ final class ArchitectureTest {
             "planner.BodyPlanner#boundContext(com.legend.compiler.spec.typed.TypedSpec, com.legend.compiler.spec.SpecCompiler)",
             "com.legend.edge.EnginePlans",
             "planner.BodyPlanner#featuresOf(com.legend.planner.PlanEnv, java.util.List)", "com.legend.edge.EnginePlans",
-            "planner.BodyPlanner#pushDownEnums(com.legend.planner.PlanEnv, java.util.List)",
-            "com.legend.edge.EnginePlans com.legend.edge.PlanEnvelope",
+            // (planner.BodyPlanner#pushDownEnums left 2026-11-18, J40: the edge's, EnginePlans.pushDownEnums, over featuresOf)
             "planner.BodyPlanner#resolver(com.legend.compiler.spec.SpecCompiler, com.legend.planner.PlanEnv)",
             "com.legend.edge.EnginePlans",
             "planner.PlanEnv#ctx()",
@@ -1411,9 +1420,11 @@ final class ArchitectureTest {
             "planner.PlanEnv#tableReplace()", "com.legend.edge.EnginePlans",
             "planner.PlanEnv#withFeatures(java.util.Set)", "com.legend.edge.EnginePlans",
             "planner.QueryParameters#of(com.legend.compiler.spec.typed.TypedLambda)", "com.legend.edge.EnginePlans",
+            "planner.QueryParameters$Declared#multiplicity()", "com.legend.edge.EnginePlans",
             "planner.QueryParameters$Declared#name()", "com.legend.edge.EnginePlans",
-            "planner.QueryParameters$Declared#planParam(java.lang.String)", "com.legend.edge.EnginePlans",
-            "planner.QueryParameters$Declared#signature()", "com.legend.edge.EnginePlans",
+            "planner.QueryParameters$Declared#optional()", "com.legend.edge.EnginePlans",
+            // Declared#planParam(String) and #signature() GONE 2026-11-18 (the audit's J31): legend-engine's template
+            // parameter is the edge's (edge.EngineParams), which reads the declared multiplicity and optionality
             "planner.QueryParameters$Declared#type()", "com.legend.edge.EnginePlans",
             "planner.SqlTextInputs#dialect()", "com.legend.edge.EnginePlans",
             "planner.SqlTextInputs#mapping()", "com.legend.edge.EnginePlans",

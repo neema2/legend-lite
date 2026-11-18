@@ -108,8 +108,9 @@ public final class EnginePlans {
                         : renderer.render(post);
     }
 
+    /** {@code params}: the template parameters its plan reads, the edge's table (the audit's J31). */
     public record EngineSql(com.legend.sql.SqlQuery plan, String sql,
-            java.util.List<TypedSpec> body) {
+            java.util.List<TypedSpec> body, EngineParams params) {
     }
 
     static EngineSql engineSql(
@@ -118,7 +119,7 @@ public final class EnginePlans {
             PlanEnv env,
             EngineTextDialect renderer) {
         return engineSql(lam.body(), mappingFqn, specs, env, renderer,
-                java.util.Map.of(),
+                EngineParams.none(),
                 java.util.function.UnaryOperator.identity());
     }
 
@@ -129,8 +130,7 @@ public final class EnginePlans {
             @com.legend.base.Nullable String mappingFqn, com.legend.compiler.spec.SpecCompiler specs,
             PlanEnv env,
             EngineTextDialect renderer,
-            java.util.Map<String, com.legend.sql.SqlExpr.PlanParam>
-                    planParams,
+            EngineParams planParams,
             java.util.function.UnaryOperator<String> tableRenames) {
         return engineSql(raw, mappingFqn, specs, env, renderer, planParams,
                 tableRenames, java.util.List.of());
@@ -143,8 +143,7 @@ public final class EnginePlans {
             @com.legend.base.Nullable String mappingFqn, com.legend.compiler.spec.SpecCompiler specs,
             PlanEnv env,
             EngineTextDialect renderer,
-            java.util.Map<String, com.legend.sql.SqlExpr.PlanParam>
-                    planParams,
+            EngineParams planParams,
             java.util.function.UnaryOperator<String> tableRenames,
             java.util.List<String> chainMappings) {
         java.util.List<TypedSpec> body =
@@ -168,10 +167,14 @@ public final class EnginePlans {
                 // and the plan environment's style's text facets and plain raises (the audit's K6, 2026-11-17: until
                 // then this lowering ran with the Lowerer's implicit product default)
                 .withFloatLiteralKind(env::floatLiteralKind).withStyled(env.styled());
-        planParams.values().forEach(lw::bindPlanParam);
+        // a field read through a parameter is legend-engine's dotted placeholder, resolved here (the audit's J31)
+        EngineParams.Resolved dotted = planParams.resolveDotted(body);
+        EngineParams params = dotted.params();
+        params.slots().forEach(lw::bindPlanParam);
+        renderer.params(params);
         // ENGINE-TEXT lowering: wire coercions read bare (a Lowerer option
         // since batch 136; a thread-local scope before)
-        com.legend.sql.SqlQuery plan = lw.lower(body);
+        com.legend.sql.SqlQuery plan = lw.lower(dotted.body());
         // engine plans keep enum columns RAW (host-side decode) — the
         // plan-text form of enum-mapped columns/parameters — UNLESS the
         // context carries PUSH_DOWN_ENUM_TRANSFORM (pureToSQLQuery
@@ -183,7 +186,7 @@ public final class EnginePlans {
                         body.get(body.size() - 1).info().type())
                         instanceof com.legend.compiler.element.type.Type
                                 .RelationType rt) {
-            plan = PlanEnumForm.apply(sel, rt);
+            plan = PlanEnumForm.apply(sel, rt, params);
         }
         // the runtime's relationalMapperPostProcessor renames (extracted
         // structurally from the plan call's runtime argument)
@@ -194,7 +197,7 @@ public final class EnginePlans {
         // TEXT-channel rendering (synthetic scalar-map aliases drop — the
         // engine-style renderer IS the text channel)
         String text = renderer.render(plan);
-        return new EngineSql(plan, text, body);
+        return new EngineSql(plan, text, body, params);
     }
 
     /** {@code planToString(executionPlan(func, MAPPING, runtime, ...),
@@ -288,7 +291,7 @@ public final class EnginePlans {
         public String activitySql(java.util.List<TypedSpec> chain, @com.legend.base.Nullable String mappingFqn,
                 com.legend.compiler.spec.SpecCompiler specs, PlanEnv env, boolean recorded) {
             EngineTextDialect renderer = PureText.engineText(EngineText.ENGINE_TEST_DATABASE);
-            EngineSql es = engineSql(chain, mappingFqn, specs, env, renderer, java.util.Map.of(),
+            EngineSql es = engineSql(chain, mappingFqn, specs, env, renderer, EngineParams.none(),
                     java.util.function.UnaryOperator.identity());
             if (!recorded) {
                 return es.sql();
@@ -431,7 +434,7 @@ public final class EnginePlans {
                 throw new com.legend.error.NotImplementedException("planToString: no getAll or table root (multi-node plans pending)");
             }
             EngineSql tes = engineSql(lam.body(), mappingFqn, specs, env, PureText.enginePlanText(dbType, quote, tz),
-                    java.util.Map.of(), java.util.function.UnaryOperator.identity(), java.util.List.of());
+                    EngineParams.none(), java.util.function.UnaryOperator.identity(), java.util.List.of());
             return PlanText.singleRelationRoot(env.ctx(), tr.store(),
                     tr.accessor(), tes.plan(), tes.sql(), lam.body(), connName);
         }
@@ -445,14 +448,14 @@ public final class EnginePlans {
             return crossDb;
         }
         EngineSql es = engineSql(lam.body(), mappingFqn, specs, env,
-                PureText.enginePlanText(dbType, quote, tz), java.util.Map.of(),
+                PureText.enginePlanText(dbType, quote, tz), EngineParams.none(),
                 java.util.function.UnaryOperator.identity(), chainMaps);
         return PlanText.single(env.ctx(), rootClass,
                         mappingFqn, es.plan(), es.sql(),
                         // PRE-resolution body: the TDS-vs-Class shape and
                         // the documentation channel live in the G output
                         // (post-H everything is a relation)
-                        lam.body(), connName, chainMaps, es.plan(), BodyPlanner.pushDownEnums(env, lam.body()),
+                        lam.body(), connName, chainMaps, es.plan(), pushDownEnums(env, lam.body()),
                         PureText.enginePlanText(dbType, quote, tz)::selectList);
     }
 
@@ -541,7 +544,7 @@ public final class EnginePlans {
             }
             EngineSql aEs = engineSql(java.util.List.of(at), mappingFqn,
                     specs, env, planText,
-                    java.util.Map.of(),
+                    EngineParams.none(),
                     java.util.function.UnaryOperator.identity(), chainMaps);
             String aSql = prevVar == null ? aEs.sql()
                     : PlanText.spliceLeftVar(aEs.plan(), prevVar, planText::render);
@@ -551,7 +554,7 @@ public final class EnginePlans {
             allocs.add(PlanText.allocation(var,
                     PlanText.typeBlock(env.ctx(), aRoot,
                             aImpl, aEs.plan(), java.util.List.of(at),
-                            mappingFqn, BodyPlanner.pushDownEnums(env, java.util.List.of(at))),
+                            mappingFqn, pushDownEnums(env, java.util.List.of(at))),
                     PlanText.single(env.ctx(), aRoot,
                             mappingFqn, aEs.plan(), aSql,
                             java.util.List.of(at), connName, chainMaps,
@@ -561,11 +564,11 @@ public final class EnginePlans {
                             prevVar == null ? aEs.plan()
                                     : PlanText.colsPlanFor(
                                             aEs.plan(), prevVar),
-                            BodyPlanner.pushDownEnums(env, java.util.List.of(at)), planText::selectList)));
+                            pushDownEnums(env, java.util.List.of(at)), planText::selectList)));
             prevVar = var;
         }
         EngineSql fullEs = engineSql(lam.body(), mappingFqn, specs, env,
-                planText, java.util.Map.of(),
+                planText, EngineParams.none(),
                 java.util.function.UnaryOperator.identity(), chainMaps);
         String splicedSql = PlanText.spliceLeftVar(
                 fullEs.plan(), java.util.Objects.requireNonNull(prevVar), planText::render);
@@ -574,7 +577,7 @@ public final class EnginePlans {
                 rootClass, mappingFqn, fullEs.plan(), splicedSql,
                 lam.body(), connName, chainMaps,
                 PlanText.colsPlanFor(
-                        fullEs.plan(), prevVar), BodyPlanner.pushDownEnums(env, lam.body()), planText::selectList);
+                        fullEs.plan(), prevVar), pushDownEnums(env, lam.body()), planText::selectList);
         String[] impl = com.legend.lineage.ScanRelations.rootImpl(
                 env.ctx(), mappingFqn, rootClass, chainMaps);
         java.util.List<String> children = new java.util.ArrayList<>(allocs);
@@ -582,7 +585,7 @@ public final class EnginePlans {
         return PlanText.sequence(
                         PlanText.typeBlock(env.ctx(),
                                 rootClass, impl, fullEs.plan(),
-                                lam.body(), mappingFqn, BodyPlanner.pushDownEnums(env, lam.body())),
+                                lam.body(), mappingFqn, pushDownEnums(env, lam.body())),
                         children);
     }
 
@@ -631,8 +634,7 @@ public final class EnginePlans {
             String mappingFqn, com.legend.compiler.spec.SpecCompiler specs,
             PlanEnv env, boolean quote, @com.legend.base.Nullable String timeZone,
             @com.legend.base.Nullable String connName, com.legend.model.ConnectionDefinition.DatabaseType dbType) {
-        java.util.LinkedHashMap<String, com.legend.sql.SqlExpr.PlanParam>
-                params = new java.util.LinkedHashMap<>();
+        EngineParams params = EngineParams.none();
         java.util.LinkedHashMap<String, String> paramSpells =
                 new java.util.LinkedHashMap<>();
         java.util.List<String> children = new java.util.ArrayList<>();
@@ -640,14 +642,15 @@ public final class EnginePlans {
         if (!declared.isEmpty()) {
             java.util.List<String> ps = new java.util.ArrayList<>(declared.size());
             for (QueryParameters.Declared p : declared) {
-                ps.add(p.name() + ":" + p.signature());
-                paramSpells.put(p.name(), p.signature());
+                String signature = EngineParams.signature(p.type(), p.multiplicity());
+                ps.add(p.name() + ":" + signature);
+                paramSpells.put(p.name(), signature);
                 String emFn = p.type() instanceof com.legend.compiler
                         .element.type.Type.EnumType et
                         ? PlanText.enumMapFnOf(env.ctx(),
                                 mappingFqn, et.fqn())
                         : null;
-                params.put(p.name(), p.planParam(emFn));
+                params.declare(p.name(), p.type(), p.optional(), emFn);
             }
             children.add(PlanText
                     .functionParametersNode(String.join(", ", ps)));
@@ -660,9 +663,7 @@ public final class EnginePlans {
             }
             children.add(EngineAllocations.node(let, mappingFqn, specs, env,
                     params, paramSpells, quote, timeZone, dbType, connName));
-            params.put(let.name(), new com.legend.sql.SqlExpr.PlanParam(
-                    let.name(), com.legend.lowering.PlanParams.kindOf(
-                            let.info().type())));
+            params.let(let.name(), let.info().type());
         }
         TypedSpec term = lam.body().get(lam.body().size() - 1);
         if (term instanceof com.legend.compiler.spec.typed.TypedLet tlet) {
@@ -799,12 +800,11 @@ public final class EnginePlans {
                 ? BodyPlanner.boundContext(ep.args().get(2), specs) : null;
         boolean quote = pc2 != null && pc2.quoteIdentifiers();
         String tz = pc2 != null ? pc2.timeZone() : null;
-        java.util.LinkedHashMap<String, com.legend.sql.SqlExpr.PlanParam>
-                params = new java.util.LinkedHashMap<>();
+        EngineParams params = EngineParams.none();
         java.util.List<PlanNode.Param> fps =
                 new java.util.ArrayList<>();
         for (QueryParameters.Declared p : QueryParameters.of(lam)) {
-            params.put(p.name(), p.planParam(null));
+            params.declare(p.name(), p.type(), p.optional(), null);
             // supportsStream (engine storeContract:221 + executionPlan_
             // generation findParamsSupportedForStreamInput): the param
             // streams iff it is read under an in(...) call at least once
@@ -995,4 +995,11 @@ public final class EnginePlans {
         // constraint-free for DuckDB re-seeds
         return PureText.engineText(EngineText.ENGINE_TEST_DATABASE).render(com.legend.setup.Ddl.createTable(def, sch));
     }
+
+    /** PUSH_DOWN_ENUM_TRANSFORM on this plan's context: legend-engine's plan printer's enum-tuple form follows it
+     *  (moved from planner.BodyPlanner, J40, 2026-11-18: its callers were the edge's alone). */
+    static boolean pushDownEnums(PlanEnv env, java.util.List<TypedSpec> body) {
+        return BodyPlanner.featuresOf(env, body).contains(com.legend.platform.Feature.PUSH_DOWN_ENUM_TRANSFORM);
+    }
+
 }

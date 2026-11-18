@@ -35,13 +35,8 @@ final class BodyRun {
      *  planned site is legend-pure's words of that site, looked up in the plan's records by the raising statement's text
      *  and the site's number ({@link EdgeHearing#raisedWords}); any other error its own message. */
     String caughtMessage(RuntimeException e) {
-        // whose words: the run hook's (census C1, 2026-11-17), never a flag of the rules
-        if (hearing.hostForms().upstreamWords() && e instanceof com.legend.error.DataError
-                && e.getCause() instanceof com.legend.exec.RaisedErrors.Raised r && r.site() != null) {
-            return hearing.raisedWords(java.util.Objects.requireNonNull(r.statement(),
-                    "a raise of a planned site carries its statement's text"), r.site().n());
-        }
-        return String.valueOf(e.getMessage());
+        // whose words: the run hook's (census J29, 2026-11-18), never a branch of the judge's
+        return hearing.hostForms().words().caught(e, hearing);
     }
 
     /** The listener the run's judges tell: the caller's, its reports kept back while an appeal is held. */
@@ -64,12 +59,6 @@ final class BodyRun {
     TypedSide judged(com.legend.testexecutionplan.HostJudgment.EdgeJudged e, java.util.List<TypedSide> sides,
             com.legend.testexecutionplan.TestPlan.JudgingRules rules) {
         return hearing.judged(e, sides, rules, messaged > 0);
-    }
-
-    /** legend-pure's words of an assert's failure ({@link EdgeHearing#pureWords}): asked under the compatibility rules
-     *  alone. */
-    PureWords pureWords() {
-        return hearing.pureWords();
     }
 
     /** A step of the body that writes is about to run ({@link EdgeHearing#writing}). */

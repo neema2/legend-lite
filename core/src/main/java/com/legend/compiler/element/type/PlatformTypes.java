@@ -304,19 +304,8 @@ public final class PlatformTypes {
     }
 
 
-    /** The engine's SQL-text surface — K-dispatched: the query lambda
-     * lowers through the platform's own G½->H->I against the given mapping
-     * and renders with the engine-style dialect (audit 19d B3: this was a
-     * name-intercepting harness arm; the corpus's own toSQLString body is
-     * engine plan-generation internals, suppressed like toDDL). */
-    public static final String TO_SQL_STRING =
-            "meta::relational::functions::sqlstring::toSQLString";
-
-    /** toSQLString with the engine's pretty Format — same K-dispatch
-     * (sqlRemoveFormatting normalizes the whitespace difference away in
-     * every golden compare; engine toSQLString.pure:35). */
-    public static final String TO_SQL_STRING_PRETTY =
-            "meta::relational::functions::sqlstring::toSQLStringPretty";
+    // (TO_SQL_STRING, TO_SQL_STRING_PRETTY: moved to the edge's EdgeEngineTestText, 2026-11-18, the edge audit's J40 --
+    // legend-engine's SQL-text producers, read by the edge alone)
 
     /** toSQL(f, mapping, runtime, ext) — the SQLResult HANDLE of the
      * same doctrine (engine toSQLString.pure:46): the query lambda and

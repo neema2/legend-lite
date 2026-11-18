@@ -320,15 +320,17 @@ class PostgresArmTest {
                     + " 'default', 'SEED_CODES', [\n" + String.join(",\n", line.formatted("B"), line.formatted("Z"),
                             line.formatted("a"), line.formatted("b")) + "\n  ])\n"), column(c, POSTGRES.dialect().render(
                                     com.legend.testdatagen.TestDataPlanner.seedString(ctx, seed))));
-            String json = column(c, POSTGRES.dialect().render(com.legend.testdatagen.TestDataPlanner.seedJson(ctx, seed, x -> {
-                throw new AssertionError("this seed holds no timestamp key");
-            })))
-                    .get(0);
-            assertTrue(json.replace(" ", "").endsWith("\"rowIdentifiers\":["
-                    + "{\"columnValuePairs\":[{\"name\":\"CODE\",\"value\":\"B\"}]},"
-                    + "{\"columnValuePairs\":[{\"name\":\"CODE\",\"value\":\"Z\"}]},"
-                    + "{\"columnValuePairs\":[{\"name\":\"CODE\",\"value\":\"a\"}]},"
-                    + "{\"columnValuePairs\":[{\"name\":\"CODE\",\"value\":\"b\"}]}]}"), json);
+            // the seed's identifiers are ordered by the product's key order (R2, register S198): by code point, whatever
+            // the column's collation -- the seed's facts (J40 of the edge audit: legend-engine's seed JSON, written in that
+            // order, is the edge's, edge.TestDataRoutes)
+            com.legend.testdatagen.TestDataPlanner.SeedKey key =
+                    com.legend.testdatagen.TestDataPlanner.seedFacts(ctx, seed).keys().get(0);
+            com.legend.sql.SqlSelect ordered = new com.legend.sql.SqlSelect(
+                    java.util.List.of(new com.legend.sql.SqlSelect.Projection(key.cell(), "k", null)), false,
+                    new com.legend.sql.SqlSource.Subselect(seed.rows(), "_k", null), null, java.util.List.of(), null,
+                    null, java.util.List.of(new com.legend.sql.SqlSelect.SortKey(key.order(), true, null, null)), null,
+                    null, java.util.List.of());
+            assertEquals(binary, column(c, POSTGRES.dialect().render(ordered)));
         }
     }
 

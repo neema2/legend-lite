@@ -193,6 +193,31 @@ public final class SqlTextReferee {
                 .startsWith("select distinct");
     }
 
+    /** A side's String value, or null (moved from testexecutionplan.Verdicts, J33 narrowed, 2026-11-18). */
+    public static @com.legend.base.Nullable String scalarString(
+            com.legend.testexecutionplan.@com.legend.base.Nullable TypedSide r) {
+        return r instanceof com.legend.testexecutionplan.TypedSide.Scalar s
+                && s.value() instanceof String str ? str : null;
+    }
+
+    /** The verdict's read wrapped in {@code from(<mapping>)}, no bound context (moved from compiler.spec.VerdictQueries,
+     *  J33 narrowed, 2026-11-18). */
+    public static TypedSpec fromWrapped(TypedSpec query,
+            com.legend.compiler.spec.typed.TypedPackageableRef mapping) {
+        return fromWrapped(query, mapping,
+                com.legend.compiler.spec.typed.ExecutionContext.NONE);
+    }
+
+    /** The verdict's read wrapped in the FRAME's own bound context (the
+     * producer's post-processors, time zone, options) under the mapping. */
+    public static TypedSpec fromWrapped(TypedSpec query,
+            com.legend.compiler.spec.typed.TypedPackageableRef mapping,
+            com.legend.compiler.spec.typed.ExecutionContext base) {
+        com.legend.base.RunScope.planning("wrap a verdict's read");
+        return new com.legend.compiler.spec.typed.TypedFrom(query,
+                base.withMapping(java.util.Optional.of(mapping)), query.info());
+    }
+
     private static ExprType scalar(Type t) {
         return new ExprType(t, Multiplicity.Bounded.ONE);
     }
