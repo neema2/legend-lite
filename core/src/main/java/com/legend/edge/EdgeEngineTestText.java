@@ -151,7 +151,7 @@ final class EdgeEngineTestText implements EngineTestText {
         }
         String what = String.valueOf(((com.legend.testexecutionplan.HostJudgment.Raise)
                 com.legend.testexecutionplan.HostJudgment.core(EngineTextPlanning.judgment(check))).failure().message());
-        return what.startsWith(com.legend.testplan.NotAConstant.LABEL) ? what.substring(com.legend.testplan.NotAConstant.LABEL.length()) : what;
+        return what.startsWith(NotAConstant.LABEL) ? what.substring(NotAConstant.LABEL.length()) : what;
     }
 
     /** The database judge's gate for the comparison {@code judgment}, from how the plan holds its two texts, the

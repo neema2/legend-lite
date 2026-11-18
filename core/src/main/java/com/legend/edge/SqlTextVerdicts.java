@@ -78,6 +78,14 @@ final class SqlTextVerdicts {
             originInForce = prior;
         }
 
+        /** The side deferred ({@link #deferred}), or the edge's refusal of a text side that is not a constant of the
+         *  plan, {@code what} its kind and planned root (train 17, 2026-11-18: the refusal is the collector's). */
+        @Override
+        public final TypedSide defer(TypedSpec side, JudgePlans.PlannedSide planned, boolean identity, boolean fold, AssertVerdicts.@com.legend.base.Nullable SpliceHook hook, BodyDriver.ExecEnv at, List<TypedSpec> letPrefix, SpecCompiler specs, String what) { TypedSide d = deferred(side, planned, identity, fold, hook, at, letPrefix, specs); if (d == null) { throw new NotAConstant(what); } return d; }
+
+        /** The side deferred, or null where this collector does not defer it. */
+        abstract @com.legend.base.Nullable TypedSide deferred(TypedSpec side, JudgePlans.PlannedSide planned, boolean identity, boolean fold, AssertVerdicts.@com.legend.base.Nullable SpliceHook hook, BodyDriver.ExecEnv at, List<TypedSpec> letPrefix, SpecCompiler specs);
+
         /** Whether {@code side}, planned as {@code planned} under {@code at}, is a text this collector may defer: a
          *  {@code VALUES} side declared a String to one. A side the arm plans under an environment of its own (the
          *  runtime-dialect form rebinds the frame and the table replaces) is deferred with that environment, which the
@@ -134,7 +142,7 @@ final class SqlTextVerdicts {
             if (deferredGoldenText != (deferredGolden != null)) {
                 // the arm processed the golden it read before comparing it (a strip that cut it, a route's own
                 // reading): a golden the plan reads reaches the comparison as read, or the body is the walk's
-                throw EngineTextPlanning.notAConstantError("a golden the plan reads, processed by the arm before its"
+                throw new NotAConstant("a golden the plan reads, processed by the arm before its"
                         + " comparison");
             }
             collected.add(new Collected(name, deferredGoldenText ? null : golden, deferredText ? null : ours,
@@ -142,9 +150,7 @@ final class SqlTextVerdicts {
         }
 
         @Override
-        public @com.legend.base.Nullable TypedSide defer(TypedSpec side, JudgePlans.PlannedSide planned,
-                boolean identity, boolean fold, AssertVerdicts.@com.legend.base.Nullable SpliceHook hook,
-                BodyDriver.ExecEnv at, List<TypedSpec> letPrefix, SpecCompiler specs) {
+        @com.legend.base.Nullable TypedSide deferred(TypedSpec side, JudgePlans.PlannedSide planned, boolean identity, boolean fold, AssertVerdicts.@com.legend.base.Nullable SpliceHook hook, BodyDriver.ExecEnv at, List<TypedSpec> letPrefix, SpecCompiler specs) {
             if (!(readingOurs || readingGolden) || !deferrable(side, planned, at, env)) {
                 return null;
             }
@@ -154,7 +160,7 @@ final class SqlTextVerdicts {
             String origin = originInForce;
             if ((deferred != null || deferredGolden != null) && !java.util.Objects.equals(origin, deferredOrigin)) {
                 // the step reads both texts under one origin: the arm marked them alike, or the body is the walk's
-                throw EngineTextPlanning.notAConstantError("two texts the plan reads under different statement origins");
+                throw new NotAConstant("two texts the plan reads under different statement origins");
             }
             deferredOrigin = origin;
             HostSides.Ask ask = EngineTextPlanning.ask(side, identity, fold, hook, at == env ? null : at);
@@ -206,9 +212,7 @@ final class SqlTextVerdicts {
         }
 
         @Override
-        public @com.legend.base.Nullable TypedSide defer(TypedSpec side, JudgePlans.PlannedSide planned,
-                boolean identity, boolean fold, AssertVerdicts.@com.legend.base.Nullable SpliceHook hook,
-                BodyDriver.ExecEnv at, List<TypedSpec> letPrefix, SpecCompiler specs) {
+        @com.legend.base.Nullable TypedSide deferred(TypedSpec side, JudgePlans.PlannedSide planned, boolean identity, boolean fold, AssertVerdicts.@com.legend.base.Nullable SpliceHook hook, BodyDriver.ExecEnv at, List<TypedSpec> letPrefix, SpecCompiler specs) {
             if (!readingOurs || oursRow != null || !deferrable(side, planned, at, env)) {
                 return null;
             }
@@ -265,10 +269,10 @@ final class SqlTextVerdicts {
         BodyDriver.ExecEnv planning = EngineTextPlanning.withCollector(env, collecting);
         collecting.env = planning;
         TypedSide answered = null;
-        com.legend.testplan.NotAConstant notAConstant = null;
+        NotAConstant notAConstant = null;
         try {
             answered = armOf(bare, letPrefix, specs, planning, hook);
-        } catch (com.legend.testplan.NotAConstant e) {
+        } catch (NotAConstant e) {
             notAConstant = e;
         } finally {
             collecting.planning = false;

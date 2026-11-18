@@ -35,8 +35,8 @@ final class CastPolicy {
     // Float/String contracts convert IN SQL — the user ruling stands)
     // was applied at the PROJECTION boundary by OUTPUT-NAME lookup and
     // rejected three ways: (1) the flat class form pins the engine's
-    // WIRE-typed plan metadata (TypedProject.wireForm now carries that
-    // lane fact); (2) deep-join schemas collide output names — an
+    // WIRE-typed plan metadata (a lane fact the product no longer
+    // carries: TypedProject.wireForm was deleted, train 17, 2026-11-18); (2) deep-join schemas collide output names — an
     // Integer column conformed to String off a same-named column;
     // (3) a conform cast on ONE union branch breaks branch-projection
     // identity and reorders the merge. The SOUND seam is the

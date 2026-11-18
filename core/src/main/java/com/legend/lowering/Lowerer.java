@@ -1332,7 +1332,7 @@ public final class Lowerer {
                             this::sqlTypeOf);
 
             case TypedProject p -> project(relation(p.source()),
-                    p.columns(), p.info(), p.wireForm());
+                    p.columns(), p.info());
 
             case TypedConcatenate c -> SqlSelect.starOf(
                     new SqlSource.Subselect(union(c), nextAlias(), null));
@@ -2054,7 +2054,7 @@ public final class Lowerer {
     private SqlSelect extend(SqlSelect src, List<TypedFuncCol> columns,
                              ExprType info) {
         SqlSelect base = Fold.extendFolds(src) ? src : extendOver(src);
-        return computedColumns(base, columns, info, true, false);
+        return computedColumns(base, columns, info, true);
     }
 
     /** The select an extend that does not fold computes its columns in: {@code src} isolated. Over a truncated
@@ -2073,26 +2073,23 @@ public final class Lowerer {
         return Sorts.keepsOrder(src) ? Sorts.isolateOrdered(this, src) : src;
     }
 
-    /** project(~cols): the computed columns REPLACE the projection list.
-     * {@code wireForm} — the flat class form's engine-wire provenance
-     * (TypedProject.wireForm): conformance casts are suppressed there. */
+    /** project(~cols): the computed columns REPLACE the projection list. */
     private SqlSelect project(SqlSelect src, List<TypedFuncCol> columns,
-                              ExprType info, boolean wireForm) {
+                              ExprType info) {
         SqlSelect base = Fold.projectionFolds(src) ? src : isolate(src);
-        return computedColumns(base, columns, info, false, wireForm);
+        return computedColumns(base, columns, info, false);
     }
 
     /** Lower computed columns over {@code base}: one attempt, isolate ONCE on
      * an unfoldable ref, then loud (isolation is idempotent for resolution). */
     private SqlSelect computedColumns(SqlSelect base, List<TypedFuncCol> columns,
                                       ExprType info,
-                                      boolean keepExisting,
-                                      boolean wireForm) {
+                                      boolean keepExisting) {
         String[] miss = new String[2];
         SqlSelect a1 = tryComputedColumns(base, columns, info, keepExisting,
-                wireForm, miss);
+                miss);
         SqlSelect a2 = a1 != null ? a1 : tryComputedColumns(isolate(base),
-                columns, info, keepExisting, wireForm, miss);
+                columns, info, keepExisting, miss);
         if (a2 != null) {
             return a2;
         }
@@ -2107,7 +2104,7 @@ public final class Lowerer {
     private @com.legend.base.Nullable SqlSelect tryComputedColumns(SqlSelect base, List<TypedFuncCol> columns,
                                          ExprType info,
                                          boolean keepExisting,
-                                         boolean wireForm, String[] miss) {
+                                         String[] miss) {
         // E2 (JAVA_EVICTION_PLAN): a TO-MANY scalar funcCol EXPLODES ROWS
         // IN SQL — the engine's scalar-stream rule (one row per element,
         // row-major; an EMPTY stream keeps one parent row with a NULL

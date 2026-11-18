@@ -129,8 +129,9 @@ class JudgingRulesReachTest {
             Map.entry("com.legend.testexec.HostJudgments", Set.of(TYPE)),
             // re-measured 2026-11-18 on d-int10 5f83349087: E-Java's J11 (train 9) -- HostRules reads the rules' float
             // bound by name (floatUlps) beside its tolerance; DatabaseJudge's floatTolerance read became floatUlps
-            Map.entry("com.legend.testexec.HostRules", Set.of(TYPE, "LITE", "decimalScale", "floatTolerance",
-                    "floatUlps")),
+            // 2026-11-18, train 17 item 4 (E-Java): HostRules' three rule accessors deleted -- the Float and Decimal
+            // equality is the run hook's two-form HostForms now, never the rules' data
+            Map.entry("com.legend.testexec.HostRules", Set.of(TYPE, "LITE")),
             Map.entry("com.legend.testexec.NoEdgeRun", Set.of(TYPE)),
             Map.entry("com.legend.testexec.TestRunner", Set.of(TYPE)),
             Map.entry("com.legend.testexecutionplan.Edge", Set.of(TYPE)),
@@ -138,9 +139,8 @@ class JudgingRulesReachTest {
             Map.entry("com.legend.testexecutionplan.TestPlan", Set.of(TYPE)),
             Map.entry("com.legend.testexecutionplan.TestPlanJson", Set.of(TYPE, "decimalScale", "floatUlps")),
             Map.entry("com.legend.testplan.DatabaseAsserts", Set.of(TYPE)),
-            // LITE: a two-form kind's product form (the whole-word scan's look-alike, not the rules' constant: a reach of
-            // it would be counted above)
-            Map.entry("com.legend.testplan.DatabaseJudge", Set.of(TYPE, "LITE", "decimalScale", "floatUlps")),
+            // (com.legend.testplan.DatabaseJudge: gone 2026-11-18, train 17 item 4, E-Java -- it asks the style's
+            // two-form VerdictNumbers kind, and names the judging rules no more)
             Map.entry("com.legend.testplan.EngineTextPlanning", Set.of(TYPE)),
             Map.entry("com.legend.testplan.HostAsserts", Set.of(TYPE)),
             Map.entry("com.legend.testplan.HostSideBatching", Set.of(TYPE)),
