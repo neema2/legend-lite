@@ -2782,6 +2782,8 @@ legend_java_binary(
     testonly = True,
     main_class = "com.legend.edge.EdgeServer",
     runtime_deps = [":edge"],
+    # the edge's plant, never a product test target (product_tests_closure leaves edge_test out)
+    tags = ["edge_test"],
 )
 
 genquery(
