@@ -89,6 +89,10 @@ class HookLambdasTest {
             // the same two callers, re-measured 2026-11-18 on train 15 1931d419b1 by the GUARD stream's re-cut
             Map.entry("com.legend.testplan.DatabaseJudge#words(com.legend.testplan.BodyDriver$ExecEnv)",
                     Set.of("com.legend.lowering.VerdictWords", "(twoForm reaches 1)")),
+            // how the database judge plans two numbers' equality (E-Java's train-17 item 4, dacc4bf313, 2026-11-18: the
+            // judging rules' floatUlps and decimalScale behind the VerdictNumbers two-form kind, as CrossKindNumbers)
+            Map.entry("com.legend.testplan.DatabaseJudge#verdictNumbers(com.legend.testplan.BodyDriver$ExecEnv)",
+                    Set.of("com.legend.lowering.VerdictNumbers", "(twoForm reaches 1)")),
             Map.entry("com.legend.testplan.TestDoor#planned(com.legend.TypedQuery, java.lang.String, java.util.Set,"
                     + " com.legend.testplan.TestDoor$Asserts, boolean, com.legend.executionplan.DataStores,"
                     + " com.legend.testexecutionplan.Edge, com.legend.database.PlanStyle,"
@@ -122,6 +126,9 @@ class HookLambdasTest {
             // the failure words' product form (C1 item 4, 3120418b2a, train 8; measured 2026-11-18); census J29 (train 14's
             // 21a9734475) renamed it LiteVerdictWords, of the VerdictWords kind (re-measured 2026-11-18 on 1931d419b1)
             Map.entry("com.legend.lowering.LiteVerdictWords", Set.of("com.legend.lowering.VerdictWords")),
+            // two numbers' equality's product form, lite's exact rule (E-Java's train-17 item 4, dacc4bf313, 2026-11-18;
+            // the edge's form compiled legend-pure's, CompiledPureVerdictNumbers)
+            Map.entry("com.legend.lowering.LiteVerdictNumbers", Set.of("com.legend.lowering.VerdictNumbers")),
             // a database's settings' product form, H2's own defaults (J22, the user's ruling of 2026-11-17 23:05;
             // 59719a0153's train, train 11; HookRulingTest pins the kind; measured 2026-11-18)
             Map.entry("com.legend.sql.dialect.ProductDatabaseSettings", Set.of("com.legend.sql.dialect.DatabaseSettingsForm")),

@@ -1277,7 +1277,8 @@ final class ArchitectureTest {
             "testplan.EngineTextPlanning#marking(com.legend.testplan.BodyDriver$ExecEnv, java.lang.String, "
                     + "boolean)",
             "com.legend.edge.SqlTextVerdicts",
-            "testplan.EngineTextPlanning#notAConstantError(java.lang.String)", "com.legend.edge.SqlTextVerdicts",
+            // (EngineTextPlanning#notAConstantError: deleted 2026-11-18 by E-Java's train-17 item 5, 645c3e4464 -- the
+            // refusal of a text side that is no constant is the edge collector's, edge.NotAConstant)
             "testplan.EngineTextPlanning#planSide(com.legend.compiler.spec.typed.TypedSpec, java.util.List, "
                     + "com.legend.compiler.spec.SpecCompiler, com.legend.testplan.BodyDriver$ExecEnv, "
                     + "com.legend.testplan.AssertVerdicts$SpliceHook)",

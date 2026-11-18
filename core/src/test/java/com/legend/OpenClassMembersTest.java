@@ -97,6 +97,8 @@ class OpenClassMembersTest {
                     "public abstract java.lang.String why(com.legend.testplan.HostSides$Check)")),
             // C4 (the listed facade of the engine-text arm: ArchitectureTest.PLANNER_ENTRIES)
             Map.entry("com.legend.testplan.EngineTextPlanning", Set.of(
+                    // (notAConstantError: deleted 2026-11-18 by E-Java's train-17 item 5, 645c3e4464 -- NotAConstant is the
+                    // edge's, raised by its collector)
                     "private <init>()",
                     "public static boolean active(com.legend.testplan.VerdictBatch)",
                     // 11 forwarders gone with train 16 b836ff636f (2026-11-18, the GUARD stream's re-pin): F's J40 census
@@ -132,7 +134,6 @@ class OpenClassMembersTest {
                     "public static com.legend.testplan.HostSides$Ask ask(com.legend.compiler.spec.typed.TypedSpec, boolean, boolean, com.legend.testplan.AssertVerdicts$SpliceHook, com.legend.testplan.BodyDriver$ExecEnv)",
                     "public static com.legend.testplan.HostSides$Check check(java.util.List<com.legend.testplan.HostSides$Ask>, com.legend.testexecutionplan.HostJudgment)",
                     "public static com.legend.testplan.JudgePlans$PlannedSide plannedSide(com.legend.compiler.spec.typed.TypedSpec, java.util.List<com.legend.compiler.spec.typed.TypedSpec>, com.legend.compiler.spec.SpecCompiler, com.legend.testplan.BodyDriver$ExecEnv, boolean, boolean, com.legend.testplan.AssertVerdicts$SpliceHook)",
-                    "public static com.legend.testplan.NotAConstant notAConstantError(java.lang.String)",
                     "public static com.legend.testplan.TextCollector collector(com.legend.testplan.BodyDriver$ExecEnv)",
                     "public static com.legend.testplan.TextPlanned planned(com.legend.testplan.HostSides$Check)",
                     "public static com.legend.testplan.VerdictBatch verdictBatch(com.legend.testplan.BodyDriver$ExecEnv)",

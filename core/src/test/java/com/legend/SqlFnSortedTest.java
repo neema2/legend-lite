@@ -370,7 +370,24 @@ class SqlFnSortedTest {
                     "com.legend.sql.dialect.CellTexts", "com.legend.sql.dialect.StringCountsAsInt",
                     "com.legend.sql.dialect.SubstringClamp", "com.legend.testdatagen.TestDataPlanner")),
             // (J20, as LOWER's note)
-            Map.entry("UPPER", Set.of("com.legend.lowering.Scalars")));
+            Map.entry("UPPER", Set.of("com.legend.lowering.Scalars")),
+            // compiled legend-pure's 2-ULP Float tolerance (ulps * 2^(floor(ln(greatest(|x|,|y|)) / ln 2) - 52)): the edge's
+            // CompiledPureVerdictNumbers composes it since E-Java's train-17 item 4 (dacc4bf313, 2026-11-18: moved there
+            // from VerdictSql.withinUlps, the VerdictNumbers two-form kind's edge form) -- the product's writers keep
+            // their own; measured 2026-11-18 on d-int17 4b2d23838f
+            Map.entry("DIVIDE", Set.of("com.legend.lowering.CalendarAgg", "com.legend.lowering.DecimalKindRules",
+                    "com.legend.lowering.LetBinding", "com.legend.lowering.Lowerer")),
+            Map.entry("FLOOR", Set.of("com.legend.lowering.Scalars", "com.legend.sql.dialect.QuantileOrder")),
+            Map.entry("GREATEST", Set.of("com.legend.lowering.ListEncodings", "com.legend.lowering.Lowerer",
+                    "com.legend.lowering.Scalars", "com.legend.sql.dialect.QuantileOrder",
+                    "com.legend.sql.dialect.SubstringClamp")),
+            Map.entry("LN", Set.of("com.legend.lowering.LetBinding", "com.legend.lowering.Scalars")),
+            Map.entry("POW", Set.of("com.legend.lowering.Scalars")),
+            Map.entry("TIMES", Set.of("com.legend.lowering.CalendarAgg", "com.legend.lowering.Lowerer",
+                    "com.legend.lowering.MixedEncoding", "com.legend.lowering.Scalars",
+                    "com.legend.lowering.ValueCollections", "com.legend.lowering.VerdictSql",
+                    "com.legend.sql.dialect.CarrierStrategies", "com.legend.sql.dialect.QuantileOrder",
+                    "com.legend.testdatagen.TestDataPlanner")));
 
     /** The functions both sides write, as {@code writers} has them, each with its product writers' top classes. */
     static Map<String, Set<String>> bothProduct(Map<String, Set<String>> writers, Collection<String> names) {

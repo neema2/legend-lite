@@ -289,9 +289,9 @@ class EdgeOnlyMembersTest {
             Map.entry("com.legend.testexecutionplan.RecordJson#sideShape(com.legend.testexecutionplan.SideShape)",
                     "2026-11-18: a half of lite's own test-plan record codec"),
             Map.entry("com.legend.testplan.JudgePlans$PlannedSide#root()",
-                    "2026-11-18: lite's judge planning's own side record"),
-            Map.entry("com.legend.testplan.NotAConstant#<init>(java.lang.String)",
-                    "2026-11-18: lite's own refusal of a side that is not a constant, raised by the edge's arm"));
+                    "2026-11-18: lite's judge planning's own side record"));
+            // (testplan.NotAConstant: moved to the edge 2026-11-18 by E-Java's train-17 item 5, 645c3e4464 -- the edge's
+            // collector raises it)
 
     /** The members only the edge uses that J21 ruled the product's (one parser, its legend-engine level the edge's
      *  alone), each with its dated reason. Not counted. */
