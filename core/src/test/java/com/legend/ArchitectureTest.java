@@ -1228,6 +1228,10 @@ final class ArchitectureTest {
             "testplan.EngineTextPlanning#appeal(com.legend.testplan.BodyDriver$ExecEnv, "
                     + "java.util.function.IntFunction)",
             "com.legend.edge.SqlTextVerdicts",
+            // 11 forwarders gone with train 16 b836ff636f (2026-11-18, re-measured by the GUARD stream): F's J40 census
+            // (e92c465d: SqlTextInputs to the edge, boundContext to edge.RuntimeContexts -- boundContext, sqlTextInputs,
+            // query, mapping, dialect, runtime) and E-Java's J40 (185d54a494: the referee's ReplayGates computed by the
+            // edge -- replayFacts, noReplayGates, extentSubset, ordered, sortKeys)
             "testplan.EngineTextPlanning#appealOn(com.legend.testplan.BodyDriver$ExecEnv)",
             "com.legend.edge.SqlTextVerdicts",
             "testplan.EngineTextPlanning#ask(com.legend.compiler.spec.typed.TypedSpec, boolean, boolean, "
@@ -1238,9 +1242,6 @@ final class ArchitectureTest {
             "com.legend.edge.SqlTextVerdicts",
             "testplan.EngineTextPlanning#bare(com.legend.testplan.TextAsk)",
             "com.legend.edge.EdgeEngineTestText com.legend.edge.SqlTextVerdicts",
-            "testplan.EngineTextPlanning#boundContext(com.legend.compiler.spec.typed.TypedSpec, java.util.List, "
-                    + "com.legend.compiler.spec.SpecCompiler)",
-            "com.legend.edge.SqlTextVerdicts",
             "testplan.EngineTextPlanning#calleeFqn(com.legend.compiler.spec.typed.TypedSpec)",
             "com.legend.edge.EdgeEngineTestText com.legend.edge.SqlTextVerdicts",
             "testplan.EngineTextPlanning#check(java.util.List, com.legend.testexecutionplan.HostJudgment)",
@@ -1253,7 +1254,6 @@ final class ArchitectureTest {
                     + "com.legend.sql.SqlQuery, com.legend.executionplan.ExecutionPlan$Target, int, "
                     + "java.lang.String)",
             "com.legend.edge.SqlTextVerdicts",
-            "testplan.EngineTextPlanning#dialect(com.legend.planner.SqlTextInputs)", "com.legend.edge.SqlTextVerdicts",
             "testplan.EngineTextPlanning#enumsOf(com.legend.compiler.element.ModelContext, java.lang.String, "
                     + "java.lang.String, com.legend.testexecutionplan.SideShape)",
             "com.legend.edge.SqlTextVerdicts",
@@ -1261,8 +1261,6 @@ final class ArchitectureTest {
             "testplan.EngineTextPlanning#evalSide(com.legend.compiler.spec.typed.TypedSpec, java.util.List, "
                     + "com.legend.compiler.spec.SpecCompiler, com.legend.testplan.BodyDriver$ExecEnv, boolean, "
                     + "boolean, com.legend.testplan.AssertVerdicts$SpliceHook)",
-            "com.legend.edge.SqlTextVerdicts",
-            "testplan.EngineTextPlanning#extentSubset(com.legend.testplan.AssertVerdicts$ReplayGates)",
             "com.legend.edge.SqlTextVerdicts",
             "testplan.EngineTextPlanning#frame(com.legend.testplan.BodyDriver$ExecEnv)",
             "com.legend.edge.SqlTextVerdicts",
@@ -1276,14 +1274,10 @@ final class ArchitectureTest {
             "com.legend.edge.EdgeEngineTestText",
             "testplan.EngineTextPlanning#letPrefix(com.legend.testplan.TextAsk)",
             "com.legend.edge.EdgeEngineTestText com.legend.edge.SqlTextVerdicts",
-            "testplan.EngineTextPlanning#mapping(com.legend.planner.SqlTextInputs)", "com.legend.edge.SqlTextVerdicts",
             "testplan.EngineTextPlanning#marking(com.legend.testplan.BodyDriver$ExecEnv, java.lang.String, "
                     + "boolean)",
             "com.legend.edge.SqlTextVerdicts",
-            "testplan.EngineTextPlanning#noReplayGates()", "com.legend.edge.SqlTextVerdicts",
             "testplan.EngineTextPlanning#notAConstantError(java.lang.String)", "com.legend.edge.SqlTextVerdicts",
-            "testplan.EngineTextPlanning#ordered(com.legend.testplan.AssertVerdicts$ReplayGates)",
-            "com.legend.edge.SqlTextVerdicts",
             "testplan.EngineTextPlanning#planSide(com.legend.compiler.spec.typed.TypedSpec, java.util.List, "
                     + "com.legend.compiler.spec.SpecCompiler, com.legend.testplan.BodyDriver$ExecEnv, "
                     + "com.legend.testplan.AssertVerdicts$SpliceHook)",
@@ -1294,12 +1288,8 @@ final class ArchitectureTest {
                     + "com.legend.compiler.spec.SpecCompiler, com.legend.testplan.BodyDriver$ExecEnv, boolean, "
                     + "boolean, com.legend.testplan.AssertVerdicts$SpliceHook)",
             "com.legend.edge.SqlTextVerdicts",
-            "testplan.EngineTextPlanning#query(com.legend.planner.SqlTextInputs)", "com.legend.edge.SqlTextVerdicts",
-            "testplan.EngineTextPlanning#replayFacts(com.legend.compiler.spec.typed.TypedSpec, java.util.List)",
-            "com.legend.edge.SqlTextVerdicts",
             "testplan.EngineTextPlanning#restoreMarking(com.legend.testplan.BodyDriver$ExecEnv, java.lang.String)",
             "com.legend.edge.SqlTextVerdicts",
-            "testplan.EngineTextPlanning#runtime(com.legend.planner.SqlTextInputs)", "com.legend.edge.SqlTextVerdicts",
             "testplan.EngineTextPlanning#scalarRow(com.legend.testplan.DatabaseJudge$SideRows)",
             "com.legend.edge.SqlTextVerdicts",
             "testplan.EngineTextPlanning#shapeOf(com.legend.testplan.JudgePlans$PlannedSide, "
@@ -1307,15 +1297,10 @@ final class ArchitectureTest {
             "com.legend.edge.SqlTextVerdicts",
             "testplan.EngineTextPlanning#side(com.legend.testplan.JudgePlans$PlannedSide)",
             "com.legend.edge.SqlTextVerdicts",
-            "testplan.EngineTextPlanning#sortKeys(com.legend.testplan.AssertVerdicts$ReplayGates)",
-            "com.legend.edge.SqlTextVerdicts",
             "testplan.EngineTextPlanning#specs(com.legend.testplan.TextAsk)",
             "com.legend.edge.EdgeEngineTestText com.legend.edge.SqlTextVerdicts",
             "testplan.EngineTextPlanning#splice(com.legend.testplan.AssertVerdicts$SpliceHook, "
                     + "com.legend.compiler.spec.typed.TypedSpec, java.util.Set)",
-            "com.legend.edge.SqlTextVerdicts",
-            "testplan.EngineTextPlanning#sqlTextInputs(com.legend.compiler.spec.NativeDispatch$RoutineCall, "
-                    + "java.util.List)",
             "com.legend.edge.SqlTextVerdicts",
             "testplan.EngineTextPlanning#tableReplace(com.legend.testplan.BodyDriver$ExecEnv)",
             "com.legend.edge.SqlTextVerdicts",
