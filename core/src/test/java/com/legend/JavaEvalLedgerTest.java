@@ -1606,7 +1606,8 @@ class JavaEvalLedgerTest {
                     // a side's plan (S4a, 2026-10-31): a statement's or a verdict side's body prepared under its system
                     // route, lowered and wrapped as its judge reads it, with no session; the driver opens the route
                     "SidePlanner.java",
-                    "SqlTextInputs.java", "PlanAllocations.java",
+                    // (SqlTextInputs.java left for the edge 2026-11-18, J40's only-edge-callers census)
+                    "PlanAllocations.java",
                     // an execute's routing activity text, a two-form hook of the plan style (J5 of the edge audit,
                     // 2026-11-17): signatures only, the product's form none, the edge's legend-engine's print
                     "RoutedQueries.java",
@@ -1857,6 +1858,9 @@ class JavaEvalLedgerTest {
                             // 2026-11-18, J40's only-edge-callers census: the bound context of legend-engine's test natives'
                             // runtime argument, moved from planner.BodyPlanner; a typed read, nothing evaluated
                             "RuntimeContexts.java",
+                            // 2026-11-18, J40's only-edge-callers census: legend-engine's toSQLString surface's inputs, moved from
+                            // planner; a typed read, nothing evaluated
+                            "SqlTextInputs.java",
                             // legend-engine's text printers (O3) and the dialects spelled upstream's way (D1.0)
                             "EngineStyleH2.java", "EngineStyleDB2.java", "EngineStyleComposite.java", "PureText.java",
                             // legend-pure's print forms written for the product's text nodes, one rewrite (D1.2,

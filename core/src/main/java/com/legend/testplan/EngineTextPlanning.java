@@ -256,25 +256,4 @@ public final class EngineTextPlanning {
         return com.legend.lowering.LiteralSpelling.inZone(iso, zone);
     }
 
-    /** {@code producer}'s structured inputs ({@code planner.SqlTextInputs}), or null where its shape has none. */
-    public static com.legend.planner.@com.legend.base.Nullable SqlTextInputs sqlTextInputs(
-            com.legend.compiler.spec.NativeDispatch.RoutineCall producer, List<TypedSpec> letPrefix) {
-        return com.legend.planner.SqlTextInputs.of(producer, letPrefix);
-    }
-
-    public static TypedSpec query(com.legend.planner.SqlTextInputs in) {
-        return in.query();
-    }
-
-    public static TypedSpec mapping(com.legend.planner.SqlTextInputs in) {
-        return in.mapping();
-    }
-
-    public static TypedSpec dialect(com.legend.planner.SqlTextInputs in) {
-        return in.dialect();
-    }
-
-    public static TypedSpec runtime(com.legend.planner.SqlTextInputs in) {
-        return in.runtime();
-    }
 }
