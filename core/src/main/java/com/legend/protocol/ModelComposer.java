@@ -56,14 +56,6 @@ public final class ModelComposer {
         return model(ModelReader.read(pmcd));
     }
 
-    /**
-     * JSON to text for a model (the conversion legend-engine's {@code jsonToGrammar/model} makes): the model's JSON
-     * read ({@link ModelReader#read(String)}, at its depth limit) and printed in {@code style}.
-     */
-    public static String model(String json, PureComposer.Style style) {
-        return model(ModelReader.read(json), style);
-    }
-
     /** A whole model as Pure text, in the engine composer's own default style (STANDARD). */
     public static String model(Protocol.PureModelContextData pmcd) {
         return model(pmcd, PureComposer.Style.STANDARD);

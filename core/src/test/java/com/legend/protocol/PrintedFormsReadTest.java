@@ -207,7 +207,7 @@ class PrintedFormsReadTest {
                 """;
         Json.Obj test = (Json.Obj) ((Json.Obj) element(text, 0).getArr("tests").items().get(0)).getArr("tests").items().get(0);
         assertEquals("the doc", test.getString("doc"));
-        String printed = ModelComposer.model(json(text), PureComposer.Style.STANDARD);
+        String printed = ModelComposer.model(ModelReader.read(Json.parse(json(text), DEEP)), PureComposer.Style.STANDARD);
         assertTrue(printed.contains("t1 'the doc' | f() => 1;"), printed);
         assertEquals(json(text), json(printed));
     }
@@ -277,6 +277,6 @@ class PrintedFormsReadTest {
         assertTrue(datedSpans.contains("{\"_type\":\"classInstance\",\"sourceInformation\":{\"endColumn\":53,\"endLine\":3,"
                 + "\"sourceId\":\"\",\"startColumn\":3,\"startLine\":3},\"type\":\"path\""), datedSpans);
         // and without spans it prints back, as the round trip reads it
-        assertEquals(json(printed), json(ModelComposer.model(json(printed), PureComposer.Style.PRETTY)));
+        assertEquals(json(printed), json(ModelComposer.model(ModelReader.read(Json.parse(json(printed), DEEP)), PureComposer.Style.PRETTY)));
     }
 }
