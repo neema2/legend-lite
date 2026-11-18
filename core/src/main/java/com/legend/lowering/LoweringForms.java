@@ -65,4 +65,13 @@ public interface LoweringForms {
      *  are dropped either way. */
     com.legend.sql.SqlQuery computedPruning(Supplier<com.legend.sql.SqlQuery> pruned,
             Supplier<com.legend.sql.SqlQuery> kept);
+
+    /** A column's text parsed to a Decimal ({@code parseDecimal}'s one-argument form; the audit's J1, RULED by the user
+     *  2026-11-17): the product's an exact decimal at its Decimal's precision; legend-engine's H2 its fixed
+     *  {@code DECIMAL(5,2)}. */
+    SqlExpr parsedDecimal(SqlExpr text);
+
+    /** A text parsed to JSON ({@code parseJSON}; the audit's J2, RULED by the user 2026-11-17): the product's the text as
+     *  written; legend-engine's with its parser's one tolerance, {@code '}{'} read as {@code '},{'}. */
+    SqlExpr parsedJson(SqlExpr text);
 }
