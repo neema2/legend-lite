@@ -302,6 +302,30 @@ export function conformance(name: string, target: () => Target, d: Dialect = LIT
       await refused('GET', `/${id('w')}`, undefined, 404, d.queryNotFound(id('w')), true);
     });
 
+    // a body that is not JSON, or no JSON object: a malformed request on every store, said where the request is read
+    // (PR #118 fix round, 2026-11-18) -- lite's 400 request in its words, legend-engine's 500 naming its exception
+    it('answers a body that is not JSON, or not an object, as a malformed request on every store', async () => {
+      for (const [body, lite, engine] of [
+        ['{not json', /^the request could not be read: its body is not JSON: /, /^IllegalArgumentException: /],
+        ['[1]', /^the request could not be read: its body is not a JSON object$/,
+          /^IllegalArgumentException: Expected top-level JSON object, got Arr$/],
+      ] as const) {
+        const r = await raw('POST', '/search', body);
+        assert.equal(r.status, d.malformedStatus, r.text);
+        const said = r.json as { kind?: string; message?: string };
+        assert.match(String(said.message), d === LITE ? lite : engine, r.text);
+        if (d === LITE) assert.equal(said.kind, 'request', r.text);
+      }
+      const v = await raw('GET', `/${id('a')}/history?version=x`);
+      assert.equal(v.status, d.malformedStatus, v.text);
+      if (d === LITE) assert.equal((v.json as { message?: string }).message, "the request could not be read: its version 'x' is not a number");
+      const sort = await raw('POST', '/search', { sortByOption: 'SORT_BY_NAME' });
+      assert.equal(sort.status, d.malformedStatus, sort.text);
+      assert.equal((sort.json as { message?: string }).message, d === LITE
+        ? "the request could not be read: its sort option 'SORT_BY_NAME' is none of SORT_BY_CREATE, SORT_BY_VIEW and SORT_BY_UPDATE"
+        : 'IllegalArgumentException: Unknown sort-by value');
+    });
+
     it('keeps a number as it was written: 1.0, and a long beyond 2^53', async () => {
       const written = '"gridConfig":{"width":1.0,"big":9007199254740993}';
       const made = await raw('POST', '', JSON.stringify(query(id('n'))).replace(/}$/, `,${written}}`));
@@ -315,7 +339,8 @@ export function conformance(name: string, target: () => Target, d: Dialect = LIT
       const r = await raw('GET', `/${id('a')}/nothing`);
       assert.equal(r.status, d.noRouteStatus);
       assert.equal((r.json as { message?: string }).message, d.noRoute(`/${id('a')}/nothing`));
-      // 404, and no record missing: lite's kind request (2026-11-17, notFound is a missing record's alone)
+      // no record missing: lite's kind request, 400 (2026-11-17, notFound is a missing record's alone; the spec's 400,
+      // PR #118 fix round, 2026-11-18); legend-engine's 404
       if (d === LITE) assert.equal((r.json as { kind?: string }).kind, 'request', r.text);
     });
 

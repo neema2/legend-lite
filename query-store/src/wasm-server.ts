@@ -69,7 +69,7 @@ const refusal = (status: number, message: string, kind: 'request' | 'notFound' |
 /** The store's refusals of a record that does not exist, as the store writes their kind (SavedQueries.refused: the
  *  constant's name in lower case): lite's notFound, 404 (the user, 2026-11-17 ~23:31) -- a batch with missing IDs too,
  *  naming them (the orchestrator's ruling, the same night), as the server's mount reads them (LegendHttpServer.
- *  storeRoutes' MISSING). A path the store does not serve is 404 too, and no record missing. */
+ *  storeRoutes' MISSING). A path the store does not serve is no record missing: a malformed request, below. */
 const MISSING: ReadonlySet<string> = new Set(['query_not_found', 'queries_not_found', 'version_not_found']);
 
 /** The store's refusals of a malformed request, whatever the store's status (upstream's 500 or 404, the edge's alone):

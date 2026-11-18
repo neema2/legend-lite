@@ -245,7 +245,8 @@ public class LegendHttpServer {
     /** The store's refusals of a record that does not exist, as the store writes their kind (lower case,
      *  {@code SavedQueries.refused}): lite's {@code notFound}, 404 (the user, 2026-11-17 ~23:31) -- a batch with
      *  missing IDs too, naming them (the orchestrator's ruling, the same night: upstream's 500 is the edge's alone). A
-     *  path the store does not serve ({@code NO_SUCH_ROUTE}, 404 too) is no such record: kind {@code request}. */
+     *  path the store does not serve ({@code NO_SUCH_ROUTE}) is no such record: a malformed request,
+     *  {@link #MALFORMED_REQUEST}. */
     private static final java.util.Set<String> MISSING = java.util.Set.of(
             SavedQueries.Refusal.Kind.QUERY_NOT_FOUND.name().toLowerCase(java.util.Locale.ROOT),
             SavedQueries.Refusal.Kind.QUERIES_NOT_FOUND.name().toLowerCase(java.util.Locale.ROOT),
@@ -265,9 +266,9 @@ public class LegendHttpServer {
      * the queries), answered by the stores' own operations ({@link SavedQueries#answer}, {@link SavedCubes#answer}) for
      * the anonymous user, a refusal in lite's one error shape ({@code {kind, message}}, spec §3: {@code internal} for
      * the store's failure, {@code notFound} for a saved query, a version or a saved page that does not exist (the user,
-     * 2026-11-17 ~23:31: 404), {@code request} for any other request it refuses -- a path it does not serve too, though
-     * the store answers that 404 as well: the kind is read from the store's own, never from the status): lite's own
-     * route. The edge's adapter at legend-engine's path wraps the store in legend-engine's shape
+     * 2026-11-17 ~23:31: 404), {@code request} for any other request it refuses -- a malformed request (a path it does
+     * not serve, a body or a parameter it cannot read, a search with no term) at 400 whatever the store's status, the
+     * kind read from the store's own, never from the status (PR #118 fix round, 2026-11-18): lite's own route. The edge's adapter at legend-engine's path wraps the store in legend-engine's shape
      * ({@link #storeRoutes(String, SavedQueries, SavedCubes, java.util.function.Function)}).
      */
     public static Routes storeRoutes(String prefix, @com.legend.base.Nullable SavedQueries queryStore,

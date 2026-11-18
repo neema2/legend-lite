@@ -81,10 +81,11 @@ public final class SavedQueries {
              *  words name the request's field, never legend-engine's class): legend-engine's class, the field, the
              *  problem in legend-engine's words, the field's path in the request, the problem in lite's words. */
             FIELD_UNREAD("the request's %4$s %5$s"),
-            /** A body the store cannot read otherwise (not JSON of the shape the store takes, a value no option names):
-             *  the exception's class, its message (PR #118 fix round, 2026-11-18: a malformed request, lite's
-             *  {@code request}; the disk failing stays {@link #MALFORMED}). */
-            UNREADABLE("the request could not be read: %2$s"),
+            /** A request the store cannot read otherwise -- its body not JSON of the shape the store takes, a parameter or
+             *  an option no value of it names -- raised where the request is read (PR #118 fix round, 2026-11-18: a
+             *  malformed request, lite's {@code request}; any other failure stays {@link #MALFORMED}): the exception's
+             *  class and message legend-engine names, lite's words of the problem. */
+            UNREADABLE("the request could not be read: %3$s"),
             /** The store is not configured: which store (query, page). */
             STORE_NOT_CONFIGURED("the %1$s store is not configured: start the server with --query-store DIR"),
             /** A request the store could not read, or its disk failing: the exception's class, its message. */
@@ -214,7 +215,7 @@ public final class SavedQueries {
                 }
                 case "GET 2 history" -> {
                     List<String> v = queryParams(rawQuery, "version");
-                    yield ok(store.history(id, v.isEmpty() ? null : Integer.valueOf(v.get(0))));
+                    yield ok(store.history(id, v.isEmpty() ? null : version(v.get(0))));
                 }
                 case "PUT 2 patchQuery" -> ok(store.patch(id, body, user));
                 default -> notFound(rest, words);
@@ -223,28 +224,65 @@ public final class SavedQueries {
     }
 
     /** A route served, its refusal or failure answered in {@code words} -- the one catch both stores share (J9 of the
-     *  edge audit, 2026-11-17): a {@link Refusal} is its kind's answer; a body that is not the JSON the engine takes (a
-     *  bad integer, a field of the wrong kind) is {@link Refusal.Kind#UNREADABLE}, the store's disk failing
-     *  {@link Refusal.Kind#MALFORMED}: each a 500 naming the exception, as legend-engine answers both (lite's route
-     *  answers the first as a malformed request: PR #118 fix round, 2026-11-18). */
+     *  edge audit, 2026-11-17): a {@link Refusal} is its kind's answer -- a request the store cannot read is one,
+     *  raised where it is read ({@link Refusal.Kind#UNREADABLE}, {@link Refusal.Kind#FIELD_UNREAD}; lite's route answers
+     *  it as a malformed request: PR #118 fix round, 2026-11-18); any other failure, the store's disk failing among
+     *  them, is {@link Refusal.Kind#MALFORMED}: each a 500 naming the exception, as legend-engine answers both. */
     static Answer served(java.util.function.Supplier<Answer> route, java.util.function.Function<Refusal, String> words) {
         try {
             return route.get();
         } catch (Refusal r) {
             return refused(r, words);
-        } catch (IllegalArgumentException | ClassCastException e) {
-            return refused(new Refusal(Refusal.Kind.UNREADABLE, List.of(e.getClass().getSimpleName(),
-                    String.valueOf(e.getMessage())), 500), words);
-        } catch (java.io.UncheckedIOException e) {
+        } catch (java.io.UncheckedIOException | IllegalArgumentException | ClassCastException e) {
             return failed(e, words);
         }
     }
 
     /** A body's field the store cannot read ({@link Refusal.Kind#FIELD_UNREAD}): legend-engine's class {@code where},
-     *  its {@code field} and {@code problem}; lite's words name the field by its {@code path} in the request. */
+     *  its {@code field} and {@code problem}; lite's words name the field by its {@code path} in the request and say
+     *  the problem as {@code liteProblem}. */
+    static Refusal unread(String where, String field, String problem, String path, String liteProblem) {
+        return new Refusal(Refusal.Kind.FIELD_UNREAD, List.of(where, field, problem, path, liteProblem), 500);
+    }
+
+    /** {@link #unread(String, String, String, String, String)} where lite says the problem in the same words. */
     static Refusal unread(String where, String field, String problem, String path) {
-        return new Refusal(Refusal.Kind.FIELD_UNREAD, List.of(where, field, problem, path,
-                problem.startsWith("holds something not ") ? "holds something that is not an object" : problem), 500);
+        return unread(where, field, problem, path, problem);
+    }
+
+    /** A request the store cannot read ({@link Refusal.Kind#UNREADABLE}), raised where it is read: the class and
+     *  message legend-engine names ({@code engineClass}, {@code engineMessage}), lite's words of it. */
+    static Refusal unreadable(String engineClass, String engineMessage, String liteWords) {
+        return new Refusal(Refusal.Kind.UNREADABLE, List.of(engineClass, engineMessage, liteWords), 500);
+    }
+
+    /** The request's {@code body} as the JSON object the store reads, or refused where it is not one (a malformed
+     *  request, {@link Refusal.Kind#UNREADABLE}): read where the request is read, so a failure anywhere else -- the
+     *  store reading its own files -- stays the store's fault. */
+    static Json.Obj requestBody(String body) {
+        Json.Node parsed;
+        try {
+            parsed = Json.parse(body);
+        } catch (IllegalArgumentException e) {
+            throw unreadable(e.getClass().getSimpleName(), String.valueOf(e.getMessage()),
+                    "its body is not JSON: " + e.getMessage());
+        }
+        if (!(parsed instanceof Json.Obj o)) {
+            // the words Json.parseObject refused it in until then, so the edge's answer is unchanged byte for byte
+            throw unreadable("IllegalArgumentException", "Expected top-level JSON object, got "
+                    + parsed.getClass().getSimpleName(), "its body is not a JSON object");
+        }
+        return o;
+    }
+
+    /** The {@code version} parameter as a number, or refused where it is none ({@link Refusal.Kind#UNREADABLE}). */
+    private static int version(String text) {
+        try {
+            return Integer.parseInt(text);
+        } catch (NumberFormatException e) {
+            throw unreadable(e.getClass().getSimpleName(), String.valueOf(e.getMessage()),
+                    "its version '" + text + "' is not a number");
+        }
     }
 
     /** A refusal answered: its status, and {@code {"kind", "message"}} -- its kind as data (lower case; {@code refused}
@@ -292,7 +330,7 @@ public final class SavedQueries {
 
     /** {@code POST query/search}. */
     public synchronized String search(String body, String currentUser) {
-        Json.Obj spec = Json.parseObject(body.strip().isEmpty() ? "{}" : body);
+        Json.Obj spec = requestBody(body.strip().isEmpty() ? "{}" : body);
         searchShape(spec);
         List<Json.Obj> matches = new ArrayList<>();
         for (Json.Obj q : latestOfAll()) {
@@ -307,7 +345,8 @@ public final class SavedQueries {
                 case "SORT_BY_CREATE" -> "createdAt";
                 case "SORT_BY_VIEW" -> "lastOpenAt";
                 case "SORT_BY_UPDATE" -> "lastUpdatedAt";
-                default -> throw new IllegalArgumentException("Unknown sort-by value");
+                default -> throw unreadable("IllegalArgumentException", "Unknown sort-by value",
+                        "its sort option '" + sortBy + "' is none of SORT_BY_CREATE, SORT_BY_VIEW and SORT_BY_UPDATE");
             };
             matches.sort(Comparator.comparingLong((Json.Obj q) -> longOr(q, field, Long.MIN_VALUE)).reversed());
         }
@@ -388,7 +427,7 @@ public final class SavedQueries {
 
     /** {@code POST query}: a new query, owned by the caller, version 1. */
     public synchronized String create(String body, String currentUser) {
-        Json.Obj query = Json.parseObject(body);
+        Json.Obj query = requestBody(body);
         queryShape(query);
         validate(query);
         String id = query.getString("id");
@@ -411,7 +450,7 @@ public final class SavedQueries {
 
     /** {@code PUT query/{id}}: the owner's new version; the old one becomes history. */
     public synchronized String update(String id, String body, String currentUser) {
-        Json.Obj query = Json.parseObject(body);
+        Json.Obj query = requestBody(body);
         queryShape(query);
         validate(query);
         if (!id.equals(query.getString("id"))) {
@@ -422,7 +461,7 @@ public final class SavedQueries {
 
     /** {@code PUT query/{id}/patchQuery}: the fields the body sets over the current version, as a new version. */
     public synchronized String patch(String id, String body, String currentUser) {
-        Json.Obj patch = Json.parseObject(body);
+        Json.Obj patch = requestBody(body);
         queryShape(patch);
         get(id); // the engine patches what getQuery answers, which marks it opened
         Json.Obj current = java.util.Objects.requireNonNull(current(versions(id)), id);
@@ -712,7 +751,7 @@ public final class SavedQueries {
         List<Json.Obj> out = new ArrayList<>();
         for (Json.Node i : a.items()) {
             if (!(i instanceof Json.Obj each)) {
-                throw unread(where, field, "holds something not " + item, field);
+                throw unread(where, field, "holds something not " + item, field, "holds something that is not an object");
             }
             out.add(each);
         }

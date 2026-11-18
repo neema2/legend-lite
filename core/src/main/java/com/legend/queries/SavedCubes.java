@@ -116,7 +116,7 @@ public final class SavedCubes {
     }
 
     private static Json.Obj object(String body) {
-        return Json.parseObject(body.strip().isEmpty() ? "{}" : body);
+        return SavedQueries.requestBody(body.strip().isEmpty() ? "{}" : body);
     }
 
     // ------------------------------------------------------------------ the rules
