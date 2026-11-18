@@ -107,8 +107,6 @@ public final class KeyedPivot {
             }
             case SqlSource.SourceUrl u -> {
             }
-            case SqlSource.VarSetPlaceholder v -> {
-            }
             case SqlSource.RawSql r -> {
             }
             case SqlSource.GridReport g -> {

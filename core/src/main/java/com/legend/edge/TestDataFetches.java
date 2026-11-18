@@ -279,7 +279,7 @@ public final class TestDataFetches {
         for (String c : cols) {
             ps.add(new SqlSelect.Projection(TestDataGenerator.stored(alias, loc.def(), c), c, null));
         }
-        SqlSource parentRows = new SqlSource.Subselect(SqlSelect.starOf(new SqlSource.VarSetPlaceholder(parentRes,
+        SqlSource parentRows = new SqlSource.Subselect(SqlSelect.starOf(new SqlSource.Cte(parentRes,   // the parent's rows: a plan variable (PlanVariables, J28)
                 TestDataGenerator.ROOT, List.of())), TestDataGenerator.ROOT, null);
         return new SqlSelect(ps, false, new SqlSource.Join(parentRows, TestDataGenerator.storeTable(loc, ct, alias),
                 SqlSource.Join.Kind.INNER, planCondition(op, parent.table(), ct, alias, loc.def())),

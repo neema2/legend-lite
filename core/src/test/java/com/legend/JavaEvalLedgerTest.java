@@ -1860,6 +1860,9 @@ class JavaEvalLedgerTest {
                             // 2026-11-17, the user's "yes to the rule"): three delegations to the parse door's engine
                             // entries; parses, decides nothing
                             "EngineGrammar.java",
+                            // legend-engine's plan variables in a statement (J28 of the edge audit, 2026-11-17):
+                            // the relations it reads and does not define, read off the MIR; decides nothing
+                            "PlanVariables.java",
                             // legend-engine's RelationType JSON and a column's engine type and relational spelling,
                             // moved from com.legend.plan (Phase 6's C, 2026-11-17, the orchestrator's approved method
                             // list): spells a compiled type, decides nothing

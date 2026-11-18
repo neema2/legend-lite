@@ -684,9 +684,6 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             // a cross-store plan variable is legend-engine's plan text (its VarSetPlaceHolder, a FreeMarker splice at its
             // execution): written by the compatibility edge's engine-text dialect (EngineStyleH2), refused by name by
             // the product's (J6 of the edge audit, 2026-11-17: the base renderer wrote the FreeMarker)
-            case SqlSource.VarSetPlaceholder vp -> throw new UnsupportedOperationException("the plan variable '"
-                    + vp.varName() + "' is legend-engine's cross-store plan text (a FreeMarker splice), the compatibility"
-                    + " edge's: the product's dialects write no plan variable");
             case SqlSource.Values v -> valuesSource(writer, v);
             // authored raw SQL as a relation source (the typed executeInDb grid) — carried text, parenthesized, in
             // this session's language (raw: the engine's H2 text translated, any other as written)
