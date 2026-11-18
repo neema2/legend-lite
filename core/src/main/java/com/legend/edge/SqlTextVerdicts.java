@@ -641,8 +641,7 @@ final class SqlTextVerdicts {
         com.legend.compiler.spec.typed.ExecutionContext frame = EngineTextPlanning.frame(env);
         com.legend.compiler.spec.typed.ExecutionContext base = frame == null
                 ? com.legend.compiler.spec.typed.ExecutionContext.NONE : frame;
-        boolean nonExec = com.legend.compiler.element.type.PlatformTypes
-                .TO_NON_EXECUTABLE_SQL_STRING.equals(producer.fqn());
+        boolean nonExec = EdgeEngineTestText.TO_NON_EXECUTABLE_SQL_STRING.equals(producer.fqn());
         // legend-engine's nonExecutable post-processor (toNonExecutableSQLString), set here alone: the frame's context
         // rebuilt with it (the product's withPostProcessors and PostProcessors.withNonExecutable gone, 2026-11-18, J40)
         return !nonExec || base.postProcessors().nonExecutable() ? base : new com.legend.compiler.spec.typed.ExecutionContext(base.mapping(), base.runtime(), base.chainMappings(), base.jsonSources(), base.sqlSetups(), base.csvSetups(), base.connectionName(), base.quoteIdentifiers(), base.timeZone(), base.databaseType(), base.connectionInstance(), base.storeFqn(), base.driverTablePk(), base.importDataFlowColumns(),
@@ -1562,8 +1561,7 @@ final class SqlTextVerdicts {
                 String fqn = nc.callee().qualifiedName();
                 if (fqn.equals(EdgeEngineTestText.TO_SQL_STRING)
                         || fqn.equals(EdgeEngineTestText.TO_SQL_STRING_PRETTY)
-                        || fqn.equals(com.legend.compiler.element.type
-                                .PlatformTypes.TO_NON_EXECUTABLE_SQL_STRING)) {
+                        || fqn.equals(EdgeEngineTestText.TO_NON_EXECUTABLE_SQL_STRING)) {
                     return com.legend.compiler.spec.NativeDispatch.RoutineCall.of(nc);
                 }
             }
