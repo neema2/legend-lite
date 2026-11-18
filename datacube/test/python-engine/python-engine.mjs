@@ -115,6 +115,17 @@ try {
   }));
   await page.route(`${origin}/python-engine.js`, (r) => r.fulfill({ contentType: 'text/javascript', body: bundle }));
   await page.route(`${origin}/upstream.arrows.zst`, (r) => r.fulfill({ contentType: 'application/octet-stream', body: upstream }));
+  // THE EDGE'S CHECKS (H5, the orchestrator's ruling of 2026-11-18): legend-engine's API (/api/pure/v1/...) is the
+  // edge's, served by legend_lite.edge.engine over the same frames, never by the product engine. The page asks it of its
+  // own origin, as a legend-engine client asks its server; each such call goes to the edge's server, the page's token
+  // swapped for the edge's (a call without one is sent without one, and refused there by name)
+  await page.route(`${origin}/api/pure/v1/**`, async (r) => {
+    const request = r.request();
+    const headers = { ...request.headers() };
+    if (headers.authorization === served.authorization) headers.authorization = served.edge.authorization;
+    const url = served.edge.url + request.url().slice(origin.length);
+    await r.fulfill({ response: await r.fetch({ url, headers }) });
+  });
   await page.goto(`${origin}/python-engine.html`);
   await page.waitForFunction(() => window.__pythonEngine?.done === true, undefined, { timeout: 280_000 }).catch(async (e) => {
     console.log(`the page did not finish; it was at: ${await page.evaluate(() => window.__pythonEngineStage ?? '(no stage)')}`);

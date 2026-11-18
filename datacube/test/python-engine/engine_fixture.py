@@ -46,7 +46,8 @@ from pathlib import Path
 import pyarrow as pa
 
 import legend_lite as ll
-from legend_lite import datacube
+from legend_lite import datacube, edge
+from legend_lite.engine import WebServer
 from legend_lite.notebook import DataCube, PageCube
 
 _said = threading.Lock()
@@ -206,9 +207,13 @@ def main() -> None:
     widgets['nbp'] = PageCube(notebook_page)
     for name, widget in widgets.items():
         channel(widget, name)
+    # legend-engine's API over the same frames, at the edge's door (H5, the orchestrator's ruling of 2026-11-18): the
+    # product engine serves none of it, so the page's legend-engine checks are routed here by the harness
+    edge_web = WebServer(edge.engine(datacube._session.frames))
     say(json.dumps({
         'url': web.url,
         'authorization': web.authorization,
+        'edge': {'url': edge_web.url, 'authorization': edge_web.authorization},
         'link': cube.url,
         'remote': f'http://127.0.0.1:{files.server_address[1]}/books.parquet',
         'iceberg': f'{shelves}#iceberg',
