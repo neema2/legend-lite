@@ -32,20 +32,21 @@ describe("the page's own store: what a server here cannot be asked", () => {
       id: 'owned', name: 'Owned', groupId: 'demo', artifactId: 'trading', versionId: '0.0.0', content: '|1',
     });
     await assert.rejects(theirs.update({ ...q, name: 'Taken' }), (e: unknown) => e instanceof QueryStoreError && e.status === 403
-      && e.message === 'Only owner can update the query');
+      && e.message === 'only the owner can update it');
     await assert.rejects(theirs.delete('owned'), (e: unknown) => e instanceof QueryStoreError && e.status === 403
-      && e.message === 'Only owner can delete the query');
+      && e.message === 'only the owner can delete it');
     // and "mine only" is the caller's
     assert.deepEqual((await theirs.search({ showCurrentUserQueriesOnly: true })).map((x) => x.id), []);
     assert.deepEqual((await mine.search({ showCurrentUserQueriesOnly: true })).map((x) => x.id), ['owned']);
   });
 
-  it("a body that is not JSON: lite's refusal, kind internal, naming the error, as the server answers it", async () => {
+  // J9's sentences (the edge audit, 2026-11-17): the store's refusals in lite's words on lite's mount
+  it("a body that is not JSON: lite's refusal, kind internal, naming what was wrong, as the server answers it", async () => {
     const r = await server.fetch(`${LOCAL_API}/lite/v1/queries`, { method: 'POST', body: '{not json' });
     assert.equal(r.status, 500);
     const said = (await r.json()) as { kind: string; message: string };
     assert.equal(said.kind, 'internal');
-    assert.match(said.message, /^\w+(Exception|Error): /);
+    assert.match(said.message, /^the request could not be served: \S/);
   });
 
   it("lite's user operation: the page's configured user; a request holding a key, or not a POST, refused, kind request", async () => {

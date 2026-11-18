@@ -19,6 +19,19 @@ export interface Dialect {
   queriesNotFound(ids: string): string;
   versionNotFound(version: string, id: string): string;
   noRoute(rest: string): string;
+  // the store's other refusals (J9 of the edge audit, 2026-11-17: each a kind, lite's sentence on lite's mount,
+  // legend-engine's the edge's; the TS host, 2026-11-18, once J9's re-cut reached the merge point)
+  idTaken(id: string): string;
+  /** A required field missing or empty: lite names it in its words, legend-engine by its own. */
+  missing(field: 'name' | 'content' | 'runtime'): string;
+  invalidArtifactId: string;
+  invalidGroupId: string;
+  unservedContext(type: string, served: string): string;
+  limitNotPositive: string;
+  noSearchTerm: string;
+  idChanged: string;
+  /** A request the store could not serve (a 500): its message, naming what was wrong. */
+  malformed(message: string): string;
   /** A refusal's body beyond its message: lite's kind, by its status; legend-engine's envelope at 500. */
   refusal(status: number, message: string): unknown;
 }
@@ -32,6 +45,15 @@ export const LITE: Dialect = {
   queriesNotFound: (ids) => `no saved query has the ID(s):\n${ids}`,
   versionNotFound: (version, id) => `the saved query '${id}' has no version '${version}'`,
   noRoute: (rest) => `no such legend-lite API: /api/lite/v1/queries${rest}`,
+  idTaken: (id) => `the ID '${id}' is already taken`,
+  missing: (field) => `the ${field === 'runtime' ? "execution context's runtime" : field} is missing or empty`,
+  invalidArtifactId: 'the project artifact ID is invalid',
+  invalidGroupId: 'the project group ID is invalid',
+  unservedContext: (type, served) => `the execution context of _type '${type}' is not served (${served})`,
+  limitNotPositive: 'the limit must be greater than 0',
+  noSearchTerm: 'the search specification has no search term',
+  idChanged: 'the ID cannot be changed',
+  malformed: (message) => `the request could not be served: ${message}`,
   refusal: (status, message) => ({ kind: status >= 500 ? 'internal' : 'request', message }),
 };
 
@@ -43,6 +65,15 @@ export const ENGINE: Dialect = {
   queriesNotFound: (ids) => `Can't find queries for the following ID(s):\n${ids}`,
   versionNotFound: (version, id) => `Can't find version '${version}' for query with ID '${id}'`,
   noRoute: (rest) => `no such legend-engine API in legend-lite: /api/pure/v1/query${rest}`,
+  idTaken: (id) => `Query with ID '${id}' already existed`,
+  missing: (field) => `Query ${field} is missing or empty`,
+  invalidArtifactId: 'Query project artifact ID is invalid',
+  invalidGroupId: 'Query project group ID is invalid',
+  unservedContext: (type, served) => `Query execution context of _type '${type}' is not served by legend-lite (${served})`,
+  limitNotPositive: 'Limit should be greater than 0',
+  noSearchTerm: 'Query search spec expecting a search term',
+  idChanged: 'Updating query ID is not supported',
+  malformed: (message) => `IllegalArgumentException: ${message}`,
   refusal: (status, message) => (status >= 500 ? { code: -1, message, status: 'error' } : { message }),
 };
 
@@ -127,18 +158,18 @@ export function conformance(name: string, target: () => Target, d: Dialect = LIT
     });
 
     it('refuses the same id twice', async () => {
-      await refused('POST', '', query(id('a')), 400, `Query with ID '${id('a')}' already existed`);
+      await refused('POST', '', query(id('a')), 400, d.idTaken(id('a')));
     });
 
     it('refuses an incomplete or invalid query, in the engine words', async () => {
-      await refused('POST', '', query(id('b'), { name: '' }), 400, 'Query name is missing or empty');
-      await refused('POST', '', query(id('b'), { artifactId: 'Not Valid' }), 400, 'Query project artifact ID is invalid');
-      await refused('POST', '', query(id('b'), { groupId: '1bad' }), 400, 'Query project group ID is invalid');
-      await refused('POST', '', query(id('b'), { content: '' }), 400, 'Query content is missing or empty');
+      await refused('POST', '', query(id('b'), { name: '' }), 400, d.missing('name'));
+      await refused('POST', '', query(id('b'), { artifactId: 'Not Valid' }), 400, d.invalidArtifactId);
+      await refused('POST', '', query(id('b'), { groupId: '1bad' }), 400, d.invalidGroupId);
+      await refused('POST', '', query(id('b'), { content: '' }), 400, d.missing('content'));
       await refused('POST', '', query(id('b'), { executionContext: { _type: 'explicitExecutionContext', mapping: 'm::M', runtime: '' } }),
-        400, 'Query runtime is missing or empty');
+        400, d.missing('runtime'));
       await refused('POST', '', { ...query(id('b')), executionContext: { _type: 'somethingElse' } }, 400,
-        "Query execution context of _type 'somethingElse' is not served by legend-lite (explicitExecutionContext, dataSpaceExecutionContext)");
+        d.unservedContext('somethingElse', 'explicitExecutionContext, dataSpaceExecutionContext'));
     });
 
     it('gets it, marked opened', async () => {
@@ -161,8 +192,8 @@ export function conformance(name: string, target: () => Target, d: Dialect = LIT
       // by id, exactly
       const byId = (await raw('POST', '/search', { searchTermSpecification: { searchTerm: id('a') } })).json as Record<string, unknown>[];
       assert.ok(byId.some((q) => q['id'] === id('a')));
-      await refused('POST', '/search', { limit: 0 }, 400, 'Limit should be greater than 0');
-      await refused('POST', '/search', { searchTermSpecification: {} }, 500, 'Query search spec expecting a search term');
+      await refused('POST', '/search', { limit: 0 }, 400, d.limitNotPositive);
+      await refused('POST', '/search', { searchTermSpecification: {} }, 500, d.noSearchTerm);
     });
 
     it('updates: a new version, the old one its history', async () => {
@@ -175,7 +206,7 @@ export function conformance(name: string, target: () => Target, d: Dialect = LIT
       const h = (await raw('GET', `/${id('a')}/history`)).json as Record<string, unknown>[];
       assert.deepEqual(h.map((v) => [v['version'], v['name']]), [[1, `Query ${id('a')}`]]);
       assert.notEqual(h[0]!['validUntil'], null);
-      await refused('PUT', `/${id('a')}`, query(id('other')), 400, 'Updating query ID is not supported');
+      await refused('PUT', `/${id('a')}`, query(id('other')), 400, d.idChanged);
       await refused('PUT', `/${id('missing')}`, query(id('missing')), 404, d.queryNotFound(id('missing')), true);
     });
 
@@ -239,7 +270,7 @@ export function conformance(name: string, target: () => Target, d: Dialect = LIT
       const wrong = async (method: string, path: string, body: unknown, message: string): Promise<void> => {
         const r = await raw(method, path, body);
         assert.equal(r.status, 500, r.text);
-        assert.deepEqual(r.json, d.refusal(500, `IllegalArgumentException: ${message}`));
+        assert.deepEqual(r.json, d.refusal(500, d.malformed(message)));
       };
       await wrong('POST', '/search', { limit: 'ten' }, 'QuerySearchSpecification.limit is not a number');
       await wrong('POST', '/search', { searchTermSpecification: { searchTerm: 'x', includeOwner: 'yes' } },
