@@ -78,10 +78,6 @@ class EdgeSpellingHookTest {
             return PlanStyle.PRODUCT.twoForm(kind, productForm);
         }
 
-        @Override
-        public String activitySql(Activity activity) {
-            return PlanStyle.PRODUCT.activitySql(activity);
-        }
 
         @Override
         public String graphKeyDate(String written) {

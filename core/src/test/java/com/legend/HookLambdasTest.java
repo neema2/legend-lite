@@ -47,7 +47,9 @@ class HookLambdasTest {
             Map.entry("com.legend.lowering.Styled", Map.of("com.legend.lowering.DateTimeTexts", 1)),
             // (TestDataPlanner -> Printing: gone 2026-11-17 with K12, a095d0b56 -- Printing is no functional interface now,
             // its product form the class LitePrinting); a routed query's activity, the product's (J5, fb8c299b9e)
-            Map.entry("com.legend.planner.PlanAllocations", Map.of("com.legend.planner.RoutedQueries", 1)));
+            // an execute's activity SQL, lite's own (J40.PlanStyle, 2026-11-18: PlanAllocations.LITE_ACTIVITY)
+            Map.entry("com.legend.planner.PlanAllocations", Map.of("com.legend.planner.RoutedQueries", 1,
+                    "com.legend.planner.ActivityTexts", 1)));
 
     /** "caller#method(params)" -> the class objects named beside its twoForm call, and its number of reaches (calls and
      *  references). Measured 2026-11-17. */
@@ -57,6 +59,10 @@ class HookLambdasTest {
                     "com.legend.lowering.ListTexts", "com.legend.lowering.PureOnlyTexts",
                     // + LoweringForms (K5, train 5)
                     "com.legend.lowering.LoweringForms", "(twoForm reaches 3)")),
+            // an execute's activity SQL (J40.PlanStyle, 2026-11-18: until then PlanStyle.activitySql picked one of two)
+            Map.entry("com.legend.planner.PlanAllocations#activitySql(java.util.List, java.lang.String,"
+                    + " com.legend.compiler.spec.SpecCompiler, com.legend.planner.PlanEnv, boolean)",
+                    Set.of("com.legend.planner.ActivityTexts", "(twoForm reaches 1)")),
             // a routed query's activity rows (J5, fb8c299b9e, train 5)
             Map.entry("com.legend.planner.PlanAllocations#registerActivityRows("
                     + "com.legend.compiler.spec.typed.TypedNativeCall, com.legend.compiler.spec.typed.TypedSpec,"
@@ -174,9 +180,8 @@ class HookLambdasTest {
             Map.entry("com.legend.planner.PlanAllocations#registerPlanRows(com.legend.compiler.spec.typed.TypedNativeCall,"
                     + " java.util.List, com.legend.compiler.spec.SpecCompiler, com.legend.planner.PlanEnv)",
                     Set.of("(facet reaches 1)", "com.legend.planner.UpstreamPlans")),
-            // an activity's upstream SQL text, asked only where the style picks the engine's (W9's planner half)
-            Map.entry("com.legend.planner.PlanAllocations$1#engines()",
-                    Set.of("(facet reaches 1)", "com.legend.planner.UpstreamPlans")),
+            // (PlanAllocations$1#engines(): gone 2026-11-18, J40.PlanStyle -- the activity's upstream text is the edge's
+            // form of the two-form ActivityTexts, which asks its own facet)
             // the Lowerer's relation-text and result-envelope facets, each asked with its call's refusal (B8)
             Map.entry("com.legend.planner.PlanEnv#configure(com.legend.lowering.Lowerer)",
                     Set.of("(facet reaches 2)", "com.legend.lowering.RelationTexts",

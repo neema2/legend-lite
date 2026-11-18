@@ -62,8 +62,8 @@ class EdgeOnlyMembersTest {
      *  listing its members here (J33's and J40's audit items fold into it). Shrink-only: a member leaves when it moves,
      *  and its class's line closes with its last. */
     static final Map<String, String> OPEN = Map.ofEntries(
-            Map.entry("com.legend.database.PlanStyle$Activity#engines()",
-                    "J40.PlanStyle E-SQL MOVE (2026-11-18): legend-engine's text for an activity chain"),
+            // (PlanStyle$Activity#engines(): gone 2026-11-18 by F's J40.PlanStyle commit -- the activity SQL a two-form
+            // hook, planner.ActivityTexts, the edge's form legend-engine's text; J40.PlanStyle closes)
             Map.entry("com.legend.lineage.ScanRelations#rootImpl(com.legend.compiler.element.ModelContext, java.lang.String, java.lang.String)",
                     "J40.ScanRelations E-SQL MOVE (2026-11-18): legend-engine's set-implementation identity (#47, the plan printer)"),
             Map.entry("com.legend.lineage.ScanRelations#rootImpl(com.legend.compiler.element.ModelContext, java.lang.String, java.lang.String, java.util.List)",

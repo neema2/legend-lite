@@ -288,6 +288,9 @@ class HookRulingTest {
                 // RoutedQueries (J5 of the edge audit, 2026-11-17: an execute's routing activity, none in the product,
                 // legend-engine's AggregationAwareActivity at the edge)
                 com.legend.planner.RoutedQueries.class,
+                // ActivityTexts (J40.PlanStyle, the orchestrator's ruling of 2026-11-18: an execute's activity SQL, lite's
+                // own in the product, legend-engine's text at the edge; until then PlanStyle.activitySql picked one of two)
+                com.legend.planner.ActivityTexts.class,
                 // LoweringForms (the audit's K5, 2026-11-17: the lowering's two-form choices, a raise, a view, a wire cast)
                 com.legend.lowering.LoweringForms.class,
                 // VerdictWords (census J29, 2026-11-18: the database judge's words of a failure; census C1's

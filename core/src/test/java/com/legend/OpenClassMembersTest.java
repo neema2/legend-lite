@@ -71,7 +71,7 @@ class OpenClassMembersTest {
                     // planModel -> planRows (2026-11-17, J4/K3 by 0001a56387, D's train 4: the facet answers the
                     // handle's rows; its signature names no com.legend.plan type)
                     "public abstract java.util.Map<java.lang.String, java.util.List<java.util.List<java.lang.String>>> planRows(java.lang.String, com.legend.compiler.spec.typed.TypedNativeCall, java.lang.String, java.lang.String, java.util.List<java.lang.String>, com.legend.compiler.spec.SpecCompiler, com.legend.planner.PlanEnv)",
-                    "public abstract java.lang.String activitySql(java.util.List<com.legend.compiler.spec.typed.TypedSpec>, java.lang.String, com.legend.compiler.spec.SpecCompiler, com.legend.planner.PlanEnv, boolean)",
+                    // (activitySql: gone 2026-11-18, J40.PlanStyle -- the two-form ActivityTexts, the edge's form EnginePlans.activitySql)
                     "public abstract java.lang.String ddlText(com.legend.compiler.spec.typed.TypedNativeCall, com.legend.planner.PlanEnv)",
                     "public abstract java.lang.String generatedTestDataPlan(com.legend.compiler.spec.typed.TypedTestDataGen, com.legend.compiler.element.ModelContext)",
                     "public abstract java.lang.String routineText(com.legend.builtin.NativeFn$JavaRoutine, com.legend.compiler.spec.NativeDispatch$RoutineCall, java.util.List<com.legend.compiler.spec.typed.TypedSpec>, com.legend.compiler.spec.SpecCompiler, com.legend.planner.PlanEnv)",
