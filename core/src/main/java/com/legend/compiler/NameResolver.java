@@ -701,10 +701,22 @@ public final class NameResolver {
      *  ({@code compiler.spec.Calls}), so a call this resolver names is the user's (PR #118 fix round, 2026-11-18, N1). */
     private static void refuseCompilersOwn(String fn, List<String> candidates) {
         for (String name : candidates.isEmpty() ? List.of(fn) : candidates) {
-            if (com.legend.builtin.Pure.COMPILER_OWN.contains(name)) {
-                throw new com.legend.error.ResolutionException("'" + name
-                        + "' is the compiler's own function: a query or a model cannot call it");
-            }
+            refuseCompilersOwn(name);
+        }
+    }
+
+    /** {@code name} refused where its base is one of the compiler's own natives: the name itself, or an overload's
+     *  signature id under it ({@code cellText_String_$0_1$__String_1_}) -- a call, or a function reference (an
+     *  {@code eval}'s; the re-review of the batch, 2026-11-18). The typer's lookups past here are the compiler's own
+     *  calls' too, so the user's names are refused here alone. */
+    private static void refuseCompilersOwn(String name) {
+        String own = com.legend.builtin.Pure.COMPILER_OWN.contains(name) ? name
+                : com.legend.model.SignatureMangle.resolve(name, base -> com.legend.builtin.Pure.COMPILER_OWN
+                        .contains(base) ? List.of(base) : List.<String>of(), base -> null).base().stream()
+                        .findFirst().orElse(null);
+        if (own != null) {
+            throw new com.legend.error.ResolutionException("'" + own
+                    + "' is the compiler's own function: a query or a model cannot call it");
         }
     }
 
@@ -1891,6 +1903,7 @@ public final class NameResolver {
                 // 2026-10-10; before, the typer walked the tiers from the bare base at every read). A resolved
                 // or qualified spelling matches no tier and comes back as it is.
                 String r = qualifyIdByBase(resolveName(ptr.fullPath(), scope), scope);
+                refuseCompilersOwn(r);
                 yield r.equals(ptr.fullPath()) ? ptr : new PackageableElementPtr(r);
             }
             case EnumValue ev -> {

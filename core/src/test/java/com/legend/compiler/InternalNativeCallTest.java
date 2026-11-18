@@ -41,6 +41,19 @@ class InternalNativeCallTest {
     }
 
     @Test
+    void aReferenceUnderEvalAndACallBySignatureIdAreRefusedToo() {
+        // the two routes around the call's own name (the re-review of the batch, 2026-11-18): a function reference
+        // under eval, and a call by the overload's signature id -- each names the base function
+        var ctx = Compiler.compileModel("Class demo::A { x: String[1]; }");
+        for (String query : List.of("|" + Pure.Lite.CELL_TEXT + "->eval('x')",
+                "|" + Pure.Lite.CELL_TEXT + "_String_$0_1$__String_1_('x')")) {
+            LegendCompileException e = assertThrows(LegendCompileException.class,
+                    () -> Compiler.query(ctx, query), query);
+            assertTrue(e.getMessage().contains("'" + Pure.Lite.CELL_TEXT + "' is the compiler's own"), e.getMessage());
+        }
+    }
+
+    @Test
     void aFunctionBodyCallingOneIsRefusedByName() {
         for (String call : CALLS) {
             String fqn = call.substring(0, call.indexOf('('));
