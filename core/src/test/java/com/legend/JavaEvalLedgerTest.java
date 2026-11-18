@@ -1129,7 +1129,8 @@ class JavaEvalLedgerTest {
         // at zero. setUpDataSqlsText* remain as the engine-text
         // setUpDataSQLs walkers, now composing THROUGH the one
         // generator — engine-golden text of the model's own seed data
-        // (compilation-class; asserted against engine goldens).
+        // (compilation-class; asserted against engine goldens); the
+        // edge's since 2026-11-18 (J32: edge.EngineSeedText).
         // 2026-10-08: CsvSeed/Ddl/RowLoad text half moved exec -> setup, execution plan boundary step 2's opening
         // piece; docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9 (path only)
         EVICT_NAMES.put("core/src/main/java/com/legend/setup/Ddl.java",
@@ -1849,6 +1850,9 @@ class JavaEvalLedgerTest {
                             // 2026-11-18, J33: the referee's residue left in the product after C2 (its reads over a Result, its fixed
                             // parameter bindings, the golden texts' shapes), moved unchanged from VerdictQueries and Verdicts
                             "SqlTextReferee.java",
+                            // 2026-11-18, J32: legend-engine's setUpDataSQLs text, moved unchanged from setup.Ddl --
+                            // composes the engine-text dialect's statements, a cell typed by its column; runs nothing
+                            "EngineSeedText.java",
                             // the server's composition root with legend-engine's API mounted: routes, no planning of its own
                             "EdgeServer.java",
                             // the texts of upstream's effects and refusals, and legend-pure's raise sentences, as SQL
