@@ -103,7 +103,8 @@ WATCHED = {
         "BOTH_WRITERS", "BOTH_AGG", "EDGE_ONLY_NODES", "NO_WRITER_NODES", "NODE_REBUILDERS"],
     "core/src/test/java/com/legend/ServiceLoaderSitesTest.java": ["SITES", "PROVIDERS", "REFLECTIVE"],
     "core/src/test/java/com/legend/PlanStyleSurfaceTest.java": ["TWO_FORM_EXCEPTIONS", "OVERRIDERS"],
-    "core/src/test/java/com/legend/JudgingRulesReachTest.java": ["BEHAVIOUR_OPEN", "REACHES_PINNED", "NAMES_PINNED"],
+    # (JudgingRulesReachTest.java's BEHAVIOUR_OPEN, REACHES_PINNED and NAMES_PINNED: deleted 2026-11-18 with the test and
+    # the judging rules, E-Java's 070c4ea3e, train 18 -- its pins went with the type they guarded)
     "core/src/test/java/com/legend/OpenClassMembersTest.java": ["MEMBERS"],
     "core/src/test/java/com/legend/EdgeAuditOpenTest.java": ["AUDIT_OPEN"],
     # the only-edge-callers guard (J40, 2026-11-18, the orchestrator's triage ruling): its census lines, its read
