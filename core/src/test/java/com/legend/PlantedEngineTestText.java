@@ -80,7 +80,7 @@ final class PlantedEngineTestText implements EngineTestText {
     }
 
     @Override
-    public java.util.Map<String, List<com.legend.testexecutionplan.Extension>> siteWords(
+    public java.util.Map<String, java.util.Map<Integer, String>> siteWords(
             com.legend.database.PlanStyle recording) {
         throw new UnsupportedOperationException("planted");
     }

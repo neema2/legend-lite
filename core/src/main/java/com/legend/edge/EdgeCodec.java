@@ -60,9 +60,10 @@ public final class EdgeCodec implements ExtensionCodec {
                 o.putAll(AppealJson.wEngineTextJudgment(j));
             }
             case SiteWords w -> {
-                // legend-pure's words of a raise site, planned (K10b, 2026-11-17): the hearing's lookup by (text, n)
+                // legend-pure's words of a raise site, planned (K10b, 2026-11-17): the hearing's lookup by the step's
+                // sent text at index `at` and the site's n (the K10 trim, 2026-11-18: no statement's text copied)
                 o.put(TAG, Tag.siteWords.name());
-                o.put("text", w.text());
+                o.put("at", w.at());
                 o.put("n", w.n());
                 o.put("words", w.words());
             }
@@ -103,7 +104,7 @@ public final class EdgeCodec implements ExtensionCodec {
             }
             case appeal -> AppealJson.rAppeal(o);
             case engineText -> AppealJson.rEngineTextJudgment(o);
-            case siteWords -> new SiteWords(o.getString("text"), o.getInt("n"), o.getString("words"));
+            case siteWords -> new SiteWords(o.getInt("at"), o.getInt("n"), o.getString("words"));
         };
     }
 }

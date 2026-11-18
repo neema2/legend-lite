@@ -42,7 +42,7 @@ class SiteWordsRecorderTest {
                 List.of(site(1, RaiseKind.DIVIDE_BY_ZERO, new SqlExpr.IntLit(7)))));
         assertTrue(e.getMessage().contains("worded differently") && e.getMessage().contains("SELECT x"),
                 e.getMessage());
-        assertEquals(List.of(new SiteWords("SELECT x", 1, "Division by zero")), recording.read().get("SELECT x"));
+        assertEquals(Map.of(1, "Division by zero"), recording.read().get("SELECT x"));
     }
 
     @Test
@@ -90,8 +90,8 @@ class SiteWordsRecorderTest {
                 + "->select(~r)").executionPlan("s::RT", Set.of(), first);
         ExecutionPlan b = com.legend.Compiler.query(ctx, "|#>{s::DB.T}#->extend(~r: r|$r.ID / $r.D)->select(~r)")
                 .executionPlan("s::RT", Set.of(), second);
-        Map<String, List<SiteWords>> fromA = first.read();
-        Map<String, List<SiteWords>> fromB = second.read();
+        Map<String, Map<Integer, String>> fromA = first.read();
+        Map<String, Map<Integer, String>> fromB = second.read();
         assertFalse(fromA.isEmpty(), "the first body's sites are worded");
         assertFalse(fromB.isEmpty(), "the second body's sites are worded");
         Set<String> textsA = texts(a.root());

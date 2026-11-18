@@ -103,22 +103,33 @@ final class Appeals implements com.legend.testexec.EdgeHearing {
         return SqlTextRuns.judge((EngineTextJudgment) j.judgment(), j.appeal(), sides, this, messaged);
     }
 
-    /** The plan's records of its raise sites' words, by statement text and number: two records of one key with
-     *  different words refused by name (the recorder refuses them at planning; a plan read from elsewhere is checked). */
+    /** The plan's records of its raise sites' words, by statement text and number: each record's text read back from
+     *  the step that holds it, at its index among the texts the step sends ({@link TestPlan#sentTexts}; the K10 trim,
+     *  2026-11-18); an index the step does not send, or two records of one key with different words, refused by name
+     *  (the recorder refuses the latter at planning; a plan read from elsewhere is checked). */
     private static Map<String, Map<Integer, String>> siteWordsOf(TestPlan plan) {
         Map<String, Map<Integer, String>> out = new java.util.HashMap<>();
-        for (List<com.legend.testexecutionplan.Extension> records : plan.extensionsByStep().values()) {
+        plan.extensionsByStep().forEach((step, records) -> {
+            List<String> texts = null;
             for (com.legend.testexecutionplan.Extension e : records) {
                 if (e instanceof SiteWords w) {
-                    String held = out.computeIfAbsent(w.text(), t -> new java.util.HashMap<>()).putIfAbsent(w.n(),
+                    if (texts == null) {
+                        texts = TestPlan.sentTexts(plan.steps().get(step));
+                    }
+                    if (w.at() >= texts.size()) {
+                        throw new IllegalStateException("a test plan words a raise site of statement " + w.at()
+                                + " of step " + step + ", which sends " + texts.size() + " statement(s)");
+                    }
+                    String text = texts.get(w.at());
+                    String held = out.computeIfAbsent(text, t -> new java.util.HashMap<>()).putIfAbsent(w.n(),
                             w.words());
                     if (held != null && !held.equals(w.words())) {
                         throw new IllegalStateException("a test plan words raise site " + w.n() + " of one statement"
-                                + " twice ('" + held + "' and '" + w.words() + "'): " + w.text());
+                                + " twice ('" + held + "' and '" + w.words() + "'): " + text);
                     }
                 }
             }
-        }
+        });
         return out;
     }
 

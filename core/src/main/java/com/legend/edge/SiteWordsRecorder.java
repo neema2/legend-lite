@@ -7,7 +7,6 @@ import com.legend.database.PlanStyle;
 import com.legend.model.ConnectionDefinition.DatabaseType;
 import com.legend.sql.dialect.SqlDialect;
 
-import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -61,18 +60,15 @@ public final class SiteWordsRecorder implements PlanStyle {
         }
     }
 
-    /** THE DOOR'S ONE READ: every record, by statement text, in the order offered; the recorder sealed. */
-    public Map<String, List<SiteWords>> read() {
+    /** THE DOOR'S ONE READ: each offered statement's text to its sites' words by number, in the order offered; the
+     *  recorder sealed. */
+    public Map<String, Map<Integer, String>> read() {
         if (!sealed.compareAndSet(false, true)) {
             throw new IllegalStateException("a recorder of raise sites' words read twice: its door reads it once,"
                     + " after its planning");
         }
-        Map<String, List<SiteWords>> out = new LinkedHashMap<>();
-        table.forEach((text, byN) -> {
-            List<SiteWords> records = new ArrayList<>(byN.size());
-            byN.forEach((n, words) -> records.add(new SiteWords(text, n, words)));
-            out.put(text, List.copyOf(records));
-        });
+        Map<String, Map<Integer, String>> out = new LinkedHashMap<>();
+        table.forEach((text, byN) -> out.put(text, java.util.Collections.unmodifiableMap(new LinkedHashMap<>(byN))));
         return java.util.Collections.unmodifiableMap(out);
     }
 

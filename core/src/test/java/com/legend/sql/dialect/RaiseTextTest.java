@@ -133,9 +133,9 @@ class RaiseTextTest {
         com.legend.edge.SiteWordsRecorder recording = com.legend.edge.PureText.recording(
                 com.legend.edge.PureText.UPSTREAM);
         recording.siteWords(statement.sql(), statement.sites());
-        List<com.legend.edge.SiteWords> words = recording.read().get(statement.sql());
+        java.util.Map<Integer, String> words = recording.read().get(statement.sql());
         assertEquals(1, words.size(), dialect.getClass().getSimpleName() + ": " + words);
-        return words.get(0).words();
+        return words.values().iterator().next();
     }
 
     private static SqlExpr cat(SqlExpr... parts) {

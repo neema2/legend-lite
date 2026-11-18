@@ -207,6 +207,49 @@ public record TestPlan(List<ExecutionPlan.Parameter> parameters, List<TestStep> 
         return out;
     }
 
+    /** The texts of the statements {@code step} sends, in order: a product step's or a frame run's node's, a verdict
+     *  group's or a branch's statements' ({@link #statements}). A raise site's words are filed at a step by a text's
+     *  index in this list (the K10 trim, 2026-11-18), and the hearing reads the text back through it; an isolated pair
+     *  holds no records of its own (each judge's plan files its own), and is refused by name. */
+    public static List<String> sentTexts(TestStep step) {
+        List<String> out = new java.util.ArrayList<>();
+        switch (step) {
+            case Run r -> textsOf(r.node(), out);
+            case FrameRun f -> textsOf(f.check(), out);
+            case Verdicts v -> statements(v).forEach(n -> textsOf(n, out));
+            case Branch b -> statements(b).forEach(n -> textsOf(n, out));
+            case Isolated p -> throw new IllegalStateException("an isolated pair is assembled after its two plans, each"
+                    + " filed at its own door");
+        }
+        return out;
+    }
+
+    /** The texts of the statements {@code node} sends, in order. */
+    private static void textsOf(Node node, List<String> into) {
+        switch (node) {
+            case ExecutionPlan.Sequence s -> s.steps().forEach(step -> textsOf(step, into));
+            case ExecutionPlan.TdsResult t -> into.add(t.sql().statement());
+            case ExecutionPlan.Keyed k -> {
+                into.add(k.keys().statement());
+                into.add(k.body().statement());
+            }
+            case ExecutionPlan.Update u -> into.add(u.sql().statement());
+            case ExecutionPlan.Check c -> into.add(c.sql().statement());
+            case ExecutionPlan.Effect e -> into.add(e.sql().statement());
+            case ExecutionPlan.Load l -> {
+                for (ExecutionPlan.LoadStep step : l.steps()) {
+                    if (step instanceof ExecutionPlan.LoadStep.File f
+                            && f.delivery() instanceof ExecutionPlan.LoadStep.Delivery.Reads reads) {
+                        into.addAll(reads.statements());
+                    }
+                }
+            }
+            case ExecutionPlan.Constant c -> {
+                // rows, no statement
+            }
+        }
+    }
+
     private static void statementsOf(TestStep step, List<Node> out) {
         switch (step) {
             case Verdicts v -> {

@@ -167,11 +167,11 @@ public final class TestDoor {
         return plan.withAnswerSizeWords(answerSizeWords(plan, style));
     }
 
-    /** Each of {@code words}' records (a statement text's raise sites' words) held at the first of {@code steps} that
-     *  sends that text, beside the step's other records. A text no step sends is never run, so never raises: its
-     *  records are not the plan's. */
-    private static void siteWordsByStep(List<TestPlan.TestStep> steps,
-            Map<String, List<com.legend.testexecutionplan.Extension>> words,
+    /** Each statement text's records of its raise sites' words ({@code words}) held at the first of {@code steps} that
+     *  sends that text, beside the step's other records, keyed by the text's step-local index among the statements the
+     *  step sends ({@link TestPlan#sentTexts}; the K10 trim, 2026-11-18: the plan carries no statement's text twice). A
+     *  text no step sends is never run, so never raises: its records are not the plan's. */
+    private static void siteWordsByStep(List<TestPlan.TestStep> steps, Map<String, Map<Integer, String>> words,
             Map<Integer, List<com.legend.testexecutionplan.Extension>> byStep,
             com.legend.testexecutionplan.Edge edge) {
         if (words.isEmpty()) {
@@ -179,49 +179,16 @@ public final class TestDoor {
         }
         java.util.Set<String> filed = new java.util.HashSet<>();
         for (int i = 0; i < steps.size(); i++) {
-            List<String> texts = new java.util.ArrayList<>();
-            switch (steps.get(i)) {
-                case TestPlan.Run r -> textsOf(r.node(), texts);
-                case TestPlan.FrameRun f -> textsOf(f.check(), texts);
-                case TestPlan.Verdicts v -> TestPlan.statements(v).forEach(n -> textsOf(n, texts));
-                case TestPlan.Branch b -> TestPlan.statements(b).forEach(n -> textsOf(n, texts));
-                case TestPlan.Isolated p -> throw new IllegalStateException("an isolated pair is assembled after its two"
-                        + " plans, each filed at its own door");
-            }
-            for (String text : texts) {
-                List<com.legend.testexecutionplan.Extension> records = words.get(text);
+            List<String> texts = TestPlan.sentTexts(steps.get(i));
+            for (int at = 0; at < texts.size(); at++) {
+                String text = texts.get(at);
+                Map<Integer, String> records = words.get(text);
                 if (records != null && filed.add(text)) {
-                    List<com.legend.testexecutionplan.Extension> at = new java.util.ArrayList<>(
+                    List<com.legend.testexecutionplan.Extension> held = new java.util.ArrayList<>(
                             byStep.getOrDefault(i, List.of()));
-                    at.addAll(edge.siteWords(records));
-                    byStep.put(i, at);
+                    held.addAll(edge.siteWords(at, records));
+                    byStep.put(i, held);
                 }
-            }
-        }
-    }
-
-    /** The texts of the statements {@code node} sends, in order. */
-    private static void textsOf(ExecutionPlan.Node node, List<String> into) {
-        switch (node) {
-            case ExecutionPlan.Sequence s -> s.steps().forEach(step -> textsOf(step, into));
-            case ExecutionPlan.TdsResult t -> into.add(t.sql().statement());
-            case ExecutionPlan.Keyed k -> {
-                into.add(k.keys().statement());
-                into.add(k.body().statement());
-            }
-            case ExecutionPlan.Update u -> into.add(u.sql().statement());
-            case ExecutionPlan.Check c -> into.add(c.sql().statement());
-            case ExecutionPlan.Effect e -> into.add(e.sql().statement());
-            case ExecutionPlan.Load l -> {
-                for (ExecutionPlan.LoadStep step : l.steps()) {
-                    if (step instanceof ExecutionPlan.LoadStep.File f
-                            && f.delivery() instanceof ExecutionPlan.LoadStep.Delivery.Reads reads) {
-                        into.addAll(reads.statements());
-                    }
-                }
-            }
-            case ExecutionPlan.Constant c -> {
-                // rows, no statement
             }
         }
     }

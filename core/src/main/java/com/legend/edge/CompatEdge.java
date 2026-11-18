@@ -56,16 +56,13 @@ public final class CompatEdge implements Edge {
     }
 
     /** legend-pure's words of a statement's raise sites, planned as recorded (K10, 2026-11-17): the edge's own records
-     *  ({@link SiteWords}), anything else refused by name. */
+     *  ({@link SiteWords}), one per site, keyed by the statement's step-local index {@code at} (the K10 trim,
+     *  2026-11-18). */
     @Override
-    public List<Extension> siteWords(List<Extension> words) {
-        for (Extension e : words) {
-            if (!(e instanceof SiteWords)) {
-                throw new IllegalArgumentException("a raise site's words planned for the compatibility edge are its own"
-                        + " records (SiteWords), not " + e.getClass().getName());
-            }
-        }
-        return List.copyOf(words);
+    public List<Extension> siteWords(int at, Map<Integer, String> words) {
+        List<Extension> out = new ArrayList<>(words.size());
+        words.forEach((n, w) -> out.add(new SiteWords(at, n, w)));
+        return List.copyOf(out);
     }
 
     @Override

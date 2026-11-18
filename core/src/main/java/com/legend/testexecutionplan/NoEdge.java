@@ -37,7 +37,7 @@ public enum NoEdge implements Edge {
     }
 
     @Override
-    public List<Extension> siteWords(List<Extension> words) {
+    public List<Extension> siteWords(int at, java.util.Map<Integer, String> words) {
         throw new NotImplementedException("legend-pure's words of a statement's raise sites" + WHY);
     }
 

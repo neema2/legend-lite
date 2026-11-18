@@ -62,7 +62,7 @@ class HookRulingTest {
                     () -> com.legend.testexecutionplan.NoEdge.NONE.seeded(List.of(), List.of()),
                     () -> com.legend.testexecutionplan.NoEdge.NONE.effectRan(List.of()),
                     // a raise site's words, planned by the edge (K10 of the edge audit, 2026-11-18)
-                    () -> com.legend.testexecutionplan.NoEdge.NONE.siteWords(List.of()))),
+                    () -> com.legend.testexecutionplan.NoEdge.NONE.siteWords(0, java.util.Map.of()))),
             // census B3 and B1 (EngineTextDialect and PlanStyle's signatures naming it): CLOSED 2026-11-17 by Phase 6 --
             // the interface is com.legend.edge's and the style names no engine text; its entry gone
             // census B2, 2026-11-17 (Phase 6): upstream's plan text, the planner's facet -- signatures only since its
@@ -274,8 +274,7 @@ class HookRulingTest {
         com.legend.edge.SiteWordsRecorder recording = com.legend.edge.PureText.recording(
                 com.legend.edge.PureText.UPSTREAM);
         recording.siteWords("SELECT 1", sites);
-        assertEquals(List.of(new com.legend.edge.SiteWords("SELECT 1", 1, "Division by zero")),
-                recording.read().get("SELECT 1"));
+        assertEquals(java.util.Map.of(1, "Division by zero"), recording.read().get("SELECT 1"));
         assertThrows(NotImplementedException.class, () -> com.legend.edge.PureText.recording(PlanStyle.PRODUCT),
                 "a recorder over the product's style");
     }
