@@ -668,7 +668,7 @@ public final class AssertVerdicts {
                 }
                 TypedSide isv = isVerdict(args.get(0), args.get(1));
                 if (isv != null) {
-                    arm.staticallyDecided(name);
+                    arm.staticallyDecided(env);
                     yield isv;
                 }
                 if (primitivePair(args.get(0), args.get(1))) {
@@ -707,9 +707,9 @@ public final class AssertVerdicts {
             case ASSERT_NOT_SIZE -> args.size() < 2 ? null
                     : DatabaseJudge.databaseSize(name, args, letPrefix, specs, env, hook, true);
         };
-        if (adjudicated == null) {
-            com.legend.diagnostics.VerdictCensus.sqlFellThrough();
-        }
+        // (an arm that yields null is no longer counted fell-through here, J39, 2026-11-18: the root is discarded and the
+        // database judge plans no body that holds it -- there is no turn to count it at; the run's own fell-through is
+        // the host judgment's, AssertRuns)
         return adjudicated;
     }
 
@@ -1961,7 +1961,7 @@ public final class AssertVerdicts {
                 : r.value().info().type(), env.options().style().twoForm(com.legend.compiler.spec.GoldenNullWord.class,
                         com.legend.compiler.spec.LiteGoldenNullWord.NONE));
         if (parsed.headerMismatch()) {
-            com.legend.diagnostics.VerdictCensus.sqlJudgedInDatabase(name);
+            DatabaseJudge.staticallyDecided(env);
             return fail(name + ": " + parsed.reason());   // a static verdict
         }
         if (parsed.literal() == null) {
