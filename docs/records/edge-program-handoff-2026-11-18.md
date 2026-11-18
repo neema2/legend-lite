@@ -3,6 +3,16 @@
 **Status: DRAFT, written while the last trains land. The final numbers (d-stage's head, the census, CI) are filled in
 when the PR opens.** This document goes with the one PR that takes `claude/total-wall-d-stage` to `main`.
 
+> **For the reviewing account, read this first.**
+> - **The live copy of this document is on branch `claude/total-wall-orch`.** The copy inside the PR is a snapshot
+>   taken when the PR opened. Results that arrive later (D's heavy round, CI, the PR number) are written only to the
+>   live copy. They are not pushed to the PR branch, because any push there restarts CI (§8.4).
+> - **Where to start:** §8 is the final sequence (what is in the PR, what ran where, what to expect). §7 is how to
+>   verify it: the database lanes (§7.2) and the audit's questions (§7.3).
+> - **Rules that hold for you too:** nothing merges without the user's word. No force push. Never read, print or
+>   copy a credential. A pin grows only with the user's word, or in small explained steps under the user's
+>   delegation. Report findings to the user graded as in §7.3 before fixing anything.
+
 **Why it exists.** The user decided on 2026-11-18 (11:25 UTC): "Finish to zero, then PR with a detailed hand off
 document". The user means to redo this work from scratch later, in another session or account. This document is for
 that redo. It records what was built, how it is checked, what the user ruled, what went wrong and why, and what is
@@ -269,3 +279,78 @@ cosmetic.
 4. Is any guard or pin weakened without a dated reason? (`shrink_only` is the mechanical check; read the dated notes
    in the final train's diff.)
 5. Is anything in `docs/records/edge-follow-ups-2026-11-18.md` actually a blocker for merging?
+
+
+## 8. The final sequence (2026-11-18), written for the reviewing account
+
+### 8.1 What the PR holds, in order
+
+1. **Train 18**, landed on d-stage at `815de5810` (12:31 UTC, 31/31 heavy-round targets green). This is the **base**
+   for the lanes' comparison in §7.2.
+2. **The final train**, `claude/total-wall-h-train19`, integrated by DataCube (merges only; ratchet conflicts resolved
+   key by key). It holds the old trains 19 and 20 batched together (the user, 12:36: "finish everything and then one
+   last test"):
+   - GUARD's final guards (`3af89e4bde`): census 1 on the train, only L-A.unionAlias left. The audit list, EDGE-ONLY,
+     REACH_OPEN and ROOTS_OPEN are empty. Closed in this train: H5, J18, J36, J9, K10.
+   - The host halves of K2: the wasm planner (the TS host, `17a87ddff5`), the native compiler and H5 (the Python
+     host, `claude/total-wall-h-python-k2-final`), and DataCube's part (`a47a16b4`). J40.ModelInput was moved by the
+     TS host (`claude/total-wall-host-modelinput`). J40.Compiler was ruled READ_API (`Compiler#compileErrors` is a fact
+     about the user's program).
+   - E-P5's K10 (a raise site carries lite's message only; plan v58) with its trim.
+   - F's L14 (explicit NULLS_LAST; SQL unchanged).
+   - **F's lean-baseline regen** `dc923b45f` (merged as `90cf4edad`): exactly 40 rows, every one an approved raise.
+     39 rows are v57's +31 per Decimal(p,s) column (the user, ~11:12, reconfirmed 11:58 "keep it"). One row is
+     DuckDB TypedSort +124, L14's part, under the 11:45 delegation.
+   - **E-SQL's executeValues** `7591f37b7` (merged as `1dd715ab2`). E-SQL measured identical lean rows with and
+     without it, so it changes no product SQL and no answer.
+   - **F's L10** (the user, 13:05: "Include both"), narrowed at 13:19: item 2 (rename framing) was DROPPED, because
+     renaming a projected source in place inlines its computed projections. That broke
+     `ScaleCostsDuckDbTest.aDoublingChainStaysLinear` (the base column read 16 times instead of 4), so the extra
+     nesting level is a product cost guard. L10 is now the union frame (no extra "unionalias" wrap), the new product
+     rule never to prune a UNION DISTINCT's columns (with a test that fails without it), and WHERE conjuncts appended
+     rather than reordered. `WhereMerge.merge`/`Zones` moved to the edge. F's first measurement: the edge contract,
+     the edge corpus, both corpus verdicts and channel B were byte-identical. Product SQL moved on channel A only:
+     BigQuery, Databricks, MariaDB, MySQL and Trino each lost a subselect (-129 to -265 SQL chars) and gained +7
+     "repeated chars", accepted under the delegation with the reason in F's commit. Re-measured after the narrowing;
+     the final figures are in F's commit message. **This is the change the database lanes must check most closely.**
+3. **D's landing push** on d-stage: the final train's head, this document and the follow-ups document, and the
+   deletion of `.github/workflows/stage-linux.yml` (a throwaway Linux-only workflow for D's staging branch; it never
+   goes to main).
+
+The census of record on the PR head: **0** (filled in from GUARD and D at PR time: `<census on head>`).
+
+### 8.2 What ran where
+
+| Where | What | Who |
+|---|---|---|
+| **The PR's CI** (`gate.yml` / `gates-run.yml`) | every lane in `gates/BUILD.bazel` on Linux, macOS and Windows (product, core, checks, corpus_duckdb, corpus_h2, pct_duckdb, pct_h2, pct_postgres, pct_channel_b, parser_equivalence, stress, warehouse, datacube, ui, sdlc), the warehouse on Linux arm, the product build, and `shrink_only` against the merge base | GitHub, started when the PR opens |
+| **D's heavy round** | the same full set as train 18's (31 targets from `//gates:heavy`, the manual suite CI never runs), including the edge golden net `//pct:edge_contract_test`, plus the build sweep, on the PR's own commit, in parallel with CI | D (`session_01XmdJ7kRamr4Sexmcrguc94`); results in §8.3 |
+| **The database lanes** | PCT channel A and B and the product probe on MariaDB, MySQL, ClickHouse, Trino, MongoDB, SQLite, Snowflake, Databricks and BigQuery, at `815de5810` and the PR head (§7.2) | the reviewing account's warm lane sessions |
+| **The audit** | §7.3's five questions, at xhigh | the reviewing account |
+
+The census and guardrails (product and edge) are in CI's `checks` lane; cypher parity is in CI's `core` lane. The
+edge golden net is NOT in CI (follow-up D6/F33), so D's heavy round is its only run on the final commit.
+
+### 8.3 Results (filled in on the live copy as they arrive)
+
+| Check | Commit | Result |
+|---|---|---|
+| D's heavy round (31 targets) + build sweep | `<PR head>` | `<pending>` |
+| The PR's CI | `<PR head>` | `<pending>` (PR `#<N>`) |
+| GUARD's census | `<PR head>` | `<pending>` (expected 0) |
+
+### 8.4 What to expect, and traps
+
+- **Any push to the PR branch restarts CI.** `gate.yml` cancels an in-progress `pull_request` run on a new push, and
+  its `**/*.md` ignore does not help once the PR's diff holds code. Do not push documentation to the PR branch while
+  CI runs. Write to the live copy on `claude/total-wall-orch` instead.
+- **A red found by D's round or CI** is fixed by a NEW commit on the PR (no force push, no rebase). That restarts CI
+  once.
+- **Known infrastructure noise:** the `sdlc` lane has failed on a Maven HTTP 429 (rate limit) before (d-stage run 19).
+  That is infrastructure, not code; a re-run decides it.
+- **`lean_sql_baseline`:** a 40-row red was seen on `28c25b40a`, which predates F's regen. It is not a regression. On
+  the PR head it must be green. Any row that grows needs an approved raise, named in the commit that grew it (§3).
+- **Known slowdowns on the external databases** (lane round 77, follow-up C7): see §7.2. The base-versus-head
+  comparison decides whether the final train added any.
+- **The sessions** are left idle, not archived (the user's choice). The workers ran at the default effort (§4 item 1),
+  so treat their reports as claims to check, not as verdicts.
