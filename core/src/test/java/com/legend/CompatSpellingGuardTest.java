@@ -384,6 +384,52 @@ class CompatSpellingGuardTest {
                 + "\n\ntoday's hits, as register rows (each row's step is yours to name):\n" + rows(found));
     }
 
+    /** WORDED BY A HOOK (census J17, 2026-11-18, the orchestrator's queue: "PureAsserts, legend-pure's assert format,
+     *  is named by no map: move it to the edge, or map it"): product classes that DECIDE and write no word -- every
+     *  failure text of theirs is asked of a ruled hook the edge alone implements (PureAsserts: {@code PureWords}, C5's
+     *  step B). A literal outside a refusal ({@code throw new ...;}) is a bare name (a Pure type's, which the platform
+     *  owns) and nothing else: a sentence, a separator or a print form here would be upstream's format back in the
+     *  product, which the LITERALS list above cannot see unless it is listed. File, then its census line. */
+    static final Map<String, String> WORDED_BY_HOOK = Map.of(
+            "testexec/PureAsserts.java", "J17 2026-11-18 (its words EdgePureWords', through PureWords)");
+
+    @Test
+    void theHookWordedClassesWriteNoWord() throws IOException {
+        Map<String, String> sources = new TreeMap<>();
+        for (Path f : SourceFiles.under(MAIN)) {
+            String path = SourceFiles.path(f);
+            if (path.startsWith(JAVA_ROOT) && WORDED_BY_HOOK.containsKey(path.substring(JAVA_ROOT.length()))) {
+                sources.put(path.substring(JAVA_ROOT.length()), Files.readString(f));
+            }
+        }
+        assertEquals(WORDED_BY_HOOK.keySet(), sources.keySet(), "every mapped class is a main source");
+        sources.forEach((file, source) -> assertEquals(List.of(), words(source),
+                file + " writes words of its own (" + WORDED_BY_HOOK.get(file) + "): ask the hook"));
+    }
+
+    /** The hook-worded check bites: a sentence, a separator and a print form are found; a refusal's text and a
+     *  type's bare name are not. */
+    @Test
+    void theHookWordedCheckBites() {
+        String planted = """
+                final class Planted {
+                    static String a(Object e) { return "\\nexpected: " + e; }
+                    static String b() { return ", "; }
+                    static String c() { return "%r"; }
+                    static String d() { return "Integer"; }
+                    static void e() { throw new IllegalStateException("not; observable " + "here"); }
+                }
+                """;
+        assertEquals(List.of("\\nexpected: ", ", ", "%r"), words(planted));
+    }
+
+    /** A source's literals that are words: outside a refusal, anything but a bare name. */
+    static List<String> words(String source) {
+        List<String> literals = new ArrayList<>();
+        lex(source.replaceAll("(?s)throw\\s+new\\s.*?\\);", "throw;"), literals);
+        return literals.stream().filter(l -> !l.matches("[A-Za-z_]*")).toList();
+    }
+
     /** The scan bites: a product source holding an engine sentence, a Pure print form and the engine printer is
      *  found on each (a planted source, read as the guard reads a file). */
     @Test
