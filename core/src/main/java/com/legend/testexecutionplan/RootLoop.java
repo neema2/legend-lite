@@ -79,7 +79,21 @@ public record RootLoop(List<Root> roots, Map<String, String> fragments) {
     }
 
     /** A root's step. */
-    public sealed interface Step permits Row, Decided {
+    public sealed interface Step permits Row, Decided, Judged {
+    }
+
+    /**
+     * A verdict the database judge decided at planning (a static decision: two primitive kinds that differ, a grid's
+     * columns, a rendered header, a statically identified {@code is} pair): the verdict census counts it at its turn,
+     * so a plan run twice counts it twice and a root not run counts nothing (J39, 2026-11-18: until then planning
+     * counted it as it planned).
+     *
+     * @param name the assert's name, as the census counts it
+     */
+    public record Judged(String name) implements Step {
+        public Judged {
+            Objects.requireNonNull(name, "name");
+        }
     }
 
     /**

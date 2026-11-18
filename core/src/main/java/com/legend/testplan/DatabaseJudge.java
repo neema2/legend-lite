@@ -93,7 +93,7 @@ public final class DatabaseJudge {
                 // X4: the engine has no cross-kind PRIMITIVE equality — a
                 // VERDICT (false), decided statically, the one comparison SQL
                 // never sees
-                com.legend.diagnostics.VerdictCensus.sqlJudgedInDatabase(name);
+                judged(env, name);
                 return wantEqual ? com.legend.testexecutionplan.Verdicts.fail(name + ": kinds differ (" + AssertVerdicts.typeName(eSpec)
                         + " vs " + AssertVerdicts.typeName(aSpec) + ")") : com.legend.testexecutionplan.Verdicts.ok();
             }
@@ -661,7 +661,7 @@ public final class DatabaseJudge {
         List<String> n1 = s1.columns().stream().map(c -> c.name()).toList();
         List<String> n2 = s2.columns().stream().map(c -> c.name()).toList();
         if (!n1.equals(n2)) {
-            com.legend.diagnostics.VerdictCensus.sqlJudgedInDatabase(name);
+            judged(env, name);
             return com.legend.testexecutionplan.Verdicts.fail(name + ": columns differ " + n1 + " vs " + n2);   // a static verdict
         }
         List<com.legend.compiler.element.type.Type> kinds = new ArrayList<>();
@@ -843,8 +843,15 @@ public final class DatabaseJudge {
 
     /** A statically identified {@code is} pair: decided by the compiler (the same count as
      * the static kind gate). */
-    static void staticallyDecided(String name) {
-        com.legend.diagnostics.VerdictCensus.sqlJudgedInDatabase(name);
+    static void staticallyDecided(String name, BodyDriver.ExecEnv env) {
+        judged(env, name);
+    }
+
+    /** A verdict decided at planning (a static decision), planned as a step of the open root that the census counts
+     *  at its turn (J39, 2026-11-18, the orchestrator's ruling (b): until then counted here, as it was planned). The
+     *  database judge plans under its body's verdict batch, always. */
+    static void judged(BodyDriver.ExecEnv env, String name) {
+        java.util.Objects.requireNonNull(env.verdictBatch(), "a static verdict planned with no verdict batch").judged(name);
     }
 
     /** The database arm, chosen once per adjudication by the router. */
@@ -858,8 +865,8 @@ public final class DatabaseJudge {
             return AssertVerdicts.renderedValueVerdict(name, wantEqual, args, letPrefix, specs, env, hook,
                     orderedForm);
         }
-        @Override public void staticallyDecided(String name) {
-            DatabaseJudge.staticallyDecided(name);
+        @Override public void staticallyDecided(String name, BodyDriver.ExecEnv env) {
+            DatabaseJudge.staticallyDecided(name, env);
         }
         @Override public TypedSide jsonStringsEqual(String name, List<TypedSpec> args, List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
                 @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {

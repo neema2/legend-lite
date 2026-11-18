@@ -825,6 +825,17 @@ final class HostJson {
         return new RootLoop.Decided(v_failure, v_reported);
     }
 
+    static Map<String, Object> wRsJudged(RootLoop.Judged x) {
+        Map<String, Object> o = new LinkedHashMap<>();
+        o.put("name", x.name());
+        return o;
+    }
+
+    static RootLoop.Judged rRsJudged(Json.Obj o) {
+        String v_name = str(field(o, "name", "Judged"));
+        return new RootLoop.Judged(v_name);
+    }
+
     static Map<String, Object> wKindClass(KindClass x) {
         return switch (x) {
             case KindClass.Primitive e -> {
@@ -1120,6 +1131,12 @@ final class HostJson {
                 o.putAll(wRsDecided(m));
                 yield o;
             }
+            case RootLoop.Judged m -> {
+                Map<String, Object> o = new LinkedHashMap<>();
+                o.put(TAG, "Judged");
+                o.putAll(wRsJudged(m));
+                yield o;
+            }
         };
     }
 
@@ -1128,6 +1145,7 @@ final class HostJson {
         return switch (tag) {
             case "Row" -> rRsRow(o);
             case "Decided" -> rRsDecided(o);
+            case "Judged" -> rRsJudged(o);
             default -> throw new IllegalArgumentException("no member '" + tag + "' of Step");
         };
     }

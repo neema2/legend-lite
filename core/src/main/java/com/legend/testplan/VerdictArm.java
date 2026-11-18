@@ -110,6 +110,7 @@ interface VerdictArm {
             boolean orderedForm, List<TypedSpec> letPrefix, SpecCompiler specs,
             BodyDriver.ExecEnv env, @com.legend.base.Nullable AssertVerdicts.SpliceHook hook);
 
-    /** The static identity gate decided {@code assertIs} at compile time (a census fact). */
-    void staticallyDecided(String name);
+    /** The static identity gate decided {@code assertIs} at compile time (a census fact, counted at the root's turn:
+     *  J39, 2026-11-18). */
+    void staticallyDecided(String name, BodyDriver.ExecEnv env);
 }
