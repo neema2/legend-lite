@@ -210,6 +210,9 @@ final class DatabaseOwners {
             // 2026-11-10, docs/DATA_DELIVERY_DESIGN_2026_11_10.md A7 (S181, ruled): each database's kept digits of a second,
             // a literal's, a column's and a parameter's slot's, by design
             "core/src/test/java/com/legend/planner/DateTimeFractionTest.java",
+            // 2026-11-18, census J20 (the user's ruling of 2026-11-17 23:05): isNumeric's one rule answered alike on DuckDB,
+            // H2, SQLite and Postgres, each named, by design
+            "core/src/test/java/com/legend/planner/IsNumericProbeTest.java",
             // 2026-11-11 (the user: JSON on every database): a data: source on each embedded server, by the delivery
             // each dialect declares, by design
             "core/src/test/java/com/legend/exec/DataSourceServersTest.java",
