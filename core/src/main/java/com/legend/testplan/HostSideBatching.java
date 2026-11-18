@@ -135,8 +135,7 @@ final class HostSideBatching {
         for (int i = 0; i < run.size() - 1; i++) {
             out.put(run.get(i), List.of());
         }
-        out.put(run.get(run.size() - 1), List.of(new TestPlan.Verdicts(verdicts, statement, null,
-                planned.get(0).step().rules())));
+        out.put(run.get(run.size() - 1), List.of(new TestPlan.Verdicts(verdicts, statement, null)));
     }
 
     /** Assert {@code p}'s sides that can be batched, each added to {@code sides} (its columns named by its place there,

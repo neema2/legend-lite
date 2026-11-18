@@ -41,7 +41,7 @@ class HookRulingTest {
             Map.entry(com.legend.testexec.EdgeRun.class, List.of(
                     () -> com.legend.testexec.NoEdgeRun.NONE.open(planNaming(), null, java.util.UUID.randomUUID()))),
             Map.entry(com.legend.testexec.EdgeHearing.class, List.of(
-                    () -> productHearing().judged(null, List.of(), null, false),
+                    () -> productHearing().judged(null, List.of(), false),
                     () -> productHearing().rowAppealed(0, List.of(), false))),
             // (com.legend.testexec.PureWords, C5's step B's hook: deleted 2026-11-18, census J29 -- the host judge's
             // words are the run's HostWords, lite's form the product's and legend-pure's the edge's, never refused)
@@ -116,8 +116,7 @@ class HookRulingTest {
                 List.of(), List.of(), null, null, null);
         var verdict = new com.legend.testexecutionplan.TestPlan.Verdict(1, "assert", "assert", List.of(), null, null,
                 false);
-        var step = new com.legend.testexecutionplan.TestPlan.Verdicts(List.of(verdict), null, null,
-                com.legend.testexecutionplan.TestPlan.JudgingRules.LITE);
+        var step = new com.legend.testexecutionplan.TestPlan.Verdicts(List.of(verdict), null, null);
         return new com.legend.testexecutionplan.TestPlan(List.of(), List.of(step),
                 com.legend.testexecutionplan.TestPlan.Judge.HOST, Map.of(), byVerdict, false, target,
                 new com.legend.testexecutionplan.BodyFacts(false, false, true, "A"), null,
@@ -352,8 +351,6 @@ class HookRulingTest {
     @Test
     void theHooksCapabilitiesAreTheProductsAndTheEdges() {
         assertFalse(com.legend.testexecutionplan.NoEdge.NONE.records(), "the product records no ledger");
-        assertTrue(com.legend.testexecutionplan.NoEdge.NONE.rules()
-                == com.legend.testexecutionplan.TestPlan.JudgingRules.LITE, "the product's runs judge by lite's rules");
         assertTrue(new com.legend.edge.CompatEdge(new com.legend.edge.RawLedger.Recorder(),
                 com.legend.executionplan.DataStores.none()).records(), "the edge's recorder records the ledger");
         assertTrue(com.legend.testexec.NoEdgeRun.NONE.wordsAlike(), "lite's judges write alike");

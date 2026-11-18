@@ -499,7 +499,6 @@ final class HostAsserts implements TestDoor.Asserts {
     /** {@code env}: the body's environment -- the rules its verdicts are judged by, and its verdict ids. */
     private static Planned planned(AssertVerdicts.HostAssert assertion, HostSides.Planned sides,
             TestPlan.Verdicts.@Nullable Savepoint savepoint, BodyDriver.ExecEnv env) {
-        TestPlan.JudgingRules rules = env.options().judgingRules();
         // a caller's message, the check's last side (HostJudge.messaged), is the verdict's MESSAGE: the runner never
         // reads it on its own, the judge asks for it only where the assert fails (upstream evaluates it only there)
         List<TestPlan.Side> base = sides.base();
@@ -518,7 +517,7 @@ final class HostAsserts implements TestDoor.Asserts {
         TestPlan.Verdict verdict = new TestPlan.Verdict(env.verdictIds().next(), assertion.listenerName(),
                 assertion.name(), base, null, message).withHost(new TestPlan.Host(AssertVerdicts.assertionOf(assertion),
                 assertion.check().judgment(), shapes));
-        return new Planned(assertion, sides, new TestPlan.Verdicts(List.of(verdict), null, savepoint, rules));
+        return new Planned(assertion, sides, new TestPlan.Verdicts(List.of(verdict), null, savepoint));
     }
 
     @Override

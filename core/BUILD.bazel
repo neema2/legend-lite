@@ -2568,8 +2568,7 @@ junit_test(
         "--select-class=com.legend.EdgeSeparationTest",
         # the ruled hooks' implementers, read from the edge's jars (Phase 6's HookRulingTest)
         "--select-class=com.legend.HookRulingTest",
-        # the judging rules' reach (the GUARD stream's C.3, 2026-11-17): the RULES bucket of the count
-        "--select-class=com.legend.JudgingRulesReachTest",
+        # (JudgingRulesReachTest: deleted 2026-11-18, train 17, with the judging rules themselves)
         # every implementation of the test plan's Extension is the edge's (census C2, 2026-11-17), so the guard that
         # walks them as data reads them here
         "--select-class=com.legend.PlanTypesAreDataTest",

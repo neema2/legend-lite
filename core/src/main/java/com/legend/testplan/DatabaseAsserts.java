@@ -402,7 +402,7 @@ final class DatabaseAsserts implements TestDoor.Asserts {
         TestPlan.Verdict v = new TestPlan.Verdict(step.verdict().id(), step.verdict().name(),
                 step.verdict().arm(), base, wrapper,
                 null, raises).withHost(step.verdict().host());
-        return new TestPlan.Verdicts(List.of(v), null, host.savepoint(), host.rules());
+        return new TestPlan.Verdicts(List.of(v), null, host.savepoint());
     }
 
     /** {@link #errorVerdict} for the agreement judge (S135): the assertError {@code statement} (after {@code lets})
@@ -420,7 +420,7 @@ final class DatabaseAsserts implements TestDoor.Asserts {
         TestPlan.Verdict r = raising.verdicts().get(0);
         return new TestPlan.Verdicts(List.of(new TestPlan.Verdict(env.verdictIds().next(), r.name(), r.arm(), r.base(),
                 r.wrapper(), r.message(), r.raises()).withHost(step.verdict().host())), raising.fused(),
-                raising.savepoint(), raising.rules());
+                raising.savepoint());
     }
 
     /** The assert {@code statement}'s assertError holds as its function ({@code assertError(|assertEquals(...), m)}),
@@ -668,8 +668,8 @@ final class DatabaseAsserts implements TestDoor.Asserts {
             TestPlan.Verdict decided = new TestPlan.Verdict(env.verdictIds().next(), "decided@" + place + segment,
                     "decided",
                     List.of(), null);
-            TestPlan.Verdicts step = new TestPlan.Verdicts(List.of(decided), null, null,
-                    env.options().judgingRules()).withRoots(planned.loop());
+            TestPlan.Verdicts step = new TestPlan.Verdicts(List.of(decided), null, null)
+                    .withRoots(planned.loop());
             byStatement.put(lastAssert, List.of(step));
             return true;
         }

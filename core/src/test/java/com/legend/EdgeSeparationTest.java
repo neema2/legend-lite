@@ -340,10 +340,9 @@ class EdgeSeparationTest {
     @Test
     void everyOpenLineIsCounted() {
         Set<String> counted = new TreeSet<>();
-        // RULES (2026-11-17, the GUARD stream's C.3): a product class asking the judging rules for legend-pure's
-        // behaviour without naming COMPILED_PURE_COMPAT (JudgingRulesReachTest)
-        for (Map<String, String> m : List.of(BUILD_OPEN, CODE_OPEN, TEST_OPEN, CSG_OPEN,
-                JudgingRulesReachTest.BEHAVIOUR_OPEN)) {
+        // (RULES, the GUARD stream's C.3 of 2026-11-17: gone 2026-11-18 with the judging rules themselves, train 17 --
+        // JudgingRulesReachTest's bucket read 0)
+        for (Map<String, String> m : List.of(BUILD_OPEN, CODE_OPEN, TEST_OPEN, CSG_OPEN)) {
             counted.addAll(linesOf(m));
         }
         // the edge audit's open items (2026-11-17, EdgeAuditOpenTest), each its own line: none is a census line
@@ -406,7 +405,7 @@ class EdgeSeparationTest {
                 com.legend.planner.PlantedCompatReach.class);
         Set<String> code = found(planted, n -> true);
         for (String want : List.of("com.legend.planner.PlantedCompatReach -> com.legend.edge.Presenter",
-                "com.legend.planner.PlantedCompatReach -> com.legend.edge.CompatRules")) {
+                "com.legend.planner.PlantedCompatReach -> com.legend.edge.CompiledPureHostForms")) {
             assertFalse(!code.contains(want), "the CODE and TEST SIDE guards bite: " + want + " in " + code);
         }
     }
@@ -415,17 +414,15 @@ class EdgeSeparationTest {
     @Test
     void linesLeft() {
         Map<String, Integer> byLine = new TreeMap<>();
-        for (Map<String, String> m : List.of(BUILD_OPEN, CODE_OPEN, TEST_OPEN, CSG_OPEN,
-                JudgingRulesReachTest.BEHAVIOUR_OPEN)) {
+        for (Map<String, String> m : List.of(BUILD_OPEN, CODE_OPEN, TEST_OPEN, CSG_OPEN)) {
             m.values().forEach(v -> byLine.merge(v.split(" ")[0], 1, Integer::sum));
         }
         // the edge audit's open items (2026-11-17): what no guard sees yet, counted all the same
         EdgeAuditOpenTest.AUDIT_OPEN.forEach(i -> byLine.merge(i.id(), 1, Integer::sum));
         int audit = EdgeAuditOpenTest.AUDIT_OPEN.size();
-        int rules = JudgingRulesReachTest.BEHAVIOUR_OPEN.size();
         System.out.println("[edge separation] lines left: " + (BUILD_OPEN.size() + CODE_OPEN.size() + TEST_OPEN.size()
-                + CSG_OPEN.size() + rules + audit) + " (BUILD " + BUILD_OPEN.size() + ", CODE " + CODE_OPEN.size()
-                + ", TEST SIDE " + TEST_OPEN.size() + ", TEXT " + CSG_OPEN.size() + ", RULES " + rules + ", AUDIT "
+                + CSG_OPEN.size() + audit) + " (BUILD " + BUILD_OPEN.size() + ", CODE " + CODE_OPEN.size()
+                + ", TEST SIDE " + TEST_OPEN.size() + ", TEXT " + CSG_OPEN.size() + ", AUDIT "
                 + audit + "); by census line " + byLine);
     }
 }

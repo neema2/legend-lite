@@ -1262,13 +1262,13 @@ final class ArchitectureTest {
             // the test door's options, from the root's ExecuteOptions: planning's half, a record of closed words
             "testplan.PlanningOptions#<init>(com.legend.testexecutionplan.Edge, com.legend.executionplan.DataStores, "
                     + "java.util.Set, com.legend.testplan.PlanningOptions$JudgeMode, "
-                    + "com.legend.testexecutionplan.TestPlan$JudgingRules, java.util.Set, com.legend.database.PlanStyle)",
+                    + "java.util.Set, com.legend.database.PlanStyle)",
             "com.legend.ExecuteOptions",
             // phase D's D1.0 (merged 2026-11-15): the test door's plan style, the product's or the edge's
             "testplan.PlanningOptions#withStyle(com.legend.database.PlanStyle)", "com.legend.ExecuteOptions",
             "testplan.PlanningOptions#edge()", "com.legend.ExecuteOptions",
             "testplan.PlanningOptions#judgeMode()", "com.legend.ExecuteOptions",
-            "testplan.PlanningOptions#judgingRules()", "com.legend.ExecuteOptions",
+            // (testplan.PlanningOptions#judgingRules() gone 2026-11-18, train 17: the judging rules deleted)
             // testplan.PlanningOptions#rules(boolean) from ExecuteOptions gone (2026-11-17, census C1: the edge hook names
             // its run's rules, Edge.rules())
             // (testplan.PlanningOptions#withEngineCompat(boolean) gone 2026-11-17, census C1: the rules are the edge
@@ -2781,7 +2781,7 @@ final class ArchitectureTest {
     @Test
     void theRunRereadsNoRule() {
         // engineCompat too: the judging rules are derived from it (the slice 3 follow-up audit, 2026-11-08)
-        java.util.Set<String> planningFacts = java.util.Set.of("judgingRules", "judgeMode", "features", "resources",
+        java.util.Set<String> planningFacts = java.util.Set.of("judgeMode", "features", "resources",
                 "engineCompat");
         java.util.Set<String> reads = new java.util.TreeSet<>();
         for (com.tngtech.archunit.core.domain.JavaCodeUnit u : reachable(RUN_ENTRIES)) {

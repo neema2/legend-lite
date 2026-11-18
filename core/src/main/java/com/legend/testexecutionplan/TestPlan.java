@@ -98,11 +98,10 @@ public record TestPlan(List<ExecutionPlan.Parameter> parameters, List<TestStep> 
      *  judge plans by itself (TestPlannerIsolationTest) -- run each in its own run, and the two runs' assert outcomes
      *  compared by the runner, verdict and message, at this step. The one step of a plan whose judge is
      *  {@link Judge#AGREEMENT}. */
-    public record Isolated(TestPlan host, TestPlan database, JudgingRules rules) implements TestStep {
+    public record Isolated(TestPlan host, TestPlan database) implements TestStep {
         public Isolated {
             Objects.requireNonNull(host, "host");
             Objects.requireNonNull(database, "database");
-            Objects.requireNonNull(rules, "rules");
             if (host.judge() != Judge.HOST || database.judge() != Judge.DATABASE) {
                 throw new IllegalArgumentException("an agreement holds a HOST plan and a DATABASE plan, not "
                         + host.judge() + " and " + database.judge());
@@ -323,11 +322,9 @@ public record TestPlan(List<ExecutionPlan.Parameter> parameters, List<TestStep> 
      * assert of a group with no loop (a raising assert's, or one the database judge declines); empty otherwise.
      */
     public record Verdicts(List<Verdict> verdicts, @com.legend.base.Nullable TdsResult fused,
-            @com.legend.base.Nullable Savepoint savepoint, JudgingRules rules,
-            @com.legend.base.Nullable RootLoop roots)
+            @com.legend.base.Nullable Savepoint savepoint, @com.legend.base.Nullable RootLoop roots)
             implements TestStep {
         public Verdicts {
-            Objects.requireNonNull(rules, "a verdict group names the rules it is judged by");
             verdicts = List.copyOf(verdicts);
             if (verdicts.isEmpty()) {
                 throw new IllegalArgumentException("a verdict group holds at least one verdict");
@@ -359,19 +356,19 @@ public record TestPlan(List<ExecutionPlan.Parameter> parameters, List<TestStep> 
         /** A group with no savepoint: its database's transaction survives a failing statement, the group runs
          *  outside any transaction, or no failure of its statements is one the program survives but the fused
          *  statement's. */
-        public Verdicts(List<Verdict> verdicts, @com.legend.base.Nullable TdsResult fused, JudgingRules rules) {
-            this(verdicts, fused, null, rules, null);
+        public Verdicts(List<Verdict> verdicts, @com.legend.base.Nullable TdsResult fused) {
+            this(verdicts, fused, null, null);
         }
 
         /** A group that closes no database segment and pairs no assert. */
         public Verdicts(List<Verdict> verdicts, @com.legend.base.Nullable TdsResult fused,
-                @com.legend.base.Nullable Savepoint savepoint, JudgingRules rules) {
-            this(verdicts, fused, savepoint, rules, null);
+                @com.legend.base.Nullable Savepoint savepoint) {
+            this(verdicts, fused, savepoint, null);
         }
 
         /** The same group closing a database segment, judged by {@code r} once its last verdict is in. */
         public Verdicts withRoots(@com.legend.base.Nullable RootLoop r) {
-            return new Verdicts(verdicts, fused, savepoint, rules, r);
+            return new Verdicts(verdicts, fused, savepoint, r);
         }
 
         /**
@@ -407,35 +404,9 @@ public record TestPlan(List<ExecutionPlan.Parameter> parameters, List<TestStep> 
         }
     }
 
-    /**
-     * THE RULES A VERDICT GROUP IS JUDGED BY (the user, 2026-11-04: "explicit rule"), DATA alone (census C1, the
-     * orchestrator's ruling of 2026-11-17: a behaviour is the style's or the run hook's, never the rules'): named by the
-     * run's edge hook ({@code Edge.rules()}), stamped on every group by its planner, read by both judges -- the database
-     * judge's statement was planned under them, the host judge compares by them.
-     *
-     * @param floatUlps    the units in the last place two Floats may differ by and be equal: 0, exact (lite's: S15/S132,
-     *                     the user's ruling of 2026-11-05), or the compatibility edge's 2 (S132's tokens, S15) -- both
-     *                     judges read this number (census C1's J11, 2026-11-17: no product constant holds it)
-     * @param decimalScale whether two Decimals of one value and different scales differ ({@code 0.3D} and
-     *                     {@code 0.30D}): compiled Pure's assert, the compatibility edge's; lite compares a Decimal by
-     *                     value (S139, the user's ruling of 2026-11-05)
-     */
-    public record JudgingRules(int floatUlps, boolean decimalScale) {
-
-        /** Lite's own rules: what a product run and every core test judge by. */
-        public static final JudgingRules LITE = new JudgingRules(0, false);
-
-        public JudgingRules {
-            if (floatUlps < 0) {
-                throw new IllegalArgumentException("a Float tolerance of " + floatUlps + " ULP: none is negative");
-            }
-        }
-
-        /** Whether two Floats within {@link #floatUlps} are equal: a tolerance at all. */
-        public boolean floatTolerance() {
-            return floatUlps != 0;
-        }
-    }
+    // (JudgingRules: deleted 2026-11-18, train 17, the orchestrator's ruling -- a Float's tolerance and a Decimal's
+    // scale are the two-form kinds' now, the style's VerdictNumbers and the run hook's HostForms; census C1's "the
+    // judging rules are data" (2026-11-17) is superseded by them, and the plan carries no rules)
 
     /**
      * One assert of a {@link Verdicts} group, as data: {@code name}, the label the test listener reports under;

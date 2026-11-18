@@ -20,11 +20,6 @@ public interface Edge {
      *  never a null): the edge's own recorders do; the product's {@link NoEdge#NONE} does not, and refuses the rest. */
     boolean records();
 
-    /** The rules a run handed this hook judges by (census C1, 2026-11-17: the hook names them, never a flag of the
-     *  rules; the user's ruling of 2026-11-08, docs/PLAN_AS_DATA_2026_11_07.md 3a.3: a recorder's run judges by the
-     *  compatibility rules): the product's {@link NoEdge#NONE}, lite's. */
-    TestPlan.JudgingRules rules();
-
     /** An effect step's statements' ledger texts, in order, each with whether it is a query: the records to plan at the
      *  step. */
     List<Extension> effect(List<String> texts, List<Boolean> queries);

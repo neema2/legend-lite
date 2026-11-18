@@ -126,11 +126,6 @@ public final class JudgePlans {
             }
 
             @Override
-            public TestPlan.JudgingRules rules() {
-                return env.options().judgingRules();
-            }
-
-            @Override
             public TestPlan.Verdicts.@com.legend.base.Nullable Savepoint savepoint() {
                 com.legend.sql.dialect.SqlDialect.VerdictSavepoint s = env.dialect().verdictSavepoint();
                 return s == null ? null : new TestPlan.Verdicts.Savepoint(s.set(), s.rollbackTo(), s.release());
