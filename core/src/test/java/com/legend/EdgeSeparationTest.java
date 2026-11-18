@@ -377,6 +377,13 @@ class EdgeSeparationTest {
         counted.addAll(audit);
         Set<String> open = new TreeSet<>(OPEN_LINES);
         open.addAll(audit);
+        // J40 (2026-11-18, EdgeOnlyMembersTest): a public product member the edge alone uses, counted under its audit
+        // id, none a census line
+        Set<String> edgeOnly = linesOf(EdgeOnlyMembersTest.OPEN);
+        assertTrue(java.util.Collections.disjoint(edgeOnly, OPEN_LINES), "an edge-only member's id is a census line: "
+                + edgeOnly);
+        counted.addAll(edgeOnly);
+        open.addAll(edgeOnly);
         assertEquals(open, counted, "the census's open lines and the lines this count holds"
                 + " differ: an open line with no entry would read DONE with work left; an entry of a closed or"
                 + " unknown line is a stale entry");
@@ -502,16 +509,18 @@ class EdgeSeparationTest {
     void linesLeft() {
         Map<String, Integer> byLine = new TreeMap<>();
         for (Map<String, String> m : List.of(BUILD_OPEN, CODE_OPEN, TEST_OPEN, CSG_OPEN,
-                JudgingRulesReachTest.BEHAVIOUR_OPEN)) {
+                JudgingRulesReachTest.BEHAVIOUR_OPEN, EdgeOnlyMembersTest.OPEN)) {
             m.values().forEach(v -> byLine.merge(v.split(" ")[0], 1, Integer::sum));
         }
         // the edge audit's open items (2026-11-17): what no guard sees yet, counted all the same
         EdgeAuditOpenTest.AUDIT_OPEN.forEach(i -> byLine.merge(i.id(), 1, Integer::sum));
         int audit = EdgeAuditOpenTest.AUDIT_OPEN.size();
         int rules = JudgingRulesReachTest.BEHAVIOUR_OPEN.size();
+        // a public product member the edge alone uses (J40 of the edge audit, 2026-11-18: EdgeOnlyMembersTest)
+        int edgeOnly = EdgeOnlyMembersTest.OPEN.size();
         System.out.println("[edge separation] lines left: " + (BUILD_OPEN.size() + CODE_OPEN.size() + TEST_OPEN.size()
-                + CSG_OPEN.size() + rules + audit) + " (BUILD " + BUILD_OPEN.size() + ", CODE " + CODE_OPEN.size()
-                + ", TEST SIDE " + TEST_OPEN.size() + ", TEXT " + CSG_OPEN.size() + ", RULES " + rules + ", AUDIT "
-                + audit + "); by census line " + byLine);
+                + CSG_OPEN.size() + rules + audit + edgeOnly) + " (BUILD " + BUILD_OPEN.size() + ", CODE "
+                + CODE_OPEN.size() + ", TEST SIDE " + TEST_OPEN.size() + ", TEXT " + CSG_OPEN.size() + ", RULES " + rules
+                + ", AUDIT " + audit + ", EDGE-ONLY MEMBERS " + edgeOnly + "); by census line " + byLine);
     }
 }
