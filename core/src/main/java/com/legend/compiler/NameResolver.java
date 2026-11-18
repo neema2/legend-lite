@@ -705,15 +705,22 @@ public final class NameResolver {
         }
     }
 
-    /** {@code name} refused where its base is one of the compiler's own natives: the name itself, or an overload's
-     *  signature id under it ({@code cellText_String_$0_1$__String_1_}) -- a call, or a function reference (an
-     *  {@code eval}'s; the re-review of the batch, 2026-11-18). The typer's lookups past here are the compiler's own
-     *  calls' too, so the user's names are refused here alone. */
+    /** The engine id of every overload of the compiler's own natives ({@link com.legend.builtin.Pure#COMPILER_OWN}),
+     *  each to its function's name: a call or a reference by an overload's signature id is refused by that id, read
+     *  off the declarations ({@code SignatureMangle.mangle}), never by cutting the user's name (IdentityGuardrailTest;
+     *  an id no overload spells is no function at all, refused as unknown). */
+    static final java.util.Map<String, String> COMPILER_OWN_IDS = java.util.stream.Stream.of(
+                    com.legend.builtin.Pure.TYPE_RAISE__STRING_1__STRING_1__STRING_1,
+                    com.legend.builtin.Pure.CELL_TEXT__STRING_0_1, com.legend.builtin.Pure.ASSERT_FAILED_TEXT)
+            .collect(java.util.stream.Collectors.toUnmodifiableMap(com.legend.model.SignatureMangle::mangle,
+                    com.legend.model.NativeFunctionDefinition::qualifiedName));
+
+    /** {@code name} refused where it names one of the compiler's own natives: by its name, or by an overload's
+     *  signature id ({@code cellText_String_$0_1$__String_1_}) -- a call, or a function reference (an {@code eval}'s;
+     *  the re-review of the batch, 2026-11-18). The typer's lookups past here are the compiler's own calls' too, so
+     *  the user's names are refused here alone. */
     private static void refuseCompilersOwn(String name) {
-        String own = com.legend.builtin.Pure.COMPILER_OWN.contains(name) ? name
-                : com.legend.model.SignatureMangle.resolve(name, base -> com.legend.builtin.Pure.COMPILER_OWN
-                        .contains(base) ? List.of(base) : List.<String>of(), base -> null).base().stream()
-                        .findFirst().orElse(null);
+        String own = com.legend.builtin.Pure.COMPILER_OWN.contains(name) ? name : COMPILER_OWN_IDS.get(name);
         if (own != null) {
             throw new com.legend.error.ResolutionException("'" + own
                     + "' is the compiler's own function: a query or a model cannot call it");

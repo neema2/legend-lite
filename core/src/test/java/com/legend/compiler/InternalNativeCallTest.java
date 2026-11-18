@@ -14,12 +14,13 @@ import org.junit.jupiter.api.Test;
 
 /**
  * THE COMPILER'S OWN NATIVES ARE NOT A USER'S TO CALL (PR #118 fix round, 2026-11-18, N1; the edge follow-ups' F32):
- * {@code meta::legend::lite::typeRaise} and {@code meta::legend::lite::cellText} are written by the compiler alone (the
- * resolver's chain dispatch and casts, the match checker; the TDS cell's text), born with their record
- * ({@code compiler.spec.Calls}) after the name resolver. A user's call to either -- by its full name, in a query or a
- * function's body -- is refused by name where the user's names are resolved (a bare name is none of the user's, an import
- * of the package included); the platform's own uses keep compiling (their tests: the TDS cell's text, the type-check
- * raises).
+ * {@code meta::legend::lite::typeRaise}, {@code meta::legend::lite::cellText} and
+ * {@code meta::legend::lite::assertFailedText} are written by the compiler alone (the resolver's chain dispatch and
+ * casts, the match checker; the TDS cell's text; an in-body assert's default message), born with their record
+ * ({@code compiler.spec.Calls}) after the name resolver. A user's call to any of the three -- by its full name or an
+ * overload's signature id, in a query or a function's body, or a reference to one under eval -- is refused by name where
+ * the user's names are resolved (a bare name is none of the user's, an import of the package included); the platform's
+ * own uses keep compiling (their tests: the TDS cell's text, the type-check raises, the in-body assert's message).
  */
 class InternalNativeCallTest {
 
@@ -51,6 +52,14 @@ class InternalNativeCallTest {
                     () -> Compiler.query(ctx, query), query);
             assertTrue(e.getMessage().contains("'" + Pure.Lite.CELL_TEXT + "' is the compiler's own"), e.getMessage());
         }
+    }
+
+    @Test
+    void everyCompilerOwnNativeIsRefusedByItsOverloadsIds() {
+        // the resolver's ids are the compiler-own natives', every one of them (a native added to COMPILER_OWN without
+        // its declaration here would be refused by name and reachable by its id)
+        assertTrue(new java.util.HashSet<>(NameResolver.COMPILER_OWN_IDS.values()).equals(Pure.COMPILER_OWN),
+                NameResolver.COMPILER_OWN_IDS + " vs " + Pure.COMPILER_OWN);
     }
 
     @Test
