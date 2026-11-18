@@ -414,13 +414,13 @@ public final class ServiceTestRunner implements AutoCloseable {
             case Protocol.PRelationalCsvData r -> r;
             case Protocol.PDataReference r -> throw new IllegalStateException("a reference resolved above: " + r);
             case Protocol.PModelStoreData m -> throw new com.legend.error.NotImplementedException(
-                    com.legend.protocol.EmbeddedDataKinds.notImplemented(m, feature));
+                    notImplemented(m, feature));
             case Protocol.PExternalFormatData e -> throw new com.legend.error.NotImplementedException(
-                    com.legend.protocol.EmbeddedDataKinds.notImplemented(e, feature));
+                    notImplemented(e, feature));
             case Protocol.PServiceStoreData st -> throw new com.legend.error.NotImplementedException(
-                    com.legend.protocol.EmbeddedDataKinds.notImplemented(st, feature));
+                    notImplemented(st, feature));
             case Protocol.PRelationData r -> throw new com.legend.error.NotImplementedException(
-                    com.legend.protocol.EmbeddedDataKinds.notImplemented(r, feature));
+                    notImplemented(r, feature));
         };
         for (Protocol.PRelationalCsvTable t : csv.tables()) {
             if (t.values() == null) {
@@ -607,5 +607,12 @@ public final class ServiceTestRunner implements AutoCloseable {
             }
         }
         shared.clear();
+    }
+
+    /** What a service test says of data of a kind it does not load: {@code feature}, the kind, not implemented yet
+     *  (composed here from the product's {@code EmbeddedDataKinds.name}: the edge audit's J40 delete, 2026-11-18). */
+    private static String notImplemented(Protocol.PEmbeddedDataValue value, String feature) {
+        return feature + ": " + com.legend.protocol.EmbeddedDataKinds.name(value) + " data is not implemented yet"
+                + " (legend-lite loads a relational store's CSV rows alone; census M17)";
     }
 }
