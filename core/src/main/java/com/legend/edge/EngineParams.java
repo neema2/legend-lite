@@ -43,7 +43,24 @@ public final class EngineParams {
     /** {@code Type[multiplicity]}, as legend-engine's plans and messages spell a parameter. */
     static String signature(Type type, com.legend.compiler.element.type.Multiplicity multiplicity) {
         return com.legend.plan.PureSpelling.typeName(type) + "["
-                + com.legend.plan.PureSpelling.sizeRange(multiplicity) + "]";
+                + sizeRange(multiplicity) + "]";
+    }
+
+    /** legend-engine's plan text's multiplicity spelling: {@code 1}, {@code 0..1}, {@code *}, {@code n..*} (inside the
+     *  brackets; moved from plan.PureSpelling 2026-11-18, J40: only the edge read it). */
+    static String sizeRange(
+            com.legend.compiler.element.type.Multiplicity m) {
+        if (m instanceof com.legend.compiler.element.type.Multiplicity
+                .Bounded b) {
+            if (b.upper() != null) {
+                return b.lower() == b.upper() ? String.valueOf(b.lower())
+                        : b.lower() + ".." + b.upper();
+            }
+            // unbounded: [*] (lower 0) or [n..*]
+            return b.lower() == 0 ? "*" : b.lower() + "..*";
+        }
+        throw new com.legend.error.NotImplementedException(
+                "plan: multiplicity spelling for " + m + " pending");
     }
 
     /** A template parameter: a plain plan parameter of {@code name}, its type unknown (a template binds nothing). */
