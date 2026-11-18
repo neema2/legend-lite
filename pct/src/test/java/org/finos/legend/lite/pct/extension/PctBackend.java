@@ -125,7 +125,8 @@ public final class PctBackend {
             return new com.legend.exec.SessionSource.Declared();
         }
         if (backend.inProcess()) {
-            return new com.legend.exec.SessionSource.Fresh(backend::open);
+            // PCT's plans are the edge's, so each fresh session is the edge's database (the audit's J22)
+            return new com.legend.exec.SessionSource.Fresh(() -> backend.open(com.legend.edge.PureText.UPSTREAM));
         }
         // the lane's rule as exec's data (as planSessions's): the held session where the backend holds one, else a new
         // system session per query
