@@ -602,7 +602,7 @@ py_test(
         "LEGEND_LITE_SQLAPI_CORPUS": "$(rlocationpath //warehouse:sqlapi_corpus)",
         # the load runners' shared conformance fixture (B3): the tab's runLoad runs it too (engine-client)
         "LEGEND_LITE_RUN_LOAD_FIXTURE": "$(rlocationpath //engine-client:test/fixtures/run-load-conformance.json)",
-        # lite API v1's shared suite: its query/run cases, Python's server's (test_engine QueryRunConformance)
+        # lite API v1's shared suite: its host-route cases, Python's server's (test_engine HostRoutesConformance)
         "LEGEND_LITE_API_CASES": "$(rlocationpath //engine-client:test/fixtures/lite-api-cases.json)",
     },
     main = "tests/main.py",

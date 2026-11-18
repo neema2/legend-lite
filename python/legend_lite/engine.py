@@ -433,20 +433,30 @@ def _stored(entry: str, folder: Path, *asked: str) -> Answer:
     return Answer(status, 'application/json', answered.encode('utf-8'))
 
 
+# the store's refusals of a record that does not exist, as the store writes their kind (SavedQueries.refused):
+# lite's notFound, 404 (the user, 2026-11-17 ~23:31), as the server's lite route reads them (LegendHttpServer.MISSING)
+_MISSING = frozenset({'query_not_found', 'queries_not_found', 'version_not_found'})
+
+
 def _lites_refusal(answer: Answer) -> Answer:
     """A store's answer at lite's route: a refusal (400 and above) in lite's one error shape (the spec's §3,
-    ``{kind, message}``), its status kept -- ``internal`` at 500 and above, else ``request`` -- its message the store's
-    own words, as the server's lite route answers it (LegendHttpServer.storeRoutes); any other answer as it was."""
+    ``{kind, message}``) -- ``notFound`` (404) for a saved query, a version or a saved page that does not exist, by the
+    store's own kind and never its status (a batch's is upstream's 500); else ``internal`` at 500 and above,
+    ``request`` below, its status kept -- its message the store's own words, as the server's lite route answers it
+    (LegendHttpServer.storeRoutes); any other answer as it was."""
     if answer.status < 400:
         return answer
     try:
         said = json.loads(answer.body)
     except ValueError:
         said = None
-    message = said['message'] if isinstance(said, dict) and isinstance(said.get('message'), str) \
-        else answer.body.decode('utf-8')
-    kind = compiler.error_kind('INTERNAL' if answer.status >= 500 else 'REQUEST')
-    return Answer(answer.status, 'application/json', json.dumps({'kind': kind, 'message': message}).encode('utf-8'))
+    said = said if isinstance(said, dict) else {}
+    message = said['message'] if isinstance(said.get('message'), str) else answer.body.decode('utf-8')
+    if said.get('kind') in _MISSING:
+        status, kind = 404, compiler.error_kind('NOT_FOUND')
+    else:
+        status, kind = answer.status, compiler.error_kind('INTERNAL' if answer.status >= 500 else 'REQUEST')
+    return Answer(status, 'application/json', json.dumps({'kind': kind, 'message': message}).encode('utf-8'))
 
 
 def _saved_cube(path: str) -> bool:
@@ -729,7 +739,8 @@ class Engine:
         snap's copies), else a project's own Data rows in a database of the project's own (C5) -- never one read in the
         other's place (F28). The answer is in the caller's ``format`` (the spec's §4; ONE contract on every binding, the
         orchestrator's ruling of 2026-11-17): ``arrow``, each column's Pure type its field's ``legend.type`` and the
-        answer's shape the stream's ``legend.shape`` (LiteV1Planning.ShapedArrow); ``json`` (the default),
+        answer's shape the stream's ``legend.shape`` (LiteV1Planning.ShapedArrow); ``json`` (no default: ``format`` is
+        required, a request naming none refused, kind ``request``),
         ``{shape, columns, rows}`` as the server writes it (``_lite_rows_json``). A refusal is lite's one error shape, its status by its kind (``compiler.refused_route``)."""
         def refused(error: LegendError) -> Answer:
             status, said = compiler.refused_route(error)
@@ -747,15 +758,17 @@ class Engine:
         unknown = sorted(set(asked) - {'model', 'query', 'runtime', 'params', 'format'})
         if unknown:
             return request(f'has no key {", ".join(unknown)}')
-        missing = [k for k in ('model', 'query', 'runtime') if k not in asked]
+        # each key it must name, format among them (the orchestrator's ruling of 2026-11-17, 23:08: no default format
+        # on any binding), refused in the server's words
+        missing = [k for k in ('model', 'query', 'runtime', 'format') if k not in asked]
         if missing:
-            return request(f'names no {", ".join(missing)}')
+            return request(f'names no {", ".join(missing)} (it holds model, query, runtime, format; optional params)')
         if not (isinstance(asked['model'], str) and isinstance(asked['query'], dict) and isinstance(asked['runtime'], str)):
             return request("is {model: a model's text, query: a query's tree, runtime: a runtime's path}")
         params = asked.get('params', {})
         if not isinstance(params, dict):
             return request("names its params by name, a JSON object")
-        form = asked.get('format', 'json')
+        form = asked['format']
         if form not in ('json', 'arrow'):
             return request(f"runs in the format json or arrow, not {form!r}")
         plan_asked = {'lambda': _json.dumps(asked['query']), 'runtime': asked['runtime']}
