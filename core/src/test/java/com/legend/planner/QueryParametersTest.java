@@ -66,14 +66,6 @@ class QueryParametersTest {
     }
 
     @Test
-    void theLegacyPlansTemplateParameter() {
-        List<QueryParameters.Declared> ps = declared("{s:test::Status[1], n:Integer[0..1]|$s}");
-        assertEquals(new SqlExpr.PlanParam("s", SqlExpr.PlanParam.Kind.ENUM, false, "enumMap_m_x"),
-                ps.get(0).planParam("enumMap_m_x"));
-        assertEquals(new SqlExpr.PlanParam("n", SqlExpr.PlanParam.Kind.OTHER, true, null), ps.get(1).planParam(null));
-    }
-
-    @Test
     void anUntypedParameterIsRefusedByName() {
         var refused = org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class,
                 () -> Compiler.query(CTX, "{x|$x}").parameters());

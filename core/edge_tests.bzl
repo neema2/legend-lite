@@ -35,6 +35,8 @@ EDGE_TEST_SRCS = [
     "src/test/java/com/legend/ResultWritersTest.java",
     "src/test/java/com/legend/compiler/spec/MultiplicityStrictnessTest.java",
     "src/test/java/com/legend/edge/EngineSpansTest.java",
+    # legend-engine's template parameters, the edge's own table (the audit's J31, 2026-11-18)
+    "src/test/java/com/legend/edge/EngineParamsTest.java",
     "src/test/java/com/legend/edge/PresenterTest.java",
     "src/test/java/com/legend/edge/PureDatesArrowTest.java",
     "src/test/java/com/legend/exec/ExecuteInDbDuckDbEdgeTest.java",

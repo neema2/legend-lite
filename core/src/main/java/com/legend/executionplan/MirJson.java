@@ -501,7 +501,6 @@ public final class MirJson {
         o.put("name", p.name());
         o.put("kind", p.kind().name());
         o.put("optional", p.optional());
-        o.put("enumMapFn", p.enumMapFn());
         o.put("declared", p.declared() == null ? null : p.declared().name());
     }
 
@@ -978,7 +977,7 @@ public final class MirJson {
                 String declared = o.getStringOr("declared", null);
                 yield new SqlExpr.PlanParam(o.getString("name"),
                         named(SqlExpr.PlanParam.Kind.class, o.getString("kind"), "parameter kind"),
-                        o.getBool("optional"), o.getStringOr("enumMapFn", null), type,
+                        o.getBool("optional"), type,
                         declared == null ? null : named(com.legend.sql.DeclaredKind.class, declared, "declared kind"));
             }
             case formatLit -> {
