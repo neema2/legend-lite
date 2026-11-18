@@ -291,7 +291,8 @@ class CompatSpellingGuardTest {
             // (the EngineText rows of AssertRuns, HostJudgments, HostJson, HostJudgment, NamedExtensions, Verdicts and
             // AssertVerdicts: gone 2026-11-17, census C3 -- the engine-text comparison the edge's own record
             // (edge/EngineTextJudgment), held by the product's neutral HostJudgment.EdgeJudged)
-            "testexec/CanonicalForm.java | +0000 | 1 | JUDGE",
+            // (testexec/CanonicalForm.java | +0000 gone 2026-11-17, census C5, E-Java: the instrument renders a date's own
+            // GMT-normalized text; legend-pure's suffix is the edge's)
             // testexec/SideShapes.java | Cannot cast a collection of size | GONE 2026-11-17 (C5's step E, E-P5): a side's
             // and the body's answer's size refusal worded at planning (SideShape.sizeWords, TestPlan.answerSizeWords)
             // (testexec/SqlTextRuns.java's rows went with it to the edge: 2026-11-17, census C2: the referee and the appeals moved to the edge (the orchestrator's P1+P2))
@@ -326,7 +327,7 @@ class CompatSpellingGuardTest {
             "compiler/spec/Typer.java | TDSNull | 4 | STAYS",
             // 1 -> 2 (2026-11-17, census C5's step C, C-2): the #TDS literal's null-cell token, read as INPUT, names its
             // literal where it read TDS_NULL_CELL (the constant gone)
-            "lowering/Scalars.java | TDSNull | 2 | STAYS",
+            "lowering/Scalars.java | TDSNull | 2 | STAYS"
             // TDSNull as the judges' text (E-Java, Phase 4b: census B10/C5)
             // 5 -> 4, D1.9 -> STAYS (2026-11-17, census C5's step C, C-2): an expected ^TDSNull(), a written 'TDSNull'
             // cell and a golden's null cell are a typed TypedNullCell; what stays reads that written text as INPUT
@@ -335,10 +336,9 @@ class CompatSpellingGuardTest {
             // (lowering/Render.java | TDSNull | D1.3: gone 2026-11-17, census B17 -- a relation's text moved to the edge,
             // edge.RelationTextLowering)
             // the judges' compatibility mode's branches (E-Java, census C1)
+            // (testexecutionplan/TestPlan.java, TestPlanJson.java, testplan/PlanningOptions.java | COMPILED_PURE_COMPAT gone
+            // 2026-11-17, census C1: the judging rules are data, the compatibility preset the edge's CompatRules)
             // testexec/Equality.java | COMPILED_PURE_COMPAT gone (2026-11-17, census C1 2c: the cross-kind rule asked of the run hook, HostForms)
-            "testexecutionplan/TestPlan.java | COMPILED_PURE_COMPAT | 1 | D1.9",   // 3 -> 1 (2026-11-17, C1 step 1: each judging fact a named accessor over one field)
-            "testexecutionplan/TestPlanJson.java | COMPILED_PURE_COMPAT | 2 | D1.9",
-            "testplan/PlanningOptions.java | COMPILED_PURE_COMPAT | 1 | D1.9"   // 2 -> 1 (2026-11-17, C1 step 1: the edge check asks edgeAppeals())
             // retagged 2026-11-15 (D1.2's end): Java's spelling of a date value. D1.4 -> D1.8 (2026-11-16, W4): lite's
             // writers no longer read it (CellText's product half prints S312's text); what remains is legend-engine's
             // JSON of a date (toEngineJson, read by CellText's engine half, which moves with PureV1Writer at W8) and

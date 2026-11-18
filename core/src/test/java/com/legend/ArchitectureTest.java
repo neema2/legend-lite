@@ -1263,7 +1263,8 @@ final class ArchitectureTest {
             "testplan.PlanningOptions#judgingRules()", "com.legend.ExecuteOptions",
             // testplan.PlanningOptions#rules(boolean) from ExecuteOptions gone (2026-11-17, census C1: the edge hook names
             // its run's rules, Edge.rules())
-            "testplan.PlanningOptions#withEngineCompat(boolean)", "com.legend.ExecuteOptions",
+            // (testplan.PlanningOptions#withEngineCompat(boolean) gone 2026-11-17, census C1: the rules are the edge
+            // hook's, Edge.rules())
             "testplan.PlanningOptions#withFeatures(java.util.Set)", "com.legend.ExecuteOptions",
             "testplan.PlanningOptions#withJudgeMode(com.legend.testplan.PlanningOptions$JudgeMode)",
             "com.legend.ExecuteOptions",
@@ -1374,8 +1375,8 @@ final class ArchitectureTest {
             // lowering and the plan's environment, so each of those reaches is listed here, by signature and caller
             "lowering.Lowerer#bindPlanParam(com.legend.sql.SqlExpr$PlanParam)", "com.legend.edge.EnginePlans",
             "lowering.Lowerer#withShape(com.legend.lowering.LoweringShape)", "com.legend.edge.EnginePlans",
-            // re-keyed 2026-11-17 (the audit's K5): the shape's two edge-only flags became its two-form choices
-            "lowering.LoweringShape#<init>(boolean, boolean, boolean, com.legend.lowering.LoweringForms, boolean)",
+            // re-keyed 2026-11-17 (the audit's K5, then the edge audit's J23): the shape's edge-only flags became its form's choices
+            "lowering.LoweringShape#<init>(com.legend.lowering.LoweringForms, boolean)",
             "com.legend.edge.EnginePlans",
             "lowering.Lowerer#withFeatures(java.util.Set)", "com.legend.edge.EnginePlans",
             "lowering.Lowerer#withOptions(java.util.Set)", "com.legend.edge.EnginePlans",
@@ -3566,6 +3567,55 @@ final class ArchitectureTest {
         org.junit.jupiter.api.Assertions.assertEquals(new java.util.TreeSet<>(java.util.Set.of(
                 "com.legend.edge.EdgeServer", "com.legend.edge.PureV1Routes", "com.legend.edge.wasm.EdgeBoundary")),
                 callers, "PureText.PURE_V1 is selected by the pure/v1 routes alone (B7, 2026-11-17)");
+    }
+
+    /**
+     * THE PRODUCT HAS ONE GRAMMAR (J21 of the edge audit, 2026-11-17, the user's ruling "yes to the rule"): legend-lite's
+     * (the platform's own sources have theirs). Legend-engine's level -- its
+     * refusals and its shapes -- is the parser's to define and the edge's to ask for, where the edge parses legend-engine's
+     * protocol: no product parse is made at it. (1) Outside the parser and the edge nothing names
+     * legend-engine's level. (2) The parsers' level-less text-to-JSON entries, which are legend-engine's
+     * ({@code PmcdParser.parseDocument}/{@code parseModel}/{@code parseSections}, {@code SpecParser.parseLambda}/
+     * {@code lambdaJson}), are reached outside the parser through the parse door's engine entries alone, and (3) those
+     * ({@code door.Parse.engineDocumentJson}/{@code engineLambdaJson}) by the edge alone. A new caller is a ruling.
+     */
+    @Test
+    void legendEnginesGrammarIsTheEdgesAlone() {
+        java.util.Set<String> engineEntries = java.util.Set.of(
+                "com.legend.parser.PmcdParser.parseDocument(java.lang.String)",
+                "com.legend.parser.PmcdParser.parseDocument(java.lang.String, boolean)",
+                "com.legend.parser.PmcdParser.parseModel(java.lang.String)",
+                "com.legend.parser.PmcdParser.parseSections(java.lang.String)",
+                "com.legend.parser.SpecParser.parseLambda(java.lang.String)",
+                "com.legend.parser.SpecParser.lambdaJson(java.lang.String, boolean)");
+        java.util.Set<String> edgeDoor = java.util.Set.of(
+                "com.legend.door.Parse.engineRecords(java.lang.String)",
+                "com.legend.door.Parse.engineDocumentJson(java.lang.String, boolean)",
+                "com.legend.door.Parse.engineLambdaJson(java.lang.String, boolean)");
+        java.util.List<String> bad = new java.util.ArrayList<>();
+        for (com.tngtech.archunit.core.domain.JavaClass c : coreAndTheHostsDoors()) {
+            String origin = c.getName().replaceAll("\\$.*$", "");
+            boolean parser = origin.startsWith("com.legend.parser.");
+            boolean edge = origin.startsWith("com.legend.edge.");
+            for (com.tngtech.archunit.core.domain.JavaFieldAccess a : c.getFieldAccessesFromSelf()) {
+                if (!parser && !edge && a.getTargetOwner().getName().equals("com.legend.parser." + "GrammarLevel")
+                        && a.getName().equals("LEGEND" + "_ENGINE")) {
+                    bad.add(origin + " names legend-engine's grammar level");
+                }
+            }
+            for (com.tngtech.archunit.core.domain.JavaMethodCall call : c.getMethodCallsFromSelf()) {
+                String target = call.getTarget().getFullName().replace(",", ", ");
+                if (!parser && engineEntries.contains(target)
+                        && !(origin.equals("com.legend.door.Parse") && call.getOrigin().getName().startsWith("engine"))) {
+                    bad.add(origin + "." + call.getOrigin().getName() + " calls " + target);
+                }
+                if (!edge && edgeDoor.contains(target)) {
+                    bad.add(origin + "." + call.getOrigin().getName() + " calls " + target);
+                }
+            }
+        }
+        org.junit.jupiter.api.Assertions.assertEquals(java.util.List.of(), bad,
+                "legend-engine's grammar is the edge's alone: the product has one grammar (J21, 2026-11-17)");
     }
 
     private static JavaClasses coreAndTheHostsDoors() {

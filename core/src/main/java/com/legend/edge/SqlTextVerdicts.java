@@ -407,8 +407,7 @@ final class SqlTextVerdicts {
     /** Whether a failed text may be appealed (the rows leg, a re-run of the arm): compatibility mode alone -- in lite's
      *  own runs the two texts are the verdict, and after a verdict the harness may only explain (the user, 2026-11-05). */
     private static boolean appeals(BodyDriver.ExecEnv env) {
-        return EngineTextPlanning.judgingRules(env)
-                == com.legend.testexecutionplan.TestPlan.JudgingRules.COMPILED_PURE_COMPAT;
+        return EngineTextPlanning.judgingRules(env).equals(CompatRules.COMPILED_PURE);
     }
 
     /**

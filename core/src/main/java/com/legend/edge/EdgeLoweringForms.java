@@ -19,7 +19,9 @@ import java.util.function.Supplier;
  *                      PCT and the corpus (legend-pure's guarded words), legend-engine's census class A for the pure/v1
  *                      route (B7, the user's ruling of 2026-11-17: "pure/v1 matches legend-engine")
  * @param engineSqlShape legend-engine's statement shape (the engine SQL's lowering, {@code EnginePlans}): a view an
- *                      aliased derived table ({@code ViewSelectSQLQuery}), a wire coercion left to the reader
+ *                      aliased derived table ({@code ViewSelectSQLQuery}), a wire coercion left to the reader, and none
+ *                      of the product's lean SQL (a relation at each read, keyed counts as written, unread computed
+ *                      projections kept: J23)
  */
 record EdgeLoweringForms(Set<RaiseKind> plain, boolean engineSqlShape) implements com.legend.lowering.LoweringForms {
 
@@ -84,5 +86,27 @@ record EdgeLoweringForms(Set<RaiseKind> plain, boolean engineSqlShape) implement
                     + " form is the plan style's (Styled.forms), the shape's forms its views and wire casts");
         }
         return oneBare.get();
+    }
+
+    /** legend-engine's statement shape writes a relation at each read; every other edge form, the product's lean SQL
+     *  (the edge audit's J23, 2026-11-17). */
+    @Override
+    public com.legend.sql.SqlQuery relations(Supplier<com.legend.sql.SqlQuery> shared,
+            Supplier<com.legend.sql.SqlQuery> unshared) {
+        return engineSqlShape ? unshared.get() : shared.get();
+    }
+
+    /** legend-engine's statement shape counts a keyed relation's rows as written (J23). */
+    @Override
+    public com.legend.sql.SqlQuery keyedCounts(com.legend.sql.SqlQuery q,
+            java.util.function.UnaryOperator<com.legend.sql.SqlQuery> fold) {
+        return engineSqlShape ? q : fold.apply(q);
+    }
+
+    /** legend-engine's statement shape keeps an unread computed projection (J23). */
+    @Override
+    public com.legend.sql.SqlQuery computedPruning(Supplier<com.legend.sql.SqlQuery> pruned,
+            Supplier<com.legend.sql.SqlQuery> kept) {
+        return engineSqlShape ? kept.get() : pruned.get();
     }
 }

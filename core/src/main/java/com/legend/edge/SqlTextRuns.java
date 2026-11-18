@@ -31,7 +31,7 @@ final class SqlTextRuns {
             com.legend.testexecutionplan.TestPlan.JudgingRules rules, Appeals run, boolean messaged) {
         // the appeal is heard by its number, the plan's (step 8b): the run records the texts it read, and the edge
         // decides after the run; the step's rules say whether a failed text is appealed
-        boolean compat = rules == com.legend.testexecutionplan.TestPlan.JudgingRules.COMPILED_PURE_COMPAT;
+        boolean compat = rules.equals(CompatRules.COMPILED_PURE);
         if (sides.size() != 2) {
             throw new IllegalStateException(e.name() + ": the engine-text step handed " + sides.size()
                     + " sides, two texts expected");

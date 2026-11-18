@@ -20,4 +20,10 @@ public enum CompiledPureHostForms implements com.legend.testexec.HostForms {
                 || ek == Equality.Kind.DECIMAL && ak == Equality.Kind.INTEGER;
         return integerAndDecimal && String.valueOf(e).equals(String.valueOf(a));
     }
+
+    @Override
+    public boolean upstreamWords() {
+        // the compatibility rules: legend-pure's words
+        return true;
+    }
 }

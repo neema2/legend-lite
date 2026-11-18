@@ -873,7 +873,7 @@ class PlannerSurfaceTest {
             Map.entry("ExecuteOptions#withFeatures(Set<Feature>)", List.of(OPTION)),
             Map.entry("ExecuteOptions#withStyle(PlanStyle)", List.of(OPTION)),
             Map.entry("ExecuteOptions#withOptions(Set<PlanOption>)", List.of(OPTION)),
-            Map.entry("ExecuteOptions#withEngineCompat(boolean)", List.of(OPTION)),
+            // (ExecuteOptions#withEngineCompat(boolean) gone 2026-11-17, census C1: the rules are the edge hook's)
             Map.entry("ExecuteOptions#recording(Edge, DataStores)", List.of(CALLBACK, DATA_REFERENCE))));
 
     /** The root doors' classes. */

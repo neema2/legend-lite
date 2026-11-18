@@ -21,7 +21,7 @@ final class HostJudgments {
     /** Whether the host judge words a failure by lite's own sentences ({@link LiteWords}): lite's own rules; the
      *  compatibility rules keep legend-pure's words. */
     static boolean lite(HostRules rules) {
-        return !rules.rules().legendPureWords();
+        return !rules.forms().upstreamWords();
     }
 
     /** The platform's primitive types, named by their short names. */

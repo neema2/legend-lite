@@ -50,7 +50,7 @@ class RelationToOneGuardTest {
                 + ": [1]"), query + " (size " + size + "): "
                 + e.getMessage());
         // the size the database counted, a value, is pinned at the edge, whose sentence carries it (the D part 1 audit's S5, 2026-11-15)
-        Exception edge = assertThrows(Exception.class, () -> com.legend.testing.Program.last(model, query,
+        Exception edge = assertThrows(Exception.class, () -> com.legend.testing.EdgeProgram.last(model, query,
                 StorelessRuntime.RUNTIME, c, com.legend.testing.EdgeProgram.upstream()), query);
         assertTrue(String.valueOf(edge.getMessage()).contains("Cannot cast a collection of size " + size + " to"),
                 query + " (size " + size + ") at the edge: " + edge.getMessage());

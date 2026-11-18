@@ -123,7 +123,7 @@ class HookRulingTest {
                 com.legend.testexecutionplan.TestPlan.JudgingRules.LITE);
         return new com.legend.testexecutionplan.TestPlan(List.of(), List.of(step),
                 com.legend.testexecutionplan.TestPlan.Judge.HOST, Map.of(), byVerdict, false, target,
-                new com.legend.testexecutionplan.BodyFacts(false, false, true, "A"), null);
+                new com.legend.testexecutionplan.BodyFacts(false, false, true, "A"), null, false);
     }
 
 
@@ -225,7 +225,9 @@ class HookRulingTest {
                 // legend-engine's AggregationAwareActivity at the edge)
                 com.legend.planner.RoutedQueries.class,
                 // LoweringForms (the audit's K5, 2026-11-17: the lowering's two-form choices, a raise, a view, a wire cast)
-                com.legend.lowering.LoweringForms.class),
+                com.legend.lowering.LoweringForms.class,
+                // FailureWords (census C1, 2026-11-17: whose words the database judge plans a failure in)
+                com.legend.testplan.FailureWords.class),
                 com.legend.testplan.PlanStyleFacets.TWO_FORMS,
                 "the two-form kinds, an exact set: a kind is added here with its family and its dated reason");
         com.legend.planner.RoutedQueries noRouting = (chain, ctx, specs) -> null;
@@ -303,6 +305,10 @@ class HookRulingTest {
         assertTrue(edgeForms != com.legend.lowering.ProductLoweringForms.INSTANCE
                 && edgeForms.getClass().getPackageName().equals("com.legend.edge"),
                 "the edge answers its own lowering forms: " + edgeForms.getClass());
+        assertFalse(PlanStyle.PRODUCT.twoForm(com.legend.testplan.FailureWords.class,
+                com.legend.testplan.LiteFailureWords.LITE).upstreamWords(), "the product plans lite's words");
+        assertTrue(com.legend.edge.PureText.UPSTREAM.twoForm(com.legend.testplan.FailureWords.class,
+                com.legend.testplan.LiteFailureWords.LITE).upstreamWords(), "the edge plans legend-pure's");
         Runnable productForm = () -> { };
         assertTrue(PlanStyle.PRODUCT.twoForm(Runnable.class, productForm) == productForm,
                 "the product answers the caller's own form");
@@ -367,7 +373,7 @@ class HookRulingTest {
         for (com.legend.ExecuteOptions derived : List.of(none,
                 none.withJudgeMode(com.legend.testplan.PlanningOptions.JudgeMode.DATABASE),
                 none.withFeatures(java.util.Set.of()), none.withOptions(java.util.Set.of()),
-                none.withEngineCompat(true), none.judgedAs(none))) {
+                none.judgedAs(none))) {
             assertTrue(derived.planning().style() == PlanStyle.PRODUCT, "a derivation left the product's style");
         }
     }

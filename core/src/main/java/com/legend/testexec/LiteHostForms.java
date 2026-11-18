@@ -15,4 +15,9 @@ public enum LiteHostForms implements HostForms {
     public boolean equalAcrossNumberKinds(Equality.Kind ek, Equality.Kind ak, Object e, Object a) {
         return false;
     }
+
+    @Override
+    public boolean upstreamWords() {
+        return false;
+    }
 }

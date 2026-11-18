@@ -37,11 +37,6 @@ public sealed interface ModelInput {
         public List<String> compileErrors(java.util.function.Function<Throwable, String> words) {
             return com.legend.Compiler.compileErrors(code, words);
         }
-
-        @Override
-        public Protocol.PureModelContextData records() {
-            return com.legend.door.Parse.records(code);
-        }
     }
 
     /** A {@code PureModelContextData}: the model's records, as read from its JSON. */
@@ -65,11 +60,6 @@ public sealed interface ModelInput {
         public List<String> compileErrors(java.util.function.Function<Throwable, String> words) {
             return com.legend.Compiler.compileErrors(model, words);
         }
-
-        @Override
-        public Protocol.PureModelContextData records() {
-            return model;
-        }
     }
 
     /** The model compiled: its elements, a body only when asked (as {@code Compiler.compileModel}). */
@@ -87,9 +77,6 @@ public sealed interface ModelInput {
 
     /** {@link #compileErrors()}, each error worded by {@code words} (the edge's route: legend-engine's; D1.6). */
     List<String> compileErrors(java.util.function.Function<Throwable, String> words);
-
-    /** The model's records: a text's as legend-engine reads it (the engine's dialect), a JSON model's as read. */
-    Protocol.PureModelContextData records();
 
     /** A request's {@code model}: text or data; any other context is refused, naming it. */
     static ModelInput of(Json.Obj model) {
