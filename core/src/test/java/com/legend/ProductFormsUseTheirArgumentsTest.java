@@ -52,15 +52,8 @@ class ProductFormsUseTheirArgumentsTest {
             "ProductLoweringForms#computedPruning(Supplier, Supplier) arg 1", "L-A.LoweringForms E-SQL (L6) (2026-11-18):"
                     + " SubselectPrune.prune(q, false), legend-engine's unpruned computed projection, handed in",
             "ProductLoweringForms#executeValues(Supplier, Supplier) arg 1", "L-A.LoweringForms E-SQL (L6) (2026-11-18):"
-                    + " SnapshotEnvelope.fold as oneBare, legend-engine's one-object-bare execute values, handed in",
-            // E-Java's train-17 item 2, TDS/CLASS half (11bb6517d3, train 18): the product's form refuses the relation and
-            // class roots (legend-engine's tdsBuilder and classBuilder envelopes) without asking the activity's SQL, which
-            // only the edge's EngineExecutedValues asks for -- counted until the orchestrator's ruling (a refusal's
-            // consequence, RULED, or a finding)
-            "RefusedExecutedValues.REFUSED#relation(TypedSpec, Supplier) arg 1", "L-A.ExecutedValues E-Java (item 2b)"
-                    + " (2026-11-18): the activity's SQL, asked by the edge's form alone; the product's refuses the root",
-            "RefusedExecutedValues.REFUSED#classes(TypedSpec, Supplier) arg 1", "L-A.ExecutedValues E-Java (item 2b)"
-                    + " (2026-11-18): the activity's SQL, asked by the edge's form alone; the product's refuses the root");
+                    + " SnapshotEnvelope.fold as oneBare, legend-engine's one-object-bare execute values, handed in");
+    // (RefusedExecutedValues#relation and #classes: ruled no finding 2026-11-18, below -- L-A.ExecutedValues closes)
 
     /** Each function a product form never calls that is no finding (the orchestrator's ruling of 2026-11-18, 06:40: a
      *  hook's own input from the product's generic code, not upstream's alternative), with the reason. Not counted. */
@@ -72,7 +65,14 @@ class ProductFormsUseTheirArgumentsTest {
             "NoEdgeRun$Hearing#decide(Session, Leases, Function) arg 2", "2026-11-18: the run's session lookup; the"
                     + " product's run has no appeals to decide",
             "NoEdgeRun$Hearing#afterFailure(RuntimeException, Session, Leases, Function) arg 3", "2026-11-18: the run's"
-                    + " session lookup; the product's run has no appeals to decide");
+                    + " session lookup; the product's run has no appeals to decide",
+            // the orchestrator's ruling of 2026-11-18 (train 18, E-Java's item 2b, 11bb6517d3): the supplier computes lite's
+            // own activity SQL (S310), not upstream's alternative, and the product's form refuses legend-engine's
+            // envelopes before it would need it -- a refusal's consequence, as NoEdgeRun$Hearing's
+            "RefusedExecutedValues.REFUSED#relation(TypedSpec, Supplier) arg 1", "2026-11-18: the activity's SQL, lite's"
+                    + " own (S310); the product's form refuses legend-engine's tdsBuilder envelope before it would need it",
+            "RefusedExecutedValues.REFUSED#classes(TypedSpec, Supplier) arg 1", "2026-11-18: the activity's SQL, lite's"
+                    + " own (S310); the product's form refuses legend-engine's classBuilder envelope before it would need it");
 
     /** The census lines this guard holds: one per form with a finding. */
     static Set<String> lines() {
