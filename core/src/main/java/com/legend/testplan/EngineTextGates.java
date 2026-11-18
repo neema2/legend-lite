@@ -96,7 +96,7 @@ final class EngineTextGates {
 
     /** The test door's one read of the raise sites' words {@code style} recorded ({@link #planningCall}'s): none where
      *  the style judges no engine text (the product's records none). */
-    static java.util.Map<String, List<com.legend.testexecutionplan.Extension>> siteWords(
+    static java.util.Map<String, java.util.Map<Integer, String>> siteWords(
             com.legend.database.PlanStyle style) {
         return style.judgesEngineText() ? style.facet(EngineTestText.class).siteWords(style) : java.util.Map.of();
     }

@@ -210,16 +210,14 @@ final class EdgeEngineTestText implements EngineTestText {
 
     /** The door's one read of {@code recording}, a recorder this facet minted; any other style refused by name. */
     @Override
-    public java.util.Map<String, List<com.legend.testexecutionplan.Extension>> siteWords(
+    public java.util.Map<String, java.util.Map<Integer, String>> siteWords(
             com.legend.database.PlanStyle recording) {
         if (!(recording instanceof SiteWordsRecorder r)) {
             throw new IllegalStateException("the raise sites' words of a body planned in "
                     + recording.getClass().getName() + ", which records none: a test body under the compatibility"
                     + " edge's style is planned in a fresh recorder (EngineTestText.recording)");
         }
-        java.util.Map<String, List<com.legend.testexecutionplan.Extension>> out = new java.util.LinkedHashMap<>();
-        r.read().forEach((text, records) -> out.put(text, List.copyOf(records)));
-        return java.util.Collections.unmodifiableMap(out);
+        return r.read();
     }
 
     /** legend-pure's sentence of a SIZE_NOT_MULTIPLICITY site whose bound is {@code multiplicity}. */

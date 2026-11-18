@@ -101,7 +101,9 @@ class OpenClassMembersTest {
                     // raise-site words, and a required side's no-rows refusal in legend-pure's words (moved here from
                     // the style: a site's words are no member of the product's style)
                     "public abstract com.legend.database.PlanStyle recording(com.legend.database.PlanStyle)",
-                    "public abstract java.util.Map<java.lang.String, java.util.List<com.legend.testexecutionplan.Extension>> siteWords(com.legend.database.PlanStyle)",
+                    // (siteWords' records keyed by the step-local index, no statement text: the host train's K10 trim,
+                    // 1a96dbd2d, 2026-11-18)
+                    "public abstract java.util.Map<java.lang.String, java.util.Map<java.lang.Integer, java.lang.String>> siteWords(com.legend.database.PlanStyle)",
                     "public abstract java.lang.String sizeWords(java.lang.String)")),
             // C4 (the listed facade of the engine-text arm: ArchitectureTest.PLANNER_ENTRIES)
             Map.entry("com.legend.testplan.EngineTextPlanning", Set.of(

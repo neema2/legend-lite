@@ -37,17 +37,16 @@ public final class RaisedWords {
     /** {@code e} in legend-pure's words where it is a raise of a planned site, as {@code words} holds them; else as it
      *  is. */
     static com.legend.error.DataError worded(com.legend.error.DataError e,
-            java.util.Map<String, java.util.List<SiteWords>> words) {
+            java.util.Map<String, java.util.Map<Integer, String>> words) {
         if (!(e.getCause() instanceof com.legend.exec.RaisedErrors.Raised r) || r.site() == null) {
             return e;
         }
         String statement = java.util.Objects.requireNonNull(r.statement(),
                 "a raise of a planned site carries its statement's text");
-        for (SiteWords w : words.getOrDefault(statement, java.util.List.of())) {
-            if (w.n() == r.site().n()) {
-                return new com.legend.error.DataError(com.legend.error.ErrorKind.valueOf(r.site().kind().name()),
-                        r.site().where(), w.words(), r);
-            }
+        String w = words.getOrDefault(statement, java.util.Map.of()).get(r.site().n());
+        if (w != null) {
+            return new com.legend.error.DataError(com.legend.error.ErrorKind.valueOf(r.site().kind().name()),
+                    r.site().where(), w, r);
         }
         throw new IllegalStateException("legend-pure's words of raise site " + r.site().n() + " of a statement the"
                 + " plan's recorder words no site of that number of: " + statement, e);

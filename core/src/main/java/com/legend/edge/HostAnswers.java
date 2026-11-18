@@ -153,14 +153,14 @@ public final class HostAnswers {
      *  answers (K10b of the edge audit, 2026-11-17: the product plan's sites carry the product's message alone): each
      *  site's {@code n} and its {@code words}, in order; none where the statement declares none or the planning call
      *  worded none of its sites. */
-    private static List<Map<String, Object>> siteWordsOf(Map<String, List<SiteWords>> words, String statement) {
+    private static List<Map<String, Object>> siteWordsOf(Map<String, Map<Integer, String>> words, String statement) {
         List<Map<String, Object>> out = new java.util.ArrayList<>();
-        for (SiteWords w : words.getOrDefault(statement, List.of())) {
+        words.getOrDefault(statement, Map.of()).forEach((n, w) -> {
             Map<String, Object> o = new LinkedHashMap<>();
-            o.put("n", w.n());
-            o.put("words", w.words());
+            o.put("n", n);
+            o.put("words", w);
             out.add(o);
-        }
+        });
         return out;
     }
 
@@ -184,7 +184,7 @@ public final class HostAnswers {
             // words, the edge's table kept beside the plan
             SiteWordsRecorder recording = PureText.recording(style);
             QueryPlan plan = hosted.query().plan(hosted.runtime(), recording);
-            Map<String, List<SiteWords>> words = recording.read();
+            Map<String, Map<Integer, String>> words = recording.read();
             String refused = plan.beyondItsText();
             if (refused != null) {
                 throw new com.legend.error.NotImplementedException("a host runs a plan's statement itself, and this"
@@ -239,7 +239,7 @@ public final class HostAnswers {
             SiteWordsRecorder recording = PureText.recording(style);
             com.legend.executionplan.ExecutionPlan plan = hosted.query().executionPlan(hosted.runtime(),
                     java.util.Set.of(), recording);
-            Map<String, List<SiteWords>> words = recording.read();
+            Map<String, Map<Integer, String>> words = recording.read();
             if (plan.answerShape() == com.legend.executionplan.ExecutionPlan.TdsResult.Shape.VALUE) {
                 // as the server's execute refuses it (Output.Engine): a value's answer is not one the engine was
                 // measured on

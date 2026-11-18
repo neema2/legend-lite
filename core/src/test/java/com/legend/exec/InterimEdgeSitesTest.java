@@ -37,7 +37,7 @@ class InterimEdgeSitesTest {
 
     /** {@code query} planned in a fresh recorder of the edge's style on DuckDB (planning alone, no database), and the
      *  words of its raise sites the recorder kept (K10b, 2026-11-17: the edge's records, read once after the planning). */
-    private record Planned(ExecutionPlan plan, java.util.Map<String, List<com.legend.edge.SiteWords>> words) {
+    private record Planned(ExecutionPlan plan, java.util.Map<String, java.util.Map<Integer, String>> words) {
     }
 
     private static Planned planned(String query) {
@@ -78,8 +78,8 @@ class InterimEdgeSitesTest {
             }
             for (ExecutionPlan.Sql sql : statements(planned.plan().root())) {
                 sites += sql.sites().size();
-                List<Integer> worded_ = planned.words().getOrDefault(sql.statement(), List.of()).stream()
-                        .map(com.legend.edge.SiteWords::n).toList();
+                java.util.Set<Integer> worded_ = planned.words().getOrDefault(sql.statement(), java.util.Map.of())
+                        .keySet();
                 for (ExecutionPlan.Site site : sql.sites()) {
                     assertTrue(worded_.contains(site.n()), "the edge's recorder words every edge site: " + site);
                 }

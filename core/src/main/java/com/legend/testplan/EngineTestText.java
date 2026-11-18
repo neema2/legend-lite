@@ -69,8 +69,9 @@ import java.util.List;
     com.legend.database.PlanStyle recording(com.legend.database.PlanStyle template);
 
     /** The test door's ONE READ of {@code recording} ({@link #recording}'s), after its planning: each statement text's
-     *  records of its sites' words (the hearing's data), the recorder sealed. */
-    java.util.Map<String, List<com.legend.testexecutionplan.Extension>> siteWords(
+     *  sites' words by number (the hearing's data, filed by the door at the step that sends the
+     *  text), the recorder sealed. */
+    java.util.Map<String, java.util.Map<Integer, String>> siteWords(
             com.legend.database.PlanStyle recording);
 
     /** A required side's refusal of no rows as legend-pure words it ({@code multiplicity} the bound; C5's step E,
