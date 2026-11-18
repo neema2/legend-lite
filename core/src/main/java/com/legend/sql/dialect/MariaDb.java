@@ -1692,6 +1692,13 @@ public class MariaDb extends AnsiSqlRenderer {
             return writer.expr(v, 0);
         }
         if (v instanceof SqlExpr.NullLit) {
+            // a typed slot of a Decimal keeps its type (HostSideBatch: a UNION ALL's column takes the type its branches
+            // share): MySQL types a CTE's bare NULL column with 31 decimals, so a DECIMAL(2,1) side's union answered
+            // DECIMAL(31,30), toDecimal(3.8) read back as 3.800000000000000000000000000000 (measured on 8.4; MariaDB
+            // 11.4 keeps the side's scale; the PR #118 follow-ups' Q3b, track A5, 2026-11-18)
+            if (c.reason() == SqlExpr.Reason.SLOT && target instanceof SqlType.Decimal d) {
+                return writer.append("CAST(NULL AS " + columnType(d) + ")");
+            }
             return writer.append("NULL");
         }
         if (target == SqlType.Scalar.JSON) {
