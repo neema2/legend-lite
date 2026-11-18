@@ -212,6 +212,14 @@ class EdgeSeparationTest {
 
     /** Every "source -> target" naming the vocabulary, over {@code classes}, for the sources {@code side} admits. */
     static Set<String> found(JavaClasses classes, java.util.function.Predicate<String> side) {
+        return found(classes, side, EDGE_ONLY_SQLFN);
+    }
+
+    /** {@link #found(JavaClasses, java.util.function.Predicate)} with {@code edgeOnlyFns} the SqlFn constants the
+     *  edge alone may write. A read of one is no write where it is a renderer's arm, javac's switch map or SqlFn's own
+     *  initializer ({@code SqlFnSortedTest}'s rule) -- the one exemption: until 2026-11-17 every {@code com.legend.sql}
+     *  class's field reads were skipped, its MIR helpers' and its codec's with its renderers' (the edge audit's K16). */
+    static Set<String> found(JavaClasses classes, java.util.function.Predicate<String> side, Set<String> edgeOnlyFns) {
         Set<String> out = new TreeSet<>();
         for (JavaClass c : classes) {
             String src = top(c);
@@ -232,17 +240,19 @@ class EdgeSeparationTest {
                     out.add(src + " -> " + target);
                 }
             });
-            if (!src.startsWith("com.legend.sql.")) {
-                c.getFieldAccessesFromSelf().forEach(a -> {
-                    String owner = a.getTarget().getOwner().getName();
-                    String field = a.getTarget().getName();
-                    if (owner.equals("com.legend.sql.SqlFn") && EDGE_ONLY_SQLFN.contains(field)) {
-                        out.add(src + " -> SqlFn." + field);
-                    }
-                    // (the judges' compatibility rules: a field of the edge's since 2026-11-17, census C1 --
-                    // edge.CompatRules.COMPILED_PURE, an edge reach the class rule above finds)
-                });
-            }
+            // a renderer anywhere; javac's switch map in the sql package alone (what the old skip covered there -- a
+            // product class elsewhere naming an edge-only function in a switch is named, as it always was)
+            boolean fnReader = src.equals("com.legend.sql.SqlFn") || SqlFnSortedTest.renderer(c)
+                    || (src.startsWith("com.legend.sql.") && SqlFnSortedTest.switchMap(c));
+            c.getFieldAccessesFromSelf().forEach(a -> {
+                String owner = a.getTarget().getOwner().getName();
+                String field = a.getTarget().getName();
+                if (owner.equals("com.legend.sql.SqlFn") && edgeOnlyFns.contains(field) && !fnReader) {
+                    out.add(src + " -> SqlFn." + field);
+                }
+                // (the judges' compatibility rules: a field of the edge's since 2026-11-17, census C1 --
+                // edge.CompatRules.COMPILED_PURE, an edge reach the class rule above finds)
+            });
         }
         return out;
     }
@@ -407,6 +417,11 @@ class EdgeSeparationTest {
                 "com.legend.planner.PlantedCompatReach -> com.legend.edge.CompatRules")) {
             assertFalse(!code.contains(want), "the CODE and TEST SIDE guards bite: " + want + " in " + code);
         }
+        // the edge audit's K16 (2026-11-17): a com.legend.sql class's reads are read too -- an edge-only function (ABS
+        // planted as one) -- and a renderer's arm and a switch's map are not
+        Set<String> sql = found(new ClassFileImporter().withImportOption(l -> l.contains("/PlantedSql"))
+                .importPackages("com.legend.sql"), n -> true, Set.of("ABS"));
+        assertEquals(Set.of("com.legend.sql.PlantedSqlReach -> SqlFn.ABS"), sql, "the CODE guard reads the sql package");
     }
 
     /** "Lines left": the allowlists' entries, counted by the code, and by census line. */

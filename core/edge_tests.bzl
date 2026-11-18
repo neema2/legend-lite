@@ -15,6 +15,8 @@ EDGE_TEST_SRCS = [
     "src/test/java/com/legend/CellTextDirectTest.java",
     "src/test/java/com/legend/DecimalKindsTest.java",
     "src/test/java/com/legend/EdgeSeparationTest.java",
+    # no guard names what is not there (the edge audit's K16, 2026-11-17): it reads every jar the boundary guards read
+    "src/test/java/com/legend/GuardNamesExistTest.java",
     "src/test/java/com/legend/HookRulingTest.java",
     # the two hook registries agree (the GUARD stream, 2026-11-17): it reads HookRulingTest and EdgeSeparationTest
     "src/test/java/com/legend/HookRulingsAgreeTest.java",
@@ -103,6 +105,12 @@ EDGE_TEST_SRCS = [
     "src/test/java/com/legend/planner/HostOperationsTakeNoSqlTest.java",
     "src/test/java/com/legend/planner/PlantedBoundary.java",
     "src/test/java/com/legend/planner/PlantedCompatReach.java",
+    # the repointed V3 and S144 rules' planted violator (the edge audit's K16, 2026-11-17)
+    "src/test/java/com/legend/planner/PlantedVerdictReach.java",
+    # the CODE guard reads the sql package (the edge audit's K16, 2026-11-17): its planted reads, arm and dispatch
+    "src/test/java/com/legend/sql/PlantedSqlReach.java",
+    "src/test/java/com/legend/sql/PlantedSqlRendererArm.java",
+    "src/test/java/com/legend/sql/PlantedSqlSwitch.java",
     "src/test/java/com/legend/planner/PlantedEdgeReach.java",
     "src/test/java/com/legend/planner/ProductStatementsTest.java",
     "src/test/java/com/legend/planner/QueryDoorTest.java",

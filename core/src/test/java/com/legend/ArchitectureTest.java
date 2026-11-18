@@ -2939,12 +2939,16 @@ final class ArchitectureTest {
                 }
             }
         }
+        // the run's census calls are VerdictCensus's since 2026-11-09 (moved from CanonicalDivergence, slice 5): named
+        // there 2026-11-17 (the edge audit's K16 -- the four rows named members CanonicalDivergence no longer had, so
+        // the rule read nothing for them); Appeals#listenerNow, Appeals#hold, SqlTextVerdicts#declinedNow and
+        // #declinedTo gone from the product with the referee's move to the edge (census C2, 2026-11-17), their rows with
+        // them
         java.util.Set<String> told = java.util.Set.of("com.legend.testexecutionplan.AssertListener",
-                "com.legend.testexec.EdgeRun", "com.legend.testexec.EdgeHearing", "com.legend.testexec.Appeals#listenerNow", "com.legend.testexec.Appeals#hold",
-                "com.legend.testplan.SqlTextVerdicts#declinedNow", "com.legend.testplan.SqlTextVerdicts#declinedTo",
+                "com.legend.testexec.EdgeRun", "com.legend.testexec.EdgeHearing",
                 "com.legend.testexecutionplan.Edge#seeded", "com.legend.testexecutionplan.Edge#effectRan",
-                "com.legend.testexec.CanonicalDivergence#sqlUnjudged", "com.legend.testexec.CanonicalDivergence#sqlRaised",
-                "com.legend.testexec.CanonicalDivergence#sqlRaisedAt", "com.legend.testexec.CanonicalDivergence#sqlEnter");
+                "com.legend.diagnostics.VerdictCensus#sqlUnjudged", "com.legend.diagnostics.VerdictCensus#sqlRaised",
+                "com.legend.diagnostics.VerdictCensus#sqlRaisedAt", "com.legend.diagnostics.VerdictCensus#sqlEnter");
         for (com.tngtech.archunit.core.domain.JavaCodeUnit u : reachable(PLANNING_ENTRIES)) {
             String at = u.getOwner().getName() + "#" + u.getName();
             if (PLANNING_ENTRIES.contains(at)) {
@@ -3974,23 +3978,42 @@ final class ArchitectureTest {
     // slot, and no cell is parsed by its text's shape.)
 
     /** Register S144's reader of upstream's JSON grammar is the two judges' alone (the user, 2026-11-07: "keep it
-     *  isolated"): no product class, and no other judging class, reads JSON through it. It moves to the edge (P2). */
+     *  isolated"): no product class reads JSON through it. It moved to the edge (census C1, 2026-11-17:
+     *  {@code com.legend.edge.JsonSimpleGrammar}; the product's form, {@code testexecutionplan.JudgeJson}, reads strict
+     *  JSON), so no product class may name it -- the judges included. Until 2026-11-17 the rule named the deleted driver
+     *  package's JudgeJson and so read nothing (the edge audit's K16); repointed then at the grammar where it lives. */
     @Test
     void theCompatibilityJsonReaderIsTheJudgesAlone() {
-        noClasses()
-            .that().doNotHaveFullyQualifiedName("com.legend.testplan.HostJudge")
-            .and().doNotHaveFullyQualifiedName("com.legend.testplan.DatabaseJudge")
-            .and().doNotHaveFullyQualifiedName("com.legend.testexecutionplan.JudgeJson")
-            .and().doNotHaveFullyQualifiedName("com.legend.testexecutionplan.JudgeJson$JsonSimple")
-            .and().doNotHaveFullyQualifiedName("com.legend.testexecutionplan.JudgeJson$JsonSimple$Kind")
-            .should().dependOnClassesThat().haveNameMatching("com\\.legend\\.driver\\.JudgeJson(\\$.*)?")
-            .as("S144: json-simple's grammar is read by the two judges alone")
-            .check(CORE_PROD_CLASSES);
+        compatibilityJsonRule().check(CORE_PROD_CLASSES);
+    }
+
+    static com.tngtech.archunit.lang.ArchRule compatibilityJsonRule() {
+        return noClasses()
+            .should().dependOnClassesThat().haveNameMatching("com\\.legend\\.edge\\.JsonSimpleGrammar(\\$.*)?")
+            .as("S144: json-simple's grammar is the edge's, read by no product class");
+    }
+
+    /** The two rules repointed by the edge audit's K16 (2026-11-17) each bite a planted product class: one that reads a
+     *  canonical instrument outside the verdict seam, one that reads the edge's json-simple grammar
+     *  ({@code planner.PlantedVerdictReach}). Each failure names the planted class. */
+    @Test
+    void theRepointedJudgeRulesBite() {
+        JavaClasses planted = new ClassFileImporter().importClasses(com.legend.planner.PlantedVerdictReach.class);
+        for (com.tngtech.archunit.lang.ArchRule rule : java.util.List.of(compatibilityJsonRule(), hostVerdictRule())) {
+            AssertionError e = org.junit.jupiter.api.Assertions.assertThrows(AssertionError.class,
+                    () -> rule.check(planted), rule.getDescription());
+            org.junit.jupiter.api.Assertions.assertTrue(e.getMessage().contains("com.legend.planner.PlantedVerdictReach"),
+                    rule.getDescription() + ": " + e.getMessage());
+        }
     }
 
     @Test
     void hostVerdictIsReachableOnlyFromTheVerdictSeam() {
-        noClasses()
+        hostVerdictRule().check(CORE_PROD_CLASSES);
+    }
+
+    static com.tngtech.archunit.lang.ArchRule hostVerdictRule() {
+        return noClasses()
             .that().doNotHaveFullyQualifiedName("com.legend.testplan.AssertVerdicts")
             // task #27 (2026-09-21): the verdict seam's two arms — the host judge
             // (Java compare over database rows) and the database judge (the verdict
@@ -4002,6 +4025,18 @@ final class ArchitectureTest {
             .and().doNotHaveFullyQualifiedName("com.legend.testexec.TdsCompare")
             .and().doNotHaveFullyQualifiedName("com.legend.testexec.CanonicalForm")
             .and().doNotHaveFullyQualifiedName("com.legend.testexec.CanonicalDivergence")
+            // the four's own nested classes (CanonicalForm$Result's variants implement it)
+            .and().haveNameNotMatching("com\\.legend\\.testexec\\.(PureAsserts|CanonicalForm|CanonicalDivergence"
+                    + "|Equality)\\$.*")
+            // THE SEAM'S RUN HALF (measured 2026-11-17, when the rule was repointed from the deleted judge package -- the
+            // edge audit's K16): since slice 5 (2026-11-09) the judges are planned in testplan and run in testexec, and
+            // these are the run's judges -- the host judge's judgments, an assert's run, the database judge's verdicts --
+            // and the host forms that say how the host judge compares numbers across kinds (a hook, HOOK-RULED)
+            .and().doNotHaveFullyQualifiedName("com.legend.testexec.HostJudgments")
+            .and().doNotHaveFullyQualifiedName("com.legend.testexec.AssertRuns")
+            .and().doNotHaveFullyQualifiedName("com.legend.testexec.DatabaseVerdicts")
+            .and().doNotHaveFullyQualifiedName("com.legend.testexec.HostForms")
+            .and().doNotHaveFullyQualifiedName("com.legend.testexec.LiteHostForms")
             // testdatagen composes seed SOURCE TEXT via the ONE repr
             // owner — spelling, never an equality decision
             .and().doNotHaveFullyQualifiedName("com.legend.testdatagen.TestDataGenerator")
@@ -4025,18 +4060,16 @@ final class ArchitectureTest {
             // (com.legend.testexec.DatabaseVerdicts.verdictOf), its appeal heard by number
             .and().doNotHaveFullyQualifiedName("com.legend.testexec.RootLoops")
             .and().doNotHaveFullyQualifiedName("com.legend.testexec.RootLoops$Run")
-            // 2026-11-07, P1.2 (the goals of record: a compatibility appeal is the edge's, decided after the body's
-            // run): a body's held appeals, the verdict seam's after the run -- a failed appeal counted as raised, as a
-            // failure at its step is (the census call); the appeal's own judgment is SqlTextVerdicts', nothing here
-            .and().doNotHaveFullyQualifiedName("com.legend.testexec.Appeals")
-            // the four live in com.legend.judge since 2026-10-30 (D71, the seam-and-wall program's B1: the judge
-            // layer out of exec); the rule's exemptions name them there too
+            // (com.legend.testexec.Appeals, a body's held appeals: moved to the edge with the referee, census C2,
+            // 2026-11-17 -- its exemption named nothing here, deleted with the K16 repoint)
+            // the four live in com.legend.testexec since the judge package's deletion (slice 5, 2026-11-09); the rule
+            // read com.legend.judge until 2026-11-17, a package no class is in -- it named nothing (the edge audit's
+            // K16, CanonicalDivergence among the four); its exemptions already named them in testexec
             .should().dependOnClassesThat().haveNameMatching(
-                "com\\.legend\\.judge\\.(PureAsserts|CanonicalForm|CanonicalDivergence|Equality)")
+                "com\\.legend\\.testexec\\.(PureAsserts|CanonicalForm|CanonicalDivergence|Equality)(\\$.*)?")
             .as("V3: host-verdict classes are reachable only from the"
                     + " verdict/referee seam — register a new dependent"
-                    + " consciously or route through the DB byte verdict")
-            .check(CORE_PROD_CLASSES);
+                    + " consciously or route through the DB byte verdict");
     }
 
     /**

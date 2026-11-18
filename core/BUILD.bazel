@@ -2545,6 +2545,8 @@ junit_test(
         # the ruled hooks' implementers, read from the edge's jars (Phase 6's HookRulingTest)
         "--select-class=com.legend.HookRulingTest",
         "--select-class=com.legend.HookRulingsAgreeTest",
+        # no guard names what is not there (the edge audit's K16, 2026-11-17)
+        "--select-class=com.legend.GuardNamesExistTest",
         "--select-class=com.legend.JudgingRulesReachTest",
         "--select-class=com.legend.OpenClassMembersTest",
         "--select-class=com.legend.OpenLineMarkedTest",

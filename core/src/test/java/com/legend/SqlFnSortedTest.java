@@ -394,12 +394,12 @@ class SqlFnSortedTest {
         return dollar < 0 ? n : n.substring(0, dollar);
     }
 
-    private static boolean switchMap(JavaClass c) {
+    static boolean switchMap(JavaClass c) {
         return c.getFields().stream().anyMatch(f -> f.getName().startsWith("$SwitchMap$"));
     }
 
     /** Whether {@code c} is a renderer or nested in one, at any depth. */
-    private static boolean renderer(JavaClass c) {
+    static boolean renderer(JavaClass c) {
         for (java.util.Optional<JavaClass> x = java.util.Optional.of(c); x.isPresent(); x = x.get().getEnclosingClass()) {
             if (x.get().isAssignableTo(SqlDialect.class.getName())) {
                 return true;

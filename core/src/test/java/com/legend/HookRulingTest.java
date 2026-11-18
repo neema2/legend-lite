@@ -465,12 +465,47 @@ class HookRulingTest {
         assertFalse(overriders.isEmpty());
     }
 
+    /** A statement raising a division by zero, the raise's message {@code ERROR}'s first argument, as the lowering
+     *  writes one. */
+    private static com.legend.sql.SqlSelect raising() {
+        com.legend.sql.OutputCol v = new com.legend.sql.OutputCol("v", com.legend.sql.SqlType.Scalar.VARCHAR, true,
+                com.legend.sql.OutputCol.Origin.DERIVED);
+        com.legend.sql.SqlExpr raise = com.legend.sql.SqlExpr.Call.of(com.legend.sql.SqlFn.ERROR,
+                new com.legend.sql.SqlExpr.RaiseText(com.legend.sql.RaiseKind.DIVIDE_BY_ZERO, List.of()),
+                new com.legend.sql.SqlExpr.StringLit("3:7"));
+        return new com.legend.sql.SqlSelect(List.of(new com.legend.sql.SqlSelect.Projection(raise, "v", v)), false,
+                new com.legend.sql.SqlSource.Dual(), null, List.of(), null, null, List.of(), null, null, List.of(v));
+    }
+
+    /** What differs from the product's raise in {@code d}'s statement raising a division by zero (the edge audit's K16,
+     *  2026-11-17: raiseMessage was the one spelling hook whose product default no test pinned): the product writes its
+     *  site's bare token ({@code LG#1}) -- no kind's name, no sentence -- and words nothing upstream's way in its site
+     *  ({@code upstream} null). A database that refuses the raise by name has nothing to pin; null when it holds. */
+    static @com.legend.base.Nullable String productRaiseDiffers(com.legend.sql.dialect.SqlDialect d) {
+        com.legend.sql.dialect.RenderedStatement s;
+        try {
+            s = d.renderStatement(raising());
+        } catch (com.legend.sql.DialectCapability | NotImplementedException | UnsupportedOperationException refused) {
+            return null;
+        }
+        if (!s.sql().contains("LG#1") || s.sql().contains("DIVIDE_BY_ZERO") || s.sql().contains("ivision by zero")
+                || s.sql().contains("Cannot divide")) {
+            return d.getClass().getName() + " writes " + s.sql();
+        }
+        if (s.sites().size() != 1 || s.sites().get(0).upstream() != null) {
+            return d.getClass().getName() + " words its site " + s.sites();
+        }
+        return null;
+    }
+
     /** The product's default of each spelling hook, pinned on every product dialect that has it: a raw statement as
-     *  written, no spelling pass, no scan order, and a DateTime format of lite's own (six digits and Z). */
+     *  written, no spelling pass, no scan order, a DateTime format of lite's own (six digits and Z), and a raise its
+     *  site's bare token, worded nowhere upstream's way (raiseMessage: the edge audit's K16, 2026-11-17). */
     @Test
     void eachSpellingHooksProductDefault() throws Exception {
         for (com.legend.model.ConnectionDefinition.DatabaseType t : com.legend.database.Databases.implemented()) {
             com.legend.sql.dialect.SqlDialect d = com.legend.database.Databases.dialect(t);
+            assertEquals(null, productRaiseDiffers(d), t + ": the product raises its site's token");
             assertEquals("Create Table f(x FLOAT)", d.raw("Create Table f(x FLOAT)", "ENGINE_TEXT"),
                     t + ": the product runs a raw statement as written");
             for (String name : List.of("spellingPasses", "scanOrderPasses")) {
@@ -485,6 +520,54 @@ class HookRulingTest {
                         t + ": the product's DateTime format is lite's, " + format);
             }
         }
+    }
+
+    /** The raise pin bites: every edge dialect words a raise upstream's way -- its sentence in SQL, or its words in the
+     *  site -- and each is named, by its class. */
+    @Test
+    void theRaisePinBitesAnEdgeDialect() {
+        List<String> named = new java.util.ArrayList<>();
+        for (com.legend.model.ConnectionDefinition.DatabaseType t : com.legend.database.Databases.implemented()) {
+            com.legend.sql.dialect.SqlDialect edge = com.legend.edge.PureText.dialect(t);
+            String found = productRaiseDiffers(edge);
+            if (found != null) {
+                assertTrue(found.startsWith(edge.getClass().getName()), found);
+                named.add(found);
+            }
+        }
+        assertTrue(named.size() >= 3, "the edge's dialects are named: " + named);
+    }
+
+    /** What {@code dialects} gives a database type that is not the edge's own dialect (the edge audit's K16, 2026-11-17:
+     *  PureText.dialect hands a database it has no dialect for to the product's Databases.dialect, which refuses it by
+     *  name today -- a product dialect for one of them would then reach the edge's planning silently, a fallback):
+     *  "type -> class" for each type answered by a class outside {@code com.legend.edge}; a refusal by name holds. */
+    static List<String> notTheEdges(java.util.function.Function<com.legend.model.ConnectionDefinition.DatabaseType,
+            com.legend.sql.dialect.SqlDialect> dialects) {
+        List<String> out = new java.util.ArrayList<>();
+        for (com.legend.model.ConnectionDefinition.DatabaseType t
+                : com.legend.model.ConnectionDefinition.DatabaseType.values()) {
+            com.legend.sql.dialect.SqlDialect d;
+            try {
+                d = dialects.apply(t);
+            } catch (NotImplementedException refused) {
+                continue;
+            }
+            if (!inEdge(d.getClass().getPackageName())) {
+                out.add(t + " -> " + d.getClass().getName());
+            }
+        }
+        return out;
+    }
+
+    /** Every database the edge plans for has the edge's own dialect, or is refused by name -- never the product's. */
+    @Test
+    void theEdgesDialectIsNeverTheProducts() {
+        assertEquals(List.of(), notTheEdges(com.legend.edge.PureText::dialect), "a database the edge plans with the"
+                + " product's dialect: write the edge's (PureText), or refuse it by name");
+        List<String> product = notTheEdges(com.legend.database.Databases::dialect);
+        assertTrue(product.size() >= 3 && product.stream().allMatch(p -> p.contains(" -> com.legend.sql.dialect.")),
+                "the check bites: the product's dialects are named, " + product);
     }
 
     private static final Object NONE = new Object();
