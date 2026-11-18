@@ -85,16 +85,20 @@ class EdgeOnlyMembersTest {
             // J40.TypedQuery lines go; one found: legend-engine's toSQL native's name, its reader moved with F's
             // SqlTextInputs to the edge
             Map.entry("com.legend.compiler.element.type.PlatformTypes#TO_SQL",
-                    "J40.PlatformTypes F (e92c465d moved its reader) MOVE (2026-11-18): legend-engine's toSQL native's name, read by the edge's SqlTextInputs alone"),
+                    "J40.PlatformTypes F (e92c465d moved its reader) MOVE (2026-11-18): legend-engine's toSQL native's name, read by the edge's SqlTextInputs alone"));
             // (PlatformTypes#TO_NON_EXECUTABLE_SQL_STRING and VerdictSql#reprNewlines: moved to the edge 2026-11-18 by
             // E-Java's j40b, 9099e1d6d3 and 0f2eba0c85, train 17 -- J40.PlatformTypes stays open on TO_SQL, J40.VerdictSql
             // on textEquals)
-            Map.entry("com.legend.testexec.PureAsserts#sorted(java.util.List)",
-                    "J40.PureAsserts E-Java (J29; train 17) MOVE (2026-11-18, ruled): legend-pure's total order over Any, sorting assertSameElements' words in the edge's EdgeHostWords alone"));
+            // (testexec.PureAsserts#sorted: ruled READ_API by the orchestrator 2026-11-18, below -- J40.PureAsserts closes)
 
     /** The members only the edge uses that are a product API the edge reads (READ_API: a fact the product owns and names
      *  in lite's terms; the orchestrator's triage ruling of 2026-11-18), each with its dated reason. Not counted. */
     static final Map<String, String> READ_API = Map.ofEntries(
+            // ruled READ_API by the orchestrator (2026-11-18, ~07:20, on E-Java's proposal): the product judge's own total
+            // order (pure's sort(): numbers, strings, booleans, temporals), a public face over Equality.sorted that the
+            // product's PureAssertsTest reads too; the edge's EdgeHostWords sorts assertSameElements' words by it
+            Map.entry("com.legend.testexec.PureAsserts#sorted(java.util.List)",
+                    "2026-11-18: the product judge's own total order over Any, pure's sort() (the orchestrator's ruling)"),
             // the orchestrator's ruling at J40 (2026-11-18, E-Java's 185d54a494): a plan connection's facts stay READ_API,
             // its engine spelling the edge's printer's -- left the edge's alone to read when planText moved (train 16)
             Map.entry("com.legend.compiler.spec.typed.ExecutionContext$PlanConnection#className()",
