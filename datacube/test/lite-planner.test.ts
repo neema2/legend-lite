@@ -6,7 +6,7 @@ import { after, describe, it } from 'node:test';
 import { pathToFileURL } from 'node:url';
 
 import { PlanError } from '../src/planner.ts';
-import { fromElement, toJson } from '../../pure-protocol/src/index.ts';
+import { fromElement, lambda, lit, toJson, type Lambda } from '../../pure-protocol/src/index.ts';
 import {
   PlannerUnavailableError,
   LitePlanner,
@@ -14,9 +14,29 @@ import {
 import type { PlannerWorker } from '../../engine-client/src/legend/planner-protocol.ts';
 import { frameKept, inRun } from '../../engine-client/src/run-frame.ts';
 
-/** A module's OK answer: the SQL and its result type (here, typing nothing). */
-function ok(sql: string): string {
-  return `OK\n${JSON.stringify({ sql, raises: {}, type: { _type: 'relationType', columns: [] } })}`;
+/** A module's query/plan answer: lite's plan of one statement, `sql`, typed by `columns` (here, typing nothing). */
+function ok(sql: string, columns: readonly { name: string; type: string }[] = []): string {
+  return `OK\n${JSON.stringify({ plan: { format: 'legend-lite-plan', version: 56, parameters: [], raises: {},
+    root: { _type: 'tdsResult', shape: 'RELATION', columns, sql: { statement: sql, slots: [],
+      target: { database: { _type: 'platform', databaseType: 'DuckDB' } } } } } })}`;
+}
+
+/** A query whose tree carries `text` (a string literal its body): what these tests plan, the fake module answering by
+ *  the text (textOf). Since lite API v1 a text is planned as a tree (query/parse first): no text entry is left. */
+function textQuery(text: string): Lambda {
+  return lambda([], lit.string(text));
+}
+
+/** The text a planned request's tree carries (textQuery), or its tree's JSON. */
+function textOf(request: string): string {
+  const query = (JSON.parse(request) as { query: { body?: { _type?: string; value?: string }[] } }).query;
+  const first = query.body?.[0];
+  return first?._type === 'string' && typeof first.value === 'string' ? first.value : JSON.stringify(query);
+}
+
+/** `text` planned by `p`, as the tree textQuery makes of it. */
+function planText(p: LitePlanner, text: string, signal?: AbortSignal) {
+  return p.plan(textQuery(text), signal);
 }
 
 /**
@@ -43,11 +63,11 @@ function fakeExports(
   const models = new Map<number, string>();
   let next = 1;
   const over = (h: number, q: string, r: string): string =>
-    (models.has(h) ? answer(models.get(h)!, q, r) : `ERR\n500\nno model is held under handle ${h}`);
+    (models.has(h) ? answer(models.get(h)!, q, r) : `ERR\n{"kind":"internal","message":"no model is held under handle ${h}"}`);
   const hold = (m: string): string => {
     onWarm?.(m);
     log.holds.push(m);
-    if (m === 'does not compile') return 'ERR\nCOMPILATION\nthe model does not compile';
+    if (m === 'does not compile') return 'ERR\n{"kind":"compile","message":"the model does not compile"}';
     const handle = next++;
     models.set(handle, m);
     return `OK\n${handle}`;
@@ -56,27 +76,36 @@ function fakeExports(
     holdModelOrError: hold,
     // a model over a library held as the one text, as the module holds it (HeldModels.hold(model, library))
     holdModelOverOrError: (m: string, l: string) => hold(`${m}\n${l}`),
+    queryPlanHeldOrError: (h: number, request: string) =>
+      over(h, textOf(request), (JSON.parse(request) as { runtime: string }).runtime),
+    queryTypeHeldOrError: () => 'OK\n{"columns":[]}',
     releaseModelOrError: (h: number) => { log.releases.push(h); models.delete(h); return 'OK\n'; },
-    planHeldOrError: over,
-    planJsonHeldOrError: over,
-    executionPlanJsonHeldOrError: () => 'ERR\nfake\nnot in this fake',
-    relationTypeHeldOrError: () => 'OK\n{"_type":"relationType","columns":[]}',
-    tableModelOrError: () => 'ERR\nfake\nnot in this fake',
-    catalogColumnsSqlOrError: () => 'ERR\nfake\nnot in this fake',
-    pureV1OrError: () => 'ERR\nfake\nnot in this fake',
-    fileLoadOrError: () => 'ERR\nfake\nnot in this fake',
-    remoteMountOrError: () => 'ERR\nfake\nnot in this fake',
-    snapStreamOrError: () => 'ERR\nfake\nnot in this fake',
-    snapCopyOrError: () => 'ERR\nfake\nnot in this fake',
-    outputPlanOrError: () => 'ERR\nfake\nnot in this fake',
-    synthesizeOrError: () => 'ERR\nfake\nnot in this fake',
-    authoredOrError: () => 'ERR\nfake\nnot in this fake',
-    sessionSetupOrError: () => 'ERR\nfake\nnot in this fake',
-    projectDataOrError: () => 'ERR\nfake\nnot in this fake',
-    hostOperationsOrError: () => 'ERR\nfake\nnot in this fake',
-    planJsonOrError: () => 'ERR\nfake\nnot in this fake',
-    executeJsonPlanOrError: () => 'ERR\nfake\nnot in this fake',
-    executeJsonAnswerOrError: () => 'ERR\nfake\nnot in this fake',
+    tableModelOrError: () => 'ERR\n{"kind":"internal","message":"not in this fake"}',
+    catalogColumnsSqlOrError: () => 'ERR\n{"kind":"internal","message":"not in this fake"}',
+    pureV1OrError: () => 'ERR\n{"kind":"internal","message":"not in this fake"}',
+    modelCheckOrError: () => 'ERR\n{"kind":"internal","message":"not in this fake"}',
+    modelElementsOrError: () => 'ERR\n{"kind":"internal","message":"not in this fake"}',
+    queryParseOrError: () => 'ERR\n{"kind":"internal","message":"not in this fake"}',
+    queryPrintOrError: () => 'ERR\n{"kind":"internal","message":"not in this fake"}',
+    queryTypeOrError: () => 'OK\n{"columns":[]}',
+    queryPlanOrError: () => 'ERR\n{"kind":"internal","message":"not in this fake"}',
+    modelCreateClassOrError: () => 'ERR\n{"kind":"internal","message":"not in this fake"}',
+    modelCreateAssociationOrError: () => 'ERR\n{"kind":"internal","message":"not in this fake"}',
+    modelCreateDataSpaceOrError: () => 'ERR\n{"kind":"internal","message":"not in this fake"}',
+    tsItemOrError: () => 'ERR\n{"kind":"internal","message":"not in this fake"}',
+    tsStatementOrError: () => 'ERR\n{"kind":"internal","message":"not in this fake"}',
+    fileLoadOrError: () => 'ERR\n{"kind":"internal","message":"not in this fake"}',
+    remoteMountOrError: () => 'ERR\n{"kind":"internal","message":"not in this fake"}',
+    snapStreamOrError: () => 'ERR\n{"kind":"internal","message":"not in this fake"}',
+    snapCopyOrError: () => 'ERR\n{"kind":"internal","message":"not in this fake"}',
+    outputPlanOrError: () => 'ERR\n{"kind":"internal","message":"not in this fake"}',
+    synthesizeOrError: () => 'ERR\n{"kind":"internal","message":"not in this fake"}',
+    authoredOrError: () => 'ERR\n{"kind":"internal","message":"not in this fake"}',
+    sessionSetupOrError: () => 'ERR\n{"kind":"internal","message":"not in this fake"}',
+    projectDataOrError: () => 'ERR\n{"kind":"internal","message":"not in this fake"}',
+    hostOperationsOrError: () => 'ERR\n{"kind":"internal","message":"not in this fake"}',
+    executeJsonPlanOrError: () => 'ERR\n{"kind":"internal","message":"not in this fake"}',
+    executeJsonAnswerOrError: () => 'ERR\n{"kind":"internal","message":"not in this fake"}',
     warmModelOrError: () => 'OK\n',
   };
 }
@@ -143,21 +172,14 @@ function planner(
 describe('LitePlanner', () => {
   it('returns the SQL an OK answer carries', async () => {
     const p = planner(() => ok('SELECT t0.a FROM T AS t0'));
-    assert.equal((await p.planText('grammar')).sql,
+    assert.equal((await planText(p, 'grammar')).sql,
       'SELECT t0.a FROM T AS t0',
     );
   });
 
   it('carries the compiler\'s result type beside the SQL', async () => {
-    const type = {
-      _type: 'relationType',
-      columns: [
-        { name: 'region', genericType: { rawType: { _type: 'packageableType', fullPath: 'String' } } },
-        { name: 'total', genericType: { rawType: { _type: 'packageableType', fullPath: 'Decimal' } } },
-      ],
-    };
-    const p = planner(() => `OK\n${JSON.stringify({ sql: 'SELECT 1', raises: {}, type })}`);
-    assert.deepEqual(await p.planText('g'), {
+    const p = planner(() => ok('SELECT 1', [{ name: 'region', type: 'String' }, { name: 'total', type: 'Decimal' }]));
+    assert.deepEqual(await planText(p, 'g'), {
       sql: 'SELECT 1',
       columns: [{ name: 'region', type: 'String' }, { name: 'total', type: 'Decimal' }],
     });
@@ -169,7 +191,7 @@ describe('LitePlanner', () => {
       seen = [m, q, r];
       return ok('SELECT 1');
     });
-    await p.planText('the-grammar');
+    await planText(p, 'the-grammar');
     assert.match(seen[0]!, /Database trades::DB/);
     assert.equal(seen[1], 'the-grammar');
     assert.equal(seen[2], 'trades::RT');
@@ -180,28 +202,26 @@ describe('LitePlanner', () => {
     // newline after that belongs to the SQL.
     const sql = 'SELECT t0.a\nFROM T AS t0\nWHERE t0.a = 1';
     const p = planner(() => ok(sql));
-    assert.equal((await p.planText('g')).sql, sql);
+    assert.equal((await planText(p, 'g')).sql, sql);
   });
 
   it('raises a PlanError carrying the compiler message on ERR', async () => {
     const p = planner(() =>
-      'ERR\nCOMPILATION\n'
-      + "unknown column 'nope'");
-    await assert.rejects(() => p.planText('g2'), (e: unknown) => {
+      'ERR\n{"kind":"compile","message":"unknown column \'nope\'"}');
+    await assert.rejects(() => planText(p, 'g2'), (e: unknown) => {
       assert.ok(e instanceof PlanError);
       // The refusal's KIND is dropped; the message is what a user
       // can act on, and it must match the HTTP planner's text.
       assert.equal(e.message, "unknown column 'nope'");
-      assert.equal(e.subject, 'g2');
+      assert.deepEqual(e.subject, textQuery('g2'), 'the query refused');
       return true;
     });
   });
 
   it('keeps a multi-line compiler message whole', async () => {
     const p = planner(() =>
-      'ERR\nPARSER\n[1:40] expected expression,'
-      + '\n  got end of input');
-    await assert.rejects(() => p.planText('g'), (e: unknown) => {
+      'ERR\n{"kind":"parse","message":"[1:40] expected expression,\\n  got end of input"}');
+    await assert.rejects(() => planText(p, 'g'), (e: unknown) => {
       assert.ok(e instanceof PlanError);
       assert.equal(
         e.message,
@@ -218,10 +238,10 @@ describe('LitePlanner', () => {
     let calls = 0;
     const p = planner(() => {
       calls++;
-      return 'ERR\nX\nnope';
+      return 'ERR\n{"kind":"internal","message":"nope"}';
     });
-    await assert.rejects(() => p.planText('g'));
-    await assert.rejects(() => p.planText('g'));
+    await assert.rejects(() => planText(p, 'g'));
+    await assert.rejects(() => planText(p, 'g'));
     assert.equal(calls, 2);
     assert.equal(p.cacheSize, 0);
   });
@@ -232,8 +252,8 @@ describe('LitePlanner', () => {
       calls++;
       return ok('SELECT 1');
     });
-    await cached.planText('g');
-    await cached.planText('g');
+    await planText(cached, 'g');
+    await planText(cached, 'g');
     assert.equal(calls, 1);
     assert.equal(cached.cacheSize, 1);
 
@@ -242,8 +262,8 @@ describe('LitePlanner', () => {
       calls++;
       return ok('SELECT 1');
     }, { cache: false });
-    await uncached.planText('g');
-    await uncached.planText('g');
+    await planText(uncached, 'g');
+    await planText(uncached, 'g');
     assert.equal(calls, 2);
   });
 
@@ -254,9 +274,9 @@ describe('LitePlanner', () => {
     let loads = 0;
     const p = planner(() => ok('SELECT 1'), { onLoad: () => { loads++; } });
     await Promise.all([
-      p.planText('a'),
-      p.planText('b'),
-      p.planText('c'),
+      planText(p, 'a'),
+      planText(p, 'b'),
+      planText(p, 'c'),
     ]);
     assert.equal(loads, 1);
   });
@@ -271,7 +291,7 @@ describe('LitePlanner', () => {
     await p.warmUp();
     assert.equal(loads, 1);
     assert.equal(plans, 0);
-    await p.planText('g');
+    await planText(p, 'g');
     assert.equal(loads, 1, 'warmUp must satisfy the later load');
   });
 
@@ -289,14 +309,14 @@ describe('LitePlanner', () => {
     assert.match(warmed[0]!, /Database trades::DB/,
       'the module must hold the REAL model, so the graph it builds is'
       + ' the one the first plan wants');
-    await p.planText('g');
+    await planText(p, 'g');
     assert.equal(warmed.length, 1, 'the first plan uses the model warmUp held');
   });
 
   it('holds its model once, however many plans it makes, and lets it go when done', async () => {
     const log: HeldLog = { holds: [], releases: [] };
     const p = planner(() => ok('SELECT 1'), { cache: false, log });
-    for (const q of ['a', 'b', 'c']) await p.planText(q);
+    for (const q of ['a', 'b', 'c']) await planText(p, q);
     await p.plan(fromElement('trades::T').select(['a']).lambda());
     assert.equal(log.holds.length, 1, 'compiled once: every plan over the model held');
     p.dispose();
@@ -308,9 +328,9 @@ describe('LitePlanner', () => {
     const log: HeldLog = { holds: [], releases: [] };
     const models: string[] = [];
     const p = planner((m) => { models.push(m); return ok('SELECT 1'); }, { cache: false, log });
-    await p.planText('a');
+    await planText(p, 'a');
     p.useModel('another model', 'trades::RT');
-    await p.planText('a');
+    await planText(p, 'a');
     assert.deepEqual(models, [log.holds[0], 'another model'], 'each plan over the model the planner has now');
     assert.equal(log.holds.length, 2);
     assert.deepEqual(log.releases, [1]);
@@ -319,8 +339,8 @@ describe('LitePlanner', () => {
   it('a model that does not compile is refused as a plan is, held by no one, and tried again next time', async () => {
     const log: HeldLog = { holds: [], releases: [] };
     const p = planner(() => ok('SELECT 1'), { cache: false, log, model: 'does not compile' });
-    await assert.rejects(() => p.planText('a'), PlanError);
-    await assert.rejects(() => p.planText('a'), PlanError);
+    await assert.rejects(() => planText(p, 'a'), PlanError);
+    await assert.rejects(() => planText(p, 'a'), PlanError);
     assert.equal(log.holds.length, 2, 'a refusal is not kept as the verdict');
   });
 
@@ -334,7 +354,7 @@ describe('LitePlanner', () => {
       return ok('SELECT 1');
     });
     await assert.rejects(
-      () => p.planText('g', ctl.signal),
+      () => planText(p, 'g', ctl.signal),
       (e: unknown) => e === reason,
     );
     assert.equal(planned, false, 'an aborted plan must not do the work');
@@ -350,7 +370,7 @@ describe('LitePlanner', () => {
       return ok('SELECT 1');
     });
     await assert.rejects(
-      () => p.planText('g', ctl.signal),
+      () => planText(p, 'g', ctl.signal),
       (e: unknown) => e === reason,
     );
   });
@@ -366,7 +386,7 @@ describe('LitePlanner', () => {
         runtime: 'r',
         assetBaseUrl: runtimeFolder().url,
       });
-      await assert.rejects(() => p.planText('g'), (e: unknown) => {
+      await assert.rejects(() => planText(p, 'g'), (e: unknown) => {
         assert.ok(e instanceof PlannerUnavailableError);
         assert.ok(!(e instanceof PlanError));
         assert.match(e.message, /bazel build \/\/datacube:site/);
@@ -382,7 +402,7 @@ describe('LitePlanner', () => {
       runtime: 'r',
       assetBaseUrl: folder.url,
     });
-    await assert.rejects(() => p.planText('g'), PlannerUnavailableError);
+    await assert.rejects(() => planText(p, 'g'), PlannerUnavailableError);
     folder.serve(async () => ({
       async load() {
         return {
@@ -390,7 +410,7 @@ describe('LitePlanner', () => {
         };
       },
     }));
-    assert.equal((await p.planText('g')).sql, 'SELECT 1');
+    assert.equal((await planText(p, 'g')).sql, 'SELECT 1');
   });
 
   it('plans a TREE through the JSON entry, sending the query\'s exact JSON, cached by it', async () => {
@@ -405,21 +425,9 @@ describe('LitePlanner', () => {
     assert.deepEqual(seen, [toJson(query)], 'an equal tree is the same query: planned once');
   });
 
-  it('keeps the text entry and the tree entry apart in its cache', async () => {
-    let calls = 0;
-    const p = planner(() => {
-      calls++;
-      return ok('SELECT 1');
-    });
-    const query = fromElement('trades::T').select(['a']).lambda();
-    await p.plan(query);
-    await p.planText(toJson(query));
-    assert.equal(calls, 2);
-  });
-
   it('rejects an answer with neither tag rather than guessing', async () => {
     const p = planner(() => 'SELECT 1');
-    await assert.rejects(() => p.planText('g'),
+    await assert.rejects(() => planText(p, 'g'),
       PlannerUnavailableError);
   });
 });
@@ -449,8 +457,8 @@ describe('LitePlanner off the main thread: the models its worker holds', () => {
           x.holdModelOverOrError(msg['model'] as string, msg['library'] as string))
         : msg['kind'] === 'hold' ? (this.holds.push(msg['model'] as string), x.holdModelOrError(msg['model'] as string))
         : msg['kind'] === 'release' ? (this.releases.push(msg['handle'] as number), this.told.push('release'), x.releaseModelOrError(msg['handle'] as number))
-        : msg['kind'] === 'plan' ? x.planHeldOrError(msg['handle'] as number, msg['query'] as string, msg['runtime'] as string)
-        : 'ERR\nfake\nnot in this fake';
+        : msg['kind'] === 'queryPlanHeld' ? x.queryPlanHeldOrError(msg['handle'] as number, msg['request'] as string)
+        : 'ERR\n{"kind":"internal","message":"not in this fake"}';
       queueMicrotask(() => this.onmessage?.({ data: { id: msg['id'], ok: true, answer } }));
     }
     terminate(): void {
@@ -469,7 +477,7 @@ describe('LitePlanner off the main thread: the models its worker holds', () => {
     g.Worker = FakeWorker;
     try {
       const p = workerPlanner();
-      await p.planText('a');
+      await planText(p, 'a');
       p.dispose();
       await new Promise((done) => setTimeout(done, 0));
       assert.equal(FakeWorker.made.length, 1, 'no worker started to let a model go');
@@ -484,9 +492,9 @@ describe('LitePlanner off the main thread: the models its worker holds', () => {
     g.Worker = FakeWorker;
     try {
       const p = workerPlanner();
-      await p.planText('a');
+      await planText(p, 'a');
       FakeWorker.made[0]!.die();
-      assert.equal((await p.planText('b')).sql, 'SELECT 1', 'planned, no stale handle sent');
+      assert.equal((await planText(p, 'b')).sql, 'SELECT 1', 'planned, no stale handle sent');
       assert.equal(FakeWorker.made.length, 2);
       assert.deepEqual(FakeWorker.made[1]!.holds, ['m'], 'held again on the new worker');
     } finally {
@@ -498,7 +506,7 @@ describe('LitePlanner off the main thread: the models its worker holds', () => {
     FakeWorker.made = [];
     assert.equal(g.Worker, undefined, 'no Worker here, as in an embedded engine');
     const p = new LitePlanner({ model: 'm', runtime: 'r', worker: () => new FakeWorker() as unknown as PlannerWorker, cache: false });
-    assert.equal((await p.planText('a')).sql, 'SELECT 1');
+    assert.equal((await planText(p, 'a')).sql, 'SELECT 1');
     assert.equal(FakeWorker.made.length, 1);
     assert.deepEqual(FakeWorker.made[0]!.holds, ['m'], 'its model held on the host\'s worker');
     p.dispose();
@@ -515,24 +523,27 @@ describe('LitePlanner off the main thread: the models its worker holds', () => {
     const onWorker = new LitePlanner({ model: 'm', runtime: 'r', worker: () => new FakeWorker() as unknown as PlannerWorker, cache: false });
     const inThread = planner(() => ok('SELECT 1'), { cache: false });
     for (const p of [onWorker, inThread]) {
-      await assert.rejects(inRun('a test\'s run', async () => p.planText('a')),
+      await assert.rejects(inRun('a test\'s run', async () => planText(p, 'a')),
         /the planner was asked '\w+' inside a run \(a test's run\)/);
-      assert.equal((await p.planText('a')).sql, 'SELECT 1', 'outside the run, planned');
+      assert.equal((await planText(p, 'a')).sql, 'SELECT 1', 'outside the run, planned');
       p.dispose();
     }
   });
 
   // the C4 second small round's item 4, 2026-11-14: #handle is not async, so the hold's refusal must be the promise it
-  // returns (#call async), never a throw -- relationType (and tsStatement) catch a failed hold (`.catch(() =>
-  // undefined)`: a model that does not hold says why in the request after it), so inside a run the refusal that reaches
-  // the caller is that request's, 'pureV1'. Were #call's planning() a throw, it would escape #handle past the catch,
-  // named 'hold'
-  it('a hold refused inside a run is its promise\'s, caught where a failed hold is: relationType is refused at its own request', async () => {
+  // returns (#call async), never a throw -- tsStatement catches a failed hold (`.catch(() => undefined)`: a model that
+  // does not hold says why in the request after it), so inside a run the refusal that reaches the caller is that
+  // request's, 'tsStatement'. Were #call's planning() a throw, it would escape #handle past the catch, named 'hold'.
+  // relationType types over the held model since lite API v1 (query/type, held: 2026-11-17), so its refusal inside a run
+  // is the hold's own -- a rejected promise all the same.
+  it('a hold refused inside a run is its promise\'s: caught where a failed hold is, else the hold\'s refusal', async () => {
     if (!frameKept) return;
     const p = planner(() => ok('SELECT 1'), { cache: false });
     const query = fromElement('trades::T').select(['a']).lambda();
+    await assert.rejects(inRun('a test\'s run', async () => p.tsStatement(query)),
+      /the planner was asked 'tsStatement' inside a run \(a test's run\)/);
     await assert.rejects(inRun('a test\'s run', async () => p.relationType(query)),
-      /the planner was asked 'pureV1' inside a run \(a test's run\)/);
+      /the planner was asked 'hold' inside a run \(a test's run\)/);
     p.dispose();
   });
 
@@ -541,7 +552,7 @@ describe('LitePlanner off the main thread: the models its worker holds', () => {
   it('dispose lets its model go on a host\'s worker before it ends the worker', async () => {
     FakeWorker.made = [];
     const p = new LitePlanner({ model: 'm', runtime: 'r', worker: () => new FakeWorker() as unknown as PlannerWorker, cache: false });
-    await p.planText('a');
+    await planText(p, 'a');
     p.dispose();
     await new Promise((done) => setTimeout(done, 0));
     assert.deepEqual(FakeWorker.made[0]!.told, ['release', 'terminate'], 'its model let go, then the worker ended');
@@ -549,15 +560,18 @@ describe('LitePlanner off the main thread: the models its worker holds', () => {
 });
 
 describe('LitePlanner: a plan in flight while its model changes', () => {
-  it('is planned against the model and runtime it began with, and not kept for the new model', async () => {
+  // a tree is planned against the model and runtime the planner has when it reads them -- one pair, read together, never
+  // the old model with the new runtime (lite API v1, 2026-11-17: the text entry, which read them as it was called, is gone)
+  it('is planned against one model and its own runtime, never a mix, and each model planned for itself', async () => {
     const asked: string[] = [];
     const p = planner((m, q, r) => { asked.push(`${m}|${q}|${r}`); return ok('SELECT 1'); }, { model: 'old' });
-    const first = p.planText('a');
+    await planText(p, 'a');
+    const second = planText(p, 'b');
     p.useModel('new', 'other::RT');
-    await first;
-    assert.deepEqual(asked, ['old|a|trades::RT'], 'the old model with its own runtime');
-    await p.planText('a');
-    assert.deepEqual(asked.at(-1), 'new|a|other::RT', 'the new model planned afresh, the old answer not kept for it');
+    await second;
+    await planText(p, 'a');
+    assert.deepEqual(asked, ['old|a|trades::RT', 'new|b|other::RT', 'new|a|other::RT'],
+      'each plan over one model and its own runtime; the old model\'s answer not kept for the new');
   });
 });
 
@@ -567,8 +581,8 @@ describe('LitePlanner.withModel: another source on the page, the same module', (
     const asked: string[] = [];
     const first = planner((m, _q, r) => { asked.push(`${m}|${r}`); return ok('SELECT 1'); }, { onLoad: () => { loads += 1; } });
     const second = first.withModel('model B', 'b::RT');
-    await second.planText('g');
-    await first.planText('g');
+    await planText(second, 'g');
+    await planText(first, 'g');
     assert.equal(loads, 1, 'one module for both');
     assert.deepEqual(asked.map((a) => a.split('|')[1]), ['b::RT', 'trades::RT']);
     assert.equal(asked[0]!.split('|')[0], 'model B');
@@ -577,6 +591,6 @@ describe('LitePlanner.withModel: another source on the page, the same module', (
   it('a borrowed planner\'s dispose leaves its maker working', async () => {
     const first = planner(() => ok('SELECT 1'));
     first.withModel('model B', 'b::RT').dispose();
-    assert.equal((await first.planText('g')).sql, 'SELECT 1');
+    assert.equal((await planText(first, 'g')).sql, 'SELECT 1');
   });
 });

@@ -18,8 +18,7 @@ import { connectModelHome } from '../../depot-client/src/model-home.ts';
 import { loadByName, versionsOf } from '../src/app/by-name.ts';
 import { AppContext, gavOf, type AppConfig, type CubeRows, type LoadedProject } from '../src/app/context.ts';
 import { App } from '../src/app/app.ts';
-import { BrowserEngine } from '../../engine-client/src/legend/browser-engine.ts';
-import { HttpEngine, RoutedEngine, type Engine, type Grammar, type QueryStore } from '../src/backend/engine.ts';
+import { LiteServer, TabEngine, type Grammar, type LiteEngine, type QueryStore } from '../src/backend/engine.ts';
 import { BrowserRecords, LOCAL_API, loadQueriesModule, QueryStoreClient, wasmQueryServer } from '../../query-store/src/index.ts';
 import { WasmGrammar, WorkerPort } from '../../engine-client/src/legend/wasm-grammar.ts';
 import { ModelGraph } from '../src/model/graph.ts';
@@ -83,14 +82,15 @@ async function boot(): Promise<void> {
   const planner = config.planner
     ? new WasmGrammar(new WorkerPort(new URL(config.planner.worker, location.href), vendor))
     : undefined;
-  const http = exec.kind === 'server' ? new HttpEngine(exec.engine) : undefined;
-  if (!planner && !http) throw new Error('queries run in the browser, which needs the planner (config.planner)');
-  const grammar: Grammar = planner ?? http!;
+  // a server's engine: legend-lite's own API, /api/lite/v1 (the edge program's H7, 2026-11-17)
+  const server = exec.kind === 'server' ? new LiteServer(exec.engine) : undefined;
+  if (!planner && !server) throw new Error('queries run in the browser, which needs the planner (config.planner)');
+  const grammar: Grammar = planner ?? server!;
 
   starting('Loading the models');
   const projects: LoadedProject[] = await Promise.all(config.projects.map(async (p) => {
     const code = (await Promise.all(p.models.map(text))).join('\n');
-    return { config: p, gav: gavOf(p), context: { _type: 'text', code }, graph: new ModelGraph(await grammar.modelJson(code)) };
+    return { config: p, gav: gavOf(p), context: { _type: 'text', code }, graph: new ModelGraph(await grammar.modelElements(code)) };
   }));
   // projects by name (design Phase 3): what this origin's Depot has -- what Studio publishes -- listed, each loaded when opened
   let byName: { load: NonNullable<AppContext["byName"]>; versions: NonNullable<AppContext["versions"]> } | undefined;
@@ -107,18 +107,22 @@ async function boot(): Promise<void> {
     depotProjects = (await depot.projects()).map((p) => ({ groupId: p.groupId, artifactId: p.artifactId }));
   }
 
-  let engine: Engine;
+  let engine: LiteEngine;
   let cubeRows: CubeRows;
   let store: QueryStore;
   let user: string;
   if (exec.kind === 'server') {
-    engine = planner ? new RoutedEngine(planner, http!) : http!;
-    // the server answers pure/v1 at its root; the config names its /api
-    cubeRows = { kind: 'server', baseUrl: exec.engine.replace(/\/api\/?$/, '') };
-    store = new QueryStoreClient(exec.engine);
-    user = await http!.currentUser();
+    engine = server!;
+    // the cube's rows: the server's own plan and run, through the engine
+    cubeRows = { kind: 'server' };
+    const client = new QueryStoreClient(exec.engine);
+    store = client;
+    // who saved queries belong to: the store's own user, asked of lite's store mount (the edge program's H7)
+    user = await client.currentUser();
   } else {
     let runner: QueryEngine;
+    /** The database the plan's statements run on, as the planner names its type: the plan's target must be of it. */
+    let databaseType: string;
     if (exec.kind === 'duckdb-wasm') {
       starting('Starting DuckDB in this tab');
       const tab = await openDuckDbInTab(vendor, planner!);
@@ -126,6 +130,7 @@ async function boot(): Promise<void> {
       // pointed there as it opens (AppContext.activate)
       const pointed = projectRunner(tab.engine);
       runner = pointed;
+      databaseType = tab.engine.databaseType;
       tabProjects = {
         databases: new ProjectDoor({
           databaseType: tab.engine.databaseType, engine: tab.engine, connect: () => tab.connect(),
@@ -147,13 +152,14 @@ async function boot(): Promise<void> {
       const catalog = exec.catalog ?? 'main';
       const warehouse = door.live(session, catalog, catalogType(objects, catalog));
       runner = warehouse;
+      databaseType = warehouse.databaseType;
       user = session.principal;
       if (exec.seed?.length) {
         starting('Loading the demo data');
         await seed(warehouse, planner!, exec.seed);
       }
     }
-    engine = new BrowserEngine(planner!, runner, user);
+    engine = new TabEngine(planner!, runner, databaseType);
     cubeRows = { kind: 'sql', engine: runner };
     // no server: the same API, answered in this page from this origin's IndexedDB by legend-lite's own rules (the
     // server's, compiled to WebAssembly: query-store's module at vendor/queries/, fetched at the store's first call)

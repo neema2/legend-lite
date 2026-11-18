@@ -214,6 +214,16 @@ class HookLambdasTest {
             // the engine-text facet, asked only where the style judges engine text (census C4)
             Map.entry("com.legend.testplan.EngineTextGates#facet(com.legend.testplan.BodyDriver$ExecEnv)",
                     Set.of("(facet reaches 1)", "com.legend.testplan.EngineTestText")),
+            // K10b of the edge audit (the orchestrator's ruling (A) of 2026-11-17; host train, pinned 2026-11-18 for train
+            // 19): the same facet, asked only where the style judges engine text -- a body's planning call's recorder,
+            // the test door's one read of its raise-site words, and a required side's no-rows words (the product's
+            // own sentence otherwise)
+            Map.entry("com.legend.testplan.EngineTextGates#planningCall(com.legend.database.PlanStyle)",
+                    Set.of("(facet reaches 1)", "com.legend.testplan.EngineTestText")),
+            Map.entry("com.legend.testplan.EngineTextGates#siteWords(com.legend.database.PlanStyle)",
+                    Set.of("(facet reaches 1)", "com.legend.testplan.EngineTestText")),
+            Map.entry("com.legend.testplan.EngineTextGates#sizeWords(com.legend.database.PlanStyle, java.lang.String)",
+                    Set.of("(facet reaches 1)", "com.legend.testplan.EngineTestText")),
             // legend-engine's seed SQL from records or from CSV, a seed text a body asserts
             Map.entry("com.legend.testplan.SeedSqlForms#assertForm(java.util.List,"
                     + " com.legend.compiler.spec.typed.TypedNativeCall, com.legend.testplan.BodyDriver$ExecEnv)",

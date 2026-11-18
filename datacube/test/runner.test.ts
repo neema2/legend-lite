@@ -7,7 +7,7 @@ import { PlanThenRun, RemoteRun } from '../src/runner.ts';
 import type { ResultTable } from '../../engine-client/src/result.ts';
 import type { CubeSnapshot } from '../src/snapshot.ts';
 import { TreeState } from '../src/tree.ts';
-import type { RemoteExecutor, RemoteResult } from '../../engine-client/src/engine-remote.ts';
+import type { RemoteExecutor, RemoteResult } from '../../engine-client/src/remote-executor.ts';
 import { isStale } from '../src/epoch.ts';
 import { TOTAL_ROWS_COLUMN } from '../src/query.ts';
 import { FakeEngine } from './fake-engine.ts';

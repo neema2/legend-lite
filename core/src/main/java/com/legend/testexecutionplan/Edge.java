@@ -36,4 +36,10 @@ public interface Edge {
 
     /** An effect step ran, {@code planned} the records planned at it. */
     void effectRan(List<Extension> planned);
+
+    /** legend-pure's words of a statement's raise sites, as the planning call's style recorded them ({@code words}):
+     *  the records to plan at the step that sends the statement, which the run's hearing reads when an assertError
+     *  matches a raise under the compatibility rules (K10 of the edge audit, the orchestrator's ruling (A) of
+     *  2026-11-17). The compatibility edge plans them as they are; the product's {@link NoEdge#NONE} refuses by name. */
+    List<Extension> siteWords(List<Extension> words);
 }

@@ -39,6 +39,22 @@ class SavedQueriesTest {
                 null, "", "a");
         assertEquals(404, gone.status());
         assertEquals("no saved query has the ID 'q9'", obj(gone).getString("message"));
+        // J9 of the edge audit (2026-11-17): every refusal a kind, lite's sentence on the product's path (legend-engine's
+        // the edge's, StoreWords, which the rest of this class reads)
+        java.util.function.BiFunction<String, String, SavedQueries.Answer> lite = (method, body) -> SavedQueries.answer(
+                new SavedQueries(new FileRecords(dir), clock::get), method, "", null, body, "a");
+        SavedQueries.Answer noName = lite.apply("POST", query("q2", ""));
+        assertEquals(400, noName.status());
+        assertEquals("field_missing", obj(noName).getString("kind"));
+        assertEquals("the name is missing or empty", obj(noName).getString("message"));
+        SavedQueries.Answer malformed = lite.apply("POST", "[1]");
+        assertEquals("malformed", obj(malformed).getString("kind"));
+        assertTrue(obj(malformed).getString("message").startsWith("the request could not be served: "),
+                obj(malformed).getString("message"));
+        SavedQueries.Answer unconfigured = SavedQueries.answer(null, "GET", "/q1", null, "", "a");
+        assertEquals(500, unconfigured.status());
+        assertEquals("{\"kind\":\"store_not_configured\",\"message\":\"the query store is not configured: start the"
+                + " server with --query-store DIR\"}", unconfigured.json());
     }
 
     private static String query(String id, String name) {
@@ -168,9 +184,10 @@ class SavedQueriesTest {
 
     @Test
     void withoutAStoreEveryCallIsRefused_andTheCubeStoreIsNotServed() {
-        SavedQueries.Answer a = SavedQueries.answer(null, "GET", "/q1", null, "", "a");
+        SavedQueries.Answer a = SavedQueries.answer(null, "GET", "/q1", null, "", "a", com.legend.edge.EdgeServer::storeWords);
         assertEquals(500, a.status());
-        assertTrue(obj(a).getString("message").contains("--query-store"));
+        assertEquals("Query store has not been configured properly (legend-lite: start the server with --query-store"
+                + " DIR)", obj(a).getString("message"));
         assertEquals(404, call("GET", "/dataCube/x", null, "", "a").status());
     }
 }

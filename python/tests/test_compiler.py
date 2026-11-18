@@ -24,21 +24,22 @@ class Trees(unittest.TestCase):
         self.assertEqual(tree['body'][0]['value'], 'café ✓ 日本 \U0001F600')
         self.assertEqual(ll.parse(ll.print_tree(tree)), tree)
 
-    def test_a_nul_in_text_is_refused_before_the_call(self):
-        with self.assertRaises(ValueError):
-            ll.parse("|'a\x00b'")
+    def test_a_nul_in_text_travels_in_the_requests_json(self):
+        # the lite API's request is JSON (the spec's §5, 2026-11-17), which carries a NUL escaped: no C string ends at it
+        tree = ll.parse("|'a\x00b'")
+        self.assertEqual(tree['body'][0]['value'], 'a\x00b')
 
     def test_text_to_tree_and_back(self):
         tree = ll.parse(GROUP)
         self.assertEqual(tree['_type'], 'lambda')
         self.assertEqual(ll.parse(ll.print_tree(tree)), tree, 'printing and parsing again is the same tree')
-        self.assertNotIn('\n', ll.print_tree(tree, 'STANDARD'))
+        self.assertNotIn('\n', ll.print_tree(tree, 'standard'))
 
     def test_numbers_stay_exact(self):
         tree = ll.parse('|[1.50D, 9007199254740993, 0.1]')
         values = [v['value'] for v in tree['body'][0]['values']]
         self.assertEqual(values, [Decimal('1.50'), 9007199254740993, Decimal('0.1')])
-        self.assertEqual(ll.print_tree(tree, 'STANDARD'), '|[1.50D, 9007199254740993, 0.1]')
+        self.assertEqual(ll.print_tree(tree, 'standard'), '|[1.50D, 9007199254740993, 0.1]')
         self.assertEqual(_json.dumps({'d': Decimal('12.30'), 'i': 2 ** 70}), '{"d":12.30,"i":1180591620717411303424}')
         # laid out as json.dumps lays it out, the numbers still exact
         value = {'a': [1, {'b': 'é', 'c': []}, {}], 'd': None, 'e': [True, 0.5]}
@@ -48,8 +49,162 @@ class Trees(unittest.TestCase):
     def test_a_refusal_says_what_and_where(self):
         with self.assertRaises(ll.LegendError) as e:
             ll.parse('|1 +')
-        self.assertEqual('PARSER', e.exception.kind)
-        self.assertIn('[1:5]', e.exception.message)
+        self.assertEqual(ll.compiler.error_kind('PARSE'), e.exception.kind)
+        # where: the position, its own field (the spec's §3)
+        self.assertEqual('[1:5]', e.exception.where)
+
+
+class LitesOwnEntries(unittest.TestCase):
+    """The edge program's H4 (2026-11-17): parse, print, a query's types and a model's elements are the PRODUCT's --
+    four native entries over Boundary's own operations, refused with lite's own kinds -- never legend-engine's pure/v1
+    routes (the edge's lite_pure_v1 entry): with that entry refused, each still answers."""
+
+    MODEL = """###Relational
+Database s::DB ( Table t ( id INTEGER, desk VARCHAR(10) ) )
+###Connection
+RelationalDatabaseConnection s::Conn { type: DuckDB; specification: DuckDB { }; auth: Test; }
+###Runtime
+Runtime s::RT { mappings: []; connections: [ s::DB: [ c: s::Conn ] ]; }
+"""
+
+    def test_each_answers_with_the_edges_entry_refused(self):
+        from unittest import mock
+        from legend_lite import compiler
+        real = library().call
+
+        def no_edge(name, *args):
+            if name == 'lite_pure_v1':
+                raise AssertionError("legend-engine's pure/v1 entry asked for a product operation")
+            return real(name, *args)
+
+        with mock.patch.object(type(library()), 'call', lambda self, name, *args: no_edge(name, *args)):
+            tree = compiler.parse('|#>{s::DB.t}#->select(~[desk])')
+            self.assertEqual(compiler.parse(compiler.print_tree(tree, 'standard')), tree)
+            self.assertEqual([c.name for c in compiler.relation_type(self.MODEL, tree)], ['desk'])
+            named = {f"{e['package']}::{e['name']}" for e in compiler.model_elements(self.MODEL)}
+            self.assertLessEqual({'s::DB', 's::Conn', 's::RT'}, named)
+            # refused with lite's own kinds
+            with self.assertRaises(ll.LegendError) as unparsed:
+                compiler.parse('|1 +')
+            self.assertEqual(unparsed.exception.kind, compiler.error_kind('PARSE'))
+            with self.assertRaises(ll.LegendError) as untyped:
+                compiler.relation_type(self.MODEL, compiler.parse('|#>{s::DB.t}#->select(~[nope])'))
+            self.assertEqual(untyped.exception.kind, compiler.error_kind('COMPILE'))
+
+
+class ThePlannerKinds(unittest.TestCase):
+    """The planner protocol's lite kinds, answered by Python's native entries (lite API v1, the host train, 2026-11-17):
+    each operation's kind (a/b -> aB) its native entry (a/b -> lite_a_b), the operation's request JSON carried whole;
+    the held model's two over the binding's cache."""
+
+    MODEL = LitesOwnEntries.MODEL
+
+    def ask(self, request):
+        from legend_lite import _planner
+        said = _planner.answer(library(), request)
+        self.assertTrue(said['ok'], said)
+        return said['answer']
+
+    def test_each_kind_is_answered(self):
+        tree = ll.parse('|#>{s::DB.t}#->select(~[desk])')
+        ask = lambda kind, request: self.ask({'kind': kind, 'request': _json.dumps(request)})
+        self.assertEqual(ask('modelCheck', {'model': self.MODEL}), 'OK\n{"errors":[]}')
+        self.assertTrue(ask('queryPrint', {'query': tree, 'style': 'standard'}).startswith('OK\n{"text":"|#>{s::DB.t}#'))
+        self.assertIn('"desk"', ask('queryType', {'model': self.MODEL, 'query': tree}))
+        self.assertTrue(ask('queryParse', {'text': '|1'}).startswith('OK\n{"query":'))
+        self.assertTrue(ask('modelElements', {'model': self.MODEL}).startswith('OK\n{"elements":'))
+        self.assertTrue(ask('queryPlan', {'model': self.MODEL, 'query': tree, 'runtime': 's::RT'}).startswith('OK\n{"plan":'))
+        # a model's change and a #TS item: answered by their Boundary members, refused in lite's error shape where wrong
+        self.assertTrue(ask('modelCreateDataSpace', {}).startswith('ERR\n{"kind":'))
+        handle = _answer(self.ask({'kind': 'hold', 'model': self.MODEL}))
+        try:
+            held = lambda kind, request: self.ask({'kind': kind, 'handle': int(handle), 'request': _json.dumps(request)})
+            self.assertIn('"desk"', held('queryTypeHeld', {'query': tree}))
+            self.assertTrue(held('queryPlanHeld', {'query': tree, 'runtime': 's::RT'}).startswith('OK\n{"plan":'))
+        finally:
+            self.ask({'kind': 'release', 'handle': int(handle)})
+
+
+class TheProductsKinds(unittest.TestCase):
+    """The lite API spec's §3 (2026-11-17): a refusal's kind is the product's (LiteV1Api.RefusalKind), read from the
+    native library (lite_refusal_kinds), never a spelling of Python's own -- so a rename in the product needs no edit
+    here; and a refusal carries lite's error shape (kind, message, where, raise_)."""
+
+    def test_the_kinds_are_the_products_and_a_refusal_says_one(self):
+        from legend_lite import compiler
+        kinds = compiler.refusal_kinds()
+        self.assertLessEqual({'PARSE', 'COMPILE'}, set(kinds))
+        with self.assertRaises(ll.LegendError) as refused:
+            ll.parse('|1 +')
+        self.assertEqual(refused.exception.kind, kinds['PARSE'])
+        self.assertTrue(compiler.refuses_the_text(refused.exception))
+        # a parse refusal says where (its position), and raised nothing (no raise_: the spec's §3)
+        self.assertEqual((refused.exception.where, refused.exception.raise_), ('[1:5]', None))
+
+
+# the suite's operations a host serves on its own routes, which test_engine's HostRoutesConformance reads
+HOST_ROUTES = frozenset({'query/run', 'queries/get', 'queries/dataCube/get'})
+
+
+class LiteApiConformance(unittest.TestCase):
+    """LITE API V1'S CONFORMANCE SUITE, THE PYTHON BINDING (docs/records/lite-api-v1-2026-11-17.md §5, 2026-11-17): each
+    case of engine-client/test/fixtures/lite-api-cases.json asked of Python's native entries (``compiler.operation``,
+    the spec's one rule: operation a/b -> lite_a_b) and its answer held to the case's -- exact (``answer``), or each key
+    it names equal and each array item it names matched by some item (``answerIncludes``) -- as the browser's exports
+    (core's LiteApiConformanceTest) and the server's routes are by their own readers, so the three cannot drift."""
+
+    @staticmethod
+    def includes(expected, actual):
+        if isinstance(expected, dict):
+            return isinstance(actual, dict) and all(k in actual and LiteApiConformance.includes(v, actual[k])
+                                                    for k, v in expected.items())
+        if isinstance(expected, list):
+            return isinstance(actual, list) and all(any(LiteApiConformance.includes(e, a) for a in actual)
+                                                    for e in expected)
+        return expected == actual and type(expected) is type(actual)
+
+    def test_pythons_entries_answer_each_case(self):
+        from legend_lite import compiler
+        fixture = _json.loads(Path(os.environ['LEGEND_LITE_API_CASES']).read_text(encoding='utf-8'))
+        cases = fixture['cases']
+        self.assertTrue(cases, 'the suite holds cases')
+        shapes = {'string': str, 'number': (int, float), 'boolean': bool, 'object': dict, 'array': list}
+        asked = 0
+        for case in cases:
+            bindings = case.get('bindings')
+            if bindings is not None:
+                unknown = set(bindings) - {'browser', 'server', 'python'}
+                self.assertFalse(unknown, f"{case['name']}: a binding the suite does not know: {sorted(unknown)}")
+                if 'python' not in bindings:
+                    continue
+            if case['op'] in HOST_ROUTES:
+                # a host's own route -- query/run over its own DuckDB, the saved queries' store over its folders: Python's
+                # server answers it, read by test_engine's HostRoutesConformance (this lane holds neither), never
+                # skipped there
+                continue
+            asked += 1
+            with self.subTest(case['name']):
+                if 'refusal' in case:
+                    # §3: the kind is the contract, the words the product's
+                    with self.assertRaises(compiler.LegendError) as refused:
+                        compiler.operation(case['op'], case['request'])
+                    self.assertEqual(refused.exception.kind, case['refusal']['kind'])
+                    continue
+                answer = compiler.operation(case['op'], case['request'])
+                if 'answer' in case:
+                    self.assertEqual(answer, case['answer'])
+                elif 'answerShape' in case:
+                    self.assertEqual(set(answer), set(case['answerShape']))
+                    for key, kind in case['answerShape'].items():
+                        self.assertIsInstance(answer[key], shapes[kind], key)
+                        self.assertNotIsInstance(answer[key], bool if kind == 'number' else ())
+                else:
+                    self.assertTrue(self.includes(case['answerIncludes'], answer), _json.dumps(answer)[:2000])
+        self.assertTrue(asked, 'the suite holds cases Python answers')
+
+    def test_an_integer_is_exact_on_the_python_binding(self):
+        # ruled 7: an Integer an exact JSON number, 2^63-1 kept on all three bindings
+        self.assertEqual(ll.parse('|9223372036854775807')['body'][0]['value'], 2 ** 63 - 1)
 
 
 class Compiling(unittest.TestCase):
@@ -86,16 +241,16 @@ class Compiling(unittest.TestCase):
         for call in (lambda: ll.parse('|1 +'), lambda: ll.plan_text(MODEL, '1 +', 'trades::RT')):
             with self.assertRaises(ll.LegendError) as e:
                 call()
-            self.assertEqual(e.exception.kind, 'PARSER')
+            self.assertEqual(e.exception.kind, ll.compiler.error_kind('PARSE'))
         bad = ll.parse("|#>{trades::DB.TRADES}#->filter(x|$x.nope == 1)")
         for call in (lambda: ll.relation_type(MODEL, bad), lambda: ll.plan(MODEL, bad, 'trades::RT')):
             with self.assertRaises(ll.LegendError) as e:
                 call()
-            self.assertEqual(e.exception.kind, 'COMPILATION')
+            self.assertEqual(e.exception.kind, ll.compiler.error_kind('COMPILE'))
             self.assertIn("'nope'", e.exception.message)
         with self.assertRaises(ll.LegendError) as e:
             ll.table_model({'table': 'orders'})
-        self.assertEqual(e.exception.kind, '500')
+        self.assertEqual(e.exception.kind, ll.compiler.error_kind('INTERNAL'))
         self.assertEqual(e.exception.message, 'IllegalArgumentException: Missing required field: databaseType')
 
     def test_writes_a_tables_whole_model_from_its_catalog(self):
@@ -147,7 +302,10 @@ class Compiling(unittest.TestCase):
                     '        open BIT\n    )\n)\n')
         self.assertEqual(m['model'], database + '\n' + connection('Conn', 'RT'))
         self.assertEqual((m['runtime'], m['accessor']), ('shop::RT', '#>{shop::DB.orders}#'))
-        self.assertEqual((m['conversions'], m['excluded'], m['bitColumns']), ([], [], ['open']))
+        self.assertEqual((m['conversions'], m['excluded']), ([], []))
+        # legend-engine's TinyInt for a BIT column is the legend-engine client's alone (the edge program's H10,
+        # 2026-11-17): the product's table model names none
+        self.assertNotIn('bitColumns', m)
 
     def test_a_held_model_is_compiled_once_and_plans_as_a_model_given_each_time(self):
         # docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §9: the same answers, the model compiled once
@@ -174,8 +332,8 @@ class Compiling(unittest.TestCase):
         self.assertTrue(held['ok'], held)
         handle = _answer(held['answer'])
         try:
-            query = '|#>{trades::DB.TRADES}#->extend(~twice: x|lib::twice($x.id))->select(~[desk, twice])'
-            typed = lib.call('lite_relation_type_text_held', handle, query)
+            query = ll.parse('|#>{trades::DB.TRADES}#->extend(~twice: x|lib::twice($x.id))->select(~[desk, twice])')
+            typed = lib.call('lite_query_type_held', handle, _json.dumps({'query': query}))
             self.assertFalse(typed.startswith('ERR\n'), typed)
             self.assertIn('twice', typed)
         finally:
@@ -183,8 +341,8 @@ class Compiling(unittest.TestCase):
         alone = answer(lib, {'id': 2, 'kind': 'hold', 'model': MODEL})
         handle = _answer(alone['answer'])
         try:
-            refused = lib.call('lite_relation_type_text_held', handle,
-                               '|#>{trades::DB.TRADES}#->extend(~twice: x|lib::twice($x.id))')
+            refused = lib.call('lite_query_type_held', handle, _json.dumps(
+                {'query': ll.parse('|#>{trades::DB.TRADES}#->extend(~twice: x|lib::twice($x.id))')}))
             self.assertTrue(refused.startswith('ERR\n'), 'the model alone has no lib::twice')
         finally:
             lib.call('lite_release_model', handle)
@@ -195,15 +353,15 @@ class Compiling(unittest.TestCase):
         lib = library()
         handle = _answer(lib.call('lite_hold_model', MODEL))
         try:
-            query = '|#>{trades::DB.TRADES}#->select(~[desk, year])'
-            self.assertEqual(lib.call('lite_relation_type_text_held', handle, query),
-                             lib.call('lite_relation_type_held', handle, _json.dumps(ll.parse(query))),
-                             'typed from the text as from its tree')
-            refused = lib.call('lite_relation_type_text_held', handle, '|#>{trades::DB.NOPE}#')
+            query = ll.parse('|#>{trades::DB.TRADES}#->select(~[desk, year])')
+            self.assertEqual(lib.call('lite_query_type_held', handle, _json.dumps({'query': query})),
+                             lib.call('lite_query_type', _json.dumps({'model': MODEL, 'query': query})),
+                             'typed over the model held as over the model given')
+            refused = lib.call('lite_query_type_held', handle, _json.dumps({'query': ll.parse('|#>{trades::DB.NOPE}#')}))
             self.assertTrue(refused.startswith('ERR\n'), refused)
         finally:
             lib.call('lite_release_model', handle)
-        refused = lib.call('lite_plan_text_held', handle, GROUP, 'trades::RT')
+        refused = lib.call('lite_query_plan_held', handle, _json.dumps({'query': ll.parse(GROUP), 'runtime': 'trades::RT'}))
         self.assertTrue(refused.startswith('ERR\n'), f'a handle let go is refused: {refused[:120]}')
 
     def test_a_hosts_file_comes_back_as_a_planned_load(self):

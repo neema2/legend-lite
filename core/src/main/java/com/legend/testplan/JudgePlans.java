@@ -96,7 +96,7 @@ public final class JudgePlans {
         }
         // each data: source read from the body's table of its content (B2a, 2026-11-11), made by the program ahead
         return PlanMaker.rowsOrGridKeyed(shape, columns, TypedRows.statement(env.read(statement)), env.dialect(),
-                env.target());
+                env.target(), env.plan().style());
     }
 
     /** {@code plan} with the definitions of the frames it references at its head -- the verdict batch's, in
@@ -320,14 +320,10 @@ public final class JudgePlans {
     }
 
     /** A required side's refusal of no rows, as {@code style} words it at planning (C5's step E, 2026-11-17): the
-     *  compatibility edge's legend-pure sentence ({@code PlanStyle.siteWords} of a SIZE_NOT_MULTIPLICITY site, the
-     *  bound its operand), else the product's own, the kind's sentence and the bound. The run spells none. */
+     *  compatibility edge's legend-pure sentence (its engine-text facet's, K10b), else the product's own, the kind's
+     *  sentence and the bound ({@link EngineTextGates#sizeWords}). The run spells none. */
     static String sizeWords(com.legend.database.PlanStyle style, String multiplicity) {
-        String upstream = style.siteWords(new com.legend.sql.dialect.RaiseSite(1,
-                com.legend.sql.RaiseKind.SIZE_NOT_MULTIPLICITY, multiplicity,
-                List.of(new com.legend.sql.SqlExpr.StringLit(multiplicity)), null));
-        return upstream != null ? upstream
-                : com.legend.error.ErrorKind.SIZE_NOT_MULTIPLICITY.sentence() + ": " + multiplicity;
+        return EngineTextGates.sizeWords(style, multiplicity);
     }
 
     private static com.legend.testexecutionplan.SideShape.Column shapeColumn(Type.Column c) {
@@ -348,7 +344,7 @@ public final class JudgePlans {
         return new ExecutionPlan.TdsResult(ExecutionPlan.TdsResult.Shape.VALUE,
                 List.of(new ExecutionPlan.Column(outs.get(0).name(), "String", new ExecutionPlan.Multiplicity(0, 1),
                         com.legend.executionplan.ColumnFacts.slot(outs.get(0).type()), null, null)),
-                PlanMaker.sql(plan, env.dialect(), env.target()));
+                PlanMaker.sql(plan, env.dialect(), env.target(), env.plan().style()));
     }
 
     private static PlannedSide tabularPlanned(BodyDriver.WrappedSide w, BodyDriver.ExecEnv env,
@@ -362,7 +358,8 @@ public final class JudgePlans {
             // column, the columns its result reports read from the real run (the seam program's S3c, 2026-10-30;
             // until then WireProbe.staticized framed it by a describe at planning)
             ExecutionPlan.TdsResult reported = new ExecutionPlan.TdsResult(ExecutionPlan.TdsResult.Shape.RELATION,
-                    List.of(), PlanMaker.sql(env.read(withFrames(plan, env)), env.dialect(), env.target()));
+                    List.of(), PlanMaker.sql(env.read(withFrames(plan, env)), env.dialect(), env.target(),
+                            env.plan().style()));
             return new PlannedSide(new TestPlan.Side.Rows(reported), Kind.TABULAR, w, null, root,
                     new Type.RelationType(List.of()));
         }
@@ -378,7 +375,8 @@ public final class JudgePlans {
             SqlQuery framed = env.read(withFrames(plan, env));
             com.legend.sql.SqlSource.Pivot pivot = java.util.Objects.requireNonNull(
                     com.legend.lowering.KeyedPivot.dynamic(framed), "a dynamic pivot side whose plan holds no such pivot");
-            ExecutionPlan.Keyed keyed = PlanMaker.keyed(framed, pivot, schema, env.dialect(), env.target());
+            ExecutionPlan.Keyed keyed = PlanMaker.keyed(framed, pivot, schema, env.dialect(), env.target(),
+                    env.plan().style());
             return new PlannedSide(new TestPlan.Side.KeyedRows(keyed), Kind.KEYED, w, null, root, schema);
         }
         // a grid that is a UNION ALL read in its branches' order, the order the database judge numbers it by

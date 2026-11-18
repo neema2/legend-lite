@@ -112,8 +112,10 @@ class Answered:
     CAPACITY = 4096
     KEYED_CAPACITY = 256
     # an answer whose statements DataCube's code hands the database, by the request's kind
-    PLANS = frozenset({'executionPlan', 'planJson', 'planModel', 'fileLoad', 'remoteMount', 'snapStream', 'snapCopy',
-                       'outputPlan', 'synthesize'})
+    PLANS = frozenset({'fileLoad', 'remoteMount', 'snapStream', 'snapCopy', 'outputPlan', 'synthesize'})
+    # lite's query/plan, over a model given and over one held: its plan is ``{"plan": <PlanJson>}`` (lite API v1, the
+    # host train, 2026-11-17)
+    QUERY_PLANS = frozenset({'queryPlan', 'queryPlanHeld'})
     # a plan's fields that hold a statement or a list of them (PlanJson's spellings)
     _STATEMENT_FIELDS = frozenset({'statement', 'sql', 'statements', 'after', 'session', 'read', 'reset', 'prepare',
                                    'count', 'begin', 'commit', 'rollback'})
@@ -177,13 +179,11 @@ class Answered:
                 self._all(database[step])
             if database.get('load') is not None:
                 self._plan(database['load'])
-        elif kind == 'plan':
-            text = json.loads(payload)
+        elif kind in self.QUERY_PLANS:
+            plan = json.loads(payload)['plan']
             # the raises its statement can send, worded by the planner (_raised.declare_sites; phase D's option (D))
-            declare_sites(text, 'a text plan')
-            self._add(text['sql'])
-            if text.get('plan') is not None:
-                self._plan(text['plan'])
+            declare_sites(plan, f'a {kind} answer')
+            self._plan(plan)
         elif kind in self.PLANS:
             plan = json.loads(payload)
             declare_sites(plan, f'a {kind} answer')

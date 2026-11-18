@@ -92,8 +92,9 @@ public final class PlanParameters {
             throw new com.legend.error.MissingParameters(missing, wrong);
         }
         if (wrong != null) {
-            // the invalid ones a kind, worded likewise (J8 of the edge audit, 2026-11-17: legend-engine's
-            // "Invalid provided parameter(s)" is the edge's)
+            // a typed failure, so every binding reads it as the caller's values (kind parameters; J18), its problems a
+            // kind's, worded likewise (J8 of the edge audit, 2026-11-17: legend-engine's "Invalid provided
+            // parameter(s)" is the edge's)
             throw new com.legend.error.InvalidParameters(invalid);
         }
         return out;

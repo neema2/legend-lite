@@ -58,25 +58,32 @@ describe('a page on Python, planned by Python', () => {
     assert.equal(calls[0]!.auth, 'Bearer t0ken');
   });
 
-  it("asks a question about the Pure query on legend-engine's own route, with the token", async () => {
-    const type = { columns: [{ name: 'desk', genericType: { rawType: { _type: 'packageableType', fullPath: 'String' } } }] };
+  it("asks a question about the Pure query on lite's own route, query/type, with the token", async () => {
+    // lite API v1's query/type answer (2026-11-17: until then legend-engine's compilation/lambdaRelationType)
+    const type = { columns: [{ name: 'desk', type: 'String' }] };
     const { link, calls } = python(() => json(type));
     assert.deepEqual(await pythonRunner(link, MODEL, RUNTIME).relationType(QUERY), [{ name: 'desk', type: 'String' }]);
     assert.equal(calls.length, 1);
-    assert.equal(calls[0]!.path, '/api/pure/v1/compilation/lambdaRelationType');
+    assert.equal(calls[0]!.path, '/api/lite/v1/query/type');
     assert.equal(calls[0]!.auth, 'Bearer t0ken');
   });
 
   it("dry-runs on the host's compute, plan-and-run's planning half, the model by its text and the token", async () => {
-    const { link, calls } = python(() => json({ plan: 'OK\n{"sql":"SELECT 1","type":{"columns":[]},"raises":{}}' }));
+    // plan.json's answer: query/plan's, folded (lite API v1, 2026-11-17), its plan lite's PlanJson
+    const planned = '{"plan":{"format":"legend-lite-plan","version":58,"parameters":[],"root":{"_type":"tdsResult",'
+      + '"shape":"RELATION","columns":[],"sql":{"statement":"SELECT 1","slots":[],"sites":[]}},"raises":{}}}';
+    const { link, calls } = python(() => json({ plan: `OK\n${planned}` }));
     const runner = pythonRunner(link, MODEL, RUNTIME);
     await runner.compile(QUERY, { epoch: 1 } as CubeSnapshot);
     assert.equal(calls.length, 1, 'the model is held in the page: only the dry run is sent');
     assert.equal(calls[0]!.path, '/plan.json');
     assert.equal(calls[0]!.auth, 'Bearer t0ken');
     // the request plan-and-run sends for the same query (planRequest), so the dry run plans what the run would
-    const sent = JSON.parse(calls[0]!.body) as { lambda: string; model: string; runtime: string };
-    assert.deepEqual(sent, await (runner.host.planner as LitePlanner).planRequest(QUERY));
+    // (lite API v1, 2026-11-17: the dry run is query/plan's request, {query, runtime} and the model held; the same query,
+    // model and runtime plan-and-run's request carries, its lambda as text)
+    const sent = JSON.parse(calls[0]!.body) as { query: unknown; model: string; runtime: string };
+    const run = await (runner.host.planner as LitePlanner).planRequest(QUERY);
+    assert.deepEqual(sent, { query: JSON.parse(run.lambda) as unknown, runtime: run.runtime, model: run.model });
   });
 
   it("refuses an answer of Python's it cannot read, never leaving the planner's request unanswered", async () => {

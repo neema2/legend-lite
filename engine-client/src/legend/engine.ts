@@ -2,16 +2,16 @@
 // legend-lite or legend-engine alike (docs/QUERY_APP_DESIGN_2026_09_30.md D1); pointing the app at legend-engine is a
 // base URL. HttpEngine is the server's planning client (planning-client.ts) and its execute, the server's door, which
 // plans and runs in one request on the server; RoutedEngine answers grammar and typing in the tab and the rest on a
-// server. C5-T (2026-11-15): these are doors (//engine-client:doors), the planning client and the API's types are not.
+// server. C5-T (2026-11-15): these are doors, the planning client and the API's types are not. H11 (2026-11-17): all of
+// it is legend-engine's API, the edge's (//engine-client:edge): no product module reaches it.
 
 import type { Lambda } from '../../../pure-protocol/src/index.ts';
 import type { PureModelContextData } from './pmcd.ts';
 import { planning } from '../plan-guard.ts';
 import type { Grammar } from './grammar.ts';
 import { HttpPlanning, withContext } from './planning-client.ts';
-import type {
-  CompileResult, ExecuteInput, ExecutionResult, PureModelContext, RelationTypeAnswer,
-} from './wire.ts';
+import type { CompileResult, ExecuteInput, ExecutionResult, RelationTypeAnswer } from './engine-wire.ts';
+import type { PureModelContext } from './wire.ts';
 
 // the engine's refusal (engine-api.ts, records) and the planner's Grammar (grammar.ts), read here by their importers
 export { EngineError } from './engine-api.ts';

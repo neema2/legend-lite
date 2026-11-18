@@ -162,8 +162,13 @@ public final class PlanJson {
      *  {@code kind}, its {@code where}, its {@code message} (the product's sentence) and, in a plan the compatibility edge
      *  wrote, its {@code upstream} (legend-pure's sentence), worded at planning; a CSV file's reading carries its
      *  {@code sites} too; the plan's {@code raises} is derived from them -- a v55 plan, whose statements raise a kind's
-     *  name, is refused by its version. */
-    public static final int VERSION = 56;
+     *  name, is refused by its version. 57 since 2026-11-17 (the host train, the orchestrator's ruling; Python's
+     *  finding): a column's {@code type} is its plain path ({@code Decimal}, never {@code Decimal(10,2)}), a precise
+     *  decimal's digits data, its {@code decimal: {precision, scale}} (absent for any other type: omitted when null, read back as null -- a codec form, not a format change, 2026-11-18, the orchestrator's ruling (A) after the host train's gate pass found {@code "decimal":null} on every column against lean SQL's shrink-only G3) -- a v56 plan, whose types may carry arguments, is
+     *  refused by its version. 58 since 2026-11-18 (K10 of the edge audit, riding the host train after 57): a site carries no
+     *  {@code upstream} -- legend-pure's words of a site are the compatibility edge's records, never the product plan's
+     *  -- a v57 plan, whose edge sites carry them, is refused by its version. */
+    public static final int VERSION = 58;
 
     private PlanJson() {
     }
@@ -704,6 +709,15 @@ public final class PlanJson {
             co.put("slot", c.slot());
             co.put("store", store(c.store()));   // null: computed, no declared type
             co.put("precision", c.precision() == null ? null : c.precision().name());   // null: no temporal of its own
+            // null: no precise decimal (v57: a Decimal(p,s)'s digits as data, its type the plain path)
+            Map<String, Object> digits = null;
+            if (c.decimal() != null) {
+                digits = new LinkedHashMap<>();
+                digits.put("precision", c.decimal().precision());
+                digits.put("scale", c.decimal().scale());
+            }
+            // omitted when null (2026-11-18, ruling (A): lean SQL's G3; the reader reads it absent as null)
+            if (digits != null) co.put("decimal", digits);
             cols.add(co);
         }
         return cols;
@@ -1287,9 +1301,14 @@ public final class PlanJson {
             cols.add(new ExecutionPlan.Column(c.getString("name"), c.getString("type"),
                     readMultiplicity(c.getObj("multiplicity")), c.getStringOr("slot", null),
                     readStore(c.getObjOr("store", null)),
-                    precision == null ? null : ExecutionPlan.Precision.valueOf(precision)));
+                    precision == null ? null : ExecutionPlan.Precision.valueOf(precision),
+                    readDecimal(c.getObjOr("decimal", null))));
         }
         return cols;
+    }
+
+    private static ExecutionPlan.@com.legend.base.Nullable DecimalDigits readDecimal(@com.legend.base.Nullable Json.Obj o) {
+        return o == null ? null : new ExecutionPlan.DecimalDigits(o.getInt("precision"), o.getInt("scale"));
     }
 
     private static ExecutionPlan.Binding readBinding(Json.Obj o) {
@@ -1381,8 +1400,8 @@ public final class PlanJson {
         }
     }
 
-    /** A statement's raise sites as JSON (v56): each {@code n}, {@code kind}, its {@code where} where it has one, its
-     *  {@code message} and, in an edge plan, its {@code upstream}. */
+    /** A statement's raise sites as JSON (v57): each {@code n}, {@code kind}, its {@code where} where it has one, and its
+     *  {@code message}. */
     private static List<Map<String, Object>> sitesJson(List<ExecutionPlan.Site> sites) {
         List<Map<String, Object>> out = new ArrayList<>(sites.size());
         for (ExecutionPlan.Site site : sites) {
@@ -1393,10 +1412,6 @@ public final class PlanJson {
                 so.put("where", site.where());
             }
             so.put("message", site.message());
-            if (site.upstream() != null) {
-                // an edge plan's words alone: a product site carries none (no null written, the plan's bytes kept lean)
-                so.put("upstream", site.upstream());
-            }
             out.add(so);
         }
         return out;
@@ -1412,10 +1427,9 @@ public final class PlanJson {
         List<ExecutionPlan.Site> out = new ArrayList<>();
         for (Json.Node n : ((Json.Arr) ss).items()) {
             Json.Obj so = (Json.Obj) n;
-            only(so, "a raise site", "n", "kind", "where", "message", "upstream");
+            only(so, "a raise site", "n", "kind", "where", "message");
             ExecutionPlan.Site site = new ExecutionPlan.Site(so.getInt("n"), named(com.legend.sql.RaiseKind.class,
-                    so.getString("kind"), "raise kind"), so.getStringOr("where", null), so.getString("message"),
-                    so.getStringOr("upstream", null));
+                    so.getString("kind"), "raise kind"), so.getStringOr("where", null), so.getString("message"));
             String sentence = ExecutionPlan.Site.sentence(site.kind(), site.where());
             if (!sentence.equals(site.message())) {
                 throw new IllegalArgumentException("raise site " + site.n() + " of " + site.kind() + " says '"

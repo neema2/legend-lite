@@ -322,7 +322,7 @@ public final class SpecParser implements TokenStreamCursor {
     /** {@link #parseLambda(String)} at {@code dialect}. */
     public static LambdaFunction parseLambda(String source, GrammarLevel dialect) {
         SpecParser parser = new SpecParser(Lexer.tokenize(Objects.requireNonNull(source, "source")),
-                "", dialect);
+                "", Objects.requireNonNull(dialect, "dialect"));
         ValueSpecification v = parser.wholeLine();
         return v instanceof LambdaFunction lf ? lf
                 : new LambdaFunction(List.of(), List.of(v), parser.spanOf(0, parser.pos - 1));

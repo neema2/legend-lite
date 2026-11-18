@@ -217,4 +217,17 @@ public final class EdgeHostWords implements com.legend.testexec.HostWords {
         // the evidence as upstream's frame writes a pair (assertEquals.pure's '\nexpected: %r\nactual:   %r')
         return "\nexpected: " + expected + "\nactual:   " + actual;
     }
+
+    /** legend-pure's words of a caught error (K10 of the edge audit, re-ported onto J29's hook, 2026-11-18): a raise
+     *  of a planned site is the words the plan's edge records hold for it, by the raising statement's text and the
+     *  site's number; any other error its own message. */
+    @Override
+    public String caught(RuntimeException error, com.legend.testexec.EdgeHearing hearing) {
+        if (error instanceof com.legend.error.DataError && error.getCause() instanceof com.legend.exec.RaisedErrors.Raised r
+                && r.site() != null) {
+            return hearing.raisedWords(java.util.Objects.requireNonNull(r.statement(),
+                    "a raise of a planned site carries its statement's text"), r.site().n());
+        }
+        return String.valueOf(error.getMessage());
+    }
 }

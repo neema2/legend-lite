@@ -71,16 +71,24 @@ const tb0 = now();
 teavm.exports.warmModel(corpus.model);
 const tb1 = now();
 
+// a text query as the tab composes it (lite API v1 §2): queryParseOrError, then queryPlanOrError of its tree
+const planned = () => {
+  const parsed = teavm.exports.queryParseOrError(JSON.stringify({ text: QUERY }));
+  const head = 'OK\n{"query":';
+  if (!parsed.startsWith(head)) throw new Error(`queryParseOrError answered no {query}: ${parsed.slice(0, 120)}`);
+  return teavm.exports.queryPlanOrError(`{"model":${JSON.stringify(corpus.model)},"query":${parsed.slice(head.length, -1)},"runtime":${JSON.stringify(corpus.runtime)}}`);
+};
+
 // --- the first plan, with EVERYTHING above already warm --------------
 const t7 = now();
-teavm.exports.planOrError(corpus.model, QUERY, corpus.runtime);
+planned();
 const t8 = now();
 
 // --- warm ------------------------------------------------------------
 const warm = [];
 for (let i = 0; i < 200; i++) {
   const a = now();
-  teavm.exports.planOrError(corpus.model, QUERY, corpus.runtime);
+  planned();
   warm.push(ms(a, now()));
 }
 warm.sort((x, y) => x - y);

@@ -25,6 +25,7 @@ import com.legend.lowering.TypedRows;
 import com.legend.model.ConnectionDefinition;
 import com.legend.model.FunctionId;
 import com.legend.plan.PlanColumns;
+import com.legend.plan.PureSpelling;
 import com.legend.plan.ResultShape;
 import com.legend.platform.Feature;
 import com.legend.resolver.StagedRows;
@@ -146,7 +147,7 @@ public final class PlanMaker {
             com.legend.executionplan.DatabaseType runsOn = ConnectionPlans.type(decided.target().type());
             ExecutionPlan.Target catalog = SystemCatalog.forQuery(l.ctx(), runsOn);
             return ExecutionPlan.reading(declarations(declared, l.ctx()), stampedIfRead(typed(l.root(),
-                    EnumValueTables.apply(l.plan()), SystemCatalog.dialect(runsOn, style), catalog), st.reads().ownStamp()));
+                    EnumValueTables.apply(l.plan()), SystemCatalog.dialect(runsOn, style), catalog, style), st.reads().ownStamp()));
         }
         // an enumeration parameter compared with a mapped column: through that place's value table; each data: source
         // read as the target's database takes it, by the statement itself (the JSON pass, 2026-11-11)
@@ -154,7 +155,7 @@ public final class PlanMaker {
                 projectDatabase);
         SqlQuery lowered = DataSources.read(EnumValueTables.apply(l.plan()), dialect);
         Staged staged = stagedShared(dialect, lowered, target, 0);
-        ExecutionPlan.Node answer = stampedIfRead(typed(l.root(), staged.statement(), dialect, target),
+        ExecutionPlan.Node answer = stampedIfRead(typed(l.root(), staged.statement(), dialect, target, style),
                 st.reads().ownStamp());
         if (staged.tables().isEmpty()) {
             return ExecutionPlan.reading(declarations(declared, l.ctx()), answer);
@@ -166,7 +167,7 @@ public final class PlanMaker {
         for (String table : staged.tables()) {
             // a table a failed run left in the session (its drop never ran) is dropped before it is made again
             steps.add(new ExecutionPlan.Effect(dropping(dialect, table, target)));
-            steps.add(new ExecutionPlan.Effect(staging(dialect, staged, table, target)));
+            steps.add(new ExecutionPlan.Effect(staging(dialect, staged, table, target, style)));
         }
         steps.add(answer);
         if (!dialect.dropsStagedTablesWithTheirTransaction()) {
@@ -224,7 +225,8 @@ public final class PlanMaker {
                 throw new NotImplementedException("the pull copied into " + table + " is not one statement: a raw"
                         + " grid's report (a keyed result)");
             }
-            return sql(dialect.renderStatement(new SqlDml.CreateTableAs(schema, table, statement)), target, null);
+            return sql(dialect.renderStatement(new SqlDml.CreateTableAs(schema, table, statement)), target, null,
+                    com.legend.database.PlanStyle.PRODUCT);
         }
     }
 
@@ -592,7 +594,7 @@ public final class PlanMaker {
                 withStamps(state.slots(), state.frames()), state.sites());
         SqlQuery grid = lowerer.lower(ProductStatements.seeded(sp.body(), sp.env(), query.context()));
         ExecutionPlan.Sql stagedSql = sql(state.dialect().renderStatement(new SqlDml.CreateTempTableAs(table, grid,
-                List.of(), true)), state.target(), null);
+                List.of(), true)), state.target(), null, state.style());
         state.add(new ExecutionPlan.Update(stagedSql, null));
         state.stage(table);
         state.let(StagedRows.gridBoundTo(let.name(), gridRead(table, state.dialect()), raw, let.info()));
@@ -632,7 +634,7 @@ public final class PlanMaker {
                         sp.env()))), st.reads().definitions()));
         TypedSpec rowsRoot = sp.body().get(sp.body().size() - 1);
         ExecutionPlan.Sql stagedSql = sql(state.dialect().renderStatement(SqlDml.CreateTempTableAs
-                .staged(table, q, StagedRows.columns(rowsRoot.info()))), state.target(), null);
+                .staged(table, q, StagedRows.columns(rowsRoot.info()))), state.target(), null, state.style());
         String own = st.reads().ownStamp();
         if (own != null && reads(stagedSql, own)) {
             // a write is sent with no trace comment (the M3 audit's B7c)
@@ -690,10 +692,10 @@ public final class PlanMaker {
         if (st.prepared() instanceof Prepared.StoreWrite w) {
             SqlDml dml = state.read(ProductStatements.storeWrite(query, w, st.temporal(), state.slots(),
                     state.sites()));
-            state.add(new ExecutionPlan.Update(sql(dialect.renderStatement(dml), target, null),
+            state.add(new ExecutionPlan.Update(sql(dialect.renderStatement(dml), target, null, state.style()),
                     last ? ExecutionPlan.COUNT : null));
             if (last) {
-                state.add(count(query, w.write(), dialect, target, state.features(), state.sites()));
+                state.add(count(query, w.write(), dialect, target, state.features(), state.sites(), state.style()));
             }
             return;
         }
@@ -704,13 +706,14 @@ public final class PlanMaker {
         Staged staged = stagedShared(dialect, state.lowered(st, last), target, state.staged().size());
         for (String table : staged.tables()) {
             state.add(new ExecutionPlan.Effect(dropping(dialect, table, target)));
-            state.add(new ExecutionPlan.Effect(staging(dialect, staged, table, target)));
+            state.add(new ExecutionPlan.Effect(staging(dialect, staged, table, target, state.style())));
             state.stage(table);
         }
         SqlQuery q = staged.statement();
         TypedSpec answer = p.body().get(p.body().size() - 1);
-        state.add(stampedIfRead(last ? typed(answer, q, dialect, target)
-                : new ExecutionPlan.Check(sql(dialect.renderStatement(q), target, q)), st.reads().ownStamp()));
+        state.add(stampedIfRead(last ? typed(answer, q, dialect, target, state.style())
+                : new ExecutionPlan.Check(sql(dialect.renderStatement(q), target, q, state.style())),
+                st.reads().ownStamp()));
     }
 
     /**
@@ -845,9 +848,10 @@ public final class PlanMaker {
     }
 
     /** The statement that makes {@code table} of {@code staged}: a temporary table of the session holding its rows. */
-    static ExecutionPlan.Sql staging(SqlDialect dialect, Staged staged, String table, ExecutionPlan.Target target) {
+    static ExecutionPlan.Sql staging(SqlDialect dialect, Staged staged, String table, ExecutionPlan.Target target,
+            com.legend.database.PlanStyle style) {
         return sql(dialect.renderStatement(new SqlDml.CreateTempTableAs(table,
-                Objects.requireNonNull(staged.queries().get(table), table))), target, null);
+                Objects.requireNonNull(staged.queries().get(table), table))), target, null, style);
     }
 
     /** {@code q}, each read of a staged relation ({@code tables}' keys) a read of its table. */
@@ -921,7 +925,8 @@ public final class PlanMaker {
      * by {@code dialect}, on {@code target} -- an {@code Integer[1]} value, one row, one column {@code value}, as a write's
      * count is answered ({@link #count}). The table's name delimited, as its making names it.
      */
-    public static ExecutionPlan.Node countOf(String table, SqlDialect dialect, ExecutionPlan.Target target) {
+    public static ExecutionPlan.Node countOf(String table, SqlDialect dialect, ExecutionPlan.Target target,
+            com.legend.database.PlanStyle style) {
         OutputCol value = new OutputCol("value", com.legend.sql.SqlType.Scalar.BIGINT, false, OutputCol.Origin.DERIVED);
         SqlQuery q = new SqlSelect(List.of(new SqlSelect.Projection(new com.legend.sql.SqlAgg.Reducer(
                 com.legend.sql.SqlAgg.Fn.COUNT, List.of(), false, List.of()), "value", value)), false,
@@ -929,14 +934,15 @@ public final class PlanMaker {
                 List.of(), null, null, List.of(), null, null, List.of(value));
         ExprType type = new ExprType(Type.Primitive.INTEGER, Multiplicity.Bounded.ONE);
         return new ExecutionPlan.TdsResult(ExecutionPlan.TdsResult.Shape.VALUE,
-                PlanColumns.of(TypedRows.schema(type), q, ExecutionPlan.TdsResult.Shape.VALUE), sql(q, dialect, target));
+                PlanColumns.of(TypedRows.schema(type), q, ExecutionPlan.TdsResult.Shape.VALUE),
+                sql(q, dialect, target, style));
     }
 
     /** The answer of a program whose last statement is the write {@code write}: its count, which the step before
      *  binds ({@link ExecutionPlan#COUNT}), as an {@code Integer[1]} value: one row, one column {@code value}. */
     private static ExecutionPlan.Node count(TypedQuery query, TypedSpec write,
             SqlDialect dialect, ExecutionPlan.Target target, Set<Feature> features,
-            ObjectSites sites) {
+            ObjectSites sites, com.legend.database.PlanStyle style) {
         ExprType type = new ExprType(write.info().type(), Multiplicity.Bounded.ONE);
         QueryParameters.Declared count = new QueryParameters.Declared(ExecutionPlan.COUNT, type.type(),
                 type.multiplicity());
@@ -947,7 +953,7 @@ public final class PlanMaker {
                 .lowerPlanParam(ExecutionPlan.COUNT, type);
         return new ExecutionPlan.TdsResult(ExecutionPlan.TdsResult.Shape.VALUE,
                 PlanColumns.of(TypedRows.schema(type), q, ExecutionPlan.TdsResult.Shape.VALUE),
-                sql(q, dialect, target));
+                sql(q, dialect, target, style));
     }
 
     /**
@@ -962,7 +968,7 @@ public final class PlanMaker {
      * {@link com.legend.lowering.KeyedPivot}), and a statement that reads a raw grid's report ({@link #rowsOrGridKeyed}).
      */
     private static ExecutionPlan.Node typed(TypedSpec rootSpec, SqlQuery lowered,
-            SqlDialect dialect, ExecutionPlan.Target target) {
+            SqlDialect dialect, ExecutionPlan.Target target, com.legend.database.PlanStyle style) {
         ExprType root = rootSpec.info();
         return switch (ResultShape.of(rootSpec)) {
             case GRAPH -> {
@@ -973,12 +979,14 @@ public final class PlanMaker {
                             + ": the streaming graph root answers one object per row");
                 }
                 yield new ExecutionPlan.TdsResult(ExecutionPlan.TdsResult.Shape.OBJECTS, List.of(
-                        new ExecutionPlan.Column(outs.get(0).name(), root.type().typeName(),
+                        // the plain type path (PlanColumns.of's rule, 2026-11-17)
+                        new ExecutionPlan.Column(outs.get(0).name(), PureSpelling.typePath(root.type()),
                                 PlanColumns.multiplicity(root.multiplicity()),
                                 ColumnFacts.slot(outs.get(0).type()), null,
-                                ColumnFacts.precision(root.type().typeName(),
-                                        outs.get(0).type(), ExecutionPlan.TdsResult.Shape.OBJECTS))),
-                        sql(lowered, dialect, target));
+                                ColumnFacts.precision(PureSpelling.typePath(root.type()),
+                                        outs.get(0).type(), ExecutionPlan.TdsResult.Shape.OBJECTS),
+                                PlanColumns.decimal(root.type()))),
+                        sql(lowered, dialect, target, style));
             }
             case TABULAR -> {
                 // a relation root's schema with any row-struct column flattened (TypedRows.flat; its dynamic columns
@@ -986,11 +994,11 @@ public final class PlanMaker {
                 Type.RelationType rowSchema = TypedRows.schema(root);
                 SqlSource.Pivot dynamic = KeyedPivot.dynamic(lowered);
                 if (dynamic != null && !rowSchema.dynamicColumns().isEmpty()) {
-                    yield keyed(lowered, dynamic, rowSchema, dialect, target);
+                    yield keyed(lowered, dynamic, rowSchema, dialect, target, style);
                 }
                 yield rowsOrGridKeyed(ExecutionPlan.TdsResult.Shape.RELATION, PlanColumns.of(
                         rowSchema, lowered, ExecutionPlan.TdsResult.Shape.RELATION), TypedRows.statement(lowered),
-                        dialect, target);
+                        dialect, target, style);
             }
             // a value's one column is the value's: through a class's chain the map binder's cell carries it, typed by
             // the value and the root's multiplicity (ResultShape.valueInfo, as the test road answers it), never the
@@ -999,13 +1007,14 @@ public final class PlanMaker {
             case SCALAR, COLLECTION -> rowsOrGridKeyed(ExecutionPlan.TdsResult.Shape.VALUE,
                     PlanColumns.of(TypedRows.schema(ResultShape.valueInfo(root)), lowered,
                             ExecutionPlan.TdsResult.Shape.VALUE),
-                    TypedRows.statement(lowered), dialect, target);
+                    TypedRows.statement(lowered), dialect, target, style);
         };
     }
 
-    /** A rendered statement as the plan's, on {@code target}. */
+    /** A rendered statement as the plan's, on {@code target}, its raise sites offered to {@code style} (the plan's,
+     *  {@link #sites}). */
     static ExecutionPlan.Sql sql(RenderedStatement rendered, ExecutionPlan.Target target,
-            @Nullable SqlQuery tree) {
+            @Nullable SqlQuery tree, com.legend.database.PlanStyle style) {
         // each payload a slot binds named by its digest, its text the statement's content (the JSON pass, 2026-11-11:
         // the payload's bytes once in the plan's data, as a load's are), digested once
         Map<String, String> content = new LinkedHashMap<>();
@@ -1026,17 +1035,22 @@ public final class PlanMaker {
         // the typed tree carried beside the statement names each payload by its digest, never its text or rows (the
         // JSON pass: the bytes once in the plan -- a bound payload's the statement's content, an inline one's its text)
         SqlQuery carried = tree == null ? null : DataSources.byDigest(tree, content.keySet());
-        // the raise sites its render wrote, planned: each token's kind, where and words (phase D's Phase 2, 2026-11-16)
+        // the raise sites its render wrote, planned: each token's kind, where and product words (phase D's Phase 2,
+        // 2026-11-16), the statement and its sites offered to the plan's style (K10b, 2026-11-17)
         return new ExecutionPlan.Sql(rendered.sql(), slots, target, carried, regions, null, content)
-                .raising(sites(rendered.sites()));
+                .raising(sites(rendered.sql(), rendered.sites(), style));
     }
 
-    /** The raise sites a dialect's render wrote ({@code sql.dialect.RaiseSite}), PLANNED (phase D's Phase 2, raises as
-     *  SITES, 2026-11-16): each one's product sentence its kind's and its where ({@link ExecutionPlan.Site#sentence}),
-     *  its upstream words the style's, worded at the render ({@code database.PlanStyle#siteWords}). */
-    public static List<ExecutionPlan.Site> sites(List<com.legend.sql.dialect.RaiseSite> written) {
+    /** The raise sites a dialect's render wrote into the statement {@code text} ({@code sql.dialect.RaiseSite}),
+     *  PLANNED (phase D's Phase 2, raises as SITES, 2026-11-16): each one's product sentence its kind's and its where
+     *  ({@link ExecutionPlan.Site#sentence}). The statement and its sites are offered to {@code style}, the plan's
+     *  ({@code database.PlanStyle#siteWords}: the product's records nothing; the compatibility edge's recorder words
+     *  them as its own data; K10b of the edge audit, 2026-11-17). */
+    public static List<ExecutionPlan.Site> sites(String text, List<com.legend.sql.dialect.RaiseSite> written,
+            com.legend.database.PlanStyle style) {
+        style.siteWords(text, written);
         return written.stream().map(w -> new ExecutionPlan.Site(w.n(), w.kind(), w.where(),
-                ExecutionPlan.Site.sentence(w.kind(), w.where()), w.upstream())).toList();
+                ExecutionPlan.Site.sentence(w.kind(), w.where()))).toList();
     }
 
     /** What a statement binding the payload {@code json} (its SHA-256 {@code digest}) is told under where its database
@@ -1056,7 +1070,7 @@ public final class PlanMaker {
      * answer typed rows.
      */
     public static ExecutionPlan.Keyed keyed(SqlQuery lowered, SqlSource.Pivot pivot, Type.RelationType schema,
-            SqlDialect dialect, ExecutionPlan.Target target) {
+            SqlDialect dialect, ExecutionPlan.Target target, com.legend.database.PlanStyle style) {
         // the database's snapshot first: a database with no probe plan (MongoDB) refuses by its own name before any
         // statement is written
         SqlDialect.KeysSnapshot keysSnapshot = dialect.keysSnapshot();
@@ -1080,17 +1094,19 @@ public final class PlanMaker {
                         .requireNonNull(facts.get(f.column().name()), () -> "the fixed column '" + f.column().name()
                                 + "' has no facts in the typed schema " + facts.keySet()), field);
                 case KeyedPivot.PerKey k -> new ExecutionPlan.Keyed.PerKey(
-                        new ExecutionPlan.Column(k.template().name(), k.template().type().typeName(),
+                        // the plain type path (PlanColumns.of's rule, 2026-11-17)
+                        new ExecutionPlan.Column(k.template().name(), PureSpelling.typePath(k.template().type()),
                                 PlanColumns.multiplicity(k.template().multiplicity()),
                                 ColumnFacts.slot(k.slot()), null,
-                                ColumnFacts.precision(k.template().type().typeName(),
-                                        k.slot(), ExecutionPlan.TdsResult.Shape.RELATION)),
+                                ColumnFacts.precision(PureSpelling.typePath(k.template().type()),
+                                        k.slot(), ExecutionPlan.TdsResult.Shape.RELATION),
+                                PlanColumns.decimal(k.template().type())),
                         k.nameCell(), field);
             });
         }
         List<String> keyFields = parts.keys().outputs().stream().map(OutputCol::name).toList();
-        return new ExecutionPlan.Keyed(sql(parts.keys(), dialect, target), keyFields, outputs, parts.perKeyAt(),
-                sql(parts.body(), dialect, target), snapshotOf(keysSnapshot), dialect.resultColumnLimit());
+        return new ExecutionPlan.Keyed(sql(parts.keys(), dialect, target, style), keyFields, outputs, parts.perKeyAt(),
+                sql(parts.body(), dialect, target, style), snapshotOf(keysSnapshot), dialect.resultColumnLimit());
     }
 
     /** The plan's snapshot for a keyed result's two reads, as its database declares it ({@link
@@ -1114,10 +1130,11 @@ public final class PlanMaker {
      * name. One grid per statement (two are refused by name: one keys step).
      */
     public static ExecutionPlan.Node rowsOrGridKeyed(ExecutionPlan.TdsResult.Shape shape,
-            List<ExecutionPlan.Column> columns, SqlQuery statement, SqlDialect dialect, ExecutionPlan.Target target) {
+            List<ExecutionPlan.Column> columns, SqlQuery statement, SqlDialect dialect, ExecutionPlan.Target target,
+            com.legend.database.PlanStyle style) {
         List<SqlSource.GridReport> reports = gridReports(statement);
         if (reports.isEmpty()) {
-            return new ExecutionPlan.TdsResult(shape, columns, sql(statement, dialect, target));
+            return new ExecutionPlan.TdsResult(shape, columns, sql(statement, dialect, target, style));
         }
         // the database's snapshot first, as the pivot's keyed result takes it: a database with no keyed result
         // refuses by its own name before any statement is written
@@ -1143,8 +1160,8 @@ public final class PlanMaker {
         for (ExecutionPlan.Column c : columns) {
             outputs.add(new ExecutionPlan.Keyed.Fixed(c, c.name()));
         }
-        return new ExecutionPlan.Keyed(sql(keys, dialect, target), ExecutionPlan.Keyed.KeysOf.COLUMNS, admitted,
-                List.of("name"), outputs, outputs.size(), sql(statement, dialect, target),
+        return new ExecutionPlan.Keyed(sql(keys, dialect, target, style), ExecutionPlan.Keyed.KeysOf.COLUMNS, admitted,
+                List.of("name"), outputs, outputs.size(), sql(statement, dialect, target, style),
                 snapshotOf(keysSnapshot), dialect.resultColumnLimit(), shape);
     }
 
@@ -1227,9 +1244,11 @@ public final class PlanMaker {
     }
 
     /** {@code statement} final for {@code target}: rendered in {@code dialect}, each placeholder's binding as the
-     *  dialect decided it, the typed tree kept (the judges' plans take it too, JudgePlans, step 6). */
-    public static ExecutionPlan.Sql sql(SqlQuery statement, SqlDialect dialect, ExecutionPlan.Target target) {
-        return sql(dialect.renderStatement(statement), target, statement);
+     *  dialect decided it, the typed tree kept (the judges' plans take it too, JudgePlans, step 6), its raise sites
+     *  offered to {@code style}, the plan's. */
+    public static ExecutionPlan.Sql sql(SqlQuery statement, SqlDialect dialect, ExecutionPlan.Target target,
+            com.legend.database.PlanStyle style) {
+        return sql(dialect.renderStatement(statement), target, statement, style);
     }
 
     /** A placeholder's binding, as the dialect decided it, in the plan's own terms. */

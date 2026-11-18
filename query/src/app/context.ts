@@ -5,7 +5,7 @@ import type { ModelHomeConfig } from '../../../depot-client/src/model-home.ts';
 import type { QueryEngine } from '../../../engine-client/src/query-engine.ts';
 import type { ProjectDoor } from '../../../engine-client/src/doors/project-data.ts';
 import type { PointedEngine } from '../../../engine-client/src/query-engine.ts';
-import type { Engine, QueryStore } from '../backend/engine.ts';
+import type { LiteEngine, QueryStore } from '../backend/engine.ts';
 import type { WasmGrammar } from '../../../engine-client/src/legend/wasm-grammar.ts';
 import type { PureModelContextText } from '../backend/wire.ts';
 import type { ModelGraph } from '../model/graph.ts';
@@ -22,8 +22,8 @@ export interface ProjectConfig {
 /**
  * Where queries run. In the browser (`duckdb-wasm`: DuckDB in this tab, each project's rows its Data elements', C5;
  * `warehouse`: the warehouse's DuckDB, as the signed-in user, its fixture's rows `seed`) the tab's planner writes the
- * SQL and saved queries stay in this browser. On a `server` (legend-lite's, or legend-engine) the
- * server executes and keeps saved queries.
+ * SQL and saved queries stay in this browser. On a `server` (legend-lite's: its /api/lite/v1) the server plans,
+ * runs and keeps saved queries.
  */
 export type ExecutionConfig =
   | { readonly kind: 'duckdb-wasm'; readonly user: string }
@@ -34,12 +34,12 @@ export type ExecutionConfig =
 
 /**
  * Where the results grid -- a DataCube over the query -- reads its rows: in a browser plane, the
- * SQL engine there (DuckDB-WASM, the warehouse), planned by the tab's planner; on a server, its
- * `pure/v1` execute (the server plans and runs).
+ * SQL engine there (DuckDB-WASM, the warehouse), planned by the tab's planner; on a server, the
+ * app's engine, a legend-lite server's own plan and run (cube.ts liteRows).
  */
 export type CubeRows =
   | { readonly kind: 'sql'; readonly engine: QueryEngine }
-  | { readonly kind: 'server'; readonly baseUrl: string };
+  | { readonly kind: 'server' };
 
 export interface AppConfig {
   readonly execution: ExecutionConfig;
@@ -115,7 +115,8 @@ export const recent = {
 
 export class AppContext {
   readonly config: AppConfig;
-  readonly engine: Engine;
+  /** Where queries are read, typed, planned and run: legend-lite's engine (in the tab, or a lite server). */
+  readonly engine: LiteEngine;
   readonly store: QueryStore;
   readonly planner: WasmGrammar | undefined;
   /** The projects loaded so far: the configured ones, and each version opened by name since (load). */
@@ -124,7 +125,7 @@ export class AppContext {
   /** Where the results grid (a DataCube) reads rows. */
   readonly cubeRows: CubeRows;
 
-  constructor(config: AppConfig, engine: Engine, store: QueryStore, planner: WasmGrammar | undefined,
+  constructor(config: AppConfig, engine: LiteEngine, store: QueryStore, planner: WasmGrammar | undefined,
     projects: LoadedProject[], user: string, cubeRows: CubeRows) {
     this.config = config;
     this.engine = engine;

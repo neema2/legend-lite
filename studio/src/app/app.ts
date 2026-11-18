@@ -6,8 +6,8 @@ import 'monaco-editor/features/register.all';
 
 import { openDuckDbInTab } from '../../../engine-client/src/doors/tab-duckdb.ts';
 import type { QueryEngine } from '../../../engine-client/src/query-engine.ts';
-import { BrowserEngine } from '../../../engine-client/src/legend/browser-engine.ts';
-import { HttpEngine } from '../../../engine-client/src/legend/engine.ts';
+import { TabEngine } from '../../../engine-client/src/legend/browser-engine.ts';
+import { LiteServer } from '../../../engine-client/src/doors/lite-server.ts';
 import { TabTables } from '../../../engine-client/src/tab-data.ts';
 import { ProjectDoor, projectRunner } from '../../../engine-client/src/doors/project-data.ts';
 import { WasmGrammar } from '../../../engine-client/src/legend/wasm-grammar.ts';
@@ -33,14 +33,15 @@ export async function start(root: HTMLElement, config: StudioConfig, workerUrl: 
   registerPure(monaco);
   root.append(h('div', { class: 'loading' }, 'Loading Legend Studio…'));
   const { client, depot, where } = await connect(config);
-  // the session's engine (plan A1): a legend server's pure/v1 when the config names one, else the one in this tab
+  // the session's engine (plan A1): legend-lite's, on a server's /api/lite/v1 when the config names one, else the one
+  // in this tab (the edge program's H3 and H7, 2026-11-17: legend-engine's pure/v1 is the edge's, never asked here)
+  const user = config.user?.userId ?? 'local';
   const inTab = config.engine ? undefined : new WasmGrammar(new WorkerPort(workerUrl, config.vendor));
   const compiler = inTab
     ? new Compiler(inTab, () => inTab.warm({ _type: 'text', code: '' }))
-    : new Compiler(new HttpEngine(config.engine!));
+    : new Compiler(new LiteServer(config.engine!));
   // running a function (plan A3): in the tab, DuckDB started the first time and the model's own rows loaded before each
-  // run; on a server, its pure/v1 execute
-  const user = config.user?.userId ?? 'local';
+  // run; on a server, lite's plan and run there
   const session: RunSession & BuilderSession = inTab ? inTabSession(inTab, config.vendor, user) : serverSession(config.engine!, user);
   const run = runner(session);
   // upstream's SQL playground: a person's own SQL, the one statement no plan carries, handed to the editor alone
@@ -94,25 +95,27 @@ export async function start(root: HTMLElement, config: StudioConfig, workerUrl: 
   await route();
 }
 
-/** Runs on a legend server: its pure/v1 execute, on the server's own data; its grid reads rows from the server too. */
+/** Runs on a legend-lite server: its /api/lite/v1 plans and runs, on the server's own data; its grid reads rows from
+ *  the server too. */
 function serverSession(api: string, user: string): RunSession & BuilderSession {
-  const http = new HttpEngine(api);
+  const lite = new LiteServer(api);
   return {
-    modelJson: (text) => http.modelJson(text),
-    lambdaJson: (text) => http.lambdaJson(text),
-    lambdaText: (lambda, style) => http.lambdaText(lambda, style),
-    engine: () => Promise.resolve(http),
+    modelJson: (text) => lite.modelElements(text),
+    lambdaJson: (text) => lite.queryParse(text),
+    lambdaText: (lambda, style) => lite.queryPrint(lambda, style === 'PRETTY' ? 'pretty' : 'standard'),
+    engine: () => Promise.resolve(lite),
     plane: () => Promise.resolve({
-      execution: { kind: 'server', engine: api }, engine: http, planner: undefined, user,
-      // the server answers pure/v1 at its root; the config names its /api (as Query's does)
-      cubeRows: { kind: 'server', baseUrl: api.replace(/\/api\/?$/, '') },
+      execution: { kind: 'server', engine: api }, engine: lite, planner: undefined, user,
+      // the cube's rows: the server's own plan and run, through the engine (as Query's are)
+      cubeRows: { kind: 'server' },
     }),
   };
 }
 
-/** A run in this tab: the planner writes the SQL, DuckDB here runs it on the model's own test data (plan A2, A3). */
+/** A run in this tab: lite's planner plans it, the hosts' runner runs the plan on DuckDB here, on the model's own test
+ *  data (plan A2, A3). */
 function inTabSession(grammar: WasmGrammar, duckdbVendor: string, user: string): RunSession & BuilderSession {
-  type Started = { engine: BrowserEngine; sql: QueryEngine; databaseType: string; tables: TabTables };
+  type Started = { engine: TabEngine; sql: QueryEngine; databaseType: string; tables: TabTables };
   let started: Promise<Started> | undefined;
   const start = (): Promise<Started> => (started ??= openDuckDbInTab(duckdbVendor, grammar)
     .then((tab) => {
@@ -123,16 +126,16 @@ function inTabSession(grammar: WasmGrammar, duckdbVendor: string, user: string):
         databaseType: tab.engine.databaseType, engine: tab.engine, connect: () => tab.connect(),
       }, grammar);
       return {
-        engine: new BrowserEngine(grammar, runner, user),
+        engine: new TabEngine(grammar, runner, tab.engine.databaseType),
         sql: runner,
         databaseType: tab.engine.databaseType,
         tables: new TabTables(projects, runner, tab.engine, tab.data, grammar),
       };
     }));
   return {
-    modelJson: (text) => grammar.modelJson(text),
-    lambdaJson: (text) => grammar.lambdaJson(text),
-    lambdaText: (lambda, style) => grammar.lambdaText(lambda, style),
+    modelJson: (text) => grammar.modelElements(text),
+    lambdaJson: (text) => grammar.queryParse(text),
+    lambdaText: (lambda, style) => grammar.queryPrint(lambda, style === 'PRETTY' ? 'pretty' : 'standard'),
     engine: async () => (await start()).engine,
     sqlEngine: async () => {
       const tab = await start();

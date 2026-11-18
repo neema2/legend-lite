@@ -37,16 +37,16 @@ class ShippedArtifactRootsTest {
     static final Map<String, String> REACH_OPEN = Map.of(
             "//native:compiler", "K2 HOST (Python, via DataCube) (2026-11-18): the native library rooted at"
                     + " :edge_entry; the product library at :entry alone, //native:engine the opt-in (the next host train)",
-            "//query-store:page", "K2 DataCube (2026-11-18): the queries page rooted at :edge_page_entry; product-rooted"
-                    + " on the host train (H6)",
+            // (//query-store:page closed 2026-11-18, the host train's merge of train 18: product-rooted at :page_entry
+            // by H6, 2026-11-17, its closure edge-free -- //tools/deps:query_store_page_closure_test)
             "//wasm:planner", "K2 HOST (TS, via DataCube) (2026-11-18): the tab's planner rooted at :edge_tab");
 
     /** The shipped targets whose main class is the edge's, each with its K2 owner. Measured 2026-11-18. */
     static final Map<String, String> ROOTS_OPEN = Map.of(
             // (//core:server re-rooted 2026-11-18 by E-P5's K2 server half, 0c78ae0e00 and a0a14bd7c1: main_class
             // com.legend.server.LegendHttpServer, :edge_server the declared opt-in through MountProvider -- train 17)
-            "//query-store:page", "K2 DataCube (2026-11-18): main_class the edge's QueriesPage, query-store's"
-                    + " :edge_page_entry (H6)",
+            // (//query-store:page closed 2026-11-18, the host train's merge of train 18: main_class the product's
+            // com.legend.queries.page.QueriesPage since H6, 2026-11-17)
             "//wasm:planner", "K2 HOST (TS, via DataCube) (2026-11-18): main_class com.legend.edge.wasm.TabExports");
 
     @Test

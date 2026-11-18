@@ -16,7 +16,7 @@ export async function textDialog(app: AppContext, session: Session): Promise<voi
   let pure = '';
   try {
     const l = session.text?.lambda ?? buildLambda(session.project.graph, session.query, { withFrom: false });
-    pure = await app.engine.lambdaText(l, 'PRETTY');
+    pure = await app.engine.queryPrint(l, 'pretty');
   } catch (e) {
     pure = session.text ? '' : `// ${(e as Error).message}`;
   }
@@ -28,7 +28,7 @@ export async function textDialog(app: AppContext, session: Session): Promise<voi
         class: `q-tab${showJson ? ' on' : ''}`,
         onclick: async () => {
           showJson = true; area.readOnly = true; drawTabs();
-          try { area.value = JSON.stringify(await app.engine.lambdaJson(area.value || pure), null, 2); } catch (e) { area.value = (e as Error).message; }
+          try { area.value = JSON.stringify(await app.engine.queryParse(area.value || pure), null, 2); } catch (e) { area.value = (e as Error).message; }
         },
       }, 'Protocol JSON'));
   };
@@ -48,7 +48,7 @@ export async function textDialog(app: AppContext, session: Session): Promise<voi
           if (showJson) { d.close(); return; }
           if (area.value.trim() === pure.trim()) { d.close(); return; }
           try {
-            const lambda = await app.engine.lambdaJson(area.value);
+            const lambda = await app.engine.queryParse(area.value);
             const src = session.query.source;
             const loaded = loadLambda(session.project.graph, lambda, { mapping: src.mapping, runtime: src.runtime, ...(src.dataSpace ? { dataSpace: src.dataSpace } : {}) });
             if (loaded.ok) {

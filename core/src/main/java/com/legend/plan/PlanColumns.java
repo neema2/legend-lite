@@ -39,12 +39,24 @@ public final class PlanColumns {
         return new ExecutionPlan.Multiplicity(b.lower(), b.upper());
     }
 
+    /** A precise decimal type's digits as the plan's data ({@code Decimal(38,18)}: precision 38, scale 18), or null for
+     *  any other type -- a plain {@code Decimal} carries none (v57, 2026-11-17, the orchestrator's ruling). */
+    public static ExecutionPlan.@com.legend.base.Nullable DecimalDigits decimal(
+            com.legend.compiler.element.type.Type t) {
+        return t instanceof com.legend.compiler.element.type.Type.PrecisionDecimal d
+                ? new ExecutionPlan.DecimalDigits(d.precision(), d.scale()) : null;
+    }
+
     /** {@code schema}'s columns (the answer's typed relation, {@code TypedRows.schema}) over {@code lowered}, in a
-     *  result of {@code shape}. */
+     *  result of {@code shape}. Each column's type is its plain path ({@link PureSpelling#typePath}: {@code Decimal},
+     *  never {@code Decimal(10,2)}): a precise decimal's precision and scale are data -- its {@code store} where it is
+     *  a store column, its {@code slot} always -- never spelled into the name a reader would parse (the orchestrator's
+     *  ruling of 2026-11-17, Python's finding; until then {@code Type.typeName()}). */
     public static List<ExecutionPlan.Column> of(Type.RelationType schema, SqlQuery lowered,
             ExecutionPlan.TdsResult.Shape shape) {
         return ColumnFacts.columns(schema.columns().stream()
-                .map(c -> new ColumnFacts.Pure(c.name(), c.type().typeName(), multiplicity(c.multiplicity())))
+                .map(c -> new ColumnFacts.Pure(c.name(), PureSpelling.typePath(c.type()), multiplicity(c.multiplicity()),
+                        decimal(c.type())))
                 .toList(), lowered, shape);
     }
 }

@@ -6,12 +6,13 @@
 
 import type { CubeApp } from '../../../datacube/src/embed.ts';
 import { openCube } from '../app/cube.ts';
-import { DEFAULT_PREVIEW, executeInput, executionLambda, run, sqlOf } from '../app/run.ts';
+import { DEFAULT_PREVIEW, executionLambda, run, runInput, sqlOf } from '../app/run.ts';
+import { runtimeOf } from '../../../engine-client/src/legend/browser-engine.ts';
 import type { AppContext } from '../app/context.ts';
 import type { Session } from '../app/session.ts';
 import { mapGroup } from '../app/actions.ts';
 import { freshId, type Condition, type Value } from '../builder/state.ts';
-import { isTds, type ExecutionResult, type TdsResult } from '../backend/wire.ts';
+import type { LiteAnswer } from '../backend/engine.ts';
 import { primitiveFamily, isNumericFamily, standardPrimitive } from '../model/graph.ts';
 import { propertyAt } from '../app/actions.ts';
 import { dialog, h, icon, menuButton, mount, panelHeader, showMenu, toast } from './dom.ts';
@@ -122,9 +123,10 @@ export class Results {
     const status: (Node | string)[] = [];
     if (running) status.push(h('span', { class: 'q-spinner' }), ' Running…');
     else if (r.status === 'done') {
-      const n = isTds(r.result) ? r.result.result.rows.length : jsonCount(r.result);
-      const over = isTds(r.result) && r.limit !== undefined && n > r.limit;
-      status.push(h('span', null, `${plural(over ? r.limit! : n, isTds(r.result) ? 'row' : 'object')} in ${r.ms} ms`));
+      const relation = r.result.shape === 'RELATION';
+      const n = r.result.rows.length;
+      const over = relation && r.limit !== undefined && n > r.limit;
+      status.push(h('span', null, `${plural(over ? r.limit! : n, relation ? 'row' : 'object')} in ${r.ms} ms`));
       if (over) status.push(h('span', { class: 'q-chip', style: 'color:var(--warn)' }, `showing the first ${r.limit} — more exist`));
     }
     else if (r.status === 'cube') status.push(this.#cubeStatus);
@@ -165,7 +167,7 @@ export class Results {
     let body: Node;
     if (r.status === 'error') body = h('div', { style: 'padding:12px' }, h('div', { class: 'q-error-box' }, r.message));
     else if (r.status === 'cube' && this.#cube) body = this.#cube.host;
-    else if (r.status === 'done') body = isTds(r.result) ? this.#grid(r.result, r.limit) : h('pre', { class: 'q-json' }, JSON.stringify(r.result.values, null, 2));
+    else if (r.status === 'done') body = r.result.shape === 'RELATION' ? this.#grid(r.result, r.limit) : h('pre', { class: 'q-json' }, JSON.stringify(valuesOf(r.result), shownJson, 2));
     else if (running && this.#opening) body = this.#opening;
     else if (running) body = h('div', { class: 'q-hint' }, 'Running…');
     else body = h('div', { class: 'q-hint' }, 'Run the query to see its rows (Ctrl+Enter).');
@@ -178,10 +180,10 @@ export class Results {
     mount(this.element, bar, h('div', { class: 'q-results-body' }, body));
   }
 
-  #grid(t: TdsResult, limit: number | undefined): HTMLElement {
-    const cols = t.result.columns;
-    const types = new Map(t.builder.columns.map((c) => [c.name, c.type ?? '']));
-    let rows = t.result.rows.slice(0, limit ?? t.result.rows.length).map((r) => r.values);
+  #grid(t: LiteAnswer, limit: number | undefined): HTMLElement {
+    const cols = t.columns.map((c) => c.name);
+    const types = new Map(t.columns.map((c) => [c.name, c.type]));
+    let rows = t.rows.slice(0, limit ?? t.rows.length);
     const s = this.#sort;
     if (s) {
       rows = [...rows].sort((a, b) => {
@@ -284,14 +286,15 @@ export class Results {
     if (missing.length > 0) { toast(`Set a value for ${missing.map((p) => `$${p.name}`).join(', ')} first.`); return; }
     toast('Exporting…');
     try {
-      const l = executionLambda(this.#session, undefined);
-      const result = await this.#app.engine.execute(executeInput(this.#session, l));
-      if (!isTds(result)) { toast('Only tabular results export as CSV.'); return; }
+      const input = runInput(this.#session, executionLambda(this.#session, undefined));
+      const result = await this.#app.engine.queryRun(this.#session.project.context.code, input.lambda,
+        runtimeOf(input.lambda), input.parameters);
+      if (result.shape !== 'RELATION') { toast('Only tabular results export as CSV.'); return; }
       const esc = (v: unknown): string => {
         const t = v === null || v === undefined ? '' : typeof v === 'object' ? JSON.stringify(v) : String(v);
         return /[",\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t;
       };
-      const csv = [result.result.columns.map(esc).join(','), ...result.result.rows.map((r) => r.values.map(esc).join(','))].join('\n');
+      const csv = [result.columns.map((c) => esc(c.name)).join(','), ...result.rows.map((r) => r.map(esc).join(','))].join('\n');
       const a = h('a', { href: URL.createObjectURL(new Blob([csv], { type: 'text/csv' })), download: `${this.#session.saved?.name ?? 'query'}.csv` });
       a.click();
       setTimeout(() => URL.revokeObjectURL(a.href), 5000);
@@ -301,9 +304,15 @@ export class Results {
   }
 }
 
-function jsonCount(r: ExecutionResult): number {
-  const v = (r as { values: unknown }).values;
-  return Array.isArray(v) ? v.length : v === null || v === undefined ? 0 : 1;
+/** A value's or a graph fetch's answer as its values: each row's one cell -- an object's JSON text as the database built
+ *  it, read for showing. */
+function valuesOf(r: LiteAnswer): unknown[] {
+  return r.rows.map((row) => (r.shape === 'OBJECTS' && typeof row[0] === 'string' ? JSON.parse(row[0]) as unknown : row[0]));
+}
+
+/** A 64-bit integer beyond 2^53 (a bigint, as the tab's decoder reads it) shown by its digits. */
+function shownJson(_key: string, v: unknown): unknown {
+  return typeof v === 'bigint' ? v.toString() : v;
 }
 
 /** SQL with a line per clause, for reading. */

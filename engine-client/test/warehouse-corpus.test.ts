@@ -33,7 +33,11 @@ interface Exchange {
 }
 interface Scenario {
   readonly name: string;
-  readonly action: Record<string, string | number> & { readonly kind: string };
+  readonly action: Record<string, string | number> & {
+    readonly kind: string;
+    /** A run's values for its `?`s, in order (since 2026-11-17: the API's parameters). */
+    readonly parameters?: readonly (string | number | boolean | null)[];
+  };
   readonly outcome: Record<string, unknown>;
   readonly exchanges: readonly Exchange[];
 }
@@ -104,7 +108,9 @@ async function act(s: Scenario): Promise<Record<string, unknown>> {
       case 'run': return await inRun("a test's own statement", async () => {
         const chunks: string[] = [];
         let receipt: { statementId?: string; serverRows?: number } = {};
-        for await (const bytes of engine().arrowChunks(unplanned(String(a.sql)), undefined, (r) => { receipt = r; })) {
+        // a statement's values, bound at run by the server (the API's parameters, the orchestrator's ruling (a))
+        const params = a.parameters ?? [];
+        for await (const bytes of engine().arrowChunks(unplanned(String(a.sql)), undefined, (r) => { receipt = r; }, params)) {
           chunks.push(Buffer.from(bytes).toString('base64'));
         }
         return { chunks, statementId: receipt.statementId, rowCount: receipt.serverRows };

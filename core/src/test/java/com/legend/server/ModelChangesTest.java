@@ -262,12 +262,12 @@ class ModelChangesTest {
     }
 
     private static void refusedBy(String route, String body, String expected) {
-        LiteV1Api.Answer a = LiteV1Api.route("/api/lite/v1/model/" + route, null, body, (q, r, output) -> {
+        LiteV1Api.Answer a = LiteV1Api.route(LiteV1Planning.API + "model/" + route, body, (q, r, values, output) -> {
             throw new AssertionError("nothing is run here");
-        });
+        }, LiteV1Api.Models.COMPILED);
         assertEquals(400, a.status(), a.json());
         Json.Obj error = Json.parseObject(a.json());
-        assertEquals("COMPILATION", error.getString("errorType"));
+        assertEquals("compile", error.getString("kind"));
         assertTrue(error.getString("message").contains(expected), error.getString("message"));
     }
 

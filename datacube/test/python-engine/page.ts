@@ -16,6 +16,11 @@
 // in Arrow (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md C1: Python answers legend-engine's JSON too), and a call without the
 // token refused by name.
 //
+// THE EDGE'S CHECKS (H5, the orchestrator's ruling of 2026-11-18): every call of legend-engine's API here (the checks
+// named "the edge: ...", and the page document's column reads) is the compatibility edge's -- served by
+// legend_lite.edge.engine over the same frames (engine_fixture.py), the harness routing /api/pure/v1/... there. The
+// product engine serves none of legend-engine's API.
+//
 // And A PAGE FROM PYTHON'S ENGINE (docs/DATACUBE_PYTHON_PAGES_DESIGN_2026_10_09.md, step 1): `__pythonPageDocument`
 // writes a page of two frames on two sheets with DataCube's own writers, for the harness to have Python serve it and a
 // tab open it (demo/engine.html?page=); `__readPythonPage` reads a page Python wrote with DataCube's own reader.
@@ -177,7 +182,7 @@ async function run(): Promise<void> {
   await local.run(unplanned(`INSERT INTO trades VALUES ${served.rows.map((r) => `(${r.map(sqlValue).join(', ')})`).join(', ')}`), 0);
   const tab = new PlanThenRun(planner, local);
 
-  await check('every cube case answers the same on Python\'s engine and in the tab', async () => {
+  await check('the edge: every cube case answers the same on Python\'s edge (legend-engine\'s execute) and in the tab', async () => {
     const differ: string[] = [];
     let compared = 0;
     for (const [i, { name, query }] of queries().entries()) {
@@ -371,7 +376,7 @@ async function run(): Promise<void> {
     deepEqual([session.principal, session.token], ['rita', ''], 'the session, without its token:');
     deepEqual(objects.map((o) => o.name), ['POSITIONS'], 'what rita may read, and only that:');
     const m = await warehouse.table!(session, objects[0]!);
-    const rows = services.engine.rows(m.model, m.runtime, { bitColumns: m.bitColumns });
+    const rows = services.engine.rows(m.model, m.runtime);
     const columns = await sourceColumns(rows.runner!, m.source);
     deepEqual(columns.map((c) => `${c.name}:${c.type}`), ['desk:String', 'qty:Integer', 'px:Decimal'], 'its columns, as Python\'s model types them:');
     const read = await rows.runner!.run(from(m.source).select(['desk', 'qty']).lambda(), { epoch: 0 } as CubeSnapshot);
@@ -383,7 +388,7 @@ async function run(): Promise<void> {
     // Python's DuckDB; released, the copy is gone, and reading it is refused
     const frozen = await services.engine.database.snap!(m.model, m.runtime, from(m.source).select(['desk', 'qty', 'px']).lambda());
     deepEqual([frozen.rowCount, frozen.pulledBy?.as, frozen.pulledBy?.serverRows], [3, 'rita', 3], 'what Python froze:');
-    const copy = services.engine.rows(frozen.model, frozen.runtime, { bitColumns: frozen.bitColumns }).runner!;
+    const copy = services.engine.rows(frozen.model, frozen.runtime).runner!;
     const two = from(frozen.source).select(['desk', 'qty']).lambda();
     equal(shape((await copy.run(two, { epoch: 0 } as CubeSnapshot)).rows, false), 'desk:String,qty:Integer\n["EQ",5]\n["FX",10]\n["FX",3]',
       'the copy\'s rows, read in Python\'s DuckDB:');
@@ -401,13 +406,13 @@ async function run(): Promise<void> {
     await services.engine.database.release!(frameCopy.table);
   });
 
-  await check('a query\'s types, parse and print: the same compiler\'s answers', async () => {
+  await check('the edge: a query\'s types, parse and print, legend-engine\'s on Python\'s edge: the same compiler\'s answers', async () => {
     const source = { _type: 'lambda', parameters: [], body: [served.source] } as unknown as Lambda;
     deepEqual(await remote.relationType(source), await tab.relationType(source), 'the source\'s columns:');
     const text = '|#>{trades::DB.trades}#->filter(x|$x.qty > 5)->groupBy(~[desk], ~[q: x|$x.qty : y|$y->sum()])';
     const parsed = await remote.parse(text);
     deepEqual(parsed, await tab.parse(text), 'the parse:');
-    equal(await remote.print(parsed, 'STANDARD'), await tab.print(parsed, 'STANDARD'), 'the print:');
+    equal(await remote.print(parsed, 'standard'), await tab.print(parsed, 'standard'), 'the print:');
   });
 
   await check('upstream\'s own Arrow answer reads the same way (legend-engine 4.145.0, recorded)', async () => {
@@ -418,7 +423,7 @@ async function run(): Promise<void> {
     equal(activities.length, 1, 'its activities:');
   });
 
-  await check('an engine read as JSON answers the rows it answers in Arrow; a JSON answer to an Arrow request, and a call without the token, are refused by name', async () => {
+  await check('the edge: an engine read as JSON answers the rows it answers in Arrow; a JSON answer to an Arrow request, and a call without the token, are refused by name', async () => {
     const asJson = new RemoteRun(new LegendEngineExecutor({ ...engine, authorization: served.authorization }));
     const asArrow = new RemoteRun(new LegendEngineExecutor({ ...engine, serializationFormat: 'ARROW_IPC', authorization: served.authorization }));
     const first = { name: CASES[0]!.name, snapshot: onTheFrame(CASES[0]!.snapshot, served.source) };

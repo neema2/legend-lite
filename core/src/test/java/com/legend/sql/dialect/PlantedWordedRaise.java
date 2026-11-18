@@ -10,7 +10,7 @@ package com.legend.sql.dialect;
 public final class PlantedWordedRaise extends DuckDb {
     @Override
     protected com.legend.sql.SqlExpr raiseMessage(com.legend.sql.SqlExpr.RaiseText r) {
-        return com.legend.sql.SqlExpr.Call.of(com.legend.sql.SqlFn.CONCAT, site(r, written -> null),
+        return com.legend.sql.SqlExpr.Call.of(com.legend.sql.SqlFn.CONCAT, site(r),
                 new com.legend.sql.SqlExpr.StringLit(" Division by zero"));
     }
 

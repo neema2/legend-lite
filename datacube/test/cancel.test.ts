@@ -17,7 +17,7 @@ import { describe, it } from 'node:test';
 import { CubeController, type Planner } from '../src/cube.ts';
 import type { QueryEngine } from '../../engine-client/src/engine.ts';
 import { EpochGuard, isStale, isSuperseded, Superseded } from '../src/epoch.ts';
-import { UpstreamPlanner } from '../src/planner.ts';
+import { UpstreamPlanner } from '../src/edge/upstream-planner.ts';
 import type { ResultTable } from '../../engine-client/src/result.ts';
 import type { CubeSnapshot } from '../src/snapshot.ts';
 import { fetchTree } from '../src/treeview.ts';

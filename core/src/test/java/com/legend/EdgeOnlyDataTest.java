@@ -110,7 +110,15 @@ class EdgeOnlyDataTest {
                     "DEAD (2026-11-18): made by no one; deleted in train 17 by sql's owner"),
             // the user's pending proposal A
             Map.entry("component com.legend.executionplan.ExecutionPlan$Sql#tree: by none",
-                    "RULED_PENDING (2026-11-18): the user's proposal A -- drop the unread MIR tree from run plans (G11)"));
+                    "RULED_PENDING (2026-11-18): the user's proposal A -- drop the unread MIR tree from run plans (G11)"),
+            // found 2026-11-18 on train 19's trial (the host train's v57, the GUARD stream): a precise decimal column's
+            // digits, written into every plan with one and read by no one -- no Java reader, no TS or Python host reads the
+            // "decimal" key; kept keyed as self-describing plan data by the orchestrator's ruling, its size growth before the
+            // user (cd7d1eece0, "PENDING THE USER'S WORD")
+            Map.entry("component com.legend.executionplan.ExecutionPlan$DecimalDigits#precision: by none",
+                    "RULED_PENDING (2026-11-18): v57's decimal digits, self-describing and unread; the size before the user"),
+            Map.entry("component com.legend.executionplan.ExecutionPlan$DecimalDigits#scale: by none",
+                    "RULED_PENDING (2026-11-18): v57's decimal digits, self-describing and unread; the size before the user"));
 
     /** PIECES EDGE-ONLY IN MEANING, NOT IN READERS (the orchestrator's ruling of 2026-11-18, train 18, on the GUARD
      *  stream's L-B check of E-Java's item 2b, 11bb6517d3): the measure above finds a product reader for each --

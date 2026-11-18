@@ -46,6 +46,15 @@ public final class Compiler {
         return com.legend.door.Parse.query(query, com.legend.parser.GrammarLevel.LEGEND_LITE);
     }
 
+    /** A query's text as its lambda's protocol JSON at the PRODUCT level, without source information: text with no
+     *  leading {@code |} reads as a lambda of no parameters. Lite's API v1 {@code query/parse} (2026-11-17: lite's own
+     *  grammar, its islands included -- {@code #Cypher{...}#}, {@code #SQL}, {@code #TS}; legend-engine's grammarToJson,
+     *  the edge's, reads legend-engine's). Through the parse door's product entry, which reads legend-lite's one grammar
+     *  (J21 of the edge audit, 2026-11-17). */
+    public static String parseQueryJson(String query) {
+        return com.legend.door.Parse.lambdaJson(query, false);
+    }
+
 
     /**
      * Frontend pipeline: Pure model source &rarr; typed {@link ModelContext}.

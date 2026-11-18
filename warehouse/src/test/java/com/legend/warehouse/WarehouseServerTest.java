@@ -259,6 +259,28 @@ class WarehouseServerTest {
     }
 
     @Test
+    @org.junit.jupiter.api.DisplayName("a statement's values are bound at run, each its type, never pasted into its text"
+            + " (the API's parameters, the orchestrator's ruling (a), 2026-11-17)")
+    void aStatementsParametersAreBoundAtRun() throws Exception {
+        String t = login("alice", "alice-pw");
+        // a string, a 64-bit whole number, a double, a boolean, null, and a whole number whose type the database reads
+        java.util.List<Object> values = new java.util.ArrayList<>(java.util.Arrays.asList(
+                "it's", 9_223_372_036_854_775_807L, 1.5, true, null, 2L));
+        SqlApiBinding.Done done = (SqlApiBinding.Done) run(t, StatementRequest.of(
+                "SELECT ? AS s, ? AS n, ? AS d, ? AS b, ? IS NULL AS z, typeof(?) AS ty").withParameters(values));
+        // each cell as the API's JSON writes it (a BIGINT as its digits in a string): the row exactly, 2^63-1 whole
+        assertEquals("[\"it's\",\"9223372036854775807\",1.5,true,true,\"BIGINT\"]",
+                Json.toCompact(new Json.Arr(rows(t, done).get(0))));
+        // a value the warehouse does not bind is refused by name, never bound as its text
+        IllegalArgumentException refused = org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class,
+                () -> StatementRequest.of("SELECT ?").withParameters(java.util.List.of(java.time.LocalDate.EPOCH)));
+        assertTrue(refused.getMessage().contains("parameter 1 is a LocalDate, which the warehouse does not bind"),
+                refused.getMessage());
+        // and a statement that binds nothing still runs as several, as before
+        assertTrue(run(t, StatementRequest.of("SELECT 1; SELECT 2")) instanceof SqlApiBinding.Done);
+    }
+
+    @Test
     void errorsCarryTheirKind() throws Exception {
         String t = login("alice", "alice-pw");
         ApiError parse = ((SqlApiBinding.Failed) run(t, StatementRequest.of("SELEC 1"))).error();

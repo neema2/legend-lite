@@ -23,7 +23,7 @@ import java.util.List;
 import java.util.Map;
 
 import static com.legend.edge.ExecuteInputs.boundParameters;
-import static com.legend.server.LiteV1Api.error;
+import static com.legend.edge.EngineEnvelope.error;
 import static com.legend.edge.HostAnswers.facts;
 import static com.legend.server.LiteV1Api.request;
 import static com.legend.edge.ExecuteInputs.runtimeOf;
@@ -59,7 +59,7 @@ public final class PureV1Routes {
 
     /** A route's answer, a refusal of the text in upstream's words ({@link PureMessages#compile}: D1.6, W7). */
     static Answer answer(int status, @com.legend.base.Nullable String errorType, java.util.function.Supplier<String> call) {
-        return com.legend.server.LiteV1Api.answer(status, errorType, call, PureMessages::compile,
+        return EngineEnvelope.answer(status, errorType, call, PureMessages::compile,
                 PureMessages::typeName, PureMessages::uncaught);
     }
 

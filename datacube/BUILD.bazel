@@ -126,7 +126,13 @@ _PLANNER = [
     "src/pure-library-text.ts",
 ]
 
-_LAYERED = _RECORDS + _RUN + _MODEL + _DOORS + _PLANNER
+# DATACUBE'S COMPAT ENTRY (H11, 2026-11-17, the orchestrator's alignment: an app's legend-engine mode, loaded only where
+# it is configured `engine: legend-engine`): legend-engine's planner over its pure/v1 API (UpstreamPlanner, out of
+# planner.ts) and its TinyInt read (engine-booleans.ts) -- the one kind of target that may depend on the edge
+# (//engine-client:edge; tools/deps TsLayeringTest.EDGE_ENTRIES), and that no product target depends on
+_EDGE_ENTRY = glob(["src/edge/**/*.ts"])
+
+_LAYERED = _RECORDS + _RUN + _MODEL + _DOORS + _PLANNER + _EDGE_ENTRY
 
 [fail("datacube/%s is listed twice in datacube/BUILD.bazel's layers" % f) for i, f in enumerate(_LAYERED) if f in _LAYERED[:i]]
 
@@ -173,7 +179,6 @@ js_library(
         "//engine-client:planner",
         "//engine-client:records",
         "//engine-client:run",
-        "//engine-client:server",
         "//pure-protocol:pure_protocol",
     ],
 )
@@ -220,18 +225,33 @@ js_library(
     ],
 )
 
+js_library(
+    name = "edge_entry",
+    srcs = _EDGE_ENTRY,
+    # the pages that offer legend-engine's plane (demo/planners.ts, the engine page) and the tests of legend-engine's
+    # planner; the layering census
+    visibility = ["//tools/deps:__pkg__"],
+    deps = [
+        ":planner",
+        "//engine-client:edge",
+        "//engine-client:planner",
+        "//engine-client:records",
+        "//pure-protocol:pure_protocol",
+    ],
+)
+
 # each layer's direct deps, as Bazel resolves them: //tools/deps:ts_layering_test holds them to tools/deps/ts-layers.txt
 [genquery(
     name = "layer_" + layer,
     expression = "labels(deps, //datacube:%s)" % layer,
     scope = [":" + layer],
-) for layer in ["records", "run", "model", "doors", "planner", "src", "src_base"]]
+) for layer in ["records", "run", "model", "doors", "planner", "edge_entry", "src", "src_base"]]
 
 # (2026-11-15, the C5-T last round's T1: the app and what it builds on, src_base, pinned beside its layers -- an app
 # reaches no run layer, tools/deps/ts-layers.txt)
 filegroup(
     name = "layer_queries",
-    srcs = [":layer_" + layer for layer in ["records", "run", "model", "doors", "planner", "src", "src_base"]],
+    srcs = [":layer_" + layer for layer in ["records", "run", "model", "doors", "planner", "edge_entry", "src", "src_base"]],
     visibility = ["//tools/deps:__pkg__"],
 )
 
@@ -267,7 +287,6 @@ js_library(
         "//engine-client:engine_api",
         "//engine-client:planner",
         "//engine-client:records",
-        "//engine-client:server",
         # fflate: the share link's deflate WITH A PRESET DICTIONARY (src/share/link.ts), which the
         # browser's own CompressionStream cannot take. MIT, no dependencies of its own.
         ":node_modules/fflate",
@@ -559,7 +578,15 @@ _EXTRA_DATA = {
     ],
     # the saved queries Query writes, and the project they compile against
     "saved-queries": ["//fixtures/saved-queries:records", ":projects", ":trading_copies"],
-    "upstream-plans": ["test/fixtures/upstream-plans.json"],
+    "upstream-plans": ["test/fixtures/upstream-plans.json", "//engine-client:edge"],
+    # legend-engine's planner and executor, the edge's: the tests of them alone take it (H11, 2026-11-17: the engine
+    # client's aggregate carries no edge)
+    "cancel": ["//engine-client:edge"],
+    "cancel-http": ["//engine-client:edge"],
+    "engine-remote": ["//engine-client:edge"],
+    "engine-remote-http": ["//engine-client:edge"],
+    "planner": ["//engine-client:edge"],
+    "planner-http": ["//engine-client:edge"],
     "chart-rules": ["test/fixtures/chart-rules.json"],
     "long-press": ["src/grid/grid.css"],
     "parity-screen": ["test/fixtures/parity/parity.json"],
@@ -952,6 +979,7 @@ _HEADLESS_LEFT_OUT = {
     "cancel-http": "the planner client's HTTP",
     "engine-remote-http": "the engine executor's HTTP",
     "planner-http": "the remote planner's HTTP",
+    "lite-server": "legend-lite's server's worker, over HTTP",
     "warehouse-session-http": "the warehouse sign-in's HTTP",
     # the chart renderer (ECharts) draws on a DOM canvas: a screen test, though it imports no jsdom itself
     "chart-echarts": "ECharts draws on a DOM canvas",
@@ -989,6 +1017,10 @@ esbuild_bundle(
         # a test's own statement, typed as a plan's by name (the total wall's C3, 2026-11-12): the headless bundles
         # import it as the node tests do (linux-arm's sandbox found it missing, CI run 43269720233)
         "//engine-client:unplanned",
+        # legend-engine's planner and executor, which planner.test.ts and engine-remote.test.ts test in this lane too:
+        # the compat entry's and the edge's, a test bundle's alone (H11, 2026-11-17)
+        ":edge_entry",
+        "//engine-client:edge",
     ],
     out_dirs = ["headless-tests"],
     args = ["test/%s.test.ts" % t for t in _HEADLESS_TESTS] + [
@@ -1134,6 +1166,9 @@ typescript.tsc_test(
         "package.json",
         "tsconfig.json",
         "//engine-client:engine_client",
+        # legend-engine's API, the edge: the compat entry's and the tests' of legend-engine's engines, typechecked here
+        # too (H11, 2026-11-17: its zstd decoder, fzstd, came through the deleted server layer until then)
+        "//engine-client:edge",
         "//engine-client:typescript_sources",
         "//depot-client:depot_client",
         "//sdlc-client:sdlc_client",
@@ -1753,6 +1788,8 @@ esbuild_bundle(
         "//engine-client:unplanned",
         "test/wasm-differential/cases.ts",
         ":src",
+        # legend-engine's executor, which the page drives on Python's engine: the edge's, a test bundle's (H11, 2026-11-17)
+        "//engine-client:edge",
     ],
     outs = ["test/python-engine/python-engine.js"],
     args = [
@@ -1782,6 +1819,9 @@ py_binary(
         "//python:iceberg_table",
         "//python:legend_lite",
         "//python:notebook",
+        # legend-engine's API, for the page's three edge checks (H5, the orchestrator's ruling of 2026-11-18: they test
+        # legend-engine's API, so they ask it of the edge's door, legend_lite.edge.engine, never of the product engine)
+        "//python:edge",
     ],
 )
 
@@ -1915,6 +1955,9 @@ node_test(
         # Node's host (node-require.ts), which test/host/node.ts imports: :src reaches the run side through the doors
         # alone (2026-11-15, the C5-T last round's T1; CI's warehouse lanes found it, run 43731081412)
         "//engine-client:node_host",
+        # legend-engine's execute in the tab (BrowserEngine) and its wire shapes: the edge's, a test's alone (H11,
+        # 2026-11-17)
+        "//engine-client:edge",
         "//native:compiler",
     ],
     entry_point = "test/python-engine/execute.test.ts",
@@ -2069,6 +2112,9 @@ _BUNDLES = {
     "demo/stress.ts": "demo/stress.js",
     # DataCube's app on Python, every query Python's (docs/DATACUBE_ONE_APP_DESIGN_2026_10_11.md, step 2a)
     "demo/engine.ts": "demo/bundle-engine.js",
+    # DataCube's legend-engine plane, its compat entry (//datacube:edge_entry; H11, 2026-11-17): its own bundle, which a
+    # page loads by its URL only when the `engine` plane is chosen (demo/planners.ts) -- no page imports it
+    "src/edge/engine-plane.ts": "demo/legend-engine.js",
 }
 
 # the planner's worker: engine-client's own bundle (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md C2: one planner
@@ -2089,7 +2135,8 @@ copy_file(
 # test/bundle-budget.test.ts reads.
 [esbuild_bundle(
     name = "bundle_" + out[len("demo/"):-len(".js")].replace("-", "_"),
-    srcs = glob(["demo/**/*.ts"]) + [":src"],
+    # (2026-11-17, H11: the compat entry's files too, for its own bundle; a page's bundle reads none of them)
+    srcs = glob(["demo/**/*.ts"]) + [":src", ":edge_entry"],
     outs = [
         out,
         out[:-len(".js")] + "-meta.json",

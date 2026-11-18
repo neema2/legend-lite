@@ -4,10 +4,8 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import {
-  LegendEngineExecutor,
-  RemoteExecutionError,
-} from '../../engine-client/src/engine-remote.ts';
+import { LegendEngineExecutor } from '../../engine-client/src/engine-remote.ts';
+import { RemoteExecutionError } from '../../engine-client/src/remote-executor.ts';
 
 import type { CubeSnapshot } from '../src/snapshot.ts';
 import { element, fn, fromElement, lambda, toJson } from '../../pure-protocol/src/index.ts';

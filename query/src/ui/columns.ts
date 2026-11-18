@@ -124,7 +124,7 @@ export function renderColumns(container: HTMLElement, app: AppContext, session: 
     const { family, isEnum, typeText } = typeOf(c);
     // upstream shows the column's property behind an info icon, not under its name
     const info = h('span', { class: 'q-col__info', title: c.derivation ? 'a calculated column' : `\$x.${c.path.map((s) => s.property).join('.')} : ${typeText}` }, icon('info'));
-    if (c.derivation) void app.engine.lambdaText(c.derivation, 'STANDARD').then((t) => { info.title = t; }, () => undefined);
+    if (c.derivation) void app.engine.queryPrint(c.derivation, 'standard').then((t) => { info.title = t; }, () => undefined);
     const name = h('input', {
       class: 'q-input', value: c.name, 'aria-label': 'Column name',
       onchange: () => {

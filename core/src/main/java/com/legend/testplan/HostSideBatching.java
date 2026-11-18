@@ -117,7 +117,7 @@ final class HostSideBatching {
             for (int c = 0; c < own.size(); c++) {
                 ExecutionPlan.Column col = own.get(c);
                 columns.add(new ExecutionPlan.Column(t.columns().get(c + 2).name(), col.type(), col.multiplicity(),
-                        col.slot(), col.store(), col.precision()));
+                        col.slot(), col.store(), col.precision(), col.decimal()));
             }
             statement = new ExecutionPlan.TdsResult(t.shape(), columns, t.sql());
         } catch (com.legend.sql.DialectCapability refused) {

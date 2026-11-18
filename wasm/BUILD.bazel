@@ -102,6 +102,8 @@ legend_java_library(
         ":boundary",
         ":edge_boundary",
         ":tab",
+        # the module's main reads query/parse's answer (lite API v1, 2026-11-17)
+        "//json",
         "//tools/teavm:api",
     ],
 )
@@ -137,9 +139,12 @@ legend_java_library(
     nullaway = False,
     srcs = ["src/main/java/planner/JvmMain.java"],
     visibility = ["//visibility:public"],
-    # the tab's own exports' compositions over the boundary (Folded.of of Boundary.plan and planJson), so the differential
+    # the tab's own exports' compositions over the boundary (lite API v1: queryParse, then queryPlan), so the differential
     # compares the tab's answers across the two builds
-    deps = [":boundary"],
+    deps = [
+        ":boundary",
+        "//json",
+    ],
 )
 
 legend_java_library(
