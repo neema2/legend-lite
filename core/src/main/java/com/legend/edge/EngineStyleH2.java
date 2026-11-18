@@ -2031,6 +2031,10 @@ public class EngineStyleH2 extends AnsiSqlRenderer implements EngineTextDialect 
     protected SqlWriter call(SqlWriter writer, SqlExpr.Call c, int parentPrec) {
         java.util.List<SqlExpr> a = c.args();
         return switch (c.fn()) {
+            // census J20 (2026-11-18): legend-engine's isNumeric is the edge's lower = upper (EdgeLoweringForms); the
+            // product's numeric check never reaches the engine's printer
+            case IS_NUMERIC -> throw new UnsupportedOperationException(
+                    "the product's isNumeric in legend-engine's H2 text: the edge writes lower = upper");
             // H2 digest spelling: rawtohex(hash('SHA-256', x)) — the engine's
             // relational H2 codegen for every HashType
             case MD5 -> digest(writer, "MD5", a);
