@@ -1361,6 +1361,15 @@ final class ArchitectureTest {
             "lowering.ReprParts#pureToString(com.legend.lowering.Styled, com.legend.compiler.element.type.Type, "
                     + "com.legend.sql.SqlExpr)", "com.legend.edge.EdgePureOnlyTexts",
             "lowering.ReprParts#heldAsInteger(com.legend.sql.SqlExpr)", "com.legend.edge.EdgePureOnlyTexts",
+            // the styled string entry's parts, asked by the edge's ResultEnvelopes facet (L-B.TypedJsonResult, the
+            // orchestrator's ruling (A) of 2026-11-18, E-Java's ef7ee2b69d: the product hands its own parts -- a
+            // relation's names, types' simple names and cells, the product's toJSON vocabulary, or a class root's objects
+            // -- and the facet writes legend-engine's envelope over them; until then the facet took them as arguments)
+            "lowering.EnvelopeParts#relation()", "com.legend.edge.EngineResultEnvelopes",
+            "lowering.EnvelopeParts#objects()", "com.legend.edge.EngineResultEnvelopes",
+            "lowering.RelationParts#names()", "com.legend.edge.EngineResultEnvelopes",
+            "lowering.RelationParts#typeNames()", "com.legend.edge.EngineResultEnvelopes",
+            "lowering.RelationParts#cells()", "com.legend.edge.EngineResultEnvelopes",
             "lowering.ReprParts#dateLiteralText(com.legend.compiler.spec.typed.TypedSpec)",
             "com.legend.edge.EdgePureOnlyTexts",
             "lowering.DateTimeTexts#dateTimeText(com.legend.sql.SqlExpr, java.lang.String)",

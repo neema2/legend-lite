@@ -63,10 +63,10 @@ class OpenClassMembersTest {
             // edge, edge.EdgePureOnlyTexts; its product parts the listed facade lowering.ReprParts)
             // B5 (a ruled hook)
             Map.entry("com.legend.lowering.ResultEnvelopes", Set.of(
-                    "public abstract com.legend.sql.SqlExpr classes(com.legend.sql.SqlExpr, java.lang.String)",
                     // (values: deleted 2026-11-18, E-Java's b70d85ab9, train 18 -- a serialized root's string-entry value
-                    // is the plan style's ExecutedValues two-form kind)
-                    "public abstract com.legend.sql.SqlExpr tds(java.util.List<java.lang.String>, java.util.List<java.lang.String>, java.util.List<com.legend.sql.SqlExpr>, java.lang.String)")),
+                    // is the plan style's ExecutedValues two-form kind; tds and classes: replaced 2026-11-18 by one
+                    // types-only method, L-B.TypedJsonResult, the orchestrator's ruling (A), E-Java's ef7ee2b69d)
+                    "public abstract com.legend.sql.SqlExpr styled(com.legend.compiler.element.type.Type, java.lang.String, com.legend.lowering.EnvelopeParts)")),
             // B2
             Map.entry("com.legend.planner.UpstreamPlans", Set.of(
                     // planModel -> planRows (2026-11-17, J4/K3 by 0001a56387, D's train 4: the facet answers the

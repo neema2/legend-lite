@@ -120,12 +120,9 @@ class EdgeOnlyDataTest {
      *  they leave the product (the edge carrying its own envelope node, or lowering it itself). The TDS branch's shared
      *  column and cell parts stay: legend-pure's toJSON vocabulary, the product's. Shrink-only. */
     static final Map<String, String> IN_MEANING = Map.of(
-            "constant com.legend.compiler.spec.typed.TypedJsonResult$Kind.TDS",
-            "L-B.TypedJsonResult E-Java (2026-11-18): legend-engine's tdsBuilder envelope kind, made by the edge alone",
-            "constant com.legend.compiler.spec.typed.TypedJsonResult$Kind.CLASS",
-            "L-B.TypedJsonResult E-Java (2026-11-18): legend-engine's classBuilder envelope kind, made by the edge alone",
-            "component com.legend.compiler.spec.typed.TypedJsonResult#sql",
-            "L-B.TypedJsonResult E-Java (2026-11-18): the envelope's activity SQL, set by the edge alone",
+            // (TypedJsonResult's TDS and CLASS kinds and its sql component: gone 2026-11-18 by E-Java's ef7ee2b69d, the
+            // orchestrator's ruling (A) -- one neutral kind, STYLED, written by the style's ResultEnvelopes facet over the
+            // product's parts; L-B.TypedJsonResult closes)
             // the lens audit's L14, verified by F (the orchestrator's ruling of 2026-11-18, train 18): read by the product's
             // Sorts and SyntheticHeads, yet dead engine-drop-in provenance -- no product dialect's SQL and no edge text
             // changes with it; closed when F deletes it
