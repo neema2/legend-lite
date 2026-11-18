@@ -106,7 +106,7 @@ or its own plan; when it's done, it's struck through here with its commit.
 | C2 | Item 3: `VerdictChannelRegister` | E-Java | log 2026-11-17 |
 | C3 | DuckDB Integer placeholder typing | E-SQL | log 2026-11-17 |
 | C4 | pure/v1's compile parses at the LITE level with no register row (found by E-P5, 2026-11-17 23:48) | E-P5 | log |
-| C5 | The Lowerer builder's configuration (dbTimeZone, features, deterministicAsOf, shape, plainRaises, styled, relationTexts) into one final record, shrinking `MUTABLE_FIELD_ALLOWLIST` by about 7; and `CodeShapeGuardrailTest.mutableInstanceStateIsExplicit` made to see multi-line field declarations (F found two evading it, 2026-11-17) | E-SQL / GUARD | log 2026-11-17 |
+| C5 | The Lowerer builder's configuration (dbTimeZone, features, deterministicAsOf, shape, plainRaises, styled, relationTexts, and `whereZones`, which L10 added on 2026-11-18 as one per lowering, dated) into one final record, shrinking `MUTABLE_FIELD_ALLOWLIST` by about 8; and `CodeShapeGuardrailTest.mutableInstanceStateIsExplicit` made to see multi-line field declarations (F found two evading it, 2026-11-17) | E-SQL / GUARD | log 2026-11-17 |
 | C6 | The fused shared typed per-assert read for the BOTH judge: the database decides in SQL, the host compares the same typed values in Java, nothing legend-pure in product SQL; measured against the fused 892/1114; one lane round (the user ruled 2026-11-16 15:36, "do it in your order") | E-Java | log 2026-11-16 |
 | C7 | Host-side batching for the isolated BOTH judge: lane round 77 measured the host judge's per-side reads at 2.55x the round trips; required before isolated BOTH lands | E-Java | lane round 77 |
 | C8 | Lineage rebuilt upstream's way for everything (the user, 2026-11-14) | stream D | log |
