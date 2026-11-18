@@ -78,10 +78,6 @@ public record ExecutionContext(Optional<TypedPackageableRef> mapping,
             tableReplace = java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(tableReplace));
         }
 
-        public PostProcessors withNonExecutable(boolean on) {
-            return on == nonExecutable ? this
-                    : new PostProcessors(tableReplace, extractCtes, on);
-        }
     }
 
     /** A {@code testDataSetupCsv} block with the DATABASE it seeds (the
@@ -190,8 +186,6 @@ public record ExecutionContext(Optional<TypedPackageableRef> mapping,
         return out.withFeatures(ContextReading.contextFeatures(contextArg, bind));
     }
 
-    /** This context with other post-processor facts (a text surface that
-     * runs its query under the producer's own nonExecutable pass). */
     /** The execute-call context argument's feature flags folded in (an
      *  {@code ExecutionOptionContext}'s {@code FeatureFlagOption.flags}). */
     /** The flags {@code withFeatureFlags} calls inside a query body carry
@@ -213,12 +207,8 @@ public record ExecutionContext(Optional<TypedPackageableRef> mapping,
                 java.util.Collections.unmodifiableSet(new java.util.LinkedHashSet<>(all)));
     }
 
-    public ExecutionContext withPostProcessors(PostProcessors pp) {
-        return pp.equals(postProcessors) ? this
-                : new ExecutionContext(mapping, runtime, chainMappings, jsonSources, sqlSetups,
-                        csvSetups, connectionName, quoteIdentifiers, timeZone, databaseType,
-                        connectionInstance, storeFqn, driverTablePk, importDataFlowColumns, pp, features);
-    }
+    // (withPostProcessors and PostProcessors.withNonExecutable: gone 2026-11-18, the edge audit's J40 -- legend-engine's
+    // nonExecutable post-processor is set by the edge's SQL-text arm alone, through the canonical constructor)
 
     /** This context with an INHERITED chain when it declares none of its own
      * (a nested from() under a plan execution re-evaluated as a value). */

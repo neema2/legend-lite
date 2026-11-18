@@ -643,9 +643,10 @@ final class SqlTextVerdicts {
                 ? com.legend.compiler.spec.typed.ExecutionContext.NONE : frame;
         boolean nonExec = com.legend.compiler.element.type.PlatformTypes
                 .TO_NON_EXECUTABLE_SQL_STRING.equals(producer.fqn());
-        return nonExec
-                ? base.withPostProcessors(base.postProcessors().withNonExecutable(true))
-                : base;
+        // legend-engine's nonExecutable post-processor (toNonExecutableSQLString), set here alone: the frame's context
+        // rebuilt with it (the product's withPostProcessors and PostProcessors.withNonExecutable gone, 2026-11-18, J40)
+        return !nonExec || base.postProcessors().nonExecutable() ? base : new com.legend.compiler.spec.typed.ExecutionContext(base.mapping(), base.runtime(), base.chainMappings(), base.jsonSources(), base.sqlSetups(), base.csvSetups(), base.connectionName(), base.quoteIdentifiers(), base.timeZone(), base.databaseType(), base.connectionInstance(), base.storeFqn(), base.driverTablePk(), base.importDataFlowColumns(),
+                new com.legend.compiler.spec.typed.ExecutionContext.PostProcessors(base.postProcessors().tableReplace(), base.postProcessors().extractCtes(), true), base.features());
     }
 
     /** SQLTEXT charter §8.3b — the ROOT arm for
