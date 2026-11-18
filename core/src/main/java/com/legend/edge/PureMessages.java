@@ -346,6 +346,12 @@ public final class PureMessages {
                 // legend-pure's assert, worded from the generator's facts (J7/K12 of the edge audit, 2026-11-17)
                 return noRowIdentifiers(n);
             }
+            if (t instanceof com.legend.testdatagen.TestDataPlanner.RowIdentifiersRepeated r) {
+                // legend-pure's assert, worded from the generator's facts (J7 of the edge audit, 2026-11-18):
+                // getRowIdentifiersForTable, TDG:487 (getQualifiedTableName)
+                return "Multiple table row identifiers passed for the table: "
+                        + com.legend.testdatagen.TestDataPlanner.physical(r.schema(), r.table());
+            }
         }
         // the kinded error itself, or the one a wrapper's message holds ("in function 'f': " + its message, and after
         // it the inliner's " [inlined via ...]": the P2 checkpoint audit's A-S1, 2026-11-16 -- spliced where it stands)
