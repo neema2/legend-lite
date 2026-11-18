@@ -62,8 +62,6 @@ class EdgeOnlyMembersTest {
      *  listing its members here (J33's and J40's audit items fold into it). Shrink-only: a member leaves when it moves,
      *  and its class's line closes with its last. */
     static final Map<String, String> OPEN = Map.ofEntries(
-            Map.entry("com.legend.compiler.element.type.PlatformTypes#TO_NON_EXECUTABLE_SQL_STRING",
-                    "J40.PlatformTypes E-Java MOVE (2026-11-18): legend-engine's toSQLString natives' names (E-Java's b414c7bac1, train 15)"),
             Map.entry("com.legend.database.PlanStyle$Activity#engines()",
                     "J40.PlanStyle E-SQL MOVE (2026-11-18): legend-engine's text for an activity chain"),
             Map.entry("com.legend.lineage.ScanRelations#rootImpl(com.legend.compiler.element.ModelContext, java.lang.String, java.lang.String)",
@@ -88,8 +86,9 @@ class EdgeOnlyMembersTest {
             // SqlTextInputs to the edge
             Map.entry("com.legend.compiler.element.type.PlatformTypes#TO_SQL",
                     "J40.PlatformTypes F (e92c465d moved its reader) MOVE (2026-11-18): legend-engine's toSQL native's name, read by the edge's SqlTextInputs alone"),
-            Map.entry("com.legend.lowering.VerdictSql#reprNewlines(com.legend.sql.SqlExpr)",
-                    "J40.VerdictSql E-Java (J29; train 17) MOVE (2026-11-18, ruled): legend-pure's %r newline form, read by the edge's UpstreamVerdictWords alone"),
+            // (PlatformTypes#TO_NON_EXECUTABLE_SQL_STRING and VerdictSql#reprNewlines: moved to the edge 2026-11-18 by
+            // E-Java's j40b, 9099e1d6d3 and 0f2eba0c85, train 17 -- J40.PlatformTypes stays open on TO_SQL, J40.VerdictSql
+            // on textEquals)
             Map.entry("com.legend.testexec.PureAsserts#sorted(java.util.List)",
                     "J40.PureAsserts E-Java (J29; train 17) MOVE (2026-11-18, ruled): legend-pure's total order over Any, sorting assertSameElements' words in the edge's EdgeHostWords alone"));
 
