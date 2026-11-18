@@ -57,6 +57,10 @@ each call is cited in the code:
     - a `StreamingResult` is a 200 and the DEFAULT serializer;
     - a `ConstantResult` is a 200 and the standard mapper.
   - An exception is a 500 and `new ExceptionError(-1, ex)` (`ExceptionTool.java:35,60`; `ExceptionError.java:50`).
+- **The execute route's own plan is the same plan.** `execLegacy` plans through its own overload,
+  `generateExecutionPlanWithTrace` (`Execute.java:404-420`), and `generatePlan` through `generateExecutionPlan`.
+  Both call `generateExecutionPlanAsPure` with no plan id, then `serializeToJSON` and `stringToPlan`; the trace
+  variant adds only a tracing span and a log line (`PlanGenerator.java:64-85`).
 - **The execute answer of a request legend-engine cannot plan** is that planning error: `execLegacy` builds the
   plan first (`Execute.java:316-323`).
 
@@ -204,6 +208,14 @@ Every request legend-engine's grammar reads: no `PARSE` line.
   - `cell.float` is `0.3333333333333333`.
 
 S8 compares lite's exported plans against these.
+
+**A sample beyond the net, through the two tools by hand** (`plan`, then `execute_plan` on its output):
+- the request: `->filter(r|$r.year == 2024)->groupBy(~region, ~total: r|$r.notional : x|$x->sum())->sort(...)` on H2;
+- legend-engine's answer: `["AMER",296]`, `["APAC",1576]`, `["EMEA",1404]`, `["LATAM",9.8E+2]`.
+
+The sum of the DOUBLE column comes back as a decimal, and the JSON writes that decimal's own text (`9.8E+2`). Whether
+H2 2.1.214 or legend-engine's patch types it so is not measured here. The oracle answers what legend-engine answers,
+quirks included; S8's comparison is where each such case is classified.
 
 ## 7. What this slice changed outside the runner, for review
 
