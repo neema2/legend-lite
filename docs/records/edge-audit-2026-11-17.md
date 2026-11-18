@@ -142,3 +142,14 @@ Suspected but unverified, for GUARD to check and route:
 - PlanStyle.graphKeyDate and graphKeyString.
 - protocol/OlderSpecReader.
 - PureDateLiteral.toEngineString's name.
+
+## GUARD's suspect list, verified (2026-11-18 03:44)
+
+| Id | Finding | Owner / ruling |
+|---|---|---|
+| J40 | Product public members only the edge calls: BodyPlanner.pushDownEnums, AggregationAwareRouting.mainSetId; PlanJson.readColumns/writeColumns/loadStepJson; LiteV1Api.head/runtimeOf; TestDataPlanner.declaredName/seedJson/pureName; PlatformTypes.TO_SQL_STRING/_PRETTY; RowDecode.taggedSlots. Each moves to the edge, or is pinned as a product API with a reason. The only-edge-callers guard measures the full set. | F (pushDownEnums, mainSetId); E-P5 (LiteV1Api, PlanJson, TestDataPlanner); E-Java (TO_SQL_STRING*); GUARD (taggedSlots, with J36) |
+| J41 | AssertVerdicts.DatabaseGate.ENGINE_TEXT/_READ: product branches reached only when a host judgment is EdgeJudged | F |
+| J42 | protocol/OlderSpecReader: every route accepts legend-engine 4.145.0's older value-spec shapes | **STAYS**, by the user's requirement (2026-11-18 ~01:5x): "We absolutely need to be able to parse legend-pure and legend-engine projects as-is" |
+| J43 | PureDateLiteral.toEngineString: the product's own canonical date text, misnamed | E-P5 (rename, last) |
+
+Not findings: ColumnFacts.store (the product reads it); PlanStyle.graphKeyDate/graphKeyString (style hooks, the overriders pinned). J32 was done by GUARD (0b84c036a0, edge.EngineSeedText).
