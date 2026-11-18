@@ -75,7 +75,7 @@ EDGE_TEST_SRCS = [
     "src/test/java/com/legend/integration/TypeInferenceIntegrationTest.java",
     "src/test/java/com/legend/integration/WritePlansH2Test.java",
     # the engine execute()'s values root, the edge's fold beside the product's array (the audit's J3, 2026-11-17)
-    "src/test/java/com/legend/lowering/EngineExecuteCardinalityTest.java",
+    "src/test/java/com/legend/lowering/ReadThroughExecuteValuesTest.java",
     "src/test/java/com/legend/lowering/AggOrderNullPlacementTest.java",
     "src/test/java/com/legend/lowering/OptionalCollectionNullDropTest.java",
     "src/test/java/com/legend/lowering/ToOneLaneTest.java",
