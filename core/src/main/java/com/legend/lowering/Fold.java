@@ -24,37 +24,34 @@ import java.util.List;
  */
 final class Fold {
 
-    /** The plan-template placeholder KIND for a field type (h2New spells
-     * date placeholders with the type keyword). */
-    static com.legend.sql.SqlExpr.PlanParam.Kind planKindOf(
+    /** The parameter's declared Pure type, as a value class (L-B.PlanParam, the orchestrator's ruling of 2026-11-18: a
+     *  product fact, the product's own decision reads it -- EnumValueTables' ENUM -- and legend-engine's template
+     *  spellings of it are the edge's dialects'). Total over the declared types, no default: OTHER is exactly the
+     *  declared types with no value class of their own -- Integer, Decimal, Number, Byte, LatestDate, StrictTime, a
+     *  precision Decimal, a class, a relation, a type variable, a generic or a function type. */
+    static com.legend.sql.SqlExpr.PlanParam.ValueType planValueTypeOf(
             com.legend.compiler.element.type.Type t) {
-        if (t == com.legend.compiler.element.type.Type.Primitive.STRING) {
-            return com.legend.sql.SqlExpr.PlanParam.Kind.STRING;
-        }
-        if (t == com.legend.compiler.element.type.Type.Primitive.DATE) {
-            return com.legend.sql.SqlExpr.PlanParam.Kind.DATE;
-        }
-        if (t == com.legend.compiler.element.type.Type.Primitive.STRICT_DATE) {
-            return com.legend.sql.SqlExpr.PlanParam.Kind.STRICT_DATE;
-        }
-        if (t == com.legend.compiler.element.type.Type.Primitive
-                .DATE_TIME) {
-            return com.legend.sql.SqlExpr.PlanParam.Kind.DATETIME;
-        }
-        if (t == com.legend.compiler.element.type.Type.Primitive.FLOAT) {
-            return com.legend.sql.SqlExpr.PlanParam.Kind.FLOAT;
-        }
-        if (t == com.legend.compiler.element.type.Type.Primitive.BOOLEAN) {
-            // spells like OTHER on H2; DB2-family dialects QUOTE boolean
-            // placeholders (the case-expr compares 'true'/'false' strings)
-            return com.legend.sql.SqlExpr.PlanParam.Kind.BOOLEAN;
-        }
-        if (t instanceof com.legend.compiler.element.type.Type.EnumType) {
-            // enum values travel as NAME strings — the engine spells the
-            // placeholder quoted ('\${yesOrNo}' = 'NO')
-            return com.legend.sql.SqlExpr.PlanParam.Kind.ENUM;
-        }
-        return com.legend.sql.SqlExpr.PlanParam.Kind.OTHER;
+        return switch (t) {
+            case com.legend.compiler.element.type.Type.Primitive p -> switch (p) {
+                case STRING -> com.legend.sql.SqlExpr.PlanParam.ValueType.STRING;
+                case DATE -> com.legend.sql.SqlExpr.PlanParam.ValueType.DATE;
+                case STRICT_DATE -> com.legend.sql.SqlExpr.PlanParam.ValueType.STRICT_DATE;
+                case DATE_TIME -> com.legend.sql.SqlExpr.PlanParam.ValueType.DATETIME;
+                case FLOAT -> com.legend.sql.SqlExpr.PlanParam.ValueType.FLOAT;
+                case BOOLEAN -> com.legend.sql.SqlExpr.PlanParam.ValueType.BOOLEAN;
+                case NUMBER, INTEGER, DECIMAL, BYTE, LATEST_DATE, STRICT_TIME ->
+                        com.legend.sql.SqlExpr.PlanParam.ValueType.OTHER;
+            };
+            // an enum's value travels as its NAME string
+            case com.legend.compiler.element.type.Type.EnumType e -> com.legend.sql.SqlExpr.PlanParam.ValueType.ENUM;
+            case com.legend.compiler.element.type.Type.PrecisionDecimal x -> com.legend.sql.SqlExpr.PlanParam.ValueType.OTHER;
+            case com.legend.compiler.element.type.Type.ClassType x -> com.legend.sql.SqlExpr.PlanParam.ValueType.OTHER;
+            case com.legend.compiler.element.type.Type.TypeVar x -> com.legend.sql.SqlExpr.PlanParam.ValueType.OTHER;
+            case com.legend.compiler.element.type.Type.GenericType x -> com.legend.sql.SqlExpr.PlanParam.ValueType.OTHER;
+            case com.legend.compiler.element.type.Type.FunctionType x -> com.legend.sql.SqlExpr.PlanParam.ValueType.OTHER;
+            case com.legend.compiler.element.type.Type.RelationType x -> com.legend.sql.SqlExpr.PlanParam.ValueType.OTHER;
+            case com.legend.compiler.element.type.Type.SchemaAlgebra x -> com.legend.sql.SqlExpr.PlanParam.ValueType.OTHER;
+        };
     }
 
     /** An ORDER-SENSITIVE aggregate over a UNION-ALL-backed source with

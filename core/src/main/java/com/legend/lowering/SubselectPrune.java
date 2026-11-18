@@ -40,7 +40,7 @@ import java.util.Set;
  * inside a select always survive. At least one projection is kept —
  * an empty SELECT list is not SQL.
  */
-final class SubselectPrune {
+public final class SubselectPrune {
 
     private SubselectPrune() {
     }
@@ -68,8 +68,9 @@ final class SubselectPrune {
     /** {@link #prune(SqlQuery)}, and with {@code computed} an unread COMPUTED projection dropped too where its value is
      *  its operands' alone and evaluating it raises nothing ({@link SqlExpr#raisesNothing}): a window aggregate a library function
      *  computes beside the one its caller reads (a correlation beside a covariance), a working column no one reads
-     *  (2026-11-04, the timeseries SQL's size). Not in legend-engine's text: its column lists are its own. */
-    static SqlQuery prune(SqlQuery q, boolean computed) {
+     *  (2026-11-04, the timeseries SQL's size). Not in legend-engine's text: its column lists are its own. A product
+     *  building block the edge's forms call too (the lens audit's item 1, 2026-11-18). */
+    public static SqlQuery prune(SqlQuery q, boolean computed) {
         // FIXPOINT: dropping a projection can strand references one
         // level deeper (an isolation frame's pruned column was the only
         // reader of a union output — ledger cluster 57), and the

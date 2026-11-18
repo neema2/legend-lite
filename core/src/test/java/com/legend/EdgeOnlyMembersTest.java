@@ -102,6 +102,9 @@ class EdgeOnlyMembersTest {
             // -- J40.VerdictSql closes
             Map.entry("com.legend.lowering.VerdictSql#constantTextsEqual(java.lang.String, java.lang.String)",
                     "2026-11-18: a verdict row over two constant texts, string-equal: lite's own verdict builder; the edge's SQL-text arm composes it"),
+            // (ExistsSites#alias and #zones, E-SQL's 612b194708: filed HOOK_ENTRIES, not READ_API, 2026-11-18 by the GUARD
+            // stream on the orchestrator's ruling for the ResultEnvelopes parts -- a hook's argument type beside it,
+            // LoweringForms.existsJoin's; HookRulingTest)
             // ruled READ_API by the orchestrator (2026-11-18, train 18, on the GUARD stream's triage of E-Java's b70d85ab9):
             // a typed call to the platform's string::plus, lite's own building block (like the builders exposed for
             // textEquals), and a native's platform name; the edge's EngineExecutedValues builds its envelope with them
