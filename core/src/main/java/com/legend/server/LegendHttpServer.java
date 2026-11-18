@@ -241,12 +241,23 @@ public class LegendHttpServer {
         }
     }
 
+    /** The store's refusals of a record that does not exist, as the store writes their kind (lower case,
+     *  {@code SavedQueries.refused}): lite's {@code notFound}, 404 (the user, 2026-11-17 ~23:31) -- a batch with
+     *  missing IDs too, naming them (the orchestrator's ruling, the same night: upstream's 500 is the edge's alone). A
+     *  path the store does not serve ({@code NO_SUCH_ROUTE}, 404 too) is no such record: kind {@code request}. */
+    private static final java.util.Set<String> MISSING = java.util.Set.of(
+            SavedQueries.Refusal.Kind.QUERY_NOT_FOUND.name().toLowerCase(java.util.Locale.ROOT),
+            SavedQueries.Refusal.Kind.QUERIES_NOT_FOUND.name().toLowerCase(java.util.Locale.ROOT),
+            SavedQueries.Refusal.Kind.VERSION_NOT_FOUND.name().toLowerCase(java.util.Locale.ROOT));
+
     /**
      * The saved queries and DataCube's saved pages under {@code prefix} ({@code /dataCube...} the pages, anything else
      * the queries), answered by the stores' own operations ({@link SavedQueries#answer}, {@link SavedCubes#answer}) for
      * the anonymous user, a refusal in lite's one error shape ({@code {kind, message}}, spec §3: {@code internal} for
-     * the store's failure, {@code request} for a request it refuses, the store's status kept -- a saved query not found
-     * is 404): lite's own route. The edge's adapter at legend-engine's path wraps the store in legend-engine's shape
+     * the store's failure, {@code notFound} for a saved query, a version or a saved page that does not exist (the user,
+     * 2026-11-17 ~23:31: 404), {@code request} for any other request it refuses -- a path it does not serve too, though
+     * the store answers that 404 as well: the kind is read from the store's own, never from the status): lite's own
+     * route. The edge's adapter at legend-engine's path wraps the store in legend-engine's shape
      * ({@link #storeRoutes(String, SavedQueries, SavedCubes, java.util.function.Function)}).
      */
     public static Routes storeRoutes(String prefix, @com.legend.base.Nullable SavedQueries queryStore,
@@ -270,12 +281,20 @@ public class LegendHttpServer {
                 if (a.status() < 400) {
                     return a;
                 }
-                // the store's refusal, its words its own message: lite's shape, the store's status
-                String message = com.legend.json.Json.parse(a.json()) instanceof com.legend.json.Json.Obj o
-                        && o.fields().get("message") instanceof com.legend.json.Json.Str m ? m.value() : a.json();
-                LiteV1Api.Refusal r = new LiteV1Api.Refusal(a.status() >= 500 ? LiteV1Api.Kind.INTERNAL
-                        : LiteV1Api.Kind.REQUEST, message, null, null);
-                return new LiteV1Api.Answer(a.status(), r.json());
+                // the store's refusal, its words its own message, its kind the store's own (SavedQueries.refused writes
+                // it as data): lite's shape, the store's status
+                com.legend.json.Json.Obj said = com.legend.json.Json.parse(a.json()) instanceof com.legend.json.Json.Obj o
+                        ? o : new com.legend.json.Json.Obj(new java.util.LinkedHashMap<>());
+                String message = said.fields().get("message") instanceof com.legend.json.Json.Str m ? m.value() : a.json();
+                String storeKind = said.fields().get("kind") instanceof com.legend.json.Json.Str k ? k.value() : "";
+                // a record missing first, whatever the store's status (a batch's is upstream's 500), answered with its
+                // kind's 404; any other refusal its store's status
+                if (MISSING.contains(storeKind)) {
+                    return new LiteV1Api.Answer(LiteV1Api.Kind.NOT_FOUND.status(),
+                            new LiteV1Api.Refusal(LiteV1Api.Kind.NOT_FOUND, message, null, null).json());
+                }
+                LiteV1Api.Kind kind = a.status() >= 500 ? LiteV1Api.Kind.INTERNAL : LiteV1Api.Kind.REQUEST;
+                return new LiteV1Api.Answer(a.status(), new LiteV1Api.Refusal(kind, message, null, null).json());
             }
         };
     }

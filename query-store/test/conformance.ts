@@ -23,8 +23,8 @@ export interface Dialect {
   refusal(status: number, message: string): unknown;
 }
 
-/** Lite's own (spec §2, §3): `/api/lite/v1/queries`, SavedQueries' words, `{kind, message}` (a store's not-found 404,
- *  kind request, pending the user's word on a notFound kind). */
+/** Lite's own (spec §2, §3): `/api/lite/v1/queries`, SavedQueries' words, `{kind, message}` (a saved query or version
+ *  that does not exist 404, kind notFound: the user, 2026-11-17 ~23:31; any other refusal under 500 kind request). */
 export const LITE: Dialect = {
   name: "lite's /api/lite/v1/queries",
   path: '/lite/v1/queries',
@@ -98,11 +98,16 @@ export function conformance(name: string, target: () => Target, d: Dialect = LIT
       }
       return { status: r.status, json, text };
     };
-    const refused = async (method: string, path: string, body: unknown, status: number, message: string): Promise<void> => {
+    // `missing`: a record that does not exist, lite's kind notFound (the user, 2026-11-17 ~23:31); the kind is the
+    // store's, never read from the status (an unknown path is 404 and kind request)
+    const refused = async (method: string, path: string, body: unknown, status: number, message: string,
+      missing = false): Promise<void> => {
       const r = await raw(method, path, body);
       assert.equal(r.status, status, r.text);
       assert.equal((r.json as { message?: string }).message, message);
-      if (d === LITE) assert.equal((r.json as { kind?: string }).kind, status >= 500 ? 'internal' : 'request', r.text);
+      if (d === LITE) {
+        assert.equal((r.json as { kind?: string }).kind, missing ? 'notFound' : status >= 500 ? 'internal' : 'request', r.text);
+      }
     };
     const client = (): QueryStoreClient => new QueryStoreClient(target().api, target().fetch);
 
@@ -142,7 +147,7 @@ export function conformance(name: string, target: () => Target, d: Dialect = LIT
       const q = r.json as Record<string, unknown>;
       assert.deepEqual(Object.keys(q), FIELDS);
       assert.ok((q['lastOpenAt'] as number) >= (q['createdAt'] as number));
-      await refused('GET', `/${id('missing')}`, undefined, 404, d.queryNotFound(id('missing')));
+      await refused('GET', `/${id('missing')}`, undefined, 404, d.queryNotFound(id('missing')), true);
     });
 
     it('searches by name, without the heavy fields, and refuses a bad search', async () => {
@@ -171,7 +176,7 @@ export function conformance(name: string, target: () => Target, d: Dialect = LIT
       assert.deepEqual(h.map((v) => [v['version'], v['name']]), [[1, `Query ${id('a')}`]]);
       assert.notEqual(h[0]!['validUntil'], null);
       await refused('PUT', `/${id('a')}`, query(id('other')), 400, 'Updating query ID is not supported');
-      await refused('PUT', `/${id('missing')}`, query(id('missing')), 404, d.queryNotFound(id('missing')));
+      await refused('PUT', `/${id('missing')}`, query(id('missing')), 404, d.queryNotFound(id('missing')), true);
     });
 
     it('patches only the fields it sets', async () => {
@@ -186,29 +191,31 @@ export function conformance(name: string, target: () => Target, d: Dialect = LIT
     it('answers one version of the history, or says it has none', async () => {
       const one = (await raw('GET', `/${id('a')}/history?version=1`)).json as Record<string, unknown>[];
       assert.deepEqual(one.map((v) => v['version']), [1]);
-      await refused('GET', `/${id('a')}/history?version=9`, undefined, 404, d.versionNotFound('9', id('a')));
-      await refused('GET', `/${id('missing')}/history`, undefined, 404, d.queryNotFound(id('missing')));
+      await refused('GET', `/${id('a')}/history?version=9`, undefined, 404, d.versionNotFound('9', id('a')), true);
+      await refused('GET', `/${id('missing')}/history`, undefined, 404, d.queryNotFound(id('missing')), true);
     });
 
     it('answers a batch, and names what it cannot find', async () => {
       const r = await raw('GET', `/batch?queryIds=${id('a')}&queryIds=${id('c')}`);
       assert.equal(r.status, 200, r.text);
       assert.deepEqual((r.json as Record<string, unknown>[]).map((q) => q['id']), [id('a'), id('c')]);
-      await refused('GET', `/batch?queryIds=${id('a')}&queryIds=${id('zz')}&queryIds=${id('yy')}`, undefined, 500,
-        d.queriesNotFound(`${id('yy')}\n${id('zz')}`));
+      // a batch with missing IDs names them: on lite's mount kind notFound, 404 (the orchestrator's ruling,
+      // 2026-11-17); upstream's 500 the edge's alone
+      await refused('GET', `/batch?queryIds=${id('a')}&queryIds=${id('zz')}&queryIds=${id('yy')}`, undefined,
+        d === LITE ? 404 : 500, d.queriesNotFound(`${id('yy')}\n${id('zz')}`), d === LITE);
     });
 
     it('deletes: gone from get and search, its versions kept as history', async () => {
       const r = await raw('DELETE', `/${id('c')}`);
       assert.equal(r.status, 204, r.text);
       assert.equal(r.text, '');
-      await refused('GET', `/${id('c')}`, undefined, 404, d.queryNotFound(id('c')));
+      await refused('GET', `/${id('c')}`, undefined, 404, d.queryNotFound(id('c')), true);
       const found = (await raw('POST', '/search', { searchTermSpecification: { searchTerm: `zebra ${run}` } })).json as unknown[];
       assert.deepEqual(found, []);
       const h = (await raw('GET', `/${id('c')}/history`)).json as Record<string, unknown>[];
       assert.equal(h.length, 1);
       assert.notEqual(h[0]!['deletedAt'], null);
-      await refused('DELETE', `/${id('c')}`, undefined, 404, d.queryNotFound(id('c')));
+      await refused('DELETE', `/${id('c')}`, undefined, 404, d.queryNotFound(id('c')), true);
     });
 
     it('sorts by last update, newest first', async () => {
@@ -245,7 +252,7 @@ export function conformance(name: string, target: () => Target, d: Dialect = LIT
         'TagPtr.value is missing');
       await wrong('PUT', `/${id('a')}/patchQuery`, { stereotypes: 'x' }, 'Query.stereotypes is not a list');
       // and nothing was written
-      await refused('GET', `/${id('w')}`, undefined, 404, d.queryNotFound(id('w')));
+      await refused('GET', `/${id('w')}`, undefined, 404, d.queryNotFound(id('w')), true);
     });
 
     it('keeps a number as it was written: 1.0, and a long beyond 2^53', async () => {
@@ -261,6 +268,8 @@ export function conformance(name: string, target: () => Target, d: Dialect = LIT
       const r = await raw('GET', `/${id('a')}/nothing`);
       assert.equal(r.status, 404);
       assert.equal((r.json as { message?: string }).message, d.noRoute(`/${id('a')}/nothing`));
+      // 404, and no record missing: lite's kind request (2026-11-17, notFound is a missing record's alone)
+      if (d === LITE) assert.equal((r.json as { kind?: string }).kind, 'request', r.text);
     });
 
     it('the client: the same answers, typed, and a refusal as a QueryStoreError', async () => {
