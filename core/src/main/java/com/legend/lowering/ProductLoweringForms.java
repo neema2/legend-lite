@@ -61,9 +61,8 @@ public final class ProductLoweringForms implements LoweringForms {
     }
 
     @Override
-    public com.legend.sql.SqlQuery computedPruning(Supplier<com.legend.sql.SqlQuery> pruned,
-            Supplier<com.legend.sql.SqlQuery> kept) {
-        return pruned.get();
+    public com.legend.sql.SqlQuery computedPruning(com.legend.sql.SqlQuery q) {
+        return LoweringForms.dropComputed(q);
     }
 
     /** An exact decimal at the product's Decimal precision ({@code PureSql.type(DECIMAL)}). */
@@ -82,7 +81,7 @@ public final class ProductLoweringForms implements LoweringForms {
     /** The correlated EXISTS as lowered, the leanest SQL with the same answer (the edge audit's J19 (a), 2026-11-18,
      *  register S367): a dialect that cannot correlate one decomposes it at render (ClickHouse). */
     @Override
-    public SqlSelect existsJoin(SqlSelect filtered, java.util.function.UnaryOperator<SqlSelect> joinForm) {
+    public SqlSelect existsJoin(SqlSelect filtered, ExistsSites sites) {
         return filtered;
     }
 
