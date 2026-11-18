@@ -102,6 +102,13 @@ class EdgeOnlyMembersTest {
             // -- J40.VerdictSql closes
             Map.entry("com.legend.lowering.VerdictSql#constantTextsEqual(java.lang.String, java.lang.String)",
                     "2026-11-18: a verdict row over two constant texts, string-equal: lite's own verdict builder; the edge's SQL-text arm composes it"),
+            // the statement's sites the lowering hands its forms (the lens audit's item 1, E-SQL, 2026-11-18): the product's
+            // own data, read by the edge's form that writes legend-engine's EXISTS join (as the builders exposed for
+            // textEquals: lite's building blocks the edge composes with)
+            Map.entry("com.legend.lowering.ExistsSites#alias()",
+                    "2026-11-18: the lowering's alias minter, handed to its forms' existsJoin (the lens audit's item 1)"),
+            Map.entry("com.legend.lowering.ExistsSites#zones()",
+                    "2026-11-18: each conjunct's resolver zones, handed to its forms' existsJoin (the lens audit's item 1)"),
             // ruled READ_API by the orchestrator (2026-11-18, train 18, on the GUARD stream's triage of E-Java's b70d85ab9):
             // a typed call to the platform's string::plus, lite's own building block (like the builders exposed for
             // textEquals), and a native's platform name; the edge's EngineExecutedValues builds its envelope with them
