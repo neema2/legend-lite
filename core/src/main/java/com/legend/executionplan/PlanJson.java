@@ -164,7 +164,7 @@ public final class PlanJson {
      *  {@code sites} too; the plan's {@code raises} is derived from them -- a v55 plan, whose statements raise a kind's
      *  name, is refused by its version. 57 since 2026-11-17 (the host train, the orchestrator's ruling; Python's
      *  finding): a column's {@code type} is its plain path ({@code Decimal}, never {@code Decimal(10,2)}), a precise
-     *  decimal's digits data, its {@code decimal: {precision, scale}} (null for any other type) -- a v56 plan, whose types may carry arguments, is
+     *  decimal's digits data, its {@code decimal: {precision, scale}} (absent for any other type: omitted when null, read back as null -- a codec form, not a format change, 2026-11-18, the orchestrator's ruling (A) after the host train's gate pass found {@code "decimal":null} on every column against lean SQL's shrink-only G3) -- a v56 plan, whose types may carry arguments, is
      *  refused by its version. 58 since 2026-11-18 (K10 of the edge audit, riding the host train after 57): a site carries no
      *  {@code upstream} -- legend-pure's words of a site are the compatibility edge's records, never the product plan's
      *  -- a v57 plan, whose edge sites carry them, is refused by its version. */
@@ -716,7 +716,8 @@ public final class PlanJson {
                 digits.put("precision", c.decimal().precision());
                 digits.put("scale", c.decimal().scale());
             }
-            co.put("decimal", digits);
+            // omitted when null (2026-11-18, ruling (A): lean SQL's G3; the reader reads it absent as null)
+            if (digits != null) co.put("decimal", digits);
             cols.add(co);
         }
         return cols;

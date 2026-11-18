@@ -237,6 +237,19 @@ class PlanJsonTest {
         }
     }
 
+    /** A column of no precise decimal writes no {@code decimal} key, and reads back null (2026-11-18, the orchestrator's
+     *  ruling (A): omitted when null, a codec form, not a format change -- lean SQL's G3). */
+    @Test
+    void aColumnOfNoDecimalWritesNoDecimalKeyAndReadsBackNull() {
+        Target t = target(new ConnectionSpecification.InMemory(), new AuthenticationSpec.TestAuth());
+        String json = PlanJson.write(ExecutionPlan.reading(List.of(), new TdsResult(TdsResult.Shape.RELATION,
+                List.of(new Column("x", "Integer", new Multiplicity(1, 1), "BIGINT", null, null)),
+                new Sql("select 1", List.of(), t, null))));
+        assertTrue(!json.contains("\"decimal\""), json);
+        TdsResult read = (TdsResult) PlanJson.read(json).root();
+        assertEquals(null, read.columns().get(0).decimal(), json);
+    }
+
     @Test
     void anotherFormatIsRefusedByName() {
         var refused = assertThrows(IllegalArgumentException.class,
