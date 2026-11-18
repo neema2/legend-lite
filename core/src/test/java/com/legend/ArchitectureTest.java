@@ -1384,7 +1384,9 @@ final class ArchitectureTest {
             "com.legend.edge.EnginePlans",
             "lowering.Lowerer#withFeatures(java.util.Set)", "com.legend.edge.EnginePlans",
             "lowering.Lowerer#withOptions(java.util.Set)", "com.legend.edge.EnginePlans",
-            "lowering.PlanParams#kindOf(com.legend.compiler.element.type.Type)", "com.legend.edge.EnginePlans",
+            // its caller edge.EnginePlans -> edge.EngineParams (2026-11-18, the audit's J31: legend-engine's template
+            // parameters are the edge's own table, which kinds each slot; one entry, moved)
+            "lowering.PlanParams#kindOf(com.legend.compiler.element.type.Type)", "com.legend.edge.EngineParams",
             "lowering.SqlPostProcessors#apply(com.legend.sql.SqlQuery, java.util.Map)", "com.legend.edge.EnginePlans",
             "lowering.SqlPostProcessors#apply(com.legend.sql.SqlQuery, java.util.function.UnaryOperator)",
             "com.legend.edge.EnginePlans",
