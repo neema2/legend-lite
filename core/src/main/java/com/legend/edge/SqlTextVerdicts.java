@@ -1363,7 +1363,7 @@ final class SqlTextVerdicts {
                 String iso = EngineTextPlanning.isoTimestamp(d.value());
                 v = iso != null && zone != null
                         ? EngineTextPlanning.inZone(iso, zone)
-                        : d.value().toEngineString();
+                        : d.value().canonicalText();
             } else if (e instanceof com.legend.compiler.spec.typed.TypedCString s) {
                 k = "string";
                 v = s.value();

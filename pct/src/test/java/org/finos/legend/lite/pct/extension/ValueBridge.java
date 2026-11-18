@@ -438,7 +438,7 @@ final class ValueBridge {
             // cured at the emission (Scalars parseDate rule casts to
             // DATE when the node's own stamp is StrictDate). The wire
             // delivers kind-faithful temporals; the adapter only boxes.
-            PureDate pd = DateFunctions.parsePureDate(pdl.toEngineString());
+            PureDate pd = DateFunctions.parsePureDate(pdl.canonicalText());
             String topLevel = switch (pdl.precision()) {
                 case YEAR, MONTH -> "Date";
                 case DAY -> "StrictDate";

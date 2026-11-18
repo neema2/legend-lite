@@ -11,7 +11,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * Unit tests for {@link PureDateLiteral}. Covers every variant, the
  * full grammar accepted by {@link PureDateLiteral#parse}, component
  * validation (year/month/day/hour/minute/second/subsecond), timezone
- * normalisation to GMT, and {@code toEngineString} round-tripping.
+ * normalisation to GMT, and {@code canonicalText} round-tripping.
  *
  * <p>Test names follow the pattern
  * {@code <variant>_<aspect>_<expected>}, e.g.
@@ -268,12 +268,12 @@ class PureDateLiteralTest {
 
     @Test
     void loose_padding_leadingZerosInYear_normalised() {
-        // %0024 parses as Year(24); toEngineString emits '24' (no
+        // %0024 parses as Year(24); canonicalText emits '24' (no
         // leading zeros). Round-trip is not byte-exact for over-padded
         // sources; this pins the normalising behaviour.
         PureDateLiteral parsed = PureDateLiteral.parse("0024");
         assertEquals(new PureDateLiteral.Year(24), parsed);
-        assertEquals("24", parsed.toEngineString());
+        assertEquals("24", parsed.canonicalText());
     }
 
     @Test
@@ -283,14 +283,14 @@ class PureDateLiteralTest {
         PureDateLiteral parsed = PureDateLiteral.parse("2024-01-15T10:30:45.001");
         assertEquals(new PureDateLiteral.DateWithSubsecond(2024, 1, 15, 10, 30, 45, "001"),
                 parsed);
-        assertEquals("2024-01-15T10:30:45.001", parsed.toEngineString());
+        assertEquals("2024-01-15T10:30:45.001", parsed.canonicalText());
     }
 
     @Test
-    void negativeYear_toEngineStringEmitsMinusPrefix() {
-        assertEquals("-44", new PureDateLiteral.Year(-44).toEngineString());
+    void negativeYear_canonicalTextEmitsMinusPrefix() {
+        assertEquals("-44", new PureDateLiteral.Year(-44).canonicalText());
         assertEquals("-44-03-15",
-                new PureDateLiteral.StrictDate(-44, 3, 15).toEngineString());
+                new PureDateLiteral.StrictDate(-44, 3, 15).canonicalText());
     }
 
     // ----- constructor-level validation --------------------------------
@@ -335,7 +335,7 @@ class PureDateLiteralTest {
         assertTrue(String.valueOf(ex.getMessage()).contains("subsecond"), ex.getMessage());
     }
 
-    // ----- toEngineString round-trip -----------------------------------
+    // ----- canonicalText round-trip -----------------------------------
 
     @Test
     void roundTrip_year() {
@@ -377,14 +377,14 @@ class PureDateLiteralTest {
         // GMT TZ is normalised away; the round-trip therefore yields
         // the TZ-stripped form.
         PureDateLiteral parsed = PureDateLiteral.parse("2024-01-15T10:30+0000");
-        assertEquals("2024-01-15T10:30", parsed.toEngineString());
+        assertEquals("2024-01-15T10:30", parsed.canonicalText());
     }
 
     @Test
     void roundTrip_dateWithMinuteWithEasternTimezone_normalisesToGmt() {
         // +0500 shifts -5h to GMT; round-trip yields the shifted form.
         PureDateLiteral parsed = PureDateLiteral.parse("2024-01-15T10:30+0500");
-        assertEquals("2024-01-15T05:30", parsed.toEngineString());
+        assertEquals("2024-01-15T05:30", parsed.canonicalText());
     }
 
     /**
@@ -394,8 +394,8 @@ class PureDateLiteralTest {
      */
     private static void roundTrip(String source) {
         PureDateLiteral parsed = PureDateLiteral.parse(source);
-        assertEquals(source, parsed.toEngineString());
-        assertEquals(parsed, PureDateLiteral.parse(parsed.toEngineString()));
+        assertEquals(source, parsed.canonicalText());
+        assertEquals(parsed, PureDateLiteral.parse(parsed.canonicalText()));
     }
 
     /**

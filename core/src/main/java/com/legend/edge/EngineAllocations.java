@@ -102,7 +102,7 @@ final class EngineAllocations {
             case TypedCBoolean cb ->
                     String.valueOf(cb.value());
             case TypedCDate cd ->
-                    cd.value().toEngineString();
+                    cd.value().canonicalText();
             default -> null;
         };
         if (literal != null) {

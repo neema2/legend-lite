@@ -64,7 +64,7 @@ final class MatchFold {
     /** A time-of-day literal: a TIME, its minute form padded with its seconds ({@code %10:30} is 10:30:00). */
     static SqlExpr timeLit(com.legend.values.PureTimeLiteral t) {
         return new SqlExpr.TimeLit(t instanceof com.legend.values.PureTimeLiteral.TimeWithMinute
-                ? t.toEngineString() + ":00" : t.toEngineString());
+                ? t.canonicalText() + ":00" : t.canonicalText());
     }
 
     /** Date literals: full dates/timestamps render typed; PARTIAL dates
@@ -90,15 +90,15 @@ final class MatchFold {
         }
         return switch (d) {
             case PureDateLiteral.StrictDate sd ->
-                    new SqlExpr.DateLit(iso(sd.toEngineString(), sd.year()));
+                    new SqlExpr.DateLit(iso(sd.canonicalText(), sd.year()));
             // Partials carry as the TEMPORAL_TEXT-stamped print form
             // (§4bZ-V B3): the marker cast never renders — same SQL,
             // and the slot's contract says temporal-in-text-carriage
             case PureDateLiteral.Year y -> new SqlExpr.Cast(
-                    new SqlExpr.StringLit(y.toEngineString()),
+                    new SqlExpr.StringLit(y.canonicalText()),
                     com.legend.sql.SqlType.Scalar.TEMPORAL_TEXT, SqlExpr.Reason.USER);
             case PureDateLiteral.YearMonth ym -> new SqlExpr.Cast(
-                    new SqlExpr.StringLit(ym.toEngineString()),
+                    new SqlExpr.StringLit(ym.canonicalText()),
                     com.legend.sql.SqlType.Scalar.TEMPORAL_TEXT, SqlExpr.Reason.USER);
                 // Every time-bearing precision is a TIMESTAMP — exhaustive,
                 // so a new precision variant demands a decision here.
@@ -106,13 +106,13 @@ final class MatchFold {
                 // shape SQL demands (%2015-04-15T17 is 17:00:00); second-level
                 // precision is already full.
             case PureDateLiteral.DateWithHour h ->
-                    new SqlExpr.TimestampLit(iso(h.toEngineString(), h.year()) + ":00:00");
+                    new SqlExpr.TimestampLit(iso(h.canonicalText(), h.year()) + ":00:00");
             case PureDateLiteral.DateWithMinute mi ->
-                    new SqlExpr.TimestampLit(iso(mi.toEngineString(), mi.year()) + ":00");
+                    new SqlExpr.TimestampLit(iso(mi.canonicalText(), mi.year()) + ":00");
             case PureDateLiteral.DateWithSecond se ->
-                    new SqlExpr.TimestampLit(iso(se.toEngineString(), se.year()));
+                    new SqlExpr.TimestampLit(iso(se.canonicalText(), se.year()));
             case PureDateLiteral.DateWithSubsecond su ->
-                    new SqlExpr.TimestampLit(iso(su.toEngineString(), su.year()));
+                    new SqlExpr.TimestampLit(iso(su.canonicalText(), su.year()));
         };
     }
 

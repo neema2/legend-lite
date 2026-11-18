@@ -129,7 +129,7 @@ final class EdgePureOnlyTexts implements com.legend.lowering.PureOnlyTexts {
             com.legend.compiler.spec.typed.TypedSpec typed, SqlExpr e) {
         if (typed.info().type() == com.legend.compiler.element.type.Type.Primitive.DATE_TIME) {
             return styled.dateTimes().dateTimeText(e,
-                    typed instanceof com.legend.compiler.spec.typed.TypedCDate cd ? cd.value().toEngineString() : null);
+                    typed instanceof com.legend.compiler.spec.typed.TypedCDate cd ? cd.value().canonicalText() : null);
         }
         return com.legend.lowering.ReprParts.dateLiteralText(typed);
     }

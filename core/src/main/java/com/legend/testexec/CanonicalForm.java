@@ -63,7 +63,7 @@ public final class CanonicalForm {
             // +0000 suffix is the edge's spelling, never the instrument's -- the
             // text alone is injective). A java.sql or java.time temporal reaching
             // here is a fetch-seam LEAK and reports as unmodeled-kind residue.
-            case com.legend.values.PureDateLiteral d -> new Result.Text(d.toEngineString());
+            case com.legend.values.PureDateLiteral d -> new Result.Text(d.canonicalText());
             default -> new Result.Residue(
                     "unmodeled-kind:" + v.getClass().getSimpleName());
         };

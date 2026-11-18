@@ -90,7 +90,7 @@ public final class TestDataGenerationNatives {
                             i++) {
                         ValueSpecification pv = af.parameters().get(i);
                         if (pv instanceof com.legend.protocol.spec.CDate cd) {
-                            d[i] = cd.value().toEngineString();
+                            d[i] = cd.value().canonicalText();
                         } else if (!(pv instanceof com.legend.protocol.spec
                                         .PureCollection pc2)
                                 || !pc2.values().isEmpty()) {
@@ -188,7 +188,7 @@ public final class TestDataGenerationNatives {
             return null;
         }
         if (v instanceof com.legend.protocol.spec.CDate cd) {
-            return cd.value().toEngineString();
+            return cd.value().canonicalText();
         }
         throw new com.legend.error.NotImplementedException(
                 "generateTestData: non-literal milestoning date");
@@ -251,7 +251,7 @@ public final class TestDataGenerationNatives {
             case com.legend.protocol.spec.CInteger c -> out.add(c.value());
             case com.legend.protocol.spec.CBoolean c -> out.add(c.value());
             case com.legend.protocol.spec.CDate c ->
-                    out.add(c.value().toEngineString());
+                    out.add(c.value().canonicalText());
             default -> throw new com.legend.error.NotImplementedException(
                     "generateTestData: non-literal row-identifier value "
                             + v.getClass().getSimpleName());
