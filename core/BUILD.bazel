@@ -86,9 +86,10 @@ legend_java_library(name = "execution_plan", srcs = glob(["src/main/java/com/leg
 legend_java_library(name = "test_plan", srcs = glob(["src/main/java/com/legend/testexecutionplan/*.java"]), deps = ["//base", "//json", ":error", ":execution_plan", ":sql", ":values"])
 # a plan's TYPED RESULT as a stream of batches, and the writers at the edge (docs/RESULT_BOUNDARY_PROGRAM_2026_10_26.md
 # R3, R8; 2026-10-27): the plan side, so the browser's and Python's planners write the answers the server writes
-# result reaches //arrow_ipc (track A, 2026-10-29: ArrowWriter frames a result's batches as Arrow IPC); so does
-# lite_v1 below (the ARROW_IPC execute); the layer map tools/deps/core-layers.txt carries the same two rows
-legend_java_library(name = "result", srcs = glob(["src/main/java/com/legend/result/**/*.java"]), deps = ["//arrow_ipc", "//base", "//json", ":error", ":execution_plan", ":values"])
+# result reached //arrow_ipc from track A (2026-10-29) until J36 of the edge audit (2026-11-18): ArrowWriter, which only
+# the edge's legend-engine answers made, is the edge's (edge/ArrowWriter.java), so result frames nothing; lite_v1 below
+# still names it (the ARROW_IPC execute); the layer map tools/deps/core-layers.txt carries the same rows
+legend_java_library(name = "result", srcs = glob(["src/main/java/com/legend/result/**/*.java"]), deps = ["//base", "//json", ":error", ":execution_plan", ":values"])
 legend_java_library(name = "error", srcs = glob(["src/main/java/com/legend/error/*.java"]), deps = ["//base"])
 # THE COMPATIBILITY FORMS A RUN IS HANDED (phase D's W9/W10, 2026-11-16): the hook the edge implements and the planner
 # and the test planner read -- interfaces only
@@ -931,9 +932,10 @@ junit_test(
         ":arrow_matches_rows_executable",
     ],
     jvm_flags = ["-Dcore.arrow.comparator=$(rlocationpath :arrow_matches_rows_executable)"],
-    select = ["--select-class=com.legend.result.ArrowWriterTest"],
+    # the writer is the edge's since J36 (2026-11-18): its test compiles in the edge's test library
+    select = ["--select-class=com.legend.edge.ArrowWriterTest"],
     target_compatible_with = compatible_with(["linux_aarch64", "linux_x86_64", "macos_arm64", "macos_x86_64", "windows_x86_64"]),
-    runtime_deps = [":core_tests_lib"],
+    runtime_deps = [":core_edge_tests_lib"],
 )
 
 # the root package's own classes: com.legend, less every package above
@@ -3329,7 +3331,8 @@ legend_java_library(
         "//spec:gen_natives",
     ],
     # core's sources import the three modules below core (null annotations, the JSON codec, the Arrow IPC
-    # framer -- track A, 2026-10-29: the result package's ArrowWriter)
+    # framer -- track A, 2026-10-29: ArrowWriter, the result package's until J36 of the edge audit, 2026-11-18, the
+    # edge's since)
     deps = [
         "//arrow_ipc",
         "//base",

@@ -1799,13 +1799,8 @@ class JavaEvalLedgerTest {
                     // each a ResultSink spelling cells through CellText in its consumer's layout; nothing else
                     // (PureV1Writer.java left for com.legend.edge 2026-11-16, W8 of docs/records/d-plan-2026-11-16.md)
                     "JsonRowsWriter.java", "CsvWriter.java",
-                    // the Arrow writer (track A, 2026-10-29, docs/RESULT_BOUNDARY_START_HERE.md): a ResultSink that
-                    // lays each batch's typed cells into Arrow IPC buffers (the framer //arrow_ipc, a FlatBuffers
-                    // builder over base alone) -- one encoder per column kind, each a carriage of the carrier's own
-                    // bits (a long's eight bytes, a BigDecimal's unscaled value at the column's scale, a text's
-                    // UTF-8, a date's epoch days); nothing computed, a carrier an encoder cannot lay down refused
-                    // by name; its carriage register is WriterCarriageGuardTest's ArrowWriter.java rows
-                    "ArrowWriter.java",
+                    // (ArrowWriter.java left for com.legend.edge 2026-11-18, J36 of the edge audit: only the edge's
+                    // legend-engine answers made one; registered there)
                     // a tagged column's cell as a decoder hands it to the batch (track F, 2026-10-29; D57 (5)): the
                     // slot index and the slot's carrier, a record of two fields and nothing computed
                     "TaggedCell.java",
@@ -1853,6 +1848,12 @@ class JavaEvalLedgerTest {
                             // 2026-11-18, J32: legend-engine's setUpDataSQLs text, moved unchanged from setup.Ddl --
                             // composes the engine-text dialect's statements, a cell typed by its column; runs nothing
                             "EngineSeedText.java",
+                            // 2026-11-18, J36: lite's Arrow writer (track A, 2026-10-29), moved from result/ -- a ResultSink
+                            // that lays each batch's typed cells into Arrow IPC buffers (the framer //arrow_ipc), one
+                            // encoder per column kind, each a carriage of the carrier's own bits; nothing computed, a
+                            // carrier an encoder cannot lay down refused by name; its carriage register is
+                            // WriterCarriageGuardTest's ArrowWriter.java rows
+                            "ArrowWriter.java",
                             // the server's composition root with legend-engine's API mounted: routes, no planning of its own
                             "EdgeServer.java",
                             // the texts of upstream's effects and refusals, and legend-pure's raise sentences, as SQL

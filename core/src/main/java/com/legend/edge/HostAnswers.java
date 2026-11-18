@@ -80,7 +80,7 @@ public final class HostAnswers {
                     sql.value(), false, hostExecution(planned)))));
             metadata.put("legend.columns", Json.toCompact(names));
             try {
-                com.legend.result.HostRows.stream(rows, columns, new com.legend.result.ArrowWriter(out,
+                com.legend.result.HostRows.stream(rows, columns, new ArrowWriter(out,
                         // legend-pure's date text, as the server's twin writes it (EngineAnswers.arrow; the P2 checkpoint
                         // audit's A-M3, 2026-11-16: this host route wrote the product's S312 text)
                         cs -> metadata, Presenter.LEGEND_PURE));

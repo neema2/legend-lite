@@ -64,6 +64,9 @@ EDGE_TEST_SRCS = [
     "src/test/java/com/legend/ReferenceIntegrityTest.java",
     "src/test/java/com/legend/ResultWritersTest.java",
     "src/test/java/com/legend/compiler/spec/MultiplicityStrictnessTest.java",
+    # the Arrow writer's round trip (J36 of the edge audit, 2026-11-18: the writer moved from result/ to the edge;
+    # tagged "arrow", run by //core:arrow_writer_test alone)
+    "src/test/java/com/legend/edge/ArrowWriterTest.java",
     "src/test/java/com/legend/edge/EngineSpansTest.java",
     # the net under the harness's H2 sessions (the audit's J22, 2026-11-17)
     "src/test/java/com/legend/edge/EdgeH2SessionTest.java",
