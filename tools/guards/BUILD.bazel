@@ -346,8 +346,12 @@ py_test(
     name = "shrink_only_test",
     size = "small",
     srcs = ["shrink_only_test.py"],
-    # the check's own target is read for its tags (the review of C.13-CI, M2, 2026-11-18)
-    data = ["BUILD.bazel"],
+    # the check's own target is read for its tags (the review of C.13-CI, M2, 2026-11-18), and its entry run as data
+    # (it runs the merge-base's copy: the review of 351e80daa2, M1, 2026-11-18)
+    data = [
+        "BUILD.bazel",
+        "shrink_only_check.py",
+    ],
     main = "shrink_only_test.py",
     deps = [":shrink_only_lib"],
     visibility = ["//gates:__pkg__"],

@@ -5,11 +5,13 @@ S1-S6, 2026-11-18): each way a pin grows is named with the entry and the rule, e
 text the reader cannot read is refused by name. The rule's cases need no git (the two sides are given as text); the
 floor, the head and the history's errors are read from a throwaway repository."""
 
+import importlib.util
 import os
 import re
 import subprocess
 import sys
 import tempfile
+import types
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
@@ -278,6 +280,52 @@ class ShrinkOnlyTest(unittest.TestCase):
         self.assertEqual({(p, n) for p, ns in shrink_only.WATCHED.items() for n in ns}, lists["WATCHED"])
         self.assertEqual({(p, n) for p, ns in shrink_only.GROW_ONLY.items() for n in ns}, lists["GROW_ONLY"])
 
+    # the review of 351e80daa2 (2026-11-18), M3: a removal is excused only by a note naming it as a whole word
+    def test_a_name_inside_a_longer_name_excuses_nothing(self):
+        base = source('''
+    static final Set<String> REFEREE = Set.of("t.Appeal", "t.PlannedAppeals");
+''')
+        head = base.replace('"t.Appeal", ', "").replace("    static final", "    // t.PlannedAppeals stays, 2026-11-18\n"
+                                                         "    static final")
+        failures = run(head, {PATH: ["REFEREE"]}, base, {PATH: ["REFEREE"]})
+        self.assertEqual(1, len(failures), failures)
+        self.assertIn('REFEREE entry "t.Appeal"', failures[0])
+
+    # M1: a list of this script is one literal; any statement that could change it is refused
+    def test_a_change_to_the_lists_outside_their_literal_is_refused(self):
+        lists = 'WATCHED = {\n    "a/X.java": ["ONE", "TWO"],\n}\nGROW_ONLY = {\n    "a/X.java": ["ONE"],\n}\n'
+        self.assertEqual({("a/X.java", "ONE"), ("a/X.java", "TWO")}, shrink_only.watched_lists(lists)["WATCHED"])
+        for tail in ('WATCHED["a/X.java"].remove("TWO")', 'WATCHED["a/X.java"] = ["ONE"]', 'del WATCHED["a/X.java"]',
+                     'WATCHED = {}', 'GROW_ONLY.clear()', 'WATCHED |= {}', 'def f():\n    global WATCHED\n',
+                     'WATCHED.update({})'):
+            with self.assertRaises(ValueError, msg=tail):
+                shrink_only.watched_lists(lists + tail + "\n")
+        self.assertEqual(1, len(shrink_only.watched_shrinks(lists, lists + 'WATCHED["a/X.java"].remove("TWO")\n',
+                                                            SINCE)))
+        reads = 'def g():\n    return WATCHED.get("a/X.java"), list(GROW_ONLY.items())\n'
+        self.assertEqual({("a/X.java", "ONE")}, shrink_only.watched_lists(lists + reads)["GROW_ONLY"])
+
+    # SHOULD: each line of a text block is its own entry
+    def test_each_line_of_a_text_block_is_an_entry(self):
+        base = source('''
+    static final String ROWS = """
+            a/File.java | spell( | 2 | OPEN
+            """;
+''')
+        head = base.replace("            a/File.java | spell( | 2 | OPEN\n",
+                            "            a/File.java | spell( | 2 | OPEN\n            b/New.java | x( | 1 | OPEN 2026-11-18\n"
+                            "            c/New.java | y( | 1 | OPEN\n")
+        failures = run(head, {PATH: ["ROWS"]}, base)
+        self.assertEqual(["c/New.java | y( | # | OPEN"], entries_named(failures))
+        self.assertIn(f"{PATH}:6:", failures[0])
+        raised = base.replace("spell( | 2 | OPEN", "spell( | 3 | OPEN")
+        self.assertIn("raised: 2 -> 3", run(raised, {PATH: ["ROWS"]}, base)[0])
+
+    # NOTE: an entry added with its count is named once
+    def test_an_entry_and_its_count_are_named_once(self):
+        head = BASE.replace('Map.entry("y/Small.java", 3));', 'Map.entry("y/Small.java", 3),\n            Map.entry("z/New.java", 5));')
+        self.assertEqual(["z/New.java"], entries_named(run(head)))
+
 
 def git(repo, *args, date=None):
     env = dict(os.environ, GIT_AUTHOR_NAME="t", GIT_AUTHOR_EMAIL="t@example.com", GIT_COMMITTER_NAME="t",
@@ -351,6 +399,52 @@ class HistoryTest(unittest.TestCase):
         self.assertEqual(0, self.main("--base", "main~1"))
         self.assertEqual(1, self.main("--base", "main~1", "--head", "change"))
 
+    def test_a_note_counts_only_if_the_change_wrote_it(self):
+        # the review of 351e80daa2 (2026-11-18), M2: an unrelated commit authored long ago lowered the floor of dates
+        # until the register's old group note (2026-10-01) dated a row added under it; a note must be the change's own
+        git(self.repo, "checkout", "-q", "change")
+        self.write("unrelated.txt", "x")
+        git(self.repo, "add", "-A")
+        git(self.repo, "commit", "-q", "-m", "backdated", date="2026-09-01")
+        with open(os.path.join(self.repo, PATH), encoding="utf-8") as f:
+            text = f.read()
+        # a row added under the residue's group note, inside the pin (written 2026-10-01, before the change)
+        self.write(PATH, text.replace('Map.entry("x/Big.java", 40),', 'Map.entry("x/Big.java", 40),\n'
+                                      '            Map.entry("x/Under.java", 1),'))
+        git(self.repo, "commit", "-q", "-am", "under the old note", date="2026-11-14")
+        saved = shrink_only.WATCHED, shrink_only.GROW_ONLY
+        shrink_only.WATCHED, shrink_only.GROW_ONLY = {PATH: ["SIZES"]}, {}
+        try:
+            self.assertEqual(1, shrink_only.main(["--repo", self.repo, "--base", "main~1", "--head", "change"]))
+        finally:
+            shrink_only.WATCHED, shrink_only.GROW_ONLY = saved
+
+    def test_a_note_written_before_its_commit_counts(self):
+        # a squash merge's commit is dated when it lands: a note the change wrote counts whatever its date
+        git(self.repo, "checkout", "-q", "change")
+        with open(os.path.join(self.repo, PATH), encoding="utf-8") as f:
+            text = f.read()
+        self.write(PATH, text.replace('"b/File.java | other( | 1 | RULED",', '"b/File.java | other( | 1 | RULED",\n'
+                                      '            "d/Late.java | z( | 1 | OPEN", // 2026-11-12, written before'))
+        git(self.repo, "commit", "-q", "-am", "landed late", date="2026-12-01")
+        self.assertEqual(0, self.main("--base", "main~1", "--head", "change"))
+
+    def test_a_renamed_file_is_compared_with_its_old_text(self):
+        # the review of 351e80daa2 (2026-11-18), SHOULD: renamed with the list, a file read as new hid its growth
+        git(self.repo, "checkout", "-q", "change")
+        renamed = PATH.replace("PlantedTest", "PlantedRenamedTest")
+        git(self.repo, "mv", PATH, renamed)
+        with open(os.path.join(self.repo, renamed), encoding="utf-8") as f:
+            text = f.read()
+        self.write(renamed, text.replace('"y/Small.java", 3', '"y/Small.java", 9'))
+        git(self.repo, "commit", "-q", "-am", "renamed and raised", date="2026-11-14")
+        saved = shrink_only.WATCHED, shrink_only.GROW_ONLY
+        shrink_only.WATCHED, shrink_only.GROW_ONLY = {renamed: ["SIZES"]}, {}
+        try:
+            self.assertEqual(1, shrink_only.main(["--repo", self.repo, "--base", "main~1", "--head", "change"]))
+        finally:
+            shrink_only.WATCHED, shrink_only.GROW_ONLY = saved
+
     def test_an_absent_path_is_absent_and_a_bad_revision_exits_2(self):
         read = shrink_only.reader(self.repo, "main")
         self.assertIsNone(read("no/such/File.java"))
@@ -358,6 +452,52 @@ class HistoryTest(unittest.TestCase):
         with self.assertRaises(shrink_only.HistoryError):
             shrink_only.reader(self.repo, "0" * 40)(PATH)
         self.assertEqual(2, self.main("--base", "no-such-branch"))
+
+
+class BaseCopyTest(unittest.TestCase):
+    """M1 (the review of 351e80daa2, 2026-11-18): the local check runs the merge-base's copy of the script, so a change
+    that loosens the script is judged by the script it loosened."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.repo = self.tmp.name
+        here = os.path.dirname(os.path.abspath(__file__))
+        with open(os.path.join(os.path.dirname(os.path.realpath(__file__)), "shrink_only.py"), encoding="utf-8") as f:
+            script = f.read()
+        start = script.index("WATCHED = {")
+        script = script[:start] + 'WATCHED = {\n    "' + PATH + '": ["REGISTER"],\n}\n' \
+            + script[script.index("\n}\n", start) + 3:]
+        start = script.index("GROW_ONLY = {")
+        script = script[:start] + "GROW_ONLY = {}\n" + script[script.index("\n}\n", start) + 3:]
+        git(self.repo, "init", "-q", "-b", "main")
+        HistoryTest.write(self, PATH, BASE)
+        HistoryTest.write(self, shrink_only.SELF, script)
+        git(self.repo, "add", "-A")
+        git(self.repo, "commit", "-q", "-m", "base", date="2026-11-10")
+        git(self.repo, "checkout", "-q", "-b", "change")
+        # the change loosens the script (every line a note) and adds an undated row
+        loosened = script.replace('    if fresh is None:\n        return recent(lines[n - 1], since)',
+                                  '    return True\n    if fresh is None:\n        return recent(lines[n - 1], since)')
+        assert loosened != script
+        HistoryTest.write(self, shrink_only.SELF, loosened)
+        HistoryTest.write(self, PATH, BASE.replace('"b/File.java | other( | 1 | RULED");',
+                                                   '"b/File.java | other( | 1 | RULED",\n            "c/New.java | x( | 1 | OPEN");'))
+        git(self.repo, "commit", "-q", "-am", "loosen", date="2026-11-12")
+        spec = importlib.util.spec_from_file_location("shrink_only_check", os.path.join(here, "shrink_only_check.py"))
+        self.check = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(self.check)
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    write = HistoryTest.write
+
+    def test_the_merge_bases_copy_judges_the_change(self):
+        loosened = types.ModuleType("loosened")
+        with open(os.path.join(self.repo, shrink_only.SELF), encoding="utf-8") as f:
+            exec(compile(f.read(), "loosened", "exec"), loosened.__dict__)
+        self.assertEqual(0, loosened.main(["--repo", self.repo, "--base", "main"]), "the change's own copy passes it")
+        self.assertEqual(1, self.check.main(["--repo", self.repo, "--base", "main"]), "the merge-base's copy does not")
 
 
 class BuildTest(unittest.TestCase):

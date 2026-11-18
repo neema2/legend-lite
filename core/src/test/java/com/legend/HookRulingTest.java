@@ -465,19 +465,34 @@ class HookRulingTest {
         assertFalse(overriders.isEmpty());
     }
 
-    /** A statement raising {@code kind}, the raise's message {@code ERROR}'s first argument, as the lowering writes one. */
-    private static com.legend.sql.SqlSelect raising(com.legend.sql.RaiseKind kind) {
-        return raisingWith(new com.legend.sql.SqlExpr.RaiseText(kind, List.of()));
+    /** Where a planned raise stands in a statement: the projection, a CASE's ELSE branch, an operand of AND (the review
+     *  of dd5deb781f, 2026-11-18, SHOULD: the projection alone was pinned). A raise the renderer builds itself -- the
+     *  guarded parseFloat's, written through raiseAs -- has no reference to swap in; named, not pinned. */
+    enum RaisePosition { PROJECTION, CASE_BRANCH, AND_OPERAND }
+
+    /** A statement raising {@code kind} at {@code at}, the raise's message {@code ERROR}'s first argument, as the
+     *  lowering writes one. */
+    private static com.legend.sql.SqlSelect raising(com.legend.sql.RaiseKind kind, RaisePosition at) {
+        return raisingWith(new com.legend.sql.SqlExpr.RaiseText(kind, List.of()), at);
     }
 
     /** The same statement with {@code message} as the raise's first argument: with the site's bare token as a string
      *  literal it is the reference the product's raise must equal, character for character. */
-    private static com.legend.sql.SqlSelect raisingWith(com.legend.sql.SqlExpr message) {
-        com.legend.sql.OutputCol v = new com.legend.sql.OutputCol("v", com.legend.sql.SqlType.Scalar.VARCHAR, true,
+    private static com.legend.sql.SqlSelect raisingWith(com.legend.sql.SqlExpr message, RaisePosition at) {
+        com.legend.sql.OutputCol v = new com.legend.sql.OutputCol("v", at == RaisePosition.AND_OPERAND
+                ? com.legend.sql.SqlType.Scalar.BOOLEAN : com.legend.sql.SqlType.Scalar.VARCHAR, true,
                 com.legend.sql.OutputCol.Origin.DERIVED);
         com.legend.sql.SqlExpr raise = com.legend.sql.SqlExpr.Call.of(com.legend.sql.SqlFn.ERROR, message,
                 new com.legend.sql.SqlExpr.StringLit("3:7"));
-        return new com.legend.sql.SqlSelect(List.of(new com.legend.sql.SqlSelect.Projection(raise, "v", v)), false,
+        com.legend.sql.SqlExpr placed = switch (at) {
+            case PROJECTION -> raise;
+            case CASE_BRANCH -> new com.legend.sql.SqlExpr.Case(List.of(new com.legend.sql.SqlExpr.Case.When(
+                    new com.legend.sql.SqlExpr.BoolLit(false), new com.legend.sql.SqlExpr.StringLit("x"))), raise,
+                    com.legend.sql.SqlExpr.Reason.USER);
+            case AND_OPERAND -> com.legend.sql.SqlExpr.Call.of(com.legend.sql.SqlFn.AND,
+                    new com.legend.sql.SqlExpr.BoolLit(true), raise);
+        };
+        return new com.legend.sql.SqlSelect(List.of(new com.legend.sql.SqlSelect.Projection(placed, "v", v)), false,
                 new com.legend.sql.SqlSource.Dual(), null, List.of(), null, null, List.of(), null, null, List.of(v));
     }
 
@@ -506,28 +521,33 @@ class HookRulingTest {
             java.util.Set<String> refused, java.util.Set<com.legend.sql.RaiseKind> kinds) {
         List<String> out = new java.util.ArrayList<>();
         for (com.legend.sql.RaiseKind kind : kinds) {
+          for (RaisePosition at : RaisePosition.values()) {
             com.legend.sql.dialect.SqlDialect d = dialect.get();
             com.legend.sql.dialect.RenderedStatement s;
             try {
-                s = d.renderStatement(raising(kind));
+                s = d.renderStatement(raising(kind, at));
             } catch (com.legend.sql.DialectCapability | NotImplementedException | UnsupportedOperationException e) {
-                refused.add(d.getClass().getName() + " " + kind);
+                refused.add(d.getClass().getName() + " " + kind + " " + at);
                 continue;
             }
             // the statement exactly as with the site's bare token as a string literal (the review of 091b9bde36,
             // 2026-11-18, SHOULD-FIX 5: the token found somewhere passed concat(token, ' words') and a comment holding
             // it); the reference itself holds the quoted token, so it is no empty comparison
-            String reference = dialect.get().renderStatement(raisingWith(new com.legend.sql.SqlExpr.StringLit(
-                    com.legend.sql.RaiseKind.token(1)))).sql();
-            if (!QUOTED_TOKEN.matcher(reference).find()) {
+            com.legend.sql.dialect.RenderedStatement reference = dialect.get().renderStatement(raisingWith(
+                    new com.legend.sql.SqlExpr.StringLit(com.legend.sql.RaiseKind.token(1)), at));
+            if (!QUOTED_TOKEN.matcher(reference.sql()).find()) {
                 throw new IllegalStateException(d.getClass().getName() + " writes the reference without its token: "
-                        + reference);
+                        + reference.sql());
             }
-            if (!s.sql().equals(reference)) {
-                out.add(d.getClass().getName() + " " + kind + " writes " + s.sql());
+            // the text, and what it binds (the review of dd5deb781f, 2026-11-18, MUST-FIX 4: words bound at a ? the
+            // reference binds empty read as the bare token's)
+            if (!s.sql().equals(reference.sql()) || !s.binds().equals(reference.binds())
+                    || !s.regions().equals(reference.regions())) {
+                out.add(d.getClass().getName() + " " + kind + " " + at + " writes " + s.sql() + " binding " + s.binds());
             } else if (s.sites().size() != 1 || s.sites().get(0).upstream() != null) {
-                out.add(d.getClass().getName() + " " + kind + " words its site " + s.sites());
+                out.add(d.getClass().getName() + " " + kind + " " + at + " words its site " + s.sites());
             }
+          }
         }
         return out;
     }
@@ -569,8 +589,14 @@ class HookRulingTest {
                 com.legend.sql.dialect.PlantedWordedRaise::new;
         List<String> found = productRaiseDiffers(worded, new java.util.TreeSet<>(),
                 java.util.Set.of(com.legend.sql.RaiseKind.DIVIDE_BY_ZERO));
-        assertEquals(1, found.size(), found.toString());
-        assertTrue(found.get(0).contains("Division by zero"), found.get(0));
+        // named at each position the raise is placed (the projection, a CASE branch, an AND operand)
+        assertEquals(RaisePosition.values().length, found.size(), found.toString());
+        found.forEach(f -> assertTrue(f.contains("Division by zero"), f));
+        // the same text as the bare token's, the words bound (the review of dd5deb781f, 2026-11-18, MUST-FIX 4)
+        List<String> bound = productRaiseDiffers(com.legend.sql.dialect.PlantedBoundRaise::new, new java.util.TreeSet<>(),
+                java.util.Set.of(com.legend.sql.RaiseKind.DIVIDE_BY_ZERO));
+        assertEquals(RaisePosition.values().length, bound.size(), bound.toString());
+        bound.forEach(f -> assertTrue(f.contains("Division by zero"), f));
         assertEquals(List.of(), productRaiseDiffers(com.legend.sql.dialect.PlantedWordedRaise::plain,
                 new java.util.TreeSet<>(),
                 java.util.Set.of(com.legend.sql.RaiseKind.DIVIDE_BY_ZERO)), "the product's own raise is the token's");

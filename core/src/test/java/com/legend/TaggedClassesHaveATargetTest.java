@@ -311,11 +311,10 @@ class TaggedClassesHaveATargetTest {
         if (escaped.find()) {
             throw new IllegalStateException(target + " has an escape in a string the check does not read");
         }
-        Matcher m = Pattern.compile("(?<![\\w])select\\s*=\\s*").matcher(text);
-        if (!m.find()) {
+        int from = onlyTopLevel(target, text, "select");
+        if (from < 0) {
             return new Select("", false);
         }
-        int from = m.end();
         int at = from;
         boolean edgeClasses = false;
         while (true) {
@@ -373,6 +372,68 @@ class TaggedClassesHaveATargetTest {
         }
     }
 
+    /** {@code text} with every string's content and every comment spaced out, its length and lines kept: Starlark's
+     *  code alone (single, double and triple quotes). */
+    static String starlarkCode(String text) {
+        char[] out = text.toCharArray();
+        int i = 0;
+        int n = text.length();
+        while (i < n) {
+            char c = text.charAt(i);
+            if (c == '#') {
+                while (i < n && text.charAt(i) != '\n') {
+                    out[i++] = ' ';
+                }
+            } else if (c == '"' || c == '\'') {
+                String quote = text.startsWith(String.valueOf(c).repeat(3), i) ? String.valueOf(c).repeat(3)
+                        : String.valueOf(c);
+                int j = i + quote.length();
+                while (j < n && !text.startsWith(quote, j)) {
+                    j += text.charAt(j) == '\\' ? 2 : 1;
+                }
+                for (int k = i + quote.length(); k < Math.min(j, n); k++) {
+                    if (out[k] != '\n') {
+                        out[k] = ' ';
+                    }
+                }
+                i = Math.min(n, j + quote.length());
+            } else {
+                i++;
+            }
+        }
+        return new String(out);
+    }
+
+    /** The offsets just past each top-level {@code key =} of a target's text -- one of {@code keys}, at depth 0 of the
+     *  call's arguments, outside strings and comments (the review of dd5deb781f, 2026-11-18, MUST-FIX 1: a decoy
+     *  {@code select = [..]} inside a string, ahead of the real one, was read first). */
+    static List<Integer> topLevel(String text, String keys) {
+        String code = starlarkCode(text);
+        int[] depth = new int[code.length() + 1];
+        for (int i = 0, d = 0; i < code.length(); i++) {
+            depth[i] = d;
+            char c = code.charAt(i);
+            d += c == '(' || c == '[' || c == '{' ? 1 : c == ')' || c == ']' || c == '}' ? -1 : 0;
+        }
+        List<Integer> out = new ArrayList<>();
+        Matcher m = Pattern.compile("(?<![\\w])(?:" + keys + ")\\s*=(?!=)\\s*").matcher(code);
+        while (m.find()) {
+            if (depth[m.start()] == 0) {
+                out.add(m.end());
+            }
+        }
+        return out;
+    }
+
+    /** The one top-level {@code key =} of a target, or -1; a second one is refused by name. */
+    static int onlyTopLevel(String target, String text, String key) {
+        List<Integer> at = topLevel(text, key);
+        if (at.size() > 1) {
+            throw new IllegalStateException(target + " sets " + key + " twice, a text the check does not read");
+        }
+        return at.isEmpty() ? -1 : at.get(0);
+    }
+
     /** The index of the bracket closing the one at {@code open} (strings read as text), or -1. */
     private static int closing(String text, int open) {
         int depth = 0;
@@ -424,11 +485,10 @@ class TaggedClassesHaveATargetTest {
          *  by {@code +}) and its --exclude-tag arguments. A term or an argument the check does not read fails it. */
         Set<String> dropped(String build) {
             Set<String> out = new TreeSet<>(plainTags(name, literalArgs(name, text, "--exclude-tag")));
-            Matcher m = Pattern.compile("(?<![\\w])exclude_tags\\s*=\\s*").matcher(text);
-            if (!m.find()) {
+            int at = onlyTopLevel(name, text, "exclude_tags");
+            if (at < 0) {
                 return out;
             }
-            int at = m.end();
             while (true) {
                 Matcher term = TAG_TERM.matcher(text).region(at, text.length());
                 if (!term.lookingAt()) {
@@ -501,9 +561,22 @@ class TaggedClassesHaveATargetTest {
         List<Target> out = new ArrayList<>();
         Matcher m = Pattern.compile("\\njunit_test\\(\\n\\s*name = \"([\\w-]+)\",(.*?)\\n\\)", Pattern.DOTALL)
                 .matcher(build);
+        String code = starlarkCode(build);
         while (m.find()) {
+            // a call inside a string is no call (the review of dd5deb781f, 2026-11-18): skipped, so it selects nothing
+            if (!code.startsWith("\njunit_test(", m.start())) {
+                continue;
+            }
+            // a call is a statement: its closing line holds nothing else (the review of dd5deb781f, 2026-11-18,
+            // MUST-FIX 1: "junit_test(..) if False else junit_test(..)" defines the second alone, and the first was read)
+            if (m.end() < build.length() && build.charAt(m.end()) != '\n') {
+                throw new IllegalStateException("junit_test " + m.group(1) + "'s call is followed by text the check"
+                        + " does not read");
+            }
             out.add(new Target(m.group(1), m.group(2)));
         }
+        // a call written another way -- a list comprehension's [junit_test(...) for p in ...], the per-package shards
+        // -- is not read: it selects nothing here, so a class only it runs is reported, which fails closed
         return out;
     }
 
@@ -529,15 +602,15 @@ class TaggedClassesHaveATargetTest {
     /** The labels of {@code text}'s {@code deps} and {@code runtime_deps} lists. */
     static Set<String> deps(String text) {
         Set<String> out = new TreeSet<>();
-        Matcher m = Pattern.compile("(?<![\\w])(?:runtime_deps|deps)\\s*=\\s*").matcher(text);
-        while (m.find()) {
+        // top-level only (the review of dd5deb781f, 2026-11-18: a decoy inside a string)
+        for (int end : topLevel(text, "runtime_deps|deps")) {
             // each a plain list of quoted labels, ended by "," or the call's end (the review of 11de9ae229, 2026-11-18:
             // a list followed by "if False else []" or a slice was read as given)
             Matcher list = Pattern.compile("\\[((?:\\s*\"[^\"]*\"\\s*,?)*\\s*)\\]\\s*(,|\\z)").matcher(text)
-                    .region(m.end(), text.length());
+                    .region(end, text.length());
             if (!list.lookingAt()) {
                 throw new IllegalStateException("a target's deps hold text the check does not read: "
-                        + text.substring(m.end(), Math.min(text.length(), m.end() + 60)).split("\n")[0]);
+                        + text.substring(end, Math.min(text.length(), end + 60)).split("\n")[0]);
             }
             Matcher label = Pattern.compile("\"([^\"]*)\"").matcher(list.group(1));
             while (label.find()) {
@@ -550,12 +623,12 @@ class TaggedClassesHaveATargetTest {
     /** The target's tags, a plain list of double-quoted literals, or none: any other form fails by name (the review of
      *  11de9ae229, 2026-11-18: single quotes, a joined list or a name hid a platform tag). */
     static List<String> tags(String name, String text) {
-        Matcher m = Pattern.compile("(?<![\\w])tags\\s*=\\s*").matcher(text);
-        if (!m.find()) {
+        int at = onlyTopLevel(name, text, "tags");
+        if (at < 0) {
             return List.of();
         }
         Matcher list = Pattern.compile("\\[((?:\\s*\"[^\"]*\"\\s*,?)*\\s*)\\]\\s*(,|\\z)").matcher(text)
-                .region(m.end(), text.length());
+                .region(at, text.length());
         if (!list.lookingAt()) {
             throw new IllegalStateException(name + "'s tags hold text the check does not read");
         }
@@ -748,6 +821,29 @@ class TaggedClassesHaveATargetTest {
                 + " no gate target"), orphans(kept, edge, PLANTED_BUILD.replace(KEPT, "\"--select-class=com.legend.Other\"],"
                 + "\n    tags = [\"--select-class=com.legend.slow.KeptTest\"]"), PLANTED_GATES),
                 "a selector written in tags selects nothing");
+        // the review of dd5deb781f (2026-11-18, MUST-FIX 1): a select written inside a string, ahead of the real one --
+        // single- or triple-quoted -- selects nothing; a second select, and a call in a conditional, are refused
+        String slow = "    select = [" + KEPT + ",";
+        assertTrue(PLANTED_BUILD.contains(slow));
+        for (String decoy : List.of("    env = {\"NOTE\": 'select = [" + KEPT + ",'},\n",
+                "    env = {\"NOTE\": \"\"\"select = [" + KEPT + ",\"\"\"},\n",
+                // at the call's own depth: only the string's blanking keeps it out
+                "    doc = \"\"\"\n    select = [" + KEPT + ",\n    \"\"\",\n")) {
+            assertEquals(List.of(TEST_ROOT + "com/legend/slow/KeptTest.java [census]: in the product's test library, run"
+                    + " by no gate target"), orphans(kept, edge, PLANTED_BUILD.replace(slow, decoy
+                    + "    select = [\"--select-class=com.legend.Other\"],"), PLANTED_GATES), decoy);
+        }
+        IllegalStateException twice = assertThrows(IllegalStateException.class, () -> orphans(kept, edge,
+                PLANTED_BUILD.replace(slow, slow + "\n    select = [\"--select-class=com.legend.Other\"],"), PLANTED_GATES));
+        assertTrue(twice.getMessage().startsWith("slow_census sets select twice"), twice.getMessage());
+        String call = junit("slow_census", "    select = [" + KEPT + ",");
+        assertTrue(PLANTED_BUILD.contains(call));
+        IllegalStateException conditional = assertThrows(IllegalStateException.class, () -> orphans(kept, edge,
+                PLANTED_BUILD.replace(call, call.substring(0, call.length() - 1) + " if False else junit_test(\n"
+                        + "    name = \"slow_census\",\n    select = [\"--select-class=com.legend.Other\"],\n)\n"),
+                PLANTED_GATES));
+        assertTrue(conditional.getMessage().startsWith("junit_test slow_census's call is followed by text"),
+                conditional.getMessage());
         assertEquals(edgeOrphan, orphans(edgeCensus, edge, PLANTED_BUILD.replace("select = edge_test_classes() + ",
                 "tags = edge_test_classes(),\n    select = "), PLANTED_GATES),
                 "the edge's selector outside select selects nothing");

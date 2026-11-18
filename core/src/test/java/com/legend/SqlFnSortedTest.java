@@ -447,7 +447,34 @@ class SqlFnSortedTest {
                 || u.getFieldAccesses().stream().anyMatch(a -> a.getAccessType()
                         == com.tngtech.archunit.core.domain.JavaFieldAccess.AccessType.SET
                         && !a.getTarget().getRawType().isPrimitive()
-                        && !a.getTarget().getRawType().getName().equals("java.lang.String"));
+                        && !a.getTarget().getRawType().getName().equals("java.lang.String"))
+                // a container read, to store into (an array, a collection, a map, an Object): the review of dd5deb781f,
+                // 2026-11-18, MUST-FIX 2 -- KEPT[0] = SqlFn.ABS and LIST.add(SqlFn.ABS) set no field
+                || u.getFieldAccesses().stream().anyMatch(a -> a.getAccessType()
+                        == com.tngtech.archunit.core.domain.JavaFieldAccess.AccessType.GET && container(a.getTarget()
+                        .getRawType()))
+                // a call that can be handed the constant (a parameter an Object, an Enum, a SqlFn, a Comparable): a
+                // throw's exception, a setter, a collection's add -- the enum's own methods and equals aside
+                || u.getCallsFromSelf().stream().anyMatch(k -> handed(k.getTarget()));
+    }
+
+    /** A type that can hold a function's constant stored into it. */
+    private static boolean container(JavaClass t) {
+        return t.isArray() || t.isAssignableTo("java.util.Collection") || t.isAssignableTo("java.util.Map")
+                || t.getName().equals("java.lang.Object");
+    }
+
+    /** A call target that can be handed a function's constant and keep it: one with a parameter typed Object, Enum,
+     *  SqlFn, Comparable, Serializable or Constable, other than the enum's and Object's own methods and equals. */
+    private static boolean handed(com.tngtech.archunit.core.domain.AccessTarget.CodeUnitCallTarget t) {
+        String owner = t.getOwner().getName();
+        if (owner.equals(SqlFn.class.getName()) || owner.equals("java.lang.Enum") || owner.equals("java.lang.Object")
+                || t.getName().equals("equals") || (owner.equals("java.util.Objects") && t.getName().equals("equals"))) {
+            return false;
+        }
+        return t.getRawParameterTypes().stream().anyMatch(p -> java.util.Set.of("java.lang.Object", "java.lang.Enum",
+                SqlFn.class.getName(), "java.lang.Comparable", "java.io.Serializable", "java.lang.constant.Constable")
+                .contains(p.getName()));
     }
 
     /** Where a renderer lives: the dialects' package or the edge's (the review of 11de9ae229, 2026-11-18, MUST-FIX 1: a

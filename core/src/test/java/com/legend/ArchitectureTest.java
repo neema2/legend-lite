@@ -1415,7 +1415,9 @@ final class ArchitectureTest {
             // the root's Compiler, the lowering of a resolved query (lowerResolved): QueryDoor's refusal of a typed
             // body's executeInDb read (its (List, SpecCompiler) overload, the G1 follow-up audit's, 2026-11-14), the
             // cross-store guard, the Lowerer and its object sites, the platform's registrations, and a program's facts
-            // (stated by ProgramFacts.of since C5-J item 2, 2026-11-15; the PCT runner reads the test plan's instead)
+            // (stated by ProgramFacts.of since C5-J item 2, 2026-11-15; the PCT runner reads the test plan's instead);
+            // the edge's EnginePlans lowers legend-engine's plan text through the same two (W9's planner half,
+            // d4bab2df66, 2026-11-16; its note written 2026-11-18, when the shrink-only check read notes by blame)
             "lowering.Lowerer#<init>(java.util.function.Function, java.util.function.Predicate, "
                     + "com.legend.platform.ImplementationTable)", "com.legend.Compiler com.legend.edge.EnginePlans",
             "lowering.Lowerer#lower(java.util.List)", "com.legend.Compiler com.legend.edge.EnginePlans",
@@ -2956,6 +2958,11 @@ final class ArchitectureTest {
                 }
             }
         }
+        // the standing tells are the audit's line J39 while any stands, and the line goes when the last does (the review
+        // of dd5deb781f, 2026-11-18, NOTE: the line was tied to nothing)
+        org.junit.jupiter.api.Assertions.assertEquals(!toldStanding.isEmpty(), EdgeAuditOpenTest.AUDIT_OPEN.stream()
+                .anyMatch(i -> i.id().equals("J39")), "the standing planning tells are counted as the audit's J39, and"
+                + " J39 closes with the last of them");
         org.junit.jupiter.api.Assertions.assertEquals(new java.util.TreeSet<>(toldStanding), new java.util.TreeSet<>(found),
                 "the listener answers, or planning tells someone (the run tells, at each verdict's turn; planning tells no"
                 + " one but the standing pins, each awaiting its ruling)");

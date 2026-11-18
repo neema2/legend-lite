@@ -11,9 +11,11 @@ dated note. A GROW_ONLY pin is a vocabulary whose REMOVAL loosens its guard (a c
 flagged), so there a removal is what needs the note. WATCHED and GROW_ONLY are pins of this script too: a pin dropped
 from either needs a dated note in this file naming it.
 
-THE FLOOR. A note is dated when it holds a YYYY-MM-DD on or after the floor: the earliest author date of the commits in
-merge-base..head, the day the change began (an author date survives a rebase; the merge-base's own date does not stand
-still: on a pull request's merge ref it is main's tip, so every note written before main's latest commit read as old).
+A NOTE IS THE CHANGE'S OWN. A note counts when its line is new in merge-base..head -- git blame attributes it to a
+commit of the change, or to the working tree -- and it holds a YYYY-MM-DD (the review of 351e80daa2, 2026-11-18, M2: a
+floor of dates was the author's to set -- one backdated commit, or a branch merged in, lowered it -- and a squash
+merge's date moved it past every note). Without the history (the rule's own tests) a note is a line holding a date on or
+after the floor given.
 
 WHAT AN ENTRY IS. The pin's initializer is parsed as an expression: string literals (text blocks too), decimal integer
 literals, true and false, '+' between strings, the collection calls Map.of, Map.ofEntries, Map.entry, Set.of,
@@ -32,12 +34,19 @@ removal from a GROW_ONLY pin is a comment within the pin, or in the comment bloc
 naming the removed entry (its text, or the simple name after the last '.', '$' or '#') with a date on or after the floor.
 
 Its limits, named:
-- A note heads the rows under it: one recent group note dates every row below it up to the next comment, at any
+- A note heads the rows under it: one new group note dates every row below it up to the next comment, at any
   distance.
+- The reader reads the constant's own initializer and the same file's constants it names; a same-file redefinition of
+  what it reads by name -- a nested class named Set, a helper entries(...) redefined, a local variable shadowing the
+  pin where a guard uses it -- is not seen (the review of 351e80daa2, 2026-11-18, SHOULD).
 - A pin new at the head (absent at the merge-base) is new, not grown, and is not checked: its first contents are the
   change's own, reviewed with it. A pin dropped from WATCHED needs a dated note (above), so renaming a pin is visible.
 - A note is text: the check proves a dated note was written, not that it is true.
 - The head is a committed revision (--head, default HEAD) or, with --worktree, the working tree.
+- A watched file renamed in the change is compared with its old path's text at the merge-base (git's rename
+  detection, -M).
+- CI and //tools/guards:shrink_only_check run the merge-base's copy of this script (a change cannot loosen the check
+  that judges it); a base without one runs the head's (the check's first landing).
 
 Usage: shrink_only.py [--base <ref>] [--head <rev>] [--repo <dir>] [--worktree]. Exit 0 when every move is dated,
 1 otherwise, 2 when the history cannot be read (never a pass: no merge-base, an unreadable blob or a git error is a
@@ -390,7 +399,16 @@ def key(node):
 def facts(node, prefix=(), spans=()):
     """The entries of a parsed pin, each a path from its keys to its member."""
     out = []
-    if node.kind == "str":
+    if node.kind == "str" and "\n" in node.value:
+        # a text block: each of its lines an entry at its own line (the review of 351e80daa2, 2026-11-18: one dated
+        # line dated the whole block)
+        top = min(node.lines)[1]
+        first = min(ln for ln, _ in node.lines) + 1
+        for i, text in enumerate(node.value.split("\n")):
+            if text.strip():
+                ident, count = identity(text.strip())
+                out.append(Fact(prefix + (ident,), count, {(first + i, top)}, list(spans)))
+    elif node.kind == "str":
         ident, count = identity(node.value)
         out.append(Fact(prefix + (ident,), count, set(node.lines), list(spans)))
     elif node.kind == "int":
@@ -477,7 +495,7 @@ def grown(base, head):
     for f in head:
         seen[f.path] += 1
         if seen[f.path] > bmany.get(f.path, 0):
-            if not any(f.path[:k] in added for k in range(1, len(f.path))):
+            if f.path not in added and not any(f.path[:k] in added for k in range(1, len(f.path))):
                 out.append((f, "added"))
             added.add(f.path)
     for path, hs in hcounts.items():
@@ -517,13 +535,21 @@ def recent(text, since):
     return any(d >= since for d in DATE.findall(text))
 
 
-def dated(lines, fact, since):
-    """Whether `fact` carries a date on or after `since`: on one of its lines or its entry call's, or in the nearest
-    comment block above its first line, within the declaration it is read from (never the declaration's javadoc)."""
+def noted(lines, n, since, fresh):
+    """Whether line n (1-based) is a note: new in the change (fresh, from git blame) holding a date, or, without the
+    history (fresh None), holding a date on or after `since`."""
+    if fresh is None:
+        return recent(lines[n - 1], since)
+    return n in fresh and bool(DATE.search(lines[n - 1]))
+
+
+def dated(lines, fact, since, fresh=None):
+    """Whether `fact` carries a note: on one of its lines or its entry call's, or in the nearest comment block above its
+    first line, within the declaration it is read from (never the declaration's javadoc)."""
     own = {ln for ln, _ in fact.anchors}
     for first, last, _ in fact.spans:
         own |= set(range(first, last + 1))
-    if any(recent(lines[n - 1], since) for n in own):
+    if any(noted(lines, n, since, fresh) for n in own):
         return True
     firsts = {}
     for ln, top in list(fact.anchors) + [(first, top) for first, _, top in fact.spans]:
@@ -533,7 +559,7 @@ def dated(lines, fact, since):
         while k >= top - 1 and not is_comment(lines[k]):
             k -= 1
         while k >= top - 1 and is_comment(lines[k]):
-            if recent(lines[k], since):
+            if noted(lines, k + 1, since, fresh):
                 return True
             k -= 1
     return False
@@ -547,36 +573,71 @@ def comment_text(line):
     return line[k:] if k >= 0 else ""
 
 
-def named(source, span, fact, since):
-    """Whether a comment within the pin, or in the block directly above its declaration, names the removed `fact`
-    (its text, or the simple name after the last '.', '$' or '#') with a date on or after `since`."""
+def names_it(text, name):
+    """Whether `text` names `name` as a whole word: not inside a longer name (the review of 351e80daa2, 2026-11-18, M3:
+    "PlannedAppeals" excused the removal of "Appeal")."""
+    return re.search(r"(?<![\w.$#])" + re.escape(name) + r"(?![\w$])", text) is not None
+
+
+def named(source, span, fact, since, fresh=None):
+    """Whether a note within the pin, or in the comment block directly above its declaration, names the removed
+    `fact` (its text, or the simple name after the last '.', '$' or '#') as a whole word."""
     _, end, top = span
     lines = source.split("\n")
     leaf = fact.path[-1]
     names = {n for n in (leaf, re.split(r"[.$#]", leaf)[-1]) if n}
-    texts = []
+    at = []
     k = top - 2
     while k >= 0 and is_comment(lines[k]):
-        texts.append(lines[k])
+        at.append(k + 1)
         k -= 1
-    texts += [comment_text(ln) for ln in lines[top - 1:source.count("\n", 0, end) + 1]]
-    return any(recent(t, since) and any(n in t for n in names) for t in texts)
+    at += list(range(top, source.count("\n", 0, end) + 2))
+    return any(noted(lines, n, since, fresh) and any(names_it(comment_text(lines[n - 1]), m) for m in names)
+               for n in at)
+
+
+LISTS = ("WATCHED", "GROW_ONLY")
 
 
 def watched_lists(script):
-    """WATCHED and GROW_ONLY as this script's text at some revision declares them: {(file, name)} for each."""
+    """WATCHED and GROW_ONLY as this script's text at some revision declares them: {(file, name)} for each. Each is
+    one literal, assigned once at the module's top; any other statement that could change one -- an assignment, an
+    augmented one, a subscript or attribute store, a delete, a mutating method call, a global declaration -- is refused
+    (the review of 351e80daa2, 2026-11-18, M1: a .remove() after the literal dropped a pin the literal still listed)."""
     tree = ast.parse(script)
     out = {}
+    literals = set()
     for node in tree.body:
         if isinstance(node, ast.Assign) and len(node.targets) == 1 and isinstance(node.targets[0], ast.Name) \
-                and node.targets[0].id in ("WATCHED", "GROW_ONLY"):
+                and node.targets[0].id in LISTS:
+            if node.targets[0].id in out:
+                raise ValueError(f"{node.targets[0].id} is assigned twice")
             value = ast.literal_eval(node.value)
             out[node.targets[0].id] = {(f, n) for f, names in value.items() for n in names}
+            literals.add(id(node.targets[0]))
+    def root(node):
+        # the name an attribute or subscript chain starts from (WATCHED["a"].remove: WATCHED)
+        while isinstance(node, (ast.Attribute, ast.Subscript)):
+            node = node.value
+        return node.id if isinstance(node, ast.Name) else None
+
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Name) and node.id in LISTS and isinstance(node.ctx, (ast.Store, ast.Del)) \
+                and id(node) not in literals:
+            raise ValueError(f"{node.id} is changed at line {node.lineno}")
+        if isinstance(node, (ast.Subscript, ast.Attribute)) and isinstance(node.ctx, (ast.Store, ast.Del)) \
+                and root(node) in LISTS:
+            raise ValueError(f"{root(node)} is changed at line {node.lineno}")
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and root(node.func) in LISTS \
+                and node.func.attr not in ("get", "items", "keys", "values", "count", "index", "copy"):
+            raise ValueError(f"{root(node.func)}...{node.func.attr}(...) at line {node.lineno}")
+        if isinstance(node, ast.Global) and set(node.names) & set(LISTS):
+            raise ValueError(f"a global declaration of {set(node.names) & set(LISTS)} at line {node.lineno}")
     return out
 
 
-def watched_shrinks(base_script, head_script, since):
-    """A pin dropped from WATCHED or GROW_ONLY since the merge-base, with no dated comment in this script naming it."""
+def watched_shrinks(base_script, head_script, since, fresh=None):
+    """A pin dropped from WATCHED or GROW_ONLY since the merge-base, with no note in this script naming it."""
     if base_script is None:
         return []        # this script is new at the head: its lists are the change's own
     failures = []
@@ -584,24 +645,27 @@ def watched_shrinks(base_script, head_script, since):
         base, head = watched_lists(base_script), watched_lists(head_script)
     except (SyntaxError, ValueError) as e:
         return [f"{SELF}: its WATCHED or GROW_ONLY list cannot be read ({e})"]
-    notes = [ln for ln in head_script.split("\n") if ln.strip().startswith("#") or " # " in ln]
-    for listed in ("WATCHED", "GROW_ONLY"):
+    lines = head_script.split("\n")
+    notes = [(n, ln) for n, ln in enumerate(lines, 1) if ln.strip().startswith("#") or " # " in ln]
+    for listed in LISTS:
         for path, name in sorted(base.get(listed, set()) - head.get(listed, set())):
-            if not any(recent(ln, since) and re.search(r"\b" + re.escape(name) + r"\b", ln) for ln in notes):
+            if not any(noted(lines, n, since, fresh) and names_it(ln, name) for n, ln in notes):
                 failures.append(f"{SELF}: {name} ({path}) dropped from {listed} -- a pin leaves the list only with a"
-                                f" dated note in this file naming it (a YYYY-MM-DD on or after {since})")
+                                f" note in this file naming it (new in this change, holding a YYYY-MM-DD)")
     return failures
 
 
-def check(read_base, read_head, since, watched=None, grow_only=None, self_check=True):
-    """Every move without a dated note, as messages naming the entry and the rule."""
+def check(read_base, read_head, since, watched=None, grow_only=None, self_check=True, fresh=None):
+    """Every move without a note, as messages naming the entry and the rule. `fresh(path)` gives the head's lines new
+    in the change (git blame); None reads a note's date against `since` instead."""
     failures = []
+    new = (lambda path: fresh(path)) if fresh is not None else (lambda path: None)
     if self_check:
         head_script = read_head(SELF)
         if head_script is None:
             failures.append(f"{SELF}: this script is gone at the head")
         else:
-            failures += watched_shrinks(read_base(SELF), head_script, since)
+            failures += watched_shrinks(read_base(SELF), head_script, since, new(SELF))
     grow_only = GROW_ONLY if grow_only is None else grow_only
     for path, names in (watched or WATCHED).items():
         head_source = read_head(path)
@@ -611,6 +675,7 @@ def check(read_base, read_head, since, watched=None, grow_only=None, self_check=
             continue
         base_source = read_base(path)
         head_lines = head_source.split("\n")
+        head_new = None
         for name in names:
             try:
                 read = read_pin(head_source, name)
@@ -629,18 +694,21 @@ def check(read_base, read_head, since, watched=None, grow_only=None, self_check=
             if base_read is None:
                 continue        # a pin new at the head: its first contents are the change's own
             base = base_read[0]
+            if head_new is None:
+                head_new = new(path)
             if name in grow_only.get(path, ()):
                 for fact in removed(base, head):
-                    if not named(head_source, span, fact, since):
+                    if not named(head_source, span, fact, since, head_new):
                         failures.append(f"{path}:{span[2]}: {name} entry \"{' / '.join(fact.path)}\" -- {REMOVED_RULE}"
-                                        f" (a comment in the pin, or above it, naming it with a YYYY-MM-DD on or after"
-                                        f" {since})")
+                                        f" (a note new in this change, in the pin or above it, naming it and holding a"
+                                        f" YYYY-MM-DD)")
                 continue
             for fact, why in grown(base, head):
-                if not dated(head_lines, fact, since):
+                if not dated(head_lines, fact, since, head_new):
                     line = min(ln for ln, _ in fact.anchors)
                     failures.append(f"{path}:{line}: {name} entry \"{' / '.join(fact.path)}\" {why} -- {RULE} (a"
-                                    f" YYYY-MM-DD on or after {since} on its line or in the comment above it)")
+                                    f" note new in this change, holding a YYYY-MM-DD, on its line or in the comment"
+                                    f" above it)")
     return failures
 
 
@@ -658,6 +726,44 @@ def reader(repo, rev):
             return None
         return git(repo, "show", f"{rev}:{path}")
     return read
+
+
+def blamed_new(repo, merge_base, head, worktree):
+    """path -> the head's lines (1-based) new in merge_base..head: those git blame attributes to a commit of the change
+    (not a boundary commit), or, with the working tree read, not yet committed."""
+    def fresh(path):
+        args = ["blame", "--porcelain"]
+        if worktree:
+            args += ["--contents", os.path.join(repo, path), f"{merge_base}..HEAD"]
+        else:
+            args += [f"{merge_base}..{head}"]
+        out = git(repo, *args, "--", path)
+        boundary, new = set(), set()
+        sha = final = None
+        for line in out.split("\n"):
+            if line.startswith("\t"):
+                if sha not in boundary:
+                    new.add(final)
+                continue
+            parts = line.split(" ")
+            if len(parts) >= 3 and re.fullmatch(r"[0-9a-f]{40}", parts[0]) and parts[1].isdigit() \
+                    and parts[2].isdigit():
+                sha, final = parts[0], int(parts[2])
+            elif line == "boundary":
+                boundary.add(sha)
+        return new
+    return fresh
+
+
+def renames(repo, merge_base, head, worktree):
+    """The head's path -> its merge-base path, for each file git's rename detection finds renamed in the change."""
+    args = ["diff", "--name-status", "-M", merge_base] + ([] if worktree else [head])
+    out = {}
+    for line in git(repo, *args).split("\n"):
+        parts = line.split("\t")
+        if len(parts) == 3 and parts[0].startswith("R"):
+            out[parts[2]] = parts[1]
+    return out
 
 
 def floor(repo, merge_base, head):
@@ -690,13 +796,21 @@ def main(argv):
             except FileNotFoundError:
                 return None
 
-        failures = check(reader(repo, merge_base), read_worktree if args.worktree else reader(repo, head), since)
+        moved = renames(repo, merge_base, head, args.worktree)
+        base_reader = reader(repo, merge_base)
+
+        def read_base(path):
+            # a file renamed in the change is compared with its old path's text (the review of 351e80daa2, SHOULD)
+            return base_reader(moved.get(path, path))
+
+        failures = check(read_base, read_worktree if args.worktree else reader(repo, head), since,
+                         fresh=blamed_new(repo, merge_base, head, args.worktree))
     except HistoryError as e:
         print(f"shrink_only: the history cannot be read ({e}): a full clone with {args.base} is needed",
               file=sys.stderr)
         return 2
     print(f"shrink_only: {'the working tree' if args.worktree else head[:10]} against the merge-base"
-          f" {merge_base[:10]} ({args.base}); notes dated {since} or later: "
+          f" {merge_base[:10]} ({args.base}); a note is a line new since the merge-base holding a date: "
           f"{sum(len(n) for n in WATCHED.values())} pins in {len(WATCHED)} files")
     for f in failures:
         print("  " + f)
