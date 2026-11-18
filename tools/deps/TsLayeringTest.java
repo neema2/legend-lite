@@ -44,6 +44,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * host: the run side through the doors alone. Each library an app takes beside the layers reaches none either
  * ({@code app_libraries_run}, a genquery: empty). That an app MODULE imports no run module through what it may reach is
  * the apps' census's ({@code //tools/deps:app_runs_test}).
+ *
+ * <p>2026-11-17 (H11, the orchestrator's go; lite's API v1 spec §6, "no product module depends on the edge"):
+ * legend-engine's API in TypeScript is a layer of its own, the EDGE ({@code //engine-client:edge}), over the others and
+ * under every product target: no layer and no app's product target names it as a dep, and no app's closure holds it
+ * ({@code app_edge_reach}, a genquery: empty). That no product MODULE imports one of its files is the apps' census's too.
+ * The same day (the orchestrator's alignment): an app's legend-engine mode is its COMPAT ENTRY, a target of its own the
+ * app loads only when configured {@code engine: legend-engine} -- the only targets beside the edge's own that may depend
+ * on it ({@link #EDGE_ENTRIES}, each by its label), and themselves depended on by no product target.
  */
 class TsLayeringTest {
 
@@ -122,6 +130,14 @@ class TsLayeringTest {
     /** What no app reaches: the run layers, the union that holds every layer, and Node's host. */
     static final Set<String> NOT_FOR_APPS = Set.of("//engine-client:run", "//datacube:run", "//engine-client:engine_client",
             "//engine-client:node_host");
+    /** The edge (2026-11-17, H11): legend-engine's API in TypeScript -- its wire shapes, refusal, Grammar, engines and tab
+     *  bindings. It may reach the layers; no layer and no app reaches it. */
+    static final String EDGE = "//engine-client:edge";
+    /** The apps' compat entries (2026-11-17, the orchestrator's alignment of H11): an app's legend-engine mode, loaded only
+     *  when configured {@code engine: legend-engine}, the one kind of target that may depend on the edge -- and that no
+     *  product target depends on. DataCube's ({@code //datacube:edge_entry}: its remote runner and UpstreamPlanner) is
+     *  DataCube's to cut after the host train; its line in ts-layers.txt names the edge then. */
+    static final Set<String> EDGE_ENTRIES = Set.of("//datacube:edge_entry");
     /** The npm packages a run layer reaches: DuckDB in the tab, and the Arrow its answers and the warehouse's are read with. */
     static final Set<String> RUN_NPM = Set.of("//engine-client:node_modules/@duckdb/duckdb-wasm",
             "//engine-client:node_modules/apache-arrow");
@@ -141,6 +157,17 @@ class TsLayeringTest {
         long apps = lines.stream().filter((l) -> APP_LAYERS.stream().anyMatch((a) -> l.startsWith(a + "\t"))).count();
         assertEquals(APP_LAYERS.size(), apps, "ts-layers.txt names " + apps + " of the " + APP_LAYERS.size()
                 + " apps pinned: the guard is not looking");
+        long edges = lines.stream().filter((l) -> l.startsWith(EDGE + "\t")).count();
+        assertEquals(1, edges, "ts-layers.txt names " + edges + " edges of the one pinned: the guard is not looking");
+    }
+
+    // 2026-11-17 (H11): the edge in no app's closure, through any layer or library
+    @Test
+    void noAppReachesTheEdge() throws IOException {
+        List<String> reached = Files.readAllLines(Runfile.property("app.edge.reach")).stream()
+                .filter((l) -> !l.isBlank()).toList();
+        assertEquals(List.of(), reached, "an app reaches legend-engine's API, the edge: no product module depends on it"
+                + " (lite's API v1 spec §6; //tools/deps:app_edge_reach)");
     }
 
     @Test
@@ -168,11 +195,24 @@ class TsLayeringTest {
                 "//engine-client:server\t//engine-client:planner //engine-client:engine_api //engine-client:run",
                 "//engine-client:engine_api\t//engine-client:records //engine-client:run",
                 "//planted:server\t//engine-client:records",
-                "//planted:engine_api\t//engine-client:records");
+                "//planted:engine_api\t//engine-client:records",
+                // 2026-11-17 (H11): the edge, reached by no product target -- a layer, an app's src -- and pinned by its
+                // label; an app's compat entry reaches it, and no product target reaches the entry
+                "//engine-client:doors\t//engine-client:planner //engine-client:edge",
+                "//studio:src\t//engine-client:doors //engine-client:edge",
+                "//datacube:src_base\t//engine-client:doors //engine-client:edge",
+                "//datacube:edge_entry\t//datacube:src //engine-client:doors //engine-client:edge",
+                "//query:src\t//engine-client:doors //datacube:edge_entry",
+                "//planted:edge_entry\t//engine-client:edge",
+                "//planted:edge\t//engine-client:records");
         assertEquals(List.of(
                 "//datacube:planner reaches //engine-client:engine_api: a planner reaches nothing that can execute"
                         + " (records and the protocol alone)",
                 "//datacube:src reaches //datacube:run: an app reaches the run side through the doors alone",
+                "//datacube:src_base reaches //engine-client:edge: no product target reaches legend-engine's API, the"
+                        + " edge -- an app's compat entry alone (TsLayeringTest.EDGE_ENTRIES)",
+                "//engine-client:doors reaches //engine-client:edge: no product target reaches legend-engine's API, the"
+                        + " edge -- an app's compat entry alone (TsLayeringTest.EDGE_ENTRIES)",
                 "//engine-client:engine_api reaches //engine-client:run: the engine's API reaches records alone",
                 "//engine-client:planner reaches //datacube:node_modules/fflate: a planner reaches nothing that can execute"
                         + " (records and the protocol alone)",
@@ -186,11 +226,19 @@ class TsLayeringTest {
                         + " layer or door (records, the planner and its npm package alone)",
                 "//engine-client:server reaches //engine-client:run: a server layer reaches no engine's API, run layer or"
                         + " door (records, the planner and its npm package alone)",
+                "//planted:edge is named the edge, and is not the one pinned (TsLayeringTest.EDGE)",
+                "//planted:edge_entry is named a compat entry, and no compat entry pinned (TsLayeringTest.EDGE_ENTRIES)",
+                "//planted:edge_entry reaches //engine-client:edge: no product target reaches legend-engine's API, the"
+                        + " edge -- an app's compat entry alone (TsLayeringTest.EDGE_ENTRIES)",
                 "//planted:engine_api is named the engine's API, and is not the one pinned (TsLayeringTest.ENGINE_API)",
                 "//planted:planner is named a planner layer, and no planner layer pinned (TsLayeringTest.PLANNER_LAYERS)",
                 "//planted:run is named a run layer, and no run layer pinned (TsLayeringTest.RUN_LAYERS)",
                 "//planted:server is named a server layer, and no server layer pinned (TsLayeringTest.SERVER_LAYERS)",
+                "//query:src reaches //datacube:edge_entry: no product target reaches an app's compat entry -- the app"
+                        + " loads it by configuration (engine: legend-engine), never by a dep",
                 "//query:src reaches //engine-client:run: an app reaches the run side through the doors alone",
+                "//studio:src reaches //engine-client:edge: no product target reaches legend-engine's API, the edge --"
+                        + " an app's compat entry alone (TsLayeringTest.EDGE_ENTRIES)",
                 "//studio:src reaches //engine-client:engine_client: an app reaches the run side through the doors alone",
                 "//studio:src reaches //engine-client:node_host: an app reaches the run side through the doors alone"),
                 ruleBreaches(planted));
@@ -207,7 +255,25 @@ class TsLayeringTest {
             String[] parts = line.split("\t", -1);
             String layer = parts[0];
             List<String> deps = parts.length > 1 ? List.of(parts[1].split(" ")) : List.of();
-            if (name(layer).equals("run") && !RUN_LAYERS.contains(layer)) {
+            // 2026-11-17 (H11): whatever else a layer is, it reaches no edge unless it is an app's compat entry, and no
+            // product target reaches a compat entry (the orchestrator's alignment, the same day)
+            if (!EDGE.equals(layer) && !EDGE_ENTRIES.contains(layer) && deps.contains(EDGE)) {
+                breaches.add(layer + " reaches " + EDGE + ": no product target reaches legend-engine's API, the edge -- an"
+                        + " app's compat entry alone (TsLayeringTest.EDGE_ENTRIES)");
+            }
+            if (!EDGE.equals(layer) && !EDGE_ENTRIES.contains(layer)) {
+                for (String dep : deps) {
+                    if (EDGE_ENTRIES.contains(dep)) {
+                        breaches.add(layer + " reaches " + dep + ": no product target reaches an app's compat entry -- the"
+                                + " app loads it by configuration (engine: legend-engine), never by a dep");
+                    }
+                }
+            }
+            if (name(layer).equals("edge_entry") && !EDGE_ENTRIES.contains(layer)) {
+                breaches.add(layer + " is named a compat entry, and no compat entry pinned (TsLayeringTest.EDGE_ENTRIES)");
+            } else if (name(layer).equals("edge") && !EDGE.equals(layer)) {
+                breaches.add(layer + " is named the edge, and is not the one pinned (TsLayeringTest.EDGE)");
+            } else if (name(layer).equals("run") && !RUN_LAYERS.contains(layer)) {
                 breaches.add(layer + " is named a run layer, and no run layer pinned (TsLayeringTest.RUN_LAYERS)");
             } else if (name(layer).equals("planner") && !PLANNER_LAYERS.contains(layer)) {
                 breaches.add(layer + " is named a planner layer, and no planner layer pinned (TsLayeringTest.PLANNER_LAYERS)");
