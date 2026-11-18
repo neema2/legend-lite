@@ -25,30 +25,32 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 @Tag("guardrail")
 class TerminalRowsFrozenTest {
 
-    /** Every terminal row, "file | spelling | step" (its count the register's to hold), with its ruling. */
+    /** Every terminal row, "file | spelling | count | step", with its ruling: its count frozen with it (the review of
+     *  5911e970e1, 2026-11-17: a terminal row keyed without its count grew unseen, since the census counts no terminal
+     *  row). */
     static final Map<String, String> TERMINAL = Map.ofEntries(
             // a product semantic sharing the spelling: the date pattern's letter Z (phase D's register, 2026-11-12)
-            Map.entry("lowering/DateFormats.java | +0000 | STAYS", "D register 2026-11-12 (pattern letter Z)"),
+            Map.entry("lowering/DateFormats.java | +0000 | 1 | STAYS", "D register 2026-11-12 (pattern letter Z)"),
             // INPUT read, no spelling written
-            Map.entry("lowering/LiteralSpelling.java | +0000 | STAYS", "C5 step C 2026-11-17 (input read)"),
-            Map.entry("lowering/Scalars.java | +0000 | STAYS", "D1.2 2026-11-15 (input read)"),
-            Map.entry("protocol/ts/TsShow.java | +0000 | STAYS", "main 3a217086a (#81) 2026-11-14 (input read)"),
+            Map.entry("lowering/LiteralSpelling.java | +0000 | 1 | STAYS", "C5 step C 2026-11-17 (input read)"),
+            Map.entry("lowering/Scalars.java | +0000 | 1 | STAYS", "D1.2 2026-11-15 (input read)"),
+            Map.entry("protocol/ts/TsShow.java | +0000 | 1 | STAYS", "main 3a217086a (#81) 2026-11-14 (input read)"),
             // the user's ruling on H2's keywords and its session half
-            Map.entry("sql/dialect/H2.java | ENGINE_LEXICON | RULED", "the user's ruling (H2's lexicon), listed 2026-11-16"),
-            Map.entry("sql/dialect/H2.java | SET NON_KEYWORDS | RULED", "S5 2026-11-16 (the same ruling's session half)"),
+            Map.entry("sql/dialect/H2.java | ENGINE_LEXICON | 3 | RULED", "the user's ruling (H2's lexicon), listed 2026-11-16"),
+            Map.entry("sql/dialect/H2.java | SET NON_KEYWORDS | 1 | RULED", "S5 2026-11-16 (the same ruling's session half)"),
             // TDSNull as INPUT and LANGUAGE: the #TDS cell token, Pure's class, the sentinel ^TDSNull() lowers to
-            Map.entry("compiler/element/type/PlatformTypes.java | TDSNull | STAYS", "C5 step C, C-2 2026-11-17 (language)"),
-            Map.entry("compiler/spec/TdsChecker.java | TDSNull | STAYS", "C5 step C, C-2 2026-11-17 (language)"),
-            Map.entry("compiler/spec/TdsNullForms.java | TDSNull | STAYS", "C5 step C, C-2 2026-11-17 (language)"),
-            Map.entry("compiler/spec/Typer.java | TDSNull | STAYS", "C5 step C, C-2 2026-11-17 (language)"),
-            Map.entry("lowering/Scalars.java | TDSNull | STAYS", "C5 step C, C-2 2026-11-17 (the #TDS literal's input)"),
+            Map.entry("compiler/element/type/PlatformTypes.java | TDSNull | 1 | STAYS", "C5 step C, C-2 2026-11-17 (language)"),
+            Map.entry("compiler/spec/TdsChecker.java | TDSNull | 1 | STAYS", "C5 step C, C-2 2026-11-17 (language)"),
+            Map.entry("compiler/spec/TdsNullForms.java | TDSNull | 3 | STAYS", "C5 step C, C-2 2026-11-17 (language)"),
+            Map.entry("compiler/spec/Typer.java | TDSNull | 4 | STAYS", "C5 step C, C-2 2026-11-17 (language)"),
+            Map.entry("lowering/Scalars.java | TDSNull | 2 | STAYS", "C5 step C, C-2 2026-11-17 (the #TDS literal's input)"),
             // (compiler/spec/VerdictQueries.java | TDSNull | STAYS: gone from the register 2026-11-17 on d-stage c37207858,
             // train 7's C-2 fix-forward)
             // generateSeedDataString's value (TestDataPlanner.seedString): STAYS, the orchestrator's ruling of 2026-11-17
             // (23:27: its own, not the user's -- not RULED, which is the user's)
-            Map.entry("testdatagen/TestDataPlanner.java | createRowIdentifier([ | STAYS",
+            Map.entry("testdatagen/TestDataPlanner.java | createRowIdentifier([ | 1 | STAYS",
                     "the seed string, the orchestrator's STAYS ruling 2026-11-17 (toRepresentation precedent)"),
-            Map.entry("testdatagen/TestDataPlanner.java | createTableRowIdentifiers( | STAYS",
+            Map.entry("testdatagen/TestDataPlanner.java | createTableRowIdentifiers( | 1 | STAYS",
                     "the seed string, the orchestrator's STAYS ruling 2026-11-17 (toRepresentation precedent)"));
 
     /** The terminal rows of {@code register} as this test keys them, by the register's one terminal predicate (the one
@@ -59,7 +61,7 @@ class TerminalRowsFrozenTest {
             String[] p = row.split("\\|");
             String step = p[3].trim();
             if (CompatSpellingGuardTest.TERMINAL_STEPS.contains(step)) {
-                out.add(p[0].trim() + " | " + p[1].trim() + " | " + step);
+                out.add(p[0].trim() + " | " + p[1].trim() + " | " + p[2].trim() + " | " + step);
             }
         }
         return out;
@@ -97,11 +99,18 @@ class TerminalRowsFrozenTest {
         planted.add("lowering/VerdictSql.java | Repr | 1 | HOOK-RULED");
         Set<String> found = terminal(planted);
         found.removeAll(TERMINAL.keySet());
-        assertEquals(Set.of("lowering/Repr.java | Repr | STAYS", "sql/dialect/Planted.java | PLANTED | RULED",
-                "lowering/VerdictSql.java | Repr | HOOK-RULED"), found, "the freeze bites");
+        assertEquals(Set.of("lowering/Repr.java | Repr | 2 | STAYS", "sql/dialect/Planted.java | PLANTED | 1 | RULED",
+                "lowering/VerdictSql.java | Repr | 1 | HOOK-RULED"), found, "the freeze bites");
+        // a terminal row grown: its count is in its key, so the grown row is a new one (the review of 5911e970e1)
+        List<String> grown = new ArrayList<>(CompatSpellingGuardTest.REGISTER);
+        grown.replaceAll(r -> r.replace("lowering/Scalars.java | TDSNull | 2 | STAYS",
+                "lowering/Scalars.java | TDSNull | 5 | STAYS"));
+        Set<String> grownFound = terminal(grown);
+        grownFound.removeAll(TERMINAL.keySet());
+        assertEquals(Set.of("lowering/Scalars.java | TDSNull | 5 | STAYS"), grownFound, "a terminal row grown is found");
         Map<String, String> undatedRuling = new java.util.TreeMap<>(TERMINAL);
-        undatedRuling.put("sql/dialect/Planted.java | PLANTED | RULED", "the user said so");
-        assertEquals(List.of("sql/dialect/Planted.java | PLANTED | RULED"), undated(undatedRuling),
+        undatedRuling.put("sql/dialect/Planted.java | PLANTED | 1 | RULED", "the user said so");
+        assertEquals(List.of("sql/dialect/Planted.java | PLANTED | 1 | RULED"), undated(undatedRuling),
                 "an undated ruling is found");
     }
 }

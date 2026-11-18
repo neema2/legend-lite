@@ -418,7 +418,16 @@ class PlannerSurfaceTest {
      *  simple types (a generic's arguments dropped, varargs as an array, annotations and {@code final} left out); a
      *  public static the check cannot read as a method, a field or a nested type is put to {@code unread}. */
     static Map<String, List<List<String>>> edgeDoorMethods(String edgeSource, List<String> unread) {
-        String source = annotationArgumentsBlanked(blanked(edgeSource));
+        // a unicode escape is read by javac before anything else (a line break, a quote): the check does not read one,
+        // so it fails by name (the review of 5911e970e1, 2026-11-17)
+        if (edgeSource.contains("\\u")) {
+            unread.add("a unicode escape (\\u), which javac reads first and this check does not");
+        }
+        // an annotation's name spelled with blanks or a comment around "@" or its dots ("@ Deprecated",
+        // "@/*c*/Deprecated", "@java.lang .Deprecated"), read as written tight (the same review: the run of modifiers
+        // read only "@name")
+        String source = annotationArgumentsBlanked(blanked(edgeSource).replaceAll("@\\s+", "@")
+                .replaceAll("(?<=@[\\w.]{0,200})\\s*\\.\\s*(?=\\w)", "."));
         Map<String, List<List<String>>> out = new TreeMap<>();
         Matcher m = MODIFIERS.matcher(source);
         while (m.find()) {
@@ -552,16 +561,23 @@ class PlannerSurfaceTest {
                 + "    public static Answer afterBlock(String s) {}\n"
                 + "    static final String U = \"\"\"\n        x\n        \"\"\";\n"
                 + "    public @Ann(x = @B(1), y = {@C(\"(\")}) static Answer nestedAnnotation(String s) {}\n"
+                // the review of 5911e970e1 (2026-11-17): an annotation's name spelled with blanks or a comment
+                + "    public @ Deprecated static Answer spacedAt(String s) {}\n"
+                + "    public @/*c*/Deprecated static Answer commentedAt(String s) {}\n"
+                + "    public @java.lang .Deprecated static Answer spacedDot(String s) {}\n"
                 + "    /** a doc */\n"
                 + "    public static Answer broken(String a\n}\n";
         assertEquals(List.of("an edge boundary public static the check does not read: Answer broken(String a }",
                 "an edge boundary door no EDGE_DOORS entry names: afterBlock",
                 "an edge boundary door no EDGE_DOORS entry names: afterGlob",
+                "an edge boundary door no EDGE_DOORS entry names: commentedAt",
                 "an edge boundary door no EDGE_DOORS entry names: finalStatic",
                 "an edge boundary door no EDGE_DOORS entry names: nestedAnnotation",
                 "an edge boundary door no EDGE_DOORS entry names: orderSwapped",
                 "an edge boundary door no EDGE_DOORS entry names: runHeaders",
                 "an edge boundary door no EDGE_DOORS entry names: runSqlHere",
+                "an edge boundary door no EDGE_DOORS entry names: spacedAt",
+                "an edge boundary door no EDGE_DOORS entry names: spacedDot",
                 "an edge door the edge's boundary no longer has: executeArrowAnswer",
                 "an edge door the edge's boundary no longer has: executeJsonAnswer",
                 "an edge door declared more than once (its row names one): executeJsonPlan",
@@ -574,7 +590,53 @@ class PlannerSurfaceTest {
                 + "    public static Answer executeJsonAnswer(\n            @Deprecated(since = \"1, 2\") final String plan,\n"
                 + "            final String rows) {}\n}\n", unread));
         assertEquals(List.of(), unread);
+        List<String> escaped = new ArrayList<>();
+        edgeDoorMethods("class E {\n    // x \\u000a public static Answer hidden(String s) {}\n}\n", escaped);
+        assertEquals(List.of("a unicode escape (\\u), which javac reads first and this check does not"), escaped,
+                "a unicode escape fails the read by name");
         assertEquals(List.of(), edgeDoorViolations(read(EDGE_BOUNDARY_SOURCE), BOUNDARY));
+    }
+
+    /** The edge boundary's public statics, as its bytecode holds them (javac's own reading of the source): each name to
+     *  its overloads' parameters' simple types, an array as {@code X[]}. */
+    static Map<String, List<List<String>>> edgeDoorBytecode() {
+        List<java.util.jar.JarFile> jars = new ArrayList<>();
+        try {
+            for (java.nio.file.Path jar : com.legend.testing.Runfile.listed("legend.authored.jars")) {
+                jars.add(new java.util.jar.JarFile(jar.toFile()));
+            }
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+        com.tngtech.archunit.core.domain.JavaClass boundary = new com.tngtech.archunit.core.importer.ClassFileImporter()
+                .importJars(jars).get("com.legend.edge.wasm.EdgeBoundary");
+        Map<String, List<List<String>>> out = new TreeMap<>();
+        for (com.tngtech.archunit.core.domain.JavaMethod m : boundary.getMethods()) {
+            if (m.getModifiers().containsAll(Set.of(com.tngtech.archunit.core.domain.JavaModifier.PUBLIC,
+                    com.tngtech.archunit.core.domain.JavaModifier.STATIC))) {
+                out.computeIfAbsent(m.getName(), k -> new ArrayList<>()).add(m.getRawParameterTypes().stream()
+                        .map(t -> t.isArray() ? t.getComponentType().getSimpleName() + "[]" : t.getSimpleName())
+                        .toList());
+            }
+        }
+        return out;
+    }
+
+    /** The source reader agrees with javac: the edge boundary's public static methods read from its source are exactly
+     *  its bytecode's (the review of 5911e970e1, 2026-11-17, MUST-FIX 2: a door the lexer misses, however it is spelled,
+     *  is a difference here). */
+    @Test
+    void theEdgeDoorsReadEqualTheBytecode() {
+        List<String> unread = new ArrayList<>();
+        Map<String, List<List<String>>> source = edgeDoorMethods(read(EDGE_BOUNDARY_SOURCE), unread);
+        assertEquals(List.of(), unread);
+        Map<String, List<List<String>>> bytecode = edgeDoorBytecode();
+        Map<String, Set<List<String>>> s = new TreeMap<>();
+        Map<String, Set<List<String>>> b = new TreeMap<>();
+        source.forEach((k, v) -> s.put(k, new java.util.HashSet<>(v)));
+        bytecode.forEach((k, v) -> b.put(k, new java.util.HashSet<>(v)));
+        assertTrue(b.keySet().containsAll(EDGE_DOORS), "the boundary's bytecode is read: " + b.keySet());
+        assertEquals(b, s, "the edge boundary's public statics, read from its source, differ from its bytecode's");
     }
 
     /** THE HOST OPERATIONS' FIELDS ({@code HostOperationsJson}: every operation closed by its {@code op}). */

@@ -2766,8 +2766,16 @@ junit_test(
     name = "census_edge",
     memory_mb = 1024,
     size = "medium",
-    data = [":census_sources"],
-    jvm_flags = ["-Dlegend.sources=$(rlocationpath :census_sources)"],
+    # the authored doors' jars (2026-11-17, the review of 5911e970e1): PlannerSurfaceTest holds its reading of the edge
+    # boundary's source to the boundary's bytecode, javac's own reading
+    data = [
+        ":authored_door_jars",
+        ":census_sources",
+    ],
+    jvm_flags = [
+        "-Dlegend.sources=$(rlocationpath :census_sources)",
+        "-Dlegend.authored.jars=$(rlocationpath :authored_door_jars)",
+    ],
     select = edge_test_classes() + ["--include-tag=census"],
     tags = ["edge_test"],
     runtime_deps = [

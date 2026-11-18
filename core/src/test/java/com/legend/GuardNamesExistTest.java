@@ -89,6 +89,7 @@ class GuardNamesExistTest {
             Map.entry("ServiceLoaderSitesTest.java | com.legend.edge.Planted", "planted, 2026-11-17"),
             Map.entry("TaggedClassesHaveATargetTest.java | com.legend.CommentedGuardTest", "planted, 2026-11-17"),
             Map.entry("TaggedClassesHaveATargetTest.java | com.legend.EdgeGuardTest", "planted, 2026-11-17"),
+            Map.entry("TaggedClassesHaveATargetTest.java | com.legend.Other", "planted, 2026-11-17"),
             Map.entry("TaggedClassesHaveATargetTest.java | com.legend.slow.ArgDropTest", "planted, 2026-11-17"),
             Map.entry("TaggedClassesHaveATargetTest.java | com.legend.slow.CommentedOutTest", "planted, 2026-11-17"),
             Map.entry("TaggedClassesHaveATargetTest.java | com.legend.slow.DroppedTest", "planted, 2026-11-17"),

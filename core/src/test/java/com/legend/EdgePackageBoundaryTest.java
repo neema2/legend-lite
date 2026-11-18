@@ -34,8 +34,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *   ({@code startsWith("com.legend.x")}, {@code "com/legend/x"}): a package and the ones under it are
  *   {@code equals(p) || startsWith(p + ".")};</li>
  *   <li>the product's and the hosts' jars hold no class under {@code com/legend/edge/};</li>
- *   <li>the edge's jars -- the edge library's and the ones the hosts' list carries -- hold no class outside it (every
- *   edge target's jar: C.11's one source).</li>
+ *   <li>the edge's jars -- the edge library's and the ones the hosts' list carries -- hold no class outside it. Not
+ *   read yet (named, the review of 5911e970e1, 2026-11-17): the other edge targets' jars -- //core:edge_server,
+ *   :edge_service_tests, :edge_store_words, //native:edge_entry, //query-store:edge_page_entry -- whose reading comes
+ *   with C.11's one list of the edge's targets, after the host train; until then a product class compiled into one of
+ *   them is not found here.</li>
  * </ul>
  */
 @Tag("guardrail")
@@ -109,7 +112,7 @@ class EdgePackageBoundaryTest {
     void theProductsJarsHoldNoEdgeClass() {
         // the hosts' list carries the edge's jars on purpose (the planner-entry rule reads their classes): each edge
         // target is named edge*, its jar libedge*.jar, and the set set aside is pinned, so no jar leaves this scan
-        // unseen (C.11's one source for the edge's targets replaces the name)
+        // unseen (C.11's one list of the edge's targets, after the host train, replaces the name)
         List<Path> jars = new ArrayList<>();
         Set<String> setAside = new TreeSet<>();
         for (Path jar : ConstantPools.jars("legend.product.jars", "legend.authored.jars")) {
@@ -129,7 +132,8 @@ class EdgePackageBoundaryTest {
     @Test
     void theEdgesJarHoldsOnlyEdgeClasses() {
         // the edge library's jar and the edge's jars the hosts' list carries (set aside from the product's scan above,
-        // so read here: the review of C.14, 2026-11-17); every edge target's jar is C.11's one source
+        // so read here: the review of C.14, 2026-11-17); the other edge targets' jars are not read until C.11 (named in
+        // the class's javadoc)
         List<Path> jars = new ArrayList<>(ConstantPools.jars("legend.edge.jars"));
         for (Path jar : ConstantPools.jars("legend.product.jars", "legend.authored.jars")) {
             if (EDGE_JARS_IN_THE_HOSTS_LIST.contains(jar.getFileName().toString())) {

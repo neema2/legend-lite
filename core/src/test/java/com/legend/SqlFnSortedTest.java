@@ -570,7 +570,8 @@ class SqlFnSortedTest {
             "com.legend.sql.AliasPrefix.source(com.legend.sql.SqlSource) -> com.legend.sql.SqlSource$VarSetPlaceholder",
             "the alias prefixer's rebuild: the node handed, its alias prefixed",
             // the generic rewrite remakes a deferred relation text with its children rewritten; seventeen product
-            // rewriters call it (measured 2026-11-17, the third review's M3: a rebuilder's method read when called)
+            // rewriters call it (measured 2026-11-17, the third review's M3; the one row every construction in the
+            // rebuilders yields, measured again with the review of 5911e970e1)
             "com.legend.sql.SqlRewriter.rewriteExpr(com.legend.sql.SqlExpr) -> com.legend.sql.SqlExpr$DeferredTdsString",
             "the generic rewrite's rebuild: the node handed, its children rewritten");
 
@@ -635,25 +636,6 @@ class SqlFnSortedTest {
         return new TreeSet<>(made.keySet());
     }
 
-    /** The nodes {@code m} constructs that {@link #made} reads as a rebuild of a node HANDED IN AS A PARAMETER (not
-     *  {@code this}): the shape a factory can take (the third review, 2026-11-17, M3: "a factory on the node's own record
-     *  ... handed a supertype, reads instanceof" -- {@code static SqlSource ensure(SqlSource s, String v)}). The codec
-     *  decodes, so it rebuilds none. */
-    static Set<String> rebuiltFromAParameter(JavaCodeUnit m, Set<String> nodes) {
-        if (m.getOwner().getName().equals("com.legend.executionplan.MirJson")) {
-            return Set.of();
-        }
-        Set<String> out = new TreeSet<>();
-        Stream.concat(m.getConstructorCallsFromSelf().stream().map(x -> x.getTargetOwner()),
-                m.getConstructorReferencesFromSelf().stream().map(x -> x.getTargetOwner()))
-                .filter(o -> nodes.contains(o.getName()))
-                .filter(o -> m.getModifiers().contains(com.tngtech.archunit.core.domain.JavaModifier.STATIC)
-                        || !o.isAssignableTo(m.getOwner().getName()))
-                .forEach(o -> out.add(o.getName()));
-        out.removeAll(made(m, nodes));
-        return out;
-    }
-
     /** Whether a member resolved is static (one unresolved is read as an instance member). */
     private static boolean isStatic(java.util.Optional<? extends com.tngtech.archunit.core.domain.JavaMember> member) {
         return member.map(x -> x.getModifiers().contains(com.tngtech.archunit.core.domain.JavaModifier.STATIC))
@@ -672,15 +654,30 @@ class SqlFnSortedTest {
 
     /** {@link #nodeWriters(JavaClasses, Set, Predicate, Predicate)}, each unit's own construction that {@link #made}
      *  reads as a rebuild put to {@code rebuilds} as "unit -> node", the unit by its full signature (the third review's
-     *  NOTE, 2026-11-17: an overload is its own row); and, for a method hosted in a rebuilder that a unit outside them
-     *  calls, each construction there that reads as a rebuild of a parameter ({@link #rebuiltFromAParameter}), as
-     *  "callee -> node" (the third review, M3: a factory on the node's own record was read nowhere). One level: a
-     *  rebuilder's method called only by another rebuilder's is read at neither. */
+     *  NOTE, 2026-11-17: an overload is its own row); and every construction in a rebuilder's code units, however it
+     *  is reached, as "unit -> node" (the third review's M3 and the review of 5911e970e1, 2026-11-17: a factory on a
+     *  node's own record, a default method, a chain, a constructor or a static field of a rebuilder was read
+     *  nowhere). */
     static Map<String, Set<String>> nodeWriters(JavaClasses classes, Set<String> nodes, Predicate<String> edge,
                                                 Predicate<String> rebuilder, Set<String> rebuilds) {
         Map<String, Set<String>> out = new TreeMap<>();
         for (JavaClass c : classes) {
             if (rebuilder.test(c.getName())) {
+                // a rebuilder writes no node, but each construction in it -- any code unit's: a default method, a static
+                // field's initializer, a node's constructor making another node, a factory however it is reached -- is
+                // recorded as a rebuild, so one of a node the product does not write is a row of its own (the review of
+                // 5911e970e1, 2026-11-17, MUST-FIX 1: only a parameter-shaped one called from outside was read). The
+                // codec decodes; a node's own constructor delegating to itself makes no other node.
+                if (!c.getName().equals("com.legend.executionplan.MirJson")) {
+                    for (JavaCodeUnit u : c.getCodeUnits()) {
+                        Stream.concat(u.getConstructorCallsFromSelf().stream().map(x -> x.getTargetOwner().getName()),
+                                u.getConstructorReferencesFromSelf().stream().map(x -> x.getTargetOwner().getName()))
+                                .filter(n -> nodes.contains(n)
+                                        && !(u instanceof com.tngtech.archunit.core.domain.JavaConstructor
+                                        && n.equals(c.getName())))
+                                .forEach(n -> rebuilds.add(u.getFullName() + " -> " + n));
+                    }
+                }
                 continue;
             }
             String side = (edge.test(c.getName()) ? "edge: " : "product: ") + c.getName();
@@ -696,14 +693,6 @@ class SqlFnSortedTest {
                         .flatMap(java.util.Optional::stream)
                         .forEach(m -> {
                             made(m, nodes).forEach(n -> out.computeIfAbsent(n, k -> new TreeSet<>()).add(side));
-                            // a callee in a rebuilder is read nowhere else: its constructions that read as a rebuild of a
-                            // parameter are recorded when it is called (the third review, 2026-11-17, M3), under the
-                            // callee's own name -- a rebuild is the callee's whoever calls it (the generic rewrite's
-                            // seventeen callers are one row), and a factory hidden there is a row named when it is first
-                            // called; a callee outside the rebuilders records its own, above
-                            if (rebuilder.test(m.getOwner().getName())) {
-                                rebuiltFromAParameter(m, nodes).forEach(n -> rebuilds.add(m.getFullName() + " -> " + n));
-                            }
                         });
             }
         }
@@ -817,7 +806,7 @@ class SqlFnSortedTest {
                 com.legend.sql.SqlSource.VarSetPlaceholder.class.getName());
         Set<String> rebuilds = new TreeSet<>();
         Map<String, Set<String>> made = nodeWriters(classes, nodes, SqlFnSortedTest::plantedEdge,
-                n -> n.endsWith("$PlantedRebuilder") || nodeRebuilder(n), rebuilds);
+                n -> n.contains("$PlantedRebuilder") || nodeRebuilder(n), rebuilds);
         assertEquals(Map.of(SqlExpr.StringLit.class.getName(), "EDGE_ONLY", SqlExpr.IntLit.class.getName(), "PRODUCT",
                 SqlExpr.FloatLit.class.getName(), "PRODUCT", SqlExpr.NullLit.class.getName(), "NO_WRITER",
                 SqlExpr.BoolLit.class.getName(), "PRODUCT", SqlExpr.Group.class.getName(), "NO_WRITER",
@@ -837,10 +826,17 @@ class SqlFnSortedTest {
         // by its full signature; and the third review's M3: the same factory hosted in a rebuilder, called from the
         // product, is named under its own name when it is called
         String varSet = com.legend.sql.SqlSource.VarSetPlaceholder.class.getName();
+        String r = PlantedRebuilder.class.getName();
         assertEquals(Set.of(PlantedProductWriter.class.getName() + ".varSet(com.legend.sql.SqlSource, java.lang.String)"
-                + " -> " + varSet, PlantedRebuilder.class.getName() + ".ensure(com.legend.sql.SqlSource,"
-                + " java.lang.String) -> " + varSet), rebuildsOfNonProductNodes(rebuilds, nodeSort(nodes,
-                Set.of(varSet)), Set.of()));
+                + " -> " + varSet, r + ".ensure(com.legend.sql.SqlSource, java.lang.String) -> " + varSet,
+                r + ".<clinit>() -> " + varSet, r + ".make(java.lang.String) -> " + varSet,
+                PlantedRebuilderRoot.class.getName() + ".asVar(java.lang.String) -> " + varSet,
+                PlantedRebuilderWrap.class.getName() + ".<init>(java.lang.String) -> " + varSet),
+                rebuildsOfNonProductNodes(rebuilds, nodeSort(nodes, Set.of(varSet)), Set.of()).stream()
+                        .filter(x -> x.startsWith(SqlFnSortedTest.class.getName())).collect(
+                                java.util.stream.Collectors.toSet()),
+                "each construction of a node the product does not write, in a rebuilder however it is reached (a"
+                        + " factory, a static field, a chain's end, a default method, a constructor), is a row");
     }
 
     /** Planted product body: a function's constant read; a node made by a constructor reference and a factory. */
@@ -939,12 +935,41 @@ class SqlFnSortedTest {
         }
 
         /** The third review's M3: a factory that reads like a rebuild (handed a supertype, an instanceof of the node, a
-         *  fresh node), hosted in a rebuilder: named when the product calls it. */
+         *  fresh node), hosted in a rebuilder: a row. */
         static com.legend.sql.SqlSource ensure(com.legend.sql.SqlSource s, String v) {
             if (s instanceof com.legend.sql.SqlSource.VarSetPlaceholder) {
                 return s;
             }
             return new com.legend.sql.SqlSource.VarSetPlaceholder(v, "t0", List.of());
+        }
+
+        /** The review of 5911e970e1 (E4): a rebuilder's static field holding a fresh node: its initializer is a row. */
+        static final com.legend.sql.SqlSource CONST = new com.legend.sql.SqlSource.VarSetPlaceholder("c", "t0",
+                List.of());
+
+        /** E2: a chain, wrap reaching make: make's construction is a row whoever reaches it. */
+        static com.legend.sql.SqlSource wrap(String v) {
+            return make(v);
+        }
+
+        private static com.legend.sql.SqlSource make(String v) {
+            return new com.legend.sql.SqlSource.VarSetPlaceholder(v, "t0", List.of());
+        }
+    }
+
+    /** E1: a default method of a rebuilder root that makes a fresh node. */
+    @SuppressWarnings("unused")
+    interface PlantedRebuilderRoot {
+        default com.legend.sql.SqlSource asVar(String v) {
+            return new com.legend.sql.SqlSource.VarSetPlaceholder(v, "t0", List.of());
+        }
+    }
+
+    /** E3: a rebuilder record's secondary constructor making another node; its delegation to itself is no row. */
+    @SuppressWarnings("unused")
+    record PlantedRebuilderWrap(com.legend.sql.SqlSource source) {
+        PlantedRebuilderWrap(String v) {
+            this(new com.legend.sql.SqlSource.VarSetPlaceholder(v, "t0", List.of()));
         }
     }
 }
