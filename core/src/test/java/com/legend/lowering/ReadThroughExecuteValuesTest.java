@@ -39,7 +39,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * zero or several the array). Lite's own serialize root stays the array, and the streaming root never folds. Planning
  * only: no database is opened.
  */
-class EngineExecuteCardinalityTest {
+class ReadThroughExecuteValuesTest {
 
     private static final String MODEL = """
             Class s::Item { id: Integer[1]; name: String[0..1]; }
@@ -58,24 +58,24 @@ class EngineExecuteCardinalityTest {
             + "->serialize(#{s::Item{id, name}}#)";
 
     @Test
-    void aGraphReadAsAnEngineExecutesValuesFoldsAtTheRoot_liteKeepsTheArray() {
+    void aGraphReadAsAnExecutesValuesFoldsAtTheEdge_liteKeepsTheArray() {
         ModelContext ctx = Compiler.compileModel(MODEL);
         TypedQuery q = Compiler.query(ctx, GRAPH);
         TypedSpec chain = q.body().get(q.body().size() - 1);
-        assertFalse(serialize(chain).engineExecuteCardinality(), "lite's own serialize is never marked");
+        assertFalse(serialize(chain).readThroughExecuteValues(), "lite's own serialize is never marked");
 
         // lite's own root: the array aggregate, unmarked
         Compiler.LoweredQuery own = com.legend.planner.Lowered.lower(q, "s::RT", false);
-        assertFalse(graph(own.root()).engineExecuteCardinality());
+        assertFalse(graph(own.root()).readThroughExecuteValues());
         assertInstanceOf(SqlExpr.JsonArrayAgg.class, top(own.plan()));
 
         // the same chain as the values of an engine execute(...): the splice marks it, the resolver carries the mark
         // to the graph; the root's form is the plan style's (the audit's J3, 2026-11-17: LoweringForms#executeValues):
         // the product's stays lite's array, the edge's folds over the same aggregate
         TypedSpec spliced = valuesRead(chain);
-        assertTrue(serialize(spliced).engineExecuteCardinality(), "the splice marks the execute()'s serialize");
+        assertTrue(serialize(spliced).readThroughExecuteValues(), "the splice marks the execute()'s serialize");
         Compiler.LoweredQuery product = com.legend.planner.Lowered.lower(q.withBody(List.of(spliced)), "s::RT", false);
-        assertTrue(graph(product.root()).engineExecuteCardinality(), "the resolver carries the mark to its graph");
+        assertTrue(graph(product.root()).readThroughExecuteValues(), "the resolver carries the mark to its graph");
         assertInstanceOf(SqlExpr.JsonArrayAgg.class, top(product.plan()), "the product's root stays lite's array");
         Compiler.LoweredQuery compat = com.legend.planner.Lowered.lower(q.withBody(List.of(spliced)), "s::RT", false,
                 com.legend.edge.PureText.UPSTREAM);
@@ -90,6 +90,26 @@ class EngineExecuteCardinalityTest {
         assertFalse(streamed instanceof SqlExpr.JsonArrayAgg);
     }
 
+    /** One chain, both read as an execute()'s values and serialized directly (the orchestrator's ruling of 2026-11-18,
+     *  train 17 item 1: the fact is the node's, so the two uses cannot be confused, as identity keys could confuse
+     *  them): at the edge, the values read folds and the direct serialize keeps lite's array -- the same chain, the
+     *  same fetch tree, two answers. */
+    @Test
+    void oneChainReadAsValuesAndSerializedDirectly_eachComesOutRight() {
+        ModelContext ctx = Compiler.compileModel(MODEL);
+        TypedQuery q = Compiler.query(ctx, GRAPH);
+        TypedSpec chain = q.body().get(q.body().size() - 1);
+        TypedSpec spliced = valuesRead(chain);
+        assertSame(serialize(chain).tree(), serialize(spliced).tree(), "one fetch tree, shared by both uses");
+        assertFalse(serialize(chain).readThroughExecuteValues(), "the direct serialize is the program's own");
+        SqlExpr direct = top(com.legend.planner.Lowered.lower(q.withBody(List.of(chain)), "s::RT", false,
+                com.legend.edge.PureText.UPSTREAM).plan());
+        assertInstanceOf(SqlExpr.JsonArrayAgg.class, direct, "the direct serialize keeps the array at the edge");
+        SqlExpr values = top(com.legend.planner.Lowered.lower(q.withBody(List.of(spliced)), "s::RT", false,
+                com.legend.edge.PureText.UPSTREAM).plan());
+        assertNotNull(SnapshotEnvelope.foldedAggregate(values), "the values read folds at the edge");
+    }
+
     @Test
     void theSpliceMarksOnlyASerializeUnderItsFromEnvelopes() {
         ModelContext ctx = Compiler.compileModel(MODEL);
@@ -97,7 +117,7 @@ class EngineExecuteCardinalityTest {
         TypedSpec framed = new TypedFrom(chain, Optional.empty(), Optional.empty(), chain.info());
         TypedFrom read = assertInstanceOf(TypedFrom.class, valuesRead(framed));
         assertTrue(read.executedExtent(), "the from() envelope is kept as the splice made it");
-        assertTrue(assertInstanceOf(TypedSerialize.class, read.source()).engineExecuteCardinality());
+        assertTrue(assertInstanceOf(TypedSerialize.class, read.source()).readThroughExecuteValues());
         // any other chain stands as it is: the same instance
         TypedSpec relation = Compiler.query(ctx, "|#>{s::DB.T}#->select(~[ID])").body().get(0);
         assertSame(relation, ResultEnvelopeSplice.hook(frames(relation, true))

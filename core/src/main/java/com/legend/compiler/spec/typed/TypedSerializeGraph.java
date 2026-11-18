@@ -40,17 +40,11 @@ import java.util.List;
  *                  scalars), never json_object envelopes — the engine's
  *                  {@code otherNames: ["abc","def"]} shape
  * @param info      the fetched class collection's type (GRAPH shape)
- * @param engineExecuteCardinality COMPATIBILITY ONLY: this graph is the value
- *                  read through legend-engine's {@code execute(...)} function
- *                  ({@code execute(...).values}), so its result follows the
- *                  engine JsonBuilder's cardinality rule: a result of exactly
- *                  ONE object serializes as the bare object, zero or several
- *                  as the array. Set by the result-envelope splice alone
- *                  ({@code ResultEnvelopeSplice}, carried from
- *                  {@link TypedSerialize#engineExecuteCardinality} by the
- *                  resolver); lite's own serialize results stay arrays (the
- *                  user's ruling, 2026-11-03: "the right clean thing in lite,
- *                  the backward-compatible thing in compatibility mode")
+ * @param readThroughExecuteValues what the program wrote, carried from
+ *                  {@link TypedSerialize#readThroughExecuteValues} by the
+ *                  resolver: this graph is the values of an {@code execute(...)}
+ *                  call; its root's presentation is the plan style's
+ *                  ({@code LoweringForms#executeValues})
  */
 public record TypedSerializeGraph(TypedSpec source, String rowVar,
                                   List<TypedFuncCol> leaves, List<Child> nested,
@@ -66,7 +60,7 @@ public record TypedSerializeGraph(TypedSpec source, String rowVar,
                                   boolean removeNullKeys,
                                   boolean removeEmptySets,
                                   @com.legend.base.Nullable String objectRefPrefix,
-                                  boolean engineExecuteCardinality)
+                                  boolean readThroughExecuteValues)
         implements TypedSpec {
 
     /** The same graph over another row source (a resolver fusing two
@@ -75,7 +69,7 @@ public record TypedSerializeGraph(TypedSpec source, String rowVar,
         return new TypedSerializeGraph(newSource, rowVar, leaves, nested, arrayWrap,
                 bareValue, classFqn, info, inlineChild, subTypePatches, orderKeys,
                 typeKeyName, fqTypePath, checkedConstraints, removeNullKeys,
-                removeEmptySets, objectRefPrefix, engineExecuteCardinality);
+                removeEmptySets, objectRefPrefix, readThroughExecuteValues);
     }
 
     /** Engine-execute-cardinality compat: every construction but the
@@ -96,17 +90,11 @@ public record TypedSerializeGraph(TypedSpec source, String rowVar,
                 removeEmptySets, objectRefPrefix, false);
     }
 
-    /** This graph as the value read through legend-engine's
-     * {@code execute(...)} ({@code execute(...).values}): its ROOT result
-     * follows the engine JsonBuilder's cardinality rule — exactly one
-     * object serializes bare, zero or several as the array
-     * ({@code Lowerer.lower}'s root, {@code SnapshotEnvelope.fold}).
-     * COMPATIBILITY ONLY, set by the result-envelope splice alone (the
-     * user's ruling, 2026-11-03: "the right clean thing in lite, the
-     * backward-compatible thing in compatibility mode"); every other
-     * component carries over verbatim. */
-    public TypedSerializeGraph withEngineExecuteCardinality() {
-        return engineExecuteCardinality ? this : new TypedSerializeGraph(source,
+    /** This graph as the values of an {@code execute(...)} call (the
+     * resolver's carry of {@link TypedSerialize#readThroughExecuteValues});
+     * every other component verbatim. */
+    public TypedSerializeGraph readThroughExecute() {
+        return readThroughExecuteValues ? this : new TypedSerializeGraph(source,
                 rowVar, leaves, nested, arrayWrap, bareValue, classFqn, info,
                 inlineChild, subTypePatches, orderKeys, typeKeyName, fqTypePath,
                 checkedConstraints, removeNullKeys, removeEmptySets,
@@ -151,7 +139,7 @@ public record TypedSerializeGraph(TypedSpec source, String rowVar,
                 leaves, nested, true, bareValue, classFqn, info,
                 inlineChild, subTypePatches, orderKeys, typeKeyName,
                 fqTypePath, checkedConstraints, removeNullKeys,
-                removeEmptySets, objectRefPrefix, engineExecuteCardinality);
+                removeEmptySets, objectRefPrefix, readThroughExecuteValues);
     }
 
     /** Name prefix marking a PK DETERMINISM order key (ASC, best-effort at
@@ -320,10 +308,10 @@ public record TypedSerializeGraph(TypedSpec source, String rowVar,
         return new TypedSerializeGraph(kids.get(0), rowVar, ls, ns, arrayWrap,
                 bareValue, classFqn, info, inlineChild, sps, oks, typeKeyName,
                 fqTypePath, ccs, removeNullKeys, removeEmptySets,
-                objectRefPrefix, engineExecuteCardinality);
+                objectRefPrefix, readThroughExecuteValues);
     }
     @Override
     public TypedSpec withInfo(ExprType info) {
-        return new TypedSerializeGraph(source, rowVar, leaves, nested, arrayWrap, bareValue, classFqn, info, inlineChild, subTypePatches, orderKeys, typeKeyName, fqTypePath, checkedConstraints, removeNullKeys, removeEmptySets, objectRefPrefix, engineExecuteCardinality);
+        return new TypedSerializeGraph(source, rowVar, leaves, nested, arrayWrap, bareValue, classFqn, info, inlineChild, subTypePatches, orderKeys, typeKeyName, fqTypePath, checkedConstraints, removeNullKeys, removeEmptySets, objectRefPrefix, readThroughExecuteValues);
     }
 }

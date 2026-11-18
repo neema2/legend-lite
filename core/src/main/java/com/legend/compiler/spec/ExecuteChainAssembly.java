@@ -368,13 +368,13 @@ public final class ExecuteChainAssembly {
      * TDS and class roots (the tdsBuilder / classBuilder envelopes) and
      * String scalars (JSON-quoted) are the next leg — each a NAMED wall. */
     public static TypedSpec legendQueryEnvelope(TypedSpec chain,
-            com.legend.compiler.element.ModelContext model,
-            @com.legend.base.Nullable String activitySql) {
+            com.legend.compiler.element.ModelContext model) {
         ExprType str = ExprType.one(Type.Primitive.STRING);
-        if (serializedRoot(chain)) {
-            // legend-engine's json-builder envelope around the serialized value: the plan style's, asked by the planner
-            // (train 17 item 2, 2026-11-18: the planner's ExecutedValues kind), never minted here
-            throw new IllegalStateException("a serialized root's envelope is the plan style's (planner.ExecutedValues)");
+        if (serializedRoot(chain) || Type.isRelation(chain.info().type()) || classesRoot(chain)) {
+            // legend-engine's envelopes (json, tdsBuilder, classBuilder): the plan style's, asked by the planner (train
+            // 17 item 2, 2026-11-18: the planner's ExecutedValues kind), never minted here
+            throw new IllegalStateException("a serialized, relation or class root's envelope is the plan style's"
+                    + " (planner.ExecutedValues)");
         }
         Type t = chain.info().type();
         if (t instanceof Type.Primitive p
@@ -385,19 +385,14 @@ public final class ExecuteChainAssembly {
             return call(model, "meta::pure::functions::string::toString",
                     List.of(chain), str);
         }
-        if (Type.isRelation(t)) {
-            return new com.legend.compiler.spec.typed.TypedJsonResult(chain,
-                    com.legend.compiler.spec.typed.TypedJsonResult.Kind.TDS,
-                    activitySql, str);
-        }
-        if (t instanceof Type.ClassType && chain.info().multiplicity().isMany()) {
-            return new com.legend.compiler.spec.typed.TypedJsonResult(chain,
-                    com.legend.compiler.spec.typed.TypedJsonResult.Kind.CLASS,
-                    activitySql, str);
-        }
         throw new com.legend.error.NotImplementedException(
                 "executeLegendQuery over a " + t.typeName()
                         + " result: the result JSON envelope is not emitted yet");
+    }
+
+    /** Whether the string entry's chain is a class root's objects (a class collection): legend-engine's classBuilder. */
+    public static boolean classesRoot(TypedSpec chain) {
+        return chain.info().type() instanceof Type.ClassType && chain.info().multiplicity().isMany();
     }
 
     /** Whether the string entry's chain is a serialize under its from() envelopes: its value is one JSON text. */
