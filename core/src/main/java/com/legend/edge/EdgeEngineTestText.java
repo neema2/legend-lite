@@ -145,17 +145,28 @@ final class EdgeEngineTestText implements EngineTestText {
         return what.startsWith(com.legend.testplan.NotAConstant.LABEL) ? what.substring(com.legend.testplan.NotAConstant.LABEL.length()) : what;
     }
 
-    /** How the plan holds the two texts of the comparison {@code judgment}, the edge's own record (census C3). */
+    /** The database judge's gate for the comparison {@code judgment}, from how the plan holds its two texts, the
+     *  edge's own record (census C3; J41, 2026-11-18: the gate itself the edge's, its two engine-text constants gone
+     *  from the product):
+     *  <ul>
+     *  <li>a golden a side the step reads: not planned -- the arm processes its golden at planning;</li>
+     *  <li>our text a side the step reads: planned under the style's text collector, the verdict row computing our
+     *  text and the equality, its actual column the appeal's text;</li>
+     *  <li>both texts constants of the plan: planned; appealed only where they differ (an appeal is heard on a failed
+     *  text alone), so two equal texts read no store.</li>
+     *  </ul> */
     @Override
-    public com.legend.testplan.TextsHeld textsHeld(com.legend.testexecutionplan.Extension judgment) {
+    public com.legend.testplan.DatabaseGate gate(com.legend.testexecutionplan.Extension judgment,
+            java.util.function.Supplier<String> shape) {
         EngineTextJudgment e = (EngineTextJudgment) judgment;
         if (e.golden() == null) {
-            return com.legend.testplan.TextsHeld.GOLDEN_READ;
+            com.legend.diagnostics.Census.unplannedAssert("database: a golden read at the step: " + shape.get());
+            return com.legend.testplan.DatabaseGate.UNPLANNED;
         }
         if (e.ours() == null) {
-            return com.legend.testplan.TextsHeld.OURS_READ;
+            return com.legend.testplan.DatabaseGate.appealed(true);
         }
-        return e.textEqual() ? com.legend.testplan.TextsHeld.CONSTANTS_EQUAL : com.legend.testplan.TextsHeld.CONSTANTS_DIFFER;
+        return e.textEqual() ? com.legend.testplan.DatabaseGate.PLANS : com.legend.testplan.DatabaseGate.appealed(false);
     }
 
     /** Whether the arm claims {@code bare}: a root arm's helper ({@code assertSameSQL}, the dual golden) or an

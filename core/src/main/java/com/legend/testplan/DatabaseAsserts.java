@@ -555,18 +555,17 @@ final class DatabaseAsserts implements TestDoor.Asserts {
                 return false;
             }
             try {
-                AssertVerdicts.DatabaseGate gate = AssertVerdicts.databaseGate(bare, letPrefix, specs, at, hook);
-                if (gate == AssertVerdicts.DatabaseGate.UNPLANNED) {
+                DatabaseGate gate = AssertVerdicts.databaseGate(bare, letPrefix, specs, at, hook);
+                if (gate.kind() == DatabaseGate.Kind.UNPLANNED) {
                     com.legend.diagnostics.Diagnostics.judgeDecline("static", "statement " + (i + 1),
                             "the gate: " + AssertVerdicts.shapeOf(bare));
                     return false;
                 }
-                if (AssertVerdicts.engineText(gate) && systemRouted
-                        && !AssertVerdicts.engineTextDecidedEqual(bare, letPrefix, specs, at, hook)) {
-                    // an engine-text assert in a system-routed body: its appeal reads the user store on the body's
-                    // session where the walk runs it, not this program's (M10b)
+                if (gate.appealed() && systemRouted) {
+                    // an assert appealed at its step in a system-routed body: its appeal reads the user store on the
+                    // body's session, not this program's (M10b; the gate the arm's own, J41)
                     com.legend.diagnostics.Diagnostics.judgeDecline("static", "statement " + (i + 1),
-                            "an engine-text assert in a system-routed body");
+                            "an appealed assert in a system-routed body");
                     return false;
                 }
                 // an arm that raises at planning with no row before it in its segment: the segment's batch holds the

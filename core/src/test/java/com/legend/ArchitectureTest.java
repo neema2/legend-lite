@@ -1222,12 +1222,11 @@ final class ArchitectureTest {
             // C4 (2026-11-17, the orchestrator's ruling (b)): the hook's routing gates moved to the edge's
             // implementation, EdgeEngineTestText, which reads the test planner through the same facade
             "testplan.EngineTextPlanning#*", "com.legend.edge.SqlTextVerdicts com.legend.edge.EdgeEngineTestText",
-            // census C3 (2026-11-17, the orchestrator's ruling): how the plan holds an edge-judged comparison's two
-            // texts, the engine-text hook's answer (EngineTestText.textsHeld) -- an enum of four words, data
-            "testplan.TextsHeld#GOLDEN_READ", "com.legend.edge.EdgeEngineTestText",
-            "testplan.TextsHeld#OURS_READ", "com.legend.edge.EdgeEngineTestText",
-            "testplan.TextsHeld#CONSTANTS_EQUAL", "com.legend.edge.EdgeEngineTestText",
-            "testplan.TextsHeld#CONSTANTS_DIFFER", "com.legend.edge.EdgeEngineTestText",
+            // J41 (2026-11-18, the orchestrator's): the database judge's gate, the engine-text hook's answer
+            // (EngineTestText.gate) -- census C3's TextsHeld and the product's two engine-text gate constants gone; data
+            "testplan.DatabaseGate#PLANS", "com.legend.edge.EdgeEngineTestText",
+            "testplan.DatabaseGate#UNPLANNED", "com.legend.edge.EdgeEngineTestText",
+            "testplan.DatabaseGate#appealed(boolean)", "com.legend.edge.EdgeEngineTestText",
             // the closed facet list, read by the edge's style before it answers a kind (the P2 checkpoint audit's S2,
             // 2026-11-16): data, a list of classes
             "testplan.PlanStyleFacets#KINDS", "com.legend.edge.PureText",

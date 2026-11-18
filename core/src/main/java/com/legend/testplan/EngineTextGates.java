@@ -64,11 +64,12 @@ final class EngineTextGates {
                 .why(check);
     }
 
-    /** How the plan holds the two texts of an edge-judged comparison (asked only of a judgment the edge planned:
-     *  the style judges it). */
-    static TextsHeld textsHeld(BodyDriver.ExecEnv env, com.legend.testexecutionplan.HostJudgment.EdgeJudged j) {
+    /** The database judge's gate for an edge-judged comparison, the edge's answer (asked only of a judgment the edge
+     *  planned: the style judges it; J41, 2026-11-18). */
+    static DatabaseGate gate(BodyDriver.ExecEnv env, com.legend.testexecutionplan.HostJudgment.EdgeJudged j,
+            java.util.function.Supplier<String> shape) {
         return java.util.Objects.requireNonNull(facet(env), "an edge-judged comparison with no engine-text facet")
-                .textsHeld(j.judgment());
+                .gate(j.judgment(), shape);
     }
 
     /** The statement origin put in force on {@code env}'s text collector: what was in force before, to restore; none
