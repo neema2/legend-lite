@@ -220,7 +220,8 @@ The final train is `claude/total-wall-h-train19` (DataCube's integration of the 
 
 ### 7.2 The lanes
 
-CI runs DuckDB, H2, SQLite and Postgres. The other databases run only in lane sessions.
+CI runs DuckDB, H2 and Postgres (Linux). MariaDB, MySQL, ClickHouse, Trino, MongoDB, SQLite, Snowflake, Databricks and
+BigQuery run only in lane sessions (the plan of record's §5.1).
 
 **Setting up (from `docs/RESULT_BOUNDARY_START_HERE.md` §7 and `docs/CLOUD_BACKENDS_PCT_2026_10_11.md` §4 and §6):**
 1. **Credentials.** Make one cloud environment per credential set. Its **setup script** writes the properties file that
@@ -244,8 +245,9 @@ CI runs DuckDB, H2, SQLite and Postgres. The other databases run only in lane se
 **What to run on each database, at TWO commits** (the base, `claude/total-wall-d-stage` before the final train, i.e.
 `815de5810`, and the PR head), then compare per test:
 - **PCT channel A:** `//pct:pct_<db>_<suite>` for each suite: `essential`, `grammar`, `relation`, `standard`,
-  `unclassified`. The databases are `duckdb`, `h2`, `postgres`, `sqlite`, `mariadb`, `mysql`, `mongodb`, `trino`,
-  `clickhouse`, `snowflake`, `databricks` and `bigquery`; the clouds read `LEGENDLITE_PCT_CLOUD_PROPERTIES`. The expected
+  `unclassified`. The databases are `duckdb`, `postgres`, `sqlite`, `mariadb`, `mysql`, `mongodb`, `trino`,
+  `clickhouse`, `snowflake`, `databricks` and `bigquery`; the clouds read `LEGENDLITE_PCT_CLOUD_PROPERTIES`. H2 has one
+  target, `//pct:pct_h2` (the relation suite). The expected
   failures per lane are the ledgers `Test_LegendLite_<Lane>_<Suite>_PCT.java`.
 - **PCT channel B:** `//pct:pct_channel_b_<suite>` (DuckDB) and `//pct:pct_channel_b_<lane>_<suite>` for the lanes
   `postgres`, `sqlite`, `mariadb`, `mysql` (plus the H2 variant). Verdicts must be identical per test.
