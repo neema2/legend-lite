@@ -73,23 +73,18 @@ class EdgeOnlyMembersTest {
             // found 2026-11-18 on train 19's trial (the host train's pre-merge cb7d660910 on guards d539d3dfd5, the GUARD
             // stream), counted until ruled -- each with its owner and the proposed ruling:
             // legend-engine's request model context (PureModelContextText/Data): lite v1 no longer reads it (the host train
-            // dropped LiteV1Api's ModelInput.of), so the type is the edge's routes' alone (PureV1Routes, TestDataRoutes)
+            // dropped LiteV1Api's ModelInput.of), so the type is the edge's routes' alone (PureV1Routes, TestDataRoutes);
+            // ruled MOVE by the orchestrator 2026-11-18 (train 19), assigned to E-Java -- counted until the move lands
             Map.entry("com.legend.server.ModelInput#of(com.legend.json.Json$Obj)",
-                    "J40.ModelInput TS-HOST (2026-11-18, train 19, a7fedfc878): proposed MOVE -- the type to the edge, with its two READ_API rows"),
+                    "J40.ModelInput E-Java (2026-11-18, train 19, a7fedfc878): ruled MOVE -- the type to the edge, with its two READ_API rows"),
             Map.entry("com.legend.server.ModelInput#with(com.legend.server.LiteV1Api$Models, java.util.function.Function)",
-                    "J40.ModelInput TS-HOST (2026-11-18, train 19, a7fedfc878): proposed MOVE -- the type to the edge, with its two READ_API rows"),
+                    "J40.ModelInput E-Java (2026-11-18, train 19, a7fedfc878): ruled MOVE -- the type to the edge, with its two READ_API rows"),
             Map.entry("com.legend.server.ModelInput$Data#<init>(com.legend.protocol.Protocol$PureModelContextData)",
-                    "J40.ModelInput TS-HOST (2026-11-18, train 19, a7fedfc878): proposed MOVE -- the type to the edge, with its two READ_API rows"),
+                    "J40.ModelInput E-Java (2026-11-18, train 19, a7fedfc878): ruled MOVE -- the type to the edge, with its two READ_API rows"),
             Map.entry("com.legend.server.ModelInput$Text#<init>(java.lang.String)",
-                    "J40.ModelInput TS-HOST (2026-11-18, train 19, a7fedfc878): proposed MOVE -- the type to the edge, with its two READ_API rows"),
-            // exec's raised error carries the plan's text of the statement that raised, read only by the edge to key its
-            // recorded words (K10b)
-            Map.entry("com.legend.exec.RaisedErrors$Raised#statement()",
-                    "J40.RaisedErrors E-P5 (2026-11-18, train 19): proposed READ_API -- the plan's own statement text, K10b's key"),
-            // a reader of lite's own refusal answer ({kind, message}) for a mount that words it its own way, used only by
-            // the edge's StoreWords (the edge audit's J9)
-            Map.entry("com.legend.queries.SavedQueries#reshaped(int, java.lang.String, java.util.function.BiFunction)",
-                    "J40.SavedQueries E-P5 (2026-11-18, train 19, J9 5d9c713395): proposed READ_API -- a reader of lite's own refusal answer (J9's StoreWords)")
+                    "J40.ModelInput E-Java (2026-11-18, train 19, a7fedfc878): ruled MOVE -- the type to the edge, with its two READ_API rows")
+            // (RaisedErrors$Raised#statement and SavedQueries#reshaped: ruled READ_API by the orchestrator 2026-11-18, train
+            // 19, below -- J40.RaisedErrors and J40.SavedQueries close)
             );
             // re-measured 2026-11-18 on train 15 1931d419b1 (the GUARD stream's re-cut): train 15 closed seven pins
             // (PlatformTypes' TO_SQL_STRING and TO_SQL_STRING_PRETTY, BodyPlanner#pushDownEnums, QueryParameters$Declared's
@@ -236,6 +231,14 @@ class EdgeOnlyMembersTest {
                     "2026-11-18: the lowering's own representation parts (Scalars, LiteralSpelling), which the edge's texts compose"),
             Map.entry("com.legend.plan.EnumMappings#of(com.legend.compiler.element.ModelContext, java.lang.String, java.lang.String)",
                     "2026-11-18: a lookup over lite's normalized mapping: an enum's enumeration mapping"),
+            // the orchestrator's rulings of 2026-11-18 (train 19, on the GUARD stream's triage): exec's raised error carries
+            // the plan's own text of the statement that raised (set by the seam from the PlannedSql it sent), which the
+            // edge keys its recorded words on (K10b); and a reader of lite's own refusal answer, product output, for the
+            // edge's StoreWords (J9) -- J40.RaisedErrors and J40.SavedQueries close
+            Map.entry("com.legend.exec.RaisedErrors$Raised#statement()",
+                    "2026-11-18: the plan's own text of the statement that raised, a fact of the product's run (the orchestrator's ruling)"),
+            Map.entry("com.legend.queries.SavedQueries#reshaped(int, java.lang.String, java.util.function.BiFunction)",
+                    "2026-11-18: a reader of lite's own refusal answer, product output (the orchestrator's ruling)"),
             Map.entry("com.legend.plan.QueryPlan#columns()",
                     "2026-11-18: lite's query plan's own columns and shape"),
             // the class's ruling, extended 2026-11-18 on train 19's trial by the GUARD stream: the product's own plan and
