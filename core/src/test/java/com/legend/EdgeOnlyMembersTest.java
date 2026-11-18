@@ -70,8 +70,6 @@ class EdgeOnlyMembersTest {
                     "J40.ScanRelations E-SQL MOVE (2026-11-18): legend-engine's set-implementation identity (#47, the plan printer)"),
             Map.entry("com.legend.lineage.ScanRelations#rootImpl(com.legend.compiler.element.ModelContext, java.lang.String, java.lang.String, java.util.List)",
                     "J40.ScanRelations E-SQL MOVE (2026-11-18): legend-engine's set-implementation identity (#47, the plan printer)"),
-            Map.entry("com.legend.lowering.Lowerer#withShape(com.legend.lowering.LoweringShape)",
-                    "J40.Lowerer E-SQL (design first) MOVE (2026-11-18): the non-lean shape is legend-engine's; the setter serves the edge's plans alone"),
             Map.entry("com.legend.lowering.VerdictSql#textEquals(java.lang.String, java.lang.String)",
                     "J40.VerdictSql E-SQL MOVE (2026-11-18): legend-engine's SQL-text assert's verdict row"),
             // re-measured 2026-11-18 on train 15 1931d419b1 (the GUARD stream's re-cut): train 15 closed seven pins
@@ -93,25 +91,7 @@ class EdgeOnlyMembersTest {
             Map.entry("com.legend.lowering.VerdictSql#reprNewlines(com.legend.sql.SqlExpr)",
                     "J40.VerdictSql E-Java (J29; train 17) MOVE (2026-11-18, ruled): legend-pure's %r newline form, read by the edge's UpstreamVerdictWords alone"),
             Map.entry("com.legend.testexec.PureAsserts#sorted(java.util.List)",
-                    "J40.PureAsserts E-Java (J29; train 17) MOVE (2026-11-18, ruled): legend-pure's total order over Any, sorting assertSameElements' words in the edge's EdgeHostWords alone"),
-            Map.entry("com.legend.plan.PureSpelling#sizeRange(com.legend.compiler.element.type.Multiplicity)",
-                    "J40.PureSpelling E-SQL MOVE (2026-11-18): legend-engine's plan text's multiplicity spelling"),
-            Map.entry("com.legend.protocol.EmbeddedDataKinds#notImplemented(com.legend.protocol.Protocol$PEmbeddedDataValue, java.lang.String)",
-                    "J40.EmbeddedDataKinds E-P5 (after J43) DELETE (2026-11-18): a message the edge composes from name(); the product never says it"),
-            Map.entry("com.legend.protocol.ModelComposer#model(java.lang.String, com.legend.protocol.PureComposer$Style)",
-                    "J40.ModelComposer E-P5 (after J43) DELETE (2026-11-18): a text-input convenience overload: the edge parses with the product's Json and calls model(Json)"),
-            Map.entry("com.legend.protocol.ModelReader#read(java.lang.String)",
-                    "J40.ModelReader E-P5 (after J43) DELETE (2026-11-18): a text-input convenience overload: the edge parses with the product's Json and calls read(Json)"),
-            Map.entry("com.legend.sql.DecodeShapes#sourceColumn(com.legend.sql.SqlExpr)",
-                    "J40.DecodeShapes E-SQL MOVE (2026-11-18): the enum push-down form of legend-engine's plan text"),
-            Map.entry("com.legend.sql.DecodeShapes#stripDecodes(com.legend.sql.SqlExpr)",
-                    "J40.DecodeShapes E-SQL MOVE (2026-11-18): the enum push-down form of legend-engine's plan text"),
-            Map.entry("com.legend.sql.SqlExpr$Cast#conform()",
-                    "J40.SqlExpr E-SQL MOVE (2026-11-18): a MIR field only legend-engine's dialects read"),
-            Map.entry("com.legend.sql.SqlExpr$DeferredTdsString#<init>(com.legend.sql.SqlSelect, java.lang.String, int)",
-                    "J40.SqlExpr E-SQL MOVE (2026-11-18): legend-engine's #TDS relation text, made by the edge alone"),
-            Map.entry("com.legend.sql.SqlExpr$TempTableInSplice#<init>(java.lang.String)",
-                    "J40.SqlExpr E-SQL MOVE (2026-11-18): legend-engine's generateTempTableSelectSQLQuery template"));
+                    "J40.PureAsserts E-Java (J29; train 17) MOVE (2026-11-18, ruled): legend-pure's total order over Any, sorting assertSameElements' words in the edge's EdgeHostWords alone"));
 
     /** The members only the edge uses that are a product API the edge reads (READ_API: a fact the product owns and names
      *  in lite's terms; the orchestrator's triage ruling of 2026-11-18), each with its dated reason. Not counted. */
