@@ -11,6 +11,7 @@ import java.util.Set;
 import java.util.TreeSet;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -80,5 +81,9 @@ class ShippedArtifactRootsTest {
         Set<String> roots = EdgeSeparationTest.buildFound("legend.shipped_edge_roots_planted");
         assertTrue(reach.contains("//core:planted_edge_rooted_artifact"), "the planted artifact's edge reach: " + reach);
         assertTrue(roots.contains("//core:planted_edge_rooted_artifact"), "the planted artifact's edge root: " + roots);
+        // the opt-in exemption is for declared modules alone (2026-11-18, the GUARD stream's narrowing): a product
+        // artifact carrying a declared opt-in library, as //core:server carries :edge_server, is still checked
+        assertTrue(roots.contains("//core:planted_opt_in_carrier"), "an opt-in carrier's edge root: " + roots);
+        assertFalse(reach.contains("//core:planted_opt_in_carrier"), "an opt-in library is no edge reach: " + reach);
     }
 }
