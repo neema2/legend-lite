@@ -231,7 +231,7 @@ class LowerRelationDuckDbTest {
         String flat = sqlOf("#>{test::DB.T_PERSON}#->select(~FIRM)->distinct()"
                 + "->sort(~FIRM->ascending())");
         assertEquals(1, count(flat, "SELECT"), "distinct before sort is flat: " + flat);
-        // PURE-lane sort (colspec API, pureNullOrder stamp — §7 two-spec
+        // PURE-lane sort (colspec API, the null-largest stamp — §7 two-spec
         // split, 2026-09-01): null-largest, ASC NULLS LAST spelled
         // explicitly; the ENGINE lane's bare keys render nulls-low at
         // the execution dialect instead

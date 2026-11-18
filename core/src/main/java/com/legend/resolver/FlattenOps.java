@@ -540,6 +540,6 @@ final class FlattenOps {
         }
         return new com.legend.compiler.spec.typed.TypedSort(pipeline,
                 List.of(new com.legend.compiler.spec.typed.TypedSort.TypedSortKey(col, true, null)),
-                false, pipeline.info());
+                pipeline.info());
     }
 }

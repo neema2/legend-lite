@@ -46,11 +46,10 @@ final class SortChecker {
             return t.applyGeneric(normalized, env);   // collection sort rides the generic path
         }
         Application a = t.checkGeneric(withExplicitDirections(normalized), env);
-        // provenance BEFORE normalization: string-keyed shapes are the
-        // legacy TDS drop-in surface (engine-verbatim null placement);
-        // colspec shapes are the modern relation API (pure null-largest)
-        return new TypedSort(a.args().get(0), sortKeysOf(a.args().get(1)),
-                !(legacyStringShape(af) || byMeta != null), a.out());
+        // every relation sort places nulls as Pure does, null largest (L14, 2026-11-18: the legacy TDS string-key
+        // shapes' "engine drop-in" provenance flag went -- every product dialect rendered their bare keys with the
+        // same placement, and the edge's engine text spells no NULLS clause either way)
+        return new TypedSort(a.args().get(0), sortKeysOf(a.args().get(1)), a.out());
     }
 
     /**
@@ -134,37 +133,6 @@ final class SortChecker {
         Application a = t.checkGeneric(af, env);
         return new TypedSortBy(a.args().get(0), Args.lambda(a, 1), ascending,
                 keyAlias, a.out());
-    }
-
-    /** The LEGACY TDS string-key sort shapes — {@code sort(rel,'COL',Dir)},
-     * {@code sort(rel,'COL')}, {@code sort(rel,['A','B'])}, and
-     * {@code sort(rel, asc/desc('COL'))} (string arg, incl. the singleton
-     * collection {@code desc(['X'])}). Judged on the ORIGINAL call, before
-     * {@link #legacyStringSortToModern}/{@link #sortInfo} erase the shape. */
-    private static boolean legacyStringShape(AppliedFunction af) {
-        List<ValueSpecification> ps = af.parameters();
-        if (ps.size() == 3 && ps.get(1) instanceof CString) {
-            return true;
-        }
-        if (ps.size() < 2) {
-            return false;
-        }
-        return legacyKey(ps.get(1));
-    }
-
-    private static boolean legacyKey(ValueSpecification vs) {
-        return switch (vs) {
-            case CString ignored -> true;
-            case PureCollection c -> !c.values().isEmpty()
-                    && c.values().stream().allMatch(SortChecker::legacyKey);
-            case AppliedFunction f -> isSortDirection(f)
-                    && f.parameters().size() == 1
-                    && (f.parameters().get(0) instanceof CString
-                            || (f.parameters().get(0) instanceof PureCollection pc
-                                    && pc.values().size() == 1
-                                    && pc.values().get(0) instanceof CString));
-            default -> false;
-        };
     }
 
     /** {@code asc(~col)} / {@code desc(~col)}: checked generically against its registered signature. */

@@ -587,7 +587,7 @@ class AssociationIntegrationTest {
             assertEquals(4, r.rowCount());
             var firms = colStr(r, 0);
             // Acme (Alice, Bob), Globex (Charlie), NULL (Diana) — the
-            // relation-API sort is the PURE lane (pureNullOrder stamp):
+            // relation-API sort is the PURE lane (the null-largest stamp):
             // null-largest, ASC NULLS LAST (§7 landing record's two-spec
             // split; the ENGINE lane's bare keys place nulls-low)
             assertEquals("Acme", firms.get(0));
@@ -1249,7 +1249,7 @@ class AssociationIntegrationTest {
                 "test::Person.all()->project(~[name:x|$x.name, city:x|$x.addresses.city])->sort(~city->ascending())");
             assertEquals(5, r.rowCount());
             var cities = colStr(r, 1);
-            // PURE-lane sort (pureNullOrder stamp): null-largest, ASC
+            // PURE-lane sort (the null-largest stamp): null-largest, ASC
             // NULLS LAST — Chicago, LA, NYC, NULL, NULL (§7 two-spec
             // split)
             assertEquals("Chicago", cities.get(0));
@@ -1294,7 +1294,7 @@ class AssociationIntegrationTest {
             var r = exec(fullModel(),
                 "test::Person.all()->filter({p|$p.addresses.city != ''})->project(~[firm:p|$p.firm.legalName, name:p|$p.name])->groupBy(~firm, ~cnt:x|$x.name:y|$y->count())->sort(~firm->ascending())");
             assertEquals(3, r.rowCount());
-            // PURE-lane sort (pureNullOrder stamp): null-largest, ASC
+            // PURE-lane sort (the null-largest stamp): null-largest, ASC
             // NULLS LAST — Acme, Globex, NULL group last (§7 two-spec
             // split)
             assertEquals("Acme", colStr(r, 0).get(0));
