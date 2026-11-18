@@ -827,8 +827,7 @@ public final class Lowerer {
             // JsonBuilder's cardinality rule, exactly one object bare -- the scalar position's fold (SnapshotEnvelope).
             // The streaming root (one object per row) never folds
             if (g.readThroughExecuteValues() && !streamingGraphRoot) {
-                return conformJsonEgress(styled().forms().executeValues(() -> serializeGraph(g, false),
-                        () -> serializeGraph(g.asArrayWrapped(), false)));
+                return conformJsonEgress(styled().forms().executeValues(serializeGraph(g, false)));
             }
             return conformJsonEgress(serializeGraph(g, streamingGraphRoot));
         }
@@ -4453,8 +4452,8 @@ public final class Lowerer {
             // legend-engine's one-object-bare fold applied unconditionally) -- the product's lite's array, the edge's
             // the JsonBuilder rule (LoweringForms#executeValues)
             case TypedSerializeGraph g -> {
-                java.util.function.Supplier<SqlSelect> wrapped = () -> serializeGraph(g.asArrayWrapped(), false);
-                yield new SqlExpr.ScalarSubquery(conformJsonEgress(styled().forms().executeValues(wrapped, wrapped)));
+                yield new SqlExpr.ScalarSubquery(conformJsonEgress(styled().forms().executeValues(
+                        serializeGraph(g.asArrayWrapped(), false))));
             }
             // static-dispatch match fold (MatchFold doc)
             case com.legend.compiler.spec.typed.TypedMatchRuntime mr ->
