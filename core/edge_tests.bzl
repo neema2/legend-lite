@@ -52,6 +52,8 @@ EDGE_TEST_SRCS = [
     # L-B (the orchestrator's order, 2026-11-18): every piece of the plans' and the MIR's data has a real product use,
     # and its planted shapes (J28's and J31's), a product-package node and its edge maker
     "src/test/java/com/legend/EdgeOnlyDataTest.java",
+    # K2's shipped-artifact roots (2026-11-18): it reads the genqueries guardrails_edge declares, and EdgeSeparationTest
+    "src/test/java/com/legend/ShippedArtifactRootsTest.java",
     "src/test/java/com/legend/sql/PlantedEdgeOnlyMir.java",
     "src/test/java/com/legend/edge/PlantedEdgeOnlyMirMaker.java",
     "src/test/java/com/legend/PlanStyleFacetsTest.java",
