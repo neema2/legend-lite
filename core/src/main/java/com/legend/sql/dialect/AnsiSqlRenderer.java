@@ -262,8 +262,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         ps.add(new DateTimeText.Expansion());
         // the judges' canon of a timestamp, lite's spelling (census C5's step C, 2026-11-17)
         ps.add(new DateTimeCanonText.Expansion());
-        // legend-pure's DateTime print form, the judges' canon's alone (census B9 (a), 2026-11-17: C5, E-P5's)
-        ps.add(new DateTimePrintText.Expansion());
+        // (DateTimePrintText, legend-pure's DateTime print form: gone 2026-11-17, census B12 -- the edge composes it)
         // a joined element's text (phase D's D1.3, 2026-11-15): the product's join skips an empty element
         ps.add(new CellTexts.Expansion());
         ps.add(new CellTexts.Rest());
@@ -685,9 +684,6 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             // a cross-store plan variable is legend-engine's plan text (its VarSetPlaceHolder, a FreeMarker splice at its
             // execution): written by the compatibility edge's engine-text dialect (EngineStyleH2), refused by name by
             // the product's (J6 of the edge audit, 2026-11-17: the base renderer wrote the FreeMarker)
-            case SqlSource.VarSetPlaceholder vp -> throw new UnsupportedOperationException("the plan variable '"
-                    + vp.varName() + "' is legend-engine's cross-store plan text (a FreeMarker splice), the compatibility"
-                    + " edge's: the product's dialects write no plan variable");
             case SqlSource.Values v -> valuesSource(writer, v);
             // authored raw SQL as a relation source (the typed executeInDb grid) — carried text, parenthesized, in
             // this session's language (raw: the engine's H2 text translated, any other as written)
@@ -1486,8 +1482,8 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
     }
 
     /** A call the base renderer's first passes expand or refuse ({@link com.legend.sql.SqlFn#DATETIME_TO_TEXT},
-     *  {@link com.legend.sql.SqlFn#DATETIME_PRINT}, {@link com.legend.sql.SqlFn#CELL_TEXT},
-     *  {@link DateTimeText}, {@link DateTimePrintText}, {@link CellTexts}): one reaching a dialect's arm is a renderer
+     *  {@link com.legend.sql.SqlFn#CELL_TEXT},
+     *  {@link DateTimeText}, {@link CellTexts}): one reaching a dialect's arm is a renderer
      *  bug, refused by name. */
     protected static IllegalStateException expandedFirst(SqlExpr.Call c) {
         return new IllegalStateException("renderer bug: " + c.fn() + " is expanded before any dialect reads it");

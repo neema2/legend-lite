@@ -247,7 +247,6 @@ public final class SqlPostProcessors {
             case SqlSource.Join j -> new SqlSource.Join(source(j.left(), m),
                     source(j.right(), m), j.kind(),
                     j.on() == null ? null : expr(j.on(), m));
-            case SqlSource.VarSetPlaceholder vp -> vp;
             case SqlSource.RawSql raw -> raw;   // carried text: opaque to rewrites
             case SqlSource.GridReport g -> g;   // a leaf
             case SqlSource.Catalog c -> c;   // a leaf

@@ -110,50 +110,6 @@ public final class TestDataPlanner {
          *  2026-11-17): the product's admits every tree (a view's own fetch is planned); the server's routes refuse a
          *  view by name. */
         void checkTree(ModelContext ctx, List<ScanRelations.Rel> roots);
-
-        /** Lite's own: a timestamp in full, as lite's writers spell a relation's time-bearing cell
-         *  ({@code result.CellText}): the product's text of a DateTime, {@code yyyy-MM-ddTHH:mm:ss.ffffffZ} on every
-         *  database (register S312; W4, 2026-11-16); a NULL stays NULL. Upstream's (the compatibility rules' and the
-         *  server's legend-engine routes', its {@code toCSVString}) is the compatibility edge's, through the plan
-         *  style's {@code UpstreamPlans} facet (Phase 6's B13, 2026-11-17). The rest lite's own too (J7/K12 of the
-         *  edge audit, 2026-11-17): a starting table with no identifiers refused as {@link NoRowIdentifiers}, the
-         *  tables in the walk's order, the columns by their display names, every relation tree admitted. */
-        Printing CLEAN = new Lites();
-    }
-
-    /** {@link Printing#CLEAN}: lite's own form of the generator's text (J7/K12 of the edge audit, 2026-11-17). */
-    private static final class Lites implements Printing {
-        @Override
-        public SqlExpr timestampText(SqlExpr x) {
-            return new SqlExpr.Case(List.of(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.IS_NULL, x),
-                    new SqlExpr.Cast(new SqlExpr.NullLit(), SqlType.Scalar.VARCHAR, SqlExpr.Reason.DECLARED))),
-                    SqlExpr.Call.of(SqlFn.DATETIME_TO_TEXT, x), SqlExpr.Reason.DECLARED);
-        }
-
-        @Override
-        public RuntimeException unidentified(NoRowIdentifiers facts) {
-            return facts;
-        }
-
-        @Override
-        public List<Table> tableOrder(List<Table> tables) {
-            return tables;
-        }
-
-        @Override
-        public List<String> headerOrder(DatabaseDefinition.TableDefinition def, List<String> cols) {
-            return TestDataPlanner.headerOrder(cols);
-        }
-
-        @Override
-        public String headerName(DatabaseDefinition.TableDefinition def, String col) {
-            return headerCase(col);
-        }
-
-        @Override
-        public void checkTree(ModelContext ctx, List<ScanRelations.Rel> roots) {
-            // every relation tree admitted: a view's own fetch is planned (Views)
-        }
     }
 
     /** One table the generator fetched: its schema and name, its definition, its fetched columns in the test-data
@@ -407,10 +363,9 @@ public final class TestDataPlanner {
             for (TestDataGenerator.TableRowIds t : rowIds) {
                 if (t.table().equals(table) && t.schema().equals(loc.schema())) {
                     if (ids != null) {
-                        // two entries for one table: upstream's assert, before anything else (the B2d.3 audit's L2;
-                        // getRowIdentifiersForTable, TDG:487, and the plan form's, TDG:1208; getQualifiedTableName)
-                        throw new AssertFailed("Multiple table row identifiers passed for the table: "
-                                + physical(loc.schema(), table));
+                        // two entries for one table: refused before anything else (the B2d.3 audit's L2; upstream's
+                        // assert, getRowIdentifiersForTable, TDG:487, the edge's words: J7 of the edge audit, 2026-11-18)
+                        throw new RowIdentifiersRepeated(loc.schema(), table);
                     }
                     ids = t;
                 }
@@ -546,6 +501,43 @@ public final class TestDataPlanner {
         /** The table's primary key columns, in declaration order, each with its type. */
         public List<DatabaseDefinition.ColumnDefinition> keys() {
             return keys;
+        }
+
+        /** Recorded in a test plan as a failed assert, as upstream's refusal is one. */
+        @Override
+        public com.legend.testexecutionplan.Failure.Kind failureKind() {
+            return com.legend.testexecutionplan.Failure.Kind.ASSERT_FAILED;
+        }
+    }
+
+    /**
+     * A STARTING TABLE GIVEN ROW IDENTIFIERS MORE THAN ONCE (the B2d.3 audit's L2, 2026-11-12: until then the last entry
+     * was kept, silently). A kind with its FACTS (J7 of the edge audit, 2026-11-18, as {@link NoRowIdentifiers}): the
+     * table's schema and name; its message lite's own sentence. Upstream's words (legend-pure's
+     * {@code getRowIdentifiersForTable} assert, TDG:487, and the plan form's, TDG:1208: "Multiple table row identifiers
+     * passed for the table: " and the table's qualified name) are the compatibility edge's, worded from these facts
+     * ({@code edge.PureMessages}, through {@code PlanStyle.errorWords}). A failed assert where a test plan records it, as
+     * upstream's is.
+     */
+    public static final class RowIdentifiersRepeated extends RuntimeException
+            implements com.legend.testexecutionplan.Failure.Kinded {
+        private static final long serialVersionUID = 1L;
+        private final String schema;
+        private final String table;
+
+        RowIdentifiersRepeated(String schema, String table) {
+            super("test data generation: the table " + physical(schema, table)
+                    + " is given row identifiers more than once");
+            this.schema = schema;
+            this.table = table;
+        }
+
+        public String schema() {
+            return schema;
+        }
+
+        public String table() {
+            return table;
         }
 
         /** Recorded in a test plan as a failed assert, as upstream's refusal is one. */
@@ -1382,7 +1374,7 @@ public final class TestDataPlanner {
     }
 
     /** A timestamp's spelling in {@code printing}, written by the database (each dialect's strftime of the typed
-     *  format): {@link Printing#CLEAN}'s, the product's ({@code yyyy-MM-ddTHH:mm:ss.ffffffZ}, register S312), or upstream's (the edge's)
+     *  format): {@link LitePrinting}'s, the product's ({@code yyyy-MM-ddTHH:mm:ss.ffffffZ}, register S312), or upstream's (the edge's)
      *  {@code yyyy-MM-dd HH:mm:ss}; a NULL stays NULL. */
     private static SqlExpr timestampText(SqlExpr x, Printing printing) {
         return printing.timestampText(x);

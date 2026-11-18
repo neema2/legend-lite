@@ -20,19 +20,12 @@ import java.util.Map;
 public final class Json {
     private final String s;
     private int i;
-    /** Assert-channel leniency (parseOne only): engine goldens carry
-     * typo classes real JSON rejects — a missing comma between array
-     * OBJECT elements reads as an implicit comma. Never set for wire
-     * parsing (variant/row streams stay strict). */
-    private final boolean lenient;
+    // (lenient, parseOne's assert-channel leniency -- a missing comma between array objects read as one, trailing text
+    // ignored, for engine goldens' typo classes: gone 2026-11-17, the audit's J38 -- the product's JSON is strict; its two
+    // callers parse JSON lite spells itself)
 
     private Json(String s) {
-        this(s, false);
-    }
-
-    private Json(String s, boolean lenient) {
         this.s = s;
-        this.lenient = lenient;
     }
 
     public static @com.legend.base.Nullable Object parse(String json) {
@@ -44,16 +37,6 @@ public final class Json {
             throw new IllegalStateException("trailing JSON at " + p.i);
         }
         return v;
-    }
-
-    /** The LEADING value only — real pure parseJSON semantics: a complete
-     * root value parses even with trailing text after it (the milestoned
-     * graphFetch goldens carry a stray quote after the array; the engine's
-     * own parse reads the value and ignores the tail). */
-    public static @com.legend.base.Nullable Object parseOne(String json) {
-        Json p = new Json(json, true);
-        p.ws();
-        return p.value();
     }
 
     private @com.legend.base.Nullable Object value() {
@@ -109,9 +92,6 @@ public final class Json {
             if (s.charAt(i) == ',') {
                 i++;
                 continue;
-            }
-            if (lenient && s.charAt(i) == '{') {
-                continue;   // implicit comma (golden typo class)
             }
             i++;    // ']'
             return out;

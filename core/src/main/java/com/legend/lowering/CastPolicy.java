@@ -173,7 +173,7 @@ final class CastPolicy {
     }
 
     static SqlExpr castByPolicy(SqlExpr e, Type src, Type target) {
-        return castByPolicy(e, src, target, false, LoweringForms.PRODUCT);
+        return castByPolicy(e, src, target, false, ProductLoweringForms.INSTANCE);
     }
 
     /** A cast that can never succeed under the plan style ({@link LoweringForms#raise}, the audit's K5; B7, 2026-11-17): the

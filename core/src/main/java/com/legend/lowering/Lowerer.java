@@ -331,7 +331,7 @@ public final class Lowerer {
     /** A RELATION READ MORE THAN ONCE IS WRITTEN ONCE (2026-11-04, {@link SharedRelations}): a let's value is one node
      *  of the statement's tree wherever its name is read, and it lowers once, a common table expression ({@code
      *  __let<n>}) at the statement's head that each read names. Off where the shape asks
-     *  ({@link LoweringShape#shareRelations}) and where the frame extracts the statement's subqueries as its own expressions (the engine's
+     *  (the shape's form, {@link LoweringForms#relations}) and where the frame extracts the statement's subqueries as its own expressions (the engine's
      *  cteExtractionPostProcessor: {@link #sharingRelations}). */
     private boolean shareRelations = true;
     /** While a statement lowers ({@link #lower(List)}): its shared relations; null between statements. */
@@ -373,10 +373,10 @@ public final class Lowerer {
         return SqlSelect.starOf(new SqlSource.Cte(cte.name(), nextAlias(), cte.outputs()));
     }
 
-    /** A filter's correlated EXISTS over a to-many join as a join to the distinct keys (ExistsJoinForm), the shape's
-     *  {@link LoweringShape#existsAsJoinDistinct}; the standalone-SQL surface keeps the correlated EXISTS. */
-    public Lowerer withExistsAsJoinDistinct() {
-        this.shape = shape.withExistsAsJoinDistinct();
+    /** A filter's correlated EXISTS over a to-many join is one the plan style's forms may write as a join to the distinct
+     *  keys ({@link LoweringShape#existsJoinable}; the edge audit's J19: the product's form keeps the EXISTS). */
+    public Lowerer withExistsJoinable() {
+        this.shape = shape.withExistsJoinable();
         return this;
     }
 
@@ -552,18 +552,9 @@ public final class Lowerer {
         }
         TypedSpec root = withQueryLets(body);
         SqlQuery q;
-        if (sharing == null && shareRelations && shape.shareRelations()) {
-            // a relation read more than once, written once (SharedRelations): the statement's own names are its
-            // query lets and plan parameters, which its head reads as every part of it does
-            SharedRelations.Frame frame =
-                    new SharedRelations.Frame(SharedRelations.of(root, new java.util.HashSet<>(letBindings.keySet())));
-            sharing = frame;
-            try {
-                SqlQuery reads = lower(root);   // first: the reads write the expressions
-                q = SqlWith.prepend(List.copyOf(frame.written), reads);
-            } finally {
-                sharing = null;
-            }
+        if (sharing == null && shareRelations) {
+            // a relation read more than once, written once (SharedRelations), as the shape's form chooses (J23)
+            q = shape.forms().relations(() -> sharedLower(root), () -> lower(root));
         } else {
             q = lower(root);
         }
@@ -575,7 +566,23 @@ public final class Lowerer {
             q = LetBinding.bindRepeats(q);
         }
         // a count of rows a declared key makes one is 1 (KeyedCounts: the time model's D2), then the unread pruned
-        return SubselectPrune.prune(shape.foldKeyedCounts() ? KeyedCounts.fold(q, tableKeys) : q, shape.pruneComputed());
+        SqlQuery counted = shape.forms().keyedCounts(q, x -> KeyedCounts.fold(x, tableKeys));
+        return shape.forms().computedPruning(() -> SubselectPrune.prune(counted, true),
+                () -> SubselectPrune.prune(counted, false));
+    }
+
+    /** {@code root} lowered with each relation it reads more than once written once (SharedRelations): the statement's
+     *  own names are its query lets and plan parameters, which its head reads as every part of it does. */
+    private SqlQuery sharedLower(TypedSpec root) {
+        SharedRelations.Frame frame =
+                new SharedRelations.Frame(SharedRelations.of(root, new java.util.HashSet<>(letBindings.keySet())));
+        sharing = frame;
+        try {
+            SqlQuery reads = lower(root);   // first: the reads write the expressions
+            return SqlWith.prepend(List.copyOf(frame.written), reads);
+        } finally {
+            sharing = null;
+        }
     }
 
     /**
@@ -630,7 +637,9 @@ public final class Lowerer {
     /** The rows a write or a merge writes: {@code source} lowered, each of its columns one of {@code t}'s (the checker
      *  types them so, by name: WriteChecker). */
     private SqlQuery writtenRows(TypedSpec source, TypedTableReference t, String op) {
-        SqlQuery rows = namedColumns(SubselectPrune.prune(lower(source), shape.pruneComputed()));
+        SqlQuery lowered = lower(source);
+        SqlQuery rows = namedColumns(shape.forms().computedPruning(() -> SubselectPrune.prune(lowered, true),
+                () -> SubselectPrune.prune(lowered, false)));
         java.util.Set<String> declared = new java.util.LinkedHashSet<>();
         java.util.Objects.requireNonNull(Type.schemaView(t.info().type()), "a store table's type is a relation")
                 .columns().forEach(c -> declared.add(c.name()));
@@ -838,16 +847,14 @@ public final class Lowerer {
         // The resolved GRAPH envelope keeps its CLASS-typed info (the
         // result-shape contract) but lowers as a relation.
         if (spec instanceof TypedSerializeGraph g) {
-            // the value of an engine execute(...) (the splice's mark): the
-            // engine JsonBuilder's cardinality rule, exactly one object bare
-            // and zero or several as the array -- the scalar position's fold
-            // (SnapshotEnvelope). COMPATIBILITY ONLY (the user, 2026-11-03:
-            // "the right clean thing in lite, the backward-compatible thing
-            // in compatibility mode"): lite's own root stays the array, and
-            // the streaming root (one object per row) never folds
+            // the value of an engine execute(...) (the splice's mark), the style's form (the audit's J3, 2026-11-17:
+            // LoweringForms#executeValues): the product's lite's own root, the array (the user, 2026-11-03: "the right
+            // clean thing in lite, the backward-compatible thing in compatibility mode"); the edge's the engine
+            // JsonBuilder's cardinality rule, exactly one object bare -- the scalar position's fold (SnapshotEnvelope).
+            // The streaming root (one object per row) never folds
             if (g.engineExecuteCardinality() && !streamingGraphRoot) {
-                return conformJsonEgress(SnapshotEnvelope.fold(
-                        serializeGraph(g.asArrayWrapped(), false)));
+                return conformJsonEgress(styled().forms().executeValues(() -> serializeGraph(g, false),
+                        () -> SnapshotEnvelope.fold(serializeGraph(g.asArrayWrapped(), false))));
             }
             return conformJsonEgress(serializeGraph(g, streamingGraphRoot));
         }
@@ -1639,7 +1646,7 @@ public final class Lowerer {
                     cc -> envelopeScalar(cc, fr[0], "checked constraint"), hoists);
         }
         if (g.objectRefPrefix() != null) {   // ASOR {objectReference, value}
-            obj = SnapshotEnvelope.asorWrap(g, obj,
+            obj = SnapshotEnvelope.asorWrap(g, styled().forms().objectReferenceConnection(), obj,
                     k -> envelopeScalar(k, fr[0], "objectReference pk"));
         }
         SqlSelect envelope = fr[0];
@@ -2265,10 +2272,9 @@ public final class Lowerer {
             case WHERE -> {
                 SqlSelect m = src.withWhere(
                         mergeWhere(src.where(), predicate, f.stamp()));
-                yield shape.existsAsJoinDistinct()
-                        ? ExistsJoinForm.rewrite(m, this::nextAlias,
-                                whereZones::get)
-                        : m;
+                // the product's EXISTS as lowered, legend-engine's shape a join to the distinct keys (J19, S367)
+                yield shape.existsJoinable() ? styled().forms().existsJoin(m, x -> ExistsJoinForm.rewrite(x,
+                        this::nextAlias, whereZones::get)) : m;
             }
             case HAVING -> src.withHaving(src.having() == null ? predicate
                     : Fold.mergeAnd(src.having(), predicate));
@@ -4319,7 +4325,7 @@ public final class Lowerer {
             // (its rows are the result writers'), written by the edge (phase D's D1.3, 2026-11-15)
             case TypedNativeCall tc when PlatformTypes.TO_CSV
                     .equals(tc.callee().qualifiedName()) ->
-                relationTexts.apply(() -> TextRefusals.relation("toCSV")).toCsv(tc, this::relation, nextAlias(),
+                relationTexts.apply(() -> TextRefusals.relation("toCSV")).toCsv(styled(), tc, this::relation, nextAlias(),
                         deferredTds);
             // the TDS class's csv property (tds.pure:19 `csv: String[1]`)
             // over a relation: the csv TEXT the engine prints for a TDS —
@@ -4328,13 +4334,13 @@ public final class Lowerer {
             case TypedPropertyAccess csvRead
                     when csvRead.property().equals(PlatformTypes.TDS_CSV_PROPERTY)
                     && Render.csvOverRelation(csvRead) ->
-                relationTexts.apply(() -> TextRefusals.relation("a TDS's csv")).csvProperty(csvRead, this::relation,
+                relationTexts.apply(() -> TextRefusals.relation("a TDS's csv")).csvProperty(styled(), csvRead, this::relation,
                         nextAlias());
             // F4.2c (RENDER): relation toString — the '#TDS' text form
             case TypedNativeCall tc when
                     "meta::pure::functions::relation::toString"
                             .equals(tc.callee().qualifiedName()) ->
-                relationTexts.apply(() -> TextRefusals.relation("toString")).relationToString(tc, this::relation,
+                relationTexts.apply(() -> TextRefusals.relation("toString")).relationToString(styled(), tc, this::relation,
                         nextAlias(), deferredTds);
             // F13c — every operation built on equal() over objects (docs/OBJECT_IDENTITY_2026_10_20.md §3.3): ONE
             // owner of the relation — the same canon the verdict layer byte-judges with. eq = identity (__id

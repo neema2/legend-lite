@@ -290,9 +290,9 @@ class TimeseriesLibraryTest {
                 com.legend.error.LegendCompileException.class, () -> Compiler.compileModel(twice, library));
         com.legend.error.LegendCompileException oneRefusal = assertThrows(
                 com.legend.error.LegendCompileException.class, () -> Compiler.compileModel(twice + library));
-        assertTrue(layeredRefusal.getMessage().contains("Duplicated element 'timeseries::Returns'"),
+        assertTrue(layeredRefusal.getMessage().contains("'timeseries::Returns' is defined more than once"),
                 layeredRefusal.getMessage());
-        assertTrue(oneRefusal.getMessage().contains("Duplicated element 'timeseries::Returns'"), oneRefusal.getMessage());
+        assertTrue(oneRefusal.getMessage().contains("'timeseries::Returns' is defined more than once"), oneRefusal.getMessage());
     }
 
     /**

@@ -34,6 +34,17 @@ public final class Lowered {
         return lower(query, runtime, streaming, List.of(), Set.of());
     }
 
+    /** {@link #lower(TypedQuery, String, boolean)} planned under {@code style} (the audit's J3, 2026-11-17: a root's
+     *  form is the style's, {@code LoweringForms#executeValues}). */
+    public static Compiler.LoweredQuery lower(TypedQuery query, String runtime, boolean streaming,
+            com.legend.database.PlanStyle style) {
+        QueryDoor.refuseRawSql(query);
+        ProductStatements.Statement s = ProductStatements.prepare(query, query.body(), runtime, null, Set.of(), style);
+        Prepared.Planned p = ProductStatements.planned(s);
+        return new Compiler.LoweredQuery(ProductStatements.lower(query, p, s.temporal(), streaming, List.of(),
+                new ObjectSites()), p.body().get(p.body().size() - 1), query.context());
+    }
+
     /** {@link #lower(TypedQuery, String, boolean)} with the query's declared parameters as {@code slots}. */
     public static Compiler.LoweredQuery lower(TypedQuery query, String runtime, boolean streaming,
             List<SqlExpr.PlanParam> slots, Set<Feature> features) {

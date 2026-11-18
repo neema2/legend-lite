@@ -67,6 +67,8 @@ EDGE_TEST_SRCS = [
     "src/test/java/com/legend/integration/TextPlanSourceTest.java",
     "src/test/java/com/legend/integration/TypeInferenceIntegrationTest.java",
     "src/test/java/com/legend/integration/WritePlansH2Test.java",
+    # the engine execute()'s values root, the edge's fold beside the product's array (the audit's J3, 2026-11-17)
+    "src/test/java/com/legend/lowering/EngineExecuteCardinalityTest.java",
     "src/test/java/com/legend/lowering/AggOrderNullPlacementTest.java",
     "src/test/java/com/legend/lowering/OptionalCollectionNullDropTest.java",
     "src/test/java/com/legend/lowering/ToOneLaneTest.java",
@@ -121,6 +123,13 @@ EDGE_TEST_SRCS = [
     "src/test/java/com/legend/testplan/DatabaseHalfDe5Test.java",
     "src/test/java/com/legend/testplan/ExecEnvCatalogTest.java",
     "src/test/java/com/legend/testplan/TestPlanJsonRoundTripTest.java",
+    # the judging rules' TYPE flagged, its members sorted (the GUARD stream, C.3, 2026-11-17): it reads the product jars
+    "src/test/java/com/legend/JudgingRulesReachTest.java",
+    # its planted violator, read as bytecode alone (C.3, 2026-11-17)
+    "src/test/java/com/legend/testexec/PlantedRulesByClass.java",
+    "src/test/java/com/legend/testexec/PlantedRulesReach.java",
+    "src/test/java/com/legend/testexec/PlantedRulesSwitch.java",
+    "src/test/java/com/legend/testexec/PlantedRulesText.java",
 ]
 
 # a file whose class is not its name

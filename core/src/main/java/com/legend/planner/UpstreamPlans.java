@@ -55,6 +55,6 @@ public interface UpstreamPlans {
     /** A timestamp cell's text as legend-engine's test-data CSV writes it ({@code toCSVString}'s
      *  {@code SimpleDateTimeFormat}, {@code yyyy-MM-dd HH:mm:ss}, its fraction cut; legend-engine helperFunctions.pure:214-243),
      *  for the test-data generator's printing under the compatibility rules and the server's routes (Phase 6's B13,
-     *  2026-11-17); lite's own spelling is the generator's {@code Printing.CLEAN}. */
+     *  2026-11-17); lite's own spelling is the generator's {@code LitePrinting}. */
     java.util.function.UnaryOperator<com.legend.sql.SqlExpr> testDataTimestampText();
 }

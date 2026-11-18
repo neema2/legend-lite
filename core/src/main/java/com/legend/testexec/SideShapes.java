@@ -175,7 +175,7 @@ public final class SideShapes {
                 List<Object> values = new ArrayList<>(rows.rows().size());
                 for (List<Object> row : rows.rows()) {
                     Object cell = row.get(0);
-                    values.add(switch (cell) {
+                    values.add(switch (decoded(cell)) {
                         case null -> null;
                         case String text -> constantValue(text, s.typeName());
                         default -> throw new IllegalStateException("a constant side's cell is its text, not a "
@@ -217,10 +217,15 @@ public final class SideShapes {
     private static List<Row> rowsOf(PlanRunner.Rows rows) {
         List<Row> out = new ArrayList<>(rows.rows().size());
         for (List<Object> r : rows.rows()) {
-            out.add(new Row(r));
+            out.add(new Row(r.stream().map(SideShapes::decoded).toList()));
         }
         return out;
     }
+
+    /** A cell as read: a present null cell's wire token ({@code SqlExpr.NULL_CELL_WIRE}, an expected ^TDSNull() lowered,
+     *  C5 step C) decoded HERE to the null it is, so no judge meets the token (C-2's corpus fix, 2026-11-17, the
+     *  orchestrator's ruling: decode at read). */
+    private static @com.legend.base.Nullable Object decoded(@com.legend.base.Nullable Object c) { return com.legend.sql.SqlExpr.NULL_CELL_WIRE.equals(c) ? null : c; }
 
     /** {@link Type.RelationType#pivotColumnType}'s one rule over the plan's columns: a fixed column by its name (the
      *  presented name's quotes stripped), a per-key one by the template its generated name ends with. */
@@ -260,7 +265,7 @@ public final class SideShapes {
                 throw new IllegalStateException("scalar-shaped result returned more than one row — the to-one"
                         + " contract was not enforced upstream");
             }
-            Object v = rows.rows().isEmpty() ? null : rows.rows().get(0).get(0);
+            Object v = rows.rows().isEmpty() ? null : decoded(rows.rows().get(0).get(0));
             if (v instanceof List<?> l && !s.listCarrier()) {
                 return new TypedSide.Collection(new ArrayList<>(l), s.typeName());
             }
@@ -269,10 +274,9 @@ public final class SideShapes {
         List<Object> values = new ArrayList<>(rows.rows().size());
         for (List<Object> r : rows.rows()) {
             Object v = r.get(0);
-            if (v == null) {
-                if (s.tdsNullRoot()) {
-                    values.add(com.legend.sql.SqlExpr.NULL_CELL_WIRE);   // a present null cell (C5 step C)
-                } else if (s.nullableRoot()) {
+            if (decoded(v) == null) {
+                // a present null cell decoded at read (an expected ^TDSNull()), a TDSNull root's or a nullable root's
+                if (v != null || s.tdsNullRoot() || s.nullableRoot()) {
                     values.add(null);
                 } else {
                     throw new IllegalStateException("NULL cell reached COLLECTION egress — the lowerer owns the"

@@ -2498,12 +2498,19 @@ junit_test(
     # guards read (P3-05, A11): the declared source list (its files ride in its runfiles), the two single files and
     # the product's jars
     data = [
+        "BUILD.bazel",
+        "edge_tests.bzl",
+        "//gates:BUILD.bazel",
         "src/main/java/com/legend/compiler/spec/LiteralUnroll.java",
         "src/main/java/com/legend/edge/PureText.java",
         ":guardrails_sources",
         ":product_jars",
     ],
+    # the build files TaggedClassesHaveATargetTest reads: every census and guardrail class has a target (2026-11-17)
     jvm_flags = [
+        "-Dcore.build_file=$(rlocationpath BUILD.bazel)",
+        "-Dcore.edge_tests_bzl=$(rlocationpath edge_tests.bzl)",
+        "-Dcore.gates_build_file=$(rlocationpath //gates:BUILD.bazel)",
         "-Dcore.literal_unroll=$(rlocationpath src/main/java/com/legend/compiler/spec/LiteralUnroll.java)",
         "-Dcore.duckdb_dialect=$(rlocationpath src/main/java/com/legend/edge/PureText.java)",
         "-Dlegend.sources=$(rlocationpath :guardrails_sources)",
@@ -2561,6 +2568,8 @@ junit_test(
         "--select-class=com.legend.EdgeSeparationTest",
         # the ruled hooks' implementers, read from the edge's jars (Phase 6's HookRulingTest)
         "--select-class=com.legend.HookRulingTest",
+        # the judging rules' reach (the GUARD stream's C.3, 2026-11-17): the RULES bucket of the count
+        "--select-class=com.legend.JudgingRulesReachTest",
         # every implementation of the test plan's Extension is the edge's (census C2, 2026-11-17), so the guard that
         # walks them as data reads them here
         "--select-class=com.legend.PlanTypesAreDataTest",
@@ -2760,6 +2769,24 @@ junit_test(
         "--include-tag=census",
     ],
     runtime_deps = [":core_tests_lib"],
+    visibility = ["//gates:__pkg__"],
+)
+
+# the edge's census classes (2026-11-17, the orchestrator's priority: PlannerSurfaceTest ran in no target after the edge
+# split -- tagged census, it compiled into the edge's test library, which //core:census does not carry): every edge test
+# class tagged census, over the edge's test library; TaggedClassesHaveATargetTest holds every tagged class to a target
+junit_test(
+    name = "census_edge",
+    memory_mb = 1024,
+    size = "medium",
+    data = [":census_sources"],
+    jvm_flags = ["-Dlegend.sources=$(rlocationpath :census_sources)"],
+    select = edge_test_classes() + ["--include-tag=census"],
+    tags = ["edge_test"],
+    runtime_deps = [
+        ":core_edge_tests_lib",
+        ":drivers",
+    ],
     visibility = ["//gates:__pkg__"],
 )
 

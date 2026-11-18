@@ -1733,7 +1733,7 @@ final class Substitution {
             // owner) replaces the lastIndexOf(":{") substring heuristic
             AsorRef.Ref ref = AsorRef.decode(rs.value());
             Object pkObj = ref == null ? null
-                    : com.legend.sql.Json.parseOne(ref.pkJson());
+                    : com.legend.sql.Json.parse(ref.pkJson());
             if (!(pkObj instanceof Map<?, ?> pkMap) || pkMap.isEmpty()) {
                 throw new NotImplementedException("objectReferenceIn pk"
                         + " segment did not decode: " + rs.value());

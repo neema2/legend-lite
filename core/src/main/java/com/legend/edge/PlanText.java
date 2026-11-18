@@ -204,11 +204,11 @@ public final class PlanText {
         for (SqlSelect.Projection p : s.projections()) {
             if (strip(p.alias() == null ? "" : p.alias()).equals(strip(name))
                     && p.expr() instanceof SqlExpr.Column c) {
-                pc = resolvePhysical(s.from(), c.table(), strip(c.name()));
+                pc = resolvePhysical(s.from(), c.table(), strip(c.name()), PlanVariables.of(plan));
             }
         }
         if (pc == null) {
-            pc = resolveStarColumn(ctx, dbs, s.from(), strip(name));
+            pc = resolveStarColumn(ctx, dbs, s.from(), strip(name), PlanVariables.of(plan));
         }
         final String[] found = pc;
         var td = tableIn(ctx, dbs, found[0]).orElseThrow();
@@ -409,7 +409,7 @@ public final class PlanText {
                 throw new NotImplementedException("plan: computed scalar"
                         + " projection spelling pending");
             }
-            String table = tableOf(plan.from(), c.table());
+            String table = tableOf(plan.from(), c.table(), PlanVariables.of(plan));
             var td = ctx.findTableDefinition(dbFqn, table).orElseThrow(
                     () -> new NotImplementedException("plan: table '"
                             + table + "' not in '" + dbFqn + "'"));
@@ -497,7 +497,7 @@ public final class PlanText {
             String db;
             String[] phys = null;
             if (p == null && !m2m) {
-                String[] pc = resolveStarColumn(ctx, dbs, s.from(), name);
+                String[] pc = resolveStarColumn(ctx, dbs, s.from(), name, PlanVariables.of(plan));
                 phys = pc;
                 var td = tableIn(ctx, dbs, pc[0]).orElseThrow();
                 db = spell(td.columns().stream()
@@ -512,7 +512,7 @@ public final class PlanText {
             } else if (java.util.Objects.requireNonNull(p).expr()
                     instanceof SqlExpr.Column c) {
                 String[] pc = resolvePhysical(s.from(), c.table(),
-                        strip(c.name()));
+                        strip(c.name()), PlanVariables.of(plan));
                 phys = pc;
                 var td = tableIn(ctx, dbs, pc[0]).orElseThrow();
                 db = spell(td.columns().stream()
@@ -527,7 +527,7 @@ public final class PlanText {
                 SqlExpr.Column uni = uniformCaseColumn(p.expr());
                 if (uni != null) {
                     String[] pc = resolvePhysical(s.from(), uni.table(),
-                            strip(uni.name()));
+                            strip(uni.name()), PlanVariables.of(plan));
                     phys = pc;
                     var td = tableIn(ctx, dbs, pc[0]).orElseThrow();
                     db = spell(td.columns().stream()
@@ -667,8 +667,8 @@ public final class PlanText {
             return null;
         }
         SqlSource swapped = swapLeftmost(jn,
-                new SqlSource.VarSetPlaceholder(var, ls.alias(),
-                        ls.outputs()));
+                // the plan variable: a relation the statement reads and does not define (PlanVariables, J28)
+                new SqlSource.Cte(var, ls.alias(), ls.outputs()));
         return new SqlSelect(top.projections(),
                 top.distinct(), swapped, top.where(), top.groupBy(),
                 top.having(), top.qualify(), top.orderBy(), top.limit(),
@@ -692,6 +692,7 @@ public final class PlanText {
             SqlQuery plan,
             com.legend.compiler.element.type.Type
                     .@com.legend.base.Nullable RelationType rt) {
+        java.util.Set<String> vars = PlanVariables.of(plan);
         if (!(plan instanceof SqlSelect s)) {
             throw new NotImplementedException(
                     "plan: non-select top query (union) pending");
@@ -716,14 +717,14 @@ public final class PlanText {
                 String name = strip(col.name());
                 String[] pc;
                 try {
-                    pc = resolveStarColumn(ctx, dbs, s.from(), name);
+                    pc = resolveStarColumn(ctx, dbs, s.from(), name, vars);
                 } catch (NotImplementedException e) {
                     // a column resolvable through NO physical branch of a
                     // placeholder-bearing tree is VAR-SOURCED — the
                     // engine types every VarSetPlaceHolder column INT
                     // (cluster 20 follow-up: the 3-db chain's placeholder
                     // carries empty outputs)
-                    if (!containsVarSet(s.from())) {
+                    if (!containsVarSet(s.from(), vars)) {
                         throw e;
                     }
                     pc = new String[]{VAR_SET_SENTINEL, name};
@@ -755,7 +756,7 @@ public final class PlanText {
                 continue;
             }
             String[] phys = resolvePhysical(s.from(), c.table(),
-                    strip(c.name()));
+                    strip(c.name()), vars);
             String table = phys[0];
             var td = tableIn(ctx, dbs, table).orElseThrow(
                     () -> new NotImplementedException("plan: table '"
@@ -838,8 +839,8 @@ public final class PlanText {
     }
 
     /** The physical table behind a FROM-tree alias. */
-    private static String tableOf(SqlSource src, @com.legend.base.Nullable String alias) {
-        return resolvePhysical(src, alias, null)[0];
+    private static String tableOf(SqlSource src, @com.legend.base.Nullable String alias, java.util.Set<String> vars) {
+        return resolvePhysical(src, alias, null, vars)[0];
     }
 
     /** {@code [physTable, physColumn]} behind an alias.column pair —
@@ -851,7 +852,7 @@ public final class PlanText {
      * the join emission projects left-to-right). Loud when no table
      * claims it. */
     private static String[] resolveStarColumn(ModelContext ctx, java.util.List<String> dbs,
-            SqlSource src, String col) {
+            SqlSource src, String col, java.util.Set<String> vars) {
         switch (src) {
             case SqlSource.Table t -> {
                 var td = tableIn(ctx, dbs, t.name());
@@ -862,13 +863,13 @@ public final class PlanText {
             }
             case SqlSource.Join j -> {
                 try {
-                    return resolveStarColumn(ctx, dbs, j.left(), col);
+                    return resolveStarColumn(ctx, dbs, j.left(), col, vars);
                 } catch (NotImplementedException e) {
-                    return resolveStarColumn(ctx, dbs, j.right(), col);
+                    return resolveStarColumn(ctx, dbs, j.right(), col, vars);
                 }
             }
-            case SqlSource.VarSetPlaceholder vp -> {
-                // engine pureToSQLQuery.pure:583 hard-types EVERY
+            case SqlSource.Cte vp when vars.contains(vp.name()) -> {
+                // a plan variable (PlanVariables, J28): engine pureToSQLQuery.pure:583 hard-types EVERY
                 // VarSetPlaceHolder column ^Integer() — a tdsVar-sourced
                 // column prints INT regardless of its physical origin
                 // (ledger cluster 20)
@@ -889,7 +890,7 @@ public final class PlanText {
                                 && col.equalsIgnoreCase(strip(p2.outputName()))
                                 && p2.expr() instanceof SqlExpr.Column c2) {
                             String[] phys = resolvePhysical(is.from(),
-                                    c2.table(), strip(c2.name()));
+                                    c2.table(), strip(c2.name()), vars);
                             // a FOREIGN-db physical table (the cross-db
                             // splice put another allocation's subtree in
                             // this from-tree) declines — the search
@@ -902,7 +903,7 @@ public final class PlanText {
                             break;
                         }
                     }
-                    return resolveStarColumn(ctx, dbs, is.from(), col);
+                    return resolveStarColumn(ctx, dbs, is.from(), col, vars);
                 }
             }
             default -> {
@@ -913,27 +914,27 @@ public final class PlanText {
                 + col + "' resolves through no FROM-tree table");
     }
 
-    /** Private star-top sentinel: a VarSetPlaceholder-sourced column has
+    /** Private star-top sentinel: a plan-variable-sourced column has
      * no physical table — resultColumns spells the engine's hard INT.
      * Never a legal table name, never reachable from tdsTuples. */
     private static final String VAR_SET_SENTINEL = "\u0000varset";
 
-    private static boolean containsVarSet(SqlSource src) {
+    private static boolean containsVarSet(SqlSource src, java.util.Set<String> vars) {
         return switch (src) {
-            case SqlSource.VarSetPlaceholder ignored -> true;
+            case SqlSource.Cte c -> vars.contains(c.name());
             case SqlSource.Join j ->
-                    containsVarSet(j.left()) || containsVarSet(j.right());
+                    containsVarSet(j.left(), vars) || containsVarSet(j.right(), vars);
             case SqlSource.Subselect ss ->
                     ss.inner() instanceof SqlSelect is
-                            && containsVarSet(is.from());
+                            && containsVarSet(is.from(), vars);
             default -> false;
         };
     }
 
     private static String[] resolvePhysical(SqlSource src, @com.legend.base.Nullable String alias,
-            @com.legend.base.Nullable String col) {
+            @com.legend.base.Nullable String col, java.util.Set<String> vars) {
         switch (src) {
-            case SqlSource.VarSetPlaceholder vp -> {
+            case SqlSource.Cte vp when vars.contains(vp.name()) -> {
                 if (vp.alias().equals(alias)) {
                     return new String[]{VAR_SET_SENTINEL, col};
                 }
@@ -945,9 +946,9 @@ public final class PlanText {
             }
             case SqlSource.Join j -> {
                 try {
-                    return resolvePhysical(j.left(), alias, col);
+                    return resolvePhysical(j.left(), alias, col, vars);
                 } catch (NotImplementedException e) {
-                    return resolvePhysical(j.right(), alias, col);
+                    return resolvePhysical(j.right(), alias, col, vars);
                 }
             }
             case SqlSource.Subselect sub -> {
@@ -963,7 +964,7 @@ public final class PlanText {
                                 && col.equals(strip(p2.outputName()))
                                 && p2.expr() instanceof SqlExpr.Column c2) {
                             return resolvePhysical(is.from(), c2.table(),
-                                    strip(c2.name()));
+                                    strip(c2.name()), vars);
                         }
                     }
                     // a STAR pass-through subselect (a table accessor's
@@ -976,7 +977,7 @@ public final class PlanText {
                         return new String[]{it.name(), col};
                     }
                     if (star && is.from() instanceof SqlSource.Subselect isub) {
-                        return resolvePhysical(isub, isub.alias(), col);
+                        return resolvePhysical(isub, isub.alias(), col, vars);
                     }
                     throw new NotImplementedException("plan: column '" + col
                             + "' not a plain projection of subselect '"

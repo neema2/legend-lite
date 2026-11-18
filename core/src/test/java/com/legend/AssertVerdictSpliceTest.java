@@ -309,14 +309,16 @@ class AssertVerdictSpliceTest {
     }
 
     @Test
-    @DisplayName("§8 leg 1: the golden's TDSNull sentinel matches a NULL"
+    @DisplayName("§8 leg 1: the golden's TDSNull sentinel, ^TDSNull(), matches a NULL"
             + " cell (expected direction, byte + host)")
     void flatCellsTdsNullSentinel() throws Exception {
         Object v = run(
                 "{|let result = execute(|e::Person.all()"
                 + "->project([p|$p.name, p|$p.nick], ['name','nick']),"
                 + " e::M, e::RT.runtimeValue, []);"
-                + " assertEquals(['p1', 'TDSNull', 'p2', 'TDSNull'],"
+                // the typed sentinel ^TDSNull() (C5 step C, C-2's fix, 2026-11-17: a WRITTEN 'TDSNull' is a text, as
+                // upstream's String is no TDSNull instance -- in the edge corpus it equals legend-engine's printed cell)
+                + " assertEquals(['p1', ^meta::pure::tds::TDSNull(), 'p2', ^meta::pure::tds::TDSNull()],"
                 + " $result.values.rows.values);}").one();
         assertEquals(Boolean.TRUE, v);
     }

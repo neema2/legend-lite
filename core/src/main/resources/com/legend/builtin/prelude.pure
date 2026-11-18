@@ -5030,9 +5030,6 @@ Class meta::pure::tds::TDSNull
 {
    //Used to make sure  that two TDSNull instances are equal
    <<equality.Key>> key:Nil[0];
-   toString(){
-      'TDSNull'
-   }:String[1];
 }
 
 Class meta::pure::tds::ColumnSpecification<T>

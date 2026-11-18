@@ -99,8 +99,6 @@ final class MongoDbPipeline {
             case SqlSource.Values v -> null;
             case SqlSource.Dual d -> null;
             case SqlSource.Cte c -> throw new DialectCapability("a CTE reference reached MongoDb: no shape yet");
-            case SqlSource.VarSetPlaceholder v -> throw new IllegalStateException("a plan variable (" + v.varName()
-                    + ") reached an executable dialect: plan-text vocabulary only");
             case SqlSource.RawSql r -> throw new DialectCapability("a raw statement as a relation reached MongoDb:"
                     + " a user's own pipeline as a source is not run yet");
             case SqlSource.GridReport g -> throw new DialectCapability("a raw grid's report reached MongoDb: a raw grid is"
@@ -395,8 +393,6 @@ final class MongoDbPipeline {
                 join(w, j, st);
             }
             case SqlSource.Cte c -> throw new DialectCapability("a CTE reference reached MongoDb: no shape yet");
-            case SqlSource.VarSetPlaceholder v -> throw new IllegalStateException("a plan variable (" + v.varName()
-                    + ") reached an executable dialect: plan-text vocabulary only");
             case SqlSource.RawSql r -> throw new DialectCapability("a raw statement as a relation reached MongoDb:"
                     + " a user's own pipeline as a source is not run yet");
             case SqlSource.GridReport g -> throw new DialectCapability("a raw grid's report reached MongoDb: a raw grid is"

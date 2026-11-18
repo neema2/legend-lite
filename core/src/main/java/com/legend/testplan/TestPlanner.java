@@ -55,7 +55,7 @@ public final class TestPlanner {
         // 2026-11-17: a two-form kind): the product's clean form, upstream's at the edge
         com.legend.testdatagen.TestDataPlanner.Printing printing = options.style().twoForm(
                 com.legend.testdatagen.TestDataPlanner.Printing.class,
-                com.legend.testdatagen.TestDataPlanner.Printing.CLEAN);
+                com.legend.testdatagen.LitePrinting.INSTANCE);
         return plan(withUnreadLets(GeneratedTestData.planned(typed, dialect, runtimeFqn, printing,
                 options.style())), runtimeFqn,
                 dialect, options, facts);

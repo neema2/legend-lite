@@ -1,7 +1,7 @@
 // Copyright 2026 Legend Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-package com.legend.sql.dialect;
+package com.legend.edge;
 
 import com.legend.sql.SqlExpr;
 import com.legend.sql.SqlFn;
@@ -9,30 +9,14 @@ import com.legend.sql.SqlFn;
 import java.util.List;
 
 /**
- * {@link SqlFn#DATETIME_PRINT}, legend-pure's print form of a DateTime, spelled over the database's own STRFTIME. Since
- * census B9 (2026-11-17, the orchestrator's ruling (a)) the JUDGES' CANON's alone: a message's DateTime text is the
- * two-form hook {@code lowering.DateTimeTexts} (lite's DATETIME_TO_TEXT in the product, this node only at the edge),
- * and the one product emitter left is {@code LiteralSpelling.temporalCanon}, the database judge's canonical text of a
- * DateTime, which must equal the host judge's (judge parity). It goes with census C5's step C (E-P5's: canons as typed
- * comparisons), when this composition moves to the edge or is deleted. Moved unchanged from the lowering's
- * {@code LiteralSpelling.dateTimeText} (phase D's D1.2, 2026-11-15). A pass of the base renderer, run first.
+ * legend-pure's print form of a DateTime, composed by the edge from the product's own nodes (census B12, 2026-11-17:
+ * moved from the product's {@code sql.dialect.DateTimePrintText}, unchanged; the {@code DATETIME_PRINT} node it expanded
+ * left the MIR). Written by the edge's print pass for the product's {@code DATETIME_TO_TEXT} ({@link PurePrintForms}); a
+ * literal's text is its written text ({@link EdgeDateTimeTexts}).
  */
-final class DateTimePrintText {
+final class PureDateTimePrint {
 
-    private DateTimePrintText() {
-    }
-
-    /** The base renderer's pass: each {@link SqlFn#DATETIME_PRINT} call its composition. */
-    static final class Expansion extends com.legend.sql.SqlRewriter {
-        @Override
-        protected SqlExpr expr(SqlExpr e) {
-            if (e instanceof SqlExpr.Call c && c.fn() == SqlFn.DATETIME_PRINT) {
-                return c.args().size() > 1 && c.args().get(1) instanceof SqlExpr.StringLit written
-                        ? new SqlExpr.StringLit(written.value() + "+0000")
-                        : of(expr(c.args().get(0)));
-            }
-            return super.expr(e);
-        }
+    private PureDateTimePrint() {
     }
 
     /**

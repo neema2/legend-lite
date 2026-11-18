@@ -138,7 +138,7 @@ public final class PureText {
             }
             if (kind == com.legend.planner.RoutedQueries.class) {
                 // legend-engine's AggregationAwareActivity, the routed query's print (J5 of the edge audit, 2026-11-17)
-                return kind.cast((com.legend.planner.RoutedQueries) AggAwareActivities::rewrittenQuery);
+                return kind.cast((com.legend.planner.RoutedQueries) AggAwareActivities::routingActivity);
             }
             throw new com.legend.error.NotImplementedException("the two-form kind " + kind.getName()
                     + " is none of the declared kinds (com.legend.testplan.PlanStyleFacets.TWO_FORMS)");

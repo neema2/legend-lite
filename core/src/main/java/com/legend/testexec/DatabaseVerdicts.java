@@ -33,8 +33,8 @@ final class DatabaseVerdicts {
             // divergence matches its witness here, and a row is diagnosable
             // without a re-run
             return unjudged(name, String.valueOf(unjudged),
-                    "\nexpected: " + com.legend.testexec.AssertRuns.excerpt(row.get(com.legend.testexecutionplan.RootLoop.EXPECTED_COLUMN))
-                    + "\nactual:   " + com.legend.testexec.AssertRuns.excerpt(row.get(com.legend.testexecutionplan.RootLoop.ACTUAL_COLUMN)));
+                    " (expected " + com.legend.testexec.AssertRuns.excerpt(row.get(com.legend.testexecutionplan.RootLoop.EXPECTED_COLUMN))
+                    + ", got " + com.legend.testexec.AssertRuns.excerpt(row.get(com.legend.testexecutionplan.RootLoop.ACTUAL_COLUMN)) + ")");
         }
         if (!(row.get(com.legend.testexecutionplan.RootLoop.HOLDS_COLUMN) instanceof Boolean holds)) {
             throw new IllegalStateException(name + ": the holds column is not a boolean: " + row.get(com.legend.testexecutionplan.RootLoop.HOLDS_COLUMN));

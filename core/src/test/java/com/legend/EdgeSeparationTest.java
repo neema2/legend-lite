@@ -54,8 +54,8 @@ class EdgeSeparationTest {
             // B17 (2026-11-17): Render's relation text moved to the edge (edge.RelationTextLowering); what stays in
             // Render is the product's row helpers, and the facet the edge answers stands here until hooks are ruled
             Map.entry("com.legend.lowering.RelationTexts", "B17"),
-            // B9 -> C5 (E-P5) 2026-11-17: the judges' canon's alone (LiteralSpelling.temporalCanon)
-            Map.entry("com.legend.sql.dialect.DateTimePrintText", "B12"),
+            // (sql.dialect.DateTimePrintText: deleted 2026-11-17, census B12 -- the edge composes legend-pure's DateTime
+            // print, edge.PureDateTimePrint)
             Map.entry("com.legend.lowering.ResultEnvelopes", "B5"),
             Map.entry("com.legend.lowering.PureOnlyTexts", "B8"),
             // (com.legend.lowering.Repr: deleted 2026-11-17, census B12's 2b -- legend-pure's representation the edge's
@@ -68,7 +68,7 @@ class EdgeSeparationTest {
     // reads its source; a dependency graph cannot see a string)
 
     /** The SqlFn members only the edge spells (census B8). */
-    static final Set<String> EDGE_ONLY_SQLFN = Set.of("DATETIME_PRINT");
+    static final Set<String> EDGE_ONLY_SQLFN = Set.of();   // DATETIME_PRINT gone 2026-11-17 (census B12), the last
 
     /** The referee and the appeals in the product packages they stood in (census C2, closed 2026-11-17: moved to
      *  com.legend.edge, whose classes the CODE guard already keeps out of the product): a tripwire, should one return. */
@@ -88,8 +88,8 @@ class EdgeSeparationTest {
             // format's %r refused in the product by name, the edge's EdgePureOnlyTexts.formatR its text
             // B9 -> C5 (E-P5) 2026-11-17 (the orchestrator's ruling (a)): the composition the judges' canon alone emits
             // (LiteralSpelling.temporalCanon), closed by C5's step C
-            Map.entry("com.legend.sql.dialect.AnsiSqlRenderer -> com.legend.sql.dialect.DateTimePrintText",
-                    "B12 2026-11-17 (format %r arm, LiteralSpelling.temporalCanon's gone by C5 step C)"),
+            // sql.dialect.AnsiSqlRenderer -> DateTimePrintText, DateTimePrintText -> (stands in a product package): gone
+            // 2026-11-17, census B12 (the composition the edge's, edge.PureDateTimePrint; DATETIME_PRINT left the MIR)
             // planner.Boundary -> com.legend.edge.HostAnswers, PureText, PureV1Routes: gone 2026-11-17 (A1, E-P5): the
             // pure/v1 route and execute's halves moved to com.legend.edge.wasm.EdgeBoundary (//wasm:edge_boundary)
             // B7 CLOSED 2026-11-17 (E-P5, D's split by content): server/PureV1Api is the product's own API kit,
@@ -98,8 +98,7 @@ class EdgeSeparationTest {
             // lowering.VerdictSql -> lowering.Repr: gone 2026-11-17 (C5 step A, the PureOnlyTexts facet's representation)
             // lowering.Repr -> (stands in a product package), lowering.Scalars -> lowering.Repr: gone 2026-11-17 with
             // Repr, census B12's 2b
-            Map.entry("com.legend.sql.dialect.DateTimePrintText -> (stands in a product package)",
-                    "B12 2026-11-17 (the edge's DATETIME_PRINT composition; no product emitter since B12 2b)"));
+            );
 
     /** TEST SIDE: the same. */
     static final Map<String, String> TEST_OPEN = Map.ofEntries(
@@ -165,7 +164,8 @@ class EdgeSeparationTest {
             // B17, the relation-text facet (the orchestrator's ruling of 2026-11-17: its signatures, and forwarders to
             // product helpers the product uses itself; HookRulingTest pins both and its one implementer)
             Map.entry("com.legend.lowering.Lowerer -> com.legend.lowering.RelationTexts", "B17 HOOK-RULED 2026-11-17"),
-            Map.entry("com.legend.lowering.RelationTexts -> com.legend.lowering.PureOnlyTexts", "B17 HOOK-RULED 2026-11-17"),
+            // (lowering.RelationTexts -> PureOnlyTexts: gone 2026-11-17, the edge audit's J26 -- the facet hands the planner's
+            // own Styled through, no substitute built from the edge's texts)
             Map.entry("com.legend.lowering.RelationTexts -> (stands in a product package)", "B17 HOOK-RULED 2026-11-17"),
             Map.entry("com.legend.planner.PlanEnv -> com.legend.lowering.RelationTexts", "B17 HOOK-RULED 2026-11-17"),
             Map.entry("com.legend.testplan.PlanStyleFacets -> com.legend.lowering.RelationTexts", "B17 HOOK-RULED 2026-11-17"),
@@ -279,14 +279,7 @@ class EdgeSeparationTest {
      *  ways with the register ({@link #everyOpenCompatRowIsCounted}). */
     static final Map<String, String> CSG_OPEN = Map.ofEntries(
             // B9 -> C5 (E-P5) 2026-11-17: the judges' canon's alone (LiteralSpelling.temporalCanon)
-            Map.entry("sql/dialect/DateTimePrintText.java | +0000", "B12 2026-11-17 (format %r arm, LiteralSpelling.temporalCanon's gone by C5 step C)"),
-            // census J29 (2026-11-18, E-Java): the legend-pure assert texts the spelling guard lists since J29 and the
-            // product still holds -- the condition assert's default "Assert failed" planned by two compiler classes
-            // (VerdictQueries is J33's, F), and an UNJUDGED row's evidence frame (a diagnosis, no assert's words)
-            Map.entry("compiler/spec/LambdaBodies.java | Assert failed", "J29 2026-11-18 (assert's default message)"),
-            Map.entry("compiler/spec/VerdictQueries.java | Assert failed", "J29 2026-11-18 (J33's, F)"),
-            Map.entry("testexec/DatabaseVerdicts.java | \\nactual:", "J29 2026-11-18 (an unjudged row's evidence)"),
-            Map.entry("testexec/DatabaseVerdicts.java | \\nexpected:", "J29 2026-11-18 (an unjudged row's evidence)")
+            // sql/dialect/DateTimePrintText.java | +0000: gone 2026-11-17 with the class, census B12
             // B11 -> C5 2026-11-17 (the orchestrator's ruling): the judges' canon (temporalCanon x2, dateTimeLiteralAt via
             // CanonicalRenderSql), closed by C5's step C (E-SQL's)
             // lowering/Repr.java | Repr, lowering/Scalars.java | Repr: gone 2026-11-17, census B12's 2b (Repr deleted)
@@ -312,16 +305,17 @@ class EdgeSeparationTest {
      *  canon is lite's DATETIME_CANON_TEXT);
      *  B10 CLOSED 2026-11-17 (the judges' TDSNull sentinel gone with C5's step C, C-2: an expected null cell is a
      *  typed TypedNullCell, its canon lite's bare null, its wire SqlExpr.NULL_CELL_WIRE);
+     *  B12 CLOSED 2026-11-17 (F's 2b: format's %r refused in the product, lowering.Repr deleted; legend-pure's DateTime
+     *  print the edge's: the product's DATETIME_TO_TEXT printed by the edge's dialects, a literal its written text,
+     *  edge.PureDateTimePrint, sql.dialect.DateTimePrintText deleted);
      *  records only:
      *  B15, B16, C6, C7). Each must hold at least one entry in the count ({@link #everyOpenLineIsCounted}), so an empty
      *  count cannot read DONE with a line left. A line closes by leaving this set with its last entry. */
     static final Set<String> OPEN_LINES = Set.of(
             // C1 closed 2026-11-17 (E-Java): the judges' behaviours the style's and the run hook's, the judging rules
             // data, the compatibility preset the edge's CompatRules
-            // C5 closed 2026-11-17 (its last line, CanonicalForm's +0000, E-Java's)
-            // J29 opened 2026-11-18 (E-Java): legend-pure's assert sentences, listed by the spelling guard that day; the
-            // judges' words moved to the edge's EdgeHostWords and UpstreamVerdictWords, the rows above left
-            "B12", "J29");
+            // C5 closed 2026-11-17 (its last line, CanonicalForm's +0000, E-Java's); B12 closed by train 7
+            );
 
     private static Set<String> linesOf(Map<String, String> m) {
         Set<String> out = new TreeSet<>();
@@ -346,10 +340,19 @@ class EdgeSeparationTest {
     @Test
     void everyOpenLineIsCounted() {
         Set<String> counted = new TreeSet<>();
-        for (Map<String, String> m : List.of(BUILD_OPEN, CODE_OPEN, TEST_OPEN, CSG_OPEN)) {
+        // RULES (2026-11-17, the GUARD stream's C.3): a product class asking the judging rules for legend-pure's
+        // behaviour without naming COMPILED_PURE_COMPAT (JudgingRulesReachTest)
+        for (Map<String, String> m : List.of(BUILD_OPEN, CODE_OPEN, TEST_OPEN, CSG_OPEN,
+                JudgingRulesReachTest.BEHAVIOUR_OPEN)) {
             counted.addAll(linesOf(m));
         }
-        assertEquals(new TreeSet<>(OPEN_LINES), counted, "the census's open lines and the lines this count holds"
+        // the edge audit's open items (2026-11-17, EdgeAuditOpenTest), each its own line: none is a census line
+        Set<String> audit = EdgeAuditOpenTest.lines();
+        assertTrue(java.util.Collections.disjoint(audit, OPEN_LINES), "an audit id is a census line: " + audit);
+        counted.addAll(audit);
+        Set<String> open = new TreeSet<>(OPEN_LINES);
+        open.addAll(audit);
+        assertEquals(open, counted, "the census's open lines and the lines this count holds"
                 + " differ: an open line with no entry would read DONE with work left; an entry of a closed or"
                 + " unknown line is a stale entry");
     }
@@ -403,7 +406,6 @@ class EdgeSeparationTest {
                 com.legend.planner.PlantedCompatReach.class);
         Set<String> code = found(planted, n -> true);
         for (String want : List.of("com.legend.planner.PlantedCompatReach -> com.legend.edge.Presenter",
-                "com.legend.planner.PlantedCompatReach -> SqlFn.DATETIME_PRINT",
                 "com.legend.planner.PlantedCompatReach -> com.legend.edge.CompatRules")) {
             assertFalse(!code.contains(want), "the CODE and TEST SIDE guards bite: " + want + " in " + code);
         }
@@ -413,11 +415,17 @@ class EdgeSeparationTest {
     @Test
     void linesLeft() {
         Map<String, Integer> byLine = new TreeMap<>();
-        for (Map<String, String> m : List.of(BUILD_OPEN, CODE_OPEN, TEST_OPEN, CSG_OPEN)) {
+        for (Map<String, String> m : List.of(BUILD_OPEN, CODE_OPEN, TEST_OPEN, CSG_OPEN,
+                JudgingRulesReachTest.BEHAVIOUR_OPEN)) {
             m.values().forEach(v -> byLine.merge(v.split(" ")[0], 1, Integer::sum));
         }
+        // the edge audit's open items (2026-11-17): what no guard sees yet, counted all the same
+        EdgeAuditOpenTest.AUDIT_OPEN.forEach(i -> byLine.merge(i.id(), 1, Integer::sum));
+        int audit = EdgeAuditOpenTest.AUDIT_OPEN.size();
+        int rules = JudgingRulesReachTest.BEHAVIOUR_OPEN.size();
         System.out.println("[edge separation] lines left: " + (BUILD_OPEN.size() + CODE_OPEN.size() + TEST_OPEN.size()
-                + CSG_OPEN.size()) + " (BUILD " + BUILD_OPEN.size() + ", CODE " + CODE_OPEN.size() + ", TEST SIDE "
-                + TEST_OPEN.size() + ", TEXT " + CSG_OPEN.size() + "); by census line " + byLine);
+                + CSG_OPEN.size() + rules + audit) + " (BUILD " + BUILD_OPEN.size() + ", CODE " + CODE_OPEN.size()
+                + ", TEST SIDE " + TEST_OPEN.size() + ", TEXT " + CSG_OPEN.size() + ", RULES " + rules + ", AUDIT "
+                + audit + "); by census line " + byLine);
     }
 }

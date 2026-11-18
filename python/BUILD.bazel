@@ -99,6 +99,10 @@ _COMPILER_SRCS = glob(
         # the host's doors over both sides (:host) -- C5-P, 2026-11-15
         "legend_lite/_host.py",
         "legend_lite/projects.py",
+        # the engine's seam for the edge's routes (:legend_lite's), and the edge itself (:edge) -- the edge program's
+        # H5 groundwork, 2026-11-17
+        "legend_lite/_edge_seam.py",
+        "legend_lite/edge/**",
         # :seam's, :run's and the loader's (C5-P, 2026-11-15)
     ] + _SEAM_SRCS + _RUN_SRCS + _LOADER_SRCS,
 )
@@ -163,6 +167,8 @@ py_library(
     srcs = [
         "legend_lite/datacube.py",
         "legend_lite/engine.py",
+        # the product's seam for the edge's routes: its Protocol and its own refusal (the edge program's H5 groundwork)
+        "legend_lite/_edge_seam.py",
         "legend_lite/frames.py",
         # the one copy of each page, versioned (docs/DATACUBE_PAGE_KEEPER_2026_10_20.md)
         "legend_lite/keeper.py",
@@ -180,6 +186,16 @@ py_library(
         "@pypi//duckdb",
         "@pypi//pyarrow",
     ],
+)
+
+# LEGEND-ENGINE COMPATIBILITY, AT THE EDGE (the edge program's H5, its groundwork 2026-11-17): the one package that
+# serves legend-engine's API, on top of the product. It depends on the product; no product library depends on it, and no
+# product module imports it (//python:run_closure_test's layer rule).
+py_library(
+    name = "edge",
+    srcs = glob(["legend_lite/edge/**/*.py"]),
+    imports = ["."],
+    deps = [":legend_lite"],
 )
 
 # DataCube's own non-screen code in V8 (docs/DATACUBE_HEADLESS_PYTHON_DESIGN_2026_10_11.md; the wheel's `datacube` extra,
@@ -498,6 +514,26 @@ py_test(
     target_compatible_with = _PLATFORMS,
     deps = [
         ":run",
+        "@rules_python//python/runfiles",
+    ],
+)
+
+# THE EDGE'S TESTS (the edge program's H5 groundwork, 2026-11-17): the one test target that depends on //python:edge;
+# the product's tests carry no edge library, so a product test cannot reach it
+py_test(
+    name = "edge_test",
+    size = "small",
+    srcs = [
+        "tests/main.py",
+        "tests/test_edge.py",
+    ],
+    args = ["test_edge"],
+    data = ["//native:compiler"],
+    env = _ENV,
+    main = "tests/main.py",
+    target_compatible_with = _PLATFORMS,
+    deps = [
+        ":edge",
         "@rules_python//python/runfiles",
     ],
 )
