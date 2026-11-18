@@ -1,55 +1,24 @@
-package com.legend.edge.wasm;
+package planner;
 
 import org.teavm.jso.JSExport;
-import planner.Boundary;
-import planner.Folded;
 
 /**
  * THE TAB'S ADAPTER to the {@link Boundary}: TeaVM's entry class (//wasm:planner), whose {@code @JSExport} functions
  * are the WebAssembly module's exports -- the tab's whole API, each a one-line delegation through {@link Folded}
- * (docs/PROTOCOL_PROGRAM_2026_10_05.md, invariant 5). legend-engine's operations the tab asks through
- * {@link #pureV1OrError}, as it would ask a server; no export here is its own version of a {@code pure/v1} endpoint
- * (and {@link #pureV1OrError} routes legend-lite's own {@code /api/lite/v1/compilation/compile} too, as the server
- * does).
+ * (docs/PROTOCOL_PROGRAM_2026_10_05.md, invariant 5): lite's own operations, lite API v1's by their names.
  * The JVM differential ({@code JvmMain}) runs the same compositions over the boundary ({@code Folded.of} of
  * {@code Boundary.queryParse} then {@code queryPlan}), so it compares the tab's own answers.
  *
- * <p>AT THE EDGE (F's separation census line A1, 2026-11-17): four of these exports answer legend-engine's routes
- * through the edge ({@code EdgeBoundary}), so this class -- the module's one entry -- is the edge's
- * ({@code //wasm:edge_tab}, in the edge's package: until 2026-11-17 {@code planner.TabExports}), and the module is rooted at the edge as the server is (the orchestrator's extension of
- * ruling A4). Its exports and their names are unchanged.
+ * <p>A PRODUCT ROOT (the user's K2 ruling, ~06:00 2026-11-18: "Product root, edge opt-in"): the module starts at lite's
+ * own entry and holds no edge entry. legend-engine's routes -- {@code pureV1OrError} and execute's halves, this class's
+ * from F's census line A1 (2026-11-17, when it was {@code com.legend.edge.wasm.TabExports} and the module edge-rooted)
+ * until K2 -- are the engine module's ({@code //wasm:engine_planner}, {@code com.legend.edge.wasm.EngineExports}),
+ * loaded beside this one only where an app is configured {@code engine: 'legend-engine'} (the orchestrator's option A,
+ * 2026-11-18). //wasm:product_module_test proves this module holds none of them.
  */
 public final class TabExports {
 
     private TabExports() {
-    }
-
-    // ---- legend-engine's pure/v1
-
-    /** One {@code pure/v1} call, as legend-lite's server answers it ({@link EdgeBoundary#pureV1}). */
-    @JSExport
-    public static String pureV1OrError(String path, String rawQuery, String body) {
-        return Folded.http(() -> EdgeBoundary.pureV1(path, rawQuery, body));
-    }
-
-    /** {@link EdgeBoundary#executeJsonPlan}: execute's plan half -- the SQL the tab runs, and the answer but its rows (C1). */
-    @JSExport
-    public static String executeJsonPlanOrError(String body, String modelsJson) {
-        return Folded.http(() -> EdgeBoundary.executeJsonPlan(body, modelsJson));
-    }
-
-    /** {@link EdgeBoundary#executeJsonAnswer}: the answer, the rows the tab's database answered written as the server's
-     *  (C1). */
-    @JSExport
-    public static String executeJsonAnswerOrError(String plan, String rows) {
-        return Folded.http(() -> EdgeBoundary.executeJsonAnswer(plan, rows));
-    }
-
-    /** {@link EdgeBoundary#executeArrowAnswer}: the answer in upstream's Arrow format, the rows the tab's database
-     *  answered written by lite's Arrow writer, folded as base64 (track A, 2026-10-29). */
-    @JSExport
-    public static String executeArrowAnswerOrError(String plan, String rows) {
-        return Folded.http(() -> EdgeBoundary.executeArrowAnswer(plan, rows));
     }
 
     // ---- models held: the binding's cache (lite API v1 §7a)

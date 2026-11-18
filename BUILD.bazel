@@ -60,11 +60,16 @@ filegroup(
     visibility = ["//tools/guards:__pkg__"],
 )
 
-# Our Java compiled to WebAssembly for the browser: the engine's planner, and SDLC with Depot (Studio's page).
+# Our Java compiled to WebAssembly for the browser: the engine's planner, and SDLC with Depot (Studio's page). And
+# legend-engine's routes in the tab, the declared opt-in module (the user's K2 ruling, 2026-11-18: "Product root, edge
+# opt-in"; the orchestrator's ruling the same day: it ships, so a client can opt in) -- loaded beside the planner only
+# where an app is configured engine: 'legend-engine' (engine-client's engine-module.ts). No shipped app wires that
+# configuration yet.
 filegroup(
     name = "wasm",
     srcs = [
         "//sdlc-server:page",
+        "//wasm:engine_planner",
         "//wasm:planner",
     ],
     visibility = ["//tools/guards:__pkg__"],

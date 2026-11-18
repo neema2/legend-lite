@@ -1,5 +1,6 @@
-// legend-lite's own parser and printer, for tests: the tab's WASM module (//wasm:planner), loaded
-// directly and asked legend-engine's pure/v1, as the tab asks it -- the library under test depends on nothing but the wire.
+// legend-lite's own parser and printer, for tests: the tab's engine module (//wasm:engine_planner; //wasm:planner's
+// exports until the user's K2 ruling, 2026-11-18), loaded directly and asked legend-engine's pure/v1, as the tab asks it
+// -- the library under test depends on nothing but the wire.
 // Each answer is awaited, as a planner's answers are, wherever the compiler runs.
 
 import { fileURLToPath } from 'node:url';
@@ -11,7 +12,7 @@ interface Module {
   };
 }
 
-const DIR = new URL(runfileDirUrl('WASM_PLANNER'));
+const DIR = new URL(runfileDirUrl('WASM_ENGINE_PLANNER'));
 
 let loaded: Promise<Module> | undefined;
 

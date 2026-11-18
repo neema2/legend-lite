@@ -544,7 +544,8 @@ legend_java_library(
     deps = [
         ":pe_corpus",
         "//testing",
-        # the module's entry class, the edge's since the census's A1 (2026-11-17)
+        # legend-engine's pure/v1 in the tab: the engine module's entry (com.legend.edge.wasm.EngineExports, the user's K2
+        # ruling of 2026-11-18; the planner module's entry, the edge's then, from the census's A1, 2026-11-17)
         "//wasm:edge_tab",
         "@maven_upstream//:com_fasterxml_jackson_core_jackson_databind",
     ],

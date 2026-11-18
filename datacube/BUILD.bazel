@@ -1972,6 +1972,9 @@ node_test(
         "//conditions:default": {},
     }),
     wasm = True,
+    # the tab's execute asks legend-engine's routes of the engine module, beside the planner (the user's K2 ruling,
+    # 2026-11-18: "Product root, edge opt-in")
+    engine = True,
 )
 
 node_test(

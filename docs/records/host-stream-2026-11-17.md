@@ -320,3 +320,41 @@ its compat entry, a target the app loads only when configured `engine: legend-en
     - `//engine-client:lite_api_server_test`'s Arrow and JSON describe: the same typed rows in each format, an
       Integer's 2^63-1 exact.
 
+
+### 2026-11-18: K2 for //wasm:planner ("Product root, edge opt-in", the orchestrator's option A)
+
+- **The ruling.** The user, ~06:00: every shipped artifact starts at lite's own entry, and legend-engine's module
+  loads only when an app is configured `engine: legend-engine`. GUARD measured //wasm:planner edge-rooted: its main
+  was `com.legend.edge.wasm.TabExports`, and 4 of its exports were legend-engine's routes. The orchestrator chose
+  option A: an additive engine module holding the 4 routes alone, loaded beside the product's, with no duplicated
+  delegations.
+- **The split.**
+  - `//wasm:planner`'s main is `planner.TabExports` again (`:tab`). It holds lite's 36 exports and no edge export.
+  - `//wasm:engine_planner` is new. Its main is `com.legend.edge.wasm.EngineExports` (`:edge_tab`), holding the 4
+    routes moved unchanged: `pureV1OrError`, `executeJsonPlanOrError`, `executeJsonAnswerOrError` and
+    `executeArrowAnswerOrError`. It depends on the product, never the reverse.
+  - The planner protocol (engine-client) drops `pureV1`, `executePlan` and `executeAnswer`. The edge's
+    `engine-module.ts` holds them, and its loader opens the module only for `engine: 'legend-engine'`: any other
+    word is refused by name with nothing opened (G7), and it is never asked inside a run.
+  - `WasmEdgeGrammar` takes the planner's port and the engine's.
+  - DataCube's two worker refusal tables lose those kinds' rows, because a page can no longer send them.
+  - Python drops the same three kinds from `_planner.KINDS` in its `//native:compiler` split, in the same train:
+    the headless interface check compares the two lists.
+- **Edge off.**
+  - `//wasm:product_module_test`: the module alone plans the demo query and exports none of the 4. TeaVM's exports
+    don't enumerate, so they're read by their own property names. An earlier draft read `Object.keys`, saw none,
+    and passed a planted export; the bite caught it.
+  - `//tools/deps:wasm_planner_closure_test`: Bazel's `deps(//wasm:planner)` holds `:tab` and `:boundary`, no edge
+    target and no `com.legend.edge` source. It's in `//gates:checks`.
+  - `PlannerSurfaceTest.eachModuleHoldsItsOwnExportsAlone`: an edge route planted in the product entry is named,
+    and so is a lite operation planted in the engine entry.
+- **Edge on.** `//wasm:engine_routes_test` asks 35 requests over the 4 exports: grammar both ways, compile, typing,
+  generatePlan, the refused execute, an unknown route, lite's routes the export also answers, both plan halves with
+  their refusals, and both answer halves. Each answer's sha256 is held to the pins in `wasm/engine-routes.json`,
+  which were captured from the pre-split `//wasm:planner` at train 19's tip (1f2842680e). Execute's minted host-execution id is fixed before
+  hashing. The engine module answers all 35 byte for byte. `//wasm:round_trip_test` asks the engine module.
+- **Red on revert.**
+  - Planting `pureV1OrError` back in `planner.TabExports` (with `:tab` → `:edge_boundary`) turns
+    `product_module_test` and `wasm_planner_closure_test` red.
+  - Flipping one pin turns `engine_routes_test` red.
+
