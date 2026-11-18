@@ -1268,7 +1268,10 @@ final class ArchitectureTest {
             "testplan.EngineTextPlanning#inZone(java.lang.String, java.lang.String)", "com.legend.edge.SqlTextVerdicts",
             "testplan.EngineTextPlanning#isoTimestamp(com.legend.values.PureDateLiteral)",
             "com.legend.edge.SqlTextVerdicts",
-            "testplan.EngineTextPlanning#judgingRules(com.legend.testplan.BodyDriver$ExecEnv)",
+            // the appeal asked of the style, never the judging rules (E-Java's c732a61c4, train 18, 2026-11-18: the
+            // orchestrator's ruling -- EngineTextPlanning#judgingRules replaced by the facade's style forwarder, its one
+            // edge caller SqlTextVerdicts.appeals; the rules deleted whole, 070c4ea3e)
+            "testplan.EngineTextPlanning#style(com.legend.testplan.BodyDriver$ExecEnv)",
             "com.legend.edge.SqlTextVerdicts",
             "testplan.EngineTextPlanning#judgment(com.legend.testplan.HostSides$Check)",
             "com.legend.edge.EdgeEngineTestText",

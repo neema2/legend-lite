@@ -62,6 +62,13 @@ class EdgeOnlyMembersTest {
      *  listing its members here (J33's and J40's audit items fold into it). Shrink-only: a member leaves when it moves,
      *  and its class's line closes with its last. */
     static final Map<String, String> OPEN = Map.ofEntries(
+            // E-Java's train-17 item 2, VALUES half (b70d85ab9, train 18, 2026-11-18): the edge's EngineExecutedValues builds
+            // legend-engine's json-builder envelope as a typed string::plus through concatenated, its one caller, which
+            // reads the operator run's name -- counted OPEN until the orchestrator's triage (move, or READ_API)
+            Map.entry("com.legend.compiler.spec.ExecuteChainAssembly#concatenated(com.legend.compiler.element.ModelContext, java.util.List)",
+                    "J40.ExecuteChainAssembly E-Java TRIAGE (2026-11-18): the platform's string::plus over texts, typed, built for the edge's EngineExecutedValues alone"),
+            Map.entry("com.legend.builtin.NativeFn$OperatorRun#fqn()",
+                    "J40.NativeFn E-Java TRIAGE (2026-11-18): an operator run's platform name, read only through ExecuteChainAssembly.concatenated"),
             Map.entry("com.legend.database.PlanStyle$Activity#engines()",
                     "J40.PlanStyle E-SQL MOVE (2026-11-18): legend-engine's text for an activity chain"),
             Map.entry("com.legend.lineage.ScanRelations#rootImpl(com.legend.compiler.element.ModelContext, java.lang.String, java.lang.String)",

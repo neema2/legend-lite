@@ -88,7 +88,7 @@ class GuardNamesExistTest {
             // the planted cases' made-up names: each guard's bite test plants a class that is nowhere
             Map.entry("HookRulingsAgreeTest.java | com.legend.lowering.Repr", "planted (Repr deleted, B12 2b), 2026-11-17"),
             Map.entry("HookRulingsAgreeTest.java | com.legend.planner.PlantedHook", "planted, 2026-11-17"),
-            Map.entry("JudgingRulesReachTest.java | com.legend.testexec.PlantedRules", "planted (a prefix), 2026-11-17"),
+            // (JudgingRulesReachTest's planted rules, a prefix: gone 2026-11-18 with the test, E-Java's 070c4ea3e, train 18)
             Map.entry("OpenLineMarkedTest.java | com.legend.edge.Moved", "planted, 2026-11-17"),
             Map.entry("OpenLineMarkedTest.java | com.legend.lowering.Imported", "planted, 2026-11-17"),
             Map.entry("OpenLineMarkedTest.java | com.legend.lowering.Repr", "planted, 2026-11-17"),

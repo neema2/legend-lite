@@ -64,8 +64,9 @@ class OpenClassMembersTest {
             // B5 (a ruled hook)
             Map.entry("com.legend.lowering.ResultEnvelopes", Set.of(
                     "public abstract com.legend.sql.SqlExpr classes(com.legend.sql.SqlExpr, java.lang.String)",
-                    "public abstract com.legend.sql.SqlExpr tds(java.util.List<java.lang.String>, java.util.List<java.lang.String>, java.util.List<com.legend.sql.SqlExpr>, java.lang.String)",
-                    "public abstract com.legend.sql.SqlExpr values(com.legend.sql.SqlExpr)")),
+                    // (values: deleted 2026-11-18, E-Java's b70d85ab9, train 18 -- a serialized root's string-entry value
+                    // is the plan style's ExecutedValues two-form kind)
+                    "public abstract com.legend.sql.SqlExpr tds(java.util.List<java.lang.String>, java.util.List<java.lang.String>, java.util.List<com.legend.sql.SqlExpr>, java.lang.String)")),
             // B2
             Map.entry("com.legend.planner.UpstreamPlans", Set.of(
                     // planModel -> planRows (2026-11-17, J4/K3 by 0001a56387, D's train 4: the facet answers the
@@ -97,6 +98,9 @@ class OpenClassMembersTest {
                     "public abstract java.lang.String why(com.legend.testplan.HostSides$Check)")),
             // C4 (the listed facade of the engine-text arm: ArchitectureTest.PLANNER_ENTRIES)
             Map.entry("com.legend.testplan.EngineTextPlanning", Set.of(
+                    // judgingRules replaced by style 2026-11-18 (E-Java's c732a61c4, train 18: the appeal asked of the
+                    // style, the judging rules deleted whole, 070c4ea3e)
+                    "public static com.legend.database.PlanStyle style(com.legend.testplan.BodyDriver$ExecEnv)",
                     // (notAConstantError: deleted 2026-11-18 by E-Java's train-17 item 5, 645c3e4464 -- NotAConstant is the
                     // edge's, raised by its collector)
                     "private <init>()",
@@ -119,7 +123,6 @@ class OpenClassMembersTest {
                     "public static com.legend.testexecutionplan.EnumFacts enumsOf(com.legend.compiler.element.ModelContext, java.lang.String, java.lang.String, com.legend.testexecutionplan.SideShape)",
                     "public static com.legend.testexecutionplan.HostJudgment judgment(com.legend.testplan.HostSides$Check)",
                     "public static com.legend.testexecutionplan.SideShape shapeOf(com.legend.testplan.JudgePlans$PlannedSide, com.legend.database.PlanStyle)",
-                    "public static com.legend.testexecutionplan.TestPlan$JudgingRules judgingRules(com.legend.testplan.BodyDriver$ExecEnv)",
                     "public static com.legend.testexecutionplan.TestPlan$Side side(com.legend.testplan.JudgePlans$PlannedSide)",
                     "public static com.legend.testexecutionplan.TypedSide evalSide(com.legend.compiler.spec.typed.TypedSpec, java.util.List<com.legend.compiler.spec.typed.TypedSpec>, com.legend.compiler.spec.SpecCompiler, com.legend.testplan.BodyDriver$ExecEnv, boolean, boolean, com.legend.testplan.AssertVerdicts$SpliceHook)",
                     "public static com.legend.testplan.AssertVerdicts$SpliceHook hook(com.legend.testplan.TextAsk)",
