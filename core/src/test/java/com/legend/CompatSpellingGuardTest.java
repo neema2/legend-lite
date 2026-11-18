@@ -327,7 +327,7 @@ class CompatSpellingGuardTest {
             "compiler/spec/Typer.java | TDSNull | 4 | STAYS",
             // 1 -> 2 (2026-11-17, census C5's step C, C-2): the #TDS literal's null-cell token, read as INPUT, names its
             // literal where it read TDS_NULL_CELL (the constant gone)
-            "lowering/Scalars.java | TDSNull | 2 | STAYS",
+            "lowering/Scalars.java | TDSNull | 2 | STAYS"
             // TDSNull as the judges' text (E-Java, Phase 4b: census B10/C5)
             // 5 -> 4, D1.9 -> STAYS (2026-11-17, census C5's step C, C-2): an expected ^TDSNull(), a written 'TDSNull'
             // cell and a golden's null cell are a typed TypedNullCell; what stays reads that written text as INPUT
