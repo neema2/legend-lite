@@ -70,7 +70,7 @@ public final class PurePrint {
             var p = ft.params().get(i);
             sb.append(l.parameters().get(i)).append(':')
                     .append(com.legend.plan.PureSpelling.typeName(p.type()))
-                    .append('[').append(com.legend.plan.PureSpelling.sizeRange(p.multiplicity()))
+                    .append('[').append(EngineParams.sizeRange(p.multiplicity()))
                     .append(']');
         }
         return sb.append(" | ").append(source(l.body().get(0)))

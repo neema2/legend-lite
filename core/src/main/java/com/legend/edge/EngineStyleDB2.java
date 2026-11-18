@@ -341,7 +341,7 @@ public class EngineStyleDB2 extends EngineStyleH2 {
         // T4 leg 1: synth-conformance casts are engine-TEXT-elided
         // (the wire-coercion precedent — the engine's SQL never
         // spells its decode-side coercion)
-        if (c.conform()) {
+        if (c.reason() == SqlExpr.Reason.CONFORM) {
             return writer.expr(c.value(), 0);
         }
         // DB2 string casts carry the engine's explicit width

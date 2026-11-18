@@ -34,8 +34,11 @@ class EngineParamsTest {
         assertEquals("enumMap_m_x", params.enumMapFn("s"));
         assertNull(params.enumMapFn("n"));
         assertFalse(params.isSplice("inFilterClause_n"));
-        EngineParams spliced = params.withSplices(List.of("inFilterClause_n"));
+        EngineParams spliced = params.withProtocol(List.of("inFilterClause_n"), List.of("tempTableForIn_m"));
         assertTrue(spliced.isSplice("inFilterClause_n"));
+        // the protocol's temp table, read back by legend-engine's temp-select template (J40: no MIR node)
+        assertTrue(spliced.isTempTable("tempTableForIn_m"));
+        assertFalse(params.isTempTable("tempTableForIn_m"));
         assertFalse(params.isSplice("inFilterClause_n"), "the table it came from is unchanged");
     }
 

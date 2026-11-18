@@ -352,7 +352,6 @@ final class LetBinding {
             case SqlExpr.PlanParam x -> false;
             case SqlExpr.KeyCell x -> false;
             case SqlExpr.RowOrder x -> false;
-            case SqlExpr.TempTableInSplice x -> false;
             case SqlExpr.StoredRead x -> false;
             // strict: every child evaluated on every dialect
             case SqlExpr.Call c -> !LAZY.contains(c.fn());
@@ -383,7 +382,6 @@ final class LetBinding {
             case SqlExpr.Tagged x -> false;
             case SqlExpr.TaggedList x -> false;
             case SqlExpr.RaiseText x -> false;
-            case SqlExpr.DeferredTdsString x -> false;
             case SqlExpr.WindowCall x -> false;
             case SqlExpr.FoldCall x -> false;
             case SqlExpr.JsonArrayAgg x -> false;
@@ -463,12 +461,6 @@ final class LetBinding {
                 return false;
             }
             case SqlExpr.RowOrder r -> {
-                return false;
-            }
-            case SqlExpr.DeferredTdsString d -> {
-                return false;
-            }
-            case SqlExpr.TempTableInSplice t -> {
                 return false;
             }
             case SqlExpr.StoredRead r -> {

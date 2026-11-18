@@ -32,9 +32,8 @@ final class RelationTextLowering implements RelationTexts {
 
     @Override
     public SqlExpr toCsv(com.legend.lowering.Styled styled, com.legend.compiler.spec.typed.TypedNativeCall tc,
-            java.util.function.Function<com.legend.compiler.spec.typed.TypedSpec, SqlSelect> relation, String alias,
-            java.util.Map<Integer, Type.RelationType> deferredTds) {
-        return relationText(lowerToCsv(styled, tc, relation, alias, deferredTds), "toCSV");
+            java.util.function.Function<com.legend.compiler.spec.typed.TypedSpec, SqlSelect> relation, String alias) {
+        return relationText(lowerToCsv(styled, tc, relation, alias), "toCSV");
     }
 
     @Override
@@ -45,15 +44,24 @@ final class RelationTextLowering implements RelationTexts {
 
     @Override
     public SqlExpr relationToString(com.legend.lowering.Styled styled, com.legend.compiler.spec.typed.TypedNativeCall tc,
-            java.util.function.Function<com.legend.compiler.spec.typed.TypedSpec, SqlSelect> relation, String alias,
-            java.util.Map<Integer, Type.RelationType> deferredTds) {
-        return relationText(lowerToString(styled, tc, relation, alias, deferredTds), "toString");
+            java.util.function.Function<com.legend.compiler.spec.typed.TypedSpec, SqlSelect> relation, String alias) {
+        return relationText(lowerToString(styled, tc, relation, alias), "toString");
     }
 
     /** A relation's {@code text} ({@code what} it is): the text itself (B8, 2026-11-17: the RELATION_TEXT marker the
      *  edge's pass unwrapped is gone with the product's render-time refusal; the product refuses at lowering). */
     private static SqlExpr relationText(SqlExpr text, String what) {
         return text;
+    }
+
+    /** A DYNAMIC PIVOT's TEXT whose columns nothing names (its templates unresolved): its columns exist only once the
+     *  database is asked, and planning asks the database nothing (the seam program's S3a, 2026-10-30). Refused by name
+     *  here, where it would be composed (J40, 2026-11-18, the orchestrator's ruling (8): until then a deferred node,
+     *  SqlExpr.DeferredTdsString, the body planner refused after lowering, in these words). */
+    static com.legend.error.NotImplementedException dynamicPivotText() {
+        return new com.legend.error.NotImplementedException("a dynamic pivot's text (toString/toCSV) over columns"
+                + " nothing names: its columns exist only once the database is asked, planning asks the database"
+                + " nothing, and the pivot's keyed form writes no text");
     }
 
     private static SqlExpr cat(SqlExpr... parts) {
@@ -73,8 +81,7 @@ final class RelationTextLowering implements RelationTexts {
             com.legend.compiler.spec.typed.TypedNativeCall tc,
             java.util.function.Function<
                     com.legend.compiler.spec.typed.TypedSpec, SqlSelect> relation,
-            String alias,
-            java.util.Map<Integer, Type.RelationType> deferredTds) {
+            String alias) {
         boolean renderTdsNull = switch (tc.args().size()) {
             case 1 -> false;
             case 2, 4 -> {
@@ -110,10 +117,7 @@ final class RelationTextLowering implements RelationTexts {
         // pivot's keyed form writes it (the seam program's S3a)
         if (Type.relationSchema(tc.args().get(0).info().type()) instanceof Type.RelationType drt
                 && (inner.outputs().isEmpty() || (hasDynamicPivot(inner) && !drt.dynamicColumns().isEmpty()))) {
-            int id = deferredTds.size();
-            deferredTds.put(id, drt);
-            return new SqlExpr.DeferredTdsString(inner, alias, id,
-                    SqlExpr.DeferredTdsString.Form.CSV, renderTdsNull);
+            throw dynamicPivotText();
         }
         java.util.Map<String, Type.Column> byName = new java.util.HashMap<>();
         if (Type.relationSchema(tc.args().get(0).info().type())
@@ -310,8 +314,7 @@ final class RelationTextLowering implements RelationTexts {
             com.legend.compiler.spec.typed.TypedNativeCall tc,
             java.util.function.Function<
                     com.legend.compiler.spec.typed.TypedSpec, SqlSelect> relation,
-            String alias,
-            java.util.Map<Integer, Type.RelationType> deferredTds) {
+            String alias) {
         if (tc.args().size() == 2
                 && (!(tc.args().get(1) instanceof
                         com.legend.compiler.spec.typed.TypedCBoolean b)
@@ -338,9 +341,7 @@ final class RelationTextLowering implements RelationTexts {
                 && Type.relationSchema(tc.args().get(0).info().type())
                         instanceof Type.RelationType drt
                 && !drt.dynamicColumns().isEmpty()) {
-            int id = deferredTds.size();
-            deferredTds.put(id, drt);
-            return new SqlExpr.DeferredTdsString(inner, alias, id);
+            throw dynamicPivotText();
         }
         java.util.Map<String, Type.Column> byName = new java.util.HashMap<>();
         if (Type.relationSchema(tc.args().get(0).info().type())

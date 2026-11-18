@@ -46,8 +46,7 @@ public final class PlanEnumForm {
                 ps.add(new SqlSelect.Projection(raw, p.outputName(),
                         p.out()));
                 changed = true;
-            } else if (isEnum && com.legend.sql.DecodeShapes
-                    .stripDecodes(p.expr()) instanceof SqlExpr st
+            } else if (isEnum && stripDecodes(p.expr()) instanceof SqlExpr st
                     && st != p.expr()) {
                 // computed enum projection (e.g. an if over the enum
                 // value): interior decode chains reduce to their raw
@@ -236,6 +235,61 @@ public final class PlanEnumForm {
                 }
             }
             default -> e.children().forEach(x -> collectColumns(x, keys, out));
+        }
+    }
+
+    /** {@code DecodeShapes.sourceExpr} narrowed to a raw store COLUMN: an enum decode's source column, which
+     *  legend-engine's plan text reads raw (moved from sql.DecodeShapes 2026-11-18, J40: only the edge read it). */
+    static java.util.Optional<SqlExpr.Column> sourceColumn(SqlExpr e) {
+        return com.legend.sql.DecodeShapes.sourceExpr(e)
+                .filter(SqlExpr.Column.class::isInstance)
+                .map(SqlExpr.Column.class::cast);
+    }
+
+    /** {@code e} with every interior literal-decode chain replaced by
+     * its source column; {@code e} itself when nothing rewrites. */
+    static SqlExpr stripDecodes(SqlExpr e) {
+        java.util.Optional<SqlExpr.Column> src = sourceColumn(e);
+        if (src.isPresent()) {
+            return src.get();
+        }
+        switch (e) {
+            case SqlExpr.Call c -> {
+                java.util.List<SqlExpr> args = new java.util.ArrayList<>();
+                boolean ch = false;
+                for (SqlExpr a : c.args()) {
+                    SqlExpr r = stripDecodes(a);
+                    ch |= r != a;
+                    args.add(r);
+                }
+                return ch ? new SqlExpr.Call(c.fn(), args) : e;
+            }
+            case SqlExpr.Case cs -> {
+                java.util.List<SqlExpr.Case.When> ws = new java.util.ArrayList<>();
+                boolean ch = false;
+                for (var w : cs.whens()) {
+                    SqlExpr cnd = stripDecodes(w.condition());
+                    SqlExpr th = stripDecodes(w.then());
+                    ch |= cnd != w.condition() || th != w.then();
+                    ws.add(new SqlExpr.Case.When(cnd, th));
+                }
+                SqlExpr ow = cs.otherwise() == null ? null
+                        : stripDecodes(cs.otherwise());
+                ch |= ow != cs.otherwise();
+                return ch ? new SqlExpr.Case(ws, ow, cs.reason()) : e;
+            }
+            case SqlExpr.Cast ct -> {
+                SqlExpr v = stripDecodes(ct.value());
+                return v != ct.value()
+                        ? new SqlExpr.Cast(v, ct.target(), ct.reason()) : e;
+            }
+            case SqlExpr.Group g -> {
+                SqlExpr i = stripDecodes(g.inner());
+                return i != g.inner() ? new SqlExpr.Group(i) : e;
+            }
+            default -> {
+                return e;
+            }
         }
     }
 }
