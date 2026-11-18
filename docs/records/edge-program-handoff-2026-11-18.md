@@ -196,3 +196,88 @@ lineage, and the rest).
 | `session_01XmdJ7ibnPFMP2CDDcXwRhi` | E-P5: pure/v1, K10, the server | (at PR time) |
 | `session_01XmdJ7jDL3eka1mimhpFnLR` | the TypeScript host | (at PR time) |
 | `session_01XmdJ7jxDz3DX8jUiMTqS6a` | the Python host | (at PR time) |
+
+## 7. Verifying the PR from another account: the audit and the database lanes
+
+The user's plan (2026-11-18): once the PR is open, a session in another account audits it at xhigh effort and runs
+every database lane in parallel with the PR's CI. Nothing below needs this account; everything is in the repository or
+in the environment you create.
+
+### 7.1 What changed in the final train (look here first)
+
+The final train is `claude/total-wall-h-train19` (DataCube's integration of the old trains 19 and 20) landed on
+`claude/total-wall-d-stage`. The changes most likely to break something:
+
+| Change | Owner | Risk to check |
+|---|---|---|
+| **L10: union frame, rename framing, WHERE conjunct order** (`LoweringForms.unionFrame`, `renameSource`, `where`) | F | Changes the **product's SQL shape on every database** (fewer subselects and wraps; conjuncts reordered). Answers must not move. New product rule: never prune a UNION DISTINCT's columns. |
+| **executeValues** (the form takes the product's own serialization: the object when to-one, the wrapped array when many) | E-SQL | No product answer may move; the edge folds the array with `oneBare`. |
+| **The fold move and L9's remainder** (computedPruning, existsJoin composed by the edge) | E-SQL (train 18) | Edge contract byte-identical; criterion (a), no statics on a two-form kind. |
+| **K2: shipped artifacts start at the product** (`//core:server`, `//wasm:planner`, `//native:compiler`, `//query-store:page`; legend-engine via `--engine`, `//wasm:engine_planner`, `//native:engine` and the `legend-lite[engine]` extra) | E-P5, the TS host, the Python host, DataCube | An edge-off run must load no edge class; an edge-on run must answer legend-engine's routes byte-exactly (`//wasm:engine_routes_test`, the Python edge tests). |
+| **K10: a raise site carries lite's message only** (no `upstream` field; plan v58) | E-P5 | legend-pure's words come only from the edge's recorder; PCT channel B unchanged. |
+| **v57: a precise decimal's digits as plan data** (`decimal: {precision, scale}`, omitted when not a decimal) | DataCube | +31 plan characters per Decimal(p,s) column, approved by the user; no reader yet (follow-up D2). |
+| **L14: explicit NULLS_LAST on sort keys** | F | SQL unchanged; +199 plan characters on DuckDB core (approved / delegated). |
+
+### 7.2 The lanes
+
+CI runs DuckDB, H2, SQLite and Postgres. The other databases run only in lane sessions.
+
+**Setting up (from `docs/RESULT_BOUNDARY_START_HERE.md` §7 and `docs/CLOUD_BACKENDS_PCT_2026_10_11.md` §4 and §6):**
+1. **Credentials.** Make one cloud environment per credential set. Its **setup script** writes the properties file that
+   `LEGENDLITE_PCT_CLOUD_PROPERTIES` names (the file's keys: `CLOUD_BACKENDS_PCT_2026_10_11.md` §4). Credentials never go
+   in the repository or a chat message, and are never printed.
+2. **Sessions.** One per lane group, each on the PR's branch:
+
+   | Group | Databases |
+   |---|---|
+   | 1 | Postgres (unprivileged), SQLite, MongoDB |
+   | 2 | MariaDB, MySQL, ClickHouse |
+   | 3 | Trino, H2 |
+   | 4 | Snowflake (credentials) |
+   | 5 | Databricks (credentials) |
+   | 6 | BigQuery (credentials) |
+
+   The embedded servers (Postgres, MariaDB, MySQL, ClickHouse, Trino, MongoDB) need Linux x86_64.
+3. **Bazel.** Bootstrap with `tools/cloud-distdir.sh`; the disk allowance and its traps are in `docs/CLOUD_SESSIONS.md`.
+   Run `bazel clean` between heavy suites if disk runs short.
+
+**What to run on each database, at TWO commits** (the base, `claude/total-wall-d-stage` before the final train, i.e.
+`815de5810`, and the PR head), then compare per test:
+- **PCT channel A:** `//pct:pct_<db>_<suite>` for each suite: `essential`, `grammar`, `relation`, `standard`,
+  `unclassified`. The databases are `duckdb`, `h2`, `postgres`, `sqlite`, `mariadb`, `mysql`, `mongodb`, `trino`,
+  `clickhouse`, `snowflake`, `databricks` and `bigquery`; the clouds read `LEGENDLITE_PCT_CLOUD_PROPERTIES`. The expected
+  failures per lane are the ledgers `Test_LegendLite_<Lane>_<Suite>_PCT.java`.
+- **PCT channel B:** `//pct:pct_channel_b_<suite>` (DuckDB) and `//pct:pct_channel_b_<lane>_<suite>` for the lanes
+  `postgres`, `sqlite`, `mariadb`, `mysql` (plus the H2 variant). Verdicts must be identical per test.
+- **The product probe:** `//core:product_raise_probe` with `LEGENDLITE_PROBE_DATABASE=<db>` (mariadb, mysql,
+  clickhouse, trino, mongodb, or a cloud with the properties file). It prints each statement's SQL: typed raises, the
+  Float and DateTime forms, values that must read back exactly. Zero wrong values.
+
+**The brief each lane session gets** (plain text; the Snowflake session refused encoded blobs once):
+> MEASURE ONLY: no commits, no pushes, no credential reads, no tracked file edited. `git fetch origin <branch>`;
+> `git checkout --detach <commit>`; a clean tree. Run channel A and channel B (where the lane has it), all five suites,
+> and the product probe, on <databases>, at the base `815de5810` and at the PR head. Report one table per database:
+> every lost pass, every moved message and every channel B difference in full (test name, expected and actual text),
+> the probe's wrong values, the route markers counted (`grep -c '\[LegendLite PCT\] engine JSON:'`), and the wall time
+> of each suite at both commits.
+
+**Reading the reports:** `docs/result-boundary-homework/probes/compare_lanes.py.txt` classifies channel A failures by
+wording (STALE, MOVED, LOST). **Pass means:** no lost pass, no channel B difference, probe zero wrong, on every database.
+A moved message on an already-failing test is reported, not a failure.
+
+**Known, not regressions:** lane round 77 (2026-11-17) measured slowdowns from the host judge's per-side reads (2.55x
+round trips): Databricks about 2x, Trino 30-50%, MariaDB/MySQL/ClickHouse 13-23%, BigQuery 1.3-2.5x. That is follow-up
+C7, not this PR's to fix. The base-versus-head comparison above shows whether the final train adds anything.
+
+### 7.3 The audit's questions
+
+Grade every finding as one of: wrong answer, wrong design, broken rule (AGENTS.md, the goals of record G1-G11), or
+cosmetic.
+1. Does the product, alone (edge off), contain anything that means legend-engine's or legend-pure's form? (The meaning
+   rule, §2.3.) The guards say no; look for what they can't see.
+2. Is the edge Java over typed results, or does it still build upstream text in SQL? (It still does in about 1,978
+   lines; follow-up D1. Confirm the number; it should not have grown.)
+3. Do the final train's SQL-shape changes (§7.1) keep every answer on every database? (The lanes answer this.)
+4. Is any guard or pin weakened without a dated reason? (`shrink_only` is the mechanical check; read the dated notes
+   in the final train's diff.)
+5. Is anything in `docs/records/edge-follow-ups-2026-11-18.md` actually a blocker for merging?
