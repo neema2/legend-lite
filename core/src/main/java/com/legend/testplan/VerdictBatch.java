@@ -117,7 +117,11 @@ public final class VerdictBatch {
     /** A deferred verdict statement, or an outcome the arm decided
      * without one (a static kind gate, an UNJUDGED decline, a side that
      * errored while planning). */
-    private sealed interface Step permits Pending, Resolved {
+    private sealed interface Step permits Pending, Resolved, Judged {
+    }
+
+    /** A verdict the arm decided at planning, counted by the census at the root's turn ({@link #judged}). */
+    private record Judged() implements Step {
     }
 
     /** {@code orElse}: the row's RULED comparison (2026-11-04, the core program: every assert on its own merit
@@ -300,10 +304,14 @@ public final class VerdictBatch {
      *  several, a root of several steps, a fallback, an appeal, a decline to report or a caller's message that reads
      *  (no one row decides it alone). */
     public @com.legend.base.Nullable Sole sole() {
-        if (roots.size() != 1 || roots.get(0).steps.size() != 1 || roots.get(0).message != null) {
+        // a static verdict's count (Judged) is no step of the one statement: the statement is the assert's, its census
+        // the enclosing assertError's
+        List<Step> steps = roots.size() != 1 ? List.of()
+                : roots.get(0).steps.stream().filter(s -> !(s instanceof Judged)).toList();
+        if (roots.size() != 1 || steps.size() != 1 || roots.get(0).message != null) {
             return null;
         }
-        Step step = roots.get(0).steps.get(0);
+        Step step = steps.get(0);
         if (step instanceof Pending p && p.appeal() == RootLoop.NO_APPEAL && p.orElse() == null && p.decline() == null) {
             return new Sole.Row(com.legend.sql.FrameCtes.attach(p.query(), frames()), p.on());
         }
@@ -370,6 +378,17 @@ public final class VerdictBatch {
 
     public void fragments(Map<String, String> map) {
         fragments.putAll(map);
+    }
+
+    /** The open root's arm decided its verdict at planning (a static decision): a step the runner counts
+     *  at the root's turn (J39, 2026-11-18, the orchestrator's ruling (b): the census counted it at planning). Inside
+     *  a ruled comparison ({@link #orElse}) nothing is added: that arm decides only where the generic row fails, and
+     *  the generic row's own judgment is the root's count at its turn. */
+    public void judged() {
+        Root r = java.util.Objects.requireNonNull(current, "verdict batch: no open root for a static verdict");
+        if (orElseOf.isEmpty()) {
+            r.steps.add(new Judged());
+        }
     }
 
     public void resolve(com.legend.testexecutionplan.Failure failure) {
@@ -589,6 +608,7 @@ public final class VerdictBatch {
                                 id == null ? refusals.get(p.ix()) : null, decidedOrElse(p), p.appeal(), p.decline());
                     }
                     case Resolved rv -> new RootLoop.Decided(rv.failure(), rv.reported());
+                    case Judged j -> new RootLoop.Judged();
                 });
             }
             RootLoop.Message message = null;

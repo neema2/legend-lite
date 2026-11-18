@@ -58,8 +58,9 @@ class DatabaseSettingsH2Test {
     void theDialectWritesThemIntoThePlansTarget() {
         ExecutionPlan.Target target = h2Target();
         assertEquals(List.of("SET NON_KEYWORDS " + com.legend.sql.dialect.H2.NON_KEYWORDS), target.session());
-        assertEquals(List.of(new ExecutionPlan.Setting("MODE", "LEGACY"),
-                new ExecutionPlan.Setting("DEFAULT_NULL_ORDERING", "HIGH")), target.settings().required());
+        // the product's H2: H2's own settings, declared (the audit's J22, RULED by the user 2026-11-17)
+        assertEquals(List.of(new ExecutionPlan.Setting("MODE", "REGULAR"),
+                new ExecutionPlan.Setting("DEFAULT_NULL_ORDERING", "LOW")), target.settings().required());
     }
 
     /** An in-memory H2 the platform opens is MADE with the target's settings, and is not read back for them. */
@@ -76,7 +77,7 @@ class DatabaseSettingsH2Test {
         try (Connection bare = DriverManager.getConnection("jdbc:h2:mem:settings_defaults", "sa", "");
                 Connection made = H2Connector.INSTANCE.openPrivate(target.settings())) {
             assertEquals(List.of("DEFAULT_NULL_ORDERING=LOW", "MODE=REGULAR"), reported(bare), "H2's own defaults");
-            assertEquals(List.of("DEFAULT_NULL_ORDERING=HIGH", "MODE=LEGACY"), reported(made), "the target's");
+            assertEquals(List.of("DEFAULT_NULL_ORDERING=LOW", "MODE=REGULAR"), reported(made), "the target's");
         }
     }
 
@@ -102,14 +103,16 @@ class DatabaseSettingsH2Test {
     @Test
     void aCallersSessionWithOtherSettingsIsRefusedByName() throws Exception {
         ExecutionPlan.Target target = h2Target();
-        try (Connection bare = DriverManager.getConnection("jdbc:h2:mem:settings_bare", "sa", "");
+        // a session made with legend-engine's settings (the edge's database, the audit's J22) under a product plan
+        try (Connection other = DriverManager.getConnection("jdbc:h2:mem:settings_other;MODE=LEGACY;"
+                + "DEFAULT_NULL_ORDERING=HIGH", "sa", "");
                 var run = com.legend.base.RunScope.enter()) {
-            JdbcStatements st = new JdbcStatements(bare, new SessionState());
+            JdbcStatements st = new JdbcStatements(other, new SessionState());
             com.legend.error.NotImplementedException refused = assertThrows(
                     com.legend.error.NotImplementedException.class, () -> st.check(target));
             assertEquals("the session's database does not have the settings the plan's target declares (it has"
-                    + " DEFAULT_NULL_ORDERING=LOW, MODE=REGULAR; the target declares MODE=LEGACY,"
-                    + " DEFAULT_NULL_ORDERING=HIGH): a session this platform did not open is read back, and never runs"
+                    + " DEFAULT_NULL_ORDERING=HIGH, MODE=LEGACY; the target declares MODE=REGULAR,"
+                    + " DEFAULT_NULL_ORDERING=LOW): a session this platform did not open is read back, and never runs"
                     + " a plan with other settings", refused.getMessage());
         }
     }

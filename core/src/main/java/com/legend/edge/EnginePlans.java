@@ -259,7 +259,7 @@ public final class EnginePlans {
         @Override
         public java.util.List<String> engineSeedSql(String csv, com.legend.model.DatabaseDefinition db,
                 java.util.function.Function<String, java.util.Optional<com.legend.model.DatabaseDefinition>> lookup) {
-            return com.legend.setup.Ddl.setUpDataSqlsText(csv, db, lookup,
+            return EngineSeedText.setUpDataSqlsText(csv, db, lookup,
                     PureText.engineText(EngineText.ENGINE_TEST_DATABASE));
         }
 
@@ -267,7 +267,7 @@ public final class EnginePlans {
         public java.util.List<String> engineSeedSqlFromRecords(java.util.List<java.util.List<String>> records,
                 com.legend.model.DatabaseDefinition db,
                 java.util.function.Function<String, java.util.Optional<com.legend.model.DatabaseDefinition>> lookup) {
-            return com.legend.setup.Ddl.setUpDataSqlsTextFromRecords(records, db, lookup,
+            return EngineSeedText.setUpDataSqlsTextFromRecords(records, db, lookup,
                     PureText.engineText(EngineText.ENGINE_TEST_DATABASE));
         }
 
@@ -740,7 +740,7 @@ public final class EnginePlans {
                 ? c.value() : null;
         java.util.List<String> sqls = java.util.List.of();
         if (csv != null && db != null) {
-            sqls = com.legend.setup.Ddl.setUpDataSqlsText(csv, db, lookup, PureText.engineText(EngineText.ENGINE_TEST_DATABASE));
+            sqls = EngineSeedText.setUpDataSqlsText(csv, db, lookup, PureText.engineText(EngineText.ENGINE_TEST_DATABASE));
         }
         PlanConn.DsSpec spec = null;
         if (ni.properties().get("datasourceSpecification")
@@ -752,7 +752,7 @@ public final class EnginePlans {
                             .TypedCString sc2
                     ? sc2.value() : null;
             java.util.List<String> specSqls = specCsv != null && db != null
-                    ? com.legend.setup.Ddl.setUpDataSqlsText(specCsv, db,
+                    ? EngineSeedText.setUpDataSqlsText(specCsv, db,
                             lookup, PureText.engineText(EngineText.ENGINE_TEST_DATABASE))
                     : java.util.List.of();
             spec = new PlanConn.DsSpec(

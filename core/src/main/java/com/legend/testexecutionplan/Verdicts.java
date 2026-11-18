@@ -79,33 +79,6 @@ public final class Verdicts {
     }
 
 
-    /** A text that differs from its golden, in clean mode: the assert's failure, the first difference named. */
-    public static TypedSide textsDiffer(String name, String golden, String ours,
-            @com.legend.base.Nullable String decline) {
-        return fail(name + " (sql-text): our text differs from the golden" + (decline != null ? " (" + decline + ")"
-                : "") + ": " + firstTextDiff(golden, ours));
-    }
-
-    /** The engine's index-less {@code sqlRemoveFormatting($res)} over a
-     * CHAINED plan prints statement 0 and appends this warning line
-     * (relationalMappingExecution.pure): the referee reads the SQL and
-     * drops the message before replay — a spec-text shape, like the
-     * population statement's. */
-    private static final String CHAINED_PLAN_WARNING =
-            "\nWarning: Results only shown for first relational query.";
-
-    public static String stripChainedPlanWarning(String golden) {
-        int at = golden.indexOf(CHAINED_PLAN_WARNING);
-        return at < 0 ? golden : golden.substring(0, at);
-    }
-
-    /** The engine's population statement shape (batch 67): the ONE
-     * recognizer of that golden text, shared by both routes. */
-    public static boolean isPopulationGolden(String golden) {
-        return golden.toLowerCase(java.util.Locale.ROOT)
-                .startsWith("select distinct");
-    }
-
     public static @com.legend.base.Nullable String scalarString(
             @com.legend.base.Nullable TypedSide r) {
         return r instanceof TypedSide.Scalar s

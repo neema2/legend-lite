@@ -85,4 +85,10 @@ public final class ProductLoweringForms implements LoweringForms {
     public SqlSelect existsJoin(SqlSelect filtered, java.util.function.UnaryOperator<SqlSelect> joinForm) {
         return filtered;
     }
+
+    /** The product's isNumeric: a real numeric check, the same on every database (census J20). */
+    @Override
+    public SqlExpr isNumeric(SqlExpr s) {
+        return SqlExpr.Call.of(com.legend.sql.SqlFn.IS_NUMERIC, s);
+    }
 }

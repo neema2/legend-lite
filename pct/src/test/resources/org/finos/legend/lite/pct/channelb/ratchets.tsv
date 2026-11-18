@@ -2,11 +2,11 @@
 channel_b.essential.discovered	345
 channel_b.essential.judge.statements	358
 channel_b.essential.judge.chars	1717207
-channel_b.essential.judge.plan	28701023
+channel_b.essential.judge.plan	28701095
 channel_b.grammar.discovered	137
 channel_b.grammar.judge.statements	135
 channel_b.grammar.judge.chars	670493
-channel_b.grammar.judge.plan	11592338
+channel_b.grammar.judge.plan	11592446
 channel_b.relation.discovered	469
 channel_b.relation.judge.statements	469
 channel_b.relation.judge.chars	1989680

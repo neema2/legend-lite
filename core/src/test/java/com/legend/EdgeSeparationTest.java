@@ -215,6 +215,14 @@ class EdgeSeparationTest {
 
     /** Every "source -> target" naming the vocabulary, over {@code classes}, for the sources {@code side} admits. */
     static Set<String> found(JavaClasses classes, java.util.function.Predicate<String> side) {
+        return found(classes, side, EDGE_ONLY_SQLFN);
+    }
+
+    /** {@link #found(JavaClasses, java.util.function.Predicate)} with {@code edgeOnlyFns} the SqlFn constants the
+     *  edge alone may write. A read of one is no write where it is a renderer's arm, javac's switch map or SqlFn's own
+     *  initializer ({@code SqlFnSortedTest}'s rule) -- the one exemption: until 2026-11-17 every {@code com.legend.sql}
+     *  class's field reads were skipped, its MIR helpers' and its codec's with its renderers' (the edge audit's K16). */
+    static Set<String> found(JavaClasses classes, java.util.function.Predicate<String> side, Set<String> edgeOnlyFns) {
         Set<String> out = new TreeSet<>();
         for (JavaClass c : classes) {
             String src = top(c);
@@ -235,17 +243,33 @@ class EdgeSeparationTest {
                     out.add(src + " -> " + target);
                 }
             });
-            if (!src.startsWith("com.legend.sql.")) {
-                c.getFieldAccessesFromSelf().forEach(a -> {
-                    String owner = a.getTarget().getOwner().getName();
-                    String field = a.getTarget().getName();
-                    if (owner.equals("com.legend.sql.SqlFn") && EDGE_ONLY_SQLFN.contains(field)) {
-                        out.add(src + " -> SqlFn." + field);
-                    }
-                    // (the judges' compatibility rules: a field of the edge's since 2026-11-17, census C1 --
-                    // edge.CompatRules.COMPILED_PURE, an edge reach the class rule above finds)
-                });
-            }
+            // a dialect's renderer (the class or one enclosing it a subclass of AnsiSqlRenderer, in
+            // com.legend.sql.dialect), in a code unit that carries no value out (SqlFnSortedTest.carriesOut: it
+            // returns what a render returns, builds no node, sets no field that can hold one); javac's switch map (a
+            // synthetic $SwitchMap$ field) in the sql package alone; SqlFn's own code -- its initializer, its synthetic
+            // $values, and a member carrying nothing out -- nothing else. The review of 11de9ae229, 2026-11-18,
+            // MUST-FIX 1: a renderer in any package, an ordinary field named $SwitchMap$ and every member of SqlFn were
+            // exempt; the review of 091b9bde36, the same day, MUST-FIX 3 and SHOULD-FIX 4: a helper nesting a class
+            // implementing SqlDialect, a renderer's method or lambda handing the function back, and a renderer's own
+            // node were exempt, and SqlFn's $values and its predicates were not.
+            boolean rendererClass = SqlFnSortedTest.renderer(c) && c.getName().startsWith("com.legend.sql.dialect.");
+            boolean switchMap = src.startsWith("com.legend.sql.") && SqlFnSortedTest.switchMap(c);
+            boolean sqlFn = c.getName().equals("com.legend.sql.SqlFn");
+            c.getFieldAccessesFromSelf().forEach(a -> {
+                String owner = a.getTarget().getOwner().getName();
+                String field = a.getTarget().getName();
+                com.tngtech.archunit.core.domain.JavaCodeUnit u = a.getOrigin();
+                boolean own = sqlFn && (u instanceof com.tngtech.archunit.core.domain.JavaStaticInitializer
+                        || (u.getName().equals("$values") && u.getModifiers().contains(
+                                com.tngtech.archunit.core.domain.JavaModifier.SYNTHETIC))
+                        || !SqlFnSortedTest.carriesOut(u));
+                boolean reads = switchMap || own || (rendererClass && !SqlFnSortedTest.carriesOut(u));
+                if (owner.equals("com.legend.sql.SqlFn") && edgeOnlyFns.contains(field) && !reads) {
+                    out.add(src + " -> SqlFn." + field);
+                }
+                // (the judges' compatibility rules: a field of the edge's since 2026-11-17, census C1 --
+                // edge.CompatRules.COMPILED_PURE, an edge reach the class rule above finds)
+            });
         }
         return out;
     }
@@ -329,7 +353,8 @@ class EdgeSeparationTest {
         for (String row : CompatSpellingGuardTest.REGISTER) {
             String[] p = row.split("\\|");
             String step = p[3].trim();
-            if (!step.equals("STAYS") && !step.equals("RULED") && !step.equals("HOOK-RULED")) {
+            // the register's one terminal predicate (2026-11-17, the GUARD stream: no second copy to widen)
+            if (!CompatSpellingGuardTest.TERMINAL_STEPS.contains(step)) {
                 open.add(p[0].trim() + " | " + p[1].trim());
             }
         }
@@ -409,6 +434,67 @@ class EdgeSeparationTest {
                 "com.legend.planner.PlantedCompatReach -> com.legend.edge.CompatRules")) {
             assertFalse(!code.contains(want), "the CODE and TEST SIDE guards bite: " + want + " in " + code);
         }
+        // the edge audit's K16 (2026-11-17): a com.legend.sql class's reads are read too -- an edge-only function (ABS
+        // planted as one) -- and a renderer's arm and a switch's map are not
+        JavaClasses sqlPlanted = new ClassFileImporter().withImportOption(l -> l.contains("/PlantedSql")
+                && !l.contains("SwitchNamed")).importPackages("com.legend.sql");
+        assertTrue(sqlPlanted.size() >= 4, "the planted classes are imported: " + sqlPlanted.size());
+        Set<String> sql = found(sqlPlanted, n -> true, Set.of("ABS"));
+        assertEquals(Set.of("com.legend.sql.PlantedSqlReach -> SqlFn.ABS"), sql, "the CODE guard reads the sql package");
+        // the review of 11de9ae229 (2026-11-18): a renderer nested in a product class outside the dialects, and a field
+        // merely named $SwitchMap$, exempt nothing
+        JavaClasses hiding = new ClassFileImporter().importClasses(com.legend.planner.PlantedRendererHide.class,
+                com.legend.planner.PlantedRendererHide.R.class, com.legend.sql.PlantedSqlSwitchNamed.class);
+        assertTrue(hiding.size() == 3, "the planted classes are imported: " + hiding.size());
+        assertEquals(Set.of("com.legend.planner.PlantedRendererHide -> SqlFn.ABS",
+                "com.legend.sql.PlantedSqlSwitchNamed -> SqlFn.ABS"), found(hiding, n -> true, Set.of("ABS")),
+                "a renderer outside the dialects and a field named $SwitchMap$ exempt nothing");
+        // the review of 091b9bde36 (2026-11-18, MUST-FIX 3): a helper nesting a SqlDialect two levels down, and a dialect
+        // handing the function back -- returned, by a lambda in a field, as a node it builds, kept in a field -- are
+        // named; a dialect's arm writing text is not
+        JavaClasses laundering = new ClassFileImporter().importClasses(
+                com.legend.sql.dialect.PlantedSqlRendererArm.class, com.legend.sql.dialect.PlantedRendererNest.class,
+                com.legend.sql.dialect.PlantedRendererNest.A.class, com.legend.sql.dialect.PlantedRendererNest.A.R.class,
+                com.legend.sql.dialect.PlantedLaunderReturn.class, com.legend.sql.dialect.PlantedLaunderLambda.class,
+                com.legend.sql.dialect.PlantedLaunderBuild.class, com.legend.sql.dialect.PlantedLaunderField.class,
+                com.legend.sql.dialect.PlantedRendererByInterface.class,
+                // the review of dd5deb781f (MUST-FIX 2): an array store, a collection's add, a throw, a setter
+                com.legend.sql.dialect.PlantedLaunderArray.class, com.legend.sql.dialect.PlantedLaunderAdd.class,
+                com.legend.sql.dialect.PlantedLaunderThrow.class, com.legend.sql.dialect.PlantedLaunderSetter.class,
+                // review F of the guard line (SHOULD 1): a varargs keeper, an array keeper, an ordinal and a name kept --
+                // one shape a class, and the number or the name handed to a keeper (the review of the guard line, G,
+                // SHOULD 1, 2026-11-18: two shapes in one class left a half of the rule unpinned)
+                com.legend.sql.dialect.PlantedLaunderVarargs.class, com.legend.sql.dialect.PlantedLaunderArrayKeeper.class,
+                com.legend.sql.dialect.PlantedLaunderOrdinal.class, com.legend.sql.dialect.PlantedLaunderName.class,
+                com.legend.sql.dialect.PlantedLaunderOrdinalHanded.class,
+                com.legend.sql.dialect.PlantedLaunderNameHanded.class);
+        assertEquals(19, laundering.size(), "the planted classes are imported");
+        assertEquals(Set.of("com.legend.sql.dialect.PlantedRendererNest -> SqlFn.ABS",
+                "com.legend.sql.dialect.PlantedRendererByInterface -> SqlFn.ABS",
+                "com.legend.sql.dialect.PlantedLaunderReturn -> SqlFn.ABS",
+                "com.legend.sql.dialect.PlantedLaunderLambda -> SqlFn.ABS",
+                "com.legend.sql.dialect.PlantedLaunderBuild -> SqlFn.ABS",
+                "com.legend.sql.dialect.PlantedLaunderField -> SqlFn.ABS",
+                "com.legend.sql.dialect.PlantedLaunderArray -> SqlFn.ABS",
+                "com.legend.sql.dialect.PlantedLaunderAdd -> SqlFn.ABS",
+                "com.legend.sql.dialect.PlantedLaunderThrow -> SqlFn.ABS",
+                "com.legend.sql.dialect.PlantedLaunderSetter -> SqlFn.ABS",
+                "com.legend.sql.dialect.PlantedLaunderVarargs -> SqlFn.ABS",
+                "com.legend.sql.dialect.PlantedLaunderArrayKeeper -> SqlFn.ABS",
+                "com.legend.sql.dialect.PlantedLaunderOrdinal -> SqlFn.ABS",
+                "com.legend.sql.dialect.PlantedLaunderName -> SqlFn.ABS",
+                "com.legend.sql.dialect.PlantedLaunderOrdinalHanded -> SqlFn.ABS",
+                "com.legend.sql.dialect.PlantedLaunderNameHanded -> SqlFn.ABS"), found(laundering, n -> true, Set.of("ABS")),
+                "a dialect's read carrying the function out is named, its arm is not");
+        // the review of 091b9bde36 (SHOULD-FIX 4): SqlFn's own code -- its initializer, $values, its predicates --
+        // reads every constant and is never named, so an edge-only function does not turn the guard on the enum itself
+        JavaClasses sqlFn = new ClassFileImporter().importClasses(com.legend.sql.SqlFn.class);
+        assertEquals(1, sqlFn.size(), "SqlFn is imported");
+        Set<String> every = new TreeSet<>();
+        for (com.legend.sql.SqlFn f : com.legend.sql.SqlFn.values()) {
+            every.add(f.name());
+        }
+        assertEquals(Set.of(), found(sqlFn, n -> true, every), "SqlFn's own code reads its constants");
     }
 
     /** "Lines left": the allowlists' entries, counted by the code, and by census line. */

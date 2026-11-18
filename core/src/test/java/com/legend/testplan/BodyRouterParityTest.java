@@ -1806,7 +1806,7 @@ class BodyRouterParityTest {
      *  extent as a body's answer: BodyClass.answered). */
     private static String productText(TestBackend backend, ModelContext ctx, String runtime, String query,
             List<String> setup) throws Exception {
-        try (Connection c = backend.open()) {
+        try (Connection c = backend.open(com.legend.edge.PureText.UPSTREAM)) {   // the edge's style runs it (J22)
             try (Statement st = c.createStatement()) {
                 for (String sql : setup) {
                     st.execute(sql);
@@ -2032,7 +2032,12 @@ class BodyRouterParityTest {
 
     private static Run run(TestBackend backend, ModelContext ctx, String runtime, String body,
             String check, List<String> setup, com.legend.testplan.PlanningOptions.JudgeMode mode) throws Exception {
-        try (Connection c = backend.open()) {
+        // the session is the database the run's style plans for (the audit's J22, 2026-11-17: H2's settings are the
+        // style's): the edge's where the run below is handed the edge's style
+        boolean edgeStyle = COMPAT.get() || body.contains("meta::pure::executionPlan::executionPlan(")
+                || body.contains("meta::legend::executeLegendQuery(");
+        try (Connection c = backend.open(edgeStyle ? com.legend.edge.PureText.UPSTREAM
+                : com.legend.database.PlanStyle.PRODUCT)) {
             try (Statement st = c.createStatement()) {
                 for (String sql : setup) {
                     st.execute(sql);

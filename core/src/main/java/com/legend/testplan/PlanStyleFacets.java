@@ -11,7 +11,7 @@ import java.util.List;
  * the product refusing each by name, the edge answering each -- and refuses any other kind by name
  * ({@code PlanStyleFacetsTest} holds every implementer to this list). A new kind is added here, with its reason.
  */
-public final class PlanStyleFacets {
+@com.legend.base.OpenLine("C4") public final class PlanStyleFacets {
 
     private PlanStyleFacets() {
     }
@@ -62,5 +62,8 @@ public final class PlanStyleFacets {
             com.legend.lowering.LoweringForms.class,
             // whose words the database judge plans a failure in (census C1, 2026-11-17): lite's, the edge's
             // legend-pure's
-            FailureWords.class);
+            FailureWords.class,
+            // the settings an H2 database has (the audit's J22, RULED by the user 2026-11-17): the product's H2's own
+            // defaults, the edge's legend-engine's MODE=LEGACY and DEFAULT_NULL_ORDERING=HIGH
+            com.legend.sql.dialect.DatabaseSettingsForm.class);
 }

@@ -36,15 +36,15 @@ class PureOnlyTextTest {
                     () -> Lean.run(model, "|format('%05d', [-3])", StorelessRuntime.RUNTIME, c));
             assertTrue(String.valueOf(refused.getMessage()).contains("format's %05d")
                     && refused.getMessage().contains("compatibility edge's"), refused.toString());
-            assertEquals("'a'", scalar(Lean.runInStyle(model, "|format('%r', ['a'])", StorelessRuntime.RUNTIME, c,
+            assertEquals("'a'", scalar(Lean.runInStyle(model, "|format('%r', ['a'])", StorelessRuntime.RUNTIME, backend,
                     com.legend.edge.PureText.UPSTREAM)), backend.name());
             Exception instance = assertThrows(Exception.class,
                     () -> Lean.run(model, "|^s::P(name='a')->toString()", StorelessRuntime.RUNTIME, c));
             assertTrue(String.valueOf(instance.getMessage()).contains("toString of an instance")
                     && instance.getMessage().contains("graph fetch"), instance.toString());
-            assertTrue(scalar(Lean.runInStyle(model, "|^s::P(name='a')->toString()", StorelessRuntime.RUNTIME, c,
+            assertTrue(scalar(Lean.runInStyle(model, "|^s::P(name='a')->toString()", StorelessRuntime.RUNTIME, backend,
                     com.legend.edge.PureText.UPSTREAM)).startsWith("@_"), backend.name());
-            assertEquals("-00003", scalar(Lean.runInStyle(model, "|format('%05d', [-3])", StorelessRuntime.RUNTIME, c,
+            assertEquals("-00003", scalar(Lean.runInStyle(model, "|format('%05d', [-3])", StorelessRuntime.RUNTIME, backend,
                     com.legend.edge.PureText.UPSTREAM)), backend.name());
         }
     }

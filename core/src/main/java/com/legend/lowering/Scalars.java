@@ -2498,11 +2498,9 @@ final class Scalars {
         for (com.legend.model.FunctionId f : Pure.AT_LEGEND_LITE_CONVERT_DATE_FORMAT) {
             RULES.put(f, (n, args) -> strptimeOf(args, true));
         }
-        // isNumeric(str): PINNED to the engine's H2 emission
-        // lower(x) = upper(x) — true iff the text has no cased letters
-        // (h2Extension2_1_214.pure:230). Semantically loose ('', '$5' and
-        // '1.2.3' are all "numeric") but it is what generated every corpus
-        // expectation; a tighter regex silently diverges on those inputs.
+        // isNumeric(str): the style's form (census J20, register S370): the product's a real numeric check, the same on
+        // every database (SqlFn.IS_NUMERIC); legend-engine's H2 lower(x) = upper(x) (h2Extension2_1_214.pure:230, true
+        // for any text with no cased letter: '', '$5', '1.2.3') the edge's, which its corpus goldens were written by
         // the time of day of a date-time (lite's timeOf: a CAST to TIME), and the date-time at a time of a date
         // (lite's atTime: the database's date plus time) — the Cypher island's time-of-day leg, 2026-10-16
         for (com.legend.model.FunctionId f : Pure.AT_LEGEND_LITE_TIME_OF) {
@@ -2544,9 +2542,8 @@ final class Scalars {
                     new SqlExpr.Call(SqlFn.TIMEZONE, List.of(new SqlExpr.StringLit("UTC"), args.get(0))))));
         }
         for (com.legend.model.FunctionId f : Pure.AT_LEGEND_LITE_IS_NUMERIC) {
-            RULES.put(f, (n, args) -> SqlExpr.Call.of(SqlFn.EQUAL,
-                    SqlExpr.Call.of(SqlFn.LOWER, args.get(0)),
-                    SqlExpr.Call.of(SqlFn.UPPER, args.get(0))));
+            // the style's form (census J20, the user's ruling of 2026-11-17): a real numeric check, engine H2's at the edge
+            RULES.put(f, (StyledRule) (n, args, styled) -> styled.forms().isNumeric(args.get(0)));
         }
         // convertTimeZone(dt, tz, fmt): the input is UTC, printed in the
         // target zone (engine H2 UDF: utcTime.withZoneSameInstant(target)).

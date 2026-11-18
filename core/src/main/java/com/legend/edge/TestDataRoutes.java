@@ -142,7 +142,11 @@ public final class TestDataRoutes {
         @Override
         public List<String> headerOrder(com.legend.model.DatabaseDefinition.TableDefinition def, List<String> cols) {
             List<String> cs = new ArrayList<>(cols);
-            cs.sort(java.util.Comparator.comparing(c -> TestDataPlanner.pureName(def, c)));
+            cs.sort(java.util.Comparator.comparing(c -> {
+                // the model's name, a quoted name with its quotes (J40, 2026-11-18: the edge's own)
+                com.legend.model.DatabaseDefinition.ColumnDefinition cd = TestDataGenerator.column(def, c);
+                return cd.quoted() ? "\"" + cd.name() + "\"" : cd.name();
+            }));
             return cs;
         }
 
@@ -152,7 +156,7 @@ public final class TestDataRoutes {
          *  TestDataGeneration.java:306): the declared name, its case kept. */
         @Override
         public String headerName(com.legend.model.DatabaseDefinition.TableDefinition def, String col) {
-            String name = TestDataPlanner.declaredName(def, col);
+            String name = TestDataGenerator.column(def, col).name();
             return name.contains(" ") ? "\"" + name + "\"" : name;
         }
 
@@ -219,8 +223,44 @@ public final class TestDataRoutes {
             Request r = Request.of(LiteV1Api.request(body));
             // doored first, before the seed scans the query's relations (the final audit of 9af16fbe58's J8)
             return ModelInput.of(r.json().getObj("model")).with(models, ctx -> run(doored(ctx, r),
-                    TestDataPlanner.seedJson(ctx, seed(ctx, r, true), TestDataRoutes::upstreamKeyText), r.runtime(), runner));
+                    seedJson(TestDataPlanner.seedFacts(ctx, seed(ctx, r, true)), TestDataRoutes::upstreamKeyText), r.runtime(), runner));
         });
+    }
+
+    /**
+     * The seed as upstream's seed route answers it (B2d.3e; {@code generateSeedData},
+     * {@code SeedDataGeneration.streamSeedDataResult}; moved from the product's testdatagen, J40 of the edge audit,
+     * 2026-11-18): the JSON object {@code {"table":{"_type":"table","table":T,"schema":S,"database":D},
+     * "rowIdentifiers":[{"columnValuePairs":[{"name":k,"value":v},...]},...]}}, built by the database -- each value its
+     * JSON for the key's cell, the identifiers in the keys' order (R2, register S198) -- one statement, its one cell the
+     * text. A key's name is its column's, in double quotes where it holds a space (upstream's
+     * {@code getQuotedLabelIfContainSpace}); a timestamp key's value {@code timestampKey}'s text of its cell (the seed route's, upstream's: {@link #upstreamKeyText}).
+     */
+    public static SqlQuery seedJson(TestDataPlanner.SeedFacts seed,
+            java.util.function.UnaryOperator<com.legend.sql.SqlExpr> timestampKey) {
+        List<com.legend.sql.SqlExpr> pairs = new ArrayList<>(seed.keys().size());
+        List<com.legend.sql.SqlExpr.JsonArrayAgg.Key> order = new ArrayList<>(seed.keys().size());
+        for (TestDataPlanner.SeedKey k : seed.keys()) {
+            com.legend.sql.SqlExpr value = k.timestamp() ? timestampKey.apply(k.cell()) : k.cell();
+            pairs.add(new com.legend.sql.SqlExpr.JsonObject(List.of(new com.legend.sql.SqlExpr.StringLit("name"),
+                    new com.legend.sql.SqlExpr.StringLit(k.name().contains(" ") ? "\"" + k.name() + "\"" : k.name()),
+                    new com.legend.sql.SqlExpr.StringLit("value"), value)));
+            order.add(new com.legend.sql.SqlExpr.JsonArrayAgg.Key(k.order(), false));
+        }
+        com.legend.sql.SqlExpr identifier = new com.legend.sql.SqlExpr.JsonObject(List.of(
+                new com.legend.sql.SqlExpr.StringLit("columnValuePairs"), new com.legend.sql.SqlExpr.JsonArray(pairs)));
+        com.legend.sql.SqlExpr table = new com.legend.sql.SqlExpr.JsonObject(List.of(
+                new com.legend.sql.SqlExpr.StringLit("_type"), new com.legend.sql.SqlExpr.StringLit("table"),
+                new com.legend.sql.SqlExpr.StringLit("table"), new com.legend.sql.SqlExpr.StringLit(seed.table()),
+                new com.legend.sql.SqlExpr.StringLit("schema"), new com.legend.sql.SqlExpr.StringLit(seed.schema()),
+                new com.legend.sql.SqlExpr.StringLit("database"), new com.legend.sql.SqlExpr.StringLit(seed.database())));
+        com.legend.sql.SqlExpr answer = new com.legend.sql.SqlExpr.JsonObject(List.of(
+                new com.legend.sql.SqlExpr.StringLit("table"), table, new com.legend.sql.SqlExpr.StringLit("rowIdentifiers"),
+                new com.legend.sql.SqlExpr.JsonArrayAgg(identifier, order)));
+        return new com.legend.sql.SqlSelect(List.of(new com.legend.sql.SqlSelect.Projection(new com.legend.sql.SqlExpr.Cast(
+                answer, com.legend.sql.SqlType.Scalar.VARCHAR, com.legend.sql.SqlExpr.Reason.DECLARED), "seedData", null)),
+                false, new com.legend.sql.SqlSource.Subselect(seed.rows(), "_k", null), null, List.of(), null, null,
+                List.of(), null, null, List.of());
     }
 
     /** {@code pure/v1/execution/testDataGeneration/generateTestData_WithSeed}: the test data from the given

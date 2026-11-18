@@ -331,7 +331,8 @@ public final class SpecParser implements TokenStreamCursor {
     /**
      * Text to JSON for a lambda (the conversion legend-engine's {@code grammarToJson/lambda} makes, its
      * {@code returnSourceInformation} the second argument): {@link #parseLambda}, emitted, without any source
-     * information when it is off -- every span, the named ones included, as the engine's parser then records none.
+     * information when it is off -- every span, the named ones included ({@code SourceInformation.stripAll}; legend-engine's
+     * kept spans are the edge's, {@code edge.EngineSpans}, J35's residue, 2026-11-18).
      */
     public static String lambdaJson(String source, boolean sourceInformation) {
         return lambdaJson(source, sourceInformation, GrammarLevel.LEGEND_ENGINE);
@@ -341,7 +342,7 @@ public final class SpecParser implements TokenStreamCursor {
      *  (J21 of the edge audit, 2026-11-17); the level-less entry is legend-engine's, the edge's door's alone. */
     public static String lambdaJson(String source, boolean sourceInformation, GrammarLevel dialect) {
         String json = com.legend.protocol.ProtocolEmitter.emitLambda(parseLambda(source, dialect));
-        return sourceInformation ? json : com.legend.protocol.SourceInformation.withoutSpans(json);
+        return sourceInformation ? json : com.legend.protocol.SourceInformation.stripAll(json);
     }
 
     private ValueSpecification wholeLine() {
@@ -605,7 +606,7 @@ public final class SpecParser implements TokenStreamCursor {
                 arth.add(parseArithmeticPartContext());
             } else if (t == TokenType.AND || t == TokenType.OR) {
                 if (!arth.isEmpty()) {
-                    arithResult = OperatorParts.arithmeticPart(arth, boolResult, dialect());
+                    arithResult = OperatorParts.arithmeticPart(arth, boolResult);
                     arth.clear();
                 }
                 bool.add(parseBooleanPartContext());
@@ -614,7 +615,7 @@ public final class SpecParser implements TokenStreamCursor {
             }
         }
         if (!arth.isEmpty()) {
-            return OperatorParts.arithmeticPart(arth, boolResult, dialect());
+            return OperatorParts.arithmeticPart(arth, boolResult);
         }
         if (!bool.isEmpty()) {
             return OperatorParts.booleanPart(bool, arithResult);
@@ -781,7 +782,7 @@ public final class SpecParser implements TokenStreamCursor {
         while (!atEnd() && isArithmeticOp(peek())) {
             parts.add(parseArithmeticPartContext());
         }
-        return parts.isEmpty() ? expr : OperatorParts.arithmeticPart(parts, expr, dialect());
+        return parts.isEmpty() ? expr : OperatorParts.arithmeticPart(parts, expr);
     }
 
     private static boolean isArithmeticOp(TokenType t) {

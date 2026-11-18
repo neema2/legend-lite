@@ -32,7 +32,8 @@ class RenderCsvIntegrationTest extends AbstractDatabaseTest {
 
     @BeforeEach
     void setUp() throws SQLException {
-        connection = backend().open();
+        // every text here is planned in the edge's style, so the session is the edge's database (the audit's J22)
+        connection = backend().open(com.legend.edge.PureText.UPSTREAM);
         try (Statement st = connection.createStatement()) {
             st.execute("CREATE TABLE T_PERSON (ID INTEGER, NAME VARCHAR,"
                     + " NICK VARCHAR, DOB DATE)");
