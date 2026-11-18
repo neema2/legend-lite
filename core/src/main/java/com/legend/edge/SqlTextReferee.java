@@ -218,6 +218,13 @@ public final class SqlTextReferee {
                 base.withMapping(java.util.Optional.of(mapping)), query.info());
     }
 
+    /** A String literal as a typed node: a text the planner wrote, as a verdict step's constant side (the engine-text
+     *  arms' two texts, the test-is-the-product plan's M10b; moved from compiler.spec.VerdictQueries, J33's last member,
+     *  GUARD's review G, 2026-11-18). */
+    public static TypedSpec text(String text) {
+        return new com.legend.compiler.spec.typed.TypedCString(text, scalar(Type.Primitive.STRING));
+    }
+
     private static ExprType scalar(Type t) {
         return new ExprType(t, Multiplicity.Bounded.ONE);
     }

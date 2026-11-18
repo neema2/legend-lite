@@ -60,7 +60,7 @@ public final class Presenter {
             case "Boolean" -> value instanceof Boolean b ? b.toString() : null;
             case "String" -> value instanceof String s ? s : null;
             case "StrictDate", "Date", "DateTime" -> value instanceof PureDateLiteral d ? pureZoned(d) : null;
-            case "StrictTime" -> value instanceof PureTimeLiteral t ? t.toEngineString() : null;
+            case "StrictTime" -> value instanceof PureTimeLiteral t ? t.canonicalText() : null;
             default -> throw new IllegalArgumentException("legend-pure's print of a " + pureType
                     + " is not defined at the edge (" + value + ")");
         };
@@ -90,7 +90,7 @@ public final class Presenter {
             case Boolean b -> Json.bool(b);
             case String s -> Json.str(s);
             case PureDateLiteral d -> Json.str(engineDay(d, c) ? CellText.dayText(d) : engineJson(d));
-            case PureTimeLiteral t -> Json.str(t.toEngineString());
+            case PureTimeLiteral t -> Json.str(t.canonicalText());
             case Map<?, ?> m -> structure(CellText.declared(m), c);
             case List<?> l -> structure(CellText.declared(l), c);
             default -> throw refused(cell, c);
@@ -112,7 +112,7 @@ public final class Presenter {
             case Boolean b -> w.writeBool(b);
             case String s -> w.writeString(s);
             case PureDateLiteral d -> w.writeString(engineDay(d, c) ? CellText.dayText(d) : engineJson(d));
-            case PureTimeLiteral t -> w.writeString(t.toEngineString());
+            case PureTimeLiteral t -> w.writeString(t.canonicalText());
             case Map<?, ?> m -> Json.write(w, structure(CellText.declared(m), c));
             case List<?> l -> Json.write(w, structure(CellText.declared(l), c));
             default -> throw refused(cell, c);
@@ -140,8 +140,8 @@ public final class Presenter {
             case Boolean b -> Json.bool(b);
             case String s -> Json.str(s);
             case PureDateLiteral d -> Json.str(!d.precision().atLeast(PureDateLiteral.Precision.HOUR)
-                    ? d.toEngineString() : engineJson(d));
-            case PureTimeLiteral t -> Json.str(t.toEngineString());
+                    ? d.canonicalText() : engineJson(d));
+            case PureTimeLiteral t -> Json.str(t.canonicalText());
             default -> throw refused(v, c);
         };
     }
@@ -251,8 +251,8 @@ public final class Presenter {
 
     /** A date at its own precision, legend-pure's {@code +0000} from a minute on (an hour-only date has none). */
     private static String pureZoned(PureDateLiteral d) {
-        return d.precision().atLeast(PureDateLiteral.Precision.MINUTE) ? d.toEngineString() + "+0000"
-                : d.toEngineString();
+        return d.precision().atLeast(PureDateLiteral.Precision.MINUTE) ? d.canonicalText() + "+0000"
+                : d.canonicalText();
     }
 
     private static IllegalArgumentException refused(Object cell, ExecutionPlan.Column c) {

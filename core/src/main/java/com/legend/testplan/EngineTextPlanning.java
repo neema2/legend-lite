@@ -196,25 +196,8 @@ import java.util.List;
 
     // ---- the replay facts ------------------------------------------------------------------------------------------
 
-    public static AssertVerdicts.ReplayGates replayFacts(TypedSpec query, List<TypedSpec> letPrefix) {
-        return AssertVerdicts.replayFacts(query, letPrefix);
-    }
-
-    public static AssertVerdicts.ReplayGates noReplayGates() {
-        return AssertVerdicts.ReplayGates.NONE;
-    }
-
-    public static boolean extentSubset(AssertVerdicts.ReplayGates g) {
-        return g.extentSubset();
-    }
-
-    public static boolean ordered(AssertVerdicts.ReplayGates g) {
-        return g.ordered();
-    }
-
-    public static @com.legend.base.Nullable List<String> sortKeys(AssertVerdicts.ReplayGates g) {
-        return g.sortKeys();
-    }
+    // (replayFacts, noReplayGates and the gates' three readers: gone 2026-11-18, the edge audit's J40 -- the referee's
+    // gates are the edge's own ReplayGates, computed from the typed chain there)
 
     /** {@code spec} through the body's splice hook. */
     public static TypedSpec splice(AssertVerdicts.SpliceHook hook, TypedSpec spec, java.util.Set<String> names) {
@@ -253,30 +236,4 @@ import java.util.List;
         return com.legend.lowering.LiteralSpelling.inZone(iso, zone);
     }
 
-    public static com.legend.compiler.spec.typed.ExecutionContext boundContext(TypedSpec context,
-            List<TypedSpec> letPrefix, SpecCompiler specs) {
-        return com.legend.planner.BodyPlanner.boundContext(context, letPrefix, specs);
-    }
-
-    /** {@code producer}'s structured inputs ({@code planner.SqlTextInputs}), or null where its shape has none. */
-    public static com.legend.planner.@com.legend.base.Nullable SqlTextInputs sqlTextInputs(
-            com.legend.compiler.spec.NativeDispatch.RoutineCall producer, List<TypedSpec> letPrefix) {
-        return com.legend.planner.SqlTextInputs.of(producer, letPrefix);
-    }
-
-    public static TypedSpec query(com.legend.planner.SqlTextInputs in) {
-        return in.query();
-    }
-
-    public static TypedSpec mapping(com.legend.planner.SqlTextInputs in) {
-        return in.mapping();
-    }
-
-    public static TypedSpec dialect(com.legend.planner.SqlTextInputs in) {
-        return in.dialect();
-    }
-
-    public static TypedSpec runtime(com.legend.planner.SqlTextInputs in) {
-        return in.runtime();
-    }
 }

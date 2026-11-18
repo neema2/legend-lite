@@ -102,8 +102,6 @@ class EdgeOnlyMembersTest {
                     "J40.VerdictSql E-Java (J29; train 17) MOVE (2026-11-18, ruled): legend-pure's %r newline form, read by the edge's UpstreamVerdictWords alone"),
             Map.entry("com.legend.testexec.PureAsserts#sorted(java.util.List)",
                     "J40.PureAsserts E-Java (J29; train 17) MOVE (2026-11-18, ruled): legend-pure's total order over Any, sorting assertSameElements' words in the edge's EdgeHostWords alone"),
-            Map.entry("com.legend.model.ConnectionSpecification#carryingTestData(java.lang.String)",
-                    "J40.ConnectionSpecification F MOVE (2026-11-18): legend-engine's service-test runtime (the edge's ServiceTestRunner)"),
             Map.entry("com.legend.plan.PureSpelling#sizeRange(com.legend.compiler.element.type.Multiplicity)",
                     "J40.PureSpelling E-SQL MOVE (2026-11-18): legend-engine's plan text's multiplicity spelling"),
             Map.entry("com.legend.planner.BodyPlanner#boundContext(com.legend.compiler.spec.typed.TypedSpec, com.legend.compiler.spec.SpecCompiler)",
@@ -152,6 +150,11 @@ class EdgeOnlyMembersTest {
     /** The members only the edge uses that are a product API the edge reads (READ_API: a fact the product owns and names
      *  in lite's terms; the orchestrator's triage ruling of 2026-11-18), each with its dated reason. Not counted. */
     static final Map<String, String> READ_API = Map.ofEntries(
+            // ruled READ_API by the orchestrator (2026-11-18, as F asks, F's e92c465d): which specification carries a
+            // connection's test data is the model's vocabulary (a database's name, LocalH2), and lite's product reads a
+            // connection's own test data as loads; the J40.ConnectionSpecification line goes
+            Map.entry("com.legend.model.ConnectionSpecification#carryingTestData(java.lang.String)",
+                    "2026-11-18: the model's vocabulary, which specification carries a connection's test data (the orchestrator's ruling, as F asks)"),
             // ruled READ_API by the orchestrator (2026-11-18, on the re-cut's triage): a declared parameter's multiplicity
             // is lite's own fact about the user's query, though only the edge's printer reads it today -- the line
             // between L-B's shape and a real fact is what it MEANS, not who reads it; the J40.QueryParameters line goes

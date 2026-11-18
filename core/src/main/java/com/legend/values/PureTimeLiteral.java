@@ -42,15 +42,15 @@ public sealed interface PureTimeLiteral
                 PureTimeLiteral.TimeWithSubsecond {
 
     /**
-     * Canonical engine-faithful spelling without the leading
-     * {@code %} prefix. Round-trip identity:
-     * {@code parse(x.toEngineString())} equals {@code x}.
+     * The product's CANONICAL text of the literal (renamed from toEngineString, J43 of the edge audit, 2026-11-18),
+     * without the leading {@code %} prefix. Round-trip identity:
+     * {@code parse(x.canonicalText())} equals {@code x}.
      */
-    String toEngineString();
+    String canonicalText();
 
     record TimeWithMinute(int hour, int minute) implements PureTimeLiteral {
         public TimeWithMinute { validateHour(hour); validateMinute(minute); }
-        @Override public String toEngineString() {
+        @Override public String canonicalText() {
             return String.format(java.util.Locale.ROOT, "%02d:%02d", hour, minute);
         }
     }
@@ -61,7 +61,7 @@ public sealed interface PureTimeLiteral
             validateMinute(minute);
             validateSecond(second);
         }
-        @Override public String toEngineString() {
+        @Override public String canonicalText() {
             return String.format(java.util.Locale.ROOT, "%02d:%02d:%02d", hour, minute, second);
         }
     }
@@ -73,7 +73,7 @@ public sealed interface PureTimeLiteral
             validateSecond(second);
             validateSubsecond(subsecond);
         }
-        @Override public String toEngineString() {
+        @Override public String canonicalText() {
             return String.format(java.util.Locale.ROOT, "%02d:%02d:%02d.%s", hour, minute, second, subsecond);
         }
     }

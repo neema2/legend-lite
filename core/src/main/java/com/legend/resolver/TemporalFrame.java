@@ -1497,7 +1497,7 @@ final class TemporalFrame {
                     // no snapshot-day truncation — comparing it raw
                     // against the DATE column silently matches nothing
                     throw new MappingResolutionException("snapshot fetch"
-                            + " date '" + cd.value().toEngineString()
+                            + " date '" + cd.value().canonicalText()
                             + "' has no day component —"
                             + " a full date is required", classFqn);
                 }

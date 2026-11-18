@@ -82,7 +82,7 @@ public final class CellText {
             case Boolean b -> b.toString();
             case String s -> s;
             case PureDateLiteral d -> dates.date(d, type, c, false);
-            case PureTimeLiteral t -> t.toEngineString();
+            case PureTimeLiteral t -> t.canonicalText();
             // a List's text, the forms' (the audit's K13, 2026-11-17): the product's its JSON array, legend-pure's the
             // prelude's List.toString() (joinStrings('[', ', ', ']'), the edge's)
             case List<?> l when collection.equals("List") -> dates.structure(l, type, c);
@@ -181,7 +181,7 @@ public final class CellText {
             case Boolean b -> Json.bool(b);
             case String s -> Json.str(s);
             case PureDateLiteral d -> Json.str(dates.date(d, "Date", c, true));
-            case PureTimeLiteral t -> Json.str(t.toEngineString());
+            case PureTimeLiteral t -> Json.str(t.canonicalText());
             default -> throw refused(v, c, "Pure's JSON token");
         };
     }
@@ -207,7 +207,7 @@ public final class CellText {
             case Boolean b -> Json.bool(b);
             case String s -> Json.str(s);
             case PureDateLiteral d -> Json.str(dates.date(d, c.type(), c, false));
-            case PureTimeLiteral t -> Json.str(t.toEngineString());
+            case PureTimeLiteral t -> Json.str(t.canonicalText());
             case Map<?, ?> m -> structure(declared(m), c, dates);
             case List<?> l -> structure(declared(l), c, dates);
             default -> throw refused(cell, c, "Pure's JSON token");
@@ -232,7 +232,7 @@ public final class CellText {
             case Boolean b -> w.writeBool(b);
             case String s -> w.writeString(s);
             case PureDateLiteral d -> w.writeString(productDate(d, c.type(), c));
-            case PureTimeLiteral t -> w.writeString(t.toEngineString());
+            case PureTimeLiteral t -> w.writeString(t.canonicalText());
             case Map<?, ?> m -> Json.write(w, structure(declared(m), c, PRODUCT));
             case List<?> l -> Json.write(w, structure(declared(l), c, PRODUCT));
             default -> throw refused(cell, c, "Pure's JSON token");
@@ -312,7 +312,7 @@ public final class CellText {
         return d.precision().atLeast(PureDateLiteral.Precision.DAY)
                 ? String.format(java.util.Locale.ROOT, "%d-%02d-%02d", t.getYear(), t.getMonthValue(),
                         t.getDayOfMonth())
-                : d.toEngineString();
+                : d.canonicalText();
     }
 
     // ---- structures -----------------------------------------------------------------------------------------------

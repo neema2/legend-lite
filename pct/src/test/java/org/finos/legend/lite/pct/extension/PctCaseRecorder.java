@@ -137,7 +137,7 @@ final class PctCaseRecorder {
     private static String cell(Object v) {
         if (v instanceof com.legend.values.PureDateLiteral d) {
             return d.precision().atLeast(com.legend.values.PureDateLiteral.Precision.MINUTE)
-                    ? d.toEngineString() + "+0000" : d.toEngineString();
+                    ? d.canonicalText() + "+0000" : d.canonicalText();
         }
         return String.valueOf(v);
     }

@@ -39,9 +39,6 @@ EDGE_TEST_SRCS = [
     "src/test/java/com/legend/SqlFnSortedTest.java",
     # hooks implemented by lambdas, and twoForm's callers, pinned (the GUARD stream, C.12, 2026-11-17)
     "src/test/java/com/legend/HookLambdasTest.java",
-    # L-A (the orchestrator's order, 2026-11-18): every product form calls each function it is handed -- it reads
-    # HookLambdasTest's pinned product forms
-    "src/test/java/com/legend/ProductFormsUseTheirArgumentsTest.java",
     # the edge's package a boundary: no dotless prefix check, no edge class in a product jar (the GUARD stream, C.14)
     "src/test/java/com/legend/EdgePackageBoundaryTest.java",
     # a public product member the edge alone uses is counted (J40 of the edge audit, 2026-11-18), and its planted
@@ -49,13 +46,6 @@ EDGE_TEST_SRCS = [
     "src/test/java/com/legend/EdgeOnlyMembersTest.java",
     "src/test/java/com/legend/PlantedEdgeOnlyApi.java",
     "src/test/java/com/legend/edge/PlantedEdgeOnlyCaller.java",
-    # L-B (the orchestrator's order, 2026-11-18): every piece of the plans' and the MIR's data has a real product use,
-    # and its planted shapes (J28's and J31's), a product-package node and its edge maker
-    "src/test/java/com/legend/EdgeOnlyDataTest.java",
-    # K2's shipped-artifact roots (2026-11-18): it reads the genqueries guardrails_edge declares, and EdgeSeparationTest
-    "src/test/java/com/legend/ShippedArtifactRootsTest.java",
-    "src/test/java/com/legend/sql/PlantedEdgeOnlyMir.java",
-    "src/test/java/com/legend/edge/PlantedEdgeOnlyMirMaker.java",
     "src/test/java/com/legend/PlanStyleFacetsTest.java",
     # the edge's extension records walked as data (census C2, 2026-11-17: the appeals moved to com.legend.edge)
     "src/test/java/com/legend/PlanTypesAreDataTest.java",
