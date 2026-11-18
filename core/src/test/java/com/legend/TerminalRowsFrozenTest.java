@@ -47,8 +47,8 @@ class TerminalRowsFrozenTest {
             // census J29 (E-Java's 7c754b9432, train 14): the platform assert native's default message, as two compiler
             // classes plan its body -- RULED STAYS by the orchestrator (2026-11-18): lite's assert native's default
             // sentence is lite's own, the same words as assert.pure's; frozen by the GUARD stream's re-cut on 1931d419b1
-            Map.entry("compiler/spec/LambdaBodies.java | Assert failed | 1 | STAYS",
-                    "J29 2026-11-18, RULED STAYS by the orchestrator (lite's own default sentence, assert.pure's words)"),
+            // (compiler/spec/LambdaBodies.java | Assert failed | 1 | STAYS: gone 2026-11-18, PR #118's fix round, N2 -- the
+            // in-body assert's default worded by the plan's style at lowering, Pure.Lite.ASSERT_FAILED_TEXT; the user's R1)
             // (compiler/spec/VerdictQueries.java | Assert failed | 1 | STAYS: gone 2026-11-18, PR #118's fix round, N2 --
             // the user's R1 ruling that day, "For 118 r1-r3 are fine": the product's default is lite's sentence, the
             // vector assert's worded by the run's words; legend-pure's "Assert failed" is the edge's alone)

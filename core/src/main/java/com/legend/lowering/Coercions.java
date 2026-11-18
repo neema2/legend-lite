@@ -143,6 +143,10 @@ final class Coercions {
                         : raised;
             });
         }
+        for (com.legend.model.FunctionId f : Pure.AT_LEGEND_LITE_ASSERT_FAILED_TEXT) {
+            rules.put(f, (Scalars.StyledRule) (n, args, styled) -> new com.legend.sql.SqlExpr.StringLit(
+                    styled.forms().assertFailed()));
+        }
         for (com.legend.model.FunctionId f : Pure.AT_LEGEND_LITE_CELL_TEXT) {
             rules.put(f, (n, args) -> com.legend.sql.SqlExpr.Call.of(com.legend.sql.SqlFn.CELL_TEXT, args.get(0)));
         }

@@ -127,7 +127,11 @@ final class LambdaBodies {
         List<ValueSpecification> msgArgs = af.parameters().subList(condArgs, af.parameters().size());
         TypedSpec message;
         if (msgArgs.isEmpty()) {
-            message = new com.legend.compiler.spec.typed.TypedCString("Assert failed", str);
+            // the default's words are the plan style's, at lowering (the user's R1, 2026-11-18): lite's sentence, or
+            // legend-pure's on the edge (Pure.Lite.ASSERT_FAILED_TEXT)
+            var text = t.model().findFunction(com.legend.builtin.Pure.Lite.ASSERT_FAILED_TEXT).stream().findFirst()
+                    .orElseThrow(() -> new TypeInferenceException("assertFailedText is not registered"));
+            message = new TypedNativeCall(text, List.of(), str);
         } else if (msgArgs.get(0) instanceof LambdaFunction thunk
                 && thunk.parameters().isEmpty()) {
             message = synthBody(t, thunk, scope);

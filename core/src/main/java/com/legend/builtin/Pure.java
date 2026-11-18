@@ -476,6 +476,11 @@ public final class Pure {
          *  resolver's chain dispatch and subtype reads raised as legend-pure's sentence through {@code fail} until
          *  then; the sentence is the edge's ({@code edge.PureMessages}). Lowers to {@code SqlFn.ERROR}. */
         public static final String TYPE_RAISE = PKG + "typeRaise";
+        /** An in-body assert's message where its caller gave none (the user's R1, 2026-11-18, PR #118's fix round, N2):
+         *  {@code assertFailedText()}, which {@code compiler.spec.LambdaBodies} writes for {@code fail}'s message; the
+         *  plan's style words it at lowering ({@code lowering.LoweringForms#assertFailed}): the product's lite sentence,
+         *  "expected true, got false"; the compatibility edge's legend-pure's. */
+        public static final String ASSERT_FAILED_TEXT = PKG + "assertFailedText";
         /** A SQL island's INLINE VIEW (2026-10-16, docs/LITE_INVENTION_CENSUS.md): a derived table or a common table
          *  expression whose own query computes window functions. SQL computes those windows over all of the view's
          *  rows, before the enclosing query's WHERE; Pure's relation composition folds a later filter under them
@@ -626,7 +631,8 @@ public final class Pure {
      *  follow-ups' F32): a call born with its record after the name resolver ({@code compiler.spec.Calls}) -- the type
      *  check's raise and a TDS cell's text. A user's call to either, by any name, is refused where the user's names are
      *  resolved ({@code compiler.NameResolver}). */
-    public static final java.util.Set<String> COMPILER_OWN = java.util.Set.of(Lite.TYPE_RAISE, Lite.CELL_TEXT);
+    public static final java.util.Set<String> COMPILER_OWN = java.util.Set.of(Lite.TYPE_RAISE, Lite.CELL_TEXT,
+            Lite.ASSERT_FAILED_TEXT);
 
     private static String liteLocalName(String fqn) {
         return fqn.substring(Lite.PKG.length());
@@ -640,7 +646,7 @@ public final class Pure {
                     Lite.TYPE_AS_DECLARED, Lite.LEGACY_NAVIGATE, Lite.ROUTE,
                     Lite.LEGACY_ASSOC_PREDICATE, Lite.LEGACY_LOCAL_PROPERTY,
                     Lite.OTHERWISE, Lite.JOIN_SLOT, Lite.TDS,
-                    Lite.ADJUST_TEMPORAL, Lite.TRUST_ONE, Lite.CELL_TEXT, Lite.TYPE_RAISE,
+                    Lite.ADJUST_TEMPORAL, Lite.TRUST_ONE, Lite.CELL_TEXT, Lite.TYPE_RAISE, Lite.ASSERT_FAILED_TEXT,
                     Lite.ASOR_PK_VALUE, Lite.ASOR_DECODE_PK_MAP,
                     Lite.GROUP_BY_OVER_INSTANCES, Lite.GROUP_BY_COMPUTED_KEYS,
                     Lite.TUPLE, Lite.INLINE_VIEW, Lite.RECURSE, Lite.STAGE, Lite.WRITE_INSTANCES,
@@ -973,6 +979,7 @@ public final class Pure {
     /** A TDS cell's text (see {@link Lite#CELL_TEXT}): the text, empty where the cell is; the edge's TDSNull. */
     public static final NativeFunctionDefinition CELL_TEXT__STRING_0_1 = signature("native function meta::legend::lite::cellText(text:meta::pure::metamodel::type::String[0..1]):meta::pure::metamodel::type::String[1];");
     /** A run-time type check's failure (see {@link Lite#TYPE_RAISE}): its kind's name and the two types' paths. */
+    public static final NativeFunctionDefinition ASSERT_FAILED_TEXT = signature("native function meta::legend::lite::assertFailedText():meta::pure::metamodel::type::String[1];");
     public static final NativeFunctionDefinition TYPE_RAISE__STRING_1__STRING_1__STRING_1 = signature("native function meta::legend::lite::typeRaise(kind:meta::pure::metamodel::type::String[1], from:meta::pure::metamodel::type::String[1], to:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::Boolean[1];");
     /** A SQL island's inline view (see {@link Lite#INLINE_VIEW}): types as its relation, its windows a boundary. */
     public static final NativeFunctionDefinition INLINE_VIEW__RELATION_1 = signature("native function meta::legend::lite::inlineView<T>(rel:meta::pure::metamodel::relation::Relation<T>[1]):meta::pure::metamodel::relation::Relation<T>[1];");
@@ -2571,6 +2578,7 @@ public final class Pure {
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_AT_TIME = com.legend.model.FunctionId.ofAll(AT_TIME__DATE_1__STRICT_TIME_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_CAST_AS_DECLARED = com.legend.model.FunctionId.ofAll(CAST_AS_DECLARED__ANY_01__T_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_CELL_TEXT = com.legend.model.FunctionId.ofAll(CELL_TEXT__STRING_0_1);
+    public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_ASSERT_FAILED_TEXT = com.legend.model.FunctionId.ofAll(ASSERT_FAILED_TEXT);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_CONVERT_DATE_FORMAT = com.legend.model.FunctionId.ofAll(CONVERT_DATE_FORMAT__STRING_0_1__STRING_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_CONVERT_DATE_TIME_FORMAT = com.legend.model.FunctionId.ofAll(CONVERT_DATE_TIME_FORMAT__STRING_0_1__STRING_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_CONVERT_TIME_ZONE_FORMAT = com.legend.model.FunctionId.ofAll(CONVERT_TIME_ZONE_FORMAT__DATE_0_1__STRING_1__STRING_1);

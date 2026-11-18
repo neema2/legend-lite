@@ -48,6 +48,12 @@ public final class ProductLoweringForms implements LoweringForms {
         return "";
     }
 
+    /** Lite's sentence of a condition's failure (AssertSentence.TRUE). */
+    @Override
+    public String assertFailed() {
+        return com.legend.error.AssertSentence.TRUE.fill(java.util.Map.of());
+    }
+
     @Override
     public com.legend.sql.SqlQuery relations(Supplier<com.legend.sql.SqlQuery> shared,
             Supplier<com.legend.sql.SqlQuery> unshared) {

@@ -25,7 +25,9 @@ class InternalNativeCallTest {
 
     private static final List<String> CALLS = List.of(
             Pure.Lite.TYPE_RAISE + "('CAST_IMPOSSIBLE', 'a', 'b')",
-            Pure.Lite.CELL_TEXT + "('x')");
+            Pure.Lite.CELL_TEXT + "('x')",
+            // the in-body assert's default message (N2, the same day): the compiler's too
+            Pure.Lite.ASSERT_FAILED_TEXT + "()");
 
     @Test
     void aQueryCallingAnInternalNativeByItsFullNameIsRefusedByName() {

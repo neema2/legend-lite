@@ -49,6 +49,23 @@ class PureOnlyTextTest {
         }
     }
 
+    /** An assert in a lambda body with no message of its caller's (the user's R1, 2026-11-18, PR #118's fix round, N2):
+     *  the product raises lite's sentence; the compatibility edge, legend-pure's "Assert failed" (assert.pure) -- one
+     *  native the plan's style words at lowering ({@code Pure.Lite.ASSERT_FAILED_TEXT}). */
+    @Test
+    void anInBodyAssertsDefaultIsLitesSentenceAndLegendPuresOnTheEdge() throws Exception {
+        TestBackend backend = LaneFloor.backend();
+        String model = backend.withStorelessRuntime("Class s::P { name: String[1]; }\n");
+        String query = "|#TDS\n  x:Integer\n  -1\n#->extend(~y: r|if($r.x > 0, |$r.x, {|assert($r.x == 0); 0;}))";
+        try (Connection c = backend.open()) {
+            Exception product = assertThrows(Exception.class, () -> Lean.run(model, query, StorelessRuntime.RUNTIME, c));
+            assertEquals("expected true, got false", product.getMessage(), backend.name());
+            Exception edge = assertThrows(Exception.class, () -> Lean.runInStyle(model, query, StorelessRuntime.RUNTIME,
+                    backend, com.legend.edge.PureText.UPSTREAM));
+            assertEquals("Assert failed", edge.getMessage(), backend.name());
+        }
+    }
+
     private static String scalar(Lean.Result r) {
         return String.valueOf(r.rows().get(0).get(0));
     }

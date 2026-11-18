@@ -230,8 +230,11 @@ class CatalogUpstreamDiffTest {
      *  user's word: "You can bump up the number for the 2 new functions now that we know they are needed"): two
      *  lite-INTERNAL natives (Pure.INTERNAL_DESUGAR), meta::legend::lite::cellText (D1.3: a TDS cell's text, absent where
      *  the cell is empty; permanent: the in-query join skips it, S316) and meta::legend::lite::typeRaise (W5: the
-     *  resolver's run-time type dispatch raising its kind; permanent: Pure has no typed raise). */
-    private static final int NOT_UPSTREAM_MAX = 72;
+     *  resolver's run-time type dispatch raising its kind; permanent: Pure has no typed raise). 73 on 2026-11-18 (PR
+     *  #118 fix round: N2, the in-body assert's default message chosen by the plan's style at lowering; the user's word
+     *  "Okay", the same function the user's "raise it" let into Pure.INTERNAL_DESUGAR): meta::legend::lite::
+     *  assertFailedText, lite-INTERNAL -- the product's sentence, the compatibility edge's legend-pure "Assert failed". */
+    private static final int NOT_UPSTREAM_MAX = 73;
     private static final int MISSING_MAX = 191;
     private static final int UNREADABLE_MAX = 16;
 

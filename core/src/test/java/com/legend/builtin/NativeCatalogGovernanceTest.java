@@ -171,7 +171,10 @@ class NativeCatalogGovernanceTest {
         // check's failure as the product's raise of its kind (CAST_IMPOSSIBLE, INSTANCE_NOT_OF) -- emitted by the
         // resolver's chain dispatch and subtype reads, which raised legend-pure's sentence through fail until then;
         // the sentence is the compatibility edge's (edge.PureMessages)
-        assertTrue(Pure.INTERNAL_DESUGAR.size() <= 37,
+        // 37 -> 38 (PR #118 fix round, 2026-11-18: N2, the in-body assert's default message chosen by the plan's style
+        // at lowering; the user's word "raise it"): assertFailedText, which LambdaBodies writes for fail's message where
+        // the assert gives none -- the product's lite sentence, the compatibility edge's legend-pure "Assert failed"
+        assertTrue(Pure.INTERNAL_DESUGAR.size() <= 38,
                 "INTERNAL_DESUGAR grew: " + Pure.INTERNAL_DESUGAR);
         // +4 2026-08-16: lessThan/lessThanEqual/greaterThan/
         // greaterThanEqual Any-shims — engine DynaFunc ordering

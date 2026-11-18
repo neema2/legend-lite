@@ -151,10 +151,10 @@ class CompatSpellingGuardTest {
             // orchestrator (2026-11-18, on the GUARD stream's re-cut triage): lite's assert native's default sentence is
             // lite's own, the same words as legend-pure's assert.pure default (the orchestrator's ruling at J29); the
             // orchestrator's, not the user's, so its step stays STAYS
-            "compiler/spec/LambdaBodies.java | Assert failed | 1 | STAYS",
-            // (compiler/spec/VerdictQueries.java | Assert failed | STAYS: gone 2026-11-18, PR #118's fix round, N2 -- the
-            // user's R1, "For 118 r1-r3 are fine": the product's default is lite's own sentence; a vector assert with no
-            // message fails in the run's words, legend-pure's "Assert failed" the edge's alone)
+            // (compiler/spec/LambdaBodies.java and compiler/spec/VerdictQueries.java | Assert failed | STAYS: gone
+            // 2026-11-18, PR #118's fix round, N2 -- the user's R1, "For 118 r1-r3 are fine": the product's default is
+            // lite's own sentence; a vector assert with no message fails in the run's words, an in-body assert's default
+            // is Pure.Lite.ASSERT_FAILED_TEXT worded by the plan's style; legend-pure's "Assert failed" the edge's alone)
             // D1.6's compile messages, gone 2026-11-16 (W7 of docs/records/d-plan-2026-11-16.md): ModelIntegrity,
             // TypeClassifier, TableReferenceChecker and the normalizer's "Can't find" raise a CompileKind, worded by the
             // product (CompileKind.sentence) and, for upstream's clients, by the edge (PureMessages.compile)
