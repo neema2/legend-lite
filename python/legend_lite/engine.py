@@ -60,7 +60,7 @@ import pyarrow as pa
 import pyarrow.ipc
 
 from . import _host, _json, compiler, warehouse
-from ._planned import PlannedSql, across_the_bridge, connect, from_plan
+from ._planned import PlannedSql, across_the_bridge, connect
 from .compiler import LegendError
 from ._library import library
 from ._pool import _on_compiler_threads, _workers
