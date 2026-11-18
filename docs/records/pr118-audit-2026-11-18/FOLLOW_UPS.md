@@ -15,6 +15,7 @@ scheduled or closed. IDs refer to `findings/` and `verification/`.
 | Q5 | `toCSV` writes a DateTime as ISO `+0000`; upstream writes `yyyy-MM-dd HH:mm:ss` | EDGE-2 |
 | Q6 | `format('%r', s)` does not escape a newline | EDGE-3 |
 | Q7 | The edge's `tdsBuilder` envelope aggregates rows with no ORDER BY. Order is lost at scale on DuckDB | EDGE-8 (retired by the presentation program's decision f) |
+| **Q8 (first after the merge)** | An Integer property mapped to a `DECIMAL(10,0)` column is refused by the product's result decode: `project` and `filter(...)->toOne().n` fail with "a cell BigDecimal 5 is not its type's carrier" (`result/Batch.java:187`, the Longs batch). The host judge errors on every assert over it, so BOTH raises JudgesDisagree. Came in with `51688f36` ("Typed results end to end"), on main. Fix: the Longs batch accepts an integral BigDecimal (scale <= 0 or a zero fraction) and refuses a fractional one; a probe under every judge and both rule sets, and a product case | fixer, F4 probe |
 
 ## 2. Judge parity and words (goal G2), open after F4
 
