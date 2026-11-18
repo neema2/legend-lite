@@ -163,6 +163,7 @@ EDGE_TEST_SRCS = [
     "src/test/java/com/legend/server/ConnectionLeaseTest.java",
     "src/test/java/com/legend/server/CreateClassTest.java",
     "src/test/java/com/legend/server/EdgeServerTest.java",
+    "src/test/java/com/legend/server/ServerBootTest.java",
     "src/test/java/com/legend/server/EngineAnswerRefusedBeforeTheRunTest.java",
     "src/test/java/com/legend/server/LegendHttpServerIntegrationTest.java",
     "src/test/java/com/legend/server/PureV1ApiTest.java",
