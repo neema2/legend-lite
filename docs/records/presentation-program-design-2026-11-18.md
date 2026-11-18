@@ -4,8 +4,11 @@
 - **Reframed as three modes, LITE, ENGINE and PURE**, by the user's ruling of 2026-11-18, about 19:45 UTC (§0).
 - **(a) is RULED A3 in every mode**, by the user's ruling of about 19:55 UTC (§0, §4 (a)). The read-back is
   considered, not built (§3.13).
-- **Some decisions are pending.** They are marked **PENDING THE USER**; the rest stay **RULED** (§0's table). §11 says
-  what the reframe changed from `000008e11`; §12 what the 19:55 ruling changed from `0151c65b8`.
+- **The 20:10 rulings:** (c) is RULED C4 and (h) RULED K1; the orchestrator's items 20:10-R5 to R7 are RULED and
+  placed in slices; 20:10-R4 is OPEN (§0).
+- **Two decisions are pending,** (d′) and (e′), marked **PENDING THE USER**; the rest are **RULED** (§0's table).
+  §11 says what the reframe changed from `000008e11`, §12 what the 19:55 ruling changed from `0151c65b8`, and §13
+  what the 20:10 rulings changed from `06c93e7bd`.
 - **Nobody builds before PR #118 merges.**
 
 **Revisions:**
@@ -13,7 +16,8 @@
 - `079c343d3`: the 16:30 ruling recorded.
 - `000008e11`: the xhigh review applied.
 - `0151c65b8`: reframed as three modes.
-- This commit: (a) ruled A3 in every mode; the read-back removed; (h)'s recommendation reverts to K1.
+- `06c93e7bd`: (a) ruled A3 in every mode; the read-back removed; (h)'s recommendation reverted to K1.
+- This commit: the 20:10 rulings: (c) C4, (h) K1, 20:10-R5 to R7 placed in slices, 20:10-R4 recorded OPEN.
 
 The design is of the approved program `docs/records/edge-portability-program-2026-11-18.md` (on
 `claude/total-wall-orch`; "the program" below). That program starts once PR #118 (`claude/total-wall-d-stage` →
@@ -41,6 +45,25 @@ commands are in §9.
 
 ## 0. Rulings, and what is pending
 
+**RULED by the user, 2026-11-18, about 20:10 UTC, relayed by the orchestrator (`session_0195rQEoRb1AGCHxtZChjWsg`),
+verbatim:** "For r1-r8 later all are good except r4 we have to think thru later - if engine is right default or pure
+is".
+
+The labels are the orchestrator's list, put to the user at 20:10. They are **not** §4 (b)'s rows R1 to R4, so this
+design writes them 20:10-R1 to 20:10-R8. Items R4 to R8, as the orchestrator put them:
+
+| Item | As put to the user | Status | Where |
+|---|---|---|---|
+| 20:10-R1 to R3 | not relayed to this design (the orchestrator holds them) | **RULED** ("all are good") | — |
+| 20:10-R4 | `substring` and `indexOf`. The product follows legend-engine's relational form today: `'abcdef'->substring(1,3)` = `'abc'`, where Pure gives `'bc'`; `indexOf` is 1-based, 0 on a miss, where Pure gives -1 (S130, S134). Whether LITE's default follows Pure or legend-engine | **OPEN**: the user will think it through later. PURE follows Pure and ENGINE follows legend-engine in any case | §4 (b), S5b |
+| 20:10-R5 | a Pair's LITE form is the JSON object (`{"first":1,"second":"a"}`) on every output; legend-pure's `<a, b>` belongs to PURE and ENGINE; the prelude's other legend-pure print bodies (List, SQLNull, TDSColumn) move to the PURE and ENGINE presenters | **RULED** | §4 (b), S5b |
+| 20:10-R6 | DataCube's workarounds for legend-engine's defects (the four withheld boolean operators, the `__all__` partition, the `__root__` group column) apply only when DataCube talks to legend-engine (ENGINE), not on lite's planner | **RULED** | §4 (i), the follow-up DC1 (§5) |
+| 20:10-R7 | the parser's level-less public entries default to LITE (the mode chosen at the door decides the grammar) | **RULED** | §4 (j), S1m |
+| 20:10-R8 | (c) C4; (h) K1 | **RULED** | §4 (c), (h) |
+
+The orchestrator also cited S365 and S370 for 20:10-R4. At `68f20eb4d` those rows are H2's `parseDecimal` and
+`isNumeric`, so this design cites S130 and S134 alone; the citation is queried.
+
 **RULED by the user, 2026-11-18, about 19:55 UTC, relayed by the orchestrator (`session_0195rQEoRb1AGCHxtZChjWsg`),
 verbatim:** "For pure/engine mode let's still just keep simple error messages I think that's a fine divergence instead
 of runtime data being in error". So (a) is A3 in every mode, PURE included (§4 (a)).
@@ -64,14 +87,16 @@ shows.
 |---|---|---|---|
 | — | **Three modes**: one axis, chosen once at the door, carried through parse, plan and presentation, written into the plan as data | **RULED** (19:45) | §3.1-§3.3 |
 | (a) | Raise operands | **RULED** (19:55): **A3 in every mode** | LITE: kind and where, never a value (the 2026-11-10 ruling). ENGINE: no sentence prints an operand (B7: the database raises where legend-engine plants no check). **PURE: a literal operand keeps legend-pure's exact sentence; a computed operand gets legend-pure's sentence without the value.** One register row; §6 G7 counts the computed-operand edge sites, shrink-only. The read-back is considered, not built (§3.13), and charter A3(c) is not widened |
-| (b) | The kind-B rows | **RULED**, re-cut per mode | Each row now has **one form per mode** (§4.b's matrix). **R1 and H6 need no either/or ruling any more:** PURE gives legend-pure's print and answers `format`; ENGINE gives legend-engine's cast and refuses `format`. Rows whose PURE or ENGINE form is still open are measured in S5a against that mode's oracle: PCT's expected values, or legend-engine's manifests. |
-| (c) | The test plan's words; the database judge | **PENDING THE USER** (unchanged) | **Recommendation: C4**, the 2026-11-17 02:30 decision: port the 36 combos into core, PCT HOST-only, delete the compatibility database judge |
+| (b) | The kind-B rows | **RULED**, re-cut per mode | Each row now has **one form per mode** (§4.b's matrix). **R1 and H6 need no either/or ruling any more:** PURE gives legend-pure's print and answers `format`; ENGINE gives legend-engine's cast and refuses `format`. Rows whose PURE or ENGINE form is still open are measured in S5a against that mode's oracle: PCT's expected values, or legend-engine's manifests. The 20:10 rulings add rows: `substring` and `indexOf` (20:10-R4, **OPEN** for LITE), and a Pair's text with the prelude's print bodies (20:10-R5, RULED). |
+| (c) | The test plan's words; the database judge | **RULED** C4 (20:10-R8) | The 2026-11-17 02:30 decision: port the 36 combos into core, PCT HOST-only, delete the compatibility database judge (S2b) |
 | (d) | The safety net | **RULED** (D1) | One addition is **PENDING THE USER**, as (d′) below: what runs per push in CI |
 | (e) | Import | **RULED** (E1) | Import and export are ENGINE mode |
 | (e′) | ENGINE's scope for legend-engine's refusals and defects | **PENDING THE USER** (new) | **Recommendation: E-R1.** ENGINE refuses at planning exactly the functions legend-engine has no SQL translation for, in its words, using a table derived from its manifests. Where legend-engine fails by its own defect, ENGINE answers correctly, and each such case is a register row. |
 | (f) | `EngineResultEnvelopes` | **RULED** (retire) | ENGINE's writer |
 | (g) | Plan format | **RULED**, one fact corrected | A bump for each format-changing slice, after S1 generates `PLAN_VERSION` for the hosts |
-| (h) | Lite's sentence in the product plan | **PENDING THE USER**; the recommendation **reverts to K1** after (a)'s ruling | Under A3 every word of every mode is known at planning, so K1 is one mechanism again: **lite's sentence in the site, as built (21:20 item (2)); an upstream mode's words in an edge extension, written at planning.** K2 (facts in the plan, words in each mode's writer) stays the alternative (§4 (h)). |
+| (h) | Lite's sentence in the product plan | **RULED** K1 (20:10-R8) | Each mode's words are rendered at planning: **lite's sentence in the site, as built (21:20 item (2)); an upstream mode's words in an edge extension.** K2 is not built (§4 (h)) |
+| (i) | DataCube's legend-engine workarounds | **RULED** (20:10-R6) | ENGINE only: they move to DataCube's legend-engine plane, in the follow-up DC1 (§4 (i)) |
+| (j) | The parser's level-less entries | **RULED** (20:10-R7) | They parse at `LEGEND_LITE`; a door passes its mode's grammar (§4 (j), S1m) |
 
 **Design determinations, listed for the user's note** (they touch no prior ruling):
 - **PURE parses at `LEGEND_LITE`.** legend-pure code uses function types and generics, which `LEGEND_ENGINE` refuses
@@ -98,10 +123,12 @@ shows.
 
 | Item | The choice | Recommendation | Why |
 |---|---|---|---|
-| (h) | **K1: words rendered at planning** (lite's in the site, as built; an upstream mode's in an edge extension) / K2: facts in the plan, words in each mode's writer | **K1** | with (a) ruled A3 both are one mechanism; K1 keeps 21:20 item (2), leaves the product plan's JSON byte-identical but for its version, needs no host sentence tables, and costs a day less |
-| (c) | **C4: PCT HOST-only (02:30)** / C1 interim | **C4** | already DECIDED in the plan of record; 0 signal on PCT |
 | (d′) | per-push CI: **add ENGINE channel A (DuckDB's 5 suites and H2's relation suite) and the SQLite PCT recording** / keep them in rounds | **add both** | about +2 to +4 minutes per push (§8); the modes' fidelity is checked on every push |
 | (e′) | ENGINE: **E-R1, refuse what legend-engine refuses (derived from its manifests); answer where it fails by defect (register rows)** / E-R2, answer everything lite can | **E-R1** | ENGINE's lane then compares exactly against legend-engine's own manifests |
+
+**OPEN, deferred by the user (20:10):** 20:10-R4, whether LITE's `substring` and `indexOf` follow Pure or
+legend-engine. Nothing in phases 1 and 2 waits on it: PURE's and ENGINE's forms are built either way (S5b), and LITE
+keeps today's form until the user rules.
 
 ---
 
@@ -118,7 +145,7 @@ to run in upstream". Then, at 19:45: "Yes reframe as 3 modes".
 - the short list of in-query computations that differ from lite's own (kind B);
 - which writers present the answer, the errors and the verdicts.
 
-### Phase 1: modes and presentation (S0-S7, about 25 working days)
+### Phase 1: modes and presentation (S0-S7, about 26.5 working days)
 
 Done when:
 
@@ -126,15 +153,16 @@ Done when:
    - Three `Mode` records exist (§3.1): LITE, ENGINE, PURE.
    - Every door chooses exactly one, and its name is in the plan.
    - The parse level, the kind-B forms and the presenter family come from the record.
+   - The parser's level-less entries parse at `LEGEND_LITE` (20:10-R7). `LEGEND_ENGINE` is named only by
+     `Modes.ENGINE` and the parser.
    - §6 G6 is green: no code branches on a mode outside the records.
    - Today's route-keyed styles are gone: `PlanStyle.PRODUCT`, `PureText.UPSTREAM` and `PureText.PURE_V1`.
 2. **One plan per mode.** A LITE statement is the product's statement. An ENGINE or PURE statement is LITE's statement
    for the same expression, except where one of that mode's ruled kind-B rows changes it. `//core:one_plan_measure`
    (heavy lane, §6 G3) attributes every difference to exactly one row of that mode.
 3. **No upstream word in a product record.**
-   - Under (h) K1 (recommended), lite's sentence stays in the product site, as built, and an upstream mode's words
-     ride an edge extension.
-   - Under K2, no sentence is in any plan, lite's included, and each mode's writer words the facts.
+   - Lite's sentence stays in the product site, as built ((h) RULED K1), and an upstream mode's words ride an edge
+     extension.
    - Checked by §6 G2 over every plan the suites make, in every mode.
 4. **No edge class builds upstream text as SQL** except each mode's ledgered rows (§6 G1).
    - PURE's in-query print forms (legend-pure's print computed in SQL where the text feeds a further computation) are
@@ -144,7 +172,8 @@ Done when:
    - **PURE:** PCT channels A and B match PCT's expected values, except PURE's ruled rows.
    - **ENGINE:** PCT channel A matches legend-engine's own manifests on the 7 databases both cover (ClickHouse,
      Databricks, DuckDB, H2, Postgres, Snowflake, Trino); the corpus matches its rosters; pure/v1 matches the net.
-   - **LITE:** the product's own suites are unchanged.
+   - **LITE:** the product's own suites are unchanged, except a Pair's text (20:10-R5), whose moved answers are
+     listed.
    - **Raise words, (a) RULED A3:** a PURE raise over a literal operand gives legend-pure's exact sentence; a
      computed-operand site gives that sentence without the value, under one register row. §6 G7 counts those sites
      per mode and pins the count (ENGINE's at 0).
@@ -152,13 +181,14 @@ Done when:
    DuckDB, H2 and SQLite (§3.12).
 7. **The product is unchanged except as stated.**
    - The product's SQL is byte-identical.
-   - Under (h) K1, the product plan's JSON is byte-identical except its version, and its pins do not move.
-   - Under K2, it changes once, in S1: lite's sentences and the `raises` sentences leave, with a dated note on the
-     `lean_sql_*` plan pins.
+   - The product plan's JSON is byte-identical except its version ((h) RULED K1), and its pins do not move.
+   - A Pair's LITE text is its JSON object (20:10-R5, RULED). The answers that move are listed in S5b, with the
+     register row's update.
+   - DataCube on lite's planner sheds legend-engine's workarounds (20:10-R6, the follow-up DC1).
 8. **Lean.**
    - Edge SQL characters shrink.
    - The judge-plan pins only shrink.
-   - Under C4, the compatibility database judge's plans are gone.
+   - The compatibility database judge's plans are gone ((c) RULED C4).
 
 ### Phase 2: portability (R, S8, S9, about 9.5 working days)
 
@@ -196,7 +226,7 @@ code columns agree exactly. Every row is in `core/src/main/java/com/legend/edge/
 |---|---|---|---|---|---|---|---|
 | `RelationTextLowering` | 781 | 556 | **459** | 63 | A relation's `toString` (`#TDS` text), `toCSV` and a TDS's `csv`, composed over the rows with `STRING_AGG`/`CONCAT` | channel B, the corpus, pure/v1 (`Lowerer.java:4317`, the `RelationTexts` facet) | kind 2: **MOVE**. 0 of 2,710 DuckDB channel-A answer lines (0 on H2 and SQLite too) is such a text computed in the query |
 | `PureMessages` | 481 | 325 | 93 | **228** | `sentence` (57 lines): legend-pure's raise sentence by `CONCAT` for a computed operand | 12 edge `raiseMessage` overrides | SQL half: **DELETE** ((a) RULED A3: no computed operand is worded). Java half: kept |
-| `UpstreamVerdictWords` | 198 | 124 | 79 | 14 | The compatibility database judge's legend-pure failure words (24 `VerdictWords` methods) | the database judge under the edge's style | **RETIRE** (C1), or deleted with that judge (C4) |
+| `UpstreamVerdictWords` | 198 | 124 | 79 | 14 | The compatibility database judge's legend-pure failure words (24 `VerdictWords` methods) | the database judge under the edge's style | **RETIRE**: deleted with that judge ((c) RULED C4) |
 | `PurePrintForms` (+ `TdsNullCells`, `UnguardedParses`) | 184 | 106 | 85 | 6 | `FLOAT_TO_TEXT` → a cast (row 8); `DATETIME_TO_TEXT` → legend-pure's print; `CELL_TEXT` → `TDSNull` and the `joined` interleave; a parse → a plain cast | 12 `spellingPasses` | `floatOf`, `FloatLiteral` and `UnguardedParses` (≈ 30 lines): **KEEP** (B1, B2, B6). The rest: MOVE, or R1 |
 | `EdgePureOnlyTexts` | 136 | 87 | 72 | 2 | `format`'s `%0Nd` and `%r`, `toRepresentation`, an instance's `@_` id | the `PureOnlyTexts` facet | kind 2: **MOVE** |
 | `EngineResultEnvelopes` | 92 | 60 | 52 | 2 | legend-engine's `tdsBuilder`/`classBuilder` envelopes by the database's JSON constructors (EDGE-8) | `FramePlanner:126-141` → `EngineExecutedValues` (the corpus's `executeLegendQuery`) | **RETIRE** (f) |
@@ -240,12 +270,12 @@ words.
 | `UpstreamPlans` (facet) | plan text, Java | kind C | stays |
 | `EngineTestText` (facet) | judge arm | kind D | stays |
 | `DateTimeTexts`, `ListTexts`, `ExecutedValues`, `TestDataPlanner.Printing` (two-form) | `SqlExpr` | presentation | deleted (writers); `DateTimeTexts` per R1 |
-| `VerdictWords` (two-form) | `SqlExpr` | the judge's words | the edge's form deleted (C1, or C4 with its judge) |
+| `VerdictWords` (two-form) | `SqlExpr` | the judge's words | the edge's form deleted with its judge ((c) RULED C4) |
 | `DateLiteralTexts`, `RoutedQueries`, `ActivityTexts` (two-form) | Java text at planning | kind C (upstream's plan text) | stay |
-| `GoldenNullWord`, `RenderedTextRule`, `JsonGrammar`, `RelationCounting`, `CrossKindNumbers`, `VerdictNumbers` (two-form) | rules | kind D | stay. Under C4, those only the compatibility database judge reads go with it |
+| `GoldenNullWord`, `RenderedTextRule`, `JsonGrammar`, `RelationCounting`, `CrossKindNumbers`, `VerdictNumbers` (two-form) | rules | kind D | stay. Under C4 (RULED), those only the compatibility database judge reads go with it |
 | `DatabaseSettingsForm` (two-form) | settings | kind B (B5) | stays |
 | `LoweringForms` (two-form) | 13 members | **9 computation (kind B), 1 presentation** (`executeValues`/`oneBare`), **1 protocol constant** (`objectReferenceConnection`, kind C, row C1), 2 plan text only (`unionFrame`, `EngineShape`'s own) | the presentation member leaves |
-| `PlanStyle.siteWords` | a stateful recorder | presentation | deleted: an upstream mode's words become plan data, an edge extension written at planning under (h) K1, or the writer's words over the site's facts under K2 (§3.5) |
+| `PlanStyle.siteWords` | a stateful recorder | presentation | deleted: an upstream mode's words become plan data, an edge extension written at planning ((h) RULED K1, §3.5) |
 | `PlanStyle.errorWords` | Java words at planning | presentation (a planned `Failure`'s message) | replaced by kinds (§3.7) |
 | `PlanStyle.traceCell` | constants into SQL | presentation | the writer |
 | `PlanStyle.graphKeyDate`/`graphKeyString` | a literal at planning, inside the database-built graph JSON | kind C (row C2) | stays, listed |
@@ -254,15 +284,15 @@ words.
 
 | Format | Field | Today | Target |
 |---|---|---|---|
-| plan v58 (`PlanJson.java:171`) | top-level `raises` (kind → lite's sentence, `:241`, `:255-264`) | lite's sentence | **(h) K1 (recommended): kept.** K2: kinds only |
-| plan v58 | `sites[].message` (`:1405-1442`; `ExecutionPlan.Site:843-870`) | lite's sentence, checked on read | **K1: kept**; an upstream mode's words in the edge's `SiteWords` extension under `"site:<n>"`. K2: dropped, with PURE's literal `operands` on the site. Neither carries a computed operand ((a), A3) |
+| plan v58 (`PlanJson.java:171`) | top-level `raises` (kind → lite's sentence, `:241`, `:255-264`) | lite's sentence | **kept** ((h) RULED K1) |
+| plan v58 | `sites[].message` (`:1405-1442`; `ExecutionPlan.Site:843-870`) | lite's sentence, checked on read | **kept** ((h) RULED K1); an upstream mode's words in the edge's `SiteWords` extension under `"site:<n>"`. No computed operand is carried ((a), A3) |
 | plan v58 | `Column.precision` | a fact | kept: both writers read it |
-| host plan halves (`HostAnswers.arrowPlan:179`, `jsonPlan:234`) | `siteWords` (`:212`, `:279`) | legend-pure's words, **read by no host** (ARCH-1) | deleted. The words move into the plan: under K1 its `"site:<n>"` extensions; under K2 the site's facts. The hosts' edge routes use the Java error half (§3.8) |
+| host plan halves (`HostAnswers.arrowPlan:179`, `jsonPlan:234`) | `siteWords` (`:212`, `:279`) | legend-pure's words, **read by no host** (ARCH-1) | deleted. The words move into the plan's `"site:<n>"` extensions (K1). The hosts' edge routes use the Java error half (§3.8) |
 | test plan v32 (`TestPlanJson.java:60`) | `TestPlan.words` | a name (`"lite"` or the edge's) | becomes `mode`, the same name space as the product plan's `mode` |
 | test plan v32 | `answerSizeWords`, `SideShape.sizeWords` | a sentence worded at planning | dropped. The hearing words it from `SideShape.multiplicity`/`lower` |
 | test plan v32 | a planned `Failure.message` (`AssertErrorNative:76-82` via `PlanStyle.errorWords`) | upstream's sentence at planning | `Failure(kind, operands, message)`, where `message` is lite's; the hearing words upstream's |
-| test plan v32 | `SiteWords` extension | edge data, produced by the stateful recorder | K1: kept, written by the mode's dialect at planning, statelessly (the recorder deleted). K2: deleted (the writers word the facts) |
-| test plan v32 | the database verdict row's `MESSAGE_COLUMN` (`RootLoop.java:43`) | words built in SQL | product: lite's words stay (01:30 ruling). Edge: deleted with the judge (C4), or lite's words (C1) |
+| test plan v32 | `SiteWords` extension | edge data, produced by the stateful recorder | kept, written by the mode's dialect at planning, statelessly; the recorder deleted (K1) |
+| test plan v32 | the database verdict row's `MESSAGE_COLUMN` (`RootLoop.java:43`) | words built in SQL | product: lite's words stay (01:30 ruling). Edge: deleted with the judge ((c) RULED C4) |
 
 ### 2.4 The golden net: what it pins today
 
@@ -394,13 +424,14 @@ public final class Modes {
 }
 ```
 
-**No operand flag.** What a mode records at a site is its `Computation`'s dialects' choice (§3.5): under (h) K1 an
-upstream mode's dialects write its words into an edge extension; under K2 PURE's dialects record its literal operands.
-The previous revision's `boolean siteOperands` is dropped: with (a) ruled A3, nothing else needs it.
+**No operand flag.** What a mode records at a site is its `Computation`'s dialects' choice (§3.5): an upstream mode's
+dialects write its words into an edge extension ((h) RULED K1). The previous revision's `boolean siteOperands` is dropped: with (a) ruled A3, nothing else needs it.
 
 **What the mode is carried through:**
 - **Parse:** the door's parse uses `mode.grammar()`. `Compiler` gains `compileModel(String, Mode)` and
   `query(ctx, lambda, Mode)` beside today's LITE overloads.
+  - The parser's level-less entries parse at `LEGEND_LITE`, and `door.Parse`'s engine entries take the mode
+    (20:10-R7, RULED; §4 (j)).
 - **Plan:** the planner takes `mode.computation()`, where today it takes a `PlanStyle`.
 - **Presentation:** the run takes `mode.presentation()` beside the caller's `Output`. A plan whose `mode` name differs
   from the offered family's is refused before any statement.
@@ -467,15 +498,10 @@ modules. `PlanJson.read(text, ExtensionCodec codec)`:
 //   String mode                              -- the mode's name; omitted in JSON when "lite"
 //   Map<String, List<Extension>> extensions  -- edge data ("root", "statement:<i>", "site:<n>"); omitted when empty
 //
-// (h) K1 (recommended): Site is unchanged, (n, kind, where, message) with lite's sentence, as built. An upstream
-// mode's words for site n are the edge's SiteWords(String words) extension under "site:<n>", written by that mode's
-// dialect into the SqlWriter at planning (no recorder). A host reads them like any extension.
-//
-// (h) K2: the top-level `raises` becomes a sorted list of kind names, and the site carries facts, no sentence:
-public record Site(int n, RaiseKind kind, @Nullable String where, List<Operand> operands) { }
-public record Operand(String type, String text) { }   // a literal known at planning, recorded by PURE's dialects;
-                                                      // empty in LITE and ENGINE; omitted in JSON when empty
-// Neither option carries a computed operand: (a), RULED A3 (19:55).
+// (h) RULED K1: Site is unchanged, (n, kind, where, message) with lite's sentence, as built. An upstream mode's words
+// for site n are the edge's SiteWords(String words) extension under "site:<n>", written by that mode's dialect into
+// the SqlWriter at planning (no recorder). A host reads them like any extension. No computed operand is carried:
+// (a), RULED A3 (19:55).
 ```
 
 The edge's own record is `edge.Presented(Form form, boolean sorted) implements Extension`, on a root or a side. Its
@@ -486,8 +512,7 @@ forms: `PURE_TDS_TEXT`, `PURE_CSV`, `PURE_TDS_CSV`, `PURE_FORMAT`, `PURE_REPRESE
 - `words` becomes `mode` (the same name space);
 - `answerSizeWords` and `SideShape.sizeWords` are dropped;
 - `Failure` becomes `(kind?, operands, message)`, where `message` is LITE's;
-- the `SiteWords` extension: under (h) K1 written by the mode's dialect at planning, statelessly (the recorder
-  deleted); under K2 deleted.
+- the `SiteWords` extension is written by the mode's dialect at planning, statelessly; the recorder is deleted (K1).
 
 **The separation lens** (`EdgeOnlyDataTest`) holds `mode` and `extensions` as product facts with no upstream meaning:
 - the product compares `mode` with the offered family's name, and never branches on it (G6);
@@ -514,10 +539,10 @@ public interface AnswerWriters { ResultSink writer(Output output, ExecutionPlan 
 | `edge.Families.ENGINE` | legend-engine's pure/v1 words (census classes C, D, E; F43/F44); class A is the database's text | `Presenter.engine` for JSON tokens; legend-pure's print (`Presenter.legendPure`, `edge.RelationText`) for after-query text | `EngineAnswers.engine`/`.arrow`, `PureV1Writer` with the JsonBuilder rule, the `ENGINE_*` presented forms |
 | `edge.Families.PURE` | legend-pure's sentences (`PureMessages.wordsOrNull`: exact over a literal operand, without the value over a computed one, (a) A3); `PureMessages.compile` for compile kinds | `Presenter.legendPure`, `edge.RelationText`, the `format`/`%r`/`toRepresentation` ports | typed rows to the caller's `Output`; PCT's harness transport (`EngineAnswers.engine`: the PCT adapter reads legend-engine's JSON) |
 
-**Where `errors` is called, per (h).** Under K1 the mode's dialect calls the same word functions at planning, and the
+**Where a raise's words are made ((h) RULED K1).** The mode's dialect calls the word functions at planning, and the
 writer reads the words from the plan: `ErrorKind.sentence()` for LITE, as built, and `PureMessages` or the edge's
-engine words for the upstream modes. Under K2 the writer calls `errors` at the boundary. The words are the same either
-way.
+engine words for the upstream modes. A family's `errors` keeps the words no planned site carries: compile kinds
+(`PureMessages.compile`) and the run's own failures.
 
 ### 3.5 Raises per mode
 
@@ -525,12 +550,10 @@ way.
 known at planning. A computed operand is never carried, read back or printed.
 
 1. **Planning.**
-   - Every mode writes the token `LG#<n>` and a site.
-   - **Under (h) K1 (recommended):** the site is as built, `(n, kind, where, message)` with lite's sentence. An
-     upstream mode's dialect also writes its words for site n, as the edge's `SiteWords` extension under
+   - Every mode writes the token `LG#<n>` and a site, as built: `(n, kind, where, message)` with lite's sentence
+     ((h) RULED K1).
+   - An upstream mode's dialect also writes its words for site n, as the edge's `SiteWords` extension under
      `"site:<n>"`, into the `SqlWriter`.
-   - **Under K2:** the site is `(n, kind, where, operands)`, with no sentence; PURE's dialects record each literal
-     operand.
    - `PURE` words every check legend-pure plants: over a literal operand its exact sentence ("Cannot divide 5 by
      zero"), over a computed one its sentence without the value (the register row, item 4).
    - `ENGINE` writes no site where legend-engine plants no check: a plain operation, B7. Its class C and D sentences
@@ -544,8 +567,7 @@ known at planning. A computed operand is never carried, read back or printed.
    - ENGINE: legend-engine's words;
    - PURE: legend-pure's sentence.
 
-   Under K1 the family reads the words from the plan; under K2 it words the facts. Either way `RaisedWords` becomes
-   one stateless call.
+   The family reads the words from the plan. `RaisedWords` becomes one stateless call.
 4. **The register row and its count.**
    - One row of `docs/SEMANTICS_REGISTER.md`, written in a `docs/records/` register-rows record, since a PR does not
      edit the shared doc. It says: PURE prints no computed operand where legend-pure prints its value. It cites the
@@ -561,7 +583,7 @@ known at planning. A computed operand is never carried, read back or printed.
   `Presented`.
   - The **host judge** reads the rows, presents them, and compares the strings by the `RenderedTexts` rule. S131 and
     S132 are re-measured in S4.
-  - Under C4 no compatibility database judge exists to decline it.
+  - No compatibility database judge exists to decline it (C4).
 - **EDGE-1, EDGE-2, EDGE-3 and EDGE-8 go by construction**, in both upstream modes:
   - a Float cell prints by `DecimalFormat("0.0")`;
   - a CSV DateTime prints by `SimpleDateTimeFormat`'s rule;
@@ -574,19 +596,16 @@ known at planning. A computed operand is never carried, read back or printed.
 - **The host judge** words failures through `HostWords`, from kinds and bounds, in the plan's mode: `LiteHostWords`
   or `EdgeHostWords` (legend-pure's assert words, for PURE and for ENGINE's after-query asserts).
 - **The product's database judge** keeps lite's words in SQL (01:30 ruling).
-- **Under C4,** PCT runs HOST-only after the 36 combos are ported into core, and the compatibility database machinery
-  is deleted. Under C1, the edge's database judge plans lite's words.
+- **(c) RULED C4:** PCT runs HOST-only after the 36 combos are ported into core, and the compatibility database
+  machinery is deleted (S2b).
 
 ### 3.8 Hosts
 
 - **LITE routes.**
-  - Under (h) K1, a host reads lite's sentence from the site, as today.
-  - Under K2, a host words a site from a **generated sentence table**: TypeScript
-    `engine-client/src/generated/lite-errors.ts` and Python `python/legend_lite/_lite_errors.py`.
-  - Both are emitted by `engine-client/tools/typefacts/TypeFacts.java`, the generator that already writes
+  - A host reads lite's sentence from the site, as today ((h) RULED K1). No sentence table is generated.
+  - `PLAN_VERSION` is generated by `engine-client/tools/typefacts/TypeFacts.java`, the generator that already writes
     `lite-raise.ts` and `_type_facts.py`, with the existing diff tests (`//engine-client:update_generated`,
     `//python:update_generated`).
-  - `PLAN_VERSION` is generated the same way.
 - **ENGINE routes** (the hosts' edge routes) call the Java error half: `HostAnswers.errorAnswer(plan, statement,
   databaseMessage)`, exported as wasm `executeErrorAnswerOrError` and native `lite_execute_error_answer`. `siteWords`
   is deleted.
@@ -630,7 +649,7 @@ refused, and nothing is re-planned.
     90 lines of `PureDateTimePrint`, `PureListTexts` and `EdgePureOnlyTexts`' format arm, measured in S5a);
   - `SiteWordsRecorder`, `PureText.recording`, `PlanStyle.siteWords` and `PlanStyle.errorWords`;
   - the route-keyed `PlanStyle` constants and the mode branches of §2.7;
-  - under C4, the compatibility database judge.
+  - the compatibility database judge (C4).
 - **Stays:**
   - each mode's KEEP rows;
   - kind C (the plan-text family, the C1 and C2 constants);
@@ -654,8 +673,7 @@ public final class PureEntry {
 ```
 
 **How it is reached:**
-- A Java caller depends on `//core:edge`, an opt-in, like the hosts' edge mount (the total-wall program's item K2,
-  not (h)'s K2).
+- A Java caller depends on `//core:edge`, an opt-in, like the hosts' edge mount (the total-wall program's item K2).
 - Tests reach it through the existing test helper (`Lean.runInMode(model, query, runtime, backend, Modes.PURE)`,
   which replaces `Lean.runInStyle(…, PureText.UPSTREAM)`).
 - It has no server route, no `--engine` mount and no Python or TypeScript entry ("Planning mode/direct entry for
@@ -700,8 +718,9 @@ A1 (carriers in the raise text) stays rejected.
 
 ### (b) The kind-B rows: **RULED**, re-cut per mode
 
-*RULED 16:30 (rule (b0) and the classification); re-cut 19:45 per mode. Every cell is one mode's one form; there is
-no either/or left between modes. A cell marked "S5a" is read from that mode's oracle before it is built.*
+*RULED 16:30 (rule (b0) and the classification); re-cut 19:45 per mode; rows added 20:10. Every cell is one mode's
+one form; there is no either/or left between modes. A cell marked "S5a" is read from that mode's oracle before it is
+built. The rows R1 to R4 here are this design's; the orchestrator's 20:10 items are written 20:10-R1 to R8 (§0).*
 
 | Row | LITE (product) | PURE (legend-pure 5.99.0; PCT's expected values decide) | ENGINE (legend-engine 4.145.0; its manifests decide) |
 |---|---|---|---|
@@ -727,13 +746,28 @@ no either/or left between modes. A cell marked "S5a" is read from that mode's or
 | result envelopes (f) | refused | n/a (PCT's transport only) | `PureV1Writer` |
 | activity SQL (C3) | lite's SQL (S310) | n/a | lite's SQL: a register row |
 | object reference connection, graph keys (C1, C2) | none | S5a | legend-engine's constants (kind C) |
+| `substring` (20:10-R4) | legend-engine's relational form, as today: `'abcdef'->substring(1,3)` = `'abc'`; Pure's form only under `CORRECT_SQL_SUBSTRING_INDEXING` (S130). **OPEN for LITE** (the user, 20:10) | Pure's (`'bc'`), whatever the flag | legend-engine's, honouring the flag as legend-engine does |
+| `indexOf` (20:10-R4) | 1-based, 0 on a miss, as today (S134). **OPEN for LITE** | Pure's: 0-based, -1 on a miss | legend-engine's: 1-based, 0 on a miss |
+| a Pair's text (20:10-R5, RULED) | its JSON object, `{"first":1,"second":"a"}`, in every writer (today `<a, b>`, `result/CellText.java:89-94`). In a query: S5a measures any use; the shape note proposes R2's rule (S316c) | legend-pure's `<a, b>` (SQL in a query, Java at a root, `Presenter.LEGEND_PURE`) | after the query `<a, b>` (Java); in the query: refused, as R2 |
+| the prelude's other print bodies: List, SQLNull, TDSColumn (20:10-R5, RULED) | the bodies leave the prelude: `prelude.pure:20-22` (Pair), `:34-36` (List), `:3546-3548` (SQLNull), `TDSColumn`'s (`:4927` ff.). A List's text is R2's; any LITE use of SQLNull's or TDSColumn's text is measured in S5a and posted | legend-pure's prints, in `Presenter.LEGEND_PURE` | the same, after the query |
 
-### (c) The test plan's words and the database judge: **PENDING THE USER** (unchanged)
+**The user, verbatim (20:10), relayed by the orchestrator:** "For r1-r8 later all are good except r4 we have to
+think thru later - if engine is right default or pure is". 20:10-R4 is that "r4"; 20:10-R5 is RULED.
 
-The options, costs and recommendation are as in the previous revision.
-- **C4 (recommended):** the 2026-11-17 02:30 order. Port the 36 combos into core, run PCT HOST-only, and delete the
-  compatibility database machinery. It is slice S2b, 3 days.
-- **C1:** an interim in which the edge's database judge plans lite's words.
+**20:10-R4 in the slices.** PURE's and ENGINE's forms are built in S5b whatever LITE's default becomes:
+- S130's flag setting in `PctPlanRoute` and `ChannelB` gives way to PURE's form;
+- S134's `indexOf` known failures leave PURE's lanes, a move toward PCT's oracle.
+
+LITE keeps today's form until the user rules.
+
+### (c) The test plan's words and the database judge: **RULED** C4 (2026-11-18, about 20:10 UTC, 20:10-R8)
+
+**The user, verbatim (20:10), relayed by the orchestrator:** "For r1-r8 later all are good except r4 we have to
+think thru later - if engine is right default or pure is".
+
+- **C4:** the 2026-11-17 02:30 order. Port the 36 combos into core, run PCT HOST-only, and delete the compatibility
+  database machinery. It is slice S2b, 3 days.
+- C1, the interim in which the edge's database judge planned lite's words, is not built.
 
 ### (d) The safety net: **RULED** (D1); (d′) the per-push lanes: **PENDING THE USER**
 
@@ -766,31 +800,69 @@ Written by ENGINE's `PureV1Writer` over typed rows (the corpus is ENGINE).
 ### (g) The plan format: **RULED**, with one fact corrected
 
 There is one bump for each format-changing slice after S1 generates `PLAN_VERSION`. S1 itself adds `mode`
-and `extensions`; under (h) K2 it also replaces the site's sentence with `operands`. With (a) ruled A3, no later
-slice adds a read-back.
+and `extensions`; the site keeps its sentence ((h) RULED K1). With (a) ruled A3, no later slice adds a read-back.
 
-### (h) Lite's own sentence in the product plan: **PENDING THE USER**; the recommendation reverts to K1
+### (h) Lite's own sentence in the product plan: **RULED** K1 (2026-11-18, about 20:10 UTC, 20:10-R8)
 
-| Option | What | Cost |
-|---|---|---|
-| **K1 (recommended)** | Each mode's words are rendered at planning: lite's sentence in the site, as built (21:20 item (2)); an upstream mode's in the edge's `SiteWords` extension under `"site:<n>"`, written by its dialect (no recorder). The writer reads them; a host reads them from the plan | S1: 2 days. Keeps 21:20 item (2). The product plan's JSON is byte-identical except its version, so its pins do not move (§10 item 8). Rewording a lite sentence moves the plan pins (PRODUCT-4), with a dated note |
-| K2 | The plan carries facts: kind, where, and PURE's literal operands. Each mode's writer words them. The hosts' LITE routes word from a generated sentence table; their ENGINE routes call the Java error half | S1: 3 days. The product plan JSON changes once: sentences out, so it shrinks, with a dated note on the `lean_sql_*` plan pins. Re-rules 21:20 item (2) ("both messages RENDERED AT PLANNING"). Exec still only looks up (21:20's intent) |
+**The user, verbatim (20:10), relayed by the orchestrator:** "For r1-r8 later all are good except r4 we have to
+think thru later - if engine is right default or pure is".
 
-**Why the recommendation reverts.** It flipped to K2 at the reframe for one reason: PURE's sentences needed values
-that exist only after the run, which K1 could not render at planning. The 19:55 ruling removes that need. Every word of
-every mode is now known at planning, so K1 is one mechanism too. Between two single mechanisms, K1:
-- keeps a design the user ruled (21:20 item (2)) instead of re-ruling it;
-- leaves the product plan unchanged but for its version;
-- keeps the plan self-sufficient for a host (G11): no generated sentence tables;
-- costs a day less.
+The orchestrator put K1 to the user with this design's reasons (`06c93e7bd`, §4 (h)), and the user ruled it.
+- Each mode's words are rendered at planning: lite's sentence in the site, as built (21:20 item (2)); an upstream
+  mode's in the edge's `SiteWords` extension under `"site:<n>"`, written by its dialect (no recorder).
+- The writer reads them; a host reads them from the plan.
+- S1 is 2 days. The product plan's JSON is byte-identical except its version, so its pins do not move.
+- Rewording a lite sentence moves the plan pins (PRODUCT-4), each with a dated note.
+- K2 (facts in the plan, words in each mode's writer) is not built.
 
-**What K2 still has:**
-- no plan carries words at all; under K1 an upstream mode's plan carries its words extensions beside statements that
-  are identical either way;
-- presentation lives wholly in the writers;
-- rewording a lite sentence is not a plan-pin move (PRODUCT-4).
+### (i) DataCube's legend-engine workarounds: **RULED** (20:10-R6): ENGINE only
 
-The choice is close. Neither option re-opens (a).
+**The user, verbatim (20:10), relayed by the orchestrator:** "For r1-r8 later all are good except r4 we have to
+think thru later - if engine is right default or pure is".
+
+The three, measured at `68f20eb4d`:
+
+| Workaround | Where | Its register row | Today |
+|---|---|---|---|
+| the four operators not offered on a boolean (`lessThan`, `lessThanEqual`, `greaterThan`, `greaterThanEqual`) | `datacube/src/offers.ts:36-45`, `BOOLEAN_ORDER_AGAINST_A_VALUE` | S23 (legend-engine types BIT as TinyInt) | withheld "on any planner" |
+| the `__all__` partition for a framed window with no partition | `datacube/src/query.ts:319-330` (`extendWindow`'s `everyRow`), `grid/columns.ts:68`; used by top-N (`query.ts:858-867`), the grain (`:914`) and `timeseries-query.ts` | S24 (legend-engine registers no unpartitioned framed `over`) | on every planner |
+| the `__root__` group column for a grand total | `grid/columns.ts:50-61`; `query.ts:424`, `:760`, `:797-834`, `:975`; `calc.ts:262` | legend-engine's `groupBy(~[], …)` fails with a NullPointerException | on every planner |
+
+**The shape, recommended to DataCube:** the query builder and the offers take a `PlannerForms` record, data only, from
+the plane they talk to, as the mode records are:
+- lite's plane (`lite-planner.ts`) gives the product's forms: `groupBy(~[], …)`, an unpartitioned framed `over`, and
+  every operator lite offers a Boolean;
+- legend-engine's plane (`datacube/src/edge/upstream-planner.ts`) gives the three workarounds, whose code moves into
+  `datacube/src/edge/`;
+- the builder never tests which plane it has, and `isMachinery` stays for the ENGINE plane's columns.
+
+**Where it lands:** a follow-up of its own, **DC1**, in DataCube's session (§5). It touches only `datacube/src` and
+waits on no slice of phases 1 and 2.
+
+### (j) The parser's level-less entries: **RULED** (20:10-R7): they default to LITE
+
+**The user, verbatim (20:10), relayed by the orchestrator:** "For r1-r8 later all are good except r4 we have to
+think thru later - if engine is right default or pure is".
+
+**Today** (measured at `68f20eb4d`), the level-less public entries parse at `LEGEND_ENGINE`:
+- `PmcdParser`'s `LEVEL` (`PmcdParser.java:47`), read by `parseDocument(String)`, `parseDocument(String, boolean)`,
+  `parseModel(String)` and `parseSections(String)`;
+- `SpecParser.parseLambda(String)` (`SpecParser.java:319`) and `lambdaJson(String, boolean)` (`:338`).
+
+**Their callers:**
+- One main class, `door/Parse.java`, whose three engine entries rely on the default: `engineRecords` (`:46-49`),
+  `engineDocumentJson` (`:62-67`) and `engineLambdaJson` (`:84-89`).
+- 49 test call sites besides.
+
+**The shape, in S1m:**
+- The level-less entries parse at `LEGEND_LITE`.
+- `Parse`'s three engine entries each take the door's `Mode` (`records(source, mode)`, `documentJson(source,
+  sourceInformation, mode)`, `lambdaJson(source, sourceInformation, mode)`), so the grammar is `mode.grammar()`.
+- `ArchitectureTest.legendEnginesGrammarIsTheEdgesAlone` tightens: `GrammarLevel.LEGEND_ENGINE` is named only by
+  `Modes.ENGINE` and the parser.
+- S1m lists the tests whose answers move under the new default (expected: those that pin a `LEGEND_ENGINE` refusal),
+  and pins each to its level explicitly.
+- `PmcdParser`'s javadoc ("the drop-in surface") is reworded: the drop-in is ENGINE mode's, not the class's default.
 
 ---
 
@@ -799,7 +871,7 @@ The choice is close. Neither option re-opens (a).
 **The order:**
 1. The net, plus the guards in report-only mode, plus ENGINE's PCT lane.
 2. Modes as data (a scaffold that changes no behaviour).
-3. Raise words: at planning (K1) or in the writers (K2), per (h).
+3. Raise words at planning ((h) K1).
 4. PCT HOST-only.
 5. The SQL builders become Java writers, and each form moves to its mode.
 6. PURE's door.
@@ -815,28 +887,25 @@ tests, `//core:guardrails`, `//core:census`, `edge_net`, and the report-only G1,
 |---|---|---|---|---|
 | **S0 The net** (d) | as in the previous revision; G1, G3 and G6 report-only | the planted changes; green at the base | everything | 2.5 days |
 | **S0e ENGINE's PCT lane** | channel A's expected failures in ENGINE mode read from legend-engine's manifests (`@legend_engine_src`, spec input only), on DuckDB's 5 suites and H2's relation suite | the lane runs; its differences from the manifests are listed (the baseline for S5) | PURE lanes unchanged | 1.5 days |
-| **S1m Modes as data** (scaffold) | `Mode`, `Computation`, `Modes.ENGINE`/`PURE`; the doors choose a mode; the grammar from the mode; the plan's `mode`. **PURE := today's `UPSTREAM`, ENGINE := `PURE_V1` plus the corpus's forms: no behaviour change** | every suite byte-identical; G6 counts the remaining branches | everything | 1.5 days |
-| **S1 Raise words** ((h); v59) | K1: the edge's `SiteWords` extension, written by the mode's dialect at planning. K2: sites as facts, PURE's literal `Operand`s, the families' `ErrorWords`, the generated sentence tables. Both: the stateless `RaisedWords`; the Java error half; `PLAN_VERSION` generated; the recorder and `siteWords` deleted | the net's messages unchanged; literal-operand raises on the tab and Python; K1: the product plan byte-identical but its version; K2: the product plan pins moved once, dated | PCT A and B, corpora, pure/v1, hosts | K1: 2 days; K2: 3 |
+| **S1m Modes as data** (scaffold; 20:10-R7) | `Mode`, `Computation`, `Modes.ENGINE`/`PURE`; the doors choose a mode; the grammar from the mode, the level-less parser entries at `LEGEND_LITE` and `Parse`'s engine entries taking the mode (§4 (j)); the plan's `mode`. **PURE := today's `UPSTREAM`, ENGINE := `PURE_V1` plus the corpus's forms: no door's answer changes** | every door's suite byte-identical; the level-less test callers that move listed and pinned to their level; G6 counts the remaining branches | everything | 2 days |
+| **S1 Raise words** ((h) K1; v59) | the edge's `SiteWords` extension, written by the mode's dialect at planning; the stateless `RaisedWords`; the Java error half; `PLAN_VERSION` generated; the recorder and `siteWords` deleted | the net's messages unchanged; literal-operand raises on the tab and Python; the product plan byte-identical but its version | PCT A and B, corpora, pure/v1, hosts | 2 days |
 | **S2 Raises per mode** ((a), A3) | ENGINE: class A plain, B refused (F43), C/D constant; PURE: every check, legend-pure's sentence, exact over a literal operand and without the value over a computed one; the register-row record; G7 pinned; `PureMessages.sentence` deleted | the net unchanged (0 computed cases); G7's planted violator fails; ENGINE's PCT lane moves toward the manifests, listed | as S1 | 1 day |
 | **S2b PCT HOST-only** (C4) | port the 36 combos into core; PCT HOST-only; the compatibility database machinery deleted | core isolated BOTH green on the ported shapes; channel B under HOST unchanged | channel B, core | 3 days |
 | **S3 Test plan words** (v33) | kinds and bounds; `words` → `mode` | channel-B messages unchanged | channel B, corpora | 0.5 day |
 | **S4 Relation text in Java** (M1) | `Presented`, `edge.RelationText`, presented roots and sides; `RelationTextLowering` deleted | V-EDGE's EDGE-1/2/3 tests in PURE and ENGINE; the net unchanged except listed moves | channel B, corpora, pure/v1 | 3.5 days |
 | **S5a Measure per mode** | each open cell of §4.b read from its mode's oracle: PCT's expected values for PURE, the manifests for ENGINE; the E-R1 refusal table derived | one table to the user: row, mode, upstream evidence, moves | none (measurement) | 1.5 days + rulings |
-| **S5b Each form to its mode** | PURE's in-query print forms kept and ledgered; ENGINE's casts and refusals (E-R1); R2-R4 and M2-M5 presenters | PURE's lanes move only toward PCT's expectations; ENGINE's only toward the manifests; each move listed | PCT A and B per mode (lane round), corpora | 3.5 days |
+| **S5b Each form to its mode** (with 20:10-R4's mode forms and R5) | PURE's in-query print forms kept and ledgered; ENGINE's casts and refusals (E-R1); R2-R4 and M2-M5 presenters; PURE's and ENGINE's `substring` and `indexOf`; a Pair's LITE text as its JSON object, and `<a, b>` in `Presenter.LEGEND_PURE`; the prelude's four print bodies deleted | PURE's lanes move only toward PCT's expectations (S134's `indexOf` known failures leave them); ENGINE's only toward the manifests; LITE's Pair answers that move listed, with the register row; each move listed | PCT A and B per mode (lane round), corpora, LITE's suites | 5 days |
 | **S5c PURE's door** | `PureEntry`; `Lean.runInMode` | PURE tests on DuckDB, H2 and SQLite | — | 0.5 day |
 | **S6 Envelopes** (f) | `EngineResultEnvelopes`, `EngineExecutedValues`, `oneBare` → `PureV1Writer` | corpus rosters; EDGE-8's ordered probe | corpora | 1 day |
 | **S7 The hook surface into the mode records** (ARCH-4) | `PlanStyle`'s service locator, `twoForm`/`facet`, `KINDS`/`TWO_FORMS` replaced by `Computation`'s components across the 43 product files; §6 blocking | javac exhaustiveness; G1-G6 green and blocking | everything byte-identical | 2.5 days |
 
-**Phase 1:** about **24.5 working days** under (h) K1, or 25.5 under K2, plus rulings and lane latency. Under K1 that
-is 6 more than `000008e11`'s 18.5:
+**Phase 1:** about **26.5 working days**, plus lane latency. That is 8 more than `000008e11`'s 18.5:
 - S0e: +1.5;
-- S1m: +1.5;
+- S1m: +1.5, and +0.5 for 20:10-R7;
 - S2's G7: +0.5;
 - S5a per mode: +0.5;
-- S5b per mode, with E-R1: +1.5;
+- S5b per mode, with E-R1: +1.5; 20:10-R5: +1; 20:10-R4's PURE and ENGINE forms: +0.5;
 - `PureEntry`: +0.5.
-
-K2's S1 adds one day more.
 
 ### Phase 2
 
@@ -848,11 +917,19 @@ K2's S1 adds one day more.
 
 **Phase 2:** about **9.5 working days**, the read-back's 3.5 gone.
 
-**In all: about 34 working days under (h) K1 (24.5 + 9.5), or 35 under K2.** Against `0151c65b8`'s 38: the
-read-back's 3.5 out, K1's day out, G7's half day in.
+**In all: about 36 working days (26.5 + 9.5)**, plus DataCube's DC1 (about 2 days, in parallel, below). Against
+`06c93e7bd`'s 34 under K1: 20:10-R5's 1, R4's 0.5 and R7's 0.5 in.
 
-On the review's three-week budget (about 18 to 19 working days), phase 1 does not fit whole. S0 to S5a, about 17 days
-under K1, does; S5b to S7 (7.5 days) follow.
+On the review's three-week budget (about 18 to 19 working days), phase 1 does not fit whole. S0 to S5a, about 17.5
+days, does; S5b to S7 (9 days) follow.
+
+### Beside the phases
+
+| Follow-up | Shape | The check | Owner | Size |
+|---|---|---|---|---|
+| **DC1 DataCube's legend-engine workarounds to its ENGINE plane** (20:10-R6, §4 (i)) | the `PlannerForms` record; the three workarounds into `datacube/src/edge/`; lite's plane sends the product's forms | DataCube's tests on both planes; the ENGINE plane's queries identical to today's; lite's plane's queries without the machinery columns, their answers unchanged | DataCube's session | about 2 days |
+
+DC1 waits on no slice of phases 1 and 2, and none waits on it.
 
 ---
 
@@ -881,7 +958,7 @@ They run report-only from S0 and block from S7. Every rule has a planted violato
 |---|---|---|
 | Every edge site whose upstream sentence would print a computed operand is counted, per mode | over every PURE and ENGINE plan the suites make: core's `Lean.runInMode` tests, `PureEntry`'s, PCT channels A and B in each mode, the corpus. A site counts when its kind's upstream sentence has an operand slot (`PureMessages`' per-kind template) and the operand is not a literal at planning. Core's counts are pinned in `ComputedOperandSitesTest` (ENGINE at 0); PCT's in its lane ledger | the count must equal the pin: a planted computed-operand PURE site fails; a removed one fails until the pin is lowered |
 | The count only shrinks | the pins are shrink-only (`docs/FOUNDATIONS_PLAN.md` §0.4); growth needs a dated ruling naming the case | n/a |
-| No computed operand travels | under K2, an `Operand` is built only from a planning-time literal; in either option no plan carries a site-keyed statement | a planted `Operand` from a column reference fails |
+| No computed operand travels | no plan carries a site-keyed statement, and a counted site's `SiteWords` are its sentence without the value | a planted site whose words print a column's value fails |
 
 The rest of §6 is unchanged:
 - `CompatSpellingGuardTest` is kept, with a derived vocabulary;
@@ -902,6 +979,9 @@ The previous revision's risks stand. The reframe adds these:
 | A form lands in the wrong mode during the split (S1m to S5b) | S1m is byte-identical by construction; then each mode's lane may move **only toward its oracle**. A PURE lane moving away from PCT's expectations, or an ENGINE lane moving away from the manifests, is a misclassification |
 | ENGINE's manifest oracle is read wrongly (a defect taken for a refusal) | the E-R1 table is derived by message class ("No SQL translation exists…" alone), and every other manifest entry is a defect row the user sees in S5a |
 | A PURE caller or test needs a computed operand's value in the message | G7's count and the register row; growth needs a dated ruling; the considered design is on record (§3.13) |
+| A LITE client reads a Pair's `<a, b>` text (20:10-R5) | S5b lists every LITE answer that moves, and the register row says so; the hosts' and DataCube's readers are in G4's behavioural scan |
+| DataCube on lite's planner changes a grid's answer when the workarounds leave (20:10-R6) | DC1's check: lite's plane's answers unchanged, the ENGINE plane's queries identical |
+| A level-less parser caller relied on legend-engine's refusals (20:10-R7) | S1m lists the moved tests and pins each to its level; the doors pass their mode |
 | Lane cost grows per push | measured in S0 and S0e; if over budget, ENGINE's lane moves to every merged slice instead of every push (that is (d′)) |
 
 ---
@@ -1014,6 +1094,19 @@ are accepted. Two are accepted in a modified form, and the table says how.
 | (a) | PENDING: RB, a planned read-back extending charter A3, recommended in phase 2 | **RULED A3 in every mode:** a literal operand keeps the exact sentence; a computed one gets the sentence without the value; one register row; G7 counts the sites (§4 (a)) |
 | The read-back | §3.13's design, phase 2, 3.5 days | considered, not built (§3.13); charter A3(c) not widened; `ReadBack` and `Operand.Read` gone |
 | `Mode.siteOperands` | a boolean component | dropped: a mode's dialects decide what a site records (§3.1) |
-| (h) | K2 recommended: PURE's words needed run-time values | **K1 recommended again**, still PENDING: under A3 every word is known at planning (§4 (h)) |
+| (h) | K2 recommended: PURE's words needed run-time values | **K1 recommended again**, still PENDING: under A3 every word is known at planning (§4 (h)). *Superseded by §13: RULED K1* |
 | New | — | G7 (§6); the register-row record and G7 in S2 (+0.5 day) |
-| Size | about 38 days (25 + 13) | **about 34 days (24.5 + 9.5) under K1; 35 under K2** (§5) |
+| Size | about 38 days (25 + 13) | **about 34 days (24.5 + 9.5) under K1; 35 under K2** (§5). *Superseded by §13* |
+
+## 13. What the 20:10 rulings changed, against `06c93e7bd`
+
+| Item | Before (`06c93e7bd`) | Now |
+|---|---|---|
+| (c) | PENDING: C4 recommended | **RULED C4** (20:10-R8); C1 not built |
+| (h) | PENDING: K1 recommended, K2 the alternative | **RULED K1** (20:10-R8); K2 not built, and its branches are gone from the design |
+| 20:10-R4: `substring`, `indexOf` | not in the design | **OPEN for LITE**; PURE's and ENGINE's forms built in S5b (§4 (b)) |
+| 20:10-R5: a Pair's text, the prelude's print bodies | not in the design | **RULED**: in S5b (§4 (b)) |
+| 20:10-R6: DataCube's workarounds | not in the design | **RULED**: the follow-up DC1 (§4 (i), §5) |
+| 20:10-R7: the parser's level-less entries | not in the design | **RULED**: in S1m (§4 (j)) |
+| Pending | (h), (c), (d′), (e′) | **(d′), (e′)**; 20:10-R4 OPEN |
+| Size | about 34 days (24.5 + 9.5) under K1 | **about 36 days (26.5 + 9.5)**, plus DC1's 2 in parallel |
