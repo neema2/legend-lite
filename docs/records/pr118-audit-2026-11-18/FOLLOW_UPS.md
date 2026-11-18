@@ -61,3 +61,22 @@ scheduled or closed. IDs refer to `findings/` and `verification/`.
 - 12 of 21 hook kinds carry presentation; `PlanStyle` is a service locator (ARCH-2, ARCH-4).
 - The moved judging code was copied 71-98% byte for byte (JUDGES-4 report).
 - 263 duplicated lines across PureText's 12 dialect subclasses (EDGE).
+
+## 6. The user's rulings of 2026-11-18 (~20:10 UTC)
+
+The user's words: "For 118 r1-r3 are fine" and "For r1-r8 later all are good except r4 we have to think thru later -
+if engine is right default or pure is".
+
+| Ruling | What | Where it lands |
+|---|---|---|
+| R1 | The product's default assert message is lite's "expected true, got false"; legend-pure's "Assert failed" only in PURE and ENGINE | PR #118, fix N2 (closes C7) |
+| R2 | The test-data generator's two upstream spellings (`createTableRowIdentifiers(`, `createRowIdentifier([`) stay for now | PR #118, a ratifying note; revisited as ENGINE output |
+| R3 | The four residue pins (DatabaseJudge 851, HostJudgments 679, BodyDriver 545, EngineTextPlanning 151) are ratified | PR #118, a ratifying note |
+| R4 | **OPEN**: should LITE's default substring and indexOf follow Pure or legend-engine? PURE follows Pure and ENGINE legend-engine either way | to think through |
+| R5 | A Pair's LITE form is the JSON object on every output; `<a, b>` and the prelude's other legend-pure print bodies go to PURE and ENGINE (C5) | three-mode program |
+| R6 | DataCube's legend-engine workarounds apply only toward legend-engine (C6) | DataCube follow-up |
+| R7 | The parser's level-less entries default to LITE | three-mode program |
+| R8 | (c) C4; (h) K1 | three-mode program |
+
+Still pending the user: (e') ENGINE's scope (recommended E-R1), (d') per-push CI additions (recommended yes), and
+the orchestrator's three N3 calls on lite API v1's non-raise errors.
