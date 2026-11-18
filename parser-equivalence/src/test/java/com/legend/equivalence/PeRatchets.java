@@ -117,7 +117,10 @@ public final class PeRatchets {
             "own_corpus.matched 3284 -> 3287 (2026-11-17, phase D's Phase 2, 8d38788b0: InterimEdgeSitesTest's model --"
                     + " its s::DB, s::Conn and s::RT -- matches the reference grammar; UP)",
             "own_corpus.matched 3287 -> 3290 (2026-11-17, A1 0902f0f33 (its 1c18e97f4): BoundaryLiteExportsTest's model --"
-                    + " its t::P, t::DB and t::M -- matches the reference grammar; UP; stage-linux run 44097841621)");
+                    + " its t::P, t::DB and t::M -- matches the reference grammar; UP; stage-linux run 44097841621)",
+            "own_corpus.matched 3290 -> 3302 (2026-11-18, D's train 8, measured on d-int8 ce6132f60: twelve more own-corpus"
+                    + " models, added by trains 7 and 8's tests, match the reference grammar (red on d-int7 a789d7095 too, E-P5's"
+                    + " report); UP)");
 
     public static void main(String[] args) throws Exception {
         if (args.length != 1) {
