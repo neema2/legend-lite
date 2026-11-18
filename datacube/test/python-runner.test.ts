@@ -70,7 +70,7 @@ describe('a page on Python, planned by Python', () => {
 
   it("dry-runs on the host's compute, plan-and-run's planning half, the model by its text and the token", async () => {
     // plan.json's answer: query/plan's, folded (lite API v1, 2026-11-17), its plan lite's PlanJson
-    const planned = '{"plan":{"format":"legend-lite-plan","version":57,"parameters":[],"root":{"_type":"tdsResult",'
+    const planned = '{"plan":{"format":"legend-lite-plan","version":58,"parameters":[],"root":{"_type":"tdsResult",'
       + '"shape":"RELATION","columns":[],"sql":{"statement":"SELECT 1","slots":[],"sites":[]}},"raises":{}}}';
     const { link, calls } = python(() => json({ plan: `OK\n${planned}` }));
     const runner = pythonRunner(link, MODEL, RUNTIME);

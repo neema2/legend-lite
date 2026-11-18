@@ -296,7 +296,9 @@ interface Sql {
 // (declared-raises.ts), what a failure is read through
 // 57 since 2026-11-17 (the host train): a column's type is its plain path (Decimal, never Decimal(10,2)); a precise
 // decimal's digits are data (its column's decimal: {precision, scale})
-const PLAN_VERSION = 57;
+// 58 since 2026-11-18 (K10 of the edge audit, with H9): a site carries no upstream words -- legend-pure's words are the
+// compatibility edge's records, never the product plan's
+const PLAN_VERSION = 58;
 // the version a test's stand-in plan is written at (the doors' witnesses, engine-client/test/run-frame.test.ts); the
 // declaration above stays one line, as PlanVersionsAgreeTest reads it
 export { PLAN_VERSION };
