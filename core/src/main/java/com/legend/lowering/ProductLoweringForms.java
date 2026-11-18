@@ -38,7 +38,7 @@ public final class ProductLoweringForms implements LoweringForms {
     }
 
     @Override
-    public SqlSelect executeValues(Supplier<SqlSelect> array, Supplier<SqlSelect> oneBare) {
+    public SqlSelect executeValues(Supplier<SqlSelect> array, Supplier<SqlSelect> wrapped) {
         return array.get();
     }
 
