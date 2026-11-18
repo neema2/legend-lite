@@ -28,7 +28,9 @@ import java.util.function.Predicate;
  * implements one too) is a seam, and three shapes across it are upstream meaning in the product:
  * <ol>
  *   <li>UNUSED: a parameter the product's implementation never loads and the edge's does -- a value the product's
- *       callers compute for the edge alone (GUARDS-4: an eagerly computed upstream value handed to a hook);</li>
+ *       callers compute for the edge alone (GUARDS-4: an eagerly computed upstream value handed to a hook); UNUSED
+ *       when the form reads its other parameters, UNUSED_NOOP when it reads none (a no-op or a refusal),
+ *       UNUSED_LAZY when the parameter is a function the form need not call;</li>
  *   <li>ANSWER: the product's implementation answers a constant (null, false, 0, a literal, an empty collection) where
  *       the edge's answers otherwise; every product method whose conditional tests that answer -- directly, through a
  *       local, through a parameter it is handed, or through a method that returns it -- branches on an upstream answer
@@ -149,9 +151,20 @@ public final class FormsLens {
                 if (!edgeLoads) {
                     continue;
                 }
+                String type = ClassFiles.params(desc).get(k);
                 for (Impl i : product) {
                     if (!loads(i, p)) {
-                        out.add(new Finding("UNUSED", pretty(d), where(i), "parameter " + (k + 1) + " of "
+                        // a lazy input (a java.util.function value) costs the product nothing it does not ask for:
+                        // ProductFormsUseTheirArgumentsTest's domain; a form that reads none of its parameters is a
+                        // no-op or a refusal, whose inputs its callers may still compute for the edge alone; a form
+                        // that reads some and not this one is GUARDS-4's eager value, the strongest of the three
+                        boolean readsAny = false;
+                        for (int q = 0; q < params; q++) {
+                            readsAny |= q != p && i.slotOf().length > q && i.slotOf()[q] >= 0 && loads(i, q);
+                        }
+                        String shape = type.startsWith("Ljava/util/function/") ? "UNUSED_LAZY"
+                                : readsAny ? "UNUSED" : "UNUSED_NOOP";
+                        out.add(new Finding(shape, pretty(d), where(i), "parameter " + (k + 1) + " of "
                                 + params + " (" + simple(ClassFiles.params(desc).get(k)) + ") is never read by "
                                 + i.label() + "; the edge's " + edge.stream().filter(x -> loads(x, p))
                                         .map(Impl::label).findFirst().orElse("?") + " reads it"));

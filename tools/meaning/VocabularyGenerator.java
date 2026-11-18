@@ -92,7 +92,10 @@ public final class VocabularyGenerator {
                 List<String> literals = new ArrayList<>();
                 String code = rel.endsWith(".java") ? javaCode(text, literals) : pureCode(text, literals);
                 if (rel.endsWith(".pure")) {
-                    pureNames(code, cite, counts, example);
+                    // a Pure name is the language's where its file is: legend-pure's platform, legend-engine's Pure
+                    // function library; a name an execution file declares (a result's TDSColumn.relationalType) is not
+                    pureNames(code, cite, surface.equals("LANGUAGE") || rel.contains("-functions") ? "LANGUAGE"
+                            : "EXECUTION", counts, example);
                 }
                 if (rel.endsWith(".java")) {
                     types(code, cite, surface, counts, example);
@@ -127,6 +130,9 @@ public final class VocabularyGenerator {
             boolean message = wholeLiterals.contains(s) && Character.isUpperCase(s.charAt(0)) && n <= COMMON;
             // a fragment of a longer literal needs 4 words: three are English ("not supported yet")
             boolean fragmentOnly = !wholeLiterals.contains(s) && s.split("\\s+").length < 4;
+            // under four words, a message starts as one: capitalised ("Assert failed"); "not supported yet" is English
+            boolean lowerShort = s.split("\\s+").length < 4 && !Character.isUpperCase(s.charAt(0));
+            fragmentOnly |= lowerShort;
             if (!fragmentOnly && (message || n <= (twoWords ? 2 : RARE))) {
                 Term t = new Term(s, "SENTENCE", sentenceSurface.get(s));
                 counts.put(t, new int[] {n});
@@ -184,13 +190,15 @@ public final class VocabularyGenerator {
             + "|(?m)(?:^\\s*(?:<<[^>]*>>\\s*)?(?:\\{[^}]*\\}\\s*)?(\\w+)\\s*(?:\\([^)]*\\))?\\s*:\\s*[\\w:<>\\[\\]]+\\s*\\[)");
 
     /** A Pure file's declared names -- its functions, classes, enumerations, profiles, associations, measures and
-     *  properties: the language upstream's Pure library spells (PURE_NAME, LANGUAGE), which lite implements. */
-    private static void pureNames(String code, String rel, Map<Term, int[]> counts, Map<Term, String> example) {
+     *  properties: in a language file, the language upstream's Pure library spells, which lite implements (PURE_NAME,
+     *  LANGUAGE); in an execution file, upstream's execution model's names (PURE_NAME, EXECUTION). */
+    private static void pureNames(String code, String rel, String surface, Map<Term, int[]> counts,
+            Map<Term, String> example) {
         Matcher m = PURE_DECL.matcher(code);
         while (m.find()) {
             String n = m.group(1) != null ? m.group(1) : m.group(2) != null ? m.group(2) : m.group(3);
             if (n != null && n.length() >= 3) {
-                add(counts, example, new Term(n, "PURE_NAME", "LANGUAGE"), rel);
+                add(counts, example, new Term(n, "PURE_NAME", surface), rel);
             }
         }
     }

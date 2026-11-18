@@ -24,3 +24,234 @@ KNOWN | PRODUCT-11 | readThroughExecuteValues: an edge-only flag carried through
 KNOWN | JUDGES-3 | host failure texts bypass HostWords, so the judges disagree on the message |
 KNOWN | JUDGES-6 | judgesEngineText() serves as an "is this the edge" flag |
 KNOWN | C6 | DataCube's product queries work around legend-engine's defects on every planner (COMPLETENESS-3, R6) |
+KNOWN | N-PRELUDE | the prelude ships upstream Pure bodies beyond C5's print forms (legend-engine's relational asserts, its plan warning, the PCT runner's prints) |
+KNOWN | N-PARSER | the product parser and its section grammars hold legend-engine's grammar refusals in upstream's words |
+KNOWN | N-JUDGE | the product judges compute and branch for compiled legend-pure's comparison (tolerances, canons, rendered texts, message operands) |
+KNOWN | N-ROOTFORM | RelationalRootForm: legend-engine's toSQLString root form in the product resolver, its mapping argument only the edge passes |
+KNOWN | HOSTS-5 | the product wheel ships the edge's Python; the DataCube product bundles list the edge entry as an input |
+
+# ---------------------------------------------------------------------------------------------------------------------
+# M3 FORMS: the seams (bytecode)
+
+M3 | ANSWER | * | LoweringForms#unionFrame() | a | legend-engine's union frame: the product answers null, the decisions on it stay in product lowering [C1]
+M3 | BRANCH | com/legend/lowering/Fold.java | * | a | Fold.tryProjectAll branches on the union frame handed from Lowerer.projectColumns [C1]
+M3 | BRANCH | com/legend/lowering/Lowerer.java | * | a | Lowerer branches on the union frame (unionFramed) [C1]
+M3 | EDGE_LIVE | * | SubselectPrune#prune* | a | the kept union frame only the edge passes (GUARDS-2's 3-argument prune) [C1]
+M3 | ANSWER | * | PlanStyle#judgesEngineText() | a | the "is this the edge" flag, false in the product [JUDGES-6]
+M3 | BRANCH | com/legend/testplan/EngineTextGates.java | * | a | the test planner's three concerns branch on judgesEngineText [JUDGES-6]
+M3 | REFUSED | com/legend/testplan/EngineTextGates.java | * | a | EngineTextGates asks a facet the product's style refuses: code run for the edge alone [JUDGES-6]
+M3 | UNUSED | * | LoweringForms#existsJoin* | a | the exists-join seam: sites the edge's form alone reads; the chooser flag beside it (existsJoinable, a Lowerer field the planner sets, LOWERSQL-4) is a field, which M3 does not follow [C2]
+M3 | UNUSED | * | ActivityTexts#activitySql* | b | the activity SQL is the style's pick (S310, RULED by the user, 2026-11-14, DE2 (a)): the edge's flag beside the product's own SQL
+M3 | ANSWER | * | RoutedQueries#routingActivity* | b | an aggregation-aware query's routing activity is the style's (S310; S361's ruling 7 (a)): the product answers none
+M3 | UNUSED_NOOP | * | RoutedQueries#routingActivity* | b | as its ANSWER row: S310
+M3 | ANSWER | * | LoweringForms#objectReferenceConnection() | b | S362 (RULED by the user, 2026-11-17): the product's object reference names no connection; legend-engine's bytes stay at the edge
+M3 | EDGE_LIVE | * | RelationalRootForm#apply* | a | legend-engine's toSQLString root form, its javadoc "consumed ONLY by the toSQLString golden-text surface", sits in the product resolver; its mapping argument only the edge passes [N-ROOTFORM]
+M3 | EDGE_LIVE | * | TestDataPlanner#* | b | the test-data generator's legend-engine row-identifier form stays for now (R2, the user, 2026-11-18): its seed argument only the edge's route passes
+M3 | EDGE_LIVE | * | TestExecution#runProgram* | c | a door's output parameter: the product's test door, which the edge's service-test runner calls with its own sink
+M3 | UNUSED | com/legend/testdatagen/* | * | b | the test-data generator's printing seam: R2 (the user, 2026-11-18)
+M3 | UNUSED_NOOP | * | TestDataPlanner$Printing#* | b | the test-data generator's printing seam: R2 (the user, 2026-11-18)
+M3 | * | com/legend/lowering/VerdictSql.java | * | a | the database judge builds compiled legend-pure's float tolerance and canon grids behind a two-form answer (GUARDS-1/-2: an upstream algorithm behind a branch, the owner's question) [N-JUDGE]
+M3 | * | com/legend/testexec/Equality.java | * | a | the host judge's equality branches for compiled legend-pure's cross-kind and float rules [N-JUDGE]
+M3 | BRANCH | com/legend/testexec/HostJudgments.java | HostJudgments#renderedOf | a | the rendered-text compare branches on legend-pure's rendered texts; its failure text is one of JUDGES-3's four (HostJudgments.java:891-892) [JUDGES-3]
+M3 | BRANCH | com/legend/testexec/HostJudgments.java | * | a | the host judge branches for compiled legend-pure's equality [N-JUDGE]
+M3 | BRANCH | com/legend/testplan/DatabaseJudge.java | * | a | the database judge branches on legend-pure's canon reads and cross-kind numbers [N-JUDGE]
+M3 | BRANCH | com/legend/testplan/AssertVerdicts.java | * | a | the verdict planner branches on legend-pure's rendered-text rule [N-JUDGE]
+M3 | BRANCH | com/legend/compiler/spec/VerdictQueries.java | * | a | the compiler recognises legend-engine's golden null word (the product answers false) [N-JUDGE]
+M3 | UNUSED | com/legend/lowering/LiteVerdictWords.java | * | a | the product judge computes the operands of legend-pure's failure sentence for the edge's words alone (GUARDS-4's eager value) [N-JUDGE]
+M3 | UNUSED | com/legend/testexec/LiteHostWords.java | * | a | the host judge hands legend-pure's message operands to words only the edge reads (GUARDS-4) [N-JUDGE]
+M3 | UNUSED | com/legend/lowering/ProductLoweringForms.java | WhereZones#merge* | a | the WHERE zone stamp the product computes for legend-engine's zone order (L10's order is the edge's; the stamp is still the product's work)
+M3 | UNUSED | com/legend/lowering/ProductLoweringForms.java | LoweringForms#raise* | c | raise's kind and plain value: the product's own values, which the checked form wraps (GUARDS-4: plain is the bare value checked wraps, Scalars.java:3024)
+M3 | UNUSED | com/legend/lowering/ProductLoweringForms.java | LoweringForms#view* | a | view's name argument, computed for the edge's frame alone (the product writes the subselect unnamed); unruled (ProductFormsUseTheirArgumentsTest rules only its alias supplier)
+M3 | UNUSED | com/legend/lowering/ProductLoweringForms.java | LoweringForms#wireCast* | c | wireCast's value: the product writes its own cast from the written supplier, the value is the edge's read; both the product's own expressions
+M3 | UNUSED | com/legend/lowering/Styled.java | * | a | a DateTime literal's written text, handed to the product's text form only the edge's legend-pure print reads (D1.2's DATETIME_PRINT)
+M3 | UNUSED | com/legend/result/CellText.java | * | a | a structure cell's type name, handed to the product writer only the edge's presenter reads (D1: legend-pure's print forms)
+M3 | UNUSED | com/legend/sql/dialect/* | * | c | a dialect hook the edge's engine-text dialects override (D1.7: engine text the edge's); the product dialect needs not every argument
+M3 | UNUSED | com/legend/server/* | * | c | the server's route seam (K2's opt-in mount, the user's ruling 2026-11-18): the product's route ignores what the edge's reads
+M3 | UNUSED | com/legend/database/PlanStyle.java | * | c | the plan style's facet lookup: refused by the product's style by name (the hook, HookRulingTest)
+M3 | UNUSED | com/legend/testexec/NoEdgeRun.java | * | b | the test plan's edge extension, no-op in the product (docs/PLAN_AS_DATA_2026_11_07.md, the user's rulings of 2026-11-08: the edge's typed extension point)
+M3 | UNUSED | com/legend/test/* | * | b | an assert listener's no-op: the test plan's edge extension (PLAN_AS_DATA, the user's rulings of 2026-11-08)
+M3 | UNUSED_LAZY | * | * | c | a lazy input (a function value) the product's form need not call: ProductFormsUseTheirArgumentsTest's domain, ruled there
+M3 | UNUSED_NOOP | com/legend/testexec/LiteHostForms.java | * | c | the host forms' inputs are the judge's own values; the meaning is in the BRANCH rows [N-JUDGE]
+M3 | UNUSED_NOOP | com/legend/lowering/LiteVerdictNumbers.java | * | c | the verdict numbers' inputs are the judge's own expressions; the meaning is in the BRANCH rows [N-JUDGE]
+M3 | UNUSED_NOOP | * | * | c | a product form that reads none of its parameters (a no-op, a constant or a refusal): the designed seam; any meaning on it is in its BRANCH, UNUSED or REFUSED rows
+M3 | ANSWER | * | PlanStyle#traceCell() | c | the trace cell is the product's bound execution id; legend-engine's comment is the edge's (D1.4)
+M3 | ANSWER | * | VerdictNumbers#* | c | a two-form kind's product answer: the seam itself; its branches are the BRANCH rows [N-JUDGE]
+M3 | ANSWER | * | * | c | a two-form kind's, a dialect's or a hook's product answer: the seam itself (hook criteria, HookRulingTest); any meaning on it is in its BRANCH rows
+M3 | BRANCH | com/legend/testexec/TestRunner.java | * | b | the test runner asks the edge's extension whether it records (PLAN_AS_DATA, the user's rulings of 2026-11-08: the edge's typed extension point)
+M3 | BRANCH | com/legend/testexec/IsolatedRun.java | * | a | BOTH compares the judges' messages unless the edge's run says their words differ: where JUDGES-3's disagreement surfaces [JUDGES-3]
+M3 | BRANCH | com/legend/testplan/TestDoor.java | * | b | the test door asks the edge's extension (PLAN_AS_DATA, the user's rulings of 2026-11-08)
+M3 | BRANCH | com/legend/server/LegendHttpServer.java | * | c | the server's route seam (K2's opt-in mount, the user's ruling 2026-11-18)
+M3 | BRANCH | com/legend/sql/dialect/MongoJson.java | * | c | the MongoDB dialect's own date format handed to its JSON writer; the edge overrides the format (D1.2)
+M3 | BRANCH | com/legend/sql/dialect/SQLite.java | * | a | SQLite's Decimal arithmetic SQL in the product dialect, reached only under the edge's text style (the product refuses it)
+M3 | REFUSED | com/legend/lowering/VerdictSql.java | * | a | the database judge calls compiled legend-pure's float comparison, which the product's form refuses [N-JUDGE]
+M3 | REFUSED | com/legend/testplan/TestDoor.java | * | b | the test door hands the edge's extension its data (PLAN_AS_DATA, the user's rulings of 2026-11-08)
+M3 | REFUSED | com/legend/testexec/* | * | b | the test runner hands the edge's extension its rows (PLAN_AS_DATA, the user's rulings of 2026-11-08)
+M3 | REFUSED | com/legend/planner/FramePlanner.java | * | c | an executed value's envelope: the product refuses legend-engine's envelopes by name (RULED in ProductFormsUseTheirArgumentsTest, 2026-11-18)
+M3 | REFUSED | * | PlanStyle#facet* | c | the plan style's facet lookup, refused by the product's style by name: the hook itself (PlanStyleFacetsTest, HookRulingTest)
+M3 | REFUSED | com/legend/sql/dialect/* | * | c | a dialect hook the edge's engine-text dialects implement (D1.7)
+
+# ---------------------------------------------------------------------------------------------------------------------
+# M4 PRINT BODIES and BODY
+
+M4 | TOSTRING | * | *Pair | a | legend-pure's <a, b> print of a Pair, the product writer's form today; R5 (the user, 2026-11-18): LITE's is its JSON object, <a, b> to PURE and ENGINE [C5]
+M4 | TOSTRING | * | *::List | a | legend-pure's [a, b] print of a List; S363 (RULED): the product's text of a list is its JSON; R5 takes the body to PURE and ENGINE [C5]
+M4 | TOSTRING | * | *SQLNull | a | legend-pure's 'SQLNull' print; R5 takes the prelude's legend-pure print bodies to PURE and ENGINE [C5]
+M4 | TOSTRING | * | *TDSColumn | a | legend-pure's TDSColumn print; R5 takes the prelude's legend-pure print bodies to PURE and ENGINE [C5]
+M4 | TOSTRING | * | *RoutingStrategy | c | a function field's own toString, delegated: no print form
+M4 | BODY | * | * | a | an upstream Pure body the prelude ships (the world-map tenet: declarations, views over the platform's own tables, no other Pure bodies; residue named, never ported) [N-PRELUDE]
+
+# ---------------------------------------------------------------------------------------------------------------------
+# M6 EDGE-ONLY and M7 K2
+
+M6 | EXPORT | engine-client/src/values.ts | timestampFromText | a | reads legend-engine's timestamp text, its one user the edge [C3-TS]
+M6 | EXPORT | engine-client/src/planned-sql.ts | fromPlan | a | a product export the edge's UpstreamPlanner alone uses (COMPLETENESS-1's shape) [C3-TS]
+M6 | EXPORT | python/legend_lite/_loader.py | * | a | the engine library's loader in the product module (HOSTS-4) [HOSTS-4]
+M6 | EXPORT | python/legend_lite/* | * | a | a product helper only the Python edge uses (HOSTS-15: the edge reaches into product privates)
+M7 | OPT_IN | python/legend_lite/_loader.py | legend_lite_engine | a | the product loader's import of the opt-in package (HOSTS-4: the "optional import in Python" blind spot) [HOSTS-4]
+M7 | OPT_IN | * | ServiceLoader.load | c | a ServiceLoader lookup: the declared opt-in mechanism (K2, the user's ruling 2026-11-18), or a product registry (connectors, grammars, probes)
+M7 | STATIC | datacube/demo/verify-*.mjs | * | c | a verification script (a test in all but its folder) that drives a real legend-engine for comparison
+M7 | BUILD | //python:wheel_package | * | a | the product wheel ships legend_lite.edge (HOSTS-5) [HOSTS-5]
+M7 | BUILD | //datacube:bundle_* | * | a | a product bundle lists the edge entry as an input, so the build graph cannot prove it edge-free (HOSTS-8) [HOSTS-5]
+M7 | DOOR | * | com.legend.edge.EdgeServer#main | a | an undeclared door: java -cp server_deploy.jar com.legend.edge.EdgeServer serves legend-engine's routes; R11(b) (the user, 2026-11-18): the first small follow-up PR [HOSTS-7]
+M7 | DOOR | * | com.legend.edge.wasm.EngineExports#main | c | the declared opt-in module's entry (//wasm:engine_planner, TeaVM's main; _EDGE_OPT_IN_MODULES)
+
+# ---------------------------------------------------------------------------------------------------------------------
+# M1 TEXT: names
+
+M1 | * | com/legend/queries/SavedQueries.java | IllegalArgumentException | a | the store's legend-engine error type in a product answer (PH-2); R11(a) (the user, 2026-11-18): to the presentation program [R11a]
+M1 | NAME | engine-client/src/relation-type.ts | * | a | a product record reads legend-engine's generatePlan and lambdaRelationType shapes, its only callers the edge's (COMPLETENESS-1) [C3-TS]
+M1 | NAME | engine-client/src/values.ts | * | a | a product record reads legend-engine's shapes [C3-TS]
+M1 | * | python/legend_lite/_plans.py | * | a | Python's product plan record reads legend-engine's tdsColumns' relationalType (COMPLETENESS-4) [C3-Py]
+M1 | NAME | com/legend/queries/* | * | b | the saved queries' and pages' records keep legend-engine's Query shape: lite API v1 §1, "the same store and the same records" (the user, 2026-11-17: every choice ruled)
+M1 | NAME | query-store/src/* | * | b | the saved queries' records (lite API v1 §1, the user, 2026-11-17)
+M1 | NAME | datacube/src/cube-store.ts | * | b | DataCube's saved pages' records (lite API v1 §1, the user, 2026-11-17)
+M1 | NAME | datacube/src/saved-queries.ts | * | b | the saved queries' records (lite API v1 §1, the user, 2026-11-17)
+M1 | NAME | datacube/src/app/sources.ts | defaultParameterValues | b | a saved query's record field (lite API v1 §1, the user, 2026-11-17)
+M1 | NAME | query/src/app/persist.ts | * | b | a saved query's execution context, its record's field (lite API v1 §1, the user, 2026-11-17)
+M1 | NAME | query/demo/verify.mjs | * | b | a saved query's execution context, its record's field (lite API v1 §1, the user, 2026-11-17)
+M1 | NAME | datacube/src/examples/* | explicitExecutionContext | b | a saved query's execution context, its record's field (lite API v1 §1, the user, 2026-11-17)
+M1 | NAME | com/legend/server/LegendHttpServer.java | dataCube | b | lite's route for DataCube's saved pages (lite API v1 §1, the user, 2026-11-17)
+M1 | * | com/legend/lineage/* | * | b | lineage rebuilt upstream's way for everything (C8, the user, 2026-11-14): scanRelations' labels are its value [COMPLETENESS-8]
+M1 | * | com/legend/compiler/spec/LineageTreeLines.java | * | b | lineage rebuilt upstream's way for everything (C8, the user, 2026-11-14) [COMPLETENESS-8]
+M1 | NAME | com/legend/builtin/* | * | b | the language's names (the ###Relational dynaFunctions, the registry's natives): the one grammar (S364, the user, 2026-11-17) and the reference-checkout tenet (signatures verified verbatim)
+M1 | NAME | com/legend/protocol/Protocol*.java | * | b | the model protocol lite reads and writes as upstream defines it (S364, S369: RULED by the user, 2026-11-17)
+M1 | NAME | com/legend/protocol/*Composer.java | * | b | the model protocol (S364, S369)
+M1 | NAME | com/legend/protocol/*Reader.java | * | b | the model protocol (S364, S369)
+M1 | NAME | com/legend/protocol/*Emitter.java | * | b | the model protocol (S364, S369)
+M1 | NAME | com/legend/protocol/MappingOperation.java | * | b | the model protocol (S364, S369)
+M1 | NAME | com/legend/model/* | * | b | the model's own element fields (S364: the one grammar)
+M1 | NAME | com/legend/parser/* | * | b | the model's own element fields (S364: the one grammar)
+M1 | NAME | com/legend/protocol/cypher/* | * | c | Cypher's own vocabulary (the #Cypher island)
+M1 | NAME | com/legend/protocol/sql/* | * | c | SQL's own vocabulary (the #SQL and #IQ islands)
+M1 | NAME | com/legend/sql/dialect/* | * | c | the database's own function and option names
+M1 | NAME | com/legend/lowering/CalendarAgg.java | * | a | legend-engine's calendar schema (LegendCalendarSchema.<type>_Calendar and its fiscal columns) in product lowering: the calendar functions' own definition or a legend-engine convention; no register row (for the user)
+M1 | NAME | com/legend/lowering/SqlPostProcessors.java | * | a | legend-engine's CTE names (subquery_cte_<level>_<index>) for a model's declared post-processor, in product lowering; no register row (for the user)
+M1 | NAME | com/legend/lowering/JsonEmission.java | * | c | the value of a platform function (toJSON's metaType), as upstream defines it (the upstream-fidelity tenet)
+M1 | NAME | com/legend/lowering/Scalars.java | * | c | a database's format name (BigQuery's)
+M1 | NAME | com/legend/lowering/* | * | c | an internal alias or column name of lite's own lowering
+M1 | NAME | com/legend/testdatagen/* | * | b | the test-data generator's legend-engine form stays for now (R2, the user, 2026-11-18)
+M1 | NAME | com/legend/executionplan/* | * | c | lite's own plan JSON field names
+M1 | NAME | com/legend/sql/* | * | c | lite's own MIR fields (__type: lite's identity layout; tablePattern: lite's catalog grid)
+M1 | * | * | __type | c | lite's own identity layout field (SqlExpr.SYNTHETIC_TYPE, ClassLayouts.SYNTHETIC_TYPE)
+M1 | NAME | com/legend/compiler/* | * | c | lite's own names (a catalog grid's pattern)
+M1 | NAME | com/legend/json/* | * | c | the JSON library's own words
+M1 | NAME | com/legend/server/PureLspServer.java | * | c | the language server protocol's own field
+M1 | NAME | com/legend/testexec/* | * | c | a Java type's name in lite's own judge text
+M1 | NAME | com/legend/testexecutionplan/Failure.java | * | c | lite's own failure kinds, named by the classes lite's planning raises
+M1 | NAME | sdlc-client/src/* | * | c | legend-sdlc's API, which lite's SDLC server serves (its own program; outside legend-engine and legend-pure)
+M1 | NAME | datacube/demo/* | * | c | a demo or verification script driving a real legend-engine for comparison (a test in all but its folder)
+M1 | NAME | * | dataCube | c | lite's own DataCube app's settings and routes
+M1 | NAME | * | * | c | a generic coding word (rowCount, notEmpty, distinctCount, isError, ContentType, openFiles, yyyyMMdd) that upstream also spells
+
+# M1 TEXT: routes, the edge's strings
+
+M1 | ROUTE | datacube/demo/planners.ts | * | b | the engine plane's health check, in the picker that loads the declared opt-in by URL (H11); R6 (the user, 2026-11-18) keeps legend-engine's work toward legend-engine
+M1 | ROUTE | datacube/demo/* | * | c | a verification or chaos script driving a real legend-engine (a test in all but its folder)
+M1 | EDGE | com/legend/compiler/spec/*.java | Assert failed | a | legend-pure's "Assert failed" as the in-body guards' default; R10 (the user, 2026-11-18): their LITE words after the merge [C7]
+M1 | SENTENCE | com/legend/compiler/spec/*.java | Assert failed | a | legend-pure's "Assert failed" as the in-body guards' default; R10 (the user, 2026-11-18) [C7]
+M1 | EDGE | libbuiltin.jar!/com/legend/builtin/prelude.pure | Warning: Results only shown* | a | legend-engine's plan-text warning in a prelude body [N-PRELUDE]
+M1 | EDGE | com/legend/server/LegendHttpServer.java | * | c | the product server naming legend-engine's API to refuse it by name and point at --engine (K2's declared opt-in)
+M1 | EDGE | datacube/demo/* | * | c | a verification or chaos script driving a real legend-engine (a test in all but its folder)
+M1 | EDGE | * | * | c | a phrase lite's own words and the edge's share ("Unexpected token", "in mapping '", "is not empty", "does not contain", "cannot be cast to"): lite's sentence, which upstream happens to hold too
+
+# M1 TEXT: sentences
+
+M1 | SENTENCE | libbuiltin.jar!/com/legend/builtin/prelude.pure | Create a Relation typed* | b | a platform declaration's documentation, verbatim with its signature (the reference-checkout tenet: signatures verified verbatim against the real .pure sources)
+M1 | SENTENCE | libbuiltin.jar!/com/legend/builtin/prelude.pure | Plan Generation* | b | a platform declaration's documentation (the reference-checkout tenet)
+M1 | SENTENCE | libbuiltin.jar!/com/legend/builtin/prelude.pure | Pure Execution* | b | a platform declaration's documentation (the reference-checkout tenet)
+M1 | SENTENCE | libbuiltin.jar!/com/legend/builtin/prelude.pure | Set to * | b | a platform declaration's documentation (the reference-checkout tenet)
+M1 | SENTENCE | libbuiltin.jar!/com/legend/builtin/prelude.pure | ~* | b | a platform declaration's grammar documentation (PCT.grammarDoc; the reference-checkout tenet)
+M1 | * | libbuiltin.jar!/com/legend/builtin/prelude.pure | typed columns | b | a platform declaration's documentation (the reference-checkout tenet)
+M1 | * | libbuiltin.jar!/com/legend/builtin/prelude.pure | * | a | an upstream message inside a Pure body the prelude ships (legend-engine's relational asserts, its External Format and TDS bodies, the PCT runner's prints) [N-PRELUDE]
+M1 | SENTENCE | com/legend/parser/* | * | a | legend-engine's grammar refusal, in its words, raised by the product parser (a product raise is lite's kind; upstream's words the edge's: J10, D1.6) [N-PARSER]
+M1 | SENTENCE | com/legend/model/* | * | a | legend-engine's model-building refusal, in its words, in the product (J10's rule: a kind, upstream's words at the edge) [N-PARSER]
+M1 | SENTENCE | com/legend/protocol/ProtocolUpgrade.java | * | a | legend-engine's protocol refusal, in its words, in the product [N-PARSER]
+M1 | SENTENCE | com/legend/protocol/*Composer.java | * | b | the model's own grammar text, printed (S364: the one grammar)
+M1 | SENTENCE | com/legend/protocol/cypher/* | * | c | the #Cypher island's own refusal
+M1 | SENTENCE | com/legend/protocol/sql/* | * | c | the #SQL and #IQ islands' own words (Postgres's type and refusal vocabulary)
+M1 | SENTENCE | com/legend/sql/dialect/* | * | c | a SQL statement's text (the database's language)
+M1 | SENTENCE | com/legend/testdatagen/* | * | b | the test-data generator's legend-engine words stay for now (R2, the user, 2026-11-18)
+M1 | SENTENCE | com/legend/setup/CsvSeed.java | * | a | legend-engine's test-data setup messages, in its words, in the product's seeding (R2 rules the generator's spellings, not these)
+M1 | SENTENCE | com/legend/compiler/spec/NewChecker.java | * | a | legend-pure's compile message for a missing required property, in its words, in the product typer (J10's rule)
+M1 | SENTENCE | com/legend/compiler/spec/GroupByChecker.java | * | a | legend-engine's aggregation-aware groupBy assertions, in its words, in the product typer
+M1 | SENTENCE | com/legend/resolver/GraphEmission.java | * | a | legend-pure's constraint-violation message, in its words, raised by the product
+M1 | SENTENCE | com/legend/lowering/DateFormats.java | * | a | legend-pure's date-format parse messages, in its words, in product lowering (K1's family; CompatSpellingGuardTest's list does not hold them)
+M1 | SENTENCE | com/legend/lowering/Scalars.java | * | a | legend-pure's duration-unit message, in its words, in product lowering (K1's family)
+M1 | SENTENCE | com/legend/normalizer/* | * | a | legend-engine's mapping message, in its words, in the product normalizer (J10's rule)
+M1 | SENTENCE | com/legend/queries/SavedQueries.java | * | a | legend-engine's query-store message in the product store (PH-2); R11(a): to the presentation program [R11a]
+M1 | SENTENCE | * | * | c | a generic phrase lite's own message and upstream's share (Unknown type, is not an instance of, defined more than once, cannot be cast to, Compilation error, There is already a)
+
+# ---------------------------------------------------------------------------------------------------------------------
+# M2 NAMES
+
+M2 | NAME | com/legend/database/PlanStyle.java | judgesEngineText | a | the "is this the edge" flag [JUDGES-6]
+M2 | NAME | com/legend/testplan/EngineTextGates.java | * | a | the gates that branch on the edge flag [JUDGES-6]
+M2 | NAME | com/legend/parser/EngineQuirks.java | * | a | legend-engine's parse quirks in the product parser [COMPLETENESS-7]
+M2 | NAME | com/legend/sql/dialect/H2.java | * | a | legend-engine's H2 lexicon and its NON_KEYWORDS session setting in the product dialect (ruled to stay by the P2 checkpoint audit's S5, not the user; B3's item) [LOWERSQL-7]
+M2 | NAME | com/legend/test/PureTests.java | * | a | the product's test discovery in legend-engine's PureTestBuilder order, and its exclusions [COMPLETENESS-8]
+M2 | NAME | com/legend/planner/UpstreamPlans.java | * | a | the edge's facet in the product planner, its testDataTimestampText with no caller [PRODUCT-7]
+M2 | NAME | com/legend/parser/GrammarLevel.java | LEGEND_ENGINE | b | legend-engine's grammar level: the one grammar (S364, the user, 2026-11-17; J21); R7 (the user, 2026-11-18): the level-less entries default to LITE in the three-mode program
+M2 | NAME | com/legend/door/Parse.java | * | b | the doors' legend-engine parse entries (S364, J21); R7 (the user, 2026-11-18) takes the level-less defaults to LITE
+M2 | NAME | com/legend/builtin/EngineHandlers.java | * | b | legend-engine's bare-name function surface, generated from its Handlers registry: the language's names (S364; the reference-checkout tenet)
+M2 | NAME | com/legend/builtin/* | * | c | the platform's ledger of upstream's own machinery, named (the world-map tenet: residue named, never ported)
+M2 | NAME | com/legend/platform/* | * | c | the platform's ledger of upstream's bodies and machinery, named (the world-map tenet)
+M2 | NAME | com/legend/model/SignatureMangle.java | * | b | upstream's function ids, the language's own names (S364)
+M2 | NAME | com/legend/protocol/* | * | b | the model protocol's date and value JSON (S369, RULED by the user, 2026-11-17)
+M2 | NAME | com/legend/values/PureDateLiteral.java | * | b | a date literal's protocol JSON (S369)
+M2 | NAME | com/legend/protocol/sql/iq/* | * | c | SQL Anywhere IQ's own engine (the #IQ island's database), not legend-engine
+M2 | NAME | com/legend/server/LegendHttpServer.java | engineOf | c | the declared opt-in's switch (--engine legend-engine; K2, the user's ruling 2026-11-18)
+M2 | NAME | com/legend/planner/PlanMaker.java | * | c | lite's own system database engine
+M2 | NAME | com/legend/planner/SystemRoutes.java | * | c | lite's own system database engine
+M2 | NAME | com/legend/testdatagen/* | * | b | the test-data generator's legend-engine form stays for now (R2, the user, 2026-11-18)
+M2 | NAME | com/legend/testplan/EngineTextPlanning.java | * | b | the engine-text residue, its pin ratified (R3, the user, 2026-11-18: EngineTextPlanning 151)
+M2 | NAME | com/legend/testplan/BodyDriver.java | * | b | the engine-text residue in the body driver, its pin ratified (R3, the user, 2026-11-18: BodyDriver 545)
+M2 | NAME | com/legend/testplan/EngineTestText.java | * | b | the engine-text hook, refused by the product (HOOK-RULED; R3's residue)
+M2 | NAME | com/legend/sql/dialect/DdlSpelling.java | * | b | the engine-text hook in the DDL spelling (D1.7: engine text the edge's, its printer handed in)
+M2 | NAME | datacube/demo/planners.ts | * | c | the picker that loads the declared opt-in engine plane by URL (H11)
+M2 | NAME | datacube/demo/page-config.ts | * | c | the page setting naming the declared opt-in engine plane (H11)
+M2 | NAME | datacube/demo/* | * | c | a verification script driving a real legend-engine (a test in all but its folder)
+
+# ---------------------------------------------------------------------------------------------------------------------
+# M5 PROVENANCE
+
+M5 | COMMENT | core/src/main/java/com/legend/lowering/Lowerer.java | * | a | the union frame's join wrapper, declared legend-engine's model [C1]
+M5 | COMMENT | core/src/main/java/com/legend/sql/dialect/H2.java | replayed here* | a | legend-engine's NON_KEYWORDS kept so a golden replays as in the engine's run [LOWERSQL-7]
+M5 | COMMENT | datacube/src/query.ts | * | a | DataCube's product query works around legend-engine's unpartitioned over (S24); R6 (the user, 2026-11-18): only toward legend-engine [C6]
+M5 | COMMENT | core/src/main/java/com/legend/queries/* | * | a | the product store answers as legend-engine does (PH-2); R11(a) [R11a]
+M5 | COMMENT | core/src/main/java/com/legend/protocol/SourceInformation.java | * | b | the model JSON without source information, as legend-engine writes it (S369, RULED by the user, 2026-11-17)
+M5 | COMMENT | core/src/main/java/com/legend/protocol/*Composer.java | * | c | the model's text as upstream's grammar composer prints it: the language's own form (the upstream-fidelity tenet; S364)
+M5 | COMMENT | core/src/main/java/com/legend/parser/* | * | a | the parser reproduces legend-engine's span and walker quirks, which reach the product's protocol JSON with source information [COMPLETENESS-7]
+M5 | COMMENT | core/src/main/java/com/legend/protocol/* | * | a | the protocol reader and emitter reproduce legend-engine's span and emit quirks [COMPLETENESS-7]
+M5 | COMMENT | core/src/main/java/com/legend/sql/SqlSource.java | * | a | a generated column's presented name, as upstream prints it, in the product MIR (a presentation in the plan's data; for the presentation program)
+M5 | COMMENT | core/src/main/java/com/legend/testplan/DatabaseJudge.java | * | a | each side written in the failure message as legend-pure writes it, by the product judge [N-JUDGE]
+M5 | COMMENT | core/src/main/java/com/legend/testplan/TestPlanner.java | * | a | the compatibility rules count a body as upstream does, decided in the product test planner [N-JUDGE]
+M5 | COMMENT | core/src/main/java/com/legend/testdatagen/* | * | b | the test-data generator writes as legend-engine does (R2, the user, 2026-11-18)
+M5 | COMMENT | core/src/main/java/com/legend/sql/dialect/Postgres.java | * | b | a store's name folded as legend-engine does (decision D8, the user's, 2026-10-13)
+M5 | COMMENT | core/src/main/java/com/legend/sql/dialect/H2.java | * | b | a number's plain-digit text, as upstream prints it (the user's ruling, cited at the site)
+M5 | COMMENT | core/src/main/java/com/legend/executionplan/PlanJson.java | * | b | the format read as upstream does (the user's ruling of 2026-11-10, cited at the site)
+M5 | COMMENT | core/src/main/java/com/legend/lowering/WhereZones.java | * | c | describes the edge's form: legend-engine's zone order is the edge's (L10)
+M5 | COMMENT | core/src/main/java/com/legend/Compiler.java | * | c | describes the edge's words (edge.PureMessages.compile)
+M5 | COMMENT | core/src/main/java/* | * | c | the product does exactly what upstream does: a semantic, not a spelling (AGENTS.md's upstream-fidelity tenet, the user, 2026-10-29)
+M5 | COMMENT | datacube/src/* | * | c | legend-studio's DataCube's behaviour, the app DataCube follows (not legend-engine's or legend-pure's)
+M5 | COMMENT | query/src/* | * | c | legend-studio's query builder's behaviour, the app Query follows
+M5 | COMMENT | sdlc-client/src/* | * | c | legend-sdlc's API, which lite's SDLC server serves

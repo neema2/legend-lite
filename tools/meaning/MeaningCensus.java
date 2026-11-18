@@ -90,6 +90,13 @@ public final class MeaningCensus {
         /** Reads the generated TSV ({@link VocabularyGenerator}), leaving out each name of the language (upstream's
          *  LANGUAGE surface, its Pure library's declarations, lite's own Pure) and each name of the JDK's API. */
         public static Vocabulary of(List<String> lines, Set<String> liteNames, Set<String> jdkNames) {
+            return of(lines, liteNames, jdkNames, Set.of());
+        }
+
+        /** As {@link #of(List, Set, Set)}, a TYPE or EXCEPTION also left out when lite's product declares a class of
+         *  that name ({@code liteClasses}): a class lite declares is lite's own, whatever upstream calls one. */
+        public static Vocabulary of(List<String> lines, Set<String> liteNames, Set<String> jdkNames,
+                Set<String> liteClasses) {
             Vocabulary v = new Vocabulary();
             List<String[]> rows = new ArrayList<>();
             for (String line : lines) {
@@ -98,8 +105,7 @@ public final class MeaningCensus {
                 }
                 String[] f = line.split("\t", -1);
                 rows.add(f);
-                if (f[1].equals("PURE_NAME") || (f[2].equals("LANGUAGE") && !f[1].equals("SENTENCE")
-                        && !f[1].equals("EXCEPTION"))) {
+                if (f[2].equals("LANGUAGE") && !f[1].equals("SENTENCE") && !f[1].equals("EXCEPTION")) {
                     v.language.add(f[0]);
                 } else if (f[1].equals("TEXT")) {
                     v.texts.append(f[0]).append('\n');
@@ -117,10 +123,14 @@ public final class MeaningCensus {
                     default -> {
                         if (v.language.contains(term)) {
                             v.languageDropped++;
-                        } else if (liteNames.contains(term)) {
+                        } else if (liteNames.contains(term) && !category.equals("FIELD") && !category.equals("SUBTYPE")) {
+                            // a protocol field or subtype is a wire SHAPE (generatePlan's rootExecutionNode, a TDS
+                            // column's relationalType): reading it is upstream's shape whatever lite's Pure also names
                             v.liteDropped++;
                         } else if (jdkNames.contains(term)) {
                             v.jdkDropped++;
+                        } else if ((category.equals("TYPE") || category.equals("EXCEPTION")) && liteClasses.contains(term)) {
+                            v.liteDropped++;
                         } else {
                             v.names.merge(term, tag, (a, b) -> a.length() <= b.length() ? a : b);
                             if (category.equals("FIELD") || category.equals("SUBTYPE")) {
@@ -226,19 +236,22 @@ public final class MeaningCensus {
         return out;
     }
 
-    /** The JDK's API names: every public method's and field's name of java.base's public classes in the packages a
-     *  product's code calls, read from the running JDK's own class files (jrt:/). Upstream's code generators spell
+    /** The JDK's API names: every public class's simple name, and every public method's and field's name, of java.base's
+     *  public classes in the packages a product's code calls, read from the running JDK's own class files (jrt:/). Upstream's code generators spell
      *  them as data ({@code 'flatMap'}); they are Java's, not upstream's. */
-    /** The names lite's product declares for its own code: each product class's simple name and each TypeScript or
-     *  Python product export. A name lite declares is lite's own, whatever upstream also calls a thing. */
+    /** The class names lite's product declares for its own code: each product class's simple name and each TypeScript
+     *  or Python product class (a capitalised export). Matched against upstream's TYPE and EXCEPTION names only. */
     public static Set<String> liteDeclared(Map<String, ClassFile> productClasses, List<Source> hostProduct) {
         Set<String> out = new HashSet<>();
         for (ClassFile c : productClasses.values()) {
             String simple = c.name().substring(c.name().lastIndexOf('/') + 1);
             out.add(simple.substring(simple.lastIndexOf('$') + 1));
         }
+        // a host's exported CLASS (a capitalised export), never a function: relation-type.ts's tdsColumns reads
+        // upstream's field under upstream's name, which is the finding, not lite's own name
         for (Source s : hostProduct) {
-            s.exports().forEach(t -> out.add(t.text()));
+            s.exports().stream().map(Token::text).filter(n -> !n.isEmpty() && Character.isUpperCase(n.charAt(0)))
+                    .forEach(out::add);
         }
         return out;
     }
@@ -258,6 +271,11 @@ public final class MeaningCensus {
                     ClassFile c = ClassFiles.read(java.nio.file.Files.readAllBytes(p));
                     if ((c.access() & 0x0001) == 0) {
                         continue;
+                    }
+                    // the class's own simple name too (IllegalArgumentException, StringBuilder): Java's
+                    String simple = c.name().substring(c.name().lastIndexOf('/') + 1);
+                    if (!simple.contains("$")) {
+                        out.add(simple);
                     }
                     for (Method m : c.methods()) {
                         if ((m.access() & 0x0001) != 0) {
@@ -354,7 +372,9 @@ public final class MeaningCensus {
         for (Text t : texts) {
             String s = t.text();
             if (t.isName()) {
-                String tag = v.shapes.get(s);
+                // a name in code is upstream's shape from 10 characters (tdsColumns, resultType, rootExecutionNode):
+                // a shorter one is the host language's own (the DOM's className, varName)
+                String tag = s.length() >= 10 ? v.shapes.get(s) : null;
                 if (tag != null && seen.add("NAME|" + t.where() + "|" + s)) {
                     out.add(new Hit("M1", "NAME", t.where(), s, tag));
                 }
@@ -446,6 +466,12 @@ public final class MeaningCensus {
         return name.length() > 6 && SELF_NAMED.matcher(name).find();
     }
 
+    /** In the TypeScript and Python hosts "engine" is lite's own word for the thing that runs a plan (QueryEngine,
+     *  DuckDbEngine, Python's Engine): a host name names upstream only by legend-engine, legend-pure, upstream or
+     *  pure/v1 itself. */
+    public static final Pattern HOST_SELF_NAMED = Pattern.compile("[Uu]pstream|UPSTREAM|[Ll]egend_?[Ee]ngine"
+            + "|LEGEND_ENGINE|[Ll]egend_?[Pp]ure|LEGEND_PURE|[Pp]ure_?[Vv]1|PURE_V1");
+
     /** M2 over the product's classes: each class whose own name, or a field or method it declares, names upstream. */
     public static List<Hit> javaNames(Map<String, ClassFile> classes) {
         List<Hit> out = new ArrayList<>();
@@ -479,7 +505,7 @@ public final class MeaningCensus {
         for (Source s : sources) {
             Map<String, Integer> first = new LinkedHashMap<>();
             for (Token t : s.names()) {
-                if (selfNamed(t.text())) {
+                if (t.text().length() > 6 && HOST_SELF_NAMED.matcher(t.text()).find()) {
                     first.putIfAbsent(t.text(), t.line());
                 }
             }
@@ -493,6 +519,54 @@ public final class MeaningCensus {
 
     private static final Pattern TO_STRING = Pattern.compile("\\btoString\\s*\\(\\s*\\)\\s*\\{");
     private static final Pattern CLASS_DECL = Pattern.compile("(?m)^\\s*Class\\s+(?:<<[^>]*>>\\s*)?([\\w:]+)");
+
+    private static final Pattern FUNCTION_DECL = Pattern.compile("(?m)^\\s*function\\s+(?:<<[^>]*>>\\s*)?"
+            + "(?:\\{[^}]*\\}\\s*)?([\\w:]+)\\s*(?:<[^>]*>)?\\s*\\(");
+    private static final Pattern QUALIFIED = Pattern.compile("(?m)^\\s*(\\w+)\\s*\\(([^()]*)\\)\\s*\\{");
+    private static final Set<String> NOT_PROPERTIES = Set.of("if", "let", "assert", "fail", "map", "filter", "match",
+            "fold", "forAll", "exists", "toString");
+
+    /** M4's BODY: each Pure body a product resource ships -- a function with a body (no native one) and a class's
+     *  qualified property -- the world-map tenet's "the platform ships declarations ... no other Pure bodies" (a body
+     *  is residue unless it is named). One hit per body, the function's path or the class's and property's names. */
+    public static List<Hit> pureBodies(Map<String, String> productResources) {
+        List<Hit> out = new ArrayList<>();
+        productResources.forEach((name, text) -> {
+            if (!name.endsWith(".pure")) {
+                return;
+            }
+            Matcher f = FUNCTION_DECL.matcher(text);
+            while (f.find()) {
+                int brace = text.indexOf('{', f.end());
+                int semi = text.indexOf(';', f.end());
+                if (brace >= 0 && (semi < 0 || brace < semi)) {
+                    int line = text.substring(0, f.start()).split("\n", -1).length;
+                    out.add(new Hit("M4", "BODY", name + ":" + line, f.group(1), "a function with a Pure body"));
+                }
+            }
+            Matcher q = QUALIFIED.matcher(text);
+            while (q.find()) {
+                if (NOT_PROPERTIES.contains(q.group(1))) {
+                    continue;
+                }
+                String before = text.substring(0, q.start());
+                Matcher c = CLASS_DECL.matcher(before);
+                String cls = null;
+                int at = -1;
+                while (c.find()) {
+                    cls = c.group(1);
+                    at = c.start();
+                }
+                // a qualified property sits in a class's braces, after its declaration and before any later element
+                if (cls == null || before.substring(at).contains("\nfunction ") || before.substring(at).contains("\n###")) {
+                    continue;
+                }
+                int line = before.split("\n", -1).length;
+                out.add(new Hit("M4", "BODY", name + ":" + line, cls + "." + q.group(1), "a qualified property's Pure body"));
+            }
+        });
+        return out;
+    }
 
     /** M4: each {@code toString} body of a product Pure resource, with the class it prints. */
     public static List<Hit> printBodies(Map<String, String> productResources) {
@@ -825,6 +899,23 @@ public final class MeaningCensus {
             }
             out.add(new Hit("M7", "STATIC", e.replace('/', '.'), e.substring(e.lastIndexOf('/') + 1), host
                     + " reaches the edge at load: " + String.join(" -> ", path)));
+        }
+        return out;
+    }
+
+    /** M7's doors: each edge class with a {@code public static void main(String[])} -- an entry to upstream's routes
+     *  that no declared opt-in loads (HOSTS-7: {@code java -cp server_deploy.jar com.legend.edge.EdgeServer}). */
+    public static List<Hit> edgeDoors(Map<String, ClassFile> edge) {
+        List<Hit> out = new ArrayList<>();
+        for (ClassFile c : edge.values()) {
+            for (Method m : c.methods()) {
+                if (m.name().equals("main") && m.descriptor().equals("([Ljava/lang/String;)V")
+                        && (m.access() & 0x0009) == 0x0009) {
+                    out.add(new Hit("M7", "DOOR", FormsLens.where(c, m.lineAt(m.code().isEmpty() ? 0
+                            : m.code().get(0).pc())), c.binaryName() + "#main", "an edge class a JVM can start by"
+                            + " name: legend-engine's routes with no declared opt-in"));
+                }
+            }
         }
         return out;
     }

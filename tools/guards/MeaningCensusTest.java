@@ -93,11 +93,11 @@ class MeaningCensusTest {
         }
         Predicate<String> isTest = rule.isTest();
 
-        Set<String> lite = new HashSet<>(MeaningCensus.liteNames(resources));
-        lite.addAll(MeaningCensus.liteDeclared(product, hostProduct));
+        Set<String> lite = MeaningCensus.liteNames(resources);
         MeaningCensus.Vocabulary v = MeaningCensus.Vocabulary.of(
                 Files.readAllLines(Runfile.property("meaning.vocabulary"), StandardCharsets.UTF_8), lite,
-                MeaningCensus.jdkNames()).withEdge(edgeStrings(edge, hostEdge), lite);
+                MeaningCensus.jdkNames(), MeaningCensus.liteDeclared(product, hostProduct))
+                .withEdge(edgeStrings(edge, hostEdge), lite);
 
         Map<String, Integer> measured = new LinkedHashMap<>();
         measured.put("product classes", product.size());
@@ -130,6 +130,7 @@ class MeaningCensusTest {
             hits.add(new Hit("M3", f.shape(), f.where(), f.subject(), f.what()));
         }
         hits.addAll(MeaningCensus.printBodies(resources));
+        hits.addAll(MeaningCensus.pureBodies(resources));
         hits.addAll(MeaningCensus.javaComments(javaSources));
         hits.addAll(MeaningCensus.hostComments(productNoTests));
         hits.addAll(MeaningCensus.edgeOnly(hostProduct, hostEdge, isTest));
@@ -137,6 +138,7 @@ class MeaningCensusTest {
         for (Map.Entry<String, List<String>> root : JAVA_ROOTS.entrySet()) {
             hits.addAll(MeaningCensus.javaReach(all, Set.copyOf(root.getValue()), EDGE_CLASS, root.getKey()));
         }
+        hits.addAll(MeaningCensus.edgeDoors(edge));
         hits.addAll(MeaningCensus.buildReach(Files.readAllLines(Runfile.property("meaning.shipped_reach")),
                 "K2 with every host's edge targets"));
 
@@ -261,6 +263,8 @@ class MeaningCensusTest {
         Map<String, String> pure = Map.of("planted.pure", Files.readString(
                 SourceFiles.file("tools/meaning/planted/pure/planted.pure"), StandardCharsets.UTF_8));
         assertHit(MeaningCensus.printBodies(pure), "M4", "TOSTRING", "planted.pure", "meta::planted::Cell");
+        assertHit(MeaningCensus.pureBodies(pure), "M4", "BODY", "planted.pure", "meta::planted::Cell.display");
+        assertHit(MeaningCensus.pureBodies(pure), "M4", "BODY", "planted.pure", "meta::planted::shown");
 
         // M5: a reproduction declared, in TypeScript, Python and Java
         List<Hit> comments = MeaningCensus.hostComments(hostProduct);
@@ -281,6 +285,8 @@ class MeaningCensusTest {
         List<Hit> reach = MeaningCensus.hostReach(hostProduct, edgePaths, known, p -> false, List.of());
         assertHit(reach, "M7", "STATIC", "relation-reader.ts", "../edge/engine-routes.ts");
         assertHit(reach, "M7", "STATIC", "_planted_reader.py", ".edge");
+        // an edge class a JVM can start by name, past every declared opt-in (HOSTS-7)
+        assertHit(MeaningCensus.edgeDoors(edgeOnly), "M7", "DOOR", "planted/edge", "PlantedEdgeDoor#main");
         for (String entry : List.of("Server", "Tab", "Native", "QueriesPage")) {
             List<Hit> java = MeaningCensus.javaReach(planted, Set.of("com/legend/tools/meaning/planted/PlantedEntries$"
                     + entry), plantedEdge, "planted " + entry);

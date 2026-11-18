@@ -1,6 +1,15 @@
-// PLANTED (census B2, M4): a platform class's print form shipped as a Pure body
+// PLANTED (census B2, M4): a platform class's print form shipped as a Pure body, a qualified property's body and a
+// function's body
 Class meta::planted::Cell
 {
    value: String[0..1];
    toString(){if($this.value->isEmpty(), |'TDSNull', |$this.value->toOne())}:String[1];
+   display(){'[' + $this.value->toOne() + ']'}:String[1];
 }
+
+function meta::planted::shown(c: meta::planted::Cell[1]): String[1]
+{
+   $c.display()
+}
+
+native function meta::planted::declared(c: meta::planted::Cell[1]): String[1];
