@@ -21,7 +21,6 @@ import com.legend.protocol.spec.CString;
 import com.legend.protocol.spec.LambdaFunction;
 import com.legend.protocol.spec.ValueSpecification;
 import com.legend.test.PureTestRunner;
-import com.legend.test.TestAssertions;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -70,7 +69,7 @@ import java.util.Map;
  *       ({@code {"builder":{"_type":"json"},"values":[...]}}, the engine's
  *       DEFAULT for a serialize root); a scalar or collection renders as
  *       its value(s); DEFAULT on a tabular result is SKIPPED, loudly;</li>
- *   <li><b>judgment</b>: {@code EqualToJson} through {@link TestAssertions}
+ *   <li><b>judgment</b>: {@code EqualToJson} through {@link EqualToJson}
  *       (null ≡ missing, unordered arrays, exact decimals). Other assertion
  *       kinds are SKIPPED, loudly — never a silent pass.</li>
  * </ul>
@@ -582,7 +581,7 @@ public final class ServiceTestRunner implements AutoCloseable {
                 } catch (RuntimeException e) {
                     yield "expected JSON does not parse: " + e.getMessage();
                 }
-                yield TestAssertions.equalToJson(expected, actual);
+                yield EqualToJson.diff(expected, actual);
             }
             case Protocol.PEqualToValue eq -> throw new Skip("assertion '" + a.id()
                     + "': EqualTo (a spec value) is not judged by this runner");
