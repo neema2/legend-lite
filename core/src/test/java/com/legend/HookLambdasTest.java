@@ -91,6 +91,11 @@ class HookLambdasTest {
                     Set.of("com.legend.lowering.VerdictWords", "(twoForm reaches 1)")),
             // how the database judge plans two numbers' equality (E-Java's train-17 item 4, dacc4bf313, 2026-11-18: the
             // judging rules' floatUlps and decimalScale behind the VerdictNumbers two-form kind, as CrossKindNumbers)
+            // a serialized root's string-entry value (E-Java's train-17 item 2, VALUES half, b70d85ab9, train 18,
+            // 2026-11-18: ResultEnvelopes.values deleted, the frame planner asks the ExecutedValues two-form kind)
+            Map.entry("com.legend.planner.FramePlanner#chain(com.legend.compiler.spec.typed.TypedNativeCall,"
+                    + " java.util.List, com.legend.compiler.spec.SpecCompiler, com.legend.planner.PlanEnv)",
+                    Set.of("com.legend.planner.ExecutedValues", "(twoForm reaches 1)")),
             Map.entry("com.legend.testplan.DatabaseJudge#verdictNumbers(com.legend.testplan.BodyDriver$ExecEnv)",
                     Set.of("com.legend.lowering.VerdictNumbers", "(twoForm reaches 1)")),
             Map.entry("com.legend.testplan.TestDoor#planned(com.legend.TypedQuery, java.lang.String, java.util.Set,"
@@ -129,6 +134,9 @@ class HookLambdasTest {
             // two numbers' equality's product form, lite's exact rule (E-Java's train-17 item 4, dacc4bf313, 2026-11-18;
             // the edge's form compiled legend-pure's, CompiledPureVerdictNumbers)
             Map.entry("com.legend.lowering.LiteVerdictNumbers", Set.of("com.legend.lowering.VerdictNumbers")),
+            // a serialized root's string-entry value's product form: refused, by today's sentence, at planning (E-Java's
+            // train-17 item 2, VALUES half, b70d85ab9, train 18, 2026-11-18; the edge's form EngineExecutedValues)
+            Map.entry("com.legend.planner.RefusedExecutedValues", Set.of("com.legend.planner.ExecutedValues")),
             // a database's settings' product form, H2's own defaults (J22, the user's ruling of 2026-11-17 23:05;
             // 59719a0153's train, train 11; HookRulingTest pins the kind; measured 2026-11-18)
             Map.entry("com.legend.sql.dialect.ProductDatabaseSettings", Set.of("com.legend.sql.dialect.DatabaseSettingsForm")),
