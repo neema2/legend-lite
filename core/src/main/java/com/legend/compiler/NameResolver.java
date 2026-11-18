@@ -696,6 +696,18 @@ public final class NameResolver {
                 : new TypeExpression.Column(c.name(), nn(t), c.multiplicity());
     }
 
+    /** A user's call to one of the compiler's own natives ({@link com.legend.builtin.Pure#COMPILER_OWN}), by its full
+     *  name or a bare name an import reaches, refused by name: only the compiler writes them, born resolved
+     *  ({@code compiler.spec.Calls}), so a call this resolver names is the user's (PR #118 fix round, 2026-11-18, N1). */
+    private static void refuseCompilersOwn(String fn, List<String> candidates) {
+        for (String name : candidates.isEmpty() ? List.of(fn) : candidates) {
+            if (com.legend.builtin.Pure.COMPILER_OWN.contains(name)) {
+                throw new com.legend.error.ResolutionException("'" + name
+                        + "' is the compiler's own function: a query or a model cannot call it");
+            }
+        }
+    }
+
     /** Core lookup. Private; callers go through {@link #resolveType} etc. */
     private static String resolveName(String name, Scope scope) {
         List<String> matches = resolveNameMulti(name, scope, "type");
@@ -1897,6 +1909,7 @@ public final class NameResolver {
                         scope.prelude(), af.parameters().size());
                 String fn = named.function();
                 List<String> candidates = named.referents();
+                refuseCompilersOwn(fn, candidates);
                 List<ValueSpecification> params = resolveVsList(af.parameters(), scope);
                 yield (fn.equals(af.function()) && params == af.parameters() && candidates.isEmpty()) ? af
                         // preserve pos + every written form: infix is load-bearing downstream (the emitter's

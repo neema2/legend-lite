@@ -622,6 +622,12 @@ public final class Pure {
         }
     }
 
+    /** The compiler's own natives, which only the compiler writes (PR #118 fix round, 2026-11-18, N1; the edge
+     *  follow-ups' F32): a call born with its record after the name resolver ({@code compiler.spec.Calls}) -- the type
+     *  check's raise and a TDS cell's text. A user's call to either, by any name, is refused where the user's names are
+     *  resolved ({@code compiler.NameResolver}). */
+    public static final java.util.Set<String> COMPILER_OWN = java.util.Set.of(Lite.TYPE_RAISE, Lite.CELL_TEXT);
+
     private static String liteLocalName(String fqn) {
         return fqn.substring(Lite.PKG.length());
     }
