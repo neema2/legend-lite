@@ -36,6 +36,11 @@ public final class SiteWordsRecorder implements PlanStyle {
         this.template = java.util.Objects.requireNonNull(template, "the recorder's template style");
     }
 
+    /** The style this recorder answers as (its template). */
+    PlanStyle template() {
+        return template;
+    }
+
     /** Records legend-pure's words of each of {@code sites}, the sites of the statement {@code text}. */
     @Override
     public void siteWords(String text, List<com.legend.sql.dialect.RaiseSite> sites) {
