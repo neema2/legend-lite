@@ -69,7 +69,9 @@ class EdgeOnlyMembersTest {
             Map.entry("com.legend.lineage.ScanRelations#rootImpl(com.legend.compiler.element.ModelContext, java.lang.String, java.lang.String)",
                     "J40.ScanRelations E-SQL MOVE (2026-11-18): legend-engine's set-implementation identity (#47, the plan printer)"),
             Map.entry("com.legend.lineage.ScanRelations#rootImpl(com.legend.compiler.element.ModelContext, java.lang.String, java.lang.String, java.util.List)",
-                    "J40.ScanRelations E-SQL MOVE (2026-11-18): legend-engine's set-implementation identity (#47, the plan printer)"),
+                    "J40.ScanRelations E-SQL MOVE (2026-11-18): legend-engine's set-implementation identity (#47, the plan printer)"));
+            // (VerdictSql#textEquals: moved 2026-11-18 by E-Java's j40c, 9dd14f6fdc -- the product keeps constantTextsEqual,
+            // READ_API below; J40.VerdictSql closes)
             // re-measured 2026-11-18 on train 15 1931d419b1 (the GUARD stream's re-cut): train 15 closed seven pins
             // (PlatformTypes' TO_SQL_STRING and TO_SQL_STRING_PRETTY, BodyPlanner#pushDownEnums, QueryParameters$Declared's
             // planParam and signature, AggregationAwareRouting#mainSetId, Verdicts#scalarString -- two class lines gone,
@@ -84,8 +86,8 @@ class EdgeOnlyMembersTest {
             // J40.AssertVerdicts, J40.VerdictQueries, J40.ExecutionContext, J40.SqlTextInputs, J40.BodyPlanner and
             // J40.TypedQuery lines go; one found: legend-engine's toSQL native's name, its reader moved with F's
             // SqlTextInputs to the edge
-            Map.entry("com.legend.compiler.element.type.PlatformTypes#TO_SQL",
-                    "J40.PlatformTypes F (e92c465d moved its reader) MOVE (2026-11-18): legend-engine's toSQL native's name, read by the edge's SqlTextInputs alone"));
+            // (PlatformTypes#TO_SQL: gone 2026-11-18 by F's J40.PlatformTypes commit -- the edge's SqlTextInputs names
+            // the toSQL handle by the native registry's member, NativeFn.Handle.TO_SQL; J40.PlatformTypes closes)
             // (PlatformTypes#TO_NON_EXECUTABLE_SQL_STRING and VerdictSql#reprNewlines: moved to the edge 2026-11-18 by
             // E-Java's j40b, 9099e1d6d3 and 0f2eba0c85, train 17 -- J40.PlatformTypes stays open on TO_SQL, J40.VerdictSql
             // on textEquals)
