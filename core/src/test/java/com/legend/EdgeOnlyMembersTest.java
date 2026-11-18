@@ -74,17 +74,19 @@ class EdgeOnlyMembersTest {
             // stream), counted until ruled -- each with its owner and the proposed ruling:
             // legend-engine's request model context (PureModelContextText/Data): lite v1 no longer reads it (the host train
             // dropped LiteV1Api's ModelInput.of), so the type is the edge's routes' alone (PureV1Routes, TestDataRoutes);
-            // ruled MOVE by the orchestrator 2026-11-18 (train 19), assigned to E-Java -- counted until the move lands
+            // ruled MOVE by the orchestrator 2026-11-18 (train 19), its author the TS host's to move (E-Java stood down) --
+            // counted until the move lands
             Map.entry("com.legend.server.ModelInput#of(com.legend.json.Json$Obj)",
-                    "J40.ModelInput E-Java (2026-11-18, train 19, a7fedfc878): ruled MOVE -- the type to the edge, with its two READ_API rows"),
+                    "J40.ModelInput TS-HOST (2026-11-18, train 19, a7fedfc878): ruled MOVE -- the type to the edge, with its two READ_API rows"),
             Map.entry("com.legend.server.ModelInput#with(com.legend.server.LiteV1Api$Models, java.util.function.Function)",
-                    "J40.ModelInput E-Java (2026-11-18, train 19, a7fedfc878): ruled MOVE -- the type to the edge, with its two READ_API rows"),
+                    "J40.ModelInput TS-HOST (2026-11-18, train 19, a7fedfc878): ruled MOVE -- the type to the edge, with its two READ_API rows"),
             Map.entry("com.legend.server.ModelInput$Data#<init>(com.legend.protocol.Protocol$PureModelContextData)",
-                    "J40.ModelInput E-Java (2026-11-18, train 19, a7fedfc878): ruled MOVE -- the type to the edge, with its two READ_API rows"),
+                    "J40.ModelInput TS-HOST (2026-11-18, train 19, a7fedfc878): ruled MOVE -- the type to the edge, with its two READ_API rows"),
             Map.entry("com.legend.server.ModelInput$Text#<init>(java.lang.String)",
-                    "J40.ModelInput E-Java (2026-11-18, train 19, a7fedfc878): ruled MOVE -- the type to the edge, with its two READ_API rows")
-            // (RaisedErrors$Raised#statement and SavedQueries#reshaped: ruled READ_API by the orchestrator 2026-11-18, train
-            // 19, below -- J40.RaisedErrors and J40.SavedQueries close)
+                    "J40.ModelInput TS-HOST (2026-11-18, train 19, a7fedfc878): ruled MOVE -- the type to the edge, with its two READ_API rows")
+            // (RaisedErrors$Raised#statement: ruled READ_API by the orchestrator 2026-11-18, train 19, below -- J40.RaisedErrors
+            // closes; SavedQueries#reshaped: MOVED 2026-11-18 by E-P5's 4eb39b2a4f, edge.StoreWords reads lite's
+            // answer itself -- J40.SavedQueries closes)
             );
             // re-measured 2026-11-18 on train 15 1931d419b1 (the GUARD stream's re-cut): train 15 closed seven pins
             // (PlatformTypes' TO_SQL_STRING and TO_SQL_STRING_PRETTY, BodyPlanner#pushDownEnums, QueryParameters$Declared's
@@ -233,12 +235,10 @@ class EdgeOnlyMembersTest {
                     "2026-11-18: a lookup over lite's normalized mapping: an enum's enumeration mapping"),
             // the orchestrator's rulings of 2026-11-18 (train 19, on the GUARD stream's triage): exec's raised error carries
             // the plan's own text of the statement that raised (set by the seam from the PlannedSql it sent), which the
-            // edge keys its recorded words on (K10b); and a reader of lite's own refusal answer, product output, for the
-            // edge's StoreWords (J9) -- J40.RaisedErrors and J40.SavedQueries close
+            // edge keys its recorded words on (K10b) -- J40.RaisedErrors closes (SavedQueries#reshaped, ruled READ_API the
+            // same day, moved to the edge instead by E-P5's 4eb39b2a4f)
             Map.entry("com.legend.exec.RaisedErrors$Raised#statement()",
                     "2026-11-18: the plan's own text of the statement that raised, a fact of the product's run (the orchestrator's ruling)"),
-            Map.entry("com.legend.queries.SavedQueries#reshaped(int, java.lang.String, java.util.function.BiFunction)",
-                    "2026-11-18: a reader of lite's own refusal answer, product output (the orchestrator's ruling)"),
             Map.entry("com.legend.plan.QueryPlan#columns()",
                     "2026-11-18: lite's query plan's own columns and shape"),
             // the class's ruling, extended 2026-11-18 on train 19's trial by the GUARD stream: the product's own plan and
