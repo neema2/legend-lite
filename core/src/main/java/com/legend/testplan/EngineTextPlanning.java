@@ -216,7 +216,7 @@ import java.util.List;
     // ---- the planner's and the lowering's reads ---------------------------------------------------------------------
 
     public static com.legend.sql.SqlQuery textEquals(String golden, String ours) {
-        return com.legend.lowering.VerdictSql.textEquals(golden, ours);
+        return com.legend.lowering.VerdictSql.constantTextsEqual(golden, ours);
     }
 
     public static com.legend.sql.SqlQuery textEquals(String golden, com.legend.sql.SqlQuery oursRow) {
