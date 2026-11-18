@@ -1559,10 +1559,8 @@ final class SqlTextVerdicts {
             TypedSpec cur = work.poll();
             if (cur instanceof TypedNativeCall nc) {
                 String fqn = nc.callee().qualifiedName();
-                if (fqn.equals(com.legend.compiler.element.type
-                                .PlatformTypes.TO_SQL_STRING)
-                        || fqn.equals(com.legend.compiler.element.type
-                                .PlatformTypes.TO_SQL_STRING_PRETTY)
+                if (fqn.equals(EdgeEngineTestText.TO_SQL_STRING)
+                        || fqn.equals(EdgeEngineTestText.TO_SQL_STRING_PRETTY)
                         || fqn.equals(com.legend.compiler.element.type
                                 .PlatformTypes.TO_NON_EXECUTABLE_SQL_STRING)) {
                     return com.legend.compiler.spec.NativeDispatch.RoutineCall.of(nc);

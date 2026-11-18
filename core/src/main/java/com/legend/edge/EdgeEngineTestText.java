@@ -117,10 +117,19 @@ final class EdgeEngineTestText implements EngineTestText {
         }
     }
 
+    /** legend-engine's SQL-text surface, {@code toSQLString}: the query lambda lowers through the platform's own
+     *  G½->H->I against the given mapping and renders with the engine-style dialect (audit 19d B3; moved from the
+     *  product's PlatformTypes, 2026-11-18, the edge audit's J40: the edge alone reads it). */
+    public static final String TO_SQL_STRING = "meta::relational::functions::sqlstring::toSQLString";
+
+    /** toSQLString with the engine's pretty Format (sqlRemoveFormatting normalizes the whitespace difference away in
+     *  every golden compare; engine toSQLString.pure:35; J40, as {@link #TO_SQL_STRING}). */
+    public static final String TO_SQL_STRING_PRETTY = "meta::relational::functions::sqlstring::toSQLStringPretty";
+
     /** The producers of upstream's text an engine-text assert reads. */
     private static final java.util.Set<String> UPSTREAM_TEXT_PRODUCERS = java.util.Set.of(
-            com.legend.compiler.element.type.PlatformTypes.TO_SQL_STRING,
-            com.legend.compiler.element.type.PlatformTypes.TO_SQL_STRING_PRETTY,
+            TO_SQL_STRING,
+            TO_SQL_STRING_PRETTY,
             com.legend.compiler.element.type.PlatformTypes.TO_NON_EXECUTABLE_SQL_STRING,
             com.legend.compiler.element.type.PlatformTypes.EXECUTION_PLAN,
             com.legend.compiler.spec.ResultEnvelopeSplice.SQL_FQN,
