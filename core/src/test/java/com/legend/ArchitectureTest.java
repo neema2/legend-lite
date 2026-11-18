@@ -4202,15 +4202,9 @@ final class ArchitectureTest {
         java.util.Set<String> seen = new java.util.TreeSet<>();
         // the edge's classes too (W6, 2026-11-16: StableScanOrder's census moved to com.legend.edge, its own jar)
         for (com.tngtech.archunit.core.domain.JavaClass jc : CORE_AND_EDGE_CLASSES) {
-            Class<?> cls;
-            try {
-                cls = Class.forName(jc.getName());
-            } catch (ExceptionInInitializerError e) {
-                // a class whose initialiser fails is a finding, never a class skipped (the follow-up audit, 2026-11-09)
-                violations.add(jc.getName() + "'s class initialiser fails: " + e.getCause());
+            Class<?> cls = loadedOrFound(jc.getName(), ArchitectureTest.class.getClassLoader(), violations);
+            if (cls == null) {
                 continue;
-            } catch (NoClassDefFoundError | ClassNotFoundException e) {
-                continue; // a class whose driver is not on the test JVM's classpath: nothing to inspect
             }
             for (java.lang.reflect.Field f : cls.getDeclaredFields()) {
                 if (!java.lang.reflect.Modifier.isStatic(f.getModifiers()) || f.isSynthetic()
@@ -4245,6 +4239,40 @@ final class ArchitectureTest {
         org.junit.jupiter.api.Assertions.assertTrue(violations.isEmpty(),
                 "no static state but the register's (constant, sealed, or registered by kind):\n  "
                         + String.join("\n  ", violations));
+    }
+
+    /**
+     * The class {@code name} as {@code loader} loads it, or null with the finding added: a class whose initialiser fails,
+     * or one the test JVM cannot load at all, is judged by no one, so it is a finding, never a class skipped (the
+     * initialiser: the follow-up audit, 2026-11-09; an unloadable class: the review of C.11, S7, 2026-11-18 -- the rule
+     * skipped it as "a class whose driver is not on the classpath", which let an imported jar go unjudged; measured
+     * that day, no class of the product's and the edge's jars is unloadable on :guardrails_edge's classpath).
+     */
+    static Class<?> loadedOrFound(String name, ClassLoader loader, java.util.List<String> violations) {
+        try {
+            return Class.forName(name, true, loader);
+        } catch (ExceptionInInitializerError e) {
+            violations.add(name + "'s class initialiser fails: " + e.getCause());
+        } catch (NoClassDefFoundError | ClassNotFoundException e) {
+            violations.add(name + " cannot be loaded on the test's classpath (" + e + "): put its library on the"
+                    + " runtime classpath, or its static state is judged by no one");
+        }
+        return null;
+    }
+
+    /** Planted: a class the loader cannot see is a finding, not a class skipped. */
+    @Test
+    void anUnloadableClassIsAFinding() {
+        java.util.List<String> violations = new java.util.ArrayList<>();
+        ClassLoader blind = new java.net.URLClassLoader(new java.net.URL[0], ClassLoader.getPlatformClassLoader());
+        org.junit.jupiter.api.Assertions.assertNull(loadedOrFound("com.legend.ArchitectureTest", blind, violations));
+        org.junit.jupiter.api.Assertions.assertEquals(1, violations.size(), violations.toString());
+        org.junit.jupiter.api.Assertions.assertTrue(violations.get(0).startsWith(
+                "com.legend.ArchitectureTest cannot be loaded on the test's classpath"), violations.get(0));
+        java.util.List<String> none = new java.util.ArrayList<>();
+        org.junit.jupiter.api.Assertions.assertEquals(ArchitectureTest.class,
+                loadedOrFound("com.legend.ArchitectureTest", ArchitectureTest.class.getClassLoader(), none));
+        org.junit.jupiter.api.Assertions.assertEquals(java.util.List.of(), none);
     }
 
     /** Why {@code v} is mutable, or null for a constant. */

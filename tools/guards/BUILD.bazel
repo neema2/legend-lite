@@ -2,6 +2,7 @@
 # (@repo_inventory); defs.bzl's guards_package gives each package an `all_files` the content guards read.
 load("@bazel_skylib//rules:native_binary.bzl", "native_binary", "native_test")
 load("@repo_inventory//:packages.bzl", "PACKAGES")
+load("@rules_python//python:py_library.bzl", "py_library")
 load(":compile_only.bzl", "action_kinds_report", "compile_only_validated_fixture")
 load(":defs.bzl", "guards_package")
 load(":workflows.bzl", "git_marker")
@@ -336,32 +337,43 @@ guards_package()
 # SHRINK-ONLY, BY THE MERGE-BASE (the edge audit's C.11, second half; the GUARD stream's C.13-CI, the orchestrator's GO of
 # 2026-11-17): a watched pin of a guard file grows (an entry added, a number raised) only with a dated note. The reader and
 # the rule on planted pins, hermetic, in the checks lane:
+py_library(
+    name = "shrink_only_lib",
+    srcs = ["shrink_only.py"],
+)
+
 py_test(
     name = "shrink_only_test",
     size = "small",
-    srcs = [
-        "shrink_only.py",
-        "shrink_only_test.py",
-    ],
+    srcs = ["shrink_only_test.py"],
+    # the check's own target is read for its tags (the review of C.13-CI, M2, 2026-11-18)
+    data = ["BUILD.bazel"],
     main = "shrink_only_test.py",
+    deps = [":shrink_only_lib"],
     visibility = ["//gates:__pkg__"],
 )
 
 # ... and the check itself, HEAD against its merge-base with origin/main: it reads the repository's history, so it runs
-# outside the sandbox (local) and by name (manual: //gates:local lists it, and so does //gates:heavy for the lane guard);
-# CI runs the same script in gate.yml's shrink-only job, on a full clone
+# outside the sandbox (local), is never answered from the cache (external: its inputs are the history and the guard
+# files, none of them declared -- the review of C.13-CI, M2, 2026-11-18: cached, //gates:local answered "PASSED"
+# whatever the pins became), and runs by name (manual: //gates:local lists it, and so does //gates:heavy for the lane
+# guard); CI runs the same script in gate.yml's shrink-only job, on a full clone
 py_test(
     name = "shrink_only_check",
     size = "small",
-    srcs = ["shrink_only.py"],
+    # its entry calls the one library that holds the check: one target compiles shrink_only.py (2026-11-18: listed in
+    # two targets' srcs, its .pyc was written by two actions, a conflict that kept //gates:local from building)
+    srcs = ["shrink_only_check.py"],
     args = [
         "--base",
         "origin/main",
     ],
-    main = "shrink_only.py",
+    main = "shrink_only_check.py",
     tags = [
+        "external",
         "local",
         "manual",
     ],
     visibility = ["//gates:__pkg__"],
+    deps = [":shrink_only_lib"],
 )
