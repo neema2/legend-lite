@@ -1370,7 +1370,6 @@ final class ArchitectureTest {
             // the frame's shape it reads, the canons
             "lowering.VerdictSql#represented(com.legend.lowering.Styled, com.legend.compiler.element.type.Type, "
                     + "com.legend.sql.SqlExpr)", "com.legend.edge.UpstreamVerdictWords",
-            "lowering.VerdictSql#reprNewlines(com.legend.sql.SqlExpr)", "com.legend.edge.UpstreamVerdictWords",
             "lowering.VerdictSql#quoted(com.legend.sql.SqlExpr)", "com.legend.edge.UpstreamVerdictWords",
             // (VerdictWords$Reads#CANONS until 2026-11-18: the enum left the two-form kind for its own type, the GUARD
             // stream's re-cut on train 15 1931d419b1 -- PlanStyleSurfaceTest's criterion (a); the same member, renamed)
