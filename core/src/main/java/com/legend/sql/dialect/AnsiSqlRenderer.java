@@ -1156,6 +1156,13 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
      */
     protected abstract SqlWriter call(SqlWriter writer, SqlExpr.Call c, int parentPrec);
 
+    /** {@link SqlFn#IS_NUMERIC}: the dialect's own full match of {@link SqlFn#NUMERIC_TEXT} (census J20, 2026-11-18), the
+     *  same rule on every database; a dialect whose full match cannot say it overrides this. */
+    protected SqlWriter isNumeric(SqlWriter writer, SqlExpr s, int parentPrec) {
+        return call(writer, SqlExpr.Call.of(SqlFn.REGEXP_FULL_MATCH, s, new SqlExpr.StringLit(SqlFn.NUMERIC_TEXT)),
+                parentPrec);
+    }
+
     // ---- the helpers a dialect's switch calls by name: a spelling several databases share, written once (helpers
     // implement, the switch decides; none is reached unless a dialect names it)
 
