@@ -29,13 +29,15 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
  * GUARD L-B: THE PLAN'S AND THE MIR'S DATA, EACH PIECE THE PRODUCT'S OWN (the orchestrator's order of 2026-11-18, after
- * J28 -- a MIR variant the edge alone made -- and J31 -- legend-engine's template fields, set and read by the edge alone).
+ * J28 -- a MIR variant the edge alone made -- and J31 -- legend-engine's template fields, set and read by the edge
+ * alone).
  * Every record component, enum constant and sealed variant of the MIR ({@code com.legend.sql}), the plans
  * ({@code com.legend.executionplan}, {@code com.legend.testexecutionplan}) and the typed tree
  * ({@code com.legend.compiler.spec.typed}) needs a REAL product use:
  * <ul>
  *   <li>a component is READ by product code;</li>
- *   <li>a constant is NAMED by product code (a switch's arm is a case, not a use: javac's switch tables are left out);</li>
+ *   <li>a constant is NAMED by product code (a switch's arm is a case, not a use: javac's switch tables are left
+ *   out);</li>
  *   <li>a variant is MADE by product code.</li>
  * </ul>
  * Copying is no use: the record's own code (its constructor, its {@code withX}), a {@code SqlRewriter} (it rebuilds
@@ -167,8 +169,8 @@ class EdgeOnlyDataTest {
         found.forEach(f -> byKind.merge(f.substring(f.lastIndexOf(": ") + 2), "1", (a, b) -> String.valueOf(
                 Integer.parseInt(a) + 1)));
         assertEquals(new TreeSet<>(OPEN.keySet()), found, "a piece of the plan's or the MIR's data with no real product"
-                + " use -- the edge's data in the product (J28's, J31's shape): move it to the edge, delete it, or rule it"
-                + " here (" + byKind + ")");
+                + " use -- the edge's data in the product (J28's, J31's shape): move it to the edge, delete it, or rule"
+                + " it here (" + byKind + ")");
     }
 
     @Test

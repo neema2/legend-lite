@@ -153,8 +153,8 @@ class UpstreamBranchesTest {
     @Test
     void theProductBranchesOnUpstreamOnlyWherePinned() {
         assertEquals(new TreeMap<>(SITES), found(PACKAGES), "a product branch on upstream's shape -- a judging rule's"
-                + " upstream tolerance or upstream's frame name -- beyond its pin: hand the branch in from the edge by a"
-                + " hook (a site gone: lower its pin, dated)");
+                + " upstream tolerance or upstream's frame name -- beyond its pin: hand the branch in from the edge by"
+                + " a hook (a site gone: lower its pin, dated)");
     }
 
     @Test
