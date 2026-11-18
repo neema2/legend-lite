@@ -28,11 +28,17 @@ public final class DataError extends RuntimeException {
     /** The database's own message, verbatim, where the error is the database's ({@link ErrorKind#isDatabases}). */
     private final @com.legend.base.Nullable String databaseMessage;
 
+    /** Where the raise happened, as its constructor was given it (a site's where: a parameter's name, the digits a
+     *  database keeps), or null. Kept since PR #118's fix round (2026-11-18, N3): until then it was taken and dropped,
+     *  so lite's API could not answer it. */
+    private final @com.legend.base.Nullable String where;
+
     public DataError(String message, Throwable cause) {
         super(message, cause);
         this.kind = null;
         this.sqlState = null;
         this.databaseMessage = null;
+        this.where = null;
     }
 
     /** A product raise of {@code kind}: its message the kind's sentence, spelled here, the error layer's
@@ -49,6 +55,7 @@ public final class DataError extends RuntimeException {
         this.kind = kind;
         this.sqlState = null;
         this.databaseMessage = null;
+        this.where = where;
     }
 
     /** A raise of a planned site of {@code kind} placed by {@code where} (phase D's Phase 2, raises as SITES,
@@ -59,6 +66,7 @@ public final class DataError extends RuntimeException {
         this.kind = kind;
         this.sqlState = null;
         this.databaseMessage = null;
+        this.where = where;
     }
 
     private DataError(ErrorKind kind, @com.legend.base.Nullable String sqlState, String databaseMessage, String message,
@@ -71,6 +79,7 @@ public final class DataError extends RuntimeException {
         this.kind = kind;
         this.sqlState = sqlState;
         this.databaseMessage = databaseMessage;
+        this.where = null;
     }
 
     /** A failure the database raised itself (phase D's Phase 2, item 4, 2026-11-16): {@code kind} DATABASE_ERROR or
@@ -92,6 +101,11 @@ public final class DataError extends RuntimeException {
         return databaseMessage;
     }
 
+    /** Where the raise happened, as its constructor was given it, or null. */
+    public @com.legend.base.Nullable String where() {
+        return where;
+    }
+
     /** The product raise's kind, or null where the error is not one ({@link #DataError(String, Throwable)}). */
     public @com.legend.base.Nullable ErrorKind kind() {
         return kind;
@@ -104,5 +118,6 @@ public final class DataError extends RuntimeException {
         this.kind = null;
         this.sqlState = null;
         this.databaseMessage = null;
+        this.where = null;
     }
 }

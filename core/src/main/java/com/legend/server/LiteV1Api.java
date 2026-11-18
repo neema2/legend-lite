@@ -402,8 +402,7 @@ public final class LiteV1Api {
             return new Refusal(Kind.UNSUPPORTED, String.valueOf(e.getMessage()), null, null);
         }
         if (e instanceof com.legend.error.DataError d) {
-            return new Refusal(Kind.DATA, String.valueOf(d.getMessage()), null,
-                    d.kind() == null ? null : lowerCamel(d.kind().name()));
+            return dataRefusal(d);
         }
         if (e instanceof com.legend.error.MissingParameters || e instanceof com.legend.error.InvalidParameters) {
             return new Refusal(Kind.PARAMETERS, String.valueOf(e.getMessage()), null, null);
@@ -412,6 +411,26 @@ public final class LiteV1Api {
             return new Refusal(Kind.REQUEST, String.valueOf(e.getMessage()), null, null);
         }
         return new Refusal(Kind.INTERNAL, e.getClass().getSimpleName() + ": " + e.getMessage(), null, null);
+    }
+
+    /**
+     * A run's failure as lite's refusal (spec §3; PR #118 fix round, 2026-11-18, N3, ruled by the orchestrator pending the
+     * user): a raise ({@link com.legend.error.ErrorKind#isRaise}) is {@code data}, its kind in {@code raise} and its
+     * site's where in {@code where}; the database refusing the work in its own words ({@code DATABASE_ERROR}), a load's
+     * file larger than it admits ({@code FILE_TOO_LARGE}, its path in the message) and an error of no kind are
+     * {@code data} with no {@code raise}; a connection that could not open or was lost ({@code CONNECTION_ERROR}) is
+     * the environment, not the caller's query: {@code internal}.
+     */
+    private static Refusal dataRefusal(com.legend.error.DataError d) {
+        String message = String.valueOf(d.getMessage());
+        com.legend.error.ErrorKind kind = d.kind();
+        if (kind == com.legend.error.ErrorKind.CONNECTION_ERROR) {
+            return new Refusal(Kind.INTERNAL, message, null, null);
+        }
+        if (kind != null && kind.isRaise()) {
+            return new Refusal(Kind.DATA, message, d.where(), lowerCamel(kind.name()));
+        }
+        return new Refusal(Kind.DATA, message, null, null);
     }
 
     /** {@code DIVIDE_BY_ZERO} as {@code divideByZero}: a wire name. */
