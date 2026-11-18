@@ -32,11 +32,6 @@ public final class ModelReader {
     private ModelReader() {
     }
 
-    /** A whole {@code PureModelContextData}, as text. */
-    public static PureModelContextData read(String json) {
-        return read(Json.parse(json, DEEP));
-    }
-
     /**
      * A whole {@code PureModelContextData}: its elements, and the {@code serializer} and {@code origin} a model from an
      * SDLC or Depot carries. Older JSON spreads the elements over sections ({@code domain}'s classes, associations,
