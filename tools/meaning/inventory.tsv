@@ -1,0 +1,26 @@
+# THE MEANING CENSUS'S CLASSIFICATION (census B2, 2026-11-19; //tools/guards:meaning_census_test reads it, report-only).
+# Each row: lens | category | file glob | term glob | class | reason. The first row whose lens, category, file and term
+# match a hit classifies it (* is any run of characters; a lens or category of * any). A class is
+#   a  upstream meaning in the product (a finding: the edge's, or ruled to stay);
+#   b  covered by a user ruling (a docs/SEMANTICS_REGISTER.md row, or FOLLOW_UPS.md §6/§7's R1-R11), named;
+#   c  no upstream meaning (a false positive), with the reason.
+# A reason naming a known item carries its id in brackets ([C1]); the summary counts each known item's hits.
+# KNOWN rows: KNOWN | id | what | why the census may not see it (empty when it should).
+
+KNOWN | C1 | legend-engine's union framing shape runs in product lowering (LOWERSQL-1, GUARDS-2) |
+KNOWN | C2 | the product planner computes legend-engine's exists-join rule (LOWERSQL-4) |
+KNOWN | C3-TS | TypeScript product records read legend-engine's shapes (COMPLETENESS-1) |
+KNOWN | C3-Py | Python's product plan record reads relationalType (COMPLETENESS-4) |
+KNOWN | HOSTS-3 | Python's product engine serves /api/server/v1/currentUser (C4) |
+KNOWN | HOSTS-4 | Python's product loader holds the engine library's entry table and imports legend_lite_engine (C4) |
+KNOWN | HOSTS-7 | two undeclared doors to legend-engine's routes: EdgeServer.main, Python's direct EngineRoutes() (R11(b)) |
+KNOWN | C5 | the prelude ships legend-pure's print bodies (Pair, List, SQLNull, TDSColumn) (COMPLETENESS-2, R5) |
+KNOWN | R11a | the product store's legend-engine statuses and IllegalArgumentException text (PH-2, PRODUCT-1, HOSTS-9) |
+KNOWN | LOWERSQL-7 | H2's product dialect sets legend-engine's NON_KEYWORDS on every session |
+KNOWN | COMPLETENESS-7 | parser and protocol emitter reproduce legend-engine's span and emit quirks |
+KNOWN | COMPLETENESS-8 | product test order and lineage labels follow legend-engine (engineSuiteOrder, unionAlias, SQLNull) |
+KNOWN | PRODUCT-7 | edge-only product surface exempted on reasons that do not hold (LiteV1Api.Runner, testDataTimestampText, "pageContent") |
+KNOWN | PRODUCT-11 | readThroughExecuteValues: an edge-only flag carried through four product layers |
+KNOWN | JUDGES-3 | host failure texts bypass HostWords, so the judges disagree on the message |
+KNOWN | JUDGES-6 | judgesEngineText() serves as an "is this the edge" flag |
+KNOWN | C6 | DataCube's product queries work around legend-engine's defects on every planner (COMPLETENESS-3, R6) |

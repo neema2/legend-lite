@@ -199,7 +199,7 @@ py_library(
     imports = ["."],
     # //datacube's engine_fixture (testonly) serves the browser lane's legend-engine checks at the edge's door (H5, the
     # orchestrator's ruling of 2026-11-18): a test fixture, never a product library
-    visibility = ["//datacube:__pkg__"],
+    visibility = ["//datacube:__pkg__", "//tools/meaning:__pkg__"],
     deps = [":legend_lite"],
 )
 

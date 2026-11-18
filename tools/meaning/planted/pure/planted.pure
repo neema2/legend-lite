@@ -1,0 +1,6 @@
+// PLANTED (census B2, M4): a platform class's print form shipped as a Pure body
+Class meta::planted::Cell
+{
+   value: String[0..1];
+   toString(){if($this.value->isEmpty(), |'TDSNull', |$this.value->toOne())}:String[1];
+}

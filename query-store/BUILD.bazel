@@ -26,6 +26,8 @@ legend_java_library(
         # TeaVM's annotations, at compile time only
         "//tools/teavm:api",
     ],
+    # the meaning census reads it (census B2, 2026-11-19: //tools/guards:meaning_census_test)
+    visibility = ["//tools/guards:__pkg__"],
 )
 
 teavm_wasm(

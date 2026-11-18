@@ -7,6 +7,7 @@ load(":compile_only.bzl", "action_kinds_report", "compile_only_validated_fixture
 load(":defs.bzl", "guards_package")
 load(":workflows.bzl", "git_marker")
 load("//tools/deps:pools.bzl", "POOLS")
+load("//tools/jars:defs.bzl", "file_list", "java_jars")
 load("//tools/java:defs.bzl", "legend_java_library")
 load("//tools/java_run:defs.bzl", "java_run")
 load("//tools/junit:defs.bzl", "junit_test")
@@ -333,7 +334,6 @@ exports_files(
     visibility = ["//python:__pkg__"],
 )
 
-guards_package()
 
 # SHRINK-ONLY, BY THE MERGE-BASE (the edge audit's C.11, second half; the GUARD stream's C.13-CI, the orchestrator's GO of
 # 2026-11-17): a watched pin of a guard file grows (an entry added, a number raised) only with a dated note. The reader and
@@ -389,3 +389,88 @@ py_test(
     visibility = ["//gates:__pkg__"],
     deps = [":shrink_only_lib"],
 )
+
+# THE MEANING CENSUS, REPORT-ONLY (census B2, 2026-11-19; docs/records/census-b2-inventory-2026-11-19.md): //tools/meaning's
+# lenses over the whole product -- core's jars, the hosts' Java, the TypeScript and Python product -- against upstream's
+# vocabulary derived from the pinned sources (//tools/meaning:vocabulary), each hit classified by
+# tools/meaning/inventory.tsv. No hit fails it (BLOCKING=false until B3 closes the items); a lens that goes blind does
+# (each lens's planted violator unseen, an input under its floor). Its outputs: meaning-census.tsv and the summary.
+java_jars(
+    name = "meaning_host_jars",
+    testonly = True,
+    rlocation_paths = True,
+    transitive = False,
+    # the hosts' Java: the native library's product and edge entries, the tab's boundary, adapter and edge entries, the
+    # queries page
+    deps = [
+        "//native:edge_entry",
+        "//native:entry",
+        "//query-store:page_entry",
+        "//wasm:boundary",
+        "//wasm:edge_boundary",
+        "//wasm:edge_tab",
+        "//wasm:tab",
+    ],
+)
+
+file_list(
+    name = "meaning_census_sources",
+    testonly = True,
+    srcs = [
+        ":host_sql.txt",
+        "//core:main_srcs",
+        "//datacube:all_files",
+        "//depot-client:all_files",
+        "//engine-client:all_files",
+        "//legend-art:all_files",
+        "//model-changes:all_files",
+        "//native:main_java",
+        "//pure-protocol:all_files",
+        "//python:all_files",
+        "//query:all_files",
+        "//query-store:all_files",
+        "//sdlc-client:all_files",
+        "//studio:all_files",
+        "//tools/meaning:census_files",
+        "//wasm:planner_java",
+    ],
+)
+
+junit_test(
+    name = "meaning_census_test",
+    memory_mb = 2048,
+    size = "medium",
+    srcs = ["MeaningCensusTest.java"],
+    data = [
+        ":meaning_census_sources",
+        ":meaning_host_jars",
+        "//core:edge_jars",
+        "//core:product_jars",
+        "//tools/meaning:host_edge_srcs",
+        "//tools/meaning:planted_jars",
+        "//tools/meaning:shipped_reach",
+        "//tools/meaning:shipped_reach_planted",
+        "//tools/meaning:vocabulary",
+    ],
+    jvm_flags = [
+        "-Dlegend.sources=$(rlocationpath :meaning_census_sources)",
+        "-Dmeaning.host.jars=$(rlocationpath :meaning_host_jars)",
+        "-Dmeaning.edge.jars=$(rlocationpath //core:edge_jars)",
+        "-Dmeaning.product.jars=$(rlocationpath //core:product_jars)",
+        "-Dmeaning.host.edge_srcs=$(rlocationpath //tools/meaning:host_edge_srcs)",
+        "-Dmeaning.planted.jars=$(rlocationpath //tools/meaning:planted_jars)",
+        "-Dmeaning.shipped_reach=$(rlocationpath //tools/meaning:shipped_reach)",
+        "-Dmeaning.shipped_reach_planted=$(rlocationpath //tools/meaning:shipped_reach_planted)",
+        "-Dmeaning.vocabulary=$(rlocationpath //tools/meaning:vocabulary)",
+    ],
+    select = ["--select-class=com.legend.tools.guards.MeaningCensusTest"],
+    visibility = ["//gates:__pkg__"],
+    deps = [
+        "//testing",
+        "//tools/meaning:census",
+        "//tools/meaning:host_sources",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+)
+
+guards_package()

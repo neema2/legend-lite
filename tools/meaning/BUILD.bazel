@@ -1,0 +1,171 @@
+# THE MEANING CENSUS (census B2, 2026-11-19; docs/records/census-b2-inventory-2026-11-19.md): lenses that read the
+# product -- core's Java (class files), its resources, the hosts' Java, the TypeScript product and the Python product --
+# for compatibility meaning still in it, against upstream's vocabulary DERIVED from the pinned sources. Report-only:
+# its test (//tools/guards:meaning_census_test, where the JUnit pool may be used) writes the inventory and fails only
+# when a lens goes blind (a planted violator unseen, an input under its floor).
+
+load("//tools/generators:defs.bzl", "UPSTREAM_ROOTS", "UPSTREAM_TREES")
+load("//tools/guards:defs.bzl", "guards_package")
+load("//tools/jars:defs.bzl", "java_jars")
+load("//tools/java:defs.bzl", "legend_java_library")
+load("//tools/java_run:defs.bzl", "java_run")
+
+# THE HOSTS' SOURCES, READ: a TypeScript, JavaScript or Python file as its literals, names (property reads marked),
+# comments, imports (static, type-only, dynamic, guarded) and exports, each with its line. The reusable piece: the
+# presentation program's G4 (behavioural, over engine-client/src, python/legend_lite, datacube/src and query/src) reads
+# its scan through it (docs/records/census-b2-inventory-2026-11-19.md §5).
+legend_java_library(
+    name = "host_sources",
+    # a guard's reader, as //testing is: not yet written to the null discipline (Bazel workplan P1-20)
+    nullaway = False,
+    testonly = True,
+    srcs = ["HostSources.java"],
+    visibility = ["//visibility:public"],
+)
+
+# the lenses: the class-file reader, the data flow, the forms lens, and the census's text, names, print bodies,
+# provenance, edge-only and reach lenses
+legend_java_library(
+    name = "census",
+    nullaway = False,
+    testonly = True,
+    srcs = [
+        "ClassFiles.java",
+        "Flow.java",
+        "FormsLens.java",
+        "MeaningCensus.java",
+    ],
+    visibility = ["//tools/guards:__pkg__"],
+    deps = [
+        ":host_sources",
+        ":vocabulary_generator",
+    ],
+)
+
+# UPSTREAM'S VOCABULARY, derived from the pinned legend-engine and legend-pure sources (never recalled, never
+# hand-listed): a build output the census reads, regenerated whenever the pins move (the spec generators' pattern)
+legend_java_library(
+    name = "vocabulary_generator",
+    srcs = ["VocabularyGenerator.java"],
+    nullaway = False,
+)
+
+java_run(
+    name = "vocabulary",
+    srcs = UPSTREAM_TREES,
+    outs = ["upstream-vocabulary.tsv"],
+    arguments = [
+        "{ENGINE_ROOT}",
+        "{PURE_ROOT}",
+        "{OUT}",
+    ],
+    main_class = "com.legend.tools.meaning.VocabularyGenerator",
+    mnemonic = "Generate",
+    roots = UPSTREAM_ROOTS,
+    visibility = ["//tools/guards:__pkg__"],
+    deps = [":vocabulary_generator"],
+)
+
+# THE PLANTS: a violator per lens, product and edge side by package (planted.edge is the edge's), that the census must
+# find (MeaningCensusTest.eachLensBitesItsPlant)
+legend_java_library(
+    name = "planted",
+    nullaway = False,
+    testonly = True,
+    srcs = glob(["planted/java/**/*.java"]),
+)
+
+java_jars(
+    name = "planted_jars",
+    testonly = True,
+    rlocation_paths = True,
+    transitive = False,
+    visibility = ["//tools/guards:__pkg__"],
+    deps = [":planted"],
+)
+
+# the files the census reads from here: its classification and the plants' TypeScript, Python and Pure
+filegroup(
+    name = "census_files",
+    testonly = True,
+    srcs = ["inventory.tsv"] + glob(["planted/**"], exclude = ["planted/java/**"]),
+    visibility = ["//tools/guards:__pkg__"],
+)
+
+# THE HOSTS' EDGE SOURCES, as the build declares them (never a hand list): the TypeScript edge (engine-client's _EDGE,
+# DataCube's src/edge), the Python edge (legend_lite/edge) and the engine wheel's package (legend_lite_engine)
+genquery(
+    name = "host_edge_srcs",
+    expression = "labels(srcs, //engine-client:edge) + labels(srcs, //datacube:edge_entry) + " +
+                 "labels(srcs, //python:edge) + labels(srcs, //python:engine_package)",
+    scope = [
+        "//datacube:edge_entry",
+        "//engine-client:edge",
+        "//python:edge",
+        "//python:engine_package",
+    ],
+    visibility = ["//tools/guards:__pkg__"],
+)
+
+# K2 FOR EVERY HOST, REPORT-ONLY (HOSTS-8): a shipped artifact's direct reach of an edge target that no declared opt-in
+# carries, with every host's edge targets in the list -- core's (core/BUILD.bazel's _EDGE_TARGETS, which
+# ShippedArtifactRootsTest holds, blocking) and the TypeScript and Python ones it does not name. The edge targets are
+# DERIVED where the build allows: every target of a shipped closure whose sources sit under an edge/ directory (core's
+# com/legend/edge, native's and wasm's src/edge, DataCube's src/edge, legend_lite/edge), plus engine-client's edge,
+# whose files sit beside the product's, and the engine wheel's package. The declared opt-ins: core's three
+# (_EDGE_OPT_IN) and the hosts' -- DataCube's legend-engine plane bundle, loaded by its URL (demo/planners.ts), and the
+# engine wheel (pip install legend-lite[engine]).
+_SHIPPED = [
+    "//:java",
+    "//:native",
+    "//:sites",
+    "//:wasm",
+    "//:web",
+    "//datacube:app",
+    "//native:compiler",
+    "//python:wheel",
+]
+
+_HOST_EDGE = ["//engine-client:edge", "//python:engine_package"]
+
+_OPT_IN = [
+    "//core:edge_server",
+    "//native:engine",
+    "//wasm:edge_tab",
+    "//datacube:bundle_legend_engine",
+    "//python:engine_wheel",
+]
+
+# the reach: the direct dependents, within the shipped closure, of an edge target that is no opt-in -- the edge's own
+# targets and the declared opt-in modules left out (an opt-in module reaches the edge by design)
+_REACH = ("let edge = attr(srcs, '/edge/', deps(set(%s))) + set(" + " ".join(_HOST_EDGE) + ") in " +
+          "rdeps(deps(set(%s)), $edge except set(" + " ".join(_OPT_IN) + "), 1) except $edge except set(" +
+          " ".join(_OPT_IN) + ")")
+
+genquery(
+    name = "shipped_reach",
+    expression = _REACH % (" ".join(_SHIPPED), " ".join(_SHIPPED)),
+    opts = ["--noimplicit_deps"],
+    scope = _SHIPPED + _HOST_EDGE + _OPT_IN,
+    visibility = ["//tools/guards:__pkg__"],
+)
+
+# its bite: a planted shipped target that depends directly on a host's edge target (the Python edge, which core's list
+# does not name), found by the planted query alone
+filegroup(
+    name = "planted_shipped_reach",
+    testonly = True,
+    srcs = ["//python:edge"],
+)
+
+genquery(
+    name = "shipped_reach_planted",
+    testonly = True,
+    expression = _REACH % (" ".join(_SHIPPED + ["//tools/meaning:planted_shipped_reach"]),
+                           " ".join(_SHIPPED + ["//tools/meaning:planted_shipped_reach"])),
+    opts = ["--noimplicit_deps"],
+    scope = _SHIPPED + _HOST_EDGE + _OPT_IN + [":planted_shipped_reach"],
+    visibility = ["//tools/guards:__pkg__"],
+)
+
+guards_package()

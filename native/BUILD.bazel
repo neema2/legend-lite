@@ -47,7 +47,7 @@ legend_java_library(
         "//wasm:boundary",
     ],
     # //core: the guard of who reaches the authored door, by class (the third re-audit's SHOULD-FIX 5, 2026-11-12)
-    visibility = ["//core:__pkg__"],
+    visibility = ["//core:__pkg__", "//tools/guards:__pkg__"],
 )
 
 # THE EDGE'S ENTRY POINTS in the same library (the separation census's A2, 2026-11-17): the saved queries answer
@@ -65,6 +65,8 @@ legend_java_library(
         # legend-engine's pure/v1 call and execute's halves (EngineEntries: the census's A1, 2026-11-17)
         "//wasm:edge_boundary",
     ],
+    # the meaning census reads it (census B2, 2026-11-19: //tools/guards:meaning_census_test)
+    visibility = ["//tools/guards:__pkg__"],
 )
 
 # THE PRODUCT LIBRARY: libcompiler.dylib (macOS) / libcompiler.so (Linux) / libcompiler.dll (Windows). Everything links when the image is
