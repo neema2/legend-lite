@@ -291,10 +291,10 @@ final class SqlTextVerdicts {
         // item 8; the golden since 2026-11-04), planned at the step as the arm evaluated it
         HostSides.Ask ours = c.ours() == null
                 ? java.util.Objects.requireNonNull(collecting.deferred, "a deferred text with no ask")
-                : EngineTextPlanning.ask(com.legend.compiler.spec.VerdictQueries.text(c.ours()), false, true, null);
+                : EngineTextPlanning.ask(SqlTextReferee.text(c.ours()), false, true, null);
         HostSides.Ask golden = c.golden() == null
                 ? java.util.Objects.requireNonNull(collecting.deferredGolden, "a deferred golden with no ask")
-                : EngineTextPlanning.ask(com.legend.compiler.spec.VerdictQueries.text(c.golden()), false, true, null);
+                : EngineTextPlanning.ask(SqlTextReferee.text(c.golden()), false, true, null);
         // the comparison the plan's data, its appeal too: numbered in the body, carried by the verdict that judges it
         // (TestPlan.extensionsByVerdict; the plan-as-data design's step 8b, 2026-11-08)
         // (under lite's own rules a failed text is the verdict and no appeal is heard: none is numbered, so the plan
