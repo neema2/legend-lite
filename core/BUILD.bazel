@@ -2579,6 +2579,8 @@ junit_test(
         "--select-class=com.legend.SqlFnSortedTest",
         "--select-class=com.legend.HookLambdasTest",
         "--select-class=com.legend.EdgePackageBoundaryTest",
+        # a public product member the edge alone uses, counted (J40 of the edge audit, 2026-11-18)
+        "--select-class=com.legend.EdgeOnlyMembersTest",
         # every implementation of the test plan's Extension is the edge's (census C2, 2026-11-17), so the guard that
         # walks them as data reads them here
         "--select-class=com.legend.PlanTypesAreDataTest",

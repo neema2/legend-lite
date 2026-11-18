@@ -106,6 +106,10 @@ WATCHED = {
     "core/src/test/java/com/legend/JudgingRulesReachTest.java": ["BEHAVIOUR_OPEN", "REACHES_PINNED", "NAMES_PINNED"],
     "core/src/test/java/com/legend/OpenClassMembersTest.java": ["MEMBERS"],
     "core/src/test/java/com/legend/EdgeAuditOpenTest.java": ["AUDIT_OPEN"],
+    # the only-edge-callers guard (J40, 2026-11-18, the orchestrator's triage ruling): its census lines, its read
+    # APIs, J21's ruled members and the hook entries move only with a dated note
+    "core/src/test/java/com/legend/EdgeOnlyMembersTest.java": ["OPEN", "READ_API", "RULED_J21"],
+    "core/src/test/java/com/legend/HookRulingTest.java": ["HOOK_ENTRIES"],
     "core/src/test/java/com/legend/HookRulingsAgreeTest.java": ["RULED_NOT_HOOKS", "RULED_UNCOUNTED"],
     "core/src/test/java/com/legend/EdgePackageBoundaryTest.java": ["EDGE_JARS_IN_THE_HOSTS_LIST"],
     "core/src/test/java/com/legend/ArchitectureTest.java": ["PLANNER_ENTRIES"],
