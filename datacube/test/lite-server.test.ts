@@ -68,11 +68,10 @@ describe("the planner's worker on legend-lite's server", () => {
     assert.equal(answered.ok, false);
   });
 
-  it("refuses by name what it does not ask the server: legend-engine's pure/v1, the tab's own, a model not held", async () => {
+  // (legend-engine's pure/v1 is no planner kind since the user's K2 ruling, 2026-11-18: the engine module's, the edge's)
+  it("refuses by name what it does not ask the server: the tab's own, a model not held", async () => {
     const s = server(() => ({ status: 200, body: '{}' }));
     const w = liteServerWorker('http://lite.example', s.fetcher);
-    const pureV1 = await ask(w, { kind: 'pureV1', path: '/api/pure/v1/x', query: '', body: '' });
-    assert.ok(!pureV1.ok && /legend-engine's pure\/v1 is the edge's/.test(pureV1.error));
     const own = await ask(w, { kind: 'tableModel', table: '{}' });
     assert.ok(!own.ok && /tableModel is not asked of legend-lite's server/.test(own.error));
     const unheld = await ask(w, { kind: 'queryTypeHeld', handle: 7, request: '{"query":{}}' });

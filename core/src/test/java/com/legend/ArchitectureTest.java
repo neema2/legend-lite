@@ -783,13 +783,14 @@ final class ArchitectureTest {
 
     /** {@link #aProductStatementIsPreparedByThePlannersAlone} over the hosts' doors as well (the follow-up audit's G1,
      *  2026-11-14): the boundary ({@code //wasm:boundary}, its package {@code planner}, outside the planners'), the
-     *  tab's adapter ({@code //wasm:tab}) and the native entry ({@code //native:entry}) prepare no product statement
-     *  either. */
+     *  tab's adapter ({@code //wasm:tab}), the engine module's entry ({@code //wasm:edge_tab}, the user's K2 ruling,
+     *  2026-11-18) and the native entry ({@code //native:entry}) prepare no product statement either. */
     @Test
     void theHostsDoorsPrepareNoProductStatement() {
         JavaClasses classes = coreAndTheHostsDoors();
         // each host's door is held by the rule: none resides in the planners' packages, which the rule exempts
-        for (String door : java.util.List.of("planner.Boundary", "com.legend.edge.wasm.TabExports", "com.legend.nativelib.Compiler")) {
+        for (String door : java.util.List.of("planner.Boundary", "planner.TabExports", "com.legend.edge.wasm.EngineExports",
+                "com.legend.nativelib.Compiler")) {
             org.junit.jupiter.api.Assertions.assertFalse(classes.get(door).getPackageName().matches(
                     "com\\.legend\\.(planner|testplan)(\\..*)?"), door + " is exempt from the rule");
         }
@@ -3521,7 +3522,9 @@ final class ArchitectureTest {
                         return !madeFrom(access, "planner.Boundary", "authored");
                     }
                     if (target.equals("planner.Boundary#authored")) {
-                        return !madeFrom(access, "com.legend.edge.wasm.TabExports", "authoredOrError");
+                        // the tab's adapter, planner.TabExports again since the user's K2 ruling (2026-11-18; the
+                        // edge's com.legend.edge.wasm.TabExports from F's census line A1, 2026-11-17, until then)
+                        return !madeFrom(access, "planner.TabExports", "authoredOrError");
                     }
                     return false;
                 }
@@ -3640,7 +3643,8 @@ final class ArchitectureTest {
             throw new java.io.UncheckedIOException(e);
         }
         JavaClasses classes = new ClassFileImporter().importJars(jars);
-        for (String door : java.util.List.of("planner.Boundary", "com.legend.edge.wasm.TabExports", "com.legend.nativelib.Compiler")) {
+        for (String door : java.util.List.of("planner.Boundary", "planner.TabExports", "com.legend.edge.wasm.EngineExports",
+                "com.legend.nativelib.Compiler")) {
             org.junit.jupiter.api.Assertions.assertTrue(classes.contain(door), "the import holds " + door);
         }
         return classes;

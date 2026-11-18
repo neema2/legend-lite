@@ -35,7 +35,8 @@ function okBody(folded) {
 
 test('the tab round-trips every input as the JVM does', async () => {
   const lines = readFileSync(runfileFromEnv('TAB_ROUND_TRIP'), 'utf8').split('\n').filter((l) => l !== '');
-  const planner = runfileDirUrl('WASM_PLANNER');
+  // legend-engine's pure/v1 in the tab: the engine module's (the user's K2 ruling, 2026-11-18)
+  const planner = runfileDirUrl('WASM_ENGINE_PLANNER');
   const { load } = await import(new URL('wasm-gc-module-runtime.js', planner).href);
   // TeaVM's loader wants a filesystem path under Node (a file: URL fails with an ENOENT)
   const teavm = await load(fileURLToPath(new URL('classes.wasm', planner)), {

@@ -372,6 +372,9 @@ class EdgeSeparationTest {
             // //tools/deps:edge_separation_closure_test holds every untagged core test target to it)
             // //wasm:boundary (A1) gone 2026-11-17 (E-P5): legend-engine's routes are //wasm:edge_boundary's, the
             // module's entry //wasm:edge_tab's; no product target depends on an edge target now
+            // (2026-11-18, the user's K2 ruling, "Product root, edge opt-in": the module's entry is //wasm:tab's again,
+            // lite's own -- planner.TabExports, a root here -- and //wasm:edge_tab is the engine module's entry alone,
+            // com.legend.edge.wasm.EngineExports, legend-engine's four routes)
             );
 
     static Set<String> buildFound() {
