@@ -3220,10 +3220,10 @@ final class Scalars {
             // (a year below 1000 written with four digits, as a date literal's is: the independent review,
             // 2026-10-18)
             if (d.value() instanceof PureDateLiteral.Year y) {
-                return new SqlExpr.DateLit(MatchFold.iso(y.toEngineString() + "-01-01", y.year()));
+                return new SqlExpr.DateLit(MatchFold.iso(y.canonicalText() + "-01-01", y.year()));
             }
             if (d.value() instanceof PureDateLiteral.YearMonth ym) {
-                return new SqlExpr.DateLit(MatchFold.iso(ym.toEngineString() + "-01", ym.year()));
+                return new SqlExpr.DateLit(MatchFold.iso(ym.canonicalText() + "-01", ym.year()));
             }
         }
         return lowered;
@@ -3565,7 +3565,7 @@ final class Scalars {
     /** A DateTime's text under the style ({@link Styled#dateTimes}, the audit's K15, 2026-11-17): a literal's written
      *  text handed to the style's form, which the product's ignores and the edge's prints. */
     private static SqlExpr dateTimeOf(Styled styled, TypedSpec spec, SqlExpr e) {
-        return styled.dateTimes().dateTimeText(e, spec instanceof TypedCDate cd ? cd.value().toEngineString() : null);
+        return styled.dateTimes().dateTimeText(e, spec instanceof TypedCDate cd ? cd.value().canonicalText() : null);
     }
 
     // (FORMAT_R_DATE_TIMES, format's %r of a DateTime in legend-pure's print form on every style: gone 2026-11-17 with
@@ -3584,7 +3584,7 @@ final class Scalars {
     /** The static text of a date literal that is no DateTime (a StrictDate, a year, a month): components padded, as
      *  written. {@code null} for a non-literal. A DateTime's is {@link #dateTimeText}'s node (D1.2). */
     static @com.legend.base.Nullable SqlExpr dateLiteralText(TypedSpec spec) {
-        return spec instanceof TypedCDate cd ? new SqlExpr.StringLit(cd.value().toEngineString()) : null;
+        return spec instanceof TypedCDate cd ? new SqlExpr.StringLit(cd.value().canonicalText()) : null;
     }
 
     /** Partial-date-literal precision: 1 = year, 2 = year-month; null otherwise. */

@@ -321,7 +321,7 @@ public final class DatabaseJudge {
             return d.precision().atLeast(com.legend.values.PureDateLiteral.Precision.DAY)
                     ? String.format(java.util.Locale.ROOT, "%d-%02d-%02d", t.getYear(), t.getMonthValue(),
                             t.getDayOfMonth())
-                    : d.toEngineString();
+                    : d.canonicalText();
         }
         return String.format(java.util.Locale.ROOT, "%04d-%02d-%02dT%02d:%02d:%02d.%06dZ", t.getYear(),
                 t.getMonthValue(), t.getDayOfMonth(), t.getHour(), t.getMinute(), t.getSecond(), t.getNano() / 1000);

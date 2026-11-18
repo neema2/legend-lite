@@ -40,7 +40,7 @@ final class RootLiterals {
             // TEMPORAL_TEXT-stamped (§4bZ-V B3): the marker cast never
             // renders; the slot's contract says temporal-in-text
             return new SqlExpr.Cast(
-                    new SqlExpr.StringLit(cd.value().toEngineString()),
+                    new SqlExpr.StringLit(cd.value().canonicalText()),
                     SqlType.Scalar.TEMPORAL_TEXT, SqlExpr.Reason.DECLARED);
         }
         if (spec instanceof TypedCDecimal cdec

@@ -1843,7 +1843,7 @@ final class GraphEmission {
                             strat != MilestoningStrategy.PROCESSING);
             if (d instanceof com.legend.compiler.spec.typed.TypedCDate cd) {
                 // the context date in the plan's style (D1.2, register S312)
-                return node.property() + "(" + keyText().date().apply(cd.value().toEngineString()) + ")";
+                return node.property() + "(" + keyText().date().apply(cd.value().canonicalText()) + ")";
             }
         }
         return keyOf(node);
@@ -2939,7 +2939,7 @@ final class GraphEmission {
             } else if (a instanceof
                     com.legend.compiler.spec.typed.TypedCDate cd) {
                 // the date in the plan's style (D1.2, register S312): the product's text, legend-engine's at the edge
-                k.append(keyText().date().apply(cd.value().toEngineString()));
+                k.append(keyText().date().apply(cd.value().canonicalText()));
             } else if (a instanceof
                     com.legend.compiler.spec.typed.TypedVariable v) {
                 // a VARIABLE arg keeps its source spelling — the engine

@@ -1335,7 +1335,7 @@ public final class RefereeVerify {
                     com.legend.values.PureDateLiteral.Precision.HOUR)) {
                 v = pd.toInstantFloor();
             } else {
-                return pd.toEngineString();
+                return pd.canonicalText();
             }
         }
         if (v instanceof java.sql.Timestamp ts) {
