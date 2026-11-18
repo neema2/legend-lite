@@ -75,12 +75,8 @@ class EdgeOnlyMembersTest {
             // (J40.ModelInput: MOVED 2026-11-18 by the TS host, the orchestrator's ruling -- legend-engine's request model
             // context is com.legend.edge.ModelInput, read by PureV1Routes, TestDataRoutes and EngineGrammar; its four
             // members here and its two READ_API rows below go with it. J40.ModelInput closes)
-            // found 2026-11-18 by J40.ModelInput's move (it hid behind ModelInput.Data, a product class until then), counted
-            // until ruled: Compiler's door compiling a model given as lite's own protocol records, its errors worded by the
-            // caller -- legend-engine's compile route (ModelInput.Data) its one caller now; it cannot move without
-            // duplicating Compiler.compileErrorsOf
-            Map.entry("com.legend.Compiler#compileErrors(com.legend.protocol.Protocol$PureModelContextData, java.util.function.Function)",
-                    "J40.Compiler TS-HOST (2026-11-18, train 20, J40.ModelInput's move): proposed READ_API -- lite's compiler door over its own protocol records, the caller wording each error")
+            // (J40.Compiler: Compiler#compileErrors(PureModelContextData, Function), found 2026-11-18 by J40.ModelInput's move,
+            // ruled READ_API by the orchestrator the same day, below -- J40.Compiler closes)
             // (RaisedErrors$Raised#statement: ruled READ_API by the orchestrator 2026-11-18, train 19, below -- J40.RaisedErrors
             // closes; SavedQueries#reshaped: MOVED 2026-11-18 by E-P5's 4eb39b2a4f, edge.StoreWords reads lite's
             // answer itself -- J40.SavedQueries closes)
@@ -176,6 +172,10 @@ class EdgeOnlyMembersTest {
                     "2026-11-18: lite's table reference's own accessor (the orchestrator's ruling to E-Java)"),
             Map.entry("com.legend.testplan.BodyDriver$ExecEnv#appealOn()",
                     "2026-11-18: lite's test planner's own appeal environment (the orchestrator's ruling to E-Java)"),
+            // found 2026-11-18 by J40.ModelInput's move (reached only through ModelInput.Data while that was a product
+            // class); ruled READ_API by the orchestrator, 2026-11-18
+            Map.entry("com.legend.Compiler#compileErrors(com.legend.protocol.Protocol$PureModelContextData, java.util.function.Function)",
+                    "2026-11-18 (the orchestrator's ruling, J40.Compiler): lite's own compiler door over its protocol records -- compiling a model given as protocol data is a product capability (the user's standing requirement: read legend-engine projects as they are); the Function only words each error, and the product computes no upstream alternative"),
             Map.entry("com.legend.Compiler$Target#<init>(java.lang.String)",
                     "2026-11-18: a query's execution target (U3), lite's own; the edge's appeal codec rebuilds and reads it"),
             Map.entry("com.legend.Compiler$Target#store()",
