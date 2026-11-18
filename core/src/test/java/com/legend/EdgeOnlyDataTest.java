@@ -69,8 +69,9 @@ class EdgeOnlyDataTest {
      *  "DEAD" data no one reads, deleted in train 17 by its package's owner (shrink-only, not a separation line);
      *  "RULED_PENDING" a question before the user. */
     static final Map<String, String> OPEN = Map.ofEntries(
-            // (SqlExpr$PlanParam#kind: ruled the product's in meaning 2026-11-18, train 18 -- RULED_IN_MEANING; the measure
-            // now sees EnumValueTables' read of it, a rewriter's decision; L-B.PlanParam closes)
+            // (SqlExpr$PlanParam#kind, now #valueType: ruled the product's in meaning 2026-11-18, train 18 --
+            // RULED_IN_MEANING; the measure now sees EnumValueTables' read of it, a rewriter's decision; L-B.PlanParam
+            // closes)
             // facts of lite's own (the orchestrator's rulings at J40 and 06:40)
             Map.entry("variant com.legend.sql.SqlDdl$DropSchema: by the edge",
                     "READ_API (2026-11-18): generic SQL DDL in lite's sealed MIR vocabulary (ruled READ_API at J40)"),
@@ -142,8 +143,9 @@ class EdgeOnlyDataTest {
             // value class, a fact about the user's program, read for the product's own decision -- sql.EnumValueTables
             // tests ENUM to choose the value-table IN (applied by PlanMaker and ProgramState); only the template
             // spellings (DATETIME->TIMESTAMP, DB2 BOOLEAN, quoted ENUM, InProtocol's OTHER) are the edge's, in its
-            // dialects and EngineParams. E-Java renames it (Kind -> ValueType, the component valueType): this row follows
-            "component com.legend.sql.SqlExpr$PlanParam#kind",
+            // dialects and EngineParams. E-Java renamed it (df50405375: Kind -> ValueType, the component kind ->
+            // valueType; the wire key "kind" kept, the plan version unchanged): this row followed, 2026-11-18
+            "component com.legend.sql.SqlExpr$PlanParam#valueType",
             "2026-11-18: the parameter's declared value class, the user's program's; EnumValueTables decides by it");
 
     /** The census lines this guard holds: one per "L-B." line. */
