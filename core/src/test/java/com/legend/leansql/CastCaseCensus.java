@@ -61,6 +61,10 @@ public final class CastCaseCensus {
             for (SqlExpr.Reason r : SqlExpr.Reason.values()) {
                 out.put(new Key(type.name(), r.code()), new long[2]);
             }
+            // each model compiled once per database, as LeanSqlBaseline.measure (PR #118 fix round, 2026-11-18: the set's
+            // 2,451 queries share 43 models; compiling the model for every query on every database was most of this
+            // test's time -- 300 s on CI's Windows runner); a model that does not compile is refused again per query
+            Map<String, com.legend.compiler.element.ModelContext> compiled = new java.util.HashMap<>();
             for (String line : lines) {
                 if (line.isBlank()) {
                     continue;
@@ -70,8 +74,8 @@ public final class CastCaseCensus {
                 String expression = ((Json.Str) c.get("expression")).value();
                 SqlQuery passed;
                 try {
-                    TypedQuery q = Compiler.query(Compiler.compileModel(LeanSqlBaseline.withRuntime(model, type)),
-                            expression);
+                    TypedQuery q = Compiler.query(compiled.computeIfAbsent(model,
+                            m -> Compiler.compileModel(LeanSqlBaseline.withRuntime(m, type))), expression);
                     // TypedQuery.lower left the root (main's 795a7b8af5, the user's ruling of 2026-11-13, option (b)):
                     // the test-side Lowered lowers it step by step as it did
                     SqlQuery lowered = com.legend.planner.Lowered.lower(q, StorelessRuntime.RUNTIME, false, List.of(),
