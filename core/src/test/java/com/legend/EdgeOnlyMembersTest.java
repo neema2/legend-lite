@@ -109,7 +109,7 @@ class EdgeOnlyMembersTest {
             for (JavaMethod m : c.getMethods()) {
                 if (open(m.getModifiers()) && !overrides(c, m)) {
                     List<JavaAccess<?>> uses = new ArrayList<>(m.getCallsOfSelf());
-                    uses.addAll(m.getMethodReferencesToSelf());
+                    uses.addAll(m.getReferencesToSelf());
                     if (edgeAlone(uses)) {
                         out.add(ServiceLoaderSitesTest.key(c, m));
                     }
@@ -118,7 +118,7 @@ class EdgeOnlyMembersTest {
             for (JavaConstructor k : c.getConstructors()) {
                 if (open(k.getModifiers())) {
                     List<JavaAccess<?>> uses = new ArrayList<>(k.getCallsOfSelf());
-                    uses.addAll(k.getConstructorReferencesToSelf());
+                    uses.addAll(k.getReferencesToSelf());
                     if (edgeAlone(uses)) {
                         out.add(ServiceLoaderSitesTest.key(c, k));
                     }
