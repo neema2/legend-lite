@@ -64,14 +64,14 @@ class EdgeOnlyMembersTest {
     static final Map<String, String> OPEN = Map.ofEntries(
             // (ExecuteChainAssembly#concatenated and NativeFn$OperatorRun#fqn: ruled READ_API by the orchestrator 2026-11-18,
             // train 18, below -- J40.ExecuteChainAssembly and J40.NativeFn close)
-            Map.entry("com.legend.database.PlanStyle$Activity#engines()",
-                    "J40.PlanStyle E-SQL MOVE (2026-11-18): legend-engine's text for an activity chain"),
-            Map.entry("com.legend.lineage.ScanRelations#rootImpl(com.legend.compiler.element.ModelContext, java.lang.String, java.lang.String)",
-                    "J40.ScanRelations E-SQL MOVE (2026-11-18): legend-engine's set-implementation identity (#47, the plan printer)"),
-            Map.entry("com.legend.lineage.ScanRelations#rootImpl(com.legend.compiler.element.ModelContext, java.lang.String, java.lang.String, java.util.List)",
-                    "J40.ScanRelations E-SQL MOVE (2026-11-18): legend-engine's set-implementation identity (#47, the plan printer)"));
+            // (PlanStyle$Activity#engines(): gone 2026-11-18 by F's J40.PlanStyle commit, 7bd5237958 -- the activity SQL a
+            // two-form hook, planner.ActivityTexts, the edge's form legend-engine's text; J40.PlanStyle closes, and with it
+            // the last OPEN row: every J40 line is closed, train 18)
+            // (ScanRelations#rootImpl, both overloads: moved 2026-11-18 by E-Java's j40c, 71be053489, to the edge's
+            // SetImplementations -- J40.ScanRelations closes)
             // (VerdictSql#textEquals: moved 2026-11-18 by E-Java's j40c, 9dd14f6fdc -- the product keeps constantTextsEqual,
             // READ_API below; J40.VerdictSql closes)
+            );
             // re-measured 2026-11-18 on train 15 1931d419b1 (the GUARD stream's re-cut): train 15 closed seven pins
             // (PlatformTypes' TO_SQL_STRING and TO_SQL_STRING_PRETTY, BodyPlanner#pushDownEnums, QueryParameters$Declared's
             // planParam and signature, AggregationAwareRouting#mainSetId, Verdicts#scalarString -- two class lines gone,

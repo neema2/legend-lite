@@ -178,24 +178,19 @@ public final class PlanAllocations {
         }
     }
 
-    /** An execute's activity SQL (S310, RULED by the user 2026-11-14, DE2 (a)): the style picks -- the product's lite's
-     *  own SQL, what runs; the edge's legend-engine's text for its test connection's database (C4, handed off: the
-     *  execute's runtime type is not read for it yet), {@code recorded} its runtime's post-processors applied. */
+    /** An execute's activity SQL (S310, RULED by the user 2026-11-14, DE2 (a)): the style's form of
+     *  {@link ActivityTexts} -- the product's lite's own SQL, what runs; the edge's legend-engine's text for its test
+     *  connection's database, {@code recorded} its runtime's post-processors applied (J40.PlanStyle, 2026-11-18: each
+     *  form computes its own text alone). */
     static String activitySql(List<TypedSpec> chain, @Nullable String mappingFqn, SpecCompiler specs, PlanEnv env,
             boolean recorded) {
-        return env.style().activitySql(new com.legend.database.PlanStyle.Activity() {
-            @Override
-            public String lites() {
-                return activityLiteSql(chain, mappingFqn, specs, env);
-            }
-
-            @Override
-            public String engines() {
-                // upstream's text, the style's facet (W9's planner half, 2026-11-16): asked only where the style picks it
-                return env.style().facet(UpstreamPlans.class).activitySql(chain, mappingFqn, specs, env, recorded);
-            }
-        });
+        return env.style().twoForm(ActivityTexts.class, LITE_ACTIVITY).activitySql(chain, mappingFqn, specs, env,
+                recorded);
     }
+
+    /** The product's form of {@link ActivityTexts}: lite's own SQL for the chain ({@link #activityLiteSql}). */
+    static final ActivityTexts LITE_ACTIVITY = (chain, mappingFqn, specs, env, recorded) ->
+            activityLiteSql(chain, mappingFqn, specs, env);
 
     /** LITE'S OWN SQL for an execute's chain (S310, RULED by the user 2026-11-14, DE2 (a): the product's activity
      *  record reports what actually runs): the chain inlined, resolved and lowered as a product statement is

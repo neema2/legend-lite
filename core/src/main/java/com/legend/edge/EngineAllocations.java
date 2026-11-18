@@ -134,7 +134,7 @@ final class EngineAllocations {
         EnginePlans.EngineSql es = EnginePlans.engineSql(List.of(let.value()),
                 mappingFqn, specs, env, renderer, params,
                 UnaryOperator.identity());
-        String[] impl = ScanRelations.rootImpl(
+        String[] impl = SetImplementations.rootImpl(
                 env.ctx(), mappingFqn, rootClass);
         if (let.info().type()
                 instanceof Type.ClassType) {

@@ -802,84 +802,8 @@ public final class ScanRelations {
         return false;
     }
 
-    /** The engine's set-implementation identity for a class under a
-     * mapping (#47 plan printer): {@code [definingMappingName, setId,
-     * dbFqn, mainTable]} — the DEFINING mapping is the include-child
-     * declaring the set; the default setId is the class FQN with
-     * underscores. Loud when the class maps ambiguously. */
-    public static String[] rootImpl(ModelContext ctx, String mappingFqn,
-            String classFqn) {
-        return rootImpl(ctx, mappingFqn, classFqn, java.util.List.of());
-    }
-
-    /** {@code chainMappings}: ModelChainConnection mappings — the M2M2R
-     * surface; a ~src class unmapped in {@code mappingFqn} chases its
-     * relational set through them (engine chained-mapping resolution). */
-    public static String[] rootImpl(ModelContext ctx, String mappingFqn,
-            String classFqn, java.util.List<String> chainMappings) {
-        String[] r = rootImplOrNull(ctx, mappingFqn, classFqn, 0,
-                chainMappings);
-        if (r == null) {
-            throw new NotImplementedException("plan: no class mapping for '"
-                    + classFqn + "' under '" + mappingFqn + "'"
-                    + (chainMappings.isEmpty() ? ""
-                            : " or chain " + chainMappings));
-        }
-        return r;
-    }
-
-    private static String @com.legend.base.Nullable [] rootImplOrNull(
-            ModelContext ctx, String mappingFqn,
-            String classFqn, int depth,
-            java.util.List<String> chainMappings) {
-        LegacyMappingDefinition md = mapping(ctx, mappingFqn);
-        for (LegacyMappingDefinition m : withIncludes(ctx, md)) {
-            for (ClassMapping.Relational r : allClassMappings(m)) {
-                if (typeMatches(r.className(), classFqn)) {
-                    String name = m.qualifiedName().substring(
-                            m.qualifiedName().lastIndexOf(':') + 1);
-                    String setId = com.legend.model.SetId.of(r);
-                    return new String[]{name, setId, mainDbOf(r),
-                            mainTableOf(r)};
-                }
-            }
-        }
-        // an M2M (Pure) set: the physical identity follows ~src to the
-        // UPSTREAM class's relational set (the H5 collapse — the plan's
-        // db/table identity is the composed source's; max 4 hops, the
-        // corpus chains twice); the upstream class may live in THIS
-        // mapping or a CHAIN mapping (ModelChainConnection)
-        if (depth < 4) {
-            for (LegacyMappingDefinition m : withIncludes(ctx, md)) {
-                for (com.legend.model.ClassMapping cm : m.classMappings()) {
-                    if (cm instanceof ClassMapping.Pure pm
-                            && typeMatches(pm.className(), classFqn)
-                            // no ~src = no upstream to chase; the chain
-                            // simply ends here rather than being unknown
-                            && pm.sourceClass() != null) {
-                        String[] up = rootImplOrNull(ctx, mappingFqn,
-                                pm.sourceClass(), depth + 1, chainMappings);
-                        for (int i = 0; up == null
-                                && i < chainMappings.size(); i++) {
-                            up = rootImplOrNull(ctx, chainMappings.get(i),
-                                    pm.sourceClass(), depth + 1,
-                                    java.util.List.of());
-                        }
-                        if (up == null) {
-                            return null;
-                        }
-                        // 5th element marks the M2M chase: the plan's TDS
-                        // tuple types spell PURE defaults, not the
-                        // physical columns (the M2M layer erases them —
-                        // m2m2rShowcase golden name VARCHAR(8192))
-                        return new String[]{up[0], up[1], up[2], up[3],
-                                "m2m"};
-                    }
-                }
-            }
-        }
-        return null;
-    }
+    // (rootImpl, both overloads, and its M2M chase: moved to the edge's SetImplementations 2026-11-18, J40 --
+    // legend-engine's set-implementation identity for the plan printer; the mapping reads it uses are public below)
 
     /** Whether {@code name} is a VIEW of {@code db} (include closure). */
     public static boolean isView(ModelContext ctx, String db,
@@ -2272,14 +2196,14 @@ public final class ScanRelations {
     // Lookups
     // ------------------------------------------------------------------
 
-    private static LegacyMappingDefinition mapping(ModelContext ctx,
+    public static LegacyMappingDefinition mapping(ModelContext ctx,
             String fqn) {
         return ctx.findLegacyMapping(fqn).orElseThrow(() ->
                 new NotImplementedException("scanRelations: unknown legacy"
                         + " mapping '" + fqn + "'"));
     }
 
-    private static List<ClassMapping.Relational> allClassMappings(
+    public static List<ClassMapping.Relational> allClassMappings(
             LegacyMappingDefinition md) {
         List<ClassMapping.Relational> out = new ArrayList<>();
         for (ClassMapping cm : md.classMappings()) {
@@ -2297,7 +2221,7 @@ public final class ScanRelations {
 
     /** {@code md} plus its include closure, own-first (own definitions
      * shadow included ones, the mapping-include rule). */
-    private static List<LegacyMappingDefinition> withIncludes(ModelContext ctx,
+    public static List<LegacyMappingDefinition> withIncludes(ModelContext ctx,
             LegacyMappingDefinition md) {
         List<LegacyMappingDefinition> out = new ArrayList<>();
         Set<String> seen = new LinkedHashSet<>();
@@ -2451,7 +2375,7 @@ public final class ScanRelations {
 
     /** As-written vs resolved class spellings: exact first, then an
      * unambiguous tail match (mapping models keep source spellings). */
-    private static boolean typeMatches(String written, @com.legend.base.Nullable String fqn) {
+    public static boolean typeMatches(String written, @com.legend.base.Nullable String fqn) {
         if (Objects.equals(written, fqn)) {
             return true;
         }
@@ -2469,7 +2393,7 @@ public final class ScanRelations {
     /** The set's main table — explicit {@code ~mainTable}, else IMPLIED
      * by the first column property mapping (engine grammar: mainTable is
      * 0..1). */
-    private static @com.legend.base.Nullable String mainTableOf(ClassMapping.Relational cm) {
+    public static @com.legend.base.Nullable String mainTableOf(ClassMapping.Relational cm) {
         if (cm.mainTable() != null) {
             return bare(cm.mainTable().table());
         }
@@ -2483,7 +2407,7 @@ public final class ScanRelations {
                 + " implied by a column mapping)");
     }
 
-    private static @com.legend.base.Nullable String mainDbOf(ClassMapping.Relational cm) {
+    public static @com.legend.base.Nullable String mainDbOf(ClassMapping.Relational cm) {
         if (cm.mainTable() != null) {
             return cm.mainTable().database();
         }

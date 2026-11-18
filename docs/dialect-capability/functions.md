@@ -101,6 +101,7 @@ Database types planned with it: H2.
 | `REGEXP_EXTRACT_ALL` | spelled | `regexp_extract_all` |  | 13 |
 | `REGEXP_REPLACE` | spelled | `regexp_replace` |  | 8 |
 | `REGEXP_FULL_MATCH` | emulated | `regexpFullMatch` |  | 49 |
+| `IS_NUMERIC` | emulated | `isNumeric` |  | 0 |
 | `MAP_FROM_LISTS` | spelled | `map` |  | 3 |
 | `MAP_FROM_ENTRIES` | spelled | `map_from_entries` |  | 13 |
 | `MAP_EMPTY` | refused | `an empty map reached H2, which has no map type` |  | 8 |
@@ -296,6 +297,7 @@ Database types planned with it: Postgres.
 | `REGEXP_EXTRACT_ALL` | emulated | `regexpExtractAll` |  | 13 |
 | `REGEXP_REPLACE` | emulated | `regexpReplace` |  | 8 |
 | `REGEXP_FULL_MATCH` | emulated | `pattern: (… ~ …^(?:)$)` |  | 49 |
+| `IS_NUMERIC` | emulated | `isNumeric` |  | 0 |
 | `MAP_FROM_LISTS` | emulated | `composed in a block` | `via Postgres.maps` | 3 |
 | `MAP_FROM_ENTRIES` | emulated | `composed in a block` | `via Postgres.maps` | 13 |
 | `MAP_EMPTY` | emulated | `CAST(ARRAY[] AS JSONB[])` | `via Postgres.maps` | 8 |
@@ -491,6 +493,7 @@ Database types planned with it: Snowflake.
 | `REGEXP_EXTRACT_ALL` | emulated | `regexpExtractAll` |  | 13 |
 | `REGEXP_REPLACE` | emulated | `regexpReplace` |  | 8 |
 | `REGEXP_FULL_MATCH` | emulated | `fullMatch` |  | 49 |
+| `IS_NUMERIC` | emulated | `isNumeric` |  | 0 |
 | `MAP_FROM_LISTS` | emulated | `mapFromLists` |  | 3 |
 | `MAP_FROM_ENTRIES` | emulated | `mapFromEntries` |  | 13 |
 | `MAP_EMPTY` | spelled | `OBJECT_CONSTRUCT` |  | 8 |
@@ -686,6 +689,7 @@ Database types planned with it: Trino.
 | `REGEXP_EXTRACT_ALL` | emulated | `group: regexp_extract_all(…, …, …)` |  | 13 |
 | `REGEXP_REPLACE` | emulated | `regexpReplace` |  | 8 |
 | `REGEXP_FULL_MATCH` | emulated | `anchored: regexp_like(…, …)` |  | 49 |
+| `IS_NUMERIC` | emulated | `isNumeric` |  | 0 |
 | `MAP_FROM_LISTS` | spelled | `map` |  | 3 |
 | `MAP_FROM_ENTRIES` | spelled | `map_from_entries` |  | 13 |
 | `MAP_EMPTY` | spelled | `MAP` |  | 8 |
@@ -881,6 +885,7 @@ Database types planned with it: BigQuery.
 | `REGEXP_EXTRACT_ALL` | emulated | `regexpExtractAll` |  | 13 |
 | `REGEXP_REPLACE` | emulated | `regexpReplace` |  | 8 |
 | `REGEXP_FULL_MATCH` | emulated | `anchored: REGEXP_CONTAINS(…, …)` |  | 49 |
+| `IS_NUMERIC` | emulated | `isNumeric` |  | 0 |
 | `MAP_FROM_LISTS` | emulated | `composed in a block` | `via BigQuery.maps` | 3 |
 | `MAP_FROM_ENTRIES` | emulated | `composed in a block` | `via BigQuery.maps` | 13 |
 | `MAP_EMPTY` | emulated | `composed in a block` | `via BigQuery.maps` | 8 |
@@ -1076,6 +1081,7 @@ Database types planned with it: Databricks.
 | `REGEXP_EXTRACT_ALL` | emulated | `group: regexp_extract_all(…, …, …)` |  | 13 |
 | `REGEXP_REPLACE` | emulated | `regexpReplace` |  | 8 |
 | `REGEXP_FULL_MATCH` | emulated | `anchored: regexp_like(…, …)` |  | 49 |
+| `IS_NUMERIC` | emulated | `isNumeric` |  | 0 |
 | `MAP_FROM_LISTS` | spelled | `map_from_arrays` |  | 3 |
 | `MAP_FROM_ENTRIES` | spelled | `map_from_entries` |  | 13 |
 | `MAP_EMPTY` | spelled | `map` |  | 8 |
@@ -1271,6 +1277,7 @@ Database types planned with it: DuckDB.
 | `REGEXP_EXTRACT_ALL` | spelled | `regexp_extract_all` |  | 13 |
 | `REGEXP_REPLACE` | spelled | `regexp_replace` |  | 8 |
 | `REGEXP_FULL_MATCH` | spelled | `regexp_full_match` |  | 49 |
+| `IS_NUMERIC` | emulated | `isNumeric` |  | 0 |
 | `MAP_FROM_LISTS` | spelled | `map` |  | 3 |
 | `MAP_FROM_ENTRIES` | spelled | `map_from_entries` |  | 13 |
 | `MAP_EMPTY` | emulated | `mapEmpty` |  | 8 |
@@ -1466,6 +1473,7 @@ Database types planned with it: ClickHouse.
 | `REGEXP_EXTRACT_ALL` | emulated | `regexpExtractAll` |  | 13 |
 | `REGEXP_REPLACE` | emulated | `regexpReplace` |  | 8 |
 | `REGEXP_FULL_MATCH` | emulated | `anchored: match(…, …)` |  | 49 |
+| `IS_NUMERIC` | emulated | `isNumeric` |  | 0 |
 | `MAP_FROM_LISTS` | spelled | `mapFromArrays` |  | 3 |
 | `MAP_FROM_ENTRIES` | emulated | `mapFromArrays(arrayMap("__e" -> tupleElement("__e", 1), …), arrayMap("__e" ->...` |  | 13 |
 | `MAP_EMPTY` | spelled | `map` |  | 8 |
@@ -1661,6 +1669,7 @@ Database types planned with it: SQLite.
 | `REGEXP_EXTRACT_ALL` | emulated | `regexpExtractAll` |  | 13 |
 | `REGEXP_REPLACE` | emulated | `regexpReplace` |  | 8 |
 | `REGEXP_FULL_MATCH` | emulated | `matchesArm` |  | 49 |
+| `IS_NUMERIC` | emulated | `isNumeric` |  | 0 |
 | `MAP_FROM_LISTS` | emulated | `composed in a block` | `via SQLite.maps` | 3 |
 | `MAP_FROM_ENTRIES` | emulated | `composed in a block` | `via SQLite.maps` | 13 |
 | `MAP_EMPTY` | spelled | `json_object` | `via SQLite.maps` | 8 |
@@ -1856,6 +1865,7 @@ Database types planned with it: MariaDB.
 | `REGEXP_EXTRACT_ALL` | emulated | `regexpExtractAll` |  | 13 |
 | `REGEXP_REPLACE` | emulated | `regexpReplace` |  | 8 |
 | `REGEXP_FULL_MATCH` | emulated | `pattern: (… REGEXP …)` |  | 9 |
+| `IS_NUMERIC` | emulated | `isNumeric` |  | 0 |
 | `MAP_FROM_LISTS` | emulated | `composed in a block` | `via MariaDb.maps` | 3 |
 | `MAP_FROM_ENTRIES` | emulated | `composed in a block` | `via MariaDb.maps` | 13 |
 | `MAP_EMPTY` | spelled | `JSON_OBJECT` | `via MariaDb.maps` | 8 |
@@ -2051,6 +2061,7 @@ Database types planned with it: MySQL.
 | `REGEXP_EXTRACT_ALL` | emulated | `regexpExtractAll` | `as MariaDb` | 13 |
 | `REGEXP_REPLACE` | emulated | `regexpReplace` | `as MariaDb` | 8 |
 | `REGEXP_FULL_MATCH` | emulated | `pattern: (… REGEXP …)` | `as MariaDb` | 9 |
+| `IS_NUMERIC` | emulated | `isNumeric` | `as MariaDb` | 0 |
 | `MAP_FROM_LISTS` | emulated | `composed in a block` | `as MariaDb, via MariaDb.maps` | 3 |
 | `MAP_FROM_ENTRIES` | emulated | `composed in a block` | `as MariaDb, via MariaDb.maps` | 13 |
 | `MAP_EMPTY` | spelled | `JSON_OBJECT` | `as MariaDb, via MariaDb.maps` | 8 |
@@ -2246,6 +2257,7 @@ Database types planned with it: MongoDB.
 | `REGEXP_EXTRACT_ALL` | emulated | `regexExtractAll` |  | 0 |
 | `REGEXP_REPLACE` | emulated | `regexReplace` |  | 0 |
 | `REGEXP_FULL_MATCH` | emulated | `regexMatch` |  | 0 |
+| `IS_NUMERIC` | emulated | `isNumeric` |  | 0 |
 | `MAP_FROM_LISTS` | emulated | `{"$arrayToObject": {"$zip": {"inputs": […]}}}` |  | 0 |
 | `MAP_FROM_ENTRIES` | emulated | `{"$arrayToObject": {"$map": {"input": {"$ifNull": […, []]}, "in": {"k": "$$th...` |  | 0 |
 | `MAP_EMPTY` | emulated | `{"$literal": {}}` |  | 0 |
@@ -2441,6 +2453,7 @@ Database types planned with it: no database type's own (it extends `AnsiSqlRende
 | `REGEXP_EXTRACT_ALL` | spelled | `regexp_extract_all` |  | — |
 | `REGEXP_REPLACE` | spelled | `regexp_replace` |  | — |
 | `REGEXP_FULL_MATCH` | spelled | `regexp_full_match` |  | — |
+| `IS_NUMERIC` | refused | `the product's isNumeric in legend-engine's H2 text: the edge writes lower = upper` |  | — |
 | `MAP_FROM_LISTS` | spelled | `map` |  | — |
 | `MAP_FROM_ENTRIES` | spelled | `map_from_entries` |  | — |
 | `MAP_EMPTY` | emulated | `mapEmpty` |  | — |
@@ -2636,6 +2649,7 @@ Database types planned with it: no database type's own (it extends `EngineStyleH
 | `REGEXP_EXTRACT_ALL` | spelled | `regexp_extract_all` | `as EngineStyleH2` | — |
 | `REGEXP_REPLACE` | spelled | `regexp_replace` | `as EngineStyleH2` | — |
 | `REGEXP_FULL_MATCH` | spelled | `regexp_full_match` | `as EngineStyleH2` | — |
+| `IS_NUMERIC` | refused | `the product's isNumeric in legend-engine's H2 text: the edge writes lower = upper` | `as EngineStyleH2` | — |
 | `MAP_FROM_LISTS` | spelled | `map` | `as EngineStyleH2` | — |
 | `MAP_FROM_ENTRIES` | spelled | `map_from_entries` | `as EngineStyleH2` | — |
 | `MAP_EMPTY` | emulated | `mapEmpty` | `as EngineStyleH2` | — |
@@ -2831,6 +2845,7 @@ Database types planned with it: no database type's own (it extends `EngineStyleD
 | `REGEXP_EXTRACT_ALL` | spelled | `regexp_extract_all` | `as EngineStyleDB2, as EngineStyleH2` | — |
 | `REGEXP_REPLACE` | spelled | `regexp_replace` | `as EngineStyleDB2, as EngineStyleH2` | — |
 | `REGEXP_FULL_MATCH` | spelled | `regexp_full_match` | `as EngineStyleDB2, as EngineStyleH2` | — |
+| `IS_NUMERIC` | refused | `the product's isNumeric in legend-engine's H2 text: the edge writes lower = upper` | `as EngineStyleDB2, as EngineStyleH2` | — |
 | `MAP_FROM_LISTS` | spelled | `map` | `as EngineStyleDB2, as EngineStyleH2` | — |
 | `MAP_FROM_ENTRIES` | spelled | `map_from_entries` | `as EngineStyleDB2, as EngineStyleH2` | — |
 | `MAP_EMPTY` | emulated | `mapEmpty` | `as EngineStyleDB2, as EngineStyleH2` | — |
