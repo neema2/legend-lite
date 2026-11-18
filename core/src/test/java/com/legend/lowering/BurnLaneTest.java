@@ -63,8 +63,9 @@ class BurnLaneTest {
         SqlSelect outer = SqlSelect.starOf(o)
                 .withWhere(new SqlExpr.Exists(sub));
         AtomicInteger n = new AtomicInteger();
-        SqlSelect out = ExistsJoinForm.rewrite(outer,
-                () -> "x" + n.incrementAndGet(), w -> null);
+        // the rewrite is the sql layer's (the edge's form calls it; the lens audit's item 1, 2026-11-18)
+        SqlSelect out = com.legend.sql.ExistsJoins.rewrite(outer,
+                () -> "x" + n.incrementAndGet(), w -> null, ex -> true);
         String sql = TestBackends.platform().dialect().render(out);
         // both keys projected (one aliased), and the ON references the
         // DISAMBIGUATED alias — never the same column twice

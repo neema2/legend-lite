@@ -94,6 +94,10 @@ class HookRulingTest {
             + " names, types and cells and its graph emission, filled by the product and read only by the facet's forms"
             + " (orchestrator, 2026-11-18)";
 
+    private static final String SITES = "2026-11-18: LoweringForms.existsJoin's argument type: the lowering's alias"
+            + " minter and each conjunct's resolver zones, filled by the product and read only by the edge's form that"
+            + " writes legend-engine's EXISTS join (the parts' ruling, orchestrator, 2026-11-18)";
+
     /** THE HOOK ENTRIES (the orchestrator's ruling of 2026-11-18, (6)): a product method that differs only by taking a
      *  hook type -- a PlanStyle or a facet -- and runs the product's own pipeline with it is the designed hook entry, not
      *  edge work in the product (EdgeOnlyMembersTest reads this list; its members are not counted). Each checked to hold
@@ -114,7 +118,12 @@ class HookRulingTest {
             Map.entry("com.legend.lowering.EnvelopeParts#objects()", PARTS),
             Map.entry("com.legend.lowering.RelationParts#names()", PARTS),
             Map.entry("com.legend.lowering.RelationParts#typeNames()", PARTS),
-            Map.entry("com.legend.lowering.RelationParts#cells()", PARTS));
+            Map.entry("com.legend.lowering.RelationParts#cells()", PARTS),
+            // E-SQL's fold move (612b194708, 2026-11-18, the lens audit's item 1): the statement's sites, the argument
+            // type of the LoweringForms two-form kind's existsJoin, beside it -- the parts' case (filed here by the GUARD
+            // stream on that ruling, in place of the READ_API rows the branch proposed)
+            Map.entry("com.legend.lowering.ExistsSites#alias()", SITES),
+            Map.entry("com.legend.lowering.ExistsSites#zones()", SITES));
 
     /** The hooks: PlanStyle, the facet kinds and the two-form kinds. */
     static List<Class<?>> hooks() {
@@ -200,7 +209,8 @@ class HookRulingTest {
     void aHooksArgumentTypesAreThoseBesideIt() {
         Set<Class<?>> args = hookArgumentTypes(hooks());
         org.junit.jupiter.api.Assertions.assertTrue(args.contains(com.legend.lowering.EnvelopeParts.class)
-                && args.contains(com.legend.lowering.RelationParts.class), "the facet's parts: " + args);
+                && args.contains(com.legend.lowering.RelationParts.class)
+                && args.contains(com.legend.lowering.ExistsSites.class), "the facet's parts, the forms' sites: " + args);
         org.junit.jupiter.api.Assertions.assertFalse(args.contains(com.legend.compiler.element.type.Type.class)
                 || args.contains(String.class) || args.contains(com.legend.sql.SqlExpr.class), "a general type is no"
                 + " hook argument type: " + args);

@@ -1440,9 +1440,13 @@ final class ArchitectureTest {
             // the edge's forms in place of its own
             "lowering.Styled#<init>(java.util.function.Function, com.legend.lowering.LoweringForms, "
                     + "com.legend.lowering.DateTimeTexts, com.legend.lowering.ListTexts)", "com.legend.edge.EdgeLoweringForms",
-            // legend-engine's JsonBuilder cardinality fold, the edge's form composing it from the wrapped array the
-            // lowering hands it (2026-11-18, the lens audit's L6 and item 1: the product composes nothing it never uses)
-            "lowering.LoweringForms#oneBare(com.legend.sql.SqlSelect)", "com.legend.edge.EdgeLoweringForms",
+            // the product's building blocks the edge's forms compose with (2026-11-18, the lens audit's item 1 and the
+            // orchestrator's ruling on L6: a two-form kind holds types only, the product hands its statement and sites,
+            // never upstream's composition; legend-engine's one-object-bare fold is the edge's own code): the subselect
+            // pruning (lean, or legend-engine's computed projections kept) and the statement's EXISTS sites
+            "lowering.ExistsSites#alias()", "com.legend.edge.EdgeLoweringForms",
+            "lowering.ExistsSites#zones()", "com.legend.edge.EdgeLoweringForms",
+            "lowering.SubselectPrune#prune(com.legend.sql.SqlQuery, boolean)", "com.legend.edge.EdgeLoweringForms",
             "lowering.Styled#forms()", "com.legend.edge.EdgeLoweringForms",
             "lowering.Styled#lists()", "com.legend.edge.EdgeLoweringForms",
             "lowering.Styled#pureOnly()", "com.legend.edge.EdgeLoweringForms",
