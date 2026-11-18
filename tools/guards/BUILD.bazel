@@ -345,7 +345,10 @@ py_library(
 
 py_test(
     name = "shrink_only_test",
-    size = "small",
+    # medium (300 s): its 44 cases spawn git 482 times (the throwaway repositories' history and the check's own reads),
+    # 1.5 s of its 1.9 s here, and CI's Windows runner, where a process spawn costs far more, timed it out at small's
+    # 60 s (61.8 s, windows / checks at the PR head; PR #118 fix round, 2026-11-18)
+    size = "medium",
     srcs = ["shrink_only_test.py"],
     # the check's own target is read for its tags (the review of C.13-CI, M2, 2026-11-18), and its entry run as data
     # (it runs the merge-base's copy: the review of 351e80daa2, M1, 2026-11-18); the real workflow's shrink-only job and

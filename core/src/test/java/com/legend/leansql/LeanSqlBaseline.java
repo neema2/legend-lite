@@ -185,6 +185,11 @@ public final class LeanSqlBaseline {
                 if (!relational(type) || !which.test(type)) {
                     continue;
                 }
+                // each model compiled once per database, as measureOwn holds one per model (PR #118 fix round,
+                // 2026-11-18: the set's 2,451 queries share 43 models, and compiling the model for every query on every
+                // database was most of this test's time -- 300 s on CI's Windows runner); a model that does not compile is
+                // compiled, and refused, again for each of its queries
+                Map<String, com.legend.compiler.element.ModelContext> compiled = new java.util.HashMap<>();
                 for (String line : lines) {
                     if (line.isBlank()) {
                         continue;
@@ -199,8 +204,8 @@ public final class LeanSqlBaseline {
                     long[] sh = new long[2];
                     boolean refused = false;
                     try {
-                        TypedQuery q = Compiler.query(Compiler.compileModel(withRuntime(model, type)),
-                                expression);
+                        TypedQuery q = Compiler.query(compiled.computeIfAbsent(model,
+                                m -> Compiler.compileModel(withRuntime(m, type))), expression);
                         family = family(q);
                         ExecutionPlan plan = q.executionPlan(StorelessRuntime.RUNTIME,
                                 Set.of(com.legend.platform.Feature.CORRECT_SQL_SUBSTRING_INDEXING));
