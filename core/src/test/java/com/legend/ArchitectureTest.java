@@ -3844,10 +3844,10 @@ final class ArchitectureTest {
             // was deleted long before -- the ledger's Equality row records it gone -- and the D71 audit found the
             // exemption naming nothing; deleted, a dated note)
             // JUDGING_TWO_MODES step 2: the host judge and the service-test
-            // judge are the seam's own (Equality decides; TestAssertions
-            // routes EqualToJson to it)
+            // judge are the seam's own (Equality decides; the edge's EqualToJson, moved from test.TestAssertions
+            // 2026-11-17 with J11's residue, reads its one float bound)
             .and().doNotHaveFullyQualifiedName("com.legend.testexec.Equality")
-            .and().doNotHaveFullyQualifiedName("com.legend.test.TestAssertions")
+            .and().doNotHaveFullyQualifiedName("com.legend.edge.EqualToJson")
             // leg 3.4 (2026-09-20): the verdict seam's SENDING arm — the
             // body's deferred verdict statements as one statement; it
             // counts the census rows the arm counted at the assert
