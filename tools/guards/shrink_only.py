@@ -116,7 +116,8 @@ WATCHED = {
     "core/src/test/java/com/legend/ProductFormsUseTheirArgumentsTest.java": ["UNCALLED", "RULED"],
     "core/src/test/java/com/legend/UpstreamBranchesTest.java": ["SITES"],
     # IN_MEANING: L-B's pieces edge-only in meaning, not in readers (the orchestrator's ruling of 2026-11-18, train 18)
-    "core/src/test/java/com/legend/EdgeOnlyDataTest.java": ["OPEN", "IN_MEANING"],
+    # RULED_IN_MEANING: pieces ruled the product's on the in-meaning check (the orchestrator, 2026-11-18, train 18: L13)
+    "core/src/test/java/com/legend/EdgeOnlyDataTest.java": ["OPEN", "IN_MEANING", "RULED_IN_MEANING"],
     "core/src/test/java/com/legend/ShippedArtifactRootsTest.java": ["REACH_OPEN", "ROOTS_OPEN"],
     "core/src/test/java/com/legend/HookRulingsAgreeTest.java": ["RULED_NOT_HOOKS", "RULED_UNCOUNTED"],
     "core/src/test/java/com/legend/EdgePackageBoundaryTest.java": ["EDGE_JARS_IN_THE_HOSTS_LIST"],
