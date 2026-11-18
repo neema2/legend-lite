@@ -1,6 +1,7 @@
 # One plan, two presentations: the design (2026-11-18)
 
-**Status: a DRAFT for the user's rulings. Nobody builds from it until the user rules on §4.** It designs the approved
+**Status: RULED. The user ruled all seven decisions of §4 on 2026-11-18 (§0); an independent review is running, and
+its corrections will be recorded here. Nobody builds from it before PR #118 merges.** It designs the approved
 program `docs/records/edge-portability-program-2026-11-18.md` (on `claude/total-wall-orch`; "the program" below).
 That program starts once PR #118 (`claude/total-wall-d-stage` → `main`, head `68f20eb4d`) has merged and its fix round
 (F1-F8, `claude/pr118-fixes`) has landed.
@@ -22,12 +23,20 @@ numbers differ from the audit's, §2.6 says so.
 
 ## 0. The decisions on one page
 
+**RULED by the user, 2026-11-18 (about 16:30 UTC), relayed by the orchestrator (`session_0195rQEoRb1AGCHxtZChjWsg`),
+verbatim:** "go with your recommendations on all seven decisions".
+
+So: (a) A1; (b) the rule of §3.2 and §4.b's 26-item classification; (c) C1; (d) D1, with S0 first; (e) E1; (f) retire
+`EngineResultEnvelopes` into a presented side written by `PureV1Writer`; (g) the two format bumps, with generated host
+constants and exact-version reading kept. The rulings within (b) that §4.b leaves to evidence (RE-RULE) and to listed
+PCT moves (CHANGE R1; S5's moves) still come back to the user with that evidence before they are built.
+
 The design moves every piece of presentation out of SQL and out of the plan's words. The plan says *whose* text a
 reader gets (one field) and carries typed facts. Java writers present at the boundary, through one presenter family.
 For most queries the edge's statements become the product's statements. The rest are a short list of ruled
 in-query computations (kind B).
 
-| # | Decision | Recommendation |
+| # | Decision | Recommendation (RULED 2026-11-18) |
 |---|---|---|
 | (a) | Raise operands. No raise returns its operand values today, so legend-pure's "Cannot divide 5 by zero" can be worded after the run only for literal operands. | **A1:** the edge's raise returns its computed operands as typed carriers (one listed kind-B row). The product's SQL stays token-only (S308 as built). |
 | (b) | The kind-B list, re-ruled under "one plan". | Adopt the rule in §3.2: compute in SQL only where legend-engine pushes the function to SQL, using legend-engine's own SQL; present in Java where it does not. Of the 26 items in §4.b: **KEEP 10, CHANGE 1** (a DateTime's in-query `toString` becomes legend-engine's cast), **RE-RULE 4** with evidence, **MOVE 8** to writers, **2** kind-C constants, **1** new register row. |
@@ -501,6 +510,8 @@ carries `implementation`, so the refusal is by field as well as by type.
 
 ### (a) Raise operands
 
+**RULED (the user, 2026-11-18, relayed by the orchestrator: "go with your recommendations on all seven decisions"): A1.**
+
 Today the database returns only `LG#<n>` (`AnsiSqlRenderer.site`, `:1241-1262`). The edge words a literal-operand
 site at planning (`PureMessages.wordsOrNull`), and writes legend-pure's sentence in SQL for a computed one
 (`PureMessages.sentence`, 57 SQL lines).
@@ -515,6 +526,8 @@ site at planning (`PureMessages.wordsOrNull`), and writes legend-pure's sentence
 edge, and costs nothing measurable. Choose A2 if "one plan" should hold with no raise row at all.
 
 ### (b) The kind-B rows, re-ruled under "one plan"
+
+**RULED (the user, 2026-11-18, relayed by the orchestrator: "go with your recommendations on all seven decisions"): the rule (b0), no boundary marker for now, and the 26-item classification below. The RE-RULE rows and the CHANGE row come back to the user with their evidence and PCT moves before they are built.**
 
 **(b0) The rule.** Adopt §3.2: compute in SQL only what legend-engine pushes to SQL, and with its SQL; present the
 rest in Java; refuse a kind-2 print that feeds a computation.
@@ -551,6 +564,8 @@ Each row below: what it is, upstream's evidence, the "one plan" verdict, and the
 
 ### (c) The test plan's words and the database judge's words
 
+**RULED (the user, 2026-11-18, relayed by the orchestrator: "go with your recommendations on all seven decisions"): C1.** C2 is not ruled; it stays a separate question.
+
 | Option | What | Cost |
 |---|---|---|
 | **C1 (recommended)** | The test plan carries kinds and bounds (§3.3), and the hearing words them through `HostWords`. `UpstreamVerdictWords` is deleted. Under the edge, the database judge plans `LiteVerdictWords` (unread, ARCH-3). The product's database judge is unchanged (01:30 ruling). | About 1 day. The judge-plan pins shrink (the edge's CONCATs leave `channel_b.essential.judge.plan`, 28.68M characters). |
@@ -561,6 +576,8 @@ Each row below: what it is, upstream's evidence, the "one plan" verdict, and the
 
 ### (d) The safety net
 
+**RULED (the user, 2026-11-18, relayed by the orchestrator: "go with your recommendations on all seven decisions"): D1, as slice S0, first.** One point stays open: `gates/BUILD.bazel` marks recording PCT on SQLite in CI as the user's own call. S0 brings it back to the user with the lane's measured cost.
+
 | Option | What | Cost |
 |---|---|---|
 | **D1 (recommended), slice S0** | 1. `PctCaseRecorder` moves `activities` to an informational file no diff test reads; pure/v1's activities go to their own diff file, re-recorded only by a slice that names the move. 2. Mask by field: the `executionTraceID` comment's id and UUIDs only, never a value (GUARDS-6). 3. `EdgeNormalize` keeps a relation's order where the query sorts (the plan's root has an ORDER BY), and sorts otherwise. 4. Pin messages: channel-B ledgered and failing rows' messages, corpus failure messages, pure/v1 error bodies. 5. Add the uncovered cases: EDGE-1's five values (DuckDB, H2), EDGE-2's DateTime CSV, EDGE-3's `%r` newline, a checked pure/v1 raise, and host parity (the pure/v1 golden set through the wasm and native answer halves). 6. A per-push CI lane `edge_net` (in-process DuckDB, H2 and SQLite; the PCT SQLite recording in CI is the user's call per `gates/BUILD.bazel`). | About 1 day; one regeneration at the base commit. Proven by a planted SQL-only change (an alias rename) that the net passes, and a planted value change (a 17th digit) that it fails. |
@@ -568,6 +585,8 @@ Each row below: what it is, upstream's evidence, the "one plan" verdict, and the
 | D3 | No net, lanes only. | Too slow and too weak (lanes run behind). |
 
 ### (e) Import of nodes that run Java or Pure
+
+**RULED (the user, 2026-11-18, relayed by the orchestrator: "go with your recommendations on all seven decisions"): E1.** E2 is not ruled. The FreeMarker conditional stays refused until the user rules on a product planned branch.
 
 | Option | What | Cost |
 |---|---|---|
@@ -584,6 +603,8 @@ Each row below: what it is, upstream's evidence, the "one plan" verdict, and the
 
 ### (f) `EngineResultEnvelopes` beside `PureV1Writer`
 
+**RULED (the user, 2026-11-18, relayed by the orchestrator: "go with your recommendations on all seven decisions"): retire it into a presented side written by `PureV1Writer`.**
+
 The only caller is `FramePlanner.java:126-141` → `EngineExecutedValues.relation` → `JsonEmission.result` →
 `EngineResultEnvelopes.tds` (the corpus's `executeLegendQuery` string entry; V-EDGE EDGE-8). **Recommendation: retire
 it.** The string value becomes a presented side (`ENGINE_TDS_JSON`/`ENGINE_CLASS_JSON`/`ENGINE_VALUES_JSON`), written
@@ -591,6 +612,8 @@ by `PureV1Writer` over the typed rows in result order. That fixes EDGE-8's order
 are the check; a move is listed.
 
 ### (g) The plan format and the three hosts' readers
+
+**RULED (the user, 2026-11-18, relayed by the orchestrator: "go with your recommendations on all seven decisions"): the two bumps, generated host constants, exact-version kept.**
 
 - **Two bumps.**
   - Plan v59 lands with S1, and S2 adds `Operand.Returned` as part of the same version, before any host ships it.
