@@ -1853,6 +1853,9 @@ class JavaEvalLedgerTest {
                             "PurePrintForms.java",
                             // pure/v1's routes and the test-data routes (D1.0b): read, compile and plan only
                             "PureV1Routes.java", "TestDataRoutes.java",
+                            // legend-engine's plan variables in a statement (J28 of the edge audit, 2026-11-17):
+                            // the relations it reads and does not define, read off the MIR; decides nothing
+                            "PlanVariables.java",
                             // legend-engine's RelationType JSON and a column's engine type and relational spelling,
                             // moved from com.legend.plan (Phase 6's C, 2026-11-17, the orchestrator's approved method
                             // list): spells a compiled type, decides nothing
