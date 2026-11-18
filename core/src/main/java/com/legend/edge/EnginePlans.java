@@ -288,21 +288,23 @@ public final class EnginePlans {
         public java.util.function.UnaryOperator<com.legend.sql.SqlExpr> testDataTimestampText() {
             return EnginePlans::testDataTimestampText;
         }
-
-        @Override
-        public String activitySql(java.util.List<TypedSpec> chain, @com.legend.base.Nullable String mappingFqn,
-                com.legend.compiler.spec.SpecCompiler specs, PlanEnv env, boolean recorded) {
-            EngineTextDialect renderer = PureText.engineText(EngineText.ENGINE_TEST_DATABASE);
-            EngineSql es = engineSql(chain, mappingFqn, specs, env, renderer, EngineParams.none(),
-                    java.util.function.UnaryOperator.identity());
-            if (!recorded) {
-                return es.sql();
-            }
-            com.legend.sql.SqlQuery post = com.legend.lowering.SqlPostProcessors.applyRecorded(es.plan(),
-                    env.tableReplace(), env.postProcessors().extractCtes(), env.postProcessors().nonExecutable());
-            return post == es.plan() ? es.sql() : renderer.render(post);
-        }
     };
+
+    /** An execute's activity SQL in legend-engine's text, {@code recorded} its runtime's post-processors applied: the
+     *  edge's form of the planner's two-form {@code ActivityTexts} (J40.PlanStyle, 2026-11-18; until then the upstream
+     *  plan facet's {@code activitySql}, asked by the planner beside lite's own and picked by the style). */
+    static String activitySql(java.util.List<TypedSpec> chain, @com.legend.base.Nullable String mappingFqn,
+            com.legend.compiler.spec.SpecCompiler specs, PlanEnv env, boolean recorded) {
+        EngineTextDialect renderer = PureText.engineText(EngineText.ENGINE_TEST_DATABASE);
+        EngineSql es = engineSql(chain, mappingFqn, specs, env, renderer, EngineParams.none(),
+                java.util.function.UnaryOperator.identity());
+        if (!recorded) {
+            return es.sql();
+        }
+        com.legend.sql.SqlQuery post = com.legend.lowering.SqlPostProcessors.applyRecorded(es.plan(),
+                env.tableReplace(), env.postProcessors().extractCtes(), env.postProcessors().nonExecutable());
+        return post == es.plan() ? es.sql() : renderer.render(post);
+    }
 
     private static @com.legend.base.Nullable String planToString(
             com.legend.compiler.spec.NativeDispatch.RoutineCall call,

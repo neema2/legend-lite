@@ -38,9 +38,8 @@ import java.util.List;
             @com.legend.base.Nullable String timeZone, @com.legend.base.Nullable String mappingFqn,
             List<String> enumParameterFqns, SpecCompiler specs, PlanEnv env);
 
-    /** An execute's activity SQL in legend-engine's text, {@code recorded} its runtime's post-processors applied. */
-    String activitySql(List<TypedSpec> chain, @com.legend.base.Nullable String mappingFqn, SpecCompiler specs,
-            PlanEnv env, boolean recorded);
+    // (activitySql: gone 2026-11-18, J40.PlanStyle -- an execute's activity SQL is the two-form ActivityTexts, the edge's
+    // form legend-engine's text, EnginePlans.activitySql)
 
     /** legend-engine's setup SQL for a seed's CSV on its test database ({@code setUpDataSqls}): the DDL and the
      *  inserts as its text prints them (Phase 6's A, 2026-11-17: moved off PlanStyle, which names no engine text). */
