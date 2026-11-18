@@ -329,7 +329,7 @@ its compat entry, a target the app loads only when configured `engine: legend-en
   option A: an additive engine module holding the 4 routes alone, loaded beside the product's, with no duplicated
   delegations.
 - **The split.**
-  - `//wasm:planner`'s main is `planner.TabExports` again (`:tab`). It holds lite's 37 exports and no edge export.
+  - `//wasm:planner`'s main is `planner.TabExports` again (`:tab`). It holds lite's 36 exports and no edge export.
   - `//wasm:engine_planner` is new. Its main is `com.legend.edge.wasm.EngineExports` (`:edge_tab`), holding the 4
     routes moved unchanged: `pureV1OrError`, `executeJsonPlanOrError`, `executeJsonAnswerOrError` and
     `executeArrowAnswerOrError`. It depends on the product, never the reverse.
@@ -351,7 +351,7 @@ its compat entry, a target the app loads only when configured `engine: legend-en
 - **Edge on.** `//wasm:engine_routes_test` asks 35 requests over the 4 exports: grammar both ways, compile, typing,
   generatePlan, the refused execute, an unknown route, lite's routes the export also answers, both plan halves with
   their refusals, and both answer halves. Each answer's sha256 is held to the pins in `wasm/engine-routes.json`,
-  which were captured from the pre-split `//wasm:planner`. Execute's minted host-execution id is fixed before
+  which were captured from the pre-split `//wasm:planner` at train 19's tip (1f2842680e). Execute's minted host-execution id is fixed before
   hashing. The engine module answers all 35 byte for byte. `//wasm:round_trip_test` asks the engine module.
 - **Red on revert.**
   - Planting `pureV1OrError` back in `planner.TabExports` (with `:tab` → `:edge_boundary`) turns

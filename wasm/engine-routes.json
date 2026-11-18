@@ -1,5 +1,5 @@
 {
-  "note": "2026-11-18 (the user's K2 ruling, 'Product root, edge opt-in'; the orchestrator's option A): captured from //wasm:planner BEFORE the split, at the host train's tip a337be421f, when the module's entry still exported legend-engine's four routes (wasm/engine_routes.mjs, ENGINE_ROUTES_CAPTURE). The engine module (//wasm:engine_planner) answers each request exactly so.",
+  "note": "2026-11-18 (the user's K2 ruling, 'Product root, edge opt-in'; the orchestrator's option A): captured from //wasm:planner BEFORE the split, at the host train's tip 1f2842680e (train 19), when the module's entry still exported legend-engine's four routes (wasm/engine_routes.mjs, ENGINE_ROUTES_CAPTURE; twice, identical). The engine module (//wasm:engine_planner) answers each request exactly so. (A draft's pins, captured at a337be421f, differed in the two executeJsonPlan answers alone: the train's own commits between the two, not the split.)",
   "pins": {
     "grammarToJson/model": "86cb35b1a336401e9b5df73b4f9549fb448ac2cf4c263356bf67767dd1d9f9a7",
     "grammarToJson/model, source information": "64f2b09811251c754940b500009d87cf19a89dd0a74c391517d38d9d0f1f672c",
@@ -23,8 +23,8 @@
     "a route there is not": "36a2eb3394129063740123a48c9c4aeda9a2033ee5bbb7593b4e224512486fc9",
     "lite API v1 model/check": "237993b53ae804e6e23a687d03c8ad4bc434a518f2b631c14250f518c6905f7d",
     "lite API v1 model/check, a model that does not compile": "dace3ccf5a206337921ef340162797fa6408b5e3135feff239c1982b8972ae54",
-    "executeJsonPlan": "28dc81c172bae5636a2c99dc48d90235b9582febe5b242572d42b33c5653d4f1",
-    "executeJsonPlan, parameterized": "b47a64fddb533f9d715481f7164177b7c48cefb0164a9537428cb53fd6059a5c",
+    "executeJsonPlan": "69c6f0073fae979f2fa859414fff2d053a1746302b76f108f2c6746ce85d2591",
+    "executeJsonPlan, parameterized": "e5ee85ed7cbb905fcaff7234c2ae4c109a7df1594a4aae3ff6260796ea07ad0c",
     "executeJsonPlan, a parameter with no value": "848769f7b2ada58d719aecaf74051afaaaf042a02afb9739b2a55bc46394e38e",
     "executeJsonPlan, a model the host does not run": "97abcd05857cf739fa06483b286970336ae18ebeebebf1d4207f8d1065da772a",
     "executeJsonPlan, models that are not an array": "810c5d93dea376f517c603c698a2190776aaaf242a4a22916378a968981dfdd7",
