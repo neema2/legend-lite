@@ -86,9 +86,9 @@ class CompatSpellingGuardTest {
             // literal it is also the Pure type's own name (16 product literals), so its sites are sorted in Phase 7
             "tdsBuilder", "SET NON_KEYWORDS",
             // generateSeedDataString's value: legend-engine's createTableRowIdentifiers(...) code, assembled by the
-            // database from planned literals (TestDataPlanner.seedString) -- STAYS, the orchestrator's ruling of
-            // 2026-11-17 (not the user's; put to the user), on the toRepresentation precedent of 2026-11-15: the
-            // function's value is its semantics
+            // database from planned literals (TestDataPlanner.seedString) -- STAYS, ruled by the user 2026-11-18 (PR
+            // #118): stays for now; revisited as ENGINE-mode output in the three-mode program (on the toRepresentation
+            // precedent of 2026-11-15: the function's value is its semantics)
             "createTableRowIdentifiers(", "createRowIdentifier([",
             // legend-engine's text of an empty TDS cell (the separation census's B10, 2026-11-17: until then not listed)
             "TDSNull",
@@ -306,9 +306,9 @@ class CompatSpellingGuardTest {
             // LoadPlanner), H2 file and tcp databases (H2Connector), and H2 files an earlier lite made.
             "sql/dialect/H2.java | ENGINE_LEXICON | 3 | RULED",
             "sql/dialect/H2.java | SET NON_KEYWORDS | 1 | RULED", // listed 2026-11-16 (S5): the same ruling's session half
-            // listed 2026-11-17 (STAYS, the orchestrator's ruling of 2026-11-17, not the user's -- the orchestrator puts it
-            // to the user; 23:27): generateSeedDataString's value, the database's assembly of planned literals --
-            // upstream's own result, as toRepresentation's (2026-11-15)
+            // listed 2026-11-17 (STAYS, ruled by the user 2026-11-18 (PR #118): stays for now; revisited as ENGINE-mode
+            // output in the three-mode program): generateSeedDataString's value, the database's assembly of planned
+            // literals -- upstream's own result, as toRepresentation's (2026-11-15)
             "testdatagen/TestDataPlanner.java | createRowIdentifier([ | 1 | STAYS",
             "testdatagen/TestDataPlanner.java | createTableRowIdentifiers( | 1 | STAYS",
             // sql/dialect/MongoDb.java | +0000: gone 2026-11-15 (D1.2: its date-time format a @SpellingArm hook,
