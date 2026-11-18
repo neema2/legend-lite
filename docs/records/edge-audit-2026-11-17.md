@@ -117,3 +117,28 @@ Owner: a new GUARD stream (one worker), mostly in new test files; it lands after
 | K16 | NITs: sql.* field accesses are skipped; raiseMessage's product default is unpinned; CanonicalDivergence; stale text; PureText's edge-side fallback to the product dialect | | GUARD / various |
 
 **Direction:** clean. No product main source names an edge type. There is no reflection. The one ServiceLoader seam loads EdgeCodec from the edge jar only. Plan tags are enum names, apart from K9's class-name string.
+
+## Confirmation audit at d-stage fdf001bee (2026-11-18 01:00)
+
+One fresh read-only auditor. Its brief: product Java that exists only for legend-engine or legend-pure compatibility and is named by no census line or audit item. Its verdict: separation is complete at the dependency level (the guards hold, and no product class reaches the edge), but not at the level of text and behaviour. The orchestrator spot-checked J29, J30 and J32 against the code.
+
+| Id | Finding | Where | Owner |
+|---|---|---|---|
+| J29 | The judges write legend-pure's assert sentences in product code. A boolean (FailureWords/HostForms/TestPlan.upstreamWords) chooses between those and lite's words, and some product paths default to legend-pure's (the `lite=false` overloads). Wider than J17 | lowering/VerdictSql.java (438, 574, 580, 640, 658, 2010-2030; overloads 409, 557, 561, 602, 611, 1405, 1983), testexec/AssertErrorRuns.java:66-118, testexec/HostJudgments.java:608,647, testplan/AssertVerdicts.java:1116,1486, testplan/DatabaseJudge.java:593,636,1039 | E-Java |
+| J30 | legend-engine's parser bug (RELATIONAL_ARITH_MISASSOCIATION) applies at LEGEND_LITE, so `1 < 2 + 3 * 4` parses as `1 < 20`; Pure's precedence gives `1 < 14` | parser/EngineQuirks.java:53, parser/OperatorParts.java:117-120 | E-P5 |
+| J31 | The MIR carries legend-engine's FreeMarker template fields, set and read only by the edge | sql/SqlExpr.java:783-814 (PlanParam.enumMapFn, Kind.RAW), planner/QueryParameters.java:41-51, executionplan/MirJson.java:510,989, sql/dialect/AnsiSqlRenderer.java:2172-2179 | E-SQL |
+| J32 | legend-engine's setUpDataSQLs text generator sits in the product; its only callers are edge/EnginePlans | setup/Ddl.java:94-375 | GUARD |
+| J33 | The referee and SQL-text arm's residue, called only by edge/SqlTextRuns and SqlTextVerdicts | testexecutionplan/Verdicts.java:83-107, compiler/spec/VerdictQueries.java:46,97,123-171,434 | F |
+| J34 | legend-engine's EqualToJson rules (TestAssertions, Equality.serviceJson/serviceDiff), used only by the edge. Possibly already closed by 17cdf06e72 | test/TestAssertions.java, testexec/Equality.java:467-545 | E-Java (verify) |
+| J35 | The product's JSON parse doors keep legend-engine 4.145.0's span quirk (withoutSpans/keptByTheEngine) | protocol/SourceInformation.java:41-58,157-170, parser/SpecParser.java:342-345, parser/PmcdParser.java:152-155 | E-P5 |
+| J36 | Unpinned hooks (CellText.Forms, HostForms, RenderedTexts); ArrowWriter constructed only by the edge; CellText.number public only for Presenter | result/CellText.java:49-60, result/ArrowWriter.java | GUARD |
+| J37 | The product builds legend-engine's AggregationAwareActivity row (J5's residue) | planner/PlanAllocations.java:282-290 | E-P5 |
+| J38 | The product's JSON reader tolerates typos from legend-engine's goldens. Wider than J2 | sql/Json.java:23-27,52-58,113-115 | E-SQL |
+
+Suspected but unverified, for GUARD to check and route:
+- The PlatformTypes DDL/TO_SQL_STRING constants, read only by the edge.
+- AssertVerdicts.DatabaseGate.ENGINE_TEXT and ENGINE_TEXT_READ.
+- Product public statics called only by the edge: BodyPlanner.pushDownEnums, AggregationAwareRouting.mainSetId, ColumnFacts.store, PlanJson.readColumns/writeColumns/loadStepJson, LiteV1Api.head/runtimeOf, TestDataPlanner.declaredName/seedJson/pureName.
+- PlanStyle.graphKeyDate and graphKeyString.
+- protocol/OlderSpecReader.
+- PureDateLiteral.toEngineString's name.
