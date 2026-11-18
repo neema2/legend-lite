@@ -112,11 +112,49 @@ class EdgeOnlyDataTest {
             Map.entry("component com.legend.executionplan.ExecutionPlan$Sql#tree: by none",
                     "RULED_PENDING (2026-11-18): the user's proposal A -- drop the unread MIR tree from run plans (G11)"));
 
+    /** PIECES EDGE-ONLY IN MEANING, NOT IN READERS (the orchestrator's ruling of 2026-11-18, train 18, on the GUARD
+     *  stream's L-B check of E-Java's item 2b, 11bb6517d3): the measure above finds a product reader for each --
+     *  JsonEmission, routing them into the edge's ResultEnvelopes facet -- yet each exists only for legend-engine's
+     *  result envelope: TypedJsonResult's TDS and CLASS kinds (made by the edge's EngineExecutedValues alone) and its sql
+     *  component (set by the edge alone). Counted, one line, owner E-Java; each checked present, so the line closes as
+     *  they leave the product (the edge carrying its own envelope node, or lowering it itself). The TDS branch's shared
+     *  column and cell parts stay: legend-pure's toJSON vocabulary, the product's. Shrink-only. */
+    static final Map<String, String> IN_MEANING = Map.of(
+            "constant com.legend.compiler.spec.typed.TypedJsonResult$Kind.TDS",
+            "L-B.TypedJsonResult E-Java (2026-11-18): legend-engine's tdsBuilder envelope kind, made by the edge alone",
+            "constant com.legend.compiler.spec.typed.TypedJsonResult$Kind.CLASS",
+            "L-B.TypedJsonResult E-Java (2026-11-18): legend-engine's classBuilder envelope kind, made by the edge alone",
+            "component com.legend.compiler.spec.typed.TypedJsonResult#sql",
+            "L-B.TypedJsonResult E-Java (2026-11-18): the envelope's activity SQL, set by the edge alone");
+
     /** The census lines this guard holds: one per "L-B." line. */
     static Set<String> lines() {
         Set<String> out = new TreeSet<>();
         OPEN.values().stream().filter(v -> v.startsWith("L-B.")).forEach(v -> out.add(v.split(" ")[0]));
+        IN_MEANING.values().forEach(v -> out.add(v.split(" ")[0]));
         return out;
+    }
+
+    /** Whether {@code piece} ("constant C.NAME" or "component C#name", C a binary class name) is in the product. */
+    static boolean present(String piece) {
+        String what = piece.substring(piece.indexOf(' ') + 1);
+        try {
+            if (piece.startsWith("constant ")) {
+                int dot = what.lastIndexOf('.');
+                Object[] constants = Class.forName(what.substring(0, dot)).getEnumConstants();
+                return constants != null && java.util.Arrays.stream(constants)
+                        .anyMatch(c -> ((Enum<?>) c).name().equals(what.substring(dot + 1)));
+            }
+            if (piece.startsWith("component ")) {
+                int hash = what.indexOf('#');
+                java.lang.reflect.RecordComponent[] parts = Class.forName(what.substring(0, hash)).getRecordComponents();
+                return parts != null && java.util.Arrays.stream(parts)
+                        .anyMatch(r -> r.getName().equals(what.substring(hash + 1)));
+            }
+        } catch (ClassNotFoundException e) {
+            return false;
+        }
+        throw new AssertionError("a piece is a constant or a component: " + piece);
     }
 
     enum Who { PRODUCT, EDGE, COPY }
@@ -307,6 +345,24 @@ class EdgeOnlyDataTest {
         assertEquals(new TreeSet<>(OPEN.keySet()), found, "a piece of the plan's or the MIR's data with no real product"
                 + " use -- the edge's data in the product (J28's, J31's shape): move it to the edge, delete it, or rule"
                 + " it here (" + byKind + ")");
+    }
+
+    @Test
+    void theEdgeDataInMeaningIsStillThere() {
+        assertEquals(List.of(), IN_MEANING.keySet().stream().filter(p -> !present(p)).sorted().toList(), "a piece"
+                + " edge-only in meaning has left the product: delete its row (its line closes with its last)");
+    }
+
+    /** The presence check bites: a constant or a component that is not there is found gone. */
+    @Test
+    void thePresenceCheckBites() {
+        String kind = "com.legend.compiler.spec.typed.TypedJsonResult$" + "Kind";
+        String record = "com.legend.compiler.spec.typed." + "TypedJsonResult";
+        assertEquals(true, present("constant " + kind + ".TDS_JSON"), "a constant there");
+        assertEquals(false, present("constant " + kind + ".NO" + "PE"), "a constant not there");
+        assertEquals(true, present("component " + record + "#chain"), "a component there");
+        assertEquals(false, present("component " + record + "#no" + "pe"), "a component not there");
+        assertEquals(false, present("component " + record + "Gone#chain"), "a class not there");
     }
 
     @Test
