@@ -68,8 +68,9 @@ record EdgeLoweringForms(Set<RaiseKind> plain) implements com.legend.lowering.Lo
     /** legend-engine's JsonBuilder cardinality rule (the engine's {@code execute()} contract; the audit's J3,
      *  2026-11-17): exactly one object bare, zero or several as the array. */
     @Override
-    public SqlSelect executeValues(Supplier<SqlSelect> array, Supplier<SqlSelect> wrapped) {
-        return oneBare(wrapped.get());
+    public SqlSelect executeValues(SqlSelect own) {
+        // a many graph's array folded to one object bare where it holds one; a to-one graph's object is already bare
+        return oneBare(own);
     }
 
     /** legend-engine's JsonBuilder cardinality rule over a wrapped array's values: a singleton the bare object, anything
@@ -197,8 +198,8 @@ record EdgeLoweringForms(Set<RaiseKind> plain) implements com.legend.lowering.Lo
         }
 
         @Override
-        public SqlSelect executeValues(Supplier<SqlSelect> array, Supplier<SqlSelect> wrapped) {
-            return base.executeValues(array, wrapped);
+        public SqlSelect executeValues(SqlSelect own) {
+            return base.executeValues(own);
         }
 
         @Override

@@ -38,8 +38,8 @@ public final class ProductLoweringForms implements LoweringForms {
     }
 
     @Override
-    public SqlSelect executeValues(Supplier<SqlSelect> array, Supplier<SqlSelect> wrapped) {
-        return array.get();
+    public SqlSelect executeValues(SqlSelect own) {
+        return own;
     }
 
     /** No connection: the reference names none it was not made from. */
