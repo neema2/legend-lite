@@ -81,12 +81,12 @@ class ReadThroughExecuteValuesTest {
                 com.legend.edge.PureText.UPSTREAM);
         SqlExpr folded = top(compat.plan());
         assertInstanceOf(SqlExpr.Case.class, folded);
-        assertNotNull(SnapshotEnvelope.foldedAggregate(folded), "the singleton fold over the array aggregate");
+        assertTrue(foldOverTheArray(folded), "the singleton fold over the array aggregate");
 
         // the streaming root (one object per row) never folds
         SqlExpr streamed = top(com.legend.planner.Lowered.lower(q.withBody(List.of(spliced)), "s::RT", true,
                 com.legend.edge.PureText.UPSTREAM).plan());
-        assertNull(SnapshotEnvelope.foldedAggregate(streamed));
+        assertFalse(foldOverTheArray(streamed));
         assertFalse(streamed instanceof SqlExpr.JsonArrayAgg);
     }
 
@@ -107,7 +107,7 @@ class ReadThroughExecuteValuesTest {
         assertInstanceOf(SqlExpr.JsonArrayAgg.class, direct, "the direct serialize keeps the array at the edge");
         SqlExpr values = top(com.legend.planner.Lowered.lower(q.withBody(List.of(spliced)), "s::RT", false,
                 com.legend.edge.PureText.UPSTREAM).plan());
-        assertNotNull(SnapshotEnvelope.foldedAggregate(values), "the values read folds at the edge");
+        assertTrue(foldOverTheArray(values), "the values read folds at the edge");
     }
 
     @Test
@@ -184,5 +184,11 @@ class ReadThroughExecuteValuesTest {
                 return e;
             }
         }
+    }
+
+    /** The edge's singleton fold (edge.EdgeLoweringForms.oneBare): a choice whose otherwise is the rows' array aggregate
+     *  (SnapshotEnvelope.foldedAggregate until 2026-11-18, L-A.foldedAggregate: the product reads no edge shape). */
+    private static boolean foldOverTheArray(SqlExpr e) {
+        return e instanceof SqlExpr.Case c && c.otherwise() instanceof SqlExpr.JsonArrayAgg;
     }
 }
