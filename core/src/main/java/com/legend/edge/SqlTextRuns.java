@@ -7,9 +7,9 @@ import com.legend.testexecutionplan.AssertListener;
 
 import static com.legend.testexecutionplan.Verdicts.ok;
 import static com.legend.testexecutionplan.Verdicts.fail;
-import static com.legend.testexecutionplan.Verdicts.textsDiffer;
-import static com.legend.testexecutionplan.Verdicts.isPopulationGolden;
-import static com.legend.testexecutionplan.Verdicts.stripChainedPlanWarning;
+import static com.legend.edge.SqlTextReferee.textsDiffer;
+import static com.legend.edge.SqlTextReferee.isPopulationGolden;
+import static com.legend.edge.SqlTextReferee.stripChainedPlanWarning;
 import static com.legend.testexecutionplan.Verdicts.scalarString;
 import com.legend.exec.StatementOrigin;
 import com.legend.testexecutionplan.HostJudgment;
@@ -68,7 +68,7 @@ final class SqlTextRuns {
             if (g.equals(ours)) {
                 return ok();
             }
-            if (com.legend.testexecutionplan.Verdicts.isPopulationGolden(g) || NAMED_IN_TEMP.matcher(g).find()) {
+            if (isPopulationGolden(g) || NAMED_IN_TEMP.matcher(g).find()) {
                 return fail(e.name() + " (sql-text): a golden read at the verdict step whose text chooses a statement"
                         + " route the plan did not plan (a population or in-list temp statement): " + g);
             }
