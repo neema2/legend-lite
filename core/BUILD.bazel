@@ -482,7 +482,7 @@ legend_java_library(
         "src/main/java/com/legend/edge/StoreWords.java",
     ]),
     # //wasm (D1.0b, 2026-11-12): the compiler's boundary answers legend-engine's routes in the tab and Python
-    visibility = ["//spec:__pkg__", "//pct:__pkg__", "//tools/census:__pkg__", "//wasm:__pkg__"],
+    visibility = ["//parser-equivalence:__pkg__", "//spec:__pkg__", "//pct:__pkg__", "//tools/census:__pkg__", "//wasm:__pkg__"],
     resources = glob(["src/main/edge/META-INF/**"]),
     resource_strip_prefix = "core/src/main/edge",
     # the plan's records (B2b, 2026-11-11): a seed's referee's copy is a load, its steps written by the plan's codec;

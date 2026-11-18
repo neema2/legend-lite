@@ -3594,8 +3594,8 @@ final class ArchitectureTest {
                 "com.legend.parser.SpecParser.lambdaJson(java.lang.String, boolean)");
         java.util.Set<String> edgeDoor = java.util.Set.of(
                 "com.legend.door.Parse.engineRecords(java.lang.String)",
-                "com.legend.door.Parse.engineDocumentJson(java.lang.String, boolean)",
-                "com.legend.door.Parse.engineLambdaJson(java.lang.String, boolean)");
+                "com.legend.door.Parse.engineDocumentJson(java.lang.String)",
+                "com.legend.door.Parse.engineLambdaJson(java.lang.String)");
         java.util.List<String> bad = new java.util.ArrayList<>();
         for (com.tngtech.archunit.core.domain.JavaClass c : coreAndTheHostsDoors()) {
             String origin = c.getName().replaceAll("\\$.*$", "");

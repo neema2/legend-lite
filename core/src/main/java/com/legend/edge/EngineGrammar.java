@@ -17,12 +17,14 @@ public final class EngineGrammar {
 
     /** A model's text as its protocol JSON, as legend-engine's {@code grammarToJson/model} answers it. */
     public static String documentJson(String text, boolean sourceInformation) {
-        return com.legend.door.Parse.engineDocumentJson(text, sourceInformation);
+        String json = com.legend.door.Parse.engineDocumentJson(text);
+        return sourceInformation ? json : EngineSpans.withoutSpans(json);
     }
 
     /** A lambda's text as its protocol JSON, as legend-engine's {@code grammarToJson/lambda} answers it. */
     public static String lambdaJson(String text, boolean sourceInformation) {
-        return com.legend.door.Parse.engineLambdaJson(text, sourceInformation);
+        String json = com.legend.door.Parse.engineLambdaJson(text);
+        return sourceInformation ? json : EngineSpans.withoutSpans(json);
     }
 
     /** A request's model as its records: a {@code PureModelContextText}'s as legend-engine reads it, a
