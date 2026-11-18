@@ -56,12 +56,15 @@ class TerminalRowsFrozenTest {
             // vector assert's worded by the run's words; legend-pure's "Assert failed" is the edge's alone)
             // (compiler/spec/VerdictQueries.java | TDSNull | STAYS: gone from the register 2026-11-17 on d-stage c37207858,
             // train 7's C-2 fix-forward)
-            // generateSeedDataString's value (TestDataPlanner.seedString): STAYS, the orchestrator's ruling of 2026-11-17
-            // (23:27: its own, not the user's -- not RULED, which is the user's)
+            // generateSeedDataString's value (TestDataPlanner.seedString): STAYS, the orchestrator's ruling of 2026-11-17,
+            // ratified by the user's R2 (2026-11-18, PR #118, "For 118 r1-r3 are fine"): stays for now; revisited as
+            // ENGINE-mode output in the three-mode program
             Map.entry("testdatagen/TestDataPlanner.java | createRowIdentifier([ | 1 | STAYS",
-                    "the seed string, the orchestrator's STAYS ruling 2026-11-17 (toRepresentation precedent)"),
+                    "the seed string, STAYS: the orchestrator's 2026-11-17, ruled by the user's R2 2026-11-18"
+                            + " (toRepresentation precedent)"),
             Map.entry("testdatagen/TestDataPlanner.java | createTableRowIdentifiers( | 1 | STAYS",
-                    "the seed string, the orchestrator's STAYS ruling 2026-11-17 (toRepresentation precedent)"));
+                    "the seed string, STAYS: the orchestrator's 2026-11-17, ruled by the user's R2 2026-11-18"
+                            + " (toRepresentation precedent)"));
 
     /** The terminal rows of {@code register} as this test keys them, by the register's one terminal predicate (the one
      *  the census reads). */

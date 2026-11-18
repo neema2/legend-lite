@@ -11,7 +11,7 @@ import org.junit.jupiter.api.Test;
 
 /**
  * A RUN'S FAILURE AS LITE'S ONE ERROR SHAPE (lite's API v1 spec §3; PR #118 fix round, 2026-11-18, N3 -- the PR #118
- * audit's PRODUCT-9, the kinds ruled by the orchestrator pending the user): {@code raise} is a raise's kind alone, never
+ * audit's PRODUCT-9, the kinds ruled by the user 2026-11-18, "N3 okay"): {@code raise} is a raise's kind alone, never
  * the database's own failure's or a load's refused file's, and a raise's {@code where} is its site's; a connection that
  * could not open or was lost is {@code internal}. Read by the one classifier every binding reads
  * ({@link LiteV1Api#refusal}).

@@ -629,8 +629,8 @@ public final class Pure {
 
     /** The compiler's own natives, which only the compiler writes (PR #118 fix round, 2026-11-18, N1; the edge
      *  follow-ups' F32): a call born with its record after the name resolver ({@code compiler.spec.Calls}) -- the type
-     *  check's raise and a TDS cell's text. A user's call to either, by any name, is refused where the user's names are
-     *  resolved ({@code compiler.NameResolver}). */
+     *  check's raise, a TDS cell's text and an in-body assert's default message. A user's call to any of the three, by
+     *  any name, is refused where the user's names are resolved ({@code compiler.NameResolver}). */
     public static final java.util.Set<String> COMPILER_OWN = java.util.Set.of(Lite.TYPE_RAISE, Lite.CELL_TEXT,
             Lite.ASSERT_FAILED_TEXT);
 
@@ -978,8 +978,9 @@ public final class Pure {
     public static final NativeFunctionDefinition TRUST_ONE__T_MANY = signature("native function meta::legend::lite::trustOne<T>(values:T[*]):T[1];");
     /** A TDS cell's text (see {@link Lite#CELL_TEXT}): the text, empty where the cell is; the edge's TDSNull. */
     public static final NativeFunctionDefinition CELL_TEXT__STRING_0_1 = signature("native function meta::legend::lite::cellText(text:meta::pure::metamodel::type::String[0..1]):meta::pure::metamodel::type::String[1];");
-    /** A run-time type check's failure (see {@link Lite#TYPE_RAISE}): its kind's name and the two types' paths. */
+    /** An in-body assert's default message, worded by the plan's style (see {@link Lite#ASSERT_FAILED_TEXT}). */
     public static final NativeFunctionDefinition ASSERT_FAILED_TEXT = signature("native function meta::legend::lite::assertFailedText():meta::pure::metamodel::type::String[1];");
+    /** A run-time type check's failure (see {@link Lite#TYPE_RAISE}): its kind's name and the two types' paths. */
     public static final NativeFunctionDefinition TYPE_RAISE__STRING_1__STRING_1__STRING_1 = signature("native function meta::legend::lite::typeRaise(kind:meta::pure::metamodel::type::String[1], from:meta::pure::metamodel::type::String[1], to:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::Boolean[1];");
     /** A SQL island's inline view (see {@link Lite#INLINE_VIEW}): types as its relation, its windows a boundary. */
     public static final NativeFunctionDefinition INLINE_VIEW__RELATION_1 = signature("native function meta::legend::lite::inlineView<T>(rel:meta::pure::metamodel::relation::Relation<T>[1]):meta::pure::metamodel::relation::Relation<T>[1];");

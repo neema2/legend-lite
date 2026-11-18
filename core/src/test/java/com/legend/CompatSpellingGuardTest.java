@@ -145,16 +145,13 @@ class CompatSpellingGuardTest {
      * SHRINK-ONLY: a row falls or goes as its step lands; a row rises or is added only with a dated justification.
      */
     static final List<String> REGISTER = List.of(
-            // census J29 (2026-11-18): "Assert failed" is the platform's own assert native's default message
-            // (assert.pure: assert(condition) is assert(condition, | 'Assert failed'); the platform stdlib is lite's,
-            // AGENTS.md's reference-checkout tenet), as two compiler classes plan its body -- RULED STAYS by the
-            // orchestrator (2026-11-18, on the GUARD stream's re-cut triage): lite's assert native's default sentence is
-            // lite's own, the same words as legend-pure's assert.pure default (the orchestrator's ruling at J29); the
-            // orchestrator's, not the user's, so its step stays STAYS
-            // LambdaBodies' row stays for the six other in-body guards (assertTrue, assertFalse, assertEquals,
-            // assertNotEquals, assertEmpty, assertNotEmpty) with no message: the user's R1 (2026-11-18, PR #118) ruled
-            // assert's default alone, which is Pure.Lite.ASSERT_FAILED_TEXT worded by the plan's style (the re-review of
-            // 373e42960, the same day: narrowed to assert)
+            // census J29 (2026-11-18): "Assert failed", legend-pure's assert.pure default, as the compiler plans an in-body
+            // guard's message where the guard gives none -- RULED STAYS by the orchestrator at J29 (the GUARD stream's
+            // re-cut triage). The user's R1 (2026-11-18, PR #118, "For 118 r1-r3 are fine") covers `assert`: its default
+            // is lite's sentence in the product, Pure.Lite.ASSERT_FAILED_TEXT worded by the plan's style (VerdictQueries'
+            // row went with it). The six other in-body guards (assertTrue, assertFalse, assertEquals, assertNotEquals,
+            // assertEmpty, assertNotEmpty) keep these words on both roads: their lite wording is queued for the user's
+            // ruling after the merge, so this row stays STAYS until then
             "compiler/spec/LambdaBodies.java | Assert failed | 1 | STAYS",
             // (compiler/spec/VerdictQueries.java | Assert failed | STAYS: gone 2026-11-18, PR #118's fix round, N2 -- the
             // user's R1, "For 118 r1-r3 are fine": the product's default is lite's own sentence; a vector assert with no
