@@ -29,10 +29,10 @@ public final class EngineGrammar {
 
     /** A request's model as its records: a {@code PureModelContextText}'s as legend-engine reads it, a
      *  {@code PureModelContextData}'s as read. */
-    public static com.legend.protocol.Protocol.PureModelContextData records(com.legend.server.ModelInput model) {
+    public static com.legend.protocol.Protocol.PureModelContextData records(ModelInput model) {
         return switch (model) {
-            case com.legend.server.ModelInput.Text t -> com.legend.door.Parse.engineRecords(t.code());
-            case com.legend.server.ModelInput.Data d -> d.model();
+            case ModelInput.Text t -> com.legend.door.Parse.engineRecords(t.code());
+            case ModelInput.Data d -> d.model();
         };
     }
 }

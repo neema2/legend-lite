@@ -72,18 +72,15 @@ class EdgeOnlyMembersTest {
             // READ_API below; J40.VerdictSql closes)
             // found 2026-11-18 on train 19's trial (the host train's pre-merge cb7d660910 on guards d539d3dfd5, the GUARD
             // stream), counted until ruled -- each with its owner and the proposed ruling:
-            // legend-engine's request model context (PureModelContextText/Data): lite v1 no longer reads it (the host train
-            // dropped LiteV1Api's ModelInput.of), so the type is the edge's routes' alone (PureV1Routes, TestDataRoutes);
-            // ruled MOVE by the orchestrator 2026-11-18 (train 19), its author the TS host's to move (E-Java stood down) --
-            // counted until the move lands
-            Map.entry("com.legend.server.ModelInput#of(com.legend.json.Json$Obj)",
-                    "J40.ModelInput TS-HOST (2026-11-18, train 19, a7fedfc878): ruled MOVE -- the type to the edge, with its two READ_API rows"),
-            Map.entry("com.legend.server.ModelInput#with(com.legend.server.LiteV1Api$Models, java.util.function.Function)",
-                    "J40.ModelInput TS-HOST (2026-11-18, train 19, a7fedfc878): ruled MOVE -- the type to the edge, with its two READ_API rows"),
-            Map.entry("com.legend.server.ModelInput$Data#<init>(com.legend.protocol.Protocol$PureModelContextData)",
-                    "J40.ModelInput TS-HOST (2026-11-18, train 19, a7fedfc878): ruled MOVE -- the type to the edge, with its two READ_API rows"),
-            Map.entry("com.legend.server.ModelInput$Text#<init>(java.lang.String)",
-                    "J40.ModelInput TS-HOST (2026-11-18, train 19, a7fedfc878): ruled MOVE -- the type to the edge, with its two READ_API rows")
+            // (J40.ModelInput: MOVED 2026-11-18 by the TS host, the orchestrator's ruling -- legend-engine's request model
+            // context is com.legend.edge.ModelInput, read by PureV1Routes, TestDataRoutes and EngineGrammar; its four
+            // members here and its two READ_API rows below go with it. J40.ModelInput closes)
+            // found 2026-11-18 by J40.ModelInput's move (it hid behind ModelInput.Data, a product class until then), counted
+            // until ruled: Compiler's door compiling a model given as lite's own protocol records, its errors worded by the
+            // caller -- legend-engine's compile route (ModelInput.Data) its one caller now; it cannot move without
+            // duplicating Compiler.compileErrorsOf
+            Map.entry("com.legend.Compiler#compileErrors(com.legend.protocol.Protocol$PureModelContextData, java.util.function.Function)",
+                    "J40.Compiler TS-HOST (2026-11-18, train 20, J40.ModelInput's move): proposed READ_API -- lite's compiler door over its own protocol records, the caller wording each error")
             // (RaisedErrors$Raised#statement: ruled READ_API by the orchestrator 2026-11-18, train 19, below -- J40.RaisedErrors
             // closes; SavedQueries#reshaped: MOVED 2026-11-18 by E-P5's 4eb39b2a4f, edge.StoreWords reads lite's
             // answer itself -- J40.SavedQueries closes)
@@ -276,10 +273,7 @@ class EdgeOnlyMembersTest {
             // (LiteV1Api$Answer#bytes: the product answers with it again, train 19's host train)
             Map.entry("com.legend.server.LiteV1Api$Runner#run(com.legend.TypedQuery, java.lang.String, com.legend.result.Output)",
                     "2026-11-18: lite v1's own answer and runner seams"),
-            Map.entry("com.legend.server.ModelInput$Data#model()",
-                    "2026-11-18: lite's model input, its own records"),
-            Map.entry("com.legend.server.ModelInput$Text#code()",
-                    "2026-11-18: lite's model input, its own records"),
+            // (ModelInput$Data#model, ModelInput$Text#code: gone 2026-11-18 with the type to the edge, J40.ModelInput)
             Map.entry("com.legend.sql.DateFmt#TIME_ONLY",
                     "2026-11-18: a MIR date format, lite's own vocabulary (the edge cannot add one: MIR is sealed)"),
             Map.entry("com.legend.sql.SqlDdl$DropSchema#<init>(java.lang.String, boolean)",
