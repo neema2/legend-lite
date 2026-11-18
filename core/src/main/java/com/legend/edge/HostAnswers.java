@@ -16,10 +16,9 @@ import java.util.Map;
 
 import static com.legend.edge.ExecuteInputs.boundParameters;
 import static com.legend.server.LiteV1Api.error;
-import static com.legend.server.LiteV1Api.head;
 import static com.legend.server.LiteV1Api.modelText;
 import static com.legend.server.LiteV1Api.request;
-import static com.legend.server.LiteV1Api.runtimeOf;
+import static com.legend.edge.ExecuteInputs.runtimeOf;
 
 /**
  * LEGEND-ENGINE'S EXECUTE, ITS PLAN AND ANSWER HALVES FOR A HOST (W8 of docs/records/d-plan-2026-11-16.md, D1.8,
@@ -401,5 +400,10 @@ public final class HostAnswers {
             names.add(c.name());
         }
         return names;
+    }
+
+    /** The first 200 characters of {@code text}, for a refusal that shows what it read. */
+    private static String head(String text) {
+        return text.length() <= 200 ? text : text.substring(0, 200) + "...";
     }
 }
