@@ -66,6 +66,10 @@ export function conformance(name: string, target: () => Target): void {
       assert.deepEqual(opened.content, fromJson('{"kind":"datacube.page","n":1}'), 'its content read exactly');
       assert.equal(typeof opened.lastOpenAt, 'number', 'its times plain numbers');
       await assert.rejects(store().get(id('nope')), refused(404, `no saved query has the ID '${id('nope')}'`));
+      // lite API v1's kind notFound (the user, 2026-11-17 ~23:31): a page that does not exist, 404, in lite's words
+      const missing = await raw('GET', `/${id('nope')}`);
+      assert.equal(missing.status, 404, missing.text);
+      assert.deepEqual(missing.json, { kind: 'notFound', message: `no saved query has the ID '${id('nope')}'` });
     });
 
     it('updates and deletes the owner\'s page, and never changes an id', async () => {
