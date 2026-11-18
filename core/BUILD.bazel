@@ -2794,8 +2794,10 @@ _SHIPPED_ARTIFACTS = [
 # //native:engine joins with the next host train.
 _EDGE_OPT_IN = ["//core:edge_server"]
 
+# (//query-store:edge_page_entry: gone with H6, 2026-11-17 -- the queries page answers lite's own route from
+# :page_entry; dropped here 2026-11-18 at the host train's merge of train 18, as _EDGE_TARGETS above)
 _EDGE_TARGET_LIST = ["//core:edge", "//core:edge_server", "//core:edge_service_tests", "//core:edge_store_words",
-                     "//native:edge_entry", "//query-store:edge_page_entry", "//wasm:edge_boundary", "//wasm:edge_tab"]
+                     "//native:edge_entry", "//wasm:edge_boundary", "//wasm:edge_tab"]
 
 # a shipped artifact's direct reach of an edge target that is no opt-in module
 genquery(

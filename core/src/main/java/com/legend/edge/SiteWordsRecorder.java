@@ -82,11 +82,6 @@ public final class SiteWordsRecorder implements PlanStyle {
     }
 
     @Override
-    public String activitySql(Activity activity) {
-        return template.activitySql(activity);
-    }
-
-    @Override
     public @com.legend.base.Nullable TraceCell traceCell() {
         return template.traceCell();
     }

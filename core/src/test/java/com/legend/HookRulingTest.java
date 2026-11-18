@@ -681,7 +681,8 @@ class HookRulingTest {
             if (!s.sql().equals(reference.sql()) || !s.binds().equals(reference.binds())
                     || !s.regions().equals(reference.regions())) {
                 out.add(d.getClass().getName() + " " + kind + " " + at + " writes " + s.sql() + " binding " + s.binds());
-            } else if (s.sites().size() != 1 || s.sites().get(0).upstream() != null) {
+            // (a site's upstream words: gone from the plan with K10, 2026-11-18 -- the edge hook's records hold them)
+            } else if (s.sites().size() != 1) {
                 out.add(d.getClass().getName() + " " + kind + " " + at + " words its site " + s.sites());
             }
           }

@@ -61,8 +61,7 @@ public record PlanningOptions(
      *  recorder of its raise sites' words where it is the compatibility edge's ({@link EngineTextGates#planningCall}),
      *  read once by the test door; the product's style as it is. Asked by the test planner at the call's start alone. */
     PlanningOptions forOnePlanningCall() {
-        return new PlanningOptions(edge, stores, features, judgeMode, judgingRules, options,
-                EngineTextGates.planningCall(style));
+        return new PlanningOptions(edge, stores, features, judgeMode, options, EngineTextGates.planningCall(style));
     }
 
     public PlanningOptions withStyle(com.legend.database.PlanStyle d) {
