@@ -930,7 +930,7 @@ class SqlFnSortedTest {
                 SqlExpr.FloatLit.class.getName(), SqlExpr.NullLit.class.getName(), SqlExpr.BoolLit.class.getName(),
                 SqlExpr.Group.class.getName(), com.legend.sql.SqlSource.Values.class.getName(),
                 SqlExpr.TaggedList.class.getName(), SqlExpr.DateLit.class.getName(),
-                SqlExpr.TempTableInSplice.class.getName());
+                SqlExpr.TimeLit.class.getName());
         Set<String> rebuilds = new TreeSet<>();
         Map<String, Set<String>> made = nodeWriters(classes, nodes, SqlFnSortedTest::plantedEdge,
                 n -> n.contains("$PlantedRebuilder") || nodeRebuilder(n), rebuilds);
@@ -938,7 +938,7 @@ class SqlFnSortedTest {
                 SqlExpr.FloatLit.class.getName(), "PRODUCT", SqlExpr.NullLit.class.getName(), "NO_WRITER",
                 SqlExpr.BoolLit.class.getName(), "PRODUCT", SqlExpr.Group.class.getName(), "NO_WRITER",
                 com.legend.sql.SqlSource.Values.class.getName(), "NO_WRITER", SqlExpr.TaggedList.class.getName(),
-                "PRODUCT", SqlExpr.DateLit.class.getName(), "PRODUCT", SqlExpr.TempTableInSplice.class.getName(), "NO_WRITER"), measured(made, nodes), "a constructor, a"
+                "PRODUCT", SqlExpr.DateLit.class.getName(), "PRODUCT", SqlExpr.TimeLit.class.getName(), "NO_WRITER"), measured(made, nodes), "a constructor, a"
                 + " constructor reference, a reference to a factory and a call to a factory hosted in a rebuilder each"
                 + " write, and so does a factory reading a static of its node (TaggedList) or handed none (DateLit); a"
                 + " rebuild does not, in a rebuilder or not (NullLit), nor withChildren over this (Group), nor"
@@ -946,14 +946,16 @@ class SqlFnSortedTest {
         assertEquals(List.of(SqlExpr.StringLit.class.getName() + ": sorted PRODUCT, measured EDGE_ONLY"),
                 misSorted(nodeSort(nodes, Set.of()), Set.of(SqlExpr.NullLit.class.getName(),
                         SqlExpr.Group.class.getName(), com.legend.sql.SqlSource.Values.class.getName(),
-                        SqlExpr.TempTableInSplice.class.getName()), measured(made, nodes)));
-        // (the edge-only node planted is TempTableInSplice since 2026-11-18: VarSetPlaceholder, the node first planted,
-        // left the MIR with J28)
+                        SqlExpr.TimeLit.class.getName()), measured(made, nodes)));
+        // (the node the planted product does not write is TimeLit, a stand-in, since 2026-11-18 (GUARD, train 17's trial
+        // merge): the measurement reads the planted classes alone, so any variant SqlExpr's own code never builds serves,
+        // and a real one stays when the edge's nodes leave -- TempTableInSplice, the stand-in before, left the MIR with
+        // E-SQL's J40 (9822fd89c8); VarSetPlaceholder, the first, with J28)
         // the review of 260fdb147f's scenario: a product factory that tests instanceof and makes a fresh edge-only node
         // reads as a rebuild, so it is named among the rebuilds of a node the product does not write -- an unpinned row,
         // by its full signature; and the third review's M3: the same factory hosted in a rebuilder, called from the
         // product, is named under its own name when it is called
-        String temp = SqlExpr.TempTableInSplice.class.getName();
+        String temp = SqlExpr.TimeLit.class.getName();
         String r = PlantedRebuilder.class.getName();
         assertEquals(Set.of(PlantedProductWriter.class.getName() + ".temp(com.legend.sql.SqlExpr, java.lang.String)"
                 + " -> " + temp, r + ".ensure(com.legend.sql.SqlExpr, java.lang.String) -> " + temp,
@@ -995,10 +997,10 @@ class SqlFnSortedTest {
         /** A factory that reads like a rebuild: handed a supertype, an instanceof of the node, then a fresh node (the
          *  review of 260fdb147f's scenario): a rebuild to {@link #made}, so a pinned exemption or a writer. */
         static Object temp(SqlExpr s, String v) {
-            if (s instanceof SqlExpr.TempTableInSplice) {
+            if (s instanceof SqlExpr.TimeLit) {
                 return s;
             }
-            return new SqlExpr.TempTableInSplice(v, null);
+            return new SqlExpr.TimeLit(v, null);
         }
 
         /** A rebuild over this: withChildren's arms construct nodes they do not read (Group among them). */
@@ -1066,14 +1068,14 @@ class SqlFnSortedTest {
         /** The third review's M3: a factory that reads like a rebuild (handed a supertype, an instanceof of the node, a
          *  fresh node), hosted in a rebuilder: a row. */
         static SqlExpr ensure(SqlExpr s, String v) {
-            if (s instanceof SqlExpr.TempTableInSplice) {
+            if (s instanceof SqlExpr.TimeLit) {
                 return s;
             }
-            return new SqlExpr.TempTableInSplice(v, null);
+            return new SqlExpr.TimeLit(v, null);
         }
 
         /** The review of 5911e970e1 (E4): a rebuilder's static field holding a fresh node: its initializer is a row. */
-        static final SqlExpr CONST = new SqlExpr.TempTableInSplice("c", null);
+        static final SqlExpr CONST = new SqlExpr.TimeLit("c", null);
 
         /** E2: a chain, wrap reaching make: make's construction is a row whoever reaches it. */
         static SqlExpr wrap(String v) {
@@ -1081,7 +1083,7 @@ class SqlFnSortedTest {
         }
 
         private static SqlExpr make(String v) {
-            return new SqlExpr.TempTableInSplice(v, null);
+            return new SqlExpr.TimeLit(v, null);
         }
     }
 
@@ -1089,7 +1091,7 @@ class SqlFnSortedTest {
     @SuppressWarnings("unused")
     interface PlantedRebuilderRoot {
         default SqlExpr asVar(String v) {
-            return new SqlExpr.TempTableInSplice(v, null);
+            return new SqlExpr.TimeLit(v, null);
         }
     }
 
@@ -1097,7 +1099,7 @@ class SqlFnSortedTest {
     @SuppressWarnings("unused")
     record PlantedRebuilderWrap(SqlExpr expr) {
         PlantedRebuilderWrap(String v) {
-            this(new SqlExpr.TempTableInSplice(v, null));
+            this(new SqlExpr.TimeLit(v, null));
         }
     }
 }
