@@ -20,6 +20,7 @@ from pathlib import Path
 
 # resolved through the runfiles by main.py, as every suite's files are
 WHEEL = Path(os.environ['LEGEND_LITE_WHEEL'])
+ENGINE_WHEEL = Path(os.environ['LEGEND_LITE_ENGINE_WHEEL'])
 DEPENDENCIES = [Path(p) for p in os.environ['LEGEND_LITE_DEPENDENCY_WHEELS'].split(os.pathsep)]
 
 # run with the wheel alone, before any package of its datacube extra is installed: the compiler works on Python's own
@@ -133,13 +134,32 @@ for name, open_app in (("query", ll.query), ("studio", ll.studio)):
                   # a product route the page's calls carry the cookie to (legend-engine's currentUser is the edge's:
                   # N4 of PR #118's fix round, 2026-11-18)
                   "own": get(link, "/sdlc/api/projects", jar)[0],
-                  "no_cookie": get(link, "/sdlc/api/projects")[0]}
+                  "no_cookie": get(link, "/sdlc/api/projects")[0],
+                  # legend-engine's current user, edge off: no route of the product's (the cookie admits the call)
+                  "current_user": get(link, "/api/server/v1/currentUser", jar)[0]}
+# the product imports no edge module: legend_lite.edge is the [engine] extra's door alone (K2)
+apps["edge_imported"] = sorted(m for m in sys.modules if m == "legend_lite.edge" or m.startswith("legend_lite.edge."))
 shipped = pathlib.Path(ll.__file__).with_name("_apps")
 apps["demo_projects"] = get(link, "/studio/demo/projects/manifest.json")[0]
 apps["duckdb_wasm"] = sorted(p.name for p in shipped.rglob("duckdb-*.wasm"))
 print(json.dumps({"module": ll.__file__, "library": __import__("legend_lite._library", fromlist=["x"]).library().path.as_posix(),
                   "page": page, "cube": sorted(cube_json), "rows": rows, "notebook": notebook, "headless": headless,
                   "remote": remote, "iceberg": iceberg, "apps": apps}))
+'''
+
+
+# the [engine] extra installed: the edge's door composes an engine that answers legend-engine's current user, as the
+# product's engine did before K2 (PR #118's fix round, 2026-11-18)
+EDGE = r'''
+import json, urllib.request
+import legend_lite as ll
+from legend_lite import edge
+from legend_lite.engine import WebServer
+web = WebServer(edge.engine(ll.Frames()))
+said = urllib.request.urlopen(urllib.request.Request(web.url + "/api/server/v1/currentUser",
+                                                     headers={"Authorization": web.authorization}), timeout=30)
+print(json.dumps({"user": [said.status, said.read().decode()]}))
+web.close()
 '''
 
 
@@ -411,5 +431,12 @@ class Installed(unittest.TestCase):
         for app, keys in (('query', ['depot', 'execution', 'projects', 'vendor']),
                           ('studio', ['depot', 'engine', 'sdlc', 'vendor', 'worker'])):
             self.assertEqual(out['apps'][app], {'traded': 303, 'page': 200, 'config': keys, 'own': 200,
-                                                'no_cookie': 401}, out['apps'])
+                                                'no_cookie': 401, 'current_user': 404}, out['apps'])
+        self.assertEqual(out['apps']['edge_imported'], [], 'the product imports no edge module')
         self.assertEqual((out['apps']['demo_projects'], out['apps']['duckdb_wasm']), (200, []), out['apps'])
+        # the [engine] extra installed beside it: the edge's door answers legend-engine's current user as before K2
+        subprocess.run([*pip, str(ENGINE_WHEEL)], check=True, env=env, timeout=240)
+        edged = subprocess.run([python, '-I', '-c', EDGE], cwd=root, env=env, capture_output=True, text=True,
+                               timeout=120)
+        self.assertEqual(edged.returncode, 0, edged.stdout + edged.stderr)
+        self.assertEqual(json.loads(edged.stdout.strip().splitlines()[-1]), {'user': [200, '"this user"']})

@@ -1061,6 +1061,9 @@ _WHEEL_TEST_PACKAGES_WINDOWS = _WHEEL_TEST_PACKAGES + _NOTEBOOK_PACKAGES_WINDOWS
 
 _WHEEL_TEST_ENV = {
     "LEGEND_LITE_WHEEL": "$(rlocationpath :wheel)",
+    # the [engine] extra's wheel: the edge's door installed beside the product (PR #118's fix round, 2026-11-18: the
+    # shipped wheel's legend-engine currentUser, edge off and edge on)
+    "LEGEND_LITE_ENGINE_WHEEL": "$(rlocationpath :engine_wheel)",
     "PYTHONDONTWRITEBYTECODE": "1",
     "PYTHONUTF8": "1",
 }
@@ -1077,7 +1080,10 @@ py_test(
         "tests/test_wheel.py",
     ],
     args = ["test_wheel"],
-    data = [":wheel"] + select({
+    data = [
+        ":engine_wheel",
+        ":wheel",
+    ] + select({
         "@platforms//os:windows": ["@pypi//%s:whl" % p for p in _WHEEL_TEST_PACKAGES_WINDOWS],
         "//conditions:default": ["@pypi//%s:whl" % p for p in _WHEEL_TEST_PACKAGES_POSIX],
     }),
