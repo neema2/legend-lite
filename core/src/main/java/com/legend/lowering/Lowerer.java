@@ -2245,7 +2245,7 @@ public final class Lowerer {
                         mergeWhere(src.where(), predicate, f.stamp()));
                 // the product's EXISTS as lowered, legend-engine's shape a join to the distinct keys (J19, S367)
                 yield existsJoinable ? styled().forms().existsJoin(m,
-                        new LoweringForms.ExistsSites(this::nextAlias, whereZones::get)) : m;
+                        ExistsJoinForm.sites(this::nextAlias, whereZones::get)) : m;
             }
             case HAVING -> src.withHaving(src.having() == null ? predicate
                     : Fold.mergeAnd(src.having(), predicate));

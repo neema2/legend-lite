@@ -26,8 +26,7 @@ import java.util.function.Supplier;
  * engine {@code execute(...)}'s values read (the audit's J3, 2026-11-17) and a serialize in scalar position (the lens
  * audit's L6, 2026-11-18: until then folded unconditionally) -- the product's stays the array, lite's own (the user's
  * ruling of 2026-11-03: "the right clean thing in lite, the backward-compatible thing in compatibility mode");
- * legend-engine's JsonBuilder writes exactly one object bare, the edge folding the wrapped array itself
- * ({@link #oneBare}).</li>
+ * legend-engine's JsonBuilder writes exactly one object bare, the edge folding the wrapped array itself.</li>
  * <li>{@link #relations}, {@link #keyedCounts}, {@link #computedPruning} (the edge audit's J23, 2026-11-17, the
  * orchestrator's ruling (a): until then three LoweringShape flags only the edge set false): the product writes lean SQL --
  * a relation read more than once written once, a count a declared key makes one folded to 1, an unread computed
@@ -54,15 +53,9 @@ public interface LoweringForms {
     SqlExpr wireCast(SqlExpr value, Supplier<SqlExpr> written);
 
     /** A serialize's values: lite's array ({@code array}), or the edge's form of the same graph serialized as a wrapped
-     *  array ({@code wrapped}: raw material, which legend-engine's form folds by its JsonBuilder cardinality rule,
-     *  {@link #oneBare}; the product composes nothing for it: the lens audit's item 1, 2026-11-18). */
+     *  array ({@code wrapped}: raw material, which legend-engine's form folds by its JsonBuilder cardinality rule in the
+     *  edge's own code; the product composes nothing for it: the lens audit's item 1, 2026-11-18). */
     SqlSelect executeValues(Supplier<SqlSelect> array, Supplier<SqlSelect> wrapped);
-
-    /** A wrapped array's values with exactly one object bare and zero or several as the array (legend-engine's
-     *  JsonBuilder cardinality rule; {@code SnapshotEnvelope.fold}): the lowering's helper the edge's form reads. */
-    static SqlSelect oneBare(SqlSelect wrapped) {
-        return SnapshotEnvelope.fold(wrapped);
-    }
 
     /** The relational isNumeric of {@code s}. */
     SqlExpr isNumeric(SqlExpr s);
@@ -81,19 +74,9 @@ public interface LoweringForms {
             java.util.function.UnaryOperator<com.legend.sql.SqlQuery> fold);
 
     /** {@code q} with its unread columns dropped, and its unread computed projections dropped or kept, as the form writes
-     *  (the lens audit's item 1, 2026-11-18: the lowering hands the statement alone; each form prunes it its own way,
-     *  through {@link #dropComputed} or {@link #keepComputed}). */
+     *  (the lens audit's item 1, 2026-11-18: the lowering hands the statement alone; each form prunes it with the
+     *  product's building block, SubselectPrune.prune). */
     com.legend.sql.SqlQuery computedPruning(com.legend.sql.SqlQuery q);
-
-    /** {@code q}'s unread columns and unread computed projections dropped (the product's lean SQL). */
-    static com.legend.sql.SqlQuery dropComputed(com.legend.sql.SqlQuery q) {
-        return SubselectPrune.prune(q, true);
-    }
-
-    /** {@code q}'s unread columns dropped, its unread computed projections kept (legend-engine's statement shape). */
-    static com.legend.sql.SqlQuery keepComputed(com.legend.sql.SqlQuery q) {
-        return SubselectPrune.prune(q, false);
-    }
 
     /** A column's text parsed to a Decimal ({@code parseDecimal}'s one-argument form; the audit's J1, RULED by the user
      *  2026-11-17): the product's an exact decimal at its Decimal's precision; legend-engine's H2 its fixed
@@ -105,24 +88,12 @@ public interface LoweringForms {
     SqlExpr parsedJson(SqlExpr text);
 
     /** A filtered select ({@code filtered}) whose {@code EXISTS} conjuncts are kept as lowered, or written as joins to the
-     *  distinct keys ({@link #existsAsJoins} over the statement's {@code sites}; the lens audit's item 1, 2026-11-18: the
-     *  lowering hands its sites, never the rewrite). */
+     *  distinct keys over the statement's {@code sites} (the lens audit's item 1, 2026-11-18: the lowering hands its
+     *  sites, never the rewrite; the edge's form calls the product's building block, sql.ExistsJoins). */
     SqlSelect existsJoin(SqlSelect filtered, ExistsSites sites);
 
-    /** {@code filtered}'s qualifying EXISTS conjuncts as joins to the distinct keys ({@code ExistsJoinForm}). */
-    static SqlSelect existsAsJoins(SqlSelect filtered, ExistsSites sites) {
-        return ExistsJoinForm.rewrite(filtered, sites.alias, sites.zones);
-    }
-
-    /** A statement's sites an EXISTS join reads: the lowering's alias minter and its where zones, opaque to a form. */
-    final class ExistsSites {
-        final Supplier<String> alias;
-        final java.util.function.Function<SqlExpr, WhereMerge.@com.legend.base.Nullable Zones> zones;
-
-        ExistsSites(Supplier<String> alias,
-                java.util.function.Function<SqlExpr, WhereMerge.@com.legend.base.Nullable Zones> zones) {
-            this.alias = alias;
-            this.zones = zones;
-        }
+    /** A statement's sites an EXISTS join reads: the lowering's alias minter, and each conjunct's resolver zones. */
+    record ExistsSites(Supplier<String> alias,
+            java.util.function.Function<SqlExpr, com.legend.sql.ExistsJoins.@com.legend.base.Nullable Zones> zones) {
     }
 }
