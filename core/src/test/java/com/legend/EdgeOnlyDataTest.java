@@ -81,6 +81,14 @@ class EdgeOnlyDataTest {
                     "READ_API (2026-11-18): lite's execution frame's own connection fact (ruled at J40)"),
             Map.entry("component com.legend.compiler.spec.typed.ExecutionContext#storeFqn: by the edge",
                     "READ_API (2026-11-18): lite's execution frame's own connection fact (ruled at J40)"),
+            // train 16 (F's e92c465d) moved planText to the edge's EnginePlans: a plan connection's class name and type
+            // are now read by the edge alone -- EdgeOnlyMembers' READ_API rows of the same members (guard-d16)
+            Map.entry("component com.legend.compiler.spec.typed.ExecutionContext$PlanConnection#className: by the edge",
+                    "READ_API (2026-11-18): a plan connection's own fact (ruled at J40; planText moved to the edge,"
+                            + " train 16)"),
+            Map.entry("component com.legend.compiler.spec.typed.ExecutionContext$PlanConnection#type: by the edge",
+                    "READ_API (2026-11-18): a plan connection's own fact (ruled at J40; planText moved to the edge,"
+                            + " train 16)"),
             Map.entry("component com.legend.testexecutionplan.EnumFacts#decodes: by the edge",
                     "READ_API (2026-11-18): lite's test plan's enum facts (plan-as-data slice 4)"),
             Map.entry("component com.legend.testexecutionplan.EnumFacts#enums: by the edge",
