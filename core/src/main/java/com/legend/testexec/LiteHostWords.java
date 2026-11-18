@@ -121,7 +121,24 @@ public final class LiteHostWords implements HostWords {
         // each side's kind the one it was compared under: its declared numeric kind, else its carrier's (PR #118 fix
         // round, 2026-11-18: a Decimal property over an INTEGER column is a Decimal, as the database judge names it)
         return LiteWords.equalsSentence(LiteWords.identity(e, eClass), LiteWords.identity(a, aClass),
-                () -> LiteWords.kind(e, eDeclared, eClass), () -> LiteWords.kind(a, aDeclared, aClass), e, a);
+                () -> comparedKind(e, eDeclared, eClass), () -> comparedKind(a, aDeclared, aClass), e, a);
+    }
+
+    /** {@code v}'s kind as the host judge compared it ({@link Equality#declaredNumeric}): the numeric kind its
+     *  declaration names where {@code v} is a number, else its carrier's ({@link LiteWords#kind}). */
+    private static String comparedKind(@Nullable Object v, @Nullable String declared, @Nullable String cls) {
+        // compared, not switched: an enum switch would be a class of its own reaching the judge's kinds (V3)
+        Equality.Kind k = v instanceof Number ? Equality.declaredNumeric(declared) : null;
+        if (k == Equality.Kind.INTEGER) {
+            return "Integer";
+        }
+        if (k == Equality.Kind.FLOAT) {
+            return "Float";
+        }
+        if (k == Equality.Kind.DECIMAL) {
+            return "Decimal";
+        }
+        return LiteWords.kind(v, cls);   // no numeric declaration (declaredNumeric names those three, else null)
     }
 
     @Override

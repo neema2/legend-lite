@@ -356,7 +356,7 @@ public final class LiteralSpelling {
 
     /** {@code text}, a Decimal's text, without the value lane's D-suffixed carrier's mark ({@code 1D} -> {@code 1}; a
      *  database's own text never ends in D): lite's message text of a store-read Decimal ({@link LiteText}; PR #118 fix
-     *  round, 2026-11-18 -- written here, beside {@link #decimalCanon}, the same strip). */
+     *  round, 2026-11-18) and, over the value's printed text, {@link #decimalCanon}'s. */
     static SqlExpr withoutDecimalMark(SqlExpr text) {
         return SqlExpr.Call.of(SqlFn.REGEXP_REPLACE, text, new SqlExpr.StringLit("[Dd]$"), new SqlExpr.StringLit(""));
     }
@@ -368,10 +368,7 @@ public final class LiteralSpelling {
      * representation suffix (variant/identity VARCHAR channel: 2D,
      * 1.0D) normalizes away. */
     static SqlExpr decimalCanon(SqlExpr v) {
-        return SqlExpr.Call.of(SqlFn.REGEXP_REPLACE,
-                new SqlExpr.Cast(v, SqlType.Scalar.VARCHAR, SqlExpr.Reason.PRINT),
-                new SqlExpr.StringLit("[Dd]$"),
-                new SqlExpr.StringLit(""));
+        return withoutDecimalMark(new SqlExpr.Cast(v, SqlType.Scalar.VARCHAR, SqlExpr.Reason.PRINT));
     }
 
     /** Rule 2's conversion for a Float-DECLARED cell (docs/JUDGING_TWO_MODES

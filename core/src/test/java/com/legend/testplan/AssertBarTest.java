@@ -317,9 +317,9 @@ class AssertBarTest {
     /** A Decimal property over an INTEGER column (PR #118 fix round, 2026-11-18, G2): its value arrives as the column's
      *  integer, its declaration says Decimal. Lite's own rule (register S127) compares two numbers by their DECLARED
      *  kinds, so the Integer 1 and the property's Decimal 1 are never equal -- under the host judge as under the database
-     *  judge, and under both together: one outcome, and one message, per assert. Its row is the connection's declared
-     *  test data, a load of the plan's. */
-    private static final String MAPPED = """
+     *  judge, and under both together: one outcome, and one message, per assert, on DuckDB, H2 and SQLite alike. Its row
+     *  is the connection's declared test data, a load of the plan's; {@code %s} its database. */
+    private static final String MAPPED_ON = """
             ###Pure
             Class p::P { id: Integer[1]; d: Decimal[1]; }
             Class p::Q { id: Integer[1]; e: Decimal[1]; }
@@ -334,7 +334,7 @@ class AssertBarTest {
                 auth: DefaultH2; }
             ###Runtime
             Runtime p::RT { mappings: [p::M]; connections: [ p::DB: [ c0: p::C ] ]; }
-            """.formatted(Databases.PLATFORM);
+            """;
 
     @Test
     void anEqOverADeclaredDecimalIsOneVerdictUnderEveryJudge() throws Exception {
@@ -356,20 +356,32 @@ class AssertBarTest {
         want.put("{|assertEq(1, 1.50D)}", "AssertFailed: expected 1, got 1.50");
         want.put("{|assertEq(2, -2D)}", "AssertFailed: expected 2, got -2");
         List<String> wrong = new ArrayList<>();
-        for (var e : want.entrySet()) {
-            for (com.legend.testplan.PlanningOptions.JudgeMode mode : JUDGES) {
-                String got;
-                try {
-                    Program.runFresh(MAPPED, e.getKey(), "p::RT", ExecuteOptions.NONE.withJudgeMode(mode),
-                            com.legend.testexec.NoEdgeRun.NONE);
-                    got = "pass";
-                } catch (AssertFailed f) {
-                    got = "AssertFailed: " + f.getMessage();
-                } catch (Throwable t) {
-                    got = t.getClass().getSimpleName() + ": " + t.getMessage();
+        // the D's strip is the database judge's SQL, so on each database the platform runs in-process (the review of
+        // PR #118's fix round, 2026-11-18: beyond the platform's, H2 and SQLite at least); the map's toOne reads a list,
+        // which a dialect without a list encoding refuses by name (DialectCapability, under every judge alike), so its
+        // shape runs on the platform's database
+        for (var backend : TestBackends.inProcess()) {
+            var database = backend.type();
+            String mappedOn = MAPPED_ON.formatted(database);
+            for (var e : want.entrySet()) {
+                if (e.getKey().contains(mapped) && !database.equals(Databases.PLATFORM)) {
+                    continue;
                 }
-                if (!e.getValue().equals(got)) {
-                    wrong.add(mode + " " + e.getKey() + " -> " + oneLine(got));
+                String wanted = e.getValue();
+                for (com.legend.testplan.PlanningOptions.JudgeMode mode : JUDGES) {
+                    String got;
+                    try {
+                        Program.runFresh(mappedOn, e.getKey(), "p::RT", database,
+                                ExecuteOptions.NONE.withJudgeMode(mode), com.legend.testexec.NoEdgeRun.NONE);
+                        got = "pass";
+                    } catch (AssertFailed f) {
+                        got = "AssertFailed: " + f.getMessage();
+                    } catch (Throwable t) {
+                        got = t.getClass().getSimpleName() + ": " + t.getMessage();
+                    }
+                    if (!wanted.equals(got)) {
+                        wrong.add(database + " " + mode + " " + e.getKey() + " -> " + oneLine(got));
+                    }
                 }
             }
         }

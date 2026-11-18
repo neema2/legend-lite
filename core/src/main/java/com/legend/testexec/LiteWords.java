@@ -128,22 +128,6 @@ public final class LiteWords {
     /** A value's KIND as lite's sentence names it where two values' texts tie
      *  ({@link com.legend.error.AssertSentence#EQUALS_KINDS}): Integer, Float, Decimal, String, Boolean, StrictDate,
      *  DateTime, an instance's class; a collection its elements' one kind, else Any. */
-    /** {@code v}'s kind as it was compared: the numeric kind its declaration names where {@code v} is a number (the
-     *  plan's spelling, as the host judge reads it: Integer, Float, Decimal, a precise Decimal(p,s); a Decimal property
-     *  over an INTEGER column is a Decimal), else its carrier's ({@link #kind(Object, String)}). PR #118 fix round,
-     *  2026-11-18. */
-    public static String kind(@Nullable Object v, @Nullable String declared, @Nullable String instanceClass) {
-        if (v instanceof Number && declared != null) {
-            if (declared.equals("Integer") || declared.equals("Float") || declared.equals("Decimal")) {
-                return declared;
-            }
-            if (declared.startsWith("Decimal(")) {
-                return "Decimal";
-            }
-        }
-        return kind(v, instanceClass);
-    }
-
     public static String kind(@Nullable Object v, @Nullable String instanceClass) {
         return switch (v) {
             case null -> "Nil";

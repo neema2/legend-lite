@@ -102,8 +102,16 @@ public final class Program {
      *  PR #118 fix round, 2026-11-18). */
     public static Report runFresh(String model, String body, @com.legend.base.Nullable String runtime,
             ExecuteOptions options, com.legend.testexec.EdgeRun edgeRun) {
+        return runFresh(model, body, runtime, com.legend.database.Databases.PLATFORM, options, edgeRun);
+    }
+
+    /** {@link #runFresh(String, String, String, ExecuteOptions, com.legend.testexec.EdgeRun)}, each session opened on
+     *  {@code database}. */
+    public static Report runFresh(String model, String body, @com.legend.base.Nullable String runtime,
+            com.legend.model.ConnectionDefinition.DatabaseType database, ExecuteOptions options,
+            com.legend.testexec.EdgeRun edgeRun) {
         return run(Compiler.compileModel(model), body, runtime,
-                new com.legend.exec.SessionSource.Fresh(com.legend.testbackend.TestBackends.platform()::open), options,
+                new com.legend.exec.SessionSource.Fresh(com.legend.testbackend.TestBackends.of(database)::open), options,
                 edgeRun);
     }
 
