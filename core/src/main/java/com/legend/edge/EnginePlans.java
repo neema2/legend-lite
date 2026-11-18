@@ -19,13 +19,10 @@ import com.legend.compiler.spec.typed.TypedSpec;
  */
 public final class EnginePlans {
 
-    /** legend-engine's deprecated toDDL string generators (toDDL.pure's 1-/3-arg forms; engine golden spellings
-     *  testDDL.pure:42-45), rendered from the compiled store model -- moved from the product's PlatformTypes,
-     *  2026-11-18, the edge audit's J40: the edge's plans alone read them. */
-    private static final String DROP_SCHEMA_STATEMENT = com.legend.builtin.NativeFn.DdlStatement.DROP_SCHEMA_STATEMENT.fqn();
-    private static final String CREATE_SCHEMA_STATEMENT =
-            com.legend.builtin.NativeFn.DdlStatement.CREATE_SCHEMA_STATEMENT.fqn();
-    private static final String DROP_TABLE_STATEMENT = com.legend.builtin.NativeFn.DdlStatement.DROP_TABLE_STATEMENT.fqn();
+    /** legend-engine's deprecated toDDL string generators (toDDL.pure's 1-/3-arg forms; testDDL.pure:42-45), read from
+     *  the NativeFn catalog -- moved from the product's PlatformTypes, 2026-11-18, the edge audit's J40. */
+    private static final String DROP_SCHEMA_STATEMENT = com.legend.builtin.NativeFn.DdlStatement.DROP_SCHEMA_STATEMENT.fqn(), CREATE_SCHEMA_STATEMENT = com.legend.builtin.NativeFn.DdlStatement.CREATE_SCHEMA_STATEMENT.fqn(), DROP_TABLE_STATEMENT = com.legend.builtin.NativeFn.DdlStatement.DROP_TABLE_STATEMENT.fqn();
+
 
     private EnginePlans() {
     }
@@ -421,7 +418,7 @@ public final class EnginePlans {
                         lam.body().get(lam.body().size() - 1))
                 : null;
         var conn = pc != null && pc.connectionName() != null ? pc.connectionName() : fromConn;
-        String connName = conn != null ? conn.planText()
+        String connName = conn != null ? planText(conn)
                 // no connection instance read at all: the engine's test runtime's (the reader gap W2.1)
                 : "TestDatabaseConnection(type = \"" + EngineText.ENGINE_TEST_DATABASE.name() + "\")";
         com.legend.model.ConnectionDefinition.DatabaseType dbType = planDatabase(pc);
@@ -599,6 +596,12 @@ public final class EnginePlans {
 
     /** Pre-order search for the first {@code TypedFrom} carrying a
      * connection-name hint (instance-runtime from()). */
+    /** legend-engine's plan text line for a connection instance ({@code DatabaseConnection(type = "DB2")}): the
+     *  instance's own type, never an assumed one; one its body computes is refused (moved from the product's
+     *  ExecutionContext.PlanConnection, 2026-11-18, the edge audit's J40: the fact the product's, its engine spelling
+     *  the edge's printer's). */
+    private static String planText(com.legend.compiler.spec.typed.ExecutionContext.PlanConnection c) { if (c.type() == null) { throw new com.legend.error.NotImplementedException("the plan's " + c.className() + " takes a database type its body computes: the plan text reads only a literal one"); } return c.className() + "(type = \"" + c.type() + "\")"; }
+
     private static com.legend.compiler.spec.typed.ExecutionContext.@com.legend.base.Nullable PlanConnection firstFromConnectionName(
             com.legend.compiler.spec.typed.TypedSpec t) {
         return com.legend.compiler.spec.typed.ExecutionContext.froms(t).stream()

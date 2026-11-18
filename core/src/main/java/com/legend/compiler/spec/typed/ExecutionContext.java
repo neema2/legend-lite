@@ -112,21 +112,11 @@ public record ExecutionContext(Optional<TypedPackageableRef> mapping,
                         connectionInstance, storeFqn, driverTablePk, cols, postProcessors, features);
     }
 
-    /** A connection instance as the plan text names it ({@code DatabaseConnection(type = "DB2")}): its class's
-     *  simple name, and its DatabaseType's name, or null when the body computes the type: unknown here, never
-     *  assumed (invariant 4); the plan text refuses it. */
+    /** A connection instance as the typer reads it: its class's simple name, and its DatabaseType's name, or null
+     *  when the body computes the type -- unknown here, never assumed (invariant 4). */
     public record PlanConnection(String className, @com.legend.base.Nullable String type) {
-
-        /** The plan text's line for it: the instance's own type, never an assumed one; one its body computes is
-         *  refused (until the PR audit of 2026-10-16 the walk went on to a sibling, or printed the engine's test
-         *  database's). */
-        public String planText() {
-            if (type == null) {
-                throw new com.legend.error.NotImplementedException("the plan's " + className
-                        + " takes a database type its body computes: the plan text reads only a literal one");
-            }
-            return className + "(type = \"" + type + "\")";
-        }
+        // (planText, legend-engine's plan text line for it: moved to the edge's EnginePlans, 2026-11-18, the edge
+        // audit's J40 -- the fact stays, its engine spelling is the edge's printer's)
     }
 
     /** No binding at all (a from() the resolver scopes from its outer context). */
