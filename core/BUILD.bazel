@@ -2578,9 +2578,13 @@ junit_test(
         "--select-class=com.legend.ServiceLoaderSitesTest",
         "--select-class=com.legend.SqlFnSortedTest",
         "--select-class=com.legend.HookLambdasTest",
+        # L-A (2026-11-18): a product form handed a function it never calls, upstream's form built for the edge alone
+        "--select-class=com.legend.ProductFormsUseTheirArgumentsTest",
         "--select-class=com.legend.EdgePackageBoundaryTest",
         # a public product member the edge alone uses, counted (J40 of the edge audit, 2026-11-18)
         "--select-class=com.legend.EdgeOnlyMembersTest",
+        # L-B (2026-11-18): the plans' and the MIR's data, each piece with a real product use
+        "--select-class=com.legend.EdgeOnlyDataTest",
         # every implementation of the test plan's Extension is the edge's (census C2, 2026-11-17), so the guard that
         # walks them as data reads them here
         "--select-class=com.legend.PlanTypesAreDataTest",
