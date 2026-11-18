@@ -4554,7 +4554,7 @@ public final class Lowerer {
 
     /** The cast policy over an ALREADY-LOWERED source (CastPolicy owns every arm). */
     private SqlExpr cast(TypedCast c, SqlExpr value) {
-        return CastPolicy.lower(c, value, Stamps.isMany(c), styled().forms(), styled().forms());
+        return CastPolicy.lower(c, value, Stamps.isMany(c), styled().forms());
     }
 
     /**

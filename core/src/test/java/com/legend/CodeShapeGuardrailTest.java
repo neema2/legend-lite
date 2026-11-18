@@ -340,7 +340,9 @@ class CodeShapeGuardrailTest {
             // thread-locals — verbatim equality (save/set/restore around
             // the two mapping-definition sites) and the engine-text
             // option (builder-style, set once before lower())
-            "Lowerer.verbatimEquality", "Lowerer.shape",
+            // (Lowerer.shape -> Lowerer.existsJoinable, 2026-11-18, J40, the orchestrator's ruling (7): the shape's forms
+            // are the plan style's alone, its one remaining field the planner's fact, set once by withExistsJoinable)
+            "Lowerer.verbatimEquality", "Lowerer.existsJoinable",
             // a DateTime's text in a message, the style's two-form answer (census B9, 2026-11-17): builder-style, set
             // once by withStyled before lower(), beside the style's other text facets
             "Lowerer.dateTimes",   // engineText until 2026-11-17 (Phase 6's B5: a LoweringShape, the edge's choice)
