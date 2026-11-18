@@ -69,7 +69,26 @@ record EdgeLoweringForms(Set<RaiseKind> plain) implements com.legend.lowering.Lo
      *  2026-11-17): exactly one object bare, zero or several as the array. */
     @Override
     public SqlSelect executeValues(Supplier<SqlSelect> array, Supplier<SqlSelect> wrapped) {
-        return com.legend.lowering.LoweringForms.oneBare(wrapped.get());
+        return oneBare(wrapped.get());
+    }
+
+    /** legend-engine's JsonBuilder cardinality rule over a wrapped array's values: a singleton the bare object, anything
+     *  else the array (the corpus goldens pin the dynamic unwrap). Moved from lowering.SnapshotEnvelope.fold (the
+     *  orchestrator's ruling on L6, 2026-11-18: a two-form kind holds types only, and the fold is upstream's). */
+    static SqlSelect oneBare(SqlSelect wrapped) {
+        SqlSelect.Projection p = wrapped.projections().get(0);
+        if (!(p.expr() instanceof SqlExpr.JsonArrayAgg ja)) {
+            return wrapped;
+        }
+        SqlExpr count = new com.legend.sql.SqlAgg.Reducer(com.legend.sql.SqlAgg.Fn.COUNT, java.util.List.of(), false,
+                java.util.List.of());
+        SqlExpr sole = new com.legend.sql.SqlAgg.Reducer(com.legend.sql.SqlAgg.Fn.MIN, java.util.List.of(ja.value()),
+                false, java.util.List.of());
+        SqlExpr chosen = new SqlExpr.Case(java.util.List.of(new SqlExpr.Case.When(new SqlExpr.Call(
+                com.legend.sql.SqlFn.EQUAL, java.util.List.of(count, new SqlExpr.IntLit(1))), sole)), ja,
+                SqlExpr.Reason.CARRIER);
+        return wrapped.withProjections(java.util.List.of(new SqlSelect.Projection(chosen, "result",
+                new com.legend.sql.OutputCol("result", com.legend.sql.SqlType.Scalar.VARCHAR, false))));
     }
 
     /** legend-engine's statement shape writes a relation at each read; every other edge form, the product's lean SQL
@@ -90,7 +109,7 @@ record EdgeLoweringForms(Set<RaiseKind> plain) implements com.legend.lowering.Lo
     /** legend-engine's statement shape keeps an unread computed projection (J23). */
     @Override
     public com.legend.sql.SqlQuery computedPruning(com.legend.sql.SqlQuery q) {
-        return com.legend.lowering.LoweringForms.dropComputed(q);
+        return com.legend.lowering.SubselectPrune.prune(q, true);
     }
 
     /** legend-engine's one-argument parseDecimal on H2: its hardcoded {@code decimal(5, 2)}
@@ -115,7 +134,7 @@ record EdgeLoweringForms(Set<RaiseKind> plain) implements com.legend.lowering.Lo
      *  register S367). */
     @Override
     public SqlSelect existsJoin(SqlSelect filtered, ExistsSites sites) {
-        return com.legend.lowering.LoweringForms.existsAsJoins(filtered, sites);
+        return com.legend.sql.ExistsJoins.rewrite(filtered, sites.alias(), sites.zones(), ex -> true);
     }
 
     /** legend-engine's H2 isNumeric ({@code lower(s) = upper(s)}: a text with no cased letter), every edge style's
@@ -158,7 +177,7 @@ record EdgeLoweringForms(Set<RaiseKind> plain) implements com.legend.lowering.Lo
 
         @Override
         public com.legend.sql.SqlQuery computedPruning(com.legend.sql.SqlQuery q) {
-            return com.legend.lowering.LoweringForms.keepComputed(q);
+            return com.legend.lowering.SubselectPrune.prune(q, false);
         }
 
         @Override

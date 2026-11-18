@@ -46,25 +46,8 @@ final class SnapshotEnvelope {
                 && c.otherwise() instanceof SqlExpr.JsonArrayAgg ja ? ja : null;
     }
 
-    static SqlSelect fold(SqlSelect env) {
-        SqlSelect.Projection p = env.projections().get(0);
-        if (!(p.expr() instanceof SqlExpr.JsonArrayAgg ja)) {
-            return env;
-        }
-        SqlExpr count = new SqlAgg.Reducer(SqlAgg.Fn.COUNT,
-                List.of(), false, List.of());
-        SqlExpr sole = new SqlAgg.Reducer(SqlAgg.Fn.MIN,
-                List.of(ja.value()), false, List.of());
-        SqlExpr chosen = new SqlExpr.Case(List.of(
-                new SqlExpr.Case.When(new SqlExpr.Call(SqlFn.EQUAL,
-                        List.of(count, new SqlExpr.IntLit(1))), sole)),
-                ja, SqlExpr.Reason.CARRIER);
-        return env.withProjections(
-                List.of(new SqlSelect.Projection(chosen, "result",
-                        new OutputCol("result",
-                                PureSql.type(Type.Primitive.STRING),
-                                false))));
-    }
+    // (fold: moved to edge.EdgeLoweringForms.oneBare 2026-11-18, the orchestrator's ruling on L6 -- legend-engine's
+    // JsonBuilder cardinality rule is the edge's)
 
     /** The null-stripping envelope object (Lowerer.serializeGraph):
      * one json_object per pair, json_merge_patch-folded — RFC 7386
