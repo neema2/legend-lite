@@ -77,6 +77,14 @@ public final class SavedQueries {
             TOO_MANY("at most %1$s can be fetched at once"),
             /** A search specification with no search term. */
             NO_SEARCH_TERM("the search specification has no search term"),
+            /** A body's field the store cannot read -- missing, or not of its kind (PR #118 fix round, 2026-11-18: lite's
+             *  words name the request's field, never legend-engine's class): legend-engine's class, the field, the
+             *  problem in legend-engine's words, the field's path in the request, the problem in lite's words. */
+            FIELD_UNREAD("the request's %4$s %5$s"),
+            /** A body the store cannot read otherwise (not JSON of the shape the store takes, a value no option names):
+             *  the exception's class, its message (PR #118 fix round, 2026-11-18: a malformed request, lite's
+             *  {@code request}; the disk failing stays {@link #MALFORMED}). */
+            UNREADABLE("the request could not be read: %2$s"),
             /** The store is not configured: which store (query, page). */
             STORE_NOT_CONFIGURED("the %1$s store is not configured: start the server with --query-store DIR"),
             /** A request the store could not read, or its disk failing: the exception's class, its message. */
@@ -215,16 +223,28 @@ public final class SavedQueries {
     }
 
     /** A route served, its refusal or failure answered in {@code words} -- the one catch both stores share (J9 of the
-     *  edge audit, 2026-11-17): a {@link Refusal} is its kind's answer; the store's disk failing, or a body that is not
-     *  the JSON the engine takes (a bad integer, a field of the wrong kind), is a 500 naming the exception. */
+     *  edge audit, 2026-11-17): a {@link Refusal} is its kind's answer; a body that is not the JSON the engine takes (a
+     *  bad integer, a field of the wrong kind) is {@link Refusal.Kind#UNREADABLE}, the store's disk failing
+     *  {@link Refusal.Kind#MALFORMED}: each a 500 naming the exception, as legend-engine answers both (lite's route
+     *  answers the first as a malformed request: PR #118 fix round, 2026-11-18). */
     static Answer served(java.util.function.Supplier<Answer> route, java.util.function.Function<Refusal, String> words) {
         try {
             return route.get();
         } catch (Refusal r) {
             return refused(r, words);
-        } catch (java.io.UncheckedIOException | IllegalArgumentException | ClassCastException e) {
+        } catch (IllegalArgumentException | ClassCastException e) {
+            return refused(new Refusal(Refusal.Kind.UNREADABLE, List.of(e.getClass().getSimpleName(),
+                    String.valueOf(e.getMessage())), 500), words);
+        } catch (java.io.UncheckedIOException e) {
             return failed(e, words);
         }
+    }
+
+    /** A body's field the store cannot read ({@link Refusal.Kind#FIELD_UNREAD}): legend-engine's class {@code where},
+     *  its {@code field} and {@code problem}; lite's words name the field by its {@code path} in the request. */
+    static Refusal unread(String where, String field, String problem, String path) {
+        return new Refusal(Refusal.Kind.FIELD_UNREAD, List.of(where, field, problem, path,
+                problem.startsWith("holds something not ") ? "holds something that is not an object" : problem), 500);
     }
 
     /** A refusal answered: its status, and {@code {"kind", "message"}} -- its kind as data (lower case; {@code refused}
@@ -622,22 +642,25 @@ public final class SavedQueries {
     private static final Predicate<Json.Node> NUMBER = n -> n instanceof Json.Num;
     private static final Predicate<Json.Node> OBJECT = n -> n instanceof Json.Obj;
 
+    /** A search term's fields' place in the request, lite's words of it. */
+    private static final String TERM = "searchTermSpecification.";
+
     /** The engine's {@code QuerySearchSpecification}, as far as the rules read it. */
     private static void searchShape(Json.Obj spec) {
         String where = "QuerySearchSpecification";
-        if (field(spec, "searchTermSpecification", OBJECT, "an object", false, where) instanceof Json.Obj term) {
-            field(term, "searchTerm", TEXT, "a string", false, "QuerySearchTermSpecification");
-            field(term, "exactMatchName", FLAG, "a boolean", false, "QuerySearchTermSpecification");
-            field(term, "includeOwner", FLAG, "a boolean", false, "QuerySearchTermSpecification");
+        if (field(spec, "searchTermSpecification", OBJECT, "an object", false, where, "") instanceof Json.Obj term) {
+            field(term, "searchTerm", TEXT, "a string", false, "QuerySearchTermSpecification", TERM);
+            field(term, "exactMatchName", FLAG, "a boolean", false, "QuerySearchTermSpecification", TERM);
+            field(term, "includeOwner", FLAG, "a boolean", false, "QuerySearchTermSpecification", TERM);
         }
-        field(spec, "showCurrentUserQueriesOnly", FLAG, "a boolean", false, where);
-        field(spec, "combineTaggedValuesCondition", FLAG, "a boolean", false, where);
-        field(spec, "sortByOption", TEXT, "a string", false, where);
-        field(spec, "limit", NUMBER, "a number", false, where);
+        field(spec, "showCurrentUserQueriesOnly", FLAG, "a boolean", false, where, "");
+        field(spec, "combineTaggedValuesCondition", FLAG, "a boolean", false, where, "");
+        field(spec, "sortByOption", TEXT, "a string", false, where, "");
+        field(spec, "limit", NUMBER, "a number", false, where, "");
         for (Json.Obj c : objects(spec, "projectCoordinates", where, "QueryProjectCoordinates")) {
-            field(c, "groupId", TEXT, "a string", true, "QueryProjectCoordinates");
-            field(c, "artifactId", TEXT, "a string", true, "QueryProjectCoordinates");
-            field(c, "version", TEXT, "a string", false, "QueryProjectCoordinates");
+            field(c, "groupId", TEXT, "a string", true, "QueryProjectCoordinates", "projectCoordinates[].");
+            field(c, "artifactId", TEXT, "a string", true, "QueryProjectCoordinates", "projectCoordinates[].");
+            field(c, "version", TEXT, "a string", false, "QueryProjectCoordinates", "projectCoordinates[].");
         }
         tagsShape(spec, where);
     }
@@ -649,29 +672,30 @@ public final class SavedQueries {
 
     private static void tagsShape(Json.Obj o, String where) {
         for (Json.Obj tv : objects(o, "taggedValues", where, "TaggedValue")) {
-            if (field(tv, "tag", OBJECT, "an object", true, "TaggedValue") instanceof Json.Obj tag) {
-                field(tag, "profile", TEXT, "a string", true, "TagPtr");
-                field(tag, "value", TEXT, "a string", true, "TagPtr");
+            if (field(tv, "tag", OBJECT, "an object", true, "TaggedValue", "taggedValues[].") instanceof Json.Obj tag) {
+                field(tag, "profile", TEXT, "a string", true, "TagPtr", "taggedValues[].tag.");
+                field(tag, "value", TEXT, "a string", true, "TagPtr", "taggedValues[].tag.");
             }
         }
         for (Json.Obj s : objects(o, "stereotypes", where, "StereotypePtr")) {
-            field(s, "profile", TEXT, "a string", true, "StereotypePtr");
-            field(s, "value", TEXT, "a string", true, "StereotypePtr");
+            field(s, "profile", TEXT, "a string", true, "StereotypePtr", "stereotypes[].");
+            field(s, "value", TEXT, "a string", true, "StereotypePtr", "stereotypes[].");
         }
     }
 
-    /** {@code o}'s {@code field}, of its kind; null when it is absent or null and need not be there. */
+    /** {@code o}'s {@code field}, of its kind; null when it is absent or null and need not be there. {@code in}: the
+     *  field's place in the request ("" at its top, {@code searchTermSpecification.} inside it), lite's words of it. */
     private static Json.@com.legend.base.Nullable Node field(Json.Obj o, String field, Predicate<Json.Node> kind,
-            String kindName, boolean required, String where) {
+            String kindName, boolean required, String where, String in) {
         Json.Node n = o.has(field) ? o.get(field) : Json.nil();
         if (n instanceof Json.Null) {
             if (required) {
-                throw new IllegalArgumentException(where + "." + field + " is missing");
+                throw unread(where, field, "is missing", in + field);
             }
             return null;
         }
         if (!kind.test(n)) {
-            throw new IllegalArgumentException(where + "." + field + " is not " + kindName);
+            throw unread(where, field, "is not " + kindName, in + field);
         }
         return n;
     }
@@ -683,12 +707,12 @@ public final class SavedQueries {
             return List.of();
         }
         if (!(n instanceof Json.Arr a)) {
-            throw new IllegalArgumentException(where + "." + field + " is not a list");
+            throw unread(where, field, "is not a list", field);
         }
         List<Json.Obj> out = new ArrayList<>();
         for (Json.Node i : a.items()) {
             if (!(i instanceof Json.Obj each)) {
-                throw new IllegalArgumentException(where + "." + field + " holds something not " + item);
+                throw unread(where, field, "holds something not " + item, field);
             }
             out.add(each);
         }

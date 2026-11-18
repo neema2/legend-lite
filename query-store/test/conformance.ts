@@ -30,8 +30,15 @@ export interface Dialect {
   limitNotPositive: string;
   noSearchTerm: string;
   idChanged: string;
-  /** A request the store could not serve (a 500): its message, naming what was wrong. */
-  malformed(message: string): string;
+  /** A body's field the store cannot read -- missing, or not of its kind: lite names the field by its path in the
+   *  request and says the problem in its words, legend-engine names its own class and field (PR #118 fix round,
+   *  2026-11-18: lite's words named legend-engine's classes). */
+  unread(where: string, field: string, problem: string, path: string, liteProblem?: string): string;
+  /** The status of a malformed request (a body of the wrong shape, a search with no term): lite's `request` 400 (its
+   *  API v1 spec §3), legend-engine's 500. */
+  readonly malformedStatus: number;
+  /** The status of a path the store does not serve: lite's `request` 400, legend-engine's 404. */
+  readonly noRouteStatus: number;
   /** A refusal's body beyond its message: lite's kind, by its status; legend-engine's envelope at 500. */
   refusal(status: number, message: string): unknown;
 }
@@ -53,7 +60,9 @@ export const LITE: Dialect = {
   limitNotPositive: 'the limit must be greater than 0',
   noSearchTerm: 'the search specification has no search term',
   idChanged: 'the ID cannot be changed',
-  malformed: (message) => `the request could not be served: ${message}`,
+  unread: (_where, _field, problem, path, liteProblem) => `the request's ${path} ${liteProblem ?? problem}`,
+  malformedStatus: 400,
+  noRouteStatus: 400,
   refusal: (status, message) => ({ kind: status >= 500 ? 'internal' : 'request', message }),
 };
 
@@ -73,7 +82,9 @@ export const ENGINE: Dialect = {
   limitNotPositive: 'Limit should be greater than 0',
   noSearchTerm: 'Query search spec expecting a search term',
   idChanged: 'Updating query ID is not supported',
-  malformed: (message) => `IllegalArgumentException: ${message}`,
+  unread: (where, field, problem) => `IllegalArgumentException: ${where}.${field} ${problem}`,
+  malformedStatus: 500,
+  noRouteStatus: 404,
   refusal: (status, message) => (status >= 500 ? { code: -1, message, status: 'error' } : { message }),
 };
 
@@ -193,7 +204,7 @@ export function conformance(name: string, target: () => Target, d: Dialect = LIT
       const byId = (await raw('POST', '/search', { searchTermSpecification: { searchTerm: id('a') } })).json as Record<string, unknown>[];
       assert.ok(byId.some((q) => q['id'] === id('a')));
       await refused('POST', '/search', { limit: 0 }, 400, d.limitNotPositive);
-      await refused('POST', '/search', { searchTermSpecification: {} }, 500, d.noSearchTerm);
+      await refused('POST', '/search', { searchTermSpecification: {} }, d.malformedStatus, d.noSearchTerm);
     });
 
     it('updates: a new version, the old one its history', async () => {
@@ -266,22 +277,27 @@ export function conformance(name: string, target: () => Target, d: Dialect = LIT
       assert.deepEqual(r.map((q) => q['id']), [id('q'), id('q-2')]);
     });
 
-    it('answers a field of the wrong kind with the engine 500, naming it, on every store', async () => {
+    // lite's mount: a malformed request, 400 kind request, the field by its path in lite's words; legend-engine's: its
+    // 500, its class named (PR #118 fix round, 2026-11-18)
+    it('answers a field of the wrong kind as a malformed request, naming it, on every store', async () => {
       const wrong = async (method: string, path: string, body: unknown, message: string): Promise<void> => {
         const r = await raw(method, path, body);
-        assert.equal(r.status, 500, r.text);
-        assert.deepEqual(r.json, d.refusal(500, d.malformed(message)));
+        assert.equal(r.status, d.malformedStatus, r.text);
+        assert.deepEqual(r.json, d.refusal(d.malformedStatus, message));
       };
-      await wrong('POST', '/search', { limit: 'ten' }, 'QuerySearchSpecification.limit is not a number');
+      await wrong('POST', '/search', { limit: 'ten' },
+        d.unread('QuerySearchSpecification', 'limit', 'is not a number', 'limit'));
       await wrong('POST', '/search', { searchTermSpecification: { searchTerm: 'x', includeOwner: 'yes' } },
-        'QuerySearchTermSpecification.includeOwner is not a boolean');
+        d.unread('QuerySearchTermSpecification', 'includeOwner', 'is not a boolean', 'searchTermSpecification.includeOwner'));
       await wrong('POST', '/search', { projectCoordinates: [5] },
-        'QuerySearchSpecification.projectCoordinates holds something not QueryProjectCoordinates');
+        d.unread('QuerySearchSpecification', 'projectCoordinates', 'holds something not QueryProjectCoordinates',
+          'projectCoordinates', 'holds something that is not an object'));
       await wrong('POST', '/search', { projectCoordinates: [{ groupId: 'demo', artifactId: null }] },
-        'QueryProjectCoordinates.artifactId is missing');
+        d.unread('QueryProjectCoordinates', 'artifactId', 'is missing', 'projectCoordinates[].artifactId'));
       await wrong('POST', '', query(id('w'), { taggedValues: [{ tag: { profile: 'p' }, value: 'v' }] } as unknown as Partial<Query>),
-        'TagPtr.value is missing');
-      await wrong('PUT', `/${id('a')}/patchQuery`, { stereotypes: 'x' }, 'Query.stereotypes is not a list');
+        d.unread('TagPtr', 'value', 'is missing', 'taggedValues[].tag.value'));
+      await wrong('PUT', `/${id('a')}/patchQuery`, { stereotypes: 'x' },
+        d.unread('Query', 'stereotypes', 'is not a list', 'stereotypes'));
       // and nothing was written
       await refused('GET', `/${id('w')}`, undefined, 404, d.queryNotFound(id('w')), true);
     });
@@ -297,7 +313,7 @@ export function conformance(name: string, target: () => Target, d: Dialect = LIT
 
     it('says an unknown path is not there', async () => {
       const r = await raw('GET', `/${id('a')}/nothing`);
-      assert.equal(r.status, 404);
+      assert.equal(r.status, d.noRouteStatus);
       assert.equal((r.json as { message?: string }).message, d.noRoute(`/${id('a')}/nothing`));
       // 404, and no record missing: lite's kind request (2026-11-17, notFound is a missing record's alone)
       if (d === LITE) assert.equal((r.json as { kind?: string }).kind, 'request', r.text);

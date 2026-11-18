@@ -848,9 +848,11 @@ class TheProductsStore(unittest.TestCase):
         self.assertEqual((engine.status, engine.body), (404, b'no such path: /api/pure/v1/query/nope'))
 
     def test_a_route_lites_store_does_not_serve_is_refused_by_name(self):
+        # lite's API v1 spec §3: a malformed request, 400 request (PR #118 fix round, 2026-11-18; legend-engine's 404 is
+        # the edge's mount's)
         said = self.engine.answer('GET', '/api/lite/v1/queries/dataCube/a/b', '', None)
         self.assertEqual((said.status, json.loads(said.body)),
-                         (404, {'kind': 'request', 'message': 'no such legend-lite API: /api/lite/v1/queries/dataCube/a/b'}))
+                         (400, {'kind': 'request', 'message': 'no such legend-lite API: /api/lite/v1/queries/dataCube/a/b'}))
 
     def test_a_page_saved_at_lites_route_is_read_there(self):
         made = self.engine.answer('POST', '/api/lite/v1/queries/dataCube', '',

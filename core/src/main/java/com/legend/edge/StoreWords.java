@@ -46,6 +46,10 @@ public final class StoreWords {
             case STORE_NOT_CONFIGURED -> named(STORES, "store", o.get(0))
                     + " has not been configured properly (legend-lite: start the server with --query-store DIR)";
             case MALFORMED -> o.get(0) + ": " + o.get(1);
+            // the two kinds a malformed body's 500 split into on the product's side (PR #118 fix round, 2026-11-18),
+            // legend-engine's text as MALFORMED wrote it, byte for byte
+            case FIELD_UNREAD -> "IllegalArgumentException: " + o.get(0) + "." + o.get(1) + " " + o.get(2);
+            case UNREADABLE -> o.get(0) + ": " + o.get(1);
         };
     }
 
@@ -80,7 +84,7 @@ public final class StoreWords {
      *  store not configured, a path it does not serve, an exception's 500; every other refusal is {@code {"message"}}
      *  alone. */
     private static final java.util.Set<String> ENVELOPED = java.util.Set.of(
-            "store_not_configured", "no_such_route", "malformed");
+            "store_not_configured", "no_such_route", "malformed", "field_unread", "unreadable");
 
     /** The product store's answer ({@code {"kind", "message"}}, the message already worded by {@link #of}) in
      *  legend-engine's shape, byte for byte: an enveloped kind's {@code {"code":-1,"message",...,"status":"error"}},

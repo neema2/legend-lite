@@ -417,14 +417,19 @@ def _stored(entry: str, folder: Path, *asked: str) -> Answer:
 # the store's refusals of a record that does not exist, as the store writes their kind (SavedQueries.refused):
 # lite's notFound, 404 (the user, 2026-11-17 ~23:31), as the server's lite route reads them (LegendHttpServer.MISSING)
 _MISSING = frozenset({'query_not_found', 'queries_not_found', 'version_not_found'})
+# the store's refusals of a malformed request, whatever the store's status (upstream's 500 or 404, the edge's alone):
+# lite's request, 400 (spec §3; PR #118 fix round, 2026-11-18), as the server's lite route reads them
+# (LegendHttpServer.MALFORMED_REQUEST)
+_MALFORMED_REQUEST = frozenset({'no_such_route', 'field_unread', 'unreadable', 'no_search_term'})
 
 
 def _lites_refusal(answer: Answer) -> Answer:
     """A store's answer at lite's route: a refusal (400 and above) in lite's one error shape (the spec's §3,
     ``{kind, message}``) -- ``notFound`` (404) for a saved query, a version or a saved page that does not exist, by the
-    store's own kind and never its status (a batch's is upstream's 500); else ``internal`` at 500 and above,
-    ``request`` below, its status kept -- its message the store's own words, as the server's lite route answers it
-    (LegendHttpServer.storeRoutes); any other answer as it was."""
+    store's own kind and never its status (a batch's is upstream's 500); ``request`` (400) for a malformed request (a
+    path the store does not serve, a body it cannot read, a search with no term), by its kind too; else ``internal``
+    at 500 and above, ``request`` below, its status kept -- its message the store's own words, as the server's lite
+    route answers it (LegendHttpServer.storeRoutes); any other answer as it was."""
     if answer.status < 400:
         return answer
     try:
@@ -435,6 +440,8 @@ def _lites_refusal(answer: Answer) -> Answer:
     message = said['message'] if isinstance(said.get('message'), str) else answer.body.decode('utf-8')
     if said.get('kind') in _MISSING:
         status, kind = 404, compiler.error_kind('NOT_FOUND')
+    elif said.get('kind') in _MALFORMED_REQUEST:
+        status, kind = 400, compiler.error_kind('REQUEST')
     else:
         status, kind = answer.status, compiler.error_kind('INTERNAL' if answer.status >= 500 else 'REQUEST')
     return Answer(status, 'application/json', json.dumps({'kind': kind, 'message': message}).encode('utf-8'))

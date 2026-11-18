@@ -121,20 +121,23 @@ export function conformance(name: string, target: () => Target): void {
       assert.equal(r.status, 400, r.text);
     });
 
-    it('answers a body of the wrong shape with lite\'s internal refusal, naming it, and an unknown path 404', async () => {
+    // lite's API v1 spec §3 (PR #118 fix round, 2026-11-18): a malformed request -- a body of the wrong shape, a search
+    // with no term, a path the store does not serve -- is 400 `request`, in lite's words (the request's field by its
+    // path, never legend-engine's class); legend-engine's 500s and 404 are the edge's mount's alone
+    it('answers a body of the wrong shape, a search with no term and an unknown path as lite\'s request refusal, 400', async () => {
       const wrong = async (body: string, message: string): Promise<void> => {
         const r = await raw('POST', '/search', body);
-        assert.equal(r.status, 500, r.text);
-        assert.deepEqual(r.json, { kind: 'internal', message });
+        assert.equal(r.status, 400, r.text);
+        assert.deepEqual(r.json, { kind: 'request', message });
       };
-      await wrong('{"limit":"ten"}', 'the request could not be served: QuerySearchSpecification.limit is not a number');
+      await wrong('{"limit":"ten"}', "the request's limit is not a number");
       await wrong('{"searchTermSpecification":{"searchTerm":"x","includeOwner":"yes"}}',
-        'the request could not be served: QuerySearchTermSpecification.includeOwner is not a boolean');
+        "the request's searchTermSpecification.includeOwner is not a boolean");
       const noTerm = await raw('POST', '/search', '{"searchTermSpecification":{}}');
-      assert.equal(noTerm.status, 500);
-      assert.deepEqual(noTerm.json, { kind: 'internal', message: 'the search specification has no search term' });
+      assert.equal(noTerm.status, 400);
+      assert.deepEqual(noTerm.json, { kind: 'request', message: 'the search specification has no search term' });
       const unknown = await raw('GET', `/${id('a')}/nothing`);
-      assert.equal(unknown.status, 404);
+      assert.equal(unknown.status, 400);
       assert.equal((unknown.json as { kind?: string }).kind, 'request');
       assert.equal((unknown.json as { message?: string }).message,
         `no such legend-lite API: /api/lite/v1/queries/dataCube/${id('a')}/nothing`);

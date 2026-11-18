@@ -41,12 +41,13 @@ describe("the page's own store: what a server here cannot be asked", () => {
   });
 
   // J9's sentences (the edge audit, 2026-11-17): the store's refusals in lite's words on lite's mount
-  it("a body that is not JSON: lite's refusal, kind internal, naming what was wrong, as the server answers it", async () => {
+  // a malformed request: lite's request, 400 (its API v1 spec §3; PR #118 fix round, 2026-11-18)
+  it("a body that is not JSON: lite's refusal, kind request, naming what was wrong, as the server answers it", async () => {
     const r = await server.fetch(`${LOCAL_API}/lite/v1/queries`, { method: 'POST', body: '{not json' });
-    assert.equal(r.status, 500);
+    assert.equal(r.status, 400);
     const said = (await r.json()) as { kind: string; message: string };
-    assert.equal(said.kind, 'internal');
-    assert.match(said.message, /^the request could not be served: \S/);
+    assert.equal(said.kind, 'request');
+    assert.match(said.message, /^the request could not be read: \S/);
   });
 
   it("lite's user operation: the page's configured user; a request holding a key, or not a POST, refused, kind request", async () => {

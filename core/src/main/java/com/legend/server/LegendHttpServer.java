@@ -251,6 +251,15 @@ public class LegendHttpServer {
             SavedQueries.Refusal.Kind.QUERIES_NOT_FOUND.name().toLowerCase(java.util.Locale.ROOT),
             SavedQueries.Refusal.Kind.VERSION_NOT_FOUND.name().toLowerCase(java.util.Locale.ROOT));
 
+    /** The store's refusals of a malformed request whatever the store's status (upstream's 500 or 404, the edge's
+     *  alone): lite's {@code request}, 400 (spec §3; PR #118 fix round, 2026-11-18) -- a path the store does not serve,
+     *  a body's field it cannot read, a body it cannot read, a search with no search term. */
+    private static final java.util.Set<String> MALFORMED_REQUEST = java.util.Set.of(
+            SavedQueries.Refusal.Kind.NO_SUCH_ROUTE.name().toLowerCase(java.util.Locale.ROOT),
+            SavedQueries.Refusal.Kind.FIELD_UNREAD.name().toLowerCase(java.util.Locale.ROOT),
+            SavedQueries.Refusal.Kind.UNREADABLE.name().toLowerCase(java.util.Locale.ROOT),
+            SavedQueries.Refusal.Kind.NO_SEARCH_TERM.name().toLowerCase(java.util.Locale.ROOT));
+
     /**
      * The saved queries and DataCube's saved pages under {@code prefix} ({@code /dataCube...} the pages, anything else
      * the queries), answered by the stores' own operations ({@link SavedQueries#answer}, {@link SavedCubes#answer}) for
@@ -293,6 +302,10 @@ public class LegendHttpServer {
                 if (MISSING.contains(storeKind)) {
                     return new LiteV1Api.Answer(LiteV1Api.Kind.NOT_FOUND.status(),
                             new LiteV1Api.Refusal(LiteV1Api.Kind.NOT_FOUND, message, null, null).json());
+                }
+                if (MALFORMED_REQUEST.contains(storeKind)) {
+                    return new LiteV1Api.Answer(LiteV1Api.Kind.REQUEST.status(),
+                            new LiteV1Api.Refusal(LiteV1Api.Kind.REQUEST, message, null, null).json());
                 }
                 LiteV1Api.Kind kind = a.status() >= 500 ? LiteV1Api.Kind.INTERNAL : LiteV1Api.Kind.REQUEST;
                 return new LiteV1Api.Answer(a.status(), new LiteV1Api.Refusal(kind, message, null, null).json());

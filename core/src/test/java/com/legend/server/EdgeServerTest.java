@@ -165,10 +165,10 @@ class EdgeServerTest {
             HttpResponse<String> missing = send(server, "GET", "/api/lite/v1/queries/nope", null);
             assertEquals(404, missing.statusCode(), missing.body());
             assertEquals("{\"kind\":\"notFound\",\"message\":\"no saved query has the ID 'nope'\"}", missing.body());
-            // a path the store does not serve is 404 too, and no record missing: kind request (the kind the store's,
-            // never the status)
+            // a path the store does not serve is no record missing: kind request, 400 (lite's API v1 spec §3; PR #118
+            // fix round, 2026-11-18: the store's 404 was answered), the kind the store's, never the status
             HttpResponse<String> noRoute = send(server, "GET", "/api/lite/v1/queries/nope/no/such", null);
-            assertEquals(404, noRoute.statusCode(), noRoute.body());
+            assertEquals(400, noRoute.statusCode(), noRoute.body());
             assertEquals("request", com.legend.json.Json.parseObject(noRoute.body()).getString("kind"), noRoute.body());
             // a batch with a missing ID names it: kind notFound, 404, on lite's mount (the orchestrator's ruling,
             // 2026-11-17); upstream's 500 at the edge's

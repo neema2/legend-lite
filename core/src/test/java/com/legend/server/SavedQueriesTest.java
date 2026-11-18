@@ -48,8 +48,9 @@ class SavedQueriesTest {
         assertEquals("field_missing", obj(noName).getString("kind"));
         assertEquals("the name is missing or empty", obj(noName).getString("message"));
         SavedQueries.Answer malformed = lite.apply("POST", "[1]");
-        assertEquals("malformed", obj(malformed).getString("kind"));
-        assertTrue(obj(malformed).getString("message").startsWith("the request could not be served: "),
+        // a body the store cannot read: its own kind (PR #118 fix round, 2026-11-18; lite's route answers it 400 request)
+        assertEquals("unreadable", obj(malformed).getString("kind"));
+        assertTrue(obj(malformed).getString("message").startsWith("the request could not be read: "),
                 obj(malformed).getString("message"));
         SavedQueries.Answer unconfigured = SavedQueries.answer(null, "GET", "/q1", null, "", "a");
         assertEquals(500, unconfigured.status());

@@ -72,6 +72,12 @@ const refusal = (status: number, message: string, kind: 'request' | 'notFound' |
  *  storeRoutes' MISSING). A path the store does not serve is 404 too, and no record missing. */
 const MISSING: ReadonlySet<string> = new Set(['query_not_found', 'queries_not_found', 'version_not_found']);
 
+/** The store's refusals of a malformed request, whatever the store's status (upstream's 500 or 404, the edge's alone):
+ *  lite's request, 400 (spec §3; PR #118 fix round, 2026-11-18) -- a path the store does not serve, a body's field it
+ *  cannot read, a body it cannot read, a search with no term -- as the server's mount reads them (LegendHttpServer.
+ *  MALFORMED_REQUEST). */
+const MALFORMED_REQUEST: ReadonlySet<string> = new Set(['no_such_route', 'field_unread', 'unreadable', 'no_search_term']);
+
 /** The store's own answer: a refusal (400 and up) as lite's, its words the store's message, its kind read from the
  *  store's own (never from the status); anything else as it is. */
 function stored(status: number, body: string): Response {
@@ -85,6 +91,7 @@ function stored(status: number, body: string): Response {
   } catch { /* not JSON: the text is the store's words */ }
   // a record missing first, whatever the store's status (a batch's is upstream's 500), answered with its kind's 404
   if (MISSING.has(kind)) return refusal(404, message, 'notFound');
+  if (MALFORMED_REQUEST.has(kind)) return refusal(400, message, 'request');
   return refusal(status, message, status >= 500 ? 'internal' : 'request');
 }
 

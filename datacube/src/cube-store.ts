@@ -200,11 +200,16 @@ const refusal = (kind: 'notFound' | 'request' | 'internal', message: string): st
  *  user's ruling of 2026-11-17 ~23:31): a missing id, a batch with missing ids, a missing version. */
 const MISSING = new Set(['query_not_found', 'queries_not_found', 'version_not_found']);
 
+/** The store's refusal kinds of a malformed request (lite API v1 §3's request, 400, whatever the store's status --
+ *  legend-engine's 500 or 404 are the edge's alone; PR #118 fix round, 2026-11-18): a path the store does not serve, a
+ *  body's field it cannot read, a body it cannot read, a search with no term (LegendHttpServer.MALFORMED_REQUEST). */
+const MALFORMED_REQUEST = new Set(['no_such_route', 'field_unread', 'unreadable', 'no_search_term']);
+
 /** The store's refusal in lite's shape, as the server's lite mount answers it (LegendHttpServer.storeRoutes): its words
- *  its own message, its status kept, its kind by the STORE's own refusal kind, never by the status alone (a route the
- *  store does not serve is 404 too, and a request) -- a missing record `notFound`, `internal` at 500 and above, else
- *  `request`. */
-function lite(status: number, body: string): string {
+ *  its own message, its kind by the STORE's own refusal kind, never by the status alone -- a missing record
+ *  `notFound`, a malformed request `request` at 400, `internal` at 500 and above, else `request` -- its status the
+ *  store's but a malformed request's. */
+function lite(status: number, body: string): { readonly status: number; readonly body: string } {
   let message = body;
   let storeKind: unknown;
   try {
@@ -214,8 +219,9 @@ function lite(status: number, body: string): string {
   } catch {
     // not JSON: the body is the message, as the server reads it
   }
-  if (typeof storeKind === 'string' && MISSING.has(storeKind)) return refusal('notFound', message);
-  return refusal(status >= 500 ? 'internal' : 'request', message);
+  if (typeof storeKind === 'string' && MISSING.has(storeKind)) return { status, body: refusal('notFound', message) };
+  if (typeof storeKind === 'string' && MALFORMED_REQUEST.has(storeKind)) return { status: 400, body: refusal('request', message) };
+  return { status, body: refusal(status >= 500 ? 'internal' : 'request', message) };
 }
 
 /** The API root the page's own store answers at: never on the network. */
@@ -261,7 +267,8 @@ export function wasmCubeServer(o: { readonly load: () => Promise<QueriesModule>;
         const error = e instanceof Error ? e : new Error(String(e));
         return { changed: new Map(), answer: answered(500, refusal('internal', `${error.name}: ${error.message}`)) };
       }
-      return { changed: new Map(Object.entries(said.changed)), answer: answered(said.status, said.status < 400 ? said.body : lite(said.status, said.body)) };
+      const out = said.status < 400 ? { status: said.status, body: said.body } : lite(said.status, said.body);
+      return { changed: new Map(Object.entries(said.changed)), answer: answered(out.status, out.body) };
     });
   };
   return { fetch: ((input: RequestInfo | URL, init?: RequestInit) => handle(new Request(input, init))) as typeof fetch };

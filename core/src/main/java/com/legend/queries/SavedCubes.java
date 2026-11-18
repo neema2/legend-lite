@@ -243,7 +243,7 @@ public final class SavedCubes {
         // the fields the rules read later, of their kinds (a check, not a cast: see searchShape)
         for (String f : List.of("description", "owner")) {
             if (q.has(f) && !(q.get(f) instanceof Json.Str || q.get(f) instanceof Json.Null)) {
-                throw new IllegalArgumentException("DataCubeQuery." + f + " is not a string");
+                throw SavedQueries.unread("DataCubeQuery", f, "is not a string", f);
             }
         }
         return id.value();
@@ -270,29 +270,31 @@ public final class SavedCubes {
     private static void searchShape(Json.Obj spec) {
         if (spec.has("searchTermSpecification") && !(spec.get("searchTermSpecification") instanceof Json.Null)) {
             if (!(spec.get("searchTermSpecification") instanceof Json.Obj term)) {
-                throw new IllegalArgumentException("QuerySearchSpecification.searchTermSpecification is not an object");
+                throw SavedQueries.unread("QuerySearchSpecification", "searchTermSpecification", "is not an object",
+                        "searchTermSpecification");
             }
             if (!(term.has("searchTerm") && term.get("searchTerm") instanceof Json.Str)) {
                 throw new SavedQueries.Refusal(SavedQueries.Refusal.Kind.NO_SEARCH_TERM, java.util.List.of(), 500);
             }
-            kind(term, "exactMatchName", "QuerySearchTermSpecification", true);
-            kind(term, "includeOwner", "QuerySearchTermSpecification", true);
+            kind(term, "exactMatchName", "QuerySearchTermSpecification", true, "searchTermSpecification.");
+            kind(term, "includeOwner", "QuerySearchTermSpecification", true, "searchTermSpecification.");
         }
-        kind(spec, "showCurrentUserQueriesOnly", "QuerySearchSpecification", true);
-        kind(spec, "sortByOption", "QuerySearchSpecification", false);
+        kind(spec, "showCurrentUserQueriesOnly", "QuerySearchSpecification", true, "");
+        kind(spec, "sortByOption", "QuerySearchSpecification", false, "");
         if (spec.has("limit") && !(spec.get("limit") instanceof Json.Num || spec.get("limit") instanceof Json.Null)) {
-            throw new IllegalArgumentException("QuerySearchSpecification.limit is not a number");
+            throw SavedQueries.unread("QuerySearchSpecification", "limit", "is not a number", "limit");
         }
     }
 
-    /** {@code o}'s {@code field}, when it has one: a boolean ({@code flag}) or a string. */
-    private static void kind(Json.Obj o, String field, String where, boolean flag) {
+    /** {@code o}'s {@code field}, when it has one: a boolean ({@code flag}) or a string; {@code in}, its place in the
+     *  request. */
+    private static void kind(Json.Obj o, String field, String where, boolean flag, String in) {
         if (!o.has(field) || o.get(field) instanceof Json.Null) {
             return;
         }
         Json.Node n = o.get(field);
         if (flag ? !(n instanceof Json.Bool) : !(n instanceof Json.Str)) {
-            throw new IllegalArgumentException(where + "." + field + " is not a " + (flag ? "boolean" : "string"));
+            throw SavedQueries.unread(where, field, "is not a " + (flag ? "boolean" : "string"), in + field);
         }
     }
 
