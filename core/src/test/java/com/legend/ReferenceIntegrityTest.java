@@ -64,7 +64,7 @@ class ReferenceIntegrityTest {
         String text = BASE + model;
         assertTrue(engineReads(text), "legend-engine's grammar reads it (else refusedAsText): " + model);
         assertOneError(Compiler.compileErrors(text, UPSTREAM), expected, "the text");
-        assertOneError(Compiler.compileErrors(ModelReader.read(ProtocolEmitter.emit(PmcdParser.parseModel(text))),
+        assertOneError(Compiler.compileErrors(ModelReader.read(com.legend.json.Json.parse(ProtocolEmitter.emit(PmcdParser.parseModel(text)), new com.legend.json.Json.Config(4096))),
                 UPSTREAM), expected, "the JSON");
     }
 
@@ -81,7 +81,7 @@ class ReferenceIntegrityTest {
         assertTrue(engineReads(text), "legend-engine's grammar reads it (else acceptedAsText): " + model);
         assertEquals(List.of(), Compiler.compileErrors(text), "the text");
         assertEquals(List.of(),
-                Compiler.compileErrors(ModelReader.read(ProtocolEmitter.emit(PmcdParser.parseModel(text)))),
+                Compiler.compileErrors(ModelReader.read(com.legend.json.Json.parse(ProtocolEmitter.emit(PmcdParser.parseModel(text)), new com.legend.json.Json.Config(4096)))),
                 "the JSON");
     }
 

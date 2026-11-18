@@ -75,7 +75,7 @@ class RelationFunctionDescriptorTest {
         String text = model("():meta::pure::metamodel::relation::Relation<Any>[1]");
         ParseException fromText = assertThrows(ParseException.class, () -> Compiler.compileModel(text));
         ParseException e = assertThrows(ParseException.class,
-                () -> Compiler.compileModel(ModelReader.read(PmcdParser.parseDocument(text))));
+                () -> Compiler.compileModel(ModelReader.read(com.legend.json.Json.parse(PmcdParser.parseDocument(text), new com.legend.json.Json.Config(4096)))));
         assertTrue(e.getMessage().contains(
                 "Package path not allowed in types: meta::pure::metamodel::relation::Relation<Any>"), e.getMessage());
         org.junit.jupiter.api.Assertions.assertEquals(fromText.getMessage(), e.getMessage());
