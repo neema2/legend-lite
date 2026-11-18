@@ -51,7 +51,7 @@ final class AsorReaders {
         for (com.legend.model.FunctionId f : Pure.AT_LEGEND_LITE_ASOR_DECODE_PK_MAP) {
             RULES.put(f, (n, args) -> {
                 if (!(args.get(1) instanceof SqlExpr.StringLit table)
-                        || !(com.legend.sql.Json.parseOne(table.value())
+                        || !(com.legend.sql.Json.parse(table.value())
                                 instanceof java.util.Map<?, ?> sets)) {
                     throw new IllegalStateException("asorDecodePkMap needs a spelled"
                             + " setId -> pk-columns table");

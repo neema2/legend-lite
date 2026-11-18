@@ -11,7 +11,6 @@ import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -27,7 +26,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * {@code assertSameElements} = sort, then ordered); class instances and maps
  * structurally through the same leaf; the two JSON comparators the engine
  * has, each named ({@link #pureJson} — the Pure JSON model, a number's kind is
- * part of its value; {@link #serviceJson} — the service-test
+ * part of its value; (the service-test EqualToJson comparator moved to the edge, edge.EqualToJson, 2026-11-17) — the service-test
  * {@code JsonNodeComparator}, numbers by decimal value). Every entry returns
  * {@code null} for equal or the FIRST-DIFFERENCE narrative — never a boolean
  * a caller re-interprets.
@@ -88,15 +87,15 @@ public final class Equality {
     // ---- THE LENIENCY (one, counted) --------------------------------------
 
     /** THE ONE FLOAT LENIENCY (§5a, one home): two finite doubles within
-     * {@code 2 * ulp(max(|x|, |y|))}. The host cell rule (TdsCompare) and
+     * {@code floatUlps * ulp(max(|x|, |y|))}, the plan's rules' number (census C1's J11, 2026-11-17). The host cell rule (TdsCompare) and
      * the referee (RefereeVerify) call HERE; the database judge spells the same
      * predicate in SQL (VerdictSql.lenient). */
-    public static boolean withinTwoUlp(double x, double y) {
+    public static boolean withinUlps(double x, double y, int floatUlps) {
         if (!Double.isFinite(x) || !Double.isFinite(y)) {
             return false;
         }
         double ulp = Math.ulp(Math.max(Math.abs(x), Math.abs(y)));
-        boolean ok = Math.abs(x - y) <= com.legend.values.FloatTolerance.ULPS * ulp;
+        boolean ok = Math.abs(x - y) <= floatUlps * ulp;
         if (ok && x != y) {
             Census.inc(Census.Key.ULP_FIRINGS);
             if (System.getenv("LL_TOL_COUNT") != null) {
@@ -227,7 +226,7 @@ public final class Equality {
             // clean mode compares a Float exactly; the 2-ULP tolerance is compatibility mode's alone (S15/S132, the
             // user's ruling of 2026-11-05: "I like our clean float"; built 2026-11-05 after the report found one core
             // test relying on it, the policy's own pin)
-            boolean within = rules.floatTolerance() && e instanceof Double de && a instanceof Double da && withinTwoUlp(de, da);
+            boolean within = rules.floatTolerance() && e instanceof Double de && a instanceof Double da && withinUlps(de, da, rules.floatUlps());
             if (within) {
                 // the exact-comparison report (S15/S132 narrowed, 2026-11-05): the tolerance, not equality, decided
                 com.legend.diagnostics.Diagnostics.judgeSend("ulp-tolerance", "host " + e + " ~ " + a);
@@ -456,109 +455,6 @@ public final class Equality {
 
     private static String abbreviate(String s) {
         return s.length() <= 120 ? s : s.substring(0, 120) + "…";
-    }
-
-    // ---- JSON: the service-test comparator (EqualToJson) -------------------
-
-    /** The engine's service-test {@code JsonNodeComparator}: objects by the
-     * union of their keys (null ≡ missing), arrays as multisets, numbers by
-     * decimal value (kind-blind) with the referee's 2-ULP policy for the
-     * database's C-library doubles, strings and booleans exact. */
-    public static @com.legend.base.Nullable String serviceJson(@com.legend.base.Nullable Object expected,
-            @com.legend.base.Nullable Object actual) {
-        return serviceDiff(expected, actual, "$");
-    }
-
-    private static @com.legend.base.Nullable String serviceDiff(@com.legend.base.Nullable Object e,
-            @com.legend.base.Nullable Object a, String path) {
-        if (e == null && a == null) {
-            return null;
-        }
-        if (e == null || a == null) {
-            return path + " expected " + show(e) + ", got " + show(a);
-        }
-        if (e instanceof Map<?, ?> em && a instanceof Map<?, ?> am) {
-            TreeSet<String> keys = new TreeSet<>();
-            em.keySet().forEach(k -> keys.add(String.valueOf(k)));
-            am.keySet().forEach(k -> keys.add(String.valueOf(k)));
-            for (String k : keys) {
-                String d = serviceDiff(em.get(k), am.get(k), path + "." + k);
-                if (d != null) {
-                    return d;
-                }
-            }
-            return null;
-        }
-        if (e instanceof List<?> el && a instanceof List<?> al) {
-            if (el.size() != al.size()) {
-                return path + " expected " + el.size() + " elements, got " + al.size();
-            }
-            List<Object> remaining = new ArrayList<>(al);
-            for (int i = 0; i < el.size(); i++) {
-                Object x = el.get(i);
-                int at = -1;
-                for (int j = 0; j < remaining.size() && at < 0; j++) {
-                    if (serviceDiff(x, remaining.get(j), path) == null) {
-                        at = j;
-                    }
-                }
-                if (at < 0) {
-                    Object nearest = nearest(x, remaining);
-                    String why = nearest == null ? "no actual element shares its first field"
-                            : "nearest actual " + show(nearest) + " differs: "
-                                    + serviceDiff(x, nearest, path + "[" + i + "]");
-                    return path + "[" + i + "] expected " + show(x)
-                            + " has no equal element in the actual array (" + why + ")";
-                }
-                remaining.remove(at);
-            }
-            return null;
-        }
-        if (e instanceof Number en && a instanceof Number an) {
-            if (decimal(en).compareTo(decimal(an)) == 0) {
-                return null;
-            }
-            if (withinTwoUlp(en.doubleValue(), an.doubleValue())) {
-                com.legend.diagnostics.Diagnostics.judgeSend("ulp-tolerance", "host-json " + en + " ~ " + an);
-                return null;
-            }
-            return path + " expected " + en + ", got " + an;
-        }
-        if (e instanceof String es && a instanceof String as) {
-            return es.equals(as) ? null : path + " expected " + show(es) + ", got " + show(as);
-        }
-        if (e instanceof Boolean eb && a instanceof Boolean ab) {
-            return eb.equals(ab) ? null : path + " expected " + eb + ", got " + ab;
-        }
-        return path + " expected " + jsonKind(e) + " " + show(e) + ", got " + jsonKind(a) + " " + show(a);
-    }
-
-    private static @com.legend.base.Nullable Object nearest(Object expected, List<Object> candidates) {
-        if (!(expected instanceof Map<?, ?> em) || em.isEmpty()) {
-            return null;
-        }
-        var first = em.entrySet().iterator().next();
-        for (Object c : candidates) {
-            if (c instanceof Map<?, ?> cm
-                    && serviceDiff(first.getValue(), cm.get(first.getKey()), "$") == null) {
-                return c;
-            }
-        }
-        return null;
-    }
-
-    private static String jsonKind(Object o) {
-        return o instanceof Map ? "object" : o instanceof List ? "array"
-                : o instanceof Number ? "number" : o instanceof String ? "string"
-                : o instanceof Boolean ? "boolean" : "null";
-    }
-
-    private static String show(@com.legend.base.Nullable Object o) {
-        if (o == null) {
-            return "null";
-        }
-        String s = o instanceof String str ? "'" + str + "'" : String.valueOf(o);
-        return s.length() > 160 ? s.substring(0, 157) + "..." : s;
     }
 
     // ---- carriers -----------------------------------------------------------

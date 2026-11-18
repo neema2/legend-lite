@@ -35,7 +35,7 @@ import java.util.List;
  * chain steps {@code ' -> '}-separated, string literals single-quoted,
  * automap hops as {@code map(v_automap:FQN[1] | …)} steps.
  *
- * <p>{@link #rewrittenQuery} returns null when the frame is not
+ * <p>{@link #routingActivity} returns null when the frame is not
  * aggregation-aware-routed or the chain has a shape this printer does
  * not know — the caller keeps its honest fallback.
  *
@@ -48,8 +48,9 @@ final class AggAwareActivities {
     private AggAwareActivities() {
     }
 
-    /** The routed print for an aggregation-aware frame, else null. */
-    static @com.legend.base.Nullable String rewrittenQuery(TypedSpec chain, ModelContext ctx,
+    /** legend-engine's AggregationAwareActivity of an aggregation-aware frame -- no SQL, no comment, the routed print
+     *  (J37 of the edge audit, 2026-11-18: the whole row the edge's) -- else null. */
+    static @com.legend.base.Nullable List<String> routingActivity(TypedSpec chain, ModelContext ctx,
             com.legend.compiler.spec.SpecCompiler specs) {
         String mappingFqn = null;
         TypedSpec cur = chain;
@@ -99,7 +100,7 @@ final class AggAwareActivities {
                 return null;
             }
         }
-        return sb.append(';').toString();
+        return List.of("AggregationAwareActivity", "", "", sb.append(';').toString());
     }
 
     private static boolean step(TypedSpec op, StringBuilder sb) {

@@ -834,7 +834,6 @@ final class Fold {
             case SqlSource.Dual d -> false;
             case SqlSource.Join j -> physicallyRenderable(j.left(), c)
                     || physicallyRenderable(j.right(), c);
-            case SqlSource.VarSetPlaceholder vp -> false;
             case SqlSource.RawSql raw -> false;
             case SqlSource.GridReport g -> false;
             case SqlSource.Catalog cat -> false;
@@ -1177,7 +1176,6 @@ final class Fold {
             case SqlSource.Dual d -> null;
             case SqlSource.Table t -> stamped(t.alias(), t.outputs(), column);
             case SqlSource.Cte ct -> stamped(ct.alias(), ct.outputs(), column);
-            case SqlSource.VarSetPlaceholder vp -> null;
             // LATE-BOUND grid (P3-2 single-query): an undemanded raw
             // grid skipped the schema probe, so its outputs are empty
             // BY DESIGN — the trust-name rule applies (pivot's

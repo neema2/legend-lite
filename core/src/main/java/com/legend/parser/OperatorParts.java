@@ -47,7 +47,13 @@ final class OperatorParts {
 
     /** The threaded accumulator: the built node plus the operator that built
      *  (or, after a last-parameter rewrite, kept) it. */
-    private record Acc(AppliedFunction node, String op) {
+    /** {@code rhs}: a relational comparison's right-hand fold, its own accumulator, where the level takes Pure's
+     *  precedence (J30 of the edge audit, 2026-11-18): a tighter operator after the comparison continues THAT fold, so
+     *  it claims the deepest last operand, never a parenthesised operand's inside; null otherwise. */
+    private record Acc(AppliedFunction node, String op, @com.legend.base.Nullable Acc rhs) {
+        Acc(AppliedFunction node, String op) {
+            this(node, op, null);
+        }
     }
 
     /** Engine {@code booleanPart} + {@code processBooleanOp}: one boolean
@@ -81,14 +87,14 @@ final class OperatorParts {
     /** Engine {@code arithmeticPart}: comparisons always fold the whole
      *  accumulator ({@code buildComparisonOp}); plus/minus/times/divide
      *  thread through {@link #processOp}. */
-    static AppliedFunction arithmeticPart(List<ArithPart> parts, ValueSpecification initial) {
+    static AppliedFunction arithmeticPart(List<ArithPart> parts, ValueSpecification initial, GrammarLevel level) {
         Acc acc = null;
         for (ArithPart p : parts) {
             if (p.comparison()) {
                 acc = new Acc(buildComparisonOp(p,
                         acc == null ? initial : acc.node()), p.fn());
             } else {
-                acc = processOp(p, acc, initial);
+                acc = processOp(p, acc, initial, level);
             }
         }
         return Objects.requireNonNull(acc, "arithmeticPart on empty group").node();
@@ -101,7 +107,7 @@ final class OperatorParts {
      * accumulator as the initial (left) value.
      */
     private static Acc processOp(ArithPart p, @com.legend.base.Nullable Acc acc,
-            ValueSpecification initial) {
+            ValueSpecification initial, GrammarLevel level) {
         if (acc == null) {
             return new Acc(buildArithPart(p, initial), p.fn());
         }
@@ -115,8 +121,17 @@ final class OperatorParts {
             // flipping it means IMPLEMENTING the deep-rewrite correct mode, not
             // toggling a branch.
             AppliedFunction node = acc.node();
+            if (isRelationalComparison(acc.op()) && !EngineQuirks.relationalArithMisassociation(level)) {
+                // Pure's precedence (J30, 2026-11-18): the operator continues the comparison's right-hand fold -- its
+                // own accumulator, or a new one over the comparison's operand -- and the comparison takes the result
+                List<ValueSpecification> params = node.parameters();
+                Acc rhs = acc.rhs() == null ? new Acc(buildArithPart(p, params.get(params.size() - 1)), p.fn())
+                        : processOp(p, acc.rhs(), initial, level);
+                return new Acc(new AppliedFunction(node.function(), List.of(params.get(0), rhs.node()),
+                        node.referents(), node.pos(), false, false, true), acc.op(), rhs);
+            }
             if (acc.op().equals("divide")
-                    || (EngineQuirks.RELATIONAL_ARITH_MISASSOCIATION
+                    || (EngineQuirks.relationalArithMisassociation(level)
                             && isRelationalComparison(acc.op()))) {
                 List<ValueSpecification> params = node.parameters();
                 AppliedFunction newAf = buildArithPart(p, params.get(params.size() - 1));

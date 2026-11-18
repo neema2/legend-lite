@@ -124,17 +124,23 @@ class TestDataPlannerTest {
         }
     }
 
-    /** Two identifier entries for one table: upstream's assert, by its words (the B2d.3 audit's L2, 2026-11-12:
-     *  getRowIdentifiersForTable, TDG:487 -- until then the last entry was kept, silently). */
+    /** Two identifier entries for one table: refused as a kind with its facts, lite's sentence (the B2d.3 audit's L2,
+     *  2026-11-12: until then the last entry was kept, silently; J7 of the edge audit, 2026-11-18: upstream's assert's
+     *  words, getRowIdentifiersForTable, TDG:487, are the edge's). */
     @org.junit.jupiter.api.Test
-    void twoEntriesForOneTableAreUpstreamsAssert() {
+    void twoEntriesForOneTableAreRefusedAsAKind() {
         ModelContext ctx = Compiler.compileModel(MODEL);
-        com.legend.error.AssertFailed e = org.junit.jupiter.api.Assertions.assertThrows(
-                com.legend.error.AssertFailed.class, () -> TestDataPlanner.plan(ctx,
+        TestDataPlanner.RowIdentifiersRepeated e = org.junit.jupiter.api.Assertions.assertThrows(
+                TestDataPlanner.RowIdentifiersRepeated.class, () -> TestDataPlanner.plan(ctx,
                         query("|t::Person.all()->project([p|$p.name], ['n'])"), "t::M",
                         List.of(ids("PERSON", "ID", 2L), ids("PERSON", "ID", 3L)), null, false, PlannerViews.of(ctx),
                         LitePrinting.INSTANCE));
-        assertEquals("Multiple table row identifiers passed for the table: PERSON", e.getMessage());
+        assertEquals("test data generation: the table PERSON is given row identifiers more than once", e.getMessage());
+        assertEquals("PERSON", e.table());
+        assertEquals(com.legend.testexecutionplan.Failure.Kind.ASSERT_FAILED, e.failureKind());
+        assertEquals("Multiple table row identifiers passed for the table: PERSON",
+                com.legend.edge.PureText.UPSTREAM.errorWords(e));
+        assertEquals(e.getMessage(), com.legend.database.PlanStyle.PRODUCT.errorWords(e));
     }
 
     /** The server routes' text as their writer writes it (the B2d.3 audit's M1 and M2, 2026-11-12): the header each

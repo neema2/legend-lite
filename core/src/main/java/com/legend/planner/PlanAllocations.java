@@ -259,7 +259,7 @@ public final class PlanAllocations {
         // program reads the result's activities (no SQL = no rows, as ever)
         env.planRows().put(scope, new LazyRows(
                 () -> activityRows(scope, activitySql(ec, chain, letPrefix, specs, env),
-                        env.style().twoForm(RoutedQueries.class, NO_ROUTING_ACTIVITY).rewrittenQuery(chain, env.ctx(), specs),
+                        env.style().twoForm(RoutedQueries.class, NO_ROUTING_ACTIVITY).routingActivity(chain, env.ctx(), specs),
                         comment, commentParameter)));
     }
 
@@ -272,7 +272,7 @@ public final class PlanAllocations {
     private static final int COMMENT = 5;
 
     private static LazyRows.@Nullable Computed activityRows(String scope,
-            @Nullable String sql, @Nullable String rewrittenQuery,
+            @Nullable String sql, @Nullable List<String> routing,
             @Nullable String comment, @Nullable String commentParameter) {
         if (sql == null) {
             return null;
@@ -281,12 +281,16 @@ public final class PlanAllocations {
                 new LinkedHashMap<>();
         rows.put("results", List.of(List.of(scope)));
         List<List<String>> acts = new ArrayList<>();
-        if (rewrittenQuery != null) {
-            // the engine records the aggregation-aware ROUTING activity
-            // first (it happens at routing, before execution): the routed
-            // query print names the set the router chose
-            acts.add(List.of(scope + "/0", scope, "0",
-                    "AggregationAwareActivity", "", "", rewrittenQuery));
+        if (routing != null) {
+            // a routing activity first (it happens at routing, before execution), the style's whole row (J37 of the edge
+            // audit, 2026-11-18): the compatibility edge's legend-engine AggregationAwareActivity alone
+            if (routing.size() != 4) {
+                throw new IllegalStateException("a routing activity is its kind, sql, comment and rewritten query: "
+                        + routing);
+            }
+            List<String> row = new ArrayList<>(List.of(scope + "/0", scope, "0"));
+            row.addAll(routing);
+            acts.add(List.copyOf(row));
         }
         int k = acts.size();
         acts.add(List.of(scope + "/" + k, scope, Integer.toString(k),

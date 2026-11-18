@@ -51,8 +51,10 @@ public final class Parse {
     /** A model's text as its protocol JSON (phases A and B): the server's grammar routes and model changes. */
     public static String documentJson(String source, boolean sourceInformation) {
         com.legend.base.RunScope.planning("parse a model (phases A and B)");
-        // the product's one grammar (J21, 2026-11-17)
-        return PmcdParser.parseDocument(source, sourceInformation, GrammarLevel.LEGEND_LITE);
+        // the product's one grammar (J21, 2026-11-17); without source information EVERY span gone (J35 of the edge audit,
+        // 2026-11-18: legend-engine 4.145.0's kept spans, SourceInformation.withoutSpans, are the edge's entries' alone)
+        String json = PmcdParser.parseDocument(source, true, GrammarLevel.LEGEND_LITE);
+        return sourceInformation ? json : com.legend.protocol.SourceInformation.stripAll(json);
     }
 
     /** A model's text as its protocol JSON at LEGEND-ENGINE'S grammar (its refusals and its shapes): the edge's
@@ -72,8 +74,9 @@ public final class Parse {
     /** A lambda's text as its protocol JSON (phase C): the grammar route and the boundary's programs. */
     public static String lambdaJson(String source, boolean sourceInformation) {
         com.legend.base.RunScope.planning("parse a lambda (phase C)");
-        // the product's one grammar (J21, 2026-11-17)
-        return SpecParser.lambdaJson(source, sourceInformation, GrammarLevel.LEGEND_LITE);
+        // the product's one grammar (J21, 2026-11-17); without source information every span gone (J35, 2026-11-18)
+        String json = SpecParser.lambdaJson(source, true, GrammarLevel.LEGEND_LITE);
+        return sourceInformation ? json : com.legend.protocol.SourceInformation.stripAll(json);
     }
 
     /** A lambda's text as its protocol JSON at LEGEND-ENGINE'S grammar: the edge's {@code grammar/grammarToJson/lambda}

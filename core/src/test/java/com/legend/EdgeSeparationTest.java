@@ -63,6 +63,9 @@ class EdgeSeparationTest {
             Map.entry("com.legend.testplan.EngineTestText", "C4"),
             Map.entry("com.legend.testplan.EngineTextPlanning", "C4"),
             Map.entry("com.legend.testplan.PlanStyleFacets", "C4"));
+    // (com.legend.testexec.PureAsserts, legend-pure's assert family: decisions only since C5's step B, its every word
+    // the PureWords hook's -- mapped 2026-11-18, census J17, as CompatSpellingGuardTest.WORDED_BY_HOOK, whose check
+    // reads its source; a dependency graph cannot see a string)
 
     /** The SqlFn members only the edge spells (census B8). */
     static final Set<String> EDGE_ONLY_SQLFN = Set.of();   // DATETIME_PRINT gone 2026-11-17 (census B12), the last

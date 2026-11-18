@@ -399,7 +399,8 @@ public final class ProductStatements {
                 .withInstanceKeys(t -> com.legend.compiler.element.EqualityKeys.resolve(ctx, t))
                 .withObjectIdentity(sites::idOf);
         if (!temporal) {
-            planLw = planLw.withExistsAsJoinDistinct();
+            // the style's forms decide its shape (J19, S367): the product's keeps the EXISTS
+            planLw = planLw.withExistsJoinable();
         }
         if (streaming) {
             planLw = planLw.withStreamingGraphRoot();

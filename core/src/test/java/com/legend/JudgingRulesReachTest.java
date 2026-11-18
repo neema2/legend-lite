@@ -127,7 +127,10 @@ class JudgingRulesReachTest {
             Map.entry("com.legend.testexec.BodyRun", Set.of(TYPE)),
             Map.entry("com.legend.testexec.EdgeHearing", Set.of(TYPE)),
             Map.entry("com.legend.testexec.HostJudgments", Set.of(TYPE)),
-            Map.entry("com.legend.testexec.HostRules", Set.of(TYPE, "LITE", "decimalScale", "floatTolerance")),
+            // re-measured 2026-11-18 on d-int10 5f83349087: E-Java's J11 (train 9) -- HostRules reads the rules' float
+            // bound by name (floatUlps) beside its tolerance; DatabaseJudge's floatTolerance read became floatUlps
+            Map.entry("com.legend.testexec.HostRules", Set.of(TYPE, "LITE", "decimalScale", "floatTolerance",
+                    "floatUlps")),
             Map.entry("com.legend.testexec.NoEdgeRun", Set.of(TYPE)),
             Map.entry("com.legend.testexec.TestRunner", Set.of(TYPE)),
             Map.entry("com.legend.testexecutionplan.Edge", Set.of(TYPE)),
@@ -137,7 +140,7 @@ class JudgingRulesReachTest {
             Map.entry("com.legend.testplan.DatabaseAsserts", Set.of(TYPE)),
             // LITE: a two-form kind's product form (the whole-word scan's look-alike, not the rules' constant: a reach of
             // it would be counted above)
-            Map.entry("com.legend.testplan.DatabaseJudge", Set.of(TYPE, "LITE", "decimalScale", "floatTolerance")),
+            Map.entry("com.legend.testplan.DatabaseJudge", Set.of(TYPE, "LITE", "decimalScale", "floatUlps")),
             Map.entry("com.legend.testplan.EngineTextPlanning", Set.of(TYPE)),
             Map.entry("com.legend.testplan.HostAsserts", Set.of(TYPE)),
             Map.entry("com.legend.testplan.HostSideBatching", Set.of(TYPE)),
@@ -312,7 +315,11 @@ class JudgingRulesReachTest {
 
     @Test
     void theClassesNamingTheTypeArePinned() {
-        assertEquals(new TreeMap<>(NAMES_PINNED), names(ConstantPools.ofJars(productJars())), "NAMES: a product class"
+        // compared as sorted sets, so a failure prints both sides in one order (D, 2026-11-18: Set.of's order read as a
+        // difference)
+        Map<String, Set<String>> pinned = new TreeMap<>();
+        NAMES_PINNED.forEach((k, v) -> pinned.put(k, new TreeSet<>(v)));
+        assertEquals(pinned, names(ConstantPools.ofJars(productJars())), "NAMES: a product class"
                 + " names the judging rules' type, or holds a token of it, that its pin does not list (a pattern switch's"
                 + " labels, a class literal, a value returned by a call, reflection): rule it; one gone lowers its pin");
     }

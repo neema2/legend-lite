@@ -65,4 +65,24 @@ public final class ProductLoweringForms implements LoweringForms {
             Supplier<com.legend.sql.SqlQuery> kept) {
         return pruned.get();
     }
+
+    /** An exact decimal at the product's Decimal precision ({@code PureSql.type(DECIMAL)}). */
+    @Override
+    public SqlExpr parsedDecimal(SqlExpr text) {
+        return new SqlExpr.Cast(text, PureSql.type(com.legend.compiler.element.type.Type.Primitive.DECIMAL),
+                SqlExpr.Reason.USER);
+    }
+
+    /** The text as written, read as JSON. */
+    @Override
+    public SqlExpr parsedJson(SqlExpr text) {
+        return new SqlExpr.Cast(text, com.legend.sql.SqlType.Scalar.JSON, SqlExpr.Reason.CARRIER);
+    }
+
+    /** The correlated EXISTS as lowered, the leanest SQL with the same answer (the edge audit's J19 (a), 2026-11-18,
+     *  register S367): a dialect that cannot correlate one decomposes it at render (ClickHouse). */
+    @Override
+    public SqlSelect existsJoin(SqlSelect filtered, java.util.function.UnaryOperator<SqlSelect> joinForm) {
+        return filtered;
+    }
 }

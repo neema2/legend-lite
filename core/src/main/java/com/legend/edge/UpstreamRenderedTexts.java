@@ -162,7 +162,8 @@ public enum UpstreamRenderedTexts implements com.legend.testexec.RenderedTexts {
             return false;
         }
         try {
-            boolean within = com.legend.testexec.Equality.withinTwoUlp(Double.parseDouble(e), Double.parseDouble(a));
+            boolean within = com.legend.testexec.Equality.withinUlps(Double.parseDouble(e), Double.parseDouble(a),
+                    CompatRules.COMPILED_PURE.floatUlps());
             if (within) {
                 // the exact-comparison report (S15/S132 narrowed, 2026-11-05): the tolerance, not equality, decided
                 com.legend.diagnostics.Diagnostics.judgeSend("ulp-tolerance", "host-cell " + e + " ~ " + a);

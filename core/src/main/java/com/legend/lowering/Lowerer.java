@@ -373,10 +373,10 @@ public final class Lowerer {
         return SqlSelect.starOf(new SqlSource.Cte(cte.name(), nextAlias(), cte.outputs()));
     }
 
-    /** A filter's correlated EXISTS over a to-many join as a join to the distinct keys (ExistsJoinForm), the shape's
-     *  {@link LoweringShape#existsAsJoinDistinct}; the standalone-SQL surface keeps the correlated EXISTS. */
-    public Lowerer withExistsAsJoinDistinct() {
-        this.shape = shape.withExistsAsJoinDistinct();
+    /** A filter's correlated EXISTS over a to-many join is one the plan style's forms may write as a join to the distinct
+     *  keys ({@link LoweringShape#existsJoinable}; the edge audit's J19: the product's form keeps the EXISTS). */
+    public Lowerer withExistsJoinable() {
+        this.shape = shape.withExistsJoinable();
         return this;
     }
 
@@ -2272,10 +2272,9 @@ public final class Lowerer {
             case WHERE -> {
                 SqlSelect m = src.withWhere(
                         mergeWhere(src.where(), predicate, f.stamp()));
-                yield shape.existsAsJoinDistinct()
-                        ? ExistsJoinForm.rewrite(m, this::nextAlias,
-                                whereZones::get)
-                        : m;
+                // the product's EXISTS as lowered, legend-engine's shape a join to the distinct keys (J19, S367)
+                yield shape.existsJoinable() ? styled().forms().existsJoin(m, x -> ExistsJoinForm.rewrite(x,
+                        this::nextAlias, whereZones::get)) : m;
             }
             case HAVING -> src.withHaving(src.having() == null ? predicate
                     : Fold.mergeAnd(src.having(), predicate));

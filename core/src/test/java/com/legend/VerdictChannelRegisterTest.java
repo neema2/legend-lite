@@ -41,8 +41,9 @@ class VerdictChannelRegisterTest {
             // and since 2026-09-20 its float cell rule is the judge's own
             // (Equality.withinTwoUlp; the printed-precision tolerance deleted)
             "core/src/main/java/com/legend/testexec/TdsCompare.java",
-            // the service-test runner's EqualToJson routes to serviceJson
-            "core/src/main/java/com/legend/test/TestAssertions.java",
+            // the service-test runner's EqualToJson, the edge's since 2026-11-17 (J11's residue: moved from
+            // test.TestAssertions and Equality.serviceJson), reads the judge's one float bound (Equality.withinUlps)
+            "core/src/main/java/com/legend/edge/EqualToJson.java",
             // 2026-09-20 (one float rule): the corpus REFEREE's float cell
             // rule is the judge's own — its 2-ULP pairing of leftover rows
             // calls the one home (the ten-digit normalization it replaced
