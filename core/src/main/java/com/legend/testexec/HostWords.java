@@ -96,4 +96,7 @@ public interface HostWords {
 
     /** An assertError whose error was raised at another column. */
     String columnDiffers(long expected, long actual);
+
+    /** An UNJUDGED verdict row's evidence: its two canons' excerpts, framed for a diagnosis. */
+    String unjudged(String expected, String actual);
 }

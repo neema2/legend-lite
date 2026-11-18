@@ -279,7 +279,7 @@ public final class TestRunner {
                 // an assertError's verdict the database judges (S135): its row is its statement's, judged alone at its
                 // step -- the host's facts name the assert it reports under
                 com.legend.testexec.AssertRuns.judgedRowAtItsStep(hostStep.assertion(), java.util.Objects.requireNonNull(row,
-                        "an assertError's verdict statement answered no row"), listener);
+                        "an assertError's verdict statement answered no row"), listener, run.hearing().hostForms().words());
                 lastVerdict = com.legend.testexecutionplan.Verdicts.ok();
                 return;
             }
@@ -298,7 +298,7 @@ public final class TestRunner {
             com.legend.testexec.RootLoops.Run run = runs.of(verdict);
             run.received(verdict, row);
             if (runs.closes(verdict)) {
-                run.judge(listener, reader, true, com.legend.testexec.DatabaseVerdicts::verdictOf, rowAppeals, this.run);
+                run.judge(listener, reader, true, (n, r) -> com.legend.testexec.DatabaseVerdicts.verdictOf(n, r, this.run.hearing().hostForms().words()), rowAppeals, this.run);
             }
             lastVerdict = com.legend.testexecutionplan.Verdicts.ok();
         }

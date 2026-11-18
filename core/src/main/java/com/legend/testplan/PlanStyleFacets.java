@@ -62,5 +62,8 @@ public final class PlanStyleFacets {
             com.legend.lowering.LoweringForms.class,
             // the database judge's words of a failure (census J29, 2026-11-18; census C1's FailureWords, which named
             // whose words they were by a flag): lite's sentences, the edge's legend-pure words
-            com.legend.lowering.VerdictWords.class);
+            com.legend.lowering.VerdictWords.class,
+            // the settings an H2 database has (the audit's J22, RULED by the user 2026-11-17): the product's H2's own
+            // defaults, the edge's legend-engine's MODE=LEGACY and DEFAULT_NULL_ORDERING=HIGH
+            com.legend.sql.dialect.DatabaseSettingsForm.class);
 }

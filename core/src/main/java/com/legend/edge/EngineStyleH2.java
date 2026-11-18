@@ -52,10 +52,13 @@ public class EngineStyleH2 extends AnsiSqlRenderer implements EngineTextDialect 
         return H2.SESSION_SETUP;
     }
 
-    /** {@inheritDoc} H2's ({@code H2.DATABASE_SETTINGS}): the engine's H2 session, the same database. */
+    /** {@inheritDoc} legend-engine's H2 session ({@link EngineDatabaseSettings}), the same database. */
+    /** legend-engine's H2 session's settings ({@link EngineDatabaseSettings}), read back as H2 reads them. */
+    private static final DatabaseSettings LEGACY_SETTINGS = H2.settings(EngineDatabaseSettings.INSTANCE.required());
+
     @Override
     public @com.legend.base.Nullable DatabaseSettings databaseSettings() {
-        return H2.DATABASE_SETTINGS;
+        return LEGACY_SETTINGS;
     }
 
     /** None: this text is the engine's goldens', which no database executes, so no {@code data:} payload is delivered

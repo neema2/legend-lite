@@ -139,8 +139,9 @@ public final class PmcdParser {
     /**
      * Text to JSON for a model (the conversion legend-engine's {@code grammarToJson/model} makes, its
      * {@code returnSourceInformation} the second argument): {@link #parseDocument}, without any source
-     * information when it is off -- every span, the named ones ({@code classSourceInformation}, ...) included, as the
-     * engine's parser then records none (its span builder answers null; CorpusSweepTest's claim 1c).
+     * information when it is off -- every span, the named ones ({@code classSourceInformation}, ...) included
+     * ({@code SourceInformation.stripAll}); legend-engine's five kept spans are the edge's form
+     * ({@code edge.EngineSpans}, J35's residue, 2026-11-18; CorpusSweepTest's claim 1c).
      */
     public static String parseDocument(String source, boolean sourceInformation) {
         return parseDocument(source, sourceInformation, LEVEL);
@@ -151,7 +152,7 @@ public final class PmcdParser {
      *  legend-engine's, which the edge's door alone reaches ({@code ArchitectureTest.legendEnginesGrammarIsTheEdgesAlone}). */
     public static String parseDocument(String source, boolean sourceInformation, GrammarLevel dialect) {
         String json = ProtocolEmitter.emit(parse(source, dialect).model());
-        return sourceInformation ? json : com.legend.protocol.SourceInformation.withoutSpans(json);
+        return sourceInformation ? json : com.legend.protocol.SourceInformation.stripAll(json);
     }
 
     /**

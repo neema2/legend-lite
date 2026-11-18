@@ -43,11 +43,11 @@ class CellTextsTest {
             String cell = "|" + ROWS + "->extend(~t: r|$r.get('y')->toString())->select(~t)";
             assertEquals(List.of("a", "null"), column(Lean.run(model, cell, StorelessRuntime.RUNTIME, c)),
                     backend.name());
-            assertEquals(List.of("a", "TDSNull"), column(Lean.runInStyle(model, cell, StorelessRuntime.RUNTIME, c,
+            assertEquals(List.of("a", "TDSNull"), column(Lean.runInStyle(model, cell, StorelessRuntime.RUNTIME, backend,
                     com.legend.edge.PureText.UPSTREAM)), backend.name());
             // legend-engine's text of the empty cell, at the compatibility edge
             assertEquals(List.of("1,a", "2,TDSNull"), column(Lean.runInStyle(model, query, StorelessRuntime.RUNTIME,
-                    c, com.legend.edge.PureText.UPSTREAM)), backend.name());
+                    backend, com.legend.edge.PureText.UPSTREAM)), backend.name());
         }
     }
 

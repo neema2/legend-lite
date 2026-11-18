@@ -211,4 +211,10 @@ public final class EdgeHostWords implements com.legend.testexec.HostWords {
         // assertError.pure:26
         return "Execution error column mismatch. Actual: " + actual + " where expected: " + expected;
     }
+
+    @Override
+    public String unjudged(String expected, String actual) {
+        // the evidence as upstream's frame writes a pair (assertEquals.pure's '\nexpected: %r\nactual:   %r')
+        return "\nexpected: " + expected + "\nactual:   " + actual;
+    }
 }

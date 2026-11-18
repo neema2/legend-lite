@@ -143,6 +143,9 @@ legend_java_library(
     deps = [
         ":pe_corpus",
         "//core",
+        # legend-engine's JSON without source information (edge.EngineSpans: CorpusSweepTest's claim 1c), the edge's
+        # since J35's residue, 2026-11-18
+        "//core:edge",
         "//testing",
     ] + _ENGINE_COMPILE + _JUNIT5,
     runtime_deps = _ENGINE_EXTENSIONS,

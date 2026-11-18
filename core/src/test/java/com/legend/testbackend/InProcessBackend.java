@@ -24,9 +24,16 @@ abstract class InProcessBackend implements TestBackend {
      *  counted as the session's: a test's own text sent on it reads the session a plan would. */
     @Override
     public final Connection open() throws SQLException {
+        // the product's session, named (the audit's J22, 2026-11-17: no implicit style)
+        return open(com.legend.database.PlanStyle.PRODUCT);
+    }
+
+    /** A private in-memory instance made with the settings {@code style}'s plan target on it declares. */
+    @Override
+    public final Connection open(com.legend.database.PlanStyle style) throws SQLException {
         com.legend.executionplan.DatabaseType t = com.legend.planner.ConnectionPlans.type(type());
         com.legend.executionplan.ExecutionPlan.Target target = com.legend.planner.Targets.of(
-                new com.legend.executionplan.ExecutionPlan.Database.Platform(t, null), dialect());
+                new com.legend.executionplan.ExecutionPlan.Database.Platform(t, null), style.dialect(type()));
         Connection c = Connectors.of(t).openPrivate(target.settings());
         try (java.sql.Statement st = c.createStatement()) {
             for (String statement : target.session()) {

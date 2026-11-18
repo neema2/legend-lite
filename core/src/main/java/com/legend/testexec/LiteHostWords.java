@@ -190,4 +190,9 @@ public final class LiteHostWords implements HostWords {
         return sentence(AssertSentence.ERROR_COLUMN, "expected", Long.toString(expected), "actual",
                 Long.toString(actual));
     }
+
+    @Override
+    public String unjudged(String expected, String actual) {
+        return " (expected " + expected + ", got " + actual + ")";
+    }
 }

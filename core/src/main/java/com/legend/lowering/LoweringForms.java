@@ -30,13 +30,13 @@ import java.util.function.Supplier;
  * orchestrator's ruling (a): until then three LoweringShape flags only the edge set false): the product writes lean SQL --
  * a relation read more than once written once, a count a declared key makes one folded to 1, an unread computed
  * projection dropped; legend-engine's SQL does none of them.</li>
- * <li>{@link #isNumeric}: the relational isNumeric -- the product's a real numeric check, the same on every database
- * ({@code SqlFn.IS_NUMERIC}; the user's ruling of 2026-11-17 23:05, census J20); legend-engine's H2 compares
- * {@code lower(s) = upper(s)}, the edge's.</li>
  * <li>{@link #existsJoin} (the edge audit's J19, the user's ruling of 2026-11-17, "Yes to the rule"; register S367): a
  * filter's correlated {@code EXISTS} over a to-many join -- legend-engine's SQL writes its "second exists emission", a
  * join to the distinct keys ({@code ExistsJoinForm}), the edge's forms; the product's form the EXISTS as lowered, the
  * leanest SQL, a dialect that cannot correlate one decomposing it at render (ClickHouse, {@code sql.ExistsJoins}).</li>
+ * <li>{@link #isNumeric}: the relational isNumeric -- the product's a real numeric check, the same on every database
+ * ({@code SqlFn.IS_NUMERIC}; the user's ruling of 2026-11-17 23:05, census J20); legend-engine's H2 compares
+ * {@code lower(s) = upper(s)}, the edge's.</li>
  * </ul>
  */
 public interface LoweringForms {
@@ -54,6 +54,9 @@ public interface LoweringForms {
     /** The root of an engine {@code execute(...)}'s serialized values: lite's array ({@code array}), or one object bare
      *  and zero or several as the array ({@code oneBare}, legend-engine's JsonBuilder cardinality rule). */
     SqlSelect executeValues(Supplier<SqlSelect> array, Supplier<SqlSelect> oneBare);
+
+    /** The relational isNumeric of {@code s}. */
+    SqlExpr isNumeric(SqlExpr s);
 
     /** An object reference's connection segment (the audit's J12, 2026-11-17): the product's names no connection, the
      *  empty text; legend-engine's its H2 test-connection JSON, whatever the database. */
@@ -85,7 +88,4 @@ public interface LoweringForms {
     /** A filtered select ({@code filtered}) whose {@code EXISTS} conjuncts are kept as lowered, or written as joins to the
      *  distinct keys ({@code joinForm}). */
     SqlSelect existsJoin(SqlSelect filtered, java.util.function.UnaryOperator<SqlSelect> joinForm);
-
-    /** The relational isNumeric of {@code s} (census J20). */
-    SqlExpr isNumeric(SqlExpr s);
 }

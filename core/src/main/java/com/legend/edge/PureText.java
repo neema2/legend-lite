@@ -96,6 +96,10 @@ public final class PureText {
             if (kind == com.legend.lowering.ListTexts.class) {
                 return kind.cast(PureListTexts.INSTANCE);
             }
+            if (kind == com.legend.sql.dialect.DatabaseSettingsForm.class) {
+                // legend-engine's H2 database settings (the audit's J22, 2026-11-17)
+                return kind.cast(EngineDatabaseSettings.INSTANCE);
+            }
             if (kind == com.legend.lowering.LoweringForms.class) {
                 // the lowering's two-form choices (the audit's K5, 2026-11-17): legend-pure's guarded words
                 return kind.cast(EdgeLoweringForms.PCT);
@@ -357,6 +361,12 @@ public final class PureText {
 
     /** H2, spelled as upstream spells it. */
     public static final class H2 extends com.legend.sql.dialect.H2 {
+        /** On legend-engine's H2 database: the style's two-form {@code DatabaseSettingsForm} (the audit's J22, 2026-11-17). */
+        public H2() {
+            super(UPSTREAM.twoForm(com.legend.sql.dialect.DatabaseSettingsForm.class,
+                    com.legend.sql.dialect.ProductDatabaseSettings.INSTANCE));
+        }
+
         /** A Float literal computes as legend-engine's: its bare print, a DECIMAL (the edge program's §6 row 21, the
          *  orchestrator's ruling R2 of 2026-11-17; the product's is the double, register S20). */
         @Override

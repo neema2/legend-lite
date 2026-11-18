@@ -86,7 +86,7 @@ public final class ProductLoweringForms implements LoweringForms {
         return filtered;
     }
 
-    /** A real numeric check, the same on every database (census J20, the user's ruling of 2026-11-17 23:05). */
+    /** The product's isNumeric: a real numeric check, the same on every database (census J20). */
     @Override
     public SqlExpr isNumeric(SqlExpr s) {
         return SqlExpr.Call.of(com.legend.sql.SqlFn.IS_NUMERIC, s);

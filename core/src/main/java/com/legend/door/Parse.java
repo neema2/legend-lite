@@ -52,7 +52,7 @@ public final class Parse {
     public static String documentJson(String source, boolean sourceInformation) {
         com.legend.base.RunScope.planning("parse a model (phases A and B)");
         // the product's one grammar (J21, 2026-11-17); without source information EVERY span gone (J35 of the edge audit,
-        // 2026-11-18: legend-engine 4.145.0's kept spans, SourceInformation.withoutSpans, are the edge's entries' alone)
+        // 2026-11-18: legend-engine 4.145.0's kept spans, edge.EngineSpans, are the edge's entries' alone)
         String json = PmcdParser.parseDocument(source, true, GrammarLevel.LEGEND_LITE);
         return sourceInformation ? json : com.legend.protocol.SourceInformation.stripAll(json);
     }
@@ -60,9 +60,10 @@ public final class Parse {
     /** A model's text as its protocol JSON at LEGEND-ENGINE'S grammar (its refusals and its shapes): the edge's
      *  {@code grammar/grammarToJson/model}, where the edge parses legend-engine's protocol -- the edge's alone
      *  (J21, 2026-11-17; {@code ArchitectureTest.legendEnginesGrammarIsTheEdgesAlone}). */
-    public static String engineDocumentJson(String source, boolean sourceInformation) {
+    public static String engineDocumentJson(String source) {
         com.legend.base.RunScope.planning("parse a model (phases A and B)");
-        return PmcdParser.parseDocument(source, sourceInformation);
+        // with its source information: legend-engine's form without it is the edge's (edge.EngineSpans, J35's residue)
+        return PmcdParser.parseDocument(source, true);
     }
 
     /** A query's text as its value specification (phase C). */
@@ -81,9 +82,10 @@ public final class Parse {
 
     /** A lambda's text as its protocol JSON at LEGEND-ENGINE'S grammar: the edge's {@code grammar/grammarToJson/lambda}
      *  -- the edge's alone (J21, 2026-11-17; {@code ArchitectureTest.legendEnginesGrammarIsTheEdgesAlone}). */
-    public static String engineLambdaJson(String source, boolean sourceInformation) {
+    public static String engineLambdaJson(String source) {
         com.legend.base.RunScope.planning("parse a lambda (phase C)");
-        return SpecParser.lambdaJson(source, sourceInformation);
+        // with its source information (J35's residue: legend-engine's form without it is the edge's)
+        return SpecParser.lambdaJson(source, true);
     }
 
     /** A model's records as the compiler's parsed model (phase B): the records' door. Its refusal of a shape the model
