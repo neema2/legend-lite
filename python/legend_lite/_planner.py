@@ -14,6 +14,9 @@ from typing import Any
 
 from ._library import Library
 
+# (no pureV1, executePlan or executeAnswer: legend-engine's pure/v1 and execute's halves left the product's protocol
+# for the edge's engine module, and their native entries the product library for the engine library -- K2, the
+# user's "product root, edge opt-in", 2026-11-18)
 KINDS: dict[str, tuple[str, Callable[[dict[str, Any]], tuple[str, ...]]]] = {
     'hold': ('lite_hold_model', lambda m: (m['model'],)),
     'release': ('lite_release_model', lambda m: (str(m['handle']),)),
@@ -22,7 +25,6 @@ KINDS: dict[str, tuple[str, Callable[[dict[str, Any]], tuple[str, ...]]]] = {
     'queryTypeHeld': ('lite_query_type_held', lambda m: (str(m['handle']), m['request'])),
     'tableModel': ('lite_table_model', lambda m: (m['table'],)),
     'catalogColumnsSql': ('lite_catalog_columns_sql', lambda m: (m['schema'], m['table'])),
-    'pureV1': ('lite_pure_v1', lambda m: (m['path'], m['query'], m['body'])),
     # LITE'S OWN API, v1: each operation its kind (a/b -> aB) and its native entry (a/b -> lite_a_b), the operation's
     # request JSON text carried whole (the spec's §5, §7; the DataCube session's protocol, 2026-11-17)
     'modelCheck': ('lite_model_check', lambda m: (m['request'],)),
@@ -36,8 +38,6 @@ KINDS: dict[str, tuple[str, Callable[[dict[str, Any]], tuple[str, ...]]]] = {
     'modelCreateDataSpace': ('lite_model_create_data_space', lambda m: (m['request'],)),
     'tsItem': ('lite_ts_item', lambda m: (m['request'],)),
     'tsStatement': ('lite_ts_statement', lambda m: (m['request'],)),
-    'executePlan': ('lite_execute_json_plan', lambda m: (m['body'], m['models'])),
-    'executeAnswer': ('lite_execute_json_answer', lambda m: (m['plan'], m['rows'])),
     'fileLoad': ('lite_file_load', lambda m: (m['request'],)),
     'remoteMount': ('lite_remote_mount', lambda m: (m['request'],)),
     'snapStream': ('lite_snap_stream', lambda m: (m['request'],)),
