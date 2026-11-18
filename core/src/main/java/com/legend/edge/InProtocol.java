@@ -59,6 +59,12 @@ public final class InProtocol {
     }
 
     public record Result(SqlQuery plan, List<Site> sites) {
+
+        /** The wrapper variables its conditional sites splice bare ({@code ${inFilterClause_X}}): the edge's
+         *  template table's splices (the audit's J31). */
+        List<String> splices() {
+            return sites.stream().filter(Site::conditional).map(Site::wrapper).toList();
+        }
     }
 
     /** Scan-and-rewrite; null when no site triggers. */
@@ -110,8 +116,7 @@ public final class InProtocol {
                         overThreshold
                                 ? new SqlExpr.TempTableInSplice(
                                         s.tempTable())
-                                : new SqlExpr.PlanParam(s.wrapper(),
-                                        SqlExpr.PlanParam.Kind.RAW)));
+                                : EngineParams.template(s.wrapper(), SqlExpr.PlanParam.Kind.OTHER, false)));
             }
         };
         SqlQuery rewritten = rw.rewrite(plan);

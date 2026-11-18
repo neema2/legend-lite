@@ -53,9 +53,9 @@ class HookRulingsAgreeTest {
             "com.legend.testexec.EdgeHearing", "C2 HOOK-RULED 2026-11-17 (NoEdgeRun.Hearing, the product's refusal)",
             "com.legend.testplan.TextCollector", "C4 HOOK-RULED 2026-11-17 (handed out by EngineTestText alone)",
             "com.legend.testplan.BatchTexts", "C4 HOOK-RULED 2026-11-17 (handed out by EngineTestText alone)",
-            // ruled after this list was first written (2026-11-17, merged from D's d-int3): legend-pure's words at run,
-            // the hearing's member (C5 step B), and the ledger's recorder typed (census C1) -- each refused by the product
-            "com.legend.testexec.PureWords", "C5 HOOK-RULED 2026-11-17 (C5 step B: NoEdgeRun's hearing refuses it by name)",
+            // ruled after this list was first written (2026-11-17, merged from D's d-int3): the ledger's recorder typed
+            // (census C1) -- refused by the product (testexec.PureWords, C5 step B's hearing member, left 2026-11-18 on
+            // train 15 1931d419b1: deleted by J29, E-Java's 21a9734475, train 14)
             "com.legend.testexecutionplan.Edge", "C1 HOOK-RULED 2026-11-17 (the ledger's recorder: NoEdge refuses each ask)");
 
     private static final String STANDS = "(stands in a product package)";

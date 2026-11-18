@@ -16,6 +16,7 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeSet;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -42,12 +43,9 @@ class HookRulingTest {
                     () -> com.legend.testexec.NoEdgeRun.NONE.open(planNaming(), null, java.util.UUID.randomUUID()))),
             Map.entry(com.legend.testexec.EdgeHearing.class, List.of(
                     () -> productHearing().judged(null, List.of(), null, false),
-                    () -> productHearing().rowAppealed(0, List.of(), false),
-                    () -> productHearing().pureWords())),
-            // C5's step B, 2026-11-17 (the orchestrator's ruling (1)): legend-pure's words of an assert's failure at run,
-            // the hearing's member (NoEdgeRun's hearing refuses it by name)
-            Map.entry(com.legend.testexec.PureWords.class, List.of(
-                    () -> productHearing().pureWords())),
+                    () -> productHearing().rowAppealed(0, List.of(), false))),
+            // (com.legend.testexec.PureWords, C5's step B's hook: deleted 2026-11-18, census J29 -- the host judge's
+            // words are the run's HostWords, lite's form the product's and legend-pure's the edge's, never refused)
             // census C1, 2026-11-17 (the orchestrator's ruling that day: the edge hook typed, the product's refusal
             // where a null selected lite's rules): the ledger's recorder, each ask refused by the product's NoEdge
             Map.entry(com.legend.testexecutionplan.Edge.class, List.of(
@@ -87,6 +85,63 @@ class HookRulingTest {
         assertTrue(com.legend.edge.PureText.UPSTREAM.judgesEngineText());
     }
 
+    /** THE HOOK ENTRIES (the orchestrator's ruling of 2026-11-18, (6)): a product method that differs only by taking a
+     *  hook type -- a PlanStyle or a facet -- and runs the product's own pipeline with it is the designed hook entry, not
+     *  edge work in the product (EdgeOnlyMembersTest reads this list; its members are not counted). Each checked to hold
+     *  no legend-engine logic in its body, and pinned with its reason. */
+    static final Map<String, String> HOOK_ENTRIES = Map.ofEntries(
+            Map.entry("com.legend.Execution#runOnProjectDatabases(com.legend.TypedQuery, java.lang.String, java.lang.String, com.legend.database.PlanStyle, com.legend.result.Output)",
+                    "2026-11-18: a hook entry -- the product's own pipeline handed a PlanStyle, no legend-engine logic in its body (the orchestrator's ruling (6))"),
+            Map.entry("com.legend.TypedQuery#projectPlan(java.lang.String, com.legend.database.PlanStyle)",
+                    "2026-11-18: a hook entry -- the product's own pipeline handed a PlanStyle, no legend-engine logic in its body (the orchestrator's ruling (6))"),
+            // the orchestrator's ruling on E-SQL's five (2026-11-18): a hook's own result type, constructed only by the
+            // edge, is not a finding -- the product answers none (PlanStyle.traceCell())
+            Map.entry("com.legend.database.PlanStyle$TraceCell#<init>(java.lang.String, java.lang.String)",
+                    "2026-11-18: a hook type -- PlanStyle.traceCell()'s result, constructed by the edge's styles alone (the orchestrator's ruling on E-SQL's five)"));
+
+    /** The types a hook's method returns: PlanStyle's, the facet kinds' and the two-form kinds'. */
+    static Set<Class<?>> hookResultTypes() {
+        List<Class<?>> hooks = new java.util.ArrayList<>(List.of(com.legend.database.PlanStyle.class));
+        hooks.addAll(com.legend.testplan.PlanStyleFacets.KINDS);
+        hooks.addAll(com.legend.testplan.PlanStyleFacets.TWO_FORMS);
+        Set<Class<?>> out = new java.util.HashSet<>();
+        for (Class<?> h : hooks) {
+            for (java.lang.reflect.Method m : h.getMethods()) {
+                out.add(m.getReturnType());
+            }
+        }
+        return out;
+    }
+
+    /** Each hook entry takes a PlanStyle, or constructs a hook's own result type (the orchestrator's ruling on E-SQL's
+     *  five, 2026-11-18: PlanStyle$TraceCell): it is a hook entry by its signature, not by its name. */
+    @Test
+    void eachHookEntryTakesAHookType() throws ClassNotFoundException {
+        for (String entry : HOOK_ENTRIES.keySet()) {
+            Class<?> owner = Class.forName(entry.substring(0, entry.indexOf('#')));
+            String name = entry.substring(entry.indexOf('#') + 1, entry.indexOf('('));
+            String params = entry.substring(entry.indexOf('(') + 1, entry.length() - 1);
+            if (name.equals("<init>")) {
+                boolean ctor = java.util.Arrays.stream(owner.getConstructors()).anyMatch(c -> java.util.Arrays
+                        .stream(c.getParameterTypes()).map(Class::getName)
+                        .collect(java.util.stream.Collectors.joining(", ")).equals(params));
+                org.junit.jupiter.api.Assertions.assertTrue(ctor && hookResultTypes().contains(owner), entry
+                        + " is a public constructor of a type a hook's method returns");
+                continue;
+            }
+            boolean found = false;
+            for (java.lang.reflect.Method m : owner.getMethods()) {
+                String sig = java.util.Arrays.stream(m.getParameterTypes()).map(Class::getName)
+                        .collect(java.util.stream.Collectors.joining(", "));
+                if (m.getName().equals(name) && sig.equals(params)) {
+                    found = java.util.Arrays.asList(m.getParameterTypes())
+                            .contains(com.legend.database.PlanStyle.class);
+                }
+            }
+            org.junit.jupiter.api.Assertions.assertTrue(found, entry + " is a public method taking a PlanStyle");
+        }
+    }
+
     /** A ruled hook's static FORWARDERS (the orchestrator's facade rule, 2026-11-17): each forwards one call to a
      *  helper the product itself uses, and the set is pinned exactly -- shrink-only, a new one is seen. Every other
      *  method of a ruled hook is a bare signature. */
@@ -123,7 +178,8 @@ class HookRulingTest {
                 com.legend.testexecutionplan.TestPlan.JudgingRules.LITE);
         return new com.legend.testexecutionplan.TestPlan(List.of(), List.of(step),
                 com.legend.testexecutionplan.TestPlan.Judge.HOST, Map.of(), byVerdict, false, target,
-                new com.legend.testexecutionplan.BodyFacts(false, false, true, "A"), null, false);
+                new com.legend.testexecutionplan.BodyFacts(false, false, true, "A"), null,
+                com.legend.testexecutionplan.TestPlan.LITE_WORDS);
     }
 
 
@@ -226,8 +282,9 @@ class HookRulingTest {
                 com.legend.planner.RoutedQueries.class,
                 // LoweringForms (the audit's K5, 2026-11-17: the lowering's two-form choices, a raise, a view, a wire cast)
                 com.legend.lowering.LoweringForms.class,
-                // FailureWords (census C1, 2026-11-17: whose words the database judge plans a failure in)
-                com.legend.testplan.FailureWords.class,
+                // VerdictWords (census J29, 2026-11-18: the database judge's words of a failure; census C1's
+                // FailureWords, which named whose words they were by a flag, went with it)
+                com.legend.lowering.VerdictWords.class,
                 // DatabaseSettingsForm (the audit's J22, RULED by the user 2026-11-17: a database's settings)
                 com.legend.sql.dialect.DatabaseSettingsForm.class),
                 com.legend.testplan.PlanStyleFacets.TWO_FORMS,
@@ -314,10 +371,25 @@ class HookRulingTest {
         assertTrue(edgeForms != com.legend.lowering.ProductLoweringForms.INSTANCE
                 && edgeForms.getClass().getPackageName().equals("com.legend.edge"),
                 "the edge answers its own lowering forms: " + edgeForms.getClass());
-        assertFalse(PlanStyle.PRODUCT.twoForm(com.legend.testplan.FailureWords.class,
-                com.legend.testplan.LiteFailureWords.LITE).upstreamWords(), "the product plans lite's words");
-        assertTrue(com.legend.edge.PureText.UPSTREAM.twoForm(com.legend.testplan.FailureWords.class,
-                com.legend.testplan.LiteFailureWords.LITE).upstreamWords(), "the edge plans legend-pure's");
+        assertTrue(PlanStyle.PRODUCT.twoForm(com.legend.lowering.VerdictWords.class,
+                com.legend.lowering.LiteVerdictWords.INSTANCE) == com.legend.lowering.LiteVerdictWords.INSTANCE,
+                "the product plans lite's words");
+        assertEquals(com.legend.testexecutionplan.TestPlan.LITE_WORDS, com.legend.lowering.LiteVerdictWords.NAME,
+                "lite's words carry one name in the plan");
+        Object edgeWords = com.legend.edge.PureText.UPSTREAM.twoForm(com.legend.lowering.VerdictWords.class,
+                com.legend.lowering.LiteVerdictWords.INSTANCE);
+        assertTrue(edgeWords != com.legend.lowering.LiteVerdictWords.INSTANCE
+                && edgeWords.getClass().getPackageName().equals("com.legend.edge"),
+                "the edge plans legend-pure's words: " + edgeWords.getClass());
+        assertEquals(com.legend.edge.EdgeHostWords.NAME, ((com.legend.lowering.VerdictWords) edgeWords).name(),
+                "the planning and run words of the edge carry one name");
+        // census J29's reads() (the orchestrator's rule of 2026-11-18): a two-form FACT, not edge-only code -- both
+        // forms' verdicts decide on the same canons (VerdictSql's statement compares each side's __c canon in both);
+        // lite's sentences add each side's WRITTEN text beside them, legend-pure's frame writes from the canons
+        assertEquals(com.legend.lowering.VerdictReads.WRITTEN,
+                com.legend.lowering.LiteVerdictWords.INSTANCE.reads(), "lite's sentences read the written sides");
+        assertEquals(com.legend.lowering.VerdictReads.CANONS,
+                ((com.legend.lowering.VerdictWords) edgeWords).reads(), "legend-pure's frame reads the canons");
         Runnable productForm = () -> { };
         assertTrue(PlanStyle.PRODUCT.twoForm(Runnable.class, productForm) == productForm,
                 "the product answers the caller's own form");
@@ -438,7 +510,6 @@ class HookRulingTest {
                 "EdgeRun <- com.legend.edge.AppealRun",
                 "Edge <- com.legend.edge.CompatEdge",
                 "PureOnlyTexts <- com.legend.edge.EdgePureOnlyTexts",
-                "PureWords <- com.legend.edge.EdgePureWords",
                 "RelationTexts <- com.legend.edge.RelationTextLowering",
                 "ResultEnvelopes <- com.legend.edge.EngineResultEnvelopes",
                 "UpstreamPlans <- com.legend.edge.EnginePlans$1",

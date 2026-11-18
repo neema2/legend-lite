@@ -12,6 +12,10 @@ import com.legend.sql.dialect.SqlDialect;
  */
 public interface EngineTextDialect extends SqlDialect {
 
+    /** This printer with the plan's template parameters ({@link EngineParams}, the edge's table: an enumeration's
+     *  mapping function, a wrapper spliced bare; the audit's J31): set before the plan is written. */
+    void params(EngineParams params);
+
     /** A collection-valued plan parameter spliced as the engine's plan text writes it (its FreeMarker collection
      *  template). */
     String collectionSplice(com.legend.sql.SqlExpr.PlanParam cp);

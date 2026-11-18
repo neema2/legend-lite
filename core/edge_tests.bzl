@@ -41,6 +41,11 @@ EDGE_TEST_SRCS = [
     "src/test/java/com/legend/HookLambdasTest.java",
     # the edge's package a boundary: no dotless prefix check, no edge class in a product jar (the GUARD stream, C.14)
     "src/test/java/com/legend/EdgePackageBoundaryTest.java",
+    # a public product member the edge alone uses is counted (J40 of the edge audit, 2026-11-18), and its planted
+    # product class and edge caller
+    "src/test/java/com/legend/EdgeOnlyMembersTest.java",
+    "src/test/java/com/legend/PlantedEdgeOnlyApi.java",
+    "src/test/java/com/legend/edge/PlantedEdgeOnlyCaller.java",
     "src/test/java/com/legend/PlanStyleFacetsTest.java",
     # the edge's extension records walked as data (census C2, 2026-11-17: the appeals moved to com.legend.edge)
     "src/test/java/com/legend/PlanTypesAreDataTest.java",
@@ -62,6 +67,8 @@ EDGE_TEST_SRCS = [
     "src/test/java/com/legend/edge/EngineSpansTest.java",
     # the net under the harness's H2 sessions (the audit's J22, 2026-11-17)
     "src/test/java/com/legend/edge/EdgeH2SessionTest.java",
+    # legend-engine's template parameters, the edge's own table (the audit's J31, 2026-11-18)
+    "src/test/java/com/legend/edge/EngineParamsTest.java",
     "src/test/java/com/legend/edge/PresenterTest.java",
     "src/test/java/com/legend/edge/PureDatesArrowTest.java",
     "src/test/java/com/legend/exec/ExecuteInDbDuckDbEdgeTest.java",

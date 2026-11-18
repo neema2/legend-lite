@@ -179,6 +179,9 @@ class SqlFnSortedTest {
                     "com.legend.lowering.Coercions", "com.legend.lowering.Lowerer", "com.legend.lowering.Scalars",
                     "com.legend.sql.dialect.CellTexts")),
             Map.entry("COALESCE", Set.of(
+                    // census J29 (train 14's 21a9734475): lite's verdict sentences, lowering.LiteVerdictWords (re-measured
+                    // 2026-11-18 on train 15 1931d419b1 by the GUARD stream's re-cut)
+                    "com.legend.lowering.LiteVerdictWords",
                     "com.legend.lowering.CanonicalRenderSql", "com.legend.lowering.CollectionLanes",
                     "com.legend.lowering.Dedup", "com.legend.lowering.GraphAggDecorrelate",
                     "com.legend.lowering.InstanceEquality", "com.legend.lowering.JsonEmission",
