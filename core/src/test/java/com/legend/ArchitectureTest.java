@@ -4644,7 +4644,9 @@ final class ArchitectureTest {
      */
     @Test
     void onlyCheckedSitesMakeATemporalLiteral() {
-        ONLY_CHECKED_SITES_MAKE_A_TEMPORAL_LITERAL.check(CORE_PROD_CLASSES);
+        // the edge's jars too (F's catch on J32, 2026-11-18: the engine-text seed moved to the edge, out of a rule that
+        // read the product's alone; a literal the edge writes reaches a statement the same way)
+        ONLY_CHECKED_SITES_MAKE_A_TEMPORAL_LITERAL.check(CORE_AND_EDGE_CLASSES);
     }
 
     /** The classes that construct a typed temporal literal, each from text it may write as it is. */
@@ -4656,8 +4658,13 @@ final class ArchitectureTest {
             "com.legend.lowering.Scalars",
             // a model CSV cell matched against its ISO shape first
             "com.legend.setup.RowLoad",
-            // (com.legend.setup.Ddl left 2026-11-18, J32 of the edge audit: the engine-text seed, whose cells
-            // EngineStyleH2.seedCell quotes, is the edge's EngineSeedText, outside the product's jars this rule reads)
+            // the engine-text seed: quoted by EngineStyleH2.seedCell -- a date's and a timestamp's cell (a TIMESTAMP_NS's
+            // too) a string literal, its quotes doubled; a TIME cell refused by name -- the one dialect every caller of
+            // setUpDataSqlsText passes (the edge's, PlanStyle.engineText). 2026-11-13, the orchestrator's item 3:
+            // "checked first" was wrong (its TIME and TIMESTAMP_NS literals come from unchecked text), and the finding-B
+            // refusal it named guarded nothing. Moved 2026-11-18 with J32 from setup.Ddl to the edge's EngineSeedText,
+            // the rule reading the edge's jars since (F's catch on J32)
+            "com.legend.edge.EngineSeedText",
             // a milestoning date: a date literal the lexer parsed (TestDataGenerationNatives.dateField)
             "com.legend.testdatagen.TestDataGenerator",
             // a row identifier's value checked against its column type's ISO shape first (iso: digits, separators and
@@ -4700,7 +4707,8 @@ final class ArchitectureTest {
     /** {@code name}, or a class nested in it, calls a constructor of a class {@code made} matches. */
     private static void assertMakes(String name, String made, String list) {
         boolean makes = false;
-        for (com.tngtech.archunit.core.domain.JavaClass c : CORE_PROD_CLASSES) {
+        // the product's and the edge's (the temporal-literal rule reads both since F's catch on J32, 2026-11-18)
+        for (com.tngtech.archunit.core.domain.JavaClass c : CORE_AND_EDGE_CLASSES) {
             if (c.getName().equals(name) || c.getName().startsWith(name + "$")) {
                 makes |= constructsAny(c, made);
             }
