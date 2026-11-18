@@ -19,11 +19,11 @@ final class ExistsJoinForm {
     private ExistsJoinForm() {
     }
 
-    /** The statement's sites an EXISTS join reads ({@link LoweringForms.ExistsSites}): {@code alias}, and each
+    /** The statement's sites an EXISTS join reads ({@link ExistsSites}): {@code alias}, and each
      *  conjunct's resolver zones as the sql layer reads them. */
-    static LoweringForms.ExistsSites sites(Supplier<String> alias,
+    static ExistsSites sites(Supplier<String> alias,
             java.util.function.Function<SqlExpr, WhereMerge.@com.legend.base.Nullable Zones> zones) {
-        return new LoweringForms.ExistsSites(alias, w -> {
+        return new ExistsSites(alias, w -> {
             WhereMerge.Zones z = zones.apply(w);
             return z == null ? null : new com.legend.sql.ExistsJoins.Zones(z.user(), z.temporal());
         });

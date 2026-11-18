@@ -96,6 +96,13 @@ class EdgeOnlyMembersTest {
     /** The members only the edge uses that are a product API the edge reads (READ_API: a fact the product owns and names
      *  in lite's terms; the orchestrator's triage ruling of 2026-11-18), each with its dated reason. Not counted. */
     static final Map<String, String> READ_API = Map.ofEntries(
+            // the statement's sites the lowering hands its forms (the lens audit's item 1, E-SQL, 2026-11-18): the product's
+            // own data, read by the edge's form that writes legend-engine's EXISTS join (as the builders exposed for
+            // textEquals: lite's building blocks the edge composes with)
+            Map.entry("com.legend.lowering.ExistsSites#alias()",
+                    "2026-11-18: the lowering's alias minter, handed to its forms' existsJoin (the lens audit's item 1)"),
+            Map.entry("com.legend.lowering.ExistsSites#zones()",
+                    "2026-11-18: each conjunct's resolver zones, handed to its forms' existsJoin (the lens audit's item 1)"),
             // ruled READ_API by the orchestrator (2026-11-18, train 18, on the GUARD stream's triage of E-Java's b70d85ab9):
             // a typed call to the platform's string::plus, lite's own building block (like the builders exposed for
             // textEquals), and a native's platform name; the edge's EngineExecutedValues builds its envelope with them
