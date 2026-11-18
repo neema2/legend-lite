@@ -95,7 +95,16 @@ class OpenClassMembersTest {
                     // engine-text arm answering its own database gate (TextsHeld became DatabaseGate); re-pinned
                     // 2026-11-18 on train 15 1931d419b1 by the GUARD stream's re-cut -- one member for one
                     "public abstract com.legend.testplan.DatabaseGate gate(com.legend.testexecutionplan.Extension, java.util.function.Supplier<java.lang.String>)",
-                    "public abstract java.lang.String why(com.legend.testplan.HostSides$Check)")),
+                    "public abstract java.lang.String why(com.legend.testplan.HostSides$Check)",
+                    // K10b of the edge audit (the orchestrator's ruling (A) of 2026-11-17; host train, pinned 2026-11-18
+                    // for train 19): a fresh recorder of one body's planning call, the test door's one read of its
+                    // raise-site words, and a required side's no-rows refusal in legend-pure's words (moved here from
+                    // the style: a site's words are no member of the product's style)
+                    "public abstract com.legend.database.PlanStyle recording(com.legend.database.PlanStyle)",
+                    // (siteWords' records keyed by the step-local index, no statement text: the host train's K10 trim,
+                    // 1a96dbd2d, 2026-11-18)
+                    "public abstract java.util.Map<java.lang.String, java.util.Map<java.lang.Integer, java.lang.String>> siteWords(com.legend.database.PlanStyle)",
+                    "public abstract java.lang.String sizeWords(java.lang.String)")),
             // C4 (the listed facade of the engine-text arm: ArchitectureTest.PLANNER_ENTRIES)
             Map.entry("com.legend.testplan.EngineTextPlanning", Set.of(
                     // judgingRules replaced by style 2026-11-18 (E-Java's c732a61c4, train 18: the appeal asked of the
