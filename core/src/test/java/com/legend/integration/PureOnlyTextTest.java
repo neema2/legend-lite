@@ -10,6 +10,7 @@ import com.legend.testing.Lean;
 import org.junit.jupiter.api.Test;
 
 import java.sql.Connection;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -63,6 +64,15 @@ class PureOnlyTextTest {
             Exception edge = assertThrows(Exception.class, () -> Lean.runInStyle(model, query, StorelessRuntime.RUNTIME,
                     backend, com.legend.edge.PureText.UPSTREAM));
             assertEquals("Assert failed", edge.getMessage(), backend.name());
+            // the six other guards keep their text on both roads: R1 ruled assert's default alone (the re-review of
+            // 373e42960, 2026-11-18)
+            for (String guard : List.of("assertFalse($r.x < 0)", "assertEquals(0, $r.x)")) {
+                String other = "|#TDS\n  x:Integer\n  -1\n#->extend(~y: r|if($r.x > 0, |$r.x, {|" + guard + "; 0;}))";
+                assertEquals("Assert failed", assertThrows(Exception.class,
+                        () -> Lean.run(model, other, StorelessRuntime.RUNTIME, c)).getMessage(), guard);
+                assertEquals("Assert failed", assertThrows(Exception.class, () -> Lean.runInStyle(model, other,
+                        StorelessRuntime.RUNTIME, backend, com.legend.edge.PureText.UPSTREAM)).getMessage(), guard);
+            }
         }
     }
 
