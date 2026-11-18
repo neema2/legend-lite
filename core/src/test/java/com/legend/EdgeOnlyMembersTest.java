@@ -68,8 +68,6 @@ class EdgeOnlyMembersTest {
                     "J40.ScanRelations E-SQL MOVE (2026-11-18): legend-engine's set-implementation identity (#47, the plan printer)"),
             Map.entry("com.legend.lineage.ScanRelations#rootImpl(com.legend.compiler.element.ModelContext, java.lang.String, java.lang.String, java.util.List)",
                     "J40.ScanRelations E-SQL MOVE (2026-11-18): legend-engine's set-implementation identity (#47, the plan printer)"),
-            Map.entry("com.legend.lowering.VerdictSql#textEquals(java.lang.String, java.lang.String)",
-                    "J40.VerdictSql E-SQL MOVE (2026-11-18): legend-engine's SQL-text assert's verdict row"),
             // re-measured 2026-11-18 on train 15 1931d419b1 (the GUARD stream's re-cut): train 15 closed seven pins
             // (PlatformTypes' TO_SQL_STRING and TO_SQL_STRING_PRETTY, BodyPlanner#pushDownEnums, QueryParameters$Declared's
             // planParam and signature, AggregationAwareRouting#mainSetId, Verdicts#scalarString -- two class lines gone,
