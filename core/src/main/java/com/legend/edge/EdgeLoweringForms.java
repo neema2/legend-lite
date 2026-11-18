@@ -109,4 +109,22 @@ record EdgeLoweringForms(Set<RaiseKind> plain, boolean engineSqlShape) implement
             Supplier<com.legend.sql.SqlQuery> kept) {
         return engineSqlShape ? kept.get() : pruned.get();
     }
+
+    /** legend-engine's one-argument parseDecimal on H2: its hardcoded {@code decimal(5, 2)}
+     *  (h2Extension2_1_214.pure transformParseDecimalH2; its goldens round through it, 123.450021 to 123.45; the audit's
+     *  J1, moved from the product's lowering). */
+    @Override
+    public SqlExpr parsedDecimal(SqlExpr text) {
+        return new SqlExpr.Cast(text, new com.legend.sql.SqlType.Decimal(5, 2), SqlExpr.Reason.USER);
+    }
+
+    /** legend-engine's parser's one tolerance (Json.parseOne lenient: corpus goldens with a missing comma between array
+     *  object elements, testSubTypeAtRootLevelWithInheritanceMapping's expected text): {@code '}{'} reads as
+     *  {@code '},{'} before the strict JSON cast (the audit's J2, moved from the product's lowering). */
+    @Override
+    public SqlExpr parsedJson(SqlExpr text) {
+        return new SqlExpr.Cast(SqlExpr.Call.of(com.legend.sql.SqlFn.REGEXP_REPLACE, text,
+                new SqlExpr.StringLit("\\}\\s*\\{"), new SqlExpr.StringLit("},{"), new SqlExpr.StringLit("g")),
+                com.legend.sql.SqlType.Scalar.JSON, SqlExpr.Reason.CARRIER);
+    }
 }

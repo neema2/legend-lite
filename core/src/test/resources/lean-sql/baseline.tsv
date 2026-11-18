@@ -3453,7 +3453,7 @@ core	DuckDB	TypedDistinct	11	1023	30734	0	0	0
 core	DuckDB	TypedDrop	6	622	13674	0	0	0
 core	DuckDB	TypedEnumValue	1	19	2248	0	0	0
 core	DuckDB	TypedEval	1	26	1279	0	0	0
-core	DuckDB	TypedExtend	174	25145	520161	10	82	0
+core	DuckDB	TypedExtend	174	25147	520171	10	82	0
 core	DuckDB	TypedExtendAgg	25	6173	124351	1	230	0
 core	DuckDB	TypedExtendWindow	124	39577	779604	2	1272	0
 core	DuckDB	TypedFilter	48	12310	231619	26	393	0

@@ -2414,7 +2414,7 @@ final class Scalars {
         // bound: DuckDB's string→DECIMAL(p,s) cast rounds half away from
         // zero and raises on overflow, both matching.
         for (com.legend.model.FunctionId f : Pure.AT_STRING_PARSE_DECIMAL) {
-            RULES.put(f, (n, args) -> {
+            RULES.put(f, (StyledRule) (n, args, styled) -> {
                 if (args.size() == 3) {
                     if (!(args.get(1) instanceof SqlExpr.IntLit p
                             && args.get(2) instanceof SqlExpr.IntLit s)) {
@@ -2433,14 +2433,11 @@ final class Scalars {
                     return new SqlExpr.Cast(new SqlExpr.StringLit(clean),
                             new SqlType.Decimal(38, literalScale(clean)), SqlExpr.Reason.USER);
                 }
-                // NON-LITERAL (column) argument: the scale of the string
-                // is runtime data SQL cannot carry — the engine's OWN
-                // 1-arg contract is a hardcoded decimal(5, 2)
-                // (h2Extension2_1_214.pure transformParseDecimalH2), and
-                // its goldens round through it (123.450021 -> 123.45).
-                return new SqlExpr.Cast(
-                        SqlExpr.Call.of(SqlFn.RTRIM, args.get(0), new SqlExpr.StringLit("dD")),
-                        new SqlType.Decimal(5, 2), SqlExpr.Reason.USER);
+                // NON-LITERAL (column) argument: the scale of the string is runtime data SQL cannot carry -- the style's
+                // form (the audit's J1, RULED by the user 2026-11-17): the product's an exact decimal at its Decimal's
+                // precision, legend-engine's H2 its hardcoded decimal(5, 2) (the edge's)
+                return styled.forms().parsedDecimal(
+                        SqlExpr.Call.of(SqlFn.RTRIM, args.get(0), new SqlExpr.StringLit("dD")));
             });
         }
         castFamily(Type.Primitive.BOOLEAN, Pure.AT_STRING_PARSE_BOOLEAN);

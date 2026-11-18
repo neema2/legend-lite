@@ -65,4 +65,17 @@ public final class ProductLoweringForms implements LoweringForms {
             Supplier<com.legend.sql.SqlQuery> kept) {
         return pruned.get();
     }
+
+    /** An exact decimal at the product's Decimal precision ({@code PureSql.type(DECIMAL)}). */
+    @Override
+    public SqlExpr parsedDecimal(SqlExpr text) {
+        return new SqlExpr.Cast(text, PureSql.type(com.legend.compiler.element.type.Type.Primitive.DECIMAL),
+                SqlExpr.Reason.USER);
+    }
+
+    /** The text as written, read as JSON. */
+    @Override
+    public SqlExpr parsedJson(SqlExpr text) {
+        return new SqlExpr.Cast(text, com.legend.sql.SqlType.Scalar.JSON, SqlExpr.Reason.CARRIER);
+    }
 }
