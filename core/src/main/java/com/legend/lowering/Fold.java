@@ -438,18 +438,14 @@ final class Fold {
         return !s.distinct() && s.limit() == null && s.offset() == null && s.groupBy().isEmpty() && s.qualify() == null;
     }
 
-    /** PURE-semantics null placement for a sort key (the
-     * pureNullOrder-gated stamp, Sorts). THE TWO-SPEC SPLIT (§7
-     * slice-2, SQLTEXT charter landing record): upstream Legend itself
-     * diverges — pure-language sorts are NULL-LARGEST (PCT receipts)
-     * while the engine's relational sort emits NO NULLS clause and
-     * rides its H2 backend's NULLS-LOW default (the corpus goldens'
-     * own asserts pin nulls first ascending). Our emission carries
-     * each spec explicitly: pure sorts stamp here (null-largest, both
-     * directions); engine TDS sorts stay BARE and the execution
-     * dialects' bare-key rendering pins the engine placement
-     * (AnsiSqlRenderer.sortKey — nulls-low). The old C1.2 story
-     * ("connected target places nulls") conflated the two specs. */
+    /** PURE-semantics null placement for a sort key: null is LARGEST -- ASC nulls last, DESC nulls first (witness
+     * PCT testRange_..._WithOrderByDESC), stamped explicitly in both directions on every relation sort's key without
+     * an explicit placement (Sorts). Since legend-engine 4.145.0 its relational sort's bare key has the same canonical
+     * placement (dbExtension.pure NullOrderingSupport.processSortItem), which the product dialects render for a bare
+     * key (AnsiSqlRenderer.sortKey), so the old two-spec split (legacy TDS sorts bare, pure sorts stamped; §7
+     * slice-2) is closed: L14, 2026-11-18, deleted TypedSort.pureNullOrder, its provenance flag. Only an aggregate's
+     * own ordering stays bare (AnsiSqlRenderer.aggOrderNullPlacement). The edge's engine text spells no NULLS clause
+     * either way (EngineStyleH2.sortKey). */
     static SqlSelect.SortKey.@com.legend.base.Nullable NullOrder sortNulls(boolean ascending) {
         // PURE null ordering: null is LARGEST — ASC nulls last, DESC
         // nulls first (witness testRange_..._WithOrderByDESC). BOTH

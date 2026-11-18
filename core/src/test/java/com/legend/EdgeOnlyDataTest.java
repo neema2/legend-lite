@@ -119,15 +119,12 @@ class EdgeOnlyDataTest {
      *  component (set by the edge alone). Counted, one line, owner E-Java; each checked present, so the line closes as
      *  they leave the product (the edge carrying its own envelope node, or lowering it itself). The TDS branch's shared
      *  column and cell parts stay: legend-pure's toJSON vocabulary, the product's. Shrink-only. */
-    static final Map<String, String> IN_MEANING = Map.of(
+    static final Map<String, String> IN_MEANING = Map.of();
             // (TypedJsonResult's TDS and CLASS kinds and its sql component: gone 2026-11-18 by E-Java's ef7ee2b69d, the
             // orchestrator's ruling (A) -- one neutral kind, STYLED, written by the style's ResultEnvelopes facet over the
             // product's parts; L-B.TypedJsonResult closes)
-            // the lens audit's L14, verified by F (the orchestrator's ruling of 2026-11-18, train 18): read by the product's
-            // Sorts and SyntheticHeads, yet dead engine-drop-in provenance -- no product dialect's SQL and no edge text
-            // changes with it; closed when F deletes it
-            "component com.legend.compiler.spec.typed.TypedSort#pureNullOrder",
-            "L-B.pureNullOrder F (2026-11-18): dead engine-drop-in provenance, no SQL or text changes with it");
+            // (TypedSort#pureNullOrder: gone 2026-11-18 by F's L14 -- every relation sort stamps Pure's null-largest
+            // placement, the legacy TDS shapes' provenance flag deleted; L-B.pureNullOrder closes)
 
     /** PIECES EXAMINED IN MEANING AND RULED THE PRODUCT'S (the orchestrator's rulings, each dated): not counted, each
      *  checked present so a ruling names what is there (a piece gone: delete its row). */
