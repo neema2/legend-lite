@@ -39,8 +39,20 @@ final class EngineResultEnvelopes implements com.legend.lowering.ResultEnvelopes
                         new SqlExpr.StringLit("sql"), new SqlExpr.StringLit(sql)))));
     }
 
+    /** The style's value over a root of {@code rootType} (L-B.TypedJsonResult, 2026-11-18): a relation's tdsBuilder
+     *  envelope over its columns and cells, or a class root's classBuilder envelope over its objects; {@code recorded}
+     *  the activity's SQL this edge recorded when it planned the value (EngineExecutedValues). */
     @Override
-    public SqlExpr tds(List<String> names, List<String> typeNames, List<SqlExpr> cells,
+    public SqlExpr styled(com.legend.compiler.element.type.Type rootType, @com.legend.base.Nullable String recorded,
+            com.legend.lowering.EnvelopeParts parts) {
+        if (com.legend.compiler.element.type.Type.isRelation(rootType)) {
+            com.legend.lowering.RelationParts r = parts.relation();
+            return tds(r.names(), r.typeNames(), r.cells(), recorded);
+        }
+        return classes(parts.objects(), recorded);
+    }
+
+    private static SqlExpr tds(List<String> names, List<String> typeNames, List<SqlExpr> cells,
             @com.legend.base.Nullable String activitySql) {
         List<SqlExpr> colMeta = new java.util.ArrayList<>();
         List<SqlExpr> colNames = new java.util.ArrayList<>();
@@ -70,8 +82,7 @@ final class EngineResultEnvelopes implements com.legend.lowering.ResultEnvelopes
                 new SqlExpr.StringLit("]}}")));
     }
 
-    @Override
-    public SqlExpr classes(SqlExpr objects, @com.legend.base.Nullable String activitySql) {
+    private static SqlExpr classes(SqlExpr objects, @com.legend.base.Nullable String activitySql) {
         return new SqlExpr.JsonObject(List.of(
                 new SqlExpr.StringLit("builder"),
                 new SqlExpr.JsonObject(List.of(new SqlExpr.StringLit("_type"), new SqlExpr.StringLit("classBuilder"))),

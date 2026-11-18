@@ -86,77 +86,52 @@ final class JsonEmission {
             // the text a plan style wrote (planner.ExecutedValues): lowered as the String it is
             return lw.scalar(jr.chain(), columns);
         }
-        boolean upstream = jr.kind() == TypedJsonResult.Kind.TDS || jr.kind() == TypedJsonResult.Kind.CLASS;
-        ResultEnvelopes envelopes = upstream ? lw.resultEnvelopes(JsonEmission::refused) : null;
         SqlQuery inner;
         SqlExpr envelope;
-        if (jr.kind() == TypedJsonResult.Kind.CLASS) {
-            // a class root resolves to the GRAPH emission (one row, the
-            // objects array as JSON text): the objects ARE that array
-            inner = lw.lower(jr.chain());
-            String col = inner.outputs().get(0).name();
-            envelope = Objects.requireNonNull(envelopes, "the envelope facet").classes(
-                    new SqlExpr.Cast(SqlExpr.Column.derived(alias, col), SqlType.Scalar.JSON, SqlExpr.Reason.CARRIER),
-                    jr.sql());
+        if (jr.kind() == TypedJsonResult.Kind.STYLED) {
+            // the style's value (L-B.TypedJsonResult, 2026-11-18): the facet asks for the product's parts it reads and
+            // writes the envelope around them; the product lowers what was asked and wraps it
+            SqlQuery[] read = new SqlQuery[1];
+            envelope = lw.resultEnvelopes(JsonEmission::refused).styled(jr.chain().info().type(), jr.recorded(),
+                    new EnvelopeParts() {
+                        @Override
+                        public RelationParts relation() {
+                            SqlSelect rel = lw.relation(jr.chain());
+                            read[0] = rel;
+                            Columns c = columns(rel, jr.chain(), alias, false);
+                            return new RelationParts(c.names(), c.typeNames(), c.cells());
+                        }
+
+                        @Override
+                        public SqlExpr objects() {
+                            // a class root resolves to the GRAPH emission (one row, the objects array as JSON text)
+                            SqlQuery q = lw.lower(jr.chain());
+                            read[0] = q;
+                            return new SqlExpr.Cast(SqlExpr.Column.derived(alias, q.outputs().get(0).name()),
+                                    SqlType.Scalar.JSON, SqlExpr.Reason.CARRIER);
+                        }
+                    });
+            inner = Objects.requireNonNull(read[0], "the style's envelope read none of the product's parts");
         } else {
             SqlSelect rel = lw.relation(jr.chain());
             inner = rel;
-            List<String> names = rel.outputs().stream().map(o -> o.name()).toList();
-            Type.RelationType schema = Type.relationSchema(jr.chain().info().type());
-            List<SqlExpr> colMeta = new ArrayList<>();
-            List<String> typeNames = new ArrayList<>();
-            List<SqlExpr> cells = new ArrayList<>();
             boolean bareTdsJson = jr.kind() == TypedJsonResult.Kind.TDS_JSON;
-            boolean keyValue = jr.kind() == TypedJsonResult.Kind.TDS_JSON_KV;
-            List<SqlExpr> rowObject = new ArrayList<>();
-            for (String name : names) {
-                String typeName = "";
-                String metaType = "";
-                Type.Column col = schema == null ? null
-                        : schema.columns().stream()
-                                .filter(c -> c.name().equals(name)).findFirst()
-                                .orElse(null);
-                if (col != null) {
-                    String tn = col.type().typeName();
-                    int cut = tn.lastIndexOf("::");
-                    typeName = cut < 0 ? tn : tn.substring(cut + 2);
-                    // toJSON.pure: PrimitiveType / Enumeration / InvalidType
-                    metaType = col.type() instanceof Type.Primitive ? "PrimitiveType"
-                            : col.type() instanceof Type.EnumType ? "Enumeration"
-                            : "InvalidType";
-                }
-                List<SqlExpr> meta = new ArrayList<>(List.of(
-                        new SqlExpr.StringLit("name"), new SqlExpr.StringLit(name),
-                        new SqlExpr.StringLit("type"), new SqlExpr.StringLit(typeName)));
-                if (bareTdsJson) {
-                    meta.add(new SqlExpr.StringLit("metaType"));
-                    meta.add(new SqlExpr.StringLit(metaType));
-                }
-                colMeta.add(new SqlExpr.JsonObject(meta));
-                typeNames.add(typeName);
-                cells.add(SqlExpr.Column.derived(alias, name));
-                rowObject.add(new SqlExpr.StringLit(name));
-                rowObject.add(SqlExpr.Column.derived(alias, name));
-            }
-
+            Columns c = columns(rel, jr.chain(), alias, bareTdsJson);
             SqlExpr rows = new SqlExpr.JsonArrayAgg(new SqlExpr.JsonObject(List.of(
-                    new SqlExpr.StringLit("values"), new SqlExpr.JsonArray(cells))));
-            if (keyValue) {
+                    new SqlExpr.StringLit("values"), new SqlExpr.JsonArray(c.cells()))));
+            if (!bareTdsJson) {
                 // tdsRowToJSONKeyValueObject: one object per row keyed by
                 // column name — numbers/booleans bare, strings/dates quoted,
                 // a NULL cell null (the JSON carrier's own rendering); an
                 // empty relation is '[]'
                 envelope = new SqlExpr.Call(SqlFn.COALESCE, List.of(
-                        new SqlExpr.JsonArrayAgg(new SqlExpr.JsonObject(rowObject)),
+                        new SqlExpr.JsonArrayAgg(new SqlExpr.JsonObject(c.rowObject())),
                         new SqlExpr.Cast(new SqlExpr.StringLit("[]"), SqlType.Scalar.JSON, SqlExpr.Reason.CARRIER)));
-            } else if (bareTdsJson) {
+            } else {
                 // the bare toJSON(tds) document: column metadata + rows
                 envelope = new SqlExpr.JsonObject(List.of(
-                        new SqlExpr.StringLit("columns"), new SqlExpr.JsonArray(colMeta),
+                        new SqlExpr.StringLit("columns"), new SqlExpr.JsonArray(c.colMeta()),
                         new SqlExpr.StringLit("rows"), rows));
-            } else {
-                // legend-engine's TDS result: the edge's envelope (ResultEnvelopes.tds)
-                envelope = Objects.requireNonNull(envelopes, "the envelope facet").tds(names, typeNames, cells, jr.sql());
             }
         }
         SqlSelect agg = new SqlSelect(
@@ -168,4 +143,46 @@ final class JsonEmission {
         return new SqlExpr.ScalarSubquery(agg);
     }
 
+
+    /** A relation's columns as the product's toJSON vocabulary writes them: names, types' simple names, the column
+     *  metadata (with {@code metaType} for the bare toJSON document), each row's cells and its key-value object. */
+    private record Columns(List<String> names, List<String> typeNames, List<SqlExpr> colMeta, List<SqlExpr> cells,
+            List<SqlExpr> rowObject) {
+    }
+
+    private static Columns columns(SqlSelect rel, TypedSpec chain, String alias, boolean withMetaType) {
+        List<String> names = rel.outputs().stream().map(o -> o.name()).toList();
+        Type.RelationType schema = Type.relationSchema(chain.info().type());
+        List<SqlExpr> colMeta = new ArrayList<>();
+        List<String> typeNames = new ArrayList<>();
+        List<SqlExpr> cells = new ArrayList<>();
+        List<SqlExpr> rowObject = new ArrayList<>();
+        for (String name : names) {
+            String typeName = "";
+            String metaType = "";
+            Type.Column col = schema == null ? null
+                    : schema.columns().stream().filter(c -> c.name().equals(name)).findFirst().orElse(null);
+            if (col != null) {
+                String tn = col.type().typeName();
+                int cut = tn.lastIndexOf("::");
+                typeName = cut < 0 ? tn : tn.substring(cut + 2);
+                // toJSON.pure: PrimitiveType / Enumeration / InvalidType
+                metaType = col.type() instanceof Type.Primitive ? "PrimitiveType"
+                        : col.type() instanceof Type.EnumType ? "Enumeration" : "InvalidType";
+            }
+            List<SqlExpr> meta = new ArrayList<>(List.of(
+                    new SqlExpr.StringLit("name"), new SqlExpr.StringLit(name),
+                    new SqlExpr.StringLit("type"), new SqlExpr.StringLit(typeName)));
+            if (withMetaType) {
+                meta.add(new SqlExpr.StringLit("metaType"));
+                meta.add(new SqlExpr.StringLit(metaType));
+            }
+            colMeta.add(new SqlExpr.JsonObject(meta));
+            typeNames.add(typeName);
+            cells.add(SqlExpr.Column.derived(alias, name));
+            rowObject.add(new SqlExpr.StringLit(name));
+            rowObject.add(SqlExpr.Column.derived(alias, name));
+        }
+        return new Columns(names, typeNames, colMeta, cells, rowObject);
+    }
 }

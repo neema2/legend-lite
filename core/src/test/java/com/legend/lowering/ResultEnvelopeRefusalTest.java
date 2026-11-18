@@ -45,7 +45,7 @@ class ResultEnvelopeRefusalTest {
             if (styled) {
                 lowerer = lowerer.withResultEnvelopes(r -> PlanStyle.PRODUCT.facet(ResultEnvelopes.class, r));
             }
-            refused(lowerer, TypedJsonResult.Kind.TDS, "|#TDS\n  a:Integer\n  1\n#");
+            refused(lowerer, TypedJsonResult.Kind.STYLED, "|#TDS\n  a:Integer\n  1\n#");
         }
         // a serialized, relation or class root's: refused at PLANNING by the product's form of the planner's
         // ExecutedValues kind (train 17 item 2, 2026-11-18), the same sentence and phase, and no activity rendered
