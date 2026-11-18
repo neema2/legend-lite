@@ -2421,17 +2421,12 @@ public final class VerdictSql {
     }
 
     /** TEXT by contract: a cast to VARCHAR unless the expression is one already. */
-    /** {@code text} with each newline written {@code \\n}, as Pure's {@code %r} writes one inside a String. */
     /** A row canon's cells written as the list %r writes them: the canon joins a row's cells by its own separator
      *  ({@link CanonicalRenderSql#TDS_CELL_SEP}, row cohesion), which a message never shows (2026-11-03, the core parity
      *  program: {@code ['p1'<GS>40, ...]} under the database judge, upstream's {@code ['p1', 40, ...]}). */
     private static SqlExpr cellsAsList(SqlExpr text) {
         return SqlExpr.Call.of(SqlFn.REPLACE, text, new SqlExpr.StringLit(CanonicalRenderSql.TDS_CELL_SEP),
                 new SqlExpr.StringLit(", "));
-    }
-
-    public static SqlExpr reprNewlines(SqlExpr text) {
-        return SqlExpr.Call.of(SqlFn.REPLACE, text, new SqlExpr.StringLit("\n"), new SqlExpr.StringLit("\\n"));
     }
 
     private static SqlExpr asText(SqlExpr e) {
