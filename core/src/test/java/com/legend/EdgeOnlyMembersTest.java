@@ -62,13 +62,8 @@ class EdgeOnlyMembersTest {
      *  listing its members here (J33's and J40's audit items fold into it). Shrink-only: a member leaves when it moves,
      *  and its class's line closes with its last. */
     static final Map<String, String> OPEN = Map.ofEntries(
-            // E-Java's train-17 item 2, VALUES half (b70d85ab9, train 18, 2026-11-18): the edge's EngineExecutedValues builds
-            // legend-engine's json-builder envelope as a typed string::plus through concatenated, its one caller, which
-            // reads the operator run's name -- counted OPEN until the orchestrator's triage (move, or READ_API)
-            Map.entry("com.legend.compiler.spec.ExecuteChainAssembly#concatenated(com.legend.compiler.element.ModelContext, java.util.List)",
-                    "J40.ExecuteChainAssembly E-Java TRIAGE (2026-11-18): the platform's string::plus over texts, typed, built for the edge's EngineExecutedValues alone"),
-            Map.entry("com.legend.builtin.NativeFn$OperatorRun#fqn()",
-                    "J40.NativeFn E-Java TRIAGE (2026-11-18): an operator run's platform name, read only through ExecuteChainAssembly.concatenated"),
+            // (ExecuteChainAssembly#concatenated and NativeFn$OperatorRun#fqn: ruled READ_API by the orchestrator 2026-11-18,
+            // train 18, below -- J40.ExecuteChainAssembly and J40.NativeFn close)
             Map.entry("com.legend.database.PlanStyle$Activity#engines()",
                     "J40.PlanStyle E-SQL MOVE (2026-11-18): legend-engine's text for an activity chain"),
             Map.entry("com.legend.lineage.ScanRelations#rootImpl(com.legend.compiler.element.ModelContext, java.lang.String, java.lang.String)",
@@ -101,6 +96,13 @@ class EdgeOnlyMembersTest {
     /** The members only the edge uses that are a product API the edge reads (READ_API: a fact the product owns and names
      *  in lite's terms; the orchestrator's triage ruling of 2026-11-18), each with its dated reason. Not counted. */
     static final Map<String, String> READ_API = Map.ofEntries(
+            // ruled READ_API by the orchestrator (2026-11-18, train 18, on the GUARD stream's triage of E-Java's b70d85ab9):
+            // a typed call to the platform's string::plus, lite's own building block (like the builders exposed for
+            // textEquals), and a native's platform name; the edge's EngineExecutedValues builds its envelope with them
+            Map.entry("com.legend.compiler.spec.ExecuteChainAssembly#concatenated(com.legend.compiler.element.ModelContext, java.util.List)",
+                    "2026-11-18: a typed call to the platform's string::plus, lite's own building block (the orchestrator's ruling)"),
+            Map.entry("com.legend.builtin.NativeFn$OperatorRun#fqn()",
+                    "2026-11-18: an operator run's platform name, lite's own (the orchestrator's ruling)"),
             // ruled READ_API by the orchestrator (2026-11-18, ~07:20, on E-Java's proposal): the product judge's own total
             // order (pure's sort(): numbers, strings, booleans, temporals), a public face over Equality.sorted that the
             // product's PureAssertsTest reads too; the edge's EdgeHostWords sorts assertSameElements' words by it

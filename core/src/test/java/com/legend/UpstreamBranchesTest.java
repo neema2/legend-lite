@@ -41,6 +41,13 @@ class UpstreamBranchesTest {
     /** Upstream's frame and text shapes, matched as a whole string literal. */
     static final List<String> UPSTREAM_SHAPES = List.of("unionAlias");
 
+    /** The product's readers of a SQL shape only the edge writes, matched as a qualified call ({@code X.name(}): the
+     *  product branching on the edge's form. SnapshotEnvelope.foldedAggregate recognises legend-engine's JsonBuilder
+     *  cardinality fold (the CASE the edge's executeValues form writes) for VerdictSql's graph count -- a finding, the
+     *  orchestrator's ruling of 2026-11-18 (train 18): counted as L-A.foldedAggregate, owner E-SQL, closed with the
+     *  fold's move to the edge (its form supplies what the count needs, or the count stops depending on the shape). */
+    static final List<String> EDGE_SHAPE_READERS = List.of("foldedAggregate");
+
     /** The judging rules' upstream tolerances, matched as an accessor call in code. */
     static final Pattern RULE_READ = Pattern.compile("\\.(floatUlps|decimalScale|floatTolerance)\\(\\)");
 
@@ -59,13 +66,21 @@ class UpstreamBranchesTest {
     static final Map<String, Integer> SITES = Map.ofEntries(
             Map.entry("lowering/Fold.java | shape unionAlias", 1),
             Map.entry("lowering/Lowerer.java | shape unionAlias", 7),
-            Map.entry("lowering/SubselectPrune.java | shape unionAlias", 1));
+            Map.entry("lowering/SubselectPrune.java | shape unionAlias", 1),
+            // the product's count reading the edge's fold shape (the orchestrator's ruling of 2026-11-18, train 18: a real
+            // finding, owner E-SQL, closed with the fold's move to the edge's executeValues form)
+            Map.entry("lowering/VerdictSql.java | edge shape foldedAggregate", 1));
     // (the judging rules' sites -- VerdictSql's 8 branches on floatUlps, Equality's 5 and HostRules' 3 reads -- gone
     // 2026-11-18 with E-Java's train-17 item 4, dacc4bf313: the database judge asks the VerdictNumbers two-form kind, the
     // host judge the run hook HostForms, compiled legend-pure's comparison the edge's forms; L-A.judgingRules closes)
 
-    /** A site's census line: upstream's frame name, or a branch on (a read of) the judging rules' tolerances. */
+    /** A site's census line: a product reader of an edge's shape (its own line, by the reader's name), upstream's frame
+     *  name, or a branch on (a read of) the judging rules' tolerances. */
     static String lineOf(String site) {
+        int edge = site.indexOf("| edge shape ");
+        if (edge >= 0) {
+            return "L-A." + site.substring(edge + "| edge shape ".length());
+        }
         return site.contains("| shape ") ? "L-A.unionAlias" : "L-A.judgingRules";
     }
 
@@ -141,6 +156,16 @@ class UpstreamBranchesTest {
         return out;
     }
 
+    /** The qualified calls of {@code reader} in {@code blanked} ({@code X.reader(}; its declaration is no call). */
+    static int edgeShapeReads(String blanked, String reader) {
+        Matcher m = Pattern.compile("\\.\\s*" + Pattern.quote(reader) + "\\s*\\(").matcher(blanked);
+        int n = 0;
+        while (m.find()) {
+            n++;
+        }
+        return n;
+    }
+
     static Map<String, Integer> found(List<String> packages) {
         Map<String, Integer> out = new TreeMap<>();
         for (String pkg : packages) {
@@ -156,8 +181,15 @@ class UpstreamBranchesTest {
                     throw new UncheckedIOException(e);
                 }
                 String rel = path.substring(JAVA_ROOT.length());
-                for (String site : ruleSites(blankLiterals(code))) {
+                String blanked = blankLiterals(code);
+                for (String site : ruleSites(blanked)) {
                     out.merge(rel + " | " + site, 1, Integer::sum);
+                }
+                for (String reader : EDGE_SHAPE_READERS) {
+                    int n = edgeShapeReads(blanked, reader);
+                    if (n > 0) {
+                        out.merge(rel + " | edge shape " + reader, n, Integer::sum);
+                    }
                 }
                 for (String shape : UPSTREAM_SHAPES) {
                     Matcher s = Pattern.compile("\"" + Pattern.quote(shape) + "\"").matcher(code);
@@ -264,6 +296,11 @@ class UpstreamBranchesTest {
                 + " Other other) { if (numbers.floatTolerance()) { return true; }"
                 + " return rules.floatTolerance() && other.floatUlps() > 0 && numbers.floatTolerance() ? true : false; } }"));
         assertEquals(Set.of("numbers"), hookReceivers(hooked), "a parameter typed by a two-form kind is a hook receiver");
+        // a product read of an edge's shape: the qualified call counts, the declaration does not; its own census line
+        String reads = blankLiterals(stripComments("class E { static Object foldedAggregate(Object e) { return e; }"
+                + " int g(Object top) { return SnapshotEnvelope.foldedAggregate(top) != null ? 1 : 0; } }"));
+        assertEquals(1, edgeShapeReads(reads, "foldedAggregate"), "one qualified call, the declaration none");
+        assertEquals("L-A.foldedAggregate", lineOf("lowering/VerdictSql.java | edge shape foldedAggregate"));
         assertEquals(List.of("rule read floatTolerance", "rule read floatUlps", "rule branch floatTolerance",
                 "rule branch floatUlps"), ruleSites(hooked), "the hook's two answers left out; the rules' read and the"
                 + " other receiver's read and branch found");
