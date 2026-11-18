@@ -2544,9 +2544,8 @@ final class Scalars {
                     new SqlExpr.Call(SqlFn.TIMEZONE, List.of(new SqlExpr.StringLit("UTC"), args.get(0))))));
         }
         for (com.legend.model.FunctionId f : Pure.AT_LEGEND_LITE_IS_NUMERIC) {
-            RULES.put(f, (n, args) -> SqlExpr.Call.of(SqlFn.EQUAL,
-                    SqlExpr.Call.of(SqlFn.LOWER, args.get(0)),
-                    SqlExpr.Call.of(SqlFn.UPPER, args.get(0))));
+            // the style's form (census J20, the user's ruling of 2026-11-17): a real numeric check, engine H2's at the edge
+            RULES.put(f, (StyledRule) (n, args, styled) -> styled.forms().isNumeric(args.get(0)));
         }
         // convertTimeZone(dt, tz, fmt): the input is UTC, printed in the
         // target zone (engine H2 UDF: utcTime.withZoneSameInstant(target)).

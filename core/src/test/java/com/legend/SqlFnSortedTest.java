@@ -53,7 +53,8 @@ class SqlFnSortedTest {
     // (DATETIME_PRINT gone 2026-11-17 with train 7's B12 close, a8b7e2e32e: legend-pure's DateTime print the edge's
     // dialects' over the product's DATETIME_TO_TEXT, no MIR function of its own)
 
-    /** Every other function, the product's: 188, sorted 2026-11-17 by the measured list (a new one is sorted here). */
+    /** Every other function, the product's: 189, sorted 2026-11-17 by the measured list (a new one is sorted here; IS_NUMERIC
+     *  2026-11-18, J20). */
     static final Set<String> PRODUCT = Set.of(
             "ABS", "ACOS", "ADD_INTERVAL", "ADD_INTERVAL_TEMPORAL", "ALL_DISTINCT", "AND", "ASCII_CODE", "ASIN",
             "ATAN", "ATAN2", "BINARY_COLLATE", "BIT_AND", "BIT_NOT", "BIT_OR", "BIT_SHIFT_LEFT", "BIT_SHIFT_RIGHT",
@@ -64,6 +65,10 @@ class SqlFnSortedTest {
             "EPOCH_SECONDS", "EQUAL", "ERROR", "EXP", "EXTRACT", "FLOAT_SHORTEST_TEXT", "FLOAT_TO_TEXT", "FLOOR",
             "FLOOR_RAW", "FORMAT", "FROM_EPOCH_MS", "FROM_EPOCH_NS", "FROM_EPOCH_SECONDS", "GREATER", "GREATER_EQUAL",
             "GREATEST", "GUID", "HASH", "IN", "INT_DIVIDE", "IS_DISTINCT_FROM", "IS_NOT_NULL", "IS_NULL",
+            // IS_NUMERIC added 2026-11-18 with J20 (222d136808, train 11, the user's ruling of 2026-11-17 23:05): the
+            // product's real numeric check, written by ProductLoweringForms (measured); legend-engine's H2 lower = upper
+            // the edge's forms', which write no function of their own
+            "IS_NUMERIC",
             "JARO_WINKLER", "JSON_ARRAY_LENGTH", "JSON_MERGE_PATCH", "JSON_PRETTY", "JSON_TYPE", "LC_FIRST", "LEAST",
             "LEFT", "LENGTH", "LESS", "LESS_EQUAL", "LEVENSHTEIN", "LIST_APPEND", "LIST_AT", "LIST_AVG",
             "LIST_BOOL_AND", "LIST_BOOL_OR", "LIST_CONCAT", "LIST_DISTINCT", "LIST_EXISTS", "LIST_FILTER",
@@ -293,6 +298,11 @@ class SqlFnSortedTest {
                     "com.legend.lowering.TaggedLists", "com.legend.sql.dialect.CarrierStrategies",
                     "com.legend.sql.dialect.CellTexts", "com.legend.sql.dialect.CheckedDefectsToLists",
                     "com.legend.sql.dialect.CommonSubexpressions", "com.legend.sql.dialect.FoldToListReduce")),
+            // LOWER and UPPER join 2026-11-18 on d-int11 18208beaa6 (J20, 222d136808, train 11): legend-engine's H2
+            // isNumeric, lower(x) = upper(x), is the edge's (EdgeLoweringForms); the product's writers keep theirs
+            Map.entry("LOWER", Set.of(
+                    "com.legend.lowering.LiteText", "com.legend.lowering.Scalars",
+                    "com.legend.sql.dialect.FloatShortestText", "com.legend.testdatagen.TestDataPlanner")),
             Map.entry("LPAD", Set.of(
                     "com.legend.lowering.DateCtorRule", "com.legend.lowering.Scalars",
                     "com.legend.lowering.SnapshotEnvelope", "com.legend.sql.dialect.StringCountsAsInt")),
@@ -355,7 +365,9 @@ class SqlFnSortedTest {
                     "com.legend.lowering.AsorReaders", "com.legend.lowering.FeatureRules",
                     "com.legend.lowering.LiteText", "com.legend.lowering.Scalars", "com.legend.lowering.VerdictSql",
                     "com.legend.sql.dialect.CellTexts", "com.legend.sql.dialect.StringCountsAsInt",
-                    "com.legend.sql.dialect.SubstringClamp", "com.legend.testdatagen.TestDataPlanner")));
+                    "com.legend.sql.dialect.SubstringClamp", "com.legend.testdatagen.TestDataPlanner")),
+            // (J20, as LOWER's note)
+            Map.entry("UPPER", Set.of("com.legend.lowering.Scalars")));
 
     /** The functions both sides write, as {@code writers} has them, each with its product writers' top classes. */
     static Map<String, Set<String>> bothProduct(Map<String, Set<String>> writers, Collection<String> names) {

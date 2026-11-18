@@ -1027,6 +1027,8 @@ public class MongoDb extends AnsiSqlRenderer {
         List<SqlExpr> a = c.args();
         // every function, each by name: MongoDB's operator, an emulation over its operators, or a refusal
         return switch (c.fn()) {
+            // census J20 (2026-11-18): the one numeric rule, this dialect's full match (AnsiSqlRenderer.isNumeric)
+            case IS_NUMERIC -> isNumeric(writer, c.args().get(0), parentPrec);
             // ---- logic: MongoDB's AND and OR read null as false, which is SQL's answer where a predicate decides;
             // NOT answers null for null (D7)
             case AND -> MongoJson.op(writer, "$and", a);

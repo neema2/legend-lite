@@ -242,8 +242,10 @@ public class CorpusSweepTest {
                         try {
                             String refereeSpanFree = mapper.writeValueAsString(
                                     referee.parseModel(src.text(), "", 0, 0, false));
-                            String docSpanFree = com.legend.parser.PmcdParser
-                                    .parseDocument(src.text(), false);
+                            // legend-engine's form without source information, the edge's (edge.EngineSpans, J35's residue,
+                            // 2026-11-18): every span cut but the five the engine's walker keeps
+                            String docSpanFree = com.legend.edge.EngineSpans.withoutSpans(
+                                    com.legend.parser.PmcdParser.parseDocument(src.text(), true));
                             if (Comparators.sameBytes(refereeSpanFree, docSpanFree)) {
                                 spanFreeMatched++;
                             } else {

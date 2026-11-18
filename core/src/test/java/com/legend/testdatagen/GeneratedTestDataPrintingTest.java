@@ -99,7 +99,7 @@ class GeneratedTestDataPrintingTest {
     private static List<String> run(TestBackend backend, ModelContext ctx, String body, ExecuteOptions options)
             throws Exception {
         List<String> verdicts = new ArrayList<>();
-        try (Connection c = backend.open()) {
+        try (Connection c = backend.open(options.planning().style())) {   // the run's style's database (the audit's J22)
             try (Statement s = c.createStatement()) {
                 for (String sql : CsvSeed.sqls(CSV, "t::DB", ctx, backend.dialect())) {
                     s.execute(sql);

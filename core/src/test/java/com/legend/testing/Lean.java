@@ -48,6 +48,18 @@ public final class Lean {
         return run(model, query, runtime, c, com.legend.exec.SourceAdmission.any());
     }
 
+    /** {@link #runInStyle(String, String, String, Connection, com.legend.database.PlanStyle)} on a session of
+     *  {@code backend}'s database as {@code style}'s plans declare it (the audit's J22, 2026-11-17: H2's settings are the
+     *  style's), opened for this run and closed after it. */
+    public static Result runInStyle(String model, String query, @com.legend.base.Nullable String runtime,
+            com.legend.testbackend.TestBackend backend, com.legend.database.PlanStyle style) {
+        try (Connection c = backend.open(style)) {
+            return runInStyle(model, query, runtime, c, style);
+        } catch (java.sql.SQLException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
     /** {@link #run(String, String, String, Connection)} planned in {@code style}: the product's door with the
      *  compatibility edge's spellings ({@code edge.PureText.UPSTREAM}), whose raise is legend-pure's sentence -- a size
      *  or a value a test pins (the D part 1 audit's S5, 2026-11-15). */

@@ -118,6 +118,9 @@ class HookLambdasTest {
             Map.entry("com.legend.testdatagen.LitePrinting", Set.of("com.legend.testdatagen.TestDataPlanner$Printing")),
             // the failure words' product form (C1 item 4, 3120418b2a, train 8; measured 2026-11-18)
             Map.entry("com.legend.testplan.LiteFailureWords", Set.of("com.legend.testplan.FailureWords")),
+            // a database's settings' product form, H2's own defaults (J22, the user's ruling of 2026-11-17 23:05;
+            // 59719a0153's train, train 11; HookRulingTest pins the kind; measured 2026-11-18)
+            Map.entry("com.legend.sql.dialect.ProductDatabaseSettings", Set.of("com.legend.sql.dialect.DatabaseSettingsForm")),
             // D's train 4 (census C1, 2026-11-17): a rendered golden's null word, none (c013b2565c); a date literal's
             // message text, lite's (4bc94e2d8f); the rendered-text rule, strings (a9c14bb4ca) -- each nested in its kind
             Map.entry("com.legend.compiler.spec.LiteGoldenNullWord", Set.of("com.legend.compiler.spec.GoldenNullWord")),
