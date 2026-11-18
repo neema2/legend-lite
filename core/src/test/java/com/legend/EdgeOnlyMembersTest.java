@@ -84,8 +84,6 @@ class EdgeOnlyMembersTest {
                     "J40.ExecutionContext E-Java MOVE (2026-11-18): legend-engine's nonExecutable post-processor (toNonExecutableSQLString)"),
             Map.entry("com.legend.database.PlanStyle$Activity#engines()",
                     "J40.PlanStyle E-SQL MOVE (2026-11-18): legend-engine's text for an activity chain"),
-            Map.entry("com.legend.database.PlanStyle$TraceCell#<init>(java.lang.String, java.lang.String)",
-                    "J40.PlanStyle E-SQL MOVE (2026-11-18): the engine style's trace-cell text, written by the edge's printer alone"),
             Map.entry("com.legend.lineage.ScanRelations#rootImpl(com.legend.compiler.element.ModelContext, java.lang.String, java.lang.String)",
                     "J40.ScanRelations E-SQL MOVE (2026-11-18): legend-engine's set-implementation identity (#47, the plan printer)"),
             Map.entry("com.legend.lineage.ScanRelations#rootImpl(com.legend.compiler.element.ModelContext, java.lang.String, java.lang.String, java.util.List)",
@@ -108,16 +106,6 @@ class EdgeOnlyMembersTest {
                     "J40.QueryParameters E-SQL (J31's residue, train 15) MOVE (2026-11-18): a declared parameter's multiplicity, read by the edge's EnginePlans alone for legend-engine's plan template"),
             Map.entry("com.legend.model.ConnectionSpecification#carryingTestData(java.lang.String)",
                     "J40.ConnectionSpecification F MOVE (2026-11-18): legend-engine's service-test runtime (the edge's ServiceTestRunner)"),
-            Map.entry("com.legend.model.MappingDefinition$EnumColumn#column()",
-                    "J40.MappingDefinition E-SQL MOVE (2026-11-18): an enum-mapping id read verbatim for legend-engine's plan text"),
-            Map.entry("com.legend.model.MappingDefinition$EnumColumn#enumMappingId()",
-                    "J40.MappingDefinition E-SQL MOVE (2026-11-18): an enum-mapping id read verbatim for legend-engine's plan text"),
-            Map.entry("com.legend.model.MappingDefinition$EnumColumn#table()",
-                    "J40.MappingDefinition E-SQL MOVE (2026-11-18): an enum-mapping id read verbatim for legend-engine's plan text"),
-            Map.entry("com.legend.model.MappingDefinition$RelationalSource$Table#aggregationAwareMain()",
-                    "J40.MappingDefinition E-SQL MOVE (2026-11-18): the AggregationAware main set, legend-engine's activity form"),
-            Map.entry("com.legend.model.MappingDefinition$RelationalSource$Table#enumColumns()",
-                    "J40.MappingDefinition E-SQL MOVE (2026-11-18): enum columns, for legend-engine's plan text alone"),
             Map.entry("com.legend.plan.PureSpelling#sizeRange(com.legend.compiler.element.type.Multiplicity)",
                     "J40.PureSpelling E-SQL MOVE (2026-11-18): legend-engine's plan text's multiplicity spelling"),
             Map.entry("com.legend.planner.BodyPlanner#boundContext(com.legend.compiler.spec.typed.TypedSpec, com.legend.compiler.spec.SpecCompiler)",
@@ -166,6 +154,19 @@ class EdgeOnlyMembersTest {
     /** The members only the edge uses that are a product API the edge reads (READ_API: a fact the product owns and names
      *  in lite's terms; the orchestrator's triage ruling of 2026-11-18), each with its dated reason. Not counted. */
     static final Map<String, String> READ_API = Map.ofEntries(
+            // re-ruled READ_API by the orchestrator (2026-11-18, on E-SQL's five): MappingDefinition's enum and
+            // AggregationAware facts are lite's own model facts, read by the edge (stamped at phase E; no reach-back
+            // growth) -- the J40.MappingDefinition line goes
+            Map.entry("com.legend.model.MappingDefinition$EnumColumn#column()",
+                    "2026-11-18: lite's mapping's own enum-mapping fact, read by the edge's plan text (the orchestrator's ruling on E-SQL's five)"),
+            Map.entry("com.legend.model.MappingDefinition$EnumColumn#enumMappingId()",
+                    "2026-11-18: lite's mapping's own enum-mapping fact, read by the edge's plan text (the orchestrator's ruling on E-SQL's five)"),
+            Map.entry("com.legend.model.MappingDefinition$EnumColumn#table()",
+                    "2026-11-18: lite's mapping's own enum-mapping fact, read by the edge's plan text (the orchestrator's ruling on E-SQL's five)"),
+            Map.entry("com.legend.model.MappingDefinition$RelationalSource$Table#aggregationAwareMain()",
+                    "2026-11-18: lite's mapping's own AggregationAware fact, read by the edge's plan text (the orchestrator's ruling on E-SQL's five)"),
+            Map.entry("com.legend.model.MappingDefinition$RelationalSource$Table#enumColumns()",
+                    "2026-11-18: lite's mapping's own enum-mapping fact, read by the edge's plan text (the orchestrator's ruling on E-SQL's five)"),
             // re-ruled READ_API by the orchestrator (2026-11-18, to E-Java): the facts are lite's own, read by the edge's
             // printer; PlanConnection.planText, legend-engine's plan text line, stays OPEN
             Map.entry("com.legend.compiler.spec.typed.ExecutionContext#connectionInstance()",
