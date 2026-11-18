@@ -124,7 +124,8 @@ action_kinds_report(
     # zlib. Wherever it builds (COMPILER_LIBRARY_PLATFORMS: Windows on x86-64 too, since 2026-10-09), and not elsewhere:
     # an incompatible tier would make this report, and so the guard, incompatible there too
     tiers = select({
-        "//tools/platforms:" + platform: _TIERS | {"//native:compiler": "native"}
+        # and its opt-in engine library (//native:engine, K2: the user's "product root, edge opt-in", 2026-11-18)
+        "//tools/platforms:" + platform: _TIERS | {"//native:compiler": "native", "//native:engine": "native"}
         for platform in COMPILER_LIBRARY_PLATFORMS
     } | {"//conditions:default": _TIERS}),
 )

@@ -17,6 +17,7 @@ const home = mkdtempSync(join(process.env['TEST_TMPDIR'] ?? '.', 'legend-lite-ho
 const engine = spawn(runfileFromEnv('ENGINE_FIXTURE'), ['--site', runfileFromEnv('DATACUBE_SITE')], {
   stdio: ['pipe', 'pipe', 'inherit'],
   env: { ...process.env, LEGEND_LITE_LIBRARY: runfileFromEnv('LEGEND_LITE_LIBRARY'),
+    LEGEND_LITE_ENGINE_LIBRARY: runfileFromEnv('LEGEND_LITE_ENGINE_LIBRARY'),
     LEGEND_LITE_DATACUBE: runfileFromEnv('LEGEND_LITE_DATACUBE'), LEGEND_LITE_HOME: home, PYTHONUTF8: '1',
     PYTHONDONTWRITEBYTECODE: '1' },
 });
