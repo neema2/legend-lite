@@ -2826,7 +2826,8 @@ genquery(
 _EDGE_ROOTED = "attr(main_class, '^com\\.legend\\.edge\\.', deps(set(%s)))"
 
 # the declared opt-in modules, each an artifact whose main class is the edge's by design (2026-11-18): the tab's engine
-# module (the orchestrator's ruling on K2's wasm half); the Python host's //native:engine joins with its SHA
+# module (the orchestrator's ruling on K2's wasm half). The Python host's //native:engine is a declared opt-in LIBRARY
+# (_EDGE_OPT_IN) but no module here: a native_image shared library with no main class, never named by the roots query
 _EDGE_OPT_IN_MODULES = ["//wasm:engine_planner"]
 
 _OPT_IN_MODULES = ("(set(" + " ".join(_EDGE_OPT_IN_MODULES) + ") intersect rdeps(deps(set(%s)), set(" +
