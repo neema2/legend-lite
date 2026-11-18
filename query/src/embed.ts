@@ -7,7 +7,7 @@ import type { Lambda } from '../../pure-protocol/src/index.ts';
 import type { PureModelContextData } from '../../engine-client/src/legend/pmcd.ts';
 import type { WasmGrammar } from '../../engine-client/src/legend/wasm-grammar.ts';
 import { QueryStoreClient } from '../../query-store/src/client.ts';
-import type { Engine } from './backend/engine.ts';
+import type { LiteEngine } from './backend/engine.ts';
 import { queryOn } from './builder/milestoning.ts';
 import { AppContext, gavOf, type CubeRows, type ExecutionConfig, type LoadedProject, type ProjectConfig } from './app/context.ts';
 import { sessionFrom } from './app/persist.ts';
@@ -28,7 +28,7 @@ export type EmbedStart =
 export interface EmbedOptions {
   /** Where queries run, as the host has it: in this tab, or on a legend server. */
   readonly execution: ExecutionConfig;
-  readonly engine: Engine;
+  readonly engine: LiteEngine;
   /** legend-lite's planner in the tab, when the host has one: the SQL shown, the results cube's planning. */
   readonly planner: WasmGrammar | undefined;
   /** Where the results grid (a DataCube) reads its rows. */

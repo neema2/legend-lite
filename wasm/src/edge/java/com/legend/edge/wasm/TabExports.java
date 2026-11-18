@@ -12,7 +12,7 @@ import planner.Folded;
  * (and {@link #pureV1OrError} routes legend-lite's own {@code /api/lite/v1/compilation/compile} too, as the server
  * does).
  * The JVM differential ({@code JvmMain}) runs the same compositions over the boundary ({@code Folded.of} of
- * {@code Boundary.plan} and {@code planJson}), so it compares the tab's own answers.
+ * {@code Boundary.queryParse} then {@code queryPlan}), so it compares the tab's own answers.
  *
  * <p>AT THE EDGE (F's separation census line A1, 2026-11-17): four of these exports answer legend-engine's routes
  * through the edge ({@code EdgeBoundary}), so this class -- the module's one entry -- is the edge's
@@ -52,31 +52,7 @@ public final class TabExports {
         return Folded.http(() -> EdgeBoundary.executeArrowAnswer(plan, rows));
     }
 
-    // ---- planning and typing
-
-    /** {@link Boundary#planSql}: the SQL alone, unfolded (a refusal is thrown). */
-    @JSExport
-    public static String plan(String model, String query, String runtime) {
-        return Boundary.planSql(model, query, runtime);
-    }
-
-    /** {@link Boundary#plan}. */
-    @JSExport
-    public static String planOrError(String model, String query, String runtime) {
-        return Folded.of(() -> Boundary.plan(model, query, runtime));
-    }
-
-    /** {@link Boundary#relationType}. */
-    @JSExport
-    public static String relationTypeOrError(String model, String query) {
-        return Folded.of(() -> Boundary.relationType(model, query));
-    }
-
-    /** {@link Boundary#planJson}. */
-    @JSExport
-    public static String planJsonOrError(String model, String lambdaJson, String runtime) {
-        return Folded.of(() -> Boundary.planJson(model, lambdaJson, runtime));
-    }
+    // ---- models held: the binding's cache (lite API v1 §7a)
 
     /** {@link Boundary#holdModel}: the handle, or the refusal of a model that does not compile. */
     @JSExport
@@ -102,54 +78,85 @@ public final class TabExports {
         });
     }
 
-    /** {@link Boundary#planHeld}. */
+    /** {@code query/plan} over a model held ({@link Boundary#queryPlanHeld}). */
     @JSExport
-    public static String planHeldOrError(int handle, String query, String runtime) {
-        return Folded.of(() -> Boundary.planHeld(handle, query, runtime));
+    public static String queryPlanHeldOrError(int handle, String request) {
+        return Folded.of(() -> Boundary.queryPlanHeld(handle, request));
     }
 
-    /** {@link Boundary#planJsonHeld}. */
+    /** {@code query/type} over a model held ({@link Boundary#queryTypeHeld}). */
     @JSExport
-    public static String planJsonHeldOrError(int handle, String lambdaJson, String runtime) {
-        return Folded.of(() -> Boundary.planJsonHeld(handle, lambdaJson, runtime));
+    public static String queryTypeHeldOrError(int handle, String request) {
+        return Folded.of(() -> Boundary.queryTypeHeld(handle, request));
     }
 
-    /** {@link Boundary#executionPlanJsonHeld}. */
+    // ---- lite API v1's operations (docs/records/lite-api-v1-2026-11-17.md §2, the user's go of 2026-11-17): each the
+    // ---- operation's request JSON in, its answer JSON out ({@link Boundary}'s member of the same name)
+
+    /** {@code model/check} ({@link Boundary#modelCheck}). */
     @JSExport
-    public static String executionPlanJsonHeldOrError(int handle, String lambdaJson, String runtime) {
-        return Folded.of(() -> Boundary.executionPlanJsonHeld(handle, lambdaJson, runtime));
+    public static String modelCheckOrError(String request) {
+        return Folded.of(() -> Boundary.modelCheck(request));
     }
 
-    /** {@link Boundary#relationTypeHeld}. */
+    /** {@code model/elements} ({@link Boundary#modelElements}). */
     @JSExport
-    public static String relationTypeHeldOrError(int handle, String query) {
-        return Folded.of(() -> Boundary.relationTypeHeld(handle, query));
+    public static String modelElementsOrError(String request) {
+        return Folded.of(() -> Boundary.modelElements(request));
     }
 
-    // ---- lite's own grammar and typing (D-1: the four routes asked through pure/v1, as lite-owned exports; A1)
-
-    /** A model's text as its protocol JSON ({@link Boundary#modelElements}). */
+    /** {@code query/parse} ({@link Boundary#queryParse}). */
     @JSExport
-    public static String modelElementsOrError(String text, boolean sourceInformation) {
-        return Folded.of(() -> Boundary.modelElements(text, sourceInformation));
+    public static String queryParseOrError(String request) {
+        return Folded.of(() -> Boundary.queryParse(request));
     }
 
-    /** A lambda's text as its protocol JSON ({@link Boundary#parseLambda}). */
+    /** {@code query/print} ({@link Boundary#queryPrint}). */
     @JSExport
-    public static String parseLambdaOrError(String text, boolean sourceInformation) {
-        return Folded.of(() -> Boundary.parseLambda(text, sourceInformation));
+    public static String queryPrintOrError(String request) {
+        return Folded.of(() -> Boundary.queryPrint(request));
     }
 
-    /** A lambda's protocol JSON as its Pure text ({@link Boundary#printLambda}). */
+    /** {@code query/type} ({@link Boundary#queryType}). */
     @JSExport
-    public static String printLambdaOrError(String lambdaJson, String style) {
-        return Folded.of(() -> Boundary.printLambda(lambdaJson, style));
+    public static String queryTypeOrError(String request) {
+        return Folded.of(() -> Boundary.queryType(request));
     }
 
-    /** A lambda's protocol JSON typed over a model's text ({@link Boundary#lambdaRelationType}). */
+    /** {@code query/plan} ({@link Boundary#queryPlan}). */
     @JSExport
-    public static String lambdaRelationTypeOrError(String model, String lambdaJson) {
-        return Folded.of(() -> Boundary.lambdaRelationType(model, lambdaJson));
+    public static String queryPlanOrError(String request) {
+        return Folded.of(() -> Boundary.queryPlan(request));
+    }
+
+    /** {@code model/createClass} ({@link Boundary#modelCreateClass}). */
+    @JSExport
+    public static String modelCreateClassOrError(String request) {
+        return Folded.of(() -> Boundary.modelCreateClass(request));
+    }
+
+    /** {@code model/createAssociation} ({@link Boundary#modelCreateAssociation}). */
+    @JSExport
+    public static String modelCreateAssociationOrError(String request) {
+        return Folded.of(() -> Boundary.modelCreateAssociation(request));
+    }
+
+    /** {@code model/createDataSpace} ({@link Boundary#modelCreateDataSpace}). */
+    @JSExport
+    public static String modelCreateDataSpaceOrError(String request) {
+        return Folded.of(() -> Boundary.modelCreateDataSpace(request));
+    }
+
+    /** {@code ts/item} ({@link Boundary#tsItem}). */
+    @JSExport
+    public static String tsItemOrError(String request) {
+        return Folded.of(() -> Boundary.tsItem(request));
+    }
+
+    /** {@code ts/statement} ({@link Boundary#tsStatement}). */
+    @JSExport
+    public static String tsStatementOrError(String request) {
+        return Folded.of(() -> Boundary.tsStatement(request));
     }
 
     // ---- a model's data and its tables
@@ -324,6 +331,10 @@ public final class TabExports {
             + "->sort([~region->ascending()])->limit(10)";
 
     public static void main(String[] args) {
-        System.out.println(Boundary.planSql(MODEL, QUERY, RUNTIME));
+        // a text query is query/parse, then query/plan (lite API v1 §2)
+        String parsed = Boundary.queryParse("{\"text\":" + com.legend.json.Json.toCompact(QUERY) + "}");
+        String query = com.legend.json.Json.toCompact(com.legend.json.Json.parseObject(parsed).get("query"));
+        System.out.println(Boundary.queryPlan("{\"model\":" + com.legend.json.Json.toCompact(MODEL) + ",\"query\":" + query
+                + ",\"runtime\":" + com.legend.json.Json.toCompact(RUNTIME) + "}"));
     }
 }

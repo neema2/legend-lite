@@ -89,6 +89,17 @@ public final class Execution {
                 java.util.UUID.randomUUID());
     }
 
+    /** {@link #runOnProjectDatabases(TypedQuery, String, String, Output)} with the run's parameter {@code values},
+     *  bound at run to the plan's declared parameters, each its Pure type's Java value ({@code exec.PlanParameters}):
+     *  lite's own execute route, {@code /api/lite/v1/execution/execute} (the edge program's H7; the orchestrator's Q2
+     *  ruling of 2026-11-17, "bind at RUN"). */
+    public static ExecutionPlan runOnProjectDatabases(TypedQuery typed,
+            @com.legend.base.Nullable String runtimeFqn, @com.legend.base.Nullable String admittedSources,
+            java.util.Map<String, ?> values, Output output) throws IOException {
+        return ProductRun.onProjectDatabases(typed.projectPlan(runtimeFqn), admittedSources, values, output,
+                java.util.UUID.randomUUID());
+    }
+
     /** A query run as legend-lite's server runs it (legend-engine's {@code pure/v1/execution/execute}): planned, then
      *  run on its project's databases ({@link ProductRun#onProjectDatabases}). pure/v1's execute reaches it through the
      *  runner the server hands the API (slice 5, 2026-11-09: pure/v1 compiles, the door plans and runs -- the API's own

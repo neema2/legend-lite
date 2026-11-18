@@ -119,6 +119,9 @@ class PhaseEntriesRefusedInsideARunTest {
                 com.legend.parser.GrammarLevel.LEGEND_LITE));
         out.put("parse a lambda (phase C)", () -> com.legend.door.Parse.lambdaJson(QUERY, false));
         out.put("parse a lambda (phase C) <- Parse.engineLambdaJson", () -> com.legend.door.Parse.engineLambdaJson(QUERY));
+        // lite's API v1 (2026-11-17): query/parse reads lite's own grammar, its islands included, through the
+        // compiler's product entry (the level the compiler's, ParserBoundaryArchTest)
+        out.put("parse a lambda (phase C) <- Compiler.parseQueryJson", () -> Compiler.parseQueryJson(QUERY));
         out.put("read a model's records (phase B) <- Parse.model", () -> com.legend.door.Parse.model(records));
         // C5-J's last round (A1, 2026-11-15): the embedded languages' readers, each through its door -- an island's
         // SQL by each dialect (Postgres's for #SQL, SAP IQ's for #IQ), a #TS query and item, a #Cypher statement
@@ -135,8 +138,9 @@ class PhaseEntriesRefusedInsideARunTest {
                 "MATCH (p:Person) RETURN p.name AS name"));
         // and a product caller of them, the server's #TS item route (the compiler's island seams read their text while
         // typing, phase G, whose own question is asked first: "type a spec")
-        out.put("parse a timeseries item (phase C) <- the server's tsItem", () -> com.legend.server.LiteV1Api.tsItem(
-                "{\"text\": \"avg(CLOSE, 3) AS m\"}"));
+        // (lite's API v1, 2026-11-17: the route's own Java is tsItemOf, its request read by the one road)
+        out.put("parse a timeseries item (phase C) <- the server's tsItem", () -> com.legend.server.LiteV1Api.tsItemOf(
+                "avg(CLOSE, 3) AS m"));
         // a test body's facts (the C5-J audit's nit, 2026-11-15): planning that asks on its own, never by the typing it
         // starts -- the body typed outside the run, so only the facts planner's own question can refuse it
         TypedQuery body = Compiler.query(ctx, QUERY);

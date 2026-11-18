@@ -368,7 +368,8 @@ public final class RowDecode {
      *  no written-precision fact of its own: the decoders read none, and the writers spell a nested temporal by the
      *  value's own precision and the parent column's fact ({@code CellText.structure}). */
     public static ExecutionPlan.Column element(ExecutionPlan.Column c) {
-        return new ExecutionPlan.Column(c.name(), c.type(), c.multiplicity(), inside(c, "ARRAY"), null, null);
+        return new ExecutionPlan.Column(c.name(), c.type(), c.multiplicity(), inside(c, "ARRAY"), null, null,
+                c.decimal());
     }
 
     /** The key and value columns of a map column ({@code MAP<key,value>}): each its slot, its type Any. */

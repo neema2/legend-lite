@@ -16,8 +16,12 @@ if TYPE_CHECKING:
 
 @runtime_checkable
 class EdgeRoutes(Protocol):
-    """The routes an engine answers besides its own: asked only for a call its own routes do not serve, with the engine
-    that asks (``engine``) -- its frames, its planner, its stores -- and the call as it came."""
+    """The routes an engine answers besides its own: ``serves`` says which calls are theirs (by method and path: the
+    engine, and its HTTP server's admission, ask it), ``answer`` answers one, with the engine that asks (``engine``) --
+    its frames, its stores -- and the call as it came."""
+
+    def serves(self, method: str, path: str) -> bool:
+        ...
 
     def answer(self, engine: Engine, method: str, path: str, query: str, body: str | None) -> Answer:
         ...
@@ -27,6 +31,9 @@ class NoEdgeRoutes:
     """THE PRODUCT'S OWN: no other API is served. A call the engine's own routes do not serve is refused by name, in the
     product's words (the sentence the engine has always answered such a call with; it follows lite's API spec when the
     user approves it)."""
+
+    def serves(self, method: str, path: str) -> bool:
+        return False
 
     def answer(self, engine: Any, method: str, path: str, query: str, body: str | None) -> Answer:
         # the engine's own answer type, read where it is asked (the engine module imports this one)

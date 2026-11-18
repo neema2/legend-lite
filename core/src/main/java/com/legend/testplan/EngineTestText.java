@@ -62,4 +62,18 @@ import java.util.List;
      *  answered how the plan holds its two texts, and the product mapped that to two constants of its own):
      *  {@code shape} names the assert where the gate declines it. */
     DatabaseGate gate(com.legend.testexecutionplan.Extension judgment, java.util.function.Supplier<String> shape);
+
+    /** A FRESH RECORDER of one test body's planning call over {@code template} (K10b of the edge audit, the
+     *  orchestrator's ruling (A) of 2026-11-17): the style that body is planned in, recording legend-pure's words of
+     *  each statement's raise sites ({@code PlanStyle#siteWords}); read once by the test door ({@link #siteWords}). */
+    com.legend.database.PlanStyle recording(com.legend.database.PlanStyle template);
+
+    /** The test door's ONE READ of {@code recording} ({@link #recording}'s), after its planning: each statement text's
+     *  records of its sites' words (the hearing's data), the recorder sealed. */
+    java.util.Map<String, List<com.legend.testexecutionplan.Extension>> siteWords(
+            com.legend.database.PlanStyle recording);
+
+    /** A required side's refusal of no rows as legend-pure words it ({@code multiplicity} the bound; C5's step E,
+     *  2026-11-17; moved behind this facet with K10b: a site's words are no member of the product's style). */
+    String sizeWords(String multiplicity);
 }

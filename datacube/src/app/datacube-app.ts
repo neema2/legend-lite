@@ -389,7 +389,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
           // The print is asked for; a later view's print wins.
           const printing = (printed += 1);
           harnessSignal.printing += 1;
-          void created.printQuery(view.query, 'STANDARD').then(
+          void created.printQuery(view.query, 'standard').then(
             (text) => { if (printing === printed) windows.pure.textContent = text; },
             (error: unknown) => { if (printing === printed) windows.pure.textContent = String(error); },
           ).finally(() => {

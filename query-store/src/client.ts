@@ -1,7 +1,7 @@
-// THE ONE CLIENT of a query store: upstream's `/api/pure/v1/query`, typed. Every app here talks to
-// saved queries through this and nothing else; WHERE the store is -- legend-engine, legend-lite
-// (`--query-store`), or this page (local-server.ts) -- is only the `fetch` it is handed, never a
-// branch in an app.
+// THE ONE CLIENT of a query store: lite's `/api/lite/v1/queries` and its `user` (upstream's saved query records, typed;
+// lite's API v1 spec §2 and §7, H6, 2026-11-17). Every app here talks to saved queries through this and nothing else;
+// WHERE the store is -- legend-lite's server (`--query-store`), or this page (wasm-server.ts) -- is only the `fetch` it
+// is handed, never a branch in an app. legend-engine's `/api/pure/v1/query` is the edge's, never asked here.
 
 import type { Query, QuerySearchSpecification } from './wire.ts';
 
@@ -86,8 +86,27 @@ export class QueryStoreClient implements QueryStore {
     await this.#call('DELETE', `/${encodeURIComponent(id)}`);
   }
 
-  async #call(method: string, path: string, body?: unknown): Promise<Response> {
-    const res = await this.#fetch(`${this.#api}/pure/v1/query${path}`, {
+  /**
+   * Who the store keeps saved queries for: its user, the owner of what is saved -- lite's `user` operation,
+   * `POST /api/lite/v1/user` (lite's API v1 spec §2, 2026-11-17; the orchestrator's Q-b ruling: the store's own user;
+   * legend-engine's `/api/server/v1/currentUser` is the edge's, never asked here).
+   */
+  async currentUser(): Promise<string> {
+    const text = await (await this.#send('POST', `${this.#api}/lite/v1/user`, {})).text();
+    const { user } = JSON.parse(text) as { readonly user?: unknown };
+    if (typeof user !== 'string') throw new QueryStoreError(`the store named no user: ${text.slice(0, 120)}`, 500);
+    return user;
+  }
+
+  /** One of the store's calls at lite's own route, `/api/lite/v1/queries` (spec §2 and §7, H6: the same store and
+   *  records; until 2026-11-17 legend-engine's `/api/pure/v1/query`, which is the edge's). */
+  #call(method: string, path: string, body?: unknown): Promise<Response> {
+    return this.#send(method, `${this.#api}/lite/v1/queries${path}`, body);
+  }
+
+  /** The store's one send: `method` to `url`, a refusal its message as a QueryStoreError. */
+  async #send(method: string, url: string, body?: unknown): Promise<Response> {
+    const res = await this.#fetch(url, {
       method,
       ...(body === undefined ? {} : { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }),
     });

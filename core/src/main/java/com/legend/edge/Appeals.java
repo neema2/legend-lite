@@ -73,6 +73,9 @@ final class Appeals implements com.legend.testexec.EdgeHearing {
 
     /** The plan's appeals by number (its own data, step 8b) and the referee that replays a golden, or none. */
     private final Map<Integer, Appeal> planned;
+    /** legend-pure's words of the plan's raise sites, by statement text and number (K10b, 2026-11-17: the plan's
+     *  records, held at the steps that send their statements). */
+    private final Map<String, Map<Integer, String>> siteWords;
     private final @Nullable SqlReplayReferee referee;
 
     /** {@code plan}'s appeals heard for one run, its reports to {@code listener}, decided by {@code referee}. A plan
@@ -81,6 +84,7 @@ final class Appeals implements com.legend.testexec.EdgeHearing {
             @Nullable SqlReplayReferee referee) {
         PlannedAppeals.requireCarried(plan);
         this.planned = PlannedAppeals.byNumber(plan);
+        this.siteWords = siteWordsOf(plan);
         this.referee = referee;
         this.execution = java.util.Objects.requireNonNull(execution, "execution");
         this.listener = listener;
@@ -97,6 +101,38 @@ final class Appeals implements com.legend.testexec.EdgeHearing {
     public TypedSide judged(com.legend.testexecutionplan.HostJudgment.EdgeJudged j, List<TypedSide> sides,
             boolean messaged) {
         return SqlTextRuns.judge((EngineTextJudgment) j.judgment(), j.appeal(), sides, this, messaged);
+    }
+
+    /** The plan's records of its raise sites' words, by statement text and number: two records of one key with
+     *  different words refused by name (the recorder refuses them at planning; a plan read from elsewhere is checked). */
+    private static Map<String, Map<Integer, String>> siteWordsOf(TestPlan plan) {
+        Map<String, Map<Integer, String>> out = new java.util.HashMap<>();
+        for (List<com.legend.testexecutionplan.Extension> records : plan.extensionsByStep().values()) {
+            for (com.legend.testexecutionplan.Extension e : records) {
+                if (e instanceof SiteWords w) {
+                    String held = out.computeIfAbsent(w.text(), t -> new java.util.HashMap<>()).putIfAbsent(w.n(),
+                            w.words());
+                    if (held != null && !held.equals(w.words())) {
+                        throw new IllegalStateException("a test plan words raise site " + w.n() + " of one statement"
+                                + " twice ('" + held + "' and '" + w.words() + "'): " + w.text());
+                    }
+                }
+            }
+        }
+        return out;
+    }
+
+    /** legend-pure's words of site {@code n} of {@code statement}, as the plan holds them; none refused by name. */
+    @Override
+    public String raisedWords(String statement, int n) {
+        Map<Integer, String> byN = siteWords.get(statement);
+        String words = byN == null ? null : byN.get(n);
+        if (words == null) {
+            throw new IllegalStateException("legend-pure's words of raise site " + n + " of a statement the plan"
+                    + " words no site of that number of (its operands not literals the edge words at planning, or the"
+                    + " statement none of the plan's steps sends): " + statement);
+        }
+        return words;
     }
 
     @Override

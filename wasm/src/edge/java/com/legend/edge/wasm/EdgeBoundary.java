@@ -23,7 +23,7 @@ public final class EdgeBoundary {
 
     /**
      * One {@code pure/v1} call by its path and raw query string ({@code ""} for none), routed and answered as
-     * legend-lite's server answers it -- lite's own {@code /api/lite/v1/compilation/compile} included. An execute's
+     * legend-lite's server answers it -- lite's own {@code /api/lite/v1/<operation>} routes included. An execute's
      * run is the host's (its rows come from {@link #executePlan}), so one asked for here is refused, naming the
      * format that is served.
      */
@@ -36,7 +36,10 @@ public final class EdgeBoundary {
         // path's prefix, as the server mounts them
         return path.startsWith(com.legend.edge.PureV1Routes.PREFIX)
                 ? com.legend.edge.PureV1Routes.route(path, rawQuery.isEmpty() ? null : rawQuery, body, noRun, HELD)
-                : com.legend.server.LiteV1Api.route(path, rawQuery.isEmpty() ? null : rawQuery, body, noRun, HELD);
+                : com.legend.server.LiteV1Api.route(path, body, (query, runtime, values, output) -> {
+                    throw new IllegalArgumentException("this engine runs no query itself: the host runs the plan"
+                            + " (query/plan) with its own runner");
+                }, HELD);
     }
 
     /** A request's model given as text: the one this host holds for that text, compiled no more, else compiled for the
@@ -88,6 +91,14 @@ public final class EdgeBoundary {
      */
     public static com.legend.server.LiteV1Api.Answer executeArrowAnswer(String plan, String rows) {
         return com.legend.edge.HostAnswers.arrowAnswer(plan, rows);
+    }
+
+    /** A host's refusal of a call it could not finish -- its database refusing the SQL, say -- in legend-engine's
+     *  error shape ({@link com.legend.edge.EngineEnvelope#refused}): 500, no {@code errorType}. Python's native
+     *  {@code lite_pure_v1_refusal} (its edge half, EngineEntries) since planner.Boundary's refusal went with lite API
+     *  v1's step 2c (2026-11-17, the Python host's ask). */
+    public static com.legend.server.LiteV1Api.Answer refused(String message) {
+        return com.legend.edge.EngineEnvelope.refused(message);
     }
 
     /** The models a host runs, from their JSON array of texts. */

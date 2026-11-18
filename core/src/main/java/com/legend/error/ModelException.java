@@ -39,8 +39,14 @@ public final class ModelException extends LegendCompileException {
      *  them, so a reader that words the kind (the edge) still can. */
     public static ModelException placed(LegendCompileException e, String where) {
         CompileKind k = e.kind();
-        return k == null ? new ModelException(e.phase(), where + " " + e.getMessage(), e.element())
+        return k == null ? new ModelException(e.phase(), e.getMessage(), e.element(), where)
                 : new ModelException(e.phase(), k, e.operands(), e.element(), where);
+    }
+
+    /** With the element's position, placed before the message and kept as data ({@link #position()}). */
+    private ModelException(Phase phase, @com.legend.base.Nullable String message,
+            @com.legend.base.Nullable String elementFqn, String position) {
+        super(phase, message, elementFqn, position);
     }
 
     /** With the FQN of the element the failure is about (position decoration). */

@@ -61,11 +61,6 @@ export interface InferredModel {
   readonly conversions: readonly { readonly column: string; readonly sql: string }[];
   /** Columns left out: the source cannot convert them, or no Database type holds them (bytes). */
   readonly excluded: readonly string[];
-  /**
-   * The columns declared BIT (DuckDB's BOOLEAN): legend-engine types them TinyInt, and a planner
-   * on engine reads them Boolean (relation-type.ts, ENGINE DEFECT S23).
-   */
-  readonly bitColumns: readonly string[];
 }
 
 export interface InferOptions {

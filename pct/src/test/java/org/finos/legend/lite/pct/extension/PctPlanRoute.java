@@ -46,14 +46,16 @@ final class PctPlanRoute {
                 java.util.Set.of(com.legend.platform.Feature.CORRECT_SQL_SUBSTRING_INDEXING);
         // the lane's session for the query, as its sessions choose it for the query's plan (PctBackend.executionSource):
         // a lane holding a session (a cloud's) asks the plan's answering target first
-        ExecutionPlan plan = com.legend.Execution.run(query, com.legend.testbackend.StorelessRuntime.RUNTIME,
+        // planned in a fresh recorder of the edge's style, a raise answered in legend-pure's words (K10, 2026-11-18)
+        ExecutionPlan plan = com.legend.edge.RaisedWords.run(com.legend.edge.PureText.UPSTREAM, style ->
+                com.legend.Execution.run(query, com.legend.testbackend.StorelessRuntime.RUNTIME,
                 // the session for the target the plan answers on, handed to the source by the run (2026-11-09, the full
                 // audit's must-fix: a supplier here planned the query again inside the run)
                 PctBackend.executionSource(),
                 PctBackend.planSessions(), com.legend.exec.ProductRun.Establish.DECLARED_SETUP, features,
                 // the PCT compares against legend-pure's texts: the plan is spelled by the edge (phase D's D1.0)
-                com.legend.edge.PureText.UPSTREAM,
-                new com.legend.result.Output.Rows(collector), com.legend.result.Batcher.DEFAULT_CAPACITY);
+                style,
+                new com.legend.result.Output.Rows(collector), com.legend.result.Batcher.DEFAULT_CAPACITY));
         com.legend.result.Collector.Collected c = collector.collected();
         boolean relation = plan.answerShape() == ExecutionPlan.TdsResult.Shape.RELATION;
         if (relation) {

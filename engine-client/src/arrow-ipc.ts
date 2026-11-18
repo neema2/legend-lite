@@ -16,11 +16,35 @@ export function arrowIpcTable(stream: Uint8Array): ArrowishTable {
   return tableFromIPC(stream) as unknown as ArrowishTable;
 }
 
-/** One Arrow IPC stream as a host's answer: its table, and what its schema's metadata says beside the rows (a host that
- *  plans and runs in one step carries its plan there: Python's plan-and-run). */
-export function arrowIpcAnswer(stream: Uint8Array): { readonly table: ArrowishTable; readonly metadata: ReadonlyMap<string, string> } {
+/** One Arrow IPC stream as a host's answer: its table, what its schema's metadata says beside the rows (a host that
+ *  plans and runs in one step carries its plan there: Python's plan-and-run), and each field's own metadata, in order. */
+export function arrowIpcAnswer(stream: Uint8Array): {
+  readonly table: ArrowishTable; readonly metadata: ReadonlyMap<string, string>;
+  readonly fields: readonly { readonly name: string; readonly metadata: ReadonlyMap<string, string> }[];
+} {
   const table = tableFromIPC(stream);
-  return { table: table as unknown as ArrowishTable, metadata: table.schema.metadata };
+  return {
+    table: table as unknown as ArrowishTable, metadata: table.schema.metadata,
+    fields: table.schema.fields.map((f) => ({ name: f.name, metadata: f.metadata })),
+  };
+}
+
+/** Lite's `query/run` answer as Arrow IPC (lite's API v1 spec §4): the answer's shape (the stream's `legend.shape`), each
+ *  column's name and Pure type (the plan's facts its field carries, `legend.type`), and its table. A stream without them
+ *  is not lite's typed answer, refused by name. */
+export function arrowIpcTyped(stream: Uint8Array): {
+  readonly shape: string; readonly columns: readonly { readonly name: string; readonly type: string }[];
+  readonly table: ArrowishTable;
+} {
+  const { table, metadata, fields } = arrowIpcAnswer(stream);
+  const shape = metadata.get('legend.shape');
+  if (shape === undefined) throw new Error("an Arrow answer with no legend.shape: not lite's query/run answer");
+  const columns = fields.map((f) => {
+    const type = f.metadata.get('legend.type');
+    if (type === undefined) throw new Error(`the Arrow answer's column ${f.name} carries no legend.type: not lite's typed column`);
+    return { name: f.name, type };
+  });
+  return { shape, columns, table };
 }
 
 /**

@@ -372,6 +372,8 @@ legend_java_library(
         "src/main/java/com/legend/server/ModelChanges.java",
         "src/main/java/com/legend/server/ModelInput.java",
         "src/main/java/com/legend/server/LiteV1Api.java",
+        # lite's own grammar and typing routes (the HOST stream, 2026-11-17)
+        "src/main/java/com/legend/server/LiteV1Planning.java",
         "src/main/java/com/legend/server/TsTree.java",
     ],
     # door (C5-J item 1, 2026-11-15): its parses through the parse doors, which ask the run's wall
@@ -388,6 +390,7 @@ legend_java_library(
             "src/main/java/com/legend/server/ModelChanges.java",
             "src/main/java/com/legend/server/ModelInput.java",
             "src/main/java/com/legend/server/LiteV1Api.java",
+            "src/main/java/com/legend/server/LiteV1Planning.java",
             "src/main/java/com/legend/server/TsTree.java",
         ],
     ),
@@ -616,6 +619,9 @@ legend_java_library(
     srcs = glob(
         ["src/test/java/**/*.java"],
         exclude = [
+            # LiteApiConformanceTest is :lite_api_conformance_test's alone: the suite's fixture in its runfiles (lite API v1,
+            # docs/records/lite-api-v1-2026-11-17.md §5, the user's go of 2026-11-17)
+            "src/test/java/com/legend/planner/LiteApiConformanceTest.java",
             "src/test/java/com/legend/server/PostgresArmTest.java",
             # isNumeric's one rule run on four databases, Postgres among them: :is_numeric_probe_test's alone (J20)
             "src/test/java/com/legend/planner/IsNumericProbeTest.java",
@@ -1380,6 +1386,29 @@ junit_test(
         ":core",
         "//json",
         "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+)
+
+# LITE API V1'S CONFORMANCE SUITE, THE BROWSER BINDING (docs/records/lite-api-v1-2026-11-17.md §5, the user's go of
+# 2026-11-17): engine-client/test/fixtures/lite-api-cases.json asked of the planner Boundary's operations, as the server's
+# routes and Python's native entries are by their own readers of the same file
+junit_test(
+    name = "lite_api_conformance_test",
+    memory_mb = 512,
+    size = "small",
+    srcs = ["src/test/java/com/legend/planner/LiteApiConformanceTest.java"],
+    data = ["//engine-client:test/fixtures/lite-api-cases.json"],
+    jvm_flags = ["-Dlite.api.cases=$(rlocationpath //engine-client:test/fixtures/lite-api-cases.json)"],
+    select = ["--select-class=com.legend.planner.LiteApiConformanceTest"],
+    # it asks the browser binding, //wasm:boundary, which the separation census counts among the edge's targets (it
+    # answers the edge's routes too): an edge test, so no product test reaches the edge (A5; the TS host's catch,
+    # 2026-11-17)
+    tags = ["edge_test"],
+    deps = [
+        "//json",
+        "//testing",
+        "//wasm:boundary",
         "@maven_test//:org_junit_jupiter_junit_jupiter_api",
     ],
 )
@@ -2684,10 +2713,11 @@ java_jars(
 # doors (the JS apps reach the JVM through //wasm and //native alone), and core's test libraries (A5, A6). The shipped
 # //core:server is no root here: rooted at the product since K2's server half (2026-11-18), it carries the edge's
 # module at runtime only (:edge_server, mounted when configured: --engine legend-engine), one artifact by ruling 6.
-# the native library's and the query-store page's upstream entries are the edge's too (A2, A3, 2026-11-17)
+# the native library's upstream entry is the edge's too (A2, 2026-11-17); the query-store page's was (A3) until it
+# answered lite's own /api/lite/v1/queries in lite's words (lite's API v1, H6, 2026-11-17): a product root below
 # the embedded hosts' engine routes and the tab's module entry are the edge's too (A1, 2026-11-17)
 _EDGE_TARGETS = ("//core:edge + //core:edge_server + //core:edge_service_tests + //core:edge_store_words + " +
-                 "//native:edge_entry + //query-store:edge_page_entry + //wasm:edge_boundary + //wasm:edge_tab")
+                 "//native:edge_entry + //wasm:edge_boundary + //wasm:edge_tab")
 
 _EDGE_SEPARATION_ROOTS = [
     "//core:core",
@@ -2696,6 +2726,8 @@ _EDGE_SEPARATION_ROOTS = [
     "//core:test_cases",
     # (seam_benchmark and data_delivery_matrix_postgres_test left 2026-11-17, A6: the edge's tests, tagged edge_test)
     "//native:entry",
+    # the query-store page's entry (lite's API v1, H6, 2026-11-17: the product's, lite's words at lite's route)
+    "//query-store:page_entry",
     "//sdlc-server/grammar",
     "//wasm:boundary",
     "//wasm:jvm_main",
@@ -2711,7 +2743,7 @@ genquery(
     # the edge's own entries outside core named in the expression (A2, A3): in scope, never roots
     # the edge's targets in scope too: a root reaching one through no other root still finds it (2026-11-17, A6's
     # roots left: they had brought //core:edge_server into the scope)
-    scope = _EDGE_SEPARATION_ROOTS + ["//native:edge_entry", "//query-store:edge_page_entry", "//core:edge",
+    scope = _EDGE_SEPARATION_ROOTS + ["//native:edge_entry", "//core:edge",
                                       "//core:edge_server", "//core:edge_service_tests", "//core:edge_store_words",
                                       "//wasm:edge_boundary", "//wasm:edge_tab"],
 )
@@ -2734,7 +2766,7 @@ genquery(
     # the edge's own entries outside core named in the expression (A2, A3): in scope, never roots
     # the edge's targets in scope too: a root reaching one through no other root still finds it (2026-11-17, A6's
     # roots left: they had brought //core:edge_server into the scope)
-    scope = _EDGE_SEPARATION_ROOTS + [":planted_edge_reach", "//native:edge_entry", "//query-store:edge_page_entry", "//core:edge",
+    scope = _EDGE_SEPARATION_ROOTS + [":planted_edge_reach", "//native:edge_entry", "//core:edge",
                                       "//core:edge_server", "//core:edge_service_tests", "//core:edge_store_words",
                                       "//wasm:edge_boundary", "//wasm:edge_tab"],
 )
@@ -2762,8 +2794,10 @@ _SHIPPED_ARTIFACTS = [
 # //native:engine joins with the next host train.
 _EDGE_OPT_IN = ["//core:edge_server"]
 
+# (//query-store:edge_page_entry: gone with H6, 2026-11-17 -- the queries page answers lite's own route from
+# :page_entry; dropped here 2026-11-18 at the host train's merge of train 18, as _EDGE_TARGETS above)
 _EDGE_TARGET_LIST = ["//core:edge", "//core:edge_server", "//core:edge_service_tests", "//core:edge_store_words",
-                     "//native:edge_entry", "//query-store:edge_page_entry", "//wasm:edge_boundary", "//wasm:edge_tab"]
+                     "//native:edge_entry", "//wasm:edge_boundary", "//wasm:edge_tab"]
 
 # a shipped artifact's direct reach of an edge target that is no opt-in module
 genquery(

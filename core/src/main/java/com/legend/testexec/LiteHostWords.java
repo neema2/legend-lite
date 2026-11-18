@@ -195,4 +195,10 @@ public final class LiteHostWords implements HostWords {
     public String unjudged(String expected, String actual) {
         return " (expected " + expected + ", got " + actual + ")";
     }
+
+    /** Lite's words of a caught error: its own message (K10). */
+    @Override
+    public String caught(RuntimeException error, EdgeHearing hearing) {
+        return String.valueOf(error.getMessage());
+    }
 }

@@ -7,12 +7,15 @@
 import type { SnapPull } from '../../engine-client/src/requests.ts';
 import type { PlanText } from '../../engine-client/src/planned-sql.ts';
 import type { Plan, PlanColumn } from '../../engine-client/src/relation-type.ts';
-import type { PrintStyle } from '../../engine-client/src/pure-v1-planning.ts';
 import type { Lambda } from '../../pure-protocol/src/index.ts';
 import type { GridSource } from './model-writer.ts';
 
 /** A #TS query as one statement (Show #TS, D12): the statement, or why it has none in words. */
 export type TsShown = { readonly statement: string; readonly refused?: undefined } | { readonly statement?: undefined; readonly refused: string };
+
+/** How a query prints (lite API v1's `query/print` style, its words): `pretty` (the default) or `standard`. DataCube's
+ *  own (H11, 2026-11-17: until then legend-engine's client's `'PRETTY' | 'STANDARD'`). */
+export type PrintStyle = 'pretty' | 'standard';
 
 export interface Planner {
   /** A query (a protocol tree, query.ts) in, SQL and the compiler's result type out. */

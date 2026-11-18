@@ -3,87 +3,34 @@ package com.legend.planner;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-import com.legend.edge.PureV1Routes;
 import com.legend.json.Json;
 import com.legend.server.LiteV1Api;
 import org.junit.jupiter.api.Test;
-import planner.Boundary;
 
 /**
- * D-1'S FOUR LITE-OWNED EXPORTS (docs/COMPATIBILITY_END_TO_END_2026_11_12.md §5.1; F's separation census line A1,
- * 2026-11-17): the operations the tab and Python asked through legend-engine's {@code pure/v1} --
- * {@code grammar/grammarToJson/model}, {@code grammar/grammarToJson/lambda}, {@code grammar/jsonToGrammar/lambda} and
- * {@code compilation/lambdaRelationType} -- answered by the product's boundary with no edge class, each answer
- * byte-identical to the route's (no answer changes), and a refusal still a refusal.
+ * A REFUSAL, FOLDED FOR A HOST (lite API v1, docs/records/lite-api-v1-2026-11-17.md §3, the user's go of 2026-11-17):
+ * the tab's exports and Python's native entries answer a refusal as {@code "ERR\n"} and lite's one error shape, its JSON,
+ * classified by the one classifier the server's routes use ({@link LiteV1Api#refusal}). Until 2026-11-17 this class held
+ * D-1's four exports byte-identical to legend-engine's routes; the operations they were are lite API v1's now, held to
+ * their answers by the conformance suite (//core:lite_api_conformance_test).
  */
 class BoundaryLiteExportsTest {
 
-    private static final String MODEL = """
-            ###Pure
-            Class t::P { name: String[1]; age: Integer[1]; }
-            ###Relational
-            Database t::DB ( Table PERSON ( NAME VARCHAR(200), AGE INTEGER ) )
-            ###Mapping
-            Mapping t::M ( t::P: Relational { ~mainTable [t::DB] PERSON name: [t::DB] PERSON.NAME, age: [t::DB] PERSON.AGE } )
-            """;
-    private static final String LAMBDA = "|t::P.all()->project([p|$p.name, p|$p.age], ['name', 'age'])";
-
-    private static String ok(LiteV1Api.Answer a) {
-        assertEquals(200, a.status(), () -> "the route refused: " + a.json());
-        return a.json();
+    /** {@code e} folded: {@code "ERR\n"} and its refusal's JSON, as the server's routes classify it. */
+    private static String refusal(Throwable e) {
+        return "ERR\n" + LiteV1Api.refusal(e).json();
     }
 
     @Test
-    void modelElementsIsTheRoutesAnswer() {
-        for (boolean source : new boolean[] {true, false}) {
-            assertEquals(ok(PureV1Routes.grammarToJsonModel(MODEL, source)), Boundary.modelElements(MODEL, source));
-        }
-    }
-
-    @Test
-    void parseLambdaIsTheRoutesAnswer() {
-        for (String text : new String[] {LAMBDA, "1 + 2", "|'a'->toUpper()"}) {
-            for (boolean source : new boolean[] {true, false}) {
-                assertEquals(ok(PureV1Routes.grammarToJsonLambda(text, source)), Boundary.parseLambda(text, source));
-            }
-        }
-    }
-
-    @Test
-    void printLambdaIsTheRoutesAnswer() {
-        String json = Boundary.parseLambda(LAMBDA, false);
-        for (String style : new String[] {"PRETTY", "STANDARD"}) {
-            assertEquals(ok(PureV1Routes.jsonToGrammarLambda(json, style)), Boundary.printLambda(json, style));
-        }
-        assertThrows(IllegalArgumentException.class, () -> Boundary.printLambda(json, "PRETTY_HTML"));
-    }
-
-    @Test
-    void lambdaRelationTypeIsTheRoutesAnswer() {
-        String lambda = Boundary.parseLambda(LAMBDA, false);
-        String body = "{\"model\":{\"_type\":\"text\",\"code\":\"" + Json.escape(MODEL) + "\"},\"lambda\":" + lambda + "}";
-        assertEquals(ok(PureV1Routes.lambdaRelationType(body)), Boundary.lambdaRelationType(MODEL, lambda));
-    }
-
-    @Test
-    void aRefusalIsStillARefusal() {
-        assertEquals(400, PureV1Routes.grammarToJsonLambda("|$", false).status());
-        assertThrows(RuntimeException.class, () -> Boundary.parseLambda("|$", false));
-        String unknown = Boundary.parseLambda("|t::Nope.all()", false);
-        assertThrows(RuntimeException.class, () -> Boundary.lambdaRelationType(MODEL, unknown));
-    }
-
-    /** A REFUSAL'S BYTES, FOLDED FOR A HOST (B7, 2026-11-17: the orchestrator's condition on the split -- lite's own
-     *  refusal kinds, {@link LiteV1Api.RefusalKind}, write the bytes the tab and Python have read since leg 6, unmoved):
-     *  a text that does not parse, a model that does not compile, any other failure. */
-    @Test
-    void aFoldedRefusalsBytesAreUnmoved() {
+    void aRefusalIsFoldedAsItsJson() {
         RuntimeException parse = assertThrows(RuntimeException.class, () -> com.legend.Compiler.parseQuery("1 +"));
-        assertEquals("ERR\nPARSER\n" + parse.getMessage(), planner.Folded.failure(parse));
+        assertEquals(refusal(parse), planner.Folded.failure(parse));
         RuntimeException compile = assertThrows(RuntimeException.class,
                 () -> com.legend.Compiler.compileModel("Class demo::Desk\n{\n  name: Strin[1];\n}\n"));
-        assertEquals("ERR\nCOMPILATION\n" + compile.getMessage(), planner.Folded.failure(compile));
-        assertEquals("ERR\n500\nIllegalArgumentException: no",
-                planner.Folded.failure(new IllegalArgumentException("no")));
+        assertEquals(refusal(compile), planner.Folded.failure(compile));
+        IllegalArgumentException other = new IllegalArgumentException("no");
+        assertEquals(refusal(other), planner.Folded.failure(other));
+        Json.Obj folded = Json.parseObject(planner.Folded.failure(parse).substring("ERR\n".length()));
+        assertEquals(parse.getMessage(), folded.getString("message"));
     }
 }

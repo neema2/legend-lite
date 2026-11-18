@@ -120,7 +120,11 @@ public final class PeRatchets {
                     + " its t::P, t::DB and t::M -- matches the reference grammar; UP; stage-linux run 44097841621)",
             "own_corpus.matched 3290 -> 3302 (2026-11-18, D's train 8, measured on d-int8 ce6132f60: twelve more own-corpus"
                     + " models, added by trains 7 and 8's tests, match the reference grammar (red on d-int7 a789d7095 too, E-P5's"
-                    + " report); UP)");
+                    + " report); UP)",
+            "own_corpus.matched 3302 -> 3309 (2026-11-18, the host train claude/total-wall-h-datacube at cd7d1eece, found by"
+                    + " its gate pass (update_ratchets_test): seven more own-corpus models, added by the host train's tests, match"
+                    + " the reference grammar, measured by //parser-equivalence:update_ratchets on its tree (D's d-int18 measures"
+                    + " 3302); a floor rising, UP)");
 
     public static void main(String[] args) throws Exception {
         if (args.length != 1) {

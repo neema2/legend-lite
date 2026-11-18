@@ -51,7 +51,12 @@ IMPORTS = {
                     # 2026-11-12 (the re-audit's M1): the plan the planner answered, typed as read
                     'PlanText', 'plan_from_answer'},
     # 2026-11-15 (C5-P): send gone -- execute's plan read here, then run by the run side (_reads.py)
-    'engine.py': {'PlannedSql', 'across_the_bridge', 'connect', 'from_plan'},
+    # 2026-11-18 (the edge program's H5, 943f5b5e6): from_plan gone -- execute's plan half is legend-engine's route,
+    # read by legend_lite.edge now, never the product engine
+    'engine.py': {'PlannedSql', 'across_the_bridge', 'connect'},
+    # 2026-11-18 (the edge program's H5, 943f5b5e6): legend-engine's execute, its plan half read here (both formats),
+    # then run by the run side (_reads.py) -- the edge's, never the product's
+    'edge/_pure_v1.py': {'from_plan'},
     # 2026-11-15 (C5-P): PlannedSql, Result and send gone with the reads, the run side's now (_reads.py)
     'frames.py': {'Database', 'connect'},
     # 2026-11-12 (M1): the runners read only a plan the planner answered (read_plan)
@@ -106,7 +111,10 @@ MINT_REFERENCES = {
     # projects.py 9 -> 14: run_write, a snapshot's copy's plan of writes alone -- its effects' statements and its
     # target's session and transaction statements, typed as read
     # 2026-11-15 (C5-P): projects.py's 14, the runners', the run side's now (_runs.py)
-    'compiler.py': 9, 'engine.py': 2, '_runs.py': 14}
+    # 2026-11-18 (the edge program's H5, 943f5b5e6): engine.py's 2 gone -- execute's plan half, legend-engine's route,
+    # moved into legend_lite.edge
+    # 2026-11-18 (H5): edge/_pure_v1.py 2, the same two, moved with execute's plan half (Arrow and JSON)
+    'compiler.py': 9, '_runs.py': 14, 'edge/_pure_v1.py': 2}
 
 # A send method's name reached and not called, by module, name and receiver (H4, measured 2026-11-12): each a field of a
 # plan (its sql), a URL (its query) or a view (page.py's), none a method handed on. A method handed on -- `run =
@@ -263,8 +271,12 @@ def census(name: str, source: str) -> dict:
             refused.append(f'line {node.lineno}: {ast.unparse(node)[:60]!r}: a send reached by its name\'s text')
         if isinstance(node, ast.ImportFrom):
             planned = (node.module or '').split('.')[-1] == '_planned'
-            if planned and not (node.level == 1 and node.module == '_planned'):
-                refused.append(f'line {node.lineno}: _planned imported as {ast.unparse(node)!r}, not `from ._planned import`')
+            # the package's own _planned, relative: `from ._planned` at the top, `from .._planned` in a subpackage
+            # (legend_lite.edge: the edge program's H5, 2026-11-18)
+            depth = 1 + name.count('/')
+            if planned and not (node.level == depth and node.module == '_planned'):
+                refused.append(f'line {node.lineno}: _planned imported as {ast.unparse(node)!r}, not '
+                               f'`from {"." * depth}_planned import`')
             for alias in node.names:
                 if alias.name == '_planned':
                     refused.append(f'line {node.lineno}: _planned imported as a module ({ast.unparse(node)!r})')
@@ -408,11 +420,15 @@ class PlannedGuardTest(unittest.TestCase):
 
 
 def package_modules(case: unittest.TestCase) -> dict[str, str]:
-    """The package's modules, each its text by its file's name."""
+    """The package's modules, each its text by its path in the package (``engine.py``, ``edge/_pure_v1.py``): its
+    subpackages too -- legend_lite.edge reads a plan and runs it (the edge program's H5, 2026-11-18: until then the
+    guard looked at the top level alone, and the edge's moved execute would have escaped it)."""
     package = Path(FILES.Rlocation(os.environ['PLANNED_PACKAGE'])).parent
-    modules = sorted(package.glob('*.py'))
+    modules = sorted(package.rglob('*.py'))
     case.assertGreater(len(modules), 10, f'{package} holds {len(modules)} modules: the guard is not looking')
-    return {m.name: m.read_text(encoding='utf-8') for m in modules}
+    named = {m.relative_to(package).as_posix(): m.read_text(encoding='utf-8') for m in modules}
+    case.assertIn('edge/_pure_v1.py', named, 'the guard looks into the subpackages')
+    return named
 
 
 PLANTED = 'planted_violator.py'
@@ -468,7 +484,8 @@ def pinned_comparison(case: unittest.TestCase, modules: dict[str, str]) -> None:
                                       ' or the planner\'s answer is read, the one send, the bridge\'s check')
     case.assertEqual({m for m, names in IMPORTS.items() if names & MINT_NAMES},
                      # 2026-11-15 (C5-P): projects.py's runners, the run side's now (_runs.py)
-                     {'compiler.py', '_runs.py', 'engine.py'}, 'the mints, by module')
+                     # 2026-11-18 (H5): engine.py's gone with execute's plan half, legend_lite.edge's now
+                     {'compiler.py', '_runs.py', 'edge/_pure_v1.py'}, 'the mints, by module')
     case.assertEqual(SENDS, sends, 'every statement Python\'s host sends goes through _planned.send, which refuses'
                                    ' any text no plan carries (SENDS)')
     case.assertEqual(BRIDGE, bridge, 'the statements the hosted DataCube hands across are checked at the named'

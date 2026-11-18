@@ -22,10 +22,10 @@
 // the project.
 
 import { ExactNumber, type Lambda, type ValueSpecification } from '../../pure-protocol/src/index.ts';
-import type { PrintStyle } from '../../engine-client/src/pure-v1.ts';
+import type { PrintStyle } from './planner-types.ts';
 import type { QueryEngine } from '../../engine-client/src/engine.ts';
 import type { Planner, TsShown } from './planner-types.ts';
-import type { RemoteExecutor } from '../../engine-client/src/engine-remote.ts';
+import type { RemoteExecutor } from '../../engine-client/src/remote-executor.ts';
 import type { CubeSnapshot, LevelScope } from './snapshot.ts';
 import type { ResultTable } from '../../engine-client/src/result.ts';
 import type { Plan, PlanColumn } from '../../engine-client/src/relation-type.ts';
@@ -321,6 +321,7 @@ export class RemoteRun implements QueryRunner {
   }
 
   print(query: Lambda, style?: PrintStyle, signal?: AbortSignal): Promise<string> {
-    return this.executor.print(query, style, signal);
+    // the engine's renderStyle, in its own case
+    return this.executor.print(query, style === undefined ? undefined : style === 'pretty' ? 'PRETTY' : 'STANDARD', signal);
   }
 }

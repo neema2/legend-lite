@@ -48,7 +48,10 @@ class HookRulingTest {
                     () -> com.legend.testexec.NoEdgeRun.NONE.open(planNaming(), null, java.util.UUID.randomUUID()))),
             Map.entry(com.legend.testexec.EdgeHearing.class, List.of(
                     () -> productHearing().judged(null, List.of(), false),
-                    () -> productHearing().rowAppealed(0, List.of(), false))),
+                    () -> productHearing().rowAppealed(0, List.of(), false),
+                    // K10b, 2026-11-17 (the orchestrator's ruling (A)): legend-pure's words of a planned raise site, looked
+                    // up in the plan's edge records -- the hearing's member, refused by the product's by name
+                    () -> productHearing().raisedWords("SELECT 1", 1))),
             // (com.legend.testexec.PureWords, C5's step B's hook: deleted 2026-11-18, census J29 -- the host judge's
             // words are the run's HostWords, lite's form the product's and legend-pure's the edge's, never refused)
             // census C1, 2026-11-17 (the orchestrator's ruling that day: the edge hook typed, the product's refusal
@@ -57,7 +60,9 @@ class HookRulingTest {
                     () -> com.legend.testexecutionplan.NoEdge.NONE.effect(List.of(), List.of()),
                     () -> com.legend.testexecutionplan.NoEdge.NONE.seed(List.of(), Map.of()),
                     () -> com.legend.testexecutionplan.NoEdge.NONE.seeded(List.of(), List.of()),
-                    () -> com.legend.testexecutionplan.NoEdge.NONE.effectRan(List.of()))),
+                    () -> com.legend.testexecutionplan.NoEdge.NONE.effectRan(List.of()),
+                    // a raise site's words, planned by the edge (K10 of the edge audit, 2026-11-18)
+                    () -> com.legend.testexecutionplan.NoEdge.NONE.siteWords(List.of()))),
             // census B3 and B1 (EngineTextDialect and PlanStyle's signatures naming it): CLOSED 2026-11-17 by Phase 6 --
             // the interface is com.legend.edge's and the style names no engine text; its entry gone
             // census B2, 2026-11-17 (Phase 6): upstream's plan text, the planner's facet -- signatures only since its
@@ -323,6 +328,25 @@ class HookRulingTest {
         assertEquals(java.util.Set.of(), plainOf(com.legend.edge.PureText.UPSTREAM), "PCT keeps legend-pure's words");
         assertEquals(classA, plainOf(com.legend.edge.PureText.PURE_V1),
                 "pure/v1 writes legend-engine's unchecked raises plain");
+    }
+
+    /** THE RAISE SITES' WORDS (K10b of the edge audit, the orchestrator's ruling (A) of 2026-11-17): the product's style
+     *  answers its own form BY NAME -- an offered statement's sites say lite's message, and nothing is recorded (a call
+     *  returns, keeping nothing) -- and the edge's template records nothing either; only a fresh recorder of the edge
+     *  ({@code edge.PureText.recording}) keeps legend-pure's words, as its own data, read once and sealed. */
+    @Test
+    void theRaiseSitesWordsAreTheProductsNoneAndTheEdgesRecordersAlone() {
+        List<com.legend.sql.dialect.RaiseSite> sites = List.of(new com.legend.sql.dialect.RaiseSite(1,
+                com.legend.sql.RaiseKind.DIVIDE_BY_ZERO, null, List.of()));
+        PlanStyle.PRODUCT.siteWords("SELECT 1", sites);
+        com.legend.edge.PureText.UPSTREAM.siteWords("SELECT 1", sites);
+        com.legend.edge.SiteWordsRecorder recording = com.legend.edge.PureText.recording(
+                com.legend.edge.PureText.UPSTREAM);
+        recording.siteWords("SELECT 1", sites);
+        assertEquals(List.of(new com.legend.edge.SiteWords("SELECT 1", 1, "Division by zero")),
+                recording.read().get("SELECT 1"));
+        assertThrows(NotImplementedException.class, () -> com.legend.edge.PureText.recording(PlanStyle.PRODUCT),
+                "a recorder over the product's style");
     }
 
     /** PlanStyle.twoForm (the orchestrator's ruling of 2026-11-17, census B9): its kinds are a CLOSED list, pinned here
@@ -726,7 +750,8 @@ class HookRulingTest {
             if (!s.sql().equals(reference.sql()) || !s.binds().equals(reference.binds())
                     || !s.regions().equals(reference.regions())) {
                 out.add(d.getClass().getName() + " " + kind + " " + at + " writes " + s.sql() + " binding " + s.binds());
-            } else if (s.sites().size() != 1 || s.sites().get(0).upstream() != null) {
+            // (a site's upstream words: gone from the plan with K10, 2026-11-18 -- the edge hook's records hold them)
+            } else if (s.sites().size() != 1) {
                 out.add(d.getClass().getName() + " " + kind + " " + at + " words its site " + s.sites());
             }
           }

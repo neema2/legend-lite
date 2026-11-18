@@ -62,6 +62,8 @@ py_library(
 # //python:run_closure_test imports it with these deps alone, and reads every import of the package's modules for the
 # rule both ways
 _RUN_SRCS = [
+    # a plan's parameters, checked and bound at run (the lite API spec's §4, 2026-11-17)
+    "legend_lite/_params.py",
     "legend_lite/_reads.py",
     "legend_lite/_runs.py",
     # the service key, the warehouse's wire alone, and the warehouse's client over it (C5-P, A1: :compiler's until then)
@@ -195,6 +197,9 @@ py_library(
     name = "edge",
     srcs = glob(["legend_lite/edge/**/*.py"]),
     imports = ["."],
+    # //datacube's engine_fixture (testonly) serves the browser lane's legend-engine checks at the edge's door (H5, the
+    # orchestrator's ruling of 2026-11-18): a test fixture, never a product library
+    visibility = ["//datacube:__pkg__"],
     deps = [":legend_lite"],
 )
 
@@ -291,12 +296,15 @@ py_test(
         "test_corpus",
     ],
     data = [
+        "//engine-client:test/fixtures/lite-api-cases.json",
         "//native:compiler",
         "//wasm:corpus/model.pure",
         "//wasm:corpus/queries.tsv",
         "//wasm:jvm_answers",
     ],
     env = _ENV | {
+        # lite API v1's conformance suite, one file every binding reads (the spec's §5, 2026-11-17)
+        "LEGEND_LITE_API_CASES": "$(rlocationpath //engine-client:test/fixtures/lite-api-cases.json)",
         "LEGEND_LITE_CORPUS_MODEL": "$(rlocationpath //wasm:corpus/model.pure)",
         "LEGEND_LITE_CORPUS_QUERIES": "$(rlocationpath //wasm:corpus/queries.tsv)",
         "LEGEND_LITE_JVM_ANSWERS": "$(rlocationpath //wasm:jvm_answers)",
@@ -476,7 +484,8 @@ py_test(
     # at 4a8e448917; Linux 5-8 s) -- `_SLOW_ON_CI_TESTS` in datacube/BUILD.bazel
     size = "medium",
     srcs = ["tests/test_planned_guard.py"],
-    data = glob(["legend_lite/*.py"]),
+    # the package and its subpackages (legend_lite.edge: the edge program's H5, 2026-11-18)
+    data = glob(["legend_lite/**/*.py"]),
     env = {"PLANNED_PACKAGE": "$(rlocationpath legend_lite/__init__.py)"},
     main = "tests/test_planned_guard.py",
     deps = ["@rules_python//python/runfiles"],
@@ -522,10 +531,12 @@ py_test(
 # the product's tests carry no edge library, so a product test cannot reach it
 py_test(
     name = "edge_test",
-    size = "small",
+    size = "medium",
     srcs = [
         "tests/main.py",
         "tests/test_edge.py",
+        # its fixtures (a frame, a project's model): imported, its tests not run here (args)
+        "tests/test_engine.py",
     ],
     args = ["test_edge"],
     data = ["//native:compiler"],
@@ -534,6 +545,7 @@ py_test(
     target_compatible_with = _PLATFORMS,
     deps = [
         ":edge",
+        "@pypi//pandas",
         "@rules_python//python/runfiles",
     ],
 )
@@ -581,6 +593,7 @@ py_test(
         "//datacube:headless_tab_bundle",
         "//datacube:test/fixtures/chart-rules.json",
         "//datacube:test/fixtures/pages/trades.page.json",
+        "//engine-client:test/fixtures/lite-api-cases.json",
         "//engine-client:test/fixtures/run-load-conformance.json",
         "//native:compiler",
         "//warehouse:sqlapi_corpus",
@@ -596,6 +609,8 @@ py_test(
         "LEGEND_LITE_SQLAPI_CORPUS": "$(rlocationpath //warehouse:sqlapi_corpus)",
         # the load runners' shared conformance fixture (B3): the tab's runLoad runs it too (engine-client)
         "LEGEND_LITE_RUN_LOAD_FIXTURE": "$(rlocationpath //engine-client:test/fixtures/run-load-conformance.json)",
+        # lite API v1's shared suite: its host-route cases, Python's server's (test_engine HostRoutesConformance)
+        "LEGEND_LITE_API_CASES": "$(rlocationpath //engine-client:test/fixtures/lite-api-cases.json)",
     },
     main = "tests/main.py",
     target_compatible_with = _PLATFORMS,

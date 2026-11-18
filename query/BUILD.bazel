@@ -49,7 +49,6 @@ js_library(
         "//engine-client:engine_api",
         "//engine-client:planner",
         "//engine-client:records",
-        "//engine-client:server",
     ],
 )
 

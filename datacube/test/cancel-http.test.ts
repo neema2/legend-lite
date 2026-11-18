@@ -4,7 +4,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { UpstreamPlanner } from '../src/planner.ts';
+import { UpstreamPlanner } from '../src/edge/upstream-planner.ts';
 import { someQuery } from './fake-planner.ts';
 
 describe('the planner client', () => {

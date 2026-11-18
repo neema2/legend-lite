@@ -15,7 +15,7 @@ import java.util.List;
  * ({@link LegendHttpServer}, its own routes) with legend-engine's API mounted beside them, for upstream's clients --
  * the pure/v1 routes ({@link PureV1Routes}, planned and run through the edge's dialects, {@link PureText#UPSTREAM}),
  * the saved-query store under legend-engine's path (an adapter over the product's store, the same one lite's own
- * {@code /api/lite/v1/query} reaches), and its current user. The product server runs alone without any of it (G5:
+ * {@code /api/lite/v1/queries} reaches), and its current user. The product server runs alone without any of it (G5:
  * the edge depends on the product, never the reverse).
  */
 public final class EdgeServer {
@@ -29,14 +29,16 @@ public final class EdgeServer {
     /** legend-engine's API, mounted beside lite's own routes. */
     public static final LegendHttpServer.Mount UPSTREAM = context -> List.of(
             pureV1(runner(context.sources())),
-            LegendHttpServer.storeRoutes(QUERY_STORE, context.queryStore(), context.cubeStore(), EdgeServer::storeWords),
+            engineShaped(LegendHttpServer.storeRoutes(QUERY_STORE, context.queryStore(), context.cubeStore(),
+                    EdgeServer::storeWords)),
             currentUser());
 
     /** The run of an upstream execute: the product's door, planned in the edge's dialects, its file: sources fenced
      *  to {@code sources} as the server's own runner fences them. */
     public static Shipped runner(@com.legend.base.Nullable String sources) {
-        return (query, runtime, output) -> com.legend.Execution.runOnProjectDatabases(query, runtime, sources,
-                PureText.PURE_V1, output);
+        // planned in a fresh recorder of the style, a raise answered in legend-pure's words (K10, 2026-11-18)
+        return (query, runtime, output) -> RaisedWords.run(PureText.PURE_V1,
+                style -> com.legend.Execution.runOnProjectDatabases(query, runtime, sources, style, output));
     }
 
     /** The shipped route's runner, by its type: what an edge golden net that claims to record pure/v1 must run
@@ -94,5 +96,28 @@ public final class EdgeServer {
      *  checkpoint audit's M2: the query-store page words upstream's path with it too). */
     public static String storeWords(com.legend.queries.SavedQueries.Refusal r) {
         return StoreWords.of(r);
+    }
+
+    /** The product store's routes at legend-engine's path, each refusal in legend-engine's shape ({@link
+     *  StoreWords#engineShape}; J9 of the edge audit, 2026-11-17: the envelope moved here from the product's store). */
+    static LegendHttpServer.Routes engineShaped(LegendHttpServer.Routes store) {
+        return new LegendHttpServer.Routes() {
+            @Override
+            public String prefix() {
+                return store.prefix();
+            }
+
+            @Override
+            public boolean rawPath() {
+                return store.rawPath();
+            }
+
+            @Override
+            public com.legend.server.LiteV1Api.Answer answer(String method, String path,
+                    @com.legend.base.Nullable String rawQuery, String body) throws java.io.IOException {
+                com.legend.server.LiteV1Api.Answer a = store.answer(method, path, rawQuery, body);
+                return new com.legend.server.LiteV1Api.Answer(a.status(), StoreWords.engineShape(a.status(), a.json()));
+            }
+        };
     }
 }

@@ -18,10 +18,11 @@ import duckdb
 import pyarrow as pa
 import pyarrow.ipc
 
+from ._params import bind
 from ._planned import Database, PlannedSql, Result, send
 from ._plans import Plan, host_rows
 from ._runframe import current_run, in_run, runs
-from ._types import UnknownType, is_integer
+from ._types import UnknownType, is_integer, is_model_type
 
 # the field metadata that carries a result column's type, as the compiler typed it
 TYPE_KEY = b'legend.type'
@@ -47,11 +48,15 @@ def _integer(column: pa.ChunkedArray) -> pa.ChunkedArray:
     return column
 
 
-def typed_by_plan(rows: pa.Table, plan: Plan) -> pa.Table:
+def typed_by_plan(rows: pa.Table, plan: Plan, model_types: bool = False) -> pa.Table:
     """A planned query's rows, typed by its plan: each column the compiler's type (``TYPE_KEY``), its values exact (an
     Integer an int64, by either compiler's name for one: a server's ``precisePrimitives::BigInt`` too). A result column
     the plan does not type is refused: the two disagree about the query's shape, a bug to surface, never a gap to fill
-    (engine-client's ``typedByPlan``); so is one typed by a name legend-lite's lattice does not know (``_types``)."""
+    (engine-client's ``typedByPlan``); so is one typed by a name legend-lite's lattice does not know (``_types``) --
+    unless ``model_types``: lite's query/run, which carries a column of the MODEL's own type (a class's, an
+    enumeration's path) as the driver read it, as the server's query/run does (JdbcDecode.byPureType; the host train,
+    2026-11-17). DataCube's frames keep refusing one (types.ts typeFact: a page reads an enumeration as its
+    ``toString()``)."""
     types = {c.name: c.type for c in plan.columns}
     fields, columns = [], []
     for field, column in zip(rows.schema, rows.columns):
@@ -59,7 +64,8 @@ def typed_by_plan(rows: pa.Table, plan: Plan) -> pa.Table:
         if typed is None:
             raise UntypedColumn(f"the plan does not type the result column '{field.name}': {plan.sql}")
         try:
-            integer = is_integer(typed)
+            # a model's own type (a class, an enumeration) carried as the driver read it, where asked (_types)
+            integer = not (model_types and is_model_type(typed)) and is_integer(typed)
         except UnknownType as unknown:
             raise UntypedColumn(f'{unknown}: {plan.sql}') from None
         if integer:
@@ -264,17 +270,22 @@ class Reading:
             raise failure from None
 
     @runs('a read')
-    def run(self, plan: Plan) -> pa.Table:
-        """A plan's SQL run as this read sees the database, its rows typed by the plan (``typed_by_plan``)."""
-        return typed_by_plan(self.fetched(self.execute(plan.sql, plan.params)), plan)
+    def run(self, plan: Plan, values: dict[str, Any] | None = None, model_types: bool = False) -> pa.Table:
+        """A plan's SQL run as this read sees the database, its rows typed by the plan (``typed_by_plan``): its declared
+        parameters bound at this run from ``values`` (``_params.bind``, checked before anything is sent: the lite API
+        spec's §4, 2026-11-17)."""
+        return typed_by_plan(self.fetched(self.execute(plan.sql, bind(plan, values))), plan, model_types)
 
 
 @runs('a plan')
-def run_plan(target: Database, plan: Plan, held: Iterable[str]) -> pa.Table:
+def run_plan(target: Database, plan: Plan, held: Iterable[str], values: dict[str, Any] | None = None,
+             model_types: bool = False) -> pa.Table:
     """PYTHON'S EXECUTOR: a plan's SQL run on ``target``, its rows typed by the plan (``typed_by_plan``), a failure's words
-    with every value in ``held`` taken out, at the statement and at its fetch (``fetched_redacted``). Only SQL a planner
-    wrote for this database comes here."""
-    return typed_by_plan(fetched_redacted(target, plan.sql, held, plan.params, Result.to_arrow_table), plan)
+    with every value in ``held`` taken out, at the statement and at its fetch (``fetched_redacted``); its declared
+    parameters bound at this run from ``values`` (``_params.bind``: the lite API spec's §4). Only SQL a planner wrote for
+    this database comes here."""
+    return typed_by_plan(fetched_redacted(target, plan.sql, held, bind(plan, values), Result.to_arrow_table), plan,
+                         model_types)
 
 
 @runs('an execute')
@@ -368,16 +379,20 @@ def arrow_of(chunks: Iterable[bytes]) -> pa.Table:
 
 
 @runs("a remote plane's read")
-def read_plane(plane: Any, sql: PlannedSql) -> pa.Table:
+def read_plane(plane: Any, sql: PlannedSql, params: Sequence[Any] = ()) -> pa.Table:
     """A plan's statement sent to a remote plane (the warehouse's SQL API: ``plane.arrow_chunks``, which takes a
-    PlannedSql alone), its answer read as one Arrow table (C5-P, 2026-11-15: until then sent in no run). The plane is
-    handed in: this module imports no plane's client. Its binding's calls are the native library's services, framed
-    here on whatever thread the binding runs them (the compiler's pool copies the caller's context)."""
-    return arrow_of(plane.arrow_chunks(sql))
+    PlannedSql and the values its ``?``s bind, positional, bound at run), its answer read as one Arrow table (C5-P,
+    2026-11-15: until then sent in no run). The plane is handed in: this module imports no plane's client. Its binding's
+    calls are the native library's services, framed here on whatever thread the binding runs them (the compiler's pool
+    copies the caller's context)."""
+    return arrow_of(plane.arrow_chunks(sql, None, tuple(params)))
 
 
 @runs("a remote plane's read")
-def run_on_plane(plane: Any, plan: Plan, on_receipt: Callable[[dict[str, Any]], None] | None = None) -> pa.Table:
+def run_on_plane(plane: Any, plan: Plan, on_receipt: Callable[[dict[str, Any]], None] | None = None,
+                 values: dict[str, Any] | None = None) -> pa.Table:
     """A plan run on a remote plane (``read_plane``), its rows typed by the plan; ``on_receipt`` hears what the plane
-    issued for it (its statement and its count)."""
-    return typed_by_plan(arrow_of(plane.arrow_chunks(plan.sql, on_receipt)), plan)
+    issued for it (its statement and its count). Its statement's values bound as a local run binds them (``bind``: its
+    payloads, and each declared parameter's checked value), carried to the plane positionally (the host train,
+    2026-11-17)."""
+    return typed_by_plan(arrow_of(plane.arrow_chunks(plan.sql, on_receipt, bind(plan, values))), plan)

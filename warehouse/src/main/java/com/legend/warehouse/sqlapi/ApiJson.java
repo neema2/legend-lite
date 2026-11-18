@@ -45,7 +45,71 @@ public final class ApiJson {
         if (r.describeOnly()) f.put("describeOnly", Json.bool(true));
         if (r.format() != SqlApi.ResultFormat.JSON) f.put("resultFormat", Json.str(r.format().wire()));
         if (r.cellText()) f.put("cellText", Json.bool(true));
+        if (!r.parameters().isEmpty()) f.put("parameters", parametersJson(r.parameters()));
         return Json.toCompact(new Json.Obj(f));
+    }
+
+    /** A statement's parameters as JSON: each its JSON value, a whole number its exact digits. */
+    public static Json.Arr parametersJson(List<@com.legend.base.Nullable Object> values) {
+        List<Json.Node> out = new java.util.ArrayList<>(values.size());
+        for (Object v : values) {
+            out.add(v == null ? Json.Null.INSTANCE : v instanceof String s ? Json.str(s)
+                    : v instanceof Long l ? Json.Num.ofLong(l) : v instanceof Double d ? Json.Num.ofDouble(d)
+                    : v instanceof Boolean b ? Json.bool(b) : refusedValue(v));
+        }
+        return new Json.Arr(out);
+    }
+
+    private static Json.Node refusedValue(Object v) {
+        throw new IllegalArgumentException("a parameter of type " + v.getClass().getSimpleName()
+                + ", which the warehouse does not bind");
+    }
+
+    /**
+     * A statement's parameters read from JSON, in order: a string, a whole number (64-bit; one past it refused by
+     * name), any other number a double, a boolean, or null. An object or an array is refused by name: the warehouse
+     * binds scalars alone (lite's API v1 §4; the orchestrator's ruling (a), 2026-11-17).
+     */
+    public static List<@com.legend.base.Nullable Object> parameters(Json.Node json) {
+        if (!(json instanceof Json.Arr arr)) {
+            throw new IllegalArgumentException("'parameters' must be an array of the values the statement binds");
+        }
+        List<@com.legend.base.Nullable Object> out = new java.util.ArrayList<>(arr.items().size());
+        int at = 0;
+        for (Json.Node n : arr.items()) {
+            at++;
+            if (n instanceof Json.Null) {
+                out.add(null);
+            } else if (n instanceof Json.Str s) {
+                out.add(s.value());
+            } else if (n instanceof Json.Bool b) {
+                out.add(b.value());
+            } else if (n instanceof Json.Num num) {
+                out.add(number(num, at));
+            } else {
+                throw new IllegalArgumentException("parameter " + at + " is " + (n instanceof Json.Obj ? "an object"
+                        : "an array") + ", which the warehouse does not bind");
+            }
+        }
+        return out;
+    }
+
+    private static Object number(Json.Num num, int at) {
+        if (num.isInteger()) {
+            return num.longValue();
+        }
+        java.math.BigDecimal exact = num.decimalValue();
+        if (exact == null) {
+            return num.doubleValue();
+        }
+        String token = num.token();
+        boolean whole = token == null ? exact.scale() <= 0
+                : token.indexOf('.') < 0 && token.indexOf('e') < 0 && token.indexOf('E') < 0;
+        if (whole) {
+            throw new IllegalArgumentException("parameter " + at + " is the whole number " + exact.toPlainString()
+                    + ", past the 64 bits the warehouse binds a whole number in");
+        }
+        return num.doubleValue();
     }
 
     /** A request body, with the design's defaults for what it leaves out. */
@@ -65,7 +129,8 @@ public final class ApiJson {
                 o.getStringOr("sessionId", null),
                 o.getBoolOr("describeOnly", false),
                 format == null ? SqlApi.ResultFormat.JSON : SqlApi.ResultFormat.ofWire(format),
-                o.getBoolOr("cellText", false));
+                o.getBoolOr("cellText", false),
+                o.has("parameters") ? parameters(o.get("parameters")) : List.of());
     }
 
     public static String openSession(String catalog) {

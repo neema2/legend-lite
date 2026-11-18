@@ -39,6 +39,9 @@ public final class TestPlanner {
             // host's alone; the orchestrator's (a), 2026-11-17)
             return planIsolated(typed, given, options);
         }
+        // the style of this planning call (K10b, 2026-11-17): under the compatibility edge's, a fresh recorder of its
+        // raise sites' words, which the test door reads once (TestDoor.planned); never shared with another call
+        options = options.forOnePlanningCall();
         // the body's facts over the body as given, BEFORE any rewrite below (the generator's planning, the unread lets
         // made statements, the lift): the record the test door's facts state, carried by the plan (the C5-J audit's
         // SHOULD 1, 2026-11-15: until then stated over the rewritten body, so an unread let or a generator's effect

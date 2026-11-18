@@ -28,7 +28,6 @@ js_library(
         "//engine-client:engine_api",
         "//engine-client:planner",
         "//engine-client:records",
-        "//engine-client:server",
         "//legend-art:legend_art",
         # the query builder, Query's own (query/src/embed.ts, plan A5), and DataCube's grid it shows results in
         "//query:src",
@@ -204,6 +203,9 @@ browser_test(
         "demo/projects/manifest.json",
         "test/modules.ts",
         "//depot-client:depot_client",
+        # legend-engine's shapes over the planner, which test/modules.ts builds for the engine test (H11, 2026-11-17:
+        # the edge's, a test's alone -- the app's :src never takes it)
+        "//engine-client:edge",
         "//sdlc-server:page_dir",
     ],
     entry_point = t,
@@ -232,6 +234,7 @@ typescript.tsc_test(
         "package.json",
         "tsconfig.json",
         "//depot-client:depot_client",
+        "//engine-client:edge",
         "//engine-client:engine_client",
         "//legend-art:legend_art",
         "//query:src",

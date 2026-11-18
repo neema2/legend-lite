@@ -18,11 +18,11 @@ import { answer, type PlannerModule } from '../src/legend/planner-answer.ts';
 import { WorkerPort } from '../src/legend/wasm-grammar.ts';
 import { HttpEngine, RoutedEngine } from '../src/legend/engine.ts';
 
-const REFUSED = /the planner was asked 'plan' inside a run \(a test's run\): a run sends its plan's statements and plans nothing \(G4\)/;
+const REFUSED = /the planner was asked '(?:plan|queryPlanHeld)' inside a run \(a test's run\): a run sends its plan's statements and plans nothing \(G4\)/;
 
 /** A module whose exports answer a plan and let a model go. */
 const released: number[] = [];
-const module = { exports: { planHeldOrError: () => 'OK\nSELECT 1',
+const module = { exports: { queryPlanHeldOrError: () => 'OK\nSELECT 1',
   releaseModelOrError: (handle: number) => { released.push(handle); return 'OK\n'; } } } as unknown as PlannerModule;
 
 describe('the run frame', () => {
@@ -105,7 +105,6 @@ describe('the run frame', () => {
         ['compile', () => engine.compile(model)],
         ['returnType', () => engine.returnType(model, lambda)],
       ];
-      if (engine === http) asks.push(['compileErrors', () => http.compileErrors('')]);
       for (const [kind, ask] of asks) {
         await assert.rejects(inRun("a test's run", async () => ask()),
           new RegExp(`the planner was asked '${kind}' inside a run \\(a test's run\\)`), kind);
@@ -139,7 +138,7 @@ describe('the run frame', () => {
         ['RoutedEngine.compile', () => routed.compile(model)],
         ['RoutedEngine.returnType', () => routed.returnType(model, lambda)],
         ['RoutedEngine.generatePlan', () => routed.generatePlan(input)],
-        ['WorkerPort.ask', () => port.ask({ kind: 'plan', handle: 1, query: 'a', runtime: 'r' })],
+        ['WorkerPort.ask', () => port.ask({ kind: 'queryPlanHeld', handle: 1, request: '{}' })],
       ];
       await inRun("a test's run", async () => {
         for (const [name, call] of calls) {
@@ -154,7 +153,7 @@ describe('the run frame', () => {
   });
 
   it('refuses the planner\'s in-thread answer inside a run, and answers it outside one', async () => {
-    const asked = { kind: 'plan', handle: 1, query: 'a', runtime: 'r' } as const;
+    const asked = { kind: 'queryPlanHeld', handle: 1, request: '{}' } as const;
     await assert.rejects(inRun("a test's run", async () => answer(module, asked)), REFUSED);
     assert.equal(answer(module, asked), 'OK\nSELECT 1');
   });
@@ -170,10 +169,10 @@ describe('the run frame', () => {
     };
     try {
       const port = new WorkerPort('worker.js', 'http://planner.invalid/');
-      await assert.rejects(inRun("a test's run", async () => port.ask({ kind: 'plan', handle: 1, query: 'a', runtime: 'r' })),
+      await assert.rejects(inRun("a test's run", async () => port.ask({ kind: 'queryPlanHeld', handle: 1, request: '{}' })),
         REFUSED);
       assert.deepEqual(posted, [], 'nothing posted to the worker');
-      void port.ask({ kind: 'plan', handle: 1, query: 'a', runtime: 'r' });
+      void port.ask({ kind: 'queryPlanHeld', handle: 1, request: '{}' });
       assert.equal(posted.length, 1, 'outside the run, posted');
     } finally {
       delete g.Worker;

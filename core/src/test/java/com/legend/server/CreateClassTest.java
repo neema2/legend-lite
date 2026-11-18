@@ -416,19 +416,19 @@ class CreateClassTest {
     // Through the route, and what cannot be a class
     // ---------------------------------------------------------------------
 
-    private static final LiteV1Api.Runner NO_RUN = (query, runtime, output) -> {
+    private static final LiteV1Planning.Runner NO_RUN = (query, runtime, values, output) -> {
         throw new AssertionError("nothing is run here");
     };
 
     private static LiteV1Api.Answer route(String body) {
-        return LiteV1Api.route("/api/lite/v1/model/createClass", null, body, NO_RUN);
+        return LiteV1Api.route("/api/lite/v1/model/createClass", body, NO_RUN, LiteV1Api.Models.COMPILED);
     }
 
     private static void refused(String body, String expected) {
         LiteV1Api.Answer a = route(body);
         assertEquals(400, a.status(), a.json());
         Json.Obj error = Json.parseObject(a.json());
-        assertEquals("COMPILATION", error.getString("errorType"));
+        assertEquals("compile", error.getString("kind"));
         assertTrue(error.getString("message").contains(expected), error.getString("message"));
     }
 
@@ -481,7 +481,10 @@ class CreateClassTest {
         assertTrue(changes(ab).contains("CREATE trades::data::A_bSample"), changes(ab).toString());
         refused(body(project(ab), TAB.replace("Table trades_2", "Table A_b"), "|#>{local::DB.A_b}#", "Ab2",
                 sample.formatted("A_b")), "the sample 'trades::data::A_bSample' holds the rows of default.a_b");
-        // a request without the place is malformed: 500, as the routes answer one
-        assertEquals(500, route(body("", TAB, QUERY, "Trade", "\"x\": 1")).status());
+        // a request without the place is malformed: kind request, 400 (lite's API v1 spec §3, 2026-11-17; until then a
+        // defect's 500)
+        LiteV1Api.Answer malformed = route(body("", TAB, QUERY, "Trade", "\"x\": 1"));
+        assertEquals(400, malformed.status(), malformed.json());
+        assertEquals("request", Json.parseObject(malformed.json()).getString("kind"), malformed.json());
     }
 }

@@ -63,6 +63,19 @@ public abstract class LegendCompileException extends RuntimeException {
         this.position = null;
     }
 
+    /** An error with no kind, its message its site's own text, after {@code position} where the driver or the parser
+     *  placed it -- the position kept as data, {@link #position()}, beside the same message (lite's API v1 spec §3's
+     *  {@code where}, 2026-11-17). */
+    protected LegendCompileException(Phase phase, @com.legend.base.Nullable String message,
+            @com.legend.base.Nullable String element, @com.legend.base.Nullable String position) {
+        super(position == null ? message : position + " " + message);
+        this.phase = java.util.Objects.requireNonNull(phase, "phase");
+        this.element = element;
+        this.kind = null;
+        this.operands = java.util.List.of();
+        this.position = position;
+    }
+
     protected LegendCompileException(Phase phase, @com.legend.base.Nullable String message,
             Throwable cause) {
         super(message, cause);
@@ -97,7 +110,7 @@ public abstract class LegendCompileException extends RuntimeException {
         return operands;
     }
 
-    /** The {@code [line:col]} the driver placed before the sentence, or null. */
+    /** The {@code [line:col]} the driver or the parser placed before the message, or null. */
     public @com.legend.base.Nullable String position() {
         return position;
     }

@@ -1869,6 +1869,10 @@ class JavaEvalLedgerTest {
                             "EngineMount.java",
                             // the texts of upstream's effects and refusals, and legend-pure's raise sentences, as SQL
                             "EffectTexts.java", "PureMessages.java",
+                            // 2026-11-17 (K10b, the orchestrator's ruling (A)): legend-pure's words of a planned raise
+                            // site (its record) and one planning call's recorder of them -- words of literal operands at
+                            // planning, the edge's data; nothing evaluated, no connection
+                            "SiteWords.java", "SiteWordsRecorder.java",
                             // 2026-11-18, J40's only-edge-callers census: the bound context of legend-engine's test natives'
                             // runtime argument, moved from planner.BodyPlanner; a typed read, nothing evaluated
                             "RuntimeContexts.java",
@@ -1882,9 +1886,17 @@ class JavaEvalLedgerTest {
                             "PurePrintForms.java",
                             // pure/v1's routes and the test-data routes (D1.0b): read, compile and plan only
                             "PureV1Routes.java", "TestDataRoutes.java",
+                            // legend-engine's error envelope ({code: -1, status, message, errorType}) and its pure/v1
+                            // call boundary, moved byte for byte from server.LiteV1Api (2026-11-17, lite's API v1 J18:
+                            // lite answers its own shape, {kind, message, where?, raise?}): spells a failure, decides
+                            // nothing
+                            "EngineEnvelope.java",
                             // legend-engine's JSON without source information (J35's residue, 2026-11-18): moved from
                             // protocol.SourceInformation; cuts spans from text, decides nothing
                             "EngineSpans.java",
+                            // legend-pure's words of a raise where the edge runs the product's door (K10 of the edge
+                            // audit, 2026-11-18): a recorder's words looked up by statement and site; decides nothing
+                            "RaisedWords.java",
                             // legend-engine's grammar where the edge reads its protocol (J21 of the edge audit,
                             // 2026-11-17, the user's "yes to the rule"): three delegations to the parse door's engine
                             // entries; parses, decides nothing
@@ -2083,6 +2095,11 @@ class JavaEvalLedgerTest {
                             // computed; the plan's SQL is the database's to run (lite's own API kit since B7,
                             // 2026-11-17: PureV1Api renamed, its engine content the edge's)
                             "LiteV1Api.java",
+                            // 2026-11-17, the edge program's HOST stream (the orchestrator's Q1 ruling): lite's own
+                            // grammar and typing routes -- a model's or a lambda's text read, a lambda printed, its
+                            // relation type compiled -- the product calls the tab's lite exports make; parse, compile
+                            // and print only, no connection, no JDBC, no value computed
+                            "LiteV1Planning.java",
                             // 2026-11-03, the one reader (docs/TS_A3_ONE_READER_PLAN_2026_11_03.md step 2): one #TS
                             // item's parsed tree written as data for the route that answers it -- each node's kind,
                             // place and parts, a number's text as the parser read it; parse only, no connection, no

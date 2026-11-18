@@ -129,7 +129,7 @@ public final class PureMessages {
      *  its operand at the same place: a text the planner knew as it is ({@code text}), a value as the database's cast
      *  to text writes it ({@code str}: an Integer's digits, a date's ISO day, a text itself), a Float as legend-pure
      *  prints it ({@code FLOAT_SHORTEST_TEXT}). */
-    private static @com.legend.base.Nullable String wordsOrNull(com.legend.sql.RaiseKind kind,
+    static @com.legend.base.Nullable String wordsOrNull(com.legend.sql.RaiseKind kind,
             java.util.List<SqlExpr> o) {
         for (SqlExpr x : o) {
             if (!(x instanceof SqlExpr.StringLit || x instanceof SqlExpr.IntLit || x instanceof SqlExpr.FloatLit
@@ -372,6 +372,8 @@ public final class PureMessages {
      *  {@code MissingParameters}, is the product's; the P2 checkpoint audit's M3/A-M4, 2026-11-16); any other error its
      *  own class's name. */
     public static String typeName(Throwable e) {
+        // lite's typed refusals of a run's values (MissingParameters, and InvalidParameters since J18, 2026-11-17):
+        // legend-engine's clients read an IllegalArgumentException, as they did before either was typed
         if (e instanceof com.legend.error.MissingParameters || e instanceof com.legend.error.InvalidParameters) {
             return "IllegalArgumentException";
         }

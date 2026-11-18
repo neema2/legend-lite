@@ -37,6 +37,11 @@ public enum NoEdge implements Edge {
     }
 
     @Override
+    public List<Extension> siteWords(List<Extension> words) {
+        throw new NotImplementedException("legend-pure's words of a statement's raise sites" + WHY);
+    }
+
+    @Override
     public void seeded(List<Extension> planned, List<Boolean> answeredRows) {
         throw new NotImplementedException("a seed's ledger" + WHY);
     }

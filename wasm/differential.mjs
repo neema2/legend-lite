@@ -52,13 +52,25 @@ const teavm = await load(here('./planner/classes.wasm'), {
   },
 });
 
+/** A text query as the tab composes it (lite API v1 §2, JvmMain's twin): queryParseOrError, then -- parsed -- queryPlanOrError
+ *  of its tree; a refusal of either its answer. */
+function parsedThenPlanned(text) {
+  const parsed = teavm.exports.queryParseOrError(JSON.stringify({ text }));
+  if (!parsed.startsWith('OK\n')) return parsed;
+  // the tree as the planner wrote it, its numbers' digits whole (JSON.parse would round an integer past 2^53)
+  const head = 'OK\n{"query":';
+  if (!parsed.startsWith(head) || !parsed.endsWith('}')) throw new Error(`queryParseOrError answered no {query}: ${parsed.slice(0, 120)}`);
+  const query = parsed.slice(head.length, -1);
+  return teavm.exports.queryPlanOrError(`{"model":${JSON.stringify(model)},"query":${query},"runtime":${JSON.stringify(RUNTIME)}}`);
+}
+
 const wasm = new Map();
 for (const [n, q] of queries) {
   let v;
   try {
-    v = teavm.exports.planOrError(model, q, RUNTIME);
+    v = parsedThenPlanned(q);
   } catch (e) {
-    // planOrError folds Java failures into its return value, so reaching
+    // the exports fold Java failures into their return value, so reaching
     // here means the module itself broke — worth seeing, not swallowing.
     v = `THREW-THROUGH-JS\n${e && e.message}`;
   }

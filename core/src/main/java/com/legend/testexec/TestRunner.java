@@ -174,6 +174,11 @@ public final class TestRunner {
         private final BodyRun run;
         /** The caller's sink holding the walk's contract, once the answer's columns arrive. */
         private @Nullable ResultSink opened;
+        @Override
+        public String raisedMessage(TestPlan.Verdict verdict, RuntimeException error) {
+            return run.caughtMessage(error);
+        }
+
         /** The last assert's verdict, once judged: a body ending on an assert answers it. */
         private @Nullable TypedSide lastVerdict;
 
@@ -181,9 +186,9 @@ public final class TestRunner {
                 @Nullable Output answer, @Nullable ResultSink early, @Nullable AssertListener listener,
                 BodyRun run) {
             if (!edge.records() && !planned.extensionsByStep().isEmpty()) {
-                // records planned for the edge (the compatibility rules' ledger texts) with no edge to hand them: the
-                // plan was made for another run, refused by name, never run with its records dropped (the slice 3
-                // invariant audit, 2026-11-08)
+                // records planned for the edge (the compatibility rules' ledger texts, a raise site's words) with no
+                // edge to hand them: the plan was made for another run, refused by name, never run with its records
+                // dropped (the slice 3 invariant audit, 2026-11-08)
                 throw new IllegalStateException("a test plan carrying the edge's records at steps "
                         + planned.extensionsByStep().keySet() + " run with no edge");
             }

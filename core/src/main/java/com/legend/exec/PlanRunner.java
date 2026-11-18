@@ -938,7 +938,7 @@ public final class PlanRunner {
                     String name = cellText(keys.get(k), p.name());
                     ExecutionPlan.Column c = p.column();
                     ExecutionPlan.Column a = new ExecutionPlan.Column(name, c.type(), c.multiplicity(),
-                            c.slot(), c.store(), c.precision());
+                            c.slot(), c.store(), c.precision(), c.decimal());
                     answered.add(a);
                     read.add(named(a, "_pk" + k + "_" + p.field()));
                 }
@@ -971,7 +971,8 @@ public final class PlanRunner {
 
     /** {@code c} read under the name its statement writes it: the column's facts, that name. */
     private static ExecutionPlan.Column named(ExecutionPlan.Column c, String name) {
-        return new ExecutionPlan.Column(name, c.type(), c.multiplicity(), c.slot(), c.store(), c.precision());
+        return new ExecutionPlan.Column(name, c.type(), c.multiplicity(), c.slot(), c.store(), c.precision(),
+                c.decimal());
     }
 
     private static String cellText(List<Object> key, int cell) {
@@ -1050,7 +1051,7 @@ public final class PlanRunner {
             bindOnce(sql, slot, checked, slots, values);
         }
         // the one text exec writes at run, the charter's A3(a): the plan's own text with each region once per key
-        return new Expanded(PlannedSql.fromPlan(out.toString(), sql.sites()), slots, values);
+        return new Expanded(PlannedSql.fromPlan(out.toString(), sql.sites(), sql.statement()), slots, values);
     }
 
     private static void bindOnce(ExecutionPlan.Sql sql, int slot, Map<String, PlanParameters.Checked> checked,

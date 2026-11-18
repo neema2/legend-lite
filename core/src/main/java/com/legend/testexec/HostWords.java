@@ -99,4 +99,10 @@ public interface HostWords {
 
     /** An UNJUDGED verdict row's evidence: its two canons' excerpts, framed for a diagnosis. */
     String unjudged(String expected, String actual);
+
+    /** The message an assertError matches a caught {@code error} by (K10 of the edge audit, the orchestrator's ruling
+     *  (A) of 2026-11-17, re-ported onto J29's hook, 2026-11-18): lite's words, the error's own message; legend-pure's,
+     *  for a raise of a planned site, the words the plan's edge records hold for it ({@code hearing}'s
+     *  {@link EdgeHearing#raisedWords}). */
+    String caught(RuntimeException error, EdgeHearing hearing);
 }

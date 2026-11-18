@@ -1,7 +1,8 @@
 // THE SERVER'S PLANNING CLIENT (C5-T, 2026-11-15): legend-engine's `/api` paths a query app asks for grammar, typing,
-// compile and plans -- legend-lite's server or legend-engine alike (docs/QUERY_APP_DESIGN_2026_09_30.md D1). One is
-// legend-lite's own (a model's every compile error, `compileErrors`), asked first and answered by legend-engine's route
-// where the server has no such route. Its execute, the server's door, is not here: engine.ts HttpEngine adds it.
+// compile and plans -- legend-lite's server or legend-engine alike (docs/QUERY_APP_DESIGN_2026_09_30.md D1). It asks
+// legend-engine's routes alone: lite's own API is lite's client's (doors/lite-server.ts; lite's API v1 spec §6,
+// 2026-11-17). Its execute, the server's door, is not here: engine.ts HttpEngine adds it. The edge's (H11, 2026-11-17:
+// //engine-client:edge, out of the planner): no product module reaches it.
 
 import type { Lambda } from '../../../pure-protocol/src/index.ts';
 import { readLambda, toJson } from '../../../pure-protocol/src/index.ts';
@@ -9,7 +10,8 @@ import type { PureModelContextData } from './pmcd.ts';
 import { planning } from '../plan-guard.ts';
 import { EngineError } from './engine-api.ts';
 import type { Grammar } from './grammar.ts';
-import type { CompileResult, ExecuteInput, PureModelContext, RelationTypeAnswer } from './wire.ts';
+import type { CompileResult, ExecuteInput, RelationTypeAnswer } from './engine-wire.ts';
+import type { PureModelContext } from './wire.ts';
 
 /** legend-engine refuses an ExecuteInput without its execution context (measured, 4.145.0: a 500). */
 export function withContext(input: ExecuteInput): ExecuteInput {
@@ -26,8 +28,6 @@ export function withContext(input: ExecuteInput): ExecuteInput {
 export class HttpPlanning implements Grammar {
   readonly #base: string;
   readonly #fetch: typeof fetch;
-  /** Whether the server serves legend-lite's own compile route: unknown until it is first asked. */
-  #liteCompile: boolean | undefined;
 
   constructor(baseUrl: string, fetcher: typeof fetch = globalThis.fetch.bind(globalThis)) {
     this.#base = baseUrl.replace(/\/+$/, '');
@@ -102,33 +102,9 @@ export class HttpPlanning implements Grammar {
     return this.json('POST', '/pure/v1/compilation/compile', model);
   }
 
-  /**
-   * A whole model's compile errors, [] when it compiles. legend-lite's own route answers every one
-   * (`/lite/v1/compilation/compile`: the first element error alone, else every body's); legend-engine has no such
-   * route, and once it has answered 404 its `compilation/compile` is asked instead, which answers the first.
-   */
-  async compileErrors(code: string): Promise<string[]> {
-    planning('compileErrors');
-    const model: PureModelContext = { _type: 'text', code };
-    if (this.#liteCompile !== false) {
-      try {
-        const answer = await this.json<{ errors: { message: string }[] }>('POST', '/lite/v1/compilation/compile', model);
-        this.#liteCompile = true;
-        return answer.errors.map((e) => e.message);
-      } catch (e) {
-        // two compiles in flight before the first answer both see the route unknown: either's 404 answers both
-        if (!(this.#liteCompile !== true && e instanceof EngineError && e.status === 404)) throw e;
-        this.#liteCompile = false;
-      }
-    }
-    try {
-      await this.compile(model);
-      return [];
-    } catch (e) {
-      if (e instanceof EngineError && e.status < 500) return [e.message];
-      throw e;
-    }
-  }
+  // (a whole model's every compile error is lite's `model/check`, asked by lite's own client, doors/lite-server.ts:
+  // legend-engine's client asks legend-engine alone -- lite's API v1 spec §6, 2026-11-17; until then compileErrors here
+  // asked lite's /lite/v1/compilation/compile)
 
   async returnType(model: PureModelContext, lambda: Lambda): Promise<string> {
     planning('returnType');

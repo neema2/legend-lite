@@ -862,7 +862,8 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
         void testIntToDecimal() throws SQLException {
                 // PCT: |8->meta::pure::functions::math::toDecimal()
                 var result = Lean.run(getCompletePureModelWithRuntime(), "|8->toDecimal()", "test::TestRuntime", connection);
-                assertEquals("Decimal(38,18)", result.columns().get(0).type(), "toDecimal should produce Decimal(38,18) Pure type");
+                assertEquals("Decimal", result.columns().get(0).type(), "toDecimal should produce a Decimal");
+                // the plan's type is the plain path (2026-11-17): a computed decimal's precision is the compiler's, not the plan's
                 assertEquals(8.0, ((Number) result.rows().get(0).get(0)).doubleValue(), 0.001);
         }
 
@@ -925,7 +926,8 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
         void testParseDecimalWithSuffix() throws SQLException {
                 // PCT: |'3.14159d'->parseDecimal() - d suffix stripped, value parsed
                 var result = Lean.run(getCompletePureModelWithRuntime(), "|'3.14159d'->parseDecimal()", "test::TestRuntime", connection);
-                assertEquals("Decimal(38,18)", result.columns().get(0).type(), "parseDecimal should produce Decimal(38,18) Pure type");
+                assertEquals("Decimal", result.columns().get(0).type(), "parseDecimal should produce a Decimal");
+                // the plan's type is the plain path (2026-11-17): a computed decimal's precision is the compiler's, not the plan's
                 // DuckDB DECIMAL(18,3) truncates to 3.142 - known limitation
             assertInstanceOf(BigDecimal.class, result.rows().get(0).get(0));
         }
@@ -934,7 +936,8 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
         void testParseDecimalSimple() throws SQLException {
                 // PCT: |'3.14'->parseDecimal() - no suffix
                 var result = Lean.run(getCompletePureModelWithRuntime(), "|'3.14'->parseDecimal()", "test::TestRuntime", connection);
-                assertEquals("Decimal(38,18)", result.columns().get(0).type(), "parseDecimal should produce Decimal(38,18) Pure type");
+                assertEquals("Decimal", result.columns().get(0).type(), "parseDecimal should produce a Decimal");
+                // the plan's type is the plain path (2026-11-17): a computed decimal's precision is the compiler's, not the plan's
                 assertEquals(3.14, ((Number) result.rows().get(0).get(0)).doubleValue(), 0.01);
         }
 

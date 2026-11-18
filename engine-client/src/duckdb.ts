@@ -70,6 +70,22 @@ export interface ArrowishConnection {
 export type { HeldConnection } from './query-engine.ts';
 import type { HeldConnection } from './query-engine.ts';
 
+/**
+ * `params` as DuckDB-WASM binds them: through JSON (its prepared statement's `query` and `send` stringify them), which
+ * holds a whole number exactly to 2^53 alone. A bigint within it is bound as its number, exactly; one past it is refused
+ * by name before anything is sent, never bound as the nearest double (lite's API v1 spec §4: a 64-bit Integer; a server
+ * binds it exactly). Measured on DuckDB-WASM 1.33 (the TS host, 2026-11-17): a JSON integer past 2^53 is refused
+ * ("Invalid column type encountered"), and a JSON number is bound as a DOUBLE.
+ */
+function jsonBound(params: readonly (string | number | bigint | boolean | null)[]): (string | number | boolean | null)[] {
+  return params.map((v) => {
+    if (typeof v !== 'bigint') return v;
+    if (v >= BigInt(Number.MIN_SAFE_INTEGER) && v <= BigInt(Number.MAX_SAFE_INTEGER)) return Number(v);
+    throw new RangeError(`the tab's DuckDB binds a value through JSON, which holds no whole number past 2^53 exactly: `
+      + `${v} is not bound (a legend-lite server binds it exactly)`);
+  });
+}
+
 /** A prepared statement, as DuckDB-WASM's connections give one. */
 export interface ArrowishPrepared {
   query(...params: unknown[]): ArrowishTable | Promise<ArrowishTable>;
@@ -424,11 +440,12 @@ export class DuckDbEngine implements QueryEngine {
       rows: async (sql, params) => {
         sending("DuckDB's connection");
         if (params.length > 0 && conn.prepare === undefined) throw new Error("this tab's database binds no statement's values");
+        const bound = jsonBound(params);
         try {
-          if (params.length === 0) return rowsOf(await conn.query(sql));
+          if (bound.length === 0) return rowsOf(await conn.query(sql));
           const prepared = await conn.prepare!(sql);
           try {
-            return rowsOf(await prepared.query(...params));
+            return rowsOf(await prepared.query(...bound));
           } finally {
             await prepared.close?.();
           }
@@ -461,11 +478,12 @@ export class DuckDbEngine implements QueryEngine {
     sql: PlannedSql,
     epoch: number,
     signal?: AbortSignal,
-    params: readonly string[] = [],
+    params: readonly (string | number | bigint | boolean | null)[] = [],
   ): Promise<RawTable> {
     // a run's, on Node: refused at the send primitives (#whole, #batches, #bound: run-frame.ts sending), DuckDB's one
     // choke point (PlannedSqlTest's DATABASE_SENDS)
     if (signal?.aborted) throw signal.reason ?? new Error('aborted');
+    const bound = jsonBound(params);
     return this.#serialised(async () => {
       // Checked AGAIN after waiting for the connection. This is where
       // the promise of "queries behind the one in flight never start"
@@ -475,10 +493,10 @@ export class DuckDbEngine implements QueryEngine {
       const started = performance.now();
       if (typeof this.#conn.send === 'function') {
         const acc = new BatchAccumulator();
-        await this.#batches(sql, signal, (batch) => acc.add(batch), params);
+        await this.#batches(sql, signal, (batch) => acc.add(batch), bound);
         return acc.build(epoch, performance.now() - started);
       }
-      return this.#whole(sql, epoch, signal, started, params);
+      return this.#whole(sql, epoch, signal, started, bound);
     });
   }
 
@@ -487,7 +505,7 @@ export class DuckDbEngine implements QueryEngine {
    * the prepared statement streams (DuckDB-WASM's), else whole as one batch -- the prepared statement closed once read.
    * A connection that prepares none refuses it by name.
    */
-  async *#bound(sql: PlannedSql, params: readonly string[]): AsyncIterable<ArrowishTable> {
+  async *#bound(sql: PlannedSql, params: readonly (string | number | bigint | boolean | null)[]): AsyncIterable<ArrowishTable> {
     sending("DuckDB's connection");
     if (this.#conn.prepare === undefined) throw new Error("this database binds no statement's values: a plan's payload is not run here");
     const prepared = await this.#conn.prepare(sql);
@@ -575,7 +593,7 @@ export class DuckDbEngine implements QueryEngine {
     epoch: number,
     signal: AbortSignal | undefined,
     started: number,
-    params: readonly string[] = [],
+    params: readonly (string | number | bigint | boolean | null)[] = [],
   ): Promise<RawTable> {
     // THE SEND PRIMITIVES each refuse a statement sent outside a run, on Node (run-frame.ts sending; the C5-T audit's
     // item 7, 2026-11-15): this one, #batches and #bound -- so no public method that reaches one skips it
@@ -610,7 +628,7 @@ export class DuckDbEngine implements QueryEngine {
     sql: PlannedSql,
     signal: AbortSignal | undefined,
     onBatch: (batch: ArrowishTable) => void,
-    params: readonly string[] = [],
+    params: readonly (string | number | bigint | boolean | null)[] = [],
   ): Promise<void> {
     sending("DuckDB's connection");
     const send = this.#conn.send;

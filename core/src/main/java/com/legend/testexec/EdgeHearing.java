@@ -33,6 +33,12 @@ public interface EdgeHearing {
     /** The database judge's failed {@code row}, whose appeal is numbered {@code number}, heard. */
     TypedSide rowAppealed(int number, List<Object> row, boolean messaged);
 
+    /** legend-pure's words of site {@code n} of the planned statement whose text is {@code statement}, planned and
+     *  looked up in the plan's records (K10b of the edge audit, the orchestrator's ruling (A) of 2026-11-17): what an
+     *  assertError matches a raise by under the compatibility rules, asked only under them. A site planned with no
+     *  words is refused by name. */
+    String raisedWords(String statement, int n);
+
     /** How the run's host judge reads a JSON text (census C1, 2026-11-17): the product's strict form, upstream's
      *  json-simple grammar at the edge. */
     com.legend.testexecutionplan.JsonGrammar json();

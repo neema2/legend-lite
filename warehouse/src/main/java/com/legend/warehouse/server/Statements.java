@@ -319,6 +319,10 @@ public final class Statements implements AutoCloseable {
                 return;
             }
             AdminStatements.Admin admin = AdminStatements.parse(run.request.sql(), run.request.catalog());
+            if (admin != null && !run.request.parameters().isEmpty()) {
+                finish(run, State.FAILED, new ApiError(ErrorCode.BAD_REQUEST, "a grant statement binds no parameters"));
+                return;
+            }
             if (admin != null && !owner) {
                 finish(run, State.FAILED, new ApiError(ErrorCode.FORBIDDEN, "only an owner may manage grants"));
                 return;
@@ -345,7 +349,10 @@ public final class Statements implements AutoCloseable {
                 finish(run, State.SUCCEEDED, null);
                 return;
             }
-            try (Result r = c.execute(sql)) {
+            // the request's values bound to its ?s, in order (the API's parameters, the orchestrator's ruling (a),
+            // 2026-11-17): bound at run, never pasted into the text
+            Object[] bound = run.request.parameters().toArray();
+            try (Result r = bound.length == 0 ? c.execute(sql) : c.execute(sql, bound)) {
                 if (r.hasRows()) {
                     collect(run, r);
                 } else {
@@ -383,6 +390,12 @@ public final class Statements implements AutoCloseable {
     private void passthrough(Run run, Conn c, String catalog, Attachment attachment, boolean owner) throws Exception {
         if (!owner && !access.grants().canUseCatalog(access.grants().principals(run.principal), catalog)) {
             finish(run, State.FAILED, new ApiError(ErrorCode.FORBIDDEN, "no USAGE granted on catalog " + catalog));
+            return;
+        }
+        if (!run.request.parameters().isEmpty()) {
+            // the attached database prepares its own text (postgres_query and kin), which binds no value of ours
+            finish(run, State.FAILED, new ApiError(ErrorCode.BAD_REQUEST, catalog + " is attached to "
+                    + attachment.databaseType + ": a statement there binds no parameters"));
             return;
         }
         if (AdminStatements.parse(run.request.sql(), catalog) != null) {

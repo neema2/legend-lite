@@ -2302,7 +2302,7 @@ describe("a remote file saved without its link's token: reopened, the tab asks f
         database: {
           mountRemote: async (url: string) => {
             mounted.push(url);
-            return { model: 'm', runtime: 'r', source: SNAPSHOT.source.query, conversions: [], bitColumns: [] };
+            return { model: 'm', runtime: 'r', source: SNAPSHOT.source.query, conversions: [] };
           },
         },
       },
@@ -2340,7 +2340,7 @@ describe("a remote file saved without its link's token: reopened, the tab asks f
           database: {
             mountRemote: async (url: string) => {
               mounted.push(url);
-              return { model: 'm', runtime: 'r', source: SNAPSHOT.source.query, conversions: [], bitColumns: [] };
+              return { model: 'm', runtime: 'r', source: SNAPSHOT.source.query, conversions: [] };
             },
           },
         },

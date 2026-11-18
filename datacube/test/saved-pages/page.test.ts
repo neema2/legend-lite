@@ -33,7 +33,7 @@ describe("the page's own saved pages: what a server here cannot be asked", () =>
     const theirs = new CubeStoreClient(LOCAL_CUBES_API, wasmCubeServer({ load, records, user: 'you' }).fetch, 'you');
     await mine.create(page);
     await assert.rejects(theirs.update('p-1', { ...page, name: 'Mine now' }),
-      (e: unknown) => e instanceof CubeStoreError && e.status === 403 && e.message === 'Only owner can update the query');
+      (e: unknown) => e instanceof CubeStoreError && e.status === 403 && e.message === 'only the owner can update it');
     await assert.rejects(theirs.delete('p-1'), (e: unknown) => e instanceof CubeStoreError && e.status === 403);
     // and a search answers the caller's own first, then the chosen sort among each's (newest first)
     await new Promise((r) => setTimeout(r, 5));
@@ -83,9 +83,9 @@ describe("the page's own saved pages: what a server here cannot be asked", () =>
     };
     const broken = { exports: { ...module.exports, cubes: () => { throw new Error('illegal cast'); } } } as typeof module;
     const r = await wasmCubeServer({ load: async () => broken, records: counted, user: 'me' })
-      .fetch(`${LOCAL_CUBES_API}/pure/v1/query/dataCube`, { method: 'POST', body: JSON.stringify(page) });
+      .fetch(`${LOCAL_CUBES_API}/lite/v1/queries/dataCube`, { method: 'POST', body: JSON.stringify(page) });
     assert.equal(r.status, 500);
-    assert.deepEqual(await r.json(), { code: -1, message: 'Error: illegal cast', status: 'error' });
+    assert.deepEqual(await r.json(), { kind: 'internal', message: 'Error: illegal cast' });
     assert.equal(wrote, 0);
   });
 

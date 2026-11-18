@@ -1,0 +1,1646 @@
+{
+  "_comment": "LITE API V1'S CONFORMANCE SUITE (docs/records/lite-api-v1-2026-11-17.md §5, the user's go of 2026-11-17): one set of cases every binding answers alike -- the browser's exports (core's LiteApiConformanceTest), the server's /api/lite/v1 routes (the TS host's reader) and Python's native entries (the Python session's reader). A case is an operation (§2's name), its request, and its 'answer' (exact JSON) or 'answerIncludes' (each key it names equal, recursively; each array item it names matched by some item of the answer's array). A refusal case names its 'refusal' as {kind} alone (§3: the kind is the contract; the words are the product's), answered as the binding's error shape. The run's parameter cases are query/run's, the server's and Python's (§4). A case may name its 'bindings' (of browser, server, python; every binding when absent): an operation a host alone serves (user, query/run) names the hosts that serve it, and a binding without it skips the case. Where the answer is the host's own (who the user is), a case gives 'answerShape': each key the answer holds and its JSON type (string, number, boolean, object, array). The saved records' store is asked by two store operations, each a GET of one record by its id: 'queries/get' {id} is GET /api/lite/v1/queries/<id> and 'queries/dataCube/get' {id} is GET /api/lite/v1/queries/dataCube/<id> (a host serving the store on its own way asks its store the same).",
+  "cases": [
+    {
+      "name": "a query's text, parsed to its tree",
+      "op": "query/parse",
+      "request": {
+        "text": "|1 + 2"
+      },
+      "answer": {
+        "query": {
+          "_type": "lambda",
+          "body": [
+            {
+              "_type": "func",
+              "function": "plus",
+              "parameters": [
+                {
+                  "_type": "collection",
+                  "multiplicity": {
+                    "lowerBound": 2,
+                    "upperBound": 2
+                  },
+                  "values": [
+                    {
+                      "_type": "integer",
+                      "value": 1
+                    },
+                    {
+                      "_type": "integer",
+                      "value": 2
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          "parameters": []
+        }
+      }
+    },
+    {
+      "name": "an Integer is an exact JSON number, 2^63-1 kept (ruled 7)",
+      "op": "query/parse",
+      "request": {
+        "text": "|9223372036854775807"
+      },
+      "answer": {
+        "query": {
+          "_type": "lambda",
+          "body": [
+            {
+              "_type": "integer",
+              "value": 9223372036854775807
+            }
+          ],
+          "parameters": []
+        }
+      }
+    },
+    {
+      "name": "a query printed, pretty by default",
+      "op": "query/print",
+      "request": {
+        "query": {
+          "_type": "lambda",
+          "body": [
+            {
+              "_type": "func",
+              "function": "plus",
+              "parameters": [
+                {
+                  "_type": "collection",
+                  "multiplicity": {
+                    "lowerBound": 2,
+                    "upperBound": 2
+                  },
+                  "values": [
+                    {
+                      "_type": "integer",
+                      "value": 1
+                    },
+                    {
+                      "_type": "integer",
+                      "value": 2
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          "parameters": []
+        }
+      },
+      "answer": {
+        "text": "|1 + 2"
+      }
+    },
+    {
+      "name": "a query printed, standard",
+      "op": "query/print",
+      "request": {
+        "query": {
+          "_type": "lambda",
+          "body": [
+            {
+              "_type": "func",
+              "function": "project",
+              "parameters": [
+                {
+                  "_type": "func",
+                  "function": "getAll",
+                  "parameters": [
+                    {
+                      "_type": "packageableElementPtr",
+                      "fullPath": "t::P"
+                    }
+                  ]
+                },
+                {
+                  "_type": "classInstance",
+                  "type": "colSpecArray",
+                  "value": {
+                    "colSpecs": [
+                      {
+                        "function1": {
+                          "_type": "lambda",
+                          "body": [
+                            {
+                              "_type": "property",
+                              "parameters": [
+                                {
+                                  "_type": "var",
+                                  "name": "p"
+                                }
+                              ],
+                              "property": "name"
+                            }
+                          ],
+                          "parameters": [
+                            {
+                              "_type": "var",
+                              "name": "p"
+                            }
+                          ]
+                        },
+                        "name": "name"
+                      },
+                      {
+                        "function1": {
+                          "_type": "lambda",
+                          "body": [
+                            {
+                              "_type": "property",
+                              "parameters": [
+                                {
+                                  "_type": "var",
+                                  "name": "p"
+                                }
+                              ],
+                              "property": "age"
+                            }
+                          ],
+                          "parameters": [
+                            {
+                              "_type": "var",
+                              "name": "p"
+                            }
+                          ]
+                        },
+                        "name": "age"
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          ],
+          "parameters": []
+        },
+        "style": "standard"
+      },
+      "answer": {
+        "text": "|t::P.all()->project(~[name:p|$p.name, age:p|$p.age])"
+      }
+    },
+    {
+      "name": "a query typed over its model: each column's Pure type",
+      "op": "query/type",
+      "request": {
+        "model": "###Pure\nClass t::P { name: String[1]; age: Integer[1]; }\nEnum t::Side { BUY, SELL }\n###Relational\nDatabase t::DB ( Table PERSON ( NAME VARCHAR(200), AGE INTEGER ) )\n###Mapping\nMapping t::M ( t::P: Relational { ~mainTable [t::DB] PERSON name: [t::DB] PERSON.NAME, age: [t::DB] PERSON.AGE } )\n###Connection\nRelationalDatabaseConnection t::C { type: DuckDB; specification: DuckDB { }; auth: Test; }\n###Runtime\nRuntime t::RT { mappings: [ t::M ]; connections: [ t::DB: [ c: t::C ] ]; }\n",
+        "query": {
+          "_type": "lambda",
+          "body": [
+            {
+              "_type": "func",
+              "function": "project",
+              "parameters": [
+                {
+                  "_type": "func",
+                  "function": "getAll",
+                  "parameters": [
+                    {
+                      "_type": "packageableElementPtr",
+                      "fullPath": "t::P"
+                    }
+                  ]
+                },
+                {
+                  "_type": "classInstance",
+                  "type": "colSpecArray",
+                  "value": {
+                    "colSpecs": [
+                      {
+                        "function1": {
+                          "_type": "lambda",
+                          "body": [
+                            {
+                              "_type": "property",
+                              "parameters": [
+                                {
+                                  "_type": "var",
+                                  "name": "p"
+                                }
+                              ],
+                              "property": "name"
+                            }
+                          ],
+                          "parameters": [
+                            {
+                              "_type": "var",
+                              "name": "p"
+                            }
+                          ]
+                        },
+                        "name": "name"
+                      },
+                      {
+                        "function1": {
+                          "_type": "lambda",
+                          "body": [
+                            {
+                              "_type": "property",
+                              "parameters": [
+                                {
+                                  "_type": "var",
+                                  "name": "p"
+                                }
+                              ],
+                              "property": "age"
+                            }
+                          ],
+                          "parameters": [
+                            {
+                              "_type": "var",
+                              "name": "p"
+                            }
+                          ]
+                        },
+                        "name": "age"
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          ],
+          "parameters": []
+        }
+      },
+      "answer": {
+        "columns": [
+          {
+            "name": "name",
+            "type": "String"
+          },
+          {
+            "name": "age",
+            "type": "Integer"
+          }
+        ]
+      }
+    },
+    {
+      "name": "an Integer value typed",
+      "op": "query/type",
+      "request": {
+        "model": "###Pure\nClass t::P { name: String[1]; age: Integer[1]; }\nEnum t::Side { BUY, SELL }\n###Relational\nDatabase t::DB ( Table PERSON ( NAME VARCHAR(200), AGE INTEGER ) )\n###Mapping\nMapping t::M ( t::P: Relational { ~mainTable [t::DB] PERSON name: [t::DB] PERSON.NAME, age: [t::DB] PERSON.AGE } )\n###Connection\nRelationalDatabaseConnection t::C { type: DuckDB; specification: DuckDB { }; auth: Test; }\n###Runtime\nRuntime t::RT { mappings: [ t::M ]; connections: [ t::DB: [ c: t::C ] ]; }\n",
+        "query": {
+          "_type": "lambda",
+          "body": [
+            {
+              "_type": "integer",
+              "value": 9223372036854775807
+            }
+          ],
+          "parameters": []
+        }
+      },
+      "answer": {
+        "columns": [
+          {
+            "name": "value",
+            "type": "Integer"
+          }
+        ]
+      }
+    },
+    {
+      "name": "a query planned: lite's plan, data",
+      "op": "query/plan",
+      "request": {
+        "model": "###Pure\nClass t::P { name: String[1]; age: Integer[1]; }\nEnum t::Side { BUY, SELL }\n###Relational\nDatabase t::DB ( Table PERSON ( NAME VARCHAR(200), AGE INTEGER ) )\n###Mapping\nMapping t::M ( t::P: Relational { ~mainTable [t::DB] PERSON name: [t::DB] PERSON.NAME, age: [t::DB] PERSON.AGE } )\n###Connection\nRelationalDatabaseConnection t::C { type: DuckDB; specification: DuckDB { }; auth: Test; }\n###Runtime\nRuntime t::RT { mappings: [ t::M ]; connections: [ t::DB: [ c: t::C ] ]; }\n",
+        "query": {
+          "_type": "lambda",
+          "body": [
+            {
+              "_type": "func",
+              "function": "project",
+              "parameters": [
+                {
+                  "_type": "func",
+                  "function": "getAll",
+                  "parameters": [
+                    {
+                      "_type": "packageableElementPtr",
+                      "fullPath": "t::P"
+                    }
+                  ]
+                },
+                {
+                  "_type": "classInstance",
+                  "type": "colSpecArray",
+                  "value": {
+                    "colSpecs": [
+                      {
+                        "function1": {
+                          "_type": "lambda",
+                          "body": [
+                            {
+                              "_type": "property",
+                              "parameters": [
+                                {
+                                  "_type": "var",
+                                  "name": "p"
+                                }
+                              ],
+                              "property": "name"
+                            }
+                          ],
+                          "parameters": [
+                            {
+                              "_type": "var",
+                              "name": "p"
+                            }
+                          ]
+                        },
+                        "name": "name"
+                      },
+                      {
+                        "function1": {
+                          "_type": "lambda",
+                          "body": [
+                            {
+                              "_type": "property",
+                              "parameters": [
+                                {
+                                  "_type": "var",
+                                  "name": "p"
+                                }
+                              ],
+                              "property": "age"
+                            }
+                          ],
+                          "parameters": [
+                            {
+                              "_type": "var",
+                              "name": "p"
+                            }
+                          ]
+                        },
+                        "name": "age"
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          ],
+          "parameters": []
+        },
+        "runtime": "t::RT"
+      },
+      "answerIncludes": {
+        "plan": {
+          "format": "legend-lite-plan",
+          "root": {
+            "_type": "tdsResult",
+            "shape": "RELATION",
+            "columns": [
+              {
+                "name": "name",
+                "type": "String"
+              },
+              {
+                "name": "age",
+                "type": "Integer"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "a model that compiles has no errors",
+      "op": "model/check",
+      "request": {
+        "model": "###Pure\nClass t::P { name: String[1]; age: Integer[1]; }\nEnum t::Side { BUY, SELL }\n###Relational\nDatabase t::DB ( Table PERSON ( NAME VARCHAR(200), AGE INTEGER ) )\n###Mapping\nMapping t::M ( t::P: Relational { ~mainTable [t::DB] PERSON name: [t::DB] PERSON.NAME, age: [t::DB] PERSON.AGE } )\n###Connection\nRelationalDatabaseConnection t::C { type: DuckDB; specification: DuckDB { }; auth: Test; }\n###Runtime\nRuntime t::RT { mappings: [ t::M ]; connections: [ t::DB: [ c: t::C ] ]; }\n"
+      },
+      "answer": {
+        "errors": []
+      }
+    },
+    {
+      "name": "a model's every error, each its kind, message and where",
+      "op": "model/check",
+      "request": {
+        "model": "Class demo::Desk\n{\n  name: Strin[1];\n}\n"
+      },
+      "answer": {
+        "errors": [
+          {
+            "kind": "compile",
+            "message": "[1:1] Unknown type: 'Strin' is not a known primitive, class, or enum",
+            "where": "[1:1]"
+          }
+        ]
+      }
+    },
+    {
+      "name": "a model's elements",
+      "op": "model/elements",
+      "request": {
+        "model": "###Pure\nClass t::P { name: String[1]; age: Integer[1]; }\nEnum t::Side { BUY, SELL }\n###Relational\nDatabase t::DB ( Table PERSON ( NAME VARCHAR(200), AGE INTEGER ) )\n###Mapping\nMapping t::M ( t::P: Relational { ~mainTable [t::DB] PERSON name: [t::DB] PERSON.NAME, age: [t::DB] PERSON.AGE } )\n###Connection\nRelationalDatabaseConnection t::C { type: DuckDB; specification: DuckDB { }; auth: Test; }\n###Runtime\nRuntime t::RT { mappings: [ t::M ]; connections: [ t::DB: [ c: t::C ] ]; }\n"
+      },
+      "answerIncludes": {
+        "elements": [
+          {
+            "_type": "class",
+            "package": "t",
+            "name": "P"
+          },
+          {
+            "_type": "Enumeration",
+            "package": "t",
+            "name": "Side"
+          },
+          {
+            "_type": "relational",
+            "package": "t",
+            "name": "DB"
+          }
+        ]
+      }
+    },
+    {
+      "name": "a text that does not parse is refused, kind parse",
+      "op": "query/parse",
+      "request": {
+        "text": "|1 +"
+      },
+      "refusal": {
+        "kind": "parse"
+      }
+    },
+    {
+      "name": "a request holding a key the operation does not read is refused, kind request",
+      "op": "model/check",
+      "request": {
+        "model": "Class a::B {}",
+        "models": []
+      },
+      "refusal": {
+        "kind": "request"
+      }
+    },
+    {
+      "name": "a request lacking a key the operation reads is refused, kind request",
+      "op": "query/plan",
+      "request": {
+        "model": "###Pure\nClass t::P { name: String[1]; age: Integer[1]; }\nEnum t::Side { BUY, SELL }\n###Relational\nDatabase t::DB ( Table PERSON ( NAME VARCHAR(200), AGE INTEGER ) )\n###Mapping\nMapping t::M ( t::P: Relational { ~mainTable [t::DB] PERSON name: [t::DB] PERSON.NAME, age: [t::DB] PERSON.AGE } )\n###Connection\nRelationalDatabaseConnection t::C { type: DuckDB; specification: DuckDB { }; auth: Test; }\n###Runtime\nRuntime t::RT { mappings: [ t::M ]; connections: [ t::DB: [ c: t::C ] ]; }\n",
+        "query": {
+          "_type": "lambda",
+          "body": [
+            {
+              "_type": "func",
+              "function": "project",
+              "parameters": [
+                {
+                  "_type": "func",
+                  "function": "getAll",
+                  "parameters": [
+                    {
+                      "_type": "packageableElementPtr",
+                      "fullPath": "t::P"
+                    }
+                  ]
+                },
+                {
+                  "_type": "classInstance",
+                  "type": "colSpecArray",
+                  "value": {
+                    "colSpecs": [
+                      {
+                        "function1": {
+                          "_type": "lambda",
+                          "body": [
+                            {
+                              "_type": "property",
+                              "parameters": [
+                                {
+                                  "_type": "var",
+                                  "name": "p"
+                                }
+                              ],
+                              "property": "name"
+                            }
+                          ],
+                          "parameters": [
+                            {
+                              "_type": "var",
+                              "name": "p"
+                            }
+                          ]
+                        },
+                        "name": "name"
+                      },
+                      {
+                        "function1": {
+                          "_type": "lambda",
+                          "body": [
+                            {
+                              "_type": "property",
+                              "parameters": [
+                                {
+                                  "_type": "var",
+                                  "name": "p"
+                                }
+                              ],
+                              "property": "age"
+                            }
+                          ],
+                          "parameters": [
+                            {
+                              "_type": "var",
+                              "name": "p"
+                            }
+                          ]
+                        },
+                        "name": "age"
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          ],
+          "parameters": []
+        }
+      },
+      "refusal": {
+        "kind": "request"
+      }
+    },
+    {
+      "name": "a style no query prints in is refused, kind request",
+      "op": "query/print",
+      "request": {
+        "query": {
+          "_type": "lambda",
+          "body": [
+            {
+              "_type": "func",
+              "function": "project",
+              "parameters": [
+                {
+                  "_type": "func",
+                  "function": "getAll",
+                  "parameters": [
+                    {
+                      "_type": "packageableElementPtr",
+                      "fullPath": "t::P"
+                    }
+                  ]
+                },
+                {
+                  "_type": "classInstance",
+                  "type": "colSpecArray",
+                  "value": {
+                    "colSpecs": [
+                      {
+                        "function1": {
+                          "_type": "lambda",
+                          "body": [
+                            {
+                              "_type": "property",
+                              "parameters": [
+                                {
+                                  "_type": "var",
+                                  "name": "p"
+                                }
+                              ],
+                              "property": "name"
+                            }
+                          ],
+                          "parameters": [
+                            {
+                              "_type": "var",
+                              "name": "p"
+                            }
+                          ]
+                        },
+                        "name": "name"
+                      },
+                      {
+                        "function1": {
+                          "_type": "lambda",
+                          "body": [
+                            {
+                              "_type": "property",
+                              "parameters": [
+                                {
+                                  "_type": "var",
+                                  "name": "p"
+                                }
+                              ],
+                              "property": "age"
+                            }
+                          ],
+                          "parameters": [
+                            {
+                              "_type": "var",
+                              "name": "p"
+                            }
+                          ]
+                        },
+                        "name": "age"
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          ],
+          "parameters": []
+        },
+        "style": "fancy"
+      },
+      "refusal": {
+        "kind": "request"
+      }
+    },
+    {
+      "name": "a model that does not compile is refused when a query is typed over it, kind compile",
+      "op": "query/type",
+      "request": {
+        "model": "Class demo::Desk\n{\n  name: Strin[1];\n}\n",
+        "query": {
+          "_type": "lambda",
+          "body": [
+            {
+              "_type": "func",
+              "function": "project",
+              "parameters": [
+                {
+                  "_type": "func",
+                  "function": "getAll",
+                  "parameters": [
+                    {
+                      "_type": "packageableElementPtr",
+                      "fullPath": "t::P"
+                    }
+                  ]
+                },
+                {
+                  "_type": "classInstance",
+                  "type": "colSpecArray",
+                  "value": {
+                    "colSpecs": [
+                      {
+                        "function1": {
+                          "_type": "lambda",
+                          "body": [
+                            {
+                              "_type": "property",
+                              "parameters": [
+                                {
+                                  "_type": "var",
+                                  "name": "p"
+                                }
+                              ],
+                              "property": "name"
+                            }
+                          ],
+                          "parameters": [
+                            {
+                              "_type": "var",
+                              "name": "p"
+                            }
+                          ]
+                        },
+                        "name": "name"
+                      },
+                      {
+                        "function1": {
+                          "_type": "lambda",
+                          "body": [
+                            {
+                              "_type": "property",
+                              "parameters": [
+                                {
+                                  "_type": "var",
+                                  "name": "p"
+                                }
+                              ],
+                              "property": "age"
+                            }
+                          ],
+                          "parameters": [
+                            {
+                              "_type": "var",
+                              "name": "p"
+                            }
+                          ]
+                        },
+                        "name": "age"
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          ],
+          "parameters": []
+        }
+      },
+      "refusal": {
+        "kind": "compile"
+      }
+    },
+    {
+      "name": "a query's tree nested deeper than 64 is read (a grid's query nests so; the request's depth is the server's, 4096)",
+      "op": "query/print",
+      "request": {
+        "query": {
+          "_type": "lambda",
+          "body": [
+            {
+              "_type": "func",
+              "function": "not",
+              "parameters": [
+                {
+                  "_type": "func",
+                  "function": "not",
+                  "parameters": [
+                    {
+                      "_type": "func",
+                      "function": "not",
+                      "parameters": [
+                        {
+                          "_type": "func",
+                          "function": "not",
+                          "parameters": [
+                            {
+                              "_type": "func",
+                              "function": "not",
+                              "parameters": [
+                                {
+                                  "_type": "func",
+                                  "function": "not",
+                                  "parameters": [
+                                    {
+                                      "_type": "func",
+                                      "function": "not",
+                                      "parameters": [
+                                        {
+                                          "_type": "func",
+                                          "function": "not",
+                                          "parameters": [
+                                            {
+                                              "_type": "func",
+                                              "function": "not",
+                                              "parameters": [
+                                                {
+                                                  "_type": "func",
+                                                  "function": "not",
+                                                  "parameters": [
+                                                    {
+                                                      "_type": "func",
+                                                      "function": "not",
+                                                      "parameters": [
+                                                        {
+                                                          "_type": "func",
+                                                          "function": "not",
+                                                          "parameters": [
+                                                            {
+                                                              "_type": "func",
+                                                              "function": "not",
+                                                              "parameters": [
+                                                                {
+                                                                  "_type": "func",
+                                                                  "function": "not",
+                                                                  "parameters": [
+                                                                    {
+                                                                      "_type": "func",
+                                                                      "function": "not",
+                                                                      "parameters": [
+                                                                        {
+                                                                          "_type": "func",
+                                                                          "function": "not",
+                                                                          "parameters": [
+                                                                            {
+                                                                              "_type": "func",
+                                                                              "function": "not",
+                                                                              "parameters": [
+                                                                                {
+                                                                                  "_type": "func",
+                                                                                  "function": "not",
+                                                                                  "parameters": [
+                                                                                    {
+                                                                                      "_type": "func",
+                                                                                      "function": "not",
+                                                                                      "parameters": [
+                                                                                        {
+                                                                                          "_type": "func",
+                                                                                          "function": "not",
+                                                                                          "parameters": [
+                                                                                            {
+                                                                                              "_type": "func",
+                                                                                              "function": "not",
+                                                                                              "parameters": [
+                                                                                                {
+                                                                                                  "_type": "func",
+                                                                                                  "function": "not",
+                                                                                                  "parameters": [
+                                                                                                    {
+                                                                                                      "_type": "func",
+                                                                                                      "function": "not",
+                                                                                                      "parameters": [
+                                                                                                        {
+                                                                                                          "_type": "func",
+                                                                                                          "function": "not",
+                                                                                                          "parameters": [
+                                                                                                            {
+                                                                                                              "_type": "func",
+                                                                                                              "function": "not",
+                                                                                                              "parameters": [
+                                                                                                                {
+                                                                                                                  "_type": "func",
+                                                                                                                  "function": "not",
+                                                                                                                  "parameters": [
+                                                                                                                    {
+                                                                                                                      "_type": "func",
+                                                                                                                      "function": "not",
+                                                                                                                      "parameters": [
+                                                                                                                        {
+                                                                                                                          "_type": "func",
+                                                                                                                          "function": "not",
+                                                                                                                          "parameters": [
+                                                                                                                            {
+                                                                                                                              "_type": "func",
+                                                                                                                              "function": "not",
+                                                                                                                              "parameters": [
+                                                                                                                                {
+                                                                                                                                  "_type": "func",
+                                                                                                                                  "function": "not",
+                                                                                                                                  "parameters": [
+                                                                                                                                    {
+                                                                                                                                      "_type": "func",
+                                                                                                                                      "function": "not",
+                                                                                                                                      "parameters": [
+                                                                                                                                        {
+                                                                                                                                          "_type": "func",
+                                                                                                                                          "function": "not",
+                                                                                                                                          "parameters": [
+                                                                                                                                            {
+                                                                                                                                              "_type": "func",
+                                                                                                                                              "function": "not",
+                                                                                                                                              "parameters": [
+                                                                                                                                                {
+                                                                                                                                                  "_type": "func",
+                                                                                                                                                  "function": "not",
+                                                                                                                                                  "parameters": [
+                                                                                                                                                    {
+                                                                                                                                                      "_type": "func",
+                                                                                                                                                      "function": "not",
+                                                                                                                                                      "parameters": [
+                                                                                                                                                        {
+                                                                                                                                                          "_type": "func",
+                                                                                                                                                          "function": "not",
+                                                                                                                                                          "parameters": [
+                                                                                                                                                            {
+                                                                                                                                                              "_type": "func",
+                                                                                                                                                              "function": "not",
+                                                                                                                                                              "parameters": [
+                                                                                                                                                                {
+                                                                                                                                                                  "_type": "func",
+                                                                                                                                                                  "function": "not",
+                                                                                                                                                                  "parameters": [
+                                                                                                                                                                    {
+                                                                                                                                                                      "_type": "func",
+                                                                                                                                                                      "function": "not",
+                                                                                                                                                                      "parameters": [
+                                                                                                                                                                        {
+                                                                                                                                                                          "_type": "func",
+                                                                                                                                                                          "function": "not",
+                                                                                                                                                                          "parameters": [
+                                                                                                                                                                            {
+                                                                                                                                                                              "_type": "boolean",
+                                                                                                                                                                              "value": true
+                                                                                                                                                                            }
+                                                                                                                                                                          ]
+                                                                                                                                                                        }
+                                                                                                                                                                      ]
+                                                                                                                                                                    }
+                                                                                                                                                                  ]
+                                                                                                                                                                }
+                                                                                                                                                              ]
+                                                                                                                                                            }
+                                                                                                                                                          ]
+                                                                                                                                                        }
+                                                                                                                                                      ]
+                                                                                                                                                    }
+                                                                                                                                                  ]
+                                                                                                                                                }
+                                                                                                                                              ]
+                                                                                                                                            }
+                                                                                                                                          ]
+                                                                                                                                        }
+                                                                                                                                      ]
+                                                                                                                                    }
+                                                                                                                                  ]
+                                                                                                                                }
+                                                                                                                              ]
+                                                                                                                            }
+                                                                                                                          ]
+                                                                                                                        }
+                                                                                                                      ]
+                                                                                                                    }
+                                                                                                                  ]
+                                                                                                                }
+                                                                                                              ]
+                                                                                                            }
+                                                                                                          ]
+                                                                                                        }
+                                                                                                      ]
+                                                                                                    }
+                                                                                                  ]
+                                                                                                }
+                                                                                              ]
+                                                                                            }
+                                                                                          ]
+                                                                                        }
+                                                                                      ]
+                                                                                    }
+                                                                                  ]
+                                                                                }
+                                                                              ]
+                                                                            }
+                                                                          ]
+                                                                        }
+                                                                      ]
+                                                                    }
+                                                                  ]
+                                                                }
+                                                              ]
+                                                            }
+                                                          ]
+                                                        }
+                                                      ]
+                                                    }
+                                                  ]
+                                                }
+                                              ]
+                                            }
+                                          ]
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          "parameters": []
+        }
+      },
+      "answer": {
+        "text": "|!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!true"
+      }
+    },
+    {
+      "name": "a Decimal column typed by its plain path, its precision and scale no part of the name",
+      "op": "query/type",
+      "request": {
+        "model": "###Relational\nDatabase t::D ( Table PRICES ( P DECIMAL(10,2) ) )\n###Connection\nRelationalDatabaseConnection t::C { type: DuckDB; specification: DuckDB { }; auth: Test; }\n###Runtime\nRuntime t::RT { mappings: [ ]; connections: [ t::D: [ c: t::C ] ]; }\n",
+        "query": {
+          "_type": "lambda",
+          "body": [
+            {
+              "_type": "func",
+              "function": "select",
+              "parameters": [
+                {
+                  "_type": "classInstance",
+                  "type": ">",
+                  "value": {
+                    "path": [
+                      "t::D",
+                      "PRICES"
+                    ]
+                  }
+                },
+                {
+                  "_type": "classInstance",
+                  "type": "colSpec",
+                  "value": {
+                    "name": "P"
+                  }
+                }
+              ]
+            }
+          ],
+          "parameters": []
+        }
+      },
+      "answer": {
+        "columns": [
+          {
+            "name": "P",
+            "type": "Decimal"
+          }
+        ]
+      }
+    },
+    {
+      "name": "the current user: who the store keeps saved queries for, a name",
+      "op": "user",
+      "bindings": [
+        "server",
+        "python"
+      ],
+      "request": {},
+      "answerShape": {
+        "user": "string"
+      }
+    },
+    {
+      "name": "a user request holding a key is refused, kind request",
+      "op": "user",
+      "bindings": [
+        "server",
+        "python"
+      ],
+      "request": {
+        "who": "me"
+      },
+      "refusal": {
+        "kind": "request"
+      }
+    },
+    {
+      "name": "a DECIMAL(10,2) column planned: its type the plain path, its digits data (decimal), its slot and store the database's",
+      "op": "query/plan",
+      "request": {
+        "model": "###Relational\nDatabase t::D ( Table PRICES ( P DECIMAL(10,2) ) )\n###Connection\nRelationalDatabaseConnection t::C { type: DuckDB; specification: DuckDB { }; auth: Test; }\n###Runtime\nRuntime t::RT { mappings: [ ]; connections: [ t::D: [ c: t::C ] ]; }\n",
+        "query": {
+          "_type": "lambda",
+          "body": [
+            {
+              "_type": "func",
+              "function": "select",
+              "parameters": [
+                {
+                  "_type": "classInstance",
+                  "type": ">",
+                  "value": {
+                    "path": [
+                      "t::D",
+                      "PRICES"
+                    ]
+                  }
+                },
+                {
+                  "_type": "classInstance",
+                  "type": "colSpec",
+                  "value": {
+                    "name": "P"
+                  }
+                }
+              ]
+            }
+          ],
+          "parameters": []
+        },
+        "runtime": "t::RT"
+      },
+      "answerIncludes": {
+        "plan": {
+          "root": {
+            "columns": [
+              {
+                "name": "P",
+                "type": "Decimal",
+                "slot": "DECIMAL(10,2)",
+                "store": {
+                  "_type": "scaled",
+                  "kind": "DECIMAL",
+                  "precision": 10,
+                  "scale": 2
+                },
+                "decimal": {
+                  "precision": 10,
+                  "scale": 2
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "a computed decimal planned: its type the plain path, the compiler's digits data (Decimal(38,18)), whatever the database's slot",
+      "op": "query/plan",
+      "request": {
+        "model": "###Relational\nDatabase t::D ( Table PRICES ( P DECIMAL(10,2) ) )\n###Connection\nRelationalDatabaseConnection t::C { type: DuckDB; specification: DuckDB { }; auth: Test; }\n###Runtime\nRuntime t::RT { mappings: [ ]; connections: [ t::D: [ c: t::C ] ]; }\n",
+        "query": {
+          "_type": "lambda",
+          "body": [
+            {
+              "_type": "func",
+              "function": "toDecimal",
+              "parameters": [
+                {
+                  "_type": "integer",
+                  "value": 8
+                }
+              ]
+            }
+          ],
+          "parameters": []
+        },
+        "runtime": "t::RT"
+      },
+      "answerIncludes": {
+        "plan": {
+          "root": {
+            "columns": [
+              {
+                "type": "Decimal",
+                "decimal": {
+                  "precision": 38,
+                  "scale": 18
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "a run's format is the caller's ask: a query/run naming none is refused, kind request",
+      "op": "query/run",
+      "bindings": [
+        "server",
+        "python"
+      ],
+      "request": {
+        "model": "Class proj::Party { id: Integer[1]; name: String[1]; joined: StrictDate[1]; }\n###Relational\nDatabase proj::PartyDB ( Schema PARTY ( Table PARTY (ID BIGINT PRIMARY KEY, NAME VARCHAR(200), JOINED DATE) ) )\n###Mapping\nMapping proj::PartyMapping\n(\n  *proj::Party: Relational\n  {\n    ~primaryKey ([proj::PartyDB] PARTY.PARTY.ID)\n    ~mainTable [proj::PartyDB] PARTY.PARTY\n    id: [proj::PartyDB] PARTY.PARTY.ID,\n    name: [proj::PartyDB] PARTY.PARTY.NAME,\n    joined: [proj::PartyDB] PARTY.PARTY.JOINED\n  }\n)\n###Connection\nRelationalDatabaseConnection proj::Conn { store: proj::PartyDB; type: DuckDB; specification: DuckDB { }; auth: Test; }\n###Runtime\nRuntime proj::RT { mappings: [ proj::PartyMapping ]; connections: [ proj::PartyDB: [ db: proj::Conn ] ]; }\n###Data\nData proj::PartyData\n{\n  Relational\n  #{\n    PARTY.PARTY:\n      'ID,NAME,JOINED\\n1,Meridian Capital,2021-03-04\\n9223372036854775807,Halberd Securities,2022-05-06\\n';\n  }#\n}\n",
+        "query": {
+          "_type": "lambda",
+          "body": [
+            {
+              "_type": "func",
+              "function": "from",
+              "parameters": [
+                {
+                  "_type": "func",
+                  "function": "sort",
+                  "parameters": [
+                    {
+                      "_type": "func",
+                      "function": "project",
+                      "parameters": [
+                        {
+                          "_type": "func",
+                          "function": "filter",
+                          "parameters": [
+                            {
+                              "_type": "func",
+                              "function": "getAll",
+                              "parameters": [
+                                {
+                                  "_type": "packageableElementPtr",
+                                  "fullPath": "proj::Party"
+                                }
+                              ]
+                            },
+                            {
+                              "_type": "lambda",
+                              "body": [
+                                {
+                                  "_type": "func",
+                                  "function": "greaterThanEqual",
+                                  "parameters": [
+                                    {
+                                      "_type": "property",
+                                      "parameters": [
+                                        {
+                                          "_type": "var",
+                                          "name": "p"
+                                        }
+                                      ],
+                                      "property": "joined"
+                                    },
+                                    {
+                                      "_type": "var",
+                                      "name": "since"
+                                    }
+                                  ]
+                                }
+                              ],
+                              "parameters": [
+                                {
+                                  "_type": "var",
+                                  "name": "p"
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "_type": "classInstance",
+                          "type": "colSpecArray",
+                          "value": {
+                            "colSpecs": [
+                              {
+                                "function1": {
+                                  "_type": "lambda",
+                                  "body": [
+                                    {
+                                      "_type": "property",
+                                      "parameters": [
+                                        {
+                                          "_type": "var",
+                                          "name": "p"
+                                        }
+                                      ],
+                                      "property": "id"
+                                    }
+                                  ],
+                                  "parameters": [
+                                    {
+                                      "_type": "var",
+                                      "name": "p"
+                                    }
+                                  ]
+                                },
+                                "name": "id"
+                              },
+                              {
+                                "function1": {
+                                  "_type": "lambda",
+                                  "body": [
+                                    {
+                                      "_type": "property",
+                                      "parameters": [
+                                        {
+                                          "_type": "var",
+                                          "name": "p"
+                                        }
+                                      ],
+                                      "property": "name"
+                                    }
+                                  ],
+                                  "parameters": [
+                                    {
+                                      "_type": "var",
+                                      "name": "p"
+                                    }
+                                  ]
+                                },
+                                "name": "name"
+                              },
+                              {
+                                "function1": {
+                                  "_type": "lambda",
+                                  "body": [
+                                    {
+                                      "_type": "property",
+                                      "parameters": [
+                                        {
+                                          "_type": "var",
+                                          "name": "p"
+                                        }
+                                      ],
+                                      "property": "joined"
+                                    }
+                                  ],
+                                  "parameters": [
+                                    {
+                                      "_type": "var",
+                                      "name": "p"
+                                    }
+                                  ]
+                                },
+                                "name": "joined"
+                              }
+                            ]
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "_type": "func",
+                      "function": "ascending",
+                      "parameters": [
+                        {
+                          "_type": "classInstance",
+                          "type": "colSpec",
+                          "value": {
+                            "name": "id"
+                          }
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "_type": "packageableElementPtr",
+                  "fullPath": "proj::PartyMapping"
+                },
+                {
+                  "_type": "packageableElementPtr",
+                  "fullPath": "proj::RT"
+                }
+              ]
+            }
+          ],
+          "parameters": [
+            {
+              "_type": "var",
+              "genericType": {
+                "multiplicityArguments": [],
+                "rawType": {
+                  "_type": "packageableType",
+                  "fullPath": "StrictDate"
+                },
+                "typeArguments": [],
+                "typeVariableValues": []
+              },
+              "multiplicity": {
+                "lowerBound": 1,
+                "upperBound": 1
+              },
+              "name": "since"
+            }
+          ]
+        },
+        "runtime": "proj::RT",
+        "params": {
+          "since": "2022-01-01"
+        }
+      },
+      "refusal": {
+        "kind": "request"
+      }
+    },
+    {
+      "name": "a query run in JSON: its shape, each column's Pure type, the cells exact (an Integer past 2^53 kept)",
+      "op": "query/run",
+      "bindings": [
+        "server",
+        "python"
+      ],
+      "request": {
+        "model": "Class proj::Party { id: Integer[1]; name: String[1]; joined: StrictDate[1]; }\n###Relational\nDatabase proj::PartyDB ( Schema PARTY ( Table PARTY (ID BIGINT PRIMARY KEY, NAME VARCHAR(200), JOINED DATE) ) )\n###Mapping\nMapping proj::PartyMapping\n(\n  *proj::Party: Relational\n  {\n    ~primaryKey ([proj::PartyDB] PARTY.PARTY.ID)\n    ~mainTable [proj::PartyDB] PARTY.PARTY\n    id: [proj::PartyDB] PARTY.PARTY.ID,\n    name: [proj::PartyDB] PARTY.PARTY.NAME,\n    joined: [proj::PartyDB] PARTY.PARTY.JOINED\n  }\n)\n###Connection\nRelationalDatabaseConnection proj::Conn { store: proj::PartyDB; type: DuckDB; specification: DuckDB { }; auth: Test; }\n###Runtime\nRuntime proj::RT { mappings: [ proj::PartyMapping ]; connections: [ proj::PartyDB: [ db: proj::Conn ] ]; }\n###Data\nData proj::PartyData\n{\n  Relational\n  #{\n    PARTY.PARTY:\n      'ID,NAME,JOINED\\n1,Meridian Capital,2021-03-04\\n9223372036854775807,Halberd Securities,2022-05-06\\n';\n  }#\n}\n",
+        "query": {
+          "_type": "lambda",
+          "body": [
+            {
+              "_type": "func",
+              "function": "from",
+              "parameters": [
+                {
+                  "_type": "func",
+                  "function": "sort",
+                  "parameters": [
+                    {
+                      "_type": "func",
+                      "function": "project",
+                      "parameters": [
+                        {
+                          "_type": "func",
+                          "function": "filter",
+                          "parameters": [
+                            {
+                              "_type": "func",
+                              "function": "getAll",
+                              "parameters": [
+                                {
+                                  "_type": "packageableElementPtr",
+                                  "fullPath": "proj::Party"
+                                }
+                              ]
+                            },
+                            {
+                              "_type": "lambda",
+                              "body": [
+                                {
+                                  "_type": "func",
+                                  "function": "greaterThanEqual",
+                                  "parameters": [
+                                    {
+                                      "_type": "property",
+                                      "parameters": [
+                                        {
+                                          "_type": "var",
+                                          "name": "p"
+                                        }
+                                      ],
+                                      "property": "joined"
+                                    },
+                                    {
+                                      "_type": "var",
+                                      "name": "since"
+                                    }
+                                  ]
+                                }
+                              ],
+                              "parameters": [
+                                {
+                                  "_type": "var",
+                                  "name": "p"
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "_type": "classInstance",
+                          "type": "colSpecArray",
+                          "value": {
+                            "colSpecs": [
+                              {
+                                "function1": {
+                                  "_type": "lambda",
+                                  "body": [
+                                    {
+                                      "_type": "property",
+                                      "parameters": [
+                                        {
+                                          "_type": "var",
+                                          "name": "p"
+                                        }
+                                      ],
+                                      "property": "id"
+                                    }
+                                  ],
+                                  "parameters": [
+                                    {
+                                      "_type": "var",
+                                      "name": "p"
+                                    }
+                                  ]
+                                },
+                                "name": "id"
+                              },
+                              {
+                                "function1": {
+                                  "_type": "lambda",
+                                  "body": [
+                                    {
+                                      "_type": "property",
+                                      "parameters": [
+                                        {
+                                          "_type": "var",
+                                          "name": "p"
+                                        }
+                                      ],
+                                      "property": "name"
+                                    }
+                                  ],
+                                  "parameters": [
+                                    {
+                                      "_type": "var",
+                                      "name": "p"
+                                    }
+                                  ]
+                                },
+                                "name": "name"
+                              },
+                              {
+                                "function1": {
+                                  "_type": "lambda",
+                                  "body": [
+                                    {
+                                      "_type": "property",
+                                      "parameters": [
+                                        {
+                                          "_type": "var",
+                                          "name": "p"
+                                        }
+                                      ],
+                                      "property": "joined"
+                                    }
+                                  ],
+                                  "parameters": [
+                                    {
+                                      "_type": "var",
+                                      "name": "p"
+                                    }
+                                  ]
+                                },
+                                "name": "joined"
+                              }
+                            ]
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "_type": "func",
+                      "function": "ascending",
+                      "parameters": [
+                        {
+                          "_type": "classInstance",
+                          "type": "colSpec",
+                          "value": {
+                            "name": "id"
+                          }
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "_type": "packageableElementPtr",
+                  "fullPath": "proj::PartyMapping"
+                },
+                {
+                  "_type": "packageableElementPtr",
+                  "fullPath": "proj::RT"
+                }
+              ]
+            }
+          ],
+          "parameters": [
+            {
+              "_type": "var",
+              "genericType": {
+                "multiplicityArguments": [],
+                "rawType": {
+                  "_type": "packageableType",
+                  "fullPath": "StrictDate"
+                },
+                "typeArguments": [],
+                "typeVariableValues": []
+              },
+              "multiplicity": {
+                "lowerBound": 1,
+                "upperBound": 1
+              },
+              "name": "since"
+            }
+          ]
+        },
+        "runtime": "proj::RT",
+        "params": {
+          "since": "2022-01-01"
+        },
+        "format": "json"
+      },
+      "answer": {
+        "shape": "RELATION",
+        "columns": [
+          {
+            "name": "id",
+            "type": "Integer"
+          },
+          {
+            "name": "name",
+            "type": "String"
+          },
+          {
+            "name": "joined",
+            "type": "StrictDate"
+          }
+        ],
+        "rows": [
+          [
+            9223372036854775807,
+            "Halberd Securities",
+            "2022-05-06"
+          ]
+        ]
+      }
+    },
+    {
+      "name": "a saved query that does not exist is refused, kind notFound (404; the user, 2026-11-17)",
+      "op": "queries/get",
+      "bindings": [
+        "server",
+        "python"
+      ],
+      "request": {
+        "id": "no-such-query"
+      },
+      "refusal": {
+        "kind": "notFound"
+      }
+    },
+    {
+      "name": "a saved page that does not exist is refused, kind notFound (404; the user, 2026-11-17)",
+      "op": "queries/dataCube/get",
+      "bindings": [
+        "server",
+        "python"
+      ],
+      "request": {
+        "id": "no-such-page"
+      },
+      "refusal": {
+        "kind": "notFound"
+      }
+    }
+  ]
+}
