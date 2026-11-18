@@ -280,12 +280,20 @@ public final class PureText {
         };
     }
 
+    /** legend-engine's H2 database settings (H2Manager / H2Defaults, 4.145.0): {@code MODE=LEGACY}, and
+     *  {@code DEFAULT_NULL_ORDERING=HIGH}, its null placement (null is largest), which its printer leaves bare because
+     *  the database already orders that way; the edge's alone since the audit's J22, 2026-11-17 (RULED by the user: the
+     *  product's H2 uses H2's own, {@code H2.DEFAULT_SETTINGS}). */
+    static final com.legend.sql.dialect.SqlDialect.DatabaseSettings LEGACY_H2 = com.legend.sql.dialect.H2.settings(java.util.List.of(
+            new com.legend.sql.dialect.SqlDialect.Setting("MODE", "LEGACY"),
+            new com.legend.sql.dialect.SqlDialect.Setting("DEFAULT_NULL_ORDERING", "HIGH")));
+
     /** The edge's dialect of {@code type}; a database the product has no dialect for refused by name, as the
      *  product's own source refuses it. */
     public static SqlDialect dialect(DatabaseType type) {
         return switch (type) {
             case DuckDB -> new DuckDb();
-            case H2 -> new EdgeH2();
+            case H2 -> new H2();
             case Postgres -> new Postgres();
             case Databricks -> new Databricks();
             case Snowflake -> new Snowflake();
@@ -353,6 +361,12 @@ public final class PureText {
 
     /** H2, spelled as upstream spells it. */
     public static final class H2 extends com.legend.sql.dialect.H2 {
+        /** legend-engine's H2 session ({@link #LEGACY_H2}; the audit's J22, 2026-11-17). */
+        @Override
+        public DatabaseSettings databaseSettings() {
+            return LEGACY_H2;
+        }
+
         /** A Float literal computes as legend-engine's: its bare print, a DECIMAL (the edge program's §6 row 21, the
          *  orchestrator's ruling R2 of 2026-11-17; the product's is the double, register S20). */
         @Override

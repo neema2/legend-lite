@@ -52,10 +52,10 @@ public class EngineStyleH2 extends AnsiSqlRenderer implements EngineTextDialect 
         return H2.SESSION_SETUP;
     }
 
-    /** {@inheritDoc} legend-engine's H2 session ({@link EdgeH2#LEGACY_SETTINGS}), the same database. */
+    /** {@inheritDoc} legend-engine's H2 session ({@link PureText#LEGACY_H2}), the same database. */
     @Override
     public @com.legend.base.Nullable DatabaseSettings databaseSettings() {
-        return EdgeH2.LEGACY_SETTINGS;
+        return PureText.LEGACY_H2;
     }
 
     /** None: this text is the engine's goldens', which no database executes, so no {@code data:} payload is delivered
