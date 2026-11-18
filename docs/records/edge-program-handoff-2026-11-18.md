@@ -292,11 +292,14 @@ cosmetic.
    last test"):
    - GUARD's final guards (`3af89e4bde`): census 1 on the train, only L-A.unionAlias left. The audit list, EDGE-ONLY,
      REACH_OPEN and ROOTS_OPEN are empty. Closed in this train: H5, J18, J36, J9, K10.
-   - The host halves of K2: the wasm planner (the TS host, `17a87ddff5`), the native compiler and H5 (the Python
-     host, `claude/total-wall-h-python-k2-final`), and DataCube's part (`a47a16b4`). J40.ModelInput was moved by the
-     TS host (`claude/total-wall-host-modelinput`). J40.Compiler was ruled READ_API (`Compiler#compileErrors` is a fact
-     about the user's program).
-   - E-P5's K10 (a raise site carries lite's message only; plan v58) with its trim.
+   - The host halves of K2: the wasm planner (the TS host, `17a87ddff`), the native compiler and H5 (the Python
+     host, `0b6d6f5b3`, merged in `648c71c38` and `69246e047`), and DataCube's part (`a47a16b40`, carried as
+     `17862eb6b` and in `648c71c38`). J40.ModelInput was moved to the edge by the TS host (`1ba85e002`, merged in
+     `59a12f356`). J40.Compiler was ruled READ_API (`Compiler#compileErrors` is a fact about the user's program),
+     closed by GUARD's `3af89e4bd`.
+   - E-P5's K10 (a raise site carries lite's message only; plan v58). The transitional raise `f6413ba4f` (+40,874)
+     was taken back by the trim `1a96dbd2d`. **Net against the base:** `channel_b.essential.judge.plan` is
+     28,685,164 at `815de5810` and 28,684,638 on the train (-526).
    - F's L14 (explicit NULLS_LAST; SQL unchanged).
    - **F's lean-baseline regen** `dc923b45f` (merged as `90cf4edad`): exactly 40 rows, every one an approved raise.
      39 rows are v57's +31 per Decimal(p,s) column (the user, ~11:12, reconfirmed 11:58 "keep it"). One row is
