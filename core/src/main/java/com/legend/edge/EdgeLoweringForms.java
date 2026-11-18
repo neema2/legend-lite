@@ -35,6 +35,7 @@ record EdgeLoweringForms(Set<RaiseKind> plain, boolean engineSqlShape) implement
      *  wire casts; its raises are the plan style's, never this shape's. */
     static final EdgeLoweringForms ENGINE_SQL_SHAPE = new EdgeLoweringForms(Set.of(), true);
 
+
     EdgeLoweringForms {
         plain = plain.isEmpty() ? Set.of() : java.util.Collections.unmodifiableSet(java.util.EnumSet.copyOf(plain));
     }
@@ -126,5 +127,12 @@ record EdgeLoweringForms(Set<RaiseKind> plain, boolean engineSqlShape) implement
         return new SqlExpr.Cast(SqlExpr.Call.of(com.legend.sql.SqlFn.REGEXP_REPLACE, text,
                 new SqlExpr.StringLit("\\}\\s*\\{"), new SqlExpr.StringLit("},{"), new SqlExpr.StringLit("g")),
                 com.legend.sql.SqlType.Scalar.JSON, SqlExpr.Reason.CARRIER);
+    }
+
+    /** legend-engine's "second exists emission", on every edge style, where the planner's statement may take it (J19,
+     *  register S367). */
+    @Override
+    public SqlSelect existsJoin(SqlSelect filtered, java.util.function.UnaryOperator<SqlSelect> joinForm) {
+        return joinForm.apply(filtered);
     }
 }

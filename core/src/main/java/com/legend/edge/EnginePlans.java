@@ -163,13 +163,11 @@ public final class EnginePlans {
         com.legend.lowering.Lowerer lw = new com.legend.lowering.Lowerer(
                 t -> com.legend.compiler.element.ClassLayouts.layoutOf(env.ctx(), t),
                 f -> env.ctx().findClass(f).isPresent(), env.ctx().implementations())
-                .withFeatures(BodyPlanner.featuresOf(env, body)).withOptions(env.options()).withShape(UPSTREAM_SHAPE)
+                .withFeatures(BodyPlanner.featuresOf(env, body)).withOptions(env.options())
+                .withShape(temporalRoot ? UPSTREAM_SHAPE : UPSTREAM_SHAPE.withExistsJoinable())
                 // and the plan environment's style's text facets and plain raises (the audit's K6, 2026-11-17: until
                 // then this lowering ran with the Lowerer's implicit product default)
                 .withFloatLiteralKind(env::floatLiteralKind).withStyled(env.styled());
-        if (!temporalRoot) {
-            lw = lw.withExistsAsJoinDistinct();
-        }
         planParams.values().forEach(lw::bindPlanParam);
         // ENGINE-TEXT lowering: wire coercions read bare (a Lowerer option
         // since batch 136; a thread-local scope before)

@@ -966,7 +966,8 @@ public final class Compiler {
                 .withFloatLiteralKind(() -> runtimeFqn == null ? null : com.legend.database.PlanStyle.PRODUCT
                         .dialect(executesOn(ctx, runtimeFqn).type()).floatLiteralKind());
         if (!temporalRoot) {
-            lw = lw.withExistsAsJoinDistinct();
+            // the style's forms decide its shape (J19, S367): the product's keeps the EXISTS
+            lw = lw.withExistsJoinable();
         }
         return lw.lower(body);
     }
