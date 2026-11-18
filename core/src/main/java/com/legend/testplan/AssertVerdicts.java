@@ -668,7 +668,7 @@ public final class AssertVerdicts {
                 }
                 TypedSide isv = isVerdict(args.get(0), args.get(1));
                 if (isv != null) {
-                    arm.staticallyDecided(name, env);
+                    arm.staticallyDecided(env);
                     yield isv;
                 }
                 if (primitivePair(args.get(0), args.get(1))) {
@@ -1961,7 +1961,7 @@ public final class AssertVerdicts {
                 : r.value().info().type(), env.options().style().twoForm(com.legend.compiler.spec.GoldenNullWord.class,
                         com.legend.compiler.spec.LiteGoldenNullWord.NONE));
         if (parsed.headerMismatch()) {
-            DatabaseJudge.staticallyDecided(name, env);
+            DatabaseJudge.staticallyDecided(env);
             return fail(name + ": " + parsed.reason());   // a static verdict
         }
         if (parsed.literal() == null) {

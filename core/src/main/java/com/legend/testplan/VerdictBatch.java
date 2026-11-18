@@ -121,7 +121,7 @@ public final class VerdictBatch {
     }
 
     /** A verdict the arm decided at planning, counted by the census at the root's turn ({@link #judged}). */
-    private record Judged(String name) implements Step {
+    private record Judged() implements Step {
     }
 
     /** {@code orElse}: the row's RULED comparison (2026-11-04, the core program: every assert on its own merit
@@ -380,14 +380,14 @@ public final class VerdictBatch {
         fragments.putAll(map);
     }
 
-    /** The open root's arm decided {@code name}'s verdict at planning (a static decision): a step the runner counts
+    /** The open root's arm decided its verdict at planning (a static decision): a step the runner counts
      *  at the root's turn (J39, 2026-11-18, the orchestrator's ruling (b): the census counted it at planning). Inside
      *  a ruled comparison ({@link #orElse}) nothing is added: that arm decides only where the generic row fails, and
      *  the generic row's own judgment is the root's count at its turn. */
-    public void judged(String name) {
+    public void judged() {
         Root r = java.util.Objects.requireNonNull(current, "verdict batch: no open root for a static verdict");
         if (orElseOf.isEmpty()) {
-            r.steps.add(new Judged(name));
+            r.steps.add(new Judged());
         }
     }
 
@@ -608,7 +608,7 @@ public final class VerdictBatch {
                                 id == null ? refusals.get(p.ix()) : null, decidedOrElse(p), p.appeal(), p.decline());
                     }
                     case Resolved rv -> new RootLoop.Decided(rv.failure(), rv.reported());
-                    case Judged j -> new RootLoop.Judged(j.name());
+                    case Judged j -> new RootLoop.Judged();
                 });
             }
             RootLoop.Message message = null;

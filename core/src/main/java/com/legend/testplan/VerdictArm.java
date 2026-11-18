@@ -112,5 +112,5 @@ interface VerdictArm {
 
     /** The static identity gate decided {@code assertIs} at compile time (a census fact, counted at the root's turn:
      *  J39, 2026-11-18). */
-    void staticallyDecided(String name, BodyDriver.ExecEnv env);
+    void staticallyDecided(BodyDriver.ExecEnv env);
 }

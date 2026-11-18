@@ -826,14 +826,11 @@ final class HostJson {
     }
 
     static Map<String, Object> wRsJudged(RootLoop.Judged x) {
-        Map<String, Object> o = new LinkedHashMap<>();
-        o.put("name", x.name());
-        return o;
+        return new LinkedHashMap<>();
     }
 
     static RootLoop.Judged rRsJudged(Json.Obj o) {
-        String v_name = str(field(o, "name", "Judged"));
-        return new RootLoop.Judged(v_name);
+        return new RootLoop.Judged();
     }
 
     static Map<String, Object> wKindClass(KindClass x) {

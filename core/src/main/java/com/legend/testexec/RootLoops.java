@@ -180,7 +180,7 @@ public final class RootLoops {
                         case RootLoop.Judged j -> {
                             // a verdict decided at planning, counted at its turn as a row is at its judgment
                             // (DatabaseVerdicts): never at planning (J39, 2026-11-18)
-                            com.legend.diagnostics.VerdictCensus.sqlJudgedInDatabase(j.name());
+                            com.legend.diagnostics.VerdictCensus.sqlJudgedInDatabase(r.listenerName());
                             spoke = true;
                         }
                         case RootLoop.Decided d -> {
