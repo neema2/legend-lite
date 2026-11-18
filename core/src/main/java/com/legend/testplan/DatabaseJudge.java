@@ -921,7 +921,8 @@ public final class DatabaseJudge {
             }
             // the vector contract's assert/assertFalse: the host's words (HostJudge.quantifiedRows), the call's literal
             // message or the run's words of a condition's failure; another family's rows keep the count's frame
-            boolean assertFamily = family == com.legend.builtin.NativeFn.Verdict.ASSERT || family == com.legend.builtin.NativeFn.Verdict.ASSERT_FALSE;
+            boolean assertFamily = family == com.legend.builtin.NativeFn.Verdict.ASSERT
+                    || family == com.legend.builtin.NativeFn.Verdict.ASSERT_FALSE;
             return runVerdict(fqn, true, com.legend.lowering.VerdictSql.allOf(vector.rows(false), true,
                     assertFamily ? com.legend.compiler.spec.VerdictQueries.assertMessage(root,
                             words(env).conditionFailed(family == com.legend.builtin.NativeFn.Verdict.ASSERT)) : null),
