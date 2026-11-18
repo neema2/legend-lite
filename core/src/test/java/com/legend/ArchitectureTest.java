@@ -1385,7 +1385,9 @@ final class ArchitectureTest {
                     + "com.legend.sql.SqlExpr)", "com.legend.edge.UpstreamVerdictWords",
             "lowering.VerdictSql#reprNewlines(com.legend.sql.SqlExpr)", "com.legend.edge.UpstreamVerdictWords",
             "lowering.VerdictSql#quoted(com.legend.sql.SqlExpr)", "com.legend.edge.UpstreamVerdictWords",
-            "lowering.VerdictWords$Reads#CANONS", "com.legend.edge.UpstreamVerdictWords",
+            // (VerdictWords$Reads#CANONS until 2026-11-18: the enum left the two-form kind for its own type, the GUARD
+            // stream's re-cut on train 15 1931d419b1 -- PlanStyleSurfaceTest's criterion (a); the same member, renamed)
+            "lowering.VerdictReads#CANONS", "com.legend.edge.UpstreamVerdictWords",
             // the test door's options, from the root's ExecuteOptions: planning's half, a record of closed words (its
             // PlanStyle parameter 2026-11-15, phase D's D1.0, merged with main's #101 in ca5c4338f9; dated 2026-11-17 by
             // the GUARD stream's C.13-CI, which found the row changed with no note)
@@ -4057,6 +4059,11 @@ final class ArchitectureTest {
             .and().doNotHaveFullyQualifiedName("com.legend.testexec.DatabaseVerdicts")
             .and().doNotHaveFullyQualifiedName("com.legend.testexec.HostForms")
             .and().doNotHaveFullyQualifiedName("com.legend.testexec.LiteHostForms")
+            // the host judge's words of a failed assert (census J29, train 14's 21a9734475; registered 2026-11-18 by the
+            // GUARD stream's re-cut on train 15 1931d419b1, where this rule first met them): the run hook HostForms
+            // names, the kind and lite's form; each words a verdict over Equality's typed grids, never decides one
+            .and().doNotHaveFullyQualifiedName("com.legend.testexec.HostWords")
+            .and().doNotHaveFullyQualifiedName("com.legend.testexec.LiteHostWords")
             // testdatagen composes seed SOURCE TEXT via the ONE repr
             // owner — spelling, never an equality decision
             .and().doNotHaveFullyQualifiedName("com.legend.testdatagen.TestDataGenerator")

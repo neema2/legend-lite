@@ -16,6 +16,7 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeSet;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -92,15 +93,42 @@ class HookRulingTest {
             Map.entry("com.legend.Execution#runOnProjectDatabases(com.legend.TypedQuery, java.lang.String, java.lang.String, com.legend.database.PlanStyle, com.legend.result.Output)",
                     "2026-11-18: a hook entry -- the product's own pipeline handed a PlanStyle, no legend-engine logic in its body (the orchestrator's ruling (6))"),
             Map.entry("com.legend.TypedQuery#projectPlan(java.lang.String, com.legend.database.PlanStyle)",
-                    "2026-11-18: a hook entry -- the product's own pipeline handed a PlanStyle, no legend-engine logic in its body (the orchestrator's ruling (6))"));
+                    "2026-11-18: a hook entry -- the product's own pipeline handed a PlanStyle, no legend-engine logic in its body (the orchestrator's ruling (6))"),
+            // the orchestrator's ruling on E-SQL's five (2026-11-18): a hook's own result type, constructed only by the
+            // edge, is not a finding -- the product answers none (PlanStyle.traceCell())
+            Map.entry("com.legend.database.PlanStyle$TraceCell#<init>(java.lang.String, java.lang.String)",
+                    "2026-11-18: a hook type -- PlanStyle.traceCell()'s result, constructed by the edge's styles alone (the orchestrator's ruling on E-SQL's five)"));
 
-    /** Each hook entry takes a PlanStyle: it is a hook entry by its signature, not by its name. */
+    /** The types a hook's method returns: PlanStyle's, the facet kinds' and the two-form kinds'. */
+    static Set<Class<?>> hookResultTypes() {
+        List<Class<?>> hooks = new java.util.ArrayList<>(List.of(com.legend.database.PlanStyle.class));
+        hooks.addAll(com.legend.testplan.PlanStyleFacets.KINDS);
+        hooks.addAll(com.legend.testplan.PlanStyleFacets.TWO_FORMS);
+        Set<Class<?>> out = new java.util.HashSet<>();
+        for (Class<?> h : hooks) {
+            for (java.lang.reflect.Method m : h.getMethods()) {
+                out.add(m.getReturnType());
+            }
+        }
+        return out;
+    }
+
+    /** Each hook entry takes a PlanStyle, or constructs a hook's own result type (the orchestrator's ruling on E-SQL's
+     *  five, 2026-11-18: PlanStyle$TraceCell): it is a hook entry by its signature, not by its name. */
     @Test
     void eachHookEntryTakesAHookType() throws ClassNotFoundException {
         for (String entry : HOOK_ENTRIES.keySet()) {
             Class<?> owner = Class.forName(entry.substring(0, entry.indexOf('#')));
             String name = entry.substring(entry.indexOf('#') + 1, entry.indexOf('('));
             String params = entry.substring(entry.indexOf('(') + 1, entry.length() - 1);
+            if (name.equals("<init>")) {
+                boolean ctor = java.util.Arrays.stream(owner.getConstructors()).anyMatch(c -> java.util.Arrays
+                        .stream(c.getParameterTypes()).map(Class::getName)
+                        .collect(java.util.stream.Collectors.joining(", ")).equals(params));
+                org.junit.jupiter.api.Assertions.assertTrue(ctor && hookResultTypes().contains(owner), entry
+                        + " is a public constructor of a type a hook's method returns");
+                continue;
+            }
             boolean found = false;
             for (java.lang.reflect.Method m : owner.getMethods()) {
                 String sig = java.util.Arrays.stream(m.getParameterTypes()).map(Class::getName)
@@ -358,9 +386,9 @@ class HookRulingTest {
         // census J29's reads() (the orchestrator's rule of 2026-11-18): a two-form FACT, not edge-only code -- both
         // forms' verdicts decide on the same canons (VerdictSql's statement compares each side's __c canon in both);
         // lite's sentences add each side's WRITTEN text beside them, legend-pure's frame writes from the canons
-        assertEquals(com.legend.lowering.VerdictWords.Reads.WRITTEN,
+        assertEquals(com.legend.lowering.VerdictReads.WRITTEN,
                 com.legend.lowering.LiteVerdictWords.INSTANCE.reads(), "lite's sentences read the written sides");
-        assertEquals(com.legend.lowering.VerdictWords.Reads.CANONS,
+        assertEquals(com.legend.lowering.VerdictReads.CANONS,
                 ((com.legend.lowering.VerdictWords) edgeWords).reads(), "legend-pure's frame reads the canons");
         Runnable productForm = () -> { };
         assertTrue(PlanStyle.PRODUCT.twoForm(Runnable.class, productForm) == productForm,
