@@ -81,4 +81,4 @@ if engine is right default or pure is".
 | R8 | (c) C4; (h) K1 | three-mode program |
 
 Still pending the user: (e') ENGINE's scope (recommended E-R1), (d') per-push CI additions (recommended yes), and
-the orchestrator's three N3 calls on lite API v1's non-raise errors.
+(N3 was ruled by the user at ~21:40 UTC: "N3 okay".)
