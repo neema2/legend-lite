@@ -88,15 +88,15 @@ public final class Equality {
     // ---- THE LENIENCY (one, counted) --------------------------------------
 
     /** THE ONE FLOAT LENIENCY (§5a, one home): two finite doubles within
-     * {@code 2 * ulp(max(|x|, |y|))}. The host cell rule (TdsCompare) and
+     * {@code floatUlps * ulp(max(|x|, |y|))}, the plan's rules' number (census C1's J11, 2026-11-17). The host cell rule (TdsCompare) and
      * the referee (RefereeVerify) call HERE; the database judge spells the same
      * predicate in SQL (VerdictSql.lenient). */
-    public static boolean withinTwoUlp(double x, double y) {
+    public static boolean withinUlps(double x, double y, int floatUlps) {
         if (!Double.isFinite(x) || !Double.isFinite(y)) {
             return false;
         }
         double ulp = Math.ulp(Math.max(Math.abs(x), Math.abs(y)));
-        boolean ok = Math.abs(x - y) <= com.legend.values.FloatTolerance.ULPS * ulp;
+        boolean ok = Math.abs(x - y) <= floatUlps * ulp;
         if (ok && x != y) {
             Census.inc(Census.Key.ULP_FIRINGS);
             if (System.getenv("LL_TOL_COUNT") != null) {
@@ -230,7 +230,7 @@ public final class Equality {
             // clean mode compares a Float exactly; the 2-ULP tolerance is compatibility mode's alone (S15/S132, the
             // user's ruling of 2026-11-05: "I like our clean float"; built 2026-11-05 after the report found one core
             // test relying on it, the policy's own pin)
-            boolean within = rules.floatTolerance() && e instanceof Double de && a instanceof Double da && withinTwoUlp(de, da);
+            boolean within = rules.floatTolerance() && e instanceof Double de && a instanceof Double da && withinUlps(de, da, rules.floatUlps());
             if (within) {
                 // the exact-comparison report (S15/S132 narrowed, 2026-11-05): the tolerance, not equality, decided
                 com.legend.diagnostics.Diagnostics.judgeSend("ulp-tolerance", "host " + e + " ~ " + a);
@@ -521,7 +521,8 @@ public final class Equality {
             if (decimal(en).compareTo(decimal(an)) == 0) {
                 return null;
             }
-            if (withinTwoUlp(en.doubleValue(), an.doubleValue())) {
+            // a service test's EqualToJson (legend-engine's), which has no judging rules of its own: within 2 ULP
+            if (withinUlps(en.doubleValue(), an.doubleValue(), 2)) {
                 com.legend.diagnostics.Diagnostics.judgeSend("ulp-tolerance", "host-json " + en + " ~ " + an);
                 return null;
             }

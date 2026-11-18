@@ -19,9 +19,14 @@ public record HostRules(com.legend.testexecutionplan.TestPlan.JudgingRules rules
         java.util.Objects.requireNonNull(forms, "an equality names the run's forms");
     }
 
-    /** The plan's rule: a Float compared within 2 ULP. */
+    /** The plan's rule: a Float compared within {@link #floatUlps} ULP at all. */
     public boolean floatTolerance() {
         return rules.floatTolerance();
+    }
+
+    /** The plan's rule: the units in the last place two Floats may differ by and be equal (0: exact). */
+    public int floatUlps() {
+        return rules.floatUlps();
     }
 
     /** The plan's rule: a Decimal compared with its scale. */

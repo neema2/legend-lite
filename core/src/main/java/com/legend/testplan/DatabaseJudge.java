@@ -163,7 +163,7 @@ public final class DatabaseJudge {
                     // both spelled in the expected's kinds where the columns' kinds differ (the grid owner's rule)
                     pq = com.legend.lowering.VerdictSql.gridPair(gridSide(we.plan(), se, csvStrings),
                             gridSide(wa.plan(), gridPairArm && sameNames(se, sa) ? se : sa, csvStrings),
-                            canonicalOrder, env.options().judgingRules().floatTolerance(), lite(env));
+                            canonicalOrder, env.options().judgingRules().floatUlps(), lite(env));
                 } else {
                     pq = com.legend.lowering.VerdictSql.gridPair(we.plan(), wa.plan(), canonicalOrder);
                 }
@@ -200,7 +200,7 @@ public final class DatabaseJudge {
                     com.legend.sql.SqlQuery gq = cellPool
                             ? com.legend.lowering.VerdictSql.gridCells(grid, peer, gridE, lite(env))
                             : com.legend.lowering.VerdictSql.gridRows(grid, peer, gridE,
-                                    canonicalOrder, lite(env));
+                                    canonicalOrder, lite(env), env.options().judgingRules().floatUlps());
                     return runVerdict(name, wantEqual, message.apply(gq),
                             env.withTarget(gw.storeFree() ? pw.target() : gw.target()));
                 }
@@ -256,7 +256,7 @@ public final class DatabaseJudge {
                         ra.many(), canonicalOrder,
                         ra.kinds().get(ia) == com.legend.compiler.element.type.Type.Primitive.FLOAT, ma,
                         com.legend.lowering.VerdictSql.decimalByValue(env.options().judgingRules().decimalScale(), ra.kinds().get(ia))),
-                env.options().judgingRules().floatTolerance());
+                env.options().judgingRules().floatUlps());
         // two single Strings compared by their raw text (no literal channel, whose canon is quoted already): the
         // message prints them as upstream's %r prints a String, quoted and escaped (2026-11-03, round 18: a TDS's
         // toString against its golden read unquoted under the database judge alone on Postgres, MariaDB, MySQL and
@@ -943,8 +943,8 @@ public final class DatabaseJudge {
             com.legend.testexecutionplan.TestPlan.JudgingRules rules = env.options().judgingRules();
             com.legend.sql.SqlQuery row = com.legend.lowering.VerdictSql.perElement(vector.side().plan(), ek, ak,
                     crossNumberKinds(ek, ak, numbers(env)),
-                    rules.floatTolerance() && ek == com.legend.compiler.element.type.Type.Primitive.FLOAT
-                            && ak == com.legend.compiler.element.type.Type.Primitive.FLOAT,
+                    ek == com.legend.compiler.element.type.Type.Primitive.FLOAT
+                            && ak == com.legend.compiler.element.type.Type.Primitive.FLOAT ? rules.floatUlps() : 0,
                     com.legend.lowering.VerdictSql.decimalByValue(rules.decimalScale(), ek), lite(env), env.plan().styled());
             if (row == null) {
                 return unjudged(name, "per-element: a kind with no spelling (" + ek.typeName() + " vs "
