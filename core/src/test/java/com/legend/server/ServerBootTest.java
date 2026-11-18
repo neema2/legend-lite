@@ -74,10 +74,9 @@ class ServerBootTest {
     }
 
     @Test
-    void theEngineIsReadFromTheCommandLineThenTheEnvironment() {
-        assertEquals("legend-engine", LegendHttpServer.engineOf(new String[] {"0", "--engine", "legend-engine"}, "x"));
-        assertEquals("legend-engine", LegendHttpServer.engineOf(new String[] {"0"}, " legend-engine "));
-        assertEquals(null, LegendHttpServer.engineOf(new String[] {"0"}, null));
-        assertThrows(IllegalArgumentException.class, () -> LegendHttpServer.engineOf(new String[] {"--engine"}, null));
+    void theEngineIsReadFromTheCommandLine() {
+        assertEquals("legend-engine", LegendHttpServer.engineOf(new String[] {"0", "--engine", "legend-engine"}));
+        assertEquals(null, LegendHttpServer.engineOf(new String[] {"0"}));
+        assertThrows(IllegalArgumentException.class, () -> LegendHttpServer.engineOf(new String[] {"--engine"}));
     }
 }

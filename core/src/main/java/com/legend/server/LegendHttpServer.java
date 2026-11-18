@@ -456,11 +456,11 @@ public class LegendHttpServer {
               --sources DIR       a folder a model's file: sources may read, repeatable (or $LEGEND_LITE_SOURCE_DIRS,
                                   folders separated by the path separator); 'any' reads every file. With none given the
                                   server reads no file: source: each is refused by name
-              --engine NAME       mount the module NAME beside lite's own API (or $LEGEND_LITE_ENGINE): legend-engine
+              --engine NAME       mount the module NAME beside lite's own API: legend-engine
                                   serves legend-engine's /api/pure/v1; none by default, an unknown name refused
             Environment: LEGEND_LITE_BIND (the listen address, loopback by default), LEGEND_LITE_ALLOWED_ORIGINS (the
-            pages beside loopback that may call it), LEGEND_LITE_SOURCE_DIRS (as --sources), LEGEND_LITE_ENGINE (as
-            --engine).""";
+            pages beside loopback that may call it), LEGEND_LITE_SOURCE_DIRS (as
+            --sources).""";
 
     /**
      * The folders a model's {@code file:} sources may read, from the server's startup settings (the user's ruling of
@@ -515,7 +515,7 @@ public class LegendHttpServer {
     public static void main(String[] args) throws IOException {
         Mount mount;
         try {
-            mount = configured(engineOf(args, System.getenv("LEGEND_LITE_ENGINE")));
+            mount = configured(engineOf(args));
         } catch (IllegalArgumentException refused) {
             // an engine no module answers: refused by name, the server not started
             System.err.println("ERROR: " + refused.getMessage());
@@ -525,9 +525,8 @@ public class LegendHttpServer {
         serve(args, mount);
     }
 
-    /** The engine the startup settings name: {@code --engine NAME} of {@code args}, else {@code env}
-     *  ({@code LEGEND_LITE_ENGINE}), else none. */
-    static @com.legend.base.Nullable String engineOf(String[] args, @com.legend.base.Nullable String env) {
+    /** The engine the startup settings name: {@code --engine NAME} of {@code args}, else none. */
+    static @com.legend.base.Nullable String engineOf(String[] args) {
         for (int i = 0; i < args.length; i++) {
             if ("--engine".equals(args[i])) {
                 if (i + 1 >= args.length) {
@@ -536,7 +535,7 @@ public class LegendHttpServer {
                 return args[i + 1];
             }
         }
-        return env == null || env.strip().isEmpty() ? null : env.strip();
+        return null;
     }
 
     /** The module {@code engine} names: none ({@link #LITE}) where it names none; else the {@link MountProvider} on the
@@ -553,7 +552,7 @@ public class LegendHttpServer {
             }
             known.add(p.engine());
         }
-        throw new IllegalArgumentException("no module answers the engine '" + engine + "' (--engine, LEGEND_LITE_ENGINE);"
+        throw new IllegalArgumentException("no module answers the engine '" + engine + "' (--engine);"
                 + " this server carries " + (known.isEmpty() ? "none" : String.join(", ", known)));
     }
 

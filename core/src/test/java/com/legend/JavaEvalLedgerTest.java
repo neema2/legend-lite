@@ -2033,6 +2033,10 @@ class JavaEvalLedgerTest {
                     java.util.Set.of("ConnectionResolver.java",
                             "DiagramService.java",
                             "LegendHttpServer.java",
+                            // 2026-11-18, K2's server half (the user's ruling "Product root, edge opt-in"): the hook a
+                            // module implements to offer the server a mount by its engine's name -- signatures only,
+                            // no connection, no JDBC, no value computed (pinned in HookRulingTest)
+                            "MountProvider.java",
                             "PureLspServer.java",
                             // 2026-10-10/11, DataCube's Create a Class…, an Association…, a Data Space…
                             // (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §15.6a): the model's writer and its three
