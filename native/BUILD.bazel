@@ -157,6 +157,8 @@ native_image(
         "//datacube:__pkg__",
         "//python:__pkg__",
         "//tools/guards:__pkg__",
+        # core's shipped-artifact queries name it: the declared opt-in (ShippedArtifactRootsTest, K2)
+        "//core:__pkg__",
     ],
     # rooted at the edge's entry points, which carry the product they depend on
     deps = [":edge_entry"],
