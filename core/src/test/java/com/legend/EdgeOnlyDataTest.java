@@ -69,9 +69,9 @@ class EdgeOnlyDataTest {
      *  "DEAD" data no one reads, deleted in train 17 by its package's owner (shrink-only, not a separation line);
      *  "RULED_PENDING" a question before the user. */
     static final Map<String, String> OPEN = Map.ofEntries(
-            // the finding: J31's shape, the template kind only the edge reads
-            Map.entry("component com.legend.sql.SqlExpr$PlanParam#kind: by the edge",
-                    "L-B.PlanParam E-SQL (2026-11-18): J31's shape, legend-engine's template kind, read by the edge alone"),
+            // (SqlExpr$PlanParam#kind, now #valueType: ruled the product's in meaning 2026-11-18, train 18 --
+            // RULED_IN_MEANING; the measure now sees EnumValueTables' read of it, a rewriter's decision; L-B.PlanParam
+            // closes)
             // facts of lite's own (the orchestrator's rulings at J40 and 06:40)
             Map.entry("variant com.legend.sql.SqlDdl$DropSchema: by the edge",
                     "READ_API (2026-11-18): generic SQL DDL in lite's sealed MIR vocabulary (ruled READ_API at J40)"),
@@ -138,7 +138,15 @@ class EdgeOnlyDataTest {
             // (ProductLoweringForms.view returns the body); its name read by the edge's view form and by the product's
             // diagnostic label (Pipelines.materialize)
             "variant com.legend.compiler.spec.typed.TypedViewRelation",
-            "2026-11-18: a product scope, the view's own slots and milestoning; its name the product's diagnostic label");
+            "2026-11-18: a product scope, the view's own slots and milestoning; its name the product's diagnostic label",
+            // L-B.PlanParam (the orchestrator's ruling of 2026-11-18, train 18): the parameter's declared Pure type as a
+            // value class, a fact about the user's program, read for the product's own decision -- sql.EnumValueTables
+            // tests ENUM to choose the value-table IN (applied by PlanMaker and ProgramState); only the template
+            // spellings (DATETIME->TIMESTAMP, DB2 BOOLEAN, quoted ENUM, InProtocol's OTHER) are the edge's, in its
+            // dialects and EngineParams. E-Java renamed it (df50405375: Kind -> ValueType, the component kind ->
+            // valueType; the wire key "kind" kept, the plan version unchanged): this row followed, 2026-11-18
+            "component com.legend.sql.SqlExpr$PlanParam#valueType",
+            "2026-11-18: the parameter's declared value class, the user's program's; EnumValueTables decides by it");
 
     /** The census lines this guard holds: one per "L-B." line. */
     static Set<String> lines() {
@@ -184,14 +192,27 @@ class EdgeOnlyDataTest {
     /** Whose use {@code use} of a piece of {@code owner} is. The record's own code copies in its constructors, in
      *  {@code equals}, {@code hashCode} and {@code toString}, and in a method returning its own type (a {@code withX});
      *  its other methods use. */
+    /** Whether {@code unit} constructs {@code owner}: the read it makes of the record rebuilds it. */
+    static boolean rebuilds(JavaCodeUnit unit, JavaClass owner) {
+        return unit.getConstructorCallsFromSelf().stream()
+                .anyMatch(c -> c.getTargetOwner().getName().equals(owner.getName()));
+    }
+
     static Who who(JavaAccess<?> use, JavaClass owner) {
         JavaClass origin = use.getOriginOwner();
         String name = origin.getName();
         if (top(name).startsWith(EDGE)) {
             return Who.EDGE;
         }
-        if (origin.isAssignableTo(REWRITER) || CODECS.contains(top(name))) {
+        if (CODECS.contains(top(name))) {
             return Who.COPY;
+        }
+        // a rewriter's read copies only where the same method rebuilds the record (the generic rewrite reads every
+        // component to construct it again); a rewriter that reads a component to DECIDE -- EnumValueTables testing a plan
+        // parameter's kind -- is a product use (the hole the orchestrator's question found, 2026-11-18, train 18: every
+        // rewriter read had counted as a copy, so PlanParam#kind read "by the edge")
+        if (origin.isAssignableTo(REWRITER)) {
+            return rebuilds(use.getOrigin(), owner) ? Who.COPY : Who.PRODUCT;
         }
         if (name.equals(owner.getName()) || name.startsWith(owner.getName() + "$")) {
             JavaCodeUnit unit = use.getOrigin();
@@ -392,13 +413,16 @@ class EdgeOnlyDataTest {
         JavaClasses planted = new ClassFileImporter().importClasses(com.legend.sql.PlantedEdgeOnlyMir.class,
                 com.legend.sql.PlantedEdgeOnlyMir.Node.class, com.legend.sql.PlantedEdgeOnlyMir.Made.class,
                 com.legend.sql.PlantedEdgeOnlyMir.Shared.class, com.legend.sql.PlantedEdgeOnlyMir.Kind.class,
+                com.legend.sql.PlantedEdgeOnlyMir.Ruled.class, com.legend.sql.PlantedDecidingRewriter.class,
                 com.legend.edge.PlantedEdgeOnlyMirMaker.class);
         String p = "com.legend.sql.PlantedEdgeOnlyMir$";
         assertEquals(new TreeSet<>(Set.of(
                 "variant " + p + "Made: by the edge",
                 "component " + p + "Made#text: by the edge",
                 "component " + p + "Shared#template: by the edge",
-                "constant " + p + "Kind.RAW: by the edge")), found(planted, Set.of("com.legend.sql")),
-                "J28's shape (a variant the edge alone makes) and J31's (a field and a constant the edge alone reads)");
+                "constant " + p + "Kind.RAW: by the edge",
+                "component " + p + "Ruled#copied: by none")), found(planted, Set.of("com.legend.sql")),
+                "J28's shape (a variant the edge alone makes) and J31's (a field and a constant the edge alone reads);"
+                        + " a rewriter's read to decide a use (Ruled#flag), its read only to rebuild a copy (Ruled#copied)");
     }
 }

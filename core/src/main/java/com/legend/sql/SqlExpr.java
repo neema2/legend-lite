@@ -775,13 +775,13 @@ public sealed interface SqlExpr
      * J31, 2026-11-18): legend-engine's plan-template placeholder ({@code ${name}}, its enumeration-mapping function,
      * the temp-table protocol's bare splice) is the compatibility edge's, held in its own table
      * ({@code edge/EngineParams}), never here; a template parameter's {@code type} is {@code UNKNOWN}. */
-    record PlanParam(String name, Kind kind, boolean optional,
+    record PlanParam(String name, ValueType valueType, boolean optional,
             TypeFact type, @com.legend.base.Nullable DeclaredKind declared) implements SqlExpr {
-        /** {@code DATE} is pure Date (the h2New surface spells it with the
-         * TIMESTAMP keyword, like DATETIME); {@code STRICT_DATE} is pure
-         * StrictDate, spelled with the DATE keyword ({@code
-         * DATE'${startDate}'} — testGroupByWithTwoOpenVariablesInAggAndFilter). */
-        public enum Kind { STRING, DATE, STRICT_DATE, DATETIME, FLOAT, BOOLEAN, ENUM, OTHER }
+        /** The parameter's declared Pure type, as a value class (L-B.PlanParam, the orchestrator's ruling of 2026-11-18:
+         *  a product fact; EnumValueTables decides by ENUM, and legend-engine's template spellings of each are the edge's
+         *  dialects'): {@code DATE} pure Date, {@code STRICT_DATE} StrictDate, {@code DATETIME} DateTime, {@code OTHER}
+         *  exactly the declared types with no value class of their own (lowering.Fold#planValueTypeOf names them). */
+        public enum ValueType { STRING, DATE, STRICT_DATE, DATETIME, FLOAT, BOOLEAN, ENUM, OTHER }
 
         /** {@code declared}: set when each database types the parameter's placeholder by its declared Pure type (a
          *  Float's, a Decimal's, a Number's and a Date's fact is {@code UNKNOWN}; a DateTime's is {@code TIMESTAMP}:
