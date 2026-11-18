@@ -1256,7 +1256,6 @@ final class ArchitectureTest {
             // the frame's shape it reads, the canons
             "lowering.VerdictSql#represented(com.legend.lowering.Styled, com.legend.compiler.element.type.Type, "
                     + "com.legend.sql.SqlExpr)", "com.legend.edge.UpstreamVerdictWords",
-            "lowering.VerdictSql#reprNewlines(com.legend.sql.SqlExpr)", "com.legend.edge.UpstreamVerdictWords",
             "lowering.VerdictSql#quoted(com.legend.sql.SqlExpr)", "com.legend.edge.UpstreamVerdictWords",
             "lowering.VerdictWords$Reads#CANONS", "com.legend.edge.UpstreamVerdictWords",
             // the test door's options, from the root's ExecuteOptions: planning's half, a record of closed words
