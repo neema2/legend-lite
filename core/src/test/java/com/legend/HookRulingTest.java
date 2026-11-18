@@ -57,7 +57,9 @@ class HookRulingTest {
                     () -> com.legend.testexecutionplan.NoEdge.NONE.effect(List.of(), List.of()),
                     () -> com.legend.testexecutionplan.NoEdge.NONE.seed(List.of(), Map.of()),
                     () -> com.legend.testexecutionplan.NoEdge.NONE.seeded(List.of(), List.of()),
-                    () -> com.legend.testexecutionplan.NoEdge.NONE.effectRan(List.of()))),
+                    () -> com.legend.testexecutionplan.NoEdge.NONE.effectRan(List.of()),
+                    // a raise site's words, planned by the edge (K10 of the edge audit, 2026-11-18)
+                    () -> com.legend.testexecutionplan.NoEdge.NONE.siteWords(List.of()))),
             // census B3 and B1 (EngineTextDialect and PlanStyle's signatures naming it): CLOSED 2026-11-17 by Phase 6 --
             // the interface is com.legend.edge's and the style names no engine text; its entry gone
             // census B2, 2026-11-17 (Phase 6): upstream's plan text, the planner's facet -- signatures only since its
