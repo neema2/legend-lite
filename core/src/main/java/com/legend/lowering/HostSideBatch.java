@@ -97,7 +97,7 @@ public final class HostSideBatch {
         protected SqlExpr expr(SqlExpr e) {
             if (e instanceof SqlAgg.Reducer || e instanceof SqlExpr.OrderedListAgg || e instanceof SqlExpr.JsonArrayAgg
                     || e instanceof SqlExpr.WindowCall || e instanceof SqlExpr.RowOrder || e instanceof SqlExpr.KeyCell
-                    || e instanceof SqlExpr.TempTableInSplice || e instanceof SqlExpr.Star
+                    || e instanceof SqlExpr.Star
                     || e instanceof SqlExpr.StarExcept || e instanceof SqlExpr.Column c && c.table() != null) {
                 met.add(e);
             }

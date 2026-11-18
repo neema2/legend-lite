@@ -190,7 +190,6 @@ final class SubselectPrune {
             case SqlExpr.Column c -> r.col(c.table(), c.name());
             case SqlExpr.StoredRead sr -> collectExpr(sr.column(), r);
             case SqlExpr.RowOrder ro -> { }
-            case SqlExpr.TempTableInSplice ignored -> { }
             case SqlExpr.Membership m -> {
                 collectExpr(m.needle(), r);
                 collectExpr(m.collection(), r);
@@ -282,7 +281,6 @@ final class SubselectPrune {
             case SqlExpr.Tagged tg -> tg.children().forEach(x -> collectExpr(x, r));
             case SqlExpr.RaiseText rt -> rt.operands().forEach(x -> collectExpr(x, r));
             case SqlExpr.TaggedList tl -> tl.children().forEach(x -> collectExpr(x, r));
-            case SqlExpr.DeferredTdsString d -> collectQuery(d.inner(), r);
             case SqlExpr.JsonObject jo -> jo.kv().forEach(x -> collectExpr(x, r));
             case SqlExpr.JsonArray ja0 -> ja0.elements().forEach(x -> collectExpr(x, r));
             case SqlExpr.JsonArrayAgg ja -> {

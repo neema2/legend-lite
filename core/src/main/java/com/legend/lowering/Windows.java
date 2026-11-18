@@ -129,7 +129,6 @@ final class Windows {
             List<SqlSelect.SortKey> orderBy,
             SqlExpr.WindowCall.@com.legend.base.Nullable Frame frame) {
         return switch (e) {
-            case SqlExpr.TempTableInSplice t -> t;
             case SqlAgg.Reducer r ->
                     new SqlExpr.WindowCall(r, partitionBy, orderBy, frame);
             case SqlExpr.Call c -> new SqlExpr.Call(c.fn(), c.args().stream()
@@ -188,7 +187,6 @@ final class Windows {
             case SqlExpr.RaiseText rt -> new SqlExpr.RaiseText(rt.kind(), rt.operands().stream()
                     .map(x -> windowize(x, partitionBy, orderBy, frame)).toList(), rt.asData(), rt.where());
             case SqlExpr.TaggedList tl -> tl;   // no reducer of this select inside: literal channels, or its own subqueries
-            case SqlExpr.DeferredTdsString dtds -> dtds;
             case SqlExpr.WindowCall w -> w;
             case SqlExpr.Lambda l -> l;
             case SqlExpr.Group g -> new SqlExpr.Group(

@@ -257,8 +257,6 @@ public class MongoDb extends AnsiSqlRenderer {
     protected SqlWriter expr(SqlWriter writer, SqlExpr e, int parentPrec) {
         return switch (e) {
             case SqlExpr.Group g -> writer.expr(g.inner(), 0);
-            case SqlExpr.TempTableInSplice t -> throw new IllegalStateException("temp-table IN splice '"
-                    + t.tempTableName() + "' reached an executable dialect — plan-text vocabulary only");
             case SqlExpr.PlanParam p -> placeholder(writer, oneValue(p));
             // a dynamic pivot's probe plan: each copy of the per-key region binds its key's text
             case SqlExpr.KeyCell k -> writer.bindKey(KEY_MARKER, k.cell());
@@ -316,9 +314,6 @@ public class MongoDb extends AnsiSqlRenderer {
             case SqlExpr.TaggedList tl -> throw new IllegalStateException("a tagged list reached the renderer: a"
                     + " mixed list is returned, sorted, deduplicated, searched, indexed, mapped or printed, and any"
                     + " other consumer of it is not lowered");
-            case SqlExpr.DeferredTdsString d -> throw new IllegalStateException("deferred relation-toString reached"
-                    + " the renderer — the execution boundary must resolve the dynamic column list first"
-                    + " (DeferredTdsString id " + d.id() + ")");
             case SqlExpr.WindowCall w -> windowCall(writer, w);
             case SqlExpr.Lambda l -> lambda(writer, l);
             case SqlExpr.Cast c -> c.target() instanceof SqlType.Tagged

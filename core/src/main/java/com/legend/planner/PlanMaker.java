@@ -940,7 +940,10 @@ public final class PlanMaker {
         ExprType type = new ExprType(write.info().type(), Multiplicity.Bounded.ONE);
         QueryParameters.Declared count = new QueryParameters.Declared(ExecutionPlan.COUNT, type.type(),
                 type.multiplicity());
+        // the count's statement reads one bound value, in the product's own forms (J40: the lowering's forms are its
+        // style's alone; until then the shape's product default answered here)
         SqlQuery q = ProductStatements.configured(query, false, false, List.of(count.slot()), features, sites)
+                .withStyled(com.legend.lowering.Styled.PRODUCT)
                 .lowerPlanParam(ExecutionPlan.COUNT, type);
         return new ExecutionPlan.TdsResult(ExecutionPlan.TdsResult.Shape.VALUE,
                 PlanColumns.of(TypedRows.schema(type), q, ExecutionPlan.TdsResult.Shape.VALUE),

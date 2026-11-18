@@ -32,15 +32,13 @@ import java.util.function.Function;
 
     /** {@code toCSV} of a relation ({@code tc}), its rows read by {@code relation}, under the planner's {@code styled}
      *  (each member is handed the style its cells are printed under; the edge audit's J26, 2026-11-17). */
-    SqlExpr toCsv(Styled styled, TypedNativeCall tc, Function<TypedSpec, SqlSelect> relation, String alias,
-            Map<Integer, Type.RelationType> deferredTds);
+    SqlExpr toCsv(Styled styled, TypedNativeCall tc, Function<TypedSpec, SqlSelect> relation, String alias);
 
     /** A TDS's {@code csv} property over a relation ({@code read}). */
     SqlExpr csvProperty(Styled styled, TypedPropertyAccess read, Function<TypedSpec, SqlSelect> relation, String alias);
 
     /** A relation's {@code toString} ({@code tc}): its {@code #TDS} text. */
-    SqlExpr relationToString(Styled styled, TypedNativeCall tc, Function<TypedSpec, SqlSelect> relation, String alias,
-            Map<Integer, Type.RelationType> deferredTds);
+    SqlExpr relationToString(Styled styled, TypedNativeCall tc, Function<TypedSpec, SqlSelect> relation, String alias);
 
     // (refused(what): moved 2026-11-17 to TextRefusals.relation, the call site words its refusal -- the
     // orchestrator's ruling: the hook holds its signatures and its product-helper forwarders alone)

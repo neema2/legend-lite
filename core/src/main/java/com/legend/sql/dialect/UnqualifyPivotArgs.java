@@ -32,7 +32,6 @@ final class UnqualifyPivotArgs extends SqlRewriter {
 
     private static SqlExpr unqualify(SqlExpr e) {
         return switch (e) {
-            case SqlExpr.TempTableInSplice t -> t;
             case SqlExpr.Column c -> new SqlExpr.Column(null, c.name(), c.type(), c.origin());
             case SqlExpr.StoredRead r -> new SqlExpr.StoredRead(
                     (SqlExpr.Column) unqualify(r.column()), r.stored());
@@ -95,7 +94,6 @@ final class UnqualifyPivotArgs extends SqlRewriter {
                     r.children().stream().map(UnqualifyPivotArgs::unqualify).toList());
             case SqlExpr.TaggedList tl -> tl.withChildren(
                     tl.children().stream().map(UnqualifyPivotArgs::unqualify).toList());
-            case SqlExpr.DeferredTdsString dtds -> dtds;
             case SqlExpr.Lambda l -> l;
             case SqlExpr.Star st -> st;
             case SqlExpr.StarExcept se -> se;

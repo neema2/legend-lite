@@ -33,6 +33,7 @@ public final class EngineParams {
     private final LinkedHashMap<String, SqlExpr.PlanParam> slots = new LinkedHashMap<>();
     private final Map<String, String> enumMapFns = new HashMap<>();
     private final Set<String> splices = new HashSet<>();
+    private final Set<String> tempTables = new HashSet<>();
 
     /** A table with no parameters. */
     public static EngineParams none() {
@@ -42,7 +43,24 @@ public final class EngineParams {
     /** {@code Type[multiplicity]}, as legend-engine's plans and messages spell a parameter. */
     static String signature(Type type, com.legend.compiler.element.type.Multiplicity multiplicity) {
         return com.legend.plan.PureSpelling.typeName(type) + "["
-                + com.legend.plan.PureSpelling.sizeRange(multiplicity) + "]";
+                + sizeRange(multiplicity) + "]";
+    }
+
+    /** legend-engine's plan text's multiplicity spelling: {@code 1}, {@code 0..1}, {@code *}, {@code n..*} (inside the
+     *  brackets; moved from plan.PureSpelling 2026-11-18, J40: only the edge read it). */
+    static String sizeRange(
+            com.legend.compiler.element.type.Multiplicity m) {
+        if (m instanceof com.legend.compiler.element.type.Multiplicity
+                .Bounded b) {
+            if (b.upper() != null) {
+                return b.lower() == b.upper() ? String.valueOf(b.lower())
+                        : b.lower() + ".." + b.upper();
+            }
+            // unbounded: [*] (lower 0) or [n..*]
+            return b.lower() == 0 ? "*" : b.lower() + "..*";
+        }
+        throw new com.legend.error.NotImplementedException(
+                "plan: multiplicity spelling for " + m + " pending");
     }
 
     /** A template parameter: a plain plan parameter of {@code name}, its type unknown (a template binds nothing). */
@@ -79,10 +97,17 @@ public final class EngineParams {
         return splices.contains(name);
     }
 
-    /** This table with {@code wrappers} spliced bare. */
-    EngineParams withSplices(Collection<String> wrappers) {
+    /** Whether {@code name} is the temp-table protocol's temp table, read back by legend-engine's temp-select template
+     *  ({@code generateTempTableSelectSQLQuery}; J40, 2026-11-18: SqlExpr.TempTableInSplice until then). */
+    boolean isTempTable(String name) {
+        return tempTables.contains(name);
+    }
+
+    /** This table with {@code wrappers} spliced bare and {@code tables} read back as temp tables ({@link InProtocol}). */
+    EngineParams withProtocol(Collection<String> wrappers, Collection<String> tables) {
         EngineParams out = copy();
         out.splices.addAll(wrappers);
+        out.tempTables.addAll(tables);
         return out;
     }
 
@@ -94,9 +119,11 @@ public final class EngineParams {
         slots.clear();
         enumMapFns.clear();
         splices.clear();
+        tempTables.clear();
         slots.putAll(other.slots);
         enumMapFns.putAll(other.enumMapFns);
         splices.addAll(other.splices);
+        tempTables.addAll(other.tempTables);
     }
 
     private EngineParams copy() {
@@ -104,6 +131,7 @@ public final class EngineParams {
         out.slots.putAll(slots);
         out.enumMapFns.putAll(enumMapFns);
         out.splices.addAll(splices);
+        out.tempTables.addAll(tempTables);
         return out;
     }
 
