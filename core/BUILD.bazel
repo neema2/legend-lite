@@ -477,6 +477,7 @@ legend_java_library(
     name = "edge",
     srcs = glob(["src/main/java/com/legend/edge/*.java"], exclude = [
         "src/main/java/com/legend/edge/EdgeServer.java",
+        "src/main/java/com/legend/edge/EngineMount.java",
         "src/main/java/com/legend/edge/ServiceTestRunner.java",
         "src/main/java/com/legend/edge/TdsObjectsWriter.java",
         "src/main/java/com/legend/edge/StoreWords.java",
@@ -505,7 +506,11 @@ legend_java_library(
 # the plan side's (the compiler's boundary answers them in the tab and Python), the root runs a server.
 legend_java_library(
     name = "edge_server",
-    srcs = ["src/main/java/com/legend/edge/EdgeServer.java"],
+    srcs = ["src/main/java/com/legend/edge/EdgeServer.java", "src/main/java/com/legend/edge/EngineMount.java"],
+    # legend-engine's module, registered for the product's server to find only when configured (K2's server half,
+    # the user's ruling of 2026-11-18: "Product root, edge opt-in"; com.legend.server.MountProvider)
+    resources = glob(["src/main/edge_server/META-INF/**"]),
+    resource_strip_prefix = "core/src/main/edge_server",
     visibility = ["//spec:__pkg__", "//pct:__pkg__"],
     deps = ["//base", ":edge", ":edge_store_words", ":execution", ":lite_v1", ":saved_queries", ":server_lib"],
 )
@@ -551,12 +556,15 @@ legend_java_library(
 
 # THE PRODUCT, runnable: the HTTP server (LSP, query execution, SQL, diagrams) with
 # the JDBC drivers. `bazel run //core:server` (port 8080, or $PORT);
-# `bazel build //core:server_deploy.jar` is the one self-contained jar to ship. Its root is the edge's (phase D's
-# D1.0b, 2026-11-12): lite's own server with legend-engine's API mounted beside it (edge/EdgeServer.java); lite's own
-# server alone is com.legend.server.LegendHttpServer's main.
+# `bazel build //core:server_deploy.jar` is the one self-contained jar to ship. Its root is the PRODUCT's (K2's server
+# half, the user's ruling of 2026-11-18: "Product root, edge opt-in"): lite's own server, legend-engine's API
+# (edge/EdgeServer.java, edge/EngineMount.java) carried in the same jar and mounted only with --engine legend-engine.
 legend_java_binary(
     name = "server",
-    main_class = "com.legend.edge.EdgeServer",
+    # the product's own entry (K2's server half, the user's ruling of 2026-11-18: "Product root, edge opt-in"):
+    # legend-engine's module (:edge_server) ships in the same artifact, mounted only when the configuration names it
+    # (--engine legend-engine; com.legend.server.MountProvider, found by ServiceLoader)
+    main_class = "com.legend.server.LegendHttpServer",
     runtime_deps = [
         ":core",
         ":drivers",
@@ -2674,7 +2682,8 @@ java_jars(
 # the product's roots' closure -- a root reaching the edge transitively reaches it through one of them.
 # EdgeSeparationTest holds the set to the census's open A lines. The roots: the product's JVM libraries and the hosts'
 # doors (the JS apps reach the JVM through //wasm and //native alone), and core's test libraries (A5, A6). The shipped
-# //core:server is rooted AT the edge (EdgeServer, ruled A4) and is no root here.
+# //core:server is no root here: rooted at the product since K2's server half (2026-11-18), it carries the edge's
+# module at runtime only (:edge_server, mounted when configured: --engine legend-engine), one artifact by ruling 6.
 # the native library's and the query-store page's upstream entries are the edge's too (A2, A3, 2026-11-17)
 # the embedded hosts' engine routes and the tab's module entry are the edge's too (A1, 2026-11-17)
 _EDGE_TARGETS = ("//core:edge + //core:edge_server + //core:edge_service_tests + //core:edge_store_words + " +

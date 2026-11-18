@@ -1857,6 +1857,9 @@ class JavaEvalLedgerTest {
                             "EngineSeedText.java",
                             // the server's composition root with legend-engine's API mounted: routes, no planning of its own
                             "EdgeServer.java",
+                            // legend-engine's module as the shipped server's opt-in (K2's server half, 2026-11-18, the
+                            // user's ruling "Product root, edge opt-in"): a MountProvider naming EdgeServer's mount
+                            "EngineMount.java",
                             // the texts of upstream's effects and refusals, and legend-pure's raise sentences, as SQL
                             "EffectTexts.java", "PureMessages.java",
                             // 2026-11-18, J40's only-edge-callers census: the bound context of legend-engine's test natives'
@@ -2045,6 +2048,10 @@ class JavaEvalLedgerTest {
                     java.util.Set.of("ConnectionResolver.java",
                             "DiagramService.java",
                             "LegendHttpServer.java",
+                            // 2026-11-18, K2's server half (the user's ruling "Product root, edge opt-in"): the hook a
+                            // module implements to offer the server a mount by its engine's name -- signatures only,
+                            // no connection, no JDBC, no value computed (pinned in HookRulingTest)
+                            "MountProvider.java",
                             "PureLspServer.java",
                             // 2026-10-10/11, DataCube's Create a Class…, an Association…, a Data Space…
                             // (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §15.6a): the model's writer and its three
