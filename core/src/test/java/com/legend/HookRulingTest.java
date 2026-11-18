@@ -95,6 +95,14 @@ class HookRulingTest {
         assertTrue(com.legend.edge.PureText.UPSTREAM.judgesEngineText());
     }
 
+    private static final String PARTS = "2026-11-18: the ResultEnvelopes facet's argument types: the product's own toJSON"
+            + " names, types and cells and its graph emission, filled by the product and read only by the facet's forms"
+            + " (orchestrator, 2026-11-18)";
+
+    private static final String SITES = "2026-11-18: LoweringForms.existsJoin's argument type: the lowering's alias"
+            + " minter and each conjunct's resolver zones, filled by the product and read only by the edge's form that"
+            + " writes legend-engine's EXISTS join (the parts' ruling, orchestrator, 2026-11-18)";
+
     /** THE HOOK ENTRIES (the orchestrator's ruling of 2026-11-18, (6)): a product method that differs only by taking a
      *  hook type -- a PlanStyle or a facet -- and runs the product's own pipeline with it is the designed hook entry, not
      *  edge work in the product (EdgeOnlyMembersTest reads this list; its members are not counted). Each checked to hold
@@ -107,13 +115,54 @@ class HookRulingTest {
             // the orchestrator's ruling on E-SQL's five (2026-11-18): a hook's own result type, constructed only by the
             // edge, is not a finding -- the product answers none (PlanStyle.traceCell())
             Map.entry("com.legend.database.PlanStyle$TraceCell#<init>(java.lang.String, java.lang.String)",
-                    "2026-11-18: a hook type -- PlanStyle.traceCell()'s result, constructed by the edge's styles alone (the orchestrator's ruling on E-SQL's five)"));
+                    "2026-11-18: a hook type -- PlanStyle.traceCell()'s result, constructed by the edge's styles alone (the orchestrator's ruling on E-SQL's five)"),
+            // the orchestrator's ruling of 2026-11-18 (train 18, L-B.TypedJsonResult, E-Java's ef7ee2b69d): HOOK_ENTRIES,
+            // not READ_API -- the parts exist only as the ResultEnvelopes facet's argument types; READ_API would announce
+            // them as general product API
+            Map.entry("com.legend.lowering.EnvelopeParts#relation()", PARTS),
+            Map.entry("com.legend.lowering.EnvelopeParts#objects()", PARTS),
+            Map.entry("com.legend.lowering.RelationParts#names()", PARTS),
+            Map.entry("com.legend.lowering.RelationParts#typeNames()", PARTS),
+            Map.entry("com.legend.lowering.RelationParts#cells()", PARTS),
+            // E-SQL's fold move (612b194708, 2026-11-18, the lens audit's item 1): the statement's sites, the argument
+            // type of the LoweringForms two-form kind's existsJoin, beside it -- the parts' case (filed here by the GUARD
+            // stream on that ruling, in place of the READ_API rows the branch proposed)
+            Map.entry("com.legend.lowering.ExistsSites#alias()", SITES),
+            Map.entry("com.legend.lowering.ExistsSites#zones()", SITES));
 
-    /** The types a hook's method returns: PlanStyle's, the facet kinds' and the two-form kinds'. */
-    static Set<Class<?>> hookResultTypes() {
+    /** The hooks: PlanStyle, the facet kinds and the two-form kinds. */
+    static List<Class<?>> hooks() {
         List<Class<?>> hooks = new java.util.ArrayList<>(List.of(com.legend.database.PlanStyle.class));
         hooks.addAll(com.legend.testplan.PlanStyleFacets.KINDS);
         hooks.addAll(com.legend.testplan.PlanStyleFacets.TWO_FORMS);
+        return hooks;
+    }
+
+    /** A hook's ARGUMENT types declared beside it -- in the hook's own package -- and the types their methods return,
+     *  also beside it (the orchestrator's ruling of 2026-11-18 on the ResultEnvelopes facet's parts): the product fills
+     *  them and hands them to the hook. A general type (Type, SqlExpr, String) is in another package and is none. */
+    static Set<Class<?>> hookArgumentTypes(List<Class<?>> hooks) {
+        Set<Class<?>> out = new java.util.HashSet<>();
+        for (Class<?> h : hooks) {
+            for (java.lang.reflect.Method m : h.getDeclaredMethods()) {
+                for (Class<?> p : m.getParameterTypes()) {
+                    if (p.getPackageName().equals(h.getPackageName()) && !hooks.contains(p)) {
+                        out.add(p);
+                        for (java.lang.reflect.Method pm : p.getMethods()) {
+                            if (pm.getReturnType().getPackageName().equals(h.getPackageName())) {
+                                out.add(pm.getReturnType());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return out;
+    }
+
+    /** The types a hook's method returns: PlanStyle's, the facet kinds' and the two-form kinds'. */
+    static Set<Class<?>> hookResultTypes() {
+        List<Class<?>> hooks = hooks();
         Set<Class<?>> out = new java.util.HashSet<>();
         for (Class<?> h : hooks) {
             for (java.lang.reflect.Method m : h.getMethods()) {
@@ -140,6 +189,14 @@ class HookRulingTest {
                 continue;
             }
             boolean found = false;
+            if (hookArgumentTypes(hooks()).contains(owner)) {
+                found = java.util.Arrays.stream(owner.getMethods()).anyMatch(m -> m.getName().equals(name)
+                        && java.util.Arrays.stream(m.getParameterTypes()).map(Class::getName)
+                        .collect(java.util.stream.Collectors.joining(", ")).equals(params));
+                org.junit.jupiter.api.Assertions.assertTrue(found, entry + " is a public method of a hook's argument"
+                        + " type, declared beside the hook");
+                continue;
+            }
             for (java.lang.reflect.Method m : owner.getMethods()) {
                 String sig = java.util.Arrays.stream(m.getParameterTypes()).map(Class::getName)
                         .collect(java.util.stream.Collectors.joining(", "));
@@ -150,6 +207,18 @@ class HookRulingTest {
             }
             org.junit.jupiter.api.Assertions.assertTrue(found, entry + " is a public method taking a PlanStyle");
         }
+    }
+
+    /** The argument-type shape is tight: the facet's parts are admitted, a general type in a hook's signature is not. */
+    @Test
+    void aHooksArgumentTypesAreThoseBesideIt() {
+        Set<Class<?>> args = hookArgumentTypes(hooks());
+        org.junit.jupiter.api.Assertions.assertTrue(args.contains(com.legend.lowering.EnvelopeParts.class)
+                && args.contains(com.legend.lowering.RelationParts.class)
+                && args.contains(com.legend.lowering.ExistsSites.class), "the facet's parts, the forms' sites: " + args);
+        org.junit.jupiter.api.Assertions.assertFalse(args.contains(com.legend.compiler.element.type.Type.class)
+                || args.contains(String.class) || args.contains(com.legend.sql.SqlExpr.class), "a general type is no"
+                + " hook argument type: " + args);
     }
 
     /** A ruled hook's static FORWARDERS (the orchestrator's facade rule, 2026-11-17): each forwards one call to a

@@ -51,7 +51,7 @@ public final class QueryParameters {
             }
             com.legend.sql.TypeFact value = valueType();
             if (multiplicity instanceof Multiplicity.Bounded b && Integer.valueOf(1).equals(b.upper())) {
-                return new com.legend.sql.SqlExpr.PlanParam(name, com.legend.lowering.PlanParams.kindOf(type),
+                return new com.legend.sql.SqlExpr.PlanParam(name, com.legend.lowering.PlanParams.valueTypeOf(type),
                         optional(), value, declaredKind());
             }
             // a list: ONE array of its values, its element type named for the driver
@@ -60,7 +60,7 @@ public final class QueryParameters {
                         + "[*]): a list of decimals, Dates or Numbers has no one element type a driver's array keeps"
                         + " exactly (DuckDB's rounds a decimal to 3 places): not bound (PARK-20)");
             }
-            return new com.legend.sql.SqlExpr.PlanParam(name, com.legend.lowering.PlanParams.kindOf(type), false,
+            return new com.legend.sql.SqlExpr.PlanParam(name, com.legend.lowering.PlanParams.valueTypeOf(type), false,
                     com.legend.sql.SqlTyping.typed(new com.legend.sql.SqlType.Array(element.type())), null);
         }
 

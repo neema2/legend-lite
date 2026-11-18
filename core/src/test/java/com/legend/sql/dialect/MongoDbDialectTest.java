@@ -113,7 +113,7 @@ class MongoDbDialectTest {
     @Test
     void anInsertTakesNoParameter() {
         com.legend.sql.SqlExpr.PlanParam n = new com.legend.sql.SqlExpr.PlanParam("n",
-                com.legend.sql.SqlExpr.PlanParam.Kind.OTHER, false,
+                com.legend.sql.SqlExpr.PlanParam.ValueType.OTHER, false,
                 new com.legend.sql.TypeFact.Typed(com.legend.sql.SqlType.Scalar.BIGINT, false), null);
         DialectCapability refused = org.junit.jupiter.api.Assertions.assertThrows(DialectCapability.class,
                 () -> new MongoDb().render(new com.legend.sql.SqlDml.InsertValues(null, "people",
