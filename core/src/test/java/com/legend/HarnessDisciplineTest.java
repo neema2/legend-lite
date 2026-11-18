@@ -190,7 +190,7 @@ class HarnessDisciplineTest {
             // and order-leniency probes deleted with the policies they measured; 5 -> 7 (2026-11-03, the user's
             // ruling "no sort can be multiset compare" restored: an unsorted side may compare as a multiset, so the
             // rendered-text probe's two-sided line sort is back with the policy it measures)
-            Map.entry("CanonicalDivergence.java", 7),
+            Map.entry("CanonicalDivergence.java", 5),   // 7 -> 5 (2026-11-18, the edge audit's J40, E-Java: the toCSV grid probe's two sorts moved with it to the edge's UpstreamRenderedTexts)
             // 2026-11-17 (isolated BOTH, the orchestrator's ruling): LiteWords.canonJson sorts a JSON root's elements
             // where the root's order is incidental -- the database canon's sorted root mirrored, two-sided, gated on the
             // side being JSON (the shared canon)
