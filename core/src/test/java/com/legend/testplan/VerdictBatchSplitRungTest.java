@@ -74,11 +74,6 @@ class VerdictBatchSplitRungTest {
         public TestPlan.Verdicts.Savepoint savepoint() {
             return null;
         }
-
-        @Override
-        public TestPlan.JudgingRules rules() {
-            return TestPlan.JudgingRules.LITE;
-        }
     };
 
     @Test

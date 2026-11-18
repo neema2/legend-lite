@@ -68,8 +68,7 @@ class TestPlanJsonRoundTripTest {
                 new RootLoop.Root("assert", List.of(new RootLoop.Judged(), new RootLoop.Decided(FAILURE, true)),
                         new RootLoop.Message(null, FAILURE, false))),
                 Map.of("fragment", "reason"));
-        TestPlan.Verdicts group = new TestPlan.Verdicts(verdicts, null, null,
-                new TestPlan.JudgingRules(2, true), roots);
+        TestPlan.Verdicts group = new TestPlan.Verdicts(verdicts, null, null, roots);
         TestPlan.Branch branch = new TestPlan.Branch(constant(), List.of(), List.of());
         Map<Integer, List<Extension>> byStep = new LinkedHashMap<>();
         byStep.put(0, List.of(new EffectTexts(List.of(new EffectTexts.Statement("insert", false),

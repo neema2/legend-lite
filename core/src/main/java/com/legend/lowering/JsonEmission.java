@@ -69,27 +69,25 @@ final class JsonEmission {
 
     /**
      * The RESULT JSON of a TDS/class/serialized-rooted query (the string entry's value,
-     * {@link com.legend.compiler.spec.typed.TypedJsonResult}): ONE scalar subquery over the chain's rows. Its TDS, CLASS
-     * and VALUES kinds are legend-engine's envelopes, composed by the plan style's {@link ResultEnvelopes} facet (the
+     * {@link com.legend.compiler.spec.typed.TypedJsonResult}): ONE scalar subquery over the chain's rows. Its TDS and
+     * CLASS kinds are legend-engine's envelopes (a serialized root's, STRING_ENTRY, is the text the style wrote), composed by the plan style's {@link ResultEnvelopes} facet (the
      * edge's) from the product's parts and refused by the product's at lowering ({@link #refused}); TDS_JSON and
      * TDS_JSON_KV are legend-pure's toJSON documents, the product's.
      */
     /** THE PRODUCT'S REFUSAL of legend-engine's result envelope (Phase 6's B5, 2026-11-17, the orchestrator's ruling):
      *  at lowering, by name, pointing to the product's result writers. */
     static com.legend.error.ModelException refused() {
-        return new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.LOWER,
-                "executeLegendQuery's result envelope is legend-engine's JSON, the compatibility edge's: the product"
-                        + " writes a query's rows by its result writers (JSON, CSV, Arrow)");
+        return ProductLoweringForms.envelopeRefused();
     }
 
     static SqlExpr result(Lowerer lw, TypedJsonResult jr, ColumnResolver columns) {
         String alias = "_lq";   // the wrapper select's own scope — no collision possible
-        boolean upstream = jr.kind() == TypedJsonResult.Kind.TDS || jr.kind() == TypedJsonResult.Kind.CLASS
-                || jr.kind() == TypedJsonResult.Kind.VALUES;
-        ResultEnvelopes envelopes = upstream ? lw.resultEnvelopes(JsonEmission::refused) : null;
-        if (jr.kind() == TypedJsonResult.Kind.VALUES) {
-            return Objects.requireNonNull(envelopes, "the envelope facet").values(lw.scalar(jr.chain(), columns));
+        if (jr.kind() == TypedJsonResult.Kind.STRING_ENTRY) {
+            // the text a plan style wrote (planner.ExecutedValues): lowered as the String it is
+            return lw.scalar(jr.chain(), columns);
         }
+        boolean upstream = jr.kind() == TypedJsonResult.Kind.TDS || jr.kind() == TypedJsonResult.Kind.CLASS;
+        ResultEnvelopes envelopes = upstream ? lw.resultEnvelopes(JsonEmission::refused) : null;
         SqlQuery inner;
         SqlExpr envelope;
         if (jr.kind() == TypedJsonResult.Kind.CLASS) {

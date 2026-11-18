@@ -28,7 +28,7 @@ public interface EdgeHearing {
     /** The edge's comparison {@code j} judged at its verdict step over its two {@code sides}, under {@code rules}
      *  ({@code messaged}: its assert carries a caller's message): equal holds, else the appeal heard (census C3,
      *  2026-11-17: its facts the edge's own record). */
-    TypedSide judged(HostJudgment.EdgeJudged j, List<TypedSide> sides, TestPlan.JudgingRules rules, boolean messaged);
+    TypedSide judged(HostJudgment.EdgeJudged j, List<TypedSide> sides, boolean messaged);
 
     /** The database judge's failed {@code row}, whose appeal is numbered {@code number}, heard. */
     TypedSide rowAppealed(int number, List<Object> row, boolean messaged);

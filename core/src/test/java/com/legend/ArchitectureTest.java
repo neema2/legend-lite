@@ -1268,7 +1268,10 @@ final class ArchitectureTest {
             "testplan.EngineTextPlanning#inZone(java.lang.String, java.lang.String)", "com.legend.edge.SqlTextVerdicts",
             "testplan.EngineTextPlanning#isoTimestamp(com.legend.values.PureDateLiteral)",
             "com.legend.edge.SqlTextVerdicts",
-            "testplan.EngineTextPlanning#judgingRules(com.legend.testplan.BodyDriver$ExecEnv)",
+            // the appeal asked of the style, never the judging rules (E-Java's c732a61c4, train 18, 2026-11-18: the
+            // orchestrator's ruling -- EngineTextPlanning#judgingRules replaced by the facade's style forwarder, its one
+            // edge caller SqlTextVerdicts.appeals; the rules deleted whole, 070c4ea3e)
+            "testplan.EngineTextPlanning#style(com.legend.testplan.BodyDriver$ExecEnv)",
             "com.legend.edge.SqlTextVerdicts",
             "testplan.EngineTextPlanning#judgment(com.legend.testplan.HostSides$Check)",
             "com.legend.edge.EdgeEngineTestText",
@@ -1380,13 +1383,13 @@ final class ArchitectureTest {
             // the GUARD stream's C.13-CI, which found the row changed with no note)
             "testplan.PlanningOptions#<init>(com.legend.testexecutionplan.Edge, com.legend.executionplan.DataStores, "
                     + "java.util.Set, com.legend.testplan.PlanningOptions$JudgeMode, "
-                    + "com.legend.testexecutionplan.TestPlan$JudgingRules, java.util.Set, com.legend.database.PlanStyle)",
+                    + "java.util.Set, com.legend.database.PlanStyle)",
             "com.legend.ExecuteOptions",
             // phase D's D1.0 (merged 2026-11-15): the test door's plan style, the product's or the edge's
             "testplan.PlanningOptions#withStyle(com.legend.database.PlanStyle)", "com.legend.ExecuteOptions",
             "testplan.PlanningOptions#edge()", "com.legend.ExecuteOptions",
             "testplan.PlanningOptions#judgeMode()", "com.legend.ExecuteOptions",
-            "testplan.PlanningOptions#judgingRules()", "com.legend.ExecuteOptions",
+            // (testplan.PlanningOptions#judgingRules() gone 2026-11-18, train 17: the judging rules deleted)
             // testplan.PlanningOptions#rules(boolean) from ExecuteOptions gone (2026-11-17, census C1: the edge hook names
             // its run's rules, Edge.rules())
             // (testplan.PlanningOptions#withEngineCompat(boolean) gone 2026-11-17, census C1: the rules are the edge
@@ -1428,6 +1431,9 @@ final class ArchitectureTest {
             // the edge's forms in place of its own
             "lowering.Styled#<init>(java.util.function.Function, com.legend.lowering.LoweringForms, "
                     + "com.legend.lowering.DateTimeTexts, com.legend.lowering.ListTexts)", "com.legend.edge.EdgeLoweringForms",
+            // legend-engine's JsonBuilder cardinality fold, the edge's form composing it from the wrapped array the
+            // lowering hands it (2026-11-18, the lens audit's L6 and item 1: the product composes nothing it never uses)
+            "lowering.LoweringForms#oneBare(com.legend.sql.SqlSelect)", "com.legend.edge.EdgeLoweringForms",
             "lowering.Styled#forms()", "com.legend.edge.EdgeLoweringForms",
             "lowering.Styled#lists()", "com.legend.edge.EdgeLoweringForms",
             "lowering.Styled#pureOnly()", "com.legend.edge.EdgeLoweringForms",
@@ -2858,7 +2864,7 @@ final class ArchitectureTest {
     @Test
     void theRunRereadsNoRule() {
         // engineCompat too: the judging rules are derived from it (the slice 3 follow-up audit, 2026-11-08)
-        java.util.Set<String> planningFacts = java.util.Set.of("judgingRules", "judgeMode", "features", "resources",
+        java.util.Set<String> planningFacts = java.util.Set.of("judgeMode", "features", "resources",
                 "engineCompat");
         java.util.Set<String> reads = new java.util.TreeSet<>();
         for (com.tngtech.archunit.core.domain.JavaCodeUnit u : reachable(RUN_ENTRIES)) {

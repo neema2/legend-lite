@@ -38,7 +38,7 @@ public final class ProductLoweringForms implements LoweringForms {
     }
 
     @Override
-    public SqlSelect executeValues(Supplier<SqlSelect> array, Supplier<SqlSelect> oneBare) {
+    public SqlSelect executeValues(Supplier<SqlSelect> array, Supplier<SqlSelect> wrapped) {
         return array.get();
     }
 
@@ -90,5 +90,14 @@ public final class ProductLoweringForms implements LoweringForms {
     @Override
     public SqlExpr isNumeric(SqlExpr s) {
         return SqlExpr.Call.of(com.legend.sql.SqlFn.IS_NUMERIC, s);
+    }
+
+    /** THE PRODUCT'S REFUSAL of legend-engine's result envelope (Phase 6's B5, 2026-11-17, the orchestrator's ruling):
+     *  by name, pointing to the product's result writers -- at lowering for a relation or class root, at planning for
+     *  a serialized root (train 17 item 2, 2026-11-18: the planner's ExecutedValues kind, the product's form). */
+    public static com.legend.error.ModelException envelopeRefused() {
+        return new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.LOWER,
+                "executeLegendQuery's result envelope is legend-engine's JSON, the compatibility edge's: the product"
+                        + " writes a query's rows by its result writers (JSON, CSV, Arrow)");
     }
 }

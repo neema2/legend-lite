@@ -365,10 +365,9 @@ class EdgeSeparationTest {
     @Test
     void everyOpenLineIsCounted() {
         Set<String> counted = new TreeSet<>();
-        // RULES (2026-11-17, the GUARD stream's C.3): a product class asking the judging rules for legend-pure's
-        // behaviour without naming COMPILED_PURE_COMPAT (JudgingRulesReachTest)
-        for (Map<String, String> m : List.of(BUILD_OPEN, CODE_OPEN, TEST_OPEN, CSG_OPEN,
-                JudgingRulesReachTest.BEHAVIOUR_OPEN)) {
+        // (RULES, the GUARD stream's C.3 of 2026-11-17: gone 2026-11-18 with the judging rules themselves, train 17 --
+        // JudgingRulesReachTest's bucket read 0)
+        for (Map<String, String> m : List.of(BUILD_OPEN, CODE_OPEN, TEST_OPEN, CSG_OPEN)) {
             counted.addAll(linesOf(m));
         }
         // the edge audit's open items (2026-11-17, EdgeAuditOpenTest), each its own line: none is a census line
@@ -445,7 +444,7 @@ class EdgeSeparationTest {
                 com.legend.planner.PlantedCompatReach.class);
         Set<String> code = found(planted, n -> true);
         for (String want : List.of("com.legend.planner.PlantedCompatReach -> com.legend.edge.Presenter",
-                "com.legend.planner.PlantedCompatReach -> com.legend.edge.CompatRules")) {
+                "com.legend.planner.PlantedCompatReach -> com.legend.edge.CompiledPureHostForms")) {
             assertFalse(!code.contains(want), "the CODE and TEST SIDE guards bite: " + want + " in " + code);
         }
         // the edge audit's K16 (2026-11-17): a com.legend.sql class's reads are read too -- an edge-only function (ABS
@@ -516,21 +515,21 @@ class EdgeSeparationTest {
     void linesLeft() {
         Map<String, Integer> byLine = new TreeMap<>();
         for (Map<String, String> m : List.of(BUILD_OPEN, CODE_OPEN, TEST_OPEN, CSG_OPEN,
-                JudgingRulesReachTest.BEHAVIOUR_OPEN, EdgeOnlyMembersTest.OPEN)) {
+                EdgeOnlyMembersTest.OPEN)) {
             m.values().forEach(v -> byLine.merge(v.split(" ")[0], 1, Integer::sum));
         }
         // the edge audit's open items (2026-11-17): what no guard sees yet, counted all the same
         EdgeAuditOpenTest.AUDIT_OPEN.forEach(i -> byLine.merge(i.id(), 1, Integer::sum));
         int audit = EdgeAuditOpenTest.AUDIT_OPEN.size();
-        int rules = JudgingRulesReachTest.BEHAVIOUR_OPEN.size();
+        // (RULES: gone 2026-11-18, train 18 -- JudgingRulesReachTest deleted with the judging rules, E-Java's 070c4ea3e)
         // a public product member the edge alone uses (J40 of the edge audit, 2026-11-18: EdgeOnlyMembersTest)
         int edgeOnly = EdgeOnlyMembersTest.lines().size();   // one line per class (the ruling's (1))
         // the lens guards' lines (2026-11-18): L-A's and L-B's, one per line
         Set<String> lens = lensLines();
         lens.forEach(l -> byLine.merge(l, 1, Integer::sum));
         System.out.println("[edge separation] lines left: " + (BUILD_OPEN.size() + CODE_OPEN.size() + TEST_OPEN.size()
-                + CSG_OPEN.size() + rules + audit + edgeOnly + lens.size()) + " (BUILD " + BUILD_OPEN.size() + ", CODE "
-                + CODE_OPEN.size() + ", TEST SIDE " + TEST_OPEN.size() + ", TEXT " + CSG_OPEN.size() + ", RULES " + rules
+                + CSG_OPEN.size() + audit + edgeOnly + lens.size()) + " (BUILD " + BUILD_OPEN.size() + ", CODE "
+                + CODE_OPEN.size() + ", TEST SIDE " + TEST_OPEN.size() + ", TEXT " + CSG_OPEN.size()
                 + ", AUDIT " + audit + ", EDGE-ONLY MEMBERS " + edgeOnly + ", LENS " + lens.size() + "); by census line "
                 + byLine);
     }

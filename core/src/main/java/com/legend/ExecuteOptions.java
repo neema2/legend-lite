@@ -30,7 +30,7 @@ public record ExecuteOptions(PlanningOptions planning, com.legend.executionplan.
             com.legend.executionplan.DataStores stores,
             java.util.Set<com.legend.platform.Feature> features) {
         this(new PlanningOptions(edge, stores, features, PlanningOptions.JudgeMode.HOST,
-                edge.rules(), java.util.Set.of(), com.legend.database.PlanStyle.PRODUCT),
+                java.util.Set.of(), com.legend.database.PlanStyle.PRODUCT),
                 stores);
     }
 
@@ -41,12 +41,6 @@ public record ExecuteOptions(PlanningOptions planning, com.legend.executionplan.
     /** The compatibility edge the run is handed, or the product's {@code NoEdge.NONE} (lite's own rules). */
     public com.legend.testexecutionplan.Edge edge() {
         return planning.edge();
-    }
-
-    /** The rules this run's asserts are judged by, which its planners stamp on every verdict step (the user,
-     *  2026-11-04: "explicit rule"). */
-    public com.legend.testexecutionplan.TestPlan.JudgingRules judgingRules() {
-        return planning.judgingRules();
     }
 
     /** The judge the body's asserts are planned for. */

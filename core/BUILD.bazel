@@ -2588,7 +2588,7 @@ junit_test(
         "--select-class=com.legend.HookRulingsAgreeTest",
         # no guard names what is not there (the edge audit's K16, 2026-11-17)
         "--select-class=com.legend.GuardNamesExistTest",
-        "--select-class=com.legend.JudgingRulesReachTest",
+        # (JudgingRulesReachTest: deleted 2026-11-18, train 17, with the judging rules themselves)
         "--select-class=com.legend.OpenClassMembersTest",
         "--select-class=com.legend.OpenLineMarkedTest",
         "--select-class=com.legend.PlanStyleSurfaceTest",

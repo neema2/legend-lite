@@ -191,8 +191,7 @@ public sealed interface HostJudgment permits HostJudgment.AllRows, HostJudgment.
     /** {@code j} with its wrapper taken off ({@link Messaged}: a caller's message, which does not change what the
      *  judgment IS): the judgment the planners ask about -- a planned raise, an engine-text arm, an unrolled
      *  quantifier. (2026-11-04: the wrappers hid those from the gate: 61 DuckDB corpus bodies. The run's mode is no
-     *  wrapper since the explicit rules, the same day: the verdict step names them, TestPlan.JudgingRules, and the
-     *  judge is handed them.) */
+     *  wrapper: a Float's tolerance and a Decimal's scale are the two-form kinds', the style's and the run hook's.) */
     static HostJudgment core(HostJudgment j) {
         HostJudgment c = j;
         while (c instanceof Messaged m) {

@@ -1051,7 +1051,6 @@ class PlannerSurfaceTest {
             Map.entry("ExecuteOptions#planning()", List.of()),
             Map.entry("ExecuteOptions#stores()", List.of()),
             Map.entry("ExecuteOptions#edge()", List.of()),
-            Map.entry("ExecuteOptions#judgingRules()", List.of()),
             Map.entry("ExecuteOptions#judgeMode()", List.of()),
             Map.entry("ExecuteOptions#judgedAs(ExecuteOptions)", List.of(OPTION)),
             Map.entry("ExecuteOptions#withJudgeMode(PlanningOptions.JudgeMode)", List.of(OPTION)),

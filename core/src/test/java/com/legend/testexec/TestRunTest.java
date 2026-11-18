@@ -117,7 +117,7 @@ final class TestRunTest {
                 List.of(left, right), wrapper(true, "x", "x"));
         TestPlan.Verdict second = new TestPlan.Verdict(nextVerdictId(), "assertEquals@3", "assertEquals",
                 List.of(left, right), wrapper(false, "a", "b"));
-        return new TestPlan.Verdicts(List.of(first, second), fused, TestPlan.JudgingRules.LITE);
+        return new TestPlan.Verdicts(List.of(first, second), fused);
     }
 
     /** What the judges and the program's sink received, in order. */
@@ -217,7 +217,7 @@ final class TestRunTest {
         TestPlan.Verdicts group = new TestPlan.Verdicts(List.of(
                 new TestPlan.Verdict(nextVerdictId(), "assert@1", "assert", List.of(base), null, raising),
                 new TestPlan.Verdict(nextVerdictId(), "assert@2", "assert", List.of(base), null, message)),
-                null, TestPlan.JudgingRules.LITE);
+                null);
         List<Object> read = new ArrayList<>();
         SideReader[] reader = new SideReader[1];
         Recording sink = new Recording() {
@@ -282,7 +282,7 @@ final class TestRunTest {
         TestPlan.Verdict unjudged = new TestPlan.Verdict(nextVerdictId(), "assertIs@4", "assertIs",
                 g.verdicts().get(0).base(), null);
         TestPlan.Verdicts withUnjudged = new TestPlan.Verdicts(
-                List.of(g.verdicts().get(0), unjudged, g.verdicts().get(1)), null, TestPlan.JudgingRules.LITE);
+                List.of(g.verdicts().get(0), unjudged, g.verdicts().get(1)), null);
         Recording sink = new Recording();
         run(plan(TestPlan.Judge.DATABASE, withUnjudged), sessions(), sink);
         // 2026-11-03 (assertError an ordinary verdict under the database judge, ruling N3): a verdict with sides and no
@@ -352,8 +352,7 @@ final class TestRunTest {
                 null);
         TestPlan plan = new TestPlan(List.of(), List.of(
                 new TestPlan.Run(new ExecutionPlan.Check(ExecutionPlan.Sql.of("SELECT 1", target))),
-                new TestPlan.Verdicts(List.of(g.verdicts().get(0), g.verdicts().get(1), third), g.fused(),
-                        TestPlan.JudgingRules.LITE),
+                new TestPlan.Verdicts(List.of(g.verdicts().get(0), g.verdicts().get(1), third), g.fused()),
                 new TestPlan.Run(relation("SELECT 7 AS value", List.of(col("value", "Integer", "INTEGER"))))),
                 TestPlan.Judge.DATABASE, Map.of(), Map.of(), false, target, FACTS, null, TestPlan.LITE_WORDS);
         String json = TestPlanJson.write(plan);
@@ -368,7 +367,7 @@ final class TestRunTest {
     private static TestPlan.Verdicts oneVerdict(String name, String sql) {
         TestPlan.Side side = new TestPlan.Side.Rows(relation(sql, List.of(col("value", "Integer", "INTEGER"))));
         return new TestPlan.Verdicts(List.of(new TestPlan.Verdict(nextVerdictId(), name, "assert", List.of(side), null)),
-                null, TestPlan.JudgingRules.LITE);
+                null);
     }
 
     @Test
@@ -394,9 +393,9 @@ final class TestRunTest {
         TestPlan.Side three = new TestPlan.Side.Constant(List.of(col("value", "Integer", null)),
                 List.of(List.of("3")), false);
         TestPlan.Verdicts then = new TestPlan.Verdicts(List.of(new TestPlan.Verdict(nextVerdictId(), "then@1",
-                "assertEquals", List.of(three, three), null)), null, TestPlan.JudgingRules.LITE);
+                "assertEquals", List.of(three, three), null)), null);
         TestPlan.Verdicts otherwise = new TestPlan.Verdicts(List.of(new TestPlan.Verdict(nextVerdictId(), "else@1",
-                "assertEquals", List.of(three, three), null)), null, TestPlan.JudgingRules.LITE);
+                "assertEquals", List.of(three, three), null)), null);
         TestPlan.Branch inner = new TestPlan.Branch(yes, List.of(), List.of(otherwise));
         TestPlan.Branch branch = new TestPlan.Branch(yes, List.of(then, inner), List.of(otherwise));
         Recording sink = new Recording();
@@ -412,7 +411,7 @@ final class TestRunTest {
         TestPlan.Side three = new TestPlan.Side.Constant(List.of(col("value", "Integer", null)),
                 List.of(List.of("3")), false);
         TestPlan.Verdicts step = new TestPlan.Verdicts(List.of(new TestPlan.Verdict(nextVerdictId(), "assertError@1",
-                "assertError", List.of(three), null)), null, TestPlan.JudgingRules.LITE);
+                "assertError", List.of(three), null)), null);
         Recording sink = new Recording();
         run(plan(TestPlan.Judge.DATABASE, step), PlanSessions.shared(), sink);
         assertEquals(List.of("sides assertError@1", "verdict assertError@1"), sink.events);
@@ -433,8 +432,8 @@ final class TestRunTest {
         String json = TestPlanJson.write(plan);
         assertEquals(plan, TestPlanJson.read(json), "the plan read back differs");
         assertTrue(json.contains("\"_type\":\"branch\""), json);
-        // the rules each verdict group is judged by are the plan's own (the explicit rule, 2026-11-04)
-        assertTrue(json.contains("\"rules\":{\"floatUlps\":0,\"decimalScale\":false}"), json);
+        // a plan carries no judging rules (version 32, train 17, 2026-11-18: the two-form kinds decide them)
+        assertTrue(!json.contains("\"rules\""), json);
         assertTrue(!plan.answers(), "a plan that only branches answers no rows");
         assertThrows(IllegalStateException.class, plan::answerShape, "a plan that only branches answers no rows");
         assertThrows(IllegalArgumentException.class, () -> new TestPlan.Branch(condition,
@@ -475,14 +474,14 @@ final class TestRunTest {
         TestPlan.Run write = new TestPlan.Run(new ExecutionPlan.Update(ExecutionPlan.Sql.of(
                 "INSERT INTO m3b_w VALUES (1)", target), null));
         TestPlan.Verdicts held = group(fused(FUSED));
-        TestPlan.Verdicts guarded = new TestPlan.Verdicts(held.verdicts(), held.fused(), sp, held.rules());
+        TestPlan.Verdicts guarded = new TestPlan.Verdicts(held.verdicts(), held.fused(), sp);
         Recording ran = new Recording();
         run(plan(TestPlan.Judge.DATABASE, write, guarded), sessions(), ran);
         assertEquals(2, ran.verdictRows.size());
         assertEquals(0, count("m3b_sp"), "no savepoint statement around the fused statement");
         TestPlan.Verdicts rejected = group(fused("SELECT * FROM no_such_table_m3b"));
         assertThrows(com.legend.error.DataError.class, () -> run(plan(TestPlan.Judge.DATABASE, write,
-                new TestPlan.Verdicts(rejected.verdicts(), rejected.fused(), sp, rejected.rules())), sessions(),
+                new TestPlan.Verdicts(rejected.verdicts(), rejected.fused(), sp)), sessions(),
                 new Recording()));
         assertEquals(0, count("m3b_sp"), "the rejection sent no savepoint statement and ran no wrapper");
     }
