@@ -41,6 +41,10 @@ class PureV1EdgeGoldenTest {
         REQUESTS.put("raise.toOneOverMany", "|" + TRADES + "->limit(1)->extend(~o: r|[1, 2]->toOne())->select(~[o])" + RT);
         REQUESTS.put("raise.sqrtOfNegative", "|" + TRADES + "->limit(1)->extend(~s: r|sqrt(-2.0))->select(~[s])" + RT);
         REQUESTS.put("raise.parseInteger", "|" + TRADES + "->limit(1)->extend(~p: r|'abc'->parseInteger())->select(~[p])" + RT);
+        // a raise the edge checks in its own plan, a site with words (S0 of the presentation program, 2026-11-18: until
+        // then every raise here was the database's own or a planning refusal, so the net pinned no planned site's words)
+        REQUESTS.put("raise.toOneOfEmpty",
+                "|" + TRADES + "->limit(1)->extend(~o: r|[]->cast(@Integer)->toOne())->select(~[o])" + RT);
         // a cell of each kind
         REQUESTS.put("cell.dateTimeCoarse", "|" + TRADES + "->limit(1)->extend(~t: r|%2024-01-02T10:30:00)->select(~[t])" + RT);
         REQUESTS.put("cell.dateTimeSubMicro",
@@ -86,11 +90,24 @@ class PureV1EdgeGoldenTest {
     }
 
     private static String answer(java.util.function.Supplier<LiteV1Api.Answer> call) {
+        return answer(call, null);
+    }
+
+    /** An answer's status and compact JSON; with {@code sql}, its activities (lite's SQL for the execution) are taken
+     *  out into {@code sql} and the answer is recorded without them (S0, 2026-11-18: an SQL-only change then moves the
+     *  plan-text file alone, never the answers). */
+    private static String answer(java.util.function.Supplier<LiteV1Api.Answer> call,
+            java.util.function.@com.legend.base.Nullable Consumer<String> sql) {
         try {
             LiteV1Api.Answer a = call.get();
             String json = a.json();
             try {
-                json = Json.toCompact(Json.parseObject(json));   // compact, as the net has always written it
+                Json.Obj o = Json.parseObject(json);
+                if (sql != null && o.has("activities")) {
+                    sql.accept(Json.toCompact(o.get("activities")));
+                    o.fields().remove("activities");
+                }
+                json = Json.toCompact(o);   // compact, as the net has always written it
             } catch (RuntimeException notJson) {
                 // an answer that is no JSON object is recorded as it is
             }
@@ -102,13 +119,18 @@ class PureV1EdgeGoldenTest {
 
     private static void line(StringBuilder out, String name, String line) {
         out.append(name).append('\t')
-                .append(IDS.matcher(line).replaceAll("<id>").replace("\n", "\\n").replace("\r", "")).append('\n');
+                // a backslash escaped first (S0, 2026-11-18): a raw newline and an escaped one are two texts
+                .append(IDS.matcher(line).replaceAll("<id>").replace("\\", "\\\\").replace("\n", "\\n")
+                        .replace("\r", "")).append('\n');
     }
 
     @Test
     void everyRequestsAnswer() throws IOException {
         String model = Json.toCompact(Map.of("_type", "text", "code", resource("upstream-api/trades-h2.pure")));
         StringBuilder out = new StringBuilder();
+        // the plan text the edge prints, lite's own SQL (S0, 2026-11-18): each execute answer's activities and each
+        // generated plan, in a file of their own, so a slice that moves the SQL names that move and no answer moves
+        StringBuilder planText = new StringBuilder();
         for (Map.Entry<String, String> r : REQUESTS.entrySet()) {
             String body;
             try {
@@ -119,15 +141,20 @@ class PureV1EdgeGoldenTest {
                 line(out, r.getKey(), "THREW\t" + e.getClass().getSimpleName() + ": " + e.getMessage());
                 continue;
             }
-            // the execute answer, its plan's activities (the SQL text the edge prints) included: Phase 6 moves the
-            // edge's plan text, so it is the net's to see (the orchestrator, 2026-11-17; recorded before, dropped)
-            line(out, r.getKey(), answer(() -> com.legend.edge.PureV1Routes.execute(body, RECORDER)));
+            // the execute answer, its activities (the SQL text the edge prints) in the plan-text file: Phase 6 moves
+            // the edge's plan text, so it is the net's to see (the orchestrator, 2026-11-17), apart from the answers
+            line(out, r.getKey(), answer(() -> com.legend.edge.PureV1Routes.execute(body, RECORDER),
+                    activities -> line(planText, "activities." + r.getKey(), activities)));
             // the plan the edge generates for the same request (pure/v1's generatePlan): legend-engine's plan text
-            line(out, "plan." + r.getKey(), answer(() -> com.legend.edge.PureV1Routes.generatePlan(body)));
+            line(planText, "plan." + r.getKey(), answer(() -> com.legend.edge.PureV1Routes.generatePlan(body)));
         }
         String path = System.getProperty("legend.edge.purev1");
         if (path != null) {
             Files.writeString(Path.of(path), out);
+        }
+        String planPath = System.getProperty("legend.edge.purev1.plantext");
+        if (planPath != null) {
+            Files.writeString(Path.of(planPath), planText);
         }
         assertFalse(out.isEmpty());
     }
