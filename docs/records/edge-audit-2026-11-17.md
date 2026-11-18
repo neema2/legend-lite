@@ -153,3 +153,28 @@ Suspected but unverified, for GUARD to check and route:
 | J43 | PureDateLiteral.toEngineString: the product's own canonical date text, misnamed | E-P5 (rename, last) |
 
 Not findings: ColumnFacts.store (the product reads it); PlanStyle.graphKeyDate/graphKeyString (style hooks, the overriders pinned). J32 was done by GUARD (0b84c036a0, edge.EngineSeedText).
+
+## The lens audit, 2026-11-18 (read-only, at d-stage 4e8702016; triaged by the orchestrator on 1931d419b)
+
+Two ways compat can hide in the product that no guard covered: (A) the product computing upstream's form or rule
+itself, or handing it to a hook; (B) product data that only upstream's forms use, which product code merely copies or
+serializes. GUARD builds a guard for each (L-A: a reflective check of two-form kinds' functional parameters, plus a scan
+for JudgingRules branches and upstream frame or text-shape literals; L-B: edge-only data in sql, executionplan,
+testexecutionplan and compiler.spec.typed, copies not counting). The guards' measured lists are authoritative.
+
+| # | Item | Lens | Ruling | Owner |
+|---|---|---|---|---|
+| L1 | SqlExpr.DeferredTdsString | B | delete (already ruled, (8)) | E-SQL |
+| L2 | SqlExpr.TempTableInSplice | B | via EngineParams (already ruled, (8)) | E-SQL |
+| L3 | SqlSelect.SortKey.outputName | B | NOT A FINDING: product ColumnFacts, ScanColumns and Fold read it | none |
+| L4 | ExecutionContext's connection facts | B | READ_API (ruled), except PlanConnection#planText if it spells engine text | E-Java |
+| L5 | TypedSerialize and TypedSerializeGraph.engineExecuteCardinality | B | to the executeValues facet's input; field deleted | E-Java |
+| L6 | Lowerer's scalar-position serialize: SnapshotEnvelope.fold unconditional (verified at :4477 on 1931d419b) | A | ask executeValues, as J3 at the root | E-SQL |
+| L7 | TypedJsonResult TDS/CLASS/VALUES and sql (executeLegendQuery) | B | the arm to the edge; size first | E-Java |
+| L8 | TypedProject.wireForm | B | delete | E-Java |
+| L9 | upstream alternatives computed in product lambdas (SnapshotEnvelope.fold as oneBare; SubselectPrune.prune(q,false) as kept; ExistsJoinForm.rewrite) | A | the edge composes its own; folded into withShape (i) | E-SQL |
+| L10 | engine-golden shapes in lowering: rename's extra nesting, "unionAlias", WhereMerge order (plausible) | A | LoweringForms members, as J23 | E-SQL |
+| L11 | compiled legend-pure equality in the product judges (decimalScale, floatUlps, VerdictSql decimal-by-value and 2-ULP) | A | two-form kinds like CrossKindNumbers | E-Java |
+| L12 | Failure.NOT_A_CONSTANT and NotAConstant (plausible; maybe C4's) | B/A | check, then raise from the edge's collector | E-Java |
+| L13 | TypedViewRelation (plausible) | B | verify; carry the view name on the edge's path only | E-SQL |
+| L14 | TypedSort.pureNullOrder and SortKey.nullOrder==null (plausible) | B | verify; delete or two-form | E-SQL |
