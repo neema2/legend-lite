@@ -63,7 +63,6 @@ class PlanStyleSurfaceTest {
             "public abstract boolean judgesEngineText()",
             "public abstract com.legend.database.PlanStyle$TraceCell traceCell()",
             "public abstract com.legend.sql.dialect.SqlDialect dialect(com.legend.model.ConnectionDefinition$DatabaseType)",
-            "public abstract java.lang.String activitySql(com.legend.database.PlanStyle$Activity)",
             "public abstract java.lang.String errorWords(java.lang.RuntimeException)",
             "public abstract java.lang.String graphKeyDate(java.lang.String)",
             "public abstract java.lang.String graphKeyString(java.lang.String)",
@@ -71,7 +70,7 @@ class PlanStyleSurfaceTest {
             // (plainRaises(): gone from the style 2026-11-17, d-int6)
 
     /** Every style method by name: each style implements them all today. */
-    private static final Set<String> ALL = Set.of("activitySql", "dialect", "errorWords", "facet", "graphKeyDate",
+    private static final Set<String> ALL = Set.of("dialect", "errorWords", "facet", "graphKeyDate",
             "graphKeyString", "judgesEngineText", "siteWords", "traceCell", "twoForm");
 
     /** Each implementer of PlanStyle -> the style methods it declares. */
@@ -210,13 +209,10 @@ class PlanStyleSurfaceTest {
             "$1#public boolean judgesEngineText()",
             "$1#public com.legend.database.PlanStyle$TraceCell traceCell()",
             "$1#public com.legend.sql.dialect.SqlDialect dialect(com.legend.model.ConnectionDefinition$DatabaseType)",
-            "$1#public java.lang.String activitySql(com.legend.database.PlanStyle$Activity)",
             "$1#public java.lang.String errorWords(java.lang.RuntimeException)",
             "$1#public java.lang.String graphKeyDate(java.lang.String)",
             "$1#public java.lang.String graphKeyString(java.lang.String)",
             "$1#public java.lang.String siteWords(com.legend.sql.dialect.RaiseSite)",
-            "Activity#public abstract java.lang.String engines()",
-            "Activity#public abstract java.lang.String lites()",
             "TraceCell#private final java.lang.String after",
             "TraceCell#private final java.lang.String before",
             "TraceCell#public <init>(java.lang.String, java.lang.String)",
@@ -232,12 +228,10 @@ class PlanStyleSurfaceTest {
             "public abstract boolean judgesEngineText()",
             "public abstract com.legend.database.PlanStyle$TraceCell traceCell()",
             "public abstract com.legend.sql.dialect.SqlDialect dialect(com.legend.model.ConnectionDefinition$DatabaseType)",
-            "public abstract java.lang.String activitySql(com.legend.database.PlanStyle$Activity)",
             "public abstract java.lang.String errorWords(java.lang.RuntimeException)",
             "public abstract java.lang.String graphKeyDate(java.lang.String)",
             "public abstract java.lang.String graphKeyString(java.lang.String)",
             "public abstract java.lang.String siteWords(com.legend.sql.dialect.RaiseSite)",
-            "public abstract static Activity (class)",
             "public static final TraceCell (class)",
             "public static final com.legend.database.PlanStyle PRODUCT",
             "static {}");
