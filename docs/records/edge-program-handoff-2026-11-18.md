@@ -223,24 +223,10 @@ The final train is `claude/total-wall-h-train19` (DataCube's integration of the 
 CI runs DuckDB, H2 and Postgres (Linux). MariaDB, MySQL, ClickHouse, Trino, MongoDB, SQLite, Snowflake, Databricks and
 BigQuery run only in lane sessions (the plan of record's §5.1).
 
-**Setting up (from `docs/RESULT_BOUNDARY_START_HERE.md` §7 and `docs/CLOUD_BACKENDS_PCT_2026_10_11.md` §4 and §6):**
-1. **Credentials.** Make one cloud environment per credential set. Its **setup script** writes the properties file that
-   `LEGENDLITE_PCT_CLOUD_PROPERTIES` names (the file's keys: `CLOUD_BACKENDS_PCT_2026_10_11.md` §4). Credentials never go
-   in the repository or a chat message, and are never printed.
-2. **Sessions.** One per lane group, each on the PR's branch:
-
-   | Group | Databases |
-   |---|---|
-   | 1 | Postgres (unprivileged), SQLite, MongoDB |
-   | 2 | MariaDB, MySQL, ClickHouse |
-   | 3 | Trino, H2 |
-   | 4 | Snowflake (credentials) |
-   | 5 | Databricks (credentials) |
-   | 6 | BigQuery (credentials) |
-
-   The embedded servers (Postgres, MariaDB, MySQL, ClickHouse, Trino, MongoDB) need Linux x86_64.
-3. **Bazel.** Bootstrap with `tools/cloud-distdir.sh`; the disk allowance and its traps are in `docs/CLOUD_SESSIONS.md`.
-   Run `bazel clean` between heavy suites if disk runs short.
+**Use your warm lane sessions.** The reviewing account already has warm sessions with the databases and their
+credentials set up. Give each one the brief below; nothing needs to be set up again. (Only if a lane has no session:
+`docs/RESULT_BOUNDARY_START_HERE.md` §7 and `docs/CLOUD_BACKENDS_PCT_2026_10_11.md` §4 and §6 describe the setup;
+credentials come only from an environment's setup script, never the repository or a message.)
 
 **What to run on each database, at TWO commits** (the base, `claude/total-wall-d-stage` before the final train, i.e.
 `815de5810`, and the PR head), then compare per test:
