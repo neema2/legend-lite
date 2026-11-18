@@ -64,9 +64,8 @@ class EdgeOnlyMembersTest {
     static final Map<String, String> OPEN = Map.ofEntries(
             // (ExecuteChainAssembly#concatenated and NativeFn$OperatorRun#fqn: ruled READ_API by the orchestrator 2026-11-18,
             // train 18, below -- J40.ExecuteChainAssembly and J40.NativeFn close)
-            // (PlanStyle$Activity#engines(): gone 2026-11-18 by F's J40.PlanStyle commit, 7bd5237958 -- the activity SQL a
-            // two-form hook, planner.ActivityTexts, the edge's form legend-engine's text; J40.PlanStyle closes, and with it
-            // the last OPEN row: every J40 line is closed, train 18)
+            // (PlanStyle$Activity#engines(): gone 2026-11-18 by F's J40.PlanStyle commit, 7bd52379 -- the activity SQL a
+            // two-form hook, planner.ActivityTexts, the edge's form legend-engine's text; J40.PlanStyle closes)
             // (ScanRelations#rootImpl, both overloads: moved 2026-11-18 by E-Java's j40c, 71be053489, to the edge's
             // SetImplementations -- J40.ScanRelations closes)
             // (VerdictSql#textEquals: moved 2026-11-18 by E-Java's j40c, 9dd14f6fdc -- the product keeps constantTextsEqual,
