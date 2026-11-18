@@ -48,6 +48,15 @@ final class AggAwareActivities {
     private AggAwareActivities() {
     }
 
+    /** legend-engine's AggregationAwareActivity of an aggregation-aware frame -- no SQL, no comment, the routed print
+     *  (J37 of the edge audit, 2026-11-18: the whole row the edge's) -- else null. */
+    static com.legend.planner.RoutedQueries.@com.legend.base.Nullable Activity routingActivity(TypedSpec chain,
+            ModelContext ctx, com.legend.compiler.spec.SpecCompiler specs) {
+        String routed = rewrittenQuery(chain, ctx, specs);
+        return routed == null ? null
+                : new com.legend.planner.RoutedQueries.Activity("AggregationAwareActivity", "", "", routed);
+    }
+
     /** The routed print for an aggregation-aware frame, else null. */
     static @com.legend.base.Nullable String rewrittenQuery(TypedSpec chain, ModelContext ctx,
             com.legend.compiler.spec.SpecCompiler specs) {
