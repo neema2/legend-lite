@@ -33,7 +33,7 @@ public final class PlanEnvelope {
                 : InProtocol.allNodeTexts(inp, connName,
                         inList.threshold(), pd::collectionSplice, pd::inTempTableSelect);
         var planOut = inp != null ? inp.plan() : es.plan();
-        boolean pushDownEnums = BodyPlanner.pushDownEnums(env, java.util.List.of(term));
+        boolean pushDownEnums = EnginePlans.pushDownEnums(env, java.util.List.of(term));
         String rel = PlanText.single(env.ctx(), rootClass,
                 mappingFqn, planOut,
                 inp != null ? pd.render(planOut) : es.sql(),

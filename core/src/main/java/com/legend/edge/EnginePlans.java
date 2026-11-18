@@ -452,7 +452,7 @@ public final class EnginePlans {
                         // PRE-resolution body: the TDS-vs-Class shape and
                         // the documentation channel live in the G output
                         // (post-H everything is a relation)
-                        lam.body(), connName, chainMaps, es.plan(), BodyPlanner.pushDownEnums(env, lam.body()),
+                        lam.body(), connName, chainMaps, es.plan(), pushDownEnums(env, lam.body()),
                         PureText.enginePlanText(dbType, quote, tz)::selectList);
     }
 
@@ -551,7 +551,7 @@ public final class EnginePlans {
             allocs.add(PlanText.allocation(var,
                     PlanText.typeBlock(env.ctx(), aRoot,
                             aImpl, aEs.plan(), java.util.List.of(at),
-                            mappingFqn, BodyPlanner.pushDownEnums(env, java.util.List.of(at))),
+                            mappingFqn, pushDownEnums(env, java.util.List.of(at))),
                     PlanText.single(env.ctx(), aRoot,
                             mappingFqn, aEs.plan(), aSql,
                             java.util.List.of(at), connName, chainMaps,
@@ -561,7 +561,7 @@ public final class EnginePlans {
                             prevVar == null ? aEs.plan()
                                     : PlanText.colsPlanFor(
                                             aEs.plan(), prevVar),
-                            BodyPlanner.pushDownEnums(env, java.util.List.of(at)), planText::selectList)));
+                            pushDownEnums(env, java.util.List.of(at)), planText::selectList)));
             prevVar = var;
         }
         EngineSql fullEs = engineSql(lam.body(), mappingFqn, specs, env,
@@ -574,7 +574,7 @@ public final class EnginePlans {
                 rootClass, mappingFqn, fullEs.plan(), splicedSql,
                 lam.body(), connName, chainMaps,
                 PlanText.colsPlanFor(
-                        fullEs.plan(), prevVar), BodyPlanner.pushDownEnums(env, lam.body()), planText::selectList);
+                        fullEs.plan(), prevVar), pushDownEnums(env, lam.body()), planText::selectList);
         String[] impl = com.legend.lineage.ScanRelations.rootImpl(
                 env.ctx(), mappingFqn, rootClass, chainMaps);
         java.util.List<String> children = new java.util.ArrayList<>(allocs);
@@ -582,7 +582,7 @@ public final class EnginePlans {
         return PlanText.sequence(
                         PlanText.typeBlock(env.ctx(),
                                 rootClass, impl, fullEs.plan(),
-                                lam.body(), mappingFqn, BodyPlanner.pushDownEnums(env, lam.body())),
+                                lam.body(), mappingFqn, pushDownEnums(env, lam.body())),
                         children);
     }
 
@@ -995,4 +995,11 @@ public final class EnginePlans {
         // constraint-free for DuckDB re-seeds
         return PureText.engineText(EngineText.ENGINE_TEST_DATABASE).render(com.legend.setup.Ddl.createTable(def, sch));
     }
+
+    /** PUSH_DOWN_ENUM_TRANSFORM on this plan's context: legend-engine's plan printer's enum-tuple form follows it
+     *  (moved from planner.BodyPlanner, J40, 2026-11-18: its callers were the edge's alone). */
+    static boolean pushDownEnums(PlanEnv env, java.util.List<TypedSpec> body) {
+        return BodyPlanner.featuresOf(env, body).contains(com.legend.platform.Feature.PUSH_DOWN_ENUM_TRANSFORM);
+    }
+
 }
