@@ -1147,6 +1147,8 @@ test_suite(
         ":saved_pages_server_test",
         # live against the Bazel-built native warehouse (it builds the native image; not on Windows ARM64)
         ":live_snap_test",
+        # the dist holds every file its pages import by a relative URL (PR #118 fix round, 2026-11-18)
+        ":dist_imports_test",
     ],
 )
 
@@ -2525,6 +2527,18 @@ js_run_binary(
     tool = ":make_dist",
     # //python:repl serves it with Python's engine (show())
     visibility = ["//python:__pkg__"],
+)
+
+# THE DIST HOLDS WHAT ITS PAGES IMPORT (PR #118 fix round, 2026-11-18): each page's module script and every module it
+# reaches by a relative URL -- a static or dynamic import, a `new URL('./...', import.meta.url)` -- is a file of the
+# folder. The legend-engine plane's bundle was built into the site and never copied, and the app (site = ":dist")
+# failed to start in engine mode.
+node_test(
+    name = "dist_imports_test",
+    size = "small",
+    data = [":dist"],
+    entry_point = "test/dist/imports.ts",
+    env = {"DIST": "$(rlocationpath :dist)"},
 )
 
 # THE BROWSER HARNESSES, BY HAND: `bazel run //datacube:<name>`, the manual form of the browser_tests below
