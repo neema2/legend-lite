@@ -3,7 +3,6 @@
 
 package com.legend.edge;
 
-import com.legend.model.ConnectionDefinition.DatabaseType;
 import com.legend.testbackend.TestBackend;
 import com.legend.testbackend.TestBackends;
 import org.junit.jupiter.api.Test;
@@ -26,12 +25,12 @@ class DynamicPivotTextRefusalTest {
 
     @Test
     void aDynamicPivotsTextIsRefusedByNameAtLowering() throws Exception {
-        TestBackend h2 = TestBackends.of(DatabaseType.H2);
-        String model = h2.withStorelessRuntime("");
+        TestBackend backend = TestBackends.platform();
+        String model = backend.withStorelessRuntime("");
         for (String text : List.of("->meta::pure::functions::relation::toString()",
                 "->meta::relational::tests::csv::toCSV()")) {
             Exception refused = assertThrows(Exception.class, () -> com.legend.testing.Lean.runInStyle(model,
-                    PIVOT + text, com.legend.testbackend.StorelessRuntime.RUNTIME, h2, PureText.UPSTREAM), text);
+                    PIVOT + text, com.legend.testbackend.StorelessRuntime.RUNTIME, backend, PureText.UPSTREAM), text);
             assertTrue(chain(refused).contains("a dynamic pivot's text (toString/toCSV) over columns nothing names:"
                     + " its columns exist only once the database is asked, planning asks the database nothing, and the"
                     + " pivot's keyed form writes no text"), text + ": " + chain(refused));
