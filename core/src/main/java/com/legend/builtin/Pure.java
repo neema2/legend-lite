@@ -2575,10 +2575,10 @@ public final class Pure {
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_AS_OF_JOIN_WITH_PREFIX = com.legend.model.FunctionId.ofAll(AS_OF_JOIN_WITH_PREFIX__RELATION_1__RELATION_1__FUNCTION_1__FUNCTION_1__STRING_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_ASOR_DECODE_PK_MAP = com.legend.model.FunctionId.ofAll(ASOR_DECODE_PK_MAP__STRING_1__STRING_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_ASOR_PK_VALUE = com.legend.model.FunctionId.ofAll(ASOR_PK_VALUE__STRING_1__INTEGER_1);
+    public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_ASSERT_FAILED_TEXT = com.legend.model.FunctionId.ofAll(ASSERT_FAILED_TEXT);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_AT_TIME = com.legend.model.FunctionId.ofAll(AT_TIME__DATE_1__STRICT_TIME_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_CAST_AS_DECLARED = com.legend.model.FunctionId.ofAll(CAST_AS_DECLARED__ANY_01__T_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_CELL_TEXT = com.legend.model.FunctionId.ofAll(CELL_TEXT__STRING_0_1);
-    public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_ASSERT_FAILED_TEXT = com.legend.model.FunctionId.ofAll(ASSERT_FAILED_TEXT);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_CONVERT_DATE_FORMAT = com.legend.model.FunctionId.ofAll(CONVERT_DATE_FORMAT__STRING_0_1__STRING_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_CONVERT_DATE_TIME_FORMAT = com.legend.model.FunctionId.ofAll(CONVERT_DATE_TIME_FORMAT__STRING_0_1__STRING_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_CONVERT_TIME_ZONE_FORMAT = com.legend.model.FunctionId.ofAll(CONVERT_TIME_ZONE_FORMAT__DATE_0_1__STRING_1__STRING_1);
