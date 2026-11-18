@@ -30,6 +30,13 @@ function named(text: string, from: string): string[] {
   return SPECIFIERS.flatMap((re) => [...text.matchAll(re)].map((m) => resolve(dirname(from), m[1]!)));
 }
 
+/** `file`'s path under `base` with `/` between its parts, on every OS: what the test names and compares (Windows'
+ *  `relative()` writes `\`, as datacube/test/guardrails.test.ts normalizes it; PR #118's fix round, the audit's
+ *  BUILD-GUARDS-1). The files themselves are compared as `resolve` and `join` give them, the same on each side. */
+function under(base: string, file: string): string {
+  return relative(base, file).replace(/\\/g, '/');
+}
+
 /** Every file reached from `roots`, and each one reached that the folder `base` lacks (with who names it). */
 function walk(base: string, roots: string[]): { reached: Set<string>; missing: string[] } {
   const reached = new Set<string>();
@@ -40,11 +47,11 @@ function walk(base: string, roots: string[]): { reached: Set<string>; missing: s
     if (reached.has(file)) continue;
     reached.add(file);
     if (!existsSync(file) || !statSync(file).isFile()) {
-      missing.push(`${relative(base, file)} (named by ${by})`);
+      missing.push(`${under(base, file)} (named by ${by})`);
       continue;
     }
     if (!/\.m?js$/.test(file)) continue;   // a module, .js or .mjs, names what it loads; a .wasm, .json or .css none
-    for (const next of named(readFileSync(file, 'utf8'), file)) todo.push({ file: next, by: relative(base, file) });
+    for (const next of named(readFileSync(file, 'utf8'), file)) todo.push({ file: next, by: under(base, file) });
   }
   return { reached, missing };
 }
@@ -70,7 +77,7 @@ test('every file a page of the dist imports by a relative URL is in the dist', (
     assert.ok(reached.has(join(DIST, f)), `the walk never reached ${f}: its URL is no longer read this way`);
   }
   for (const d of ['chunks-bundle', 'chunks-bundle-engine', 'chunks-legend-engine']) {
-    assert.ok([...reached].some((f) => relative(DIST, f).startsWith(`${d}/`)), `the walk reached no file of ${d}/`);
+    assert.ok([...reached].some((f) => under(DIST, f).startsWith(`${d}/`)), `the walk reached no file of ${d}/`);
   }
 });
 
@@ -83,12 +90,13 @@ test('the walk names a file a module imports that the folder lacks', () => {
     + 'const shown="import { x } from \'./src/x.ts\';";');
   const chunk = join(dir, 'chunks');
   mkdirSync(chunk);
-  writeFileSync(join(chunk, 'a.js'), 'import"../shared.js";export const a=1;');
+  // a chunk naming a file in a folder of its own that is not there: named by its path with `/` on every OS
+  writeFileSync(join(chunk, 'a.js'), 'import"../shared.js";import"./deep/none.js";export const a=1;');
   writeFileSync(join(dir, 'shared.js'), '');
   // a reached .mjs module is read too: what it imports is the dist's to hold (the review of PR #118's fix round)
   writeFileSync(join(dir, 'lib.mjs'), 'export{b}from"./gone.js";');
   const { reached, missing } = walk(dir, [join(dir, 'page.js')]);
-  assert.deepEqual(missing.sort(),
-    ['gone.js (named by lib.mjs)', 'plane.js (named by page.js)', 'worker.js (named by page.js)']);
+  assert.deepEqual(missing.sort(), ['chunks/deep/none.js (named by chunks/a.js)', 'gone.js (named by lib.mjs)',
+    'plane.js (named by page.js)', 'worker.js (named by page.js)']);
   assert.ok(reached.has(join(dir, 'shared.js')), 'a chunk\'s own import, resolved against the chunk, is followed');
 });
