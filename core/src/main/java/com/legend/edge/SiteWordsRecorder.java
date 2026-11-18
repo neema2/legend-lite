@@ -92,11 +92,6 @@ public final class SiteWordsRecorder implements PlanStyle {
     }
 
     @Override
-    public java.util.Set<com.legend.sql.RaiseKind> plainRaises() {
-        return template.plainRaises();
-    }
-
-    @Override
     public <F> F twoForm(Class<F> kind, F productForm) {
         return template.twoForm(kind, productForm);
     }

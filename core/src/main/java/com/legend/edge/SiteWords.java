@@ -12,7 +12,7 @@ import java.util.Objects;
  * the product plan's: a test plan holds it at the step that sends {@code text}, where the edge's hearing looks it up
  * ({@code Appeals#raisedWords}); pure/v1's host answers keep their own table of it. Keyed by {@code (text, n)}.
  */
-public record SiteWords(String text, int n, String words) implements com.legend.testexecutionplan.Extension.Heard {
+public record SiteWords(String text, int n, String words) implements com.legend.testexecutionplan.Extension {
 
     public SiteWords {
         Objects.requireNonNull(text, "a site's statement text");
