@@ -1,6 +1,7 @@
-"""A small Legend engine over frames: legend-engine's ``pure/v1`` API, answered on this machine, so DataCube's
-remote client (``engine-client/src/engine-remote.ts``) runs against a Python process exactly as it runs against
-legend-engine. Design: ``docs/DATACUBE_PYTHON_SHOW_DESIGN_2026_10_08.md``.
+"""A small Legend engine over frames, answered on this machine: lite's own API (``/api/lite/v1/<operation>``, query/run
+among them), the page's own routes (plan-and-run and its dry run, a file in or out, a snap, the saved pages and
+queries at lite's mount, the model home) -- so DataCube's page runs against a Python process as it runs against
+legend-lite's server. Design: ``docs/DATACUBE_PYTHON_SHOW_DESIGN_2026_10_08.md``.
 
     frames = Frames()
     frames.register('trades', df)
@@ -12,11 +13,11 @@ legend-engine. Design: ``docs/DATACUBE_PYTHON_SHOW_DESIGN_2026_10_08.md``.
 The engine has no transport. A browser tab reaches it over HTTP (``WebServer``); a notebook's cube over the widget's
 own channel (``legend_lite.notebook``). Both send it the same calls.
 
-Every answer but execute's rows is legend-lite's own server code (``PureV1Api``, through the native library),
-so this module holds no Legend protocol: it runs the SQL the compiler wrote, and carries HTTP. execute
-answers in upstream's Arrow format (``?serializationFormat=ARROW_IPC``: a zstd-compressed Arrow IPC stream
-whose schema metadata carries the builder, the SQL that ran and the columns), the one format this engine
-declares; DuckDB produces Arrow, so JSON would be the extra conversion.
+Every plan is the compiler's, through the native library: this module holds no Legend protocol -- it runs the SQL
+the compiler wrote, and carries HTTP. A grid's rows answer as Arrow, the planner's answer in their schema's metadata
+(``legend.plan``). legend-engine's API (``pure/v1``, its execute, its saved-query store) is no product route: it is the
+edge's (``legend_lite.edge``, its native half the opt-in engine library: the edge program's H5 and K2, 2026-11-17/18),
+reached only through ``_edge_seam`` when the edge's door composed the engine.
 
 Over HTTP, only what the developer's own page sends is answered: the server listens on 127.0.0.1 alone, every call
 for the engine's data carries its one-time token (``Authorization: Bearer <token>``), a request is refused unless its
@@ -529,8 +530,8 @@ class _WarehouseTable:
 
 
 class Engine:
-    """legend-engine's ``pure/v1`` API over the frames' tables, with no transport: ``answer(method, path, query,
-    body)`` is one call, answered as HTTP would carry it. ``site``: a directory whose files are answered too
+    """lite's own API and the page's routes over the frames' tables, with no transport (legend-engine's are the
+    edge's, through ``edge``): ``answer(method, path, query, body)`` is one call, answered as HTTP would carry it. ``site``: a directory whose files are answered too
     (DataCube's built pages). ``WebServer`` serves it to a browser tab; a notebook's cube sends it its widget's
     messages."""
 
