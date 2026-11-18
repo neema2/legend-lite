@@ -809,21 +809,21 @@ class HookRulingTest {
                 java.util.Set.of(com.legend.sql.RaiseKind.DIVIDE_BY_ZERO)), "the product's own raise is the token's");
     }
 
-    /** The raise pin bites: every edge dialect words a raise upstream's way -- its sentence in SQL, or its words in the
-     *  site -- and each is named, by its class. */
+    /** Since K10 the edge's dialects raise as the product does: no edge dialect words a raise upstream's way, in its SQL
+     *  or its site -- legend-pure's words are the edge's recorder's own data (K10b of the edge audit, the orchestrator's
+     *  ruling (A) of 2026-11-17). Until train 19 this test was the pin's bite on the real edge dialects (each named, at
+     *  least three); K10 removed what it bit on, so it now holds K10's outcome, and the pin's bite is the planted
+     *  dialects' (theRaisePinBitesWordsBesideTheToken). Re-cut 2026-11-18 for train 19 by the GUARD stream. */
     @Test
-    void theRaisePinBitesAnEdgeDialect() {
-        java.util.Set<String> named = new java.util.TreeSet<>();
+    void theEdgesDialectsRaiseAsTheProductSinceK10() {
+        List<String> worded = new java.util.ArrayList<>();
         for (com.legend.model.ConnectionDefinition.DatabaseType t : com.legend.database.Databases.implemented()) {
-            com.legend.sql.dialect.SqlDialect edge = com.legend.edge.PureText.dialect(t);
-            // a division by zero, which the edge words without operands (its other kinds' sentences read theirs)
-            for (String found : productRaiseDiffers(() -> com.legend.edge.PureText.dialect(t), new java.util.TreeSet<>(),
-                    java.util.Set.of(com.legend.sql.RaiseKind.DIVIDE_BY_ZERO))) {
-                assertTrue(found.startsWith(edge.getClass().getName()), found);
-                named.add(edge.getClass().getName());
-            }
+            // a division by zero, which the edge worded without operands before K10 (its other kinds' sentences read theirs)
+            worded.addAll(productRaiseDiffers(() -> com.legend.edge.PureText.dialect(t), new java.util.TreeSet<>(),
+                    java.util.Set.of(com.legend.sql.RaiseKind.DIVIDE_BY_ZERO)));
         }
-        assertTrue(named.size() >= 3, "the edge's dialects are named: " + named);
+        assertEquals(List.of(), worded, "an edge dialect words a raise in its SQL or its site: K10 moved legend-pure's"
+                + " words to the edge's recorder");
     }
 
     /** What {@code dialects} gives a database type that is not the edge's own dialect (the edge audit's K16, 2026-11-17:

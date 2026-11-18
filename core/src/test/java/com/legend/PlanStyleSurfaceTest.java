@@ -66,7 +66,10 @@ class PlanStyleSurfaceTest {
             "public abstract java.lang.String errorWords(java.lang.RuntimeException)",
             "public abstract java.lang.String graphKeyDate(java.lang.String)",
             "public abstract java.lang.String graphKeyString(java.lang.String)",
-            "public abstract java.lang.String siteWords(com.legend.sql.dialect.RaiseSite)");
+            // siteWords(RaiseSite) -> siteWords(String, List<RaiseSite>), answering nothing (K10b of the edge audit, the
+            // orchestrator's ruling (A) of 2026-11-17: the planner offers each statement and its sites, the edge's
+            // recorder keeps legend-pure's words as its own data; re-pinned 2026-11-18 for train 19, the host train)
+            "public abstract void siteWords(java.lang.String, java.util.List<com.legend.sql.dialect.RaiseSite>)");
             // (plainRaises(): gone from the style 2026-11-17, d-int6)
 
     /** Every style method by name: each style implements them all today. */
@@ -78,7 +81,10 @@ class PlanStyleSurfaceTest {
             // the product's style (PlanStyle.PRODUCT) and the edge's two (PureText.UPSTREAM, PureText.PURE_V1)
             Map.entry("com.legend.database.PlanStyle$1", ALL),
             Map.entry("com.legend.edge.PureText$1", ALL),
-            Map.entry("com.legend.edge.PureText$2", ALL));
+            Map.entry("com.legend.edge.PureText$2", ALL),
+            // the edge's recorder of one planning call's raise-site words over a template style, forwarding the rest
+            // (K10b, the orchestrator's ruling (A) of 2026-11-17; host train, pinned 2026-11-18 for train 19)
+            Map.entry("com.legend.edge.SiteWordsRecorder", ALL));
 
     private static String signature(Method m) {
         return m.getName() + Arrays.stream(m.getGenericParameterTypes()).map(java.lang.reflect.Type::getTypeName)
@@ -212,7 +218,8 @@ class PlanStyleSurfaceTest {
             "$1#public java.lang.String errorWords(java.lang.RuntimeException)",
             "$1#public java.lang.String graphKeyDate(java.lang.String)",
             "$1#public java.lang.String graphKeyString(java.lang.String)",
-            "$1#public java.lang.String siteWords(com.legend.sql.dialect.RaiseSite)",
+            // siteWords: K10b's offer of a statement and its sites (re-pinned 2026-11-18, train 19)
+            "$1#public void siteWords(java.lang.String, java.util.List<com.legend.sql.dialect.RaiseSite>)",
             "TraceCell#private final java.lang.String after",
             "TraceCell#private final java.lang.String before",
             "TraceCell#public <init>(java.lang.String, java.lang.String)",
@@ -231,7 +238,7 @@ class PlanStyleSurfaceTest {
             "public abstract java.lang.String errorWords(java.lang.RuntimeException)",
             "public abstract java.lang.String graphKeyDate(java.lang.String)",
             "public abstract java.lang.String graphKeyString(java.lang.String)",
-            "public abstract java.lang.String siteWords(com.legend.sql.dialect.RaiseSite)",
+            "public abstract void siteWords(java.lang.String, java.util.List<com.legend.sql.dialect.RaiseSite>)",
             "public static final TraceCell (class)",
             "public static final com.legend.database.PlanStyle PRODUCT",
             "static {}");
