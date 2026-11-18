@@ -61,7 +61,8 @@ public final class LiteV1Api {
     /**
      * A request body's JSON. A query built as protocol JSON nests a few levels per chained
      * function, so the default limit (64, sized for configuration files) would refuse a long
-     * cube query; and a request may carry a whole model as data ({@code ModelInput}), which nests as deep as a
+     * cube query; and a request may carry a whole model as data (legend-engine's {@code PureModelContextData}, read at
+     * the edge by {@code com.legend.edge.ModelInput}: J40.ModelInput, moved 2026-11-18), which nests as deep as a
      * model's own JSON -- the bound {@code ModelReader} reads a model's text at (4096; 2026-10-21, the independent
      * audit: at 1024 a model compiled as text and was refused as data). It still bounds a hostile body.
      */
@@ -265,8 +266,9 @@ public final class LiteV1Api {
     // ---------------------------------------------------------------------
 
     /** A {@code PureModelContextText}'s code, for the routes that read a model's text itself (the host and the
-     *  model-change routes); any other model context is refused there. The routes that compile a model read its
-     *  data too ({@code ModelInput}; 2026-10-21, the independent audit: this said no reader was built). */
+     *  model-change routes); any other model context is refused there. legend-engine's routes that compile a model read
+     *  its data too ({@code com.legend.edge.ModelInput}, the edge's since 2026-11-18, J40.ModelInput; 2026-10-21, the
+     *  independent audit: this said no reader was built). */
     public static String modelText(Json.Obj model) {
         String type = model.getStringOr("_type", "");
         if (!"text".equals(type)) {

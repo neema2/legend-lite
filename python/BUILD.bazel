@@ -539,8 +539,13 @@ py_test(
         "tests/test_engine.py",
     ],
     args = ["test_edge"],
-    data = ["//native:compiler"],
-    env = _ENV,
+    # the product library, and the engine library the edge's key loads (K2, the user's "product root, edge opt-in",
+    # 2026-11-18): legend-engine's routes on, byte-exact (EdgeOn)
+    data = [
+        "//native:compiler",
+        "//native:engine",
+    ],
+    env = _ENV | {"LEGEND_LITE_ENGINE_LIBRARY": "$(rlocationpath //native:engine)"},
     main = "tests/main.py",
     target_compatible_with = _PLATFORMS,
     deps = [
@@ -891,6 +896,8 @@ py_package(
     name = "wheel_package",
     packages = ["python.legend_lite"],
     deps = [
+        # legend_lite.edge's Python (K2, 2026-11-18): its native half, the engine library, is legend-lite-engine's
+        ":edge",
         ":headless",
         ":legend_lite",
         ":notebook",
@@ -934,6 +941,9 @@ py_wheel(
         ],
         "pandas": ["pandas>=3.0.6"],
         "polars": ["polars>=2.0.0"],
+        # legend-engine's routes (legend_lite.edge), opt-in: their native library is legend-lite-engine's (K2, the
+        # user's "product root, edge opt-in", 2026-11-18); without it the edge's door is refused by name
+        "engine": ["legend-lite-engine==0.1.0"],
     },
     license = "Apache-2.0",
     platform = select({
@@ -964,6 +974,79 @@ py_wheel(
         "@platforms//os:linux": [":wheel_library_linux"],
         "@platforms//os:macos": [":wheel_library_macos"],
         "@platforms//os:windows": [":wheel_library_windows"],
+    }),
+)
+
+# THE ENGINE WHEEL (K2, the user's "product root, edge opt-in", 2026-11-18; packaging the orchestrator's): `pip install
+# legend-lite[engine]` installs legend-lite-engine, which carries the engine library alone (//native:engine:
+# legend-engine's entry points over the product), in legend_lite_engine/_native/, where legend_lite.edge finds it. The
+# product wheel above carries no edge binary.
+copy_file(
+    name = "engine_wheel_library_macos",
+    src = "//native:engine",
+    out = "legend_lite_engine/_native/libcompiler_engine.dylib",
+    target_compatible_with = ["@platforms//os:macos"],
+)
+
+copy_file(
+    name = "engine_wheel_library_linux",
+    src = "//native:engine",
+    out = "legend_lite_engine/_native/libcompiler_engine.so",
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
+copy_file(
+    name = "engine_wheel_library_windows",
+    src = "//native:engine",
+    out = "legend_lite_engine/_native/libcompiler_engine.dll",
+    target_compatible_with = ["@platforms//os:windows"],
+)
+
+py_library(
+    name = "engine_package",
+    srcs = ["legend_lite_engine/__init__.py"],
+    imports = ["."],
+)
+
+py_package(
+    name = "engine_wheel_package",
+    packages = ["python.legend_lite_engine"],
+    deps = [":engine_package"],
+)
+
+py_wheel(
+    name = "engine_wheel",
+    abi = "none",
+    description_file = "README.md",
+    distribution = "legend-lite-engine",
+    extra_distinfo_files = {
+        "//:LICENSE": "LICENSE",
+        "//:NOTICE": "NOTICE",
+        "//:THIRD_PARTY_NOTICES.md": "THIRD_PARTY_NOTICES.md",
+        "@graalvm//:LICENSE.txt": "GRAALVM-LICENSE.txt",
+        "@graalvm//:LICENSE_NATIVEIMAGE.txt": "GRAALVM-LICENSE-NATIVEIMAGE.txt",
+        "@graalvm//:THIRD_PARTY_LICENSE.txt": "GRAALVM-THIRD-PARTY-LICENSE.txt",
+    },
+    license = "Apache-2.0",
+    platform = select({
+        "//tools/platforms:linux_aarch64": "manylinux_2_17_aarch64",
+        "//tools/platforms:linux_x86_64": "manylinux_2_17_x86_64",
+        "//tools/platforms:macos_arm64": "macosx_14_0_arm64",
+        "//tools/platforms:macos_x86_64": "macosx_14_0_x86_64",
+        "//tools/platforms:windows_x86_64": "win_amd64",
+    }, no_match_error = "the engine wheel is built where the compiler's library is (COMPILER_LIBRARY_PLATFORMS)"),
+    python_requires = ">=3.12",
+    python_tag = "py3",
+    # the edge's Python is the product wheel's (legend_lite.edge); this is its native half alone
+    requires = ["legend-lite==0.1.0"],
+    strip_path_prefixes = ["python"],
+    summary = "legend-engine's routes for legend-lite (opt-in: the legend-lite[engine] extra)",
+    target_compatible_with = _PLATFORMS,
+    version = "0.1.0",
+    deps = [":engine_wheel_package"] + select({
+        "@platforms//os:linux": [":engine_wheel_library_linux"],
+        "@platforms//os:macos": [":engine_wheel_library_macos"],
+        "@platforms//os:windows": [":engine_wheel_library_windows"],
     }),
 )
 

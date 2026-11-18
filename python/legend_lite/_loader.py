@@ -45,12 +45,8 @@ _ARITY = {
     'lite_model_check': 1, 'lite_model_elements': 1, 'lite_query_parse': 1, 'lite_query_print': 1, 'lite_query_type': 1,
     'lite_query_plan': 1, 'lite_model_create_class': 1, 'lite_model_create_association': 1,
     'lite_model_create_data_space': 1, 'lite_ts_item': 1, 'lite_ts_statement': 1,
-    'lite_pure_v1': 3, 'lite_execute_plan': 2, 'lite_pure_v1_refusal': 1,
-    # the planner protocol's execute halves for a host's own database, and its warm (C2)
-    'lite_execute_json_plan': 2, 'lite_execute_json_answer': 2, 'lite_warm_model': 1,
-    # the answer in upstream's Arrow format from the host's rows, folded as base64 (track A, 2026-10-29): wired to
-    # the route when the user rules on the schema change (the decisions log D56)
-    'lite_execute_arrow_answer': 2,
+    # the planner's warm (C2)
+    'lite_warm_model': 1,
     # the site's media types, the one table every host serving a site answers with (C4)
     'lite_site_types': 0,
     # lite's refusal kinds by name (the lite API spec's §3, 2026-11-17)
@@ -58,10 +54,23 @@ _ARITY = {
     # the warehouse's SQL API, as the one binding speaks it (C3)
     'lite_warehouse_call': 2, 'lite_warehouse_read': 3,
     # Python's model home (native/.../ModelHome.java): a repository's folder, then a request's method, target and body
-    'lite_sdlc_handle': 4, 'lite_depot_handle': 4, 'lite_saved_queries': 6, 'lite_saved_cubes': 6,
+    'lite_sdlc_handle': 4, 'lite_depot_handle': 4,
     # the product's saved queries and pages at lite's mount, in lite's words (the edge program's H6, 2026-11-17)
     'lite_store_queries': 6, 'lite_store_cubes': 6,
 }
+
+# THE ENGINE LIBRARY'S ENTRIES (//native:engine, libcompiler_engine; K2, the user's "product root, edge opt-in",
+# 2026-11-18): legend-engine's routes -- pure/v1, execute's halves, the refusal in its envelope, its saved-query store --
+# loaded by the edge's key alone (legend_lite/edge/_engine.py), never the product's. The product library exports none
+# of them (//python:engine_test's EdgeOff).
+ENGINE_ARITY = {
+    'lite_pure_v1': 3, 'lite_execute_plan': 2, 'lite_pure_v1_refusal': 1,
+    'lite_execute_json_plan': 2, 'lite_execute_json_answer': 2, 'lite_execute_arrow_answer': 2,
+    # legend-engine's saved queries and pages, at its mount in its words (the edge's SavedQueriesHome)
+    'lite_saved_queries': 6, 'lite_saved_cubes': 6,
+}
+# the engine library's entries that plan nothing: legend-engine's store
+ENGINE_NOT_PLANNING = frozenset({'lite_saved_queries', 'lite_saved_cubes'})
 
 
 # The library's entries that plan nothing: its services (the site's types, the warehouse's binding, the model home's
@@ -71,9 +80,10 @@ _ARITY = {
 # to this one when it loads.
 # (lite_store_queries, lite_store_cubes: the product's saved queries and pages, at lite's mount in lite's words --
 # the edge program's H6, 2026-11-17)
+# (lite_saved_queries, lite_saved_cubes: legend-engine's store, the engine library's since K2, 2026-11-18)
 NOT_PLANNING = frozenset({
     'lite_site_types', 'lite_warehouse_call', 'lite_warehouse_read', 'lite_sdlc_handle', 'lite_depot_handle',
-    'lite_saved_queries', 'lite_saved_cubes', 'lite_release_model', 'lite_store_queries', 'lite_store_cubes',
+    'lite_release_model', 'lite_store_queries', 'lite_store_cubes',
 })
 
 # THE SERVICE KEY'S NAMES (_services.py): the warehouse's SQL API, as the one binding speaks it -- the run side's, and
@@ -95,10 +105,14 @@ def _find() -> Path:
 class Loaded:
     """The loaded library: its functions, the process's isolate, and each thread's attachment. Called by the keys alone."""
 
-    def __init__(self, path: Path) -> None:
+    def __init__(self, path: Path, arity: dict[str, int] | None = None, not_planning: frozenset[str] | None = None,
+                 setting: str = 'LEGEND_LITE_LIBRARY') -> None:
         if not path.is_file():
-            raise OSError(f"legend-lite's native library is not at {path} (set LEGEND_LITE_LIBRARY)")
+            raise OSError(f"legend-lite's native library is not at {path} (set {setting})")
         self.path = path
+        # its entries and those that plan nothing: the product library's, unless given (the engine library's: K2)
+        self._arity = _ARITY if arity is None else arity
+        self._not_planning = NOT_PLANNING if not_planning is None else not_planning
         self._lib = ctypes.CDLL(str(path))
         self._isolate = ctypes.c_void_p()
         self._local = threading.local()
@@ -131,7 +145,7 @@ class Loaded:
         (each key checks what it may carry first). A planner's entry is refused inside a run of its flow HERE, whoever
         asks (C5-P's audit M1, 2026-11-15: until then the planning key alone checked, and a module reaching the loader
         past the keys skipped it): every name but the library's services and a held model let go (``NOT_PLANNING``)."""
-        if name not in NOT_PLANNING:
+        if name not in self._not_planning:
             planning(name)
         for a in args:
             if '\0' in a:
@@ -149,7 +163,7 @@ class Loaded:
     def _function(self, name: str) -> Any:
         f = self._ready.get(name)
         if f is None:
-            arity = _ARITY.get(name)
+            arity = self._arity.get(name)
             if arity is None:
                 raise ValueError(f'{name} is not one of the native library\'s entry points')
             f = getattr(self._lib, name)
@@ -183,3 +197,42 @@ def loaded() -> Loaded:
             if _loaded is None:
                 _loaded = Loaded(_find())
     return _loaded
+
+
+# THE ENGINE LIBRARY (K2, the user's "product root, edge opt-in", 2026-11-18): legend-engine's entry points, a library
+# of their own (//native:engine), its own isolate -- loaded on first use by the edge's key alone
+# (legend_lite/edge/_engine.py), never by the product. Found at LEGEND_LITE_ENGINE_LIBRARY, else in the
+# legend-lite-engine package (the [engine] extra: `pip install legend-lite[engine]`); neither, refused by name.
+_ENGINE_NAMES = {'darwin': 'libcompiler_engine.dylib', 'linux': 'libcompiler_engine.so', 'win32': 'libcompiler_engine.dll'}
+
+
+class EngineMissing(OSError):
+    """legend-engine's routes asked of a Python without its engine library: the [engine] extra not installed."""
+
+
+def _find_engine() -> Path:
+    """The engine library: LEGEND_LITE_ENGINE_LIBRARY, else the one the legend-lite-engine package ships."""
+    explicit = os.environ.get('LEGEND_LITE_ENGINE_LIBRARY')
+    if explicit:
+        return Path(explicit)
+    name = _ENGINE_NAMES.get(sys.platform)
+    try:
+        import legend_lite_engine
+    except ImportError:
+        raise EngineMissing('legend-engine needs the legend-lite[engine] extra: pip install legend-lite[engine]') from None
+    if name is None:
+        raise EngineMissing(f'legend-lite has no engine library for {sys.platform} yet')
+    return Path(legend_lite_engine.__file__).with_name('_native') / name
+
+
+_engine: Loaded | None = None
+
+
+def engine_loaded() -> Loaded:
+    """The process's engine library, loaded on first use: the edge's key's alone."""
+    global _engine
+    if _engine is None:
+        with _lock:
+            if _engine is None:
+                _engine = Loaded(_find_engine(), ENGINE_ARITY, ENGINE_NOT_PLANNING, 'LEGEND_LITE_ENGINE_LIBRARY')
+    return _engine

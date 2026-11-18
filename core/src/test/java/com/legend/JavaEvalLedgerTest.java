@@ -1886,6 +1886,10 @@ class JavaEvalLedgerTest {
                             "PurePrintForms.java",
                             // pure/v1's routes and the test-data routes (D1.0b): read, compile and plan only
                             "PureV1Routes.java", "TestDataRoutes.java",
+                            // a pure/v1 request's model, text or PureModelContextData (2026-10-21, leg 8 step 3) -- read
+                            // and compiled only; no connection, no JDBC, no value. Moved here from com.legend.server
+                            // 2026-11-18 (J40.ModelInput: legend-engine's routes alone read it)
+                            "ModelInput.java",
                             // legend-engine's error envelope ({code: -1, status, message, errorType}) and its pure/v1
                             // call boundary, moved byte for byte from server.LiteV1Api (2026-11-17, lite's API v1 J18:
                             // lite answers its own shape, {kind, message, where?, raise?}): spells a failure, decides
@@ -2104,10 +2108,10 @@ class JavaEvalLedgerTest {
                             // item's parsed tree written as data for the route that answers it -- each node's kind,
                             // place and parts, a number's text as the parser read it; parse only, no connection, no
                             // JDBC, no value computed
-                            "TsTree.java",
-                            // 2026-10-21, leg 8 step 3 (docs/PROTOCOL_PROGRAM_2026_10_05.md): a pure/v1 request's model,
-                            // text or PureModelContextData -- read and compiled only; no connection, no JDBC, no value
-                            "ModelInput.java"),
+                            "TsTree.java"),
+                            // (ModelInput.java, a pure/v1 request's model, left this package 2026-11-18 for
+                            // com.legend.edge -- J40.ModelInput, the orchestrator's ruling: legend-engine's routes alone
+                            // read it)
                             // (TestDataRoutes.java, legend-engine's four test-data routes, left this package 2026-11-12
                             // for com.legend.edge with pure/v1's upstream routes: phase D's D1.0b)
                             // (SavedQueries.java left this package 2026-10-13 for com.legend.queries, the program's B5:

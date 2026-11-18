@@ -7,7 +7,6 @@ import com.legend.compiler.element.ModelContext;
 import com.legend.json.Json;
 import com.legend.protocol.ProtocolReader;
 import com.legend.protocol.spec.LambdaFunction;
-import com.legend.server.ModelInput;
 import com.legend.server.LiteV1Api;
 import com.legend.sql.SqlQuery;
 import com.legend.testdatagen.TestDataCensus;

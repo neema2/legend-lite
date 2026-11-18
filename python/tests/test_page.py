@@ -2882,13 +2882,13 @@ class Abilities(Paged):
             ll.Page.open(id)
         # a record deleted since (in DataCube's Open...): refused, as the tab's Save is, never made again under its id (the
         # S7 audit's Y-8)
-        self.assertEqual(store_call('lite_saved_cubes', pages_folder(), 'DELETE', f'/{id}', '', '', THIS_USER)[0], 204)
+        self.assertEqual(store_call('lite_store_cubes', pages_folder(), 'DELETE', f'/{id}', '', '', THIS_USER)[0], 204)
         with self.assertRaisesRegex(ValueError, 'the page was not saved'):
             opened.save()
-        self.assertEqual(store_call('lite_saved_cubes', pages_folder(), 'GET', f'/{id}', '', '', THIS_USER)[0], 404)
+        self.assertEqual(store_call('lite_store_cubes', pages_folder(), 'GET', f'/{id}', '', '', THIS_USER)[0], 404)
         # a cube saved alone, before pages: a page of its one grid, as the tab opens one
         cube = page.to_dict()['cubes'][0]['cube']
-        status, _ = store_call('lite_saved_cubes', pages_folder(), 'POST', '', '',
+        status, _ = store_call('lite_store_cubes', pages_folder(), 'POST', '', '',
                                _json.dumps({'id': 'old-cube', 'name': 'To open', 'content': cube}), THIS_USER)
         self.assertEqual(status, 200)
         alone = ll.Page.open('old-cube', frames={'open_trades': trades()})
@@ -5471,7 +5471,7 @@ Data demo::party::PartyData
                   'content': '|demo::party::Party.all()->project(~[name: p|$p.name])',
                   'executionContext': {'_type': 'explicitExecutionContext', 'mapping': 'demo::party::PartyMapping',
                                        'runtime': 'demo::party::Runtime'}}
-        status, said = _home.store_call('lite_saved_queries', _home.queries_folder(), 'POST', '', '', json.dumps(record),
+        status, said = _home.store_call('lite_store_queries', _home.queries_folder(), 'POST', '', '', json.dumps(record),
                                         _home.THIS_USER)
         self.assertEqual(status, 200, said)
         page = ll.Page('Parties')
@@ -5528,7 +5528,7 @@ class PublishedQueries(Paged):
                   'executionContext': {'_type': 'explicitExecutionContext',
                                        'mapping': f"{model['package']}::mapping::Model",
                                        'runtime': f"{model['package']}::runtime::Python"}}
-        status, said = _home.store_call('lite_saved_queries', _home.queries_folder(), 'POST', '', '', json.dumps(record),
+        status, said = _home.store_call('lite_store_queries', _home.queries_folder(), 'POST', '', '', json.dumps(record),
                                         _home.THIS_USER)
         self.assertEqual(status, 200, said)
         # the grid over the query, its model read through this host's /depot/api and its columns typed by the compiler
