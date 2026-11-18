@@ -114,9 +114,12 @@ heavy round (it includes `//pct:edge_contract_test` and `//core:cypher_parity_te
 
 - **The PR:** #118, https://github.com/neema2/legend-lite/pull/118 (`claude/total-wall-d-stage` -> `main`), opened
   2026-11-18 ~14:39 UTC. **Not merged; it needs the user's word.**
-- **The head:** d-stage `688ed9fde` (`688ed9fdef4e6338762eb455a0f6d09cd48cbf5a`). It is one commit on F's L10
-  `61e5205d1` that adds the handoff and follow-ups snapshots (from orch `a1fe26d7b`) and deletes
-  `.github/workflows/stage-linux.yml`.
+- **The head:** d-stage `68f20eb4d` (`68f20eb4d437d6939c8158ad3ba831e2a8378f23`), PR #118's head since ~14:47.
+  It is GUARD's `4a76cad0c` cherry-picked as a new commit onto `688ed9fde`: 3 comment lines in ArchitectureTest
+  and HookRulingTest, the dated notes `shrink_only` requires for the `ExistsSites#zones` -> `#keysWhere` rename.
+  `688ed9fde` (the PR's first head) is F's L10 `61e5205d1` plus one commit that adds the handoff and follow-ups
+  snapshots (orch `a1fe26d7b`) and deletes `.github/workflows/stage-linux.yml`. **For the lanes, the PR head is
+  `68f20eb4d`**; it differs from `688ed9fde` only in those comments.
 - **The count:** 0 on `61e5205d1` (F's census: lines 0, AUDIT 0, EDGE-ONLY MEMBERS 0, LENS 0). D's heavy round
   re-runs `//core:census` and `//core:census_edge` on `688ed9fde` (§8.3).
 - **Trains:** trains 1-18, then the final batched train (the old 19 and 20, assembled by DataCube), landed on `claude/total-wall-d-stage`, each through one integrator (D) with one
@@ -368,8 +371,9 @@ verdict).
 
 | Check | Commit | Result |
 |---|---|---|
-| D's heavy round (41 targets) + build sweep + the six | `688ed9fde` | running (started ~14:39) |
-| The PR's CI | `688ed9fde` | running (PR #118) |
+| D's heavy round (41 targets) + build sweep + the six | `688ed9fde` (valid for `68f20eb4d`: comments only; guardrails, census_edge and core_tests_architecture re-run on `68f20eb4d`) | running (started ~14:39) |
+| The PR's CI | `688ed9fde` | superseded at ~14:47 by the push of `68f20eb4d`; its `linux / parser_equivalence` failed on a Maven Central HTTP 429 downloading h2-2.1.214.jar (infrastructure) |
+| The PR's CI | `68f20eb4d` | running (PR #118); an infrastructure 429 is re-run once by D |
 | The census | `61e5205d1` / `688ed9fde` | 0 (F) / re-run in D's round |
 
 ### 8.4 What to expect, and traps
