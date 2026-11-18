@@ -45,7 +45,8 @@ class ShippedArtifactRootsTest {
     static final Map<String, String> ROOTS_OPEN = Map.of(
             "//core:server", "K2 E-P5 (2026-11-18): main_class com.legend.edge.EdgeServer, to become"
                     + " com.legend.server.LegendHttpServer, :edge_server the declared opt-in (ServiceLoader, MountProvider)",
-            "//query-store:page", "K2 DataCube (2026-11-18): main_class com.legend.edge.queries.QueriesPage (H6)",
+            "//query-store:page", "K2 DataCube (2026-11-18): main_class the edge's QueriesPage, query-store's"
+                    + " :edge_page_entry (H6)",
             "//wasm:planner", "K2 HOST (TS, via DataCube) (2026-11-18): main_class com.legend.edge.wasm.TabExports");
 
     @Test
