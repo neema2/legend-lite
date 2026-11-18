@@ -543,8 +543,7 @@ public final class Lowerer {
         }
         // a count of rows a declared key makes one is 1 (KeyedCounts: the time model's D2), then the unread pruned
         SqlQuery counted = styled().forms().keyedCounts(q, x -> KeyedCounts.fold(x, tableKeys));
-        return styled().forms().computedPruning(() -> SubselectPrune.prune(counted, true),
-                () -> SubselectPrune.prune(counted, false));
+        return styled().forms().computedPruning(counted);
     }
 
     /** {@code root} lowered with each relation it reads more than once written once (SharedRelations): the statement's
@@ -614,8 +613,7 @@ public final class Lowerer {
      *  types them so, by name: WriteChecker). */
     private SqlQuery writtenRows(TypedSpec source, TypedTableReference t, String op) {
         SqlQuery lowered = lower(source);
-        SqlQuery rows = namedColumns(styled().forms().computedPruning(() -> SubselectPrune.prune(lowered, true),
-                () -> SubselectPrune.prune(lowered, false)));
+        SqlQuery rows = namedColumns(styled().forms().computedPruning(lowered));
         java.util.Set<String> declared = new java.util.LinkedHashSet<>();
         java.util.Objects.requireNonNull(Type.schemaView(t.info().type()), "a store table's type is a relation")
                 .columns().forEach(c -> declared.add(c.name()));
@@ -2249,8 +2247,8 @@ public final class Lowerer {
                 SqlSelect m = src.withWhere(
                         mergeWhere(src.where(), predicate, f.stamp()));
                 // the product's EXISTS as lowered, legend-engine's shape a join to the distinct keys (J19, S367)
-                yield existsJoinable ? styled().forms().existsJoin(m, x -> ExistsJoinForm.rewrite(x,
-                        this::nextAlias, whereZones::get)) : m;
+                yield existsJoinable ? styled().forms().existsJoin(m,
+                        new LoweringForms.ExistsSites(this::nextAlias, whereZones::get)) : m;
             }
             case HAVING -> src.withHaving(src.having() == null ? predicate
                     : Fold.mergeAnd(src.having(), predicate));

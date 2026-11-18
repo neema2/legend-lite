@@ -80,10 +80,20 @@ public interface LoweringForms {
     com.legend.sql.SqlQuery keyedCounts(com.legend.sql.SqlQuery q,
             java.util.function.UnaryOperator<com.legend.sql.SqlQuery> fold);
 
-    /** A statement with its unread computed projections dropped ({@code pruned}), or kept ({@code kept}); unread columns
-     *  are dropped either way. */
-    com.legend.sql.SqlQuery computedPruning(Supplier<com.legend.sql.SqlQuery> pruned,
-            Supplier<com.legend.sql.SqlQuery> kept);
+    /** {@code q} with its unread columns dropped, and its unread computed projections dropped or kept, as the form writes
+     *  (the lens audit's item 1, 2026-11-18: the lowering hands the statement alone; each form prunes it its own way,
+     *  through {@link #dropComputed} or {@link #keepComputed}). */
+    com.legend.sql.SqlQuery computedPruning(com.legend.sql.SqlQuery q);
+
+    /** {@code q}'s unread columns and unread computed projections dropped (the product's lean SQL). */
+    static com.legend.sql.SqlQuery dropComputed(com.legend.sql.SqlQuery q) {
+        return SubselectPrune.prune(q, true);
+    }
+
+    /** {@code q}'s unread columns dropped, its unread computed projections kept (legend-engine's statement shape). */
+    static com.legend.sql.SqlQuery keepComputed(com.legend.sql.SqlQuery q) {
+        return SubselectPrune.prune(q, false);
+    }
 
     /** A column's text parsed to a Decimal ({@code parseDecimal}'s one-argument form; the audit's J1, RULED by the user
      *  2026-11-17): the product's an exact decimal at its Decimal's precision; legend-engine's H2 its fixed
@@ -95,6 +105,24 @@ public interface LoweringForms {
     SqlExpr parsedJson(SqlExpr text);
 
     /** A filtered select ({@code filtered}) whose {@code EXISTS} conjuncts are kept as lowered, or written as joins to the
-     *  distinct keys ({@code joinForm}). */
-    SqlSelect existsJoin(SqlSelect filtered, java.util.function.UnaryOperator<SqlSelect> joinForm);
+     *  distinct keys ({@link #existsAsJoins} over the statement's {@code sites}; the lens audit's item 1, 2026-11-18: the
+     *  lowering hands its sites, never the rewrite). */
+    SqlSelect existsJoin(SqlSelect filtered, ExistsSites sites);
+
+    /** {@code filtered}'s qualifying EXISTS conjuncts as joins to the distinct keys ({@code ExistsJoinForm}). */
+    static SqlSelect existsAsJoins(SqlSelect filtered, ExistsSites sites) {
+        return ExistsJoinForm.rewrite(filtered, sites.alias, sites.zones);
+    }
+
+    /** A statement's sites an EXISTS join reads: the lowering's alias minter and its where zones, opaque to a form. */
+    final class ExistsSites {
+        final Supplier<String> alias;
+        final java.util.function.Function<SqlExpr, WhereMerge.@com.legend.base.Nullable Zones> zones;
+
+        ExistsSites(Supplier<String> alias,
+                java.util.function.Function<SqlExpr, WhereMerge.@com.legend.base.Nullable Zones> zones) {
+            this.alias = alias;
+            this.zones = zones;
+        }
+    }
 }

@@ -89,9 +89,8 @@ record EdgeLoweringForms(Set<RaiseKind> plain) implements com.legend.lowering.Lo
 
     /** legend-engine's statement shape keeps an unread computed projection (J23). */
     @Override
-    public com.legend.sql.SqlQuery computedPruning(Supplier<com.legend.sql.SqlQuery> pruned,
-            Supplier<com.legend.sql.SqlQuery> kept) {
-        return pruned.get();
+    public com.legend.sql.SqlQuery computedPruning(com.legend.sql.SqlQuery q) {
+        return com.legend.lowering.LoweringForms.dropComputed(q);
     }
 
     /** legend-engine's one-argument parseDecimal on H2: its hardcoded {@code decimal(5, 2)}
@@ -115,8 +114,8 @@ record EdgeLoweringForms(Set<RaiseKind> plain) implements com.legend.lowering.Lo
     /** legend-engine's "second exists emission", on every edge style, where the planner's statement may take it (J19,
      *  register S367). */
     @Override
-    public SqlSelect existsJoin(SqlSelect filtered, java.util.function.UnaryOperator<SqlSelect> joinForm) {
-        return joinForm.apply(filtered);
+    public SqlSelect existsJoin(SqlSelect filtered, ExistsSites sites) {
+        return com.legend.lowering.LoweringForms.existsAsJoins(filtered, sites);
     }
 
     /** legend-engine's H2 isNumeric ({@code lower(s) = upper(s)}: a text with no cased letter), every edge style's
@@ -158,9 +157,8 @@ record EdgeLoweringForms(Set<RaiseKind> plain) implements com.legend.lowering.Lo
         }
 
         @Override
-        public com.legend.sql.SqlQuery computedPruning(Supplier<com.legend.sql.SqlQuery> pruned,
-                Supplier<com.legend.sql.SqlQuery> kept) {
-            return kept.get();
+        public com.legend.sql.SqlQuery computedPruning(com.legend.sql.SqlQuery q) {
+            return com.legend.lowering.LoweringForms.keepComputed(q);
         }
 
         @Override
@@ -205,8 +203,8 @@ record EdgeLoweringForms(Set<RaiseKind> plain) implements com.legend.lowering.Lo
         }
 
         @Override
-        public SqlSelect existsJoin(SqlSelect filtered, java.util.function.UnaryOperator<SqlSelect> joinForm) {
-            return base.existsJoin(filtered, joinForm);
+        public SqlSelect existsJoin(SqlSelect filtered, ExistsSites sites) {
+            return base.existsJoin(filtered, sites);
         }
     }
 }
