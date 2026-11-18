@@ -24,13 +24,13 @@ enum EngineExecutedValues implements com.legend.planner.ExecutedValues {
     @Override
     public TypedSpec relation(TypedSpec chain, java.util.function.Supplier<@com.legend.base.Nullable String> activitySql) {
         // the tdsBuilder envelope, the activity's SQL the engine recorded (rendered now, the edge's alone)
-        return new TypedJsonResult(chain, TypedJsonResult.Kind.TDS, activitySql.get(), ExprType.one(Type.Primitive.STRING));
+        return new TypedJsonResult(chain, TypedJsonResult.Kind.STYLED, activitySql.get(), ExprType.one(Type.Primitive.STRING));
     }
 
     @Override
     public TypedSpec classes(TypedSpec chain, java.util.function.Supplier<@com.legend.base.Nullable String> activitySql) {
         // the classBuilder envelope with its objects
-        return new TypedJsonResult(chain, TypedJsonResult.Kind.CLASS, activitySql.get(), ExprType.one(Type.Primitive.STRING));
+        return new TypedJsonResult(chain, TypedJsonResult.Kind.STYLED, activitySql.get(), ExprType.one(Type.Primitive.STRING));
     }
 
     @Override
