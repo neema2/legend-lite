@@ -159,7 +159,7 @@ public final class EnginePlans {
         body = com.legend.resolver.RelationalRootForm.apply(
                 body, env.ctx(), mappingFqn);
         // the query's feature flags: a LOWERING concern (Lowerer.withFeatures)
-        // legend-engine's statement shape: the plan environment's style with its own four forms (J40, the orchestrator's
+        // legend-engine's statement shape: the plan environment's style with its own five forms (J40, the orchestrator's
         // ruling (7): EdgeLoweringForms.engineSql; until then a LoweringShape beside the style's forms), and the
         // style's text facets and plain raises (the audit's K6)
         com.legend.lowering.Lowerer lw = new com.legend.lowering.Lowerer(

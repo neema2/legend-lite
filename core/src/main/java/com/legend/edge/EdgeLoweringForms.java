@@ -20,7 +20,7 @@ import java.util.function.Supplier;
  *                      route (B7, the user's ruling of 2026-11-17: "pure/v1 matches legend-engine")
  *
  * <p>legend-engine's statement shape (the engine SQL's lowering, {@code EnginePlans}) is {@link EngineShape}: the plan
- * style's forms with its own four (J40, 2026-11-18, the orchestrator's ruling (7): until then a LoweringShape the
+ * style's forms with its own five (J40, 2026-11-18, the orchestrator's ruling (7): until then a LoweringShape the
  * Lowerer held beside the plan style's forms, a second source).
  */
 record EdgeLoweringForms(Set<RaiseKind> plain) implements com.legend.lowering.LoweringForms {
@@ -140,7 +140,7 @@ record EdgeLoweringForms(Set<RaiseKind> plain) implements com.legend.lowering.Lo
     /**
      * legend-engine's STATEMENT SHAPE (the engine SQL's lowering, {@code EnginePlans}; J40, 2026-11-18, the orchestrator's
      * ruling (7)): a relation pasted at each read, keyed counts as written, unread computed projections kept (J23), a
-     * view an aliased derived table ({@code ViewSelectSQLQuery}); every other form the plan style's own ({@code base}),
+     * view an aliased derived table ({@code ViewSelectSQLQuery}), a wire coercion left to its reader; every other form the plan style's own ({@code base}),
      * as the Lowerer asked them of the style before -- its raises, wire casts, EXISTS joins and the rest.
      */
     record EngineShape(EdgeLoweringForms base) implements com.legend.lowering.LoweringForms {
@@ -173,9 +173,10 @@ record EdgeLoweringForms(Set<RaiseKind> plain) implements com.legend.lowering.Lo
             return base.raise(kind, checked, plain);
         }
 
+        /** legend-engine's SQL leaves a mapping's wire coercion to its reader, which converts on the wire. */
         @Override
         public SqlExpr wireCast(SqlExpr value, Supplier<SqlExpr> written) {
-            return base.wireCast(value, written);
+            return value;
         }
 
         @Override
