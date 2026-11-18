@@ -22,10 +22,12 @@ import java.util.function.Supplier;
  * legend-engine's SQL nests it as an aliased derived table ({@code ViewSelectSQLQuery}).</li>
  * <li>{@link #wireCast}: a mapping's wire coercion -- the product writes the SQL cast (DuckDB does not wire-convert,
  * audit 19 F7); legend-engine's SQL leaves it to its reader, which converts on the wire.</li>
- * <li>{@link #executeValues}: the root of an engine {@code execute(...)}'s values read as a serialize -- the product's
- * stays the array, lite's own root (the user's ruling of 2026-11-03: "the right clean thing in lite, the
- * backward-compatible thing in compatibility mode"); legend-engine's JsonBuilder writes exactly one object bare (the
- * audit's J3, 2026-11-17: until then applied ungated).</li>
+ * <li>{@link #executeValues}: a serialize's values where legend-engine's cardinality rule could apply -- the root of an
+ * engine {@code execute(...)}'s values read (the audit's J3, 2026-11-17) and a serialize in scalar position (the lens
+ * audit's L6, 2026-11-18: until then folded unconditionally) -- the product's stays the array, lite's own (the user's
+ * ruling of 2026-11-03: "the right clean thing in lite, the backward-compatible thing in compatibility mode");
+ * legend-engine's JsonBuilder writes exactly one object bare, the edge folding the wrapped array itself
+ * ({@link #oneBare}).</li>
  * <li>{@link #relations}, {@link #keyedCounts}, {@link #computedPruning} (the edge audit's J23, 2026-11-17, the
  * orchestrator's ruling (a): until then three LoweringShape flags only the edge set false): the product writes lean SQL --
  * a relation read more than once written once, a count a declared key makes one folded to 1, an unread computed
@@ -51,9 +53,16 @@ public interface LoweringForms {
     /** A mapping's wire coercion of {@code value}: the cast written ({@code written}) or the value as read. */
     SqlExpr wireCast(SqlExpr value, Supplier<SqlExpr> written);
 
-    /** The root of an engine {@code execute(...)}'s serialized values: lite's array ({@code array}), or one object bare
-     *  and zero or several as the array ({@code oneBare}, legend-engine's JsonBuilder cardinality rule). */
-    SqlSelect executeValues(Supplier<SqlSelect> array, Supplier<SqlSelect> oneBare);
+    /** A serialize's values: lite's array ({@code array}), or the edge's form of the same graph serialized as a wrapped
+     *  array ({@code wrapped}: raw material, which legend-engine's form folds by its JsonBuilder cardinality rule,
+     *  {@link #oneBare}; the product composes nothing for it: the lens audit's item 1, 2026-11-18). */
+    SqlSelect executeValues(Supplier<SqlSelect> array, Supplier<SqlSelect> wrapped);
+
+    /** A wrapped array's values with exactly one object bare and zero or several as the array (legend-engine's
+     *  JsonBuilder cardinality rule; {@code SnapshotEnvelope.fold}): the lowering's helper the edge's form reads. */
+    static SqlSelect oneBare(SqlSelect wrapped) {
+        return SnapshotEnvelope.fold(wrapped);
+    }
 
     /** The relational isNumeric of {@code s}. */
     SqlExpr isNumeric(SqlExpr s);

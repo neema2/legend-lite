@@ -830,7 +830,7 @@ public final class Lowerer {
             // The streaming root (one object per row) never folds
             if (g.engineExecuteCardinality() && !streamingGraphRoot) {
                 return conformJsonEgress(styled().forms().executeValues(() -> serializeGraph(g, false),
-                        () -> SnapshotEnvelope.fold(serializeGraph(g.asArrayWrapped(), false))));
+                        () -> serializeGraph(g.asArrayWrapped(), false)));
             }
             return conformJsonEgress(serializeGraph(g, streamingGraphRoot));
         }
@@ -4451,10 +4451,13 @@ public final class Lowerer {
                     enclosing.pop();
                 }
             }
-            // scalar-position graph value (H4 snapshot; SnapshotEnvelope)
-            case TypedSerializeGraph g -> new SqlExpr.ScalarSubquery(
-                    conformJsonEgress(SnapshotEnvelope.fold(
-                            serializeGraph(g.asArrayWrapped(), false))));
+            // scalar-position graph value (H4 snapshot): the style's form (the lens audit's L6, 2026-11-18: until then
+            // legend-engine's one-object-bare fold applied unconditionally) -- the product's lite's array, the edge's
+            // the JsonBuilder rule (LoweringForms#executeValues)
+            case TypedSerializeGraph g -> {
+                java.util.function.Supplier<SqlSelect> wrapped = () -> serializeGraph(g.asArrayWrapped(), false);
+                yield new SqlExpr.ScalarSubquery(conformJsonEgress(styled().forms().executeValues(wrapped, wrapped)));
+            }
             // static-dispatch match fold (MatchFold doc)
             case com.legend.compiler.spec.typed.TypedMatchRuntime mr ->
                     scalar(MatchFold.fold(mr), columns);

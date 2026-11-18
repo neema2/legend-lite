@@ -68,8 +68,8 @@ record EdgeLoweringForms(Set<RaiseKind> plain) implements com.legend.lowering.Lo
     /** legend-engine's JsonBuilder cardinality rule (the engine's {@code execute()} contract; the audit's J3,
      *  2026-11-17): exactly one object bare, zero or several as the array. */
     @Override
-    public SqlSelect executeValues(Supplier<SqlSelect> array, Supplier<SqlSelect> oneBare) {
-        return oneBare.get();
+    public SqlSelect executeValues(Supplier<SqlSelect> array, Supplier<SqlSelect> wrapped) {
+        return com.legend.lowering.LoweringForms.oneBare(wrapped.get());
     }
 
     /** legend-engine's statement shape writes a relation at each read; every other edge form, the product's lean SQL
@@ -180,8 +180,8 @@ record EdgeLoweringForms(Set<RaiseKind> plain) implements com.legend.lowering.Lo
         }
 
         @Override
-        public SqlSelect executeValues(Supplier<SqlSelect> array, Supplier<SqlSelect> oneBare) {
-            return base.executeValues(array, oneBare);
+        public SqlSelect executeValues(Supplier<SqlSelect> array, Supplier<SqlSelect> wrapped) {
+            return base.executeValues(array, wrapped);
         }
 
         @Override

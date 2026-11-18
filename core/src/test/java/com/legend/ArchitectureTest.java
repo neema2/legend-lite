@@ -1428,6 +1428,9 @@ final class ArchitectureTest {
             // the edge's forms in place of its own
             "lowering.Styled#<init>(java.util.function.Function, com.legend.lowering.LoweringForms, "
                     + "com.legend.lowering.DateTimeTexts, com.legend.lowering.ListTexts)", "com.legend.edge.EdgeLoweringForms",
+            // legend-engine's JsonBuilder cardinality fold, the edge's form composing it from the wrapped array the
+            // lowering hands it (2026-11-18, the lens audit's L6 and item 1: the product composes nothing it never uses)
+            "lowering.LoweringForms#oneBare(com.legend.sql.SqlSelect)", "com.legend.edge.EdgeLoweringForms",
             "lowering.Styled#forms()", "com.legend.edge.EdgeLoweringForms",
             "lowering.Styled#lists()", "com.legend.edge.EdgeLoweringForms",
             "lowering.Styled#pureOnly()", "com.legend.edge.EdgeLoweringForms",
