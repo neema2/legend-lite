@@ -75,13 +75,13 @@ class EdgeOnlyMembersTest {
             // legend-engine's request model context (PureModelContextText/Data): lite v1 no longer reads it (the host train
             // dropped LiteV1Api's ModelInput.of), so the type is the edge's routes' alone (PureV1Routes, TestDataRoutes)
             Map.entry("com.legend.server.ModelInput#of(com.legend.json.Json$Obj)",
-                    "J40.ModelInput HOST (2026-11-18, train 19): proposed MOVE -- the type to the edge, with its two READ_API rows"),
+                    "J40.ModelInput TS-HOST (2026-11-18, train 19, a7fedfc878): proposed MOVE -- the type to the edge, with its two READ_API rows"),
             Map.entry("com.legend.server.ModelInput#with(com.legend.server.LiteV1Api$Models, java.util.function.Function)",
-                    "J40.ModelInput HOST (2026-11-18, train 19): proposed MOVE -- the type to the edge, with its two READ_API rows"),
+                    "J40.ModelInput TS-HOST (2026-11-18, train 19, a7fedfc878): proposed MOVE -- the type to the edge, with its two READ_API rows"),
             Map.entry("com.legend.server.ModelInput$Data#<init>(com.legend.protocol.Protocol$PureModelContextData)",
-                    "J40.ModelInput HOST (2026-11-18, train 19): proposed MOVE -- the type to the edge, with its two READ_API rows"),
+                    "J40.ModelInput TS-HOST (2026-11-18, train 19, a7fedfc878): proposed MOVE -- the type to the edge, with its two READ_API rows"),
             Map.entry("com.legend.server.ModelInput$Text#<init>(java.lang.String)",
-                    "J40.ModelInput HOST (2026-11-18, train 19): proposed MOVE -- the type to the edge, with its two READ_API rows"),
+                    "J40.ModelInput TS-HOST (2026-11-18, train 19, a7fedfc878): proposed MOVE -- the type to the edge, with its two READ_API rows"),
             // exec's raised error carries the plan's text of the statement that raised, read only by the edge to key its
             // recorded words (K10b)
             Map.entry("com.legend.exec.RaisedErrors$Raised#statement()",
@@ -89,7 +89,7 @@ class EdgeOnlyMembersTest {
             // a reader of lite's own refusal answer ({kind, message}) for a mount that words it its own way, used only by
             // the edge's StoreWords (the edge audit's J9)
             Map.entry("com.legend.queries.SavedQueries#reshaped(int, java.lang.String, java.util.function.BiFunction)",
-                    "J40.SavedQueries HOST (2026-11-18, train 19): proposed READ_API -- a reader of lite's own refusal answer (J9's StoreWords)")
+                    "J40.SavedQueries E-P5 (2026-11-18, train 19, J9 5d9c713395): proposed READ_API -- a reader of lite's own refusal answer (J9's StoreWords)")
             );
             // re-measured 2026-11-18 on train 15 1931d419b1 (the GUARD stream's re-cut): train 15 closed seven pins
             // (PlatformTypes' TO_SQL_STRING and TO_SQL_STRING_PRETTY, BodyPlanner#pushDownEnums, QueryParameters$Declared's
