@@ -52,7 +52,15 @@ class ProductFormsUseTheirArgumentsTest {
             "ProductLoweringForms#computedPruning(Supplier, Supplier) arg 1", "L-A.LoweringForms E-SQL (L6) (2026-11-18):"
                     + " SubselectPrune.prune(q, false), legend-engine's unpruned computed projection, handed in",
             "ProductLoweringForms#executeValues(Supplier, Supplier) arg 1", "L-A.LoweringForms E-SQL (L6) (2026-11-18):"
-                    + " SnapshotEnvelope.fold as oneBare, legend-engine's one-object-bare execute values, handed in");
+                    + " SnapshotEnvelope.fold as oneBare, legend-engine's one-object-bare execute values, handed in",
+            // E-Java's train-17 item 2, TDS/CLASS half (11bb6517d3, train 18): the product's form refuses the relation and
+            // class roots (legend-engine's tdsBuilder and classBuilder envelopes) without asking the activity's SQL, which
+            // only the edge's EngineExecutedValues asks for -- counted until the orchestrator's ruling (a refusal's
+            // consequence, RULED, or a finding)
+            "RefusedExecutedValues.REFUSED#relation(TypedSpec, Supplier) arg 1", "L-A.ExecutedValues E-Java (item 2b)"
+                    + " (2026-11-18): the activity's SQL, asked by the edge's form alone; the product's refuses the root",
+            "RefusedExecutedValues.REFUSED#classes(TypedSpec, Supplier) arg 1", "L-A.ExecutedValues E-Java (item 2b)"
+                    + " (2026-11-18): the activity's SQL, asked by the edge's form alone; the product's refuses the root");
 
     /** Each function a product form never calls that is no finding (the orchestrator's ruling of 2026-11-18, 06:40: a
      *  hook's own input from the product's generic code, not upstream's alternative), with the reason. Not counted. */
@@ -214,8 +222,10 @@ class ProductFormsUseTheirArgumentsTest {
             throw new AssertionError("no sample of " + type.getTypeName()
                     + ": add one to ProductFormsUseTheirArgumentsTest");
         }
-        if (raw.isInterface()) {
-            // a poison: the form that uses it throws, and the run reports the throw beside what it found
+        if (raw.isInterface() && !raw.isSealed()) {
+            // a poison: the form that uses it throws, and the run reports the throw beside what it found (a SEALED
+            // interface cannot be proxied -- TypedSpec, handed to ExecutedValues' forms since E-Java's item 2b,
+            // 11bb6517d3, train 18, 2026-11-18 -- so it takes the null below, which a form that reads it throws on)
             return Proxy.newProxyInstance(raw.getClassLoader(), new Class<?>[] {raw}, (proxy, m, args) -> {
                 if (m.getDeclaringClass() == Object.class) {
                     return switch (m.getName()) {
