@@ -504,3 +504,27 @@ junit_test(
         "@maven_test//:org_junit_jupiter_junit_jupiter_api",
     ],
 )
+
+# THE QUERY-STORE PAGE IS A PRODUCT ROOT (the user's K2 ruling, ~06:00 2026-11-18: "Product root, edge opt-in"; H6 made
+# the page lite's, at lite's route in lite's words): every target and source the page module's build reaches, Bazel's own
+# answer, for QueryStorePageClosureTest to hold no edge library and no com.legend.edge class.
+genquery(
+    name = "query_store_page_closure",
+    expression = "deps(//query-store:page)",
+    opts = ["--noimplicit_deps"],
+    scope = ["//query-store:page"],
+)
+
+junit_test(
+    name = "query_store_page_closure_test",
+    memory_mb = 768,
+    size = "small",
+    srcs = ["QueryStorePageClosureTest.java"],
+    data = [":query_store_page_closure"],
+    jvm_flags = ["-Dclosure.query_store_page=$(rlocationpath :query_store_page_closure)"],
+    select = ["--select-class=com.legend.tools.deps.QueryStorePageClosureTest"],
+    deps = [
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+)
