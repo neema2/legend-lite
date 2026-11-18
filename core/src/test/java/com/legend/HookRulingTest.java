@@ -225,7 +225,9 @@ class HookRulingTest {
                 // legend-engine's AggregationAwareActivity at the edge)
                 com.legend.planner.RoutedQueries.class,
                 // LoweringForms (the audit's K5, 2026-11-17: the lowering's two-form choices, a raise, a view, a wire cast)
-                com.legend.lowering.LoweringForms.class),
+                com.legend.lowering.LoweringForms.class,
+                // H2Settings (the audit's J22, RULED by the user 2026-11-17: an H2 database's settings)
+                com.legend.sql.dialect.H2Settings.class),
                 com.legend.testplan.PlanStyleFacets.TWO_FORMS,
                 "the two-form kinds, an exact set: a kind is added here with its family and its dated reason");
         com.legend.planner.RoutedQueries noRouting = (chain, ctx, specs) -> null;
@@ -298,6 +300,13 @@ class HookRulingTest {
         assertTrue(PlanStyle.PRODUCT.twoForm(com.legend.lowering.LoweringForms.class,
                 com.legend.lowering.ProductLoweringForms.INSTANCE) == com.legend.lowering.ProductLoweringForms.INSTANCE,
                 "the product lowers in its own forms");
+        assertTrue(PlanStyle.PRODUCT.twoForm(com.legend.sql.dialect.H2Settings.class,
+                com.legend.sql.dialect.ProductH2Settings.INSTANCE) == com.legend.sql.dialect.ProductH2Settings.INSTANCE,
+                "the product's H2 has H2's own settings");
+        Object edgeH2 = com.legend.edge.PureText.UPSTREAM.twoForm(com.legend.sql.dialect.H2Settings.class,
+                com.legend.sql.dialect.ProductH2Settings.INSTANCE);
+        assertTrue(edgeH2 != com.legend.sql.dialect.ProductH2Settings.INSTANCE
+                && edgeH2.getClass().getPackageName().equals("com.legend.edge"), "the edge's H2 has legend-engine's");
         Object edgeForms = com.legend.edge.PureText.UPSTREAM.twoForm(com.legend.lowering.LoweringForms.class,
                 com.legend.lowering.ProductLoweringForms.INSTANCE);
         assertTrue(edgeForms != com.legend.lowering.ProductLoweringForms.INSTANCE

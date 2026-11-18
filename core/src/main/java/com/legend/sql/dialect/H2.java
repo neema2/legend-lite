@@ -42,15 +42,8 @@ public class H2 extends AnsiSqlRenderer {
      *  2.5.252: it commits no open transaction). */
     public static final List<String> SESSION_SETUP = List.of("SET NON_KEYWORDS " + NON_KEYWORDS);
 
-    /** THE PRODUCT'S H2 DATABASE SETTINGS (the audit's J22, 2026-11-17, RULED by the user, "Yes to the rule"): H2's own
-     *  defaults, declared (a bare 2.5.252 database answers {@code MODE=REGULAR} and {@code DEFAULT_NULL_ORDERING=LOW},
-     *  measured); the null placement is written on every sort key ({@code AnsiSqlRenderer.sortKey}), as on every other
-     *  database. Both are the database's, and their {@code SET} commits an open transaction (measured on 2.5.252), so
-     *  they are the target's data, written on the URL of an in-memory database exec opens and read back from a session
-     *  it did not. legend-engine's ({@code MODE=LEGACY}, {@code DEFAULT_NULL_ORDERING=HIGH}) are the edge's, handed to
-     *  edge's H2 dialect. */
-    public static final DatabaseSettings DEFAULT_SETTINGS = settings(List.of(new Setting("MODE", "REGULAR"),
-            new Setting("DEFAULT_NULL_ORDERING", "LOW")));
+    // (the settings an H2 database has: a two-form kind since the audit's J22, 2026-11-17, H2Settings -- the
+    // product's H2's own defaults, ProductH2Settings; legend-engine's the edge's)
 
     /** {@code required} with the statement answering each of them the database does NOT have, as one text
      *  ({@code NAME=VALUE}, by name; {@code NAME=(not reported)} for one it does not report at all): none where it has
@@ -102,10 +95,10 @@ public class H2 extends AnsiSqlRenderer {
         return SESSION_SETUP;
     }
 
-    /** {@inheritDoc} H2's own ({@link #DEFAULT_SETTINGS}). */
+    /** {@inheritDoc} This dialect's {@link H2Settings}. */
     @Override
     public DatabaseSettings databaseSettings() {
-        return DEFAULT_SETTINGS;
+        return settings.settings();
     }
 
     /** This database's name for each scalar type, a refusal where it has none (the dialect program's Phase 1,
@@ -230,8 +223,17 @@ public class H2 extends AnsiSqlRenderer {
      * backend without it), JSON constructors only. */
     public static final CarrierStrategies.Caps CAPS = new CarrierStrategies.Caps(false, false, false, false);
 
+    private final H2Settings settings;
+
+    /** The product's H2 ({@link ProductH2Settings}). */
     public H2() {
+        this(ProductH2Settings.INSTANCE);
+    }
+
+    /** H2 on a database with {@code settings}, the plan style's two-form {@link H2Settings} (data, not an override). */
+    protected H2(H2Settings settings) {
         super(LEXICON);
+        this.settings = settings;
     }
 
     @Override

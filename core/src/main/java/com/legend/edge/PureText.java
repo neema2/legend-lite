@@ -96,6 +96,10 @@ public final class PureText {
             if (kind == com.legend.lowering.ListTexts.class) {
                 return kind.cast(PureListTexts.INSTANCE);
             }
+            if (kind == com.legend.sql.dialect.H2Settings.class) {
+                // legend-engine's H2 database settings (the audit's J22, 2026-11-17)
+                return kind.cast(EngineH2Settings.INSTANCE);
+            }
             if (kind == com.legend.lowering.LoweringForms.class) {
                 // the lowering's two-form choices (the audit's K5, 2026-11-17): legend-pure's guarded words
                 return kind.cast(EdgeLoweringForms.PCT);
@@ -280,14 +284,6 @@ public final class PureText {
         };
     }
 
-    /** legend-engine's H2 database settings (H2Manager / H2Defaults, 4.145.0): {@code MODE=LEGACY}, and
-     *  {@code DEFAULT_NULL_ORDERING=HIGH}, its null placement (null is largest), which its printer leaves bare because
-     *  the database already orders that way; the edge's alone since the audit's J22, 2026-11-17 (RULED by the user: the
-     *  product's H2 uses H2's own, {@code H2.DEFAULT_SETTINGS}). */
-    static final com.legend.sql.dialect.SqlDialect.DatabaseSettings LEGACY_H2 = com.legend.sql.dialect.H2.settings(java.util.List.of(
-            new com.legend.sql.dialect.SqlDialect.Setting("MODE", "LEGACY"),
-            new com.legend.sql.dialect.SqlDialect.Setting("DEFAULT_NULL_ORDERING", "HIGH")));
-
     /** The edge's dialect of {@code type}; a database the product has no dialect for refused by name, as the
      *  product's own source refuses it. */
     public static SqlDialect dialect(DatabaseType type) {
@@ -361,10 +357,10 @@ public final class PureText {
 
     /** H2, spelled as upstream spells it. */
     public static final class H2 extends com.legend.sql.dialect.H2 {
-        /** legend-engine's H2 session ({@link #LEGACY_H2}; the audit's J22, 2026-11-17). */
-        @Override
-        public DatabaseSettings databaseSettings() {
-            return LEGACY_H2;
+        /** On legend-engine's H2 database: the style's two-form {@code H2Settings} (the audit's J22, 2026-11-17). */
+        public H2() {
+            super(UPSTREAM.twoForm(com.legend.sql.dialect.H2Settings.class,
+                    com.legend.sql.dialect.ProductH2Settings.INSTANCE));
         }
 
         /** A Float literal computes as legend-engine's: its bare print, a DECIMAL (the edge program's §6 row 21, the
