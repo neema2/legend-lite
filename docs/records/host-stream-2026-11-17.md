@@ -218,3 +218,83 @@ reader of DataCube's conformance cases.
   - `//datacube:guardrails_test`, `//datacube:cypher_spike_test`, `//datacube:typecheck_test`;
   - `//studio:run_test`, `//query:run_test`, `//tools/guards:planned_sql_test`,
     `//tools/deps:engine_client_run_alone_test`.
+
+### H11: legend-engine's API in TypeScript is the edge (2026-11-17, after the train; the orchestrator's go)
+
+Built on the merge point (67a1cfa20e merged into this branch). The brief: lite's and the protocol's shapes stay in the
+product; legend-engine's execution and envelope shapes move to `//engine-client:edge`.
+
+**Measured first.** The train's de-imports had already shrunk the importers.
+- `wire.ts`: the product reads `PureModelContext` and `PureModelContextText` alone.
+- `engine.ts`: only `BrowserEngine` and tests read it.
+- `pmcd.ts`: all of it is the V1 protocol's model tree, which spec §1 calls lite's own protocol. It stays in the
+  records, its header reworded. Nothing in it is legend-engine's.
+
+**The split.** A new `js_library` //engine-client:edge depends on records, planner, engine_api, run and the protocol.
+No layer and no app depends on it, and the `:engine_client` aggregate does not carry it. It holds:
+- `legend/engine-wire.ts` (new): `wire.ts`'s legend-engine half (`ExecuteInput`, its `ParameterValue`,
+  `RelationTypeAnswer`/`Column`, `TdsResult`, `JsonResult`, `ExecutionResult`, `isTds`, `CompileResult`).
+  `wire.ts` keeps the model input.
+- `legend/edge-engine.ts` (new): `BrowserEngine` and `hostRows`, out of `browser-engine.ts`. That file keeps the
+  product's `LiteEngine`, `TabEngine`, `LiteAnswer`, `stated`, `statementOf` and `runtimeOf`.
+- Moved by target only, paths unchanged:
+  - `legend/engine.ts` (from :server);
+  - `legend/engine-api.ts`, i.e. `EngineError` (from :records);
+  - `legend/grammar.ts`, `legend/planning-client.ts` and `legend/wasm-edge.ts` (from :planner).
+- Tests that build legend-engine's engines name `:edge`: engine-client's `plan_runner_test` and `run_frame_test`,
+  Studio's tests (their `test/modules.ts`) and typecheck, and DataCube's `python_execute_test`.
+
+**Guards, each dated:**
+- `ts-layers.txt` gains a line for `:edge`.
+- `TsLayeringTest`:
+  - `EDGE` is pinned. A layer that names it fails, and so does a target named `:edge` that is not the pinned one.
+  - The edge's line must be present.
+  - `noAppReachesTheEdge` reads the genquery `app_edge_reach` (the apps' whole closure met with the edge), which must
+    be empty.
+- `layers_alone`: the edge is on every layer's never-list. The planner's and the server's expected files left with
+  the files that moved.
+- The app census (`app-runs.test.ts`):
+  - A new rule: no product module reaches an edge module, by any import or through a re-export. It reads the apps,
+    their pages, the libraries they take, and engine-client outside the edge, and bites on a planted case.
+  - The edge's files join the files run by design (`app_runs_layered`), as the doors' do, since the edge asks its
+    planner and runs in a run frame. Its one pinned row, `legend/engine.ts`'s `server.execute`, left: the census
+    shrinks.
+
+**Out of scope, flagged to the orchestrator.** `pure-v1.ts` (:server), `pure-v1-planning.ts` (:planner) and
+`engine-remote.ts` (:doors) are legend-engine clients too: DataCube's remote mode, which `datacube/src` reaches.
+
+**J26's NIT.** `LiteV1Api` had eight unused imports, not one. All eight are gone.
+
+**Bundles.** `//datacube:bundle_budget_test` is red on the merge point by the same bytes with and without this piece
+(grid 439,767, engine page 426,192, notebook 454,563 gzipped). The split adds no byte. The re-pin waits on the user.
+
+**Red on revert**, each planted, run and restored:
+
+| Plant | What goes red |
+|---|---|
+| `//studio:src` depends on `//engine-client:edge` | `//tools/deps:ts_layering_test`: `app_edge_reach` names the edge, and the layer drift names the dep |
+| `query/src/app/cube.ts` imports `engine-wire.ts` | `//tools/deps:app_runs_test`, "no product module imports an edge module" |
+| `wasm-grammar.ts` (:planner) imports `grammar.ts` | `//tools/deps:engine_client_planner_alone_test` (TS2307), and the census names the import too |
+
+**Green:**
+- `//tools/deps`: `ts_layering_test`, `layers_alone` (all eight), `app_runs_test`, `bundle_inputs_test`,
+  `edge_separation_closure_test`.
+- `//engine-client:tests` and `lite_api_server_test`.
+- `//studio:tests`; `//query:tests` and its typecheck.
+- `//datacube`: `typecheck_test`, `guardrails_test`, `python_execute_test`.
+- `//tools/guards:planned_sql_test`.
+- `//core`: `core_tests_server`, `guardrails`, `lite_api_conformance_test`.
+
+**The orchestrator's alignment, the same day.** H11 is approved, and there is one edge target. DataCube moves
+`pure-v1.ts`, `pure-v1-planning.ts` and `engine-remote.ts` into `:edge` after the train. An app's legend-engine mode is
+its compat entry, a target the app loads only when configured `engine: legend-engine` (DataCube's is
+`//datacube:edge_entry`).
+- `TsLayeringTest.EDGE_ENTRIES` names those entries: the only targets beside the edge's own that may depend on it.
+- No product target reaches an entry either.
+- The planted lines cover four cases:
+  - a product src reaching the edge (`//datacube:src_base`, `//studio:src`);
+  - an app reaching an entry (`//query:src`);
+  - an unpinned entry;
+  - the pinned entry, which passes.
+- With the entry exception removed from the rule, `ts_layering_test` goes red on the pinned entry's line.
+

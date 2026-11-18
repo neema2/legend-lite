@@ -30,7 +30,9 @@ exports_files(["pnpm-lock.yaml", "package.json"])
 # - run: what sends a plan's statements and reads their rows: records and npm only, NO planner, no server, no door;
 # - planner: legend-lite's planner in the tab and its planning client (no execute): records and the protocol only;
 # - server: legend-engine's API clients, whose execute is the SERVER's door;
-# - doors: the one target over both -- each asks the planner, then runs the answer in a run frame (run-frame.ts).
+# - doors: the one target over both -- each asks the planner, then runs the answer in a run frame (run-frame.ts);
+# - edge: legend-engine's API in TypeScript (H11, 2026-11-17) -- its wire shapes, its refusal, its Grammar and Engine,
+#   their HTTP clients and their tab bindings -- over the layers above; no product layer and no app reaches it.
 _RECORDS = [
     # the raises the plans declare (phase D's option (D), 2026-11-15): a plan reader of either side declares them, the
     # run side words a failure from them -- no send, no plan
@@ -39,7 +41,6 @@ _RECORDS = [
     # a product raise's envelope marks (#104's M2(b)): facts both sides may read
     "src/generated/lite-raise.ts",
     "src/json-unknown.ts",
-    "src/legend/engine-api.ts",
     # lite's one error shape (lite's API v1 spec §3, 2026-11-17): a record both bindings read
     "src/lite-error.ts",
     "src/legend/pmcd.ts",
@@ -87,31 +88,46 @@ _RUN = [
 # 2026-11-15 (the C5-T audit's item 3): the planner's protocol (PlannerWorker, its requests) and Grammar out of the
 # records, which handed the run side a typed way into the planner
 _PLANNER = [
-    "src/legend/grammar.ts",
     "src/legend/planner-answer.ts",
     "src/legend/planner-protocol.ts",
     "src/legend/planner-worker.ts",
-    "src/legend/planning-client.ts",
-    # legend-engine's shapes over the tab's planner, split from wasm-grammar.ts (H11, 2026-11-17): the planner's layer
-    # until the edge's target exists (//engine-client:edge, after the host train)
-    "src/legend/wasm-edge.ts",
     "src/legend/wasm-grammar.ts",
     "src/planner-sources.ts",
-    "src/pure-v1-planning.ts",
-]
-
-_SERVER = [
-    "src/legend/engine.ts",
-    "src/pure-v1.ts",
 ]
 
 # the multi-step doors kept in place (the orchestrator's note 3: each made one keyed plan later, the backlog of
 # docs/records/c5-typescript-2026-11-15.md)
 _DOORS = glob(["src/doors/**/*.ts"]) + [
-    "src/engine-remote.ts",
+    # a remote executor's shape, the product's (H11, 2026-11-17: out of engine-remote.ts, which is the edge's)
+    "src/remote-executor.ts",
     "src/legend/browser-engine.ts",
     "src/snap.ts",
     "src/tab-data.ts",
+]
+
+# LEGEND-ENGINE'S API, THE EDGE'S (H11, 2026-11-17: the orchestrator's go; lite's API v1 spec §6, "no product module
+# depends on the edge"): its wire shapes (engine-wire.ts, out of wire.ts, whose model input stays the product's), its
+# refusal (engine-api.ts, out of the records), its Grammar and HTTP planning client (grammar.ts, planning-client.ts, out
+# of the planner), its engines (engine.ts, out of the server layer), and its tab bindings over the product's planner and
+# runner (wasm-edge.ts, out of the planner; edge-engine.ts's BrowserEngine, out of browser-engine.ts). Over the layers
+# above, never under them: no product target depends on it -- an app's compat entry alone, loaded when configured
+# `engine: legend-engine` (the orchestrator's alignment, the same day; tools/deps/ts-layers.txt, TsLayeringTest
+# EDGE_ENTRIES and noAppReachesTheEdge) -- no product module imports one of its files (//tools/deps:app_runs_test), and
+# the aggregate below does not carry it: a test that builds legend-engine's engines names it.
+_EDGE = [
+    "src/legend/edge-engine.ts",
+    "src/legend/engine-api.ts",
+    "src/legend/engine-wire.ts",
+    "src/legend/engine.ts",
+    "src/legend/grammar.ts",
+    "src/legend/planning-client.ts",
+    "src/legend/wasm-edge.ts",
+    # (H11's moves, DataCube's half, 2026-11-17: legend-engine's pure/v1 client and its planning half, out of the server
+    # and planner layers -- the server layer, emptied, is deleted -- and its executor, out of the doors; each file at its
+    # own path, as this BUILD's convention keeps them)
+    "src/engine-remote.ts",
+    "src/pure-v1-planning.ts",
+    "src/pure-v1.ts",
 ]
 
 # NODE'S HOST, for code run in Node alone -- tests, benchmarks and harnesses: a require rooted in this package, and
@@ -119,7 +135,7 @@ _DOORS = glob(["src/doors/**/*.ts"]) + [
 # it, and the run layer, which the browser bundles carry, holds no require door (the C5-T audit's item 8, 2026-11-15)
 _NODE_HOST = ["src/node-require.ts"]
 
-_ASSIGNED = _RECORDS + _ENGINE_API + _RUN + _PLANNER + _SERVER + _DOORS + _NODE_HOST
+_ASSIGNED = _RECORDS + _ENGINE_API + _RUN + _PLANNER + _DOORS + _EDGE + _NODE_HOST
 
 [fail("engine-client/%s is in no target of engine-client/BUILD.bazel: add it to the one whose layer it is" % f) for f in glob(["src/**/*.ts"]) if f not in _ASSIGNED]
 
@@ -171,24 +187,6 @@ js_library(
 )
 
 js_library(
-    name = "server",
-    srcs = _SERVER,
-    visibility = _APPS + ["//tools/deps:__pkg__"],
-    deps = [
-        ":planner",
-        ":records",
-        "//pure-protocol:pure_protocol",
-        # fzstd 0.1.1, exact (2026-10-08, the user's approval): legend-engine's Arrow answer to execute (ARROW_IPC) is
-        # ALWAYS one zstd frame (RelationalResultToArrowIPCSerializer wraps its stream in a ZstdOutputStream; measured,
-        # core/src/test/resources/upstream-api/e8-arrow-groupby-sort.json), Python's engine answers the same bytes so
-        # one reader serves both, and the browser's DecompressionStream reads no zstd (the pinned Chromium 153,
-        # measured). A decoder, pure JavaScript, MIT, no dependencies, loaded on the first Arrow answer only
-        # (pure-v1.ts arrowIpcStream: the bundles that never meet one do not carry it).
-        ":node_modules/fzstd",
-    ],
-)
-
-js_library(
     name = "doors",
     srcs = _DOORS,
     visibility = _APPS + ["//tools/deps:__pkg__"],
@@ -197,9 +195,33 @@ js_library(
         ":planner",
         ":records",
         ":run",
-        ":server",
         "//pure-protocol:pure_protocol",
         ":node_modules/apache-arrow",
+    ],
+)
+
+js_library(
+    name = "edge",
+    srcs = _EDGE,
+    # the tests that build legend-engine's engines (DataCube's python-engine execute, Studio's engine and modules) and
+    # the layering census; no app's product target (tools/deps/ts-layers.txt)
+    visibility = [
+        "//datacube:__pkg__",
+        "//studio:__pkg__",
+        "//tools/deps:__pkg__",
+    ],
+    deps = [
+        ":doors",
+        ":engine_api",
+        ":planner",
+        ":records",
+        ":run",
+        "//pure-protocol:pure_protocol",
+        # legend-engine's executor reads its Arrow answers (engine-remote.ts), its client their zstd frame (pure-v1.ts;
+        # fzstd 0.1.1, exact, the user's approval of 2026-10-08: legend-engine's Arrow answer to execute is ALWAYS one
+        # zstd frame, RelationalResultToArrowIPCSerializer; moved here from the deleted server layer, H11 2026-11-17)
+        ":node_modules/apache-arrow",
+        ":node_modules/fzstd",
     ],
 )
 
@@ -212,7 +234,8 @@ js_library(
 )
 
 # every layer at once, what the apps depend on (their own layers name the one they reach: tools/deps/ts-layers.txt),
-# and Node's host for their Node tests and harnesses
+# and Node's host for their Node tests and harnesses -- never the edge (H11, 2026-11-17: an app that took this would
+# take legend-engine's API with it)
 js_library(
     name = "engine_client",
     srcs = ["package.json"],
@@ -224,7 +247,6 @@ js_library(
         ":planner",
         ":records",
         ":run",
-        ":server",
     ],
 )
 
@@ -248,11 +270,11 @@ js_library(
     expression = "labels(deps, //engine-client:%s)" % layer,
     scope = [":" + layer],
     visibility = ["//tools/deps:__pkg__"],
-) for layer in ["records", "engine_api", "run", "planner", "server", "doors", "node_host"]]
+) for layer in ["records", "engine_api", "run", "planner", "doors", "edge", "node_host"]]
 
 filegroup(
     name = "layer_queries",
-    srcs = [":layer_" + layer for layer in ["records", "engine_api", "run", "planner", "server", "doors", "node_host"]],
+    srcs = [":layer_" + layer for layer in ["records", "engine_api", "run", "planner", "doors", "edge", "node_host"]],
     visibility = ["//tools/deps:__pkg__"],
 )
 
@@ -491,6 +513,8 @@ node_test(
     size = "small",
     data = [
         ":engine_client",
+        # legend-engine's engines (HttpEngine, RoutedEngine) checked for their run frames (H11, 2026-11-17: the edge's)
+        ":edge",
         # the choke points' test sends its own statements (C5-T, 2026-11-15)
         "test/unplanned.ts",
     ],
@@ -507,6 +531,8 @@ node_test(
     data = [
         "test/unplanned.ts",
         ":engine_client",
+        # the tab's pure/v1 execute binds 64-bit values too (BrowserEngine; H11, 2026-11-17: the edge's)
+        ":edge",
         ":node_modules/@duckdb/duckdb-wasm",
         "test/fixtures/run-load-conformance.json",
         "test/fixtures/keyed-expansion.json",

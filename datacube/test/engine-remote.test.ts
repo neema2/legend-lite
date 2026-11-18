@@ -1,11 +1,8 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import {
-  LegendEngineExecutor,
-  RemoteExecutionError,
-  toResultTable,
-} from '../../engine-client/src/engine-remote.ts';
+import { LegendEngineExecutor, toResultTable } from '../../engine-client/src/engine-remote.ts';
+import { RemoteExecutionError } from '../../engine-client/src/remote-executor.ts';
 import { pureType } from '../../engine-client/src/relation-type.ts';
 import type { CubeSnapshot } from '../src/snapshot.ts';
 import { fromElement } from '../../pure-protocol/src/index.ts';

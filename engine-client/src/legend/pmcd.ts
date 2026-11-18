@@ -1,6 +1,8 @@
-// PureModelContextData as legend-engine writes it (`grammar/grammarToJson/model`, or Depot's
-// entities): the element shapes a query app reads. Types only, and only the fields it reads --
-// the wire carries more, which is kept (these are views, never re-serialized from here).
+// PureModelContextData, the V1 protocol's model tree -- lite's own protocol, unchanged (lite's API v1 spec §1; its
+// `model/elements` answers it, as legend-engine's `grammar/grammarToJson/model` and Depot's entities write it): the
+// element shapes a query app reads. Types only, and only the fields it reads -- the wire carries more, which is kept
+// (these are views, never re-serialized from here). A record of the product's (H11, 2026-11-17: nothing here is
+// legend-engine's own; its execution and typing shapes are the edge's, engine-wire.ts).
 
 import type { GenericType, Lambda, Multiplicity, ValueSpecification } from '../../../pure-protocol/src/index.ts';
 

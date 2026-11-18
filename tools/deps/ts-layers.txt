@@ -18,8 +18,13 @@
 //engine-client:engine_api	//engine-client:records
 //engine-client:run	//engine-client:engine_api //engine-client:node_modules/@duckdb/duckdb-wasm //engine-client:node_modules/apache-arrow //engine-client:records
 //engine-client:planner	//engine-client:records //pure-protocol:pure_protocol
-//engine-client:server	//engine-client:node_modules/fzstd //engine-client:planner //engine-client:records //pure-protocol:pure_protocol
-//engine-client:doors	//engine-client:engine_api //engine-client:node_modules/apache-arrow //engine-client:planner //engine-client:records //engine-client:run //engine-client:server //pure-protocol:pure_protocol
+# 2026-11-17 (H11, DataCube's half): the server layer is deleted -- its one file, legend-engine's pure/v1 client, is the edge's
+//engine-client:doors	//engine-client:engine_api //engine-client:node_modules/apache-arrow //engine-client:planner //engine-client:records //engine-client:run //pure-protocol:pure_protocol
+# 2026-11-17 (H11, the orchestrator's go; lite's API v1 spec §6): legend-engine's API in TypeScript, the edge -- its wire
+# shapes, refusal, Grammar, engines and tab bindings, out of the records, the planner, the server and the doors -- over
+# the layers it binds, under every product target (TsLayeringTest: no product target reaches the edge, an app's compat
+# entry alone -- EDGE_ENTRIES, the orchestrator's alignment of the same day; app_edge_reach empty)
+//engine-client:edge	//engine-client:doors //engine-client:engine_api //engine-client:node_modules/apache-arrow //engine-client:node_modules/fzstd //engine-client:planner //engine-client:records //engine-client:run //pure-protocol:pure_protocol
 # 2026-11-15 (the C5-T audit's item 8): Node's host for tests and harnesses, out of the run layer (no layer of its own)
 //engine-client:node_host	//engine-client:node_modules/@duckdb/duckdb-wasm
 # 2026-11-15 (C5-T step 4): DataCube's layers -- its records (the bridge's calls, the headless web), its run side (the
@@ -28,18 +33,22 @@
 //datacube:records	//engine-client:records
 //datacube:run	//datacube:records //engine-client:records //engine-client:run
 //datacube:planner	//engine-client:planner //engine-client:records //model-changes:records //pure-protocol:pure_protocol
+# 2026-11-17 (H11, DataCube's half; the orchestrator's alignment): DataCube's compat entry, its legend-engine mode --
+# UpstreamPlanner and its TinyInt read -- the one kind of target that reaches the edge (TsLayeringTest.EDGE_ENTRIES); no
+# product target reaches it
+//datacube:edge_entry	//datacube:planner //engine-client:edge //engine-client:planner //engine-client:records //pure-protocol:pure_protocol
 # 2026-11-15 (the C5-T audit's MUST 2): DataCube's doors, a target of their own -- the runner and the doors that ask,
 # then run (doors.ts, remote.ts, upload.ts, table-output.ts) -- over the cube's snapshot and the tree's keys (:model)
 //datacube:model	//engine-client:records //pure-protocol:pure_protocol
-//datacube:doors	//datacube:model //datacube:planner //datacube:records //datacube:run //engine-client:doors //engine-client:engine_api //engine-client:planner //engine-client:records //engine-client:run //engine-client:server //pure-protocol:pure_protocol
+//datacube:doors	//datacube:model //datacube:planner //datacube:records //datacube:run //engine-client:doors //engine-client:engine_api //engine-client:planner //engine-client:records //engine-client:run //pure-protocol:pure_protocol
 # 2026-11-15 (the C5-T last round's T1): the APPS -- DataCube's (and src_base, what it builds on), Query's and Studio's
 # -- reach no run layer: the run side through the doors alone (TsLayeringTest.APP_LAYERS; the libraries they take reach
 # none either, //tools/deps:app_libraries_run; and no app module imports a run module, //tools/deps:app_runs_test).
 # DataCube's doors took the bridge's connection (//datacube:run) and its calls (//datacube:records) with the host's
 # database's door (src/headless/host-database.ts).
 //datacube:src	//datacube:doors //datacube:model //datacube:planner //datacube:records //datacube:src_base
-//datacube:src_base	//datacube:node_modules/echarts //datacube:node_modules/fflate //datacube:node_modules/whatwg-url //depot-client:depot_client //engine-client:doors //engine-client:engine_api //engine-client:planner //engine-client:records //engine-client:server //model-changes:model_changes //pure-protocol:pure_protocol //query-store:query_store //sdlc-client:sdlc_client
-//query:src	//datacube:src //depot-client:depot_client //engine-client:doors //engine-client:engine_api //engine-client:planner //engine-client:records //engine-client:server //legend-art:legend_art //pure-protocol:pure_protocol //query-store:query_store
-//studio:src	//depot-client:depot_client //engine-client:doors //engine-client:engine_api //engine-client:planner //engine-client:records //engine-client:server //legend-art:legend_art //query:src //sdlc-client:sdlc_client
+//datacube:src_base	//datacube:node_modules/echarts //datacube:node_modules/fflate //datacube:node_modules/whatwg-url //depot-client:depot_client //engine-client:doors //engine-client:engine_api //engine-client:planner //engine-client:records //model-changes:model_changes //pure-protocol:pure_protocol //query-store:query_store //sdlc-client:sdlc_client
+//query:src	//datacube:src //depot-client:depot_client //engine-client:doors //engine-client:engine_api //engine-client:planner //engine-client:records //legend-art:legend_art //pure-protocol:pure_protocol //query-store:query_store
+//studio:src	//depot-client:depot_client //engine-client:doors //engine-client:engine_api //engine-client:planner //engine-client:records //legend-art:legend_art //query:src //sdlc-client:sdlc_client
 //model-changes:records	//pure-protocol:pure_protocol //sdlc-client:records
 //sdlc-client:records	

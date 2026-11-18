@@ -22,7 +22,8 @@ import path from 'node:path';
 
 import { DuckDbEngine } from '../../engine-client/src/duckdb.ts';
 import { levelWithValues } from '../src/plan.ts';
-import { PlanError, UpstreamPlanner } from '../src/planner.ts';
+import { PlanError } from '../src/planner.ts';
+import { UpstreamPlanner } from '../src/edge/upstream-planner.ts';
 import { pivotValuesLambda } from '../src/query.ts';
 import { sourceColumns } from '../src/source-columns.ts';
 import { accessor, col, fn, lambda, lit, times } from '../../pure-protocol/src/index.ts';
