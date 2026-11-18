@@ -47,7 +47,7 @@ class HookRulingTest {
             Map.entry(com.legend.testexec.EdgeRun.class, List.of(
                     () -> com.legend.testexec.NoEdgeRun.NONE.open(planNaming(), null, java.util.UUID.randomUUID()))),
             Map.entry(com.legend.testexec.EdgeHearing.class, List.of(
-                    () -> productHearing().judged(null, List.of(), null, false),
+                    () -> productHearing().judged(null, List.of(), false),
                     () -> productHearing().rowAppealed(0, List.of(), false))),
             // (com.legend.testexec.PureWords, C5's step B's hook: deleted 2026-11-18, census J29 -- the host judge's
             // words are the run's HostWords, lite's form the product's and legend-pure's the edge's, never refused)
@@ -179,8 +179,7 @@ class HookRulingTest {
                 List.of(), List.of(), null, null, null);
         var verdict = new com.legend.testexecutionplan.TestPlan.Verdict(1, "assert", "assert", List.of(), null, null,
                 false);
-        var step = new com.legend.testexecutionplan.TestPlan.Verdicts(List.of(verdict), null, null,
-                com.legend.testexecutionplan.TestPlan.JudgingRules.LITE);
+        var step = new com.legend.testexecutionplan.TestPlan.Verdicts(List.of(verdict), null, null);
         return new com.legend.testexecutionplan.TestPlan(List.of(), List.of(step),
                 com.legend.testexecutionplan.TestPlan.Judge.HOST, Map.of(), byVerdict, false, target,
                 new com.legend.testexecutionplan.BodyFacts(false, false, true, "A"), null,
@@ -278,6 +277,9 @@ class HookRulingTest {
                 // VerdictNumbers (train 17, the orchestrator's item 4 of 2026-11-18, registers S15/S132, S139: two Floats
                 // or two Decimals -- lite's exact rule in the product, compiled legend-pure's at the edge)
                 com.legend.lowering.VerdictNumbers.class,
+                // ExecutedValues (train 17 item 2, 2026-11-18: a serialized root's string-entry value -- refused in the
+                // product, legend-engine's json-builder envelope at the edge)
+                com.legend.planner.ExecutedValues.class,
                 // RenderedTextRule (census C1, 2026-11-17, registers S131, S132: the product's two strings, the edge's
                 // ruled comparison where they differ)
                 com.legend.testplan.RenderedTextRule.class,
@@ -414,8 +416,6 @@ class HookRulingTest {
     @Test
     void theHooksCapabilitiesAreTheProductsAndTheEdges() {
         assertFalse(com.legend.testexecutionplan.NoEdge.NONE.records(), "the product records no ledger");
-        assertTrue(com.legend.testexecutionplan.NoEdge.NONE.rules()
-                == com.legend.testexecutionplan.TestPlan.JudgingRules.LITE, "the product's runs judge by lite's rules");
         assertTrue(new com.legend.edge.CompatEdge(new com.legend.edge.RawLedger.Recorder(),
                 com.legend.executionplan.DataStores.none()).records(), "the edge's recorder records the ledger");
         assertTrue(com.legend.testexec.NoEdgeRun.NONE.wordsAlike(), "lite's judges write alike");

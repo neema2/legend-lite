@@ -152,8 +152,9 @@ public final class FramePlanner {
                             List.of(lqChain.chain()), frameMapping, specs, frameEnv, false));
                 }
             }
-            TypedSpec envelope = ExecuteChainAssembly
-                    .legendQueryEnvelope(lqChain.chain(), env.ctx(), activitySql);
+            // a serialized root's value is the plan style's (train 17 item 2, 2026-11-18): the edge writes legend-engine's
+            // envelope around the text, the product refuses it by name
+            TypedSpec envelope = ExecuteChainAssembly.serializedRoot(lqChain.chain()) ? env.style().twoForm(ExecutedValues.class, RefusedExecutedValues.REFUSED).envelope(lqChain.chain(), env.ctx()) : ExecuteChainAssembly.legendQueryEnvelope(lqChain.chain(), env.ctx(), activitySql);
             return new FrameChain(ec, envelope, lqChain.chain(), false, true, env);
         }
         var prepared = ExecuteChainAssembly

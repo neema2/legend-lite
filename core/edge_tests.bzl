@@ -20,13 +20,6 @@ EDGE_TEST_SRCS = [
     "src/test/java/com/legend/HookRulingTest.java",
     # the two hook registries agree (the GUARD stream, 2026-11-17): it reads HookRulingTest and EdgeSeparationTest
     "src/test/java/com/legend/HookRulingsAgreeTest.java",
-    # the judging rules' TYPE flagged, its members sorted (the GUARD stream, C.3, 2026-11-17): it reads the product jars
-    "src/test/java/com/legend/JudgingRulesReachTest.java",
-    # its planted violator, read as bytecode alone (C.3, 2026-11-17)
-    "src/test/java/com/legend/testexec/PlantedRulesByClass.java",
-    "src/test/java/com/legend/testexec/PlantedRulesReach.java",
-    "src/test/java/com/legend/testexec/PlantedRulesSwitch.java",
-    "src/test/java/com/legend/testexec/PlantedRulesText.java",
     # the open compatibility classes pinned by member set (the GUARD stream, C.4, 2026-11-17): it reads the census
     "src/test/java/com/legend/OpenClassMembersTest.java",
     # the open classes marked @OpenLine, held equal to the census's list (the GUARD stream, C.7, 2026-11-17)
@@ -205,6 +198,7 @@ EDGE_TEST_SRCS = [
     "src/test/java/com/legend/testplan/TestPlanJsonRoundTripTest.java",
     # a host's planted edge reach (the GUARD stream's C.5 review, 2026-11-17): it names an edge type
     "src/test/java/planner/PlantedHostEdgeReach.java",
+    # (JudgingRulesReachTest and its planted violators: deleted 2026-11-18, train 17, with the judging rules)
 ]
 
 # a file whose class is not its name

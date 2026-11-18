@@ -46,7 +46,14 @@ class ResultEnvelopeRefusalTest {
                 lowerer = lowerer.withResultEnvelopes(r -> PlanStyle.PRODUCT.facet(ResultEnvelopes.class, r));
             }
             refused(lowerer, TypedJsonResult.Kind.TDS, "|#TDS\n  a:Integer\n  1\n#");
-            refused(lowerer, TypedJsonResult.Kind.VALUES, "|'x'");
         }
+        // a serialized root's: refused at PLANNING by the product's form of the planner's ExecutedValues kind (train 17
+        // item 2, 2026-11-18), the same sentence and phase
+        TypedSpec chain = expression("|'x'");
+        ModelException e = assertThrows(ModelException.class, () -> PlanStyle.PRODUCT.twoForm(
+                com.legend.planner.ExecutedValues.class, com.legend.planner.RefusedExecutedValues.REFUSED)
+                .envelope(chain, Compiler.compileModel("")));
+        assertEquals(LegendCompileException.Phase.LOWER, e.phase());
+        assertEquals(SENTENCE, e.getMessage());
     }
 }

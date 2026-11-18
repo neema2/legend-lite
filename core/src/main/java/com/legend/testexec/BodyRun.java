@@ -47,9 +47,8 @@ final class BodyRun {
     }
 
     /** An edge-judged comparison at its verdict step ({@link EdgeHearing#judged}). */
-    TypedSide judged(com.legend.testexecutionplan.HostJudgment.EdgeJudged e, java.util.List<TypedSide> sides,
-            com.legend.testexecutionplan.TestPlan.JudgingRules rules) {
-        return hearing.judged(e, sides, rules, messaged > 0);
+    TypedSide judged(com.legend.testexecutionplan.HostJudgment.EdgeJudged e, java.util.List<TypedSide> sides) {
+        return hearing.judged(e, sides, messaged > 0);
     }
 
     /** A step of the body that writes is about to run ({@link EdgeHearing#writing}). */

@@ -30,6 +30,12 @@ public final class PureText {
     private static final DatabaseType ENGINE_TEST_DATABASE = DatabaseType.H2;
 
     /** The edge's dialect source: upstream's spellings over the product's dialect of each database. */
+    /** Whether {@code style} is one of the edge's ({@link #UPSTREAM}, {@link #PURE_V1}): a plan in legend-pure's words,
+     *  which only the edge's hook hears (TestRunner refuses a mixed run by them; train 17, 2026-11-18). */
+    public static boolean isEdgeStyle(PlanStyle style) {
+        return style == UPSTREAM || style == PURE_V1;
+    }
+
     public static final PlanStyle UPSTREAM = new PlanStyle() {
         @Override
         public SqlDialect dialect(DatabaseType type) {
@@ -122,6 +128,10 @@ public final class PureText {
             if (kind == com.legend.testplan.RenderedTextRule.class) {
                 // upstream's ruled rendered-text comparison where the strings differ (S131, S132; census C1)
                 return kind.cast(UpstreamRenderedTextRule.INSTANCE);
+            }
+            if (kind == com.legend.planner.ExecutedValues.class) {
+                // legend-engine's json-builder envelope around a serialized root's text (train 17 item 2)
+                return kind.cast(EngineExecutedValues.INSTANCE);
             }
             if (kind == com.legend.lowering.VerdictNumbers.class) {
                 // compiled legend-pure's Float and Decimal equality, the database judge's (S15/S132, S139; train 17)

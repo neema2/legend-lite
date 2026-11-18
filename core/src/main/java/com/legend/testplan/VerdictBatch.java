@@ -99,10 +99,6 @@ public final class VerdictBatch {
          *  failing statement (F11, the test-is-the-product plan's B12), or null where none is needed or none exists
          *  ({@code SqlDialect.verdictSavepoint}). */
         TestPlan.Verdicts.@com.legend.base.Nullable Savepoint savepoint();
-
-        /** The rules the batch's verdicts are judged by (the run's, stamped on every group it plans: the explicit
-         *  rule, 2026-11-04) -- the database judge planned their statements under them. */
-        TestPlan.JudgingRules rules();
     }
 
     /** The arm a verdict's name spells: the assert function's simple name (the name is its callee's FQN, or the
@@ -572,8 +568,8 @@ public final class VerdictBatch {
                     verdicts.add(v);
                     members.put(v.id(), p);
                 }
-                out.add(new Group(new TestPlan.Verdicts(verdicts, part.getValue(), runner.savepoint(),
-                        runner.rules()), g.getKey(), false));
+                out.add(new Group(new TestPlan.Verdicts(verdicts, part.getValue(), runner.savepoint()),
+                        g.getKey(), false));
             }
         }
         // a member the dialect cannot spell is refused at its place in the root loop with the dialect's own words,
@@ -681,8 +677,8 @@ public final class VerdictBatch {
                 // the same verdict with its message: the same id, so its member stands
                 verdicts.add(withMessage);
             }
-            out.add(new Group(new TestPlan.Verdicts(verdicts, g.step().fused(), g.step().savepoint(),
-                    g.step().rules()), g.on(), g.keyed()));
+            out.add(new Group(new TestPlan.Verdicts(verdicts, g.step().fused(), g.step().savepoint()),
+                    g.on(), g.keyed()));
         }
         return out;
     }
@@ -749,7 +745,7 @@ public final class VerdictBatch {
                 unspelled.add(p);
             }
         }
-        return verdicts.isEmpty() ? null : new Group(new TestPlan.Verdicts(verdicts, null, runner.rules()), on,
+        return verdicts.isEmpty() ? null : new Group(new TestPlan.Verdicts(verdicts, null), on,
                 isKeyed);
     }
 
