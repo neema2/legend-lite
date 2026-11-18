@@ -220,7 +220,7 @@ The final train is `claude/total-wall-h-train19` (DataCube's integration of the 
 
 | Change | Owner | Risk to check |
 |---|---|---|
-| **L10: union frame and WHERE conjunct order** (`LoweringForms.unionFrame`, `where`; the rename framing was dropped on 2026-11-18 because inlining a renamed projected source broke `ScaleCostsDuckDbTest.aDoublingChainStaysLinear`, 4 -> 16 reads) | F | Changes the **product's SQL shape**: one subselect fewer on some channel A shapes (BigQuery, Databricks, MariaDB, MySQL, Trino measured), and conjuncts appended, not reordered. Answers must not move. New product rule: never prune a UNION DISTINCT's columns. |
+| **L10: union frame and WHERE conjunct order** (`LoweringForms.unionFrame`, `whereZones`; the rename framing was dropped on 2026-11-18 because inlining a renamed projected source broke `ScaleCostsDuckDbTest.aDoublingChainStaysLinear`, 4 -> 16 reads) | F | F measured **no product SQL change** in the lean baseline after the narrowing; the union frame and the WHERE zone order are now two-form members (product: no frame, conjuncts appended; edge: legend-engine's). Answers must not move on any database. New product rule: never prune a UNION DISTINCT's columns (`LowerRelationDuckDbTest.dedupUnionKeepsUnreadColumns`). |
 | **executeValues** (the form takes the product's own serialization: the object when to-one, the wrapped array when many) | E-SQL | No product answer may move; the edge folds the array with `oneBare`. |
 | **The fold move and L9's remainder** (computedPruning, existsJoin composed by the edge) | E-SQL (train 18) | Edge contract byte-identical; criterion (a), no statics on a two-form kind. |
 | **K2: shipped artifacts start at the product** (`//core:server`, `//wasm:planner`, `//native:compiler`, `//query-store:page`; legend-engine via `--engine`, `//wasm:engine_planner`, `//native:engine` and the `legend-lite[engine]` extra) | E-P5, the TS host, the Python host, DataCube | An edge-off run must load no edge class; an edge-on run must answer legend-engine's routes byte-exactly (`//wasm:engine_routes_test`, the Python edge tests). |
@@ -308,11 +308,16 @@ cosmetic.
      `ScaleCostsDuckDbTest.aDoublingChainStaysLinear` (the base column read 16 times instead of 4), so the extra
      nesting level is a product cost guard. L10 is now the union frame (no extra "unionalias" wrap), the new product
      rule never to prune a UNION DISTINCT's columns (with a test that fails without it), and WHERE conjuncts appended
-     rather than reordered. `WhereMerge.merge`/`Zones` moved to the edge. F's first measurement: the edge contract,
-     the edge corpus, both corpus verdicts and channel B were byte-identical. Product SQL moved on channel A only:
-     BigQuery, Databricks, MariaDB, MySQL and Trino each lost a subselect (-129 to -265 SQL chars) and gained +7
-     "repeated chars", accepted under the delegation with the reason in F's commit. Re-measured after the narrowing;
-     the final figures are in F's commit message. **This is the change the database lanes must check most closely.**
+     rather than reordered. `WhereMerge.merge`/`Zones` moved to the edge. **F's final measurement (after the
+     narrowing): the lean SQL baseline is unchanged in every row**, so no product SQL moved in the measured corpus.
+     query_capture, channel B, both corpus verdicts and lean_sql_corpus are green, the edge contract (0-26) and the
+     edge corpus are byte-identical, and the census is 0 (LENS 0, EDGE-ONLY MEMBERS 0; `UpstreamBranchesTest` SITES
+     9 -> 0). The first measurement's channel A changes (BigQuery, Databricks, MariaDB, MySQL and Trino each lost a
+     subselect and gained +7 "repeated chars") came only from the dropped rename item. What moved in code:
+     `LoweringForms.unionFrame()` (the product answers no frame; the edge's `EngineShape` answers "unionAlias") and
+     `LoweringForms.whereZones()` (the product appends; legend-engine's zone order is `edge.EngineWhereZones`,
+     moved from the deleted `lowering.WhereMerge` and `sql.ExistsJoins.Zones`). **The database lanes should still
+     check L10 most closely**: its union and WHERE paths are only measured on the corpus the lean baseline covers.
 3. **D's landing push** on d-stage: the final train's head, this document and the follow-ups document, and the
    deletion of `.github/workflows/stage-linux.yml` (a throwaway Linux-only workflow for D's staging branch; it never
    goes to main).
