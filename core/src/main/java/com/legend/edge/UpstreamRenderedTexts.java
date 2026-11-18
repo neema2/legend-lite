@@ -29,8 +29,7 @@ public enum UpstreamRenderedTexts implements com.legend.testexec.RenderedTexts {
         // the verdict (CANONICAL_FORM_SPEC §0); the chain's sortedness
         // rides along so the byte channel judges unordered grids under
         // the same declared row-multiset policy as the verdict
-        com.legend.testexec.CanonicalDivergence.probeGridText(expected, actual, held, sorted,
-                form);
+        probeGridText(expected, actual, held, sorted, form);
         return held;
     }
 
@@ -172,5 +171,72 @@ public enum UpstreamRenderedTexts implements com.legend.testexec.RenderedTexts {
         } catch (NumberFormatException nfe) {
             return false;
         }
+    }
+
+    /** R1b — the GRID channel (toCSV text verdicts): the actual side is
+     * ALREADY the platform's SQL-side render (Render = engine toCSV,
+     * H3 headline), so the byte answer is plain string equality; the
+     * census measures how often edge.UpstreamRenderedTexts's KEPT
+     * leniencies (row multiset, bounded float tolerance) do work the
+     * byte channel would refuse. */
+    static void probeGridText(String expected, String actual,
+            boolean held, boolean sorted, String form) {
+        if (expected.equals(actual)) {
+            com.legend.testexec.CanonicalDivergence.record("gridText", held, "EQUAL");
+            return;
+        }
+        // The CSVJOIN family spells the whole grid on ONE line (rows
+        // joined by the form's separator), which hid row-order drift
+        // from the line-based classifier as cell-diff@line0. Normalize
+        // rows to lines FIRST so one classifier judges every form —
+        // applied to both sides identically, so the multiset check
+        // below stays two-sided.
+        if (form.startsWith("CSVJOIN:")) {
+            String sep = form.substring("CSVJOIN:".length());
+            expected = expected.replace(sep, "\n");
+            actual = actual.replace(sep, "\n");
+        }
+        // name the first difference so the census classifies WHICH
+        // leniency did the work (row order vs cell spelling)
+        String[] el = expected.split("\\n", -1);
+        String[] al = actual.split("\\n", -1);
+        String why;
+        if (el.length != al.length) {
+            why = "line-count " + el.length + "!=" + al.length;
+        } else {
+            int i = 0;
+            while (i < el.length && el[i].equals(al[i])) {
+                i++;
+            }
+            java.util.List<String> es = new java.util.ArrayList<>(java.util.List.of(el));
+            java.util.List<String> as = new java.util.ArrayList<>(java.util.List.of(al));
+            java.util.Collections.sort(es);
+            java.util.Collections.sort(as);
+            why = es.equals(as)
+                    ? "row-order-only@line" + i
+                    : "cell-diff@line" + i + " e<" + trunc(el[i]) + "> a<"
+                            + trunc(al[i]) + ">";
+        }
+        // Row order on an UNORDERED chain is undefined on BOTH backends
+        // (no ORDER BY — the SQL spec fixes no arrival order, and the
+        // engine golden's order is its own accident): the byte answer
+        // is content equality under the same two-sided multiset policy
+        // the host verdict already applies, gated on the SAME
+        // compile-time sortedness fact the caller passes. A sorted
+        // chain in the wrong order stays a REAL disagreement. Counted
+        // never silent: the rescue is its own printed census (it is
+        // arrival-order-dependent BY DEFINITION, so it is a diagnostic
+        // count, never a pinnable one — pin disagree instead, which
+        // this policy makes exact).
+        if (!sorted && why.startsWith("row-order-only")) {
+            com.legend.diagnostics.Census.inc(com.legend.diagnostics.Census.Key.ROW_ORDER_CANON);
+            com.legend.testexec.CanonicalDivergence.record("gridText", held, "EQUAL");
+            return;
+        }
+        com.legend.testexec.CanonicalDivergence.record("gridText", held, "DIFFER:" + why);
+    }
+
+    private static String trunc(String s) {
+        return s.length() > 60 ? s.substring(0, 60) + "…" : s;
     }
 }

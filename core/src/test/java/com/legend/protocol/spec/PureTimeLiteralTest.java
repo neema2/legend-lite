@@ -78,7 +78,7 @@ class PureTimeLiteralTest {
     void subsecond_leadingZerosPreservedByteExact() {
         PureTimeLiteral parsed = PureTimeLiteral.parse("10:30:45.001");
         assertEquals(new PureTimeLiteral.TimeWithSubsecond(10, 30, 45, "001"), parsed);
-        assertEquals("10:30:45.001", parsed.toEngineString());
+        assertEquals("10:30:45.001", parsed.canonicalText());
     }
 
     @Test
@@ -114,8 +114,8 @@ class PureTimeLiteralTest {
 
     private static void roundTrip(String source) {
         PureTimeLiteral parsed = PureTimeLiteral.parse(source);
-        assertEquals(source, parsed.toEngineString());
-        assertEquals(parsed, PureTimeLiteral.parse(parsed.toEngineString()));
+        assertEquals(source, parsed.canonicalText());
+        assertEquals(parsed, PureTimeLiteral.parse(parsed.canonicalText()));
     }
 
     /**

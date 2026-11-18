@@ -18,7 +18,6 @@ import com.legend.compiler.spec.SpecCompiler;
 import com.legend.compiler.spec.StatementEffects;
 import com.legend.compiler.spec.UserCallInliner;
 import com.legend.compiler.spec.typed.ExecutionContext;
-import com.legend.compiler.spec.typed.Lets;
 import com.legend.compiler.spec.typed.TypedCString;
 import com.legend.compiler.spec.typed.TypedCast;
 import com.legend.compiler.spec.typed.TypedCollection;
@@ -48,7 +47,6 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 
 /**
@@ -95,31 +93,6 @@ public final class BodyPlanner {
         all.addAll(env.features());
         all.addAll(ExecutionContext.treeFeatures(body));
         return all.isEmpty() ? Set.of() : Collections.unmodifiableSet(new LinkedHashSet<>(all));
-    }
-
-    /** The execution context an executionPlan / execute / toSQLString call
-     * binds through its RUNTIME argument: the argument is brought to its
-     * VALUE (helper calls inlined) and read ONCE. */
-    public static ExecutionContext boundContext(
-            TypedSpec runtimeArg, SpecCompiler specs) {
-        com.legend.base.RunScope.planning("bind a runtime's context");
-        TypedSpec value = new UserCallInliner(specs)
-                .inlineBody(List.of(runtimeArg)).get(0);
-        return ExecutionContext.reader()
-                .read(Optional.empty(), value);
-    }
-
-    /** The same read under a statement: the argument and the values it
-     * names (a let-bound runtime, a let-bound hook operand) chase the
-     * statement's preceding lets. */
-    public static ExecutionContext boundContext(
-            TypedSpec runtimeArg, List<TypedSpec> letPrefix, SpecCompiler specs) {
-        com.legend.base.RunScope.planning("bind a runtime's context");
-        TypedSpec value = new UserCallInliner(specs)
-                .inlineBody(List.of(Lets.bound(runtimeArg, letPrefix))).get(0);
-        return ExecutionContext.reader()
-                .bind(v -> Lets.bound(v, letPrefix))
-                .read(Optional.empty(), value);
     }
 
     public static void collectStores(TypedSpec n, Set<String> out) {

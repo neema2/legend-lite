@@ -10,7 +10,7 @@ package com.legend.resolver;
  * the product's own text of its type, the compatibility edge legend-engine's ({@code +0000}, a quoted String). Handed
  * to the resolver by its planner from the plan's style ({@code BodyPlanner.resolver}); a resolver given none refuses a
  * key that needs it, by name. {@code date}: a date argument's text from the literal's written text
- * ({@code PureDateLiteral.toEngineString}, no zone); {@code string}: a String argument's text.
+ * ({@code PureDateLiteral.canonicalText}, no zone); {@code string}: a String argument's text.
  */
 public record GraphKeyText(java.util.function.UnaryOperator<String> date,
         java.util.function.UnaryOperator<String> string) {

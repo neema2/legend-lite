@@ -308,7 +308,7 @@ public final class LiteralSpelling {
      * the DB's micro storage. */
     static String writtenTemporalText(
             com.legend.values.PureDateLiteral d) {
-        return d.toEngineString().replace(' ', 'T');
+        return d.canonicalText().replace(' ', 'T');
     }
 
     /** WRITTEN temporal literals at value egress — a bare
@@ -526,10 +526,10 @@ public final class LiteralSpelling {
     public static @com.legend.base.Nullable String isoTimestamp(
             com.legend.values.PureDateLiteral d) {
         return switch (d) {
-            case com.legend.values.PureDateLiteral.DateWithHour h -> h.toEngineString() + ":00:00";
-            case com.legend.values.PureDateLiteral.DateWithMinute mi -> mi.toEngineString() + ":00";
-            case com.legend.values.PureDateLiteral.DateWithSecond se -> se.toEngineString();
-            case com.legend.values.PureDateLiteral.DateWithSubsecond su -> su.toEngineString();
+            case com.legend.values.PureDateLiteral.DateWithHour h -> h.canonicalText() + ":00:00";
+            case com.legend.values.PureDateLiteral.DateWithMinute mi -> mi.canonicalText() + ":00";
+            case com.legend.values.PureDateLiteral.DateWithSecond se -> se.canonicalText();
+            case com.legend.values.PureDateLiteral.DateWithSubsecond su -> su.canonicalText();
             default -> null;
         };
     }

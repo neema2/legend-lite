@@ -39,11 +39,6 @@ public final class VerdictQueries {
      * {@code from(<the producer's mapping>)}, runtime left to the
      * executing env. SqlTextVerdicts fetches and judges; the mint is
      * compiler emission (Invariant 7). */
-    /** A String literal as a typed node: a text the planner wrote, as a verdict step's constant side (the engine-text
-     *  arms' two texts, the test-is-the-product plan's M10b). */
-    public static TypedSpec text(String text) {
-        return new TypedCString(text, scalar(Type.Primitive.STRING));
-    }
 
     /** {@code assertEquals(expected, actual)} as a typed call — the meaning
      * of a dual-golden assert once its golden is chosen (the verdict arm
@@ -242,38 +237,7 @@ public final class VerdictQueries {
     /** The frame variable's {@code .activities} read — the node the
      * splice hook resolves to the frame's own execute() call (the
      * verdict arms recover a frame's mapping through it). */
-    /** Whether a typed chain is a SUB-COLLECTION of a class extent:
-     * getAll through filter/sort/limit/slice/drop/from/first/last/toOne
-     * (the walk lane's extentSubset, on the typed tree). */
-    public static boolean extentSubset(TypedSpec n) {
-        return switch (n) {
-            case com.legend.compiler.spec.typed.TypedGetAll g -> true;
-            case com.legend.compiler.spec.typed.TypedFilter f ->
-                    extentSubset(f.source());
-            case com.legend.compiler.spec.typed.TypedSort s ->
-                    extentSubset(s.source());
-            case com.legend.compiler.spec.typed.TypedSortBy s ->
-                    extentSubset(s.source());
-            case com.legend.compiler.spec.typed.TypedLimit l ->
-                    extentSubset(l.source());
-            case com.legend.compiler.spec.typed.TypedSlice l ->
-                    extentSubset(l.source());
-            case com.legend.compiler.spec.typed.TypedDrop d ->
-                    extentSubset(d.source());
-            case com.legend.compiler.spec.typed.TypedFrom f ->
-                    extentSubset(f.source());
-            case com.legend.compiler.spec.typed.TypedNativeCall c when !c.args().isEmpty() -> {
-                String q = c.callee().qualifiedName();
-                String simple = q.substring(q.lastIndexOf(':') + 1);
-                yield switch (simple) {
-                    case "first", "last", "toOne", "take", "limit", "drop",
-                            "slice" -> extentSubset(c.args().get(0));
-                    default -> false;
-                };
-            }
-            default -> false;
-        };
-    }
+    // (extentSubset, the referee's replay gate: moved to the edge's ReplayGates, 2026-11-18, the edge audit's J40)
 
     /** {@code forAll(coll, x | <assert>)} — the engine's per-element
      * assert idiom (stringToFloat testProject: {@code [123.456, 100.001]

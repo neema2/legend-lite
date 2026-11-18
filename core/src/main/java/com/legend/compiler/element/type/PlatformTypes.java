@@ -255,14 +255,10 @@ public final class PlatformTypes {
      * evaluate in the EXECUTOR (the engine walks its Database metamodel;
      * we render from the compiled store model — model access the lowerer
      * does not have). Engine golden spellings: testDDL.pure:42-45. */
-    public static final String DROP_SCHEMA_STATEMENT =
-            "meta::relational::functions::toDDL::dropSchemaStatement";
-    public static final String CREATE_SCHEMA_STATEMENT =
-            "meta::relational::functions::toDDL::createSchemaStatement";
+    // (DROP_SCHEMA_STATEMENT, CREATE_SCHEMA_STATEMENT, DROP_TABLE_STATEMENT: moved to the edge's EnginePlans, 2026-11-18,
+    // the edge audit's J40 -- legend-engine's deprecated toDDL generators, the edge's plans' alone)
     public static final String CREATE_TABLE_STATEMENT =
             "meta::relational::functions::toDDL::createTableStatement";
-    public static final String DROP_TABLE_STATEMENT =
-            "meta::relational::functions::toDDL::dropTableStatement";
 
     /** The store metamodel's DATA TYPE classes (relational/metamodel.pure) — the
      * exact FQNs a {@code ^Column(type=^<T>(…))} literal names; the temp-table

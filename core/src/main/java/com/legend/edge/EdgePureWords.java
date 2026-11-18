@@ -57,7 +57,7 @@ public final class EdgePureWords {
      *  date has none: {@code 2014-03-10T16} in its {@code TestDateFormat}). */
     static String pureText(com.legend.values.PureDateLiteral d) {
         return d.precision().atLeast(com.legend.values.PureDateLiteral.Precision.MINUTE)
-                ? d.toEngineString() + "+0000" : d.toEngineString();
+                ? d.canonicalText() + "+0000" : d.canonicalText();
     }
 
     public String reprList(List<Object> side, @Nullable String instanceClass) {

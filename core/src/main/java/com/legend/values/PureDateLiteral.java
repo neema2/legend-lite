@@ -44,7 +44,7 @@ import java.util.Objects;
  *
  * <p>Consequence: {@code %2024-01-15T10:00+0500} and
  * {@code %2024-01-15T05:00} parse to equal {@link DateWithMinute}
- * values. Round-tripping via {@link #toEngineString} produces the
+ * values. Round-tripping via {@link #canonicalText} produces the
  * latter form.
  *
  * <h2>Validation</h2>
@@ -86,7 +86,7 @@ public sealed interface PureDateLiteral
      * precision was written -- {@code 2024-06-03T09:07:00.000000000}. Each writer adds its own zone: the product
      * S312's {@code Z} at six digits ({@code result.CellText}), legend-engine's JSON (its ServiceTestRunner /
      * PURE_TDSOBJECT value transformer, witnessed 2026-09-16 on the stress corpus) the GMT {@code +0000}
-     * ({@code edge.Presenter}). One owner beside {@link #toEngineString} (the literal body). */
+     * ({@code edge.Presenter}). One owner beside {@link #canonicalText} (the literal body). */
     /** A time-bearing value's digits as CARRIED (the user's §10 rulings 3 and 5, 2026-11-16: "The value itself is
      *  carried exactly"): six fraction digits, or all nine where it is finer than a microsecond -- the value's own
      *  digits, which a carrier writes without deciding (the writers are carriage only, R3). A date-only value its
@@ -100,9 +100,9 @@ public sealed interface PureDateLiteral
 
     default String toNineDigits() {
         return switch (this) {
-            case Year y -> y.toEngineString();
-            case YearMonth ym -> ym.toEngineString();
-            case StrictDate d -> d.toEngineString();
+            case Year y -> y.canonicalText();
+            case YearMonth ym -> ym.canonicalText();
+            case StrictDate d -> d.canonicalText();
             case DateWithHour h -> engineJson(h.year(), h.month(), h.day(), h.hour(), 0, 0, "000000000");
             case DateWithMinute m -> engineJson(m.year(), m.month(), m.day(), m.hour(), m.minute(), 0, "000000000");
             case DateWithSecond sec -> engineJson(sec.year(), sec.month(), sec.day(), sec.hour(), sec.minute(),
@@ -177,12 +177,13 @@ public sealed interface PureDateLiteral
     }
 
     /**
-     * Canonical engine-faithful spelling without the leading {@code %}
-     * prefix and with timezone normalised to GMT (no TZ suffix).
-     * Round-trip identity: {@code parse(x.toEngineString())} equals
+     * The product's CANONICAL text of the literal (renamed from toEngineString, J43 of the edge audit, 2026-11-18: it is
+     * lite's own canonical date text, which legend-engine's happens to share): no leading {@code %}, the timezone
+     * normalised to GMT (no TZ suffix).
+     * Round-trip identity: {@code parse(x.canonicalText())} equals
      * {@code x}.
      */
-    String toEngineString();
+    String canonicalText();
 
     /**
      * THE precision ladder (remediation T3.1) &mdash; one ordered scale
@@ -406,75 +407,75 @@ public sealed interface PureDateLiteral
     }
 
     // ---------------------------------------------------------------
-    // Variants (each toString IS toEngineString — the wire value's text
+    // Variants (each toString IS canonicalText — the wire value's text
     // is its pure spelling, so no stringification site can ever print
     // record syntax)
     // ---------------------------------------------------------------
 
     record Year(int year) implements PureDateLiteral {
-        @Override public String toEngineString() { return Integer.toString(year); }
+        @Override public String canonicalText() { return Integer.toString(year); }
 
-        @Override public String toString() { return toEngineString(); }
+        @Override public String toString() { return canonicalText(); }
     }
 
     record YearMonth(int year, int month) implements PureDateLiteral {
-        @Override public String toEngineString() {
+        @Override public String canonicalText() {
             return spelled(2, year, month, 0, 0, 0, 0, null);
         }
 
-        @Override public String toString() { return toEngineString(); }
+        @Override public String toString() { return canonicalText(); }
     }
 
     record StrictDate(int year, int month, int day) implements PureDateLiteral {
-        @Override public String toEngineString() {
+        @Override public String canonicalText() {
             return spelled(3, year, month, day, 0, 0, 0, null);
         }
 
-        @Override public String toString() { return toEngineString(); }
+        @Override public String toString() { return canonicalText(); }
     }
 
     record DateWithHour(int year, int month, int day, int hour) implements PureDateLiteral {
-        @Override public String toEngineString() {
+        @Override public String canonicalText() {
             return spelled(4, year, month, day, hour, 0, 0, null);
         }
 
-        /** The literal body ({@link #toEngineString}), no zone, as every date kind (W8, 2026-11-16). */
-        @Override public String toString() { return toEngineString(); }
+        /** The literal body ({@link #canonicalText}), no zone, as every date kind (W8, 2026-11-16). */
+        @Override public String toString() { return canonicalText(); }
     }
 
     record DateWithMinute(int year, int month, int day, int hour, int minute) implements PureDateLiteral {
-        @Override public String toEngineString() {
+        @Override public String canonicalText() {
             return spelled(5, year, month, day, hour, minute, 0, null);
         }
 
-        /** The literal body ({@link #toEngineString}), no zone (W8 of docs/records/d-plan-2026-11-16.md, 2026-11-16):
+        /** The literal body ({@link #canonicalText}), no zone (W8 of docs/records/d-plan-2026-11-16.md, 2026-11-16):
          * legend-pure's print form, which writes {@code +0000} from a minute on, is the edge's and the judges' own
          * printer's, never this value's; the product writes S312's text ({@code result.CellText}). */
-        @Override public String toString() { return toEngineString(); }
+        @Override public String toString() { return canonicalText(); }
     }
 
     record DateWithSecond(int year, int month, int day, int hour, int minute, int second) implements PureDateLiteral {
-        @Override public String toEngineString() {
+        @Override public String canonicalText() {
             return spelled(6, year, month, day, hour, minute, second, null);
         }
 
-        /** The literal body ({@link #toEngineString}), no zone (W8 of docs/records/d-plan-2026-11-16.md, 2026-11-16):
+        /** The literal body ({@link #canonicalText}), no zone (W8 of docs/records/d-plan-2026-11-16.md, 2026-11-16):
          * legend-pure's print form, which writes {@code +0000} from a minute on, is the edge's and the judges' own
          * printer's, never this value's; the product writes S312's text ({@code result.CellText}). */
-        @Override public String toString() { return toEngineString(); }
+        @Override public String toString() { return canonicalText(); }
     }
 
     record DateWithSubsecond(int year, int month, int day,
                              int hour, int minute, int second,
                              String subsecond) implements PureDateLiteral {
-        @Override public String toEngineString() {
+        @Override public String canonicalText() {
             return spelled(7, year, month, day, hour, minute, second, subsecond);
         }
 
-        /** The literal body ({@link #toEngineString}), no zone (W8 of docs/records/d-plan-2026-11-16.md, 2026-11-16):
+        /** The literal body ({@link #canonicalText}), no zone (W8 of docs/records/d-plan-2026-11-16.md, 2026-11-16):
          * legend-pure's print form, which writes {@code +0000} from a minute on, is the edge's and the judges' own
          * printer's, never this value's; the product writes S312's text ({@code result.CellText}). */
-        @Override public String toString() { return toEngineString(); }
+        @Override public String toString() { return canonicalText(); }
     }
 
     // ---------------------------------------------------------------

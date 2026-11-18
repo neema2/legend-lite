@@ -1401,8 +1401,7 @@ final class ArchitectureTest {
             "lowering.SqlPostProcessors#applyRecorded(com.legend.sql.SqlQuery, java.util.Map, boolean, boolean)",
             "com.legend.edge.EnginePlans",
             "lowering.SqlPostProcessors#nonExecutable(com.legend.sql.SqlQuery)", "com.legend.edge.EnginePlans",
-            "planner.BodyPlanner#boundContext(com.legend.compiler.spec.typed.TypedSpec, com.legend.compiler.spec.SpecCompiler)",
-            "com.legend.edge.EnginePlans",
+            // (planner.BodyPlanner#boundContext left 2026-11-18, J40's only-edge-callers census: edge.RuntimeContexts)
             "planner.BodyPlanner#featuresOf(com.legend.planner.PlanEnv, java.util.List)", "com.legend.edge.EnginePlans",
             // (planner.BodyPlanner#pushDownEnums left 2026-11-18, J40: the edge's, EnginePlans.pushDownEnums, over featuresOf)
             "planner.BodyPlanner#resolver(com.legend.compiler.spec.SpecCompiler, com.legend.planner.PlanEnv)",
@@ -1425,14 +1424,9 @@ final class ArchitectureTest {
             "planner.QueryParameters$Declared#optional()", "com.legend.edge.EnginePlans",
             // Declared#planParam(String) and #signature() GONE 2026-11-18 (the audit's J31): legend-engine's template
             // parameter is the edge's (edge.EngineParams), which reads the declared multiplicity and optionality
-            "planner.QueryParameters$Declared#type()", "com.legend.edge.EnginePlans",
-            "planner.SqlTextInputs#dialect()", "com.legend.edge.EnginePlans",
-            "planner.SqlTextInputs#mapping()", "com.legend.edge.EnginePlans",
-            "planner.SqlTextInputs#of(com.legend.compiler.spec.NativeDispatch$RoutineCall, java.util.List)",
-            "com.legend.edge.EnginePlans",
-            "planner.SqlTextInputs#query()", "com.legend.edge.EnginePlans",
-            "planner.SqlTextInputs#receiverForm()", "com.legend.edge.EnginePlans",
-            "planner.SqlTextInputs#runtime()", "com.legend.edge.EnginePlans"
+            "planner.QueryParameters$Declared#type()", "com.legend.edge.EnginePlans"
+            // (planner.SqlTextInputs's six rows left 2026-11-18, J40's only-edge-callers census: the record moved to
+            // the edge, edge.SqlTextInputs)
             // 2026-11-15 (C5-J item 3): the resolver's seven reads of the lowering's helpers left this list -- the
             // reducer table moved to compiler.element.Reducers and the object reference's protocol to model.AsorRef, below
             // both; the resolver reaches the lowering no more (tools/deps/core-layers.txt)

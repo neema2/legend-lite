@@ -78,10 +78,6 @@ public record ExecutionContext(Optional<TypedPackageableRef> mapping,
             tableReplace = java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(tableReplace));
         }
 
-        public PostProcessors withNonExecutable(boolean on) {
-            return on == nonExecutable ? this
-                    : new PostProcessors(tableReplace, extractCtes, on);
-        }
     }
 
     /** A {@code testDataSetupCsv} block with the DATABASE it seeds (the
@@ -116,21 +112,11 @@ public record ExecutionContext(Optional<TypedPackageableRef> mapping,
                         connectionInstance, storeFqn, driverTablePk, cols, postProcessors, features);
     }
 
-    /** A connection instance as the plan text names it ({@code DatabaseConnection(type = "DB2")}): its class's
-     *  simple name, and its DatabaseType's name, or null when the body computes the type: unknown here, never
-     *  assumed (invariant 4); the plan text refuses it. */
+    /** A connection instance as the typer reads it: its class's simple name, and its DatabaseType's name, or null
+     *  when the body computes the type -- unknown here, never assumed (invariant 4). */
     public record PlanConnection(String className, @com.legend.base.Nullable String type) {
-
-        /** The plan text's line for it: the instance's own type, never an assumed one; one its body computes is
-         *  refused (until the PR audit of 2026-10-16 the walk went on to a sibling, or printed the engine's test
-         *  database's). */
-        public String planText() {
-            if (type == null) {
-                throw new com.legend.error.NotImplementedException("the plan's " + className
-                        + " takes a database type its body computes: the plan text reads only a literal one");
-            }
-            return className + "(type = \"" + type + "\")";
-        }
+        // (planText, legend-engine's plan text line for it: moved to the edge's EnginePlans, 2026-11-18, the edge
+        // audit's J40 -- the fact stays, its engine spelling is the edge's printer's)
     }
 
     /** No binding at all (a from() the resolver scopes from its outer context). */
@@ -190,8 +176,6 @@ public record ExecutionContext(Optional<TypedPackageableRef> mapping,
         return out.withFeatures(ContextReading.contextFeatures(contextArg, bind));
     }
 
-    /** This context with other post-processor facts (a text surface that
-     * runs its query under the producer's own nonExecutable pass). */
     /** The execute-call context argument's feature flags folded in (an
      *  {@code ExecutionOptionContext}'s {@code FeatureFlagOption.flags}). */
     /** The flags {@code withFeatureFlags} calls inside a query body carry
@@ -213,12 +197,8 @@ public record ExecutionContext(Optional<TypedPackageableRef> mapping,
                 java.util.Collections.unmodifiableSet(new java.util.LinkedHashSet<>(all)));
     }
 
-    public ExecutionContext withPostProcessors(PostProcessors pp) {
-        return pp.equals(postProcessors) ? this
-                : new ExecutionContext(mapping, runtime, chainMappings, jsonSources, sqlSetups,
-                        csvSetups, connectionName, quoteIdentifiers, timeZone, databaseType,
-                        connectionInstance, storeFqn, driverTablePk, importDataFlowColumns, pp, features);
-    }
+    // (withPostProcessors and PostProcessors.withNonExecutable: gone 2026-11-18, the edge audit's J40 -- legend-engine's
+    // nonExecutable post-processor is set by the edge's SQL-text arm alone, through the canonical constructor)
 
     /** This context with an INHERITED chain when it declares none of its own
      * (a nested from() under a plan execution re-evaluated as a value). */

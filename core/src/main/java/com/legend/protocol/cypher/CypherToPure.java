@@ -15098,7 +15098,7 @@ public final class CypherToPure {
             case Scalar s when s.tx().kind() == Kind.DATE -> {
                 if (s.tx().vs() instanceof com.legend.protocol.spec.CDate d
                         && d.value() instanceof com.legend.values.PureDateLiteral.StrictDate sd) {
-                    throw CypherErrors.invalid("Cannot get the time of: " + sd.toEngineString(), c.pos());
+                    throw CypherErrors.invalid("Cannot get the time of: " + sd.canonicalText(), c.pos());
                 }
                 throw CypherErrors.unsupported("the time of a date of the row (Neo4j's error names the date) is not"
                         + " supported yet", c.pos());
@@ -16525,19 +16525,19 @@ public final class CypherToPure {
     private static @com.legend.base.Nullable String printed(Tx t) {
         if (t.vs() instanceof com.legend.protocol.spec.CDate d) {
             return switch (d.value()) {
-                case com.legend.values.PureDateLiteral.StrictDate sd -> sd.toEngineString();
-                case com.legend.values.PureDateLiteral.DateWithMinute m -> m.toEngineString() + ":00";
-                case com.legend.values.PureDateLiteral.DateWithSecond s -> s.toEngineString();
-                case com.legend.values.PureDateLiteral.DateWithSubsecond s -> s.toEngineString().substring(0, 19)
+                case com.legend.values.PureDateLiteral.StrictDate sd -> sd.canonicalText();
+                case com.legend.values.PureDateLiteral.DateWithMinute m -> m.canonicalText() + ":00";
+                case com.legend.values.PureDateLiteral.DateWithSecond s -> s.canonicalText();
+                case com.legend.values.PureDateLiteral.DateWithSubsecond s -> s.canonicalText().substring(0, 19)
                         + fraction(s.subsecond());
                 default -> null;
             };
         }
         if (t.vs() instanceof com.legend.protocol.spec.CTime ct && ct.value() != null) {
             return switch (ct.value()) {
-                case com.legend.values.PureTimeLiteral.TimeWithMinute m -> m.toEngineString() + ":00";
-                case com.legend.values.PureTimeLiteral.TimeWithSecond s -> s.toEngineString();
-                case com.legend.values.PureTimeLiteral.TimeWithSubsecond s -> s.toEngineString().substring(0, 8)
+                case com.legend.values.PureTimeLiteral.TimeWithMinute m -> m.canonicalText() + ":00";
+                case com.legend.values.PureTimeLiteral.TimeWithSecond s -> s.canonicalText();
+                case com.legend.values.PureTimeLiteral.TimeWithSubsecond s -> s.canonicalText().substring(0, 8)
                         + fraction(s.subsecond());
             };
         }
@@ -16734,7 +16734,7 @@ public final class CypherToPure {
                 // Neo4j's error names the date: spelled for a written date, refused by name for one of the row
                 if (s.tx().vs() instanceof com.legend.protocol.spec.CDate d
                         && d.value() instanceof com.legend.values.PureDateLiteral.StrictDate sd) {
-                    throw CypherErrors.invalid("Cannot get the time of: " + sd.toEngineString(), c.pos());
+                    throw CypherErrors.invalid("Cannot get the time of: " + sd.canonicalText(), c.pos());
                 }
                 throw CypherErrors.unsupported("the time of a date of the row (Neo4j's error names the date) is not"
                         + " supported yet", c.pos());
@@ -16782,7 +16782,7 @@ public final class CypherToPure {
             return splitTime(Tx.value(clockNanos(lit(sub.hour()), lit(sub.minute()), lit(sub.second()),
                     lit(fractionNanos(sub.subsecond()))), Kind.INTEGER, false));
         }
-        return Tx.value(new com.legend.protocol.spec.CTime(lit, lit.toEngineString(), null), Kind.TIME, false);
+        return Tx.value(new com.legend.protocol.spec.CTime(lit, lit.canonicalText(), null), Kind.TIME, false);
     }
 
     /** Pure's time literal for the clock a text spelled (the fraction's trailing zeros past the sixth digit
@@ -17023,11 +17023,11 @@ public final class CypherToPure {
             // database adds up from the written clock
             com.legend.values.PureDateLiteral.StrictDate day = new com.legend.values.PureDateLiteral.StrictDate(
                     sub.year(), sub.month(), sub.day());
-            return splitDateTime(Tx.value(new com.legend.protocol.spec.CDate(day, day.toEngineString(), null),
+            return splitDateTime(Tx.value(new com.legend.protocol.spec.CDate(day, day.canonicalText(), null),
                     Kind.DATE, false), Tx.value(clockNanos(lit(sub.hour()), lit(sub.minute()), lit(sub.second()),
                     lit(fractionNanos(sub.subsecond()))), Kind.INTEGER, false));
         }
-        return Tx.value(new com.legend.protocol.spec.CDate(lit, lit.toEngineString(), null), kind, false);
+        return Tx.value(new com.legend.protocol.spec.CDate(lit, lit.canonicalText(), null), kind, false);
     }
 
     /**
@@ -17262,7 +17262,7 @@ public final class CypherToPure {
         if (t.calendar()) {
             com.legend.values.PureDateLiteral lit = new com.legend.values.PureDateLiteral.StrictDate(
                     part(d, Component.YEAR), part(d, Component.MONTH), part(d, Component.DAY));
-            return new com.legend.protocol.spec.CDate(lit, lit.toEngineString(), null);
+            return new com.legend.protocol.spec.CDate(lit, lit.canonicalText(), null);
         }
         Map<Component, ValueSpecification> p = new java.util.EnumMap<>(Component.class);
         d.forEach((k, v) -> p.put(k, lit(v)));

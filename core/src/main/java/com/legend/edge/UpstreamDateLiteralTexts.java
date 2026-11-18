@@ -22,6 +22,6 @@ public enum UpstreamDateLiteralTexts implements com.legend.testplan.DateLiteralT
      *  {@code testexecutionplan.Verdicts} (census C5's Verdicts row, 2026-11-17: its last reader). */
     static String pureText(com.legend.values.PureDateLiteral d) {
         return d.precision().atLeast(com.legend.values.PureDateLiteral.Precision.MINUTE)
-                ? d.toEngineString() + "+0000" : d.toEngineString();
+                ? d.canonicalText() + "+0000" : d.canonicalText();
     }
 }

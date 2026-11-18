@@ -19,6 +19,11 @@ import com.legend.compiler.spec.typed.TypedSpec;
  */
 public final class EnginePlans {
 
+    /** legend-engine's deprecated toDDL string generators (toDDL.pure's 1-/3-arg forms; testDDL.pure:42-45), read from
+     *  the NativeFn catalog -- moved from the product's PlatformTypes, 2026-11-18, the edge audit's J40. */
+    private static final String DROP_SCHEMA_STATEMENT = com.legend.builtin.NativeFn.DdlStatement.DROP_SCHEMA_STATEMENT.fqn(), CREATE_SCHEMA_STATEMENT = com.legend.builtin.NativeFn.DdlStatement.CREATE_SCHEMA_STATEMENT.fqn(), DROP_TABLE_STATEMENT = com.legend.builtin.NativeFn.DdlStatement.DROP_TABLE_STATEMENT.fqn();
+
+
     private EnginePlans() {
     }
 
@@ -382,7 +387,7 @@ public final class EnginePlans {
         // property walkers see the constructed connection (the
         // quoteIdentifiers-flag goldens' testRuntime(quote) idiom)
         com.legend.compiler.spec.typed.ExecutionContext pc = hasRuntimeArg
-                ? BodyPlanner.boundContext(ep.args().get(2), specs) : null;
+                ? RuntimeContexts.boundContext(ep.args().get(2), specs) : null;
         // the query's feature flags: the exeCtx overload's context argument
         // (an ExecutionOptionContext) and withFeatureFlags calls in the query
         // itself — read into the frame's options, the ONE ambient channel the
@@ -413,7 +418,7 @@ public final class EnginePlans {
                         lam.body().get(lam.body().size() - 1))
                 : null;
         var conn = pc != null && pc.connectionName() != null ? pc.connectionName() : fromConn;
-        String connName = conn != null ? conn.planText()
+        String connName = conn != null ? planText(conn)
                 // no connection instance read at all: the engine's test runtime's (the reader gap W2.1)
                 : "TestDatabaseConnection(type = \"" + EngineText.ENGINE_TEST_DATABASE.name() + "\")";
         com.legend.model.ConnectionDefinition.DatabaseType dbType = planDatabase(pc);
@@ -591,6 +596,12 @@ public final class EnginePlans {
 
     /** Pre-order search for the first {@code TypedFrom} carrying a
      * connection-name hint (instance-runtime from()). */
+    /** legend-engine's plan text line for a connection instance ({@code DatabaseConnection(type = "DB2")}): the
+     *  instance's own type, never an assumed one; one its body computes is refused (moved from the product's
+     *  ExecutionContext.PlanConnection, 2026-11-18, the edge audit's J40: the fact the product's, its engine spelling
+     *  the edge's printer's). */
+    private static String planText(com.legend.compiler.spec.typed.ExecutionContext.PlanConnection c) { if (c.type() == null) { throw new com.legend.error.NotImplementedException("the plan's " + c.className() + " takes a database type its body computes: the plan text reads only a literal one"); } return c.className() + "(type = \"" + c.type() + "\")"; }
+
     private static com.legend.compiler.spec.typed.ExecutionContext.@com.legend.base.Nullable PlanConnection firstFromConnectionName(
             com.legend.compiler.spec.typed.TypedSpec t) {
         return com.legend.compiler.spec.typed.ExecutionContext.froms(t).stream()
@@ -797,7 +808,7 @@ public final class EnginePlans {
         // same helper-call inlining as planToString: testRuntime(true)
         // carries the connection flags inside its body
         com.legend.compiler.spec.typed.ExecutionContext pc2 = ep.args().size() > 2
-                ? BodyPlanner.boundContext(ep.args().get(2), specs) : null;
+                ? RuntimeContexts.boundContext(ep.args().get(2), specs) : null;
         boolean quote = pc2 != null && pc2.quoteIdentifiers();
         String tz = pc2 != null ? pc2.timeZone() : null;
         EngineParams params = EngineParams.none();
@@ -948,10 +959,8 @@ public final class EnginePlans {
     public static String ddlText(
             com.legend.compiler.spec.typed.TypedNativeCall ds, PlanEnv env) {
         String fqn = ds.callee().qualifiedName();
-        if (com.legend.compiler.element.type.PlatformTypes
-                .DROP_SCHEMA_STATEMENT.equals(fqn)
-                || com.legend.compiler.element.type.PlatformTypes
-                        .CREATE_SCHEMA_STATEMENT.equals(fqn)) {
+        if (DROP_SCHEMA_STATEMENT.equals(fqn)
+                || CREATE_SCHEMA_STATEMENT.equals(fqn)) {
             if (!(ds.args().get(0)
                     instanceof com.legend.compiler.spec.typed.TypedCString sc)) {
                 throw new IllegalStateException(fqn + ": only literal schema"
@@ -960,8 +969,7 @@ public final class EnginePlans {
             }
             // the engine text renders the IR's schema DDL, as the table statements below
             // (the dialect program's Phase 3, 2026-10-16: until then the text was written here)
-            return PureText.engineText(EngineText.ENGINE_TEST_DATABASE).render(com.legend.compiler.element.type.PlatformTypes
-                    .DROP_SCHEMA_STATEMENT.equals(fqn)
+            return PureText.engineText(EngineText.ENGINE_TEST_DATABASE).render(DROP_SCHEMA_STATEMENT.equals(fqn)
                     ? new com.legend.sql.SqlDdl.DropSchema(sc.value(), false)
                     : new com.legend.sql.SqlDdl.CreateSchema(sc.value(), false));
         }
@@ -980,8 +988,7 @@ public final class EnginePlans {
         String tbl = twoArg ? a1.value()
                 : ((com.legend.compiler.spec.typed.TypedCString)
                         ds.args().get(2)).value();
-        if (com.legend.compiler.element.type.PlatformTypes
-                .DROP_TABLE_STATEMENT.equals(fqn)) {
+        if (DROP_TABLE_STATEMENT.equals(fqn)) {
             return PureText.engineText(EngineText.ENGINE_TEST_DATABASE).render(com.legend.setup.Ddl.dropTable(sch, tbl));
         }
         String lookup = "default".equals(sch) ? tbl : sch + "." + tbl;
