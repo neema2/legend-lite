@@ -112,9 +112,13 @@ heavy round (it includes `//pct:edge_contract_test` and `//core:cypher_parity_te
 
 ## 3. Where it ended
 
-(Filled in at PR time: d-stage's head, the census, the last heavy round, CI.)
-
-- **The count:** 0 on d-stage `<head>` (GUARD's census of record).
+- **The PR:** #118, https://github.com/neema2/legend-lite/pull/118 (`claude/total-wall-d-stage` -> `main`), opened
+  2026-11-18 ~14:39 UTC. **Not merged; it needs the user's word.**
+- **The head:** d-stage `688ed9fde` (`688ed9fdef4e6338762eb455a0f6d09cd48cbf5a`). It is one commit on F's L10
+  `61e5205d1` that adds the handoff and follow-ups snapshots (from orch `a1fe26d7b`) and deletes
+  `.github/workflows/stage-linux.yml`.
+- **The count:** 0 on `61e5205d1` (F's census: lines 0, AUDIT 0, EDGE-ONLY MEMBERS 0, LENS 0). D's heavy round
+  re-runs `//core:census` and `//core:census_edge` on `688ed9fde` (§8.3).
 - **Trains:** `<N>` integration trains landed on `claude/total-wall-d-stage`, each through one integrator (D) with one
   heavy round.
 - **The host train** (train 19) carried the Python, TypeScript and DataCube halves together, including plan format
@@ -325,27 +329,48 @@ cosmetic.
    deletion of `.github/workflows/stage-linux.yml` (a throwaway Linux-only workflow for D's staging branch; it never
    goes to main).
 
-The census of record on the PR head: **0** (filled in from GUARD and D at PR time: `<census on head>`).
+The census of record: **0** on `61e5205d1` (F). The PR head is `688ed9fde`, the same code plus the two docs and the workflow deletion.
 
 ### 8.2 What ran where
 
 | Where | What | Who |
 |---|---|---|
 | **The PR's CI** (`gate.yml` / `gates-run.yml`) | every lane in `gates/BUILD.bazel` on Linux, macOS and Windows (product, core, checks, corpus_duckdb, corpus_h2, pct_duckdb, pct_h2, pct_postgres, pct_channel_b, parser_equivalence, stress, warehouse, datacube, ui, sdlc), the warehouse on Linux arm, the product build, and `shrink_only` against the merge base | GitHub, started when the PR opens |
-| **D's heavy round** | the same full set as train 18's (31 targets from `//gates:heavy`, the manual suite CI never runs), including the edge golden net `//pct:edge_contract_test`, plus the build sweep, on the PR's own commit, in parallel with CI | D (`session_01XmdJ7kRamr4Sexmcrguc94`); results in §8.3 |
+| **D's heavy round** | 41 targets on `688ed9fde` in one `bazel test --keep_going --jobs=3` after a plain `bazel clean`, a superset of train 18's 31 (list below), including the edge golden net `//pct:edge_contract_test`. Then the build sweep (`bazel build` per package with a clean between: `//core/...`, `//spec/...`, `//pct/...`, `//parser-equivalence/...`, `//tools/...`). Then six manual `//gates:heavy` targets that nothing else runs (below). All in parallel with CI | D (`session_01XmdJ7kRamr4Sexmcrguc94`); results in §8.3 |
 | **The database lanes** | PCT channel A and B and the product probe on MariaDB, MySQL, ClickHouse, Trino, MongoDB, SQLite, Snowflake, Databricks and BigQuery, at `815de5810` and the PR head (§7.2) | the reviewing account's warm lane sessions |
 | **The audit** | §7.3's five questions, at xhigh | the reviewing account |
 
 The census and guardrails (product and edge) are in CI's `checks` lane; cypher parity is in CI's `core` lane. The
 edge golden net is NOT in CI (follow-up D6/F33), so D's heavy round is its only run on the final commit.
 
+**D's 41 targets:**
+`//core:census //core:census_edge //core:guardrails //core:guardrails_edge //tools/deps:edge_separation_closure_test`
+`//core:core_tests_architecture //core:core_tests_testplan //core:core_tests_testexec //core:core_tests_compiler
+//core:core_tests_integration //core:core_tests_root //core:core_tests_planner //core:core_tests_server
+//core:core_tests_lowering //core:core_tests_resolver //core:core_tests_sql //core:core_tests_protocol`
+`//core:core_edge_tests //core:update_edge_pure_v1_test`
+`//spec:update_edge_corpus_0_test` .. `_3_test`, `//spec:corpus_duckdb_verdict //spec:corpus_h2_verdict`
+`//pct:update_ratchets_test //pct:pct_channel_b_essential //pct:pct_channel_b_grammar //pct:pct_channel_b_standard
+//pct:pct_channel_b_unclassified //pct:pct_channel_b_relation //pct:pct_channel_b_ledger_test`
+`//core:lean_sql_baseline_test //core:query_capture_test //spec:lean_sql_corpus_duckdb //spec:lean_sql_corpus_h2`
+`//core:update_generated_4_test //core:cypher_parity_test //docs:update_dialect_capability_test
+//parser-equivalence:update_ratchets_test`
+`//pct:edge_contract_test`
+
+**The six manual targets after the sweep** (in `//gates:heavy`, run by nothing else; each red one is also run at the
+base `815de5810` to tell new from old): `//spec:reference_lane //spec:corpus_warehouse_verdict //core:answer_snapshot
+//pct:pct_channel_b_twice //core:data_source_servers_test //core:mongodb_plan_test`. **Not run by anyone in this
+round:** `//scripts/corpus:engine_stress` (hours of CPU), `//core:iq_corpus_test` and `//core:pg_regress_corpus_test`
+(external corpora), the cloud `ts_*` tests (credentials), and the measurement targets (they print numbers and have no
+verdict).
+
 ### 8.3 Results (filled in on the live copy as they arrive)
 
 | Check | Commit | Result |
 |---|---|---|
-| D's heavy round (31 targets) + build sweep | `<PR head>` | `<pending>` |
-| The PR's CI | `<PR head>` | `<pending>` (PR `#<N>`) |
-| GUARD's census | `<PR head>` | `<pending>` (expected 0) |
+| D's heavy round (41 targets) + build sweep + the six | `688ed9fde` | running (started ~14:39) |
+| The PR's CI | `688ed9fde` | running (PR #118) |
+| The census | `61e5205d1` / `688ed9fde` | 0 (F) / re-run in D's round |
 
 ### 8.4 What to expect, and traps
 
