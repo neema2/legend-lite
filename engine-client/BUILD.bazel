@@ -660,6 +660,10 @@ test_suite(
     name = "tests",
     tests = [
         ":arrow_ipc_test",
+        # the engine module, opt-in (K2), and lite API v1's server binding: found in no lane by CI's lane guard on PR #118
+        # (PR #118 fix round, 2026-11-18)
+        ":engine_module_test",
+        ":lite_api_server_test",
         ":model_data_test",
         ":node_duckdb_test",
         ":plan_runner_test",

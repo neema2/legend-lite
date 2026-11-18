@@ -51,11 +51,17 @@ test_suite(
         "//core:keyed_expansion_conformance_test",
         # a product raise's envelope, one fixture Java's, the tab's and Python's readers agree on (#104's M2(b), 2026-11-15)
         "//core:raise_envelope_conformance_test",
+        # lite API v1's conformance suite, the browser binding's reader (its fixture the server's and Python's read too);
+        # found in no lane by CI's lane guard on PR #118 (PR #118 fix round, 2026-11-18)
+        "//core:lite_api_conformance_test",
         # the cross-engine differential over the stress corpus (P3-18): seconds
         "//core:corpus_differential_test",
         # the planner on java.base alone (P3-19): seconds
         "//core:planner_on_java_base_test",
         "//core:postgres_arm_test",
+        # isNumeric's one rule on DuckDB, H2, SQLite and the embedded Postgres 16 (census J20); found in no lane by CI's
+        # lane guard on PR #118 (PR #118 fix round, 2026-11-18)
+        "//core:is_numeric_probe_test",
         # the #SQL{}# island's cases on the embedded Postgres 16: Postgres's own answers, and the islands through the
         # Postgres dialect
         "//core:sql_island_postgres_test",
@@ -296,6 +302,9 @@ test_suite(
         # its Python bindings: the planner differential corpus, the bindings' own suite, the frames and the engine
         "//python:bindings_test",
         "//python:engine_test",
+        # the edge's Python tests, the one target that takes //python:edge (legend-engine's routes on); found in no lane by
+        # CI's lane guard on PR #118 (PR #118 fix round, 2026-11-18)
+        "//python:edge_test",
         # the markets example over the trading model's classes on Python: its saved queries, tiles and marks (Phase 6, D6)
         "//python:markets_test",
         # #TS's Python builders: gs-quant's names over core's catalog, every Show Python fixture read back (item 13;
@@ -349,6 +358,10 @@ test_suite(
         "//datacube:package_test",
         "//datacube:browser",
         "//wasm:differential_test",
+        # the product module holds no edge entry, and the engine module answers legend-engine's routes as the planner did
+        # before the split (K2, 2026-11-18); found in no lane by CI's lane guard on PR #118 (PR #118 fix round, 2026-11-18)
+        "//wasm:product_module_test",
+        "//wasm:engine_routes_test",
         "//wasm:zone_test",
         # TeaVM's class library against the JDK's, held to its ledger of known differences (seconds)
         "//wasm:conformance_test",

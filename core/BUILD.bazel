@@ -1176,6 +1176,7 @@ junit_test(
     select = ["--select-class=com.legend.planner.IsNumericProbeTest"],
     runtime_deps = [":drivers"],
     target_compatible_with = EMBEDDED_POSTGRES_COMPATIBLE,
+    visibility = ["//gates:__pkg__"],
     deps = [
         ":core",
         ":test_backends",
@@ -1404,6 +1405,7 @@ junit_test(
     # answers the edge's routes too): an edge test, so no product test reaches the edge (A5; the TS host's catch,
     # 2026-11-17)
     tags = ["edge_test"],
+    visibility = ["//gates:__pkg__"],
     deps = [
         "//json",
         "//testing",

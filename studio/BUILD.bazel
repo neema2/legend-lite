@@ -256,6 +256,8 @@ test_suite(
         ":engine_test",
         ":query_builder_test",
         ":rename_test",
+        # found in no lane by CI's lane guard on PR #118 (PR #118 fix round, 2026-11-18)
+        ":run_test",
         ":split_test",
         ":typecheck_test",
         ":workspace_test",
