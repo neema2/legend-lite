@@ -379,7 +379,7 @@ public final class EnginePlans {
         // property walkers see the constructed connection (the
         // quoteIdentifiers-flag goldens' testRuntime(quote) idiom)
         com.legend.compiler.spec.typed.ExecutionContext pc = hasRuntimeArg
-                ? BodyPlanner.boundContext(ep.args().get(2), specs) : null;
+                ? RuntimeContexts.boundContext(ep.args().get(2), specs) : null;
         // the query's feature flags: the exeCtx overload's context argument
         // (an ExecutionOptionContext) and withFeatureFlags calls in the query
         // itself — read into the frame's options, the ONE ambient channel the
@@ -796,7 +796,7 @@ public final class EnginePlans {
         // same helper-call inlining as planToString: testRuntime(true)
         // carries the connection flags inside its body
         com.legend.compiler.spec.typed.ExecutionContext pc2 = ep.args().size() > 2
-                ? BodyPlanner.boundContext(ep.args().get(2), specs) : null;
+                ? RuntimeContexts.boundContext(ep.args().get(2), specs) : null;
         boolean quote = pc2 != null && pc2.quoteIdentifiers();
         String tz = pc2 != null ? pc2.timeZone() : null;
         java.util.LinkedHashMap<String, com.legend.sql.SqlExpr.PlanParam>
