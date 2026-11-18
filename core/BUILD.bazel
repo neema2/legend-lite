@@ -2812,12 +2812,20 @@ genquery(
 )
 
 # a target in a shipped artifact's closure whose main class is the edge's -- but a declared opt-in module (2026-11-18,
-# the orchestrator's ruling on K2's wasm half: "ROOTS exempts declared opt-in modules"): an artifact whose own direct
-# dependency is a declared opt-in library (_EDGE_OPT_IN), as the tab's engine module's is (:edge_tab). One
-# declaration, no second list; an edge-rooted artifact reaching the edge otherwise (the planted one) is still found.
+# the orchestrator's ruling on K2's wasm half: "ROOTS exempts declared opt-in modules"): a module DECLARED here whose
+# own direct dependency is a declared opt-in library (_EDGE_OPT_IN), as the tab's engine module's is (:edge_tab).
+# Narrowed by the GUARD stream the same day (train 19/20's batch): the TS host's first form exempted every artifact
+# directly carrying an opt-in library -- //core:server among them (it carries :edge_server), so its main class could
+# have turned the edge's unseen; now a product artifact carrying an opt-in library is still checked
+# (:planted_opt_in_carrier bites), and a listed module that carries none is not exempt either.
 _EDGE_ROOTED = "attr(main_class, '^com\\.legend\\.edge\\.', deps(set(%s)))"
 
-_OPT_IN_MODULES = "rdeps(deps(set(%s)), set(" + " ".join(_EDGE_OPT_IN) + "), 1)"
+# the declared opt-in modules, each an artifact whose main class is the edge's by design (2026-11-18): the tab's engine
+# module (the orchestrator's ruling on K2's wasm half); the Python host's //native:engine joins with its SHA
+_EDGE_OPT_IN_MODULES = ["//wasm:engine_planner"]
+
+_OPT_IN_MODULES = ("(set(" + " ".join(_EDGE_OPT_IN_MODULES) + ") intersect rdeps(deps(set(%s)), set(" +
+                   " ".join(_EDGE_OPT_IN) + "), 1))")
 
 genquery(
     name = "shipped_edge_roots",
@@ -2838,26 +2846,39 @@ legend_java_binary(
     tags = ["edge_test"],
 )
 
+# THE EXEMPTION'S BITE (2026-11-18, the GUARD stream): a planted product artifact carrying a declared opt-in library
+# (:edge_server, as //core:server does) whose main class is the edge's -- not a declared opt-in module, so found
+legend_java_binary(
+    name = "planted_opt_in_carrier",
+    testonly = True,
+    main_class = "com.legend.edge.EdgeServer",
+    runtime_deps = [":edge_server"],
+    tags = ["edge_test"],
+)
+
+_PLANTED_ARTIFACTS = ["//core:planted_edge_rooted_artifact", "//core:planted_opt_in_carrier"]
+
 genquery(
     name = "shipped_edge_reach_planted",
     testonly = True,
-    expression = "rdeps(deps(set(" + " ".join(_SHIPPED_ARTIFACTS + ["//core:planted_edge_rooted_artifact"]) + ")), (" +
+    expression = "rdeps(deps(set(" + " ".join(_SHIPPED_ARTIFACTS + _PLANTED_ARTIFACTS) + ")), (" +
                  _EDGE_TARGETS + ") except set(" + " ".join(_EDGE_OPT_IN) + "), 1) except (" + _EDGE_TARGETS + ")",
     opts = ["--noimplicit_deps"],
-    scope = _SHIPPED_ARTIFACTS + _EDGE_TARGET_LIST + ["//core:planted_edge_rooted_artifact"],
+    scope = _SHIPPED_ARTIFACTS + _EDGE_TARGET_LIST + _PLANTED_ARTIFACTS,
 )
 
 genquery(
     name = "shipped_edge_roots_planted",
     testonly = True,
     # the same expression as :shipped_edge_roots, the opt-in exemption included (2026-11-18): the planted artifact
-    # reaches the edge through :edge, no declared opt-in, so it is found
+    # reaches the edge through :edge, no declared opt-in, so it is found; the planted carrier reaches it through a
+    # declared opt-in library but is no declared opt-in module, so it is found too
     expression = (_EDGE_ROOTED + " except " + _OPT_IN_MODULES) % (
-        " ".join(_SHIPPED_ARTIFACTS + ["//core:planted_edge_rooted_artifact"]),
-        " ".join(_SHIPPED_ARTIFACTS + ["//core:planted_edge_rooted_artifact"]),
+        " ".join(_SHIPPED_ARTIFACTS + _PLANTED_ARTIFACTS),
+        " ".join(_SHIPPED_ARTIFACTS + _PLANTED_ARTIFACTS),
     ),
     opts = ["--noimplicit_deps"],
-    scope = _SHIPPED_ARTIFACTS + _EDGE_TARGET_LIST + ["//core:planted_edge_rooted_artifact"],
+    scope = _SHIPPED_ARTIFACTS + _EDGE_TARGET_LIST + _PLANTED_ARTIFACTS,
 )
 
 java_jars(
