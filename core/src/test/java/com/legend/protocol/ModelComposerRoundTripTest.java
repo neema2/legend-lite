@@ -393,7 +393,7 @@ class ModelComposerRoundTripTest {
                 }
                 """, printed);
         assertEquals(stripped(parse(text)), stripped(parse(printed)), printed);
-        String pretty = ModelComposer.model(Json.toCompact(parse(text)), PureComposer.Style.PRETTY);
+        String pretty = ModelComposer.model(ModelReader.read(parse(text)), PureComposer.Style.PRETTY);
         assertEquals(stripped(parse(text)), stripped(parse(pretty)), pretty);
     }
 
