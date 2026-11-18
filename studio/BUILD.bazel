@@ -214,6 +214,9 @@ browser_test(
         "STUDIO_PROJECTS_MANIFEST": "$(rlocationpath demo/projects/manifest.json)",
     },
     wasm = True,
+    # the engine test asks legend-engine's routes too: the engine module's, beside the planner (the user's K2 ruling,
+    # 2026-11-18: "Product root, edge opt-in"); the other tests load the planner alone
+    engine = t == "test/engine.test.ts",
 ) for t in glob(["test/*.test.ts"])]
 
 # the demo projects (design S18), by runfiles path for the test that publishes them (STUDIO_PROJECTS_MANIFEST)

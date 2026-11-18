@@ -24,6 +24,7 @@ import { SecretStore } from '../src/host-operations.ts';
 import { readFileSync } from 'node:fs';
 import { runfileFromEnv } from '../../tools/js/runfiles.mts';
 import { loadPlanner, loadPlannerModule, loadPlannerPort } from './planner.ts';
+import { loadEnginePort } from './engine.ts';
 import { WasmEdgeGrammar } from '../src/legend/wasm-edge.ts';
 import { accessor, eq, fn, lambda, lit, property, toJson, variable, type ValueSpecification } from '../../pure-protocol/src/index.ts';
 import type { WasmGrammar } from '../src/legend/wasm-grammar.ts';
@@ -633,7 +634,7 @@ Runtime m::RT { mappings: [m::MM]; connections: [ ModelStore: [ json: #{ JsonMod
   });
 
   it("the tab's pure/v1 execute (BrowserEngine) binds it too: the answer's rows are the records", async () => {
-    const browser = new BrowserEngine(new WasmEdgeGrammar(await loadPlannerPort()), engine, 'tester');
+    const browser = new BrowserEngine(new WasmEdgeGrammar(await loadPlannerPort(), await loadEnginePort()), engine, 'tester');
     const text = await browser.executeText({
       clientVersion: 'vX_X_X', function: await grammar.lambda(QUERY),
       model: { _type: 'text', code: jsonModel(RECORDS) } as never, runtime: { runtime: 'm::RT' },

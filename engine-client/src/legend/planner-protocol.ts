@@ -14,7 +14,6 @@ export const REQUEST_KINDS = [
   'queryTypeHeld',
   'tableModel',
   'catalogColumnsSql',
-  'pureV1',
   'modelCheck',
   'modelElements',
   'queryParse',
@@ -26,8 +25,6 @@ export const REQUEST_KINDS = [
   'modelCreateDataSpace',
   'tsItem',
   'tsStatement',
-  'executePlan',
-  'executeAnswer',
   'fileLoad',
   'remoteMount',
   'snapStream',
@@ -60,16 +57,12 @@ export type RequestBody =
   | { readonly kind: 'queryPlanHeld' | 'queryTypeHeld'; readonly handle: number; readonly request: string }
   | { readonly kind: 'tableModel'; readonly table: string }
   | { readonly kind: 'catalogColumnsSql'; readonly schema: string; readonly table: string }
-  // one pure/v1 call: its path (`/api/pure/v1/...`), its raw query string ('' for none) and its body
-  | { readonly kind: 'pureV1'; readonly path: string; readonly query: string; readonly body: string }
+  // (legend-engine's pure/v1 and execute's plan and answer halves left the protocol with the user's K2 ruling, 2026-11-18,
+  // "Product root, edge opt-in": the engine module's requests, the edge's -- legend/engine-module.ts)
   // lite API v1's operations (docs/records/lite-api-v1-2026-11-17.md §2, the user's go of 2026-11-17): each its
   // operation's request JSON, answered by the boundary's member of the same name with its answer JSON -- the same JSON the
   // server's /api/lite/v1 routes take and answer
   | { readonly kind: LiteOperation; readonly request: string }
-  // an ExecuteInput's plan half (its body) over the only models the host runs (a JSON array of their texts); then that
-  // plan's answer from the rows the host's database answered running it, a JSON array of objects (HostRows)
-  | { readonly kind: 'executePlan'; readonly body: string; readonly models: string }
-  | { readonly kind: 'executeAnswer'; readonly plan: string; readonly rows: string }
   // a host's own file read into its database, as a plan (B3): the request's JSON (Boundary.fileLoad)
   | { readonly kind: 'fileLoad'; readonly request: string }
   // a remote file mounted, as a plan (B3's Q3): the request's JSON, names and fields only (Boundary.remoteMount)

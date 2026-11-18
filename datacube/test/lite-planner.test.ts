@@ -82,7 +82,6 @@ function fakeExports(
     releaseModelOrError: (h: number) => { log.releases.push(h); models.delete(h); return 'OK\n'; },
     tableModelOrError: () => 'ERR\n{"kind":"internal","message":"not in this fake"}',
     catalogColumnsSqlOrError: () => 'ERR\n{"kind":"internal","message":"not in this fake"}',
-    pureV1OrError: () => 'ERR\n{"kind":"internal","message":"not in this fake"}',
     modelCheckOrError: () => 'ERR\n{"kind":"internal","message":"not in this fake"}',
     modelElementsOrError: () => 'ERR\n{"kind":"internal","message":"not in this fake"}',
     queryParseOrError: () => 'ERR\n{"kind":"internal","message":"not in this fake"}',
@@ -104,8 +103,6 @@ function fakeExports(
     sessionSetupOrError: () => 'ERR\n{"kind":"internal","message":"not in this fake"}',
     projectDataOrError: () => 'ERR\n{"kind":"internal","message":"not in this fake"}',
     hostOperationsOrError: () => 'ERR\n{"kind":"internal","message":"not in this fake"}',
-    executeJsonPlanOrError: () => 'ERR\n{"kind":"internal","message":"not in this fake"}',
-    executeJsonAnswerOrError: () => 'ERR\n{"kind":"internal","message":"not in this fake"}',
     warmModelOrError: () => 'OK\n',
   };
 }

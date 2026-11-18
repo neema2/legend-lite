@@ -1,8 +1,10 @@
 // LEGEND-ENGINE'S SHAPES OVER THE TAB'S PLANNER, THE EDGE'S (H11, the orchestrator's ruling of 2026-11-17; split from
 // wasm-grammar.ts, whose WasmGrammar is lite's own): legend-engine's Grammar (grammarToJson, jsonToGrammar,
-// lambdaRelationType), pure/v1's compile, return type and generatePlan, each answered by the planner's pure/v1 route
-// (pureV1, the edge's EdgeBoundary) as legend-lite's server's edge answers it, and execute's two halves for the edge's
-// BrowserEngine. legend-engine's error (EngineError), its interface (Grammar) and its HTTP client (HttpPlanning) are
+// lambdaRelationType), pure/v1's compile, return type and generatePlan, each answered by the engine module's pure/v1
+// route (pureV1, the edge's EdgeBoundary) as legend-lite's server's edge answers it, and execute's two halves for the
+// edge's BrowserEngine. The engine module is a module of its own, beside the planner's (the user's K2 ruling,
+// 2026-11-18: "Product root, edge opt-in"; engine-module.ts): lite's operations are asked of the planner's port,
+// legend-engine's routes of the engine's. legend-engine's error (EngineError), its interface (Grammar) and its HTTP client (HttpPlanning) are
 // imported here, never by the product's planner client.
 
 import type { Lambda } from '../../../pure-protocol/src/index.ts';
@@ -12,18 +14,19 @@ import { EngineError } from './engine-api.ts';
 import type { Grammar } from './grammar.ts';
 import { HttpPlanning } from './planning-client.ts';
 import { unfold, WasmGrammar, type PlannerPort } from './wasm-grammar.ts';
+import type { EnginePort } from './engine-module.ts';
 import type { CompileResult, ExecuteInput, RelationTypeAnswer } from './engine-wire.ts';
 import type { PureModelContext } from './wire.ts';
 import { fromPlan, type PlannedSql } from '../planned-sql.ts';
 import { declareSites } from '../declared-raises.ts';
 
 /**
- * A `fetch` that answers legend-engine's pure/v1 requests in the tab: each is routed by the planner's `pureV1OrError`,
+ * A `fetch` that answers legend-engine's pure/v1 requests in the tab: each is routed by the engine module's `pureV1OrError`,
  * the code legend-lite's server answers them with, its status, media type and body made a Response. An HttpEngine
  * over it asks and is answered exactly as over the network, a refusal included. The planner itself failing (its
  * folded `ERR` answer) rejects with the EngineError `unfold` makes of it; an aborted request rejects with its reason.
  */
-export function plannerFetch(port: PlannerPort): typeof fetch {
+export function engineFetch(engine: EnginePort): typeof fetch {
   return async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     init?.signal?.throwIfAborted();
     const href = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
@@ -32,7 +35,7 @@ export function plannerFetch(port: PlannerPort): typeof fetch {
     if (body !== undefined && body !== null && typeof body !== 'string') {
       throw new TypeError('the planner answers a pure/v1 request with a text body only');
     }
-    const answer = httpAnswer(await port.ask({ kind: 'pureV1', path: url.pathname, query: url.search.slice(1), body: body ?? '' }));
+    const answer = httpAnswer(await engine.ask({ kind: 'pureV1', path: url.pathname, query: url.search.slice(1), body: body ?? '' }));
     init?.signal?.throwIfAborted();
     return new Response(answer.body, { status: answer.status, headers: { 'Content-Type': answer.type } });
   };
@@ -83,18 +86,19 @@ export interface ExecutePlan {
   readonly plan?: unknown;
 }
 
-/** legend-engine's shapes over the tab's planner: the edge's grammar, over the same planner the product's WasmGrammar
- *  asks (the port), its lite operations under legend-engine's names where Grammar names them. */
+/** legend-engine's shapes over the tab's planner and its engine module: the edge's grammar, its lite operations asked of
+ *  the same planner the product's WasmGrammar asks (`port`) under legend-engine's names where Grammar names them, and
+ *  legend-engine's routes of the engine module (`engine`: loaded only for engine: 'legend-engine', engine-module.ts). */
 export class WasmEdgeGrammar implements Grammar {
-  readonly #port: PlannerPort;
+  readonly #engine: EnginePort;
   readonly #lite: WasmGrammar;
-  /** pure/v1 in the tab: the server's client over the planner. */
+  /** pure/v1 in the tab: the server's client over the engine module. */
   readonly #pureV1: HttpPlanning;
 
-  constructor(port: PlannerPort) {
-    this.#port = port;
+  constructor(port: PlannerPort, engine: EnginePort) {
+    this.#engine = engine;
     this.#lite = new WasmGrammar(port);
-    this.#pureV1 = new HttpPlanning('/api', plannerFetch(port));
+    this.#pureV1 = new HttpPlanning('/api', engineFetch(engine));
   }
 
   /** `grammar/grammarToJson/model`: lite's `model/elements`. */
@@ -133,7 +137,7 @@ export class WasmEdgeGrammar implements Grammar {
   }
 
   /**
-   * Execute's plan half (ExecutePlan) and its text, asked of the planner over `input`'s own model. A refusal -- a
+   * Execute's plan half (ExecutePlan) and its text, asked of the engine module over `input`'s own model. A refusal -- a
    * parameter with no value, a query that does not compile -- is the engine's, in its words and status, as a server's
    * execute refuses it (500, its errorType COMPILATION).
    */
@@ -142,7 +146,7 @@ export class WasmEdgeGrammar implements Grammar {
     // model not given as text is the planner's to refuse, in the server's words
     const model = input.model as { readonly _type?: string; readonly code?: string };
     const models = model._type === 'text' && typeof model.code === 'string' ? [model.code] : [];
-    const text = answered(await this.#port.ask({ kind: 'executePlan', body: toJson(input), models: JSON.stringify(models) }));
+    const text = answered(await this.#engine.ask({ kind: 'executePlan', body: toJson(input), models: JSON.stringify(models) }));
     const read = JSON.parse(text) as Omit<ExecutePlan, 'run'> & { readonly run: string; readonly raises?: unknown };
     // the raises `run` can send, worded by the planner (declared-raises.ts; phase D's option (D), 2026-11-15)
     declareSites(read, 'an execute plan');
@@ -156,7 +160,7 @@ export class WasmEdgeGrammar implements Grammar {
    * legend-lite's server answers with -- its text, the server's.
    */
   async executeAnswer(plan: string, rows: string): Promise<string> {
-    return answered(await this.#port.ask({ kind: 'executeAnswer', plan, rows }));
+    return answered(await this.#engine.ask({ kind: 'executeAnswer', plan, rows }));
   }
 
   /** `compilation/compile` in the tab, as the server answers it: OK, or the first failure, 400 COMPILATION. */
