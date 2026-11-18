@@ -39,12 +39,15 @@ const home = mkdtempSync(join(process.env['TEST_TMPDIR'] ?? '.', 'legend-lite-ho
 const engine = spawn(runfileFromEnv('ENGINE_FIXTURE'), ['--site', runfileFromEnv('DATACUBE_SITE')], {
   stdio: ['pipe', 'pipe', 'inherit'],
   env: { ...process.env, LEGEND_LITE_LIBRARY: runfileFromEnv('LEGEND_LITE_LIBRARY'),
+    LEGEND_LITE_ENGINE_LIBRARY: runfileFromEnv('LEGEND_LITE_ENGINE_LIBRARY'),
     LEGEND_LITE_DATACUBE: runfileFromEnv('LEGEND_LITE_DATACUBE'), LEGEND_LITE_HOME: home, PYTHONUTF8: '1',
     PYTHONDONTWRITEBYTECODE: '1' },
 });
 
 interface Served {
   readonly url: string;
+  /** legend-engine's API over the same frames, at the edge's door (engine_fixture.py; H5). */
+  readonly edge: { readonly url: string; readonly authorization: string };
   readonly authorization: string;
   readonly model: string;
   readonly runtime: string;
@@ -159,9 +162,9 @@ async function input(query: string, parameters = '', values?: ExecuteInput['para
 
 /** Python's engine's answer to `asked`, read as the tab reads it: its rows, its builder, its activities; or its refusal. */
 async function onPython(asked: ExecuteInput): Promise<{ builder: unknown; activities: readonly { sql?: string; comment?: string }[]; columns: string[]; rows: unknown[][] }> {
-  const r = await fetch(`${served.url}/api/pure/v1/execution/execute?serializationFormat=ARROW_IPC`, {
+  const r = await fetch(`${served.edge.url}/api/pure/v1/execution/execute?serializationFormat=ARROW_IPC`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: served.authorization },
+    headers: { 'Content-Type': 'application/json', Authorization: served.edge.authorization },
     body: JSON.stringify({ clientVersion: 'vX_X_X', context: { _type: 'BaseExecutionContext' }, ...asked }),
   });
   if (!r.ok) {
@@ -180,9 +183,9 @@ const TRACE = /^-- "executionTraceID" : "[0-9a-f-]{36}"$/;
 
 /** Python's engine's answer to `asked` in legend-engine's JSON, as its text; a refusal its status and text. */
 async function onPythonText(asked: ExecuteInput): Promise<{ status: number; text: string }> {
-  const r = await fetch(`${served.url}/api/pure/v1/execution/execute`, {
+  const r = await fetch(`${served.edge.url}/api/pure/v1/execution/execute`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: served.authorization },
+    headers: { 'Content-Type': 'application/json', Authorization: served.edge.authorization },
     body: toJson({ clientVersion: 'vX_X_X', context: { _type: 'BaseExecutionContext' }, ...asked }),
   });
   return { status: r.status, text: await r.text() };
@@ -264,9 +267,9 @@ describe("the tab's execute answers as Python's, the same Java planning both", (
   it("a lambda's return type and an execution plan: the tab's pure/v1 answers as Python's", async () => {
     const asked = await input("->select(~[region, notional])->filter(x|$x.region == 'EMEA')");
     const python = async (path: string, body: unknown): Promise<unknown> => {
-      const r = await fetch(`${served.url}/api/pure/v1/${path}`, {
+      const r = await fetch(`${served.edge.url}/api/pure/v1/${path}`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: served.authorization },
+        headers: { 'Content-Type': 'application/json', Authorization: served.edge.authorization },
         body: JSON.stringify(body),
       });
       assert.equal(r.status, 200, await r.clone().text());
