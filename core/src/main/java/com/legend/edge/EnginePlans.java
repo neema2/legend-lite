@@ -19,6 +19,14 @@ import com.legend.compiler.spec.typed.TypedSpec;
  */
 public final class EnginePlans {
 
+    /** legend-engine's deprecated toDDL string generators (toDDL.pure's 1-/3-arg forms; engine golden spellings
+     *  testDDL.pure:42-45), rendered from the compiled store model -- moved from the product's PlatformTypes,
+     *  2026-11-18, the edge audit's J40: the edge's plans alone read them. */
+    private static final String DROP_SCHEMA_STATEMENT = com.legend.builtin.NativeFn.DdlStatement.DROP_SCHEMA_STATEMENT.fqn();
+    private static final String CREATE_SCHEMA_STATEMENT =
+            com.legend.builtin.NativeFn.DdlStatement.CREATE_SCHEMA_STATEMENT.fqn();
+    private static final String DROP_TABLE_STATEMENT = com.legend.builtin.NativeFn.DdlStatement.DROP_TABLE_STATEMENT.fqn();
+
     private EnginePlans() {
     }
 
@@ -948,10 +956,8 @@ public final class EnginePlans {
     public static String ddlText(
             com.legend.compiler.spec.typed.TypedNativeCall ds, PlanEnv env) {
         String fqn = ds.callee().qualifiedName();
-        if (com.legend.compiler.element.type.PlatformTypes
-                .DROP_SCHEMA_STATEMENT.equals(fqn)
-                || com.legend.compiler.element.type.PlatformTypes
-                        .CREATE_SCHEMA_STATEMENT.equals(fqn)) {
+        if (DROP_SCHEMA_STATEMENT.equals(fqn)
+                || CREATE_SCHEMA_STATEMENT.equals(fqn)) {
             if (!(ds.args().get(0)
                     instanceof com.legend.compiler.spec.typed.TypedCString sc)) {
                 throw new IllegalStateException(fqn + ": only literal schema"
@@ -960,8 +966,7 @@ public final class EnginePlans {
             }
             // the engine text renders the IR's schema DDL, as the table statements below
             // (the dialect program's Phase 3, 2026-10-16: until then the text was written here)
-            return PureText.engineText(EngineText.ENGINE_TEST_DATABASE).render(com.legend.compiler.element.type.PlatformTypes
-                    .DROP_SCHEMA_STATEMENT.equals(fqn)
+            return PureText.engineText(EngineText.ENGINE_TEST_DATABASE).render(DROP_SCHEMA_STATEMENT.equals(fqn)
                     ? new com.legend.sql.SqlDdl.DropSchema(sc.value(), false)
                     : new com.legend.sql.SqlDdl.CreateSchema(sc.value(), false));
         }
@@ -980,8 +985,7 @@ public final class EnginePlans {
         String tbl = twoArg ? a1.value()
                 : ((com.legend.compiler.spec.typed.TypedCString)
                         ds.args().get(2)).value();
-        if (com.legend.compiler.element.type.PlatformTypes
-                .DROP_TABLE_STATEMENT.equals(fqn)) {
+        if (DROP_TABLE_STATEMENT.equals(fqn)) {
             return PureText.engineText(EngineText.ENGINE_TEST_DATABASE).render(com.legend.setup.Ddl.dropTable(sch, tbl));
         }
         String lookup = "default".equals(sch) ? tbl : sch + "." + tbl;
