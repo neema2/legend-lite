@@ -812,7 +812,7 @@ public final class PlanText {
             // an enum-decode leaf resolves to its SOURCE column (the
             // engine plans keep enum columns RAW)
             SqlExpr.Column c = l instanceof SqlExpr.Column lc ? lc
-                    : com.legend.sql.DecodeShapes.sourceColumn(l).orElse(null);
+                    : PlanEnumForm.sourceColumn(l).orElse(null);
             if (c == null) {
                 return null;
             }
