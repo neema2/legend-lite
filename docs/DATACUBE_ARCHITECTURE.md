@@ -170,18 +170,80 @@ Use these planes to check a server's planner against the tab's, or to check pari
 
 ### 3.4 Warehouse: Live and Snap
 
-A **warehouse** is DuckDB on a server behind an HTTP SQL API, with sign-in; its catalogs are DuckDB or
-Postgres databases (`warehouse/`, `docs/WAREHOUSE_D1_DESIGN_2026_09_26.md`).
+**What "warehouse" means here.** It is legend-lite's own server component, the `//warehouse` package
+("warehouse" is a working name, `docs/WAREHOUSE_W1_DESIGN_2026_09_26.md`): a process that runs DuckDB
+behind an HTTP SQL API, with sign-in, and runs every statement as the signed-in user. Its catalogs are
+DuckDB or Postgres databases; a Postgres catalog is read through DuckDB's Postgres extension. It is
+**not** a Snowflake virtual warehouse, and not a name for any vendor's cloud data warehouse. Snowflake is
+not one of the catalogs it attaches; section 3.8 says how a Snowflake connection is reached instead.
+
+The whole flow, from sign-in to a snap:
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant G as DataCube grid<br/>(tab, TypeScript)
+    participant P as legend-lite planner<br/>(tab, WebAssembly)
+    participant W as Warehouse<br/>(server: DuckDB, HTTP SQL API)
+    participant D as DuckDB-WASM<br/>(tab)
+    Note over G,W: Every call to the warehouse is shaped, and its answer read,<br/>by the warehouse binding (WebAssembly, vendor/warehouse/)
+    Note over G,W: Open a table
+    G->>W: sign in (password, or the app's launch key)
+    W-->>G: token
+    G->>W: list objects
+    W-->>G: the tables this login may read, their columns,<br/>each catalog's database type
+    G->>P: write this table's model, from its catalog columns
+    P-->>G: Pure Database, Connection, Runtime
+    Note over G,W: Live: every click
+    G->>P: Pure query
+    P-->>G: SQL in the catalog's dialect + column types
+    G->>W: submit the SQL (runs as the signed-in user)
+    loop until it finishes
+        G->>W: poll
+    end
+    W-->>G: result chunks (Arrow IPC), statement id, row count
+    G->>W: close the statement
+    Note over G: columns typed by the plan, grid drawn
+    Note over G,D: Snap: once
+    G->>P: plan the row count, and the copy as a load
+    G->>W: count the rows
+    W-->>G: the count (a snap past 10,000,000 rows is refused)
+    W-->>G: the rows as Arrow chunks
+    G->>D: chunks loaded into a table of the copy's own,<br/>in one transaction
+    G->>P: write the copy's model
+    Note over G,D: from here: planner + DuckDB-WASM, no network
+```
+
+Three WebAssembly modules take part, each with one job:
+
+| Module | Job in this flow |
+|---|---|
+| The planner (`classes.wasm`) | Writes the table's Pure model from its catalog columns; plans every query in the catalog's dialect; plans a snap's count and its copy |
+| The warehouse binding (`vendor/warehouse/`, `//warehouse:sqlapi_page`) | Names every call to the warehouse (method, path, headers, body) and reads every answer. The TypeScript only performs the `fetch`, keeps the clock, and carries the Arrow bytes. The JVM client and Python's driver use the same binding, so all three speak to the warehouse alike. |
+| DuckDB-WASM | Idle while Live. Holds the copy once the grid is snapped. |
 
 **Live: the tab plans, the warehouse runs.**
 
-- The planner is the one the page already uses. It plans for the catalog's database type (DuckDB or
-  Postgres), so the SQL is in that database's dialect.
-- `WarehouseEngine` (`engine-client/src/warehouse.ts`) sends the SQL and reads the answer as Arrow IPC
-  chunks with the same Arrow library DuckDB-WASM's results come from, then hands them to the same
-  `toRawTable` the local engine uses. Cells agree with the local plane by construction.
-- Queries run as the signed-in user, so the warehouse's own grants decide what is readable.
-- The warehouse's API binding is itself WebAssembly (section 4.1), loaded at the first sign-in.
+- **Opening a table.** One call lists every table and view the login may read, with its columns, its
+  catalog and that catalog's database type (`listObjects`). The planner writes the table's model from
+  those columns; a column that would have to be converted to be declared is left out and named, because
+  a warehouse table is read-only (`openedTable`, `datacube/src/app/sources.ts`).
+- **Planning.** The planner is the one the page already uses. It plans for the catalog's database type
+  (DuckDB or Postgres), so the SQL is in that database's dialect.
+- **Running.** `WarehouseEngine` (`engine-client/src/warehouse.ts`, reached through
+  `engine-client/src/doors/warehouse.ts`) submits the statement, polls until it finishes, then fetches
+  the result a chunk at a time, each chunk an Arrow IPC stream (`arrowChunks`). The statement is closed
+  once every chunk is read, and cancelled on the server when a newer interaction has replaced it.
+- **Reading.** The chunks are read with the same Arrow library DuckDB-WASM's results come from and
+  handed to the same `toRawTable` the local engine uses, then typed by the plan. Cells agree with the
+  local plane by construction.
+- **Identity.** Queries run as the signed-in user, so the warehouse's own grants decide what is
+  readable. The page keeps a token, never the password, and refreshes it at 80% of its life; an expired
+  session is its own error (`SessionExpired`), so the cube offers to sign in again.
+- **The receipt.** Each result carries what the *server* issued for it: its statement id, its row count,
+  and who it ran as. The page can ask the warehouse's history whether that statement is on its record.
+- **A limit.** The warehouse runs SQL text alone. A statement that binds values is refused by name
+  rather than sent without them (`refuseParams`).
 
 **Snap: freeze the rows into the tab.** Snap-versus-live is two states a person can reason about, rather
 than an automatic heuristic (`engine-client/src/snap.ts`, header). Three rules are enforced:
@@ -193,10 +255,19 @@ than an automatic heuristic (`engine-client/src/snap.ts`, header). Three rules a
 3. A snap captures source rows at drillable grain, never aggregated results, so a drill-through audits
    the same frozen data.
 
-A snap is preflighted: the rows are counted where they live, and a snap past `MAX_SNAP_ROWS`
-(10,000,000, a memory ceiling for a tab) is refused with "Narrow the filter, or stay live". The rows then
-stream in as Arrow into a table of their own, and the grid's queries are rebased onto the copy
-(`rebased`, `runner.ts`).
+How a snap is taken (`SnapManager.snap`, `engine-client/src/snap.ts`):
+
+1. **Preflight.** The rows are counted where they live: the planner plans the count in the warehouse's
+   SQL, and the warehouse runs it. A snap past `MAX_SNAP_ROWS` (10,000,000, a memory ceiling for a tab)
+   is refused with "Narrow the filter, or stay live".
+2. **A planned load.** The copy is a plan the planner makes (`snapStream`): it names the remote plane and
+   the table the rows land in, never a row. The tab's plan runner streams the warehouse's Arrow chunks
+   into a table of the copy's own in DuckDB-WASM, in one transaction, kept only when the stream completed
+   and the table holds the rows the warehouse counted. These are exactly the rows the server let this
+   user read.
+3. **The copy's model.** The planner writes a model of what the copy holds. Refused, the copy is dropped.
+4. **Rebase.** The grid's queries are repointed at the copy (`rebased`, `runner.ts`), and every later
+   query is the in-tab mode's: planner and DuckDB-WASM, no network.
 
 **The single-user app.** `bazel run //datacube:app -- postgresql://reader@host:5432/shop` builds one
 folder: the native warehouse server, DuckDB's library, its Postgres extension and the DataCube site. It

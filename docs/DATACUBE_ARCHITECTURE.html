@@ -287,7 +287,7 @@ footer { font-size: 13.5px; color: var(--muted); border-top: 1px solid var(--rul
         <path class="ln" d="M110 49 H136" marker-end="url(#ah)"/><text class="lbl" x="124" y="43" text-anchor="middle">Pure</text>
         <path class="ln" d="M186 66 V147 H260" marker-end="url(#ah)"/><text class="lbl" x="192" y="84">SQL</text>
       </svg>
-      <p>The tab plans, the warehouse runs. Every group, filter and pivot is a query on the real DuckDB or Postgres tables, as the person signed in. Nothing is copied.</p>
+      <p>The tab plans, the warehouse runs. The warehouse is legend-lite's own DuckDB server, not a Snowflake warehouse. Every group, filter and pivot is a query on the real DuckDB or Postgres tables, as the person signed in. Nothing is copied.</p>
       <dl class="wire"><dt>Leaves the tab</dt><dd>SQL out, Arrow rows back</dd><dt>Good for</dt><dd>Big or shared tables; always-current numbers</dd></dl>
     </article>
 
@@ -345,6 +345,68 @@ footer { font-size: 13.5px; color: var(--muted); border-top: 1px solid var(--rul
 
   <p class="note">A page never changes mode behind your back. The planner is chosen once, when the page opens, and the status bar names it. If the chosen planner does not answer, the page says so and stops. It does not quietly fall back to another one.</p>
   <p class="muted" style="font-size:14.5px;max-width:74ch">There is a seventh arrangement with no screen: Python can run DataCube's own logic headless (grouping, totals, pivots, chart rules) in an embedded V8, with the native planner and Python's DuckDB. It is the Python picture with the top band removed.</p>
+</section>
+
+<section id="warehouse">
+  <h2>Example: a warehouse table</h2>
+  <p>"Warehouse" here means legend-lite's own server: a small process that runs DuckDB behind a sign-in and an HTTP SQL API, over DuckDB or Postgres tables. It is not a Snowflake warehouse. The tab plans the SQL, and the warehouse runs it as you.</p>
+  <figure>
+    <div class="scroll">
+      <svg class="dg" viewBox="0 0 760 322" role="img" style="min-width:640px;width:100%;max-width:820px;margin:0 auto"
+           aria-label="In the tab, the grid sends a Pure query to the WebAssembly planner, which writes SQL. The warehouse client submits the SQL to the warehouse server and receives Arrow chunks, and the grid gets typed rows. For a Snap, the rows are copied once into DuckDB-WASM, and later SQL runs there.">
+        <rect class="tab" x="10" y="10" width="420" height="300" rx="12"/>
+        <text class="hd" x="30" y="36">YOUR BROWSER TAB</text>
+
+        <rect class="box" x="30" y="50" width="130" height="70" rx="8"/>
+        <text class="nm" x="95" y="80" text-anchor="middle">DataCube grid</text>
+        <text class="sub" x="95" y="98" text-anchor="middle">builds the query</text>
+
+        <rect class="wasm" x="30" y="170" width="130" height="70" rx="8"/>
+        <text class="nm" x="95" y="198" text-anchor="middle">WASM planner</text>
+        <text class="sub" x="95" y="216" text-anchor="middle">writes the SQL</text>
+
+        <rect class="wasm" x="270" y="50" width="140" height="70" rx="8"/>
+        <text class="nm" x="340" y="80" text-anchor="middle">Warehouse client</text>
+        <text class="sub" x="340" y="98" text-anchor="middle">calls shaped in wasm</text>
+
+        <rect class="wasm" x="270" y="220" width="140" height="70" rx="8"/>
+        <text class="nm" x="340" y="250" text-anchor="middle">DuckDB-WASM</text>
+        <text class="sub" x="340" y="268" text-anchor="middle">holds a Snap's copy</text>
+
+        <rect class="outz" x="560" y="50" width="180" height="240" rx="8"/>
+        <text class="nm" x="650" y="80" text-anchor="middle">Warehouse</text>
+        <text class="sub" x="650" y="170" text-anchor="middle">legend-lite's server</text>
+        <text class="sub" x="650" y="186" text-anchor="middle">runs the SQL as you,</text>
+        <text class="sub" x="650" y="202" text-anchor="middle">over DuckDB or</text>
+        <text class="sub" x="650" y="218" text-anchor="middle">Postgres tables</text>
+
+        <path class="ln" d="M95 124 V166" marker-end="url(#ah)"/>
+        <text class="lbl" x="103" y="149"><tspan class="n">1</tspan> Pure</text>
+        <path class="ln" d="M164 190 H340 V124" marker-end="url(#ah)"/>
+        <text class="lbl" x="250" y="183" text-anchor="middle"><tspan class="n">2</tspan> SQL</text>
+        <path class="ln" d="M414 70 H556" marker-end="url(#ah)"/>
+        <text class="lbl" x="485" y="63" text-anchor="middle"><tspan class="n">3</tspan> submit, poll</text>
+        <path class="ln" d="M556 104 H414" marker-end="url(#ah)"/>
+        <text class="lbl" x="485" y="97" text-anchor="middle"><tspan class="n">4</tspan> Arrow chunks</text>
+        <path class="ln" d="M266 85 H164" marker-end="url(#ah)"/>
+        <text class="lbl" x="215" y="78" text-anchor="middle"><tspan class="n">5</tspan> typed rows</text>
+
+        <path class="alt" d="M556 255 H414" marker-end="url(#aho)"/>
+        <text class="lbl" x="485" y="248" text-anchor="middle">Snap: copied once</text>
+        <path class="alt" d="M164 230 H266" marker-end="url(#aho)"/>
+        <text class="lbl" x="215" y="223" text-anchor="middle">then SQL runs here</text>
+      </svg>
+    </div>
+    <figcaption>Solid lines are Live: every click is a query on the real tables. Dashed lines are a Snap: the rows come into the tab once, and from then on the planner and DuckDB-WASM answer with no network.</figcaption>
+  </figure>
+  <ol class="steps">
+    <li><b>1</b><span><strong>The grid writes a query.</strong> The same Pure query as in every mode.</span></li>
+    <li><b>2</b><span><strong>The planner writes the SQL.</strong> In the dialect of that table's database, so a Postgres table gets Postgres SQL.</span></li>
+    <li><b>3</b><span><strong>The client sends it.</strong> It submits the statement and polls until it finishes. A small wasm module shapes each call, the same one the Java and Python clients use.</span></li>
+    <li><b>4</b><span><strong>The warehouse answers.</strong> It runs the statement as the signed-in user and returns the result in Arrow chunks.</span></li>
+    <li><b>5</b><span><strong>Rows come back typed.</strong> The chunks are decoded and typed by the plan, exactly as local results are.</span></li>
+  </ol>
+  <p class="note">The database connection and its credentials stay on the server. The page holds only a sign-in token, and a Snap can copy only the rows that login was allowed to read. A Snap of more than 10 million rows is refused.</p>
 </section>
 
 <section id="snowflake">
