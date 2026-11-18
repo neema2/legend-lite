@@ -920,11 +920,11 @@ public final class DatabaseJudge {
                 return unjudged(fqn, vector.why());   // the contract held and the plan declined: loud, as the vector form is
             }
             // the vector contract's assert/assertFalse: the host's words (HostJudge.quantifiedRows), the call's literal
-            // message or "Assert failed"; another family's rows keep the count's frame
-            boolean assertFamily = family == com.legend.builtin.NativeFn.Verdict.ASSERT
-                    || family == com.legend.builtin.NativeFn.Verdict.ASSERT_FALSE;
+            // message or the run's words of a condition's failure; another family's rows keep the count's frame
+            boolean assertFamily = family == com.legend.builtin.NativeFn.Verdict.ASSERT || family == com.legend.builtin.NativeFn.Verdict.ASSERT_FALSE;
             return runVerdict(fqn, true, com.legend.lowering.VerdictSql.allOf(vector.rows(false), true,
-                    assertFamily ? com.legend.compiler.spec.VerdictQueries.assertMessage(root) : null),
+                    assertFamily ? com.legend.compiler.spec.VerdictQueries.assertMessage(root,
+                            words(env).conditionFailed(family == com.legend.builtin.NativeFn.Verdict.ASSERT)) : null),
                     vector.on(env));
         }
         @Override public TypedSide sameElements(String name, List<TypedSpec> args, boolean gridPair, List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,

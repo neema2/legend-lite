@@ -82,6 +82,16 @@ class AssertErrorNativeTest {
     }
 
     @Test
+    @DisplayName("an assert over a zip with no message fails in legend-pure's words on the edge: Assert failed")
+    void aVectorAssertsDefaultIsLegendPuresOnTheEdge() {
+        // the user's R1 (2026-11-18, PR #118): "Assert failed" is the edge's words alone; the product's default is
+        // lite's sentence (QuantifiedRowsTest)
+        com.legend.error.AssertFailed e = assertThrows(com.legend.error.AssertFailed.class,
+                () -> compat("{|[1, 2]->zip([2, 1])->forAll(p | assert($p.first < $p.second))}"));
+        assertEquals("Assert failed", e.getMessage());
+    }
+
+    @Test
     @DisplayName("no error is itself the failure (interpreted AssertError.java)")
     void noErrorThrown() {
         com.legend.error.AssertFailed e = assertThrows(

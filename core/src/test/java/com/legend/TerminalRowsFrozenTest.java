@@ -49,8 +49,9 @@ class TerminalRowsFrozenTest {
             // sentence is lite's own, the same words as assert.pure's; frozen by the GUARD stream's re-cut on 1931d419b1
             Map.entry("compiler/spec/LambdaBodies.java | Assert failed | 1 | STAYS",
                     "J29 2026-11-18, RULED STAYS by the orchestrator (lite's own default sentence, assert.pure's words)"),
-            Map.entry("compiler/spec/VerdictQueries.java | Assert failed | 1 | STAYS",
-                    "J29 2026-11-18, RULED STAYS by the orchestrator (lite's own default sentence, assert.pure's words)"),
+            // (compiler/spec/VerdictQueries.java | Assert failed | 1 | STAYS: gone 2026-11-18, PR #118's fix round, N2 --
+            // the user's R1 ruling that day, "For 118 r1-r3 are fine": the product's default is lite's sentence, the
+            // vector assert's worded by the run's words; legend-pure's "Assert failed" is the edge's alone)
             // (compiler/spec/VerdictQueries.java | TDSNull | STAYS: gone from the register 2026-11-17 on d-stage c37207858,
             // train 7's C-2 fix-forward)
             // generateSeedDataString's value (TestDataPlanner.seedString): STAYS, the orchestrator's ruling of 2026-11-17

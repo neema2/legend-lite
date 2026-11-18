@@ -78,6 +78,16 @@ class QuantifiedRowsTest {
     }
 
     @Test
+    @DisplayName("assert over a zip with no message: lite's own sentence, never legend-pure's default")
+    void predicateRowsDefaultMessage() {
+        AssertFailed e = assertThrows(AssertFailed.class,
+                () -> run("{|[1, 2]->zip([2, 1])->forAll(p | assert($p.first < $p.second))}"));
+        // the user's R1 (2026-11-18, PR #118): the product's default is lite's, under either judge; legend-pure's
+        // "Assert failed" is the edge's words alone (AssertErrorNativeTest)
+        assertEquals("expected true, got false", e.getMessage());
+    }
+
+    @Test
     @DisplayName("an argument computed per element is computed by the database, never here: judged, and a failure"
             + " names the first failing element")
     void computedArgumentsJudged() throws Exception {

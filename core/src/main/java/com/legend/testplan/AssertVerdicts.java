@@ -1486,7 +1486,7 @@ public final class AssertVerdicts {
                 // family's truth and inverted assertFalse until this item's audit
                 return new VectorPlan(new HostAssert(listenerName(bare), vectorFamily(sh), true,
                         HostJudge.planAllRows(vectorFamily(sh), sh.vectorPredMap(), true,
-                                com.legend.compiler.spec.VerdictQueries.assertMessage(sh.root()), hook)));
+                                com.legend.compiler.spec.VerdictQueries.assertMessage(sh.root(), defaultConditionMessage(family == NativeFn.Verdict.ASSERT, env)), hook)));
             }
             if (family == NativeFn.Verdict.ASSERT_EQUALS || family == NativeFn.Verdict.ASSERT_EQ_WITHIN_TOLERANCE) {
                 // row by row on the host, planned (2026-11-04, the core program): the zip's arms or the relation

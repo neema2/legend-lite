@@ -148,13 +148,13 @@ public final class VerdictQueries {
     }
 
     /** The message an {@code assert}/{@code assertFalse} under the vector contract fails with: its literal message
-     *  ({@code (3)} admits no other), else upstream's default for the base overload, "Assert failed"
-     *  (2026-11-04, the asserts-as-plan-nodes program: both judges printed the default over a caller's message --
-     *  AssertBarTest's forAll-zip-assert-message). */
-    public static String assertMessage(TypedSpec root) {
+     *  ({@code (3)} admits no other), else {@code otherwise}, the run's words of a condition's failure (the user's R1,
+     *  2026-11-18, PR #118: lite's sentence, legend-pure's the edge's alone; 2026-11-04: both judges printed the default
+     *  over a caller's message -- AssertBarTest's forAll-zip-assert-message). */
+    public static String assertMessage(TypedSpec root, String otherwise) {
         List<TypedSpec> a = com.legend.compiler.spec.typed.Calls.argsOf(root);
         return a.size() >= 2 && a.get(1) instanceof com.legend.compiler.spec.typed.TypedCString m ? m.value()
-                : "Assert failed";
+                : otherwise;
     }
 
     /** (1): rows the relation lane plans. */
