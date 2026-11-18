@@ -214,6 +214,9 @@ class HookRulingTest {
                 // VerdictNumbers (train 17, the orchestrator's item 4 of 2026-11-18, registers S15/S132, S139: two Floats
                 // or two Decimals -- lite's exact rule in the product, compiled legend-pure's at the edge)
                 com.legend.lowering.VerdictNumbers.class,
+                // ExecutedValues (train 17 item 2, 2026-11-18: a serialized root's string-entry value -- refused in the
+                // product, legend-engine's json-builder envelope at the edge)
+                com.legend.planner.ExecutedValues.class,
                 // RenderedTextRule (census C1, 2026-11-17, registers S131, S132: the product's two strings, the edge's
                 // ruled comparison where they differ)
                 com.legend.testplan.RenderedTextRule.class,

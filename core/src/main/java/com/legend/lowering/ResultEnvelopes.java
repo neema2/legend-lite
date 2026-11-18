@@ -25,7 +25,4 @@ public interface ResultEnvelopes {
 
     /** A class root's envelope: its {@code objects} (the graph emission's JSON array), the activity's SQL or null. */
     SqlExpr classes(SqlExpr objects, @com.legend.base.Nullable String activitySql);
-
-    /** A serialized root's envelope around its JSON text {@code value}. */
-    SqlExpr values(SqlExpr value);
 }

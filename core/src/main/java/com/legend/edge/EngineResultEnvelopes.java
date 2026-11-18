@@ -78,11 +78,4 @@ final class EngineResultEnvelopes implements com.legend.lowering.ResultEnvelopes
                 new SqlExpr.StringLit("activities"), activities(activitySql),
                 new SqlExpr.StringLit("objects"), objects));
     }
-
-    @Override
-    public SqlExpr values(SqlExpr value) {
-        return new SqlExpr.Call(SqlFn.CONCAT, List.of(
-                new SqlExpr.StringLit("{\"builder\":{\"_type\":\"json\"},\"values\":"), value,
-                new SqlExpr.StringLit("}")));
-    }
 }

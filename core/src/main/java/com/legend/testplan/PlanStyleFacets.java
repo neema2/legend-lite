@@ -47,6 +47,9 @@ public final class PlanStyleFacets {
             // how the database judge compares two Floats or two Decimals (train 17, the orchestrator's item 4 of
             // 2026-11-18, registers S15/S132, S139): lite's exact rule in the product, compiled legend-pure's at the edge
             com.legend.lowering.VerdictNumbers.class,
+            // the string entry's value of a serialized root (train 17 item 2, the orchestrator's ruling of 2026-11-18):
+            // the product refuses it by name, the edge writes legend-engine's json-builder envelope
+            com.legend.planner.ExecutedValues.class,
             // how the database judge plans a rendered text's equality (census C1, 2026-11-17, registers S131, S132):
             // the product's two strings, the edge's ruled comparison where they differ
             RenderedTextRule.class,

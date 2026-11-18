@@ -370,16 +370,11 @@ public final class ExecuteChainAssembly {
     public static TypedSpec legendQueryEnvelope(TypedSpec chain,
             com.legend.compiler.element.ModelContext model,
             @com.legend.base.Nullable String activitySql) {
-        TypedSpec root = chain;
-        while (root instanceof TypedFrom f) {
-            root = f.source();
-        }
         ExprType str = ExprType.one(Type.Primitive.STRING);
-        if (root instanceof com.legend.compiler.spec.typed.TypedSerialize) {
-            // legend-engine's json-builder envelope around the serialized value: the edge's (lowering.ResultEnvelopes,
-            // Phase 6's B5, 2026-11-17), the product's refusal at lowering
-            return new com.legend.compiler.spec.typed.TypedJsonResult(chain,
-                    com.legend.compiler.spec.typed.TypedJsonResult.Kind.VALUES, null, str);
+        if (serializedRoot(chain)) {
+            // legend-engine's json-builder envelope around the serialized value: the plan style's, asked by the planner
+            // (train 17 item 2, 2026-11-18: the planner's ExecutedValues kind), never minted here
+            throw new IllegalStateException("a serialized root's envelope is the plan style's (planner.ExecutedValues)");
         }
         Type t = chain.info().type();
         if (t instanceof Type.Primitive p
@@ -403,6 +398,24 @@ public final class ExecuteChainAssembly {
         throw new com.legend.error.NotImplementedException(
                 "executeLegendQuery over a " + t.typeName()
                         + " result: the result JSON envelope is not emitted yet");
+    }
+
+    /** Whether the string entry's chain is a serialize under its from() envelopes: its value is one JSON text. */
+    public static boolean serializedRoot(TypedSpec chain) {
+        TypedSpec root = chain;
+        while (root instanceof TypedFrom f) {
+            root = f.source();
+        }
+        return root instanceof com.legend.compiler.spec.typed.TypedSerialize;
+    }
+
+    /** The platform's {@code string::plus} over {@code texts}, each a String to one, typed: one String (train 17 item 2,
+     *  2026-11-18: the string entry's envelope a plan style writes around a value). */
+    public static TypedSpec concatenated(com.legend.compiler.element.ModelContext model, List<TypedSpec> texts) {
+        ExprType str = ExprType.one(Type.Primitive.STRING);
+        TypedSpec all = new TypedCollection(texts, new ExprType(Type.Primitive.STRING,
+                new Multiplicity.Bounded(texts.size(), texts.size())));
+        return call(model, com.legend.builtin.NativeFn.OperatorRun.STRING_PLUS.fqn(), List.of(all), str);
     }
 
     private static TypedSpec call(com.legend.compiler.element.ModelContext model,
