@@ -58,8 +58,11 @@ import java.util.function.Function;
  * <p>Read at the pin (legend-engine 230c1591): the server registers {@code new Execute(modelManager, planExecutor,
  * routerExtensions, transformers)} with no plan execution authorizer ({@code Server.java:395-397}), so
  * {@code pure/v1/execution/execute} runs {@code Execute.execLegacy} ({@code Execute.java:309-342}): the plan built
- * by {@code Execute.buildPlan} ({@code :268-279}, the same calls {@code generatePlan} makes, {@code :215-240}), then
- * {@code PlanExecutor.execute}, the result written by {@code ResultManager.manageResult}
+ * by its own overload, {@code generateExecutionPlanWithTrace} ({@code :404-420}) -- the same plan {@code generatePlan}'s
+ * {@code Execute.buildPlan} makes ({@code :268-279}): both are {@code generateExecutionPlanAsPure} with no plan id, then
+ * {@code serializeToJSON} and {@code stringToPlan}, the trace variant adding a span and a log line
+ * ({@code PlanGenerator.java:64-85}) -- then {@code PlanExecutor.execute}, the result written by
+ * {@code ResultManager.manageResult}
  * ({@code ResultManager.java:59-80}) and an exception by {@code ExceptionTool.exceptionManager}
  * ({@code ExceptionTool.java:35,60}). Neither {@code Execute} nor {@code ResultManager} is in the runner's pool, so
  * this composes their calls, each cited where it is made. What it does NOT reproduce, by construction: the HTTP layer

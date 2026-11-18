@@ -75,20 +75,21 @@ A plan always goes through its JSON between planning and execution, so S8 can fe
 
 ### The run time
 
-Measured in this container, with the runner's jars already fetched:
-- the four actions take about **16 s** of wall time, the H2 run and the DuckDB run in parallel (11 s and 9 s
-  each, one legend-engine Pure load each);
-- the diff tests take 0.1 s;
-- a forced rerun gave byte-identical outputs.
+Measured in this container (4 cores):
+- **Run, jars fetched:** the four actions take about **16 s** of wall time, the H2 run and the DuckDB run in parallel
+  (11 s and 9 s each, one legend-engine Pure load each). The diff tests take 0.1 s. A forced rerun gave byte-identical
+  outputs.
+- **Cold fetch:** the runner pool is 611 jars for Linux, **980 MB**, by its lock (`maven_runner_install.json`). All of
+  them, from Maven Central through this cloud's proxy with an empty cache, took **11.3 s** (curl, 8 in parallel, every
+  answer a 200). That is the download alone; Bazel's own first fetch adds its repository setup, and in a cloud
+  session it may need `tools/cloud-maven-distdir.sh` (docs/CLOUD_SESSIONS.md). The pool was already fetched for
+  `//tools/engine-runner:smoke_test` before this slice, so the check adds no download to a lane that has it.
 
-The per-push `core` lane already fetches the runner's jars for `//tools/engine-runner:smoke_test`, so moving the
-check there would add about 16 s of actions and no download.
+**The lane: `//gates:heavy`, beside `//pct:edge_contract_test`,** whose goldens it reads (the orchestrator,
+2026-11-18). Run per push in the `core` lane instead, it would cost about 16 s of actions and no download; that is
+the per-push question, (d′) of the design, and the user's.
 
-**Recommendation: per push in the `core` lane, beside the runner's smoke test.** Every re-record of the pure/v1 net
-would then say, in the same commit, whether each moved golden moved toward legend-engine or away from it. It is in
-`//gates:heavy` until the per-push lanes are the user's call ((d′) of the design).
-
-## 2. Three facts found on the way
+## 2. Facts found on the way
 
 - **The runner's H2 is legend-engine's own patched 2.1.214, not the pool's 2.2.224.**
   - `legend-engine-xt-relationalStore-h2-execution-2.1.214` carries H2's classes, un-relocated, with legend-engine's
@@ -97,6 +98,16 @@ would then say, in the same commit, whether each moved golden moved toward legen
     2.1.214, and the errors carry `[...-214]`.
   - The oracle writes the version it loaded into the first line of each pinned answers file
     (`# legend-engine 4.145.0; H2 2.1.214; DuckDB v1.3.0`). A class-path change that flips it fails the diff test.
+- **The pool's H2 2.2.224 would move 3 of the 28 lines** (the orchestrator's measurement, 2026-11-18). On a scratch
+  class path with `h2-2.2.224.jar` first (the pool's pin left as it is), the 14 requests answered as on 2.1.214 except:
+  - `raise.divideByZero` and `raise.parseInteger`: the error's build suffix, `[22012-224]` and `[22018-224]` against
+    `-214`;
+  - `cell.float`: `0.3333333333333333` against 2.1.214's `0.33333333`.
+
+  Plain JDBC on 2.2.224 types legend-engine's SQL for `cell.float` as a DECFLOAT `0.333333333333333333`; why
+  legend-engine's path then answers 16 digits is not measured. Every other line, the plans included, was
+  byte-identical. So legend-engine's own answer (its pom's 2.1.214, `pom.xml:160`) is what the runner gives today,
+  by class-path order alone, and the pin decides it only if that order changes.
 - **The runner's existing runtime set lacks DuckDB's grammar.** Only `legend-engine-test-runner-service` brings
   `legend-engine-xt-relationalStore-duckdb-grammar` and `-duckdb-pure`, and without them a DuckDB connection does not
   parse ("Unsupported Data Source Specification type 'DuckDB'"). The oracle takes the runner's whole jar set, with core
@@ -219,10 +230,11 @@ quirks included; S8's comparison is where each such case is classified.
 
 ## 7. What this slice changed outside the runner, for review
 
-- **The net's request list moved:** from `PureV1EdgeGoldenTest.REQUESTS` to
-  `core/src/test/resources/edge/pure_v1_requests.tsv`. The test and the oracle both read it, so they cannot drift. The
-  goldens are byte-identical: `//core:update_edge_pure_v1_test` passes.
-- **Core exports three test files** to `//tools/engine-runner`: the requests, the model and the golden.
+- **The net's request list stays where it is.** B1's lead owns `PureV1EdgeGoldenTest` and moves its list into
+  `core/src/test/resources/edge/pure_v1_requests.tsv` in a commit of its own, which this branch merges (the
+  orchestrator, 2026-11-18). Until then the oracle reads a copy, `tools/engine-runner/src/test/resources/pure_v1/requests.tsv`.
+  A name that drifts shows in `engine_h2_differences.tsv` as a `missing` or an `extra` line.
+- **Core exports two test files** to `//tools/engine-runner`: the model and the golden.
 - **`release.MODULE.bazel` declares ten artifacts** the oracle names directly: Jackson core and databind, Eclipse
   Collections' API, and legend-engine's execution, identity, compiled core, core extension, store platform, mapping
   and m3. Every one was already in the runner pool's closure.
