@@ -22,9 +22,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * ({@code //datacube:app}) and the Python package ({@code //python:wheel}):
  * <ul>
  *   <li>REACH: a target in a shipped artifact's closure that depends directly on an edge target which is no declared
- *   opt-in module ({@code _EDGE_OPT_IN}: the server's {@code //core:edge_server}; the Python host's
- *   {@code //native:engine} joins it);</li>
- *   <li>ROOTS: a target in a shipped artifact's closure whose main class is the edge's.</li>
+ *   opt-in module ({@code _EDGE_OPT_IN}: the server's {@code //core:edge_server}, and the tab's engine module's entry
+ *   {@code //wasm:edge_tab} (2026-11-18, K2's wasm half); the Python host's {@code //native:engine} joins it);</li>
+ *   <li>ROOTS: a target in a shipped artifact's closure whose main class is the edge's -- but a declared opt-in module,
+ *   one whose direct dependency is a declared opt-in library, as {@code //wasm:engine_planner} is (2026-11-18, the
+ *   orchestrator's ruling: "ROOTS exempts declared opt-in modules").</li>
  * </ul>
  * Each artifact still the edge's is pinned with its owner ({@link #REACH_OPEN}, {@link #ROOTS_OPEN}), SHRINK-ONLY: one
  * re-rooted is deleted here, a new one fails. K2 stays an open audit item exactly while one is pinned. A planted
@@ -36,10 +38,13 @@ class ShippedArtifactRootsTest {
     /** The shipped targets reaching the edge outside an opt-in module, each with its K2 owner. Measured 2026-11-18. */
     static final Map<String, String> REACH_OPEN = Map.of(
             "//native:compiler", "K2 HOST (Python, via DataCube) (2026-11-18): the native library rooted at"
-                    + " :edge_entry; the product library at :entry alone, //native:engine the opt-in (the next host train)",
+                    + " :edge_entry; the product library at :entry alone, //native:engine the opt-in (the next host train)"
             // (//query-store:page closed 2026-11-18, the host train's merge of train 18: product-rooted at :page_entry
             // by H6, 2026-11-17, its closure edge-free -- //tools/deps:query_store_page_closure_test)
-            "//wasm:planner", "K2 HOST (TS, via DataCube) (2026-11-18): the tab's planner rooted at :edge_tab");
+            // (//wasm:planner closed 2026-11-18, K2's wasm half for train 20: rooted at :tab, lite's planner.TabExports,
+            // its closure edge-free -- //tools/deps:wasm_planner_closure_test; legend-engine's routes the engine module's,
+            // //wasm:engine_planner, shipped beside it as the declared opt-in, :edge_tab in _EDGE_OPT_IN)
+            );
 
     /** The shipped targets whose main class is the edge's, each with its K2 owner. Measured 2026-11-18. */
     static final Map<String, String> ROOTS_OPEN = Map.of(
@@ -47,7 +52,10 @@ class ShippedArtifactRootsTest {
             // com.legend.server.LegendHttpServer, :edge_server the declared opt-in through MountProvider -- train 17)
             // (//query-store:page closed 2026-11-18, the host train's merge of train 18: main_class the product's
             // com.legend.queries.page.QueriesPage since H6, 2026-11-17)
-            "//wasm:planner", "K2 HOST (TS, via DataCube) (2026-11-18): main_class com.legend.edge.wasm.TabExports");
+            // (//wasm:planner closed 2026-11-18, K2's wasm half for train 20: main_class lite's planner.TabExports; the
+            // engine module //wasm:engine_planner, main_class com.legend.edge.wasm.EngineExports, is a declared opt-in
+            // module -- its direct dependency :edge_tab in _EDGE_OPT_IN -- which this answer exempts)
+            );
 
     @Test
     void eachShippedArtifactStartsAtTheProduct() {
