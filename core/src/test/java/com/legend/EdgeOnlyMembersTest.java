@@ -60,7 +60,12 @@ class EdgeOnlyMembersTest {
     static final Map<String, String> OPEN = Map.ofEntries();
 
     /** The members only the edge uses that are ruled a product API the edge reads, each with its reason (not counted). */
-    static final Map<String, String> READ_API = Map.ofEntries();
+    static final Map<String, String> READ_API = Map.ofEntries(
+            // a tagged column's slots read from its declared type, the product's column-type grammar (RowDecode's private
+            // parser: inside, topLevel); its one caller, the Arrow writer's union, is the edge's since J36 (2026-11-18) --
+            // moving it would copy the grammar into the edge
+            Map.entry("com.legend.result.RowDecode#taggedSlots(com.legend.executionplan.ExecutionPlan$Column)",
+                    "the column-type grammar's reader (J36, 2026-11-18)"));
 
     private static final String EDGE = "com.legend.edge.";
 
