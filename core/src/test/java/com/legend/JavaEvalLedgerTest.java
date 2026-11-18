@@ -1853,6 +1853,10 @@ class JavaEvalLedgerTest {
                             "EdgeServer.java",
                             // the texts of upstream's effects and refusals, and legend-pure's raise sentences, as SQL
                             "EffectTexts.java", "PureMessages.java",
+                            // 2026-11-17 (K10b, the orchestrator's ruling (A)): legend-pure's words of a planned raise
+                            // site (its record) and one planning call's recorder of them -- words of literal operands at
+                            // planning, the edge's data; nothing evaluated, no connection
+                            "SiteWords.java", "SiteWordsRecorder.java",
                             // legend-engine's text printers (O3) and the dialects spelled upstream's way (D1.0)
                             "EngineStyleH2.java", "EngineStyleDB2.java", "EngineStyleComposite.java", "PureText.java",
                             // legend-pure's print forms written for the product's text nodes, one rewrite (D1.2,
@@ -1868,6 +1872,9 @@ class JavaEvalLedgerTest {
                             // legend-engine's JSON without source information (J35's residue, 2026-11-18): moved from
                             // protocol.SourceInformation; cuts spans from text, decides nothing
                             "EngineSpans.java",
+                            // legend-pure's words of a raise where the edge runs the product's door (K10 of the edge
+                            // audit, 2026-11-18): a recorder's words looked up by statement and site; decides nothing
+                            "RaisedWords.java",
                             // legend-engine's grammar where the edge reads its protocol (J21 of the edge audit,
                             // 2026-11-17, the user's "yes to the rule"): three delegations to the parse door's engine
                             // entries; parses, decides nothing

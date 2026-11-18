@@ -149,6 +149,21 @@ public final class HostAnswers {
         return PureV1Writer.ColumnType.spelled(tds, relational);
     }
 
+    /** THE EDGE'S TABLE OF LEGEND-PURE'S WORDS of the raise sites {@code statement} declares, kept beside the plan it
+     *  answers (K10b of the edge audit, 2026-11-17: the product plan's sites carry the product's message alone): each
+     *  site's {@code n} and its {@code words}, in order; none where the statement declares none or the planning call
+     *  worded none of its sites. */
+    private static List<Map<String, Object>> siteWordsOf(Map<String, List<SiteWords>> words, String statement) {
+        List<Map<String, Object>> out = new java.util.ArrayList<>();
+        for (SiteWords w : words.getOrDefault(statement, List.of())) {
+            Map<String, Object> o = new LinkedHashMap<>();
+            o.put("n", w.n());
+            o.put("words", w.words());
+            out.add(o);
+        }
+        return out;
+    }
+
     /**
      * E8 in upstream's Arrow format ({@code ?serializationFormat=ARROW_IPC}), its plan half, for a host that runs
      * the SQL itself (Python's engine, over duckdb-python): the {@code ExecuteInput} read and planned as
@@ -165,7 +180,11 @@ public final class HostAnswers {
             com.legend.database.PlanStyle style) {
         return answer(500, "COMPILATION", () -> {
             Hosted hosted = hosted(body, models);
-            QueryPlan plan = hosted.query().plan(hosted.runtime(), style);
+            // the plan made in a fresh recorder of the style, read once after it (K10b, 2026-11-17): the raise sites'
+            // words, the edge's table kept beside the plan
+            SiteWordsRecorder recording = PureText.recording(style);
+            QueryPlan plan = hosted.query().plan(hosted.runtime(), recording);
+            Map<String, List<SiteWords>> words = recording.read();
             String refused = plan.beyondItsText();
             if (refused != null) {
                 throw new com.legend.error.NotImplementedException("a host runs a plan's statement itself, and this"
@@ -190,6 +209,7 @@ public final class HostAnswers {
             out.put("raises", com.legend.executionplan.PlanJson.raises(plan.plan()));
             // the raise sites its text declares (v56): a token it raises read through them (phase D's Phase 2)
             out.put("sites", com.legend.executionplan.PlanJson.sitesOf(plan.plan(), plan.sql()));
+            out.put("siteWords", siteWordsOf(words, plan.sql()));
             out.put("metadata", metadata);
             if (!plan.textAlone()) {
                 // what runs the text: the execution plan it renders from (B3, 2026-11-11), its target's loads
@@ -215,8 +235,11 @@ public final class HostAnswers {
             com.legend.database.PlanStyle style) {
         return answer(500, "COMPILATION", () -> {
             Hosted hosted = hosted(body, models);
+            // the plan made in a fresh recorder of the style, read once after it (K10b, 2026-11-17)
+            SiteWordsRecorder recording = PureText.recording(style);
             com.legend.executionplan.ExecutionPlan plan = hosted.query().executionPlan(hosted.runtime(),
-                    java.util.Set.of(), style);
+                    java.util.Set.of(), recording);
+            Map<String, List<SiteWords>> words = recording.read();
             if (plan.answerShape() == com.legend.executionplan.ExecutionPlan.TdsResult.Shape.VALUE) {
                 // as the server's execute refuses it (Output.Engine): a value's answer is not one the engine was
                 // measured on
@@ -253,6 +276,7 @@ public final class HostAnswers {
             out.put("raises", com.legend.executionplan.PlanJson.raises(plan));
             // the raise sites `run` declares (v56): a token it raises read through them (phase D's Phase 2)
             out.put("sites", com.legend.executionplan.PlanJson.sitesOf(plan, statement));
+            out.put("siteWords", siteWordsOf(words, statement));
             if (!result.sql().slots().isEmpty()) {
                 // what the host binds to `run`'s `?`s: the plan, its payloads its statement's content by digest
                 out.put("plan", Json.parse(com.legend.executionplan.PlanJson.write(plan)));

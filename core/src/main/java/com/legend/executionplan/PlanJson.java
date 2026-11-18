@@ -165,8 +165,10 @@ public final class PlanJson {
      *  name, is refused by its version. 57 since 2026-11-17 (the host train, the orchestrator's ruling; Python's
      *  finding): a column's {@code type} is its plain path ({@code Decimal}, never {@code Decimal(10,2)}), a precise
      *  decimal's digits data, its {@code decimal: {precision, scale}} (null for any other type) -- a v56 plan, whose types may carry arguments, is
-     *  refused by its version. */
-    public static final int VERSION = 57;
+     *  refused by its version. 58 since 2026-11-18 (K10 of the edge audit, riding the host train after 57): a site carries no
+     *  {@code upstream} -- legend-pure's words of a site are the compatibility edge's records, never the product plan's
+     *  -- a v57 plan, whose edge sites carry them, is refused by its version. */
+    public static final int VERSION = 58;
 
     private PlanJson() {
     }
@@ -1397,8 +1399,8 @@ public final class PlanJson {
         }
     }
 
-    /** A statement's raise sites as JSON (v56): each {@code n}, {@code kind}, its {@code where} where it has one, its
-     *  {@code message} and, in an edge plan, its {@code upstream}. */
+    /** A statement's raise sites as JSON (v57): each {@code n}, {@code kind}, its {@code where} where it has one, and its
+     *  {@code message}. */
     private static List<Map<String, Object>> sitesJson(List<ExecutionPlan.Site> sites) {
         List<Map<String, Object>> out = new ArrayList<>(sites.size());
         for (ExecutionPlan.Site site : sites) {
@@ -1409,10 +1411,6 @@ public final class PlanJson {
                 so.put("where", site.where());
             }
             so.put("message", site.message());
-            if (site.upstream() != null) {
-                // an edge plan's words alone: a product site carries none (no null written, the plan's bytes kept lean)
-                so.put("upstream", site.upstream());
-            }
             out.add(so);
         }
         return out;
@@ -1428,10 +1426,9 @@ public final class PlanJson {
         List<ExecutionPlan.Site> out = new ArrayList<>();
         for (Json.Node n : ((Json.Arr) ss).items()) {
             Json.Obj so = (Json.Obj) n;
-            only(so, "a raise site", "n", "kind", "where", "message", "upstream");
+            only(so, "a raise site", "n", "kind", "where", "message");
             ExecutionPlan.Site site = new ExecutionPlan.Site(so.getInt("n"), named(com.legend.sql.RaiseKind.class,
-                    so.getString("kind"), "raise kind"), so.getStringOr("where", null), so.getString("message"),
-                    so.getStringOr("upstream", null));
+                    so.getString("kind"), "raise kind"), so.getStringOr("where", null), so.getString("message"));
             String sentence = ExecutionPlan.Site.sentence(site.kind(), site.where());
             if (!sentence.equals(site.message())) {
                 throw new IllegalArgumentException("raise site " + site.n() + " of " + site.kind() + " says '"

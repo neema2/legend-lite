@@ -176,4 +176,31 @@ final class EdgeEngineTestText implements EngineTestText {
         return reachesUpstreamText(fn.bareName(), fn == com.legend.builtin.NativeFn.Verdict.ASSERT_EQUALS,
                 com.legend.compiler.spec.ExecuteChainAssembly.narrowSideStamps(raw, letPrefix, specs), letPrefix, specs);
     }
+
+    /** A fresh recorder over {@code template} ({@link PureText#recording}). */
+    @Override
+    public com.legend.database.PlanStyle recording(com.legend.database.PlanStyle template) {
+        return PureText.recording(template);
+    }
+
+    /** The door's one read of {@code recording}, a recorder this facet minted; any other style refused by name. */
+    @Override
+    public java.util.Map<String, List<com.legend.testexecutionplan.Extension>> siteWords(
+            com.legend.database.PlanStyle recording) {
+        if (!(recording instanceof SiteWordsRecorder r)) {
+            throw new IllegalStateException("the raise sites' words of a body planned in "
+                    + recording.getClass().getName() + ", which records none: a test body under the compatibility"
+                    + " edge's style is planned in a fresh recorder (EngineTestText.recording)");
+        }
+        java.util.Map<String, List<com.legend.testexecutionplan.Extension>> out = new java.util.LinkedHashMap<>();
+        r.read().forEach((text, records) -> out.put(text, List.copyOf(records)));
+        return java.util.Collections.unmodifiableMap(out);
+    }
+
+    /** legend-pure's sentence of a SIZE_NOT_MULTIPLICITY site whose bound is {@code multiplicity}. */
+    @Override
+    public String sizeWords(String multiplicity) {
+        return PureMessages.words(com.legend.sql.RaiseKind.SIZE_NOT_MULTIPLICITY,
+                List.of(new com.legend.sql.SqlExpr.StringLit(multiplicity)));
+    }
 }

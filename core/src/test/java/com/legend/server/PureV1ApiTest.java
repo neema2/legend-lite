@@ -624,7 +624,7 @@ class PureV1ApiTest {
         assertEquals(200, a.status(), a.json());
         Json.Obj plan = Json.parseObject(a.json());
         // 2026-11-12 (C1's second half): the host's execution's id, minted with the plan half it runs ("execution")
-        assertEquals(List.of("sql", "run", "raises", "sites", "shape", "resultColumns", "execution", "builder", "activities", "columns"),
+        assertEquals(List.of("sql", "run", "raises", "sites", "siteWords", "shape", "resultColumns", "execution", "builder", "activities", "columns"),
                 new ArrayList<>(plan.fields().keySet()));
         assertEquals("RELATION", plan.getString("shape"));
         Json.Obj activity = (Json.Obj) plan.getArr("activities").items().get(0);
@@ -665,7 +665,7 @@ class PureV1ApiTest {
                 + Json.toCompact(Map.of("_type", "text", "code", trading)) + "}", List.of(trading), com.legend.edge.PureText.UPSTREAM);
         assertEquals(200, graph.status(), graph.json());
         Json.Obj graphPlan = Json.parseObject(graph.json());
-        assertEquals(List.of("sql", "run", "raises", "sites", "shape", "resultColumns", "builder"),
+        assertEquals(List.of("sql", "run", "raises", "sites", "siteWords", "shape", "resultColumns", "builder"),
                 new ArrayList<>(graphPlan.fields().keySet()));
         assertEquals("OBJECTS", graphPlan.getString("shape"));
         assertEquals("{\"_type\":\"json\"}", Json.toCompact(graphPlan.getObj("builder")));
@@ -1018,11 +1018,15 @@ class PureV1ApiTest {
             Json.Obj answer = Json.parseObject(a.json());
             String sql = answer.getString("sql");
             assertFalse(sql.contains("DIVIDE_BY_ZERO"), "no bare kind name in pure/v1's statement: " + sql);
-            // the statement raises its site's bare token, and the site carries legend-pure's words, planned (phase D's
-            // Phase 2, raises as SITES, 2026-11-16): the host reads the token through them
+            // the statement raises its site's bare token (phase D's Phase 2, raises as SITES, 2026-11-16); the site
+            // carries the product's message alone, and legend-pure's words are the edge's table beside the plan,
+            // planned in a fresh recorder (K10b, 2026-11-17)
             assertTrue(sql.contains("LG#1"), sql);
             Json.Obj site = (Json.Obj) answer.getArr("sites").items().get(0);
-            assertEquals("Division by zero", site.getString("upstream"), a.json());
+            assertFalse(site.has("upstream"), "a plan's site carries no upstream words: " + a.json());
+            Json.Obj words = (Json.Obj) answer.getArr("siteWords").items().get(0);
+            assertEquals(site.getInt("n"), words.getInt("n"), a.json());
+            assertEquals("Division by zero", words.getString("words"), a.json());
         }
     }
 

@@ -72,4 +72,20 @@ final class PlantedEngineTestText implements EngineTestText {
     public com.legend.testplan.TextsHeld textsHeld(com.legend.testexecutionplan.Extension judgment) {
         throw new UnsupportedOperationException("planted");
     }
+
+    @Override
+    public com.legend.database.PlanStyle recording(com.legend.database.PlanStyle template) {
+        throw new UnsupportedOperationException("planted");
+    }
+
+    @Override
+    public java.util.Map<String, List<com.legend.testexecutionplan.Extension>> siteWords(
+            com.legend.database.PlanStyle recording) {
+        throw new UnsupportedOperationException("planted");
+    }
+
+    @Override
+    public String sizeWords(String multiplicity) {
+        throw new UnsupportedOperationException("planted");
+    }
 }

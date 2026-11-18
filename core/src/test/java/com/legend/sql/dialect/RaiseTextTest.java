@@ -119,8 +119,9 @@ class RaiseTextTest {
         }
     }
 
-    /** The upstream words of {@code q}'s one raise site, as {@code dialect} plans the statement; null where the dialect
-     *  refuses the statement. */
+    /** The upstream words of {@code q}'s one raise site, as {@code dialect} writes the statement and the edge's recorder
+     *  words its site (K10b, 2026-11-17: the words are the edge's records, offered the statement's sites); null where
+     *  the dialect refuses the statement. */
     private static @com.legend.base.Nullable String upstream(SqlDialect dialect, SqlSelect q) {
         RenderedStatement statement;
         try {
@@ -129,7 +130,12 @@ class RaiseTextTest {
             return null;
         }
         assertEquals(1, statement.sites().size(), dialect.getClass().getSimpleName() + ": " + statement.sites());
-        return statement.sites().get(0).upstream();
+        com.legend.edge.SiteWordsRecorder recording = com.legend.edge.PureText.recording(
+                com.legend.edge.PureText.UPSTREAM);
+        recording.siteWords(statement.sql(), statement.sites());
+        List<com.legend.edge.SiteWords> words = recording.read().get(statement.sql());
+        assertEquals(1, words.size(), dialect.getClass().getSimpleName() + ": " + words);
+        return words.get(0).words();
     }
 
     private static SqlExpr cat(SqlExpr... parts) {
