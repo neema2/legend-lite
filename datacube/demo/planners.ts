@@ -20,11 +20,25 @@
 
 import { refusePlanner, RUNTIME, SOURCE, type Engine, type PlaneWord } from './boot.ts';
 import { pageConfig } from './page-config.ts';
-import { UpstreamPlanner } from '../src/planner.ts';
+import type { Planner } from '../src/planner-types.ts';
+import type { ModelOptions } from '../src/planner.ts';
 import { LitePlanner } from '../src/lite-planner.ts';
 import { liteServerWorker } from '../src/services/lite-server.ts';
 
 const WORKER = (): string => new URL('./planner-worker.js', import.meta.url).href;
+
+/** DataCube's legend-engine plane, its compat entry (datacube/src/edge/engine-plane.ts, //datacube:edge_entry): its own
+ *  bundle beside the page, loaded by its URL only when the `engine` plane is chosen (H11, 2026-11-17: no product module
+ *  imports an edge module) -- the page names what it reads of it, a planner over a model it can repoint. */
+const ENGINE_PLANE = (): string => new URL('./legend-engine.js', import.meta.url).href;
+
+interface EnginePlane {
+  legendEnginePlanner(baseUrl: string, model: string, runtime: string): Planner & {
+    useModel(model: string, runtime: string, how?: ModelOptions): void;
+    withModel(model: string, runtime: string, how?: ModelOptions): Planner;
+    modelElements(text: string): Promise<unknown[]>;
+  };
+}
 
 /** The planner the page chose, over `model`, ready to plan. */
 export async function plannerFor(plane: PlaneWord, model: string): Promise<Engine> {
@@ -76,7 +90,7 @@ async function onServer(model: string, which: 'remote' | 'engine'): Promise<Engi
   if (!answered) refusePlanner(name, url, start);
   const planner = which === 'remote'
     ? new LitePlanner({ model, runtime: RUNTIME, worker: () => liteServerWorker(url) })
-    : new UpstreamPlanner({ baseUrl: url, model, runtime: RUNTIME });
+    : (await import(ENGINE_PLANE()) as EnginePlane).legendEnginePlanner(url, model, RUNTIME);
   // legend-lite's module beside the server's planner, nothing loaded until first asked: it writes a table's model, and a
   // saved query's project's test data as the server's statements
   const writer = new LitePlanner({ model: '', runtime: RUNTIME, workerUrl: WORKER(), assetBaseUrl: config.vendor });

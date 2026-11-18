@@ -352,7 +352,8 @@ describe('there is exactly one planner, and no way to fall back to another', () 
   //
   // That argument is only worth anything if something checks it, so
   // the next test requires the differentials that do.
-  const PLANNERS = ['src/planner.ts', 'src/lite-planner.ts'];
+  // (2026-11-17, H11: legend-engine's planner is the compat entry's, src/edge/upstream-planner.ts)
+  const PLANNERS = ['src/edge/upstream-planner.ts', 'src/lite-planner.ts'];
 
   it('implements Planner in exactly the two blessed shipped files', () => {
     const impls = shipped.filter((f) =>
@@ -486,7 +487,8 @@ describe('there is exactly one planner, and no way to fall back to another', () 
   it('a server planner is asked first, and refused BEFORE it is built', () => {
     const demo = SOURCES.read('demo/planners.ts');
     const refuse = demo.indexOf('if (!answered) refusePlanner(');
-    const build = demo.indexOf('new UpstreamPlanner');
+    // (2026-11-17, H11: legend-engine's planner is built by its compat entry, loaded by its URL)
+    const build = demo.indexOf(').legendEnginePlanner(');
     assert.ok(refuse > 0 && build > refuse, 'planners.ts must refuse an absent server planner before building it');
   });
 

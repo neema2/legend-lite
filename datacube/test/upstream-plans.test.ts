@@ -8,7 +8,8 @@ import { describe, it } from 'node:test';
 import { PureV1Client } from '../../engine-client/src/pure-v1.ts';
 import { pureType } from '../../engine-client/src/relation-type.ts';
 import { fromJson, readLambda, toJson } from '../../pure-protocol/src/index.ts';
-import { PlanError, serverPlan } from '../src/planner.ts';
+import { PlanError } from '../src/planner.ts';
+import { serverPlan } from '../src/edge/upstream-planner.ts';
 import { runfileFromEnv } from '../../tools/js/runfiles.mts';
 
 interface Corpus {

@@ -4,10 +4,8 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import {
-  PlanError,
-  UpstreamPlanner,
-} from '../src/planner.ts';
+import { PlanError } from '../src/planner.ts';
+import { UpstreamPlanner } from '../src/edge/upstream-planner.ts';
 
 import { element, fn, fromElement, lambda, toJson } from '../../pure-protocol/src/index.ts';
 import { inRun } from '../../engine-client/src/run-frame.ts';

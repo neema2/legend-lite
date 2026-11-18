@@ -28,7 +28,6 @@ js_library(
         "//engine-client:engine_api",
         "//engine-client:planner",
         "//engine-client:records",
-        "//engine-client:server",
         "//legend-art:legend_art",
         # the query builder, Query's own (query/src/embed.ts, plan A5), and DataCube's grid it shows results in
         "//query:src",

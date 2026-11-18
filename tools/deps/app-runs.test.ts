@@ -78,6 +78,12 @@ const COMPUTED_PAGES: readonly (readonly [string, string])[] = [
   ["studio/src/app/app.ts new Worker(new URL('./editor.worker.js', globalThis.location.href), ...)",
     "Monaco's editor worker, from the page's own site (Studio's ./editor.worker.js bundle): the editor's language"
       + ' services, no database (PlannedSqlTest.WORKERS pins it too)'],
+  // 2026-11-17 (H11, DataCube's half; the orchestrator's alignment: an app's legend-engine mode is its compat entry,
+  // loaded only where configured)
+  ['datacube/demo/planners.ts import(ENGINE_PLANE())',
+    "DataCube's legend-engine plane, its compat entry (//datacube:edge_entry), its own bundle beside the page"
+      + ' (legend-engine.js), loaded by its URL only when the page is configured to plan on legend-engine: no product'
+      + ' module imports an edge module'],
 ];
 
 const DATACUBE_RUNNER = "a call of DataCube's runner, a DOOR (runner.ts, //datacube:doors: it asks the planner, then runs"
@@ -278,12 +284,14 @@ describe("the apps' plan-and-run sites, outside every door and run target (shrin
       'engine-client/src/duckdb.ts', 'engine-client/src/run-frame.ts', 'engine-client/src/doors/tab-duckdb.ts', 'engine-client/src/node-require.ts']) {
       assert.ok(LAYERED.has(f), `${f} is not among the doors' and the run targets' files: ${[...LAYERED].join(', ')}`);
     }
-    // engine-client's records, planner and server are read (the C5-T final audit's MUST 1; 2026-11-17, H11: the server
-    // layer's file read is pure-v1.ts, legend/engine.ts being the edge's, which runs as a door does)
-    for (const f of ['engine-client/src/pure-v1.ts', 'engine-client/src/legend/wasm-grammar.ts', 'engine-client/src/plan-guard.ts']) {
-      assert.ok(censused.includes(f), `the census does not read ${f}: the guard is not looking`);
+    // engine-client's records and planner are read (the C5-T final audit's MUST 1; 2026-11-17, H11, DataCube's half: the
+    // server layer is deleted -- pure-v1.ts is the edge's, run by design -- so the product file read beside the planner's
+    // is the doors' executor shape, remote-executor.ts)
+    for (const f of ['engine-client/src/remote-executor.ts', 'engine-client/src/legend/wasm-grammar.ts', 'engine-client/src/plan-guard.ts']) {
+      assert.ok(censused.includes(f) || LAYERED.has(f), `the census does not read ${f}: the guard is not looking`);
     }
-    for (const f of ['engine-client/src/legend/edge-engine.ts', 'engine-client/src/legend/engine.ts']) {
+    for (const f of ['engine-client/src/legend/edge-engine.ts', 'engine-client/src/legend/engine.ts', 'engine-client/src/pure-v1.ts',
+      'datacube/src/edge/upstream-planner.ts']) {
       assert.ok(LAYERED.has(f), `${f}, the edge's, is not among the files run by design: ${[...LAYERED].join(', ')}`);
     }
     // the doors run, and only their target keeps them out of the census

@@ -115,8 +115,10 @@ class TsLayeringTest {
     static final Set<String> RUN_LAYERS = Set.of("//engine-client:run", "//datacube:run");
     /** The planner layers: what plans, and executes nothing. */
     static final Set<String> PLANNER_LAYERS = Set.of("//engine-client:planner", "//datacube:planner");
-    /** The server layers (2026-11-15, the C5-T final audit's MUST 1): legend-engine's clients, which reach no engine. */
-    static final Set<String> SERVER_LAYERS = Set.of("//engine-client:server");
+    /** The server layers (2026-11-15, the C5-T final audit's MUST 1): legend-engine's clients, which reach no engine.
+     *  None since 2026-11-17 (H11, DataCube's half: the server layer's one file, legend-engine's pure/v1 client, is the
+     *  edge's, //engine-client:edge; the layer is deleted): a target named a server layer is refused by name. */
+    static final Set<String> SERVER_LAYERS = Set.of();
     /** The engine's API (the same day): the engines' interfaces and the run frame -- what can run. The run layers, the
      *  doors and the apps reach it; no planner and no server does. */
     static final String ENGINE_API = "//engine-client:engine_api";
@@ -222,10 +224,8 @@ class TsLayeringTest {
                         + " engine's API and the npm packages pinned alone (no planner, server, door or app)",
                 "//engine-client:run reaches //planted:records: a run layer reaches records, the engine's API and the npm"
                         + " packages pinned alone (no planner, server, door or app)",
-                "//engine-client:server reaches //engine-client:engine_api: a server layer reaches no engine's API, run"
-                        + " layer or door (records, the planner and its npm package alone)",
-                "//engine-client:server reaches //engine-client:run: a server layer reaches no engine's API, run layer or"
-                        + " door (records, the planner and its npm package alone)",
+                // (2026-11-17, H11: no server layer is pinned, so the planted engine-client one is refused by its name)
+                "//engine-client:server is named a server layer, and no server layer pinned (TsLayeringTest.SERVER_LAYERS)",
                 "//planted:edge is named the edge, and is not the one pinned (TsLayeringTest.EDGE)",
                 "//planted:edge_entry is named a compat entry, and no compat entry pinned (TsLayeringTest.EDGE_ENTRIES)",
                 "//planted:edge_entry reaches //engine-client:edge: no product target reaches legend-engine's API, the"

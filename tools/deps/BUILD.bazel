@@ -142,7 +142,7 @@ genquery(
     name = "app_libraries_run",
     expression = ("deps(labels(deps, //datacube:src_base + //query:src + //studio:src) except " +
                   "(//datacube:doors + //datacube:model + //datacube:planner + //datacube:records + //datacube:src + " +
-                  "//engine-client:doors + //engine-client:planner + //engine-client:records + //engine-client:server + " +
+                  "//engine-client:doors + //engine-client:planner + //engine-client:records + " +
                   "//query:src)) intersect (//engine-client:run + //datacube:run + //engine-client:engine_client + " +
                   "//engine-client:node_host)"),
     scope = [
@@ -158,8 +158,10 @@ genquery(
 # (TsLayeringTest.noAppReachesTheEdge)
 genquery(
     name = "app_edge_reach",
-    expression = "deps(//datacube:src + //query:src + //studio:src) intersect //engine-client:edge",
+    # (2026-11-17, H11, DataCube's half: and no app reaches DataCube's compat entry)
+    expression = "deps(//datacube:src + //query:src + //studio:src) intersect (//engine-client:edge + //datacube:edge_entry)",
     scope = [
+        "//datacube:edge_entry",
         "//datacube:src",
         "//engine-client:edge",
         "//query:src",
@@ -216,7 +218,7 @@ _LAYERS_ALONE = {
     "engine_client_run": (
         "//engine-client:run",
         "run",
-        "//engine-client:planner + //engine-client:server + //engine-client:doors + //engine-client:node_host + //engine-client:edge",
+        "//engine-client:planner + //engine-client:doors + //engine-client:node_host + //engine-client:edge",
         ["engine-client/src/plan-runner.ts", "engine-client/src/duckdb.ts", "engine-client/src/requests.ts", "pure-protocol/src/index.ts"],
         35,
         "engine-client/src/planted.ts",
@@ -228,31 +230,20 @@ _LAYERS_ALONE = {
         "//engine-client:planner",
         "planner",
         # 2026-11-15 (the C5-T final audit's MUST 1): the engine's API too -- an engine's interface, the run frame
-        "//engine-client:run + //engine-client:server + //engine-client:doors + //engine-client:engine_api + //engine-client:node_host + //engine-client:edge",
+        "//engine-client:run + //engine-client:doors + //engine-client:engine_api + //engine-client:node_host + //engine-client:edge",
         ["engine-client/src/legend/wasm-grammar.ts", "engine-client/src/legend/planner-protocol.ts", "engine-client/src/requests.ts",
          "engine-client/src/plan-guard.ts"],
         25,
         "engine-client/src/legend/planted.ts",
         ["../plan-runner.ts", "./engine.ts", "../doors/project-data.ts", "../run-frame.ts", "../query-engine.ts"],
     ),
-    # 2026-11-15 (the C5-T final audit's MUST 1): legend-engine's clients, checked alone -- no engine's API, run layer,
-    # door or Node's host (until then nothing typechecked the server layer alone, so a relative import of a run module
-    # from pure-v1.ts or legend/engine.ts passed)
-    "engine_client_server": (
-        "//engine-client:server",
-        "server",
-        "//engine-client:run + //engine-client:doors + //engine-client:engine_api + //engine-client:node_host + //engine-client:edge",
-        ["engine-client/src/pure-v1-planning.ts", "engine-client/src/pure-v1.ts", "engine-client/src/plan-guard.ts"],
-        30,
-        "engine-client/src/planted.ts",
-        ["./duckdb.ts", "./run-frame.ts", "./query-engine.ts", "./warehouse-session.ts", "./doors/tab-duckdb.ts",
-         "./node-require.ts"],
-    ),
+    # (2026-11-17, H11, DataCube's half: engine_client_server is deleted with the server layer -- its one file,
+    # legend-engine's pure/v1 client, is the edge's, checked by the edge's own target)
     # 2026-11-15 (the same audit): the engine's API alone -- records and itself, no run module, planner, server or door
     "engine_client_engine_api": (
         "//engine-client:engine_api",
         "run",
-        "//engine-client:run + //engine-client:planner + //engine-client:server + //engine-client:doors + //engine-client:node_host + //engine-client:edge",
+        "//engine-client:run + //engine-client:planner + //engine-client:doors + //engine-client:node_host + //engine-client:edge",
         ["engine-client/src/query-engine.ts", "engine-client/src/run-frame.ts", "engine-client/src/plan-guard.ts"],
         10,
         "engine-client/src/planted.ts",
@@ -261,7 +252,7 @@ _LAYERS_ALONE = {
     "datacube_run": (
         "//datacube:run",
         "run",
-        "//engine-client:planner + //engine-client:server + //engine-client:doors + //engine-client:node_host + //datacube:planner + //datacube:doors + //datacube:model + //engine-client:edge",
+        "//engine-client:planner + //engine-client:doors + //engine-client:node_host + //datacube:planner + //datacube:doors + //datacube:model + //engine-client:edge",
         ["datacube/src/headless/connection.ts", "datacube/src/headless/calls.ts", "engine-client/src/plan-runner.ts"],
         35,
         "datacube/src/headless/planted.ts",
@@ -290,7 +281,7 @@ _LAYERS_ALONE = {
     "datacube_planner": (
         "//datacube:planner",
         "planner",
-        "//engine-client:run + //engine-client:server + //engine-client:doors + //engine-client:engine_api + //datacube:run + //datacube:doors + //engine-client:edge",
+        "//engine-client:run + //engine-client:doors + //engine-client:engine_api + //datacube:run + //datacube:doors + //engine-client:edge",
         ["datacube/src/lite-planner.ts", "datacube/src/planner.ts", "engine-client/src/legend/planner-answer.ts"],
         30,
         "datacube/src/planted.ts",
@@ -384,9 +375,11 @@ genquery(
     # 2026-11-15 (the C5-T final audit's MUST 1): engine-client's run side and doors too -- the census reads its records,
     # planner and server
     # 2026-11-17 (H11): and the edge, legend-engine's API, which asks its planner and runs as a door does
-    expression = "labels(srcs, //datacube:run + //datacube:doors + //engine-client:run + //engine-client:doors + //engine-client:engine_api + //engine-client:node_host + //engine-client:edge)",
+    # 2026-11-17 (H11, DataCube's half): and DataCube's compat entry, whose legend-engine planner runs by design
+    expression = "labels(srcs, //datacube:run + //datacube:doors + //engine-client:run + //engine-client:doors + //engine-client:engine_api + //engine-client:node_host + //engine-client:edge + //datacube:edge_entry)",
     scope = [
         "//datacube:doors",
+        "//datacube:edge_entry",
         "//datacube:run",
         "//engine-client:doors",
         "//engine-client:edge",
@@ -400,8 +393,12 @@ genquery(
 # (//tools/deps:app_runs_test)
 genquery(
     name = "edge_layer_srcs",
-    expression = "labels(srcs, //engine-client:edge)",
-    scope = ["//engine-client:edge"],
+    # (2026-11-17, H11, DataCube's half: and DataCube's compat entry, edge-side -- no product module imports its files)
+    expression = "labels(srcs, //engine-client:edge + //datacube:edge_entry)",
+    scope = [
+        "//datacube:edge_entry",
+        "//engine-client:edge",
+    ],
 )
 
 # the run layers' own files (the C5-T last round's T1): what no app module imports, nor reaches through a re-export

@@ -93,17 +93,13 @@ _PLANNER = [
     "src/legend/planner-worker.ts",
     "src/legend/wasm-grammar.ts",
     "src/planner-sources.ts",
-    "src/pure-v1-planning.ts",
-]
-
-_SERVER = [
-    "src/pure-v1.ts",
 ]
 
 # the multi-step doors kept in place (the orchestrator's note 3: each made one keyed plan later, the backlog of
 # docs/records/c5-typescript-2026-11-15.md)
 _DOORS = glob(["src/doors/**/*.ts"]) + [
-    "src/engine-remote.ts",
+    # a remote executor's shape, the product's (H11, 2026-11-17: out of engine-remote.ts, which is the edge's)
+    "src/remote-executor.ts",
     "src/legend/browser-engine.ts",
     "src/snap.ts",
     "src/tab-data.ts",
@@ -126,6 +122,12 @@ _EDGE = [
     "src/legend/grammar.ts",
     "src/legend/planning-client.ts",
     "src/legend/wasm-edge.ts",
+    # (H11's moves, DataCube's half, 2026-11-17: legend-engine's pure/v1 client and its planning half, out of the server
+    # and planner layers -- the server layer, emptied, is deleted -- and its executor, out of the doors; each file at its
+    # own path, as this BUILD's convention keeps them)
+    "src/engine-remote.ts",
+    "src/pure-v1-planning.ts",
+    "src/pure-v1.ts",
 ]
 
 # NODE'S HOST, for code run in Node alone -- tests, benchmarks and harnesses: a require rooted in this package, and
@@ -133,7 +135,7 @@ _EDGE = [
 # it, and the run layer, which the browser bundles carry, holds no require door (the C5-T audit's item 8, 2026-11-15)
 _NODE_HOST = ["src/node-require.ts"]
 
-_ASSIGNED = _RECORDS + _ENGINE_API + _RUN + _PLANNER + _SERVER + _DOORS + _EDGE + _NODE_HOST
+_ASSIGNED = _RECORDS + _ENGINE_API + _RUN + _PLANNER + _DOORS + _EDGE + _NODE_HOST
 
 [fail("engine-client/%s is in no target of engine-client/BUILD.bazel: add it to the one whose layer it is" % f) for f in glob(["src/**/*.ts"]) if f not in _ASSIGNED]
 
@@ -185,24 +187,6 @@ js_library(
 )
 
 js_library(
-    name = "server",
-    srcs = _SERVER,
-    visibility = _APPS + ["//tools/deps:__pkg__"],
-    deps = [
-        ":planner",
-        ":records",
-        "//pure-protocol:pure_protocol",
-        # fzstd 0.1.1, exact (2026-10-08, the user's approval): legend-engine's Arrow answer to execute (ARROW_IPC) is
-        # ALWAYS one zstd frame (RelationalResultToArrowIPCSerializer wraps its stream in a ZstdOutputStream; measured,
-        # core/src/test/resources/upstream-api/e8-arrow-groupby-sort.json), Python's engine answers the same bytes so
-        # one reader serves both, and the browser's DecompressionStream reads no zstd (the pinned Chromium 153,
-        # measured). A decoder, pure JavaScript, MIT, no dependencies, loaded on the first Arrow answer only
-        # (pure-v1.ts arrowIpcStream: the bundles that never meet one do not carry it).
-        ":node_modules/fzstd",
-    ],
-)
-
-js_library(
     name = "doors",
     srcs = _DOORS,
     visibility = _APPS + ["//tools/deps:__pkg__"],
@@ -211,7 +195,6 @@ js_library(
         ":planner",
         ":records",
         ":run",
-        ":server",
         "//pure-protocol:pure_protocol",
         ":node_modules/apache-arrow",
     ],
@@ -228,11 +211,17 @@ js_library(
         "//tools/deps:__pkg__",
     ],
     deps = [
+        ":doors",
         ":engine_api",
         ":planner",
         ":records",
         ":run",
         "//pure-protocol:pure_protocol",
+        # legend-engine's executor reads its Arrow answers (engine-remote.ts), its client their zstd frame (pure-v1.ts;
+        # fzstd 0.1.1, exact, the user's approval of 2026-10-08: legend-engine's Arrow answer to execute is ALWAYS one
+        # zstd frame, RelationalResultToArrowIPCSerializer; moved here from the deleted server layer, H11 2026-11-17)
+        ":node_modules/apache-arrow",
+        ":node_modules/fzstd",
     ],
 )
 
@@ -258,7 +247,6 @@ js_library(
         ":planner",
         ":records",
         ":run",
-        ":server",
     ],
 )
 
@@ -282,11 +270,11 @@ js_library(
     expression = "labels(deps, //engine-client:%s)" % layer,
     scope = [":" + layer],
     visibility = ["//tools/deps:__pkg__"],
-) for layer in ["records", "engine_api", "run", "planner", "server", "doors", "edge", "node_host"]]
+) for layer in ["records", "engine_api", "run", "planner", "doors", "edge", "node_host"]]
 
 filegroup(
     name = "layer_queries",
-    srcs = [":layer_" + layer for layer in ["records", "engine_api", "run", "planner", "server", "doors", "edge", "node_host"]],
+    srcs = [":layer_" + layer for layer in ["records", "engine_api", "run", "planner", "doors", "edge", "node_host"]],
     visibility = ["//tools/deps:__pkg__"],
 )
 
