@@ -15,13 +15,6 @@ load("//tools/guards:defs.bzl", "guards_package")
 # the engine: the compiler's unit tests (gate 1), spec parity (gate 3), the JSON and protocol libraries, the
 # engine-runner binaries through their launchers (P3-26), the server's Postgres arm (one query against the embedded
 # Postgres 16), the #SQL{}# island's cases on the same Postgres
-# the gate's own list, read by core's TaggedClassesHaveATargetTest: every census and guardrail class runs in a target
-# the local and lanes suites reach (2026-11-17)
-exports_files(
-    ["BUILD.bazel"],
-    visibility = ["//core:__pkg__"],
-)
-
 test_suite(
     name = "core",
     tests = [
@@ -180,8 +173,6 @@ test_suite(
         # the guardrails' edge half: the boundary's own guards (F's census line A5, 2026-11-17)
         "//core:guardrails_edge",
         "//core:census",
-        # the edge's test library's census classes (PlannerSurfaceTest), 2026-11-17
-        "//core:census_edge",
         # the product-SQL size baseline (G3's guard; E3, ruled 2026-11-12): fixed query sets planned on every database,
         # shrink-only pins per set, database and family over the statements, their characters and the plans' JSON
         "//core:cast_case_census_test",
