@@ -56,8 +56,10 @@ public final class TestPlanJson {
      *  rules as their data ({@code floatUlps}, {@code decimalScale}); 31 (2026-11-18, census J29): the words' name in
      *  {@code upstreamWords}' place ({@code words}: {@code lite}, or the edge's); 32 (2026-11-18, train 17, the
      *  orchestrator's ruling): no judging rules -- a Float's tolerance and a Decimal's scale are the two-form kinds'
-     *  (the style's VerdictNumbers, the run hook's HostForms), and census C1's "the rules are data" is superseded. */
-    public static final int VERSION = 32;
+     *  (the style's VerdictNumbers, the run hook's HostForms), and census C1's "the rules are data" is superseded; 33
+     *  (2026-11-18, the PR #118 follow-ups' J3, track A5): a forAll-contains subset's judgment carries its two sides'
+     *  facts ({@code need}, {@code have}), each compared under its declared kind. */
+    public static final int VERSION = 33;
 
     private TestPlanJson() {
     }

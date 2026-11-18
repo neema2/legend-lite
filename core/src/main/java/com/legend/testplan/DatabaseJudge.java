@@ -627,16 +627,21 @@ public final class DatabaseJudge {
                 : written(cr, 0, false, java.util.Objects.requireNonNull(c.side()).plan(), coll, env);
         com.legend.lowering.VerdictSql.Message vm = literal ? null
                 : written(vr, 0, false, java.util.Objects.requireNonNull(v.side()).plan(), val, env);
+        // a collection and a value of two numbers' different known kinds (register S127, J3: the PR #118 follow-ups,
+        // track A5, 2026-11-18): no element is ever the value in lite's own runs -- decided false at planning, its rows
+        // read for the message, as a single pair's; in backwards-compatibility mode compiled legend-pure's rule (an
+        // Integer and a Decimal compared by their texts, the canons'), each side's declared kind as the host judge's
+        boolean crossing = crossNumberKinds(coll.info().type(), val.info().type(), numbers(env));
         if (cm != null && vm != null && !cr.tdsWrapped()) {
             return runVerdict(name, !negated, com.legend.lowering.VerdictSql.contains(
                     com.legend.lowering.VerdictSql.writtenRows(java.util.Objects.requireNonNull(c.side()).plan(),
-                            "__canon0", cr.many(), cm), v.scalarRow(false), vm, negated, words(env)), c.on(env));
+                            "__canon0", cr.many(), cm), v.scalarRow(false), vm, negated, words(env), crossing), c.on(env));
         }
         if (negated) {
             return unjudged(name, "assertNotContains over sides not written: no negated form planned");
         }
         return runVerdict(name, true, com.legend.lowering.VerdictSql.contains(c.rows(literal), v.scalarRow(literal),
-                null, false, words(env)), c.on(env));
+                null, false, words(env), crossing), c.on(env));
     }
 
     /** {@code assertTdsEquivalent} in database mode (bucket 5): both grids
@@ -710,8 +715,11 @@ public final class DatabaseJudge {
             if (literal && (nr.literalIndex() < 0 || hr.literalIndex() < 0)) {
                 return unjudged(name, "forAll-contains: no literal channel");
             }
-            return runVerdict(name, true, com.legend.lowering.VerdictSql.subset(need.rows(literal), have.rows(literal), wantTrue),
-                    need.on(env));
+            // two numbers' different known kinds: no needed element is ever had (S127, as databaseContains', J3), so
+            // the subset holds where nothing is needed
+            boolean crossing = crossNumberKinds(fc[0].info().type(), fc[1].info().type(), numbers(env));
+            return runVerdict(name, true, com.legend.lowering.VerdictSql.subset(need.rows(literal), have.rows(literal),
+                    wantTrue, crossing), need.on(env));
         }
         SideRows side = planSide(cond, false, letPrefix, specs, env, hook);
         if (side.why() != null) {

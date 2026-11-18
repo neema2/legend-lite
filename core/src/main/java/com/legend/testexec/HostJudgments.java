@@ -450,9 +450,12 @@ final class HostJudgments {
         if (val.size() != 1) {
             return null;   // non-[1] value arg — generic path
         }
+        // each value under its side's DECLARED kind where that is numeric, as eqOf and assertEquals' typedSide read it
+        // (the PR #118 follow-ups' J3, track A5, 2026-11-18: register S131; a Decimal property over an INTEGER column is
+        // a Decimal, as legend-engine's result decode makes it)
         boolean member = coll.stream().anyMatch(x ->
-                com.legend.testexec.Equality.same(com.legend.testexec.Equality.Typed.of(x),
-                        com.legend.testexec.Equality.Typed.of(val.get(0)), rules));
+                com.legend.testexec.Equality.same(new com.legend.testexec.Equality.Typed(x, j.collection().declared()),
+                        new com.legend.testexec.Equality.Typed(val.get(0), j.value().declared()), rules));
         return member ? com.legend.testexecutionplan.Verdicts.ok()
                 : com.legend.testexecutionplan.Verdicts.fail(words(rules).notContained(coll, val.get(0),
                         j.collection().classFqn(), j.value().classFqn()));
@@ -534,10 +537,11 @@ final class HostJudgments {
         boolean wantTrue = j.wantTrue();
         List<Object> need = com.legend.testexec.AssertRuns.decodeSide(pair.get(0));
         List<Object> have = com.legend.testexec.AssertRuns.decodeSide(pair.get(1));
+        // each element under its side's declared kind, as containsOf's (J3, track A5, 2026-11-18)
         List<Object> missing = need.stream()
                 .filter(n2 -> have.stream().noneMatch(h ->
-                        com.legend.testexec.Equality.same(com.legend.testexec.Equality.Typed.of(n2),
-                                com.legend.testexec.Equality.Typed.of(h), rules)))
+                        com.legend.testexec.Equality.same(new com.legend.testexec.Equality.Typed(n2, j.need().declared()),
+                                new com.legend.testexec.Equality.Typed(h, j.have().declared()), rules)))
                 .toList();
         boolean subsetHolds = missing.isEmpty();
         if (subsetHolds == wantTrue) {

@@ -407,13 +407,17 @@ final class HostJson {
         Map<String, Object> o = new LinkedHashMap<>();
         o.put("name", x.name());
         o.put("wantTrue", x.wantTrue());
+        o.put("need", wSideFacts(x.need()));
+        o.put("have", wSideFacts(x.have()));
         return o;
     }
 
     static HostJudgment.Subset rHjSubset(Json.Obj o) {
         String v_name = str(field(o, "name", "Subset"));
         boolean v_wantTrue = bool(field(o, "wantTrue", "Subset"));
-        return new HostJudgment.Subset(v_name, v_wantTrue);
+        HostJudgment.SideFacts v_need = rSideFacts(obj(field(o, "need", "Subset")));
+        HostJudgment.SideFacts v_have = rSideFacts(obj(field(o, "have", "Subset")));
+        return new HostJudgment.Subset(v_name, v_wantTrue, v_need, v_have);
     }
 
     static Map<String, Object> wHjEmpty(HostJudgment.Empty x) {

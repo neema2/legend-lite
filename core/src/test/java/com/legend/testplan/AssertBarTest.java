@@ -388,6 +388,107 @@ class AssertBarTest {
         assertTrue(wrong.isEmpty(), "one verdict under every judge:\n  " + String.join("\n  ", wrong));
     }
 
+    /** J3 (the PR #118 follow-ups, track A5, 2026-11-18; G2 under register S131: "each side typed by its own declared
+     *  kind"): {@code assertContains}, {@code assertNotContains} and the forAll-contains subset compare a number by its
+     *  side's DECLARED kind, under both judges -- as assertEq does (F4), and as legend-engine's result decode makes the
+     *  value (a Decimal-declared cell through {@code toDecimal}, a Float-declared one through {@code * 1.0}:
+     *  execution_relational_execute.pure's {@code dataTypeTransformer}). A Decimal property and a Float property over
+     *  INTEGER columns: the Decimal 1 is never the Integer 1 (S127), the Float 1.0 is the Float 1.0 whatever the column.
+     *  Before, the host compared by carrier (a map's values arrive as the column's integers) and the database judge by
+     *  canon text, which drops the kind: one outcome, and one message, per assert under every judge now, on DuckDB, H2
+     *  and SQLite alike. */
+    private static final String MEMBERS_ON = """
+            ###Pure
+            Class p::P { id: Integer[1]; d: Decimal[1]; f: Float[1]; }
+            ###Relational
+            Database p::DB ( Table T (ID INTEGER PRIMARY KEY, D INTEGER, F INTEGER) )
+            ###Mapping
+            Mapping p::M ( p::P: Relational { ~mainTable [p::DB] T id: T.ID, d: T.D, f: T.F } )
+            ###Connection
+            RelationalDatabaseConnection p::C { store: p::DB; type: %s;
+                specification: LocalH2 { testDataSetupCSV: 'default\\nT\\nID,D,F\\n1,1,1\\n'; }; auth: DefaultH2; }
+            ###Runtime
+            Runtime p::RT { mappings: [p::M]; connections: [ p::DB: [ c0: p::C ] ]; }
+            """;
+
+    @Test
+    void aMembershipIsJudgedByEachSidesDeclaredKindUnderEveryJudge() throws Exception {
+        java.util.Map<String, String> want = new java.util.LinkedHashMap<>();
+        // the property read from its row (a store-read carrier), and from a map (the column's integers)
+        for (String prop : List.of("d", "f")) {
+            String same = prop.equals("d") ? "[1D, 2D]" : "[1.0, 2.0]";
+            for (String one : List.of("p::P.all()->filter(x | $x.id == 1)->toOne()." + prop,
+                    "p::P.all()->map(x | $x." + prop + ")->toOne()")) {
+                want.put("{|assertContains(" + same + ", " + one + ")}", "pass");
+                want.put("{|assertContains([1, 2], " + one + ")}", "AssertFailed");
+                want.put("{|assertNotContains([1, 2], " + one + ")}", "pass");
+                want.put("{|assertNotContains(" + same + ", " + one + ")}", "AssertFailed");
+            }
+            String elem = prop.equals("d") ? "1D" : "1.0";
+            for (String all : List.of("p::P.all()." + prop, "p::P.all()->map(x | $x." + prop + ")")) {
+                want.put("{|assertContains(" + all + ", " + elem + ")}", "pass");
+                want.put("{|assertContains(" + all + ", 1)}", "AssertFailed");
+                want.put("{|assert([" + elem + "]->forAll(e | " + all + "->contains($e)))}", "pass");
+                want.put("{|assert([1]->forAll(e | " + all + "->contains($e)))}", SUBSET_FAILS);
+                want.put("{|assert(" + all + "->forAll(e | " + same + "->contains($e)))}", "pass");
+                want.put("{|assert(" + all + "->forAll(e | [1, 2]->contains($e)))}", SUBSET_FAILS);
+            }
+            // nothing needed: the subset holds whatever the kinds (forAll over nothing)
+            want.put("{|assert(p::P.all()->filter(x | $x.id == 9)." + prop + "->forAll(e | [1, 2]->contains($e)))}",
+                    "pass");
+        }
+        List<String> wrong = new ArrayList<>();
+        for (var backend : TestBackends.inProcess()) {
+            var database = backend.type();
+            String model = MEMBERS_ON.formatted(database);
+            for (var e : want.entrySet()) {
+                // the map reads a list, which a dialect without a list encoding refuses by name (as F4's test)
+                if (e.getKey().contains("map(x") && !database.equals(Databases.PLATFORM)) {
+                    continue;
+                }
+                String message = null;
+                for (com.legend.testplan.PlanningOptions.JudgeMode mode : JUDGES) {
+                    String got;
+                    try {
+                        Program.runFresh(model, e.getKey(), "p::RT", database, ExecuteOptions.NONE.withJudgeMode(mode),
+                                com.legend.testexec.NoEdgeRun.NONE);
+                        got = "pass";
+                    } catch (AssertFailed f) {
+                        got = "AssertFailed";
+                        // one message under every judge (an isolated BOTH compares them: JudgesDisagree otherwise)
+                        if (message == null) {
+                            message = f.getMessage();
+                        } else if (!message.equals(f.getMessage())) {
+                            got = "AssertFailed, worded otherwise: " + f.getMessage() + " (not " + message + ")";
+                        }
+                    } catch (Throwable t) {
+                        got = t.getClass().getSimpleName() + ": " + t.getMessage();
+                    }
+                    String wanted = e.getValue();
+                    if (wanted.equals(SUBSET_FAILS)) {
+                        // both judges fail it, each in its own words (JUDGES-3, queued: the host's subset sentence is
+                        // none of the run's words), so isolated BOTH answers JudgesDisagree naming two failures
+                        wanted = mode == com.legend.testplan.PlanningOptions.JudgeMode.BOTH ? "both failed"
+                                : "AssertFailed";
+                        if (got.startsWith("JudgesDisagree") && got.contains("assert failed \"")
+                                && got.contains("; database meta::pure::functions::asserts::assert failed")) {
+                            got = "both failed";
+                        } else if (got.startsWith("AssertFailed")) {
+                            got = "AssertFailed";
+                        }
+                    }
+                    if (!wanted.equals(got)) {
+                        wrong.add(database + " " + mode + " " + e.getKey() + " -> " + oneLine(got));
+                    }
+                }
+            }
+        }
+        assertTrue(wrong.isEmpty(), "one verdict under every judge:\n  " + String.join("\n  ", wrong));
+    }
+
+    /** A forAll-contains subset that fails under each judge alone (its words: JUDGES-3, queued). */
+    private static final String SUBSET_FAILS = "subset fails";
+
     /** The database judge sends a segment's asserts as ONE statement (the fused verdict statement, VerdictBatch), whatever
      *  their messages: a caller's message is a column of its own assert's row inside it (the user, 2026-11-04: "the
      *  'fuse' step to do all assert together in one go"). Measured as the statements a passing body sends. */

@@ -106,7 +106,7 @@ class TestPlanJsonRoundTripTest {
                         false, false, "E", "E")),
                 new HostJudgment.Tolerance(),
                 new HostJudgment.Condition("condition", false),
-                new HostJudgment.Subset("subset", true),
+                new HostJudgment.Subset("subset", true, a, e),
                 new HostJudgment.Empty(true),
                 new HostJudgment.Eq(e, a, keys),
                 new HostJudgment.InstanceOf("my::C", Set.of("my::C", "my::B")),

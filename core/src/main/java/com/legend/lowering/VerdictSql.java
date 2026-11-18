@@ -569,8 +569,11 @@ public final class VerdictSql {
      *  both; null, the canons'. */
     /** {@code negated}: {@code assertNotContains} (#28): the same verdict row over the written collection, its failure
      *  the negated sentence -- lite's {@code NOT_CONTAINS}, or legend-pure's '%s should not contain %r'. */
+    /** {@code neverHas}: no element can be the value, decided at planning (two numbers' different known kinds, register
+     *  S127; the PR #118 follow-ups' J3, track A5, 2026-11-18) -- the membership false, its rows read for the message,
+     *  as {@link #subset}'s {@code neverHad}. */
     public static SqlQuery contains(SqlQuery collRows, SqlQuery valScalar,
-            @com.legend.base.Nullable Message valueWritten, boolean negated, VerdictWords words) {
+            @com.legend.base.Nullable Message valueWritten, boolean negated, VerdictWords words, boolean neverHas) {
         boolean lite = words.reads() == VerdictReads.WRITTEN;
         OutputCol vc = new OutputCol(C, SqlType.Scalar.VARCHAR, true);
         SqlSource v0 = new SqlSource.Table("__v0", "__v0", valScalar.outputs(), false, java.util.Map.of(), com.legend.sql.NameQuoting.BARE);
@@ -609,7 +612,8 @@ public final class VerdictSql {
         }
         return predicateOver(List.of(new SqlWith.Cte("__a", collRows), new SqlWith.Cte("__v0", valScalar),
                         new SqlWith.Cte("__sa", sideFacts("__a", true, false))),
-                ops, SqlExpr.Call.of(SqlFn.GREATER, m.col("__m"), new SqlExpr.IntLit(0)),
+                ops, neverHas ? new SqlExpr.BoolLit(false)
+                        : SqlExpr.Call.of(SqlFn.GREATER, m.col("__m"), new SqlExpr.IntLit(0)),
                 v.col(C), t.col(F_TEXT), new SqlExpr.NullLit(), message);
     }
 
@@ -773,9 +777,11 @@ public final class VerdictSql {
 
     /** The {@code $need->forAll(n | $have->contains($n))} subset idiom:
      * no needed canon is absent from the haves. */
-    public static SqlQuery subset(SqlQuery needRows, SqlQuery haveRows, boolean wantTrue) {
+    public static SqlQuery subset(SqlQuery needRows, SqlQuery haveRows, boolean wantTrue, boolean neverHad) {
         OutputCol one = new OutputCol("__one", SqlType.Scalar.BIGINT, false);
-        SqlExpr present = new SqlExpr.Exists(new SqlSelect(
+        // neverHad: no needed element can be a had one, decided at planning (two numbers' different known kinds,
+        // register S127; J3, track A5, 2026-11-18) -- every needed element is missing
+        SqlExpr present = neverHad ? new SqlExpr.BoolLit(false) : new SqlExpr.Exists(new SqlSelect(
                 List.of(new SqlSelect.Projection(new SqlExpr.IntLit(1), "__one", one)),
                 false, cte("__h"),
                 SqlExpr.Call.of(SqlFn.NULL_SAFE_EQUAL, col("__h", C), col("__n", C)),

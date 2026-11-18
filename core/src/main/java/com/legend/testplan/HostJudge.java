@@ -105,7 +105,7 @@ final class HostJudge {
         TypedSpec[] fc = AssertVerdicts.forAllContains(cond);
         if (fc != null) {
             return new HostSides.Check(List.of(valueAsk(fc[0], hook), valueAsk(fc[1], hook)),
-                    new HostJudgment.Subset(name, wantTrue));
+                    new HostJudgment.Subset(name, wantTrue, facts(fc[0]), facts(fc[1])));
         }
         // F13c: the CONDITION rides the identity lane — eq/
         // equal over instances compile the engine relation

@@ -102,4 +102,42 @@ class CompiledPureNumbersEdgeTest {
         }
         assertTrue(wrong.isEmpty(), "one verdict under every judge:\n  " + String.join("\n  ", wrong));
     }
+    /** J3 on the edge (the PR #118 follow-ups, track A5, 2026-11-18; AssertBarTest's product half): a membership over a
+     *  Decimal property on an INTEGER column, under compiled legend-pure's rule -- the Integer 1 and the property's
+     *  Decimal 1 equal by their texts, a Float equal to neither (CompiledSupport.equal, eq) -- under every judge alike:
+     *  each side compared under its declared kind, the host's and the database judge's, one verdict per assert. */
+    @Test
+    void aMembershipOverADeclaredDecimalIsOneVerdictUnderEveryJudgeOnTheEdge() throws Exception {
+        java.util.Map<String, String> want = new java.util.LinkedHashMap<>();
+        for (String one : List.of("p::P.all()->filter(x | $x.id == 1)->toOne().d", "p::P.all()->map(x | $x.d)->toOne()")) {
+            want.put("{|assertContains([1D, 2D], " + one + ")}", "pass");
+            want.put("{|assertContains([1, 2], " + one + ")}", "pass");
+            want.put("{|assertNotContains([1, 2], " + one + ")}", "AssertFailed");
+            want.put("{|assertContains([1.0, 2.0], " + one + ")}", "AssertFailed");
+        }
+        for (String all : List.of("p::P.all().d", "p::P.all()->map(x | $x.d)")) {
+            want.put("{|assertContains(" + all + ", 1)}", "pass");
+            want.put("{|assertContains(" + all + ", 1.0)}", "AssertFailed");
+            want.put("{|assert([1]->forAll(e | " + all + "->contains($e)))}", "pass");
+            want.put("{|assert(" + all + "->forAll(e | [1, 2]->contains($e)))}", "pass");
+            want.put("{|assert(" + all + "->forAll(e | [1.0, 2.0]->contains($e)))}", "AssertFailed");
+        }
+        java.util.List<String> wrong = new java.util.ArrayList<>();
+        for (var e : want.entrySet()) {
+            for (com.legend.testplan.PlanningOptions.JudgeMode mode : JUDGES) {
+                String got;
+                try {
+                    com.legend.testing.EdgeProgram.runFresh(MAPPED, e.getKey(), "p::RT",
+                            com.legend.testing.EdgeProgram.compat(mode));
+                    got = "pass";
+                } catch (Throwable t) {
+                    got = t.getClass().getSimpleName();
+                }
+                if (!e.getValue().equals(got)) {
+                    wrong.add(mode + " " + e.getKey() + " -> " + got);
+                }
+            }
+        }
+        assertTrue(wrong.isEmpty(), "one verdict under every judge:\n  " + String.join("\n  ", wrong));
+    }
 }

@@ -144,7 +144,9 @@ public sealed interface HostJudgment permits HostJudgment.AllRows, HostJudgment.
     }
 
     /** The forAll-contains subset fold of a condition. */
-    record Subset(String name, boolean wantTrue) implements HostJudgment {
+    /** The forAll-contains subset ({@code assert(need->forAll(e | have->contains($e)))}): {@code need} and {@code have}
+     *  each side's facts, its elements compared under its declared kind (J3, track A5, 2026-11-18). */
+    record Subset(String name, boolean wantTrue, SideFacts need, SideFacts have) implements HostJudgment {
     }
 
     record Empty(boolean wantEmpty) implements HostJudgment {
