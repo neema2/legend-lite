@@ -45,8 +45,9 @@ class ServerBootTest {
         assertSame(LegendHttpServer.LITE, LegendHttpServer.configured(null));
         LegendHttpServer server = started(LegendHttpServer.configured(null));
         try {
-            assertEquals(200, post(server, "/api/lite/v1/compilation/compile",
-                    "{\"_type\":\"text\",\"code\":\"Class a::A { x: Integer[1]; }\"}").statusCode());
+            // lite's own model/check (lite API v1, the host train's rename of compilation/compile, 2026-11-17)
+            assertEquals(200, post(server, "/api/lite/v1/model/check",
+                    "{\"model\":\"Class a::A { x: Integer[1]; }\"}").statusCode());
             assertEquals(404, post(server, LAMBDA, "|1").statusCode());
         } finally {
             server.stop();

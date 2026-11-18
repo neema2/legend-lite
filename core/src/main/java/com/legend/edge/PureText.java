@@ -31,8 +31,14 @@ public final class PureText {
 
     /** The edge's dialect source: upstream's spellings over the product's dialect of each database. */
     /** Whether {@code style} is one of the edge's ({@link #UPSTREAM}, {@link #PURE_V1}): a plan in legend-pure's words,
-     *  which only the edge's hook hears (TestRunner refuses a mixed run by them; train 17, 2026-11-18). */
+     *  which only the edge's hook hears (TestRunner refuses a mixed run by them; train 17, 2026-11-18). A planning
+     *  call's recorder of the sites' words ({@link #recording}, K10b) is its template's style: a test body under the
+     *  edge's style is planned in one (train 19, 2026-11-18: the identity test alone numbered no appeal for it, and
+     *  the edge's hook then heard number 0). */
     public static boolean isEdgeStyle(PlanStyle style) {
+        if (style instanceof SiteWordsRecorder r) {
+            return isEdgeStyle(r.template());
+        }
         return style == UPSTREAM || style == PURE_V1;
     }
 
