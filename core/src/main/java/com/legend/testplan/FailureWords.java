@@ -11,6 +11,7 @@ package com.legend.testplan;
  */
 public interface FailureWords {
 
-    /** Whether a failure is worded in legend-pure's words. */
-    boolean upstreamWords();
+    /** The words' name, the plan's data ({@code TestPlan.words}; census J29, 2026-11-18: a name, never a flag): lite's
+     *  {@link com.legend.testexecutionplan.TestPlan#LITE_WORDS}, the edge's legend-pure's. */
+    String words();
 }

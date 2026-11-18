@@ -11,7 +11,7 @@ public enum LiteFailureWords implements FailureWords {
     LITE;
 
     @Override
-    public boolean upstreamWords() {
-        return false;
+    public String words() {
+        return com.legend.testexecutionplan.TestPlan.LITE_WORDS;
     }
 }

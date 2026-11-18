@@ -40,7 +40,7 @@ class MixedRunRefusalTest {
     void theProductsStyleHeardByTheEdgesHookIsRefused() {
         IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
                 () -> run(ExecuteOptions.NONE, com.legend.edge.AppealRun.with(null)));
-        assertTrue(e.getMessage().contains("the product's style") && e.getMessage().contains("go together"),
+        assertTrue(e.getMessage().contains("worded in lite's words") && e.getMessage().contains("go together"),
                 e.getMessage());
     }
 
@@ -48,7 +48,7 @@ class MixedRunRefusalTest {
     void theEdgesStyleHeardByTheProductsHookIsRefused() {
         IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
                 () -> run(ExecuteOptions.NONE.withStyle(com.legend.edge.PureText.UPSTREAM), NoEdgeRun.NONE));
-        assertTrue(e.getMessage().contains("the compatibility edge's style") && e.getMessage().contains("go together"),
+        assertTrue(e.getMessage().contains("worded in legend-pure's words") && e.getMessage().contains("go together"),
                 e.getMessage());
     }
 

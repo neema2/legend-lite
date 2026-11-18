@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.legend.testplan;
 
+
 import com.legend.testexecutionplan.Verdicts;
 import com.legend.testexecutionplan.JsonGrammar;
 import com.legend.testexecutionplan.JudgeJson;
@@ -335,7 +336,7 @@ public final class DatabaseJudge {
     /** Whether the database judge words a failure by lite's own sentences: lite's own rules; the compatibility rules
      *  keep legend-pure's words. */
     static boolean lite(BodyDriver.ExecEnv env) {
-        return !env.options().style().twoForm(FailureWords.class, LiteFailureWords.LITE).upstreamWords();
+        return LiteFailureWords.LITE.words().equals(env.options().style().twoForm(FailureWords.class, LiteFailureWords.LITE).words());
     }
 
     private static com.legend.lowering.VerdictSql.@com.legend.base.Nullable Message written(

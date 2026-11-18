@@ -136,12 +136,6 @@ final class Appeals implements com.legend.testexec.EdgeHearing {
                 + " holds");
     }
 
-    /** legend-pure's words of an assert's failure at run (C5's step B, 2026-11-17). */
-    @Override
-    public com.legend.testexec.PureWords pureWords() {
-        return EdgePureWords.INSTANCE;
-    }
-
     /** The compatibility rules' JSON grammar: upstream's json-simple 1.1.1 (register S144; census C1, 2026-11-17). */
     @Override
     public com.legend.testexecutionplan.JsonGrammar json() {

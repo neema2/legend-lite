@@ -82,7 +82,13 @@ class CompatSpellingGuardTest {
             // literal it is also the Pure type's own name (16 product literals), so its sites are sorted in Phase 7
             "tdsBuilder", "SET NON_KEYWORDS",
             // legend-engine's text of an empty TDS cell (the separation census's B10, 2026-11-17: until then not listed)
-            "TDSNull");
+            "TDSNull",
+            // legend-pure's assert sentences (census J29, 2026-11-18: the host judge's are the edge's EdgeHostWords; a
+            // planted one in a product source turns this guard red)
+            "No error was thrown", "Expected non-empty collection", "Execution error message mismatch",
+            "Execution error line mismatch", "Execution error column mismatch", "^Assert failed$",
+            "should not equal", " does not contain ", "is not equivalent to", "the element references differ",
+            "assertJsonStringsEqual: FIRST DIFF", "Should not be identical to", "\\nexpected: ", "\\nactual:   ");
 
     /** The compatibility machinery, matched as whole words in code. */
     static final List<String> SYMBOLS = List.of(
@@ -116,6 +122,8 @@ class CompatSpellingGuardTest {
             "JUDGE",  // the judges' own canon on the test road (D0 §10): not compatibility, never moved
             "RULED",  // a row the USER RULED stays, its ruling and evidence beside it (U5, 2026-11-15/16: a surviving row
                       // shows who calls it and what breaks without it; added 2026-11-16 with the P2 checkpoint audit's A-M1)
+            "J29",    // legend-pure's assert sentences the database judge's planning still writes (census J29's planning half,
+                      // 2026-11-18: the host judge's moved to the edge's EdgeHostWords that day)
             "STAYS"); // a product semantic sharing the spelling: lowering/DateFormats.java's pattern letter Z is +0000
 
     /**
@@ -124,6 +132,27 @@ class CompatSpellingGuardTest {
      * SHRINK-ONLY: a row falls or goes as its step lands; a row rises or is added only with a dated justification.
      */
     static final List<String> REGISTER = List.of(
+            // census J29 (2026-11-18): legend-pure's assert sentences the database judge's planning still writes, and
+            // the condition assert's ("Assert failed") planned beside it -- each row goes with J29's planning half
+            "compiler/spec/LambdaBodies.java | Assert failed | 1 | J29",
+            "compiler/spec/VerdictQueries.java | Assert failed | 1 | J29",
+            "lowering/VerdictSql.java |  does not contain  | 2 | J29",
+            "lowering/VerdictSql.java | Execution error column mismatch | 1 | J29",
+            "lowering/VerdictSql.java | Execution error line mismatch | 1 | J29",
+            "lowering/VerdictSql.java | Execution error message mismatch | 1 | J29",
+            "lowering/VerdictSql.java | Expected non-empty collection | 1 | J29",
+            "lowering/VerdictSql.java | No error was thrown | 1 | J29",
+            "lowering/VerdictSql.java | Should not be identical to | 1 | J29",
+            "lowering/VerdictSql.java | \\nactual:    | 2 | J29",
+            "lowering/VerdictSql.java | \\nexpected:  | 2 | J29",
+            "lowering/VerdictSql.java | is not equivalent to | 1 | J29",
+            "lowering/VerdictSql.java | should not equal | 2 | J29",
+            "testexec/DatabaseVerdicts.java | \\nactual:    | 1 | J29",
+            "testexec/DatabaseVerdicts.java | \\nexpected:  | 1 | J29",
+            "testplan/AssertVerdicts.java | Assert failed | 1 | J29",
+            "testplan/AssertVerdicts.java | \\nactual:    | 1 | J29",
+            "testplan/AssertVerdicts.java | \\nexpected:  | 1 | J29",
+            "testplan/DatabaseJudge.java | Assert failed | 1 | J29",
             // D1.6's compile messages, gone 2026-11-16 (W7 of docs/records/d-plan-2026-11-16.md): ModelIntegrity,
             // TypeClassifier, TableReferenceChecker and the normalizer's "Can't find" raise a CompileKind, worded by the
             // product (CompileKind.sentence) and, for upstream's clients, by the edge (PureMessages.compile)
