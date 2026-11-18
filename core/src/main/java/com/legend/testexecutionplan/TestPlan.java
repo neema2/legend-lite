@@ -409,8 +409,8 @@ public record TestPlan(List<ExecutionPlan.Parameter> parameters, List<TestStep> 
      * judge's statement was planned under them, the host judge compares by them.
      *
      * @param floatUlps    the units in the last place two Floats may differ by and be equal: 0, exact (lite's: S15/S132,
-     *                     the user's ruling of 2026-11-05), or 2 (the compatibility edge's: S132's tokens, S15) -- the
-     *                     judges implement no other
+     *                     the user's ruling of 2026-11-05), or the compatibility edge's 2 (S132's tokens, S15) -- both
+     *                     judges read this number (census C1's J11, 2026-11-17: no product constant holds it)
      * @param decimalScale whether two Decimals of one value and different scales differ ({@code 0.3D} and
      *                     {@code 0.30D}): compiled Pure's assert, the compatibility edge's; lite compares a Decimal by
      *                     value (S139, the user's ruling of 2026-11-05)
@@ -421,9 +421,8 @@ public record TestPlan(List<ExecutionPlan.Parameter> parameters, List<TestStep> 
         public static final JudgingRules LITE = new JudgingRules(0, false);
 
         public JudgingRules {
-            if (floatUlps != 0 && floatUlps != 2) {
-                throw new IllegalArgumentException("a Float tolerance of " + floatUlps + " ULP: the judges compare a"
-                        + " Float exactly (0) or within 2 ULP");
+            if (floatUlps < 0) {
+                throw new IllegalArgumentException("a Float tolerance of " + floatUlps + " ULP: none is negative");
             }
         }
 

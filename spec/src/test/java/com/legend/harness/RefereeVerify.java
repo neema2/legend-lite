@@ -933,7 +933,8 @@ public final class RefereeVerify {
         }
         try {
             // the ONE home of the rule (Equality, §5a)
-            return com.legend.testexec.Equality.withinTwoUlp(Double.parseDouble(a), Double.parseDouble(b));
+            return com.legend.testexec.Equality.withinUlps(Double.parseDouble(a), Double.parseDouble(b),
+                    com.legend.edge.CompatRules.COMPILED_PURE.floatUlps());
         } catch (NumberFormatException e) {
             return false;
         }
