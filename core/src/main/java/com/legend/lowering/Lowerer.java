@@ -828,7 +828,7 @@ public final class Lowerer {
             // clean thing in lite, the backward-compatible thing in compatibility mode"); the edge's the engine
             // JsonBuilder's cardinality rule, exactly one object bare -- the scalar position's fold (SnapshotEnvelope).
             // The streaming root (one object per row) never folds
-            if (g.engineExecuteCardinality() && !streamingGraphRoot) {
+            if (g.readThroughExecuteValues() && !streamingGraphRoot) {
                 return conformJsonEgress(styled().forms().executeValues(() -> serializeGraph(g, false),
                         () -> serializeGraph(g.asArrayWrapped(), false)));
             }

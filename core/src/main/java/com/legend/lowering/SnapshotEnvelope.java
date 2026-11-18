@@ -20,7 +20,7 @@ import java.util.List;
  * unwrap: {@code "values":{...}} for one row, {@code "values":[...]}
  * otherwise). The same fold is the ROOT form of a graph read as the values of
  * an engine {@code execute(...)} ({@code TypedSerializeGraph
- * .engineExecuteCardinality}, {@code Lowerer.lower}): compatibility only, the
+ * .readThroughExecuteValues}, {@code Lowerer.lower}): the edge's form, the
  * engine's {@code execute()} contract; lite's own root stays the array (the
  * user's ruling, 2026-11-03).
  */

@@ -636,7 +636,7 @@ public final class ResultEnvelopeSplice {
                 && pa.property().equals("values")) {
             if (pa.source() instanceof TypedVariable v
                     && frames.frame(v.name()) instanceof View f) {
-                return engineExecuteCardinality(executedExtent(f));
+                return readThroughExecuteValues(executedExtent(f));
             }
             TypedSpec src = pa.source();
             while (src instanceof TypedFrom sf) {
@@ -646,30 +646,25 @@ public final class ResultEnvelopeSplice {
                     && com.legend.builtin.NativeFn.Handle.isExecute(ec.callee().id())) {
                 // inline read: the value is observed where it stands —
                 // no separate eager run (it would execute twice)
-                return engineExecuteCardinality(executedExtent(frames.inlineExecute(ec, false)));
+                return readThroughExecuteValues(executedExtent(frames.inlineExecute(ec, false)));
             }
         }
         return null;
     }
 
-    /** The values of an engine {@code execute(...)} whose query is a
-     * {@code serialize} (the chain's root under its from() envelopes): the
-     * serialize MARKED with the engine JsonBuilder's cardinality rule — a
-     * result of exactly one object serializes as the bare object, zero or
-     * several as the array ({@code TypedSerialize.engineExecuteCardinality},
-     * carried by the resolver to the graph the lowerer folds). This splice is
-     * the ONE place the mark is set: COMPATIBILITY ONLY, the engine's
-     * {@code execute()} contract; lite's own serialize results stay arrays
-     * (the user's ruling, 2026-11-03: "the right clean thing in lite, the
-     * backward-compatible thing in compatibility mode"). Any other chain
-     * stands as it is (the same instance). */
-    private static TypedSpec engineExecuteCardinality(TypedSpec chain) {
+    /** The values of an {@code execute(...)} whose query is a {@code serialize}
+     * (the chain's root under its from() envelopes): the serialize carries what
+     * the program wrote, {@code TypedSerialize.readThroughExecuteValues} (train
+     * 17 item 1, 2026-11-18: a fact, the product's; its presentation is the plan
+     * style's, LoweringForms#executeValues). This splice is the ONE place it is
+     * set. Any other chain stands as it is (the same instance). */
+    private static TypedSpec readThroughExecuteValues(TypedSpec chain) {
         if (chain instanceof TypedFrom fr) {
-            TypedSpec src = engineExecuteCardinality(fr.source());
+            TypedSpec src = readThroughExecuteValues(fr.source());
             return src == fr.source() ? chain : fr.withSource(src, fr.info());
         }
         return chain instanceof com.legend.compiler.spec.typed.TypedSerialize sz
-                ? sz.withEngineExecuteCardinality() : chain;
+                ? sz.readThroughExecute() : chain;
     }
 
     /** The frame's chain as an EXECUTED EXTENT (TypedFrom.executedExtent,
