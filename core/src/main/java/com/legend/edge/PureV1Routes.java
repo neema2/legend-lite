@@ -11,7 +11,6 @@ import com.legend.protocol.ModelComposer;
 import com.legend.protocol.ProtocolReader;
 import com.legend.protocol.PureComposer;
 import com.legend.protocol.spec.LambdaFunction;
-import com.legend.server.ModelInput;
 import com.legend.server.LiteV1Api;
 import com.legend.server.LiteV1Api.Answer;
 import com.legend.server.LiteV1Api.Models;

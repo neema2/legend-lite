@@ -1,8 +1,9 @@
-package com.legend.server;
+package com.legend.edge;
 
 import com.legend.json.Json;
 import com.legend.protocol.ModelReader;
 import com.legend.protocol.Protocol;
+import com.legend.server.LiteV1Api;
 
 import java.util.List;
 import java.util.Objects;
@@ -14,6 +15,11 @@ import java.util.Objects;
  * one), read into the protocol records ({@link ModelReader}) and compiled from them through the one door
  * ({@code ModelFromProtocol}) -- never printed and parsed again. A context of another kind (a pointer the engine loads
  * from an SDLC) is refused by name.
+ *
+ * <p>AT THE EDGE (the edge audit's J40.ModelInput, ruled MOVE by the orchestrator, 2026-11-18): legend-engine's request
+ * shape, read only by legend-engine's routes ({@code PureV1Routes}, {@code TestDataRoutes}, {@code EngineGrammar}) since
+ * lite API v1's server binding (a7fedfc878) took a model as lite's text; until then {@code com.legend.server.ModelInput}.
+ * Moved unchanged.
  */
 public sealed interface ModelInput {
 
