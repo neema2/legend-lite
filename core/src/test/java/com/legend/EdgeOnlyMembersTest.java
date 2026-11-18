@@ -94,6 +94,11 @@ class EdgeOnlyMembersTest {
     /** The members only the edge uses that are a product API the edge reads (READ_API: a fact the product owns and names
      *  in lite's terms; the orchestrator's triage ruling of 2026-11-18), each with its dated reason. Not counted. */
     static final Map<String, String> READ_API = Map.ofEntries(
+            // the orchestrator's ruling of 2026-11-18 (train 18, J40.VerdictSql, E-Java's 9dd14f6fdc): VerdictSql keeps the
+            // verdict builder in lite's terms; what the texts are (a golden SQL text and ours) is the edge's SqlTextVerdicts'
+            // -- J40.VerdictSql closes
+            Map.entry("com.legend.lowering.VerdictSql#constantTextsEqual(java.lang.String, java.lang.String)",
+                    "2026-11-18: a verdict row over two constant texts, string-equal: lite's own verdict builder; the edge's SQL-text arm composes it"),
             // ruled READ_API by the orchestrator (2026-11-18, train 18, on the GUARD stream's triage of E-Java's b70d85ab9):
             // a typed call to the platform's string::plus, lite's own building block (like the builders exposed for
             // textEquals), and a native's platform name; the edge's EngineExecutedValues builds its envelope with them
