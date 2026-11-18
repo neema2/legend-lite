@@ -195,6 +195,39 @@ answers are in `engine_h2_answers.tsv`.
   - the crossed `INTEGER`/`BIGINT` (`raise.parseInteger`'s plan).
 - **One is a legend-engine defect candidate:** `cell.float`'s 8 digits.
 
+### Main against legend-engine: what PR #118 changed (the orchestrator's question, 2026-11-18)
+
+**How main was measured.**
+- **The checkout:** main at `4dfbb5b76`, detached, measured in place; nothing pushed there.
+- **The recorder:** a scratch recorder, never committed. It sends the same 14 bodies the net sends: lite's
+  `grammarToJsonLambda(lambda, false)`, the model text, `vX_X_X` and a `BaseExecutionContext`.
+- **The routes:** `PureV1Api.execute` and `generatePlan`, through main's shipped server runner,
+  `ConnectionResolver.runner("none")` (`LegendHttpServer`'s default sources).
+- **The lines:** written as the net writes them, then compared with legend-engine's answers by the same comparison.
+
+**Main answers the five answer-level differences exactly as PR #118 does,** so none of them is new in PR #118:
+
+| Difference | main | PR #118 | legend-engine |
+|---|---|---|---|
+| `tds`: column types | `Integer`, `String` | the same | `meta::pure::precisePrimitives::Int`, `::Varchar` |
+| `cell.emptyIf`: computed String | `VARCHAR(1024)` | the same | `VARCHAR(8192)` |
+| `value`: the scalar answer | 500 "a SCALAR result's serialization is unprobed" | the same | 200, `dataTypeBuilder`, 128 |
+| `plan.raise.parseInteger`: `relationalType` | `INTEGER` | the same | `BIGINT` |
+| `cell.float` | `0.3333333333333333` | the same | `0.33333333` |
+
+**Main and PR #118 differ on 4 of the 28 lines, and on each PR #118 moved toward legend-engine.** main plants a
+raise check with lite's words; PR #118 plants none on pure/v1, so the database raises (or not) as under
+legend-engine:
+
+| Line | main | PR #118 | legend-engine |
+|---|---|---|---|
+| `raise.divideByZero` | 500 "Raised: Division by zero" | 500, H2's own division-by-zero error | 500, H2's own division-by-zero error |
+| `plan.raise.divideByZero` | `CASE WHEN 0 = 0 THEN SIGNAL(...)` in the SQL | the division alone | the division alone |
+| `raise.sqrtOfNegative` | 500 "Raised: Unable to compute sqrt of -2.0" | 200, `null` | 200, `null` |
+| `plan.raise.sqrtOfNegative` | a `SIGNAL` guard in the SQL | `sqrt(-2.0)` alone | `sqrt(-cast(2.0 as float))` alone |
+
+The other 24 lines are byte-identical on main and PR #118.
+
 ## 5. Requests legend-engine cannot plan
 
 | Request | H2 | DuckDB | legend-engine's words |
