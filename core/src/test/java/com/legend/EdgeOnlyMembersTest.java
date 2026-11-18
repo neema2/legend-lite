@@ -70,6 +70,26 @@ class EdgeOnlyMembersTest {
             // SetImplementations -- J40.ScanRelations closes)
             // (VerdictSql#textEquals: moved 2026-11-18 by E-Java's j40c, 9dd14f6fdc -- the product keeps constantTextsEqual,
             // READ_API below; J40.VerdictSql closes)
+            // found 2026-11-18 on train 19's trial (the host train's pre-merge cb7d660910 on guards d539d3dfd5, the GUARD
+            // stream), counted until ruled -- each with its owner and the proposed ruling:
+            // legend-engine's request model context (PureModelContextText/Data): lite v1 no longer reads it (the host train
+            // dropped LiteV1Api's ModelInput.of), so the type is the edge's routes' alone (PureV1Routes, TestDataRoutes)
+            Map.entry("com.legend.server.ModelInput#of(com.legend.json.Json$Obj)",
+                    "J40.ModelInput TS-HOST (2026-11-18, train 19, a7fedfc878): proposed MOVE -- the type to the edge, with its two READ_API rows"),
+            Map.entry("com.legend.server.ModelInput#with(com.legend.server.LiteV1Api$Models, java.util.function.Function)",
+                    "J40.ModelInput TS-HOST (2026-11-18, train 19, a7fedfc878): proposed MOVE -- the type to the edge, with its two READ_API rows"),
+            Map.entry("com.legend.server.ModelInput$Data#<init>(com.legend.protocol.Protocol$PureModelContextData)",
+                    "J40.ModelInput TS-HOST (2026-11-18, train 19, a7fedfc878): proposed MOVE -- the type to the edge, with its two READ_API rows"),
+            Map.entry("com.legend.server.ModelInput$Text#<init>(java.lang.String)",
+                    "J40.ModelInput TS-HOST (2026-11-18, train 19, a7fedfc878): proposed MOVE -- the type to the edge, with its two READ_API rows"),
+            // exec's raised error carries the plan's text of the statement that raised, read only by the edge to key its
+            // recorded words (K10b)
+            Map.entry("com.legend.exec.RaisedErrors$Raised#statement()",
+                    "J40.RaisedErrors E-P5 (2026-11-18, train 19): proposed READ_API -- the plan's own statement text, K10b's key"),
+            // a reader of lite's own refusal answer ({kind, message}) for a mount that words it its own way, used only by
+            // the edge's StoreWords (the edge audit's J9)
+            Map.entry("com.legend.queries.SavedQueries#reshaped(int, java.lang.String, java.util.function.BiFunction)",
+                    "J40.SavedQueries E-P5 (2026-11-18, train 19, J9 5d9c713395): proposed READ_API -- a reader of lite's own refusal answer (J9's StoreWords)")
             );
             // re-measured 2026-11-18 on train 15 1931d419b1 (the GUARD stream's re-cut): train 15 closed seven pins
             // (PlatformTypes' TO_SQL_STRING and TO_SQL_STRING_PRETTY, BodyPlanner#pushDownEnums, QueryParameters$Declared's
@@ -202,6 +222,10 @@ class EdgeOnlyMembersTest {
                     "2026-11-18: a half of lite's own plan codec (E-P5's ask: load steps and columns)"),
             Map.entry("com.legend.executionplan.PlanJson#writeColumns(java.util.List)",
                     "2026-11-18: a half of lite's own plan codec (E-P5's ask: load steps and columns)"),
+            // the class's ruling, extended 2026-11-18 on train 19's trial by the GUARD stream (K10, the host train): a
+            // statement's raise sites as the plan codec writes them, read by the edge's host answers
+            Map.entry("com.legend.executionplan.PlanJson#sitesOf(com.legend.executionplan.ExecutionPlan, java.lang.String)",
+                    "2026-11-18: a half of lite's own plan codec: a statement's raise sites (PlanJson's ruling, train 19)"),
             Map.entry("com.legend.lowering.ReprParts#cat([Lcom.legend.sql.SqlExpr;)",
                     "2026-11-18: the lowering's own representation parts (Scalars, LiteralSpelling), which the edge's texts compose"),
             Map.entry("com.legend.lowering.ReprParts#dateLiteralText(com.legend.compiler.spec.typed.TypedSpec)",
@@ -214,6 +238,12 @@ class EdgeOnlyMembersTest {
                     "2026-11-18: a lookup over lite's normalized mapping: an enum's enumeration mapping"),
             Map.entry("com.legend.plan.QueryPlan#columns()",
                     "2026-11-18: lite's query plan's own columns and shape"),
+            // the class's ruling, extended 2026-11-18 on train 19's trial by the GUARD stream: the product's own plan and
+            // root type, read now only by the edge's routes (PureV1Routes, HostAnswers)
+            Map.entry("com.legend.plan.QueryPlan#plan()",
+                    "2026-11-18: lite's query plan's own plan and root type (QueryPlan's ruling, train 19)"),
+            Map.entry("com.legend.plan.QueryPlan#rootType()",
+                    "2026-11-18: lite's query plan's own plan and root type (QueryPlan's ruling, train 19)"),
             Map.entry("com.legend.plan.QueryPlan#shape()",
                     "2026-11-18: lite's query plan's own columns and shape"),
             Map.entry("com.legend.planner.PlanEnv#withFeatures(java.util.Set)",
@@ -224,24 +254,23 @@ class EdgeOnlyMembersTest {
                     "2026-11-18: lite's planning environment's own features and lets"),
             Map.entry("com.legend.protocol.EmbeddedDataKinds#name(com.legend.protocol.Protocol$PEmbeddedDataValue)",
                     "2026-11-18: an embedded-data kind's name, lite's protocol reader's own"),
-            Map.entry("com.legend.protocol.PureComposer#lambda(com.legend.json.Json$Obj, com.legend.protocol.PureComposer$Style)",
+            // re-keyed 2026-11-18 for train 19 (the host train): lambda(Json$Obj, Style) -> lambda(String, Style), the same
+            // printer half taking the lambda's JSON text
+            Map.entry("com.legend.protocol.PureComposer#lambda(java.lang.String, com.legend.protocol.PureComposer$Style)",
                     "2026-11-18: a half of lite's protocol printer: a lambda's JSON as Pure text"),
-            Map.entry("com.legend.queries.SavedQueries$Refusal#kind()",
-                    "2026-11-18: lite's saved-query refusal's own facts"),
+            // (SavedQueries$Refusal#kind: the product reads it again, train 19's host train -- SavedQueries' answer)
             Map.entry("com.legend.queries.SavedQueries$Refusal#operands()",
                     "2026-11-18: lite's saved-query refusal's own facts"),
             Map.entry("com.legend.result.HostRows#stream(java.lang.String, java.util.List, com.legend.result.ResultSink)",
                     "2026-11-18: a half of lite's own host-rows codec (a host's answer to its statement)"),
-            Map.entry("com.legend.result.Output$Rows#<init>(com.legend.result.ResultSink)",
-                    "2026-11-18: lite's Output: a caller's own sink"),
+            // (Output$Rows#<init>: the product makes one again, train 19's host train -- LiteV1Planning's query run)
             Map.entry("com.legend.server.LegendHttpServer$Context#cubeStore()",
                     "2026-11-18: the server's mount context, lite's own"),
             Map.entry("com.legend.server.LegendHttpServer$Context#queryStore()",
                     "2026-11-18: the server's mount context, lite's own"),
             Map.entry("com.legend.server.LegendHttpServer$Context#sources()",
                     "2026-11-18: the server's mount context, lite's own"),
-            Map.entry("com.legend.server.LiteV1Api$Answer#bytes(int, [B, java.lang.String, java.util.Map)",
-                    "2026-11-18: lite v1's own answer and runner seams"),
+            // (LiteV1Api$Answer#bytes: the product answers with it again, train 19's host train)
             Map.entry("com.legend.server.LiteV1Api$Runner#run(com.legend.TypedQuery, java.lang.String, com.legend.result.Output)",
                     "2026-11-18: lite v1's own answer and runner seams"),
             Map.entry("com.legend.server.ModelInput$Data#model()",
