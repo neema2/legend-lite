@@ -131,8 +131,8 @@ public class EngineStyleDB2 extends EngineStyleH2 {
     /** DB2 QUOTES boolean placeholders — the mapped case-expr yields
      * {@code 'true'}/{@code 'false'} strings. */
     @Override
-    protected String holderArgs(SqlExpr.PlanParam.Kind k) {
-        return k == SqlExpr.PlanParam.Kind.BOOLEAN
+    protected String holderArgs(SqlExpr.PlanParam.ValueType k) {
+        return k == SqlExpr.PlanParam.ValueType.BOOLEAN
                 ? "\"'\" \"'\" {}" : super.holderArgs(k);
     }
 
