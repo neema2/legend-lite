@@ -193,9 +193,14 @@ browser_test(
     tags = ["ci-linux-only"],
 )
 
+# Studio's node tests, one per test/*.test.ts, by the name each is made under: the suite below is derived from the same
+# glob, so a new test file is in the suite, and in the lane, by construction (the review of PR #118's fix round,
+# 2026-11-18: run_test was made here and missing from the suite).
+_NODE_TESTS = {t: t[len("test/"):-len(".test.ts")].replace("-", "_") + "_test" for t in glob(["test/*.test.ts"])}
+
 # Studio's model over the real WebAssembly modules: the compiler (WASM_PLANNER) and the SDLC (SDLC_PAGE).
 [node_test(
-    name = t[len("test/"):-len(".test.ts")].replace("-", "_") + "_test",
+    name = name,
     size = "small",
     data = [
         ":src",
@@ -217,7 +222,7 @@ browser_test(
     # the engine test asks legend-engine's routes too: the engine module's, beside the planner (the user's K2 ruling,
     # 2026-11-18: "Product root, edge opt-in"); the other tests load the planner alone
     engine = t == "test/engine.test.ts",
-) for t in glob(["test/*.test.ts"])]
+) for t, name in _NODE_TESTS.items()]
 
 # the demo projects (design S18), by runfiles path for the test that publishes them (STUDIO_PROJECTS_MANIFEST)
 filegroup(
@@ -251,17 +256,7 @@ typescript.tsc_test(
 # every test here but the browser harness (verify_test, in //gates:ui, tagged ci-linux-only): the local gate and CI run it
 test_suite(
     name = "tests",
-    tests = [
-        ":demo_test",
-        ":engine_test",
-        ":query_builder_test",
-        ":rename_test",
-        # found in no lane by CI's lane guard on PR #118 (PR #118 fix round, 2026-11-18)
-        ":run_test",
-        ":split_test",
-        ":typecheck_test",
-        ":workspace_test",
-    ],
+    tests = [":" + name for name in _NODE_TESTS.values()] + [":typecheck_test"],
 )
 
 # THE APP'S DIRECT DEPS, as Bazel resolves them (the C5-T last round's T1, 2026-11-15): //tools/deps:ts_layering_test

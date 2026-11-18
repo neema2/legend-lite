@@ -43,7 +43,7 @@ function walk(base: string, roots: string[]): { reached: Set<string>; missing: s
       missing.push(`${relative(base, file)} (named by ${by})`);
       continue;
     }
-    if (!file.endsWith('.js')) continue;
+    if (!/\.m?js$/.test(file)) continue;   // a module, .js or .mjs, names what it loads; a .wasm, .json or .css none
     for (const next of named(readFileSync(file, 'utf8'), file)) todo.push({ file: next, by: relative(base, file) });
   }
   return { reached, missing };
@@ -78,14 +78,17 @@ test('the walk names a file a module imports that the folder lacks', () => {
   // its bite: a folder whose page module reaches a chunk that is there, and names a worker and a plane that are not
   const dir = mkdtempSync(join(process.env.TEST_TMPDIR ?? tmpdir(), 'dist-'));
   writeFileSync(join(dir, 'page.js'),
-    'import{a}from"./chunks/a.js";new URL("./worker.js",import.meta.url);import("./plane.js");'
+    'import{a}from"./chunks/a.js";new URL("./worker.js",import.meta.url);import("./plane.js");import"./lib.mjs";'
     // TypeScript written as text, which no browser fetches: not followed
     + 'const shown="import { x } from \'./src/x.ts\';";');
   const chunk = join(dir, 'chunks');
   mkdirSync(chunk);
   writeFileSync(join(chunk, 'a.js'), 'import"../shared.js";export const a=1;');
   writeFileSync(join(dir, 'shared.js'), '');
+  // a reached .mjs module is read too: what it imports is the dist's to hold (the review of PR #118's fix round)
+  writeFileSync(join(dir, 'lib.mjs'), 'export{b}from"./gone.js";');
   const { reached, missing } = walk(dir, [join(dir, 'page.js')]);
-  assert.deepEqual(missing.sort(), ['plane.js (named by page.js)', 'worker.js (named by page.js)']);
+  assert.deepEqual(missing.sort(),
+    ['gone.js (named by lib.mjs)', 'plane.js (named by page.js)', 'worker.js (named by page.js)']);
   assert.ok(reached.has(join(dir, 'shared.js')), 'a chunk\'s own import, resolved against the chunk, is followed');
 });
