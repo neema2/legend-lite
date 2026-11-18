@@ -1,0 +1,30 @@
+{
+  "name": "@legend-lite/planner-wasm",
+  "version": "0.1.0",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "description": "legend-lite's engine module as WebAssembly, for a host outside this repository: legend-engine's pure/v1 routes answered in the page, the runtime that loads the module, and the types of the one export such a host calls. (The package keeps the name planner-wasm: the module compiles legend-lite's planner.)",
+  "types": "./index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "default": "./wasm-gc-module-runtime.js"
+    },
+    "./wasm-gc-module-runtime.js": {
+      "types": "./index.d.ts",
+      "default": "./wasm-gc-module-runtime.js"
+    },
+    "./classes.wasm": "./classes.wasm",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "classes.wasm",
+    "wasm-gc-module-runtime.js",
+    "index.d.ts",
+    "README.md",
+    "LICENSE",
+    "NOTICE",
+    "THIRD_PARTY_NOTICES.md"
+  ]
+}
