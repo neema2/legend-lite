@@ -484,7 +484,8 @@ py_test(
     # at 4a8e448917; Linux 5-8 s) -- `_SLOW_ON_CI_TESTS` in datacube/BUILD.bazel
     size = "medium",
     srcs = ["tests/test_planned_guard.py"],
-    data = glob(["legend_lite/*.py"]),
+    # the package and its subpackages (legend_lite.edge: the edge program's H5, 2026-11-18)
+    data = glob(["legend_lite/**/*.py"]),
     env = {"PLANNED_PACKAGE": "$(rlocationpath legend_lite/__init__.py)"},
     main = "tests/test_planned_guard.py",
     deps = ["@rules_python//python/runfiles"],
