@@ -1,7 +1,8 @@
 package com.legend.parser;
 
 /**
- * Named, deliberate reproductions of legend-engine parser bugs.
+ * Named, deliberate reproductions of the reference parsers' behaviours (legend-engine's, and where they are
+ * legend-pure's too, Pure's definition).
  *
  * <p>Each constant names ONE wart of the engine's
  * {@code DomainParseTreeWalker} that legend-lite reproduces on purpose,
@@ -21,14 +22,25 @@ public final class EngineQuirks {
 
     /**
      * PARSER_IMPLEMENTATION_AUDIT_2026_08 &sect;1.2 &mdash; decided in
-     * writing 2026-08-06: <b>reproduce the engine byte-for-byte.</b>
+     * writing 2026-08-06: <b>reproduce the association byte-for-byte.</b>
      *
-     * <p>The engine mis-associates arithmetic after a relational
-     * operator: {@code 1 < 2 + 3 * 4} parses as
+     * <p>Arithmetic after a relational operator associates LEFT of a
+     * tighter operator: {@code 1 < 2 + 3 * 4} parses as
      * {@code lessThan(1, times[Collection[plus[Collection[2,3]], 4]])}
-     * &mdash; i.e. {@code 1 < (2+3)*4 = 1 < 20} &mdash; while standalone
-     * {@code 2 + 3 * 4} is {@code plus[Collection[2, times[Collection[3,4]]]]}
-     * = 14. The engine contradicts itself between the two contexts.
+     * &mdash; i.e. {@code 1 < (2+3)*4} &mdash; while standalone
+     * {@code 2 + 3 * 4} is {@code plus[Collection[2, times[Collection[3,4]]]]}.
+     *
+     * <p>This is legend-pure's association as well as legend-engine's, so
+     * it is Pure's definition, which the product follows -- not an
+     * engine-only bug (J30 of the edge audit, withdrawn 2026-11-18, read
+     * from the pinned sources): legend-engine's PCT test
+     * {@code testNestedJoinArithmeticComparisonExpression}
+     * ({@code core_functions_relation/relation/tests/composition.pure:1933})
+     * joins on {@code $r2.val2 >= $r1.val1->toOne() + 8 + 9 * $r1.factor},
+     * and legend-pure's expected rows hold only as
+     * {@code (val1 + 8 + 9) * factor} (val1 -20 joins val2 8, 5 and 3);
+     * the reverse-PCT translations of the same test write it so
+     * ({@code xt-python-reversePCT-*}/{@code relation/relation.pure:2401}).
      *
      * <p>Engine source: {@code DomainParseTreeWalker.processOp}
      * (legend-engine {@code .../grammar/from/domain/DomainParseTreeWalker.java},
@@ -40,16 +52,8 @@ public final class EngineQuirks {
      * already been promoted into the comparison's RHS, so {@code * 4}
      * grabs {@code plus[2,3]} whole instead of just {@code 3}.
      *
-     * <p>The CORRECT behavior we would switch to (were a consumer +
-     * referee to exist): the tighter operator claims only the
-     * <em>deepest last operand</em> &mdash; rewrite {@code 3} inside the
-     * inner {@code plus} collection, yielding
-     * {@code lessThan(1, plus[Collection[2, times[Collection[3,4]]]])}
-     * = real Pure's precedence ({@code 1 < 14}), which is also what
-     * legend-lite's pre-2026-08 precedence climb produced.
-     *
      * <p>Referenced at the reproducing code site:
-     * {@code SpecParser.processOp}'s last-parameter rewrite arm.
+     * {@code OperatorParts.processOp}'s last-parameter rewrite arm.
      */
     public static final boolean RELATIONAL_ARITH_MISASSOCIATION = true;
 }

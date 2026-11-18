@@ -116,7 +116,8 @@ final class EngineShapeArithmeticTest {
         // Once the accumulator is lessThan, processOp rewrites its LAST
         // parameter whole, so '* 4' grabs plus[2,3] instead of 3:
         // lessThan(1, times[Collection[plus[Collection[2,3]], 4]])
-        // = 1 < (2+3)*4 = 1 < 20, NOT real Pure's 1 < 14.
+        // = 1 < (2+3)*4 = 1 < 20 -- legend-pure's association too (EngineQuirks' witness, the PCT test
+        // testNestedJoinArithmeticComparisonExpression; J30 withdrawn 2026-11-18).
         assertEquals(
                 binary("lessThan",
                         new CInteger(1L),
