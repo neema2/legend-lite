@@ -60,6 +60,14 @@ class ProductFormsUseTheirArgumentsTest {
                     + " own plain lowering, which it runs itself when sharing is off; only the choice is upstream's",
             "ProductLoweringForms#view(SqlSelect, Supplier, String) arg 1", "2026-11-18: this::nextAlias, the product's"
                     + " alias counter, handed in so the edge can name its frame",
+            // the functions inside ExistsSites (seen since the GUARD stream's widening of 2026-11-18, train 18, on E-SQL's
+            // fold move, 612b194708): the lowering's own alias minter and resolver-zone lookup, handed to every form (the
+            // orchestrator's ruling on L6, item 1: the product hands its statement and sites, never upstream's
+            // composition); the product's form keeps the EXISTS as lowered -- view's arg 1's case
+            "ProductLoweringForms#existsJoin(SqlSelect, ExistsSites) arg 1.alias", "2026-11-18: this::nextAlias, the"
+                    + " product's alias counter, handed in so the edge can name its join's keys (view's arg 1's case)",
+            "ProductLoweringForms#existsJoin(SqlSelect, ExistsSites) arg 1.zones", "2026-11-18: the lowering's own"
+                    + " resolver zones per conjunct, handed in so the edge can split its join (the L6 ruling's sites)",
             "NoEdgeRun$Hearing#decide(Session, Leases, Function) arg 2", "2026-11-18: the run's session lookup; the"
                     + " product's run has no appeals to decide",
             "NoEdgeRun$Hearing#afterFailure(RuntimeException, Session, Leases, Function) arg 3", "2026-11-18: the run's"
@@ -86,11 +94,12 @@ class ProductFormsUseTheirArgumentsTest {
         Map<Object, Set<Class<?>>> out = new java.util.LinkedHashMap<>();
         classHooks.forEach((cls, hooks) -> {
             Class<?> c = load(cls);
-            // only a hook type with a method taking a function is called: a form of none needs no instance
+            // only a hook type with a method taking a function (or a record carrying one) is called: a form of none
+            // needs no instance
             Set<Class<?>> types = hooks.stream().map(ProductFormsUseTheirArgumentsTest::load)
                     .filter(h -> Arrays.stream(h.getMethods()).anyMatch(m -> !Modifier.isStatic(m.getModifiers())
                             && Arrays.stream(m.getParameterTypes())
-                                    .anyMatch(ProductFormsUseTheirArgumentsTest::isFunction)))
+                                    .anyMatch(ProductFormsUseTheirArgumentsTest::carriesFunction)))
                     .collect(Collectors.toCollection(java.util.LinkedHashSet::new));
             if (types.isEmpty()) {
                 return;
@@ -168,13 +177,27 @@ class ProductFormsUseTheirArgumentsTest {
                 || t == java.util.concurrent.Callable.class || t.isAnnotationPresent(FunctionalInterface.class));
     }
 
-    /** One sentinel call record: which function argument was called. */
-    static final class Calls {
-        final boolean[] called;
+    /** Whether {@code t} hands a form a function: a function, or a record with a function component (the GUARD
+     *  stream's widening of 2026-11-18, train 18, on E-SQL's fold move: the lowering now hands its forms a record of
+     *  its own functions, ExistsSites, and a function inside a record was invisible to this guard). */
+    static boolean carriesFunction(Class<?> t) {
+        return isFunction(t) || (t.isRecord() && !STYLE_RECORDS.containsKey(t.getName())
+                && Arrays.stream(t.getRecordComponents()).anyMatch(c -> isFunction(c.getType())));
+    }
 
-        Calls(int n) {
-            called = new boolean[n];
-        }
+    /** The records that ARE the style, handed whole to a form, not inputs a caller makes for it: their function
+     *  components are the style's facets (the product's refusing, the edge's answering), never upstream's form computed
+     *  by the product. Pinned exactly, shrink-only; each must hold a hook (theStyleRecordsAreStyles). */
+    static final Map<String, String> STYLE_RECORDS = Map.of(
+            "com.legend.lowering.Styled", "2026-11-18 (the GUARD stream's widening, train 18): the plan style's text"
+                    + " facets as the lowering reads them; pureOnly is the PureOnlyTexts facet -- Styled.PRODUCT's throws"
+                    + " the call's refusal, the edge's style answers legend-pure's texts -- so ListTexts#mixedList's and"
+                    + " VerdictWords#elementText's product forms rightly never ask it");
+
+    /** One sentinel call record: which function was called, by its slot ("arg N", or "arg N.component" for a
+     *  function inside a record argument). */
+    static final class Calls {
+        final Set<String> called = new TreeSet<>();
     }
 
     /** The samples for a parameter of {@code type}: a function's sentinel is made per call. */
@@ -255,9 +278,9 @@ class ProductFormsUseTheirArgumentsTest {
         throw new AssertionError("no raw type of " + t.getTypeName());
     }
 
-    /** A sentinel for the function parameter {@code type} at {@code index}: marks its call, answers its own argument
+    /** A sentinel for the function parameter {@code type} in {@code slot}: marks its call, answers its own argument
      *  (an operator) or a sample of what it returns. */
-    static Object sentinel(Type type, int index, Calls calls) {
+    static Object sentinel(Type type, String slot, Calls calls) {
         Class<?> fn = raw(type);
         return Proxy.newProxyInstance(fn.getClassLoader(), new Class<?>[] {fn}, (proxy, m, args) -> {
             if (m.getDeclaringClass() == Object.class) {
@@ -270,7 +293,7 @@ class ProductFormsUseTheirArgumentsTest {
             if (m.isDefault()) {
                 return java.lang.reflect.InvocationHandler.invokeDefault(proxy, m, args);
             }
-            calls.called[index] = true;
+            calls.called.add(slot);
             if (m.getReturnType() == void.class) {
                 return null;
             }
@@ -303,7 +326,7 @@ class ProductFormsUseTheirArgumentsTest {
             }
             Class<?>[] ps = m.getParameterTypes();
             Type[] gs = m.getGenericParameterTypes();
-            if (Arrays.stream(ps).noneMatch(ProductFormsUseTheirArgumentsTest::isFunction)) {
+            if (Arrays.stream(ps).noneMatch(ProductFormsUseTheirArgumentsTest::carriesFunction)) {
                 continue;
             }
             Method impl;
@@ -313,16 +336,18 @@ class ProductFormsUseTheirArgumentsTest {
             } catch (ReflectiveOperationException | RuntimeException e) {
                 throw new AssertionError(form.getClass().getName() + " does not answer " + m, e);
             }
-            boolean[] ever = new boolean[ps.length];
+            Set<String> ever = new TreeSet<>();
             List<List<Object>> options = new ArrayList<>();
             for (Class<?> p : ps) {
-                options.add(isFunction(p) ? List.of(FN) : samples(p));
+                options.add(carriesFunction(p) ? List.of(FN) : samples(p));
             }
             for (List<Object> combo : combos(options)) {
-                Calls calls = new Calls(ps.length);
+                Calls calls = new Calls();
                 Object[] args = new Object[ps.length];
                 for (int i = 0; i < ps.length; i++) {
-                    args[i] = combo.get(i) == FN ? sentinel(gs[i], i, calls) : combo.get(i);
+                    args[i] = combo.get(i) != FN ? combo.get(i)
+                            : isFunction(ps[i]) ? sentinel(gs[i], "arg " + i, calls)
+                            : carrying(ps[i], "arg " + i, calls);
                 }
                 try {
                     impl.invoke(form, args);
@@ -331,13 +356,48 @@ class ProductFormsUseTheirArgumentsTest {
                 } catch (IllegalAccessException e) {
                     throw new AssertionError(e);
                 }
-                for (int i = 0; i < ps.length; i++) {
-                    ever[i] |= calls.called[i];
+                ever.addAll(calls.called);
+            }
+            for (String slot : slots(ps)) {
+                if (!ever.contains(slot)) {
+                    out.add(name(form, m) + " " + slot);
                 }
             }
-            for (int i = 0; i < ps.length; i++) {
-                if (isFunction(ps[i]) && !ever[i]) {
-                    out.add(name(form, m) + " arg " + i);
+        }
+        return out;
+    }
+
+    /** A record argument carrying functions, made by its canonical constructor: a sentinel in each function
+     *  component's slot ("arg N.component"), a sample in every other. */
+    static Object carrying(Class<?> record, String slot, Calls calls) {
+        java.lang.reflect.RecordComponent[] cs = record.getRecordComponents();
+        Class<?>[] types = Arrays.stream(cs).map(java.lang.reflect.RecordComponent::getType).toArray(Class<?>[]::new);
+        Object[] args = new Object[cs.length];
+        for (int i = 0; i < cs.length; i++) {
+            args[i] = isFunction(types[i]) ? sentinel(cs[i].getGenericType(), slot + "." + cs[i].getName(), calls)
+                    : samples(types[i]).get(0);
+        }
+        try {
+            java.lang.reflect.Constructor<?> ctor = record.getDeclaredConstructor(types);
+            ctor.setAccessible(true);
+            return ctor.newInstance(args);
+        } catch (ReflectiveOperationException e) {
+            throw new AssertionError("cannot make " + record.getName() + " with sentinels", e);
+        }
+    }
+
+    /** The function slots of a method's parameters: "arg N" per function, "arg N.component" per function component
+     *  of a record argument. */
+    static List<String> slots(Class<?>[] ps) {
+        List<String> out = new ArrayList<>();
+        for (int i = 0; i < ps.length; i++) {
+            if (isFunction(ps[i])) {
+                out.add("arg " + i);
+            } else if (carriesFunction(ps[i])) {
+                for (java.lang.reflect.RecordComponent c : ps[i].getRecordComponents()) {
+                    if (isFunction(c.getType())) {
+                        out.add("arg " + i + "." + c.getName());
+                    }
                 }
             }
         }
@@ -386,11 +446,33 @@ class ProductFormsUseTheirArgumentsTest {
                 + " it here (forms that threw on the samples, which may hide a call: " + threw + ")");
     }
 
+    /** Each style record is a record holding a hook (a two-form kind or a facet kind): the exemption cannot cover a
+     *  record of a caller's inputs. */
+    @Test
+    void theStyleRecordsAreStyles() {
+        Set<Class<?>> hooks = new java.util.HashSet<>(com.legend.testplan.PlanStyleFacets.TWO_FORMS);
+        hooks.addAll(com.legend.testplan.PlanStyleFacets.KINDS);
+        for (String name : STYLE_RECORDS.keySet()) {
+            Class<?> c = load(name);
+            assertTrue(c.isRecord() && Arrays.stream(c.getRecordComponents()).anyMatch(rc -> hooks.contains(rc.getType())),
+                    name + " is a record holding a hook");
+        }
+        assertTrue(Arrays.stream(PlantedSites.class.getRecordComponents()).noneMatch(rc -> hooks.contains(rc.getType())),
+                "the planted sites hold no hook");
+    }
+
     /** The planted kind: a product form handed two forms that calls one. */
     interface PlantedTwoForm {
         String pick(java.util.function.Supplier<String> ours, java.util.function.Supplier<String> upstreams);
 
         String keep(String text, java.util.function.UnaryOperator<String> rewrite);
+
+        String join(String text, PlantedSites sites);
+    }
+
+    /** A record of the caller's functions handed to a form (as lowering.ExistsSites). */
+    record PlantedSites(java.util.function.Supplier<String> alias, java.util.function.UnaryOperator<String> zones,
+            int depth) {
     }
 
     static final class PlantedProductForm implements PlantedTwoForm {
@@ -405,6 +487,11 @@ class ProductFormsUseTheirArgumentsTest {
         public String keep(String text, java.util.function.UnaryOperator<String> rewrite) {
             return text;
         }
+
+        @Override
+        public String join(String text, PlantedSites sites) {
+            return text + sites.alias().get();
+        }
     }
 
     @Test
@@ -412,6 +499,7 @@ class ProductFormsUseTheirArgumentsTest {
         Set<String> found = found(Map.of(PlantedProductForm.class.getName(), Set.of(PlantedTwoForm.class.getName())),
                 new TreeMap<>());
         assertEquals(Set.of("ProductFormsUseTheirArgumentsTest$PlantedProductForm#keep(String, UnaryOperator) arg 1",
-                "ProductFormsUseTheirArgumentsTest$PlantedProductForm#pick(Supplier, Supplier) arg 1"), found);
+                "ProductFormsUseTheirArgumentsTest$PlantedProductForm#pick(Supplier, Supplier) arg 1",
+                "ProductFormsUseTheirArgumentsTest$PlantedProductForm#join(String, PlantedSites) arg 1.zones"), found);
     }
 }
