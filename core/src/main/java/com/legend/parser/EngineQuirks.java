@@ -40,8 +40,8 @@ public final class EngineQuirks {
      * already been promoted into the comparison's RHS, so {@code * 4}
      * grabs {@code plus[2,3]} whole instead of just {@code 3}.
      *
-     * <p>The CORRECT behavior we would switch to (were a consumer +
-     * referee to exist): the tighter operator claims only the
+     * <p>The CORRECT behavior, legend-lite's and the platform's levels' since J30 (2026-11-18): the tighter operator
+     * claims only the
      * <em>deepest last operand</em> &mdash; rewrite {@code 3} inside the
      * inner {@code plus} collection, yielding
      * {@code lessThan(1, plus[Collection[2, times[Collection[3,4]]]])}
@@ -51,5 +51,10 @@ public final class EngineQuirks {
      * <p>Referenced at the reproducing code site:
      * {@code SpecParser.processOp}'s last-parameter rewrite arm.
      */
-    public static final boolean RELATIONAL_ARITH_MISASSOCIATION = true;
+    public static boolean relationalArithMisassociation(GrammarLevel level) {
+        // legend-engine's level alone (J30 of the edge audit, 2026-11-18, the user's rule: the product follows Pure's
+        // definition, the engine's quirk stays at the edge byte-exact; register S368): lite's and the platform's
+        // levels take the correct deep rewrite (OperatorParts.processOp)
+        return level.refusesLiteExtensions();
+    }
 }
