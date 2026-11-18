@@ -123,12 +123,22 @@ class EdgeOnlyDataTest {
             direct.addAll(ctor.getReferencesToSelf());
             for (JavaAccess<?> a : direct) {
                 JavaCodeUnit unit = a.getOrigin();
-                boolean factory = unit instanceof JavaMethod fm && fm.getModifiers().contains(JavaModifier.STATIC)
-                        && top(a.getOriginOwner().getName()).equals(top(variant.getName()))
-                        && !fm.getName().startsWith("lambda$");
+                boolean home = top(a.getOriginOwner().getName()).equals(top(variant.getName()));
+                boolean factory = home && unit instanceof JavaMethod fm
+                        && fm.getModifiers().contains(JavaModifier.STATIC) && !fm.getName().startsWith("lambda$")
+                        && variant.isAssignableTo(fm.getRawReturnType().getName());
                 if (factory) {
                     out.addAll(((JavaMethod) unit).getCallsOfSelf());
                     out.addAll(((JavaMethod) unit).getReferencesToSelf());
+                } else if (home && unit.getName().equals("<clinit>")) {
+                    // a singleton made once (DataRef.Format's DETECTED): its uses are the reads of the field holding it
+                    for (JavaField f : a.getOriginOwner().getFields()) {
+                        if (f.getModifiers().contains(JavaModifier.STATIC)
+                                && variant.isAssignableTo(f.getRawType().getName())) {
+                            f.getAccessesToSelf().stream()
+                                    .filter(x -> x.getAccessType() == JavaFieldAccess.AccessType.GET).forEach(out::add);
+                        }
+                    }
                 } else {
                     out.add(a);
                 }
@@ -173,8 +183,12 @@ class EdgeOnlyDataTest {
                     List<JavaAccess<?>> uses = new ArrayList<>();
                     Optional<JavaMethod> accessor = c.tryGetMethod(rc.getName());
                     accessor.ifPresent(m -> uses.addAll(usesOf(c, m)));
+                    // the field's reads, but its own accessor's (the accessor is the component)
                     c.tryGetField(rc.getName()).ifPresent(f -> f.getAccessesToSelf().stream()
-                            .filter(a -> a.getAccessType() == JavaFieldAccess.AccessType.GET).forEach(uses::add));
+                            .filter(a -> a.getAccessType() == JavaFieldAccess.AccessType.GET)
+                            .filter(a -> !(a.getOriginOwner().equals(c) && a.getOrigin().getName().equals(rc.getName())
+                                    && a.getOrigin().getRawParameterTypes().isEmpty()))
+                            .forEach(uses::add));
                     report(out, "component " + c.getName() + "#" + rc.getName(), uses, c);
                 }
             }
@@ -183,9 +197,10 @@ class EdgeOnlyDataTest {
                     String name = ((Enum<?>) constant).name();
                     JavaField f = c.getField(name);
                     List<JavaAccess<?>> uses = new ArrayList<>();
-                    // a switch's table (javac's synthetic $SwitchMap class) names every constant it cases: no use
+                    // a switch's table (javac's synthetic $SwitchMap class) names every constant it cases, and the enum
+                    // names its own (its initializer, its $values): neither is a use
                     f.getAccessesToSelf().stream().filter(a -> !a.getOriginOwner().getModifiers()
-                            .contains(JavaModifier.SYNTHETIC)).forEach(uses::add);
+                            .contains(JavaModifier.SYNTHETIC) && !a.getOriginOwner().equals(c)).forEach(uses::add);
                     report(out, "constant " + c.getName() + "." + name, uses, c);
                 }
             }
