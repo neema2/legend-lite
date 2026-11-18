@@ -2884,7 +2884,9 @@ final class ArchitectureTest {
      * statically -- {@code VerdictCensus.sqlJudgedInDatabase} from {@code AssertVerdicts#renderedRows} and
      * {@code DatabaseJudge#databaseVerdict}, {@code #databaseTdsEquivalent} and {@code #staticallyDecided} -- and an
      * assert no arm planned, {@code VerdictCensus.sqlFellThrough} from {@code AssertVerdicts#adjudicate}; ruled (b), 2026-11-18:
-     * the counts move to the run, at the static verdict's turn (J39, F's); the pin shrinks as each lands.
+     * the counts move to the run, at the static verdict's turn (J39, F's); the pin shrinks as each lands. NONE STANDS
+     * since train 12 (f2fe8b3e91, 2026-11-18): F's J39 (3a28d39b28..87a61d7fb4) counts a static verdict at its turn in
+     * the run (a RootLoop.Judged step) and the fell-through count at the run's assert (testexec.AssertRuns).
      */
     @Test
     void theListenerIsOutputOnly() {
@@ -2935,13 +2937,10 @@ final class ArchitectureTest {
                 "com.legend.diagnostics.VerdictCensus#sqlFellThrough");
         // THE PLANNING TELLS STANDING (measured 2026-11-18, when the two counters joined the list): each exact, reported
         // to the orchestrator, who ruled (b): the counts move to the run (J39, F's); a new one fails here; counted as the
-        // audit's line J39 (EdgeAuditOpenTest)
-        java.util.Set<String> toldStanding = java.util.Set.of(
-                "planning tells: com.legend.testplan.AssertVerdicts#renderedRows -> com.legend.diagnostics.VerdictCensus#sqlJudgedInDatabase",
-                "planning tells: com.legend.testplan.DatabaseJudge#databaseTdsEquivalent -> com.legend.diagnostics.VerdictCensus#sqlJudgedInDatabase",
-                "planning tells: com.legend.testplan.DatabaseJudge#databaseVerdict -> com.legend.diagnostics.VerdictCensus#sqlJudgedInDatabase",
-                "planning tells: com.legend.testplan.DatabaseJudge#staticallyDecided -> com.legend.diagnostics.VerdictCensus#sqlJudgedInDatabase",
-                "planning tells: com.legend.testplan.AssertVerdicts#adjudicate -> com.legend.diagnostics.VerdictCensus#sqlFellThrough");
+        // audit's line J39 (EdgeAuditOpenTest). 5 -> 0 on train 12 f2fe8b3e91 (2026-11-18, F's J39, 3a28d39b28..
+        // 87a61d7fb4): AssertVerdicts#renderedRows, #adjudicate and DatabaseJudge#databaseVerdict,
+        // #databaseTdsEquivalent, #staticallyDecided tell the census nothing; the run counts each at its turn
+        java.util.Set<String> toldStanding = java.util.Set.of();
         for (com.tngtech.archunit.core.domain.JavaCodeUnit u : reachable(PLANNING_ENTRIES)) {
             String at = u.getOwner().getName() + "#" + u.getName();
             if (PLANNING_ENTRIES.contains(at)) {
