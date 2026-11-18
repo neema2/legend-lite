@@ -128,11 +128,6 @@ public final class EngineTextPlanning {
         return ask.hook;
     }
 
-    /** The arm's refusal of a text side that is not a constant of the plan, {@code what} after its label. */
-    public static NotAConstant notAConstantError(String what) {
-        return new NotAConstant(what);
-    }
-
     public static com.legend.testexecutionplan.HostJudgment judgment(HostSides.Check check) {
         return check.judgment();
     }

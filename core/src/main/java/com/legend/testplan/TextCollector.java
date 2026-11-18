@@ -24,8 +24,8 @@ public interface TextCollector {
     /** OUR text planned as a side the plan runs (M10c item 8): where {@code planned} is a {@code VALUES} side the
      *  arm is reading as our text, declared a String to one, planned under the environment the arm was given
      *  ({@code at}), the collector records it as the verdict step's ASK with the statement origin the arm marked
-     *  and answers a text token the arm compares as any text; null where the side is not deferred (the caller
-     *  refuses the body by name). */
+     *  and answers a text token the arm compares as any text; where the side is not deferred, the collector refuses
+     *  the body by name ({@code what}: the side's kind and planned root), its own refusal (train 17, 2026-11-18). */
     /** The statement origin {@code origin} put in force on this collector, by the statement origin's own rule
      *  ({@code StatementOrigin.under} where {@code ifUnmarked}, else set): what was in force before, to restore. */
     @com.legend.base.Nullable String marking(String origin, boolean ifUnmarked);
@@ -33,7 +33,7 @@ public interface TextCollector {
     /** The origin in force restored to {@code prior}. */
     void restoreMarking(@com.legend.base.Nullable String prior);
 
-    @com.legend.base.Nullable com.legend.testexecutionplan.TypedSide defer(TypedSpec side, JudgePlans.PlannedSide planned, boolean identity,
+    com.legend.testexecutionplan.TypedSide defer(TypedSpec side, JudgePlans.PlannedSide planned, boolean identity,
             boolean fold, AssertVerdicts.@com.legend.base.Nullable SpliceHook hook, BodyDriver.ExecEnv at,
-            List<TypedSpec> letPrefix, SpecCompiler specs);
+            List<TypedSpec> letPrefix, SpecCompiler specs, String what);
 }
