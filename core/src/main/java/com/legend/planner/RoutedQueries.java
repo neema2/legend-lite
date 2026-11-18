@@ -16,7 +16,9 @@ import com.legend.compiler.spec.typed.TypedSpec;
  */
 public interface RoutedQueries {
 
-    /** The routed query's text of an execute's {@code chain}, or null where the chain records no routing activity. */
+    /** The routing activity an execute's {@code chain} records before its statement's, or null where it records none
+     *  (J37 of the edge audit, 2026-11-18: the whole row the style's, its place the planner's): the row's columns after
+     *  its id, scope and index -- its kind, sql, comment and rewritten query, the system metamodel's activity table's. */
     @com.legend.base.Nullable
-    String rewrittenQuery(TypedSpec chain, ModelContext ctx, SpecCompiler specs);
+    java.util.List<String> routingActivity(TypedSpec chain, ModelContext ctx, SpecCompiler specs);
 }
