@@ -5,10 +5,8 @@ package com.legend.lowering;
 
 import com.legend.compiler.element.type.Type;
 import com.legend.sql.SqlExpr;
-import java.util.ArrayDeque;
 
-/** Plan-template parameter helpers (the executionPlan printer's
- * vocabulary). */
+/** A parameter's placeholder kind (the edge's dotted template reads resolve themselves: the audit's J31). */
 public final class PlanParams {
 
     private PlanParams() {
@@ -19,21 +17,5 @@ public final class PlanParams {
      * optional parameters pick per-kind varPlaceHolderToString args). */
     public static SqlExpr.PlanParam.Kind kindOf(Type t) {
         return Fold.planKindOf(t);
-    }
-
-    /** {@code <param>.<a>.<b>.<field>} when {@code base} is a struct-get
-     * chain rooted at a plan parameter (or the parameter itself); null
-     * otherwise. */
-    static @com.legend.base.Nullable String dottedPlanParam(SqlExpr base,
-            String field) {
-        ArrayDeque<String> path = new ArrayDeque<>();
-        path.addFirst(field);
-        SqlExpr cur = base;
-        while (cur instanceof SqlExpr.StructGet g) {
-            path.addFirst(g.field());
-            cur = g.source();
-        }
-        return cur instanceof SqlExpr.PlanParam pp
-                ? pp.name() + "." + String.join(".", path) : null;
     }
 }

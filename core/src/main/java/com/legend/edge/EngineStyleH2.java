@@ -837,6 +837,14 @@ public class EngineStyleH2 extends AnsiSqlRenderer implements EngineTextDialect 
      *  legend-engine's VarSetPlaceHolder; set by {@link #planned} for the statement it plans. */
     private final Set<String> planVariables = new HashSet<>();
 
+    /** The plan's template parameters (the edge's table, the audit's J31): set by {@link #params}. */
+    private EngineParams params = EngineParams.none();
+
+    @Override
+    public void params(EngineParams params) {
+        this.params = params;
+    }
+
     private void consumeRootSlot(String group, Map<String, Integer> groups) {
         if (rootConsumed.add(group)) {
             nextInGroup(group, groups);
@@ -882,9 +890,9 @@ public class EngineStyleH2 extends AnsiSqlRenderer implements EngineTextDialect 
         // the ENUM param may sit on EITHER side
         SqlExpr.PlanParam p =
                 c.args().get(1) instanceof SqlExpr.PlanParam p1
-                        && p1.enumMapFn() != null ? p1
+                        && params.enumMapFn(p1.name()) != null ? p1
                 : c.args().get(0) instanceof SqlExpr.PlanParam p0
-                        && p0.enumMapFn() != null ? p0 : null;
+                        && params.enumMapFn(p0.name()) != null ? p0 : null;
         if (p == null) {
             return null;
         }
@@ -907,7 +915,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer implements EngineTextDialect 
         String col = newWriter().expr(colExpr != null ? colExpr : other, 4).text()
                 .replace("'", "\\'");
         String pn = p.name() + (p.optional() ? "![]" : "");
-        String fn = p.enumMapFn() + "(" + pn + ")";
+        String fn = params.enumMapFn(p.name()) + "(" + pn + ")";
         String selector = "(${optionalVarPlaceHolderOperationSelector(" + pn
                 + ", equalEnumOperationSelector(" + fn + ", '" + col
                 + " in (${" + fn + "})', '" + col + " = ${" + fn
@@ -1656,7 +1664,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer implements EngineTextDialect 
                             && bc.args().get(1) instanceof SqlExpr.PlanParam cp) {
                         // the temp-table protocol's wrapper variable —
                         // a bare splice, never a collection template
-                        if (cp.kind() == SqlExpr.PlanParam.Kind.RAW) {
+                        if (params.isSplice(cp.name())) {
                             return writer.expr(bc.args().get(0), 4).append(" in (${").append(cp.name()).append("})");
                         }
                         // a non-default connection timeZone spells the

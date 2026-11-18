@@ -2167,20 +2167,10 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
 
     /**
      * A plan parameter bound as ONE value — an optional one's absence a null, an enumeration's its name (compared with a
-     * mapped column through a value table, {@code EnumValueTables}). What one value cannot carry is refused by name,
-     * never bound as something it is not: a RAW splice and a parameter carrying the legacy printer's enumeration-mapping
-     * function (both plan-template vocabulary). A list is bound whole, as one array, by {@link #anyOf}
+     * mapped column through a value table, {@code EnumValueTables}). A list is bound whole, as one array, by {@link #anyOf}
      * (docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9, step 2's landing 2).
      */
     protected static RenderedStatement.Bind scalarBind(SqlExpr.PlanParam p) {
-        if (p.kind() == SqlExpr.PlanParam.Kind.RAW) {
-            throw new DialectCapability("plan parameter '" + p.name() + "' is RAW: it splices plan text, never a"
-                    + " bound value");
-        }
-        if (p.enumMapFn() != null) {
-            throw new DialectCapability("enum plan parameter '" + p.name() + "' carries the legacy printer's mapping"
-                    + " function (a value table, a plan template's): never a bound value");
-        }
         return new RenderedStatement.Bind(p.name(), new RenderedStatement.Binding.One(nullType(p), null));
     }
 

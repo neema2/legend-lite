@@ -1418,9 +1418,11 @@ final class ArchitectureTest {
             "planner.PlanEnv#tableReplace()", "com.legend.edge.EnginePlans",
             "planner.PlanEnv#withFeatures(java.util.Set)", "com.legend.edge.EnginePlans",
             "planner.QueryParameters#of(com.legend.compiler.spec.typed.TypedLambda)", "com.legend.edge.EnginePlans",
+            "planner.QueryParameters$Declared#multiplicity()", "com.legend.edge.EnginePlans",
             "planner.QueryParameters$Declared#name()", "com.legend.edge.EnginePlans",
-            "planner.QueryParameters$Declared#planParam(java.lang.String)", "com.legend.edge.EnginePlans",
-            "planner.QueryParameters$Declared#signature()", "com.legend.edge.EnginePlans",
+            "planner.QueryParameters$Declared#optional()", "com.legend.edge.EnginePlans",
+            // Declared#planParam(String) and #signature() GONE 2026-11-18 (the audit's J31): legend-engine's template
+            // parameter is the edge's (edge.EngineParams), which reads the declared multiplicity and optionality
             "planner.QueryParameters$Declared#type()", "com.legend.edge.EnginePlans",
             "planner.SqlTextInputs#dialect()", "com.legend.edge.EnginePlans",
             "planner.SqlTextInputs#mapping()", "com.legend.edge.EnginePlans",
