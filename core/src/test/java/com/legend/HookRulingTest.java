@@ -328,7 +328,6 @@ class HookRulingTest {
                 "no default: the caller passes the product form");
     }
 
-    /** (b): the product's style refuses each way of reaching the hook, by name, pointing to the edge. */
     /** The hooks' capabilities decide, never a null or the rules (census C1, the orchestrator's ruling of 2026-11-17):
      *  the product's edge hook records no ledger and the edge's does; the product's run hook compares both isolated
      *  judges' words (lite's sentences), the edge's the verdicts alone (the words upstream's, the host's). */
@@ -387,6 +386,11 @@ class HookRulingTest {
         }
     }
 
+    /** (b): the product's style refuses each way of reaching the hook, by name, pointing to the edge. For a facet hook,
+     *  one ask per hook stands for every way (J16 of the edge audit, 2026-11-18): each product way to one is a pinned
+     *  ask of a style's facet ({@code HookLambdasTest.FACET_CALLERS}, {@code FACET_FORWARDERS}; no product class or
+     *  lambda implements one, {@code CLASS_HOOKS}, {@code LAMBDA_HOOKS}), and the product's style refuses every facet
+     *  ask alike ({@link #theProductStyleRefusesEveryFacetAskOfEitherOverload}). */
     @Test
     void theProductRefusesEachRuledHookByName() {
         RULED.forEach((hook, calls) -> calls.forEach(call -> {
@@ -395,6 +399,22 @@ class HookRulingTest {
                     && e.getMessage().contains("com.legend.edge"),
                     hook + ": " + e.getMessage());
         }));
+    }
+
+    /** (b) for a facet hook (J16, 2026-11-18): the product's style refuses both of facet's overloads for every facet
+     *  hook -- the one-argument ask by name, pointing to the edge; the other with the asker's own refusal, as the
+     *  separation census's B17 ruled (a call's own sentence, its phase). */
+    @Test
+    void theProductStyleRefusesEveryFacetAskOfEitherOverload() throws ClassNotFoundException {
+        for (String name : HookLambdasTest.facetHooks()) {
+            Class<?> kind = Class.forName(name);
+            NotImplementedException e = assertThrows(NotImplementedException.class, () -> PlanStyle.PRODUCT.facet(kind),
+                    name);
+            assertTrue(String.valueOf(e.getMessage()).contains("com.legend.edge"), name + ": " + e.getMessage());
+            IllegalStateException asker = new IllegalStateException("the asker's own refusal");
+            assertTrue(assertThrows(IllegalStateException.class, () -> PlanStyle.PRODUCT.facet(kind, () -> asker),
+                    name) == asker, name + ": the product answers the asker's refusal");
+        }
     }
 
     /** (c) and (d): every implementer of a ruled hook, in the product's and the edge's jars, is an edge class -- pinned

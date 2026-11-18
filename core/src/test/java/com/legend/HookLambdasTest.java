@@ -144,6 +144,50 @@ class HookLambdasTest {
      *  (pinned empty, 2026-11-17). */
     static final Set<String> DIRECT_FACTORIES = Set.of();
 
+    /** EVERY WAY THE PRODUCT REACHES A FACET HOOK (J16 of the edge audit, 2026-11-18, = K4's guard half): HookRulingTest's
+     *  criterion (b) called the product style's facet for each facet hook and saw it refused -- but that style refuses
+     *  every kind alike, so the call proved nothing about the ways a product body reaches the hook. A facet hook's value
+     *  has four possible origins in the product, and each is pinned: a class implementing it ({@link #CLASS_HOOKS}: none);
+     *  a lambda of it ({@link #LAMBDA_HOOKS}: none); a style's facet, asked here, each asking method with the kinds it
+     *  names and its number of reaches, exact; and a product method answering one ({@link #FACET_FORWARDERS}), each a
+     *  forwarder of those asks. A reflective or loaded instance is ServiceLoaderSitesTest's. So every way is a pinned
+     *  ask of the style, which the product's style refuses by name (HookRulingTest.RULED). "caller#method(params)" ->
+     *  the class objects named beside its facet asks, and its number of reaches. */
+    static final Map<String, Set<String>> FACET_CALLERS = Map.ofEntries();
+
+    /** The product methods outside the hook types answering a facet hook (the facet kinds, and the hooks only a facet's
+     *  answers hand out), each with the hook it answers: forwarders of a facet ask, pinned exact (J16, 2026-11-18). */
+    static final Map<String, String> FACET_FORWARDERS = Map.ofEntries();
+
+    /** The facet hooks: the facet kinds, and the two hooks only the engine-text facet's answers hand out (the collector
+     *  and the database judge's batch, HookRulingTest.RULED's). */
+    static Set<String> facetHooks() {
+        Set<String> out = new TreeSet<>();
+        com.legend.testplan.PlanStyleFacets.KINDS.forEach(c -> out.add(c.getName()));
+        out.add(com.legend.testplan.TextCollector.class.getName());
+        out.add(com.legend.testplan.BatchTexts.class.getName());
+        return out;
+    }
+
+    /** Each method of {@code classes} answering one of {@code hooks} (by its declared return type, a sub-interface's
+     *  too), outside the edge and outside the hook types themselves (a hook's own method handing out another hook is
+     *  the hook's: the engine-text facet's collector), each with the hook it answers. */
+    static Map<String, String> facetForwarders(JavaClasses classes, Set<String> hooks, Set<String> hookTypes) {
+        Map<String, String> out = new TreeMap<>();
+        for (JavaClass c : classes) {
+            if (c.getName().startsWith("com.legend.edge.") || hookTypes.stream().anyMatch(h -> c.isAssignableTo(h))) {
+                continue;
+            }
+            for (JavaCodeUnit u : c.getCodeUnits()) {
+                String type = u.getRawReturnType().getName();
+                if (hook(type, hooks, classes)) {
+                    out.put(ServiceLoaderSitesTest.key(c, u), type);
+                }
+            }
+        }
+        return out;
+    }
+
     /** The forms a run's hearing or a writer is handed, the edge's beside the product's, which are none of the ruled
      *  hooks, facet kinds or two-form kinds (J36 of the edge audit, 2026-11-18: "unpinned hooks"): a cell's forms, the
      *  host judge's behaviours and the rendered-text rule. Each is a hook type here, so its product implementers are
@@ -248,6 +292,18 @@ class HookLambdasTest {
 
     /** Each method of {@code classes} (the edge's aside) calling twoForm on a style, with the class objects it names. */
     static Map<String, Set<String>> twoFormCallers(Iterable<JavaClass> classes) {
+        return styleCallers(classes, "twoForm");
+    }
+
+    /** Each method of {@code classes} (the edge's aside) calling facet on a style, either overload, with the class
+     *  objects it names (J16, 2026-11-18). */
+    static Map<String, Set<String>> facetCallers(Iterable<JavaClass> classes) {
+        return styleCallers(classes, "facet");
+    }
+
+    /** Each method of {@code classes} (the edge's aside) calling or referencing {@code ask} on a style, with the class
+     *  objects it names and its number of reaches. */
+    static Map<String, Set<String>> styleCallers(Iterable<JavaClass> classes, String ask) {
         Map<String, Set<String>> out = new TreeMap<>();
         for (JavaClass c : classes) {
             if (c.getName().startsWith("com.legend.edge.")) {
@@ -257,14 +313,14 @@ class HookLambdasTest {
                 // a call or a method reference, each method by its full signature (the review of the loader sites'
                 // twin, 9702998c08, 2026-11-17: a reference was unseen, overloads shared a key)
                 // each with its number of reaches (a second ask in a pinned method changes it: the review of C.12)
-                long reaches = u.getMethodCallsFromSelf().stream().filter(call -> call.getName().equals("twoForm")
+                long reaches = u.getMethodCallsFromSelf().stream().filter(call -> call.getName().equals(ask)
                         && call.getTargetOwner().isAssignableTo(PlanStyle.class.getName())).count()
-                        + u.getMethodReferencesFromSelf().stream().filter(ref -> ref.getName().equals("twoForm")
+                        + u.getMethodReferencesFromSelf().stream().filter(ref -> ref.getName().equals(ask)
                         && ref.getTargetOwner().isAssignableTo(PlanStyle.class.getName())).count();
                 if (reaches > 0) {
                     Set<String> objects = new TreeSet<>();
                     u.getReferencedClassObjects().forEach(o -> objects.add(o.getRawType().getName()));
-                    objects.add("(twoForm reaches " + reaches + ")");
+                    objects.add("(" + ask + " reaches " + reaches + ")");
                     out.put(ServiceLoaderSitesTest.key(c, u), objects);
                 }
             }
@@ -314,6 +370,15 @@ class HookLambdasTest {
     }
 
     @Test
+    void theFacetCallersAndForwardersArePinned() {
+        JavaClasses classes = importJars(ConstantPools.jars("legend.product.jars", "legend.authored.jars"));
+        assertEquals(new TreeMap<>(FACET_CALLERS), facetCallers(classes), "a product method asks a style for a facet"
+                + " beyond its pin: a new way to reach a facet hook (J16), pinned here with its reason");
+        assertEquals(new TreeMap<>(FACET_FORWARDERS), facetForwarders(classes, facetHooks(), hookTypes()), "a product"
+                + " method answers a facet hook beyond its pin: an origin of the hook that is no ask of the style (J16)");
+    }
+
+    @Test
     void theTwoFormCallersArePinned() {
         Map<String, Set<String>> found = twoFormCallers(importJars(ConstantPools.jars("legend.product.jars",
                 "legend.authored.jars")));
@@ -360,6 +425,18 @@ class HookLambdasTest {
                         "com.legend.lowering.ListTexts", "(twoForm reaches 2)"),
                 p + "#byReference(com.legend.database.PlanStyle)", Set.of("(twoForm reaches 1)")),
                 twoFormCallers(new ClassFileImporter().importClasses(PlantedHookLambda.class)));
+        // J16 (2026-11-18): a facet's asks, either overload or a reference, with the kinds named; a forwarder of one
+        JavaClasses facets = new ClassFileImporter().importClasses(PlantedFacetReach.class);
+        String f = PlantedFacetReach.class.getName();
+        assertEquals(Map.of(f + "#plans(com.legend.database.PlanStyle)", Set.of("com.legend.planner.UpstreamPlans",
+                        "(facet reaches 1)"),
+                f + "#both(com.legend.database.PlanStyle)", Set.of("com.legend.lowering.PureOnlyTexts",
+                        "com.legend.lowering.RelationTexts", "(facet reaches 2)"),
+                f + "#byReference(com.legend.database.PlanStyle)", Set.of("(facet reaches 1)")),
+                facetCallers(facets), "a facet's asks are read: a call of either overload and a reference");
+        assertEquals(Map.of(f + "#plans(com.legend.database.PlanStyle)", "com.legend.planner.UpstreamPlans",
+                f + "#collector()", "com.legend.testplan.TextCollector"),
+                facetForwarders(facets, facetHooks(), hookTypes()), "a product method answering a facet hook is read");
     }
 
     /** A planted class naming MethodHandleProxies by a class literal alone. */
@@ -405,6 +482,29 @@ class HookLambdasTest {
             java.util.function.BiFunction<Class<Runnable>, java.lang.invoke.MethodHandle, Runnable> f =
                     java.lang.invoke.MethodHandleProxies::asInterfaceInstance;
             return f.apply(Runnable.class, null);
+        }
+    }
+
+    /** A planted product body reaching facet hooks (J16, 2026-11-18): facet asks (both overloads, two in one method)
+     *  and a reference to facet; forwarders answering a facet kind and a hook only a facet's answers hand out. */
+    @SuppressWarnings("unused")
+    static final class PlantedFacetReach {
+        static com.legend.planner.UpstreamPlans plans(PlanStyle style) {
+            return style.facet(com.legend.planner.UpstreamPlans.class);
+        }
+
+        static Object both(PlanStyle style) {
+            return List.of(style.facet(com.legend.lowering.PureOnlyTexts.class),
+                    style.facet(com.legend.lowering.RelationTexts.class, IllegalStateException::new));
+        }
+
+        static java.util.function.Function<Class<com.legend.lowering.ResultEnvelopes>,
+                com.legend.lowering.ResultEnvelopes> byReference(PlanStyle style) {
+            return style::facet;
+        }
+
+        static com.legend.testplan.TextCollector collector() {
+            return null;
         }
     }
 
