@@ -43,8 +43,35 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @Tag("guardrail")
 class ProductFormsUseTheirArgumentsTest {
 
-    /** Each function a product form never calls, "Form#method(params) arg N" -> its ruling. Found 2026-11-18. */
-    static final Map<String, String> UNCALLED = Map.of();
+    /** Each function a product form never calls that is upstream's alternative, computed by the product and handed in:
+     *  "Form#method(params) arg N" -> "census line OWNER (date): why". Counted, one line per form (the orchestrator's
+     *  ruling of 2026-11-18, 06:40: E-SQL's L9 and L6, inside the withShape design (i)). */
+    static final Map<String, String> UNCALLED = Map.of(
+            "ProductLoweringForms#existsJoin(SqlSelect, UnaryOperator) arg 1", "L-A.LoweringForms E-SQL (L9) (2026-11-18):"
+                    + " ExistsJoinForm.rewrite, legend-engine's EXISTS-as-join form, built by Lowerer and handed in",
+            "ProductLoweringForms#computedPruning(Supplier, Supplier) arg 1", "L-A.LoweringForms E-SQL (L6) (2026-11-18):"
+                    + " SubselectPrune.prune(q, false), legend-engine's unpruned computed projection, handed in",
+            "ProductLoweringForms#executeValues(Supplier, Supplier) arg 1", "L-A.LoweringForms E-SQL (L6) (2026-11-18):"
+                    + " SnapshotEnvelope.fold as oneBare, legend-engine's one-object-bare execute values, handed in");
+
+    /** Each function a product form never calls that is no finding (the orchestrator's ruling of 2026-11-18, 06:40: a
+     *  hook's own input from the product's generic code, not upstream's alternative), with the reason. Not counted. */
+    static final Map<String, String> RULED = Map.of(
+            "ProductLoweringForms#relations(Supplier, Supplier) arg 1", "2026-11-18: () -> lower(root), the product's"
+                    + " own plain lowering, which it runs itself when sharing is off; only the choice is upstream's",
+            "ProductLoweringForms#view(SqlSelect, Supplier, String) arg 1", "2026-11-18: this::nextAlias, the product's"
+                    + " alias counter, handed in so the edge can name its frame",
+            "NoEdgeRun$Hearing#decide(Session, Leases, Function) arg 2", "2026-11-18: the run's session lookup; the"
+                    + " product's run has no appeals to decide",
+            "NoEdgeRun$Hearing#afterFailure(RuntimeException, Session, Leases, Function) arg 3", "2026-11-18: the run's"
+                    + " session lookup; the product's run has no appeals to decide");
+
+    /** The census lines this guard holds: one per form with a finding. */
+    static Set<String> lines() {
+        Set<String> out = new TreeSet<>();
+        UNCALLED.values().forEach(v -> out.add(v.split(" ")[0]));
+        return out;
+    }
 
     /** Every product form of every hook type taking a function: the instances of each class HookLambdasTest pins (an
      *  enum's constants, a static field holding one, else its no-argument constructor), with each such hook type it
@@ -344,7 +371,9 @@ class ProductFormsUseTheirArgumentsTest {
     void everyProductFormCallsTheFunctionsItIsHanded() {
         Map<String, String> threw = new TreeMap<>();
         Set<String> found = found(HookLambdasTest.CLASS_HOOKS, threw);
-        assertEquals(new TreeSet<>(UNCALLED.keySet()), found, "a product form is handed a function it never calls --"
+        Set<String> pinned = new TreeSet<>(UNCALLED.keySet());
+        pinned.addAll(RULED.keySet());
+        assertEquals(pinned, found, "a product form is handed a function it never calls --"
                 + " a form the product builds for the edge alone (upstream's, handed in): move it to the edge, or rule"
                 + " it here (forms that threw on the samples, which may hide a call: " + threw + ")");
     }

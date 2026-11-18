@@ -63,8 +63,64 @@ class EdgeOnlyDataTest {
 
     private static final String REWRITER = "com.legend.sql.SqlRewriter";
 
-    /** Each piece with no real product use, "kind owner#piece: who uses it" -> its ruling. Measured 2026-11-18. */
-    static final Map<String, String> OPEN = Map.of();
+    /** Each piece with no real product use, "kind owner#piece: who uses it" -> its ruling, measured 2026-11-18 and ruled
+     *  by the orchestrator (06:40): a value starting "L-B." is a census line (counted); "READ_API" a fact of lite's own
+     *  the edge reads (what it MEANS decides, not who reads it); "J40." a piece already counted on that line;
+     *  "DEAD" data no one reads, deleted in train 17 by its package's owner (shrink-only, not a separation line);
+     *  "RULED_PENDING" a question before the user. */
+    static final Map<String, String> OPEN = Map.ofEntries(
+            // the finding: J31's shape, the template kind only the edge reads
+            Map.entry("component com.legend.sql.SqlExpr$PlanParam#kind: by the edge",
+                    "L-B.PlanParam E-SQL (2026-11-18): J31's shape, legend-engine's template kind, read by the edge alone"),
+            // facts of lite's own (the orchestrator's rulings at J40 and 06:40)
+            Map.entry("variant com.legend.sql.SqlDdl$DropSchema: by the edge",
+                    "READ_API (2026-11-18): generic SQL DDL in lite's sealed MIR vocabulary (ruled READ_API at J40)"),
+            Map.entry("component com.legend.compiler.spec.typed.ExecutionContext#connectionInstance: by the edge",
+                    "READ_API (2026-11-18): lite's execution frame's own connection fact (ruled at J40)"),
+            Map.entry("component com.legend.compiler.spec.typed.ExecutionContext#quoteIdentifiers: by the edge",
+                    "READ_API (2026-11-18): lite's execution frame's own connection fact (ruled at J40)"),
+            Map.entry("component com.legend.compiler.spec.typed.ExecutionContext#storeFqn: by the edge",
+                    "READ_API (2026-11-18): lite's execution frame's own connection fact (ruled at J40)"),
+            Map.entry("component com.legend.testexecutionplan.EnumFacts#decodes: by the edge",
+                    "READ_API (2026-11-18): lite's test plan's enum facts (plan-as-data slice 4)"),
+            Map.entry("component com.legend.testexecutionplan.EnumFacts#enums: by the edge",
+                    "READ_API (2026-11-18): lite's test plan's enum facts (plan-as-data slice 4)"),
+            Map.entry("component com.legend.testexecutionplan.EnumFacts#properties: by the edge",
+                    "READ_API (2026-11-18): lite's test plan's enum facts (plan-as-data slice 4)"),
+            // counted on EdgeOnlyMembersTest's J40.SqlExpr line (E-SQL's J40 branch deletes them)
+            Map.entry("variant com.legend.sql.SqlExpr$DeferredTdsString: by the edge",
+                    "J40.SqlExpr E-SQL (2026-11-18): legend-engine's #TDS relation text, deleted by E-SQL's J40 branch"),
+            Map.entry("component com.legend.sql.SqlExpr$DeferredTdsString#alias: by none",
+                    "J40.SqlExpr E-SQL (2026-11-18): DeferredTdsString's, deleted with it"),
+            Map.entry("component com.legend.sql.SqlExpr$DeferredTdsString#form: by none",
+                    "J40.SqlExpr E-SQL (2026-11-18): DeferredTdsString's, deleted with it"),
+            Map.entry("component com.legend.sql.SqlExpr$DeferredTdsString#renderTdsNull: by none",
+                    "J40.SqlExpr E-SQL (2026-11-18): DeferredTdsString's, deleted with it"),
+            Map.entry("constant com.legend.sql.SqlExpr$DeferredTdsString$Form.CSV: by the edge",
+                    "J40.SqlExpr E-SQL (2026-11-18): DeferredTdsString's, deleted with it"),
+            Map.entry("variant com.legend.sql.SqlExpr$TempTableInSplice: by the edge",
+                    "J40.SqlExpr E-SQL (2026-11-18): legend-engine's temp-table template, deleted by E-SQL's J40 branch"),
+            // dead data (the orchestrator's ruling: a shrink-only DEAD list, each deleted in train 17 by its owner;
+            // LoadCsv#types checked first: no host plan reader -- engine-client, datacube, python -- and no plan codec
+            // reads LoadCsv, measured 2026-11-18)
+            Map.entry("component com.legend.compiler.spec.typed.Evaluation$Site#origin: by none",
+                    "DEAD (2026-11-18): read by no one; deleted in train 17 by compiler.spec.typed's owner"),
+            Map.entry("component com.legend.compiler.spec.typed.Evaluation$Site#path: by none",
+                    "DEAD (2026-11-18): read by no one; deleted in train 17 by compiler.spec.typed's owner"),
+            Map.entry("component com.legend.sql.SqlDml$LoadCsv#types: by none",
+                    "DEAD (2026-11-18): read by no one, no host or codec either; deleted in train 17 by sql's owner"),
+            Map.entry("variant com.legend.sql.SqlDml$InsertFromTable: by none",
+                    "DEAD (2026-11-18): made by no one; deleted in train 17 by sql's owner"),
+            // the user's pending proposal A
+            Map.entry("component com.legend.executionplan.ExecutionPlan$Sql#tree: by none",
+                    "RULED_PENDING (2026-11-18): the user's proposal A -- drop the unread MIR tree from run plans (G11)"));
+
+    /** The census lines this guard holds: one per "L-B." line. */
+    static Set<String> lines() {
+        Set<String> out = new TreeSet<>();
+        OPEN.values().stream().filter(v -> v.startsWith("L-B.")).forEach(v -> out.add(v.split(" ")[0]));
+        return out;
+    }
 
     enum Who { PRODUCT, EDGE, COPY }
 

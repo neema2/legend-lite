@@ -13,6 +13,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -50,8 +51,36 @@ class UpstreamBranchesTest {
             + "\\s*(?:[<>]=?|[=!]=|\\?|&&|\\|\\|)|(?:if|while)\\s*\\(\\s*!?\\s*(?:[\\w.]+\\.)?"
             + "(floatUlps|decimalScale|floatTolerance)\\b(?:\\(\\))?\\s*\\)");
 
-    /** "file | kind" -> count, measured 2026-11-18. */
-    static final Map<String, Integer> SITES = Map.of();
+    /** "file | kind" -> count, measured 2026-11-18, SHRINK-ONLY (a count lowered as a site goes, dated). Every kind is a
+     *  FINDING, the orchestrator's ruling of 2026-11-18, 06:40: legend-engine's union frame name branched on in
+     *  lowering (E-SQL's L10), and the judges' branches on the rules' tolerances -- C1 ruled the RULES data; L11 (the
+     *  lens audit, E-Java's item 4) moves compiled legend-pure's comparison LOGIC behind two-form kinds, so the
+     *  product's judges carry lite's exact rule and no compatibility branch. */
+    static final Map<String, Integer> SITES = Map.ofEntries(
+            Map.entry("lowering/Fold.java | shape unionAlias", 1),
+            Map.entry("lowering/Lowerer.java | shape unionAlias", 7),
+            Map.entry("lowering/SubselectPrune.java | shape unionAlias", 1),
+            Map.entry("lowering/VerdictSql.java | rule branch floatUlps", 8),
+            Map.entry("testexec/Equality.java | rule branch decimalScale", 1),
+            Map.entry("testexec/Equality.java | rule branch floatTolerance", 1),
+            Map.entry("testexec/Equality.java | rule read decimalScale", 1),
+            Map.entry("testexec/Equality.java | rule read floatTolerance", 1),
+            Map.entry("testexec/Equality.java | rule read floatUlps", 1),
+            Map.entry("testexec/HostRules.java | rule read decimalScale", 1),
+            Map.entry("testexec/HostRules.java | rule read floatTolerance", 1),
+            Map.entry("testexec/HostRules.java | rule read floatUlps", 1));
+
+    /** A site's census line: upstream's frame name, or a branch on (a read of) the judging rules' tolerances. */
+    static String lineOf(String site) {
+        return site.contains("| shape ") ? "L-A.unionAlias" : "L-A.judgingRules";
+    }
+
+    /** The census lines this guard holds. */
+    static Set<String> lines() {
+        Set<String> out = new java.util.TreeSet<>();
+        SITES.keySet().forEach(k -> out.add(lineOf(k)));
+        return out;
+    }
 
     static Map<String, Integer> found(List<String> packages) {
         Map<String, Integer> out = new TreeMap<>();
