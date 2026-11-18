@@ -507,14 +507,14 @@ final class SqlTextVerdicts {
         // the query lambda may be LET-BOUND (`let func = {|...};
         // toSQLString($func, mapping, DatabaseType.H2, ...)`) — chased
         // like the plan-text arm chases its lambda
-        com.legend.planner.SqlTextInputs in = EngineTextPlanning.sqlTextInputs(producer, letPrefix);
+        SqlTextInputs in = SqlTextInputs.of(producer, letPrefix);
         TypedSpec lamArg = in == null ? null
                 : com.legend.compiler.spec.typed.Lets.bound(
-                        EngineTextPlanning.query(in), letPrefix);
+                        in.query(), letPrefix);
         if (in == null
                 || !(lamArg instanceof TypedLambda lam)
                 || lam.body().isEmpty()
-                || !(EngineTextPlanning.mapping(in) instanceof TypedPackageableRef mapping)) {
+                || !(in.mapping() instanceof TypedPackageableRef mapping)) {
             return null;
         }
         // the dialect: the DatabaseType overload names it; the RUNTIME
@@ -523,10 +523,10 @@ final class SqlTextVerdicts {
         // carry it on the connection, read through the let chase and a
         // helper inline
         String dbType;
-        if (EngineTextPlanning.dialect(in) instanceof TypedEnumValue db) {
+        if (in.dialect() instanceof TypedEnumValue db) {
             dbType = db.value();
         } else {
-            TypedSpec rt = com.legend.compiler.spec.typed.Lets.bound(EngineTextPlanning.runtime(in), letPrefix);
+            TypedSpec rt = com.legend.compiler.spec.typed.Lets.bound(in.runtime(), letPrefix);
             rt = new com.legend.compiler.spec.UserCallInliner(specs)
                     .inlineBody(List.of(rt)).get(0);
             com.legend.compiler.spec.typed.ExecutionContext frameCtx =
@@ -1194,7 +1194,7 @@ final class SqlTextVerdicts {
         bound.addAll(bindings.lets());
         // the plan producer's bound context rides the verdict's from
         com.legend.compiler.spec.typed.ExecutionContext planCtx = producer.args().size() >= 3
-                ? EngineTextPlanning.boundContext(producer.args().get(2), scope, specs)
+                ? RuntimeContexts.boundContext(producer.args().get(2), scope, specs)
                 : com.legend.compiler.spec.typed.ExecutionContext.NONE;
         // a multi-statement plan lambda ({|let a = 10; Firm.all()->...})
         // scopes its leading lets over the last statement — the rows leg
@@ -1640,7 +1640,7 @@ final class SqlTextVerdicts {
             TypedPackageableRef mappingRef =
                     ec.args().get(1) instanceof TypedPackageableRef mr ? mr : null;
             com.legend.compiler.spec.typed.ExecutionContext context = ec.args().size() >= 3
-                    ? EngineTextPlanning.boundContext(ec.args().get(2), letPrefix, specs)
+                    ? RuntimeContexts.boundContext(ec.args().get(2), letPrefix, specs)
                     : com.legend.compiler.spec.typed.ExecutionContext.NONE;
             TypedSpec chain = lamArg instanceof TypedLambda lam2 && !lam2.body().isEmpty()
                     ? lam2.body().get(lam2.body().size() - 1) : null;

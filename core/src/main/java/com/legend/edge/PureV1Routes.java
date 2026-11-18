@@ -271,7 +271,7 @@ public final class PureV1Routes {
                 // constant node (M5, the user's ruling); a diagnostic's (print) stays refused below, as upstream refuses
                 // it (S128); a value the database computes (|1+1) is a statement, below
                 if (query.executionPlan(runtime, java.util.Set.of(), PureText.PURE_V1).root() instanceof com.legend.executionplan.ExecutionPlan.Constant constant
-                        && !query.answersADiagnostic()) {
+                        && !answersADiagnostic(query)) {
                     return Json.toCompact(constantPlan(constant));
                 }
                 com.legend.Compiler.Target target = query.target();
@@ -577,5 +577,22 @@ public final class PureV1Routes {
 
     private static Object withoutSourceInformation(Json.Node n) {
         return com.legend.protocol.SourceInformation.strip(n);
+    }
+
+    /**
+     * Whether the query answers a diagnostic's call ({@code print}, {@code println}): a value the program wrote that
+     * legend-engine refuses when the lambda is built (register S128), where a String or Boolean literal or a model's DDL
+     * text is a value it folds (generatePlan answers upstream's ConstantExecutionNode for those: M5, the user's ruling of
+     * 2026-11-11). Read off the last statement's typed root, as the planner's statement road reads it (moved from
+     * TypedQuery#answersADiagnostic, J40's only-edge-callers census, 2026-11-18: this route asks it alone).
+     */
+    private static boolean answersADiagnostic(com.legend.TypedQuery query) {
+        java.util.List<com.legend.compiler.spec.typed.TypedSpec> b = query.body();
+        com.legend.compiler.spec.typed.TypedSpec root = b.get(b.size() - 1);
+        while (root instanceof com.legend.compiler.spec.typed.TypedFrom fr) {
+            root = fr.source();
+        }
+        return root instanceof com.legend.compiler.spec.typed.TypedNativeCall nc
+                && com.legend.builtin.NativeFn.Effect.isInertDiagnostic(nc.callee().id());
     }
 }
