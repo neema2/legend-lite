@@ -328,12 +328,14 @@ class PlannedSqlTest {
     /**
      * THE AUTHORED DOOR in Java (H1): the planner's {@code Authored.plan} is reached by the planner boundary alone
      * (Boundary.authored), and that by the one export a host asks -- the tab's (TabExports.authoredOrError) -- by file,
-     * exactly. (2026-11-12, the orchestrator's ruling: the native library's lite_authored, which no headless host
+     * exactly. (2026-11-18, the user's K2 ruling, "Product root, edge opt-in": the tab's adapter is planner.TabExports
+     * again, in the product's sources; it was the edge's com.legend.edge.wasm.TabExports from the census's A1,
+     * 2026-11-17, until its four legend-engine routes left it for the engine module's EngineExports.) (2026-11-12, the orchestrator's ruling: the native library's lite_authored, which no headless host
      * walked, deleted; Python refuses the kind by name, pinned by python/tests/test_planned_guard.py.)
      */
     static final Map<String, Integer> AUTHORED_JAVA = Map.of(
             "wasm/src/main/java/planner/Boundary.java", 1,
-            "wasm/src/edge/java/com/legend/edge/wasm/TabExports.java", 2);
+            "wasm/src/main/java/planner/TabExports.java", 2);
     // the hosts' edge sources too (wasm/src/edge, native/src/edge: the separation census's A1 and A2, 2026-11-17): the
     // tab's exports and Python's engine entries moved there, and a door reached from them is still a door reached
     static final List<String> JAVA_PRODUCT = List.of("core/src/main/java", "wasm/src/main/java/planner", "native/src/main/java",

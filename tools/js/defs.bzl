@@ -14,6 +14,9 @@ Every node:test file runs with the same settings, so no target spells them itsel
     (preloaded) assigns to TZ: Windows' launcher drops TZ itself;
   * `wasm = True` adds the WebAssembly planner as one directory (//wasm:planner_dir), named in WASM_PLANNER by its
     runfiles path, and the flag Node needs to load it;
+  * `engine = True` adds the engine module beside it (//wasm:engine_planner_dir, named in WASM_ENGINE_PLANNER):
+    legend-engine's routes in the tab, a module of their own since the user's K2 ruling (2026-11-18, "Product root,
+    edge opt-in"), which a test of the edge's loads as an app configured `engine: 'legend-engine'` does;
   * a test that takes DuckDB-WASM (`.../node_modules/@duckdb/duckdb-wasm` in data) takes its extensions too, the
     pinned ones every site serves the tab (//engine-client:duckdb_extensions), named in DUCKDB_EXTENSIONS: DuckDB
     started by engine-client's startNodeDuckDb answers its extension requests from them, so no test fetches one from
@@ -34,7 +37,7 @@ _REPORTER = "tools/js/strict-reporter.mjs"
 
 _ZONE = "tools/js/zone.mjs"
 
-def node_test(name, entry_point, data = [], wasm = False, env = {}, platform_env = {}, node_options = [], **kwargs):
+def node_test(name, entry_point, data = [], wasm = False, engine = False, env = {}, platform_env = {}, node_options = [], **kwargs):
     """A js_test running one node:test entry point with the repository's settings.
 
     Args:
@@ -42,6 +45,8 @@ def node_test(name, entry_point, data = [], wasm = False, env = {}, platform_env
         entry_point: the one test file (A28: one entry point per target).
         data: what the test reads.
         wasm: True to load the WebAssembly planner (//wasm:planner_dir, named in WASM_PLANNER).
+        engine: True to load the engine module too (//wasm:engine_planner_dir, named in WASM_ENGINE_PLANNER): legend-engine's
+            routes in the tab (K2, 2026-11-18).
         env: added over the pinned LANG/LC_ALL/TZ (a TZ lane overrides TZ here).
         platform_env: environment that differs by platform, a select over //tools/platforms, merged last; env stays a
             plain dict because the macro reads its TZ.
@@ -52,7 +57,7 @@ def node_test(name, entry_point, data = [], wasm = False, env = {}, platform_env
     # else the runfiles tree's main-repository directory, where rules_js runs a test
     chdir = kwargs.get("chdir")
     up = "/".join([".."] * len(chdir.split("/"))) if chdir else "."
-    options = ["--experimental-strip-types", "--experimental-async-context-frame", "--import=%s/%s" % (up, _ZONE)] + (["--experimental-wasm-exnref"] if wasm else []) + [
+    options = ["--experimental-strip-types", "--experimental-async-context-frame", "--import=%s/%s" % (up, _ZONE)] + (["--experimental-wasm-exnref"] if wasm or engine else []) + [
         "--disable-warning=ExperimentalWarning",
         "--test-reporter=spec",
         "--test-reporter-destination=stdout",
@@ -63,6 +68,8 @@ def node_test(name, entry_point, data = [], wasm = False, env = {}, platform_env
     zone = (pinned | env)["TZ"]
     if wasm:
         pinned["WASM_PLANNER"] = "$(rlocationpath //wasm:planner_dir)"
+    if engine:
+        pinned["WASM_ENGINE_PLANNER"] = "$(rlocationpath //wasm:engine_planner_dir)"
     if type(data) != "list":
         fail("node_test %s: data must be a plain list, which the DuckDB-WASM check reads (a select() is not read)" % name)
     duckdb = [d for d in data if str(d).endswith("node_modules/@duckdb/duckdb-wasm")] != []
@@ -72,6 +79,8 @@ def node_test(name, entry_point, data = [], wasm = False, env = {}, platform_env
         name = name,
         entry_point = entry_point,
         data = data + [Label("//tools/js:runfiles"), Label("//tools/js:strict_reporter"), Label("//tools/js:zone")] + ([Label("//wasm:planner_dir")] if wasm else []) + (
+            [Label("//wasm:engine_planner_dir")] if engine else []
+        ) + (
             [Label("//engine-client:duckdb_extensions")] if duckdb else []
         ),
         env = pinned | env | {"LEGEND_TZ": zone} | platform_env,

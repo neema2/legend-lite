@@ -5,14 +5,9 @@
 // table's model, a file's load, a host's operations) are the tab's own, refused here by name. legend-engine's API is the
 // edge's, never asked.
 
-import type { PlannerWorker, Request, RequestKind } from '../../../engine-client/src/legend/planner-protocol.ts';
+import type { PlannerWorker, Request } from '../../../engine-client/src/legend/planner-protocol.ts';
 import { withLibrary } from '../pure-library.ts';
 import { OPERATION_PATHS, folded, withModel } from './lite-routes.ts';
-
-/** What the server's planner is not asked, each with why. */
-const NOT_ASKED: Partial<Readonly<Record<RequestKind, string>>> = {
-  pureV1: "legend-engine's pure/v1 is the edge's: a page on legend-lite asks lite's own routes",
-};
 
 /** The worker over legend-lite's server at `baseUrl` (its root: the routes are under /api/lite/v1). */
 export function liteServerWorker(baseUrl: string, fetcher: typeof fetch = globalThis.fetch.bind(globalThis)): PlannerWorker {
@@ -62,8 +57,10 @@ export function liteServerWorker(baseUrl: string, fetcher: typeof fetch = global
           call(OPERATION_PATHS[body.kind], body.request);
           return;
         default:
-          reply({ id, ok: false, error: `${body.kind} is not asked of legend-lite's server: ${NOT_ASKED[body.kind]
-            ?? "the tab's own (a table's model, a load, a host's operations), on the tab's own database"}` });
+          // (legend-engine's pure/v1, refused here by name until the user's K2 ruling of 2026-11-18, left the planner
+          // protocol for the engine module's requests, the edge's engine-module.ts: a page cannot send it)
+          reply({ id, ok: false, error: `${body.kind} is not asked of legend-lite's server: the tab's own (a table's model,`
+            + " a load, a host's operations), on the tab's own database" });
       }
     },
     terminate(): void {

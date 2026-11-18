@@ -19,8 +19,10 @@ import org.junit.jupiter.api.Test;
  */
 class ArrowClosureTest {
 
-    private static final List<String> CLOSURES = List.of("plan_side_closure", "wasm_closure", "native_closure",
-            "native_image_closure");
+    // the engine module's too (the user's K2 ruling, 2026-11-18: legend-engine's routes in the tab left the planner
+    // module for a module of their own, //wasm:engine_planner, whose entry is //wasm:edge_tab)
+    private static final List<String> CLOSURES = List.of("plan_side_closure", "wasm_closure", "wasm_engine_closure",
+            "native_closure", "native_image_closure");
 
     @Test
     void noArrowRepositoryInAnyProductClosure() throws IOException {

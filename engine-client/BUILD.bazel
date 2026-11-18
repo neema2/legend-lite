@@ -117,6 +117,8 @@ _DOORS = glob(["src/doors/**/*.ts"]) + [
 _EDGE = [
     "src/legend/edge-engine.ts",
     "src/legend/engine-api.ts",
+    # legend-engine's routes in the tab, the engine module (the user's K2 ruling, 2026-11-18: "Product root, edge opt-in")
+    "src/legend/engine-module.ts",
     "src/legend/engine-wire.ts",
     "src/legend/engine.ts",
     "src/legend/grammar.ts",
@@ -538,6 +540,8 @@ node_test(
         "test/fixtures/keyed-expansion.json",
         "test/fixtures/raise-envelopes.json",
         "test/planner.ts",
+        # legend-engine's routes, the engine module's (the user's K2 ruling, 2026-11-18)
+        "test/engine.ts",
     ],
     entry_point = "test/plan-runner.test.ts",
     # the load runners' shared conformance fixture (B3): Python's engine test runs it too
@@ -547,6 +551,22 @@ node_test(
         "RAISE_FIXTURE": "$(rlocationpath test/fixtures/raise-envelopes.json)",
     },
     wasm = True,
+    # the tab's pure/v1 execute asks the engine module beside the planner (the user's K2 ruling, 2026-11-18)
+    engine = True,
+)
+
+# THE ENGINE MODULE IS OPT-IN (the user's K2 ruling, ~06:00 2026-11-18: "Product root, edge opt-in"): loaded only for
+# engine: 'legend-engine', any other word refused by name with nothing opened, and never asked inside a run
+node_test(
+    name = "engine_module_test",
+    size = "small",
+    data = [
+        ":edge",
+        ":engine_client",
+        "test/planner.ts",
+    ],
+    entry_point = "test/engine-module.test.ts",
+    engine = True,
 )
 
 # LITE API V1'S CONFORMANCE SUITE, THE SERVER BINDING (docs/records/lite-api-v1-2026-11-17.md §5, the user's go of
