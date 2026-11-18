@@ -45,12 +45,12 @@ class TerminalRowsFrozenTest {
             Map.entry("compiler/spec/Typer.java | TDSNull | 4 | STAYS", "C5 step C, C-2 2026-11-17 (language)"),
             Map.entry("lowering/Scalars.java | TDSNull | 2 | STAYS", "C5 step C, C-2 2026-11-17 (the #TDS literal's input)"),
             // census J29 (E-Java's 7c754b9432, train 14): the platform assert native's default message, as two compiler
-            // classes plan its body -- STAYS until the orchestrator rules whether lite's native words it as lite's own
-            // sentence (the register's note); frozen 2026-11-18 by the GUARD stream's re-cut on train 15 1931d419b1
+            // classes plan its body -- RULED STAYS by the orchestrator (2026-11-18): lite's assert native's default
+            // sentence is lite's own, the same words as assert.pure's; frozen by the GUARD stream's re-cut on 1931d419b1
             Map.entry("compiler/spec/LambdaBodies.java | Assert failed | 1 | STAYS",
-                    "J29 2026-11-18 (assert.pure's default message; the orchestrator's ruling pending)"),
+                    "J29 2026-11-18, RULED STAYS by the orchestrator (lite's own default sentence, assert.pure's words)"),
             Map.entry("compiler/spec/VerdictQueries.java | Assert failed | 1 | STAYS",
-                    "J29 2026-11-18 (assert.pure's default message; the orchestrator's ruling pending)"),
+                    "J29 2026-11-18, RULED STAYS by the orchestrator (lite's own default sentence, assert.pure's words)"),
             // (compiler/spec/VerdictQueries.java | TDSNull | STAYS: gone from the register 2026-11-17 on d-stage c37207858,
             // train 7's C-2 fix-forward)
             // generateSeedDataString's value (TestDataPlanner.seedString): STAYS, the orchestrator's ruling of 2026-11-17
