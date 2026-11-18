@@ -147,8 +147,10 @@ class CompatSpellingGuardTest {
     static final List<String> REGISTER = List.of(
             // census J29 (2026-11-18): "Assert failed" is the platform's own assert native's default message
             // (assert.pure: assert(condition) is assert(condition, | 'Assert failed'); the platform stdlib is lite's,
-            // AGENTS.md's reference-checkout tenet), as two compiler classes plan its body -- STAYS until the
-            // orchestrator rules whether lite's native words it as lite's TRUE sentence instead
+            // AGENTS.md's reference-checkout tenet), as two compiler classes plan its body -- RULED STAYS by the
+            // orchestrator (2026-11-18, on the GUARD stream's re-cut triage): lite's assert native's default sentence is
+            // lite's own, the same words as legend-pure's assert.pure default (the orchestrator's ruling at J29); the
+            // orchestrator's, not the user's, so its step stays STAYS
             "compiler/spec/LambdaBodies.java | Assert failed | 1 | STAYS",
             "compiler/spec/VerdictQueries.java | Assert failed | 1 | STAYS",
             // D1.6's compile messages, gone 2026-11-16 (W7 of docs/records/d-plan-2026-11-16.md): ModelIntegrity,
