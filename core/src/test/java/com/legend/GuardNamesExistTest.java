@@ -109,6 +109,10 @@ class GuardNamesExistTest {
 
     private static final String TEST_ROOT = "core/src/test/java/";
 
+    /** ArchitectureTest's name-pattern sites handed a name or a call, which this test does not read: the runner's
+     *  pattern twice, SESSION_SEAM, TEMPORAL_LITERAL, and three makers(...) lists. Measured 2026-11-18. */
+    static final int NAME_HANDED_PATTERN_SITES = 7;
+
     private static final Pattern TAG = Pattern.compile("@Tag\\(\"(?:census|guardrail)\"\\)");
 
     /** A class name a literal writes, with its nested classes and one member. */
@@ -186,7 +190,7 @@ class GuardNamesExistTest {
         List<String> out = new ArrayList<>();
         Map<Integer, Lit> byStart = new TreeMap<>();
         literals(source).forEach(l -> byStart.put(l.from(), l));
-        Matcher call = Pattern.compile("haveNameMatching\\(").matcher(source);
+        Matcher call = Pattern.compile("haveName(?:Not)?Matching\\(").matcher(source);
         while (call.find()) {
             StringBuilder joined = new StringBuilder();
             int at = skip(source, call.end());
@@ -208,12 +212,151 @@ class GuardNamesExistTest {
         return out;
     }
 
-    /** The first index at or after {@code at} that is not whitespace. */
+    /** {@code source} with its comments left out (its strings kept). */
+    static String uncommented(String source) {
+        StringBuilder out = new StringBuilder();
+        int i = 0;
+        while (i < source.length()) {
+            if (source.startsWith("//", i)) {
+                int end = source.indexOf('\n', i);
+                i = end < 0 ? source.length() : end;
+            } else if (source.startsWith("/*", i)) {
+                int end = source.indexOf("*/", i + 2);
+                i = end < 0 ? source.length() : end + 2;
+            } else if (source.charAt(i) == '"') {
+                int end = i + 1;
+                while (end < source.length() && source.charAt(end) != '"') {
+                    end += source.charAt(end) == '\\' ? 2 : 1;
+                }
+                out.append(source, i, Math.min(end + 1, source.length()));
+                i = end + 1;
+            } else {
+                out.append(source.charAt(i));
+                i++;
+            }
+        }
+        return out.toString();
+    }
+
+    /** The first index at or after {@code at} that is neither whitespace nor a comment. */
     private static int skip(String source, int at) {
-        while (at < source.length() && Character.isWhitespace(source.charAt(at))) {
-            at++;
+        while (at < source.length()) {
+            if (Character.isWhitespace(source.charAt(at))) {
+                at++;
+            } else if (source.startsWith("//", at)) {
+                int end = source.indexOf('\n', at);
+                at = end < 0 ? source.length() : end;
+            } else if (source.startsWith("/*", at)) {
+                int end = source.indexOf("*/", at + 2);
+                at = end < 0 ? source.length() : end + 2;
+            } else {
+                break;
+            }
         }
         return at;
+    }
+
+    /** The com.legend packages {@code source}'s package rules name in literals ({@code resideInAPackage},
+     *  {@code resideInAnyPackage}, {@code resideOutsideOfPackage(s)}; the review of 11de9ae229, 2026-11-18: none was
+     *  read), each as written ({@code "com.legend.parser.."}). */
+    static List<String> packageLiterals(String source) {
+        List<String> out = new ArrayList<>();
+        Map<Integer, Lit> byStart = new TreeMap<>();
+        literals(source).forEach(l -> byStart.put(l.from(), l));
+        Matcher call = Pattern.compile("reside(?:In(?:Any)?|OutsideOf)Packages?\\(").matcher(source);
+        while (call.find()) {
+            int at = skip(source, call.end());
+            for (Lit lit = byStart.get(at); lit != null; lit = byStart.get(at)) {
+                if (lit.text().equals("com.legend") || lit.text().startsWith("com.legend.")) {
+                    out.add(lit.text());
+                }
+                at = skip(source, lit.end());
+                if (at < source.length() && source.charAt(at) == ',') {
+                    at = skip(source, at + 1);
+                } else {
+                    break;
+                }
+            }
+        }
+        return out;
+    }
+
+    /** Whether package rule {@code pkg} ("a.b" or "a.b..") names a package some class of {@code classes} is in. */
+    static boolean packageThere(String pkg, java.util.Collection<String> classes) {
+        boolean deep = pkg.endsWith("..");
+        String p = deep ? pkg.substring(0, pkg.length() - 2) : pkg;
+        return classes.stream().map(c -> c.contains(".") ? c.substring(0, c.lastIndexOf('.')) : "")
+                .anyMatch(cp -> cp.equals(p) || (deep && cp.startsWith(p + ".")));
+    }
+
+    /** Every branch of {@code regex}: each alternation of each group expanded to one alternative, the rest kept (a
+     *  character class and an escape read as one piece). A pattern whose branches number past 256 is its own one
+     *  branch. The review of 11de9ae229 (2026-11-18): a pattern was checked whole, so a dead alternative beside a live
+     *  one ({@code driver\\.X|testdatagen\\.Y}) passed. */
+    static List<String> branches(String regex) {
+        List<String> out = expand(regex, 0, regex.length());
+        return out.size() > 256 ? List.of(regex) : out;
+    }
+
+    private static List<String> expand(String r, int from, int to) {
+        List<List<String>> alternatives = new ArrayList<>();
+        List<String> current = new ArrayList<>(List.of(""));
+        int i = from;
+        while (i < to) {
+            char c = r.charAt(i);
+            if (c == '\\') {
+                String piece = r.substring(i, Math.min(i + 2, to));
+                current.replaceAll(x -> x + piece);
+                i += 2;
+            } else if (c == '[') {
+                int j = i + 1;
+                while (j < to && r.charAt(j) != ']') {
+                    j += r.charAt(j) == '\\' ? 2 : 1;
+                }
+                String piece = r.substring(i, Math.min(j + 1, to));
+                current.replaceAll(x -> x + piece);
+                i = j + 1;
+            } else if (c == '(') {
+                int depth = 0;
+                int j = i;
+                for (; j < to; j++) {
+                    char d = r.charAt(j);
+                    if (d == '\\') {
+                        j++;
+                    } else if (d == '[') {
+                        while (j < to && r.charAt(j) != ']') {
+                            j += r.charAt(j) == '\\' ? 2 : 1;
+                        }
+                    } else if (d == '(') {
+                        depth++;
+                    } else if (d == ')' && --depth == 0) {
+                        break;
+                    }
+                }
+                int inner = r.startsWith("?:", i + 1) ? i + 3 : i + 1;
+                List<String> groups = expand(r, inner, j);
+                List<String> next = new ArrayList<>();
+                for (String x : current) {
+                    for (String g : groups) {
+                        next.add(x + "(?:" + g + ")");
+                    }
+                }
+                current = next;
+                i = j + 1;
+            } else if (c == '|') {
+                alternatives.add(current);
+                current = new ArrayList<>(List.of(""));
+                i++;
+            } else {
+                String piece = String.valueOf(c);
+                current.replaceAll(x -> x + piece);
+                i++;
+            }
+        }
+        alternatives.add(current);
+        List<String> out = new ArrayList<>();
+        alternatives.forEach(out::addAll);
+        return out;
     }
 
     /** Whether {@code name} ("a.B$C" or "a.B$C#m") is there: a class of {@code classes} (or, for a top-level class, a
@@ -257,13 +400,23 @@ class GuardNamesExistTest {
             }
             if (file.equals("ArchitectureTest.java")) {
                 for (String p : namePatterns(text)) {
-                    Pattern compiled = Pattern.compile(p);
-                    String key = file + " | /" + p + "/";
-                    boolean matches = classes.keySet().stream().anyMatch(n -> compiled.matcher(n).matches());
+                    for (String branch : branches(p)) {
+                        Pattern compiled = Pattern.compile(branch);
+                        String key = file + " | /" + branch + "/";
+                        boolean matches = classes.keySet().stream().anyMatch(n -> compiled.matcher(n).matches());
+                        if (absent.containsKey(key)) {
+                            seen.add(key);
+                        } else if (!matches) {
+                            out.add(key + ": matches nothing (the rule names no class, so it reads nothing)");
+                        }
+                    }
+                }
+                for (String pkg : packageLiterals(text)) {
+                    String key = file + " | package " + pkg;
                     if (absent.containsKey(key)) {
                         seen.add(key);
-                    } else if (!matches) {
-                        out.add(key + ": matches nothing (the rule names no class, so it reads nothing)");
+                    } else if (!packageThere(pkg, classes.keySet())) {
+                        out.add(key + ": no class is in it (the rule names no package, so it reads nothing)");
                     }
                 }
             }
@@ -312,20 +465,25 @@ class GuardNamesExistTest {
         }
         for (Path p : SourceFiles.under("core/src/main")) {
             String path = SourceFiles.path(p);
-            // a driver source set's class (core/src/main/<set>/com/legend/...), by its package path
+            // a driver source set's class (core/src/main/<set>/com/legend/..., not core/src/main/java: a class there is
+            // in a jar this test reads, or the rule naming it reads nothing -- the review of 11de9ae229, 2026-11-18)
             int at = path.indexOf("/com/legend/");
-            if (path.endsWith(".java") && at >= 0) {
+            if (path.endsWith(".java") && at >= 0 && !path.startsWith("core/src/main/java/")) {
                 mainFiles.add(path.substring(at + 1));
             }
         }
         Map<String, JavaClass> classes = classes("legend.product.jars", "legend.authored.jars", "legend.edge.jars",
                 "legend.test.jars");
         assertTrue(sources.containsKey("ArchitectureTest.java") && sources.size() > 40 && classes.size() > 3000
-                && mainFiles.size() > 1000, "the guards and the jars are read: " + sources.size() + ", "
+                && mainFiles.size() >= 3, "the guards and the jars are read: " + sources.size() + ", "
                 + classes.size() + ", " + mainFiles.size());
-        // its thirteen sites, less the two handed a name (a runner's pattern), measured 2026-11-17
-        assertTrue(namePatterns(sources.get("ArchitectureTest.java")).size() >= 11, "ArchitectureTest's patterns are"
-                + " read: " + namePatterns(sources.get("ArchitectureTest.java")));
+        // every pattern site read but those handed a name (a runner's pattern), pinned exactly so a new name-handed site
+        // is seen (the review of 11de9ae229, 2026-11-18: a floor let one go unread); measured 2026-11-18
+        String arch = sources.get("ArchitectureTest.java");
+        int sites = (int) Pattern.compile("haveName(?:Not)?Matching\\(").matcher(uncommented(arch)).results().count();
+        assertEquals(sites - NAME_HANDED_PATTERN_SITES, namePatterns(arch).size(), "ArchitectureTest's pattern sites"
+                + " handed a name (not read) number " + NAME_HANDED_PATTERN_SITES + ": " + namePatterns(arch));
+        assertTrue(packageLiterals(arch).size() > 40, "ArchitectureTest's package literals are read");
         assertEquals(List.of(), stale(sources, classes, mainFiles::contains, ABSENT_ON_PURPOSE), "a guard names what is"
                 + " not there: it reads nothing for that name");
     }
@@ -343,7 +501,9 @@ class GuardNamesExistTest {
                 + "  static final Set<String> A = Set.of(\"com.legend.gone.Class\", \"com.legend.sql.SqlFn#ABS\",\n"
                 + "      \"com.legend.sql.SqlFn#NO_SUCH\", \"com.legend.sql.SqlFn$Gone\", \"com.legend.listed.There\");\n"
                 + "  void r() { x.haveNameMatching(\"com\\\\.legend\\\\.gone\\\\.\" + \"(A|B)\"); "
-                + "y.haveNameMatching(\"com\\\\.legend\\\\.sql\\\\.\" + \"SqlFn\"); }\n}\n";
+                + "y.haveNameMatching(\"com\\\\.legend\\\\.sql\\\\.\" + \"SqlFn\"); "
+                + "z.haveNameNotMatching(\"com\\\\.legend\\\\.(sql\\\\.SqlFn|gone\\\\.C)\"); "
+                + "p.resideInAnyPackage(\"com.legend.sql..\", \"com.legend.gone..\"); }\n}\n";
         Map<String, String> listed = Map.of("ArchitectureTest.java | com.legend.listed.There", "planted",
                 "ArchitectureTest.java | com.legend.not.Written", "planted");
         assertEquals(List.of("ArchitectureTest.java | com.legend.gone.Class: absent (a stale name: point it at the class"
@@ -353,7 +513,13 @@ class GuardNamesExistTest {
                         + " where it lives, or delete it)",
                 "ArchitectureTest.java | com.legend.sql.SqlFn$Gone: absent (a stale name: point it at the class"
                         + " where it lives, or delete it)",
-                "ArchitectureTest.java | /com\\.legend\\.gone\\.(A|B)/: matches nothing (the rule names no class, so it"
+                "ArchitectureTest.java | /com\\.legend\\.gone\\.(?:A)/: matches nothing (the rule names no class, so"
+                        + " it reads nothing)",
+                "ArchitectureTest.java | /com\\.legend\\.gone\\.(?:B)/: matches nothing (the rule names no class, so"
+                        + " it reads nothing)",
+                "ArchitectureTest.java | /com\\.legend\\.(?:gone\\.C)/: matches nothing (the rule names no class, so it"
+                        + " reads nothing)",
+                "ArchitectureTest.java | package com.legend.gone..: no class is in it (the rule names no package, so it"
                         + " reads nothing)",
                 "ArchitectureTest.java | com.legend.not.Written: listed, and no longer written there (delete its"
                         + " entry)"),

@@ -394,18 +394,29 @@ class SqlFnSortedTest {
         return dollar < 0 ? n : n.substring(0, dollar);
     }
 
+    /** Whether {@code c} is javac's switch map: it holds a SYNTHETIC {@code $SwitchMap$} field (the review of
+     *  11de9ae229, 2026-11-18: an ordinary field so named exempted its whole class). */
     static boolean switchMap(JavaClass c) {
-        return c.getFields().stream().anyMatch(f -> f.getName().startsWith("$SwitchMap$"));
+        return c.getFields().stream().anyMatch(f -> f.getName().startsWith("$SwitchMap$")
+                && f.getModifiers().contains(com.tngtech.archunit.core.domain.JavaModifier.SYNTHETIC));
     }
 
     /** Whether {@code c} is a renderer or nested in one, at any depth. */
     static boolean renderer(JavaClass c) {
         for (java.util.Optional<JavaClass> x = java.util.Optional.of(c); x.isPresent(); x = x.get().getEnclosingClass()) {
-            if (x.get().isAssignableTo(SqlDialect.class.getName())) {
+            if (x.get().isAssignableTo(SqlDialect.class.getName()) && rendererHome(x.get().getName())) {
                 return true;
             }
         }
         return false;
+    }
+
+    /** Where a renderer lives: the dialects' package or the edge's (the review of 11de9ae229, 2026-11-18, MUST-FIX 1: a
+     *  class implementing SqlDialect anywhere -- a product planner's nested class -- exempted its reads of an edge-only
+     *  function); and this test's own planted renderers, which no jar carries. */
+    static boolean rendererHome(String name) {
+        return name.startsWith("com.legend.sql.dialect.") || name.startsWith("com.legend.edge.")
+                || name.startsWith(SqlFnSortedTest.class.getName() + "$Planted");
     }
 
     /** Each function's writers over {@code classes}, "fn" -> {"product: class", "edge: class"}: a read of its constant
@@ -786,6 +797,13 @@ class SqlFnSortedTest {
                 "NO_WRITER", "LEFT", "NO_WRITER"), measured(writers, names), "a switch's map, a renderer and a class"
                 + " nested in one write nothing: " + writers);
         assertEquals(Set.of(), both(writers));
+        // the review of 11de9ae229 (2026-11-18): a class implementing SqlDialect outside the dialects' and the edge's
+        // packages is no renderer -- its read of a function is a write
+        JavaClasses hide = new ClassFileImporter().importClasses(com.legend.planner.PlantedRendererHide.class,
+                com.legend.planner.PlantedRendererHide.R.class);
+        assertEquals(2, hide.size(), "the planted classes are imported");
+        assertEquals(Map.of("ABS", Set.of("product: com.legend.planner.PlantedRendererHide$R")),
+                fnWriters(hide, n -> false), "a renderer by type alone, outside the dialects, writes");
         assertEquals(Set.of("ABS"), both(Map.of("ABS", Set.of("product: P", "edge: E"), "DAYNAME", Set.of("edge: E"))),
                 "a function both sides write is read as both");
         assertEquals(Map.of("ABS", Set.of("a.P")), bothProduct(Map.of("ABS", Set.of("product: a.P$Inner", "product: a.P",

@@ -240,14 +240,19 @@ class EdgeSeparationTest {
                     out.add(src + " -> " + target);
                 }
             });
-            // a renderer anywhere; javac's switch map in the sql package alone (what the old skip covered there -- a
-            // product class elsewhere naming an edge-only function in a switch is named, as it always was)
-            boolean fnReader = src.equals("com.legend.sql.SqlFn") || SqlFnSortedTest.renderer(c)
+            // a dialect's renderer (the class or one enclosing it, in com.legend.sql.dialect); javac's switch map (a
+            // synthetic $SwitchMap$ field) in the sql package alone; SqlFn's own static initializer -- nothing else (the
+            // review of 11de9ae229, 2026-11-18, MUST-FIX 1: a renderer in any package, an ordinary field named
+            // $SwitchMap$ and every member of SqlFn were exempt; a product class elsewhere naming an edge-only
+            // function in a switch is named, as it always was)
+            boolean fnReader = (SqlFnSortedTest.renderer(c) && c.getName().startsWith("com.legend.sql.dialect."))
                     || (src.startsWith("com.legend.sql.") && SqlFnSortedTest.switchMap(c));
             c.getFieldAccessesFromSelf().forEach(a -> {
                 String owner = a.getTarget().getOwner().getName();
                 String field = a.getTarget().getName();
-                if (owner.equals("com.legend.sql.SqlFn") && edgeOnlyFns.contains(field) && !fnReader) {
+                boolean ownInit = c.getName().equals("com.legend.sql.SqlFn")
+                        && a.getOrigin() instanceof com.tngtech.archunit.core.domain.JavaStaticInitializer;
+                if (owner.equals("com.legend.sql.SqlFn") && edgeOnlyFns.contains(field) && !fnReader && !ownInit) {
                     out.add(src + " -> SqlFn." + field);
                 }
                 // (the judges' compatibility rules: a field of the edge's since 2026-11-17, census C1 --
@@ -419,9 +424,19 @@ class EdgeSeparationTest {
         }
         // the edge audit's K16 (2026-11-17): a com.legend.sql class's reads are read too -- an edge-only function (ABS
         // planted as one) -- and a renderer's arm and a switch's map are not
-        Set<String> sql = found(new ClassFileImporter().withImportOption(l -> l.contains("/PlantedSql"))
-                .importPackages("com.legend.sql"), n -> true, Set.of("ABS"));
+        JavaClasses sqlPlanted = new ClassFileImporter().withImportOption(l -> l.contains("/PlantedSql")
+                && !l.contains("SwitchNamed")).importPackages("com.legend.sql");
+        assertTrue(sqlPlanted.size() >= 4, "the planted classes are imported: " + sqlPlanted.size());
+        Set<String> sql = found(sqlPlanted, n -> true, Set.of("ABS"));
         assertEquals(Set.of("com.legend.sql.PlantedSqlReach -> SqlFn.ABS"), sql, "the CODE guard reads the sql package");
+        // the review of 11de9ae229 (2026-11-18): a renderer nested in a product class outside the dialects, and a field
+        // merely named $SwitchMap$, exempt nothing
+        JavaClasses hiding = new ClassFileImporter().importClasses(com.legend.planner.PlantedRendererHide.class,
+                com.legend.planner.PlantedRendererHide.R.class, com.legend.sql.PlantedSqlSwitchNamed.class);
+        assertTrue(hiding.size() == 3, "the planted classes are imported: " + hiding.size());
+        assertEquals(Set.of("com.legend.planner.PlantedRendererHide -> SqlFn.ABS",
+                "com.legend.sql.PlantedSqlSwitchNamed -> SqlFn.ABS"), found(hiding, n -> true, Set.of("ABS")),
+                "a renderer outside the dialects and a field named $SwitchMap$ exempt nothing");
     }
 
     /** "Lines left": the allowlists' entries, counted by the code, and by census line. */

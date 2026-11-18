@@ -331,6 +331,13 @@ class TaggedClassesHaveATargetTest {
                     throw new IllegalStateException(target + "'s select holds a list the check does not read");
                 }
                 for (String item : topLevelItems(text.substring(at + 1, close))) {
+                    // a conditional, a slice or an unpacking chooses which literals count: refused by name (the review
+                    // of 11de9ae229, 2026-11-18: an untaken branch's selector was read as written)
+                    String code = item.replaceAll("\"[^\"]*\"", "\"\"");
+                    if (code.matches("(?s).*(\\bif\\b|\\belse\\b|\\[[^\\]]*:|\\*).*")) {
+                        throw new IllegalStateException(target + "'s select holds a conditional, a slice or an"
+                                + " unpacking the check does not read: " + item);
+                    }
                     if (!item.matches("\"[^\"]*\"") && !item.matches("(?s).*\"--[\\w-]+=.*")) {
                         throw new IllegalStateException(target + "'s select holds text the check does not read: "
                                 + item);
@@ -463,7 +470,7 @@ class TaggedClassesHaveATargetTest {
             }
             // a tag the lanes filter by platform (tools/ci/lane-flags.sh drops ci-linux-only off Linux): the review of
             // 5911e970e1's NOTE, 2026-11-17
-            if (text.contains("\"ci-linux-only\"")) {
+            if (tags(name, text).contains("ci-linux-only")) {
                 throw new IllegalStateException(name + " has a ci-linux-only tag the check does not read");
             }
             return true;
@@ -497,24 +504,54 @@ class TaggedClassesHaveATargetTest {
         if (literalArgs(t.name(), t.text(), "--select-class").contains(cls)) {
             return true;
         }
-        Set<String> deps = deps(t.text());
+        // the libraries read only where the selector needs them (a target selecting classes by name may pass its deps
+        // by a list's name)
         if (inEdge) {
-            return selectRead(t.name(), t.text()).edgeClasses() && deps.contains(":core_edge_tests_lib")
-                    && cls.endsWith("Test");
+            return selectRead(t.name(), t.text()).edgeClasses() && cls.endsWith("Test")
+                    && deps(t.text()).contains(":core_edge_tests_lib");
         }
         return literalArgs(t.name(), t.text(), "--select-package").contains("com.legend")
-                && deps.contains(":core_tests_lib") && cls.startsWith("com.legend.") && !excluded(rel, library);
+                && cls.startsWith("com.legend.") && !excluded(rel, library)
+                && deps(t.text()).contains(":core_tests_lib");
     }
 
     /** The labels of {@code text}'s {@code deps} and {@code runtime_deps} lists. */
     static Set<String> deps(String text) {
         Set<String> out = new TreeSet<>();
-        Matcher m = Pattern.compile("(?<![\\w])(?:runtime_deps|deps)\\s*=\\s*\\[(.*?)\\]", Pattern.DOTALL).matcher(text);
+        Matcher m = Pattern.compile("(?<![\\w])(?:runtime_deps|deps)\\s*=\\s*").matcher(text);
         while (m.find()) {
-            Matcher label = Pattern.compile("\"([^\"]*)\"").matcher(m.group(1));
+            // each a plain list of quoted labels, ended by "," or the call's end (the review of 11de9ae229, 2026-11-18:
+            // a list followed by "if False else []" or a slice was read as given)
+            Matcher list = Pattern.compile("\\[((?:\\s*\"[^\"]*\"\\s*,?)*\\s*)\\]\\s*(,|\\z)").matcher(text)
+                    .region(m.end(), text.length());
+            if (!list.lookingAt()) {
+                throw new IllegalStateException("a target's deps hold text the check does not read: "
+                        + text.substring(m.end(), Math.min(text.length(), m.end() + 60)).split("\n")[0]);
+            }
+            Matcher label = Pattern.compile("\"([^\"]*)\"").matcher(list.group(1));
             while (label.find()) {
                 out.add(label.group(1));
             }
+        }
+        return out;
+    }
+
+    /** The target's tags, a plain list of double-quoted literals, or none: any other form fails by name (the review of
+     *  11de9ae229, 2026-11-18: single quotes, a joined list or a name hid a platform tag). */
+    static List<String> tags(String name, String text) {
+        Matcher m = Pattern.compile("(?<![\\w])tags\\s*=\\s*").matcher(text);
+        if (!m.find()) {
+            return List.of();
+        }
+        Matcher list = Pattern.compile("\\[((?:\\s*\"[^\"]*\"\\s*,?)*\\s*)\\]\\s*(,|\\z)").matcher(text)
+                .region(m.end(), text.length());
+        if (!list.lookingAt()) {
+            throw new IllegalStateException(name + "'s tags hold text the check does not read");
+        }
+        List<String> out = new ArrayList<>();
+        Matcher t = Pattern.compile("\"([^\"]*)\"").matcher(list.group(1));
+        while (t.find()) {
+            out.add(t.group(1));
         }
         return out;
     }
@@ -781,16 +818,39 @@ class TaggedClassesHaveATargetTest {
                 new String[] {PLANTED_BUILD.replace(KEPT, KEPT.replace("]", ", \"--exclude-classnam\\145=.*KeptTest\"]")),
                         PLANTED_GATES, "slow_census has an escape in a string the check does not read"},
                 new String[] {PLANTED_BUILD.replace(KEPT, "\"--select-class=com.legend.Other\" if True else " + KEPT),
-                        PLANTED_GATES, "slow_census has a --select-class argument the check does not read"},
+                        PLANTED_GATES, "slow_census's select holds a conditional, a slice or an unpacking the check does"
+                        + " not read"},
                 new String[] {PLANTED_BUILD, PLANTED_GATES.replace("name = \"checks\",", "name = \"checks\",\n"
                         + "    tags = [\"manual\"] + [\"-edge_test\"],"),
                         "gates/BUILD.bazel's suite checks filters its tests by tag"},
                 new String[] {PLANTED_BUILD.replace(KEPT + ",", KEPT + ",\n    tags = [\"ci-linux-only\"],"),
-                        PLANTED_GATES, "slow_census has a ci-linux-only tag the check does not read"});
+                        PLANTED_GATES, "slow_census has a ci-linux-only tag the check does not read"},
+                // the review of 11de9ae229 (2026-11-18): an untaken branch's selector, a library list chosen by a
+                // conditional or a slice, a platform tag in single quotes, joined, or named
+                new String[] {PLANTED_BUILD.replace(KEPT, "\"--select-class=com.legend.Other\", \"--select-package=com.legend"
+                        + ".none\" if True else \"--select-class=com.legend.slow.KeptTest\"]"), PLANTED_GATES,
+                        "slow_census's select holds a conditional, a slice or an unpacking the check does not read"},
+                new String[] {PLANTED_BUILD.replace(KEPT + ",", KEPT + ",\n    tags = ['ci-linux-only'],"),
+                        PLANTED_GATES, "slow_census's tags hold text the check does not read"},
+                new String[] {PLANTED_BUILD.replace(KEPT + ",", KEPT + ",\n    tags = [\"ci-linux-\" + \"only\"],"),
+                        PLANTED_GATES, "slow_census's tags hold text the check does not read"},
+                new String[] {PLANTED_BUILD.replace(KEPT + ",", KEPT + ",\n    tags = LINUX_ONLY,"),
+                        PLANTED_GATES, "slow_census's tags hold text the check does not read"});
         for (String[] c : cases) {
             IllegalStateException e = assertThrows(IllegalStateException.class, () -> orphans(sources, edge, c[0], c[1]),
                     c[2]);
             assertTrue(e.getMessage().startsWith(c[2]), e.getMessage());
+        }
+        // the review of 11de9ae229 (2026-11-18): a library list chosen by a conditional or cut by a slice, read where a
+        // package selector needs it (a product class census selects by package)
+        Map<String, String> product = Map.of(TEST_ROOT + "com/legend/ProductCensusTest.java", "@Tag(\"census\") class X {}");
+        String censusDeps = "    runtime_deps = [\":core_tests_lib\"],\n)\n\njunit_test(\n    name = \"guardrails\"";
+        assertTrue(PLANTED_BUILD.contains(censusDeps));
+        for (String bad : List.of(" if False else []", "[:0]")) {
+            IllegalStateException e = assertThrows(IllegalStateException.class, () -> orphans(product, edge,
+                    PLANTED_BUILD.replace(censusDeps, censusDeps.replace("],\n)", "]" + bad + ",\n)")), PLANTED_GATES),
+                    bad);
+            assertTrue(e.getMessage().startsWith("a target's deps hold text the check does not read"), e.getMessage());
         }
     }
 }

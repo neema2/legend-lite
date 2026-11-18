@@ -2612,7 +2612,15 @@ java_jars(
     testonly = True,
     rlocation_paths = True,
     transitive = False,
-    deps = [":edge"],
+    # core's own edge targets, every one (2026-11-18, the review of 11de9ae229, MUST-FIX 2: the edge rules read
+    # libedge.jar alone, so a rule naming TdsObjectsWriter -- :edge_service_tests' -- read nothing for it); the
+    # hosts' edge entries (//native:edge_entry, //query-store's page) come with C.11's one list, after the host train
+    deps = [
+        ":edge",
+        ":edge_server",
+        ":edge_service_tests",
+        ":edge_store_words",
+    ],
 )
 
 # the hosts' doors to the authored statement, by class: the boundary, the tab's adapter and the native entry, whose

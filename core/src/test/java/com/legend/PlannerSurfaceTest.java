@@ -426,8 +426,14 @@ class PlannerSurfaceTest {
         // an annotation's name spelled with blanks or a comment around "@" or its dots ("@ Deprecated",
         // "@/*c*/Deprecated", "@java.lang .Deprecated"), read as written tight (the same review: the run of modifiers
         // read only "@name")
-        String source = annotationArgumentsBlanked(blanked(edgeSource).replaceAll("@\\s+", "@")
-                .replaceAll("(?<=@[\\w.]{0,200})\\s*\\.\\s*(?=\\w)", "."));
+        String tight = blanked(edgeSource).replaceAll("@\\s+", "@");
+        // every spaced dot of an annotation's name, one per pass (the review of 11de9ae229, 2026-11-18: a single pass
+        // tightened only the first, "@java .lang .Deprecated")
+        for (String prev = null; !tight.equals(prev); ) {
+            prev = tight;
+            tight = tight.replaceAll("(@[\\w.]*\\w)\\s*\\.\\s*(?=\\w)", "$1.");
+        }
+        String source = annotationArgumentsBlanked(tight);
         Map<String, List<List<String>>> out = new TreeMap<>();
         Matcher m = MODIFIERS.matcher(source);
         while (m.find()) {
@@ -565,6 +571,7 @@ class PlannerSurfaceTest {
                 + "    public @ Deprecated static Answer spacedAt(String s) {}\n"
                 + "    public @/*c*/Deprecated static Answer commentedAt(String s) {}\n"
                 + "    public @java.lang .Deprecated static Answer spacedDot(String s) {}\n"
+                + "    public @ java . lang . Deprecated static Answer twoDots(String s) {}\n"
                 + "    /** a doc */\n"
                 + "    public static Answer broken(String a\n}\n";
         assertEquals(List.of("an edge boundary public static the check does not read: Answer broken(String a }",
@@ -578,6 +585,7 @@ class PlannerSurfaceTest {
                 "an edge boundary door no EDGE_DOORS entry names: runSqlHere",
                 "an edge boundary door no EDGE_DOORS entry names: spacedAt",
                 "an edge boundary door no EDGE_DOORS entry names: spacedDot",
+                "an edge boundary door no EDGE_DOORS entry names: twoDots",
                 "an edge door the edge's boundary no longer has: executeArrowAnswer",
                 "an edge door the edge's boundary no longer has: executeJsonAnswer",
                 "an edge door declared more than once (its row names one): executeJsonPlan",

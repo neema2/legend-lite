@@ -465,37 +465,52 @@ class HookRulingTest {
         assertFalse(overriders.isEmpty());
     }
 
-    /** A statement raising a division by zero, the raise's message {@code ERROR}'s first argument, as the lowering
-     *  writes one. */
-    private static com.legend.sql.SqlSelect raising() {
+    /** A statement raising {@code kind}, the raise's message {@code ERROR}'s first argument, as the lowering writes one. */
+    private static com.legend.sql.SqlSelect raising(com.legend.sql.RaiseKind kind) {
         com.legend.sql.OutputCol v = new com.legend.sql.OutputCol("v", com.legend.sql.SqlType.Scalar.VARCHAR, true,
                 com.legend.sql.OutputCol.Origin.DERIVED);
         com.legend.sql.SqlExpr raise = com.legend.sql.SqlExpr.Call.of(com.legend.sql.SqlFn.ERROR,
-                new com.legend.sql.SqlExpr.RaiseText(com.legend.sql.RaiseKind.DIVIDE_BY_ZERO, List.of()),
-                new com.legend.sql.SqlExpr.StringLit("3:7"));
+                new com.legend.sql.SqlExpr.RaiseText(kind, List.of()), new com.legend.sql.SqlExpr.StringLit("3:7"));
         return new com.legend.sql.SqlSelect(List.of(new com.legend.sql.SqlSelect.Projection(raise, "v", v)), false,
                 new com.legend.sql.SqlSource.Dual(), null, List.of(), null, null, List.of(), null, null, List.of(v));
     }
 
-    /** What differs from the product's raise in {@code d}'s statement raising a division by zero (the edge audit's K16,
-     *  2026-11-17: raiseMessage was the one spelling hook whose product default no test pinned): the product writes its
-     *  site's bare token ({@code LG#1}) -- no kind's name, no sentence -- and words nothing upstream's way in its site
-     *  ({@code upstream} null). A database that refuses the raise by name has nothing to pin; null when it holds. */
-    static @com.legend.base.Nullable String productRaiseDiffers(com.legend.sql.dialect.SqlDialect d) {
-        com.legend.sql.dialect.RenderedStatement s;
-        try {
-            s = d.renderStatement(raising());
-        } catch (com.legend.sql.DialectCapability | NotImplementedException | UnsupportedOperationException refused) {
-            return null;
+    /** The token alone, quoted as a literal (a string's quotes, any of the dialects'): nothing else in the message. */
+    private static final java.util.regex.Pattern QUOTED_TOKEN = java.util.regex.Pattern.compile("(['\"`])"
+            // the token's mark as each dialect spells it inside a literal (raw, or its escape: BigQuery's \x1c)
+            + "(?:" + java.util.regex.Pattern.quote(String.valueOf(com.legend.sql.RaiseKind.MARK))
+            + "|\\\\x1[cC]|\\\\u001[cC]|\\\\034)" + java.util.regex.Pattern.quote("LG#1") + "\\1");
+
+    /** What differs from the product's raise in {@code d}'s statement raising each kind but a user's fail (the edge
+     *  audit's K16, 2026-11-17: raiseMessage was the one spelling hook whose product default no test pinned; the review of
+     *  11de9ae229, 2026-11-18: every kind, the message exactly the token): the product writes its site's bare token
+     *  ({@code LG#1}) as the whole literal, and words nothing upstream's way in its site ({@code upstream} null). A
+     *  refusal is put to {@code refused} ("dialect kind"), never dropped. */
+    static List<String> productRaiseDiffers(com.legend.sql.dialect.SqlDialect d, java.util.Set<String> refused) {
+        java.util.Set<com.legend.sql.RaiseKind> kinds = java.util.EnumSet.allOf(com.legend.sql.RaiseKind.class);
+        kinds.remove(com.legend.sql.RaiseKind.USER_FAIL);
+        return productRaiseDiffers(d, refused, kinds);
+    }
+
+    /** {@link #productRaiseDiffers(com.legend.sql.dialect.SqlDialect, java.util.Set)} over {@code kinds}. */
+    static List<String> productRaiseDiffers(com.legend.sql.dialect.SqlDialect d, java.util.Set<String> refused,
+            java.util.Set<com.legend.sql.RaiseKind> kinds) {
+        List<String> out = new java.util.ArrayList<>();
+        for (com.legend.sql.RaiseKind kind : kinds) {
+            com.legend.sql.dialect.RenderedStatement s;
+            try {
+                s = d.renderStatement(raising(kind));
+            } catch (com.legend.sql.DialectCapability | NotImplementedException | UnsupportedOperationException e) {
+                refused.add(d.getClass().getName() + " " + kind);
+                continue;
+            }
+            if (!QUOTED_TOKEN.matcher(s.sql()).find() || s.sql().contains(kind.name())) {
+                out.add(d.getClass().getName() + " " + kind + " writes " + s.sql());
+            } else if (s.sites().size() != 1 || s.sites().get(0).upstream() != null) {
+                out.add(d.getClass().getName() + " " + kind + " words its site " + s.sites());
+            }
         }
-        if (!s.sql().contains("LG#1") || s.sql().contains("DIVIDE_BY_ZERO") || s.sql().contains("ivision by zero")
-                || s.sql().contains("Cannot divide")) {
-            return d.getClass().getName() + " writes " + s.sql();
-        }
-        if (s.sites().size() != 1 || s.sites().get(0).upstream() != null) {
-            return d.getClass().getName() + " words its site " + s.sites();
-        }
-        return null;
+        return out;
     }
 
     /** The product's default of each spelling hook, pinned on every product dialect that has it: a raw statement as
@@ -505,7 +520,10 @@ class HookRulingTest {
     void eachSpellingHooksProductDefault() throws Exception {
         for (com.legend.model.ConnectionDefinition.DatabaseType t : com.legend.database.Databases.implemented()) {
             com.legend.sql.dialect.SqlDialect d = com.legend.database.Databases.dialect(t);
-            assertEquals(null, productRaiseDiffers(d), t + ": the product raises its site's token");
+            java.util.Set<String> refused = new java.util.TreeSet<>();
+            assertEquals(List.of(), productRaiseDiffers(d, refused), t + ": the product raises its site's token");
+            // no product dialect refuses a raise today (measured 2026-11-18): one that does is pinned here, by kind
+            assertEquals(java.util.Set.of(), refused, t + ": a product dialect refuses a raise");
             assertEquals("Create Table f(x FLOAT)", d.raw("Create Table f(x FLOAT)", "ENGINE_TEXT"),
                     t + ": the product runs a raw statement as written");
             for (String name : List.of("spellingPasses", "scanOrderPasses")) {
@@ -526,13 +544,14 @@ class HookRulingTest {
      *  site -- and each is named, by its class. */
     @Test
     void theRaisePinBitesAnEdgeDialect() {
-        List<String> named = new java.util.ArrayList<>();
+        java.util.Set<String> named = new java.util.TreeSet<>();
         for (com.legend.model.ConnectionDefinition.DatabaseType t : com.legend.database.Databases.implemented()) {
             com.legend.sql.dialect.SqlDialect edge = com.legend.edge.PureText.dialect(t);
-            String found = productRaiseDiffers(edge);
-            if (found != null) {
+            // a division by zero, which the edge words without operands (its other kinds' sentences read theirs)
+            for (String found : productRaiseDiffers(edge, new java.util.TreeSet<>(),
+                    java.util.Set.of(com.legend.sql.RaiseKind.DIVIDE_BY_ZERO))) {
                 assertTrue(found.startsWith(edge.getClass().getName()), found);
-                named.add(found);
+                named.add(edge.getClass().getName());
             }
         }
         assertTrue(named.size() >= 3, "the edge's dialects are named: " + named);

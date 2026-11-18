@@ -2948,7 +2948,21 @@ final class ArchitectureTest {
                 "com.legend.testexec.EdgeRun", "com.legend.testexec.EdgeHearing",
                 "com.legend.testexecutionplan.Edge#seeded", "com.legend.testexecutionplan.Edge#effectRan",
                 "com.legend.diagnostics.VerdictCensus#sqlUnjudged", "com.legend.diagnostics.VerdictCensus#sqlRaised",
-                "com.legend.diagnostics.VerdictCensus#sqlRaisedAt", "com.legend.diagnostics.VerdictCensus#sqlEnter");
+                "com.legend.diagnostics.VerdictCensus#sqlRaisedAt", "com.legend.diagnostics.VerdictCensus#sqlEnter",
+                // the census's other run-time counters (the review of 11de9ae229, 2026-11-18: the K16 repoint renamed
+                // the list without re-measuring it -- planning calls these two, which VerdictCensus's own javadoc puts
+                // at the run)
+                "com.legend.diagnostics.VerdictCensus#sqlJudgedInDatabase",
+                "com.legend.diagnostics.VerdictCensus#sqlFellThrough");
+        // THE PLANNING TELLS STANDING (measured 2026-11-18, when the two counters joined the list): each exact, reported
+        // to the orchestrator for a ruling -- the counts are planning's (both javadocs corrected), or they move to the
+        // run; a new one fails here
+        java.util.Set<String> toldStanding = java.util.Set.of(
+                "planning tells: com.legend.testplan.AssertVerdicts#renderedRows -> com.legend.diagnostics.VerdictCensus#sqlJudgedInDatabase",
+                "planning tells: com.legend.testplan.DatabaseJudge#databaseTdsEquivalent -> com.legend.diagnostics.VerdictCensus#sqlJudgedInDatabase",
+                "planning tells: com.legend.testplan.DatabaseJudge#databaseVerdict -> com.legend.diagnostics.VerdictCensus#sqlJudgedInDatabase",
+                "planning tells: com.legend.testplan.DatabaseJudge#staticallyDecided -> com.legend.diagnostics.VerdictCensus#sqlJudgedInDatabase",
+                "planning tells: com.legend.testplan.AssertVerdicts#adjudicate -> com.legend.diagnostics.VerdictCensus#sqlFellThrough");
         for (com.tngtech.archunit.core.domain.JavaCodeUnit u : reachable(PLANNING_ENTRIES)) {
             String at = u.getOwner().getName() + "#" + u.getName();
             if (PLANNING_ENTRIES.contains(at)) {
@@ -2965,8 +2979,9 @@ final class ArchitectureTest {
                 }
             }
         }
-        org.junit.jupiter.api.Assertions.assertTrue(found.isEmpty(), "the listener answers, or planning tells someone"
-                + " (the run tells, at each verdict's turn; planning tells no one): " + found);
+        org.junit.jupiter.api.Assertions.assertEquals(new java.util.TreeSet<>(toldStanding), new java.util.TreeSet<>(found),
+                "the listener answers, or planning tells someone (the run tells, at each verdict's turn; planning tells no"
+                + " one but the standing pins, each awaiting its ruling)");
     }
 
     @Test
@@ -3216,8 +3231,12 @@ final class ArchitectureTest {
             // DynamicPivot 2026-10-31, the seam program's S3: no probe is left)
             // the whole driver package since 2026-10-30 (D73, step C: the execution side's machinery -- the body driver
             // and compiler, the judges' arms, the seeds, the probes, the system database -- is com.legend.driver)
-            .that().haveNameMatching("com\\.legend\\.(driver\\.[A-Za-z0-9_]+"
-                    + "|judge\\.[A-Za-z0-9_]+"
+            // repointed 2026-11-18 (the review of 11de9ae229, MUST-FIX 2: the driver and judge packages were deleted by
+            // slice 5, 2026-11-09, so the rule had read the test-data generator's two classes alone): the body's planner
+            // and the judges' planning halves are com.legend.testplan, the runner and the judges' run halves
+            // com.legend.testexec
+            .that().haveNameMatching("com\\.legend\\.(testplan\\.[A-Za-z0-9_]+"
+                    + "|testexec\\.[A-Za-z0-9_]+"
                     + "|testdatagen\\.TestDataGenerationNatives|testdatagen\\.TestDataGenerator)"
                     + "(\\$.*)?")
             .should().dependOnClassesThat()
@@ -3926,8 +3945,9 @@ final class ArchitectureTest {
                     // sanctioned here; each parses through a door now
                     "com.legend.door")
             .should().dependOnClassesThat().haveNameMatching(
+                    // (MappingGrammarParser and RelationalGrammarParser: deleted 2026-08-08, b23f687579 -- their
+                    // alternatives named nothing; gone 2026-11-18, the review of 11de9ae229)
                     "com\\.legend\\.parser\\.(ElementParser|SpecParser"
-                    + "|MappingGrammarParser|RelationalGrammarParser"
                     + "|TokenStreamCursor)(\\$.*)?")
             .as("Invariant 6i: grammar parsers/cursors live and die at parse"
               + " time (the parse doors and the IDE are the sanctioned users)")
@@ -3981,7 +4001,10 @@ final class ArchitectureTest {
      *  isolated"): no product class reads JSON through it. It moved to the edge (census C1, 2026-11-17:
      *  {@code com.legend.edge.JsonSimpleGrammar}; the product's form, {@code testexecutionplan.JudgeJson}, reads strict
      *  JSON), so no product class may name it -- the judges included. Until 2026-11-17 the rule named the deleted driver
-     *  package's JudgeJson and so read nothing (the edge audit's K16); repointed then at the grammar where it lives. */
+     *  package's JudgeJson and so read nothing (the edge audit's K16); repointed then at the grammar where it lives.
+     *  Redundant by design (the review of 11de9ae229, 2026-11-18): the BUILD wall and EdgeSeparationTest's CODE guard
+     *  already refuse any product dependency on an edge class; this keeps S144's own name on it. Which EDGE classes may
+     *  read the lenient grammar (PureText, Appeals today) is not scoped here. */
     @Test
     void theCompatibilityJsonReaderIsTheJudgesAlone() {
         compatibilityJsonRule().check(CORE_PROD_CLASSES);
@@ -3999,6 +4022,7 @@ final class ArchitectureTest {
     @Test
     void theRepointedJudgeRulesBite() {
         JavaClasses planted = new ClassFileImporter().importClasses(com.legend.planner.PlantedVerdictReach.class);
+        org.junit.jupiter.api.Assertions.assertEquals(1, planted.size(), "the planted class is imported");
         for (com.tngtech.archunit.lang.ArchRule rule : java.util.List.of(compatibilityJsonRule(), hostVerdictRule())) {
             AssertionError e = org.junit.jupiter.api.Assertions.assertThrows(AssertionError.class,
                     () -> rule.check(planted), rule.getDescription());
@@ -4025,9 +4049,8 @@ final class ArchitectureTest {
             .and().doNotHaveFullyQualifiedName("com.legend.testexec.TdsCompare")
             .and().doNotHaveFullyQualifiedName("com.legend.testexec.CanonicalForm")
             .and().doNotHaveFullyQualifiedName("com.legend.testexec.CanonicalDivergence")
-            // the four's own nested classes (CanonicalForm$Result's variants implement it)
-            .and().haveNameNotMatching("com\\.legend\\.testexec\\.(PureAsserts|CanonicalForm|CanonicalDivergence"
-                    + "|Equality)\\$.*")
+            // the four's own nested classes (CanonicalForm$Result's variants implement it; PureAsserts has none)
+            .and().haveNameNotMatching("com\\.legend\\.testexec\\.(CanonicalForm|CanonicalDivergence|Equality)\\$.*")
             // THE SEAM'S RUN HALF (measured 2026-11-17, when the rule was repointed from the deleted judge package -- the
             // edge audit's K16): since slice 5 (2026-11-09) the judges are planned in testplan and run in testexec, and
             // these are the run's judges -- the host judge's judgments, an assert's run, the database judge's verdicts --
