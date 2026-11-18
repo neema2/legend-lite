@@ -52,12 +52,6 @@ final class BodyRun {
         return hearing.judged(e, sides, rules, messaged > 0);
     }
 
-    /** legend-pure's words of an assert's failure ({@link EdgeHearing#pureWords}): asked under the compatibility rules
-     *  alone. */
-    PureWords pureWords() {
-        return hearing.pureWords();
-    }
-
     /** A step of the body that writes is about to run ({@link EdgeHearing#writing}). */
     void writing() {
         hearing.writing();

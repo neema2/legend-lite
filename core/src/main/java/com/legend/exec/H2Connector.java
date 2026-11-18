@@ -14,8 +14,10 @@ import java.util.concurrent.atomic.AtomicInteger;
 /**
  * H2's sessions: a file, a server, or an in-memory database that outlives its connections by NAME
  * ({@link Sessions.Opening.Named}). Every in-memory H2 database the platform opens, named or private, is opened with
- * the settings the plan's target declares ({@link #url}: the H2 dialect's {@code MODE=LEGACY} and
- * {@code DEFAULT_NULL_ORDERING=HIGH}, plan data since the C checkpoint's SHOULD-FIX 3, 2026-11-12; until then this
+ * the settings the plan's target declares ({@link #url}: the product's H2's own {@code MODE=REGULAR} and
+ * {@code DEFAULT_NULL_ORDERING=LOW}, legend-engine's {@code MODE=LEGACY} and {@code DEFAULT_NULL_ORDERING=HIGH} the
+ * compatibility edge's alone since the audit's J22, 2026-11-17, register S368; plan data since the C checkpoint's
+ * SHOULD-FIX 3, 2026-11-12; until then this
  * connector's {@code SETTINGS}, outside every plan, with the non-keywords that are now the dialect's session
  * statement). A file or a server a connection DECLARES is the user's database: opened as declared, never modified -- its
  * target declares the database's own settings, none written and none read back (the third re-audit's MUST-FIX 2,
@@ -26,9 +28,9 @@ import java.util.concurrent.atomic.AtomicInteger;
  * user-ratified "converge directly", landed 2026-08-29): H2Defaults
  * from legend-engine-xt-relationalStore-h2-execution-2.1.214 —
  * case-SENSITIVE identifiers, no DATABASE_TO_UPPER override, the
- * engine's NON_KEYWORDS list (incl OVER), MODE=LEGACY. ONE definition
- * (the H2 dialect's, written into every plan's target) so all targets
- * open IDENTICAL sessions.
+ * engine's NON_KEYWORDS list (incl OVER); its MODE=LEGACY the edge's
+ * since J22. ONE definition per form (the H2 dialect's, written into
+ * every plan's target) so all targets of a form open IDENTICAL sessions.
  *
  * <p>HISTORY: this constant used to add CASE_INSENSITIVE_IDENTIFIERS
  * + DATABASE_TO_UPPER=false — session-level compensation for OUR OWN

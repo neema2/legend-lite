@@ -2771,7 +2771,10 @@ java_jars(
 file_list(
     name = "guardrails_sources",
     testonly = True,
-    srcs = _CORE_READS,
+    # + the Python host's sources (2026-11-18, the GUARD stream's re-cut on train 15 1931d419b1): the edge audit's host
+    # item H5 (EdgeAuditOpenTest, a guardrail) stands at python/legend_lite/engine.py, and an item's file must be a
+    # declared source; the guards that scan python/ are census-tagged and read :census_sources, which already holds it
+    srcs = _CORE_READS + ["//python:census_src"],
 )
 
 file_list(

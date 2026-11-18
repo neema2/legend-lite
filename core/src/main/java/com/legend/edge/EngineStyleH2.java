@@ -837,6 +837,15 @@ public class EngineStyleH2 extends AnsiSqlRenderer implements EngineTextDialect 
      *  legend-engine's VarSetPlaceHolder; set by {@link #planned} for the statement it plans. */
     private final Set<String> planVariables = new HashSet<>();
 
+    /** The plan's template parameters (the edge's table, the audit's J31): replaced by {@link #params}, as
+     *  {@link #planVariables} is per statement. */
+    private final EngineParams params = EngineParams.none();
+
+    @Override
+    public void params(EngineParams params) {
+        this.params.replaceWith(params);
+    }
+
     private void consumeRootSlot(String group, Map<String, Integer> groups) {
         if (rootConsumed.add(group)) {
             nextInGroup(group, groups);
@@ -882,9 +891,9 @@ public class EngineStyleH2 extends AnsiSqlRenderer implements EngineTextDialect 
         // the ENUM param may sit on EITHER side
         SqlExpr.PlanParam p =
                 c.args().get(1) instanceof SqlExpr.PlanParam p1
-                        && p1.enumMapFn() != null ? p1
+                        && params.enumMapFn(p1.name()) != null ? p1
                 : c.args().get(0) instanceof SqlExpr.PlanParam p0
-                        && p0.enumMapFn() != null ? p0 : null;
+                        && params.enumMapFn(p0.name()) != null ? p0 : null;
         if (p == null) {
             return null;
         }
@@ -907,7 +916,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer implements EngineTextDialect 
         String col = newWriter().expr(colExpr != null ? colExpr : other, 4).text()
                 .replace("'", "\\'");
         String pn = p.name() + (p.optional() ? "![]" : "");
-        String fn = p.enumMapFn() + "(" + pn + ")";
+        String fn = params.enumMapFn(p.name()) + "(" + pn + ")";
         String selector = "(${optionalVarPlaceHolderOperationSelector(" + pn
                 + ", equalEnumOperationSelector(" + fn + ", '" + col
                 + " in (${" + fn + "})', '" + col + " = ${" + fn
@@ -998,6 +1007,9 @@ public class EngineStyleH2 extends AnsiSqlRenderer implements EngineTextDialect 
      * temp-table protocol's falseBlock (processInOperation). */
     @Override
     public String collectionSplice(SqlExpr.PlanParam cp) {
+        if (params.isSplice(cp.name())) {
+            throw new IllegalStateException("the wrapper '" + cp.name() + "' is a bare splice, never a collection");
+        }
         // the engine's renderCollection spells each replacement pair with a
         // TRAILING space ({"'" : "''" }); varPlaceHolderToString does not
         return "${renderCollection(" + cp.name() + "![] \",\" "
@@ -1006,8 +1018,6 @@ public class EngineStyleH2 extends AnsiSqlRenderer implements EngineTextDialect 
 
     protected String holderArgs(SqlExpr.PlanParam.Kind k) {
         return switch (k) {
-            case RAW -> throw new IllegalStateException(
-                    "RAW plan params are bare splices, never collections");
             case STRING -> "\"'\" \"'\" {\"'\" : \"''\"}";
             // DATE and DATETIME both carry the TIMESTAMP keyword on the
             // upgraded-H2 plan surface (the bare-quoted DATE args are the
@@ -1484,6 +1494,10 @@ public class EngineStyleH2 extends AnsiSqlRenderer implements EngineTextDialect 
             super.expr(writer, e, 0);
             return writer.append(")");
         }
+        if (e instanceof SqlExpr.PlanParam p && params.isSplice(p.name())) {
+            // the temp-table protocol's wrapper: a bare splice (the edge's table, the audit's J31)
+            return writer.append("${").append(p.name()).append("}");
+        }
         if (e instanceof SqlExpr.PlanParam p) {
             // an OPTIONAL parameter spells the varPlaceHolderToString
             // template in EVERY position (comparisons, null guards) —
@@ -1492,7 +1506,6 @@ public class EngineStyleH2 extends AnsiSqlRenderer implements EngineTextDialect 
                 return writer.append(holder(p));
             }
             return switch (p.kind()) {
-                case RAW -> writer.append("${").append(p.name()).append("}");
                 case STRING -> writer.append("'${").append(p.name()).append("?replace(\"'\", \"''\")}'");
                 // h2New spells date-typed placeholders with the type
                 // keyword by PURE TYPE: Date and DateTime TIMESTAMP (the
@@ -1656,7 +1669,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer implements EngineTextDialect 
                             && bc.args().get(1) instanceof SqlExpr.PlanParam cp) {
                         // the temp-table protocol's wrapper variable —
                         // a bare splice, never a collection template
-                        if (cp.kind() == SqlExpr.PlanParam.Kind.RAW) {
+                        if (params.isSplice(cp.name())) {
                             return writer.expr(bc.args().get(0), 4).append(" in (${").append(cp.name()).append("})");
                         }
                         // a non-default connection timeZone spells the

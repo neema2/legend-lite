@@ -10,7 +10,7 @@ import static com.legend.testexecutionplan.Verdicts.fail;
 import static com.legend.edge.SqlTextReferee.textsDiffer;
 import static com.legend.edge.SqlTextReferee.isPopulationGolden;
 import static com.legend.edge.SqlTextReferee.stripChainedPlanWarning;
-import static com.legend.testexecutionplan.Verdicts.scalarString;
+import static com.legend.edge.SqlTextReferee.scalarString;
 import com.legend.exec.StatementOrigin;
 import com.legend.testexecutionplan.HostJudgment;
 import com.legend.testexecutionplan.TypedSide;

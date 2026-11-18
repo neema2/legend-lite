@@ -77,12 +77,12 @@ public final class AssertVerdicts {
             bare = helper;
         }
         DatabaseGate gate = databaseGate(bare, letPrefix, specs, env, rawHook);
-        if (gate == DatabaseGate.UNPLANNED) {
+        if (gate.kind() == DatabaseGate.Kind.UNPLANNED) {
             return DatabasePlan.UNPLANNED;
         }
-        // our text a side the plan reads: the arm runs under the database judge's text collector, which plans it as a
-        // side of the verdict row (SqlTextVerdicts.BatchTexts) -- nothing read at planning
-        BatchTexts texts = gate == DatabaseGate.ENGINE_TEXT_READ ? EngineTextGates.batchTexts(env) : null;
+        // a side the verdict row computes: the arm runs under the style's text collector, which plans it as a side of
+        // the verdict row -- nothing read at planning
+        BatchTexts texts = gate.collects() ? EngineTextGates.batchTexts(env) : null;
         BodyDriver.ExecEnv at = texts != null ? texts.under(env) : env;
         batch.open(listenerName(bare));
         TypedSide v;
@@ -114,40 +114,9 @@ public final class AssertVerdicts {
         return DatabasePlan.PLANNED;
     }
 
-    /** The static gate's answers: the arm PLANS its verdict statement without reading; an ENGINE_TEXT assert plans its
-     *  text row with the appeal deferred (M10b); the arm RAISES at planning (its classification raised inside the arm:
-     *  {@link HostAssert#raising}) -- the planning pass walls the root at its place, which the program carries only
-     *  where a row before it in the segment holds the wall ({@code DatabaseAsserts.close}); or the shape is UNPLANNED
-     *  (the walk's). */
-    enum DatabaseGate { PLANS, ENGINE_TEXT, ENGINE_TEXT_READ, RAISES, UNPLANNED }
-
-    /** Whether {@code bare} is an engine-text assert whose two texts are CONSTANTS of the plan and EQUAL: its verdict
-     *  decided at planning, never appealed (an appeal is heard on a failed text alone) -- so it reads no store, and a
-     *  system-routed body's program places it on its own target (the walk deletion, 2026-11-06: the corpus's
-     *  relational-mapper texts, byte-equal to their goldens, had kept ten system-routed bodies on the walk). A helper
-     *  root reduces first, as {@link #databaseGate} reduces it; a quantified form answers false. */
-    static boolean engineTextDecidedEqual(TypedSpec bare, List<TypedSpec> letPrefix, SpecCompiler specs,
-            BodyDriver.ExecEnv env,
-            java.util.function.@com.legend.base.Nullable BiFunction<TypedSpec, java.util.Set<String>, TypedSpec> rawHook) {
-        if (isHelperCall(bare, env)) {
-            TypedSpec helper = BodyDriver.helperAssertRoot(bare, letPrefix, specs, env, rawHook);
-            if (helper == null) {
-                return false;
-            }
-            bare = helper;
-        }
-        if (quantifiedForm(bare) != null) {
-            return false;
-        }
-        HostAssert shape = planHost(bare, letPrefix, specs, env, rawHook);
-        return shape != null && HostJudgment.core(shape.check().judgment()) instanceof HostJudgment.EdgeJudged e
-                && EngineTextGates.textsHeld(env, e) == TextsHeld.CONSTANTS_EQUAL;
-    }
-
-    /** Whether {@code g} is an engine-text assert's: its texts constants of the plan, or OUR text a side the verdict
-     *  row computes ({@link DatabaseGate#ENGINE_TEXT_READ}, 2026-11-04, the core program). */
-    static boolean engineText(DatabaseGate g) {
-        return g == DatabaseGate.ENGINE_TEXT || g == DatabaseGate.ENGINE_TEXT_READ;
+    /** Whether the host checks planned {@code a} as an edge-judged comparison. */
+    private static boolean edgeJudged(HostAssert a) {
+        return HostJudgment.core(a.check().judgment()) instanceof HostJudgment.EdgeJudged;
     }
 
     /** {@link #databasePlansWithoutReading}'s answer in three (M10b: a raise at planning told apart, so the static pass
@@ -177,7 +146,7 @@ public final class AssertVerdicts {
             if (qp instanceof VectorPlan) {
                 return DatabaseGate.PLANS;
             }
-            DatabaseGate worst = DatabaseGate.PLANS;
+            DatabaseGate all = DatabaseGate.PLANS;
             boolean first = true;
             for (Unrolled u : ((UnrollPlan) qp).elements()) {
                 // a NESTED quantification (the engine's guard idiom, DE5: testDataGeneration's createTableRowIdentifiers):
@@ -187,15 +156,19 @@ public final class AssertVerdicts {
                         ? databaseGate(u.root(), u.before(), specs, env, rawHook)
                         : gateOf(u.assertion(), u.root(), u.before(), specs, env, rawHook);
                 // an unplanned element keeps the body off the database; a raise decides only as the first element's
-                if (g == DatabaseGate.UNPLANNED || g == DatabaseGate.RAISES && first) {
+                if (g.kind() == DatabaseGate.Kind.UNPLANNED || g.kind() == DatabaseGate.Kind.RAISES && first) {
                     return g;
                 }
-                if (engineText(g) && worst != DatabaseGate.ENGINE_TEXT_READ) {
-                    worst = g;
+                if (g.kind() == DatabaseGate.Kind.PLANS) {
+                    // an element the edge's arm judges is appealed as the quantified whole's: never decided equal by
+                    // its own texts (as the walk deletion's rule kept it, 2026-11-06); a nested quantification's
+                    // elements are marked by its own gate
+                    all = all.and(quantifiedForm(u.root()) == null && edgeJudged(u.assertion())
+                            ? DatabaseGate.appealed(g.collects()) : g);
                 }
                 first = false;
             }
-            return worst;
+            return all;
         }
         HostAssert shape = planHost(bare, letPrefix, specs, env, rawHook);
         if (shape == null) {
@@ -213,18 +186,8 @@ public final class AssertVerdicts {
             return DatabaseGate.RAISES;
         }
         if (HostJudgment.core(shape.check().judgment()) instanceof HostJudgment.EdgeJudged e) {
-            return switch (EngineTextGates.textsHeld(env, e)) {
-                // a golden the plan reads: the arm processes its golden at planning, and the verdict row composes the
-                // database judge's text equality with the golden a constant -- the walk's, by name
-                case GOLDEN_READ -> { com.legend.diagnostics.Census.unplannedAssert("database: a golden read at the step: "
-                        + shapeOf(bare)); yield DatabaseGate.UNPLANNED; }
-                // our text a side the plan reads (M10c item 8; the database judge since 2026-11-04, the core
-                // program): the verdict row computes it and the equality, its ACTUAL column the appeal's text
-                case OURS_READ -> DatabaseGate.ENGINE_TEXT_READ;
-                // an engine-text assert (M10b): its texts constants of the plan, its appeal the batch row's -- the
-                // walk's own deferral, planDatabase's adjudicate under the collecting batch; nothing read at planning
-                case CONSTANTS_EQUAL, CONSTANTS_DIFFER -> DatabaseGate.ENGINE_TEXT;
-            };
+            // the edge's arm answers its own gate (J41, 2026-11-18)
+            return EngineTextGates.gate(env, e, () -> shapeOf(bare));
         }
         NativeFn.Verdict fn = NativeFn.Verdict.of(com.legend.compiler.spec.typed.Calls.calleeIdOf(bare)).orElse(null);
         if (fn == null && bare instanceof TypedUserCall dual && dual.args().size() == 3
@@ -495,7 +458,7 @@ public final class AssertVerdicts {
             if (read != null && batch != null && batch.active()) {
                 // a message that READS: the batch sends its row at the assert's place only where the assert fails
                 // (upstream evaluates it only there), the verdict row failing with the family's own text until then
-                batch.message(com.legend.lowering.VerdictSql.messageRow(read, fn.bareName()), message.on());
+                batch.message(com.legend.lowering.VerdictSql.messageRow(read, fn.bareName(), DatabaseJudge.words(env)), message.on());
             } else {
                 env = env.withFailureMessage(message.message());
             }
@@ -666,7 +629,7 @@ public final class AssertVerdicts {
                 if (args.size() != 2) {
                     yield null;
                 }
-                TypedSide isv = isVerdict(args.get(0), args.get(1));
+                TypedSide isv = isVerdict(args.get(0), args.get(1), DatabaseJudge.words(env));
                 if (isv != null) {
                     arm.staticallyDecided(env);
                     yield isv;
@@ -1015,7 +978,7 @@ public final class AssertVerdicts {
                 // statically identified operands: decided with no side (the verdict, or its failure, at the
                 // assert's turn)
                 yield staticallyIdentified(left, right) ? new HostSides.Check(List.of(),
-                        java.util.Objects.requireNonNull(isDecided(left, right), "statically identified operands"))
+                        java.util.Objects.requireNonNull(isDecided(left, right, DatabaseJudge.words(env)), "statically identified"))
                         // two primitive values: is() is compiled pure's `left == right`, their values (as assertEq)
                         : primitivePair(left, right) ? HostJudge.planEq(args, letPrefix, env, hook)
                         : HostJudge.planIs(name, args, specs, hook);
@@ -1101,19 +1064,19 @@ public final class AssertVerdicts {
      * {@code is}'s missing SQL rule — a wire carries values, never
      * reference identity (the eq/equalNonPrimitive irreducible ruling). */
     static @com.legend.base.Nullable TypedSide isVerdict(
-            TypedSpec left, TypedSpec right) {
-        HostJudgment.Decided d = isDecided(left, right);
+            TypedSpec left, TypedSpec right, com.legend.lowering.VerdictWords words) {
+        HostJudgment.Decided d = isDecided(left, right, words);
         return d == null ? null : com.legend.testexecutionplan.Verdicts.decided(d);
     }
 
     /** {@link #isVerdict} as data (M8a): the verdict decided at planning with no side -- held, or its failure's
      *  message -- or null where the operands are not statically identified. */
-    static HostJudgment.@com.legend.base.Nullable Decided isDecided(TypedSpec left, TypedSpec right) {
+    static HostJudgment.@com.legend.base.Nullable Decided isDecided(TypedSpec left, TypedSpec right, com.legend.lowering.VerdictWords words) {
         String lt = typeIdentityOf(left);
         String rt = typeIdentityOf(right);
         if (lt != null && rt != null) {
             return lt.equals(rt) ? new HostJudgment.Decided(true, null)
-                    : new HostJudgment.Decided(false, "\nexpected: " + lt + "\nactual:   " + rt);
+                    : new HostJudgment.Decided(false, words.valuesDiffer(lt, rt));
         }
         TypedSpec l = instanceOrigin(left);
         TypedSpec r = instanceOrigin(right);
@@ -1482,8 +1445,7 @@ public final class AssertVerdicts {
     /** A condition's failure text with no message of the caller's: lite's sentence ("expected true, got false") under
      *  lite's own rules, legend-pure's "Assert failed" under the compatibility rules -- both judges read it. */
     static String defaultConditionMessage(boolean wantTrue, BodyDriver.ExecEnv env) {
-        return DatabaseJudge.lite(env) ? com.legend.lowering.VerdictSql.sentence(wantTrue
-                ? com.legend.error.AssertSentence.TRUE : com.legend.error.AssertSentence.FALSE) : "Assert failed";
+        return DatabaseJudge.words(env).conditionFailed(wantTrue);
     }
 
     /** The unroll's elements as ONE host assert under the statement's name and no family: every element's asks in

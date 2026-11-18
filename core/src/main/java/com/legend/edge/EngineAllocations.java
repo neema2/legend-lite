@@ -89,7 +89,7 @@ final class EngineAllocations {
     static @Nullable String node(
             TypedLet let, String mappingFqn,
             SpecCompiler specs, PlanEnv env,
-            Map<String, SqlExpr.PlanParam> params,
+            EngineParams params,
             Map<String, String> paramSpells,
             boolean quote, @Nullable String timeZone, ConnectionDefinition.DatabaseType dbType,
             @Nullable String connName) {

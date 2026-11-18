@@ -110,7 +110,7 @@ class AssertBarTest {
                     "{|assertIs(t::Person, [^t::Employee(name='a'), ^t::Person(name='b')]->at(1)->type())}", null),
             new Probe("assertIs-picked-element-fails",
                     "{|assertIs(t::Person, [^t::Employee(name='a'), ^t::Person(name='b')]->at(0)->type())}",
-                    "\nexpected: t::Person\nactual:   t::Employee"),
+                    "expected t::Person, got t::Employee"),   // lite's sentence since census J29 (2026-11-18)
             new Probe("concatenate-keeps-order", "{|assertEquals([3, 1, 2], [1, 2]->concatenate([3]))}",
                     "expected [3, 1, 2], got [1, 2, 3]"),
             new Probe("union-keeps-order", "{|assertEquals([3, 1, 2], [1, 2]->union([3]))}",

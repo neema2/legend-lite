@@ -223,8 +223,8 @@ public final class BodyDriver {
         return new com.legend.testplan.VerdictBatch(com.legend.lowering.VerdictSql::batch,
                 com.legend.lowering.VerdictSql::either,
                 (row, name, wantEqual) -> com.legend.lowering.VerdictSql.selfContained(row, name, wantEqual,
-                        DatabaseJudge.lite(env)), JudgePlans.runner(env),
-                env.verdictIds());
+                        DatabaseJudge.words(env)), JudgePlans.runner(env),
+                env.verdictIds(), DatabaseJudge.words(env));
     }
 
     /** Whether {@code nc} is a native of the asserts package, asked by its declaration: the verdict family's members

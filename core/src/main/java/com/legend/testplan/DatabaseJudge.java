@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.legend.testplan;
 
+
 import com.legend.testexecutionplan.Verdicts;
 import com.legend.testexecutionplan.JsonGrammar;
 import com.legend.testexecutionplan.JudgeJson;
@@ -163,7 +164,7 @@ public final class DatabaseJudge {
                     // both spelled in the expected's kinds where the columns' kinds differ (the grid owner's rule)
                     pq = com.legend.lowering.VerdictSql.gridPair(gridSide(we.plan(), se, csvStrings),
                             gridSide(wa.plan(), gridPairArm && sameNames(se, sa) ? se : sa, csvStrings),
-                            canonicalOrder, env.options().judgingRules().floatUlps(), lite(env));
+                            canonicalOrder, env.options().judgingRules().floatUlps(), words(env));
                 } else {
                     pq = com.legend.lowering.VerdictSql.gridPair(we.plan(), wa.plan(), canonicalOrder);
                 }
@@ -198,9 +199,9 @@ public final class DatabaseJudge {
                             java.util.Objects.requireNonNull(pw).plan(),
                             "__canon" + pr.literalIndex(), !gridE, peerFloat);
                     com.legend.sql.SqlQuery gq = cellPool
-                            ? com.legend.lowering.VerdictSql.gridCells(grid, peer, gridE, lite(env))
+                            ? com.legend.lowering.VerdictSql.gridCells(grid, peer, gridE, words(env))
                             : com.legend.lowering.VerdictSql.gridRows(grid, peer, gridE,
-                                    canonicalOrder, lite(env), env.options().judgingRules().floatUlps());
+                                    canonicalOrder, words(env), env.options().judgingRules().floatUlps());
                     return runVerdict(name, wantEqual, message.apply(gq),
                             env.withTarget(gw.storeFree() ? pw.target() : gw.target()));
                 }
@@ -274,7 +275,7 @@ public final class DatabaseJudge {
             if (reprE != null && reprA != null) {
                 vq = com.legend.lowering.VerdictSql.messageAsInstances(vq,
                         com.legend.lowering.VerdictSql.firstValueRow(reprE),
-                        com.legend.lowering.VerdictSql.firstValueRow(reprA));
+                        com.legend.lowering.VerdictSql.firstValueRow(reprA), words(env));
             }
         }
         // two single numbers of different kinds (register S127, the user's ruling of 2026-11-04): never equal in lite's
@@ -326,16 +327,14 @@ public final class DatabaseJudge {
                 t.getMonthValue(), t.getDayOfMonth(), t.getHour(), t.getMinute(), t.getSecond(), t.getNano() / 1000);
     }
 
-    /** {@code m} written by lite's own rules where the run's are lite's. */
-    private static com.legend.lowering.VerdictSql.@com.legend.base.Nullable Message withLite(
-            com.legend.lowering.VerdictSql.@com.legend.base.Nullable Message m, BodyDriver.ExecEnv env) {
-        return m == null ? null : m.withLite(lite(env));
+    /** The database judge's words of a failure, the style's two-form kind (census J29, 2026-11-18): lite's sentences, or
+     *  the edge's legend-pure words; {@link #lite}: whether they read each side WRITTEN (lite's), else the canons. */
+    static com.legend.lowering.VerdictWords words(BodyDriver.ExecEnv env) {
+        return env.options().style().twoForm(com.legend.lowering.VerdictWords.class, com.legend.lowering.LiteVerdictWords.INSTANCE);
     }
 
-    /** Whether the database judge words a failure by lite's own sentences: lite's own rules; the compatibility rules
-     *  keep legend-pure's words. */
     static boolean lite(BodyDriver.ExecEnv env) {
-        return !env.options().style().twoForm(FailureWords.class, LiteFailureWords.LITE).upstreamWords();
+        return words(env).reads() == com.legend.lowering.VerdictReads.WRITTEN;
     }
 
     private static com.legend.lowering.VerdictSql.@com.legend.base.Nullable Message written(
@@ -566,7 +565,7 @@ public final class DatabaseJudge {
         }
         com.legend.sql.SqlQuery vq = cw.shape() == com.legend.plan.ResultShape.GRAPH
                 ? com.legend.lowering.VerdictSql.sizeOfGraph(cw.plan(), n.scalarRow(false))
-                : com.legend.lowering.VerdictSql.size(coll.countRows(), n.scalarRow(false), envelope, lite(env),
+                : com.legend.lowering.VerdictSql.size(coll.countRows(), n.scalarRow(false), envelope, words(env),
                         negated);
         return runVerdict(name, !negated, vq, coll.on(env));
     }
@@ -583,14 +582,14 @@ public final class DatabaseJudge {
         // the assert bar: upstream's '%s is not empty', the host's)
         com.legend.lowering.CanonRider r = side.rider();
         com.legend.lowering.VerdictSql.Message listed = r == null || r.declined() != null || r.tdsWrapped()
-                || r.kinds().isEmpty() ? null : withLite(com.legend.lowering.VerdictSql.Message.listed(r.kinds().get(0),
-                        env.plan().styled()), env);
+                || r.kinds().isEmpty() ? null : java.util.Optional.ofNullable(com.legend.lowering.VerdictSql.Message.listed(
+                        r.kinds().get(0), env.plan().styled())).map(m -> m.withLite(lite(env))).orElse(null);
         com.legend.sql.SqlQuery vq = sw.shape() == com.legend.plan.ResultShape.GRAPH
                 ? com.legend.lowering.VerdictSql.emptyOfGraph(sw.plan(), wantEmpty)
                 : listed != null ? com.legend.lowering.VerdictSql.empty(com.legend.lowering.VerdictSql.writtenRows(
                         sw.plan(), "__canon0", java.util.Objects.requireNonNull(r).many(), listed), wantEmpty, true,
-                        lite(env))
-                : com.legend.lowering.VerdictSql.empty(side.countRows(), wantEmpty);
+                        words(env))
+                : com.legend.lowering.VerdictSql.empty(side.countRows(), wantEmpty, false, words(env));
         return runVerdict(name, true, vq, side.on(env));
     }
 
@@ -628,13 +627,13 @@ public final class DatabaseJudge {
         if (cm != null && vm != null && !cr.tdsWrapped()) {
             return runVerdict(name, !negated, com.legend.lowering.VerdictSql.contains(
                     com.legend.lowering.VerdictSql.writtenRows(java.util.Objects.requireNonNull(c.side()).plan(),
-                            "__canon0", cr.many(), cm), v.scalarRow(false), vm, negated), c.on(env));
+                            "__canon0", cr.many(), cm), v.scalarRow(false), vm, negated, words(env)), c.on(env));
         }
         if (negated) {
             return unjudged(name, "assertNotContains over sides not written: no negated form planned");
         }
-        return runVerdict(name, true, com.legend.lowering.VerdictSql.contains(c.rows(literal), v.scalarRow(literal)),
-                c.on(env));
+        return runVerdict(name, true, com.legend.lowering.VerdictSql.contains(c.rows(literal), v.scalarRow(literal),
+                null, false, words(env)), c.on(env));
     }
 
     /** {@code assertTdsEquivalent} in database mode (bucket 5): both grids
@@ -680,7 +679,7 @@ public final class DatabaseJudge {
                     + (delta.why() != null ? delta.why() : timeDelta.why()));
         }
         return runVerdict(name, true, com.legend.lowering.VerdictSql.gridTolerance(g1, g2, kinds,
-                        delta.rows(false), timeDelta.rows(false), n1, lite(env)),
+                        delta.rows(false), timeDelta.rows(false), n1, words(env)),
                 env.withTarget(w1.storeFree() ? w2.target() : w1.target()));
     }
 
@@ -730,7 +729,7 @@ public final class DatabaseJudge {
             return unjudged(name, why);
         }
         return runVerdict(name, true, com.legend.lowering.VerdictSql.tolerance(e.scalarRow(false), a.scalarRow(false),
-                t.scalarRow(false), toleranceArithmetic(args), lite(env)), a.on(env));
+                t.scalarRow(false), toleranceArithmetic(args), words(env)), a.on(env));
     }
 
     /** The kind {@code assertEqWithinTolerance}'s three sides compute in: BIGINT where all three are Integers, DOUBLE
@@ -947,7 +946,7 @@ public final class DatabaseJudge {
                     crossNumberKinds(ek, ak, numbers(env)),
                     ek == com.legend.compiler.element.type.Type.Primitive.FLOAT
                             && ak == com.legend.compiler.element.type.Type.Primitive.FLOAT ? rules.floatUlps() : 0,
-                    com.legend.lowering.VerdictSql.decimalByValue(rules.decimalScale(), ek), lite(env), env.plan().styled());
+                    com.legend.lowering.VerdictSql.decimalByValue(rules.decimalScale(), ek), words(env), env.plan().styled());
             if (row == null) {
                 return unjudged(name, "per-element: a kind with no spelling (" + ek.typeName() + " vs "
                         + ak.typeName() + ")");
@@ -996,7 +995,7 @@ public final class DatabaseJudge {
                         .map(com.legend.compiler.element.type.Type.Primitive::typeName).orElse(type);
                 return runVerdict(name, true, com.legend.lowering.VerdictSql.instanceOfDecided(side.scalarRow(false),
                         decided.value(), typePath, p.typeName(),
-                        p == com.legend.compiler.element.type.Type.Primitive.STRING, lite(env)), side.on(env));
+                        p == com.legend.compiler.element.type.Type.Primitive.STRING, words(env)), side.on(env));
             }
             return databaseCondition(name, cond, true, letPrefix, specs, env, hook);
         }
@@ -1035,10 +1034,9 @@ public final class DatabaseJudge {
         }
         @Override public TypedSide condition(String name, TypedSpec cond, boolean wantTrue, List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
                 @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
-            // the host's words (com.legend.testexec.HostJudgments.conditionOf): "Assert failed"
-            return databaseCondition(name, cond, wantTrue, letPrefix, specs, env, hook, lite(env)
-                    ? com.legend.lowering.VerdictSql.sentence(wantTrue ? com.legend.error.AssertSentence.TRUE
-                            : com.legend.error.AssertSentence.FALSE) : "Assert failed");
+            // the host's words (com.legend.testexec.HostJudgments.conditionOf), the style's
+            return databaseCondition(name, cond, wantTrue, letPrefix, specs, env, hook,
+                    words(env).conditionFailed(wantTrue));
         }
         @Override public TypedSide empty(String name, TypedSpec arg, boolean wantEmpty, List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
                 @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
