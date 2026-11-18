@@ -55,4 +55,12 @@ record EdgeLoweringForms(Set<RaiseKind> plain, boolean engineSqlShape) implement
     public SqlExpr wireCast(SqlExpr value, Supplier<SqlExpr> written) {
         return engineSqlShape ? value : written.get();
     }
+
+    /** legend-engine's H2 isNumeric ({@code lower(s) = upper(s)}: a text with no cased letter), every edge style's
+     *  (census J20, 2026-11-18: the product's is a real numeric check). */
+    @Override
+    public SqlExpr isNumeric(SqlExpr s) {
+        return SqlExpr.Call.of(com.legend.sql.SqlFn.EQUAL, SqlExpr.Call.of(com.legend.sql.SqlFn.LOWER, s),
+                SqlExpr.Call.of(com.legend.sql.SqlFn.UPPER, s));
+    }
 }

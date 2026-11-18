@@ -22,6 +22,9 @@ import java.util.function.Supplier;
  * legend-engine's SQL nests it as an aliased derived table ({@code ViewSelectSQLQuery}).</li>
  * <li>{@link #wireCast}: a mapping's wire coercion -- the product writes the SQL cast (DuckDB does not wire-convert,
  * audit 19 F7); legend-engine's SQL leaves it to its reader, which converts on the wire.</li>
+ * <li>{@link #isNumeric}: the relational isNumeric -- the product's a real numeric check, the same on every database
+ * ({@code SqlFn.IS_NUMERIC}; the user's ruling of 2026-11-17 23:05, census J20); legend-engine's H2 compares
+ * {@code lower(s) = upper(s)}, the edge's.</li>
  * </ul>
  */
 public interface LoweringForms {
@@ -36,7 +39,11 @@ public interface LoweringForms {
     /** A mapping's wire coercion of {@code value}: the cast written ({@code written}) or the value as read. */
     SqlExpr wireCast(SqlExpr value, Supplier<SqlExpr> written);
 
-    /** The product's forms: every check written, a view flat, a wire coercion's cast written. */
+    /** The relational isNumeric of {@code s}. */
+    SqlExpr isNumeric(SqlExpr s);
+
+    /** The product's forms: every check written, a view flat, a wire coercion's cast written, isNumeric a real
+     *  numeric check. */
     LoweringForms PRODUCT = new LoweringForms() {
         @Override
         public SqlExpr raise(RaiseKind kind, Supplier<SqlExpr> checked, SqlExpr plain) {
@@ -51,6 +58,11 @@ public interface LoweringForms {
         @Override
         public SqlExpr wireCast(SqlExpr value, Supplier<SqlExpr> written) {
             return written.get();
+        }
+
+        @Override
+        public SqlExpr isNumeric(SqlExpr s) {
+            return SqlExpr.Call.of(com.legend.sql.SqlFn.IS_NUMERIC, s);
         }
     };
 }

@@ -62,6 +62,11 @@ public enum SqlFn {
     CEILING, FLOOR, ROUND, SIGN, XOR,
     BIT_AND, BIT_OR, BIT_XOR, BIT_SHIFT_LEFT, BIT_SHIFT_RIGHT, BIT_NOT,
     REGEXP_EXTRACT, REGEXP_EXTRACT_ALL, REGEXP_REPLACE, REGEXP_FULL_MATCH,
+    /** isNumeric(s): whether the whole of {@code s} is a decimal number -- an optional sign, digits with an optional
+     *  fraction (or a fraction alone), an optional exponent; no space, no other character; NULL on NULL. One rule on
+     *  every database (the user's ruling of 2026-11-17 23:05, census J20): each dialect writes it as a full match of
+     *  {@link #NUMERIC_TEXT}. */
+    IS_NUMERIC,
     MAP_FROM_LISTS, MAP_FROM_ENTRIES, MAP_EMPTY, MAP_EXTRACT, MAP_KEYS, MAP_VALUES, MAP_CONCAT,
     // Strings (SUBSTRING/STRPOS are 1-based SQL; frontends shift at lowering)
     SUBSTRING, STRPOS, STARTS_WITH, ENDS_WITH, MATCHES, LEFT, RIGHT,
@@ -192,6 +197,10 @@ public enum SqlFn {
     /** The pretty-printed JSON text (meta::json::toPrettyJSONString). */
     JSON_PRETTY;
 
+    /** {@link #IS_NUMERIC}'s rule as a regular expression every dialect's full match reads alike (classes and groups
+     *  alone, no backslash: a backslash is an escape in some databases' string literals). */
+    public static final String NUMERIC_TEXT = "[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)([eE][+-]?[0-9]+)?";
+
     /** The functions that raise, or answer a fresh value, when evaluated (an ERROR, a parse, a domain or range check, a
      *  GUID): never moved out of a branch (the dialect's CommonSubexpressions), never dropped unread (the lowering's
      *  SubselectPrune). */
@@ -213,6 +222,8 @@ public enum SqlFn {
                     // SQLite's pad helper branches on the length (the PR1 re-review's B6, 2026-11-16: in a helper, not
                     // an arm, which the arm census missed; MaySkipCensusTest renders whole calls)
                     LPAD, RPAD,
+                    // SQLite writes isNumeric as its regular expression's walk, NULL on NULL by a CASE (census J20, 2026-11-18)
+                    IS_NUMERIC,
                     // every function some dialect renders with a branch, found by MaySkipCensusTest (the PR1 re-review's
                     // A6, 2026-11-16, made conservative: a strict function read as may-skip costs a missed binding, the
                     // reverse a wrong raise; E-SQL may take one out with a per-dialect proof that it never skips)

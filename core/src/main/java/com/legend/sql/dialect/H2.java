@@ -573,6 +573,8 @@ public class H2 extends AnsiSqlRenderer {
         // every function, each by name: the switch is this dialect's whole table (the dialect program's Phase 1,
         // 2026-10-13: an exhaustive switch, so a new function asks this dialect too)
         return switch (c.fn()) {
+            // census J20 (2026-11-18): the one numeric rule, this dialect's full match (AnsiSqlRenderer.isNumeric)
+            case IS_NUMERIC -> isNumeric(writer, c.args().get(0), parentPrec);
             case FORMAT -> formatArm(writer, c);
             case EQUAL -> equalArm(writer, c, parentPrec);
             case DATE_DIFF -> dateDiffArm(writer, c);
