@@ -48,6 +48,8 @@ EDGE_TEST_SRCS = [
     # K2's shipped-artifact roots (2026-11-18): it reads the genqueries guardrails_edge declares, and EdgeSeparationTest
     "src/test/java/com/legend/ShippedArtifactRootsTest.java",
     "src/test/java/com/legend/sql/PlantedEdgeOnlyMir.java",
+    # L-B's planted rewriter (2026-11-18, train 18): a read to decide is a use, a read to rebuild a copy
+    "src/test/java/com/legend/sql/PlantedDecidingRewriter.java",
     "src/test/java/com/legend/edge/PlantedEdgeOnlyMirMaker.java",
     "src/test/java/com/legend/PlanStyleFacetsTest.java",
     # the edge's extension records walked as data (census C2, 2026-11-17: the appeals moved to com.legend.edge)
