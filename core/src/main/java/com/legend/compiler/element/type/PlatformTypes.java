@@ -303,20 +303,11 @@ public final class PlatformTypes {
     // (TO_SQL_STRING, TO_SQL_STRING_PRETTY: moved to the edge's EdgeEngineTestText, 2026-11-18, the edge audit's J40 --
     // legend-engine's SQL-text producers, read by the edge alone)
 
-    /** toSQL(f, mapping, runtime, ext) — the SQLResult HANDLE of the
-     * same doctrine (engine toSQLString.pure:46): the query lambda and
-     * mapping ride on it and {@code SQLResult.toSQLString(dbType, tz,
-     * quote, format)} (:151, the 5-argument toSQLString overload)
-     * forces it through the one renderer. Batch 75. */
-    public static final String TO_SQL =
-            "meta::relational::functions::sqlstring::toSQL";
+    // (TO_SQL: gone 2026-11-18, J40.PlatformTypes -- legend-engine's toSQL handle is read by the edge's SqlTextInputs
+    // alone, which names it by the native registry's own member, NativeFn.Handle.TO_SQL)
 
-    /** toNonExecutableSQLString(f, mapping, dbType, ext) — toSQLString with
-     * the engine's nonExecutable post-processor installed (toSQLString.pure:83-86):
-     * the same K-routine, the nonExecutable IR pass applied before the
-     * render. Batch 81. */
-    public static final String TO_NON_EXECUTABLE_SQL_STRING =
-            "meta::relational::functions::sqlstring::toNonExecutableSQLString";
+    // (TO_NON_EXECUTABLE_SQL_STRING: moved to the edge's EdgeEngineTestText 2026-11-18, J40 -- legend-engine's
+    // toNonExecutableSQLString is read by the compatibility edge alone)
 
     /** The engine's CSV-seed SQL generator — K-dispatched (CsvSeed). */
     public static final String SET_UP_DATA_SQLS_V2 =

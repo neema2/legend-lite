@@ -32,7 +32,7 @@ export function liteServer(): { readonly api: () => string } {
     const store = mkdtempSync(join(process.env['TEST_TMPDIR'] ?? tmpdir(), 'query-store-'));
     // port 0: the server binds a free port itself and prints it (Bazel workplan P3-16; a port probed here first could
     // be taken by another test before the server bound it)
-    server = spawn(SERVER, ['0', '--query-store', store], {
+    server = spawn(SERVER, ['0', '--query-store', store, '--engine', 'legend-engine'], {
       env: { ...process.env, RUNFILES_DIR: RUNFILES, JAVA_RUNFILES: RUNFILES },
       stdio: ['ignore', 'pipe', 'pipe'],
     });

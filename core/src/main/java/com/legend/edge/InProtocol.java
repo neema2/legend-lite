@@ -65,6 +65,11 @@ public final class InProtocol {
         List<String> splices() {
             return sites.stream().filter(Site::conditional).map(Site::wrapper).toList();
         }
+
+        /** The temp tables its over-threshold sites read back (the edge's template table's, J40). */
+        List<String> tempTables() {
+            return sites.stream().filter(x -> !x.conditional()).map(Site::tempTable).toList();
+        }
     }
 
     /** Scan-and-rewrite; null when no site triggers. */
@@ -114,8 +119,7 @@ public final class InProtocol {
                 sites.add(s);
                 return new SqlExpr.Call(SqlFn.IN, List.of(c.args().get(0),
                         overThreshold
-                                ? new SqlExpr.TempTableInSplice(
-                                        s.tempTable())
+                                ? EngineParams.template(s.tempTable(), SqlExpr.PlanParam.Kind.OTHER, false)
                                 : EngineParams.template(s.wrapper(), SqlExpr.PlanParam.Kind.OTHER, false)));
             }
         };

@@ -578,7 +578,7 @@ final class GraphEmission {
                 checkedConstraints(cs, slotPrefixes, stripped, rowVar,
                         rowType, context, toRow),
                 node.removeNullKeys(), node.removeEmptySets(),
-                node.objectRefPrefix(), node.engineExecuteCardinality());
+                node.objectRefPrefix(), node.readThroughExecuteValues());
     }
 
     /** The CHECKED envelope's constraint set — the class hierarchy's
@@ -3197,7 +3197,7 @@ final class GraphEmission {
                         .toList(),
                 g.orderKeys(), c.typeKey(), c.fq(),
                 g.checkedConstraints(), c.removeNull(), c.removeEmpty(),
-                objectRefPrefix, g.engineExecuteCardinality());
+                objectRefPrefix, g.readThroughExecuteValues());
     }
 
     /** The ASOR objectReference STATIC prefix (engine store-object-

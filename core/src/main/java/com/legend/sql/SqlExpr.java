@@ -20,11 +20,11 @@ public sealed interface SqlExpr
                 SqlExpr.CheckedDefects, SqlExpr.CheckedChildValue,
                 SqlExpr.InSubquery, SqlExpr.Quantified,
                 SqlExpr.CompactList, SqlExpr.Tagged, SqlExpr.TaggedList, SqlExpr.RaiseText,
-                SqlExpr.DeferredTdsString, SqlExpr.WindowCall,
+                SqlExpr.WindowCall,
                 SqlExpr.Lambda, SqlExpr.Cast, SqlExpr.FoldCall, SqlExpr.JsonObject,
                 SqlExpr.JsonArrayAgg, SqlExpr.PlanParam, SqlExpr.Group, SqlExpr.KeyCell,
                 SqlExpr.RowOrder, SqlExpr.ReduceCollection, SqlExpr.Membership,
-                SqlExpr.TempTableInSplice, SqlExpr.StoredRead,
+                SqlExpr.StoredRead,
                 SqlAgg.Reducer {
 
     /**
@@ -70,8 +70,6 @@ public sealed interface SqlExpr
             case Quantified q -> false;
             case Star st -> false;
             case StarExcept st -> false;
-            case DeferredTdsString d -> false;
-            case TempTableInSplice t -> false;
             // an aggregate of any record (SqlAgg's, OrderedListAgg, JsonArrayAgg: SqlAgg.aggregatesSelect) keeps no row
             // of its own: dropped unread, its select's rows would be its source's (the final review of PR #81)
             default -> !(e instanceof SqlAgg) && !SqlAgg.aggregatesSelect(e) && allRaiseNothing(e.children());
@@ -152,7 +150,6 @@ public sealed interface SqlExpr
             case TypeNameLit ignored -> List.of();
             case PlanParam ignored -> List.of();
             case KeyCell ignored -> List.of();
-            case TempTableInSplice ignored -> List.of();
             case Group g -> List.of(g.inner());
             case ArrayLit a -> a.elements();
             case OrderedListAgg o -> List.of(o.value(), o.orderBy());
@@ -201,7 +198,6 @@ public sealed interface SqlExpr
                 }
                 yield out;
             }
-            case DeferredTdsString ignored -> List.of();
             case WindowCall w -> {
                 java.util.List<SqlExpr> out = new java.util.ArrayList<>();
                 if (w.fn() instanceof SqlExpr fe) {
@@ -276,7 +272,6 @@ public sealed interface SqlExpr
             case TypeNameLit ignored -> this;
             case PlanParam ignored -> this;
             case KeyCell ignored -> this;
-            case TempTableInSplice ignored -> this;
             case Exists ignored -> this;
             case ScalarSubquery ignored -> this;
             case InSubquery i -> new InSubquery(cs.get(0), i.subquery());
@@ -304,7 +299,6 @@ public sealed interface SqlExpr
                 yield new TaggedList(cs.get(0), cs.get(1), cs.get(2), channels, tl.rows() == null ? null : cs.get(n),
                         tl.order(), SqlTyping.UNKNOWN);
             }
-            case DeferredTdsString ignored -> this;
             case Group ignored -> new Group(cs.get(0));
             case ArrayLit a -> new ArrayLit(cs, a.type());
             case OrderedListAgg ignored ->
@@ -1468,55 +1462,6 @@ public sealed interface SqlExpr
         }
     }
 
-    /** A relation-toString whose COLUMN LIST is dynamic (a pivot with
-     * runtime-discovered keys): the '#TDS' text cannot compose at
-     * lowering — it is refused by name where it reaches a statement (the body driver: the pivot's keyed plan writes no
-     * text; until 2026-10-31 a staticizer read the keys at planning; the lowering layer records the typed
-     * schema by {@code id}). Types-free by design — the sql package
-     * never carries compiler types. A node reaching a renderer is a
-     * routing bug and walls loudly there. */
-    record DeferredTdsString(SqlSelect inner, String alias, int id,
-            Form form, boolean renderTdsNull,
-            TypeFact type) implements SqlExpr {
-        /** The relation TEXT form the boundary composes (batch 82: a
-         * LATE-BOUND raw grid — executeInDbToTDS — defers its toCSV the
-         * same way a pivot inner defers its '#TDS' toString). */
-        public enum Form { TDS_STRING, CSV }
-
-        public DeferredTdsString {
-            type = SqlTyping.T_VARCHAR;   // a relation-text cell
-        }
-
-        public DeferredTdsString(SqlSelect inner, String alias, int id) {
-            this(inner, alias, id, Form.TDS_STRING, false, SqlTyping.UNKNOWN);
-        }
-
-        public DeferredTdsString(SqlSelect inner, String alias, int id,
-                Form form, boolean renderTdsNull) {
-            this(inner, alias, id, form, renderTdsNull, SqlTyping.UNKNOWN);
-        }
-    }
-
-    /**
-     * The temp-table IN splice (the engine's
-     * {@code generateTempTableSelectSQLQuery} — processInOperation's
-     * over-threshold arm): renders as the fixed temp-select template
-     * {@code select "<t>_0".ColumnForStoringInCollection as
-     * ColumnForStoringInCollection from <t> as "<t>_0"} inside
-     * {@code in (...)}. Plan-text vocabulary only — a loud error in any
-     * executable dialect.
-     */
-    record TempTableInSplice(String tempTableName,
-            TypeFact type) implements SqlExpr {
-        public TempTableInSplice {
-            type = SqlTyping.UNKNOWN;   // plan-text vocabulary — no rule
-        }
-
-        public TempTableInSplice(String tempTableName) {
-            this(tempTableName, SqlTyping.UNKNOWN);
-        }
-    }
-
     /**
      * {@code json_object(k1, v1, k2, v2, ...)} &mdash; the graph-serialize
      * envelope's per-row object. {@code kv} alternates string-literal keys
@@ -1823,11 +1768,6 @@ public sealed interface SqlExpr
 
         public Cast(SqlExpr value, SqlType target, Reason reason) {
             this(value, target, reason, SqlTyping.UNKNOWN);
-        }
-
-        /** Whether the mapping read's conformance emitted it. */
-        public boolean conform() {
-            return reason == Reason.CONFORM;
         }
     }
 

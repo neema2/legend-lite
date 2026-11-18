@@ -108,7 +108,7 @@ final class EngineAllocations {
         if (literal != null) {
             String typeName = com.legend.plan.PureSpelling
                     .typeName(let.info().type());
-            String size = com.legend.plan.PureSpelling.sizeRange(let.info().multiplicity());
+            String size = EngineParams.sizeRange(let.info().multiplicity());
             return PlanText.allocation(let.name(),
                     PlanText.scalarTypeBlock(typeName, size),
                     PlanText.constant(typeName, literal));
@@ -120,7 +120,7 @@ final class EngineAllocations {
             // as PURE SOURCE with its required plan variables
             String typeName = com.legend.plan.PureSpelling
                     .typeName(let.info().type());
-            String size = com.legend.plan.PureSpelling.sizeRange(let.info().multiplicity());
+            String size = EngineParams.sizeRange(let.info().multiplicity());
             StringBuilder req = new StringBuilder();
             collectRequires(let.value(), paramSpells, req,
                     new LinkedHashSet<>());
@@ -134,7 +134,7 @@ final class EngineAllocations {
         EnginePlans.EngineSql es = EnginePlans.engineSql(List.of(let.value()),
                 mappingFqn, specs, env, renderer, params,
                 UnaryOperator.identity());
-        String[] impl = ScanRelations.rootImpl(
+        String[] impl = SetImplementations.rootImpl(
                 env.ctx(), mappingFqn, rootClass);
         if (let.info().type()
                 instanceof Type.ClassType) {
@@ -151,7 +151,7 @@ final class EngineAllocations {
         }
         String typeName = com.legend.plan.PureSpelling
                 .typeName(let.info().type());
-        String size = com.legend.plan.PureSpelling.sizeRange(let.info().multiplicity());
+        String size = EngineParams.sizeRange(let.info().multiplicity());
         if (!(es.plan() instanceof SqlSelect sel)) {
             throw new NotImplementedException(
                     "plan: Allocation value lowers to a non-select");

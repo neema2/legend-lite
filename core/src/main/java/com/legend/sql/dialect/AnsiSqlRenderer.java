@@ -951,10 +951,6 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
     protected SqlWriter expr(SqlWriter writer, SqlExpr e, int parentPrec) {
         return switch (e) {
             case SqlExpr.Group g -> writer.append("(").expr(g.inner(), 0).append(")");
-            case SqlExpr.TempTableInSplice t -> throw new IllegalStateException(
-                    "temp-table IN splice '" + t.tempTableName() + "'"
-                    + " reached an executable dialect — plan-text"
-                    + " vocabulary only");
             // a plan parameter is BOUND where it is written: a statement (renderStatement) lists it; text
             // (render) refuses it
             case SqlExpr.PlanParam p -> placeholder(writer, oneValue(p));
@@ -1065,10 +1061,6 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
                     + " mixed list is returned, sorted, deduplicated, searched, indexed, mapped or printed, and any"
                     + " other consumer of it is not lowered (channels of kinds "
                     + tl.slots().stream().map(com.legend.sql.SqlType.Tagged.Slot::kind).toList() + ")");
-            case SqlExpr.DeferredTdsString d -> throw new IllegalStateException(
-                    "deferred relation-toString reached the renderer — the"
-                    + " execution boundary must resolve the dynamic column"
-                    + " list first (DeferredTdsString id " + d.id() + ")");
             // a window with a computed frame offset is written inside its check (FrameGuard), by this dialect's CASE
             case SqlExpr.WindowCall w -> FrameGuard.guarded(w) instanceof SqlExpr.Case check
                     ? caseExpr(writer, check) : windowCall(writer, w);

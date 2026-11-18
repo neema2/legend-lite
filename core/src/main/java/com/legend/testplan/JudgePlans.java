@@ -126,11 +126,6 @@ public final class JudgePlans {
             }
 
             @Override
-            public TestPlan.JudgingRules rules() {
-                return env.options().judgingRules();
-            }
-
-            @Override
             public TestPlan.Verdicts.@com.legend.base.Nullable Savepoint savepoint() {
                 com.legend.sql.dialect.SqlDialect.VerdictSavepoint s = env.dialect().verdictSavepoint();
                 return s == null ? null : new TestPlan.Verdicts.Savepoint(s.set(), s.rollbackTo(), s.release());
@@ -167,15 +162,12 @@ public final class JudgePlans {
             // side the step runs (M10c item 8), nothing sent at planning; any other side names the walk
             PlannedSide p = plannedSide(value, letPrefix, specs, env, identity, fold, hook);
             if (p.kind() != Kind.CONSTANT) {
-                // OUR text as a side the step runs and reads (M10c item 8): deferred, where the collector admits it
-                TypedSide deferred = collecting.defer(value, p, identity, fold,
+                // OUR text as a side the step runs and reads (M10c item 8): deferred, where the collector admits it,
+                // else refused by the collector; the side's kind and its planned root name what the arm would
+                // evaluate (the unplanned-assert census)
+                return collecting.defer(value, p, identity, fold,
                         hook == null ? null : hook instanceof AssertVerdicts.SpliceHook sh ? sh : hook::apply, env,
-                        letPrefix, specs);
-                if (deferred != null) {
-                    return deferred;
-                }
-                // the side's kind and its planned root name what the arm would evaluate (the unplanned-assert census)
-                throw new NotAConstant(p.kind()
+                        letPrefix, specs, p.kind()
                         + " " + (p.root() == null ? value.getClass().getSimpleName()
                                 : p.root().getClass().getSimpleName() + (p.root() instanceof com.legend.compiler.spec.typed.TypedNativeCall nc
                                         ? " " + nc.callee().qualifiedName()

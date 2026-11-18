@@ -318,7 +318,102 @@ class PlannerSurfaceTest {
         return out;
     }
 
-    private static final Pattern PUBLIC_STATIC = Pattern.compile("\\bpublic\\s+static\\b");
+    /** A run of modifiers and annotations, in any order (a door is a run holding both public and static). */
+    private static final Pattern MODIFIERS = Pattern.compile("(?:\\b(?:public|protected|private|static|final|synchronized"
+            + "|native|strictfp|abstract|default|sealed|non-sealed)\\b\\s*|@[\\w.]+(?:\\s*\\([^()]*\\))?\\s*)+");
+
+    /** {@code source} read lexically once: its comments, and the contents of its strings, text blocks and characters,
+     *  blanked (each kept character a space, each line break kept), so neither a comment nor a string can hide or fake a
+     *  declaration (the review of 260fdb147f, 2026-11-17: a "/*" inside a string swallowed code to the next comment). */
+    static String blanked(String source) {
+        StringBuilder out = new StringBuilder(source.length());
+        int i = 0;
+        while (i < source.length()) {
+            char c = source.charAt(i);
+            if (source.startsWith("//", i)) {
+                while (i < source.length() && source.charAt(i) != '\n') {
+                    out.append(' ');
+                    i++;
+                }
+            } else if (source.startsWith("/*", i)) {
+                int end = source.indexOf("*/", i + 2);
+                end = end < 0 ? source.length() : end + 2;
+                for (; i < end; i++) {
+                    out.append(source.charAt(i) == '\n' ? '\n' : ' ');
+                }
+            } else if (source.startsWith("\"\"\"", i)) {
+                // the block ends at the first """ no backslash escapes (the third review, 2026-11-17, S8: a \""" inside
+                // the block ended it early, and the next """ swallowed code to the one after)
+                int end = source.length();
+                for (int j = i + 3; j < source.length(); j++) {
+                    if (source.charAt(j) == '\\') {
+                        j++;
+                    } else if (source.startsWith("\"\"\"", j)) {
+                        end = j + 3;
+                        break;
+                    }
+                }
+                out.append("\"\"\"");
+                for (i += 3; i < end - 3; i++) {
+                    out.append(source.charAt(i) == '\n' ? '\n' : ' ');
+                }
+                out.append("\"\"\"");
+                i = end;
+            } else if (c == '"' || c == '\'') {
+                out.append(c);
+                i++;
+                while (i < source.length() && source.charAt(i) != c && source.charAt(i) != '\n') {
+                    if (source.charAt(i) == '\\' && i + 1 < source.length()) {
+                        out.append(' ');
+                        i++;
+                    }
+                    out.append(' ');
+                    i++;
+                }
+                if (i < source.length() && source.charAt(i) == c) {
+                    out.append(c);
+                    i++;
+                }
+            } else {
+                out.append(c);
+                i++;
+            }
+        }
+        return out.toString();
+    }
+
+    /** {@code source} (already {@link #blanked}) with each annotation's arguments blanked, its balanced parentheses
+     *  kept as {@code ()} and every character between them a space (each line break kept), however deep they nest (the
+     *  third review, 2026-11-17, S9: {@code @Ann(x = @B(1))} split the modifier run, and a door went unread). */
+    static String annotationArgumentsBlanked(String source) {
+        StringBuilder out = new StringBuilder(source);
+        Matcher at = Pattern.compile("@\\s*[\\w.]+\\s*\\(").matcher(source);
+        int from = 0;
+        while (at.find(from)) {
+            int open = at.end() - 1;
+            int depth = 0;
+            int close = source.length() - 1;
+            for (int i = open; i < source.length(); i++) {
+                char c = source.charAt(i);
+                if (c == '(') {
+                    depth++;
+                } else if (c == ')' && --depth == 0) {
+                    close = i;
+                    break;
+                }
+            }
+            for (int i = open + 1; i < close; i++) {
+                if (out.charAt(i) != '\n') {
+                    out.setCharAt(i, ' ');
+                }
+            }
+            from = close + 1;
+            if (from >= source.length()) {
+                break;
+            }
+        }
+        return out.toString();
+    }
 
     private static final Pattern NESTED_TYPE = Pattern.compile(
             "\\s*((final|abstract|sealed|non-sealed|strictfp)\\s+)*(class|record|interface|enum)\\s+\\w+[\\s\\S]*");
@@ -331,10 +426,29 @@ class PlannerSurfaceTest {
      *  simple types (a generic's arguments dropped, varargs as an array, annotations and {@code final} left out); a
      *  public static the check cannot read as a method, a field or a nested type is put to {@code unread}. */
     static Map<String, List<List<String>>> edgeDoorMethods(String edgeSource, List<String> unread) {
-        String source = edgeSource.replaceAll("(?s)/\\*.*?\\*/", " ").replaceAll("//[^\\n]*", " ");
+        // a unicode escape is read by javac before anything else (a line break, a quote): the check does not read one,
+        // so it fails by name (the review of 5911e970e1, 2026-11-17)
+        if (edgeSource.contains("\\u")) {
+            unread.add("a unicode escape (\\u), which javac reads first and this check does not");
+        }
+        // an annotation's name spelled with blanks or a comment around "@" or its dots ("@ Deprecated",
+        // "@/*c*/Deprecated", "@java.lang .Deprecated"), read as written tight (the same review: the run of modifiers
+        // read only "@name")
+        String tight = blanked(edgeSource).replaceAll("@\\s+", "@");
+        // every spaced dot of an annotation's name, one per pass (the review of 11de9ae229, 2026-11-18: a single pass
+        // tightened only the first, "@java .lang .Deprecated")
+        for (String prev = null; !tight.equals(prev); ) {
+            prev = tight;
+            tight = tight.replaceAll("(@[\\w.]*\\w)\\s*\\.\\s*(?=\\w)", "$1.");
+        }
+        String source = annotationArgumentsBlanked(tight);
         Map<String, List<List<String>>> out = new TreeMap<>();
-        Matcher m = PUBLIC_STATIC.matcher(source);
+        Matcher m = MODIFIERS.matcher(source);
         while (m.find()) {
+            List<String> words = List.of(m.group().replaceAll("@[\\w.]+(\\s*\\([^()]*\\))?", " ").trim().split("\\s+"));
+            if (!words.contains("public") || !words.contains("static")) {
+                continue;
+            }
             String rest = source.substring(m.end());
             int head = rest.length();
             int nesting = 0;
@@ -450,10 +564,36 @@ class PlannerSurfaceTest {
                 + "    public static Answer executeJsonPlan(String body) {}\n"
                 + "    public static Answer runSqlHere(String sql) {}\n"
                 + "    public static Answer runHeaders(java.util.Map<String, String> headers, String... parts) {}\n"
+                // the review of 260fdb147f: modifiers in another order, and a "/*" or "//" inside a string, hide no door
+                + "    static public Answer orderSwapped(String s) {}\n"
+                + "    public final @Deprecated static Answer finalStatic(String s) {}\n"
+                + "    public static final String GLOB = \"/api/*\", URL = \"http://x\";\n"
+                + "    public static Answer afterGlob(String s) {}\n"
+                // the third review (2026-11-17): a text block holding an escaped \""" (S8) and an annotation whose
+                // arguments nest parentheses (S9) hide no door
+                + "    static final String T = \"\"\"\n        a \\\"\"\" b\n        \"\"\";\n"
+                + "    public static Answer afterBlock(String s) {}\n"
+                + "    static final String U = \"\"\"\n        x\n        \"\"\";\n"
+                + "    public @Ann(x = @B(1), y = {@C(\"(\")}) static Answer nestedAnnotation(String s) {}\n"
+                // the review of 5911e970e1 (2026-11-17): an annotation's name spelled with blanks or a comment
+                + "    public @ Deprecated static Answer spacedAt(String s) {}\n"
+                + "    public @/*c*/Deprecated static Answer commentedAt(String s) {}\n"
+                + "    public @java.lang .Deprecated static Answer spacedDot(String s) {}\n"
+                + "    public @ java . lang . Deprecated static Answer twoDots(String s) {}\n"
+                + "    /** a doc */\n"
                 + "    public static Answer broken(String a\n}\n";
         assertEquals(List.of("an edge boundary public static the check does not read: Answer broken(String a }",
+                "an edge boundary door no EDGE_DOORS entry names: afterBlock",
+                "an edge boundary door no EDGE_DOORS entry names: afterGlob",
+                "an edge boundary door no EDGE_DOORS entry names: commentedAt",
+                "an edge boundary door no EDGE_DOORS entry names: finalStatic",
+                "an edge boundary door no EDGE_DOORS entry names: nestedAnnotation",
+                "an edge boundary door no EDGE_DOORS entry names: orderSwapped",
                 "an edge boundary door no EDGE_DOORS entry names: runHeaders",
                 "an edge boundary door no EDGE_DOORS entry names: runSqlHere",
+                "an edge boundary door no EDGE_DOORS entry names: spacedAt",
+                "an edge boundary door no EDGE_DOORS entry names: spacedDot",
+                "an edge boundary door no EDGE_DOORS entry names: twoDots",
                 "an edge door the edge's boundary no longer has: executeArrowAnswer",
                 "an edge door the edge's boundary no longer has: executeJsonAnswer",
                 "an edge door declared more than once (its row names one): executeJsonPlan",
@@ -469,6 +609,10 @@ class PlannerSurfaceTest {
                 + "    public static Answer executeJsonAnswer(\n            @Deprecated(since = \"1, 2\") final String plan,\n"
                 + "            final String rows) {}\n}\n", unread));
         assertEquals(List.of(), unread);
+        List<String> escaped = new ArrayList<>();
+        edgeDoorMethods("class E {\n    // x \\u000a public static Answer hidden(String s) {}\n}\n", escaped);
+        assertEquals(List.of("a unicode escape (\\u), which javac reads first and this check does not"), escaped,
+                "a unicode escape fails the read by name");
         assertEquals(List.of(), edgeDoorViolations(read(EDGE_BOUNDARY_SOURCE), BOUNDARY));
     }
 
@@ -489,6 +633,48 @@ class PlannerSurfaceTest {
     static final Map<String, String> TAB_EDGE_EXPORTS = new TreeMap<>(Map.of(
             "pureV1OrError", "pureV1", "executeJsonPlanOrError", "executeJsonPlan",
             "executeJsonAnswerOrError", "executeJsonAnswer", "executeArrowAnswerOrError", "executeArrowAnswer"));
+
+    /** The edge boundary's public statics, as its bytecode holds them (javac's own reading of the source): each name to
+     *  its overloads' parameters' simple types, an array as {@code X[]}. */
+    static Map<String, List<List<String>>> edgeDoorBytecode() {
+        List<java.util.jar.JarFile> jars = new ArrayList<>();
+        try {
+            for (java.nio.file.Path jar : com.legend.testing.Runfile.listed("legend.authored.jars")) {
+                jars.add(new java.util.jar.JarFile(jar.toFile()));
+            }
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+        com.tngtech.archunit.core.domain.JavaClass boundary = new com.tngtech.archunit.core.importer.ClassFileImporter()
+                .importJars(jars).get("com.legend.edge.wasm.EdgeBoundary");
+        Map<String, List<List<String>>> out = new TreeMap<>();
+        for (com.tngtech.archunit.core.domain.JavaMethod m : boundary.getMethods()) {
+            if (m.getModifiers().containsAll(Set.of(com.tngtech.archunit.core.domain.JavaModifier.PUBLIC,
+                    com.tngtech.archunit.core.domain.JavaModifier.STATIC))) {
+                out.computeIfAbsent(m.getName(), k -> new ArrayList<>()).add(m.getRawParameterTypes().stream()
+                        .map(t -> t.isArray() ? t.getComponentType().getSimpleName() + "[]" : t.getSimpleName())
+                        .toList());
+            }
+        }
+        return out;
+    }
+
+    /** The source reader agrees with javac: the edge boundary's public static methods read from its source are exactly
+     *  its bytecode's (the review of 5911e970e1, 2026-11-17, MUST-FIX 2: a door the lexer misses, however it is spelled,
+     *  is a difference here). */
+    @Test
+    void theEdgeDoorsReadEqualTheBytecode() {
+        List<String> unread = new ArrayList<>();
+        Map<String, List<List<String>>> source = edgeDoorMethods(read(EDGE_BOUNDARY_SOURCE), unread);
+        assertEquals(List.of(), unread);
+        Map<String, List<List<String>>> bytecode = edgeDoorBytecode();
+        Map<String, Set<List<String>>> s = new TreeMap<>();
+        Map<String, Set<List<String>>> b = new TreeMap<>();
+        source.forEach((k, v) -> s.put(k, new java.util.HashSet<>(v)));
+        bytecode.forEach((k, v) -> b.put(k, new java.util.HashSet<>(v)));
+        assertTrue(b.keySet().containsAll(EDGE_DOORS), "the boundary's bytecode is read: " + b.keySet());
+        assertEquals(b, s, "the edge boundary's public statics, read from its source, differ from its bytecode's");
+    }
 
     /** THE HOST OPERATIONS' FIELDS ({@code HostOperationsJson}: every operation closed by its {@code op}). */
     static final Map<String, Kind> HOST_OPERATION_FIELDS = new TreeMap<>(fields("op", OPTION, "kind", OPTION,
@@ -949,7 +1135,6 @@ class PlannerSurfaceTest {
             Map.entry("ExecuteOptions#planning()", List.of()),
             Map.entry("ExecuteOptions#stores()", List.of()),
             Map.entry("ExecuteOptions#edge()", List.of()),
-            Map.entry("ExecuteOptions#judgingRules()", List.of()),
             Map.entry("ExecuteOptions#judgeMode()", List.of()),
             Map.entry("ExecuteOptions#judgedAs(ExecuteOptions)", List.of(OPTION)),
             Map.entry("ExecuteOptions#withJudgeMode(PlanningOptions.JudgeMode)", List.of(OPTION)),

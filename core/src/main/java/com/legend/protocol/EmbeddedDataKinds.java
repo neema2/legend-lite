@@ -28,11 +28,4 @@ public final class EmbeddedDataKinds {
             case Protocol.PRelationData r -> "Relation (a relation's rows, upstream's RelationElementsData)";
         };
     }
-
-    /** What a feature that does not load {@code value}'s kind says of it: {@code feature}, the kind, not implemented
-     *  yet. */
-    public static String notImplemented(Protocol.PEmbeddedDataValue value, String feature) {
-        return feature + ": " + name(value) + " data is not implemented yet (legend-lite loads a relational store's CSV"
-                + " rows alone; census M17)";
-    }
 }

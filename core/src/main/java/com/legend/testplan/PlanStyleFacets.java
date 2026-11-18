@@ -11,7 +11,7 @@ import java.util.List;
  * the product refusing each by name, the edge answering each -- and refuses any other kind by name
  * ({@code PlanStyleFacetsTest} holds every implementer to this list). A new kind is added here, with its reason.
  */
-public final class PlanStyleFacets {
+@com.legend.base.OpenLine("C4") public final class PlanStyleFacets {
 
     private PlanStyleFacets() {
     }
@@ -44,6 +44,12 @@ public final class PlanStyleFacets {
             // two numbers of different kinds at planning (census C1, 2026-11-17, register S127): never equal in the
             // product, compiled legend-pure's Integer/Decimal-by-text at the edge
             CrossKindNumbers.class,
+            // how the database judge compares two Floats or two Decimals (train 17, the orchestrator's item 4 of
+            // 2026-11-18, registers S15/S132, S139): lite's exact rule in the product, compiled legend-pure's at the edge
+            com.legend.lowering.VerdictNumbers.class,
+            // the string entry's value of a serialized root (train 17 item 2, the orchestrator's ruling of 2026-11-18):
+            // the product refuses it by name, the edge writes legend-engine's json-builder envelope
+            com.legend.planner.ExecutedValues.class,
             // how the database judge plans a rendered text's equality (census C1, 2026-11-17, registers S131, S132):
             // the product's two strings, the edge's ruled comparison where they differ
             RenderedTextRule.class,
@@ -56,6 +62,9 @@ public final class PlanStyleFacets {
             // an execute's routing activity (J5 of the edge audit, 2026-11-17): the product records none, the edge
             // legend-engine's AggregationAwareActivity, the routed query's print
             com.legend.planner.RoutedQueries.class,
+            // an execute's activity SQL (J40.PlanStyle, the orchestrator's ruling of 2026-11-18, as RoutedQueries): the
+            // product's lite's own SQL, what runs; the edge's legend-engine's text, its upstream plan facet's
+            com.legend.planner.ActivityTexts.class,
             // the lowering's two-form choices (the audit's K5, the orchestrator's ruling of 2026-11-17: the product
             // branched on edge-only flags): a raise (B7's plain set), a view's nesting and a wire cast -- the product
             // writes every check, lowers a view flat and writes the cast; the edge's forms legend-engine's

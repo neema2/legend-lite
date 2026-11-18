@@ -393,7 +393,7 @@ class ModelComposerRoundTripTest {
                 }
                 """, printed);
         assertEquals(stripped(parse(text)), stripped(parse(printed)), printed);
-        String pretty = ModelComposer.model(Json.toCompact(parse(text)), PureComposer.Style.PRETTY);
+        String pretty = ModelComposer.model(ModelReader.read(parse(text)), PureComposer.Style.PRETTY);
         assertEquals(stripped(parse(text)), stripped(parse(pretty)), pretty);
     }
 
@@ -436,7 +436,7 @@ class ModelComposerRoundTripTest {
         Json.Obj withDoc = (Json.Obj) edit(parse(FUNCTION_WITH_TEST),
                 o -> "functionTest".equals(o.getStringOr("_type", "")) ? with(o, "doc", Json.str("adds one")) : o);
         String json = Json.toCompact(withDoc);
-        assertEquals(json, ProtocolEmitter.emit(ModelReader.read(json)), "emit(read(J)) is J");
+        assertEquals(json, ProtocolEmitter.emit(ModelReader.read(com.legend.json.Json.parse(json, new com.legend.json.Json.Config(4096)))), "emit(read(J)) is J");
         String printed = ModelComposer.model(withDoc);
         assertTrue(printed.contains("t1 'adds one' | f(1) => 2;"), printed);
     }

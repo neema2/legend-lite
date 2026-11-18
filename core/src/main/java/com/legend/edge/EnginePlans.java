@@ -164,14 +164,17 @@ public final class EnginePlans {
         body = com.legend.resolver.RelationalRootForm.apply(
                 body, env.ctx(), mappingFqn);
         // the query's feature flags: a LOWERING concern (Lowerer.withFeatures)
+        // legend-engine's statement shape: the plan environment's style with its own five forms (J40, the orchestrator's
+        // ruling (7): EdgeLoweringForms.engineSql; until then a LoweringShape beside the style's forms), and the
+        // style's text facets and plain raises (the audit's K6)
         com.legend.lowering.Lowerer lw = new com.legend.lowering.Lowerer(
                 t -> com.legend.compiler.element.ClassLayouts.layoutOf(env.ctx(), t),
                 f -> env.ctx().findClass(f).isPresent(), env.ctx().implementations())
                 .withFeatures(BodyPlanner.featuresOf(env, body)).withOptions(env.options())
-                .withShape(temporalRoot ? UPSTREAM_SHAPE : UPSTREAM_SHAPE.withExistsJoinable())
-                // and the plan environment's style's text facets and plain raises (the audit's K6, 2026-11-17: until
-                // then this lowering ran with the Lowerer's implicit product default)
-                .withFloatLiteralKind(env::floatLiteralKind).withStyled(env.styled());
+                .withFloatLiteralKind(env::floatLiteralKind).withStyled(EdgeLoweringForms.engineSql(env.styled()));
+        if (!temporalRoot) {
+            lw = lw.withExistsJoinable();
+        }
         // a field read through a parameter is legend-engine's dotted placeholder, resolved here (the audit's J31)
         EngineParams.Resolved dotted = planParams.resolveDotted(body);
         EngineParams params = dotted.params();
@@ -214,12 +217,6 @@ public final class EnginePlans {
     /** The engine's default post-processor stamps EVERY SelectSQLQuery with this comment and generateSQLExecutionNode
      *  copies it (defaultPostProcessor.pure:71) -- a constant, never gated (Phase 6's B5, 2026-11-17: moved from
      *  plan.PlanNode, the plan's record; the comment is legend-engine's content, not the plan's schema). */
-    /** legend-engine's statement shape (Phase 6's B5, 2026-11-17): a relation pasted at each read, no keyed-count fold,
-     *  its own column lists (no computed pruning), a view an aliased derived table ({@code ViewSelectSQLQuery}), a
-     *  mapping's wire coercion converted by its runtime on the wire and never spelled in its text. */
-    static final com.legend.lowering.LoweringShape UPSTREAM_SHAPE =
-            new com.legend.lowering.LoweringShape(EdgeLoweringForms.ENGINE_SQL_SHAPE, false);
-
     static final String EXEC_TRACE_COMMENT = "-- \"executionTraceID\" : \"${execID}\"";
 
     /** Upstream's {@code SimpleDateTimeFormat}: {@code yyyy-MM-dd HH:mm:ss} (moved from testdatagen's printing, Phase 6's
@@ -267,7 +264,7 @@ public final class EnginePlans {
         @Override
         public java.util.List<String> engineSeedSql(String csv, com.legend.model.DatabaseDefinition db,
                 java.util.function.Function<String, java.util.Optional<com.legend.model.DatabaseDefinition>> lookup) {
-            return com.legend.setup.Ddl.setUpDataSqlsText(csv, db, lookup,
+            return EngineSeedText.setUpDataSqlsText(csv, db, lookup,
                     PureText.engineText(EngineText.ENGINE_TEST_DATABASE));
         }
 
@@ -275,7 +272,7 @@ public final class EnginePlans {
         public java.util.List<String> engineSeedSqlFromRecords(java.util.List<java.util.List<String>> records,
                 com.legend.model.DatabaseDefinition db,
                 java.util.function.Function<String, java.util.Optional<com.legend.model.DatabaseDefinition>> lookup) {
-            return com.legend.setup.Ddl.setUpDataSqlsTextFromRecords(records, db, lookup,
+            return EngineSeedText.setUpDataSqlsTextFromRecords(records, db, lookup,
                     PureText.engineText(EngineText.ENGINE_TEST_DATABASE));
         }
 
@@ -291,21 +288,23 @@ public final class EnginePlans {
         public java.util.function.UnaryOperator<com.legend.sql.SqlExpr> testDataTimestampText() {
             return EnginePlans::testDataTimestampText;
         }
-
-        @Override
-        public String activitySql(java.util.List<TypedSpec> chain, @com.legend.base.Nullable String mappingFqn,
-                com.legend.compiler.spec.SpecCompiler specs, PlanEnv env, boolean recorded) {
-            EngineTextDialect renderer = PureText.engineText(EngineText.ENGINE_TEST_DATABASE);
-            EngineSql es = engineSql(chain, mappingFqn, specs, env, renderer, EngineParams.none(),
-                    java.util.function.UnaryOperator.identity());
-            if (!recorded) {
-                return es.sql();
-            }
-            com.legend.sql.SqlQuery post = com.legend.lowering.SqlPostProcessors.applyRecorded(es.plan(),
-                    env.tableReplace(), env.postProcessors().extractCtes(), env.postProcessors().nonExecutable());
-            return post == es.plan() ? es.sql() : renderer.render(post);
-        }
     };
+
+    /** An execute's activity SQL in legend-engine's text, {@code recorded} its runtime's post-processors applied: the
+     *  edge's form of the planner's two-form {@code ActivityTexts} (J40.PlanStyle, 2026-11-18; until then the upstream
+     *  plan facet's {@code activitySql}, asked by the planner beside lite's own and picked by the style). */
+    static String activitySql(java.util.List<TypedSpec> chain, @com.legend.base.Nullable String mappingFqn,
+            com.legend.compiler.spec.SpecCompiler specs, PlanEnv env, boolean recorded) {
+        EngineTextDialect renderer = PureText.engineText(EngineText.ENGINE_TEST_DATABASE);
+        EngineSql es = engineSql(chain, mappingFqn, specs, env, renderer, EngineParams.none(),
+                java.util.function.UnaryOperator.identity());
+        if (!recorded) {
+            return es.sql();
+        }
+        com.legend.sql.SqlQuery post = com.legend.lowering.SqlPostProcessors.applyRecorded(es.plan(),
+                env.tableReplace(), env.postProcessors().extractCtes(), env.postProcessors().nonExecutable());
+        return post == es.plan() ? es.sql() : renderer.render(post);
+    }
 
     private static @com.legend.base.Nullable String planToString(
             com.legend.compiler.spec.NativeDispatch.RoutineCall call,
@@ -554,7 +553,7 @@ public final class EnginePlans {
             String aSql = prevVar == null ? aEs.sql()
                     : PlanText.spliceLeftVar(aEs.plan(), prevVar, planText::render);
             if (aSql == null) { return null; }
-            String[] aImpl = com.legend.lineage.ScanRelations.rootImpl(
+            String[] aImpl = SetImplementations.rootImpl(
                     env.ctx(), mappingFqn, aRoot, chainMaps);
             allocs.add(PlanText.allocation(var,
                     PlanText.typeBlock(env.ctx(), aRoot,
@@ -583,7 +582,7 @@ public final class EnginePlans {
                 lam.body(), connName, chainMaps,
                 PlanText.colsPlanFor(
                         fullEs.plan(), prevVar), pushDownEnums(env, lam.body()), planText::selectList);
-        String[] impl = com.legend.lineage.ScanRelations.rootImpl(
+        String[] impl = SetImplementations.rootImpl(
                 env.ctx(), mappingFqn, rootClass, chainMaps);
         java.util.List<String> children = new java.util.ArrayList<>(allocs);
         children.add(terminal);
@@ -700,7 +699,7 @@ public final class EnginePlans {
         EngineSql es = engineSql(java.util.List.of(term), mappingFqn, specs,
                 env, PureText.enginePlanText(dbType, quote, timeZone), params,
                 java.util.function.UnaryOperator.identity());
-        String[] impl = com.legend.lineage.ScanRelations.rootImpl(
+        String[] impl = SetImplementations.rootImpl(
                 env.ctx(), mappingFqn, rootClass);
         // temp-table IN protocol + envelope assembly (extracted at the
         // file guardrail — PlanEnvelope owns the block-vs-sequence rule)
@@ -752,7 +751,7 @@ public final class EnginePlans {
                 ? c.value() : null;
         java.util.List<String> sqls = java.util.List.of();
         if (csv != null && db != null) {
-            sqls = com.legend.setup.Ddl.setUpDataSqlsText(csv, db, lookup, PureText.engineText(EngineText.ENGINE_TEST_DATABASE));
+            sqls = EngineSeedText.setUpDataSqlsText(csv, db, lookup, PureText.engineText(EngineText.ENGINE_TEST_DATABASE));
         }
         PlanConn.DsSpec spec = null;
         if (ni.properties().get("datasourceSpecification")
@@ -764,7 +763,7 @@ public final class EnginePlans {
                             .TypedCString sc2
                     ? sc2.value() : null;
             java.util.List<String> specSqls = specCsv != null && db != null
-                    ? com.legend.setup.Ddl.setUpDataSqlsText(specCsv, db,
+                    ? EngineSeedText.setUpDataSqlsText(specCsv, db,
                             lookup, PureText.engineText(EngineText.ENGINE_TEST_DATABASE))
                     : java.util.List.of();
             spec = new PlanConn.DsSpec(
@@ -932,7 +931,7 @@ public final class EnginePlans {
             TypedSpec x = q.poll();
             if (x instanceof com.legend.compiler.spec.typed.TypedGetAll ga) {
                 try {
-                    return com.legend.lineage.ScanRelations.rootImpl(ctx,
+                    return SetImplementations.rootImpl(ctx,
                             mappingFqn, ga.classFqn())[2];
                 } catch (com.legend.error.NotImplementedException e) {
                     return ga.classFqn();

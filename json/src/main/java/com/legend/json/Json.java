@@ -240,6 +240,16 @@ public final class Json {
         public static Num ofDecimal(java.math.BigDecimal v) {
             return new Num(v.longValue(), v.doubleValue(), false, v);
         }
+        /** A number written as {@code token}, its exact value {@code value} beside it (moved from the result
+         *  library's {@code CellText.number}, J36 of the edge audit, 2026-11-18: lite's cells and the edge's
+         *  legend-engine cells both write one). The writer writes an integer number's {@code long} and any other
+         *  number's token, so a whole number past a {@code long} (a HUGEINT's {@code 18446744073709551614}) is
+         *  marked a non-integer and written by its token, never wrapped. */
+        public static Num ofToken(String token, java.math.BigDecimal value) {
+            boolean integral = token.chars().allMatch(ch -> ch == '-' || Character.isDigit(ch))
+                    && value.toBigInteger().bitLength() < 64;
+            return new Num(value.longValue(), value.doubleValue(), integral, value, token);
+        }
     }
 
     /** Boolean node. */

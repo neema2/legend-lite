@@ -106,21 +106,6 @@ public final class Lowerer {
 
     private int aliasCounter = 0;
 
-    /** The DEFERRED relation-toString registry (dynamic-pivot inners
-     * whose '#TDS' column list only exists at the execution boundary):
-     * id → the typed relation schema the boundary resolver needs for
-     * per-column print forms. The SQL IR node itself is TYPES-FREE
-     * (the sql package's standalone wall); this side channel is the
-     * lowering layer's own. */
-    private final java.util.Map<Integer,
-            com.legend.compiler.element.type.Type.RelationType>
-            deferredTds = new java.util.LinkedHashMap<>();
-
-    public java.util.Map<Integer,
-            com.legend.compiler.element.type.Type.RelationType>
-            deferredTds() {
-        return deferredTds;
-    }
     private int tdsCounter;
 
     /**
@@ -224,10 +209,12 @@ public final class Lowerer {
      * resolves through the ordinary let-binding channel. */
     /** VERBATIM equality under the mapping's own definition (NullSemantics.verbatim). */
     private boolean verbatimEquality;
-    /** The statement's shape (LoweringShape, Phase 6's B5, 2026-11-17): the product's lean unless its caller asks. */
-    private LoweringShape shape = LoweringShape.LEAN;
+    /** A filter's correlated EXISTS over a to-many join may be written as a join to the distinct keys, where the plan
+     *  style's forms choose ({@link LoweringForms#existsJoin}): the planner's own fact of the statement (the edge audit's
+     *  J19; a LoweringShape's field until J40, 2026-11-18, when the shape's forms became the plan style's alone). */
+    private boolean existsJoinable;
     /** The query's execution feature flags (FeatureRules): builder-style like
-     *  the shape; LEGACY_SQL_NULL_UNSAFE_EQUALS selects the verbatim equality
+     *  the style; LEGACY_SQL_NULL_UNSAFE_EQUALS selects the verbatim equality
      *  form (plain {@code =}) at the four scalar sites. */
     private java.util.Set<com.legend.platform.Feature> features = java.util.Set.of();
     private boolean legacyNullUnsafeEquals;
@@ -322,12 +309,6 @@ public final class Lowerer {
         return this;
     }
 
-    /** The statement's shape ({@link LoweringShape}); the product's is {@link LoweringShape#LEAN}. */
-    public Lowerer withShape(LoweringShape shape) {
-        this.shape = java.util.Objects.requireNonNull(shape, "a lowering shape");
-        return this;
-    }
-
     /** A RELATION READ MORE THAN ONCE IS WRITTEN ONCE (2026-11-04, {@link SharedRelations}): a let's value is one node
      *  of the statement's tree wherever its name is read, and it lowers once, a common table expression ({@code
      *  __let<n>}) at the statement's head that each read names. Off where the shape asks
@@ -374,9 +355,9 @@ public final class Lowerer {
     }
 
     /** A filter's correlated EXISTS over a to-many join is one the plan style's forms may write as a join to the distinct
-     *  keys ({@link LoweringShape#existsJoinable}; the edge audit's J19: the product's form keeps the EXISTS). */
+     *  keys ({@link LoweringForms#existsJoin}; the edge audit's J19: the product's form keeps the EXISTS). */
     public Lowerer withExistsJoinable() {
-        this.shape = shape.withExistsJoinable();
+        this.existsJoinable = true;
         return this;
     }
 
@@ -549,7 +530,7 @@ public final class Lowerer {
         SqlQuery q;
         if (sharing == null && shareRelations) {
             // a relation read more than once, written once (SharedRelations), as the shape's form chooses (J23)
-            q = shape.forms().relations(() -> sharedLower(root), () -> lower(root));
+            q = styled().forms().relations(() -> sharedLower(root), () -> lower(root));
         } else {
             q = lower(root);
         }
@@ -561,8 +542,8 @@ public final class Lowerer {
             q = LetBinding.bindRepeats(q);
         }
         // a count of rows a declared key makes one is 1 (KeyedCounts: the time model's D2), then the unread pruned
-        SqlQuery counted = shape.forms().keyedCounts(q, x -> KeyedCounts.fold(x, tableKeys));
-        return shape.forms().computedPruning(() -> SubselectPrune.prune(counted, true),
+        SqlQuery counted = styled().forms().keyedCounts(q, x -> KeyedCounts.fold(x, tableKeys));
+        return styled().forms().computedPruning(() -> SubselectPrune.prune(counted, true),
                 () -> SubselectPrune.prune(counted, false));
     }
 
@@ -633,7 +614,7 @@ public final class Lowerer {
      *  types them so, by name: WriteChecker). */
     private SqlQuery writtenRows(TypedSpec source, TypedTableReference t, String op) {
         SqlQuery lowered = lower(source);
-        SqlQuery rows = namedColumns(shape.forms().computedPruning(() -> SubselectPrune.prune(lowered, true),
+        SqlQuery rows = namedColumns(styled().forms().computedPruning(() -> SubselectPrune.prune(lowered, true),
                 () -> SubselectPrune.prune(lowered, false)));
         java.util.Set<String> declared = new java.util.LinkedHashSet<>();
         java.util.Objects.requireNonNull(Type.schemaView(t.info().type()), "a store table's type is a relation")
@@ -847,9 +828,9 @@ public final class Lowerer {
             // clean thing in lite, the backward-compatible thing in compatibility mode"); the edge's the engine
             // JsonBuilder's cardinality rule, exactly one object bare -- the scalar position's fold (SnapshotEnvelope).
             // The streaming root (one object per row) never folds
-            if (g.engineExecuteCardinality() && !streamingGraphRoot) {
+            if (g.readThroughExecuteValues() && !streamingGraphRoot) {
                 return conformJsonEgress(styled().forms().executeValues(() -> serializeGraph(g, false),
-                        () -> SnapshotEnvelope.fold(serializeGraph(g.asArrayWrapped(), false))));
+                        () -> serializeGraph(g.asArrayWrapped(), false)));
             }
             return conformJsonEgress(serializeGraph(g, streamingGraphRoot));
         }
@@ -1255,7 +1236,7 @@ public final class Lowerer {
             case TypedTds tds -> tdsLiteral(tds);
             // a VIEW at relation position, the shape's form (the audit's K5, 2026-11-17: LoweringForms#view): the
             // product's body lowered flat (a name is not a nesting); legend-engine's an aliased derived table
-            case TypedViewRelation v -> shape.forms().view(relation(v.body()), this::nextAlias, v.view());
+            case TypedViewRelation v -> styled().forms().view(relation(v.body()), this::nextAlias, v.view());
 
             case com.legend.compiler.spec.typed.TypedRawSqlRelation raw -> rawGrid(unswapped(raw, "a raw SQL relation"));
             case com.legend.compiler.spec.typed.TypedCatalogGrid g -> catalogGrid(unswapped(g, "a catalog grid"));
@@ -1351,7 +1332,7 @@ public final class Lowerer {
                             this::sqlTypeOf);
 
             case TypedProject p -> project(relation(p.source()),
-                    p.columns(), p.info(), p.wireForm());
+                    p.columns(), p.info());
 
             case TypedConcatenate c -> SqlSelect.starOf(
                     new SqlSource.Subselect(union(c), nextAlias(), null));
@@ -1530,7 +1511,7 @@ public final class Lowerer {
      * at the STATEMENT egress where the contract says String. A
      * synth-conformance cast: execution SQL spells the database's own
      * JSON&rarr;text serialization (probed byte-identical on 1.5.0,
-     * empty case included), engine TEXT elides it (the conform()
+     * empty case included), engine TEXT elides it (the CONFORM reason
      * suppression). Identity on non-JSON results. */
     private static SqlSelect conformJsonEgress(SqlSelect s) {
         if (s.projections().size() != 1) {
@@ -2073,7 +2054,7 @@ public final class Lowerer {
     private SqlSelect extend(SqlSelect src, List<TypedFuncCol> columns,
                              ExprType info) {
         SqlSelect base = Fold.extendFolds(src) ? src : extendOver(src);
-        return computedColumns(base, columns, info, true, false);
+        return computedColumns(base, columns, info, true);
     }
 
     /** The select an extend that does not fold computes its columns in: {@code src} isolated. Over a truncated
@@ -2092,26 +2073,23 @@ public final class Lowerer {
         return Sorts.keepsOrder(src) ? Sorts.isolateOrdered(this, src) : src;
     }
 
-    /** project(~cols): the computed columns REPLACE the projection list.
-     * {@code wireForm} — the flat class form's engine-wire provenance
-     * (TypedProject.wireForm): conformance casts are suppressed there. */
+    /** project(~cols): the computed columns REPLACE the projection list. */
     private SqlSelect project(SqlSelect src, List<TypedFuncCol> columns,
-                              ExprType info, boolean wireForm) {
+                              ExprType info) {
         SqlSelect base = Fold.projectionFolds(src) ? src : isolate(src);
-        return computedColumns(base, columns, info, false, wireForm);
+        return computedColumns(base, columns, info, false);
     }
 
     /** Lower computed columns over {@code base}: one attempt, isolate ONCE on
      * an unfoldable ref, then loud (isolation is idempotent for resolution). */
     private SqlSelect computedColumns(SqlSelect base, List<TypedFuncCol> columns,
                                       ExprType info,
-                                      boolean keepExisting,
-                                      boolean wireForm) {
+                                      boolean keepExisting) {
         String[] miss = new String[2];
         SqlSelect a1 = tryComputedColumns(base, columns, info, keepExisting,
-                wireForm, miss);
+                miss);
         SqlSelect a2 = a1 != null ? a1 : tryComputedColumns(isolate(base),
-                columns, info, keepExisting, wireForm, miss);
+                columns, info, keepExisting, miss);
         if (a2 != null) {
             return a2;
         }
@@ -2126,7 +2104,7 @@ public final class Lowerer {
     private @com.legend.base.Nullable SqlSelect tryComputedColumns(SqlSelect base, List<TypedFuncCol> columns,
                                          ExprType info,
                                          boolean keepExisting,
-                                         boolean wireForm, String[] miss) {
+                                         String[] miss) {
         // E2 (JAVA_EVICTION_PLAN): a TO-MANY scalar funcCol EXPLODES ROWS
         // IN SQL — the engine's scalar-stream rule (one row per element,
         // row-major; an EMPTY stream keeps one parent row with a NULL
@@ -2268,7 +2246,7 @@ public final class Lowerer {
                 SqlSelect m = src.withWhere(
                         mergeWhere(src.where(), predicate, f.stamp()));
                 // the product's EXISTS as lowered, legend-engine's shape a join to the distinct keys (J19, S367)
-                yield shape.existsJoinable() ? styled().forms().existsJoin(m, x -> ExistsJoinForm.rewrite(x,
+                yield existsJoinable ? styled().forms().existsJoin(m, x -> ExistsJoinForm.rewrite(x,
                         this::nextAlias, whereZones::get)) : m;
             }
             case HAVING -> src.withHaving(src.having() == null ? predicate
@@ -4310,8 +4288,7 @@ public final class Lowerer {
             // (its rows are the result writers'), written by the edge (phase D's D1.3, 2026-11-15)
             case TypedNativeCall tc when PlatformTypes.TO_CSV
                     .equals(tc.callee().qualifiedName()) ->
-                relationTexts.apply(() -> TextRefusals.relation("toCSV")).toCsv(styled(), tc, this::relation, nextAlias(),
-                        deferredTds);
+                relationTexts.apply(() -> TextRefusals.relation("toCSV")).toCsv(styled(), tc, this::relation, nextAlias());
             // the TDS class's csv property (tds.pure:19 `csv: String[1]`)
             // over a relation: the csv TEXT the engine prints for a TDS —
             // header names joined ', ', ','-joined cells with TDSNull, no
@@ -4326,7 +4303,7 @@ public final class Lowerer {
                     "meta::pure::functions::relation::toString"
                             .equals(tc.callee().qualifiedName()) ->
                 relationTexts.apply(() -> TextRefusals.relation("toString")).relationToString(styled(), tc, this::relation,
-                        nextAlias(), deferredTds);
+                        nextAlias());
             // F13c — every operation built on equal() over objects (docs/OBJECT_IDENTITY_2026_10_20.md §3.3): ONE
             // owner of the relation — the same canon the verdict layer byte-judges with. eq = identity (__id
             // compare); equal = key-tree canon (keyed) or identity (keyless). A claimed shape it cannot lower is
@@ -4474,10 +4451,13 @@ public final class Lowerer {
                     enclosing.pop();
                 }
             }
-            // scalar-position graph value (H4 snapshot; SnapshotEnvelope)
-            case TypedSerializeGraph g -> new SqlExpr.ScalarSubquery(
-                    conformJsonEgress(SnapshotEnvelope.fold(
-                            serializeGraph(g.asArrayWrapped(), false))));
+            // scalar-position graph value (H4 snapshot): the style's form (the lens audit's L6, 2026-11-18: until then
+            // legend-engine's one-object-bare fold applied unconditionally) -- the product's lite's array, the edge's
+            // the JsonBuilder rule (LoweringForms#executeValues)
+            case TypedSerializeGraph g -> {
+                java.util.function.Supplier<SqlSelect> wrapped = () -> serializeGraph(g.asArrayWrapped(), false);
+                yield new SqlExpr.ScalarSubquery(conformJsonEgress(styled().forms().executeValues(wrapped, wrapped)));
+            }
             // static-dispatch match fold (MatchFold doc)
             case com.legend.compiler.spec.typed.TypedMatchRuntime mr ->
                     scalar(MatchFold.fold(mr), columns);
@@ -4574,7 +4554,7 @@ public final class Lowerer {
 
     /** The cast policy over an ALREADY-LOWERED source (CastPolicy owns every arm). */
     private SqlExpr cast(TypedCast c, SqlExpr value) {
-        return CastPolicy.lower(c, value, Stamps.isMany(c), shape.forms(), styled().forms());
+        return CastPolicy.lower(c, value, Stamps.isMany(c), styled().forms());
     }
 
     /**

@@ -53,7 +53,7 @@ public record SqlTextInputs(TypedSpec query, TypedSpec mapping, TypedSpec dialec
                 && call.args().size() == 5) {
             TypedSpec r = com.legend.compiler.spec.typed.Lets.bound(call.args().get(0), letPrefix);
             if (r instanceof TypedNativeCall h
-                    && com.legend.compiler.element.type.PlatformTypes.TO_SQL
+                    && com.legend.builtin.NativeFn.Handle.TO_SQL.fqn()
                             .equals(h.callee().qualifiedName())
                     && h.args().size() >= 3) {
                 return new SqlTextInputs(h.args().get(0), h.args().get(1),

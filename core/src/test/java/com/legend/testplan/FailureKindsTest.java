@@ -21,7 +21,7 @@ class FailureKindsTest {
 
     @Test
     void aNotAConstantRefusalIsRecordedByItsOwnKind() {
-        Failure f = Failures.of(new NotAConstant("a side"), "the test");
+        Failure f = Failures.of(new com.legend.edge.NotAConstant("a side"), "the test");
         assertEquals(Failure.Kind.NOT_A_CONSTANT, f.kind());
         assertTrue(String.valueOf(f.message()).contains("a side"), String.valueOf(f.message()));
     }

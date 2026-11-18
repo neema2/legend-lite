@@ -51,7 +51,7 @@ public final class PlanText {
             @com.legend.base.Nullable String connectionName,
             java.util.List<String> chainMappings, SqlQuery colsPlan, boolean pushDownEnums,
             java.util.function.Function<SqlQuery, @com.legend.base.Nullable String> selectList) {
-        String[] impl = ScanRelations.rootImpl(ctx, mappingFqn,
+        String[] impl = SetImplementations.rootImpl(ctx, mappingFqn,
                 rootClassFqn, chainMappings);
         com.legend.compiler.element.type.Type.RelationType rrt =
                 body.isEmpty() ? null
@@ -168,7 +168,7 @@ public final class PlanText {
             var t = work.poll();
             if (t instanceof com.legend.compiler.spec.typed.TypedGetAll ga) {
                 try {
-                    String[] impl = ScanRelations.rootImpl(ctx, mappingFqn,
+                    String[] impl = SetImplementations.rootImpl(ctx, mappingFqn,
                             ga.classFqn(), chainMappings);
                     if (impl.length > 2 && impl[2] != null) {
                         dbs.add(impl[2]);
@@ -812,7 +812,7 @@ public final class PlanText {
             // an enum-decode leaf resolves to its SOURCE column (the
             // engine plans keep enum columns RAW)
             SqlExpr.Column c = l instanceof SqlExpr.Column lc ? lc
-                    : com.legend.sql.DecodeShapes.sourceColumn(l).orElse(null);
+                    : PlanEnumForm.sourceColumn(l).orElse(null);
             if (c == null) {
                 return null;
             }

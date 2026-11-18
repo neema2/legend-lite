@@ -298,17 +298,16 @@ final class HostJudgments {
      * judgment declines the sides it read (the walk's generic path continues).
      */
     static @com.legend.base.Nullable TypedSide judge(HostJudgment j, List<TypedSide> sides,
-            com.legend.testexecutionplan.TestPlan.JudgingRules rules, BodyRun run) {
-        return judge(j, sides, rules, null, run);
+            BodyRun run) {
+        return judge(j, sides, null, run);
     }
 
     /** {@code message}: the reader of the assert's caller's message where the verdict carries it apart from its sides
      *  (TestPlan.Verdict.message), asked only where the assert fails; null where the message, if any, is one of
      *  {@code sides} (a judgment nested in another's, whose sides the step read together). */
     static @com.legend.base.Nullable TypedSide judge(HostJudgment j, List<TypedSide> sides,
-            com.legend.testexecutionplan.TestPlan.JudgingRules planRules,
             java.util.function.@com.legend.base.Nullable Supplier<TypedSide> message, BodyRun run) {
-        HostRules rules = new HostRules(planRules, run.hearing().hostForms());   // the plan's rules, the run's forms
+        HostRules rules = new HostRules(run.hearing().hostForms());   // the run hook's forms (train 17: the plan carries no rules)
         return switch (j) {
             case HostJudgment.TdsEquivalent t -> tdsEquivalentOf(t, sides, rules);
             case HostJudgment.GridPair g -> gridPairOf(g, sides, rules, run);
@@ -330,8 +329,8 @@ final class HostJudgments {
             case HostJudgment.Json js -> jsonOf(js, sides, rules, run.hearing().json());
             case HostJudgment.Rendered r -> renderedOf(r, sides, run.hearing().renderedTexts());
             case HostJudgment.Raise r -> throw com.legend.testexecutionplan.Failures.raised(r.failure());
-            case HostJudgment.EdgeJudged e -> run.judged(e, sides, planRules);
-            case HostJudgment.AssertError a -> com.legend.testexec.AssertErrorRuns.judge(a, () -> sides, planRules, run);
+            case HostJudgment.EdgeJudged e -> run.judged(e, sides);
+            case HostJudgment.AssertError a -> com.legend.testexec.AssertErrorRuns.judge(a, () -> sides, run);
             case HostJudgment.Messaged m -> messagedOf(m, sides, rules, message, run);
             case HostJudgment.Negated n -> negatedOf(n, sides, rules, run);
         };
@@ -344,10 +343,10 @@ final class HostJudgments {
      * the error its function raises), every other's failure, raised as it was.
      */
     static @com.legend.base.Nullable TypedSide judge(HostJudgment j,
-            java.util.function.Supplier<List<TypedSide>> sides, com.legend.testexecutionplan.TestPlan.JudgingRules rules,
+            java.util.function.Supplier<List<TypedSide>> sides,
             java.util.function.@com.legend.base.Nullable Supplier<TypedSide> message, BodyRun run) {
-        return j instanceof HostJudgment.AssertError a ? com.legend.testexec.AssertErrorRuns.judge(a, sides, rules, run)
-                : judge(j, sides.get(), rules, message, run);
+        return j instanceof HostJudgment.AssertError a ? com.legend.testexec.AssertErrorRuns.judge(a, sides, run)
+                : judge(j, sides.get(), message, run);
     }
 
     /** The keys the pair restricts to, or null: both sides declare the SAME keyed class (a side declared a supertype
@@ -481,7 +480,7 @@ final class HostJudgments {
             HostRules rules,
             java.util.function.@com.legend.base.Nullable Supplier<TypedSide> message, BodyRun run) {
         try (var messaged = run.messaged()) {
-            return judge(m.inner(), sides.subList(0, m.innerSides()), rules.rules(), run);
+            return judge(m.inner(), sides.subList(0, m.innerSides()), run);
         } catch (com.legend.error.AssertFailed e) {
             if (e.unjudgedReason() != null) {
                 throw e;
@@ -502,7 +501,7 @@ final class HostJudgments {
     private static TypedSide negatedOf(HostJudgment.Negated n, List<TypedSide> sides,
             HostRules rules, BodyRun run) {
         try {
-            judge(n.inner(), sides, rules.rules(), run);
+            judge(n.inner(), sides, run);
         } catch (com.legend.error.AssertFailed failed) {
             if (failed.unjudgedReason() != null) {
                 throw failed;
@@ -661,7 +660,7 @@ final class HostJudgments {
             com.legend.testexec.AssertRuns.enter(part.assertion());
             TypedSide v;
             try {
-                v = com.legend.testexec.AssertRuns.judge(part.assertion(), part.judgment(), () -> slice, rules.rules(), null, run);
+                v = com.legend.testexec.AssertRuns.judge(part.assertion(), part.judgment(), () -> slice, null, run);
             } catch (com.legend.error.AssertFailed failed) {
                 // the element named as the words name it (lite's by Pure's zero-based index, the user's direction,
                 // 2026-11-17; legend-pure's not at all: its own failure as raised)

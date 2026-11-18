@@ -3,7 +3,6 @@
 
 package com.legend.testexec;
 
-import com.legend.diagnostics.Census;
 
 
 import java.math.BigDecimal;
@@ -82,27 +81,6 @@ public final class Equality {
         public Unjudged(String shape) {
             super("unjudged in host mode: " + shape);
         }
-    }
-
-    // ---- THE LENIENCY (one, counted) --------------------------------------
-
-    /** THE ONE FLOAT LENIENCY (§5a, one home): two finite doubles within
-     * {@code floatUlps * ulp(max(|x|, |y|))}, the plan's rules' number (census C1's J11, 2026-11-17). The host cell rule (TdsCompare) and
-     * the referee (RefereeVerify) call HERE; the database judge spells the same
-     * predicate in SQL (VerdictSql.lenient). */
-    public static boolean withinUlps(double x, double y, int floatUlps) {
-        if (!Double.isFinite(x) || !Double.isFinite(y)) {
-            return false;
-        }
-        double ulp = Math.ulp(Math.max(Math.abs(x), Math.abs(y)));
-        boolean ok = Math.abs(x - y) <= floatUlps * ulp;
-        if (ok && x != y) {
-            Census.inc(Census.Key.ULP_FIRINGS);
-            if (System.getenv("LL_TOL_COUNT") != null) {
-                System.err.println("[tol] ulp " + x + " vs " + y);
-            }
-        }
-        return ok;
     }
 
     // ---- SCALARS ----------------------------------------------------------
@@ -202,9 +180,9 @@ public final class Equality {
             if (!(e instanceof Number en && a instanceof Number an)) {
                 return false;
             }
-            // register S139 (the user's ruling, 2026-11-05): lite's own runs compare two Decimals by value, as `==`
-            // does in the database; the scale-sensitive compare is backwards-compatibility mode's
-            boolean eq = rules.decimalScale() ? decimal(en).equals(decimal(an)) : decimal(en).compareTo(decimal(an)) == 0;
+            // the run hook's form (train 17, 2026-11-18): lite's by value (register S139, the user's ruling of
+            // 2026-11-05), as `==` does in the database; the edge's scale-sensitive, compiled legend-pure's
+            boolean eq = rules.forms().equalDecimals(decimal(en), decimal(an));
             if (!eq && decimal(en).compareTo(decimal(an)) == 0) {
                 // leg 3.0 census: the pair differs by SCALE only — the
                 // witness set for the canon spec's Decimal amendment
@@ -223,15 +201,9 @@ public final class Equality {
             if (decimal(en).compareTo(decimal(an)) == 0) {
                 return true;   // the carriers agree exactly (digits kept)
             }
-            // clean mode compares a Float exactly; the 2-ULP tolerance is compatibility mode's alone (S15/S132, the
-            // user's ruling of 2026-11-05: "I like our clean float"; built 2026-11-05 after the report found one core
-            // test relying on it, the policy's own pin)
-            boolean within = rules.floatTolerance() && e instanceof Double de && a instanceof Double da && withinUlps(de, da, rules.floatUlps());
-            if (within) {
-                // the exact-comparison report (S15/S132 narrowed, 2026-11-05): the tolerance, not equality, decided
-                com.legend.diagnostics.Diagnostics.judgeSend("ulp-tolerance", "host " + e + " ~ " + a);
-            }
-            return within;
+            // two Floats whose values differ: the run hook's form (train 17, 2026-11-18) -- lite's exact (S15/S132, the
+            // user's ruling of 2026-11-05: "I like our clean float"), the edge's compiled legend-pure 2 ULP
+            return e instanceof Double de && a instanceof Double da && rules.forms().equalFloatsApart(de, da);
         }
         if (ek == Kind.STRING) {
             // two Strings compare exactly, as legend-pure's equal does, under every rule set and both judges (2026-11-06,

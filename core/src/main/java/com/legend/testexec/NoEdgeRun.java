@@ -50,8 +50,7 @@ public final class NoEdgeRun implements EdgeRun {
     private record Hearing(@Nullable AssertListener listener) implements EdgeHearing {
 
         @Override
-        public TypedSide judged(HostJudgment.EdgeJudged j, List<TypedSide> sides, TestPlan.JudgingRules rules,
-                boolean messaged) {
+        public TypedSide judged(HostJudgment.EdgeJudged j, List<TypedSide> sides, boolean messaged) {
             throw new NotImplementedException("an edge-judged comparison " + WHY);
         }
 

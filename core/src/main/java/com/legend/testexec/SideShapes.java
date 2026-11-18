@@ -66,7 +66,7 @@ public final class SideShapes {
                 com.legend.json.Json.Node parsed = com.legend.json.Json.parse(g.json());
                 if (parsed instanceof com.legend.json.Json.Obj sole) {
                     // an engine execute()'s values of exactly one object, serialized bare (the engine JsonBuilder's
-                    // cardinality rule, compatibility only: TypedSerializeGraph.engineExecuteCardinality): one object
+                    // cardinality rule, the edge's form over TypedSerializeGraph.readThroughExecuteValues): one object
                     rows.add(hostRow(com.legend.json.Json.toCompact(sole)));
                 } else if (parsed instanceof com.legend.json.Json.Arr items) {
                     for (com.legend.json.Json.Node item : items.items()) {

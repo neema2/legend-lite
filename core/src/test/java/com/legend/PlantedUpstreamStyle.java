@@ -29,10 +29,6 @@ final class PlantedUpstreamStyle implements PlanStyle {
         throw new UnsupportedOperationException("planted");
     }
 
-    @Override
-    public String activitySql(Activity activity) {
-        throw new UnsupportedOperationException("planted");
-    }
 
     @Override
     public String graphKeyDate(String written) {

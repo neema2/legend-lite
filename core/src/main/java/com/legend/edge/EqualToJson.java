@@ -13,7 +13,7 @@ import java.util.TreeSet;
  * LEGEND-ENGINE'S SERVICE-TEST {@code EqualToJson} (its {@code TestAssertionHelper} and
  * {@code JsonNodeComparator.NULL_MISSING_EQUIVALENT_AND_UNORDERED_ARRAYS}, 4.145.0), the edge's (the orchestrator's
  * ruling of 2026-11-17, J11's residue: moved from {@code testexec.Equality} and {@code test.TestAssertions} -- upstream's
- * comparator and its 2-ULP bound belong beside {@link CompatRules}, not in the product's judge):
+ * comparator and its 2-ULP bound belong beside {@link CompiledPureHostForms}, not in the product's judge):
  * <ul>
  *   <li>{@code null} and a MISSING object field are the same thing;</li>
  *   <li>arrays are UNORDERED at every level -- equal when they have the same length and every element of one pairs
@@ -86,8 +86,7 @@ public final class EqualToJson {
                 return null;
             }
             // the referee's 2-ULP policy for the database's C-library doubles (the compatibility rules' bound)
-            if (com.legend.testexec.Equality.withinUlps(en.doubleValue(), an.doubleValue(),
-                    CompatRules.COMPILED_PURE.floatUlps())) {
+            if (com.legend.edge.CompiledPureHostForms.withinUlps(en.doubleValue(), an.doubleValue())) {
                 com.legend.diagnostics.Diagnostics.judgeSend("ulp-tolerance", "host-json " + en + " ~ " + an);
                 return null;
             }

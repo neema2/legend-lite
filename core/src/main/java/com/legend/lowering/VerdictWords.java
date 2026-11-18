@@ -22,14 +22,11 @@ import java.util.function.UnaryOperator;
  */
 public interface VerdictWords {
 
-    /** What a verdict's frame reads where a side is written. */
-    enum Reads { WRITTEN, CANONS }
-
     /** The words' name, the plan's data ({@code TestPlan.words}): a run refuses a plan worded otherwise. */
     String name();
 
     /** The frame's shape these words read. */
-    Reads reads();
+    VerdictReads reads();
 
     /** An assertSize that failed: the size wanted and the count, each as text. */
     SqlExpr sizeDiffers(SqlExpr want, SqlExpr count);
@@ -67,7 +64,8 @@ public interface VerdictWords {
     @Nullable SqlExpr notWithin(SqlExpr expected, SqlExpr delta, SqlExpr actual, Type kind);
 
     /** An assertTdsEquivalent that failed: the columns, each grid's row count, whether the cell counts agree, the
-     *  first failing cell's index and its two texts, the delta; each grid written ({@link Reads#WRITTEN}), else null. */
+     *  first failing cell's index and its two texts, the delta; each grid written ({@link VerdictReads#WRITTEN}), else
+     *  null. */
     SqlExpr notEquivalent(String columns, SqlExpr expectedRows, SqlExpr actualRows, SqlExpr sameCount,
             SqlExpr cellIndex, SqlExpr expectedCell, SqlExpr actualCell, SqlExpr delta,
             @Nullable SqlExpr expectedWritten, @Nullable SqlExpr actualWritten);

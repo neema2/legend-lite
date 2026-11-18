@@ -480,6 +480,7 @@ legend_java_library(
     name = "edge",
     srcs = glob(["src/main/java/com/legend/edge/*.java"], exclude = [
         "src/main/java/com/legend/edge/EdgeServer.java",
+        "src/main/java/com/legend/edge/EngineMount.java",
         "src/main/java/com/legend/edge/ServiceTestRunner.java",
         "src/main/java/com/legend/edge/TdsObjectsWriter.java",
         "src/main/java/com/legend/edge/StoreWords.java",
@@ -508,7 +509,11 @@ legend_java_library(
 # the plan side's (the compiler's boundary answers them in the tab and Python), the root runs a server.
 legend_java_library(
     name = "edge_server",
-    srcs = ["src/main/java/com/legend/edge/EdgeServer.java"],
+    srcs = ["src/main/java/com/legend/edge/EdgeServer.java", "src/main/java/com/legend/edge/EngineMount.java"],
+    # legend-engine's module, registered for the product's server to find only when configured (K2's server half,
+    # the user's ruling of 2026-11-18: "Product root, edge opt-in"; com.legend.server.MountProvider)
+    resources = glob(["src/main/edge_server/META-INF/**"]),
+    resource_strip_prefix = "core/src/main/edge_server",
     visibility = ["//spec:__pkg__", "//pct:__pkg__"],
     deps = ["//base", ":edge", ":edge_store_words", ":execution", ":lite_v1", ":saved_queries", ":server_lib"],
 )
@@ -554,12 +559,15 @@ legend_java_library(
 
 # THE PRODUCT, runnable: the HTTP server (LSP, query execution, SQL, diagrams) with
 # the JDBC drivers. `bazel run //core:server` (port 8080, or $PORT);
-# `bazel build //core:server_deploy.jar` is the one self-contained jar to ship. Its root is the edge's (phase D's
-# D1.0b, 2026-11-12): lite's own server with legend-engine's API mounted beside it (edge/EdgeServer.java); lite's own
-# server alone is com.legend.server.LegendHttpServer's main.
+# `bazel build //core:server_deploy.jar` is the one self-contained jar to ship. Its root is the PRODUCT's (K2's server
+# half, the user's ruling of 2026-11-18: "Product root, edge opt-in"): lite's own server, legend-engine's API
+# (edge/EdgeServer.java, edge/EngineMount.java) carried in the same jar and mounted only with --engine legend-engine.
 legend_java_binary(
     name = "server",
-    main_class = "com.legend.edge.EdgeServer",
+    # the product's own entry (K2's server half, the user's ruling of 2026-11-18: "Product root, edge opt-in"):
+    # legend-engine's module (:edge_server) ships in the same artifact, mounted only when the configuration names it
+    # (--engine legend-engine; com.legend.server.MountProvider, found by ServiceLoader)
+    main_class = "com.legend.server.LegendHttpServer",
     runtime_deps = [
         ":core",
         ":drivers",
@@ -2573,6 +2581,11 @@ junit_test(
         ":edge_direct_dependents",
         ":edge_direct_dependents_planted",
         ":edge_jars",
+        # K2's shipped-artifact roots, and their planted bite (2026-11-18)
+        ":shipped_edge_reach",
+        ":shipped_edge_reach_planted",
+        ":shipped_edge_roots",
+        ":shipped_edge_roots_planted",
         ":guardrails_sources",
         ":product_jars",
     ],
@@ -2588,6 +2601,10 @@ junit_test(
         "-Dlegend.edge.jars=$(rlocationpath :edge_jars)",
         "-Dlegend.edge_dependents=$(rlocationpath :edge_direct_dependents)",
         "-Dlegend.edge_dependents_planted=$(rlocationpath :edge_direct_dependents_planted)",
+        "-Dlegend.shipped_edge_reach=$(rlocationpath :shipped_edge_reach)",
+        "-Dlegend.shipped_edge_reach_planted=$(rlocationpath :shipped_edge_reach_planted)",
+        "-Dlegend.shipped_edge_roots=$(rlocationpath :shipped_edge_roots)",
+        "-Dlegend.shipped_edge_roots_planted=$(rlocationpath :shipped_edge_roots_planted)",
         "-Dlegend.build_time.jars=$(rlocationpath :build_time_jars)",
     ],
     # the guards that judge the boundary itself: they read the edge's jars and its dependents (F's census line A5,
@@ -2597,8 +2614,25 @@ junit_test(
         "--select-class=com.legend.EdgeSeparationTest",
         # the ruled hooks' implementers, read from the edge's jars (Phase 6's HookRulingTest)
         "--select-class=com.legend.HookRulingTest",
-        # the judging rules' reach (the GUARD stream's C.3, 2026-11-17): the RULES bucket of the count
-        "--select-class=com.legend.JudgingRulesReachTest",
+        "--select-class=com.legend.HookRulingsAgreeTest",
+        # no guard names what is not there (the edge audit's K16, 2026-11-17)
+        "--select-class=com.legend.GuardNamesExistTest",
+        # (JudgingRulesReachTest: deleted 2026-11-18, train 17, with the judging rules themselves)
+        "--select-class=com.legend.OpenClassMembersTest",
+        "--select-class=com.legend.OpenLineMarkedTest",
+        "--select-class=com.legend.PlanStyleSurfaceTest",
+        "--select-class=com.legend.ServiceLoaderSitesTest",
+        "--select-class=com.legend.SqlFnSortedTest",
+        "--select-class=com.legend.HookLambdasTest",
+        # L-A (2026-11-18): a product form handed a function it never calls, upstream's form built for the edge alone
+        "--select-class=com.legend.ProductFormsUseTheirArgumentsTest",
+        "--select-class=com.legend.EdgePackageBoundaryTest",
+        # a public product member the edge alone uses, counted (J40 of the edge audit, 2026-11-18)
+        "--select-class=com.legend.EdgeOnlyMembersTest",
+        # L-B (2026-11-18): the plans' and the MIR's data, each piece with a real product use
+        "--select-class=com.legend.EdgeOnlyDataTest",
+        # K2 (the user's ruling of 2026-11-18, product root, edge opt-in): every shipped artifact starts at the product
+        "--select-class=com.legend.ShippedArtifactRootsTest",
         # every implementation of the test plan's Extension is the edge's (census C2, 2026-11-17), so the guard that
         # walks them as data reads them here
         "--select-class=com.legend.PlanTypesAreDataTest",
@@ -2656,7 +2690,15 @@ java_jars(
     testonly = True,
     rlocation_paths = True,
     transitive = False,
-    deps = [":edge"],
+    # core's own edge targets, every one (2026-11-18, the review of 11de9ae229, MUST-FIX 2: the edge rules read
+    # libedge.jar alone, so a rule naming TdsObjectsWriter -- :edge_service_tests' -- read nothing for it); the
+    # hosts' edge entries (//native:edge_entry, //query-store's page) come with C.11's one list, after the host train
+    deps = [
+        ":edge",
+        ":edge_server",
+        ":edge_service_tests",
+        ":edge_store_words",
+    ],
 )
 
 # the hosts' doors to the authored statement, by class: the boundary, the tab's adapter and the native entry, whose
@@ -2669,7 +2711,8 @@ java_jars(
 # the product's roots' closure -- a root reaching the edge transitively reaches it through one of them.
 # EdgeSeparationTest holds the set to the census's open A lines. The roots: the product's JVM libraries and the hosts'
 # doors (the JS apps reach the JVM through //wasm and //native alone), and core's test libraries (A5, A6). The shipped
-# //core:server is rooted AT the edge (EdgeServer, ruled A4) and is no root here.
+# //core:server is no root here: rooted at the product since K2's server half (2026-11-18), it carries the edge's
+# module at runtime only (:edge_server, mounted when configured: --engine legend-engine), one artifact by ruling 6.
 # the native library's upstream entry is the edge's too (A2, 2026-11-17); the query-store page's was (A3) until it
 # answered lite's own /api/lite/v1/queries in lite's words (lite's API v1, H6, 2026-11-17): a product root below
 # the embedded hosts' engine routes and the tab's module entry are the edge's too (A1, 2026-11-17)
@@ -2728,6 +2771,80 @@ genquery(
                                       "//wasm:edge_boundary", "//wasm:edge_tab"],
 )
 
+# K2, THE SHIPPED ARTIFACTS' ROOTS (the user's ruling of 2026-11-18, ~06:00, cited by the orchestrator: "Product root,
+# edge opt-in" -- each shipped artifact starts at lite's own entry, legend-engine's module loads only when configured,
+# one artifact per surface). What ships: the product build CI runs (gates-run.yml: //:java //:web //:wasm //:native
+# //:sites, and //native:compiler), the apps (//datacube:app) and the Python package (//python:wheel). A shipped
+# artifact reaches an edge target only through a declared opt-in module, and none is rooted at a com.legend.edge main
+# class. ShippedArtifactRootsTest reads both answers; each artifact still the edge's is pinned there as K2's, by its
+# owner, and goes as it re-roots (the GUARD stream, 2026-11-18).
+_SHIPPED_ARTIFACTS = [
+    "//:java",
+    "//:native",
+    "//:sites",
+    "//:wasm",
+    "//:web",
+    "//datacube:app",
+    "//native:compiler",
+    "//python:wheel",
+]
+
+# The declared opt-in modules: legend-engine's, loaded only when configured. The server's (E-P5's K2 half: //core:server
+# keeps :edge_server in its one artifact, looked up by ServiceLoader when the engine is asked for); the Python host's
+# //native:engine joins with the next host train.
+_EDGE_OPT_IN = ["//core:edge_server"]
+
+_EDGE_TARGET_LIST = ["//core:edge", "//core:edge_server", "//core:edge_service_tests", "//core:edge_store_words",
+                     "//native:edge_entry", "//query-store:edge_page_entry", "//wasm:edge_boundary", "//wasm:edge_tab"]
+
+# a shipped artifact's direct reach of an edge target that is no opt-in module
+genquery(
+    name = "shipped_edge_reach",
+    testonly = True,
+    expression = "rdeps(deps(set(" + " ".join(_SHIPPED_ARTIFACTS) + ")), (" + _EDGE_TARGETS + ") except set(" +
+                 " ".join(_EDGE_OPT_IN) + "), 1) except (" + _EDGE_TARGETS + ")",
+    opts = ["--noimplicit_deps"],
+    scope = _SHIPPED_ARTIFACTS + _EDGE_TARGET_LIST,
+)
+
+# a target in a shipped artifact's closure whose main class is the edge's
+genquery(
+    name = "shipped_edge_roots",
+    testonly = True,
+    expression = "attr(main_class, '^com\\.legend\\.edge\\.', deps(set(" + " ".join(_SHIPPED_ARTIFACTS) + ")))",
+    opts = ["--noimplicit_deps"],
+    scope = _SHIPPED_ARTIFACTS,
+)
+
+# THE ROOT CHECK'S BITE: a planted shipped artifact rooted at the edge, its main class EdgeServer and its runtime the
+# edge's library -- found by the planted queries alone (ShippedArtifactRootsTest.theRootCheckBites)
+legend_java_binary(
+    name = "planted_edge_rooted_artifact",
+    testonly = True,
+    main_class = "com.legend.edge.EdgeServer",
+    runtime_deps = [":edge"],
+    # the edge's plant, never a product test target (product_tests_closure leaves edge_test out)
+    tags = ["edge_test"],
+)
+
+genquery(
+    name = "shipped_edge_reach_planted",
+    testonly = True,
+    expression = "rdeps(deps(set(" + " ".join(_SHIPPED_ARTIFACTS + ["//core:planted_edge_rooted_artifact"]) + ")), (" +
+                 _EDGE_TARGETS + ") except set(" + " ".join(_EDGE_OPT_IN) + "), 1) except (" + _EDGE_TARGETS + ")",
+    opts = ["--noimplicit_deps"],
+    scope = _SHIPPED_ARTIFACTS + _EDGE_TARGET_LIST + ["//core:planted_edge_rooted_artifact"],
+)
+
+genquery(
+    name = "shipped_edge_roots_planted",
+    testonly = True,
+    expression = "attr(main_class, '^com\\.legend\\.edge\\.', deps(set(" +
+                 " ".join(_SHIPPED_ARTIFACTS + ["//core:planted_edge_rooted_artifact"]) + ")))",
+    opts = ["--noimplicit_deps"],
+    scope = _SHIPPED_ARTIFACTS + ["//core:planted_edge_rooted_artifact"],
+)
+
 java_jars(
     name = "authored_door_jars",
     testonly = True,
@@ -2745,7 +2862,11 @@ java_jars(
         # the embedded hosts' engine routes and the module's entry class, the edge's since the census's A1 (2026-11-17)
         "//wasm:edge_boundary",
         "//wasm:edge_tab",
+        # the JVM's main (a separation root) and the zone probe's (the timezone differential's JVM half): hosts' doors
+        # the rules read (the GUARD stream's C.5, 2026-11-17)
+        "//wasm:jvm_main",
         "//wasm:tab",
+        "//wasm:zone_main",
     ],
 )
 
@@ -2780,7 +2901,10 @@ java_jars(
 file_list(
     name = "guardrails_sources",
     testonly = True,
-    srcs = _CORE_READS,
+    # + the Python host's sources (2026-11-18, the GUARD stream's re-cut on train 15 1931d419b1): the edge audit's host
+    # item H5 (EdgeAuditOpenTest, a guardrail) stands at python/legend_lite/engine.py, and an item's file must be a
+    # declared source; the guards that scan python/ are census-tagged and read :census_sources, which already holds it
+    srcs = _CORE_READS + ["//python:census_src"],
 )
 
 file_list(
@@ -2804,15 +2928,25 @@ junit_test(
     visibility = ["//gates:__pkg__"],
 )
 
-# the edge's census classes (2026-11-17, the orchestrator's priority: PlannerSurfaceTest ran in no target after the edge
-# split -- tagged census, it compiled into the edge's test library, which //core:census does not carry): every edge test
-# class tagged census, over the edge's test library; TaggedClassesHaveATargetTest holds every tagged class to a target
+# THE EDGE'S CENSUS (the orchestrator's priority, 2026-11-17 20:55): the census-tagged classes of the edge's test
+# library (core/edge_tests.bzl) -- PlannerSurfaceTest -- which :census, carrying the product's test library alone,
+# cannot run and :core_edge_tests leaves out by tag. Every edge class selected by name and the census tag filtering
+# them, so a census class added to the edge's library runs here; TaggedClassesHaveATargetTest holds that every census
+# and guardrail class has its target. Tagged edge_test (the product's closure proof reads the tag).
 junit_test(
     name = "census_edge",
     memory_mb = 1024,
     size = "medium",
-    data = [":census_sources"],
-    jvm_flags = ["-Dlegend.sources=$(rlocationpath :census_sources)"],
+    # the authored doors' jars (2026-11-17, the review of 5911e970e1): PlannerSurfaceTest holds its reading of the edge
+    # boundary's source to the boundary's bytecode, javac's own reading
+    data = [
+        ":authored_door_jars",
+        ":census_sources",
+    ],
+    jvm_flags = [
+        "-Dlegend.sources=$(rlocationpath :census_sources)",
+        "-Dlegend.authored.jars=$(rlocationpath :authored_door_jars)",
+    ],
     select = edge_test_classes() + ["--include-tag=census"],
     tags = ["edge_test"],
     runtime_deps = [

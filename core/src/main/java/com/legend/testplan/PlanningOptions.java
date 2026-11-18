@@ -10,7 +10,6 @@ package com.legend.testplan;
  * are judged by. The door makes it from its own options ({@code ExecuteOptions.planning}); the run's options -- the
  * system connections -- are never planning's.
  *
- * @param judgingRules lite's own, or the compatibility rules (an edge implies them)
  * @param spelling     the dialects the program's statements are written in (D1.0's spelling hook)
  * @param options      lite's own planning options for every query of the body ({@link com.legend.platform.PlanOption}:
  *                     the tests turn on {@code DETERMINISTIC_AS_OF})
@@ -22,7 +21,6 @@ public record PlanningOptions(
         com.legend.executionplan.DataStores stores,
         java.util.Set<com.legend.platform.Feature> features,
         JudgeMode judgeMode,
-        com.legend.testexecutionplan.TestPlan.JudgingRules judgingRules,
         java.util.Set<com.legend.platform.PlanOption> options,
         com.legend.database.PlanStyle style) {
 
@@ -34,13 +32,6 @@ public record PlanningOptions(
         // an enum set: its order the declaration's (NoSaltedIterationOrderTest)
         options = options.isEmpty() ? java.util.Set.of()
                 : java.util.Collections.unmodifiableSet(java.util.EnumSet.copyOf(options));
-        if (!judgingRules.equals(edge.rules())) {
-            // the user's ruling of 2026-11-08 (docs/PLAN_AS_DATA_2026_11_07.md 3a.3): the edge, with the referee's
-            // ledger, is the compatibility rules'; and a compatibility-judged run carries it (census C1, the
-            // orchestrator's ruling of 2026-11-17: its rules are the edge hook's, never a flag beside NoEdge)
-            throw new IllegalArgumentException("a run judges by the rules its edge hook names (" + edge.rules()
-                    + "), not " + judgingRules + ": the compatibility rules' runs carry the compatibility edge");
-        }
     }
 
     /** The assert judge of a RUN (docs/JUDGING_TWO_MODES): HOST -- the verdict of record, judged in Java over each
@@ -52,16 +43,16 @@ public record PlanningOptions(
     public enum JudgeMode { HOST, DATABASE, BOTH }
 
     public PlanningOptions withJudgeMode(JudgeMode mode) {
-        return new PlanningOptions(edge, stores, features, mode, judgingRules, options, style);
+        return new PlanningOptions(edge, stores, features, mode, options, style);
     }
 
     public PlanningOptions withFeatures(java.util.Set<com.legend.platform.Feature> f) {
-        return new PlanningOptions(edge, stores, f, judgeMode, judgingRules, options, style);
+        return new PlanningOptions(edge, stores, f, judgeMode, options, style);
     }
 
     /** Lite's own planning options for every query of the body ({@link com.legend.platform.PlanOption}). */
     public PlanningOptions withOptions(java.util.Set<com.legend.platform.PlanOption> o) {
-        return new PlanningOptions(edge, stores, features, judgeMode, judgingRules, o, style);
+        return new PlanningOptions(edge, stores, features, judgeMode, o, style);
     }
 
     /** These options with the program's statements written in {@code d}'s dialects (the spelling hook, D1.0: the
@@ -75,6 +66,6 @@ public record PlanningOptions(
     }
 
     public PlanningOptions withStyle(com.legend.database.PlanStyle d) {
-        return new PlanningOptions(edge, stores, features, judgeMode, judgingRules, options, d);
+        return new PlanningOptions(edge, stores, features, judgeMode, options, d);
     }
 }

@@ -21,25 +21,24 @@ import java.util.function.Function;
  * relation's rows by its result writers and refuses each by name AT LOWERING ({@code TextRefusals.relation}, the call site's words). The Lowerer asks the
  * planner's style for this facet only when it meets one of the three calls, carrying the call's own refusal.
  *
- * <p>Its static members are the lowering's helpers the edge's composition reads (each forwards one call; one
- * {@code ArchitectureTest.PLANNER_ENTRIES} row admits them, as {@code testplan.EngineTextPlanning}'s): the product's
- * text of a value, a DateTime's text and a mixed column's kind -- each a product helper the product itself uses (the
+ * <p>Its static members are the lowering's helpers the edge's composition reads (each forwards one call;
+ * {@code ArchitectureTest.PLANNER_ENTRIES} lists each one the edge reaches, by its full signature, as
+ * {@code testplan.EngineTextPlanning}'s: the GUARD stream's C.4, 2026-11-17): the product's text of a value and a
+ * mixed column's kind -- each a product helper the product itself uses (the
  * orchestrator's ruling of 2026-11-17 on facades; the date texts only a relation's text wrote moved to the edge with
  * it, edge.RelationTextLowering).
  */
-public interface RelationTexts {
+@com.legend.base.OpenLine("B17") public interface RelationTexts {
 
     /** {@code toCSV} of a relation ({@code tc}), its rows read by {@code relation}, under the planner's {@code styled}
      *  (each member is handed the style its cells are printed under; the edge audit's J26, 2026-11-17). */
-    SqlExpr toCsv(Styled styled, TypedNativeCall tc, Function<TypedSpec, SqlSelect> relation, String alias,
-            Map<Integer, Type.RelationType> deferredTds);
+    SqlExpr toCsv(Styled styled, TypedNativeCall tc, Function<TypedSpec, SqlSelect> relation, String alias);
 
     /** A TDS's {@code csv} property over a relation ({@code read}). */
     SqlExpr csvProperty(Styled styled, TypedPropertyAccess read, Function<TypedSpec, SqlSelect> relation, String alias);
 
     /** A relation's {@code toString} ({@code tc}): its {@code #TDS} text. */
-    SqlExpr relationToString(Styled styled, TypedNativeCall tc, Function<TypedSpec, SqlSelect> relation, String alias,
-            Map<Integer, Type.RelationType> deferredTds);
+    SqlExpr relationToString(Styled styled, TypedNativeCall tc, Function<TypedSpec, SqlSelect> relation, String alias);
 
     // (refused(what): moved 2026-11-17 to TextRefusals.relation, the call site words its refusal -- the
     // orchestrator's ruling: the hook holds its signatures and its product-helper forwarders alone)

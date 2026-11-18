@@ -174,39 +174,13 @@ public final class TestRunner {
         private final BodyRun run;
         /** The caller's sink holding the walk's contract, once the answer's columns arrive. */
         private @Nullable ResultSink opened;
-        /** {@code node}'s verdict steps' rules recorded by verdict: the plan's rules stand, the run reads them and no
-         *  option of its own (the slice 2 invariant audit's hole 8, 2026-11-08: the run checked them against the
-         *  caller's options). */
-        private void rulesOf(TestPlan.TestStep node) {
-            switch (node) {
-                case TestPlan.Branch b -> {
-                    b.then().forEach(this::rulesOf);
-                    b.otherwise().forEach(this::rulesOf);
-                }
-                case TestPlan.Verdicts v -> {
-                    v.verdicts().forEach(each -> rulesOf.put(each.id(), v.rules()));
-                }
-                default -> {
-                }
-            }
-        }
-
         @Override
         public String raisedMessage(TestPlan.Verdict verdict, RuntimeException error) {
             return run.caughtMessage(error);
         }
 
-        /** The rules {@code verdict}'s step names. */
-        private com.legend.testexecutionplan.TestPlan.JudgingRules rules(TestPlan.Verdict verdict) {
-            return java.util.Objects.requireNonNull(rulesOf.get(verdict.id()),
-                    () -> "a verdict no step of the plan holds: " + verdict.name());
-        }
-
         /** The last assert's verdict, once judged: a body ending on an assert answers it. */
         private @Nullable TypedSide lastVerdict;
-        /** The rules each verdict is judged by, read off the plan's verdict steps (the explicit rule, 2026-11-04): the
-         *  plan is the one carrier; the host judge is handed them at the verdict's step. */
-        private final java.util.Map<Integer, com.legend.testexecutionplan.TestPlan.JudgingRules> rulesOf = new java.util.HashMap<>();
 
         Moved(TestPlan planned, com.legend.testexecutionplan.Edge edge,
                 @Nullable Output answer, @Nullable ResultSink early, @Nullable AssertListener listener,
@@ -231,7 +205,6 @@ public final class TestRunner {
                     ? new com.legend.testexec.RootLoops.Runs(planned.steps()) : null;
             // a database row's appeal heard by its number, the plan's data (step 8b): the texts its row compared recorded
             this.rowAppeals = n -> row -> run.hearing().rowAppealed(n, row, run.judgingMessaged());
-            planned.steps().forEach(this::rulesOf);
             java.util.Map<Integer, com.legend.exec.StatementOrigin> textOrigins = new java.util.HashMap<>();
             List<TestPlan.TestStep> steps = planned.steps();
             for (int i = 0; i < steps.size(); i++) {
@@ -294,7 +267,7 @@ public final class TestRunner {
                 // the runner hands no sides for an empty base, and until 2026-11-04 such a step was never judged (a
                 // body ending on it failed on its missing verdict, any other passed it silently)
                 if (verdict.base().isEmpty()) {
-                    judged(hostStep, List::of, null, rules(verdict));
+                    judged(hostStep, List::of, null);
                 }
                 return;
             }
@@ -326,7 +299,7 @@ public final class TestRunner {
             TestPlan.Host p = hostOf(verdict);
             java.util.function.Supplier<PlanRunner.Rows> read = messageOf(verdict);
             judged(p, () -> com.legend.testexec.HostSideShapes.shapedBase(p.assertion().name(), p.shapes(), rows),
-                    read == null ? null : com.legend.testexec.HostSideShapes.message(p.shapes(), read), rules(verdict));
+                    read == null ? null : com.legend.testexec.HostSideShapes.message(p.shapes(), read));
         }
 
         /** The program's reader, while it runs (PlanRunner.ProgramSink#reader). */
@@ -362,7 +335,7 @@ public final class TestRunner {
         public void sidesFailed(TestPlan.Verdict verdict, RuntimeException failure) {
             judged(hostOf(verdict), () -> {
                 throw failure;
-            }, null, rules(verdict));
+            }, null);
         }
 
         /** The host's facts {@code verdict} carries in the plan (step 4, 2026-11-08): the host judge's assert, or,
@@ -379,10 +352,9 @@ public final class TestRunner {
         }
 
         private void judged(TestPlan.Host p, java.util.function.Supplier<List<TypedSide>> sides,
-                java.util.function.@Nullable Supplier<TypedSide> message,
-                com.legend.testexecutionplan.TestPlan.JudgingRules rules) {
+                java.util.function.@Nullable Supplier<TypedSide> message) {
             com.legend.testexecutionplan.Assertion a = p.assertion();
-            TypedSide v = com.legend.testexec.AssertRuns.judgedAtItsStep(p, listener, sides, rules, message, run);
+            TypedSide v = com.legend.testexec.AssertRuns.judgedAtItsStep(p, listener, sides, message, run);
             if (v == null) {
                 throw new com.legend.error.NotImplementedException(a.name() + " on the program road: the host"
                         + " judge declined the sides it read (the walk's generic path has no program form)");

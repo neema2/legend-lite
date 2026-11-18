@@ -16,9 +16,11 @@ import java.util.List;
  * ({@code edge.SqlTextVerdicts}), and every read it makes of the test planner, the planner or the lowering goes
  * through here -- the environment's parts, a side planned for either judge, the replay facts, the verdict batch, the
  * plan's appeals. Each method forwards one call; nothing here decides or evaluates.
- * {@code ArchitectureTest.PLANNER_ENTRIES} lists this class once, for the edge's arm alone.
+ * {@code ArchitectureTest.PLANNER_ENTRIES} lists each member the edge's arm reaches, by its full signature and for its
+ * callers alone (one "#*" row until 2026-11-17, the GUARD stream's C.4); {@code OpenClassMembersTest} pins the whole
+ * member set.
  */
-public final class EngineTextPlanning {
+@com.legend.base.OpenLine("C4") public final class EngineTextPlanning {
 
     private EngineTextPlanning() {
     }
@@ -49,8 +51,8 @@ public final class EngineTextPlanning {
         return env.verdictBatch();
     }
 
-    public static com.legend.testexecutionplan.TestPlan.JudgingRules judgingRules(BodyDriver.ExecEnv env) {
-        return env.options().judgingRules();
+    public static com.legend.database.PlanStyle style(BodyDriver.ExecEnv env) {
+        return env.options().style();
     }
 
     public static java.util.Map<String, String> tableReplace(BodyDriver.ExecEnv env) {
@@ -101,11 +103,6 @@ public final class EngineTextPlanning {
         batch.defer(name, wantEqual, query, on, appeal, decline);
     }
 
-    public static void defer(VerdictBatch batch, String name, boolean wantEqual, com.legend.sql.SqlQuery query,
-            com.legend.executionplan.ExecutionPlan.Target on) {
-        batch.defer(name, wantEqual, query, on);
-    }
-
     // ---- an assert's ask and check --------------------------------------------------------------------------------
 
     public static TypedSpec bare(TextAsk ask) {
@@ -126,11 +123,6 @@ public final class EngineTextPlanning {
 
     public static AssertVerdicts.@com.legend.base.Nullable SpliceHook hook(TextAsk ask) {
         return ask.hook;
-    }
-
-    /** The arm's refusal of a text side that is not a constant of the plan, {@code what} after its label. */
-    public static NotAConstant notAConstantError(String what) {
-        return new NotAConstant(what);
     }
 
     public static com.legend.testexecutionplan.HostJudgment judgment(HostSides.Check check) {
@@ -224,7 +216,7 @@ public final class EngineTextPlanning {
     // ---- the planner's and the lowering's reads ---------------------------------------------------------------------
 
     public static com.legend.sql.SqlQuery textEquals(String golden, String ours) {
-        return com.legend.lowering.VerdictSql.textEquals(golden, ours);
+        return com.legend.lowering.VerdictSql.constantTextsEqual(golden, ours);
     }
 
     public static com.legend.sql.SqlQuery textEquals(String golden, com.legend.sql.SqlQuery oursRow) {

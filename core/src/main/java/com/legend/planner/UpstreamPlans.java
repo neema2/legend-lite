@@ -20,7 +20,7 @@ import java.util.List;
  * plan-text natives' routine table that asks it is the planner's, {@link PlanTextRoutines}, holding no text and no logic
  * of upstream's (the dispatch and the unformatted form's strip are the edge's).
  */
-public interface UpstreamPlans {
+@com.legend.base.OpenLine("B2") public interface UpstreamPlans {
 
     /** A plan-text native's text ({@code planToString} and its unformatted form, {@code toSQLString} and its forms):
      *  legend-engine's, for the planner's routine table ({@link PlanTextRoutines}). */
@@ -38,9 +38,8 @@ public interface UpstreamPlans {
             @com.legend.base.Nullable String timeZone, @com.legend.base.Nullable String mappingFqn,
             List<String> enumParameterFqns, SpecCompiler specs, PlanEnv env);
 
-    /** An execute's activity SQL in legend-engine's text, {@code recorded} its runtime's post-processors applied. */
-    String activitySql(List<TypedSpec> chain, @com.legend.base.Nullable String mappingFqn, SpecCompiler specs,
-            PlanEnv env, boolean recorded);
+    // (activitySql: gone 2026-11-18, J40.PlanStyle -- an execute's activity SQL is the two-form ActivityTexts, the edge's
+    // form legend-engine's text, EnginePlans.activitySql)
 
     /** legend-engine's setup SQL for a seed's CSV on its test database ({@code setUpDataSqls}): the DDL and the
      *  inserts as its text prints them (Phase 6's A, 2026-11-17: moved off PlanStyle, which names no engine text). */

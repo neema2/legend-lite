@@ -155,7 +155,10 @@ public final class PureV1Routes {
      * is refused by name, never printed approximately.
      */
     public static Answer jsonToGrammarModel(String body, @com.legend.base.Nullable String renderStyle) {
-        Answer a = answer(500, null, () -> ModelComposer.model(body, style(renderStyle)));
+        // the model's JSON read at the protocol's depth limit, then printed (legend-engine's jsonToGrammar/model; the
+        // text-input overload left the product, the edge audit's J40 delete, 2026-11-18)
+        Answer a = answer(500, null, () -> ModelComposer.model(com.legend.protocol.ModelReader.read(
+                com.legend.json.Json.parse(body, new com.legend.json.Json.Config(4096))), style(renderStyle)));
         return a.status() == 200 ? new Answer(200, a.json(), "text/plain") : a;
     }
 

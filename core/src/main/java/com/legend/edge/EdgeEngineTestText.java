@@ -126,11 +126,16 @@ final class EdgeEngineTestText implements EngineTestText {
      *  every golden compare; engine toSQLString.pure:35; J40, as {@link #TO_SQL_STRING}). */
     public static final String TO_SQL_STRING_PRETTY = "meta::relational::functions::sqlstring::toSQLStringPretty";
 
+    /** toNonExecutableSQLString(f, mapping, dbType, ext): toSQLString with the engine's nonExecutable post-processor
+     *  installed (toSQLString.pure:83-86), by the catalog's row (J40, 2026-11-18: moved from PlatformTypes). */
+    public static final String TO_NON_EXECUTABLE_SQL_STRING =
+            com.legend.builtin.NativeFn.JavaRoutine.TO_NON_EXECUTABLE_SQL_STRING.fqn();
+
     /** The producers of upstream's text an engine-text assert reads. */
     private static final java.util.Set<String> UPSTREAM_TEXT_PRODUCERS = java.util.Set.of(
             TO_SQL_STRING,
             TO_SQL_STRING_PRETTY,
-            com.legend.compiler.element.type.PlatformTypes.TO_NON_EXECUTABLE_SQL_STRING,
+            TO_NON_EXECUTABLE_SQL_STRING,
             com.legend.compiler.element.type.PlatformTypes.EXECUTION_PLAN,
             com.legend.compiler.spec.ResultEnvelopeSplice.SQL_FQN,
             com.legend.compiler.spec.ResultEnvelopeSplice.SQL_REMOVE_FORMATTING_FQN);
@@ -151,7 +156,7 @@ final class EdgeEngineTestText implements EngineTestText {
         }
         String what = String.valueOf(((com.legend.testexecutionplan.HostJudgment.Raise)
                 com.legend.testexecutionplan.HostJudgment.core(EngineTextPlanning.judgment(check))).failure().message());
-        return what.startsWith(com.legend.testplan.NotAConstant.LABEL) ? what.substring(com.legend.testplan.NotAConstant.LABEL.length()) : what;
+        return what.startsWith(NotAConstant.LABEL) ? what.substring(NotAConstant.LABEL.length()) : what;
     }
 
     /** The database judge's gate for the comparison {@code judgment}, from how the plan holds its two texts, the
