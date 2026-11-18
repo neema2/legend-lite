@@ -34,7 +34,7 @@ final class AssertErrorRuns {
                             + " inside assertError: the host judge declined the sides it read");
                 }
             } catch (com.legend.error.AssertFailed | com.legend.error.DataError | com.legend.error.ModelException e) {
-                message = run.caughtMessage(e, rules);
+                message = run.caughtMessage(e);
             }
             return judged(a.expected(), a.line(), a.column(), message, null, run);
         }
@@ -51,7 +51,7 @@ final class AssertErrorRuns {
             // the errors the arm takes (caught's): any other is a wall and stays loud, raised as it was
             raised = e;
         }
-        return judged(a.expected(), a.line(), a.column(), raised == null ? null : run.caughtMessage(raised, rules),
+        return judged(a.expected(), a.line(), a.column(), raised == null ? null : run.caughtMessage(raised),
                 raised instanceof com.legend.error.DataError ? raised.getCause() : null, run);
     }
 

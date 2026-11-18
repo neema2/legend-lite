@@ -55,6 +55,19 @@ public final class CompatEdge implements Edge {
         return List.of(new RefereeLoad(steps, content));
     }
 
+    /** legend-pure's words of a statement's raise sites, planned as recorded (K10, 2026-11-17): the edge's own records
+     *  ({@link SiteWords}), anything else refused by name. */
+    @Override
+    public List<Extension> siteWords(List<Extension> words) {
+        for (Extension e : words) {
+            if (!(e instanceof SiteWords)) {
+                throw new IllegalArgumentException("a raise site's words planned for the compatibility edge are its own"
+                        + " records (SiteWords), not " + e.getClass().getName());
+            }
+        }
+        return List.copyOf(words);
+    }
+
     @Override
     public void seeded(List<Extension> planned, List<Boolean> answeredRows) {
         RefereeLoad copy = seedOf(planned);

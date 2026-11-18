@@ -147,12 +147,12 @@ public final class TestDoor {
                 com.legend.setup.LoadSteps referee = copy.get();
                 byStep.put(i, edge.seed(referee.steps(), referee.content()));
             });
+            // legend-pure's words of the raise sites this planning call's style recorded (K10 of the edge audit, the
+            // orchestrator's ruling (A) of 2026-11-17), read ONCE, after the planning above, planned by the edge and
+            // held at the step that sends their statement; a run whose hook records nothing judges by lite's rules,
+            // whose words are its own, and plans none
+            siteWordsByStep(steps, EngineTextGates.siteWords(style), byStep, edge);
         }
-        // legend-pure's words of the raise sites this planning call's style recorded (K10b of the edge audit, the
-        // orchestrator's ruling (A) of 2026-11-17), read ONCE, after the planning above, and each record held at the step
-        // that sends its statement -- the hearing's data, whatever edge hook the run is handed; the product's style
-        // records none
-        siteWordsByStep(steps, EngineTextGates.siteWords(style), byStep);
         // whether the body's last statement is an assert, whose verdict is then the body's answer: a fact of the plan
         // (the slice 2 invariant audit's hole 3, 2026-11-08)
         boolean answersLastVerdict = asserts.at(body.body().size() - 1) != null;
@@ -171,7 +171,8 @@ public final class TestDoor {
      *  records are not the plan's. */
     private static void siteWordsByStep(List<TestPlan.TestStep> steps,
             Map<String, List<com.legend.testexecutionplan.Extension>> words,
-            Map<Integer, List<com.legend.testexecutionplan.Extension>> byStep) {
+            Map<Integer, List<com.legend.testexecutionplan.Extension>> byStep,
+            com.legend.testexecutionplan.Edge edge) {
         if (words.isEmpty()) {
             return;
         }
@@ -191,7 +192,7 @@ public final class TestDoor {
                 if (records != null && filed.add(text)) {
                     List<com.legend.testexecutionplan.Extension> at = new java.util.ArrayList<>(
                             byStep.getOrDefault(i, List.of()));
-                    at.addAll(records);
+                    at.addAll(edge.siteWords(records));
                     byStep.put(i, at);
                 }
             }
