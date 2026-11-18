@@ -7,6 +7,7 @@ import com.legend.testing.SourceFiles;
 import com.tngtech.archunit.core.domain.JavaAccess;
 import com.tngtech.archunit.core.domain.JavaClass;
 import com.tngtech.archunit.core.domain.JavaClasses;
+import com.tngtech.archunit.core.domain.JavaCodeUnit;
 import com.tngtech.archunit.core.domain.JavaConstructor;
 import com.tngtech.archunit.core.domain.JavaField;
 import com.tngtech.archunit.core.domain.JavaFieldAccess;
@@ -83,7 +84,7 @@ class EdgeOnlyMembersTest {
     @Test
     void theGuardBites() {
         JavaClasses classes = new ClassFileImporter().importClasses(PlantedEdgeOnlyApi.class,
-                PlantedEdgeOnlyApi.Hooked.class, com.legend.edge.PlantedEdgeOnlyCaller.class);
+                PlantedEdgeOnlyApi.Hooked.class, PlantedEdgeOnlyApi.Kind.class, com.legend.edge.PlantedEdgeOnlyCaller.class);
         String api = PlantedEdgeOnlyApi.class.getName();
         Map<String, String> sources = Map.of(
                 "core/src/test/java/com/legend/edge/PlantedEdgeOnlyCaller.java",
@@ -91,15 +92,117 @@ class EdgeOnlyMembersTest {
                 "core/src/test/java/com/legend/PlantedEdgeOnlyApi.java",
                 "public final class PlantedEdgeOnlyApi { public static final String EDGE_CONSTANT = \"e\";"
                         + " public static final String SHARED_CONSTANT = \"s\"; String own() { return SHARED_CONSTANT; } }");
-        assertEquals(Set.of(api + "#edgeOnly()", api + "#<init>(java.lang.String)", api + "#edgeField",
-                        api + "#EDGE_CONSTANT"),
+        assertEquals(Set.of(api + "#edgeOnly()", api + "#viaEdgeOnly()", api + "#viaLambda()", api + "#countdown(int)",
+                        api + "#viaDead()", api + "#<init>(java.lang.String)", api + "#edgeField", api + "#EDGE_CONSTANT"),
                 found(classes, Set.of(PlantedEdgeOnlyApi.Hook.class.getName()), sources),
-                "the edge-only static, constructor, field and source-read constant are found; the shared method, the"
-                        + " override, the unused member, the shared constant and the hook's member are not");
+                "the edge-only static, constructor, field and source-read constant are found, and the members reached"
+                        + " only through an edge-only member or its lambda, or by themselves or dead non-public code besides; the shared"
+                        + " method, the"
+                        + " override, the unused member, the cycle no edge use enters, the enum's values(), a member a main or a public method also uses, the shared"
+                        + " constant and the hook's member are not");
     }
 
-    /** Each public member of a product class in {@code classes} that the edge alone uses (see the class comment). */
+    /** Each public member of a product class in {@code classes} that the edge alone uses, TRANSITIVELY (the
+     *  orchestrator's ruling of 2026-11-18, (4): a use from a member that is itself edge-only is the edge's -- VerdictQueries'
+     *  fromWrapped, reached only through text(), which only the edge calls). Computed over every code unit and field of
+     *  the product classes, private helpers and lambda bodies included, as a greatest fixpoint: start from every unit with
+     *  a use, drop each one a product use reaches (an origin neither the edge nor a unit still held, a use of a unit by
+     *  itself aside, and a use from a non-public method nothing uses -- dead code's, or a test's -- aside), until none
+     *  drops; then keep the units an edge use reaches through held units (a cycle no edge use
+     *  enters is no edge's). Reported: the public members of public classes, hooks, overrides, synthetic members and an
+     *  enum's compiler-written values() aside (the ruling's (3)). A lambda body's use is its enclosing method's (javac's
+     *  lambda$name$n: every method of that name in the class); an anonymous class's methods are reached by dispatch and
+     *  are never held, so their uses are the product's (counting less). Named limits: a non-public method reached by
+     *  reflection alone reads as dead, so its uses read as nobody's (counting more); a PUBLIC method nothing in the jars
+     *  uses reads as an entry point, so its uses are the product's even when it is dead (counting less: fromWrapped's
+     *  two-argument overload, which nothing calls, keeps the three-argument one from being counted until it goes). */
     static Set<String> found(JavaClasses classes, Set<String> hooks, Map<String, String> sources) {
+        Map<String, List<JavaAccess<?>>> uses = new TreeMap<>();
+        Map<String, List<String>> byName = new TreeMap<>();
+        for (JavaClass c : classes) {
+            if (!c.getName().startsWith("com.legend.") || c.getName().startsWith(EDGE)) {
+                continue;
+            }
+            for (JavaCodeUnit u : c.getCodeUnits()) {
+                byName.computeIfAbsent(c.getName() + "#" + u.getName(), k -> new ArrayList<>())
+                        .add(ServiceLoaderSitesTest.key(c, u));
+                List<JavaAccess<?>> us = new ArrayList<>();
+                if (u instanceof JavaMethod m) {
+                    if (overrides(c, m) || hooks.stream().anyMatch(h -> c.isAssignableTo(h))) {
+                        continue;
+                    }
+                    us.addAll(m.getCallsOfSelf());
+                    us.addAll(m.getReferencesToSelf());
+                } else if (u instanceof JavaConstructor k) {
+                    if (hooks.stream().anyMatch(h -> c.isAssignableTo(h))) {
+                        continue;
+                    }
+                    us.addAll(k.getCallsOfSelf());
+                    us.addAll(k.getReferencesToSelf());
+                }
+                if (!us.isEmpty()) {
+                    uses.put(ServiceLoaderSitesTest.key(c, u), us);
+                }
+            }
+            for (JavaField f : c.getFields()) {
+                // a field's READS (a write is its maker's: a field the product writes and the edge alone reads is
+                // carried for the edge)
+                List<JavaAccess<?>> us = new ArrayList<>();
+                f.getAccessesToSelf().stream().filter(x -> x.getAccessType() == JavaFieldAccess.AccessType.GET)
+                        .forEach(us::add);
+                if (!us.isEmpty() && !hooks.stream().anyMatch(h -> c.isAssignableTo(h))) {
+                    uses.put(c.getName() + "#" + f.getName(), us);
+                }
+            }
+        }
+        // a plain non-public method nothing in the jars uses: dead, or a test's, so its uses are nobody's. A PUBLIC one is
+        // an entry point -- a door a test, a host or a framework calls (measured 2026-11-18: read as dead, they added 240
+        // members) -- and so are a constructor, a static initializer, a main, an annotated method (an export a native or
+        // JavaScript host calls), an override and a hook's member
+        Set<String> quiet = new TreeSet<>();
+        for (JavaClass c : classes) {
+            if (!c.getName().startsWith("com.legend.") || c.getName().startsWith(EDGE)
+                    || hooks.stream().anyMatch(h -> c.isAssignableTo(h))) {
+                continue;
+            }
+            for (JavaMethod m : c.getMethods()) {
+                String key = ServiceLoaderSitesTest.key(c, m);
+                if (!uses.containsKey(key) && !m.getModifiers().contains(JavaModifier.PUBLIC) && !overrides(c, m)
+                        && m.getAnnotations().isEmpty()
+                        && !m.getModifiers().contains(JavaModifier.SYNTHETIC) && !m.getName().startsWith("lambda$")
+                        && !(m.getName().equals("main") && m.getRawParameterTypes().size() == 1)) {
+                    quiet.add(key);
+                }
+            }
+        }
+        // the greatest fixpoint: a held unit's every use is the edge's, its own, a held unit's or a quiet one's
+        Set<String> held = new TreeSet<>(uses.keySet());
+        boolean dropped = true;
+        while (dropped) {
+            dropped = false;
+            for (String key : new ArrayList<>(held)) {
+                for (JavaAccess<?> use : uses.get(key)) {
+                    if (!edgeOrHeld(use, key, held, quiet, byName)) {
+                        held.remove(key);
+                        dropped = true;
+                        break;
+                    }
+                }
+            }
+        }
+        // ... entered by an edge use: a cycle of product units no edge use reaches is nobody's
+        Set<String> reached = new TreeSet<>();
+        boolean grew = true;
+        while (grew) {
+            grew = false;
+            for (String key : held) {
+                if (!reached.contains(key) && uses.get(key).stream().anyMatch(use -> top(use.getOriginOwner().getName())
+                        .startsWith(EDGE) || origins(use, byName).stream().anyMatch(reached::contains))) {
+                    reached.add(key);
+                    grew = true;
+                }
+            }
+        }
         Set<String> out = new TreeSet<>();
         for (JavaClass c : classes) {
             if (!c.getName().startsWith("com.legend.") || c.getName().startsWith(EDGE) || !reachable(c)
@@ -107,42 +210,60 @@ class EdgeOnlyMembersTest {
                 continue;
             }
             for (JavaMethod m : c.getMethods()) {
-                if (open(m.getModifiers()) && !overrides(c, m)) {
-                    List<JavaAccess<?>> uses = new ArrayList<>(m.getCallsOfSelf());
-                    uses.addAll(m.getReferencesToSelf());
-                    if (edgeAlone(uses)) {
-                        out.add(ServiceLoaderSitesTest.key(c, m));
-                    }
+                boolean values = c.isEnum() && m.getName().equals("values") && m.getRawParameterTypes().isEmpty();
+                if (open(m.getModifiers()) && !values && reached.contains(ServiceLoaderSitesTest.key(c, m))) {
+                    out.add(ServiceLoaderSitesTest.key(c, m));
                 }
             }
             for (JavaConstructor k : c.getConstructors()) {
-                if (open(k.getModifiers())) {
-                    List<JavaAccess<?>> uses = new ArrayList<>(k.getCallsOfSelf());
-                    uses.addAll(k.getReferencesToSelf());
-                    if (edgeAlone(uses)) {
-                        out.add(ServiceLoaderSitesTest.key(c, k));
-                    }
+                if (open(k.getModifiers()) && reached.contains(ServiceLoaderSitesTest.key(c, k))) {
+                    out.add(ServiceLoaderSitesTest.key(c, k));
                 }
             }
             for (JavaField f : c.getFields()) {
                 if (!open(f.getModifiers())) {
                     continue;
                 }
-                // a field's READS (a write is its maker's: a field the product writes and the edge alone reads is
-                // carried for the edge)
-                List<JavaAccess<?>> uses = new ArrayList<>();
-                f.getAccessesToSelf().stream().filter(a -> a.getAccessType() == JavaFieldAccess.AccessType.GET)
-                        .forEach(uses::add);
-                if (uses.isEmpty() && constant(f)) {
+                String key = c.getName() + "#" + f.getName();
+                if (!uses.containsKey(key) && constant(f)) {
+                    // a compile-time constant is inlined where it is read: read from the sources (not transitive)
                     if (edgeAloneInSource(c, f.getName(), sources)) {
-                        out.add(c.getName() + "#" + f.getName());
+                        out.add(key);
                     }
-                } else if (edgeAlone(uses)) {
-                    out.add(c.getName() + "#" + f.getName());
+                } else if (reached.contains(key)) {
+                    out.add(key);
                 }
             }
         }
         return out;
+    }
+
+    /** Whether {@code use} of the unit {@code key} comes from the edge, from the unit itself, or from units all held or
+     *  quiet (nothing uses them). */
+    private static boolean edgeOrHeld(JavaAccess<?> use, String key, Set<String> held, Set<String> quiet,
+            Map<String, List<String>> byName) {
+        if (top(use.getOriginOwner().getName()).startsWith(EDGE)) {
+            return true;
+        }
+        List<String> from = origins(use, byName);
+        return !from.isEmpty() && from.stream().allMatch(o -> o.equals(key) || held.contains(o) || quiet.contains(o));
+    }
+
+    /** The units a use comes from: its origin, or -- for a lambda body ({@code lambda$name$n}) -- every unit of that name
+     *  in the origin's class ({@code new} a constructor, {@code static} the class's initializer). */
+    private static List<String> origins(JavaAccess<?> use, Map<String, List<String>> byName) {
+        String owner = use.getOriginOwner().getName();
+        String name = use.getOrigin().getName();
+        java.util.regex.Matcher lambda = Pattern.compile("lambda\\$(.+)\\$\\d+").matcher(name);
+        if (lambda.matches()) {
+            String enclosing = switch (lambda.group(1)) {
+                case "new" -> "<init>";
+                case "static" -> "<clinit>";
+                default -> lambda.group(1);
+            };
+            return byName.getOrDefault(owner + "#" + enclosing, List.of());
+        }
+        return List.of(ServiceLoaderSitesTest.key(use.getOriginOwner(), use.getOrigin()));
     }
 
     /** Whether {@code c} and every class enclosing it are public: the edge, another package, can reach its members. */
@@ -182,21 +303,6 @@ class EdgeOnlyMembersTest {
     }
 
     private static final Set<String> OBJECT_METHODS = Set.of("toString[]", "hashCode[]", "equals[java.lang.Object]");
-
-    /** Whether the uses are the edge's alone: at least one, and none from the product (the member's own class
-     *  included). */
-    private static boolean edgeAlone(List<JavaAccess<?>> uses) {
-        boolean edge = false;
-        for (JavaAccess<?> use : uses) {
-            String from = top(use.getOriginOwner().getName());
-            if (from.startsWith(EDGE)) {
-                edge = true;
-            } else {
-                return false;
-            }
-        }
-        return edge;
-    }
 
     /** Whether {@code f} may be a compile-time constant: static final, a primitive or a String. */
     private static boolean constant(JavaField f) {
