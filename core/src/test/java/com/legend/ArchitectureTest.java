@@ -1534,9 +1534,8 @@ final class ArchitectureTest {
             // Lowerer's own withExistsJoinable)
             "lowering.Lowerer#withFeatures(java.util.Set)", "com.legend.edge.EnginePlans",
             "lowering.Lowerer#withOptions(java.util.Set)", "com.legend.edge.EnginePlans",
-            // its caller edge.EnginePlans -> edge.EngineParams (2026-11-18, the audit's J31: legend-engine's template
-            // parameters are the edge's own table, which kinds each slot; one entry, moved)
-            "lowering.PlanParams#kindOf(com.legend.compiler.element.type.Type)", "com.legend.edge.EngineParams",
+            // (lowering.PlanParams#kindOf: GONE 2026-11-18, L-B.PlanParam -- legend-engine's template kind is the edge's
+            // own, edge.EngineParams.kindOf; the product's PlanParam carries an enumeration flag alone)
             "lowering.SqlPostProcessors#apply(com.legend.sql.SqlQuery, java.util.Map)", "com.legend.edge.EnginePlans",
             "lowering.SqlPostProcessors#apply(com.legend.sql.SqlQuery, java.util.function.UnaryOperator)",
             "com.legend.edge.EnginePlans",

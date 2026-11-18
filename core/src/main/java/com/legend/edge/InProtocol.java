@@ -119,8 +119,8 @@ public final class InProtocol {
                 sites.add(s);
                 return new SqlExpr.Call(SqlFn.IN, List.of(c.args().get(0),
                         overThreshold
-                                ? EngineParams.template(s.tempTable(), SqlExpr.PlanParam.Kind.OTHER, false)
-                                : EngineParams.template(s.wrapper(), SqlExpr.PlanParam.Kind.OTHER, false)));
+                                ? EngineParams.template(s.tempTable(), EngineParams.Kind.OTHER, false)
+                                : EngineParams.template(s.wrapper(), EngineParams.Kind.OTHER, false)));
             }
         };
         SqlQuery rewritten = rw.rewrite(plan);

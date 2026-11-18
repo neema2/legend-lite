@@ -945,12 +945,12 @@ public class EngineStyleH2 extends AnsiSqlRenderer implements EngineTextDialect 
 
     private String holder(SqlExpr.PlanParam p) {
         String inner = p.name() + "![]";
-        if (p.kind() == SqlExpr.PlanParam.Kind.DATETIME
+        if (params.kind(p.name()) == EngineParams.Kind.DATETIME
                 && timeZone != null) {
             inner = "GMTtoTZ( \"[" + timeZone + "]\" " + inner + ")";
         }
         return "${varPlaceHolderToString(" + inner + " "
-                + holderArgs(p.kind()) + " \"null\")}";
+                + holderArgs(params.kind(p.name())) + " \"null\")}";
     }
 
     /** An OPTIONAL plan parameter in an equality — NULL-SAFE on the
@@ -1013,10 +1013,10 @@ public class EngineStyleH2 extends AnsiSqlRenderer implements EngineTextDialect 
         // the engine's renderCollection spells each replacement pair with a
         // TRAILING space ({"'" : "''" }); varPlaceHolderToString does not
         return "${renderCollection(" + cp.name() + "![] \",\" "
-                + holderArgs(cp.kind()).replace("\"}", "\" }") + " \"null\")}";
+                + holderArgs(params.kind(cp.name())).replace("\"}", "\" }") + " \"null\")}";
     }
 
-    protected String holderArgs(SqlExpr.PlanParam.Kind k) {
+    protected String holderArgs(EngineParams.Kind k) {
         return switch (k) {
             case STRING -> "\"'\" \"'\" {\"'\" : \"''\"}";
             // DATE and DATETIME both carry the TIMESTAMP keyword on the
@@ -1505,13 +1505,13 @@ public class EngineStyleH2 extends AnsiSqlRenderer implements EngineTextDialect 
             if (p.optional()) {
                 return writer.append(holder(p));
             }
-            return switch (p.kind()) {
+            return switch (params.kind(p.name())) {
                 case STRING -> writer.append("'${").append(p.name()).append("?replace(\"'\", \"''\")}'");
                 // h2New spells date-typed placeholders with the type
                 // keyword by PURE TYPE: Date and DateTime TIMESTAMP (the
                 // bare-quoted '${bd}' is the LEGACY H2 1.4.200 golden of
                 // the assertEqualsH2Compatible pairs), StrictDate DATE
-                // (SqlExpr.PlanParam.Kind); a non-default connection
+                // (EngineParams.Kind, the edge's table); a non-default connection
                 // timeZone wraps DATETIME in GMTtoTZ like the holder
                 case DATE -> writer.append("TIMESTAMP'${").append(p.name()).append("}'");
                 case STRICT_DATE -> writer.append("DATE'${").append(p.name()).append("}'");
@@ -1675,7 +1675,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer implements EngineTextDialect 
                         // a non-default connection timeZone spells the
                         // TZ-SHIFTING template (renderCollectionWithTz —
                         // tz second, no escape map) over datetime params
-                        if (cp.kind() == SqlExpr.PlanParam.Kind.DATETIME
+                        if (cparams.kind(p.name()) == EngineParams.Kind.DATETIME
                                 && timeZone != null) {
                             // top-of-sql template — quotes UNESCAPED
                             // (only freemarker-nested args escape)

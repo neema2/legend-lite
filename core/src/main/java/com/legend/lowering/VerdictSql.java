@@ -1843,8 +1843,7 @@ public final class VerdictSql {
         }
 
         private static SqlExpr param(String name, SqlType type) {
-            return new SqlExpr.PlanParam(name, type == SqlType.Scalar.VARCHAR ? SqlExpr.PlanParam.Kind.STRING
-                    : SqlExpr.PlanParam.Kind.OTHER, true, com.legend.sql.SqlTyping.typed(type), null);
+            return new SqlExpr.PlanParam(name, false, true, com.legend.sql.SqlTyping.typed(type), null);
         }
     }
 

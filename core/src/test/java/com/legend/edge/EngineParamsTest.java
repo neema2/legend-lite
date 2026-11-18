@@ -28,8 +28,8 @@ class EngineParamsTest {
         params.declare("s", Type.Primitive.STRING, false, "enumMap_m_x");
         params.declare("n", Type.Primitive.INTEGER, true, null);
         assertEquals(List.of(
-                new SqlExpr.PlanParam("s", SqlExpr.PlanParam.Kind.STRING, false, com.legend.sql.SqlTyping.UNKNOWN, null),
-                new SqlExpr.PlanParam("n", SqlExpr.PlanParam.Kind.OTHER, true, com.legend.sql.SqlTyping.UNKNOWN, null)),
+                new SqlExpr.PlanParam("s", false, false, com.legend.sql.SqlTyping.UNKNOWN, null),
+                new SqlExpr.PlanParam("n", false, true, com.legend.sql.SqlTyping.UNKNOWN, null)),
                 List.copyOf(params.slots()));
         assertEquals("enumMap_m_x", params.enumMapFn("s"));
         assertNull(params.enumMapFn("n"));

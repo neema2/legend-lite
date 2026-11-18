@@ -52,7 +52,7 @@ public final class EnumValueTables extends SqlRewriter {
     }
 
     private static boolean enumParam(SqlExpr e) {
-        return e instanceof SqlExpr.PlanParam p && p.kind() == SqlExpr.PlanParam.Kind.ENUM;
+        return e instanceof SqlExpr.PlanParam p && p.enumeration();
     }
 
     /** {@code decoded}'s source column IN the value table of its decode, its names filtered by {@code param} (one

@@ -78,9 +78,9 @@ class SqlWriterTest {
     private static final SqlExpr NAME = SqlExpr.Column.physical("t0", "NAME");
     private static final SqlExpr AGE = SqlExpr.Column.physical("t0", "AGE");
     // a plan's parameters, typed as the planner types them (QueryParameters.Declared.slot): one bound must have a type
-    private static final SqlExpr.PlanParam P_NAME = new SqlExpr.PlanParam("name", SqlExpr.PlanParam.Kind.STRING, false,
+    private static final SqlExpr.PlanParam P_NAME = new SqlExpr.PlanParam("name", false, false,
             com.legend.sql.SqlTyping.typed(com.legend.sql.SqlType.Scalar.VARCHAR), null);
-    private static final SqlExpr.PlanParam P_AGE = new SqlExpr.PlanParam("maxAge", SqlExpr.PlanParam.Kind.OTHER, false,
+    private static final SqlExpr.PlanParam P_AGE = new SqlExpr.PlanParam("maxAge", false, false,
             com.legend.sql.SqlTyping.typed(com.legend.sql.SqlType.Scalar.BIGINT), null);
 
     private static SqlSelect where(SqlExpr predicate) {

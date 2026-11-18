@@ -31,6 +31,7 @@ import java.util.Set;
 public final class EngineParams {
 
     private final LinkedHashMap<String, SqlExpr.PlanParam> slots = new LinkedHashMap<>();
+    private final Map<String, Kind> kinds = new HashMap<>();
     private final Map<String, String> enumMapFns = new HashMap<>();
     private final Set<String> splices = new HashSet<>();
     private final Set<String> tempTables = new HashSet<>();
@@ -64,14 +65,66 @@ public final class EngineParams {
     }
 
     /** A template parameter: a plain plan parameter of {@code name}, its type unknown (a template binds nothing). */
-    static SqlExpr.PlanParam template(String name, SqlExpr.PlanParam.Kind kind, boolean optional) {
-        return new SqlExpr.PlanParam(name, kind, optional, com.legend.sql.SqlTyping.UNKNOWN, null);
+    static SqlExpr.PlanParam template(String name, Kind kind, boolean optional) {
+        return new SqlExpr.PlanParam(name, kind == Kind.ENUM, optional, com.legend.sql.SqlTyping.UNKNOWN, null);
+    }
+
+    /** A template placeholder's kind: how legend-engine's FreeMarker template spells its value (moved from
+     *  sql.SqlExpr.PlanParam.Kind, L-B.PlanParam, the lens audit, 2026-11-18: only the edge's printers read it).
+     *  {@code DATE} is pure Date (the h2New surface spells it with the TIMESTAMP keyword, like DATETIME);
+     *  {@code STRICT_DATE} is pure StrictDate, spelled with the DATE keyword ({@code DATE'${startDate}'}). */
+    public enum Kind { STRING, DATE, STRICT_DATE, DATETIME, FLOAT, BOOLEAN, ENUM, OTHER }
+
+    /** The placeholder kind for a parameter's or a field's type (h2New types its date placeholders; an optional
+     *  parameter picks the per-kind varPlaceHolderToString arguments; an enumeration's value is its NAME, quoted). Moved
+     *  from lowering.Fold.planKindOf (L-B.PlanParam). */
+    static Kind kindOf(Type t) {
+        if (t == Type.Primitive.STRING) {
+            return Kind.STRING;
+        }
+        if (t == Type.Primitive.DATE) {
+            return Kind.DATE;
+        }
+        if (t == Type.Primitive.STRICT_DATE) {
+            return Kind.STRICT_DATE;
+        }
+        if (t == Type.Primitive.DATE_TIME) {
+            return Kind.DATETIME;
+        }
+        if (t == Type.Primitive.FLOAT) {
+            return Kind.FLOAT;
+        }
+        if (t == Type.Primitive.BOOLEAN) {
+            return Kind.BOOLEAN;
+        }
+        if (t instanceof Type.EnumType) {
+            return Kind.ENUM;
+        }
+        return Kind.OTHER;
+    }
+
+    /** The template kind of the parameter {@code name}; refused by name for a parameter this table does not hold. */
+    Kind kind(String name) {
+        Kind k = kinds.get(name);
+        if (k == null) {
+            throw new IllegalStateException("plan parameter '" + name + "' is not one of the plan's template"
+                    + " parameters: legend-engine's text spells only those");
+        }
+        return k;
+    }
+
+    /** {@code name} held as a template parameter of {@code kind}. */
+    private SqlExpr.PlanParam hold(String name, Kind kind, boolean optional) {
+        kinds.put(name, kind);
+        SqlExpr.PlanParam p = template(name, kind, optional);
+        slots.put(name, p);
+        return p;
     }
 
     /** A declared parameter, {@code [0..1]} when {@code optional}; an enumeration's with its mapping function
      *  {@code enumMapFn}. */
     void declare(String name, Type type, boolean optional, @com.legend.base.Nullable String enumMapFn) {
-        slots.put(name, template(name, com.legend.lowering.PlanParams.kindOf(type), optional));
+        hold(name, kindOf(type), optional);
         if (enumMapFn != null) {
             enumMapFns.put(name, enumMapFn);
         }
@@ -79,7 +132,7 @@ public final class EngineParams {
 
     /** A let's variable, of {@code type}. */
     void let(String name, Type type) {
-        slots.put(name, template(name, com.legend.lowering.PlanParams.kindOf(type), false));
+        hold(name, kindOf(type), false);
     }
 
     /** The parameters a lowering binds. */
@@ -117,10 +170,12 @@ public final class EngineParams {
             return;
         }
         slots.clear();
+        kinds.clear();
         enumMapFns.clear();
         splices.clear();
         tempTables.clear();
         slots.putAll(other.slots);
+        kinds.putAll(other.kinds);
         enumMapFns.putAll(other.enumMapFns);
         splices.addAll(other.splices);
         tempTables.addAll(other.tempTables);
@@ -129,6 +184,7 @@ public final class EngineParams {
     private EngineParams copy() {
         EngineParams out = new EngineParams();
         out.slots.putAll(slots);
+        out.kinds.putAll(kinds);
         out.enumMapFns.putAll(enumMapFns);
         out.splices.addAll(splices);
         out.tempTables.addAll(tempTables);
@@ -187,7 +243,7 @@ public final class EngineParams {
         }
         String name = v.name() + "." + String.join(".", path);
         dotted.add(name);
-        out.slots.put(name, template(name, com.legend.lowering.PlanParams.kindOf(p.info().type()), false));
+        out.hold(name, kindOf(p.info().type()), false);
         return new TypedVariable(name, p.info());
     }
 }

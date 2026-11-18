@@ -487,7 +487,7 @@ public final class MirJson {
     private static void planParam(Map<String, Object> o, SqlExpr.PlanParam p) {
         tag(o, ExprTag.planParam, p.type());
         o.put("name", p.name());
-        o.put("kind", p.kind().name());
+        o.put("enumeration", p.enumeration());
         o.put("optional", p.optional());
         o.put("declared", p.declared() == null ? null : p.declared().name());
     }
@@ -964,7 +964,7 @@ public final class MirJson {
             case planParam -> {
                 String declared = o.getStringOr("declared", null);
                 yield new SqlExpr.PlanParam(o.getString("name"),
-                        named(SqlExpr.PlanParam.Kind.class, o.getString("kind"), "parameter kind"),
+                        o.getBool("enumeration"),
                         o.getBool("optional"), type,
                         declared == null ? null : named(com.legend.sql.DeclaredKind.class, declared, "declared kind"));
             }

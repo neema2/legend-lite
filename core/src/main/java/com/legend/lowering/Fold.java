@@ -24,39 +24,6 @@ import java.util.List;
  */
 final class Fold {
 
-    /** The plan-template placeholder KIND for a field type (h2New spells
-     * date placeholders with the type keyword). */
-    static com.legend.sql.SqlExpr.PlanParam.Kind planKindOf(
-            com.legend.compiler.element.type.Type t) {
-        if (t == com.legend.compiler.element.type.Type.Primitive.STRING) {
-            return com.legend.sql.SqlExpr.PlanParam.Kind.STRING;
-        }
-        if (t == com.legend.compiler.element.type.Type.Primitive.DATE) {
-            return com.legend.sql.SqlExpr.PlanParam.Kind.DATE;
-        }
-        if (t == com.legend.compiler.element.type.Type.Primitive.STRICT_DATE) {
-            return com.legend.sql.SqlExpr.PlanParam.Kind.STRICT_DATE;
-        }
-        if (t == com.legend.compiler.element.type.Type.Primitive
-                .DATE_TIME) {
-            return com.legend.sql.SqlExpr.PlanParam.Kind.DATETIME;
-        }
-        if (t == com.legend.compiler.element.type.Type.Primitive.FLOAT) {
-            return com.legend.sql.SqlExpr.PlanParam.Kind.FLOAT;
-        }
-        if (t == com.legend.compiler.element.type.Type.Primitive.BOOLEAN) {
-            // spells like OTHER on H2; DB2-family dialects QUOTE boolean
-            // placeholders (the case-expr compares 'true'/'false' strings)
-            return com.legend.sql.SqlExpr.PlanParam.Kind.BOOLEAN;
-        }
-        if (t instanceof com.legend.compiler.element.type.Type.EnumType) {
-            // enum values travel as NAME strings — the engine spells the
-            // placeholder quoted ('\${yesOrNo}' = 'NO')
-            return com.legend.sql.SqlExpr.PlanParam.Kind.ENUM;
-        }
-        return com.legend.sql.SqlExpr.PlanParam.Kind.OTHER;
-    }
-
     /** An ORDER-SENSITIVE aggregate over a UNION-ALL-backed source with
      * no explicit key carries pure's CONCATENATE order obligation — the
      * union's branches are an ORDERED list. Stamp a branch ordinal into
