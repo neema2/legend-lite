@@ -88,16 +88,21 @@ public final class StoreWords {
      *  (the server's, EdgeServer; the native library's, SavedQueriesHome). J9 of the edge audit, 2026-11-17: the
      *  envelope moved here from the product's store. */
     public static String engineShape(int status, String json) {
-        return SavedQueries.reshaped(status, json, (kind, message) -> {
-            java.util.Map<String, Object> out = new java.util.LinkedHashMap<>();
-            if (ENVELOPED.contains(kind)) {
-                out.put("code", -1);
-                out.put("message", message);
-                out.put("status", "error");
-            } else {
-                out.put("message", message);
-            }
-            return out;
-        });
+        // the store's refusal read here, the edge's own reader of lite's answer (J40.SavedQueries, 2026-11-18: moved
+        // from the product's SavedQueries.reshaped, which only this read)
+        if (status < 400 || !(com.legend.json.Json.parse(json) instanceof com.legend.json.Json.Obj o)
+                || !(o.fields().get("kind") instanceof com.legend.json.Json.Str kind)
+                || !(o.fields().get("message") instanceof com.legend.json.Json.Str message)) {
+            return json;
+        }
+        java.util.Map<String, Object> out = new java.util.LinkedHashMap<>();
+        if (ENVELOPED.contains(kind.value())) {
+            out.put("code", -1);
+            out.put("message", message.value());
+            out.put("status", "error");
+        } else {
+            out.put("message", message.value());
+        }
+        return com.legend.json.Json.toCompact(out);
     }
 }
