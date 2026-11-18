@@ -357,17 +357,10 @@ public final class CellText {
 
     // ---- the rest -------------------------------------------------------------------------------------------------
 
-    /** A number written as {@code token}, its exact value {@code value} beside it. The JSON writer writes an integer
-     *  number's {@code long} and any other number's token, so a whole number past a {@code long} (a HUGEINT's
-     *  {@code 18446744073709551614}) is marked a non-integer and written by its token, never wrapped. */
-    public static Json.Num number(String token, BigDecimal value) {
-        return token(token, value);
-    }
-
+    /** A number written as {@code token}, its exact value beside it ({@link Json.Num#ofToken}: the JSON library's since
+     *  J36, 2026-11-18, where {@code number} stood public for the edge's Presenter alone). */
     private static Json.Num token(String token, BigDecimal value) {
-        boolean integral = token.chars().allMatch(ch -> ch == '-' || Character.isDigit(ch))
-                && value.toBigInteger().bitLength() < 64;
-        return new Json.Num(value.longValue(), value.doubleValue(), integral, value, token);
+        return Json.Num.ofToken(token, value);
     }
 
     private static IllegalArgumentException refused(Object cell, ExecutionPlan.Column c, String what) {

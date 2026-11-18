@@ -15,7 +15,47 @@ EDGE_TEST_SRCS = [
     "src/test/java/com/legend/CellTextDirectTest.java",
     "src/test/java/com/legend/DecimalKindsTest.java",
     "src/test/java/com/legend/EdgeSeparationTest.java",
+    # no guard names what is not there (the edge audit's K16, 2026-11-17): it reads every jar the boundary guards read
+    "src/test/java/com/legend/GuardNamesExistTest.java",
     "src/test/java/com/legend/HookRulingTest.java",
+    # the two hook registries agree (the GUARD stream, 2026-11-17): it reads HookRulingTest and EdgeSeparationTest
+    "src/test/java/com/legend/HookRulingsAgreeTest.java",
+    # the judging rules' TYPE flagged, its members sorted (the GUARD stream, C.3, 2026-11-17): it reads the product jars
+    "src/test/java/com/legend/JudgingRulesReachTest.java",
+    # its planted violator, read as bytecode alone (C.3, 2026-11-17)
+    "src/test/java/com/legend/testexec/PlantedRulesByClass.java",
+    "src/test/java/com/legend/testexec/PlantedRulesReach.java",
+    "src/test/java/com/legend/testexec/PlantedRulesSwitch.java",
+    "src/test/java/com/legend/testexec/PlantedRulesText.java",
+    # the open compatibility classes pinned by member set (the GUARD stream, C.4, 2026-11-17): it reads the census
+    "src/test/java/com/legend/OpenClassMembersTest.java",
+    # the open classes marked @OpenLine, held equal to the census's list (the GUARD stream, C.7, 2026-11-17)
+    "src/test/java/com/legend/OpenLineMarkedTest.java",
+    # the plan style's surface: KINDS, criterion (a) on TWO_FORMS, its methods and overriders (the GUARD stream, C.9)
+    "src/test/java/com/legend/PlanStyleSurfaceTest.java",
+    # the ServiceLoader seams pinned by type, and every service file (the GUARD stream, C.10, 2026-11-17)
+    "src/test/java/com/legend/ServiceLoaderSitesTest.java",
+    # every SqlFn sorted PRODUCT or EDGE_ONLY, the other guards' lists held to it (the GUARD stream, C.13, 2026-11-17)
+    "src/test/java/com/legend/SqlFnSortedTest.java",
+    # hooks implemented by lambdas, and twoForm's callers, pinned (the GUARD stream, C.12, 2026-11-17)
+    "src/test/java/com/legend/HookLambdasTest.java",
+    # L-A (the orchestrator's order, 2026-11-18): every product form calls each function it is handed -- it reads
+    # HookLambdasTest's pinned product forms
+    "src/test/java/com/legend/ProductFormsUseTheirArgumentsTest.java",
+    # the edge's package a boundary: no dotless prefix check, no edge class in a product jar (the GUARD stream, C.14)
+    "src/test/java/com/legend/EdgePackageBoundaryTest.java",
+    # a public product member the edge alone uses is counted (J40 of the edge audit, 2026-11-18), and its planted
+    # product class and edge caller
+    "src/test/java/com/legend/EdgeOnlyMembersTest.java",
+    "src/test/java/com/legend/PlantedEdgeOnlyApi.java",
+    "src/test/java/com/legend/edge/PlantedEdgeOnlyCaller.java",
+    # L-B (the orchestrator's order, 2026-11-18): every piece of the plans' and the MIR's data has a real product use,
+    # and its planted shapes (J28's and J31's), a product-package node and its edge maker
+    "src/test/java/com/legend/EdgeOnlyDataTest.java",
+    # K2's shipped-artifact roots (2026-11-18): it reads the genqueries guardrails_edge declares, and EdgeSeparationTest
+    "src/test/java/com/legend/ShippedArtifactRootsTest.java",
+    "src/test/java/com/legend/sql/PlantedEdgeOnlyMir.java",
+    "src/test/java/com/legend/edge/PlantedEdgeOnlyMirMaker.java",
     "src/test/java/com/legend/PlanStyleFacetsTest.java",
     # the edge's extension records walked as data (census C2, 2026-11-17: the appeals moved to com.legend.edge)
     "src/test/java/com/legend/PlanTypesAreDataTest.java",
@@ -85,6 +125,35 @@ EDGE_TEST_SRCS = [
     "src/test/java/com/legend/planner/HostOperationsTakeNoSqlTest.java",
     "src/test/java/com/legend/planner/PlantedBoundary.java",
     "src/test/java/com/legend/planner/PlantedCompatReach.java",
+    # the repointed V3 and S144 rules' planted violator (the edge audit's K16, 2026-11-17)
+    "src/test/java/com/legend/planner/PlantedVerdictReach.java",
+    # the CODE guard reads the sql package (the edge audit's K16, 2026-11-17): its planted reads, arm and dispatch
+    "src/test/java/com/legend/sql/PlantedSqlReach.java",
+    "src/test/java/com/legend/sql/dialect/PlantedSqlRendererArm.java",
+    "src/test/java/com/legend/sql/dialect/PlantedRendererNest.java",
+    # review F of the guard line (2026-11-18, SHOULD 1): a varargs or array keeper, an ordinal or a name kept; one shape
+    # a class, and the number or the name handed to a keeper (the review of the guard line, G, SHOULD 1, 2026-11-18)
+    "src/test/java/com/legend/sql/dialect/PlantedLaunderVarargs.java",
+    "src/test/java/com/legend/sql/dialect/PlantedLaunderArrayKeeper.java",
+    "src/test/java/com/legend/sql/dialect/PlantedLaunderOrdinal.java",
+    "src/test/java/com/legend/sql/dialect/PlantedLaunderName.java",
+    "src/test/java/com/legend/sql/dialect/PlantedLaunderOrdinalHanded.java",
+    "src/test/java/com/legend/sql/dialect/PlantedLaunderNameHanded.java",
+    "src/test/java/com/legend/sql/dialect/PlantedRendererByInterface.java",
+    "src/test/java/com/legend/sql/dialect/PlantedWordedRaise.java",
+    "src/test/java/com/legend/sql/dialect/PlantedBoundRaise.java",
+    "src/test/java/com/legend/sql/dialect/PlantedDialectBase.java",
+    "src/test/java/com/legend/sql/dialect/PlantedLaunderReturn.java",
+    "src/test/java/com/legend/sql/dialect/PlantedLaunderLambda.java",
+    "src/test/java/com/legend/sql/dialect/PlantedLaunderBuild.java",
+    "src/test/java/com/legend/sql/dialect/PlantedLaunderField.java",
+    "src/test/java/com/legend/sql/dialect/PlantedLaunderArray.java",
+    "src/test/java/com/legend/sql/dialect/PlantedLaunderAdd.java",
+    "src/test/java/com/legend/sql/dialect/PlantedLaunderThrow.java",
+    "src/test/java/com/legend/sql/dialect/PlantedLaunderSetter.java",
+    "src/test/java/com/legend/sql/PlantedSqlSwitch.java",
+    "src/test/java/com/legend/sql/PlantedSqlSwitchNamed.java",
+    "src/test/java/com/legend/planner/PlantedRendererHide.java",
     "src/test/java/com/legend/planner/PlantedEdgeReach.java",
     "src/test/java/com/legend/planner/ProductStatementsTest.java",
     "src/test/java/com/legend/planner/QueryDoorTest.java",
@@ -128,13 +197,8 @@ EDGE_TEST_SRCS = [
     "src/test/java/com/legend/testplan/DatabaseHalfDe5Test.java",
     "src/test/java/com/legend/testplan/ExecEnvCatalogTest.java",
     "src/test/java/com/legend/testplan/TestPlanJsonRoundTripTest.java",
-    # the judging rules' TYPE flagged, its members sorted (the GUARD stream, C.3, 2026-11-17): it reads the product jars
-    "src/test/java/com/legend/JudgingRulesReachTest.java",
-    # its planted violator, read as bytecode alone (C.3, 2026-11-17)
-    "src/test/java/com/legend/testexec/PlantedRulesByClass.java",
-    "src/test/java/com/legend/testexec/PlantedRulesReach.java",
-    "src/test/java/com/legend/testexec/PlantedRulesSwitch.java",
-    "src/test/java/com/legend/testexec/PlantedRulesText.java",
+    # a host's planted edge reach (the GUARD stream's C.5 review, 2026-11-17): it names an edge type
+    "src/test/java/planner/PlantedHostEdgeReach.java",
 ]
 
 # a file whose class is not its name

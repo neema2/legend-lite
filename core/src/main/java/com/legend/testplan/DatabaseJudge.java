@@ -334,7 +334,7 @@ public final class DatabaseJudge {
     }
 
     static boolean lite(BodyDriver.ExecEnv env) {
-        return words(env).reads() == com.legend.lowering.VerdictWords.Reads.WRITTEN;
+        return words(env).reads() == com.legend.lowering.VerdictReads.WRITTEN;
     }
 
     private static com.legend.lowering.VerdictSql.@com.legend.base.Nullable Message written(
