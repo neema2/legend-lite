@@ -258,31 +258,6 @@ public final class LiteV1Api {
         return error(500, null, message);
     }
 
-    /** The first 200 characters of {@code text}, for a refusal that shows what it read. */
-    public static String head(String text) {
-        return text.length() <= 200 ? text : text.substring(0, 200) + "...";
-    }
-
-    /** The runtime: the request's own, else the one the query's {@code ->from}s bind -- every door's one rule
-     *  ({@link com.legend.TypedQuery#runtime}: several refused by name; the checkpoint tenets audit's 1, 2026-11-10:
-     *  until then this door kept the first from()'s and ran the rest on it). */
-    public static String runtimeOf(Json.Obj request, com.legend.TypedQuery query) {
-        Json.Obj rt = request.getObjOr("runtime", null);
-        if (rt != null && !rt.has("runtime")) {
-            // a runtime written out in full (upstream's ExecuteInput.runtime: an engineRuntime, a legacyRuntime) is
-            // refused by name, never dropped for the query's own ->from runtime (register S301, the user's ruling of
-            // 2026-11-12: "It can also go to follow up"; until then this door read it as no runtime at all)
-            throw new com.legend.error.NotImplementedException("a runtime written out in the request ("
-                    + rt.getStringOr("_type", "?") + "): not planned; name a runtime (runtimePointer), register S301");
-        }
-        String runtime = query.runtime(rt != null ? rt.getString("runtime") : null);
-        if (runtime == null) {
-            throw new IllegalArgumentException(
-                    "no runtime: the request names none and the query has no ->from(runtime)");
-        }
-        return runtime;
-    }
-
     // ---------------------------------------------------------------------
     // Plumbing
     // ---------------------------------------------------------------------

@@ -880,41 +880,31 @@ public final class TestDataPlanner {
     }
 
     /**
-     * {@code seed} as upstream's seed route answers it (B2d.3e; {@code generateSeedData},
-     * {@code SeedDataGeneration.streamSeedDataResult}): the JSON object {@code {"table":{"_type":"table","table":T,
-     * "schema":S,"database":D},"rowIdentifiers":[{"columnValuePairs":[{"name":k,"value":v},...]},...]}}, built by the
-     * database -- each value its JSON for the key's cell, the identifiers in the keys' order (R2, register S198) --
-     * one statement, its one cell the text. A key's name is its column's, in double quotes where it holds a space
-     * (upstream's {@code getQuotedLabelIfContainSpace}); a timestamp key's value is {@code timestampKey}'s text of its
-     * cell, the caller's (the seed route is legend-engine's API: the edge hands in upstream's text, F's separation
-     * census line B11, 2026-11-17).
+     * The FACTS a seed's answer is written from (J40 of the edge audit, 2026-11-18: legend-engine's seed JSON, the seed
+     * route's {@code generateSeedData} answer, is the edge's, {@code edge.TestDataRoutes}): the table, its schema and
+     * the database that declares it; the seed's rows; and each key -- its declared name, its cell over the rows (alias
+     * {@code _k}), whether it is a timestamp, and its order (by code point, R2, register S198).
      */
-    public static SqlQuery seedJson(ModelContext ctx, Seed seed, java.util.function.UnaryOperator<SqlExpr> timestampKey) {
-        DatabaseDefinition.TableDefinition def = seed.loc().def();
-        List<SqlExpr> pairs = new ArrayList<>(seed.keys().size());
-        List<SqlExpr.JsonArrayAgg.Key> order = new ArrayList<>(seed.keys().size());
-        for (String k : seed.keys()) {
-            String name = bareName(k);
-            SqlExpr cell = SqlExpr.Column.derived("_k", tempColumn(def, k));
-            // a timestamp key as the caller writes it: the seed route is legend-engine's API (the edge's routes,
-            // TestDataRoutes), whose key is upstream's text whatever lite's own printing is (W4, 2026-11-16; the text
-            // itself the edge's since B11, 2026-11-17)
-            SqlExpr value = timestamp(column(def, k).dataType()) ? timestampKey.apply(cell) : cell;
-            pairs.add(new SqlExpr.JsonObject(List.of(new SqlExpr.StringLit("name"), new SqlExpr.StringLit(
-                    name.contains(" ") ? "\"" + name + "\"" : name), new SqlExpr.StringLit("value"), value)));
-            order.add(new SqlExpr.JsonArrayAgg.Key(byCodePoint(cell, column(def, k)), false));
+    public record SeedFacts(String table, String schema, String database, SqlSelect rows, List<SeedKey> keys) {
+        public SeedFacts {
+            keys = List.copyOf(keys);
         }
-        SqlExpr identifier = new SqlExpr.JsonObject(List.of(new SqlExpr.StringLit("columnValuePairs"),
-                new SqlExpr.JsonArray(pairs)));
-        SqlExpr table = new SqlExpr.JsonObject(List.of(new SqlExpr.StringLit("_type"), new SqlExpr.StringLit("table"),
-                new SqlExpr.StringLit("table"), new SqlExpr.StringLit(seed.table()), new SqlExpr.StringLit("schema"),
-                new SqlExpr.StringLit(seed.loc().schema()), new SqlExpr.StringLit("database"),
-                new SqlExpr.StringLit(owningDatabase(ctx, seed.db(), def))));
-        SqlExpr answer = new SqlExpr.JsonObject(List.of(new SqlExpr.StringLit("table"), table,
-                new SqlExpr.StringLit("rowIdentifiers"), new SqlExpr.JsonArrayAgg(identifier, order)));
-        return new SqlSelect(List.of(new SqlSelect.Projection(new SqlExpr.Cast(answer, SqlType.Scalar.VARCHAR, SqlExpr.Reason.DECLARED),
-                "seedData", null)), false, new SqlSource.Subselect(seed.rows(), "_k", null), null, List.of(), null,
-                null, List.of(), null, null, List.of());
+    }
+
+    /** A seed key: its declared {@code name}, its {@code cell} over the seed's rows, whether it is a {@code timestamp},
+     *  and the expression the identifiers are ordered by. */
+    public record SeedKey(String name, SqlExpr cell, boolean timestamp, SqlExpr order) {
+    }
+
+    /** {@code seed}'s facts ({@link SeedFacts}). */
+    public static SeedFacts seedFacts(ModelContext ctx, Seed seed) {
+        DatabaseDefinition.TableDefinition def = seed.loc().def();
+        List<SeedKey> keys = new ArrayList<>(seed.keys().size());
+        for (String k : seed.keys()) {
+            SqlExpr cell = SqlExpr.Column.derived("_k", tempColumn(def, k));
+            keys.add(new SeedKey(bareName(k), cell, timestamp(column(def, k).dataType()), byCodePoint(cell, column(def, k))));
+        }
+        return new SeedFacts(seed.table(), seed.loc().schema(), owningDatabase(ctx, seed.db(), def), seed.rows(), keys);
     }
 
     /**
@@ -972,15 +962,9 @@ public final class TestDataPlanner {
         };
     }
 
-    /** Column {@code c} of {@code def}'s declared name, its case kept and no quotes (J7/K12 of the edge audit,
-     *  2026-11-17: public for the server routes' header, the edge's). */
-    public static String declaredName(DatabaseDefinition.TableDefinition def, String c) {
-        return column(def, c).name();
-    }
-
-    /** A column's name as upstream's model writes it: a quoted name with its quotes (public for the server routes'
-     *  column order, the edge's: J7/K12 of the edge audit, 2026-11-17). */
-    public static String pureName(DatabaseDefinition.TableDefinition def, String c) {
+    /** A column's name as upstream's model writes it: a quoted name with its quotes (the seed string's, which stays
+     *  the product's; the server routes' column order writes its own, the edge's: J40 of the edge audit, 2026-11-18). */
+    static String pureName(DatabaseDefinition.TableDefinition def, String c) {
         DatabaseDefinition.ColumnDefinition cd = column(def, c);
         return cd.quoted() ? "\"" + cd.name() + "\"" : cd.name();
     }

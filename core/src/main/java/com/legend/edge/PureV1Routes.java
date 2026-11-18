@@ -26,7 +26,7 @@ import static com.legend.edge.ExecuteInputs.boundParameters;
 import static com.legend.server.LiteV1Api.error;
 import static com.legend.edge.HostAnswers.facts;
 import static com.legend.server.LiteV1Api.request;
-import static com.legend.server.LiteV1Api.runtimeOf;
+import static com.legend.edge.ExecuteInputs.runtimeOf;
 
 /**
  * legend-engine's {@code pure/v1} API, served EXACTLY, at the edge (phase D's D1.0b, the orchestrator's ruling of
