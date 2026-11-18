@@ -1824,8 +1824,7 @@ final class SyntheticHeads {
                     sb.keyAlias(), sb.info());
             case com.legend.compiler.spec.typed.TypedSort so ->
                     new com.legend.compiler.spec.typed.TypedSort(
-                            f.apply(so.source()), so.keys(),
-                            so.pureNullOrder(), so.info());
+                            f.apply(so.source()), so.keys(), so.info());
             case TypedLimit l -> new TypedLimit(f.apply(l.source()),
                     l.count(), l.info());
             case TypedDrop d -> new TypedDrop(f.apply(d.source()),

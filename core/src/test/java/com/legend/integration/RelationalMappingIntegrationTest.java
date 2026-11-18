@@ -1271,7 +1271,7 @@ class RelationalMappingIntegrationTest {
                 "#>{store::DB.T_PERSON}#->navigate(~n1: #>{store::DB.T_DEPT}#, {prev,hop|$prev.DEPT_ID == $hop.ID})->extend(~deptName: __r|$__r.n1.NAME)->sort(~deptName->ascending())->select(~[NAME, deptName])->from(test::RT)");
             assertEquals(4, r.rowCount());
             var depts = colStr(r, 1);
-            // PURE-lane sort (colspec API, pureNullOrder stamp):
+            // PURE-lane sort (colspec API, the null-largest stamp):
             // null-largest, ASC NULLS LAST — Engineering, Research,
             // Sales, NULL (§7 two-spec split)
             assertEquals("Engineering", depts.get(0));
@@ -1306,7 +1306,7 @@ class RelationalMappingIntegrationTest {
         void testTraverseGroupBy() throws SQLException {
             var r = exec(traverseModel(),
                 "#>{store::DB.T_PERSON}#->navigate(~n1: #>{store::DB.T_DEPT}#, {prev,hop|$prev.DEPT_ID == $hop.ID})->navigate(~n2: #>{store::DB.T_ORG}#, {prev,hop|$prev.n1.ORG_ID == $hop.ID})->extend(~orgName: __r|$__r.n2.NAME)->groupBy(~orgName, ~cnt:x|$x.NAME:y|$y->count())->sort(~orgName->ascending())->from(test::RT)");
-            // PURE-lane sort (colspec API, pureNullOrder stamp):
+            // PURE-lane sort (colspec API, the null-largest stamp):
             // null-largest, ASC NULLS LAST — Acme Corp=2, Globex=1,
             // NULL=1 (§7 two-spec split)
             assertEquals(3, r.rowCount());
