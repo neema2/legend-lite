@@ -147,7 +147,7 @@ class RoundTripProofTest {
         for (PureComposer.Style style : STYLES) {
             String printed;
             try {
-                printed = ModelComposer.model(j1, style);
+                printed = ModelComposer.model(com.legend.protocol.ModelReader.read(Json.parse(j1, DEEP)), style);
             } catch (IllegalArgumentException e) {
                 t.refused++;
                 t.refusals.merge(String.valueOf(e.getMessage()), 1, Integer::sum);
@@ -212,7 +212,7 @@ class RoundTripProofTest {
         for (PureComposer.Style style : STYLES) {
             String printed;
             try {
-                printed = ModelComposer.model(json, style);
+                printed = ModelComposer.model(com.legend.protocol.ModelReader.read(Json.parse(json, DEEP)), style);
             } catch (IllegalArgumentException e) {
                 t.refused++;
                 t.refusals.merge(String.valueOf(e.getMessage()), 1, Integer::sum);

@@ -130,58 +130,6 @@ public final class DecodeShapes {
         return false;
     }
 
-    /** {@link #sourceExpr} narrowed to a raw store COLUMN. */
-    public static Optional<SqlExpr.Column> sourceColumn(SqlExpr e) {
-        return sourceExpr(e)
-                .filter(SqlExpr.Column.class::isInstance)
-                .map(SqlExpr.Column.class::cast);
-    }
-
-    /** {@code e} with every interior literal-decode chain replaced by
-     * its source column; {@code e} itself when nothing rewrites. */
-    public static SqlExpr stripDecodes(SqlExpr e) {
-        Optional<SqlExpr.Column> src = sourceColumn(e);
-        if (src.isPresent()) {
-            return src.get();
-        }
-        switch (e) {
-            case SqlExpr.Call c -> {
-                List<SqlExpr> args = new ArrayList<>();
-                boolean ch = false;
-                for (SqlExpr a : c.args()) {
-                    SqlExpr r = stripDecodes(a);
-                    ch |= r != a;
-                    args.add(r);
-                }
-                return ch ? new SqlExpr.Call(c.fn(), args) : e;
-            }
-            case SqlExpr.Case cs -> {
-                List<SqlExpr.Case.When> ws = new ArrayList<>();
-                boolean ch = false;
-                for (var w : cs.whens()) {
-                    SqlExpr cnd = stripDecodes(w.condition());
-                    SqlExpr th = stripDecodes(w.then());
-                    ch |= cnd != w.condition() || th != w.then();
-                    ws.add(new SqlExpr.Case.When(cnd, th));
-                }
-                SqlExpr ow = cs.otherwise() == null ? null
-                        : stripDecodes(cs.otherwise());
-                ch |= ow != cs.otherwise();
-                return ch ? new SqlExpr.Case(ws, ow, cs.reason()) : e;
-            }
-            case SqlExpr.Cast ct -> {
-                SqlExpr v = stripDecodes(ct.value());
-                return v != ct.value()
-                        ? new SqlExpr.Cast(v, ct.target(), ct.reason()) : e;
-            }
-            case SqlExpr.Group g -> {
-                SqlExpr i = stripDecodes(g.inner());
-                return i != g.inner() ? new SqlExpr.Group(i) : e;
-            }
-            default -> {
-                return e;
-            }
-        }
-    }
-
+    // (sourceColumn and stripDecodes: moved to edge.PlanEnumForm 2026-11-18, J40 -- legend-engine's plan text keeps
+    // enum columns raw; only the edge read them)
 }

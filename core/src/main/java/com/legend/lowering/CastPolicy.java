@@ -35,8 +35,8 @@ final class CastPolicy {
     // Float/String contracts convert IN SQL — the user ruling stands)
     // was applied at the PROJECTION boundary by OUTPUT-NAME lookup and
     // rejected three ways: (1) the flat class form pins the engine's
-    // WIRE-typed plan metadata (TypedProject.wireForm now carries that
-    // lane fact); (2) deep-join schemas collide output names — an
+    // WIRE-typed plan metadata (a lane fact the product no longer
+    // carries: TypedProject.wireForm was deleted, train 17, 2026-11-18); (2) deep-join schemas collide output names — an
     // Integer column conformed to String off a same-named column;
     // (3) a conform cast on ONE union branch breaks branch-projection
     // identity and reorders the merge. The SOUND seam is the
@@ -46,13 +46,13 @@ final class CastPolicy {
     // are the correct plumbing for that seam.
 
     /** The cast policy over an ALREADY-LOWERED source (scalar or window channel). */
-    static SqlExpr lower(TypedCast c, SqlExpr value, boolean isMany, LoweringForms shapeForms,
-            LoweringForms forms) {
+    static SqlExpr lower(TypedCast c, SqlExpr value, boolean isMany, LoweringForms forms) {
         if (c.wire()) {
-            // the mapping's WIRE coercion, the shape's form (the audit's K5, 2026-11-17: LoweringForms#wireCast): the
+            // the mapping's WIRE coercion, the style's form (the audit's K5, 2026-11-17: LoweringForms#wireCast; one
+            // forms source since J40, 2026-11-18): the
             // product writes the cast (DuckDB does not wire-convert, audit 19 F7); legend-engine's SQL leaves it to its
             // reader, which converts on the wire
-            return shapeForms.wireCast(value, () -> written(c, value, isMany, forms));
+            return forms.wireCast(value, () -> written(c, value, isMany, forms));
         }
         return written(c, value, isMany, forms);
     }

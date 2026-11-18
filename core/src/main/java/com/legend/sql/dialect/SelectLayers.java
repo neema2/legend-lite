@@ -351,9 +351,6 @@ final class SelectLayers extends SqlRewriter {
             case SqlExpr.Quantified q -> {
                 return false;
             }
-            case SqlExpr.DeferredTdsString d -> {
-                return false;
-            }
             case SqlExpr.Lambda l -> {
                 return false;
             }

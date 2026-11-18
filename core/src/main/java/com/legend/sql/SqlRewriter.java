@@ -161,7 +161,6 @@ public abstract class SqlRewriter {
                 yield c == r.column() ? r : new SqlExpr.StoredRead(asColumn(c), r.stored());
             }
             case SqlExpr.RowOrder r -> r;
-            case SqlExpr.TempTableInSplice t -> t;
             case SqlExpr.Membership m -> {
                 SqlExpr n2 = rewriteExpr(m.needle());
                 SqlExpr c2 = rewriteExpr(m.collection());
@@ -315,12 +314,6 @@ public abstract class SqlRewriter {
                 SqlQuery sub = rewrite(sq.subquery());
                 yield sub == sq.subquery() ? sq
                         : new SqlExpr.ScalarSubquery(sub);
-            }
-            case SqlExpr.DeferredTdsString d -> {
-                SqlQuery sub = rewrite(d.inner());
-                yield sub == d.inner() ? d
-                        : new SqlExpr.DeferredTdsString((SqlSelect) sub,
-                                d.alias(), d.id(), d.form(), d.renderTdsNull());
             }
             case SqlExpr.JsonObject j -> {
                 List<SqlExpr> kv = mapList(j.kv(), this::rewriteExpr);

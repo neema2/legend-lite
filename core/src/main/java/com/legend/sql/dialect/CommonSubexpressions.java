@@ -284,8 +284,6 @@ final class CommonSubexpressions extends com.legend.sql.SqlRewriter {
             case SqlExpr.Quantified q -> false;
             case SqlExpr.Star st -> false;
             case SqlExpr.StarExcept st -> false;
-            case SqlExpr.DeferredTdsString d -> false;
-            case SqlExpr.TempTableInSplice t -> false;
             default -> !(e instanceof com.legend.sql.SqlAgg);
         };
         if (ok) {

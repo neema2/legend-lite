@@ -90,7 +90,7 @@ public final class UpstreamVerdictWords implements com.legend.lowering.VerdictWo
     @Override
     public SqlExpr notInstanceOf(SqlExpr text, boolean quote, String type, String actual) {
         // assertInstanceOf.pure: 'expected %r to be an instance of %s, actual: %s'
-        SqlExpr repr = SqlExpr.Call.of(SqlFn.COALESCE, VerdictSql.reprNewlines(quote ? VerdictSql.quoted(text) : text),
+        SqlExpr repr = SqlExpr.Call.of(SqlFn.COALESCE, reprNewlines(quote ? VerdictSql.quoted(text) : text),
                 lit("[]"));
         return concat(lit("expected "), repr, lit(" to be an instance of " + type + ", actual: " + actual));
     }
@@ -156,7 +156,7 @@ public final class UpstreamVerdictWords implements com.legend.lowering.VerdictWo
     @Override
     public SqlExpr frameSide(SqlExpr text, UnaryOperator<SqlExpr> list) {
         // a newline inside a spelled value written as %r writes it, \n
-        return SqlExpr.Call.of(SqlFn.COALESCE, list.apply(VerdictSql.reprNewlines(text)), lit("null"));
+        return SqlExpr.Call.of(SqlFn.COALESCE, list.apply(reprNewlines(text)), lit("null"));
     }
 
     @Override
@@ -188,5 +188,11 @@ public final class UpstreamVerdictWords implements com.legend.lowering.VerdictWo
     @Override
     public String valuesDiffer(String expected, String actual) {
         return "\nexpected: " + expected + "\nactual:   " + actual;
+    }
+
+    /** {@code text} with each newline written {@code \\n}, as Pure's {@code %r} writes one inside a String (J40,
+     *  2026-11-18: moved from the product's VerdictSql, which no product code read). */
+    private static SqlExpr reprNewlines(SqlExpr text) {
+        return SqlExpr.Call.of(SqlFn.REPLACE, text, new SqlExpr.StringLit("\n"), new SqlExpr.StringLit("\\n"));
     }
 }

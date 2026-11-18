@@ -370,7 +370,24 @@ class SqlFnSortedTest {
                     "com.legend.sql.dialect.CellTexts", "com.legend.sql.dialect.StringCountsAsInt",
                     "com.legend.sql.dialect.SubstringClamp", "com.legend.testdatagen.TestDataPlanner")),
             // (J20, as LOWER's note)
-            Map.entry("UPPER", Set.of("com.legend.lowering.Scalars")));
+            Map.entry("UPPER", Set.of("com.legend.lowering.Scalars")),
+            // compiled legend-pure's 2-ULP Float tolerance (ulps * 2^(floor(ln(greatest(|x|,|y|)) / ln 2) - 52)): the edge's
+            // CompiledPureVerdictNumbers composes it since E-Java's train-17 item 4 (dacc4bf313, 2026-11-18: moved there
+            // from VerdictSql.withinUlps, the VerdictNumbers two-form kind's edge form) -- the product's writers keep
+            // their own; measured 2026-11-18 on d-int17 4b2d23838f
+            Map.entry("DIVIDE", Set.of("com.legend.lowering.CalendarAgg", "com.legend.lowering.DecimalKindRules",
+                    "com.legend.lowering.LetBinding", "com.legend.lowering.Lowerer")),
+            Map.entry("FLOOR", Set.of("com.legend.lowering.Scalars", "com.legend.sql.dialect.QuantileOrder")),
+            Map.entry("GREATEST", Set.of("com.legend.lowering.ListEncodings", "com.legend.lowering.Lowerer",
+                    "com.legend.lowering.Scalars", "com.legend.sql.dialect.QuantileOrder",
+                    "com.legend.sql.dialect.SubstringClamp")),
+            Map.entry("LN", Set.of("com.legend.lowering.LetBinding", "com.legend.lowering.Scalars")),
+            Map.entry("POW", Set.of("com.legend.lowering.Scalars")),
+            Map.entry("TIMES", Set.of("com.legend.lowering.CalendarAgg", "com.legend.lowering.Lowerer",
+                    "com.legend.lowering.MixedEncoding", "com.legend.lowering.Scalars",
+                    "com.legend.lowering.ValueCollections", "com.legend.lowering.VerdictSql",
+                    "com.legend.sql.dialect.CarrierStrategies", "com.legend.sql.dialect.QuantileOrder",
+                    "com.legend.testdatagen.TestDataPlanner")));
 
     /** The functions both sides write, as {@code writers} has them, each with its product writers' top classes. */
     static Map<String, Set<String>> bothProduct(Map<String, Set<String>> writers, Collection<String> names) {
@@ -665,12 +682,10 @@ class SqlFnSortedTest {
     // nowhere") ---------------------------------------------------------------------------------------------------
 
     /** The expression nodes only the edge writes (each a product record the product decodes and rebuilds, never makes). */
-    static final Set<String> EDGE_ONLY_NODES = Set.of(
-            // a relation's text deferred to the database (legend-pure's TDS string): the edge's RelationTextLowering
-            // (census B17)
-            "com.legend.sql.SqlExpr$DeferredTdsString",
-            // legend-engine's temp-table splice of an IN list: the edge's InProtocol
-            "com.legend.sql.SqlExpr$TempTableInSplice");
+    static final Set<String> EDGE_ONLY_NODES = Set.of();
+    // (SqlExpr$DeferredTdsString, legend-pure's TDS string deferred to the database, and SqlExpr$TempTableInSplice,
+    // legend-engine's IN-list temp-table splice, left the product's MIR with E-SQL's J40 (9822fd89c8, the orchestrator's
+    // ruling (8)); the edge carries its own forms -- emptied 2026-11-18 on train 17's integration)
 
     /** THE NODES ONLY THE EDGE WRITES THAT THE PRODUCT SHOULD NOT CARRY: open separation work, each counted by its audit
      *  item ({@code EdgeAuditOpenTest.AUDIT_OPEN}), not sorted EDGE_ONLY (the orchestrator's ruling of 2026-11-17, 23:27:
@@ -687,13 +702,10 @@ class SqlFnSortedTest {
      *  reads a unit handed a supertype of the node that reads one, by an instance member, an instanceof or a class
      *  object, as a rebuild -- so a product factory written that way would hide a writer of an EDGE_ONLY or NO_WRITER
      *  node): each such (unit, node), exactly, with why it rebuilds. A new one is a row with its dated reason. */
-    static final Map<String, String> REBUILDS_OF_NON_PRODUCT_NODES = Map.of(
-            // (the alias prefixer's rebuild of a variable set, AliasPrefix.source, gone 2026-11-18 with the node, J28)
-            // the generic rewrite remakes a deferred relation text with its children rewritten; seventeen product
-            // rewriters call it (measured 2026-11-17, the third review's M3; the one row every construction in the
-            // rebuilders yields, measured again with the review of 5911e970e1)
-            "com.legend.sql.SqlRewriter.rewriteExpr(com.legend.sql.SqlExpr) -> com.legend.sql.SqlExpr$DeferredTdsString",
-            "the generic rewrite's rebuild: the node handed, its children rewritten");
+    static final Map<String, String> REBUILDS_OF_NON_PRODUCT_NODES = Map.of();
+    // (the alias prefixer's rebuild of a variable set, AliasPrefix.source, gone 2026-11-18 with the node, J28; the
+    // generic rewrite's rebuild of a deferred relation text, SqlRewriter.rewriteExpr's, gone 2026-11-18 with the node,
+    // E-SQL's J40 9822fd89c8, train 17)
 
     /** The classes that make a node they were handed, writing none. */
     static final Map<String, String> NODE_REBUILDERS = Map.of(

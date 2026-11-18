@@ -50,22 +50,8 @@ public final class PureSpelling {
         throw new com.legend.error.NotImplementedException("plan: pure type name for " + t);
     }
 
-    /** The plan's multiplicity spelling: {@code 1}, {@code 0..1},
-     * {@code *}, {@code n..*} (inside the brackets). */
-    public static String sizeRange(
-            com.legend.compiler.element.type.Multiplicity m) {
-        if (m instanceof com.legend.compiler.element.type.Multiplicity
-                .Bounded b) {
-            if (b.upper() != null) {
-                return b.lower() == b.upper() ? String.valueOf(b.lower())
-                        : b.lower() + ".." + b.upper();
-            }
-            // unbounded: [*] (lower 0) or [n..*]
-            return b.lower() == 0 ? "*" : b.lower() + "..*";
-        }
-        throw new com.legend.error.NotImplementedException(
-                "plan: multiplicity spelling for " + m + " pending");
-    }
+    // (sizeRange: moved to edge.EngineParams 2026-11-18, J40 -- legend-engine's plan text's multiplicity spelling,
+    // only the edge read it)
 
     /** The root's columns: a relation's schema, or the one-column {@code value}
      *  relation of a scalar or collection root (the wire's scalarRoot contract). */

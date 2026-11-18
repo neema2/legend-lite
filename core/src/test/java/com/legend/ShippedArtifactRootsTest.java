@@ -43,8 +43,8 @@ class ShippedArtifactRootsTest {
 
     /** The shipped targets whose main class is the edge's, each with its K2 owner. Measured 2026-11-18. */
     static final Map<String, String> ROOTS_OPEN = Map.of(
-            "//core:server", "K2 E-P5 (2026-11-18): main_class com.legend.edge.EdgeServer, to become"
-                    + " com.legend.server.LegendHttpServer, :edge_server the declared opt-in (ServiceLoader, MountProvider)",
+            // (//core:server re-rooted 2026-11-18 by E-P5's K2 server half, 0c78ae0e00 and a0a14bd7c1: main_class
+            // com.legend.server.LegendHttpServer, :edge_server the declared opt-in through MountProvider -- train 17)
             "//query-store:page", "K2 DataCube (2026-11-18): main_class the edge's QueriesPage, query-store's"
                     + " :edge_page_entry (H6)",
             "//wasm:planner", "K2 HOST (TS, via DataCube) (2026-11-18): main_class com.legend.edge.wasm.TabExports");

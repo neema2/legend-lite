@@ -59,16 +59,10 @@ class UpstreamBranchesTest {
     static final Map<String, Integer> SITES = Map.ofEntries(
             Map.entry("lowering/Fold.java | shape unionAlias", 1),
             Map.entry("lowering/Lowerer.java | shape unionAlias", 7),
-            Map.entry("lowering/SubselectPrune.java | shape unionAlias", 1),
-            Map.entry("lowering/VerdictSql.java | rule branch floatUlps", 8),
-            Map.entry("testexec/Equality.java | rule branch decimalScale", 1),
-            Map.entry("testexec/Equality.java | rule branch floatTolerance", 1),
-            Map.entry("testexec/Equality.java | rule read decimalScale", 1),
-            Map.entry("testexec/Equality.java | rule read floatTolerance", 1),
-            Map.entry("testexec/Equality.java | rule read floatUlps", 1),
-            Map.entry("testexec/HostRules.java | rule read decimalScale", 1),
-            Map.entry("testexec/HostRules.java | rule read floatTolerance", 1),
-            Map.entry("testexec/HostRules.java | rule read floatUlps", 1));
+            Map.entry("lowering/SubselectPrune.java | shape unionAlias", 1));
+    // (the judging rules' sites -- VerdictSql's 8 branches on floatUlps, Equality's 5 and HostRules' 3 reads -- gone
+    // 2026-11-18 with E-Java's train-17 item 4, dacc4bf313: the database judge asks the VerdictNumbers two-form kind, the
+    // host judge the run hook HostForms, compiled legend-pure's comparison the edge's forms; L-A.judgingRules closes)
 
     /** A site's census line: upstream's frame name, or a branch on (a read of) the judging rules' tolerances. */
     static String lineOf(String site) {
@@ -79,6 +73,71 @@ class UpstreamBranchesTest {
     static Set<String> lines() {
         Set<String> out = new java.util.TreeSet<>();
         SITES.keySet().forEach(k -> out.add(lineOf(k)));
+        return out;
+    }
+
+    /** The two-form kinds' simple names ({@code PlanStyleFacets.TWO_FORMS}). A call on a receiver a file declares as one
+     *  of them is that kind's answer -- the hook this guard asks a branch to come through, its edge form the edge's --
+     *  not a read of the judging rules, whatever the method's name: VerdictNumbers#floatTolerance shares
+     *  JudgingRules#floatTolerance's (E-Java's train-17 item 4, 2026-11-18; the GUARD stream's re-measure on d-int17). */
+    static final Set<String> TWO_FORM_KINDS = twoFormKinds();
+
+    private static Set<String> twoFormKinds() {
+        Set<String> out = new java.util.TreeSet<>();
+        com.legend.testplan.PlanStyleFacets.TWO_FORMS.forEach(c -> out.add(c.getSimpleName()));
+        return out;
+    }
+
+    /** The identifiers {@code code} declares with a two-form kind's type (a field, a parameter, a local). */
+    static Set<String> hookReceivers(String code) {
+        Set<String> out = new java.util.TreeSet<>();
+        for (String kind : TWO_FORM_KINDS) {
+            Matcher d = Pattern.compile("\\b" + Pattern.quote(kind) + "\\s+(\\w+)\\s*[,;=)]").matcher(code);
+            while (d.find()) {
+                out.add(d.group(1));
+            }
+        }
+        return out;
+    }
+
+    /** Whether the name starting at {@code nameStart} is called on one of {@code receivers} ({@code numbers.x()}). */
+    static boolean onHook(String code, int nameStart, Set<String> receivers) {
+        int i = nameStart - 1;
+        while (i >= 0 && Character.isWhitespace(code.charAt(i))) {
+            i--;
+        }
+        if (i < 0 || code.charAt(i) != '.') {
+            return false;
+        }
+        i--;
+        while (i >= 0 && Character.isWhitespace(code.charAt(i))) {
+            i--;
+        }
+        int end = i + 1;
+        while (i >= 0 && Character.isJavaIdentifierPart(code.charAt(i))) {
+            i--;
+        }
+        return receivers.contains(code.substring(i + 1, end));
+    }
+
+    /** The rule reads and branches of {@code blanked} (comments stripped, literals blanked), "rule read X" or "rule
+     *  branch X", a call on a two-form kind's receiver left out. */
+    static List<String> ruleSites(String blanked) {
+        Set<String> hooks = hookReceivers(blanked);
+        List<String> out = new java.util.ArrayList<>();
+        Matcher m = RULE_READ.matcher(blanked);
+        while (m.find()) {
+            if (!onHook(blanked, m.start(1), hooks)) {
+                out.add("rule read " + m.group(1));
+            }
+        }
+        Matcher b = RULE_BRANCH.matcher(blanked);
+        while (b.find()) {
+            int g = b.group(1) != null ? 1 : 2;
+            if (!onHook(blanked, b.start(g), hooks)) {
+                out.add("rule branch " + b.group(g));
+            }
+        }
         return out;
     }
 
@@ -97,15 +156,8 @@ class UpstreamBranchesTest {
                     throw new UncheckedIOException(e);
                 }
                 String rel = path.substring(JAVA_ROOT.length());
-                String blanked = blankLiterals(code);
-                Matcher m = RULE_READ.matcher(blanked);
-                while (m.find()) {
-                    out.merge(rel + " | rule read " + m.group(1), 1, Integer::sum);
-                }
-                Matcher b = RULE_BRANCH.matcher(blanked);
-                while (b.find()) {
-                    out.merge(rel + " | rule branch " + (b.group(1) != null ? b.group(1) : b.group(2)), 1,
-                            Integer::sum);
+                for (String site : ruleSites(blankLiterals(code))) {
+                    out.merge(rel + " | " + site, 1, Integer::sum);
                 }
                 for (String shape : UPSTREAM_SHAPES) {
                     Matcher s = Pattern.compile("\"" + Pattern.quote(shape) + "\"").matcher(code);
@@ -206,5 +258,14 @@ class UpstreamBranchesTest {
         }
         assertEquals(3, branches, "the planted branches: r.floatUlps() > 0, if (!decimalScale), floatUlps > 0");
         assertEquals(true, code.contains("\"unionAlias\""), "the shape literal survives the comment strip");
+        // a two-form kind's answer of the same name is the hook's, not the rules': left out; the rules' read beside it,
+        // and the same name on another receiver, still found (the GUARD stream, 2026-11-18, train 17)
+        String hooked = blankLiterals(stripComments("class H { boolean f(VerdictNumbers numbers, JudgingRules rules,"
+                + " Other other) { if (numbers.floatTolerance()) { return true; }"
+                + " return rules.floatTolerance() && other.floatUlps() > 0 && numbers.floatTolerance() ? true : false; } }"));
+        assertEquals(Set.of("numbers"), hookReceivers(hooked), "a parameter typed by a two-form kind is a hook receiver");
+        assertEquals(List.of("rule read floatTolerance", "rule read floatUlps", "rule branch floatTolerance",
+                "rule branch floatUlps"), ruleSites(hooked), "the hook's two answers left out; the rules' read and the"
+                + " other receiver's read and branch found");
     }
 }

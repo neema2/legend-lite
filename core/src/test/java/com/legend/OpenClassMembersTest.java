@@ -51,10 +51,12 @@ class OpenClassMembersTest {
             Map.entry("com.legend.lowering.RelationTexts", Set.of(
                     // re-cut 2026-11-17 on d-stage c37207858: train 7's J26 (af4c03ba5c) and E-SQL's pforms (449c51793a)
                     // -- each facet method takes the planner's own Styled, pureToString takes it in place of the two
-                    // facets, and the substitute's lambda went with J26
+                    // facets, and the substitute's lambda went with J26; relationToString and toCsv lost their map of
+                    // relation types 2026-11-18 with E-SQL's J40 (9822fd89c8: DeferredTdsString out of the product MIR,
+                    // the edge's relation text typing its own) -- train 17
                     "public abstract com.legend.sql.SqlExpr csvProperty(com.legend.lowering.Styled, com.legend.compiler.spec.typed.TypedPropertyAccess, java.util.function.Function<com.legend.compiler.spec.typed.TypedSpec, com.legend.sql.SqlSelect>, java.lang.String)",
-                    "public abstract com.legend.sql.SqlExpr relationToString(com.legend.lowering.Styled, com.legend.compiler.spec.typed.TypedNativeCall, java.util.function.Function<com.legend.compiler.spec.typed.TypedSpec, com.legend.sql.SqlSelect>, java.lang.String, java.util.Map<java.lang.Integer, com.legend.compiler.element.type.Type$RelationType>)",
-                    "public abstract com.legend.sql.SqlExpr toCsv(com.legend.lowering.Styled, com.legend.compiler.spec.typed.TypedNativeCall, java.util.function.Function<com.legend.compiler.spec.typed.TypedSpec, com.legend.sql.SqlSelect>, java.lang.String, java.util.Map<java.lang.Integer, com.legend.compiler.element.type.Type$RelationType>)",
+                    "public abstract com.legend.sql.SqlExpr relationToString(com.legend.lowering.Styled, com.legend.compiler.spec.typed.TypedNativeCall, java.util.function.Function<com.legend.compiler.spec.typed.TypedSpec, com.legend.sql.SqlSelect>, java.lang.String)",
+                    "public abstract com.legend.sql.SqlExpr toCsv(com.legend.lowering.Styled, com.legend.compiler.spec.typed.TypedNativeCall, java.util.function.Function<com.legend.compiler.spec.typed.TypedSpec, com.legend.sql.SqlSelect>, java.lang.String)",
                     "public static com.legend.compiler.element.type.Type kindType(java.lang.String)",
                     "public static com.legend.sql.SqlExpr pureToString(com.legend.lowering.Styled, com.legend.compiler.element.type.Type, com.legend.sql.SqlExpr)")),
             // (com.legend.lowering.Repr: gone 2026-11-17, C5 step A -- legend-pure's representation moved to the
@@ -95,6 +97,8 @@ class OpenClassMembersTest {
                     "public abstract java.lang.String why(com.legend.testplan.HostSides$Check)")),
             // C4 (the listed facade of the engine-text arm: ArchitectureTest.PLANNER_ENTRIES)
             Map.entry("com.legend.testplan.EngineTextPlanning", Set.of(
+                    // (notAConstantError: deleted 2026-11-18 by E-Java's train-17 item 5, 645c3e4464 -- NotAConstant is the
+                    // edge's, raised by its collector)
                     "private <init>()",
                     "public static boolean active(com.legend.testplan.VerdictBatch)",
                     // 11 forwarders gone with train 16 b836ff636f (2026-11-18, the GUARD stream's re-pin): F's J40 census
@@ -130,7 +134,6 @@ class OpenClassMembersTest {
                     "public static com.legend.testplan.HostSides$Ask ask(com.legend.compiler.spec.typed.TypedSpec, boolean, boolean, com.legend.testplan.AssertVerdicts$SpliceHook, com.legend.testplan.BodyDriver$ExecEnv)",
                     "public static com.legend.testplan.HostSides$Check check(java.util.List<com.legend.testplan.HostSides$Ask>, com.legend.testexecutionplan.HostJudgment)",
                     "public static com.legend.testplan.JudgePlans$PlannedSide plannedSide(com.legend.compiler.spec.typed.TypedSpec, java.util.List<com.legend.compiler.spec.typed.TypedSpec>, com.legend.compiler.spec.SpecCompiler, com.legend.testplan.BodyDriver$ExecEnv, boolean, boolean, com.legend.testplan.AssertVerdicts$SpliceHook)",
-                    "public static com.legend.testplan.NotAConstant notAConstantError(java.lang.String)",
                     "public static com.legend.testplan.TextCollector collector(com.legend.testplan.BodyDriver$ExecEnv)",
                     "public static com.legend.testplan.TextPlanned planned(com.legend.testplan.HostSides$Check)",
                     "public static com.legend.testplan.VerdictBatch verdictBatch(com.legend.testplan.BodyDriver$ExecEnv)",

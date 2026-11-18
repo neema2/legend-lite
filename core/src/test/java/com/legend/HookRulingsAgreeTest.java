@@ -56,7 +56,12 @@ class HookRulingsAgreeTest {
             // ruled after this list was first written (2026-11-17, merged from D's d-int3): the ledger's recorder typed
             // (census C1) -- refused by the product (testexec.PureWords, C5 step B's hearing member, left 2026-11-18 on
             // train 15 1931d419b1: deleted by J29, E-Java's 21a9734475, train 14)
-            "com.legend.testexecutionplan.Edge", "C1 HOOK-RULED 2026-11-17 (the ledger's recorder: NoEdge refuses each ask)");
+            "com.legend.testexecutionplan.Edge", "C1 HOOK-RULED 2026-11-17 (the ledger's recorder: NoEdge refuses each ask)",
+            // K2's server half (E-P5's 0c78ae0e00, train 17; the user's ruling "Product root, edge opt-in"): the server
+            // serves lite unless --engine names a module a MountProvider answers -- no product class names it as
+            // compatibility, so no map counts it; proven by HookRulingTest.RULED (2026-11-18)
+            "com.legend.server.MountProvider", "K2 HOOK-RULED 2026-11-18 (the server's opt-in: an unknown --engine refused"
+                    + " by name; EngineMount, the edge's, the one provider)");
 
     private static final String STANDS = "(stands in a product package)";
 

@@ -38,7 +38,7 @@ class EngineDropsTest {
     /** The text's records at {@code dialect}, after asserting that a JSON hop gives the same records. */
     private static PureModelContextData hopped(String text, GrammarLevel dialect) {
         PureModelContextData records = PmcdParser.parse(text, dialect).model();
-        assertEquals(records.elements(), ModelReader.read(ProtocolEmitter.emit(records)).elements(),
+        assertEquals(records.elements(), ModelReader.read(com.legend.json.Json.parse(ProtocolEmitter.emit(records), new com.legend.json.Json.Config(4096))).elements(),
                 "the records written as JSON and read back");
         return records;
     }

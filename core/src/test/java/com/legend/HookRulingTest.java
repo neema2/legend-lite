@@ -37,6 +37,11 @@ class HookRulingTest {
 
     /** The ruled hooks, each with the PRODUCT style's calls that would hand one out. */
     static final Map<Class<?>, List<Executable>> RULED = Map.ofEntries(
+            // K2's server half, 2026-11-18 (the user's ruling: "Product root, edge opt-in"; the orchestrator's addition
+            // (a)): the server's opt-in module, types only, implemented at the edge alone (edge.EngineMount). The
+            // product hands none out: it has no implementation to refuse with, and an engine no module answers is
+            // refused by name at boot (LegendHttpServer.configured, ServerBootTest) -- so no product call is listed
+            Map.entry(com.legend.server.MountProvider.class, List.of()),
             // census C2, 2026-11-17 (the orchestrator's ruling that day: NoEdgeRun is the product's refusal, by name):
             // the edge's run hook, and the hearing it opens
             Map.entry(com.legend.testexec.EdgeRun.class, List.of(
@@ -270,6 +275,9 @@ class HookRulingTest {
                 // CrossKindNumbers (census C1, 2026-11-17, register S127: the product never equals two number kinds,
                 // the edge equals an Integer and a Decimal by their texts, as compiled legend-pure does)
                 com.legend.testplan.CrossKindNumbers.class,
+                // VerdictNumbers (train 17, the orchestrator's item 4 of 2026-11-18, registers S15/S132, S139: two Floats
+                // or two Decimals -- lite's exact rule in the product, compiled legend-pure's at the edge)
+                com.legend.lowering.VerdictNumbers.class,
                 // RenderedTextRule (census C1, 2026-11-17, registers S131, S132: the product's two strings, the edge's
                 // ruled comparison where they differ)
                 com.legend.testplan.RenderedTextRule.class,
@@ -517,7 +525,9 @@ class HookRulingTest {
                 "TextCollector <- com.legend.edge.SqlTextVerdicts$Deferring",
                 "TextCollector <- com.legend.edge.SqlTextVerdicts$Collecting",
                 "TextCollector <- com.legend.edge.SqlTextVerdicts$BatchTexts",
-                "BatchTexts <- com.legend.edge.SqlTextVerdicts$BatchTexts")), implementers);
+                "BatchTexts <- com.legend.edge.SqlTextVerdicts$BatchTexts",
+                // K2's server half, 2026-11-18: legend-engine's opt-in module of the shipped server
+                "MountProvider <- com.legend.edge.EngineMount")), implementers);
         assertFalse(implementers.isEmpty());
         // the product's refusals are the ones named, and each implements a ruled hook
         for (String refusal : PRODUCT_REFUSALS) {
