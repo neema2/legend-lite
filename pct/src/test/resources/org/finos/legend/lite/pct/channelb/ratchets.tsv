@@ -9,12 +9,12 @@ channel_b.grammar.judge.chars	670493
 channel_b.grammar.judge.plan	11586101
 channel_b.relation.discovered	469
 channel_b.relation.judge.statements	469
-channel_b.relation.judge.chars	1989680
-channel_b.relation.judge.plan	34485688
+channel_b.relation.judge.chars	2006804
+channel_b.relation.judge.plan	34502872
 channel_b.standard.discovered	205
 channel_b.standard.judge.statements	207
-channel_b.standard.judge.chars	1547392
-channel_b.standard.judge.plan	24441771
+channel_b.standard.judge.chars	1647537
+channel_b.standard.judge.plan	24542270
 channel_b.unclassified.discovered	93
 channel_b.unclassified.judge.statements	93
 channel_b.unclassified.judge.chars	233207

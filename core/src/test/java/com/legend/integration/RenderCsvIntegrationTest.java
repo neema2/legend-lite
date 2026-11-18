@@ -118,6 +118,19 @@ class RenderCsvIntegrationTest extends AbstractDatabaseTest {
                         + "->meta::relational::tests::csv::toCSV()"));
     }
 
+    /** A Float cell of the CSV text as legend-pure prints it, its shortest round-trip digits plain (PR #118 fix round,
+     *  2026-11-18: DuckDB's in-query cast wrote 1e-05, H2's 1.0E-5) -- a DOUBLE the database computes. */
+    @Test
+    void csvTextPrintsAFloatCellAsLegendPure() throws SQLException {
+        assertEquals("""
+                x
+                0.00001
+                0.00002
+                """,
+                csv("|test::Person.all()->project([p | $p.id->toFloat() / 100000.0], ['x'])->sort(asc('x'))"
+                        + "->meta::relational::tests::csv::toCSV()"));
+    }
+
     @Test
     void renderTdsNullFlagSpellsNulls() throws SQLException {
         assertEquals("""

@@ -505,6 +505,16 @@ final class RelationTextLowering implements RelationTexts {
                         && slot == SqlType.Scalar.DATE);
     }
 
+    /** A relation text's cell as legend-pure PRINTS it: a Float its shortest round-trip text, {@link
+     *  SqlFn#FLOAT_SHORTEST_TEXT} (legend-pure's toString of a TDS cell, DecimalFormat "0.0": 0.00001, 25000000.0),
+     *  never the in-query cast the edge writes for a Float's toString ({@link SqlFn#FLOAT_TO_TEXT} as legend-engine's
+     *  CAST AS VARCHAR, edge.PurePrintForms: 1e-05 on DuckDB, 1.0E-5 on H2). PR #118 fix round, 2026-11-18: commit
+     *  237bd8e5f (Phase 5 row 8) applied the in-query cast to every FLOAT_TO_TEXT node, the relation text's cells too. */
+    private static SqlExpr printedCell(SqlExpr text) {
+        return text instanceof SqlExpr.Call c && c.fn() == SqlFn.FLOAT_TO_TEXT
+                ? SqlExpr.Call.of(SqlFn.FLOAT_SHORTEST_TEXT, c.args().get(0)) : text;
+    }
+
     private static SqlExpr tdsCell(com.legend.lowering.Styled styled, SqlExpr c, Type t, SqlType slot) {
         boolean variant = t instanceof Type.ClassType vc
                 && com.legend.compiler.element.type.PlatformTypes
@@ -563,10 +573,10 @@ final class RelationTextLowering implements RelationTexts {
             // witness testMax_Floats/Numbers_Relation_Aggregate).
             // INTEGER slots (an all-int Number column) and the VARCHAR
             // mixed-identity carrier keep their own spellings.
-            rendered = RelationTexts.pureToString(styled, Type.Primitive.FLOAT,
-                    new SqlExpr.Cast(c, SqlType.Scalar.DOUBLE, SqlExpr.Reason.PRINT));
+            rendered = printedCell(RelationTexts.pureToString(styled, Type.Primitive.FLOAT,
+                    new SqlExpr.Cast(c, SqlType.Scalar.DOUBLE, SqlExpr.Reason.PRINT)));
         } else {
-            rendered = RelationTexts.pureToString(styled, t, c);
+            rendered = printedCell(RelationTexts.pureToString(styled, t, c));
         }
         return new SqlExpr.Case(List.of(new SqlExpr.Case.When(
                 SqlExpr.Call.of(SqlFn.IS_NULL, c),
@@ -691,7 +701,7 @@ final class RelationTextLowering implements RelationTexts {
             // 'yyyy-MM-dd HH:mm:ss', the fraction dropped: docs/OUTPUT_LAYER_DESIGN_2026_10_10.md §3, gap 4)
             rendered = dateTimeText(c);
         } else {
-            rendered = escapeCsv(RelationTexts.pureToString(styled, t, c));
+            rendered = escapeCsv(printedCell(RelationTexts.pureToString(styled, t, c)));
         }
         return new SqlExpr.Case(List.of(new SqlExpr.Case.When(
                 SqlExpr.Call.of(SqlFn.IS_NULL, c),

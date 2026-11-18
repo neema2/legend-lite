@@ -141,14 +141,17 @@ public enum SqlFn {
      *  fractional ones from 1e-17 below 2^53), at least one fraction digit, NaN and the infinities by name. One call per
      *  value, which each dialect spells (dialect/FloatShortestText the portable decomposition; a dialect whose text of a
      *  double is long reads it once). A message's text of a Float (the judges', both judges alike, G2); legend-pure's
-     *  print form is the same text, so the compatibility edge writes this node for {@link #FLOAT_TO_TEXT}. Outside the
+     *  print form is the same text, so the compatibility edge writes this node for a relation text's Float cell
+     *  (edge/RelationTextLowering), legend-engine's in-query cast for {@link #FLOAT_TO_TEXT} elsewhere. Outside the
      *  windows the database's own exponent notation stays, which differs per database: logged for after separation
      *  ("one canonical Float text outside the windows"). */
     FLOAT_SHORTEST_TEXT,
     /** A Float's text ({@code toString}, {@code format}'s {@code %f}): the product's is six decimals, the trailing
      *  zeros and a trailing point trimmed, NaN and the infinities by name (the user's ruling of 2026-11-10, D_BRIEF
      *  §1; phase D's D1.2, 2026-11-15) -- each dialect writes it ({@code AnsiSqlRenderer.floatToText}); the
-     *  compatibility edge writes {@link #FLOAT_SHORTEST_TEXT} for it, legend-pure's print form (edge/PurePrintForms). */
+     *  compatibility edge writes legend-engine's in-query cast for a Float's toString (edge/PurePrintForms) and
+     *  {@link #FLOAT_SHORTEST_TEXT}, legend-pure's print form, for a relation text's cell (edge/RelationTextLowering;
+     *  PR #118 fix round, 2026-11-18). */
     FLOAT_TO_TEXT,
     /** A DateTime's text ({@code toString}, {@code format}'s {@code %s}): the product's is ISO 8601 in UTC, six fraction
      *  digits and {@code Z} (the user's ruling of 2026-11-10, D_BRIEF §1; phase D's D1.2, 2026-11-15), a STRFTIME the
