@@ -133,16 +133,8 @@ public final class BodyPlanner {
                 env.tableReplace(),
                 env.postProcessors().extractCtes(),
                 env.postProcessors().nonExecutable());
-        // A DYNAMIC PIVOT's TEXT whose columns nothing names (its templates unresolved): its columns exist only once the
-        // database is asked, and planning asks the database nothing (the seam program's S3a, 2026-10-30: the LIMIT-0
-        // column probe deleted; the six channel B bodies that reached it named their columns by a cast, F10). Refused
-        // by name: the pivot's keyed form writes no text yet; no body in the corpus or channel B reaches it (step H's
-        // H1). A raw grid's text never comes here: toCSV is its report's texts, toString refused (Render, S3c).
-        if (!lowerer.deferredTds().isEmpty()) {
-            throw new NotImplementedException("a dynamic pivot's text (toString/toCSV) over columns"
-                    + " nothing names: its columns exist only once the database is asked, planning asks the database"
-                    + " nothing, and the pivot's keyed form writes no text");
-        }
+        // (a dynamic pivot's text over columns nothing names: refused by the edge AT LOWERING since 2026-11-18, J40's
+        // DeferredTdsString deletion -- edge.RelationTextLowering, the same words)
         return named ? lowerer.namedColumns(plan) : plan;
     }
 

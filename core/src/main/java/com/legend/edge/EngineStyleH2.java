@@ -1652,13 +1652,13 @@ public class EngineStyleH2 extends AnsiSqlRenderer implements EngineTextDialect 
                     // over-threshold arm): the engine's fixed
                     // generateTempTableSelectSQLQuery template
                     if (bc.args().size() == 2
-                            && bc.args().get(1)
-                                    instanceof SqlExpr.TempTableInSplice ts) {
-                        String a = ts.tempTableName().toLowerCase(
+                            && bc.args().get(1) instanceof SqlExpr.PlanParam tp
+                            && params.isTempTable(tp.name())) {
+                        String a = tp.name().toLowerCase(
                                 java.util.Locale.ROOT) + "_0";
                         return writer.expr(bc.args().get(0), 4).append(" in (select \"").append(a)
                                 .append("\".ColumnForStoringInCollection as")
-                                .append(" ColumnForStoringInCollection from ").append(ts.tempTableName())
+                                .append(" ColumnForStoringInCollection from ").append(tp.name())
                                 .append(" as \"").append(a).append("\")");
                     }
                     // a COLLECTION-typed plan parameter spells the
@@ -2399,7 +2399,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer implements EngineTextDialect 
         // decode-side coercion made explicit for EXECUTION — the
         // engine's own SQL never spells it, so engine TEXT elides it
         // (the wire-coercion suppression precedent).
-        if (c.conform()) {
+        if (c.reason() == SqlExpr.Reason.CONFORM) {
             return writer.expr(c.value(), 0);
         }
         // The temporal-text marker cast is a LABEL device (the construction-site carrier declaration the root

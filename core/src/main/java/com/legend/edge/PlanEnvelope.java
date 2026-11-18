@@ -34,7 +34,7 @@ public final class PlanEnvelope {
                         inList.threshold(), pd::collectionSplice, pd::inTempTableSelect);
         var planOut = inp != null ? inp.plan() : es.plan();
         // the plan's template parameters, the protocol's wrappers spliced bare (the edge's table: the audit's J31)
-        pd.params(inp != null ? es.params().withSplices(inp.splices()) : es.params());
+        pd.params(inp != null ? es.params().withProtocol(inp.splices(), inp.tempTables()) : es.params());
         boolean pushDownEnums = EnginePlans.pushDownEnums(env, java.util.List.of(term));
         String rel = PlanText.single(env.ctx(), rootClass,
                 mappingFqn, planOut,

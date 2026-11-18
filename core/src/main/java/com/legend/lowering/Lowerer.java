@@ -106,21 +106,6 @@ public final class Lowerer {
 
     private int aliasCounter = 0;
 
-    /** The DEFERRED relation-toString registry (dynamic-pivot inners
-     * whose '#TDS' column list only exists at the execution boundary):
-     * id → the typed relation schema the boundary resolver needs for
-     * per-column print forms. The SQL IR node itself is TYPES-FREE
-     * (the sql package's standalone wall); this side channel is the
-     * lowering layer's own. */
-    private final java.util.Map<Integer,
-            com.legend.compiler.element.type.Type.RelationType>
-            deferredTds = new java.util.LinkedHashMap<>();
-
-    public java.util.Map<Integer,
-            com.legend.compiler.element.type.Type.RelationType>
-            deferredTds() {
-        return deferredTds;
-    }
     private int tdsCounter;
 
     /**
@@ -1530,7 +1515,7 @@ public final class Lowerer {
      * at the STATEMENT egress where the contract says String. A
      * synth-conformance cast: execution SQL spells the database's own
      * JSON&rarr;text serialization (probed byte-identical on 1.5.0,
-     * empty case included), engine TEXT elides it (the conform()
+     * empty case included), engine TEXT elides it (the CONFORM reason
      * suppression). Identity on non-JSON results. */
     private static SqlSelect conformJsonEgress(SqlSelect s) {
         if (s.projections().size() != 1) {
@@ -4310,8 +4295,7 @@ public final class Lowerer {
             // (its rows are the result writers'), written by the edge (phase D's D1.3, 2026-11-15)
             case TypedNativeCall tc when PlatformTypes.TO_CSV
                     .equals(tc.callee().qualifiedName()) ->
-                relationTexts.apply(() -> TextRefusals.relation("toCSV")).toCsv(styled(), tc, this::relation, nextAlias(),
-                        deferredTds);
+                relationTexts.apply(() -> TextRefusals.relation("toCSV")).toCsv(styled(), tc, this::relation, nextAlias());
             // the TDS class's csv property (tds.pure:19 `csv: String[1]`)
             // over a relation: the csv TEXT the engine prints for a TDS —
             // header names joined ', ', ','-joined cells with TDSNull, no
@@ -4326,7 +4310,7 @@ public final class Lowerer {
                     "meta::pure::functions::relation::toString"
                             .equals(tc.callee().qualifiedName()) ->
                 relationTexts.apply(() -> TextRefusals.relation("toString")).relationToString(styled(), tc, this::relation,
-                        nextAlias(), deferredTds);
+                        nextAlias());
             // F13c — every operation built on equal() over objects (docs/OBJECT_IDENTITY_2026_10_20.md §3.3): ONE
             // owner of the relation — the same canon the verdict layer byte-judges with. eq = identity (__id
             // compare); equal = key-tree canon (keyed) or identity (keyless). A claimed shape it cannot lower is

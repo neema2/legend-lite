@@ -33,6 +33,7 @@ public final class EngineParams {
     private final LinkedHashMap<String, SqlExpr.PlanParam> slots = new LinkedHashMap<>();
     private final Map<String, String> enumMapFns = new HashMap<>();
     private final Set<String> splices = new HashSet<>();
+    private final Set<String> tempTables = new HashSet<>();
 
     /** A table with no parameters. */
     public static EngineParams none() {
@@ -79,10 +80,17 @@ public final class EngineParams {
         return splices.contains(name);
     }
 
-    /** This table with {@code wrappers} spliced bare. */
-    EngineParams withSplices(Collection<String> wrappers) {
+    /** Whether {@code name} is the temp-table protocol's temp table, read back by legend-engine's temp-select template
+     *  ({@code generateTempTableSelectSQLQuery}; J40, 2026-11-18: SqlExpr.TempTableInSplice until then). */
+    boolean isTempTable(String name) {
+        return tempTables.contains(name);
+    }
+
+    /** This table with {@code wrappers} spliced bare and {@code tables} read back as temp tables ({@link InProtocol}). */
+    EngineParams withProtocol(Collection<String> wrappers, Collection<String> tables) {
         EngineParams out = copy();
         out.splices.addAll(wrappers);
+        out.tempTables.addAll(tables);
         return out;
     }
 
@@ -94,9 +102,11 @@ public final class EngineParams {
         slots.clear();
         enumMapFns.clear();
         splices.clear();
+        tempTables.clear();
         slots.putAll(other.slots);
         enumMapFns.putAll(other.enumMapFns);
         splices.addAll(other.splices);
+        tempTables.addAll(other.tempTables);
     }
 
     private EngineParams copy() {
@@ -104,6 +114,7 @@ public final class EngineParams {
         out.slots.putAll(slots);
         out.enumMapFns.putAll(enumMapFns);
         out.splices.addAll(splices);
+        out.tempTables.addAll(tempTables);
         return out;
     }
 

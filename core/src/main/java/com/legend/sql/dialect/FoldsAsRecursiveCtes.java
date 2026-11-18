@@ -115,8 +115,6 @@ final class FoldsAsRecursiveCtes extends com.legend.sql.SqlRewriter {
             case SqlExpr.Exists x -> false;
             case SqlExpr.InSubquery x -> false;
             case SqlExpr.Quantified x -> false;
-            case SqlExpr.DeferredTdsString x -> false;
-            case SqlExpr.TempTableInSplice x -> false;
             case SqlExpr.RowOrder x -> false;
             case SqlExpr.StoredRead x -> false;
             case SqlExpr.Star x -> false;
