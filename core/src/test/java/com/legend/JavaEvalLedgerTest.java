@@ -1869,6 +1869,9 @@ class JavaEvalLedgerTest {
                             "EngineMount.java",
                             // the texts of upstream's effects and refusals, and legend-pure's raise sentences, as SQL
                             "EffectTexts.java", "PureMessages.java",
+                            // 2026-11-18, L10: legend-engine's WHERE conjunct zones, moved from lowering.WhereMerge (and the
+                            // DISTINCT-key subselect's zone order, from sql.ExistsJoins); its own order, nothing evaluated
+                            "EngineWhereZones.java",
                             // 2026-11-17 (K10b, the orchestrator's ruling (A)): legend-pure's words of a planned raise
                             // site (its record) and one planning call's recorder of them -- words of literal operands at
                             // planning, the edge's data; nothing evaluated, no connection

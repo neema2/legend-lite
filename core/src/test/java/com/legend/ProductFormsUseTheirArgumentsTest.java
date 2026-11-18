@@ -68,8 +68,9 @@ class ProductFormsUseTheirArgumentsTest {
             // composition); the product's form keeps the EXISTS as lowered -- view's arg 1's case
             "ProductLoweringForms#existsJoin(SqlSelect, ExistsSites) arg 1.alias", "2026-11-18: this::nextAlias, the"
                     + " product's alias counter, handed in so the edge can name its join's keys (view's arg 1's case)",
-            "ProductLoweringForms#existsJoin(SqlSelect, ExistsSites) arg 1.zones", "2026-11-18: the lowering's own"
-                    + " resolver zones per conjunct, handed in so the edge can split its join (the L6 ruling's sites)",
+            "ProductLoweringForms#existsJoin(SqlSelect, ExistsSites) arg 1.keysWhere", "2026-11-18: the statement's"
+                    + " WHERE merges' key-subselect writer (the style's WhereZones; L10: until then the lowering's"
+                    + " resolver zones), handed in so the edge can write its join (the L6 ruling's sites)",
             "NoEdgeRun$Hearing#decide(Session, Leases, Function) arg 2", "2026-11-18: the run's session lookup; the"
                     + " product's run has no appeals to decide",
             "NoEdgeRun$Hearing#afterFailure(RuntimeException, Session, Leases, Function) arg 3", "2026-11-18: the run's"

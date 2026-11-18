@@ -254,6 +254,22 @@ class LowerRelationDuckDbTest {
     }
 
     @Test
+    @DisplayName("a deduplicating union keeps every column: a column read by no one still distinguishes its rows (L10)")
+    void dedupUnionKeepsUnreadColumns() throws SQLException {
+        // the four persons, concatenated with themselves and deduplicated over the whole row: four rows; FIRM alone is
+        // read after, so pruning the union's unread columns would deduplicate over FIRM and answer three (L10,
+        // 2026-11-18: until then only legend-engine's union frame name kept this union whole; the rule is the product's)
+        SqlQuery lowered = new Lowerer(com.legend.lowering.PlatformRegistrations.catalogTable())
+                .withStyled(com.legend.lowering.Styled.PRODUCT).lower(Compiler.query(Compiler.compileModel(MODEL),
+                        "#>{test::DB.T_PERSON}#->select(~[NAME, FIRM])"
+                                + "->concatenate(#>{test::DB.T_PERSON}#->select(~[NAME, FIRM]))->distinct()->select(~FIRM)")
+                        .expression());
+        // the product's pruning, as its planner applies it (ProductLoweringForms.computedPruning)
+        String sql = DUCKDB.dialect().render(SubselectPrune.prune(lowered, true));
+        assertEquals(4, exec(sql).size(), "four persons, each its row: " + sql);
+    }
+
+    @Test
     @DisplayName("slice/drop map to LIMIT/OFFSET; second slicing isolates")
     void slicing() throws SQLException {
         String sql = sqlOf("#>{test::DB.T_PERSON}#->sort(~AGE->ascending())->slice(1, 3)");

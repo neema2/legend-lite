@@ -128,7 +128,7 @@ class HookRulingTest {
             // type of the LoweringForms two-form kind's existsJoin, beside it -- the parts' case (filed here by the GUARD
             // stream on that ruling, in place of the READ_API rows the branch proposed)
             Map.entry("com.legend.lowering.ExistsSites#alias()", SITES),
-            Map.entry("com.legend.lowering.ExistsSites#zones()", SITES));
+            Map.entry("com.legend.lowering.ExistsSites#keysWhere()", SITES));
 
     /** The hooks: PlanStyle, the facet kinds and the two-form kinds. */
     static List<Class<?>> hooks() {

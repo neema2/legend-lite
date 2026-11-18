@@ -1469,7 +1469,7 @@ public final class Lowerer {
             // EXCEPT reads of a union frame's outputs, which keep it
             // ("unionalias_0"."lastName" as "lastName")
             boolean unionRead = base.from() instanceof SqlSource.Subselect sub
-                    && "unionAlias".equals(sub.frameName())
+                    && unionFrame(sub)
                     && e instanceof SqlExpr.Column uc
                     && sub.alias().equals(uc.table());
             ps.add(new SqlSelect.Projection(e,
@@ -2244,7 +2244,7 @@ public final class Lowerer {
                         mergeWhere(src.where(), predicate, f.stamp()));
                 // the product's EXISTS as lowered, legend-engine's shape a join to the distinct keys (J19, S367)
                 yield existsJoinable ? styled().forms().existsJoin(m,
-                        ExistsJoinForm.sites(this::nextAlias, whereZones::get)) : m;
+                        new ExistsSites(this::nextAlias, whereZones()::keysWhere)) : m;
             }
             case HAVING -> src.withHaving(src.having() == null ? predicate
                     : Fold.mergeAnd(src.having(), predicate));
@@ -2322,16 +2322,21 @@ public final class Lowerer {
         return new SqlExpr.ArrayLit(c.elements().stream().map(element).toList());
     }
 
-    /** whereExpr identity -> its {@link WhereMerge.Zones} split — written
-     * whenever a resolver-stamped filter folds, consumed as later filters
-     * fold onto the same WHERE (see {@link WhereMerge}). */
-    private final java.util.IdentityHashMap<SqlExpr, WhereMerge.Zones>
-            whereZones = new java.util.IdentityHashMap<>();
+    /** This lowering's WHERE merges, the style's (L10): made at the first merge, one per lowering. */
+    private @com.legend.base.Nullable WhereZones whereZones;
+
+    private WhereZones whereZones() {
+        if (whereZones == null) {
+            whereZones = styled().forms().whereZones();
+        }
+        return whereZones;
+    }
 
     private SqlExpr mergeWhere(@com.legend.base.Nullable SqlExpr existing,
             SqlExpr predicate,
             com.legend.compiler.spec.typed.TypedFilter.Stamp stamp) {
-        return WhereMerge.merge(whereZones, existing, predicate, stamp);
+        // the style's merge (L10): the product's append, legend-engine's zones (kept for its exists form)
+        return whereZones().merge(existing, predicate, stamp);
     }
 
     /** The isolate-terminal boundary: the select was JUST isolated, so an
@@ -2581,11 +2586,12 @@ public final class Lowerer {
     private SqlSelect projectColumns(SqlSelect base, List<String> columns,
                                      ExprType info) {
         List<OutputCol> contract = outputsOf(info);
+        String frame = styled().forms().unionFrame();
         List<SqlSelect.Projection> ps = Fold.tryProjectAll(base, columns,
-                contract);
+                contract, frame);
         if (ps == null) {
             base = isolate(base);
-            ps = Fold.tryProjectAll(base, columns, contract);
+            ps = Fold.tryProjectAll(base, columns, contract, frame);
             if (ps == null) {
                 throw new IsolationWall("select/distinct columns " + columns
                         + " cannot all be resolved even after isolation");
@@ -2603,7 +2609,7 @@ public final class Lowerer {
 
     private SqlSelect distinct(TypedDistinct d) {
         // TDS union (the Typer's distinct-over-concatenation desugar):
-        // the engine form — subselect(A union B) named by the unionAlias
+        // the engine form — subselect(A union B) named by the style's union frame
         // frame, plain outer re-projection of the output columns (SQL
         // UNION dedups; never a distinct wrapper)
         // whole-row iff columns cover the SOURCE schema (output row is narrowed)
@@ -2614,7 +2620,7 @@ public final class Lowerer {
             SqlUnion u = union(tc);
             SqlUnion dedup = new SqlUnion(u.branches(), false, u.outputs());
             SqlSource.Subselect sub = new SqlSource.Subselect(
-                    dedup, nextAlias(), "unionAlias");
+                    dedup, nextAlias(), styled().forms().unionFrame());
             List<SqlSelect.Projection> projs = new ArrayList<>();
             for (Type.Column c : (Type.requireRelationSchema(d.info().type()))
                     .columns()) {
@@ -2646,6 +2652,10 @@ public final class Lowerer {
         // reads the original TDS aliases); an already-framed source
         // absorbs chained renames; a BARE SCAN renames in place (the
         // relation-channel flat pin — nothing projected to frame)
+        // a rename of a PROJECTED source is framed (its computed projections read once through the frame, never
+        // inlined again: ScaleCostsDuckDbTest's doubling chain stays linear; L10, 2026-11-18, measured -- the product's
+        // rule, as legend-engine's SQL frames it too); an already-framed source absorbs chained renames; a bare scan
+        // renames in place
         SqlSelect base = Fold.projectionFolds(src)
                 && (src.from() instanceof SqlSource.Subselect
                         || src.projections().isEmpty())
@@ -2957,15 +2967,15 @@ public final class Lowerer {
         } else {
             // a UNION-FRAMED operand keeps its frame identity through
             // join isolation (engine: joins against a union wrap it as
-            // another unionAlias frame)
+            // another union frame, the style's)
             left = unionFramed(leftSel)
                     ? new SqlSource.Subselect(leftSel, nextAlias(),
-                            "unionAlias")
+                            styled().forms().unionFrame())
                     : asLeftJoinSide(leftSel);
         }
         SqlSelect rightSel = relation(j.right());
         SqlSource right = asRightSide(rightSel,
-                unionFramed(rightSel) ? "unionAlias" : j.frameName());
+                unionFramed(rightSel) ? styled().forms().unionFrame() : j.frameName());
         // a USER join lambda's ON keeps pure's null-safe equality (testJoinOnNullKey);
         // a RESOLVER-SYNTHESIZED join is the mapping's definition — plain '=' (slotDemandJoins)
         SqlExpr on;
@@ -2998,19 +3008,24 @@ public final class Lowerer {
             // Subselect; re-asserting outputsOf(info) here would
             // re-echo the kind-blind contract (the SqlUnion ctor lesson)
             return SqlSelect.starOf(new SqlSource.Subselect(out, nextAlias(),
-                    "unionAlias"));
+                    styled().forms().unionFrame()));
         }
         return out;
     }
 
-    private static boolean unionFramed(SqlSelect s) {
-        return s.from() instanceof SqlSource.Subselect sub
-                && "unionAlias".equals(sub.frameName());
+    /** Whether {@code s} reads a union frame the style names (L10: the product names none). */
+    private boolean unionFramed(SqlSelect s) {
+        return s.from() instanceof SqlSource.Subselect sub && unionFrame(sub);
     }
 
-    private static boolean unionSide(SqlSource s) {
-        return s instanceof SqlSource.Subselect sub
-                && "unionAlias".equals(sub.frameName());
+    private boolean unionSide(SqlSource s) {
+        return s instanceof SqlSource.Subselect sub && unionFrame(sub);
+    }
+
+    /** Whether {@code sub} is a union frame the style names: never where it names none (the product's). */
+    private boolean unionFrame(SqlSource.Subselect sub) {
+        String frame = styled().forms().unionFrame();
+        return frame != null && frame.equals(sub.frameName());
     }
 
     /** asOfJoin: DuckDB ASOF LEFT JOIN; ON = optional keys AND the match inequality. */

@@ -47,9 +47,10 @@ public final class SubselectPrune {
 
     /** Per-alias column reads + star'd aliases + unqualified name reads. */
     private record Refs(Map<String, Set<String>> cols, Set<String> starred,
-                        Set<String> unqualified, boolean computed) {
-        Refs(boolean computed) {
-            this(new HashMap<>(), new HashSet<>(), new HashSet<>(), computed);
+                        Set<String> unqualified, boolean computed,
+                        @com.legend.base.Nullable String keptUnionFrame) {
+        Refs(boolean computed, @com.legend.base.Nullable String keptUnionFrame) {
+            this(new HashMap<>(), new HashSet<>(), new HashSet<>(), computed, keptUnionFrame);
         }
 
         void col(@com.legend.base.Nullable String table, String name) {
@@ -71,13 +72,21 @@ public final class SubselectPrune {
      *  (2026-11-04, the timeseries SQL's size). Not in legend-engine's text: its column lists are its own. A product
      *  building block the edge's forms call too (the lens audit's item 1, 2026-11-18). */
     public static SqlQuery prune(SqlQuery q, boolean computed) {
+        return prune(q, computed, null);
+    }
+
+    /** {@link #prune(SqlQuery, boolean)}, a union frame named {@code keptUnionFrame} keeping every column (L10, the lens
+     *  audit's L-A.unionAlias, 2026-11-18: legend-engine's SQL lists a user union's projected columns whether read or
+     *  not -- its testUnionWithGroupBy golden pins firstName in both arms; the edge's engine shape passes its frame,
+     *  the product none). */
+    public static SqlQuery prune(SqlQuery q, boolean computed, @com.legend.base.Nullable String keptUnionFrame) {
         // FIXPOINT: dropping a projection can strand references one
         // level deeper (an isolation frame's pruned column was the only
         // reader of a union output — ledger cluster 57), and the
         // reference census is taken once per pass. Terminates: each
         // round strictly removes projections or changes nothing.
         for (int round = 0; round < 16; round++) {
-            Refs refs = new Refs(computed);
+            Refs refs = new Refs(computed, keptUnionFrame);
             collectQuery(q, refs);
             SqlQuery next = rewriteQuery(q, refs);
             if (next.equals(q)) {
@@ -390,11 +399,14 @@ public final class SubselectPrune {
      * kept. */
     private static SqlSource.@com.legend.base.Nullable Subselect pruneUnion(
             SqlUnion u, SqlSource.Subselect sub, Refs r) {
-        // a USER-projected TDS union keeps its projected columns even
-        // when the outer never reads them (engine testUnionWithGroupBy
-        // golden pins firstName in both arms) — only SYNTHESIS unions
-        // (class-mapping union extents) prune
-        if ("unionAlias".equals(sub.frameName())) {
+        // a DEDUPLICATING union (UNION, not UNION ALL) keeps every column: its rows are distinct over all of them, so a
+        // column dropped could merge two of its rows (L10, 2026-11-18: until then only legend-engine's union frame name
+        // kept a TDS distinct's union whole -- the product's rule now, whatever the frame)
+        if (!u.all()) {
+            return null;
+        }
+        // the style's kept union frame (legend-engine's: its user unions list their projected columns, read or not)
+        if (r.keptUnionFrame() != null && r.keptUnionFrame().equals(sub.frameName())) {
             return null;
         }
         if (r.starred().contains("*") || r.starred().contains(sub.alias())

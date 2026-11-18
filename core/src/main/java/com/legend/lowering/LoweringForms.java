@@ -92,4 +92,14 @@ public interface LoweringForms {
      *  distinct keys over the statement's {@code sites} (the lens audit's item 1, 2026-11-18: the lowering hands its
      *  sites, never the rewrite; the edge's form calls the product's building block, sql.ExistsJoins). */
     SqlSelect existsJoin(SqlSelect filtered, ExistsSites sites);
+
+    /** The frame name a TDS union's subselect carries where the lowering names it (L10, the lens audit's L-A.unionAlias,
+     *  2026-11-18): null is no frame -- the product's, a union is a subselect like any other; legend-engine's SQL names
+     *  each union frame (and a join against one) and reads its columns through that name. */
+    @com.legend.base.Nullable String unionFrame();
+
+
+    /** A fresh statement's WHERE merges (L10): the product's appends each predicate and keeps no zones; legend-engine's
+     *  orders the conjuncts by zone and keeps each split for its exists form ({@link WhereZones}). */
+    WhereZones whereZones();
 }

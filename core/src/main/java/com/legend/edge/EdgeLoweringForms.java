@@ -135,7 +135,7 @@ record EdgeLoweringForms(Set<RaiseKind> plain) implements com.legend.lowering.Lo
      *  register S367). */
     @Override
     public SqlSelect existsJoin(SqlSelect filtered, com.legend.lowering.ExistsSites sites) {
-        return com.legend.sql.ExistsJoins.rewrite(filtered, sites.alias(), sites.zones(), ex -> true);
+        return com.legend.sql.ExistsJoins.rewrite(filtered, sites.alias(), sites.keysWhere(), ex -> true);
     }
 
     /** legend-engine's H2 isNumeric ({@code lower(s) = upper(s)}: a text with no cased letter), every edge style's
@@ -154,6 +154,21 @@ record EdgeLoweringForms(Set<RaiseKind> plain) implements com.legend.lowering.Lo
         }
         return new com.legend.lowering.Styled(style.pureOnly(), new EngineShape(base), style.dateTimes(),
                 style.lists());
+    }
+
+    /** No union frame outside legend-engine's statement shape (L10, the lens audit's L-A.unionAlias, 2026-11-18): the
+     *  product's lean form, as J23's. */
+    @Override
+    public @com.legend.base.Nullable String unionFrame() {
+        return null;
+    }
+
+
+    /** legend-engine's conjunct zones, on every edge style (L10): its exists form reads them ({@code existsJoin}, J19 --
+     *  user conditions, then correlation, then temporal). */
+    @Override
+    public com.legend.lowering.WhereZones whereZones() {
+        return new EngineWhereZones();
     }
 
     /**
@@ -176,9 +191,26 @@ record EdgeLoweringForms(Set<RaiseKind> plain) implements com.legend.lowering.Lo
             return q;
         }
 
+        /** Unread computed projections kept, and a user union's frame keeping every column (legend-engine's
+         *  testUnionWithGroupBy golden lists firstName in both arms; L10). */
         @Override
         public com.legend.sql.SqlQuery computedPruning(com.legend.sql.SqlQuery q) {
-            return com.legend.lowering.SubselectPrune.prune(q, false);
+            return com.legend.lowering.SubselectPrune.prune(q, false, UNION_FRAME);
+        }
+
+        /** legend-engine's union frame name: its SQL names each union frame, a join against one, and a join containing
+         *  one, and reads their columns through it ({@code "unionalias_0"."lastName" as "lastName"}; L10). */
+        static final String UNION_FRAME = "unionAlias";
+
+        @Override
+        public String unionFrame() {
+            return UNION_FRAME;
+        }
+
+
+        @Override
+        public com.legend.lowering.WhereZones whereZones() {
+            return base.whereZones();
         }
 
         @Override

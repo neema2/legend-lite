@@ -174,6 +174,9 @@ class CodeShapeGuardrailTest {
             // reads in flight on an enclosing row's behalf (2026-10-15): the depth the resolvers consult so a
             // correlated read spends no pass's fold budget; raised and lowered around the read
             "Lowerer.correlatedReads",
+            // the style's WHERE merges for this lowering (L10, 2026-11-18): made at the first merge from the style the
+            // Lowerer is handed (withStyled, itself a mutable field), one per lowering; the edge's keeps its zone split
+            "Lowerer.whereZones",
             // a raw grid report's input in flight (2026-10-31, the planner-driver seam program's S3c): the depth
             // rawGrid consults so a report reads its grid as the grid itself, never as its rows' cells; raised and
             // lowered around the input's lowering, correlatedReads' lifecycle

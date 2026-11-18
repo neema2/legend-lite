@@ -625,7 +625,7 @@ public class ClickHouse extends AnsiSqlRenderer {
 
         @Override
         protected com.legend.sql.SqlQuery select(SqlSelect s) {
-            return com.legend.sql.ExistsJoins.rewrite(s, () -> "__ej" + keys.incrementAndGet(), w -> null,
+            return com.legend.sql.ExistsJoins.rewrite(s, () -> "__ej" + keys.incrementAndGet(), com.legend.sql.ExistsJoins::encounterOrder,
                     ex -> ex.subquery() instanceof SqlSelect q && correlated(q) && !correlatedRight(q));
         }
     }
