@@ -482,10 +482,11 @@ public final class VerdictSql {
         OutputCol n = new OutputCol("__n", SqlType.Scalar.BIGINT, false);
         SqlSelect.Projection countStar = new SqlSelect.Projection(
                 new SqlAgg.Reducer(SqlAgg.Fn.COUNT, List.of(), false, List.of()), "__n", n);
-        // an engine execute()'s graph value is the aggregate under the
-        // singleton fold (SnapshotEnvelope.foldedAggregate): the same rows,
-        // counted the same way (one object bare is one, the host rule's 1)
-        if (top instanceof SqlExpr.JsonArrayAgg || SnapshotEnvelope.foldedAggregate(top) != null) {
+        // a value that aggregates its rows into an array (the array itself, or any form a style writes over it -- the
+        // edge's one-object-bare choice among them): the same rows, counted the same way (one object bare is one, the
+        // host rule's 1). Read by the value's own structure, never by the edge's shape (L-A.foldedAggregate, the
+        // lens audit, 2026-11-18)
+        if (aggregatesRowsIntoAnArray(top)) {
             return new SqlExpr.ScalarSubquery(ps.withProjections(List.of(countStar)));
         }
         OutputCol one = new OutputCol("__one", SqlType.Scalar.BIGINT, false);
@@ -496,6 +497,12 @@ public final class VerdictSql {
         return new SqlExpr.ScalarSubquery(new SqlSelect(List.of(countStar), false,
                 new SqlSource.Subselect(first, "w", null), null, List.of(), null, null,
                 List.of(), null, null, List.of(n)));
+    }
+
+    /** Whether {@code e} holds the array aggregate of its select's rows outside any subquery. */
+    private static boolean aggregatesRowsIntoAnArray(SqlExpr e) {
+        return e instanceof SqlExpr.JsonArrayAgg
+                || e.children().stream().anyMatch(VerdictSql::aggregatesRowsIntoAnArray);
     }
 
     /** {@code assertSize} over a graph side. */
@@ -1834,8 +1841,8 @@ public final class VerdictSql {
         }
 
         private static SqlExpr param(String name, SqlType type) {
-            return new SqlExpr.PlanParam(name, type == SqlType.Scalar.VARCHAR ? SqlExpr.PlanParam.Kind.STRING
-                    : SqlExpr.PlanParam.Kind.OTHER, true, com.legend.sql.SqlTyping.typed(type), null);
+            return new SqlExpr.PlanParam(name, type == SqlType.Scalar.VARCHAR ? SqlExpr.PlanParam.ValueType.STRING
+                    : SqlExpr.PlanParam.ValueType.OTHER, true, com.legend.sql.SqlTyping.typed(type), null);
         }
     }
 

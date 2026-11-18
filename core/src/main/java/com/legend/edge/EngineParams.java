@@ -64,14 +64,14 @@ public final class EngineParams {
     }
 
     /** A template parameter: a plain plan parameter of {@code name}, its type unknown (a template binds nothing). */
-    static SqlExpr.PlanParam template(String name, SqlExpr.PlanParam.Kind kind, boolean optional) {
+    static SqlExpr.PlanParam template(String name, SqlExpr.PlanParam.ValueType kind, boolean optional) {
         return new SqlExpr.PlanParam(name, kind, optional, com.legend.sql.SqlTyping.UNKNOWN, null);
     }
 
     /** A declared parameter, {@code [0..1]} when {@code optional}; an enumeration's with its mapping function
      *  {@code enumMapFn}. */
     void declare(String name, Type type, boolean optional, @com.legend.base.Nullable String enumMapFn) {
-        slots.put(name, template(name, com.legend.lowering.PlanParams.kindOf(type), optional));
+        slots.put(name, template(name, com.legend.lowering.PlanParams.valueTypeOf(type), optional));
         if (enumMapFn != null) {
             enumMapFns.put(name, enumMapFn);
         }
@@ -79,7 +79,7 @@ public final class EngineParams {
 
     /** A let's variable, of {@code type}. */
     void let(String name, Type type) {
-        slots.put(name, template(name, com.legend.lowering.PlanParams.kindOf(type), false));
+        slots.put(name, template(name, com.legend.lowering.PlanParams.valueTypeOf(type), false));
     }
 
     /** The parameters a lowering binds. */
@@ -187,7 +187,7 @@ public final class EngineParams {
         }
         String name = v.name() + "." + String.join(".", path);
         dotted.add(name);
-        out.slots.put(name, template(name, com.legend.lowering.PlanParams.kindOf(p.info().type()), false));
+        out.slots.put(name, template(name, com.legend.lowering.PlanParams.valueTypeOf(p.info().type()), false));
         return new TypedVariable(name, p.info());
     }
 }

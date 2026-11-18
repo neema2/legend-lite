@@ -66,10 +66,9 @@ class UpstreamBranchesTest {
     static final Map<String, Integer> SITES = Map.ofEntries(
             Map.entry("lowering/Fold.java | shape unionAlias", 1),
             Map.entry("lowering/Lowerer.java | shape unionAlias", 7),
-            Map.entry("lowering/SubselectPrune.java | shape unionAlias", 1),
-            // the product's count reading the edge's fold shape (the orchestrator's ruling of 2026-11-18, train 18: a real
-            // finding, owner E-SQL, closed with the fold's move to the edge's executeValues form)
-            Map.entry("lowering/VerdictSql.java | edge shape foldedAggregate", 1));
+            Map.entry("lowering/SubselectPrune.java | shape unionAlias", 1));
+            // (lowering/VerdictSql.java | edge shape foldedAggregate: 1 -> 0, CLOSED 2026-11-18 by E-SQL's 171d588ed --
+            // VerdictSql.graphCount reads a value's own structure; SnapshotEnvelope.foldedAggregate deleted)
     // (the judging rules' sites -- VerdictSql's 8 branches on floatUlps, Equality's 5 and HostRules' 3 reads -- gone
     // 2026-11-18 with E-Java's train-17 item 4, dacc4bf313: the database judge asks the VerdictNumbers two-form kind, the
     // host judge the run hook HostForms, compiled legend-pure's comparison the edge's forms; L-A.judgingRules closes)
