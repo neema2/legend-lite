@@ -7,7 +7,6 @@ import com.legend.testexecutionplan.AssertListener;
 
 import static com.legend.testexecutionplan.Verdicts.ok;
 import static com.legend.testexecutionplan.Verdicts.fail;
-import static com.legend.edge.SqlTextReferee.textsDiffer;
 import static com.legend.edge.SqlTextReferee.isPopulationGolden;
 import static com.legend.edge.SqlTextReferee.stripChainedPlanWarning;
 import static com.legend.edge.SqlTextReferee.scalarString;
@@ -28,10 +27,11 @@ final class SqlTextRuns {
      *  decline reported, then the text decides -- equal holds; else the appeal, the walk's own rows leg, now, with the
      *  texts in hand. */
     static TypedSide judge(EngineTextJudgment e, int appeal, List<TypedSide> sides,
-            com.legend.testexecutionplan.TestPlan.JudgingRules rules, Appeals run, boolean messaged) {
+            Appeals run, boolean messaged) {
         // the appeal is heard by its number, the plan's (step 8b): the run records the texts it read, and the edge
-        // decides after the run; the step's rules say whether a failed text is appealed
-        boolean compat = rules.equals(CompatRules.COMPILED_PURE);
+        // decides after the run -- a failed text is always appealed here: only the edge's hook hears an edge-judged
+        // comparison (NoEdgeRun refuses one by name), and the edge's hook runs only the edge's style's plans
+        // (train 17, 2026-11-18: until then the step's rules said so)
         if (sides.size() != 2) {
             throw new IllegalStateException(e.name() + ": the engine-text step handed " + sides.size()
                     + " sides, two texts expected");
@@ -56,9 +56,6 @@ final class SqlTextRuns {
             }
             if (golden.equals(ours)) {
                 return ok();
-            }
-            if (!compat) {
-                return textsDiffer(e.name(), golden, ours, e.decline());
             }
             // compatibility mode: the appeal PLANNED with the assert, over the golden as read (2026-11-06, the plan
             // ahead: until then the arm was re-run over the step's texts while the program ran, planning as it went).
@@ -85,8 +82,7 @@ final class SqlTextRuns {
         // the equality arm's census route is the caller's to count once this answered (AssertVerdicts.HostAssert); the
         // decline reported above, the text decides -- equal holds, else the appeal heard, or the texts' failure
         String o = java.util.Objects.requireNonNull(ours);
-        return textEqual ? ok() : compat ? run.hold(e.name(), appeal, e.golden(), o, textEqual, messaged)
-                : textsDiffer(e.name(), e.golden(), o, e.decline());
+        return textEqual ? ok() : run.hold(e.name(), appeal, e.golden(), o, textEqual, messaged);
     }
 
     /** The ACTUAL text of a failed verdict row (its column by position, {@code RootLoop.ACTUAL_COLUMN}): our text as

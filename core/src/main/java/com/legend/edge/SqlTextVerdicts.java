@@ -408,10 +408,12 @@ final class SqlTextVerdicts {
         throw new IllegalStateException(name + " (sql-text): an appeal heard outside a body's run");
     }
 
-    /** Whether a failed text may be appealed (the rows leg, a re-run of the arm): compatibility mode alone -- in lite's
-     *  own runs the two texts are the verdict, and after a verdict the harness may only explain (the user, 2026-11-05). */
+    /** Whether a failed text may be appealed (the rows leg, a re-run of the arm): the edge's style alone -- in lite's
+     *  own runs the two texts are the verdict, and after a verdict the harness may only explain (the user, 2026-11-05).
+     *  The style says (the orchestrator's ruling of 2026-11-18: the edge knows it is the edge; the judging rules'
+     *  data before): a plan worded in legend-pure's words, which only the edge's hook hears (TestRunner's check). */
     private static boolean appeals(BodyDriver.ExecEnv env) {
-        return EngineTextPlanning.judgingRules(env).equals(CompatRules.COMPILED_PURE);
+        return PureText.isEdgeStyle(EngineTextPlanning.style(env));
     }
 
     /**

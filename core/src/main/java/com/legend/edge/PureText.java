@@ -30,6 +30,12 @@ public final class PureText {
     private static final DatabaseType ENGINE_TEST_DATABASE = DatabaseType.H2;
 
     /** The edge's dialect source: upstream's spellings over the product's dialect of each database. */
+    /** Whether {@code style} is one of the edge's ({@link #UPSTREAM}, {@link #PURE_V1}): a plan in legend-pure's words,
+     *  which only the edge's hook hears (TestRunner refuses a mixed run by them; train 17, 2026-11-18). */
+    public static boolean isEdgeStyle(PlanStyle style) {
+        return style == UPSTREAM || style == PURE_V1;
+    }
+
     public static final PlanStyle UPSTREAM = new PlanStyle() {
         @Override
         public SqlDialect dialect(DatabaseType type) {

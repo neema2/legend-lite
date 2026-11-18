@@ -141,7 +141,6 @@ class JudgingRulesReachTest {
             Map.entry("com.legend.testplan.DatabaseAsserts", Set.of(TYPE)),
             // (com.legend.testplan.DatabaseJudge: gone 2026-11-18, train 17 item 4, E-Java -- it asks the style's
             // two-form VerdictNumbers kind, and names the judging rules no more)
-            Map.entry("com.legend.testplan.EngineTextPlanning", Set.of(TYPE)),
             Map.entry("com.legend.testplan.HostAsserts", Set.of(TYPE)),
             Map.entry("com.legend.testplan.HostSideBatching", Set.of(TYPE)),
             Map.entry("com.legend.testplan.JudgePlans", Set.of(TYPE)),

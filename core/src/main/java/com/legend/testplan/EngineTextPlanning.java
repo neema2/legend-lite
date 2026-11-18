@@ -49,8 +49,8 @@ public final class EngineTextPlanning {
         return env.verdictBatch();
     }
 
-    public static com.legend.testexecutionplan.TestPlan.JudgingRules judgingRules(BodyDriver.ExecEnv env) {
-        return env.options().judgingRules();
+    public static com.legend.database.PlanStyle style(BodyDriver.ExecEnv env) {
+        return env.options().style();
     }
 
     public static java.util.Map<String, String> tableReplace(BodyDriver.ExecEnv env) {
