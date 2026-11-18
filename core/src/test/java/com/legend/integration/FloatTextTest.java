@@ -39,7 +39,7 @@ class FloatTextTest {
             assertEquals("0", scalar(model, c, "|0.0000001->toString()"), backend.name());
             // legend-pure's print form, at the compatibility edge
             assertEquals(List.of("1.5", "2.0", "-1.25"), column(Lean.runInStyle(model, "|" + ROWS
-                    + "->extend(~t: r|$r.x->toOne()->toString())->select(~t)", StorelessRuntime.RUNTIME, c,
+                    + "->extend(~t: r|$r.x->toOne()->toString())->select(~t)", StorelessRuntime.RUNTIME, backend,
                     com.legend.edge.PureText.UPSTREAM)).subList(0, 3), backend.name());
             assertEquals("2.0", Lean.runInStyle(model, "|2.0->toString()", StorelessRuntime.RUNTIME, backend,
                     com.legend.edge.PureText.UPSTREAM).rows().get(0).get(0).toString(), backend.name());

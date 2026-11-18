@@ -40,7 +40,7 @@ public interface TestBackend {
     Connection open() throws SQLException;
 
     /** A session on the database {@code style}'s plans run on (H2's settings are the style's two-form
-     *  {@code H2Settings}: the audit's J22). A backend whose database is the same under every style opens its one. */
+     *  {@code DatabaseSettingsForm}: the audit's J22). A backend whose database is the same under every style opens its one. */
     default Connection open(com.legend.database.PlanStyle style) throws SQLException {
         return open();
     }

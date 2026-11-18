@@ -31,7 +31,7 @@ public final class TestBackends {
         return h2UrlSettings(com.legend.database.PlanStyle.PRODUCT);
     }
 
-    /** {@link #h2UrlSettings()} for {@code style}'s H2 database (its two-form {@code H2Settings}; the audit's J22). */
+    /** {@link #h2UrlSettings()} for {@code style}'s H2 database (its two-form {@code DatabaseSettingsForm}; the audit's J22). */
     public static String h2UrlSettings(com.legend.database.PlanStyle style) {
         StringBuilder url = new StringBuilder(";NON_KEYWORDS=" + com.legend.sql.dialect.H2.NON_KEYWORDS);
         for (com.legend.sql.dialect.SqlDialect.Setting s : style.dialect(DatabaseType.H2).databaseSettings()

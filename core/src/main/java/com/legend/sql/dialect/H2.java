@@ -42,8 +42,8 @@ public class H2 extends AnsiSqlRenderer {
      *  2.5.252: it commits no open transaction). */
     public static final List<String> SESSION_SETUP = List.of("SET NON_KEYWORDS " + NON_KEYWORDS);
 
-    // (the settings an H2 database has: a two-form kind since the audit's J22, 2026-11-17, H2Settings -- the
-    // product's H2's own defaults, ProductH2Settings; legend-engine's the edge's)
+    // (the settings an H2 database has: a two-form kind since the audit's J22, 2026-11-17, DatabaseSettingsForm -- the
+    // product's H2's own defaults, ProductDatabaseSettings; legend-engine's the edge's)
 
     /** {@code required} with the statement answering each of them the database does NOT have, as one text
      *  ({@code NAME=VALUE}, by name; {@code NAME=(not reported)} for one it does not report at all): none where it has
@@ -95,7 +95,7 @@ public class H2 extends AnsiSqlRenderer {
         return SESSION_SETUP;
     }
 
-    /** {@inheritDoc} This dialect's {@link H2Settings}. */
+    /** {@inheritDoc} This dialect's {@link DatabaseSettingsForm}. */
     @Override
     public DatabaseSettings databaseSettings() {
         return settings.settings();
@@ -223,15 +223,15 @@ public class H2 extends AnsiSqlRenderer {
      * backend without it), JSON constructors only. */
     public static final CarrierStrategies.Caps CAPS = new CarrierStrategies.Caps(false, false, false, false);
 
-    private final H2Settings settings;
+    private final DatabaseSettingsForm settings;
 
-    /** The product's H2 ({@link ProductH2Settings}). */
+    /** The product's H2 ({@link ProductDatabaseSettings}). */
     public H2() {
-        this(ProductH2Settings.INSTANCE);
+        this(ProductDatabaseSettings.INSTANCE);
     }
 
-    /** H2 on a database with {@code settings}, the plan style's two-form {@link H2Settings} (data, not an override). */
-    protected H2(H2Settings settings) {
+    /** H2 on a database with {@code settings}, the plan style's two-form {@link DatabaseSettingsForm} (data, not an override). */
+    protected H2(DatabaseSettingsForm settings) {
         super(LEXICON);
         this.settings = settings;
     }

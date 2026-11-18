@@ -62,5 +62,5 @@ public final class PlanStyleFacets {
             com.legend.lowering.LoweringForms.class,
             // the settings an H2 database has (the audit's J22, RULED by the user 2026-11-17): the product's H2's own
             // defaults, the edge's legend-engine's MODE=LEGACY and DEFAULT_NULL_ORDERING=HIGH
-            com.legend.sql.dialect.H2Settings.class);
+            com.legend.sql.dialect.DatabaseSettingsForm.class);
 }
