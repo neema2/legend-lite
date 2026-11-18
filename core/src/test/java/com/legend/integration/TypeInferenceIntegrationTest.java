@@ -172,7 +172,7 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                 // bare, an exact numeric -- except where legend-engine writes it CAST(%s AS FLOAT), a double, whose text
                 // its own H2 manifest expects ('1.3421E-8'; edge/PurePrintForms, FloatTextTest)
                 var result = Lean.runInStyle(getCompletePureModelWithRuntime(), "|0.000000013421->toString()",
-                        "test::TestRuntime", connection, com.legend.edge.PureText.UPSTREAM);
+                        "test::TestRuntime", backend(), com.legend.edge.PureText.UPSTREAM);
                 boolean floatLiteralCast = com.legend.testing.LaneFloor.backend().name().equals("h2");
                 assertEquals(floatLiteralCast ? "1.3421E-8" : "0.000000013421", result.rows().get(0).get(0).toString());
                 // the product's text (register S311): six decimals, trimmed -- below 0.0000005, 0
@@ -1129,7 +1129,7 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                 // '2014-01-01T00:00:00.000+0000'
                 // legend-pure's text, at the written precision: the compatibility edge's since D1.2 (2026-11-15)
                 var result = Lean.runInStyle(getCompletePureModelWithRuntime(), "|%2014-01-01T00:00:00.000+0000->toString()",
-                        "test::TestRuntime", connection, com.legend.edge.PureText.UPSTREAM);
+                        "test::TestRuntime", backend(), com.legend.edge.PureText.UPSTREAM);
                 assertEquals("2014-01-01T00:00:00.000+0000", result.rows().get(0).get(0));
                 // the product's text (the user's ruling of 2026-11-10): ISO 8601 in UTC, six fraction digits and Z
                 assertEquals("2014-01-01T00:00:00.000000Z", Lean.run(getCompletePureModelWithRuntime(),

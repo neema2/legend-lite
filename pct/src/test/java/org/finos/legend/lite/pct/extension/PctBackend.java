@@ -69,7 +69,8 @@ public final class PctBackend {
 
     /** A session on this lane's database. */
     public static Connection connect() throws SQLException {
-        return backend().open();
+        // PCT runs on the edge's database (the audit's J22, 2026-11-17: H2's settings are the plan style's)
+        return backend().open(com.legend.edge.PureText.UPSTREAM);
     }
 
     /** Whether the lane's database's sessions are its connector's own, not JDBC's (MongoDB's,

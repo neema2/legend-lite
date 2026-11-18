@@ -41,7 +41,7 @@ class FloatTextTest {
             assertEquals(List.of("1.5", "2.0", "-1.25"), column(Lean.runInStyle(model, "|" + ROWS
                     + "->extend(~t: r|$r.x->toOne()->toString())->select(~t)", StorelessRuntime.RUNTIME, c,
                     com.legend.edge.PureText.UPSTREAM)).subList(0, 3), backend.name());
-            assertEquals("2.0", Lean.runInStyle(model, "|2.0->toString()", StorelessRuntime.RUNTIME, c,
+            assertEquals("2.0", Lean.runInStyle(model, "|2.0->toString()", StorelessRuntime.RUNTIME, backend,
                     com.legend.edge.PureText.UPSTREAM).rows().get(0).get(0).toString(), backend.name());
         }
     }
@@ -72,7 +72,7 @@ class FloatTextTest {
     }
 
     private static String edge(String model, Connection c, String query) throws Exception {
-        return Lean.runInStyle(model, query, StorelessRuntime.RUNTIME, c, com.legend.edge.PureText.UPSTREAM).rows()
+        return Lean.runInStyle(model, query, StorelessRuntime.RUNTIME, LaneFloor.backend(), com.legend.edge.PureText.UPSTREAM).rows()
                 .get(0).get(0).toString();
     }
 

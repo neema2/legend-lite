@@ -596,7 +596,7 @@ class GeneratedTestDataProgramTest {
         // the seed's text rendered before the run (the runtime wall: a run renders nothing)
         List<String> seed = CsvSeed.sqls(CSV, "t::DB", ctx, backend.dialect());
         com.legend.exec.Sessions.Opener seeded = () -> {
-            Connection c = backend.open();
+            Connection c = backend.open(style);   // the style's database (the audit's J22, 2026-11-17)
             try (Statement s = c.createStatement()) {
                 for (String sql : seed) {
                     s.execute(sql);

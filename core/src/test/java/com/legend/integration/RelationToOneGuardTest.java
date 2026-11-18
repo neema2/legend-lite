@@ -32,8 +32,8 @@ class RelationToOneGuardTest {
     static void guarded(TestBackend backend) throws Exception {
         String model = backend.withStorelessRuntime("");
         try (Connection c = backend.open()) {
-            assertSizeError(model, c, "{|" + ROWS + "->toOne()}", 2);
-            assertSizeError(model, c, "{|" + ROWS + "->filter(r|$r.a > 5)->toOne()}", 0);
+            assertSizeError(backend, model, c, "{|" + ROWS + "->toOne()}", 2);
+            assertSizeError(backend, model, c, "{|" + ROWS + "->filter(r|$r.a > 5)->toOne()}", 0);
             Lean.Result one = Lean.run(model, "{|" + ROWS + "->filter(r|$r.a == 2)->toOne()}",
                     StorelessRuntime.RUNTIME, c);
             assertEquals(1, one.rowCount());
@@ -42,7 +42,8 @@ class RelationToOneGuardTest {
         }
     }
 
-    private static void assertSizeError(String model, Connection c, String query, int size) {
+    private static void assertSizeError(TestBackend backend, String model, Connection c, String query, int size)
+            throws Exception {
         Exception e = assertThrows(Exception.class, () -> Lean.run(model, query, StorelessRuntime.RUNTIME, c), query);
         // the product's kind, in lite's words (D1.1), and its where, the bound (2026-11-15: a relation's row count
         // carried none until //core:product_raise_probe found it); the size is legend-pure's sentence's, the edge's
@@ -50,8 +51,11 @@ class RelationToOneGuardTest {
                 + ": [1]"), query + " (size " + size + "): "
                 + e.getMessage());
         // the size the database counted, a value, is pinned at the edge, whose sentence carries it (the D part 1 audit's S5, 2026-11-15)
-        Exception edge = assertThrows(Exception.class, () -> com.legend.testing.Program.last(model, query,
-                StorelessRuntime.RUNTIME, c, com.legend.testing.EdgeProgram.upstream()), query);
+        Exception edge;
+        try (Connection edgeSession = backend.open(com.legend.edge.PureText.UPSTREAM)) {   // the edge's database (the audit's J22)
+            edge = assertThrows(Exception.class, () -> com.legend.testing.Program.last(model, query,
+                    StorelessRuntime.RUNTIME, edgeSession, com.legend.testing.EdgeProgram.upstream()), query);
+        }
         assertTrue(String.valueOf(edge.getMessage()).contains("Cannot cast a collection of size " + size + " to"),
                 query + " (size " + size + ") at the edge: " + edge.getMessage());
     }
