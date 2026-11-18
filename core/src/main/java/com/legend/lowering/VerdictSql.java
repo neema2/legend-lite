@@ -345,7 +345,7 @@ public final class VerdictSql {
      * are). */
     public static SqlQuery gridRows(GridSide grid, PeerSide peer,
             boolean gridIsExpected, boolean multiset, VerdictWords words, int floatUlps) {
-        boolean lite = words.reads() == VerdictWords.Reads.WRITTEN;
+        boolean lite = words.reads() == VerdictReads.WRITTEN;
         SqlQuery g = gridRowCanons(grid, GRID, lite ? RowWriting.FLAT : null);
         SqlQuery p = peerRowCanons(peer, grid.width(), lite);
         SqlExpr divisible = SqlExpr.Call.of(SqlFn.NOT_EQUAL,
@@ -377,7 +377,7 @@ public final class VerdictSql {
      * cells, as a multiset; {@code words} what the frame reads (lite's: each side's cells written, as a list). */
     public static SqlQuery gridCells(GridSide grid, PeerSide peer,
             boolean gridIsExpected, VerdictWords words) {
-        boolean lite = words.reads() == VerdictWords.Reads.WRITTEN;
+        boolean lite = words.reads() == VerdictReads.WRITTEN;
         SqlQuery g = gridCellCanons(grid, GRID, lite);
         SqlQuery p = peerCells(peer, lite);
         List<SqlWith.Cte> named = List.of(new SqlWith.Cte(GRID, grid.wrapped()));
@@ -569,7 +569,7 @@ public final class VerdictSql {
      *  the negated sentence -- lite's {@code NOT_CONTAINS}, or legend-pure's '%s should not contain %r'. */
     public static SqlQuery contains(SqlQuery collRows, SqlQuery valScalar,
             @com.legend.base.Nullable Message valueWritten, boolean negated, VerdictWords words) {
-        boolean lite = words.reads() == VerdictWords.Reads.WRITTEN;
+        boolean lite = words.reads() == VerdictReads.WRITTEN;
         OutputCol vc = new OutputCol(C, SqlType.Scalar.VARCHAR, true);
         SqlSource v0 = new SqlSource.Table("__v0", "__v0", valScalar.outputs(), false, java.util.Map.of(), com.legend.sql.NameQuoting.BARE);
         OneRow v = new OneRow("v", new SqlSelect(List.of(new SqlSelect.Projection(
@@ -912,7 +912,7 @@ public final class VerdictSql {
                 new SqlWith.Cte("__p", bad)));
         SqlExpr eWritten = null;
         SqlExpr aWritten = null;
-        if (words.reads() == VerdictWords.Reads.WRITTEN) {
+        if (words.reads() == VerdictReads.WRITTEN) {
             // each grid's rows written per cell ([[1]]), the words' to frame
             ctes.add(new SqlWith.Cte("__rwe", gridRowCanons(one, GRID_E, RowWriting.BRACKETED)));
             ctes.add(new SqlWith.Cte("__rwa", gridRowCanons(two, GRID_A, RowWriting.BRACKETED)));
@@ -1305,7 +1305,7 @@ public final class VerdictSql {
      * side's empty-is-NULL columns read as the sentinel; {@code words} what the frame reads (lite's: each side
      * written, its rows as bracketed cells, {@code [[30], [41]]}). */
     public static SqlQuery gridPair(GridSide e, GridSide a, boolean multiset, int floatUlps, VerdictWords words) {
-        if (words.reads() == VerdictWords.Reads.WRITTEN) {
+        if (words.reads() == VerdictReads.WRITTEN) {
             return writtenStatement(gridRowCanons(e, GRID_E, RowWriting.BRACKETED),
                     gridRowCanons(a, GRID_A, RowWriting.BRACKETED), multiset, List.of(),
                     List.of(new SqlWith.Cte(GRID_E, e.wrapped()), new SqlWith.Cte(GRID_A, a.wrapped())),

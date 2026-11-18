@@ -85,6 +85,11 @@ class CompatSpellingGuardTest {
             // checkpoint audit's S5, 2026-11-16: until then caught by no list). "TDSNull" is not listed yet: as a
             // literal it is also the Pure type's own name (16 product literals), so its sites are sorted in Phase 7
             "tdsBuilder", "SET NON_KEYWORDS",
+            // generateSeedDataString's value: legend-engine's createTableRowIdentifiers(...) code, assembled by the
+            // database from planned literals (TestDataPlanner.seedString) -- STAYS, the orchestrator's ruling of
+            // 2026-11-17 (not the user's; put to the user), on the toRepresentation precedent of 2026-11-15: the
+            // function's value is its semantics
+            "createTableRowIdentifiers(", "createRowIdentifier([",
             // legend-engine's text of an empty TDS cell (the separation census's B10, 2026-11-17: until then not listed)
             "TDSNull",
             // legend-pure's assert sentences (census J29, 2026-11-18: the host judge's are the edge's EdgeHostWords; a
@@ -127,6 +132,12 @@ class CompatSpellingGuardTest {
             "RULED",  // a row the USER RULED stays, its ruling and evidence beside it (U5, 2026-11-15/16: a surviving row
                       // shows who calls it and what breaks without it; added 2026-11-16 with the P2 checkpoint audit's A-M1)
             "STAYS"); // a product semantic sharing the spelling: lowering/DateFormats.java's pattern letter Z is +0000
+
+    /** The steps that keep a row out of the edge census's count: ONE predicate, read by
+     *  {@code EdgeSeparationTest.everyOpenCompatRowIsCounted} and pinned, with each terminal row beside its ruling, by
+     *  {@code TerminalRowsFrozenTest} (the GUARD stream, 2026-11-17, the edge audit's C.2: a second copy of this set
+     *  could be widened to close rows by redefinition). */
+    static final Set<String> TERMINAL_STEPS = Set.of("STAYS", "RULED", "HOOK-RULED");
 
     /**
      * Every hit standing today, "file | spelling | count | step"; the file is under {@code core/src/main/java/com/legend/}
@@ -293,6 +304,11 @@ class CompatSpellingGuardTest {
             // LoadPlanner), H2 file and tcp databases (H2Connector), and H2 files an earlier lite made.
             "sql/dialect/H2.java | ENGINE_LEXICON | 3 | RULED",
             "sql/dialect/H2.java | SET NON_KEYWORDS | 1 | RULED", // listed 2026-11-16 (S5): the same ruling's session half
+            // listed 2026-11-17 (STAYS, the orchestrator's ruling of 2026-11-17, not the user's -- the orchestrator puts it
+            // to the user; 23:27): generateSeedDataString's value, the database's assembly of planned literals --
+            // upstream's own result, as toRepresentation's (2026-11-15)
+            "testdatagen/TestDataPlanner.java | createRowIdentifier([ | 1 | STAYS",
+            "testdatagen/TestDataPlanner.java | createTableRowIdentifiers( | 1 | STAYS",
             // sql/dialect/MongoDb.java | +0000: gone 2026-11-15 (D1.2: its date-time format a @SpellingArm hook,
             // dateTimeFormat, the product's ISO with Z; legend-pure's +0000 the edge's MongoDb's)
             // testdatagen/TestDataPlanner.java | +0000: gone 2026-11-17 (F's separation census line B11): legend-engine's

@@ -38,8 +38,8 @@ public final class LiteVerdictWords implements VerdictWords {
     }
 
     @Override
-    public Reads reads() {
-        return Reads.WRITTEN;
+    public VerdictReads reads() {
+        return VerdictReads.WRITTEN;
     }
 
     @Override
