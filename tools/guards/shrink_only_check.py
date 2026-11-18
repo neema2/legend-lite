@@ -1,8 +1,11 @@
 # Copyright 2026 Legend Contributors
 # SPDX-License-Identifier: Apache-2.0
 """//tools/guards:shrink_only_check's entry. It runs the MERGE-BASE's copy of the check (shrink_only.py at the merge-base
-of --head, default HEAD, and --base), never the change's own, so a change cannot loosen the check that judges it (the
-review of 351e80daa2, 2026-11-18, M1); a merge-base without the script runs this tree's (the check's first landing).
+of --head, default HEAD, and --base), never the change's own script, so a change's script never judges it (the review
+of 351e80daa2, 2026-11-18, M1); a merge-base without the script runs this tree's (the check's first landing). This
+entry and its target are the change's own (Bazel runs the head's): a change to them is judged by CI's step, whose own
+command runs the merge-base's copy, and a change to that step by this entry's (the review of the guard line, G,
+SHOULD 3, 2026-11-18; shrink_only.py names the limit).
 
 The copy is chosen by its fixed path with git alone: nothing of the head's module is read or run before it is chosen
 (review F of the guard line, 2026-11-18, MUST-FIX 3: the head's SELF and reader() picked a path the merge-base did not

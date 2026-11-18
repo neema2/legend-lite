@@ -461,9 +461,14 @@ class EdgeSeparationTest {
                 // the review of dd5deb781f (MUST-FIX 2): an array store, a collection's add, a throw, a setter
                 com.legend.sql.dialect.PlantedLaunderArray.class, com.legend.sql.dialect.PlantedLaunderAdd.class,
                 com.legend.sql.dialect.PlantedLaunderThrow.class, com.legend.sql.dialect.PlantedLaunderSetter.class,
-                // review F of the guard line (SHOULD 1): a varargs keeper, an array keeper, an ordinal and a name kept
-                com.legend.sql.dialect.PlantedLaunderVarargs.class, com.legend.sql.dialect.PlantedLaunderOrdinal.class);
-        assertEquals(15, laundering.size(), "the planted classes are imported");
+                // review F of the guard line (SHOULD 1): a varargs keeper, an array keeper, an ordinal and a name kept --
+                // one shape a class, and the number or the name handed to a keeper (the review of the guard line, G,
+                // SHOULD 1, 2026-11-18: two shapes in one class left a half of the rule unpinned)
+                com.legend.sql.dialect.PlantedLaunderVarargs.class, com.legend.sql.dialect.PlantedLaunderArrayKeeper.class,
+                com.legend.sql.dialect.PlantedLaunderOrdinal.class, com.legend.sql.dialect.PlantedLaunderName.class,
+                com.legend.sql.dialect.PlantedLaunderOrdinalHanded.class,
+                com.legend.sql.dialect.PlantedLaunderNameHanded.class);
+        assertEquals(19, laundering.size(), "the planted classes are imported");
         assertEquals(Set.of("com.legend.sql.dialect.PlantedRendererNest -> SqlFn.ABS",
                 "com.legend.sql.dialect.PlantedRendererByInterface -> SqlFn.ABS",
                 "com.legend.sql.dialect.PlantedLaunderReturn -> SqlFn.ABS",
@@ -475,7 +480,11 @@ class EdgeSeparationTest {
                 "com.legend.sql.dialect.PlantedLaunderThrow -> SqlFn.ABS",
                 "com.legend.sql.dialect.PlantedLaunderSetter -> SqlFn.ABS",
                 "com.legend.sql.dialect.PlantedLaunderVarargs -> SqlFn.ABS",
-                "com.legend.sql.dialect.PlantedLaunderOrdinal -> SqlFn.ABS"), found(laundering, n -> true, Set.of("ABS")),
+                "com.legend.sql.dialect.PlantedLaunderArrayKeeper -> SqlFn.ABS",
+                "com.legend.sql.dialect.PlantedLaunderOrdinal -> SqlFn.ABS",
+                "com.legend.sql.dialect.PlantedLaunderName -> SqlFn.ABS",
+                "com.legend.sql.dialect.PlantedLaunderOrdinalHanded -> SqlFn.ABS",
+                "com.legend.sql.dialect.PlantedLaunderNameHanded -> SqlFn.ABS"), found(laundering, n -> true, Set.of("ABS")),
                 "a dialect's read carrying the function out is named, its arm is not");
         // the review of 091b9bde36 (SHOULD-FIX 4): SqlFn's own code -- its initializer, $values, its predicates --
         // reads every constant and is never named, so an edge-only function does not turn the guard on the enum itself

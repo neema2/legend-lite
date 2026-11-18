@@ -45,19 +45,27 @@ Its limits, named:
 - The head is a committed revision (--head, default HEAD) or, with --worktree, the working tree.
 - A watched file renamed in the change is compared with its old path's text at the merge-base (git's rename
   detection, -M).
-- CI and //tools/guards:shrink_only_check run the merge-base's copy of this script (a change cannot loosen the check
-  that judges it); a base without one runs the head's (the check's first landing).
+- CI and //tools/guards:shrink_only_check run the merge-base's copy of this script, so a change's own script never
+  judges it; a base without one runs the head's (the check's first landing). WHAT CHOOSES THE COPY IS THE CHANGE'S OWN
+  (the review of the guard line, G, SHOULD 3 and NOTE 2, 2026-11-18): under //gates:local the wrapper and its target
+  are the head's (Bazel runs the head's entry); in CI gate.yml's step is the head's (GitHub runs the pushed or proposed
+  commit's workflow, on every event). Each judges the other: the merge-base's copy the wrapper runs reads a change to
+  gate.yml's job as one of the check's own files, and the copy CI's step runs reads a change to the wrapper or its
+  target the same way (the review's scenario H: //gates:local passed it, CI failed it). A change that rewrites both
+  choosers at once is judged by neither; the notes each must carry are what show it.
 
 THE CHECK'S OWN FILES (review F of the guard line, 2026-11-18, MUST-FIX 3: a change could loosen the script and the next
 exploit it, each passing). A change to this script, to its wrapper (shrink_only_check.py), to their targets in
-tools/guards/BUILD.bazel, or to gate.yml's shrink-only step carries a note in that file -- for the BUILD file and the
-workflow, in the changed target or step -- new in the change and holding a YYYY-MM-DD, so a loosening is a reviewed,
-dated act. main() reads WATCHED and GROW_ONLY from this script's own text (its literals, never the module's globals), and
+tools/guards/BUILD.bazel, to gate.yml's jobs naming the check (the shrink-only job whole, and green, which needs it: the
+review of the guard line, G, MUST-FIX 3, 2026-11-18 -- the step was found by a "- name:" line the real one does not
+have, and a job-level edit lay outside every step), or to the gate's lines naming it (gates/BUILD.bazel, each with the
+comment block above it: G's SHOULD 4) carries a note in that file's changed part, new in the change and holding a
+YYYY-MM-DD, so a loosening is a reviewed, dated act. main() reads WATCHED and GROW_ONLY from this script's own text (its literals, never the module's globals), and
 the wrapper chooses the merge-base's copy by its fixed path with git alone, reading nothing from the head's module first.
-Remaining, named: on a pull_request event the workflow file is the change's own (GitHub runs the head's gate.yml), so a
-change to the shrink-only step is judged by itself -- the note it must carry is what shows it; a watched file renamed or
-a pin removed fails under the merge-base's copy whatever the head's lists say, so such a move takes two changes (the
-lists first, with their notes); git blame runs with -w -M -C (a whitespace edit, a line moved or copied keeps its
+Remaining, named: what chooses the copy is the change's own (the limits above); a watched file renamed or a pin removed
+fails under the merge-base's copy whatever the head's lists say, so such a move takes two changes (the lists first, with
+their notes), and between the two landings every other change fails too ("a watched guard file is gone at the head":
+closed, never open; G's NOTE 3); git blame runs with -w -M -C (a whitespace edit, a line moved or copied keeps its
 origin), but a date typed by hand on a new line is a new note; inside a Java text block a line starting with // reads
 as a comment (latent: no watched pin is a text block).
 
@@ -692,16 +700,30 @@ def watched_shrinks(base_script, head_script, since, fresh=None):
 
 # the check's own files: a change to one carries a dated note new in the change, in the file -- or, for a shared file, in
 # the region of it that is the check's (review F, 2026-11-18, MUST-FIX 3)
-OWN_FILES = (SELF, "tools/guards/shrink_only_check.py", "tools/guards/BUILD.bazel", ".github/workflows/gate.yml")
+OWN_FILES = (SELF, "tools/guards/shrink_only_check.py", "tools/guards/BUILD.bazel", ".github/workflows/gate.yml",
+             # the gate's suites, which run the check by name (the review of the guard line, G, SHOULD 4, 2026-11-18)
+             "gates/BUILD.bazel")
 
 
 def own_region(path, text):
-    """The lines (1-based, a set) of `text` that are the check's own: the whole of the two scripts; the BUILD file's
-    targets naming shrink_only; the workflow's steps naming shrink_only. None when the file holds no such region."""
+    """The lines (1-based, a set) of `text` that are the check's own: the whole of the two scripts; tools/guards'
+    BUILD file's targets naming shrink_only; the gate's lines naming shrink_only, each with the comment block above it;
+    the workflow's jobs naming the check, whole, and its every other line naming it. None when the file holds none."""
     lines = text.split("\n")
     if path in (SELF, "tools/guards/shrink_only_check.py"):
         return set(range(1, len(lines) + 1))
     out = set()
+    if path == "gates/BUILD.bazel":
+        # the suites list the check by name (the review of the guard line, G, SHOULD 4, 2026-11-18: dropping it from
+        # //gates:local passed): each line naming it, and the comment block directly above it
+        for n, line in enumerate(lines, 1):
+            if "shrink_only" in line:
+                out.add(n)
+                k = n - 1
+                while k >= 1 and lines[k - 1].lstrip().startswith("#"):
+                    out.add(k)
+                    k -= 1
+        return out or None
     if path.endswith("BUILD.bazel"):
         # a top-level call: from a line opening it at column 0 to the line closing it at column 0
         start = None
@@ -713,22 +735,36 @@ def own_region(path, text):
                     out |= set(range(start, n + 1))
                 start = None
         return out or None
-    # the workflow: a step from its "- name:" (or "- uses:"/"- run:") line to the next step's, or to a line indented
-    # less than the step
-    steps = []
-    for n, line in enumerate(lines, 1):
-        m = re.match(r"(\s*)- (name|uses|run):", line)
-        if m:
-            steps.append((n, len(m.group(1))))
-    for i, (n, indent) in enumerate(steps):
-        end = len(lines)
-        for k in range(n + 1, len(lines) + 1):
-            line = lines[k - 1]
-            if line.strip() and (len(line) - len(line.lstrip())) <= indent:
-                end = k - 1
+    # the workflow (the review of the guard line, G, MUST-FIX 3, 2026-11-18: a step was found by its "- name:" line, and
+    # the real step opens "- env:", so the workflow held no region; and a job-level edit -- continue-on-error, the check
+    # dropped from green's needs -- lay outside every step): each job a line of which names the check, from its key to
+    # the line before the next one indented as little (the shrink-only job whole, and green, which needs it), and every
+    # other line naming it
+    def names(line):
+        return "shrink_only" in line or "shrink-only" in line
+    jobs = next((n for n, line in enumerate(lines, 1) if re.match(r"jobs:\s*(#.*)?$", line)), None)
+    if jobs is not None:
+        indent, keys = None, []
+        for n in range(jobs + 1, len(lines) + 1):
+            line = lines[n - 1]
+            if not line.strip() or line.lstrip().startswith("#"):
+                continue
+            at = len(line) - len(line.lstrip())
+            indent = at if indent is None else indent
+            if at < indent:
                 break
-        if any("shrink_only" in lines[k - 1] for k in range(n, end + 1)):
-            out |= set(range(n, end + 1))
+            if at == indent and re.match(r"\s*[\w-]+:\s*(#.*)?$", line):
+                keys.append(n)
+        for n in keys:
+            end = len(lines)
+            for k in range(n + 1, len(lines) + 1):
+                line = lines[k - 1]
+                if line.strip() and len(line) - len(line.lstrip()) <= indent:
+                    end = k - 1
+                    break
+            if any(names(lines[k - 1]) for k in range(n, end + 1)):
+                out |= set(range(n, end + 1))
+    out |= {n for n, line in enumerate(lines, 1) if names(line)}
     return out or None
 
 

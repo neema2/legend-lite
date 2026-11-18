@@ -105,6 +105,8 @@ class GuardNamesExistTest {
             Map.entry("TaggedClassesHaveATargetTest.java | com.legend.slow.DroppedTest", "planted, 2026-11-17"),
             Map.entry("TaggedClassesHaveATargetTest.java | com.legend.slow.HashedTest", "planted, 2026-11-17"),
             Map.entry("TaggedClassesHaveATargetTest.java | com.legend.slow.HeavyOnlyTest", "planted, 2026-11-17"),
+            // the review of the guard line, G, MUST-FIX 2a: a junit_test Bazel never evaluates selects it
+            Map.entry("TaggedClassesHaveATargetTest.java | com.legend.slow.GhostTest", "planted, 2026-11-18"),
             Map.entry("TaggedClassesHaveATargetTest.java | com.legend.slow.JoinedDropTest", "planted, 2026-11-17"),
             Map.entry("TaggedClassesHaveATargetTest.java | com.legend.slow.KeptTest", "planted, 2026-11-17"),
             Map.entry("TaggedClassesHaveATargetTest.java | com.legend.slow.ManualListedTest", "planted, 2026-11-17"),
@@ -325,12 +327,57 @@ class GuardNamesExistTest {
         return pkg.contains("legend") || pkg.startsWith("..") || pkg.contains("*");
     }
 
+    /** {@code source} with every comment and every string, text block and char literal spaced out, its length and lines
+     *  kept: its code alone, by {@link #literals}' lexer. */
+    static String javaCode(String source) {
+        char[] out = source.toCharArray();
+        Map<Integer, Lit> byStart = new TreeMap<>();
+        literals(source).forEach(l -> byStart.put(l.from(), l));
+        int i = 0;
+        while (i < out.length) {
+            int end;
+            Lit lit = byStart.get(i);
+            if (lit != null) {
+                end = lit.end();
+            } else if (source.startsWith("//", i)) {
+                end = source.indexOf('\n', i);
+                end = end < 0 ? out.length : end;
+            } else if (source.startsWith("/*", i)) {
+                end = source.indexOf("*/", i + 2);
+                end = end < 0 ? out.length : end + 2;
+            } else if (out[i] == '\'' && i + 1 < out.length) {
+                end = i + (out[i + 1] == '\\' ? 4 : 3);
+                while (end <= out.length && out[end - 1] != '\'') {
+                    end++;
+                }
+                end = Math.min(end, out.length);
+            } else {
+                i++;
+                continue;
+            }
+            for (int k = i; k < end; k++) {
+                out[k] = out[k] == '\n' ? '\n' : ' ';
+            }
+            i = end;
+        }
+        return new String(out);
+    }
+
     /** The string literals of {@code static final String[] name = {...};} in {@code source}, or null when there is no
-     *  such array. */
+     *  such array, or when {@code name} is declared more than once in the file: the declaration is read over the code
+     *  alone, and a nested class's counts (the review of the guard line, G, SHOULD 2, 2026-11-18: a decoy inside a text
+     *  block, or a nested class's array of the same name, ahead of the real one, was read). */
     static List<String> arrayLiterals(String source, String name) {
         // read in comment-free code, to the brace that closes the initializer (review F of the guard line, 2026-11-18,
         // SHOULD 2: a comment holding "};" ended the array early, and the literals after it went unread)
-        String code = uncommented(source);
+        String code = javaCode(source);
+        // a declaration: a type's last token, then the name, then its initializer or its end (a keyword before the name
+        // -- return NAME; -- is a use)
+        if (Pattern.compile("(\\w+|[\\]>])\\s+" + Pattern.quote(name) + "\\s*(=(?!=)|;)").matcher(code).results()
+                .filter(r -> !Set.of("return", "throw", "yield", "case", "else", "assert").contains(r.group(1)))
+                .count() != 1) {
+            return null;
+        }
         Matcher m = Pattern.compile("static\\s+final\\s+String\\[\\]\\s+" + Pattern.quote(name) + "\\s*=\\s*\\{")
                 .matcher(code);
         if (!m.find()) {
@@ -340,12 +387,7 @@ class GuardNamesExistTest {
         int end = m.end();
         for (; end < code.length() && depth > 0; end++) {
             char c = code.charAt(end);
-            if (c == '"') {
-                end++;
-                while (end < code.length() && code.charAt(end) != '"') {
-                    end += code.charAt(end) == '\\' ? 2 : 1;
-                }
-            } else if (c == '{') {
+            if (c == '{') {
                 depth++;
             } else if (c == '}') {
                 depth--;
@@ -355,7 +397,7 @@ class GuardNamesExistTest {
             return null;
         }
         List<String> out = new ArrayList<>();
-        literals(code.substring(m.end(), end - 1)).forEach(l -> out.add(l.text()));
+        literals(source.substring(m.end(), end - 1)).forEach(l -> out.add(l.text()));
         return out;
     }
 
@@ -395,7 +437,10 @@ class GuardNamesExistTest {
     /** Every branch of {@code regex}: each alternation of each group expanded to one alternative, the rest kept (a
      *  character class and an escape read as one piece). A pattern whose branches number past 256 is its own one
      *  branch. The review of 11de9ae229 (2026-11-18): a pattern was checked whole, so a dead alternative beside a live
-     *  one ({@code driver\\.X|testdatagen\\.Y}) passed. */
+     *  one ({@code driver\\.X|testdatagen\\.Y}) passed. Its limit, named (the review of the guard line, G, NOTE 4,
+     *  2026-11-18): an optional GROUP is read both ways, but a character made optional alone ({@code SqlFn\\$?D?e?a?d?})
+     *  is not -- each {@code ?} after a plain character keeps the branch that skips it, so a dead name spelled one
+     *  optional character at a time passes; no guard writes one. */
     static List<String> branches(String regex) {
         List<String> out = expand(regex, 0, regex.length());
         return out.size() > 256 ? List.of(regex) : out;
@@ -670,9 +715,16 @@ class GuardNamesExistTest {
                 // (SHOULD 2): an argument neither a literal nor a bare constant, and a literal after a handed constant
                 // and an array whose comment holds the initializer's end
                 + "q.resideInAnyPackage(Other.GONE); q.resideInAnyPackage(COMMENTED, \"com.legend.after.gone..\"); "
-                + "q.resideInAnyPackage(LISTED.toArray(new String[0])); }\n"
+                + "q.resideInAnyPackage(LISTED.toArray(new String[0])); "
+                // the review of the guard line, G, SHOULD 2 (2026-11-18): a decoy of the handed array inside a text
+                // block, ahead of the real one, is not read; a name declared twice (a nested class's) is not read
+                + "q.resideInAnyPackage(BLOCKED); q.resideInAnyPackage(TWICE); }\n"
                 + "  static final String[] COMMENTED = {\"com.legend..\", // the list ends here: };\n"
-                + "      \"com.legend.commented.gone..\"};\n}\n";
+                + "      \"com.legend.commented.gone..\"};\n"
+                + "  static final String NOTE = \"\"\"\n      static final String[] BLOCKED = {\"com.legend..\"};\n      \"\"\";\n"
+                + "  static final String[] BLOCKED = {\"com.legend.blocked.gone..\"};\n"
+                + "  static final class Old { static final String[] TWICE = {\"com.legend..\"}; }\n"
+                + "  static final String[] TWICE = {\"com.legend.twice.gone..\"};\n}\n";
         Map<String, String> listed = Map.of("ArchitectureTest.java | com.legend.listed.There", "planted",
                 "ArchitectureTest.java | com.legend.not.Written", "planted",
                 // a package listed absent that is there (the review of dd5deb781f, 2026-11-18)
@@ -727,6 +779,10 @@ class GuardNamesExistTest {
                         + " it reads nothing)",
                 "ArchitectureTest.java | LISTED.toArray(new String[0]: a package rule handed a constant the check does"
                         + " not read (a String[] of this file's, of literals)",
+                "ArchitectureTest.java | package com.legend.blocked.gone..: no class is in it (the rule names no package,"
+                        + " so it reads nothing)",
+                "ArchitectureTest.java | TWICE: a package rule handed a constant the check does not read (a String[] of"
+                        + " this file's, of literals)",
                 "ArchitectureTest.java | com.legend.not.Written: listed, and no longer written there (delete its"
                         + " entry)"),
                 stale(Map.of("ArchitectureTest.java", planted), classes, f -> f.equals("com/legend/listed/There.java"),

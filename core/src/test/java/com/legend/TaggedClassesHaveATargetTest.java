@@ -126,20 +126,31 @@ class TaggedClassesHaveATargetTest {
     /** The calls {@code \nfunction(} in {@code build}'s code -- never one inside a string or a comment -- each from its
      *  open parenthesis to the one closing it, by bracket depth over the code alone (the review of the guard line, F,
      *  MUST-FIX 2: a lazy {@code \n\)} match ended a call's text at a {@code \n)} inside a string, and every argument
-     *  after it went unread). A call that does not close, or closes off its own line, is refused by name. */
+     *  after it went unread). A call that does not close, or closes off its own line, is refused by name.
+     *
+     *  <p>A STATEMENT alone (the review of the guard line, G, MUST-FIX 2a, 2026-11-18): a call at bracket depth 0, at
+     *  its line's start. One inside brackets -- a list comprehension's {@code [junit_test(..) for _ in []]}, a
+     *  never-evaluated {@code _ = False and (junit_test(..))}, a conditional's branch -- is not read: Bazel creates
+     *  nothing from it, so a class only it selects is named an orphan. A call continuing the line before it (a
+     *  backslash, {@code _ = False and \}) is refused by name. A BUILD file holds no {@code def}, {@code if} or
+     *  {@code for} statement (Bazel refuses each), so a call so read is one Bazel evaluates. */
     static List<int[]> calls(String build, String function) {
         String code = starlarkCode(build);
+        int[] depth = depths(code);
         List<int[]> out = new ArrayList<>();
         Matcher m = Pattern.compile("\\n" + Pattern.quote(function) + "\\(").matcher(code);
         while (m.find()) {
+            if (depth[m.start() + 1] != 0) {
+                continue;
+            }
+            if (continued(code, m.start() + 1)) {
+                throw new IllegalStateException("a " + function + " call continues the line before it (a backslash), a"
+                        + " text the check does not read");
+            }
             int open = m.end() - 1;
-            int depth = 0;
             int close = -1;
             for (int i = open; i < code.length(); i++) {
-                char c = code.charAt(i);
-                if (c == '(' || c == '[' || c == '{') {
-                    depth++;
-                } else if ((c == ')' || c == ']' || c == '}') && --depth == 0) {
+                if (depth[i + 1] == 0) {
                     close = i;
                     break;
                 }
@@ -153,40 +164,159 @@ class TaggedClassesHaveATargetTest {
         return out;
     }
 
+    /** The bracket depth before each character of {@code code} (strings and comments already spaced out), and after
+     *  the last at the end. */
+    static int[] depths(String code) {
+        int[] depth = new int[code.length() + 1];
+        int d = 0;
+        for (int i = 0; i < code.length(); i++) {
+            depth[i] = d;
+            char c = code.charAt(i);
+            d += c == '(' || c == '[' || c == '{' ? 1 : c == ')' || c == ']' || c == '}' ? -1 : 0;
+        }
+        depth[code.length()] = d;
+        return depth;
+    }
+
+    /** Whether the line before the one starting at {@code lineStart} of {@code code} ends in a backslash: Starlark's
+     *  line continuation, which makes the line at {@code lineStart} part of the statement before it. */
+    static boolean continued(String code, int lineStart) {
+        if (lineStart < 2) {
+            return false;
+        }
+        int from = code.lastIndexOf('\n', lineStart - 2) + 1;
+        return code.substring(from, lineStart - 1).stripTrailing().endsWith("\\");
+    }
+
+    /** A named call of a build file: its name, and its arguments' text from past its name line to the newline before
+     *  its close. */
+    record Named(String name, String text) {
+    }
+
+    /** Each call of {@code function} in {@code build} whose first argument is its name, read as a statement
+     *  ({@link #calls}) that closes on its own line with nothing after it; a name given twice is refused by name. */
+    static List<Named> named(String build, String function) {
+        List<Named> out = new ArrayList<>();
+        Set<String> names = new HashSet<>();
+        for (int[] call : calls(build, function)) {
+            Matcher m = CALL_NAME.matcher(build).region(call[0], call[1]);
+            if (!m.lookingAt()) {
+                continue;
+            }
+            // a call closes on its own line, as every target here does: its text runs to the newline before it
+            if (build.charAt(call[1] - 1) != '\n') {
+                throw new IllegalStateException(function + " " + m.group(1) + "'s call does not close on its own line,"
+                        + " a text the check does not read");
+            }
+            // a call is a statement: its closing line holds nothing else (the review of dd5deb781f, 2026-11-18,
+            // MUST-FIX 1: "junit_test(..) if False else junit_test(..)" defines the second alone, and the first was read)
+            if (call[1] + 1 < build.length() && build.charAt(call[1] + 1) != '\n') {
+                throw new IllegalStateException(function + " " + m.group(1) + "'s call is followed by text the check"
+                        + " does not read");
+            }
+            // one target per name (the review of the guard line, G, MUST-FIX 2a: Bazel refuses a second; the check
+            // never chooses between them)
+            if (!names.add(m.group(1))) {
+                throw new IllegalStateException(function + " " + m.group(1) + " is defined twice, a text the check does"
+                        + " not read");
+            }
+            out.add(new Named(m.group(1), build.substring(m.end(), call[1] - 1)));
+        }
+        return out;
+    }
+
     private static final Pattern CALL_NAME = Pattern.compile("\\(\\n\\s*name = \"([\\w-]+)\",");
 
-    /** The {@code junit_test} or library block named {@code name} in {@code build}, or "" when there is none. */
+    /** The {@code junit_test} or library block named {@code name} in {@code build}, or "" when there is none: a
+     *  statement ({@link #named}) of any function; two of one name are refused by name (the review of the guard line,
+     *  G, MUST-FIX 2a: a never-evaluated {@code filegroup(name = "core_tests_lib", ..)} was read before the real
+     *  library, the functions taken in name order). */
     static String block(String build, String name) {
         Matcher fn = Pattern.compile("\\n(\\w+)\\(").matcher(starlarkCode(build));
         Set<String> functions = new TreeSet<>();
         while (fn.find()) {
             functions.add(fn.group(1));
         }
+        List<String> found = new ArrayList<>();
         for (String f : functions) {
-            for (int[] call : calls(build, f)) {
-                Matcher m = CALL_NAME.matcher(build).region(call[0], call[1]);
-                if (m.lookingAt() && m.group(1).equals(name)) {
-                    return build.substring(m.end(), call[1] - 1 >= m.end() && build.charAt(call[1] - 1) == '\n'
-                            ? call[1] - 1 : call[1]);
+            for (Named call : named(build, f)) {
+                if (call.name().equals(name)) {
+                    found.add(call.text());
                 }
             }
         }
-        return "";
+        if (found.size() > 1) {
+            throw new IllegalStateException(name + " is defined twice, a text the check does not read");
+        }
+        return found.isEmpty() ? "" : found.get(0);
     }
 
-    /** The edge's test sources (core/edge_tests.bzl's EDGE_TEST_SRCS), as "src/test/java/..." paths. */
+    /** The edge's test sources (core/edge_tests.bzl's EDGE_TEST_SRCS), as "src/test/java/..." paths: the one top-level
+     *  list ({@link #namedList}), each item one quoted .java path (other text fails the check by name). */
     static Set<String> edgeSources(String bzl) {
-        Matcher list = Pattern.compile("EDGE_TEST_SRCS\\s*=\\s*\\[(.*?)\\n\\]", Pattern.DOTALL).matcher(bzl);
-        assertTrue(list.find(), "EDGE_TEST_SRCS is read from core/edge_tests.bzl");
         Set<String> out = new LinkedHashSet<>();
-        Matcher m = Pattern.compile("\"(src/test/java/[^\"]+\\.java)\"").matcher(list.group(1));
-        while (m.find()) {
-            out.add(m.group(1));
+        for (String item : topLevelItems(namedList(bzl, "EDGE_TEST_SRCS", "core/edge_tests.bzl"))) {
+            if (!item.matches("\"src/test/java/[^\"]+\\.java\"")) {
+                throw new IllegalStateException("core/edge_tests.bzl's EDGE_TEST_SRCS holds text the check does not"
+                        + " read: " + item);
+            }
+            out.add(item.substring(1, item.length() - 1));
         }
         return out;
     }
 
-    private static final Pattern LIBRARY_SRCS = Pattern.compile("srcs = glob\\(\\s*\\[\"src/test/java/\\*\\*/\\*\\.java\"\\],"
+    /** The text inside the brackets of {@code text}'s one top-level {@code name = [...]}, its strings kept and its
+     *  comments spaced out (the review of the guard line, G, MUST-FIX 2b, 2026-11-18: a lookup over the raw text took
+     *  a decoy inside a docstring, ahead of the real list): an assignment over the code alone, at depth 0 and at its
+     *  line's start, not continued from the line before, its value one plain list with nothing after it on its line.
+     *  None, a second, or a use of the name that could change or cut the list (a method call, a subscript) is refused
+     *  by name, {@code what} naming the reader. Bazel refuses a global bound twice itself; a macro handed the list
+     *  could still change it, which the check does not read. */
+    static String namedList(String text, String name, String what) {
+        String code = starlarkCode(text);
+        int[] depth = depths(code);
+        List<Integer> at = new ArrayList<>();
+        Matcher m = Pattern.compile("(?m)^" + Pattern.quote(name) + "\\s*=(?!=)\\s*").matcher(code);
+        while (m.find()) {
+            if (depth[m.start()] == 0 && !continued(code, m.start())) {
+                at.add(m.end());
+            }
+        }
+        if (at.isEmpty()) {
+            throw new IllegalStateException(what + " names " + name + ", a list the check does not read");
+        }
+        if (at.size() > 1) {
+            throw new IllegalStateException(what + " names " + name + ", a list assigned twice: a text the check does"
+                    + " not read");
+        }
+        if (Pattern.compile("(?<![\\w.])" + Pattern.quote(name) + "(?!\\w)\\s*[.\\[]").matcher(code).find()) {
+            throw new IllegalStateException(what + " names " + name + ", a list changed or cut where the check does not"
+                    + " read it");
+        }
+        int open = at.get(0);
+        int close = -1;
+        if (code.charAt(open) == '[') {
+            for (int i = open; i < code.length(); i++) {
+                if (depth[i + 1] == depth[open]) {
+                    close = i;
+                    break;
+                }
+            }
+        }
+        int eol = code.indexOf('\n', Math.max(close, 0));
+        if (close < 0 || !code.substring(close + 1, eol < 0 ? code.length() : eol).isBlank()) {
+            throw new IllegalStateException(what + " names " + name + ", a list the check does not read: not one plain"
+                    + " list");
+        }
+        char[] kind = lexed(text);
+        StringBuilder out = new StringBuilder();
+        for (int i = open + 1; i < close; i++) {
+            out.append(kind[i] == COMMENT ? ' ' : text.charAt(i));
+        }
+        return out.toString();
+    }
+
+    private static final Pattern LIBRARY_SRCS = Pattern.compile("glob\\(\\s*\\[\"src/test/java/\\*\\*/\\*\\.java\"\\],"
             + "\\s*exclude = \\[(.*?)\\n\\s*\\]([^\\n]*)\\n\\s*\\),", Pattern.DOTALL);
 
     private static final Pattern QUOTED_PATTERN = Pattern.compile("\"(src/test/java/[^\"]+)\",?");
@@ -195,8 +325,11 @@ class TaggedClassesHaveATargetTest {
      *  out): its sources are {@code glob(["src/test/java/**}{@code /*.java"], exclude = [...] + EDGE_TEST_SRCS)}, each
      *  line of the list one quoted pattern. Other text fails the check by name. */
     static List<String> libraryExcludes(String libraryBlock) {
+        // its one top-level srcs (the review of the guard line, G, 2026-11-18, MUST-FIX 2b's shape: a decoy written
+        // inside a string, ahead of the real srcs, was read first)
+        int at = onlyTopLevel("core_tests_lib", libraryBlock, "srcs");
         Matcher srcs = LIBRARY_SRCS.matcher(libraryBlock);
-        if (!srcs.find()) {
+        if (at < 0 || !srcs.region(at, libraryBlock.length()).lookingAt()) {
             throw new IllegalStateException("core_tests_lib's srcs are not glob([\"src/test/java/**/*.java\"], exclude"
                     + " = [...] + EDGE_TEST_SRCS): the check does not read them");
         }
@@ -251,34 +384,39 @@ class TaggedClassesHaveATargetTest {
     static Set<String> gated(String gates) {
         Map<String, List<String>> suites = new TreeMap<>();
         Set<String> filtered = new TreeSet<>();
-        Matcher m = Pattern.compile("\\ntest_suite\\(\\n\\s*name = \"(\\w+)\",(.*?)\\n\\)", Pattern.DOTALL)
-                .matcher(gates);
-        while (m.find()) {
-            // (spaces around "=" optional: the third review's NOTE, 2026-11-17 -- "tags=[...]" was not read)
-            Matcher tests = Pattern.compile("\\n\\s*tests\\s*=\\s*\\[(.*?)\\]", Pattern.DOTALL).matcher(m.group(2));
-            // the attribute's whole value, to the next attribute (the review of 5911e970e1, 2026-11-17: ["manual"] +
-            // ["-edge_test"] was read as ["manual"])
-            Matcher tags = Pattern.compile("\\n\\s*tags\\s*=\\s*(.*?)(?=\\n\\s*\\w+\\s*=|\\z)", Pattern.DOTALL)
-                    .matcher(m.group(2));
-            if (tags.find() && !tags.group(1).replaceAll("\\s", "").replaceAll(",$", "").equals("[\"manual\"]")) {
+        // each suite a statement, its attributes read at the call's top level over the code alone (the review of the
+        // guard line, G, MUST-FIX 2c, 2026-11-18: lazy regexes over text with its strings intact ended a suite at a
+        // "\n)" inside a string, and took a tests list written inside one)
+        for (Named suite : named(gates, "test_suite")) {
+            String text = suite.text();
+            int tags = onlyTopLevel(suite.name(), text, "tags");
+            if (tags >= 0 && !Pattern.compile("\\[\\s*\"manual\"\\s*,?\\s*\\]\\s*(,|\\z)").matcher(text)
+                    .region(tags, text.length()).lookingAt()) {
                 // a suite's tags filter even the tests it lists (manual alone is no filter): read, it would be unread
-                filtered.add(m.group(1));
+                filtered.add(suite.name());
             }
             List<String> members = new ArrayList<>();
-            if (tests.find()) {
-                for (String item : tests.group(1).split(",")) {
-                    String label = item.strip();
-                    if (label.isEmpty()) {
-                        continue;
-                    }
+            int tests = onlyTopLevel(suite.name(), text, "tests");
+            if (tests >= 0 && text.charAt(tests) == '[') {
+                int[] depth = depths(starlarkCode(text));
+                int close = -1;
+                for (int i = tests; i < text.length() && close < 0; i++) {
+                    close = depth[i + 1] == depth[tests] ? i : -1;
+                }
+                if (close < 0 || !Pattern.compile("\\s*(,|\\z)").matcher(text).region(close + 1, text.length())
+                        .lookingAt()) {
+                    throw new IllegalStateException("gates/BUILD.bazel's suite " + suite.name() + " joins its tests"
+                            + " with text the check does not read");
+                }
+                for (String label : topLevelItems(text.substring(tests + 1, close))) {
                     if (!label.matches("\"[^\"]+\"")) {
-                        throw new IllegalStateException("gates/BUILD.bazel's suite " + m.group(1) + " lists text the"
+                        throw new IllegalStateException("gates/BUILD.bazel's suite " + suite.name() + " lists text the"
                                 + " check does not read: " + label);
                     }
                     members.add(label.substring(1, label.length() - 1));
                 }
             }
-            suites.put(m.group(1), members);
+            suites.put(suite.name(), members);
         }
         Set<String> out = new TreeSet<>();
         Set<String> seen = new HashSet<>();
@@ -463,12 +601,7 @@ class TaggedClassesHaveATargetTest {
      *  {@code select = [..]} inside a string, ahead of the real one, was read first). */
     static List<Integer> topLevel(String text, String keys) {
         String code = starlarkCode(text);
-        int[] depth = new int[code.length() + 1];
-        for (int i = 0, d = 0; i < code.length(); i++) {
-            depth[i] = d;
-            char c = code.charAt(i);
-            d += c == '(' || c == '[' || c == '{' ? 1 : c == ')' || c == ']' || c == '}' ? -1 : 0;
-        }
+        int[] depth = depths(code);
         List<Integer> out = new ArrayList<>();
         Matcher m = Pattern.compile("(?<![\\w])(?:" + keys + ")\\s*=(?!=)\\s*").matcher(code);
         while (m.find()) {
@@ -548,22 +681,15 @@ class TaggedClassesHaveATargetTest {
                 if (!term.lookingAt()) {
                     throw new IllegalStateException(name + "'s exclude_tags holds text the check does not read");
                 }
-                if (term.group(1) != null) {
-                    out.addAll(plainTags(name, quoted(name, term.group(1))));
-                } else {
-                    Matcher v = Pattern.compile("\\n" + Pattern.quote(term.group(2)) + "\\s*=\\s*\\[(.*?)\\n\\]",
-                            Pattern.DOTALL).matcher(build);
-                    if (!v.find()) {
-                        throw new IllegalStateException(name + "'s exclude_tags names " + term.group(2) + ", a list"
-                                + " the check does not read");
-                    }
-                    out.addAll(plainTags(name, quoted(name, v.group(1))));
-                }
                 Matcher next = Pattern.compile("\\s*(\\+\\s*|,|$)").matcher(text).region(term.end(), text.length());
                 if (!next.lookingAt()) {
                     throw new IllegalStateException(name + "'s exclude_tags is followed by text the check does not"
                             + " read");
                 }
+                // a list's name resolved at the build file's top level alone (the review of the guard line, G,
+                // MUST-FIX 2b, 2026-11-18: a decoy inside a docstring, ahead of the real list, was read)
+                out.addAll(plainTags(name, quoted(name, term.group(1) != null ? term.group(1)
+                        : namedList(build, term.group(2), name + "'s exclude_tags"))));
                 if (!next.group(1).startsWith("+")) {
                     return out;
                 }
@@ -613,23 +739,8 @@ class TaggedClassesHaveATargetTest {
      *  class only one of those selects is named an orphan, loudly). */
     static List<Target> targets(String build) {
         List<Target> out = new ArrayList<>();
-        for (int[] call : calls(build, "junit_test")) {
-            Matcher m = CALL_NAME.matcher(build).region(call[0], call[1]);
-            if (!m.lookingAt()) {
-                continue;
-            }
-            // a call closes on its own line, as every target here does: its text runs to the newline before it
-            if (build.charAt(call[1] - 1) != '\n') {
-                throw new IllegalStateException("junit_test " + m.group(1) + "'s call does not close on its own line, a"
-                        + " text the check does not read");
-            }
-            // a call is a statement: its closing line holds nothing else (the review of dd5deb781f, 2026-11-18,
-            // MUST-FIX 1: "junit_test(..) if False else junit_test(..)" defines the second alone, and the first was read)
-            if (call[1] + 1 < build.length() && build.charAt(call[1] + 1) != '\n') {
-                throw new IllegalStateException("junit_test " + m.group(1) + "'s call is followed by text the check"
-                        + " does not read");
-            }
-            out.add(new Target(m.group(1), build.substring(m.end(), call[1] - 1)));
+        for (Named call : named(build, "junit_test")) {
+            out.add(new Target(call.name(), call.text()));
         }
         // a call written another way -- a list comprehension's [junit_test(...) for p in ...], the per-package shards
         // -- is not read: it selects nothing here, so a class only it runs is reported, which fails closed
@@ -915,6 +1026,55 @@ class TaggedClassesHaveATargetTest {
         assertEquals(edgeOrphan, orphans(edgeCensus, edge, PLANTED_BUILD.replace("select = edge_test_classes() + ",
                 "tags = edge_test_classes(),\n    select = "), PLANTED_GATES),
                 "the edge's selector outside select selects nothing");
+        // the review of the guard line, G, MUST-FIX 2a (2026-11-18): a junit_test Bazel never evaluates -- a list
+        // comprehension's, a never-evaluated "False and (..)", a conditional's branch -- selects nothing, even under a
+        // gated name; and a never-evaluated library is not the library
+        Map<String, String> ghost = Map.of(TEST_ROOT + "com/legend/slow/GhostTest.java", census);
+        List<String> ghostOrphan = List.of(TEST_ROOT + "com/legend/slow/GhostTest.java [census]: in the product's test"
+                + " library, run by no gate target");
+        String ghostCall = junit("slow_census", "    select = [\"--select-class=com.legend.slow.GhostTest\"],");
+        for (String[] form : List.of(new String[] {"\n[", "for _ in []]\n"}, new String[] {"\n_ = False and (", ")\n"},
+                new String[] {"\nNone if True else (", ")\n"})) {
+            assertEquals(ghostOrphan, orphans(ghost, edge, PLANTED_BUILD + form[0] + ghostCall + form[1], PLANTED_GATES),
+                    form[0]);
+        }
+        Map<String, String> leftOut = Map.of(TEST_ROOT + "com/legend/slow/LeftOutTest.java", census);
+        List<String> leftOutOrphan = List.of(TEST_ROOT + "com/legend/slow/LeftOutTest.java [census]: in the product's"
+                + " test library, run by no gate target");
+        assertEquals(leftOutOrphan, orphans(leftOut, edge, "\n_ = [" + PLANTED_LIBRARY.replace("legend_java_library(",
+                "filegroup(").replace("\"src/test/java/com/legend/slow/*.java\",", "") + "]\n" + PLANTED_BUILD,
+                PLANTED_GATES), "a never-evaluated core_tests_lib, ahead of the real one, is not the library");
+        // MUST-FIX 2b: a named list, or the library's srcs, written inside a string ahead of the real one, is not read
+        assertEquals(expected, orphans(sources, edge, "\"\"\"\n_CORE_TEST_EXCLUDED_TAGS = [\n    \"slow\",\n]\n\"\"\"\n"
+                + PLANTED_BUILD, PLANTED_GATES), "a docstring's list is not the list");
+        assertEquals(leftOutOrphan, orphans(leftOut, edge, PLANTED_BUILD.replace("    name = \"core_tests_lib\",\n",
+                "    name = \"core_tests_lib\",\n    deprecation = \"\"\"\n    srcs = glob(\n        [\"src/test/java/**/*.java\"],\n"
+                + "        exclude = [\n        ] + EDGE_TEST_SRCS,\n    ),\n\"\"\",\n"), PLANTED_GATES),
+                "a string's srcs are not the library's");
+        assertEquals(Set.of("src/test/java/com/legend/RealTest.java"), edgeSources("\"\"\"\nEDGE_TEST_SRCS = [\n"
+                + "    \"src/test/java/com/legend/DecoyTest.java\",\n]\n\"\"\"\n\nEDGE_TEST_SRCS = [\n"
+                + "    \"src/test/java/com/legend/RealTest.java\",  # a comment, \"quoted\"\n]\n"),
+                "the edge's list is read at the file's top level");
+        Map<String, String> dropped = Map.of(TEST_ROOT + "com/legend/slow/DroppedTest.java", census);
+        for (String[] c : List.of(
+                new String[] {PLANTED_BUILD + "\n_CORE_TEST_EXCLUDED_TAGS = [\"slow\"]\n",
+                        "dropping's exclude_tags names _CORE_TEST_EXCLUDED_TAGS, a list assigned twice"},
+                new String[] {PLANTED_BUILD + "\n_CORE_TEST_EXCLUDED_TAGS.remove(\"census\")\n",
+                        "dropping's exclude_tags names _CORE_TEST_EXCLUDED_TAGS, a list changed or cut"},
+                new String[] {PLANTED_BUILD.replace("    \"guardrail\",\n]\n", "    \"guardrail\",\n] + _MORE\n"),
+                        "dropping's exclude_tags names _CORE_TEST_EXCLUDED_TAGS, a list the check does not read: not one"
+                        + " plain list"})) {
+            IllegalStateException e = assertThrows(IllegalStateException.class, () -> orphans(dropped, edge, c[0],
+                    PLANTED_GATES), c[1]);
+            assertTrue(e.getMessage().startsWith(c[1]), e.getMessage());
+        }
+        // MUST-FIX 2c: a gate suite's attributes are read at its top level -- a string holding a line that reads as its
+        // close hides no tag filter (in unreadBuildTextFailsTheCheck), and a tests list inside a string lists nothing
+        assertEquals(List.of(TEST_ROOT + "com/legend/slow/KeptTest.java [census]: in the product's test library, run by"
+                + " no gate target"), orphans(kept, edge, PLANTED_BUILD, PLANTED_GATES.replace(
+                "        \"//core:slow_census\",\n", "").replace("name = \"checks\",", "name = \"checks\",\n"
+                + "    deprecation = \"\"\"\n    tests = [\"//core:slow_census\"]\n\"\"\",")),
+                "a string's tests list lists nothing");
     }
 
     /** slow_census's selector, where the planted unread texts go. */
@@ -1029,7 +1189,20 @@ class TaggedClassesHaveATargetTest {
                         PLANTED_GATES, "slow_census's select holds a flag's literal inside an expression the check does"
                         + " not read"},
                 new String[] {PLANTED_BUILD.replace(KEPT, "\"\" and " + KEPT), PLANTED_GATES,
-                        "slow_census's select holds a flag's literal inside an expression the check does not read"});
+                        "slow_census's select holds a flag's literal inside an expression the check does not read"},
+                // the review of the guard line, G, MUST-FIX 2 (2026-11-18): a call continuing the line before it, a
+                // target, a library or a suite defined twice, a suite's tag filter after a string holding "\n)"
+                new String[] {PLANTED_BUILD + "\n_ = False and \\" + junit("ghost", "    select = [\"--select-class=com"
+                        + ".legend.slow.GhostTest\"],"), PLANTED_GATES, "a junit_test call continues the line before it"},
+                new String[] {PLANTED_BUILD + junit("slow_census", "    select = [\"--select-class=com.legend.Other\"],"),
+                        PLANTED_GATES, "junit_test slow_census is defined twice"},
+                new String[] {PLANTED_BUILD + PLANTED_LIBRARY.replace("legend_java_library(", "filegroup("),
+                        PLANTED_GATES, "core_tests_lib is defined twice"},
+                new String[] {PLANTED_BUILD, PLANTED_GATES + suite("local", "    tests = [\"//core:slow_census\"],"),
+                        "test_suite local is defined twice"},
+                new String[] {PLANTED_BUILD, PLANTED_GATES.replace("name = \"checks\",", "name = \"checks\",\n"
+                        + "    deprecation = \"\"\"\n)\n\"\"\",\n    tags = [\"-edge_test\"],"),
+                        "gates/BUILD.bazel's suite checks filters its tests by tag"});
         for (String[] c : cases) {
             IllegalStateException e = assertThrows(IllegalStateException.class, () -> orphans(sources, edge, c[0], c[1]),
                     c[2]);

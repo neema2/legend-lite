@@ -341,9 +341,17 @@ class OwnFilesTest(unittest.TestCase):
 
     SCRIPT = 'WATCHED = {\n    "a/X.java": ["ONE"],\n}\nGROW_ONLY = {}\n\n\ndef dated():\n    return False\n'
 
-    def own(self, base, head, path=shrink_only.SELF):
+    def own(self, base, head, path=shrink_only.SELF, since=SINCE):
         return shrink_only.own_files_moved(lambda p: base if p == path else None,
-                                           lambda p: head if p == path else None, SINCE, None)
+                                           lambda p: head if p == path else None, since, None)
+
+    @staticmethod
+    def after(text):
+        """The day after the latest date `text` holds: without the history, a note is a line dated on or after the
+        floor, so a real file's own dates are below it."""
+        import datetime
+        latest = max(re.findall(r"\d{4}-\d{2}-\d{2}", text))
+        return (datetime.date.fromisoformat(latest) + datetime.timedelta(days=1)).isoformat()
 
     def test_a_change_to_the_script_needs_a_note(self):
         loosened = self.SCRIPT.replace("return False", "return True")
@@ -354,22 +362,71 @@ class OwnFilesTest(unittest.TestCase):
         self.assertEqual([], self.own(self.SCRIPT, self.SCRIPT), "an unchanged script needs nothing")
         self.assertEqual([], self.own(None, loosened), "the script's first landing is the change's own")
 
-    def test_the_workflows_shrink_step_is_the_checks_own(self):
-        gate = ("jobs:\n  guards:\n    steps:\n      - name: Lint\n        run: ./lint.sh\n"
-                "      - name: Shrink-only\n        run: python3 tools/guards/shrink_only.py --base x\n"
-                "      - name: Test\n        run: ./test.sh\n")
+    # the workflow's shape: the check's own job, its step opening "- env:" as the real one does, and green needing it
+    GATE = ("jobs:\n  linux:\n    runs-on: ubuntu\n    steps:\n      - run: ./lint.sh\n\n"
+            "  # the check, by the merge-base\n  shrink-only:\n    name: guard pins shrink only\n    runs-on: ubuntu\n"
+            "    steps:\n      - uses: actions/checkout@v4\n      - env:\n          EVENT: x\n        run: |\n"
+            "          set -euo pipefail\n          python3 \"$RUNNER_TEMP/shrink_only.py\" --base x\n\n"
+            "  green:\n    needs: [linux, shrink-only]\n    steps:\n      - run: ./green.sh\n")
+
+    @staticmethod
+    def real(*parts):
+        with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", *parts), encoding="utf-8") as f:
+            return f.read()
+
+    def test_the_workflows_shrink_job_is_the_checks_own(self):
+        """The review of the guard line, G, MUST-FIX 3 (2026-11-18): the real step opens "- env:", so a region found by
+        "- name:" held nothing; a job-level edit lay outside every step."""
         path = ".github/workflows/gate.yml"
+        gate = self.GATE
         self.assertEqual([], self.own(gate, gate.replace("./lint.sh", "./lint2.sh"), path),
-                         "another step's change is not the check's")
-        loosened = gate.replace("shrink_only.py --base x", "shrink_only.py --base x || true")
-        self.assertEqual(1, len(self.own(gate, loosened, path)))
-        noted = loosened.replace("        run: python3 tools/guards/shrink_only.py",
-                                 "        # tolerated while the base moves, 2026-11-18\n"
-                                 "        run: python3 tools/guards/shrink_only.py")
-        self.assertEqual([], self.own(gate, noted, path))
-        self.assertEqual(1, len(self.own(gate, gate.replace("      - name: Shrink-only\n        run: python3 "
-                                                             "tools/guards/shrink_only.py --base x\n", ""), path)),
-                         "the step gone is named")
+                         "another job's change is not the check's")
+        loosened = gate.replace("--base x\n", "--base x || true\n")
+        self.assertEqual(1, len(self.own(gate, loosened, path)), "the step's command, under '- env:'")
+        self.assertEqual([], self.own(gate, loosened.replace("        run: |\n", "        # tolerated while the base"
+                                                             " moves, 2026-11-18\n        run: |\n"), path))
+        for edit, why in ((gate.replace("    name: guard pins shrink only\n", "    name: guard pins shrink only\n"
+                                        "    continue-on-error: true\n"), "continue-on-error on the job"),
+                          (gate.replace("needs: [linux, shrink-only]", "needs: [linux]"), "dropped from green's needs"),
+                          (gate.replace("      - run: ./green.sh", "      - run: exit 0"), "green's own step")):
+            self.assertEqual(1, len(self.own(gate, edit, path)), why)
+        gone = gate[:gate.index("  # the check")] + gate[gate.index("  green:"):].replace(", shrink-only", "")
+        self.assertEqual([path + ": the check's part of it is gone at the head"], self.own(gate, gone, path),
+                         "the job deleted and dropped from green's needs")
+
+    def test_the_real_workflows_shrink_job_is_read(self):
+        path = ".github/workflows/gate.yml"
+        gate = self.real(".github", "workflows", "gate.yml")
+        lines = gate.split("\n")
+        region = shrink_only.own_region(path, gate)
+        self.assertIsNotNone(region)
+        held = [lines[n - 1].strip() for n in sorted(region)]
+        self.assertTrue(any(line.startswith('python3 "$RUNNER_TEMP/shrink_only.py"') for line in held), held)
+        self.assertTrue(any(line.startswith("needs:") and "shrink-only" in line for line in held), held)
+        self.assertTrue(any(line == "shrink-only:" for line in held), held)
+        # the review's scenario G: the head's copy run unconditionally, its failure ignored, no note
+        loosened = gate.replace('git show "$MERGE_BASE:tools/guards/shrink_only.py"',
+                                "cp tools/guards/shrink_only.py").replace('--head "$HEAD_REF"\n',
+                                                                          '--head "$HEAD_REF" || true\n')
+        self.assertNotEqual(gate, loosened)
+        self.assertEqual(1, len(self.own(gate, loosened, path, self.after(gate))))
+
+    def test_the_gates_suites_name_the_check(self):
+        """SHOULD 4: gates/BUILD.bazel runs the check by name; dropping it from //gates:local needs a note."""
+        path = "gates/BUILD.bazel"
+        gates = self.real("gates", "BUILD.bazel")
+        comment = ("        # read against the merge-base with origin/main (tools/guards/shrink_only.py; manual, so listed by"
+                   " name)\n")
+        listed = comment + '        "//tools/guards:shrink_only_check",\n'
+        self.assertEqual(1, gates.count(listed), "the local suite lists the check")
+        dropped = gates.replace(listed, comment)
+        since = self.after(gates)
+        self.assertEqual(1, len(self.own(gates, dropped, path, since)))
+        self.assertEqual([], self.own(gates, dropped.replace(comment, "        # read against the merge-base"
+                                                             " (tools/guards/shrink_only.py), run by CI alone from "
+                                                             + since + "\n"), path, since))
+        self.assertEqual([], self.own(gates, gates.replace('name = "local",', 'name = "local",\n    size = "large",'),
+                                      path, since), "another line of the suites is not the check's")
 
     def test_the_build_files_targets_are_the_checks_own(self):
         build = ('py_library(\n    name = "other",\n)\n\npy_test(\n    name = "shrink_only_check",\n'
