@@ -60,9 +60,11 @@ public final class ProductLoweringForms implements LoweringForms {
         return pruned.get();
     }
 
-    /** The correlated EXISTS as lowered: the leanest SQL with the same answer (J19, register S362). */
+    /** The join to the distinct keys, for now (the orchestrator's ruling (c) on J19, 2026-11-18: the product's SQL is
+     *  unchanged until the dialects that cannot correlate an EXISTS decompose it at render -- ClickHouse -- and the
+     *  product then writes the correlated EXISTS, the leanest SQL with the same answer: register S362). */
     @Override
     public SqlSelect existsJoin(SqlSelect filtered, java.util.function.UnaryOperator<SqlSelect> joinForm) {
-        return filtered;
+        return joinForm.apply(filtered);
     }
 }
