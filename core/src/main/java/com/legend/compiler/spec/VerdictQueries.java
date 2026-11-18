@@ -62,22 +62,6 @@ public final class VerdictQueries {
                 .orElse(null);
     }
 
-    public static TypedSpec fromWrapped(TypedSpec query,
-            com.legend.compiler.spec.typed.TypedPackageableRef mapping) {
-        return fromWrapped(query, mapping,
-                com.legend.compiler.spec.typed.ExecutionContext.NONE);
-    }
-
-    /** The verdict's read wrapped in the FRAME's own bound context (the
-     * producer's post-processors, time zone, options) under the mapping. */
-    public static TypedSpec fromWrapped(TypedSpec query,
-            com.legend.compiler.spec.typed.TypedPackageableRef mapping,
-            com.legend.compiler.spec.typed.ExecutionContext base) {
-        com.legend.base.RunScope.planning("wrap a verdict's read");
-        return new com.legend.compiler.spec.typed.TypedFrom(query,
-                base.withMapping(java.util.Optional.of(mapping)), query.info());
-    }
-
     /** assertSameSQL's OUR-ROWS read (§8.3b): {@code $result.values} —
      * the envelope splice swaps it for the frame's typed chain
      * (ResultEnvelopeSplice.valuesRead), which carries the REAL

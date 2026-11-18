@@ -61,11 +61,6 @@ public final class NoEdgeRun implements EdgeRun {
         }
 
         @Override
-        public PureWords pureWords() {
-            throw new NotImplementedException("legend-pure's words of an assert's failure " + WHY);
-        }
-
-        @Override
         public String raisedWords(String statement, int n) {
             throw new NotImplementedException("legend-pure's words of raise site " + n + " " + WHY);
         }

@@ -33,10 +33,6 @@ public interface EdgeHearing {
     /** The database judge's failed {@code row}, whose appeal is numbered {@code number}, heard. */
     TypedSide rowAppealed(int number, List<Object> row, boolean messaged);
 
-    /** legend-pure's words of an assert's failure at run ({@link PureWords}; C5's step B, 2026-11-17): asked only under
-     *  the compatibility rules. */
-    PureWords pureWords();
-
     /** legend-pure's words of site {@code n} of the planned statement whose text is {@code statement}, planned and
      *  looked up in the plan's records (K10b of the edge audit, the orchestrator's ruling (A) of 2026-11-17): what an
      *  assertError matches a raise by under the compatibility rules, asked only under them. A site planned with no

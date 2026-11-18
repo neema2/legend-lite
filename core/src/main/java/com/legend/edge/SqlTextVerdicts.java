@@ -15,7 +15,7 @@ import static com.legend.testexecutionplan.Verdicts.ok;
 import static com.legend.edge.SqlTextReferee.textsDiffer;
 import static com.legend.edge.SqlTextReferee.isPopulationGolden;
 import static com.legend.edge.SqlTextReferee.stripChainedPlanWarning;
-import static com.legend.testexecutionplan.Verdicts.scalarString;
+import static com.legend.edge.SqlTextReferee.scalarString;
 
 
 import com.legend.testexecutionplan.HostJudgment;
@@ -610,11 +610,11 @@ final class SqlTextVerdicts {
                     ? ct.fqn() : null;
             return rowsLegAndVerdict(
                     name, goldenF, ours, textEqual,
-                    com.legend.compiler.spec.VerdictQueries.fromWrapped(
+                    SqlTextReferee.fromWrapped(
                             let0.value(), mapping, legCtx),
                     null, mapping.fullPath(), letCls,
                     EngineTextPlanning.replayFacts(let0.value(), lamPrefix),
-                    EngineTextPlanning.unpagedRead(com.legend.compiler.spec.VerdictQueries.fromWrapped(
+                    EngineTextPlanning.unpagedRead(SqlTextReferee.fromWrapped(
                             let0.value(), mapping, legCtx)),
                     lamPrefix, specs, envF, hook, lam);
         }
@@ -623,11 +623,11 @@ final class SqlTextVerdicts {
         // query — mapping from the producer, runtime from the env
         return rowsLegAndVerdict(
                 name, goldenF, ours, textEqual,
-                com.legend.compiler.spec.VerdictQueries.fromWrapped(
+                SqlTextReferee.fromWrapped(
                         query, mapping, legCtx),
                 null, mapping.fullPath(), rootClassFqn(lam),
                 EngineTextPlanning.replayFacts(query, lamPrefix),
-                EngineTextPlanning.unpagedRead(com.legend.compiler.spec.VerdictQueries.fromWrapped(
+                EngineTextPlanning.unpagedRead(SqlTextReferee.fromWrapped(
                         query, mapping, legCtx)), lamPrefix,
                 specs, envF, hook, lam);
     }
@@ -820,11 +820,11 @@ final class SqlTextVerdicts {
                     ? ct.fqn() : null;
             return rowsLegAndVerdict("assertEqualsH2Compatible", golden, ours,
                     textEqual,
-                    com.legend.compiler.spec.VerdictQueries.fromWrapped(
+                    SqlTextReferee.fromWrapped(
                             route.let().value(), fm.mappingRef(), fm.context()),
                     null, fm.mapping(), letCls,
                     EngineTextPlanning.replayFacts(route.let().value(), letPrefix),
-                    EngineTextPlanning.unpagedRead(com.legend.compiler.spec.VerdictQueries.fromWrapped(
+                    EngineTextPlanning.unpagedRead(SqlTextReferee.fromWrapped(
                             route.let().value(), fm.mappingRef(), fm.context())),
                     letPrefix, specs, env, hook, fm.query());
         }
@@ -922,11 +922,11 @@ final class SqlTextVerdicts {
                     instanceof com.legend.compiler.element.type.Type.ClassType ct
                     ? ct.fqn() : null;
             return rowsLegAndVerdict(name, golden, ours, textEqual,
-                    com.legend.compiler.spec.VerdictQueries.fromWrapped(
+                    SqlTextReferee.fromWrapped(
                             letStatement.value(), fm.mappingRef(), fm.context()),
                     null, fm.mapping(), letCls,
                     EngineTextPlanning.replayFacts(letStatement.value(), letPrefix),
-                    EngineTextPlanning.unpagedRead(com.legend.compiler.spec.VerdictQueries.fromWrapped(
+                    EngineTextPlanning.unpagedRead(SqlTextReferee.fromWrapped(
                             letStatement.value(), fm.mappingRef(), fm.context())),
                     letPrefix, specs, env, hook, fm.query());
         }
@@ -941,11 +941,11 @@ final class SqlTextVerdicts {
             // the let's expression runs through the one router, wrapped
             // in the frame's own mapping like every rows leg
             return rowsLegAndVerdict(name, golden, ours, textEqual,
-                    com.legend.compiler.spec.VerdictQueries.fromWrapped(
+                    SqlTextReferee.fromWrapped(
                             pop.rowsRead(), fm.mappingRef(), fm.context()),
                     null, fm.mapping(), null,
                     EngineTextPlanning.replayFacts(pop.rowsRead(), letPrefix),
-                    EngineTextPlanning.unpagedRead(com.legend.compiler.spec.VerdictQueries.fromWrapped(
+                    EngineTextPlanning.unpagedRead(SqlTextReferee.fromWrapped(
                             pop.rowsRead(), fm.mappingRef(), fm.context())),
                     letPrefix, specs, env, hook, fm.query());
         }
@@ -1209,7 +1209,7 @@ final class SqlTextVerdicts {
         String replay = filled.contains("${") ? null : planReplaySql(filled);
         TypedSpec last = lam.body().get(lam.body().size() - 1);
         TypedSpec read = mapping == null ? last
-                : com.legend.compiler.spec.VerdictQueries.fromWrapped(last, mapping, planCtx);
+                : SqlTextReferee.fromWrapped(last, mapping, planCtx);
         return rowsLegAndVerdict(name, golden, ours, textEqual, read,
                 replay, mapping == null ? null : mapping.fullPath(), rootClassFqn(lam),
                 EngineTextPlanning.replayFacts(last, bound),
@@ -1559,10 +1559,8 @@ final class SqlTextVerdicts {
             TypedSpec cur = work.poll();
             if (cur instanceof TypedNativeCall nc) {
                 String fqn = nc.callee().qualifiedName();
-                if (fqn.equals(com.legend.compiler.element.type
-                                .PlatformTypes.TO_SQL_STRING)
-                        || fqn.equals(com.legend.compiler.element.type
-                                .PlatformTypes.TO_SQL_STRING_PRETTY)
+                if (fqn.equals(EdgeEngineTestText.TO_SQL_STRING)
+                        || fqn.equals(EdgeEngineTestText.TO_SQL_STRING_PRETTY)
                         || fqn.equals(com.legend.compiler.element.type
                                 .PlatformTypes.TO_NON_EXECUTABLE_SQL_STRING)) {
                     return com.legend.compiler.spec.NativeDispatch.RoutineCall.of(nc);
@@ -1651,7 +1649,7 @@ final class SqlTextVerdicts {
             // a PAGED frame chain: our unpaged population is the same chain
             // minus its tail page, wrapped in the frame's own context
             TypedSpec populationRead = chain != null && mappingRef != null
-                    ? EngineTextPlanning.unpagedRead(com.legend.compiler.spec.VerdictQueries
+                    ? EngineTextPlanning.unpagedRead(SqlTextReferee
                             .fromWrapped(chain, mappingRef, context))
                     : null;
             return new FrameFacts(mapping, cls, facts, populationRead, lamArg,

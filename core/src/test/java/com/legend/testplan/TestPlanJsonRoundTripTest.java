@@ -79,7 +79,7 @@ class TestPlanJsonRoundTripTest {
                 new Appeal.Batched("golden", null, false), 1)));
         TestPlan plan = new TestPlan(List.of(), List.of(group, branch), TestPlan.Judge.DATABASE, byStep,
                 byVerdict, true, anyTarget(), new com.legend.testexecutionplan.BodyFacts(true, false, true, "FLAXEO"),
-                "the answer's planned size words", false);
+                "the answer's planned size words", TestPlan.LITE_WORDS);
 
         assertNull(TestPlanJson.roundTripDifference(plan));
     }

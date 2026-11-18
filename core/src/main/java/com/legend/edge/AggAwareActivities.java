@@ -79,7 +79,7 @@ final class AggAwareActivities {
         if (root == null || mappingFqn == null) {
             return null;
         }
-        String setId = com.legend.resolver.AggregationAwareRouting.mainSetId(ctx, mappingFqn, root.classFqn());
+        String setId = mainSetId(ctx, mappingFqn, root.classFqn());
         if (setId == null) {
             return null;
         }
@@ -253,5 +253,24 @@ final class AggAwareActivities {
             }
         }
         return true;
+    }
+
+    /** The AggregationAware main set's id for a class in a mapping (its
+     * includes closed), or null when the class is not so mapped (moved from resolver.AggregationAwareRouting, J40,
+     * 2026-11-18: legend-engine's activity text names it, its one caller this). */
+    private static @com.legend.base.Nullable String mainSetId(com.legend.compiler.element.ModelContext ctx, String mappingFqn,
+            String classFqn) {
+        var md = ctx.findMapping(mappingFqn).orElse(null);
+        if (md == null) {
+            return null;
+        }
+        for (var cb : md.classBindingsWithIncludes(classFqn, ctx::findMapping)) {
+            if (cb instanceof com.legend.model.MappingDefinition.ClassBinding.Relational rb
+                    && rb.source() instanceof com.legend.model.MappingDefinition.RelationalSource.Table t
+                    && t.aggregationAwareMain()) {
+                return cb.setId();
+            }
+        }
+        return null;
     }
 }

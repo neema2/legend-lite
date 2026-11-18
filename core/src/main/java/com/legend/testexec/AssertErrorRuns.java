@@ -59,15 +59,9 @@ final class AssertErrorRuns {
     private static TypedSide judged(String expected, @com.legend.base.Nullable Long expectedLine,
             @com.legend.base.Nullable Long expectedColumn, @com.legend.base.Nullable String caughtMessage,
             @com.legend.base.Nullable Throwable caughtCause, BodyRun run) {
-        boolean lite = !run.hearing().hostForms().upstreamWords();   // whose words: the run hook's (census C1)
-        if (caughtMessage == null && lite) {
-            throw new com.legend.error.AssertFailed(HostJudgments.sentence(
-                    com.legend.error.AssertSentence.NO_ERROR, "expected", LiteWords.quoted(expected)));
-        }
+        HostWords words = run.hearing().hostForms().words();   // whose words: the run hook's (census J29)
         if (caughtMessage == null) {
-            // interpreted AssertError.java: PureAssertFail("No error was
-            // thrown") — a FAIL, not an orchestration error
-            throw new com.legend.error.AssertFailed("No error was thrown");
+            throw new com.legend.error.AssertFailed(words.noError(expected));
         }
         // B7 (RaisedErrors): messages arrive ALREADY clean — the
         // Executor funnel unwraps the transport envelope from
@@ -76,18 +70,8 @@ final class AssertErrorRuns {
         // pure's expectation is then an HONEST failure, never a strip
         // coincidence. The old broad prefix regex is deleted.
         String actual = caughtMessage;
-        if (!actual.equals(expected) && lite) {
-            throw new com.legend.error.AssertFailed(HostJudgments.sentence(
-                    com.legend.error.AssertSentence.ERROR, "expected", LiteWords.quoted(expected), "actual",
-                    LiteWords.quoted(actual)));
-        }
         if (!actual.equals(expected)) {
-            // assertError.pure:24 — the /4 body's assertEquals format,
-            // verbatim
-            throw new com.legend.error.AssertFailed(
-                    "Execution error message mismatch.\nThe actual message"
-                    + " was \"" + actual + "\"\nwhere the expected"
-                    + " message was:\"" + expected + "\"");
+            throw new com.legend.error.AssertFailed(words.errorDiffers(expected, actual));
         }
         // POSITION adjudication (leg 2, assertError.pure:25-26 — message
         // first, then line, then column, each only when expected): the
@@ -106,16 +90,10 @@ final class AssertErrorRuns {
                         + " a raise emission without provenance)");
             }
             if (expectedLine != null && p.line() != expectedLine) {
-                // assertError.pure:25 — the /4 body's format, verbatim
-                throw new com.legend.error.AssertFailed(
-                        "Execution error line mismatch. Actual: " + p.line()
-                        + " where expected: " + expectedLine);
+                throw new com.legend.error.AssertFailed(words.lineDiffers(expectedLine, p.line()));
             }
             if (expectedColumn != null && p.column() != expectedColumn) {
-                // assertError.pure:26 — the /4 body's format, verbatim
-                throw new com.legend.error.AssertFailed(
-                        "Execution error column mismatch. Actual: "
-                        + p.column() + " where expected: " + expectedColumn);
+                throw new com.legend.error.AssertFailed(words.columnDiffers(expectedColumn, p.column()));
             }
         }
         return new TypedSide.Scalar(Boolean.TRUE,

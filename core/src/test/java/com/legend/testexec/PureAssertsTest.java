@@ -28,21 +28,34 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class PureAssertsTest {
     /** legend-pure's words, the compatibility edge's (C5's step B, 2026-11-17: an edge test since). */
-    private static final PureWords W = com.legend.edge.EdgePureWords.INSTANCE;
+    private static final com.legend.edge.EdgePureWords W = com.legend.edge.EdgePureWords.INSTANCE;
 
     /** Lite's own rules: what these comparisons are judged by (the explicit rule, 2026-11-04). */
     private static final HostRules LITE = HostRules.LITE;
 
     /** assertEquals' message: the product's decision, the edge's words (the wrappers left the product, J17). */
-    private static String eqMsg(List<Object> e, List<Object> a, HostRules rules, PureWords w) {
+    private static String eqMsg(List<Object> e, List<Object> a, HostRules rules, com.legend.edge.EdgePureWords w) {
         return PureAsserts.holds(e, a, rules) ? null : w.equals(e, a, null, null);
     }
 
-    private static String sizeMsg(List<Object> c, long size, PureWords w) {
+    private static String sizeMsg(List<Object> c, long size, com.legend.edge.EdgePureWords w) {
         return c.size() == size ? null : w.size(size, c.size());
     }
 
-    private static String tolMsg(Number e, Number a, Number delta, PureWords w) {
+    /** assertSameElements' message: the product's decision over both sides sorted, the edge's words (census J29). */
+    private static String sameMsg(List<Object> e, List<Object> a, HostRules rules,
+            com.legend.edge.EdgePureWords w) {
+        return PureAsserts.holds(PureAsserts.sorted(e), PureAsserts.sorted(a), rules) ? null
+                : com.legend.edge.EdgeHostWords.INSTANCE.sameElements(e, a, null, null);
+    }
+
+    /** assertEq's message: the product's decision, the edge's words (census J29). */
+    private static String eqOneMsg(Object e, Object a, HostRules rules, com.legend.edge.EdgePureWords w) {
+        return PureAsserts.eqHolds(e, a, rules) ? null
+                : com.legend.edge.EdgeHostWords.INSTANCE.notEq(e, a, null, null);
+    }
+
+    private static String tolMsg(Number e, Number a, Number delta, com.legend.edge.EdgePureWords w) {
         return PureAsserts.withinTolerance(e, a, delta) ? null : w.pair(e, null, a, null);
     }
 
@@ -92,9 +105,9 @@ class PureAssertsTest {
     @Test
     @DisplayName("spec: testSuccessAssertSameElements")
     void sameElementsSuccess() {
-        assertNull(PureAsserts.assertSameElements(
+        assertNull(sameMsg(
                 List.of(1L, 2L), List.of(2L, 1L), LITE, W));
-        assertNull(PureAsserts.assertSameElements(
+        assertNull(sameMsg(
                 List.of("aaa", 2L), List.of(2L, "aaa"), LITE, W));
     }
 
@@ -102,10 +115,10 @@ class PureAssertsTest {
     @DisplayName("spec: testFailureAssertSameElements — SORTED renders, number-before-string")
     void sameElementsFailureMessage() {
         assertEquals("\nexpected: [1, 2, 3]\nactual:   [1, 2, 4, 5]",
-                PureAsserts.assertSameElements(List.of(1L, 3L, 2L),
+                sameMsg(List.of(1L, 3L, 2L),
                         List.of(2L, 4L, 1L, 5L), LITE, W));
         assertEquals("\nexpected: [1, 3, '2']\nactual:   [1, 4, 5, '2']",
-                PureAsserts.assertSameElements(List.of(1L, 3L, "2"),
+                sameMsg(List.of(1L, 3L, "2"),
                         List.of("2", 4L, 1L, 5L), LITE, W));
     }
 
@@ -226,17 +239,17 @@ class PureAssertsTest {
         // instant order: t1 (Jan 1 05:00) before d2 (Jan 2 00:00);
         // TEXT order would put "2014-01-01 05:00:00" vs "2014-01-02" at
         // the mercy of the space-vs-dash byte
-        assertNull(PureAsserts.assertSameElements(
+        assertNull(sameMsg(
                 Arrays.asList(t1, d2), Arrays.asList(d2, t1), LITE, W));
     }
 
     @Test
     @DisplayName("P2-5: assertEq — primitives compare, non-primitives are LOUD")
     void assertEqSemantics() {
-        assertNull(PureAsserts.assertEq(1L, 1L, LITE, W));
-        assertNotNull(PureAsserts.assertEq(1L, 2L, LITE, W));
+        assertNull(eqOneMsg(1L, 1L, LITE, W));
+        assertNotNull(eqOneMsg(1L, 2L, LITE, W));
         assertThrows(com.legend.error.NotImplementedException.class,
-                () -> PureAsserts.assertEq(Map.of("a", 1L), Map.of("a", 1L), LITE, W),
+                () -> eqOneMsg(Map.of("a", 1L), Map.of("a", 1L), LITE, W),
                 "eq is INSTANCE identity — unobservable on a value wire");
     }
 
