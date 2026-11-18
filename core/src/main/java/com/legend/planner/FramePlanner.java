@@ -130,31 +130,16 @@ public final class FramePlanner {
             var lqChain = ExecuteChainAssembly
                     .chain(lq, ec, letPrefix, specs, env.runtimeFqn(),
                             env.queryLets());
-            // the activity's SQL text (the engine records the SQL it
-            // generated — goldens are engine-H2-spelled): the engine-style
-            // render of the same chain, absent when no render exists
-            String activitySql = null;
-            if (lqChain.relationRooted()
-                    || lqChain.chain().info().type() instanceof Type.ClassType) {
-                String mappingFqn = firstMappingFqn(lqChain.chain());
-                // a RELATION-rooted chain (the relation accessor) carries no
-                // mapping and renders without one (the resolver and the root
-                // form both take none); a class-rooted chain needs its mapping
-                if (mappingFqn != null || lqChain.relationRooted()) {
-                    // the activity's rule is execute()'s, PlanAllocations.activityOrNone (the C5-J audit's nit,
-                    // 2026-11-15: one condition, one handling): a reduction its dialect cannot encode records no SQL,
-                    // anything else fails the body by name (C5-J item 4, G7). S310 (RULED by the user 2026-11-14, DE2
-                    // (a)): the style picks the SQL (PlanAllocations.activitySql). The render is not lazy, and cannot
-                    // be: the activity is part of the envelope's value (merged 2026-11-15, #106 into #104)
-                    String frameMapping = mappingFqn;
-                    PlanEnv frameEnv = env;
-                    activitySql = PlanAllocations.activityOrNone(() -> PlanAllocations.activitySql(
-                            List.of(lqChain.chain()), frameMapping, specs, frameEnv, false));
-                }
-            }
-            // a serialized root's value is the plan style's (train 17 item 2, 2026-11-18): the edge writes legend-engine's
-            // envelope around the text, the product refuses it by name
-            TypedSpec envelope = ExecuteChainAssembly.serializedRoot(lqChain.chain()) ? env.style().twoForm(ExecutedValues.class, RefusedExecutedValues.REFUSED).envelope(lqChain.chain(), env.ctx()) : ExecuteChainAssembly.legendQueryEnvelope(lqChain.chain(), env.ctx(), activitySql);
+            // the string entry's value is the plan style's (train 17 item 2, 2026-11-18): the edge writes legend-engine's
+            // envelope -- a relation's and a class root's with the activity's SQL, rendered only when the edge's form
+            // asks (activitySql) -- the product refuses each by name; any other root is the compiler's
+            ExecutedValues form = env.style().twoForm(ExecutedValues.class, RefusedExecutedValues.REFUSED);
+            TypedSpec c = lqChain.chain();
+            SpecCompiler frameSpecs = specs; PlanEnv frameEnv = env;
+            TypedSpec envelope = ExecuteChainAssembly.serializedRoot(c) ? form.values(c, env.ctx())
+                    : Type.isRelation(c.info().type()) ? form.relation(c, () -> activitySql(lqChain, frameSpecs, frameEnv))
+                    : ExecuteChainAssembly.classesRoot(c) ? form.classes(c, () -> activitySql(lqChain, frameSpecs, frameEnv))
+                    : ExecuteChainAssembly.legendQueryEnvelope(c, env.ctx());
             return new FrameChain(ec, envelope, lqChain.chain(), false, true, env);
         }
         var prepared = ExecuteChainAssembly
@@ -187,6 +172,18 @@ public final class FramePlanner {
                 .chain(prepared, ec, letPrefix, specs, env.runtimeFqn(),
                         env.queryLets());
         return new FrameChain(ec, assembled.chain(), assembled.chain(), assembled.relationRooted(), false, env);
+    }
+
+
+    /** The activity's SQL of a string entry over {@code lq} (the engine records the SQL it generated -- goldens are
+     *  engine-H2-spelled): the engine-style render of the same chain, null where none exists. Asked by the edge's form
+     *  of ExecutedValues alone (train 17 item 2, 2026-11-18: until then rendered for every string entry). A
+     *  RELATION-rooted chain renders without a mapping; a class-rooted chain needs its mapping. The rule is execute()'s,
+     *  PlanAllocations.activityOrNone (the C5-J audit, 2026-11-15): a reduction its dialect cannot encode records no SQL,
+     *  anything else fails the body by name (G7); S310 (the user, 2026-11-14): the style picks the SQL. */
+    private static @Nullable String activitySql(ExecuteChainAssembly.Chain lq, SpecCompiler specs, PlanEnv env) {
+        String mappingFqn = firstMappingFqn(lq.chain());
+        return mappingFqn == null && !lq.relationRooted() ? null : PlanAllocations.activityOrNone(() -> PlanAllocations.activitySql(List.of(lq.chain()), mappingFqn, specs, env, false));
     }
 
     /** The first from() mapping reference in the chain (pre-order), or null. */
