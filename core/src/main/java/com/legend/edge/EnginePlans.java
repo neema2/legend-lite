@@ -551,7 +551,7 @@ public final class EnginePlans {
             String aSql = prevVar == null ? aEs.sql()
                     : PlanText.spliceLeftVar(aEs.plan(), prevVar, planText::render);
             if (aSql == null) { return null; }
-            String[] aImpl = com.legend.lineage.ScanRelations.rootImpl(
+            String[] aImpl = SetImplementations.rootImpl(
                     env.ctx(), mappingFqn, aRoot, chainMaps);
             allocs.add(PlanText.allocation(var,
                     PlanText.typeBlock(env.ctx(), aRoot,
@@ -580,7 +580,7 @@ public final class EnginePlans {
                 lam.body(), connName, chainMaps,
                 PlanText.colsPlanFor(
                         fullEs.plan(), prevVar), pushDownEnums(env, lam.body()), planText::selectList);
-        String[] impl = com.legend.lineage.ScanRelations.rootImpl(
+        String[] impl = SetImplementations.rootImpl(
                 env.ctx(), mappingFqn, rootClass, chainMaps);
         java.util.List<String> children = new java.util.ArrayList<>(allocs);
         children.add(terminal);
@@ -697,7 +697,7 @@ public final class EnginePlans {
         EngineSql es = engineSql(java.util.List.of(term), mappingFqn, specs,
                 env, PureText.enginePlanText(dbType, quote, timeZone), params,
                 java.util.function.UnaryOperator.identity());
-        String[] impl = com.legend.lineage.ScanRelations.rootImpl(
+        String[] impl = SetImplementations.rootImpl(
                 env.ctx(), mappingFqn, rootClass);
         // temp-table IN protocol + envelope assembly (extracted at the
         // file guardrail — PlanEnvelope owns the block-vs-sequence rule)
@@ -929,7 +929,7 @@ public final class EnginePlans {
             TypedSpec x = q.poll();
             if (x instanceof com.legend.compiler.spec.typed.TypedGetAll ga) {
                 try {
-                    return com.legend.lineage.ScanRelations.rootImpl(ctx,
+                    return SetImplementations.rootImpl(ctx,
                             mappingFqn, ga.classFqn())[2];
                 } catch (com.legend.error.NotImplementedException e) {
                     return ga.classFqn();

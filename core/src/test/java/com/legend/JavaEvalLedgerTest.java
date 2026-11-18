@@ -2026,6 +2026,9 @@ class JavaEvalLedgerTest {
                             // legend-pure's words of a failed assert, the host judge's (census J29, 2026-11-18: the edge's
                             // form of the run's HostWords, moved from the product's lite-flag branches) -- words only
                             "EdgeHostWords.java",
+                            // legend-engine's set-implementation identity for the plan printer (J40, 2026-11-18: moved
+                            // from lineage.ScanRelations#rootImpl) -- the product's mapping reads, composed; nothing evaluated
+                            "SetImplementations.java",
                             // the referee's gates, typed-tree navigation over a verified chain (the edge audit's J40,
                             // 2026-11-18: moved from AssertVerdicts.ReplayGates and VerdictQueries.extentSubset) -- facts read
                             // off the tree, nothing evaluated
