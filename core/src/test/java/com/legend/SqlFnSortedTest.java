@@ -401,14 +401,45 @@ class SqlFnSortedTest {
                 && f.getModifiers().contains(com.tngtech.archunit.core.domain.JavaModifier.SYNTHETIC));
     }
 
-    /** Whether {@code c} is a renderer or nested in one, at any depth. */
+    /** Whether {@code c} is a renderer or nested in one, at any depth: a dialect -- a subclass of
+     *  {@code AnsiSqlRenderer}, the one root of the product's dialects, MongoDb's too -- at its home, or an edge class
+     *  implementing {@code SqlDialect} (the edge's own renderers). The review of 091b9bde36, 2026-11-18, MUST-FIX 3: any
+     *  class implementing the interface in the dialects' package counted, so a helper nesting one two levels down
+     *  passed its reads off as a renderer's. */
     static boolean renderer(JavaClass c) {
         for (java.util.Optional<JavaClass> x = java.util.Optional.of(c); x.isPresent(); x = x.get().getEnclosingClass()) {
-            if (x.get().isAssignableTo(SqlDialect.class.getName()) && rendererHome(x.get().getName())) {
+            String name = x.get().getName();
+            if ((x.get().isAssignableTo(ANSI) && rendererHome(name))
+                    || (name.startsWith("com.legend.edge.") && x.get().isAssignableTo(SqlDialect.class.getName()))) {
                 return true;
             }
         }
         return false;
+    }
+
+    private static final String ANSI = "com.legend.sql.dialect.AnsiSqlRenderer";
+
+    /** What a renderer's code may hand back without carrying a value out: nothing, a primitive, text, or the writer. */
+    private static final Set<String> RENDERED = Set.of("void", "boolean", "byte", "char", "short", "int", "long",
+            "float", "double", "java.lang.String", "com.legend.sql.dialect.SqlWriter",
+            "com.legend.sql.dialect.SqlWriter$Piece");
+
+    /** Whether code unit {@code u} can carry a constant it reads out of its renderer (the review of 091b9bde36,
+     *  2026-11-18, MUST-FIX 3): it returns anything but what {@link #RENDERED} names (a function, an Object, a node),
+     *  builds a MIR node (a node's constructor, or a call answering one: {@code Call.of}), or sets a field that can hold
+     *  one. Its limit, named: a constant passed as an argument to another method that keeps it is not traced. */
+    static boolean carriesOut(com.tngtech.archunit.core.domain.JavaCodeUnit u) {
+        if (!RENDERED.contains(u.getRawReturnType().getName())) {
+            return true;
+        }
+        java.util.function.Predicate<JavaClass> node = t -> t.isAssignableTo("com.legend.sql.SqlExpr")
+                || t.isAssignableTo("com.legend.sql.SqlSource") || t.isAssignableTo("com.legend.sql.SqlQuery");
+        return u.getConstructorCallsFromSelf().stream().anyMatch(k -> node.test(k.getTargetOwner()))
+                || u.getMethodCallsFromSelf().stream().anyMatch(k -> node.test(k.getTarget().getRawReturnType()))
+                || u.getFieldAccesses().stream().anyMatch(a -> a.getAccessType()
+                        == com.tngtech.archunit.core.domain.JavaFieldAccess.AccessType.SET
+                        && !a.getTarget().getRawType().isPrimitive()
+                        && !a.getTarget().getRawType().getName().equals("java.lang.String"));
     }
 
     /** Where a renderer lives: the dialects' package or the edge's (the review of 11de9ae229, 2026-11-18, MUST-FIX 1: a
@@ -929,7 +960,8 @@ class SqlFnSortedTest {
 
     /** Planted renderer: an arm per function (no write), its nested class's too. */
     @SuppressWarnings("unused")
-    abstract static class PlantedRenderer implements SqlDialect {
+    abstract static class PlantedRenderer extends com.legend.sql.dialect.PlantedDialectBase {
+
         static Object arm() {
             return SqlFn.TRANSLATE;
         }

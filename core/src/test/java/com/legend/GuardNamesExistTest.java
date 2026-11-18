@@ -50,6 +50,10 @@ class GuardNamesExistTest {
 
     /** "file | name" -> why the name is absent on purpose. Measured 2026-11-17. */
     static final Map<String, String> ABSENT_ON_PURPOSE = Map.ofEntries(
+            // tripwires: no util package anywhere (AGENTS.md invariant 8), named should one appear (read since the
+            // review of 091b9bde36, 2026-11-18: a package literal led by '..')
+            Map.entry("ArchitectureTest.java | package ..util..", "tripwire (invariant 8), 2026-11-18"),
+            Map.entry("ArchitectureTest.java | package ..utils..", "tripwire (invariant 8), 2026-11-18"),
             // tripwires: the referee and the appeals, moved to the edge (census C2), named should one return
             Map.entry("EdgeSeparationTest.java | com.legend.testexec.Appeals", "tripwire (C2), 2026-11-17"),
             Map.entry("EdgeSeparationTest.java | com.legend.testexec.SqlReplayReferee", "tripwire (C2), 2026-11-17"),
@@ -256,18 +260,21 @@ class GuardNamesExistTest {
         return at;
     }
 
-    /** The com.legend packages {@code source}'s package rules name in literals ({@code resideInAPackage},
-     *  {@code resideInAnyPackage}, {@code resideOutsideOfPackage(s)}; the review of 11de9ae229, 2026-11-18: none was
-     *  read), each as written ({@code "com.legend.parser.."}). */
+    /** The packages {@code source}'s package rules name in literals ({@code resideInAPackage},
+     *  {@code resideInAnyPackage}, {@code resideOutsideOfPackage(s)}), each as written: com.legend's
+     *  ({@code "com.legend.parser.."}) and any package's ({@code "..util.."}). The review of 11de9ae229, 2026-11-18: none
+     *  was read; the review of 091b9bde36, the same day, MUST-FIX 1: {@code resideInAPackage}, the commonest, was not
+     *  read either, nor a literal led by {@code ..}. */
     static List<String> packageLiterals(String source) {
         List<String> out = new ArrayList<>();
         Map<Integer, Lit> byStart = new TreeMap<>();
         literals(source).forEach(l -> byStart.put(l.from(), l));
-        Matcher call = Pattern.compile("reside(?:In(?:Any)?|OutsideOf)Packages?\\(").matcher(source);
+        Matcher call = Pattern.compile("reside(?:InA|InAny|OutsideOf)Packages?\\(").matcher(source);
         while (call.find()) {
             int at = skip(source, call.end());
             for (Lit lit = byStart.get(at); lit != null; lit = byStart.get(at)) {
-                if (lit.text().equals("com.legend") || lit.text().startsWith("com.legend.")) {
+                if (lit.text().equals("com.legend") || lit.text().startsWith("com.legend.")
+                        || lit.text().startsWith("..")) {
                     out.add(lit.text());
                 }
                 at = skip(source, lit.end());
@@ -281,12 +288,35 @@ class GuardNamesExistTest {
         return out;
     }
 
-    /** Whether package rule {@code pkg} ("a.b" or "a.b..") names a package some class of {@code classes} is in. */
+    /** Whether package rule {@code pkg} names a package some class of {@code classes} is in, read as ArchUnit reads it
+     *  ({@code PackageMatcher}): {@code ..} any packages (leading, inner or trailing), {@code *} any text within one
+     *  package; a capture group is refused by name. The review of 091b9bde36, 2026-11-18: a leading {@code ..} was
+     *  skipped and an inner one ({@code com.legend..sql}) read as a literal, a false finding. */
     static boolean packageThere(String pkg, java.util.Collection<String> classes) {
-        boolean deep = pkg.endsWith("..");
-        String p = deep ? pkg.substring(0, pkg.length() - 2) : pkg;
+        Pattern p = packagePattern(pkg);
         return classes.stream().map(c -> c.contains(".") ? c.substring(0, c.lastIndexOf('.')) : "")
-                .anyMatch(cp -> cp.equals(p) || (deep && cp.startsWith(p + ".")));
+                .anyMatch(cp -> p.matcher(cp).matches());
+    }
+
+    /** ArchUnit's package syntax as a regular expression over a package's name. */
+    static Pattern packagePattern(String pkg) {
+        StringBuilder re = new StringBuilder();
+        int i = 0;
+        while (i < pkg.length()) {
+            if (pkg.startsWith("..", i)) {
+                re.append(i == 0 ? "(?:.*\\.)?" : i + 2 == pkg.length() ? "(?:\\..*)?" : "(?:\\.|\\..*\\.)");
+                i += 2;
+            } else if (pkg.charAt(i) == '*') {
+                re.append("[^.]*");
+                i++;
+            } else if (pkg.charAt(i) == '(' || pkg.charAt(i) == ')') {
+                throw new IllegalStateException("a package rule's capture group the check does not read: " + pkg);
+            } else {
+                re.append(Pattern.quote(String.valueOf(pkg.charAt(i))));
+                i++;
+            }
+        }
+        return Pattern.compile(re.toString());
     }
 
     /** Every branch of {@code regex}: each alternation of each group expanded to one alternative, the rest kept (a
@@ -343,6 +373,12 @@ class GuardNamesExistTest {
                 }
                 current = next;
                 i = j + 1;
+                // an optional group of alternatives ((b|c)? or (b|c)*): each alternative is read present, so a dead one
+                // does not pass as the group's absence (the review of 091b9bde36, 2026-11-18: a(b|c)?d let a dead b
+                // through as "ad"); a single optional piece ((\$.*)?, nested classes if any) stays optional
+                if (groups.size() > 1 && i < to && (r.charAt(i) == '?' || r.charAt(i) == '*')) {
+                    i++;
+                }
             } else if (c == '|') {
                 alternatives.add(current);
                 current = new ArrayList<>(List.of(""));
@@ -503,7 +539,12 @@ class GuardNamesExistTest {
                 + "  void r() { x.haveNameMatching(\"com\\\\.legend\\\\.gone\\\\.\" + \"(A|B)\"); "
                 + "y.haveNameMatching(\"com\\\\.legend\\\\.sql\\\\.\" + \"SqlFn\"); "
                 + "z.haveNameNotMatching(\"com\\\\.legend\\\\.(sql\\\\.SqlFn|gone\\\\.C)\"); "
-                + "p.resideInAnyPackage(\"com.legend.sql..\", \"com.legend.gone..\"); }\n}\n";
+                + "p.resideInAnyPackage(\"com.legend.sql..\", \"com.legend.gone..\"); "
+                // the review of 091b9bde36, 2026-11-18: resideInAPackage, a leading '..', an inner '..'
+                + "q.resideInAPackage(\"com.legend.lost..\"); q.resideInAPackage(\"..sql..\"); "
+                + "q.resideInAPackage(\"..nowhere..\"); q.resideOutsideOfPackages(\"com.legend..sql\", \"com.*.sql\"); "
+                // an optional group of alternatives, each dead: neither passes as the group's absence
+                + "o.haveNameMatching(\"com\\\\.legend\\\\.sql\\\\.SqlFn(\\\\$Gone|\\\\$Lost)?\"); }\n}\n";
         Map<String, String> listed = Map.of("ArchitectureTest.java | com.legend.listed.There", "planted",
                 "ArchitectureTest.java | com.legend.not.Written", "planted");
         assertEquals(List.of("ArchitectureTest.java | com.legend.gone.Class: absent (a stale name: point it at the class"
@@ -519,7 +560,15 @@ class GuardNamesExistTest {
                         + " it reads nothing)",
                 "ArchitectureTest.java | /com\\.legend\\.(?:gone\\.C)/: matches nothing (the rule names no class, so it"
                         + " reads nothing)",
+                "ArchitectureTest.java | /com\\.legend\\.sql\\.SqlFn(?:\\$Gone)/: matches nothing (the rule names no"
+                        + " class, so it reads nothing)",
+                "ArchitectureTest.java | /com\\.legend\\.sql\\.SqlFn(?:\\$Lost)/: matches nothing (the rule names no"
+                        + " class, so it reads nothing)",
                 "ArchitectureTest.java | package com.legend.gone..: no class is in it (the rule names no package, so it"
+                        + " reads nothing)",
+                "ArchitectureTest.java | package com.legend.lost..: no class is in it (the rule names no package, so it"
+                        + " reads nothing)",
+                "ArchitectureTest.java | package ..nowhere..: no class is in it (the rule names no package, so it"
                         + " reads nothing)",
                 "ArchitectureTest.java | com.legend.not.Written: listed, and no longer written there (delete its"
                         + " entry)"),

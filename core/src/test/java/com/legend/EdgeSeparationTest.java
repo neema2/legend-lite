@@ -240,19 +240,28 @@ class EdgeSeparationTest {
                     out.add(src + " -> " + target);
                 }
             });
-            // a dialect's renderer (the class or one enclosing it, in com.legend.sql.dialect); javac's switch map (a
-            // synthetic $SwitchMap$ field) in the sql package alone; SqlFn's own static initializer -- nothing else (the
-            // review of 11de9ae229, 2026-11-18, MUST-FIX 1: a renderer in any package, an ordinary field named
-            // $SwitchMap$ and every member of SqlFn were exempt; a product class elsewhere naming an edge-only
-            // function in a switch is named, as it always was)
-            boolean fnReader = (SqlFnSortedTest.renderer(c) && c.getName().startsWith("com.legend.sql.dialect."))
-                    || (src.startsWith("com.legend.sql.") && SqlFnSortedTest.switchMap(c));
+            // a dialect's renderer (the class or one enclosing it a subclass of AnsiSqlRenderer, in
+            // com.legend.sql.dialect), in a code unit that carries no value out (SqlFnSortedTest.carriesOut: it
+            // returns what a render returns, builds no node, sets no field that can hold one); javac's switch map (a
+            // synthetic $SwitchMap$ field) in the sql package alone; SqlFn's own code -- its initializer, its synthetic
+            // $values, and a member carrying nothing out -- nothing else. The review of 11de9ae229, 2026-11-18,
+            // MUST-FIX 1: a renderer in any package, an ordinary field named $SwitchMap$ and every member of SqlFn were
+            // exempt; the review of 091b9bde36, the same day, MUST-FIX 3 and SHOULD-FIX 4: a helper nesting a class
+            // implementing SqlDialect, a renderer's method or lambda handing the function back, and a renderer's own
+            // node were exempt, and SqlFn's $values and its predicates were not.
+            boolean rendererClass = SqlFnSortedTest.renderer(c) && c.getName().startsWith("com.legend.sql.dialect.");
+            boolean switchMap = src.startsWith("com.legend.sql.") && SqlFnSortedTest.switchMap(c);
+            boolean sqlFn = c.getName().equals("com.legend.sql.SqlFn");
             c.getFieldAccessesFromSelf().forEach(a -> {
                 String owner = a.getTarget().getOwner().getName();
                 String field = a.getTarget().getName();
-                boolean ownInit = c.getName().equals("com.legend.sql.SqlFn")
-                        && a.getOrigin() instanceof com.tngtech.archunit.core.domain.JavaStaticInitializer;
-                if (owner.equals("com.legend.sql.SqlFn") && edgeOnlyFns.contains(field) && !fnReader && !ownInit) {
+                com.tngtech.archunit.core.domain.JavaCodeUnit u = a.getOrigin();
+                boolean own = sqlFn && (u instanceof com.tngtech.archunit.core.domain.JavaStaticInitializer
+                        || (u.getName().equals("$values") && u.getModifiers().contains(
+                                com.tngtech.archunit.core.domain.JavaModifier.SYNTHETIC))
+                        || !SqlFnSortedTest.carriesOut(u));
+                boolean reads = switchMap || own || (rendererClass && !SqlFnSortedTest.carriesOut(u));
+                if (owner.equals("com.legend.sql.SqlFn") && edgeOnlyFns.contains(field) && !reads) {
                     out.add(src + " -> SqlFn." + field);
                 }
                 // (the judges' compatibility rules: a field of the edge's since 2026-11-17, census C1 --
@@ -437,6 +446,32 @@ class EdgeSeparationTest {
         assertEquals(Set.of("com.legend.planner.PlantedRendererHide -> SqlFn.ABS",
                 "com.legend.sql.PlantedSqlSwitchNamed -> SqlFn.ABS"), found(hiding, n -> true, Set.of("ABS")),
                 "a renderer outside the dialects and a field named $SwitchMap$ exempt nothing");
+        // the review of 091b9bde36 (2026-11-18, MUST-FIX 3): a helper nesting a SqlDialect two levels down, and a dialect
+        // handing the function back -- returned, by a lambda in a field, as a node it builds, kept in a field -- are
+        // named; a dialect's arm writing text is not
+        JavaClasses laundering = new ClassFileImporter().importClasses(
+                com.legend.sql.dialect.PlantedSqlRendererArm.class, com.legend.sql.dialect.PlantedRendererNest.class,
+                com.legend.sql.dialect.PlantedRendererNest.A.class, com.legend.sql.dialect.PlantedRendererNest.A.R.class,
+                com.legend.sql.dialect.PlantedLaunderReturn.class, com.legend.sql.dialect.PlantedLaunderLambda.class,
+                com.legend.sql.dialect.PlantedLaunderBuild.class, com.legend.sql.dialect.PlantedLaunderField.class,
+                com.legend.sql.dialect.PlantedRendererByInterface.class);
+        assertEquals(9, laundering.size(), "the planted classes are imported");
+        assertEquals(Set.of("com.legend.sql.dialect.PlantedRendererNest -> SqlFn.ABS",
+                "com.legend.sql.dialect.PlantedRendererByInterface -> SqlFn.ABS",
+                "com.legend.sql.dialect.PlantedLaunderReturn -> SqlFn.ABS",
+                "com.legend.sql.dialect.PlantedLaunderLambda -> SqlFn.ABS",
+                "com.legend.sql.dialect.PlantedLaunderBuild -> SqlFn.ABS",
+                "com.legend.sql.dialect.PlantedLaunderField -> SqlFn.ABS"), found(laundering, n -> true, Set.of("ABS")),
+                "a dialect's read carrying the function out is named, its arm is not");
+        // the review of 091b9bde36 (SHOULD-FIX 4): SqlFn's own code -- its initializer, $values, its predicates --
+        // reads every constant and is never named, so an edge-only function does not turn the guard on the enum itself
+        JavaClasses sqlFn = new ClassFileImporter().importClasses(com.legend.sql.SqlFn.class);
+        assertEquals(1, sqlFn.size(), "SqlFn is imported");
+        Set<String> every = new TreeSet<>();
+        for (com.legend.sql.SqlFn f : com.legend.sql.SqlFn.values()) {
+            every.add(f.name());
+        }
+        assertEquals(Set.of(), found(sqlFn, n -> true, every), "SqlFn's own code reads its constants");
     }
 
     /** "Lines left": the allowlists' entries, counted by the code, and by census line. */

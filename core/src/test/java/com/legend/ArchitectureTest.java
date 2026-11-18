@@ -2905,7 +2905,12 @@ final class ArchitectureTest {
      * {@link #PLANNING_ENTRIES}) calls the listener, the held appeals' thread-local listener or hold, the engine-text
      * arms' decline reporters, the edge's run half (a ledger written), the referee, or the verdict census's outcome
      * counters (a verdict's outcome is counted at its turn in the run); no planning entry takes a listener or a
-     * referee, and no planning environment holds one.
+     * referee, and no planning environment holds one. FIVE TELLS STAND (measured 2026-11-18, pinned exactly as
+     * {@code toldStanding}, counted as the audit's line G1, EdgeAuditOpenTest): planning counts a verdict it decides
+     * statically -- {@code VerdictCensus.sqlJudgedInDatabase} from {@code AssertVerdicts#renderedRows} and
+     * {@code DatabaseJudge#databaseVerdict}, {@code #databaseTdsEquivalent} and {@code #staticallyDecided} -- and an
+     * assert no arm planned, {@code VerdictCensus.sqlFellThrough} from {@code AssertVerdicts#adjudicate}; awaiting the
+     * orchestrator's ruling (the counts are planning's, or they move to the run).
      */
     @Test
     void theListenerIsOutputOnly() {
@@ -2956,7 +2961,7 @@ final class ArchitectureTest {
                 "com.legend.diagnostics.VerdictCensus#sqlFellThrough");
         // THE PLANNING TELLS STANDING (measured 2026-11-18, when the two counters joined the list): each exact, reported
         // to the orchestrator for a ruling -- the counts are planning's (both javadocs corrected), or they move to the
-        // run; a new one fails here
+        // run; a new one fails here; counted as the audit's line G1 (EdgeAuditOpenTest, the review of 091b9bde36)
         java.util.Set<String> toldStanding = java.util.Set.of(
                 "planning tells: com.legend.testplan.AssertVerdicts#renderedRows -> com.legend.diagnostics.VerdictCensus#sqlJudgedInDatabase",
                 "planning tells: com.legend.testplan.DatabaseJudge#databaseTdsEquivalent -> com.legend.diagnostics.VerdictCensus#sqlJudgedInDatabase",

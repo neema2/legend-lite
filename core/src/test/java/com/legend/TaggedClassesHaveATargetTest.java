@@ -342,6 +342,17 @@ class TaggedClassesHaveATargetTest {
                         throw new IllegalStateException(target + "'s select holds text the check does not read: "
                                 + item);
                     }
+                    // an item read is one quoted literal; any other may write a flag's literal only joined to what it
+                    // computes ("--flag=" + x, "--flag=%s" % x: the flag's count then finds it computed), never one
+                    // standing whole where the reader would take it (before , ) ] or the item's end): which literal an
+                    // expression yields is Starlark's to choose (the review of 091b9bde36, 2026-11-18, MUST-FIX 2:
+                    // `"--details=none" or "--select-class=X"`, `[..][1]`, `min(..)` and `"" and ..` each read X as
+                    // selected)
+                    if (!item.matches("\"[^\"]*\"")
+                            && Pattern.compile("\"--[\\w-]+=[^\"]+\"(?=\\s*(?:[,)\\]]|$))").matcher(item).find()) {
+                        throw new IllegalStateException(target + "'s select holds a flag's literal inside an expression"
+                                + " the check does not read: " + item);
+                    }
                 }
                 at = close + 1;
             } else {
@@ -835,7 +846,19 @@ class TaggedClassesHaveATargetTest {
                 new String[] {PLANTED_BUILD.replace(KEPT + ",", KEPT + ",\n    tags = [\"ci-linux-\" + \"only\"],"),
                         PLANTED_GATES, "slow_census's tags hold text the check does not read"},
                 new String[] {PLANTED_BUILD.replace(KEPT + ",", KEPT + ",\n    tags = LINUX_ONLY,"),
-                        PLANTED_GATES, "slow_census's tags hold text the check does not read"});
+                        PLANTED_GATES, "slow_census's tags hold text the check does not read"},
+                // the review of 091b9bde36 (2026-11-18, MUST-FIX 2): a selector inside an expression that chooses
+                // which literal Starlark yields -- or, a subscript, a call, and -- each read as selecting KeptTest
+                new String[] {PLANTED_BUILD.replace(KEPT, "\"--details=none\" or " + KEPT), PLANTED_GATES,
+                        "slow_census's select holds a flag's literal inside an expression the check does not read"},
+                new String[] {PLANTED_BUILD.replace(KEPT, "[" + KEPT.replace("]", "") + ", \"--details=none\"][1]]"),
+                        PLANTED_GATES, "slow_census's select holds a flag's literal inside an expression the check does"
+                        + " not read"},
+                new String[] {PLANTED_BUILD.replace(KEPT, "min(" + KEPT.replace("]", "") + ", \"--details=none\")]"),
+                        PLANTED_GATES, "slow_census's select holds a flag's literal inside an expression the check does"
+                        + " not read"},
+                new String[] {PLANTED_BUILD.replace(KEPT, "\"\" and " + KEPT), PLANTED_GATES,
+                        "slow_census's select holds a flag's literal inside an expression the check does not read"});
         for (String[] c : cases) {
             IllegalStateException e = assertThrows(IllegalStateException.class, () -> orphans(sources, edge, c[0], c[1]),
                     c[2]);

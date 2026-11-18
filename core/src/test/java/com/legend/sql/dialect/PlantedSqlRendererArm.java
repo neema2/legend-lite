@@ -3,13 +3,14 @@
 
 package com.legend.sql.dialect;
 
-/**
- * A PLANTED RENDERER for {@code EdgeSeparationTest.eachGuardBites} (the edge audit's K16, 2026-11-17): a dialect's arm
- * reads a function's constant to render it, which writes nothing, so the CODE guard does not name it. Test sources only.
- */
-public abstract class PlantedSqlRendererArm implements SqlDialect {
+/** Planted (EdgeSeparationTest.eachGuardBites): a dialect -- a subclass of AnsiSqlRenderer, at the dialects' home --
+ *  whose arm compares a function and writes text, carrying nothing out: a renderer's read, not named. */
+public abstract class PlantedSqlRendererArm extends AnsiSqlRenderer {
+    protected PlantedSqlRendererArm() {
+        super(null);
+    }
 
-    static Object arm() {
-        return com.legend.sql.SqlFn.ABS;
+    static String arm(com.legend.sql.SqlFn fn) {
+        return fn == com.legend.sql.SqlFn.ABS ? "ABS" : "?";
     }
 }
