@@ -1361,6 +1361,8 @@ final class ArchitectureTest {
             "com.legend.edge.EdgePureOnlyTexts",
             "lowering.DateTimeTexts#dateTimeText(com.legend.sql.SqlExpr, java.lang.String)",
             "com.legend.edge.EdgePureOnlyTexts",
+            // EdgeLoweringForms builds the edge's Styled from the plan style's own date-time texts (2026-11-18, J40, the
+            // orchestrator's ruling (7), E-SQL's c0093e9749: one forms source; LoweringShape's entries went with it)
             "lowering.Styled#dateTimes()", "com.legend.edge.EdgeLoweringForms com.legend.edge.EdgePureOnlyTexts",
             // census J29 (2026-11-18): legend-pure's words of the database judge's failures are the edge's
             // (edge.UpstreamVerdictWords, the two-form VerdictWords kind's), built from the product's representation
@@ -1418,6 +1420,8 @@ final class ArchitectureTest {
             "lowering.Lowerer#lower(java.util.List)", "com.legend.Compiler com.legend.edge.EnginePlans",
             // the planner's fact that a statement's EXISTS may take the style's join form (the edge audit's J19, 2026-11-17:
             // withExistsAsJoinDistinct renamed, the choice the plan style's forms')
+            // EnginePlans asks the Lowerer's own in place of LoweringShape#withExistsJoinable, gone (2026-11-18, J40, the
+            // orchestrator's ruling (7), E-SQL's c0093e9749)
             "lowering.Lowerer#withExistsJoinable()", "com.legend.Compiler com.legend.edge.EnginePlans",
             // legend-engine's statement shape as the edge's Styled (2026-11-18, J40, the orchestrator's ruling (7): one
             // forms source; until then Lowerer#withShape and LoweringShape's two entries): the plan style's Styled with

@@ -95,19 +95,8 @@ class EdgeOnlyDataTest {
                     "READ_API (2026-11-18): lite's test plan's enum facts (plan-as-data slice 4)"),
             Map.entry("component com.legend.testexecutionplan.EnumFacts#properties: by the edge",
                     "READ_API (2026-11-18): lite's test plan's enum facts (plan-as-data slice 4)"),
-            // counted on EdgeOnlyMembersTest's J40.SqlExpr line (E-SQL's J40 branch deletes them)
-            Map.entry("variant com.legend.sql.SqlExpr$DeferredTdsString: by the edge",
-                    "J40.SqlExpr E-SQL (2026-11-18): legend-engine's #TDS relation text, deleted by E-SQL's J40 branch"),
-            Map.entry("component com.legend.sql.SqlExpr$DeferredTdsString#alias: by none",
-                    "J40.SqlExpr E-SQL (2026-11-18): DeferredTdsString's, deleted with it"),
-            Map.entry("component com.legend.sql.SqlExpr$DeferredTdsString#form: by none",
-                    "J40.SqlExpr E-SQL (2026-11-18): DeferredTdsString's, deleted with it"),
-            Map.entry("component com.legend.sql.SqlExpr$DeferredTdsString#renderTdsNull: by none",
-                    "J40.SqlExpr E-SQL (2026-11-18): DeferredTdsString's, deleted with it"),
-            Map.entry("constant com.legend.sql.SqlExpr$DeferredTdsString$Form.CSV: by the edge",
-                    "J40.SqlExpr E-SQL (2026-11-18): DeferredTdsString's, deleted with it"),
-            Map.entry("variant com.legend.sql.SqlExpr$TempTableInSplice: by the edge",
-                    "J40.SqlExpr E-SQL (2026-11-18): legend-engine's temp-table template, deleted by E-SQL's J40 branch"),
+            // (SqlExpr$DeferredTdsString with its three components and Form.CSV, and SqlExpr$TempTableInSplice: deleted
+            // 2026-11-18 by E-SQL's J40, 9822fd89c8, train 17 -- the J40.SqlExpr line closes)
             // dead data (the orchestrator's ruling: a shrink-only DEAD list, each deleted in train 17 by its owner;
             // LoadCsv#types checked first: no host plan reader -- engine-client, datacube, python -- and no plan codec
             // reads LoadCsv, measured 2026-11-18)

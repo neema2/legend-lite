@@ -665,12 +665,10 @@ class SqlFnSortedTest {
     // nowhere") ---------------------------------------------------------------------------------------------------
 
     /** The expression nodes only the edge writes (each a product record the product decodes and rebuilds, never makes). */
-    static final Set<String> EDGE_ONLY_NODES = Set.of(
-            // a relation's text deferred to the database (legend-pure's TDS string): the edge's RelationTextLowering
-            // (census B17)
-            "com.legend.sql.SqlExpr$DeferredTdsString",
-            // legend-engine's temp-table splice of an IN list: the edge's InProtocol
-            "com.legend.sql.SqlExpr$TempTableInSplice");
+    static final Set<String> EDGE_ONLY_NODES = Set.of();
+    // (SqlExpr$DeferredTdsString, legend-pure's TDS string deferred to the database, and SqlExpr$TempTableInSplice,
+    // legend-engine's IN-list temp-table splice, left the product's MIR with E-SQL's J40 (9822fd89c8, the orchestrator's
+    // ruling (8)); the edge carries its own forms -- emptied 2026-11-18 on train 17's integration)
 
     /** THE NODES ONLY THE EDGE WRITES THAT THE PRODUCT SHOULD NOT CARRY: open separation work, each counted by its audit
      *  item ({@code EdgeAuditOpenTest.AUDIT_OPEN}), not sorted EDGE_ONLY (the orchestrator's ruling of 2026-11-17, 23:27:
@@ -687,13 +685,10 @@ class SqlFnSortedTest {
      *  reads a unit handed a supertype of the node that reads one, by an instance member, an instanceof or a class
      *  object, as a rebuild -- so a product factory written that way would hide a writer of an EDGE_ONLY or NO_WRITER
      *  node): each such (unit, node), exactly, with why it rebuilds. A new one is a row with its dated reason. */
-    static final Map<String, String> REBUILDS_OF_NON_PRODUCT_NODES = Map.of(
-            // (the alias prefixer's rebuild of a variable set, AliasPrefix.source, gone 2026-11-18 with the node, J28)
-            // the generic rewrite remakes a deferred relation text with its children rewritten; seventeen product
-            // rewriters call it (measured 2026-11-17, the third review's M3; the one row every construction in the
-            // rebuilders yields, measured again with the review of 5911e970e1)
-            "com.legend.sql.SqlRewriter.rewriteExpr(com.legend.sql.SqlExpr) -> com.legend.sql.SqlExpr$DeferredTdsString",
-            "the generic rewrite's rebuild: the node handed, its children rewritten");
+    static final Map<String, String> REBUILDS_OF_NON_PRODUCT_NODES = Map.of();
+    // (the alias prefixer's rebuild of a variable set, AliasPrefix.source, gone 2026-11-18 with the node, J28; the
+    // generic rewrite's rebuild of a deferred relation text, SqlRewriter.rewriteExpr's, gone 2026-11-18 with the node,
+    // E-SQL's J40 9822fd89c8, train 17)
 
     /** The classes that make a node they were handed, writing none. */
     static final Map<String, String> NODE_REBUILDERS = Map.of(

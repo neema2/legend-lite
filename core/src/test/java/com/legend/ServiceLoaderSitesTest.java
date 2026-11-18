@@ -50,7 +50,12 @@ class ServiceLoaderSitesTest {
                     "(loader reaches 2)")),
             // the test plan's extension codecs: the edge's seam (EdgeCodec, in the edge's jar alone)
             Map.entry("com.legend.testexecutionplan.TestPlanJson$Codecs#load()",
-                    Set.of("com.legend.testexecutionplan.ExtensionCodec", "(loader reaches 2)")));
+                    Set.of("com.legend.testexecutionplan.ExtensionCodec", "(loader reaches 2)")),
+            // K2's server half (E-P5's 0c78ae0e00, train 17, 2026-11-18; the user's ruling "Product root, edge opt-in"):
+            // the shipped server loads the mount --engine names, a MountProvider (HookRulingTest.RULED); the product
+            // ships none, the edge server's jar the one (PROVIDERS)
+            Map.entry("com.legend.server.LegendHttpServer#configured(java.lang.String)",
+                    Set.of("com.legend.server.MountProvider", "(loader reaches 2)")));
 
     /** "jar!/META-INF/services/SPI" -> its providers. Measured 2026-11-17. */
     static final Map<String, Set<String>> PROVIDERS = Map.ofEntries(
@@ -59,6 +64,10 @@ class ServiceLoaderSitesTest {
             // the edge's one provider, in the edge's jar: the plan's extension codec (census C2's seam)
             Map.entry("libedge.jar!/META-INF/services/com.legend.testexecutionplan.ExtensionCodec",
                     Set.of("com.legend.edge.EdgeCodec")),
+            // the edge server's one provider, in the opt-in module's jar: legend-engine's mount (K2's server half,
+            // E-P5's 0c78ae0e00, train 17, 2026-11-18)
+            Map.entry("libedge_server.jar!/META-INF/services/com.legend.server.MountProvider",
+                    Set.of("com.legend.edge.EngineMount")),
             Map.entry("libmongodb_connector.jar!/META-INF/services/com.legend.exec.DatabaseConnector",
                     Set.of("com.legend.exec.MongoDbConnector")),
             Map.entry("libpostgres_cells.jar!/META-INF/services/com.legend.exec.DriverCells",
