@@ -296,7 +296,6 @@ final class SelectMerge extends SqlRewriter {
                 case SqlExpr.Exists q -> refused = true;
                 case SqlExpr.InSubquery q -> refused = true;
                 case SqlExpr.Quantified q -> refused = true;
-                case SqlExpr.DeferredTdsString d -> refused = true;
                 case SqlExpr.Lambda l -> refused = true;
                 default -> { }
             }

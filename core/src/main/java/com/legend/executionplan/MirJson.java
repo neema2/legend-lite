@@ -47,8 +47,8 @@ public final class MirJson {
         rowOrder, storedRead, reduceCollection, membership, column, starExcept, star, stringLit, intLit, floatLit,
         decimalLit, boolLit, nullLit, dateLit, group, planParam, formatLit, datePartLit, jsonKindLit, typeNameLit,
         timestampLit, timeLit, orderedListAgg, arrayLit, structLit, structGet, call, caseExpr, exists, inSubquery,
-        checkedDefects, checkedChildValue, quantified, scalarSubquery, checkedOne, compactList, deferredTdsString,
-        tempTableInSplice, jsonObject, jsonArray, jsonArrayAgg, windowCall, lambda, cast, foldCall, reducer, keyCell,
+        checkedDefects, checkedChildValue, quantified, scalarSubquery, checkedOne, compactList,
+        jsonObject, jsonArray, jsonArrayAgg, windowCall, lambda, cast, foldCall, reducer, keyCell,
         raiseText
     }
 
@@ -447,18 +447,6 @@ public final class MirJson {
             case SqlExpr.TaggedList tl -> throw new IllegalStateException("a tagged list (SqlExpr.TaggedList) is"
                     + " resolved at its query's root before a plan is written: its rows' tag and slots are the plan's"
                     + " columns");
-            case SqlExpr.DeferredTdsString d -> {
-                tag(o, ExprTag.deferredTdsString, d.type());
-                o.put("inner", query(d.inner()));
-                o.put("alias", d.alias());
-                o.put("id", d.id());
-                o.put("form", d.form().name());
-                o.put("renderTdsNull", d.renderTdsNull());
-            }
-            case SqlExpr.TempTableInSplice t -> {
-                tag(o, ExprTag.tempTableInSplice, t.type());
-                o.put("tempTableName", t.tempTableName());
-            }
             case SqlExpr.JsonObject j -> {
                 tag(o, ExprTag.jsonObject, j.type());
                 o.put("kv", exprs(j.kv()));
@@ -1044,11 +1032,6 @@ public final class MirJson {
             case checkedOne -> new SqlExpr.CheckedOne(readExpr(o.getObj("list")), o.getBool("scalarCarrier"),
                     o.getBool("atLeastOnly"), type);
             case compactList -> new SqlExpr.CompactList(readExpr(o.getObj("list")), type);
-            case deferredTdsString -> new SqlExpr.DeferredTdsString((SqlSelect) readQuery(o.getObj("inner")),
-                    o.getString("alias"), o.getInt("id"),
-                    named(SqlExpr.DeferredTdsString.Form.class, o.getString("form"), "TDS form"),
-                    o.getBool("renderTdsNull"), type);
-            case tempTableInSplice -> new SqlExpr.TempTableInSplice(o.getString("tempTableName"), type);
             case jsonObject -> new SqlExpr.JsonObject(readExprs(o.getArr("kv")), type);
             case jsonArray -> new SqlExpr.JsonArray(readExprs(o.getArr("elements")), type);
             case jsonArrayAgg -> {

@@ -39,6 +39,8 @@ EDGE_TEST_SRCS = [
     "src/test/java/com/legend/edge/EdgeH2SessionTest.java",
     # legend-engine's template parameters, the edge's own table (the audit's J31, 2026-11-18)
     "src/test/java/com/legend/edge/EngineParamsTest.java",
+    # a dynamic pivot's text refused where the edge would compose it (J40, 2026-11-18)
+    "src/test/java/com/legend/edge/DynamicPivotTextRefusalTest.java",
     "src/test/java/com/legend/edge/PresenterTest.java",
     "src/test/java/com/legend/edge/PureDatesArrowTest.java",
     "src/test/java/com/legend/exec/ExecuteInDbDuckDbEdgeTest.java",
