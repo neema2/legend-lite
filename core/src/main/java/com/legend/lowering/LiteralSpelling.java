@@ -354,6 +354,13 @@ public final class LiteralSpelling {
         return null;
     }
 
+    /** {@code text}, a Decimal's text, without the value lane's D-suffixed carrier's mark ({@code 1D} -> {@code 1}; a
+     *  database's own text never ends in D): lite's message text of a store-read Decimal ({@link LiteText}; PR #118 fix
+     *  round, 2026-11-18 -- written here, beside {@link #decimalCanon}, the same strip). */
+    static SqlExpr withoutDecimalMark(SqlExpr text) {
+        return SqlExpr.Call.of(SqlFn.REGEXP_REPLACE, text, new SqlExpr.StringLit("[Dd]$"), new SqlExpr.StringLit(""));
+    }
+
     /** Decimal: SCALE-PRESERVING (X2, VERDICT_RULE_AUDIT — engine
      * Decimal equality is getValue().equals, scale-sensitive; the old
      * scale-normalized canon followed the deleted compareTo grant).

@@ -53,8 +53,7 @@ final class LiteText {
             // for the presentation program ("one plan, two presentations"): the real cause is the product's store-read
             // carrier spelling a Decimal as legend-pure's %r form ("1D", DECIMAL_TEXT) inside the product; this strip
             // touches only that trailing D (AssertBarTest: a sign, a written scale, kept)
-            return SqlExpr.Call.of(SqlFn.REGEXP_REPLACE, Scalars.pureToString(Styled.PRODUCT, Type.Primitive.DECIMAL, x),
-                    new SqlExpr.StringLit("[Dd]$"), new SqlExpr.StringLit(""));
+            return LiteralSpelling.withoutDecimalMark(Scalars.pureToString(Styled.PRODUCT, Type.Primitive.DECIMAL, x));
         }
         if (t == Type.Primitive.FLOAT) {
             // a message's Float at full round-trip precision (the orchestrator's ruling, 2026-11-17): FLOAT_SHORTEST_TEXT, the
