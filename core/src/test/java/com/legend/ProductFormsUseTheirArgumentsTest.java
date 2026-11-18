@@ -33,8 +33,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * GUARD L-A, ITS FIRST HALF (the orchestrator's order of 2026-11-18): a two-form hook FED upstream's form. A hook's
  * product form is called by the product with a function per form it may pick -- {@code executeValues(array, oneBare)},
- * {@code computedPruning(pruned, kept)}, {@code existsJoin(filtered, joinForm)} -- and a function the product form never
- * calls is code the product builds for the edge alone: upstream's form, written in the product and handed in. This guard
+ * {@code computedPruning(pruned, kept)}, {@code existsJoin(filtered, joinForm)} -- and a function the product form
+ * never calls is code the product builds for the edge alone: upstream's form, written in the product and handed in. This
+ * guard
  * calls every product form of every hook type (HookLambdasTest.CLASS_HOOKS: each product or host class implementing a
  * hook, two-form kind or style, pinned there exactly) through every method that takes a function, with a sentinel per
  * function and a sample per other parameter (every constant of an enum, both Booleans), and reports each function the
@@ -46,14 +47,22 @@ class ProductFormsUseTheirArgumentsTest {
     /** Each function a product form never calls, "Form#method(params) arg N" -> its ruling. Found 2026-11-18. */
     static final Map<String, String> UNCALLED = Map.of();
 
-    /** Every product form of every hook type: the instances of each class HookLambdasTest pins (an enum's constants, a
-     *  static field holding one, else its no-argument constructor), with each hook type it implements. */
+    /** Every product form of every hook type taking a function: the instances of each class HookLambdasTest pins (an
+     *  enum's constants, a static field holding one, else its no-argument constructor), with each such hook type it
+     *  implements. */
     static Map<Object, Set<Class<?>>> productForms(Map<String, Set<String>> classHooks) {
         Map<Object, Set<Class<?>>> out = new java.util.LinkedHashMap<>();
         classHooks.forEach((cls, hooks) -> {
             Class<?> c = load(cls);
+            // only a hook type with a method taking a function is called: a form of none needs no instance
             Set<Class<?>> types = hooks.stream().map(ProductFormsUseTheirArgumentsTest::load)
+                    .filter(h -> Arrays.stream(h.getMethods()).anyMatch(m -> !Modifier.isStatic(m.getModifiers())
+                            && Arrays.stream(m.getParameterTypes())
+                                    .anyMatch(ProductFormsUseTheirArgumentsTest::isFunction)))
                     .collect(Collectors.toCollection(java.util.LinkedHashSet::new));
+            if (types.isEmpty()) {
+                return;
+            }
             for (Object form : instances(c, types)) {
                 out.put(form, types);
             }
@@ -136,7 +145,8 @@ class ProductFormsUseTheirArgumentsTest {
         return List.of(sample(type));
     }
 
-    /** One value of {@code type}, or a failure naming it: the guard stays total (a new parameter type is added here). */
+    /** One value of {@code type}, or a failure naming it: the guard stays total (a new parameter type is added
+     *  here). */
     static Object sample(Type type) {
         Class<?> raw = raw(type);
         if (raw == SqlExpr.class) {
@@ -163,7 +173,8 @@ class ProductFormsUseTheirArgumentsTest {
         if (raw == Object.class) {
             return "L-A sentinel";
         }
-        throw new AssertionError("no sample of " + type.getTypeName() + ": add one to ProductFormsUseTheirArgumentsTest");
+        throw new AssertionError("no sample of " + type.getTypeName()
+                + ": add one to ProductFormsUseTheirArgumentsTest");
     }
 
     static Class<?> raw(Type t) {
