@@ -138,7 +138,9 @@ exec_program	base error exec execution_plan result
 edge	arrow_ipc base builtin compiler compiler_element_type database diagnostics door error exec execution_plan json lineage lite_v1 lowering model parser plan planner platform protocol resolver result setup sql sql_dialect test_plan testdatagen testexec testplan values
 # 2026-11-16 (the P2 checkpoint audit's M2): edge_store_words -- legend-engine's query-store sentences, their own target
 edge_server	base edge edge_store_words execution lite_v1 saved_queries server_lib
-edge_store_words	saved_queries
+# 2026-11-18 (J40.SavedQueries): edge_store_words reads lite's refusal answer itself (SavedQueries.reshaped moved
+# to the edge), so json directly -- already in its closure through saved_queries
+edge_store_words	json saved_queries
 # 2026-11-15 (phase D's D1.4): legend-engine's service tests at the edge, the runner and its PURE_TDSOBJECT writer
 # 2026-11-16 (W8 of docs/records/d-plan-2026-11-16.md): edge_service_tests reaches edge -- PureV1Writer moved there
 edge_service_tests	base compiler edge error exec execution_plan json model planner protocol result sql test test_execution test_plan testexec values
