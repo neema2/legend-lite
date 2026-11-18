@@ -47,7 +47,9 @@ class PlannedSqlTest {
             // legend/wasm-edge.ts, the same planner's client
             "engine-client/src/legend/wasm-edge.ts",
             "datacube/src/lite-planner.ts",
-            "datacube/src/planner.ts");
+            // 2026-11-18 (H11, DataCube's half: a file move, K2): the server's generatePlan reader (serverPlan) moved with
+            // legend-engine's planner client from datacube/src/planner.ts to the edge's datacube/src/edge/upstream-planner.ts
+            "datacube/src/edge/upstream-planner.ts");
 
     // (NOT_PLANNED -- what a host still sent that no plan carried, named by planned-sql.ts's notPlanned: Studio's SQL
     // playground and, until the C3 follow-up, Query's demo warehouse fixture -- DELETED 2026-11-12, the user's ruling
@@ -97,7 +99,8 @@ class PlannedSqlTest {
             // select list's typing gone with it (a host operation takes no SQL: convert), a snapshot's copy's plan
             // (snapCopy) and a table Output's (outputPlan) typed as read
             "datacube/src/lite-planner.ts", 16,
-            "datacube/src/planner.ts", 2,
+            // 2026-11-18 (H11, DataCube's half: a file move, K2): planner.ts's 2 moved whole with serverPlan to the edge
+            "datacube/src/edge/upstream-planner.ts", 2,
             // the definitions themselves, and the mints' own test
             // 2026-11-12, 7 -> 9 (M1): planFromAnswer defined, and the project database's load typed by it
             "engine-client/src/planned-sql.ts", 9,
