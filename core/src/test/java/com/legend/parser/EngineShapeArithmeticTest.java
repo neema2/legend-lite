@@ -110,19 +110,36 @@ final class EngineShapeArithmeticTest {
     }
 
     @Test
-    void relationalThenArithmeticReproducesEngineMisassociation() {
-        // 1 < 2 + 3 * 4 — EngineQuirks.RELATIONAL_ARITH_MISASSOCIATION
-        // (audit §1.2, decided in writing: reproduce byte-for-byte).
-        // Once the accumulator is lessThan, processOp rewrites its LAST
-        // parameter whole, so '* 4' grabs plus[2,3] instead of 3:
-        // lessThan(1, times[Collection[plus[Collection[2,3]], 4]])
-        // = 1 < (2+3)*4 = 1 < 20, NOT real Pure's 1 < 14.
+    void relationalThenArithmeticReproducesEngineMisassociationAtTheEnginesLevelAlone() {
+        // 1 < 2 + 3 * 4 -- EngineQuirks.relationalArithMisassociation (audit section 1.2: legend-engine's bug, reproduced
+        // byte-for-byte where the edge parses legend-engine's protocol). Once the accumulator is lessThan, processOp
+        // rewrites its LAST parameter whole, so '* 4' grabs plus[2,3] instead of 3:
+        // lessThan(1, times[Collection[plus[Collection[2,3]], 4]]) = 1 < (2+3)*4 = 1 < 20.
         assertEquals(
                 binary("lessThan",
                         new CInteger(1L),
                         nary("times",
                                 nary("plus", new CInteger(2L), new CInteger(3L)),
                                 new CInteger(4L))),
-                com.legend.testing.Platform.spec("1 < 2 + 3 * 4"));
+                SpecParser.parse("1 < 2 + 3 * 4", GrammarLevel.LEGEND_ENGINE));
+    }
+
+    @Test
+    void relationalThenArithmeticTakesPuresPrecedenceInTheProduct() {
+        // J30 of the edge audit, 2026-11-18 (the user's rule: the product follows Pure's definition; register S365): lite's
+        // and the platform's levels give '* 4' the deepest last operand -- lessThan(1, plus[2, times[3, 4]]) = 1 < 14
+        ValueSpecification pures = binary("lessThan",
+                new CInteger(1L),
+                nary("plus", new CInteger(2L), nary("times", new CInteger(3L), new CInteger(4L))));
+        assertEquals(pures, com.legend.testing.Platform.spec("1 < 2 + 3 * 4"));
+        assertEquals(pures, SpecParser.parse("1 < 2 + 3 * 4", GrammarLevel.LEGEND_LITE));
+        // a parenthesised operand is an operand: '* 4' takes it whole, as legend-engine does too
+        assertEquals(binary("lessThan", new CInteger(1L),
+                        nary("times", nary("plus", new CInteger(2L), new CInteger(3L)), new CInteger(4L))),
+                SpecParser.parse("1 < (2 + 3) * 4", GrammarLevel.LEGEND_LITE));
+        // a run after the comparison folds as it does standalone: 1 < 2 * 3 + 4 is 1 < plus[times[2, 3], 4]
+        assertEquals(binary("lessThan", new CInteger(1L),
+                        nary("plus", nary("times", new CInteger(2L), new CInteger(3L)), new CInteger(4L))),
+                SpecParser.parse("1 < 2 * 3 + 4", GrammarLevel.LEGEND_LITE));
     }
 }
