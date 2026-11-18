@@ -53,7 +53,7 @@ public final class EngineQuirks {
      */
     public static boolean relationalArithMisassociation(GrammarLevel level) {
         // legend-engine's level alone (J30 of the edge audit, 2026-11-18, the user's rule: the product follows Pure's
-        // definition, the engine's quirk stays at the edge byte-exact; register S365): lite's and the platform's
+        // definition, the engine's quirk stays at the edge byte-exact; register S368): lite's and the platform's
         // levels take the correct deep rewrite (OperatorParts.processOp)
         return level.refusesLiteExtensions();
     }

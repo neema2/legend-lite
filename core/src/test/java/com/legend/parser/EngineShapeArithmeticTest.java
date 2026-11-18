@@ -126,7 +126,7 @@ final class EngineShapeArithmeticTest {
 
     @Test
     void relationalThenArithmeticTakesPuresPrecedenceInTheProduct() {
-        // J30 of the edge audit, 2026-11-18 (the user's rule: the product follows Pure's definition; register S365): lite's
+        // J30 of the edge audit, 2026-11-18 (the user's rule: the product follows Pure's definition; register S368): lite's
         // and the platform's levels give '* 4' the deepest last operand -- lessThan(1, plus[2, times[3, 4]]) = 1 < 14
         ValueSpecification pures = binary("lessThan",
                 new CInteger(1L),
