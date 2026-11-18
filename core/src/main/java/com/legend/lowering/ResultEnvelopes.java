@@ -3,26 +3,20 @@
 
 package com.legend.lowering;
 
+import com.legend.compiler.element.type.Type;
 import com.legend.sql.SqlExpr;
 
-import java.util.List;
-
 /**
- * legend-engine's RESULT ENVELOPE, A LOWERING FACET OF THE PLAN STYLE (Phase 6's B5, 2026-11-17, the orchestrator's
- * ruling (A) on tdsBuilder): an {@code executeLegendQuery}'s value for a relation, class or serialized root is
- * legend-engine's JSON result ({@code builder}, {@code activities}, {@code result} or {@code objects} or
- * {@code values}), so its keys, tags and skeleton are the compatibility edge's; the product writes a query's rows by
- * its result writers and refuses each by name AT LOWERING ({@code JsonEmission}). The Lowerer asks the planner's style
- * for this facet only when it meets one, carrying the call's own refusal. A hook of signatures only: its parts are the
- * product's (names, types' simple names, cells, the activity's SQL), its envelope the edge's.
+ * THE STRING ENTRY'S STYLED VALUE, A LOWERING FACET OF THE PLAN STYLE (Phase 6's B5, 2026-11-17; L-B.TypedJsonResult,
+ * the orchestrator's ruling (A) of 2026-11-18): a {@code TypedJsonResult} of kind STYLED is written by the style --
+ * what to read of the root, and the envelope around it, are the facet's. The product hands its own parts on demand
+ * ({@link EnvelopeParts}: a relation's names, types and cells, or a class root's objects) and the text the style
+ * recorded when it planned the value; the product's style never plans a STYLED value (its planning form refuses it)
+ * and its facet refuses by name. Types only (HookRulingTest).
  */
 public interface ResultEnvelopes {
 
-    /** A relation root's envelope: its columns' {@code names} and their types' simple {@code typeNames}, each row's
-     *  {@code cells} (in column order, read over the rows' alias), the activity's SQL or null. */
-    SqlExpr tds(List<String> names, List<String> typeNames, List<SqlExpr> cells,
-            @com.legend.base.Nullable String activitySql);
-
-    /** A class root's envelope: its {@code objects} (the graph emission's JSON array), the activity's SQL or null. */
-    SqlExpr classes(SqlExpr objects, @com.legend.base.Nullable String activitySql);
+    /** The STYLED value over a root of type {@code rootType}: the envelope, over the parts it asks of {@code parts},
+     *  with {@code recorded}, the text the style recorded at planning (or none). */
+    SqlExpr styled(Type rootType, @com.legend.base.Nullable String recorded, EnvelopeParts parts);
 }
