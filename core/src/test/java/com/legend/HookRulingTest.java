@@ -42,12 +42,9 @@ class HookRulingTest {
                     () -> com.legend.testexec.NoEdgeRun.NONE.open(planNaming(), null, java.util.UUID.randomUUID()))),
             Map.entry(com.legend.testexec.EdgeHearing.class, List.of(
                     () -> productHearing().judged(null, List.of(), null, false),
-                    () -> productHearing().rowAppealed(0, List.of(), false),
-                    () -> productHearing().pureWords())),
-            // C5's step B, 2026-11-17 (the orchestrator's ruling (1)): legend-pure's words of an assert's failure at run,
-            // the hearing's member (NoEdgeRun's hearing refuses it by name)
-            Map.entry(com.legend.testexec.PureWords.class, List.of(
-                    () -> productHearing().pureWords())),
+                    () -> productHearing().rowAppealed(0, List.of(), false))),
+            // (com.legend.testexec.PureWords, C5's step B's hook: deleted 2026-11-18, census J29 -- the host judge's
+            // words are the run's HostWords, lite's form the product's and legend-pure's the edge's, never refused)
             // census C1, 2026-11-17 (the orchestrator's ruling that day: the edge hook typed, the product's refusal
             // where a null selected lite's rules): the ledger's recorder, each ask refused by the product's NoEdge
             Map.entry(com.legend.testexecutionplan.Edge.class, List.of(
@@ -123,7 +120,8 @@ class HookRulingTest {
                 com.legend.testexecutionplan.TestPlan.JudgingRules.LITE);
         return new com.legend.testexecutionplan.TestPlan(List.of(), List.of(step),
                 com.legend.testexecutionplan.TestPlan.Judge.HOST, Map.of(), byVerdict, false, target,
-                new com.legend.testexecutionplan.BodyFacts(false, false, true, "A"), null, false);
+                new com.legend.testexecutionplan.BodyFacts(false, false, true, "A"), null,
+                com.legend.testexecutionplan.TestPlan.LITE_WORDS);
     }
 
 
@@ -305,10 +303,12 @@ class HookRulingTest {
         assertTrue(edgeForms != com.legend.lowering.ProductLoweringForms.INSTANCE
                 && edgeForms.getClass().getPackageName().equals("com.legend.edge"),
                 "the edge answers its own lowering forms: " + edgeForms.getClass());
-        assertFalse(PlanStyle.PRODUCT.twoForm(com.legend.testplan.FailureWords.class,
-                com.legend.testplan.LiteFailureWords.LITE).upstreamWords(), "the product plans lite's words");
-        assertTrue(com.legend.edge.PureText.UPSTREAM.twoForm(com.legend.testplan.FailureWords.class,
-                com.legend.testplan.LiteFailureWords.LITE).upstreamWords(), "the edge plans legend-pure's");
+        assertEquals(com.legend.testexecutionplan.TestPlan.LITE_WORDS, PlanStyle.PRODUCT.twoForm(
+                com.legend.testplan.FailureWords.class, com.legend.testplan.LiteFailureWords.LITE).words(),
+                "the product plans lite's words");
+        assertEquals(com.legend.edge.EdgeHostWords.NAME, com.legend.edge.PureText.UPSTREAM.twoForm(
+                com.legend.testplan.FailureWords.class, com.legend.testplan.LiteFailureWords.LITE).words(),
+                "the edge plans legend-pure's");
         Runnable productForm = () -> { };
         assertTrue(PlanStyle.PRODUCT.twoForm(Runnable.class, productForm) == productForm,
                 "the product answers the caller's own form");
@@ -409,7 +409,6 @@ class HookRulingTest {
                 "EdgeRun <- com.legend.edge.AppealRun",
                 "Edge <- com.legend.edge.CompatEdge",
                 "PureOnlyTexts <- com.legend.edge.EdgePureOnlyTexts",
-                "PureWords <- com.legend.edge.EdgePureWords",
                 "RelationTexts <- com.legend.edge.RelationTextLowering",
                 "ResultEnvelopes <- com.legend.edge.EngineResultEnvelopes",
                 "UpstreamPlans <- com.legend.edge.EnginePlans$1",

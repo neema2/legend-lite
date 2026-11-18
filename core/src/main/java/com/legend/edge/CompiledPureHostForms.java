@@ -22,8 +22,8 @@ public enum CompiledPureHostForms implements com.legend.testexec.HostForms {
     }
 
     @Override
-    public boolean upstreamWords() {
+    public com.legend.testexec.HostWords words() {
         // the compatibility rules: legend-pure's words
-        return true;
+        return EdgeHostWords.INSTANCE;
     }
 }

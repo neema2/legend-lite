@@ -11,7 +11,7 @@ public enum UpstreamFailureWords implements com.legend.testplan.FailureWords {
     INSTANCE;
 
     @Override
-    public boolean upstreamWords() {
-        return true;
+    public String words() {
+        return EdgeHostWords.NAME;
     }
 }
