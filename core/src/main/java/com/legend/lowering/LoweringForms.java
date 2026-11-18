@@ -91,9 +91,4 @@ public interface LoweringForms {
      *  distinct keys over the statement's {@code sites} (the lens audit's item 1, 2026-11-18: the lowering hands its
      *  sites, never the rewrite; the edge's form calls the product's building block, sql.ExistsJoins). */
     SqlSelect existsJoin(SqlSelect filtered, ExistsSites sites);
-
-    /** A statement's sites an EXISTS join reads: the lowering's alias minter, and each conjunct's resolver zones. */
-    record ExistsSites(Supplier<String> alias,
-            java.util.function.Function<SqlExpr, com.legend.sql.ExistsJoins.@com.legend.base.Nullable Zones> zones) {
-    }
 }

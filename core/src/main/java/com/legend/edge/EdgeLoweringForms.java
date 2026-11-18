@@ -133,7 +133,7 @@ record EdgeLoweringForms(Set<RaiseKind> plain) implements com.legend.lowering.Lo
     /** legend-engine's "second exists emission", on every edge style, where the planner's statement may take it (J19,
      *  register S367). */
     @Override
-    public SqlSelect existsJoin(SqlSelect filtered, ExistsSites sites) {
+    public SqlSelect existsJoin(SqlSelect filtered, com.legend.lowering.ExistsSites sites) {
         return com.legend.sql.ExistsJoins.rewrite(filtered, sites.alias(), sites.zones(), ex -> true);
     }
 
@@ -222,7 +222,7 @@ record EdgeLoweringForms(Set<RaiseKind> plain) implements com.legend.lowering.Lo
         }
 
         @Override
-        public SqlSelect existsJoin(SqlSelect filtered, ExistsSites sites) {
+        public SqlSelect existsJoin(SqlSelect filtered, com.legend.lowering.ExistsSites sites) {
             return base.existsJoin(filtered, sites);
         }
     }

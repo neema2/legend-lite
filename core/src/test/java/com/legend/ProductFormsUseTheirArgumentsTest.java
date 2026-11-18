@@ -47,10 +47,8 @@ class ProductFormsUseTheirArgumentsTest {
      *  "Form#method(params) arg N" -> "census line OWNER (date): why". Counted, one line per form (the orchestrator's
      *  ruling of 2026-11-18, 06:40: E-SQL's L9 and L6, inside the withShape design (i)). */
     static final Map<String, String> UNCALLED = Map.of(
-            "ProductLoweringForms#existsJoin(SqlSelect, UnaryOperator) arg 1", "L-A.LoweringForms E-SQL (L9) (2026-11-18):"
-                    + " ExistsJoinForm.rewrite, legend-engine's EXISTS-as-join form, built by Lowerer and handed in",
-            "ProductLoweringForms#computedPruning(Supplier, Supplier) arg 1", "L-A.LoweringForms E-SQL (L6) (2026-11-18):"
-                    + " SubselectPrune.prune(q, false), legend-engine's unpruned computed projection, handed in",
+            // (existsJoin's and computedPruning's: CLOSED 2026-11-18 by E-SQL's 63d2ad6ed and 4b39cdd82 -- the lowering
+            // hands its statement and sites, the edge's form composes legend-engine's form itself)
             "ProductLoweringForms#executeValues(Supplier, Supplier) arg 1", "L-A.LoweringForms E-SQL (L6) (2026-11-18):"
                     + " SnapshotEnvelope.fold as oneBare, legend-engine's one-object-bare execute values, handed in");
     // (RefusedExecutedValues#relation and #classes: ruled no finding 2026-11-18, below -- L-A.ExecutedValues closes)

@@ -1444,8 +1444,8 @@ final class ArchitectureTest {
             // orchestrator's ruling on L6: a two-form kind holds types only, the product hands its statement and sites,
             // never upstream's composition; legend-engine's one-object-bare fold is the edge's own code): the subselect
             // pruning (lean, or legend-engine's computed projections kept) and the statement's EXISTS sites
-            "lowering.LoweringForms$ExistsSites#alias()", "com.legend.edge.EdgeLoweringForms",
-            "lowering.LoweringForms$ExistsSites#zones()", "com.legend.edge.EdgeLoweringForms",
+            "lowering.ExistsSites#alias()", "com.legend.edge.EdgeLoweringForms",
+            "lowering.ExistsSites#zones()", "com.legend.edge.EdgeLoweringForms",
             "lowering.SubselectPrune#prune(com.legend.sql.SqlQuery, boolean)", "com.legend.edge.EdgeLoweringForms",
             "lowering.Styled#forms()", "com.legend.edge.EdgeLoweringForms",
             "lowering.Styled#lists()", "com.legend.edge.EdgeLoweringForms",
