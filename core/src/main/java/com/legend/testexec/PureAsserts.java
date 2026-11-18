@@ -51,9 +51,13 @@ public final class PureAsserts {
                 : BigDecimal.valueOf(n.longValue());
     }
 
-    /** {@code eq(e, a)}: the decision alone (identity for instances that carry one, loud for those that do not). */
-    public static boolean eqHolds(@com.legend.base.Nullable Object expected, @com.legend.base.Nullable Object actual,
-            HostRules rules) {
+    /** {@code eq(e, a)}: the decision alone (identity for instances that carry one, loud for those that do not); each
+     *  primitive compared under its side's DECLARED kind where that is numeric ({@code eDeclared},
+     *  {@code aDeclared}: the plan's type names, {@link Equality.Typed}), the carrier's otherwise -- as
+     *  assertEquals' sides are (PR #118 fix round, 2026-11-18, G2: a Decimal property over an INTEGER column arrives as
+     *  the column's integer, and the database judge compares it as the Decimal it is declared). */
+    public static boolean eqHolds(@com.legend.base.Nullable Object expected, @com.legend.base.Nullable String eDeclared,
+            @com.legend.base.Nullable Object actual, @com.legend.base.Nullable String aDeclared, HostRules rules) {
         if (isNonPrimitive(expected) || isNonPrimitive(actual)) {
             // F13 — identity IS observable when both wires carry the
             // synthetic __id (keyless-class instance maps, minted per
@@ -72,7 +76,7 @@ public final class PureAsserts {
                     + " identity, which is not observable on a value wire"
                     + " (assertEquals is the structural compare)");
         }
-        return Equality.same(Equality.Typed.of(expected), Equality.Typed.of(actual), rules);
+        return Equality.same(new Equality.Typed(expected, eDeclared), new Equality.Typed(actual, aDeclared), rules);
     }
 
     private static boolean isNonPrimitive(@com.legend.base.Nullable Object v) {

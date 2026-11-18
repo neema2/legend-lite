@@ -58,4 +58,48 @@ class CompiledPureNumbersEdgeTest {
             }
         }
     }
+
+    /** A Decimal property over an INTEGER column (PR #118 fix round, 2026-11-18, G2; AssertBarTest's product half): on
+     *  the edge, compiled legend-pure's rule decides it -- the Integer 1 and the property's Decimal 1 equal by their texts
+     *  -- under every judge alike: one verdict per assert (assertEq and assertIs hold, assertNotEq and assertIsNot fail).
+     *  The failures' legend-pure words still differ by judge on this shape (the value's %r: the host's "1" for the map's
+     *  integer carrier, the database's "1DD" for the property's D-suffixed carrier): reported open, not pinned here. */
+    private static final String MAPPED = """
+            ###Pure
+            Class p::P { id: Integer[1]; d: Decimal[1]; }
+            ###Relational
+            Database p::DB ( Table T (ID INTEGER PRIMARY KEY, D INTEGER) )
+            ###Mapping
+            Mapping p::M ( p::P: Relational { ~mainTable [p::DB] T id: T.ID, d: T.D } )
+            ###Connection
+            RelationalDatabaseConnection p::C { store: p::DB; type: %s;
+                specification: LocalH2 { testDataSetupCSV: 'default\\nT\\nID,D\\n1,1\\n'; }; auth: DefaultH2; }
+            ###Runtime
+            Runtime p::RT { mappings: [p::M]; connections: [ p::DB: [ c0: p::C ] ]; }
+            """.formatted(Databases.PLATFORM);
+
+    @Test
+    void anEqOverADeclaredDecimalIsOneVerdictUnderEveryJudgeOnTheEdge() throws Exception {
+        java.util.List<String> wrong = new java.util.ArrayList<>();
+        for (String side : List.of("p::P.all()->filter(x | $x.id == 1)->toOne().d", "p::P.all()->map(x | $x.d)->toOne()")) {
+            for (String fn : List.of("assertEq", "assertIs", "assertNotEq", "assertIsNot")) {
+                String body = "{|" + fn + "(1, " + side + ")}";
+                String want = fn.endsWith("Not") || fn.endsWith("NotEq") ? "AssertFailed" : "pass";
+                for (com.legend.testplan.PlanningOptions.JudgeMode mode : JUDGES) {
+                    String got;
+                    try {
+                        com.legend.testing.EdgeProgram.runFresh(MAPPED, body, "p::RT",
+                                com.legend.testing.EdgeProgram.compat(mode));
+                        got = "pass";
+                    } catch (Throwable e) {
+                        got = e.getClass().getSimpleName();
+                    }
+                    if (!want.equals(got)) {
+                        wrong.add(mode + " " + body + " -> " + got);
+                    }
+                }
+            }
+        }
+        assertTrue(wrong.isEmpty(), "one verdict under every judge:\n  " + String.join("\n  ", wrong));
+    }
 }

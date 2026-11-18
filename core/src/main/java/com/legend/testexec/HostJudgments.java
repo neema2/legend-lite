@@ -566,9 +566,10 @@ final class HostJudgments {
         SideFetch af = sideCanonOf(pair.get(1));
         Object ee = com.legend.testexec.AssertRuns.one(ef.values(), "assertEq expected");
         Object aa = com.legend.testexec.AssertRuns.one(af.values(), "assertEq actual");
-        // eq's non-primitive identity rule throws LOUD here (P2-5)
-        String d = com.legend.testexec.PureAsserts.eqHolds(ee, aa, rules) ? null
-                : words(rules).notEq(ee, aa, j.e().classFqn(), j.a().classFqn());
+        // eq's non-primitive identity rule throws LOUD here (P2-5); a primitive under its side's declared kind where that
+        // is numeric, as assertEquals' typedSide reads it (PR #118 fix round, 2026-11-18, G2)
+        String d = com.legend.testexec.PureAsserts.eqHolds(ee, j.e().declared(), aa, j.a().declared(), rules) ? null
+                : words(rules).notEq(ee, aa, j.e().classFqn(), j.a().classFqn(), j.e().declared(), j.a().declared());
         com.legend.testexec.CanonicalDivergence.probeEqual("assertEq",
                 java.util.Collections.singletonList(ee),
                 java.util.Collections.singletonList(aa), d == null);

@@ -52,6 +52,12 @@ public final class EdgeProgram {
         return run(model, body, runtime, c, options).side();
     }
 
+    /** {@code body} run on the edge's door with a session of its own per use ({@link Program#runFresh}). */
+    public static Program.Report runFresh(String model, String body, @com.legend.base.Nullable String runtime,
+            ExecuteOptions options) {
+        return Program.runFresh(model, body, runtime, options, com.legend.edge.AppealRun.with(null));
+    }
+
     /** {@link #run} under {@link #compat()}. */
     public static Program.Report run(String model, String body, @com.legend.base.Nullable String runtime,
             java.sql.Connection c) {

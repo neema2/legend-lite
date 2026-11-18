@@ -59,8 +59,10 @@ public interface HostWords {
     /** An assertEmpty ({@code wantEmpty}) or assertNotEmpty that failed over {@code side}, its values decoded. */
     String emptiness(boolean wantEmpty, TypedSide side, List<Object> values);
 
-    /** An assertEq whose values are not eq. */
-    String notEq(@Nullable Object e, @Nullable Object a, @Nullable String eClass, @Nullable String aClass);
+    /** An assertEq whose values are not eq; {@code eDeclared}, {@code aDeclared}: each side's declared type name (the
+     *  plan's), whose numeric kind is the one it was compared under (PR #118 fix round, 2026-11-18). */
+    String notEq(@Nullable Object e, @Nullable Object a, @Nullable String eClass, @Nullable String aClass,
+            @Nullable String eDeclared, @Nullable String aDeclared);
 
     /** An assertInstanceOf over an instance of {@code wireType} that is no {@code type}. */
     String notInstanceOfClass(@Nullable Object v, String wireType, String type);

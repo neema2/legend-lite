@@ -116,9 +116,12 @@ public final class LiteHostWords implements HostWords {
     }
 
     @Override
-    public String notEq(@Nullable Object e, @Nullable Object a, @Nullable String eClass, @Nullable String aClass) {
+    public String notEq(@Nullable Object e, @Nullable Object a, @Nullable String eClass, @Nullable String aClass,
+            @Nullable String eDeclared, @Nullable String aDeclared) {
+        // each side's kind the one it was compared under: its declared numeric kind, else its carrier's (PR #118 fix
+        // round, 2026-11-18: a Decimal property over an INTEGER column is a Decimal, as the database judge names it)
         return LiteWords.equalsSentence(LiteWords.identity(e, eClass), LiteWords.identity(a, aClass),
-                () -> LiteWords.kind(e, eClass), () -> LiteWords.kind(a, aClass), e, a);
+                () -> LiteWords.kind(e, eDeclared, eClass), () -> LiteWords.kind(a, aDeclared, aClass), e, a);
     }
 
     @Override

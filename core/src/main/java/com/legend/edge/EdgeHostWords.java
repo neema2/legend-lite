@@ -144,8 +144,10 @@ public final class EdgeHostWords implements com.legend.testexec.HostWords {
     }
 
     @Override
-    public String notEq(@Nullable Object e, @Nullable Object a, @Nullable String eClass, @Nullable String aClass) {
-        // assertEq.pure: '\nexpected: %r\nactual:   %r', an instance as %r writes it (<id instanceOf Class>)
+    public String notEq(@Nullable Object e, @Nullable Object a, @Nullable String eClass, @Nullable String aClass,
+            @Nullable String eDeclared, @Nullable String aDeclared) {
+        // assertEq.pure: '\nexpected: %r\nactual:   %r', an instance as %r writes it (<id instanceOf Class>); each value
+        // as its carrier is (the declared kinds are lite's sentence's)
         return W.pair(e, wireType(e), a, wireType(a));
     }
 

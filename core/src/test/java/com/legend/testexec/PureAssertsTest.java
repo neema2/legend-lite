@@ -51,8 +51,8 @@ class PureAssertsTest {
 
     /** assertEq's message: the product's decision, the edge's words (census J29). */
     private static String eqOneMsg(Object e, Object a, HostRules rules, com.legend.edge.EdgePureWords w) {
-        return PureAsserts.eqHolds(e, a, rules) ? null
-                : com.legend.edge.EdgeHostWords.INSTANCE.notEq(e, a, null, null);
+        return PureAsserts.eqHolds(e, null, a, null, rules) ? null
+                : com.legend.edge.EdgeHostWords.INSTANCE.notEq(e, a, null, null, null, null);
     }
 
     private static String tolMsg(Number e, Number a, Number delta, com.legend.edge.EdgePureWords w) {

@@ -314,6 +314,68 @@ class AssertBarTest {
                 + " GAPS: " + closed));
     }
 
+    /** A Decimal property over an INTEGER column (PR #118 fix round, 2026-11-18, G2): its value arrives as the column's
+     *  integer, its declaration says Decimal. Lite's own rule (register S127) compares two numbers by their DECLARED
+     *  kinds, so the Integer 1 and the property's Decimal 1 are never equal -- under the host judge as under the database
+     *  judge, and under both together: one outcome, and one message, per assert. Its row is the connection's declared
+     *  test data, a load of the plan's. */
+    private static final String MAPPED = """
+            ###Pure
+            Class p::P { id: Integer[1]; d: Decimal[1]; }
+            Class p::Q { id: Integer[1]; e: Decimal[1]; }
+            ###Relational
+            Database p::DB ( Table T (ID INTEGER PRIMARY KEY, D INTEGER) Table U (ID INTEGER PRIMARY KEY, E DECIMAL(10,2)) )
+            ###Mapping
+            Mapping p::M ( p::P: Relational { ~mainTable [p::DB] T id: T.ID, d: T.D }
+                p::Q: Relational { ~mainTable [p::DB] U id: U.ID, e: U.E } )
+            ###Connection
+            RelationalDatabaseConnection p::C { store: p::DB; type: %s;
+                specification: LocalH2 { testDataSetupCSV: 'default\\nT\\nID,D\\n1,1\\n-----\\ndefault\\nU\\nID,E\\n1,1.50\\n2,-2.00\\n'; };
+                auth: DefaultH2; }
+            ###Runtime
+            Runtime p::RT { mappings: [p::M]; connections: [ p::DB: [ c0: p::C ] ]; }
+            """.formatted(Databases.PLATFORM);
+
+    @Test
+    void anEqOverADeclaredDecimalIsOneVerdictUnderEveryJudge() throws Exception {
+        String d = "p::P.all()->filter(x | $x.id == 1)->toOne().d";
+        String mapped = "p::P.all()->map(x | $x.d)->toOne()";
+        // the body, and its one outcome: the Integer 1 is not the Decimal 1 in lite's own runs (S127)
+        java.util.Map<String, String> want = new java.util.LinkedHashMap<>();
+        for (String side : List.of(d, mapped)) {
+            want.put("{|assertEq(1, " + side + ")}", "AssertFailed: expected 1 (Integer), got 1 (Decimal)");
+            want.put("{|assertIs(1, " + side + ")}", "AssertFailed: expected 1 (Integer), got 1 (Decimal)");
+            want.put("{|assertNotEq(1, " + side + ")}", "pass");
+            want.put("{|assertIsNot(1, " + side + ")}", "pass");
+        }
+        // the database judge's text of a store-read Decimal drops only its carrier's D: its sign and digits kept (a
+        // DECIMAL(10,2) read decodes scale-canonical, 1.50 as 1.5, under both judges: LiteralSpelling.wireValueEgress's
+        // R3), and a written literal keeps its scale
+        want.put("{|assertEq(1, p::Q.all()->filter(x | $x.id == 1)->toOne().e)}", "AssertFailed: expected 1, got 1.5");
+        want.put("{|assertEq(2, p::Q.all()->filter(x | $x.id == 2)->toOne().e)}", "AssertFailed: expected 2, got -2");
+        want.put("{|assertEq(1, 1.50D)}", "AssertFailed: expected 1, got 1.50");
+        want.put("{|assertEq(2, -2D)}", "AssertFailed: expected 2, got -2");
+        List<String> wrong = new ArrayList<>();
+        for (var e : want.entrySet()) {
+            for (com.legend.testplan.PlanningOptions.JudgeMode mode : JUDGES) {
+                String got;
+                try {
+                    Program.runFresh(MAPPED, e.getKey(), "p::RT", ExecuteOptions.NONE.withJudgeMode(mode),
+                            com.legend.testexec.NoEdgeRun.NONE);
+                    got = "pass";
+                } catch (AssertFailed f) {
+                    got = "AssertFailed: " + f.getMessage();
+                } catch (Throwable t) {
+                    got = t.getClass().getSimpleName() + ": " + t.getMessage();
+                }
+                if (!e.getValue().equals(got)) {
+                    wrong.add(mode + " " + e.getKey() + " -> " + oneLine(got));
+                }
+            }
+        }
+        assertTrue(wrong.isEmpty(), "one verdict under every judge:\n  " + String.join("\n  ", wrong));
+    }
+
     /** The database judge sends a segment's asserts as ONE statement (the fused verdict statement, VerdictBatch), whatever
      *  their messages: a caller's message is a column of its own assert's row inside it (the user, 2026-11-04: "the
      *  'fuse' step to do all assert together in one go"). Measured as the statements a passing body sends. */

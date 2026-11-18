@@ -46,8 +46,15 @@ final class LiteText {
         if (t == Type.Primitive.STRICT_DATE || t == Type.Primitive.DATE) {
             return new SqlExpr.Cast(x, SqlType.Scalar.VARCHAR, SqlExpr.Reason.JUDGE);
         }
-        if (t instanceof Type.PrecisionDecimal) {
-            return Scalars.pureToString(Styled.PRODUCT, Type.Primitive.DECIMAL, x);
+        if (t == Type.Primitive.DECIMAL || t instanceof Type.PrecisionDecimal) {
+            // a value the store read rides the value lane's D-suffixed text carrier (LiteralSpelling.wireValueEgress:
+            // 1D, 0.3D), which lite's text drops, as the host writes the BigDecimal that carrier decodes to (PR #118 fix
+            // round, 2026-11-18, G2: the database judge wrote "got 1D" where the host wrote "got 1 (Decimal)"). RESIDUE
+            // for the presentation program ("one plan, two presentations"): the real cause is the product's store-read
+            // carrier spelling a Decimal as legend-pure's %r form ("1D", DECIMAL_TEXT) inside the product; this strip
+            // touches only that trailing D (AssertBarTest: a sign, a written scale, kept)
+            return SqlExpr.Call.of(SqlFn.REGEXP_REPLACE, Scalars.pureToString(Styled.PRODUCT, Type.Primitive.DECIMAL, x),
+                    new SqlExpr.StringLit("[Dd]$"), new SqlExpr.StringLit(""));
         }
         if (t == Type.Primitive.FLOAT) {
             // a message's Float at full round-trip precision (the orchestrator's ruling, 2026-11-17): FLOAT_SHORTEST_TEXT, the
