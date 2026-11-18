@@ -1434,6 +1434,14 @@ final class ArchitectureTest {
             // legend-engine's JsonBuilder cardinality fold, the edge's form composing it from the wrapped array the
             // lowering hands it (2026-11-18, the lens audit's L6 and item 1: the product composes nothing it never uses)
             "lowering.LoweringForms#oneBare(com.legend.sql.SqlSelect)", "com.legend.edge.EdgeLoweringForms",
+            // the lowering's own helpers the edge's forms compose themselves (2026-11-18, the lens audit's item 1: the
+            // product hands its statement and sites, never upstream's composition): the lean pruning (the edge's PCT
+            // and pure/v1 forms write the product's lean SQL), legend-engine's kept computed projections, and its
+            // EXISTS as joins to the distinct keys
+            "lowering.LoweringForms#dropComputed(com.legend.sql.SqlQuery)", "com.legend.edge.EdgeLoweringForms",
+            "lowering.LoweringForms#existsAsJoins(com.legend.sql.SqlSelect, com.legend.lowering.LoweringForms$ExistsSites)",
+            "com.legend.edge.EdgeLoweringForms",
+            "lowering.LoweringForms#keepComputed(com.legend.sql.SqlQuery)", "com.legend.edge.EdgeLoweringForms",
             "lowering.Styled#forms()", "com.legend.edge.EdgeLoweringForms",
             "lowering.Styled#lists()", "com.legend.edge.EdgeLoweringForms",
             "lowering.Styled#pureOnly()", "com.legend.edge.EdgeLoweringForms",
